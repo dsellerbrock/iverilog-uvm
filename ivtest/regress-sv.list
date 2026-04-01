@@ -581,6 +581,15 @@ sv_class21		normal,-g2009		ivltests
 sv_class22		normal,-g2009		ivltests
 sv_class23		normal,-g2009		ivltests
 sv_class24		normal,-g2009		ivltests
+sv_class_assoc_ternary_null1 normal,-g2009	ivltests
+sv_class_prop_assoc_obj_member1 normal,-g2009	ivltests
+sv_class_call_result_prop1 normal,-g2009	ivltests
+sv_class_queue_last_prop1 normal,-g2009	ivltests
+sv_class_recursive_new_prop1 normal,-g2009	ivltests
+sv_class_super_recursive_assoc1 normal,-g2009	ivltests
+sv_class_prop_darray_assign1 normal,-g2009	ivltests
+sv_class_prop_queue_size1 normal,-g2009	ivltests
+sv_class_static_assoc_string_store1 normal,-g2009	ivltests
 sv_class_compat1	normal,-g2009		ivltests
 sv_class_compat2	normal,-g2009		ivltests
 sv_class_compat_fail1	CE,-g2009		ivltests
@@ -610,6 +619,7 @@ sv_class_method_lt_static2	CE,-g2009	ivltests
 sv_class_method_signed1	normal,-g2009		ivltests
 sv_class_method_signed2	normal,-g2009		ivltests
 sv_class_method_var_init	normal,-g2009	ivltests
+sv_class_method_auto_return1 normal,-g2009	ivltests
 sv_class_prop_shadow1		normal,-g2009	ivltests
 sv_class_prop_shadow2		normal,-g2009	ivltests
 sv_class_property_signed1	normal,-g2009	ivltests
@@ -952,6 +962,7 @@ undef_lval_select_SV	normal,-g2009		ivltests
 union_packed_darray_fail CE,-g2009		ivltests
 union_packed_queue_fail	CE,-g2009		ivltests
 union_packed_uarray_fail CE,-g2009		ivltests
+sv_uarray_locator1	normal,-g2009		ivltests
 unp_array_typedef	normal,-g2005-sv	ivltests
 packed_dims_invalid_class CE,-g2005-sv		ivltests
 packed_dims_invalid_module CE,-g2005-sv		ivltests
@@ -967,6 +978,17 @@ wild_cmp_err2		CE,-g2009		ivltests gold=wild_cmp_err2.gold
 gh161a			normal,-g2012		ivltests
 gh161b			normal,-g2012		ivltests
 pull371b		normal,-g2012		ivltests
+sv_class_static_queue_pop_back normal,-g2012	ivltests
+sv_auto_func_static_local1 normal,-g2012	ivltests
+sv_param_static_local_singleton1 normal,-g2012 ivltests
+sv_unpacked_struct_member_func_assign1 normal,-g2012	ivltests
+sv_unpacked_struct_local_member_assign1 normal,-g2012	ivltests
+sv_class_prop_assoc_struct_lit1 normal,-g2012	ivltests
+sv_queue_struct_member_slice_push1 normal,-g2012	ivltests
+sv_queue_class_member_lval1 normal,-g2012	ivltests
+sv_queue_class_concat_member1 normal,-g2012 ivltests
+sv_uarray_struct_pattern1 normal,-g2012	ivltests
+sv_class_static_assoc_string_literal1 normal,-g2012 ivltests
 
 br_gh175		normal,-g2012		ivltests
 br_gh307		normal,-g2012		ivltests
@@ -989,3 +1011,24 @@ partsel_real_idx	CE,-g2012		ivltests gold=partsel_real_idx.gold
 ipsdownsel_real_idx	CE,-g2012		ivltests gold=ipsdownsel_real_idx.gold
 ipsupsel_real_idx	CE,-g2012		ivltests gold=ipsupsel_real_idx.gold
 real_edges		CE,-g2012		ivltests gold=real_edges.gold
+sv_struct_string_arg_push1 normal,-g2012 ivltests
+sv_queue_virtual_method_dispatch1 normal,-g2012 ivltests
+sv_assoc_obj_methods1 normal,-g2012 ivltests
+sv_assoc_obj_foreach1 normal,-g2012 ivltests
+sv_assoc_obj_foreach_key1 normal,-g2012 ivltests
+sv_assoc_obj_graph_mutation1 normal,-g2012 ivltests
+sv_assoc_nested_member_foreach1 normal,-g2012 ivltests
+sv_class_event_member1 normal,-g2012 ivltests
+sv_class_prop_assoc_find1 normal,-g2012 ivltests
+sv_assoc_queue_class_select1 normal,-g2012 ivltests
+sv_assoc_queue_foreach1 normal,-g2012 ivltests
+sv_scoped_class_static_member1 normal,-g2012 ivltests
+sv_assoc_static_class_foreach1 normal,-g2012 ivltests
+sv_assoc_string_methods1 normal,-g2012 ivltests
+sv_assoc_string_foreach1 normal,-g2012 ivltests
+sv_assoc_string_foreach_key1 normal,-g2012 ivltests
+sv_class_assoc_ref_string_traversal1 normal,-g2012 ivltests
+sv_callf_nonlocal_break1 normal,-g2012 ivltests
+sv_callf_nonlocal_continue1 normal,-g2012 ivltests
+sv_virtual_formal_receiver_dispatch1 normal,-g2012 ivltests
+sv_assoc_typedef_foreach_key1 normal,-g2012 ivltests

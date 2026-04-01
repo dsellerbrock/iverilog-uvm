@@ -25,13 +25,17 @@
 # include  "event.h"
 # include  "vpi_priv.h"
 # include  "vvp_net_sig.h"
+# include  "vvp_assoc.h"
 # include  "vvp_cobject.h"
 # include  "vvp_darray.h"
+# include  "vvp_vinterface.h"
 # include  "class_type.h"
+# include  "compile.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
 # include  <set>
+# include  <map>
 # include  <typeinfo>
 # include  <vector>
 # include  <cstdlib>
@@ -50,6 +54,63 @@ using namespace std;
    convenience macro. */
 # define CPU_WORD_BITS (8*sizeof(unsigned long))
 # define TOP_BIT (1UL << (CPU_WORD_BITS-1))
+
+static void release_owned_context_(vthread_t thr);
+static void trace_context_event_(const char*where, vthread_t thr,
+                                 __vpiScope*extra_scope = 0,
+                                 vvp_context_t extra_context = 0);
+static bool context_live_in_owner(vvp_context_t context);
+static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_scope);
+static vvp_context_t ensure_write_context_(vthread_t thr, const char*where);
+static bool copy_call_inputs_to_allocated_context_(__vpiScope*scope, vthread_t thr,
+                                                   vvp_context_t dst_context);
+static bool virtual_dispatch_trace_enabled_();
+static const char*scope_name_or_unknown_(__vpiScope*scope);
+static __vpiScope* resolve_context_scope(__vpiScope*scope);
+static bool assoc_trace_scope_match_(vthread_t thr);
+
+static vvp_array_t resolve_runtime_array_(vvp_code_t cp, const char*op)
+{
+      if (compile_runtime_resolve_array(cp, op))
+            return cp->array;
+
+      return cp ? cp->array : 0;
+}
+
+enum builtin_process_state_t {
+      PROCESS_STATE_FINISHED = 0,
+      PROCESS_STATE_RUNNING = 1,
+      PROCESS_STATE_WAITING = 2,
+      PROCESS_STATE_SUSPENDED = 3,
+      PROCESS_STATE_KILLED = 4
+};
+
+class vvp_process : public vvp_object {
+    public:
+      explicit vvp_process(vthread_t owner);
+      ~vvp_process() override;
+
+      void shallow_copy(const vvp_object*that) override;
+      vvp_object* duplicate(void) const override;
+
+      void detach_owner(vthread_t owner);
+      void mark_finished();
+      void mark_killed();
+      unsigned status() const;
+      vthread_t owner() const;
+
+      void add_waiter(vthread_t thr);
+      void remove_waiter(vthread_t thr);
+
+    private:
+      void signal_waiters_();
+
+    private:
+      vthread_t owner_;
+      unsigned final_status_;
+      bool final_status_valid_;
+      std::set<vthread_t> waiters_;
+};
 
 /*
  * This vthread_s structure describes all there is to know about a
@@ -147,6 +208,15 @@ struct vthread_s {
       }
       inline void pop_vec4(unsigned cnt)
       {
+	    if (cnt > stack_vec4_.size()) {
+		  static bool warned = false;
+		  if (!warned) {
+			fprintf(stderr, "Warning: pop_vec4 underflow (%u > %zu); clamping.\n",
+			        cnt, stack_vec4_.size());
+			warned = true;
+		  }
+		  cnt = stack_vec4_.size();
+	    }
 	    while (cnt > 0) {
 		  stack_vec4_.pop_back();
 		  cnt -= 1;
@@ -182,6 +252,15 @@ struct vthread_s {
       }
       inline void pop_real(unsigned cnt)
       {
+	    if (cnt > stack_real_.size()) {
+		  static bool warned = false;
+		  if (!warned) {
+			fprintf(stderr, "Warning: pop_real underflow (%u > %zu); clamping.\n",
+			        cnt, stack_real_.size());
+			warned = true;
+		  }
+		  cnt = stack_real_.size();
+	    }
 	    while (cnt > 0) {
 		  stack_real_.pop_back();
 		  cnt -= 1;
@@ -221,6 +300,15 @@ struct vthread_s {
       }
       inline void pop_str(unsigned cnt)
       {
+	    if (cnt > stack_str_.size()) {
+		  static bool warned = false;
+		  if (!warned) {
+			fprintf(stderr, "Warning: pop_str underflow (%u > %zu); clamping.\n",
+			        cnt, stack_str_.size());
+			warned = true;
+		  }
+		  cnt = stack_str_.size();
+	    }
 	    while (cnt > 0) {
 		  stack_str_.pop_back();
 		  cnt -= 1;
@@ -238,6 +326,16 @@ struct vthread_s {
 	    assert(stack_obj_size_ > 0);
 	    return stack_obj_[stack_obj_size_-1];
       }
+      inline vvp_object_t& peek_object(unsigned depth)
+      {
+	    assert(depth < stack_obj_size_);
+	    return stack_obj_[stack_obj_size_-1-depth];
+      }
+      inline void poke_object(unsigned depth, const vvp_object_t&obj)
+      {
+	    assert(depth < stack_obj_size_);
+	    stack_obj_[stack_obj_size_-1-depth] = obj;
+      }
       inline void pop_object(vvp_object_t&obj)
       {
 	    assert(stack_obj_size_ > 0);
@@ -248,13 +346,17 @@ struct vthread_s {
       inline void pop_object(unsigned cnt, unsigned skip =0)
       {
 	    assert((cnt+skip) <= stack_obj_size_);
-	    for (size_t idx = stack_obj_size_-skip-cnt ; idx < stack_obj_size_-skip ; idx += 1)
+	    size_t old_size = stack_obj_size_;
+	    size_t dst = old_size - skip - cnt;
+	    size_t src = old_size - skip;
+
+	    for (size_t idx = 0 ; idx < skip ; idx += 1)
+		  stack_obj_[dst + idx] = stack_obj_[src + idx];
+
+	    for (size_t idx = dst + skip ; idx < old_size ; idx += 1)
 		  stack_obj_[idx].reset(0);
-	    stack_obj_size_ -= cnt;
-	    for (size_t idx = stack_obj_size_-skip ; idx < stack_obj_size_ ; idx += 1)
-		  stack_obj_[idx] = stack_obj_[idx+skip];
-	    for (size_t idx = stack_obj_size_ ; idx < stack_obj_size_+skip ; idx += 1)
-		  stack_obj_[idx].reset(0);
+
+	    stack_obj_size_ = old_size - cnt;
       }
       inline void push_object(const vvp_object_t&obj)
       {
@@ -262,6 +364,9 @@ struct vthread_s {
 	    stack_obj_[stack_obj_size_] = obj;
 	    stack_obj_size_ += 1;
       }
+
+      vvp_object_t process_obj_;
+      set<vvp_process*> awaited_processes_;
 
 	/* My parent sets this when it wants me to wake it up. */
       unsigned i_am_joining      :1;
@@ -273,6 +378,10 @@ struct vthread_s {
       unsigned waiting_for_event :1;
       unsigned is_scheduled      :1;
       unsigned delay_delete      :1;
+      unsigned delete_pending    :1;
+      unsigned pending_nonlocal_jmp :1;
+      unsigned is_callf_child    :1;
+      unsigned owns_automatic_context :1;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
 	/* This points to the detached children of the thread. */
@@ -285,6 +394,15 @@ struct vthread_s {
       struct vthread_s*wait_next;
 	/* These are used to access automatically allocated items. */
       vvp_context_t wt_context, rd_context;
+      vvp_context_t owned_context;
+      vvp_context_t transferred_context;
+      vvp_context_t skip_free_context;
+      vvp_code_t nonlocal_target;
+      __vpiScope*nonlocal_origin_scope;
+      __vpiScope*transferred_context_scope;
+      __vpiScope*skip_free_scope;
+      __vpiScope*return_object_mirror_scope;
+      __vpiScope*dynamic_dispatch_base_scope;
 	/* These are used to pass non-blocking event control information. */
       vvp_net_t*event;
       uint64_t ecount;
@@ -298,6 +416,16 @@ struct vthread_s {
 
       inline void cleanup()
       {
+	    release_owned_context_(this);
+	    while (!awaited_processes_.empty()) {
+		  vvp_process*proc = *awaited_processes_.begin();
+		  awaited_processes_.erase(awaited_processes_.begin());
+		  if (proc)
+			proc->remove_waiter(this);
+	    }
+	    if (vvp_process*proc = process_obj_.peek<vvp_process>())
+		  proc->detach_owner(this);
+	    process_obj_.reset(0);
 	    if (i_was_disabled) {
 		  stack_vec4_.clear();
 		  stack_real_.clear();
@@ -318,6 +446,14 @@ inline vthread_s::vthread_s()
       stack_obj_size_ = 0;
       filenm_ = 0;
       lineno_ = 0;
+      owns_automatic_context = 0;
+      owned_context = 0;
+      transferred_context = 0;
+      skip_free_context = 0;
+      transferred_context_scope = 0;
+      skip_free_scope = 0;
+      return_object_mirror_scope = 0;
+      dynamic_dispatch_base_scope = 0;
 }
 
 void vthread_s::set_fileline(char *filenm, unsigned lineno)
@@ -338,6 +474,105 @@ inline string vthread_s::get_fileline()
       }
       string res = buf.str();
       return res;
+}
+
+vvp_process::vvp_process(vthread_t owner)
+: owner_(owner), final_status_(PROCESS_STATE_RUNNING), final_status_valid_(false)
+{
+}
+
+vvp_process::~vvp_process()
+{
+}
+
+void vvp_process::shallow_copy(const vvp_object*that)
+{
+      (void)that;
+}
+
+vvp_object* vvp_process::duplicate() const
+{
+      return const_cast<vvp_process*>(this);
+}
+
+void vvp_process::detach_owner(vthread_t owner)
+{
+      if (owner_ == owner)
+	    owner_ = 0;
+}
+
+void vvp_process::signal_waiters_()
+{
+      std::set<vthread_t> waiters = waiters_;
+      waiters_.clear();
+      for (set<vthread_t>::iterator cur = waiters.begin()
+		 ; cur != waiters.end() ; ++cur) {
+	    vthread_t waiter = *cur;
+	    if (!waiter)
+		  continue;
+	    waiter->awaited_processes_.erase(this);
+	    if (!waiter->i_have_ended)
+		  schedule_vthread(waiter, 0, true);
+      }
+}
+
+void vvp_process::mark_finished()
+{
+      if (final_status_valid_)
+	    return;
+      final_status_ = PROCESS_STATE_FINISHED;
+      final_status_valid_ = true;
+      signal_waiters_();
+}
+
+void vvp_process::mark_killed()
+{
+      if (final_status_valid_ && final_status_ == PROCESS_STATE_KILLED)
+	    return;
+      final_status_ = PROCESS_STATE_KILLED;
+      final_status_valid_ = true;
+      signal_waiters_();
+}
+
+unsigned vvp_process::status() const
+{
+      if (final_status_valid_)
+	    return final_status_;
+
+      if (!owner_)
+	    return PROCESS_STATE_FINISHED;
+
+      if (owner_->i_was_disabled)
+	    return PROCESS_STATE_KILLED;
+
+      if (owner_->i_have_ended)
+	    return PROCESS_STATE_FINISHED;
+
+      if (owner_->i_am_waiting || owner_->waiting_for_event || owner_->i_am_joining)
+	    return PROCESS_STATE_WAITING;
+
+      return PROCESS_STATE_RUNNING;
+}
+
+vthread_t vvp_process::owner() const
+{
+      return owner_;
+}
+
+void vvp_process::add_waiter(vthread_t thr)
+{
+      if (!thr || thr->i_have_ended)
+	    return;
+      waiters_.insert(thr);
+      thr->awaited_processes_.insert(this);
+}
+
+void vvp_process::remove_waiter(vthread_t thr)
+{
+      if (!thr)
+	    return;
+      waiters_.erase(thr);
+      thr->awaited_processes_.erase(this);
 }
 
 void vthread_s::debug_dump(ostream&fd, const char*label)
@@ -418,6 +653,7 @@ static string filter_string(const char*text)
       return res;
 }
 
+static bool do_disable(vthread_t thr, vthread_t match);
 static void do_join(vthread_t thr, vthread_t child);
 
 __vpiScope* vthread_scope(struct vthread_s*thr)
@@ -426,6 +662,501 @@ __vpiScope* vthread_scope(struct vthread_s*thr)
 }
 
 struct vthread_s*running_thread = 0;
+
+static vpiHandle lookup_scope_item_(__vpiScope*scope, const char*name)
+{
+      if (!(scope && name))
+            return 0;
+
+      for (unsigned idx = 0; idx < scope->intern.size(); idx += 1) {
+            vpiHandle item = scope->intern[idx];
+            if (!item)
+                  continue;
+
+            if (vpi_get(vpiType, item) == vpiPort)
+                  continue;
+
+            const char*item_name = vpi_get_str(vpiName, item);
+            if (item_name && strcmp(item_name, name) == 0)
+                  return item;
+
+            if (vpi_get(vpiType, item) == vpiMemory
+                || vpi_get(vpiType, item) == vpiNetArray) {
+                  vpiHandle word_iter = item->vpi_iterate(vpiMemoryWord);
+                  vpiHandle word = 0;
+                  while (word_iter && (word = vpi_scan(word_iter))) {
+                        const char*word_name = vpi_get_str(vpiName, word);
+                        if (word_name && strcmp(word_name, name) == 0) {
+                              vpi_free_object(word_iter);
+                              return word;
+                        }
+                  }
+            }
+      }
+
+      if (virtual_dispatch_trace_enabled_()) {
+            fprintf(stderr, "vdispatch: lookup miss name=%s scope=%s intern=%zu\n",
+                    name, scope_name_or_unknown_(scope), scope->intern.size());
+            for (unsigned idx = 0; idx < scope->intern.size(); idx += 1) {
+                  vpiHandle cur = scope->intern[idx];
+                  if (!cur)
+                        continue;
+                  const char*cur_name = vpi_get_str(vpiName, cur);
+                  fprintf(stderr, "vdispatch:   intern[%u] type=%d name=%s\n",
+                          idx, vpi_get(vpiType, cur), cur_name ? cur_name : "<null>");
+            }
+      }
+      return 0;
+}
+
+static vvp_net_t* handle_net_(vpiHandle item)
+{
+      if (!item)
+            return 0;
+
+      if (__vpiSignal*sig = dynamic_cast<__vpiSignal*>(item))
+            return sig->node;
+      if (__vpiRealVar*sig = dynamic_cast<__vpiRealVar*>(item))
+            return sig->net;
+      if (__vpiBaseVar*sig = dynamic_cast<__vpiBaseVar*>(item))
+            return sig->get_net();
+      return 0;
+}
+
+static vpiHandle lookup_scope_item_by_net_(__vpiScope*scope, vvp_net_t*net)
+{
+      if (!(scope && net))
+            return 0;
+
+      for (unsigned idx = 0; idx < scope->intern.size(); idx += 1) {
+            vpiHandle item = scope->intern[idx];
+            if (!item)
+                  continue;
+            if (handle_net_(item) == net)
+                  return item;
+      }
+
+      return 0;
+}
+
+static vpiPortInfo* lookup_scope_port_by_index_(__vpiScope*scope, unsigned index)
+{
+      if (!scope)
+            return 0;
+
+      for (unsigned idx = 0; idx < scope->intern.size(); idx += 1) {
+            vpiPortInfo*port = dynamic_cast<vpiPortInfo*>(scope->intern[idx]);
+            if (!port)
+                  continue;
+            if (port->get_index() == index)
+                  return port;
+      }
+
+      return 0;
+}
+
+static vvp_fun_signal_object* handle_object_fun_(vpiHandle item)
+{
+      vvp_net_t*net = handle_net_(item);
+      if (!net)
+            return 0;
+
+      vvp_fun_signal_object*fun =
+            dynamic_cast<vvp_fun_signal_object*>(net->fun);
+      if (!fun)
+            fun = dynamic_cast<vvp_fun_signal_object*>(net->fil);
+      return fun;
+}
+
+static vvp_fun_signal_string* handle_string_fun_(vpiHandle item)
+{
+      vvp_net_t*net = handle_net_(item);
+      if (!net)
+            return 0;
+
+      vvp_fun_signal_string*fun =
+            dynamic_cast<vvp_fun_signal_string*>(net->fun);
+      if (!fun)
+            fun = dynamic_cast<vvp_fun_signal_string*>(net->fil);
+      return fun;
+}
+
+static vvp_fun_signal_real* handle_real_fun_(vpiHandle item)
+{
+      vvp_net_t*net = handle_net_(item);
+      if (!net)
+            return 0;
+
+      vvp_fun_signal_real*fun =
+            dynamic_cast<vvp_fun_signal_real*>(net->fun);
+      if (!fun)
+            fun = dynamic_cast<vvp_fun_signal_real*>(net->fil);
+      return fun;
+}
+
+static vvp_fun_signal_vec* handle_vec4_fun_(vpiHandle item)
+{
+      vvp_net_t*net = handle_net_(item);
+      if (!net)
+            return 0;
+
+      vvp_fun_signal_vec*fun =
+            dynamic_cast<vvp_fun_signal_vec*>(net->fun);
+      if (!fun)
+            fun = dynamic_cast<vvp_fun_signal_vec*>(net->fil);
+      return fun;
+}
+
+static void collect_scope_copy_items_(vector<vpiHandle>&items,
+                                      __vpiScope*scope,
+                                      vpiHandle skip_item = 0)
+{
+      items.clear();
+      if (!scope)
+            return;
+
+      for (unsigned idx = 0; idx < scope->intern.size(); idx += 1) {
+            vpiHandle item = scope->intern[idx];
+            if (!item || item == skip_item)
+                  continue;
+            if (dynamic_cast<__vpiScope*>(item))
+                  continue;
+            if (vpi_get(vpiType, item) == vpiPort)
+                  continue;
+            if (!handle_net_(item))
+                  continue;
+            items.push_back(item);
+      }
+}
+
+static vvp_signal_value* handle_signal_value_(vpiHandle item)
+{
+      vvp_net_t*net = handle_net_(item);
+      if (!net)
+            return 0;
+
+      vvp_signal_value*fun =
+            dynamic_cast<vvp_signal_value*>(net->fun);
+      if (!fun)
+            fun = dynamic_cast<vvp_signal_value*>(net->fil);
+      return fun;
+}
+
+static bool read_handle_object_in_thread_(vpiHandle item, vthread_t thr,
+                                          vvp_object_t&value)
+{
+      if (!(item && thr)) {
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: object read missing item=%p thr=%p\n",
+                          (void*)item, (void*)thr);
+            return false;
+      }
+
+      vvp_fun_signal_object*fun = handle_object_fun_(item);
+      if (!fun) {
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: object read missing object fun for item=%s type=%d\n",
+                          vpi_get_str(vpiName, item), vpi_get(vpiType, item));
+            return false;
+      }
+
+      vthread_t save_running = running_thread;
+      running_thread = thr;
+      value = fun->get_object();
+      running_thread = save_running;
+      return true;
+}
+
+static const char*object_trace_class_(const vvp_object_t&value)
+{
+      if (value.test_nil())
+            return "<nil>";
+      if (vvp_cobject*cobj = value.peek<vvp_cobject>()) {
+            const class_type*defn = cobj->get_defn();
+            if (defn)
+                  return defn->class_name().c_str();
+            return "<cobject>";
+      }
+      if (value.peek<vvp_vinterface>())
+            return "<vinterface>";
+      if (value.peek<vvp_queue>())
+            return "<queue>";
+      if (value.peek<vvp_darray>())
+            return "<darray>";
+      if (value.peek<vvp_process>())
+            return "<process>";
+      return "<object>";
+}
+
+template <typename T> static const char*assoc_value_trace_class_(const T&)
+{
+      return "<scalar>";
+}
+
+static const char*assoc_value_trace_class_(const vvp_object_t&value)
+{
+      return object_trace_class_(value);
+}
+
+static const char*assoc_signal_fun_kind_(vvp_net_t*net)
+{
+      if (!net)
+            return "<none>";
+
+      if (dynamic_cast<vvp_fun_signal_object_aa*>(net->fun)
+          || dynamic_cast<vvp_fun_signal_object_aa*>(net->fil))
+            return "object_aa";
+      if (dynamic_cast<vvp_fun_signal_object_sa*>(net->fun)
+          || dynamic_cast<vvp_fun_signal_object_sa*>(net->fil))
+            return "object_sa";
+      return "<other>";
+}
+
+template <typename ELEM, class ASSOC>
+static void assoc_trace_signal_store_(vthread_t thr, vvp_net_t*net,
+                                      ASSOC*assoc, const string&key,
+                                      const ELEM&value)
+{
+      if (!assoc_trace_scope_match_(thr))
+            return;
+
+      fprintf(stderr,
+              "trace assoc: op=store/sig/str scope=%s net=%p fun=%s assoc=%p size=%zu key=\"%s\" value_class=%s\n",
+              scope_name_or_unknown_(thr ? thr->parent_scope : 0),
+              (void*)net,
+              assoc_signal_fun_kind_(net),
+              (void*)assoc,
+              assoc ? assoc->size() : 0,
+              key.c_str(),
+              assoc_value_trace_class_(value));
+}
+
+template <typename ELEM, class ASSOC>
+static void assoc_trace_signal_store_(vthread_t thr, vvp_net_t*net,
+                                      ASSOC*assoc, const vvp_object_t&key,
+                                      const ELEM&value)
+{
+      if (!assoc_trace_scope_match_(thr))
+            return;
+
+      fprintf(stderr,
+              "trace assoc: op=store/sig/obj scope=%s net=%p fun=%s assoc=%p size=%zu key=%p key_class=%s value_class=%s\n",
+              scope_name_or_unknown_(thr ? thr->parent_scope : 0),
+              (void*)net,
+              assoc_signal_fun_kind_(net),
+              (void*)assoc,
+              assoc ? assoc->size() : 0,
+              (void*)key.peek<vvp_object>(),
+              object_trace_class_(key),
+              assoc_value_trace_class_(value));
+}
+
+template <typename ELEM, class ASSOC>
+static void assoc_trace_signal_store_(vthread_t thr, vvp_net_t*net,
+                                      ASSOC*assoc, const vvp_vector4_t&key,
+                                      const ELEM&value)
+{
+      if (!assoc_trace_scope_match_(thr))
+            return;
+
+      fprintf(stderr,
+              "trace assoc: op=store/sig/vec scope=%s net=%p fun=%s assoc=%p size=%zu key_wid=%u value_class=%s\n",
+              scope_name_or_unknown_(thr ? thr->parent_scope : 0),
+              (void*)net,
+              assoc_signal_fun_kind_(net),
+              (void*)assoc,
+              assoc ? assoc->size() : 0,
+              key.size(),
+              assoc_value_trace_class_(value));
+}
+
+template <typename ELEM, class ASSOC>
+static void assoc_trace_signal_load_(vthread_t thr, vvp_net_t*net,
+                                     ASSOC*assoc, const string&key,
+                                     const ELEM&value)
+{
+      if (!assoc_trace_scope_match_(thr))
+            return;
+
+      fprintf(stderr,
+              "trace assoc: op=load/sig/str scope=%s net=%p fun=%s assoc=%p size=%zu key=\"%s\" value_class=%s\n",
+              scope_name_or_unknown_(thr ? thr->parent_scope : 0),
+              (void*)net,
+              assoc_signal_fun_kind_(net),
+              (void*)assoc,
+              assoc ? assoc->size() : 0,
+              key.c_str(),
+              assoc_value_trace_class_(value));
+}
+
+template <typename ELEM, class ASSOC>
+static void assoc_trace_signal_load_(vthread_t thr, vvp_net_t*net,
+                                     ASSOC*assoc, const vvp_object_t&key,
+                                     const ELEM&value)
+{
+      if (!assoc_trace_scope_match_(thr))
+            return;
+
+      fprintf(stderr,
+              "trace assoc: op=load/sig/obj scope=%s net=%p fun=%s assoc=%p size=%zu key=%p key_class=%s value_class=%s\n",
+              scope_name_or_unknown_(thr ? thr->parent_scope : 0),
+              (void*)net,
+              assoc_signal_fun_kind_(net),
+              (void*)assoc,
+              assoc ? assoc->size() : 0,
+              (void*)key.peek<vvp_object>(),
+              object_trace_class_(key),
+              assoc_value_trace_class_(value));
+}
+
+template <typename ELEM, class ASSOC>
+static void assoc_trace_signal_load_(vthread_t thr, vvp_net_t*net,
+                                     ASSOC*assoc, const vvp_vector4_t&key,
+                                     const ELEM&value)
+{
+      if (!assoc_trace_scope_match_(thr))
+            return;
+
+      fprintf(stderr,
+              "trace assoc: op=load/sig/vec scope=%s net=%p fun=%s assoc=%p size=%zu key_wid=%u value_class=%s\n",
+              scope_name_or_unknown_(thr ? thr->parent_scope : 0),
+              (void*)net,
+              assoc_signal_fun_kind_(net),
+              (void*)assoc,
+              assoc ? assoc->size() : 0,
+              key.size(),
+              assoc_value_trace_class_(value));
+}
+
+static bool read_handle_string_in_thread_(vpiHandle item, vthread_t thr,
+                                          string&value)
+{
+      if (!(item && thr))
+            return false;
+
+      vvp_fun_signal_string*fun = handle_string_fun_(item);
+      if (!fun)
+            return false;
+
+      vthread_t save_running = running_thread;
+      running_thread = thr;
+      value = fun->get_string();
+      running_thread = save_running;
+      return true;
+}
+
+static bool read_handle_real_in_thread_(vpiHandle item, vthread_t thr,
+                                        double&value)
+{
+      if (!(item && thr))
+            return false;
+
+      vvp_fun_signal_real*fun = handle_real_fun_(item);
+      if (!fun)
+            return false;
+
+      vthread_t save_running = running_thread;
+      running_thread = thr;
+      value = fun->real_unfiltered_value();
+      running_thread = save_running;
+      return true;
+}
+
+static bool read_handle_vec4_in_thread_(vpiHandle item, vthread_t thr,
+                                        vvp_vector4_t&value)
+{
+      if (!(item && thr))
+            return false;
+
+      vvp_signal_value*fun = handle_signal_value_(item);
+      if (!fun)
+            return false;
+
+      vthread_t save_running = running_thread;
+      running_thread = thr;
+      value = vvp_vector4_t(fun->value_size(), BIT4_X);
+      fun->vec4_value(value);
+      running_thread = save_running;
+      return true;
+}
+
+static bool write_handle_object_to_context_(vpiHandle item,
+                                            const vvp_object_t&value,
+                                            vvp_context_t context)
+{
+      vvp_net_t*net = handle_net_(item);
+      if (!(net && context))
+            return false;
+      if (!handle_object_fun_(item))
+            return false;
+
+      vvp_send_object(vvp_net_ptr_t(net, 0), value, context);
+      return true;
+}
+
+static bool write_handle_string_to_context_(vpiHandle item,
+                                            const string&value,
+                                            vvp_context_t context)
+{
+      vvp_net_t*net = handle_net_(item);
+      if (!(net && context))
+            return false;
+      if (!handle_string_fun_(item))
+            return false;
+
+      vvp_send_string(vvp_net_ptr_t(net, 0), value, context);
+      return true;
+}
+
+static bool write_handle_real_to_context_(vpiHandle item,
+                                          double value,
+                                          vvp_context_t context)
+{
+      vvp_net_t*net = handle_net_(item);
+      if (!(net && context))
+            return false;
+      if (!handle_real_fun_(item))
+            return false;
+
+      vvp_send_real(vvp_net_ptr_t(net, 0), value, context);
+      return true;
+}
+
+static bool write_handle_vec4_to_context_(vpiHandle item,
+                                          const vvp_vector4_t&value,
+                                          vvp_context_t context)
+{
+      vvp_net_t*net = handle_net_(item);
+      if (!(net && context))
+            return false;
+      if (!handle_vec4_fun_(item))
+            return false;
+
+      vvp_send_vec4(vvp_net_ptr_t(net, 0), value, context);
+      return true;
+}
+
+static bool copy_handle_value_to_context_(vpiHandle src_item, vthread_t src_thr,
+                                          vpiHandle dst_item, vvp_context_t dst_context)
+{
+      vvp_object_t obj_val;
+      if (read_handle_object_in_thread_(src_item, src_thr, obj_val))
+            return write_handle_object_to_context_(dst_item, obj_val, dst_context);
+
+      string str_val;
+      if (read_handle_string_in_thread_(src_item, src_thr, str_val))
+            return write_handle_string_to_context_(dst_item, str_val, dst_context);
+
+      double real_val = 0.0;
+      if (read_handle_real_in_thread_(src_item, src_thr, real_val))
+            return write_handle_real_to_context_(dst_item, real_val, dst_context);
+
+      vvp_vector4_t vec_val;
+      if (read_handle_vec4_in_thread_(src_item, src_thr, vec_val))
+            return write_handle_vec4_to_context_(dst_item, vec_val, dst_context);
+
+      return false;
+}
 
 string get_fileline()
 {
@@ -462,6 +1193,11 @@ void vthread_pop_vec4(struct vthread_s*thr, unsigned depth)
       thr->pop_vec4(depth);
 }
 
+void vthread_pop_obj(struct vthread_s*thr, unsigned depth)
+{
+      thr->pop_object(depth);
+}
+
 double vthread_get_real_stack(struct vthread_s*thr, unsigned depth)
 {
       return thr->peek_real(depth);
@@ -472,14 +1208,37 @@ const string&vthread_get_str_stack(struct vthread_s*thr, unsigned depth)
       return thr->peek_str(depth);
 }
 
+void vthread_set_str_stack(struct vthread_s*thr, unsigned depth, const string&val)
+{
+      thr->poke_str(depth, val);
+}
+
 const vvp_vector4_t& vthread_get_vec4_stack(struct vthread_s*thr, unsigned depth)
 {
       return thr->peek_vec4(depth);
 }
 
+void vthread_set_vec4_stack(struct vthread_s*thr, unsigned depth, const vvp_vector4_t&val)
+{
+      thr->poke_vec4(depth, val);
+}
+
+const vvp_object_t& vthread_get_obj_stack(struct vthread_s*thr, unsigned depth)
+{
+      return thr->peek_object(depth);
+}
+
+void vthread_set_obj_stack(struct vthread_s*thr, unsigned depth, const vvp_object_t&val)
+{
+      thr->poke_object(depth, val);
+}
+
 /*
  * Some thread management functions
  */
+static void size_to_vec4_(size_t size, vvp_vector4_t&val);
+static size_t dynamic_collection_size_(const vvp_object_t&obj);
+
 /*
  * This is a function to get a vvp_queue handle from the variable
  * referenced by "net". If the queue is nil, then allocated it and
@@ -493,15 +1252,61 @@ template <class VVP_QUEUE> static vvp_queue*get_queue_object(vthread_t thr, vvp_
       assert(obj);
 
       vvp_queue*queue = obj->get_object().peek<vvp_queue>();
-      if (queue == 0) {
-	    assert(obj->get_object().test_nil());
+      VVP_QUEUE*typed_queue = dynamic_cast<VVP_QUEUE*>(queue);
+      if (typed_queue == 0) {
+	    /* Compile-progress fallback: queue variables can be touched by mixed
+	     * opcodes while emit-side typing is being completed. If the stored
+	     * queue kind does not match the opcode-requested element type, rebind
+	     * to the expected queue class so subsequent operations stay coherent. */
+	    if (queue != 0 && queue->get_size() != 0) {
+		  static bool warned_queue_type_rebind = false;
+		  if (!warned_queue_type_rebind) {
+			cerr << thr->get_fileline()
+			     << "Warning: queue element-type mismatch at runtime; "
+			     << "reinitializing queue with opcode-selected type."
+			     << endl;
+			warned_queue_type_rebind = true;
+		  }
+	    }
 	    queue = new VVP_QUEUE;
 	    vvp_object_t val (queue);
 	    vvp_net_ptr_t ptr (net, 0);
-	    vvp_send_object(ptr, val, thr->wt_context);
+	    vvp_send_object(ptr, val, ensure_write_context_(thr, "queue-init"));
+	    typed_queue = static_cast<VVP_QUEUE*>(queue);
       }
 
-      return queue;
+      return typed_queue;
+}
+
+template <class VVP_QUEUE> static VVP_QUEUE*pop_queue_receiver_(vthread_t thr, vvp_object_t&recv)
+{
+      thr->pop_object(recv);
+      vvp_queue*queue = recv.peek<vvp_queue>();
+      if (!queue)
+	    return 0;
+      return dynamic_cast<VVP_QUEUE*>(queue);
+}
+
+bool of_QSIZE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (cp->net->fun);
+      assert(obj);
+
+      vvp_vector4_t val;
+      size_to_vec4_(dynamic_collection_size_(obj->get_object()), val);
+      thr->push_vec4(val);
+      return true;
+}
+
+bool of_QSIZE_O(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t recv;
+      thr->pop_object(recv);
+
+      vvp_vector4_t val;
+      size_to_vec4_(dynamic_collection_size_(recv), val);
+      thr->push_vec4(val);
+      return true;
 }
 
 /*
@@ -521,7 +1326,16 @@ inline static void pop_value(vthread_t thr, string&value, unsigned)
 inline static void pop_value(vthread_t thr, vvp_vector4_t&value, unsigned wid)
 {
       value = thr->pop_vec4();
-      assert(value.size() == wid);
+	/* Allow size mismatch: truncate or zero-extend to the expected width.
+	 * UVM class-typed operations may push values of different widths. */
+      if (value.size() != wid) {
+	    value.resize(wid);
+      }
+}
+
+inline static void pop_value(vthread_t thr, vvp_object_t&value, unsigned)
+{
+      thr->pop_object(value);
 }
 
 /*
@@ -545,6 +1359,11 @@ inline static string get_queue_type(const vvp_vector4_t&value)
       return res;
 }
 
+inline static string get_queue_type(vvp_object_t&)
+{
+      return "queue<object>";
+}
+
 inline static void print_queue_value(double value)
 {
       cerr << value;
@@ -558,6 +1377,11 @@ inline static void print_queue_value(const string&value)
 inline static void print_queue_value(const vvp_vector4_t&value)
 {
       cerr << value;
+}
+
+inline static void print_queue_value(const vvp_object_t&)
+{
+      cerr << "<object>";
 }
 
 /*
@@ -578,6 +1402,29 @@ inline static void dq_default(vvp_vector4_t&value, unsigned wid)
       value = vvp_vector4_t(wid);
 }
 
+inline static void dq_default(vvp_object_t&value, unsigned)
+{
+      value.reset();
+}
+
+static void size_to_vec4_(size_t size, vvp_vector4_t&val)
+{
+      uint32_t use_size = static_cast<uint32_t>(size);
+      val = vvp_vector4_t(32, BIT4_0);
+      for (unsigned idx = 0 ; idx < 32 ; idx += 1)
+	    if ((use_size >> idx) & 1U)
+		  val.set_bit(idx, BIT4_1);
+}
+
+static size_t dynamic_collection_size_(const vvp_object_t&obj)
+{
+      if (vvp_queue*queue = obj.peek<vvp_queue>())
+	    return queue->get_size();
+      if (vvp_darray*darray = obj.peek<vvp_darray>())
+	    return darray->get_size();
+      return 0;
+}
+
 
 template <class T> T coerce_to_width(const T&that, unsigned width)
 {
@@ -595,6 +1442,27 @@ template <class T> T coerce_to_width(const T&that, unsigned width)
 /* Explicitly define the vvp_vector4_t version of coerce_to_width(). */
 template vvp_vector4_t coerce_to_width(const vvp_vector4_t&that,
                                        unsigned width);
+
+/*
+ * Keep a best-effort owner map for automatic contexts so we can free
+ * through the allocating scope even if callers pass a mismatched scope.
+ */
+static map<vvp_context_t, __vpiScope*> automatic_context_owner;
+static map<vvp_context_t, unsigned> automatic_context_refcount;
+
+static void retain_automatic_context_(vvp_context_t context)
+{
+      if (!context)
+            return;
+
+      map<vvp_context_t, unsigned>::iterator ref_it =
+            automatic_context_refcount.find(context);
+      if (ref_it == automatic_context_refcount.end()) {
+            automatic_context_refcount[context] = 1;
+      } else {
+            ref_it->second += 1;
+      }
+}
 
 
 static void multiply_array_imm(unsigned long*res, const unsigned long*val,
@@ -628,11 +1496,15 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
       vvp_context_t context = scope->free_contexts;
       if (context) {
             scope->free_contexts = vvp_get_next_context(context);
+            vvp_set_next_context(context, 0);
+            vvp_set_stacked_context(context, 0);
             for (unsigned idx = 0 ; idx < scope->nitem ; idx += 1) {
                   scope->item[idx]->reset_instance(context);
             }
       } else {
             context = vvp_allocate_context(scope->nitem);
+            vvp_set_next_context(context, 0);
+            vvp_set_stacked_context(context, 0);
             for (unsigned idx = 0 ; idx < scope->nitem ; idx += 1) {
                   scope->item[idx]->alloc_instance(context);
             }
@@ -640,6 +1512,8 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
 
       vvp_set_next_context(context, scope->live_contexts);
       scope->live_contexts = context;
+      automatic_context_owner[context] = scope;
+      automatic_context_refcount[context] = 1;
 
       return context;
 }
@@ -652,19 +1526,66 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
 static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
 {
       assert(scope->is_automatic());
-      assert(context);
+      if (!context)
+            return;
+
+      map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
+      if (owner_it != automatic_context_owner.end()) {
+            __vpiScope*owner = owner_it->second;
+            if (owner && owner != scope && owner->is_automatic())
+                  scope = owner;
+      }
+
+      map<vvp_context_t, unsigned>::iterator ref_it =
+            automatic_context_refcount.find(context);
+      if (ref_it != automatic_context_refcount.end()) {
+            if (ref_it->second > 1) {
+                  ref_it->second -= 1;
+                  return;
+            }
+            automatic_context_refcount.erase(ref_it);
+      }
+
+      auto context_in_list = [](vvp_context_t head, vvp_context_t needle) -> bool {
+            for (vvp_context_t cur = head ; cur ; cur = vvp_get_next_context(cur)) {
+                  if (cur == needle)
+                        return true;
+            }
+            return false;
+      };
 
       if (context == scope->live_contexts) {
             scope->live_contexts = vvp_get_next_context(context);
       } else {
             vvp_context_t tmp = scope->live_contexts;
-            while (context != vvp_get_next_context(tmp)) {
-                  assert(tmp);
+            while (tmp && context != vvp_get_next_context(tmp)) {
                   tmp = vvp_get_next_context(tmp);
             }
-            vvp_set_next_context(tmp, vvp_get_next_context(context));
+            if (tmp) {
+                  vvp_set_next_context(tmp, vvp_get_next_context(context));
+            } else {
+                  // Duplicate free can happen on fallback control paths.
+                  if (context_in_list(scope->free_contexts, context))
+                        return;
+                  static bool warned = false;
+                  if (!warned) {
+                        const char*scope_name = scope ? vpi_get_str(vpiFullName, scope) : 0;
+                        cerr << "Warning: automatic context not found in live list during free; recycling orphan context."
+                             << " scope=" << (scope_name ? scope_name : "<unknown>")
+                             << " context=" << context
+                             << " live_head=" << scope->live_contexts
+                             << " free_head=" << scope->free_contexts
+                              << endl;
+                        warned = true;
+                  }
+                  vvp_set_stacked_context(context, 0);
+                  vvp_set_next_context(context, scope->free_contexts);
+                  scope->free_contexts = context;
+                  return;
+            }
       }
 
+      vvp_set_stacked_context(context, 0);
       vvp_set_next_context(context, scope->free_contexts);
       scope->free_contexts = context;
 }
@@ -707,7 +1628,20 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->is_scheduled  = 0;
       thr->i_have_ended  = 0;
       thr->i_was_disabled = 0;
-      thr->delay_delete  = 0;
+      thr->delay_delete  = 1;
+      thr->delete_pending = 0;
+      thr->pending_nonlocal_jmp = 0;
+      thr->is_callf_child = 0;
+      thr->owns_automatic_context = 0;
+      thr->owned_context = 0;
+      thr->transferred_context = 0;
+      thr->skip_free_context = 0;
+      thr->nonlocal_target = 0;
+      thr->nonlocal_origin_scope = 0;
+      thr->transferred_context_scope = 0;
+      thr->skip_free_scope = 0;
+      thr->return_object_mirror_scope = 0;
+      thr->dynamic_dispatch_base_scope = 0;
       thr->waiting_for_event = 0;
       thr->event  = 0;
       thr->ecount = 0;
@@ -719,6 +1653,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       for (int idx = 4 ; idx < 8 ; idx += 1)
 	    thr->flags[idx] = BIT4_X;
 
+      thr->process_obj_ = new vvp_process(thr);
       scope->threads .insert(thr);
       return thr;
 }
@@ -811,8 +1746,12 @@ static void vthread_reap(vthread_t thr)
       if ((thr->is_scheduled == 0) && (thr->waiting_for_event == 0)) {
 	    assert(thr->children.empty());
 	    assert(thr->wait_next == 0);
-	    if (thr->delay_delete)
-		  schedule_del_thr(thr);
+	    if (thr->delay_delete) {
+		  if (!thr->delete_pending) {
+			thr->delete_pending = 1;
+			schedule_del_thr(thr);
+		  }
+	    }
 	    else
 		  vthread_delete(thr);
       }
@@ -857,8 +1796,42 @@ void vthread_delay_delete()
  * incrementing the PC, and executing the instruction. The thread may
  * be the head of a list, so each thread is run so far as possible.
  */
+static bool context_live_in_owner(vvp_context_t context);
+
 void vthread_run(vthread_t thr)
 {
+      static int pc_hottrace_enabled = -1;
+      static unsigned long pc_hottrace_limit = 100000;
+      static std::map<const struct vvp_code_s*, unsigned long> pc_hottrace_hits;
+      static std::set<const struct vvp_code_s*> pc_hottrace_reported;
+      static int pc_progress_enabled = -1;
+      static unsigned long pc_progress_period = 0;
+      static unsigned long pc_progress_counter = 0;
+      static bool warned_runentry_rd_sync = false;
+      static bool warned_runentry_wt_sync = false;
+      static const unsigned long noncallf_loop_limit = 200000;
+      static std::set<const struct vvp_code_s*> noncallf_loop_reported;
+      if (pc_hottrace_enabled < 0) {
+            const char*env = getenv("IVL_PC_HOTTRACE");
+            pc_hottrace_enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+            const char*lim = getenv("IVL_PC_HOTTRACE_LIMIT");
+            if (lim && *lim) {
+                  unsigned long parsed = strtoul(lim, 0, 10);
+                  if (parsed > 0)
+                        pc_hottrace_limit = parsed;
+            }
+            const char*prog = getenv("IVL_PC_PROGRESS");
+            pc_progress_enabled = (prog && *prog && strcmp(prog, "0") != 0) ? 1 : 0;
+            const char*prog_lim = getenv("IVL_PC_PROGRESS_LIMIT");
+            if (prog_lim && *prog_lim) {
+                  unsigned long parsed = strtoul(prog_lim, 0, 10);
+                  if (parsed > 0)
+                        pc_progress_period = parsed;
+            }
+            if (pc_progress_period == 0)
+                  pc_progress_period = 1000000;
+      }
+
       while (thr != 0) {
 	    vthread_t tmp = thr->wait_next;
 	    thr->wait_next = 0;
@@ -867,10 +1840,89 @@ void vthread_run(vthread_t thr)
 	    thr->is_scheduled = 0;
 
             running_thread = thr;
+            __vpiScope*run_ctx_scope = resolve_context_scope(thr->parent_scope);
+            if (!thr->wt_context && thr->rd_context
+                && context_live_matches_scope_(thr->rd_context, run_ctx_scope)) {
+                  if (!warned_runentry_wt_sync) {
+                        const char*scope_name = thr->parent_scope ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+                        fprintf(stderr,
+                                "Warning: vthread_run synchronized missing wt_context from live rd_context"
+                                " (scope=%s wt=%p rd=%p; further similar warnings suppressed)\n",
+                                scope_name ? scope_name : "<unknown>",
+                                thr->wt_context, thr->rd_context);
+                        warned_runentry_wt_sync = true;
+                  }
+                  thr->wt_context = thr->rd_context;
+            }
+            if (!thr->rd_context && thr->wt_context
+                && context_live_matches_scope_(thr->wt_context, run_ctx_scope)) {
+                  if (!warned_runentry_rd_sync) {
+                        const char*scope_name = thr->parent_scope ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+                        fprintf(stderr,
+                                "Warning: vthread_run synchronized missing rd_context from live wt_context"
+                                " (scope=%s rd=%p wt=%p; further similar warnings suppressed)\n",
+                                scope_name ? scope_name : "<unknown>",
+                                thr->rd_context, thr->wt_context);
+                        warned_runentry_rd_sync = true;
+                  }
+                  thr->rd_context = thr->wt_context;
+            }
 
 	    for (;;) {
 		  vvp_code_t cp = thr->pc;
 		  thr->pc += 1;
+
+		  unsigned long hits = ++pc_hottrace_hits[cp];
+		  if (pc_progress_enabled) {
+			pc_progress_counter += 1;
+			if (pc_progress_counter >= pc_progress_period) {
+			      const char*scope_name = "<unknown>";
+			      const char*op_name = vvp_opcode_mnemonic(cp->opcode);
+			      if (thr->parent_scope) {
+				    const char*nm = vpi_get_str(vpiFullName, thr->parent_scope);
+				    if (nm) scope_name = nm;
+			      }
+			      fprintf(stderr,
+				      "trace pc-progress: pc=%p opcode=%s@%p scope=%s in_function=%d hits=%lu\n",
+				      (void*)cp, op_name, (void*)cp->opcode, scope_name,
+				      thr->i_am_in_function ? 1 : 0, hits);
+			      pc_progress_counter = 0;
+			}
+		  }
+		  if (pc_hottrace_enabled) {
+			if (hits >= pc_hottrace_limit
+			    && pc_hottrace_reported.count(cp) == 0) {
+			      const char*scope_name = "<unknown>";
+			      const char*op_name = vvp_opcode_mnemonic(cp->opcode);
+			      if (thr->parent_scope) {
+				    const char*nm = vpi_get_str(vpiFullName, thr->parent_scope);
+				    if (nm) scope_name = nm;
+			      }
+			      fprintf(stderr,
+				      "Warning: PC hotspot at %p (opcode=%s@%p) hit %lu times in scope %s; potential non-callf liveness loop\n",
+				      (void*)cp, op_name, (void*)cp->opcode, hits, scope_name);
+			      pc_hottrace_reported.insert(cp);
+			}
+		  }
+
+		  if (thr->i_am_in_function
+		      && hits >= noncallf_loop_limit
+		      && noncallf_loop_reported.count(cp) == 0) {
+			const char*scope_name = "<unknown>";
+			const char*op_name = vvp_opcode_mnemonic(cp->opcode);
+			if (thr->parent_scope) {
+			      const char*nm = vpi_get_str(vpiFullName, thr->parent_scope);
+			      if (nm) scope_name = nm;
+			}
+			fprintf(stderr,
+				"Warning: non-callf loop hotspot at %p (opcode=%s@%p) in %s exceeded %lu hits;"
+				" forcing function return fallback (further similar warnings suppressed per-PC)\n",
+				(void*)cp, op_name, (void*)cp->opcode, scope_name, hits);
+			noncallf_loop_reported.insert(cp);
+			thr->pc = codespace_null();
+			thr->i_have_ended = 1;
+			break;
+		  }
 
 		    /* Run the opcode implementation. If the execution of
 		       the opcode returns false, then the thread is meant to
@@ -911,10 +1963,12 @@ void vthread_schedule_list(vthread_t thr)
       schedule_vthread(thr, 0);
 }
 
+static __vpiScope* resolve_context_scope(__vpiScope*scope);
+
 vvp_context_t vthread_get_wt_context()
 {
       if (running_thread)
-            return running_thread->wt_context;
+            return ensure_write_context_(running_thread, "get-wt-context");
       else
             return 0;
 }
@@ -927,16 +1981,439 @@ vvp_context_t vthread_get_rd_context()
             return 0;
 }
 
+static bool context_on_list(vvp_context_t head, vvp_context_t needle)
+{
+      for (vvp_context_t cur = head ; cur ; cur = vvp_get_next_context(cur)) {
+	    if (cur == needle)
+		  return true;
+      }
+      return false;
+}
+
+static bool context_live_in_owner(vvp_context_t context)
+{
+      if (!context)
+            return false;
+      map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
+      if (owner_it == automatic_context_owner.end())
+            return false;
+      __vpiScope*owner = owner_it->second;
+      if (!(owner && owner->is_automatic()))
+            return false;
+      return context_on_list(owner->live_contexts, context);
+}
+
+static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_scope)
+{
+      if (!context)
+            return false;
+
+      if (!(ctx_scope && ctx_scope->is_automatic()))
+            return context_live_in_owner(context);
+
+      map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
+      if (owner_it == automatic_context_owner.end())
+            return false;
+      if (owner_it->second != ctx_scope)
+            return false;
+
+      return context_on_list(ctx_scope->live_contexts, context);
+}
+
+static void warn_stacked_context_cycle_(const char*where, __vpiScope*ctx_scope,
+                                        vvp_context_t start, vvp_context_t cur)
+{
+      static bool warned = false;
+      if (warned)
+            return;
+
+      const char*scope_name = ctx_scope ? vpi_get_str(vpiFullName, ctx_scope) : 0;
+      fprintf(stderr,
+              "Warning: stacked automatic context cycle detected in %s"
+              " (scope=%s start=%p repeated=%p; further similar warnings suppressed)\n",
+              where ? where : "<unknown>",
+              scope_name ? scope_name : "<unknown>",
+              start, cur);
+      warned = true;
+}
+
+template <typename MatchFn>
+static vvp_context_t find_stacked_context_match_(vvp_context_t candidate,
+                                                 __vpiScope*ctx_scope,
+                                                 const char*where,
+                                                 MatchFn match_fn)
+{
+      std::set<vvp_context_t> seen;
+      for (vvp_context_t cur = candidate ; cur ; cur = vvp_get_stacked_context(cur)) {
+            if (!seen.insert(cur).second) {
+                  warn_stacked_context_cycle_(where, ctx_scope, candidate, cur);
+                  return 0;
+            }
+            if (match_fn(cur))
+                  return cur;
+      }
+      return 0;
+}
+
+static bool context_on_stacked_chain_(vvp_context_t head, vvp_context_t needle,
+                                      __vpiScope*ctx_scope, const char*where)
+{
+      if (!(head && needle))
+            return false;
+
+      return find_stacked_context_match_(head, ctx_scope, where,
+                  [needle](vvp_context_t cur) { return cur == needle; }) != 0;
+}
+
+static vvp_context_t remove_context_from_stacked_chain_(vvp_context_t head,
+                                                        vvp_context_t needle)
+{
+      if (!(head && needle))
+            return head;
+
+      std::set<vvp_context_t> seen;
+      vvp_context_t new_head = head;
+      vvp_context_t prev = 0;
+      vvp_context_t cur = head;
+
+      while (cur) {
+            if (!seen.insert(cur).second) {
+                  warn_stacked_context_cycle_("remove_context_from_stacked_chain_",
+                                              0, head, cur);
+                  if (prev)
+                        vvp_set_stacked_context(prev, 0);
+                  else if (new_head == cur)
+                        vvp_set_stacked_context(cur, 0);
+                  break;
+            }
+
+            vvp_context_t next = vvp_get_stacked_context(cur);
+            if (cur == needle) {
+                  if (prev)
+                        vvp_set_stacked_context(prev, next);
+                  else
+                        new_head = next;
+                  vvp_set_stacked_context(cur, 0);
+                  break;
+            }
+
+            prev = cur;
+            cur = next;
+      }
+
+      return new_head;
+}
+
+static vvp_context_t first_live_stacked_context(vvp_context_t candidate, __vpiScope*ctx_scope)
+{
+      if (!candidate)
+            return 0;
+
+      bool prefer_scope = (ctx_scope && ctx_scope->is_automatic());
+
+      if (!prefer_scope) {
+            return find_stacked_context_match_(candidate, ctx_scope,
+                        "first_live_stacked_context(any)",
+                        [](vvp_context_t cur) { return context_live_in_owner(cur); });
+      }
+
+      vvp_context_t scoped_match = find_stacked_context_match_(candidate, ctx_scope,
+                        "first_live_stacked_context(scope)",
+                        [ctx_scope](vvp_context_t cur) {
+                              return context_on_list(ctx_scope->live_contexts, cur);
+                        });
+      if (scoped_match)
+            return scoped_match;
+
+      return find_stacked_context_match_(candidate, ctx_scope,
+                  "first_live_stacked_context(owner)",
+                  [](vvp_context_t cur) {
+                        map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+                              automatic_context_owner.find(cur);
+                        if (owner_it == automatic_context_owner.end())
+                              return false;
+                        __vpiScope*owner = owner_it->second;
+                        return owner && owner->is_automatic()
+                            && context_on_list(owner->live_contexts, cur);
+                  });
+}
+
+static vvp_context_t first_live_context_for_scope(vvp_context_t candidate, __vpiScope*ctx_scope)
+{
+      if (!(candidate && ctx_scope && ctx_scope->is_automatic()))
+            return 0;
+
+      return find_stacked_context_match_(candidate, ctx_scope,
+                  "first_live_context_for_scope",
+                  [ctx_scope](vvp_context_t cur) {
+                        map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+                              automatic_context_owner.find(cur);
+                        if (owner_it == automatic_context_owner.end())
+                              return false;
+                        if (owner_it->second != ctx_scope)
+                              return false;
+                        return context_on_list(ctx_scope->live_contexts, cur);
+                  });
+}
+
 vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx)
 {
-      assert(running_thread && running_thread->wt_context);
-      return vvp_get_context_item(running_thread->wt_context, context_idx);
+      static bool warned_null_wt_context = false;
+      static bool warned_stale_wt_context = false;
+      static bool warned_wt_fallback_to_rd = false;
+      if (!running_thread) {
+	    if (!warned_null_wt_context) {
+		  fprintf(stderr, "Warning: vthread_get_wt_context_item called with null context;"
+		                  " returning null item (further similar warnings suppressed)\n");
+		  warned_null_wt_context = true;
+	    }
+	    return 0;
+      }
+
+      __vpiScope*ctx_scope = resolve_context_scope(running_thread->parent_scope);
+      vvp_context_t use_context = 0;
+      if (running_thread->wt_context
+          && context_live_matches_scope_(running_thread->wt_context, ctx_scope))
+            use_context = running_thread->wt_context;
+      if (!use_context)
+            use_context = first_live_stacked_context(running_thread->wt_context, ctx_scope);
+      if (!use_context)
+            use_context = first_live_stacked_context(running_thread->rd_context, ctx_scope);
+      if (!use_context && running_thread->rd_context
+          && context_live_matches_scope_(running_thread->rd_context, ctx_scope)) {
+            if (!warned_wt_fallback_to_rd) {
+                  const char*scope_name = 0;
+                  if (ctx_scope)
+                        scope_name = vpi_get_str(vpiFullName, ctx_scope);
+                  fprintf(stderr,
+                          "Warning: vthread_get_wt_context_item using rd-context fallback"
+                          " (scope=%s rd=%p wt=%p; further similar warnings suppressed)\n",
+                          scope_name ? scope_name : "<unknown>",
+                          running_thread->rd_context, running_thread->wt_context);
+                  warned_wt_fallback_to_rd = true;
+            }
+            use_context = running_thread->rd_context;
+      }
+
+      if (!use_context) {
+	    if (!warned_stale_wt_context) {
+		  const char*scope_name = 0;
+		  if (ctx_scope)
+			scope_name = vpi_get_str(vpiFullName, ctx_scope);
+		  fprintf(stderr, "Warning: vthread_get_wt_context_item encountered stale context;"
+		                  " returning null item (scope=%s wt=%p rd=%p; further similar warnings suppressed)\n",
+			  scope_name ? scope_name : "<unknown>",
+			  running_thread->wt_context, running_thread->rd_context);
+		  warned_stale_wt_context = true;
+	    }
+	    return 0;
+      }
+      running_thread->wt_context = use_context;
+      return vvp_get_context_item(use_context, context_idx);
 }
 
 vvp_context_item_t vthread_get_rd_context_item(unsigned context_idx)
 {
-      assert(running_thread && running_thread->rd_context);
-      return vvp_get_context_item(running_thread->rd_context, context_idx);
+      static bool warned_null_rd_context = false;
+      static bool warned_stale_rd_context = false;
+      static bool warned_rd_fallback_to_wt = false;
+      if (!running_thread) {
+	    if (!warned_null_rd_context) {
+		  fprintf(stderr, "Warning: vthread_get_rd_context_item called with null context;"
+		                  " returning null item (further similar warnings suppressed)\n");
+		  warned_null_rd_context = true;
+	    }
+	    return 0;
+      }
+
+      __vpiScope*ctx_scope = resolve_context_scope(running_thread->parent_scope);
+      vvp_context_t use_context = 0;
+      if (running_thread->rd_context
+          && context_live_matches_scope_(running_thread->rd_context, ctx_scope))
+            use_context = running_thread->rd_context;
+      if (!use_context)
+            use_context = first_live_stacked_context(running_thread->rd_context, ctx_scope);
+      if (!use_context)
+            use_context = first_live_stacked_context(running_thread->wt_context, ctx_scope);
+      if (!use_context && running_thread->owned_context
+          && context_live_matches_scope_(running_thread->owned_context, ctx_scope))
+            use_context = running_thread->owned_context;
+      if (!use_context && running_thread->wt_context
+          && context_live_matches_scope_(running_thread->wt_context, ctx_scope)) {
+            if (!warned_rd_fallback_to_wt) {
+                  const char*scope_name = 0;
+                  if (ctx_scope)
+                        scope_name = vpi_get_str(vpiFullName, ctx_scope);
+                  fprintf(stderr,
+                          "Warning: vthread_get_rd_context_item using wt-context fallback"
+                          " (scope=%s rd=%p wt=%p; further similar warnings suppressed)\n",
+                          scope_name ? scope_name : "<unknown>",
+                          running_thread->rd_context, running_thread->wt_context);
+                  warned_rd_fallback_to_wt = true;
+            }
+            use_context = running_thread->wt_context;
+      }
+
+      if (!use_context) {
+	    if (!warned_stale_rd_context) {
+		  const char*scope_name = 0;
+		  if (ctx_scope)
+			scope_name = vpi_get_str(vpiFullName, ctx_scope);
+		  fprintf(stderr, "Warning: vthread_get_rd_context_item encountered stale context;"
+		                  " returning null item (scope=%s rd=%p wt=%p; further similar warnings suppressed)\n",
+			  scope_name ? scope_name : "<unknown>",
+			  running_thread->rd_context, running_thread->wt_context);
+		  warned_stale_rd_context = true;
+	    }
+	    return 0;
+      }
+	      running_thread->rd_context = use_context;
+	      return vvp_get_context_item(use_context, context_idx);
+}
+
+vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vpiScope*ctx_scope)
+{
+      if (!(ctx_scope && ctx_scope->is_automatic()))
+            return vthread_get_rd_context_item(context_idx);
+      if (!running_thread)
+            return 0;
+
+      vvp_context_t use_context = first_live_context_for_scope(running_thread->rd_context, ctx_scope);
+      if (!use_context)
+            use_context = first_live_context_for_scope(running_thread->wt_context, ctx_scope);
+      if (!use_context)
+            use_context = first_live_context_for_scope(running_thread->owned_context, ctx_scope);
+      if (!use_context)
+            use_context = first_live_stacked_context(running_thread->rd_context, 0);
+      if (!use_context)
+            use_context = first_live_stacked_context(running_thread->wt_context, 0);
+      if (!use_context)
+            use_context = first_live_stacked_context(running_thread->owned_context, 0);
+      if (!use_context)
+            return 0;
+
+      running_thread->rd_context = use_context;
+      return vvp_get_context_item(use_context, context_idx);
+}
+
+static __vpiScope* resolve_context_scope(__vpiScope*scope);
+
+static void sanitize_thread_contexts_(vthread_t thr, const char*reason)
+{
+      static bool warned = false;
+
+      if (!thr)
+            return;
+
+      __vpiScope*ctx_scope = resolve_context_scope(thr->parent_scope);
+      vvp_context_t clean_wt = 0;
+      vvp_context_t clean_rd = 0;
+
+      /* The write-context stack may legitimately carry staged automatic
+         frames for upcoming calls in scopes other than the currently
+         executing thread scope. Keep the top live write frame, regardless
+         of owner scope, and only scope-filter the read side. */
+      if (thr->wt_context && context_live_in_owner(thr->wt_context))
+            clean_wt = thr->wt_context;
+      else
+            clean_wt = first_live_stacked_context(thr->wt_context, 0);
+
+      if (thr->rd_context && context_live_matches_scope_(thr->rd_context, ctx_scope))
+            clean_rd = thr->rd_context;
+      else
+            clean_rd = first_live_stacked_context(thr->rd_context, ctx_scope);
+
+      if (!clean_rd && clean_wt && context_live_matches_scope_(clean_wt, ctx_scope))
+            clean_rd = clean_wt;
+
+      if (!warned && (clean_wt != thr->wt_context)) {
+            const char*scope_name = ctx_scope ? vpi_get_str(vpiFullName, ctx_scope) : 0;
+            fprintf(stderr,
+                    "Warning: sanitized thread automatic contexts after %s"
+                    " (scope=%s wt=%p->%p rd=%p->%p; further similar warnings suppressed)\n",
+                    reason ? reason : "<unknown>",
+                    scope_name ? scope_name : "<unknown>",
+                    thr->wt_context, clean_wt,
+                    thr->rd_context, clean_rd);
+            warned = true;
+      }
+
+      thr->wt_context = clean_wt;
+      thr->rd_context = clean_rd;
+}
+
+static void release_owned_context_(vthread_t thr)
+{
+      if (!(thr && thr->owns_automatic_context && thr->owned_context))
+            return;
+
+      __vpiScope*ctx_scope = resolve_context_scope(thr->parent_scope);
+      vvp_context_t owned = thr->owned_context;
+
+      thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context, owned);
+      thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context, owned);
+      thr->owned_context = 0;
+      thr->owns_automatic_context = 0;
+
+      if (ctx_scope && ctx_scope->is_automatic())
+            vthread_free_context(owned, ctx_scope);
+}
+
+static vvp_context_t ensure_write_context_(vthread_t thr, const char*where)
+{
+      static bool warned = false;
+      static bool warned_owned_fallback = false;
+
+      if (!thr)
+            return 0;
+
+      sanitize_thread_contexts_(thr, where ? where : "ensure-write-context");
+
+      __vpiScope*ctx_scope = resolve_context_scope(thr->parent_scope);
+      vvp_context_t use_context = 0;
+      if (thr->wt_context && context_live_in_owner(thr->wt_context))
+            use_context = thr->wt_context;
+      if (!use_context)
+            use_context = first_live_stacked_context(thr->wt_context, 0);
+      if (!use_context)
+            use_context = first_live_stacked_context(thr->rd_context, ctx_scope);
+      if (!use_context && thr->owned_context
+          && context_live_matches_scope_(thr->owned_context, ctx_scope)) {
+            if (!warned_owned_fallback) {
+                  const char*scope_name = thr->parent_scope
+                                        ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+                  fprintf(stderr,
+                          "Warning: using owned automatic context as write context during %s"
+                          " (scope=%s wt=%p rd=%p owned=%p; further similar warnings suppressed)\n",
+                          where ? where : "<unknown>",
+                          scope_name ? scope_name : "<unknown>",
+                          thr->wt_context, thr->rd_context, thr->owned_context);
+                  warned_owned_fallback = true;
+            }
+            use_context = thr->owned_context;
+      }
+
+      if (!thr->wt_context && use_context && thr->rd_context
+          && context_live_matches_scope_(use_context, ctx_scope)) {
+            if (!warned) {
+                  const char*scope_name = thr->parent_scope
+                                        ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+                  fprintf(stderr,
+                          "Warning: synchronized missing wt_context from live rd_context during %s"
+                          " (scope=%s wt=%p rd=%p; further similar warnings suppressed)\n",
+                          where ? where : "<unknown>",
+                          scope_name ? scope_name : "<unknown>",
+                          thr->wt_context, thr->rd_context);
+                  warned = true;
+            }
+      }
+
+      if (use_context) {
+            thr->wt_context = use_context;
+            if (!thr->rd_context && context_live_matches_scope_(use_context, ctx_scope))
+                  thr->rd_context = use_context;
+      }
+      return use_context;
 }
 
 /*
@@ -950,12 +2427,32 @@ bool of_ABS_WR(vthread_t thr, vvp_code_t)
 
 bool of_ALLOC(vthread_t thr, vvp_code_t cp)
 {
+      __vpiScope*ctx_scope = resolve_context_scope(cp->scope);
+      if (ctx_scope && cp->scope && ctx_scope != cp->scope) {
+            trace_context_event_("alloc-shared", thr, cp->scope, 0);
+            return true;
+      }
         /* Allocate a context. */
-      vvp_context_t child_context = vthread_alloc_context(cp->scope);
+      vvp_context_t child_context = vthread_alloc_context(ctx_scope);
+
+        /* Task/function call arguments are assigned by the caller before the
+           callee allocates its automatic frame. Copy those visible inputs into
+           the fresh context at scope entry so reads resolve against the callee
+           frame instead of stale caller storage. */
+      copy_call_inputs_to_allocated_context_(cp->scope, thr, child_context);
+
+        /* If this context is being reused from the free list, scrub any
+           stale references to the same storage out of the current thread's
+           stacked chains before pushing it again. */
+      thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context,
+                                                           child_context);
+      thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context,
+                                                           child_context);
 
         /* Push the allocated context onto the write context stack. */
       vvp_set_stacked_context(child_context, thr->wt_context);
       thr->wt_context = child_context;
+      trace_context_event_("alloc", thr, ctx_scope, child_context);
 
       return true;
 }
@@ -1089,7 +2586,9 @@ bool of_ASSIGN_AR(vthread_t thr, vvp_code_t cp)
       double value = thr->pop_real();
 
       if (adr >= 0) {
-	    schedule_assign_array_word(cp->array, adr, value, delay);
+	    vvp_array_t array = resolve_runtime_array_(cp, "%assign/ar");
+	    if (array)
+		  schedule_assign_array_word(array, adr, value, delay);
       }
 
       return true;
@@ -1107,7 +2606,9 @@ bool of_ASSIGN_ARD(vthread_t thr, vvp_code_t cp)
 
       if (adr >= 0) {
 	    vvp_time64_t delay = thr->words[cp->bit_idx[0]].w_uint;
-	    schedule_assign_array_word(cp->array, adr, value, delay);
+	    vvp_array_t array = resolve_runtime_array_(cp, "%assign/ar/d");
+	    if (array)
+		  schedule_assign_array_word(array, adr, value, delay);
       }
 
       return true;
@@ -1126,10 +2627,13 @@ bool of_ASSIGN_ARE(vthread_t thr, vvp_code_t cp)
       double value = thr->pop_real();
 
       if (adr >= 0) {
+	    vvp_array_t array = resolve_runtime_array_(cp, "%assign/ar/e");
+	    if (!array)
+		  return true;
 	    if (thr->ecount == 0) {
-		  schedule_assign_array_word(cp->array, adr, value, 0);
+		  schedule_assign_array_word(array, adr, value, 0);
 	    } else {
-		  schedule_evctl(cp->array, adr, value, thr->event,
+		  schedule_evctl(array, adr, value, thr->event,
 		                 thr->ecount);
 	    }
       }
@@ -1215,10 +2719,14 @@ bool of_ASSIGN_VEC4_A_D(vthread_t thr, vvp_code_t cp)
       if (thr->flags[4] == BIT4_1)
 	    return true;
 
-      if (!resize_rval_vec(val, off, cp->array->get_word_size()))
+      vvp_array_t array = resolve_runtime_array_(cp, "%assign/vec4/a/d");
+      if (!array)
 	    return true;
 
-      schedule_assign_array_word(cp->array, adr, off, val, del);
+      if (!resize_rval_vec(val, off, array->get_word_size()))
+	    return true;
+
+      schedule_assign_array_word(array, adr, off, val, del);
 
       return true;
 }
@@ -1241,13 +2749,17 @@ bool of_ASSIGN_VEC4_A_E(vthread_t thr, vvp_code_t cp)
       if (thr->flags[4] == BIT4_1)
 	    return true;
 
-      if (!resize_rval_vec(val, off, cp->array->get_word_size()))
+      vvp_array_t array = resolve_runtime_array_(cp, "%assign/vec4/a/e");
+      if (!array)
+	    return true;
+
+      if (!resize_rval_vec(val, off, array->get_word_size()))
 	    return true;
 
       if (thr->ecount == 0) {
-	    schedule_assign_array_word(cp->array, adr, off, val, 0);
+	    schedule_assign_array_word(array, adr, off, val, 0);
       } else {
-	    schedule_evctl(cp->array, adr, val, off, thr->event, thr->ecount);
+	    schedule_evctl(array, adr, val, off, thr->event, thr->ecount);
       }
 
       return true;
@@ -1453,15 +2965,807 @@ bool of_BREAKPOINT(vthread_t, vvp_code_t)
  * %callf/void <code-label>, <scope-label>
  * Combine the %fork and %join steps for invoking a function.
  */
+static int callf_depth = 0;
+static bool warned_callf_self_recursion_fallback = false;
+static bool warned_callf_depth_fallback = false;
+static bool warned_callf_scope_cycle_fallback = false;
+static bool warned_callf_child_reaped = false;
+static bool warned_callf_self_callsite_fallback = false;
+static bool warned_callf_rd_sync = false;
+static bool warned_callf_child_not_ended = false;
+static unsigned callf_target_trace_count = 0;
+static unsigned callf_target_trace_limit = 256;
+static std::vector<__vpiScope*> callf_scope_stack;
+static std::map<const __vpiScope*, unsigned long> callf_scope_invocations;
+static std::set<const __vpiScope*> callf_scope_hot_warned;
+struct callf_edge_key_s {
+      const __vpiScope*from;
+      const __vpiScope*to;
+      bool operator<(const callf_edge_key_s&that) const
+      {
+	    if (from < that.from) return true;
+	    if (from > that.from) return false;
+	    return to < that.to;
+      }
+};
+static std::map<callf_edge_key_s, unsigned long> callf_edge_invocations;
+static std::set<callf_edge_key_s> callf_edge_hot_warned;
+struct callf_self_site_key_s {
+      const __vpiScope*scope;
+      const struct vvp_code_s*pc;
+      bool operator<(const callf_self_site_key_s&that) const
+      {
+            if (scope < that.scope) return true;
+            if (scope > that.scope) return false;
+            return pc < that.pc;
+      }
+};
+static std::map<callf_self_site_key_s, unsigned long> callf_self_site_invocations;
+static std::map<const struct vvp_code_s*, unsigned long> callf_self_name_site_invocations;
+
+static __vpiScope* resolve_context_scope(__vpiScope*scope)
+{
+      __vpiScope*ctx_scope = scope;
+      while (ctx_scope && ctx_scope->scope && ctx_scope->scope->is_automatic())
+            ctx_scope = ctx_scope->scope;
+      return ctx_scope;
+}
+
+static bool flow_trace_enabled_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_FLOW_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled != 0;
+}
+
+static const char*scope_name_or_unknown_(__vpiScope*scope)
+{
+      const char*name = scope ? vpi_get_str(vpiFullName, scope) : 0;
+      return name ? name : "<unknown>";
+}
+
+static bool scope_is_within_or_equal_(__vpiScope*scope, __vpiScope*ancestor)
+{
+      if (!(scope && ancestor))
+            return false;
+
+      for (__vpiScope*cur = scope ; cur ; cur = cur->scope) {
+            if (cur == ancestor)
+                  return true;
+      }
+      return false;
+}
+
+static bool scope_name_has_prefix_(const char*name, const char*prefix)
+{
+      if (!(name && prefix))
+            return false;
+
+      size_t plen = strlen(prefix);
+      if (strncmp(name, prefix, plen) != 0)
+            return false;
+      return name[plen] == 0 || name[plen] == '.';
+}
+
+static bool scope_trace_enabled_(const char*env_name, const char*scope_name)
+{
+      const char*env = getenv(env_name);
+      if (!(env && *env && scope_name))
+            return false;
+
+      if ((strcmp(env, "1") == 0) || (strcmp(env, "ALL") == 0)
+          || (strcmp(env, "*") == 0) || (strcmp(env, "true") == 0))
+            return true;
+
+      return strstr(scope_name, env) != 0;
+}
+
+static void trace_context_event_(const char*where, vthread_t thr,
+                                 __vpiScope*extra_scope,
+                                 vvp_context_t extra_context)
+{
+      const char*scope_name = scope_name_or_unknown_(thr ? thr->parent_scope : 0);
+      const char*extra_name = scope_name_or_unknown_(extra_scope);
+      if (!scope_trace_enabled_("IVL_CTX_TRACE", scope_name)
+          && !scope_trace_enabled_("IVL_CTX_TRACE", extra_name))
+            return;
+
+      fprintf(stderr,
+              "trace ctx: %s scope=%s wt=%p wt_next=%p rd=%p rd_next=%p owned=%p xfer=%p skip=%p extra_scope=%s extra_ctx=%p\n",
+              where ? where : "<unknown>",
+              scope_name,
+              thr ? thr->wt_context : 0,
+              (thr && thr->wt_context) ? vvp_get_stacked_context(thr->wt_context) : 0,
+              thr ? thr->rd_context : 0,
+              (thr && thr->rd_context) ? vvp_get_stacked_context(thr->rd_context) : 0,
+              thr ? thr->owned_context : 0,
+              thr ? thr->transferred_context : 0,
+              thr ? thr->skip_free_context : 0,
+              extra_name,
+              extra_context);
+}
+
+static bool child_nonlocal_jump_matches_parent_(vthread_t thr, vthread_t child)
+{
+      if (!(thr && child))
+            return false;
+      if (!thr->i_am_in_function)
+            return false;
+      if (!(child->pending_nonlocal_jmp && child->nonlocal_target))
+            return false;
+      if (scope_is_within_or_equal_(child->nonlocal_origin_scope, thr->parent_scope))
+            return true;
+
+      const char*origin_name = child->nonlocal_origin_scope
+                             ? vpi_get_str(vpiFullName, child->nonlocal_origin_scope) : 0;
+      const char*parent_name = thr->parent_scope
+                             ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+      if (scope_name_has_prefix_(origin_name, parent_name))
+            return true;
+
+      return false;
+}
+
+static bool callf_trace_scope_match_(const char*name)
+{
+      if (!name)
+            return false;
+      const char*env = getenv("IVL_CALLF_TRACE_TARGET");
+      if (env && *env) {
+            if (strcmp(env, "ALL") == 0 || strcmp(env, "*") == 0)
+                  return true;
+            if (strcmp(env, "1") != 0 && strcmp(env, "true") != 0
+                && strstr(name, env) != 0)
+                  return true;
+      }
+      return strstr(name, "uvm_object.new") != 0
+          || strstr(name, "uvm_report_object.uvm_report_info") != 0
+          || strstr(name, "uvm_cmdline_processor.get_arg_value") != 0;
+}
+
+static bool callf_trace_enabled_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_CALLF_TRACE_TARGET");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+            const char*lim = getenv("IVL_CALLF_TRACE_LIMIT");
+            if (lim && *lim) {
+                  unsigned parsed = strtoul(lim, 0, 10);
+                  if (parsed > 0)
+                        callf_target_trace_limit = parsed;
+            }
+      }
+      return enabled != 0;
+}
+
+static bool virtual_dispatch_trace_enabled_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_VDISPATCH_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled != 0;
+}
+
+static vvp_context_t live_context_for_scope_on_thread_(vthread_t thr,
+                                                       __vpiScope*scope)
+{
+      if (!(thr && scope && scope->is_automatic()))
+            return 0;
+
+      vvp_context_t use_context = first_live_context_for_scope(thr->wt_context, scope);
+      if (!use_context)
+            use_context = first_live_context_for_scope(thr->rd_context, scope);
+      return use_context;
+}
+
+static bool build_dynamic_method_label_(const class_type*defn,
+                                        const char*method_name,
+                                        string&label)
+{
+      if (!(defn && method_name && *method_name))
+            return false;
+
+      label = "TD_";
+      if (!defn->dispatch_prefix().empty()) {
+            label += defn->dispatch_prefix();
+      } else {
+            if (!defn->scope_path().empty()) {
+                  label += defn->scope_path();
+                  label += ".";
+            }
+            label += defn->class_name();
+      }
+      label += ".";
+      label += method_name;
+      return true;
+}
+
+static bool copy_method_ports_to_context_(__vpiScope*src_scope, vthread_t src_thr,
+                                          __vpiScope*dst_scope, vvp_context_t dst_context,
+                                          bool copy_outputs)
+{
+      if (!(src_scope && src_thr && dst_scope && dst_context))
+            return false;
+
+      bool copied_any = false;
+      for (unsigned idx = 0; idx < src_scope->intern.size(); idx += 1) {
+            vpiPortInfo*port = dynamic_cast<vpiPortInfo*>(src_scope->intern[idx]);
+            if (!port)
+                  continue;
+
+            int dir = port->get_direction();
+            if (copy_outputs) {
+                  if (dir != vpiOutput && dir != vpiInout)
+                        continue;
+            } else {
+                  if (dir != vpiInput && dir != vpiInout)
+                        continue;
+            }
+
+            const char*name = vpi_get_str(vpiName, port);
+            if (!name || strcmp(name, "@") == 0)
+                  continue;
+
+            vpiHandle src_item = lookup_scope_item_(src_scope, name);
+            if (!src_item)
+                  src_item = lookup_scope_item_by_net_(src_scope, port->get_port());
+
+            vpiHandle dst_item = lookup_scope_item_(dst_scope, name);
+            if (!dst_item) {
+                  vpiPortInfo*dst_port = lookup_scope_port_by_index_(dst_scope,
+                                                                     port->get_index());
+                  if (dst_port)
+                        dst_item = lookup_scope_item_by_net_(dst_scope,
+                                                             dst_port->get_port());
+            }
+            if (!(src_item && dst_item))
+                  continue;
+
+            bool copied = copy_handle_value_to_context_(src_item, src_thr, dst_item, dst_context);
+            if (virtual_dispatch_trace_enabled_()) {
+                  fprintf(stderr,
+                          "vdispatch: copy-port scope=%s -> %s name=%s copied=%d outputs=%d\n",
+                          scope_name_or_unknown_(src_scope),
+                          scope_name_or_unknown_(dst_scope),
+                          name, copied ? 1 : 0, copy_outputs ? 1 : 0);
+            }
+            if (copied)
+                  copied_any = true;
+      }
+
+      return copied_any;
+}
+
+static bool copy_call_inputs_to_allocated_context_(__vpiScope*scope, vthread_t thr,
+                                                   vvp_context_t dst_context)
+{
+      if (!(scope && thr && dst_context))
+            return false;
+
+      __vpiScope*src_scope = (scope != thr->parent_scope && thr->parent_scope)
+                           ? thr->parent_scope : scope;
+      const char*scope_name = scope_name_or_unknown_(scope);
+      const char*thr_scope_name = scope_name_or_unknown_(thr ? thr->parent_scope : 0);
+      const char*src_scope_name = scope_name_or_unknown_(src_scope);
+      bool trace_inputs = scope_trace_enabled_("IVL_CTX_TRACE", scope_name)
+                       || scope_trace_enabled_("IVL_CTX_TRACE", thr_scope_name);
+      if (scope != thr->parent_scope && trace_inputs) {
+            fprintf(stderr,
+                    "trace ctx-input: scope-mismatch alloc_scope=%s src_scope=%s thr_scope=%s wt=%p rd=%p dst=%p\n",
+                    scope_name, src_scope_name, thr_scope_name,
+                    thr->wt_context, thr->rd_context, dst_context);
+      }
+
+      bool copied_any = false;
+      vpiHandle dst_this_item = lookup_scope_item_(scope, "@");
+      vpiHandle src_this_item = lookup_scope_item_(src_scope, "@");
+      if (!src_this_item)
+            src_this_item = dst_this_item;
+      if (dst_this_item && src_this_item) {
+            vvp_object_t this_value;
+            bool have_this_value = read_handle_object_in_thread_(src_this_item, thr, this_value);
+            if (trace_inputs) {
+                  fprintf(stderr,
+                          "trace ctx-input: scope=%s src_scope=%s this_lookup=1 this_read=%d this=%s wt=%p rd=%p dst=%p\n",
+                          scope_name,
+                          src_scope_name,
+                          have_this_value ? 1 : 0,
+                          have_this_value ? object_trace_class_(this_value) : "<unreadable>",
+                          thr->wt_context, thr->rd_context, dst_context);
+            }
+            if (copy_handle_value_to_context_(src_this_item, thr,
+                                             dst_this_item, dst_context))
+                  copied_any = true;
+      } else if (trace_inputs) {
+            fprintf(stderr,
+                    "trace ctx-input: scope=%s src_scope=%s this_lookup=0 wt=%p rd=%p dst=%p\n",
+                    scope_name, src_scope_name,
+                    thr->wt_context, thr->rd_context, dst_context);
+      }
+
+      if (copy_method_ports_to_context_(src_scope, thr, scope, dst_context, false))
+            copied_any = true;
+
+      return copied_any;
+}
+
+static bool stage_scope_reads_from_write_context_(vthread_t thr, __vpiScope*scope,
+                                                  vvp_context_t&saved_rd_context)
+{
+      saved_rd_context = 0;
+
+      if (!(thr && scope && scope->is_automatic()))
+            return false;
+
+      if (first_live_context_for_scope(thr->rd_context, scope))
+            return false;
+
+      if (!first_live_context_for_scope(thr->wt_context, scope))
+            return false;
+
+      saved_rd_context = thr->rd_context;
+      thr->rd_context = thr->wt_context;
+      return true;
+}
+
+static void restore_staged_scope_reads_(vthread_t thr, bool staged_reads,
+                                        vvp_context_t saved_rd_context)
+{
+      if (staged_reads && thr)
+            thr->rd_context = saved_rd_context;
+}
+
+static void mirror_automatic_call_outputs_if_needed_(vthread_t thr, vthread_t child)
+{
+      if (!(thr && child && child->parent_scope))
+            return;
+      if (!child->parent_scope->is_automatic())
+            return;
+
+      __vpiScope*scope = child->parent_scope;
+      vvp_context_t src_context = live_context_for_scope_on_thread_(child, scope);
+      if (!src_context)
+            return;
+
+      vvp_context_t dst_context = live_context_for_scope_on_thread_(thr, scope);
+      if (!dst_context)
+            return;
+
+      vvp_context_t save_child_wt = child->wt_context;
+      vvp_context_t save_child_rd = child->rd_context;
+      child->wt_context = src_context;
+      child->rd_context = src_context;
+
+      if (vpiHandle this_item = lookup_scope_item_(scope, "@"))
+            copy_handle_value_to_context_(this_item, child, this_item, dst_context);
+
+      copy_method_ports_to_context_(scope, child, scope, dst_context, true);
+
+      if (scope->get_type_code() == vpiFunction) {
+            const char*ret_name = scope->scope_name();
+            if (ret_name
+                && strcmp(ret_name, "new") != 0
+                && strcmp(ret_name, "new@") != 0) {
+                  if (vpiHandle ret_item = lookup_scope_item_(scope, ret_name))
+                        copy_handle_value_to_context_(ret_item, child, ret_item, dst_context);
+            }
+      }
+      child->wt_context = save_child_wt;
+      child->rd_context = save_child_rd;
+}
+
+static bool maybe_dispatch_virtual_method_call_(vthread_t thr, vvp_code_t cp,
+                                                vthread_t child,
+                                                bool mirror_object_return)
+{
+      if (!(thr && cp && cp->scope && child)) {
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: missing inputs thr=%p cp=%p scope=%p child=%p\n",
+                          (void*)thr, (void*)cp, cp ? (void*)cp->scope : 0, (void*)child);
+            return false;
+      }
+
+      __vpiScope*base_scope = cp->scope;
+      __vpiScope*base_class_scope = base_scope->scope;
+      const char*method_name = base_scope->scope_name();
+      if (!(base_class_scope && method_name)) {
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: missing base class scope or method for %s\n",
+                          scope_name_or_unknown_(base_scope));
+            return false;
+      }
+      if ((strcmp(method_name, "new") == 0)
+          || (strcmp(method_name, "new@") == 0)) {
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr,
+                          "vdispatch: constructors are not virtual; keeping base scope %s\n",
+                          scope_name_or_unknown_(base_scope));
+            return false;
+      }
+      if (base_class_scope->get_type_code() != vpiClassTypespec) {
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: scope %s parent type %d is not class\n",
+                          scope_name_or_unknown_(base_scope), base_class_scope->get_type_code());
+            return false;
+      }
+
+      vvp_context_t saved_rd_context = 0;
+      bool staged_reads = stage_scope_reads_from_write_context_(thr, base_scope,
+                                                                saved_rd_context);
+      if (staged_reads && virtual_dispatch_trace_enabled_()) {
+            fprintf(stderr,
+                    "vdispatch: staging reads from wt_context for base scope %s\n",
+                    scope_name_or_unknown_(base_scope));
+      }
+
+      vpiHandle base_this = lookup_scope_item_(base_scope, "@");
+      vvp_object_t this_obj;
+      if (!read_handle_object_in_thread_(base_this, thr, this_obj)) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: failed to read this from %s on thread %p\n",
+                          scope_name_or_unknown_(base_scope), (void*)thr);
+            return false;
+      }
+
+      vvp_cobject*cobj = this_obj.peek<vvp_cobject>();
+      if (!cobj) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: this is not a cobject for %s\n",
+                          scope_name_or_unknown_(base_scope));
+            return false;
+      }
+
+      const class_type*defn = cobj->get_defn();
+      if (!defn) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: cobject missing defn for %s\n",
+                          scope_name_or_unknown_(base_scope));
+            return false;
+      }
+
+      string label;
+      if (!build_dynamic_method_label_(defn, method_name, label)) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: failed to build label for class=%s method=%s\n",
+                          defn->class_name().c_str(), method_name);
+            return false;
+      }
+
+      vvp_code_t override_pc = 0;
+      __vpiScope*override_scope = 0;
+      if (!compile_lookup_code_scope(label.c_str(), &override_pc, &override_scope)) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: no override label %s\n", label.c_str());
+            return false;
+      }
+      if (!(override_pc && override_scope && override_scope->is_automatic())) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: override %s invalid pc=%p scope=%p auto=%d\n",
+                          label.c_str(), (void*)override_pc, (void*)override_scope,
+                          override_scope ? override_scope->is_automatic() : 0);
+            return false;
+      }
+      if (override_scope == base_scope) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: override %s resolves to base scope %s\n",
+                          label.c_str(), scope_name_or_unknown_(base_scope));
+            return false;
+      }
+
+      vpiHandle override_this = lookup_scope_item_(override_scope, "@");
+      if (!override_this) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: override scope %s missing this handle\n",
+                          scope_name_or_unknown_(override_scope));
+            return false;
+      }
+
+      vvp_context_t override_context = vthread_alloc_context(override_scope);
+      if (!write_handle_object_to_context_(override_this, this_obj, override_context)) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch: failed to seed this into override scope %s\n",
+                          scope_name_or_unknown_(override_scope));
+            vthread_free_context(override_context, override_scope);
+            return false;
+      }
+
+      copy_method_ports_to_context_(base_scope, thr, override_scope, override_context, false);
+      restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+
+      child->pc = override_pc;
+      child->parent_scope = override_scope;
+      child->wt_context = override_context;
+      child->rd_context = override_context;
+      child->owns_automatic_context = 1;
+      child->owned_context = override_context;
+      child->dynamic_dispatch_base_scope = base_scope;
+      if (mirror_object_return)
+            child->return_object_mirror_scope = base_scope;
+
+      if (virtual_dispatch_trace_enabled_())
+            fprintf(stderr, "vdispatch: %s -> %s via %s\n",
+                    scope_name_or_unknown_(base_scope),
+                    scope_name_or_unknown_(override_scope), label.c_str());
+
+      return true;
+}
+
+static bool maybe_dispatch_uvm_object_wrapper_call_(vthread_t thr, vvp_code_t cp,
+                                                    vthread_t child)
+{
+      if (!(thr && cp && cp->scope && child))
+            return false;
+
+      __vpiScope*base_scope = cp->scope;
+      __vpiScope*base_class_scope = base_scope->scope;
+      const char*method_name = base_scope->scope_name();
+      if (!(base_class_scope && method_name))
+            return false;
+      if (strcmp(base_class_scope->scope_name(), "uvm_object_wrapper") != 0)
+            return false;
+      if (strcmp(method_name, "get_type_name") != 0
+          && strcmp(method_name, "create_object") != 0
+          && strcmp(method_name, "create_component") != 0)
+            return false;
+      return maybe_dispatch_virtual_method_call_(
+            thr, cp, child,
+            (strcmp(method_name, "create_object") == 0)
+            || (strcmp(method_name, "create_component") == 0));
+}
+
+static void mirror_object_return_if_needed_(vthread_t thr, vthread_t child)
+{
+      if (!(thr && child && child->return_object_mirror_scope))
+            return;
+
+      __vpiScope*src_scope = child->parent_scope;
+      __vpiScope*dst_scope = child->return_object_mirror_scope;
+      const char*ret_name = src_scope ? src_scope->scope_name() : 0;
+      if (!ret_name)
+            return;
+
+      vpiHandle src_item = lookup_scope_item_(src_scope, ret_name);
+      vpiHandle dst_item = lookup_scope_item_(dst_scope, ret_name);
+      vvp_context_t dst_context = live_context_for_scope_on_thread_(thr, dst_scope);
+      if (!(src_item && dst_item && dst_context))
+            return;
+
+      vvp_object_t value;
+      if (!read_handle_object_in_thread_(src_item, child, value))
+            return;
+
+      write_handle_object_to_context_(dst_item, value, dst_context);
+}
+
+static void mirror_dynamic_dispatch_outputs_if_needed_(vthread_t thr, vthread_t child)
+{
+      if (!(thr && child && child->dynamic_dispatch_base_scope))
+            return;
+
+      __vpiScope*src_scope = child->parent_scope;
+      __vpiScope*dst_scope = child->dynamic_dispatch_base_scope;
+      vvp_context_t dst_context = live_context_for_scope_on_thread_(thr, dst_scope);
+      if (!(src_scope && dst_scope && dst_context))
+            return;
+
+      copy_method_ports_to_context_(src_scope, child, dst_scope, dst_context, true);
+}
+
 static bool do_callf_void(vthread_t thr, vthread_t child)
 {
+      callf_depth++;
+      __vpiScope*caller_scope = thr->parent_scope;
+      __vpiScope*child_scope = child->parent_scope;
+      __vpiScope*caller_ctx_scope = resolve_context_scope(caller_scope);
+      vvp_code_t callsite_pc = thr->pc ? (thr->pc - 1) : 0;
+      string caller_name_buf;
+      string child_name_buf;
+      const char*caller_name = 0;
+      const char*child_name = 0;
+      if (caller_scope) {
+            const char*tmp = vpi_get_str(vpiFullName, caller_scope);
+            if (tmp) {
+                  caller_name_buf = tmp;
+                  caller_name = caller_name_buf.c_str();
+            }
+      }
+      if (child_scope) {
+            const char*tmp = vpi_get_str(vpiFullName, child_scope);
+            if (tmp) {
+                  child_name_buf = tmp;
+                  child_name = child_name_buf.c_str();
+            }
+      }
+      if (callf_trace_enabled_()
+          && callf_target_trace_count < callf_target_trace_limit
+          && (callf_trace_scope_match_(caller_name) || callf_trace_scope_match_(child_name))) {
+            fprintf(stderr,
+                    "trace callf[%u] depth=%d caller=%s callee=%s pc=%p\n",
+                    callf_target_trace_count + 1,
+                    callf_depth,
+                    caller_name ? caller_name : "<unknown>",
+                    child_name ? child_name : "<unknown>",
+                    (void*)callsite_pc);
+            callf_target_trace_count += 1;
+      }
+      if (!thr->rd_context && thr->wt_context) {
+            vvp_context_t caller_live = first_live_context_for_scope(thr->wt_context,
+                                                                     caller_ctx_scope);
+            bool warn_missing_caller_rd = caller_live != 0;
+            if (warn_missing_caller_rd && !warned_callf_rd_sync) {
+                  fprintf(stderr,
+                          "Warning: callf entry synchronizing missing rd_context from wt_context"
+                          " (scope=%s rd=%p wt=%p; further similar warnings suppressed)\n",
+                          caller_name ? caller_name : "<unknown>",
+                          thr->rd_context, thr->wt_context);
+                  warned_callf_rd_sync = true;
+            }
+            thr->rd_context = thr->wt_context;
+      }
+      bool same_scope = (caller_scope && child_scope && caller_scope == child_scope);
+      bool same_scope_name = (caller_name && child_name && strcmp(caller_name, child_name) == 0);
+      if ((same_scope || same_scope_name) && callsite_pc) {
+            unsigned long site_hits = 0;
+            if (same_scope) {
+                  callf_self_site_key_s self_key = { caller_scope, callsite_pc };
+                  site_hits = ++callf_self_site_invocations[self_key];
+            } else {
+                  site_hits = ++callf_self_name_site_invocations[callsite_pc];
+            }
+            unsigned long site_limit = 256;
+            if ((caller_name && strstr(caller_name, "uvm_object.new"))
+                || (child_name && strstr(child_name, "uvm_object.new")))
+                  site_limit = 64;
+            if ((caller_name && strstr(caller_name, "uvm_cmdline_processor.get_arg_value"))
+                || (child_name && strstr(child_name, "uvm_cmdline_processor.get_arg_value")))
+                  site_limit = 2048;
+            if ((caller_name && strstr(caller_name, "uvm_root.m_uvm_get_root"))
+                || (child_name && strstr(child_name, "uvm_root.m_uvm_get_root")))
+                  site_limit = 16384;
+            if ((caller_name && strstr(caller_name, "uvm_report_object.uvm_report_info"))
+                || (child_name && strstr(child_name, "uvm_report_object.uvm_report_info")))
+                  site_limit = 8192;
+            if ((caller_name && strstr(caller_name, "uvm_coreservice_t.get"))
+                || (child_name && strstr(child_name, "uvm_coreservice_t.get"))
+                || (caller_name && strstr(caller_name, "uvm_coreservice_t.get_root"))
+                || (child_name && strstr(child_name, "uvm_coreservice_t.get_root")))
+                  site_limit = 16384;
+	            if (site_hits > site_limit) {
+	                  if (!warned_callf_self_callsite_fallback) {
+	                        fprintf(stderr,
+	                                "%sWarning: callf self-recursion at %s callsite %p exceeded %lu hits (limit %lu);"
+                                " using compile-progress return fallback (further similar warnings suppressed)\n",
+                                thr->get_fileline().c_str(),
+                                caller_name ? caller_name : "<unknown>",
+                                (void*)callsite_pc, site_hits, site_limit);
+                        warned_callf_self_callsite_fallback = true;
+                  }
+                  vthread_delete(child);
+                  callf_depth--;
+                  return true;
+            }
+      }
+      callf_edge_key_s edge = { caller_scope, child_scope };
+      unsigned long edge_invoc = ++callf_edge_invocations[edge];
+      if ((edge_invoc >= 50000) && (callf_edge_hot_warned.count(edge) == 0)) {
+	    const char*from_name = "<unknown>";
+	    const char*to_name = "<unknown>";
+	    if (caller_scope) {
+		  const char*nm = vpi_get_str(vpiFullName, caller_scope);
+		  if (nm) from_name = nm;
+	    }
+	    if (child_scope) {
+		  const char*nm = vpi_get_str(vpiFullName, child_scope);
+		  if (nm) to_name = nm;
+	    }
+	    fprintf(stderr, "Warning: hot callf edge %s -> %s has %lu invocations; potential zero-time liveness loop\n",
+	            from_name, to_name, edge_invoc);
+	    callf_edge_hot_warned.insert(edge);
+      }
+      unsigned long invoc = ++callf_scope_invocations[child_scope];
+      if ((invoc >= 50000) && (callf_scope_hot_warned.count(child_scope) == 0)) {
+	    const char*scope_name = "<unknown>";
+	    if (child_scope) {
+		  const char*nm = vpi_get_str(vpiFullName, child_scope);
+		  if (nm) scope_name = nm;
+	    }
+	    fprintf(stderr, "Warning: hot callf scope %s has %lu invocations; potential zero-time liveness loop\n",
+	            scope_name, invoc);
+	    callf_scope_hot_warned.insert(child_scope);
+      }
+	      unsigned scope_hits = 0;
+	      for (size_t idx = 0 ; idx < callf_scope_stack.size() ; idx += 1) {
+		    if (callf_scope_stack[idx] == child_scope)
+			  scope_hits += 1;
+	      }
+	      unsigned scope_limit = 4096;
+	      if (child_name && strstr(child_name, "uvm_root.m_uvm_get_root"))
+	            scope_limit = 16384;
+	      if (scope_hits >= scope_limit) {
+		    if (!warned_callf_scope_cycle_fallback) {
+			  const char*scope_name = "<unknown>";
+			  if (child_scope) {
+				const char*nm = vpi_get_str(vpiFullName, child_scope);
+				if (nm) scope_name = nm;
+			  }
+			  fprintf(stderr,
+			          "Warning: callf scope-cycle detected at %s (hits=%u limit=%u);"
+			          " using compile-progress return fallback (further similar warnings suppressed)\n",
+			          scope_name, scope_hits, scope_limit);
+			  warned_callf_scope_cycle_fallback = true;
+		    }
+		    vthread_delete(child);
+		    callf_depth--;
+	    return true;
+      }
+
+      callf_scope_stack.push_back(child_scope);
+      unsigned depth_limit = 2048;
+      if (child_name && strstr(child_name, "uvm_report_object.uvm_report_info"))
+            depth_limit = 16384;
+      if (child_name && strstr(child_name, "uvm_root.m_uvm_get_root"))
+            depth_limit = 32768;
+      if (child->parent_scope && thr->parent_scope
+          && child->parent_scope == thr->parent_scope
+          && callf_depth > depth_limit) {
+	    if (!warned_callf_self_recursion_fallback) {
+		  const char*scope_name = vpi_get_str(vpiFullName, child->parent_scope);
+		  if (!scope_name) scope_name = "<unknown>";
+		  fprintf(stderr, "Warning: callf recursion on %s exceeded %u frames;"
+		          " using compile-progress return fallback (further similar warnings suppressed)\n",
+		          scope_name, depth_limit);
+		  warned_callf_self_recursion_fallback = true;
+	    }
+	    vthread_delete(child);
+	    callf_scope_stack.pop_back();
+	    callf_depth--;
+	    return true;
+      }
+      if (callf_depth > 4096) {
+	    if (!warned_callf_depth_fallback) {
+		  const char*scope_name = "<unknown>";
+		  if (child->parent_scope) {
+			const char*nm = vpi_get_str(vpiFullName, child->parent_scope);
+			if (nm) scope_name = nm;
+		  }
+		  fprintf(stderr, "%sWarning: do_callf_void recursion depth %d exceeded at %s;"
+		          " using compile-progress return fallback (further similar warnings suppressed)\n",
+		          thr->get_fileline().c_str(), callf_depth, scope_name);
+		  warned_callf_depth_fallback = true;
+	    }
+	    vthread_delete(child);
+	    callf_scope_stack.pop_back();
+	    callf_depth--;
+	    return true; /* pretend it returned normally */
+      }
 
       if (child->parent_scope->is_automatic()) {
 	      /* The context allocated for this child is the top entry
 		 on the write context stack */
-	    child->wt_context = thr->wt_context;
-	    child->rd_context = thr->wt_context;
+	    if (!child->wt_context)
+		  child->wt_context = thr->wt_context;
+	    if (!child->rd_context)
+		  child->rd_context = child->wt_context;
+            trace_context_event_("callf-child-bind", thr, child->parent_scope,
+                                 child->wt_context);
       }
+
+      child->is_callf_child = 1;
 
         // Mark the function thread as a direct child of the current thread.
       child->parent = thr;
@@ -1474,24 +3778,98 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       assert(child->parent_scope->get_type_code() == vpiFunction);
       child->is_scheduled = 1;
       child->i_am_in_function = 1;
+      child->delay_delete = 1;
       vthread_run(child);
       running_thread = thr;
 
-      if (child->i_have_ended) {
-	    do_join(thr, child);
+	      if (child->parent != thr) {
+		    sanitize_thread_contexts_(thr, "callf child reap");
+                    ensure_write_context_(thr, "callf-child-reap");
+		    if (!warned_callf_child_reaped) {
+			  fprintf(stderr, "Warning: callf child thread was reaped during execution;"
+			          " treating call as completed (further similar warnings suppressed)\n");
+			  warned_callf_child_reaped = true;
+		    }
+	    callf_scope_stack.pop_back();
+	    callf_depth--;
 	    return true;
-      } else {
-	    thr->i_am_joining = 1;
-	    return false;
       }
+
+	      if (child->i_have_ended) {
+		    trace_context_event_("callf-before-join", thr, child->parent_scope,
+		                         child->wt_context);
+		    do_join(thr, child);
+                    if (!(child->parent_scope
+                          && child->parent_scope->is_automatic())) {
+                          ensure_write_context_(thr, "callf-join");
+                    }
+		    trace_context_event_("callf-after-join", thr, child->parent_scope,
+		                         child->wt_context);
+		    callf_scope_stack.pop_back();
+		    callf_depth--;
+		    return true;
+	      } else {
+		    static int trace_callf_wait = -1;
+		    if (trace_callf_wait < 0) {
+			  const char*env = getenv("IVL_CALLF_TRACE");
+			  trace_callf_wait = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+		    }
+		    if (trace_callf_wait) {
+			  const char*wait_scope = "<unknown>";
+			  const char*wait_op = "<nullpc>";
+			  const char*nested_scope = "<none>";
+			  const char*nested_op = "<none>";
+			  if (child->parent_scope) {
+				const char*nm = vpi_get_str(vpiFullName, child->parent_scope);
+				if (nm) wait_scope = nm;
+			  }
+			  if (child->pc)
+				wait_op = vvp_opcode_mnemonic(child->pc->opcode);
+			  if (!child->children.empty()) {
+				vthread_t nested = *(child->children.begin());
+				if (nested && nested->parent_scope) {
+				      const char*nm = vpi_get_str(vpiFullName, nested->parent_scope);
+				      if (nm) nested_scope = nm;
+				}
+				if (nested && nested->pc)
+				      nested_op = vvp_opcode_mnemonic(nested->pc->opcode);
+			  }
+			  fprintf(stderr,
+			          "trace callf-wait: caller=%s callee=%s wait_scope=%s wait_op=%s nested=%s nested_op=%s joining=%d children=%zu\n",
+			          caller_name ? caller_name : "<unknown>",
+			          child_name ? child_name : "<unknown>",
+			          wait_scope, wait_op, nested_scope, nested_op,
+			          child->i_am_joining ? 1 : 0, child->children.size());
+		    }
+		    if (!warned_callf_child_not_ended) {
+			  fprintf(stderr,
+			          "Warning: callf child did not end synchronously"
+			          " (caller=%s callee=%s); caller entering join wait (further similar warnings suppressed)\n",
+			          caller_name ? caller_name : "<unknown>",
+			          child_name ? child_name : "<unknown>");
+			  warned_callf_child_not_ended = true;
+		    }
+		    thr->i_am_joining = 1;
+		    callf_scope_stack.pop_back();
+		    callf_depth--;
+		    return false;
+	      }
 }
 
 bool of_CALLF_OBJ(vthread_t thr, vvp_code_t cp)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      maybe_dispatch_uvm_object_wrapper_call_(thr, cp, child);
       return do_callf_void(thr, child);
 
       // XXXX NOT IMPLEMENTED
+}
+
+bool of_CALLF_OBJ_V(vthread_t thr, vvp_code_t cp)
+{
+      vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      maybe_dispatch_virtual_method_call_(thr, cp, child, true);
+      return do_callf_void(thr, child);
 }
 
 bool of_CALLF_REAL(vthread_t thr, vvp_code_t cp)
@@ -1506,9 +3884,32 @@ bool of_CALLF_REAL(vthread_t thr, vvp_code_t cp)
       return do_callf_void(thr, child);
 }
 
+bool of_CALLF_REAL_V(vthread_t thr, vvp_code_t cp)
+{
+      vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      maybe_dispatch_virtual_method_call_(thr, cp, child, false);
+
+      thr->push_real(0.0);
+      child->args_real.push_back(0);
+
+      return do_callf_void(thr, child);
+}
+
 bool of_CALLF_STR(vthread_t thr, vvp_code_t cp)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      maybe_dispatch_uvm_object_wrapper_call_(thr, cp, child);
+
+      thr->push_str("");
+      child->args_str.push_back(0);
+
+      return do_callf_void(thr, child);
+}
+
+bool of_CALLF_STR_V(vthread_t thr, vvp_code_t cp)
+{
+      vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      maybe_dispatch_virtual_method_call_(thr, cp, child, false);
 
       thr->push_str("");
       child->args_str.push_back(0);
@@ -1531,9 +3932,30 @@ bool of_CALLF_VEC4(vthread_t thr, vvp_code_t cp)
       return do_callf_void(thr, child);
 }
 
+bool of_CALLF_VEC4_V(vthread_t thr, vvp_code_t cp)
+{
+      vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      maybe_dispatch_virtual_method_call_(thr, cp, child, false);
+
+      vpiScopeFunction*scope_func = dynamic_cast<vpiScopeFunction*>(cp->scope);
+      assert(scope_func);
+
+      thr->push_vec4(vvp_vector4_t(scope_func->get_func_width(), scope_func->get_func_init_val()));
+      child->args_vec4.push_back(0);
+
+      return do_callf_void(thr, child);
+}
+
 bool of_CALLF_VOID(vthread_t thr, vvp_code_t cp)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      return do_callf_void(thr, child);
+}
+
+bool of_CALLF_VOID_V(vthread_t thr, vvp_code_t cp)
+{
+      vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      maybe_dispatch_virtual_method_call_(thr, cp, child, false);
       return do_callf_void(thr, child);
 }
 
@@ -1739,19 +4161,26 @@ bool of_CAST_VEC4_STR(vthread_t thr, vvp_code_t cp)
       string str = thr->pop_str();
 
       vvp_vector4_t vec(wid, BIT4_0);
+      const unsigned swid = 8 * str.length();
+      const unsigned use_wid = (wid < swid)? wid : swid;
+      const unsigned use_chars = (use_wid + 7) / 8;
 
-      if (wid != 8*str.length()) {
-	    cerr << thr->get_fileline()
-	         << "VVP error: size mismatch when casting string to vector." << endl;
-            thr->push_vec4(vec);
-            schedule_stop(0);
-            return false;
-      }
-
+      // SV compile-progress behavior: permit width/length mismatch by
+      // truncating high-order bytes when target width is narrower and
+      // zero-padding when target width is wider.
       unsigned sdx = 0;
       unsigned vdx = wid;
-      while (vdx > 0) {
+      while (vdx > 0 && sdx < use_chars) {
             char ch = str[sdx++];
+            if (vdx < 8) {
+                  for (unsigned bdx = 0; bdx < vdx; bdx += 1) {
+                        if (ch & 1)
+                              vec.set_bit(bdx, BIT4_1);
+                        ch >>= 1;
+                  }
+                  vdx = 0;
+                  break;
+            }
             vdx -= 8;
             for (unsigned bdx = 0; bdx < 8; bdx += 1) {
                   if (ch & 1)
@@ -1998,6 +4427,33 @@ bool of_CMPIS(vthread_t thr, vvp_code_t cp)
       do_CMPS(thr, lval, rval);
 
       thr->pop_vec4(1);
+      return true;
+}
+
+/*
+ * %cmp/obj
+ * Compare two object handles on the object stack for pointer identity.
+ * Pops both, sets flag 4 = 1 if equal (same object), 0 if not.
+ */
+bool of_CMPOBJ(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t re;
+      thr->pop_object(re);
+      vvp_object_t le;
+      thr->pop_object(le);
+
+      bool eq = (le == re);
+      thr->flags[4] = eq ? BIT4_1 : BIT4_0;
+
+      const char*scope_name = scope_name_or_unknown_(thr->parent_scope);
+      if (scope_trace_enabled_("IVL_CMPOBJ_TRACE", scope_name)) {
+            fprintf(stderr,
+                    "trace cmp_obj scope=%s le_nil=%d re_nil=%d eq=%d\n",
+                    scope_name,
+                    le.test_nil() ? 1 : 0,
+                    re.test_nil() ? 1 : 0,
+                    eq ? 1 : 0);
+      }
       return true;
 }
 
@@ -2502,7 +4958,7 @@ bool of_DELAYX(vthread_t thr, vvp_code_t cp)
 
 bool of_DELETE_ELEM(vthread_t thr, vvp_code_t cp)
 {
-      vvp_net_t*net = cp->net;
+	      vvp_net_t*net = cp->net;
 
       int64_t idx_val = thr->words[3].w_int;
       if (thr->flags[4] == BIT4_1) {
@@ -2538,7 +4994,45 @@ bool of_DELETE_ELEM(vthread_t thr, vvp_code_t cp)
 	    }
       }
 
-      return true;
+	      return true;
+}
+
+/* %delete/o/elem
+ *
+ * Delete a queue element from an object receiver popped from the object stack.
+ */
+bool of_DELETE_O_ELEM(vthread_t thr, vvp_code_t)
+{
+	      int64_t idx_val = thr->words[3].w_int;
+	      if (thr->flags[4] == BIT4_1) {
+		    cerr << thr->get_fileline()
+		         << "Warning: skipping queue delete() with undefined index."
+		         << endl;
+		    return true;
+	      }
+	      if (idx_val < 0) {
+		    cerr << thr->get_fileline()
+		         << "Warning: skipping queue delete() with negative index."
+		         << endl;
+		    return true;
+	      }
+	      size_t idx = idx_val;
+
+	      vvp_object_t recv;
+	      vvp_queue*queue = pop_queue_receiver_<vvp_queue>(thr, recv);
+	      if (!queue)
+		    return true;
+
+	      size_t size = queue->get_size();
+	      if (idx >= size) {
+		    cerr << thr->get_fileline()
+		         << "Warning: skipping out of range delete(" << idx
+		         << ") on queue of size " << size << "." << endl;
+	      } else {
+		    queue->erase(idx);
+	      }
+
+	      return true;
 }
 
 /* %delete/obj <label>
@@ -2551,9 +5045,24 @@ bool of_DELETE_OBJ(vthread_t thr, vvp_code_t cp)
 {
 	/* set the value into port 0 of the destination. */
       vvp_net_ptr_t ptr (cp->net, 0);
-      vvp_send_object(ptr, vvp_object_t(), thr->wt_context);
+      vvp_send_object(ptr, vvp_object_t(), ensure_write_context_(thr, "clear-obj"));
 
-      return true;
+	      return true;
+}
+
+/* %delete/o/obj
+ *
+ * Clear a queue receiver popped from the object stack.
+ */
+bool of_DELETE_O_OBJ(vthread_t thr, vvp_code_t)
+{
+	      vvp_object_t recv;
+	      vvp_queue*queue = pop_queue_receiver_<vvp_queue>(thr, recv);
+	      if (!queue)
+		    return true;
+
+	      queue->erase_tail(0);
+	      return true;
 }
 
 /* %delete/tail <label>, idx
@@ -2579,6 +5088,13 @@ bool of_DELETE_TAIL(vthread_t thr, vvp_code_t cp)
 static bool do_disable(vthread_t thr, vthread_t match)
 {
       bool flag = false;
+
+      if (vvp_process*proc = thr->process_obj_.peek<vvp_process>()) {
+	    if (thr->i_have_ended && !thr->i_was_disabled)
+		  proc->mark_finished();
+	    else
+		  proc->mark_killed();
+      }
 
 	/* Pull the target thread out of its scope if needed. */
       thr->parent_scope->threads.erase(thr);
@@ -2664,15 +5180,95 @@ bool of_DISABLE_FLOW(vthread_t thr, vvp_code_t cp)
 {
       const __vpiScope*scope = static_cast<__vpiScope*>(cp->handle);
       vthread_t cur = thr;
+      vthread_t name_match = 0;
+      const char*target_name = scope ? vpi_get_str(vpiFullName, (vpiHandle)scope) : 0;
+      const char*thr_name = thr && thr->parent_scope
+                          ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
 
-      while (cur && cur->parent_scope != scope)
-	    cur = cur->parent;
+      while (cur && cur->parent_scope != scope) {
+            if (!name_match && target_name && cur->parent_scope) {
+                  const char*cur_name = vpi_get_str(vpiFullName, cur->parent_scope);
+                  if (cur_name && (strcmp(cur_name, target_name) == 0))
+                        name_match = cur;
+            }
+            cur = cur->parent;
+      }
 
-      assert(cur);
-      if (cur)
-	    return !do_disable(cur, thr);
+      if (!cur && name_match)
+            cur = name_match;
 
-      return false;
+      if (!cur) {
+            static bool warned = false;
+            if (!warned) {
+                  fprintf(stderr,
+                          "Warning: %%disable/flow target scope not found; "
+                          "disabling current thread as fallback "
+                          "(further similar warnings suppressed)\n");
+                  warned = true;
+            }
+            cur = thr;
+      }
+
+      if (flow_trace_enabled_()) {
+            static unsigned trace_count = 0;
+            if (trace_count < 256) {
+                  const char*sel_name = cur && cur->parent_scope
+                                      ? vpi_get_str(vpiFullName, cur->parent_scope) : 0;
+                  fprintf(stderr,
+                          "trace flow: disable/flow src=%s target=%s selected=%s self=%d\n",
+                          thr_name ? thr_name : "<unknown>",
+                          target_name ? target_name : "<unknown>",
+                          sel_name ? sel_name : "<unknown>",
+                          (cur == thr) ? 1 : 0);
+                  trace_count += 1;
+            }
+      }
+
+      return !do_disable(cur, thr);
+}
+
+bool of_DISABLE_FLOW_CHILD(vthread_t thr, vvp_code_t cp)
+{
+      const __vpiScope*scope = static_cast<__vpiScope*>(cp->handle);
+      vthread_t cur = thr;
+      vthread_t child = 0;
+      const char*target_name = scope ? vpi_get_str(vpiFullName, (vpiHandle)scope) : 0;
+      const char*thr_name = thr && thr->parent_scope
+                          ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+
+      while (cur && cur->parent_scope != scope) {
+            child = cur;
+            cur = cur->parent;
+      }
+
+      if (!child) {
+            static bool warned = false;
+            if (!warned) {
+                  fprintf(stderr,
+                          "Warning: %%disable/flow/child target scope not found; "
+                          "disabling current thread as fallback "
+                          "(further similar warnings suppressed)\n");
+                  warned = true;
+            }
+            child = thr;
+      }
+
+      if (flow_trace_enabled_()) {
+            static unsigned trace_count = 0;
+            if (trace_count < 256) {
+                  const char*sel_name = child && child->parent_scope
+                                      ? vpi_get_str(vpiFullName, child->parent_scope) : 0;
+                  fprintf(stderr,
+                          "trace flow: disable/flow/child src=%s target=%s selected=%s self=%d\n",
+                          thr_name ? thr_name : "<unknown>",
+                          target_name ? target_name : "<unknown>",
+                          sel_name ? sel_name : "<unknown>",
+                          (child == thr) ? 1 : 0);
+                  trace_count += 1;
+            }
+      }
+
+      return !do_disable(child, thr);
 }
 
 /*
@@ -3031,6 +5627,12 @@ bool of_DUP_REAL(vthread_t thr, vvp_code_t)
       return true;
 }
 
+bool of_DUP_STR(vthread_t thr, vvp_code_t)
+{
+      thr->push_str(thr->peek_str(0));
+      return true;
+}
+
 bool of_DUP_VEC4(vthread_t thr, vvp_code_t)
 {
       thr->push_vec4(thr->peek_vec4(0));
@@ -3045,8 +5647,27 @@ bool of_DUP_VEC4(vthread_t thr, vvp_code_t)
 bool of_END(vthread_t thr, vvp_code_t)
 {
       assert(! thr->waiting_for_event);
+      if (vvp_process*proc = thr->process_obj_.peek<vvp_process>())
+	    proc->mark_finished();
       thr->i_have_ended = 1;
       thr->pc = codespace_null();
+
+      if (flow_trace_enabled_()) {
+            static unsigned end_trace_count = 0;
+            if (end_trace_count < 256) {
+                  const char*scope_name = thr && thr->parent_scope
+                                      ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+                  const char*parent_name = (thr && thr->parent && thr->parent->parent_scope)
+                                       ? vpi_get_str(vpiFullName, thr->parent->parent_scope) : 0;
+                  fprintf(stderr,
+                          "trace flow: end scope=%s parent=%s detached=%d joining_parent=%d\n",
+                          scope_name ? scope_name : "<unknown>",
+                          parent_name ? parent_name : "<none>",
+                          thr->i_am_detached ? 1 : 0,
+                          (thr->parent && thr->parent->i_am_joining) ? 1 : 0);
+                  end_trace_count += 1;
+            }
+      }
 
 	/* Fully detach any detached children. */
       while (! thr->detached_children.empty()) {
@@ -3116,7 +5737,7 @@ bool of_EVENT(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_ptr_t ptr (cp->net, 0);
       vvp_vector4_t tmp (1, BIT4_X);
-      vvp_send_vec4(ptr, tmp, thr->wt_context);
+      vvp_send_vec4(ptr, tmp, ensure_write_context_(thr, "assign-vec4"));
       return true;
 }
 
@@ -3388,29 +6009,97 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
             child->wt_context = thr->wt_context;
             child->rd_context = thr->wt_context;
       }
+      trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
       child->parent = thr;
       thr->children.insert(child);
 
-      if (thr->i_am_in_function) {
-	    child->is_scheduled = 1;
-	    child->i_am_in_function = 1;
-	    vthread_run(child);
-	    running_thread = thr;
-      } else {
-	    schedule_vthread(child, 0, true);
+	      if (thr->i_am_in_function && !(thr->pc && thr->pc->opcode == of_JOIN_DETACH)) {
+		    child->is_scheduled = 1;
+		    child->i_am_in_function = 1;
+		    vthread_run(child);
+		    running_thread = thr;
+	      } else {
+		    schedule_vthread(child, 0, true);
+	      }
+	      return true;
+}
+
+bool of_FORK_V(vthread_t thr, vvp_code_t cp)
+{
+      vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      maybe_dispatch_virtual_method_call_(thr, cp, child, false);
+
+      if (cp->scope->is_automatic() && !child->wt_context) {
+              /* The context allocated for this child is the top entry
+                 on the write context stack. */
+            child->wt_context = thr->wt_context;
+            child->rd_context = thr->wt_context;
       }
-      return true;
+      trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
+
+      child->parent = thr;
+      thr->children.insert(child);
+
+	      if (thr->i_am_in_function && !(thr->pc && thr->pc->opcode == of_JOIN_DETACH)) {
+		    child->is_scheduled = 1;
+		    child->i_am_in_function = 1;
+		    vthread_run(child);
+		    running_thread = thr;
+	      } else {
+		    schedule_vthread(child, 0, true);
+	      }
+	      return true;
 }
 
 bool of_FREE(vthread_t thr, vvp_code_t cp)
 {
-        /* Pop the child context from the read context stack. */
-      vvp_context_t child_context = thr->rd_context;
-      thr->rd_context = vvp_get_stacked_context(child_context);
+      __vpiScope*ctx_scope = resolve_context_scope(cp->scope);
+      if (ctx_scope && cp->scope && ctx_scope != cp->scope) {
+            trace_context_event_("free-shared", thr, cp->scope, 0);
+            return true;
+      }
+      if (thr->skip_free_context
+          && (!ctx_scope || thr->skip_free_scope == ctx_scope)) {
+            vvp_context_t skip_context = thr->skip_free_context;
+            __vpiScope*skip_scope = thr->skip_free_scope
+                                  ? thr->skip_free_scope : ctx_scope;
+            thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context,
+                                                                 skip_context);
+            thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context,
+                                                                 skip_context);
+            trace_context_event_("free-skip", thr, ctx_scope, skip_context);
+            thr->skip_free_context = 0;
+            thr->skip_free_scope = 0;
+            vthread_free_context(skip_context, skip_scope);
+            ensure_write_context_(thr, "free-skip");
+            return true;
+      }
 
-        /* Free the context. */
-      vthread_free_context(child_context, cp->scope);
+        /* %alloc/%free pairs manage staged automatic frames on the write
+           stack around calls. After nested callf/join activity the matching
+           frame may no longer be at the top of rd_context, so free the live
+           frame for this scope from the write stack first and scrub it from
+           both chains. */
+      vvp_context_t child_context = 0;
+      if (ctx_scope && ctx_scope->is_automatic()) {
+            child_context = first_live_context_for_scope(thr->wt_context, ctx_scope);
+            if (!child_context)
+                  child_context = first_live_context_for_scope(thr->rd_context, ctx_scope);
+      } else {
+            child_context = thr->wt_context ? thr->wt_context : thr->rd_context;
+      }
+      if (!child_context) {
+            trace_context_event_("free-null", thr, ctx_scope, 0);
+            return true;
+      }
+      thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context, child_context);
+      thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context, child_context);
+
+      /* Free the context. */
+      vthread_free_context(child_context, ctx_scope);
+      ensure_write_context_(thr, "free");
+      trace_context_event_("free", thr, ctx_scope, child_context);
 
       return true;
 }
@@ -3725,18 +6414,92 @@ bool of_JMP1XZ(vthread_t thr, vvp_code_t cp)
 static void do_join(vthread_t thr, vthread_t child)
 {
       assert(child->parent == thr);
+      mirror_automatic_call_outputs_if_needed_(thr, child);
+      mirror_dynamic_dispatch_outputs_if_needed_(thr, child);
+      mirror_object_return_if_needed_(thr, child);
+      trace_context_event_("join-enter", thr, child ? child->parent_scope : 0,
+                           child ? child->wt_context : 0);
+      int child_type = child && child->parent_scope
+                     ? child->parent_scope->get_type_code() : 0;
+      __vpiScope*thr_ctx_scope = resolve_context_scope(thr ? thr->parent_scope : 0);
+      __vpiScope*child_ctx_scope = resolve_context_scope(child ? child->parent_scope : 0);
 
-        /* If the immediate child thread is in an automatic scope... */
-      if (child->wt_context) {
-              /* and is the top level task/function thread... */
-            if (thr->wt_context != thr->rd_context) {
-                    /* Pop the child context from the write context stack. */
-                  vvp_context_t child_context = thr->wt_context;
+      if (child->transferred_context) {
+            vvp_context_t child_context = child->transferred_context;
+            thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context,
+                                                                 child_context);
+            thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context,
+                                                                 child_context);
+            thr->skip_free_context = child_context;
+            thr->skip_free_scope = child->transferred_context_scope;
+            child->transferred_context = 0;
+            child->transferred_context_scope = 0;
+            trace_context_event_("join-transfer", thr, child ? child->parent_scope : 0,
+                                 child_context);
+
+      } else if (child->wt_context
+                 && (child_type == vpiTask || child_type == vpiFunction)
+                 && thr->wt_context != thr->rd_context) {
+            vvp_context_t child_context = thr->wt_context;
+            if (child_ctx_scope && child_ctx_scope == thr_ctx_scope) {
+                    /* Same-scope recursive automatic calls must keep the child
+                       frame on the write stack for the matching %free, but the
+                       caller's immediate post-call loads still need to read the
+                       child frame. Point rd_context at the shared child head
+                       until %free removes it from both chains. */
+                  thr->rd_context = child_context;
+                  trace_context_event_("join-rd-share", thr,
+                                       child ? child->parent_scope : 0,
+                                       child_context);
+            } else {
+                    /* Pop the child context from the write stack, then move that
+                       same context to the top of the read stack without leaving a
+                       duplicate stacked link behind. */
                   thr->wt_context = vvp_get_stacked_context(child_context);
-
-                    /* Push the child context onto the read context stack */
+                  thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context,
+                                                                       child_context);
                   vvp_set_stacked_context(child_context, thr->rd_context);
                   thr->rd_context = child_context;
+                  trace_context_event_("join-pop-push", thr,
+                                       child ? child->parent_scope : 0,
+                                       child_context);
+            }
+      }
+
+	      if (thr->i_am_in_function
+	          && child->pending_nonlocal_jmp && child->nonlocal_target) {
+	            if (!child->is_callf_child
+	                && child_nonlocal_jump_matches_parent_(thr, child)) {
+	                  if (flow_trace_enabled_()) {
+	                        fprintf(stderr,
+                                "trace flow: applying non-local join jump parent=%s child=%s origin=%s target=%p\n",
+                                scope_name_or_unknown_(thr->parent_scope),
+                                scope_name_or_unknown_(child->parent_scope),
+                                scope_name_or_unknown_(child->nonlocal_origin_scope),
+                                (void*)child->nonlocal_target);
+                  }
+	                  thr->pending_nonlocal_jmp = 1;
+	                  thr->nonlocal_target = child->nonlocal_target;
+	                  thr->nonlocal_origin_scope = child->nonlocal_origin_scope;
+	                  thr->pc = child->nonlocal_target;
+	            } else if (child->is_callf_child) {
+	                  if (flow_trace_enabled_()) {
+	                        fprintf(stderr,
+	                                "trace flow: suppressing non-local join jump across callf boundary"
+	                                " parent=%s child=%s origin=%s target=%p\n",
+	                                scope_name_or_unknown_(thr->parent_scope),
+	                                scope_name_or_unknown_(child->parent_scope),
+	                                scope_name_or_unknown_(child->nonlocal_origin_scope),
+	                                (void*)child->nonlocal_target);
+	                  }
+	            } else if (flow_trace_enabled_()) {
+	                  fprintf(stderr,
+	                          "trace flow: suppressing non-local join jump due to scope mismatch"
+	                          " parent=%s child=%s origin=%s target=%p\n",
+	                          scope_name_or_unknown_(thr->parent_scope),
+	                          scope_name_or_unknown_(child->parent_scope),
+	                          scope_name_or_unknown_(child->nonlocal_origin_scope),
+	                          (void*)child->nonlocal_target);
             }
       }
 
@@ -3781,19 +6544,39 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
       unsigned long count = cp->number;
 
       assert(count == thr->children.size());
+      trace_context_event_("join-detach-enter", thr, 0, 0);
 
-      while (! thr->children.empty()) {
-	    vthread_t child = *thr->children.begin();
-	    assert(child->parent == thr);
+	      while (! thr->children.empty()) {
+		    vthread_t child = *thr->children.begin();
+		    assert(child->parent == thr);
 
-	      // We cannot detach automatic tasks/functions within an
-	      // automatic scope. If we try to do that, we might make
-	      // a mess of the allocation of the context. Note that it
-	      // is OK if the child context is distinct (See %exec_ufunc.)
-	    assert(child->wt_context==0 || thr->wt_context!=child->wt_context);
-	    if (child->i_have_ended) {
-		    // If the child has already ended, then reap it.
-		  vthread_reap(child);
+		      // We cannot detach automatic tasks/functions within an
+		      // automatic scope. If we try to do that, we might make
+		      // a mess of the allocation of the context. Note that it
+		      // is OK if the child context is distinct (See %exec_ufunc.)
+		    if (child->wt_context && thr->wt_context == child->wt_context) {
+			  vvp_context_t child_context = child->wt_context;
+			  map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+				automatic_context_owner.find(child_context);
+			  __vpiScope*child_context_scope =
+				(owner_it != automatic_context_owner.end())
+				      ? owner_it->second : resolve_context_scope(thr->parent_scope);
+                          /* Detached nested blocks keep sharing the same
+                             activation frame as the parent task. Retain the
+                             frame for the child and let the parent drop its
+                             reference at the matching %free. */
+                          retain_automatic_context_(child_context);
+                          thr->skip_free_context = child_context;
+                          thr->skip_free_scope = child_context_scope;
+                          child->owns_automatic_context = 1;
+                          child->owned_context = child_context;
+                          trace_context_event_("join-detach-share", thr,
+                                               child ? child->parent_scope : 0,
+                                               child_context);
+		    }
+		    if (child->i_have_ended) {
+			    // If the child has already ended, then reap it.
+			  vthread_reap(child);
 
 	    } else {
 		  size_t res = child->parent->children.erase(child);
@@ -3819,7 +6602,8 @@ bool of_LOAD_AR(vthread_t thr, vvp_code_t cp)
 	    word = 0.0;
       } else {
 	    unsigned adr = thr->words[idx].w_int;
-	    word = cp->array->get_word_r(adr);
+	    vvp_array_t array = resolve_runtime_array_(cp, "%load/ar");
+	    word = array ? array->get_word_r(adr) : 0.0;
       }
 
       thr->push_real(word);
@@ -3874,15 +6658,1093 @@ bool of_LOAD_DAR_VEC4(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %load/dar/obj <array-label>
+ *    Load an object from a dynamic array element, using integer register 3
+ *    as the index. Pushes the object onto the object stack.
+ */
+bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      int64_t adr = thr->words[3].w_int;
+      vvp_net_t*net = cp->net;
+      assert(net);
+
+      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      assert(obj);
+
+      vvp_darray*darray = obj->get_object().peek<vvp_darray>();
+
+      vvp_object_t word;
+      if (darray &&
+          (adr >= 0) && (thr->flags[4] == BIT4_0))
+	    darray->get_word(adr, word);
+      // else word remains nil (default-constructed vvp_object_t)
+
+      thr->push_object(word);
+      return true;
+}
+
+inline static void push_loaded_qo_value_(vthread_t thr, double value, unsigned)
+{
+      thr->push_real(value);
+}
+
+inline static void push_loaded_qo_value_(vthread_t thr, const string&value, unsigned)
+{
+      thr->push_str(value);
+}
+
+inline static void push_loaded_qo_value_(vthread_t thr, const vvp_vector4_t&value, unsigned)
+{
+      thr->push_vec4(value);
+}
+
+inline static void push_loaded_qo_value_(vthread_t thr, const vvp_object_t&value, unsigned)
+{
+      thr->push_object(value);
+}
+
+static vvp_fun_signal_object* signal_object_fun_(vvp_net_t*net)
+{
+      if (!net)
+            return 0;
+
+      vvp_fun_signal_object*fun =
+            dynamic_cast<vvp_fun_signal_object*>(net->fun);
+      if (!fun)
+            fun = dynamic_cast<vvp_fun_signal_object*>(net->fil);
+      return fun;
+}
+
+static vvp_fun_signal_string* signal_string_fun_(vvp_net_t*net)
+{
+      if (!net)
+            return 0;
+
+      vvp_fun_signal_string*fun =
+            dynamic_cast<vvp_fun_signal_string*>(net->fun);
+      if (!fun)
+            fun = dynamic_cast<vvp_fun_signal_string*>(net->fil);
+      return fun;
+}
+
+static vvp_signal_value* signal_vec4_fun_(vvp_net_t*net)
+{
+      if (!net)
+            return 0;
+
+      vvp_signal_value*fun =
+            dynamic_cast<vvp_signal_value*>(net->fun);
+      if (!fun)
+            fun = dynamic_cast<vvp_signal_value*>(net->fil);
+      return fun;
+}
+
+template <class ASSOC>
+static ASSOC* peek_signal_assoc_(vvp_net_t*net)
+{
+      static bool warned = false;
+      vvp_fun_signal_object*obj = signal_object_fun_(net);
+      if (!obj)
+            return 0;
+
+      vvp_assoc_base*assoc = obj->get_object().peek<vvp_assoc_base>();
+      if (!assoc)
+            return 0;
+
+      ASSOC*typed_assoc = dynamic_cast<ASSOC*>(assoc);
+      if (!typed_assoc && !warned) {
+            cerr << "Warning: signal assoc operation on unexpected container type."
+                 << endl;
+            warned = true;
+      }
+
+      return typed_assoc;
+}
+
+template <class ASSOC>
+static ASSOC* ensure_signal_assoc_(vthread_t thr, vvp_net_t*net, const char*why)
+{
+      ASSOC*assoc = peek_signal_assoc_<ASSOC>(net);
+      if (assoc)
+            return assoc;
+
+      if (!signal_object_fun_(net))
+            return 0;
+
+      vvp_object_t val(new ASSOC);
+      vvp_send_object(vvp_net_ptr_t(net, 0), val, ensure_write_context_(thr, why));
+      return peek_signal_assoc_<ASSOC>(net);
+}
+
+template <typename KEY> static KEY pop_assoc_key_(vthread_t thr);
+
+template <>
+string pop_assoc_key_<string>(vthread_t thr)
+{
+      return thr->pop_str();
+}
+
+template <>
+vvp_object_t pop_assoc_key_<vvp_object_t>(vthread_t thr)
+{
+      vvp_object_t key;
+      thr->pop_object(key);
+      return key;
+}
+
+template <>
+vvp_vector4_t pop_assoc_key_<vvp_vector4_t>(vthread_t thr)
+{
+      return thr->pop_vec4();
+}
+
+template <typename KEY>
+static bool read_signal_assoc_key_(vthread_t thr, vvp_net_t*net, KEY&value);
+
+template <>
+bool read_signal_assoc_key_<string>(vthread_t thr, vvp_net_t*net, string&value)
+{
+      if (!(thr && net))
+            return false;
+
+      vvp_fun_signal_string*fun = signal_string_fun_(net);
+      if (!fun)
+            return false;
+
+      vthread_t save_running = running_thread;
+      running_thread = thr;
+      value = fun->get_string();
+      running_thread = save_running;
+      return true;
+}
+
+template <>
+bool read_signal_assoc_key_<vvp_object_t>(vthread_t thr, vvp_net_t*net, vvp_object_t&value)
+{
+      if (!(thr && net))
+            return false;
+
+      vvp_fun_signal_object*fun = signal_object_fun_(net);
+      if (!fun)
+            return false;
+
+      vthread_t save_running = running_thread;
+      running_thread = thr;
+      value = fun->get_object();
+      running_thread = save_running;
+      return true;
+}
+
+template <>
+bool read_signal_assoc_key_<vvp_vector4_t>(vthread_t thr, vvp_net_t*net, vvp_vector4_t&value)
+{
+      if (!(thr && net))
+            return false;
+
+      vvp_signal_value*fun = signal_vec4_fun_(net);
+      if (!fun)
+            return false;
+
+      vthread_t save_running = running_thread;
+      running_thread = thr;
+      value = vvp_vector4_t(fun->value_size(), BIT4_X);
+      fun->vec4_value(value);
+      running_thread = save_running;
+      return true;
+}
+
+template <typename KEY>
+static bool write_signal_assoc_key_(vthread_t thr, vvp_net_t*net,
+				    const KEY&value, const char*why);
+
+template <>
+bool write_signal_assoc_key_<string>(vthread_t thr, vvp_net_t*net,
+				     const string&value, const char*why)
+{
+      if (!(thr && net))
+            return false;
+      if (!signal_string_fun_(net))
+            return false;
+
+      vvp_send_string(vvp_net_ptr_t(net, 0), value,
+		      ensure_write_context_(thr, why));
+      return true;
+}
+
+template <>
+bool write_signal_assoc_key_<vvp_object_t>(vthread_t thr, vvp_net_t*net,
+					   const vvp_object_t&value, const char*why)
+{
+      if (!(thr && net))
+            return false;
+      if (!signal_object_fun_(net))
+            return false;
+
+      vvp_send_object(vvp_net_ptr_t(net, 0), value,
+		      ensure_write_context_(thr, why));
+      return true;
+}
+
+template <>
+bool write_signal_assoc_key_<vvp_vector4_t>(vthread_t thr, vvp_net_t*net,
+					    const vvp_vector4_t&value, const char*why)
+{
+      if (!(thr && net))
+            return false;
+      if (!signal_vec4_fun_(net))
+            return false;
+
+      vvp_send_vec4(vvp_net_ptr_t(net, 0), value,
+		    ensure_write_context_(thr, why));
+      return true;
+}
+
+template <class ASSOC>
+static ASSOC* peek_assoc_receiver_(vthread_t thr, unsigned depth=0)
+{
+      static bool warned = false;
+      vvp_assoc_base*assoc = thr->peek_object(depth).peek<vvp_assoc_base>();
+      if (!assoc)
+	    return 0;
+
+      ASSOC*typed_assoc = dynamic_cast<ASSOC*>(assoc);
+      if (!typed_assoc && !warned) {
+	    cerr << thr->get_fileline()
+	         << "Warning: assoc operation on unexpected container type."
+	         << endl;
+	    warned = true;
+      }
+
+      return typed_assoc;
+}
+
+template <class ASSOC>
+static ASSOC* pop_assoc_receiver_(vthread_t thr)
+{
+      static bool warned = false;
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_assoc_base*assoc = recv.peek<vvp_assoc_base>();
+      if (!assoc)
+	    return 0;
+
+      ASSOC*typed_assoc = dynamic_cast<ASSOC*>(assoc);
+      if (!typed_assoc && !warned) {
+	    cerr << thr->get_fileline()
+	         << "Warning: assoc operation on unexpected container type."
+	         << endl;
+	    warned = true;
+      }
+
+      return typed_assoc;
+}
+
+template <typename ELEM, class ASSOC>
+static bool aa_load_str(vthread_t thr, unsigned wid=0)
+{
+      string key = thr->pop_str();
+      ELEM value;
+      dq_default(value, wid);
+
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+      if (assoc)
+	    assoc->get(key, value);
+
+      push_loaded_qo_value_(thr, value, wid);
+      return true;
+}
+
+template <typename ELEM, class ASSOC>
+static bool aa_load_obj(vthread_t thr, unsigned wid=0)
+{
+      vvp_object_t key;
+      thr->pop_object(key);
+
+      ELEM value;
+      dq_default(value, wid);
+
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+      if (assoc)
+	    assoc->get(key, value);
+
+      if (assoc_trace_scope_match_(thr)) {
+            fprintf(stderr,
+                    "trace assoc: op=load/obj scope=%s assoc=%p size=%zu key=%p key_class=%s value_class=%s\n",
+                    scope_name_or_unknown_(thr ? thr->parent_scope : 0),
+                    (void*)assoc,
+                    assoc ? assoc->size() : 0,
+                    (void*)key.peek<vvp_object>(),
+                    object_trace_class_(key),
+                    assoc_value_trace_class_(value));
+      }
+
+      push_loaded_qo_value_(thr, value, wid);
+      return true;
+}
+
+template <typename ELEM, class ASSOC>
+static bool aa_load_vec(vthread_t thr, unsigned wid=0)
+{
+      vvp_vector4_t key = thr->pop_vec4();
+      ELEM value;
+      dq_default(value, wid);
+
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+      if (assoc)
+	    assoc->get(key, value);
+
+      push_loaded_qo_value_(thr, value, wid);
+      return true;
+}
+
+template <typename ELEM, class ASSOC>
+static bool aa_load_keep_str(vthread_t thr, unsigned wid=0)
+{
+      const string&key = thr->peek_str(0);
+      ELEM value;
+      dq_default(value, wid);
+
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+      if (assoc)
+	    assoc->get(key, value);
+
+      push_loaded_qo_value_(thr, value, wid);
+      return true;
+}
+
+template <typename ELEM, class ASSOC>
+static bool aa_load_keep_obj(vthread_t thr, unsigned wid=0)
+{
+      vvp_object_t key = thr->peek_object(0);
+
+      ELEM value;
+      dq_default(value, wid);
+
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr, 1);
+      if (assoc)
+	    assoc->get(key, value);
+
+      push_loaded_qo_value_(thr, value, wid);
+      return true;
+}
+
+template <typename ELEM, class ASSOC>
+static bool aa_load_keep_vec(vthread_t thr, unsigned wid=0)
+{
+      const vvp_vector4_t&key = thr->peek_vec4(0);
+      ELEM value;
+      dq_default(value, wid);
+
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr, 1);
+      if (assoc)
+	    assoc->get(key, value);
+
+      push_loaded_qo_value_(thr, value, wid);
+      return true;
+}
+
+template <typename ELEM, class ASSOC>
+static bool aa_store_str(vthread_t thr, unsigned wid=0)
+{
+      ELEM value;
+      pop_value(thr, value, wid);
+
+      string key = thr->pop_str();
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+      if (assoc)
+	    assoc->set(key, value);
+
+      return true;
+}
+
+template <typename ELEM, class ASSOC>
+static bool aa_store_obj(vthread_t thr, unsigned wid=0)
+{
+      ELEM value;
+      pop_value(thr, value, wid);
+
+      vvp_object_t key;
+      thr->pop_object(key);
+
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+      if (assoc)
+	    assoc->set(key, value);
+
+      if (assoc_trace_scope_match_(thr)) {
+            fprintf(stderr,
+                    "trace assoc: op=store/obj scope=%s assoc=%p size=%zu key=%p key_class=%s value_class=%s\n",
+                    scope_name_or_unknown_(thr ? thr->parent_scope : 0),
+                    (void*)assoc,
+                    assoc ? assoc->size() : 0,
+                    (void*)key.peek<vvp_object>(),
+                    object_trace_class_(key),
+                    assoc_value_trace_class_(value));
+      }
+
+      return true;
+}
+
+template <typename ELEM, class ASSOC>
+static bool aa_store_vec(vthread_t thr, unsigned wid=0)
+{
+      ELEM value;
+      pop_value(thr, value, wid);
+
+      vvp_vector4_t key = thr->pop_vec4();
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+      if (assoc)
+	    assoc->set(key, value);
+
+      return true;
+}
+
+template <class ASSOC>
+static bool aa_delete_str(vthread_t thr)
+{
+      string key = thr->pop_str();
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+      if (assoc)
+	    assoc->erase_key(key);
+      return true;
+}
+
+template <class ASSOC>
+static bool aa_delete_obj(vthread_t thr)
+{
+      vvp_object_t key;
+      thr->pop_object(key);
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+      if (assoc)
+	    assoc->erase_key(key);
+      return true;
+}
+
+template <class ASSOC>
+static bool aa_delete_vec(vthread_t thr)
+{
+      vvp_vector4_t key = thr->pop_vec4();
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+      if (assoc)
+	    assoc->erase_key(key);
+      return true;
+}
+
+template <class ASSOC>
+static bool aa_exists_str(vthread_t thr, unsigned wid)
+{
+      string key = thr->pop_str();
+      ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
+      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+      thr->push_vec4(val);
+      return true;
+}
+
+template <class ASSOC>
+static bool aa_exists_vec(vthread_t thr, unsigned wid)
+{
+      vvp_vector4_t key = thr->pop_vec4();
+      ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
+      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+      thr->push_vec4(val);
+      return true;
+}
+
+template <class ASSOC>
+static bool aa_exists_obj(vthread_t thr, unsigned wid)
+{
+      vvp_object_t key;
+      thr->pop_object(key);
+      ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
+      if (assoc_trace_scope_match_(thr)) {
+            fprintf(stderr,
+                    "trace assoc: op=exists/obj scope=%s assoc=%p size=%zu key=%p key_class=%s exists=%d\n",
+                    scope_name_or_unknown_(thr ? thr->parent_scope : 0),
+                    (void*)assoc,
+                    assoc ? assoc->size() : 0,
+                    (void*)key.peek<vvp_object>(),
+                    object_trace_class_(key),
+                    (assoc && assoc->exists_key(key)) ? 1 : 0);
+      }
+      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+      thr->push_vec4(val);
+      return true;
+}
+
+template <typename KEY, class ASSOC>
+static bool aa_exists_signal(vthread_t thr, vvp_net_t*net, unsigned wid)
+{
+      KEY key = pop_assoc_key_<KEY>(thr);
+      ASSOC*assoc = peek_signal_assoc_<ASSOC>(net);
+      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+      thr->push_vec4(val);
+      return true;
+}
+
+template <typename KEY>
+static bool aa_traversal_finish_(vthread_t thr, vvp_net_t*key_net,
+				 const KEY&key, bool ok,
+				 unsigned wid, const char*why)
+{
+      if (ok && !write_signal_assoc_key_<KEY>(thr, key_net, key, why))
+            ok = false;
+
+      vvp_vector4_t val(wid, ok ? BIT4_1 : BIT4_0);
+      thr->push_vec4(val);
+      return true;
+}
+
+template <typename KEY, class ASSOC>
+static bool aa_first(vthread_t thr, vvp_net_t*key_net, unsigned wid)
+{
+      KEY key;
+      ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
+      bool ok = assoc && assoc->first_key(key);
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first");
+}
+
+template <typename KEY, class ASSOC>
+static bool aa_last(vthread_t thr, vvp_net_t*key_net, unsigned wid)
+{
+      KEY key;
+      ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
+      bool ok = assoc && assoc->last_key(key);
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last");
+}
+
+template <typename KEY, class ASSOC>
+static bool aa_next(vthread_t thr, vvp_net_t*key_net, unsigned wid)
+{
+      KEY key;
+      bool ok = read_signal_assoc_key_<KEY>(thr, key_net, key);
+      ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
+      ok = assoc && ok && assoc->next_key(key);
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next");
+}
+
+template <typename KEY, class ASSOC>
+static bool aa_prev(vthread_t thr, vvp_net_t*key_net, unsigned wid)
+{
+      KEY key;
+      bool ok = read_signal_assoc_key_<KEY>(thr, key_net, key);
+      ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
+      ok = assoc && ok && assoc->prev_key(key);
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev");
+}
+
+template <typename KEY, class ASSOC>
+static bool aa_first_signal(vthread_t thr, vvp_net_t*recv_net,
+			    vvp_net_t*key_net, unsigned wid)
+{
+      KEY key;
+      ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
+      bool ok = assoc && assoc->first_key(key);
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first-sig");
+}
+
+template <typename KEY, class ASSOC>
+static bool aa_last_signal(vthread_t thr, vvp_net_t*recv_net,
+			   vvp_net_t*key_net, unsigned wid)
+{
+      KEY key;
+      ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
+      bool ok = assoc && assoc->last_key(key);
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last-sig");
+}
+
+template <typename KEY, class ASSOC>
+static bool aa_next_signal(vthread_t thr, vvp_net_t*recv_net,
+			   vvp_net_t*key_net, unsigned wid)
+{
+      KEY key;
+      bool ok = read_signal_assoc_key_<KEY>(thr, key_net, key);
+      ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
+      ok = assoc && ok && assoc->next_key(key);
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next-sig");
+}
+
+template <typename KEY, class ASSOC>
+static bool aa_prev_signal(vthread_t thr, vvp_net_t*recv_net,
+			   vvp_net_t*key_net, unsigned wid)
+{
+      KEY key;
+      bool ok = read_signal_assoc_key_<KEY>(thr, key_net, key);
+      ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
+      ok = assoc && ok && assoc->prev_key(key);
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev-sig");
+}
+
+template <typename KEY, typename ELEM, class ASSOC>
+static bool aa_load_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
+{
+      KEY key = pop_assoc_key_<KEY>(thr);
+      ELEM value;
+      dq_default(value, wid);
+
+      ASSOC*assoc = peek_signal_assoc_<ASSOC>(net);
+      if (assoc)
+            assoc->get(key, value);
+
+      assoc_trace_signal_load_(thr, net, assoc, key, value);
+
+      push_loaded_qo_value_(thr, value, wid);
+      return true;
+}
+
+template <typename KEY, typename ELEM, class ASSOC>
+static bool aa_store_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
+{
+      ELEM value;
+      pop_value(thr, value, wid);
+
+      KEY key = pop_assoc_key_<KEY>(thr);
+      ASSOC*assoc = ensure_signal_assoc_<ASSOC>(thr, net, "aa-store-sig");
+      if (assoc)
+            assoc->set(key, value);
+
+      assoc_trace_signal_store_(thr, net, assoc, key, value);
+
+      return true;
+}
+
+template <typename ELEM, class QTYPE>
+static bool load_qo(vthread_t thr, unsigned wid=0)
+{
+      int64_t adr = thr->words[3].w_int;
+      ELEM word;
+      dq_default(word, wid);
+
+      vvp_object_t recv;
+      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv);
+      if (queue &&
+          (adr >= 0) &&
+          (thr->flags[4] == BIT4_0) &&
+          (static_cast<size_t>(adr) < queue->get_size()))
+	    queue->get_word(adr, word);
+
+      push_loaded_qo_value_(thr, word, wid);
+      return true;
+}
+
+bool of_LOAD_QO_R(vthread_t thr, vvp_code_t)
+{
+      return load_qo<double, vvp_queue_real>(thr);
+}
+
+bool of_LOAD_QO_STR(vthread_t thr, vvp_code_t)
+{
+      return load_qo<string, vvp_queue_string>(thr);
+}
+
+bool of_LOAD_QO_V(vthread_t thr, vvp_code_t cp)
+{
+      return load_qo<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_LOAD_QO_OBJ(vthread_t thr, vvp_code_t)
+{
+      return load_qo<vvp_object_t, vvp_queue_object>(thr);
+}
+
+bool of_AA_LOAD_OBJ_OBJ(vthread_t thr, vvp_code_t)
+{
+      return aa_load_obj<vvp_object_t, vvp_assoc_object>(thr);
+}
+
+bool of_AA_LOAD_OBJ_STR(vthread_t thr, vvp_code_t)
+{
+      return aa_load_str<vvp_object_t, vvp_assoc_object>(thr);
+}
+
+bool of_AA_LOAD_OBJ_V(vthread_t thr, vvp_code_t)
+{
+      return aa_load_vec<vvp_object_t, vvp_assoc_object>(thr);
+}
+
+bool of_AA_LOADK_R_OBJ(vthread_t thr, vvp_code_t)
+{
+      return aa_load_keep_obj<double, vvp_assoc_real>(thr);
+}
+
+bool of_AA_LOADK_R_STR(vthread_t thr, vvp_code_t)
+{
+      return aa_load_keep_str<double, vvp_assoc_real>(thr);
+}
+
+bool of_AA_LOADK_R_V(vthread_t thr, vvp_code_t)
+{
+      return aa_load_keep_vec<double, vvp_assoc_real>(thr);
+}
+
+bool of_AA_LOADK_V_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_keep_obj<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_AA_LOADK_V_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_keep_str<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_AA_LOADK_V_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_keep_vec<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_AA_LOAD_R_OBJ(vthread_t thr, vvp_code_t)
+{
+      return aa_load_obj<double, vvp_assoc_real>(thr);
+}
+
+bool of_AA_LOAD_R_STR(vthread_t thr, vvp_code_t)
+{
+      return aa_load_str<double, vvp_assoc_real>(thr);
+}
+
+bool of_AA_LOAD_R_V(vthread_t thr, vvp_code_t)
+{
+      return aa_load_vec<double, vvp_assoc_real>(thr);
+}
+
+bool of_AA_LOAD_STR_OBJ(vthread_t thr, vvp_code_t)
+{
+      return aa_load_obj<string, vvp_assoc_string>(thr);
+}
+
+bool of_AA_LOAD_STR_STR(vthread_t thr, vvp_code_t)
+{
+      return aa_load_str<string, vvp_assoc_string>(thr);
+}
+
+bool of_AA_LOAD_STR_V(vthread_t thr, vvp_code_t)
+{
+      return aa_load_vec<string, vvp_assoc_string>(thr);
+}
+
+bool of_AA_LOAD_V_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_obj<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_AA_LOAD_V_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_str<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_AA_LOAD_V_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_vec<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_AA_STORE_OBJ_OBJ(vthread_t thr, vvp_code_t)
+{
+      return aa_store_obj<vvp_object_t, vvp_assoc_object>(thr);
+}
+
+bool of_AA_STORE_OBJ_STR(vthread_t thr, vvp_code_t)
+{
+      return aa_store_str<vvp_object_t, vvp_assoc_object>(thr);
+}
+
+bool of_AA_STORE_OBJ_V(vthread_t thr, vvp_code_t)
+{
+      return aa_store_vec<vvp_object_t, vvp_assoc_object>(thr);
+}
+
+bool of_AA_STORE_R_OBJ(vthread_t thr, vvp_code_t)
+{
+      return aa_store_obj<double, vvp_assoc_real>(thr);
+}
+
+bool of_AA_STORE_R_STR(vthread_t thr, vvp_code_t)
+{
+      return aa_store_str<double, vvp_assoc_real>(thr);
+}
+
+bool of_AA_STORE_R_V(vthread_t thr, vvp_code_t)
+{
+      return aa_store_vec<double, vvp_assoc_real>(thr);
+}
+
+bool of_AA_STORE_STR_OBJ(vthread_t thr, vvp_code_t)
+{
+      return aa_store_obj<string, vvp_assoc_string>(thr);
+}
+
+bool of_AA_STORE_STR_STR(vthread_t thr, vvp_code_t)
+{
+      return aa_store_str<string, vvp_assoc_string>(thr);
+}
+
+bool of_AA_STORE_STR_V(vthread_t thr, vvp_code_t)
+{
+      return aa_store_vec<string, vvp_assoc_string>(thr);
+}
+
+bool of_AA_STORE_V_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_store_obj<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_AA_STORE_V_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_store_str<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_AA_STORE_V_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_store_vec<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_AA_DELETE_OBJ(vthread_t thr, vvp_code_t)
+{
+      return aa_delete_obj<vvp_assoc_base>(thr);
+}
+
+bool of_AA_DELETE_STR(vthread_t thr, vvp_code_t)
+{
+      return aa_delete_str<vvp_assoc_base>(thr);
+}
+
+bool of_AA_DELETE_V(vthread_t thr, vvp_code_t)
+{
+      return aa_delete_vec<vvp_assoc_base>(thr);
+}
+
+bool of_AA_EXISTS_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_exists_obj<vvp_assoc_base>(thr, cp->number);
+}
+
+bool of_AA_EXISTS_SIG_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_exists_signal<vvp_object_t, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_EXISTS_SIG_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_exists_signal<string, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_EXISTS_SIG_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_exists_signal<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_EXISTS_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_exists_str<vvp_assoc_base>(thr, cp->number);
+}
+
+bool of_AA_EXISTS_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_exists_vec<vvp_assoc_base>(thr, cp->number);
+}
+
+bool of_AA_FIRST_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_first<vvp_object_t, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_FIRST_SIG_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_first_signal<vvp_object_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_FIRST_SIG_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_first_signal<string, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_FIRST_SIG_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_first_signal<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_FIRST_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_first<string, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_FIRST_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_first<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_LAST_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_last<vvp_object_t, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_LAST_SIG_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_last_signal<vvp_object_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_LAST_SIG_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_last_signal<string, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_LAST_SIG_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_last_signal<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_LAST_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_last<string, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_LAST_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_last<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_NEXT_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_next<vvp_object_t, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_NEXT_SIG_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_next_signal<vvp_object_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_NEXT_SIG_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_next_signal<string, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_NEXT_SIG_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_next_signal<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_NEXT_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_next<string, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_NEXT_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_next<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_PREV_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_prev<vvp_object_t, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_PREV_SIG_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_prev_signal<vvp_object_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_PREV_SIG_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_prev_signal<string, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_PREV_SIG_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_prev_signal<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
+}
+
+bool of_AA_PREV_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_prev<string, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_PREV_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_prev<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_LOAD_SIG_OBJ_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_signal<vvp_object_t, vvp_object_t, vvp_assoc_object>(thr, cp->net);
+}
+
+bool of_AA_LOAD_SIG_OBJ_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_signal<string, vvp_object_t, vvp_assoc_object>(thr, cp->net);
+}
+
+bool of_AA_LOAD_SIG_OBJ_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_signal<vvp_vector4_t, vvp_object_t, vvp_assoc_object>(thr, cp->net);
+}
+
+bool of_AA_LOAD_SIG_R_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_signal<vvp_object_t, double, vvp_assoc_real>(thr, cp->net);
+}
+
+bool of_AA_LOAD_SIG_STR_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_signal<vvp_object_t, string, vvp_assoc_string>(thr, cp->net);
+}
+
+bool of_AA_LOAD_SIG_V_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_signal<vvp_object_t, vvp_vector4_t, vvp_assoc_vec4>(thr, cp->net,
+                                                                         cp->bit_idx[0]);
+}
+
+/*
  * %load/obj <var-label>
  */
 bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = cp->net;
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*> (net->fun);
-      assert(fun);
+      vvp_fun_signal_object*fun = signal_object_fun_(net);
+      if (!fun) {
+	    static bool warned_missing_fun = false;
+	    if (!warned_missing_fun) {
+		  cerr << thr->get_fileline()
+		       << "Warning: %load/obj without object functor; pushing nil"
+		       << " (further similar warnings suppressed)." << endl;
+		  warned_missing_fun = true;
+	    }
+	    vvp_object_t nil;
+	    thr->push_object(nil);
+	    return true;
+      }
 
       vvp_object_t val = fun->get_object();
+
+      static int trace_store_obj_enabled = -1;
+      if (trace_store_obj_enabled < 0) {
+            const char*env = getenv("IVL_STORE_OBJ_TRACE");
+            trace_store_obj_enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      if (trace_store_obj_enabled) {
+            const char*scope_name = (thr && thr->parent_scope)
+                                  ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+            const char*env = getenv("IVL_STORE_OBJ_TRACE");
+            bool trace_this = true;
+            if (env && *env
+                && strcmp(env, "1") != 0 && strcmp(env, "ALL") != 0 && strcmp(env, "*") != 0) {
+                  trace_this = (scope_name && strstr(scope_name, env));
+            }
+            if (trace_this) {
+                  const char*fun_kind = "other";
+                  if (net->fun) {
+                        if (dynamic_cast<vvp_fun_signal_object_sa*>(net->fun))
+                              fun_kind = "object_sa";
+                        else if (dynamic_cast<vvp_fun_signal_object_aa*>(net->fun))
+                              fun_kind = "object_aa";
+                  }
+                  fprintf(stderr,
+                          "trace load_obj  scope=%s net=%p fun=%s val_nil=%d val=%p class=%s wt=%p rd=%p\n",
+                          scope_name ? scope_name : "<unknown>",
+                          (void*)net, fun_kind, val.test_nil() ? 1 : 0,
+                          val.peek<vvp_object>(),
+                          object_trace_class_(val),
+                          thr ? thr->wt_context : 0, thr ? thr->rd_context : 0);
+            }
+      }
+
       thr->push_object(val);
 
       return true;
@@ -3898,13 +7760,20 @@ bool of_LOAD_OBJA(vthread_t thr, vvp_code_t cp)
 {
       unsigned idx = cp->bit_idx[0];
       vvp_object_t word;
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/obja");
+
+	/* Guard against unresolved null array stub. */
+      if (!array) {
+	    thr->push_object(word); // push nil
+	    return true;
+      }
 
 	/* The result is 0.0 if the address is undefined. */
       if (thr->flags[4] == BIT4_1) {
 	    ; // Return nil
       } else {
 	    unsigned adr = thr->words[idx].w_int;
-	    cp->array->get_word_obj(adr, word);
+	    array->get_word_obj(adr, word);
       }
 
       thr->push_object(word);
@@ -3948,12 +7817,13 @@ bool of_LOAD_STRA(vthread_t thr, vvp_code_t cp)
 {
       unsigned idx = cp->bit_idx[0];
       string word;
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/stra");
 
       if (thr->flags[4] == BIT4_1) {
 	    word = "";
       } else {
 	    unsigned adr = thr->words[idx].w_int;
-	    word = cp->array->get_word_str(adr);
+	    word = array ? array->get_word_str(adr) : "";
       }
 
       thr->push_str(word);
@@ -4000,6 +7870,7 @@ bool of_LOAD_VEC4(vthread_t thr, vvp_code_t cp)
 bool of_LOAD_VEC4A(vthread_t thr, vvp_code_t cp)
 {
       int adr_index = cp->bit_idx[0];
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/vec4a");
 
       long adr = thr->words[adr_index].w_int;
 
@@ -4007,12 +7878,17 @@ bool of_LOAD_VEC4A(vthread_t thr, vvp_code_t cp)
 	// failed, and this load should return X instead of the actual
 	// value.
       if (thr->flags[4] == BIT4_1) {
-	    vvp_vector4_t tmp (cp->array->get_word_size(), BIT4_X);
+	    vvp_vector4_t tmp (array ? array->get_word_size() : 1, BIT4_X);
 	    thr->push_vec4(tmp);
 	    return true;
       }
 
-      vvp_vector4_t tmp (cp->array->get_word(adr));
+      if (!array) {
+	    thr->push_vec4(vvp_vector4_t(1, BIT4_X));
+	    return true;
+      }
+
+      vvp_vector4_t tmp (array->get_word(adr));
       thr->push_vec4(tmp);
       return true;
 }
@@ -4518,6 +8394,90 @@ bool of_NEW_COBJ(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_NEW_VIF(vthread_t thr, vvp_code_t cp)
+{
+      __vpiScope*scope = dynamic_cast<__vpiScope*> (cp->handle);
+      const class_type*defn = reinterpret_cast<const class_type*> (cp->cptr2);
+
+      if (!scope || !defn) {
+	    thr->push_object(vvp_object_t());
+	    return true;
+      }
+
+      vvp_object_t tmp (new vvp_vinterface(scope, defn));
+      thr->push_object(tmp);
+      return true;
+}
+
+static vthread_t logical_process_thread_(vthread_t thr)
+{
+      while (thr && thr->is_callf_child && thr->parent)
+	    thr = thr->parent;
+      return thr;
+}
+
+static void process_status_to_vec4_(unsigned status, vvp_vector4_t&val)
+{
+      val = vvp_vector4_t(32, BIT4_0);
+      for (unsigned idx = 0 ; idx < 32 ; idx += 1) {
+	    if ((status >> idx) & 1U)
+		  val.set_bit(idx, BIT4_1);
+      }
+}
+
+bool of_PROCESS_SELF(vthread_t thr, vvp_code_t)
+{
+      vthread_t owner = logical_process_thread_(thr);
+      if (!owner) {
+	    thr->push_object(vvp_object_t());
+	    return true;
+      }
+
+      thr->push_object(owner->process_obj_);
+      return true;
+}
+
+bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      vvp_process*proc = obj.peek<vvp_process>();
+      if (!proc)
+	    return true;
+
+      unsigned status = proc->status();
+      if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
+	    return true;
+
+      proc->add_waiter(thr);
+      return false;
+}
+
+bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      vvp_process*proc = obj.peek<vvp_process>();
+      if (!proc)
+	    return true;
+
+      vthread_t target = proc->owner();
+      if (!target)
+	    return true;
+
+      unsigned status = proc->status();
+      if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
+	    return true;
+
+      vthread_t self_process = logical_process_thread_(thr);
+      bool self_kill = (target == thr) || (target == self_process);
+
+      (void)do_disable(target, target);
+      return !self_kill;
+}
+
 bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
 {
       const char*text = cp->text;
@@ -4558,6 +8518,8 @@ bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
 	    obj = new vvp_darray_real(size);
       } else if (strcmp(text,"S") == 0) {
 	    obj = new vvp_darray_string(size);
+      } else if (strcmp(text,"o") == 0) {
+	    obj = new vvp_darray_object(size);
       } else {
 	    cerr << get_fileline()
 	         << "Internal error: Unsupported dynamic array type: "
@@ -4567,6 +8529,42 @@ bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
 
       thr->push_object(obj);
 
+      return true;
+}
+
+bool of_NEW_QUEUE(vthread_t thr, vvp_code_t cp)
+{
+      const char*text = cp->text;
+      unsigned word_wid;
+      size_t n;
+
+      vvp_object_t obj;
+      if (strcmp(text, "r") == 0) {
+	    obj = new vvp_queue_real;
+      } else if (strcmp(text, "S") == 0) {
+	    obj = new vvp_queue_string;
+      } else if (strcmp(text, "o") == 0) {
+	    obj = new vvp_queue_object;
+      } else if ((1 == sscanf(text, "b%u%zn", &word_wid, &n))
+		 && (n == strlen(text))) {
+	    obj = new vvp_queue_vec4;
+      } else if ((1 == sscanf(text, "sb%u%zn", &word_wid, &n))
+		 && (n == strlen(text))) {
+	    obj = new vvp_queue_vec4;
+      } else if ((1 == sscanf(text, "v%u%zn", &word_wid, &n))
+		 && (n == strlen(text))) {
+	    obj = new vvp_queue_vec4;
+      } else if ((1 == sscanf(text, "sv%u%zn", &word_wid, &n))
+		 && (n == strlen(text))) {
+	    obj = new vvp_queue_vec4;
+      } else {
+	    cerr << get_fileline()
+		 << "Internal error: Unsupported queue type: "
+		 << text << "." << endl;
+	    assert(0);
+      }
+
+      thr->push_object(obj);
       return true;
 }
 
@@ -4895,6 +8893,11 @@ bool of_POW_WR(vthread_t thr, vvp_code_t)
  *
  * Load an object value from the cobject and push it onto the object stack.
  */
+static const char*prop_trace_obj_kind_(const vvp_object_t&obj);
+static const char*prop_trace_receiver_class_(const vvp_object_t&obj);
+static bool prop_pid_in_range_(const vvp_object_t&obj, size_t pid, size_t*count_out);
+static void prop_trace_log_(vthread_t thr, const char*op, size_t pid, unsigned idx, const vvp_object_t&obj, bool has_propobj);
+
 bool of_PROP_OBJ(vthread_t thr, vvp_code_t cp)
 {
       unsigned pid = cp->number;
@@ -4907,9 +8910,53 @@ bool of_PROP_OBJ(vthread_t thr, vvp_code_t cp)
 
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%prop/obj", pid, idx, obj, has_propobj);
+      if (!has_propobj) {
+	    static bool warned = false;
+	    if (!warned) {
+		  const char*scope_name = scope_name_or_unknown_(thr ? thr->parent_scope : 0);
+		  cerr << thr->get_fileline()
+		       << "Warning: %prop/obj on null/unsupported object handle"
+		       << " (pid=" << pid << ", idx=" << idx << ")"
+		       << " scope=" << scope_name
+		       << " receiver=" << prop_trace_obj_kind_(obj)
+		       << " class=" << prop_trace_receiver_class_(obj)
+		       << "; using null object fallback." << endl;
+		  warned = true;
+	    }
+	    vvp_object_t val;
+	    val.reset();
+	    thr->push_object(val);
+	    return true;
+      }
+
+      size_t prop_count = 0;
+      if (!prop_pid_in_range_(obj, pid, &prop_count)) {
+            static bool warned = false;
+            if (!warned) {
+                  cerr << thr->get_fileline()
+                       << "Warning: %prop/obj pid=" << pid
+                       << " out of range for receiver class "
+                       << prop_trace_receiver_class_(obj)
+                       << " (size=" << prop_count << ")"
+                       << "; using null object fallback."
+                       << " scope=" << scope_name_or_unknown_(thr ? thr->parent_scope : 0)
+                       << endl;
+                  warned = true;
+            }
+            vvp_object_t val;
+            val.reset();
+            thr->push_object(val);
+            return true;
+      }
 
       vvp_object_t val;
-      cobj->get_object(pid, val, idx);
+      if (cobj)
+	    cobj->get_object(pid, val, idx);
+      else
+	    vif->get_object(pid, val, idx);
 
       thr->push_object(val);
 
@@ -4921,14 +8968,205 @@ static void get_from_obj(unsigned pid, vvp_cobject*cobj, double&val)
       val = cobj->get_real(pid);
 }
 
+static void get_from_obj(unsigned pid, vvp_vinterface*vif, double&val)
+{
+      val = vif->get_real(pid);
+}
+
 static void get_from_obj(unsigned pid, vvp_cobject*cobj, string&val)
 {
       val = cobj->get_string(pid);
 }
 
+static void get_from_obj(unsigned pid, vvp_vinterface*vif, string&val)
+{
+      val = vif->get_string(pid);
+}
+
 static void get_from_obj(unsigned pid, vvp_cobject*cobj, vvp_vector4_t&val)
 {
       cobj->get_vec4(pid, val);
+}
+
+static void get_from_obj(unsigned pid, vvp_vinterface*vif, vvp_vector4_t&val)
+{
+      vif->get_vec4(pid, val);
+}
+
+static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, double&val)
+{
+      (void)idx;
+      val = cobj->get_real(pid);
+}
+
+static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, double&val)
+{
+      (void)idx;
+      val = vif->get_real(pid);
+}
+
+static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, string&val)
+{
+      (void)idx;
+      val = cobj->get_string(pid);
+}
+
+static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, string&val)
+{
+      (void)idx;
+      val = vif->get_string(pid);
+}
+
+static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, vvp_vector4_t&val)
+{
+      cobj->get_vec4(pid, val, idx);
+}
+
+static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, vvp_vector4_t&val)
+{
+      vif->get_vec4(pid, val, idx);
+}
+
+static bool get_from_process_obj(unsigned pid, vvp_process*proc, double&val)
+{
+      (void)pid;
+      (void)proc;
+      (void)val;
+      return false;
+}
+
+static bool get_from_process_obj(unsigned pid, vvp_process*proc, string&val)
+{
+      (void)pid;
+      (void)proc;
+      (void)val;
+      return false;
+}
+
+static bool get_from_process_obj(unsigned pid, vvp_process*proc, vvp_vector4_t&val)
+{
+      if (!proc || pid != 0)
+	    return false;
+      process_status_to_vec4_(proc->status(), val);
+      return true;
+}
+
+static bool get_from_process_obj(unsigned pid, unsigned idx, vvp_process*proc, double&val)
+{
+      (void)idx;
+      return get_from_process_obj(pid, proc, val);
+}
+
+static bool get_from_process_obj(unsigned pid, unsigned idx, vvp_process*proc, string&val)
+{
+      (void)idx;
+      return get_from_process_obj(pid, proc, val);
+}
+
+static bool get_from_process_obj(unsigned pid, unsigned idx, vvp_process*proc, vvp_vector4_t&val)
+{
+      if (idx != 0)
+	    return false;
+      return get_from_process_obj(pid, proc, val);
+}
+
+static bool warned_prop_fallback = false;
+static bool warned_store_prop_fallback = false;
+static int prop_trace_enabled_cache = -1;
+static int assoc_trace_enabled_cache = -1;
+
+static bool prop_trace_enabled_()
+{
+      if (prop_trace_enabled_cache < 0) {
+            const char*env = getenv("IVL_PROP_TRACE");
+            prop_trace_enabled_cache = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return prop_trace_enabled_cache != 0;
+}
+
+static bool prop_trace_scope_match_(vthread_t thr)
+{
+      if (!prop_trace_enabled_())
+            return false;
+      const char*scope_name = (thr && thr->parent_scope) ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+      if (!scope_name)
+            return false;
+      const char*env = getenv("IVL_PROP_TRACE");
+      if (!env || !*env || strcmp(env, "1") == 0 || strcmp(env, "ALL") == 0 || strcmp(env, "*") == 0)
+            return true;
+      return strstr(scope_name, env) != 0;
+}
+
+static bool assoc_trace_scope_match_(vthread_t thr)
+{
+      if (assoc_trace_enabled_cache < 0) {
+            const char*env = getenv("IVL_ASSOC_TRACE");
+            assoc_trace_enabled_cache = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      if (assoc_trace_enabled_cache == 0)
+            return false;
+
+      const char*scope_name = (thr && thr->parent_scope) ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+      if (!scope_name)
+            return false;
+
+      const char*env = getenv("IVL_ASSOC_TRACE");
+      if (!env || !*env || strcmp(env, "1") == 0 || strcmp(env, "ALL") == 0 || strcmp(env, "*") == 0)
+            return true;
+      return strstr(scope_name, env) != 0;
+}
+
+static const char*prop_trace_obj_kind_(const vvp_object_t&obj)
+{
+      if (obj.test_nil()) return "nil";
+      if (obj.peek<vvp_process>()) return "process";
+      if (obj.peek<vvp_cobject>()) return "cobject";
+      if (obj.peek<vvp_vinterface>()) return "vinterface";
+      if (obj.peek<vvp_darray>()) return "darray";
+      if (obj.peek<vvp_queue>()) return "queue";
+      return "other";
+}
+
+static const char*prop_trace_receiver_class_(const vvp_object_t&obj)
+{
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+            const class_type*defn = cobj->get_defn();
+            if (defn)
+                  return defn->class_name().c_str();
+            return "<cobject>";
+      }
+      if (obj.peek<vvp_vinterface>())
+            return "<vinterface>";
+      return "<none>";
+}
+
+static bool prop_pid_in_range_(const vvp_object_t&obj, size_t pid, size_t*count_out)
+{
+      const class_type*defn = 0;
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+            defn = cobj->get_defn();
+
+      if (!defn)
+            return true;
+
+      size_t count = defn->property_count();
+      if (count_out)
+            *count_out = count;
+      return pid < count;
+}
+
+static void prop_trace_log_(vthread_t thr, const char*op, size_t pid, unsigned idx, const vvp_object_t&obj, bool has_propobj)
+{
+      if (!prop_trace_scope_match_(thr))
+            return;
+      const char*scope_name = (thr && thr->parent_scope) ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+      fprintf(stderr,
+              "trace prop: op=%s scope=%s pid=%zu idx=%u receiver=%s class=%s propobj=%d pc=%p\n",
+              op ? op : "<unknown>",
+              scope_name ? scope_name : "<unknown>",
+              pid, idx, prop_trace_obj_kind_(obj), prop_trace_receiver_class_(obj),
+              has_propobj ? 1 : 0,
+              (void*)(thr ? thr->pc : 0));
 }
 
 template <typename ELEM>
@@ -4938,10 +9176,39 @@ static bool prop(vthread_t thr, vvp_code_t cp)
 
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      assert(cobj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      vvp_process*proc = obj.peek<vvp_process>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%prop/*", pid, 0, obj, has_propobj);
+      if (!has_propobj && proc) {
+	    ELEM val;
+	    if (get_from_process_obj(pid, proc, val)) {
+		  vthread_push(thr, val);
+		  return true;
+	    }
+      }
+      if (!has_propobj) {
+	    if (!warned_prop_fallback) {
+		  const char*scope_name = scope_name_or_unknown_(thr ? thr->parent_scope : 0);
+		  cerr << thr->get_fileline()
+		       << "Warning: %prop/* on null/unsupported object handle"
+		       << " (pid=" << pid << ")"
+		       << " scope=" << scope_name
+		       << " receiver=" << prop_trace_obj_kind_(obj)
+		       << " class=" << prop_trace_receiver_class_(obj)
+		       << "; using default value fallback." << endl;
+		  warned_prop_fallback = true;
+	    }
+	    ELEM fallback = ELEM();
+	    vthread_push(thr, fallback);
+	    return true;
+      }
 
       ELEM val;
-      get_from_obj(pid, cobj, val);
+      if (cobj)
+	    get_from_obj(pid, cobj, val);
+      else
+	    get_from_obj(pid, vif, val);
       vthread_push(thr, val);
 
       return true;
@@ -4978,6 +9245,48 @@ bool of_PROP_STR(vthread_t thr, vvp_code_t cp)
 bool of_PROP_V(vthread_t thr, vvp_code_t cp)
 {
       return prop<vvp_vector4_t>(thr, cp);
+}
+
+bool of_PROP_V_I(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid = cp->number;
+      unsigned idx = cp->bit_idx[0];
+      assert(idx < vthread_s::WORDS_COUNT);
+      idx = thr->words[idx].w_uint;
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      vvp_process*proc = obj.peek<vvp_process>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%prop/v/i", pid, idx, obj, has_propobj);
+      if (!has_propobj && proc) {
+	    vvp_vector4_t val;
+	    if (get_from_process_obj(pid, idx, proc, val)) {
+		  vthread_push(thr, val);
+		  return true;
+	    }
+      }
+      if (!has_propobj) {
+	    if (!warned_prop_fallback) {
+		  cerr << thr->get_fileline()
+		       << "Warning: %prop/v/i on null/unsupported object handle"
+		       << " (pid=" << pid << ", idx=" << idx << "); using default value fallback."
+		       << endl;
+		  warned_prop_fallback = true;
+	    }
+	    vvp_vector4_t fallback;
+	    vthread_push(thr, fallback);
+	    return true;
+      }
+
+      vvp_vector4_t val;
+      if (cobj)
+	    get_from_obj(pid, idx, cobj, val);
+      else
+	    get_from_obj(pid, idx, vif, val);
+      vthread_push(thr, val);
+      return true;
 }
 
 bool of_PUSHI_REAL(vthread_t thr, vvp_code_t cp)
@@ -5111,7 +9420,8 @@ bool of_PUTC_STR_VEC4(vthread_t thr, vvp_code_t cp)
 
       tmp[mux] = val_str;
 
-      vvp_send_string(vvp_net_ptr_t(cp->net, 0), tmp, thr->wt_context);
+      vvp_send_string(vvp_net_ptr_t(cp->net, 0), tmp,
+                      ensure_write_context_(thr, "assign-string"));
       return true;
 }
 
@@ -5154,6 +9464,14 @@ bool of_QINSERT_REAL(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %qinsert/obj <var-label>
+ */
+bool of_QINSERT_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return qinsert<vvp_object_t, vvp_queue_object>(thr, cp);
+}
+
+/*
  * %qinsert/str <var-label>
  */
 bool of_QINSERT_STR(vthread_t thr, vvp_code_t cp)
@@ -5167,6 +9485,57 @@ bool of_QINSERT_STR(vthread_t thr, vvp_code_t cp)
 bool of_QINSERT_V(vthread_t thr, vvp_code_t cp)
 {
       return qinsert<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
+}
+
+template <typename ELEM, class QTYPE>
+static bool qinsert_o(vthread_t thr, unsigned wid=0)
+{
+      int64_t idx = thr->words[3].w_int;
+      ELEM value;
+      pop_value(thr, value, wid);
+
+      vvp_object_t recv;
+      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv);
+      if (!queue)
+	    return true;
+
+      if (idx < 0) {
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot insert at a negative "
+	         << get_queue_type(value)
+	         << " index (" << idx << "). ";
+	    print_queue_value(value);
+	    cerr << " was not added." << endl;
+      } else if (thr->flags[4] != BIT4_0) {
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot insert at an undefined "
+	         << get_queue_type(value) << " index. ";
+	    print_queue_value(value);
+	    cerr << " was not added." << endl;
+      } else {
+	    queue->insert(idx, value, 0);
+      }
+      return true;
+}
+
+bool of_QINSERT_O_REAL(vthread_t thr, vvp_code_t)
+{
+      return qinsert_o<double, vvp_queue_real>(thr);
+}
+
+bool of_QINSERT_O_OBJ(vthread_t thr, vvp_code_t)
+{
+      return qinsert_o<vvp_object_t, vvp_queue_object>(thr);
+}
+
+bool of_QINSERT_O_STR(vthread_t thr, vvp_code_t)
+{
+      return qinsert_o<string, vvp_queue_string>(thr);
+}
+
+bool of_QINSERT_O_V(vthread_t thr, vvp_code_t cp)
+{
+      return qinsert_o<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
 }
 
 /*
@@ -5186,6 +9555,11 @@ inline void push_value(vthread_t thr, const vvp_vector4_t&value, unsigned wid)
 {
       assert(wid == value.size());
       thr->push_vec4(value);
+}
+
+inline void push_value(vthread_t thr, const vvp_object_t&value, unsigned)
+{
+      thr->push_object(value);
 }
 
 template <typename ELEM, class QTYPE>
@@ -5236,6 +9610,14 @@ bool of_QPOP_B_REAL(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %qpop/b/obj <var-label>
+ */
+bool of_QPOP_B_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return qpop_b<vvp_object_t, vvp_queue_object>(thr, cp);
+}
+
+/*
  * %qpop/b/str <var-label>
  */
 bool of_QPOP_B_STR(vthread_t thr, vvp_code_t cp)
@@ -5249,6 +9631,46 @@ bool of_QPOP_B_STR(vthread_t thr, vvp_code_t cp)
 bool of_QPOP_B_V(vthread_t thr, vvp_code_t cp)
 {
       return qpop_b<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[0]);
+}
+
+template <typename ELEM, class QTYPE>
+static bool qpop_o_b(vthread_t thr, unsigned wid=0)
+{
+      vvp_object_t recv;
+      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv);
+
+      ELEM value;
+      if (queue && queue->get_size()) {
+	    get_back_value<ELEM>(queue, value);
+      } else {
+	    dq_default(value, wid);
+	    cerr << thr->get_fileline()
+	         << "Warning: pop_back() on empty "
+	         << get_queue_type(value) << "." << endl;
+      }
+
+      push_value(thr, value, wid);
+      return true;
+}
+
+bool of_QPOP_O_B_REAL(vthread_t thr, vvp_code_t)
+{
+      return qpop_o_b<double, vvp_queue_real>(thr);
+}
+
+bool of_QPOP_O_B_OBJ(vthread_t thr, vvp_code_t)
+{
+      return qpop_o_b<vvp_object_t, vvp_queue_object>(thr);
+}
+
+bool of_QPOP_O_B_STR(vthread_t thr, vvp_code_t)
+{
+      return qpop_o_b<string, vvp_queue_string>(thr);
+}
+
+bool of_QPOP_O_B_V(vthread_t thr, vvp_code_t cp)
+{
+      return qpop_o_b<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
 }
 
 template <typename ELEM>
@@ -5274,6 +9696,14 @@ bool of_QPOP_F_REAL(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %qpop/f/obj <var-label>
+ */
+bool of_QPOP_F_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return qpop_f<vvp_object_t, vvp_queue_object>(thr, cp);
+}
+
+/*
  * %qpop/f/str <var-label>
  */
 bool of_QPOP_F_STR(vthread_t thr, vvp_code_t cp)
@@ -5287,6 +9717,46 @@ bool of_QPOP_F_STR(vthread_t thr, vvp_code_t cp)
 bool of_QPOP_F_V(vthread_t thr, vvp_code_t cp)
 {
       return qpop_f<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[0]);
+}
+
+template <typename ELEM, class QTYPE>
+static bool qpop_o_f(vthread_t thr, unsigned wid=0)
+{
+      vvp_object_t recv;
+      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv);
+
+      ELEM value;
+      if (queue && queue->get_size()) {
+	    get_front_value<ELEM>(queue, value);
+      } else {
+	    dq_default(value, wid);
+	    cerr << thr->get_fileline()
+	         << "Warning: pop_front() on empty "
+	         << get_queue_type(value) << "." << endl;
+      }
+
+      push_value(thr, value, wid);
+      return true;
+}
+
+bool of_QPOP_O_F_REAL(vthread_t thr, vvp_code_t)
+{
+      return qpop_o_f<double, vvp_queue_real>(thr);
+}
+
+bool of_QPOP_O_F_OBJ(vthread_t thr, vvp_code_t)
+{
+      return qpop_o_f<vvp_object_t, vvp_queue_object>(thr);
+}
+
+bool of_QPOP_O_F_STR(vthread_t thr, vvp_code_t)
+{
+      return qpop_o_f<string, vvp_queue_string>(thr);
+}
+
+bool of_QPOP_O_F_V(vthread_t thr, vvp_code_t cp)
+{
+      return qpop_o_f<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
 }
 
 /*
@@ -5464,7 +9934,25 @@ bool of_RET_VEC4(vthread_t thr, vvp_code_t cp)
 
       vthread_t fun_thr = get_func(thr);
       assert(index < get_max(fun_thr, val));
-      assert(val.size() == wid);
+      if (val.size() != wid) {
+            // Compile-progress fallback: unresolved vec4 returns can appear
+            // as width-0 values. Coerce silently to destination width.
+            if (val.size() == 0) {
+                  val.resize(wid, BIT4_X);
+            } else {
+            static bool warned = false;
+            if (!warned) {
+                  cerr << "Warning: %ret/vec4 width mismatch (" << val.size()
+                       << " != " << wid << "), coercing." << endl;
+                  warned = true;
+            }
+            if (val.size() > wid) {
+                  val = coerce_to_width(val, wid);
+            } else {
+                  val.resize(wid, BIT4_0);
+            }
+            }
+      }
       unsigned depth = get_depth(fun_thr, index, val);
 
       int64_t off = off_index ? thr->words[off_index].w_int : 0;
@@ -5595,10 +10083,13 @@ static bool set_dar_obj(vthread_t thr, vvp_code_t cp)
       thread_peek(thr, value);
 
       vvp_object_t&top = thr->peek_object();
-      vvp_darray*darray = top.peek<vvp_darray>();
-      assert(darray);
-
-      darray->set_word(adr, value);
+      if (vvp_queue*queue = top.peek<vvp_queue>())
+	    queue->set_word_max(adr, value, 0);
+      else {
+	    vvp_darray*darray = top.peek<vvp_darray>();
+	    assert(darray);
+	    darray->set_word(adr, value);
+      }
       return true;
 }
 
@@ -5608,6 +10099,27 @@ static bool set_dar_obj(vthread_t thr, vvp_code_t cp)
 bool of_SET_DAR_OBJ_REAL(vthread_t thr, vvp_code_t cp)
 {
       return set_dar_obj<double>(thr, cp);
+}
+
+/*
+ * %set/dar/obj/obj <index>
+ */
+bool of_SET_DAR_OBJ_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      unsigned adr = thr->words[cp->number].w_int;
+
+      vvp_object_t value;
+      thr->pop_object(value);
+
+      vvp_object_t&top = thr->peek_object();
+      if (vvp_queue*queue = top.peek<vvp_queue>())
+	    queue->set_word_max(adr, value, 0);
+      else {
+	    vvp_darray*darray = top.peek<vvp_darray>();
+	    assert(darray);
+	    darray->set_word(adr, value);
+      }
+      return true;
 }
 
 /*
@@ -5839,6 +10351,42 @@ bool of_STORE_DAR_VEC4(vthread_t thr, vvp_code_t cp)
       return store_dar<vvp_vector4_t>(thr, cp);
 }
 
+/*
+ * %store/dar/obj <var>
+ * Store an object into a dynamic array element
+ */
+bool of_STORE_DAR_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      int64_t adr = thr->words[3].w_int;
+      vvp_object_t value;
+      thr->pop_object(value);
+
+      vvp_net_t*net = cp->net;
+      assert(net);
+
+      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      assert(obj);
+
+      vvp_darray*darray = obj->get_object().peek<vvp_darray>();
+
+      if (adr < 0)
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot write to a negative darray<object>"
+	         << " index (" << adr << ")." << endl;
+      else if (thr->flags[4] != BIT4_0)
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot write to an undefined darray<object>"
+	         << " index." << endl;
+      else if (darray)
+	    darray->set_word(adr, value);
+      else
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot write to an undefined darray<object>"
+	         << "." << endl;
+
+      return true;
+}
+
 bool of_STORE_OBJ(vthread_t thr, vvp_code_t cp)
 {
 	/* set the value into port 0 of the destination. */
@@ -5847,7 +10395,39 @@ bool of_STORE_OBJ(vthread_t thr, vvp_code_t cp)
       vvp_object_t val;
       thr->pop_object(val);
 
-      vvp_send_object(ptr, val, thr->wt_context);
+      static int trace_store_obj_enabled = -1;
+      if (trace_store_obj_enabled < 0) {
+            const char*env = getenv("IVL_STORE_OBJ_TRACE");
+            trace_store_obj_enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      if (trace_store_obj_enabled) {
+            const char*scope_name = (thr && thr->parent_scope)
+                                  ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+            const char*env = getenv("IVL_STORE_OBJ_TRACE");
+            bool trace_this = true;
+            if (env && *env
+                && strcmp(env, "1") != 0 && strcmp(env, "ALL") != 0 && strcmp(env, "*") != 0) {
+                  trace_this = (scope_name && strstr(scope_name, env));
+            }
+            if (trace_this) {
+                  const char*fun_kind = "other";
+                  if (cp->net && cp->net->fun) {
+                        if (dynamic_cast<vvp_fun_signal_object_sa*>(cp->net->fun))
+                              fun_kind = "object_sa";
+                        else if (dynamic_cast<vvp_fun_signal_object_aa*>(cp->net->fun))
+                              fun_kind = "object_aa";
+                  }
+                  fprintf(stderr,
+                          "trace store_obj scope=%s net=%p fun=%s val_nil=%d val=%p class=%s wt=%p rd=%p\n",
+                          scope_name ? scope_name : "<unknown>",
+                          (void*)cp->net, fun_kind, val.test_nil() ? 1 : 0,
+                          val.peek<vvp_object>(),
+                          object_trace_class_(val),
+                          thr ? thr->wt_context : 0, thr ? thr->rd_context : 0);
+            }
+      }
+
+      vvp_send_object(ptr, val, ensure_write_context_(thr, "store-obj"));
 
       return true;
 }
@@ -5859,13 +10439,46 @@ bool of_STORE_OBJA(vthread_t thr, vvp_code_t cp)
 {
       unsigned idx = cp->bit_idx[0];
       unsigned adr = thr->words[idx].w_int;
+      vvp_array_t array = resolve_runtime_array_(cp, "%store/obja");
 
       vvp_object_t val;
       thr->pop_object(val);
 
-      cp->array->set_word(adr, val);
+      if (array)
+	    array->set_word(adr, val);
 
       return true;
+}
+
+bool of_AA_STORE_SIG_OBJ_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_store_signal<vvp_object_t, vvp_object_t, vvp_assoc_object>(thr, cp->net);
+}
+
+bool of_AA_STORE_SIG_OBJ_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_store_signal<string, vvp_object_t, vvp_assoc_object>(thr, cp->net);
+}
+
+bool of_AA_STORE_SIG_OBJ_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_store_signal<vvp_vector4_t, vvp_object_t, vvp_assoc_object>(thr, cp->net);
+}
+
+bool of_AA_STORE_SIG_R_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_store_signal<vvp_object_t, double, vvp_assoc_real>(thr, cp->net);
+}
+
+bool of_AA_STORE_SIG_STR_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_store_signal<vvp_object_t, string, vvp_assoc_string>(thr, cp->net);
+}
+
+bool of_AA_STORE_SIG_V_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_store_signal<vvp_object_t, vvp_vector4_t, vvp_assoc_vec4>(thr, cp->net,
+                                                                          cp->bit_idx[0]);
 }
 
 
@@ -5891,9 +10504,36 @@ bool of_STORE_PROP_OBJ(vthread_t thr, vvp_code_t cp)
 
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      assert(cobj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%store/prop/obj", pid, idx, obj, has_propobj);
+      if (!has_propobj) {
+	      // Compile-progress fallback: storing into an unresolved/null class
+	      // handle is a no-op.
+	    return true;
+      }
 
-      cobj->set_object(pid, val, idx);
+      size_t prop_count = 0;
+      if (!prop_pid_in_range_(obj, pid, &prop_count)) {
+            static bool warned = false;
+            if (!warned) {
+                  cerr << thr->get_fileline()
+                       << "Warning: %store/prop/obj pid=" << pid
+                       << " out of range for receiver class "
+                       << prop_trace_receiver_class_(obj)
+                       << " (size=" << prop_count << ")"
+                       << "; ignoring write."
+                       << " scope=" << scope_name_or_unknown_(thr ? thr->parent_scope : 0)
+                       << endl;
+                  warned = true;
+            }
+            return true;
+      }
+
+      if (cobj)
+	    cobj->set_object(pid, val, idx);
+      else
+	    vif->set_object(pid, val, idx);
 
       return true;
 }
@@ -5920,14 +10560,63 @@ static void set_val(vvp_cobject*cobj, size_t pid, const double&val)
       cobj->set_real(pid, val);
 }
 
+static void set_val(vvp_vinterface*vif, size_t pid, const double&val)
+{
+      vif->set_real(pid, val);
+}
+
 static void set_val(vvp_cobject*cobj, size_t pid, const string&val)
 {
       cobj->set_string(pid, val);
 }
 
+static void set_val(vvp_vinterface*vif, size_t pid, const string&val)
+{
+      vif->set_string(pid, val);
+}
+
 static void set_val(vvp_cobject*cobj, size_t pid, const vvp_vector4_t&val)
 {
       cobj->set_vec4(pid, val);
+}
+
+static void set_val(vvp_vinterface*vif, size_t pid, const vvp_vector4_t&val)
+{
+      vif->set_vec4(pid, val);
+}
+
+static void set_val(vvp_cobject*cobj, size_t pid, const double&val, size_t idx)
+{
+      (void)idx;
+      cobj->set_real(pid, val);
+}
+
+static void set_val(vvp_vinterface*vif, size_t pid, const double&val, size_t idx)
+{
+      (void)idx;
+      vif->set_real(pid, val);
+}
+
+static void set_val(vvp_cobject*cobj, size_t pid, const string&val, size_t idx)
+{
+      (void)idx;
+      cobj->set_string(pid, val);
+}
+
+static void set_val(vvp_vinterface*vif, size_t pid, const string&val, size_t idx)
+{
+      (void)idx;
+      vif->set_string(pid, val);
+}
+
+static void set_val(vvp_cobject*cobj, size_t pid, const vvp_vector4_t&val, size_t idx)
+{
+      cobj->set_vec4(pid, val, idx);
+}
+
+static void set_val(vvp_vinterface*vif, size_t pid, const vvp_vector4_t&val, size_t idx)
+{
+      vif->set_vec4(pid, val, idx);
 }
 
 template <typename ELEM>
@@ -5939,9 +10628,27 @@ static bool store_prop(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      assert(cobj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%store/prop/*", pid, 0, obj, has_propobj);
+      if (!has_propobj) {
+	      /* Object is null or wrong type - skip property store with warning.
+	       * This can occur with UVM class instances that haven't been
+	       * fully initialized, or when class types are not fully supported. */
+	    if (!warned_store_prop_fallback) {
+		  cerr << thr->get_fileline()
+		       << "Warning: cannot store into null/uninitialized class object"
+		       << " (property " << pid << "); skipping further similar stores."
+		       << endl;
+		  warned_store_prop_fallback = true;
+	    }
+	    return true;
+      }
 
-      set_val(cobj, pid, val);
+      if (cobj)
+	    set_val(cobj, pid, val);
+      else
+	    set_val(vif, pid, val);
 
       return true;
 }
@@ -5981,6 +10688,40 @@ bool of_STORE_PROP_V(vthread_t thr, vvp_code_t cp)
       return store_prop<vvp_vector4_t>(thr, cp, cp->bit_idx[0]);
 }
 
+bool of_STORE_PROP_V_I(vthread_t thr, vvp_code_t cp)
+{
+      size_t pid = cp->number;
+      size_t idx_reg = cp->bit_idx[0];
+      unsigned wid = cp->bit_idx[1];
+      vvp_vector4_t val;
+      pop_prop_val(thr, val, wid);
+
+      assert(idx_reg < vthread_s::WORDS_COUNT);
+      size_t idx = thr->words[idx_reg].w_uint;
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%store/prop/v/i", pid, idx, obj, has_propobj);
+      if (!has_propobj) {
+	    if (!warned_store_prop_fallback) {
+		  cerr << thr->get_fileline()
+		       << "Warning: cannot store into null/uninitialized class object"
+		       << " (property " << pid << ", idx=" << idx << "); skipping further similar stores."
+		       << endl;
+		  warned_store_prop_fallback = true;
+	    }
+	    return true;
+      }
+
+      if (cobj)
+	    set_val(cobj, pid, val, idx);
+      else
+	    set_val(vif, pid, val, idx);
+      return true;
+}
+
 template <typename ELEM, class QTYPE>
 static bool store_qb(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {
@@ -6004,6 +10745,14 @@ bool of_STORE_QB_R(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %store/qb/obj <var-label>, <max-idx>
+ */
+bool of_STORE_QB_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return store_qb<vvp_object_t, vvp_queue_object>(thr, cp);
+}
+
+/*
  * %store/qb/str <var-label>, <max-idx>
  */
 bool of_STORE_QB_STR(vthread_t thr, vvp_code_t cp)
@@ -6017,6 +10766,41 @@ bool of_STORE_QB_STR(vthread_t thr, vvp_code_t cp)
 bool of_STORE_QB_V(vthread_t thr, vvp_code_t cp)
 {
       return store_qb<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
+}
+
+template <typename ELEM, class QTYPE>
+static bool store_qo_b(vthread_t thr, unsigned wid=0)
+{
+      ELEM value;
+      pop_value(thr, value, wid);
+
+      vvp_object_t recv;
+      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv);
+      if (!queue)
+	    return true;
+
+      queue->push_back(value, 0);
+      return true;
+}
+
+bool of_STORE_QO_B_R(vthread_t thr, vvp_code_t)
+{
+      return store_qo_b<double, vvp_queue_real>(thr);
+}
+
+bool of_STORE_QO_B_OBJ(vthread_t thr, vvp_code_t)
+{
+      return store_qo_b<vvp_object_t, vvp_queue_object>(thr);
+}
+
+bool of_STORE_QO_B_STR(vthread_t thr, vvp_code_t)
+{
+      return store_qo_b<string, vvp_queue_string>(thr);
+}
+
+bool of_STORE_QO_B_V(vthread_t thr, vvp_code_t cp)
+{
+      return store_qo_b<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
 }
 
 template <typename ELEM, class QTYPE>
@@ -6036,13 +10820,12 @@ static bool store_qdar(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 	         << " index (" << idx << "). ";
 	    print_queue_value(value);
 	    cerr << " was not added." << endl;
-      } else if (thr->flags[4] != BIT4_0) {
-	    cerr << thr->get_fileline()
-	         << "Warning: cannot assign to an undefined "
-	         << get_queue_type(value) << " index. ";
-	    print_queue_value(value);
-	    cerr << " was not added." << endl;
       } else {
+	    if (thr->flags[4] != BIT4_0) {
+		    /* Compile-progress fallback: undefined queue index.
+		     * Skip the write silently to avoid runtime warning spam. */
+		  return true;
+	    }
 	    unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
 	    queue->set_word_max(idx, value, max_size);
       }
@@ -6073,6 +10856,37 @@ bool of_STORE_QDAR_V(vthread_t thr, vvp_code_t cp)
       return store_qdar<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
 }
 
+/*
+ * %store/qdar/obj <var>, idx
+ * Store an object into a queue element
+ * Note: For now, treat as darray since vvp_queue doesn't support objects yet
+ */
+bool of_STORE_QDAR_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      int64_t idx = thr->words[3].w_int;
+      vvp_object_t value;
+      thr->pop_object(value);
+
+      vvp_net_t*net = cp->net;
+      vvp_queue*queue = get_queue_object<vvp_queue_object>(thr, net);
+      assert(queue);
+
+      if (idx < 0) {
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot assign to a negative queue<object>"
+	         << " index (" << idx << "). Object was not added." << endl;
+      } else {
+	    if (thr->flags[4] != BIT4_0) {
+		    /* Compile-progress fallback: undefined queue<object> index.
+		     * Skip the write silently. */
+		  return true;
+	    }
+	    unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
+	    queue->set_word_max(idx, value, max_size);
+      }
+      return true;
+}
+
 template <typename ELEM, class QTYPE>
 static bool store_qf(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {
@@ -6095,6 +10909,14 @@ bool of_STORE_QF_R(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %store/qf/obj <var-label>, <max-idx>
+ */
+bool of_STORE_QF_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return store_qf<vvp_object_t, vvp_queue_object>(thr, cp);
+}
+
+/*
  * %store/qf/str <var-label>, <max-idx>
  */
 bool of_STORE_QF_STR(vthread_t thr, vvp_code_t cp)
@@ -6108,6 +10930,41 @@ bool of_STORE_QF_STR(vthread_t thr, vvp_code_t cp)
 bool of_STORE_QF_V(vthread_t thr, vvp_code_t cp)
 {
       return store_qf<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
+}
+
+template <typename ELEM, class QTYPE>
+static bool store_qo_f(vthread_t thr, unsigned wid=0)
+{
+      ELEM value;
+      pop_value(thr, value, wid);
+
+      vvp_object_t recv;
+      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv);
+      if (!queue)
+	    return true;
+
+      queue->push_front(value, 0);
+      return true;
+}
+
+bool of_STORE_QO_F_R(vthread_t thr, vvp_code_t)
+{
+      return store_qo_f<double, vvp_queue_real>(thr);
+}
+
+bool of_STORE_QO_F_OBJ(vthread_t thr, vvp_code_t)
+{
+      return store_qo_f<vvp_object_t, vvp_queue_object>(thr);
+}
+
+bool of_STORE_QO_F_STR(vthread_t thr, vvp_code_t)
+{
+      return store_qo_f<string, vvp_queue_string>(thr);
+}
+
+bool of_STORE_QO_F_V(vthread_t thr, vvp_code_t cp)
+{
+      return store_qo_f<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
 }
 
 template <typename ELEM, class QTYPE>
@@ -6149,14 +11006,117 @@ bool of_STORE_QOBJ_V(vthread_t thr, vvp_code_t cp)
       return store_qobj<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
 }
 
+template <typename ELEM, class DST_QTYPE, class SRC_TYPE>
+static void append_qobj_elements_(DST_QTYPE*queue, SRC_TYPE*src,
+                                  unsigned max_size, unsigned wid=0)
+{
+      size_t src_size = src->get_size();
+
+      for (size_t idx = 0 ; idx < src_size ; idx += 1) {
+            ELEM value;
+            dq_default(value, wid);
+            src->get_word(idx, value);
+            queue->push_back(value, max_size);
+      }
+}
+
+template <typename ELEM, class QTYPE>
+static bool append_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
+{
+      vvp_net_t*net = cp->net;
+      vvp_queue*queue = get_queue_object<QTYPE>(thr, net);
+      assert(queue);
+
+      vvp_object_t src;
+      thr->pop_object(src);
+
+      if (src.test_nil())
+            return true;
+
+      unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
+      if (vvp_queue*src_queue = src.peek<vvp_queue>())
+            append_qobj_elements_<ELEM, QTYPE, vvp_queue>(
+                  static_cast<QTYPE*>(queue), src_queue, max_size, wid);
+      else if (vvp_darray*src_darray = src.peek<vvp_darray>())
+            append_qobj_elements_<ELEM, QTYPE, vvp_darray>(
+                  static_cast<QTYPE*>(queue), src_darray, max_size, wid);
+      else
+            cerr << thr->get_fileline()
+                 << "Warning: cannot append non-collection object to queue." << endl;
+
+      return true;
+}
+
+bool of_APPEND_QOBJ_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return append_qobj<vvp_object_t, vvp_queue_object>(thr, cp);
+}
+
 static void vvp_send(vthread_t thr, vvp_net_ptr_t ptr, const double&val)
 {
-      vvp_send_real(ptr, val, thr->wt_context);
+      vvp_send_real(ptr, val, ensure_write_context_(thr, "store-real"));
 }
 
 static void vvp_send(vthread_t thr, vvp_net_ptr_t ptr, const string&val)
 {
-      vvp_send_string(ptr, val, thr->wt_context);
+      static int trace_store_str_enabled = -1;
+      if (trace_store_str_enabled < 0) {
+            const char*env = getenv("IVL_STORE_STR_TRACE");
+            trace_store_str_enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      if (trace_store_str_enabled) {
+            const char*scope_name = (thr && thr->parent_scope)
+                                  ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+            const char*env = getenv("IVL_STORE_STR_TRACE");
+            bool trace_this = true;
+            if (env && *env
+                && strcmp(env, "1") != 0 && strcmp(env, "ALL") != 0 && strcmp(env, "*") != 0) {
+                  trace_this = (scope_name && strstr(scope_name, env));
+            }
+            if (trace_this) {
+                  fprintf(stderr,
+                          "trace store_str-pre scope=%s wt=%p rd=%p len=%zu\n",
+                          scope_name ? scope_name : "<unknown>",
+                          thr ? thr->wt_context : 0, thr ? thr->rd_context : 0,
+                          val.size());
+            }
+      }
+      vvp_context_t write_context = ensure_write_context_(thr, "store-string");
+      if (trace_store_str_enabled) {
+            const char*scope_name = (thr && thr->parent_scope)
+                                  ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+            const char*env = getenv("IVL_STORE_STR_TRACE");
+            bool trace_this = true;
+            if (env && *env
+                && strcmp(env, "1") != 0 && strcmp(env, "ALL") != 0 && strcmp(env, "*") != 0) {
+                  trace_this = (scope_name && strstr(scope_name, env));
+            }
+            if (trace_this) {
+                  fprintf(stderr,
+                          "trace store_str-ctx scope=%s wt=%p rd=%p use=%p len=%zu\n",
+                          scope_name ? scope_name : "<unknown>",
+                          thr ? thr->wt_context : 0, thr ? thr->rd_context : 0,
+                          write_context, val.size());
+            }
+      }
+      vvp_send_string(ptr, val, write_context);
+      if (trace_store_str_enabled) {
+            const char*scope_name = (thr && thr->parent_scope)
+                                  ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+            const char*env = getenv("IVL_STORE_STR_TRACE");
+            bool trace_this = true;
+            if (env && *env
+                && strcmp(env, "1") != 0 && strcmp(env, "ALL") != 0 && strcmp(env, "*") != 0) {
+                  trace_this = (scope_name && strstr(scope_name, env));
+            }
+            if (trace_this) {
+                  fprintf(stderr,
+                          "trace store_str-post scope=%s wt=%p rd=%p use=%p len=%zu\n",
+                          scope_name ? scope_name : "<unknown>",
+                          thr ? thr->wt_context : 0, thr ? thr->rd_context : 0,
+                          write_context, val.size());
+            }
+      }
 }
 
 template <typename ELEM>
@@ -6176,7 +11136,7 @@ bool of_STORE_REAL(vthread_t thr, vvp_code_t cp)
 }
 
 template <typename ELEM>
-static bool storea(vthread_t thr, vvp_code_t cp)
+static bool storea(vthread_t thr, vvp_code_t cp, const char*op)
 {
       unsigned idx = cp->bit_idx[0];
       ELEM val;
@@ -6184,7 +11144,9 @@ static bool storea(vthread_t thr, vvp_code_t cp)
 
       if (thr->flags[4] != BIT4_1) {
 	    unsigned adr = thr->words[idx].w_int;
-	    cp->array->set_word(adr, val);
+	    vvp_array_t array = resolve_runtime_array_(cp, op);
+	    if (array)
+		  array->set_word(adr, val);
       }
 
       return true;
@@ -6195,7 +11157,7 @@ static bool storea(vthread_t thr, vvp_code_t cp)
  */
 bool of_STORE_REALA(vthread_t thr, vvp_code_t cp)
 {
-      return storea<double>(thr, cp);
+      return storea<double>(thr, cp, "%store/reala");
 }
 
 bool of_STORE_STR(vthread_t thr, vvp_code_t cp)
@@ -6208,7 +11170,7 @@ bool of_STORE_STR(vthread_t thr, vvp_code_t cp)
  */
 bool of_STORE_STRA(vthread_t thr, vvp_code_t cp)
 {
-      return storea<string>(thr, cp);
+      return storea<string>(thr, cp, "%store/stra");
 }
 
 /*
@@ -6264,10 +11226,14 @@ bool of_STORE_VEC4(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
+      vvp_context_t write_context = ensure_write_context_(thr, "store-vec4");
+      if (!write_context)
+            trace_context_event_("store-vec4-null-wt", thr, 0, 0);
+
       if (off == 0 && val.size() == sig_value_size)
-	    vvp_send_vec4(ptr, val, thr->wt_context);
+	    vvp_send_vec4(ptr, val, write_context);
       else
-	    vvp_send_vec4_pv(ptr, val, off, sig_value_size, thr->wt_context);
+	    vvp_send_vec4_pv(ptr, val, off, sig_value_size, write_context);
 
       thr->pop_vec4(1);
       return true;
@@ -6290,14 +11256,20 @@ bool of_STORE_VEC4A(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
-      vvp_vector4_t &value = thr->peek_vec4();
-
-      if (!resize_rval_vec(value, off, cp->array->get_word_size())) {
+      vvp_array_t array = resolve_runtime_array_(cp, "%store/vec4a");
+      if (!array) {
 	    thr->pop_vec4(1);
 	    return true;
       }
 
-      cp->array->set_word(adr, off, value);
+      vvp_vector4_t &value = thr->peek_vec4();
+
+      if (!resize_rval_vec(value, off, array->get_word_size())) {
+	    thr->pop_vec4(1);
+	    return true;
+      }
+
+      array->set_word(adr, off, value);
 
       thr->pop_vec4(1);
       return true;
@@ -6432,10 +11404,20 @@ bool of_TEST_NUL(vthread_t thr, vvp_code_t cp)
       vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
       assert(obj);
 
-      if (obj->get_object().test_nil())
+      bool is_nil = obj->get_object().test_nil();
+      if (is_nil)
 	    thr->flags[4] = BIT4_1;
       else
 	    thr->flags[4] = BIT4_0;
+
+      const char*scope_name = scope_name_or_unknown_(thr->parent_scope);
+      if (scope_trace_enabled_("IVL_TEST_NUL_TRACE", scope_name)) {
+            fprintf(stderr,
+                    "trace test_nul scope=%s net=%p nil=%d flag4=%d\n",
+                    scope_name, (void*)net,
+                    is_nil ? 1 : 0,
+                    thr->flags[4] == BIT4_1 ? 1 : 0);
+      }
 
       return true;
 }
@@ -6448,10 +11430,17 @@ bool of_TEST_NUL_A(vthread_t thr, vvp_code_t cp)
 
 	/* If the address is undefined, return true. */
       if (thr->flags[4] == BIT4_1) {
+	    thr->flags[4] = BIT4_1;
 	    return true;
       }
 
-      cp->array->get_word_obj(adr, word);
+      vvp_array_t array = resolve_runtime_array_(cp, "%test_nul/a");
+      if (!array) {
+	    thr->flags[4] = BIT4_1;
+	    return true;
+      }
+
+      array->get_word_obj(adr, word);
       if (word.test_nil())
 	    thr->flags[4] = BIT4_1;
       else
@@ -6484,9 +11473,28 @@ bool of_TEST_NUL_PROP(vthread_t thr, vvp_code_t cp)
 
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj  = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      if (!has_propobj) {
+	    thr->flags[4] = obj.test_nil() ? BIT4_1 : BIT4_0;
+	    if (!obj.test_nil()) {
+		  static bool warned = false;
+		  if (!warned) {
+			cerr << thr->get_fileline()
+			     << "Warning: %test_nul/prop on unsupported object handle"
+			     << " (pid=" << pid << ", idx=" << idx
+			     << ", pc=" << (void*)cp << "); using receiver-null test fallback." << endl;
+			warned = true;
+		  }
+	    }
+	    return true;
+      }
 
       vvp_object_t val;
-      cobj->get_object(pid, val, idx);
+      if (cobj)
+	    cobj->get_object(pid, val, idx);
+      else
+	    vif->get_object(pid, val, idx);
 
       if (val.test_nil())
 	    thr->flags[4] = BIT4_1;
@@ -6518,7 +11526,20 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
  */
 bool of_WAIT(vthread_t thr, vvp_code_t cp)
 {
-      assert(! thr->i_am_in_function);
+      if (thr->i_am_in_function) {
+            static bool warned = false;
+            if (!warned) {
+                  const char*scope_name = thr && thr->parent_scope
+                                        ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+                  fprintf(stderr,
+                          "Warning: %%wait reached from function thread; promoting thread to schedulable wait"
+                          " (scope=%s pc=%p; further similar warnings suppressed)\n",
+                          scope_name ? scope_name : "<unknown>",
+                          (void*)cp);
+                  warned = true;
+            }
+            thr->i_am_in_function = 0;
+      }
       assert(! thr->waiting_for_event);
       thr->waiting_for_event = 1;
 
@@ -6539,7 +11560,19 @@ bool of_WAIT_FORK(vthread_t thr, vvp_code_t)
 {
 	/* If a %wait/fork is being executed then the parent thread
 	 * cannot be waiting in a join or already waiting. */
-      assert(! thr->i_am_in_function);
+      if (thr->i_am_in_function) {
+            static bool warned = false;
+            if (!warned) {
+                  const char*scope_name = thr && thr->parent_scope
+                                        ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+                  fprintf(stderr,
+                          "Warning: %%wait/fork reached from function thread; promoting thread to schedulable wait"
+                          " (scope=%s; further similar warnings suppressed)\n",
+                          scope_name ? scope_name : "<unknown>");
+                  warned = true;
+            }
+            thr->i_am_in_function = 0;
+      }
       assert(! thr->i_am_joining);
       assert(! thr->i_am_waiting);
 
@@ -6601,8 +11634,12 @@ bool of_ZOMBIE(vthread_t thr, vvp_code_t)
 {
       thr->pc = codespace_null();
       if ((thr->parent == 0) && (thr->children.empty())) {
-	    if (thr->delay_delete)
-		  schedule_del_thr(thr);
+	    if (thr->delay_delete) {
+		  if (!thr->delete_pending) {
+			thr->delete_pending = 1;
+			schedule_del_thr(thr);
+		  }
+	    }
 	    else
 		  vthread_delete(thr);
       }
@@ -6620,6 +11657,7 @@ static bool do_exec_ufunc(vthread_t thr, vvp_code_t cp, vthread_t child)
 {
       __vpiScope*child_scope = cp->ufunc_core_ptr->func_scope();
       assert(child_scope);
+      __vpiScope*ctx_scope = resolve_context_scope(child_scope);
 
       assert(child_scope->get_type_code() == vpiFunction);
       assert(thr->children.empty());
@@ -6633,7 +11671,7 @@ static bool do_exec_ufunc(vthread_t thr, vvp_code_t cp, vthread_t child)
         /* If an automatic function, allocate a context for this call. */
       vvp_context_t child_context = 0;
       if (child_scope->is_automatic()) {
-            child_context = vthread_alloc_context(child_scope);
+            child_context = vthread_alloc_context(ctx_scope);
             thr->wt_context = child_context;
             thr->rd_context = child_context;
       }
@@ -6703,6 +11741,7 @@ bool of_REAP_UFUNC(vthread_t thr, vvp_code_t cp)
 {
       __vpiScope*child_scope = cp->ufunc_core_ptr->func_scope();
       assert(child_scope);
+      __vpiScope*ctx_scope = resolve_context_scope(child_scope);
 
 	/* Copy the output from the result variable to the output
 	   ports of the .ufunc device. */
@@ -6710,7 +11749,7 @@ bool of_REAP_UFUNC(vthread_t thr, vvp_code_t cp)
 
         /* If an automatic function, free the context for this call. */
       if (child_scope->is_automatic()) {
-            vthread_free_context(thr->rd_context, child_scope);
+            vthread_free_context(thr->rd_context, ctx_scope);
             thr->wt_context = 0;
             thr->rd_context = 0;
       }

@@ -27,17 +27,25 @@
 #define BRK_CONT_LABEL_NONE UINT_MAX
 static unsigned break_label = BRK_CONT_LABEL_NONE;
 static unsigned continue_label = BRK_CONT_LABEL_NONE;
+static ivl_scope_t break_scope = 0;
+static ivl_scope_t continue_scope = 0;
 
-#define PUSH_JUMPS(bl, cl) do {			  \
+#define PUSH_JUMPS(bl, cl, sc) do {		  \
 	    save_break_label = break_label;	  \
 	    save_continue_label = continue_label; \
+	    save_break_scope = break_scope;	  \
+	    save_continue_scope = continue_scope; \
 	    break_label = bl;			  \
 	    continue_label = cl;		  \
+	    break_scope = sc;			  \
+	    continue_scope = sc;		  \
       } while (0)
 
 #define POP_JUMPS do {				  \
 	    break_label = save_break_label;	  \
 	    continue_label = save_continue_label; \
+	    break_scope = save_break_scope;	  \
+	    continue_scope = save_continue_scope; \
       } while (0)
 
 #pragma GCC diagnostic push
@@ -49,7 +57,10 @@ int show_stmt_break(ivl_statement_t net, ivl_scope_t sscope)
 	    return 1;
       }
 
-      fprintf(vvp_out, "    %%jmp T_%u.%u; break\n", thread_count, break_label);
+      if (sscope && break_scope && sscope != break_scope)
+	    fprintf(vvp_out, "    %%disable/flow S_%p; break\n", break_scope);
+      else
+	    fprintf(vvp_out, "    %%jmp T_%u.%u; break\n", thread_count, break_label);
       return 0;
 }
 
@@ -60,7 +71,12 @@ int show_stmt_continue(ivl_statement_t net, ivl_scope_t sscope)
 	    return 1;
       }
 
-      fprintf(vvp_out, "    %%jmp T_%u.%u; continue\n", thread_count, continue_label);
+      if (sscope && continue_scope && sscope != continue_scope)
+	    fprintf(vvp_out, "    %%disable/flow/child S_%p; continue\n",
+		    continue_scope);
+      else
+	    fprintf(vvp_out, "    %%jmp T_%u.%u; continue\n",
+		    thread_count, continue_label);
       return 0;
 }
 #pragma GCC diagnostic pop
@@ -75,7 +91,8 @@ int show_stmt_forever(ivl_statement_t net, ivl_scope_t sscope)
       show_stmt_file_line(net, "Forever statement.");
 
       unsigned save_break_label, save_continue_label;
-      PUSH_JUMPS(lab_out, lab_top);
+      ivl_scope_t save_break_scope, save_continue_scope;
+      PUSH_JUMPS(lab_out, lab_top, sscope);
 
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
       rc += show_statement(stmt, sscope);
@@ -111,7 +128,8 @@ int show_stmt_forloop(ivl_statement_t net, ivl_scope_t scope)
       unsigned out_label = local_count++;
       unsigned cont_label= local_count++;
       unsigned save_break_label, save_continue_label;
-      PUSH_JUMPS(out_label, cont_label);
+      ivl_scope_t save_break_scope, save_continue_scope;
+      PUSH_JUMPS(out_label, cont_label, scope);
 
       show_stmt_file_line(net, "For-loop statement.");
 
@@ -153,7 +171,8 @@ int show_stmt_repeat(ivl_statement_t net, ivl_scope_t sscope)
       const char *sign = ivl_expr_signed(expr) ? "s" : "u";
 
       unsigned save_break_label, save_continue_label;
-      PUSH_JUMPS(lab_out, lab_top);
+      ivl_scope_t save_break_scope, save_continue_scope;
+      PUSH_JUMPS(lab_out, lab_top, sscope);
 
       show_stmt_file_line(net, "Repeat statement.");
 
@@ -190,7 +209,8 @@ int show_stmt_while(ivl_statement_t net, ivl_scope_t sscope)
       unsigned out_label = local_count++;
 
       unsigned save_break_label, save_continue_label;
-      PUSH_JUMPS(out_label, top_label);
+      ivl_scope_t save_break_scope, save_continue_scope;
+      PUSH_JUMPS(out_label, top_label, sscope);
 
       show_stmt_file_line(net, "While statement.");
 
@@ -230,7 +250,8 @@ int show_stmt_do_while(ivl_statement_t net, ivl_scope_t sscope)
       unsigned out_label = local_count++;
 
       unsigned save_break_label, save_continue_label;
-      PUSH_JUMPS(out_label, cont_label);
+      ivl_scope_t save_break_scope, save_continue_scope;
+      PUSH_JUMPS(out_label, cont_label, sscope);
 
       show_stmt_file_line(net, "Do/While statement.");
 
