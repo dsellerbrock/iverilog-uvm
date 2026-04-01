@@ -1422,6 +1422,8 @@ static size_t dynamic_collection_size_(const vvp_object_t&obj)
 	    return queue->get_size();
       if (vvp_darray*darray = obj.peek<vvp_darray>())
 	    return darray->get_size();
+      if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>())
+            return assoc->size();
       return 0;
 }
 
@@ -2273,6 +2275,7 @@ vvp_context_item_t vthread_get_rd_context_item(unsigned context_idx)
 
 vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vpiScope*ctx_scope)
 {
+      ctx_scope = resolve_context_scope(ctx_scope);
       if (!(ctx_scope && ctx_scope->is_automatic()))
             return vthread_get_rd_context_item(context_idx);
       if (!running_thread)
@@ -3005,8 +3008,21 @@ static std::map<const struct vvp_code_s*, unsigned long> callf_self_name_site_in
 
 static __vpiScope* resolve_context_scope(__vpiScope*scope)
 {
+      __vpiScope*orig_scope = scope;
       __vpiScope*ctx_scope = scope;
-      while (ctx_scope && ctx_scope->scope && ctx_scope->scope->is_automatic())
+
+      while (ctx_scope && !ctx_scope->is_automatic()) {
+            if (ctx_scope->scope && ctx_scope->scope->is_automatic()) {
+                  ctx_scope = ctx_scope->scope;
+                  break;
+            }
+            ctx_scope = ctx_scope->scope;
+      }
+
+      if (!ctx_scope)
+            return orig_scope;
+
+      while (ctx_scope->scope && ctx_scope->scope->is_automatic())
             ctx_scope = ctx_scope->scope;
       return ctx_scope;
 }
@@ -3069,17 +3085,34 @@ static void trace_context_event_(const char*where, vthread_t thr,
 {
       const char*scope_name = scope_name_or_unknown_(thr ? thr->parent_scope : 0);
       const char*extra_name = scope_name_or_unknown_(extra_scope);
+      const char*wt_owner_name = "<none>";
+      const char*rd_owner_name = "<none>";
       if (!scope_trace_enabled_("IVL_CTX_TRACE", scope_name)
           && !scope_trace_enabled_("IVL_CTX_TRACE", extra_name))
             return;
 
+      if (thr && thr->wt_context) {
+            map<vvp_context_t, __vpiScope*>::const_iterator wt_owner_it =
+                  automatic_context_owner.find(thr->wt_context);
+            if (wt_owner_it != automatic_context_owner.end())
+                  wt_owner_name = scope_name_or_unknown_(wt_owner_it->second);
+      }
+      if (thr && thr->rd_context) {
+            map<vvp_context_t, __vpiScope*>::const_iterator rd_owner_it =
+                  automatic_context_owner.find(thr->rd_context);
+            if (rd_owner_it != automatic_context_owner.end())
+                  rd_owner_name = scope_name_or_unknown_(rd_owner_it->second);
+      }
+
       fprintf(stderr,
-              "trace ctx: %s scope=%s wt=%p wt_next=%p rd=%p rd_next=%p owned=%p xfer=%p skip=%p extra_scope=%s extra_ctx=%p\n",
+              "trace ctx: %s scope=%s wt=%p(%s) wt_next=%p rd=%p(%s) rd_next=%p owned=%p xfer=%p skip=%p extra_scope=%s extra_ctx=%p\n",
               where ? where : "<unknown>",
               scope_name,
               thr ? thr->wt_context : 0,
+              wt_owner_name,
               (thr && thr->wt_context) ? vvp_get_stacked_context(thr->wt_context) : 0,
               thr ? thr->rd_context : 0,
+              rd_owner_name,
               (thr && thr->rd_context) ? vvp_get_stacked_context(thr->rd_context) : 0,
               thr ? thr->owned_context : 0,
               thr ? thr->transferred_context : 0,
@@ -3194,6 +3227,33 @@ static bool copy_method_ports_to_context_(__vpiScope*src_scope, vthread_t src_th
             return false;
 
       bool copied_any = false;
+      std::set<std::string> seen_names;
+
+      auto copy_named_item = [&](const std::string&name, vpiHandle src_item) {
+            if (name.empty() || !src_item)
+                  return;
+            if ((name != "@") && name[0] == '$')
+                  return;
+            if (!seen_names.insert(name).second)
+                  return;
+
+            vpiHandle dst_item = lookup_scope_item_(dst_scope, name.c_str());
+            if (!dst_item)
+                  return;
+
+            bool copied = copy_handle_value_to_context_(src_item, src_thr,
+                                                        dst_item, dst_context);
+            if (virtual_dispatch_trace_enabled_()) {
+                  fprintf(stderr,
+                          "vdispatch: copy-port scope=%s -> %s name=%s copied=%d outputs=%d\n",
+                          scope_name_or_unknown_(src_scope),
+                          scope_name_or_unknown_(dst_scope),
+                          name.c_str(), copied ? 1 : 0, copy_outputs ? 1 : 0);
+            }
+            if (copied)
+                  copied_any = true;
+      };
+
       for (unsigned idx = 0; idx < src_scope->intern.size(); idx += 1) {
             vpiPortInfo*port = dynamic_cast<vpiPortInfo*>(src_scope->intern[idx]);
             if (!port)
@@ -3211,32 +3271,23 @@ static bool copy_method_ports_to_context_(__vpiScope*src_scope, vthread_t src_th
             const char*name = vpi_get_str(vpiName, port);
             if (!name || strcmp(name, "@") == 0)
                   continue;
+            std::string stable_name = name;
 
-            vpiHandle src_item = lookup_scope_item_(src_scope, name);
+            vpiHandle src_item = lookup_scope_item_(src_scope, stable_name.c_str());
             if (!src_item)
                   src_item = lookup_scope_item_by_net_(src_scope, port->get_port());
 
-            vpiHandle dst_item = lookup_scope_item_(dst_scope, name);
-            if (!dst_item) {
-                  vpiPortInfo*dst_port = lookup_scope_port_by_index_(dst_scope,
-                                                                     port->get_index());
-                  if (dst_port)
-                        dst_item = lookup_scope_item_by_net_(dst_scope,
-                                                             dst_port->get_port());
-            }
-            if (!(src_item && dst_item))
+            if (!src_item)
                   continue;
+            copy_named_item(stable_name, src_item);
+      }
 
-            bool copied = copy_handle_value_to_context_(src_item, src_thr, dst_item, dst_context);
-            if (virtual_dispatch_trace_enabled_()) {
-                  fprintf(stderr,
-                          "vdispatch: copy-port scope=%s -> %s name=%s copied=%d outputs=%d\n",
-                          scope_name_or_unknown_(src_scope),
-                          scope_name_or_unknown_(dst_scope),
-                          name, copied ? 1 : 0, copy_outputs ? 1 : 0);
-            }
-            if (copied)
-                  copied_any = true;
+      vector<vpiHandle> src_items;
+      collect_scope_copy_items_(src_items, src_scope);
+      for (unsigned idx = 0; idx < src_items.size(); idx += 1) {
+            vpiHandle src_item = src_items[idx];
+            const char*name = vpi_get_str(vpiName, src_item);
+            copy_named_item(name ? std::string(name) : std::string(), src_item);
       }
 
       return copied_any;
@@ -3250,6 +3301,10 @@ static bool copy_call_inputs_to_allocated_context_(__vpiScope*scope, vthread_t t
 
       __vpiScope*src_scope = (scope != thr->parent_scope && thr->parent_scope)
                            ? thr->parent_scope : scope;
+      __vpiScope*src_ctx_scope = resolve_context_scope(src_scope);
+      vvp_context_t save_wt_context = 0;
+      vvp_context_t save_rd_context = 0;
+      bool staged_src_context = false;
       const char*scope_name = scope_name_or_unknown_(scope);
       const char*thr_scope_name = scope_name_or_unknown_(thr ? thr->parent_scope : 0);
       const char*src_scope_name = scope_name_or_unknown_(src_scope);
@@ -3260,6 +3315,17 @@ static bool copy_call_inputs_to_allocated_context_(__vpiScope*scope, vthread_t t
                     "trace ctx-input: scope-mismatch alloc_scope=%s src_scope=%s thr_scope=%s wt=%p rd=%p dst=%p\n",
                     scope_name, src_scope_name, thr_scope_name,
                     thr->wt_context, thr->rd_context, dst_context);
+      }
+
+      if (src_ctx_scope && src_ctx_scope->is_automatic()) {
+            vvp_context_t src_context = live_context_for_scope_on_thread_(thr, src_ctx_scope);
+            if (src_context) {
+                  save_wt_context = thr->wt_context;
+                  save_rd_context = thr->rd_context;
+                  thr->wt_context = src_context;
+                  thr->rd_context = src_context;
+                  staged_src_context = true;
+            }
       }
 
       bool copied_any = false;
@@ -3291,6 +3357,11 @@ static bool copy_call_inputs_to_allocated_context_(__vpiScope*scope, vthread_t t
 
       if (copy_method_ports_to_context_(src_scope, thr, scope, dst_context, false))
             copied_any = true;
+
+      if (staged_src_context) {
+            thr->wt_context = save_wt_context;
+            thr->rd_context = save_rd_context;
+      }
 
       return copied_any;
 }
@@ -3433,7 +3504,8 @@ static bool maybe_dispatch_virtual_method_call_(vthread_t thr, vvp_code_t cp,
       }
 
       string label;
-      if (!build_dynamic_method_label_(defn, method_name, label)) {
+      const class_type*dispatch_type = defn;
+      if (!build_dynamic_method_label_(dispatch_type, method_name, label)) {
             restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
             if (virtual_dispatch_trace_enabled_())
                   fprintf(stderr, "vdispatch: failed to build label for class=%s method=%s\n",
@@ -3443,10 +3515,20 @@ static bool maybe_dispatch_virtual_method_call_(vthread_t thr, vvp_code_t cp,
 
       vvp_code_t override_pc = 0;
       __vpiScope*override_scope = 0;
-      if (!compile_lookup_code_scope(label.c_str(), &override_pc, &override_scope)) {
-            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+      while (dispatch_type) {
+            if (compile_lookup_code_scope(label.c_str(), &override_pc, &override_scope))
+                  break;
+
             if (virtual_dispatch_trace_enabled_())
                   fprintf(stderr, "vdispatch: no override label %s\n", label.c_str());
+
+            dispatch_type = dispatch_type->runtime_super();
+            if (!(dispatch_type && build_dynamic_method_label_(dispatch_type, method_name, label)))
+                  break;
+      }
+
+      if (!override_pc || !override_scope) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
             return false;
       }
       if (!(override_pc && override_scope && override_scope->is_automatic())) {
@@ -6083,7 +6165,11 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
            both chains. */
       vvp_context_t child_context = 0;
       if (ctx_scope && ctx_scope->is_automatic()) {
-            child_context = first_live_context_for_scope(thr->wt_context, ctx_scope);
+            if (thr->rd_context
+                && context_live_matches_scope_(thr->rd_context, ctx_scope))
+                  child_context = thr->rd_context;
+            if (!child_context)
+                  child_context = first_live_context_for_scope(thr->wt_context, ctx_scope);
             if (!child_context)
                   child_context = first_live_context_for_scope(thr->rd_context, ctx_scope);
       } else {
@@ -6096,9 +6182,41 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
       thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context, child_context);
       thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context, child_context);
 
+      /* If the current scope has no remaining live read frame after this
+         free, hand reads back to the next live caller frame before the
+         generic sanitizer runs. Otherwise sanitize_thread_contexts_ can
+         incorrectly drop the caller read chain while returning across
+         automatic class-call scopes. */
+      if (ctx_scope && ctx_scope->is_automatic()) {
+            vvp_context_t next_rd = 0;
+
+            /* Same-scope recursion keeps the immediate caller frame at the
+               head of wt_context after the callee frame is removed. Prefer
+               that frame over deeper same-scope entries that may still sit
+               on the old rd_context chain. */
+            if (thr->wt_context
+                && context_live_matches_scope_(thr->wt_context, ctx_scope))
+                  next_rd = thr->wt_context;
+
+            if (!next_rd)
+                  next_rd = first_live_context_for_scope(thr->rd_context, ctx_scope);
+            if (!next_rd && thr->wt_context && context_live_in_owner(thr->wt_context))
+                  next_rd = thr->wt_context;
+            if (!next_rd)
+                  next_rd = first_live_stacked_context(thr->wt_context, 0);
+            if (!next_rd)
+                  next_rd = first_live_stacked_context(thr->rd_context, 0);
+            if (next_rd)
+                  thr->rd_context = next_rd;
+      }
+
       /* Free the context. */
       vthread_free_context(child_context, ctx_scope);
-      ensure_write_context_(thr, "free");
+      trace_context_event_("free-pre-ensure", thr, ctx_scope, child_context);
+      if (!(ctx_scope && ctx_scope->is_automatic()
+            && thr->wt_context && context_live_in_owner(thr->wt_context))) {
+            ensure_write_context_(thr, "free");
+      }
       trace_context_event_("free", thr, ctx_scope, child_context);
 
       return true;
@@ -6423,6 +6541,12 @@ static void do_join(vthread_t thr, vthread_t child)
                      ? child->parent_scope->get_type_code() : 0;
       __vpiScope*thr_ctx_scope = resolve_context_scope(thr ? thr->parent_scope : 0);
       __vpiScope*child_ctx_scope = resolve_context_scope(child ? child->parent_scope : 0);
+      bool shared_auto_scope = child_ctx_scope && thr_ctx_scope
+                            && (child_ctx_scope == thr_ctx_scope
+                                || scope_is_within_or_equal_(thr ? thr->parent_scope : 0,
+                                                             child_ctx_scope)
+                                || scope_is_within_or_equal_(child ? child->parent_scope : 0,
+                                                             thr_ctx_scope));
 
       if (child->transferred_context) {
             vvp_context_t child_context = child->transferred_context;
@@ -6440,8 +6564,12 @@ static void do_join(vthread_t thr, vthread_t child)
       } else if (child->wt_context
                  && (child_type == vpiTask || child_type == vpiFunction)
                  && thr->wt_context != thr->rd_context) {
-            vvp_context_t child_context = thr->wt_context;
-            if (child_ctx_scope && child_ctx_scope == thr_ctx_scope) {
+            vvp_context_t child_context = 0;
+            if (child_ctx_scope && child_ctx_scope->is_automatic())
+                  child_context = first_live_context_for_scope(thr->wt_context,
+                                                               child_ctx_scope);
+
+            if (child_context && shared_auto_scope) {
                     /* Same-scope recursive automatic calls must keep the child
                        frame on the write stack for the matching %free, but the
                        caller's immediate post-call loads still need to read the
@@ -6451,7 +6579,7 @@ static void do_join(vthread_t thr, vthread_t child)
                   trace_context_event_("join-rd-share", thr,
                                        child ? child->parent_scope : 0,
                                        child_context);
-            } else {
+            } else if (child_context) {
                     /* Pop the child context from the write stack, then move that
                        same context to the top of the read stack without leaving a
                        duplicate stacked link behind. */

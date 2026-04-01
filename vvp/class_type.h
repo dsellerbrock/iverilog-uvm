@@ -45,8 +45,11 @@ class class_type : public __vpiHandle {
       inline const std::string&class_name(void) const { return class_name_; }
       inline const std::string&scope_path(void) const { return scope_path_; }
       inline const std::string&dispatch_prefix(void) const { return dispatch_prefix_; }
+      inline const std::string&super_dispatch_prefix(void) const { return super_dispatch_prefix_; }
       void set_scope_path(const std::string&path);
       void set_dispatch_prefix(const std::string&path);
+      void set_super_dispatch_prefix(const std::string&path);
+      const class_type* runtime_super(void) const;
 	// Number of properties in the class definition.
       inline size_t property_count(void) const { return properties_.size(); }
       const std::string& property_name(size_t idx) const;
@@ -83,6 +86,7 @@ class class_type : public __vpiHandle {
       std::string class_name_;
       std::string scope_path_;
       std::string dispatch_prefix_;
+      std::string super_dispatch_prefix_;
 
       struct prop_t {
 	    std::string name;
@@ -91,5 +95,7 @@ class class_type : public __vpiHandle {
       std::vector<prop_t> properties_;
       size_t instance_size_;
 };
+
+const class_type* class_type_from_dispatch_prefix(const std::string&prefix);
 
 #endif /* IVL_class_type_H */

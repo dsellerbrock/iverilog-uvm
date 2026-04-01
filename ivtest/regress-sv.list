@@ -327,6 +327,7 @@ first_last_num		normal,-g2005-sv	ivltests
 fork_join_any		normal,-g2009		ivltests
 fork_join_dis		normal,-g2009		ivltests
 fork_join_none		normal,-g2009		ivltests
+sv_fork_auto_init1	normal,-g2012		ivltests
 fr49			normal,-g2009		ivltests
 func_empty_arg1		normal,-g2005-sv	ivltests
 func_empty_arg2		normal,-g2005-sv	ivltests
@@ -1016,6 +1017,8 @@ sv_queue_virtual_method_dispatch1 normal,-g2012 ivltests
 sv_assoc_obj_methods1 normal,-g2012 ivltests
 sv_assoc_obj_foreach1 normal,-g2012 ivltests
 sv_assoc_obj_foreach_key1 normal,-g2012 ivltests
+sv_assoc_obj_key_size1 normal,-g2012 ivltests
+sv_assoc_obj_key_bit_copy1 normal,-g2012 ivltests
 sv_assoc_obj_graph_mutation1 normal,-g2012 ivltests
 sv_assoc_nested_member_foreach1 normal,-g2012 ivltests
 sv_class_event_member1 normal,-g2012 ivltests
@@ -1031,4 +1034,7 @@ sv_class_assoc_ref_string_traversal1 normal,-g2012 ivltests
 sv_callf_nonlocal_break1 normal,-g2012 ivltests
 sv_callf_nonlocal_continue1 normal,-g2012 ivltests
 sv_virtual_formal_receiver_dispatch1 normal,-g2012 ivltests
+sv_virtual_inherit_dispatch1 normal,-g2012 ivltests
 sv_assoc_typedef_foreach_key1 normal,-g2012 ivltests
+sv_class_auto_recursive_raise1 normal,-g2012 ivltests
+sv_class_auto_recursive_state1 EF,-g2012 ivltests

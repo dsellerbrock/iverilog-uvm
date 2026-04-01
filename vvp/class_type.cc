@@ -35,6 +35,8 @@
 
 using namespace std;
 
+static map<string, const class_type*> class_types_by_dispatch_prefix_;
+
 static bool class_trace_enabled_(const std::string&class_name)
 {
       static const char*env = 0;
@@ -772,6 +774,34 @@ void class_type::set_dispatch_prefix(const string&path)
       dispatch_prefix_ = path;
 }
 
+void class_type::set_super_dispatch_prefix(const string&path)
+{
+      super_dispatch_prefix_ = path;
+}
+
+const class_type* class_type::runtime_super(void) const
+{
+      if (super_dispatch_prefix_.empty())
+            return 0;
+
+      map<string, const class_type*>::const_iterator cur =
+            class_types_by_dispatch_prefix_.find(super_dispatch_prefix_);
+      if (cur == class_types_by_dispatch_prefix_.end())
+            return 0;
+
+      return cur->second;
+}
+
+const class_type* class_type_from_dispatch_prefix(const string&prefix)
+{
+      map<string, const class_type*>::const_iterator cur =
+            class_types_by_dispatch_prefix_.find(prefix);
+      if (cur == class_types_by_dispatch_prefix_.end())
+            return 0;
+
+      return cur->second;
+}
+
 void class_type::set_property(size_t idx, const string&name, const string&type, uint64_t array_size)
 {
       assert(idx < properties_.size());
@@ -1115,16 +1145,19 @@ static string build_scope_path_(__vpiScope*scope)
 }
 
 void compile_class_start(char*lab, char*nam, char*dispatch_prefix,
-                         unsigned ntype)
+                         char*super_dispatch_prefix, unsigned ntype)
 {
       assert(compile_class == 0);
       compile_class = new class_type(nam, ntype);
       if (dispatch_prefix && *dispatch_prefix)
             compile_class->set_dispatch_prefix(dispatch_prefix);
+      if (super_dispatch_prefix && *super_dispatch_prefix)
+            compile_class->set_super_dispatch_prefix(super_dispatch_prefix);
       compile_vpi_symbol(lab, compile_class);
       free(lab);
       delete[]nam;
       delete[]dispatch_prefix;
+      delete[]super_dispatch_prefix;
 }
 
 void compile_class_property(unsigned idx, char*nam, char*typ, uint64_t array_size)
@@ -1148,6 +1181,7 @@ void compile_class_done(void)
             prefix += compile_class->class_name();
             compile_class->set_dispatch_prefix(prefix);
       }
+      class_types_by_dispatch_prefix_[compile_class->dispatch_prefix()] = compile_class;
       compile_class->finish_setup();
       scope->classes[compile_class->class_name()] = compile_class;
       compile_class = 0;

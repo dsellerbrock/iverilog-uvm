@@ -3733,6 +3733,7 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
       }
 
       NetBlock*cur = new NetBlock(type, nscope);
+      NetBlock*prefix = 0;
 
       if (nscope) {
 	      // Handle any variable initialization statements in this scope.
@@ -3741,9 +3742,17 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	      // block. For static scopes, put them in a separate process
 	      // that will be executed at the start of simulation.
 	    if (nscope->is_auto()) {
+		  NetBlock*init_block = cur;
+		  if (type != NetBlock::SEQU) {
+			/* Automatic declarations in fork/join blocks are block-entry
+			 * setup, not parallel child statements. Execute their
+			 * initializers before spawning the block threads. */
+			prefix = new NetBlock(NetBlock::SEQU, 0);
+			init_block = prefix;
+		  }
 		  for (unsigned idx = 0; idx < var_inits.size(); idx += 1) {
 			NetProc*tmp = var_inits[idx]->elaborate(des, nscope);
-			if (tmp) cur->append(tmp);
+			if (tmp) init_block->append(tmp);
 		  }
 	    } else {
 		  elaborate_var_inits_(des, nscope);
@@ -3818,6 +3827,14 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    scope->calls_sys_task(true);
 
       cur->set_line(*this);
+      if (prefix) {
+	    prefix->set_line(*this);
+	    if (cur->proc_first())
+		  prefix->append(cur);
+	    else
+		  delete cur;
+	    return prefix;
+      }
       return cur;
 }
 

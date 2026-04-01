@@ -904,12 +904,17 @@ statement
   /* Other statements */
 
   | T_LABEL K_CLASS T_STRING '[' T_NUMBER ']'
-      { compile_class_start($1, $3, 0, $5); }
+      { compile_class_start($1, $3, 0, 0, $5); }
     class_properties_opt ';'
       { compile_class_done(); }
 
   | T_LABEL K_CLASS T_STRING T_STRING '[' T_NUMBER ']'
-      { compile_class_start($1, $3, $4, $6); }
+      { compile_class_start($1, $3, $4, 0, $6); }
+    class_properties_opt ';'
+      { compile_class_done(); }
+
+  | T_LABEL K_CLASS T_STRING T_STRING T_STRING '[' T_NUMBER ']'
+      { compile_class_start($1, $3, $4, $5, $7); }
     class_properties_opt ';'
       { compile_class_done(); }
 

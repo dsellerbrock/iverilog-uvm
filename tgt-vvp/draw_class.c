@@ -236,6 +236,8 @@ void draw_class_in_scope(ivl_type_t classtype)
 {
       int idx;
       const char*dispatch_prefix = ivl_type_method_prefix(classtype);
+      ivl_type_t super_type = ivl_type_super(classtype);
+      const char*super_dispatch_prefix = ivl_type_method_prefix(super_type);
 
       if (classtype && ivl_type_base(classtype) == IVL_VT_NO_TYPE) {
 	    if (emitted_struct_cobject_(classtype))
@@ -247,7 +249,12 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    emit_struct_cobject_dependencies_(ivl_type_prop_type(classtype, idx));
       }
 
-      if (dispatch_prefix && *dispatch_prefix) {
+      if (dispatch_prefix && *dispatch_prefix
+          && super_dispatch_prefix && *super_dispatch_prefix) {
+	    fprintf(vvp_out, "C%p  .class \"%s\" \"%s\" \"%s\" [%d]\n",
+		    classtype, ivl_type_name(classtype), dispatch_prefix,
+		    super_dispatch_prefix, ivl_type_properties(classtype));
+      } else if (dispatch_prefix && *dispatch_prefix) {
 	    fprintf(vvp_out, "C%p  .class \"%s\" \"%s\" [%d]\n",
 		    classtype, ivl_type_name(classtype), dispatch_prefix,
 		    ivl_type_properties(classtype));

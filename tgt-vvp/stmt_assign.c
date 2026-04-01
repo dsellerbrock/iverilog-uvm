@@ -1522,7 +1522,14 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 		 assignment to the array as a whole. Evaluate the
 		 "object", and store the evaluated result. */
 	    errors += draw_eval_object(rval);
-	    if (ivl_type_base(element_type) == IVL_VT_REAL)
+	    if (ivl_type_queue_assoc_compat(var_type)) {
+		  /* Assoc-compat queues are represented as associative-array
+		   * objects at runtime. Copy the whole container object, do not
+		   * route through the queue-element %store/qobj/* helpers. */
+		  fprintf(vvp_out, "    %%dup/obj;\n");
+		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    } else if (ivl_type_base(element_type) == IVL_VT_REAL)
 		  fprintf(vvp_out, "    %%store/qobj/r v%p_0, %d;\n", var, idx);
 	    else if (ivl_type_base(element_type) == IVL_VT_STRING)
 		  fprintf(vvp_out, "    %%store/qobj/str v%p_0, %d;\n", var, idx);

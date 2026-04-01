@@ -579,7 +579,7 @@ extern void compile_island_tranvp(char*island, char*ba, char*bb,
 extern void delete_udp_symbols(void);
 
 extern void compile_class_start(char*lab, char*nam, char*dispatch_prefix,
-                                unsigned nprop);
+                                char*super_dispatch_prefix, unsigned nprop);
 extern void compile_class_property(unsigned idx, char*nam, char*typ, uint64_t array_size);
 extern void compile_class_done(void);
 
