@@ -60,6 +60,11 @@ static PLI_INT32 dobject_size_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  vpi_control(vpiFinish, 1);
 	    }
 	    break;
+	case vpiConstant:
+	case vpiParameter:
+	    /* Accept constants (e.g. stack references from class properties).
+	     * The calltf will return 0 for these. */
+	    break;
 	default:
 	    vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
 	               (int)vpi_get(vpiLineNo, callh));
@@ -87,6 +92,7 @@ static PLI_INT32 dobject_size_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv = vpi_iterate(vpiArgument, callh);
       vpiHandle arg = vpi_scan(argv);
+      PLI_INT32 type;
 
       (void)name; /* Parameter is not used. */
 
@@ -94,7 +100,14 @@ static PLI_INT32 dobject_size_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 
       s_vpi_value value;
       value.format = vpiIntVal;
-      value.value.integer = vpi_get(vpiSize, arg);
+
+      /* For constant args (e.g. class property darrays passed as stack refs),
+       * we can't get the runtime size via VPI; return 0 as a fallback. */
+      type = vpi_get(vpiType, arg);
+      if (type == vpiConstant || type == vpiParameter)
+	    value.value.integer = 0;
+      else
+	    value.value.integer = vpi_get(vpiSize, arg);
 
       vpi_put_value(callh, &value, 0, vpiNoDelay);
 

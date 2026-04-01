@@ -26,10 +26,14 @@
 # include  "netclass.h"
 # include  "netdarray.h"
 # include  "netenum.h"
+# include  "netqueue.h"
+# include  "netstruct.h"
 # include  "netvector.h"
 # include  <cstdlib>
 # include  <cstdio>
 # include  <cstring>
+# include  <sstream>
+# include  <execinfo.h>
 # include  "ivl_alloc.h"
 
 using namespace std;
@@ -437,6 +441,13 @@ extern "C" ivl_scope_t ivl_expr_def(ivl_expr_t net)
       return 0;
 }
 
+extern "C" unsigned ivl_expr_is_super_call(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_UFUNC);
+      return net->super_call_;
+}
+
 extern "C" uint64_t ivl_expr_delay_val(ivl_expr_t net)
 {
       assert(net);
@@ -477,7 +488,14 @@ extern "C" const char* ivl_expr_name(ivl_expr_t net)
 
 	  case IVL_EX_PROPERTY:
 	      { ivl_signal_t sig = ivl_expr_signal(net);
-		ivl_type_t use_type = ivl_signal_net_type(sig);
+		ivl_type_t use_type;
+		if (sig) {
+		      use_type = ivl_signal_net_type(sig);
+		} else {
+		      ivl_expr_t base = ivl_expr_oper2(net);
+		      use_type = base ? ivl_expr_net_type(base) : 0;
+		}
+		if (!use_type) return "<nested>";
 		unsigned idx = ivl_expr_property_idx(net);
 		return ivl_type_prop_name(use_type, idx);
 	      }
@@ -558,6 +576,9 @@ extern "C" ivl_expr_t ivl_expr_oper2(ivl_expr_t net)
 
 	  case IVL_EX_NEW:
 	    return net->u_.new_.init_val;
+
+	  case IVL_EX_PROPERTY:
+	    return net->u_.property_.base;
 
 	  case IVL_EX_SELECT:
 	    return net->u_.select_.base_;
@@ -1738,7 +1759,7 @@ extern "C" ivl_signal_t ivl_lval_sig(ivl_lval_t net)
       switch (net->type_) {
 	  case IVL_LVAL_REG:
 	  case IVL_LVAL_ARR:
-	    return net->n.sig;
+	    return net->sig;
 	  default:
 	    return 0;
       }
@@ -1747,8 +1768,13 @@ extern "C" ivl_signal_t ivl_lval_sig(ivl_lval_t net)
 extern "C" ivl_lval_t ivl_lval_nest(ivl_lval_t net)
 {
       assert(net);
-      if (net->type_ == IVL_LVAL_LVAL)
-	    return net->n.nest;
+      switch (net->type_) {
+	  case IVL_LVAL_ARR:
+	  case IVL_LVAL_LVAL:
+	    return net->nest;
+	  default:
+	    break;
+      }
 
       return 0;
 }
@@ -2576,6 +2602,12 @@ extern "C" int ivl_signal_local(ivl_signal_t net)
       return net->local_;
 }
 
+extern "C" ivl_lifetime_t ivl_signal_lifetime(ivl_signal_t net)
+{
+      assert(net);
+      return static_cast<ivl_lifetime_t>(net->lifetime_override_);
+}
+
 extern "C" int ivl_signal_signed(ivl_signal_t net)
 {
       assert(net);
@@ -2614,8 +2646,19 @@ extern "C" int ivl_signal_integer(ivl_signal_t net)
 
 extern "C" ivl_variable_type_t ivl_signal_data_type(ivl_signal_t net)
 {
-      assert(net);
-      assert(net->net_type);
+      if (!net) {
+	    fprintf(stderr, "Warning: ivl_signal_data_type called with null signal; returning NO_TYPE\n");
+	    return IVL_VT_NO_TYPE;
+      }
+      if (!net->net_type) return IVL_VT_NO_TYPE;
+      // Guard against corrupted type objects (e.g. compile-progress placeholder
+      // signals whose net_type was allocated but never properly constructed).
+      // A valid C++ vtable pointer on x86_64 must be non-zero, above the first
+      // page, and naturally aligned (8 bytes). Anything else is a corrupt object.
+      { const uintptr_t vtbl = *reinterpret_cast<const uintptr_t* const>(net->net_type);
+	if (!vtbl || vtbl < 0x10000UL || (vtbl & (sizeof(void*)-1)) != 0)
+	      return IVL_VT_NO_TYPE;
+      }
       return net->net_type->base_type();
 }
 
@@ -2640,7 +2683,13 @@ extern "C" ivl_delaypath_t ivl_signal_path(ivl_signal_t net, unsigned idx)
 
 extern "C" ivl_signal_type_t ivl_signal_type(ivl_signal_t net)
 {
-      assert(net);
+      if (!net) {
+	    void*frames[32];
+	    int depth = backtrace(frames, 32);
+	    fprintf(stderr, "ivl internal error: ivl_signal_type called with null signal\n");
+	    backtrace_symbols_fd(frames, depth, 2);
+	    abort();
+      }
       return net->type_;
 }
 
@@ -2727,6 +2776,13 @@ extern "C" ivl_scope_t ivl_stmt_call(ivl_statement_t net)
 	    assert(0);
 	    return 0;
       }
+}
+
+extern "C" unsigned ivl_stmt_is_super_call(ivl_statement_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_ST_UTASK);
+      return net->u_.utask_.super_call;
 }
 
 extern "C" bool ivl_stmt_flow_control(ivl_statement_t net)
@@ -3053,6 +3109,8 @@ extern "C" char ivl_stmt_opcode(ivl_statement_t net)
       switch (net->type_) {
 	  case IVL_ST_ASSIGN:
 	    return net->u_.assign_.oper;
+	  case IVL_ST_ASSIGN_NB:
+	    return 0;
 	  default:
 	    assert(0);
       }
@@ -3243,12 +3301,15 @@ extern "C" ivl_type_t ivl_type_element(ivl_type_t net)
       if (const netarray_t*da = dynamic_cast<const netarray_t*> (net))
 	    return da->element_type();
 
-      assert(0);
+      // Some compile-progress fallback paths can query element type on
+      // non-array types. Return null instead of aborting the compiler.
       return 0;
 }
 
 extern "C" unsigned ivl_type_packed_width(ivl_type_t net)
 {
+      if (net == 0)
+	    return 0;
       return net->packed_width();
 }
 
@@ -3283,29 +3344,75 @@ extern "C" const char* ivl_type_name(ivl_type_t net)
       return 0;
 }
 
+extern "C" const char* ivl_type_method_prefix(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (!class_type)
+	    return 0;
+
+      const NetScope*class_scope = class_type->class_scope();
+      if (!class_scope)
+	    return 0;
+
+      std::ostringstream tmp;
+      tmp << scope_path(class_scope);
+      return api_strings.add(tmp.str().c_str());
+}
+
+extern "C" int ivl_type_queue_assoc_compat(ivl_type_t net)
+{
+      const netqueue_t*queue_type = dynamic_cast<const netqueue_t*>(net);
+      if (!queue_type)
+	    return 0;
+
+      return queue_type->assoc_compat() ? 1 : 0;
+}
+
 extern "C" int ivl_type_properties(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
-      assert(class_type);
+      if (class_type)
+            return class_type->get_properties();
 
-      return class_type->get_properties();
+      const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(net);
+      if (struct_type)
+            return struct_type->members().size();
+
+      return 0;
 }
 
 extern "C" const char* ivl_type_prop_name(ivl_type_t net, int idx)
 {
       if (idx < 0) return 0;
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
-      assert(class_type);
+      if (class_type)
+            return class_type->get_prop_name(idx);
 
-      return class_type->get_prop_name(idx);
+      const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(net);
+      if (struct_type) {
+            if ((size_t)idx >= struct_type->members().size())
+                  return 0;
+            return struct_type->members()[idx].name.str();
+      }
+
+      return 0;
 }
 
 extern "C" ivl_type_t ivl_type_prop_type(ivl_type_t net, int idx)
 {
+      if (idx < 0) return 0;
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
-      assert(class_type);
+      if (class_type)
+            return class_type->get_prop_type(idx);
 
-      return class_type->get_prop_type(idx);
+      const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(net);
+      if (struct_type) {
+            if ((size_t)idx >= struct_type->members().size())
+                  return 0;
+            return struct_type->members()[idx].net_type;
+      }
+
+      return 0;
 }
 
 extern "C" int ivl_type_signed(ivl_type_t net)

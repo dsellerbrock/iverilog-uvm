@@ -584,7 +584,13 @@ static void fill_in_scope_function(ivl_scope_t scope, const NetScope*net)
 {
       scope->type_ = IVL_SCT_FUNCTION;
       const NetFuncDef*def = net->func_def();
-      assert(def);
+      if (def == 0) {
+	    scope->func_type = IVL_VT_VOID;
+	    scope->func_signed = 0;
+	    scope->func_width = 0;
+	    scope->tname_ = net->basename();
+	    return;
+      }
 
       if (def->is_void()) {
 	      // Special case: If there is no return signal, this is
@@ -594,6 +600,15 @@ static void fill_in_scope_function(ivl_scope_t scope, const NetScope*net)
 	    scope->func_width = 0;
       } else {
 	    const NetNet*return_sig = def->return_sig();
+	    if (return_sig->data_type() == IVL_VT_NO_TYPE
+	        && return_sig->struct_type() == 0) {
+		  cerr << net->get_fileline() << ": internal debug: "
+		       << "function export sees unresolved return type for "
+		       << scope_path(net);
+		  if (return_sig->net_type())
+			cerr << " as `" << *return_sig->net_type() << "`";
+		  cerr << "." << endl;
+	    }
 	    scope->func_type = return_sig->data_type();
 	    scope->func_signed = return_sig->get_signed();
 	    scope->func_width = return_sig->vector_width();
@@ -2532,14 +2547,8 @@ void dll_target::scope(const NetScope*net)
 
 		case NetScope::TASK: {
 		      const NetTaskDef*def = net->task_def();
-		      if (def == 0) {
-			    cerr <<  "?:?" << ": internal error: "
-				 << "task " << scop->name_
-				 << " has no definition." << endl;
-		      }
-		      assert(def);
 		      scop->type_ = IVL_SCT_TASK;
-		      scop->tname_ = def->scope()->basename();
+		      scop->tname_ = def ? def->scope()->basename() : net->basename();
 		      break;
 		}
 		case NetScope::FUNC:
@@ -2610,6 +2619,7 @@ void dll_target::signal(const NetNet*net)
 
       obj->net_type = net->net_type();
       obj->local_ = net->local_flag()? 1 : 0;
+      obj->lifetime_override_ = net->lifetime_override();
       obj->forced_net_ = (net->type() != NetNet::REG) &&
                          (net->peek_lref() > 0) ? 1 : 0;
       obj->discipline = net->get_discipline();
@@ -2627,6 +2637,12 @@ void dll_target::signal(const NetNet*net)
 	    break;
 
 	  case NetNet::PINOUT:
+	    obj->port_ = IVL_SIP_INOUT;
+	    break;
+
+	  case NetNet::PREF:
+	    /* The target API has no dedicated ref-port enum. Treat
+	       subroutine ref ports as copy-in/copy-out formals. */
 	    obj->port_ = IVL_SIP_INOUT;
 	    break;
 
@@ -2730,12 +2746,17 @@ void dll_target::signal(const NetNet*net)
 	      // unpacked arrays, so just report the canonical dimensions.
 	    obj->array_base = 0;
 	      // For a queue we pass the maximum queue size as the array words.
-	    if (obj->net_type->base_type() == IVL_VT_QUEUE) {
-		  long max_size = net->queue_type()->max_idx()+1;
-		  ivl_assert(*net, max_size >= 0);
-		  obj->array_words = max_size;
-	    } else
-		  obj->array_words = net->unpacked_count();
+		    if (obj->net_type->base_type() == IVL_VT_QUEUE) {
+			  const netqueue_t*queue_type = net->queue_type();
+			  if (queue_type) {
+				long max_size = queue_type->max_idx()+1;
+				ivl_assert(*net, max_size >= 0);
+				obj->array_words = max_size;
+			  } else {
+				obj->array_words = net->pin_count();
+			  }
+		    } else
+			  obj->array_words = net->unpacked_count();
 	    obj->array_addr_swapped = 0;
       }
 

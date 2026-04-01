@@ -24,6 +24,8 @@
 # include  <stdbool.h>
 # include  "ivl_alloc.h"
 
+static unsigned char warned_unsupported_expr_value_type[32];
+
 
 int number_is_unknown(ivl_expr_t expr)
 {
@@ -229,6 +231,15 @@ static void eval_logic_into_integer(ivl_expr_t expr, unsigned ix)
 		const char*type = ivl_expr_signed(expr) ? "/s" : "";
 		ivl_signal_t sig = ivl_expr_signal(expr);
 
+			/* Class-typed signals (.var/cobj) have no vector filter for
+			   %ix/getv. Lower through vec4 handle-bool conversion. */
+			if (ivl_signal_data_type(sig) == IVL_VT_CLASS
+			    || ivl_signal_data_type(sig) == IVL_VT_NO_TYPE) {
+			      draw_eval_vec4(expr);
+			      fprintf(vvp_out, "    %%ix/vec4 %u;\n", ix);
+			      break;
+			}
+
 		unsigned word = 0;
 		if (ivl_signal_dimensions(sig) > 0) {
 		      ivl_expr_t ixe;
@@ -287,10 +298,35 @@ void draw_eval_expr_into_integer(ivl_expr_t expr, unsigned ix)
 	    fprintf(vvp_out, "    %%cvt/sr %u;\n", ix);
 	    break;
 
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	  case IVL_VT_STRING:
+	    draw_eval_vec4(expr);
+	    if (ivl_expr_signed(expr))
+		  fprintf(vvp_out, "    %%ix/vec4/s %u;\n", ix);
+	    else
+		  fprintf(vvp_out, "    %%ix/vec4 %u;\n", ix);
+	    break;
+
 	  default:
-	    fprintf(stderr, "XXXX ivl_expr_value == %d\n",
-		    ivl_expr_value(expr));
-	    assert(0);
+	    /* Fallback: For unsupported types, try logic conversion. */
+	    {
+		  int vtype = ivl_expr_value(expr);
+		  int emit_warn = 1;
+		  if (vtype >= 0 && vtype < (int)(sizeof warned_unsupported_expr_value_type)) {
+			emit_warn = !warned_unsupported_expr_value_type[vtype];
+			warned_unsupported_expr_value_type[vtype] = 1;
+		  }
+		  if (emit_warn) {
+			fprintf(stderr, "Warning: Unsupported expression value type %d in integer context "
+			                "at %s:%u; treating as logic (further similar warnings suppressed)\n",
+			        vtype, ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  }
+	    }
+	    eval_logic_into_integer(expr, ix);
+	    break;
       }
 }
 

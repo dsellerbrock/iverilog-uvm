@@ -217,6 +217,8 @@ void set_delay_selection(const char* sel)
 static void final_cleanup()
 {
       vvp_object::cleanup();
+      compile_runtime_cleanup();
+      compile_array_cleanup();
 
 	/*
 	 * We only need to cleanup the memory if we are checking with valgrind.

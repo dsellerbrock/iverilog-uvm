@@ -34,12 +34,23 @@
 
 using namespace std;
 
+static bool use_automatic_storage_(int lifetime_flag)
+{
+      if (lifetime_flag > 0)
+            return true;
+      if (lifetime_flag < 0)
+            return false;
+      return vpip_peek_current_scope()->is_automatic();
+}
+
 static void __compile_var_real(char*label, char*name,
-			       vvp_array_t array, unsigned long array_addr)
+			       vvp_array_t array, unsigned long array_addr,
+			       int lifetime_flag)
 {
       vvp_net_t*net = new vvp_net_t;
+      bool use_auto = use_automatic_storage_(lifetime_flag);
 
-      if (vpip_peek_current_scope()->is_automatic()) {
+      if (use_auto) {
 	    vvp_fun_signal_real_aa*tmp = new vvp_fun_signal_real_aa;
 	    net->fil = tmp;
 	    net->fun = tmp;
@@ -56,7 +67,7 @@ static void __compile_var_real(char*label, char*name,
       if (name) {
 	    assert(!array);
 	    vpip_attach_to_current_scope(obj);
-            if (!vpip_peek_current_scope()->is_automatic())
+            if (!use_auto)
                   schedule_init_vector(vvp_net_ptr_t(net,0), 0.0);
       }
       if (array) {
@@ -67,16 +78,17 @@ static void __compile_var_real(char*label, char*name,
       delete[] name;
 }
 
-void compile_var_real(char*label, char*name)
+void compile_var_real(char*label, char*name, int lifetime_flag)
 {
-      __compile_var_real(label, name, 0, 0);
+      __compile_var_real(label, name, 0, 0, lifetime_flag);
 }
 
-void compile_var_string(char*label, char*name)
+void compile_var_string(char*label, char*name, int lifetime_flag)
 {
       vvp_net_t*net = new vvp_net_t;
+      bool use_auto = use_automatic_storage_(lifetime_flag);
 
-      if (vpip_peek_current_scope()->is_automatic()) {
+      if (use_auto) {
 	    vvp_fun_signal_string_aa*tmp = new vvp_fun_signal_string_aa;
 	    net->fil = tmp;
 	    net->fun = tmp;
@@ -95,11 +107,13 @@ void compile_var_string(char*label, char*name)
       delete[] name;
 }
 
-void compile_var_darray(char*label, char*name, unsigned size)
+void compile_var_darray(char*label, char*name, unsigned size,
+			int lifetime_flag)
 {
       vvp_net_t*net = new vvp_net_t;
+      bool use_auto = use_automatic_storage_(lifetime_flag);
 
-      if (vpip_peek_current_scope()->is_automatic()) {
+      if (use_auto) {
 	    vvp_fun_signal_object_aa*tmp = new vvp_fun_signal_object_aa(size);
 	    net->fil = tmp;
 	    net->fun = tmp;
@@ -118,11 +132,13 @@ void compile_var_darray(char*label, char*name, unsigned size)
       delete[] name;
 }
 
-void compile_var_queue(char*label, char*name, unsigned size)
+void compile_var_queue(char*label, char*name, unsigned size,
+		       int lifetime_flag)
 {
       vvp_net_t*net = new vvp_net_t;
+      bool use_auto = use_automatic_storage_(lifetime_flag);
 
-      if (vpip_peek_current_scope()->is_automatic()) {
+      if (use_auto) {
 	    vvp_fun_signal_object_aa*tmp = new vvp_fun_signal_object_aa(size);
 	    net->fil = tmp;
 	    net->fun = tmp;
@@ -141,17 +157,23 @@ void compile_var_queue(char*label, char*name, unsigned size)
       delete[] name;
 }
 
-void compile_var_cobject(char*label, char*name)
+void compile_var_cobject(char*label, char*name, char*type, int lifetime_flag)
 {
       vvp_net_t*net = new vvp_net_t;
+      bool use_auto = use_automatic_storage_(lifetime_flag);
 
-      if (vpip_peek_current_scope()->is_automatic()) {
+      if (use_auto) {
 	    vvp_fun_signal_object_aa*tmp = new vvp_fun_signal_object_aa(1);
+	    if (type)
+		  compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&tmp->init_defn_), type);
 	    net->fil = tmp;
 	    net->fun = tmp;
       } else {
+	    vvp_fun_signal_object_sa*tmp = new vvp_fun_signal_object_sa(1);
+	    if (type)
+		  compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&tmp->init_defn_), type);
 	    net->fil = 0;
-	    net->fun = new vvp_fun_signal_object_sa(1);
+	    net->fun = tmp;
       }
 
       define_functor_symbol(label, net);
@@ -170,11 +192,13 @@ void compile_var_cobject(char*label, char*name)
  */
 void compile_variable(char*label, char*name,
 		      int msb, int lsb, int vpi_type_code,
-		      bool signed_flag, bool local_flag)
+		      bool signed_flag, bool local_flag,
+		      int lifetime_flag)
 {
       unsigned wid = ((msb > lsb)? msb-lsb : lsb-msb) + 1;
 
       vvp_net_t*net = new vvp_net_t;
+      bool use_auto = use_automatic_storage_(lifetime_flag);
 
       vvp_bit4_t init;
       if (vpi_type_code == vpiIntVar)
@@ -182,7 +206,7 @@ void compile_variable(char*label, char*name,
       else
 	    init = BIT4_X;
 
-      if (vpip_peek_current_scope()->is_automatic()) {
+      if (use_auto) {
 	    vvp_fun_signal4_aa*tmp = new vvp_fun_signal4_aa(wid, init);
 	    net->fil = tmp;
             net->fun = tmp;
@@ -218,7 +242,7 @@ void compile_variable(char*label, char*name,
 	// scope as a signal.
       if (name) {
 	    if (obj) vpip_attach_to_current_scope(obj);
-            if (!vpip_peek_current_scope()->is_automatic()) {
+            if (!use_auto) {
 		  vvp_vector4_t tmp;
 		  vfil->vec4_value(tmp);
 	          schedule_init_vector(vvp_net_ptr_t(net,0), tmp);

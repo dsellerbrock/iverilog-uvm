@@ -170,6 +170,14 @@ NetECReal* NetECReal::dup_expr() const
       return tmp;
 }
 
+NetECString* NetECString::dup_expr() const
+{
+      NetECString*tmp = new NetECString(value());
+      ivl_assert(*this, tmp);
+      tmp->set_line(*this);
+      return tmp;
+}
+
 NetECRealParam* NetECRealParam::dup_expr() const
 {
       NetECRealParam*tmp = new NetECRealParam(scope_, name_, value());
@@ -206,20 +214,33 @@ NetENew* NetENew::dup_expr() const
 
 NetENull* NetENull::dup_expr() const
 {
-      ivl_assert(*this, 0);
-      return 0;
+      NetENull*tmp = new NetENull();
+      ivl_assert(*this, tmp);
+      tmp->set_line(*this);
+      return tmp;
 }
 
 NetEProperty* NetEProperty::dup_expr() const
 {
-      ivl_assert(*this, 0);
-      return 0;
+      NetEProperty*tmp = 0;
+      if (get_base()) {
+	    tmp = new NetEProperty(get_base()->dup_expr(), property_idx(),
+				   get_index()? get_index()->dup_expr() : 0);
+      } else {
+	    tmp = new NetEProperty(const_cast<NetNet*>(get_sig()), property_idx(),
+				   get_index()? get_index()->dup_expr() : 0);
+      }
+      ivl_assert(*this, tmp);
+      tmp->cast_signed(has_sign());
+      tmp->set_line(*this);
+      return tmp;
 }
 
 NetEScope* NetEScope::dup_expr() const
 {
-      ivl_assert(*this, 0);
-      return 0;
+      NetEScope*tmp = new NetEScope(const_cast<NetScope*>(scope()), net_type());
+      tmp->set_line(*this);
+      return tmp;
 }
 
 NetESelect* NetESelect::dup_expr() const
@@ -287,7 +308,7 @@ NetEUFunc* NetEUFunc::dup_expr() const
       }
 
       tmp = new NetEUFunc(scope_, func_, result_sig_->dup_expr(), tmp_parms,
-                          need_const_);
+                          need_const_, super_call_);
 
       ivl_assert(*this, tmp);
       tmp->set_line(*this);

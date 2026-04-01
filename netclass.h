@@ -32,6 +32,7 @@ class NetNet;
 class NetScope;
 class PClass;
 class PExpr;
+class PEventStatement;
 
 class netclass_t : public ivl_type_s {
     public:
@@ -69,6 +70,8 @@ class netclass_t : public ivl_type_s {
 	// If this is derived from another class, then this method
 	// returns a pointer to the super-class.
       inline const netclass_t* get_super() const { return super_; }
+      inline const std::vector<const netclass_t*>& derived_types() const { return derived_types_; }
+      void set_super(const netclass_t*super);
 
 	// Get the number of properties in this class. Include
 	// properties in the parent class.
@@ -94,6 +97,12 @@ class netclass_t : public ivl_type_s {
 	// The task method scopes from the method name.
       NetScope*method_from_name(perm_string mname) const;
 
+	// Resolve an object method call. This normally returns the method
+	// found on the static class type, but if that resolves to an
+	// abstract/bodyless prototype then this may redirect to a unique
+	// concrete override found in a descendant class.
+      NetScope*resolve_method_call_scope(const Design*des, perm_string mname) const;
+
 	// Returns the constructor task method of the class. Might be nullptr if
 	// there is nothing to do in the constructor.
       NetScope* get_constructor() const;
@@ -113,6 +122,7 @@ class netclass_t : public ivl_type_s {
 
       void emit_scope(struct target_t*tgt) const;
       bool emit_defs(struct target_t*tgt) const;
+      int ensure_property_decl(Design*des, perm_string pname);
 
       std::ostream& debug_dump(std::ostream&fd) const override;
       void dump_scope(std::ostream&fd) const;
@@ -122,15 +132,41 @@ class netclass_t : public ivl_type_s {
 
       void set_virtual(bool virtual_class) { virtual_class_ = virtual_class; }
       bool is_virtual() const { return virtual_class_; }
+      void set_interface(bool interface_type) { interface_type_ = interface_type; }
+      bool is_interface() const { return interface_type_; }
+      void set_sig_elaborated(bool flag) { sig_elaborated_ = flag; }
+      bool sig_elaborated() const { return sig_elaborated_; }
+      void set_sig_elaborating(bool flag) { sig_elaborating_ = flag; }
+      bool sig_elaborating() const { return sig_elaborating_; }
+      void set_body_elaborated(bool flag) { body_elaborated_ = flag; }
+      bool body_elaborated() const { return body_elaborated_; }
+      void set_body_elaborating(bool flag) { body_elaborating_ = flag; }
+      bool body_elaborating() const { return body_elaborating_; }
+      void set_scope_ready(bool flag) { scope_ready_ = flag; }
+      bool scope_ready() const { return scope_ready_; }
+      void set_specialized_instance(bool flag) { specialized_instance_ = flag; }
+      bool specialized_instance() const { return specialized_instance_; }
+
+      struct clocking_block_t {
+	    perm_string name;
+	    const PEventStatement* event;
+	    std::vector<perm_string> signals;
+      };
+      bool add_clocking_block(perm_string name, const PEventStatement*event,
+			      const std::vector<perm_string>&signals);
+      const clocking_block_t* find_clocking_block(perm_string name) const;
 
     protected:
       bool test_compatibility(ivl_type_t that) const override;
 
     private:
+      void add_derived_type_(const netclass_t*derived);
+
       perm_string name_;
 	// If this is derived from another base class, point to it
 	// here.
       const netclass_t*super_;
+      std::vector<const netclass_t*> derived_types_;
 	// Map property names to property table index.
       std::map<perm_string,size_t> properties_;
 	// Vector of properties.
@@ -149,11 +185,22 @@ class netclass_t : public ivl_type_s {
       NetScope*definition_scope_;
 
       bool virtual_class_;
+      bool interface_type_;
+      bool sig_elaborated_;
+      bool sig_elaborating_;
+      bool body_elaborated_;
+      bool body_elaborating_;
+      bool scope_ready_;
+      bool specialized_instance_;
+      std::map<perm_string,size_t> clocking_blocks_;
+      std::vector<clocking_block_t> clocking_table_;
 };
 
 inline NetScope*netclass_t::definition_scope(void)
 {
       return definition_scope_;
 }
+
+extern netclass_t* builtin_class_type(perm_string name);
 
 #endif /* IVL_netclass_H */

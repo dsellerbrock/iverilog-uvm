@@ -22,6 +22,7 @@
 # include  "vvp_config.h"
 # include  "ivl_target.h"
 # include  <stdio.h>
+# include  <string.h>
 
 extern int debug_draw;
 
@@ -80,8 +81,13 @@ extern int draw_process(ivl_process_t net, void*x);
 
 extern int draw_task_definition(ivl_scope_t scope);
 extern int draw_func_definition(ivl_scope_t scope);
+extern void note_td_reference(const char*label);
+extern void note_td_definition(const char*label);
+extern void emit_td_stub_definitions(void);
 
 extern int draw_scope(ivl_scope_t scope, ivl_scope_t parent);
+extern void note_array_signal_use(ivl_signal_t sig);
+extern void emit_deferred_array_decls(void);
 
 extern void draw_lpm_mux(ivl_lpm_t net);
 extern void draw_lpm_substitute(ivl_lpm_t net);
@@ -227,6 +233,335 @@ extern void draw_eval_string(ivl_expr_t ex);
  * and pushes the object onto the object stack.
  */
 extern int draw_eval_object(ivl_expr_t ex);
+
+static inline int expr_is_string_assoc_key_(ivl_expr_t expr)
+{
+      if (!expr)
+            return 0;
+
+      return ivl_expr_value(expr) == IVL_VT_STRING
+          || ivl_expr_type(expr) == IVL_EX_STRING;
+}
+
+static inline int expr_is_object_assoc_key_(ivl_expr_t expr)
+{
+      if (!expr)
+            return 0;
+
+      switch (ivl_expr_value(expr)) {
+          case IVL_VT_CLASS:
+          case IVL_VT_DARRAY:
+          case IVL_VT_QUEUE:
+            return 1;
+          default:
+            return 0;
+      }
+}
+
+static inline const char* draw_eval_assoc_key_(ivl_expr_t expr, int*errors)
+{
+      if (expr_is_string_assoc_key_(expr)) {
+            draw_eval_string(expr);
+            return "str";
+      }
+
+      if (expr_is_object_assoc_key_(expr)) {
+            int rc = draw_eval_object(expr);
+            if (errors)
+                  *errors += rc;
+            return "obj";
+      }
+
+      draw_eval_vec4(expr);
+      return "v";
+}
+
+static inline int expr_has_numeric_container_index_(ivl_expr_t expr)
+{
+      ivl_expr_t idx_expr;
+
+      if (!expr)
+            return 0;
+
+      idx_expr = ivl_expr_oper1(expr);
+      if (!idx_expr)
+            return 0;
+
+      switch (ivl_expr_value(idx_expr)) {
+          case IVL_VT_STRING:
+          case IVL_VT_CLASS:
+          case IVL_VT_DARRAY:
+          case IVL_VT_QUEUE:
+            return 0;
+          default:
+            return 1;
+      }
+}
+
+static inline int expr_is_queue_container_(ivl_expr_t expr)
+{
+      ivl_type_t net_type;
+
+      if (!expr)
+            return 0;
+
+      net_type = ivl_expr_net_type(expr);
+      if (net_type && ivl_type_base(net_type) == IVL_VT_QUEUE)
+            return 1;
+
+      return ivl_expr_value(expr) == IVL_VT_QUEUE;
+}
+
+static inline int expr_is_assoc_queue_container_(ivl_expr_t expr)
+{
+      ivl_type_t net_type;
+
+      if (!expr)
+            return 0;
+
+      net_type = ivl_expr_net_type(expr);
+      return net_type && ivl_type_base(net_type) == IVL_VT_QUEUE
+          && ivl_type_queue_assoc_compat(net_type);
+}
+
+static inline ivl_signal_t signal_assoc_queue_receiver_(ivl_expr_t expr)
+{
+      ivl_signal_t sig;
+      ivl_type_t net_type;
+
+      if (!expr)
+            return 0;
+
+      if (ivl_expr_type(expr) != IVL_EX_SIGNAL
+          && ivl_expr_type(expr) != IVL_EX_ARRAY)
+            return 0;
+
+      sig = ivl_expr_signal(expr);
+      if (!sig)
+            return 0;
+
+      net_type = ivl_signal_net_type(sig);
+      if (!net_type || ivl_type_base(net_type) != IVL_VT_QUEUE)
+            return 0;
+
+      return ivl_type_queue_assoc_compat(net_type) ? sig : 0;
+}
+
+static inline ivl_type_t property_receiver_class_type_(ivl_expr_t expr)
+{
+      ivl_signal_t sig;
+      ivl_expr_t base_expr;
+      ivl_type_t base_type = 0;
+
+      if (!expr)
+            return 0;
+
+      if (ivl_expr_type(expr) == IVL_EX_PROPERTY) {
+            base_expr = ivl_expr_oper2(expr);
+            if (base_expr) {
+                  base_type = ivl_expr_net_type(base_expr);
+                  if (base_type && ivl_type_properties(base_type) > 0)
+                        return base_type;
+
+                  if (ivl_expr_type(base_expr) == IVL_EX_PROPERTY)
+                        return property_receiver_class_type_(base_expr);
+            }
+      }
+
+      sig = ivl_expr_signal(expr);
+      if (sig)
+            return ivl_signal_net_type(sig);
+
+      base_expr = ivl_expr_oper2(expr);
+      if (!base_expr)
+            return 0;
+
+      base_type = ivl_expr_net_type(base_expr);
+      if (base_type && ivl_type_properties(base_type) > 0)
+            return base_type;
+
+      if (ivl_expr_type(base_expr) == IVL_EX_PROPERTY)
+            return property_receiver_class_type_(base_expr);
+
+      return 0;
+}
+
+static inline ivl_type_t property_expr_type_(ivl_expr_t expr)
+{
+      ivl_type_t base_type;
+
+      if (!expr || ivl_expr_type(expr) != IVL_EX_PROPERTY)
+            return 0;
+
+      base_type = property_receiver_class_type_(expr);
+      if (!base_type || ivl_type_properties(base_type) <= 0)
+            return 0;
+
+      return ivl_type_prop_type(base_type, ivl_expr_property_idx(expr));
+}
+
+static inline int property_is_object_expr_(ivl_expr_t expr)
+{
+      ivl_type_t prop_type = property_expr_type_(expr);
+
+      if (!prop_type)
+            return 0;
+
+      switch (ivl_type_base(prop_type)) {
+          case IVL_VT_CLASS:
+          case IVL_VT_DARRAY:
+          case IVL_VT_QUEUE:
+          case IVL_VT_NO_TYPE:
+            return 1;
+          default:
+            return 0;
+      }
+}
+
+static inline int property_is_indexed_queue_expr_(ivl_expr_t expr)
+{
+      ivl_type_t base_type;
+      ivl_type_t prop_type;
+
+      if (!expr_has_numeric_container_index_(expr))
+            return 0;
+
+      if (expr_is_assoc_queue_container_(expr))
+            return 0;
+
+      if (expr_is_queue_container_(expr))
+            return 1;
+
+      base_type = property_receiver_class_type_(expr);
+      if (!base_type || ivl_type_properties(base_type) <= 0)
+            return 0;
+
+      prop_type = ivl_type_prop_type(base_type, ivl_expr_property_idx(expr));
+      return prop_type && ivl_type_base(prop_type) == IVL_VT_QUEUE
+          && !ivl_type_queue_assoc_compat(prop_type);
+}
+
+static inline ivl_type_t property_assoc_container_type_(ivl_expr_t expr)
+{
+      ivl_type_t base_type;
+      ivl_type_t prop_type;
+
+      if (!expr || ivl_expr_type(expr) != IVL_EX_PROPERTY)
+            return 0;
+
+      base_type = property_receiver_class_type_(expr);
+      if (!base_type || ivl_type_properties(base_type) <= 0)
+            return 0;
+
+      prop_type = ivl_type_prop_type(base_type, ivl_expr_property_idx(expr));
+      if (!prop_type || ivl_type_base(prop_type) != IVL_VT_QUEUE)
+            return 0;
+
+      return ivl_type_queue_assoc_compat(prop_type) ? prop_type : 0;
+}
+
+static inline int property_is_assoc_indexed_expr_(ivl_expr_t expr)
+{
+      return expr && ivl_expr_oper1(expr) != 0
+          && property_assoc_container_type_(expr) != 0;
+}
+
+static inline int same_property_receiver_path_(ivl_expr_t lhs, ivl_expr_t rhs)
+{
+      if (lhs == rhs)
+            return 1;
+
+      if (!lhs || !rhs)
+            return lhs == rhs;
+
+      if (ivl_expr_type(lhs) != ivl_expr_type(rhs))
+            return 0;
+
+      switch (ivl_expr_type(lhs)) {
+          case IVL_EX_SIGNAL:
+          case IVL_EX_ARRAY:
+            return ivl_expr_signal(lhs) == ivl_expr_signal(rhs);
+
+          case IVL_EX_PROPERTY:
+            if (ivl_expr_property_idx(lhs) != ivl_expr_property_idx(rhs))
+                  return 0;
+            if (ivl_expr_signal(lhs) != ivl_expr_signal(rhs))
+                  return 0;
+            return same_property_receiver_path_(ivl_expr_oper2(lhs),
+                                                ivl_expr_oper2(rhs));
+
+          case IVL_EX_NULL:
+            return 1;
+
+          default:
+            return 0;
+      }
+}
+
+static inline ivl_expr_t property_synthesized_last_index_target_(ivl_expr_t expr)
+{
+      ivl_expr_t idx_expr;
+      ivl_expr_t rhs_expr;
+      ivl_expr_t lhs_expr;
+
+      if (!expr)
+            return 0;
+
+      idx_expr = ivl_expr_oper1(expr);
+      if (!idx_expr || ivl_expr_type(idx_expr) != IVL_EX_BINARY
+          || ivl_expr_opcode(idx_expr) != '-')
+            return 0;
+
+      rhs_expr = ivl_expr_oper2(idx_expr);
+      if (!rhs_expr || !number_is_immediate(rhs_expr, IMM_WID, 1)
+          || number_is_unknown(rhs_expr)
+          || get_number_immediate(rhs_expr) != 1)
+            return 0;
+
+      lhs_expr = ivl_expr_oper1(idx_expr);
+      if (!lhs_expr || ivl_expr_type(lhs_expr) != IVL_EX_SFUNC)
+            return 0;
+
+      if (strcmp(ivl_expr_name(lhs_expr), "$ivl_queue_method$size") != 0)
+            return 0;
+
+      if (ivl_expr_parms(lhs_expr) != 1)
+            return 0;
+
+      return ivl_expr_parm(lhs_expr, 0);
+}
+
+static inline int property_uses_synthesized_last_index_(ivl_expr_t expr)
+{
+      ivl_expr_t target_expr = property_synthesized_last_index_target_(expr);
+
+      if (!target_expr)
+            return 0;
+
+      return same_property_receiver_path_(expr, target_expr);
+}
+
+static inline int emit_property_queue_last_index_(ivl_expr_t expr,
+                                                  unsigned pidx,
+                                                  unsigned ix)
+{
+      ivl_expr_t idx_expr;
+
+      if (!property_uses_synthesized_last_index_(expr))
+            return 0;
+
+      idx_expr = ivl_expr_oper1(expr);
+
+      fprintf(vvp_out, "    %%prop/obj %u, 0; eval_queue_last_index\n", pidx);
+      fprintf(vvp_out, "    %%qsize/o;\n");
+      fprintf(vvp_out, "    %%subi 1, 0, 32;\n");
+      if (idx_expr && ivl_expr_signed(idx_expr))
+            fprintf(vvp_out, "    %%ix/vec4/s %u;\n", ix);
+      else
+            fprintf(vvp_out, "    %%ix/vec4 %u;\n", ix);
+
+      return 1;
+}
 
 extern int show_stmt_assign(ivl_statement_t net);
 extern void show_stmt_file_line(ivl_statement_t net, const char*desc);

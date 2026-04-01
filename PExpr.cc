@@ -25,6 +25,7 @@
 
 # include  "compiler.h"
 # include  "PExpr.h"
+# include  "pform.h"
 # include  "PWire.h"
 # include  "Module.h"
 # include  "ivl_assert.h"
@@ -263,6 +264,7 @@ PECallFunction::PECallFunction(perm_string n, const list<named_pexpr_t> &parms)
 
 PECallFunction::~PECallFunction()
 {
+      delete_parmvalue(leading_type_args_);
 }
 
 void PECallFunction::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
@@ -347,6 +349,15 @@ PENull::~PENull()
 {
 }
 
+PEAssocType::PEAssocType(data_type_t*index_type)
+: index_type_(index_type)
+{
+}
+
+PEAssocType::~PEAssocType()
+{
+}
+
 PEFNumber::PEFNumber(verireal*v)
 : value_(v)
 {
@@ -380,6 +391,16 @@ PEIdent::PEIdent(PPackage*pkg, const pform_name_t&that, unsigned lexical_pos)
 
 PEIdent::~PEIdent()
 {
+}
+
+PEMemberAccess::PEMemberAccess(PExpr*base, perm_string member_name)
+: base_(base), member_name_(member_name)
+{
+}
+
+PEMemberAccess::~PEMemberAccess()
+{
+      delete base_;
 }
 
 static bool find_enum_constant(LexicalScope*scope, perm_string name)
@@ -432,8 +453,9 @@ void PEIdent::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
             if (warn_implicit) {
                   cerr << get_fileline() << ": warning: implicit "
                        "definition of wire '" << name << "'." << endl;
-            }
-      }
+     }
+}
+
 }
 
 bool PEIdent::has_aa_term(Design*des, NetScope*scope) const
@@ -449,6 +471,17 @@ bool PEIdent::has_aa_term(Design*des, NetScope*scope) const
 	    return false;
 
       return sr.scope->is_auto();
+}
+
+void PEMemberAccess::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
+{
+      if (base_)
+	    base_->declare_implicit_nets(scope, type);
+}
+
+bool PEMemberAccess::has_aa_term(Design*des, NetScope*scope) const
+{
+      return base_ ? base_->has_aa_term(des, scope) : false;
 }
 
 PENewArray::PENewArray(PExpr*size_expr, PExpr*init_expr)
@@ -500,18 +533,29 @@ const verinum& PENumber::value() const
 }
 
 PEString::PEString(char*s)
-: text_(s)
+: text_(s? s : ""), text_width_(0), text_width_valid_(false),
+  parsed_value_valid_(false)
 {
+      delete[]s;
 }
 
 PEString::~PEString()
 {
-      delete[]text_;
 }
 
-string PEString::value() const
+const string& PEString::value() const
 {
       return text_;
+}
+
+const verinum& PEString::parsed_value() const
+{
+      if (!parsed_value_valid_) {
+	    parsed_value_cache_ = verinum(text_);
+	    parsed_value_valid_ = true;
+      }
+
+      return parsed_value_cache_;
 }
 
 PETernary::PETernary(PExpr*e, PExpr*t, PExpr*f)

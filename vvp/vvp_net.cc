@@ -701,14 +701,34 @@ void vvp_vector4_t::copy_bits(const vvp_vector4_t&that)
  */
 void vvp_vector4_t::copy_from_big_(const vvp_vector4_t&that)
 {
-      unsigned words = (size_+BITS_PER_WORD-1) / BITS_PER_WORD;
-      abits_ptr_ = new unsigned long[2*words];
-      bbits_ptr_ = abits_ptr_ + words;
+      unsigned dst_words = (size_+BITS_PER_WORD-1) / BITS_PER_WORD;
+      unsigned src_words = (that.size_+BITS_PER_WORD-1) / BITS_PER_WORD;
+      abits_ptr_ = new unsigned long[2*dst_words];
+      bbits_ptr_ = abits_ptr_ + dst_words;
 
-      for (unsigned idx = 0 ;  idx < words ;  idx += 1)
+      if (that.abits_ptr_ == 0 || that.bbits_ptr_ == 0) {
+	    static bool warned_copy_from_big_null = false;
+	    if (!warned_copy_from_big_null) {
+		  fprintf(stderr, "Warning: vvp_vector4_t::copy_from_big_ source has null storage;"
+		          " using X-fill fallback (further similar warnings suppressed)\n");
+		  warned_copy_from_big_null = true;
+	    }
+	    for (unsigned idx = 0 ; idx < dst_words ; idx += 1) {
+		  abits_ptr_[idx] = ~0UL;
+		  bbits_ptr_[idx] = ~0UL;
+	    }
+	    return;
+      }
+
+      unsigned copy_words = (src_words < dst_words)? src_words : dst_words;
+      for (unsigned idx = 0 ;  idx < copy_words ;  idx += 1)
 	    abits_ptr_[idx] = that.abits_ptr_[idx];
-      for (unsigned idx = 0 ;  idx < words ;  idx += 1)
+      for (unsigned idx = 0 ;  idx < copy_words ;  idx += 1)
 	    bbits_ptr_[idx] = that.bbits_ptr_[idx];
+      for (unsigned idx = copy_words ; idx < dst_words ; idx += 1) {
+	    abits_ptr_[idx] = ~0UL;
+	    bbits_ptr_[idx] = ~0UL;
+      }
 }
 
 /*
@@ -2270,7 +2290,8 @@ vvp_vector4_t vvp_vector4array_sa::get_word(unsigned index) const
 vvp_vector4array_aa::vvp_vector4array_aa(unsigned width__, unsigned words__)
 : vvp_vector4array_t(width__, words__)
 {
-      context_idx_ = vpip_add_item_to_context(this, vpip_peek_context_scope());
+      context_scope_ = vpip_peek_context_scope();
+      context_idx_ = vpip_add_item_to_context(this, context_scope_);
 }
 
 vvp_vector4array_aa::~vvp_vector4array_aa()
@@ -2347,8 +2368,12 @@ vvp_vector4_t vvp_vector4array_aa::get_word(unsigned index) const
 
       assert(index < words_);
 
-      v4cell*cell = static_cast<v4cell*>
-            (vthread_get_rd_context_item(context_idx_)) + index;
+      v4cell*base = static_cast<v4cell*>
+            (vthread_get_rd_context_item_scoped(context_idx_, context_scope_));
+      if (!base)
+            return vvp_vector4_t(width_, BIT4_X);
+
+      v4cell*cell = base + index;
 
       return get_word_(cell);
 }

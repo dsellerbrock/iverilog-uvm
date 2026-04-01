@@ -35,14 +35,14 @@ vvp_cobject::~vvp_cobject()
       properties_ = 0;
 }
 
-void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val)
+void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 {
-      defn_->set_vec4(properties_, pid, val);
+      defn_->set_vec4(properties_, pid, val, idx);
 }
 
-void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val)
+void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
 {
-      defn_->get_vec4(properties_, pid, val);
+      defn_->get_vec4(properties_, pid, val, idx);
 }
 
 void vvp_cobject::set_real(size_t pid, double val)

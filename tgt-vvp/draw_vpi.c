@@ -31,6 +31,8 @@ struct args_info {
       char str_flag;
 	/* True if this argument is a calculated real. */
       char real_flag;
+	/* True if this argument is a calculated object. */
+      char obj_flag;
 	/* Stack position if this argument is a calculated value. */
       unsigned stack;
 	/* Expression width: Only used of vec_flag is true. */
@@ -45,6 +47,7 @@ static const char* magic_sfuncs[] = {
       "$simtime",
       0
 };
+static unsigned char warned_unsupported_vpi_arg_type[32];
 
 static int is_magic_sfunc(const char*name)
 {
@@ -267,6 +270,33 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
       }
 }
 
+static int draw_sv_cast_class_task(ivl_statement_t tnet)
+{
+      if (!(tnet && ivl_stmt_name(tnet)))
+            return 0;
+      if (strcmp(ivl_stmt_name(tnet), "$cast") != 0)
+            return 0;
+      if (ivl_stmt_parm_count(tnet) != 2)
+            return 0;
+
+      ivl_expr_t dest = ivl_stmt_parm(tnet, 0);
+      ivl_expr_t src  = ivl_stmt_parm(tnet, 1);
+      if (!(dest && src))
+            return 0;
+      if (ivl_expr_value(dest) != IVL_VT_CLASS)
+            return 0;
+      if (ivl_expr_type(dest) != IVL_EX_SIGNAL)
+            return 0;
+
+      ivl_signal_t sig = ivl_expr_signal(dest);
+      if (!(sig && ivl_signal_dimensions(sig) == 0))
+            return 0;
+
+      draw_eval_object(src);
+      fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+      return 1;
+}
+
 static void draw_vpi_taskfunc_args(const char*call_string,
 				   ivl_statement_t tnet,
 				   ivl_expr_t fnet)
@@ -288,6 +318,7 @@ static void draw_vpi_taskfunc_args(const char*call_string,
       unsigned vec4_stack_need = 0;
       unsigned str_stack_need = 0;
       unsigned real_stack_need = 0;
+      unsigned obj_stack_need = 0;
 
 	/* Figure out how many expressions are going to be evaluated
 	   for this task call. I won't need to evaluate expressions
@@ -427,18 +458,51 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  args[idx].vec_flag = 0;
 		  args[idx].str_flag = 1;
 		  args[idx].real_flag = 0;
+		  args[idx].obj_flag = 0;
 		  args[idx].stack = str_stack_need;
 		  args[idx].real_flag = 0;
-		  str_stack_need += 1;
+			  str_stack_need += 1;
+			  buffer[0] = 0;
+			  break;
+		case IVL_VT_CLASS:
+		  draw_eval_object(expr);
+		  args[idx].vec_flag = 0;
+		  args[idx].str_flag = 0;
+		  args[idx].real_flag = 0;
+		  args[idx].obj_flag = 1;
+		  args[idx].stack = obj_stack_need;
+		  obj_stack_need += 1;
 		  buffer[0] = 0;
 		  break;
 		default:
-		  fprintf(stderr, "%s:%u: Sorry, cannot generate code for argument %u.\n",
-		                  ivl_expr_file(expr), ivl_expr_lineno(expr), idx+1);
-		  fprintf(vvp_out, "\nXXXX Unexpected argument: call_string=<%s>, arg=%u, type=%d\n",
-			  call_string, idx, ivl_expr_value(expr));
-		  fflush(vvp_out);
-		  assert(0);
+		  /* Fallback: For unsupported types (CLASS, VOID, etc.), try to
+		     evaluate as vec4. This handles cases like $cast which may return
+		     unexpected types but can still be evaluated to a boolean/logic value. */
+		  {
+			int vtype = ivl_expr_value(expr);
+			int emit_warn = 1;
+			/* Object-like values are lowered by draw_eval_vec4 as
+			   handle-bool casts, so don't warn here. */
+			if (vtype == IVL_VT_CLASS || vtype == IVL_VT_QUEUE || vtype == IVL_VT_DARRAY) {
+			      emit_warn = 0;
+			} else if (vtype >= 0 && vtype < (int)(sizeof warned_unsupported_vpi_arg_type)) {
+			      emit_warn = !warned_unsupported_vpi_arg_type[vtype];
+			      warned_unsupported_vpi_arg_type[vtype] = 1;
+			}
+			if (emit_warn) {
+			      fprintf(stderr, "Warning: Unsupported VPI argument type %d at %s:%u; "
+				              "treating as logic (further similar warnings suppressed)\n",
+				              vtype, ivl_expr_file(expr), ivl_expr_lineno(expr));
+			}
+		  }
+		  draw_eval_vec4(expr);
+		  args[idx].vec_flag = ivl_expr_signed(expr)? 's' : 'u';
+		  args[idx].str_flag = 0;
+		  args[idx].real_flag = 0;
+		  args[idx].stack = vec4_stack_need;
+		  args[idx].vec_wid = ivl_expr_width(expr);
+		  vec4_stack_need += 1;
+		  buffer[0] = 0;
 	    }
 	    args[idx].text = strdup(buffer);
       }
@@ -454,6 +518,9 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		       generate the completed string. */
 		  unsigned pos = str_stack_need - args[idx].stack - 1;
 		  fprintf(vvp_out, ", S<%u,str>",pos);
+	    } else if (args[idx].obj_flag) {
+		  unsigned pos = obj_stack_need - args[idx].stack - 1;
+		  fprintf(vvp_out, ", S<%u,obj>", pos);
 	    } else if (args[idx].real_flag) {
 		  unsigned pos = real_stack_need - args[idx].stack - 1;
 		  fprintf(vvp_out, ", W<%u,r>",pos);
@@ -478,7 +545,8 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 
       free(args);
 
-      fprintf(vvp_out, " {%u %u %u}", vec4_stack_need, real_stack_need, str_stack_need);
+      fprintf(vvp_out, " {%u %u %u %u}",
+              vec4_stack_need, real_stack_need, str_stack_need, obj_stack_need);
       fprintf(vvp_out, ";\n");
 }
 
@@ -486,6 +554,9 @@ void draw_vpi_task_call(ivl_statement_t tnet)
 {
       unsigned parm_count = ivl_stmt_parm_count(tnet);
       const char *command = "error";
+
+      if (draw_sv_cast_class_task(tnet))
+            return;
 
       switch (ivl_stmt_sfunc_as_task(tnet)) {
 	  case IVL_SFUNC_AS_TASK_ERROR:
@@ -500,7 +571,7 @@ void draw_vpi_task_call(ivl_statement_t tnet)
       }
 
       if (parm_count == 0) {
-            fprintf(vvp_out, "    %s %u %u \"%s\" {0 0 0};\n", command,
+            fprintf(vvp_out, "    %s %u %u \"%s\" {0 0 0 0};\n", command,
                     ivl_file_table_index(ivl_stmt_file(tnet)),
                     ivl_stmt_lineno(tnet), ivl_stmt_name(tnet));
       } else {

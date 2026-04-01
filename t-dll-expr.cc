@@ -32,6 +32,16 @@
 
 using namespace std;
 
+static int expr_const_trace_enabled_(void)
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_EXPR_CONST_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled;
+}
+
 /*
  * This is a little convenience function for converting a NetExpr
  * expression type to the expression type used by ivl_expr_t objects.
@@ -298,6 +308,17 @@ void dll_target::expr_const(const NetEConst*net)
 			assert(0);
 		  }
 
+            if (expr_const_trace_enabled_()) {
+                  fprintf(stderr,
+                          "trace expr_const: file=%s line=%u expr_value=%d width=%u signed=%d as_ulong=%llu bits=",
+                          net->get_file().str(), net->get_lineno(),
+                          net->expr_type(), expr_->width_, expr_->signed_,
+                          (unsigned long long)val.as_ulong64());
+                  if (bits && expr_->width_)
+                        fwrite(bits, 1, expr_->width_, stderr);
+                  fprintf(stderr, "\n");
+            }
+
       }
 }
 
@@ -423,7 +444,19 @@ void dll_target::expr_null(const NetENull*net)
 
 void dll_target::expr_property(const NetEProperty*net)
 {
+      ivl_expr_t base_expr = 0;
       ivl_expr_t index = 0;
+
+      if (!net->get_sig()) {
+	      /* Nested property: the base is an expression, not a signal.
+		 Recursively export the base expression. */
+	    const NetExpr*base = net->get_base();
+	    assert(base);
+	    base->expr_scan(this);
+	    base_expr = expr_;
+	    expr_ = 0;
+      }
+
       if (const NetExpr*index_expr = net->get_index()) {
 	    index_expr->expr_scan(this);
 	    index = expr_;
@@ -438,7 +471,13 @@ void dll_target::expr_property(const NetEProperty*net)
       FILE_NAME(expr_, net);
       expr_->value_  = net->expr_type();
       expr_->net_type= net->net_type();
-      expr_->u_.property_.sig = find_signal(des_, net->get_sig());
+      if (net->get_sig()) {
+	    expr_->u_.property_.sig = find_signal(des_, net->get_sig());
+	    expr_->u_.property_.base = 0;
+      } else {
+	    expr_->u_.property_.sig = 0;
+	    expr_->u_.property_.base = base_expr;
+      }
       expr_->u_.property_.prop_idx = net->property_idx();
       expr_->u_.property_.index = index;
 }
@@ -476,8 +515,8 @@ void dll_target::expr_scope(const NetEScope*net)
 
       expr_->type_ = IVL_EX_SCOPE;
       FILE_NAME(expr_, net);
-      expr_->value_= IVL_VT_VOID;
-      expr_->net_type=0;
+      expr_->value_= net->net_type() ? net->expr_type() : IVL_VT_VOID;
+      expr_->net_type= net->net_type();
       expr_->u_.scope_.scope = lookup_scope_(net->scope());
 }
 
@@ -657,6 +696,7 @@ void dll_target::expr_ufunc(const NetEUFunc*net)
       expr->width_= net->expr_width();
       expr->signed_ = net->has_sign()? 1 : 0;
       expr->sized_= 1;
+      expr->super_call_ = net->super_call() ? 1 : 0;
       FILE_NAME(expr, net);
 
       expr->u_.ufunc_.def = lookup_scope_(net->func());
@@ -672,9 +712,14 @@ void dll_target::expr_ufunc(const NetEUFunc*net)
       expr->u_.ufunc_.parms = cnt;
       expr->u_.ufunc_.parm = new ivl_expr_t[cnt];
 
-	/* make up the parameter expressions. */
+      /* make up the parameter expressions. */
       for (unsigned idx = 0 ;  idx < cnt ;  idx += 1) {
-	    net->parm(idx)->expr_scan(this);
+	    const NetExpr*parm = net->parm(idx);
+	    if (parm == 0) {
+		  expr->u_.ufunc_.parm[idx] = expr_from_value_(verinum(uint64_t(0), 1));
+		  continue;
+	    }
+	    parm->expr_scan(this);
 	    assert(expr_);
 	    expr->u_.ufunc_.parm[idx] = expr_;
 	    expr_ = 0;

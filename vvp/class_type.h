@@ -43,8 +43,13 @@ class class_type : public __vpiHandle {
 
 	// This is the name of the class type.
       inline const std::string&class_name(void) const { return class_name_; }
+      inline const std::string&scope_path(void) const { return scope_path_; }
+      inline const std::string&dispatch_prefix(void) const { return dispatch_prefix_; }
+      void set_scope_path(const std::string&path);
+      void set_dispatch_prefix(const std::string&path);
 	// Number of properties in the class definition.
       inline size_t property_count(void) const { return properties_.size(); }
+      const std::string& property_name(size_t idx) const;
 
 	// Set the details about the property. This is used during
 	// parse of the .vvp file to fill in the details of the
@@ -60,8 +65,8 @@ class class_type : public __vpiHandle {
       inst_t instance_new() const;
       void instance_delete(inst_t) const;
 
-      void set_vec4(inst_t inst, size_t pid, const vvp_vector4_t&val) const;
-      void get_vec4(inst_t inst, size_t pid, vvp_vector4_t&val) const;
+      void set_vec4(inst_t inst, size_t pid, const vvp_vector4_t&val, size_t idx = 0) const;
+      void get_vec4(inst_t inst, size_t pid, vvp_vector4_t&val, size_t idx = 0) const;
       void set_real(inst_t inst, size_t pid, double val) const;
       double get_real(inst_t inst, size_t pid) const;
       void set_string(inst_t inst, size_t pid, const std::string&val) const;
@@ -76,6 +81,8 @@ class class_type : public __vpiHandle {
 
     private:
       std::string class_name_;
+      std::string scope_path_;
+      std::string dispatch_prefix_;
 
       struct prop_t {
 	    std::string name;

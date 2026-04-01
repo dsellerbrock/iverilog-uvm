@@ -117,6 +117,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %token <vect> T_VECTOR
 
 %type <flag>  local_flag
+%type <numb>  storage_flag
 %type <vpi_enum> port_type
 %type <numb>  signed_t_number
 %type <numb>  dimension dimensions dimensions_opt
@@ -653,38 +654,38 @@ statement
 
   /* This version does not allow a function to be called as a task. */
   | label_opt K_vpi_call T_NUMBER T_NUMBER T_STRING
-    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER '}' ';'
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
       { compile_vpi_call($1, $5, true, false, $3, $4,
-			 $6.argc, $6.argv, $8, $9, $10); }
+			 $6.argc, $6.argv, $8, $9, $10, $11); }
 
   /* This version allows a function to be called as a task, but prints a
    * warning message. */
   | label_opt K_vpi_call_w T_NUMBER T_NUMBER T_STRING
-    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER '}' ';'
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
       { compile_vpi_call($1, $5, false, true, $3, $4,
-			 $6.argc, $6.argv, $8, $9, $10); }
+			 $6.argc, $6.argv, $8, $9, $10, $11); }
 
   /* This version allows a function to be called as a task and does not
    * print a message. */
   | label_opt K_vpi_call_i T_NUMBER T_NUMBER T_STRING
-    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER '}' ';'
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
       { compile_vpi_call($1, $5, false, false, $3, $4,
-			 $6.argc, $6.argv, $8, $9, $10); }
+			 $6.argc, $6.argv, $8, $9, $10, $11); }
 
   | label_opt K_vpi_func T_NUMBER T_NUMBER T_STRING T_NUMBER
-    argument_opt  '{' T_NUMBER T_NUMBER T_NUMBER '}' ';'
+    argument_opt  '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
       { compile_vpi_func_call($1, $5, -vpiVectorVal, $6, $3, $4,
-			      $7.argc, $7.argv, $9, $10, $11); }
+			      $7.argc, $7.argv, $9, $10, $11, $12); }
 
   | label_opt K_vpi_func_r T_NUMBER T_NUMBER T_STRING
-    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER '}' ';'
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
       { compile_vpi_func_call($1, $5, -vpiRealVal, 0, $3, $4,
-			      $6.argc, $6.argv, $8, $9, $10); }
+			      $6.argc, $6.argv, $8, $9, $10, $11); }
 
   | label_opt K_vpi_func_s T_NUMBER T_NUMBER T_STRING
-    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER '}' ';'
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
       { compile_vpi_func_call($1, $5, -vpiStringVal, 0, $3, $4,
-			      $6.argc, $6.argv, $8, $9, $10); }
+			      $6.argc, $6.argv, $8, $9, $10, $11); }
 
   /* Scope statements come in two forms. There are the scope
      declaration and the scope recall. The declarations create the
@@ -748,35 +749,38 @@ statement
      creates a functor with the same name that acts as the output of
      the variable in the netlist. */
 
-  | T_LABEL K_VAR local_flag T_STRING ',' signed_t_number signed_t_number ';'
-      { compile_variable($1, $4, $6, $7, vpiLogicVar, false, $3); }
+  | T_LABEL K_VAR local_flag storage_flag T_STRING ',' signed_t_number signed_t_number ';'
+      { compile_variable($1, $5, $7, $8, vpiLogicVar, false, $3, $4); }
 
-  | T_LABEL K_VAR_S local_flag T_STRING ',' signed_t_number signed_t_number ';'
-      { compile_variable($1, $4, $6, $7, vpiLogicVar, true, $3); }
+  | T_LABEL K_VAR_S local_flag storage_flag T_STRING ',' signed_t_number signed_t_number ';'
+      { compile_variable($1, $5, $7, $8, vpiLogicVar, true, $3, $4); }
 
-  | T_LABEL K_VAR_I local_flag T_STRING ',' T_NUMBER T_NUMBER ';'
-      { compile_variable($1, $4, $6, $7, vpiIntegerVar, true, $3); }
+  | T_LABEL K_VAR_I local_flag storage_flag T_STRING ',' T_NUMBER T_NUMBER ';'
+      { compile_variable($1, $5, $7, $8, vpiIntegerVar, true, $3, $4); }
 
-  | T_LABEL K_VAR_2S local_flag T_STRING ',' signed_t_number signed_t_number ';'
-      { compile_variable($1, $4, $6, $7, vpiIntVar, true, $3); }
+  | T_LABEL K_VAR_2S local_flag storage_flag T_STRING ',' signed_t_number signed_t_number ';'
+      { compile_variable($1, $5, $7, $8, vpiIntVar, true, $3, $4); }
 
-  | T_LABEL K_VAR_2U local_flag T_STRING ',' signed_t_number signed_t_number ';'
-      { compile_variable($1, $4, $6, $7, vpiIntVar, false, $3); }
+  | T_LABEL K_VAR_2U local_flag storage_flag T_STRING ',' signed_t_number signed_t_number ';'
+      { compile_variable($1, $5, $7, $8, vpiIntVar, false, $3, $4); }
 
-  | T_LABEL K_VAR_R T_STRING ',' signed_t_number signed_t_number ';'
-      { compile_var_real($1, $3); }
+  | T_LABEL K_VAR_R storage_flag T_STRING ',' signed_t_number signed_t_number ';'
+      { compile_var_real($1, $4, $3); }
 
-  | T_LABEL K_VAR_STR T_STRING ';'
-      { compile_var_string($1, $3); }
+  | T_LABEL K_VAR_STR storage_flag T_STRING ';'
+      { compile_var_string($1, $4, $3); }
 
-  | T_LABEL K_VAR_DARRAY T_STRING ',' T_NUMBER ';'
-      { compile_var_darray($1, $3, $5); }
+  | T_LABEL K_VAR_DARRAY storage_flag T_STRING ',' T_NUMBER ';'
+      { compile_var_darray($1, $4, $6, $3); }
 
-  | T_LABEL K_VAR_QUEUE T_STRING  ',' T_NUMBER';'
-      { compile_var_queue($1, $3, $5); }
+  | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER';'
+      { compile_var_queue($1, $4, $6, $3); }
 
-  | T_LABEL K_VAR_COBJECT T_STRING ';'
-      { compile_var_cobject($1, $3); }
+  | T_LABEL K_VAR_COBJECT storage_flag T_STRING ';'
+      { compile_var_cobject($1, $4, 0, $3); }
+
+  | T_LABEL K_VAR_COBJECT storage_flag T_STRING ',' T_SYMBOL ';'
+      { compile_var_cobject($1, $4, $6, $3); }
 
   /* Net statements are similar to .var statements, except that they
      declare nets, and they have an input list. */
@@ -900,7 +904,12 @@ statement
   /* Other statements */
 
   | T_LABEL K_CLASS T_STRING '[' T_NUMBER ']'
-      { compile_class_start($1, $3, $5); }
+      { compile_class_start($1, $3, 0, $5); }
+    class_properties_opt ';'
+      { compile_class_done(); }
+
+  | T_LABEL K_CLASS T_STRING T_STRING '[' T_NUMBER ']'
+      { compile_class_start($1, $3, $4, $6); }
     class_properties_opt ';'
       { compile_class_done(); }
 
@@ -986,6 +995,12 @@ enum_type_name
 local_flag
   : '*' { $$ = true; }
   |     { $$ = false; }
+  ;
+
+storage_flag
+  : '!' { $$ = -1; }
+  | '^' { $$ = 1; }
+  |     { $$ = 0; }
   ;
 
   /* There are a few places where the label is optional. This rule

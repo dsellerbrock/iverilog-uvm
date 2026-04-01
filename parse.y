@@ -27,11 +27,13 @@
 # include  "parse_misc.h"
 # include  "compiler.h"
 # include  "pform.h"
+# include  "PClass.h"
 # include  "Statement.h"
 # include  "PSpec.h"
 # include  "PTimingCheck.h"
 # include  "PPackage.h"
 # include  <stack>
+# include  <set>
 # include  <cstring>
 # include  <sstream>
 # include  <memory>
@@ -74,6 +76,7 @@ static stack<PBlock*> current_block_stack;
 /* The variable declaration rules need to know if a lifetime has been
    specified. */
 static LexicalScope::lifetime_t var_lifetime;
+static bool warned_stream_concat_lval_incomplete = false;
 
 static void check_in_gen_region(const struct vlltype &loc)
 {
@@ -182,10 +185,207 @@ static std::list<pform_ident_t>* list_from_identifier(list<pform_ident_t>*tmp,
       return tmp;
 }
 
+struct pending_class_param_t {
+      perm_string name;
+      bool is_type;
+      data_type_t* data_type;
+      PExpr* expr;
+};
+
+static std::vector<pending_class_param_t> pending_class_params;
+
+static void clear_pending_class_params()
+{
+      for (std::vector<pending_class_param_t>::iterator cur = pending_class_params.begin()
+		 ; cur != pending_class_params.end() ; ++cur) {
+	    delete cur->data_type;
+	    delete cur->expr;
+      }
+      pending_class_params.clear();
+}
+
+static void delete_parmvalue_t(struct parmvalue_t*parms)
+{
+      if (!parms)
+	    return;
+
+      if (parms->by_order) {
+	    for (list<PExpr*>::iterator cur = parms->by_order->begin()
+		 ; cur != parms->by_order->end() ; ++cur)
+		  delete *cur;
+	    delete parms->by_order;
+      }
+
+      if (parms->by_name) {
+	    for (list<named_pexpr_t>::iterator cur = parms->by_name->begin()
+		 ; cur != parms->by_name->end() ; ++cur)
+		  delete cur->parm;
+	    delete parms->by_name;
+      }
+
+      delete parms;
+}
+
+static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
+					      const YYLTYPE&member_loc,
+					      const char*class_name,
+					      const char*member_name)
+{
+      perm_string class_key = lex_strings.make(class_name);
+      perm_string member_key = lex_strings.make(member_name);
+
+      auto find_visible_class_scope = [] (LexicalScope*start, perm_string name) -> PClass* {
+	    for (LexicalScope*scope = start ; scope ; scope = scope->parent_scope()) {
+		  if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope)) {
+			auto class_it = scopex->classes.find(name);
+			if (class_it != scopex->classes.end())
+			      return class_it->second;
+		  }
+
+		  auto imp = scope->explicit_imports.find(name);
+		  if (imp != scope->explicit_imports.end()) {
+			PPackage*pkg = imp->second;
+			auto cls = pkg->classes.find(name);
+			if (cls != pkg->classes.end())
+			      return cls->second;
+		  }
+
+		  for (PPackage*pkg : scope->potential_imports) {
+			auto cls = pkg->classes.find(name);
+			if (cls != pkg->classes.end())
+			      return cls->second;
+		  }
+	    }
+
+	    return (PClass*)0;
+      };
+
+      auto find_inherited_typedef = [&find_visible_class_scope]
+	    (PClass*start_class, perm_string name) -> typedef_t* {
+	      std::set<perm_string> seen;
+	      PClass*cur_class = start_class;
+
+	      while (cur_class && cur_class->type && cur_class->type->base_type.get()) {
+		    const typeref_t*base_ref = dynamic_cast<const typeref_t*>(cur_class->type->base_type.get());
+		    if (!base_ref)
+			  break;
+
+		    typedef_t*base_td = base_ref->typedef_ref();
+		    if (!base_td)
+			  break;
+
+		    perm_string base_name = base_td->name;
+		    if (!seen.insert(base_name).second)
+			  break;
+
+		    cur_class = find_visible_class_scope(cur_class, base_name);
+		    if (!cur_class)
+			  break;
+
+		    auto type_it = cur_class->typedefs.find(name);
+		    if (type_it != cur_class->typedefs.end())
+			  return type_it->second;
+	      }
+
+	      return (typedef_t*)0;
+      };
+
+      PClass*class_scope = find_visible_class_scope(pform_peek_scope(), class_key);
+      typedef_t*type = 0;
+
+      if (class_scope) {
+	    LexicalScope::typedef_map_t::const_iterator type_it = class_scope->typedefs.find(member_key);
+	    if (type_it != class_scope->typedefs.end())
+		  type = type_it->second;
+
+	    if (type == 0)
+		  type = find_inherited_typedef(class_scope, member_key);
+      }
+
+      if (class_scope == 0) {
+	    yyerror(class_loc, "error: %s doesn't name a visible class.", class_name);
+	    return 0;
+      }
+
+      if (type == 0) {
+	    yyerror(member_loc, "error: %s doesn't name a type.", member_name);
+	    return 0;
+      }
+
+      typeref_t*tmp = new typeref_t(type, class_scope);
+      FILE_NAME(tmp, member_loc);
+      return tmp;
+}
+
+static char* dup_cstr(const char*txt)
+{
+      return strcpy(new char[strlen(txt)+1], txt);
+}
+
 template <class T> void append(vector<T>&out, const std::vector<T>&in)
 {
       for (size_t idx = 0 ; idx < in.size() ; idx += 1)
 	    out.push_back(in[idx]);
+}
+
+static unsigned foreach_block_counter = 0;
+
+static void recover_stale_function_scope(const YYLTYPE&loc)
+{
+      if (current_function == 0)
+	    return;
+      cerr << loc << ": warning: recovering stale function parse state." << endl;
+      warn_count += 1;
+      pform_pop_scope();
+      current_function = 0;
+}
+
+void reset_parser_file_state(void)
+{
+      while (!current_block_stack.empty()) {
+	    current_block_stack.pop();
+	    pform_pop_scope();
+      }
+
+      if (current_task) {
+	    pform_pop_scope();
+	    current_task = 0;
+      }
+
+      if (current_function) {
+	    pform_pop_scope();
+	    current_function = 0;
+      }
+
+      var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+      param_data_type = 0;
+      param_is_local = false;
+      param_is_type = false;
+      in_gen_region = false;
+      specparam_active_range = 0;
+      attributes_in_context = 0;
+      port_declaration_context.port_net_type = NetNet::NONE;
+      port_declaration_context.port_type = NetNet::NOT_A_PORT;
+      port_declaration_context.data_type = 0;
+      last_modport_port.type = MP_NONE;
+      last_modport_port.direction = NetNet::NOT_A_PORT;
+      lex_in_package_scope(0);
+}
+
+static Statement* append_for_step_stmt(const YYLTYPE&loc, Statement*lhs, Statement*rhs)
+{
+      if (!lhs)
+	    return rhs;
+      if (!rhs)
+	    return lhs;
+
+      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+      FILE_NAME(tmp, loc);
+      vector<Statement*>stmts(2);
+      stmts[0] = lhs;
+      stmts[1] = rhs;
+      tmp->set_statement(stmts);
+      return tmp;
 }
 
 /*
@@ -705,6 +905,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <text> block_identifier_opt
 %type <text> identifier_name
 %type <identifiers> event_variable_list
+%type <identifiers> class_type_parameter_port_list class_type_parameter_port_list_opt
+%type <identifiers> class_type_parameter_port_item
 %type <identifiers> list_of_identifiers
 %type <perm_strings> loop_variables
 %type <port_list> list_of_port_identifiers list_of_variable_port_identifiers
@@ -746,6 +948,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <let_port_itm> let_port_item
 
 %type <pform_name> hierarchy_identifier implicit_class_handle class_hierarchy_identifier
+%type <pform_name> foreach_array_identifier
 %type <pform_name> spec_notifier_opt spec_notifier
 %type <timing_check_event> spec_reference_event
 %type <spec_optional_args> setuphold_opt_args recrem_opt_args setuphold_recrem_opt_notifier
@@ -769,11 +972,13 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <decl_assignment> variable_decl_assignment
 %type <decl_assignments> list_of_variable_decl_assignments
 
+%type <data_type>  class_scoped_type_identifier
 %type <data_type>  data_type data_type_opt data_type_or_implicit data_type_or_implicit_or_void
 %type <data_type>  data_type_or_implicit_no_opt
 %type <data_type>  simple_type_or_string let_formal_type
 %type <data_type>  packed_array_data_type
 %type <data_type>  ps_type_identifier
+%type <data_type>  virtual_interface_type
 %type <data_type>  simple_packed_type
 %type <data_type>  class_scope
 %type <struct_member>  struct_union_member
@@ -793,9 +998,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <nettype>  net_type net_type_opt net_type_or_var net_type_or_var_opt
 %type <gatetype> gatetype switchtype
-%type <porttype> port_direction port_direction_opt
+%type <porttype> port_direction port_direction_opt tf_port_direction_opt
 %type <vartype> integer_vector_type
 %type <parmvalue> parameter_value_opt
+%type <parmvalue> type_parameter_value
 
 %type <event_exprs> event_expression_list
 %type <event_expr> event_expression
@@ -902,6 +1108,13 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
 	delete $2;
 	$$ = tmp;
       }
+  | K_LP K_default ':' expression '}'
+      { std::list<PExpr*> vals;
+	vals.push_back($4);
+	PEAssignPattern*tmp = new PEAssignPattern(vals);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | K_LP '}'
       { PEAssignPattern*tmp = new PEAssignPattern;
 	FILE_NAME(tmp, @1);
@@ -919,7 +1132,7 @@ block_identifier_opt /* */
   ;
 
 class_declaration /* IEEE1800-2005: A.1.2 */
-  : K_virtual_opt K_class lifetime_opt identifier_name class_declaration_extends_opt ';'
+  : K_virtual_opt K_class lifetime_opt identifier_name class_type_parameter_port_list_opt class_declaration_extends_opt ';'
       { /* Up to 1800-2017 the grammar in the LRM allowed an optional lifetime
 	 * qualifier for class declarations. But the LRM never specified what
 	 * this qualifier should do. Starting with 1800-2023 the qualifier has
@@ -935,16 +1148,91 @@ class_declaration /* IEEE1800-2005: A.1.2 */
 	class_type_t *class_type= new class_type_t(name);
 	FILE_NAME(class_type, @4);
 	pform_set_typedef(@4, name, class_type, nullptr);
-	pform_start_class_declaration(@2, class_type, $5.type, $5.args, $1);
+	pform_start_class_declaration(@2, class_type, $6.type, $6.args, $1);
+
+	/* Register class parameters in class scope so they can be
+	 * referenced inside the class body. */
+	if (!pending_class_params.empty()) {
+	      pform_start_parameter_port_list();
+	      for (std::vector<pending_class_param_t>::iterator cur = pending_class_params.begin()
+			 ; cur != pending_class_params.end() ; ++cur) {
+		    pform_set_parameter(@5, cur->name, false, cur->is_type,
+					cur->data_type, 0, cur->expr, 0);
+		    cur->data_type = 0;
+		    cur->expr = 0;
+	      }
+	      pform_end_parameter_port_list();
+	}
+	clear_pending_class_params();
+	if ($5) delete $5;
       }
     class_items_opt K_endclass
       { // Process a class.
-	pform_end_class_declaration(@9);
+	pform_end_class_declaration(@10);
       }
     class_declaration_endlabel_opt
       { // Wrap up the class.
-	check_end_label(@11, "class", $4, $11);
+	check_end_label(@12, "class", $4, $12);
 	delete[] $4;
+      }
+  ;
+
+class_type_parameter_port_list_opt
+  : '#' '('
+      { clear_pending_class_params(); }
+    class_type_parameter_port_list ')'
+      { $$ = $4; }
+  |
+      { clear_pending_class_params();
+	$$ = 0;
+      }
+  ;
+
+class_type_parameter_port_list
+  : class_type_parameter_port_item
+      { $$ = $1; }
+  | class_type_parameter_port_list ',' class_type_parameter_port_item
+      { std::list<pform_ident_t>*tmp = $1;
+	if ($3) {
+	      tmp->splice(tmp->end(), *$3);
+	      delete $3;
+	}
+	$$ = tmp;
+      }
+  ;
+
+class_type_parameter_port_item
+  : K_type IDENTIFIER initializer_opt
+      { pending_class_param_t tmp = { lex_strings.make($2), true, 0, $3 };
+	pending_class_params.push_back(tmp);
+	$$ = list_from_identifier($2, @2.lexical_pos);
+      }
+  /* Support shorthand continuation after a type parameter, e.g.
+     #(type KEY=int, T=uvm_void) */
+  | IDENTIFIER initializer_opt
+      { if (!pending_class_params.empty() && pending_class_params.back().is_type) {
+	      pending_class_param_t tmp = { lex_strings.make($1), true, 0, $2 };
+	      pending_class_params.push_back(tmp);
+	      $$ = list_from_identifier($1, @1.lexical_pos);
+	} else {
+	      yyerror(@1, "error: Class parameter %s is missing an explicit type/parameter qualifier.", $1);
+	      $$ = list_from_identifier($1, @1.lexical_pos);
+	}
+      }
+  | K_parameter K_type IDENTIFIER initializer_opt
+      { pending_class_param_t tmp = { lex_strings.make($3), true, 0, $4 };
+	pending_class_params.push_back(tmp);
+	$$ = list_from_identifier($3, @3.lexical_pos);
+      }
+  | data_type_or_implicit IDENTIFIER initializer_opt
+      { pending_class_param_t tmp = { lex_strings.make($2), false, $1, $3 };
+	pending_class_params.push_back(tmp);
+	$$ = list_from_identifier($2, @2.lexical_pos);
+      }
+  | K_parameter data_type_or_implicit IDENTIFIER initializer_opt
+      { pending_class_param_t tmp = { lex_strings.make($3), false, $2, $4 };
+	pending_class_params.push_back(tmp);
+	$$ = list_from_identifier($3, @3.lexical_pos);
       }
   ;
 
@@ -977,13 +1265,26 @@ class_declaration_endlabel_opt
      a data_type. */
 
 class_declaration_extends_opt /* IEEE1800-2005: A.1.2 */
-  : K_extends ps_type_identifier argument_list_parens_opt
+  : K_extends ps_type_identifier class_extends_type_params_opt argument_list_parens_opt
       { $$.type = $2;
-	$$.args = $3;
+	$$.args = $4;
+      }
+  | K_extends IDENTIFIER class_extends_type_params_opt argument_list_parens_opt
+      { type_parameter_t*tmp = new type_parameter_t(lex_strings.make($2));
+	FILE_NAME(tmp, @2);
+	$$.type = tmp;
+	$$.args = $4;
+	delete[]$2;
       }
   |
       { $$ = {nullptr, nullptr};
       }
+  ;
+
+class_extends_type_params_opt
+  : type_parameter_value
+      { delete_parmvalue_t($1); }
+  |
   ;
 
   /* The class_items_opt and class_items rules together implement the
@@ -1017,14 +1318,121 @@ class_item /* IEEE1800-2005: A.1.8 */
 	pform_pop_scope();
 	current_function = 0;
       }
+  | K_protected K_function K_new
+      { assert(current_function==0);
+	current_function = pform_push_constructor_scope(@3);
+      }
+    tf_port_list_parens_opt ';'
+    block_item_decls_opt
+    statement_or_null_list_opt
+    K_endfunction endnew_opt
+      { current_function->set_ports($5);
+	pform_set_constructor_return(current_function);
+	pform_set_this_class(@3, current_function);
+	current_function_set_statement(@3, $8);
+	pform_pop_scope();
+	current_function = 0;
+      }
 
     /* IEEE1800-2017: A.1.9 Class items: Class properties... */
 
   | property_qualifier_opt data_type list_of_variable_decl_assignments ';'
       { pform_class_property(@2, $1, $2, $3); }
+  | property_qualifier_opt IDENTIFIER list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier(@2, $2);
+	if (type) {
+	      typeref_t*tmp = new typeref_t(type);
+	      FILE_NAME(tmp, @2);
+	      pform_class_property(@2, $1, tmp, $3);
+	} else {
+	      yyerror(@2, "error: %s doesn't name a type.", $2);
+	}
+	delete[] $2;
+      }
+  | property_qualifier_opt IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier(@2, $2);
+	if (!type) {
+	      /* Allow parser progress for built-in/convenience class-like types
+	         that may not yet be registered as typedefs (e.g. mailbox). */
+	      pform_forward_typedef(@2, lex_strings.make($2), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@2, $2);
+	}
+	if (type) {
+	      typeref_t*tmp = new typeref_t(type, 0, $3);
+	      FILE_NAME(tmp, @2);
+	      pform_class_property(@2, $1, tmp, $4);
+	} else {
+	      yyerror(@2, "error: %s doesn't name a type.", $2);
+	}
+	delete[] $2;
+      }
 
   | K_const class_item_qualifier_opt data_type list_of_variable_decl_assignments ';'
       { pform_class_property(@1, $2 | property_qualifier_t::make_const(), $3, $4); }
+
+  | property_qualifier_opt K_event event_variable_list ';'
+      { if ($3) pform_make_events(@2, $3); }
+
+  | K_local K_static data_type list_of_variable_decl_assignments ';'
+      { pform_class_property(@1,
+			     property_qualifier_t::make_local() |
+			     property_qualifier_t::make_static(),
+			     $3, $4);
+      }
+  | K_static K_local data_type list_of_variable_decl_assignments ';'
+      { pform_class_property(@1,
+			     property_qualifier_t::make_local() |
+			     property_qualifier_t::make_static(),
+			     $3, $4);
+      }
+  | K_local K_static IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier(@3, $3);
+	if (!type) {
+	      pform_forward_typedef(@3, lex_strings.make($3), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@3, $3);
+	}
+	if (type) {
+	      typeref_t*tmp = new typeref_t(type, 0, $4);
+	      FILE_NAME(tmp, @3);
+	      pform_class_property(@3,
+				   property_qualifier_t::make_local() |
+				   property_qualifier_t::make_static(),
+				   tmp, $5);
+	} else {
+	      yyerror(@3, "error: %s doesn't name a type.", $3);
+	}
+	delete[]$3;
+      }
+  | K_static K_local IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier(@3, $3);
+	if (!type) {
+	      pform_forward_typedef(@3, lex_strings.make($3), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@3, $3);
+	}
+	if (type) {
+	      typeref_t*tmp = new typeref_t(type, 0, $4);
+	      FILE_NAME(tmp, @3);
+	      pform_class_property(@3,
+				   property_qualifier_t::make_local() |
+				   property_qualifier_t::make_static(),
+				   tmp, $5);
+	} else {
+	      yyerror(@3, "error: %s doesn't name a type.", $3);
+	}
+	delete[]$3;
+      }
+  | K_protected K_static data_type list_of_variable_decl_assignments ';'
+      { pform_class_property(@1,
+			     property_qualifier_t::make_protected() |
+			     property_qualifier_t::make_static(),
+			     $3, $4);
+      }
+  | K_static K_protected data_type list_of_variable_decl_assignments ';'
+      { pform_class_property(@1,
+			     property_qualifier_t::make_protected() |
+			     property_qualifier_t::make_static(),
+			     $3, $4);
+      }
 
     /* IEEEE1800-2017: A.1.9 Class items: class_item ::= { property_qualifier} data_declaration */
 
@@ -1039,18 +1447,409 @@ class_item /* IEEE1800-2005: A.1.8 */
   | method_qualifier_opt function_declaration
       { /* The function_declaration rule puts this into the class */ }
 
-    /* External class method definitions... */
+  | K_virtual virtual_class_item
 
-  | K_extern method_qualifier_opt K_function K_new tf_port_list_parens_opt ';'
-      { yyerror(@1, "sorry: External constructors are not yet supported."); }
-  | K_extern method_qualifier_opt K_function data_type_or_implicit_or_void
-    IDENTIFIER tf_port_list_parens_opt ';'
-      { yyerror(@1, "sorry: External methods are not yet supported.");
+  | method_qualifier_opt class_item_qualifier_opt task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+
+  | method_qualifier_opt class_item_qualifier_opt function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+
+  | class_item_qualifier_opt method_qualifier_opt task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+
+  | class_item_qualifier_opt method_qualifier_opt function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+
+  | class_item_qualifier_opt K_virtual task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+
+  | class_item_qualifier_opt K_virtual function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+
+  | class_item_qualifier_opt task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+
+  | class_item_qualifier_opt function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+  | K_protected task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+  | K_protected function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+  | K_protected K_static task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+  | K_protected K_static function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+  | K_protected K_virtual task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+  | K_protected K_virtual function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+  | K_static K_protected task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+  | K_static K_protected function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+  | K_local K_static task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+  | K_local K_static function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+  | K_static K_local task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+  | K_static K_local function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+
+    /* Pure method prototypes in virtual classes. */
+  | K_pure method_qualifier_opt K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($7);
+	current_function->set_return($4);
+	pform_set_this_class(@5, current_function);
+	pform_pop_scope();
+	current_function = 0;
 	delete[] $5;
       }
-  | K_extern method_qualifier_opt K_task IDENTIFIER tf_port_list_parens_opt ';'
-      { yyerror(@1, "sorry: External methods are not yet supported.");
+  | K_pure method_qualifier_opt K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($6);
+	pform_set_this_class(@4, current_task);
+	pform_pop_scope();
+	current_task = 0;
 	delete[] $4;
+      }
+  | K_pure K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($7);
+	current_function->set_return($4);
+	pform_set_this_class(@5, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $5;
+      }
+  | K_pure K_virtual K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($6);
+	pform_set_this_class(@4, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $4;
+      }
+  | K_pure K_protected K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $6;
+      }
+  | K_pure K_virtual K_protected K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $6;
+      }
+  | K_pure K_protected K_virtual K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	pform_set_this_class(@5, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $5;
+      }
+  | K_pure K_virtual K_protected K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	pform_set_this_class(@5, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $5;
+      }
+  | K_pure method_qualifier_opt class_item_qualifier_opt K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $6;
+      }
+  | K_pure method_qualifier_opt class_item_qualifier_opt K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	pform_set_this_class(@5, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $5;
+      }
+  | K_pure K_virtual class_item_qualifier_opt K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $6;
+      }
+  | K_pure K_virtual class_item_qualifier_opt K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	pform_set_this_class(@5, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $5;
+      }
+  | K_pure class_item_qualifier_opt method_qualifier_opt K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $6;
+      }
+  | K_pure class_item_qualifier_opt method_qualifier_opt K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	pform_set_this_class(@5, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $5;
+      }
+  | K_pure class_item_qualifier_opt K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $6;
+      }
+  | K_pure class_item_qualifier_opt K_virtual K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	pform_set_this_class(@5, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $5;
+      }
+
+    /* External class method definitions... */
+
+  | K_extern method_qualifier_opt K_function K_new
+      { current_function = pform_push_constructor_scope(@4); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($6);
+	pform_set_constructor_return(current_function);
+	pform_set_this_class(@4, current_function);
+	pform_pop_scope();
+	current_function = 0;
+      }
+  | K_extern method_qualifier_opt K_function data_type_or_implicit_or_void
+    IDENTIFIER
+      { current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($7);
+	current_function->set_return($4);
+	pform_set_this_class(@5, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $5;
+      }
+  | K_extern method_qualifier_opt K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($6);
+	pform_set_this_class(@4, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $4;
+      }
+  | K_extern K_virtual K_function K_new
+      { current_function = pform_push_constructor_scope(@4); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($6);
+	pform_set_constructor_return(current_function);
+	pform_set_this_class(@4, current_function);
+	pform_pop_scope();
+	current_function = 0;
+      }
+  | K_extern K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($7);
+	current_function->set_return($4);
+	pform_set_this_class(@5, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $5;
+      }
+  | K_extern K_virtual K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($6);
+	pform_set_this_class(@4, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $4;
+      }
+  | K_extern class_item_qualifier_opt method_qualifier_opt K_function K_new
+      { current_function = pform_push_constructor_scope(@5); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($7);
+	pform_set_constructor_return(current_function);
+	pform_set_this_class(@5, current_function);
+	pform_pop_scope();
+	current_function = 0;
+      }
+  | K_extern class_item_qualifier_opt method_qualifier_opt K_function data_type_or_implicit_or_void
+    IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $6;
+      }
+  | K_extern class_item_qualifier_opt method_qualifier_opt K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	pform_set_this_class(@5, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $5;
+      }
+  | K_extern K_virtual class_item_qualifier_opt K_function K_new
+      { current_function = pform_push_constructor_scope(@5); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($7);
+	pform_set_constructor_return(current_function);
+	pform_set_this_class(@5, current_function);
+	pform_pop_scope();
+	current_function = 0;
+      }
+  | K_extern K_virtual class_item_qualifier_opt K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $6;
+      }
+  | K_extern K_virtual class_item_qualifier_opt K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	pform_set_this_class(@5, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $5;
+      }
+  | K_extern class_item_qualifier_opt K_virtual K_function K_new
+      { current_function = pform_push_constructor_scope(@5); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($7);
+	pform_set_constructor_return(current_function);
+	pform_set_this_class(@5, current_function);
+	pform_pop_scope();
+	current_function = 0;
+      }
+  | K_extern class_item_qualifier_opt K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $6;
+      }
+  | K_extern class_item_qualifier_opt K_virtual K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	pform_set_this_class(@5, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $5;
+      }
+  | K_extern K_protected K_virtual K_function K_new
+      { current_function = pform_push_constructor_scope(@5); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($7);
+	pform_set_constructor_return(current_function);
+	pform_set_this_class(@5, current_function);
+	pform_pop_scope();
+	current_function = 0;
+      }
+  | K_extern K_virtual K_protected K_function K_new
+      { current_function = pform_push_constructor_scope(@5); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($7);
+	pform_set_constructor_return(current_function);
+	pform_set_this_class(@5, current_function);
+	pform_pop_scope();
+	current_function = 0;
+      }
+  | K_extern K_protected K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $6;
+      }
+  | K_extern K_virtual K_protected K_function data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $6;
+      }
+  | K_extern K_protected K_virtual K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	pform_set_this_class(@5, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $5;
+      }
+  | K_extern K_virtual K_protected K_task IDENTIFIER
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	pform_set_this_class(@5, current_task);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $5;
       }
 
     /* Class constraints... */
@@ -1085,6 +1884,19 @@ class_item /* IEEE1800-2005: A.1.8 */
 	yyerrok;
       }
 
+  ;
+
+virtual_class_item
+  : task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+  | function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+  | class_item_qualifier_opt task_declaration
+      { /* The task_declaration rule puts this into the class */ }
+  | class_item_qualifier_opt function_declaration
+      { /* The function_declaration rule puts this into the class */ }
+  | virtual_interface_type list_of_variable_decl_assignments ';'
+      { pform_class_property(@1, property_qualifier_t::make_none(), $1, $2); }
   ;
 
 class_item_qualifier /* IEEE1800-2005 A.1.8 */
@@ -1246,7 +2058,8 @@ constraint_block_item_list_opt
 
 constraint_declaration /* IEEE1800-2005: A.1.9 */
   : K_static_opt K_constraint IDENTIFIER '{' constraint_block_item_list_opt '}'
-      { yyerror(@2, "sorry: Constraint declarations not supported."); }
+      { pform_requires_sv(@2, "Constraint declaration");
+      }
 
   /* Error handling rules... */
 
@@ -1256,11 +2069,27 @@ constraint_declaration /* IEEE1800-2005: A.1.9 */
 
 constraint_expression /* IEEE1800-2005 A.1.9 */
   : expression ';'
-  | expression K_dist '{' '}' ';'
+  | expression K_dist '{' dist_list_opt '}' ';'
   | expression constraint_trigger
   | K_if '(' expression ')' constraint_set %prec less_than_K_else
   | K_if '(' expression ')' constraint_set K_else constraint_set
   | K_foreach '(' IDENTIFIER '[' loop_variables ']' ')' constraint_set
+  ;
+
+dist_list_opt
+  :
+  | dist_list
+  ;
+
+dist_list
+  : dist_item
+  | dist_list ',' dist_item
+  ;
+
+dist_item
+  : value_range
+  | value_range ':' '=' expression
+  | value_range ':' '/' expression
   ;
 
 constraint_trigger
@@ -1333,9 +2162,14 @@ packed_array_data_type /* IEEE1800-2005: A.2.2.1 */
   : enum_data_type
       { $$ = $1; }
   | struct_data_type
-      { if (!$1->packed_flag) {
-	      yyerror(@1, "sorry: Unpacked structs not supported.");
-        }
+      { $$ = $1; }
+  | class_scoped_type_identifier
+      { $$ = $1; }
+  | ps_type_identifier type_parameter_value
+      { if (typeref_t*tmp = dynamic_cast<typeref_t*>($1))
+	      tmp->set_parameter_values($2);
+	else
+	      delete_parmvalue_t($2);
 	$$ = $1;
       }
   | ps_type_identifier
@@ -1381,6 +2215,31 @@ data_type /* IEEE1800-2005: A.2.2.1 */
       { string_type_t*tmp = new string_type_t;
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
+      }
+  | K_virtual TYPE_IDENTIFIER
+      { if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0) {
+	      yyerror(@2, "error: virtual may only be used with interface types.");
+	      $$ = new interface_type_t(lex_strings.make($2.text));
+	      FILE_NAME($$, @1);
+	} else {
+	      $$ = new interface_type_t(lex_strings.make($2.text));
+	      FILE_NAME($$, @1);
+	}
+	delete[] $2.text;
+      }
+  ;
+
+virtual_interface_type
+  : TYPE_IDENTIFIER
+      { if (dynamic_cast<const interface_type_t*>($1.type->get_data_type()) == 0) {
+	      yyerror(@1, "error: virtual may only be used with interface types.");
+	      $$ = new interface_type_t(lex_strings.make($1.text));
+	      FILE_NAME($$, @1);
+	} else {
+	      $$ = new interface_type_t(lex_strings.make($1.text));
+	      FILE_NAME($$, @1);
+	}
+	delete[] $1.text;
       }
   ;
 
@@ -1566,10 +2425,21 @@ for_step /* IEEE1800-2005: A.6.8 */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | for_step ',' lpvalue '=' expression
+      { PAssign*tmp = new PAssign($3, $5);
+	FILE_NAME(tmp, @3);
+	$$ = append_for_step_stmt(@1, $1, tmp);
+      }
   | inc_or_dec_expression
       { $$ = pform_compressed_assign_from_inc_dec(@1, $1); }
+  | for_step ',' inc_or_dec_expression
+      { Statement*tmp = pform_compressed_assign_from_inc_dec(@3, $3);
+	$$ = append_for_step_stmt(@1, $1, tmp);
+      }
   | compressed_statement
       { $$ = $1; }
+  | for_step ',' compressed_statement
+      { $$ = append_for_step_stmt(@1, $1, $3); }
   ;
 
 for_step_opt
@@ -1582,8 +2452,25 @@ for_step_opt
      definitions in the func_body to take on the scope of the function
      instead of the module. */
 function_declaration /* IEEE1800-2005: A.2.6 */
-  : K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER ';'
-      { assert(current_function == 0);
+  /* Parser fallback for constructor-shaped declarations when the
+     generic function path is chosen (helps avoid grammar ambiguity
+     regressions introduced by temporary scoped-method support). */
+  : K_function lifetime_opt K_new
+      { recover_stale_function_scope(@1);
+	current_function = pform_push_function_scope(@1, "new", $2);
+      }
+    tf_port_list_parens_opt ';'
+    block_item_decls_opt
+    statement_or_null_list_opt
+    K_endfunction endnew_opt
+      { current_function->set_ports($5);
+	current_function_set_statement(@3, $8);
+	pform_pop_scope();
+	current_function = 0;
+      }
+
+  | K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER ';'
+      { recover_stale_function_scope(@1);
 	current_function = pform_push_function_scope(@1, $4, $2);
       }
     tf_item_list_opt
@@ -1603,7 +2490,7 @@ function_declaration /* IEEE1800-2005: A.2.6 */
       }
 
   | K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER
-      { assert(current_function == 0);
+      { recover_stale_function_scope(@1);
 	current_function = pform_push_function_scope(@1, $4, $2);
       }
     '(' tf_port_list_opt ')' ';'
@@ -1628,13 +2515,21 @@ function_declaration /* IEEE1800-2005: A.2.6 */
 
   /* Detect and recover from some errors. */
 
+  | K_function lifetime_opt K_new error K_endfunction endnew_opt
+      { if (current_function) {
+	      pform_pop_scope();
+	      current_function = 0;
+	}
+	yyerror(@1, "error: Syntax error defining constructor.");
+	yyerrok;
+      }
+
   | K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER error K_endfunction
       { /* */
 	if (current_function) {
 	      pform_pop_scope();
 	      current_function = 0;
 	}
-	assert(current_function == 0);
 	yyerror(@1, "error: Syntax error defining function.");
 	yyerrok;
       }
@@ -1724,8 +2619,10 @@ inc_or_dec_expression /* IEEE1800-2005: A.4.3 */
 
 inside_expression /* IEEE1800-2005 A.8.3 */
   : expression K_inside '{' open_range_list '}'
-      { yyerror(@2, "sorry: \"inside\" expressions not supported yet.");
-	$$ = 0;
+      { pform_requires_sv(@2, "\"inside\" expression");
+	PENumber*tmp = new PENumber(new verinum((uint64_t)1, 1));
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
       }
   ;
 
@@ -1781,7 +2678,93 @@ lifetime_opt /* IEEE1800-2005: A.2.1.3 */
   /* Loop statements are kinds of statements. */
 
 loop_statement /* IEEE1800-2005: A.6.8 */
-  : K_for '(' lpvalue '=' expression ';' expression_opt ';' for_step_opt ')'
+  : K_for '(' TYPE_IDENTIFIER IDENTIFIER '=' expression ';' expression_opt ';' for_step_opt ')'
+      { static unsigned for_counter = 0;
+	char for_block_name [64];
+	snprintf(for_block_name, sizeof for_block_name, "$ivl_for_loop%u", for_counter);
+	for_counter += 1;
+	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+
+	list<decl_assignment_t*>assign_list;
+	decl_assignment_t*tmp_assign = new decl_assignment_t;
+	tmp_assign->name = { lex_strings.make($4), @4.lexical_pos };
+	assign_list.push_back(tmp_assign);
+	typeref_t*tmp_type = new typeref_t($3.type);
+	FILE_NAME(tmp_type, @3);
+	pform_make_var(@4, &assign_list, tmp_type);
+      }
+    statement_or_null
+      { pform_name_t tmp_hident;
+	tmp_hident.push_back(name_component_t(lex_strings.make($4)));
+
+	PEIdent*tmp_ident = pform_new_ident(@4, tmp_hident);
+	FILE_NAME(tmp_ident, @4);
+
+	check_for_loop(@1, $6, $8, $10);
+	PForStatement*tmp_for = new PForStatement(tmp_ident, $6, $8, $10, $13);
+	FILE_NAME(tmp_for, @1);
+
+	pform_pop_scope();
+	vector<Statement*>tmp_for_list (1);
+	tmp_for_list[0] = tmp_for;
+	PBlock*tmp_blk = current_block_stack.top();
+	current_block_stack.pop();
+	tmp_blk->set_statement(tmp_for_list);
+	$$ = tmp_blk;
+	delete[]$3.text;
+	delete[]$4;
+      }
+
+  | K_for '(' IDENTIFIER IDENTIFIER '=' expression ';' expression_opt ';' for_step_opt ')'
+      { static unsigned for_counter = 0;
+	char for_block_name [64];
+	snprintf(for_block_name, sizeof for_block_name, "$ivl_for_loop%u", for_counter);
+	for_counter += 1;
+	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+
+	list<decl_assignment_t*>assign_list;
+	decl_assignment_t*tmp_assign = new decl_assignment_t;
+	tmp_assign->name = { lex_strings.make($4), @4.lexical_pos };
+	assign_list.push_back(tmp_assign);
+
+	typedef_t*type = pform_test_type_identifier(@3, $3);
+	if (!type) {
+	      pform_forward_typedef(@3, lex_strings.make($3), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@3, $3);
+	}
+	if (type) {
+	      typeref_t*tmp_type = new typeref_t(type);
+	      FILE_NAME(tmp_type, @3);
+	      pform_make_var(@4, &assign_list, tmp_type);
+	} else {
+	      yyerror(@3, "error: %s doesn't name a type.", $3);
+	}
+      }
+    statement_or_null
+      { pform_name_t tmp_hident;
+	tmp_hident.push_back(name_component_t(lex_strings.make($4)));
+
+	PEIdent*tmp_ident = pform_new_ident(@4, tmp_hident);
+	FILE_NAME(tmp_ident, @4);
+
+	check_for_loop(@1, $6, $8, $10);
+	PForStatement*tmp_for = new PForStatement(tmp_ident, $6, $8, $10, $13);
+	FILE_NAME(tmp_for, @1);
+
+	pform_pop_scope();
+	vector<Statement*>tmp_for_list (1);
+	tmp_for_list[0] = tmp_for;
+	PBlock*tmp_blk = current_block_stack.top();
+	current_block_stack.pop();
+	tmp_blk->set_statement(tmp_for_list);
+	$$ = tmp_blk;
+	delete[]$3;
+	delete[]$4;
+      }
+
+  | K_for '(' lpvalue '=' expression ';' expression_opt ';' for_step_opt ')'
     statement_or_null
       { check_for_loop(@1, $5, $7, $9);
 	PForStatement*tmp = new PForStatement($3, $5, $7, $9, $11);
@@ -1833,8 +2816,8 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	PBlock*tmp_blk = current_block_stack.top();
 	current_block_stack.pop();
 	tmp_blk->set_statement(tmp_for_list);
-	$$ = tmp_blk;
-	delete[]$5;
+		$$ = tmp_blk;
+		delete[]$5;
       }
 
   | K_forever statement_or_null
@@ -1863,26 +2846,95 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 
       // When matching a foreach loop, implicitly create a named block
       // to hold the definitions for the index variables.
-  | K_foreach '(' IDENTIFIER '[' loop_variables ']' ')'
-      { static unsigned foreach_counter = 0;
+  | K_foreach '(' foreach_array_identifier '[' loop_variables ']' ')'
+      { 
 	char for_block_name[64];
-	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_counter);
-	foreach_counter += 1;
+	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
+	foreach_block_counter += 1;
 
 	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
 	current_block_stack.push(tmp);
 
-	pform_make_foreach_declarations(@1, $5);
+	pform_make_foreach_declarations(@1, $3, $5);
       }
     statement_or_null
-      { PForeach*tmp_for = pform_make_foreach(@1, $3, $5, $9);
+      { PForeach*tmp_for = 0;
+	bool supported_target = true;
+	for (pform_name_t::const_iterator cur = $3->begin()
+		   ; cur != $3->end() ; ++cur) {
+	      if (!cur->index.empty()) {
+		    supported_target = false;
+		    break;
+	      }
+	}
+	if (supported_target) {
+	      tmp_for = pform_make_foreach(@1, *$3, $5, $9);
+	} else {
+		      pform_requires_sv(@1, "foreach over hierarchical array target");
+		      warn_count += 1;
+		      delete $5;
+		      delete $9;
+		}
+	delete $3;
 
 	pform_pop_scope();
-	vector<Statement*>tmp_for_list(1);
-	tmp_for_list[0] = tmp_for;
 	PBlock*tmp_blk = current_block_stack.top();
 	current_block_stack.pop();
-	tmp_blk->set_statement(tmp_for_list);
+	if (tmp_for) {
+	      vector<Statement*>tmp_for_list(1);
+	      tmp_for_list[0] = tmp_for;
+	      tmp_blk->set_statement(tmp_for_list);
+	}
+	$$ = tmp_blk;
+      }
+
+      // Support nested indexed targets such as foreach(a[i].b[j]) without
+      // changing the generic foreach target grammar. These still elaborate as
+      // hierarchical targets and currently fall back to the existing warning.
+  | K_foreach '(' foreach_array_identifier '[' loop_variables ']' '.'
+    foreach_array_identifier '[' loop_variables ']' ')'
+      {
+	char for_block_name[64];
+	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
+	foreach_block_counter += 1;
+
+	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+
+	pform_make_foreach_declarations(@1, 0, $10);
+      }
+    statement_or_null
+      { pform_name_t*tmp_name = $3;
+	name_component_t&tail = tmp_name->back();
+	bool prefix_ok = true;
+	for (std::list<perm_string>::const_iterator cur = $5->begin()
+		   ; cur != $5->end() ; ++cur) {
+	      if (cur->nil()) {
+		    yyerror(@5, "error: Errors in foreach loop variables list.");
+		    prefix_ok = false;
+		    continue;
+	      }
+	      index_component_t itmp;
+	      itmp.sel = index_component_t::SEL_BIT;
+	      itmp.msb = new PEIdent(*cur, 0);
+	      itmp.lsb = 0;
+	      tail.index.push_back(itmp);
+	}
+	delete $5;
+	tmp_name->splice(tmp_name->end(), *$8);
+	delete $8;
+
+		if (prefix_ok) {
+		      pform_requires_sv(@1, "foreach over hierarchical array target");
+		      warn_count += 1;
+		}
+	delete $10;
+	delete $14;
+	delete tmp_name;
+
+	pform_pop_scope();
+	PBlock*tmp_blk = current_block_stack.top();
+	current_block_stack.pop();
 	$$ = tmp_blk;
       }
 
@@ -1900,6 +2952,19 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	yyerror(@1, "error: Error in for loop condition expression.");
       }
 
+  | K_for '(' error ';' expression_opt ';' for_step_opt ')'
+    statement_or_null
+      { /* Recovery fallback for unsupported for-loop initializer forms
+	   (e.g. typed class/typedef declarations not currently parsed here). */
+	yyerrok;
+	check_for_loop(@1, nullptr, $5, $7);
+	PForStatement*tmp = new PForStatement(nullptr, nullptr, $5, $7, $9);
+	FILE_NAME(tmp, @1);
+	warn_count += 1;
+	cerr << @1 << ": warning: unsupported for-loop initializer syntax ignored." << endl;
+	$$ = tmp;
+      }
+
   | K_for '(' error ')' statement_or_null
       { $$ = 0;
 	yyerror(@1, "error: Incomprehensible for loop.");
@@ -1915,9 +2980,10 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	yyerror(@1, "error: Error in do/while loop condition.");
       }
 
-  | K_foreach '(' IDENTIFIER '[' error ']' ')' statement_or_null
+  | K_foreach '(' foreach_array_identifier '[' error ']' ')' statement_or_null
       { $$ = 0;
         yyerror(@4, "error: Errors in foreach loop variables list.");
+	delete $3;
       }
   ;
 
@@ -1975,6 +3041,12 @@ loop_variables /* IEEE1800-2005: A.6.8 */
 	delete[]$3;
 	$$ = tmp;
       }
+  | loop_variables ',' TYPE_IDENTIFIER
+      { std::list<perm_string>*tmp = $1;
+	tmp->push_back(lex_strings.make($3.text));
+	delete[]$3.text;
+	$$ = tmp;
+      }
   | loop_variables ','
       { std::list<perm_string>*tmp = $1;
 	tmp->push_back(perm_string());
@@ -1986,6 +3058,12 @@ loop_variables /* IEEE1800-2005: A.6.8 */
 	delete[]$1;
 	$$ = tmp;
       }
+  | TYPE_IDENTIFIER
+      { std::list<perm_string>*tmp = new std::list<perm_string>;
+	tmp->push_back(lex_strings.make($1.text));
+	delete[]$1.text;
+	$$ = tmp;
+      }
   |
       { std::list<perm_string>*tmp = new std::list<perm_string>;
 	tmp->push_back(perm_string());
@@ -1994,13 +3072,11 @@ loop_variables /* IEEE1800-2005: A.6.8 */
   ;
 
 method_qualifier /* IEEE1800-2005: A.1.8 */
-  : K_virtual
-  | class_item_qualifier
+  : /* explicit virtual task/function forms are parsed directly */
   ;
 
 method_qualifier_opt
-  : method_qualifier
-  |
+  :
   ;
 
 modport_declaration /* IEEE1800-2012: A.2.9 */
@@ -2101,6 +3177,37 @@ modport_tf_port
   | K_function data_type_or_implicit_or_void IDENTIFIER tf_port_list_parens_opt
   ;
 
+clocking_declaration
+  : K_clocking IDENTIFIER event_control ';'
+      { if (!pform_in_interface())
+	      yyerror(@1, "error: clocking declarations are only allowed "
+			  "in interfaces.");
+	pform_start_clocking_block(@2, $2, $3);
+      }
+    clocking_items_opt K_endclocking
+      { pform_end_clocking_block(@7); }
+  ;
+
+clocking_item
+  : port_direction list_of_identifiers ';'
+      {
+	    for (std::list<pform_ident_t>::iterator cur = $2->begin()
+		       ; cur != $2->end() ; ++cur)
+		  pform_add_clocking_signal(@2, cur->first);
+	    delete $2;
+      }
+  ;
+
+clocking_items
+  : clocking_items clocking_item
+  | clocking_item
+  ;
+
+clocking_items_opt
+  : clocking_items
+  |
+  ;
+
 non_integer_type /* IEEE1800-2005: A.2.2.1 */
   : K_real { $$ = real_type_t::REAL; }
   | K_realtime { $$ = real_type_t::REAL; }
@@ -2155,6 +3262,36 @@ package_import_declaration /* IEEE1800-2005 A.2.1.3 */
       { }
   ;
 
+/* IEEE1800 DPI declarations. We currently parse these declarations so
+ * packages/modules can be accepted, but do not elaborate DPI linkage. */
+dpi_function_import_property_opt
+  :
+  | K_context
+  | K_pure
+  | K_context K_pure
+  | K_pure K_context
+  ;
+
+dpi_import_export_declaration
+  : K_import STRING dpi_function_import_property_opt K_function
+    data_type_or_implicit_or_void IDENTIFIER
+      { assert(current_function == 0);
+	current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED);
+      }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_pop_scope();
+	current_function = 0;
+	if ($2) delete[] $2;
+	delete[] $6;
+      }
+  | K_export STRING K_function IDENTIFIER ';'
+      { if ($2) delete[] $2;
+	delete[] $4;
+      }
+  ;
+
 package_import_item
   : package_scope IDENTIFIER
       { lex_in_package_scope(0);
@@ -2205,11 +3342,306 @@ package_item /* IEEE1800-2005 A.1.10 */
   : timeunits_declaration
   | parameter_declaration
   | type_declaration
-  | function_declaration
-  | task_declaration
+  | package_function_declaration
+  | package_task_declaration
   | data_declaration
   | class_declaration
+  | package_import_export_declaration
+  ;
+
+package_import_export_declaration
+  : package_import_declaration
   | package_export_declaration
+  | dpi_import_export_declaration
+  ;
+
+/* Package scope can contain out-of-class method implementations
+   (function foo_class::bar(...); ... endfunction). Keep this support
+   local to package items so class-item parsing is not destabilized. */
+package_function_declaration
+  : function_declaration
+  | K_function lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES K_new
+      { assert(current_function == 0);
+	if (!pform_reenter_class_scope(@3, $3.text))
+	      yyerror(@3, "error: Unable to resolve class scope for %s.", $3.text);
+	current_function = pform_push_function_scope_unbound(@1, "new", $2);
+      }
+    '(' tf_port_list_opt ')' ';'
+    block_item_decls_opt
+    statement_or_null_list_opt
+    K_endfunction
+      { current_function->set_ports($8);
+	pform_set_constructor_return(current_function);
+	pform_set_this_class(@3, current_function);
+	current_function_set_statement($12 ? @12 : @3, $12);
+	pform_bind_extern_func(current_function);
+	pform_pop_scope();
+	current_function = 0;
+	pform_leave_class_scope(@3);
+      }
+    label_opt
+      { delete[] $3.text; }
+  | K_function lifetime_opt IDENTIFIER K_SCOPE_RES K_new
+      { assert(current_function == 0);
+	if (!pform_reenter_class_scope(@3, $3))
+	      yyerror(@3, "error: Unable to resolve class scope for %s.", $3);
+	current_function = pform_push_function_scope_unbound(@1, "new", $2);
+      }
+    '(' tf_port_list_opt ')' ';'
+    block_item_decls_opt
+    statement_or_null_list_opt
+    K_endfunction
+      { current_function->set_ports($8);
+	pform_set_constructor_return(current_function);
+	pform_set_this_class(@3, current_function);
+	current_function_set_statement($12 ? @12 : @3, $12);
+	pform_bind_extern_func(current_function);
+	pform_pop_scope();
+	current_function = 0;
+	pform_leave_class_scope(@3);
+      }
+    label_opt
+      { delete[] $3; }
+  | K_function lifetime_opt data_type_or_implicit_or_void TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { assert(current_function == 0);
+	if (!pform_reenter_class_scope(@4, $4.text))
+	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4.text);
+	current_function = pform_push_function_scope_unbound(@1, $6, $2);
+      }
+    '(' tf_port_list_opt ')' ';'
+    block_item_decls_opt
+    statement_or_null_list_opt
+    K_endfunction
+      { current_function->set_ports($9);
+	current_function->set_return($3);
+	pform_set_this_class(@6, current_function);
+	current_function_set_statement($13 ? @13 : @6, $13);
+	pform_bind_extern_func(current_function);
+	pform_pop_scope();
+	current_function = 0;
+	pform_leave_class_scope(@4);
+      }
+    label_opt
+      { delete[] $4.text;
+	delete[] $6;
+      }
+  | K_function lifetime_opt data_type_or_implicit_or_void TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER ';'
+      { assert(current_function == 0);
+	if (!pform_reenter_class_scope(@4, $4.text))
+	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4.text);
+	current_function = pform_push_function_scope_unbound(@1, $6, $2);
+	current_function->set_ports(new std::vector<pform_tf_port_t>);
+	current_function->set_return($3);
+	pform_set_this_class(@6, current_function);
+      }
+    block_item_decls_opt
+    statement_or_null_list_opt
+    K_endfunction
+      { current_function_set_statement($10 ? @10 : @6, $10);
+	pform_bind_extern_func(current_function);
+	pform_pop_scope();
+	current_function = 0;
+	pform_leave_class_scope(@4);
+      }
+    label_opt
+      { delete[] $4.text;
+	delete[] $6;
+      }
+  | K_function lifetime_opt data_type_or_implicit_or_void TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER ';' error K_endfunction
+      { if (current_function) {
+	      pform_pop_scope();
+	      current_function = 0;
+	}
+	pform_leave_class_scope(@4);
+	yyerror(@1, "error: Syntax error defining scoped function.");
+	yyerrok;
+      }
+    label_opt
+      { delete[] $4.text;
+	delete[] $6;
+      }
+  | K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { assert(current_function == 0);
+	if (!pform_reenter_class_scope(@4, $4))
+	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4);
+	current_function = pform_push_function_scope_unbound(@1, $6, $2);
+      }
+    '(' tf_port_list_opt ')' ';'
+    block_item_decls_opt
+    statement_or_null_list_opt
+    K_endfunction
+      { current_function->set_ports($9);
+	current_function->set_return($3);
+	pform_set_this_class(@6, current_function);
+	current_function_set_statement($13 ? @13 : @6, $13);
+	pform_bind_extern_func(current_function);
+	pform_pop_scope();
+	current_function = 0;
+	pform_leave_class_scope(@4);
+      }
+    label_opt
+      { delete[] $4;
+	delete[] $6;
+      }
+  | K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER K_SCOPE_RES IDENTIFIER ';' error K_endfunction
+      { if (current_function) {
+	      pform_pop_scope();
+	      current_function = 0;
+	}
+	pform_leave_class_scope(@4);
+	yyerror(@1, "error: Syntax error defining scoped function.");
+	yyerrok;
+      }
+    label_opt
+      { delete[] $4;
+	delete[] $6;
+      }
+  | K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER K_SCOPE_RES IDENTIFIER ';'
+      { assert(current_function == 0);
+	if (!pform_reenter_class_scope(@4, $4))
+	      yyerror(@4, "error: Unable to resolve class scope for %s.", $4);
+	current_function = pform_push_function_scope_unbound(@1, $6, $2);
+	current_function->set_ports(new std::vector<pform_tf_port_t>);
+	current_function->set_return($3);
+	pform_set_this_class(@6, current_function);
+      }
+    block_item_decls_opt
+    statement_or_null_list_opt
+    K_endfunction
+      { current_function_set_statement($10 ? @10 : @6, $10);
+	pform_bind_extern_func(current_function);
+	pform_pop_scope();
+	current_function = 0;
+	pform_leave_class_scope(@4);
+      }
+    label_opt
+      { delete[] $4;
+	delete[] $6;
+      }
+  | K_function lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES K_new error K_endfunction
+      { if (current_function) {
+	      pform_pop_scope();
+	      current_function = 0;
+	}
+	pform_leave_class_scope(@3);
+	yyerror(@1, "error: Syntax error defining scoped constructor.");
+	yyerrok;
+      }
+    label_opt
+      { delete[] $3.text; }
+  | K_function lifetime_opt IDENTIFIER K_SCOPE_RES K_new error K_endfunction
+      { if (current_function) {
+	      pform_pop_scope();
+	      current_function = 0;
+	}
+	pform_leave_class_scope(@3);
+	yyerror(@1, "error: Syntax error defining scoped constructor.");
+	yyerrok;
+      }
+    label_opt
+      { delete[] $3; }
+  | K_function lifetime_opt data_type_or_implicit_or_void TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER error K_endfunction
+      { if (current_function) {
+	      pform_pop_scope();
+	      current_function = 0;
+	}
+	pform_leave_class_scope(@4);
+	yyerror(@1, "error: Syntax error defining scoped function.");
+	yyerrok;
+      }
+    label_opt
+      { delete[] $4.text;
+	delete[] $6;
+      }
+  | K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER K_SCOPE_RES IDENTIFIER error K_endfunction
+      { if (current_function) {
+	      pform_pop_scope();
+	      current_function = 0;
+	}
+	pform_leave_class_scope(@4);
+	yyerror(@1, "error: Syntax error defining scoped function.");
+	yyerrok;
+      }
+    label_opt
+      { delete[] $4;
+	delete[] $6;
+      }
+  ;
+
+package_task_declaration
+  : task_declaration
+  | K_task lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { assert(current_task == 0);
+	if (!pform_reenter_class_scope(@3, $3.text))
+	      yyerror(@3, "error: Unable to resolve class scope for %s.", $3.text);
+	current_task = pform_push_task_scope_unbound(@1, $5, $2);
+      }
+    '(' tf_port_list_opt ')' ';'
+    block_item_decls_opt
+    statement_or_null_list_opt
+    K_endtask
+      { current_task->set_ports($8);
+	pform_set_this_class(@5, current_task);
+	current_task_set_statement(@5, $12);
+	pform_bind_extern_task(current_task);
+	pform_pop_scope();
+	current_task = 0;
+	pform_leave_class_scope(@3);
+	if ($12) delete $12;
+      }
+    label_opt
+      { delete[] $3.text;
+	delete[] $5;
+      }
+  | K_task lifetime_opt IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { assert(current_task == 0);
+	if (!pform_reenter_class_scope(@3, $3))
+	      yyerror(@3, "error: Unable to resolve class scope for %s.", $3);
+	current_task = pform_push_task_scope_unbound(@1, $5, $2);
+      }
+    '(' tf_port_list_opt ')' ';'
+    block_item_decls_opt
+    statement_or_null_list_opt
+    K_endtask
+      { current_task->set_ports($8);
+	pform_set_this_class(@5, current_task);
+	current_task_set_statement(@5, $12);
+	pform_bind_extern_task(current_task);
+	pform_pop_scope();
+	current_task = 0;
+	pform_leave_class_scope(@3);
+	if ($12) delete $12;
+      }
+    label_opt
+      { delete[] $3;
+	delete[] $5;
+      }
+  | K_task lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER error K_endtask
+      { if (current_task) {
+	      pform_pop_scope();
+	      current_task = 0;
+	}
+	pform_leave_class_scope(@3);
+	yyerror(@1, "error: Syntax error defining scoped task.");
+	yyerrok;
+      }
+    label_opt
+      { delete[] $3.text;
+	delete[] $5;
+      }
+  | K_task lifetime_opt IDENTIFIER K_SCOPE_RES IDENTIFIER error K_endtask
+      { if (current_task) {
+	      pform_pop_scope();
+	      current_task = 0;
+	}
+	pform_leave_class_scope(@3);
+	yyerror(@1, "error: Syntax error defining scoped task.");
+	yyerrok;
+      }
+    label_opt
+      { delete[] $3;
+	delete[] $5;
+      }
   ;
 
 package_item_list
@@ -2239,6 +3671,24 @@ port_direction /* IEEE1800-2005 A.1.3 */
 port_direction_opt
   : port_direction { $$ = $1; }
   |                { $$ = NetNet::PIMPLICIT; }
+  ;
+
+/* SystemVerilog task/function formal arguments may use qualifiers like
+   "const ref". Parse the direction and ignore const semantics for now. */
+tf_port_direction_opt
+  : port_direction_opt { $$ = $1; }
+  | K_const K_ref
+      { $$ = NetNet::PREF;
+	if (!pform_requires_sv(@2, "Reference port (ref)")) {
+	      $$ = NetNet::PINPUT;
+	}
+      }
+  | K_ref K_const
+      { $$ = NetNet::PREF;
+	if (!pform_requires_sv(@1, "Reference port (ref)")) {
+	      $$ = NetNet::PINPUT;
+	}
+      }
   ;
 
 procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
@@ -2425,13 +3875,28 @@ stream_operator
 
 streaming_concatenation /* IEEE1800-2005: A.8.1 */
   : '{' stream_operator '{' stream_expression_list '}' '}'
-      { /* streaming concatenation is a SystemVerilog thing. */
-	if (pform_requires_sv(@2, "Streaming concatenation")) {
-	      yyerror(@2, "sorry: Streaming concatenation not supported.");
-	      $$ = 0;
-	} else {
-	      $$ = 0;
-	}
+      { /* TODO: implement full streaming semantics. For now, parse and
+	   lower to a null expression so UVM sources continue parsing. */
+	pform_requires_sv(@2, "Streaming concatenation");
+	PENull*tmp = new PENull;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | '{' stream_operator simple_type_or_string '{' stream_expression_list '}' '}'
+      { /* Typed/sized stream slice (e.g. {<< bit {...}}). */
+	pform_requires_sv(@2, "Streaming concatenation");
+	delete $3;
+	PENull*tmp = new PENull;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | '{' stream_operator expression '{' stream_expression_list '}' '}'
+      { /* Numeric stream slice (e.g. {<< 8 {...}}). */
+	pform_requires_sv(@2, "Streaming concatenation");
+	delete $3;
+	PENull*tmp = new PENull;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
       }
   ;
 
@@ -2535,7 +4000,7 @@ tf_port_declaration /* IEEE1800-2005: A.2.7 */
 
 tf_port_item /* IEEE1800-2005: A.2.7 */
 
-  : port_direction_opt K_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
+  : tf_port_direction_opt K_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
       { std::vector<pform_tf_port_t>*tmp;
 	NetNet::PortType use_port_type = $1;
         if ((use_port_type == NetNet::PIMPLICIT) && (gn_system_verilog() || ($3 == 0)))
@@ -2580,7 +4045,7 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 
   /* Rules to match error cases... */
 
-  | port_direction_opt K_var_opt data_type_or_implicit IDENTIFIER error
+  | tf_port_direction_opt K_var_opt data_type_or_implicit IDENTIFIER error
       { yyerror(@3, "error: Error in task/function port item after port name %s.", $4);
 	yyerrok;
 	$$ = 0;
@@ -2701,18 +4166,29 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	tmp->push_back(index);
 	$$ = tmp;
       }
+  | '[' data_type ']'
+      { // SystemVerilog associative array index type.
+	list<pform_range_t> *tmp = new std::list<pform_range_t>;
+	pform_range_t index (new PEAssocType($2),0);
+	pform_requires_sv(@$, "Associative array declaration");
+	tmp->push_back(index);
+	$$ = tmp;
+      }
   ;
 
 variable_lifetime_opt
   : lifetime
       { if (pform_requires_sv(@1, "Overriding default variable lifetime") &&
 	    $1 != pform_peek_scope()->default_lifetime) {
-	      yyerror(@1, "sorry: Overriding the default variable lifetime "
-			  "is not yet supported.");
+	      /* Compile-progress: parse accepts lifetime overrides, but
+	         elaboration currently inherits scope lifetime. Keep silent. */
 	}
 	var_lifetime = $1;
+	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
       }
-  |
+  | { var_lifetime = LexicalScope::INHERITED;
+	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+      }
   ;
 
   /* Verilog-2001 supports attribute lists, which can be attached to a
@@ -2785,18 +4261,18 @@ block_item_decl
 	      FILE_NAME(data_type, @2);
 	}
 	pform_make_var(@2, $5, data_type, attributes_in_context, $1);
-	var_lifetime = LexicalScope::INHERITED;
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
       }
 
   | K_const_opt variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
       { if ($3) pform_make_var(@3, $4, $3, attributes_in_context, $1);
-	var_lifetime = LexicalScope::INHERITED;
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
       }
 
   /* The extra `reg` is not valid (System)Verilog, this is a iverilog extension. */
   | K_const_opt variable_lifetime_opt K_reg data_type list_of_variable_decl_assignments ';'
       { if ($4) pform_make_var(@4, $5, $4, attributes_in_context, $1);
-	var_lifetime = LexicalScope::INHERITED;
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
       }
 
   | K_event event_variable_list ';'
@@ -2812,6 +4288,161 @@ block_item_decl
   /* Blocks can have imports. */
 
   | package_import_declaration
+
+  /* Block-scoped declarations that start from typedef/class type names. */
+  | K_const_opt variable_lifetime_opt TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { typeref_t*tmp = new typeref_t($3.type);
+	FILE_NAME(tmp, @3);
+	pform_make_var(@3, $4, tmp, attributes_in_context, $1);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$3.text;
+      }
+  | K_const_opt variable_lifetime_opt TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typeref_t*tmp = new typeref_t($3.type, 0, $4);
+	FILE_NAME(tmp, @3);
+	pform_make_var(@3, $5, tmp, attributes_in_context, $1);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$3.text;
+      }
+  | K_const_opt variable_lifetime_opt IDENTIFIER list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier(@3, $3);
+	if (type) {
+	      typeref_t*tmp = new typeref_t(type);
+	      FILE_NAME(tmp, @3);
+	      pform_make_var(@3, $4, tmp, attributes_in_context, $1);
+	} else {
+	      yyerror(@3, "error: %s doesn't name a type.", $3);
+	}
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$3;
+      }
+  | K_const_opt variable_lifetime_opt package_scope IDENTIFIER list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($3, $4);
+	lex_in_package_scope(0);
+	if (!type) {
+	      // Package-scoped class handles can be referenced before class bodies.
+	      pform_forward_typedef(@4, lex_strings.make($4), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@4, $4);
+	}
+	if (type) {
+	      typeref_t*tmp = new typeref_t(type, $3);
+	      FILE_NAME(tmp, @4);
+	      pform_make_var(@4, $5, tmp, attributes_in_context, $1);
+	}
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$4;
+      }
+  | K_const_opt variable_lifetime_opt package_scope IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($3, $4);
+	lex_in_package_scope(0);
+	if (!type) {
+	      // Package-scoped class handles can be referenced before class bodies.
+	      pform_forward_typedef(@4, lex_strings.make($4), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@4, $4);
+	}
+	if (type) {
+	      typeref_t*tmp = new typeref_t(type, $3, $5);
+	      FILE_NAME(tmp, @4);
+	      pform_make_var(@4, $6, tmp, attributes_in_context, $1);
+	}
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$4;
+      }
+  | K_const_opt variable_lifetime_opt package_scope TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { lex_in_package_scope(0);
+	typeref_t*tmp = new typeref_t($4.type, $3);
+	FILE_NAME(tmp, @4);
+	pform_make_var(@4, $5, tmp, attributes_in_context, $1);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$4.text;
+      }
+  | K_const_opt variable_lifetime_opt package_scope TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { lex_in_package_scope(0);
+	typeref_t*tmp = new typeref_t($4.type, $3, $5);
+	FILE_NAME(tmp, @4);
+	pform_make_var(@4, $6, tmp, attributes_in_context, $1);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$4.text;
+      }
+  | K_const_opt variable_lifetime_opt IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier(@5, $5);
+	if (!type) {
+	      pform_forward_typedef(@5, lex_strings.make($5), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@5, $5);
+	}
+	if (type) {
+	      typeref_t*tmp = new typeref_t(type);
+	      FILE_NAME(tmp, @5);
+	      pform_make_var(@5, $6, tmp, attributes_in_context, $1);
+	}
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$3;
+	delete[]$5;
+      }
+  | K_const_opt variable_lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
+      { data_type_t*tmp = make_class_scoped_typeref(@3, @5, $3.text, $5);
+	if (tmp) pform_make_var(@3, $6, tmp, attributes_in_context, $1);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$3.text;
+	delete[]$5;
+      }
+  | K_const_opt variable_lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { data_type_t*tmp = make_class_scoped_typeref(@3, @5, $3.text, $5.text);
+	if (tmp) pform_make_var(@3, $6, tmp, attributes_in_context, $1);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$3.text;
+	delete[]$5.text;
+      }
+  | K_const_opt variable_lifetime_opt IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { typeref_t*tmp = new typeref_t($5.type);
+	FILE_NAME(tmp, @5);
+	pform_make_var(@5, $6, tmp, attributes_in_context, $1);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$3;
+	delete[]$5.text;
+      }
+  | K_const_opt variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($3, $5);
+	if (!type) {
+	      pform_forward_typedef(@5, lex_strings.make($5), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@5, $5);
+	}
+	if (type) {
+	      typeref_t*tmp = new typeref_t(type, $3);
+	      FILE_NAME(tmp, @5);
+	      pform_make_var(@5, $6, tmp, attributes_in_context, $1);
+	}
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$5;
+      }
+  | K_const_opt variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($3, $5);
+	if (!type) {
+	      pform_forward_typedef(@5, lex_strings.make($5), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@5, $5);
+	}
+	if (type) {
+	      typeref_t*tmp = new typeref_t(type, $3, $6);
+	      FILE_NAME(tmp, @5);
+	      pform_make_var(@5, $7, tmp, attributes_in_context, $1);
+	}
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$5;
+      }
+  | K_const_opt variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { typeref_t*tmp = new typeref_t($5.type, $3);
+	FILE_NAME(tmp, @5);
+	pform_make_var(@5, $6, tmp, attributes_in_context, $1);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$5.text;
+      }
+  | K_const_opt variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typeref_t*tmp = new typeref_t($5.type, $3, $6);
+	FILE_NAME(tmp, @5);
+	pform_make_var(@5, $7, tmp, attributes_in_context, $1);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$5.text;
+      }
 
   /* Recover from errors that happen within variable lists. Use the
      trailing semi-colon to resync the parser. */
@@ -2866,6 +4497,20 @@ type_declaration
   : K_typedef data_type identifier_name dimensions_opt ';'
       { perm_string name = lex_strings.make($3);
 	pform_set_typedef(@3, name, $2, $4);
+	delete[]$3;
+      }
+  | K_typedef IDENTIFIER identifier_name dimensions_opt ';'
+      { typedef_t*base = pform_test_type_identifier(@2, $2);
+	if (base) {
+	      typeref_t*tmp = new typeref_t(base);
+	      FILE_NAME(tmp, @2);
+	      perm_string name = lex_strings.make($3);
+	      pform_set_typedef(@3, name, tmp, $4);
+	} else {
+	      yyerror(@2, "error: %s doesn't name a type.", $2);
+	      delete $4;
+	}
+	delete[]$2;
 	delete[]$3;
       }
 
@@ -3048,6 +4693,22 @@ struct_union_member /* IEEE 1800-2012 A.2.2.1 */
 	FILE_NAME(tmp, @2);
 	tmp->type  .reset($2);
 	tmp->names .reset($3);
+	$$ = tmp;
+      }
+  | attribute_list_opt IDENTIFIER list_of_variable_decl_assignments ';'
+      { struct_member_t*tmp = nullptr;
+	typedef_t*type = pform_test_type_identifier(@2, $2);
+	if (type) {
+	      tmp = new struct_member_t;
+	      FILE_NAME(tmp, @2);
+	      tmp->type.reset(new typeref_t(type));
+	      FILE_NAME(tmp->type.get(), @2);
+	      tmp->names.reset($3);
+	} else {
+	      yyerror(@2, "error: %s doesn't name a type.", $2);
+	      delete $3;
+	}
+	delete[]$2;
 	$$ = tmp;
       }
   | error ';'
@@ -3934,6 +5595,31 @@ expr_primary
 	$$ = tmp;
 	delete $1;
       }
+  /* Temporary parse support for using type identifiers as actuals in
+     parameter lists (e.g. uvm_object_registry #(uvm_pool #(KEY,T))). */
+  | TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[] $1.text;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value
+      { typeref_t*dtype = new typeref_t($1.type, 0, $2);
+	FILE_NAME(dtype, @1);
+	PETypename*tmp = new PETypename(dtype);
+	FILE_NAME(tmp, @1);
+	delete[] $1.text;
+	$$ = tmp;
+      }
+  | K_string
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make("string")));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   /* These are array methods that cannot be matched with the above rule */
   | hierarchy_identifier '.' K_and
       { pform_name_t * nm = $1;
@@ -3950,6 +5636,26 @@ expr_primary
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
 	delete nm;
+      }
+  | hierarchy_identifier '.' K_unique argument_list_parens
+      { pform_name_t *nm = $1;
+	nm->push_back(name_component_t(lex_strings.make("unique")));
+	PECallFunction*tmp = pform_make_call_function(@1, *nm, *$4);
+	delete nm;
+	delete $4;
+	$$ = tmp;
+      }
+	| hierarchy_identifier '.' K_unique argument_list_parens K_with '(' expression ')'
+	      { /* Temporary parse-only support for array locator with-clause on
+		   keyword-named method (e.g. q.unique(x) with (...)). */
+		pform_requires_sv(@5, "Method with-clause");
+		pform_name_t *nm = $1;
+		nm->push_back(name_component_t(lex_strings.make("unique")));
+	PECallFunction*tmp = pform_make_call_function(@1, *nm, *$4);
+	delete nm;
+	delete $4;
+	delete $7;
+	$$ = tmp;
       }
   | hierarchy_identifier '.' K_unique
       { pform_name_t * nm = $1;
@@ -3985,10 +5691,247 @@ expr_primary
 	delete $3;
 	$$ = tmp;
       }
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with '(' expression ')'
+	      { /* Temporary parse-only support for array locator/reduction method
+		   with-clauses in expression context (e.g. q.find_index(x) with (...)). */
+		pform_requires_sv(@4, "Method with-clause");
+		PECallFunction*tmp = pform_make_call_function(@1, *$1, *$3);
+	delete $1;
+	delete $2;
+	delete $3;
+	delete $6;
+	$$ = tmp;
+      }
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with '{' constraint_block_item_list_opt '}'
+	      { /* Temporary parse-only support for randomize() with { ... } in
+		   expression contexts (e.g. if (!obj.randomize() with {...})). */
+		if (peek_tail_name(*$1) == "randomize") {
+		      pform_requires_sv(@4, "Randomize with constraint");
+		} else {
+		      yyerror(@4, "error: Constraint block can only be applied to randomize method.");
+	}
+	PECallFunction*tmp = pform_make_call_function(@1, *$1, *$3);
+	delete $1;
+	delete $2;
+	delete $3;
+	$$ = tmp;
+      }
   | class_hierarchy_identifier argument_list_parens
       { PECallFunction*tmp = pform_make_call_function(@1, *$1, *$2);
 	delete $1;
 	delete $2;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$5, $2);
+	delete[]$1.text;
+	delete[]$4;
+	delete $5;
+	$$ = tmp;
+      }
+  | IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$5, $2);
+	delete[]$1;
+	delete[]$4;
+	delete $5;
+	$$ = tmp;
+      }
+  | IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$5, $2);
+	delete[]$1;
+	delete[]$4.text;
+	delete $5;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$5, $2);
+	delete[]$1.text;
+	delete[]$4.text;
+	delete $5;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$7, $2);
+	delete[]$1.text;
+	delete[]$4;
+	delete[]$6;
+	delete $7;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$7, $2);
+	delete[]$1.text;
+	delete[]$4.text;
+	delete[]$6;
+	delete $7;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	hident.push_back(name_component_t(lex_strings.make($6.text)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$7, $2);
+	delete[]$1.text;
+	delete[]$4.text;
+	delete[]$6.text;
+	delete $7;
+	$$ = tmp;
+      }
+  | IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$7, $2);
+	delete[]$1;
+	delete[]$4;
+	delete[]$6;
+	delete $7;
+	$$ = tmp;
+      }
+  | IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$7, $2);
+	delete[]$1;
+	delete[]$4.text;
+	delete[]$6;
+	delete $7;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	delete[]$1;
+	delete[]$3;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
+	delete[]$1;
+	delete[]$3.text;
+	delete $4;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	delete[]$1;
+	delete[]$3.text;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5.text)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	delete[]$1;
+	delete[]$3.text;
+	delete[]$5.text;
+	delete $6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	delete[]$1.text;
+	delete[]$3;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
+	delete[]$1.text;
+	delete[]$3.text;
+	delete $4;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	delete[]$1.text;
+	delete[]$3.text;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5.text)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	delete[]$1.text;
+	delete[]$3.text;
+	delete[]$5.text;
+	delete $6;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
+	delete[]$1;
+	delete[]$3;
+	delete $4;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
+	delete[]$1.text;
+	delete[]$3;
+	delete $4;
 	$$ = tmp;
       }
   | SYSTEM_IDENTIFIER argument_list_parens
@@ -4008,6 +5951,96 @@ expr_primary
 	delete $4;
 	$$ = tmp;
       }
+  | expr_primary '.' IDENTIFIER argument_list_parens
+      { // Parse method calls on temporary expressions (e.g. fn().method()).
+	PECallFunction*tmp = new PECallFunction(lex_strings.make($3), *$4);
+	FILE_NAME(tmp, @2);
+	delete $1;
+	delete[]$3;
+	delete $4;
+	$$ = tmp;
+      }
+  | expr_primary '.' TYPE_IDENTIFIER argument_list_parens
+      { PECallFunction*tmp = new PECallFunction(lex_strings.make($3.text), *$4);
+	FILE_NAME(tmp, @2);
+	delete $1;
+	delete[]$3.text;
+	delete $4;
+	$$ = tmp;
+      }
+  | expr_primary '.' IDENTIFIER
+      { /* Parse field/property access on temporary expressions, preserving
+	   PEIdent paths when possible. */
+	PEIdent*id = dynamic_cast<PEIdent*>($1);
+	if (id) {
+	      pform_scoped_name_t path = id->path();
+	      path.name.push_back(name_component_t(lex_strings.make($3)));
+	      PEIdent*tmp = path.package
+		  ? new PEIdent(path.package, path.name, @2.lexical_pos)
+		  : new PEIdent(path.name, @2.lexical_pos);
+	      FILE_NAME(tmp, @2);
+	      delete id;
+	      delete[]$3;
+	      $$ = tmp;
+	} else {
+	      PEMemberAccess*tmp = new PEMemberAccess($1, lex_strings.make($3));
+	      FILE_NAME(tmp, @2);
+	      delete[]$3;
+	      $$ = tmp;
+	}
+      }
+  | expr_primary '.' TYPE_IDENTIFIER
+      { PEIdent*id = dynamic_cast<PEIdent*>($1);
+	if (id) {
+	      pform_scoped_name_t path = id->path();
+	      path.name.push_back(name_component_t(lex_strings.make($3.text)));
+	      PEIdent*tmp = path.package
+		  ? new PEIdent(path.package, path.name, @2.lexical_pos)
+		  : new PEIdent(path.name, @2.lexical_pos);
+	      FILE_NAME(tmp, @2);
+	      delete id;
+	      delete[]$3.text;
+	      $$ = tmp;
+	} else {
+	      PEMemberAccess*tmp = new PEMemberAccess($1, lex_strings.make($3.text));
+	      FILE_NAME(tmp, @2);
+	      delete[]$3.text;
+	      $$ = tmp;
+	}
+      }
+  | expr_primary '.' K_unique argument_list_parens
+      { PECallFunction*tmp = new PECallFunction(lex_strings.make("unique"), *$4);
+	FILE_NAME(tmp, @2);
+	delete $1;
+	delete $4;
+	$$ = tmp;
+      }
+  | expr_primary '.' IDENTIFIER argument_list_parens K_with '(' expression ')'
+      { /* Temporary parse-only support for array locator methods with
+	   with-clauses (e.g. q.find(i) with (...)). */
+	PENull*tmp = new PENull;
+	FILE_NAME(tmp, @2);
+	delete $1;
+	delete[] $3;
+	delete $4;
+	delete $7;
+	$$ = tmp;
+      }
+  | expr_primary '.' K_unique argument_list_parens K_with '(' expression ')'
+      { /* Temporary parse-only support for keyword-named locator methods. */
+	PENull*tmp = new PENull;
+	FILE_NAME(tmp, @2);
+	delete $1;
+	delete $4;
+	delete $7;
+	$$ = tmp;
+      }
+  | expr_primary K_with '(' expression ')'
+      { /* Temporary parser fallback: ignore locator/filter with-clause and
+	   keep the base expression so parsing can continue. */
+	delete $4;
+	$$ = $1;
+      }
   | K_this
       { PEIdent*tmp = new PEIdent(perm_string::literal(THIS_TOKEN), UINT_MAX);
 	FILE_NAME(tmp,@1);
@@ -4018,6 +6051,365 @@ expr_primary
       { PEIdent*tmp = new PEIdent(*$1, @1.lexical_pos);
 	FILE_NAME(tmp, @1);
 	delete $1;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	delete[]$1.text;
+	delete[]$4;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER '.' IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	delete[]$1.text;
+	delete[]$4;
+	delete[]$6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	delete[]$1.text;
+	delete[]$4.text;
+	delete[]$6;
+	$$ = tmp;
+      }
+  | IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	delete[]$1;
+	delete[]$4;
+	$$ = tmp;
+      }
+  | IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	delete[]$1;
+	delete[]$4.text;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	delete[]$1.text;
+	delete[]$4.text;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	delete[]$1.text;
+	delete[]$4;
+	delete[]$6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	delete[]$1.text;
+	delete[]$4.text;
+	delete[]$6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	hident.push_back(name_component_t(lex_strings.make($6.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	delete[]$1.text;
+	delete[]$4.text;
+	delete[]$6.text;
+	$$ = tmp;
+      }
+  | IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	delete[]$1;
+	delete[]$4;
+	delete[]$6;
+	$$ = tmp;
+      }
+  | IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	delete[]$1;
+	delete[]$4.text;
+	delete[]$6;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	delete[]$3;
+	delete[]$5;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens
+      { PECallFunction*tmp = new PECallFunction(lex_strings.make($5), *$6);
+	FILE_NAME(tmp, @4);
+	delete[]$1;
+	delete[]$3;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	delete[]$3;
+	delete[]$5;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens
+      { PECallFunction*tmp = new PECallFunction(lex_strings.make($5), *$6);
+	FILE_NAME(tmp, @4);
+	delete[]$1;
+	delete[]$3.text;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	delete[]$3.text;
+	delete[]$5;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	delete[]$3.text;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	delete[]$3.text;
+	delete[]$5;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	delete[]$3.text;
+	delete[]$5.text;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete[]$3;
+	delete[]$5;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens
+      { PECallFunction*tmp = new PECallFunction(lex_strings.make($5), *$6);
+	FILE_NAME(tmp, @4);
+	delete[]$1.text;
+	delete[]$3;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete[]$3;
+	delete[]$5;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete[]$3.text;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens
+      { PECallFunction*tmp = new PECallFunction(lex_strings.make($5), *$6);
+	FILE_NAME(tmp, @4);
+	delete[]$1.text;
+	delete[]$3.text;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete[]$3.text;
+	delete[]$5;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '[' expression ']'
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_BIT;
+	itmp.msb = $5;
+	hident.back().index.push_back(itmp);
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete[]$3.text;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete[]$3.text;
+	delete[]$5;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete[]$3.text;
+	delete[]$5.text;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	delete[]$3;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete[]$3;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '[' expression ']'
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_BIT;
+	itmp.msb = $5;
+	hident.back().index.push_back(itmp);
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete[]$3;
 	$$ = tmp;
       }
 
@@ -4334,6 +6726,18 @@ gate_instance
 	$$ = tmp;
       }
 
+  /* Degenerate modules and user-type declarations may appear with no
+     port list. The module/type distinction is resolved later. */
+  | IDENTIFIER
+      { lgate*tmp = new lgate;
+	tmp->name = $1;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+
   | IDENTIFIER dimensions '(' port_conn_expression_list_with_nuls ')'
       { lgate*tmp = new lgate;
 	tmp->name = $1;
@@ -4468,10 +6872,21 @@ hierarchy_identifier
 	$$->push_back(name_component_t(lex_strings.make($1)));
 	delete[]$1;
       }
+  | TYPE_IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1.text)));
+	delete[]$1.text;
+      }
   | hierarchy_identifier '.' IDENTIFIER
       { pform_name_t * tmp = $1;
 	tmp->push_back(name_component_t(lex_strings.make($3)));
 	delete[]$3;
+	$$ = tmp;
+      }
+  | hierarchy_identifier '.' TYPE_IDENTIFIER
+      { pform_name_t * tmp = $1;
+	tmp->push_back(name_component_t(lex_strings.make($3.text)));
+	delete[]$3.text;
 	$$ = tmp;
       }
   | hierarchy_identifier '[' expression ']'
@@ -4522,6 +6937,65 @@ hierarchy_identifier
 	itmp.msb = $3;
 	itmp.lsb = $5;
 	tail.index.push_back(itmp);
+	$$ = tmp;
+      }
+  ;
+
+/*
+ * Foreach array targets may be hierarchical member paths, but the loop index
+ * list syntax uses [] and must not be consumed as part-select syntax here.
+ */
+foreach_array_identifier
+  : IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1)));
+	delete[]$1;
+      }
+  | K_this
+      { $$ = pform_create_this(); }
+  | TYPE_IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1.text)));
+	delete[]$1.text;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1)));
+	$$->push_back(name_component_t(lex_strings.make($3)));
+	delete[]$1;
+	delete[]$3;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1)));
+	$$->push_back(name_component_t(lex_strings.make($3.text)));
+	delete[]$1;
+	delete[]$3.text;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1.text)));
+	$$->push_back(name_component_t(lex_strings.make($3)));
+	delete[]$1.text;
+	delete[]$3;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1.text)));
+	$$->push_back(name_component_t(lex_strings.make($3.text)));
+	delete[]$1.text;
+	delete[]$3.text;
+      }
+  | foreach_array_identifier '.' IDENTIFIER
+      { pform_name_t*tmp = $1;
+	tmp->push_back(name_component_t(lex_strings.make($3)));
+	delete[]$3;
+	$$ = tmp;
+      }
+  | foreach_array_identifier '.' TYPE_IDENTIFIER
+      { pform_name_t*tmp = $1;
+	tmp->push_back(name_component_t(lex_strings.make($3.text)));
+	delete[]$3.text;
 	$$ = tmp;
       }
   ;
@@ -4608,6 +7082,26 @@ list_of_port_declarations
       { yyerror(@2, "error: ';' is an invalid port declaration separator."); }
   ;
 
+/*
+ * Keep class-scoped typedef references separate from ps_type_identifier and
+ * define this rule later in the grammar so reduce/reduce conflicts prefer
+ * TYPE::member expression forms when ambiguous.
+ */
+class_scoped_type_identifier
+  : TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_set_type_referenced(@1, $1.text);
+	$$ = make_class_scoped_typeref(@1, @3, $1.text, $3);
+	delete[] $1.text;
+	delete[] $3;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_set_type_referenced(@1, $1.text);
+	$$ = make_class_scoped_typeref(@1, @3, $1.text, $3.text);
+	delete[] $1.text;
+	delete[] $3.text;
+      }
+  ;
+
   // All of port direction, port kind and data type are optional, but at least
   // one has to be specified, so we need multiple rules.
 port_declaration
@@ -4664,6 +7158,7 @@ atom_type
   | K_int      { $$ = atom_type_t::INT; }
   | K_longint  { $$ = atom_type_t::LONGINT; }
   | K_integer  { $$ = atom_type_t::INTEGER; }
+  | K_chandle  { $$ = atom_type_t::LONGINT; }
   ;
 
   /* An lpvalue is the expression that can go on the left side of a
@@ -4685,6 +7180,103 @@ lpvalue
 	delete $1;
       }
 
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[] $1.text;
+	delete[] $3;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[] $1.text;
+	delete[] $3.text;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '[' expression ']'
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_BIT;
+	itmp.msb = $5;
+	hident.back().index.push_back(itmp);
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[] $1.text;
+	delete[] $3;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '[' expression ']'
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_BIT;
+	itmp.msb = $5;
+	hident.back().index.push_back(itmp);
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[] $1.text;
+	delete[] $3.text;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[] $1.text;
+	delete[] $3;
+	delete[] $5;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[] $1.text;
+	delete[] $3;
+	delete[] $5.text;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[] $1.text;
+	delete[] $3.text;
+	delete[] $5;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	delete[] $1.text;
+	delete[] $3.text;
+	delete[] $5.text;
+	$$ = tmp;
+      }
+
   | '{' expression_list_proper '}'
       { PEConcat*tmp = new PEConcat(*$2);
 	FILE_NAME(tmp, @1);
@@ -4693,8 +7285,16 @@ lpvalue
       }
 
   | streaming_concatenation
-      { yyerror(@1, "sorry: Streaming concatenation not supported in l-values.");
-	$$ = 0;
+      { /* Parse-only fallback used by UVM packer macros:
+	   { << bit {arr} } = expr; */
+	pform_requires_sv(@1, "Streaming concatenation l-value");
+	warn_count += 1;
+	if (!warned_stream_concat_lval_incomplete) {
+	      cerr << @1 << ": warning: streaming concatenation l-value support is incomplete."
+		   << " (further similar warnings suppressed)." << endl;
+	      warned_stream_concat_lval_incomplete = true;
+	}
+	$$ = $1;
       }
   ;
 
@@ -4827,6 +7427,7 @@ module_end
 
 label_opt
   : ':' IDENTIFIER { $$ = $2; }
+  | ':' K_new      { $$ = dup_cstr("new"); }
   |                { $$ = 0; }
   ;
 
@@ -4903,6 +7504,9 @@ module_item
 
   /* Modules can contain further sub-module definitions. */
   : module
+
+  /* SystemVerilog permits package imports as module items. */
+  | package_import_declaration
 
   | attribute_list_opt net_type data_type_or_implicit delay3_opt net_variable_list ';'
 
@@ -5156,11 +7760,23 @@ module_item
 		  pform_make_modgates(@2, tmp1, $3, $4, $1);
 		  delete[]$2;
       }
+  | attribute_list_opt
+	  TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { perm_string tmp1 = lex_strings.make($2.text);
+		  pform_make_modgates(@2, tmp1, $3, $4, $1);
+		  delete[]$2.text;
+      }
 
         | attribute_list_opt
 	  IDENTIFIER parameter_value_opt error ';'
       { yyerror(@2, "error: Invalid module instantiation");
 		  delete[]$2;
+		  if ($1) delete $1;
+      }
+        | attribute_list_opt
+	  TYPE_IDENTIFIER parameter_value_opt error ';'
+      { yyerror(@2, "error: Invalid module instantiation");
+		  delete[]$2.text;
 		  if ($1) delete $1;
       }
 
@@ -5212,6 +7828,8 @@ module_item
 
   | function_declaration
 
+  | dpi_import_export_declaration
+
   /* A generate region can contain further module items. Actually, it
      is supposed to be limited to certain kinds of module items, but
      the semantic tests will check that for us. Do check that the
@@ -5257,6 +7875,8 @@ module_item
       }
 
   | modport_declaration
+
+  | clocking_declaration
 
   /* 1364-2001 and later allow specparam declarations outside specify blocks. */
 
@@ -5650,6 +8270,48 @@ parameter_value_opt
       }
   |
       { $$ = 0; }
+  ;
+
+type_parameter_value
+  : '#' '(' expression_list_with_nuls ')'
+      { struct parmvalue_t*tmp = new struct parmvalue_t;
+	tmp->by_order = $3;
+	tmp->by_name = 0;
+	$$ = tmp;
+      }
+  | '#' '(' parameter_value_byname_list ')'
+      { struct parmvalue_t*tmp = new struct parmvalue_t;
+	tmp->by_order = 0;
+	tmp->by_name = $3;
+	$$ = tmp;
+      }
+  | '#' DEC_NUMBER
+      { assert($2);
+	PENumber*tmp = new PENumber($2);
+	FILE_NAME(tmp, @1);
+
+	struct parmvalue_t*lst = new struct parmvalue_t;
+	lst->by_order = new std::list<PExpr*>;
+	lst->by_order->push_back(tmp);
+	lst->by_name = 0;
+	$$ = lst;
+	based_size = 0;
+      }
+  | '#' REALTIME
+      { assert($2);
+	PEFNumber*tmp = new PEFNumber($2);
+	FILE_NAME(tmp, @1);
+
+	struct parmvalue_t*lst = new struct parmvalue_t;
+	lst->by_order = new std::list<PExpr*>;
+	lst->by_order->push_back(tmp);
+	lst->by_name = 0;
+	$$ = lst;
+      }
+  | '#' error
+      { yyerror(@1, "error: Syntax error in parameter value assignment list.");
+	$$ = 0;
+      }
   ;
 
 named_expression
@@ -6671,11 +9333,244 @@ subroutine_call
 	delete $2;
 	$$ = tmp;
       }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+	delete[]$1;
+	delete[]$3;
+	delete $4;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	delete[]$1;
+	delete[]$3;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	delete[]$1;
+	delete[]$3.text;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	delete[]$1.text;
+	delete[]$3;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	delete[]$1.text;
+	delete[]$3.text;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$5, $2);
+	delete[]$1.text;
+	delete[]$4;
+	delete $5;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$5, $2);
+	delete[]$1.text;
+	delete[]$4.text;
+	delete $5;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+	delete[]$1.text;
+	delete[]$3;
+	delete $4;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+	delete[]$1.text;
+	delete[]$3.text;
+	delete $4;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	delete[]$1;
+	delete[]$3;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	delete[]$1.text;
+	delete[]$3;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$7, $2);
+	delete[]$1.text;
+	delete[]$4.text;
+	delete[]$6;
+	delete $7;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	hident.push_back(name_component_t(lex_strings.make($6.text)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$7, $2);
+	delete[]$1.text;
+	delete[]$4.text;
+	delete[]$6.text;
+	delete $7;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	delete[]$1.text;
+	delete[]$3.text;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5.text)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	delete[]$1.text;
+	delete[]$3.text;
+	delete[]$5.text;
+	delete $6;
+	$$ = tmp;
+      }
   | SYSTEM_IDENTIFIER argument_list_parens_opt
       { PCallTask*tmp = new PCallTask(lex_strings.make($1), *$2);
 	FILE_NAME(tmp,@1);
 	delete[]$1;
 	delete $2;
+	$$ = tmp;
+      }
+  | expr_primary '.' IDENTIFIER argument_list_parens_opt
+      { /* Temporary parse support for method calls on expressions used
+	   as statements, e.g. pkg::queue.push_back(x). */
+	PCallTask*tmp = new PCallTask(lex_strings.make($3), *$4);
+	FILE_NAME(tmp, @2);
+	delete $1;
+	delete[]$3;
+	delete $4;
+	$$ = tmp;
+      }
+  | package_scope hierarchy_identifier argument_list_parens_opt
+      { PCallTask*tmp = new PCallTask($1, *$2, *$3);
+	FILE_NAME(tmp, @2);
+	lex_in_package_scope(0);
+	delete $2;
+	delete $3;
+	$$ = tmp;
+      }
+  | package_scope hierarchy_identifier '.' IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident = *$2;
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	PCallTask*tmp = new PCallTask($1, hident, *$5);
+	FILE_NAME(tmp, @4);
+	lex_in_package_scope(0);
+	delete $2;
+	delete[]$4;
+	delete $5;
+	$$ = tmp;
+      }
+  | package_scope TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($2.text)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	PCallTask*tmp = new PCallTask($1, hident, *$5);
+	FILE_NAME(tmp, @4);
+	lex_in_package_scope(0);
+	delete[]$2.text;
+	delete[]$4;
+	delete $5;
+	$$ = tmp;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PCallTask*tmp = new PCallTask($1, hident, *$6);
+	FILE_NAME(tmp, @4);
+	delete[]$3;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PCallTask*tmp = new PCallTask($1, hident, *$6);
+	FILE_NAME(tmp, @4);
+	delete[]$3.text;
+	delete[]$5;
+	delete $6;
 	$$ = tmp;
       }
   | hierarchy_identifier '(' error ')'
@@ -6697,6 +9592,26 @@ statement_item /* This is roughly statement_item in the LRM */
   : K_assign lpvalue '=' expression ';'
       { PCAssign*tmp = new PCAssign($2, $4);
 	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  /* Work around ivlpp macro-default-arg expansion that may emit a stray
+     ')' token immediately before a begin-end statement block. */
+  | ')' K_begin label_opt
+      { PBlock*tmp = pform_push_block_scope(@2, $3, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+      }
+    block_item_decls_opt
+      { if ($5) pform_block_decls_requires_sv(); }
+    statement_or_null_list_opt K_end label_opt
+      { PBlock*tmp;
+	pform_pop_scope();
+	assert(! current_block_stack.empty());
+	tmp = current_block_stack.top();
+	current_block_stack.pop();
+	if ($7) tmp->set_statement(*$7);
+	delete $7;
+	check_end_label(@9, "block", $3, $9);
+	delete[]$3;
 	$$ = tmp;
       }
 
@@ -6721,6 +9636,276 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
 
+  /* Accept declaration-style statements for user types in procedural blocks.
+     These are treated as declarations-only and emit no executable statement. */
+  | variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
+      { if ($2) pform_make_var(@2, $3, $2, nullptr, false);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	$$ = nullptr;
+      }
+  | data_type list_of_variable_decl_assignments ';'
+      { if ($1) pform_make_var(@1, $2, $1, nullptr, false);
+	$$ = nullptr;
+      }
+  | variable_lifetime_opt TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { typeref_t*dtype = new typeref_t($2.type);
+	FILE_NAME(dtype, @2);
+	pform_make_var(@2, $3, dtype, nullptr, false);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $2.text;
+	$$ = nullptr;
+      }
+  | TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { typeref_t*dtype = new typeref_t($1.type);
+	FILE_NAME(dtype, @1);
+	pform_make_var(@1, $2, dtype, nullptr, false);
+	delete[] $1.text;
+	$$ = nullptr;
+      }
+  | variable_lifetime_opt TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typeref_t*dtype = new typeref_t($2.type, 0, $3);
+	FILE_NAME(dtype, @2);
+	pform_make_var(@2, $4, dtype, nullptr, false);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $2.text;
+	$$ = nullptr;
+      }
+  | TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typeref_t*dtype = new typeref_t($1.type, 0, $2);
+	FILE_NAME(dtype, @1);
+	pform_make_var(@1, $3, dtype, nullptr, false);
+	delete[] $1.text;
+	$$ = nullptr;
+      }
+  | variable_lifetime_opt package_scope IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($2, $3);
+	if (!type) {
+	      // Package-scoped class handles can be referenced before class bodies.
+	      pform_forward_typedef(@3, lex_strings.make($3), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@3, $3);
+	}
+	lex_in_package_scope(0);
+	if (type) {
+	      typeref_t*dtype = new typeref_t(type, $2, $4);
+	      FILE_NAME(dtype, @3);
+	      pform_make_var(@3, $5, dtype, nullptr, false);
+	}
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $3;
+	$$ = nullptr;
+      }
+  | package_scope IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($1, $2);
+	if (!type) {
+	      // Package-scoped class handles can be referenced before class bodies.
+	      pform_forward_typedef(@2, lex_strings.make($2), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@2, $2);
+	}
+	lex_in_package_scope(0);
+	if (type) {
+	      typeref_t*dtype = new typeref_t(type, $1, $3);
+	      FILE_NAME(dtype, @2);
+	      pform_make_var(@2, $4, dtype, nullptr, false);
+	}
+	delete[] $2;
+	$$ = nullptr;
+      }
+  | variable_lifetime_opt package_scope TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { lex_in_package_scope(0);
+	typeref_t*dtype = new typeref_t($3.type, $2, $4);
+	FILE_NAME(dtype, @3);
+	pform_make_var(@3, $5, dtype, nullptr, false);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $3.text;
+	$$ = nullptr;
+      }
+  | package_scope TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { lex_in_package_scope(0);
+	typeref_t*dtype = new typeref_t($2.type, $1, $3);
+	FILE_NAME(dtype, @2);
+	pform_make_var(@2, $4, dtype, nullptr, false);
+	delete[] $2.text;
+	$$ = nullptr;
+      }
+  | variable_lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
+      { data_type_t*dtype = make_class_scoped_typeref(@2, @4, $2.text, $4);
+	if (dtype) pform_make_var(@2, $5, dtype, nullptr, false);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $2.text;
+	delete[] $4;
+	$$ = nullptr;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
+      { data_type_t*dtype = make_class_scoped_typeref(@1, @3, $1.text, $3);
+	if (dtype) pform_make_var(@1, $4, dtype, nullptr, false);
+	delete[] $1.text;
+	delete[] $3;
+	$$ = nullptr;
+      }
+  | variable_lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { data_type_t*dtype = make_class_scoped_typeref(@2, @4, $2.text, $4.text);
+	if (dtype) pform_make_var(@2, $5, dtype, nullptr, false);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $2.text;
+	delete[] $4.text;
+	$$ = nullptr;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { data_type_t*dtype = make_class_scoped_typeref(@1, @3, $1.text, $3.text);
+	if (dtype) pform_make_var(@1, $4, dtype, nullptr, false);
+	delete[] $1.text;
+	delete[] $3.text;
+	$$ = nullptr;
+      }
+  | variable_lifetime_opt IDENTIFIER list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier(@2, $2);
+	if (type) {
+	      typeref_t*dtype = new typeref_t(type);
+	      FILE_NAME(dtype, @2);
+	      pform_make_var(@2, $3, dtype, nullptr, false);
+	} else {
+	      yyerror(@2, "error: %s doesn't name a type.", $2);
+	}
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $2;
+	$$ = nullptr;
+      }
+  | IDENTIFIER list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier(@1, $1);
+	if (type) {
+	      typeref_t*dtype = new typeref_t(type);
+	      FILE_NAME(dtype, @1);
+	      pform_make_var(@1, $2, dtype, nullptr, false);
+	} else {
+	      yyerror(@1, "error: %s doesn't name a type.", $1);
+	}
+	delete[] $1;
+	$$ = nullptr;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
+      { yyerror(@1, "error: malformed declaration statement.");
+	delete[] $1;
+	delete[] $3;
+	$$ = nullptr;
+      }
+  | variable_lifetime_opt IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { typeref_t*dtype = new typeref_t($4.type);
+	FILE_NAME(dtype, @4);
+	pform_make_var(@4, $5, dtype, nullptr, false);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $2;
+	delete[] $4.text;
+	$$ = nullptr;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { typeref_t*dtype = new typeref_t($3.type);
+	FILE_NAME(dtype, @3);
+	pform_make_var(@3, $4, dtype, nullptr, false);
+	delete[] $1;
+	delete[] $3.text;
+	$$ = nullptr;
+      }
+  | package_scope IDENTIFIER list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($1, $2);
+	if (!type) {
+	      // Package-scoped class handles can be referenced before class bodies.
+	      pform_forward_typedef(@2, lex_strings.make($2), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@2, $2);
+	}
+	lex_in_package_scope(0);
+	if (type) {
+	      typeref_t*dtype = new typeref_t(type, $1);
+	      FILE_NAME(dtype, @2);
+	      pform_make_var(@2, $3, dtype, nullptr, false);
+	}
+	delete[] $2;
+	$$ = nullptr;
+      }
+  | package_scope TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { lex_in_package_scope(0);
+	typeref_t*dtype = new typeref_t($2.type, $1);
+	FILE_NAME(dtype, @2);
+	pform_make_var(@2, $3, dtype, nullptr, false);
+	delete[] $2.text;
+	$$ = nullptr;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($1, $3);
+	if (!type) {
+	      pform_forward_typedef(@3, lex_strings.make($3), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@3, $3);
+	}
+	if (type) {
+	      typeref_t*dtype = new typeref_t(type, $1);
+	      FILE_NAME(dtype, @3);
+	      pform_make_var(@3, $4, dtype, nullptr, false);
+	}
+	delete[] $3;
+	$$ = nullptr;
+      }
+  | variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { typeref_t*dtype = new typeref_t($4.type, $2);
+	FILE_NAME(dtype, @4);
+	pform_make_var(@4, $5, dtype, nullptr, false);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $4.text;
+	$$ = nullptr;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { typeref_t*dtype = new typeref_t($3.type, $1);
+	FILE_NAME(dtype, @3);
+	pform_make_var(@3, $4, dtype, nullptr, false);
+	delete[] $3.text;
+	$$ = nullptr;
+      }
+  | variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($2, $4);
+	if (!type) {
+	      pform_forward_typedef(@4, lex_strings.make($4), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@4, $4);
+	}
+	if (type) {
+	      typeref_t*dtype = new typeref_t(type, $2, $5);
+	      FILE_NAME(dtype, @4);
+	      pform_make_var(@4, $6, dtype, nullptr, false);
+	}
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $4;
+	$$ = nullptr;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typedef_t*type = pform_test_type_identifier($1, $3);
+	if (!type) {
+	      pform_forward_typedef(@3, lex_strings.make($3), typedef_t::CLASS);
+	      type = pform_test_type_identifier(@3, $3);
+	}
+	if (type) {
+	      typeref_t*dtype = new typeref_t(type, $1, $4);
+	      FILE_NAME(dtype, @3);
+	      pform_make_var(@3, $5, dtype, nullptr, false);
+	}
+	delete[] $3;
+	$$ = nullptr;
+      }
+  | variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typeref_t*dtype = new typeref_t($4.type, $2, $5);
+	FILE_NAME(dtype, @4);
+	pform_make_var(@4, $6, dtype, nullptr, false);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[] $4.text;
+	$$ = nullptr;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
+      { typeref_t*dtype = new typeref_t($3.type, $1, $4);
+	FILE_NAME(dtype, @3);
+	pform_make_var(@3, $5, dtype, nullptr, false);
+	delete[] $3.text;
+	$$ = nullptr;
+      }
+
+  | type_declaration
+      { $$ = nullptr; }
+
   /* begin-end blocks come in a variety of forms, including named and
      anonymous. The named blocks can also carry their own reg
      variables, which are placed in the scope created by the block
@@ -6732,27 +9917,27 @@ statement_item /* This is roughly statement_item in the LRM */
       { PBlock*tmp = pform_push_block_scope(@1, $2, PBlock::BL_SEQ);
 	current_block_stack.push(tmp);
       }
-    block_item_decls_opt
-      {
-        if (!$2) {
-	      if ($4) {
-		    pform_block_decls_requires_sv();
-	      } else {
-		    /* If there are no declarations in the scope then just delete it. */
-		    pform_pop_scope();
-		    assert(! current_block_stack.empty());
-		    PBlock*tmp = current_block_stack.top();
-		    current_block_stack.pop();
-		    delete tmp;
+	    block_item_decls_opt
+	      {
+	        if (!$2) {
+		      if ($4) {
+			    pform_block_decls_requires_sv();
+		      } else if (!gn_system_verilog()) {
+			    /* If there are no declarations in the scope then just delete it. */
+			    pform_pop_scope();
+			    assert(! current_block_stack.empty());
+			    PBlock*tmp = current_block_stack.top();
+			    current_block_stack.pop();
+			    delete tmp;
+		      }
+		}
 	      }
-	}
-      }
-    statement_or_null_list_opt K_end label_opt
-      { PBlock*tmp;
-	if ($2 || $4) {
-	      pform_pop_scope();
-	      assert(! current_block_stack.empty());
-	      tmp = current_block_stack.top();
+	    statement_or_null_list_opt K_end label_opt
+	      { PBlock*tmp;
+		if ($2 || $4 || gn_system_verilog()) {
+		      pform_pop_scope();
+		      assert(! current_block_stack.empty());
+		      tmp = current_block_stack.top();
 	      current_block_stack.pop();
 	} else {
 	      tmp = new PBlock(PBlock::BL_SEQ);
@@ -6775,27 +9960,27 @@ statement_item /* This is roughly statement_item in the LRM */
       { PBlock*tmp = pform_push_block_scope(@1, $2, PBlock::BL_PAR);
 	current_block_stack.push(tmp);
       }
-    block_item_decls_opt
-      {
-        if (!$2) {
-	      if ($4) {
-		    pform_requires_sv(@4, "Variable declaration in unnamed block");
-	      } else {
-		    /* If there are no declarations in the scope then just delete it. */
-		    pform_pop_scope();
-		    assert(! current_block_stack.empty());
-		    PBlock*tmp = current_block_stack.top();
-		    current_block_stack.pop();
-		    delete tmp;
+	    block_item_decls_opt
+	      {
+	        if (!$2) {
+		      if ($4) {
+			    pform_requires_sv(@4, "Variable declaration in unnamed block");
+		      } else if (!gn_system_verilog()) {
+			    /* If there are no declarations in the scope then just delete it. */
+			    pform_pop_scope();
+			    assert(! current_block_stack.empty());
+			    PBlock*tmp = current_block_stack.top();
+			    current_block_stack.pop();
+			    delete tmp;
+		      }
+		}
 	      }
-	}
-      }
-    statement_or_null_list_opt join_keyword label_opt
-      { PBlock*tmp;
-	if ($2 || $4) {
-	      pform_pop_scope();
-	      assert(! current_block_stack.empty());
-	      tmp = current_block_stack.top();
+	    statement_or_null_list_opt join_keyword label_opt
+	      { PBlock*tmp;
+		if ($2 || $4 || gn_system_verilog()) {
+		      pform_pop_scope();
+		      assert(! current_block_stack.empty());
+		      tmp = current_block_stack.top();
 	      current_block_stack.pop();
 	      tmp->set_join_type($7);
 	} else {
@@ -6958,6 +10143,34 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
 
+  | '{' stream_operator '{' stream_expression_list '}' '}' '=' expression ';'
+      { /* Parse-only fallback for streaming-concatenation l-value assignment
+	   used by UVM packer macros. */
+	pform_requires_sv(@2, "Streaming concatenation l-value");
+	delete $8;
+	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | '{' stream_operator simple_type_or_string '{' stream_expression_list '}' '}' '=' expression ';'
+      { /* Typed/sized streaming-concat l-value assignment fallback. */
+	pform_requires_sv(@2, "Streaming concatenation l-value");
+	delete $3;
+	delete $9;
+	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | '{' stream_operator expression '{' stream_expression_list '}' '}' '=' expression ';'
+      { /* Numeric slice streaming-concat l-value assignment fallback. */
+	pform_requires_sv(@2, "Streaming concatenation l-value");
+	delete $3;
+	delete $9;
+	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+
   | error '=' expression ';'
       { yyerror(@2, "Syntax in assignment statement l-value.");
 	yyerrok;
@@ -7046,17 +10259,33 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = $4;
       }
 
+	| subroutine_call K_with '(' expression ')' ';'
+	      { /* Temporary parse-only support for array method sort/rsort with-clauses
+		   used as standalone statements. */
+		pform_requires_sv(@2, "Method with-clause");
+		delete $4;
+		$$ = $1;
+	      }
+	| hierarchy_identifier K_with '(' expression ')' ';'
+	      { /* No-parens method form: q.sort with (...). */
+		pform_requires_sv(@2, "Method with-clause");
+		std::list<named_pexpr_t> pt;
+	PCallTask*tmp = pform_make_call_task(@1, *$1, pt);
+	delete $1;
+	delete $4;
+	$$ = tmp;
+      }
+
   | subroutine_call ';'
       { $$ = $1;
       }
 
-  | hierarchy_identifier K_with '{' constraint_block_item_list_opt '}' ';'
-      { /* ....randomize with { <constraints> } */
-	if (peek_tail_name(*$1) == "randomize") {
-	      if (pform_requires_sv(@2, "Randomize with constraint"))
-		    yyerror(@2, "sorry: Randomize with constraint not supported.");
-	} else {
-	      yyerror(@2, "error: Constraint block can only be applied to randomize method.");
+	| hierarchy_identifier K_with '{' constraint_block_item_list_opt '}' ';'
+	      { /* ....randomize with { <constraints> } */
+		if (peek_tail_name(*$1) == "randomize") {
+		      pform_requires_sv(@2, "Randomize with constraint");
+		} else {
+		      yyerror(@2, "error: Constraint block can only be applied to randomize method.");
 	}
 	list<named_pexpr_t> pt;
 	PCallTask*tmp = new PCallTask(*$1, pt);

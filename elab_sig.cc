@@ -23,6 +23,7 @@
 # include  <typeinfo>
 # include  <cstdlib>
 # include  <iostream>
+# include  <set>
 
 # include  "Module.h"
 # include  "PClass.h"
@@ -37,6 +38,7 @@
 # include  "netlist.h"
 # include  "netmisc.h"
 # include  "netclass.h"
+# include  "netstruct.h"
 # include  "netenum.h"
 # include  "netvector.h"
 # include  "netdarray.h"
@@ -47,6 +49,162 @@
 # include  "ivl_assert.h"
 
 using namespace std;
+
+static ivl_type_t elaborate_class_property_type_(Design*des, NetScope*class_scope,
+						 const netclass_t*owner_class,
+						 const data_type_t*prop_type)
+{
+      if (!prop_type)
+	    return 0;
+
+      if (const typeref_t*type_ref = dynamic_cast<const typeref_t*>(prop_type)) {
+	    typedef_t*td = type_ref->typedef_ref();
+	    if (td && owner_class && td->name == owner_class->get_name()
+		&& type_ref->parameter_values()) {
+		  // Self-referential parameterized class properties should reuse
+		  // the current class handle type during signal seeding.
+		  return const_cast<netclass_t*>(owner_class);
+	    }
+      }
+
+      return const_cast<data_type_t*>(prop_type)->elaborate_type(des, class_scope);
+}
+
+static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
+						  const data_type_t*type_pf,
+						  set<const typedef_t*>&seen);
+static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
+							      NetScope*scope,
+							      const data_type_t*type_pf,
+							      set<const typedef_t*>&seen);
+
+static ivl_type_t resolve_typedef_alias_class_handle_type_weak_(Design*des,
+								NetScope*scope,
+								typedef_t*td,
+								set<const typedef_t*>&seen,
+								bool placeholder)
+{
+      if (!td || !td->get_data_type())
+	    return 0;
+
+      pair<set<const typedef_t*>::iterator,bool> insert_rc = seen.insert(td);
+      if (!insert_rc.second)
+	    return 0;
+
+      const data_type_t*alias_type = td->get_data_type();
+      if (placeholder)
+	    return resolve_class_handle_placeholder_type_weak_(des, scope, alias_type, seen);
+
+      return resolve_class_handle_type_weak_(des, scope, alias_type, seen);
+}
+
+static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
+						  const data_type_t*type_pf,
+						  set<const typedef_t*>&seen)
+{
+      if (!des || !scope || !type_pf)
+	    return 0;
+
+      if (const class_type_t*class_pf = dynamic_cast<const class_type_t*>(type_pf))
+	    return ensure_visible_class_type(des, scope, class_pf->name);
+
+      if (const type_parameter_t*type_par = dynamic_cast<const type_parameter_t*>(type_pf)) {
+	    ivl_type_t par_type = 0;
+	    scope->get_parameter(des, type_par->name, par_type);
+	    if (dynamic_cast<const netclass_t*>(par_type))
+		  return par_type;
+	    return 0;
+      }
+
+      const typeref_t*type_ref = dynamic_cast<const typeref_t*>(type_pf);
+      if (!type_ref)
+	    return 0;
+
+      NetScope*type_scope = type_ref->find_scope(des, scope);
+      if (!type_scope)
+	    return 0;
+
+      typedef_t*td = type_ref->typedef_ref();
+      if (!td)
+	    return 0;
+
+      if (ivl_type_t alias_class =
+		  resolve_typedef_alias_class_handle_type_weak_(des, type_scope, td, seen, false)) {
+	    if (const parmvalue_t*overrides = type_ref->parameter_values()) {
+		  if (const netclass_t*base_class =
+			      dynamic_cast<const netclass_t*>(alias_class))
+			return const_cast<netclass_t*>(
+			      elaborate_specialized_class_type(des, type_scope, base_class,
+							       overrides));
+	    }
+	    return alias_class;
+      }
+
+      netclass_t*base_class = ensure_visible_class_type(des, type_scope, td->name);
+      if (!base_class)
+	    return 0;
+
+      if (const parmvalue_t*overrides = type_ref->parameter_values())
+	    return const_cast<netclass_t*>(
+		  elaborate_specialized_class_type(des, type_scope, base_class, overrides));
+
+      return base_class;
+}
+
+static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
+							      NetScope*scope,
+							      const data_type_t*type_pf,
+							      set<const typedef_t*>&seen)
+{
+      if (!des || !scope || !type_pf)
+	    return 0;
+
+      if (const class_type_t*class_pf = dynamic_cast<const class_type_t*>(type_pf))
+	    return ensure_visible_class_type(des, scope, class_pf->name);
+
+      if (const type_parameter_t*type_par = dynamic_cast<const type_parameter_t*>(type_pf)) {
+	    ivl_type_t par_type = 0;
+	    scope->get_parameter(des, type_par->name, par_type);
+	    if (dynamic_cast<const netclass_t*>(par_type))
+		  return par_type;
+	    return 0;
+      }
+
+      const typeref_t*type_ref = dynamic_cast<const typeref_t*>(type_pf);
+      if (!type_ref)
+	    return 0;
+
+      NetScope*type_scope = type_ref->find_scope(des, scope);
+      if (!type_scope)
+	    return 0;
+
+      typedef_t*td = type_ref->typedef_ref();
+      if (!td)
+	    return 0;
+
+      if (ivl_type_t alias_class =
+		  resolve_typedef_alias_class_handle_type_weak_(des, type_scope, td, seen, true)) {
+	    return alias_class;
+      }
+
+      netclass_t*base_class = ensure_visible_class_type(des, type_scope, td->name);
+      return base_class;
+}
+
+static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
+						  const data_type_t*type_pf)
+{
+      set<const typedef_t*>seen;
+      return resolve_class_handle_type_weak_(des, scope, type_pf, seen);
+}
+
+static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
+							      NetScope*scope,
+							      const data_type_t*type_pf)
+{
+      set<const typedef_t*>seen;
+      return resolve_class_handle_placeholder_type_weak_(des, scope, type_pf, seen);
+}
 
 #if 0
 /* These functions are not currently used. */
@@ -144,10 +302,10 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
 static void sig_check_port_type(Design*des, const NetScope*scope,
 			        const PWire *wire, const NetNet *sig)
 {
-      if (sig->port_type() == NetNet::PREF) {
-	    cerr << wire->get_fileline() << ": sorry: "
-		 << "Reference ports not supported yet." << endl;
-	    des->errors += 1;
+      if (sig->port_type() == NetNet::PREF
+          && scope->type() == NetScope::MODULE) {
+	    cerr << wire->get_fileline() << ": warning: "
+		 << "Reference ports on modules are not fully supported." << endl;
       }
 
       // Some extra checks for module ports
@@ -385,23 +543,27 @@ bool Module::elaborate_sig(Design*des, NetScope*scope) const
 
 void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 {
+      if (sig_elaborated_ || sig_elaborating_)
+	    return;
+      sig_elaborating_ = true;
+
 	// Collect the properties, elaborate them, and add them to the
 	// elaborated class definition.
-      for (map<perm_string,struct class_type_t::prop_info_t>::iterator cur = pclass->type->properties.begin()
-		 ; cur != pclass->type->properties.end() ; ++ cur) {
+      for (std::vector<perm_string>::const_iterator name_it =
+                  pclass->type->property_order.begin()
+             ; name_it != pclass->type->property_order.end() ; ++name_it) {
+            map<perm_string,struct class_type_t::prop_info_t>::iterator cur =
+                  pclass->type->properties.find(*name_it);
+            ivl_assert(*pclass, cur != pclass->type->properties.end());
 
-	    ivl_type_t use_type = cur->second.type->elaborate_type(des, class_scope_);
+	    ivl_type_t use_type = elaborate_class_property_type_(des, class_scope_,
+								 this, cur->second.type.get());
 	    if (debug_scopes) {
 		  cerr << pclass->get_fileline() << ": elaborate_scope_class: "
 		       << "  Property " << cur->first
 		       << " type=" << *use_type << endl;
 	    }
 
-	    if (dynamic_cast<const netqueue_t *> (use_type)) {
-		  cerr << cur->second.get_fileline() << ": sorry: "
-		       << "Queues inside classes are not yet supported." << endl;
-		  des->errors++;
-	    }
 	    set_property(cur->first, cur->second.qual, use_type);
 
 	    if (! cur->second.qual.test_static())
@@ -414,8 +576,9 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		       << "." << endl;
 	    }
 
-	    /* NetNet*sig = */ new NetNet(class_scope_, cur->first, NetNet::REG,
-					  use_type);
+	    if (class_scope_->find_signal(cur->first) == 0)
+		  /* NetNet*sig = */ new NetNet(class_scope_, cur->first, NetNet::REG,
+						use_type);
       }
 
       for (map<perm_string,PFunction*>::iterator cur = pclass->funcs.begin()
@@ -442,6 +605,8 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    cur->second->elaborate_sig(des, scope);
       }
 
+      sig_elaborating_ = false;
+      sig_elaborated_ = true;
 }
 
 bool PGate::elaborate_sig(Design*, NetScope*) const
@@ -614,6 +779,46 @@ bool PGenerate::elaborate_sig_(Design*des, NetScope*scope) const
       return flag;
 }
 
+static void seed_class_scope_properties_for_method_elab_(Design*des,
+							 NetScope*scope,
+							 const PTaskFunc*ptf,
+							 const data_type_t*ctor_return_type)
+{
+      if (!gn_system_verilog())
+	    return;
+
+      NetScope*class_scope = scope ? scope->parent() : 0;
+      if (!class_scope || class_scope->type() != NetScope::CLASS)
+	    return;
+
+      netclass_t*clsnet = const_cast<netclass_t*>(class_scope->class_def());
+      if (!clsnet)
+	    return;
+
+      const class_type_t*pclass_type = ptf ? ptf->method_of() : 0;
+      if (!pclass_type) {
+	    if (const PClass*pclass = class_scope->class_pform())
+		  pclass_type = pclass->type;
+      }
+      if (!pclass_type && ctor_return_type)
+	    pclass_type = dynamic_cast<const class_type_t*>(ctor_return_type);
+      if (!pclass_type)
+	    return;
+
+      for (map<perm_string,struct class_type_t::prop_info_t>::const_iterator
+		 cur = pclass_type->properties.begin()
+	       ; cur != pclass_type->properties.end() ; ++ cur) {
+	    ivl_type_t use_type = elaborate_class_property_type_(des, class_scope,
+								 clsnet, cur->second.type.get());
+	    bool added = clsnet->set_property(cur->first, cur->second.qual, use_type);
+	    if (added && cur->second.qual.test_static()) {
+		  if (class_scope->find_signal(cur->first) == 0)
+			/* NetNet*sig = */ new NetNet(class_scope, cur->first,
+						     NetNet::REG, use_type);
+	    }
+      }
+}
+
 
 /*
  * A function definition exists within an elaborated module. This
@@ -623,13 +828,25 @@ bool PGenerate::elaborate_sig_(Design*des, NetScope*scope) const
  */
 void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 {
-      if (scope->elab_stage() > 1)
+      bool can_resume_missing_void_sig =
+	    scope->elab_stage() > 1
+	 && !scope->func_def()
+	 && return_type_
+	 && dynamic_cast<const struct void_type_t*>(return_type_);
+
+      if (scope->elab_stage() > 1 && !can_resume_missing_void_sig)
             return;
 
-      scope->set_elab_stage(2);
+      if (scope->elab_stage() < 2)
+            scope->set_elab_stage(2);
 
       perm_string fname = scope->basename();
       ivl_assert(*this, scope->type() == NetScope::FUNC);
+
+      seed_class_scope_properties_for_method_elab_(des, scope, this,
+						   (fname == perm_string::literal("new")
+						    || fname == perm_string::literal("new@"))
+						     ? return_type_ : 0);
 
       elaborate_sig_wires_(des, scope);
 
@@ -643,8 +860,28 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 	      // In this case, the "@" port (THIS_TOKEN) is the synthetic
 	      // "this" argument and we also use it as a return value at
 	      // the same time.
+	    static bool warned_ctor_missing_this_void = false;
 	    ret_sig = scope->find_signal(perm_string::literal(THIS_TOKEN));
-	    ivl_assert(*this, ret_sig);
+	    if (!ret_sig) {
+		  const netclass_t*cls_type = scope->parent() ? scope->parent()->class_def() : 0;
+		  if (cls_type) {
+			/* Compile-progress fallback: if the hidden constructor
+			 * "this" signal is missing, synthesize it for name lookup
+			 * and keep constructor return bound to "this". */
+			NetNet*this_sig = new NetNet(scope, perm_string::literal(THIS_TOKEN),
+						     NetNet::REG, cls_type);
+			this_sig->set_line(*this);
+			this_sig->port_type(NetNet::PINPUT);
+			ret_sig = this_sig;
+		  } else {
+			if (!warned_ctor_missing_this_void) {
+			      cerr << get_fileline() << ": warning: constructor missing synthetic "
+			           << "\"this\" port and class return type; using void fallback."
+				           << " (suppressing further similar warnings)" << endl;
+				      warned_ctor_missing_this_void = true;
+				}
+			  }
+		    }
 
 	    if (debug_elaborate)
 		  cerr << get_fileline() << ": PFunction::elaborate_sig: "
@@ -654,12 +891,21 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 
       } else {
 	    ivl_type_t ret_type;
+	    NetScope*ret_scope = scope->parent() ? scope->parent() : scope;
 
 	    if (return_type_) {
 		  if (dynamic_cast<const struct void_type_t*> (return_type_)) {
 			ret_type = 0;
 		  } else {
-			ret_type = return_type_->elaborate_type(des, scope->parent());
+			ret_type = return_type_->elaborate_type(des, ret_scope);
+			if (ivl_type_t class_ret_type =
+			    resolve_class_handle_type_weak_(des, ret_scope, return_type_)) {
+			      /* Parameterized class methods can arrive here with
+			       * the generic/default scalar return elaborated first.
+			       * Prefer the resolved class handle when available so
+			       * method bodies and callers use object-return lowering. */
+			      ret_type = class_ret_type;
+			}
 			ivl_assert(*this, ret_type);
 		  }
 	    } else {
@@ -668,6 +914,15 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 	    }
 
 	    if (ret_type) {
+		  if (ret_type->base_type() == IVL_VT_NO_TYPE
+		      && dynamic_cast<const netstruct_t*>(ret_type) == 0) {
+			cerr << get_fileline() << ": internal debug: "
+			     << "function " << scope_path(scope)
+			     << " elaborated unresolved return type";
+			if (return_type_)
+			      cerr << " from `" << *return_type_ << "`";
+			cerr << "." << endl;
+		  }
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PFunction::elaborate_sig: "
 			     << "return type: " << *ret_type << endl;
@@ -692,15 +947,33 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
       vector<perm_string> port_names;
       elaborate_sig_ports_(des, scope, ports, pdef, port_names);
 
-      NetFuncDef*def = new NetFuncDef(scope, ret_sig, ports, pdef);
+      if (gn_system_verilog()
+	  && ret_sig
+	  && (fname == perm_string::literal("new")
+	      || fname == perm_string::literal("new@"))
+	  && ret_sig->name() == perm_string::literal(THIS_TOKEN)) {
+	    bool have_this_port = !ports.empty()
+			       && ports[0]
+			       && ports[0]->name() == perm_string::literal(THIS_TOKEN);
+	    if (!have_this_port) {
+		  ports.insert(ports.begin(), ret_sig);
+		  pdef.insert(pdef.begin(), 0);
+		  port_names.insert(port_names.begin(), perm_string::literal(THIS_TOKEN));
+	    }
+      }
 
-      if (debug_elaborate)
-	    cerr << get_fileline() << ": PFunction::elaborate_sig: "
-		 << "Attach function definition " << scope_path(scope)
-		 << " with ret_sig width=" << (ret_sig? ret_sig->vector_width() : 0)
-		 << "." << endl;
+      NetFuncDef*def = scope->func_def();
+      if (!def) {
+	    def = new NetFuncDef(scope, ret_sig, ports, pdef);
 
-      scope->set_func_def(def);
+	    if (debug_elaborate)
+		  cerr << get_fileline() << ": PFunction::elaborate_sig: "
+		       << "Attach function definition " << scope_path(scope)
+		       << " with ret_sig width=" << (ret_sig? ret_sig->vector_width() : 0)
+		       << "." << endl;
+
+	    scope->set_func_def(def);
+      }
 
 	// Look for further signals in the sub-statement
       if (statement_)
@@ -719,6 +992,13 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 void PTask::elaborate_sig(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope->type() == NetScope::TASK);
+
+      if (scope->elab_stage() > 1)
+	    return;
+
+      scope->set_elab_stage(2);
+
+      seed_class_scope_properties_for_method_elab_(des, scope, this, 0);
 
       elaborate_sig_wires_(des, scope);
 
@@ -781,15 +1061,22 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 		  continue;
 	    }
 
-	      // If the port has a default expression, elaborate
-	      // that expression here.
-	    if (ports_->at(idx).defe != 0) {
-		  if (tmp->port_type() == NetNet::PINPUT) {
-			  // Elaborate a class port default in the context of
-			  // the class type.
-			if (tmp->data_type() == IVL_VT_CLASS) {
-			      tmp_def = elab_and_eval(des, scope,
-			                              ports_->at(idx).defe,
+		      // If the port has a default expression, elaborate
+		      // that expression here.
+		    if (ports_->at(idx).defe != 0) {
+			  if (tmp->port_type() == NetNet::PINPUT) {
+				  // Accept the common SV/UVM pattern of class handle
+				  // defaults set to null (e.g. constructor parent=null).
+				if (dynamic_cast<const PENull*>(ports_->at(idx).defe)) {
+				      NetENull*nval = new NetENull;
+				      nval->set_line(*ports_->at(idx).defe);
+				      tmp_def = nval;
+				} else
+				  // Elaborate a class port default in the context of
+				  // the class type.
+				if (tmp->data_type() == IVL_VT_CLASS) {
+				      tmp_def = elab_and_eval(des, scope,
+				                              ports_->at(idx).defe,
 			                              tmp->net_type(),
 			                              scope->need_const_func());
 			} else {
@@ -827,13 +1114,16 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 	    port_names[idx] = port_name;
 	    pdefs[idx] = tmp_def;
 	    if (scope->type()==NetScope::FUNC && tmp->port_type()!=NetNet::PINPUT) {
-		  cerr << tmp->get_fileline() << ": error: "
-		       << "Function " << scope_path(scope)
-		       << " port " << port_name
-		       << " is not an input port." << endl;
-		  cerr << tmp->get_fileline() << ":      : "
-		       << "Function arguments must be input ports." << endl;
-		  des->errors += 1;
+		  if (gn_system_verilog()) {
+		  } else {
+			cerr << tmp->get_fileline() << ": error: "
+			     << "Function " << scope_path(scope)
+			     << " port " << port_name
+			     << " is not an input port." << endl;
+			cerr << tmp->get_fileline() << ":      : "
+			     << "Function arguments must be input ports." << endl;
+			des->errors += 1;
+		  }
 	    }
 	    if (tmp->unpacked_dimensions() != 0) {
 		  cerr << get_fileline() << ": sorry: Subroutine ports with "
@@ -996,6 +1286,23 @@ ivl_type_t PWire::elaborate_type(Design*des, NetScope*scope,
       return vec;
 }
 
+ivl_type_t PWire::elaborate_sig_type(Design*des, NetScope*scope) const
+{
+      netranges_t packed_dimensions;
+      if (port_set_ || net_set_) {
+	    bool dimensions_ok = true;
+	    netranges_t plist, nlist;
+	    if (port_set_ && !port_.empty())
+		  dimensions_ok &= evaluate_ranges(des, scope, this, plist, port_);
+	    if (net_set_ && !net_.empty() && dimensions_ok)
+		  dimensions_ok &= evaluate_ranges(des, scope, this, nlist, net_);
+	    packed_dimensions = net_set_ ? nlist : plist;
+      }
+
+      ivl_type_t type = elaborate_type(des, scope, packed_dimensions);
+      return elaborate_array_type(des, scope, *this, type, unpacked_);
+}
+
 /*
  * Elaborate a source wire. The "wire" is the declaration of wires,
  * registers, ports and memories. The parser has already merged the
@@ -1005,34 +1312,51 @@ ivl_type_t PWire::elaborate_type(Design*des, NetScope*scope,
  */
 NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 {
-	// This sets the vector or array dimension size that will
-	// cause a warning. For now, these warnings are permanently
-	// enabled.
+		// This sets the vector or array dimension size that will
+		// cause a warning. For now, these warnings are permanently
+		// enabled.
       const long warn_dimension_size = 1 << 30;
 
-	// Check if we elaborated this signal earlier because it was
-	// used in another declaration.
+		// Check if we elaborated this signal earlier because it was
+		// used in another declaration.
       if (NetNet*sig = scope->find_signal(name_))
             return sig;
-
-      if (is_elaborating_) {
-	    cerr << get_fileline() << ": error: Circular dependency "
-		    "detected in declaration of '" << name_ << "'."
-		 << endl;
-	    des->errors += 1;
-	    return 0;
-      }
-      is_elaborating_ = true;
 
       NetNet::Type wtype = type_;
       if (wtype == NetNet::IMPLICIT)
 	    wtype = NetNet::WIRE;
-
-	// Certain contexts, such as arguments to functions, presume
-	// "reg" instead of "wire". The parser reports these as
-	// IMPLICIT_REG.
       if (wtype == NetNet::IMPLICIT_REG)
 	    wtype = NetNet::REG;
+
+      NetNet*sig = 0;
+      bool sig_predeclared = false;
+      if (set_data_type_ && port_.empty() && net_.empty() && unpacked_.empty()) {
+	    if (ivl_type_t placeholder_type =
+			resolve_class_handle_placeholder_type_weak_(des, scope,
+							    set_data_type_.get())) {
+		  sig = new NetNet(scope, name_, wtype, placeholder_type);
+		  sig->set_line(*this);
+		  sig->port_type(port_type_);
+		  sig->lexical_pos(lexical_pos_);
+		  sig->set_const(is_const_);
+		  sig_predeclared = true;
+	    }
+      }
+
+      if (is_elaborating_) {
+	    if (sig_predeclared)
+		  return sig;
+		    cerr << get_fileline() << ": error: Circular dependency "
+			    "detected in declaration of '" << name_ << "'."
+			 << " scope=" << scope_path(scope) << endl;
+		    des->errors += 1;
+		    return 0;
+      }
+      is_elaborating_ = true;
+
+		// Certain contexts, such as arguments to functions, presume
+		// "reg" instead of "wire". The parser reports these as
+		// IMPLICIT_REG.
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PWire::elaborate_sig: "
@@ -1151,6 +1475,30 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       const attrib_list_t*attrib_list = evaluate_attributes(attributes, nattrib,
                                                             des, scope);
 
+      if (!sig_predeclared && set_data_type_ && packed_dimensions.empty() && unpacked_.empty()) {
+	    if (ivl_type_t placeholder_type =
+			resolve_class_handle_placeholder_type_weak_(des, scope,
+							    set_data_type_.get())) {
+		  if (debug_elaborate) {
+			cerr << get_fileline() << ": PWire::elaborate_sig: "
+			     << "predeclare class-handle signal " << name_
+			     << " with placeholder type " << *placeholder_type
+			     << " in scope " << scope_path(scope) << endl;
+		  }
+		  sig = new NetNet(scope, name_, wtype, placeholder_type);
+		  sig->set_line(*this);
+		  sig->port_type(port_type_);
+		  sig->lexical_pos(lexical_pos_);
+		  sig->set_const(is_const_);
+		  sig_predeclared = true;
+	    }
+      }
+
+      ivl_type_t early_class_type = 0;
+      if (set_data_type_ && packed_dimensions.empty() && unpacked_.empty())
+	    early_class_type = resolve_class_handle_type_weak_(des, scope,
+						       set_data_type_.get());
+
 	/* If the net type is supply0 or supply1, replace it
 	   with a simple wire with a pulldown/pullup with supply
 	   strength. In other words, transform:
@@ -1187,7 +1535,9 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    wtype = NetNet::WIRE;
       }
 
-      ivl_type_t type = elaborate_type(des, scope, packed_dimensions);
+      ivl_type_t type = early_class_type
+		      ? early_class_type
+		      : elaborate_type(des, scope, packed_dimensions);
 	// Create the type for the unpacked dimensions. If the
 	// unpacked_dimensions are empty this will just return the base type.
       type = elaborate_array_type(des, scope, *this, type, unpacked_);
@@ -1210,16 +1560,21 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 		 << scope_path(scope) << endl;
       }
 
-      NetNet*sig = new NetNet(scope, name_, wtype, unpacked_dimensions, type);
+      if (sig_predeclared) {
+	    sig->set_net_type(type);
+      } else {
+	    sig = new NetNet(scope, name_, wtype, unpacked_dimensions, type);
 
-      if (wtype == NetNet::WIRE) sig->devirtualize_pins();
-      sig->set_line(*this);
-      sig->port_type(port_type_);
-      sig->lexical_pos(lexical_pos_);
+	    if (wtype == NetNet::WIRE) sig->devirtualize_pins();
+	    sig->set_line(*this);
+	    sig->port_type(port_type_);
+	    sig->lexical_pos(lexical_pos_);
+      }
 
       if (ivl_discipline_t dis = get_discipline()) {
 	    sig->set_discipline(dis);
       }
+      sig->lifetime_override(lifetime_override());
 
       if (pull)
 	    connect(sig->pin(0), pull->pin(0));
@@ -1229,7 +1584,9 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 
       sig->set_const(is_const_);
 
-      scope->rem_signal_placeholder(this);
+      // Keep the source placeholder available after elaboration so later
+      // passes can recover typedef-backed foreach key types from the original
+      // declaration instead of the lowered signal form.
       is_elaborating_ = false;
 
       return sig;

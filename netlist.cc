@@ -559,7 +559,8 @@ NetNet::NetNet(NetScope*s, perm_string n, Type t,
 	       const netranges_t&unpacked, ivl_type_t use_net_type)
 : NetObj(s, n, calculate_count(unpacked)),
     type_(t), port_type_(NOT_A_PORT), coerced_to_uwire_(false),
-    local_flag_(false), lexical_pos_(0), net_type_(use_net_type),
+    local_flag_(false), lifetime_override_(IVL_VLT_INHERITED),
+    lexical_pos_(0), net_type_(use_net_type),
     discipline_(0), unpacked_dims_(unpacked),
     eref_count_(0), lref_count_(0)
 {
@@ -582,7 +583,8 @@ NetNet::NetNet(NetScope*s, perm_string n, Type t,
 NetNet::NetNet(NetScope*s, perm_string n, Type t, ivl_type_t type)
 : NetObj(s, n, 1),
     type_(t), port_type_(NOT_A_PORT), coerced_to_uwire_(false),
-    local_flag_(false), lexical_pos_(0), net_type_(type),
+    local_flag_(false), lifetime_override_(IVL_VLT_INHERITED),
+    lexical_pos_(0), net_type_(type),
     discipline_(0),
     eref_count_(0), lref_count_(0)
 {
@@ -612,6 +614,21 @@ NetNet::~NetNet()
       if (scope())
 	    scope()->rem_signal(this);
 
+}
+
+void NetNet::set_net_type(ivl_type_t type)
+{
+      ivl_assert(*this, type);
+      net_type_ = type;
+      slice_dims_.clear();
+      slice_wids_.clear();
+      calculate_slice_widths_from_packed_dims_();
+      if (array_type_) {
+	    delete array_type_;
+	    array_type_ = 0;
+      }
+      if (!unpacked_dims_.empty())
+	    array_type_ = new netuarray_t(unpacked_dims_, net_type_);
 }
 
 NetNet::Type NetNet::type() const
@@ -2165,8 +2182,9 @@ const NetExpr* NetSTask::parm(unsigned idx) const
 }
 
 NetEUFunc::NetEUFunc(NetScope*scope, NetScope*def, NetESignal*res,
-                     vector<NetExpr*>&p, bool nc)
-: NetExpr(res->net_type()), scope_(scope), func_(def), result_sig_(res), parms_(p), need_const_(nc)
+                     vector<NetExpr*>&p, bool nc, bool super_call)
+: NetExpr(res->net_type()), scope_(scope), func_(def), result_sig_(res),
+  parms_(p), need_const_(nc), super_call_(super_call)
 {
 }
 
@@ -2202,8 +2220,13 @@ const NetScope* NetEUFunc::func() const
       return func_;
 }
 
-NetUTask::NetUTask(NetScope*def)
-: task_(def)
+bool NetEUFunc::super_call() const
+{
+      return super_call_;
+}
+
+NetUTask::NetUTask(NetScope*def, bool super_call)
+: task_(def), super_call_(super_call)
 {
 }
 
@@ -2214,6 +2237,11 @@ NetUTask::~NetUTask()
 const NetScope* NetUTask::task() const
 {
       return task_;
+}
+
+bool NetUTask::super_call() const
+{
+      return super_call_;
 }
 
 NetAlloc::NetAlloc(NetScope*scope__)
@@ -2315,6 +2343,12 @@ ivl_variable_type_t NetEBLogic::expr_type() const
 NetEConst::NetEConst(const verinum&val)
 : NetExpr(val.len()), value_(val)
 {
+      if (getenv("IVL_NETECONST_TRACE")) {
+            fprintf(stderr,
+                    "trace neteconst ctor: width=%u as_ulong=%llu has_len=%d has_sign=%d\n",
+                    value_.len(), (unsigned long long)value_.as_ulong64(),
+                    value_.has_len(), value_.has_sign());
+      }
       cast_signed_base_(value_.has_sign());
 }
 
@@ -2333,8 +2367,20 @@ NetEConst::~NetEConst()
 
 void NetEConst::cast_signed(bool flag)
 {
+      if (getenv("IVL_NETECONST_TRACE")) {
+            fprintf(stderr,
+                    "trace neteconst cast_signed before: width=%u as_ulong=%llu has_len=%d has_sign=%d flag=%d\n",
+                    value_.len(), (unsigned long long)value_.as_ulong64(),
+                    value_.has_len(), value_.has_sign(), flag);
+      }
       cast_signed_base_(flag);
       value_.has_sign(flag);
+      if (getenv("IVL_NETECONST_TRACE")) {
+            fprintf(stderr,
+                    "trace neteconst cast_signed after: width=%u as_ulong=%llu has_len=%d has_sign=%d\n",
+                    value_.len(), (unsigned long long)value_.as_ulong64(),
+                    value_.has_len(), value_.has_sign());
+      }
 }
 
 const verinum& NetEConst::value() const
@@ -2405,8 +2451,8 @@ const NetEvent* NetEEvent::event() const
       return event_;
 }
 
-NetEScope::NetEScope(NetScope*s)
-: scope_(s)
+NetEScope::NetEScope(NetScope*s, ivl_type_t type)
+: NetExpr(type), scope_(s)
 {
 }
 

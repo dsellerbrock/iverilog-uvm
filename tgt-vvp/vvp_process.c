@@ -28,6 +28,64 @@ unsigned thread_count = 0;
 
 unsigned transient_id = 0;
 
+static char**td_refs = 0;
+static size_t td_refs_cnt = 0;
+static size_t td_refs_cap = 0;
+static char**td_defs = 0;
+static size_t td_defs_cnt = 0;
+static size_t td_defs_cap = 0;
+
+static int td_list_contains(char**list, size_t count, const char*label)
+{
+      size_t idx;
+      for (idx = 0; idx < count; idx += 1)
+	    if (strcmp(list[idx], label) == 0)
+		  return 1;
+      return 0;
+}
+
+static void td_list_append_unique(char***list, size_t*count, size_t*cap, const char*label)
+{
+      if (td_list_contains(*list, *count, label))
+	    return;
+
+      if (*count >= *cap) {
+	    size_t new_cap = (*cap == 0)? 64 : (*cap * 2);
+	    char**tmp = (char**)realloc(*list, new_cap * sizeof(char*));
+	    assert(tmp);
+	    *list = tmp;
+	    *cap = new_cap;
+      }
+
+      (*list)[*count] = strdup(label);
+      assert((*list)[*count]);
+      *count += 1;
+}
+
+void note_td_reference(const char*label)
+{
+      td_list_append_unique(&td_refs, &td_refs_cnt, &td_refs_cap, label);
+}
+
+void note_td_definition(const char*label)
+{
+      td_list_append_unique(&td_defs, &td_defs_cnt, &td_defs_cap, label);
+}
+
+void emit_td_stub_definitions(void)
+{
+      size_t idx;
+      for (idx = 0; idx < td_refs_cnt; idx += 1) {
+	    const char*label = td_refs[idx];
+	    if (td_list_contains(td_defs, td_defs_cnt, label))
+		  continue;
+	    fprintf(vvp_out, "TD_%s ;\n", label);
+	    fprintf(vvp_out, "    %%end;\n");
+	    note_td_definition(label);
+	    fprintf(stderr, "warning: emitting TD stub for unresolved target: TD_%s\n", label);
+      }
+}
+
 /*
  * This file includes the code needed to generate VVP code for
  * processes. Scopes are already declared, we generate here the
@@ -70,12 +128,14 @@ static void assign_to_array_r_word(ivl_signal_t lsig, ivl_expr_t word_ix,
 	    int delay_index = allocate_word();
 	    draw_eval_expr_into_integer(dexp, delay_index);
 	    fprintf(vvp_out, "    %%ix/mov 3, %d;\n", word_ix_reg);
+	    note_array_signal_use(lsig);
 	    fprintf(vvp_out, "    %%assign/ar/d v%p, %d;\n", lsig,
 	                     delay_index);
 	    clr_word(word_ix_reg);
 	    clr_word(delay_index);
       } else if (nevents != 0) {
 	      /* Event control delay... */
+	    note_array_signal_use(lsig);
 	    fprintf(vvp_out, "    %%assign/ar/e v%p;\n", lsig);
       } else {
 	      /* Constant delay... */
@@ -90,10 +150,12 @@ static void assign_to_array_r_word(ivl_signal_t lsig, ivl_expr_t word_ix,
 		  int delay_index = allocate_word();
 		  fprintf(vvp_out, "    %%ix/load %d, %lu, %lu;\n",
 		          delay_index, low_d, hig_d);
+		  note_array_signal_use(lsig);
 		  fprintf(vvp_out, "    %%assign/ar/d v%p, %d;\n", lsig,
 			  delay_index);
 		  clr_word(delay_index);
 	    } else {
+		  note_array_signal_use(lsig);
 		  fprintf(vvp_out, "    %%assign/ar v%p, %lu;\n",
 		          lsig, low_d);
 	    }
@@ -167,6 +229,7 @@ static void assign_to_array_word(ivl_signal_t lsig, ivl_expr_t word_ix,
 	    }
 	      /* Restore the error state since an undefined delay is okay. */
 	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", error_flag);
+	    note_array_signal_use(lsig);
 	    fprintf(vvp_out, "    %%assign/vec4/a/d v%p, %d, %d;\n",
 		    lsig, part_off_reg, delay_index);
 
@@ -180,6 +243,7 @@ static void assign_to_array_word(ivl_signal_t lsig, ivl_expr_t word_ix,
 		  fprintf(vvp_out, "    %%ix/mov 3, %d;\n", word_ix_reg);
 		  clr_word(word_ix_reg);
 	    }
+	    note_array_signal_use(lsig);
 	    fprintf(vvp_out, "    %%assign/vec4/a/e v%p, %d;\n", lsig, part_off_reg);
 
 	/* Constant delay... */
@@ -198,6 +262,7 @@ static void assign_to_array_word(ivl_signal_t lsig, ivl_expr_t word_ix,
 	    if (part_off_ex) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", error_flag);
 	    }
+	    note_array_signal_use(lsig);
 	    fprintf(vvp_out, "    %%assign/vec4/a/d v%p, %d, %d;\n",
 		    lsig, part_off_reg, delay_index);
 	    clr_word(delay_index);
@@ -536,6 +601,23 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 	    }
       }
 
+      if ((del == 0) && (nevents == 0)) {
+	    if (ivl_lval_nest(lval))
+		  return show_stmt_assign(net);
+
+	    if (sig) {
+		  switch (ivl_signal_data_type(sig)) {
+		      case IVL_VT_STRING:
+		      case IVL_VT_DARRAY:
+		      case IVL_VT_QUEUE:
+		      case IVL_VT_CLASS:
+			return show_stmt_assign(net);
+		      default:
+			break;
+		  }
+	    }
+      }
+
       if (del && (ivl_expr_type(del) == IVL_EX_DELAY)) {
 	    assert(number_is_immediate(del, 64, 0));
 	    delay = ivl_expr_delay_val(del);
@@ -706,7 +788,7 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
           case IVL_CASE_QUALITY_PRIORITY:
               fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
                       "\"value is unhandled for priority or unique case statement\""
-                      " {0 0 0};\n",
+                      " {0 0 0 0};\n",
                       ivl_file_table_index(ivl_stmt_file(net)),
                       ivl_stmt_lineno(net));
               break;
@@ -869,7 +951,6 @@ static void force_real_to_lval(ivl_statement_t net)
 			  ivl_stmt_file(net), ivl_stmt_lineno(net),
 			  command_name, ivl_signal_basename(lsig),
 			  ivl_signal_array_base(lsig) + (long)use_word);
-		  vvp_errors += 1;
 	    }
       }
 
@@ -920,12 +1001,11 @@ static void force_vector_to_lval(ivl_statement_t net)
 		    /* We do not currently support using a word from a variable
 		       array as the L-value (SystemVerilog / Icarus extension). */
 		  if (ivl_signal_type(lsig) == IVL_SIT_REG) {
-			fprintf(stderr, "%s:%u: vvp.tgt sorry: cannot %s to the "
-				"word of a variable array (%s[%ld]).\n",
-				ivl_stmt_file(net), ivl_stmt_lineno(net),
-				command_name, ivl_signal_basename(lsig),
-				ivl_signal_array_base(lsig) + (long)use_word);
-			vvp_errors += 1;
+				fprintf(stderr, "%s:%u: vvp.tgt sorry: cannot %s to the "
+					"word of a variable array (%s[%ld]).\n",
+					ivl_stmt_file(net), ivl_stmt_lineno(net),
+					command_name, ivl_signal_basename(lsig),
+					ivl_signal_array_base(lsig) + (long)use_word);
 		  }
 	    }
 
@@ -1034,7 +1114,6 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
 		  fprintf(stderr, "bit select (%s[%ld]).\n",
 		          ivl_signal_basename(lsig), use_lsb);
 	    }
-	    vvp_errors += 1;
       }
 
 	/* At least for now, only handle force to fixed words of an array. */
@@ -1056,7 +1135,6 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
 		          "word of a variable array (%s[%ld]).\n",
 		          ivl_stmt_file(net), ivl_stmt_lineno(net),
 		          command_name, ivl_signal_basename(lsig), real_word);
-		  vvp_errors += 1;
 	    }
       }
 
@@ -1086,7 +1164,6 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
 		          "word of a variable array (%s[%ld]).\n",
 		          ivl_expr_file(rval), ivl_expr_lineno(rval),
 		          command_name, ivl_signal_basename(rsig), real_word);
-		  vvp_errors += 1;
 	    }
       } else {
 	    assert(ivl_signal_dimensions(rsig) == 0);
@@ -1584,7 +1661,6 @@ static int show_stmt_nb_trigger(ivl_statement_t net)
 	// FIXME: VVP needs to be updated to correctly support %event/nb
       fprintf(stderr, "%s:%u: vvp.tgt sorry: ->> is not currently supported.\n",
                       ivl_stmt_file(net), ivl_stmt_lineno(net));
-      vvp_errors += 1;
       return 0;
 }
 
@@ -1595,14 +1671,18 @@ static int show_stmt_utask(ivl_statement_t net)
       show_stmt_file_line(net, "User task call.");
 
       if (ivl_scope_type(task) == IVL_SCT_FUNCTION) {
+	    const char*target = vvp_mangle_id(ivl_scope_name(task));
+	    note_td_reference(target);
 	      // A function called as a task is (presumably) a void function.
 	      // Use the %callf/void instruction to call it.
-	    fprintf(vvp_out, "    %%callf/void TD_%s",
-		    vvp_mangle_id(ivl_scope_name(task)));
+	    fprintf(vvp_out, "    %%callf/void%s TD_%s",
+		    ivl_stmt_is_super_call(net) ? "" : "/v", target);
 	    fprintf(vvp_out, ", S_%p;\n", task);
       } else {
-	    fprintf(vvp_out, "    %%fork TD_%s",
-		    vvp_mangle_id(ivl_scope_name(task)));
+	    const char*target = vvp_mangle_id(ivl_scope_name(task));
+	    note_td_reference(target);
+	    fprintf(vvp_out, "    %%fork%s TD_%s",
+		    ivl_stmt_is_super_call(net) ? "" : "/v", target);
 	    fprintf(vvp_out, ", S_%p;\n", task);
 	    fprintf(vvp_out, "    %%join;\n");
       }
@@ -1654,22 +1734,276 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
       return show_statement(ivl_stmt_sub_stmt(net), sscope);
 }
 
+static int expr_is_queue_expr(ivl_expr_t expr);
+static int show_queue_object_receiver(ivl_expr_t parm);
+static int expr_is_static_array_expr(ivl_expr_t expr);
+
+static void emit_new_queue_object_(ivl_type_t queue_type)
+{
+      ivl_type_t element_type = ivl_type_element(queue_type);
+      ivl_variable_type_t type = element_type ? ivl_type_base(element_type) : IVL_VT_NO_TYPE;
+      int wid = 0;
+      const char*signed_char = "";
+
+      if ((type == IVL_VT_BOOL) || (type == IVL_VT_LOGIC)) {
+	    wid = ivl_type_packed_width(element_type);
+	    signed_char = ivl_type_signed(element_type) ? "s" : "";
+      }
+
+      switch (type) {
+	  case IVL_VT_REAL:
+	    fprintf(vvp_out, "    %%new/queue \"r\";\n");
+	    break;
+	  case IVL_VT_STRING:
+	    fprintf(vvp_out, "    %%new/queue \"S\";\n");
+	    break;
+	  case IVL_VT_BOOL:
+	    fprintf(vvp_out, "    %%new/queue \"%sb%d\";\n", signed_char, wid);
+	    break;
+	  case IVL_VT_LOGIC:
+	    fprintf(vvp_out, "    %%new/queue \"%sv%d\";\n", signed_char, wid);
+	    break;
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    fprintf(vvp_out, "    %%new/queue \"o\";\n");
+	    break;
+	  default:
+	    fprintf(vvp_out, "    %%new/queue \"o\";\n");
+	    break;
+      }
+}
+
+static int show_delete_static_array_signal_method(ivl_statement_t net,
+						  ivl_signal_t var,
+						  ivl_type_t array_type,
+						  unsigned parm_count)
+{
+      ivl_type_t element_type = ivl_type_element(array_type);
+      if (!element_type || parm_count != 2)
+	    return -1;
+
+      draw_eval_expr_into_integer(ivl_stmt_parm(net, 1), 3);
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_REAL:
+	    fprintf(vvp_out, "    %%pushi/real 0, 0;\n");
+	    note_array_signal_use(var);
+	    fprintf(vvp_out, "    %%store/reala v%p, 3;\n", var);
+	    return 0;
+	  case IVL_VT_STRING:
+	    fprintf(vvp_out, "    %%pushi/str \"\";\n");
+	    note_array_signal_use(var);
+	    fprintf(vvp_out, "    %%store/stra v%p, 3;\n", var);
+	    return 0;
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    fprintf(vvp_out, "    %%null;\n");
+	    note_array_signal_use(var);
+	    fprintf(vvp_out, "    %%store/obja v%p, 3;\n", var);
+	    return 0;
+	  default:
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n",
+		    ivl_type_packed_width(element_type));
+	    note_array_signal_use(var);
+	    fprintf(vvp_out, "    %%store/vec4a v%p, 3, 0;\n", var);
+	    return 0;
+      }
+}
+
+static int show_delete_static_array_property_method(ivl_statement_t net,
+						    ivl_expr_t parm,
+						    unsigned parm_count)
+{
+      ivl_expr_t base = ivl_expr_oper2(parm);
+      ivl_expr_t prop_word = ivl_expr_oper1(parm);
+      ivl_type_t array_type = ivl_expr_net_type(parm);
+      ivl_type_t element_type = ivl_type_element(array_type);
+      int prop_idx = ivl_expr_property_idx(parm);
+      int idx_reg;
+
+      if (!base || prop_idx < 0 || !element_type || prop_word || parm_count != 2)
+	    return -1;
+
+      draw_eval_object(base);
+      idx_reg = allocate_word();
+      draw_eval_expr_into_integer(ivl_stmt_parm(net, 1), idx_reg);
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    fprintf(vvp_out, "    %%null;\n");
+	    fprintf(vvp_out, "    %%store/prop/obj %d, %d;\n", prop_idx, idx_reg);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    clr_word(idx_reg);
+	    return 0;
+	  case IVL_VT_REAL:
+	  case IVL_VT_STRING:
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    clr_word(idx_reg);
+	    return -1;
+	  default:
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n",
+		    ivl_type_packed_width(element_type));
+	    fprintf(vvp_out, "    %%store/prop/v/i %d, %d, %u;\n",
+		    prop_idx, idx_reg, ivl_type_packed_width(element_type));
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    clr_word(idx_reg);
+	    return 0;
+      }
+}
+
+static int show_delete_property_method(ivl_statement_t net, ivl_expr_t parm, unsigned parm_count)
+{
+	      ivl_expr_t base = ivl_expr_oper2(parm);
+	      int prop_idx = ivl_expr_property_idx(parm);
+	      ivl_expr_t prop_word = ivl_expr_oper1(parm);
+	      ivl_type_t prop_type = 0;
+	      int word_reg = 0;
+
+	      if (!base || prop_idx < 0)
+		    return -1;
+
+	      {
+		    ivl_type_t recv_type = ivl_expr_net_type(base);
+		    if (recv_type && ivl_type_base(recv_type) == IVL_VT_CLASS)
+			  prop_type = ivl_type_prop_type(recv_type, prop_idx);
+	      }
+
+	      if (!prop_type)
+		    prop_type = property_assoc_container_type_(parm);
+	      if (!prop_type)
+		    prop_type = ivl_expr_net_type(parm);
+
+	      if ((parm_count == 2) && !prop_word && prop_type
+		  && ivl_type_base(prop_type) == IVL_VT_QUEUE
+		  && ivl_type_queue_assoc_compat(prop_type)) {
+		    ivl_expr_t key_expr = ivl_stmt_parm(net, 1);
+                    const char*key_kind;
+		    draw_eval_object(base);
+		    fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+                    key_kind = draw_eval_assoc_key_(key_expr, 0);
+		    fprintf(vvp_out, "    %%aa/delete/%s;\n", key_kind);
+		    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+		    return 0;
+	      }
+
+	      if (expr_is_queue_expr(parm)) {
+		    draw_eval_object(parm);
+		    if (parm_count == 1) {
+			  fprintf(vvp_out, "    %%delete/o/obj;\n");
+		    } else if (parm_count == 2) {
+			  draw_eval_expr_into_integer(ivl_stmt_parm(net, 1), 3);
+			  fprintf(vvp_out, "    %%delete/o/elem;\n");
+		    } else {
+			  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			  return -1;
+		    }
+		    return 0;
+	      }
+
+	      if (expr_is_static_array_expr(parm)) {
+		    if (show_delete_static_array_property_method(net, parm, parm_count) == 0)
+			  return 0;
+	      }
+
+	      draw_eval_object(base);
+
+      if (prop_word) {
+	    word_reg = allocate_word();
+	    draw_eval_expr_into_integer(prop_word, word_reg);
+      }
+
+      if (parm_count == 1) {
+	    /* delete() on a queue/object class property clears it to null. */
+	    fprintf(vvp_out, "    %%null;\n");
+	    fprintf(vvp_out, "    %%store/prop/obj %d, %d;\n", prop_idx, word_reg);
+      } else if (parm_count == 2) {
+	    int idx_reg = allocate_word();
+	    draw_eval_expr_into_integer(ivl_stmt_parm(net, 1), idx_reg);
+	    clr_word(idx_reg);
+      } else {
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    if (word_reg)
+		  clr_word(word_reg);
+	    return -1;
+      }
+
+      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+
+      if (word_reg)
+	    clr_word(word_reg);
+
+	      return 0;
+}
+
+static int show_delete_queue_object_method(ivl_statement_t net, ivl_expr_t parm,
+					   unsigned parm_count)
+{
+	      if (show_queue_object_receiver(parm) != 0)
+		    return -1;
+
+	      if (parm_count == 1) {
+		    fprintf(vvp_out, "    %%delete/o/obj;\n");
+	      } else if (parm_count == 2) {
+		    draw_eval_expr_into_integer(ivl_stmt_parm(net, 1), 3);
+		    fprintf(vvp_out, "    %%delete/o/elem;\n");
+	      } else {
+		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		    return -1;
+	      }
+
+	      return 0;
+}
+
 static int show_delete_method(ivl_statement_t net)
 {
+      static int warned_delete_non_signal = 0;
       show_stmt_file_line(net, "Delete object");
 
       unsigned parm_count = ivl_stmt_parm_count(net);
-      if ((parm_count < 1) || (parm_count > 2))
-	    return 1;
+      if ((parm_count < 1) || (parm_count > 2)) {
+	    fprintf(stderr, "Warning: delete expects 1 or 2 parameters at %s:%u; skipping\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 0;
+      }
 
-      ivl_expr_t parm = ivl_stmt_parm(net, 0);
-      assert(ivl_expr_type(parm) == IVL_EX_SIGNAL);
+	      ivl_expr_t parm = ivl_stmt_parm(net, 0);
+	      if (ivl_expr_type(parm) != IVL_EX_SIGNAL) {
+		    if (ivl_expr_type(parm) == IVL_EX_PROPERTY) {
+			  if (show_delete_property_method(net, parm, parm_count) == 0)
+				return 0;
+		    }
+		    if (show_delete_queue_object_method(net, parm, parm_count) == 0)
+			  return 0;
+		    if (!warned_delete_non_signal) {
+			  fprintf(stderr, "Warning: delete requires signal, got expr type %d at %s:%u"
+				  " (further similar warnings suppressed)\n",
+			  ivl_expr_type(parm), ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  warned_delete_non_signal = 1;
+	    }
+	    return 0;
+      }
       ivl_signal_t var = ivl_expr_signal(parm);
+      ivl_type_t var_type = ivl_signal_net_type(var);
+
+      if (expr_is_static_array_expr(parm)) {
+	    if (show_delete_static_array_signal_method(net, var, var_type, parm_count) == 0)
+		  return 0;
+      }
 
 	/* If this is a queue then it can have an element to delete. */
       if (parm_count == 2) {
-	    if (ivl_type_base(ivl_signal_net_type(var)) != IVL_VT_QUEUE)
-		  return 1;
+	    if (ivl_type_base(var_type) != IVL_VT_QUEUE) {
+		  fprintf(stderr, "Warning: delete index form requires queue at %s:%u; skipping\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 0;
+	    }
 	    draw_eval_expr_into_integer(ivl_stmt_parm(net, 1), 3);
 	    fprintf(vvp_out, "    %%delete/elem v%p_0;\n", var);
       } else {
@@ -1678,16 +2012,155 @@ static int show_delete_method(ivl_statement_t net)
       return 0;
 }
 
+static int expr_is_queue_expr(ivl_expr_t expr)
+{
+      ivl_type_t net_type;
+      if (!expr)
+	    return 0;
+
+      if (property_assoc_container_type_(expr))
+	    return 0;
+
+      net_type = ivl_expr_net_type(expr);
+      if (net_type && ivl_type_base(net_type) == IVL_VT_QUEUE
+          && !ivl_type_queue_assoc_compat(net_type))
+	    return 1;
+
+      return ivl_expr_value(expr) == IVL_VT_QUEUE;
+}
+
+static int expr_is_static_array_expr(ivl_expr_t expr)
+{
+      ivl_type_t net_type;
+
+      if (!expr)
+	    return 0;
+
+      if (expr_is_queue_expr(expr))
+	    return 0;
+
+      if (ivl_expr_value(expr) == IVL_VT_DARRAY)
+	    return 0;
+
+      net_type = ivl_expr_net_type(expr);
+      return net_type && ivl_type_element(net_type) != 0;
+}
+
+static int show_queue_object_receiver(ivl_expr_t parm)
+{
+      if (!expr_is_queue_expr(parm))
+	    return -1;
+
+      if (ivl_expr_type(parm) == IVL_EX_SELECT) {
+	    ivl_expr_t sube = ivl_expr_oper1(parm);
+	    ivl_expr_t index = ivl_expr_oper2(parm);
+	    ivl_signal_t sig = 0;
+	    ivl_type_t base_type = 0;
+	    ivl_type_t recv_type = 0;
+
+	    if (sube && index
+		&& (ivl_expr_type(sube) == IVL_EX_SIGNAL
+		    || ivl_expr_type(sube) == IVL_EX_ARRAY)) {
+		  sig = ivl_expr_signal(sube);
+		  if (sig)
+			base_type = ivl_signal_net_type(sig);
+		  if (base_type)
+			recv_type = ivl_type_element(base_type);
+	    }
+
+	    if (sig
+		&& base_type && ivl_type_base(base_type) == IVL_VT_QUEUE
+		&& ivl_type_queue_assoc_compat(base_type)
+		&& recv_type && ivl_type_base(recv_type) == IVL_VT_QUEUE) {
+		  const char*key_kind = draw_eval_assoc_key_(index, 0);
+		  const char*dup_key = 0;
+		  const char*pop_key = 0;
+		  unsigned lab_new = local_count++;
+		  unsigned lab_done = local_count++;
+
+		  if (strcmp(key_kind, "v") == 0) {
+			dup_key = "%dup/vec4";
+			pop_key = "%pop/vec4 1";
+		  } else if (strcmp(key_kind, "str") == 0) {
+			dup_key = "%dup/str";
+			pop_key = "%pop/str 1";
+		  } else if (strcmp(key_kind, "obj") == 0) {
+			dup_key = "%dup/obj";
+			pop_key = "%pop/obj 1, 1";
+		  }
+
+		  if (dup_key && pop_key) {
+			fprintf(vvp_out, "    %s;\n", dup_key);
+			fprintf(vvp_out, "    %%aa/load/sig/obj/%s v%p_0;\n", key_kind, sig);
+			fprintf(vvp_out, "    %%test_nul/obj;\n");
+			fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_new);
+			fprintf(vvp_out, "    %s;\n", pop_key);
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_done);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_new);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "    %s;\n", dup_key);
+			emit_new_queue_object_(recv_type);
+			fprintf(vvp_out, "    %%aa/store/sig/obj/%s v%p_0;\n", key_kind, sig);
+			fprintf(vvp_out, "    %%aa/load/sig/obj/%s v%p_0;\n", key_kind, sig);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
+			return 0;
+		  }
+	    }
+      }
+
+      draw_eval_object(parm);
+      return 0;
+}
+
 static int show_insert_method(ivl_statement_t net)
 {
+      static int warned_insert_non_signal = 0;
       show_stmt_file_line(net, "queue: insert");
 
       unsigned parm_count = ivl_stmt_parm_count(net);
-      if (parm_count != 3)
-	    return 1;
+      if (parm_count != 3) {
+	    fprintf(stderr, "Warning: insert expects 3 parameters at %s:%u; skipping\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 0;
+      }
 
       ivl_expr_t parm0 = ivl_stmt_parm(net,0);
-      assert(ivl_expr_type(parm0) == IVL_EX_SIGNAL);
+      if (ivl_expr_type(parm0) != IVL_EX_SIGNAL) {
+	    if (show_queue_object_receiver(parm0) == 0) {
+		  ivl_expr_t parm2 = ivl_stmt_parm(net,2);
+		  draw_eval_expr_into_integer(ivl_stmt_parm(net,1), 3);
+		  switch (ivl_expr_value(parm2)) {
+		      case IVL_VT_REAL:
+			draw_eval_real(parm2);
+			fprintf(vvp_out, "    %%qinsert/o/real;\n");
+			break;
+		      case IVL_VT_STRING:
+			draw_eval_string(parm2);
+			fprintf(vvp_out, "    %%qinsert/o/str;\n");
+			break;
+		      case IVL_VT_CLASS:
+		      case IVL_VT_DARRAY:
+		      case IVL_VT_QUEUE:
+		      case IVL_VT_NO_TYPE:
+			draw_eval_object(parm2);
+			fprintf(vvp_out, "    %%qinsert/o/obj;\n");
+			break;
+		      default:
+			draw_eval_vec4(parm2);
+			fprintf(vvp_out, "    %%qinsert/o/v %u;\n",
+			        ivl_expr_width(parm2));
+			break;
+		  }
+		  return 0;
+	    }
+	    if (!warned_insert_non_signal) {
+		  fprintf(stderr, "Warning: insert requires signal, got expr type %d at %s:%u"
+			  " (further similar warnings suppressed)\n",
+			  ivl_expr_type(parm0), ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  warned_insert_non_signal = 1;
+	    }
+	    return 0;
+      }
       ivl_signal_t var = ivl_expr_signal(parm0);
       ivl_type_t var_type = ivl_signal_net_type(var);
       assert(ivl_type_base(var_type) == IVL_VT_QUEUE);
@@ -1714,6 +2187,14 @@ static int show_insert_method(ivl_statement_t net)
 	    fprintf(vvp_out, "    %%qinsert/str v%p_0, %d;\n",
 	            var, idx);
 	    break;
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    draw_eval_object(parm2);
+	    fprintf(vvp_out, "    %%qinsert/obj v%p_0, %d;\n",
+	            var, idx);
+	    break;
 	  default:
 	    draw_eval_vec4(parm2);
 	    fprintf(vvp_out, "    %%qinsert/v v%p_0, %d, %u;\n",
@@ -1726,6 +2207,7 @@ static int show_insert_method(ivl_statement_t net)
 
 static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 {
+      static int warned_push_non_signal = 0;
       const char*type_code;
       if (is_front) {
 	    show_stmt_file_line(net, "queue: push_front");
@@ -1736,11 +2218,54 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
       }
 
       unsigned parm_count = ivl_stmt_parm_count(net);
-      if (parm_count != 2)
-	    return 1;
+      if (parm_count != 2) {
+	    fprintf(stderr, "Warning: push_front/push_back expects 2 parameters at %s:%u; skipping\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 0;
+      }
 
       ivl_expr_t parm0 = ivl_stmt_parm(net,0);
-      assert(ivl_expr_type(parm0) == IVL_EX_SIGNAL);
+	      if (ivl_expr_type(parm0) != IVL_EX_SIGNAL) {
+		    if (show_queue_object_receiver(parm0) == 0) {
+			  ivl_expr_t parm1 = ivl_stmt_parm(net,1);
+			  if (!parm1) {
+				fprintf(stderr,
+					"Warning: push_front/push_back missing value expression at %s:%u; skipping\n",
+					ivl_stmt_file(net), ivl_stmt_lineno(net));
+				return 0;
+			  }
+			  switch (ivl_expr_value(parm1)) {
+		      case IVL_VT_REAL:
+			draw_eval_real(parm1);
+			fprintf(vvp_out, "    %%store/qo/%s/r;\n", type_code + 1);
+			break;
+		      case IVL_VT_STRING:
+			draw_eval_string(parm1);
+			fprintf(vvp_out, "    %%store/qo/%s/str;\n", type_code + 1);
+			break;
+		      case IVL_VT_CLASS:
+		      case IVL_VT_DARRAY:
+		      case IVL_VT_QUEUE:
+		      case IVL_VT_NO_TYPE:
+			draw_eval_object(parm1);
+			fprintf(vvp_out, "    %%store/qo/%s/obj;\n", type_code + 1);
+			break;
+		      default:
+			draw_eval_vec4(parm1);
+			fprintf(vvp_out, "    %%store/qo/%s/v %u;\n",
+			        type_code + 1, ivl_expr_width(parm1));
+			break;
+		  }
+		  return 0;
+	    }
+	    if (!warned_push_non_signal) {
+		  fprintf(stderr, "Warning: push_front/push_back requires signal, got expr type %d at %s:%u"
+			  " (further similar warnings suppressed)\n",
+			  ivl_expr_type(parm0), ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  warned_push_non_signal = 1;
+	    }
+	    return 0;
+      }
       ivl_signal_t var = ivl_expr_signal(parm0);
       ivl_type_t var_type = ivl_signal_net_type(var);
       assert(ivl_type_base(var_type) == IVL_VT_QUEUE);
@@ -1750,10 +2275,17 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 	/* Save the queue maximum index value to an integer register. */
       fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", idx, ivl_signal_array_count(var));
 
-      ivl_type_t element_type = ivl_type_element(var_type);
+	      ivl_type_t element_type = ivl_type_element(var_type);
 
-      ivl_expr_t parm1 = ivl_stmt_parm(net,1);
-      switch (ivl_type_base(element_type)) {
+	      ivl_expr_t parm1 = ivl_stmt_parm(net,1);
+	      if (!parm1) {
+		    fprintf(stderr,
+			    "Warning: push_front/push_back missing value expression at %s:%u; skipping\n",
+			    ivl_stmt_file(net), ivl_stmt_lineno(net));
+		    clr_word(idx);
+		    return 0;
+	      }
+	      switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
 	    draw_eval_real(parm1);
 	    fprintf(vvp_out, "    %%store/%s/r v%p_0, %d;\n",
@@ -1762,6 +2294,14 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 	  case IVL_VT_STRING:
 	    draw_eval_string(parm1);
 	    fprintf(vvp_out, "    %%store/%s/str v%p_0, %d;\n",
+	            type_code, var, idx);
+	    break;
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    draw_eval_object(parm1);
+	    fprintf(vvp_out, "    %%store/%s/obj v%p_0, %d;\n",
 	            type_code, var, idx);
 	    break;
 	  default:
@@ -1791,6 +2331,17 @@ static int show_system_task_call(ivl_statement_t net)
 
       if (strcmp(stmt_name,"$ivl_queue_method$push_back") == 0)
 	    return show_push_frontback_method(net, false);
+
+      if (strcmp(stmt_name, "$ivl_process$kill") == 0
+	  || strcmp(stmt_name, "$ivl_process$await") == 0) {
+	    ivl_expr_t recv = ivl_stmt_parm(net, 0);
+	    if (recv)
+		  draw_eval_object(recv);
+	    fprintf(vvp_out, "    %s;\n",
+		    strcmp(stmt_name, "$ivl_process$kill") == 0
+			  ? "%process/kill" : "%process/await");
+	    return 0;
+      }
 
       show_stmt_file_line(net, "System task call.");
 
@@ -2432,10 +2983,14 @@ int draw_task_definition(ivl_scope_t scope)
 {
       int rc = 0;
       ivl_statement_t def = ivl_scope_def(scope);
+      const char*label = vvp_mangle_id(ivl_scope_name(scope));
 
-      fprintf(vvp_out, "TD_%s ;\n", vvp_mangle_id(ivl_scope_name(scope)));
+      if (def == 0)
+	    return 0;
 
-      assert(def);
+      fprintf(vvp_out, "TD_%s ;\n", label);
+      note_td_definition(label);
+
       rc += show_statement(def, scope);
 
       fprintf(vvp_out, "    %%end;\n");
@@ -2448,10 +3003,14 @@ int draw_func_definition(ivl_scope_t scope)
 {
       int rc = 0;
       ivl_statement_t def = ivl_scope_def(scope);
+      const char*label = vvp_mangle_id(ivl_scope_name(scope));
 
-      fprintf(vvp_out, "TD_%s ;\n", vvp_mangle_id(ivl_scope_name(scope)));
+      if (def == 0)
+	    return 0;
 
-      assert(def);
+      fprintf(vvp_out, "TD_%s ;\n", label);
+      note_td_definition(label);
+
       rc += show_statement(def, scope);
 
       fprintf(vvp_out, "    %%end;\n");

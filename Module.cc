@@ -21,8 +21,10 @@
 
 # include  "Module.h"
 # include  "PGate.h"
+# include  "Statement.h"
 # include  "PWire.h"
 # include  "ivl_assert.h"
+# include  <algorithm>
 
 using namespace std;
 
@@ -41,6 +43,28 @@ Module::Module(LexicalScope*parent, perm_string n)
 
 Module::~Module()
 {
+      for (map<perm_string,PClocking*>::iterator cur = clocking_blocks.begin()
+		 ; cur != clocking_blocks.end() ; ++cur)
+	    delete cur->second;
+}
+
+Module::PClocking::PClocking(perm_string n, PEventStatement*evt)
+: name(n), event(evt)
+{
+}
+
+Module::PClocking::~PClocking()
+{
+      delete event;
+}
+
+bool Module::PClocking::add_signal(perm_string sig_name)
+{
+      if (find(signals.begin(), signals.end(), sig_name) != signals.end())
+	    return false;
+
+      signals.push_back(sig_name);
+      return true;
 }
 
 void Module::add_gate(PGate*gate)

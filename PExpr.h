@@ -438,7 +438,8 @@ class PEIdent : public PExpr {
       NetAssign_ *elaborate_lval_var_(Design *des, NetScope *scope,
 				      bool is_force, bool is_cassign,
 				      NetNet *reg, ivl_type_t data_type,
-				      pform_name_t tail_path) const;
+				      pform_name_t tail_path,
+				      const std::list<index_component_t>&base_index) const;
       NetAssign_*elaborate_lval_net_word_(Design*, NetScope*, NetNet*,
 					  bool need_const_idx, bool is_force) const;
       bool elaborate_lval_net_bit_(Design*, NetScope*, NetAssign_*,
@@ -449,9 +450,10 @@ class PEIdent : public PExpr {
                                    index_component_t::ctype_t,
 				   bool need_const_idx, bool is_force) const;
       NetAssign_*elaborate_lval_net_class_member_(Design*, NetScope*,
-						   const netclass_t *class_type,
+						   ivl_type_t root_type,
 						   NetNet*,
-						   pform_name_t) const;
+						   pform_name_t,
+						   const std::list<index_component_t>&base_index) const;
       bool elaborate_lval_net_packed_member_(Design*, NetScope*,
 					     NetAssign_*,
 					     pform_name_t member_path, bool is_force) const;
@@ -558,6 +560,32 @@ class PEIdent : public PExpr {
 			     long&midx, long&lidx) const;
 };
 
+class PEMemberAccess : public PExpr {
+
+    public:
+      explicit PEMemberAccess(PExpr*base, perm_string member_name);
+      ~PEMemberAccess() override;
+
+      virtual void dump(std::ostream&) const override;
+
+      virtual void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
+
+      virtual bool has_aa_term(Design*des, NetScope*scope) const override;
+
+      virtual unsigned test_width(Design*des, NetScope*scope,
+				  width_mode_t&mode) override;
+
+      virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
+				     ivl_type_t type, unsigned flags) const override;
+      virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
+				     unsigned expr_wid,
+				     unsigned flags) const override;
+
+    private:
+      PExpr*base_;
+      perm_string member_name_;
+};
+
 class PENewArray : public PExpr {
 
     public:
@@ -645,6 +673,30 @@ class PENull : public PExpr {
                                      unsigned flags) const override;
 };
 
+/*
+ * Placeholder used only in unpacked-dimension declarations to preserve
+ * associative-array index types through parsing.
+ */
+class PEAssocType : public PExpr {
+    public:
+      explicit PEAssocType(data_type_t*index_type);
+      ~PEAssocType() override;
+
+      inline data_type_t* index_type() { return index_type_.get(); }
+      inline const data_type_t* index_type() const { return index_type_.get(); }
+
+      virtual unsigned test_width(Design*des, NetScope*scope,
+				  width_mode_t&mode) override;
+      virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
+				     ivl_type_t type, unsigned flags) const override;
+      virtual NetExpr*elaborate_expr(Design*des, NetScope*,
+				     unsigned expr_wid,
+                                     unsigned flags) const override;
+
+    private:
+      std::unique_ptr<data_type_t> index_type_;
+};
+
 class PENumber : public PExpr {
 
     public:
@@ -684,7 +736,8 @@ class PEString : public PExpr {
       explicit PEString(char*s);
       ~PEString() override;
 
-      std::string value() const;
+      const std::string& value() const;
+      const verinum& parsed_value() const;
       virtual void dump(std::ostream&) const override;
 
       virtual unsigned test_width(Design*des, NetScope*scope,
@@ -697,7 +750,11 @@ class PEString : public PExpr {
 				       unsigned expr_wid, unsigned) const override;
 
     private:
-      char*text_;
+      std::string text_;
+      unsigned text_width_;
+      bool text_width_valid_;
+      mutable verinum parsed_value_cache_;
+      mutable bool parsed_value_valid_;
 };
 
 class PETypename : public PExpr {
@@ -706,12 +763,14 @@ class PETypename : public PExpr {
       ~PETypename() override;
 
       virtual void dump(std::ostream&) const override;
-      virtual unsigned test_width(Design*des, NetScope*scope,
-				  width_mode_t&mode) override;
-      virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
-				     ivl_type_t type, unsigned flags) const override;
+	      virtual unsigned test_width(Design*des, NetScope*scope,
+					  width_mode_t&mode) override;
+	      virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
+					     ivl_type_t type, unsigned flags) const override;
+	      virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
+					     unsigned expr_wid, unsigned flags) const override;
 
-      inline data_type_t* get_type() const { return data_type_; }
+	      inline data_type_t* get_type() const { return data_type_; }
 
     private:
       data_type_t*data_type_;
@@ -926,6 +985,11 @@ class PECallFunction : public PExpr {
 
       ~PECallFunction() override;
 
+      void set_leading_type_args(struct parmvalue_t*type_args)
+            { leading_type_args_ = type_args; }
+      const struct parmvalue_t* leading_type_args() const
+            { return leading_type_args_; }
+
       virtual void dump(std::ostream &) const override;
 
       virtual void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
@@ -944,6 +1008,7 @@ class PECallFunction : public PExpr {
     private:
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;
+      struct parmvalue_t*leading_type_args_ = 0;
 
         // For system functions.
       bool is_overridden_;

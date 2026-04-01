@@ -72,10 +72,11 @@ const char* StringHeap::add(const char*text)
 	      // realloc shrink of the memory region will return the
 	      // same pointer.
 	    if (rem > 0) {
-		  const char*old = cell_base_;
-		  cell_base_ = static_cast<char*>(realloc(cell_base_, cell_ptr_));
-		  assert(cell_base_ != 0);
-		  assert(cell_base_ == old);
+		  // Do NOT realloc to shrink. Other pointers in the
+		  // StringHeapLex hash may reference addresses inside
+		  // this cell. A realloc that moves the block would
+		  // invalidate those pointers (use-after-free).
+		  // Just abandon the remaining space.
 	    }
 	      // start new cell
 	    cell_base_ = static_cast<char*>(malloc(DEFAULT_CELL_SIZE));

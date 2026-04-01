@@ -241,6 +241,7 @@ struct ivl_expr_s {
       unsigned width_;
       unsigned signed_ : 1;
       unsigned sized_  : 1;
+      unsigned super_call_ : 1;
 
       union {
 	    struct {
@@ -351,6 +352,7 @@ struct ivl_expr_s {
 
 	    struct {
 		  ivl_signal_t sig;
+		  ivl_expr_t base;
 		  unsigned prop_idx;
 		  ivl_expr_t index;
 	    } property_;
@@ -491,10 +493,8 @@ struct ivl_lval_s {
       unsigned width_;
       unsigned type_   : 8; /* values from ivl_lval_type_t */
       int property_idx;
-      union {
-	    ivl_signal_t sig;
-	    ivl_lval_t  nest; // type_ == IVL_LVAL_LVAL
-      } n;
+      ivl_signal_t sig;
+      ivl_lval_t nest;
 };
 
 /*
@@ -750,6 +750,7 @@ struct ivl_signal_s {
 	// This is the type for the signal
       ivl_type_t net_type;
       unsigned local_  : 1;
+      unsigned lifetime_override_ : 2;
 
       unsigned forced_net_ : 1;
 
@@ -875,6 +876,7 @@ struct ivl_statement_s {
 
 	    struct { /* IVL_ST_UTASK */
 		  ivl_scope_t def;
+		  unsigned super_call;
 	    } utask_;
 
 	    struct { /* IVL_ST_TRIGGER IVL_ST_NB_TRIGGER IVL_ST_WAIT */

@@ -113,6 +113,8 @@ extern vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx);
  * of the currently running thread.
  */
 extern vvp_context_item_t vthread_get_rd_context_item(unsigned context_idx);
+extern vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx,
+                                                             __vpiScope*scope);
 
 /*
  * Access value stacks from thread space.
@@ -124,14 +126,19 @@ extern void vthread_push(struct vthread_s*thr, double val);
 extern void vthread_pop_vec4(struct vthread_s*thr, unsigned count);
 extern void vthread_pop_str(struct vthread_s*thr, unsigned count);
 extern void vthread_pop_real(struct vthread_s*thr, unsigned count);
+extern void vthread_pop_obj(struct vthread_s*thr, unsigned count);
 
 
-/* Get the string from the requested position in the vthread string
+/* Get/set the string from/to the requested position in the vthread string
    stack. The top of the stack is depth==0, and items below are
    depth==1, etc. */
 extern const std::string&vthread_get_str_stack(struct vthread_s*thr, unsigned depth);
+extern void vthread_set_str_stack(struct vthread_s*thr, unsigned depth, const std::string&val);
 extern double vthread_get_real_stack(struct vthread_s*thr, unsigned depth);
 extern const vvp_vector4_t& vthread_get_vec4_stack(struct vthread_s*thr, unsigned depth);
+extern void vthread_set_vec4_stack(struct vthread_s*thr, unsigned depth, const vvp_vector4_t&val);
+extern const vvp_object_t& vthread_get_obj_stack(struct vthread_s*thr, unsigned depth);
+extern void vthread_set_obj_stack(struct vthread_s*thr, unsigned depth, const vvp_object_t&val);
 
 /* This is used to actually delete a thread once we are done with it. */
 extern void vthread_delete(vthread_t thr);

@@ -80,8 +80,10 @@ class PWire : public PNamedItem {
       void set_range(const std::list<pform_range_t>&ranges, PWSRType type);
 
       void set_unpacked_idx(const std::list<pform_range_t>&ranges);
+      const std::list<pform_range_t>& unpacked_indices() const { return unpacked_; }
 
       void set_data_type(data_type_t*type);
+      const data_type_t* data_type() const { return set_data_type_.get(); }
 
       void set_discipline(ivl_discipline_t);
       ivl_discipline_t get_discipline(void) const;
@@ -92,6 +94,7 @@ class PWire : public PNamedItem {
       void dump(std::ostream&out, unsigned ind=4) const;
 
       NetNet* elaborate_sig(Design*, NetScope*scope);
+      ivl_type_t elaborate_sig_type(Design*des, NetScope*scope) const;
 
       SymbolType symbol_type() const override;
 
@@ -100,12 +103,16 @@ class PWire : public PNamedItem {
       void set_net(NetNet::Type t);
       void set_port(NetNet::PortType pt);
 
+      ivl_lifetime_t lifetime_override() const { return lifetime_override_; }
+      void lifetime_override(ivl_lifetime_t val) { lifetime_override_ = val; }
+
     private:
       perm_string name_;
       unsigned lexical_pos_;
       NetNet::Type type_;
       NetNet::PortType port_type_;
       bool signed_;
+      ivl_lifetime_t lifetime_override_ = IVL_VLT_INHERITED;
 
         // Whether the wire is variable declared with the const keyword.
       bool is_const_ = false;

@@ -99,6 +99,21 @@ __vpiBaseVar::__vpiBaseVar(__vpiScope*scope, const char*name, vvp_net_t*net)
 {
 }
 
+char* __vpiBaseVar::vpi_get_str(int code)
+{
+      return generic_get_str(code, scope_, name_, NULL);
+}
+
+vpiHandle __vpiBaseVar::vpi_handle(int code)
+{
+      switch (code) {
+	  case vpiScope:
+	    return scope_;
+	  default:
+	    return 0;
+      }
+}
+
 #ifdef CHECK_WITH_VALGRIND
 __vpiBaseVar::~__vpiBaseVar()
 {

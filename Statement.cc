@@ -21,6 +21,7 @@
 
 # include  "Statement.h"
 # include  "PExpr.h"
+# include  "pform.h"
 # include  "ivl_assert.h"
 
 using namespace std;
@@ -135,6 +136,23 @@ PChainConstructor* PBlock::extract_chain_constructor()
 	    return res;
       }
 
+	// Some parser paths represent `super.new(...)` as a plain task call.
+	// Detect and canonicalize that first statement into a chain constructor
+	// so constructor arguments are preserved.
+      if (PCallTask*call = dynamic_cast<PCallTask*>(list_[0])) {
+	    const pform_name_t&path = call->path();
+	    if (peek_head_name(path) == perm_string::literal(SUPER_TOKEN)
+		&& peek_tail_name(path) == perm_string::literal("new")) {
+		  PChainConstructor*res = new PChainConstructor(call->parms());
+		  res->set_line(*call);
+		  delete call;
+		  for (size_t idx = 0 ; idx < list_.size()-1 ; idx += 1)
+			list_[idx] = list_[idx+1];
+		  list_.resize(list_.size()-1);
+		  return res;
+	    }
+      }
+
       return 0;
 }
 
@@ -184,6 +202,7 @@ PCallTask::PCallTask(perm_string n, const list<named_pexpr_t> &p)
 
 PCallTask::~PCallTask()
 {
+      delete_parmvalue(leading_type_args_);
 }
 
 const pform_name_t& PCallTask::path() const
@@ -330,8 +349,10 @@ PForce::~PForce()
       delete expr_;
 }
 
-PForeach::PForeach(perm_string av, const list<perm_string>&ix, Statement*s)
-: array_var_(av), index_vars_(ix.begin(), ix.end()), statement_(s)
+PForeach::PForeach(const pform_name_t&av, const list<perm_string>&ix,
+		   Statement*s, unsigned lexical_pos)
+: array_path_(av), index_vars_(ix.begin(), ix.end()), statement_(s),
+  lexical_pos_(lexical_pos)
 {
 }
 

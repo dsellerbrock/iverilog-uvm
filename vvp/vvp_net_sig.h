@@ -30,11 +30,15 @@
 # include  <new>
 # include  <cassert>
 
+class class_type;
+
 #ifdef HAVE_IOSFWD
 # include  <iosfwd>
 #else
 # include  <iostream>
 #endif
+
+class __vpiScope;
 
 /* vvp_fun_signal
  * This node is the place holder in a vvp network for signals,
@@ -187,10 +191,11 @@ class vvp_fun_signal4_aa : public vvp_fun_signal_vec, public automatic_signal_ba
       static void* operator new(std::size_t size) { return vvp_net_fun_t::heap_.alloc(size); }
       static void operator delete(void*obj);
 
-    private:
-      unsigned context_idx_;
-      unsigned size_;
-      vvp_bit4_t init_;
+	    private:
+	      __vpiScope*context_scope_;
+	      unsigned context_idx_;
+	      unsigned size_;
+	      vvp_bit4_t init_;
 };
 
 class vvp_fun_signal_real : public vvp_fun_signal_base {
@@ -254,6 +259,7 @@ class vvp_fun_signal_real_aa : public vvp_fun_signal_real, public automatic_sign
       static void operator delete(void*obj);
 
     private:
+      __vpiScope*context_scope_;
       unsigned context_idx_;
 };
 
@@ -314,6 +320,7 @@ class vvp_fun_signal_string_aa : public vvp_fun_signal_string, public automatic_
       static void operator delete(void*obj);
 
     private:
+      __vpiScope*context_scope_;
       unsigned context_idx_;
 };
 
@@ -341,8 +348,10 @@ class vvp_fun_signal_object_sa : public vvp_fun_signal_object {
 
       vvp_object_t get_object() const override;
 
+      class_type* init_defn_;
+
     private:
-      vvp_object_t value_;
+      mutable vvp_object_t value_;
 };
 
 /*
@@ -373,11 +382,14 @@ class vvp_fun_signal_object_aa : public vvp_fun_signal_object, public automatic_
 
       vvp_object_t get_object() const override;
 
+      class_type* init_defn_;
+
     public: // These objects are only permallocated.
       static void* operator new(std::size_t size);
       static void operator delete(void*obj);
 
     private:
+      __vpiScope*context_scope_;
       unsigned context_idx_;
 };
 

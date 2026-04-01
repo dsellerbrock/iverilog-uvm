@@ -60,6 +60,14 @@ void PTaskFunc::set_this(class_type_t*type, PWire*this_wire)
       ports_->at(0) = pform_tf_port_t(this_wire);
 }
 
+void PTaskFunc::set_method_type_only(class_type_t*type)
+{
+      if (this_type_ == 0)
+	    this_type_ = type;
+      else
+	    ivl_assert(*this, this_type_ == type);
+}
+
 PTask::PTask(perm_string name, LexicalScope*parent, bool is_auto__)
 : PTaskFunc(name, parent), statement_(0)
 {

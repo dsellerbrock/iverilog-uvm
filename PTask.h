@@ -46,6 +46,7 @@ class PTaskFunc : public PScope, public PNamedItem {
       void set_ports(std::vector<pform_tf_port_t>*p);
 
       void set_this(class_type_t*use_type, PWire*this_wire);
+      void set_method_type_only(class_type_t*use_type);
 
 	// If this task is a method of a class, this returns a pointer
 	// to the class type.
@@ -83,6 +84,8 @@ class PTask  : public PTaskFunc {
       ~PTask() override;
 
       void set_statement(Statement *s);
+      inline Statement* get_statement() { return statement_; }
+      inline const Statement* get_statement() const { return statement_; }
 
 	// Tasks introduce scope, to need to be handled during the
 	// scope elaboration pass. The scope passed is my scope,
@@ -128,6 +131,7 @@ class PFunction : public PTaskFunc {
       void set_return(data_type_t*t);
 
       inline Statement* get_statement() { return statement_; }
+      inline const Statement* get_statement() const { return statement_; }
 
 	// Push this statement to the front of the existing
 	// definition. If the statement is a simple statement, make a

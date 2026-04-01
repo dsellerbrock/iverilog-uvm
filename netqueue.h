@@ -30,7 +30,7 @@
 class netqueue_t : public netdarray_t {
 
     public:
-      explicit netqueue_t(ivl_type_t vec, long max_idx);
+      explicit netqueue_t(ivl_type_t vec, long max_idx, bool assoc_compat = false);
       ~netqueue_t() override;
 
 	// This is the "base_type()" virtual method of the
@@ -39,11 +39,13 @@ class netqueue_t : public netdarray_t {
       ivl_variable_type_t base_type() const override;
 
       long max_idx(void) const { return max_idx_; }
+      bool assoc_compat(void) const { return assoc_compat_; }
 
       std::ostream& debug_dump(std::ostream&) const override;
 
     private:
       long max_idx_;
+      bool assoc_compat_;
 };
 
 #endif

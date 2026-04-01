@@ -79,7 +79,7 @@ extern const char* direction_as_string(int dir);
 /*
  * Private VPI properties that are only used in the cleanup code.
  */
-#if defined(CHECK_WITH_VALGRIND) && !defined(BR916_STOPGAP_FIX)
+#if defined(CHECK_WITH_VALGRIND) || defined(BR916_STOPGAP_FIX)
 #define _vpiFromThr 0x1000001
 #   define _vpiNoThr   0
 #   define _vpiString  1
@@ -88,6 +88,7 @@ extern const char* direction_as_string(int dir);
 #   define _vpi_at_PV  4
 #   define _vpi_at_A   5
 #   define _vpi_at_APV 6
+#   define _vpiObj     7
 #endif
 
 
@@ -702,6 +703,8 @@ class __vpiBaseVar : public __vpiHandle {
 #ifdef CHECK_WITH_VALGRIND
       ~__vpiBaseVar() override;
 #endif
+      char* vpi_get_str(int code) override;
+      vpiHandle vpi_handle(int code) override;
 
       inline vvp_net_t* get_net() const { return net_; }
 
@@ -890,6 +893,7 @@ class __vpiCobjectVar : public __vpiBaseVar {
       int get_type_code(void) const override;
       int vpi_get(int code) override;
       void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
 };
 
 extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net);
@@ -935,6 +939,7 @@ struct __vpiSysTaskCall : public __vpiHandle {
       unsigned vec4_stack;
       unsigned real_stack;
       unsigned string_stack;
+      unsigned object_stack;
 	/* Support for vpi_get_userdata. */
       void*userdata;
 	// This is set if this is a structural call to a function
@@ -948,6 +953,7 @@ struct __vpiSysTaskCall : public __vpiHandle {
 	    vec4_stack = 0;
 	    real_stack = 0;
 	    string_stack = 0;
+	    object_stack = 0;
       }
 };
 
@@ -1016,6 +1022,7 @@ vpiHandle vpip_make_null_const();
 vpiHandle vpip_make_vthr_word(unsigned base, const char*type);
 vpiHandle vpip_make_vthr_str_stack(unsigned depth);
 vpiHandle vpip_make_vthr_vec4_stack(unsigned depth, bool signed_flag, unsigned wid);
+vpiHandle vpip_make_vthr_obj_stack(unsigned depth);
 
 vpiHandle vpip_make_vthr_A(char*label, unsigned index);
 vpiHandle vpip_make_vthr_A(char*label, char*symbol);
@@ -1063,6 +1070,7 @@ extern vpiHandle vpip_build_vpi_call(const char*name,
 				     unsigned vec4_stack,
 				     unsigned real_stack,
 				     unsigned string_stack,
+				     unsigned object_stack,
 				     long file_idx,
 				     long lineno);
 

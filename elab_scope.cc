@@ -27,6 +27,10 @@
 # include  <iostream>
 # include  <cstdlib>
 # include  <cstdio>
+# include  <sstream>
+# include  <set>
+# include  <algorithm>
+# include  <ctime>
 
 /*
  * Elaboration happens in two passes, generally. The first scans the
@@ -47,6 +51,7 @@
 # include  "PWire.h"
 # include  "Statement.h"
 # include  "AStatement.h"
+# include  "pform.h"
 # include  "netlist.h"
 # include  "netclass.h"
 # include  "netenum.h"
@@ -58,6 +63,213 @@
 
 using namespace std;
 
+static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass);
+
+struct specialization_perf_metrics_t {
+      specialization_perf_metrics_t()
+      : enabled(false), initialized(false), start_time(0), last_report(0),
+	cache_hits(0), cache_misses(0), created(0), pending_peak(0), flushes(0),
+	ops_since_report(0)
+      {
+      }
+
+      bool enabled;
+      bool initialized;
+      time_t start_time;
+      time_t last_report;
+      unsigned long long cache_hits;
+      unsigned long long cache_misses;
+      unsigned long long created;
+      unsigned long long pending_peak;
+      unsigned long long flushes;
+      unsigned long long ops_since_report;
+      std::map<std::string,unsigned long long> miss_by_base;
+};
+
+static specialization_perf_metrics_t specialization_perf_state_;
+
+typedef std::pair<std::string,unsigned long long> specialization_perf_count_t;
+
+static specialization_perf_metrics_t& specialization_perf_metrics_()
+{
+      specialization_perf_metrics_t&metrics = specialization_perf_state_;
+      if (!metrics.initialized) {
+	    const char*trace = getenv("IVL_PERF_TRACE");
+	    metrics.enabled = (trace && *trace);
+	    metrics.initialized = true;
+	    metrics.start_time = time(0);
+      }
+      return metrics;
+}
+
+static std::string specialization_perf_base_label_(const netclass_t*base_class)
+{
+      if (!base_class)
+	    return "(null)";
+
+      if (const NetScope*base_scope = base_class->class_scope()) {
+	    if (const PClass*pclass = base_scope->class_pform()) {
+		  std::ostringstream tmp;
+		  if (NetScope*definition_scope =
+		      const_cast<netclass_t*>(base_class)->definition_scope()) {
+			tmp << scope_path(definition_scope) << "::";
+		  }
+		  tmp << pclass->pscope_name();
+		  return tmp.str();
+	    }
+
+	    std::ostringstream tmp;
+	    tmp << scope_path(base_scope);
+	    return tmp.str();
+      }
+
+      if (perm_string name = base_class->get_name())
+	    return name.str();
+
+      std::ostringstream tmp;
+      tmp << "(class@" << (const void*)base_class << ")";
+      return tmp.str();
+}
+
+static bool specialization_perf_count_cmp_(const specialization_perf_count_t&lhs,
+					   const specialization_perf_count_t&rhs)
+{
+      if (lhs.second != rhs.second)
+	    return lhs.second > rhs.second;
+      return lhs.first < rhs.first;
+}
+
+static void maybe_report_specialization_perf_top_misses_(
+		const specialization_perf_metrics_t&metrics)
+{
+      if (metrics.miss_by_base.empty())
+	    return;
+
+      std::vector<specialization_perf_count_t> top_counts;
+      top_counts.reserve(metrics.miss_by_base.size());
+      for (std::map<std::string,unsigned long long>::const_iterator cur =
+		     metrics.miss_by_base.begin()
+		 ; cur != metrics.miss_by_base.end() ; ++cur)
+	    top_counts.push_back(*cur);
+
+      size_t limit = 5;
+      if (top_counts.size() > limit) {
+	    std::partial_sort(top_counts.begin(), top_counts.begin()+limit,
+			      top_counts.end(),
+			      specialization_perf_count_cmp_);
+      } else {
+	    std::sort(top_counts.begin(), top_counts.end(),
+		      specialization_perf_count_cmp_);
+      }
+
+      cerr << "ivl-perf-top-misses:";
+      for (size_t idx = 0 ; idx < top_counts.size() && idx < limit ; ++idx) {
+	    cerr << (idx? ", " : " ");
+	    cerr << top_counts[idx].first << "=" << top_counts[idx].second;
+      }
+      cerr << endl;
+}
+
+static void maybe_report_specialization_perf_(bool force = false)
+{
+      specialization_perf_metrics_t&metrics = specialization_perf_metrics_();
+      if (!metrics.enabled)
+	    return;
+
+      time_t now = time(0);
+      if (!force) {
+	    if (metrics.ops_since_report < 1024)
+		  return;
+	    if (metrics.last_report != 0 && now == metrics.last_report)
+		  return;
+      }
+
+      metrics.last_report = now;
+      metrics.ops_since_report = 0;
+      unsigned long long elapsed = 0;
+      if (metrics.start_time != 0 && now >= metrics.start_time)
+	    elapsed = now - metrics.start_time;
+
+      cerr << "ivl-perf: t=" << elapsed << "s"
+	   << " specialization_ops=" << (metrics.cache_hits + metrics.cache_misses)
+	   << " hits=" << metrics.cache_hits
+	   << " misses=" << metrics.cache_misses
+	   << " created=" << metrics.created
+	   << " miss_families=" << metrics.miss_by_base.size()
+	   << " pending_peak=" << metrics.pending_peak
+	   << " flushes=" << metrics.flushes
+	   << endl;
+      maybe_report_specialization_perf_top_misses_(metrics);
+}
+
+static void maybe_report_specialization_pending_body_(
+		size_t done, size_t total, const netclass_t*cls)
+{
+      specialization_perf_metrics_t&metrics = specialization_perf_metrics_();
+      if (!metrics.enabled)
+	    return;
+
+      time_t now = time(0);
+      unsigned long long elapsed = 0;
+      if (metrics.start_time != 0 && now >= metrics.start_time)
+	    elapsed = now - metrics.start_time;
+
+      cerr << "ivl-perf-pending: t=" << elapsed << "s"
+	   << " done=" << done << "/" << total
+	   << " class=" << specialization_perf_base_label_(cls)
+	   << endl;
+}
+
+static void note_specialization_cache_hit_()
+{
+      specialization_perf_metrics_t&metrics = specialization_perf_metrics_();
+      if (!metrics.enabled)
+	    return;
+
+      metrics.cache_hits += 1;
+      metrics.ops_since_report += 1;
+      maybe_report_specialization_perf_();
+}
+
+static void note_specialization_cache_miss_(const netclass_t*base_class)
+{
+      specialization_perf_metrics_t&metrics = specialization_perf_metrics_();
+      if (!metrics.enabled)
+	    return;
+
+      metrics.cache_misses += 1;
+      metrics.created += 1;
+      metrics.ops_since_report += 1;
+      metrics.miss_by_base[specialization_perf_base_label_(base_class)] += 1;
+      maybe_report_specialization_perf_();
+}
+
+static void note_specialization_pending_peak_(size_t pending_size)
+{
+      specialization_perf_metrics_t&metrics = specialization_perf_metrics_();
+      if (!metrics.enabled)
+	    return;
+
+      if (pending_size > metrics.pending_peak)
+	    metrics.pending_peak = pending_size;
+}
+
+static void note_specialization_flush_()
+{
+      specialization_perf_metrics_t&metrics = specialization_perf_metrics_();
+      if (!metrics.enabled)
+	    return;
+
+      metrics.flushes += 1;
+      maybe_report_specialization_perf_(true);
+}
+
+struct visible_pclass_match_t {
+      visible_pclass_match_t() : pclass(0), owner_scope(0) { }
+      PClass*pclass;
+      NetScope*owner_scope;
+};
+
 void set_scope_timescale(Design*des, NetScope*scope, const PScope*pscope)
 {
       scope->time_unit(pscope->time_unit);
@@ -67,6 +279,9 @@ void set_scope_timescale(Design*des, NetScope*scope, const PScope*pscope)
 }
 
 typedef map<perm_string,LexicalScope::param_expr_t*>::const_iterator mparm_it_t;
+
+static void elaborate_scope_events_(Design*des, NetScope*scope,
+                                    const map<perm_string,PEvent*>&events);
 
 static void collect_parm_item(Design*des, NetScope*scope, perm_string name,
 			      const LexicalScope::param_expr_t&cur,
@@ -443,8 +658,22 @@ static void blend_class_constructors(PClass*pclass)
 	// then blend the implicit constructor into the explicit
 	// constructor. This eases the task for the elaborator later.
       if (use_new && use_new2) {
-	      // These constructors must be methods of the same class.
-	    ivl_assert(*use_new, use_new->method_of() == use_new2->method_of());
+	      // Compile-progress recovery: if the explicit constructor lost
+	      // method metadata, copy the class-method type from the implicit
+	      // initializer constructor before blending statements.
+	    if (!use_new->method_of() && use_new2->method_of()) {
+		  use_new->set_method_type_only(use_new2->method_of());
+		  use_new->set_return(use_new2->method_of());
+	    }
+
+	      // Some SV/UVM parser recovery paths can leave method metadata
+	      // incomplete for one of the constructors. Warn and continue the
+	      // merge instead of aborting the entire compile.
+	    if (use_new->method_of() != use_new2->method_of()) {
+		  cerr << use_new->get_fileline()
+		       << ": warning: constructor merge saw mismatched method class metadata."
+		       << endl;
+	    }
 
 	    Statement*def_new = use_new->get_statement();
 	    Statement*def_new2 = use_new2->get_statement();
@@ -475,8 +704,746 @@ static void blend_class_constructors(PClass*pclass)
       }
 }
 
+static visible_pclass_match_t find_visible_pclass_here_(Design*des,
+							NetScope*owner_scope,
+							LexicalScope*scope,
+							perm_string name)
+{
+      visible_pclass_match_t match;
+      if (!scope)
+	    return match;
+
+      if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope)) {
+	    auto cls = scopex->classes.find(name);
+	    if (cls != scopex->classes.end()) {
+		  match.pclass = cls->second;
+		  match.owner_scope = owner_scope;
+		  return match;
+	    }
+      }
+
+      auto imp = scope->explicit_imports.find(name);
+      if (imp != scope->explicit_imports.end()) {
+	    PPackage*pkg = imp->second;
+	    auto cls = pkg->classes.find(name);
+	    if (cls != pkg->classes.end()) {
+		  match.pclass = cls->second;
+		  match.owner_scope = des->find_package(pkg->pscope_name());
+		  return match;
+	    }
+      }
+
+      for (PPackage*pkg : scope->potential_imports) {
+	    auto cls = pkg->classes.find(name);
+	    if (cls != pkg->classes.end()) {
+		  match.pclass = cls->second;
+		  match.owner_scope = des->find_package(pkg->pscope_name());
+		  return match;
+	    }
+      }
+
+      return match;
+}
+
+netclass_t* ensure_visible_class_type(Design*des, NetScope*scope, perm_string name)
+{
+      if (!des || !scope || name.nil())
+	    return 0;
+
+      if (netclass_t*cls = scope->find_class(des, name))
+	    return cls;
+
+      if (netclass_t*cls = builtin_class_type(name))
+	    return cls;
+
+      NetScope*owner_scope = 0;
+      LexicalScope*lex_scope = 0;
+      for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    if (const PFunction*pfunc = cur->func_pform()) {
+		  owner_scope = cur;
+		  lex_scope = const_cast<PFunction*>(pfunc);
+		  break;
+	    }
+	    if (const PClass*pclass = cur->class_pform()) {
+		  owner_scope = cur;
+		  lex_scope = const_cast<PClass*>(pclass);
+		  break;
+	    }
+      }
+
+      while (owner_scope && lex_scope) {
+	    visible_pclass_match_t match =
+		  find_visible_pclass_here_(des, owner_scope, lex_scope, name);
+	    if (match.pclass) {
+		  if (match.owner_scope)
+			elaborate_scope_class(des, match.owner_scope, match.pclass);
+		  break;
+	    }
+
+	    owner_scope = owner_scope->parent();
+	    lex_scope = lex_scope->parent_scope();
+      }
+
+      return scope->find_class(des, name);
+}
+
+static std::string parmvalue_cache_key_(Design*des, NetScope*call_scope,
+					const parmvalue_t*overrides);
+static void append_cache_data_type_key_(Design*des, NetScope*call_scope,
+					std::ostringstream&out,
+					const data_type_t*type);
+
+static const std::string& cached_scope_path_(const NetScope*scope)
+{
+      static std::map<const NetScope*,std::string> cache;
+
+      if (!scope) {
+	    static const std::string empty;
+	    return empty;
+      }
+
+      std::map<const NetScope*,std::string>::iterator it = cache.find(scope);
+      if (it != cache.end())
+	    return it->second;
+
+      std::ostringstream out;
+      out << scope_path(scope);
+      return cache.insert(std::make_pair(scope, out.str())).first->second;
+}
+
+static const std::string& cached_pexpr_dump_(const PExpr*expr)
+{
+      static std::map<const PExpr*,std::string> cache;
+
+      if (!expr) {
+	    static const std::string empty;
+	    return empty;
+      }
+
+      std::map<const PExpr*,std::string>::iterator it = cache.find(expr);
+      if (it != cache.end())
+	    return it->second;
+
+      std::ostringstream out;
+      out << *expr;
+      return cache.insert(std::make_pair(expr, out.str())).first->second;
+}
+
+static const std::string& cached_netexpr_dump_(const NetExpr*expr)
+{
+      static std::map<const NetExpr*,std::string> cache;
+
+      if (!expr) {
+	    static const std::string empty;
+	    return empty;
+      }
+
+      std::map<const NetExpr*,std::string>::iterator it = cache.find(expr);
+      if (it != cache.end())
+	    return it->second;
+
+      std::ostringstream out;
+      out << *expr;
+      return cache.insert(std::make_pair(expr, out.str())).first->second;
+}
+
+static const std::string& cached_type_dump_(ivl_type_t type)
+{
+      static std::map<ivl_type_t,std::string> cache;
+
+      if (!type) {
+	    static const std::string empty;
+	    return empty;
+      }
+
+      std::map<ivl_type_t,std::string>::iterator it = cache.find(type);
+      if (it != cache.end())
+	    return it->second;
+
+      std::ostringstream out;
+      type->debug_dump(out);
+      return cache.insert(std::make_pair(type, out.str())).first->second;
+}
+
+static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
+				       ivl_type_t type,
+				       std::set<ivl_type_t>&active)
+{
+      if (!type) {
+	    out << "<nil-ivl-type>";
+	    return;
+      }
+
+      if (!active.insert(type).second) {
+	    if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(type))
+		  out << "<type-cycle:" << specialization_perf_base_label_(class_type) << ">";
+	    else
+		  out << "<type-cycle:" << cached_type_dump_(type) << ">";
+	    return;
+      }
+
+      if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(type)) {
+	    out << "<class-type:" << specialization_perf_base_label_(class_type);
+	    const NetScope*class_scope = class_type->class_scope();
+	    const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
+	    if (class_scope && pclass && !pclass->parameter_order.empty()) {
+		  out << "(";
+		  bool first = true;
+		  for (std::list<perm_string>::const_iterator cur =
+			       pclass->parameter_order.begin()
+			     ; cur != pclass->parameter_order.end() ; ++cur) {
+			if (!first)
+			      out << ",";
+			first = false;
+			out << *cur << "=";
+			ivl_type_t parm_type = 0;
+			const NetExpr*parm_expr =
+			      const_cast<NetScope*>(class_scope)->get_parameter(des,
+								    *cur,
+								    parm_type);
+			if (parm_type)
+			      append_cache_ivl_type_key_(des, out, parm_type, active);
+			else if (parm_expr)
+			      out << cached_netexpr_dump_(parm_expr);
+			else
+			      out << "<unset>";
+		  }
+		  out << ")";
+	    }
+	    out << ">";
+	    active.erase(type);
+	    return;
+      }
+
+      out << cached_type_dump_(type);
+      active.erase(type);
+}
+
+static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
+				       ivl_type_t type)
+{
+      std::set<ivl_type_t> active;
+      append_cache_ivl_type_key_(des, out, type, active);
+}
+
+static bool expr_cache_key_needs_scope_(const PExpr*expr)
+{
+      if (!expr)
+	    return false;
+
+      if (dynamic_cast<const PENumber*>(expr))
+	    return false;
+      if (dynamic_cast<const PEFNumber*>(expr))
+	    return false;
+      if (dynamic_cast<const PEString*>(expr))
+	    return false;
+      if (dynamic_cast<const PENull*>(expr))
+	    return false;
+
+      return true;
+}
+
+static NetScope* specialization_key_scope_(NetScope*call_scope)
+{
+      if (!call_scope)
+	    return 0;
+
+      if (const NetScope*class_scope = call_scope->get_class_scope())
+	    return const_cast<NetScope*>(class_scope);
+
+      return call_scope;
+}
+
+static const std::string& cached_data_type_dump_(const data_type_t*type)
+{
+      static std::map<const data_type_t*,std::string> cache;
+
+      if (!type) {
+	    static const std::string empty;
+	    return empty;
+      }
+
+      std::map<const data_type_t*,std::string>::iterator it = cache.find(type);
+      if (it != cache.end())
+	    return it->second;
+
+      std::ostringstream out;
+      type->debug_dump(out);
+      return cache.insert(std::make_pair(type, out.str())).first->second;
+}
+
+static bool append_cache_typedef_alias_key_(Design*des, NetScope*call_scope,
+					    std::ostringstream&out,
+					    typedef_t*td)
+{
+      static std::set<const typedef_t*> active;
+      static const perm_string k_common_type = perm_string::literal("common_type");
+
+      if (!td || td->name != k_common_type)
+	    return false;
+
+      const data_type_t*alias_type = td->get_data_type();
+      if (!alias_type)
+	    return false;
+
+      if (!active.insert(td).second)
+	    return false;
+
+      out << "<typedef-alias:" << td->name << "=";
+      append_cache_data_type_key_(des, call_scope, out, alias_type);
+      out << ">";
+      active.erase(td);
+      return true;
+}
+
+static void append_cache_expr_key_(Design*des, NetScope*call_scope,
+				   std::ostringstream&out,
+				   const PExpr*expr)
+{
+      call_scope = specialization_key_scope_(call_scope);
+
+      if (!expr)
+	    return;
+
+      if (const PETypename*type_expr = dynamic_cast<const PETypename*>(expr)) {
+	    out << "<typename:";
+	    append_cache_data_type_key_(des, call_scope, out, type_expr->get_type());
+	    out << ">";
+	    return;
+      }
+
+      if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+	    const pform_scoped_name_t&path = ident->path();
+	    if (call_scope && path.package == 0 && path.name.size() == 1 &&
+	        path.name.front().index.empty()) {
+		  perm_string ident_name = path.name.front().name;
+		  ivl_type_t resolved_type = 0;
+		  const NetExpr*resolved_expr =
+			call_scope->get_parameter(des, ident_name, resolved_type);
+		  if (resolved_expr || resolved_type) {
+			out << "<resolved-ident:" << ident_name;
+			if (resolved_type) {
+			      out << ":type=";
+			      append_cache_ivl_type_key_(des, out, resolved_type);
+			}
+			if (resolved_expr)
+			      out << ":value=" << cached_netexpr_dump_(resolved_expr);
+			out << ">";
+			return;
+		  }
+	    }
+      }
+
+      out << cached_pexpr_dump_(expr);
+
+      // Keep cache entries scope-sensitive only for expressions that we
+      // could not canonicalize to resolved parameter/type values.
+      if (call_scope && expr_cache_key_needs_scope_(expr))
+	    out << "@scope=" << cached_scope_path_(call_scope);
+}
+
+static void append_cache_data_type_key_(Design*des, NetScope*call_scope,
+					std::ostringstream&out,
+					const data_type_t*type)
+{
+      call_scope = specialization_key_scope_(call_scope);
+
+      if (!type) {
+	    out << "<nil>";
+	    return;
+      }
+
+      if (const typeref_t*type_ref = dynamic_cast<const typeref_t*>(type)) {
+	    if (typedef_t*td = type_ref->typedef_ref()) {
+		  if (append_cache_typedef_alias_key_(des, call_scope, out, td)) {
+			if (const parmvalue_t*overrides = type_ref->parameter_values())
+			      out << parmvalue_cache_key_(des, call_scope, overrides);
+			return;
+		  }
+	    }
+
+	    if (call_scope && type_ref->scope_ref() == 0) {
+		  if (typedef_t*td = type_ref->typedef_ref()) {
+			ivl_type_t resolved_type = 0;
+			call_scope->get_parameter(des, td->name, resolved_type);
+			if (resolved_type) {
+			      out << "<resolved-typeref:" << td->name << "=";
+			      append_cache_ivl_type_key_(des, out, resolved_type);
+			      if (const parmvalue_t*overrides = type_ref->parameter_values())
+				    out << parmvalue_cache_key_(des, call_scope, overrides);
+			      out << ">";
+			      return;
+			}
+		  }
+	    }
+
+	    if (type_ref->scope_ref())
+		  out << type_ref->scope_ref()->pscope_name() << "::";
+	    if (typedef_t*td = type_ref->typedef_ref())
+		  out << td->name;
+	    else
+		  out << "<anon-typeref>";
+	    if (const parmvalue_t*overrides = type_ref->parameter_values())
+		  out << parmvalue_cache_key_(des, call_scope, overrides);
+	    return;
+      }
+
+      if (const type_parameter_t*type_param = dynamic_cast<const type_parameter_t*>(type)) {
+	    out << "typeparam:" << type_param->name;
+	    if (call_scope) {
+		  ivl_type_t resolved_type = 0;
+		  call_scope->get_parameter(des, type_param->name, resolved_type);
+		  if (resolved_type) {
+			out << "=";
+			append_cache_ivl_type_key_(des, out, resolved_type);
+		  }
+	    }
+	    return;
+      }
+
+      if (const class_type_t*class_type = dynamic_cast<const class_type_t*>(type)) {
+	    out << "class:" << class_type->name;
+	    return;
+      }
+
+      if (const interface_type_t*iface_type = dynamic_cast<const interface_type_t*>(type)) {
+	    out << "interface:" << iface_type->name;
+	    return;
+      }
+
+      out << cached_data_type_dump_(type);
+}
+
+static std::string parmvalue_cache_key_(Design*des, NetScope*call_scope,
+					const parmvalue_t*overrides)
+{
+      call_scope = specialization_key_scope_(call_scope);
+
+      if (!overrides)
+	    return std::string();
+
+      std::ostringstream out;
+      if (overrides->by_order) {
+	    out << "O";
+	    for (std::list<PExpr*>::const_iterator cur = overrides->by_order->begin()
+		 ; cur != overrides->by_order->end() ; ++cur) {
+		  out << "|";
+		  append_cache_expr_key_(des, call_scope, out, *cur);
+	    }
+      } else if (overrides->by_name) {
+	    out << "N";
+	    for (std::list<named_pexpr_t>::const_iterator cur = overrides->by_name->begin()
+		 ; cur != overrides->by_name->end() ; ++cur) {
+		  out << "|" << cur->name << "=";
+		  append_cache_expr_key_(des, call_scope, out, cur->parm);
+	    }
+      }
+
+      return out.str();
+}
+
+static bool pexpr_matches_parameter_name_(const PExpr*expr, perm_string name)
+{
+      if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+	    const pform_scoped_name_t&path = ident->path();
+	    if (path.package == 0 && path.name.size() == 1 &&
+	        path.name.front().index.empty() &&
+	        path.name.front().name == name)
+		  return true;
+      }
+
+      if (const PETypename*type_expr = dynamic_cast<const PETypename*>(expr)) {
+	    if (const type_parameter_t*type_param =
+	        dynamic_cast<const type_parameter_t*>(type_expr->get_type())) {
+		  if (type_param->name == name)
+			return true;
+	    }
+
+	    if (const typeref_t*type_ref =
+	        dynamic_cast<const typeref_t*>(type_expr->get_type())) {
+		  if (type_ref->scope_ref() == 0 && type_ref->parameter_values() == 0) {
+			if (typedef_t*td = type_ref->typedef_ref()) {
+			      if (td->name == name)
+				    return true;
+			}
+		  }
+	    }
+      }
+
+      return false;
+}
+
+static bool overrides_match_parameter_order_(const parmvalue_t*overrides,
+					     const std::list<perm_string>&param_order)
+{
+      if (!overrides || !overrides->by_order)
+	    return false;
+
+      std::list<PExpr*>::const_iterator expr_it = overrides->by_order->begin();
+      std::list<perm_string>::const_iterator name_it = param_order.begin();
+      while (expr_it != overrides->by_order->end() && name_it != param_order.end()) {
+	    if (!*expr_it || !pexpr_matches_parameter_name_(*expr_it, *name_it))
+		  return false;
+	    ++expr_it;
+	    ++name_it;
+      }
+
+      return expr_it == overrides->by_order->end() && name_it == param_order.end();
+}
+
+static void apply_specialized_class_overrides_(Design*des, NetScope*class_scope,
+					       const parmvalue_t*overrides,
+					       NetScope*call_scope,
+					       const std::list<perm_string>*param_order)
+{
+      if (!class_scope || !overrides)
+	    return;
+
+      if (overrides->by_name) {
+	    for (std::list<named_pexpr_t>::const_iterator cur = overrides->by_name->begin()
+		 ; cur != overrides->by_name->end() ; ++cur) {
+		  if (cur->parm)
+			class_scope->replace_parameter(des, cur->name, cur->parm,
+						      call_scope, false);
+	    }
+	    return;
+      }
+
+      if (!overrides->by_order)
+	    return;
+
+      std::vector<perm_string> names;
+      if (param_order) {
+	    for (std::list<perm_string>::const_iterator cur = param_order->begin()
+		 ; cur != param_order->end() ; ++cur) {
+		  if (class_scope->parameters.find(*cur) != class_scope->parameters.end())
+			names.push_back(*cur);
+	    }
+      }
+      if (names.empty()) {
+	    std::vector<std::pair<unsigned,perm_string> > sorted_names;
+	    for (std::map<perm_string,NetScope::param_expr_t>::const_iterator cur = class_scope->parameters.begin()
+		       ; cur != class_scope->parameters.end() ; ++cur) {
+		  sorted_names.push_back(std::make_pair(cur->second.lexical_pos, cur->first));
+	    }
+	    std::sort(sorted_names.begin(), sorted_names.end());
+	    for (std::vector<std::pair<unsigned,perm_string> >::const_iterator cur = sorted_names.begin()
+		       ; cur != sorted_names.end() ; ++cur)
+		  names.push_back(cur->second);
+      }
+
+      std::list<PExpr*>::const_iterator expr_it = overrides->by_order->begin();
+      size_t param_idx = 0;
+      while (expr_it != overrides->by_order->end() && param_idx < names.size()) {
+	    if (*expr_it)
+		  class_scope->replace_parameter(des, names[param_idx], *expr_it,
+						      call_scope, false);
+	    ++expr_it;
+	    ++param_idx;
+      }
+}
+
+static void flush_pending_specialized_class_bodies_(Design*des,
+						    std::vector<netclass_t*>&pending)
+{
+      note_specialization_flush_();
+
+      size_t idx = 0;
+      while (idx < pending.size()) {
+	    netclass_t*cls = pending[idx++];
+	    if (!cls || cls->body_elaborated())
+		  continue;
+
+	    if (idx == 1 || idx == pending.size() || (idx % 16) == 0)
+		  maybe_report_specialization_pending_body_(idx, pending.size(), cls);
+
+	    const NetScope*class_scope = cls->class_scope();
+	    const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
+	    if (!pclass)
+		  continue;
+
+	    cls->elaborate(des, const_cast<PClass*>(pclass));
+      }
+
+      pending.clear();
+}
+
+static std::vector<netclass_t*> pending_specialized_body_elaboration_;
+static std::set<netclass_t*> pending_specialized_body_elaboration_set_;
+
+static void enqueue_pending_specialized_class_body_(netclass_t*cls)
+{
+      if (!cls || cls->body_elaborated() || cls->body_elaborating())
+	    return;
+
+      if (pending_specialized_body_elaboration_set_.insert(cls).second) {
+	    pending_specialized_body_elaboration_.push_back(cls);
+	    note_specialization_pending_peak_(pending_specialized_body_elaboration_.size());
+      }
+}
+
+void finalize_pending_specialized_class_elaboration(Design*des)
+{
+      flush_pending_specialized_class_bodies_(des, pending_specialized_body_elaboration_);
+      pending_specialized_body_elaboration_set_.clear();
+}
+
+const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_scope,
+						   const netclass_t*base_class,
+						   const parmvalue_t*overrides,
+						   bool fully_elaborate)
+{
+      static unsigned elaboration_depth = 0;
+
+      if (!base_class || !overrides)
+	    return base_class;
+
+      const NetScope*base_scope_const = base_class->class_scope();
+      NetScope*base_scope = const_cast<NetScope*>(base_scope_const);
+      NetScope*definition_scope = const_cast<netclass_t*>(base_class)->definition_scope();
+      const PClass*pclass = base_scope ? base_scope->class_pform() : 0;
+      if (!base_scope || !definition_scope || !pclass)
+	    return base_class;
+
+      if (call_scope) {
+	    const NetScope*caller_class_scope = call_scope->get_class_scope();
+	    if (caller_class_scope && caller_class_scope->class_pform() == pclass &&
+	        overrides_match_parameter_order_(overrides, pclass->parameter_order)) {
+		  if (const netclass_t*caller_class = caller_class_scope->class_def())
+			return caller_class;
+	    }
+      }
+
+      static std::map<std::string,const netclass_t*> cache;
+      std::ostringstream key;
+      key << (const void*)base_class << "|";
+      key << parmvalue_cache_key_(des, call_scope, overrides);
+      std::string key_str = key.str();
+	      std::map<std::string,const netclass_t*>::const_iterator cached = cache.find(key_str);
+	      if (cached != cache.end()) {
+		    note_specialization_cache_hit_();
+		    netclass_t*cached_class = const_cast<netclass_t*>(cached->second);
+		    if (!fully_elaborate)
+			  return cached->second;
+		    const PClass*cached_pclass = cached_class->class_scope()
+			  ? cached_class->class_scope()->class_pform() : 0;
+		    if (elaboration_depth == 0 && cached_pclass && cached_class->scope_ready()) {
+			  if (!cached_class->sig_elaborated() && !cached_class->sig_elaborating())
+				cached_class->elaborate_sig(des, const_cast<PClass*>(cached_pclass));
+			  if (cached_class->sig_elaborated() &&
+			      !cached_class->body_elaborated() &&
+			      !cached_class->body_elaborating())
+			cached_class->elaborate(des, const_cast<PClass*>(cached_pclass));
+	    }
+	    return cached->second;
+      }
+      note_specialization_cache_miss_(base_class);
+
+      class_type_t*use_type = pclass->type;
+      netclass_t*use_class = new netclass_t(use_type->name, 0);
+      use_class->set_interface(base_class->is_interface());
+
+      NetScope*class_scope = new NetScope(definition_scope, hname_t(definition_scope->local_symbol()),
+					  NetScope::CLASS, definition_scope->unit());
+      class_scope->set_line(pclass);
+      class_scope->set_class_def(use_class);
+      class_scope->set_class_pform(pclass);
+      use_class->set_class_scope(class_scope);
+      use_class->set_definition_scope(definition_scope);
+      use_class->set_virtual(use_type->virtual_class);
+      use_class->set_specialized_instance(true);
+      set_scope_timescale(des, class_scope, pclass);
+      cache[key_str] = use_class;
+
+      class_scope->add_typedefs(&pclass->typedefs);
+      collect_scope_parameters(des, class_scope, pclass->parameters);
+      for (std::map<perm_string,NetScope::param_expr_t>::iterator cur = class_scope->parameters.begin()
+		 ; cur != class_scope->parameters.end() ; ++cur) {
+	    if (!cur->second.local_flag)
+		  cur->second.overridable = true;
+      }
+      apply_specialized_class_overrides_(des, class_scope, overrides,
+					 call_scope ? call_scope : definition_scope,
+					 &pclass->parameter_order);
+      class_scope->evaluate_parameters(des);
+
+      const netclass_t*use_base_class = 0;
+      if (use_type->base_type) {
+	    ivl_type_t base_type = use_type->base_type->elaborate_type(des, class_scope);
+	    use_base_class = dynamic_cast<const netclass_t*>(base_type);
+	    if (!use_base_class) {
+		  perm_string base_name;
+		  if (const typeref_t*base_ref = dynamic_cast<const typeref_t*>(use_type->base_type.get())) {
+			if (typedef_t*base_td = base_ref->typedef_ref())
+			      base_name = base_td->name;
+		  } else if (const class_type_t*base_class_type =
+			     dynamic_cast<const class_type_t*>(use_type->base_type.get())) {
+			base_name = base_class_type->name;
+		  }
+
+		  if (base_name) {
+			use_base_class = class_scope->find_class(des, base_name);
+			if (!use_base_class)
+			      use_base_class = ensure_visible_class_type(des, class_scope, base_name);
+		  }
+	    }
+      }
+      use_class->set_super(use_base_class);
+
+      collect_scope_signals(class_scope, pclass->wires);
+      elaborate_scope_events_(des, class_scope, pclass->events);
+      elaborate_scope_enumerations(des, class_scope, pclass->enum_sets);
+
+      for (std::map<perm_string,PTask*>::const_iterator cur = pclass->tasks.begin()
+		 ; cur != pclass->tasks.end() ; ++cur) {
+	    hname_t use_name(cur->first);
+	    NetScope*method_scope = new NetScope(class_scope, use_name, NetScope::TASK);
+	    method_scope->is_auto(true);
+	    method_scope->set_line(cur->second);
+	    method_scope->add_imports(&cur->second->explicit_imports);
+	    cur->second->elaborate_scope(des, method_scope);
+      }
+
+	      for (std::map<perm_string,PFunction*>::const_iterator cur = pclass->funcs.begin()
+		 ; cur != pclass->funcs.end() ; ++cur) {
+		    hname_t use_name(cur->first);
+		    NetScope*method_scope = new NetScope(class_scope, use_name, NetScope::FUNC);
+		    method_scope->is_auto(true);
+	    method_scope->set_line(cur->second);
+	    method_scope->add_imports(&cur->second->explicit_imports);
+		    cur->second->elaborate_scope(des, method_scope);
+	      }
+
+	      use_class->set_scope_ready(true);
+
+	      if (!fully_elaborate)
+		    return use_class;
+
+	      // Specialized classes may first appear while elaborating another
+	      // specialization. Even in that nested case, elaborate method
+      // signatures now so every function/task scope gets its Net*Def and
+      // target emission does not later encounter half-built scopes.
+      use_class->elaborate_sig(des, const_cast<PClass*>(pclass));
+
+      if (elaboration_depth == 0) {
+	    elaboration_depth += 1;
+	    use_class->elaborate(des, const_cast<PClass*>(pclass));
+	    elaboration_depth -= 1;
+      } else {
+	    enqueue_pending_specialized_class_body_(use_class);
+      }
+
+      return use_class;
+}
+
 static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 {
+      if (const NetScope*existing_scope = scope->child_byname(pclass->pscope_name())) {
+	    if (existing_scope->type() == NetScope::CLASS &&
+	        existing_scope->class_pform() == pclass)
+		  return;
+      }
+
       class_type_t*use_type = pclass->type;
 
       if (debug_scopes) {
@@ -486,35 +1453,58 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 		 << endl;
       }
 
-
-      const netclass_t*use_base_class = 0;
-      if (use_type->base_type) {
-	    ivl_type_t base_type = use_type->base_type->elaborate_type(des, scope);
-	    use_base_class = dynamic_cast<const netclass_t *>(base_type);
-	    if (!use_base_class) {
-		  cerr << pclass->get_fileline() << ": error: "
-		       << "Base type of " << use_type->name
-		       << " is not a class." << endl;
-		  des->errors += 1;
-	    }
-      }
-
-      netclass_t*use_class = new netclass_t(use_type->name, use_base_class);
+      netclass_t*use_class = new netclass_t(use_type->name, 0);
 
       NetScope*class_scope = new NetScope(scope, hname_t(pclass->pscope_name()),
 					  NetScope::CLASS, scope->unit());
       class_scope->set_line(pclass);
       class_scope->set_class_def(use_class);
+      class_scope->set_class_pform(pclass);
       use_class->set_class_scope(class_scope);
       use_class->set_definition_scope(scope);
       use_class->set_virtual(use_type->virtual_class);
       set_scope_timescale(des, class_scope, pclass);
+      scope->add_class(use_class);
 
       class_scope->add_typedefs(&pclass->typedefs);
-
       collect_scope_parameters(des, class_scope, pclass->parameters);
 
+      const netclass_t*use_base_class = 0;
+      if (use_type->base_type) {
+	    ivl_type_t base_type = use_type->base_type->elaborate_type(des, class_scope);
+	    use_base_class = dynamic_cast<const netclass_t *>(base_type);
+	    if (!use_base_class) {
+		  perm_string base_name;
+		  if (const typeref_t*base_ref = dynamic_cast<const typeref_t*>(use_type->base_type.get())) {
+			if (typedef_t*base_td = base_ref->typedef_ref())
+			      base_name = base_td->name;
+		  } else if (const class_type_t*base_class_type =
+			     dynamic_cast<const class_type_t*>(use_type->base_type.get())) {
+			base_name = base_class_type->name;
+		  }
+
+		  if (base_name) {
+			use_base_class = class_scope->find_class(des, base_name);
+			if (!use_base_class)
+			      use_base_class = ensure_visible_class_type(des, class_scope, base_name);
+		  }
+	    }
+	    if (!use_base_class) {
+		  cerr << pclass->get_fileline() << ": error: "
+		       << "Base type of " << use_type->name
+		       << " is not a class." << endl;
+			  des->errors += 1;
+		    }
+	      }
+      use_class->set_super(use_base_class);
+
       collect_scope_signals(class_scope, pclass->wires);
+
+        // Class named events (e.g. "event m_event;") are stored in the
+        // pform class scope event table, but need to be emitted into the
+        // elaborated class NetScope so method symbol lookup can resolve
+        // @m_event / ->m_event / m_event references.
+      elaborate_scope_events_(des, class_scope, pclass->events);
 
 	// Elaborate enum types declared in the class. We need these
 	// now because enumeration constants can be used during scope
@@ -580,7 +1570,6 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 	    cur->second->elaborate_scope(des, method_scope);
       }
 
-      scope->add_class(use_class);
 }
 
 static void elaborate_scope_classes(Design*des, NetScope*scope,
@@ -1672,6 +2661,8 @@ void PFunction::elaborate_scope(Design*des, NetScope*scope) const
 void PTask::elaborate_scope(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope->type() == NetScope::TASK);
+
+      scope->set_task_pform(this);
 
       scope->add_typedefs(&typedefs);
 

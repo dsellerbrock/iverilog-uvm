@@ -82,6 +82,8 @@ static PLI_INT32 ivl_enum_method_next_prev_compiletf(ICARUS_VPI_CONST PLI_BYTE8*
 	case vpiLongIntVar:
 	case vpiReg:
 	case vpiShortIntVar:
+	case vpiConstant:
+	case vpiParameter:
 	    break;
 	default:
 	    vpi_printf("%s:%d: compiler error: ", vpi_get_str(vpiFile, sys),
@@ -419,6 +421,8 @@ static PLI_INT32 ivl_enum_method_name_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	case vpiLongIntVar:
 	case vpiReg:
 	case vpiShortIntVar:
+	case vpiConstant:
+	case vpiParameter:
 	    break;
 	default:
 	    vpi_printf("%s:%d: compiler error: ", vpi_get_str(vpiFile, sys),

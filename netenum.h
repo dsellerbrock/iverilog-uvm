@@ -65,6 +65,7 @@ class netenum_t : public LineInfo, public ivl_type_s {
 
       perm_string name_at(size_t idx) const;
       perm_string bits_at(size_t idx) const;
+      verinum value_at(size_t idx) const;
 
 	// Check if two enumerations have the same definition.
       bool matches(const netenum_t*other) const;

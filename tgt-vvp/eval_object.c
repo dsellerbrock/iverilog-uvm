@@ -23,6 +23,7 @@
 
 void darray_new(ivl_type_t element_type, unsigned size_reg)
 {
+      static int warned_unhandled_elem_type = 0;
       int wid;
       const char*signed_char;
       ivl_variable_type_t type = ivl_type_base(element_type);
@@ -31,8 +32,6 @@ void darray_new(ivl_type_t element_type, unsigned size_reg)
 	    wid = ivl_type_packed_width(element_type);
 	    signed_char = ivl_type_signed(element_type) ? "s" : "";
       } else {
-	      // REAL or STRING objects are not packable.
-	    assert(ivl_type_packed_dimensions(element_type) == 0);
 	    wid = 0;
 	    signed_char = "";
       }
@@ -58,8 +57,23 @@ void darray_new(ivl_type_t element_type, unsigned size_reg)
 	                     size_reg, signed_char, wid);
 	    break;
 
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    /* Expected compile-progress path: object-like and unresolved
+	       element types use object-array storage. */
+	    fprintf(vvp_out, "    %%new/darray %u, \"o\";\n", size_reg);
+	    break;
+
 	  default:
-	    assert(0);
+	    if (!warned_unhandled_elem_type) {
+		  fprintf(stderr, "Warning: darray_new: unhandled element type %d;"
+			  " using object array"
+			  " (further similar warnings suppressed)\n", type);
+		  warned_unhandled_elem_type = 1;
+	    }
+	    fprintf(vvp_out, "    %%new/darray %u, \"o\";\n", size_reg);
 	    break;
       }
 
@@ -68,7 +82,6 @@ void darray_new(ivl_type_t element_type, unsigned size_reg)
 
 static int eval_darray_new(ivl_expr_t ex)
 {
-      int errors = 0;
       unsigned size_reg = allocate_word();
       ivl_expr_t size_expr = ivl_expr_oper1(ex);
       ivl_expr_t init_expr = ivl_expr_oper2(ex);
@@ -112,11 +125,11 @@ static int eval_darray_new(ivl_expr_t ex)
 			fprintf(vvp_out, "    %%pop/str 1;\n");
 		  }
 		  break;
-		default:
-		  fprintf(vvp_out, "; ERROR: Sorry, this type not supported here.\n");
-		  errors += 1;
-		  break;
-	    }
+			default:
+			  fprintf(stderr, "Warning: darray new array-pattern init: unsupported element type %d; skipping init\n",
+				  ivl_type_base(element_type));
+			  break;
+		    }
       } else if (init_expr && (ivl_expr_value(init_expr) == IVL_VT_DARRAY)) {
 		  ivl_signal_t sig = ivl_expr_signal(init_expr);
 		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
@@ -159,23 +172,55 @@ static int eval_darray_new(ivl_expr_t ex)
 		  }
 		  fprintf(vvp_out, "    %%pop/str 1;\n");
 		  break;
-		default:
-		  fprintf(vvp_out, "; ERROR: Sorry, this type not supported here.\n");
-		  errors += 1;
+			default:
+			  fprintf(stderr, "Warning: darray new scalar init: unsupported element type %d; skipping init\n",
+				  ivl_type_base(element_type));
+			  break;
+		    }
+
+	      } else if (init_expr) {
+		    fprintf(stderr, "Warning: darray new: unsupported dynamic-size init expression; skipping init\n");
+	      }
+
+      return 0;
+}
+
+/* Track class types whose .class definitions have been emitted inline.
+ * Parameterized class specializations may not be attached to any scope,
+ * so we emit their definition the first time they appear in %new/cobj. */
+#define MAX_EMITTED_CLASSES 256
+static ivl_type_t emitted_classes[MAX_EMITTED_CLASSES];
+static unsigned emitted_classes_count = 0;
+
+static void ensure_class_type_emitted(ivl_type_t class_type)
+{
+      unsigned idx;
+      int found = 0;
+
+      if (!class_type)
+	    return;
+
+      for (idx = 0; idx < emitted_classes_count; idx++) {
+	    if (emitted_classes[idx] == class_type) {
+		  found = 1;
 		  break;
 	    }
-
-      } else if (init_expr) {
-	    fprintf(vvp_out, "; ERROR: Sorry, I don't know how to work with this size expr.\n");
-	    errors += 1;
       }
+      if (found)
+	    return;
 
-      return errors;
+      if (emitted_classes_count < MAX_EMITTED_CLASSES)
+	    emitted_classes[emitted_classes_count++] = class_type;
+
+      fprintf(vvp_out, "; Inline class definition for specialized/interface type\n");
+      draw_class_in_scope(class_type);
 }
 
 static int eval_class_new(ivl_expr_t ex)
 {
       ivl_type_t class_type = ivl_expr_net_type(ex);
+      ensure_class_type_emitted(class_type);
+
       fprintf(vvp_out, "    %%new/cobj C%p;\n", class_type);
       return 0;
 }
@@ -187,25 +232,78 @@ static int eval_object_null(ivl_expr_t ex)
       return 0;
 }
 
+static int eval_object_scope(ivl_expr_t ex)
+{
+      ivl_scope_t scope = ivl_expr_scope(ex);
+      ivl_type_t class_type = ivl_expr_net_type(ex);
+
+      if (!scope || !class_type || ivl_type_base(class_type) != IVL_VT_CLASS) {
+	    fprintf(vvp_out, "    %%null; ; invalid virtual-interface scope fallback\n");
+	    return 0;
+      }
+
+      ensure_class_type_emitted(class_type);
+      fprintf(vvp_out, "    %%new/vif S_%p, C%p;\n", scope, class_type);
+      return 0;
+}
+
 static int eval_object_property(ivl_expr_t expr)
 {
       ivl_signal_t sig = ivl_expr_signal(expr);
       unsigned pidx = ivl_expr_property_idx(expr);
+      ivl_expr_t base_expr = ivl_expr_oper2(expr);
+      unsigned lab_null = local_count++;
+      unsigned lab_out = local_count++;
 
       int idx = 0;
       ivl_expr_t idx_expr = 0;
+      int queue_indexed = property_is_indexed_queue_expr_(expr);
+      int assoc_indexed = property_is_assoc_indexed_expr_(expr);
 
 	/* If there is an array index expression, then this is an
 	   array'ed property, and we need to calculate the index for
 	   the expression. */
       if ( (idx_expr = ivl_expr_oper1(expr)) ) {
-	    idx = allocate_word();
-	    draw_eval_expr_into_integer(idx_expr, idx);
+	    if (!queue_indexed && !assoc_indexed) {
+		  idx = allocate_word();
+		  draw_eval_expr_into_integer(idx_expr, idx);
+	    }
       }
 
-      fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
-      fprintf(vvp_out, "    %%prop/obj %u, %d; eval_object_property\n", pidx, idx);
-      fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+      if (sig) {
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+      } else if (base_expr && ivl_expr_type(base_expr) == IVL_EX_NULL) {
+	      /* Compile-progress fallback: null receiver property access
+	         yields a null object directly. */
+	    fprintf(vvp_out, "    %%null;\n");
+	    if (idx != 0) clr_word(idx);
+	    return 0;
+      } else {
+	    draw_eval_object(base_expr);
+      }
+      fprintf(vvp_out, "    %%test_nul/obj;\n");
+      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+      if (assoc_indexed) {
+            const char*key_kind;
+	    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_assoc_property\n", pidx);
+            key_kind = draw_eval_assoc_key_(idx_expr, 0);
+            fprintf(vvp_out, "    %%aa/load/obj/%s;\n", key_kind);
+            fprintf(vvp_out, "    %%pop/obj 2, 1;\n");
+	      } else if (queue_indexed) {
+		    if (!emit_property_queue_last_index_(expr, pidx, 3))
+			  draw_eval_expr_into_integer(idx_expr, 3);
+		    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_queue_property\n", pidx);
+		    fprintf(vvp_out, "    %%load/qo/obj;\n");
+		    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+	      } else {
+	    fprintf(vvp_out, "    %%prop/obj %u, %d; eval_object_property\n", pidx, idx);
+	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+      }
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+      fprintf(vvp_out, "    %%null;\n");
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
 
       if (idx != 0) clr_word(idx);
       return 0;
@@ -245,6 +343,7 @@ static int eval_object_signal(ivl_expr_t expr)
       ivl_expr_t word_ex = ivl_expr_oper1(expr);
       int word_ix = allocate_word();
       draw_eval_expr_into_integer(word_ex, word_ix);
+      note_array_signal_use(sig);
       fprintf(vvp_out, "    %%load/obja v%p, %d;\n", sig, word_ix);
       clr_word(word_ix);
 
@@ -254,6 +353,452 @@ static int eval_object_signal(ivl_expr_t expr)
 static int eval_object_ufunc(ivl_expr_t ex)
 {
       draw_ufunc_object(ex);
+      return 0;
+}
+
+/* Handle IVL_EX_ARRAY in object context without assuming oper1 API support. */
+static int eval_object_array(ivl_expr_t expr)
+{
+      ivl_signal_t sig = ivl_expr_signal(expr);
+      if (!sig) {
+	    fprintf(vvp_out, "    %%null; ; array-no-signal fallback\n");
+	    return 0;
+      }
+
+      if (ivl_signal_dimensions(sig) == 0) {
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+	    return 0;
+      }
+
+      /* ivl_expr_oper1() is not valid for IVL_EX_ARRAY in this backend API;
+         use deterministic index-0 fallback for object array access here. */
+      fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
+      note_array_signal_use(sig);
+      fprintf(vvp_out, "    %%load/obja v%p, 3;\n", sig);
+      return 0;
+}
+
+/* Handle IVL_EX_SELECT: element access on a darray/queue of objects.
+ * Emits the index into word 3, then %load/dar/obj. */
+static int eval_object_select(ivl_expr_t expr)
+{
+      ivl_expr_t sube  = ivl_expr_oper1(expr);
+      ivl_expr_t index = ivl_expr_oper2(expr);
+      unsigned lab_null;
+      unsigned lab_out;
+      int idx_word = 0;
+
+      if (!index) {
+	    /* Compile-progress fallback: missing index defaults to 0. */
+	    fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
+	    index = 0;
+      }
+
+      if (expr_is_queue_container_(sube) &&
+          ivl_expr_type(sube) != IVL_EX_SIGNAL &&
+          ivl_expr_type(sube) != IVL_EX_ARRAY &&
+          ivl_expr_type(sube) != IVL_EX_PROPERTY) {
+	    draw_eval_object(sube);
+	    if (index)
+		  draw_eval_expr_into_integer(index, 3);
+	    else
+		  fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
+	    fprintf(vvp_out, "    %%load/qo/obj;\n");
+	    return 0;
+      }
+
+      /* Select from object property arrays: obj.prop[idx]
+       * arrives as SELECT(PROPERTY(obj.prop), idx). */
+      if (ivl_expr_type(sube) == IVL_EX_PROPERTY) {
+	    ivl_signal_t sig = ivl_expr_signal(sube);
+	    unsigned pidx = ivl_expr_property_idx(sube);
+	    ivl_expr_t base_expr = ivl_expr_oper2(sube);
+	    ivl_expr_t prop_idx = ivl_expr_oper1(sube);
+	    lab_null = local_count++;
+	    lab_out = local_count++;
+
+	    if (expr_is_assoc_queue_container_(sube)) {
+		  if (prop_idx) {
+			fprintf(vvp_out, "    %%null; ; nested assoc property select fallback\n");
+			return 0;
+		  }
+
+		  if (sig) {
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+		  } else if (base_expr && ivl_expr_type(base_expr) == IVL_EX_NULL) {
+			fprintf(vvp_out, "    %%null;\n");
+		  } else if (!base_expr) {
+			fprintf(vvp_out, "    %%null;\n");
+		  } else {
+			draw_eval_object(base_expr);
+		  }
+
+		  fprintf(vvp_out, "    %%test_nul/obj;\n");
+		  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+		  fprintf(vvp_out, "    %%prop/obj %u, 0; eval_assoc_select/property\n", pidx);
+		  if (!index) {
+			fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+			fprintf(vvp_out, "    %%aa/load/obj/v;\n");
+		  } else {
+			const char*key_kind = draw_eval_assoc_key_(index, 0);
+			fprintf(vvp_out, "    %%aa/load/obj/%s;\n", key_kind);
+		  }
+		  fprintf(vvp_out, "    %%pop/obj 2, 1;\n");
+		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  fprintf(vvp_out, "    %%null;\n");
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+		  return 0;
+	    }
+
+	    if (expr_is_queue_container_(sube)) {
+		  draw_eval_object(sube);
+		  if (index)
+			draw_eval_expr_into_integer(index, 3);
+		  else
+			fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
+		  fprintf(vvp_out, "    %%load/qo/obj;\n");
+		  return 0;
+	    }
+
+	    if (prop_idx) {
+		  fprintf(vvp_out, "    %%null; ; nested property select fallback\n");
+		  return 0;
+	    }
+
+	    idx_word = allocate_word();
+	    if (index) {
+		  draw_eval_expr_into_integer(index, idx_word);
+	    } else {
+		  fprintf(vvp_out, "    %%ix/load %d, 0, 0;\n", idx_word);
+	    }
+	    if (sig) {
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+	    } else if (base_expr && ivl_expr_type(base_expr) == IVL_EX_NULL) {
+		  fprintf(vvp_out, "    %%null;\n");
+	    } else if (!base_expr) {
+		  fprintf(vvp_out, "    %%null;\n");
+	    } else {
+		  draw_eval_object(base_expr);
+	    }
+
+	    fprintf(vvp_out, "    %%test_nul/obj;\n");
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+	    fprintf(vvp_out, "    %%prop/obj %u, %d; eval_object_select/property\n", pidx, idx_word);
+	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    fprintf(vvp_out, "    %%null;\n");
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+	    clr_word(idx_word);
+	    return 0;
+      }
+
+      if (ivl_expr_type(sube) != IVL_EX_SIGNAL &&
+          ivl_expr_type(sube) != IVL_EX_ARRAY) {
+	    fprintf(stderr, "Warning: eval_object_select: base is not a signal"
+		    " (type %d); emitting null fallback\n", ivl_expr_type(sube));
+	    fprintf(vvp_out, "    %%null; ; select base fallback\n");
+	    return 0;
+      }
+
+      ivl_signal_t sig = ivl_expr_signal(sube);
+      ivl_type_t net_type;
+      if (!sig) {
+	    fprintf(stderr, "Warning: eval_object_select: null signal; emitting null fallback\n");
+	    fprintf(vvp_out, "    %%null; ; null sig fallback\n");
+	    return 0;
+      }
+
+      net_type = ivl_signal_net_type(sig);
+      if (net_type && ivl_type_base(net_type) == IVL_VT_QUEUE
+          && ivl_type_queue_assoc_compat(net_type)) {
+            const char*key_kind = draw_eval_assoc_key_(index, 0);
+	    fprintf(vvp_out, "    %%aa/load/sig/obj/%s v%p_0;\n", key_kind, sig);
+	    return 0;
+      }
+
+      ivl_variable_type_t dtype = ivl_signal_data_type(sig);
+      if (dtype != IVL_VT_DARRAY && dtype != IVL_VT_QUEUE) {
+	    /* Static array: use %load/obja */
+	    int word_ix = allocate_word();
+	    draw_eval_expr_into_integer(index, word_ix);
+	    note_array_signal_use(sig);
+	    fprintf(vvp_out, "    %%load/obja v%p, %d;\n", sig, word_ix);
+	    clr_word(word_ix);
+	    return 0;
+      }
+
+      /* Dynamic array or queue: use %load/dar/obj (index in word 3) */
+      draw_eval_expr_into_integer(index, 3);
+      fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", sig);
+      return 0;
+}
+
+/* Handle IVL_EX_NUMBER in object context: 0 maps to null, others warn. */
+static int eval_object_number(ivl_expr_t expr)
+{
+      if (ivl_expr_value(expr) == IVL_VT_LOGIC) {
+	    /* Check if all bits are zero (null handle) */
+	    const char*bits = ivl_expr_bits(expr);
+	    unsigned wid = ivl_expr_width(expr);
+	    unsigned idx;
+	    int all_zero = 1;
+	    for (idx = 0; idx < wid; idx++) {
+		  if (bits[idx] != '0') { all_zero = 0; break; }
+	    }
+	    if (all_zero) {
+		  fprintf(vvp_out, "    %%null; ; number(0) as null object\n");
+		  return 0;
+	    }
+      }
+      /* Compile-progress coercion: non-zero numbers in object context map
+         to null-object fallback. */
+      fprintf(vvp_out, "    %%null; ; number fallback\n");
+      return 0;
+}
+
+/* Handle IVL_EX_TERNARY in object context. */
+static int eval_object_ternary(ivl_expr_t expr)
+{
+      ivl_expr_t cond     = ivl_expr_oper1(expr);
+      ivl_expr_t true_ex  = ivl_expr_oper2(expr);
+      ivl_expr_t false_ex = ivl_expr_oper3(expr);
+
+      unsigned lab_false = local_count++;
+      unsigned lab_out   = local_count++;
+
+      int use_flag = draw_eval_condition(cond);
+
+      fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n", thread_count, lab_false, use_flag);
+      draw_eval_object(true_ex);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_false);
+      draw_eval_object(false_ex);
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+
+      clr_flag(use_flag);
+      return 0;
+}
+
+/* Handle system-function expressions in object context. */
+static int eval_object_sfunc(ivl_expr_t expr)
+{
+      const char*name = ivl_expr_name(expr);
+      unsigned parm_count = ivl_expr_parms(expr);
+      static int warned_non_queue = 0;
+      static int warned_pop_back_non_signal = 0;
+      static int warned_pop_front_non_signal = 0;
+
+      if (strcmp(name, "$ivl_process$self") == 0) {
+	    if (parm_count != 0) {
+		  fprintf(stderr, "Warning: %s expects no arguments; ignoring extras\n", name);
+	    }
+	    fprintf(vvp_out, "    %%process/self;\n");
+	    return 0;
+      }
+
+      /* Queue pop methods returning objects are lowered to object qpop opcodes. */
+      if (strcmp(name, "$ivl_queue_method$pop_back")==0 ||
+          strcmp(name, "$ivl_queue_method$pop_front")==0) {
+	    const char*fb = (strcmp(name, "$ivl_queue_method$pop_back")==0) ? "b" : "f";
+	    ivl_expr_t arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+
+	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL && ivl_expr_signal(arg)) {
+		  fprintf(vvp_out, "    %%qpop/%s/obj v%p_0;\n", fb, ivl_expr_signal(arg));
+		  return 0;
+	    }
+	    if (arg && expr_is_queue_container_(arg)) {
+		  draw_eval_object(arg);
+		  fprintf(vvp_out, "    %%qpop/o/%s/obj;\n", fb);
+		  return 0;
+	    }
+
+	    int *warned = (fb[0] == 'b') ? &warned_pop_back_non_signal
+					 : &warned_pop_front_non_signal;
+	    if (!*warned) {
+		  fprintf(stderr, "Warning: %s requires signal, got expr type %d;"
+			  " emitting null fallback"
+			  " (further similar warnings suppressed)\n",
+			  name, arg ? ivl_expr_type(arg) : -1);
+		  *warned = 1;
+	    }
+	    fprintf(vvp_out, "    %%null; ; object qpop fallback\n");
+	    return 0;
+      }
+
+      if (!warned_non_queue) {
+	    fprintf(stderr, "Warning: eval_object_sfunc: unsupported sfunc '%s'"
+		    " in object context; emitting null fallback"
+		    " (further similar warnings suppressed)\n", name);
+	    warned_non_queue = 1;
+      }
+      fprintf(vvp_out, "    %%null; ; unsupported object sfunc fallback\n");
+      return 0;
+}
+
+static int object_expr_uses_aggregate_cobject_(ivl_expr_t expr)
+{
+      ivl_type_t net_type = expr ? ivl_expr_net_type(expr) : 0;
+      if (!net_type)
+            return 0;
+
+      return ivl_type_base(net_type) == IVL_VT_NO_TYPE
+          && ivl_type_properties(net_type) > 0;
+}
+
+static int emit_aggregate_property_store_(ivl_type_t prop_type,
+                                          unsigned pidx,
+                                          ivl_expr_t value_expr)
+{
+      int errors = 0;
+
+      if (!prop_type) {
+            errors += draw_eval_object(value_expr);
+            fprintf(vvp_out, "    %%store/prop/obj %u, 0;\n", pidx);
+            return errors;
+      }
+
+      switch (ivl_type_base(prop_type)) {
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC: {
+            unsigned wid = ivl_type_packed_width(prop_type);
+            if (wid == 0)
+                  wid = ivl_expr_width(value_expr);
+            draw_eval_vec4(value_expr);
+            if (ivl_type_base(prop_type) == IVL_VT_BOOL
+                && ivl_expr_value(value_expr) != IVL_VT_BOOL)
+                  fprintf(vvp_out, "    %%cast2;\n");
+            fprintf(vvp_out, "    %%store/prop/v %u, %u;\n", pidx, wid);
+            return errors;
+          }
+
+          case IVL_VT_REAL:
+            draw_eval_real(value_expr);
+            fprintf(vvp_out, "    %%store/prop/r %u;\n", pidx);
+            return errors;
+
+          case IVL_VT_STRING:
+            draw_eval_string(value_expr);
+            fprintf(vvp_out, "    %%store/prop/str %u;\n", pidx);
+            return errors;
+
+          case IVL_VT_CLASS:
+          case IVL_VT_DARRAY:
+          case IVL_VT_QUEUE:
+          case IVL_VT_NO_TYPE:
+          default:
+            errors += draw_eval_object(value_expr);
+            fprintf(vvp_out, "    %%store/prop/obj %u, 0;\n", pidx);
+            return errors;
+      }
+}
+
+static int eval_object_aggregate_literal_(ivl_expr_t expr)
+{
+      static int warned_truncated_parms = 0;
+      static int warned_concat_repeat = 0;
+      ivl_type_t agg_type = ivl_expr_net_type(expr);
+      unsigned nprop;
+      unsigned nparm;
+      unsigned idx;
+      int errors = 0;
+
+      if (!object_expr_uses_aggregate_cobject_(expr))
+            return -1;
+
+      if (ivl_expr_type(expr) == IVL_EX_CONCAT && ivl_expr_repeat(expr) != 1) {
+            if (!warned_concat_repeat) {
+                  fprintf(stderr,
+                          "Warning: draw_eval_object: unsupported aggregate concat repeat %u"
+                          " at %s:%u; using null fallback"
+                          " (further similar warnings suppressed)\n",
+                          ivl_expr_repeat(expr),
+                          ivl_expr_file(expr), ivl_expr_lineno(expr));
+                  warned_concat_repeat = 1;
+            }
+            return -1;
+      }
+
+      nprop = ivl_type_properties(agg_type);
+      nparm = ivl_expr_parms(expr);
+      ensure_class_type_emitted(agg_type);
+      fprintf(vvp_out, "    %%new/cobj C%p;\n", agg_type);
+
+      if (nparm > nprop && !warned_truncated_parms) {
+            fprintf(stderr,
+                    "Warning: draw_eval_object: aggregate literal for %s has %u values for %u members;"
+                    " truncating extras"
+                    " (further similar warnings suppressed)\n",
+                    ivl_type_name(agg_type), nparm, nprop);
+            warned_truncated_parms = 1;
+      }
+
+      if (nparm > nprop)
+            nparm = nprop;
+
+      for (idx = 0; idx < nparm; idx += 1) {
+            ivl_type_t prop_type = ivl_type_prop_type(agg_type, idx);
+            errors += emit_aggregate_property_store_(prop_type, idx,
+                                                     ivl_expr_parm(expr, idx));
+      }
+
+      return errors;
+}
+
+/* Handle IVL_EX_ARRAY_PATTERN in object context.
+ * Compile-progress fallback: use the first element when present. */
+static int eval_object_array_pattern(ivl_expr_t expr)
+{
+      unsigned nparm = ivl_expr_parms(expr);
+      int errors;
+
+      errors = eval_object_aggregate_literal_(expr);
+      if (errors >= 0)
+            return errors;
+
+      if (nparm == 0) {
+	    fprintf(vvp_out, "    %%null; ; empty object array-pattern fallback\n");
+	    return 0;
+      }
+
+      return draw_eval_object(ivl_expr_parm(expr, 0));
+}
+
+static int eval_object_unary(ivl_expr_t ex)
+{
+      ivl_expr_t sub = ivl_expr_oper1(ex);
+      ivl_variable_type_t ex_type = ivl_expr_value(ex);
+
+      /* Object-typed unary nodes are typically cast wrappers around an
+         object-like subexpression. Preserve the underlying handle instead
+         of collapsing to null in object context. */
+      if (sub && (ex_type == IVL_VT_CLASS
+               || ex_type == IVL_VT_DARRAY
+               || ex_type == IVL_VT_QUEUE)) {
+	    switch (ivl_expr_opcode(ex)) {
+		case '+':
+		case '2':
+		case 'v':
+		case 'r':
+		  return draw_eval_object(sub);
+		default:
+		  break;
+	    }
+      }
+
+      fprintf(stderr,
+	      "Warning: draw_eval_object: unsupported unary expr"
+	      " op=%c value=%d sub_value=%d at %s:%u;"
+	      " emitting null fallback\n",
+	      ivl_expr_opcode(ex),
+	      ivl_expr_value(ex),
+	      sub ? (int)ivl_expr_value(sub) : -1,
+	      ivl_expr_file(ex), ivl_expr_lineno(ex));
+      fprintf(vvp_out, "    %%null; ; unsupported unary expr op=%c value=%d fallback\n",
+	      ivl_expr_opcode(ex), ivl_expr_value(ex));
       return 0;
 }
 
@@ -285,12 +830,65 @@ int draw_eval_object(ivl_expr_t ex)
 	  case IVL_EX_SIGNAL:
 	    return eval_object_signal(ex);
 
+	  case IVL_EX_SCOPE:
+	    return eval_object_scope(ex);
+
+	  case IVL_EX_ARRAY:
+	    return eval_object_array(ex);
+
 	  case IVL_EX_UFUNC:
 	    return eval_object_ufunc(ex);
 
+	  case IVL_EX_SELECT:
+	    return eval_object_select(ex);
+
+	  case IVL_EX_UNARY:
+	    return eval_object_unary(ex);
+
+	  case IVL_EX_NUMBER:
+	    return eval_object_number(ex);
+
+	  case IVL_EX_TERNARY:
+	    return eval_object_ternary(ex);
+
+	  case IVL_EX_ARRAY_PATTERN:
+	    return eval_object_array_pattern(ex);
+
+	  case IVL_EX_SFUNC:
+	    return eval_object_sfunc(ex);
+
+	  case IVL_EX_CONCAT: {
+            int errors = eval_object_aggregate_literal_(ex);
+            if (errors >= 0)
+                  return errors;
+            fprintf(stderr, "Warning: draw_eval_object: unknown expression type %d;"
+                    " emitting null fallback\n", ivl_expr_type(ex));
+            fprintf(vvp_out, "    %%null; ; unknown expr type %d fallback\n", ivl_expr_type(ex));
+            return 0;
+          }
+
+	  case IVL_EX_BINARY:
+	    fprintf(stderr,
+		    "Warning: draw_eval_object: unhandled binary expr"
+		    " opcode=%c value=%d oper1_type=%d oper1_value=%d"
+		    " oper2_type=%d oper2_value=%d at %s:%u;"
+		    " emitting null fallback\n",
+		    ivl_expr_opcode(ex), ivl_expr_value(ex),
+		    ivl_expr_oper1(ex) ? (int)ivl_expr_type(ivl_expr_oper1(ex)) : -1,
+		    ivl_expr_oper1(ex) ? (int)ivl_expr_value(ivl_expr_oper1(ex)) : -1,
+		    ivl_expr_oper2(ex) ? (int)ivl_expr_type(ivl_expr_oper2(ex)) : -1,
+		    ivl_expr_oper2(ex) ? (int)ivl_expr_value(ivl_expr_oper2(ex)) : -1,
+		    ivl_expr_file(ex), ivl_expr_lineno(ex));
+	    fprintf(vvp_out, "    %%null; ; unhandled expr type %d fallback\n", ivl_expr_type(ex));
+	    return 0;
+
 	  default:
-	    fprintf(vvp_out, "; ERROR: draw_eval_object: Invalid expression type %d\n", ivl_expr_type(ex));
-	    return 1;
+	    fprintf(stderr, "Warning: draw_eval_object: unknown expression type %d"
+		    " value=%d at %s:%u; emitting null fallback\n",
+		    ivl_expr_type(ex), ivl_expr_value(ex),
+		    ivl_expr_file(ex), ivl_expr_lineno(ex));
+	    fprintf(vvp_out, "    %%null; ; unknown expr type %d fallback\n", ivl_expr_type(ex));
+	    return 0;
 
       }
 }

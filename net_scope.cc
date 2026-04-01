@@ -95,6 +95,11 @@ const NetExpr* Definitions::enumeration_expr(perm_string key)
 void Definitions::add_class(netclass_t*net_class)
 {
       classes_[net_class->get_name()] = net_class;
+      class_definitions_changed_();
+}
+
+void Definitions::class_definitions_changed_()
+{
 }
 
 /*
@@ -123,21 +128,40 @@ NetScope::NetScope(NetScope*up, const hname_t&n, NetScope::TYPE t, NetScope*in_u
 	    unit_ = this;
 
       if (up) {
-	    need_const_func_ = up->need_const_func_;
-	    is_const_func_ = up->is_const_func_;
-	    time_unit_ = up->time_unit();
-	    time_prec_ = up->time_precision();
-	    time_from_timescale_ = up->time_from_timescale();
-	      // Need to check for duplicate names?
-	    up_->children_[name_] = this;
-	    if (unit_ == 0)
-		  unit_ = up_->unit_;
+            need_const_func_ = up->need_const_func_;
+            is_const_func_ = up->is_const_func_;
+            time_unit_ = up->time_unit();
+            time_prec_ = up->time_precision();
+            time_from_timescale_ = up->time_from_timescale();
+              // Need to check for duplicate names?
+            up_->children_[name_] = this;
+            if (unit_ == 0)
+                  unit_ = up_->unit_;
       } else {
 	    need_const_func_ = false;
 	    is_const_func_ = false;
-	    time_unit_ = 0;
-	    time_prec_ = 0;
-	    time_from_timescale_ = false;
+            time_unit_ = 0;
+            time_prec_ = 0;
+            time_from_timescale_ = false;
+      }
+
+        // A caller's constant-evaluation state is meaningful for nested
+        // procedural blocks, not for newly declared symbols. Package/class
+        // scopes and task/function scopes may be materialized on demand while
+        // some unrelated caller is in a constant context; inheriting that
+        // transient state causes ordinary runtime methods to elaborate as
+        // constant functions.
+      switch (t) {
+          case NetScope::MODULE:
+          case NetScope::PACKAGE:
+          case NetScope::CLASS:
+          case NetScope::TASK:
+          case NetScope::FUNC:
+            need_const_func_ = false;
+            is_const_func_ = false;
+            break;
+          default:
+            break;
       }
 
       var_init_ = 0;
@@ -159,6 +183,8 @@ NetScope::NetScope(NetScope*up, const hname_t&n, NetScope::TYPE t, NetScope*in_u
 	    break;
       }
       func_pform_ = 0;
+      task_pform_ = 0;
+      class_pform_ = 0;
       elab_stage_ = 1;
       lineno_ = 0;
       def_lineno_ = 0;
@@ -219,6 +245,7 @@ void NetScope::add_imports(const map<perm_string,PPackage*>*imports)
 {
       if (!imports->empty())
 	    imports_ = imports;
+      clear_lookup_caches_(true, true);
 }
 
 NetScope*NetScope::find_import(const Design*des, perm_string name)
@@ -237,17 +264,89 @@ void NetScope::add_typedefs(const map<perm_string,typedef_t*>*typedefs)
 {
       if (!typedefs->empty())
 	    typedefs_ = *typedefs;
+      clear_lookup_caches_(true, false);
+}
+
+void NetScope::class_definitions_changed_()
+{
+      clear_lookup_caches_(false, true);
+}
+
+void NetScope::clear_lookup_caches_(bool clear_typedefs, bool clear_classes)
+{
+      if (clear_typedefs)
+	    typedef_search_cache_.clear();
+      if (clear_classes)
+	    class_search_cache_.clear();
+
+      for (map<hname_t,NetScope*>::iterator cur = children_.begin()
+		 ; cur != children_.end() ; ++cur) {
+	    if (cur->second)
+		  cur->second->clear_lookup_caches_(clear_typedefs, clear_classes);
+      }
 }
 
 NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
 {
       ivl_assert(*this, type);
 
+      auto find_in_super_chain = [type](NetScope*scope) -> NetScope* {
+	    if (!scope || scope->type() != NetScope::CLASS)
+		  return 0;
+	    const netclass_t*cls = scope->class_def();
+	    if (!cls)
+		  return 0;
+	    for (const netclass_t*sup = cls->get_super(); sup; sup = sup->get_super()) {
+		  const NetScope*sup_scope_const = sup->class_scope();
+		  NetScope*sup_scope = const_cast<NetScope*>(sup_scope_const);
+		  if (!sup_scope)
+			continue;
+		  auto it = sup_scope->typedefs_.find(type->name);
+		  if (it != sup_scope->typedefs_.end() && it->second == type)
+			return sup_scope;
+	    }
+	    return 0;
+      };
+
       NetScope *cur_scope = this;
       while (cur_scope) {
 	    auto it = cur_scope->typedefs_.find(type->name);
 	    if (it != cur_scope->typedefs_.end() && it->second == type)
 		  return cur_scope;
+	    if (NetScope*sup_scope = find_in_super_chain(cur_scope))
+		  return sup_scope;
+	    NetScope*import_scope = cur_scope->find_import(des, type->name);
+	    if (import_scope)
+		  cur_scope = import_scope;
+	    else if (cur_scope == unit_)
+		  return 0;
+	    else
+		  cur_scope = cur_scope->parent();
+
+	    if (cur_scope == 0)
+		  cur_scope = unit_;
+      }
+
+      // Some SV paths synthesize equivalent typedef_t wrappers (not pointer
+      // identical to the scope entry). Fall back to the nearest visible name.
+      cur_scope = this;
+      while (cur_scope) {
+	    auto it = cur_scope->typedefs_.find(type->name);
+	    if (it != cur_scope->typedefs_.end())
+		  return cur_scope;
+	    if (cur_scope->type() == NetScope::CLASS) {
+		  const netclass_t*cls = cur_scope->class_def();
+		  for (const netclass_t*sup = cls ? cls->get_super() : 0;
+		       sup; sup = sup->get_super()) {
+			const NetScope*sup_scope_const = sup->class_scope();
+			NetScope*sup_scope = const_cast<NetScope*>(sup_scope_const);
+			if (!sup_scope)
+			      continue;
+			auto sup_it = sup_scope->typedefs_.find(type->name);
+			if (sup_it != sup_scope->typedefs_.end())
+			      return sup_scope;
+		  }
+	    }
 	    NetScope*import_scope = cur_scope->find_import(des, type->name);
 	    if (import_scope)
 		  cur_scope = import_scope;
@@ -697,10 +796,8 @@ void NetScope::add_genvar(perm_string name, LineInfo *li)
 
 LineInfo* NetScope::find_genvar(perm_string name)
 {
-      if (genvars_.find(name) != genvars_.end())
-	    return genvars_[name];
-      else
-            return 0;
+      map<perm_string,LineInfo*>::iterator it = genvars_.find(name);
+      return it != genvars_.end()? it->second : 0;
 }
 
 void NetScope::add_signal_placeholder(PWire*wire)
@@ -715,10 +812,8 @@ void NetScope::rem_signal_placeholder(const PWire*wire)
 
 PWire* NetScope::find_signal_placeholder(perm_string name)
 {
-      if (signal_placeholders_.find(name) != signal_placeholders_.end())
-	    return signal_placeholders_[name];
-      else
-	    return 0;
+      map<perm_string,PWire*>::iterator it = signal_placeholders_.find(name);
+      return it != signal_placeholders_.end()? it->second : 0;
 }
 
 void NetScope::add_signal(NetNet*net)
@@ -739,46 +834,124 @@ void NetScope::rem_signal(NetNet*net)
  */
 NetNet* NetScope::find_signal(perm_string key)
 {
-      if (signals_map_.find(key)!=signals_map_.end())
-	    return signals_map_[key];
-      else
-	    return 0;
+      map<perm_string,NetNet*>::iterator it = signals_map_.find(key);
+      return it != signals_map_.end()? it->second : 0;
+}
+
+typedef_t* NetScope::find_typedef(const Design*des, perm_string name)
+{
+      map<perm_string,typedef_t*>::const_iterator cache_td = typedef_search_cache_.find(name);
+      if (cache_td != typedef_search_cache_.end())
+	    return cache_td->second;
+
+      map<perm_string,typedef_t*>::const_iterator td = typedefs_.find(name);
+      if (td != typedefs_.end()) {
+	    typedef_search_cache_[name] = td->second;
+	    return td->second;
+      }
+
+      typedef_t*res = 0;
+
+      if (type_ == CLASS && class_def_ && class_def_->get_super()) {
+	    const NetScope*sup_scope = class_def_->get_super()->class_scope();
+	    ivl_assert(*this, sup_scope);
+	    typedef_t*sup_td = const_cast<NetScope*>(sup_scope)->find_typedef(des, name);
+	    if (sup_td)
+		  res = sup_td;
+      }
+
+      if (!res) {
+	      // Try the imports.
+	    NetScope*import_scope = find_import(des, name);
+	    if (import_scope)
+		  res = import_scope->find_typedef(des, name);
+      }
+
+      if (!res && up_==0 && type_==CLASS) {
+	    ivl_assert(*this, class_def_);
+
+	    NetScope*def_parent = class_def_->definition_scope();
+	    res = def_parent->find_typedef(des, name);
+      }
+
+	// Try looking up for the typedef.
+      if (!res && up_!=0 && type_!=MODULE) {
+	    res = up_->find_typedef(des, name);
+      }
+
+	// Try the compilation unit.
+      if (!res && unit_ != 0 && this != unit_) {
+	    res = unit_->find_typedef(des, name);
+      }
+
+      typedef_search_cache_[name] = res;
+      return res;
 }
 
 netclass_t*NetScope::find_class(const Design*des, perm_string name)
 {
+      map<perm_string,netclass_t*>::const_iterator cache_it = class_search_cache_.find(name);
+      if (cache_it != class_search_cache_.end())
+	    return cache_it->second;
+
 	// Special case: The scope itself is the class that we are
 	// looking for. This may happen for example when elaborating
 	// methods within the class.
-      if (type_==CLASS && name_==hname_t(name))
-	    return class_def_;
+      if (type_==CLASS && class_def_) {
+	    if (name_==hname_t(name) || class_def_->get_name() == name) {
+		  class_search_cache_[name] = class_def_;
+		  return class_def_;
+	    }
+      }
 
 	// Look for the class directly within this scope.
       map<perm_string,netclass_t*>::const_iterator cur = classes_.find(name);
-      if (cur != classes_.end())
+      if (cur != classes_.end()) {
+	    class_search_cache_[name] = cur->second;
 	    return cur->second;
+      }
+
+	// A class-typed parameter/type-parameter can also be used as a class name.
+      ivl_type_t param_type = 0;
+      (void) get_parameter(const_cast<Design*>(des), name, param_type);
+      if (const netclass_t*param_class = dynamic_cast<const netclass_t*>(param_type)) {
+	    class_search_cache_[name] = const_cast<netclass_t*>(param_class);
+	    return const_cast<netclass_t*>(param_class);
+      }
 
         // Try the imports.
       NetScope*import_scope = find_import(des, name);
-      if (import_scope)
-            return import_scope->find_class(des, name);
+      if (import_scope) {
+            netclass_t*res = import_scope->find_class(des, name);
+            class_search_cache_[name] = res;
+            return res;
+      }
 
       if (up_==0 && type_==CLASS) {
 	    ivl_assert(*this, class_def_);
 
 	    NetScope*def_parent = class_def_->definition_scope();
-	    return def_parent->find_class(des, name);
+	    netclass_t*res = def_parent->find_class(des, name);
+	    class_search_cache_[name] = res;
+	    return res;
       }
 
 	// Try looking up for the class.
-      if (up_!=0 && type_!=MODULE)
-	    return up_->find_class(des, name);
+      if (up_!=0 && type_!=MODULE) {
+	    netclass_t*res = up_->find_class(des, name);
+	    class_search_cache_[name] = res;
+	    return res;
+      }
 
 	// Try the compilation unit.
-      if (unit_ != 0 && this != unit_)
-	    return unit_->find_class(des, name);
+      if (unit_ != 0 && this != unit_) {
+	    netclass_t*res = unit_->find_class(des, name);
+	    class_search_cache_[name] = res;
+	    return res;
+      }
 
 	// Nowhere left to try...
+      class_search_cache_[name] = 0;
       return 0;
 }
 

@@ -509,6 +509,15 @@ void PEIdent::dump(ostream&out) const
       out << path_;
 }
 
+void PEMemberAccess::dump(ostream&out) const
+{
+      if (base_)
+	    out << *base_;
+      else
+	    out << "<null-base>";
+      out << "." << member_name_;
+}
+
 void PEString::dump(ostream&out) const
 {
       out << "\"" << text_ << "\"";
@@ -1105,7 +1114,7 @@ void PForce::dump(ostream&out, unsigned ind) const
 void PForeach::dump(ostream&fd, unsigned ind) const
 {
       fd << setw(ind) << "" << "foreach "
-	 << "variable=" << array_var_
+	 << "variable=" << array_path_
 	 << ", indices=[";
       for (size_t idx = 0 ; idx < index_vars_.size() ; idx += 1) {
 	    if (idx > 0) fd << ",";

@@ -205,17 +205,27 @@ public:
       perm_string name;
 };
 
+struct parmvalue_t;
+
 struct typeref_t : public data_type_t {
-      explicit typeref_t(typedef_t *t, PScope *s = 0) : scope(s), type(t) {}
+      explicit typeref_t(typedef_t *t, PScope *s = 0, parmvalue_t*o = 0)
+      : scope(s), type(t), overrides(o) {}
+      ~typeref_t() override;
 
       ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
       NetScope *find_scope(Design* des, NetScope *scope) const override;
 
       std::ostream& debug_dump(std::ostream&out) const override;
 
+      inline typedef_t* typedef_ref() const { return type; }
+      inline PScope* scope_ref() const { return scope; }
+      inline const parmvalue_t* parameter_values() const { return overrides; }
+      inline void set_parameter_values(parmvalue_t*o) { overrides = o; }
+
 private:
       PScope *scope;
       typedef_t *type;
+      parmvalue_t* overrides;
 };
 
 struct type_parameter_t : data_type_t {
@@ -371,6 +381,14 @@ struct string_type_t : public data_type_t {
       ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
 };
 
+struct interface_type_t : public data_type_t {
+      inline explicit interface_type_t(perm_string n) : name(n) { }
+
+      ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
+
+      perm_string name;
+};
+
 struct class_type_t : public data_type_t {
 
       inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; }
@@ -397,6 +415,7 @@ struct class_type_t : public data_type_t {
 	    std::unique_ptr<data_type_t> type;
       };
       std::map<perm_string, struct prop_info_t> properties;
+      std::vector<perm_string> property_order;
 
 	// This is an ordered list of property initializers. The name
 	// is the name of the property to be assigned, and the val is
@@ -479,6 +498,20 @@ inline perm_string peek_tail_name(const pform_scoped_name_t &that)
 {
       return peek_tail_name(that.name);
 }
+
+struct foreach_index_type_t : public data_type_t {
+      explicit foreach_index_type_t(const std::vector<perm_string>&path,
+				    size_t idx_depth,
+				    unsigned lex_pos)
+      : target_path(path), index_depth(idx_depth), lexical_pos(lex_pos) { }
+
+      virtual std::ostream& debug_dump(std::ostream&out) const override;
+      ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
+
+      std::vector<perm_string> target_path;
+      size_t index_depth;
+      unsigned lexical_pos;
+};
 
 /*
  * In pform names, the "super" and "this" keywords are converted to

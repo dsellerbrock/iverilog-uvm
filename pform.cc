@@ -32,6 +32,8 @@
 # include  "PGenerate.h"
 # include  "PModport.h"
 # include  "PSpec.h"
+# include  "PTask.h"
+# include  "Statement.h"
 # include  "PTimingCheck.h"
 # include  "discipline.h"
 # include  <list>
@@ -363,6 +365,7 @@ static list<set<perm_string> > conditional_block_names;
   /* This tracks the current modport list being processed. This is
      always within an interface. */
 static PModport*pform_cur_modport = 0;
+static Module::PClocking*pform_cur_clocking = 0;
 
 static NetNet::Type pform_default_nettype = NetNet::WIRE;
 
@@ -406,6 +409,12 @@ LexicalScope* pform_peek_scope(void)
       return lexical_scope;
 }
 
+void pform_push_existing_scope(LexicalScope*scope)
+{
+      assert(scope);
+      lexical_scope = scope;
+}
+
 static void pform_check_possible_imports(LexicalScope *scope)
 {
       map<perm_string,PPackage*>::const_iterator cur;
@@ -433,6 +442,28 @@ static LexicalScope::lifetime_t find_lifetime(LexicalScope::lifetime_t lifetime)
 	    return lifetime;
 
       return lexical_scope->default_lifetime;
+}
+
+static ivl_lifetime_t current_var_lifetime_ = IVL_VLT_INHERITED;
+
+void pform_set_var_lifetime(ivl_lifetime_t lifetime)
+{
+      current_var_lifetime_ = lifetime;
+}
+
+static bool procedural_var_lifetime_context_()
+{
+      return dynamic_cast<PTaskFunc*>(lexical_scope)
+          || dynamic_cast<PBlock*>(lexical_scope);
+}
+
+static void apply_var_lifetime_override_(PWire*wire)
+{
+      if (!wire || !procedural_var_lifetime_context_())
+            return;
+      if (current_var_lifetime_ == IVL_VLT_INHERITED)
+            return;
+      wire->lifetime_override(current_var_lifetime_);
 }
 
 static PScopeExtra* find_nearest_scopex(LexicalScope*scope)
@@ -641,6 +672,26 @@ PTask* pform_push_task_scope(const struct vlltype&loc, const char*name,
       return task;
 }
 
+PTask* pform_push_task_scope_unbound(const struct vlltype&loc, const char*name,
+				     LexicalScope::lifetime_t lifetime)
+{
+      perm_string task_name = lex_strings.make(name);
+
+      LexicalScope::lifetime_t default_lifetime = find_lifetime(lifetime);
+      bool is_auto = default_lifetime == LexicalScope::AUTOMATIC;
+
+      PTask*task = new PTask(task_name, lexical_scope, is_auto);
+      task->default_lifetime = default_lifetime;
+      FILE_NAME(task, loc);
+
+      PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
+      ivl_assert(loc, scopex);
+      pform_set_scope_timescale(task, scopex);
+
+      lexical_scope = task;
+      return task;
+}
+
 PFunction* pform_push_function_scope(const struct vlltype&loc, const char*name,
                                      LexicalScope::lifetime_t lifetime)
 {
@@ -674,6 +725,26 @@ PFunction* pform_push_function_scope(const struct vlltype&loc, const char*name,
 
       lexical_scope = func;
 
+      return func;
+}
+
+PFunction* pform_push_function_scope_unbound(const struct vlltype&loc, const char*name,
+					     LexicalScope::lifetime_t lifetime)
+{
+      perm_string func_name = lex_strings.make(name);
+
+      LexicalScope::lifetime_t default_lifetime = find_lifetime(lifetime);
+      bool is_auto = default_lifetime == LexicalScope::AUTOMATIC;
+
+      PFunction*func = new PFunction(func_name, lexical_scope, is_auto);
+      func->default_lifetime = default_lifetime;
+      FILE_NAME(func, loc);
+
+      PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
+      ivl_assert(loc, scopex);
+      pform_set_scope_timescale(func, scopex);
+
+      lexical_scope = func;
       return func;
 }
 
@@ -880,9 +951,168 @@ void pform_set_type_referenced(const struct vlltype&loc, const char*name)
       check_potential_imports(loc, lex_name, false);
 }
 
+static PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name)
+{
+      for (LexicalScope*cur = start ; cur ; cur = cur->parent_scope()) {
+	    if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(cur)) {
+		  auto cls = scopex->classes.find(name);
+		  if (cls != scopex->classes.end())
+			return cls->second;
+	    }
+
+	    auto imp = cur->explicit_imports.find(name);
+	    if (imp != cur->explicit_imports.end()) {
+		  PPackage*pkg = imp->second;
+		  auto cls = pkg->classes.find(name);
+		  if (cls != pkg->classes.end())
+			return cls->second;
+	    }
+
+	    for (PPackage*pkg : cur->potential_imports) {
+		  auto cls = pkg->classes.find(name);
+		  if (cls != pkg->classes.end())
+			return cls->second;
+	    }
+      }
+
+      return nullptr;
+}
+
+static typedef_t* pform_find_inherited_class_typedef(PClass*class_scope, perm_string name)
+{
+      set<perm_string> seen;
+      PClass*cur_class = class_scope;
+
+      while (cur_class && cur_class->type && cur_class->type->base_type.get()) {
+	    const typeref_t*base_ref = dynamic_cast<const typeref_t*>(cur_class->type->base_type.get());
+	    if (!base_ref)
+		  break;
+
+	    typedef_t*base_td = base_ref->typedef_ref();
+	    if (!base_td)
+		  break;
+
+	    perm_string base_name = base_td->name;
+	    if (!seen.insert(base_name).second)
+		  break;
+
+	    cur_class = pform_find_visible_class_scope(cur_class, base_name);
+	    if (!cur_class)
+		  break;
+
+	    auto cur = cur_class->typedefs.find(name);
+	    if (cur != cur_class->typedefs.end())
+		  return cur->second;
+      }
+
+      return nullptr;
+}
+
+static typedef_t* pform_find_interface_typedef(perm_string name)
+{
+      static map<perm_string,typedef_t*> interface_typedef_cache;
+
+      auto cached = interface_typedef_cache.find(name);
+      if (cached != interface_typedef_cache.end())
+	    return cached->second;
+
+      auto mod = pform_modules.find(name);
+      if (mod == pform_modules.end() || !mod->second->is_interface)
+	    return nullptr;
+
+      typedef_t* td = new typedef_t(name);
+      td->set_data_type(new interface_type_t(name));
+      interface_typedef_cache[name] = td;
+      return td;
+}
+
+static typedef_t* pform_bind_visible_class_typedef(const struct vlltype&loc,
+                                                   perm_string name,
+                                                   PClass*class_scope)
+{
+      if (!class_scope || !class_scope->type)
+            return nullptr;
+
+      LexicalScope*decl_scope = class_scope->parent_scope();
+      if (!decl_scope)
+            return nullptr;
+
+      typedef_t*&td = decl_scope->typedefs[name];
+      if (!td) {
+            td = new typedef_t(name);
+            FILE_NAME(td, loc);
+            add_local_symbol(decl_scope, name, td);
+      }
+
+      if (!td->set_basic_type(typedef_t::CLASS)) {
+            cerr << loc << " error: Incompatible basic type `" << td->get_basic_type()
+                 << "` for `" << name << "`." << endl;
+            error_count++;
+            return td;
+      }
+
+      if (!td->get_data_type())
+            td->set_data_type(class_scope->type);
+
+      return td;
+}
+
+static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
+						     LexicalScope*scope,
+						     perm_string name)
+{
+      typedef_t*found_type = nullptr;
+      PPackage*found_decl_pkg = nullptr;
+
+      for (PPackage*search_pkg : scope->potential_imports) {
+	    PPackage*decl_pkg = pform_package_importable(search_pkg, name);
+	    if (!decl_pkg)
+		  continue;
+
+	    auto cur = decl_pkg->typedefs.find(name);
+	    if (cur == decl_pkg->typedefs.end())
+		  continue;
+
+	    if (found_type && found_type != cur->second) {
+		  cerr << loc.get_fileline() << ": error: "
+		       << "Ambiguous use of type '" << name << "'. "
+		       << "It is exported by both '"
+		       << found_decl_pkg->pscope_name()
+		       << "' and by '"
+		       << decl_pkg->pscope_name()
+		       << "'." << endl;
+		  error_count++;
+		  continue;
+	    }
+
+	    found_type = cur->second;
+	    found_decl_pkg = decl_pkg;
+	    scope->explicit_imports[name] = decl_pkg;
+	    scope->explicit_imports_from[name].insert(search_pkg);
+      }
+
+      return found_type;
+}
+
 typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 {
       perm_string name = lex_strings.make(txt);
+      if (name == lex_strings.make("process")) {
+	    static typedef_t*process_type = nullptr;
+	    if (!process_type) {
+		  process_type = new typedef_t(lex_strings.make("process"));
+		  process_type->set_data_type(new type_parameter_t(process_type->name));
+	    }
+	    return process_type;
+      }
+      if (name == lex_strings.make("semaphore")) {
+	    static typedef_t*semaphore_type = nullptr;
+	    if (!semaphore_type) {
+		  semaphore_type = new typedef_t(lex_strings.make("semaphore"));
+		  semaphore_type->set_data_type(new type_parameter_t(semaphore_type->name));
+	    }
+	    return semaphore_type;
+      }
 
       LexicalScope*cur_scope = lexical_scope;
       do {
@@ -910,42 +1140,77 @@ typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 	    if (cur != cur_scope->typedefs.end())
 		  return cur->second;
 
-            PPackage*pkg = pform_find_potential_import(loc, cur_scope, name, false, false);
-            if (pkg) {
-	          cur = pkg->typedefs.find(name);
-	          if (cur != pkg->typedefs.end())
-		        return cur->second;
-
-		    // Not a type. Give up.
-		  return 0;
-            }
+	    if (typedef_t*imported_type =
+		    pform_find_potential_imported_type(loc, cur_scope, name))
+		  return imported_type;
 
 	    cur_scope = cur_scope->parent_scope();
       } while (cur_scope);
 
+      // If we are inside a class scope, also search inherited class typedefs.
+      for (LexicalScope*cls = lexical_scope ; cls ; cls = cls->parent_scope()) {
+	    if (PClass*class_scope = dynamic_cast<PClass*>(cls)) {
+		  if (typedef_t*td = pform_find_inherited_class_typedef(class_scope, name))
+			return td;
+		  break;
+	    }
+      }
+
+      if (PClass*class_scope = pform_find_visible_class_scope(lexical_scope, name))
+            return pform_bind_visible_class_typedef(loc, name, class_scope);
+
+      if (typedef_t*td = pform_find_interface_typedef(name))
+	    return td;
+
       return 0;
+}
+
+void delete_parmvalue(struct parmvalue_t*parms)
+{
+      if (parms == 0)
+	    return;
+
+      if (parms->by_order) {
+	    for (list<PExpr*>::iterator cur = parms->by_order->begin()
+		 ; cur != parms->by_order->end() ; ++cur)
+		  delete *cur;
+	    delete parms->by_order;
+      }
+
+      if (parms->by_name) {
+	    for (list<named_pexpr_t>::iterator cur = parms->by_name->begin()
+		 ; cur != parms->by_name->end() ; ++cur)
+		  delete cur->parm;
+	    delete parms->by_name;
+      }
+
+      delete parms;
 }
 
 PECallFunction* pform_make_call_function(const struct vlltype&loc,
 					 const pform_name_t&name,
-					 const list<named_pexpr_t> &parms)
+					 const list<named_pexpr_t> &parms,
+					 struct parmvalue_t*type_args)
 {
       if (gn_system_verilog())
 	    check_potential_imports(loc, name.front().name, true);
 
       PECallFunction*tmp = new PECallFunction(name, parms);
+      tmp->set_leading_type_args(type_args);
       FILE_NAME(tmp, loc);
       return tmp;
 }
 
 PCallTask* pform_make_call_task(const struct vlltype&loc,
 				const pform_name_t&name,
-				const list<named_pexpr_t> &parms)
+				const list<named_pexpr_t> &parms,
+				struct parmvalue_t*type_args)
 {
       if (gn_system_verilog())
 	    check_potential_imports(loc, name.front().name, true);
 
       PCallTask*tmp = new PCallTask(name, parms);
+      tmp->set_leading_type_args(type_args);
       FILE_NAME(tmp, loc);
       return tmp;
 }
@@ -962,29 +1227,46 @@ void pform_make_var(const struct vlltype&loc,
 }
 
 void pform_make_foreach_declarations(const struct vlltype&loc,
+				     const pform_name_t*array_name,
 				     std::list<perm_string>*loop_vars)
 {
-      list<decl_assignment_t*>assign_list;
+      bool resolvable_target = array_name != 0;
+      std::vector<perm_string> target_path;
+      if (array_name) {
+	    for (pform_name_t::const_iterator cur = array_name->begin()
+		       ; cur != array_name->end() ; ++cur) {
+		  if (!cur->index.empty()) {
+			resolvable_target = false;
+			break;
+		  }
+		  target_path.push_back(cur->name);
+	    }
+      }
+      size_t index_depth = 0;
+
       for (list<perm_string>::const_iterator cur = loop_vars->begin()
-		 ; cur != loop_vars->end() ; ++ cur) {
+		 ; cur != loop_vars->end() ; ++ cur, index_depth += 1) {
 	    if (cur->nil())
 		  continue;
+
+	    list<decl_assignment_t*>assign_list;
 	    decl_assignment_t*tmp_assign = new decl_assignment_t;
 	    tmp_assign->name = { lex_strings.make(*cur), 0 };
 	    assign_list.push_back(tmp_assign);
-      }
 
-      pform_make_var(loc, &assign_list, &size_type);
+	    data_type_t*index_type = resolvable_target
+		  ? static_cast<data_type_t*>(new foreach_index_type_t(
+			target_path, index_depth, loc.lexical_pos))
+		  : static_cast<data_type_t*>(new atom_type_t(atom_type_t::INT, true));
+	    pform_make_var(loc, &assign_list, index_type);
+      }
 }
 
 PForeach* pform_make_foreach(const struct vlltype&loc,
-			     char*name,
+			     const pform_name_t&name,
 			     list<perm_string>*loop_vars,
 			     Statement*stmt)
 {
-      perm_string use_name = lex_strings.make(name);
-      delete[]name;
-
       if (loop_vars==0 || loop_vars->empty()) {
 	    cerr << loc.get_fileline() << ": error: "
 		 << "No loop variables at all in foreach index." << endl;
@@ -992,7 +1274,7 @@ PForeach* pform_make_foreach(const struct vlltype&loc,
       }
 
       ivl_assert(loc, loop_vars);
-      PForeach*fe = new PForeach(use_name, *loop_vars, stmt);
+      PForeach*fe = new PForeach(name, *loop_vars, stmt, loc.lexical_pos);
       FILE_NAME(fe, loc);
 
       delete loop_vars;
@@ -2362,6 +2644,48 @@ void pform_make_modgates(const struct vlltype&loc,
 			 std::vector<lgate>*gates,
 			 std::list<named_pexpr_t>*attr)
 {
+	// SystemVerilog user-type declarations at module scope (e.g. `foo_t x;`)
+	// parse through the same no-port shape as degenerate module instances.
+	// If the left token is a visible type and every item is a no-port
+	// instance, reinterpret the whole construct as a variable declaration.
+      if (overrides == 0) {
+	    typedef_t*decl_type = pform_test_type_identifier(loc, type);
+	    if (decl_type) {
+		  bool declaration_like = true;
+		  std::list<decl_assignment_t*>*decls =
+			new std::list<decl_assignment_t*>;
+		  for (unsigned idx = 0 ; idx < gates->size() ; idx += 1) {
+			lgate&cur = (*gates)[idx];
+			if (cur.parms || cur.parms_by_name) {
+			      declaration_like = false;
+			      break;
+			}
+
+			decl_assignment_t*decl = new decl_assignment_t;
+			decl->name = { lex_strings.make(cur.name), loc.lexical_pos };
+			if (cur.ranges) {
+			      decl->index.swap(*cur.ranges);
+			      delete cur.ranges;
+			      cur.ranges = 0;
+			}
+			decls->push_back(decl);
+		  }
+
+		  if (declaration_like) {
+			typeref_t*dtype = new typeref_t(decl_type);
+			FILE_NAME(dtype, loc);
+			pform_make_var(loc, decls, dtype, attr, false);
+			delete gates;
+			return;
+		  }
+
+		  for (std::list<decl_assignment_t*>::iterator cur = decls->begin()
+			     ; cur != decls->end() ; ++cur)
+			delete *cur;
+		  delete decls;
+	    }
+      }
+
 	// The grammer should not allow module gates to happen outside
 	// an active module. But if really bad input errors combine in
 	// an ugly way with error recovery, then catch this
@@ -2549,11 +2873,13 @@ static PWire* pform_get_or_make_wire(const struct vlltype&li,
 	      // the signal.
 	    FILE_NAME(cur, li);
 	    cur->set_net(type);
+            apply_var_lifetime_override_(cur);
 	    return cur;
       }
 
       if (rt == SR_PORT && cur && !cur->is_port()) {
 	    cur->set_port(ptype);
+            apply_var_lifetime_override_(cur);
 	    return cur;
       }
 
@@ -2565,6 +2891,7 @@ static PWire* pform_get_or_make_wire(const struct vlltype&li,
 
       cur = new PWire(name.first, name.second, type, ptype, rt);
       FILE_NAME(cur, li);
+      apply_var_lifetime_override_(cur);
 
       pform_put_wire_in_scope(name.first, cur);
 
@@ -2985,7 +3312,10 @@ void pform_set_parameter(const struct vlltype&loc,
       parm->type_flag = is_type;
       parm->lexical_pos = loc.lexical_pos;
 
+      bool new_parameter = (scope->parameters.find(name) == scope->parameters.end());
       scope->parameters[name] = parm;
+      if (new_parameter)
+	    scope->parameter_order.push_back(name);
 
       // Only a module keeps the position of the parameter.
       if (overridable && in_module)
@@ -3362,6 +3692,48 @@ void pform_add_modport_port(const struct vlltype&loc,
       pform_cur_modport->simple_ports[name] = make_pair(port_type, expr);
 }
 
+void pform_start_clocking_block(const struct vlltype&loc,
+				const char*name,
+				PEventStatement*event)
+{
+      Module*scope = pform_cur_module.front();
+      ivl_assert(loc, scope && scope->is_interface);
+      ivl_assert(loc, pform_cur_clocking == 0);
+
+      perm_string use_name = lex_strings.make(name);
+      if (scope->clocking_blocks.find(use_name) != scope->clocking_blocks.end()) {
+	    cerr << loc << ": error: duplicate declaration of clocking block `"
+		 << use_name << "'." << endl;
+	    error_count += 1;
+	    delete[] name;
+	    delete event;
+	    return;
+      }
+
+      pform_cur_clocking = new Module::PClocking(use_name, event);
+      FILE_NAME(pform_cur_clocking, loc);
+      scope->clocking_blocks[use_name] = pform_cur_clocking;
+
+      delete[] name;
+}
+
+void pform_add_clocking_signal(const struct vlltype&loc, perm_string name)
+{
+      ivl_assert(loc, pform_cur_clocking);
+
+      if (!pform_cur_clocking->add_signal(name)) {
+	    cerr << loc << ": error: duplicate signal `" << name
+		 << "' in clocking block `" << pform_cur_clocking->name << "'." << endl;
+	    error_count += 1;
+      }
+}
+
+void pform_end_clocking_block(const struct vlltype&loc)
+{
+      ivl_assert(loc, pform_cur_clocking);
+      pform_cur_clocking = 0;
+}
+
 bool pform_requires_sv(const struct vlltype&loc, const char *feature)
 {
       if (gn_system_verilog())
@@ -3481,6 +3853,7 @@ int pform_parse(const char*path)
 
 	    lexical_scope = unit;
       }
+      reset_parser_file_state();
       reset_lexor();
       error_count = 0;
       warn_count = 0;

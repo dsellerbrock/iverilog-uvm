@@ -80,8 +80,8 @@ void dll_target::task_def(const NetScope*net)
       ivl_scope_t scop = lookup_scope_(net);
       const NetTaskDef*def = net->task_def();
 
-      assert(def);
-      assert(def->proc());
+      if (def == 0 || def->proc() == 0)
+	    return;
       assert(stmt_cur_ == 0);
       stmt_cur_ = static_cast<struct ivl_statement_s*>(calloc(1, sizeof*stmt_cur_));
       def->proc()->emit_proc(this);
@@ -104,8 +104,8 @@ bool dll_target::func_def(const NetScope*net)
       ivl_scope_t scop = lookup_scope_(net);
       const NetFuncDef*def = net->func_def();
 
-      assert(def);
-      assert(def->proc());
+      if (def == 0 || def->proc() == 0)
+	    return true;
       assert(stmt_cur_ == 0);
       stmt_cur_ = static_cast<struct ivl_statement_s*>(calloc(1, sizeof*stmt_cur_));
       def->proc()->emit_proc(this);
@@ -165,6 +165,9 @@ bool dll_target::make_single_lval_(const LineInfo*li, struct ivl_lval_s*cur, con
 
       const NetExpr*loff = asn->get_base();
 
+      cur->sig = 0;
+      cur->nest = 0;
+
       if (loff == 0) {
 	    cur->loff = 0;
 	    cur->sel_type = IVL_SEL_OTHER;
@@ -179,7 +182,7 @@ bool dll_target::make_single_lval_(const LineInfo*li, struct ivl_lval_s*cur, con
 
       if (asn->sig()) {
 	    cur->type_ = IVL_LVAL_REG;
-	    cur->n.sig = find_signal(des_, asn->sig());
+	    cur->sig = find_signal(des_, asn->sig());
 
       } else {
 	    const NetAssign_*asn_nest = asn->nest();
@@ -188,7 +191,7 @@ bool dll_target::make_single_lval_(const LineInfo*li, struct ivl_lval_s*cur, con
 	    flag &= make_single_lval_(li, cur_nest, asn_nest);
 
 	    cur->type_ = IVL_LVAL_LVAL;
-	    cur->n.nest = cur_nest;
+	    cur->nest = cur_nest;
       }
 
       cur->idx = 0;
@@ -238,7 +241,12 @@ bool dll_target::proc_assign(const NetAssign*net)
 
       stmt_cur_->u_.assign_.oper = net->assign_operator();
       assert(expr_ == 0);
-      net->rval()->expr_scan(this);
+      const NetExpr*rval = net->rval();
+      if (rval == 0) {
+            stmt_cur_->type_ = IVL_ST_NOOP;
+            return false;
+      }
+      rval->expr_scan(this);
       stmt_cur_->u_.assign_.rval_ = expr_;
       expr_ = 0;
 
@@ -257,6 +265,7 @@ void dll_target::proc_assign_nb(const NetAssignNB*net)
 {
       const NetExpr* delay_exp = net->get_delay();
       const NetExpr* cnt_exp = net->get_count();
+      const NetExpr* rval = net->rval();
       assert(stmt_cur_);
       assert(stmt_cur_->type_ == IVL_ST_NONE);
 
@@ -272,7 +281,11 @@ void dll_target::proc_assign_nb(const NetAssignNB*net)
 
 	/* Make the rval field. */
       assert(expr_ == 0);
-      net->rval()->expr_scan(this);
+      if (rval == 0) {
+            stmt_cur_->type_ = IVL_ST_NOOP;
+            return;
+      }
+      rval->expr_scan(this);
       stmt_cur_->u_.assign_.rval_ = expr_;
       expr_ = 0;
 
@@ -547,7 +560,12 @@ bool dll_target::proc_cassign(const NetCAssign*net)
       make_assign_lvals_(net);
 
       assert(expr_ == 0);
-      net->rval()->expr_scan(this);
+      const NetExpr*rval = net->rval();
+      if (rval == 0) {
+            stmt_cur_->type_ = IVL_ST_NOOP;
+            return false;
+      }
+      rval->expr_scan(this);
       stmt_cur_->u_.assign_.rval_ = expr_;
       expr_ = 0;
 
@@ -703,7 +721,14 @@ bool dll_target::proc_force(const NetForce*net)
       make_assign_lvals_(net);
 
       assert(expr_ == 0);
-      net->rval()->expr_scan(this);
+      const NetExpr*rval = net->rval();
+      if (rval == 0) {
+            std::cerr << net->get_fileline() << ": warning: "
+                 << "force with missing r-value ignored (compile-progress fallback)." << std::endl;
+            stmt_cur_->type_ = IVL_ST_NOOP;
+            return false;
+      }
+      rval->expr_scan(this);
       stmt_cur_->u_.assign_.rval_ = expr_;
       expr_ = 0;
 
@@ -921,6 +946,7 @@ void dll_target::proc_utask(const NetUTask*net)
 
       stmt_cur_->type_ = IVL_ST_UTASK;
       stmt_cur_->u_.utask_.def = lookup_scope_(net->task());
+      stmt_cur_->u_.utask_.super_call = net->super_call() ? 1 : 0;
 }
 
 bool dll_target::proc_wait(const NetEvWait*net)

@@ -1691,10 +1691,13 @@ static PLI_INT32 sys_swrite_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
     return 0;
   }
 
-  /* The first argument must be a register or a SV string. */
+  /* The first argument must be a register or a SV string.
+   * Also accept vpiConstant for function return value stack references
+   * (e.g. $swrite(func_name, ...) inside a function body). These are
+   * semantically writable even though VPI sees them as constants. */
   arg = vpi_scan(argv);  /* This should never be zero. */
   type = vpi_get(vpiType, arg);
-  if (type != vpiReg && type != vpiStringVar) {
+  if (type != vpiReg && type != vpiStringVar && type != vpiConstant) {
     vpi_printf("ERROR:%s:%d: ", vpi_get_str(vpiFile, callh),
                (int)vpi_get(vpiLineNo, callh));
     vpi_printf("%s's first argument must be a register or SV string.\n", name);
@@ -1765,10 +1768,12 @@ static PLI_INT32 sys_sformat_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
     return 0;
   }
 
-  /* The first argument must be a register or a SV string. */
+  /* The first argument must be a register or a SV string.
+   * Also accept vpiConstant for function return value stack references
+   * (e.g. $sformat(func_name, ...) inside a function body). */
   arg = vpi_scan(argv);  /* This should never be zero. */
   type = vpi_get(vpiType, arg);
-  if (type != vpiReg && type != vpiStringVar) {
+  if (type != vpiReg && type != vpiStringVar && type != vpiConstant) {
     vpi_printf("ERROR:%s:%d: ", vpi_get_str(vpiFile, callh),
                (int)vpi_get(vpiLineNo, callh));
     vpi_printf("%s's first argument must be a register or SV string.\n", name);

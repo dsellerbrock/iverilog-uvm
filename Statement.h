@@ -235,6 +235,7 @@ class PCallTask  : public Statement {
       ~PCallTask() override;
 
       const pform_name_t& path() const;
+      const std::vector<named_pexpr_t>& parms() const { return parms_; }
 
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
@@ -242,6 +243,10 @@ class PCallTask  : public Statement {
       bool elaborate_elab(Design*des, NetScope*scope) const;
 
       void void_cast() { void_cast_ = true; }
+      void set_leading_type_args(struct parmvalue_t*type_args)
+            { leading_type_args_ = type_args; }
+      const struct parmvalue_t* leading_type_args() const
+            { return leading_type_args_; }
 
     private:
       NetProc* elaborate_sys(Design*des, NetScope*scope) const;
@@ -255,19 +260,22 @@ class PCallTask  : public Statement {
       NetProc *elaborate_non_void_function_(Design *des, NetScope *scope) const;
 
       NetProc*elaborate_build_call_(Design*des, NetScope*scope,
-				    NetScope*task, NetExpr*use_this) const;
+				    NetScope*task, NetExpr*use_this,
+				    bool super_call = false) const;
       NetProc*elaborate_sys_task_method_(Design*des, NetScope*scope,
-					 NetNet*net,
+					 NetExpr*obj,
+					 ivl_type_t obj_type,
 					 perm_string method_name,
 					 const char *sys_task_name,
 				         const std::vector<perm_string> &parm_names = {}) const;
       NetProc*elaborate_queue_method_(Design*des, NetScope*scope,
-				      NetNet*net,
+				      NetExpr*obj,
+				      const netdarray_t*obj_darray,
 				      perm_string method_name,
 				      const char *sys_task_name,
 				      const std::vector<perm_string> &parm_names) const;
       NetProc*elaborate_method_func_(NetScope*scope,
-				     NetNet*net,
+				     NetExpr*obj,
 				     ivl_type_t type,
 				     perm_string method_name,
 				     const char*sys_task_name) const;
@@ -276,6 +284,7 @@ class PCallTask  : public Statement {
       PPackage*package_;
       pform_name_t path_;
       std::vector<named_pexpr_t> parms_;
+      struct parmvalue_t*leading_type_args_ = 0;
       bool void_cast_ = false;
 };
 
@@ -472,6 +481,7 @@ class PEventStatement  : public Statement {
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
 
       bool has_aa_term(Design*des, NetScope*scope);
+      const std::vector<PEEvent*>& event_expressions() const { return expr_; }
 
 	// This method is used to elaborate, but attach a previously
 	// elaborated statement to the event.
@@ -507,7 +517,10 @@ class PForce  : public Statement {
 
 class PForeach : public Statement {
     public:
-      explicit PForeach(perm_string var, const std::list<perm_string>&ix, Statement*stmt);
+      explicit PForeach(const pform_name_t&var,
+                        const std::list<perm_string>&ix,
+                        Statement*stmt,
+                        unsigned lexical_pos);
       ~PForeach() override;
 
       PForeach(const PForeach&) = delete;
@@ -519,13 +532,21 @@ class PForeach : public Statement {
       virtual void dump(std::ostream&out, unsigned ind) const override;
 
     private:
+      NetProc* elaborate_assoc_array_(Design*des, NetScope*scope,
+				      NetExpr*array_expr) const;
+      NetProc* elaborate_runtime_array_(Design*des, NetScope*scope,
+					NetExpr*array_expr) const;
+      NetProc* elaborate_runtime_array_(Design*des, NetScope*scope,
+					NetExpr*array_expr,
+					size_t index_var_start) const;
       NetProc* elaborate_static_array_(Design*des, NetScope*scope,
 				       const netranges_t&dims) const;
 
     private:
-      perm_string array_var_;
+      pform_name_t array_path_;
       std::vector<perm_string> index_vars_;
       Statement*statement_;
+      unsigned lexical_pos_;
 };
 
 class PForever : public Statement {

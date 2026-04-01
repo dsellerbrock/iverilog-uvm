@@ -716,6 +716,13 @@ static void add_vpi_call_error(vpi_call_error_type type, const char *name,
       vpi_call_error_num += 1;
 }
 
+static bool suppress_func_as_task_warn(const char*name)
+{
+      /* UVM frequently uses $cast in task form to test conversion
+       * success while intentionally discarding the return value. */
+      return (name && strcmp(name, "$cast") == 0);
+}
+
 void print_vpi_call_errors()
 {
       for (unsigned idx = 0; idx < vpi_call_error_num; idx += 1) {
@@ -785,7 +792,8 @@ vpiHandle vpip_build_vpi_call(const char*name, int val_code, unsigned return_wid
 			      vvp_net_t*fnet,
 			      bool func_as_task_err, bool func_as_task_warn,
 			      unsigned argc, vpiHandle*argv,
-			      unsigned vec4_stack, unsigned real_stack, unsigned string_stack,
+			      unsigned vec4_stack, unsigned real_stack,
+			      unsigned string_stack, unsigned object_stack,
 			      long file_idx, long lineno)
 {
       assert(!(func_as_task_err && func_as_task_warn));
@@ -820,7 +828,8 @@ vpiHandle vpip_build_vpi_call(const char*name, int val_code, unsigned return_wid
 			cleanup_vpi_call_args(argc, argv);
 #endif
 			return 0;
-		  } else if (func_as_task_warn) {
+		  } else if (func_as_task_warn &&
+		             !suppress_func_as_task_warn(name)) {
 			add_vpi_call_error(VPI_CALL_FUNC_AS_TASK_WARN,
 			                   name, file_idx, lineno);
 		  }
@@ -873,6 +882,7 @@ vpiHandle vpip_build_vpi_call(const char*name, int val_code, unsigned return_wid
       obj->vec4_stack = vec4_stack;
       obj->real_stack = real_stack;
       obj->string_stack = string_stack;
+      obj->object_stack = object_stack;
       obj->fnet  = fnet;
       obj->file_idx  = (unsigned) file_idx;
       obj->lineno   = (unsigned) lineno;
@@ -908,6 +918,15 @@ void vpi_call_delete(vpiHandle item)
 			break;
 		      default:
 			assert(0);
+		  }
+		  break;
+		case vpiClassVar:
+		  switch (vpi_get(_vpiFromThr, obj->args[arg])) {
+		      case _vpiObj:
+			thread_object_delete(obj->args[arg]);
+			break;
+		      default:
+			break;
 		  }
 		  break;
 		case vpiMemoryWord:
@@ -970,6 +989,8 @@ void vpip_execute_vpi_call(vthread_t thr, vpiHandle ref)
 	    vthread_pop_real(thr, vpip_cur_task->real_stack);
       if (vpip_cur_task->string_stack > 0)
 	    vthread_pop_str(thr, vpip_cur_task->string_stack);
+      if (vpip_cur_task->object_stack > 0)
+	    vthread_pop_obj(thr, vpip_cur_task->object_stack);
 
 	/* If the function returns a value, then push the value
 	   to the appropriate thread stack. */

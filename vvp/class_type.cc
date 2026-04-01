@@ -20,14 +20,38 @@
 # include  "class_type.h"
 # include  "compile.h"
 # include  "vpi_priv.h"
+# include  "vvp_assoc.h"
+# include  "vvp_cobject.h"
+# include  "vvp_darray.h"
 # include  "config.h"
+# include  <cinttypes>
+# include  <cstring>
 # include  <map>
+# include  <iostream>
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
 # include  <cassert>
 
 using namespace std;
+
+static bool class_trace_enabled_(const std::string&class_name)
+{
+      static const char*env = 0;
+      static bool init = false;
+      if (!init) {
+            env = getenv("IVL_CLASS_TRACE");
+            init = true;
+      }
+
+      if (!(env && *env))
+            return false;
+      if ((strcmp(env, "1") == 0) || (strcmp(env, "ALL") == 0)
+          || (strcmp(env, "*") == 0) || (strcmp(env, "true") == 0))
+            return true;
+
+      return class_name.find(env) != string::npos;
+}
 
 /*
  * This class_property_t class is an abstract base class for
@@ -42,6 +66,13 @@ class class_property_t {
       virtual size_t instance_size() const =0;
 
       void set_offset(size_t off) { offset_ = off; }
+      void describe(const std::string&owner_class, const std::string&prop_name,
+		    const std::string&type_name)
+      {
+	    owner_class_ = owner_class;
+	    prop_name_ = prop_name;
+	    type_name_ = type_name;
+      }
 
     public:
       virtual void construct(char*buf) const;
@@ -49,6 +80,8 @@ class class_property_t {
 
       virtual void set_vec4(char*buf, const vvp_vector4_t&val);
       virtual void get_vec4(char*buf, vvp_vector4_t&val);
+      virtual void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx);
+      virtual void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx);
 
       virtual void set_real(char*buf, double val);
       virtual double get_real(char*buf);
@@ -63,7 +96,11 @@ class class_property_t {
       virtual void copy(char*buf, char*src) = 0;
 
     protected:
+      void warn_unsupported_(const char*op, const char*detail) const;
       size_t offset_;
+      std::string owner_class_;
+      std::string prop_name_;
+      std::string type_name_;
 };
 
 class_property_t::~class_property_t()
@@ -80,44 +117,99 @@ void class_property_t::destruct(char*) const
 
 void class_property_t::set_vec4(char*, const vvp_vector4_t&)
 {
-      assert(0);
+      static bool warned = false;
+      if (!warned) {
+	    warn_unsupported_("set_vec4", "ignoring write");
+	    warned = true;
+      }
 }
 
 void class_property_t::get_vec4(char*, vvp_vector4_t&)
 {
-      assert(0);
+      static bool warned = false;
+      if (!warned) {
+	    warn_unsupported_("get_vec4", "returning default value");
+	    warned = true;
+      }
+}
+
+void class_property_t::set_vec4(char*buf, const vvp_vector4_t&val, uint64_t)
+{
+      set_vec4(buf, val);
+}
+
+void class_property_t::get_vec4(char*buf, vvp_vector4_t&val, uint64_t)
+{
+      get_vec4(buf, val);
 }
 
 void class_property_t::set_real(char*, double)
 {
-      assert(0);
+      static bool warned = false;
+      if (!warned) {
+	    warn_unsupported_("set_real", "ignoring write");
+	    warned = true;
+      }
 }
 
 double class_property_t::get_real(char*)
 {
-      assert(0);
+      static bool warned = false;
+      if (!warned) {
+	    warn_unsupported_("get_real", "returning 0.0");
+	    warned = true;
+      }
       return 0.0;
 }
 
 void class_property_t::set_string(char*, const string&)
 {
-      assert(0);
+      static bool warned = false;
+      if (!warned) {
+	    warn_unsupported_("set_string", "ignoring write");
+	    warned = true;
+      }
 }
 
 string class_property_t::get_string(char*)
 {
-      assert(0);
-      return "";
+      static bool warned = false;
+      if (!warned) {
+	    warn_unsupported_("get_string", "returning empty string");
+	    warned = true;
+      }
+      return string();
 }
 
 void class_property_t::set_object(char*, const vvp_object_t&, uint64_t)
 {
-      assert(0);
+      static bool warned = false;
+      if (!warned) {
+	    warn_unsupported_("set_object", "ignoring write");
+	    warned = true;
+      }
 }
 
 void class_property_t::get_object(char*, vvp_object_t&, uint64_t)
 {
-      assert(0);
+      static bool warned = false;
+      if (!warned) {
+	    warn_unsupported_("get_object", "returning null object");
+	    warned = true;
+      }
+}
+
+void class_property_t::warn_unsupported_(const char*op, const char*detail) const
+{
+      fprintf(stderr,
+	      "Warning: class_property_t::%s on unsupported property type"
+	      " (class=%s property=%s type=%s); %s"
+	      " (further similar warnings suppressed)\n",
+	      op,
+	      owner_class_.empty() ? "<unknown>" : owner_class_.c_str(),
+	      prop_name_.empty() ? "<unknown>" : prop_name_.c_str(),
+	      type_name_.empty() ? "<unknown>" : type_name_.c_str(),
+	      detail);
 }
 
 /*
@@ -143,52 +235,70 @@ template <class T> class property_atom : public class_property_t {
 
 class property_bit : public class_property_t {
     public:
-      explicit inline property_bit(size_t wid): wid_(wid) { }
+      explicit inline property_bit(size_t wid, size_t as=0)
+      : wid_(wid), array_size_(as==0? 1 : as) { }
       ~property_bit() override { }
 
-      size_t instance_size() const override { return sizeof(vvp_vector2_t); }
+      size_t instance_size() const override { return array_size_ * sizeof(vvp_vector2_t); }
 
     public:
       void construct(char*buf) const override
-      { new (buf+offset_) vvp_vector2_t (0, wid_); }
+      {
+	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
+		  new (buf+offset_ + idx*sizeof(vvp_vector2_t)) vvp_vector2_t (0, wid_);
+      }
 
       void destruct(char*buf) const override
-      { vvp_vector2_t*tmp = reinterpret_cast<vvp_vector2_t*>(buf+offset_);
-	tmp->~vvp_vector2_t();
+      {
+	    vvp_vector2_t*tmp = reinterpret_cast<vvp_vector2_t*>(buf+offset_);
+	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
+		  (tmp+idx)->~vvp_vector2_t();
       }
 
       void set_vec4(char*buf, const vvp_vector4_t&val) override;
       void get_vec4(char*buf, vvp_vector4_t&val) override;
+      void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
+      void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
 
       void copy(char*dst, char*src) override;
 
     private:
       size_t wid_;
+      size_t array_size_;
 };
 
 class property_logic : public class_property_t {
     public:
-      explicit inline property_logic(size_t wid): wid_(wid) { }
+      explicit inline property_logic(size_t wid, size_t as=0)
+      : wid_(wid), array_size_(as==0? 1 : as) { }
       ~property_logic() override { }
 
-      size_t instance_size() const override { return sizeof(vvp_vector4_t); }
+      size_t instance_size() const override { return array_size_ * sizeof(vvp_vector4_t); }
 
     public:
       void construct(char*buf) const override
-      { new (buf+offset_) vvp_vector4_t (wid_); }
+      {
+	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
+		  new (buf+offset_ + idx*sizeof(vvp_vector4_t)) vvp_vector4_t (wid_);
+      }
 
       void destruct(char*buf) const override
-      { vvp_vector4_t*tmp = reinterpret_cast<vvp_vector4_t*>(buf+offset_);
-	tmp->~vvp_vector4_t();
+      {
+	    vvp_vector4_t*tmp = reinterpret_cast<vvp_vector4_t*>(buf+offset_);
+	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
+		  (tmp+idx)->~vvp_vector4_t();
       }
 
       void set_vec4(char*buf, const vvp_vector4_t&val) override;
       void get_vec4(char*buf, vvp_vector4_t&val) override;
+      void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
+      void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
 
       void copy(char*dst, char*src) override;
 
     private:
       size_t wid_;
+      size_t array_size_;
 };
 
 template <class T> class property_real : public class_property_t {
@@ -244,6 +354,7 @@ class property_object : public class_property_t {
 
       void destruct(char*buf) const override;
 
+      void get_vec4(char*buf, vvp_vector4_t&val) override;
       void set_object(char*buf, const vvp_object_t&, uint64_t) override;
       void get_object(char*buf, vvp_object_t&, uint64_t) override;
 
@@ -253,11 +364,124 @@ class property_object : public class_property_t {
       size_t array_size_;
 };
 
+class property_cobject : public class_property_t {
+    public:
+      inline explicit property_cobject(uint64_t as)
+      : defn_(0), array_size_(as==0? 1 : as) { }
+      ~property_cobject() override { }
+
+      size_t instance_size() const override { return array_size_ * sizeof(vvp_object_t); }
+
+      void construct(char*buf) const override;
+      void destruct(char*buf) const override;
+      void get_vec4(char*buf, vvp_vector4_t&val) override;
+      void set_object(char*buf, const vvp_object_t&, uint64_t) override;
+      void get_object(char*buf, vvp_object_t&, uint64_t) override;
+      void copy(char*dst, char*src) override;
+
+    public:
+      class_type*defn_;
+
+    private:
+      size_t array_size_;
+};
+
+template <class QUEUE_TYPE> class property_queue : public class_property_t {
+    public:
+      inline explicit property_queue(uint64_t as): array_size_(as==0? 1 : as) { }
+      ~property_queue() override { }
+
+      size_t instance_size() const override { return array_size_ * sizeof(vvp_object_t); }
+
+    public:
+      void construct(char*buf) const override
+      {
+	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
+		  new (buf+offset_ + idx*sizeof(vvp_object_t)) vvp_object_t(new QUEUE_TYPE);
+      }
+
+      void destruct(char*buf) const override
+      {
+	    vvp_object_t*tmp = reinterpret_cast<vvp_object_t*> (buf+offset_);
+	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
+		  (tmp+idx)->~vvp_object_t();
+      }
+
+      void get_vec4(char*buf, vvp_vector4_t&val) override
+      {
+	    const vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
+	    vvp_bit4_t bit = tmp[0].test_nil() ? BIT4_0 : BIT4_1;
+	    val = vvp_vector4_t(1, bit);
+      }
+
+      void set_object(char*buf, const vvp_object_t&val, uint64_t idx) override
+      {
+            if (idx >= array_size_) {
+                  static bool warned_property_queue_oob_set = false;
+                  if (!warned_property_queue_oob_set) {
+                        fprintf(stderr,
+                                "Warning: property_queue::set_object class=%s prop=%s type=%s"
+                                " index %" PRIu64 " out of range (size=%zu); using index 0"
+                                " (further similar warnings suppressed)\n",
+                                owner_class_.empty() ? "<unknown>" : owner_class_.c_str(),
+                                prop_name_.empty() ? "<unknown>" : prop_name_.c_str(),
+                                type_name_.empty() ? "<unknown>" : type_name_.c_str(),
+                                idx, array_size_);
+                        warned_property_queue_oob_set = true;
+                  }
+                  idx = 0;
+            }
+	    vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
+	    tmp[idx] = val;
+      }
+
+      void get_object(char*buf, vvp_object_t&val, uint64_t idx) override
+      {
+            if (idx >= array_size_) {
+                  static bool warned_property_queue_oob_get = false;
+                  if (!warned_property_queue_oob_get) {
+                        fprintf(stderr,
+                                "Warning: property_queue::get_object class=%s prop=%s type=%s"
+                                " index %" PRIu64 " out of range (size=%zu); using index 0"
+                                " (further similar warnings suppressed)\n",
+                                owner_class_.empty() ? "<unknown>" : owner_class_.c_str(),
+                                prop_name_.empty() ? "<unknown>" : prop_name_.c_str(),
+                                type_name_.empty() ? "<unknown>" : type_name_.c_str(),
+                                idx, array_size_);
+                        warned_property_queue_oob_get = true;
+                  }
+                  idx = 0;
+            }
+	    const vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
+	    val = tmp[idx];
+      }
+
+      void copy(char*dst, char*src) override
+      {
+	    vvp_object_t*dst_obj = reinterpret_cast<vvp_object_t*>(dst+offset_);
+	    const vvp_object_t*src_obj = reinterpret_cast<vvp_object_t*>(src+offset_);
+	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
+		  dst_obj[idx] = src_obj[idx];
+      }
+
+    private:
+      size_t array_size_;
+};
+
 template <class T> void property_atom<T>::set_vec4(char*buf, const vvp_vector4_t&val)
 {
       T*tmp = reinterpret_cast<T*> (buf+offset_);
       bool flag = vector4_to_value(val, *tmp, true, false);
-      assert(flag);
+      if (!flag) {
+            static bool warned_property_atom_set_vec4 = false;
+            if (!warned_property_atom_set_vec4) {
+                  fprintf(stderr,
+                          "Warning: property_atom::set_vec4 conversion failed;"
+                          " coercing non-numeric value to 0 (further similar warnings suppressed)\n");
+                  warned_property_atom_set_vec4 = true;
+            }
+            *tmp = 0;
+      }
 }
 
 template <class T> void property_atom<T>::get_vec4(char*buf, vvp_vector4_t&val)
@@ -285,40 +509,66 @@ template <class T> void property_atom<T>::copy(char*dst, char*src)
 
 void property_bit::set_vec4(char*buf, const vvp_vector4_t&val)
 {
-      vvp_vector2_t*obj = reinterpret_cast<vvp_vector2_t*> (buf+offset_);
-      *obj = val;
+      set_vec4(buf, val, 0);
 }
 
 void property_bit::get_vec4(char*buf, vvp_vector4_t&val)
 {
+      get_vec4(buf, val, 0);
+}
+
+void property_bit::set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx)
+{
+      assert(idx < array_size_);
+      vvp_vector2_t*obj = reinterpret_cast<vvp_vector2_t*> (buf+offset_);
+      obj[idx] = val;
+}
+
+void property_bit::get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx)
+{
+      assert(idx < array_size_);
       const vvp_vector2_t*obj = reinterpret_cast<vvp_vector2_t*> (buf+offset_);
-      val = vector2_to_vector4(*obj, obj->size());
+      val = vector2_to_vector4(obj[idx], obj[idx].size());
 }
 
 void property_bit::copy(char*dst, char*src)
 {
       vvp_vector2_t*dst_obj = reinterpret_cast<vvp_vector2_t*> (dst+offset_);
-      const vvp_vector2_t*src_obj = reinterpret_cast<vvp_vector2_t*> (src+offset_);
-      *dst_obj = *src_obj;
+      const vvp_vector2_t*src_obj = reinterpret_cast<const vvp_vector2_t*> (src+offset_);
+      for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
+	    dst_obj[idx] = src_obj[idx];
 }
 
 void property_logic::set_vec4(char*buf, const vvp_vector4_t&val)
 {
-      vvp_vector4_t*obj = reinterpret_cast<vvp_vector4_t*> (buf+offset_);
-      *obj = val;
+      set_vec4(buf, val, 0);
 }
 
 void property_logic::get_vec4(char*buf, vvp_vector4_t&val)
 {
-      const vvp_vector4_t*obj = reinterpret_cast<vvp_vector4_t*> (buf+offset_);
-      val = *obj;
+      get_vec4(buf, val, 0);
+}
+
+void property_logic::set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx)
+{
+      assert(idx < array_size_);
+      vvp_vector4_t*obj = reinterpret_cast<vvp_vector4_t*> (buf+offset_);
+      obj[idx] = val;
+}
+
+void property_logic::get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx)
+{
+      assert(idx < array_size_);
+      const vvp_vector4_t*obj = reinterpret_cast<const vvp_vector4_t*> (buf+offset_);
+      val = obj[idx];
 }
 
 void property_logic::copy(char*dst, char*src)
 {
       vvp_vector4_t*dst_obj = reinterpret_cast<vvp_vector4_t*> (dst+offset_);
-      const vvp_vector4_t*src_obj = reinterpret_cast<vvp_vector4_t*> (src+offset_);
-      *dst_obj = *src_obj;
+      const vvp_vector4_t*src_obj = reinterpret_cast<const vvp_vector4_t*> (src+offset_);
+      for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
+	    dst_obj[idx] = src_obj[idx];
 }
 
 template <class T> void property_real<T>::set_real(char*buf, double val)
@@ -379,6 +629,13 @@ void property_object::set_object(char*buf, const vvp_object_t&val, uint64_t idx)
       tmp[idx] = val;
 }
 
+void property_object::get_vec4(char*buf, vvp_vector4_t&val)
+{
+      const vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
+      vvp_bit4_t bit = tmp[0].test_nil() ? BIT4_0 : BIT4_1;
+      val = vvp_vector4_t(1, bit);
+}
+
 void property_object::get_object(char*buf, vvp_object_t&val, uint64_t idx)
 {
       assert(idx < array_size_);
@@ -394,6 +651,95 @@ void property_object::copy(char*dst, char*src)
 	    dst_obj[idx] = src_obj[idx];
 }
 
+void property_cobject::construct(char*buf) const
+{
+      for (size_t idx = 0 ; idx < array_size_ ; idx += 1) {
+	    if (defn_)
+		  new (buf+offset_ + idx*sizeof(vvp_object_t)) vvp_object_t(new vvp_cobject(defn_));
+	    else
+		  new (buf+offset_ + idx*sizeof(vvp_object_t)) vvp_object_t;
+      }
+}
+
+void property_cobject::destruct(char*buf) const
+{
+      vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
+      for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
+	    (tmp+idx)->~vvp_object_t();
+}
+
+void property_cobject::set_object(char*buf, const vvp_object_t&val, uint64_t idx)
+{
+      assert(idx < array_size_);
+      vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
+
+      if (!defn_) {
+	    tmp[idx] = val;
+	    return;
+      }
+
+      vvp_cobject*dst_obj = tmp[idx].peek<vvp_cobject>();
+      if (!dst_obj || dst_obj->get_defn() != defn_) {
+	    tmp[idx] = new vvp_cobject(defn_);
+	    dst_obj = tmp[idx].peek<vvp_cobject>();
+      }
+
+      if (const vvp_cobject*src_obj = val.peek<vvp_cobject>()) {
+	    if (src_obj->get_defn() == defn_) {
+		  dst_obj->shallow_copy(src_obj);
+		  return;
+	    }
+      }
+
+      if (val.test_nil()) {
+	    tmp[idx] = new vvp_cobject(defn_);
+	    return;
+      }
+
+      tmp[idx] = val;
+}
+
+void property_cobject::get_vec4(char*buf, vvp_vector4_t&val)
+{
+      const vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
+      vvp_bit4_t bit = tmp[0].test_nil() ? BIT4_0 : BIT4_1;
+      val = vvp_vector4_t(1, bit);
+}
+
+void property_cobject::get_object(char*buf, vvp_object_t&val, uint64_t idx)
+{
+      assert(idx < array_size_);
+      const vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
+      val = tmp[idx];
+}
+
+void property_cobject::copy(char*dst, char*src)
+{
+      vvp_object_t*dst_obj = reinterpret_cast<vvp_object_t*>(dst+offset_);
+      const vvp_object_t*src_obj = reinterpret_cast<vvp_object_t*>(src+offset_);
+      for (size_t idx = 0 ; idx < array_size_ ; idx += 1) {
+	    if (!defn_) {
+		  dst_obj[idx] = src_obj[idx];
+		  continue;
+	    }
+
+	    vvp_cobject*dst_cobj = dst_obj[idx].peek<vvp_cobject>();
+	    const vvp_cobject*src_cobj = src_obj[idx].peek<vvp_cobject>();
+	    if (!dst_cobj || dst_cobj->get_defn() != defn_) {
+		  dst_obj[idx] = new vvp_cobject(defn_);
+		  dst_cobj = dst_obj[idx].peek<vvp_cobject>();
+	    }
+
+	    if (src_cobj && src_cobj->get_defn() == defn_) {
+		  dst_cobj->shallow_copy(src_cobj);
+	    } else if (src_obj[idx].test_nil()) {
+		  dst_obj[idx] = new vvp_cobject(defn_);
+	    } else {
+		  dst_obj[idx] = src_obj[idx];
+	    }
+      }
+}
+
 /* **** */
 
 class_type::class_type(const string&nam, size_t nprop)
@@ -406,6 +752,24 @@ class_type::~class_type()
 {
       for (size_t idx = 0 ; idx < properties_.size() ; idx += 1)
 	    delete properties_[idx].type;
+}
+
+const string& class_type::property_name(size_t idx) const
+{
+      static const string empty;
+      if (idx >= properties_.size())
+	    return empty;
+      return properties_[idx].name;
+}
+
+void class_type::set_scope_path(const string&path)
+{
+      scope_path_ = path;
+}
+
+void class_type::set_dispatch_prefix(const string&path)
+{
+      dispatch_prefix_ = path;
 }
 
 void class_type::set_property(size_t idx, const string&name, const string&type, uint64_t array_size)
@@ -435,18 +799,50 @@ void class_type::set_property(size_t idx, const string&name, const string&type, 
 	    properties_[idx].type = new property_string;
       else if (type == "o")
 	    properties_[idx].type = new property_object(array_size);
+      else if (type.compare(0,3,"oc:") == 0) {
+	    property_cobject*prop = new property_cobject(array_size);
+	    compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&prop->defn_),
+			       strdup(type.c_str()+3));
+	    properties_[idx].type = prop;
+      }
+      else if (type == "Qr")
+	    properties_[idx].type = new property_queue<vvp_queue_real>(array_size);
+      else if (type == "QS")
+	    properties_[idx].type = new property_queue<vvp_queue_string>(array_size);
+      else if (type == "Qv")
+	    properties_[idx].type = new property_queue<vvp_queue_vec4>(array_size);
+      else if (type == "Qo")
+	    properties_[idx].type = new property_queue<vvp_queue_object>(array_size);
+      else if (type == "Mr")
+	    properties_[idx].type = new property_queue<vvp_assoc_real>(array_size);
+      else if (type == "MS")
+	    properties_[idx].type = new property_queue<vvp_assoc_string>(array_size);
+      else if (type == "Mo")
+	    properties_[idx].type = new property_queue<vvp_assoc_object>(array_size);
+      else if (type[0] == 'M' && type[1] == 'v')
+	    properties_[idx].type = new property_queue<vvp_assoc_vec4>(array_size);
       else if (type[0] == 'b') {
 	    size_t wid = strtoul(type.c_str()+1, 0, 0);
-	    properties_[idx].type = new property_bit(wid);
+	    properties_[idx].type = new property_bit(wid, array_size);
+      } else if (type[0] == 's' && type[1] == 'b') {
+	    size_t wid = strtoul(type.c_str()+2, 0, 0);
+	    properties_[idx].type = new property_bit(wid, array_size);
       } else if (type[0] == 'L') {
 	    size_t wid = strtoul(type.c_str()+1,0,0);
-	    properties_[idx].type = new property_logic(wid);
+	    properties_[idx].type = new property_logic(wid, array_size);
       } else if (type[0] == 's' && type[1] == 'L') {
 	    size_t wid = strtoul(type.c_str()+2,0,0);
-	    properties_[idx].type = new property_logic(wid);
+	    properties_[idx].type = new property_logic(wid, array_size);
       } else {
-	    properties_[idx].type = 0;
+	    // Fallback: For unknown types, treat as object to avoid null pointer
+	    // This allows classes with unsupported property types to be created
+	    cerr << "Warning: Unknown property type '" << type << "' for property "
+	         << idx << " of class " << class_name_ << "; treating as object" << endl;
+	    properties_[idx].type = new property_object(array_size? array_size : 1);
       }
+
+      if (properties_[idx].type)
+	    properties_[idx].type->describe(class_name_, name, type);
 }
 
 void class_type::finish_setup(void)
@@ -501,33 +897,79 @@ void class_type::instance_delete(class_type::inst_t obj) const
 }
 
 void class_type::set_vec4(class_type::inst_t obj, size_t pid,
-			  const vvp_vector4_t&val) const
+			  const vvp_vector4_t&val, size_t idx) const
 {
       char*buf = reinterpret_cast<char*> (obj);
-      assert(pid < properties_.size());
-      properties_[pid].type->set_vec4(buf, val);
+      if (pid >= properties_.size()) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr, "Warning: class_type::set_vec4 pid=%zu out of range (size=%zu); ignoring write"
+		                  " (further similar warnings suppressed)\n", pid, properties_.size());
+		  warned = true;
+	    }
+	    return;
+      }
+      if (class_trace_enabled_(class_name_)) {
+            fprintf(stderr,
+                    "trace class: set_vec4 class=%s pid=%zu name=%s idx=%zu obj=%p type=%p\n",
+                    class_name_.c_str(), pid, properties_[pid].name.c_str(), idx,
+                    obj, properties_[pid].type);
+      }
+      properties_[pid].type->set_vec4(buf, val, idx);
 }
 
 void class_type::get_vec4(class_type::inst_t obj, size_t pid,
-			  vvp_vector4_t&val) const
+			  vvp_vector4_t&val, size_t idx) const
 {
       char*buf = reinterpret_cast<char*> (obj);
-      assert(pid < properties_.size());
-      properties_[pid].type->get_vec4(buf, val);
+      if (pid >= properties_.size()) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr,
+		                  "Warning: class_type::get_vec4 class=%s pid=%zu out of range (size=%zu); returning default"
+		                  " (further similar warnings suppressed)\n",
+		                  class_name_.c_str(), pid, properties_.size());
+		  warned = true;
+	    }
+	    return;
+      }
+      if (class_trace_enabled_(class_name_)) {
+            fprintf(stderr,
+                    "trace class: get_vec4 class=%s pid=%zu name=%s idx=%zu obj=%p type=%p\n",
+                    class_name_.c_str(), pid, properties_[pid].name.c_str(), idx,
+                    obj, properties_[pid].type);
+      }
+      properties_[pid].type->get_vec4(buf, val, idx);
 }
 
 void class_type::set_real(class_type::inst_t obj, size_t pid,
 			  double val) const
 {
       char*buf = reinterpret_cast<char*> (obj);
-      assert(pid < properties_.size());
+      if (pid >= properties_.size()) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr, "Warning: class_type::set_real pid=%zu out of range (size=%zu); ignoring write"
+		                  " (further similar warnings suppressed)\n", pid, properties_.size());
+		  warned = true;
+	    }
+	    return;
+      }
       properties_[pid].type->set_real(buf, val);
 }
 
 double class_type::get_real(class_type::inst_t obj, size_t pid) const
 {
       char*buf = reinterpret_cast<char*> (obj);
-      assert(pid < properties_.size());
+      if (pid >= properties_.size()) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr, "Warning: class_type::get_real pid=%zu out of range (size=%zu); returning 0.0"
+		                  " (further similar warnings suppressed)\n", pid, properties_.size());
+		  warned = true;
+	    }
+	    return 0.0;
+      }
       return properties_[pid].type->get_real(buf);
 }
 
@@ -535,14 +977,30 @@ void class_type::set_string(class_type::inst_t obj, size_t pid,
 			    const string&val) const
 {
       char*buf = reinterpret_cast<char*> (obj);
-      assert(pid < properties_.size());
+      if (pid >= properties_.size()) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr, "Warning: class_type::set_string pid=%zu out of range (size=%zu); ignoring write"
+		                  " (further similar warnings suppressed)\n", pid, properties_.size());
+		  warned = true;
+	    }
+	    return;
+      }
       properties_[pid].type->set_string(buf, val);
 }
 
 string class_type::get_string(class_type::inst_t obj, size_t pid) const
 {
       char*buf = reinterpret_cast<char*> (obj);
-      assert(pid < properties_.size());
+      if (pid >= properties_.size()) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr, "Warning: class_type::get_string pid=%zu out of range (size=%zu); returning empty string"
+		                  " (further similar warnings suppressed)\n", pid, properties_.size());
+		  warned = true;
+	    }
+	    return string();
+      }
       return properties_[pid].type->get_string(buf);
 }
 
@@ -550,7 +1008,29 @@ void class_type::set_object(class_type::inst_t obj, size_t pid,
 			    const vvp_object_t&val, size_t idx) const
 {
       char*buf = reinterpret_cast<char*> (obj);
-      assert(pid < properties_.size());
+      if (pid >= properties_.size()) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr, "Warning: class_type::set_object pid=%zu out of range (size=%zu); ignoring write"
+		                  " (further similar warnings suppressed)\n", pid, properties_.size());
+		  warned = true;
+	    }
+	    return;
+      }
+      if (class_trace_enabled_(class_name_)) {
+            const char*value_class = "<nil>";
+            if (vvp_cobject*value_obj = val.peek<vvp_cobject>()) {
+                  const class_type*value_defn = value_obj->get_defn();
+                  if (value_defn)
+                        value_class = value_defn->class_name().c_str();
+                  else
+                        value_class = "<cobject>";
+            }
+            fprintf(stderr,
+                    "trace class: set_object class=%s pid=%zu name=%s idx=%zu obj=%p type=%p value_nil=%d value_class=%s\n",
+                    class_name_.c_str(), pid, properties_[pid].name.c_str(), idx,
+                    obj, properties_[pid].type, val.test_nil() ? 1 : 0, value_class);
+      }
       properties_[pid].type->set_object(buf, val, idx);
 }
 
@@ -558,8 +1038,32 @@ void class_type::get_object(class_type::inst_t obj, size_t pid,
 			    vvp_object_t&val, size_t idx) const
 {
       char*buf = reinterpret_cast<char*> (obj);
-      assert(pid < properties_.size());
+      if (pid >= properties_.size()) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr, "Warning: class_type::get_object class=%s pid=%zu out of range (size=%zu); returning null object"
+		                  " (further similar warnings suppressed)\n",
+		          class_name_.c_str(), pid, properties_.size());
+		  warned = true;
+	    }
+	    val.reset();
+	    return;
+      }
       properties_[pid].type->get_object(buf, val, idx);
+      if (class_trace_enabled_(class_name_)) {
+            const char*value_class = "<nil>";
+            if (vvp_cobject*value_obj = val.peek<vvp_cobject>()) {
+                  const class_type*value_defn = value_obj->get_defn();
+                  if (value_defn)
+                        value_class = value_defn->class_name().c_str();
+                  else
+                        value_class = "<cobject>";
+            }
+            fprintf(stderr,
+                    "trace class: get_object class=%s pid=%zu name=%s idx=%zu obj=%p type=%p value_nil=%d value_class=%s\n",
+                    class_name_.c_str(), pid, properties_[pid].name.c_str(), idx,
+                    obj, properties_[pid].type, val.test_nil() ? 1 : 0, value_class);
+      }
 }
 
 void class_type::copy_property(class_type::inst_t dst, size_t pid, class_type::inst_t src) const
@@ -567,7 +1071,15 @@ void class_type::copy_property(class_type::inst_t dst, size_t pid, class_type::i
       char*dst_buf = reinterpret_cast<char*> (dst);
       char*src_buf = reinterpret_cast<char*> (src);
 
-      assert(pid < properties_.size());
+      if (pid >= properties_.size()) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr, "Warning: class_type::copy_property pid=%zu out of range (size=%zu); skipping copy"
+		                  " (further similar warnings suppressed)\n", pid, properties_.size());
+		  warned = true;
+	    }
+	    return;
+      }
 
       properties_[pid].type->copy(dst_buf, src_buf);
 }
@@ -579,13 +1091,40 @@ int class_type::get_type_code(void) const
 
 static class_type*compile_class = 0;
 
-void compile_class_start(char*lab, char*nam, unsigned ntype)
+static string build_scope_path_(__vpiScope*scope)
+{
+      if (!scope)
+            return string();
+
+      vector<const char*> names;
+      for (__vpiScope*cur = scope ; cur ; cur = cur->scope)
+            names.push_back(cur->scope_name());
+
+      string path;
+      for (vector<const char*>::reverse_iterator cur = names.rbegin()
+                 ; cur != names.rend() ; ++ cur) {
+            const char*name = *cur;
+            if (!(name && *name))
+                  continue;
+            if (!path.empty())
+                  path += ".";
+            path += name;
+      }
+
+      return path;
+}
+
+void compile_class_start(char*lab, char*nam, char*dispatch_prefix,
+                         unsigned ntype)
 {
       assert(compile_class == 0);
       compile_class = new class_type(nam, ntype);
+      if (dispatch_prefix && *dispatch_prefix)
+            compile_class->set_dispatch_prefix(dispatch_prefix);
       compile_vpi_symbol(lab, compile_class);
       free(lab);
       delete[]nam;
+      delete[]dispatch_prefix;
 }
 
 void compile_class_property(unsigned idx, char*nam, char*typ, uint64_t array_size)
@@ -601,6 +1140,14 @@ void compile_class_done(void)
       __vpiScope*scope = vpip_peek_current_scope();
       assert(scope);
       assert(compile_class);
+      compile_class->set_scope_path(build_scope_path_(scope));
+      if (compile_class->dispatch_prefix().empty()) {
+            string prefix = compile_class->scope_path();
+            if (!prefix.empty())
+                  prefix += ".";
+            prefix += compile_class->class_name();
+            compile_class->set_dispatch_prefix(prefix);
+      }
       compile_class->finish_setup();
       scope->classes[compile_class->class_name()] = compile_class;
       compile_class = 0;

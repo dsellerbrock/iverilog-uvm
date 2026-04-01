@@ -304,20 +304,19 @@ int __vpiQueueVar::get_type_code(void) const
 
 int __vpiQueueVar::vpi_get(int code)
 {
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*> (get_net()->fun);
-      assert(fun);
-      vvp_object_t val = fun->get_object();
-      const vvp_queue*aval = val.peek<vvp_queue>();
-
       switch (code) {
 	  case vpiArrayType:
 	    return vpiQueueArray;
-	  case vpiSize:
+	  case vpiSize: {
+	    vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*> (get_net()->fun);
+	    assert(fun);
+	    vvp_object_t val = fun->get_object();
+	    const vvp_queue*aval = val.peek<vvp_queue>();
 	    if (aval == 0)
 		  return 0;
 	    else
 		  return aval->get_size();
-
+	  }
 	  default:
 	    return 0;
       }

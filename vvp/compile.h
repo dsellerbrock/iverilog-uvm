@@ -27,6 +27,8 @@
 # include  "sv_vpi_user.h"
 # include  "vvp_net.h"
 
+class __vpiScope;
+
 /*
  * The file names are kept in this vector. Entry 0 is "N/A" and 1 is
  * for interactive commands.
@@ -45,6 +47,9 @@ extern std::vector<const char*> file_names;
 extern void compile_init(void);
 
 extern void compile_cleanup(void);
+extern void compile_resolve_pending_label(const char*label);
+extern bool compile_runtime_resolve_array(vvp_code_t code, const char*op);
+extern void compile_runtime_cleanup(void);
 
 extern bool verbose_flag;
 
@@ -72,6 +77,8 @@ extern void wide_inputs_connect(vvp_wide_fun_core*core,
 
 extern vvp_net_t* vvp_net_lookup(const char*label);
 extern vpiHandle vvp_lookup_handle(const char*label);
+extern bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
+                                      __vpiScope**scope);
 
 /*
  *  Add a functor to the symbol table
@@ -327,6 +334,7 @@ class resolv_list_s {
 
     private:
       friend void resolv_submit(class resolv_list_s*cur);
+      friend void compile_resolve_pending_label(const char*label);
       friend void compile_cleanup(void);
 
       char*label_;
@@ -460,7 +468,8 @@ extern void compile_vpi_call(char*label, char*name,
 			     unsigned argc, vpiHandle*argv,
 			     unsigned vec4_stack,
 			     unsigned real_stack,
-			     unsigned string_stack);
+			     unsigned string_stack,
+			     unsigned object_stack);
 
 /* Compile a function call. The vbit and vwid encode the return
    type. If the vwid >0, the return type is a vector. If the vwid is
@@ -472,7 +481,8 @@ extern void compile_vpi_func_call(char*label, char*name,
 				  unsigned argc, vpiHandle*argv,
 				  unsigned vec4_stack,
 				  unsigned real_stack,
-				  unsigned string_stack);
+				  unsigned string_stack,
+				  unsigned object_stack);
 extern void print_vpi_call_errors();
 
 extern void compile_codelabel(char*label);
@@ -502,13 +512,17 @@ extern void compile_thread(char*start_sym, char*flag);
  */
 extern void compile_variable(char*label, char*name,
 			     int msb, int lsb, int vpi_type_code,
-			     bool signed_flag, bool local_flag);
+			     bool signed_flag, bool local_flag,
+			     int lifetime_flag);
 
-extern void compile_var_real(char*label, char*name);
-extern void compile_var_string(char*label, char*name);
-extern void compile_var_darray(char*label, char*name, unsigned size);
-extern void compile_var_cobject(char*label, char*name);
-extern void compile_var_queue(char*label, char*name, unsigned size);
+extern void compile_var_real(char*label, char*name, int lifetime_flag);
+extern void compile_var_string(char*label, char*name, int lifetime_flag);
+extern void compile_var_darray(char*label, char*name, unsigned size,
+			       int lifetime_flag);
+extern void compile_var_cobject(char*label, char*name, char*type,
+				int lifetime_flag);
+extern void compile_var_queue(char*label, char*name, unsigned size,
+			      int lifetime_flag);
 
 /*
  * This function is used to create a scope port
@@ -564,7 +578,8 @@ extern void compile_island_tranvp(char*island, char*ba, char*bb,
 
 extern void delete_udp_symbols(void);
 
-extern void compile_class_start(char*lab, char*nam, unsigned nprop);
+extern void compile_class_start(char*lab, char*nam, char*dispatch_prefix,
+                                unsigned nprop);
 extern void compile_class_property(unsigned idx, char*nam, char*typ, uint64_t array_size);
 extern void compile_class_done(void);
 

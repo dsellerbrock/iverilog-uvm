@@ -46,9 +46,42 @@ static void function_argument_real(ivl_signal_t port, ivl_expr_t expr)
       draw_eval_real(expr);
 }
 
+static int port_is_unsupported_aggregate_formal_(ivl_signal_t port)
+{
+      ivl_type_t net_type;
+
+      if (!port)
+            return 0;
+
+      if (ivl_signal_data_type(port) != IVL_VT_NO_TYPE)
+            return 0;
+
+      net_type = ivl_signal_net_type(port);
+      if (net_type && ivl_type_properties(net_type) > 0)
+            return 0;
+
+      {
+	    unsigned wid = ivl_signal_width(port);
+	    return (wid == 0) || (wid == ~0U);
+      }
+}
+
 static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
 {
+      static int warned_unsupported_arg_type = 0;
+      static int warned_aggregate_arg_skip = 0;
       ivl_variable_type_t dtype = ivl_signal_data_type(port);
+      if (port_is_unsupported_aggregate_formal_(port)) {
+	    if (!warned_aggregate_arg_skip) {
+		  fprintf(stderr,
+		          "Warning: Skipping unsupported aggregate function argument %s"
+		          " (further similar warnings suppressed)\n",
+		          ivl_signal_basename(port));
+		  warned_aggregate_arg_skip = 1;
+	    }
+	    return;
+      }
+
       switch (dtype) {
 	  case IVL_VT_BOOL:
 	      /* For now, treat bit2 variables as bit4 variables. */
@@ -67,16 +100,39 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
 	  case IVL_VT_DARRAY:
 	    vvp_errors += draw_eval_object(expr);
 	    break;
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    vvp_errors += draw_eval_object(expr);
+	    break;
 	  default:
-	    fprintf(stderr, "XXXX function argument %s type=%d?!\n",
-		    ivl_signal_basename(port), dtype);
-	    assert(0);
+	    if (!warned_unsupported_arg_type) {
+		  fprintf(stderr, "Warning: Unsupported function argument type %d for %s; treating as object"
+			  " (further similar warnings suppressed)\n",
+			  dtype, ivl_signal_basename(port));
+		  warned_unsupported_arg_type = 1;
+	    }
+	    vvp_errors += draw_eval_object(expr);
+	    break;
       }
 }
 
 static void draw_send_function_argument(ivl_signal_t port)
 {
+      static int warned_unsupported_send_type = 0;
+      static int warned_aggregate_send_skip = 0;
       ivl_variable_type_t dtype = ivl_signal_data_type(port);
+
+      if (port_is_unsupported_aggregate_formal_(port)) {
+	    if (!warned_aggregate_send_skip) {
+		  fprintf(stderr,
+		          "Warning: Skipping unsupported aggregate function send %s"
+		          " (further similar warnings suppressed)\n",
+		          ivl_signal_basename(port));
+		  warned_aggregate_send_skip = 1;
+	    }
+	    return;
+      }
+
       switch (dtype) {
 	  case IVL_VT_BOOL:
 	      /* For now, treat bit2 variables as bit4 variables. */
@@ -96,10 +152,164 @@ static void draw_send_function_argument(ivl_signal_t port)
 	  case IVL_VT_DARRAY:
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
 	    break;
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
+	    break;
 	  default:
-	    fprintf(stderr, "XXXX function argument %s type=%d?!\n",
-		    ivl_signal_basename(port), dtype);
-	    assert(0);
+	    if (!warned_unsupported_send_type) {
+		  fprintf(stderr, "Warning: Unsupported function send argument type %d for %s; treating as object"
+			  " (further similar warnings suppressed)\n",
+			  dtype, ivl_signal_basename(port));
+		  warned_unsupported_send_type = 1;
+	    }
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
+	    break;
+      }
+}
+
+static int function_argument_actual_signal_(ivl_expr_t expr,
+					    ivl_signal_t*sig,
+					    ivl_expr_t*word)
+{
+      if (sig)
+	    *sig = 0;
+      if (word)
+	    *word = 0;
+
+      if (!expr || ivl_expr_type(expr) != IVL_EX_SIGNAL)
+	    return 0;
+
+      if (sig)
+	    *sig = ivl_expr_signal(expr);
+      if (word)
+	    *word = ivl_expr_oper1(expr);
+
+      return sig && *sig;
+}
+
+static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual)
+{
+      static int warned_unsupported_copy_out = 0;
+      ivl_signal_t sig = 0;
+      ivl_expr_t word = 0;
+      ivl_variable_type_t dtype;
+
+      if (port_is_unsupported_aggregate_formal_(port))
+	    return;
+
+      if (!function_argument_actual_signal_(actual, &sig, &word)) {
+	    if (!warned_unsupported_copy_out) {
+		  fprintf(stderr,
+		          "Warning: Skipping unsupported function copy-out argument for %s"
+		          " (further similar warnings suppressed)\n",
+		          ivl_signal_basename(port));
+		  warned_unsupported_copy_out = 1;
+	    }
+	    return;
+      }
+
+      dtype = ivl_signal_data_type(port);
+
+      if (word && (ivl_signal_dimensions(sig) == 0)) {
+	    if (!warned_unsupported_copy_out) {
+		  fprintf(stderr,
+		          "Warning: Skipping unsupported function copy-out select for %s"
+		          " (further similar warnings suppressed)\n",
+		          ivl_signal_basename(port));
+		  warned_unsupported_copy_out = 1;
+	    }
+	    return;
+      }
+
+      if (word) {
+	    unsigned ix = allocate_word();
+	    draw_eval_expr_into_integer(word, ix);
+	    note_array_signal_use(sig);
+	    switch (dtype) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
+		  fprintf(vvp_out, "    %%store/vec4a v%p, %u, 0;\n", sig, ix);
+		  break;
+		case IVL_VT_REAL:
+		  fprintf(vvp_out, "    %%load/real v%p_0;\n", port);
+		  fprintf(vvp_out, "    %%store/reala v%p, %u;\n", sig, ix);
+		  break;
+		case IVL_VT_STRING:
+		  fprintf(vvp_out, "    %%load/str v%p_0;\n", port);
+		  fprintf(vvp_out, "    %%store/stra v%p, %u;\n", sig, ix);
+		  break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE:
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+		  fprintf(vvp_out, "    %%store/obja v%p, %u;\n", sig, ix);
+		  break;
+		default:
+		  if (!warned_unsupported_copy_out) {
+			fprintf(stderr,
+			        "Warning: Unsupported function copy-out type %d for %s"
+			        " (further similar warnings suppressed)\n",
+			        dtype, ivl_signal_basename(port));
+			warned_unsupported_copy_out = 1;
+		  }
+		  break;
+	    }
+	    clr_word(ix);
+	    return;
+      }
+
+      switch (dtype) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+		    sig, ivl_signal_width(sig));
+	    break;
+	  case IVL_VT_REAL:
+	    fprintf(vvp_out, "    %%load/real v%p_0;\n", port);
+	    fprintf(vvp_out, "    %%store/real v%p_0;\n", sig);
+	    break;
+	  case IVL_VT_STRING:
+	    fprintf(vvp_out, "    %%load/str v%p_0;\n", port);
+	    fprintf(vvp_out, "    %%store/str v%p_0;\n", sig);
+	    break;
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+	    break;
+	  default:
+	    if (!warned_unsupported_copy_out) {
+		  fprintf(stderr,
+		          "Warning: Unsupported function copy-out type %d for %s"
+		          " (further similar warnings suppressed)\n",
+		          dtype, ivl_signal_basename(port));
+		  warned_unsupported_copy_out = 1;
+	    }
+	    break;
+      }
+}
+
+static void draw_copy_out_function_arguments(ivl_expr_t expr)
+{
+      ivl_scope_t def = ivl_expr_def(expr);
+      unsigned idx;
+
+      assert(ivl_expr_parms(expr) == (ivl_scope_ports(def)-1));
+      for (idx = 0 ; idx < ivl_expr_parms(expr) ; idx += 1) {
+	    ivl_signal_t port = ivl_scope_port(def, idx+1);
+	    ivl_signal_port_t port_type = ivl_signal_port(port);
+
+	    if ((port_type != IVL_SIP_OUTPUT) &&
+	        (port_type != IVL_SIP_INOUT))
+		  continue;
+
+	    draw_copy_out_function_argument(port, ivl_expr_parm(expr, idx));
       }
 }
 
@@ -130,34 +340,61 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
       }
 
 	/* Call the function */
+      const char* scope_name = ivl_scope_name(def);
+      if (!scope_name) {
+	    fprintf(stderr, "Error: NULL scope name in draw_ufunc_preamble\n");
+	    return;
+      }
+      const char* mangled = vvp_mangle_id(scope_name);
+      if (!mangled) {
+	    fprintf(stderr, "Error: NULL mangled name for scope %s\n", scope_name);
+	    return;
+      }
+      note_td_reference(mangled);
+      unsigned super_call = ivl_expr_is_super_call(expr);
+      
       switch (ivl_expr_value(expr)) {
 	  case IVL_VT_VOID:
-	    fprintf(vvp_out, "    %%callf/void TD_%s", vvp_mangle_id(ivl_scope_name(def)));
+	    fprintf(vvp_out, "    %%callf/void%s TD_%s",
+		    super_call ? "" : "/v", mangled);
 	    fprintf(vvp_out, ", S_%p;\n", def);
+	    fflush(vvp_out);
 	    break;
 	  case IVL_VT_REAL:
-	    fprintf(vvp_out, "    %%callf/real TD_%s", vvp_mangle_id(ivl_scope_name(def)));
+	    fprintf(vvp_out, "    %%callf/real%s TD_%s",
+		    super_call ? "" : "/v", mangled);
 	    fprintf(vvp_out, ", S_%p;\n", def);
+	    fflush(vvp_out);
 	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
-	    fprintf(vvp_out, "    %%callf/vec4 TD_%s", vvp_mangle_id(ivl_scope_name(def)));
+	    fprintf(vvp_out, "    %%callf/vec4%s TD_%s",
+		    super_call ? "" : "/v", mangled);
 	    fprintf(vvp_out, ", S_%p;\n", def);
+	    fflush(vvp_out);
 	    break;
 	  case IVL_VT_STRING:
-	    fprintf(vvp_out, "    %%callf/str TD_%s", vvp_mangle_id(ivl_scope_name(def)));
+	    fprintf(vvp_out, "    %%callf/str%s TD_%s",
+		    super_call ? "" : "/v", mangled);
 	    fprintf(vvp_out, ", S_%p;\n", def);
+	    fflush(vvp_out);
 	    break;
 	  case IVL_VT_CLASS:
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
-	    fprintf(vvp_out, "    %%callf/obj TD_%s", vvp_mangle_id(ivl_scope_name(def)));
+	  case IVL_VT_NO_TYPE:
+	    fprintf(vvp_out, "    %%callf/obj%s TD_%s",
+		    super_call ? "" : "/v", mangled);
+	    fflush(vvp_out); // Flush immediately in case of crash
 	    fprintf(vvp_out, ", S_%p;\n", def);
+	    fflush(vvp_out); // Flush immediately in case of crash
 	    break;
 	  default:
-	    fprintf(vvp_out, "    %%fork TD_%s", vvp_mangle_id(ivl_scope_name(def)));
+	    fprintf(vvp_out, "    %%fork%s TD_%s",
+		    super_call ? "" : "/v", mangled);
 	    fprintf(vvp_out, ", S_%p;\n", def);
 	    fprintf(vvp_out, "    %%join;\n");
+	    fflush(vvp_out);
 	    break;
       }
 }
@@ -166,9 +403,12 @@ static void draw_ufunc_epilogue(ivl_expr_t expr)
 {
       ivl_scope_t def = ivl_expr_def(expr);
 
+      draw_copy_out_function_arguments(expr);
+
         /* If this is an automatic function, free the local storage. */
       if (ivl_scope_is_auto(def)) {
             fprintf(vvp_out, "    %%free S_%p;\n", def);
+            fflush(vvp_out);
       }
 }
 
@@ -220,12 +460,50 @@ void draw_ufunc_object(ivl_expr_t expr)
 {
       ivl_scope_t def = ivl_expr_def(expr);
       ivl_signal_t retval = ivl_scope_port(def, 0);
+      ivl_variable_type_t ret_type = ivl_signal_data_type(retval);
+      ivl_variable_type_t want_type = ivl_expr_value(expr);
+      const char*def_name = ivl_scope_name(def);
+      int force_object_return = 0;
+      if (def_name && strstr(def_name, "uvm_queue.get"))
+            force_object_return = 1;
 
 	/* Take in arguments to function and call the function code. */
       draw_ufunc_preamble(expr);
 
-	/* Load the result into the object stack. */
-      fprintf(vvp_out, "    %%load/obj v%p_0;\n", retval);
+      if (ret_type == IVL_VT_CLASS ||
+          ret_type == IVL_VT_DARRAY ||
+          ret_type == IVL_VT_QUEUE ||
+          ret_type == IVL_VT_NO_TYPE ||
+          want_type == IVL_VT_CLASS ||
+          want_type == IVL_VT_DARRAY ||
+          want_type == IVL_VT_QUEUE ||
+          want_type == IVL_VT_NO_TYPE ||
+          force_object_return) {
+	      /* Load object-like return values into the object stack. */
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", retval);
+      } else {
+	    /* draw_eval_object() was asked to evaluate a non-object
+	     * function result. Drain any leftover call result from
+	     * the type stack, then push null-object fallback. */
+	    switch (ivl_expr_value(expr)) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		  fprintf(vvp_out, "    %%pop/vec4 1;\n");
+		  break;
+		case IVL_VT_REAL:
+		  fprintf(vvp_out, "    %%pop/real 1;\n");
+		  break;
+		case IVL_VT_STRING:
+		  fprintf(vvp_out, "    %%pop/str 1;\n");
+		  break;
+		default:
+		  break;
+	    }
+	    fprintf(stderr,
+		    "Warning: draw_ufunc_object: function %s returns non-object type %d; using null fallback\n",
+		    ivl_scope_name(def), ret_type);
+	    fprintf(vvp_out, "    %%null; ; non-object ufunc fallback\n");
+      }
 
       draw_ufunc_epilogue(expr);
 }

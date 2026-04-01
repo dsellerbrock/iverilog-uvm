@@ -260,6 +260,84 @@ static PLI_INT32 atohex_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+static PLI_INT32 atooct_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv;
+      vpiHandle arg;
+      s_vpi_value value;
+
+      (void)name; /* Parameter not used */
+
+      argv = vpi_iterate(vpiArgument, callh);
+      assert(argv);
+      arg = vpi_scan(argv);
+      assert(arg);
+      vpi_free_object(argv);
+
+      int res = 0;
+
+      value.format = vpiStringVal;
+      vpi_get_value(arg, &value);
+      const char*bufp = value.value.str;
+      while (bufp && *bufp) {
+	    if ((*bufp >= '0') && (*bufp <= '7')) {
+		  res = (res * 8) + (*bufp - '0');
+		  bufp += 1;
+	    } else if (*bufp == '_') {
+		  bufp += 1;
+	    } else {
+		  bufp = 0;
+	    }
+      }
+
+      value.format = vpiIntVal;
+      value.value.integer = res;
+
+      vpi_put_value(callh, &value, 0, vpiNoDelay);
+
+      return 0;
+}
+
+static PLI_INT32 atobin_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv;
+      vpiHandle arg;
+      s_vpi_value value;
+
+      (void)name; /* Parameter not used */
+
+      argv = vpi_iterate(vpiArgument, callh);
+      assert(argv);
+      arg = vpi_scan(argv);
+      assert(arg);
+      vpi_free_object(argv);
+
+      int res = 0;
+
+      value.format = vpiStringVal;
+      vpi_get_value(arg, &value);
+      const char*bufp = value.value.str;
+      while (bufp && *bufp) {
+	    if ((*bufp == '0') || (*bufp == '1')) {
+		  res = (res * 2) + (*bufp - '0');
+		  bufp += 1;
+	    } else if (*bufp == '_') {
+		  bufp += 1;
+	    } else {
+		  bufp = 0;
+	    }
+      }
+
+      value.format = vpiIntVal;
+      value.value.integer = res;
+
+      vpi_put_value(callh, &value, 0, vpiNoDelay);
+
+      return 0;
+}
+
 /*
  * Convert a val to a text string that represents the value. The base
  * is the integer base to use for the conversion. The base will be one
@@ -413,6 +491,26 @@ void v2009_string_register(void)
       tf_data.compiletf = one_arg_compiletf;
       tf_data.sizetf    = 0;
       tf_data.user_data = "$ivl_string_method$atohex";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.type      = vpiSysFunc;
+      tf_data.sysfunctype = vpiIntFunc;
+      tf_data.tfname    = "$ivl_string_method$atooct";
+      tf_data.calltf    = atooct_calltf;
+      tf_data.compiletf = one_arg_compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = "$ivl_string_method$atooct";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.type      = vpiSysFunc;
+      tf_data.sysfunctype = vpiIntFunc;
+      tf_data.tfname    = "$ivl_string_method$atobin";
+      tf_data.calltf    = atobin_calltf;
+      tf_data.compiletf = one_arg_compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = "$ivl_string_method$atobin";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 

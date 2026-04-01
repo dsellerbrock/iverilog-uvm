@@ -27,6 +27,7 @@
 # include  <cstddef>
 # include  <cstdlib>
 # include  <cstring>
+# include  <malloc.h>
 # include  <string>
 # include  <new>
 # include  <cassert>
@@ -45,6 +46,7 @@ class  vvp_scalar_t;
 class vvp_vector2_t;
 class vvp_vector4_t;
 class vvp_vector8_t;
+class __vpiScope;
 
 /* Basic netlist types. */
 class  vvp_net_t;
@@ -74,33 +76,45 @@ inline vvp_context_t vvp_allocate_context(unsigned nitem)
 
 inline vvp_context_t vvp_get_next_context(vvp_context_t context)
 {
+      if (!context) return 0;
       return (vvp_context_t)context[0];
 }
 
 inline void vvp_set_next_context(vvp_context_t context, vvp_context_t next)
 {
+      if (!context) return;
       context[0] = next;
 }
 
 inline vvp_context_t vvp_get_stacked_context(vvp_context_t context)
 {
+      if (!context) return 0;
       return (vvp_context_t)context[1];
 }
 
 inline void vvp_set_stacked_context(vvp_context_t context, vvp_context_t stack)
 {
+      if (!context) return;
       context[1] = stack;
 }
 
 inline vvp_context_item_t vvp_get_context_item(vvp_context_t context,
                                                unsigned item_idx)
 {
+      if (!context) return 0;
+      size_t need = ((size_t)item_idx + 1) * sizeof(void*);
+      if (need > malloc_usable_size(context))
+            return 0;
       return (vvp_context_item_t)context[item_idx];
 }
 
 inline void vvp_set_context_item(vvp_context_t context, unsigned item_idx,
                                  vvp_context_item_t item)
 {
+      if (!context) return;
+      size_t need = ((size_t)item_idx + 1) * sizeof(void*);
+      if (need > malloc_usable_size(context))
+            return;
       context[item_idx] = item;
 }
 
@@ -655,6 +669,7 @@ class vvp_vector4array_aa : public vvp_vector4array_t, public automatic_hooks_s 
       void set_word(unsigned idx, const vvp_vector4_t&that) override;
 
     private:
+      __vpiScope*context_scope_;
       unsigned context_idx_;
 };
 

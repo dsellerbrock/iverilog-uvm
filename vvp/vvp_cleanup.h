@@ -58,6 +58,7 @@ extern void signal_delete(class __vpiHandle *item);
 extern void real_delete(class __vpiHandle *item);
 extern void string_delete(class __vpiHandle *item);
 extern void thread_string_delete(class __vpiHandle *item);
+extern void thread_object_delete(class __vpiHandle *item);
 extern void thread_vthr_delete(class __vpiHandle *item);
 extern void thread_word_delete(class __vpiHandle *item);
 extern void vpi_call_delete(class __vpiHandle *item);

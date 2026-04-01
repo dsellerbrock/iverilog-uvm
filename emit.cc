@@ -20,6 +20,7 @@
 # include "config.h"
 
 # include  <iostream>
+# include  <sstream>
 
 /*
  * The emit function is called to generate the output required of the

@@ -1267,6 +1267,14 @@ static int is_assignable_obj(vpiHandle obj)
 		  rtn = 1;
 	    }
 	    break;
+	case vpiConstant:
+	    /* Thread stack references are exposed as vpiConstant even though
+	     * they support vpi_put_value. Accept the writable stack forms
+	     * used for function return variables and class-property temporaries. */
+	    if (vpi_get(vpiConstType, obj) == vpiBinaryConst
+		|| vpi_get(vpiConstType, obj) == vpiStringConst)
+		  rtn = 1;
+	    break;
 	case vpiPartSelect:
 	    if (! is_assignable_obj(vpi_handle(vpiParent, obj))) break;
 	    // fallthrough

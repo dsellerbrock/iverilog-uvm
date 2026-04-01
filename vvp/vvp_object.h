@@ -20,6 +20,29 @@
  */
 
 # include  <stdlib.h>
+# include  <stdint.h>
+
+inline bool vvp_object_ptr_is_poisoned(const class vvp_object*ptr)
+{
+      uintptr_t u = reinterpret_cast<uintptr_t>(ptr);
+      if (u == 0 || u < 4096)
+	    return u != 0;
+
+      if (u == UINT64_C(0xbebebebebebebebe)
+          || u == UINT64_C(0xcdcdcdcdcdcdcdcd)
+          || u == UINT64_C(0xfefefefefefefefe)
+          || u == UINT64_C(0xdddddddddddddddd))
+	    return true;
+
+      uintptr_t lo = u & UINT64_C(0xffffffff);
+      if (lo == UINT64_C(0xbebebebe)
+          || lo == UINT64_C(0xcdcdcdcd)
+          || lo == UINT64_C(0xfefefefe)
+          || lo == UINT64_C(0xdddddddd))
+	    return true;
+
+      return false;
+}
 
 /*
  * A vvp_object is a garbage collected object such as a darray or
@@ -29,15 +52,19 @@
  */
 class vvp_object {
     public:
-      inline vvp_object() { ref_cnt_ = 0; total_active_cnt_ += 1; }
+      inline vvp_object() { ref_cnt_ = 0; total_active_cnt_ += 1; register_live_ptr_(this); }
       virtual ~vvp_object() =0;
 
       virtual void shallow_copy(const vvp_object*that);
       virtual vvp_object* duplicate(void) const;
 
       static void cleanup(void);
+      static bool pointer_is_live(const vvp_object*ptr);
 
     private:
+      static void register_live_ptr_(const vvp_object*ptr);
+      static void unregister_live_ptr_(const vvp_object*ptr);
+
       friend class vvp_object_t;
       int ref_cnt_;
 
@@ -76,13 +103,21 @@ class vvp_object_t {
 inline vvp_object_t::vvp_object_t(const vvp_object_t&that)
 {
       ref_ = that.ref_;
-      if (ref_) ref_->ref_cnt_ += 1;
+      if (ref_ && (vvp_object_ptr_is_poisoned(ref_) || !vvp_object::pointer_is_live(ref_)))
+	    ref_ = 0;
+      if (ref_)
+            ref_->ref_cnt_ += 1;
 }
 
 inline vvp_object_t::vvp_object_t(class vvp_object*tgt)
 {
-      if (tgt) tgt->ref_cnt_ += 1;
-      ref_ = tgt;
+      if (tgt && (vvp_object_ptr_is_poisoned(tgt) || !vvp_object::pointer_is_live(tgt)))
+	    ref_ = 0;
+      else {
+	    ref_ = tgt;
+            if (ref_)
+                  ref_->ref_cnt_ += 1;
+      }
 }
 
 inline vvp_object_t::~vvp_object_t()
@@ -96,13 +131,19 @@ inline vvp_object_t::~vvp_object_t()
  */
 inline void vvp_object_t::reset(class vvp_object*tgt)
 {
-      if (tgt) tgt->ref_cnt_ += 1;
-      if (ref_) {
-	    ref_->ref_cnt_ -= 1;
-	    if (ref_->ref_cnt_ <= 0) delete ref_;
-	    ref_ = 0;
-      }
+      if (tgt && (vvp_object_ptr_is_poisoned(tgt) || !vvp_object::pointer_is_live(tgt)))
+	    tgt = 0;
+
+      if (tgt)
+            tgt->ref_cnt_ += 1;
+
+      vvp_object*old = ref_;
       ref_ = tgt;
+      if (old) {
+            old->ref_cnt_ -= 1;
+            if (old->ref_cnt_ <= 0)
+                  delete old;
+      }
 }
 
 inline vvp_object_t& vvp_object_t::operator = (const vvp_object_t&that)
@@ -127,6 +168,9 @@ inline vvp_object_t& vvp_object_t::operator = (class vvp_object*that)
  */
 template <class T> inline T*vvp_object_t::peek(void) const
 {
+      if (ref_ == 0 || vvp_object_ptr_is_poisoned(ref_)
+          || !vvp_object::pointer_is_live(ref_))
+	    return 0;
       return dynamic_cast<T*> (ref_);
 }
 

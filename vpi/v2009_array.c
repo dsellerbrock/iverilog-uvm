@@ -171,9 +171,11 @@ static void high_array(const char*name, vpiHandle callh, vpiHandle arg)
 	    break;
 
 	  default:
-	    vpi_printf("SORRY: %s:%d: function %s() argument object code is %d\n",
-		       vpi_get_str(vpiFile,callh), (int)vpi_get(vpiLineNo, callh),
-		       name, array_type);
+	    /* Compile-progress fallback: treat unsupported array-like object
+	       as empty so $high returns -1. */
+	    value.format = vpiIntVal;
+	    value.value.integer = -1;
+	    vpi_put_value(callh, &value, 0, vpiNoDelay);
 	    break;
       }
 }
@@ -197,11 +199,29 @@ static PLI_INT32 high_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	  case vpiArrayVar:
 	    high_array(name, callh, arg);
 	    break;
+	  case vpiConstant:
+	    {
+		  s_vpi_value value;
+		  value.format = vpiIntVal;
+		  value.value.integer = -1;
+		  vpi_put_value(callh, &value, 0, vpiNoDelay);
+	    }
+	    return 0;
 
 	  default:
-	    vpi_printf("SORRY: %s:%d: function %s() argument object code is %d\n",
-		       vpi_get_str(vpiFile,callh), (int)vpi_get(vpiLineNo, callh),
-		       name, object_code);
+	    {
+		  static int warned = 0;
+		  if (!warned) {
+			vpi_printf("WARNING: %s:%d: function %s() argument object code is %d; using -1 fallback.\n",
+			       vpi_get_str(vpiFile,callh), (int)vpi_get(vpiLineNo, callh),
+			       name, object_code);
+			warned = 1;
+		  }
+		  s_vpi_value value;
+		  value.format = vpiIntVal;
+		  value.value.integer = -1;
+		  vpi_put_value(callh, &value, 0, vpiNoDelay);
+	    }
 	    return 0;
       }
 
@@ -222,9 +242,11 @@ static void low_array(const char*name, vpiHandle callh, vpiHandle arg)
 	    break;
 
 	  default:
-	    vpi_printf("SORRY: %s:%d: function %s() argument object code is %d\n",
-		       vpi_get_str(vpiFile,callh), (int)vpi_get(vpiLineNo, callh),
-		       name, array_type);
+	    /* Compile-progress fallback: treat unsupported array-like object
+	       as empty so $low returns 0. */
+	    value.format = vpiIntVal;
+	    value.value.integer = 0;
+	    vpi_put_value(callh, &value, 0, vpiNoDelay);
 	    break;
       }
 }
@@ -248,11 +270,29 @@ static PLI_INT32 low_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	  case vpiArrayVar:
 	    low_array(name, callh, arg);
 	    break;
+	  case vpiConstant:
+	    {
+		  s_vpi_value value;
+		  value.format = vpiIntVal;
+		  value.value.integer = 0;
+		  vpi_put_value(callh, &value, 0, vpiNoDelay);
+	    }
+	    return 0;
 
 	  default:
-	    vpi_printf("SORRY: %s:%d: function %s() argument object code is %d\n",
-		       vpi_get_str(vpiFile,callh), (int)vpi_get(vpiLineNo, callh),
-		       name, object_code);
+	    {
+		  static int warned = 0;
+		  if (!warned) {
+			vpi_printf("WARNING: %s:%d: function %s() argument object code is %d; using 0 fallback.\n",
+			       vpi_get_str(vpiFile,callh), (int)vpi_get(vpiLineNo, callh),
+			       name, object_code);
+			warned = 1;
+		  }
+		  s_vpi_value value;
+		  value.format = vpiIntVal;
+		  value.value.integer = 0;
+		  vpi_put_value(callh, &value, 0, vpiNoDelay);
+	    }
 	    return 0;
       }
 

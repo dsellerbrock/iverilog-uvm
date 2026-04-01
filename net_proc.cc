@@ -214,7 +214,12 @@ NetForLoop::NetForLoop(NetNet*ind, NetExpr*iexpr, NetExpr*cond, NetProc*sub, Net
 
 NetForLoop::~NetForLoop()
 {
-      delete init_expr_;
+        // If present, init_statement_ wraps and owns init_expr_ as its rvalue.
+      if (init_statement_) {
+	    delete init_statement_;
+      } else {
+	    delete init_expr_;
+      }
       delete condition_;
       delete statement_;
       delete step_statement_;

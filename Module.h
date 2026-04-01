@@ -42,6 +42,7 @@ class PTask;
 class PFunction;
 class PWire;
 class PProcess;
+class PEventStatement;
 class Design;
 class NetScope;
 
@@ -64,6 +65,17 @@ class Module : public PScopeExtra, public PNamedItem {
 	   the port. In SystemVerilog, input ports may also have a
 	   default value. */
     public:
+      struct PClocking : public LineInfo {
+	    explicit PClocking(perm_string n, PEventStatement*evt);
+	    ~PClocking();
+
+	    bool add_signal(perm_string sig_name);
+
+	    perm_string name;
+	    PEventStatement*event;
+	    std::vector<perm_string>signals;
+      };
+
       struct port_t {
 	    perm_string name;
 	    std::vector<PEIdent*> expr;
@@ -136,6 +148,7 @@ class Module : public PScopeExtra, public PNamedItem {
            The parser will ensure these don't appear in modules or
            program blocks. */
       std::map<perm_string,PModport*> modports;
+      std::map<perm_string,PClocking*> clocking_blocks;
 
 	/* List for specify paths and timing checks */
       std::list<PSpecPath*> specify_paths;

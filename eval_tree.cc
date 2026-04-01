@@ -567,7 +567,12 @@ NetEConst* NetEBComp::eval_eqeq_(bool ne_flag, const NetExpr*le, const NetExpr*r
       verinum::V res = eq_res;
 
 	// The two expressions should already be padded to the same size.
-      ivl_assert(*this, lv.len() == rv.len());
+      if (lv.len() != rv.len()) {
+	      // Some SV elaboration paths (notably string-heavy UVM code) can
+	      // reach constant equality folding before width padding is normalized.
+	      // Defer folding instead of aborting.
+	    return 0;
+      }
 
       for (unsigned idx = 0 ;  idx < lv.len() ;  idx += 1) {
 

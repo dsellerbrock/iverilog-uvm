@@ -22,8 +22,8 @@
 
 using namespace std;
 
-netqueue_t::netqueue_t(ivl_type_t vec, long max_idx)
-: netdarray_t(vec), max_idx_(max_idx)
+netqueue_t::netqueue_t(ivl_type_t vec, long max_idx, bool assoc_compat)
+: netdarray_t(vec), max_idx_(max_idx), assoc_compat_(assoc_compat)
 {
 }
 

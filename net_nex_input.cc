@@ -130,7 +130,29 @@ NexusSet* NetENull::nex_input(bool, bool, bool) const
 
 NexusSet* NetEProperty::nex_input(bool, bool, bool) const
 {
-      return new NexusSet;
+      NexusSet*result = new NexusSet;
+      if (const NetNet*sig = get_sig()) {
+	    // Class-property reads rooted at a signal still depend on that
+	    // root object handle for compile-progress sensitivity tracking.
+	    NetNet*sig_mut = const_cast<NetNet*>(sig);
+	    if (sig_mut->pins_are_virtual())
+		  sig_mut->devirtualize_pins();
+	    if (!sig_mut->pins_are_virtual()) {
+		  Nexus*nx = const_cast<Nexus*>(sig_mut->pin(0).nexus());
+		  if (nx)
+			result->add(nx, 0, nx->vector_width());
+	    }
+      }
+      if (const NetExpr*base = get_base()) {
+	    delete result;
+	    result = base->nex_input();
+      }
+      if (const NetExpr*idx = get_index()) {
+	    NexusSet*tmp = idx->nex_input();
+	    result->add(*tmp);
+	    delete tmp;
+      }
+      return result;
 }
 
 NexusSet* NetEScope::nex_input(bool, bool, bool) const
@@ -217,7 +239,18 @@ NexusSet* NetESignal::nex_input_base(bool rem_out, bool always_sens, bool nested
       unsigned const_word = 0;
       NexusSet*result = new NexusSet;
 	/* Local signals are not added to the sensitivity list. */
-      if (net_->local_flag()) return result;
+      if (net_->local_flag()) {
+	    // Compile-progress semantic support: local class-handle roots can
+	    // still carry useful wait/event dependencies (e.g. wait(obj.flag))
+	    // when they are represented with concrete pins.
+	    if (net_->data_type() != IVL_VT_CLASS)
+		  return result;
+	    NetNet*net_mut = const_cast<NetNet*>(net_);
+	    if (net_mut->pins_are_virtual())
+		  net_mut->devirtualize_pins();
+	    if (net_mut->pins_are_virtual())
+		  return result;
+      }
 	/* If we have an array index add it to the sensitivity list. */
       if (word_) {
 	    NexusSet*tmp;

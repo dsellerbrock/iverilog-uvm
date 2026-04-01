@@ -25,6 +25,7 @@
 # include  <typeinfo>
 # include  <iostream>
 # include  <iomanip>
+# include  <set>
 # include  "netlist.h"
 # include  "compiler.h"
 # include  "discipline.h"
@@ -226,6 +227,19 @@ ostream& ivl_type_s::debug_dump(ostream&o) const
 
 ostream& netclass_t::debug_dump(ostream&fd) const
 {
+      static thread_local std::set<const netclass_t*> active_dump;
+      static thread_local unsigned depth = 0;
+      if (active_dump.find(this) != active_dump.end()) {
+	    fd << "class " << name_ << "{...recursive...}";
+	    return fd;
+      }
+      if (depth >= 16) {
+	    fd << "class " << name_ << "{...depth-limit...}";
+	    return fd;
+      }
+      active_dump.insert(this);
+      depth += 1;
+
       fd << "class " << name_ << "{";
       for (size_t idx = 0 ; idx < property_table_.size() ; idx += 1) {
 	    if (idx != 0) fd << "; ";
@@ -236,6 +250,8 @@ ostream& netclass_t::debug_dump(ostream&fd) const
 	    fd << " " << property_table_[idx].name;
       }
       fd << "}";
+      depth -= 1;
+      active_dump.erase(this);
       return fd;
 }
 
@@ -249,6 +265,7 @@ ostream& netqueue_t::debug_dump(ostream&fd) const
 {
       fd << "queue of ";
       if (max_idx_ >= 0) fd << "(maximum of " << max_idx_+1 << " elements) ";
+      if (assoc_compat()) fd << "(assoc-compat) ";
       fd << *element_type();
       return fd;
 }
@@ -1870,7 +1887,14 @@ void NetENull::dump(ostream&o) const
 
 void NetEProperty::dump(ostream&o) const
 {
-      o << net_->name() << ".<" << pidx_ << ">";
+      if (get_base()) {
+	    o << *get_base();
+      } else if (get_sig()) {
+	    o << get_sig()->name();
+      } else {
+	    o << "<null-property-base>";
+      }
+      o << ".<" << pidx_ << ">";
       if (index_)
 	    o << "[" << *index_ << "]";
 }

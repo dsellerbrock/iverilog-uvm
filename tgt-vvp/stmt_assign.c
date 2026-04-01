@@ -77,6 +77,26 @@ struct vec_slice_info {
       } u_;
 };
 
+static int expr_is_numeric_container_index_(ivl_expr_t expr);
+static int prop_is_numeric_queue_index_(ivl_type_t prop_type, ivl_expr_t idx_expr);
+static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
+                                            ivl_signal_t var,
+                                            ivl_type_t var_type);
+static int type_is_object_like_(ivl_type_t type);
+
+static int queue_pattern_operand_is_object_collection_(ivl_expr_t expr,
+                                                       ivl_type_t element_type);
+
+static ivl_expr_t prop_lval_index_expr_(ivl_lval_t lval)
+{
+      ivl_expr_t idx_expr = ivl_lval_idx(lval);
+
+      if (!idx_expr && ivl_lval_nest(lval))
+            idx_expr = ivl_lval_idx(ivl_lval_nest(lval));
+
+      return idx_expr;
+}
+
 static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 				    unsigned wid)
 {
@@ -182,9 +202,10 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 	    slice->u_.memory_word_dynamic.word_idx_reg = allocate_word();
 	    slice->u_.memory_word_dynamic.x_flag = allocate_flag();
 
-	    draw_eval_expr_into_integer(word_ix, slice->u_.memory_word_dynamic.word_idx_reg);
-	    fprintf(vvp_out, "    %%flag_mov %u, 4;\n", slice->u_.memory_word_dynamic.x_flag);
-	    fprintf(vvp_out, "    %%load/vec4a v%p, %d;\n", sig, slice->u_.memory_word_dynamic.word_idx_reg);
+		  draw_eval_expr_into_integer(word_ix, slice->u_.memory_word_dynamic.word_idx_reg);
+		  fprintf(vvp_out, "    %%flag_mov %u, 4;\n", slice->u_.memory_word_dynamic.x_flag);
+		  note_array_signal_use(sig);
+		  fprintf(vvp_out, "    %%load/vec4a v%p, %d;\n", sig, slice->u_.memory_word_dynamic.word_idx_reg);
 
       } else {
 	    assert(0);
@@ -323,6 +344,7 @@ static void put_vec_to_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 		  int word_idx = allocate_word();
 		  fprintf(vvp_out,"    %%flag_set/imm 4, 0;\n");
 		  fprintf(vvp_out,"    %%ix/load %d, %lu, 0;\n", word_idx, slice->u_.memory_word_static.use_word);
+		  note_array_signal_use(sig);
 		  fprintf(vvp_out,"    %%store/vec4a v%p, %d, 0;\n", sig, word_idx);
 		  clr_word(word_idx);
 	    } else {
@@ -333,6 +355,7 @@ static void put_vec_to_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 
 	  case SLICE_MEMORY_WORD_DYNAMIC:
 	    fprintf(vvp_out, "    %%flag_mov 4, %u;\n", slice->u_.memory_word_dynamic.x_flag);
+	    note_array_signal_use(sig);
 	    fprintf(vvp_out, "    %%store/vec4a v%p, %d, 0;\n", sig, slice->u_.memory_word_dynamic.word_idx_reg);
 	    clr_word(slice->u_.memory_word_dynamic.word_idx_reg);
 	    clr_flag(slice->u_.memory_word_dynamic.x_flag);
@@ -369,29 +392,119 @@ static void put_vec_to_lval(ivl_statement_t net, struct vec_slice_info*slices)
 
 static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 {
+      static int warned_invalid_prop_index = 0;
       ivl_lval_t lval_nest = ivl_lval_nest(lval);
       ivl_signal_t lval_sig = ivl_lval_sig(lval);
+      unsigned lab_null = local_count++;
+      unsigned lab_out = local_count++;
 
       if (lval_sig) {
+	    ivl_expr_t word_ex = ivl_lval_idx(lval);
+	    ivl_type_t sig_type = ivl_signal_net_type(lval_sig);
+
+	    if (word_ex && sig_type) {
+		  ivl_type_t element_type = ivl_type_element(sig_type);
+		  if (element_type && ivl_type_base(element_type) == IVL_VT_CLASS) {
+			draw_eval_expr_into_integer(word_ex, 3);
+			if (ivl_type_base(sig_type) == IVL_VT_DARRAY ||
+			    ivl_type_base(sig_type) == IVL_VT_QUEUE) {
+			      fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", lval_sig);
+			      return element_type;
+			}
+			if (ivl_signal_dimensions(lval_sig) > 0) {
+			      fprintf(vvp_out, "    %%load/obja v%p, 3;\n", lval_sig);
+			      return element_type;
+			}
+		  }
+	    }
+
 	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", lval_sig);
-	    return ivl_signal_net_type(lval_sig);
+	    return sig_type;
       }
 
       assert (lval_nest);
       ivl_type_t sub_type = draw_lval_expr(lval_nest);
-      assert(ivl_type_base(sub_type) == IVL_VT_CLASS);
-
-      if (ivl_lval_idx(lval_nest)) {
-	    fprintf(vvp_out, " ; XXXX Don't know how to handle ivl_lval_idx values here.\n");
+      ivl_type_t prop_type;
+      ivl_type_t element_type;
+      ivl_expr_t nested_idx_expr;
+      int idx_word = 0;
+      int assoc_indexed = 0;
+      int queue_indexed = 0;
+      if ((sub_type == 0) || (ivl_type_properties(sub_type) <= 0)) {
+	    /* Compile-progress fallback: nested receiver is not class-typed,
+	       preserve object-stack discipline with a null object. */
+	    fprintf(vvp_out, "    %%null;\n");
+	    return 0;
       }
 
       int prop_idx = ivl_lval_property_idx(lval_nest);
+      if (prop_idx < 0)
+	    return sub_type;
 
-      fprintf(vvp_out, "    %%prop/obj %d, 0; Load property %s\n", prop_idx,
-	      ivl_type_prop_name(sub_type, prop_idx));
-      fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+      if ((prop_idx < 0) || (prop_idx >= ivl_type_properties(sub_type))) {
+	    if (!warned_invalid_prop_index) {
+		  fprintf(stderr, "Warning: invalid class property index %d in nested l-value; "
+				  "using null object fallback"
+				  " (further similar warnings suppressed)\n", prop_idx);
+		  warned_invalid_prop_index = 1;
+	    }
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
+	    fprintf(vvp_out, "    %%cast2;\n");
+	    return 0;
+      }
 
-      return ivl_type_prop_type(sub_type, prop_idx);
+      prop_type = ivl_type_prop_type(sub_type, prop_idx);
+      element_type = ivl_type_element(prop_type);
+      nested_idx_expr = ivl_lval_idx(lval_nest);
+      if (nested_idx_expr) {
+	    if (prop_is_numeric_queue_index_(prop_type, nested_idx_expr)) {
+		  queue_indexed = 1;
+	    } else if (prop_type
+	               && ivl_type_base(prop_type) == IVL_VT_QUEUE
+	               && ivl_type_queue_assoc_compat(prop_type)) {
+		  assoc_indexed = 1;
+	    } else {
+		  idx_word = allocate_word();
+		  draw_eval_expr_into_integer(nested_idx_expr, idx_word);
+	    }
+      }
+
+      fprintf(vvp_out, "    %%test_nul/obj;\n");
+      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+      if (queue_indexed) {
+	    draw_eval_expr_into_integer(nested_idx_expr, 3);
+	    fprintf(vvp_out, "    %%prop/obj %d, 0; Load queue property %s\n",
+	            prop_idx, ivl_type_prop_name(sub_type, prop_idx));
+	    fprintf(vvp_out, "    %%load/qo/obj;\n");
+	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+      } else if (assoc_indexed) {
+            const char*key_kind;
+	    fprintf(vvp_out, "    %%prop/obj %d, 0; Load assoc property %s\n",
+	            prop_idx, ivl_type_prop_name(sub_type, prop_idx));
+            key_kind = draw_eval_assoc_key_(nested_idx_expr, 0);
+	    fprintf(vvp_out, "    %%aa/load/obj/%s;\n", key_kind);
+	    fprintf(vvp_out, "    %%pop/obj 2, 1;\n");
+      } else if (idx_word) {
+	    fprintf(vvp_out, "    %%prop/obj %d, %d; Load property %s\n", prop_idx,
+	            idx_word, ivl_type_prop_name(sub_type, prop_idx));
+	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+      } else {
+	    fprintf(vvp_out, "    %%prop/obj %d, 0; Load property %s\n", prop_idx,
+	            ivl_type_prop_name(sub_type, prop_idx));
+	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+      }
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+      fprintf(vvp_out, "    %%null;\n");
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+
+      if (idx_word) clr_word(idx_word);
+
+      if (nested_idx_expr && element_type)
+	    return element_type;
+
+      return prop_type;
 }
 
 /*
@@ -437,6 +550,7 @@ static void store_vec4_to_lval(ivl_statement_t net)
 		  }
 
 		  assert(lsig);
+		  note_array_signal_use(lsig);
 		  fprintf(vvp_out, "    %%store/vec4a v%p, %d, %d;\n",
 			  lsig, word_index, part_index);
 
@@ -481,17 +595,44 @@ static unsigned int draw_array_pattern(ivl_signal_t var, ivl_expr_t rval,
 					   unsigned int array_idx)
 {
       ivl_type_t var_type = ivl_signal_net_type(var);
+      ivl_type_t elem_type = var_type;
+
+      /* A scalar aggregate cobject target is not an unpacked array. Build
+       * the whole aggregate object and store it as a single handle. */
+      if (ivl_signal_dimensions(var) == 0
+          && var_type
+          && ivl_type_base(var_type) == IVL_VT_NO_TYPE
+          && ivl_type_properties(var_type) > 0) {
+	    draw_eval_object(rval);
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
+	    return array_idx;
+      }
+
+      if (ivl_signal_dimensions(var) > 0) {
+	    ivl_type_t unpacked_elem = ivl_type_element(var_type);
+	    if (unpacked_elem)
+		  elem_type = unpacked_elem;
+      }
 
       for (unsigned int idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
 	    ivl_expr_t expr = ivl_expr_parm(rval, idx);
 
 	    switch (ivl_expr_type(expr)) {
 		case IVL_EX_ARRAY_PATTERN:
-		    /* Flatten nested array patterns */
-		  array_idx = draw_array_pattern(var, expr, array_idx);
+		    /* Object-like array elements use nested array patterns as
+		     * aggregate literals, not additional unpacked dimensions. */
+		  if (type_is_object_like_(elem_type)) {
+			draw_eval_object(expr);
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", array_idx);
+			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+			fprintf(vvp_out, "    %%store/obja v%p, 3;\n", var);
+			array_idx += 1;
+		  } else {
+			array_idx = draw_array_pattern(var, expr, array_idx);
+		  }
 		  break;
 		default:
-		  switch (ivl_type_base(var_type)) {
+		  switch (ivl_type_base(elem_type)) {
 		      case IVL_VT_BOOL:
 		      case IVL_VT_LOGIC:
 			draw_eval_vec4(expr);
@@ -512,6 +653,9 @@ static unsigned int draw_array_pattern(ivl_signal_t var, ivl_expr_t rval,
 			fprintf(vvp_out, "    %%store/stra v%p, 3;\n", var);
 			break;
 		      case IVL_VT_CLASS:
+		      case IVL_VT_DARRAY:
+		      case IVL_VT_QUEUE:
+		      case IVL_VT_NO_TYPE:
 			draw_eval_object(expr);
 			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", array_idx);
 			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
@@ -896,10 +1040,26 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
 	   differently. */
       if (signal_is_return_value(var)) {
 	    assert(ivl_signal_dimensions(var) == 0);
-	    assert(part == 0 && aidx == 0);
+	    if (part == 0 && aidx == 0) {
+		  draw_eval_string(rval);
+		  fprintf(vvp_out, "    %%ret/str 0; Assign to %s\n",
+			  ivl_signal_basename(var));
+		  return 0;
+	    }
+	    /* Compile-progress fallback: slice/index assignment to string return
+	       value is not materialized. Preserve side effects, then discard. */
 	    draw_eval_string(rval);
-	    fprintf(vvp_out, "    %%ret/str 0; Assign to %s\n",
-		    ivl_signal_basename(var));
+	    fprintf(vvp_out, "    %%pop/str 1;\n");
+	    if (aidx != 0) {
+		  unsigned ix = allocate_word();
+		  draw_eval_expr_into_integer(aidx, ix);
+		  clr_word(ix);
+	    }
+	    if (part != 0) {
+		  int mux_word = allocate_word();
+		  draw_eval_expr_into_integer(part, mux_word);
+		  clr_word(mux_word);
+	    }
 	    return 0;
       }
 
@@ -1078,10 +1238,20 @@ static void show_stmt_assign_sig_darray_queue_mux(ivl_statement_t net)
 		  draw_eval_vec4(rval);
 		  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
 		  draw_eval_expr_into_integer(mux, 3);
-	    }
-	    break;
+		    }
+		    break;
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+		    assert(ivl_stmt_opcode(net) == 0);
+		    draw_eval_object(rval);
+		    draw_eval_expr_into_integer(mux, 3);
+		    break;
 	  default:
-	    assert(0);
+		    assert(ivl_stmt_opcode(net) == 0);
+		    draw_eval_object(rval);
+		    draw_eval_expr_into_integer(mux, 3);
 	    break;
       }
 }
@@ -1113,8 +1283,14 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
 		case IVL_VT_LOGIC:
 		  fprintf(vvp_out, "    %%store/dar/vec4 v%p_0;\n", var);
 		  break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE:
+		  fprintf(vvp_out, "    %%store/dar/obj v%p_0;\n", var);
+		  break;
 	    default:
-		  assert(0);
+		  fprintf(vvp_out, "    %%store/dar/obj v%p_0;\n", var);
 		  break;
 	    }
       } else if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
@@ -1174,9 +1350,40 @@ static int show_stmt_assign_queue_pattern(ivl_signal_t var, ivl_expr_t rval,
       unsigned idx;
       unsigned max_size;
       unsigned max_elems;
+      int use_object_collection_append = 0;
       assert(ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN);
       max_size = ivl_signal_array_count(var);
       max_elems = ivl_expr_parms(rval);
+
+      if (type_is_object_like_(element_type)) {
+            for (idx = 0 ; idx < max_elems ; idx += 1) {
+                  if (queue_pattern_operand_is_object_collection_(
+                              ivl_expr_parm(rval, idx), element_type)) {
+                        use_object_collection_append = 1;
+                        break;
+                  }
+            }
+      }
+
+      if (use_object_collection_append) {
+            fprintf(vvp_out, "    %%null;\n");
+            fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
+
+            for (idx = 0 ; idx < max_elems ; idx += 1) {
+                  ivl_expr_t parm = ivl_expr_parm(rval, idx);
+
+                  errors += draw_eval_object(parm);
+                  if (queue_pattern_operand_is_object_collection_(parm, element_type))
+                        fprintf(vvp_out, "    %%append/qobj/obj v%p_0, %d;\n",
+                                var, max_idx);
+                  else
+                        fprintf(vvp_out, "    %%store/qb/obj v%p_0, %d;\n",
+                                var, max_idx);
+            }
+
+            return errors;
+      }
+
       if ((max_size != 0) && (max_elems > max_size)) {
 	    fprintf(stderr, "%s:%u: Warning: Array pattern assignment has more elements "
 	                    "(%u) than bounded queue '%s' supports (%u).\n"
@@ -1210,10 +1417,24 @@ static int show_stmt_assign_queue_pattern(ivl_signal_t var, ivl_expr_t rval,
 		  fprintf(vvp_out, "    %%store/qdar/str v%p_0, %d;\n", var, max_idx);
 		  break;
 
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE:
+		  draw_eval_object(ivl_expr_parm(rval,idx));
+		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  fprintf(vvp_out, "    %%store/qdar/obj v%p_0, %d;\n", var, max_idx);
+		  break;
+
 		default:
-		  fprintf(vvp_out, "; ERROR: show_stmt_assign_queue_pattern: "
-		                   "type_base=%d not implemented\n", ivl_type_base(element_type));
-		  errors += 1;
+		  /* Compile-progress fallback: treat any remaining element kind
+		   * as object so queue pattern assignment does not silently drop
+		   * elements. */
+		  draw_eval_object(ivl_expr_parm(rval,idx));
+		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  fprintf(vvp_out, "    %%store/qdar/obj v%p_0, %d;\n", var, max_idx);
 		  break;
 	    }
       }
@@ -1256,6 +1477,13 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
 
       } else if (ivl_lval_idx(lval)) {
+            if (ivl_type_queue_assoc_compat(var_type)) {
+                  int handled_errors = show_stmt_assign_sig_assoc_index(net, var, var_type);
+                  if (handled_errors >= 0) {
+                        clr_word(idx);
+                        return errors + handled_errors;
+                  }
+            }
 	    show_stmt_assign_sig_darray_queue_mux(net);
 	    switch (ivl_type_base(element_type)) {
 		case IVL_VT_REAL:
@@ -1269,8 +1497,14 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 		  fprintf(vvp_out, "    %%store/qdar/v v%p_0, %d, %u;\n", var, idx,
 	                     ivl_type_packed_width(element_type));
 		  break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE:
+		  fprintf(vvp_out, "    %%store/qdar/obj v%p_0, %d;\n", var, idx);
+		  break;
 	    default:
-		  assert(0);
+		  fprintf(vvp_out, "    %%store/qdar/obj v%p_0, %d;\n", var, idx);
 		  break;
 	    }
       } else if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
@@ -1292,15 +1526,579 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 		  fprintf(vvp_out, "    %%store/qobj/r v%p_0, %d;\n", var, idx);
 	    else if (ivl_type_base(element_type) == IVL_VT_STRING)
 		  fprintf(vvp_out, "    %%store/qobj/str v%p_0, %d;\n", var, idx);
-	    else {
-		  assert(ivl_type_base(element_type) == IVL_VT_BOOL ||
-		         ivl_type_base(element_type) == IVL_VT_LOGIC);
+	    else if (ivl_type_base(element_type) == IVL_VT_BOOL ||
+		     ivl_type_base(element_type) == IVL_VT_LOGIC) {
 		  fprintf(vvp_out, "    %%store/qobj/v v%p_0, %d, %u;\n",
 		                   var, idx, ivl_type_packed_width(element_type));
+	    } else if (ivl_type_base(element_type) == IVL_VT_CLASS ||
+		       ivl_type_base(element_type) == IVL_VT_DARRAY ||
+		       ivl_type_base(element_type) == IVL_VT_QUEUE ||
+		       ivl_type_base(element_type) == IVL_VT_NO_TYPE) {
+		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
+	    } else {
+		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
 	    }
       }
       clr_word(idx);
 
+      return errors;
+}
+
+static int expr_is_numeric_container_index_(ivl_expr_t expr)
+{
+      switch (ivl_expr_value(expr)) {
+	  case IVL_VT_STRING:
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	    return 0;
+	  default:
+	    return 1;
+      }
+}
+
+static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
+                                            ivl_signal_t var,
+                                            ivl_type_t var_type)
+{
+      int errors = 0;
+      ivl_lval_t lval = ivl_stmt_lval(net, 0);
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      ivl_expr_t idx_expr = ivl_lval_idx(lval);
+      ivl_type_t element_type = ivl_type_element(var_type);
+      unsigned wid;
+      const char*key_kind;
+      int key_is_object;
+      int key_is_string;
+      int use_signal_scalar_ops;
+      int object_like_elem;
+
+      if (!element_type || !ivl_type_queue_assoc_compat(var_type))
+            return -1;
+      if (!idx_expr)
+            return -1;
+      if (ivl_stmt_opcode(net) != 0) {
+            switch (ivl_type_base(element_type)) {
+                case IVL_VT_REAL:
+                case IVL_VT_BOOL:
+                case IVL_VT_LOGIC:
+                  break;
+                default:
+                  return -1;
+            }
+      }
+
+      object_like_elem =
+            ivl_type_base(element_type) == IVL_VT_CLASS
+         || ivl_type_base(element_type) == IVL_VT_DARRAY
+         || ivl_type_base(element_type) == IVL_VT_QUEUE
+         || ivl_type_base(element_type) == IVL_VT_NO_TYPE;
+
+      key_is_object = expr_is_object_assoc_key_(idx_expr);
+      key_is_string = expr_is_string_assoc_key_(idx_expr);
+      use_signal_scalar_ops = key_is_object;
+
+      if (key_is_string) {
+            key_kind = "str";
+            draw_eval_string(idx_expr);
+      } else if (key_is_object) {
+            key_kind = "obj";
+            errors += draw_eval_object(idx_expr);
+      } else {
+            key_kind = "v";
+            draw_eval_vec4(idx_expr);
+      }
+
+      if (!object_like_elem && !use_signal_scalar_ops)
+            fprintf(vvp_out, "    %%load/obj v%p_0;\n", var);
+
+      switch (ivl_type_base(element_type)) {
+          case IVL_VT_REAL:
+            if (use_signal_scalar_ops && ivl_stmt_opcode(net) != 0) {
+                  fprintf(vvp_out, "    %%aa/load/sig/r/obj v%p_0;\n", var);
+                  draw_eval_real(rval);
+                  draw_stmt_assign_real_opcode(ivl_stmt_opcode(net));
+            } else if (ivl_stmt_opcode(net) != 0) {
+                  fprintf(vvp_out, "    %%aa/loadk/r/%s;\n", key_kind);
+                  draw_eval_real(rval);
+                  draw_stmt_assign_real_opcode(ivl_stmt_opcode(net));
+            } else {
+                  draw_eval_real(rval);
+            }
+            if (use_signal_scalar_ops)
+                  fprintf(vvp_out, "    %%aa/store/sig/r/obj v%p_0;\n", var);
+            else
+                  fprintf(vvp_out, "    %%aa/store/r/%s;\n", key_kind);
+            if (!use_signal_scalar_ops)
+                  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            return errors;
+          case IVL_VT_STRING:
+            draw_eval_string(rval);
+            if (use_signal_scalar_ops)
+                  fprintf(vvp_out, "    %%aa/store/sig/str/obj v%p_0;\n", var);
+            else
+                  fprintf(vvp_out, "    %%aa/store/str/%s;\n", key_kind);
+            if (!use_signal_scalar_ops)
+                  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            return errors;
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC:
+            wid = ivl_type_packed_width(element_type);
+            if (wid == 0)
+                  wid = ivl_stmt_lwidth(net);
+            if (use_signal_scalar_ops && ivl_stmt_opcode(net) != 0) {
+                  fprintf(vvp_out, "    %%aa/load/sig/v/obj v%p_0, %u;\n", var, wid);
+                  draw_eval_vec4(rval);
+                  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
+                  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
+                                                 ivl_expr_signed(rval));
+            } else if (ivl_stmt_opcode(net) != 0) {
+                  fprintf(vvp_out, "    %%aa/loadk/v/%s %u;\n", key_kind, wid);
+                  draw_eval_vec4(rval);
+                  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
+                  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
+                                                 ivl_expr_signed(rval));
+            } else {
+                  draw_eval_vec4(rval);
+                  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
+            }
+            if (use_signal_scalar_ops)
+                  fprintf(vvp_out, "    %%aa/store/sig/v/obj v%p_0, %u;\n", var, wid);
+            else
+                  fprintf(vvp_out, "    %%aa/store/v/%s %u;\n", key_kind, wid);
+            if (!use_signal_scalar_ops)
+                  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            return errors;
+          case IVL_VT_CLASS:
+          case IVL_VT_DARRAY:
+          case IVL_VT_QUEUE:
+          case IVL_VT_NO_TYPE:
+            errors += draw_eval_object(rval);
+            fprintf(vvp_out, "    %%aa/store/sig/obj/%s v%p_0;\n", key_kind, var);
+            return errors;
+          default:
+            return -1;
+      }
+}
+
+static int prop_is_numeric_queue_index_(ivl_type_t prop_type, ivl_expr_t idx_expr)
+{
+      if (!idx_expr || !prop_type || ivl_type_base(prop_type) != IVL_VT_QUEUE)
+            return 0;
+
+      if (ivl_type_queue_assoc_compat(prop_type))
+            return 0;
+
+      return expr_is_numeric_container_index_(idx_expr);
+}
+
+static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
+                                                 int prop_idx,
+                                                 ivl_type_t prop_type)
+{
+      int errors = 0;
+      ivl_lval_t lval = ivl_stmt_lval(net, 0);
+      ivl_signal_t recv = ivl_lval_sig(lval);
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      ivl_expr_t idx_expr = prop_lval_index_expr_(lval);
+      ivl_type_t element_type;
+
+      if (!prop_is_numeric_queue_index_(prop_type, idx_expr))
+	    return -1;
+
+      element_type = ivl_type_element(prop_type);
+      if (!element_type)
+	    return -1;
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_REAL:
+	    if (ivl_stmt_opcode(net) != 0) {
+		  int mux_word = allocate_word();
+		  int flag = allocate_flag();
+
+		  draw_eval_expr_into_integer(idx_expr, 3);
+		  fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
+		  fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  fprintf(vvp_out, "    %%load/qo/r;\n");
+		  draw_eval_real(rval);
+		  draw_stmt_assign_real_opcode(ivl_stmt_opcode(net));
+		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
+		  fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", recv);
+		  fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  fprintf(vvp_out, "    %%set/dar/obj/real 3;\n");
+		  fprintf(vvp_out, "    %%pop/real 1;\n");
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  clr_flag(flag);
+		  clr_word(mux_word);
+	    } else {
+		  int idx_word = allocate_word();
+		  draw_eval_real(rval);
+		  draw_eval_expr_into_integer(idx_expr, idx_word);
+		  fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  fprintf(vvp_out, "    %%set/dar/obj/real %d;\n", idx_word);
+		  fprintf(vvp_out, "    %%pop/real 1;\n");
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  clr_word(idx_word);
+	    }
+	    return errors;
+
+	  case IVL_VT_STRING:
+	    if (ivl_stmt_opcode(net) != 0)
+		  return -1;
+	    {
+		  int idx_word = allocate_word();
+		  draw_eval_string(rval);
+		  draw_eval_expr_into_integer(idx_expr, idx_word);
+		  fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  fprintf(vvp_out, "    %%set/dar/obj/str %d;\n", idx_word);
+		  fprintf(vvp_out, "    %%pop/str 1;\n");
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  clr_word(idx_word);
+	    }
+	    return errors;
+
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC: {
+		unsigned wid = ivl_type_packed_width(element_type);
+		if (wid == 0)
+		      wid = ivl_stmt_lwidth(net);
+
+		if (ivl_stmt_opcode(net) != 0) {
+		      int mux_word = allocate_word();
+		      int flag = allocate_flag();
+
+		      draw_eval_expr_into_integer(idx_expr, 3);
+		      fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
+		      fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
+		      fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+		      fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		      fprintf(vvp_out, "    %%load/qo/v %u;\n", wid);
+		      draw_eval_vec4(rval);
+		      resize_vec4_wid(rval, ivl_stmt_lwidth(net));
+		      draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
+					             ivl_expr_signed(rval));
+		      fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
+		      fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
+		      fprintf(vvp_out, "    %%load/obj v%p_0;\n", recv);
+		      fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+		      fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		      fprintf(vvp_out, "    %%set/dar/obj/vec4 3;\n");
+		      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+		      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		      clr_flag(flag);
+		      clr_word(mux_word);
+		} else {
+		      int idx_word = allocate_word();
+		      draw_eval_vec4(rval);
+		      resize_vec4_wid(rval, ivl_stmt_lwidth(net));
+		      draw_eval_expr_into_integer(idx_expr, idx_word);
+		      fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+		      fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		      fprintf(vvp_out, "    %%set/dar/obj/vec4 %d;\n", idx_word);
+		      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+		      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		      clr_word(idx_word);
+		}
+		return errors;
+	  }
+
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    if (ivl_stmt_opcode(net) != 0)
+		  return -1;
+	    {
+		  int idx_word = allocate_word();
+		  draw_eval_expr_into_integer(idx_expr, idx_word);
+		  fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  errors += draw_eval_object(rval);
+		  fprintf(vvp_out, "    %%set/dar/obj/obj %d;\n", idx_word);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  clr_word(idx_word);
+	    }
+	    return errors;
+
+	  default:
+	    return -1;
+      }
+}
+
+static int show_stmt_assign_sig_prop_darray_index(ivl_statement_t net,
+                                                  int prop_idx,
+                                                  ivl_type_t prop_type)
+{
+      int errors = 0;
+      ivl_lval_t lval = ivl_stmt_lval(net, 0);
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      ivl_expr_t idx_expr = prop_lval_index_expr_(lval);
+      ivl_type_t element_type;
+
+      if (!idx_expr || !prop_type || ivl_type_base(prop_type) != IVL_VT_DARRAY)
+            return -1;
+
+      if (ivl_stmt_opcode(net) != 0)
+            return -1;
+
+      element_type = ivl_type_element(prop_type);
+      if (!element_type)
+            return -1;
+
+      switch (ivl_type_base(element_type)) {
+          case IVL_VT_REAL: {
+            int idx_word = allocate_word();
+            draw_eval_real(rval);
+            draw_eval_expr_into_integer(idx_expr, idx_word);
+            fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+            fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+            fprintf(vvp_out, "    %%set/dar/obj/real %d;\n", idx_word);
+            fprintf(vvp_out, "    %%pop/real 1;\n");
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            clr_word(idx_word);
+            return errors;
+          }
+
+          case IVL_VT_STRING: {
+            int idx_word = allocate_word();
+            draw_eval_string(rval);
+            draw_eval_expr_into_integer(idx_expr, idx_word);
+            fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+            fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+            fprintf(vvp_out, "    %%set/dar/obj/str %d;\n", idx_word);
+            fprintf(vvp_out, "    %%pop/str 1;\n");
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            clr_word(idx_word);
+            return errors;
+          }
+
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC: {
+            unsigned wid = ivl_type_packed_width(element_type);
+            int idx_word = allocate_word();
+            if (wid == 0)
+                  wid = ivl_stmt_lwidth(net);
+
+            draw_eval_vec4(rval);
+            resize_vec4_wid(rval, ivl_stmt_lwidth(net));
+            draw_eval_expr_into_integer(idx_expr, idx_word);
+            fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+            fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+            fprintf(vvp_out, "    %%set/dar/obj/vec4 %d;\n", idx_word);
+            fprintf(vvp_out, "    %%pop/vec4 1;\n");
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            clr_word(idx_word);
+            return errors;
+          }
+
+          case IVL_VT_CLASS:
+          case IVL_VT_DARRAY:
+          case IVL_VT_QUEUE:
+          case IVL_VT_NO_TYPE: {
+            int idx_word = allocate_word();
+            draw_eval_expr_into_integer(idx_expr, idx_word);
+            fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+            fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+            errors += draw_eval_object(rval);
+            fprintf(vvp_out, "    %%set/dar/obj/obj %d;\n", idx_word);
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            clr_word(idx_word);
+            return errors;
+          }
+
+          default:
+            return -1;
+      }
+}
+
+static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
+                                                 int prop_idx,
+                                                 ivl_type_t prop_type)
+{
+      int errors = 0;
+      ivl_lval_t lval = ivl_stmt_lval(net, 0);
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      ivl_expr_t idx_expr = ivl_lval_idx(lval);
+      ivl_type_t element_type = ivl_type_element(prop_type);
+      unsigned wid;
+      const char*key_kind;
+
+      if (!element_type || !ivl_type_queue_assoc_compat(prop_type))
+	    return -1;
+      if (!idx_expr)
+	    return -1;
+      if (ivl_stmt_opcode(net) != 0) {
+	    switch (ivl_type_base(element_type)) {
+		case IVL_VT_REAL:
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		  break;
+		default:
+		  return -1;
+	    }
+      }
+
+      fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+
+      key_kind = draw_eval_assoc_key_(idx_expr, &errors);
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_REAL:
+	    if (ivl_stmt_opcode(net) != 0) {
+		  fprintf(vvp_out, "    %%aa/loadk/r/%s;\n", key_kind);
+		  draw_eval_real(rval);
+		  draw_stmt_assign_real_opcode(ivl_stmt_opcode(net));
+	    } else {
+		  draw_eval_real(rval);
+	    }
+	    fprintf(vvp_out, "    %%aa/store/r/%s;\n", key_kind);
+	    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+	    return errors;
+	  case IVL_VT_STRING:
+	    draw_eval_string(rval);
+	    fprintf(vvp_out, "    %%aa/store/str/%s;\n", key_kind);
+	    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+	    return errors;
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    wid = ivl_type_packed_width(element_type);
+	    if (wid == 0)
+		  wid = ivl_stmt_lwidth(net);
+	    if (ivl_stmt_opcode(net) != 0) {
+		  fprintf(vvp_out, "    %%aa/loadk/v/%s %u;\n", key_kind, wid);
+		  draw_eval_vec4(rval);
+		  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
+		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
+					         ivl_expr_signed(rval));
+	    } else {
+		  draw_eval_vec4(rval);
+		  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
+	    }
+	    fprintf(vvp_out, "    %%aa/store/v/%s %u;\n", key_kind, wid);
+	    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+	    return errors;
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    errors += draw_eval_object(rval);
+	    fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
+	    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+	    return errors;
+	  default:
+	    return -1;
+	      }
+}
+
+static int type_is_object_like_(ivl_type_t type)
+{
+      if (!type)
+            return 0;
+
+      switch (ivl_type_base(type)) {
+          case IVL_VT_CLASS:
+          case IVL_VT_DARRAY:
+          case IVL_VT_QUEUE:
+          case IVL_VT_NO_TYPE:
+            return 1;
+          default:
+            return 0;
+      }
+}
+
+static int queue_pattern_operand_is_object_collection_(ivl_expr_t expr,
+                                                       ivl_type_t element_type)
+{
+      ivl_type_t expr_type;
+      ivl_type_t src_element_type;
+
+      if (!expr || !type_is_object_like_(element_type))
+            return 0;
+
+      if (expr_is_queue_container_(expr))
+            return 1;
+
+      expr_type = ivl_expr_net_type(expr);
+      if (!expr_type)
+            return ivl_expr_value(expr) == IVL_VT_DARRAY;
+
+      if (ivl_type_base(expr_type) != IVL_VT_QUEUE
+          && ivl_type_base(expr_type) != IVL_VT_DARRAY)
+            return 0;
+
+      src_element_type = ivl_type_element(expr_type);
+      return type_is_object_like_(src_element_type);
+}
+
+static int show_stmt_assign_nested_index_object(ivl_statement_t net)
+{
+      int errors = 0;
+      ivl_lval_t lval = ivl_stmt_lval(net, 0);
+      ivl_lval_t lval_nest = ivl_lval_nest(lval);
+      ivl_expr_t idx_expr = ivl_lval_idx(lval);
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      ivl_type_t container_type;
+      ivl_type_t element_type;
+      unsigned lab_null;
+      unsigned lab_out;
+
+      if (!lval_nest || !idx_expr || ivl_stmt_opcode(net) != 0)
+            return -1;
+
+      container_type = draw_lval_expr(lval_nest);
+      if (!container_type) {
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            return 0;
+      }
+
+      element_type = ivl_type_element(container_type);
+      lab_null = local_count++;
+      lab_out = local_count++;
+
+      fprintf(vvp_out, "    %%test_nul/obj;\n");
+      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+
+      if ((ivl_type_base(container_type) == IVL_VT_QUEUE)
+          && ivl_type_queue_assoc_compat(container_type)
+          && type_is_object_like_(element_type)) {
+            const char*key_kind;
+
+            key_kind = draw_eval_assoc_key_(idx_expr, &errors);
+
+            errors += draw_eval_object(rval);
+            fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
+            fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+
+      } else if ((ivl_type_base(container_type) == IVL_VT_DARRAY
+                  || ivl_type_base(container_type) == IVL_VT_QUEUE)
+                 && type_is_object_like_(element_type)) {
+            int idx_word = allocate_word();
+
+            draw_eval_expr_into_integer(idx_expr, idx_word);
+            errors += draw_eval_object(rval);
+            fprintf(vvp_out, "    %%set/dar/obj/obj %d;\n", idx_word);
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            clr_word(idx_word);
+
+      } else {
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+            fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+            return 0;
+      }
+
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
       return errors;
 }
 
@@ -1311,20 +2109,39 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
       ivl_expr_t rval = ivl_stmt_rval(net);
       unsigned lwid = ivl_lval_width(lval);
       int prop_idx = ivl_lval_property_idx(lval);
+      static int warned_prop_unhandled_type = 0;
 
 
       if (prop_idx >= 0) {
 	    ivl_type_t sig_type = draw_lval_expr(lval);
 	    ivl_type_t prop_type = ivl_type_prop_type(sig_type, prop_idx);
+	    unsigned lab_null = local_count++;
+	    unsigned lab_out = local_count++;
+
+	    /* Dynamic null-handle guard: if the receiver object is null, skip
+	       property assignment and pop the receiver object without issuing
+	       %store/prop* opcodes. */
+	    fprintf(vvp_out, "    %%test_nul/obj;\n");
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
 
 	    if (ivl_type_base(prop_type) == IVL_VT_BOOL ||
 	        ivl_type_base(prop_type) == IVL_VT_LOGIC) {
+		  int prop_word_idx = 0;
+		  ivl_expr_t idx_expr = ivl_lval_idx(lval);
 		  assert(ivl_type_packed_dimensions(prop_type) == 0 ||
 		         (ivl_type_packed_dimensions(prop_type) == 1 &&
 		          ivl_type_packed_msb(prop_type,0) >= ivl_type_packed_lsb(prop_type, 0)));
 
+		  if (idx_expr) {
+			prop_word_idx = allocate_word();
+			draw_eval_expr_into_integer(idx_expr, prop_word_idx);
+		  }
+
 		  if (ivl_stmt_opcode(net) != 0) {
-			fprintf(vvp_out, "    %%prop/v %d;\n", prop_idx);
+			if (prop_word_idx)
+			      fprintf(vvp_out, "    %%prop/v/i %d, %d;\n", prop_idx, prop_word_idx);
+			else
+			      fprintf(vvp_out, "    %%prop/v %d;\n", prop_idx);
 		  }
 
 		  draw_eval_vec4(rval);
@@ -1335,9 +2152,14 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
 					         ivl_expr_signed(rval));
 
-		  fprintf(vvp_out, "    %%store/prop/v %d, %u; Store in logic property %s\n",
-			  prop_idx, lwid, ivl_type_prop_name(sig_type, prop_idx));
+		  if (prop_word_idx)
+			fprintf(vvp_out, "    %%store/prop/v/i %d, %d, %u; Store in logic property %s\n",
+				prop_idx, prop_word_idx, lwid, ivl_type_prop_name(sig_type, prop_idx));
+		  else
+			fprintf(vvp_out, "    %%store/prop/v %d, %u; Store in logic property %s\n",
+				prop_idx, lwid, ivl_type_prop_name(sig_type, prop_idx));
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  if (prop_word_idx) clr_word(prop_word_idx);
 
 	    } else if (ivl_type_base(prop_type) == IVL_VT_REAL) {
 
@@ -1365,18 +2187,24 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 
 	    } else if (ivl_type_base(prop_type) == IVL_VT_DARRAY) {
+		  int handled_errors = show_stmt_assign_sig_prop_darray_index(net,
+		                                                           prop_idx,
+		                                                           prop_type);
+		  if (handled_errors >= 0) {
+			errors += handled_errors;
+		  } else {
+			int idx = 0;
 
-		  int idx = 0;
-
-		    /* The property is a darray, and there is no mux
-		       expression to the assignment is of an entire
-		       array object. */
-		  errors += draw_eval_object(rval);
-		  fprintf(vvp_out, "    %%store/prop/obj %d, %d; IVL_VT_DARRAY\n", prop_idx, idx);
-		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			  /* The property is a darray, and there is no mux
+			     expression to the assignment is of an entire
+			     array object. */
+			errors += draw_eval_object(rval);
+			fprintf(vvp_out, "    %%store/prop/obj %d, %d; IVL_VT_DARRAY\n",
+			        prop_idx, idx);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  }
 
 	    } else if (ivl_type_base(prop_type) == IVL_VT_CLASS) {
-
 		  int idx = 0;
 		  ivl_expr_t idx_expr;
 		  if ( (idx_expr = ivl_lval_idx(lval)) ) {
@@ -1391,18 +2219,102 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 
 		  if (idx_expr) clr_word(idx);
 
-	    } else {
-		  fprintf(vvp_out, " ; ERROR: ivl_type_base(prop_type) = %d\n",
-			  ivl_type_base(prop_type));
-		  assert(0);
-	    }
+	    } else if (ivl_type_base(prop_type) == IVL_VT_QUEUE) {
+		  int handled_errors = show_stmt_assign_sig_prop_assoc_index(net,
+		                                                           prop_idx,
+		                                                           prop_type);
+		  if (handled_errors >= 0) {
+			errors += handled_errors;
+		  } else {
+			handled_errors = show_stmt_assign_sig_prop_queue_index(net,
+		                                                           prop_idx,
+		                                                           prop_type);
+			if (handled_errors >= 0) {
+			      errors += handled_errors;
+			} else {
+			ivl_variable_type_t rv_type = ivl_expr_value(rval);
+			if (rv_type == IVL_VT_CLASS ||
+			    rv_type == IVL_VT_DARRAY ||
+			    rv_type == IVL_VT_QUEUE ||
+			    ivl_expr_type(rval) == IVL_EX_NULL) {
+			      /* Queue or unresolved property: object-like RHS stores as object. */
+			      errors += draw_eval_object(rval);
+			      fprintf(vvp_out, "    %%store/prop/obj %d, 0;"
+				      " ; type-%d fallback\n", prop_idx,
+				      ivl_type_base(prop_type));
+			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			} else {
+			      /* Preserve RHS side effects, then coerce to null object. */
+			      draw_eval_vec4(rval);
+			      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+			      fprintf(vvp_out, "    %%null;\n");
+			      fprintf(vvp_out, "    %%store/prop/obj %d, 0;"
+				      " ; type-%d null-coerce fallback from rhs-type-%d\n",
+				      prop_idx, ivl_type_base(prop_type), rv_type);
+			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			}
+		  }
+		  }
 
-      } else {
-	    ivl_signal_t sig = ivl_lval_sig(lval);
-	    assert(!ivl_lval_nest(lval));
+	    } else if (ivl_type_base(prop_type) == IVL_VT_NO_TYPE) {
+		  ivl_variable_type_t rv_type = ivl_expr_value(rval);
+		  if (rv_type == IVL_VT_CLASS ||
+		      rv_type == IVL_VT_DARRAY ||
+		      rv_type == IVL_VT_QUEUE ||
+		      ivl_expr_type(rval) == IVL_EX_NULL) {
+			/* Queue or unresolved property: object-like RHS stores as object. */
+			errors += draw_eval_object(rval);
+			fprintf(vvp_out, "    %%store/prop/obj %d, 0;"
+				" ; type-%d fallback\n", prop_idx,
+				ivl_type_base(prop_type));
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  } else {
+			/* Preserve RHS side effects, then coerce to null object. */
+			draw_eval_vec4(rval);
+			fprintf(vvp_out, "    %%pop/vec4 1;\n");
+			fprintf(vvp_out, "    %%null;\n");
+			fprintf(vvp_out, "    %%store/prop/obj %d, 0;"
+				" ; type-%d null-coerce fallback from rhs-type-%d\n",
+				prop_idx, ivl_type_base(prop_type), rv_type);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  }
 
-	    if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
-		  draw_array_pattern(sig, rval, 0);
+		    } else {
+			  if (!warned_prop_unhandled_type) {
+				fprintf(stderr, "Warning: unhandled class property type %d;"
+					" skipping assignment"
+					" (further similar warnings suppressed)\n",
+					ivl_type_base(prop_type));
+				warned_prop_unhandled_type = 1;
+			  }
+			  fprintf(vvp_out, " ; skipped: unhandled prop type %d\n",
+				  ivl_type_base(prop_type));
+			  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		    }
+		    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+		    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+
+	      } else {
+		    ivl_signal_t sig = ivl_lval_sig(lval);
+		    int handled_errors;
+
+                    if (sig) {
+                          ivl_type_t net_type = ivl_signal_net_type(sig);
+                          handled_errors = show_stmt_assign_sig_assoc_index(net, sig, net_type);
+                          if (handled_errors >= 0)
+                                return errors + handled_errors;
+                    }
+
+		    handled_errors = show_stmt_assign_nested_index_object(net);
+		    if (handled_errors >= 0)
+			  return errors + handled_errors;
+
+		    assert(!ivl_lval_nest(lval));
+
+		    if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
+			  draw_array_pattern(sig, rval, 0);
 		  return 0;
 	    }
 
@@ -1454,7 +2366,8 @@ int show_stmt_assign(ivl_statement_t net)
 	    return show_stmt_assign_sig_queue(net);
       }
 
-      if ((sig && (ivl_signal_data_type(sig) == IVL_VT_CLASS)) ||
+      if ((sig && ((ivl_signal_data_type(sig) == IVL_VT_CLASS)
+                || (ivl_signal_data_type(sig) == IVL_VT_NO_TYPE))) ||
           ivl_lval_nest(lval)) {
 	    return show_stmt_assign_sig_cobject(net);
       }

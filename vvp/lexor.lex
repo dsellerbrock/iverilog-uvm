@@ -309,6 +309,11 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
       assert(yylval.text);
       return T_SYMBOL; }
 
+"S<"[0-9]*",obj>" {
+      yylval.text = strdup(yytext);
+      assert(yylval.text);
+      return T_SYMBOL; }
+
 "S<"[0-9]*",vec4,"[us][0-9]+">" {
       yylval.text = strdup(yytext);
       assert(yylval.text);

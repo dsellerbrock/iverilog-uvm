@@ -23,6 +23,8 @@
 # include  "netclass.h"
 # include  "netdarray.h"
 # include  "netparray.h"
+# include  "netqueue.h"
+# include  "netstruct.h"
 # include  "netenum.h"
 # include  "ivl_assert.h"
 
@@ -129,7 +131,9 @@ ivl_variable_type_t NetAssign_::expr_type() const
       if (ntype)
 	    return ntype->base_type();
 
-      ivl_assert(*this, sig_);
+      if (sig_ == 0) {
+	    return IVL_VT_NO_TYPE;
+      }
       return sig_->data_type();
 }
 
@@ -156,9 +160,17 @@ ivl_type_t NetAssign_::net_type() const
       }
 
       if (!member_.nil()) {
-	    const netclass_t *class_type = dynamic_cast<const netclass_t*>(ntype);
-	    ivl_assert(*this, class_type);
-	    ntype = class_type->get_prop_type(member_idx_);
+	    if (const netclass_t *class_type = dynamic_cast<const netclass_t*>(ntype)) {
+		  ntype = class_type->get_prop_type(member_idx_);
+	    } else if (const netstruct_t *struct_type = dynamic_cast<const netstruct_t*>(ntype)) {
+		  const auto&members = struct_type->members();
+		  if ((member_idx_ >= 0) && ((size_t)member_idx_ < members.size()))
+			ntype = members[member_idx_].net_type;
+		  else
+			ntype = nullptr;
+	    } else {
+		  ivl_assert(*this, 0);
+	    }
       }
 
       if (word_) {
@@ -166,6 +178,8 @@ ivl_type_t NetAssign_::net_type() const
 		  ntype = darray->element_type();
 	    else if (const netuarray_t *uarray = dynamic_cast<const netuarray_t*>(ntype))
 		  ntype = uarray->element_type();
+	    else if (const netqueue_t *queue = dynamic_cast<const netqueue_t*>(ntype))
+		  ntype = queue->element_type();
       }
 
       return ntype;

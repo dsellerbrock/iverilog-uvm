@@ -78,6 +78,7 @@ class NetEvNBTrig;
 class NetEvWait;
 class PClass;
 class PExpr;
+class PTask;
 class PFunction;
 class PPackage;
 class PTaskFunc;
@@ -716,6 +717,7 @@ class NetNet  : public NetObj, public PortType {
       bool get_scalar() const;
 
       inline const ivl_type_s* net_type(void) const { return net_type_; }
+      void set_net_type(ivl_type_t type);
       const netenum_t*enumeration(void) const;
       const netstruct_t*struct_type(void) const;
       const netdarray_t*darray_type(void) const;
@@ -779,6 +781,11 @@ class NetNet  : public NetObj, public PortType {
 
       bool local_flag() const { return local_flag_; }
       void local_flag(bool f) { local_flag_ = f; }
+      ivl_lifetime_t lifetime_override() const
+      {
+            return static_cast<ivl_lifetime_t>(lifetime_override_);
+      }
+      void lifetime_override(ivl_lifetime_t val) { lifetime_override_ = val; }
 
 	// NetESignal objects may reference this object. Keep a
 	// reference count so that I keep track of them.
@@ -823,6 +830,7 @@ class NetNet  : public NetObj, public PortType {
       PortType port_type_ : 3;
       bool coerced_to_uwire_: 1;
       bool local_flag_: 1;
+      unsigned lifetime_override_ : 2;
       unsigned lexical_pos_;
       ivl_type_t net_type_;
       netuarray_t *array_type_ = nullptr;
@@ -927,6 +935,9 @@ class Definitions {
       void add_class(netclass_t*class_type);
 
     protected:
+      virtual void class_definitions_changed_();
+
+    protected:
 	// Enumerations. The enum_sets_ is a list of all the
 	// enumerations present in this scope. The enum_names_ is a
 	// map of all the enumeration names back to the sets that
@@ -971,6 +982,7 @@ class NetScope : public Definitions, public Attrib {
 
         /* Search the scope hierarchy for the scope where 'type' was defined. */
       NetScope*find_typedef_scope(const Design*des, const typedef_t*type);
+      typedef_t*find_typedef(const Design*des, perm_string name);
 
 	/* Parameters exist within a scope, and these methods allow
 	   one to manipulate the set. In these cases, the name is the
@@ -1039,6 +1051,7 @@ class NetScope : public Definitions, public Attrib {
       NetScope* unit() { return unit_; }
       NetScope* parent() { return up_; }
       NetScope* child(const hname_t&name);
+      const std::map<hname_t,NetScope*>& children() const { return children_; }
       const NetScope* unit() const { return unit_; }
       const NetScope* parent() const { return up_; }
       const NetScope* child(const hname_t&name) const;
@@ -1099,6 +1112,10 @@ class NetScope : public Definitions, public Attrib {
            constant functions. */
       void set_func_pform(const PFunction*pfunc) { func_pform_ = pfunc; };
       const PFunction*func_pform() const { return func_pform_; };
+      void set_task_pform(const PTask*ptask) { task_pform_ = ptask; };
+      const PTask*task_pform() const { return task_pform_; };
+      void set_class_pform(const PClass*pclass) { class_pform_ = pclass; };
+      const PClass*class_pform() const { return class_pform_; };
 
         /* Allow tracking of elaboration stages. The three stages are:
              1 - scope elaboration
@@ -1289,6 +1306,9 @@ class NetScope : public Definitions, public Attrib {
       std::map<perm_string,LocalVar> loop_index_tmp;
 
     private:
+      void class_definitions_changed_() override;
+      void clear_lookup_caches_(bool clear_typedefs, bool clear_classes);
+
       void evaluate_type_parameter_(Design*des, param_ref_t cur);
       static void evaluate_parameter_logic_(Design*des, param_ref_t cur);
       static void evaluate_parameter_real_(Design*des, param_ref_t cur);
@@ -1319,6 +1339,8 @@ class NetScope : public Definitions, public Attrib {
       const std::map<perm_string,PPackage*>*imports_;
 
       std::map<perm_string,typedef_t*>typedefs_;
+      std::map<perm_string,typedef_t*>typedef_search_cache_;
+      std::map<perm_string,netclass_t*>class_search_cache_;
 
       NetEvent *events_;
 
@@ -1341,6 +1363,8 @@ class NetScope : public Definitions, public Attrib {
 	    netclass_t*class_def_;
       };
       const PFunction*func_pform_;
+      const PTask*task_pform_;
+      const PClass*class_pform_;
       unsigned elab_stage_;
 
       NetScope*unit_;
@@ -2261,10 +2285,12 @@ class NetECReal  : public NetExpr {
 class NetECString  : public NetEConst {
     public:
       explicit NetECString(const std::string& val);
+      explicit NetECString(const verinum& val);
       ~NetECString() override;
 
       // The type of a string is IVL_VT_STRING
       ivl_variable_type_t expr_type() const override;
+      virtual NetECString* dup_expr() const override;
 };
 
 class NetECRealParam  : public NetECReal {
@@ -3970,7 +3996,7 @@ class NetELast : public NetExpr {
 class NetEUFunc  : public NetExpr {
 
     public:
-      NetEUFunc(NetScope*, NetScope*, NetESignal*, std::vector<NetExpr*>&, bool);
+      NetEUFunc(NetScope*, NetScope*, NetESignal*, std::vector<NetExpr*>&, bool, bool = false);
       ~NetEUFunc() override;
 
       const NetESignal*result_sig() const;
@@ -3979,6 +4005,7 @@ class NetEUFunc  : public NetExpr {
       const NetExpr* parm(unsigned idx) const;
 
       const NetScope* func() const;
+      bool super_call() const;
 
       virtual void dump(std::ostream&) const override;
 
@@ -3998,6 +4025,7 @@ class NetEUFunc  : public NetExpr {
       NetESignal*result_sig_;
       std::vector<NetExpr*> parms_;
       bool need_const_;
+      bool super_call_;
 
     private: // not implemented
       NetEUFunc(const NetEUFunc&);
@@ -4037,12 +4065,13 @@ class NetEAccess : public NetExpr {
 class NetUTask  : public NetProc {
 
     public:
-      explicit NetUTask(NetScope*);
+      explicit NetUTask(NetScope*, bool = false);
       ~NetUTask() override;
 
       const std::string name() const;
 
       const NetScope* task() const;
+      bool super_call() const;
 
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                                   bool nested_func = false) const override;
@@ -4054,6 +4083,7 @@ class NetUTask  : public NetProc {
 
     private:
       NetScope*task_;
+      bool super_call_;
 };
 
 /*
@@ -4608,6 +4638,8 @@ class NetENew : public NetExpr {
 
       virtual void expr_scan(struct expr_scan_t*) const override;
       virtual NetENew* dup_expr() const override;
+      virtual NetExpr* evaluate_function(const LineInfo&loc,
+					 std::map<perm_string,LocalVar>&ctx) const override;
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                                   bool nested_func = false) const override;
 
@@ -4628,10 +4660,13 @@ class NetENull : public NetExpr {
       NetENull();
       ~NetENull() override;
 
-      virtual void expr_scan(struct expr_scan_t*) const override;
-      virtual NetENull* dup_expr() const override;
-      virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
-                                  bool nested_func = false) const override;
+      ivl_variable_type_t expr_type() const override;
+	      virtual void expr_scan(struct expr_scan_t*) const override;
+	      virtual NetENull* dup_expr() const override;
+	      virtual NetExpr* evaluate_function(const LineInfo&loc,
+						 std::map<perm_string,LocalVar>&ctx) const override;
+	      virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
+	                                  bool nested_func = false) const override;
 
       virtual void dump(std::ostream&os) const override;
 };
@@ -4647,22 +4682,27 @@ class NetENull : public NetExpr {
 class NetEProperty : public NetExpr {
     public:
       NetEProperty(NetNet*n, size_t pidx_, NetExpr*canon_index =0);
+      NetEProperty(NetExpr*base, size_t pidx_, NetExpr*canon_index =0);
       ~NetEProperty() override;
 
       inline const NetNet* get_sig() const { return net_; }
+      inline const NetExpr* get_base() const { return expr_; }
       inline size_t property_idx() const { return pidx_; }
       inline const NetExpr*get_index() const { return index_; }
 
     public: // Overridden methods
-      virtual void expr_scan(struct expr_scan_t*) const override;
-      virtual NetEProperty* dup_expr() const override;
-      virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
-                                  bool nested_func = false) const override;
+	      virtual void expr_scan(struct expr_scan_t*) const override;
+	      virtual NetEProperty* dup_expr() const override;
+	      virtual NetExpr* evaluate_function(const LineInfo&loc,
+						 std::map<perm_string,LocalVar>&ctx) const override;
+	      virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
+	                                  bool nested_func = false) const override;
 
       virtual void dump(std::ostream&os) const override;
 
     private:
       NetNet*net_;
+      NetExpr*expr_;
       size_t pidx_;
       NetExpr*index_;
 };
@@ -4675,7 +4715,7 @@ class NetEProperty : public NetExpr {
 class NetEScope  : public NetExpr {
 
     public:
-      explicit NetEScope(NetScope*);
+      explicit NetEScope(NetScope*, ivl_type_t type = 0);
       ~NetEScope() override;
 
       const NetScope* scope() const;
@@ -5185,6 +5225,8 @@ class Design {
       void fork_enter() { in_fork++; };
       void fork_exit() { in_fork--; };
       bool is_in_fork() { return in_fork != 0; }
+      unsigned fork_depth() const { return in_fork; }
+      void restore_fork_depth(unsigned depth) { in_fork = depth; }
 
       unsigned int in_fork = 0;
 

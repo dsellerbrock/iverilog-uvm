@@ -18,6 +18,7 @@
  */
 
 # include  <cstdarg>
+# include  <cstring>
 # include  "pform.h"
 # include  "PClass.h"
 # include  "parse_misc.h"
@@ -89,6 +90,7 @@ void pform_class_property(const struct vlltype&loc,
 	    pform_cur_class->type->properties[curp->name.first]
 		  = class_type_t::prop_info_t(property_qual,use_type);
 	    FILE_NAME(&pform_cur_class->type->properties[curp->name.first], loc);
+            pform_cur_class->type->property_order.push_back(curp->name.first);
 
 	    if (PExpr*rval = curp->expr.release()) {
 		  PExpr*lval = new PEIdent(curp->name.first, curp->name.second);
@@ -129,6 +131,38 @@ void pform_set_constructor_return(PFunction*net)
 {
       ivl_assert(*net, pform_cur_class);
       net->set_return(pform_cur_class->type);
+}
+
+bool pform_reenter_class_scope(const struct vlltype&loc, const char*name)
+{
+      ivl_assert(loc, pform_cur_class == 0);
+
+      for (LexicalScope*scope = pform_peek_scope(); scope; scope = scope->parent_scope()) {
+	    PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope);
+	    if (scopex == 0)
+		  continue;
+
+	    for (auto it = scopex->classes.begin(); it != scopex->classes.end(); ++it) {
+		  if (std::strcmp(it->first, name) != 0)
+			continue;
+
+		  pform_cur_class = it->second;
+		  pform_push_existing_scope(it->second);
+		  return true;
+	    }
+      }
+
+      return false;
+}
+
+void pform_leave_class_scope(const struct vlltype&loc)
+{
+      if (pform_cur_class == 0)
+	    return;
+
+      pform_cur_class = 0;
+      pform_pop_scope();
+      (void)loc;
 }
 
 /*
@@ -174,4 +208,45 @@ void pform_end_class_declaration(const struct vlltype&loc)
 bool pform_in_class()
 {
       return pform_cur_class != 0;
+}
+
+/*
+ * Bind an out-of-class function body to its extern prototype declared
+ * inside the class. When an extern method is parsed out-of-class
+ * (e.g. "function void MyClass::foo(...)"), the body-bearing PFunction
+ * is created but not linked to the class's funcs map. This function
+ * replaces the bodyless prototype with the real implementation.
+ */
+void pform_bind_extern_func(PFunction*func)
+{
+      if (pform_cur_class == 0)
+	    return;
+
+      perm_string name = func->pscope_name();
+      map<perm_string,PFunction*>::iterator it = pform_cur_class->funcs.find(name);
+      if (it != pform_cur_class->funcs.end()) {
+	    PFunction*proto = it->second;
+	    if (!func->method_of() && proto->method_of())
+		  func->set_method_type_only(proto->method_of());
+	    it->second = func;
+      } else {
+	    pform_cur_class->funcs[name] = func;
+      }
+}
+
+/*
+ * Same as above, for tasks.
+ */
+void pform_bind_extern_task(PTask*task)
+{
+      if (pform_cur_class == 0)
+	    return;
+
+      perm_string name = task->pscope_name();
+      map<perm_string,PTask*>::iterator it = pform_cur_class->tasks.find(name);
+      if (it != pform_cur_class->tasks.end()) {
+	    it->second = task;
+      } else {
+	    pform_cur_class->tasks[name] = task;
+      }
 }

@@ -18,7 +18,13 @@
  */
 
 # include  "PExpr.h"
+# include  "PClass.h"
 # include  "PScope.h"
+# include  "PWire.h"
+# include  "Module.h"
+# include  "compiler.h"
+# include  "pform.h"
+# include  "parse_api.h"
 # include  "pform_types.h"
 # include  "netlist.h"
 # include  "netclass.h"
@@ -30,10 +36,259 @@
 # include  "netstruct.h"
 # include  "netvector.h"
 # include  "netmisc.h"
+# include  <set>
+# include  <sstream>
 # include  <typeinfo>
 # include  "ivl_assert.h"
 
 using namespace std;
+
+namespace {
+
+static bool pexpr_matches_parameter_name_(const PExpr*expr, perm_string name)
+{
+      if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+	    const pform_scoped_name_t&path = ident->path();
+	    if (path.package == 0 && path.name.size() == 1 &&
+	        path.name.front().index.empty() &&
+	        path.name.front().name == name)
+		  return true;
+      }
+
+      if (const PETypename*type_expr = dynamic_cast<const PETypename*>(expr)) {
+	    if (const type_parameter_t*type_param =
+	        dynamic_cast<const type_parameter_t*>(type_expr->get_type())) {
+		  if (type_param->name == name)
+			return true;
+	    }
+
+	    if (const typeref_t*type_ref =
+	        dynamic_cast<const typeref_t*>(type_expr->get_type())) {
+		  if (type_ref->scope_ref() == 0 && type_ref->parameter_values() == 0) {
+			if (typedef_t*td = type_ref->typedef_ref()) {
+			      if (td->name == name)
+				    return true;
+			}
+		  }
+	    }
+      }
+
+      return false;
+}
+
+static bool overrides_match_parameter_order_(const parmvalue_t*overrides,
+					     const std::list<perm_string>&param_order)
+{
+      if (!overrides || !overrides->by_order)
+	    return false;
+
+      std::list<PExpr*>::const_iterator expr_it = overrides->by_order->begin();
+      std::list<perm_string>::const_iterator name_it = param_order.begin();
+      while (expr_it != overrides->by_order->end() && name_it != param_order.end()) {
+	    if (!*expr_it || !pexpr_matches_parameter_name_(*expr_it, *name_it))
+		  return false;
+	    ++expr_it;
+	    ++name_it;
+      }
+
+      return expr_it == overrides->by_order->end() && name_it == param_order.end();
+}
+
+static const netclass_t* resolve_current_class_typeref_(NetScope*scope,
+							const typeref_t*type_ref)
+{
+      if (!scope || !type_ref)
+	    return 0;
+
+      const NetScope*class_scope = scope->get_class_scope();
+      const netclass_t*current_class = class_scope ? class_scope->class_def() : 0;
+      const PClass*current_pclass = class_scope ? class_scope->class_pform() : 0;
+      if (!current_class || !current_pclass)
+	    return 0;
+
+      typedef_t*td = type_ref->typedef_ref();
+      if (!td)
+	    return 0;
+
+      const parmvalue_t*overrides = type_ref->parameter_values();
+      if (td->name == current_class->get_name()) {
+	    if (!overrides
+	        || overrides_match_parameter_order_(overrides, current_pclass->parameter_order))
+		  return current_class;
+      }
+
+      const data_type_t*alias_type = td->get_data_type();
+      if (!alias_type)
+	    return 0;
+
+      if (const class_type_t*class_ref =
+	          dynamic_cast<const class_type_t*>(alias_type)) {
+	    if (class_ref->name == current_class->get_name() && !overrides)
+		  return current_class;
+      }
+
+      if (const typeref_t*alias_ref =
+	          dynamic_cast<const typeref_t*>(alias_type)) {
+	    return resolve_current_class_typeref_(scope, alias_ref);
+      }
+
+      return 0;
+}
+
+static ivl_type_t resolve_circular_class_handle_type_(Design*des,
+						      NetScope*scope,
+						      const data_type_t*type_pf,
+						      set<const typedef_t*>&seen);
+
+static ivl_type_t resolve_circular_typedef_alias_class_handle_type_(Design*des,
+								    NetScope*scope,
+								    typedef_t*td,
+								    set<const typedef_t*>&seen)
+{
+      if (!td || !td->get_data_type())
+	    return 0;
+
+      pair<set<const typedef_t*>::iterator,bool> insert_rc = seen.insert(td);
+      if (!insert_rc.second)
+	    return 0;
+
+      return resolve_circular_class_handle_type_(des, scope, td->get_data_type(), seen);
+}
+
+static ivl_type_t resolve_circular_class_handle_type_(Design*des,
+						      NetScope*scope,
+						      const data_type_t*type_pf,
+						      set<const typedef_t*>&seen)
+{
+      if (!des || !scope || !type_pf)
+	    return 0;
+
+      if (const class_type_t*class_pf = dynamic_cast<const class_type_t*>(type_pf))
+	    return ensure_visible_class_type(des, scope, class_pf->name);
+
+      if (const type_parameter_t*type_par = dynamic_cast<const type_parameter_t*>(type_pf)) {
+	    ivl_type_t par_type = 0;
+	    scope->get_parameter(des, type_par->name, par_type);
+	    if (dynamic_cast<const netclass_t*>(par_type))
+		  return par_type;
+	    return 0;
+      }
+
+      const typeref_t*type_ref = dynamic_cast<const typeref_t*>(type_pf);
+      if (!type_ref)
+	    return 0;
+
+      NetScope*type_scope = type_ref->find_scope(des, scope);
+      if (!type_scope)
+	    return 0;
+
+      if (const netclass_t*self_class = resolve_current_class_typeref_(type_scope, type_ref))
+	    return const_cast<netclass_t*>(self_class);
+
+      typedef_t*td = type_ref->typedef_ref();
+      if (!td)
+	    return 0;
+
+      if (ivl_type_t alias_class =
+		  resolve_circular_typedef_alias_class_handle_type_(des, type_scope, td, seen)) {
+	    if (const parmvalue_t*overrides = type_ref->parameter_values()) {
+		  if (const netclass_t*base_class =
+			      dynamic_cast<const netclass_t*>(alias_class))
+			return const_cast<netclass_t*>(
+			      elaborate_specialized_class_type(des, type_scope, base_class,
+							       overrides));
+	    }
+	    return alias_class;
+      }
+
+      netclass_t*base_class = ensure_visible_class_type(des, type_scope, td->name);
+      if (!base_class)
+	    return 0;
+
+      if (const parmvalue_t*overrides = type_ref->parameter_values())
+	    return const_cast<netclass_t*>(
+		  elaborate_specialized_class_type(des, type_scope, base_class, overrides));
+
+      return base_class;
+}
+
+static ivl_type_t resolve_circular_class_handle_type_(Design*des,
+						      NetScope*scope,
+						      const data_type_t*type_pf)
+{
+      set<const typedef_t*>seen;
+      return resolve_circular_class_handle_type_(des, scope, type_pf, seen);
+}
+
+netclass_t* make_builtin_process_type_()
+{
+      static netclass_t*builtin_process_type = nullptr;
+      if (!builtin_process_type) {
+	    builtin_process_type = new netclass_t(perm_string::literal("process"), 0);
+	    builtin_process_type->set_property(perm_string::literal("status"),
+					       property_qualifier_t::make_none(),
+					       &netvector_t::atom2s32);
+      }
+      return builtin_process_type;
+}
+
+netclass_t* make_builtin_semaphore_type_()
+{
+      static netclass_t*builtin_semaphore_type = nullptr;
+      if (!builtin_semaphore_type)
+	    builtin_semaphore_type = new netclass_t(perm_string::literal("semaphore"), 0);
+      return builtin_semaphore_type;
+}
+
+netclass_t* make_builtin_mailbox_type_()
+{
+      static netclass_t*builtin_mailbox_type = nullptr;
+      if (!builtin_mailbox_type)
+	    builtin_mailbox_type = new netclass_t(perm_string::literal("mailbox"), 0);
+      return builtin_mailbox_type;
+}
+
+static map<Module*, netclass_t*> interface_type_cache_;
+
+static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*mod)
+{
+      map<Module*, netclass_t*>::const_iterator found = interface_type_cache_.find(mod);
+      if (found != interface_type_cache_.end())
+	    return found->second;
+
+      netclass_t*iface_type = new netclass_t(mod->mod_name(), 0);
+      iface_type->set_interface(true);
+      iface_type->set_definition_scope(scope);
+      interface_type_cache_[mod] = iface_type;
+
+      for (map<perm_string,PWire*>::const_iterator cur = mod->wires.begin()
+		 ; cur != mod->wires.end() ; ++cur) {
+	    ivl_type_t prop_type = cur->second->elaborate_sig_type(des, scope);
+	    iface_type->set_property(cur->first, property_qualifier_t::make_none(),
+				     prop_type);
+      }
+
+      for (map<perm_string,Module::PClocking*>::const_iterator cur = mod->clocking_blocks.begin()
+		 ; cur != mod->clocking_blocks.end() ; ++cur) {
+	    iface_type->add_clocking_block(cur->first, cur->second->event,
+					   cur->second->signals);
+      }
+
+      return iface_type;
+}
+
+}
+
+netclass_t* builtin_class_type(perm_string name)
+{
+      if (name == perm_string::literal("process"))
+	    return make_builtin_process_type_();
+      if (name == perm_string::literal("semaphore"))
+	    return make_builtin_semaphore_type_();
+      if (name == perm_string::literal("mailbox"))
+	    return make_builtin_mailbox_type_();
+      return nullptr;
+}
 
 /*
  * Elaborations of types may vary depending on the scope that it is
@@ -51,19 +306,23 @@ ivl_type_t data_type_t::elaborate_type(Design*des, NetScope*scope)
 
       ivl_type_t tmp;
       if (elaborating) {
-	    des->errors++;
-	    cerr << get_fileline() << ": error: "
-	         << "Circular type definition found involving `" << *this << "`."
-		 << endl;
-	    // Try to recover
-	    tmp = netvector_t::integer_type();
+	    tmp = resolve_circular_class_handle_type_(des, scope, this);
+	    if (!tmp) {
+		  des->errors++;
+		  cerr << get_fileline() << ": error: "
+		       << "Circular type definition found involving `" << *this << "`."
+		       << endl;
+		  // Try to recover
+		  tmp = netvector_t::integer_type();
+	    }
       } else {
 	    elaborating = true;
 	    tmp = elaborate_type_raw(des, scope);
 	    elaborating = false;
       }
 
-      cache_type_elaborate_.insert(pos, pair<NetScope*,ivl_type_t>(scope, tmp));
+      if (tmp)
+	    cache_type_elaborate_.insert(pos, pair<NetScope*,ivl_type_t>(scope, tmp));
       return tmp;
 }
 
@@ -125,9 +384,289 @@ ivl_type_t atom_type_t::elaborate_type_raw(Design*des, NetScope*) const
       }
 }
 
+static string foreach_target_path_string_(const vector<perm_string>&target_path)
+{
+      ostringstream ss;
+      for (size_t idx = 0 ; idx < target_path.size() ; idx += 1) {
+	    if (idx > 0)
+		  ss << ".";
+	    ss << target_path[idx];
+      }
+      return ss.str();
+}
+
+static const PWire* find_foreach_array_placeholder_(NetScope*scope,
+						    const vector<perm_string>&target_path)
+{
+      if (target_path.size() != 1)
+	    return 0;
+
+      perm_string name = target_path.front();
+      for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    if (PWire*wire = cur->find_signal_placeholder(name))
+		  return wire;
+      }
+
+      return 0;
+}
+
+static const data_type_t* unwrap_foreach_array_type_alias_(const data_type_t*type_pf)
+{
+      std::set<const typedef_t*>seen;
+
+      while (const typeref_t*type_ref = dynamic_cast<const typeref_t*>(type_pf)) {
+	    typedef_t*td = type_ref->typedef_ref();
+	    if (!td || !td->get_data_type())
+		  break;
+	    if (!seen.insert(td).second)
+		  break;
+	    type_pf = td->get_data_type();
+      }
+
+      return type_pf;
+}
+
+static const data_type_t* find_foreach_assoc_index_type_in_data_type_(
+		const data_type_t*type_pf, size_t index_depth)
+{
+      type_pf = unwrap_foreach_array_type_alias_(type_pf);
+      if (!type_pf)
+	    return 0;
+
+      const uarray_type_t*uarray = dynamic_cast<const uarray_type_t*>(type_pf);
+      if (!uarray)
+	    return 0;
+
+      if (uarray->dims && index_depth < uarray->dims->size()) {
+	    list<pform_range_t>::const_iterator cur = uarray->dims->begin();
+	    std::advance(cur, index_depth);
+	    if (const PEAssocType*assoc_idx = dynamic_cast<const PEAssocType*>(cur->first))
+		  return assoc_idx->index_type();
+	    return 0;
+      }
+
+      if (!uarray->dims)
+	    return 0;
+
+      return find_foreach_assoc_index_type_in_data_type_(
+	    uarray->base_type.get(), index_depth - uarray->dims->size());
+}
+
+static const data_type_t* find_foreach_wire_index_type_(
+		const PWire*wire, size_t index_depth)
+{
+      if (!wire)
+	    return 0;
+
+      const list<pform_range_t>&unpacked = wire->unpacked_indices();
+      if (index_depth < unpacked.size()) {
+	    list<pform_range_t>::const_iterator cur = unpacked.begin();
+	    advance(cur, index_depth);
+	    if (const PEAssocType*assoc_idx = dynamic_cast<const PEAssocType*>(cur->first))
+		  return assoc_idx->index_type();
+      }
+
+      return find_foreach_assoc_index_type_in_data_type_(wire->data_type(), index_depth);
+}
+
+static const data_type_t* find_foreach_simple_class_property_index_type_(
+		NetScope*scope, perm_string name, size_t index_depth)
+{
+      const NetScope*class_scope = scope ? scope->get_class_scope() : 0;
+      if (class_scope) {
+	    const PClass*pclass = class_scope->class_pform();
+	    if (pclass && pclass->type) {
+		  std::map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
+			pclass->type->properties.find(name);
+		  if (pcur != pclass->type->properties.end())
+			return pcur->second.type.get();
+	    }
+      }
+
+      for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    const PClass*pclass = cur->class_pform();
+	    if (!pclass || !pclass->type)
+		  continue;
+
+	    std::map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
+		  pclass->type->properties.find(name);
+	    if (pcur == pclass->type->properties.end())
+		  continue;
+
+	    return find_foreach_assoc_index_type_in_data_type_(
+		  pcur->second.type.get(), index_depth);
+      }
+
+      return 0;
+}
+
+static bool find_foreach_path_root_type_(Design*des, NetScope*scope,
+					 perm_string name,
+					 ivl_type_t&root_type)
+{
+      root_type = 0;
+
+      if (name == perm_string::literal(THIS_TOKEN)) {
+	    const NetScope*class_scope = scope ? scope->get_class_scope() : 0;
+	    if (!class_scope)
+		  return false;
+	    root_type = const_cast<netclass_t*>(class_scope->class_def());
+	    return root_type != 0;
+      }
+
+      if (name == perm_string::literal(SUPER_TOKEN)) {
+	    const NetScope*class_scope = scope ? scope->get_class_scope() : 0;
+	    const netclass_t*class_type = class_scope ? class_scope->class_def() : 0;
+	    const netclass_t*super_type = class_type ? class_type->get_super() : 0;
+	    if (!super_type)
+		  return false;
+	    root_type = const_cast<netclass_t*>(super_type);
+	    return true;
+      }
+
+      for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    if (PWire*wire = cur->find_signal_placeholder(name))
+		  root_type = wire->elaborate_sig_type(des, cur);
+
+	    if (root_type)
+		  return true;
+
+	    const PClass*pclass = cur->class_pform();
+	    if (!pclass || !pclass->type)
+		  continue;
+
+	    map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
+		  pclass->type->properties.find(name);
+	    if (pcur == pclass->type->properties.end())
+		  continue;
+
+	    if (!pcur->second.type.get())
+		  return false;
+	    root_type = const_cast<data_type_t*>(pcur->second.type.get())->elaborate_type(des, cur);
+	    return root_type != 0;
+      }
+
+      root_type = ensure_visible_class_type(des, scope, name);
+      return root_type != 0;
+}
+
+static const data_type_t* find_foreach_selected_path_type_(
+		Design*des, NetScope*scope, const vector<perm_string>&target_path)
+{
+      if (target_path.size() < 2)
+	    return 0;
+
+      ivl_type_t cur_type = 0;
+      if (!find_foreach_path_root_type_(des, scope, target_path.front(), cur_type))
+	    return 0;
+
+      for (size_t idx = 1 ; idx < target_path.size() ; idx += 1) {
+	    const netclass_t*cur_class = dynamic_cast<const netclass_t*>(cur_type);
+	    const NetScope*class_scope = cur_class ? cur_class->class_scope() : 0;
+	    const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
+	    if (!pclass || !pclass->type)
+		  return 0;
+
+	    map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
+		  pclass->type->properties.find(target_path[idx]);
+	    if (pcur == pclass->type->properties.end() || !pcur->second.type.get())
+		  return 0;
+
+	    if (idx + 1 == target_path.size())
+		  return pcur->second.type.get();
+
+	    cur_type = const_cast<data_type_t*>(pcur->second.type.get())->elaborate_type(des, scope);
+	    if (!cur_type)
+		  return 0;
+      }
+
+      return 0;
+}
+
+static const data_type_t* find_foreach_class_property_index_type_(
+		Design*des, NetScope*scope,
+		const vector<perm_string>&target_path, size_t index_depth)
+{
+      const data_type_t*type_pf = 0;
+
+      if (target_path.size() == 1)
+	    type_pf = find_foreach_simple_class_property_index_type_(
+		  scope, target_path.front(), index_depth);
+      else
+	    type_pf = find_foreach_selected_path_type_(des, scope, target_path);
+
+      if (!type_pf)
+	    return 0;
+
+      return find_foreach_assoc_index_type_in_data_type_(type_pf, index_depth);
+}
+
+ivl_type_t foreach_index_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
+{
+      const char*trace = getenv("IVL_FOREACH_TYPE_TRACE");
+      const PWire*array_wire = scope ? find_foreach_array_placeholder_(scope, target_path) : 0;
+      const data_type_t*wire_index_type =
+	    array_wire ? find_foreach_wire_index_type_(array_wire, index_depth) : 0;
+      const data_type_t*class_prop_index_type =
+	    scope ? find_foreach_class_property_index_type_(des, scope, target_path, index_depth) : 0;
+      string target_path_string = foreach_target_path_string_(target_path);
+      if (trace && *trace) {
+	    cerr << "foreach-type: scope=";
+	    if (scope)
+		  cerr << scope_path(scope);
+	    else
+		  cerr << "<nil>";
+	    cerr << " array=" << target_path_string
+		 << " depth=" << index_depth
+		 << " found_wire=" << (array_wire ? "yes" : "no")
+		 << " found_wire_type=" << (wire_index_type ? "yes" : "no")
+		 << " found_class_prop=" << (class_prop_index_type ? "yes" : "no");
+	    if (array_wire)
+		  cerr << " unpacked=" << array_wire->unpacked_indices().size();
+	    cerr << endl;
+      }
+      if (wire_index_type) {
+	    if (trace && *trace)
+		  cerr << "foreach-type: wire assoc index type resolved for "
+		       << target_path_string << "[" << index_depth << "]" << endl;
+	    ivl_type_t index_type =
+		  const_cast<data_type_t*>(wire_index_type)->elaborate_type(des, scope);
+	    if (index_type)
+		  return index_type;
+      }
+
+      if (class_prop_index_type) {
+	    if (trace && *trace)
+		  cerr << "foreach-type: class property assoc index type resolved for "
+		       << target_path_string << "[" << index_depth << "]" << endl;
+	    ivl_type_t index_type =
+		  const_cast<data_type_t*>(class_prop_index_type)->elaborate_type(des, scope);
+	    if (index_type)
+		  return index_type;
+      }
+
+      if (trace && *trace)
+	    cerr << "foreach-type: fallback to int for "
+		 << target_path_string << "[" << index_depth << "]" << endl;
+      return size_type.elaborate_type(des, scope);
+}
+
 ivl_type_t class_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 {
-      return scope->find_class(des, name);
+      return ensure_visible_class_type(des, scope, name);
+}
+
+ivl_type_t interface_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
+{
+      map<perm_string,Module*>::const_iterator cur = pform_modules.find(name);
+      if (cur == pform_modules.end() || !cur->second->is_interface) {
+	    cerr << get_fileline() << ": error: "
+		 << "Unknown interface type `" << name << "'." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+      return elaborate_interface_type_(des, scope, cur->second);
 }
 
 /*
@@ -266,6 +805,11 @@ static ivl_type_t elaborate_darray_check_type(Design *des, const LineInfo &li,
 {
       if (dynamic_cast<const netvector_t*>(type) ||
 	  dynamic_cast<const netparray_t*>(type) ||
+	  dynamic_cast<const netdarray_t*>(type) ||
+	  dynamic_cast<const netqueue_t*>(type) ||
+	  dynamic_cast<const netenum_t*>(type) ||
+	  dynamic_cast<const netstruct_t*>(type) ||
+	  dynamic_cast<const netclass_t*>(type) ||
 	  dynamic_cast<const netreal_t*>(type) ||
 	  dynamic_cast<const netstring_t*>(type))
 	    return type;
@@ -281,7 +825,8 @@ static ivl_type_t elaborate_darray_check_type(Design *des, const LineInfo &li,
 
 static ivl_type_t elaborate_queue_type(Design *des, NetScope *scope,
 				       const LineInfo &li, ivl_type_t base_type,
-				       PExpr *ridx)
+				       PExpr *ridx,
+				       bool assoc_compat = false)
 {
       base_type = elaborate_darray_check_type(des, li, base_type, "Queue");
 
@@ -315,7 +860,66 @@ static ivl_type_t elaborate_queue_type(Design *des, NetScope *scope,
 	    delete cv;
       }
 
-      return new netqueue_t(base_type, max_idx);
+      return new netqueue_t(base_type, max_idx, assoc_compat);
+}
+
+static bool finite_enum_index_range_(const netenum_t*enum_type,
+				     long&index_msb, long&index_lsb)
+{
+      if (!enum_type || enum_type->size() == 0)
+	    return false;
+
+      std::set<long> seen_vals;
+      bool first = true;
+      long min_val = 0;
+      long max_val = 0;
+
+      for (size_t idx = 0 ; idx < enum_type->size() ; idx += 1) {
+	    verinum val = enum_type->value_at(idx);
+	    if (!val.is_defined())
+		  return false;
+
+	    long use_val = val.as_long();
+	    if (first) {
+		  min_val = use_val;
+		  max_val = use_val;
+		  first = false;
+	    } else {
+		  if (use_val < min_val)
+			min_val = use_val;
+		  if (use_val > max_val)
+			max_val = use_val;
+	    }
+
+	    if (!seen_vals.insert(use_val).second)
+		  return false;
+      }
+
+      if ((max_val - min_val + 1) != static_cast<long>(enum_type->size()))
+	    return false;
+
+      index_msb = max_val;
+      index_lsb = min_val;
+      return true;
+}
+
+static ivl_type_t elaborate_assoc_array_type(Design *des, NetScope *scope,
+					     const LineInfo &li,
+					     ivl_type_t base_type,
+					     const PEAssocType*assoc_idx)
+{
+      ivl_assert(li, assoc_idx);
+      ivl_assert(li, assoc_idx->index_type());
+
+      data_type_t*index_type_pf = const_cast<PEAssocType*>(assoc_idx)->index_type();
+      ivl_type_t index_type = index_type_pf->elaborate_type(des, scope);
+
+      (void) index_type;
+
+      // Keep associative arrays in the assoc-compat queue representation even
+      // for finite enum-key cases. Lowering them to a plain unpacked array
+      // loses exists/delete/iteration semantics, which UVM relies on.
+      return elaborate_queue_type(des, scope, li, base_type, 0, true);
 }
 
 // If dims is not empty create a unpacked array type and clear dims, otherwise
@@ -372,6 +976,11 @@ ivl_type_t elaborate_array_type(Design *des, NetScope *scope,
 		  type = elaborate_darray_check_type(des, li, type, "Dynamic array");
 		  type = new netdarray_t(type);
 		  continue;
+	    } else if (const PEAssocType*assoc_idx = dynamic_cast<PEAssocType*>(lidx)) {
+		    // Preserve associative-array semantics through lowering.
+		  type = elaborate_static_array_type(des, li, type, dimensions);
+		  type = elaborate_assoc_array_type(des, scope, li, type, assoc_idx);
+		  continue;
 	    } else if (dynamic_cast<PENull*>(lidx)) {
 		    // Special case: Detect the mark for a QUEUE declaration,
 		    // which is the dimensions [null:max_idx].
@@ -410,21 +1019,43 @@ ivl_type_t typeref_t::elaborate_type_raw(Design*des, NetScope*s) const
 	    return new netvector_t(IVL_VT_LOGIC);
       }
 
-      return type->elaborate_type(des, s);
+      if (const netclass_t*self_class = resolve_current_class_typeref_(s, this))
+	    return const_cast<netclass_t*>(self_class);
+
+      ivl_type_t use_type = type->elaborate_type(des, s);
+      if (!overrides)
+	    return use_type;
+
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(use_type);
+      if (!class_type)
+	    return use_type;
+
+      return const_cast<netclass_t*>(
+	    elaborate_specialized_class_type(des, s, class_type, overrides));
 }
 
 NetScope *typeref_t::find_scope(Design *des, NetScope *s) const
 {
         // If a scope has been specified use that as a starting point for the
 	// search
-      if (scope)
-	    s = des->find_package(scope->pscope_name());
+      if (scope) {
+	    if (NetScope*pkg = des->find_package(scope->pscope_name())) {
+		  s = pkg;
+	    } else if (s) {
+		  if (netclass_t*cls = ensure_visible_class_type(des, s, scope->pscope_name()))
+			s = const_cast<NetScope*>(cls->class_scope());
+	    }
+      }
 
       return s;
 }
 
 ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 {
+      if (name == "process" || name == "semaphore" || name == "mailbox") {
+	    return builtin_class_type(name);
+      }
+
       if (!data_type.get()) {
 	    cerr << get_fileline() << ": error: Undefined type `" << name << "`."
 		 << endl;

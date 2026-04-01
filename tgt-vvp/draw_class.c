@@ -24,6 +24,101 @@
 # include  <assert.h>
 # include  <inttypes.h>
 
+static void show_prop_type(ivl_type_t ptype);
+
+struct emitted_struct_cobject_s {
+      ivl_type_t type;
+      struct emitted_struct_cobject_s*next;
+};
+
+static struct emitted_struct_cobject_s*emitted_struct_cobjects_ = 0;
+
+static int emitted_struct_cobject_(ivl_type_t type)
+{
+      struct emitted_struct_cobject_s*cur;
+      for (cur = emitted_struct_cobjects_ ; cur ; cur = cur->next) {
+	    if (cur->type == type)
+		  return 1;
+      }
+      return 0;
+}
+
+static void mark_struct_cobject_emitted_(ivl_type_t type)
+{
+      struct emitted_struct_cobject_s*node;
+      if (!type || emitted_struct_cobject_(type))
+	    return;
+
+      node = calloc(1, sizeof(*node));
+      node->type = type;
+      node->next = emitted_struct_cobjects_;
+      emitted_struct_cobjects_ = node;
+}
+
+static int is_unpacked_array_property_type(ivl_type_t ptype)
+{
+      ivl_type_t element_type = ivl_type_element(ptype);
+      if (!element_type)
+	    return 0;
+
+      return ivl_type_packed_dimensions(ptype) > 0
+          && ivl_type_packed_width(ptype) == 1;
+}
+
+static void emit_struct_cobject_dependencies_(ivl_type_t ptype);
+
+static void emit_struct_cobject_definition_(ivl_type_t struct_type)
+{
+      int idx;
+      const char*name;
+
+      if (!struct_type || emitted_struct_cobject_(struct_type))
+	    return;
+
+      mark_struct_cobject_emitted_(struct_type);
+
+      for (idx = 0 ; idx < ivl_type_properties(struct_type) ; idx += 1) {
+	    emit_struct_cobject_dependencies_(ivl_type_prop_type(struct_type, idx));
+      }
+
+      name = ivl_type_name(struct_type);
+      if (!name)
+	    name = "";
+
+      fprintf(vvp_out, "C%p  .class \"%s\" [%d]\n",
+	      struct_type, name, ivl_type_properties(struct_type));
+      for (idx = 0 ; idx < ivl_type_properties(struct_type) ; idx += 1) {
+	    ivl_type_t ptype = ivl_type_prop_type(struct_type, idx);
+	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(struct_type, idx));
+	    show_prop_type(ptype);
+	    if (is_unpacked_array_property_type(ptype)) {
+		  unsigned dim;
+		  for (dim = 0 ; dim < ivl_type_packed_dimensions(ptype) ; dim += 1) {
+			fprintf(vvp_out, " [%d:%d]",
+				ivl_type_packed_msb(ptype,dim),
+				ivl_type_packed_lsb(ptype,dim));
+		  }
+	    }
+	    fprintf(vvp_out, "\n");
+      }
+      fprintf(vvp_out, " ;\n");
+}
+
+static void emit_struct_cobject_dependencies_(ivl_type_t ptype)
+{
+      ivl_type_t base_ptype = ptype;
+      if (is_unpacked_array_property_type(ptype))
+	    base_ptype = ivl_type_element(ptype);
+
+      if (!base_ptype)
+	    return;
+
+      if (ivl_type_base(base_ptype) == IVL_VT_NO_TYPE
+	  && ivl_type_properties(base_ptype) > 0) {
+	    emit_struct_cobject_definition_(base_ptype);
+      }
+}
+
 static void show_prop_type_vector(ivl_type_t ptype)
 {
       ivl_variable_type_t data_type = ivl_type_base(ptype);
@@ -46,21 +141,73 @@ static void show_prop_type_vector(ivl_type_t ptype)
       }
 }
 
+static void show_prop_type_queue(ivl_type_t ptype)
+{
+      ivl_type_t element_type = ivl_type_element(ptype);
+      int assoc_compat = ivl_type_queue_assoc_compat(ptype);
+
+      if (!element_type) {
+	    fprintf(vvp_out, assoc_compat ? "\"Mo\"" : "\"Qo\"");
+	    return;
+      }
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_REAL:
+	    fprintf(vvp_out, assoc_compat ? "\"Mr\"" : "\"Qr\"");
+	    break;
+	  case IVL_VT_STRING:
+	    fprintf(vvp_out, assoc_compat ? "\"MS\"" : "\"QS\"");
+	    break;
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    if (assoc_compat)
+		  fprintf(vvp_out, "\"Mv%u\"", ivl_type_packed_width(element_type));
+	    else
+		  fprintf(vvp_out, "\"Qv\"");
+	    break;
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	  case IVL_VT_VOID:
+	    fprintf(vvp_out, assoc_compat ? "\"Mo\"" : "\"Qo\"");
+	    break;
+	  default:
+	    fprintf(vvp_out, assoc_compat ? "\"Mo\"" : "\"Qo\"");
+	    break;
+      }
+}
+
 static void show_prop_type(ivl_type_t ptype)
 {
-      ivl_variable_type_t data_type = ivl_type_base(ptype);
-      unsigned packed_dimensions = ivl_type_packed_dimensions(ptype);
+      ivl_type_t base_ptype = ptype;
+      if (is_unpacked_array_property_type(ptype)) {
+	    base_ptype = ivl_type_element(ptype);
+      }
+
+      ivl_variable_type_t data_type = ivl_type_base(base_ptype);
+      unsigned packed_dimensions = ivl_type_packed_dimensions(base_ptype);
 
       switch (data_type) {
+	  case IVL_VT_VOID:
+	  case IVL_VT_NO_TYPE:
+	    if (base_ptype && ivl_type_properties(base_ptype) > 0)
+		  fprintf(vvp_out, "\"oc:C%p\"", base_ptype);
+	    else
+		  fprintf(vvp_out, "\"o\"");
+	    break;
 	  case IVL_VT_REAL:
 	    fprintf(vvp_out, "\"r\"");
 	    break;
 	  case IVL_VT_STRING:
 	    fprintf(vvp_out, "\"S\"");
 	    break;
+	  case IVL_VT_QUEUE:
+	    show_prop_type_queue(base_ptype);
+	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
-	    show_prop_type_vector(ptype);
+	    show_prop_type_vector(base_ptype);
 	    break;
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_CLASS:
@@ -76,6 +223,9 @@ static void show_prop_type(ivl_type_t ptype)
 	    }
 	    break;
 	  default:
+	    fprintf(stderr, "ERROR: Unknown property type: %d\n", data_type);
+	    fprintf(stderr, "  Type name: %s\n",
+		    base_ptype ? ivl_type_name(base_ptype) : "<null>");
 	    fprintf(vvp_out, "\"<ERROR-no-type>\"");
 	    assert(0);
 	    break;
@@ -85,12 +235,39 @@ static void show_prop_type(ivl_type_t ptype)
 void draw_class_in_scope(ivl_type_t classtype)
 {
       int idx;
-      fprintf(vvp_out, "C%p  .class \"%s\" [%d]\n",
-	      classtype, ivl_type_name(classtype), ivl_type_properties(classtype));
+      const char*dispatch_prefix = ivl_type_method_prefix(classtype);
+
+      if (classtype && ivl_type_base(classtype) == IVL_VT_NO_TYPE) {
+	    if (emitted_struct_cobject_(classtype))
+		  return;
+	    mark_struct_cobject_emitted_(classtype);
+      }
 
       for (idx = 0 ; idx < ivl_type_properties(classtype) ; idx += 1) {
+	    emit_struct_cobject_dependencies_(ivl_type_prop_type(classtype, idx));
+      }
+
+      if (dispatch_prefix && *dispatch_prefix) {
+	    fprintf(vvp_out, "C%p  .class \"%s\" \"%s\" [%d]\n",
+		    classtype, ivl_type_name(classtype), dispatch_prefix,
+		    ivl_type_properties(classtype));
+      } else {
+	    fprintf(vvp_out, "C%p  .class \"%s\" [%d]\n",
+		    classtype, ivl_type_name(classtype), ivl_type_properties(classtype));
+      }
+
+      for (idx = 0 ; idx < ivl_type_properties(classtype) ; idx += 1) {
+	    ivl_type_t ptype = ivl_type_prop_type(classtype,idx);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(classtype,idx));
-	    show_prop_type(ivl_type_prop_type(classtype,idx));
+	    show_prop_type(ptype);
+	    if (is_unpacked_array_property_type(ptype)) {
+		  unsigned dim;
+		  for (dim = 0 ; dim < ivl_type_packed_dimensions(ptype) ; dim += 1) {
+			fprintf(vvp_out, " [%d:%d]",
+				ivl_type_packed_msb(ptype,dim),
+				ivl_type_packed_lsb(ptype,dim));
+		  }
+	    }
 	    fprintf(vvp_out, "\n");
       }
 

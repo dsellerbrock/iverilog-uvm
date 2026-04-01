@@ -155,6 +155,14 @@ perm_string netenum_t::bits_at(size_t idx) const
       return bits_[idx];
 }
 
+verinum netenum_t::value_at(size_t idx) const
+{
+      assert(idx < names_.size());
+      netenum_t::iterator cur = names_map_.find(names_[idx]);
+      assert(cur != names_map_.end());
+      return cur->second;
+}
+
 bool netenum_t::matches(const netenum_t*other) const
 {
       return this == other;

@@ -64,6 +64,7 @@ extern void VLwarn(const char*msg);
 extern void VLwarn(const YYLTYPE&loc, const char*msg);
 
 extern void destroy_lexor();
+extern void reset_parser_file_state(void);
 
 extern std::ostream& operator << (std::ostream&, const YYLTYPE&loc);
 

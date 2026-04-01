@@ -24,6 +24,7 @@
  */
 
 # include  "vpi_priv.h"
+# include  "vvp_cobject.h"
 # include  "vthread.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -31,11 +32,30 @@
 # include <map>
 #endif
 # include  <cstdio>
+# include  <cstring>
 # include  <cstdlib>
 # include  <cassert>
 # include  "ivl_alloc.h"
 
 using namespace std;
+
+namespace {
+
+static const char* describe_thread_object_(const vvp_object_t&obj)
+{
+      if (obj.test_nil())
+            return "null";
+
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+            const class_type*defn = cobj->get_defn();
+            if (defn)
+                  return defn->class_name().c_str();
+      }
+
+      return "<object>";
+}
+
+}
 
 /*
  * Hex digits that represent 4-value bits of Verilog are not as
@@ -220,6 +240,18 @@ class __vpiVThrStrStack : public __vpiHandle {
       int get_type_code(void) const override;
       int vpi_get(int code) override;
       void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+    private:
+      unsigned depth_;
+};
+
+class __vpiVThrObjStack : public __vpiHandle {
+    public:
+      explicit __vpiVThrObjStack(unsigned depth);
+      int get_type_code(void) const override;
+      int vpi_get(int code) override;
+      void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
     private:
       unsigned depth_;
 };
@@ -229,8 +261,16 @@ __vpiVThrStrStack::__vpiVThrStrStack(unsigned d)
 {
 }
 
+__vpiVThrObjStack::__vpiVThrObjStack(unsigned d)
+: depth_(d)
+{
+}
+
 int __vpiVThrStrStack::get_type_code(void) const
 { return vpiConstant; }
+
+int __vpiVThrObjStack::get_type_code(void) const
+{ return vpiClassVar; }
 
 int __vpiVThrStrStack::vpi_get(int code)
 {
@@ -243,6 +283,31 @@ int __vpiVThrStrStack::vpi_get(int code)
 #endif
 	  case vpiSize:
 	    return vthread_get_str_stack(vpip_current_vthread, depth_).size();
+	  default:
+	    return 0;
+      }
+}
+
+int __vpiVThrObjStack::vpi_get(int code)
+{
+      switch (code) {
+	  case vpiSize:
+	    return 64;
+
+	  case vpiConstType:
+	    return vpiNullConst;
+
+	  case vpiSigned:
+	    return 0;
+
+	  case vpiAutomatic:
+	    return 0;
+
+#if defined(CHECK_WITH_VALGRIND) || defined(BR916_STOPGAP_FIX)
+	  case _vpiFromThr:
+	    return _vpiObj;
+#endif
+
 	  default:
 	    return 0;
       }
@@ -274,6 +339,101 @@ void __vpiVThrStrStack::vpi_get_value(p_vpi_value vp)
 	    vp->format = vpiSuppressVal;
 	    break;
       }
+}
+
+void __vpiVThrObjStack::vpi_get_value(p_vpi_value vp)
+{
+      vvp_object_t val;
+      if (vpip_current_vthread)
+	    val = vthread_get_obj_stack(vpip_current_vthread, depth_);
+
+      switch (vp->format) {
+	  case vpiObjTypeVal:
+	    vp->value.misc = reinterpret_cast<char*>(val.peek<vvp_object>());
+	    break;
+
+	  case vpiBinStrVal:
+	  case vpiDecStrVal:
+	  case vpiOctStrVal:
+	  case vpiHexStrVal:
+	  case vpiStringVal: {
+		const char*desc = describe_thread_object_(val);
+		char*rbuf = static_cast<char *>(need_result_buf(strlen(desc)+1, RBUF_VAL));
+		strcpy(rbuf, desc);
+		vp->value.str = rbuf;
+		break;
+	  }
+
+	  case vpiScalarVal:
+	    vp->value.scalar = val.test_nil() ? vpi0 : vpi1;
+	    break;
+
+	  case vpiIntVal:
+	    vp->value.integer = val.test_nil() ? 0 : 1;
+	    break;
+
+	  case vpiVectorVal:
+	    vp->value.vector = static_cast<p_vpi_vecval>
+	                        (need_result_buf(2*sizeof(s_vpi_vecval),
+	                                         RBUF_VAL));
+	    vp->value.vector[0].aval = val.test_nil() ? 0 : 1;
+	    vp->value.vector[0].bval = 0;
+	    vp->value.vector[1].aval = 0;
+	    vp->value.vector[1].bval = 0;
+	    break;
+
+	  case vpiRealVal:
+	    vp->value.real = val.test_nil() ? 0.0 : 1.0;
+	    break;
+
+	  default:
+	    fprintf(stderr, "vvp error: get %d not supported "
+		      "by thread object stack handle\n", (int)vp->format);
+	    vp->format = vpiSuppressVal;
+	    break;
+      }
+}
+
+vpiHandle __vpiVThrObjStack::vpi_put_value(p_vpi_value vp, int /*flags*/)
+{
+      vvp_object_t val;
+
+      assert(vpip_current_vthread);
+
+      switch (vp->format) {
+	  case vpiObjTypeVal:
+	    val = reinterpret_cast<vvp_object*>(vp->value.misc);
+	    break;
+
+	  case vpiStringVal:
+	    if (vp->value.str
+	        && strcmp(vp->value.str, "null") != 0
+	        && strcmp(vp->value.str, "    null") != 0) {
+		  fprintf(stderr, "vvp error: string value '%s' not supported "
+		                  "for thread object stack put\n", vp->value.str);
+		  assert(0);
+	    }
+	    break;
+
+	  default:
+	    fprintf(stderr, "vvp error: format %d not supported "
+	                    "for thread object stack put\n", (int)vp->format);
+	    assert(0);
+	    break;
+      }
+
+      vthread_set_obj_stack(vpip_current_vthread, depth_, val);
+      return 0;
+}
+
+vpiHandle __vpiVThrStrStack::vpi_put_value(p_vpi_value vp, int /*flags*/)
+{
+      assert(vpip_current_vthread);
+      if (vp->format == vpiStringVal && vp->value.str) {
+	    vthread_set_str_stack(vpip_current_vthread, depth_,
+				  string(vp->value.str));
+      }
+      return 0;
 }
 
 class __vpiVThrVec4Stack : public __vpiHandle {
@@ -612,11 +772,89 @@ void __vpiVThrVec4Stack::vpi_get_value_strength_(p_vpi_value vp, const vvp_vecto
       vp->value.strength = op;
 }
 
+static vvp_vector4_t vec4_from_stringval_(const char*str, unsigned wid)
+{
+      unsigned idx = 0;
+      const char*cp = str + strlen(str);
+      vvp_vector4_t val(wid, BIT4_0);
+
+      while ((idx < wid) && (cp > str)) {
+	    unsigned byte = *--cp;
+	    for (int bit = 0 ; bit < 8 && idx < wid ; bit += 1) {
+		  val.set_bit(idx, (byte & 1) ? BIT4_1 : BIT4_0);
+		  byte >>= 1;
+		  idx += 1;
+	    }
+      }
+
+      return val;
+}
+
 vpiHandle __vpiVThrVec4Stack::vpi_put_value(p_vpi_value vp, int /*flags*/)
 {
       assert(vpip_current_vthread);
+      vvp_vector4_t val(expect_width_, BIT4_0);
 
       switch (vp->format) {
+	  case vpiIntVal: {
+		long tmp = vp->value.integer;
+		for (unsigned idx = 0 ; idx < expect_width_ ; idx += 1) {
+		      val.set_bit(idx, (tmp & 1) ? BIT4_1 : BIT4_0);
+		      tmp >>= 1;
+		}
+		break;
+	  }
+
+	  case vpiScalarVal:
+		val.set_bit(0, scalar_to_bit4(vp->value.scalar));
+		break;
+
+	  case vpiVectorVal:
+		for (unsigned idx = 0 ; idx < expect_width_ ; idx += 1) {
+		      unsigned word = idx / 32;
+		      unsigned bidx = idx % 32;
+		      unsigned long aval = vp->value.vector[word].aval >> bidx;
+		      unsigned long bval = vp->value.vector[word].bval >> bidx;
+		      int bit = (aval & 1) | ((bval << 1) & 2);
+		      val.set_bit(idx, scalar_to_bit4(bit));
+		}
+		break;
+
+	  case vpiBinStrVal:
+		vpip_bin_str_to_vec4(val, vp->value.str);
+		break;
+
+	  case vpiOctStrVal:
+		vpip_oct_str_to_vec4(val, vp->value.str);
+		break;
+
+	  case vpiDecStrVal:
+		vpip_dec_str_to_vec4(val, vp->value.str);
+		break;
+
+	  case vpiHexStrVal:
+		vpip_hex_str_to_vec4(val, vp->value.str);
+		break;
+
+	  case vpiStringVal:
+		val = vec4_from_stringval_(vp->value.str, expect_width_);
+		break;
+
+	  case vpiRealVal:
+		val = vvp_vector4_t(expect_width_, vp->value.real);
+		break;
+
+	  case vpiTimeVal: {
+		unsigned long tmp = vp->value.time->low;
+		for (unsigned idx = 0 ; idx < expect_width_ ; idx += 1) {
+		      val.set_bit(idx, (tmp & 1) ? BIT4_1 : BIT4_0);
+		      if (idx == 31)
+			    tmp = vp->value.time->high;
+		      else
+			    tmp >>= 1;
+		}
+		break;
+	  }
 
 	  default:
 	    fprintf(stderr, "internal error: vpi_put_value(<format=%d>)"
@@ -624,6 +862,9 @@ vpiHandle __vpiVThrVec4Stack::vpi_put_value(p_vpi_value vp, int /*flags*/)
 	    assert(0);
 	    return 0;
       }
+
+      vthread_set_vec4_stack(vpip_current_vthread, depth_, val);
+      return 0;
 }
 
 #ifdef CHECK_WITH_VALGRIND
@@ -655,6 +896,12 @@ vpiHandle vpip_make_vthr_str_stack(unsigned depth)
       return obj;
 }
 
+vpiHandle vpip_make_vthr_obj_stack(unsigned depth)
+{
+      __vpiVThrObjStack*obj = new __vpiVThrObjStack(depth);
+      return obj;
+}
+
 vpiHandle vpip_make_vthr_vec4_stack(unsigned depth, bool signed_flag, unsigned wid)
 {
       __vpiVThrVec4Stack*obj = new __vpiVThrVec4Stack(depth, signed_flag, wid);
@@ -675,11 +922,25 @@ static void thread_string_delete_real(vpiHandle item)
       delete obj;
 }
 
+void thread_object_delete(vpiHandle item)
+{
+      stack_map[item] = true;
+}
+
+static void thread_object_delete_real(vpiHandle item)
+{
+      __vpiVThrObjStack*obj = dynamic_cast<__vpiVThrObjStack*>(item);
+      delete obj;
+}
+
 void vpi_stack_delete()
 {
       map<vpiHandle, bool>::iterator iter;
       for (iter = stack_map.begin(); iter != stack_map.end(); ++ iter ) {
-	    thread_string_delete_real(iter->first);
+	    if (iter->second)
+		  thread_object_delete_real(iter->first);
+	    else
+		  thread_string_delete_real(iter->first);
       }
 }
 #endif

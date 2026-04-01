@@ -21,10 +21,29 @@
 # include  "vvp_net.h"
 # include  <iostream>
 # include  <typeinfo>
+# include  <set>
 
 using namespace std;
 
 int vvp_object::total_active_cnt_ = 0;
+static std::set<const vvp_object*> live_vvp_objects_;
+
+void vvp_object::register_live_ptr_(const vvp_object*ptr)
+{
+      if (ptr)
+            live_vvp_objects_.insert(ptr);
+}
+
+void vvp_object::unregister_live_ptr_(const vvp_object*ptr)
+{
+      if (ptr)
+            live_vvp_objects_.erase(ptr);
+}
+
+bool vvp_object::pointer_is_live(const vvp_object*ptr)
+{
+      return ptr && live_vvp_objects_.count(ptr);
+}
 
 void vvp_object::cleanup(void)
 {
@@ -32,6 +51,7 @@ void vvp_object::cleanup(void)
 
 vvp_object::~vvp_object()
 {
+      unregister_live_ptr_(this);
       total_active_cnt_ -= 1;
 }
 

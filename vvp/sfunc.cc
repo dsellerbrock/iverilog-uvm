@@ -167,7 +167,7 @@ void compile_sfunc(char*label, char*name,  char*format_string,
 
       vpiHandle sys = vpip_build_vpi_call(name, val_code, val_width, ptr,
                                           true, false, argc, vpi_argv,
-					  vec4_stack, real_stack, string_stack,
+					  vec4_stack, real_stack, string_stack, 0,
                                           file_idx, lineno);
       assert(sys);
 

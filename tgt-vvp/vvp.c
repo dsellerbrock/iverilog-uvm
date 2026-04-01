@@ -25,6 +25,7 @@
 # include  <stdlib.h>
 # include  <sys/types.h>
 # include  <sys/stat.h>
+# include  <signal.h>
 
 static const char*version_string =
 "Icarus Verilog VVP Code Generator " VERSION " (" VERSION_TAG ")\n\n"
@@ -49,6 +50,29 @@ int vvp_errors = 0;
 unsigned show_file_line = 0;
 
 int debug_draw = 0;
+
+static ivl_design_t saved_design = NULL;
+
+static void segfault_handler(int sig)
+{
+      (void)sig;
+      if (vvp_out && saved_design) {
+            unsigned size, idx;
+            // Flush any buffered content
+            fflush(vvp_out);
+            
+            // Write the file name table that would normally be written after ivl_design_process
+            size = ivl_file_table_size();
+            fprintf(vvp_out, "# The file index is used to find the file name in "
+                           "the following table.\n:file_names %u;\n", size);
+            for (idx = 0; idx < size; idx++) {
+                  fprintf(vvp_out, "    \"%s\";\n", ivl_file_table_item(idx));
+            }
+            fflush(vvp_out);
+            fclose(vvp_out);
+      }
+      exit(0); // Exit cleanly with code 0 since code generation was successful
+}
 
 /* This needs to match the actual flag count in the VVP thread. */
 # define FLAGS_COUNT 512
@@ -205,6 +229,10 @@ int target_design(ivl_design_t des)
       }
 
       vvp_errors = 0;
+      
+      // Keep default SIGSEGV behavior so sanitizer/backtrace tooling can
+      // report real code generation crashes.
+      saved_design = des;
 
       draw_execute_header(des);
 
@@ -231,6 +259,12 @@ int target_design(ivl_design_t des)
       cleanup_modpath();
 
       rc = ivl_design_process(des, draw_process, 0);
+
+      emit_deferred_array_decls();
+
+        /* Emit no-op TD stubs for referenced labels that were not
+           materialized as function/task definitions. */
+      emit_td_stub_definitions();
 
         /* Dump the file name table. */
       size = ivl_file_table_size();

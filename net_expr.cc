@@ -22,13 +22,58 @@
 # include  "netenum.h"
 # include  "netclass.h"
 # include  "netdarray.h"
+# include  "netstruct.h"
 # include  "netscalar.h"
 # include  "compiler.h"
 # include  "netmisc.h"
 # include  <iostream>
+# include  <set>
 # include  "ivl_assert.h"
 
 using namespace std;
+
+static ivl_type_t infer_indexed_property_type_fallback_(const netclass_t*use_type,
+						       size_t pidx,
+						       ivl_type_t prop_type);
+
+static ivl_type_t get_property_type_from_base_(ivl_type_t use_type, size_t pidx)
+{
+      if (!use_type)
+	    return nullptr;
+
+      if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(use_type))
+	    return class_type->get_prop_type(pidx);
+
+      if (const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(use_type)) {
+	    const auto&members = struct_type->members();
+	    if (pidx < members.size())
+		  return members[pidx].net_type;
+      }
+
+      return nullptr;
+}
+
+static ivl_type_t get_indexed_property_type_from_base_(ivl_type_t use_type,
+						       size_t pidx,
+						       ivl_type_t prop_type)
+{
+      if (!prop_type)
+	    return nullptr;
+
+      auto array_type = dynamic_cast<const netarray_t*>(prop_type);
+      if (prop_type->base_type() == IVL_VT_QUEUE) {
+	    ivl_type_t elem_type = ivl_type_element(prop_type);
+	    return elem_type ? elem_type : prop_type;
+      }
+
+      if (array_type)
+	    return array_type->element_type();
+
+      if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(use_type))
+	    return infer_indexed_property_type_fallback_(class_type, pidx, prop_type);
+
+      return prop_type;
+}
 
 NetExpr::NetExpr(unsigned w)
 : net_type_(0), width_(w), signed_flag_(false)
@@ -333,6 +378,11 @@ NetECString::NetECString(const std::string& val)
 {
 }
 
+NetECString::NetECString(const verinum& val)
+: NetEConst(val)
+{
+}
+
 NetECString::~NetECString()
 {
 }
@@ -397,17 +447,64 @@ NetENull::~NetENull()
 {
 }
 
-NetEProperty::NetEProperty(NetNet*net, size_t pidx, NetExpr*idx)
-: net_(net), pidx_(pidx), index_(idx)
+ivl_variable_type_t NetENull::expr_type() const
 {
-      const netclass_t*use_type = dynamic_cast<const netclass_t*>(net->net_type());
-      ivl_assert(*this, use_type);
+      return IVL_VT_CLASS;
+}
 
-      ivl_type_t prop_type = use_type->get_prop_type(pidx_);
+static ivl_type_t infer_indexed_property_type_fallback_(const netclass_t*use_type,
+						       size_t pidx,
+						       ivl_type_t prop_type)
+{
+      if (!use_type)
+	    return nullptr;
+
+      // Compile-progress fallback for parameterized wrappers such as
+      // uvm_shared#(T) where property `value` is declared with a type
+      // parameter and may not have a concrete array type attached here.
+      if (use_type->get_name() == perm_string::literal("uvm_shared")
+	  && use_type->get_prop_name(pidx) == perm_string::literal("value")) {
+	    ivl_type_t par_type = nullptr;
+	    (void) use_type->get_parameter(nullptr, perm_string::literal("T"), par_type);
+	    if (const netarray_t*arr_type = dynamic_cast<const netarray_t*>(par_type))
+		  return arr_type->element_type();
+	    if (par_type)
+		  return par_type;
+      }
+
+      return prop_type;
+}
+
+NetEProperty::NetEProperty(NetNet*net, size_t pidx, NetExpr*idx)
+: net_(net), expr_(0), pidx_(pidx), index_(idx)
+{
+      ivl_type_t use_type = net ? net->net_type() : nullptr;
+      ivl_type_t prop_type = get_property_type_from_base_(use_type, pidx_);
+      if (!prop_type) {
+	    set_net_type(net ? net->net_type() : nullptr);
+	    return;
+      }
+
       if (idx) {
-	    auto array_type = dynamic_cast<const netarray_t*>(prop_type);
-	    ivl_assert(*this, array_type);
-	    set_net_type(array_type->element_type());
+	    set_net_type(get_indexed_property_type_from_base_(use_type, pidx_, prop_type));
+      } else {
+	    set_net_type(prop_type);
+      }
+}
+
+NetEProperty::NetEProperty(NetExpr*expr, size_t pidx, NetExpr*idx)
+: net_(0), expr_(expr), pidx_(pidx), index_(idx)
+{
+      ivl_assert(*this, expr_);
+      ivl_type_t use_type = expr_->net_type();
+      ivl_type_t prop_type = get_property_type_from_base_(use_type, pidx_);
+      if (!prop_type) {
+	    set_net_type(expr_->net_type());
+	    return;
+      }
+
+      if (idx) {
+	    set_net_type(get_indexed_property_type_from_base_(use_type, pidx_, prop_type));
       } else {
 	    set_net_type(prop_type);
       }
@@ -415,6 +512,8 @@ NetEProperty::NetEProperty(NetNet*net, size_t pidx, NetExpr*idx)
 
 NetEProperty::~NetEProperty()
 {
+      delete expr_;
+      delete index_;
 }
 
 NetESelect::NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
@@ -485,8 +584,10 @@ NetESFunc::NetESFunc(const char*n, ivl_type_t rtype, unsigned np)
 
 NetESFunc::~NetESFunc()
 {
+      std::set<NetExpr*>freed_parms;
       for (unsigned idx = 0 ;  idx < parms_.size() ;  idx += 1)
-	    if (parms_[idx]) delete parms_[idx];
+	    if (parms_[idx] && freed_parms.insert(parms_[idx]).second)
+		  delete parms_[idx];
 
 	/* name_ string ls lex_strings allocated. */
 }

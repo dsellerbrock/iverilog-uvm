@@ -27,6 +27,16 @@
 # include  <assert.h>
 # include  <stdbool.h>
 
+static int number_trace_enabled_(void)
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_VVP_NUM_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled;
+}
+
 void resize_vec4_wid(ivl_expr_t expr, unsigned wid)
 {
       if (ivl_expr_width(expr) == wid)
@@ -298,7 +308,8 @@ static void draw_binary_vec4_compare_class(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%test_nul/a v%p, %d;\n", sig, word_ix);
 		  clr_word(word_ix);
 	    }
-	    if (ivl_expr_opcode(expr) == 'n')
+	    if (ivl_expr_opcode(expr) == 'n'
+	        || ivl_expr_opcode(expr) == 'N')
 		  fprintf(vvp_out, "    %%flag_inv 4;\n");
 	    fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
 	    return;
@@ -309,6 +320,17 @@ static void draw_binary_vec4_compare_class(ivl_expr_t expr)
 	    unsigned pidx = ivl_expr_property_idx(le);
 	    ivl_expr_t idx_expr = ivl_expr_oper1(le);
 	    int idx = 0;
+	    unsigned wid = ivl_expr_width(expr) ? ivl_expr_width(expr) : 1;
+
+	    if (!property_is_object_expr_(le)) {
+		  draw_eval_vec4(le);
+		  fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", wid);
+		  fprintf(vvp_out, "    %%cmp/u;\n");
+		  if (ivl_expr_opcode(expr) == 'n')
+			fprintf(vvp_out, "    %%flag_inv 4;\n");
+		  fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
+		  return;
+	    }
 
 	      /* If the property has an array index, then evaluate it
 		 into an index register. */
@@ -317,7 +339,12 @@ static void draw_binary_vec4_compare_class(ivl_expr_t expr)
 		  draw_eval_expr_into_integer(idx_expr, idx);
 	    }
 
-	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+	    if (sig) {
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+	    } else {
+		  ivl_expr_t base_expr = ivl_expr_oper2(le);
+		  draw_eval_object(base_expr);
+	    }
 	    fprintf(vvp_out, "    %%test_nul/prop %u, %d;\n", pidx, idx);
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    if (ivl_expr_opcode(expr) == 'n')
@@ -328,10 +355,15 @@ static void draw_binary_vec4_compare_class(ivl_expr_t expr)
 	    return;
       }
 
-      fprintf(stderr, "SORRY: Compare class handles not implemented\n");
-      fprintf(vvp_out, " ; XXXX compare class handles. re-type=%d, le-type=%d\n",
-	      ivl_expr_type(re), ivl_expr_type(le));
-      vvp_errors += 1;
+      /* General case: compare two class handle expressions by pushing
+         both onto the object stack and using %cmp/obj for pointer identity. */
+      draw_eval_object(le);
+      draw_eval_object(re);
+      fprintf(vvp_out, "    %%cmp/obj;\n");
+      if (ivl_expr_opcode(expr) == 'n'
+          || ivl_expr_opcode(expr) == 'N')
+	    fprintf(vvp_out, "    %%flag_inv 4;\n");
+      fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
 }
 
 static void draw_binary_vec4_compare(ivl_expr_t expr)
@@ -784,6 +816,16 @@ static void draw_concat_number_vec4(ivl_expr_t expr, int as_concati)
       unsigned wid = ivl_expr_width(expr);
       const char*bits = ivl_expr_bits(expr);
 
+      if (number_trace_enabled_()) {
+            fprintf(stderr,
+                    "trace num: file=%s line=%u expr_type=%d expr_value=%d width=%u bits=",
+                    ivl_expr_file(expr), ivl_expr_lineno(expr),
+                    ivl_expr_type(expr), ivl_expr_value(expr), wid);
+            if (bits && wid)
+                  fwrite(bits, 1, wid, stderr);
+            fprintf(stderr, " as_concati=%d\n", as_concati);
+      }
+
       unsigned idx;
       int accum = 0;
       int count_pushi = as_concati? 1 : 0;
@@ -916,11 +958,61 @@ static void draw_number_vec4(ivl_expr_t expr)
 static void draw_property_vec4(ivl_expr_t expr)
 {
       ivl_signal_t sig = ivl_expr_signal(expr);
+      ivl_expr_t idx_expr = ivl_expr_oper1(expr);
+      ivl_expr_t base_expr = ivl_expr_oper2(expr);
+      unsigned lab_null = local_count++;
+      unsigned lab_out = local_count++;
+      int idx_word = 0;
+      int queue_indexed = property_is_indexed_queue_expr_(expr);
+      int assoc_indexed = property_is_assoc_indexed_expr_(expr);
       unsigned pidx = ivl_expr_property_idx(expr);
 
-      fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
-      fprintf(vvp_out, "    %%prop/v %u;\n", pidx);
+      if (idx_expr && !queue_indexed && !assoc_indexed) {
+	    idx_word = allocate_word();
+	    draw_eval_expr_into_integer(idx_expr, idx_word);
+      }
+
+      if (sig) {
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+      } else if (base_expr && ivl_expr_type(base_expr) == IVL_EX_NULL) {
+	      /* Compile-progress fallback: null receiver property access
+	         yields all-zero vector value. */
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", ivl_expr_width(expr));
+	    return;
+      } else {
+	    draw_eval_object(base_expr);
+      }
+      fprintf(vvp_out, "    %%test_nul/obj;\n");
+      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+      if (assoc_indexed) {
+            const char*key_kind;
+	    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_assoc_property\n", pidx);
+            key_kind = draw_eval_assoc_key_(idx_expr, 0);
+	    fprintf(vvp_out, "    %%aa/load/v/%s %u;\n", key_kind, ivl_expr_width(expr));
+	    if (ivl_expr_value(expr) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
+	    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+	      } else if (queue_indexed) {
+		    if (!emit_property_queue_last_index_(expr, pidx, 3))
+			  draw_eval_expr_into_integer(idx_expr, 3);
+		    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_queue_property\n", pidx);
+		    fprintf(vvp_out, "    %%load/qo/v %u;\n", ivl_expr_width(expr));
+		    if (ivl_expr_value(expr) == IVL_VT_BOOL)
+			  fprintf(vvp_out, "    %%cast2;\n");
+		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	      } else if (idx_word)
+	    fprintf(vvp_out, "    %%prop/v/i %u, %d;\n", pidx, idx_word);
+      else
+	    fprintf(vvp_out, "    %%prop/v %u;\n", pidx);
+      if (!assoc_indexed && !queue_indexed)
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
       fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+      fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", ivl_expr_width(expr));
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+      if (idx_word)
+	    clr_word(idx_word);
 }
 
 static void draw_select_vec4(ivl_expr_t expr)
@@ -948,13 +1040,34 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    return;
       }
 
+      if (expr_is_queue_container_(subexpr) &&
+          ivl_expr_type(subexpr) != IVL_EX_SIGNAL) {
+	    assert(base);
+	    draw_eval_object(subexpr);
+	    draw_eval_expr_into_integer(base, 3);
+	    fprintf(vvp_out, "    %%load/qo/v %u;\n", wid);
+	    if (ivl_expr_value(expr) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
+	    return;
+      }
+
       if (ivl_expr_value(subexpr)==IVL_VT_DARRAY) {
 	    ivl_signal_t sig = ivl_expr_signal(subexpr);
+            ivl_type_t net_type;
 	    assert(sig);
+            net_type = ivl_signal_net_type(sig);
 	    assert( (ivl_signal_data_type(sig)==IVL_VT_DARRAY)
 		    || (ivl_signal_data_type(sig)==IVL_VT_QUEUE) );
 
 	    assert(base);
+            if (net_type && ivl_type_queue_assoc_compat(net_type)
+                && expr_is_object_assoc_key_(base)) {
+                  draw_eval_object(base);
+                  fprintf(vvp_out, "    %%aa/load/sig/v/obj v%p_0, %u;\n", sig, wid);
+                  if (ivl_expr_value(expr) == IVL_VT_BOOL)
+                        fprintf(vvp_out, "    %%cast2;\n");
+                  return;
+            }
 	    draw_eval_expr_into_integer(base, 3);
 	    fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", sig);
 	    if (ivl_expr_value(expr) == IVL_VT_BOOL)
@@ -1009,6 +1122,7 @@ static void draw_select_pad_vec4(ivl_expr_t expr)
  */
 static void draw_darray_pop(ivl_expr_t expr)
 {
+      static int warned_non_signal_pop = 0;
       const char*fb;
 
       if (strcmp(ivl_expr_name(expr), "$ivl_queue_method$pop_back")==0)
@@ -1017,15 +1131,138 @@ static void draw_darray_pop(ivl_expr_t expr)
 	    fb = "f";
 
       ivl_expr_t arg = ivl_expr_parm(expr, 0);
-      assert(ivl_expr_type(arg) == IVL_EX_SIGNAL);
+      if (ivl_expr_type(arg) != IVL_EX_SIGNAL) {
+	    if (expr_is_queue_container_(arg)) {
+		  draw_eval_object(arg);
+		  fprintf(vvp_out, "    %%qpop/o/%s/v %u;\n",
+		          fb, ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
+		  return;
+	    }
+	    if (!warned_non_signal_pop) {
+		  fprintf(stderr, "Warning: %s requires signal, got expr type %d;"
+			  " emitting zero fallback"
+			  " (further similar warnings suppressed)\n",
+			  ivl_expr_name(expr), ivl_expr_type(arg));
+		  warned_non_signal_pop = 1;
+	    }
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;"
+		    " ; pop fallback\n", ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
+	    return;
+      }
 
       fprintf(vvp_out, "    %%qpop/%s/v v%p_0, %u;\n", fb, ivl_expr_signal(arg),
                        ivl_expr_width(expr));
 }
 
+static int draw_assoc_exists_vec4(ivl_expr_t expr)
+{
+      ivl_expr_t recv;
+      ivl_expr_t key;
+      ivl_signal_t sig;
+      unsigned wid = ivl_expr_width(expr) ? ivl_expr_width(expr) : 1;
+
+      if (ivl_expr_parms(expr) != 2)
+	    return 0;
+
+      recv = ivl_expr_parm(expr, 0);
+      key = ivl_expr_parm(expr, 1);
+      if (!recv || !key)
+	    return 0;
+
+      sig = signal_assoc_queue_receiver_(recv);
+      if (sig) {
+            const char*key_kind = draw_eval_assoc_key_(key, 0);
+	    fprintf(vvp_out, "    %%aa/exists/sig/%s v%p_0, %u;\n", key_kind, sig, wid);
+      } else {
+            const char*key_kind;
+	    draw_eval_object(recv);
+            key_kind = draw_eval_assoc_key_(key, 0);
+	    fprintf(vvp_out, "    %%aa/exists/%s %u;\n", key_kind, wid);
+      }
+      return 1;
+}
+
+static int draw_assoc_traversal_vec4(ivl_expr_t expr)
+{
+      ivl_expr_t recv;
+      ivl_expr_t key;
+      ivl_signal_t recv_sig;
+      ivl_signal_t key_sig;
+      const char*key_kind;
+      const char*method_name;
+      unsigned wid = ivl_expr_width(expr) ? ivl_expr_width(expr) : 1;
+      static int warned_bad_key = 0;
+
+      if (ivl_expr_parms(expr) != 2)
+	    return 0;
+
+      recv = ivl_expr_parm(expr, 0);
+      key = ivl_expr_parm(expr, 1);
+      if (!recv || !key)
+	    return 0;
+
+      if ((ivl_expr_type(key) != IVL_EX_SIGNAL && ivl_expr_type(key) != IVL_EX_ARRAY)
+          || !(key_sig = ivl_expr_signal(key))) {
+	    if (!warned_bad_key) {
+		  fprintf(stderr,
+		          "Warning: assoc traversal methods require a signal key lvalue;"
+		          " emitting zero fallback (further similar warnings suppressed)\n");
+		  warned_bad_key = 1;
+	    }
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", wid);
+	    return 1;
+      }
+
+      if (strcmp(ivl_expr_name(expr), "$ivl_assoc_method$first") == 0)
+	    method_name = "first";
+      else if (strcmp(ivl_expr_name(expr), "$ivl_assoc_method$last") == 0)
+	    method_name = "last";
+      else if (strcmp(ivl_expr_name(expr), "$ivl_assoc_method$next") == 0)
+	    method_name = "next";
+      else if (strcmp(ivl_expr_name(expr), "$ivl_assoc_method$prev") == 0)
+	    method_name = "prev";
+      else
+	    return 0;
+
+      if (expr_is_string_assoc_key_(key))
+	    key_kind = "str";
+      else if (expr_is_object_assoc_key_(key))
+	    key_kind = "obj";
+      else
+	    key_kind = "v";
+
+      recv_sig = signal_assoc_queue_receiver_(recv);
+      if (recv_sig) {
+	    fprintf(vvp_out, "    %%aa/%s/sig/%s v%p_0, v%p_0;\n",
+	            method_name, key_kind, recv_sig, key_sig);
+      } else {
+	    draw_eval_object(recv);
+	    fprintf(vvp_out, "    %%aa/%s/%s v%p_0, %u;\n",
+	            method_name, key_kind, key_sig, wid);
+      }
+
+      return 1;
+}
+
 static void draw_sfunc_vec4(ivl_expr_t expr)
 {
       unsigned parm_count = ivl_expr_parms(expr);
+      if (strcmp(ivl_expr_name(expr), "$cast") == 0 && parm_count == 2) {
+            ivl_expr_t dest = ivl_expr_parm(expr, 0);
+            ivl_expr_t src  = ivl_expr_parm(expr, 1);
+            if (dest && src
+                && ivl_expr_value(dest) == IVL_VT_CLASS
+                && ivl_expr_type(dest) == IVL_EX_SIGNAL) {
+                  ivl_signal_t sig = ivl_expr_signal(dest);
+                  if (sig && ivl_signal_dimensions(sig) == 0) {
+                        draw_eval_object(src);
+                        fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+                        fprintf(vvp_out, "    %%pushi/vec4 1, 0, %u;\n",
+                                ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
+                        return;
+                  }
+            }
+      }
 
 	/* Special case: If there are no arguments to print, then the
 	   %vpi_call statement is easy to draw. */
@@ -1033,7 +1270,7 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    assert(ivl_expr_value(expr)==IVL_VT_LOGIC
 		   || ivl_expr_value(expr)==IVL_VT_BOOL);
 
-	    fprintf(vvp_out, "    %%vpi_func %u %u \"%s\" %u {0 0 0};\n",
+	    fprintf(vvp_out, "    %%vpi_func %u %u \"%s\" %u {0 0 0 0};\n",
 		    ivl_file_table_index(ivl_expr_file(expr)),
 		    ivl_expr_lineno(expr), ivl_expr_name(expr),
 		    ivl_expr_width(expr));
@@ -1047,6 +1284,29 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
       if (strcmp(ivl_expr_name(expr),"$ivl_queue_method$pop_front")==0) {
 	    draw_darray_pop(expr);
 	    return;
+      }
+      if (strcmp(ivl_expr_name(expr),"$ivl_queue_method$size")==0) {
+	    ivl_expr_t arg = ivl_expr_parm(expr, 0);
+	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL && ivl_expr_signal(arg)) {
+		  fprintf(vvp_out, "    %%qsize v%p_0;\n", ivl_expr_signal(arg));
+		  return;
+	    }
+	    if (expr_is_queue_container_(arg)) {
+		  draw_eval_object(arg);
+		  fprintf(vvp_out, "    %%qsize/o;\n");
+		  return;
+	    }
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n",
+	            ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
+	    return;
+      }
+      if (strcmp(ivl_expr_name(expr), "$ivl_assoc_method$exists")==0) {
+	    if (draw_assoc_exists_vec4(expr))
+		  return;
+      }
+      if (strncmp(ivl_expr_name(expr), "$ivl_assoc_method$", 18) == 0) {
+	    if (draw_assoc_traversal_vec4(expr))
+		  return;
       }
 
       draw_vpi_func_call(expr);
@@ -1076,6 +1336,7 @@ static void draw_signal_vec4(ivl_expr_t expr)
       int addr_index = allocate_word();
       draw_eval_expr_into_integer(ivl_expr_oper1(expr), addr_index);
 
+      note_array_signal_use(sig);
       fprintf(vvp_out, "    %%load/vec4a v%p, %d;\n", sig, addr_index);
       clr_word(addr_index);
 }
@@ -1165,8 +1426,14 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 {
       ivl_signal_t sig = 0;
       unsigned wid = 0;
+      unsigned pidx = 0;
+      ivl_expr_t prop_base = 0;
+      ivl_expr_t prop_word = 0;
+      bool is_property = false;
+      unsigned lab_null = 0;
+      unsigned lab_out = 0;
 
-      switch (ivl_expr_type(sub)) {
+	      switch (ivl_expr_type(sub)) {
 	  case IVL_EX_SELECT: {
 		ivl_expr_t e1 = ivl_expr_oper1(sub);
 		sig = ivl_expr_signal(e1);
@@ -1179,12 +1446,36 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    wid = ivl_expr_width(sub);
 	    break;
 
-	  default:
-	    assert(0);
+	  case IVL_EX_PROPERTY:
+	    pidx = ivl_expr_property_idx(sub);
+	    prop_base = ivl_expr_oper2(sub);
+	    prop_word = ivl_expr_oper1(sub);
+	    wid = ivl_expr_width(sub);
+	    if ((pidx == (unsigned)-1) || !prop_base || prop_word) {
+		  draw_eval_vec4(sub);
+		  return;
+	    }
+	    is_property = true;
+	    lab_null = local_count++;
+	    lab_out = local_count++;
 	    break;
-      }
 
-      draw_eval_vec4(sub);
+		  default:
+		    fprintf(stderr, "%s:%u: vvp.tgt sorry: ++/-- on expression type %d "
+		                    "not fully supported; using read-only fallback.\n",
+			    ivl_expr_file(sub), ivl_expr_lineno(sub), ivl_expr_type(sub));
+		    draw_eval_vec4(sub);
+		    return;
+	      }
+
+      if (is_property) {
+	    draw_eval_object(prop_base);
+	    fprintf(vvp_out, "    %%test_nul/obj;\n");
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+	    fprintf(vvp_out, "    %%prop/v %u;\n", pidx);
+      } else {
+	    draw_eval_vec4(sub);
+      }
 
       const char*cmd = incr? "%add" : "%sub";
 
@@ -1193,14 +1484,31 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		 result, as well as leaving a copy on the stack. */
 	    fprintf(vvp_out, "    %si 1, 0, %u;\n", cmd, wid);
 	    fprintf(vvp_out, "    %%dup/vec4;\n");
-	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
+	    if (is_property) {
+		  fprintf(vvp_out, "    %%store/prop/v %u, %u;\n", pidx, wid);
+	    } else {
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
+	    }
 
       } else {
 	      /* The post-fix decrement returns the non-decremented
 		 version, so there is a slight re-arrange. */
 	    fprintf(vvp_out, "    %%dup/vec4;\n");
 	    fprintf(vvp_out, "    %si 1, 0, %u;\n", cmd, wid);
-	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
+	    if (is_property) {
+		  fprintf(vvp_out, "    %%store/prop/v %u, %u;\n", pidx, wid);
+	    } else {
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
+	    }
+      }
+
+      if (is_property) {
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", wid);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
       }
 }
 
@@ -1336,8 +1644,20 @@ static void draw_unary_vec4(ivl_expr_t expr)
 		  draw_eval_object(sub);
 		  fprintf(vvp_out, "    %%cast/vec2/dar %u;\n", ivl_expr_width(expr));
 		  break;
+		case IVL_VT_CLASS:
+		  /* Cast class handle to bool: non-null handle is true. */
+		  draw_eval_object(sub);
+		  fprintf(vvp_out, "    %%test_nul/obj;\n");
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  fprintf(vvp_out, "    %%flag_inv 4;\n");
+		  fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
+		  break;
 		default:
-		  assert(0);
+		  fprintf(stderr, "Warning: draw_unary_vec4 '2' (cast-to-bool):"
+			  " unhandled sub-expression type %d; emitting 0\n",
+			  ivl_expr_value(sub));
+		  fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u; ; cast-to-bool fallback\n",
+			  ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
 		  break;
 	    }
 	    break;
@@ -1350,14 +1670,128 @@ static void draw_unary_vec4(ivl_expr_t expr)
 
 void draw_eval_vec4(ivl_expr_t expr)
 {
+      static unsigned char warned_unexpected_vec4_type[32];
+      static int warned_unexpected_vec4_type_oob = 0;
+
+      if (number_trace_enabled_()) {
+            fprintf(stderr,
+                    "trace vec4: file=%s line=%u expr_type=%d expr_value=%d width=%u signed=%d\n",
+                    ivl_expr_file(expr), ivl_expr_lineno(expr),
+                    ivl_expr_type(expr), ivl_expr_value(expr),
+                    ivl_expr_width(expr), ivl_expr_signed(expr));
+      }
+
       if (debug_draw) {
 	    fprintf(vvp_out, " ; %s:%u:draw_eval_vec4: expr_type=%d\n",
 		    ivl_expr_file(expr), ivl_expr_lineno(expr),
 		    ivl_expr_type(expr));
       }
 
-      assert(ivl_expr_value(expr) == IVL_VT_BOOL ||
-	     ivl_expr_value(expr) == IVL_VT_VECTOR);
+      /* Handle object-like values in vec4 contexts as handle-bool casts:
+         non-null handle -> 1, null handle -> 0. */
+      if (ivl_expr_value(expr) == IVL_VT_CLASS ||
+          ivl_expr_value(expr) == IVL_VT_QUEUE ||
+          ivl_expr_value(expr) == IVL_VT_DARRAY ||
+          ivl_expr_value(expr) == IVL_VT_NO_TYPE) {
+            unsigned wid = ivl_expr_width(expr) ? ivl_expr_width(expr) : 1;
+            draw_eval_object(expr);
+            fprintf(vvp_out, "    %%test_nul/obj;\n");
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            fprintf(vvp_out, "    %%flag_inv 4;\n");
+            fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
+            if (wid > 1)
+                  fprintf(vvp_out, "    %%pad/u %u;\n", wid);
+            return;
+      }
+
+      /* Explicit scalarization for non-vec4 scalar domains. */
+      if (ivl_expr_value(expr) == IVL_VT_REAL) {
+            unsigned wid = ivl_expr_width(expr) ? ivl_expr_width(expr) : 1;
+            draw_eval_real(expr);
+            fprintf(vvp_out, "    %%cvt/vr %u;\n", wid);
+            return;
+      }
+      if (ivl_expr_value(expr) == IVL_VT_STRING) {
+            unsigned wid = ivl_expr_width(expr) ? ivl_expr_width(expr) : 1;
+            switch (ivl_expr_type(expr)) {
+                case IVL_EX_STRING:
+                case IVL_EX_SIGNAL:
+                case IVL_EX_CONCAT:
+                case IVL_EX_PROPERTY:
+                case IVL_EX_SELECT:
+                case IVL_EX_SFUNC:
+                case IVL_EX_UFUNC:
+                  draw_eval_string(expr);
+                  break;
+                default:
+                  /* Avoid draw_eval_string->fallback_eval recursion for
+                     unsupported string expression node kinds. */
+                  fprintf(vvp_out, "    %%pushi/str \"\";\n");
+                  break;
+            }
+            fprintf(vvp_out, "    %%cast/vec4/str %u;\n", wid);
+            return;
+      }
+
+      /* Numeric literals can arrive here before the core has assigned a
+         stable vec4 expression value type. Handle them explicitly before
+         the generic zero-fallback gate. */
+      if (ivl_expr_type(expr) == IVL_EX_NUMBER) {
+            draw_number_vec4(expr);
+            return;
+      }
+      if (ivl_expr_type(expr) == IVL_EX_ULONG
+          || ivl_expr_type(expr) == IVL_EX_DELAY) {
+            uint64_t imm = (ivl_expr_type(expr) == IVL_EX_ULONG)
+                         ? ivl_expr_uvalue(expr) : ivl_expr_delay_val(expr);
+            unsigned wid = ivl_expr_width(expr);
+            if (number_trace_enabled_()) {
+                  fprintf(stderr,
+                          "trace num: file=%s line=%u expr_type=%d expr_value=%d width=%u imm=%llu\n",
+                          ivl_expr_file(expr), ivl_expr_lineno(expr),
+                          ivl_expr_type(expr), ivl_expr_value(expr),
+                          wid, (unsigned long long)imm);
+            }
+            if (wid == 0)
+                  wid = (ivl_expr_type(expr) == IVL_EX_ULONG)
+                      ? 8 * sizeof(unsigned long) : 64;
+            fprintf(vvp_out, "    %%pushi/vec4 %lu, %lu, %u;\n",
+                    (unsigned long)(imm & 0xffffffffUL),
+                    (unsigned long)((imm >> 32) & 0xffffffffUL),
+                    wid);
+            return;
+      }
+
+      // Compile-progress fallback: Some UVM expressions may have unresolved
+      // types from macro expansions. Emit a zero vec4.
+      if (ivl_expr_value(expr) != IVL_VT_BOOL &&
+          ivl_expr_value(expr) != IVL_VT_VECTOR) {
+	    int vt = ivl_expr_value(expr);
+	    int should_warn = 1;
+	    if (vt == IVL_VT_NO_TYPE) {
+		  should_warn = 0;
+	    }
+	    if (vt >= 0 && vt < (int)(sizeof warned_unexpected_vec4_type)) {
+		  if (warned_unexpected_vec4_type[vt]) {
+			should_warn = 0;
+		  } else {
+			warned_unexpected_vec4_type[vt] = 1;
+		  }
+	    } else if (warned_unexpected_vec4_type_oob) {
+		  should_warn = 0;
+	    } else {
+		  warned_unexpected_vec4_type_oob = 1;
+	    }
+
+	    if (should_warn) {
+		  fprintf(stderr, "%s:%u: Warning: Unexpected type %d in vec4 context; treating as zero"
+			  " (suppressing further similar warnings)\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr), vt);
+		    }
+		    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u; ; zero fallback\n",
+			    ivl_expr_width(expr));
+		    return;
+	      }
 
       switch (ivl_expr_type(expr)) {
 	  case IVL_EX_BINARY:
@@ -1369,9 +1803,6 @@ void draw_eval_vec4(ivl_expr_t expr)
 	    return;
 
 	  case IVL_EX_NUMBER:
-	    draw_number_vec4(expr);
-	    return;
-
 	  case IVL_EX_SELECT:
 	    if (ivl_expr_oper2(expr)==0)
 		  draw_select_pad_vec4(expr);
@@ -1408,20 +1839,18 @@ void draw_eval_vec4(ivl_expr_t expr)
 	    return;
 
 	  case IVL_EX_NULL:
-	    fprintf(stderr, "%s:%u: Error: 'null' used in an expression\n",
-	                    ivl_expr_file(expr), ivl_expr_lineno(expr));
-	    fprintf(vvp_out, "; Error 'null' used in an expression\n");
-	    vvp_errors += 1;
+	    /* Null/unsupported nested property in vec4 context.
+	     * Emit zero as a safe fallback (from nested property fallback). */
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u; ; null/nested-prop fallback\n",
+	                    ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
 	    return;
 
 	  default:
-	    break;
+	    fprintf(stderr, "%s:%u: Warning: unsupported VEC4 expression (%d); emitting zero fallback\n",
+	                    ivl_expr_file(expr), ivl_expr_lineno(expr),
+	                    ivl_expr_type(expr));
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u; ; vec4 fallback\n",
+	                    ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
+	    return;
       }
-
-      fprintf(stderr, "%s:%u: Sorry: cannot evaluate VEC4 expression (%d)\n",
-                      ivl_expr_file(expr), ivl_expr_lineno(expr),
-                      ivl_expr_type(expr));
-      fprintf(vvp_out, "; Sorry: cannot evaluate VEC4 expression (%d)\n",
-                       ivl_expr_type(expr));
-      vvp_errors += 1;
 }

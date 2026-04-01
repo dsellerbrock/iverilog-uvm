@@ -24,10 +24,57 @@
 # include  "netmisc.h"
 # include  "compiler.h"
 # include  "PPackage.h"
+# include  "PTask.h"
 # include  "PWire.h"
+# include  "pform_types.h"
 # include  "ivl_assert.h"
 
 using namespace std;
+
+struct symbol_search_cache_key_t {
+      const NetScope*scope;
+      const NetScope*start_scope;
+      const pform_scoped_name_t*path_ref;
+      unsigned lexical_pos;
+      bool prefix_scope;
+
+      bool operator<(const symbol_search_cache_key_t&that) const
+      {
+	    if (scope != that.scope)
+		  return scope < that.scope;
+	    if (start_scope != that.start_scope)
+		  return start_scope < that.start_scope;
+	    if (path_ref != that.path_ref)
+		  return path_ref < that.path_ref;
+	    if (lexical_pos != that.lexical_pos)
+		  return lexical_pos < that.lexical_pos;
+	    if (prefix_scope != that.prefix_scope)
+		  return prefix_scope < that.prefix_scope;
+	    return false;
+      }
+};
+
+static std::map<symbol_search_cache_key_t,symbol_search_results>
+      symbol_search_cache_;
+
+static const netclass_t* resolve_prefix_class_type_(Design*des,
+						    NetScope*scope,
+						    perm_string name)
+{
+      if (!gn_system_verilog() || !scope)
+	    return nullptr;
+
+      if (netclass_t*cls = scope->find_class(des, name))
+	    return cls;
+
+      if (typedef_t*td = scope->find_typedef(des, name)) {
+	    ivl_type_t td_type = td->elaborate_type(des, scope);
+	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(td_type))
+		  return cls;
+      }
+
+      return nullptr;
+}
 
 /*
  * Search for the hierarchical name. The path may have multiple components. If
@@ -176,6 +223,25 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			}
 		  }
 
+		    // Some constructors elaborate without a synthetic hidden "this"
+		    // signal but still have a class-typed return signal that can act
+		    // as the implicit object handle. Support direct `this` lookups in
+		    // those scopes the same way class-property rewrites already do.
+		  if (path_tail.name == perm_string::literal(THIS_TOKEN)
+		      && !prefix_scope) {
+			NetScope*scope_method = find_method_containing_scope(*li, start_scope);
+			if (scope_method && scope_method->type() == NetScope::FUNC) {
+			      if (NetNet*this_net = find_implicit_this_handle(des, scope_method)) {
+				    path.push_back(path_tail);
+				    res->scope = scope_method;
+				    res->net = this_net;
+				    res->type = this_net->net_type();
+				    res->path_head = path;
+				    return true;
+			      }
+			}
+		  }
+
 		  if (NetEvent*eve = scope->find_event(path_tail.name)) {
 			if (prefix_scope || (eve->lexical_pos() <= lexical_pos)) {
 			      path.push_back(path_tail);
@@ -185,6 +251,28 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			      return true;
 			} else if (!res->decl_after_use) {
 			      res->decl_after_use = eve;
+			}
+		  }
+
+		    // Class named events are stored in the class scope event list,
+		    // but inherited class events are not found by NetScope::find_event.
+		    // Search the superclass chain so derived methods can resolve
+		    // members like a protected base-class event "m_event".
+		  if (!prefix_scope && scope->type() == NetScope::CLASS) {
+			const netclass_t*clsnet = scope->class_def();
+			for (const netclass_t*sup = clsnet ? clsnet->get_super() : 0;
+			     sup ; sup = sup->get_super()) {
+			      const NetScope*sup_scope_c = sup->class_scope();
+			      NetScope*sup_scope = const_cast<NetScope*>(sup_scope_c);
+			      if (!sup_scope)
+				    continue;
+			      if (NetEvent*eve = sup_scope->find_event(path_tail.name)) {
+				    path.push_back(path_tail);
+				    res->scope = sup_scope;
+				    res->eve = eve;
+				    res->path_head = path;
+				    return true;
+			      }
 			}
 		  }
 
@@ -200,25 +288,129 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			}
 		  }
 
+		    // Extern class methods may elaborate under package scope rather
+		    // than nested below the CLASS scope. In that case, use the
+		    // method's implicit "this" (or constructor return handle) to
+		    // resolve unqualified class properties.
+		  if (!prefix_scope && scope->type() == NetScope::FUNC
+		      && path_tail.index.empty()) {
+			const PFunction*scope_pfunc = scope->func_pform();
+			bool class_method_ctx = false;
+			if (scope_pfunc && scope_pfunc->method_of())
+			      class_method_ctx = true;
+			if (scope->basename() == perm_string::literal("new")
+			    || scope->basename() == perm_string::literal("new@"))
+			      class_method_ctx = true;
+
+			if (class_method_ctx) {
+			      NetNet*this_net = find_implicit_this_handle(des, scope);
+			      if (this_net == 0) {
+				    if (PWire*this_pw = scope->find_signal_placeholder(
+						perm_string::literal(THIS_TOKEN))) {
+					  this_net = this_pw->elaborate_sig(des, scope);
+				    }
+			      }
+			      if (this_net == 0 && scope_pfunc && scope_pfunc->method_of()) {
+				    ivl_type_t this_type =
+					  scope_pfunc->method_of()->elaborate_type_raw(des, scope);
+				    if (const netclass_t*cls_this =
+					    dynamic_cast<const netclass_t*>(this_type)) {
+					  NetNet*synth_this = new NetNet(scope,
+							perm_string::literal(THIS_TOKEN),
+							NetNet::REG, cls_this);
+					  synth_this->set_line(*li);
+					  this_net = synth_this;
+				    }
+			      }
+
+			      const netclass_t*clsnet = this_net
+					? dynamic_cast<const netclass_t*>(this_net->net_type())
+					: 0;
+			      int pidx = clsnet
+				    ? const_cast<netclass_t*>(clsnet)->ensure_property_decl(des, path_tail.name)
+				    : -1;
+			      if (pidx >= 0 && this_net) {
+				    res->net = this_net;
+				    res->scope = scope;
+				    res->path_head = path;
+				    res->path_head.push_back(name_component_t(
+						perm_string::literal(THIS_TOKEN)));
+				    res->path_tail.push_front(path_tail);
+				    res->type = clsnet;
+				    return true;
+			      }
+			}
+		  }
+
 		    // Static items are just normal signals and are found above.
 		  if (scope->type() == NetScope::CLASS) {
 			const netclass_t *clsnet = scope->class_def();
-			int pidx = clsnet->property_idx_from_name(path_tail.name);
+			int pidx = clsnet
+			      ? const_cast<netclass_t*>(clsnet)->ensure_property_decl(des, path_tail.name)
+			      : -1;
 			if (pidx >= 0) {
 			      // This is a class property being accessed in a
-			      // class method. Return `this` for the net and the
-			      // property name for the path tail.
+				      // class method. Return `this` for the net and the
+				      // property name for the path tail.
 			      NetScope *scope_method = find_method_containing_scope(*li, start_scope);
-			      ivl_assert(*li, scope_method);
-			      res->net = scope_method->find_signal(perm_string::literal(THIS_TOKEN));
-			      ivl_assert(*li, res->net);
-			      res->scope = scope;
-			      ivl_assert(*li, path.empty());
-			      res->path_head.push_back(name_component_t(perm_string::literal(THIS_TOKEN)));
-			      res->path_tail.push_front(path_tail);
-			      res->type = clsnet;
-			      return true;
-			}
+			      if (scope_method) {
+			      res->net = find_implicit_this_handle(des, scope_method);
+			      // SV compile-progress: if property found in class
+			      // definition but "this" handle is not available, try
+			      // alternative resolution strategies.
+			      if (res->net == 0) {
+				    // Try finding static property signal directly.
+				    NetNet*sprop = clsnet->find_static_property(path_tail.name);
+				    if (sprop) {
+					  path.push_back(path_tail);
+					  res->scope = scope;
+					  res->net = sprop;
+					  res->type = sprop->net_type();
+					  res->path_head = path;
+					  return true;
+				    }
+				    // Try elaborating the "this" signal from the
+				    // method scope placeholder (covers extern
+				    // constructors that haven't had sig elaborated).
+				    PWire*this_pw = scope_method->find_signal_placeholder(
+					  perm_string::literal(THIS_TOKEN));
+				    if (this_pw) {
+					  NetNet*this_net = this_pw->elaborate_sig(des, scope_method);
+					  if (this_net)
+						res->net = this_net;
+				    }
+				    // Also try parent scope's constructors for the
+				    // "this" signal when the current method scope
+				    // does not have one.
+				    if (res->net == 0) {
+					  NetNet*this_try = scope->find_signal(
+						perm_string::literal(THIS_TOKEN));
+					  if (this_try)
+						res->net = this_try;
+				    }
+				    // SV compile-progress fallback: if the property
+				    // is definitely in the class definition but we
+				    // still cannot find a "this" handle, create a
+				    // synthetic placeholder signal in the method
+				    // scope to represent "this".
+				    if (res->net == 0 && gn_system_verilog()) {
+					  NetNet*synth_this = new NetNet(scope_method,
+						perm_string::literal(THIS_TOKEN),
+						NetNet::REG, clsnet);
+					  synth_this->set_line(*li);
+					  res->net = synth_this;
+				    }
+			      }
+				      if (res->net == 0)
+					    continue;
+				      res->scope = scope;
+				      res->path_head = path;
+				      res->path_head.push_back(name_component_t(perm_string::literal(THIS_TOKEN)));
+				      res->path_tail.push_front(path_tail);
+				      res->type = clsnet;
+				      return true;
+			      }
+				}
 		  }
 
 		    // Finally check the rare case of a signal that hasn't
@@ -234,6 +426,26 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			      res->type = net->net_type();
 			      res->path_head = path;
 			      return true;
+			}
+		  }
+
+		    // SV compile-progress: allow class type names (including
+		    // typedef aliases to class types) to act as prefix scopes in
+		    // paths such as alias_t::static_obj.member. The parser stores
+		    // both "." and "::" chains in the same name list, so this
+		    // fallback intentionally keys off class-type lookup only after
+		    // normal object lookup fails.
+		  if (path_tail.index.empty()) {
+			if (const netclass_t*cls = resolve_prefix_class_type_(
+				    des, scope, path_tail.name)) {
+			      NetScope*cls_scope =
+				    const_cast<NetScope*>(cls->class_scope());
+			      if (cls_scope) {
+				    path.push_back(path_tail);
+				    res->scope = cls_scope;
+				    res->path_head = path;
+				    return true;
+			      }
 			}
 		  }
 	    }
@@ -345,6 +557,8 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 {
       NetScope *search_scope = scope;
       bool prefix_scope = false;
+      symbol_search_cache_key_t cache_key;
+      bool use_cache = (lexical_pos == UINT_MAX);
 
       if (path.package) {
 	    search_scope = des->find_package(path.package->pscope_name());
@@ -353,6 +567,24 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 	    prefix_scope = true;
       }
 
-      return symbol_search(li, des, search_scope, path.name, lexical_pos,
-			   res, search_scope, prefix_scope);
+      if (use_cache) {
+	    cache_key.scope = search_scope;
+	    cache_key.start_scope = search_scope;
+	    cache_key.path_ref = &path;
+	    cache_key.lexical_pos = lexical_pos;
+	    cache_key.prefix_scope = prefix_scope;
+
+	    std::map<symbol_search_cache_key_t,symbol_search_results>::const_iterator cached =
+		  symbol_search_cache_.find(cache_key);
+	    if (cached != symbol_search_cache_.end()) {
+		  *res = cached->second;
+		  return res->is_found();
+	    }
+      }
+
+      bool found = symbol_search(li, des, search_scope, path.name, lexical_pos,
+				 res, search_scope, prefix_scope);
+      if (use_cache && found)
+	    symbol_search_cache_[cache_key] = *res;
+      return found;
 }

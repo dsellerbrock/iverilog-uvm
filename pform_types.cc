@@ -19,6 +19,7 @@
 
 
 # include  "pform_types.h"
+# include  "pform.h"
 
 data_type_t::~data_type_t()
 {
@@ -33,7 +34,24 @@ string_type_t::~string_type_t()
 {
 }
 
+typeref_t::~typeref_t()
+{
+      delete_parmvalue(overrides);
+}
+
 atom_type_t size_type (atom_type_t::INT, true);
+
+std::ostream& foreach_index_type_t::debug_dump(std::ostream&out) const
+{
+      out << "<foreach-index:";
+      for (size_t idx = 0 ; idx < target_path.size() ; idx += 1) {
+	    if (idx > 0)
+		  out << ".";
+	    out << target_path[idx];
+      }
+      out << "[" << index_depth << "]>";
+      return out;
+}
 
 PNamedItem::SymbolType enum_type_t::symbol_type() const
 {

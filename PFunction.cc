@@ -44,8 +44,11 @@ void PFunction::set_statement(Statement*s)
 
 void PFunction::push_statement_front(Statement*stmt)
 {
-        // This should not be possible.
-      ivl_assert(*this, statement_);
+      if (statement_ == 0) {
+	    PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	    tmp->set_line(*this);
+	    statement_ = tmp;
+      }
 
 	// Get the PBlock of the statement. If it is not a PBlock,
 	// then create one to wrap the existing statement and the new

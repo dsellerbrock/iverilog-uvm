@@ -833,6 +833,7 @@ vpiHandle vpip_make_array(const char*label, const char*name,
 
       assert(!array_find(label));
       array_table->sym_set_value(label, obj);
+      compile_resolve_pending_label(label);
 
 	/* Add this into the table of VPI objects. This is used for
 	   contexts that try to look up VPI objects in
@@ -1587,6 +1588,7 @@ void compile_array_alias(char*label, char*name, char*src)
       assert(array_table);
       assert(!array_find(label));
       array_table->sym_set_value(label, obj);
+      compile_resolve_pending_label(label);
 
       compile_vpi_symbol(label, obj);
       vpip_attach_to_current_scope(obj);

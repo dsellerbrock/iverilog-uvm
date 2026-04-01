@@ -22,6 +22,7 @@
 # include  <iostream>
 # include  <set>
 # include  <cstdlib>
+# include  <cstring>
 
 /*
  * This source file contains all the implementations of the Design
@@ -30,16 +31,175 @@
 
 # include  "netlist.h"
 # include  "netscalar.h"
+# include  "netclass.h"
 # include  "netvector.h"
 # include  "util.h"
 # include  "compiler.h"
 # include  "netmisc.h"
 # include  "PExpr.h"
+# include  "PPackage.h"
 # include  "PTask.h"
+# include  "PWire.h"
+# include  "parse_misc.h"
+# include  "pform_types.h"
 # include  <sstream>
 # include  "ivl_assert.h"
 
 using namespace std;
+
+static void trace_const_function_materialization_(const LineInfo&loc, NetScope*caller,
+					       NetScope*callee, const char*reason)
+{
+      const char*trace = getenv("IVL_CONST_TRACE");
+      if (!trace || !*trace || !callee)
+	    return;
+
+      ostringstream callee_buf;
+      callee_buf << scope_path(callee);
+      string callee_path = callee_buf.str();
+      string caller_path = "<none>";
+      if (caller) {
+	    ostringstream caller_buf;
+	    caller_buf << scope_path(caller);
+	    caller_path = caller_buf.str();
+      }
+      if (strcmp(trace, "1") != 0 && strcmp(trace, "all") != 0) {
+	    if (callee_path.find(trace) == string::npos &&
+		caller_path.find(trace) == string::npos)
+		  return;
+      }
+
+      cerr << loc.get_fileline() << ": const-trace: " << reason
+	   << " caller=" << caller_path
+	   << " callee=" << callee_path << endl;
+}
+
+static const netclass_t* resolve_current_class_typedef_alias_(NetScope*scope,
+					      const typedef_t*td)
+{
+      if (!scope || !td)
+	    return 0;
+
+      const NetScope*class_scope = scope->get_class_scope();
+      const netclass_t*current_class = class_scope ? class_scope->class_def() : 0;
+      if (!current_class)
+	    return 0;
+
+      const data_type_t*alias_type = td->get_data_type();
+      if (!alias_type)
+	    return 0;
+
+      if (const class_type_t*class_ref =
+		  dynamic_cast<const class_type_t*>(alias_type)) {
+	    if (class_ref->name == current_class->get_name())
+		  return current_class;
+      }
+
+      if (const typeref_t*type_ref =
+		  dynamic_cast<const typeref_t*>(alias_type)) {
+	    if (typedef_t*base_td = type_ref->typedef_ref()) {
+		  if (base_td->name == current_class->get_name())
+			return current_class;
+	    }
+      }
+
+      return 0;
+}
+
+static NetFuncDef* elaborate_missing_package_function_scope_(Design*des,
+						       NetScope*scope,
+						       const pform_name_t&name)
+{
+      if (!scope || name.size() != 1)
+	    return 0;
+
+      perm_string fname = peek_tail_name(name);
+      for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    if (cur->type() != NetScope::PACKAGE)
+		  continue;
+
+	    if (NetScope*existing = cur->child(hname_t(fname))) {
+			if (existing->type() == NetScope::FUNC) {
+				if (existing->elab_stage() < 2) {
+				      if (scope->need_const_func())
+					    if (const PFunction*pfunc = existing->func_pform())
+						  trace_const_function_materialization_(*pfunc, scope, existing,
+										      "reusing lazy package function in const context");
+				      if (scope->need_const_func())
+					    existing->need_const_func(true);
+				      if (const PFunction*pfunc = existing->func_pform())
+					    pfunc->elaborate_sig(des, existing);
+				}
+			return existing->func_def();
+		  }
+		  continue;
+	    }
+
+	    PPackage*pkg = pform_test_package_identifier(cur->basename());
+	    if (!pkg)
+		  continue;
+
+	    map<perm_string,PFunction*>::const_iterator it = pkg->funcs.find(fname);
+	    if (it == pkg->funcs.end())
+		  continue;
+
+	    NetScope*func_scope = new NetScope(cur, hname_t(fname), NetScope::FUNC);
+		    func_scope->set_line(it->second);
+		    func_scope->add_imports(&it->second->explicit_imports);
+		    it->second->elaborate_scope(des, func_scope);
+		    if (scope->need_const_func())
+			  trace_const_function_materialization_(*it->second, scope, func_scope,
+							      "materializing package function in const context"),
+			  func_scope->need_const_func(true);
+		    it->second->elaborate_sig(des, func_scope);
+		    return func_scope->func_def();
+	      }
+
+      return 0;
+}
+
+static NetScope* elaborate_missing_package_task_scope_(Design*des,
+						      NetScope*scope,
+						      const pform_name_t&name)
+{
+      if (!scope || name.size() != 1)
+	    return 0;
+
+      perm_string tname = peek_tail_name(name);
+      for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    if (cur->type() != NetScope::PACKAGE)
+		  continue;
+
+	    if (NetScope*existing = cur->child(hname_t(tname))) {
+		  if (existing->type() == NetScope::TASK) {
+			if (existing->task_def() == 0) {
+			      if (const PTask*ptask = existing->task_pform())
+				    ptask->elaborate_sig(des, existing);
+			}
+			return existing;
+		  }
+		  continue;
+	    }
+
+	    PPackage*pkg = pform_test_package_identifier(cur->basename());
+	    if (!pkg)
+		  continue;
+
+	    map<perm_string,PTask*>::const_iterator it = pkg->tasks.find(tname);
+	    if (it == pkg->tasks.end())
+		  continue;
+
+	    NetScope*task_scope = new NetScope(cur, hname_t(tname), NetScope::TASK);
+	    task_scope->is_auto(it->second->is_auto());
+	    task_scope->set_line(it->second);
+	    task_scope->add_imports(&it->second->explicit_imports);
+	    it->second->elaborate_scope(des, task_scope);
+	    it->second->elaborate_sig(des, task_scope);
+	    return task_scope;
+      }
+
+      return 0;
+}
 
 Design:: Design()
     : errors(0), nodes_(0), procs_(0), aprocs_(0)
@@ -824,6 +984,78 @@ void NetScope::evaluate_type_parameter_(Design *des, param_ref_t cur)
 {
       const PETypename *type_expr = dynamic_cast<const PETypename*>(cur->second.val_expr);
       if (!type_expr) {
+	    const PEIdent*ident_expr = dynamic_cast<const PEIdent*>(cur->second.val_expr);
+	    if (ident_expr) {
+		  const pform_scoped_name_t&ident_path = ident_expr->path();
+		  if (ident_path.package == 0 && ident_path.name.size() == 1
+		      && ident_path.name.front().index.empty()) {
+			perm_string name = ident_path.name.front().name;
+			NetScope*start_scope = cur->second.val_scope ? cur->second.val_scope : this;
+
+			  // First, allow aliases to earlier visible type parameters
+			  // (e.g. type RSP = REQ).
+			for (NetScope*sc = start_scope ; sc ; sc = sc->parent()) {
+			      auto param_it = sc->parameters.find(name);
+			      if (param_it != sc->parameters.end() && param_it->second.type_flag) {
+				    if (&param_it->second != &cur->second)
+					  sc->evaluate_parameter_(des, param_it);
+				    cur->second.ivl_type = param_it->second.ivl_type;
+				    if (cur->second.ivl_type)
+					  return;
+			      }
+
+			      auto td_it = sc->typedefs_.find(name);
+			      if (td_it != sc->typedefs_.end()) {
+				    if (const netclass_t*self_class =
+						resolve_current_class_typedef_alias_(start_scope,
+										 td_it->second)) {
+					  cur->second.ivl_type = const_cast<netclass_t*>(self_class);
+					  return;
+				    }
+				    cur->second.ivl_type = td_it->second->elaborate_type(des, sc);
+				    if (cur->second.ivl_type)
+					  return;
+			      }
+
+			      NetScope*import_scope = sc->find_import(des, name);
+			      if (import_scope) {
+				    auto imp_param_it = import_scope->parameters.find(name);
+				    if (imp_param_it != import_scope->parameters.end()
+				        && imp_param_it->second.type_flag) {
+					  import_scope->evaluate_parameter_(des, imp_param_it);
+					  cur->second.ivl_type = imp_param_it->second.ivl_type;
+					  if (cur->second.ivl_type)
+					        return;
+				    }
+
+				    auto imp_td_it = import_scope->typedefs_.find(name);
+				    if (imp_td_it != import_scope->typedefs_.end()) {
+					  if (const netclass_t*self_class =
+						      resolve_current_class_typedef_alias_(start_scope,
+											   imp_td_it->second)) {
+						cur->second.ivl_type = const_cast<netclass_t*>(self_class);
+						return;
+					  }
+					  cur->second.ivl_type = imp_td_it->second->elaborate_type(des, import_scope);
+					  if (cur->second.ivl_type)
+					        return;
+				    }
+			      }
+
+			      if (sc->type() == NetScope::MODULE)
+				    break;
+			}
+
+			  // Also accept visible classes as type defaults.
+			if (netclass_t*cls = ensure_visible_class_type(des, start_scope, name)) {
+			      cur->second.ivl_type = cls;
+			      return;
+			}
+		  }
+	    }
+      }
+
+      if (!type_expr) {
 	    cerr << this->get_fileline() << ": error: "
 		 << "Type parameter `" << cur->first << "` value `"
 	         << *cur->second.val_expr << "` is not a type."
@@ -1006,6 +1238,11 @@ NetNet* Design::find_signal(NetScope*scope, pform_name_t path)
 	    if (NetNet*net = scope->find_signal(key))
 		  return net;
 
+	    if (PWire*wire = scope->find_signal_placeholder(key)) {
+		  if (NetNet*net = wire->elaborate_sig(this, scope))
+			return net;
+	    }
+
 	    if (NetScope*import_scope = scope->find_import(this, key)) {
 		  scope = import_scope;
 		  continue;
@@ -1026,16 +1263,19 @@ NetFuncDef* Design::find_function(NetScope*scope, const pform_name_t&name)
 
       std::list<hname_t> eval_path = eval_scope_path(this, scope, name);
       NetScope*func = find_scope(scope, eval_path, NetScope::FUNC);
-      if (func && (func->type() == NetScope::FUNC)) {
-              // If a function is used in a parameter definition or in
-              // a signal declaration, it is possible to get here before
-              // the function's signals have been elaborated. If this is
-              // the case, elaborate them now.
-            if (func->elab_stage() < 2) {
-		  func->need_const_func(true);
-                  const PFunction*pfunc = func->func_pform();
-                  assert(pfunc);
-                  pfunc->elaborate_sig(this, func);
+      if (!func)
+	    return elaborate_missing_package_function_scope_(this, scope, name);
+	      if (func && (func->type() == NetScope::FUNC)) {
+	              // If a function is used in a parameter definition or in
+	              // a signal declaration, it is possible to get here before
+	              // the function's signals have been elaborated. If this is
+	              // the case, elaborate them now.
+	            if (func->elab_stage() < 2) {
+			  if (scope->need_const_func())
+				func->need_const_func(true);
+	                  const PFunction*pfunc = func->func_pform();
+	                  assert(pfunc);
+	                  pfunc->elaborate_sig(this, func);
             }
 	    return func->func_def();
       }
@@ -1048,6 +1288,9 @@ NetScope* Design::find_task(NetScope*scope, const pform_name_t&name)
       NetScope*task = find_scope(scope, eval_path, NetScope::TASK);
       if (task && (task->type() == NetScope::TASK))
 	    return task;
+
+      if (name.size() == 1)
+	    return elaborate_missing_package_task_scope_(this, scope, name);
 
       return 0;
 }

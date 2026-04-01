@@ -21,7 +21,9 @@
 # include  "vvp_net.h"
 # include  "vvp_net_sig.h"
 # include  "statistics.h"
+# include  "vthread.h"
 # include  "vpi_priv.h"
+# include  "vvp_cobject.h"
 # include  <vector>
 # include  <cassert>
 #ifdef CHECK_WITH_VALGRIND
@@ -32,6 +34,29 @@
 # include  <iostream>
 
 using namespace std;
+
+static vvp_context_t recover_automatic_recv_context_(vvp_context_t context,
+                                                     const char*where)
+{
+      static bool warned = false;
+
+      if (context)
+            return context;
+
+      context = vthread_get_wt_context();
+      if (!context)
+            context = vthread_get_rd_context();
+
+      if (!warned && context) {
+            fprintf(stderr,
+                    "Warning: recovered missing automatic signal context during %s"
+                    " (further similar warnings suppressed)\n",
+                    where ? where : "<unknown>");
+            warned = true;
+      }
+
+      return context;
+}
 
 /*
  * The filter_mask_ method takes as an input the value to propagate,
@@ -331,9 +356,53 @@ const vvp_vector4_t& vvp_fun_signal4_sa::vec4_unfiltered_value() const
       return bits4_;
 }
 
+namespace {
+struct signal4_aa_slot {
+      static const unsigned MAGIC = 0x53494734u; // "SIG4"
+      unsigned magic;
+      vvp_vector4_t bits;
+
+      signal4_aa_slot(unsigned wid, vvp_bit4_t init)
+      : magic(MAGIC), bits(wid, init)
+      {
+      }
+};
+
+static signal4_aa_slot* signal4_aa_slot_from_raw(void*raw)
+{
+      signal4_aa_slot*slot = static_cast<signal4_aa_slot*>(raw);
+      if (!(slot && slot->magic == signal4_aa_slot::MAGIC))
+            return 0;
+      return slot;
+}
+
+static const signal4_aa_slot* signal4_aa_slot_from_raw(const void*raw)
+{
+      const signal4_aa_slot*slot = static_cast<const signal4_aa_slot*>(raw);
+      if (!(slot && slot->magic == signal4_aa_slot::MAGIC))
+            return 0;
+      return slot;
+}
+
+static signal4_aa_slot* signal4_aa_get_or_make_slot(vvp_context_t context,
+                                                     unsigned context_idx,
+                                                     unsigned wid,
+                                                     vvp_bit4_t init)
+{
+      signal4_aa_slot*slot =
+            signal4_aa_slot_from_raw(vvp_get_context_item(context, context_idx));
+      if (!slot) {
+            slot = new signal4_aa_slot(wid, init);
+            vvp_set_context_item(context, context_idx, slot);
+      }
+      return slot;
+}
+}
+
 vvp_fun_signal4_aa::vvp_fun_signal4_aa(unsigned wid, vvp_bit4_t init)
 {
-      context_idx_ = vpip_add_item_to_context(this, vpip_peek_context_scope());
+      context_scope_ = vpip_peek_context_scope();
+      context_idx_ = vpip_add_item_to_context(this, context_scope_);
       size_ = wid;
       init_ = init;
 }
@@ -345,23 +414,21 @@ vvp_fun_signal4_aa::~vvp_fun_signal4_aa()
 
 void vvp_fun_signal4_aa::alloc_instance(vvp_context_t context)
 {
-      vvp_set_context_item(context, context_idx_, new vvp_vector4_t(size_, init_));
+      vvp_set_context_item(context, context_idx_, new signal4_aa_slot(size_, init_));
 }
 
 void vvp_fun_signal4_aa::reset_instance(vvp_context_t context)
 {
-      vvp_vector4_t*bits = static_cast<vvp_vector4_t*>
-            (vvp_get_context_item(context, context_idx_));
-
-      bits->fill_bits(init_);
+      signal4_aa_slot*slot = signal4_aa_get_or_make_slot(context, context_idx_, size_, init_);
+      slot->bits.fill_bits(init_);
 }
 
 #ifdef CHECK_WITH_VALGRIND
 void vvp_fun_signal4_aa::free_instance(vvp_context_t context)
 {
-      vvp_vector4_t*bits = static_cast<vvp_vector4_t*>
-            (vvp_get_context_item(context, context_idx_));
-      delete bits;
+      signal4_aa_slot*slot =
+            signal4_aa_slot_from_raw(vvp_get_context_item(context, context_idx_));
+      delete slot;
 }
 #endif
 
@@ -373,14 +440,14 @@ void vvp_fun_signal4_aa::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
                                    vvp_context_t context)
 {
       assert(ptr.port() == 0);
-      assert(context);
+      context = recover_automatic_recv_context_(context, "recv-vec4-aa");
+      if (!context)
+            return;
 
-      vvp_vector4_t*bits4 = static_cast<vvp_vector4_t*>
-            (vvp_get_context_item(context, context_idx_));
-
-      if (!bits4->eeq(bit)) {
-            *bits4 = bit;
-            ptr.ptr()->send_vec4(*bits4, context);
+      signal4_aa_slot*slot = signal4_aa_get_or_make_slot(context, context_idx_, size_, init_);
+      if (!slot->bits.eeq(bit)) {
+            slot->bits = bit;
+            ptr.ptr()->send_vec4(slot->bits, context);
       }
 }
 
@@ -389,17 +456,18 @@ void vvp_fun_signal4_aa::recv_vec4_pv(vvp_net_ptr_t ptr, const vvp_vector4_t&bit
 {
       assert(ptr.port() == 0);
       assert(size_ == vwid);
-      assert(context);
+      context = recover_automatic_recv_context_(context, "recv-vec4-pv-aa");
+      if (!context)
+            return;
 
-      vvp_vector4_t*bits4 = static_cast<vvp_vector4_t*>
-            (vvp_get_context_item(context, context_idx_));
+      signal4_aa_slot*slot = signal4_aa_get_or_make_slot(context, context_idx_, size_, init_);
 
       unsigned wid = bit.size();
       for (unsigned idx = 0 ;  idx < wid ;  idx += 1) {
-            if (base+idx >= bits4->size()) break;
-            bits4->set_bit(base+idx, bit.value(idx));
+            if (base+idx >= slot->bits.size()) break;
+            slot->bits.set_bit(base+idx, bit.value(idx));
       }
-      ptr.ptr()->send_vec4(*bits4, context);
+      ptr.ptr()->send_vec4(slot->bits, context);
 }
 
 unsigned vvp_fun_signal4_aa::value_size() const
@@ -409,34 +477,42 @@ unsigned vvp_fun_signal4_aa::value_size() const
 
 vvp_bit4_t vvp_fun_signal4_aa::value(unsigned idx) const
 {
-      const vvp_vector4_t*bits4 = static_cast<vvp_vector4_t*>
-            (vthread_get_rd_context_item(context_idx_));
-
-      return bits4->value(idx);
+      const signal4_aa_slot*slot =
+            signal4_aa_slot_from_raw(vthread_get_rd_context_item_scoped(context_idx_, context_scope_));
+      if (!slot) return BIT4_X;
+      return slot->bits.value(idx);
 }
 
 vvp_scalar_t vvp_fun_signal4_aa::scalar_value(unsigned idx) const
 {
-      const vvp_vector4_t*bits4 = static_cast<vvp_vector4_t*>
-            (vthread_get_rd_context_item(context_idx_));
-
-      return vvp_scalar_t(bits4->value(idx), 6, 6);
+      const signal4_aa_slot*slot =
+            signal4_aa_slot_from_raw(vthread_get_rd_context_item_scoped(context_idx_, context_scope_));
+      if (!slot) return vvp_scalar_t(BIT4_X, 0, 0);
+      return vvp_scalar_t(slot->bits.value(idx), 6, 6);
 }
 
 void vvp_fun_signal4_aa::vec4_value(vvp_vector4_t&val) const
 {
-      const vvp_vector4_t*bits4 = static_cast<vvp_vector4_t*>
-            (vthread_get_rd_context_item(context_idx_));
+      const signal4_aa_slot*slot =
+            signal4_aa_slot_from_raw(vthread_get_rd_context_item_scoped(context_idx_, context_scope_));
+      if (!slot) {
+            val = vvp_vector4_t(size_, BIT4_X);
+            return;
+      }
 
-      val = *bits4;
+      val = slot->bits;
 }
 
 const vvp_vector4_t&vvp_fun_signal4_aa::vec4_unfiltered_value() const
 {
-      const vvp_vector4_t*bits4 = static_cast<vvp_vector4_t*>
-            (vthread_get_rd_context_item(context_idx_));
+      const signal4_aa_slot*slot =
+            signal4_aa_slot_from_raw(vthread_get_rd_context_item_scoped(context_idx_, context_scope_));
+      if (!slot) {
+            static vvp_vector4_t fallback(1, BIT4_X);
+            return fallback;
+      }
 
-      return *bits4;
+      return slot->bits;
 }
 
 void vvp_fun_signal4_aa::operator delete(void*)
@@ -493,7 +569,8 @@ void vvp_fun_signal_real_sa::recv_real(vvp_net_ptr_t ptr, double bit,
 
 vvp_fun_signal_real_aa::vvp_fun_signal_real_aa()
 {
-      context_idx_ = vpip_add_item_to_context(this, vpip_peek_context_scope());
+      context_scope_ = vpip_peek_context_scope();
+      context_idx_ = vpip_add_item_to_context(this, context_scope_);
 }
 
 vvp_fun_signal_real_aa::~vvp_fun_signal_real_aa()
@@ -513,6 +590,10 @@ void vvp_fun_signal_real_aa::reset_instance(vvp_context_t context)
 {
       double*bits = static_cast<double*>
             (vvp_get_context_item(context, context_idx_));
+      if (!bits) {
+            bits = new double;
+            vvp_set_context_item(context, context_idx_, bits);
+      }
 
       *bits = 0.0;
 }
@@ -529,7 +610,8 @@ void vvp_fun_signal_real_aa::free_instance(vvp_context_t context)
 double vvp_fun_signal_real_aa::real_unfiltered_value() const
 {
       const double*bits = static_cast<double*>
-            (vthread_get_rd_context_item(context_idx_));
+            (vthread_get_rd_context_item_scoped(context_idx_, context_scope_));
+      if (!bits) return 0.0;
 
       return *bits;
 }
@@ -543,10 +625,17 @@ void vvp_fun_signal_real_aa::recv_real(vvp_net_ptr_t ptr, double bit,
                                        vvp_context_t context)
 {
       assert(ptr.port() == 0);
-      assert(context);
+      context = recover_automatic_recv_context_(context, "recv-real-aa");
+      if (!context)
+            return;
 
       double*bits = static_cast<double*>
             (vvp_get_context_item(context, context_idx_));
+      if (!bits) {
+            bits = new double;
+            *bits = 0.0;
+            vvp_set_context_item(context, context_idx_, bits);
+      }
 
       if (!bits_equal(*bits,bit)) {
             *bits = bit;
@@ -612,7 +701,8 @@ const string& vvp_fun_signal_string_sa::get_string() const
 
 vvp_fun_signal_string_aa::vvp_fun_signal_string_aa()
 {
-      context_idx_ = vpip_add_item_to_context(this, vpip_peek_context_scope());
+      context_scope_ = vpip_peek_context_scope();
+      context_idx_ = vpip_add_item_to_context(this, context_scope_);
 }
 
 vvp_fun_signal_string_aa::~vvp_fun_signal_string_aa()
@@ -620,78 +710,112 @@ vvp_fun_signal_string_aa::~vvp_fun_signal_string_aa()
       assert(0);
 }
 
+namespace {
+struct vvp_string_slot_s {
+      static const uint64_t kMagic = UINT64_C(0x5656505354524e47); // "VVPSTRNG"
+      uint64_t magic;
+      std::string value;
+      vvp_string_slot_s() : magic(kMagic), value() { }
+};
+
+static inline bool slot_ptr_poisoned_(const void*ptr)
+{
+      uintptr_t u = reinterpret_cast<uintptr_t>(ptr);
+      if (u == 0 || u < 4096)
+            return u != 0;
+      if (u == UINT64_C(0xbebebebebebebebe)
+          || u == UINT64_C(0xcdcdcdcdcdcdcdcd)
+          || u == UINT64_C(0xfefefefefefefefe)
+          || u == UINT64_C(0xdddddddddddddddd))
+            return true;
+      return false;
+}
+}
+
 void vvp_fun_signal_string_aa::alloc_instance(vvp_context_t context)
 {
-      string*bits = new std::string;
-      vvp_set_context_item(context, context_idx_, bits);
-      *bits = "";
+      vvp_string_slot_s*slot = new vvp_string_slot_s;
+      vvp_set_context_item(context, context_idx_, slot);
+      slot->value = "";
 }
 
 void vvp_fun_signal_string_aa::reset_instance(vvp_context_t context)
 {
-      string*bits = static_cast<std::string*>
-	    (vvp_get_context_item(context, context_idx_));
-      *bits = "";
+      void*raw = vvp_get_context_item(context, context_idx_);
+      vvp_string_slot_s*slot = static_cast<vvp_string_slot_s*>(raw);
+      if (!slot || slot_ptr_poisoned_(slot) || slot->magic != vvp_string_slot_s::kMagic) {
+            slot = new vvp_string_slot_s;
+            vvp_set_context_item(context, context_idx_, slot);
+      }
+      slot->value = "";
 }
 
 #ifdef CHECK_WITH_VALGRIND
 void vvp_fun_signal_string_aa::free_instance(vvp_context_t context)
 {
-      string*bits = static_cast<std::string*>
+      vvp_string_slot_s*slot = static_cast<vvp_string_slot_s*>
             (vvp_get_context_item(context, context_idx_));
-      delete bits;
+      if (slot && !slot_ptr_poisoned_(slot) && slot->magic == vvp_string_slot_s::kMagic)
+            delete slot;
 }
 #endif
 
 void vvp_fun_signal_string_aa::recv_string(vvp_net_ptr_t ptr, const std::string&bit, vvp_context_t context)
 {
       assert(ptr.port() == 0);
-      assert(context);
+      context = recover_automatic_recv_context_(context, "recv-string-aa");
+      if (!context)
+            return;
 
-      string*bits = static_cast<std::string*>
-	    (vvp_get_context_item(context, context_idx_));
+      void*raw = vvp_get_context_item(context, context_idx_);
+      vvp_string_slot_s*slot = static_cast<vvp_string_slot_s*>(raw);
+      if (!slot || slot_ptr_poisoned_(slot) || slot->magic != vvp_string_slot_s::kMagic) {
+            slot = new vvp_string_slot_s;
+            slot->value = "";
+            vvp_set_context_item(context, context_idx_, slot);
+      }
 
-      if (*bits != bit) {
-	    *bits = bit;
+      if (slot->value != bit) {
+	    slot->value = bit;
 	    ptr.ptr()->send_string(bit, context);
       }
 }
 
 unsigned vvp_fun_signal_string_aa::value_size() const
 {
-      assert(0);
       return 1;
 }
 
 vvp_bit4_t vvp_fun_signal_string_aa::value(unsigned) const
 {
-      assert(0);
       return BIT4_X;
 }
 
 vvp_scalar_t vvp_fun_signal_string_aa::scalar_value(unsigned) const
 {
-      assert(0);
       return vvp_scalar_t();
 }
 
-void vvp_fun_signal_string_aa::vec4_value(vvp_vector4_t&) const
+void vvp_fun_signal_string_aa::vec4_value(vvp_vector4_t&val) const
 {
-      assert(0);
+      val = vvp_vector4_t(1, BIT4_X);
 }
 
 double vvp_fun_signal_string_aa::real_value() const
 {
-      assert(0);
       return 0.0;
 }
 
 const std::string& vvp_fun_signal_string_aa::get_string() const
 {
-      const string*bits = static_cast<std::string*>
-            (vthread_get_rd_context_item(context_idx_));
+      const void*raw = vthread_get_rd_context_item_scoped(context_idx_, context_scope_);
+      const vvp_string_slot_s*slot = static_cast<const vvp_string_slot_s*>(raw);
+      if (!slot || slot_ptr_poisoned_(slot) || slot->magic != vvp_string_slot_s::kMagic) {
+            static const std::string empty;
+            return empty;
+      }
 
-      return *bits;
+      return slot->value;
 }
 
 void* vvp_fun_signal_string_aa::operator new(std::size_t size)
@@ -706,17 +830,58 @@ void vvp_fun_signal_string_aa::operator delete(void*)
 
   /* OBJECT signals */
 
+namespace {
+struct signal_object_aa_slot {
+      static const unsigned MAGIC = 0x5349474fu; // "SIGO"
+      unsigned magic;
+      vvp_object_t value;
+
+      signal_object_aa_slot() : magic(MAGIC), value()
+      {
+      }
+};
+
+static signal_object_aa_slot* signal_object_aa_slot_from_raw(void*raw)
+{
+      signal_object_aa_slot*slot = static_cast<signal_object_aa_slot*>(raw);
+      if (!slot || slot_ptr_poisoned_(slot) || slot->magic != signal_object_aa_slot::MAGIC)
+            return 0;
+      return slot;
+}
+
+static const signal_object_aa_slot* signal_object_aa_slot_from_raw(const void*raw)
+{
+      const signal_object_aa_slot*slot = static_cast<const signal_object_aa_slot*>(raw);
+      if (!slot || slot_ptr_poisoned_(slot) || slot->magic != signal_object_aa_slot::MAGIC)
+            return 0;
+      return slot;
+}
+
+static signal_object_aa_slot* signal_object_aa_get_or_make_slot(vvp_context_t context,
+                                                                 unsigned context_idx)
+{
+      signal_object_aa_slot*slot =
+            signal_object_aa_slot_from_raw(vvp_get_context_item(context, context_idx));
+      if (!slot) {
+            slot = new signal_object_aa_slot;
+            vvp_set_context_item(context, context_idx, slot);
+      }
+      return slot;
+}
+}
+
 vvp_fun_signal_object_sa::vvp_fun_signal_object_sa(unsigned size)
 : vvp_fun_signal_object(size)
 {
+      init_defn_ = 0;
 }
 
 #ifdef CHECK_WITH_VALGRIND
 void vvp_fun_signal_object_aa::free_instance(vvp_context_t context)
 {
-      vvp_object_t*bits = static_cast<vvp_object_t*>
-            (vvp_get_context_item(context, context_idx_));
-      delete bits;
+      signal_object_aa_slot*slot =
+            signal_object_aa_slot_from_raw(vvp_get_context_item(context, context_idx_));
+      delete slot;
 }
 #endif
 
@@ -735,13 +900,17 @@ void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 
 vvp_object_t vvp_fun_signal_object_sa::get_object() const
 {
+      if (value_.test_nil() && init_defn_)
+	    value_ = vvp_object_t(new vvp_cobject(init_defn_));
       return value_;
 }
 
 vvp_fun_signal_object_aa::vvp_fun_signal_object_aa(unsigned size)
 : vvp_fun_signal_object(size)
 {
-      context_idx_ = vpip_add_item_to_context(this, vpip_peek_context_scope());
+      init_defn_ = 0;
+      context_scope_ = vpip_peek_context_scope();
+      context_idx_ = vpip_add_item_to_context(this, context_scope_);
 }
 
 vvp_fun_signal_object_aa::~vvp_fun_signal_object_aa()
@@ -751,36 +920,49 @@ vvp_fun_signal_object_aa::~vvp_fun_signal_object_aa()
 
 void vvp_fun_signal_object_aa::alloc_instance(vvp_context_t context)
 {
-      vvp_object_t*bits = new vvp_object_t;
-      vvp_set_context_item(context, context_idx_, bits);
-      bits->reset();
+      signal_object_aa_slot*slot = new signal_object_aa_slot;
+      if (init_defn_)
+	    slot->value = vvp_object_t(new vvp_cobject(init_defn_));
+      else
+	    slot->value.reset();
+      vvp_set_context_item(context, context_idx_, slot);
 }
 
 void vvp_fun_signal_object_aa::reset_instance(vvp_context_t context)
 {
-      vvp_object_t*bits = static_cast<vvp_object_t*>
-	    (vvp_get_context_item(context, context_idx_));
-      bits->reset();
+      signal_object_aa_slot*slot = signal_object_aa_get_or_make_slot(context, context_idx_);
+      if (init_defn_)
+	    slot->value = vvp_object_t(new vvp_cobject(init_defn_));
+      else
+	    slot->value.reset();
 }
 
 vvp_object_t vvp_fun_signal_object_aa::get_object() const
 {
-      const vvp_object_t*bits = static_cast<vvp_object_t*>
-	    (vthread_get_rd_context_item(context_idx_));
-      return *bits;
+      signal_object_aa_slot*slot =
+            signal_object_aa_slot_from_raw(vthread_get_rd_context_item_scoped(context_idx_,
+                                                                               context_scope_));
+      if (!slot) {
+            vvp_object_t empty;
+            return empty;
+      }
+      if (slot->value.test_nil() && init_defn_)
+	    slot->value = vvp_object_t(new vvp_cobject(init_defn_));
+      return slot->value;
 }
 
 void vvp_fun_signal_object_aa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 					   vvp_context_t context)
 {
       assert(ptr.port() == 0);
-      assert(context);
+      context = recover_automatic_recv_context_(context, "recv-object-aa");
+      if (!context)
+            return;
 
-      vvp_object_t*bits = static_cast<vvp_object_t*>
-	    (vvp_get_context_item(context, context_idx_));
+      signal_object_aa_slot*slot = signal_object_aa_get_or_make_slot(context, context_idx_);
 
-      if (*bits != bit) {
-	    *bits = bit;
+      if (slot->value != bit) {
+	    slot->value = bit;
 	    ptr.ptr()->send_object(bit, context);
       }
 }
@@ -792,19 +974,17 @@ unsigned vvp_fun_signal_object_aa::value_size() const
 
 vvp_bit4_t vvp_fun_signal_object_aa::value(unsigned) const
 {
-      assert(0);
       return BIT4_X;
 }
 
 vvp_scalar_t vvp_fun_signal_object_aa::scalar_value(unsigned) const
 {
-      assert(0);
       return vvp_scalar_t();
 }
 
-void vvp_fun_signal_object_aa::vec4_value(vvp_vector4_t&) const
+void vvp_fun_signal_object_aa::vec4_value(vvp_vector4_t&val) const
 {
-      assert(0);
+      val = vvp_vector4_t(1, BIT4_X);
 }
 
 void* vvp_fun_signal_object_aa::operator new(std::size_t size)

@@ -24,6 +24,9 @@
 # include  "netlist.h"
 # include  "StringHeap.h"
 
+struct parmvalue_t;
+class Design;
+
 /*
  * This defines constants and defaults for the compiler in general.
  */
@@ -116,6 +119,17 @@ extern bool debug_elaborate;
 extern bool debug_emit;
 extern bool debug_synth2;
 extern bool debug_optimizer;
+
+void finalize_pending_specialized_class_elaboration(Design*des);
+
+extern const netclass_t* elaborate_specialized_class_type(Design*des,
+                                                          NetScope*call_scope,
+                                                          const netclass_t*base_class,
+                                                          const parmvalue_t*overrides,
+                                                          bool fully_elaborate = true);
+extern netclass_t* ensure_visible_class_type(Design*des,
+                                             NetScope*scope,
+                                             perm_string name);
 
 /* Ignore errors about missing modules */
 extern bool ignore_missing_modules;

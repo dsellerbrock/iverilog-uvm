@@ -1625,10 +1625,20 @@ extern FILE*vl_input;
 void reset_lexor()
 {
       yyrestart(vl_input);
+      BEGIN(0);
       yylloc.first_line = 1;
 
 	/* Announce the first file name. */
       yylloc.text = set_file_name(strdupnew(vl_file.c_str()));
+
+      comment_enter = 0;
+      in_module = false;
+      in_UDP = false;
+      ts_state = 0;
+      ts_scale = 0;
+      ts_unit = 0;
+      ts_prec = 0;
+      in_package_scope = 0;
 
       if (separate_compilation) {
 	    reset_all();

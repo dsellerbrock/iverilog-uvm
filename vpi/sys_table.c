@@ -26,6 +26,7 @@
 
 extern void sys_convert_register(void);
 extern void sys_countdrivers_register(void);
+extern void sys_sv_class_register(void);
 extern void sys_darray_register(void);
 extern void sys_fileio_register(void);
 extern void sys_finish_register(void);
@@ -201,6 +202,7 @@ static void sys_lxt_or_vcd_register(void)
 void (*vlog_startup_routines[])(void) = {
       sys_convert_register,
       sys_countdrivers_register,
+      sys_sv_class_register,
       sys_darray_register,
       sys_fileio_register,
       sys_finish_register,

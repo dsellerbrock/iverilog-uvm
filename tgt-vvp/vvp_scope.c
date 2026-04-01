@@ -25,6 +25,46 @@
 # include  <assert.h>
 # include  "ivl_alloc.h"
 
+struct deferred_array_decl_s {
+      ivl_signal_t sig;
+      unsigned needed : 1;
+      unsigned emitted : 1;
+      struct deferred_array_decl_s*next;
+};
+
+static struct deferred_array_decl_s*deferred_array_decls = 0;
+
+static struct deferred_array_decl_s*find_deferred_array_decl_(ivl_signal_t sig)
+{
+      struct deferred_array_decl_s*cur;
+
+      for (cur = deferred_array_decls ; cur ; cur = cur->next)
+	    if (cur->sig == sig)
+		  return cur;
+
+      cur = calloc(1, sizeof(*cur));
+      cur->sig = sig;
+      cur->next = deferred_array_decls;
+      deferred_array_decls = cur;
+      return cur;
+}
+
+static void note_array_signal_emitted_(ivl_signal_t sig)
+{
+      if (!sig || ivl_signal_dimensions(sig) == 0)
+	    return;
+
+      find_deferred_array_decl_(sig)->emitted = 1;
+}
+
+void note_array_signal_use(ivl_signal_t sig)
+{
+      if (!sig || ivl_signal_dimensions(sig) == 0)
+	    return;
+
+      find_deferred_array_decl_(sig)->needed = 1;
+}
+
 /*
  *  Escape non-symbol characters in ids, and quotes in strings.
  */
@@ -424,6 +464,18 @@ static const char *local_flag_str( ivl_signal_t sig )
     return ivl_signal_local(sig)? "*" : "";
 }
 
+static const char *storage_flag_str(ivl_signal_t sig)
+{
+      switch (ivl_signal_lifetime(sig)) {
+	  case IVL_VLT_STATIC:
+	    return "!";
+	  case IVL_VLT_AUTOMATIC:
+	    return "^";
+	  default:
+	    return "";
+      }
+}
+
 /*
  * This function draws a reg/int/variable in the scope. This is a very
  * simple device to draw as there are no inputs to connect so no need
@@ -479,7 +531,11 @@ static void draw_reg_in_scope(ivl_signal_t sig)
       const char *datatype_flag = ivl_signal_integer(sig) ? "/i" :
 			       ivl_signal_signed(sig)? "/s" : "";
       const char *local_flag = local_flag_str(sig);
+      const char *storage_flag = storage_flag_str(sig);
       int vector_dims = 1;
+
+      if (ivl_signal_dimensions(sig) > 0)
+	    note_array_signal_emitted_(sig);
 
       switch (ivl_signal_data_type(sig)) {
 	  case IVL_VT_BOOL:
@@ -497,6 +553,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    vector_dims = 0;
 	    break;
 	  case IVL_VT_CLASS:
+	  case IVL_VT_NO_TYPE:
 	    datatype_flag = "/obj";
 	    vector_dims = 0;
 	    break;
@@ -533,7 +590,8 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    ivl_type_t var_type = ivl_signal_net_type(sig);
 	    ivl_type_t element_type = ivl_type_element(var_type);
 
-	    fprintf(vvp_out, "v%p_0 .var/darray \"%s\", %u;%s\n", sig,
+	    fprintf(vvp_out, "v%p_0 .var/darray %s\"%s\", %u;%s\n", sig,
+		    storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    ivl_type_packed_width(element_type),
 		    ivl_signal_local(sig)? " Local signal" : "");
@@ -542,25 +600,40 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    ivl_type_t var_type = ivl_signal_net_type(sig);
 	    ivl_type_t element_type = ivl_type_element(var_type);
 
-	    fprintf(vvp_out, "v%p_0 .var/queue \"%s\", %u;%s\n", sig,
+	    fprintf(vvp_out, "v%p_0 .var/queue %s\"%s\", %u;%s\n", sig,
+		    storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    ivl_type_packed_width(element_type),
 		    ivl_signal_local(sig)? " Local signal" : "");
 
       } else if (ivl_signal_data_type(sig) == IVL_VT_STRING) {
-	    fprintf(vvp_out, "v%p_0 .var/str \"%s\";%s\n", sig,
+	    fprintf(vvp_out, "v%p_0 .var/str %s\"%s\";%s\n", sig,
+		    storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    ivl_signal_local(sig)? " Local signal" : "");
 
-      } else if (ivl_signal_data_type(sig) == IVL_VT_CLASS) {
-	    fprintf(vvp_out, "v%p_0 .var/cobj \"%s\";%s\n", sig,
-		    vvp_mangle_name(ivl_signal_basename(sig)),
-		    ivl_signal_local(sig)? " Local signal" : "");
+      } else if (ivl_signal_data_type(sig) == IVL_VT_CLASS
+	         || ivl_signal_data_type(sig) == IVL_VT_NO_TYPE) {
+	    ivl_type_t var_type = ivl_signal_net_type(sig);
+	    if (var_type && ivl_type_base(var_type) == IVL_VT_NO_TYPE
+		&& ivl_type_properties(var_type) > 0) {
+		  draw_class_in_scope(var_type);
+		  fprintf(vvp_out, "v%p_0 .var/cobj %s\"%s\", C%p;%s\n", sig,
+			  storage_flag,
+			  vvp_mangle_name(ivl_signal_basename(sig)),
+			  var_type,
+			  ivl_signal_local(sig)? " Local signal" : "");
+	    } else {
+		  fprintf(vvp_out, "v%p_0 .var/cobj %s\"%s\";%s\n", sig,
+			  storage_flag,
+			  vvp_mangle_name(ivl_signal_basename(sig)),
+			  ivl_signal_local(sig)? " Local signal" : "");
+	    }
 
       } else {
 
-	    fprintf(vvp_out, "v%p_0 .var%s %s\"%s\", %d %d;%s\n",
-		    sig, datatype_flag, local_flag,
+	    fprintf(vvp_out, "v%p_0 .var%s %s%s\"%s\", %d %d;%s\n",
+		    sig, datatype_flag, local_flag, storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb,
 		    ivl_signal_local(sig)? " Local signal" : "" );
       }
@@ -594,6 +667,9 @@ static void draw_net_in_scope(ivl_signal_t sig)
       const char *local_flag = local_flag_str(sig);
 
       unsigned iword;
+
+      if (ivl_signal_dimensions(sig) > 0)
+	    note_array_signal_emitted_(sig);
 
       switch (ivl_signal_data_type(sig)) {
 	  case IVL_VT_BOOL:
@@ -732,6 +808,37 @@ static void draw_net_in_scope(ivl_signal_t sig)
 				msb, lsb, driver,
 				nex_data->drivers_count,
 				strength_aware_flag?", strength-aware":"");
+	    }
+      }
+}
+
+void emit_deferred_array_decls(void)
+{
+      struct deferred_array_decl_s*cur;
+      ivl_scope_t current_scope = 0;
+
+      for (cur = deferred_array_decls ; cur ; cur = cur->next) {
+	    ivl_signal_t sig = cur->sig;
+	    ivl_scope_t scope;
+
+	    if (!(cur->needed && !cur->emitted))
+		  continue;
+	    if (!sig)
+		  continue;
+
+	    scope = ivl_signal_scope(sig);
+	    if (scope && scope != current_scope) {
+		  fprintf(vvp_out, "    .scope S_%p;\n", scope);
+		  current_scope = scope;
+	    }
+
+	    switch (ivl_signal_type(sig)) {
+		case IVL_SIT_REG:
+		  draw_reg_in_scope(sig);
+		  break;
+		default:
+		  draw_net_in_scope(sig);
+		  break;
 	    }
       }
 }
@@ -2042,6 +2149,8 @@ static void draw_lpm_ufunc(ivl_lpm_t net)
       const char*dly = draw_lpm_output_delay(net, dt);
 
       const char*type_string = "";
+      const char*mangled = vvp_mangle_id(ivl_scope_name(def));
+      note_td_reference(mangled);
       switch (dt) {
 	  case IVL_VT_REAL:
 		type_string = "/real";
@@ -2064,11 +2173,11 @@ static void draw_lpm_ufunc(ivl_lpm_t net)
       if (ivl_lpm_trigger(net)) {
 	    assert(ninp > 0);
 	    fprintf(vvp_out, "L_%p%s .ufunc/e TD_%s, %u, E_%p", net, dly,
-	            vvp_mangle_id(ivl_scope_name(def)),
+	            mangled,
 	            ivl_lpm_width(net), ivl_lpm_trigger(net));
       } else
 	    fprintf(vvp_out, "L_%p%s .ufunc%s TD_%s, %u", net, dly, type_string,
-	            vvp_mangle_id(ivl_scope_name(def)),
+	            mangled,
 	            ivl_lpm_width(net));
 
 	/* Print all the net signals that connect to the input of the
@@ -2364,12 +2473,16 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		case IVL_VT_CLASS:
 		case IVL_VT_DARRAY:
 		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE:
 		  snprintf(suffix, sizeof suffix, ".obj");
 		  break;
 		case IVL_VT_VOID:
 		  snprintf(suffix, sizeof suffix, ".void");
 		  break;
 		default:
+		  fprintf(stderr, "draw_scope: unexpected function type %d for %s.%s\n",
+			  (int)ivl_scope_func_type(net),
+			  ivl_scope_tname(net), ivl_scope_basename(net));
 		  assert(0);
 		  break;
 	    }

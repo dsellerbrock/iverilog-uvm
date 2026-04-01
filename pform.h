@@ -95,6 +95,8 @@ struct parmvalue_t {
       std::list<named_pexpr_t>*by_name;
 };
 
+extern void delete_parmvalue(struct parmvalue_t*parms);
+
 struct str_pair_t { ivl_drive_t str0, str1; };
 
   /* Use this function to transform the parted form of the attribute
@@ -181,9 +183,13 @@ extern void pform_class_property(const struct vlltype&loc,
 				 std::list<decl_assignment_t*>*decls);
 extern void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net);
 extern void pform_set_constructor_return(PFunction*net);
+extern bool pform_reenter_class_scope(const struct vlltype&loc, const char*name);
+extern void pform_leave_class_scope(const struct vlltype&loc);
 
 extern void pform_end_class_declaration(const struct vlltype&loc);
 extern bool pform_in_class();
+extern void pform_bind_extern_func(PFunction*func);
+extern void pform_bind_extern_task(PTask*task);
 
 extern void pform_make_udp(const struct vlltype&loc, perm_string name,
 			   std::list<pform_ident_t>*parms,
@@ -220,8 +226,13 @@ extern PExpr* pform_package_ident(const struct vlltype&loc,
 extern void pform_start_modport_item(const struct vlltype&loc, const char*name);
 extern void pform_end_modport_item(const struct vlltype&loc);
 extern void pform_add_modport_port(const struct vlltype&loc,
-	                           NetNet::PortType port_type,
-	                           perm_string name, PExpr*expr);
+				   NetNet::PortType port_type,
+				   perm_string name, PExpr*expr);
+extern void pform_start_clocking_block(const struct vlltype&loc,
+				       const char*name,
+				       PEventStatement*event);
+extern void pform_add_clocking_signal(const struct vlltype&loc, perm_string name);
+extern void pform_end_clocking_block(const struct vlltype&loc);
 
 /*
  * This creates an identifier aware of names that may have been
@@ -247,6 +258,7 @@ extern void pform_pop_scope();
  * Peek at the current (most recently active) scope.
  */
 extern LexicalScope* pform_peek_scope();
+extern void pform_push_existing_scope(LexicalScope*scope);
 
 extern PClass* pform_push_class_scope(const struct vlltype&loc, perm_string name);
 
@@ -257,9 +269,13 @@ extern PPackage* pform_push_package_scope(const struct vlltype&loc, perm_string 
 
 extern PTask*pform_push_task_scope(const struct vlltype&loc, const char*name,
 				   LexicalScope::lifetime_t lifetime);
+extern PTask*pform_push_task_scope_unbound(const struct vlltype&loc, const char*name,
+					   LexicalScope::lifetime_t lifetime);
 
 extern PFunction*pform_push_function_scope(const struct vlltype&loc, const char*name,
 					   LexicalScope::lifetime_t lifetime);
+extern PFunction*pform_push_function_scope_unbound(const struct vlltype&loc, const char*name,
+						   LexicalScope::lifetime_t lifetime);
 
 extern PBlock*pform_push_block_scope(const struct vlltype&loc, const char*name,
 				     PBlock::BL_TYPE tt);
@@ -323,15 +339,18 @@ extern void pform_set_type_referenced(const struct vlltype&loc, const char*name)
  */
 extern PECallFunction* pform_make_call_function(const struct vlltype&loc,
 						const pform_name_t&name,
-						const std::list<named_pexpr_t> &parms);
+						const std::list<named_pexpr_t> &parms,
+						struct parmvalue_t*type_args = 0);
 extern PCallTask* pform_make_call_task(const struct vlltype&loc,
 				       const pform_name_t&name,
-				       const std::list<named_pexpr_t> &parms);
+				       const std::list<named_pexpr_t> &parms,
+				       struct parmvalue_t*type_args = 0);
 
 extern void pform_make_foreach_declarations(const struct vlltype&loc,
+					    const pform_name_t*array_name,
 					    std::list<perm_string>*loop_vars);
 extern PForeach* pform_make_foreach(const struct vlltype&loc,
-				    char*ident,
+				    const pform_name_t&ident,
 				    std::list<perm_string>*loop_vars,
 				    Statement*stmt);
 
@@ -360,6 +379,7 @@ extern void pform_make_var(const struct vlltype&loc,
 			   data_type_t*data_type,
 			   std::list<named_pexpr_t>*attr = 0,
 			   bool is_const = false);
+extern void pform_set_var_lifetime(ivl_lifetime_t lifetime);
 
 extern void pform_make_var_init(const struct vlltype&li,
 				const pform_ident_t&name,
