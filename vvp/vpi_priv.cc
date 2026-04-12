@@ -547,6 +547,14 @@ __vpiScope*vpip_timescale_scope_from_handle(vpiHandle obj)
 	    return task->scope;
 
 	  case vpiModule:
+	  case vpiPackage:
+	  case vpiTask:
+	  case vpiFunction:
+	  case vpiNamedBegin:
+	  case vpiNamedFork:
+	  case vpiGenScope:
+	  case vpiClassTypespec:
+	    // All of these are __vpiScope subclasses; cast and return directly.
 	    return dynamic_cast<__vpiScope*>(obj);
 
 	  case vpiNet:
@@ -574,9 +582,8 @@ __vpiScope*vpip_timescale_scope_from_handle(vpiHandle obj)
 	    return dynamic_cast<__vpiScope*>(obj->vpi_handle(vpiScope));
 
 	  default:
-	    fprintf(stderr, "ERROR: vpip_scope_from_handle called with "
-		    "object handle type=%d\n", obj->get_type_code());
-	    assert(0);
+	    // Non-scope handle (e.g. class instance, port). Return null so
+	    // callers fall back to the default time precision/units.
 	    return 0;
       }
 }

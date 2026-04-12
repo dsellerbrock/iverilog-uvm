@@ -148,8 +148,48 @@ static void elaborate_function_outside_caller_fork_(Design*des,
 static NetScope* find_lazy_function_scope_(Design*des, NetScope*scope,
 					   const pform_scoped_name_t&path)
 {
-      if (!des || !scope || path.package || path.name.empty())
+      if (!des || !scope || path.name.empty())
 	    return 0;
+
+      // Handle package-qualified calls (two forms):
+      //
+      // Form 1: path.package is set (pkg::fn parsed when pkg IS registered).
+      // Form 2: path.name = {pkg, fn} where pkg IS a package name, arising when
+      //   "pkg::fn()" is parsed inside the same package body before endpackage
+      //   causes the package to be registered in packages_by_name. The lexer then
+      //   produces IDENTIFIER::IDENTIFIER, creating a two-component hierarchical
+      //   path rather than a proper package-qualified path.
+      //
+      // In both cases, symbol_search fails because the package is not in the
+      // normal scope hierarchy. We use find_function on the package scope to
+      // trigger lazy elaboration and get the function scope.
+      auto try_pkg_func_lookup_ = [&](NetScope*pkg_scope,
+				      const pform_name_t&fn_name) -> NetScope* {
+	    if (NetFuncDef*fdef = des->find_function(pkg_scope, fn_name)) {
+		  NetScope*func_scope = fdef->scope();
+		  if (func_scope && func_scope->type() == NetScope::FUNC)
+			return func_scope;
+	    }
+	    return 0;
+      };
+
+      if (path.package) {
+	    NetScope*pkg_scope = des->find_package(path.package->pscope_name());
+	    if (!pkg_scope)
+		  return 0;
+	    return try_pkg_func_lookup_(pkg_scope, path.name);
+      }
+
+      // Form 2: two-component name where first component might be a package name.
+      if (path.name.size() == 2) {
+	    perm_string possible_pkg = peek_head_name(path.name);
+	    if (NetScope*pkg_scope = des->find_package(possible_pkg)) {
+		  pform_name_t fn_name;
+		  fn_name.push_back(path.name.back());
+		  if (NetScope*result = try_pkg_func_lookup_(pkg_scope, fn_name))
+			return result;
+	    }
+      }
 
       (void) des->find_function(scope, path.name);
 
@@ -2275,8 +2315,7 @@ classify_compile_progress_unresolved_func_stub_(const pform_scoped_name_t&path)
 
       perm_string func_name = peek_tail_name(path);
 
-      if (func_name == perm_string::literal("m_uvm_string_queue_join")
-		  || func_name == perm_string::literal("get_full_name")
+      if (func_name == perm_string::literal("get_full_name")
 		  || func_name == perm_string::literal("get_name")
 		  || func_name == perm_string::literal("get_type_name")
 		  || func_name == perm_string::literal("get_root_sequence_name"))
