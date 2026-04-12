@@ -1402,6 +1402,17 @@ static void flush_pending_specialized_method_seeds_(Design*des,
 		  continue;
 
 	    seed_specialized_method_bodies_(des, cls, const_cast<PClass*>(pclass));
+
+	    // If the class has static variable initializers (e.g.,
+	    // `local static bit m__initialized = __deferred_init()` in
+	    // uvm_registry_common), the seed path alone is not enough.
+	    // netclass_t::elaborate() must run to generate the $init thread
+	    // that calls those initializers at simulation start.
+	    // The seed already elaborated the named methods (elab_stage guard
+	    // prevents double-elaboration), so this only adds the missing
+	    // initialize_static $init thread and any un-seeded methods.
+	    if (!pclass->type->initialize_static.empty() && !cls->body_elaborated())
+		  cls->elaborate(des, const_cast<PClass*>(pclass));
       }
 
       pending.clear();

@@ -1,10 +1,52 @@
-# The ICARUS Verilog Compilation System
+# The ICARUS Verilog Compilation System — UVM Experimental Fork
 
 Copyright 2000-2026 Stephen Williams
 
-> Fork notice: this fork includes heavy AI-assisted SystemVerilog/UVM
-> enablement work. Treat recent changes as experimental until they are verified
-> by focused regressions and runtime validation. Review code skeptically.
+---
+
+> ## ⚠ EXPERIMENTAL — DO NOT USE FOR SERIOUS WORK ⚠
+>
+> **This is a toy/research fork. All code is guilty until proven innocent.**
+> It must not be used for production, tapeout, or any work where correctness
+> matters until the changes have been:
+>
+> - Thoroughly tested against a broad regression suite
+> - Reviewed and accepted into an official upstream release
+> - Independently verified by the wider Icarus Verilog community
+>
+> **What this fork does:** Adds experimental, AI-assisted SystemVerilog and UVM
+> support. Many constructs are stubbed, fall back silently, or produce incorrect
+> results in edge cases. The changes have not been through normal upstream
+> code review.
+>
+> **Use the official Icarus Verilog** at https://github.com/steveicarus/iverilog
+> for any real work. This fork is for exploration and upstream contribution
+> purposes only.
+
+---
+
+## UVM Support (Experimental)
+
+This fork bundles the [Accellera UVM Core](https://github.com/accellera-official/uvm-core)
+library as a git submodule in `uvm-core/`. To use it after cloning:
+
+```bash
+git submodule update --init
+```
+
+Quick start — compile and run a basic UVM testbench:
+
+```bash
+# Build iverilog first (see below)
+./install/bin/iverilog -g2012 \
+  -I uvm-core/src \
+  -o sim.vvp \
+  uvm-core/src/uvm_pkg.sv your_tb.sv
+
+./install/bin/vvp sim.vvp
+```
+
+---
 
 <details>
 <summary><h2>Table of Contents</h2></summary>
