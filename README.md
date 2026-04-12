@@ -2,6 +2,10 @@
 
 Copyright 2000-2026 Stephen Williams
 
+> Fork notice: this fork includes heavy AI-assisted SystemVerilog/UVM
+> enablement work. Treat recent changes as experimental until they are verified
+> by focused regressions and runtime validation. Review code skeptically.
+
 <details>
 <summary><h2>Table of Contents</h2></summary>
 
