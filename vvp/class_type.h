@@ -81,6 +81,8 @@ class class_type : public __vpiHandle {
 
     public: // VPI related methods
       int get_type_code(void) const override;
+      char* vpi_get_str(int code) override;
+      vpiHandle vpi_handle(int code) override;
 
     private:
       std::string class_name_;

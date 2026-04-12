@@ -893,6 +893,7 @@ class __vpiCobjectVar : public __vpiBaseVar {
       int get_type_code(void) const override;
       int vpi_get(int code) override;
       void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
 };
 
@@ -1022,7 +1023,7 @@ vpiHandle vpip_make_null_const();
 vpiHandle vpip_make_vthr_word(unsigned base, const char*type);
 vpiHandle vpip_make_vthr_str_stack(unsigned depth);
 vpiHandle vpip_make_vthr_vec4_stack(unsigned depth, bool signed_flag, unsigned wid);
-vpiHandle vpip_make_vthr_obj_stack(unsigned depth);
+vpiHandle vpip_make_vthr_obj_stack(unsigned depth, char*type = 0);
 
 vpiHandle vpip_make_vthr_A(char*label, unsigned index);
 vpiHandle vpip_make_vthr_A(char*label, char*symbol);

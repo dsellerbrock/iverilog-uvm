@@ -89,6 +89,7 @@ template <class TYPE> void vvp_darray_atom<TYPE>::set_word(unsigned adr, const v
       TYPE tmp;
       vector4_to_value(value, tmp, true, false);
       array_[adr] = tmp;
+      touch();
 }
 
 template <class TYPE> void vvp_darray_atom<TYPE>::get_word(unsigned adr, vvp_vector4_t&value)
@@ -115,6 +116,7 @@ template <class TYPE> void vvp_darray_atom<TYPE>::shallow_copy(const vvp_object*
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
 	    array_[idx] = that->array_[idx];
+      touch();
 }
 
 template <class TYPE> vvp_object* vvp_darray_atom<TYPE>::duplicate(void) const
@@ -170,6 +172,7 @@ void vvp_darray_vec4::set_word(unsigned adr, const vvp_vector4_t&value)
       if (adr >= array_.size()) return;
       assert(value.size() == word_wid_);
       array_[adr] = value;
+      touch();
 }
 
 void vvp_darray_vec4::get_word(unsigned adr, vvp_vector4_t&value)
@@ -194,6 +197,7 @@ void vvp_darray_vec4::shallow_copy(const vvp_object*obj)
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
 	    array_[idx] = that->array_[idx];
+      touch();
 }
 
 vvp_object* vvp_darray_vec4::duplicate(void) const
@@ -239,6 +243,7 @@ void vvp_darray_vec2::set_word(unsigned adr, const vvp_vector4_t&value)
       if (adr >= array_.size()) return;
       assert(value.size() == word_wid_);
       array_[adr] = value;
+      touch();
 }
 
 void vvp_darray_vec2::get_word(unsigned adr, vvp_vector4_t&value)
@@ -266,6 +271,7 @@ void vvp_darray_vec2::shallow_copy(const vvp_object*obj)
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
 	    array_[idx] = that->array_[idx];
+      touch();
 }
 
 vvp_vector4_t vvp_darray_vec2::get_bitstream(bool)
@@ -300,6 +306,7 @@ void vvp_darray_object::set_word(unsigned adr, const vvp_object_t&value)
       if (adr >= array_.size())
 	    return;
       array_[adr] = value;
+      touch();
 }
 
 void vvp_darray_object::get_word(unsigned adr, vvp_object_t&value)
@@ -320,6 +327,17 @@ void vvp_darray_object::shallow_copy(const vvp_object*obj)
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
 	    array_[idx] = that->array_[idx];
+      touch();
+}
+
+vvp_object* vvp_darray_object::duplicate(void) const
+{
+      vvp_darray_object*that = new vvp_darray_object(array_.size());
+
+      for (size_t idx = 0 ; idx < array_.size() ; idx += 1)
+            that->array_[idx] = array_[idx];
+
+      return that;
 }
 
 vvp_darray_real::~vvp_darray_real()
@@ -336,6 +354,7 @@ void vvp_darray_real::set_word(unsigned adr, double value)
       if (adr >= array_.size())
 	    return;
       array_[adr] = value;
+      touch();
 }
 
 void vvp_darray_real::get_word(unsigned adr, double&value)
@@ -356,6 +375,7 @@ void vvp_darray_real::shallow_copy(const vvp_object*obj)
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
 	    array_[idx] = that->array_[idx];
+      touch();
 }
 
 vvp_object* vvp_darray_real::duplicate(void) const
@@ -408,6 +428,7 @@ void vvp_darray_string::set_word(unsigned adr, const string&value)
       if (adr >= array_.size())
 	    return;
       array_[adr] = value;
+      touch();
 }
 
 void vvp_darray_string::get_word(unsigned adr, string&value)
@@ -428,6 +449,7 @@ void vvp_darray_string::shallow_copy(const vvp_object*obj)
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
 	    array_[idx] = that->array_[idx];
+      touch();
 }
 
 vvp_object* vvp_darray_string::duplicate(void) const
@@ -599,7 +621,7 @@ void vvp_queue_real::set_word_max(unsigned adr, double value, unsigned max_size)
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value);
+		  queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: assigning to queue<real>[" << adr << "] is"
@@ -612,7 +634,7 @@ void vvp_queue_real::set_word_max(unsigned adr, double value, unsigned max_size)
 void vvp_queue_real::set_word(unsigned adr, double value)
 {
       if (adr < queue.size())
-	    queue[adr] = value;
+	    queue[adr] = value, touch();
       else
 	    cerr << get_fileline()
 	         << "Warning: assigning to queue<real>[" << adr << "] is outside "
@@ -639,7 +661,7 @@ void vvp_queue_real::insert(unsigned idx, double value, unsigned max_size)
 	// Inserting at the end
       else if (idx == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value);
+		  queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: inserting to queue<real>[" << idx << "] is"
@@ -654,13 +676,14 @@ void vvp_queue_real::insert(unsigned idx, double value, unsigned max_size)
 		  queue.pop_back();
 	    }
 	    queue.insert(queue.begin()+idx, value);
+            touch();
       }
 }
 
 void vvp_queue_real::push_back(double value, unsigned max_size)
 {
       if (!max_size || (queue.size() < max_size))
-	    queue.push_back(value);
+	    queue.push_back(value), touch();
       else
 	    cerr << get_fileline()
 	         << "Warning: push_back(" << value
@@ -678,19 +701,21 @@ void vvp_queue_real::push_front(double value, unsigned max_size)
 	    queue.pop_back();
       }
       queue.push_front(value);
+      touch();
 }
 
 void vvp_queue_real::erase(unsigned idx)
 {
       assert(queue.size() > idx);
       queue.erase(queue.begin()+idx);
+      touch();
 }
 
 void vvp_queue_real::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
       if (queue.size() > idx)
-	    queue.resize(idx);
+	    queue.resize(idx), touch();
 }
 
 void vvp_queue_string::copy_elems(vvp_object_t src, unsigned max_size)
@@ -714,7 +739,7 @@ void vvp_queue_string::set_word_max(unsigned adr, const string&value, unsigned m
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value);
+		  queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: assigning to queue<string>[" << adr << "] is"
@@ -727,7 +752,7 @@ void vvp_queue_string::set_word_max(unsigned adr, const string&value, unsigned m
 void vvp_queue_string::set_word(unsigned adr, const string&value)
 {
       if (adr < queue.size())
-	    queue[adr] = value;
+	    queue[adr] = value, touch();
       else
 	    cerr << get_fileline()
 	         << "Warning: assigning to queue<string>[" << adr << "] is outside "
@@ -754,7 +779,7 @@ void vvp_queue_string::insert(unsigned idx, const string&value, unsigned max_siz
 	// Inserting at the end
       else if (idx == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value);
+		  queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: inserting to queue<string>[" << idx << "] is"
@@ -769,13 +794,14 @@ void vvp_queue_string::insert(unsigned idx, const string&value, unsigned max_siz
 		  queue.pop_back();
 	    }
 	    queue.insert(queue.begin()+idx, value);
+            touch();
       }
 }
 
 void vvp_queue_string::push_back(const string&value, unsigned max_size)
 {
       if (!max_size || (queue.size() < max_size))
-	    queue.push_back(value);
+	    queue.push_back(value), touch();
       else
 	    cerr << get_fileline()
 	         << "Warning: push_back(\"" << value
@@ -793,19 +819,21 @@ void vvp_queue_string::push_front(const string&value, unsigned max_size)
 	    queue.pop_back();
       }
       queue.push_front(value);
+      touch();
 }
 
 void vvp_queue_string::erase(unsigned idx)
 {
       assert(queue.size() > idx);
       queue.erase(queue.begin()+idx);
+      touch();
 }
 
 void vvp_queue_string::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
       if (queue.size() > idx)
-	    queue.resize(idx);
+	    queue.resize(idx), touch();
 }
 
 void vvp_queue_vec4::copy_elems(vvp_object_t src, unsigned max_size)
@@ -829,7 +857,7 @@ void vvp_queue_vec4::set_word_max(unsigned adr, const vvp_vector4_t&value, unsig
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value);
+		  queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: assigning to queue<vector>[" << adr << "] is"
@@ -842,7 +870,7 @@ void vvp_queue_vec4::set_word_max(unsigned adr, const vvp_vector4_t&value, unsig
 void vvp_queue_vec4::set_word(unsigned adr, const vvp_vector4_t&value)
 {
       if (adr < queue.size())
-	    queue[adr] = value;
+	    queue[adr] = value, touch();
       else
 	    cerr << get_fileline()
 	         << "Warning: assigning to queue<vector>[" << adr << "] is outside "
@@ -869,7 +897,7 @@ void vvp_queue_vec4::insert(unsigned idx, const vvp_vector4_t&value, unsigned ma
 	// Inserting at the end
       else if (idx == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value);
+		  queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: inserting to queue<vector[" << value.size()
@@ -884,13 +912,14 @@ void vvp_queue_vec4::insert(unsigned idx, const vvp_vector4_t&value, unsigned ma
 		  queue.pop_back();
 	    }
 	    queue.insert(queue.begin()+idx, value);
+            touch();
       }
 }
 
 void vvp_queue_vec4::push_back(const vvp_vector4_t&value, unsigned max_size)
 {
       if (!max_size || (queue.size() < max_size))
-	    queue.push_back(value);
+	    queue.push_back(value), touch();
       else
 	    cerr << get_fileline()
 	         << "Warning: push_back(" << value
@@ -908,19 +937,21 @@ void vvp_queue_vec4::push_front(const vvp_vector4_t&value, unsigned max_size)
 	    queue.pop_back();
       }
       queue.push_front(value);
+      touch();
 }
 
 void vvp_queue_vec4::erase(unsigned idx)
 {
       assert(queue.size() > idx);
       queue.erase(queue.begin()+idx);
+      touch();
 }
 
 void vvp_queue_vec4::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
       if (queue.size() > idx)
-	    queue.resize(idx);
+	    queue.resize(idx), touch();
 }
 
 void vvp_queue_object::copy_elems(vvp_object_t src, unsigned max_size)
@@ -944,7 +975,7 @@ void vvp_queue_object::set_word_max(unsigned adr, const vvp_object_t&value, unsi
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value);
+		  queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: assigning to queue<object>[" << adr << "] is"
@@ -958,11 +989,13 @@ void vvp_queue_object::set_word(unsigned adr, const vvp_object_t&value)
 {
       if (adr < queue.size()) {
 	    queue[adr] = value;
+            touch();
 	    return;
       }
 
       if (adr == queue.size()) {
 	    queue.push_back(value);
+            touch();
 	    return;
       }
 
@@ -970,6 +1003,7 @@ void vvp_queue_object::set_word(unsigned adr, const vvp_object_t&value)
       // by growing and null-filling intermediate elements.
       queue.resize(adr+1);
       queue[adr] = value;
+      touch();
 }
 
 void vvp_queue_object::get_word(unsigned adr, vvp_object_t&value)
@@ -989,7 +1023,7 @@ void vvp_queue_object::insert(unsigned idx, const vvp_object_t&value, unsigned m
 	         << "). Object was not added." << endl;
       } else if (idx == queue.size()) {
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value);
+		  queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: inserting to queue<object>[" << idx << "] is"
@@ -1004,13 +1038,14 @@ void vvp_queue_object::insert(unsigned idx, const vvp_object_t&value, unsigned m
 		  queue.pop_back();
 	    }
 	    queue.insert(queue.begin()+idx, value);
+            touch();
       }
 }
 
 void vvp_queue_object::push_back(const vvp_object_t&value, unsigned max_size)
 {
       if (!max_size || (queue.size() < max_size))
-	    queue.push_back(value);
+	    queue.push_back(value), touch();
       else
 	    cerr << get_fileline()
 	         << "Warning: push_back(<object>) skipped for already full bounded"
@@ -1026,17 +1061,19 @@ void vvp_queue_object::push_front(const vvp_object_t&value, unsigned max_size)
 	    queue.pop_back();
       }
       queue.push_front(value);
+      touch();
 }
 
 void vvp_queue_object::erase(unsigned idx)
 {
       assert(queue.size() > idx);
       queue.erase(queue.begin()+idx);
+      touch();
 }
 
 void vvp_queue_object::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
       if (queue.size() > idx)
-	    queue.resize(idx);
+	    queue.resize(idx), touch();
 }

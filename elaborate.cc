@@ -214,16 +214,18 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 	    }
 
 	    class_type = resolve_scoped_class_type_name_task_(des, comp_scope, comp.name);
+            if ((!class_type || !class_type->class_scope()) && comp_scope)
+                  class_type = ensure_visible_class_type(des, comp_scope, comp.name);
 	    if (!class_type)
 		  return nullptr;
 	    if (first_comp && leading_type_args) {
 		  NetScope*spec_scope = comp_scope;
-		  if (spec_scope && spec_scope->get_class_scope())
-			spec_scope = const_cast<NetScope*>(spec_scope->get_class_scope());
+		  // Keep the current lexical scope so block-local typedefs used in
+		  // type arguments remain visible during specialization.
 		  class_type = elaborate_specialized_class_type(des, spec_scope,
-							       class_type,
-							       leading_type_args,
-							       false);
+						       class_type,
+						       leading_type_args,
+						       false);
 	    }
 
 	    first_comp = false;
@@ -3737,19 +3739,18 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 
       if (nscope) {
 	      // Handle any variable initialization statements in this scope.
-	      // For automatic scopes these statements need to be executed
-	      // each time the block is entered, so add them to the main
-	      // block. For static scopes, put them in a separate process
-	      // that will be executed at the start of simulation.
+	      // For automatic scopes, stage a fresh activation frame before
+	      // any block-entry initializers run, then free it after the
+	      // block finishes. This covers automatic named begin/fork blocks
+	      // in the same way automatic task calls use %alloc/%free around
+	      // input setup and execution.
 	    if (nscope->is_auto()) {
-		  NetBlock*init_block = cur;
-		  if (type != NetBlock::SEQU) {
-			/* Automatic declarations in fork/join blocks are block-entry
-			 * setup, not parallel child statements. Execute their
-			 * initializers before spawning the block threads. */
-			prefix = new NetBlock(NetBlock::SEQU, 0);
-			init_block = prefix;
-		  }
+		  prefix = new NetBlock(NetBlock::SEQU, 0);
+		  NetAlloc*ap = new NetAlloc(nscope);
+		  ap->set_line(*this);
+		  prefix->append(ap);
+
+		  NetBlock*init_block = prefix;
 		  for (unsigned idx = 0; idx < var_inits.size(); idx += 1) {
 			NetProc*tmp = var_inits[idx]->elaborate(des, nscope);
 			if (tmp) init_block->append(tmp);
@@ -3833,6 +3834,9 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 		  prefix->append(cur);
 	    else
 		  delete cur;
+	    NetFree*fp = new NetFree(nscope);
+	    fp->set_line(*this);
+	    prefix->append(fp);
 	    return prefix;
       }
       return cur;
@@ -4930,8 +4934,20 @@ static bool is_uvm_compile_progress_task_stub_candidate_(const pform_name_t&path
 }
 
 NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
-                                      bool add_this_flag) const
+				      bool add_this_flag) const
 {
+      static int trace_class_method = -1;
+      auto scope_text = [](const NetScope*use_scope) -> std::string {
+            if (!use_scope)
+                  return "<null>";
+            std::ostringstream out;
+            out << scope_path(use_scope);
+            return out.str();
+      };
+      if (trace_class_method < 0) {
+            const char*env = getenv("IVL_CLASS_METHOD_TRACE");
+            trace_class_method = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
       NetScope*search_scope = scope;
       if (package_) {
 	    search_scope = des->find_package(package_->pscope_name());
@@ -5220,6 +5236,11 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       }
 
       if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(obj_type)) {
+	    if (!class_type->scope_ready()) {
+		  if (netclass_t*visible_class = ensure_visible_class_type(des, scope,
+								       class_type->get_name()))
+			class_type = visible_class;
+	    }
 	    perm_string cname = class_type->get_name();
 	    if (cname == perm_string::literal("process")
 		&& (method_name == perm_string::literal("kill")
@@ -5258,6 +5279,17 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  return noop;
 	    }
 	    NetScope*task = class_type->resolve_method_call_scope(des, method_name);
+	    if (trace_class_method) {
+                  cerr << get_fileline() << ": trace task-method "
+                       << "class=" << class_type->get_name()
+                       << " class_ptr=" << (const void*)class_type
+                       << " scope_ready=" << class_type->scope_ready()
+                       << " class_scope_ptr=" << (const void*)class_type->class_scope()
+                       << " class_scope=" << scope_text(class_type->class_scope())
+                       << " method=" << method_name
+                       << " found=" << scope_text(task)
+                       << endl;
+            }
 	    if (task == 0) {
 		  pform_name_t full_path = use_path;
 		  full_path.push_back(name_component_t(method_name));
@@ -6753,7 +6785,13 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
       wait->add_event(wait_event);
       wait->set_line(*this);
 
-      NexusSet*wait_set = expr->nex_input();
+	      NexusSet*wait_set = expr->nex_input();
+              if (NetNet*this_net = find_implicit_this_handle(des, scope)) {
+                    if (this_net->pin_count() > 0) {
+                          if (Nexus*nx = const_cast<Nexus*>(this_net->pin(0).nexus()))
+                                wait_set->add(nx, 0, nx->vector_width());
+                    }
+              }
 	      if (wait_set == 0) {
 		    if (gn_system_verilog()) {
 			  if (!warned_wait_no_event_sources) {
@@ -7783,6 +7821,16 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
       if (statement_ == 0) {
 	    st = new NetBlock(NetBlock::SEQU, 0);
       } else {
+	    if (const char*env = getenv("IVL_CTOR_BLEND_TRACE")) {
+		  if (*env && strcmp(env, "0") != 0
+		      && scope->basename() == perm_string::literal("new")
+		      && scope->parent() && scope->parent()->basename() == perm_string::literal("uvm_default_report_server")) {
+			cerr << get_fileline()
+			     << ": debug: ctor-dump before elaborate scope=" << scope_path(scope)
+			     << endl;
+			statement_->dump(cerr, 2);
+		  }
+	    }
 	    st = statement_->elaborate(des, scope);
 	    if (st == 0) {
 		  cerr << statement_->get_fileline() << ": error: Unable to elaborate "
@@ -8772,6 +8820,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 	    NetScope*scope = class_scope_->child( hname_t(cur->first) );
 	    ivl_assert(*cur->second, scope);
+	    if (const char*env = getenv("IVL_CTOR_BLEND_TRACE")) {
+		  if (*env && strcmp(env, "0") != 0
+		      && cur->first == perm_string::literal("new")
+		      && pclass->type->name == perm_string::literal("uvm_default_report_server")) {
+			cerr << cur->second->get_fileline()
+			     << ": debug: ctor-elab class=uvm_default_report_server"
+			     << " func_ptr=" << (const void*)cur->second
+			     << " scope_func_ptr=" << (const void*)scope->func_pform()
+			     << " stmt_func=" << (cur->second->get_statement() ? 1 : 0)
+			     << " stmt_scope=" << (scope->func_pform() && scope->func_pform()->get_statement() ? 1 : 0)
+			     << endl;
+		  }
+	    }
 	    cur->second->elaborate(des, scope);
       }
 

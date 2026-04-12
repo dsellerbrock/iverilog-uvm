@@ -24,6 +24,8 @@
  */
 
 # include  "vpi_priv.h"
+# include  "compile.h"
+# include  "class_type.h"
 # include  "vvp_cobject.h"
 # include  "vthread.h"
 # include  "config.h"
@@ -247,13 +249,15 @@ class __vpiVThrStrStack : public __vpiHandle {
 
 class __vpiVThrObjStack : public __vpiHandle {
     public:
-      explicit __vpiVThrObjStack(unsigned depth);
+      explicit __vpiVThrObjStack(unsigned depth, char*type = 0);
       int get_type_code(void) const override;
       int vpi_get(int code) override;
       void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
     private:
       unsigned depth_;
+      class_type*declared_type_;
 };
 
 __vpiVThrStrStack::__vpiVThrStrStack(unsigned d)
@@ -261,9 +265,11 @@ __vpiVThrStrStack::__vpiVThrStrStack(unsigned d)
 {
 }
 
-__vpiVThrObjStack::__vpiVThrObjStack(unsigned d)
-: depth_(d)
+__vpiVThrObjStack::__vpiVThrObjStack(unsigned d, char*type)
+: depth_(d), declared_type_(0)
 {
+      if (type)
+            compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&declared_type_), type);
 }
 
 int __vpiVThrStrStack::get_type_code(void) const
@@ -391,6 +397,27 @@ void __vpiVThrObjStack::vpi_get_value(p_vpi_value vp)
 		      "by thread object stack handle\n", (int)vp->format);
 	    vp->format = vpiSuppressVal;
 	    break;
+      }
+}
+
+vpiHandle __vpiVThrObjStack::vpi_handle(int code)
+{
+      vvp_object_t val;
+
+      if (vpip_current_vthread)
+            val = vthread_get_obj_stack(vpip_current_vthread, depth_);
+
+      switch (code) {
+          case vpiClassTypespec:
+            return declared_type_;
+
+          case vpiClassDefn:
+            if (vvp_cobject*cobj = val.peek<vvp_cobject>())
+                  return const_cast<class_type*>(cobj->get_defn());
+            return 0;
+
+          default:
+            return 0;
       }
 }
 
@@ -896,9 +923,9 @@ vpiHandle vpip_make_vthr_str_stack(unsigned depth)
       return obj;
 }
 
-vpiHandle vpip_make_vthr_obj_stack(unsigned depth)
+vpiHandle vpip_make_vthr_obj_stack(unsigned depth, char*type)
 {
-      __vpiVThrObjStack*obj = new __vpiVThrObjStack(depth);
+      __vpiVThrObjStack*obj = new __vpiVThrObjStack(depth, type);
       return obj;
 }
 

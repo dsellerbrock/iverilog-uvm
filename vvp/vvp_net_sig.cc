@@ -23,7 +23,9 @@
 # include  "statistics.h"
 # include  "vthread.h"
 # include  "vpi_priv.h"
+# include  "vvp_assoc.h"
 # include  "vvp_cobject.h"
+# include  "vvp_darray.h"
 # include  <vector>
 # include  <cassert>
 #ifdef CHECK_WITH_VALGRIND
@@ -35,27 +37,97 @@
 
 using namespace std;
 
+vvp_object_t vvp_fun_signal_object::make_default_object() const
+{
+      switch (default_object_kind()) {
+          case INIT_OBJ_QUEUE_REAL:
+            return vvp_object_t(new vvp_queue_real);
+          case INIT_OBJ_QUEUE_STRING:
+            return vvp_object_t(new vvp_queue_string);
+          case INIT_OBJ_QUEUE_VEC4:
+            return vvp_object_t(new vvp_queue_vec4);
+          case INIT_OBJ_QUEUE_OBJECT:
+            return vvp_object_t(new vvp_queue_object);
+          case INIT_OBJ_ASSOC_REAL:
+            return vvp_object_t(new vvp_assoc_real);
+          case INIT_OBJ_ASSOC_STRING:
+            return vvp_object_t(new vvp_assoc_string);
+          case INIT_OBJ_ASSOC_VEC4:
+            return vvp_object_t(new vvp_assoc_vec4);
+          case INIT_OBJ_ASSOC_OBJECT:
+            return vvp_object_t(new vvp_assoc_object);
+          case INIT_OBJ_NONE:
+          default:
+            return vvp_object_t();
+      }
+}
+
 static vvp_context_t recover_automatic_recv_context_(vvp_context_t context,
+                                                     __vpiScope*scope,
                                                      const char*where)
 {
-      static bool warned = false;
+      static bool warned_missing = false;
+      static bool warned_scoped = false;
 
-      if (context)
-            return context;
-
-      context = vthread_get_wt_context();
-      if (!context)
-            context = vthread_get_rd_context();
-
-      if (!warned && context) {
+      vvp_context_t resolved = vthread_recover_context_for_scope(context, scope);
+      if (!warned_missing && !context && resolved) {
             fprintf(stderr,
                     "Warning: recovered missing automatic signal context during %s"
                     " (further similar warnings suppressed)\n",
                     where ? where : "<unknown>");
-            warned = true;
+            warned_missing = true;
+      }
+      if (!warned_scoped && context && resolved && context != resolved) {
+            fprintf(stderr,
+                    "Warning: repaired automatic signal context scope mismatch during %s"
+                    " (further similar warnings suppressed)\n",
+                    where ? where : "<unknown>");
+            warned_scoped = true;
       }
 
-      return context;
+      return resolved;
+}
+
+static bool recv_object_trace_scope_match_(const char*scope_name)
+{
+      static int enabled = -1;
+      static string match_text;
+
+      if (enabled < 0) {
+            const char*env = getenv("IVL_RECV_OBJ_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+            if (enabled && env
+                && strcmp(env, "1") != 0 && strcmp(env, "ALL") != 0
+                && strcmp(env, "*") != 0)
+                  match_text = env;
+      }
+
+      if (!enabled)
+            return false;
+      if (match_text.empty())
+            return true;
+      return scope_name && strstr(scope_name, match_text.c_str());
+}
+
+static bool load_str_trace_scope_match_(const char*scope_name)
+{
+      static int enabled = -1;
+      static string match_text;
+
+      if (enabled < 0) {
+            const char*env = getenv("IVL_LOAD_STR_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+            if (enabled && env
+                && strcmp(env, "1") != 0 && strcmp(env, "ALL") != 0
+                && strcmp(env, "*") != 0)
+                  match_text = env;
+      }
+
+      if (!enabled)
+            return false;
+      if (match_text.empty())
+            return true;
+      return scope_name && strstr(scope_name, match_text.c_str());
 }
 
 /*
@@ -440,7 +512,7 @@ void vvp_fun_signal4_aa::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
                                    vvp_context_t context)
 {
       assert(ptr.port() == 0);
-      context = recover_automatic_recv_context_(context, "recv-vec4-aa");
+      context = recover_automatic_recv_context_(context, context_scope_, "recv-vec4-aa");
       if (!context)
             return;
 
@@ -456,7 +528,7 @@ void vvp_fun_signal4_aa::recv_vec4_pv(vvp_net_ptr_t ptr, const vvp_vector4_t&bit
 {
       assert(ptr.port() == 0);
       assert(size_ == vwid);
-      context = recover_automatic_recv_context_(context, "recv-vec4-pv-aa");
+      context = recover_automatic_recv_context_(context, context_scope_, "recv-vec4-pv-aa");
       if (!context)
             return;
 
@@ -625,7 +697,7 @@ void vvp_fun_signal_real_aa::recv_real(vvp_net_ptr_t ptr, double bit,
                                        vvp_context_t context)
 {
       assert(ptr.port() == 0);
-      context = recover_automatic_recv_context_(context, "recv-real-aa");
+      context = recover_automatic_recv_context_(context, context_scope_, "recv-real-aa");
       if (!context)
             return;
 
@@ -763,7 +835,7 @@ void vvp_fun_signal_string_aa::free_instance(vvp_context_t context)
 void vvp_fun_signal_string_aa::recv_string(vvp_net_ptr_t ptr, const std::string&bit, vvp_context_t context)
 {
       assert(ptr.port() == 0);
-      context = recover_automatic_recv_context_(context, "recv-string-aa");
+      context = recover_automatic_recv_context_(context, context_scope_, "recv-string-aa");
       if (!context)
             return;
 
@@ -808,13 +880,36 @@ double vvp_fun_signal_string_aa::real_value() const
 
 const std::string& vvp_fun_signal_string_aa::get_string() const
 {
+      const char*scope_name = context_scope_ ? vpi_get_str(vpiFullName, context_scope_) : 0;
+      bool trace_this = load_str_trace_scope_match_(scope_name);
       const void*raw = vthread_get_rd_context_item_scoped(context_idx_, context_scope_);
       const vvp_string_slot_s*slot = static_cast<const vvp_string_slot_s*>(raw);
       if (!slot || slot_ptr_poisoned_(slot) || slot->magic != vvp_string_slot_s::kMagic) {
+            if (trace_this) {
+                  __vpiScope*cur_scope = vpip_peek_current_scope();
+                  const char*cur_name = cur_scope ? vpi_get_str(vpiFullName, cur_scope) : 0;
+                  fprintf(stderr,
+                          "trace load_str-invalid target=%s current=%s rd=%p wt=%p raw=%p\n",
+                          scope_name ? scope_name : "<unknown>",
+                          cur_name ? cur_name : "<unknown>",
+                          vthread_get_rd_context(), vthread_get_wt_context(), raw);
+            }
             static const std::string empty;
             return empty;
       }
 
+      if (trace_this) {
+            __vpiScope*cur_scope = vpip_peek_current_scope();
+            const char*cur_name = cur_scope ? vpi_get_str(vpiFullName, cur_scope) : 0;
+            fprintf(stderr,
+                    "trace load_str-ok target=%s current=%s rd=%p wt=%p raw=%p len=%zu text=\"%.*s\"\n",
+                    scope_name ? scope_name : "<unknown>",
+                    cur_name ? cur_name : "<unknown>",
+                    vthread_get_rd_context(), vthread_get_wt_context(), raw,
+                    slot->value.size(),
+                    (int)(slot->value.size() < 80 ? slot->value.size() : 80),
+                    slot->value.c_str());
+      }
       return slot->value;
 }
 
@@ -835,8 +930,11 @@ struct signal_object_aa_slot {
       static const unsigned MAGIC = 0x5349474fu; // "SIGO"
       unsigned magic;
       vvp_object_t value;
+      uint64_t epoch;
+      vvp_net_t* root_net;
+      vvp_object_t root_obj;
 
-      signal_object_aa_slot() : magic(MAGIC), value()
+      signal_object_aa_slot() : magic(MAGIC), value(), epoch(0), root_net(0), root_obj()
       {
       }
 };
@@ -874,6 +972,9 @@ vvp_fun_signal_object_sa::vvp_fun_signal_object_sa(unsigned size)
 : vvp_fun_signal_object(size)
 {
       init_defn_ = 0;
+      value_epoch_ = 0;
+      root_net_ = 0;
+      attached_net_ = 0;
 }
 
 #ifdef CHECK_WITH_VALGRIND
@@ -881,6 +982,8 @@ void vvp_fun_signal_object_aa::free_instance(vvp_context_t context)
 {
       signal_object_aa_slot*slot =
             signal_object_aa_slot_from_raw(vvp_get_context_item(context, context_idx_));
+      if (slot && attached_net_ && !slot->value.test_nil())
+            slot->value.unregister_signal_alias(attached_net_, context);
       delete slot;
 }
 #endif
@@ -889,9 +992,16 @@ void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 					   vvp_context_t)
 {
       assert(ptr.port() == 0);
+      attached_net_ = ptr.ptr();
+      uint64_t bit_epoch = bit.mutation_epoch();
 
-      if (needs_init_ || value_ != bit) {
+      if (needs_init_ || value_ != bit || value_epoch_ != bit_epoch) {
+            if (attached_net_ && !value_.test_nil())
+                  value_.unregister_signal_alias(attached_net_, 0);
 	    value_ = bit;
+	    value_epoch_ = bit_epoch;
+            if (attached_net_ && !value_.test_nil())
+                  value_.register_signal_alias(attached_net_, 0);
 	    needs_init_ = false;
 
 	    ptr.ptr()->send_object(bit, 0);
@@ -900,9 +1010,36 @@ void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 
 vvp_object_t vvp_fun_signal_object_sa::get_object() const
 {
-      if (value_.test_nil() && init_defn_)
-	    value_ = vvp_object_t(new vvp_cobject(init_defn_));
+      if (value_.test_nil() && (init_defn_ || default_object_kind() != INIT_OBJ_NONE)) {
+	    value_ = init_defn_
+	           ? vvp_object_t(new vvp_cobject(init_defn_))
+	           : make_default_object();
+            value_epoch_ = value_.mutation_epoch();
+      }
       return value_;
+}
+
+vvp_object_t vvp_fun_signal_object_sa::peek_object() const
+{
+      return value_;
+}
+
+vvp_net_t* vvp_fun_signal_object_sa::get_root_net() const
+{
+      return root_net_;
+}
+
+vvp_object_t vvp_fun_signal_object_sa::get_root_object() const
+{
+      return root_obj_;
+}
+
+void vvp_fun_signal_object_sa::set_root_provenance(vvp_net_t*root_net,
+                                                   const vvp_object_t&root_obj,
+                                                   vvp_context_t)
+{
+      root_net_ = root_net;
+      root_obj_ = root_obj;
 }
 
 vvp_fun_signal_object_aa::vvp_fun_signal_object_aa(unsigned size)
@@ -911,6 +1048,7 @@ vvp_fun_signal_object_aa::vvp_fun_signal_object_aa(unsigned size)
       init_defn_ = 0;
       context_scope_ = vpip_peek_context_scope();
       context_idx_ = vpip_add_item_to_context(this, context_scope_);
+      attached_net_ = 0;
 }
 
 vvp_fun_signal_object_aa::~vvp_fun_signal_object_aa()
@@ -924,17 +1062,23 @@ void vvp_fun_signal_object_aa::alloc_instance(vvp_context_t context)
       if (init_defn_)
 	    slot->value = vvp_object_t(new vvp_cobject(init_defn_));
       else
-	    slot->value.reset();
+	    slot->value = make_default_object();
+      slot->epoch = slot->value.mutation_epoch();
       vvp_set_context_item(context, context_idx_, slot);
 }
 
 void vvp_fun_signal_object_aa::reset_instance(vvp_context_t context)
 {
       signal_object_aa_slot*slot = signal_object_aa_get_or_make_slot(context, context_idx_);
+      if (attached_net_ && !slot->value.test_nil())
+            slot->value.unregister_signal_alias(attached_net_, context);
       if (init_defn_)
 	    slot->value = vvp_object_t(new vvp_cobject(init_defn_));
       else
-	    slot->value.reset();
+	    slot->value = make_default_object();
+      slot->epoch = slot->value.mutation_epoch();
+      slot->root_net = 0;
+      slot->root_obj.reset();
 }
 
 vvp_object_t vvp_fun_signal_object_aa::get_object() const
@@ -946,25 +1090,110 @@ vvp_object_t vvp_fun_signal_object_aa::get_object() const
             vvp_object_t empty;
             return empty;
       }
-      if (slot->value.test_nil() && init_defn_)
-	    slot->value = vvp_object_t(new vvp_cobject(init_defn_));
+      if (slot->value.test_nil() && (init_defn_ || default_object_kind() != INIT_OBJ_NONE)) {
+	    slot->value = init_defn_
+	                ? vvp_object_t(new vvp_cobject(init_defn_))
+	                : make_default_object();
+            slot->epoch = slot->value.mutation_epoch();
+      }
       return slot->value;
+}
+
+vvp_object_t vvp_fun_signal_object_aa::peek_object() const
+{
+      signal_object_aa_slot*slot =
+            signal_object_aa_slot_from_raw(vthread_get_rd_context_item_scoped(context_idx_,
+                                                                               context_scope_));
+      if (!slot) {
+            vvp_object_t empty;
+            return empty;
+      }
+      return slot->value;
+}
+
+vvp_net_t* vvp_fun_signal_object_aa::get_root_net() const
+{
+      const signal_object_aa_slot*slot =
+            signal_object_aa_slot_from_raw(vthread_get_rd_context_item_scoped(context_idx_,
+                                                                               context_scope_));
+      if (!slot)
+            return 0;
+      return slot->root_net;
+}
+
+vvp_object_t vvp_fun_signal_object_aa::get_root_object() const
+{
+      const signal_object_aa_slot*slot =
+            signal_object_aa_slot_from_raw(vthread_get_rd_context_item_scoped(context_idx_,
+                                                                               context_scope_));
+      if (!slot) {
+            vvp_object_t empty;
+            return empty;
+      }
+      return slot->root_obj;
+}
+
+void vvp_fun_signal_object_aa::set_root_provenance(vvp_net_t*root_net,
+                                                   const vvp_object_t&root_obj,
+                                                   vvp_context_t context)
+{
+      context = recover_automatic_recv_context_(context, context_scope_,
+                                                "set-root-provenance-aa");
+      if (!context) {
+            return;
+      }
+
+      signal_object_aa_slot*slot = signal_object_aa_get_or_make_slot(context, context_idx_);
+      slot->root_net = root_net;
+      slot->root_obj = root_obj;
 }
 
 void vvp_fun_signal_object_aa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 					   vvp_context_t context)
 {
       assert(ptr.port() == 0);
-      context = recover_automatic_recv_context_(context, "recv-object-aa");
-      if (!context)
+      attached_net_ = ptr.ptr();
+      vvp_context_t input_context = context;
+      vvp_context_t recovered_context =
+            recover_automatic_recv_context_(context, context_scope_, "recv-object-aa");
+      context = recovered_context;
+      if (recv_object_trace_scope_match_(context_scope_
+                                         ? vpi_get_str(vpiFullName, context_scope_) : 0)) {
+            const char*scope_name = context_scope_
+                                  ? vpi_get_str(vpiFullName, context_scope_) : 0;
+            fprintf(stderr,
+                    "trace recv-object-aa scope=%s net=%p input_ctx=%p recovered_ctx=%p final_ctx=%p val_nil=%d val=%p\n",
+                    scope_name ? scope_name : "<unknown>",
+                    (void*)ptr.ptr(),
+                    input_context, recovered_context, context,
+                    bit.test_nil() ? 1 : 0,
+                    bit.peek<vvp_object>());
+      }
+      if (!context) {
             return;
+      }
 
       signal_object_aa_slot*slot = signal_object_aa_get_or_make_slot(context, context_idx_);
+      uint64_t bit_epoch = bit.mutation_epoch();
 
-      if (slot->value != bit) {
+      if (slot->value != bit || slot->epoch != bit_epoch) {
+            if (attached_net_ && !slot->value.test_nil())
+                  slot->value.unregister_signal_alias(attached_net_, context);
 	    slot->value = bit;
+            slot->epoch = bit_epoch;
+            if (attached_net_ && !slot->value.test_nil())
+                  slot->value.register_signal_alias(attached_net_, context);
 	    ptr.ptr()->send_object(bit, context);
       }
+}
+
+void vvp_fun_signal_object_aa::clear_current_alias(vvp_context_t context)
+{
+      signal_object_aa_slot*slot =
+            signal_object_aa_slot_from_raw(vvp_get_context_item(context, context_idx_));
+      if (!slot || !attached_net_ || slot->value.test_nil())
+            return;
+      slot->value.unregister_signal_alias(attached_net_, context);
 }
 
 unsigned vvp_fun_signal_object_aa::value_size() const

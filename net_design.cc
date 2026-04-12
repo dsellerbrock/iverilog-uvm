@@ -1068,8 +1068,51 @@ void NetScope::evaluate_type_parameter_(Design *des, param_ref_t cur)
       }
 
       data_type_t *ptype = type_expr->get_type();
-      NetScope *type_scope = cur->second.val_scope;
+      NetScope *type_scope = cur->second.val_scope ? cur->second.val_scope : this;
       cur->second.ivl_type = ptype->elaborate_type(des, type_scope);
+      if (!dynamic_cast<const netclass_t*>(cur->second.ivl_type)) {
+	    if (const class_type_t*class_type = dynamic_cast<const class_type_t*>(ptype)) {
+		  if (netclass_t*cls = ensure_visible_class_type(des, type_scope,
+								 class_type->name)) {
+			cur->second.ivl_type = cls;
+			return;
+		  }
+	    }
+
+	    if (const type_parameter_t*type_param = dynamic_cast<const type_parameter_t*>(ptype)) {
+		  ivl_type_t resolved_type = 0;
+		  type_scope->get_parameter(des, type_param->name, resolved_type);
+		  if (dynamic_cast<const netclass_t*>(resolved_type)) {
+			cur->second.ivl_type = resolved_type;
+			return;
+		  }
+	    }
+
+	    if (const typeref_t*type_ref = dynamic_cast<const typeref_t*>(ptype)) {
+		  if (typedef_t*td = type_ref->typedef_ref()) {
+			if (td->get_basic_type() == typedef_t::CLASS) {
+			      if (const netclass_t*self_class =
+					      resolve_current_class_typedef_alias_(type_scope, td)) {
+				    cur->second.ivl_type = const_cast<netclass_t*>(self_class);
+				    return;
+			      }
+
+			      NetScope*ref_scope = type_ref->find_scope(des, type_scope);
+			      if (!ref_scope)
+				    ref_scope = type_scope;
+			      if (netclass_t*cls = ensure_visible_class_type(des, ref_scope,
+								     td->name)) {
+				    if (const parmvalue_t*overrides = type_ref->parameter_values())
+					  cls = const_cast<netclass_t*>(
+						elaborate_specialized_class_type(des, ref_scope,
+										 cls, overrides));
+				    cur->second.ivl_type = cls;
+				    return;
+			      }
+			}
+		  }
+	    }
+      }
 }
 
 void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)

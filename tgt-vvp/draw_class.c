@@ -122,22 +122,19 @@ static void emit_struct_cobject_dependencies_(ivl_type_t ptype)
 static void show_prop_type_vector(ivl_type_t ptype)
 {
       ivl_variable_type_t data_type = ivl_type_base(ptype);
-      unsigned packed_dimensions = ivl_type_packed_dimensions(ptype);
-      assert(packed_dimensions < 2);
+      unsigned packed_width = ivl_type_packed_width(ptype);
+      if (packed_width == 0)
+	    packed_width = 1;
 
       const char*signed_flag = ivl_type_signed(ptype)? "s" : "";
       char code = data_type==IVL_VT_BOOL? 'b' : 'L';
 
-      if (packed_dimensions == 0) {
+      if (packed_width == 1) {
 	    fprintf(vvp_out, "\"%s%c1\"", signed_flag, code);
 
       } else {
-	    assert(packed_dimensions == 1);
-	    assert(ivl_type_packed_lsb(ptype,0) == 0);
-	    assert(ivl_type_packed_msb(ptype,0) >= 0);
-
 	    fprintf(vvp_out, "\"%s%c%d\"", signed_flag, code,
-		    ivl_type_packed_msb(ptype,0)+1);
+		    packed_width);
       }
 }
 

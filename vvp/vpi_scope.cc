@@ -625,6 +625,22 @@ void vpip_attach_to_current_scope(vpiHandle obj)
       vpip_attach_to_scope(current_scope, obj);
 }
 
+static bool scope_has_own_automatic_context_(__vpiScope*scope)
+{
+      if (!(scope && scope->is_automatic()))
+            return false;
+
+      switch (scope->get_type_code()) {
+          case vpiTask:
+          case vpiFunction:
+          case vpiNamedBegin:
+          case vpiNamedFork:
+            return true;
+          default:
+            return false;
+      }
+}
+
 __vpiScope* vpip_peek_context_scope(void)
 {
       __vpiScope*scope = current_scope;
@@ -632,7 +648,8 @@ __vpiScope* vpip_peek_context_scope(void)
         /* A context is allocated for each automatic task or function.
            Storage for nested scopes (named blocks) is allocated in
            the parent context. */
-      while (scope->scope && scope->scope->is_automatic())
+      while (!scope_has_own_automatic_context_(scope)
+             && scope->scope && scope->scope->is_automatic())
             scope = scope->scope;
 
       return scope;

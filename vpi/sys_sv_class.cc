@@ -18,15 +18,75 @@
 
 # include  "vpi_user.h"
 # include  "sv_vpi_user.h"
+# include  <cstdlib>
 # include  <cstring>
 # include  <cstdio>
+# include  <string>
+
+static int class_cast_is_null_(vpiHandle src_h)
+{
+      s_vpi_value val;
+      val.format = vpiIntVal;
+      vpi_get_value(src_h, &val);
+      return val.value.integer == 0;
+}
+
+static std::string class_cast_name_(vpiHandle ref);
+static std::string class_cast_key_(vpiHandle ref);
+
+static int class_cast_compatible_(vpiHandle dest_type, vpiHandle src_type)
+{
+      std::string dest_name = class_cast_key_(dest_type);
+
+      while (src_type) {
+            if (src_type == dest_type)
+                  return 1;
+            if (class_cast_key_(src_type) == dest_name)
+                  return 1;
+            src_type = vpi_handle(vpiBaseTypespec, src_type);
+      }
+
+      return 0;
+}
+
+static int class_cast_trace_enabled_(void)
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_CAST_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled;
+}
+
+static std::string class_cast_name_(vpiHandle ref)
+{
+      const char*name;
+
+      if (!ref)
+            return "<null>";
+
+      name = vpi_get_str(vpiFullName, ref);
+      if (!(name && *name))
+            name = vpi_get_str(vpiName, ref);
+      return (name && *name) ? std::string(name) : std::string("<unnamed>");
+}
+
+static std::string class_cast_key_(vpiHandle ref)
+{
+      const char*name;
+
+      if (!ref)
+            return "<null>";
+
+      name = vpi_get_str(vpiName, ref);
+      if (!(name && *name))
+            name = vpi_get_str(vpiFullName, ref);
+      return (name && *name) ? std::string(name) : std::string("<unnamed>");
+}
 
 /*
  * $cast(dest, src)
- *
- * Full dynamic type checking requires inheritance info not stored in the
- * VVP runtime. For well-typed UVM code (which always passes valid casts),
- * always returning 1 is correct.
  */
 static PLI_INT32 sys_cast_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
 {
@@ -45,17 +105,54 @@ static PLI_INT32 sys_cast_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
       vpiHandle src_h  = vpi_scan(argv);
       vpi_free_object(argv);
 
-      /* Copy the source value to the destination via VPI. */
+      int ok = 1;
+
       if (dest_h && src_h) {
-            s_vpi_value v;
-            v.format = vpiObjTypeVal;
-            vpi_get_value(src_h, &v);
-            vpi_put_value(dest_h, &v, 0, vpiNoDelay);
+            vpiHandle dest_type = vpi_handle(vpiClassTypespec, dest_h);
+            vpiHandle src_decl_type = vpi_handle(vpiClassTypespec, src_h);
+            int src_is_null = class_cast_is_null_(src_h);
+
+            if (class_cast_trace_enabled_()) {
+                  fprintf(stderr,
+                          "trace $cast: dest_arg=%s src_arg=%s dest_type=%s src_decl=%s src_is_null=%d dest_arg_type=%d src_arg_type=%d\n",
+                          class_cast_name_(dest_h).c_str(), class_cast_name_(src_h).c_str(),
+                          class_cast_name_(dest_type).c_str(), class_cast_name_(src_decl_type).c_str(), src_is_null,
+                          dest_h ? vpi_get(vpiType, dest_h) : -1,
+                          src_h ? vpi_get(vpiType, src_h) : -1);
+                  fprintf(stderr, "trace $cast: dest_arg_h=%p src_arg_h=%p\n", dest_h, src_h);
+            }
+
+            if (dest_type) {
+                  if (src_is_null) {
+                        ok = 1;
+                  } else {
+                        vpiHandle src_type = vpi_handle(vpiClassDefn, src_h);
+                        ok = src_type && class_cast_compatible_(dest_type, src_type);
+                        if (class_cast_trace_enabled_()) {
+                              fprintf(stderr,
+                                      "trace $cast: dest=%s src=%s dest_key=%s src_key=%s ok=%d dest_h=%p src_h=%p\n",
+                                      class_cast_name_(dest_type).c_str(),
+                                      class_cast_name_(src_type).c_str(),
+                                      class_cast_key_(dest_type).c_str(),
+                                      class_cast_key_(src_type).c_str(),
+                                      ok, dest_type, src_type);
+                        }
+                  }
+            } else if (class_cast_trace_enabled_()) {
+                  fprintf(stderr, "trace $cast: missing dest class type\n");
+            }
+
+            if (ok) {
+                  s_vpi_value v;
+                  v.format = vpiObjTypeVal;
+                  vpi_get_value(src_h, &v);
+                  vpi_put_value(dest_h, &v, 0, vpiNoDelay);
+            }
       }
 
       s_vpi_value rv;
       rv.format = vpiIntVal;
-      rv.value.integer = 1;
+      rv.value.integer = ok;
       vpi_put_value(callh, &rv, 0, vpiNoDelay);
       return 0;
 }

@@ -296,6 +296,9 @@ class vvp_fun_anyedge_aa : public vvp_fun_anyedge, public automatic_hooks_s {
       void recv_string(vvp_net_ptr_t port, const std::string&bit,
 		       vvp_context_t context) override;
 
+      void recv_object(vvp_net_ptr_t port, vvp_object_t bit,
+		       vvp_context_t context) override;
+
     private:
       __vpiScope*context_scope_;
       unsigned context_idx_;
@@ -414,6 +417,7 @@ class vvp_named_event_aa : public vvp_named_event, public automatic_hooks_s {
                      vvp_context_t context) override;
 
     private:
+      __vpiScope*context_scope_;
       unsigned context_idx_;
 };
 

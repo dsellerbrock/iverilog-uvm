@@ -1997,6 +1997,19 @@ static int show_delete_method(ivl_statement_t net)
 		  return 0;
       }
 
+	/* Assoc-compat queues model associative arrays in the frontend.
+	   delete(key) must erase the keyed entry, not queue index 1. */
+      if ((parm_count == 2) && var_type
+          && ivl_type_base(var_type) == IVL_VT_QUEUE
+          && ivl_type_queue_assoc_compat(var_type)) {
+            const char*key_kind;
+            fprintf(vvp_out, "    %%load/obj v%p_0;\n", var);
+            key_kind = draw_eval_assoc_key_(ivl_stmt_parm(net, 1), 0);
+            fprintf(vvp_out, "    %%aa/delete/%s;\n", key_kind);
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            return 0;
+      }
+
 	/* If this is a queue then it can have an element to delete. */
       if (parm_count == 2) {
 	    if (ivl_type_base(var_type) != IVL_VT_QUEUE) {

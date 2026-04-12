@@ -1341,6 +1341,8 @@ class NetScope : public Definitions, public Attrib {
       std::map<perm_string,typedef_t*>typedefs_;
       std::map<perm_string,typedef_t*>typedef_search_cache_;
       std::map<perm_string,netclass_t*>class_search_cache_;
+      std::set<perm_string>typedef_search_active_;
+      std::set<perm_string>class_search_active_;
 
       NetEvent *events_;
 

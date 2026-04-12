@@ -293,6 +293,11 @@ ivl_signal_t dll_target::find_signal(ivl_design_s &des, const NetNet*net)
       perm_string nname = net->name();
 
       for (unsigned idx = 0 ;  idx < scop->sigs_.size() ;  idx += 1) {
+	    if (scop->sigs_[idx]->net_ == net)
+		  return scop->sigs_[idx];
+      }
+
+      for (unsigned idx = 0 ;  idx < scop->sigs_.size() ;  idx += 1) {
 	    if (strcmp(scop->sigs_[idx]->name_, nname) == 0)
 		  return scop->sigs_[idx];
       }
@@ -934,11 +939,17 @@ bool dll_target::enumeration(const NetScope*in_scope, netenum_t*net)
 
 void dll_target::event(const NetEvent*net)
 {
+      ivl_scope_t scop = find_scope(des_, net->scope());
+      assert(scop);
+      for (unsigned idx = 0 ; idx < scop->nevent_ ; idx += 1) {
+            if (strcmp(ivl_event_basename(scop->event_[idx]), net->name()) == 0)
+                  return;
+      }
+
       struct ivl_event_s *obj = new struct ivl_event_s;
 
       FILE_NAME(obj, net);
 
-      ivl_scope_t scop = find_scope(des_, net->scope());
       obj->name = net->name();
       obj->scope = scop;
       scope_add_event(scop, obj);
@@ -2499,6 +2510,11 @@ void dll_target::net_probe(const NetEvProbe*)
 
 void dll_target::scope(const NetScope*net)
 {
+      if (net->parent() != 0) {
+            if (find_scope(des_, net))
+                  return;
+      }
+
       if (net->parent() == 0) {
 
 	      // Root scopes are already created...
@@ -2590,16 +2606,23 @@ void dll_target::convert_module_ports(const NetScope*net)
 
 void dll_target::signal(const NetNet*net)
 {
+      ivl_scope_t scope = find_scope(des_, net->scope());
+      assert(scope);
+      for (unsigned idx = 0 ; idx < scope->sigs_.size() ; idx += 1) {
+	    if (scope->sigs_[idx]->net_ == net)
+		  return;
+      }
+
       ivl_signal_t obj = new struct ivl_signal_s;
 
       obj->name_ = net->name();
+      obj->net_ = net;
 
 	/* Attach the signal to the ivl_scope_t object that contains
 	   it. This involves growing the sigs_ array in the scope
 	   object, or creating the sigs_ array if this is the first
 	   signal. */
-      obj->scope_ = find_scope(des_, net->scope());
-      assert(obj->scope_);
+      obj->scope_ = scope;
       FILE_NAME(obj, net);
 
       obj->scope_->sigs_.push_back(obj);

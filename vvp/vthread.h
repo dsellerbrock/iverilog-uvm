@@ -77,6 +77,8 @@ extern void vthread_run(vthread_t thr);
  * the list by the %wait instruction.
  */
 extern void vthread_schedule_list(vthread_t thr);
+extern void vthread_dump_live_threads(const char*reason);
+extern void vthread_dump_running_thread(const char*reason);
 
 extern __vpiScope*vthread_scope(vthread_t thr);
 
@@ -115,6 +117,8 @@ extern vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx);
 extern vvp_context_item_t vthread_get_rd_context_item(unsigned context_idx);
 extern vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx,
                                                              __vpiScope*scope);
+extern vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
+                                                       __vpiScope*scope);
 
 /*
  * Access value stacks from thread space.

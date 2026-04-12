@@ -22,7 +22,9 @@
 
 # include  <typeinfo>
 # include  <cstdlib>
+# include  <cstring>
 # include  <iostream>
+# include  <sstream>
 # include  <set>
 
 # include  "Module.h"
@@ -50,12 +52,36 @@
 
 using namespace std;
 
+static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
+						  const data_type_t*type_pf,
+						  set<const typedef_t*>&seen);
+static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
+							      NetScope*scope,
+							      const data_type_t*type_pf,
+							      set<const typedef_t*>&seen);
+static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
+						  const data_type_t*type_pf);
+static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
+							      NetScope*scope,
+							      const data_type_t*type_pf);
+
 static ivl_type_t elaborate_class_property_type_(Design*des, NetScope*class_scope,
 						 const netclass_t*owner_class,
 						 const data_type_t*prop_type)
 {
       if (!prop_type)
 	    return 0;
+
+      if (const array_base_t*array_type = dynamic_cast<const array_base_t*>(prop_type)) {
+	    ivl_type_t base_use_type =
+		  elaborate_class_property_type_(des, class_scope, owner_class,
+						 array_type->base_type.get());
+	    if (base_use_type && array_type->dims)
+		  return elaborate_array_type(des, class_scope, *array_type,
+					      base_use_type, *array_type->dims.get());
+	    if (base_use_type)
+		  return base_use_type;
+      }
 
       if (const typeref_t*type_ref = dynamic_cast<const typeref_t*>(prop_type)) {
 	    typedef_t*td = type_ref->typedef_ref();
@@ -67,16 +93,21 @@ static ivl_type_t elaborate_class_property_type_(Design*des, NetScope*class_scop
 	    }
       }
 
-      return const_cast<data_type_t*>(prop_type)->elaborate_type(des, class_scope);
-}
+      ivl_type_t use_type = const_cast<data_type_t*>(prop_type)->elaborate_type(des, class_scope);
+      if (ivl_type_t class_prop_type =
+              resolve_class_handle_type_weak_(des, class_scope, prop_type)) {
+            /* Class-handle properties can initially elaborate through generic
+             * or placeholder aliases. Prefer the resolved class handle so
+             * nested member access and method/task lookup see the real class. */
+            return class_prop_type;
+      }
+      if (ivl_type_t placeholder_prop_type =
+              resolve_class_handle_placeholder_type_weak_(des, class_scope, prop_type)) {
+            return placeholder_prop_type;
+      }
 
-static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
-						  const data_type_t*type_pf,
-						  set<const typedef_t*>&seen);
-static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
-							      NetScope*scope,
-							      const data_type_t*type_pf,
-							      set<const typedef_t*>&seen);
+      return use_type;
+}
 
 static ivl_type_t resolve_typedef_alias_class_handle_type_weak_(Design*des,
 								NetScope*scope,
@@ -135,7 +166,7 @@ static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
 			      dynamic_cast<const netclass_t*>(alias_class))
 			return const_cast<netclass_t*>(
 			      elaborate_specialized_class_type(des, type_scope, base_class,
-							       overrides));
+						       overrides, false));
 	    }
 	    return alias_class;
       }
@@ -146,7 +177,8 @@ static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
 
       if (const parmvalue_t*overrides = type_ref->parameter_values())
 	    return const_cast<netclass_t*>(
-		  elaborate_specialized_class_type(des, type_scope, base_class, overrides));
+		  elaborate_specialized_class_type(des, type_scope, base_class, overrides,
+						   false));
 
       return base_class;
 }
@@ -558,6 +590,23 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 
 	    ivl_type_t use_type = elaborate_class_property_type_(des, class_scope_,
 								 this, cur->second.type.get());
+	    if (const char*trace = getenv("IVL_NESTED_PATH_TRACE")) {
+		  if (cur->first == perm_string::literal("m_time_settings")
+		      || cur->first == perm_string::literal("m_verbosity_settings")
+		      || cur->first == perm_string::literal("m_regs_info")
+		      || cur->first == perm_string::literal("m_mems_info")) {
+			cerr << pclass->get_fileline() << ": debug: "
+			     << "elaborate_sig trace=" << trace
+			     << " class=" << get_name()
+			     << " prop=" << cur->first
+			     << " type=";
+			if (use_type)
+			      use_type->debug_dump(cerr);
+			else
+			      cerr << "<null>";
+			cerr << endl;
+		  }
+	    }
 	    if (debug_scopes) {
 		  cerr << pclass->get_fileline() << ": elaborate_scope_class: "
 		       << "  Property " << cur->first
@@ -828,6 +877,24 @@ static void seed_class_scope_properties_for_method_elab_(Design*des,
  */
 void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 {
+      const char*func_sig_trace = getenv("IVL_FUNC_SIG_TRACE");
+      std::ostringstream trace_scope_path;
+      trace_scope_path << scope_path(scope);
+      bool trace_func_sig = func_sig_trace && *func_sig_trace
+			 && strstr(trace_scope_path.str().c_str(), func_sig_trace);
+      if (trace_func_sig) {
+	    cerr << get_fileline() << ": trace func-sig enter"
+		 << " scope=" << trace_scope_path.str()
+		 << " elab_stage=" << scope->elab_stage()
+		 << " func_def=" << (const void*)scope->func_def()
+		 << " return_pf=";
+	    if (return_type_)
+		  cerr << *return_type_;
+	    else
+		  cerr << "<null>";
+	    cerr << endl;
+      }
+
       bool can_resume_missing_void_sig =
 	    scope->elab_stage() > 1
 	 && !scope->func_def()
@@ -842,6 +909,37 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 
       perm_string fname = scope->basename();
       ivl_assert(*this, scope->type() == NetScope::FUNC);
+
+      const char*uvm_cb_trace = getenv("IVL_UVM_CB_SIG_TRACE");
+      const netclass_t*method_owner = scope->parent() ? scope->parent()->class_def() : 0;
+      bool trace_uvm_cb_sig = uvm_cb_trace
+                           && method_owner
+                           && method_owner->class_scope()
+                           && method_owner->class_scope()->class_pform()
+                           && method_owner->class_scope()->class_pform()->type
+                           && (method_owner->class_scope()->class_pform()->type->name
+                               == perm_string::literal("uvm_callbacks")
+                            || method_owner->class_scope()->class_pform()->type->name
+                               == perm_string::literal("uvm_typed_callbacks"));
+      if (trace_uvm_cb_sig) {
+            ivl_type_t cb_type = 0;
+            ivl_type_t t_type = 0;
+            scope->parent()->get_parameter(des, perm_string::literal("CB"), cb_type);
+            scope->parent()->get_parameter(des, perm_string::literal("T"), t_type);
+            cerr << get_fileline() << ": trace: uvm_cb_sig scope=" << scope_path(scope)
+                 << " owner=" << scope_path(scope->parent())
+                 << " method=" << fname
+                 << " T=";
+            if (t_type) t_type->debug_dump(cerr); else cerr << "<null>";
+            cerr << " CB=";
+            if (cb_type) cb_type->debug_dump(cerr); else cerr << "<null>";
+            if (return_type_) {
+                  cerr << " return_pf=`" << *return_type_ << "`";
+            } else {
+                  cerr << " return_pf=<null>";
+            }
+            cerr << endl;
+      }
 
       seed_class_scope_properties_for_method_elab_(des, scope, this,
 						   (fname == perm_string::literal("new")
@@ -905,6 +1003,14 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 			       * Prefer the resolved class handle when available so
 			       * method bodies and callers use object-return lowering. */
 			      ret_type = class_ret_type;
+			} else if (ivl_type_t placeholder_ret_type =
+				   resolve_class_handle_placeholder_type_weak_(des, ret_scope,
+								 return_type_)) {
+			      /* Some specialized factory/helper methods still see the
+			       * type parameter only as a placeholder during the first
+			       * return-signal pass. Keep the return signal object-typed
+			       * so later lowering does not degrade it to a scalar. */
+			      ret_type = placeholder_ret_type;
 			}
 			ivl_assert(*this, ret_type);
 		  }
@@ -914,6 +1020,12 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 	    }
 
 	    if (ret_type) {
+		  if (trace_uvm_cb_sig) {
+			cerr << get_fileline() << ": trace: uvm_cb_sig return scope="
+			     << scope_path(scope) << " method=" << fname << " ret_type=";
+			ret_type->debug_dump(cerr);
+			cerr << endl;
+		  }
 		  if (ret_type->base_type() == IVL_VT_NO_TYPE
 		      && dynamic_cast<const netstruct_t*>(ret_type) == 0) {
 			cerr << get_fileline() << ": internal debug: "
@@ -973,6 +1085,18 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 		       << "." << endl;
 
 	    scope->set_func_def(def);
+      }
+
+      if (trace_func_sig) {
+	    cerr << get_fileline() << ": trace func-sig exit"
+		 << " scope=" << trace_scope_path.str()
+		 << " elab_stage=" << scope->elab_stage()
+		 << " func_def=" << (const void*)scope->func_def()
+		 << " ret_sig=" << (const void*)ret_sig;
+	    if (ret_sig)
+		  cerr << " data_type=" << ret_sig->data_type()
+		       << " width=" << ret_sig->vector_width();
+	    cerr << endl;
       }
 
 	// Look for further signals in the sub-statement

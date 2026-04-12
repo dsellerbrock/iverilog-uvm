@@ -774,7 +774,14 @@ statement
       { compile_var_darray($1, $4, $6, $3); }
 
   | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER';'
-      { compile_var_queue($1, $4, $6, $3); }
+      { compile_var_queue($1, $4, $6, 0, $3); }
+
+  | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER ',' T_STRING ';'
+      {
+            char*queue_type = $8 ? strdup($8) : 0;
+            delete[] $8;
+            compile_var_queue($1, $4, $6, queue_type, $3);
+      }
 
   | T_LABEL K_VAR_COBJECT storage_flag T_STRING ';'
       { compile_var_cobject($1, $4, 0, $3); }

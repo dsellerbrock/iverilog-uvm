@@ -744,6 +744,7 @@ struct ivl_signal_s {
       ivl_signal_port_t port_;
       int module_port_index_;
       ivl_discipline_t discipline;
+      const NetNet* net_;
       perm_string file;
       unsigned lineno;
 

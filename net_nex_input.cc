@@ -26,6 +26,7 @@
 # include  "compiler.h"
 # include  "netlist.h"
 # include  "netmisc.h"
+# include  <cstring>
 
 using namespace std;
 
@@ -132,11 +133,35 @@ NexusSet* NetEProperty::nex_input(bool, bool, bool) const
 {
       NexusSet*result = new NexusSet;
       if (const NetNet*sig = get_sig()) {
+            static int trace_prop_wait = -1;
+            if (trace_prop_wait < 0) {
+                  const char*env = getenv("IVL_PROP_WAIT_TRACE");
+                  trace_prop_wait = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+            }
+            if (trace_prop_wait) {
+                  cerr << get_fileline() << ": trace prop-nex-input pre "
+                       << "sig=" << sig->name()
+                       << " local=" << sig->local_flag()
+                       << " virtual=" << sig->pins_are_virtual()
+                       << " nexus=" << (sig->pin_count() ? sig->pin(0).nexus() : 0)
+                       << endl;
+            }
 	    // Class-property reads rooted at a signal still depend on that
 	    // root object handle for compile-progress sensitivity tracking.
 	    NetNet*sig_mut = const_cast<NetNet*>(sig);
-	    if (sig_mut->pins_are_virtual())
+            bool need_devirtualize = sig_mut->pins_are_virtual()
+                                  && (sig_mut->pin_count() == 0
+                                      || sig_mut->pin(0).nexus() == 0);
+	    if (need_devirtualize)
 		  sig_mut->devirtualize_pins();
+            if (trace_prop_wait) {
+                  cerr << get_fileline() << ": trace prop-nex-input post "
+                       << "sig=" << sig->name()
+                       << " local=" << sig->local_flag()
+                       << " virtual=" << sig->pins_are_virtual()
+                       << " nexus=" << (sig->pin_count() ? sig->pin(0).nexus() : 0)
+                       << endl;
+            }
 	    if (!sig_mut->pins_are_virtual()) {
 		  Nexus*nx = const_cast<Nexus*>(sig_mut->pin(0).nexus());
 		  if (nx)
@@ -245,9 +270,31 @@ NexusSet* NetESignal::nex_input_base(bool rem_out, bool always_sens, bool nested
 	    // when they are represented with concrete pins.
 	    if (net_->data_type() != IVL_VT_CLASS)
 		  return result;
+            static int trace_local_class_wait = -1;
+            if (trace_local_class_wait < 0) {
+                  const char*env = getenv("IVL_LOCAL_CLASS_WAIT_TRACE");
+                  trace_local_class_wait = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+            }
+            if (trace_local_class_wait) {
+                  cerr << get_fileline() << ": trace local-class-nex-input pre "
+                       << "net=" << net_->name()
+                       << " virtual=" << net_->pins_are_virtual()
+                       << " nexus=" << (net_->pin_count() ? net_->pin(0).nexus() : 0)
+                       << endl;
+            }
 	    NetNet*net_mut = const_cast<NetNet*>(net_);
-	    if (net_mut->pins_are_virtual())
+            bool need_devirtualize = net_mut->pins_are_virtual()
+                                  && (net_mut->pin_count() == 0
+                                      || net_mut->pin(0).nexus() == 0);
+	    if (need_devirtualize)
 		  net_mut->devirtualize_pins();
+            if (trace_local_class_wait) {
+                  cerr << get_fileline() << ": trace local-class-nex-input post "
+                       << "net=" << net_->name()
+                       << " virtual=" << net_->pins_are_virtual()
+                       << " nexus=" << (net_->pin_count() ? net_->pin(0).nexus() : 0)
+                       << endl;
+            }
 	    if (net_mut->pins_are_virtual())
 		  return result;
       }

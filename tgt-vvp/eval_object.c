@@ -499,7 +499,11 @@ static int eval_object_select(ivl_expr_t expr)
       if (ivl_expr_type(sube) != IVL_EX_SIGNAL &&
           ivl_expr_type(sube) != IVL_EX_ARRAY) {
 	    fprintf(stderr, "Warning: eval_object_select: base is not a signal"
-		    " (type %d); emitting null fallback\n", ivl_expr_type(sube));
+		    " at %s:%u (expr_type=%d sube_type=%d sube@%s:%u);"
+		    " emitting null fallback\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr),
+		    ivl_expr_type(expr), ivl_expr_type(sube),
+		    ivl_expr_file(sube), ivl_expr_lineno(sube));
 	    fprintf(vvp_out, "    %%null; ; select base fallback\n");
 	    return 0;
       }

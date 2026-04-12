@@ -820,6 +820,13 @@ bool vpi_handle_resolv_list_s::resolve(bool mes)
 		  val.ptr = vpip_make_vthr_obj_stack(base);
 		  sym_set_value(sym_vpi, label(), val);
 
+	    } else if (2 == sscanf(label(), "S<%u,obj,%31[^>]>%zn",
+		                   &base, ss, &n)
+		       && n == strlen(label())) {
+
+		  val.ptr = vpip_make_vthr_obj_stack(base, strdup(ss));
+		  sym_set_value(sym_vpi, label(), val);
+
 	    } else if (3 == sscanf(label(), "S<%u,vec4,%[su]%u>%zn", &base, ss, &wid, &n)
 		       && n == strlen(label())) {
 

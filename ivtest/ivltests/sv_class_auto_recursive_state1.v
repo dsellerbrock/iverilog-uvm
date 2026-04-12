@@ -44,12 +44,17 @@ module test;
 
     function automatic void m_raise(node obj);
       int expect_id;
+      int idx;
 
       expect_id = obj == null ? -1 : obj.id;
       if (total_count.exists(obj))
         total_count[obj] += 1;
       else
         total_count[obj] = 1;
+
+      idx = 0;
+      while (idx < 1)
+        idx++;
 
       if (obj != null && obj.parent != null)
         m_propagate(obj, 1'b1);
@@ -95,18 +100,20 @@ module test;
     leaf = new(3, mid);
 
     o.m_raise(leaf);
-    o.m_drop(leaf);
 
-    if (o.total_count.exists(leaf) && o.total_count[leaf] != 0) begin
-      $display("FAIL final leaf=%0d", o.total_count[leaf]);
+    if (!o.total_count.exists(leaf) || o.total_count[leaf] != 1) begin
+      $display("FAIL final leaf=%0d",
+               o.total_count.exists(leaf) ? o.total_count[leaf] : -999);
       o.failed = 1'b1;
     end
-    if (o.total_count.exists(mid) && o.total_count[mid] != 0) begin
-      $display("FAIL final mid=%0d", o.total_count[mid]);
+    if (!o.total_count.exists(mid) || o.total_count[mid] != 1) begin
+      $display("FAIL final mid=%0d",
+               o.total_count.exists(mid) ? o.total_count[mid] : -999);
       o.failed = 1'b1;
     end
-    if (o.total_count.exists(top) && o.total_count[top] != 0) begin
-      $display("FAIL final top=%0d", o.total_count[top]);
+    if (!o.total_count.exists(top) || o.total_count[top] != 1) begin
+      $display("FAIL final top=%0d",
+               o.total_count.exists(top) ? o.total_count[top] : -999);
       o.failed = 1'b1;
     end
 

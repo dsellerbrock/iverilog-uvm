@@ -19,6 +19,7 @@
  */
 
 # include  "compile.h"
+# include  "class_type.h"
 # include  "vpi_priv.h"
 # include  "vvp_cobject.h"
 # include  "vvp_net_sig.h"
@@ -54,6 +55,11 @@ static const char* describe_class_object_(const vvp_object_t&obj)
       }
 
       return "<object>";
+}
+
+static class_type* get_declared_class_type_(vvp_fun_signal_object*fun)
+{
+      return fun ? fun->declared_type() : 0;
 }
 
 }
@@ -101,7 +107,7 @@ void __vpiCobjectVar::vpi_get_value(p_vpi_value val)
 {
       vvp_fun_signal_object*fun = get_object_fun_(this);
       assert(fun);
-      vvp_object_t obj = fun->get_object();
+      vvp_object_t obj = fun->peek_object();
 
       switch (val->format) {
 	case vpiObjTypeVal:
@@ -147,6 +153,27 @@ void __vpiCobjectVar::vpi_get_value(p_vpi_value val)
 	                    "by vpiClassVar\n", (int)val->format);
 	    val->format = vpiSuppressVal;
 	    break;
+      }
+}
+
+vpiHandle __vpiCobjectVar::vpi_handle(int code)
+{
+      vvp_fun_signal_object*fun = get_object_fun_(this);
+
+      switch (code) {
+          case vpiClassTypespec:
+            return get_declared_class_type_(fun);
+
+          case vpiClassDefn:
+            if (fun) {
+                  vvp_object_t obj = fun->peek_object();
+                  if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+                        return const_cast<class_type*>(cobj->get_defn());
+            }
+            return 0;
+
+          default:
+            return __vpiBaseVar::vpi_handle(code);
       }
 }
 

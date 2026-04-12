@@ -522,7 +522,7 @@ extern void compile_var_darray(char*label, char*name, unsigned size,
 extern void compile_var_cobject(char*label, char*name, char*type,
 				int lifetime_flag);
 extern void compile_var_queue(char*label, char*name, unsigned size,
-			      int lifetime_flag);
+			      char*type, int lifetime_flag);
 
 /*
  * This function is used to create a scope port

@@ -23,6 +23,7 @@
 # include  "PTask.h"
 # include  "pform_types.h"
 # include  <cassert>
+# include  <cstdlib>
 # include  <iostream>
 
 using namespace std;
@@ -235,6 +236,18 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
             if (!use_type)
                   return -1;
 
+            if (const char*trace = getenv("IVL_NESTED_PATH_TRACE")) {
+                  if (cur->first == pname) {
+                        cerr << class_scope_->get_fileline() << ": debug: "
+                             << "ensure_property_decl trace=" << trace
+                             << " class=" << get_name()
+                             << " prop=" << cur->first
+                             << " type=";
+                        use_type->debug_dump(cerr);
+                        cerr << endl;
+                  }
+            }
+
             bool added = set_property(cur->first, cur->second.qual, use_type);
             if (added && cur->second.qual.test_static()) {
                   if (class_scope_->find_signal(cur->first) == 0)
@@ -362,6 +375,30 @@ NetScope*netclass_t::resolve_method_call_scope(const Design*des, perm_string nam
       (void) des;
 
       NetScope*method = method_from_name(name);
+      if (!method) {
+	    const char*trace = getenv("IVL_CLASS_METHOD_TRACE");
+	    if (trace && *trace && class_scope_
+		&& (name == perm_string::literal("start")
+		    || name == perm_string::literal("atomic_lock")
+		    || name == perm_string::literal("atomic_unlock"))) {
+		  cerr << "trace method-miss class=" << get_name()
+		       << " scope=" << scope_path(class_scope_)
+		       << " scope_ready=" << scope_ready()
+		       << " class_pform=" << (const void*)(class_scope_ ? class_scope_->class_pform() : 0)
+		       << " want=" << name
+		       << " children={";
+		  bool first = true;
+		  for (const auto&cur : class_scope_->children()) {
+			if (!first)
+			      cerr << ", ";
+			first = false;
+			cerr << cur.first.peek_name();
+			if (cur.second)
+			      cerr << ":" << cur.second->type();
+		  }
+		  cerr << "}" << endl;
+	    }
+      }
       if (!method)
 	    return 0;
 

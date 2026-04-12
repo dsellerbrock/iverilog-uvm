@@ -80,6 +80,9 @@ void dll_target::task_def(const NetScope*net)
       ivl_scope_t scop = lookup_scope_(net);
       const NetTaskDef*def = net->task_def();
 
+      if (scop->def)
+	    return;
+
       if (def == 0 || def->proc() == 0)
 	    return;
       assert(stmt_cur_ == 0);
@@ -103,6 +106,9 @@ bool dll_target::func_def(const NetScope*net)
 {
       ivl_scope_t scop = lookup_scope_(net);
       const NetFuncDef*def = net->func_def();
+
+      if (scop->def)
+	    return true;
 
       if (def == 0 || def->proc() == 0)
 	    return true;

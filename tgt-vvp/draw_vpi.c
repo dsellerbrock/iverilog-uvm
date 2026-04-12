@@ -25,6 +25,7 @@
 
 struct args_info {
       char*text;
+      char*obj_type;
 	/* True ('s' or 'u' if this argument is a calculated vec4. */
       char vec_flag;
 	/* True if this argument is a calculated string. */
@@ -49,6 +50,68 @@ static const char* magic_sfuncs[] = {
 };
 static unsigned char warned_unsupported_vpi_arg_type[32];
 
+static ivl_signal_t expr_signal_base_(ivl_expr_t expr)
+{
+      if (!expr)
+            return 0;
+
+      switch (ivl_expr_type(expr)) {
+          case IVL_EX_SIGNAL:
+          case IVL_EX_ARRAY:
+          case IVL_EX_PROPERTY:
+            return ivl_expr_signal(expr);
+
+          case IVL_EX_SELECT:
+            return expr_signal_base_(ivl_expr_oper1(expr));
+
+          default:
+            return 0;
+      }
+}
+
+static char* vpi_class_arg_type_label_(ivl_expr_t expr)
+{
+      ivl_type_t net_type = ivl_expr_net_type(expr);
+      char buffer[64];
+      ivl_signal_t sig;
+
+      if (!net_type) {
+            sig = expr_signal_base_(expr);
+            if (sig)
+                  net_type = ivl_signal_net_type(sig);
+      }
+
+      if (!net_type)
+            return 0;
+
+      if (ivl_type_base(net_type) != IVL_VT_CLASS)
+            return 0;
+
+      draw_class_in_scope(net_type);
+      snprintf(buffer, sizeof buffer, "C%p", net_type);
+      return strdup(buffer);
+}
+
+static int expr_is_class_like_(ivl_expr_t expr)
+{
+      ivl_type_t net_type = ivl_expr_net_type(expr);
+      ivl_signal_t sig;
+
+      if (!net_type) {
+            sig = expr_signal_base_(expr);
+            if (sig)
+                  net_type = ivl_signal_net_type(sig);
+      }
+
+      if (net_type
+          && (ivl_type_base(net_type) == IVL_VT_CLASS
+              || (ivl_type_base(net_type) == IVL_VT_NO_TYPE
+                  && ivl_type_properties(net_type) > 0)))
+            return 1;
+
+      return ivl_expr_value(expr) == IVL_VT_CLASS;
+}
+
 static int is_magic_sfunc(const char*name)
 {
       int idx;
@@ -63,10 +126,13 @@ static int is_fixed_memory_word(ivl_expr_t net)
 {
       ivl_signal_t sig;
 
-      if (ivl_expr_type(net) != IVL_EX_SIGNAL)
+      if (ivl_expr_type(net) != IVL_EX_SIGNAL
+          && ivl_expr_type(net) != IVL_EX_PROPERTY)
 	    return 0;
 
-      sig = ivl_expr_signal(net);
+      sig = expr_signal_base_(net);
+      if (!sig)
+            return 0;
 
       if (ivl_signal_dimensions(sig) == 0)
 	    return 1;
@@ -84,9 +150,16 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
                                        ivl_expr_t expr)
 {
       char buffer[4096];
+      ivl_signal_t sig;
+      int class_like;
 
       switch (ivl_expr_type(expr)) {
 	  case IVL_EX_SIGNAL:
+	  case IVL_EX_PROPERTY:
+	      sig = expr_signal_base_(expr);
+	      if (!sig)
+		    return 0;
+	      class_like = expr_is_class_like_(expr);
 	      /* If the signal node is narrower than the signal itself,
 	         then this is a part select so I'm going to need to
 	         evaluate the expression.
@@ -98,27 +171,26 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	         If I don't need to do any evaluating, then skip it as
 	         I'll be passing the handle to the signal itself. */
 	    if ((ivl_expr_width(expr) !=
-	         ivl_signal_width(ivl_expr_signal(expr))) &&
-	         ivl_expr_value(expr) != IVL_VT_DARRAY) {
-		    /* This should never happen since we have IVL_EX_SELECT. */
-		    /* For a queue (type of darray) we return the maximum
-		       size of the queue as the signal width. */
-		  assert(0);
+	         ivl_signal_width(sig)) &&
+	         ivl_expr_value(expr) != IVL_VT_DARRAY &&
+	         !class_like) {
+		    /* This can happen for class/property wrapper expressions.
+		       Fall back instead of asserting. */
 		  return 0;
 
-	    } else if (signal_is_return_value(ivl_expr_signal(expr))) {
+	    } else if (signal_is_return_value(sig)) {
 		    /* If the signal is the return value of a function,
 		       then this can't be handled as a true signal, so
 		       fall back on general expression processing. */
 		  return 0;
 
-	    } else if (ivl_expr_signed(expr) !=
-	               ivl_signal_signed(ivl_expr_signal(expr))) {
+	    } else if (!class_like &&
+	               ivl_expr_signed(expr) !=
+	               ivl_signal_signed(sig)) {
 		  return 0;
 	    } else if (is_fixed_memory_word(expr)) {
 		  /* This is a word of a non-array, or a word of a net
 		     array, so we can address the word directly. */
-		  ivl_signal_t sig = ivl_expr_signal(expr);
 		  unsigned use_word = 0;
 		  ivl_expr_t word_ex = ivl_expr_oper1(expr);
 		  if (word_ex) {
@@ -139,7 +211,6 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	    } else {
 		  /* What's left, this is the work of a var array.
 		     Create the right code to handle it. */
-		  ivl_signal_t sig = ivl_expr_signal(expr);
 		  unsigned use_word = 0;
 		  unsigned use_word_defined = 0;
 		  ivl_expr_t word_ex = ivl_expr_oper1(expr);
@@ -297,11 +368,38 @@ static int draw_sv_cast_class_task(ivl_statement_t tnet)
       return 1;
 }
 
+static int get_vpi_taskfunc_lvalue_arg(struct args_info *result,
+                                       ivl_expr_t expr)
+{
+      ivl_signal_t sig = expr_signal_base_(expr);
+      char buffer[4096];
+
+      if (!sig)
+            return 0;
+
+      switch (ivl_expr_type(expr)) {
+	  case IVL_EX_SIGNAL:
+	  case IVL_EX_PROPERTY:
+	    if (ivl_signal_dimensions(sig) != 0)
+		  return 0;
+	    snprintf(buffer, sizeof buffer, "v%p_0", sig);
+	    result->text = strdup(buffer);
+	    return 1;
+
+	  case IVL_EX_SELECT:
+	    return get_vpi_taskfunc_signal_arg(result, expr);
+
+	  default:
+	    return 0;
+      }
+}
+
 static void draw_vpi_taskfunc_args(const char*call_string,
 				   ivl_statement_t tnet,
 				   ivl_expr_t fnet)
 {
       unsigned idx;
+      const char*tf_name = tnet ? ivl_stmt_name(tnet) : ivl_expr_name(fnet);
       unsigned parm_count = tnet
 	    ? ivl_stmt_parm_count(tnet)
 	    : ivl_expr_parms(fnet);
@@ -327,6 +425,11 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	    ivl_expr_t expr = tnet
 		  ? ivl_stmt_parm(tnet, idx)
 		  : ivl_expr_parm(fnet, idx);
+
+	    if (tf_name && strcmp(tf_name, "$cast") == 0 && idx == 0) {
+		  if (get_vpi_taskfunc_lvalue_arg(&args[idx], expr))
+			continue;
+	    }
 
 	    switch (ivl_expr_type(expr)) {
 
@@ -407,6 +510,7 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  break;
 
 		case IVL_EX_SIGNAL:
+		case IVL_EX_PROPERTY:
 		case IVL_EX_SELECT:
 		  args[idx].stack = vec4_stack_need;
 		  if (get_vpi_taskfunc_signal_arg(&args[idx], expr)) {
@@ -430,7 +534,17 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  break;
 	    }
 
-	    switch (ivl_expr_value(expr)) {
+	    if (expr_is_class_like_(expr)) {
+		  draw_eval_object(expr);
+		  args[idx].vec_flag = 0;
+		  args[idx].str_flag = 0;
+		  args[idx].real_flag = 0;
+		  args[idx].obj_flag = 1;
+		  args[idx].obj_type = vpi_class_arg_type_label_(expr);
+		  args[idx].stack = obj_stack_need;
+		  obj_stack_need += 1;
+		  buffer[0] = 0;
+	    } else switch (ivl_expr_value(expr)) {
 		case IVL_VT_LOGIC:
 		case IVL_VT_BOOL:
 		  draw_eval_vec4(expr);
@@ -464,16 +578,6 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 			  str_stack_need += 1;
 			  buffer[0] = 0;
 			  break;
-		case IVL_VT_CLASS:
-		  draw_eval_object(expr);
-		  args[idx].vec_flag = 0;
-		  args[idx].str_flag = 0;
-		  args[idx].real_flag = 0;
-		  args[idx].obj_flag = 1;
-		  args[idx].stack = obj_stack_need;
-		  obj_stack_need += 1;
-		  buffer[0] = 0;
-		  break;
 		default:
 		  /* Fallback: For unsupported types (CLASS, VOID, etc.), try to
 		     evaluate as vec4. This handles cases like $cast which may return
@@ -520,7 +624,11 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  fprintf(vvp_out, ", S<%u,str>",pos);
 	    } else if (args[idx].obj_flag) {
 		  unsigned pos = obj_stack_need - args[idx].stack - 1;
-		  fprintf(vvp_out, ", S<%u,obj>", pos);
+		  if (args[idx].obj_type) {
+			fprintf(vvp_out, ", S<%u,obj,%s>", pos, args[idx].obj_type);
+		  } else {
+			fprintf(vvp_out, ", S<%u,obj>", pos);
+		  }
 	    } else if (args[idx].real_flag) {
 		  unsigned pos = real_stack_need - args[idx].stack - 1;
 		  fprintf(vvp_out, ", W<%u,r>",pos);
@@ -534,6 +642,7 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	    }
 
 	    free(args[idx].text);
+	    free(args[idx].obj_type);
 	      /* Free the nested children. */
 	    ptr = args[idx].child;
 	    while (ptr != NULL) {

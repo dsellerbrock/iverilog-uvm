@@ -38,6 +38,7 @@ vvp_cobject::~vvp_cobject()
 void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 {
       defn_->set_vec4(properties_, pid, val, idx);
+      touch();
 }
 
 void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
@@ -48,6 +49,7 @@ void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
 void vvp_cobject::set_real(size_t pid, double val)
 {
       defn_->set_real(properties_, pid, val);
+      touch();
 }
 
 double vvp_cobject::get_real(size_t pid)
@@ -58,6 +60,7 @@ double vvp_cobject::get_real(size_t pid)
 void vvp_cobject::set_string(size_t pid, const string&val)
 {
       defn_->set_string(properties_, pid, val);
+      touch();
 }
 
 string vvp_cobject::get_string(size_t pid)
@@ -68,6 +71,7 @@ string vvp_cobject::get_string(size_t pid)
 void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 {
       defn_->set_object(properties_, pid, val, idx);
+      touch();
 }
 
 void vvp_cobject::get_object(size_t pid, vvp_object_t&val, size_t idx)
@@ -84,5 +88,6 @@ void vvp_cobject::shallow_copy(const vvp_object*obj)
 
       for (size_t idx = 0 ; idx < defn_->property_count() ; idx += 1)
 	    defn_->copy_property(properties_, idx, that->properties_);
+      touch();
 
 }

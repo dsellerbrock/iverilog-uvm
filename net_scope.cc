@@ -844,6 +844,24 @@ typedef_t* NetScope::find_typedef(const Design*des, perm_string name)
       if (cache_td != typedef_search_cache_.end())
 	    return cache_td->second;
 
+      struct typedef_search_guard_t {
+	    explicit typedef_search_guard_t(std::set<perm_string>&active, perm_string key)
+	    : active_(active), key_(key), owner_(active_.insert(key_).second) { }
+	    ~typedef_search_guard_t()
+	    {
+		  if (owner_)
+			active_.erase(key_);
+	    }
+	    bool owner() const { return owner_; }
+	  private:
+	    std::set<perm_string>&active_;
+	    perm_string key_;
+	    bool owner_;
+      } search_guard(typedef_search_active_, name);
+
+      if (!search_guard.owner())
+	    return 0;
+
       map<perm_string,typedef_t*>::const_iterator td = typedefs_.find(name);
       if (td != typedefs_.end()) {
 	    typedef_search_cache_[name] = td->second;
@@ -893,6 +911,24 @@ netclass_t*NetScope::find_class(const Design*des, perm_string name)
       map<perm_string,netclass_t*>::const_iterator cache_it = class_search_cache_.find(name);
       if (cache_it != class_search_cache_.end())
 	    return cache_it->second;
+
+      struct class_search_guard_t {
+	    explicit class_search_guard_t(std::set<perm_string>&active, perm_string key)
+	    : active_(active), key_(key), owner_(active_.insert(key_).second) { }
+	    ~class_search_guard_t()
+	    {
+		  if (owner_)
+			active_.erase(key_);
+	    }
+	    bool owner() const { return owner_; }
+	  private:
+	    std::set<perm_string>&active_;
+	    perm_string key_;
+	    bool owner_;
+      } search_guard(class_search_active_, name);
+
+      if (!search_guard.owner())
+	    return 0;
 
 	// Special case: The scope itself is the class that we are
 	// looking for. This may happen for example when elaborating

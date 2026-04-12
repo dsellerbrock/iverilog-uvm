@@ -21,6 +21,7 @@
 
 # include  <stdlib.h>
 # include  <stdint.h>
+class vvp_net_t;
 
 inline bool vvp_object_ptr_is_poisoned(const class vvp_object*ptr)
 {
@@ -52,7 +53,13 @@ inline bool vvp_object_ptr_is_poisoned(const class vvp_object*ptr)
  */
 class vvp_object {
     public:
-      inline vvp_object() { ref_cnt_ = 0; total_active_cnt_ += 1; register_live_ptr_(this); }
+      inline vvp_object()
+      {
+            ref_cnt_ = 0;
+            mutation_epoch_ = 0;
+            total_active_cnt_ += 1;
+            register_live_ptr_(this);
+      }
       virtual ~vvp_object() =0;
 
       virtual void shallow_copy(const vvp_object*that);
@@ -60,6 +67,11 @@ class vvp_object {
 
       static void cleanup(void);
       static bool pointer_is_live(const vvp_object*ptr);
+      inline uint64_t mutation_epoch() const { return mutation_epoch_; }
+      inline void touch() { mutation_epoch_ += 1; }
+      void register_signal_alias(vvp_net_t*net, void*context);
+      void unregister_signal_alias(vvp_net_t*net, void*context);
+      void notify_signal_aliases() const;
 
     private:
       static void register_live_ptr_(const vvp_object*ptr);
@@ -67,6 +79,7 @@ class vvp_object {
 
       friend class vvp_object_t;
       int ref_cnt_;
+      uint64_t mutation_epoch_;
 
       static int total_active_cnt_;
 };
@@ -88,6 +101,16 @@ class vvp_object_t {
           { return ref_ == that.ref_; }
       inline bool operator != (const vvp_object_t&that) const
           { return ref_ != that.ref_; }
+      inline uint64_t mutation_epoch() const
+          { return ref_ ? ref_->mutation_epoch() : 0; }
+      inline void touch() const
+          { if (ref_) ref_->touch(); }
+      inline void register_signal_alias(vvp_net_t*net, void*context) const
+          { if (ref_) ref_->register_signal_alias(net, context); }
+      inline void unregister_signal_alias(vvp_net_t*net, void*context) const
+          { if (ref_) ref_->unregister_signal_alias(net, context); }
+      inline void notify_signal_aliases() const
+          { if (ref_) ref_->notify_signal_aliases(); }
 
       inline void shallow_copy(const vvp_object_t&that)
           { ref_->shallow_copy(that.ref_); }

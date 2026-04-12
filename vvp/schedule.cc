@@ -589,6 +589,8 @@ static bool no_signals_flag = false;
 
 void schedule_finish(int)
 {
+      vthread_dump_running_thread("schedule-finish");
+      vthread_dump_live_threads("schedule-finish");
       schedule_runnable = false;
 }
 
@@ -1265,6 +1267,9 @@ void schedule_simulate(void)
 
 	    delete (cur);
       }
+
+      if (schedule_runnable && !sched_list)
+            vthread_dump_live_threads("scheduler-quiesce");
 
 	// Execute final events.
       schedule_runnable = run_finals;

@@ -190,6 +190,7 @@ extern void pform_end_class_declaration(const struct vlltype&loc);
 extern bool pform_in_class();
 extern void pform_bind_extern_func(PFunction*func);
 extern void pform_bind_extern_task(PTask*task);
+extern void pform_blend_class_constructors(PClass*pclass);
 
 extern void pform_make_udp(const struct vlltype&loc, perm_string name,
 			   std::list<pform_ident_t>*parms,

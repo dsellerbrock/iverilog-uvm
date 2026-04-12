@@ -19,6 +19,7 @@
 
 # include  <cstdarg>
 # include  <cstring>
+# include  <iostream>
 # include  "pform.h"
 # include  "PClass.h"
 # include  "parse_misc.h"
@@ -30,6 +31,71 @@ using namespace std;
  * The functions here help the parser put together class type declarations.
  */
 static PClass*pform_cur_class = 0;
+
+void pform_blend_class_constructors(PClass*pclass)
+{
+      perm_string new1 = perm_string::literal("new");
+      perm_string new2 = perm_string::literal("new@");
+
+      map<perm_string,PFunction*>::iterator iter_new = pclass->funcs.find(new1);
+      PFunction*use_new = (iter_new == pclass->funcs.end()) ? 0 : iter_new->second;
+
+      map<perm_string,PFunction*>::iterator iter_new2 = pclass->funcs.find(new2);
+      PFunction*use_new2 = (iter_new2 == pclass->funcs.end()) ? 0 : iter_new2->second;
+
+      const bool explicit_body_ready = use_new && use_new->get_statement();
+
+      if (use_new == 0 && use_new2 == 0)
+            return;
+
+      if (use_new && use_new2 && !explicit_body_ready)
+            return;
+
+      PChainConstructor*chain_new = 0;
+      if (explicit_body_ready)
+            chain_new = use_new->extract_chain_constructor();
+      else if (use_new2 && use_new == 0)
+            chain_new = use_new2->extract_chain_constructor();
+      if (chain_new == 0 && pclass->type->base_type) {
+            chain_new = new PChainConstructor(pclass->type->base_args);
+            chain_new->set_line(*pclass);
+      }
+
+      if (use_new && use_new2) {
+            if (!use_new->method_of() && use_new2->method_of()) {
+                  use_new->set_method_type_only(use_new2->method_of());
+                  use_new->set_return(use_new2->method_of());
+            }
+
+            if (use_new->method_of() != use_new2->method_of()) {
+                  cerr << use_new->get_fileline()
+                       << ": warning: constructor merge saw mismatched method class metadata."
+                       << endl;
+            }
+
+            Statement*def_new = use_new->get_statement();
+            Statement*def_new2 = use_new2->get_statement();
+
+            if (def_new == 0) {
+                  def_new = new PBlock(PBlock::BL_SEQ);
+                  use_new->set_statement(def_new);
+            }
+
+            if (def_new2)
+                  use_new->push_statement_front(def_new2);
+
+            pclass->funcs.erase(iter_new2);
+            delete use_new2;
+            use_new2 = 0;
+      }
+
+      if (chain_new) {
+            if (use_new2)
+                  use_new2->push_statement_front(chain_new);
+            else if (use_new)
+                  use_new->push_statement_front(chain_new);
+      }
+}
 
 /*
  * The base_type is set to the base class if this declaration is
@@ -201,6 +267,8 @@ void pform_end_class_declaration(const struct vlltype&loc)
 	    pform_pop_scope();
       }
 
+      pform_blend_class_constructors(pform_cur_class);
+
       pform_cur_class = 0;
       pform_pop_scope();
 }
@@ -232,6 +300,9 @@ void pform_bind_extern_func(PFunction*func)
       } else {
 	    pform_cur_class->funcs[name] = func;
       }
+
+      if (name == perm_string::literal("new"))
+            pform_blend_class_constructors(pform_cur_class);
 }
 
 /*
@@ -245,6 +316,9 @@ void pform_bind_extern_task(PTask*task)
       perm_string name = task->pscope_name();
       map<perm_string,PTask*>::iterator it = pform_cur_class->tasks.find(name);
       if (it != pform_cur_class->tasks.end()) {
+	    PTask*proto = it->second;
+	    if (!task->method_of() && proto->method_of())
+		  task->set_method_type_only(proto->method_of());
 	    it->second = task;
       } else {
 	    pform_cur_class->tasks[name] = task;

@@ -29,6 +29,45 @@
 
 # include <iostream>
 
+static bool event_trace_enabled_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_EVENT_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled != 0;
+}
+
+static vvp_context_t recover_automatic_event_context_(vvp_context_t context,
+                                                      __vpiScope*scope,
+                                                      const char*where)
+{
+      static bool warned_missing = false;
+      static bool warned_scoped = false;
+
+      if (!scope)
+            return context;
+
+      vvp_context_t resolved = vthread_recover_context_for_scope(context, scope);
+      if (!warned_missing && !context && resolved) {
+            fprintf(stderr,
+                    "Warning: recovered missing automatic event context during %s"
+                    " (further similar warnings suppressed)\n",
+                    where ? where : "<unknown>");
+            warned_missing = true;
+      }
+      if (!warned_scoped && context && resolved && context != resolved) {
+            fprintf(stderr,
+                    "Warning: repaired automatic event context scope mismatch during %s"
+                    " (further similar warnings suppressed)\n",
+                    where ? where : "<unknown>");
+            warned_scoped = true;
+      }
+
+      return resolved;
+}
+
 void waitable_hooks_s::run_waiting_threads_(vthread_t&threads)
 {
 	// Run the non-blocking event controls.
@@ -337,6 +376,8 @@ vthread_t vvp_fun_edge_aa::add_waiting_thread(vthread_t thread)
 void vvp_fun_edge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                 vvp_context_t context)
 {
+      context = recover_automatic_event_context_(context, context_scope_,
+                                                 "recv-edge-aa");
       if (context) {
             vvp_fun_edge_state_s*state = static_cast<vvp_fun_edge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
@@ -644,6 +685,9 @@ void vvp_fun_anyedge_sa::recv_string(vvp_net_ptr_t port, const std::string&bit,
 void vvp_fun_anyedge_sa::recv_object(vvp_net_ptr_t port, vvp_object_t,
 				     vvp_context_t)
 {
+      if (event_trace_enabled_()) {
+            fprintf(stderr, "trace anyedge-sa recv_object net=%p\n", (void*)port.ptr());
+      }
       run_waiting_threads_(threads_);
       vvp_net_t*net = port.ptr();
       net->send_vec4(vvp_vector4_t(), 0);
@@ -702,6 +746,12 @@ vthread_t vvp_fun_anyedge_aa::add_waiting_thread(vthread_t thread)
 void vvp_fun_anyedge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t context)
 {
+      if (event_trace_enabled_()) {
+            fprintf(stderr, "trace anyedge-aa recv_vec4 net=%p ctx=%p wid=%u\n",
+                    (void*)port.ptr(), context, bit.size());
+      }
+      context = recover_automatic_event_context_(context, context_scope_,
+                                                 "recv-anyedge-vec4-aa");
       if (context) {
             vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
@@ -728,6 +778,12 @@ void vvp_fun_anyedge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 void vvp_fun_anyedge_aa::recv_real(vvp_net_ptr_t port, double bit,
                                    vvp_context_t context)
 {
+      if (event_trace_enabled_()) {
+            fprintf(stderr, "trace anyedge-aa recv_real net=%p ctx=%p val=%g\n",
+                    (void*)port.ptr(), context, bit);
+      }
+      context = recover_automatic_event_context_(context, context_scope_,
+                                                 "recv-anyedge-real-aa");
       if (context) {
             vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
@@ -754,6 +810,12 @@ void vvp_fun_anyedge_aa::recv_real(vvp_net_ptr_t port, double bit,
 void vvp_fun_anyedge_aa::recv_string(vvp_net_ptr_t port, const std::string&bit,
 				     vvp_context_t context)
 {
+      if (event_trace_enabled_()) {
+            fprintf(stderr, "trace anyedge-aa recv_string net=%p ctx=%p val=%s\n",
+                    (void*)port.ptr(), context, bit.c_str());
+      }
+      context = recover_automatic_event_context_(context, context_scope_,
+                                                 "recv-anyedge-string-aa");
       if (context) {
             vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
@@ -773,7 +835,31 @@ void vvp_fun_anyedge_aa::recv_string(vvp_net_ptr_t port, const std::string&bit,
             }
             anyedge_string_value*value = get_string_value(last_value_[port.port()]);
             assert(value);
-            value->set(bit);
+	    value->set(bit);
+      }
+}
+
+void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t,
+                                     vvp_context_t context)
+{
+      if (event_trace_enabled_()) {
+            fprintf(stderr, "trace anyedge-aa recv_object net=%p ctx=%p\n",
+                    (void*)port.ptr(), context);
+      }
+      context = recover_automatic_event_context_(context, context_scope_,
+                                                 "recv-anyedge-object-aa");
+      if (context) {
+            vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
+                  (vvp_get_context_item(context, context_idx_));
+            run_waiting_threads_(state->threads);
+            vvp_net_t*net = port.ptr();
+            net->send_vec4(vvp_vector4_t(), context);
+      } else {
+            context = context_scope_->live_contexts;
+            while (context) {
+                  recv_object(port, vvp_object_t(), context);
+                  context = vvp_get_next_context(context);
+            }
       }
 }
 
@@ -857,6 +943,8 @@ vthread_t vvp_fun_event_or_aa::add_waiting_thread(vthread_t thread)
 void vvp_fun_event_or_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                     vvp_context_t context)
 {
+      context = recover_automatic_event_context_(context, context_scope_,
+                                                 "recv-event-or-aa");
       if (context) {
             waitable_state_s*state = static_cast<waitable_state_s*>
                   (vvp_get_context_item(context, context_idx_));
@@ -913,7 +1001,8 @@ void vvp_named_event_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 vvp_named_event_aa::vvp_named_event_aa(__vpiHandle*h)
 : vvp_named_event(h)
 {
-      context_idx_ = vpip_add_item_to_context(this, vpip_peek_context_scope());
+      context_scope_ = vpip_peek_context_scope();
+      context_idx_ = vpip_add_item_to_context(this, context_scope_);
 }
 
 vvp_named_event_aa::~vvp_named_event_aa()
@@ -956,6 +1045,8 @@ vthread_t vvp_named_event_aa::add_waiting_thread(vthread_t thread)
 void vvp_named_event_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t context)
 {
+      context = recover_automatic_event_context_(context, context_scope_,
+                                                 "recv-named-event-aa");
       assert(context);
 
       waitable_state_s*state = static_cast<waitable_state_s*>

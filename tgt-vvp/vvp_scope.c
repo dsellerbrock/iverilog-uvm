@@ -164,18 +164,40 @@ const char *vvp_mangle_name(const char *id)
 static ivl_signal_t signal_of_nexus(ivl_nexus_t nex, unsigned*word)
 {
       unsigned idx;
+      ivl_signal_t match = 0;
       for (idx = 0 ;  idx < ivl_nexus_ptrs(nex) ;  idx += 1) {
-	    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
-	    ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
-	    if (sig == 0)
-		  continue;
-	    if (ivl_signal_local(sig))
-		  continue;
-	    *word = ivl_nexus_ptr_pin(ptr);
-	    return sig;
+            ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+            ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+            if (sig == 0)
+                  continue;
+            if (ivl_signal_local(sig))
+                  continue;
+            *word = ivl_nexus_ptr_pin(ptr);
+            match = sig;
       }
 
-      return 0;
+      return match;
+}
+
+static ivl_signal_t signal_of_nexus_in_scope(ivl_nexus_t nex, ivl_scope_t scope,
+                                             unsigned*word, ivl_variable_type_t data_type)
+{
+      unsigned idx;
+      ivl_signal_t match = 0;
+      for (idx = 0 ; idx < ivl_nexus_ptrs(nex) ; idx += 1) {
+            ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+            ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+            if (sig == 0)
+                  continue;
+            if (ivl_signal_scope(sig) != scope)
+                  continue;
+            if ((data_type != IVL_VT_NO_TYPE) && (ivl_signal_data_type(sig) != data_type))
+                  continue;
+            *word = ivl_nexus_ptr_pin(ptr);
+            match = sig;
+      }
+
+      return match;
 }
 
 unsigned width_of_nexus(ivl_nexus_t nex)
@@ -443,12 +465,57 @@ char* draw_Cr_to_string(double value)
       return strdup(tmp);
 }
 
-const char*draw_input_from_net(ivl_nexus_t nex)
+const char*draw_input_from_net(ivl_nexus_t nex, ivl_scope_t scope)
 {
       static char result[32];
+      static int trace_event_input = -1;
       unsigned word;
-
-      ivl_signal_t sig = signal_of_nexus(nex, &word);
+      ivl_signal_t sig = 0;
+      unsigned idx;
+      if (trace_event_input < 0) {
+            const char*env = getenv("IVL_EVENT_INPUT_TRACE");
+            trace_event_input = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      if (trace_event_input) {
+            fprintf(stderr, "trace event-input nex=%p ptrs=%u\n",
+                    (void*)nex, ivl_nexus_ptrs(nex));
+            for (idx = 0 ; idx < ivl_nexus_ptrs(nex) ; idx += 1) {
+                  ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+                  ivl_signal_t trace_sig = ivl_nexus_ptr_sig(ptr);
+                  fprintf(stderr,
+                          "  ptr[%u] sig=%p name=%s scope=%s local=%d dtype=%d pin=%u log=%p\n",
+                          idx,
+                          (void*)trace_sig,
+                          trace_sig ? ivl_signal_basename(trace_sig) : "-",
+                          trace_sig ? ivl_scope_name(ivl_signal_scope(trace_sig)) : "-",
+                          trace_sig ? ivl_signal_local(trace_sig) : -1,
+                          trace_sig ? ivl_signal_data_type(trace_sig) : -1,
+                          ivl_nexus_ptr_pin(ptr),
+                          (void*)ivl_nexus_ptr_log(ptr));
+            }
+      }
+      if (scope != 0) {
+            ivl_scope_t cur;
+            for (cur = scope ; (sig == 0) && cur ; cur = ivl_scope_parent(cur))
+                  sig = signal_of_nexus_in_scope(nex, cur, &word, IVL_VT_CLASS);
+            for (cur = scope ; (sig == 0) && cur ; cur = ivl_scope_parent(cur))
+                  sig = signal_of_nexus_in_scope(nex, cur, &word, IVL_VT_NO_TYPE);
+      }
+      for (idx = 0 ; (sig == 0) && (idx < ivl_nexus_ptrs(nex)) ; idx += 1) {
+            ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+            ivl_signal_t local_sig = ivl_nexus_ptr_sig(ptr);
+            if (local_sig == 0)
+                  continue;
+            if (!ivl_signal_local(local_sig))
+                  continue;
+            if (ivl_signal_data_type(local_sig) != IVL_VT_CLASS)
+                  continue;
+            word = ivl_nexus_ptr_pin(ptr);
+            sig = local_sig;
+            break;
+      }
+      if (sig == 0)
+            sig = signal_of_nexus(nex, &word);
       if (sig == 0)
 	    return draw_net_input(nex);
       if (ivl_signal_type(sig)==IVL_SIT_REG && ivl_signal_dimensions(sig)>0)
@@ -599,11 +666,29 @@ static void draw_reg_in_scope(ivl_signal_t sig)
       } else if (ivl_signal_data_type(sig) == IVL_VT_QUEUE) {
 	    ivl_type_t var_type = ivl_signal_net_type(sig);
 	    ivl_type_t element_type = ivl_type_element(var_type);
+            const char*queue_kind = 0;
+            int assoc_compat = ivl_type_queue_assoc_compat(var_type);
 
-	    fprintf(vvp_out, "v%p_0 .var/queue %s\"%s\", %u;%s\n", sig,
+            switch (ivl_type_base(element_type)) {
+                case IVL_VT_REAL:
+                  queue_kind = assoc_compat ? "Mr" : "Qr";
+                  break;
+                case IVL_VT_STRING:
+                  queue_kind = assoc_compat ? "MS" : "QS";
+                  break;
+                case IVL_VT_CLASS:
+                case IVL_VT_NO_TYPE:
+                  queue_kind = assoc_compat ? "Mo" : "Qo";
+                  break;
+                default:
+                  queue_kind = assoc_compat ? "Mv" : "Qv";
+                  break;
+            }
+
+	    fprintf(vvp_out, "v%p_0 .var/queue %s\"%s\", %u, \"%s\";%s\n", sig,
 		    storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
-		    ivl_type_packed_width(element_type),
+		    ivl_type_packed_width(element_type), queue_kind,
 		    ivl_signal_local(sig)? " Local signal" : "");
 
       } else if (ivl_signal_data_type(sig) == IVL_VT_STRING) {
@@ -615,8 +700,15 @@ static void draw_reg_in_scope(ivl_signal_t sig)
       } else if (ivl_signal_data_type(sig) == IVL_VT_CLASS
 	         || ivl_signal_data_type(sig) == IVL_VT_NO_TYPE) {
 	    ivl_type_t var_type = ivl_signal_net_type(sig);
-	    if (var_type && ivl_type_base(var_type) == IVL_VT_NO_TYPE
-		&& ivl_type_properties(var_type) > 0) {
+	    if (var_type && ivl_type_base(var_type) == IVL_VT_CLASS) {
+		  draw_class_in_scope(var_type);
+		  fprintf(vvp_out, "v%p_0 .var/cobj %s\"%s\", TC%p;%s\n", sig,
+			  storage_flag,
+			  vvp_mangle_name(ivl_signal_basename(sig)),
+			  var_type,
+			  ivl_signal_local(sig)? " Local signal" : "");
+	    } else if (var_type && ivl_type_base(var_type) == IVL_VT_NO_TYPE
+		       && ivl_type_properties(var_type) > 0) {
 		  draw_class_in_scope(var_type);
 		  fprintf(vvp_out, "v%p_0 .var/cobj %s\"%s\", C%p;%s\n", sig,
 			  storage_flag,
@@ -1295,7 +1387,7 @@ static void draw_event_in_scope(ivl_event_t obj)
 			top = nany;
 		  for (sub = idx ;  sub < top ;  sub += 1) {
 			ivl_nexus_t nex = ivl_event_any(obj, sub);
-			strncpy(tmp[sub-idx], draw_input_from_net(nex), sizeof(tmp[0]));
+			strncpy(tmp[sub-idx], draw_input_from_net(nex, ivl_event_scope(obj)), sizeof(tmp[0]));
 		  }
 
 		  fprintf(vvp_out, "E_%p/%u .event anyedge", obj, ecnt);
@@ -1313,7 +1405,7 @@ static void draw_event_in_scope(ivl_event_t obj)
 			top = nneg;
 		  for (sub = idx ;  sub < top ;  sub += 1) {
 			ivl_nexus_t nex = ivl_event_neg(obj, sub);
-			strncpy(tmp[sub-idx], draw_input_from_net(nex), sizeof(tmp[0]));
+			strncpy(tmp[sub-idx], draw_input_from_net(nex, ivl_event_scope(obj)), sizeof(tmp[0]));
 		  }
 
 		  fprintf(vvp_out, "E_%p/%u .event negedge", obj, ecnt);
@@ -1331,7 +1423,7 @@ static void draw_event_in_scope(ivl_event_t obj)
 			top = npos;
 		  for (sub = idx ;  sub < top ;  sub += 1) {
 			ivl_nexus_t nex = ivl_event_pos(obj, sub);
-			strncpy(tmp[sub-idx], draw_input_from_net(nex), sizeof(tmp[0]));
+			strncpy(tmp[sub-idx], draw_input_from_net(nex, ivl_event_scope(obj)), sizeof(tmp[0]));
 		  }
 
 		  fprintf(vvp_out, "E_%p/%u .event posedge", obj, ecnt);
@@ -1349,7 +1441,7 @@ static void draw_event_in_scope(ivl_event_t obj)
 			top = nedg;
 		  for (sub = idx ;  sub < top ;  sub += 1) {
 			ivl_nexus_t nex = ivl_event_edg(obj, sub);
-			strncpy(tmp[sub-idx], draw_input_from_net(nex), sizeof(tmp[0]));
+			strncpy(tmp[sub-idx], draw_input_from_net(nex, ivl_event_scope(obj)), sizeof(tmp[0]));
 		  }
 
 		  fprintf(vvp_out, "E_%p/%u .event edge", obj, ecnt);
@@ -1382,7 +1474,7 @@ static void draw_event_in_scope(ivl_event_t obj)
 
 		  for (idx = 0 ;  idx < nany ;  idx += 1) {
 			ivl_nexus_t nex = ivl_event_any(obj, idx);
-			strncpy(tmp[idx], draw_input_from_net(nex), sizeof(tmp[0]));
+			strncpy(tmp[idx], draw_input_from_net(nex, ivl_event_scope(obj)), sizeof(tmp[0]));
 		  }
 
 	    } else if (nneg > 0) {
@@ -1391,7 +1483,7 @@ static void draw_event_in_scope(ivl_event_t obj)
 
 		  for (idx = 0 ;  idx < nneg ;  idx += 1) {
 			ivl_nexus_t nex = ivl_event_neg(obj, idx);
-			strncpy(tmp[idx], draw_input_from_net(nex), sizeof(tmp[0]));
+			strncpy(tmp[idx], draw_input_from_net(nex, ivl_event_scope(obj)), sizeof(tmp[0]));
 		  }
 
 	    } else if (npos > 0) {
@@ -1400,7 +1492,7 @@ static void draw_event_in_scope(ivl_event_t obj)
 
 		  for (idx = 0 ;  idx < npos ;  idx += 1) {
 			ivl_nexus_t nex = ivl_event_pos(obj, idx);
-			strncpy(tmp[idx], draw_input_from_net(nex), sizeof(tmp[0]));
+			strncpy(tmp[idx], draw_input_from_net(nex, ivl_event_scope(obj)), sizeof(tmp[0]));
 		  }
 	    } else {
 		  assert((nany + nneg + npos) == 0);
@@ -1408,7 +1500,7 @@ static void draw_event_in_scope(ivl_event_t obj)
 
 		  for (idx = 0 ;  idx < nedg ;  idx += 1) {
 			ivl_nexus_t nex = ivl_event_edg(obj, idx);
-			strncpy(tmp[idx], draw_input_from_net(nex), sizeof(tmp[0]));
+			strncpy(tmp[idx], draw_input_from_net(nex, ivl_event_scope(obj)), sizeof(tmp[0]));
 		  }
 	    }
 

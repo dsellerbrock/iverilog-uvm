@@ -20,6 +20,7 @@
 
 # include "config.h"
 # include  <algorithm>
+# include  <cstdlib>
 
 # include  "PExpr.h"
 # include  "PPackage.h"
@@ -1267,6 +1268,18 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		      const netclass_t*owner_class = dynamic_cast<const netclass_t*>(owner_type);
 		      const netstruct_t*owner_struct = dynamic_cast<const netstruct_t*>(owner_type);
 		      if (!owner_class && !(gn_system_verilog() && owner_struct && !owner_struct->packed())) {
+			    if (const char*trace = getenv("IVL_NESTED_PATH_TRACE")) {
+				  cerr << get_fileline() << ": debug: "
+				       << "nested l-value tail rejected"
+				       << " trace=" << trace
+				       << " member=" << member_path.front().name
+				       << " owner_type=";
+				  if (owner_type)
+					owner_type->debug_dump(cerr);
+				  else
+					cerr << "<null>";
+				  cerr << endl;
+			    }
 			    cerr << get_fileline() << ": error: "
 			         << "Nested member path is not a class/struct l-value in this context."
 			         << endl;

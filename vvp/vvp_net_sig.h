@@ -327,12 +327,37 @@ class vvp_fun_signal_string_aa : public vvp_fun_signal_string, public automatic_
 class vvp_fun_signal_object : public vvp_fun_signal_base {
 
     public:
-      explicit vvp_fun_signal_object(unsigned size) { size_ = size; };
+      enum init_obj_kind_t {
+            INIT_OBJ_NONE = 0,
+            INIT_OBJ_QUEUE_REAL,
+            INIT_OBJ_QUEUE_STRING,
+            INIT_OBJ_QUEUE_VEC4,
+            INIT_OBJ_QUEUE_OBJECT,
+            INIT_OBJ_ASSOC_REAL,
+            INIT_OBJ_ASSOC_STRING,
+            INIT_OBJ_ASSOC_VEC4,
+            INIT_OBJ_ASSOC_OBJECT
+      };
+
+      explicit vvp_fun_signal_object(unsigned size) { size_ = size; declared_type_ = 0; };
       unsigned size() const { return size_; }
+      class_type* declared_type() const { return declared_type_; }
+      class_type*& declared_type_ref() { return declared_type_; }
+      void default_object_kind(init_obj_kind_t kind) { default_object_kind_ = kind; }
+      init_obj_kind_t default_object_kind() const { return default_object_kind_; }
 
       virtual vvp_object_t get_object() const =0;
+      virtual vvp_object_t peek_object() const =0;
+      virtual vvp_net_t* get_root_net() const =0;
+      virtual vvp_object_t get_root_object() const =0;
+      virtual void set_root_provenance(vvp_net_t*root_net, const vvp_object_t&root_obj,
+                                       vvp_context_t context) =0;
+    protected:
+      vvp_object_t make_default_object() const;
     private:
       unsigned size_;
+      class_type* declared_type_;
+      init_obj_kind_t default_object_kind_ = INIT_OBJ_NONE;
 };
 
 /*
@@ -347,11 +372,20 @@ class vvp_fun_signal_object_sa : public vvp_fun_signal_object {
 		    vvp_context_t context) override;
 
       vvp_object_t get_object() const override;
+      vvp_object_t peek_object() const override;
+      vvp_net_t* get_root_net() const override;
+      vvp_object_t get_root_object() const override;
+      void set_root_provenance(vvp_net_t*root_net, const vvp_object_t&root_obj,
+                               vvp_context_t context) override;
 
       class_type* init_defn_;
 
     private:
       mutable vvp_object_t value_;
+      mutable uint64_t value_epoch_;
+      mutable vvp_net_t* root_net_;
+      mutable vvp_object_t root_obj_;
+      mutable vvp_net_t* attached_net_;
 };
 
 /*
@@ -381,6 +415,12 @@ class vvp_fun_signal_object_aa : public vvp_fun_signal_object, public automatic_
 	//void get_signal_value(struct t_vpi_value*vp);
 
       vvp_object_t get_object() const override;
+      vvp_object_t peek_object() const override;
+      vvp_net_t* get_root_net() const override;
+      vvp_object_t get_root_object() const override;
+      void set_root_provenance(vvp_net_t*root_net, const vvp_object_t&root_obj,
+                               vvp_context_t context) override;
+      void clear_current_alias(vvp_context_t context);
 
       class_type* init_defn_;
 
@@ -388,9 +428,10 @@ class vvp_fun_signal_object_aa : public vvp_fun_signal_object, public automatic_
       static void* operator new(std::size_t size);
       static void operator delete(void*obj);
 
-    private:
-      __vpiScope*context_scope_;
-      unsigned context_idx_;
+	    private:
+	      __vpiScope*context_scope_;
+	      unsigned context_idx_;
+            mutable vvp_net_t* attached_net_;
 };
 
 

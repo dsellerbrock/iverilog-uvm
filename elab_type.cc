@@ -39,6 +39,7 @@
 # include  <set>
 # include  <sstream>
 # include  <typeinfo>
+# include  <cstring>
 # include  "ivl_assert.h"
 
 using namespace std;
@@ -196,7 +197,7 @@ static ivl_type_t resolve_circular_class_handle_type_(Design*des,
 			      dynamic_cast<const netclass_t*>(alias_class))
 			return const_cast<netclass_t*>(
 			      elaborate_specialized_class_type(des, type_scope, base_class,
-							       overrides));
+						       overrides, false));
 	    }
 	    return alias_class;
       }
@@ -207,7 +208,8 @@ static ivl_type_t resolve_circular_class_handle_type_(Design*des,
 
       if (const parmvalue_t*overrides = type_ref->parameter_values())
 	    return const_cast<netclass_t*>(
-		  elaborate_specialized_class_type(des, type_scope, base_class, overrides));
+		  elaborate_specialized_class_type(des, type_scope, base_class, overrides,
+						   false));
 
       return base_class;
 }
@@ -1075,6 +1077,15 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 
 	    // Try to recover
 	    return netvector_t::integer_type();
+      }
+
+      // Some elaboration paths synthesize wrapper typedef_t nodes that are
+      // equivalent to, but not pointer-identical with, the defining scope
+      // entry. Delegate to the canonical scope entry so repeated references
+      // share the same elaborated type object.
+      if (typedef_t*canonical_td = scope->find_typedef(des, name)) {
+	    if (canonical_td != this)
+		  return canonical_td->elaborate_type(des, scope);
       }
 
       ivl_type_t elab_type = data_type->elaborate_type(des, scope);

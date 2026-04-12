@@ -434,7 +434,13 @@ template <class QUEUE_TYPE> class property_queue : public class_property_t {
                   idx = 0;
             }
 	    vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
-	    tmp[idx] = val;
+            if (val.test_nil()) {
+                  tmp[idx].reset();
+            } else if (val.peek<QUEUE_TYPE>()) {
+                  tmp[idx] = val.duplicate();
+            } else {
+                  tmp[idx] = val;
+            }
       }
 
       void get_object(char*buf, vvp_object_t&val, uint64_t idx) override
@@ -462,8 +468,15 @@ template <class QUEUE_TYPE> class property_queue : public class_property_t {
       {
 	    vvp_object_t*dst_obj = reinterpret_cast<vvp_object_t*>(dst+offset_);
 	    const vvp_object_t*src_obj = reinterpret_cast<vvp_object_t*>(src+offset_);
-	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
-		  dst_obj[idx] = src_obj[idx];
+	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1) {
+                  if (src_obj[idx].test_nil()) {
+                        dst_obj[idx].reset();
+                  } else if (src_obj[idx].peek<QUEUE_TYPE>()) {
+                        dst_obj[idx] = src_obj[idx].duplicate();
+                  } else {
+		        dst_obj[idx] = src_obj[idx];
+                  }
+            }
       }
 
     private:
@@ -1117,6 +1130,39 @@ void class_type::copy_property(class_type::inst_t dst, size_t pid, class_type::i
 int class_type::get_type_code(void) const
 {
       return vpiClassDefn;
+}
+
+char* class_type::vpi_get_str(int code)
+{
+      switch (code) {
+          case vpiName:
+            return const_cast<char*>(class_name_.c_str());
+
+          case vpiFullName:
+            if (scope_path_.empty())
+                  return const_cast<char*>(class_name_.c_str());
+            else {
+                  string full_name = scope_path_ + "." + class_name_;
+                  char*rbuf = static_cast<char*>(need_result_buf(full_name.size()+1,
+                                                                 RBUF_VAL));
+                  strcpy(rbuf, full_name.c_str());
+                  return rbuf;
+            }
+
+          default:
+            return 0;
+      }
+}
+
+vpiHandle class_type::vpi_handle(int code)
+{
+      switch (code) {
+          case vpiBaseTypespec:
+            return const_cast<class_type*>(runtime_super());
+
+          default:
+            return 0;
+      }
 }
 
 static class_type*compile_class = 0;

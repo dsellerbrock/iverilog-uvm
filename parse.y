@@ -987,6 +987,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <packed_signing> packed_signing
 
 %type <class_declaration_extends> class_declaration_extends_opt
+%type <parmvalue> class_extends_type_params_opt
 
 %type <property_qualifier> class_item_qualifier property_qualifier
 %type <property_qualifier> class_item_qualifier_list property_qualifier_list
@@ -1266,12 +1267,17 @@ class_declaration_endlabel_opt
 
 class_declaration_extends_opt /* IEEE1800-2005: A.1.2 */
   : K_extends ps_type_identifier class_extends_type_params_opt argument_list_parens_opt
-      { $$.type = $2;
+      { if (typeref_t*tmp = dynamic_cast<typeref_t*>($2))
+	      tmp->set_parameter_values($3);
+	else
+	      delete_parmvalue_t($3);
+	$$.type = $2;
 	$$.args = $4;
       }
   | K_extends IDENTIFIER class_extends_type_params_opt argument_list_parens_opt
       { type_parameter_t*tmp = new type_parameter_t(lex_strings.make($2));
 	FILE_NAME(tmp, @2);
+	delete_parmvalue_t($3);
 	$$.type = tmp;
 	$$.args = $4;
 	delete[]$2;
@@ -1283,8 +1289,9 @@ class_declaration_extends_opt /* IEEE1800-2005: A.1.2 */
 
 class_extends_type_params_opt
   : type_parameter_value
-      { delete_parmvalue_t($1); }
+      { $$ = $1; }
   |
+      { $$ = 0; }
   ;
 
   /* The class_items_opt and class_items rules together implement the

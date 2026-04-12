@@ -145,7 +145,7 @@ class vvp_darray_object : public vvp_darray {
       void set_word(unsigned adr, const vvp_object_t&value) override;
       void get_word(unsigned adr, vvp_object_t&value) override;
       void shallow_copy(const vvp_object*obj) override;
-      //virtual vvp_object* duplicate(void) const;
+      vvp_object* duplicate(void) const override;
 
     private:
       std::vector<vvp_object_t> array_;
@@ -198,8 +198,8 @@ class vvp_queue_real : public vvp_queue {
       void insert(unsigned idx, double value, unsigned max_size) override;
       void push_back(double value, unsigned max_size) override;
       void push_front(double value, unsigned max_size) override;
-      void pop_back(void) override { queue.pop_back(); };
-      void pop_front(void) override { queue.pop_front(); };
+      void pop_back(void) override { queue.pop_back(); touch(); };
+      void pop_front(void) override { queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
 
@@ -219,8 +219,8 @@ class vvp_queue_string : public vvp_queue {
       void insert(unsigned idx, const std::string&value, unsigned max_size) override;
       void push_back(const std::string&value, unsigned max_size) override;
       void push_front(const std::string&value, unsigned max_size) override;
-      void pop_back(void) override { queue.pop_back(); };
-      void pop_front(void) override { queue.pop_front(); };
+      void pop_back(void) override { queue.pop_back(); touch(); };
+      void pop_front(void) override { queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
 
@@ -240,8 +240,8 @@ class vvp_queue_vec4 : public vvp_queue {
       void insert(unsigned idx, const vvp_vector4_t&value, unsigned max_size) override;
       void push_back(const vvp_vector4_t&value, unsigned max_size) override;
       void push_front(const vvp_vector4_t&value, unsigned max_size) override;
-      void pop_back(void) override { queue.pop_back(); };
-      void pop_front(void) override { queue.pop_front(); };
+      void pop_back(void) override { queue.pop_back(); touch(); };
+      void pop_front(void) override { queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
 
@@ -261,8 +261,8 @@ class vvp_queue_object : public vvp_queue {
       void insert(unsigned idx, const vvp_object_t&value, unsigned max_size) override;
       void push_back(const vvp_object_t&value, unsigned max_size) override;
       void push_front(const vvp_object_t&value, unsigned max_size) override;
-      void pop_back(void) override { queue.pop_back(); };
-      void pop_front(void) override { queue.pop_front(); };
+      void pop_back(void) override { queue.pop_back(); touch(); };
+      void pop_front(void) override { queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
 

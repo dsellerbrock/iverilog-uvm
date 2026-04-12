@@ -445,6 +445,18 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 						   const pform_scoped_name_t&path,
 						   const parmvalue_t*leading_type_args = 0)
 {
+      static int trace_class_method = -1;
+      auto scope_text = [](const NetScope*use_scope) -> std::string {
+            if (!use_scope)
+                  return "<null>";
+            std::ostringstream out;
+            out << scope_path(use_scope);
+            return out.str();
+      };
+      if (trace_class_method < 0) {
+            const char*env = getenv("IVL_CLASS_METHOD_TRACE");
+            trace_class_method = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
       if (!gn_system_verilog())
 	    return nullptr;
       if (path.name.size() < 2)
@@ -475,16 +487,26 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 	    }
 
 	    class_type = resolve_scoped_class_type_name_(des, comp_scope, comp.name);
+            if ((!class_type || !class_type->class_scope()) && comp_scope)
+                  class_type = ensure_visible_class_type(des, comp_scope, comp.name);
+            if (trace_class_method) {
+                  cerr << "trace scoped-func class-step "
+                       << "comp=" << comp.name
+                       << " class=" << (class_type ? class_type->get_name() : perm_string())
+                       << " class_scope=" << (class_type ? scope_text(class_type->class_scope())
+                                                         : std::string("<null>"))
+                       << endl;
+            }
 	    if (!class_type)
 		  return nullptr;
 	    if (first_comp && leading_type_args) {
 		  NetScope*spec_scope = comp_scope;
-		  if (spec_scope && spec_scope->get_class_scope())
-			spec_scope = const_cast<NetScope*>(spec_scope->get_class_scope());
+		  // Keep the current lexical scope so block-local typedefs used in
+		  // type arguments remain visible during specialization.
 		  class_type = elaborate_specialized_class_type(des, spec_scope,
-							       class_type,
-							       leading_type_args,
-							       false);
+						       class_type,
+						       leading_type_args,
+						       false);
 	    }
 
 	    first_comp = false;
@@ -494,6 +516,13 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 	    return nullptr;
 
       NetScope*method_scope = class_type->method_from_name(method_name);
+      if (trace_class_method) {
+            cerr << "trace scoped-func method "
+                 << "class=" << class_type->get_name()
+                 << " method=" << method_name
+                 << " found=" << scope_text(method_scope)
+                 << endl;
+      }
       if (!method_scope || method_scope->type() != NetScope::FUNC)
 	    return nullptr;
 
@@ -630,11 +659,11 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 			      "This assignment requires an explicit cast." << endl;
 	      des->errors += 1;
 	      }
-	    } else if (!lval_enum->matches(rval_enum)) {
+	      } else if (!lval_enum->matches(rval_enum)) {
 	      cerr << expr->get_fileline() << ": error: "
 			      "Enumeration type mismatch in assignment." << endl;
 	      des->errors += 1;
-	    }
+	      }
       }
 
       return rval;
@@ -2389,7 +2418,7 @@ static NetExpr* elaborate_compile_progress_expr_method_stub_(
       return 0;
 }
 
-unsigned PECallFunction::test_width_method_(Design*des, NetScope*,
+unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 					    const symbol_search_results&search_results,
 					    width_mode_t&)
 {
@@ -2705,6 +2734,11 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*,
 		  min_width_ = 1;
 		  signed_flag_ = false;
 		  return expr_width_;
+	    }
+	    if (!class_type->scope_ready()) {
+		  if (netclass_t*visible_class = ensure_visible_class_type(des, scope,
+								       class_type->get_name()))
+			class_type = visible_class;
 	    }
 	    NetScope*method = class_type->resolve_method_call_scope(des, method_name);
 
@@ -4417,6 +4451,24 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			}
 			
 		  } else if (!cur_class) {
+			if (const char*trace = getenv("IVL_NESTED_PATH_TRACE")) {
+			      cerr << get_fileline() << ": debug: "
+				   << "nested class-property tail rejected"
+				   << " trace=" << trace
+				   << " comp=" << comp.name
+				   << " tail=" << tail_comp.name
+				   << " base_type=";
+			      if (cur_type)
+				    cur_type->debug_dump(cerr);
+			      else
+				    cerr << "<null>";
+			      cerr << " base_expr_type=";
+			      if (base_expr && base_expr->net_type())
+				    base_expr->net_type()->debug_dump(cerr);
+			      else
+				    cerr << "<null>";
+			      cerr << endl;
+			}
 			delete base_expr;
 			cerr << get_fileline() << ": sorry: "
 			     << "Nested member path not yet supported for class properties."
@@ -5647,6 +5699,11 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 			       << path_ << "' is not resolved to a class type." << endl;
 			  des->errors += 1;
 			  return 0;
+		    }
+		    if (!class_type->scope_ready()) {
+			  if (netclass_t*visible_class = ensure_visible_class_type(des, scope,
+									       class_type->get_name()))
+				class_type = visible_class;
 		    }
 		    NetScope*method = class_type->resolve_method_call_scope(des, method_name);
 		    if (method == 0) {
@@ -10179,7 +10236,7 @@ NetEConst* PENumber::elaborate_expr(Design*, NetScope*,
 
 unsigned PEString::test_width(Design*, NetScope*, width_mode_t&)
 {
-      expr_type_   = IVL_VT_BOOL;
+      expr_type_   = IVL_VT_STRING;
       if (!text_width_valid_) {
             text_width_ = text_.empty()? 0 : parsed_value().len();
             text_width_valid_ = true;

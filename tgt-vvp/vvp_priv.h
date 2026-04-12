@@ -179,11 +179,11 @@ extern const char* draw_island_net_input(ivl_island_t island, ivl_nexus_t nex);
  * will follow the net value, even if the net is assigned or
  * forced. The draw_net_input above will return a reference to the
  * *input* to the net and so will not follow direct assignments to
- * the net. This function will not return references to local signals,
- * and will in those cases resort to the net input, or a non-local
- * signal if one exists for the nexus.
+ * the net. When a preferred scope is provided, signals in that scope
+ * are chosen first so automatic method/task waits bind to the active
+ * receiver handle before falling back to other nexus members.
  */
-extern const char*draw_input_from_net(ivl_nexus_t nex);
+extern const char*draw_input_from_net(ivl_nexus_t nex, ivl_scope_t scope);
 
 /*
  * This evaluates an expression and leaves the result in the numbered

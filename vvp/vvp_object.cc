@@ -22,11 +22,15 @@
 # include  <iostream>
 # include  <typeinfo>
 # include  <set>
+# include  <map>
+# include  <vector>
 
 using namespace std;
 
 int vvp_object::total_active_cnt_ = 0;
 static std::set<const vvp_object*> live_vvp_objects_;
+typedef std::pair<vvp_net_t*, void*> object_alias_key_t;
+static std::map<const vvp_object*, std::set<object_alias_key_t> > object_signal_aliases_;
 
 void vvp_object::register_live_ptr_(const vvp_object*ptr)
 {
@@ -51,8 +55,78 @@ void vvp_object::cleanup(void)
 
 vvp_object::~vvp_object()
 {
+      object_signal_aliases_.erase(this);
       unregister_live_ptr_(this);
       total_active_cnt_ -= 1;
+}
+
+void vvp_object::register_signal_alias(vvp_net_t*net, void*context)
+{
+      if (!net)
+            return;
+      static int trace_alias = -1;
+      if (trace_alias < 0) {
+            const char*env = getenv("IVL_OBJ_ALIAS_TRACE");
+            trace_alias = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      if (trace_alias) {
+            fprintf(stderr, "trace obj-alias register obj=%p net=%p ctx=%p\n",
+                    (const void*)this, (void*)net, context);
+      }
+      object_signal_aliases_[this].insert(object_alias_key_t(net, context));
+}
+
+void vvp_object::unregister_signal_alias(vvp_net_t*net, void*context)
+{
+      if (!net)
+            return;
+      static int trace_alias = -1;
+      if (trace_alias < 0) {
+            const char*env = getenv("IVL_OBJ_ALIAS_TRACE");
+            trace_alias = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      if (trace_alias) {
+            fprintf(stderr, "trace obj-alias unregister obj=%p net=%p ctx=%p\n",
+                    (const void*)this, (void*)net, context);
+      }
+      std::map<const vvp_object*, std::set<object_alias_key_t> >::iterator it =
+            object_signal_aliases_.find(this);
+      if (it == object_signal_aliases_.end())
+            return;
+      it->second.erase(object_alias_key_t(net, context));
+      if (it->second.empty())
+            object_signal_aliases_.erase(it);
+}
+
+void vvp_object::notify_signal_aliases() const
+{
+      static int trace_alias = -1;
+      if (trace_alias < 0) {
+            const char*env = getenv("IVL_OBJ_ALIAS_TRACE");
+            trace_alias = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      std::map<const vvp_object*, std::set<object_alias_key_t> >::const_iterator it =
+            object_signal_aliases_.find(this);
+      if (it == object_signal_aliases_.end())
+            return;
+
+      if (trace_alias) {
+            fprintf(stderr, "trace obj-alias notify obj=%p aliases=%zu\n",
+                    (const void*)this, it->second.size());
+      }
+      std::vector<object_alias_key_t> aliases(it->second.begin(), it->second.end());
+      vvp_object_t self(const_cast<vvp_object*>(this));
+      for (std::vector<object_alias_key_t>::const_iterator cur = aliases.begin()
+                 ; cur != aliases.end() ; ++cur) {
+            if (!cur->first)
+                  continue;
+            if (trace_alias) {
+                  fprintf(stderr, "trace obj-alias send obj=%p net=%p ctx=%p\n",
+                          (const void*)this, (void*)cur->first, cur->second);
+            }
+            vvp_send_object(vvp_net_ptr_t(cur->first, 0), self,
+                            static_cast<vvp_context_t>(cur->second));
+      }
 }
 
 void vvp_object::shallow_copy(const vvp_object*)

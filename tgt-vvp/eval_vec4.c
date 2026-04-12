@@ -245,6 +245,17 @@ static void draw_binary_vec4_compare_real(ivl_expr_t expr)
       }
 }
 
+static int expr_is_string_like_(ivl_expr_t expr)
+{
+      if (ivl_expr_type(expr) == IVL_EX_SIGNAL) {
+            ivl_signal_t sig = ivl_expr_signal(expr);
+            return sig && (ivl_signal_data_type(sig) == IVL_VT_STRING);
+      }
+
+      return (ivl_expr_value(expr) == IVL_VT_STRING)
+          || (ivl_expr_type(expr) == IVL_EX_STRING);
+}
+
 static void draw_binary_vec4_compare_string(ivl_expr_t expr)
 {
       draw_eval_string(ivl_expr_oper1(expr));
@@ -1247,22 +1258,6 @@ static int draw_assoc_traversal_vec4(ivl_expr_t expr)
 static void draw_sfunc_vec4(ivl_expr_t expr)
 {
       unsigned parm_count = ivl_expr_parms(expr);
-      if (strcmp(ivl_expr_name(expr), "$cast") == 0 && parm_count == 2) {
-            ivl_expr_t dest = ivl_expr_parm(expr, 0);
-            ivl_expr_t src  = ivl_expr_parm(expr, 1);
-            if (dest && src
-                && ivl_expr_value(dest) == IVL_VT_CLASS
-                && ivl_expr_type(dest) == IVL_EX_SIGNAL) {
-                  ivl_signal_t sig = ivl_expr_signal(dest);
-                  if (sig && ivl_signal_dimensions(sig) == 0) {
-                        draw_eval_object(src);
-                        fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
-                        fprintf(vvp_out, "    %%pushi/vec4 1, 0, %u;\n",
-                                ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
-                        return;
-                  }
-            }
-      }
 
 	/* Special case: If there are no arguments to print, then the
 	   %vpi_call statement is easy to draw. */
@@ -1710,6 +1705,29 @@ void draw_eval_vec4(ivl_expr_t expr)
             draw_eval_real(expr);
             fprintf(vvp_out, "    %%cvt/vr %u;\n", wid);
             return;
+      }
+      if (ivl_expr_type(expr) == IVL_EX_BINARY) {
+            ivl_expr_t le = ivl_expr_oper1(expr);
+            ivl_expr_t re = ivl_expr_oper2(expr);
+
+            if (expr_is_string_like_(le) || expr_is_string_like_(re)) {
+                  switch (ivl_expr_opcode(expr)) {
+                      case 'e': /* == */
+                      case 'E': /* === */
+                      case 'n': /* != */
+                      case 'N': /* !== */
+                      case 'w': /* ==? */
+                      case 'W': /* !=? */
+                      case 'G': /* >= */
+                      case 'L': /* <= */
+                      case '>':
+                      case '<':
+                        draw_binary_vec4(expr);
+                        return;
+                      default:
+                        break;
+                  }
+            }
       }
       if (ivl_expr_value(expr) == IVL_VT_STRING) {
             unsigned wid = ivl_expr_width(expr) ? ivl_expr_width(expr) : 1;

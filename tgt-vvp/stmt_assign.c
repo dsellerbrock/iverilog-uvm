@@ -2135,9 +2135,6 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 	        ivl_type_base(prop_type) == IVL_VT_LOGIC) {
 		  int prop_word_idx = 0;
 		  ivl_expr_t idx_expr = ivl_lval_idx(lval);
-		  assert(ivl_type_packed_dimensions(prop_type) == 0 ||
-		         (ivl_type_packed_dimensions(prop_type) == 1 &&
-		          ivl_type_packed_msb(prop_type,0) >= ivl_type_packed_lsb(prop_type, 0)));
 
 		  if (idx_expr) {
 			prop_word_idx = allocate_word();

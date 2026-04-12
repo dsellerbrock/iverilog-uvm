@@ -43,6 +43,33 @@ static bool use_automatic_storage_(int lifetime_flag)
       return vpip_peek_current_scope()->is_automatic();
 }
 
+static vvp_fun_signal_object::init_obj_kind_t queue_init_kind_from_text_(const char*type)
+{
+      using init_t = vvp_fun_signal_object::init_obj_kind_t;
+
+      if (!type || !*type)
+            return init_t::INIT_OBJ_NONE;
+
+      if (strcmp(type, "Qr") == 0)
+            return init_t::INIT_OBJ_QUEUE_REAL;
+      if (strcmp(type, "QS") == 0)
+            return init_t::INIT_OBJ_QUEUE_STRING;
+      if (strcmp(type, "Qv") == 0)
+            return init_t::INIT_OBJ_QUEUE_VEC4;
+      if (strcmp(type, "Qo") == 0)
+            return init_t::INIT_OBJ_QUEUE_OBJECT;
+      if (strcmp(type, "Mr") == 0)
+            return init_t::INIT_OBJ_ASSOC_REAL;
+      if (strcmp(type, "MS") == 0)
+            return init_t::INIT_OBJ_ASSOC_STRING;
+      if (strcmp(type, "Mv") == 0)
+            return init_t::INIT_OBJ_ASSOC_VEC4;
+      if (strcmp(type, "Mo") == 0)
+            return init_t::INIT_OBJ_ASSOC_OBJECT;
+
+      return init_t::INIT_OBJ_NONE;
+}
+
 static void __compile_var_real(char*label, char*name,
 			       vvp_array_t array, unsigned long array_addr,
 			       int lifetime_flag)
@@ -133,7 +160,7 @@ void compile_var_darray(char*label, char*name, unsigned size,
 }
 
 void compile_var_queue(char*label, char*name, unsigned size,
-		       int lifetime_flag)
+		       char*type, int lifetime_flag)
 {
       vvp_net_t*net = new vvp_net_t;
       bool use_auto = use_automatic_storage_(lifetime_flag);
@@ -147,6 +174,11 @@ void compile_var_queue(char*label, char*name, unsigned size,
 	    net->fun = new vvp_fun_signal_object_sa(size);
       }
 
+      if (vvp_fun_signal_object*obj =
+              dynamic_cast<vvp_fun_signal_object*>(net->fun)) {
+            obj->default_object_kind(queue_init_kind_from_text_(type));
+      }
+
       define_functor_symbol(label, net);
 
       vpiHandle obj = vpip_make_queue_var(name, net);
@@ -155,26 +187,45 @@ void compile_var_queue(char*label, char*name, unsigned size,
       vpip_attach_to_current_scope(obj);
       free(label);
       delete[] name;
+      free(type);
 }
 
 void compile_var_cobject(char*label, char*name, char*type, int lifetime_flag)
 {
       vvp_net_t*net = new vvp_net_t;
       bool use_auto = use_automatic_storage_(lifetime_flag);
+      bool declared_only = false;
+      char*declared_type = 0;
+
+      if (type) {
+	    if (type[0] == 'T') {
+		  declared_only = true;
+		  declared_type = strdup(type+1);
+	    } else {
+		  declared_type = strdup(type);
+	    }
+      }
 
       if (use_auto) {
 	    vvp_fun_signal_object_aa*tmp = new vvp_fun_signal_object_aa(1);
-	    if (type)
+	    if (declared_type)
+		  compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&tmp->declared_type_ref()), declared_type);
+	    if (type && !declared_only)
 		  compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&tmp->init_defn_), type);
 	    net->fil = tmp;
 	    net->fun = tmp;
       } else {
 	    vvp_fun_signal_object_sa*tmp = new vvp_fun_signal_object_sa(1);
-	    if (type)
+	    if (declared_type)
+		  compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&tmp->declared_type_ref()), declared_type);
+	    if (type && !declared_only)
 		  compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&tmp->init_defn_), type);
 	    net->fil = 0;
 	    net->fun = tmp;
       }
+
+      if (type && declared_only)
+	    free(type);
 
       define_functor_symbol(label, net);
 
