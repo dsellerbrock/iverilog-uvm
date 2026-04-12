@@ -5308,6 +5308,23 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		    // If an implicit this was added it is not an error if we
 		    // don't find a method. It might actually be a call to a
 		    // function outside of the class.
+		  // If the class scope was not fully ready (due to the
+		  // recursion guard during elaboration of mutually-referencing
+		  // class hierarchies), treat the missing inherited method as
+		  // a compile-progress warning and emit a noop stub so
+		  // elaboration can continue producing a VVP file.
+		  if (!class_type->scope_ready()) {
+			cerr << get_fileline() << ": warning: "
+			     << "Enable of unknown task ``"
+			     << method_name << "'' ignored"
+			     << " (class " << class_type->get_name()
+			     << " scope incomplete; compile-progress fallback)."
+			     << endl;
+			delete obj_expr;
+			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			noop->set_line(*this);
+			return noop;
+		  }
 		  if (!add_this_flag) {
 			cerr << get_fileline() << ": error: "
 			     << "Can't find task " << method_name

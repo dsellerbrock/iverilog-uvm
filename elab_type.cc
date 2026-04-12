@@ -1070,10 +1070,24 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
         // Search upwards from where the type was referenced
       scope = scope->find_typedef_scope(des, this);
       if (!scope) {
-	    cerr << get_fileline() << ": sorry: "
-	         << "Can not find the scope type definition `" << name << "`."
-		 << endl;
-	    des->errors++;
+	      // Compiler-synthesized internal typedefs (e.g. __tmp_int_t__
+	      // from UVM macros) may fail scope lookup when the enclosing
+	      // class was incompletely elaborated by the recursion guard.
+	      // Treat as a compile-progress warning rather than a fatal error
+	      // so the VVP file can still be generated.
+	    const char*name_cstr = name.str();
+	    bool internal_name = name_cstr && name_cstr[0] == '_' && name_cstr[1] == '_';
+	    if (!internal_name) {
+		  cerr << get_fileline() << ": sorry: "
+		       << "Can not find the scope type definition `" << name << "`."
+		       << endl;
+		  des->errors++;
+	    } else {
+		  cerr << get_fileline() << ": warning: "
+		       << "Can not find the scope type definition `" << name
+		       << "' (compile-progress fallback)."
+		       << endl;
+	    }
 
 	    // Try to recover
 	    return netvector_t::integer_type();

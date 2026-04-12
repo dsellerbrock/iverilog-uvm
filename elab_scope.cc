@@ -68,6 +68,18 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 					   PClass*pclass, netclass_t*use_class,
 					   NetScope*class_scope);
 
+// Guard against infinite recursion between ensure_visible_class_type
+// and elaborate_scope_class / complete_class_scope_in_place_.  UVM
+// class hierarchies have mutual references that trigger unbounded
+// re-entry, exhausting memory.
+static set<const PClass*> classes_being_scope_elaborated_;
+static unsigned ensure_visible_depth_ = 0;
+static const unsigned ENSURE_VISIBLE_MAX_DEPTH_ = 20;
+
+// Track total specialization allocs to catch any remaining runaway cases.
+static unsigned total_class_allocs_ = 0;
+static unsigned total_spec_allocs_ = 0;
+
 struct specialization_perf_metrics_t {
       specialization_perf_metrics_t()
       : enabled(false), initialized(false), start_time(0), last_report(0),
@@ -702,59 +714,44 @@ netclass_t* ensure_visible_class_type(Design*des, NetScope*scope, perm_string na
       if (!des || !scope || name.nil())
 	    return 0;
 
-      const char*trace = getenv("IVL_CLASS_METHOD_TRACE");
-      bool trace_frontdoor = trace && *trace
-            && name == perm_string::literal("uvm_reg_frontdoor");
+	// Depth guard: if we are already too deep in recursive class
+	// elaboration, return whatever we have (possibly null) rather
+	// than recursing further.  This prevents unbounded memory
+	// growth from mutually-referencing class hierarchies.
+      if (ensure_visible_depth_ >= ENSURE_VISIBLE_MAX_DEPTH_)
+	    return scope->find_class(des, name);
+
+      ensure_visible_depth_ += 1;
 
       netclass_t*incomplete_cls = 0;
       if (netclass_t*cls = scope->find_class(des, name)) {
-            if (trace_frontdoor) {
-                  cerr << "trace ensure-visible found"
-                       << " class=" << name
-                       << " cls=" << (const void*)cls
-                       << " scope_ready=" << cls->scope_ready()
-                       << " class_scope_ptr=" << (const void*)cls->class_scope()
-                       << " class_scope=" << scope_path(cls->class_scope())
-                       << " class_pform="
-                       << (const void*)(cls->class_scope() ? cls->class_scope()->class_pform() : 0)
-                       << " def_scope=" << scope_path(cls->definition_scope())
-                       << endl;
-            }
-            if (cls->class_scope() && cls->scope_ready())
+            if (cls->class_scope() && cls->scope_ready()) {
+                  ensure_visible_depth_ -= 1;
                   return cls;
+            }
             incomplete_cls = cls;
 
             if (cls->class_scope() && !cls->scope_ready()) {
                   const PClass*pclass = cls->class_scope()->class_pform();
                   NetScope*definition_scope = cls->definition_scope();
-                  if (trace_frontdoor) {
-                        cerr << "trace ensure-visible direct-elab"
-                             << " class=" << name
-                             << " pclass=" << (const void*)pclass
-                             << " def_scope=" << scope_path(definition_scope)
-                             << endl;
-                  }
-                  if (pclass && definition_scope) {
+		    // Only recurse if this class is not already being
+		    // elaborated (cycle guard).
+                  if (pclass && definition_scope
+		      && classes_being_scope_elaborated_.count(pclass) == 0) {
                         elaborate_scope_class(des, definition_scope,
                                               const_cast<PClass*>(pclass));
-                        if (trace_frontdoor) {
-                              cerr << "trace ensure-visible post-elab"
-                                   << " class=" << name
-                                   << " cls=" << (const void*)cls
-                                   << " scope_ready=" << cls->scope_ready()
-                                   << " class_scope=" << scope_path(cls->class_scope())
-                                   << " child_count="
-                                   << (cls->class_scope() ? cls->class_scope()->children().size() : 0)
-                                   << endl;
-                        }
-                        if (cls->scope_ready())
+                        if (cls->scope_ready()) {
+                              ensure_visible_depth_ -= 1;
                               return cls;
+                        }
                   }
             }
       }
 
-      if (netclass_t*cls = builtin_class_type(name))
+      if (netclass_t*cls = builtin_class_type(name)) {
+	    ensure_visible_depth_ -= 1;
 	    return cls;
+      }
 
       NetScope*owner_scope = 0;
       LexicalScope*lex_scope = 0;
@@ -775,7 +772,8 @@ netclass_t* ensure_visible_class_type(Design*des, NetScope*scope, perm_string na
 	    visible_pclass_match_t match =
 		  find_visible_pclass_here_(des, owner_scope, lex_scope, name);
 	    if (match.pclass) {
-		  if (match.owner_scope)
+		  if (match.owner_scope
+		      && classes_being_scope_elaborated_.count(match.pclass) == 0)
 			elaborate_scope_class(des, match.owner_scope, match.pclass);
 		  break;
 	    }
@@ -784,9 +782,12 @@ netclass_t* ensure_visible_class_type(Design*des, NetScope*scope, perm_string na
 	    lex_scope = lex_scope->parent_scope();
       }
 
-      if (netclass_t*cls = scope->find_class(des, name))
+      if (netclass_t*cls = scope->find_class(des, name)) {
+	    ensure_visible_depth_ -= 1;
 	    return cls;
+      }
 
+      ensure_visible_depth_ -= 1;
       return incomplete_cls;
 }
 
@@ -955,6 +956,16 @@ static bool expr_cache_key_needs_scope_(const PExpr*expr)
 
 static NetScope* specialization_key_scope_(NetScope*call_scope)
 {
+      if (!call_scope)
+	    return 0;
+
+	// Normalize to the enclosing class scope so that all methods
+	// within the same class produce the same specialization key.
+	// Without this, each method call site gets a unique key and
+	// uvm_callbacks is re-specialized thousands of times.
+      if (const NetScope*class_scope = call_scope->get_class_scope())
+	    return const_cast<NetScope*>(class_scope);
+
       return call_scope;
 }
 
@@ -1432,7 +1443,12 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 
       static std::map<std::string,const netclass_t*> cache;
       std::ostringstream key;
-      key << (const void*)base_class << "|";
+	// Use the pclass (parse-tree) pointer as the stable key prefix.
+	// The netclass_t (base_class) pointer is NOT stable — the same
+	// parsed class can be elaborated into multiple netclass_t objects
+	// when mutual-reference cycles are resolved.  pclass is the
+	// unique canonical representative of the class definition.
+      key << (const void*)pclass << "|";
       key << parmvalue_cache_key_(des, call_scope, overrides);
       std::string key_str = key.str();
       if (trace_specialization_key_(base_class)) {
@@ -1468,6 +1484,14 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       note_specialization_cache_miss_(base_class);
 
       class_type_t*use_type = pclass->type;
+      total_spec_allocs_ += 1;
+      if (total_spec_allocs_ > 8000) {
+	    cerr << pclass->get_fileline() << ": sorry: "
+		 << "specialization limit (8000) exceeded for class "
+		 << use_type->name << "; aborting further specialization." << endl;
+	    des->errors += 1;
+	    return base_class;
+      }
       netclass_t*use_class = new netclass_t(use_type->name, 0);
       use_class->set_interface(base_class->is_interface());
 
@@ -1650,6 +1674,10 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 
       class_type_t*use_type = pclass->type;
 
+	// Mark this class as being elaborated so recursive lookups
+	// through ensure_visible_class_type do not re-enter.
+      classes_being_scope_elaborated_.insert(pclass);
+
       if (debug_scopes) {
 	    cerr << pclass->get_fileline() <<": elaborate_scope_class: "
 		 << "Elaborate scope class " << pclass->pscope_name()
@@ -1657,6 +1685,7 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 		 << endl;
       }
 
+      total_class_allocs_ += 1;
       netclass_t*use_class = new netclass_t(use_type->name, 0);
 
       NetScope*class_scope = new NetScope(scope, hname_t(pclass->pscope_name()),
@@ -1805,6 +1834,7 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 	    cerr << "}" << endl;
       }
 
+      classes_being_scope_elaborated_.erase(pclass);
 }
 
 static void elaborate_scope_classes(Design*des, NetScope*scope,
@@ -1867,6 +1897,12 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 					   PClass*pclass, netclass_t*use_class,
 					   NetScope*class_scope)
 {
+	// If this class is already being elaborated higher up the
+	// call stack, skip to avoid infinite recursion.
+      if (classes_being_scope_elaborated_.count(pclass))
+	    return;
+      classes_being_scope_elaborated_.insert(pclass);
+
       class_type_t*use_type = pclass->type;
 
       const netclass_t*use_base_class = 0;
@@ -1924,6 +1960,7 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
       }
 
       use_class->set_scope_ready(true);
+      classes_being_scope_elaborated_.erase(pclass);
 }
 
 static void elaborate_scope_task(Design*des, NetScope*scope, PTask*task)
