@@ -147,6 +147,8 @@ bool netclass_t::set_property(perm_string pname, property_qualifier_t qual,
       property_table_.push_back(tmp);
 
       properties_[pname] = property_table_.size()-1;
+
+
       return true;
 }
 

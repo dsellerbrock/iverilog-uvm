@@ -507,7 +507,12 @@ struct vthread_s {
 	    }
 	    free(filenm_);
 	    filenm_ = 0;
-	    assert(stack_vec4_.empty());
+	    if (!stack_vec4_.empty()) {
+		  const char*fn = parent_scope ? vpi_get_str(vpiFullName, parent_scope) : "<unknown>";
+		  cerr << "BUG: stack_vec4_ not empty at cleanup: size=" << stack_vec4_.size()
+		       << " scope=" << fn << endl;
+		  assert(stack_vec4_.empty());
+	    }
 	    assert(stack_real_.empty());
 	    assert(stack_str_.empty());
 	    assert(stack_obj_size_ == 0);
@@ -11158,11 +11163,10 @@ bool of_RET_VEC4(vthread_t thr, vvp_code_t cp)
             if (val.size() == 0) {
                   val.resize(wid, BIT4_X);
             } else {
-            static bool warned = false;
-            if (!warned) {
+            {
+                  const char*fn = thr->parent_scope ? vpi_get_str(vpiFullName, thr->parent_scope) : "<unknown>";
                   cerr << "Warning: %ret/vec4 width mismatch (" << val.size()
-                       << " != " << wid << "), coercing." << endl;
-                  warned = true;
+                       << " != " << wid << "), coercing in " << fn << endl;
             }
             if (val.size() > wid) {
                   val = coerce_to_width(val, wid);

@@ -307,17 +307,14 @@ ivl_type_t data_type_t::elaborate_type(Design*des, NetScope*scope)
 	     return pos->second;
 
       ivl_type_t tmp;
-      bool used_fallback = false;
       if (elaborating) {
 	    tmp = resolve_circular_class_handle_type_(des, scope, this);
 	    if (!tmp) {
-		  used_fallback = true;
 		  des->errors++;
 		  cerr << get_fileline() << ": error: "
 		       << "Circular type definition found involving `" << *this << "`."
 		       << endl;
-		  // Try to recover with integer handle type, but do NOT cache
-		  // this fallback so ensure_all_properties_declared can retry later.
+		  // Try to recover
 		  tmp = netvector_t::integer_type();
 	    }
       } else {
@@ -326,10 +323,7 @@ ivl_type_t data_type_t::elaborate_type(Design*des, NetScope*scope)
 	    elaborating = false;
       }
 
-      // Don't cache when we used the integer fallback: a later re-elaboration
-      // (e.g. from ensure_all_properties_declared) may succeed once the class
-      // is fully visible, and we don't want a stale wrong type to persist.
-      if (tmp && !used_fallback)
+      if (tmp)
 	    cache_type_elaborate_.insert(pos, pair<NetScope*,ivl_type_t>(scope, tmp));
       return tmp;
 }

@@ -579,6 +579,22 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    return;
       sig_elaborating_ = true;
 
+	// Ensure the super-class is sig-elaborated BEFORE we process our own
+	// properties.  elaborate_sig_classes() iterates a std::map<perm_string,...>
+	// in alphabetical order, so a derived class (e.g. uvm_sequence_item) may
+	// be processed before its base class (e.g. uvm_transaction).  If the base
+	// class hasn't been elaborated yet, super_->get_properties() returns 0 and
+	// the compile-time property index assigned to each derived-class property
+	// will be wrong.  The resulting VVP %prop/v indices won't match the runtime
+	// class layout, causing type/width mismatches at run time.
+      if (super_ && !super_->sig_elaborated() && !super_->sig_elaborating()) {
+	    const NetScope*super_scope = super_->class_scope();
+	    const PClass*super_pclass = super_scope ? super_scope->class_pform() : nullptr;
+	    if (super_pclass)
+		  const_cast<netclass_t*>(super_)->elaborate_sig(des,
+					    const_cast<PClass*>(super_pclass));
+      }
+
 	// Collect the properties, elaborate them, and add them to the
 	// elaborated class definition.
       for (std::vector<perm_string>::const_iterator name_it =
@@ -613,19 +629,7 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		       << " type=" << *use_type << endl;
 	    }
 
-	    if (!set_property(cur->first, cur->second.qual, use_type)) {
-		  // Property was already declared (by ensure_property_decl before
-		  // elaborate_sig ran).  If the stored type differs from what we
-		  // just elaborated (e.g. it's an integer-handle fallback from a
-		  // circular elaboration), repair it now.
-		  int pidx = property_idx_from_name(cur->first);
-		  size_t super_size = super_ ? super_->get_properties() : 0;
-		  if (pidx >= 0 && (size_t)pidx >= super_size) {
-			ivl_type_t stored = property_table_[(size_t)pidx - super_size].type;
-			if (stored != use_type)
-			      repair_property_type(cur->first, use_type);
-		  }
-	    }
+	    set_property(cur->first, cur->second.qual, use_type);
 
 	    if (! cur->second.qual.test_static())
 		  continue;
@@ -840,6 +844,42 @@ bool PGenerate::elaborate_sig_(Design*des, NetScope*scope) const
       return flag;
 }
 
+// Seed all inherited properties into the super chain, bottom-up, before
+// seeding the derived class.  This ensures that when a method body is
+// compiled the super-class property count is already stable, so
+// property_idx_from_name() returns the correct absolute index.
+static void seed_super_chain_properties_(Design*des, const netclass_t*cls)
+{
+      if (!cls) return;
+      const netclass_t*super = cls->get_super();
+      if (!super) return;
+
+      // Recurse: seed the grandparent chain first.
+      seed_super_chain_properties_(des, super);
+
+      const NetScope*super_scope = super->class_scope();
+      if (!super_scope) return;
+      const PClass*super_pclass = super_scope->class_pform();
+      if (!super_pclass || !super_pclass->type) return;
+
+      netclass_t*super_mut = const_cast<netclass_t*>(super);
+      NetScope*super_scope_mut = const_cast<NetScope*>(super_scope);
+
+      for (map<perm_string,struct class_type_t::prop_info_t>::const_iterator
+		 cur = super_pclass->type->properties.begin()
+	       ; cur != super_pclass->type->properties.end() ; ++cur) {
+	    ivl_type_t use_type = elaborate_class_property_type_(des, super_scope_mut,
+								 super_mut, cur->second.type.get());
+	    if (!use_type) continue;
+	    bool added = super_mut->set_property(cur->first, cur->second.qual, use_type);
+	    if (added && cur->second.qual.test_static()) {
+		  if (super_scope_mut->find_signal(cur->first) == 0)
+			/* NetNet*sig = */ new NetNet(super_scope_mut, cur->first,
+						     NetNet::REG, use_type);
+	    }
+      }
+}
+
 static void seed_class_scope_properties_for_method_elab_(Design*des,
 							 NetScope*scope,
 							 const PTaskFunc*ptf,
@@ -865,6 +905,13 @@ static void seed_class_scope_properties_for_method_elab_(Design*des,
 	    pclass_type = dynamic_cast<const class_type_t*>(ctor_return_type);
       if (!pclass_type)
 	    return;
+
+	// Before seeding this class's own properties, ensure the entire
+	// super-class chain has its properties seeded.  This guarantees that
+	// super_->get_properties() returns the correct count when
+	// property_idx_from_name() is called during the method body
+	// elaboration that follows immediately after this function returns.
+      seed_super_chain_properties_(des, clsnet);
 
       for (map<perm_string,struct class_type_t::prop_info_t>::const_iterator
 		 cur = pclass_type->properties.begin()

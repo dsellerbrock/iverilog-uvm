@@ -2688,7 +2688,7 @@ void pform_make_modgates(const struct vlltype&loc,
 		  }
 
 		  if (declaration_like) {
-			typeref_t*dtype = new typeref_t(decl_type, 0, overrides);
+			typeref_t*dtype = new typeref_t(decl_type);
 			FILE_NAME(dtype, loc);
 			pform_make_var(loc, decls, dtype, attr, false);
 			delete gates;

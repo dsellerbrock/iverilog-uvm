@@ -1257,15 +1257,6 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		    root_type = lv->net_type();
 	      }
 
-	// Ensure the entire super chain of the root class has all
-	// properties declared with correct types. A property may have been
-	// stored with a wrong type (integer fallback) during an earlier
-	// ensure_property_decl call that ran while the property's class type
-	// was still mid-elaboration.  ensure_all_properties_declared repairs
-	// such entries so that nested l-value path resolution succeeds.
-	      if (const netclass_t*root_cls = dynamic_cast<const netclass_t*>(root_type))
-		    const_cast<netclass_t*>(root_cls)->ensure_all_properties_declared(des);
-
 	// Iterate over the member_path. This handles nested class
 	// object, by generating nested NetAssign_ object. We start
 	// with lv==0, so the front of the member_path is the member

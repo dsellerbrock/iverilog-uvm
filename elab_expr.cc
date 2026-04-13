@@ -207,17 +207,6 @@ static int ensure_class_property_idx_(Design*des, const netclass_t*class_type,
       if (!class_type)
 	    return -1;
 
-      // Before looking up the property index, ensure the entire super chain is
-      // fully declared.  property_idx_from_name() computes an absolute index as
-      //   local_index + super_->get_properties()
-      // If the super chain is only partially elaborated get_properties() returns
-      // a value that is too small, producing a wrong absolute index that stays
-      // baked into the generated VVP bytecode forever.  Forcing full super-chain
-      // elaboration here makes the lookup stable regardless of call order.
-      if (des && class_type->get_super())
-	    const_cast<netclass_t*>(class_type->get_super())
-		  ->ensure_all_properties_declared(des);
-
       int pidx = class_type->property_idx_from_name(name);
       if (pidx >= 0)
 	    return pidx;

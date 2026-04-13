@@ -353,26 +353,7 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
       note_td_reference(mangled);
       unsigned super_call = ivl_expr_is_super_call(expr);
 
-      /* The expression type from elaboration may be wrong for parameterized
-       * class methods where the return type parameter wasn't resolved (e.g.,
-       * uvm_event#(uvm_object)::get_default_data() returning T=uvm_object).
-       * When ivl_expr_value() reports LOGIC/BOOL but the actual function
-       * scope port 0 is a CLASS/DARRAY/QUEUE/NO_TYPE, trust the scope. */
-      ivl_variable_type_t expr_vt = ivl_expr_value(expr);
-      if (expr_vt == IVL_VT_BOOL || expr_vt == IVL_VT_LOGIC) {
-	    ivl_signal_t retval_port = ivl_scope_port(def, 0);
-	    if (retval_port) {
-		  ivl_variable_type_t ret_type = ivl_signal_data_type(retval_port);
-		  if (ret_type == IVL_VT_CLASS   ||
-		      ret_type == IVL_VT_DARRAY  ||
-		      ret_type == IVL_VT_QUEUE   ||
-		      ret_type == IVL_VT_NO_TYPE) {
-			expr_vt = ret_type;
-		  }
-	    }
-      }
-
-      switch (expr_vt) {
+      switch (ivl_expr_value(expr)) {
 	  case IVL_VT_VOID:
 	    fprintf(vvp_out, "    %%callf/void%s TD_%s",
 		    super_call ? "" : "/v", mangled);
