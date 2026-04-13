@@ -59,6 +59,9 @@ class class_type : public __vpiHandle {
 	// property for the class definition.
       void set_property(size_t idx, const std::string&name, const std::string&type, uint64_t array_size);
 
+      bool property_is_rand(size_t idx) const;
+      bool property_is_randc(size_t idx) const;
+
 	// This method is called after all the properties are
 	// defined. This calculates information about the definition.
       void finish_setup(void);
@@ -93,6 +96,8 @@ class class_type : public __vpiHandle {
       struct prop_t {
 	    std::string name;
 	    class_property_t*type;
+	    bool rand_flag  = false;
+	    bool randc_flag = false;
       };
       std::vector<prop_t> properties_;
       size_t instance_size_;

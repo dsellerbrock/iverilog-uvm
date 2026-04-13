@@ -307,14 +307,17 @@ ivl_type_t data_type_t::elaborate_type(Design*des, NetScope*scope)
 	     return pos->second;
 
       ivl_type_t tmp;
+      bool used_fallback = false;
       if (elaborating) {
 	    tmp = resolve_circular_class_handle_type_(des, scope, this);
 	    if (!tmp) {
+		  used_fallback = true;
 		  des->errors++;
 		  cerr << get_fileline() << ": error: "
 		       << "Circular type definition found involving `" << *this << "`."
 		       << endl;
-		  // Try to recover
+		  // Try to recover with integer handle type, but do NOT cache
+		  // this fallback so ensure_all_properties_declared can retry later.
 		  tmp = netvector_t::integer_type();
 	    }
       } else {
@@ -323,7 +326,10 @@ ivl_type_t data_type_t::elaborate_type(Design*des, NetScope*scope)
 	    elaborating = false;
       }
 
-      if (tmp)
+      // Don't cache when we used the integer fallback: a later re-elaboration
+      // (e.g. from ensure_all_properties_declared) may succeed once the class
+      // is fully visible, and we don't want a stale wrong type to persist.
+      if (tmp && !used_fallback)
 	    cache_type_elaborate_.insert(pos, pair<NetScope*,ivl_type_t>(scope, tmp));
       return tmp;
 }
@@ -1031,6 +1037,18 @@ ivl_type_t typeref_t::elaborate_type_raw(Design*des, NetScope*s) const
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(use_type);
       if (!class_type)
 	    return use_type;
+
+      // Built-in class types (mailbox, semaphore, process) are not template
+      // classes — their "type parameter" is used only for SV type-checking.
+      // Do not specialize them; return the base built-in class type so that
+      // method dispatch (e.g. mailbox.put/get) continues to work.
+      {
+	    perm_string cn = class_type->get_name();
+	    if (cn == perm_string::literal("mailbox") ||
+		cn == perm_string::literal("semaphore") ||
+		cn == perm_string::literal("process"))
+		  return use_type;
+      }
 
       return const_cast<netclass_t*>(
 	    elaborate_specialized_class_type(des, s, class_type, overrides));

@@ -124,6 +124,17 @@ class netclass_t : public ivl_type_s {
       bool emit_defs(struct target_t*tgt) const;
       int ensure_property_decl(Design*des, perm_string pname);
 
+      // Ensure ALL properties in this class and its entire super chain are
+      // declared. This makes get_properties() return a stable final count so
+      // that property_idx_from_name() computes correct absolute indices even
+      // when called early during incremental elaboration.
+      void ensure_all_properties_declared(Design*des);
+
+      // Overwrite the stored type for an already-declared property.
+      // Used by elaborate_sig to repair types that were stored as
+      // integer fallbacks due to circular elaboration order.
+      void repair_property_type(perm_string pname, ivl_type_t new_type);
+
       std::ostream& debug_dump(std::ostream&fd) const override;
       void dump_scope(std::ostream&fd) const;
 
@@ -188,6 +199,7 @@ class netclass_t : public ivl_type_s {
       bool interface_type_;
       bool sig_elaborated_;
       bool sig_elaborating_;
+      bool props_declaring_;  // guard for ensure_all_properties_declared re-entry
       bool body_elaborated_;
       bool body_elaborating_;
       bool scope_ready_;

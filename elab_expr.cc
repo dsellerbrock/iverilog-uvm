@@ -207,6 +207,17 @@ static int ensure_class_property_idx_(Design*des, const netclass_t*class_type,
       if (!class_type)
 	    return -1;
 
+      // Before looking up the property index, ensure the entire super chain is
+      // fully declared.  property_idx_from_name() computes an absolute index as
+      //   local_index + super_->get_properties()
+      // If the super chain is only partially elaborated get_properties() returns
+      // a value that is too small, producing a wrong absolute index that stays
+      // baked into the generated VVP bytecode forever.  Forcing full super-chain
+      // elaboration here makes the lookup stable regardless of call order.
+      if (des && class_type->get_super())
+	    const_cast<netclass_t*>(class_type->get_super())
+		  ->ensure_all_properties_declared(des);
+
       int pidx = class_type->property_idx_from_name(name);
       if (pidx >= 0)
 	    return pidx;
@@ -2109,7 +2120,12 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 						      const std::vector<named_pexpr_t>&parms)
 {
       if (method_name == "num") {
-	    NetESFunc*sys_expr = new NetESFunc("$size", &netvector_t::atom2u32, 1);
+	    /* Use $ivl_assoc_method$num so eval_vec4.c emits %qsize/o
+	     * which calls dynamic_collection_size_() — properly handling
+	     * vvp_assoc_base (AA), vvp_darray, and vvp_queue objects.
+	     * Using $size goes through VPI which doesn't support AAs
+	     * and always returns 0 or 'x' for class-property AAs. */
+	    NetESFunc*sys_expr = new NetESFunc("$ivl_assoc_method$num", &netvector_t::atom2u32, 1);
 	    sys_expr->set_line(*li);
 	    sys_expr->parm(0, sub_expr);
 	    return sys_expr;
@@ -4926,6 +4942,22 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					    tail_method = search_results.path_tail.back().name;
 				      const netclass_t*class_type =
 					    dynamic_cast<const netclass_t*>(search_results.type);
+
+				        // Handle randomize() as a real built-in that
+				        // generates %randomize at runtime rather than a
+				        // constant-0 stub.
+				      if (tail_method == perm_string::literal("randomize")
+					  && search_results.net) {
+					    NetESignal*obj_expr = new NetESignal(search_results.net);
+					    obj_expr->set_line(*this);
+					    NetESFunc*rand_expr = new NetESFunc(
+						  "$ivl_class_method$randomize",
+						  IVL_VT_BOOL, 1, 1);
+					    rand_expr->set_line(*this);
+					    rand_expr->parm(0, obj_expr);
+					    return rand_expr;
+				      }
+
 				      compile_progress_expr_method_stub_kind_t stub_kind =
 					    classify_compile_progress_expr_method_stub_(
 						  search_results.path_head, class_type, tail_method);
@@ -5617,9 +5649,12 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    if (NetExpr*tmp = elaborate_assoc_array_compat_method_(des, scope, this, sub_expr, method_name, parms_))
 		  return tmp;
 	    if (method_name == "find") {
-		  // Compile-progress fallback for locator methods on darray-like
-		  // placeholders used by parameterized UVM containers.
-		  return sub_expr;
+		  // Compile-progress fallback: return null (empty result) rather
+		  // than the whole source queue, to avoid type-mismatch crashes.
+		  delete sub_expr;
+		  NetENull*tmp = new NetENull();
+		  tmp->set_line(*this);
+		  return tmp;
 	    }
       if (method_name == "unique"
 		|| method_name == "unique_index"
@@ -5628,9 +5663,11 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		|| method_name == "find_index"
 		|| method_name == "find_first_index"
 		|| method_name == "find_last_index") {
-		  // Compile-progress fallback for locator/uniqueness methods
-		  // (possibly with ignored `with (...)` clauses).
-		  return sub_expr;
+		  // Compile-progress fallback: return null (empty result).
+		  delete sub_expr;
+		  NetENull*tmp = new NetENull();
+		  tmp->set_line(*this);
+		  return tmp;
 	    }
 	    if (method_name == "pop_back" || method_name == "pop_front") {
 		  NetENull*tmp = new NetENull();
@@ -5700,7 +5737,13 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 
 	    if (method_name == "find") {
 		  // Compile-progress fallback for queue locator methods.
-		  return sub_expr;
+		  // Return null (evaluates to empty queue at runtime) rather than
+		  // sub_expr (the whole source queue), to avoid type mismatches when
+		  // the source element type differs from the destination queue type.
+		  delete sub_expr;
+		  NetENull*tmp = new NetENull();
+		  tmp->set_line(*this);
+		  return tmp;
 	    }
       if (method_name == "unique"
 		|| method_name == "unique_index"
@@ -5709,9 +5752,14 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		|| method_name == "find_index"
 		|| method_name == "find_first_index"
 		|| method_name == "find_last_index") {
-		  // Compile-progress fallback for queue locator/uniqueness methods
-		  // (possibly with ignored `with (...)` clauses).
-		  return sub_expr;
+		  // Compile-progress fallback for locator/uniqueness methods
+		  // (with ignored `with (...)` clauses).
+		  // Return null so the destination queue is cleared (empty result),
+		  // rather than returning the wrong-type source queue.
+		  delete sub_expr;
+		  NetENull*tmp = new NetENull();
+		  tmp->set_line(*this);
+		  return tmp;
 	    }
 
 	    cerr << get_fileline() << ": error: Method " << method_name
@@ -5744,8 +5792,81 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 									       class_type->get_name()))
 				class_type = visible_class;
 		    }
+
+		    // Handle mailbox/semaphore built-in function-returning methods
+		    // before attempting to resolve them as class methods (they won't
+		    // be found as real methods).
+		    {
+			perm_string cname = class_type->get_name();
+			if (cname == perm_string::literal("mailbox")) {
+			    if (method_name == perm_string::literal("num")) {
+				  // mbx.num() — returns int count
+				  NetESFunc*sys = new NetESFunc("$ivl_mailbox$num",
+							       &netvector_t::atom2u32, 1);
+				  sys->set_line(*this);
+				  sys->parm(0, sub_expr);
+				  return sys;
+			    }
+			    if (method_name == perm_string::literal("try_get")
+				|| method_name == perm_string::literal("try_peek")
+				|| method_name == perm_string::literal("try_put")) {
+				  // Returns bit (1=success, 0=fail)
+				  const char*sname =
+				      method_name==perm_string::literal("try_get")
+				      ? "$ivl_mailbox$try_get"
+				      : (method_name==perm_string::literal("try_peek")
+				         ? "$ivl_mailbox$try_peek"
+				         : "$ivl_mailbox$try_put");
+				  unsigned nargs = parms_.empty() ? 0 : 1;
+				  NetESFunc*sys = new NetESFunc(sname,
+							       &netvector_t::atom2u32,
+							       1 + nargs);
+				  sys->set_line(*this);
+				  sys->parm(0, sub_expr);
+				  if (nargs > 0 && parms_[0].parm) {
+				      NetExpr*a = elab_and_eval(des, scope,
+							       parms_[0].parm,
+							       -1, false, false);
+				      if (a) sys->parm(1, a);
+				  }
+				  return sys;
+			    }
+			}
+			if (cname == perm_string::literal("semaphore")) {
+			    if (method_name == perm_string::literal("try_get")) {
+				  // sem.try_get([n]) — returns bit
+				  unsigned nargs = parms_.empty() ? 0 : 1;
+				  NetESFunc*sys = new NetESFunc("$ivl_semaphore$try_get",
+							       &netvector_t::atom2u32,
+							       1 + nargs);
+				  sys->set_line(*this);
+				  sys->parm(0, sub_expr);
+				  if (nargs > 0 && parms_[0].parm) {
+				      NetExpr*narg = elab_and_eval(des, scope,
+								  parms_[0].parm,
+								  32, false, false,
+								  IVL_VT_LOGIC);
+				      sys->parm(1, narg ? narg
+							: new NetEConst(verinum(1UL, 32)));
+				  }
+				  return sys;
+			    }
+			}
+		    }
+
 		    NetScope*method = class_type->resolve_method_call_scope(des, method_name);
 		    if (method == 0) {
+			  // Handle randomize() as a real built-in: emit %randomize opcode
+			  // rather than a constant-0 stub so the runtime can actually
+			  // assign random values to rand properties.
+			  if (method_name == perm_string::literal("randomize")) {
+				NetESFunc*rand_expr = new NetESFunc(
+					"$ivl_class_method$randomize",
+					IVL_VT_BOOL, 1, 1);
+				rand_expr->set_line(*this);
+				rand_expr->parm(0, sub_expr);
+				return rand_expr;
+			  }
 			  if (NetExpr*stub = elaborate_compile_progress_expr_method_stub_(
 					this,
 					classify_compile_progress_expr_method_stub_(use_path, class_type,
@@ -9912,14 +10033,37 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
       NetScope *new_scope = ctype->get_constructor();
       if (new_scope == 0) {
               // No constructor.
+            if (gn_system_verilog()
+                && ctype->get_name() == perm_string::literal("mailbox")) {
+                  /* Create $ivl_mailbox$new with optional bound argument.
+                   * The bound defaults to 0 (unbounded). */
+                  unsigned nargs = parms_.empty() ? 0 : 1;
+                  NetESFunc*mbx = new NetESFunc("$ivl_mailbox$new", ctype, nargs);
+                  mbx->set_line(*this);
+                  if (!parms_.empty() && parms_[0].parm) {
+                        NetExpr*barg = elab_and_eval(des, scope, parms_[0].parm, 32,
+                                                     false, false, IVL_VT_LOGIC);
+                        mbx->parm(0, barg ? barg : new NetEConst(verinum(0UL, 32)));
+                  }
+                  delete obj;
+                  return mbx;
+            }
+            if (gn_system_verilog()
+                && ctype->get_name() == perm_string::literal("semaphore")) {
+                  /* Create $ivl_semaphore$new with optional initial_count.
+                   * The initial_count defaults to 0. */
+                  unsigned nargs = parms_.empty() ? 0 : 1;
+                  NetESFunc*sem = new NetESFunc("$ivl_semaphore$new", ctype, nargs);
+                  sem->set_line(*this);
+                  if (!parms_.empty() && parms_[0].parm) {
+                        NetExpr*carg = elab_and_eval(des, scope, parms_[0].parm, 32,
+                                                     false, false, IVL_VT_LOGIC);
+                        sem->parm(0, carg ? carg : new NetEConst(verinum(0UL, 32)));
+                  }
+                  delete obj;
+                  return sem;
+            }
             if (parms_.size() > 0) {
-                  // Compile-progress fallback for built-in synchronization
-                  // classes that accept constructor args without modeled
-                  // class constructor scopes.
-                if (gn_system_verilog()
-                    && (ctype->get_name() == perm_string::literal("mailbox")
-                        || ctype->get_name() == perm_string::literal("semaphore")))
-                      return obj;
 		  cerr << get_fileline() << ": error: "
 		       << "Class " << ctype->get_name()
 		       << " has no constructor, but you passed " << parms_.size()

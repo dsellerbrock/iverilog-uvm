@@ -24,7 +24,7 @@
 # include  <assert.h>
 # include  <inttypes.h>
 
-static void show_prop_type(ivl_type_t ptype);
+static void show_prop_type(ivl_type_t ptype, const char*rand_prefix);
 
 struct emitted_struct_cobject_s {
       ivl_type_t type;
@@ -90,7 +90,7 @@ static void emit_struct_cobject_definition_(ivl_type_t struct_type)
       for (idx = 0 ; idx < ivl_type_properties(struct_type) ; idx += 1) {
 	    ivl_type_t ptype = ivl_type_prop_type(struct_type, idx);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(struct_type, idx));
-	    show_prop_type(ptype);
+	    show_prop_type(ptype, "");
 	    if (is_unpacked_array_property_type(ptype)) {
 		  unsigned dim;
 		  for (dim = 0 ; dim < ivl_type_packed_dimensions(ptype) ; dim += 1) {
@@ -119,7 +119,7 @@ static void emit_struct_cobject_dependencies_(ivl_type_t ptype)
       }
 }
 
-static void show_prop_type_vector(ivl_type_t ptype)
+static void show_prop_type_vector(ivl_type_t ptype, const char*rand_prefix)
 {
       ivl_variable_type_t data_type = ivl_type_base(ptype);
       unsigned packed_width = ivl_type_packed_width(ptype);
@@ -130,10 +130,10 @@ static void show_prop_type_vector(ivl_type_t ptype)
       char code = data_type==IVL_VT_BOOL? 'b' : 'L';
 
       if (packed_width == 1) {
-	    fprintf(vvp_out, "\"%s%c1\"", signed_flag, code);
+	    fprintf(vvp_out, "\"%s%s%c1\"", rand_prefix, signed_flag, code);
 
       } else {
-	    fprintf(vvp_out, "\"%s%c%d\"", signed_flag, code,
+	    fprintf(vvp_out, "\"%s%s%c%d\"", rand_prefix, signed_flag, code,
 		    packed_width);
       }
 }
@@ -175,7 +175,7 @@ static void show_prop_type_queue(ivl_type_t ptype)
       }
 }
 
-static void show_prop_type(ivl_type_t ptype)
+static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
 {
       ivl_type_t base_ptype = ptype;
       if (is_unpacked_array_property_type(ptype)) {
@@ -204,7 +204,7 @@ static void show_prop_type(ivl_type_t ptype)
 	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
-	    show_prop_type_vector(base_ptype);
+	    show_prop_type_vector(base_ptype, rand_prefix);
 	    break;
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_CLASS:
@@ -262,8 +262,10 @@ void draw_class_in_scope(ivl_type_t classtype)
 
       for (idx = 0 ; idx < ivl_type_properties(classtype) ; idx += 1) {
 	    ivl_type_t ptype = ivl_type_prop_type(classtype,idx);
+	    int qual = ivl_type_prop_qual(classtype, idx);
+	    const char*rand_prefix = (qual & 16) ? "rc" : (qual & 8) ? "r" : "";
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(classtype,idx));
-	    show_prop_type(ptype);
+	    show_prop_type(ptype, rand_prefix);
 	    if (is_unpacked_array_property_type(ptype)) {
 		  unsigned dim;
 		  for (dim = 0 ; dim < ivl_type_packed_dimensions(ptype) ; dim += 1) {

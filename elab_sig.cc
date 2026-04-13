@@ -613,7 +613,19 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		       << " type=" << *use_type << endl;
 	    }
 
-	    set_property(cur->first, cur->second.qual, use_type);
+	    if (!set_property(cur->first, cur->second.qual, use_type)) {
+		  // Property was already declared (by ensure_property_decl before
+		  // elaborate_sig ran).  If the stored type differs from what we
+		  // just elaborated (e.g. it's an integer-handle fallback from a
+		  // circular elaboration), repair it now.
+		  int pidx = property_idx_from_name(cur->first);
+		  size_t super_size = super_ ? super_->get_properties() : 0;
+		  if (pidx >= 0 && (size_t)pidx >= super_size) {
+			ivl_type_t stored = property_table_[(size_t)pidx - super_size].type;
+			if (stored != use_type)
+			      repair_property_type(cur->first, use_type);
+		  }
+	    }
 
 	    if (! cur->second.qual.test_static())
 		  continue;

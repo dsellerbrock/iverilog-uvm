@@ -3424,6 +3424,15 @@ extern "C" ivl_type_t ivl_type_prop_type(ivl_type_t net, int idx)
       return 0;
 }
 
+extern "C" int ivl_type_prop_qual(ivl_type_t net, int idx)
+{
+      if (idx < 0) return 0;
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type)
+            return class_type->get_prop_qual(idx).mask();
+      return 0;
+}
+
 extern "C" int ivl_type_signed(ivl_type_t net)
 {
       assert(net);

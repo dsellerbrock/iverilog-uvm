@@ -1113,6 +1113,14 @@ typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 	    }
 	    return semaphore_type;
       }
+      if (name == lex_strings.make("mailbox")) {
+	    static typedef_t*mailbox_type = nullptr;
+	    if (!mailbox_type) {
+		  mailbox_type = new typedef_t(lex_strings.make("mailbox"));
+		  mailbox_type->set_data_type(new type_parameter_t(mailbox_type->name));
+	    }
+	    return mailbox_type;
+      }
 
       LexicalScope*cur_scope = lexical_scope;
       do {
@@ -2648,8 +2656,16 @@ void pform_make_modgates(const struct vlltype&loc,
 	// parse through the same no-port shape as degenerate module instances.
 	// If the left token is a visible type and every item is a no-port
 	// instance, reinterpret the whole construct as a variable declaration.
-      if (overrides == 0) {
+	//
+	// Also handles parameterized built-in class types like `mailbox #(T) m;`
+	// where overrides contains the type parameter.
+      {
 	    typedef_t*decl_type = pform_test_type_identifier(loc, type);
+	    // Parameterized built-in class types (mailbox #(T)) are reinterpreted
+	    // as variable declarations even when overrides is non-null, provided
+	    // the type is a known built-in class.
+	    // If the name resolves to a type (class, typedef, built-in), treat
+	    // it as a variable declaration regardless of parameter overrides.
 	    if (decl_type) {
 		  bool declaration_like = true;
 		  std::list<decl_assignment_t*>*decls =
@@ -2672,7 +2688,7 @@ void pform_make_modgates(const struct vlltype&loc,
 		  }
 
 		  if (declaration_like) {
-			typeref_t*dtype = new typeref_t(decl_type);
+			typeref_t*dtype = new typeref_t(decl_type, 0, overrides);
 			FILE_NAME(dtype, loc);
 			pform_make_var(loc, decls, dtype, attr, false);
 			delete gates;

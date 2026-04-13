@@ -198,7 +198,22 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 		  // Special case `super` keyword. Return the `this` object, but
 		  // with the type of the base class.
 		  if (path_tail.name == "#") {
-			if (NetNet *net = scope->find_signal(perm_string::literal(THIS_TOKEN))) {
+			// Find 'this' by walking up the scope hierarchy.
+			// In task scopes 'this' lives in the parent class scope,
+			// not the task scope itself.  Walk up through TASK/FUNC/BEGIN
+			// scopes but stop at module/package boundaries.
+			NetNet *net = nullptr;
+			for (NetScope *cur = scope; cur; cur = cur->parent()) {
+			      if (cur->type() == NetScope::MODULE
+				  || cur->type() == NetScope::PACKAGE)
+				    break;
+			      if (NetNet *found = cur->find_signal(
+					perm_string::literal(THIS_TOKEN))) {
+				    net = found;
+				    break;
+			      }
+			}
+			if (net) {
 			      const netclass_t *class_type = dynamic_cast<const netclass_t*>(net->net_type());
 			      path.push_back(path_tail);
 			      res->scope = scope;

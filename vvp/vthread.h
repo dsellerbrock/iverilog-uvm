@@ -127,6 +127,16 @@ extern void vthread_push(struct vthread_s*thr, const vvp_vector4_t&val);
 extern void vthread_push(struct vthread_s*thr, const std::string&val);
 extern void vthread_push(struct vthread_s*thr, double val);
 
+/*
+ * Push/pop a single vvp_object_t item on the object stack of a thread.
+ * These are thin wrappers around the inline push_object/pop_object
+ * methods, provided so that code outside vthread.cc (e.g. vvp_mailbox.cc)
+ * can manipulate a thread's object stack without needing the full
+ * vthread_s struct definition.
+ */
+extern void vthread_push_obj_item(struct vthread_s*thr, const vvp_object_t&obj);
+extern void vthread_pop_obj_item(struct vthread_s*thr, vvp_object_t&obj);
+
 extern void vthread_pop_vec4(struct vthread_s*thr, unsigned count);
 extern void vthread_pop_str(struct vthread_s*thr, unsigned count);
 extern void vthread_pop_real(struct vthread_s*thr, unsigned count);

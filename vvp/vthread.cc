@@ -28,6 +28,7 @@
 # include  "vvp_assoc.h"
 # include  "vvp_cobject.h"
 # include  "vvp_darray.h"
+# include  "vvp_mailbox.h"
 # include  "vvp_vinterface.h"
 # include  "class_type.h"
 # include  "compile.h"
@@ -213,6 +214,10 @@ struct vthread_s {
       }
       inline void push_vec4(const vvp_vector4_t&val)
       {
+	    if (val.size() == 1 && getenv("IVL_PUSH1_TRACE")) {
+		  fprintf(stderr, "[push1] pushed 1-bit val at depth %zu, pc=%p\n",
+			  stack_vec4_.size(), (void*)pc);
+	    }
 	    stack_vec4_.push_back(val);
       }
       inline const vvp_vector4_t& peek_vec4(unsigned depth)
@@ -221,6 +226,12 @@ struct vthread_s {
 	    assert(depth < size);
 	    unsigned use_index = size-1-depth;
 	    return stack_vec4_[use_index];
+      }
+      inline const vvp_vector4_t* safe_peek_vec4(unsigned depth) const
+      {
+	    unsigned size = stack_vec4_.size();
+	    if (depth >= size) return nullptr;
+	    return &stack_vec4_[size-1-depth];
       }
       inline vvp_vector4_t& peek_vec4(void)
       {
@@ -1459,6 +1470,48 @@ bool of_QSIZE_O(vthread_t thr, vvp_code_t)
       vvp_vector4_t val;
       size_to_vec4_(dynamic_collection_size_(recv), val);
       thr->push_vec4(val);
+      return true;
+}
+
+/*
+ * %randomize
+ *
+ * Randomize all rand/randc properties of the class object on top of the
+ * object stack.  Pushes 1 (success) onto the vec4 stack.  Does not
+ * implement constraint solving; constraints are ignored.
+ */
+bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      if (cobj) {
+	    const class_type*defn = cobj->get_defn();
+	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+		  if (!defn->property_is_rand(pid))
+			continue;
+		    // Retrieve current value to determine width.
+		  vvp_vector4_t val;
+		  cobj->get_vec4(pid, val);
+		  unsigned wid = val.size();
+		  if (wid == 0)
+			continue;
+		    // Fill with random bits (32 bits per chunk via rand()).
+		  for (unsigned i = 0 ; i < wid ; i += 32) {
+			unsigned rnd = (unsigned)rand();
+			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1) {
+			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+			}
+		  }
+		  cobj->set_vec4(pid, val);
+	    }
+      }
+
+      vvp_object_t tmp;
+      thr->pop_object(tmp);
+
+      vvp_vector4_t one(1, BIT4_1);
+      thr->push_vec4(one);
       return true;
 }
 
@@ -5112,7 +5165,17 @@ bool of_CAST_VEC4_STR(vthread_t thr, vvp_code_t cp)
 
 static void do_CMPE(vthread_t thr, const vvp_vector4_t&lval, const vvp_vector4_t&rval)
 {
-      assert(rval.size() == lval.size());
+	// If the operands differ in width, zero-extend the narrower one.
+	// This matches SystemVerilog semantics for unsigned equality comparison.
+      if (rval.size() != lval.size()) {
+	    unsigned wid = std::max(lval.size(), rval.size());
+	    vvp_vector4_t ext_lval = lval;
+	    vvp_vector4_t ext_rval = rval;
+	    if (ext_lval.size() < wid) ext_lval.resize(wid, BIT4_0);
+	    if (ext_rval.size() < wid) ext_rval.resize(wid, BIT4_0);
+	    do_CMPE(thr, ext_lval, ext_rval);
+	    return;
+      }
 
       if (lval.has_xz() || rval.has_xz()) {
 
@@ -5857,6 +5920,9 @@ bool of_DELAY(vthread_t thr, vvp_code_t cp)
 
       vvp_time64_t delay = (hig << 32) | low;
 
+      if (schedule_finished())
+            return false;
+
       if (delay == 0) schedule_inactive(thr);
       else schedule_vthread(thr, delay);
       return false;
@@ -5868,6 +5934,8 @@ bool of_DELAYX(vthread_t thr, vvp_code_t cp)
 
       assert(cp->number < vthread_s::WORDS_COUNT);
       delay = thr->words[cp->number].w_uint;
+      if (schedule_finished())
+            return false;
       if (delay == 0) schedule_inactive(thr);
       else schedule_vthread(thr, delay);
       return false;
@@ -7306,8 +7374,11 @@ bool of_JMP(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or vpiStop, returning false here can break the
+	   a $stop or $finish/vpiFinish, returning false here can break the
 	   simulation out of a hung loop. */
+      if (schedule_finished())
+            return false;
+
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -7326,8 +7397,11 @@ bool of_JMP0(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or vpiStop, returning false here can break the
+	   a $stop or $finish/vpiFinish, returning false here can break the
 	   simulation out of a hung loop. */
+      if (schedule_finished())
+            return false;
+
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -7346,8 +7420,11 @@ bool of_JMP0XZ(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or vpiStop, returning false here can break the
+	   a $stop or $finish/vpiFinish, returning false here can break the
 	   simulation out of a hung loop. */
+      if (schedule_finished())
+            return false;
+
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -7366,8 +7443,11 @@ bool of_JMP1(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or vpiStop, returning false here can break the
+	   a $stop or $finish/vpiFinish, returning false here can break the
 	   simulation out of a hung loop. */
+      if (schedule_finished())
+            return false;
+
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -7386,8 +7466,11 @@ bool of_JMP1XZ(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or vpiStop, returning false here can break the
+	   a $stop or $finish/vpiFinish, returning false here can break the
 	   simulation out of a hung loop. */
+      if (schedule_finished())
+            return false;
+
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -7746,6 +7829,7 @@ static void notify_mutated_object_signal_(vthread_t thr, vvp_net_t*net, const ch
       if (root.test_nil())
             return;
 
+      root.touch();
       root.notify_signal_aliases();
       vvp_send_object(vvp_net_ptr_t(net, 0), root, ensure_write_context_(thr, where));
 }
@@ -7772,13 +7856,17 @@ static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
                     root_obj.test_nil() ? 1 : 0);
       }
       if (!root_net || root_obj.test_nil()) {
-            if (!recv.test_nil())
+            if (!recv.test_nil()) {
+                  recv.touch();
                   recv.notify_signal_aliases();
+            }
             return;
       }
 
-      if (!recv.test_nil())
+      if (!recv.test_nil()) {
+            recv.touch();
             recv.notify_signal_aliases();
+      }
       if (root_obj != recv)
             root_obj.touch();
 
@@ -12999,5 +13087,331 @@ bool of_REAP_UFUNC(vthread_t thr, vvp_code_t cp)
             thr->rd_context = 0;
       }
 
+      return true;
+}
+
+/* ================================================================
+ * Free functions to access vthread_s object stack from external
+ * translation units (e.g. vvp_mailbox.cc).
+ * ================================================================ */
+
+void vthread_push_obj_item(struct vthread_s*thr, const vvp_object_t&obj)
+{
+      thr->push_object(obj);
+}
+
+void vthread_pop_obj_item(struct vthread_s*thr, vvp_object_t&obj)
+{
+      thr->pop_object(obj);
+}
+
+/* ================================================================
+ * Mailbox opcodes
+ * ================================================================ */
+
+/*
+ * %mbx/new <bound>
+ * Create a new vvp_mailbox with the given bound (0 = unbounded) and
+ * push it as an object onto the obj stack.
+ */
+bool of_MBX_NEW(vthread_t thr, vvp_code_t cp)
+{
+      size_t bound = cp->number;
+      vvp_object_t mbx(new vvp_mailbox(bound));
+      thr->push_object(mbx);
+      return true;
+}
+
+/*
+ * %mbx/put
+ * Stack (top->bottom): item, mailbox
+ * Pop both. If mailbox is full, suspend thread (item stored in waiter).
+ * If not full, put item into mailbox immediately.
+ */
+bool of_MBX_PUT(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t item_obj;
+      thr->pop_object(item_obj);
+      vvp_object_t mbx_obj;
+      thr->pop_object(mbx_obj);
+
+      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      if (!mbx) return true; /* null mailbox: silently ignore */
+
+      bool done = mbx->put(thr, item_obj);
+      if (!done) return false; /* thread suspended */
+      return true;
+}
+
+/*
+ * %mbx/get
+ * Stack (top->bottom): mailbox
+ * Pop mailbox. If empty, suspend thread; when resumed the item will
+ * have been pushed onto the obj stack by resume_get_waiters_().
+ * If not empty, get item and push it onto the obj stack.
+ */
+bool of_MBX_GET(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t mbx_obj;
+      thr->pop_object(mbx_obj);
+
+      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      if (!mbx) {
+	    thr->push_object(vvp_object_t()); /* null item */
+	    return true;
+      }
+
+      vvp_object_t item;
+      bool done = mbx->get(thr, item);
+      if (!done) return false; /* thread suspended */
+      thr->push_object(item);
+      return true;
+}
+
+/*
+ * %mbx/peek
+ * Stack (top->bottom): mailbox
+ * Pop mailbox. If empty, suspend thread; when resumed the item will
+ * have been pushed onto the obj stack by resume_get_waiters_().
+ * If not empty, peek at front item and push it (mailbox unchanged).
+ */
+bool of_MBX_PEEK(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t mbx_obj;
+      thr->pop_object(mbx_obj);
+
+      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      if (!mbx) {
+	    thr->push_object(vvp_object_t()); /* null item */
+	    return true;
+      }
+
+      vvp_object_t item;
+      bool done = mbx->peek(thr, item);
+      if (!done) return false; /* thread suspended */
+      thr->push_object(item);
+      return true;
+}
+
+/*
+ * %mbx/try_put
+ * Stack (top->bottom): item, mailbox
+ * Non-blocking put. Push result (1=success, 0=full) onto vec4 stack.
+ */
+bool of_MBX_TRY_PUT(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t item_obj;
+      thr->pop_object(item_obj);
+      vvp_object_t mbx_obj;
+      thr->pop_object(mbx_obj);
+
+      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      bool ok = mbx ? mbx->try_put(item_obj) : false;
+      vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
+      thr->push_vec4(res);
+      return true;
+}
+
+/*
+ * %mbx/try_get
+ * Stack (top->bottom): mailbox
+ * Non-blocking get. If successful, push item onto obj stack; push
+ * result (1=got item, 0=empty) onto vec4 stack.
+ * If empty, push null onto obj stack and push 0 onto vec4 stack.
+ */
+bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t mbx_obj;
+      thr->pop_object(mbx_obj);
+
+      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      vvp_object_t item;
+      bool ok = mbx ? mbx->try_get(item) : false;
+      thr->push_object(ok ? item : vvp_object_t());
+      vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
+      thr->push_vec4(res);
+      return true;
+}
+
+/*
+ * %mbx/try_peek
+ * Stack (top->bottom): mailbox
+ * Non-blocking peek. If successful, push item onto obj stack; push
+ * result (1=item present, 0=empty) onto vec4 stack.
+ */
+bool of_MBX_TRY_PEEK(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t mbx_obj;
+      thr->pop_object(mbx_obj);
+
+      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      vvp_object_t item;
+      bool ok = mbx ? mbx->try_peek(item) : false;
+      thr->push_object(ok ? item : vvp_object_t());
+      vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
+      thr->push_vec4(res);
+      return true;
+}
+
+/*
+ * %mbx/num
+ * Stack (top->bottom): mailbox
+ * Pop mailbox. Push item count onto vec4 stack as a 32-bit integer.
+ */
+bool of_MBX_NUM(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t mbx_obj;
+      thr->pop_object(mbx_obj);
+
+      vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
+      unsigned long cnt = mbx ? (unsigned long)mbx->num() : 0UL;
+      vvp_vector4_t res(32);
+      for (unsigned idx = 0; idx < 32; ++idx)
+	    res.set_bit(idx, (cnt >> idx) & 1 ? BIT4_1 : BIT4_0);
+      thr->push_vec4(res);
+      return true;
+}
+
+/* ================================================================
+ * Semaphore opcodes
+ * ================================================================ */
+
+/*
+ * %sem/new <initial_count>
+ * Create a new vvp_semaphore with the given initial key count and
+ * push it as an object onto the obj stack.
+ */
+bool of_SEM_NEW(vthread_t thr, vvp_code_t cp)
+{
+      size_t cnt = cp->number;
+      vvp_object_t sem(new vvp_semaphore(cnt));
+      thr->push_object(sem);
+      return true;
+}
+
+/*
+ * %sem/get
+ * Stack (obj top->bottom): semaphore
+ * Stack (vec4 top): N (number of keys to acquire)
+ * Pop semaphore from obj stack, N from vec4 stack.
+ * Block thread until N keys available.
+ */
+bool of_SEM_GET(vthread_t thr, vvp_code_t)
+{
+      /* Read N from vec4 stack top, compute integer value */
+      unsigned long nval = 0;
+      {
+	    const vvp_vector4_t& nv = thr->peek_vec4(0);
+	    unsigned nbits = nv.size() < 32 ? nv.size() : 32;
+	    for (unsigned i = 0; i < nbits; ++i)
+		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
+      }
+      thr->pop_vec4(1);
+
+      vvp_object_t sem_obj;
+      thr->pop_object(sem_obj);
+
+      vvp_semaphore*sem = sem_obj.peek<vvp_semaphore>();
+      if (!sem) return true; /* null semaphore: ignore */
+
+      bool done = sem->get(thr, nval ? nval : 1);
+      if (!done) return false; /* thread suspended */
+      return true;
+}
+
+/*
+ * %sem/put
+ * Stack (obj top->bottom): semaphore
+ * Stack (vec4 top): N (number of keys to release)
+ * Pop both; add N keys to semaphore.
+ */
+bool of_SEM_PUT(vthread_t thr, vvp_code_t)
+{
+      unsigned long nval = 0;
+      {
+	    const vvp_vector4_t& nv = thr->peek_vec4(0);
+	    unsigned nbits = nv.size() < 32 ? nv.size() : 32;
+	    for (unsigned i = 0; i < nbits; ++i)
+		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
+      }
+      thr->pop_vec4(1);
+
+      vvp_object_t sem_obj;
+      thr->pop_object(sem_obj);
+
+      vvp_semaphore*sem = sem_obj.peek<vvp_semaphore>();
+      if (sem) sem->put(nval ? nval : 1);
+      return true;
+}
+
+/*
+ * %sem/try_get
+ * Stack (obj top->bottom): semaphore
+ * Stack (vec4 top): N
+ * Non-blocking try. Pop both; push result (1=success, 0=fail) onto vec4 stack.
+ */
+bool of_SEM_TRY_GET(vthread_t thr, vvp_code_t)
+{
+      unsigned long nval = 0;
+      {
+	    const vvp_vector4_t& nv = thr->peek_vec4(0);
+	    unsigned nbits = nv.size() < 32 ? nv.size() : 32;
+	    for (unsigned i = 0; i < nbits; ++i)
+		  if (nv.value(i) == BIT4_1) nval |= (1UL << i);
+      }
+      thr->pop_vec4(1);
+
+      vvp_object_t sem_obj;
+      thr->pop_object(sem_obj);
+
+      vvp_semaphore*sem = sem_obj.peek<vvp_semaphore>();
+      bool ok = sem ? sem->try_get(nval ? nval : 1) : false;
+      vvp_vector4_t res(1, ok ? BIT4_1 : BIT4_0);
+      thr->push_vec4(res);
+      return true;
+}
+
+/* ================================================================
+ * Boxing/unboxing opcodes for non-class mailbox items
+ * ================================================================ */
+
+/*
+ * %box/vec4 <width>
+ * Pop a <width>-bit vec4 from the vec4 stack, wrap it in a
+ * vvp_boxed_vec4 object, and push the object onto the obj stack.
+ */
+bool of_BOX_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      unsigned wid = cp->number;
+      vvp_vector4_t v(wid);
+      const vvp_vector4_t& top = thr->peek_vec4(0);
+      unsigned bits = top.size() < wid ? top.size() : wid;
+      for (unsigned i = 0; i < bits; ++i)
+	    v.set_bit(i, top.value(i));
+      thr->pop_vec4(1);
+      vvp_object_t box(new vvp_boxed_vec4(v));
+      thr->push_object(box);
+      return true;
+}
+
+/*
+ * %unbox/vec4 <width>
+ * Pop an object from the obj stack.  If it is a vvp_boxed_vec4,
+ * extract its vec4 value and push <width> bits onto the vec4 stack.
+ * If not (e.g. null), push a zero vec4.
+ */
+bool of_UNBOX_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      unsigned wid = cp->number;
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vector4_t res(wid, BIT4_0);
+      if (vvp_boxed_vec4*box = obj.peek<vvp_boxed_vec4>()) {
+	    const vvp_vector4_t& v = box->get_value();
+	    unsigned bits = v.size() < wid ? v.size() : wid;
+	    for (unsigned i = 0; i < bits; ++i)
+		  res.set_bit(i, v.value(i));
+      }
+      thr->push_vec4(res);
       return true;
 }

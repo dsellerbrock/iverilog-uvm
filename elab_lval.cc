@@ -24,6 +24,7 @@
 
 # include  "PExpr.h"
 # include  "PPackage.h"
+# include  "PClass.h"
 # include  "netlist.h"
 # include  "netmisc.h"
 # include  "netstruct.h"
@@ -1256,6 +1257,15 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		    root_type = lv->net_type();
 	      }
 
+	// Ensure the entire super chain of the root class has all
+	// properties declared with correct types. A property may have been
+	// stored with a wrong type (integer fallback) during an earlier
+	// ensure_property_decl call that ran while the property's class type
+	// was still mid-elaboration.  ensure_all_properties_declared repairs
+	// such entries so that nested l-value path resolution succeeds.
+	      if (const netclass_t*root_cls = dynamic_cast<const netclass_t*>(root_type))
+		    const_cast<netclass_t*>(root_cls)->ensure_all_properties_declared(des);
+
 	// Iterate over the member_path. This handles nested class
 	// object, by generating nested NetAssign_ object. We start
 	// with lv==0, so the front of the member_path is the member
@@ -1368,6 +1378,40 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  }
 
 		  ptype = owner_class->get_prop_type(pidx);
+
+		  // If ptype is not a class type (e.g. it was stored as an
+		  // integer-handle fallback due to a circular-elaboration race),
+		  // try to recover the real class type directly from the scope
+		  // hierarchy, bypassing the elaborate_type cache entirely.
+		  if (!dynamic_cast<const netclass_t*>(ptype)) {
+			const NetScope*cls_scope = owner_class->class_scope();
+			const PClass*pclass = cls_scope ? cls_scope->class_pform() : nullptr;
+			if (pclass && pclass->type) {
+			      perm_string pname = perm_string::literal(owner_class->get_prop_name(pidx));
+			      auto pit = pclass->type->properties.find(pname);
+			      if (pit != pclass->type->properties.end() && pit->second.type) {
+				    perm_string resolved_name;
+				    if (const typeref_t*tref =
+					  dynamic_cast<const typeref_t*>(pit->second.type.get())) {
+					  if (tref->typedef_ref())
+						resolved_name = tref->typedef_ref()->name;
+				    } else if (const class_type_t*ct =
+					  dynamic_cast<const class_type_t*>(pit->second.type.get())) {
+					  resolved_name = ct->name;
+				    }
+				    if (!resolved_name.nil()) {
+					  NetScope*search_scope =
+						cls_scope ? const_cast<NetScope*>(cls_scope) : scope;
+					  if (netclass_t*resolved =
+						ensure_visible_class_type(des, search_scope, resolved_name)) {
+						const_cast<netclass_t*>(owner_class)->repair_property_type(
+							pname, resolved);
+						ptype = resolved;
+					  }
+				    }
+			      }
+			}
+		  }
 	    } else {
 		  unsigned long member_off = 0;
 		  const netstruct_t::member_t*member =

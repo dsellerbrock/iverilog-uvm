@@ -52,6 +52,7 @@ class property_qualifier_t {
       inline bool test_rand() const      { return mask_ & 8; }
       inline bool test_randc() const     { return mask_ & 16; }
       inline bool test_const() const     { return mask_ & 32; }
+      inline int  mask() const           { return mask_; }
 
     private:
       int mask_;

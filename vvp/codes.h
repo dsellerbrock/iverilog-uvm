@@ -307,6 +307,7 @@ extern bool of_QPOP_O_F_STR(vthread_t thr, vvp_code_t code);
 extern bool of_QPOP_O_F_V(vthread_t thr, vvp_code_t code);
 extern bool of_QSIZE(vthread_t thr, vvp_code_t code);
 extern bool of_QSIZE_O(vthread_t thr, vvp_code_t code);
+extern bool of_RANDOMIZE(vthread_t thr, vvp_code_t code);
 extern bool of_PROP_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_PROP_R(vthread_t thr, vvp_code_t code);
 extern bool of_PROP_STR(vthread_t thr, vvp_code_t code);
@@ -315,6 +316,23 @@ extern bool of_PROP_V_I(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_KILL(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_SELF(vthread_t thr, vvp_code_t code);
+/* Mailbox opcodes */
+extern bool of_MBX_NEW(vthread_t thr, vvp_code_t code);
+extern bool of_MBX_PUT(vthread_t thr, vvp_code_t code);
+extern bool of_MBX_GET(vthread_t thr, vvp_code_t code);
+extern bool of_MBX_PEEK(vthread_t thr, vvp_code_t code);
+extern bool of_MBX_TRY_PUT(vthread_t thr, vvp_code_t code);
+extern bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t code);
+extern bool of_MBX_TRY_PEEK(vthread_t thr, vvp_code_t code);
+extern bool of_MBX_NUM(vthread_t thr, vvp_code_t code);
+/* Boxing/unboxing opcodes for non-class mailbox items */
+extern bool of_BOX_VEC4(vthread_t thr, vvp_code_t code);
+extern bool of_UNBOX_VEC4(vthread_t thr, vvp_code_t code);
+/* Semaphore opcodes */
+extern bool of_SEM_NEW(vthread_t thr, vvp_code_t code);
+extern bool of_SEM_GET(vthread_t thr, vvp_code_t code);
+extern bool of_SEM_PUT(vthread_t thr, vvp_code_t code);
+extern bool of_SEM_TRY_GET(vthread_t thr, vvp_code_t code);
 extern bool of_PUSHI_STR(vthread_t thr, vvp_code_t code);
 extern bool of_PUSHI_REAL(vthread_t thr, vvp_code_t code);
 extern bool of_PUSHI_VEC4(vthread_t thr, vvp_code_t code);

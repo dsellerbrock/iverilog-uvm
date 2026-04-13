@@ -842,19 +842,43 @@ void vvp_fun_anyedge_aa::recv_string(vvp_net_ptr_t port, const std::string&bit,
 void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t,
                                      vvp_context_t context)
 {
+      static bool seq_trace = (getenv("IVL_SEQ_TRACE") && *getenv("IVL_SEQ_TRACE"));
       if (event_trace_enabled_()) {
             fprintf(stderr, "trace anyedge-aa recv_object net=%p ctx=%p\n",
                     (void*)port.ptr(), context);
       }
+      vvp_context_t input_context = context;
       context = recover_automatic_event_context_(context, context_scope_,
                                                  "recv-anyedge-object-aa");
+      if (seq_trace) {
+            const char*sn = context_scope_ ? vpi_get_str(vpiFullName, context_scope_) : 0;
+            fprintf(stderr,
+                    "[SEQ_TRACE anyedge recv_object] net=%p scope=%s"
+                    " in_ctx=%p recovered_ctx=%p\n",
+                    (void*)port.ptr(), sn ? sn : "<null>",
+                    input_context, context);
+      }
       if (context) {
             vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
+            if (seq_trace) {
+                  fprintf(stderr,
+                          "[SEQ_TRACE anyedge recv_object] ctx=%p state=%p threads=%p\n",
+                          context, (void*)state, state ? (void*)state->threads : 0);
+            }
             run_waiting_threads_(state->threads);
             vvp_net_t*net = port.ptr();
             net->send_vec4(vvp_vector4_t(), context);
       } else {
+            if (seq_trace && context_scope_) {
+                  int n = 0;
+                  for (vvp_context_t c = context_scope_->live_contexts; c;
+                       c = vvp_get_next_context(c)) n++;
+                  fprintf(stderr,
+                          "[SEQ_TRACE anyedge recv_object] recovery failed,"
+                          " iterating %d live_contexts of scope=%s\n",
+                          n, vpi_get_str(vpiFullName, context_scope_));
+            }
             context = context_scope_->live_contexts;
             while (context) {
                   recv_object(port, vvp_object_t(), context);

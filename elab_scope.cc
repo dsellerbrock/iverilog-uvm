@@ -1403,15 +1403,19 @@ static void flush_pending_specialized_method_seeds_(Design*des,
 
 	    seed_specialized_method_bodies_(des, cls, const_cast<PClass*>(pclass));
 
-	    // If the class has static variable initializers (e.g.,
-	    // `local static bit m__initialized = __deferred_init()` in
-	    // uvm_registry_common), the seed path alone is not enough.
-	    // netclass_t::elaborate() must run to generate the $init thread
-	    // that calls those initializers at simulation start.
-	    // The seed already elaborated the named methods (elab_stage guard
-	    // prevents double-elaboration), so this only adds the missing
-	    // initialize_static $init thread and any un-seeded methods.
-	    if (!pclass->type->initialize_static.empty() && !cls->body_elaborated())
+	    // Always fully elaborate the class so that virtual override methods
+	    // get their bodies generated in the VVP output.  Without this, classes
+	    // that are only used through a base-class handle (e.g.
+	    // uvm_port_component #(PORT) accessed via uvm_component) never have
+	    // their overriding methods body-elaborated, causing the VVP compiler to
+	    // emit function scopes with no statement and therefore no TD_ label.
+	    // At runtime, virtual dispatch then finds no override and silently
+	    // falls through to the (pure virtual) base-class stub.
+	    //
+	    // The seed above already elaborated the whitelisted methods; the
+	    // elab_stage guard inside PFunction/PTask::elaborate() prevents any
+	    // double-elaboration, so this call is purely additive.
+	    if (!cls->body_elaborated())
 		  cls->elaborate(des, const_cast<PClass*>(pclass));
       }
 

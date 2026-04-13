@@ -777,6 +777,20 @@ const string& class_type::property_name(size_t idx) const
       return properties_[idx].name;
 }
 
+bool class_type::property_is_rand(size_t idx) const
+{
+      if (idx >= properties_.size())
+	    return false;
+      return properties_[idx].rand_flag;
+}
+
+bool class_type::property_is_randc(size_t idx) const
+{
+      if (idx >= properties_.size())
+	    return false;
+      return properties_[idx].randc_flag;
+}
+
 void class_type::set_scope_path(const string&path)
 {
       scope_path_ = path;
@@ -820,72 +834,87 @@ void class_type::set_property(size_t idx, const string&name, const string&type, 
       assert(idx < properties_.size());
       properties_[idx].name = name;
 
-      if (type == "b8")
+	// Strip rand/randc prefix ("r" or "rc") from the type string.
+      string base_type = type;
+      if (type.compare(0, 2, "rc") == 0) {
+	    properties_[idx].randc_flag = true;
+	    properties_[idx].rand_flag  = true;
+	    base_type = type.substr(2);
+      } else if (type.compare(0, 1, "r") == 0
+	         && type.size() > 1 && type[1] != '\0'
+	         && type[1] != 'e' && type[1] != 'a') {
+	      // Guard against "r" (real) and "rc" already handled above.
+	      // The "r" prefix for rand only occurs before 's', 'b', 'L', etc.
+	    properties_[idx].rand_flag = true;
+	    base_type = type.substr(1);
+      }
+      const string&type_to_use = base_type;
+
+      const string&t = type_to_use;
+      if (t == "b8")
 	    properties_[idx].type = new property_atom<uint8_t>;
-      else if (type == "b16")
+      else if (t == "b16")
 	    properties_[idx].type = new property_atom<uint16_t>;
-      else if (type == "b32")
+      else if (t == "b32")
 	    properties_[idx].type = new property_atom<uint32_t>;
-      else if (type == "b64")
+      else if (t == "b64")
 	    properties_[idx].type = new property_atom<uint64_t>;
-      else if (type == "sb8")
+      else if (t == "sb8")
 	    properties_[idx].type = new property_atom<int8_t>;
-      else if (type == "sb16")
+      else if (t == "sb16")
 	    properties_[idx].type = new property_atom<int16_t>;
-      else if (type == "sb32")
+      else if (t == "sb32")
 	    properties_[idx].type = new property_atom<int32_t>;
-      else if (type == "sb64")
+      else if (t == "sb64")
 	    properties_[idx].type = new property_atom<int64_t>;
-      else if (type == "r")
+      else if (t == "r")
 	    properties_[idx].type = new property_real<double>;
-      else if (type == "S")
+      else if (t == "S")
 	    properties_[idx].type = new property_string;
-      else if (type == "o")
+      else if (t == "o")
 	    properties_[idx].type = new property_object(array_size);
-      else if (type.compare(0,3,"oc:") == 0) {
+      else if (t.compare(0,3,"oc:") == 0) {
 	    property_cobject*prop = new property_cobject(array_size);
 	    compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&prop->defn_),
-			       strdup(type.c_str()+3));
+			       strdup(t.c_str()+3));
 	    properties_[idx].type = prop;
       }
-      else if (type == "Qr")
+      else if (t == "Qr")
 	    properties_[idx].type = new property_queue<vvp_queue_real>(array_size);
-      else if (type == "QS")
+      else if (t == "QS")
 	    properties_[idx].type = new property_queue<vvp_queue_string>(array_size);
-      else if (type == "Qv")
+      else if (t == "Qv")
 	    properties_[idx].type = new property_queue<vvp_queue_vec4>(array_size);
-      else if (type == "Qo")
+      else if (t == "Qo")
 	    properties_[idx].type = new property_queue<vvp_queue_object>(array_size);
-      else if (type == "Mr")
+      else if (t == "Mr")
 	    properties_[idx].type = new property_queue<vvp_assoc_real>(array_size);
-      else if (type == "MS")
+      else if (t == "MS")
 	    properties_[idx].type = new property_queue<vvp_assoc_string>(array_size);
-      else if (type == "Mo")
+      else if (t == "Mo")
 	    properties_[idx].type = new property_queue<vvp_assoc_object>(array_size);
-      else if (type[0] == 'M' && type[1] == 'v')
+      else if (t.size() >= 2 && t[0] == 'M' && t[1] == 'v')
 	    properties_[idx].type = new property_queue<vvp_assoc_vec4>(array_size);
-      else if (type[0] == 'b') {
-	    size_t wid = strtoul(type.c_str()+1, 0, 0);
+      else if (t[0] == 'b') {
+	    size_t wid = strtoul(t.c_str()+1, 0, 0);
 	    properties_[idx].type = new property_bit(wid, array_size);
-      } else if (type[0] == 's' && type[1] == 'b') {
-	    size_t wid = strtoul(type.c_str()+2, 0, 0);
+      } else if (t.size() >= 2 && t[0] == 's' && t[1] == 'b') {
+	    size_t wid = strtoul(t.c_str()+2, 0, 0);
 	    properties_[idx].type = new property_bit(wid, array_size);
-      } else if (type[0] == 'L') {
-	    size_t wid = strtoul(type.c_str()+1,0,0);
+      } else if (t[0] == 'L') {
+	    size_t wid = strtoul(t.c_str()+1,0,0);
 	    properties_[idx].type = new property_logic(wid, array_size);
-      } else if (type[0] == 's' && type[1] == 'L') {
-	    size_t wid = strtoul(type.c_str()+2,0,0);
+      } else if (t.size() >= 2 && t[0] == 's' && t[1] == 'L') {
+	    size_t wid = strtoul(t.c_str()+2,0,0);
 	    properties_[idx].type = new property_logic(wid, array_size);
       } else {
-	    // Fallback: For unknown types, treat as object to avoid null pointer
-	    // This allows classes with unsupported property types to be created
-	    cerr << "Warning: Unknown property type '" << type << "' for property "
+	    cerr << "Warning: Unknown property type '" << t << "' for property "
 	         << idx << " of class " << class_name_ << "; treating as object" << endl;
 	    properties_[idx].type = new property_object(array_size? array_size : 1);
       }
 
       if (properties_[idx].type)
-	    properties_[idx].type->describe(class_name_, name, type);
+	    properties_[idx].type->describe(class_name_, name, t);
 }
 
 void class_type::finish_setup(void)

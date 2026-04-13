@@ -604,6 +604,30 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    return 0;
       }
 
+      /* Mailbox constructor: $ivl_mailbox$new([bound]) */
+      if (strcmp(name, "$ivl_mailbox$new") == 0) {
+	    long bound = 0;
+	    if (parm_count > 0) {
+		  ivl_expr_t bexpr = ivl_expr_parm(expr, 0);
+		  if (bexpr && ivl_expr_type(bexpr) == IVL_EX_NUMBER)
+			bound = (long)ivl_expr_uvalue(bexpr);
+	    }
+	    fprintf(vvp_out, "    %%mbx/new %ld;\n", bound);
+	    return 0;
+      }
+
+      /* Semaphore constructor: $ivl_semaphore$new([initial_count]) */
+      if (strcmp(name, "$ivl_semaphore$new") == 0) {
+	    long cnt = 0;
+	    if (parm_count > 0) {
+		  ivl_expr_t cexpr = ivl_expr_parm(expr, 0);
+		  if (cexpr && ivl_expr_type(cexpr) == IVL_EX_NUMBER)
+			cnt = (long)ivl_expr_uvalue(cexpr);
+	    }
+	    fprintf(vvp_out, "    %%sem/new %ld;\n", cnt);
+	    return 0;
+      }
+
       /* Queue pop methods returning objects are lowered to object qpop opcodes. */
       if (strcmp(name, "$ivl_queue_method$pop_back")==0 ||
           strcmp(name, "$ivl_queue_method$pop_front")==0) {

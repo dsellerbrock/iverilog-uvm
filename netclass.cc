@@ -96,6 +96,7 @@ netclass_t::netclass_t(perm_string name, const netclass_t*super)
 : name_(name), super_(super), class_scope_(0), definition_scope_(0),
   virtual_class_(false), interface_type_(false),
   sig_elaborated_(false), sig_elaborating_(false),
+  props_declaring_(false),
   body_elaborated_(false), body_elaborating_(false),
   scope_ready_(false),
   specialized_instance_(false)
@@ -147,6 +148,14 @@ bool netclass_t::set_property(perm_string pname, property_qualifier_t qual,
 
       properties_[pname] = property_table_.size()-1;
       return true;
+}
+
+void netclass_t::repair_property_type(perm_string pname, ivl_type_t new_type)
+{
+      map<perm_string,size_t>::const_iterator cur = properties_.find(pname);
+      if (cur == properties_.end())
+	    return;   // not yet declared, nothing to repair
+      property_table_[cur->second].type = new_type;
 }
 
 bool netclass_t::add_clocking_block(perm_string name,
@@ -236,18 +245,6 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
             if (!use_type)
                   return -1;
 
-            if (const char*trace = getenv("IVL_NESTED_PATH_TRACE")) {
-                  if (cur->first == pname) {
-                        cerr << class_scope_->get_fileline() << ": debug: "
-                             << "ensure_property_decl trace=" << trace
-                             << " class=" << get_name()
-                             << " prop=" << cur->first
-                             << " type=";
-                        use_type->debug_dump(cerr);
-                        cerr << endl;
-                  }
-            }
-
             bool added = set_property(cur->first, cur->second.qual, use_type);
             if (added && cur->second.qual.test_static()) {
                   if (class_scope_->find_signal(cur->first) == 0)
@@ -257,6 +254,86 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
       }
 
       return property_idx_from_name(pname);
+}
+
+// Ensure ALL properties in this class and its entire super chain are declared.
+// This stabilises get_properties() so that property_idx_from_name() returns
+// correct absolute indices even when called during incremental elaboration
+// (before the super chain's elaborate_sig has finished).
+void netclass_t::ensure_all_properties_declared(Design*des)
+{
+      if (!des) return;
+      if (sig_elaborated_) return;   // already fully done by elaborate_sig
+      if (props_declaring_) return;  // re-entry guard
+      props_declaring_ = true;
+
+      // Recurse so ancestors are fully declared first.
+      if (super_)
+            const_cast<netclass_t*>(super_)->ensure_all_properties_declared(des);
+
+      // Add any properties not yet in our properties_ map, and repair
+      // properties that were stored with the wrong type (e.g. netvector
+      // integer-handle fallback from a circular elaboration detection).
+      if (class_scope_) {
+            const PClass*pclass = class_scope_->class_pform();
+            if (pclass && pclass->type) {
+                  for (std::vector<perm_string>::const_iterator name_it =
+                              pclass->type->property_order.begin()
+                       ; name_it != pclass->type->property_order.end()
+                       ; ++name_it) {
+
+                        map<perm_string,struct class_type_t::prop_info_t>::const_iterator cur =
+                              pclass->type->properties.find(*name_it);
+                        if (cur == pclass->type->properties.end())
+                              continue;
+
+                        // Check if already declared with wrong type.
+                        map<perm_string,size_t>::iterator already =
+                              properties_.find(*name_it);
+                        if (already != properties_.end()) {
+                              // If the property is stored as a non-class type but the parse form
+                              // says it should be a class, try to re-elaborate the type now that
+                              // more classes may be visible (circular-fallback repair).
+                              ivl_type_t stored = property_table_[already->second].type;
+                              bool needs_repair =
+                                    !dynamic_cast<const netclass_t*>(stored)
+                                    && (dynamic_cast<const class_type_t*>(cur->second.type.get())
+                                        || dynamic_cast<const typeref_t*>(cur->second.type.get()));
+                              if (needs_repair) {
+                                    ivl_type_t repaired = cur->second.type->elaborate_type(des, class_scope_);
+                                    if (dynamic_cast<const netclass_t*>(repaired))
+                                          property_table_[already->second].type = repaired;
+                              }
+                              continue;
+                        }
+
+                        ivl_type_t use_type = 0;
+
+                        if (const typeref_t*type_ref =
+                                    dynamic_cast<const typeref_t*>(cur->second.type.get())) {
+                              typedef_t*td = type_ref->typedef_ref();
+                              if (td && td->name == get_name()
+                                  && type_ref->parameter_values()) {
+                                    use_type = this;
+                              }
+                        }
+
+                        if (!use_type)
+                              use_type = cur->second.type->elaborate_type(des, class_scope_);
+                        if (!use_type)
+                              continue;   // skip unresolvable types
+
+                        bool added = set_property(cur->first, cur->second.qual, use_type);
+                        if (added && cur->second.qual.test_static()) {
+                              if (class_scope_->find_signal(cur->first) == 0)
+                                    new NetNet(class_scope_, cur->first,
+                                               NetNet::REG, use_type);
+                        }
+                  }
+            }
+      }
+
+      props_declaring_ = false;
 }
 
 ivl_variable_type_t netclass_t::base_type() const

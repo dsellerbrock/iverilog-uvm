@@ -4556,8 +4556,15 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		    // Compile-progress fallback: multi-component task path
 		    // that couldn't be resolved as a method call. Treat as
 		    // no-op to keep elaboration progressing.
-		  cerr << get_fileline() << ": warning: Enable of unknown task "
-		       << "``" << path_ << "'' ignored (compile-progress fallback)." << endl;
+		  perm_string tail = peek_tail_name(path_);
+		  // SV built-in constraint/rand controls: silently ignore as noops.
+		  // These have no iverilog implementation and are always noops.
+		  bool silent_noop = (tail == perm_string::literal("constraint_mode")
+				      || tail == perm_string::literal("rand_mode"));
+		  if (!silent_noop) {
+			cerr << get_fileline() << ": warning: Enable of unknown task "
+			     << "``" << path_ << "'' ignored (compile-progress fallback)." << endl;
+		  }
 		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 		  noop->set_line(*this);
 		  return noop;
@@ -4854,53 +4861,33 @@ static bool is_uvm_compile_progress_task_stub_candidate_(const pform_name_t&path
 	    return false;
 
       perm_string tail = peek_tail_name(path);
-	      if (tail == perm_string::literal("set_name")
-		  || tail == perm_string::literal("copy")
-		  || tail == perm_string::literal("sort")
-		  || tail == perm_string::literal("randomize")
-		  || tail == perm_string::literal("kill")
-	  || tail == perm_string::literal("free")
-	  || tail == perm_string::literal("unregister")
-	  || tail == perm_string::literal("set_check_on_read")
-	  || tail == perm_string::literal("m_get_transitive_children")
-	  || tail == perm_string::literal("await")
-	  || tail == perm_string::literal("set_compare")
-		  || tail == perm_string::literal("run_phase")
-		  || tail == perm_string::literal("uvm_report")
-		  || tail == perm_string::literal("set_report_verbosity_level")
-		  || tail == perm_string::literal("set_report_id_action_hier")
-		  || tail == perm_string::literal("set_report_id_verbosity")
-		  || tail == perm_string::literal("pop_active_object")
-		  || tail == perm_string::literal("constraint_mode")
-		  || tail == perm_string::literal("rand_mode")
-		  || tail == perm_string::literal("wait_for_state")
-		  || tail == perm_string::literal("m_print_successors")
-		  || tail == perm_string::literal("kill_successors")
-		  || tail == perm_string::literal("clear_successors")
-		  || tail == perm_string::literal("process_guard_triggered")
-		  || tail == perm_string::literal("initialize")
-		  || tail == perm_string::literal("get_fields")
-		  || tail == perm_string::literal("get_maps")
-		  || tail == perm_string::literal("reset")
-		  || tail == perm_string::literal("set_lock")
-		  || tail == perm_string::literal("jump")
-		  || tail == perm_string::literal("get_virtual_registers")
-		  || tail == perm_string::literal("get_submaps")
-		  || tail == perm_string::literal("pre_run_test")
-		  || tail == perm_string::literal("pre_abort")
-		  || tail == perm_string::literal("post_run_test")
-		  || tail == perm_string::literal("add")
-		  || tail == perm_string::literal("do_predict")
-		  || tail == perm_string::literal("post_trigger")
-		  || tail == perm_string::literal("get_blocks")
-	  || tail == perm_string::literal("clear_children")
-	  || tail == perm_string::literal("clear")
+
+      // UVM register-model internals: these methods are genuinely complex/incomplete
+      // in iverilog's implementation and must remain as noops.
+      if (tail == perm_string::literal("get_fields")
+	  || tail == perm_string::literal("get_maps")
+	  || tail == perm_string::literal("reset")
+	  || tail == perm_string::literal("set_lock")
+	  || tail == perm_string::literal("get_virtual_registers")
+	  || tail == perm_string::literal("get_submaps")
+	  || tail == perm_string::literal("get_blocks")
 	  || tail == perm_string::literal("mirror")
 	  || tail == perm_string::literal("set_local")
 	  || tail == perm_string::literal("init_address_map")
-	  || tail == perm_string::literal("Xinit_address_mapX"))
-		    return true;
+	  || tail == perm_string::literal("Xinit_address_mapX")
+	  || tail == perm_string::literal("do_predict"))
+	    return true;
 
+      // UVM phase recursion guards: these appear in loop-like UVM internal
+      // constructs that would cause elaboration recursion if not stubbed.
+      if (tail == perm_string::literal("m_print_successors")
+	  || tail == perm_string::literal("kill_successors")
+	  || tail == perm_string::literal("clear_successors")
+	  || tail == perm_string::literal("process_guard_triggered"))
+	    return true;
+
+      // SV semaphore/mailbox operations that map to UVM internal synchronization
+      // primitives not yet supported in the iverilog VVP runtime.
       if (tail == perm_string::literal("put")
 	  || tail == perm_string::literal("get")
 	  || tail == perm_string::literal("try_get")) {
@@ -4916,6 +4903,7 @@ static bool is_uvm_compile_progress_task_stub_candidate_(const pform_name_t&path
 	    }
       }
 
+      // Associative-array map operations on the UVM reg model's m_maps table.
       if (tail == perm_string::literal("first")
 	  || tail == perm_string::literal("last")
 	  || tail == perm_string::literal("next")
@@ -5056,11 +5044,47 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		 << net->name() << ".data_type() --> " << net->data_type() << endl;
       }
 
-      if (is_tlm_forward_task_stub_candidate_(use_path, method_name)) {
-	    delete obj_expr;
-	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-	    noop->set_line(*this);
-	    return noop;
+      // Skip TLM stub for built-in class types that have real implementations
+      // (mailbox/semaphore/process) — their variable names may collide with
+      // TLM port variable name patterns (e.g. a mailbox named "m").
+      {
+	    bool is_builtin_type = false;
+	    if (const netclass_t*ct = dynamic_cast<const netclass_t*>(obj_type)) {
+		  perm_string cn = ct->get_name();
+		  is_builtin_type = (cn == perm_string::literal("mailbox") ||
+				     cn == perm_string::literal("semaphore") ||
+				     cn == perm_string::literal("process"));
+	    }
+	    if (!is_builtin_type && is_tlm_forward_task_stub_candidate_(use_path, method_name)) {
+		  // Certain TLM methods must NOT be early-stubbed because the class
+		  // type is known here and the real method can be found.
+		  // - m_port.resolve_bindings(): port binding resolution needs real impl.
+		  // - m_if.{get_next_item,try_next_item,item_done,put_response}: the
+		  //   seq/driver TLM handshake requires real virtual dispatch through
+		  //   the sequencer imp.
+		  // When method lookup later fails (e.g. generic specializations),
+		  // the post-lookup stub below handles it safely.
+		  perm_string path_target = peek_tail_name(use_path);
+		  bool is_real_call_candidate = false;
+		  if (path_target == perm_string::literal("m_port")
+		      && method_name == perm_string::literal("resolve_bindings")) {
+			is_real_call_candidate = true;
+		  } else if (path_target == perm_string::literal("m_if")
+			     || path_target == perm_string::literal("m_imp")
+			     || path_target == perm_string::literal("m_req_imp")
+			     || path_target == perm_string::literal("m_rsp_imp")) {
+			// All TLM data-transfer methods on m_if/m_imp/m_req_imp/m_rsp_imp
+			// must be elaborated for real virtual dispatch. If method lookup
+			// fails (e.g. abstract base type), the post-lookup stub handles it.
+			is_real_call_candidate = true;
+		  }
+		  if (!is_real_call_candidate) {
+			delete obj_expr;
+			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			noop->set_line(*this);
+			return noop;
+		  }
+	    }
       }
 
 	// Is this a method of a "string" type?
@@ -5261,23 +5285,98 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  noop->set_line(*this);
 		  return noop;
 	    }
-	      // Built-in semaphore/mailbox task methods have no real
-	      // class definition in iverilog.  Stub them as no-ops so
-	      // UVM elaboration can continue.
-	    if ((cname == perm_string::literal("semaphore")
-		 || cname == perm_string::literal("mailbox"))
-		&& (method_name == perm_string::literal("put")
-		    || method_name == perm_string::literal("get")
-		    || method_name == perm_string::literal("try_get")
-		    || method_name == perm_string::literal("try_put")
-		    || method_name == perm_string::literal("try_peek")
-		    || method_name == perm_string::literal("peek")
-		    || method_name == perm_string::literal("num"))) {
-		  delete obj_expr;
-		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-		  noop->set_line(*this);
-		  return noop;
+	      // Built-in mailbox task methods: generate real opcodes.
+	    if (cname == perm_string::literal("mailbox")) {
+		  if (method_name == perm_string::literal("put")) {
+			static const std::vector<perm_string> parm_names = {
+			      perm_string::literal("message")
+			};
+			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+							  method_name, "$ivl_mailbox$put",
+							  parm_names);
+		  }
+		  if (method_name == perm_string::literal("get")) {
+			static const std::vector<perm_string> parm_names = {
+			      perm_string::literal("message")
+			};
+			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+							  method_name, "$ivl_mailbox$get",
+							  parm_names);
+		  }
+		  if (method_name == perm_string::literal("peek")) {
+			static const std::vector<perm_string> parm_names = {
+			      perm_string::literal("message")
+			};
+			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+							  method_name, "$ivl_mailbox$peek",
+							  parm_names);
+		  }
+		  if (method_name == perm_string::literal("try_put")) {
+			static const std::vector<perm_string> parm_names = {
+			      perm_string::literal("message")
+			};
+			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+							  method_name, "$ivl_mailbox$try_put",
+							  parm_names);
+		  }
+		  if (method_name == perm_string::literal("try_get")) {
+			static const std::vector<perm_string> parm_names = {
+			      perm_string::literal("message")
+			};
+			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+							  method_name, "$ivl_mailbox$try_get",
+							  parm_names);
+		  }
+		  if (method_name == perm_string::literal("try_peek")) {
+			static const std::vector<perm_string> parm_names = {
+			      perm_string::literal("message")
+			};
+			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+							  method_name, "$ivl_mailbox$try_peek",
+							  parm_names);
+		  }
+		  if (method_name == perm_string::literal("num")) {
+			static const std::vector<perm_string> no_parm_names;
+			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+							  method_name, "$ivl_mailbox$num",
+							  no_parm_names);
+		  }
 	    }
+	      // Built-in semaphore task methods: generate real opcodes.
+	      // get/put/try_get accept an optional keycount argument (default 1).
+	    if (cname == perm_string::literal("semaphore")) {
+		  static const std::vector<perm_string> sem_no_parms;
+		  static const std::vector<perm_string> sem_one_parm = {
+			perm_string::literal("keycount")
+		  };
+		  if (method_name == perm_string::literal("get")) {
+			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+							  method_name, "$ivl_semaphore$get",
+							  parms_.empty() ? sem_no_parms : sem_one_parm);
+		  }
+		  if (method_name == perm_string::literal("put")) {
+			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+							  method_name, "$ivl_semaphore$put",
+							  parms_.empty() ? sem_no_parms : sem_one_parm);
+		  }
+		  if (method_name == perm_string::literal("try_get")) {
+			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+							  method_name, "$ivl_semaphore$try_get",
+							  parms_.empty() ? sem_no_parms : sem_one_parm);
+		  }
+	    }
+	    // Built-in SV randomize() method: generates %randomize opcode.
+	    // This is not a regular class task; handle it specially so that
+	    // both expression context (elab_expr.cc) and statement context
+	    // (void'(obj.randomize())) work correctly.
+	    if (method_name == perm_string::literal("randomize")) {
+		  static const std::vector<perm_string> no_parms;
+		  return elaborate_method_func_(scope, obj_expr,
+					        &netvector_t::atom2s32,
+					        method_name,
+					        "$ivl_class_method$randomize");
+	    }
+
 	    NetScope*task = class_type->resolve_method_call_scope(des, method_name);
 	    if (trace_class_method) {
                   cerr << get_fileline() << ": trace task-method "
@@ -5300,6 +5399,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			return noop;
 		  }
 		  if (is_uvm_compile_progress_task_stub_candidate_(full_path)) {
+			delete obj_expr;
+			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			noop->set_line(*this);
+			return noop;
+		  }
+		  // SV built-in constraint/randomization controls: constraint_mode(en)
+		  // and rand_mode(en) are language-level built-ins with no iverilog
+		  // VVP implementation. Without a constraint solver these are noops.
+		  if (method_name == perm_string::literal("constraint_mode")
+		      || method_name == perm_string::literal("rand_mode")) {
 			delete obj_expr;
 			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			noop->set_line(*this);
@@ -5345,6 +5454,17 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       }
 
       if (is_multi_hop_collection_task_stub_candidate_(use_path, method_name)) {
+	    delete obj_expr;
+	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+	    noop->set_line(*this);
+	    return noop;
+      }
+
+      // For TLM stub candidates (m_if.put, m_imp.get, etc.) on non-class types
+      // (e.g., base-class instantiations with IMP=int where the type parameter
+      // is not a class), return a silent noop. Concrete specializations with a
+      // real class type will have succeeded above via the class method lookup.
+      if (is_tlm_forward_task_stub_candidate_(use_path, method_name)) {
 	    delete obj_expr;
 	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 	    noop->set_line(*this);
@@ -5402,6 +5522,18 @@ NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) c
 NetProc* PCallTask::elaborate_function_(Design*des, NetScope*scope) const
 {
       NetFuncDef*func = des->find_function(scope, path_);
+
+	// If the normal lookup failed and path_ has 2 components, check if the
+	// first component is a package name (Form 2 of pkg::fn parsed as a
+	// hierarchical path inside the same package body before it is registered).
+      if (!func && path_.size() == 2 && package_ == nullptr) {
+	    perm_string possible_pkg = path_.front().name;
+	    if (NetScope*pkg_scope = des->find_package(possible_pkg)) {
+		  pform_name_t tail_path;
+		  tail_path.push_back(path_.back());
+		  func = des->find_function(pkg_scope, tail_path);
+	    }
+      }
 
 	// This is not a function, so this task call cannot be a function
 	// call with a missing return assignment.
@@ -9619,8 +9751,10 @@ Design* elaborate(list<perm_string>roots)
 	// module and elaborate what I find.
       Design*des = new Design;
 
-	// Elaborate the compilation unit scopes. From here on, these are
-	// treated as an additional set of packages.
+	// Create NetScope objects for compilation units first so that
+	// unit_scopes is populated before packages are processed.
+	// Compilation units may import from packages, so their ELABORATION
+	// is deferred until after packages (see below).
       if (gn_system_verilog()) {
 	    for (vector<PPackage*>::iterator pkg = pform_units.begin()
 		       ; pkg != pform_units.end() ; ++pkg) {
@@ -9629,15 +9763,12 @@ Design* elaborate(list<perm_string>roots)
 		  scope->set_line(unit);
 		  scope->add_imports(&unit->explicit_imports);
 		  set_scope_timescale(des, scope, unit);
+		  unit_scopes[unit] = scope;
 
-		  elaborator_work_item_t*es = new elaborate_package_t(des, scope, unit);
-		  des->elaboration_work_list.push_back(es);
-
+		  // Save for later — work item added AFTER packages
 		  pack_elems[i].pack = unit;
 		  pack_elems[i].scope = scope;
 		  i += 1;
-
-		  unit_scopes[unit] = scope;
 	    }
       }
 
@@ -9646,6 +9777,9 @@ Design* elaborate(list<perm_string>roots)
 	// in SystemVerilog, packages are not allowed to refer to
 	// the compilation unit scope, but the VHDL preprocessor
 	// assumes they can.
+	// Packages are added to the work list BEFORE compilation units
+	// so that UVM/library packages are fully elaborated before user
+	// classes at the compilation-unit scope try to extend them.
       for (vector<PPackage*>::iterator pkg = pform_packages.begin()
 		 ; pkg != pform_packages.end() ; ++pkg) {
 	    PPackage*pack = *pkg;
@@ -9661,6 +9795,19 @@ Design* elaborate(list<perm_string>roots)
 	    pack_elems[i].pack = pack;
 	    pack_elems[i].scope = scope;
 	    i += 1;
+      }
+
+	// Now add compilation units to the work list (after packages) so
+	// that user classes defined outside any module can safely extend
+	// library classes from imported packages.
+      if (gn_system_verilog()) {
+	    for (unsigned j = 0; j < pform_units.size(); j++) {
+		  // pack_elems[0..pform_units.size()-1] were filled above
+		  elaborator_work_item_t*es =
+			new elaborate_package_t(des, pack_elems[j].scope,
+						pack_elems[j].pack);
+		  des->elaboration_work_list.push_back(es);
+	    }
       }
 
 	// Scan the root modules by name, and elaborate their scopes.

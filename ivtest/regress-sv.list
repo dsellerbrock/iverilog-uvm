@@ -1068,3 +1068,5 @@ sv_class_recursive_ctor_add1 normal,-g2012 ivltests
 sv_class_recursive_find_wrapper1 normal,-g2012 ivltests
 sv_string_cmp_empty1 normal,-g2012 ivltests
 sv_class_getter_handle_wait1 normal,-g2012 ivltests
+sv_mailbox_blocking_peek1 normal
+sv_mailbox_try_int1 normal

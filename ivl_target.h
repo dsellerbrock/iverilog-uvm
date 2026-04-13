@@ -2423,6 +2423,10 @@ extern int ivl_type_queue_assoc_compat(ivl_type_t net);
 extern int         ivl_type_properties(ivl_type_t net);
 extern const char* ivl_type_prop_name(ivl_type_t net, int idx);
 extern ivl_type_t  ivl_type_prop_type(ivl_type_t net, int idx);
+/* Returns the qualifier bits for class property idx.
+ * Bit 0: static, Bit 1: protected, Bit 2: local,
+ * Bit 3: rand,   Bit 4: randc,     Bit 5: const */
+extern int         ivl_type_prop_qual(ivl_type_t net, int idx);
 
 
 #if defined(__MINGW32__) || defined (__CYGWIN__)
