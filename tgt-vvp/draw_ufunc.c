@@ -353,7 +353,24 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
       note_td_reference(mangled);
       unsigned super_call = ivl_expr_is_super_call(expr);
 
-      switch (ivl_expr_value(expr)) {
+      /* Use the function scope's return type as the authoritative opcode
+       * selector. The call-site expression type (ivl_expr_value) can be
+       * stale when the called function is in a parameterized class whose
+       * type parameter wasn't resolved at the time the default-argument
+       * NetEUFunc was elaborated (e.g. trigger(T data=get_default_data())
+       * compiled before T was bound to uvm_object). The scope's func_type
+       * is set from the return-signal data_type() at dll_target export time,
+       * which always reflects the finally-resolved type. */
+      ivl_variable_type_t call_type = ivl_expr_value(expr);
+      ivl_variable_type_t scope_type = ivl_scope_func_type(def);
+      if ((call_type == IVL_VT_LOGIC || call_type == IVL_VT_BOOL)
+          && (scope_type == IVL_VT_CLASS || scope_type == IVL_VT_DARRAY
+              || scope_type == IVL_VT_QUEUE || scope_type == IVL_VT_NO_TYPE
+              || scope_type == IVL_VT_STRING || scope_type == IVL_VT_REAL)) {
+	    call_type = scope_type;
+      }
+
+      switch (call_type) {
 	  case IVL_VT_VOID:
 	    fprintf(vvp_out, "    %%callf/void%s TD_%s",
 		    super_call ? "" : "/v", mangled);
