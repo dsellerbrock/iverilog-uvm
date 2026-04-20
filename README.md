@@ -73,6 +73,11 @@ Quick start — compile and run a basic UVM testbench:
 - Object mutation wakeups — in-place class/queue updates can wake waiting threads
 - Implicit wait-event input selection correctly bound to the active automatic signal
 
+**Run Phase Mechanics**
+- Phase scheduler pattern works: queue-based phase hopper, `wait()` on phase state, predecessor/successor chaining (see `sv_class_phase_wait_sched1.v`)
+- `super.run_phase` calls now compile and resolve correctly — the scope hierarchy walk finds `this` from within task scopes
+- `mailbox` support enables sequencer-driver communication during run phase
+
 **Randomization**
 - `$ivl_class_method$randomize` opcode randomizes `rand`/`randc` properties
 
@@ -85,8 +90,8 @@ Quick start — compile and run a basic UVM testbench:
 ### What Does Not Work
 
 **UVM Phase Infrastructure**
-- `uvm_root.run_test()` and `uvm_phase_hopper.run_phases()` are incomplete — the phase startup/runtime flow does not execute
-- Phase entry/exit callback sequencing is not yet functional
+- `uvm_root.run_test()` end-to-end through the full UVM library still has gaps — the phase scheduler mechanics work at the SV class level but the full library startup flow is not yet verified passing
+- Phase entry/exit callback sequencing in the full UVM library is not yet functional
 
 **Constraints and Randomization**
 - `constraint { ... }` blocks are parsed but not enforced — no constraint solver backend
@@ -118,7 +123,7 @@ Quick start — compile and run a basic UVM testbench:
 
 The following are the documented active work areas from [`UVM_ENABLEMENT_FIXES.md`](UVM_ENABLEMENT_FIXES.md) and code comments:
 
-1. **UVM phase startup** — Complete `uvm_root.run_test()` and `uvm_phase_hopper.run_phases()` so phase entry/exit callbacks sequence correctly. This is the primary blocker for running real UVM tests end-to-end.
+1. **UVM phase startup** — The phase scheduler mechanics work; the remaining gap is verifying `uvm_root.run_test()` → `uvm_phase_hopper.run_phases()` executes correctly through the full UVM library with phase entry/exit callbacks. Register `sv_class_phase_wait_sched1.v` in the regression suite and build a reduced `run_test` repro.
 
 2. **Resolve compile-progress stubs** — A small set of UVM methods/tasks still fall back to silent no-ops instead of real implementations.
 
