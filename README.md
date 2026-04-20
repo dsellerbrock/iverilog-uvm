@@ -48,6 +48,99 @@ Quick start — compile and run a basic UVM testbench:
 
 ---
 
+## UVM Progress
+
+> See [`UVM_ENABLEMENT_FIXES.md`](UVM_ENABLEMENT_FIXES.md) for full technical detail on every fix category.
+
+### What Works
+
+**Core SystemVerilog OOP**
+- Classes, inheritance, polymorphism, and virtual method dispatch across full inheritance chains
+- Constructor chaining (`super.new()`), class properties, and instance/static access
+- Parameterized classes and forward-declared type-parameter recovery (critical for UVM callbacks and registry paths)
+- `$cast()` and `$typename()` with runtime type checking
+
+**Data Structures**
+- Queues — indexed read/write, `$`, `insert()`, `delete()`, wait/wakeup on mutation
+- Dynamic arrays — `vec4`, object, real, and string element types
+- Associative arrays — object keys and scalar keys, `.find()`, `.num()`, `.foreach()` iteration
+- String comparison and assignment
+
+**Concurrency and Synchronization**
+- `mailbox` — blocking and non-blocking `put`/`get`/`peek`/`try_*`
+- `semaphore` — `get`/`put` operations
+- `fork`/`join` with stable named-scope context binding for detached processes
+- Object mutation wakeups — in-place class/queue updates can wake waiting threads
+- Implicit wait-event input selection correctly bound to the active automatic signal
+
+**Run Phase Mechanics**
+- Phase scheduler pattern works: queue-based phase hopper, `wait()` on phase state, predecessor/successor chaining (see `sv_class_phase_wait_sched1.v`)
+- `super.run_phase` calls now compile and resolve correctly — the scope hierarchy walk finds `this` from within task scopes
+- `mailbox` support enables sequencer-driver communication during run phase
+
+**Randomization**
+- `$ivl_class_method$randomize` opcode randomizes `rand`/`randc` properties
+
+**Regression Suite**
+- 491 SystemVerilog tests in `ivtest/regress-sv.list` covering the above areas
+- 602+ focused test files under `ivtest/ivltests/sv_*.v`
+
+---
+
+### What Does Not Work
+
+**UVM Phase Infrastructure**
+- `uvm_root.run_test()` end-to-end through the full UVM library still has gaps — the phase scheduler mechanics work at the SV class level but the full library startup flow is not yet verified passing
+- Phase entry/exit callback sequencing in the full UVM library is not yet functional
+
+**Constraints and Randomization**
+- `constraint { ... }` blocks are parsed but not enforced — no constraint solver backend
+- `constraint_mode()` and `rand_mode()` are silent no-ops
+- Enum constraints are not enforced
+
+**UVM-Specific Constructs**
+- `uvm_config_db` set/get calls produce fallback warnings and do not correctly propagate configuration
+- UVM factory — parameterized class factory registration has compile-progress stubs but is not fully functional
+- TLM ports/exports — base-class implementations are silent no-ops for non-class targets
+- UVM callbacks and objections — unresolved functor placeholders remain in reduced and full UVM runs
+- UVM field automation (`copy()`, `compare()`, `print()` macros) — not implemented
+
+**Advanced OOP Edge Cases**
+- Abstract class/interface enforcement — not fully checked at compile or runtime
+- Some complex parameterized base class specializations
+- Cross-package protected/package scope access edge cases
+- Unions and packed structs — partial support only
+
+**Other Missing Features**
+- DPI-C — limited support; some vendor-specific patterns do not work
+- Code coverage — not implemented
+- VCD waveform output for complex class types — limited
+- `trireg` — not supported (upstream Icarus limitation)
+
+---
+
+### Next Steps (From the Codebase)
+
+The following are the documented active work areas from [`UVM_ENABLEMENT_FIXES.md`](UVM_ENABLEMENT_FIXES.md) and code comments:
+
+1. **UVM phase startup** — The phase scheduler mechanics work; the remaining gap is verifying `uvm_root.run_test()` → `uvm_phase_hopper.run_phases()` executes correctly through the full UVM library with phase entry/exit callbacks. Register `sv_class_phase_wait_sched1.v` in the regression suite and build a reduced `run_test` repro.
+
+2. **Resolve compile-progress stubs** — A small set of UVM methods/tasks still fall back to silent no-ops instead of real implementations.
+
+3. **Clear functor placeholder warnings** — Unresolved functor placeholders appear during reduced and full UVM runs; these affect callback and factory mechanisms.
+
+4. **Remaining object-context fallback paths** — `tgt-vvp/eval_object.c` still has ~50 fallback/warning paths for edge cases, particularly virtual interface scope handling.
+
+5. **Constraint solver** — Add an SMT or propagation-based backend to enforce `constraint` blocks, enabling `randomize()` to produce constrained-random values.
+
+6. **`uvm_config_db`** — Implement real set/get semantics so configuration propagates correctly through the component hierarchy.
+
+7. **UVM factory** — Complete parameterized class factory registration so type overrides work at runtime.
+
+8. **TLM ports/exports** — Implement blocking/nonblocking put/get/peek transport semantics.
+
+---
+
 <details>
 <summary><h2>Table of Contents</h2></summary>
 
