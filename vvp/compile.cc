@@ -737,8 +737,10 @@ bool vvp_net_resolv_list_s::resolve(bool mes)
 	    return true;
       }
 
-      if (mes)
+      if (mes) {
 	    fprintf(stderr, "unresolved vvp_net reference: %s\n", label());
+	    return true;
+      }
 
       return false;
 }
