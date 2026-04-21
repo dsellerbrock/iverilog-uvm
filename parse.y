@@ -9929,7 +9929,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	        if (!$2) {
 		      if ($4) {
 			    pform_block_decls_requires_sv();
-		      } else if (!gn_system_verilog()) {
+		      } else {
 			    /* If there are no declarations in the scope then just delete it. */
 			    pform_pop_scope();
 			    assert(! current_block_stack.empty());
@@ -9941,7 +9941,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	      }
 	    statement_or_null_list_opt K_end label_opt
 	      { PBlock*tmp;
-		if ($2 || $4 || gn_system_verilog()) {
+		if ($2 || $4) {
 		      pform_pop_scope();
 		      assert(! current_block_stack.empty());
 		      tmp = current_block_stack.top();
@@ -9972,7 +9972,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	        if (!$2) {
 		      if ($4) {
 			    pform_requires_sv(@4, "Variable declaration in unnamed block");
-		      } else if (!gn_system_verilog()) {
+		      } else {
 			    /* If there are no declarations in the scope then just delete it. */
 			    pform_pop_scope();
 			    assert(! current_block_stack.empty());
@@ -9984,7 +9984,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	      }
 	    statement_or_null_list_opt join_keyword label_opt
 	      { PBlock*tmp;
-		if ($2 || $4 || gn_system_verilog()) {
+		if ($2 || $4) {
 		      pform_pop_scope();
 		      assert(! current_block_stack.empty());
 		      tmp = current_block_stack.top();

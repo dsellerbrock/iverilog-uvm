@@ -8,6 +8,9 @@
 *.swp
 *~
 
+# Local build/install output
+install/
+
 # Top level generic files
 tags
 TAGS
