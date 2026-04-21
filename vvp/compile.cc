@@ -738,11 +738,9 @@ bool vvp_net_resolv_list_s::resolve(bool mes)
       }
 
       if (mes)
-	    fprintf(stderr, "unresolved vvp_net reference: %s; leaving port unconnected\n", label());
+	    fprintf(stderr, "unresolved vvp_net reference: %s\n", label());
 
-	/* Leave port unconnected (it will receive no signals) so
-	   simulation can proceed. Count as warning, not error. */
-      return true;
+      return false;
 }
 
 inline static
