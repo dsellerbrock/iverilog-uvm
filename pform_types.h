@@ -28,6 +28,10 @@
 # include  "property_qual.h"
 # include  "ivl_target.h"
 # include  <iostream>
+# include  <map>
+# include  <vector>
+
+class PExpr;
 # include  <list>
 # include  <vector>
 # include  <map>
@@ -426,6 +430,10 @@ struct class_type_t : public data_type_t {
 	// properties. These are run in a synthetic "initial" block
 	// without waiting for any constructor.
       std::vector<Statement*> initialize_static;
+
+	// Named constraint blocks: map from constraint name to list of
+	// constraint expressions (PEInside, comparisons, etc.).
+      std::map<perm_string, std::vector<PExpr*>> constraints;
 
       ivl_type_t elaborate_type_raw(Design*, NetScope*) const override;
 

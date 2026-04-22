@@ -192,6 +192,11 @@ extern void pform_bind_extern_func(PFunction*func);
 extern void pform_bind_extern_task(PTask*task);
 extern void pform_blend_class_constructors(PClass*pclass);
 
+extern void pform_class_constraint(const struct vlltype&loc,
+				    bool is_static,
+				    const char*name,
+				    std::list<PExpr*>*items);
+
 extern void pform_make_udp(const struct vlltype&loc, perm_string name,
 			   std::list<pform_ident_t>*parms,
 			   std::vector<PWire*>*decl, std::list<std::string>*table,

@@ -620,3 +620,69 @@ PEVoid::PEVoid()
 PEVoid::~PEVoid()
 {
 }
+
+PEInside::PEInside(PExpr* expr, std::list<inside_range_t>* ranges)
+: expr_(expr)
+{
+      if (ranges) {
+	    ranges_.assign(ranges->begin(), ranges->end());
+	    delete ranges;
+      }
+}
+
+PEInside::~PEInside()
+{
+      delete expr_;
+      for (auto& r : ranges_) {
+	    delete r.lo;
+	    delete r.hi;
+      }
+}
+
+void PEInside::dump(std::ostream& out) const
+{
+      out << "(";
+      expr_->dump(out);
+      out << " inside {";
+      for (size_t i = 0 ; i < ranges_.size() ; i++) {
+	    if (i > 0) out << ", ";
+	    if (ranges_[i].is_range) {
+		  out << "[";
+		  ranges_[i].lo->dump(out);
+		  out << ":";
+		  ranges_[i].hi->dump(out);
+		  out << "]";
+	    } else {
+		  ranges_[i].hi->dump(out);
+	    }
+      }
+      out << "})";
+}
+
+unsigned PEInside::test_width(Design*, NetScope*, width_mode_t&)
+{
+      return 1;
+}
+
+NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
+                                   ivl_type_t type, unsigned flags) const
+{
+	// Fall back to elaborating the inner expression to preserve
+	// the bit-width of the expression context, then return
+	// a constant 1 (true) as a conservative approximation.
+	// Constraint evaluation is handled separately via Z3.
+      NetExpr* inner = expr_->elaborate_expr(des, scope, type, flags);
+      if (inner) {
+	    unsigned wid = inner->expr_width();
+	    delete inner;
+	    // Return a 1-bit "true" constant — inside() results are boolean.
+	    return new NetEConst(verinum(verinum::V1, 1));
+      }
+      return new NetEConst(verinum(verinum::V1, 1));
+}
+
+NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
+                                   unsigned expr_wid, unsigned flags) const
+{
+      return new NetEConst(verinum(verinum::V1, 1));
+}

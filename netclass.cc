@@ -553,3 +553,21 @@ bool netclass_t::test_compatibility(ivl_type_t that) const
 
       return false;
 }
+
+void netclass_t::add_constraint_ir(const string&name, const string&ir)
+{
+      constraint_ir_t c;
+      c.name = name;
+      c.ir = ir;
+      constraint_irs_.push_back(c);
+}
+
+const string& netclass_t::constraint_ir_name(size_t idx) const
+{
+      return constraint_irs_[idx].name;
+}
+
+const string& netclass_t::constraint_ir_str(size_t idx) const
+{
+      return constraint_irs_[idx].ir;
+}

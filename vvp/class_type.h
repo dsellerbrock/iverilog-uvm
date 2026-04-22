@@ -62,6 +62,11 @@ class class_type : public __vpiHandle {
       bool property_is_rand(size_t idx) const;
       bool property_is_randc(size_t idx) const;
 
+      void add_constraint(const std::string&name, const std::string&ir);
+      size_t constraint_count() const { return constraints_.size(); }
+      const std::string& constraint_name(size_t idx) const;
+      const std::string& constraint_ir(size_t idx) const;
+
 	// This method is called after all the properties are
 	// defined. This calculates information about the definition.
       void finish_setup(void);
@@ -101,6 +106,12 @@ class class_type : public __vpiHandle {
       };
       std::vector<prop_t> properties_;
       size_t instance_size_;
+
+      struct constraint_t {
+	    std::string name;
+	    std::string ir;
+      };
+      std::vector<constraint_t> constraints_;
 };
 
 const class_type* class_type_from_dispatch_prefix(const std::string&prefix);

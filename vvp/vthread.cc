@@ -31,6 +31,7 @@
 # include  "vvp_mailbox.h"
 # include  "vvp_vinterface.h"
 # include  "class_type.h"
+# include  "vvp_z3.h"
 # include  "compile.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
@@ -1492,31 +1493,37 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
+
+	      // Fill all rand properties with random bits first.
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
 		  if (!defn->property_is_rand(pid))
 			continue;
-		    // Retrieve current value to determine width.
 		  vvp_vector4_t val;
 		  cobj->get_vec4(pid, val);
 		  unsigned wid = val.size();
 		  if (wid == 0)
 			continue;
-		    // Fill with random bits (32 bits per chunk via rand()).
 		  for (unsigned i = 0 ; i < wid ; i += 32) {
 			unsigned rnd = (unsigned)rand();
-			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1) {
+			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
 			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
-			}
 		  }
 		  cobj->set_vec4(pid, val);
 	    }
+
+	      // If this class has constraints, solve with Z3.
+	    if (defn->constraint_count() > 0)
+		  vvp_z3_randomize(defn, cobj);
       }
 
       vvp_object_t tmp;
       thr->pop_object(tmp);
 
-      vvp_vector4_t one(1, BIT4_1);
-      thr->push_vec4(one);
+	// Return a 32-bit result (1 = success) so %store/vec4 with any
+	// width up to 32 works without assertion failure.
+      vvp_vector4_t result(32, BIT4_0);
+      result.set_bit(0, BIT4_1);
+      thr->push_vec4(result);
       return true;
 }
 

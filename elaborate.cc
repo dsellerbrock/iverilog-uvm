@@ -8918,6 +8918,97 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 }
 
 /*
+ * Convert a constraint PExpr* to a simple S-expression IR string.
+ * Property references become "p:N:W" (index, width).
+ * Constants become "c:V".
+ * Operators become S-expr form.
+ * Returns empty string if the expression is not expressible.
+ */
+static string pexpr_to_constraint_ir(const PExpr*expr,
+				      const netclass_t*cls)
+{
+      using namespace std;
+
+      if (!expr) return "";
+
+      if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
+	    const verinum&v = num->value();
+	    uint64_t val = 0;
+	    unsigned bits = v.len();
+	    for (unsigned i = 0 ; i < bits && i < 64 ; i += 1)
+		  if (v.get(i) == verinum::V1)
+			val |= (uint64_t)1 << i;
+	    return "c:" + to_string(val);
+      }
+
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    perm_string name = id->path().back().name;
+	    int idx = cls->property_idx_from_name(name);
+	    if (idx < 0) return "";
+	    property_qualifier_t q = cls->get_prop_qual((size_t)idx);
+	    if (!q.test_rand()) return "";
+	    ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+	    unsigned wid = 0;
+	    if (ptype) {
+		  const netvector_t*nvec = dynamic_cast<const netvector_t*>(ptype);
+		  if (nvec) wid = nvec->packed_width();
+	    }
+	    if (wid == 0) wid = 32;
+	    return "p:" + to_string(idx) + ":" + to_string(wid);
+      }
+
+      if (const PEInside*ins = dynamic_cast<const PEInside*>(expr)) {
+	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls);
+	    if (s.empty() || s[0] == '?') return "";
+	    string result = "(inside " + s;
+	    for (auto& r : ins->get_ranges()) {
+		  if (r.is_range) {
+			string lo = pexpr_to_constraint_ir(r.lo, cls);
+			string hi = pexpr_to_constraint_ir(r.hi, cls);
+			if (lo.empty() || hi.empty()) continue;
+			result += " [" + lo + "," + hi + "]";
+		  } else {
+			string v = pexpr_to_constraint_ir(r.hi, cls);
+			if (v.empty()) continue;
+			result += " " + v;
+		  }
+	    }
+	    result += ")";
+	    return result;
+      }
+
+      if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
+	    string left = pexpr_to_constraint_ir(bin->get_left(), cls);
+	    string right = pexpr_to_constraint_ir(bin->get_right(), cls);
+	    if (left.empty() || right.empty()) return "";
+	    string op;
+	    switch (bin->get_op()) {
+		case '<': op = "lt";  break;
+		case '>': op = "gt";  break;
+		case 'L': op = "le";  break;  // K_LE
+		case 'G': op = "ge";  break;  // K_GE
+		case 'e': op = "eq";  break;  // K_EQ (==)
+		case 'n': op = "ne";  break;  // K_NE (!=)
+		case 'a': op = "and"; break;  // && (K_LAND)
+		case 'o': op = "or";  break;  // || (K_LOR)
+		case '+': op = "add"; break;
+		case '-': op = "sub"; break;
+		default:  return "";
+	    }
+	    return "(" + op + " " + left + " " + right + ")";
+      }
+
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr)) {
+	    string sub = pexpr_to_constraint_ir(un->get_expr(), cls);
+	    if (sub.empty()) return "";
+	    if (un->get_op() == '!') return "(not " + sub + ")";
+	    return "";
+      }
+
+      return "";
+}
+
+/*
  * Elaborating a netclass_t means elaborating the PFunction and PTask
  * objects that it contains. The scopes and signals have already been
  * elaborated in the class of the netclass_t scope, so we can get the
@@ -8948,6 +9039,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					 verinum(1));
 		    }
 		    des->add_process(top);
+	      }
+
+	      // Elaborate constraint blocks: convert PExpr* to IR strings.
+	      for (auto& cit : pclass->type->constraints) {
+		    string ir;
+		    for (PExpr*item : cit.second) {
+			  if (!item) continue;
+			  string s = pexpr_to_constraint_ir(item, this);
+			  if (!s.empty()) {
+				if (!ir.empty()) ir += " ";
+				ir += s;
+			  }
+		    }
+		    if (!ir.empty())
+			  add_constraint_ir(string(cit.first), ir);
 	      }
 
 	      for (map<perm_string,PFunction*>::iterator cur = pclass->funcs.begin()

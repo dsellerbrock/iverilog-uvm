@@ -2428,6 +2428,10 @@ extern ivl_type_t  ivl_type_prop_type(ivl_type_t net, int idx);
  * Bit 3: rand,   Bit 4: randc,     Bit 5: const */
 extern int         ivl_type_prop_qual(ivl_type_t net, int idx);
 
+extern int         ivl_type_constraints(ivl_type_t net);
+extern const char* ivl_type_constraint_name(ivl_type_t net, int idx);
+extern const char* ivl_type_constraint_ir(ivl_type_t net, int idx);
+
 
 #if defined(__MINGW32__) || defined (__CYGWIN__)
 #  define DLLEXPORT __declspec(dllexport)

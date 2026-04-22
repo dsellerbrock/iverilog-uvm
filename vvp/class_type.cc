@@ -791,6 +791,24 @@ bool class_type::property_is_randc(size_t idx) const
       return properties_[idx].randc_flag;
 }
 
+void class_type::add_constraint(const string&name, const string&ir)
+{
+      constraint_t c;
+      c.name = name;
+      c.ir = ir;
+      constraints_.push_back(c);
+}
+
+const string& class_type::constraint_name(size_t idx) const
+{
+      return constraints_[idx].name;
+}
+
+const string& class_type::constraint_ir(size_t idx) const
+{
+      return constraints_[idx].ir;
+}
+
 void class_type::set_scope_path(const string&path)
 {
       scope_path_ = path;
@@ -1241,6 +1259,14 @@ void compile_class_property(unsigned idx, char*nam, char*typ, uint64_t array_siz
       compile_class->set_property(idx, nam, typ, array_size);
       delete[]nam;
       delete[]typ;
+}
+
+void compile_class_constraint(char*name, char*ir)
+{
+      assert(compile_class);
+      compile_class->add_constraint(string(name), string(ir));
+      delete[]name;
+      delete[]ir;
 }
 
 void compile_class_done(void)

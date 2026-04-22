@@ -778,6 +778,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       LexicalScope::lifetime_t lifetime;
 
       enum typedef_t::basic_type typedef_basic_type;
+
+      inside_range_t* irange;
+      std::list<inside_range_t>* irange_list;
 };
 
 %token <text>      IDENTIFIER SYSTEM_IDENTIFIER STRING TIME_LITERAL
@@ -968,6 +971,12 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <exprs> delay1 delay3 delay3_opt delay_value_list
 %type <exprs> expression_list_with_nuls expression_list_proper
 %type <exprs> cont_assign cont_assign_list
+
+%type <irange> inside_value_range
+%type <irange_list> inside_range_list
+
+%type <expr>  constraint_expression constraint_block_item
+%type <exprs> constraint_block_item_list constraint_block_item_list_opt
 
 %type <decl_assignment> variable_decl_assignment
 %type <decl_assignments> list_of_variable_decl_assignments
@@ -2051,21 +2060,31 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 
 constraint_block_item /* IEEE1800-2005 A.1.9 */
   : constraint_expression
+      { $$ = $1; }
   ;
 
 constraint_block_item_list
   : constraint_block_item_list constraint_block_item
+      { if ($2) $1->push_back($2);
+	$$ = $1;
+      }
   | constraint_block_item
+      { $$ = new std::list<PExpr*>();
+	if ($1) $$->push_back($1);
+      }
   ;
 
 constraint_block_item_list_opt
   :
+      { $$ = nullptr; }
   | constraint_block_item_list
+      { $$ = $1; }
   ;
 
 constraint_declaration /* IEEE1800-2005: A.1.9 */
   : K_static_opt K_constraint IDENTIFIER '{' constraint_block_item_list_opt '}'
-      { pform_requires_sv(@2, "Constraint declaration");
+      { pform_class_constraint(@2, $1, $3, $5);
+	delete[] $3;
       }
 
   /* Error handling rules... */
@@ -2076,11 +2095,17 @@ constraint_declaration /* IEEE1800-2005: A.1.9 */
 
 constraint_expression /* IEEE1800-2005 A.1.9 */
   : expression ';'
+      { $$ = $1; }
   | expression K_dist '{' dist_list_opt '}' ';'
+      { $$ = $1; }
   | expression constraint_trigger
+      { $$ = $1; }
   | K_if '(' expression ')' constraint_set %prec less_than_K_else
+      { $$ = nullptr; }
   | K_if '(' expression ')' constraint_set K_else constraint_set
+      { $$ = nullptr; }
   | K_foreach '(' IDENTIFIER '[' loop_variables ']' ')' constraint_set
+      { $$ = nullptr; delete[] $3; }
   ;
 
 dist_list_opt
@@ -2624,10 +2649,31 @@ inc_or_dec_expression /* IEEE1800-2005: A.4.3 */
       }
   ;
 
+inside_value_range
+  : expression
+      { inside_range_t*r = new inside_range_t;
+	r->lo = nullptr;  r->hi = $1;  r->is_range = false;
+	$$ = r;
+      }
+  | '[' expression ':' expression ']'
+      { inside_range_t*r = new inside_range_t;
+	r->lo = $2;  r->hi = $4;  r->is_range = true;
+	$$ = r;
+      }
+  ;
+
+inside_range_list
+  : inside_range_list ',' inside_value_range
+      { $1->push_back(*$3);  delete $3;  $$ = $1; }
+  | inside_value_range
+      { $$ = new std::list<inside_range_t>();
+	$$->push_back(*$1);  delete $1;
+      }
+  ;
+
 inside_expression /* IEEE1800-2005 A.8.3 */
-  : expression K_inside '{' open_range_list '}'
-      { pform_requires_sv(@2, "\"inside\" expression");
-	PENumber*tmp = new PENumber(new verinum((uint64_t)1, 1));
+  : expression K_inside '{' inside_range_list '}'
+      { PEInside*tmp = new PEInside($1, $4);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }

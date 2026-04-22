@@ -826,6 +826,10 @@ class PEBinary : public PExpr {
 				     unsigned expr_wid,
                                      unsigned flags) const override;
 
+      inline char   get_op()    const { return op_; }
+      inline PExpr* get_left()  const { return left_; }
+      inline PExpr* get_right() const { return right_; }
+
     protected:
       char op_;
       PExpr*left_;
@@ -1122,6 +1126,41 @@ class PECastSign : public PExpr {
 
     private:
       std::unique_ptr<PExpr> base_;
+};
+
+/*
+ * Represents one element in an "inside" expression range list.
+ * Either a single value (is_range=false, lo=nullptr, hi=value) or
+ * a range [lo:hi] (is_range=true).
+ */
+struct inside_range_t {
+    PExpr* lo;
+    PExpr* hi;
+    bool is_range;
+};
+
+/*
+ * Represents the SystemVerilog "inside" expression:
+ *   expr inside {[lo:hi], val, ...}
+ */
+class PEInside : public PExpr {
+    public:
+      PEInside(PExpr* expr, std::list<inside_range_t>* ranges);
+      ~PEInside() override;
+
+      PExpr* get_expr() const { return expr_; }
+      const std::vector<inside_range_t>& get_ranges() const { return ranges_; }
+
+      void dump(std::ostream& out) const override;
+      unsigned test_width(Design* des, NetScope* scope,
+                          width_mode_t& mode) override;
+      NetExpr* elaborate_expr(Design* des, NetScope* scope,
+                              ivl_type_t type, unsigned flags) const override;
+      NetExpr* elaborate_expr(Design* des, NetScope* scope,
+                              unsigned expr_wid, unsigned flags) const override;
+    private:
+      PExpr* expr_;
+      std::vector<inside_range_t> ranges_;
 };
 
 /*

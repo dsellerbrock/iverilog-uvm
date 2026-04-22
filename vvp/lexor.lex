@@ -158,6 +158,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".cast/real"    { return K_CAST_REAL; }
 ".cast/real.s"  { return K_CAST_REAL_S; }
 ".class"        { return K_CLASS; }
+".constraint"   { return K_CONSTRAINT_DEF; }
 ".cmp/eeq"      { return K_CMP_EEQ; }
 ".cmp/eqx"      { return K_CMP_EQX; }
 ".cmp/eqz"      { return K_CMP_EQZ; }

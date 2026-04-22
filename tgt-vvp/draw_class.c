@@ -277,5 +277,14 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    fprintf(vvp_out, "\n");
       }
 
+      {
+	    int nc = ivl_type_constraints(classtype);
+	    for (idx = 0 ; idx < nc ; idx += 1) {
+		  fprintf(vvp_out, " .constraint \"%s\" \"%s\"\n",
+			  ivl_type_constraint_name(classtype, idx),
+			  ivl_type_constraint_ir(classtype, idx));
+	    }
+      }
+
       fprintf(vvp_out, " ;\n");
 }

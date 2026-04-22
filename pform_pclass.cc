@@ -20,8 +20,11 @@
 # include  <cstdarg>
 # include  <cstring>
 # include  <iostream>
+# include  <list>
+# include  <vector>
 # include  "pform.h"
 # include  "PClass.h"
+# include  "PExpr.h"
 # include  "parse_misc.h"
 # include  "ivl_assert.h"
 
@@ -322,5 +325,21 @@ void pform_bind_extern_task(PTask*task)
 	    it->second = task;
       } else {
 	    pform_cur_class->tasks[name] = task;
+      }
+}
+
+void pform_class_constraint(const struct vlltype& /*loc*/,
+			     bool /*is_static*/,
+			     const char*name,
+			     std::list<PExpr*>*items)
+{
+      if (!pform_cur_class || !name)
+	    return;
+
+      perm_string pname = lex_strings.make(name);
+      vector<PExpr*>& slot = pform_cur_class->type->constraints[pname];
+      if (items) {
+	    slot.assign(items->begin(), items->end());
+	    delete items;
       }
 }

@@ -149,6 +149,14 @@ class netclass_t : public ivl_type_s {
       bool sig_elaborated() const { return sig_elaborated_; }
       void set_sig_elaborating(bool flag) { sig_elaborating_ = flag; }
       bool sig_elaborating() const { return sig_elaborating_; }
+
+	// Constraint IR: simple token-stream representation of constraint blocks.
+	// Format: each item is "name\tir_string" where ir_string is an
+	// S-expression like "(lt p:1:8 c:255)".
+      void add_constraint_ir(const std::string&name, const std::string&ir);
+      size_t constraint_ir_count() const { return constraint_irs_.size(); }
+      const std::string& constraint_ir_name(size_t idx) const;
+      const std::string& constraint_ir_str(size_t idx)  const;
       void set_body_elaborated(bool flag) { body_elaborated_ = flag; }
       bool body_elaborated() const { return body_elaborated_; }
       void set_body_elaborating(bool flag) { body_elaborating_ = flag; }
@@ -206,6 +214,12 @@ class netclass_t : public ivl_type_s {
       bool specialized_instance_;
       std::map<perm_string,size_t> clocking_blocks_;
       std::vector<clocking_block_t> clocking_table_;
+
+      struct constraint_ir_t {
+	    std::string name;
+	    std::string ir;
+      };
+      std::vector<constraint_ir_t> constraint_irs_;
 };
 
 inline NetScope*netclass_t::definition_scope(void)

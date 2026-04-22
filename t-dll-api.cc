@@ -3433,6 +3433,30 @@ extern "C" int ivl_type_prop_qual(ivl_type_t net, int idx)
       return 0;
 }
 
+extern "C" int ivl_type_constraints(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type)
+	    return (int)class_type->constraint_ir_count();
+      return 0;
+}
+
+extern "C" const char* ivl_type_constraint_name(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->constraint_ir_name((size_t)idx).c_str();
+      return "";
+}
+
+extern "C" const char* ivl_type_constraint_ir(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->constraint_ir_str((size_t)idx).c_str();
+      return "";
+}
+
 extern "C" int ivl_type_signed(ivl_type_t net)
 {
       assert(net);
