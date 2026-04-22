@@ -22,13 +22,13 @@
 
 S_main .scope module, "main" "main" 0 0;
 
-child	%vpi_call 0 0 "$display", "I'm a child" {0 0 0};
+child	%vpi_call 0 0 "$display", "I'm a child" {0 0 0 0};
 	%end;
 
 parent	%fork	child, S_main;
-	%vpi_call 0 0 "$display", "I'm a parent" {0 0 0};
+	%vpi_call 0 0 "$display", "I'm a parent" {0 0 0 0};
 	%join;
-	%vpi_call 0 0 "$display", "Reaped child" {0 0 0};
+	%vpi_call 0 0 "$display", "Reaped child" {0 0 0 0};
 	%end;
 
 	.thread parent;

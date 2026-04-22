@@ -209,7 +209,7 @@ mem_init ;
 always ;
 	%delay	5, 0;
 
-	%vpi_call 0 0 "$display", "a:%b d:%b", a, d {0 0 0};
+	%vpi_call 0 0 "$display", "a:%b d:%b", a, d {0 0 0 0};
 
 	%event	wclk;
 
@@ -260,7 +260,7 @@ initial ;
 
 	%delay	220, 0;
 
-	%vpi_call 0 0 "$readmemh", "memory.hex", memory {0 0 0};
+	%vpi_call 0 0 "$readmemh", "memory.hex", memory {0 0 0 0};
 
 	%delay	30, 0;
 
@@ -269,7 +269,7 @@ initial ;
 
 	%delay	5, 0;
 
-	%vpi_call 0 0 "$display", "write to a=%b", a {0 0 0};
+	%vpi_call 0 0 "$display", "write to a=%b", a {0 0 0 0};
 
 	%delay	5, 0;
 
@@ -293,11 +293,11 @@ initial ;
 	%load/vec4a memory, 4;
 	%store/vec4 m, 0, 7;
 
-	%vpi_call 0 0 "$display", "memory[9]=%b", m {0 0 0};
+	%vpi_call 0 0 "$display", "memory[9]=%b", m {0 0 0 0};
 
 	%delay 1, 0;
 
-	%vpi_call 0 0 "$finish" {0 0 0};
+	%vpi_call 0 0 "$finish" {0 0 0 0};
 
 	%end;
 	.thread initial;

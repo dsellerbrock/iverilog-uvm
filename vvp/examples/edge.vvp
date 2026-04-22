@@ -47,7 +47,7 @@ code	%pushi/vec4 0, 0, 1;
 	.thread	code;
 
 loop	%wait V_main.b;
-	%vpi_call 0 0 "$display", "Got a posedge." {0 0 0};
+	%vpi_call 0 0 "$display", "Got a posedge." {0 0 0 0};
 	%jmp loop;
 	.thread loop;
 :file_names 2;

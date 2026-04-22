@@ -54,19 +54,19 @@ test	.var	"test", 7 0;
 
 T0	%pushi/vec4 0, 0, 8;  Push 8 bits of 0
 	%store/vec4 test, 0, 8;
-	%vpi_call 0 0 "$display", "test = %b", test {0 0 0};
+	%vpi_call 0 0 "$display", "test = %b", test {0 0 0 0};
 
 	%pushi/vec4 255, 0, 8;  Push 8 bits of 1
 	%store/vec4 test, 0, 8;
-	%vpi_call 0 0 "$display", "test = %b", test {0 0 0};
+	%vpi_call 0 0 "$display", "test = %b", test {0 0 0 0};
 
 	%pushi/vec4 0, 255, 8;  Push 8 bits of z
 	%store/vec4 test, 0, 8;
-	%vpi_call 0 0 "$display", "test = %b", test {0 0 0};
+	%vpi_call 0 0 "$display", "test = %b", test {0 0 0 0};
 
 	%pushi/vec4 255, 255, 8;  Push 8 bits of x
 	%store/vec4 test, 0, 8;
-	%vpi_call 0 0 "$display", "test = %b", test {0 0 0};
+	%vpi_call 0 0 "$display", "test = %b", test {0 0 0 0};
 
 	%end;
 	.thread T0;

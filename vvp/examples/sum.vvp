@@ -52,7 +52,7 @@ start	%pushi/vec4 2, 0, 4;  Push a 4 bit value (2) on the stack
 
 	%delay	1, 0;
 
-	%vpi_call 0 0 "$display", "%b + %b == %b", A, B, Q {0 0 0};
+	%vpi_call 0 0 "$display", "%b + %b == %b", A, B, Q {0 0 0 0};
 	%end;
 	.thread start;
 :file_names 2;

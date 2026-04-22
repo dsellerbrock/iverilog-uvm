@@ -44,11 +44,11 @@ V_main.b	.net "b", 0 0, V_main.a;
 code	%pushi/vec4 0, 0, 1;
 	%store/vec4 V_main.a, 0, 1;
 	%delay 1, 0;
-	%vpi_call 0 0 "$display", "a=%b, b=%b", V_main.a, V_main.b {0 0 0};
+	%vpi_call 0 0 "$display", "a=%b, b=%b", V_main.a, V_main.b {0 0 0 0};
 	%pushi/vec4 1, 0, 1;
 	%store/vec4 V_main.a, 0, 1;
 	%delay 1, 0;
-	%vpi_call 0 0 "$display", "a=%b, b=%b", V_main.a, V_main.b {0 0 0};
+	%vpi_call 0 0 "$display", "a=%b, b=%b", V_main.a, V_main.b {0 0 0 0};
 	%end;
 
 	.thread	code;

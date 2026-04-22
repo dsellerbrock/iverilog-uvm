@@ -42,7 +42,7 @@ Vmain.value1	.var "value1", 3 0;
 T00	%pushi/vec4 1, 0, 4;  Push a 4 bit value (1) on the stack
         %store/vec4 Vmain.value1, 0, 4;
 
-	%vpi_call 0 0 "$display", "value = %b", Vmain.value1 {0 0 0};
+	%vpi_call 0 0 "$display", "value = %b", Vmain.value1 {0 0 0 0};
 
 	%end;
 

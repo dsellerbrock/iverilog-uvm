@@ -5836,7 +5836,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 								  32, false, false,
 								  IVL_VT_LOGIC);
 				      sys->parm(1, narg ? narg
-							: new NetEConst(verinum(1UL, 32)));
+							: new NetEConst(verinum((uint64_t)1, 32)));
 				  }
 				  return sys;
 			    }
@@ -10032,7 +10032,7 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
                   if (!parms_.empty() && parms_[0].parm) {
                         NetExpr*barg = elab_and_eval(des, scope, parms_[0].parm, 32,
                                                      false, false, IVL_VT_LOGIC);
-                        mbx->parm(0, barg ? barg : new NetEConst(verinum(0UL, 32)));
+                        mbx->parm(0, barg ? barg : new NetEConst(verinum((uint64_t)0, 32)));
                   }
                   delete obj;
                   return mbx;
@@ -10047,7 +10047,7 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
                   if (!parms_.empty() && parms_[0].parm) {
                         NetExpr*carg = elab_and_eval(des, scope, parms_[0].parm, 32,
                                                      false, false, IVL_VT_LOGIC);
-                        sem->parm(0, carg ? carg : new NetEConst(verinum(0UL, 32)));
+                        sem->parm(0, carg ? carg : new NetEConst(verinum((uint64_t)0, 32)));
                   }
                   delete obj;
                   return sem;

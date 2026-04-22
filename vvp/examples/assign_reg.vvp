@@ -57,24 +57,24 @@ test	.var	"test", 7 0;
 T0	%pushi/vec4 0, 0, 8;
 	%assign/vec4 test, 2;
 	%delay 3, 0;
-	%vpi_call 0 0 "$display", "test = %b", test {0 0 0};
+	%vpi_call 0 0 "$display", "test = %b", test {0 0 0 0};
 
 	%pushi/vec4 1, 0, 8;
 	%assign/vec4 test, 2;
 	%delay 1, 0;
-	%vpi_call 0 0 "$display", "test = %b", test {0 0 0};
+	%vpi_call 0 0 "$display", "test = %b", test {0 0 0 0};
 	%delay 2, 0;
-	%vpi_call 0 0 "$display", "test = %b", test {0 0 0};
+	%vpi_call 0 0 "$display", "test = %b", test {0 0 0 0};
 
 	%pushi/vec4 2, 0, 8;
 	%assign/vec4 test, 2;
 	%delay 3, 0;
-	%vpi_call 0 0 "$display", "test = %b", test {0 0 0};
+	%vpi_call 0 0 "$display", "test = %b", test {0 0 0 0};
 
 	%pushi/vec4 3, 0, 8;
 	%assign/vec4 test, 2;
 	%delay 3, 0;
-	%vpi_call 0 0 "$display", "test = %b", test {0 0 0};
+	%vpi_call 0 0 "$display", "test = %b", test {0 0 0 0};
 
 	%end;
 	.thread T0;

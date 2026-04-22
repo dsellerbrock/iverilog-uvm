@@ -25,7 +25,7 @@
 
 main	.scope module, "main" "main" 0 0;
 
-T0	%vpi_call 0 0 "$display", "Display the number: %b", 5'b0zx1 {0 0 0};
+T0	%vpi_call 0 0 "$display", "Display the number: %b", 5'b0zx1 {0 0 0 0};
 	%end;
 	.thread T0;
 :file_names 2;

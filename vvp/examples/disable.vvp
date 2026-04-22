@@ -52,8 +52,8 @@ S_test .scope task, "test" "test" 0 0, 0 0 0, S_main;
     .scope S_test;
 T_0/1 ;
     %delay 5, 0;
-    %vpi_call 0 0 "$display", "FAILED -- thread wasn't disabled" {0 0 0};
-    %vpi_call 0 0 "$finish" {0 0 0};
+    %vpi_call 0 0 "$display", "FAILED -- thread wasn't disabled" {0 0 0 0};
+    %vpi_call 0 0 "$finish" {0 0 0 0};
     %end;
 
 ; This is the main thread. Fork the thread under test, delay for a
@@ -68,7 +68,7 @@ T_0 ;
     %disable S_test ; This is the statement that I'm testing.
 
     %join;
-    %vpi_call 0 0 "$display", "PASSED" {0 0 0};
+    %vpi_call 0 0 "$display", "PASSED" {0 0 0 0};
     %end;
 
     .thread T_0;
