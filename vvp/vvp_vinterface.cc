@@ -24,6 +24,7 @@
 # include  "vvp_net.h"
 # include  "vvp_net_sig.h"
 # include  <cassert>
+# include  <cstddef>
 
 namespace {
 
@@ -278,6 +279,28 @@ void vvp_vinterface::get_object(size_t pid, vvp_object_t&val, size_t idx) const
       }
 
       val = fun->get_object();
+}
+
+vvp_fun_edge_sa* vvp_vinterface::get_posedge_functor(size_t M)
+{
+      if (M >= posedge_functors_.size())
+	    posedge_functors_.resize(M + 1, nullptr);
+
+      if (posedge_functors_[M] == nullptr) {
+	    slot_t slot = get_slot_(M);
+	    assert(slot.kind == SLOT_SIGNAL);
+	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(slot.handle);
+	    assert(sig && sig->node);
+
+	    vvp_fun_edge_sa*fun = new vvp_fun_edge_sa(vvp_edge_posedge);
+	    vvp_net_t*edge_net = new vvp_net_t;
+	    edge_net->fun = fun;
+
+	    sig->node->link(vvp_net_ptr_t(edge_net, 0));
+	    posedge_functors_[M] = fun;
+      }
+
+      return posedge_functors_[M];
 }
 
 void vvp_vinterface::shallow_copy(const vvp_object*that)

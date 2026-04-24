@@ -414,6 +414,24 @@ extern "C" ivl_nexus_t ivl_event_pos(ivl_event_t net, unsigned idx)
       return net->pins[net->nany + net->nneg + idx];
 }
 
+extern "C" int ivl_event_is_vif_posedge(ivl_event_t net)
+{
+      assert(net);
+      return net->is_vif_posedge ? 1 : 0;
+}
+
+extern "C" unsigned ivl_event_vif_N(ivl_event_t net)
+{
+      assert(net);
+      return net->vif_N;
+}
+
+extern "C" unsigned ivl_event_vif_M(ivl_event_t net)
+{
+      assert(net);
+      return net->vif_M;
+}
+
 extern "C" const char* ivl_expr_bits(ivl_expr_t net)
 {
       assert(net);

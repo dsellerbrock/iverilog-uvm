@@ -23,6 +23,7 @@
 # include  <vector>
 # include  "vpi_user.h"
 # include  "vvp_object.h"
+# include  "event.h"
 
 class __vpiScope;
 class class_type;
@@ -45,6 +46,8 @@ class vvp_vinterface : public vvp_object {
 
       void set_object(size_t pid, const vvp_object_t&val, size_t idx = 0);
       void get_object(size_t pid, vvp_object_t&val, size_t idx = 0) const;
+
+      vvp_fun_edge_sa* get_posedge_functor(size_t M);
 
       void shallow_copy(const vvp_object*that) override;
       vvp_object* duplicate(void) const override;
@@ -71,6 +74,7 @@ class vvp_vinterface : public vvp_object {
       __vpiScope*scope_;
       const class_type*defn_;
       std::vector<slot_t>slots_;
+      std::vector<vvp_fun_edge_sa*> posedge_functors_;
 };
 
 #endif /* IVL_vvp_vinterface_H */

@@ -223,6 +223,10 @@ struct ivl_event_s {
       unsigned lineno;
       unsigned nany, nneg, npos, nedg;
       ivl_nexus_t*pins;
+      // VIF posedge support: @(posedge vif.signal)
+      bool is_vif_posedge;
+      unsigned vif_N;
+      unsigned vif_M;
 };
 
 /*

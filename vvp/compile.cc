@@ -469,6 +469,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%unbox/vec4", of_UNBOX_VEC4,1,{OA_NUMBER,  OA_NONE,    OA_NONE} },
       { "%wait",   of_WAIT,   1,  {OA_FUNC_PTR, OA_NONE,     OA_NONE} },
       { "%wait/fork",of_WAIT_FORK,0,{OA_NONE,   OA_NONE,     OA_NONE} },
+      { "%wait/vif/posedge",of_WAIT_VIF_POSEDGE,1,{OA_NUMBER,OA_NONE, OA_NONE} },
       { "%xnor",   of_XNOR,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%xnor/r", of_XNORR,  0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%xor",    of_XOR,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },

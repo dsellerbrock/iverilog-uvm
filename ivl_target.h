@@ -788,6 +788,11 @@ extern ivl_nexus_t ivl_event_neg(ivl_event_t net, unsigned idx);
 extern unsigned    ivl_event_npos(ivl_event_t net);
 extern ivl_nexus_t ivl_event_pos(ivl_event_t net, unsigned idx);
 
+/* Virtual interface posedge support: @(posedge vif.signal) */
+extern int         ivl_event_is_vif_posedge(ivl_event_t net);
+extern unsigned    ivl_event_vif_N(ivl_event_t net);
+extern unsigned    ivl_event_vif_M(ivl_event_t net);
+
 extern const char*ivl_event_file(ivl_event_t net);
 extern unsigned ivl_event_lineno(ivl_event_t net);
 

@@ -6733,6 +6733,33 @@ cerr << endl;
 			      connect(prop_set->at(src).lnk, pr->pin(p));
 			}
 
+			// Detect VIF posedge chain: outer(M)->mid(N)->NetESignal(this)
+			// where mid's type is a virtual interface class.
+			// Must be done before delete tmp.
+			if (expr_[idx]->type() == PEEvent::POSEDGE) {
+			      NetEProperty*outer_p = dynamic_cast<NetEProperty*>(tmp);
+			      if (outer_p && !outer_p->get_sig()) {
+				    NetEProperty*mid_p = dynamic_cast<NetEProperty*>(
+					const_cast<NetExpr*>(outer_p->get_base()));
+				    if (mid_p && !mid_p->get_sig()) {
+					const NetESignal*root_e = dynamic_cast<NetESignal*>(
+					    const_cast<NetExpr*>(mid_p->get_base()));
+					if (root_e && root_e->sig()) {
+					      const netclass_t*this_cls = dynamic_cast<const netclass_t*>(
+						  root_e->sig()->net_type());
+					      if (this_cls) {
+						    ivl_type_t pt = this_cls->get_prop_type(
+							mid_p->property_idx());
+						    const netclass_t*vif_cls = dynamic_cast<const netclass_t*>(pt);
+						    if (vif_cls && vif_cls->is_interface())
+							  pr->set_vif_posedge(mid_p->property_idx(),
+									      outer_p->property_idx());
+					      }
+					}
+				    }
+			      }
+			}
+
 			delete prop_set;
 			delete tmp;
 			des->add_node(pr);

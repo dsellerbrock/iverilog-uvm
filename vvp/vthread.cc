@@ -13016,6 +13016,30 @@ bool of_WAIT_FORK(vthread_t thr, vvp_code_t)
 }
 
 /*
+ * %wait/vif/posedge <M>
+ * Pop a vvp_vinterface object from the object stack (loaded by
+ * %load/obj + %prop/obj N, 0), get or create a vvp_fun_edge_sa
+ * subscribed to the M-th signal of the interface, add this thread
+ * to its wait list, and suspend until posedge fires.
+ */
+bool of_WAIT_VIF_POSEDGE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      if (!vif) {
+	    fprintf(stderr, "%%wait/vif/posedge: object is not a virtual interface\n");
+	    assert(vif);
+      }
+
+      vvp_fun_edge_sa*edge = vif->get_posedge_functor(cp->number);
+
+      thr->waiting_for_event = 1;
+      thr->wait_next = edge->add_waiting_thread(thr);
+      return false;
+}
+
+/*
  * %xnor
  */
 bool of_XNOR(vthread_t thr, vvp_code_t)
