@@ -27,10 +27,19 @@
 # include  <cstddef>
 # include  <cstdlib>
 # include  <cstring>
-# include  <malloc.h>
 # include  <string>
 # include  <new>
 # include  <cassert>
+/* Portable wrapper for malloc usable size (bounds checking only). */
+# if defined(__linux__) || defined(__GLIBC__)
+#  include  <malloc.h>
+#  define vvp_malloc_usable_size(p) malloc_usable_size(p)
+# elif defined(__APPLE__)
+#  include  <malloc/malloc.h>
+#  define vvp_malloc_usable_size(p) malloc_size(p)
+# else
+#  define vvp_malloc_usable_size(p) ((size_t)-1)
+# endif
 
 #ifdef HAVE_IOSFWD
 # include  <iosfwd>
@@ -103,7 +112,7 @@ inline vvp_context_item_t vvp_get_context_item(vvp_context_t context,
 {
       if (!context) return 0;
       size_t need = ((size_t)item_idx + 1) * sizeof(void*);
-      if (need > malloc_usable_size(context))
+      if (need > vvp_malloc_usable_size(context))
             return 0;
       return (vvp_context_item_t)context[item_idx];
 }
@@ -113,7 +122,7 @@ inline void vvp_set_context_item(vvp_context_t context, unsigned item_idx,
 {
       if (!context) return;
       size_t need = ((size_t)item_idx + 1) * sizeof(void*);
-      if (need > malloc_usable_size(context))
+      if (need > vvp_malloc_usable_size(context))
             return;
       context[item_idx] = item;
 }

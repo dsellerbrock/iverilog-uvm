@@ -28,6 +28,7 @@
 # undef HAVE_GETOPT_H
 # undef HAVE_INTTYPES_H
 # undef HAVE_LIBIBERTY_H
+# undef HAVE_EXECINFO_H
 # undef HAVE_DLFCN_H
 # undef HAVE_DL_H
 # undef HAVE_FCHMOD
