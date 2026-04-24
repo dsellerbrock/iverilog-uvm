@@ -5410,11 +5410,25 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			noop->set_line(*this);
 			return noop;
 		  }
-		  // SV built-in constraint/randomization controls: constraint_mode(en)
-		  // and rand_mode(en) are language-level built-ins with no iverilog
-		  // VVP implementation. Without a constraint solver these are noops.
-		  if (method_name == perm_string::literal("constraint_mode")
-		      || method_name == perm_string::literal("rand_mode")) {
+		  // constraint_mode(en) is still a noop; rand_mode(en) emits %rand_mode.
+		  if (method_name == perm_string::literal("constraint_mode")) {
+			delete obj_expr;
+			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			noop->set_line(*this);
+			return noop;
+		  }
+		  if (method_name == perm_string::literal("rand_mode")) {
+			static const std::vector<perm_string> parm_en = {
+			      perm_string::literal("en")
+			};
+			if (parms_.size() == 1) {
+			      return elaborate_sys_task_method_(des, scope,
+							       obj_expr, obj_type,
+							       method_name,
+							       "$ivl_class_method$rand_mode",
+							       parm_en);
+			}
+			  // Query form (0 args): noop stub
 			delete obj_expr;
 			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			noop->set_line(*this);

@@ -1498,6 +1498,8 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
 		  if (!defn->property_is_rand(pid))
 			continue;
+		  if (!cobj->rand_mode(pid))
+			continue;
 		  vvp_vector4_t val;
 		  cobj->get_vec4(pid, val);
 		  unsigned wid = val.size();
@@ -1554,6 +1556,7 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	      // Randomize all rand properties first.
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
 		  if (!defn->property_is_rand(pid)) continue;
+		  if (!cobj->rand_mode(pid)) continue;
 		  vvp_vector4_t val;
 		  cobj->get_vec4(pid, val);
 		  unsigned wid = val.size();
@@ -1578,6 +1581,31 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       vvp_vector4_t result(32, BIT4_0);
       result.set_bit(0, BIT4_1);
       thr->push_vec4(result);
+      return true;
+}
+
+/*
+ * %rand_mode
+ *
+ * Set rand_mode for all rand properties of the cobject on the object stack.
+ * Pops mode (0=disable, nonzero=enable) from vec4 stack, pops object.
+ */
+bool of_RAND_MODE(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      bool mode = (mode_vec.value(0) == BIT4_1);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      if (cobj) {
+	    const class_type*defn = cobj->get_defn();
+	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+		  if (defn->property_is_rand(pid))
+			cobj->set_rand_mode(pid, mode);
+	    }
+      }
       return true;
 }
 

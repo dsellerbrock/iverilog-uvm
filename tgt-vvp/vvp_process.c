@@ -2522,6 +2522,18 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+      /* $ivl_class_method$rand_mode(object, en)
+       * Set rand_mode for all rand properties: en=1 enable, en=0 disable. */
+      if (strcmp(stmt_name, "$ivl_class_method$rand_mode") == 0) {
+	    ivl_expr_t obj_arg  = ivl_stmt_parm(net, 0);
+	    ivl_expr_t mode_arg = ivl_stmt_parm(net, 1);
+	    if (mode_arg) draw_eval_vec4(mode_arg);
+	    else fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+	    if (obj_arg) draw_eval_object(obj_arg);
+	    fprintf(vvp_out, "    %%rand_mode;\n");
+	    return 0;
+      }
+
       show_stmt_file_line(net, "System task call.");
 
       draw_vpi_task_call(net);
