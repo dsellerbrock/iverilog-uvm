@@ -420,6 +420,18 @@ extern "C" int ivl_event_is_vif_posedge(ivl_event_t net)
       return net->is_vif_posedge ? 1 : 0;
 }
 
+extern "C" int ivl_event_is_vif_negedge(ivl_event_t net)
+{
+      assert(net);
+      return net->is_vif_negedge ? 1 : 0;
+}
+
+extern "C" int ivl_event_is_vif_anyedge(ivl_event_t net)
+{
+      assert(net);
+      return net->is_vif_anyedge ? 1 : 0;
+}
+
 extern "C" unsigned ivl_event_vif_N(ivl_event_t net)
 {
       assert(net);

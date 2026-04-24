@@ -959,6 +959,8 @@ void dll_target::event(const NetEvent*net)
       obj->npos = 0;
       obj->nedg = 0;
       obj->is_vif_posedge = false;
+      obj->is_vif_negedge = false;
+      obj->is_vif_anyedge = false;
       obj->vif_N = 0;
       obj->vif_M = 0;
 
@@ -969,9 +971,19 @@ void dll_target::event(const NetEvent*net)
 		  switch (pr->edge()) {
 		      case NetEvProbe::ANYEDGE:
 			obj->nany += pr->pin_count();
+			if (pr->is_vif_anyedge()) {
+			      obj->is_vif_anyedge = true;
+			      obj->vif_N = pr->vif_N();
+			      obj->vif_M = pr->vif_M();
+			}
 			break;
 		      case NetEvProbe::NEGEDGE:
 			obj->nneg += pr->pin_count();
+			if (pr->is_vif_negedge()) {
+			      obj->is_vif_negedge = true;
+			      obj->vif_N = pr->vif_N();
+			      obj->vif_M = pr->vif_M();
+			}
 			break;
 		      case NetEvProbe::POSEDGE:
 			obj->npos += pr->pin_count();

@@ -13039,6 +13039,40 @@ bool of_WAIT_VIF_POSEDGE(vthread_t thr, vvp_code_t cp)
       return false;
 }
 
+bool of_WAIT_VIF_NEGEDGE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      if (!vif) {
+	    fprintf(stderr, "%%wait/vif/negedge: object is not a virtual interface\n");
+	    assert(vif);
+      }
+
+      vvp_fun_edge_sa*edge = vif->get_negedge_functor(cp->number);
+
+      thr->waiting_for_event = 1;
+      thr->wait_next = edge->add_waiting_thread(thr);
+      return false;
+}
+
+bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      if (!vif) {
+	    fprintf(stderr, "%%wait/vif/anyedge: object is not a virtual interface\n");
+	    assert(vif);
+      }
+
+      vvp_fun_edge_sa*edge = vif->get_anyedge_functor(cp->number);
+
+      thr->waiting_for_event = 1;
+      thr->wait_next = edge->add_waiting_thread(thr);
+      return false;
+}
+
 /*
  * %xnor
  */

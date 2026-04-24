@@ -788,8 +788,10 @@ extern ivl_nexus_t ivl_event_neg(ivl_event_t net, unsigned idx);
 extern unsigned    ivl_event_npos(ivl_event_t net);
 extern ivl_nexus_t ivl_event_pos(ivl_event_t net, unsigned idx);
 
-/* Virtual interface posedge support: @(posedge vif.signal) */
+/* Virtual interface edge support: @(posedge/negedge/edge vif.signal) */
 extern int         ivl_event_is_vif_posedge(ivl_event_t net);
+extern int         ivl_event_is_vif_negedge(ivl_event_t net);
+extern int         ivl_event_is_vif_anyedge(ivl_event_t net);
 extern unsigned    ivl_event_vif_N(ivl_event_t net);
 extern unsigned    ivl_event_vif_M(ivl_event_t net);
 

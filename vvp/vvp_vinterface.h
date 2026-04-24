@@ -48,6 +48,8 @@ class vvp_vinterface : public vvp_object {
       void get_object(size_t pid, vvp_object_t&val, size_t idx = 0) const;
 
       vvp_fun_edge_sa* get_posedge_functor(size_t M);
+      vvp_fun_edge_sa* get_negedge_functor(size_t M);
+      vvp_fun_edge_sa* get_anyedge_functor(size_t M);
 
       void shallow_copy(const vvp_object*that) override;
       vvp_object* duplicate(void) const override;
@@ -75,6 +77,8 @@ class vvp_vinterface : public vvp_object {
       const class_type*defn_;
       std::vector<slot_t>slots_;
       std::vector<vvp_fun_edge_sa*> posedge_functors_;
+      std::vector<vvp_fun_edge_sa*> negedge_functors_;
+      std::vector<vvp_fun_edge_sa*> anyedge_functors_;
 };
 
 #endif /* IVL_vvp_vinterface_H */

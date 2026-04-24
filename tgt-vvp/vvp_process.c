@@ -1713,19 +1713,27 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		                   cascade_counter, ev);
 		  fprintf(vvp_out, "    %%wait Ewait_%u;\n", cascade_counter);
 		  cascade_counter += 1;
-	    } else if (ivl_event_is_vif_posedge(ev)) {
-		  /* VIF posedge: @(posedge vif.clk) in a class method.
+	    } else if (ivl_event_is_vif_posedge(ev)
+		       || ivl_event_is_vif_negedge(ev)
+		       || ivl_event_is_vif_anyedge(ev)) {
+		  /* VIF edge: @(posedge/negedge/edge vif.clk) in a class method.
 		   * Load 'this', get the vif property (N), then wait
-		   * for posedge of vif signal index M. */
-		  ivl_nexus_t this_nex = ivl_event_pos(ev, 0);
+		   * for the edge of vif signal index M. */
+		  const char*opcode = ivl_event_is_vif_posedge(ev)
+			? "posedge"
+			: ivl_event_is_vif_negedge(ev) ? "negedge" : "anyedge";
+		  ivl_nexus_t this_nex = 0;
+		  if (ivl_event_npos(ev) > 0) this_nex = ivl_event_pos(ev, 0);
+		  else if (ivl_event_nneg(ev) > 0) this_nex = ivl_event_neg(ev, 0);
+		  else if (ivl_event_nany(ev) > 0) this_nex = ivl_event_any(ev, 0);
 		  const char*this_var = draw_input_from_net(this_nex,
 							    ivl_event_scope(ev));
 		  fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
 		  fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
 			  ivl_event_vif_N(ev));
 		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
-		  fprintf(vvp_out, "    %%wait/vif/posedge %u;\n",
-			  ivl_event_vif_M(ev));
+		  fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
+			  opcode, ivl_event_vif_M(ev));
 	    } else {
 		  fprintf(vvp_out, "    %%wait E_%p;\n", ev);
 	    }

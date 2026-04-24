@@ -303,6 +303,50 @@ vvp_fun_edge_sa* vvp_vinterface::get_posedge_functor(size_t M)
       return posedge_functors_[M];
 }
 
+vvp_fun_edge_sa* vvp_vinterface::get_negedge_functor(size_t M)
+{
+      if (M >= negedge_functors_.size())
+	    negedge_functors_.resize(M + 1, nullptr);
+
+      if (negedge_functors_[M] == nullptr) {
+	    slot_t slot = get_slot_(M);
+	    assert(slot.kind == SLOT_SIGNAL);
+	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(slot.handle);
+	    assert(sig && sig->node);
+
+	    vvp_fun_edge_sa*fun = new vvp_fun_edge_sa(vvp_edge_negedge);
+	    vvp_net_t*edge_net = new vvp_net_t;
+	    edge_net->fun = fun;
+
+	    sig->node->link(vvp_net_ptr_t(edge_net, 0));
+	    negedge_functors_[M] = fun;
+      }
+
+      return negedge_functors_[M];
+}
+
+vvp_fun_edge_sa* vvp_vinterface::get_anyedge_functor(size_t M)
+{
+      if (M >= anyedge_functors_.size())
+	    anyedge_functors_.resize(M + 1, nullptr);
+
+      if (anyedge_functors_[M] == nullptr) {
+	    slot_t slot = get_slot_(M);
+	    assert(slot.kind == SLOT_SIGNAL);
+	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(slot.handle);
+	    assert(sig && sig->node);
+
+	    vvp_fun_edge_sa*fun = new vvp_fun_edge_sa(vvp_edge_edge);
+	    vvp_net_t*edge_net = new vvp_net_t;
+	    edge_net->fun = fun;
+
+	    sig->node->link(vvp_net_ptr_t(edge_net, 0));
+	    anyedge_functors_[M] = fun;
+      }
+
+      return anyedge_functors_[M];
+}
+
 void vvp_vinterface::shallow_copy(const vvp_object*that)
 {
       const vvp_vinterface*src = dynamic_cast<const vvp_vinterface*>(that);
