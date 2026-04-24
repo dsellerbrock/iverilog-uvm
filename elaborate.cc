@@ -8930,8 +8930,14 @@ bool Module::elaborate(Design*des, NetScope*scope) const
  * Operators become S-expr form.
  * Returns empty string if the expression is not expressible.
  */
-static string pexpr_to_constraint_ir(const PExpr*expr,
-				      const netclass_t*cls)
+/* Convert a constraint PExpr to our Z3 IR string.
+ * cls:          class being constrained (for property lookup).
+ * value_slots:  if non-null, non-property caller-scope identifiers are
+ *               collected here (returned as "v:N:W" placeholders in IR).
+ *               Caller must elaborate and push these at the call site. */
+string pexpr_to_constraint_ir(const PExpr*expr,
+			      const netclass_t*cls,
+			      vector<const PExpr*>*value_slots)
 {
       using namespace std;
 
@@ -8950,31 +8956,39 @@ static string pexpr_to_constraint_ir(const PExpr*expr,
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
 	    perm_string name = id->path().back().name;
 	    int idx = cls->property_idx_from_name(name);
-	    if (idx < 0) return "";
-	    property_qualifier_t q = cls->get_prop_qual((size_t)idx);
-	    if (!q.test_rand()) return "";
-	    ivl_type_t ptype = cls->get_prop_type((size_t)idx);
-	    unsigned wid = 0;
-	    if (ptype) {
-		  const netvector_t*nvec = dynamic_cast<const netvector_t*>(ptype);
-		  if (nvec) wid = nvec->packed_width();
+	    if (idx >= 0) {
+		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
+		  if (!q.test_rand()) return "";
+		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+		  unsigned wid = 0;
+		  if (ptype) {
+			const netvector_t*nvec = dynamic_cast<const netvector_t*>(ptype);
+			if (nvec) wid = nvec->packed_width();
+		  }
+		  if (wid == 0) wid = 32;
+		  return "p:" + to_string(idx) + ":" + to_string(wid);
 	    }
-	    if (wid == 0) wid = 32;
-	    return "p:" + to_string(idx) + ":" + to_string(wid);
+	    // Non-class-property identifier: treat as caller-scope runtime value.
+	    if (value_slots) {
+		  unsigned slot = (unsigned)value_slots->size();
+		  value_slots->push_back(expr);
+		  return "v:" + to_string(slot) + ":32";
+	    }
+	    return "";
       }
 
       if (const PEInside*ins = dynamic_cast<const PEInside*>(expr)) {
-	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls);
+	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots);
 	    if (s.empty() || s[0] == '?') return "";
 	    string result = "(inside " + s;
 	    for (auto& r : ins->get_ranges()) {
 		  if (r.is_range) {
-			string lo = pexpr_to_constraint_ir(r.lo, cls);
-			string hi = pexpr_to_constraint_ir(r.hi, cls);
+			string lo = pexpr_to_constraint_ir(r.lo, cls, value_slots);
+			string hi = pexpr_to_constraint_ir(r.hi, cls, value_slots);
 			if (lo.empty() || hi.empty()) continue;
 			result += " [" + lo + "," + hi + "]";
 		  } else {
-			string v = pexpr_to_constraint_ir(r.hi, cls);
+			string v = pexpr_to_constraint_ir(r.hi, cls, value_slots);
 			if (v.empty()) continue;
 			result += " " + v;
 		  }
@@ -8984,8 +8998,8 @@ static string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
-	    string left = pexpr_to_constraint_ir(bin->get_left(), cls);
-	    string right = pexpr_to_constraint_ir(bin->get_right(), cls);
+	    string left = pexpr_to_constraint_ir(bin->get_left(), cls, value_slots);
+	    string right = pexpr_to_constraint_ir(bin->get_right(), cls, value_slots);
 	    if (left.empty() || right.empty()) return "";
 	    string op;
 	    switch (bin->get_op()) {
@@ -9005,7 +9019,7 @@ static string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr)) {
-	    string sub = pexpr_to_constraint_ir(un->get_expr(), cls);
+	    string sub = pexpr_to_constraint_ir(un->get_expr(), cls, value_slots);
 	    if (sub.empty()) return "";
 	    if (un->get_op() == '!') return "(not " + sub + ")";
 	    return "";
@@ -9052,7 +9066,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    string ir;
 		    for (PExpr*item : cit.second) {
 			  if (!item) continue;
-			  string s = pexpr_to_constraint_ir(item, this);
+			  string s = pexpr_to_constraint_ir(item, this, nullptr);
 			  if (!s.empty()) {
 				if (!ir.empty()) ir += " ";
 				ir += s;

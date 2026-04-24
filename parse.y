@@ -5768,18 +5768,21 @@ expr_primary
 	$$ = tmp;
       }
 	| hierarchy_identifier attribute_list_opt argument_list_parens K_with '{' constraint_block_item_list_opt '}'
-	      { /* Temporary parse-only support for randomize() with { ... } in
-		   expression contexts (e.g. if (!obj.randomize() with {...})). */
-		if (peek_tail_name(*$1) == "randomize") {
+	      { if (peek_tail_name(*$1) == "randomize") {
 		      pform_requires_sv(@4, "Randomize with constraint");
 		} else {
 		      yyerror(@4, "error: Constraint block can only be applied to randomize method.");
-	}
-	PECallFunction*tmp = pform_make_call_function(@1, *$1, *$3);
-	delete $1;
-	delete $2;
-	delete $3;
-	$$ = tmp;
+		}
+		PECallFunction*tmp = pform_make_call_function(@1, *$1, *$3);
+		if ($6) {
+		      std::vector<PExpr*> wc($6->begin(), $6->end());
+		      tmp->set_with_constraints(std::move(wc));
+		      delete $6;
+		}
+		delete $1;
+		delete $2;
+		delete $3;
+		$$ = tmp;
       }
   | class_hierarchy_identifier argument_list_parens
       { PECallFunction*tmp = pform_make_call_function(@1, *$1, *$2);

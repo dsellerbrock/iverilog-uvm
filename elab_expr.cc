@@ -47,6 +47,53 @@
 
 using namespace std;
 
+/* Forward declaration from elaborate.cc — converts a constraint PExpr to
+ * Z3 IR string.  value_slots collects caller-scope identifiers that must
+ * be evaluated at the call site and substituted as v:N:W at runtime. */
+extern string pexpr_to_constraint_ir(const PExpr*expr,
+				     const netclass_t*cls,
+				     vector<const PExpr*>*value_slots);
+
+/* Build a NetESFunc for randomize() with inline with-constraints.
+ * The mangled function name encodes the N_vals count and IR string so
+ * tgt-vvp can emit the correct %randomize/with instruction.
+ * parms: [0]=object, [1..N_vals]=runtime slot values. */
+static NetESFunc* make_randomize_with_expr(
+      const PECallFunction*call,
+      NetExpr*obj_expr,
+      const netclass_t*class_type,
+      Design*des, NetScope*scope)
+{
+      string combined_ir;
+      vector<const PExpr*> value_slots;
+
+      for (const PExpr*wc : call->with_constraints()) {
+	    if (!wc) continue;
+	    string ir = pexpr_to_constraint_ir(wc, class_type, &value_slots);
+	    if (ir.empty()) continue;
+	    if (!combined_ir.empty()) combined_ir += " ";
+	    combined_ir += ir;
+      }
+
+      unsigned n_vals = (unsigned)value_slots.size();
+      // Encode as "$ivl_class_method$randomize_with|N_vals|ir_string"
+      string mangled = string("$ivl_class_method$randomize_with|")
+		     + to_string(n_vals) + "|" + combined_ir;
+
+      NetESFunc*rand_expr = new NetESFunc(mangled.c_str(),
+					 IVL_VT_BOOL, 1, 1 + n_vals);
+      rand_expr->parm(0, obj_expr);
+
+      for (unsigned i = 0 ; i < n_vals ; i++) {
+	    NetExpr*slot_ne = const_cast<PExpr*>(value_slots[i])
+				   ->elaborate_expr(des, scope, 32, 0);
+	    if (!slot_ne) slot_ne = new NetEConst(verinum(verinum::V0, 32));
+	    rand_expr->parm(1 + i, slot_ne);
+      }
+
+      return rand_expr;
+}
+
 static bool warned_object_missing_method_fallback = false;
 static bool warned_multi_index_array_prop_fallback = false;
 
@@ -4939,6 +4986,14 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					  && search_results.net) {
 					    NetESignal*obj_expr = new NetESignal(search_results.net);
 					    obj_expr->set_line(*this);
+					    if (!with_constraints().empty() && class_type) {
+						  NetESFunc*rand_expr =
+							make_randomize_with_expr(
+							      this, obj_expr,
+							      class_type, des, scope);
+						  rand_expr->set_line(*this);
+						  return rand_expr;
+					    }
 					    NetESFunc*rand_expr = new NetESFunc(
 						  "$ivl_class_method$randomize",
 						  IVL_VT_BOOL, 1, 1);
@@ -5849,6 +5904,14 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 			  // rather than a constant-0 stub so the runtime can actually
 			  // assign random values to rand properties.
 			  if (method_name == perm_string::literal("randomize")) {
+				if (!with_constraints().empty() && class_type) {
+				      NetESFunc*rand_expr =
+					    make_randomize_with_expr(
+						  this, sub_expr,
+						  class_type, des, scope);
+				      rand_expr->set_line(*this);
+				      return rand_expr;
+				}
 				NetESFunc*rand_expr = new NetESFunc(
 					"$ivl_class_method$randomize",
 					IVL_VT_BOOL, 1, 1);

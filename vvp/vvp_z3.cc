@@ -295,9 +295,37 @@ static void cobj_set_prop_bits(vvp_cobject* cobj, unsigned idx, uint64_t bits)
       cobj->set_vec4(idx, vec);
 }
 
-bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj)
+/* Substitute "v:N:W" value-slot tokens in an IR string with "c:V". */
+static string substitute_slots(const string& ir,
+                                const vector<uint64_t>& slot_vals)
 {
-      if (defn->constraint_count() == 0) return false;
+      if (slot_vals.empty()) return ir;
+      string result;
+      const char* p = ir.c_str();
+      while (*p) {
+	    if (p[0]=='v' && p[1]==':') {
+		  const char*q = p + 2;
+		  unsigned slot = (unsigned)strtoul(q, const_cast<char**>(&q), 10);
+		  // skip ":W" width field
+		  if (*q == ':') { q++; while (*q && *q != ' ' && *q != ')') q++; }
+		  if (slot < slot_vals.size()) {
+			result += "c:" + to_string(slot_vals[slot]);
+		  } else {
+			result += "c:0";
+		  }
+		  p = q;
+	    } else {
+		  result += *p++;
+	    }
+      }
+      return result;
+}
+
+bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
+                      const vector<string>& extra_ir,
+                      const vector<uint64_t>& slot_vals)
+{
+      if (defn->constraint_count() == 0 && extra_ir.empty()) return false;
 
       Z3_config cfg = Z3_mk_config();
       Z3_set_param_value(cfg, "model", "true");
@@ -311,11 +339,18 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj)
       Z3_optimize opt = Z3_mk_optimize(ctx);
       Z3_optimize_inc_ref(ctx, opt);
 
-      // Assert hard constraints.
+      // Assert hard constraints (class-level).
       for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
 	    const string& ir = defn->constraint_ir(ci);
 	    if (ir.empty()) continue;
 	    Z3_ast assertion = parse_constraint_ir(ir, builder);
+	    Z3_optimize_assert(ctx, opt, assertion);
+      }
+      // Assert with-constraints (call-site inline), with slot substitution.
+      for (const string& wir : extra_ir) {
+	    if (wir.empty()) continue;
+	    string sub = substitute_slots(wir, slot_vals);
+	    Z3_ast assertion = parse_constraint_ir(sub, builder);
 	    Z3_optimize_assert(ctx, opt, assertion);
       }
 
@@ -329,6 +364,12 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj)
 		  const string& ir = defn->constraint_ir(ci);
 		  if (ir.empty()) continue;
 		  Z3_ast a = parse_constraint_ir(ir, builder);
+		  Z3_solver_assert(ctx, chk, a);
+	    }
+	    for (const string& wir : extra_ir) {
+		  if (wir.empty()) continue;
+		  string sub = substitute_slots(wir, slot_vals);
+		  Z3_ast a = parse_constraint_ir(sub, builder);
 		  Z3_solver_assert(ctx, chk, a);
 	    }
 	    for (auto& pv : builder.prop_vars) {
