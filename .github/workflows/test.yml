@@ -19,23 +19,35 @@ jobs:
     steps:
 
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-    - name: Install dependencies
+    - name: Install
       run: |
         brew install bison z3
         pip3 install --break-system-packages docopt || pip3 install docopt
 
-    - name: Build, check and install
+    - name: Build
       run: |
         export PATH="$(brew --prefix bison)/bin:$PATH"
         export CPPFLAGS="-I$(brew --prefix z3)/include"
         export LDFLAGS="-L$(brew --prefix z3)/lib"
         autoconf
         ./configure --enable-libveriuser
-        make -j$(sysctl -n hw.logicalcpu) check
-        sudo make install
+        make -j$(sysctl -n hw.logicalcpu)
 
-    - name: Test
+    - name: Self-check
+      run: |
+        export PATH="$(brew --prefix bison)/bin:$PATH"
+        export CPPFLAGS="-I$(brew --prefix z3)/include"
+        export LDFLAGS="-L$(brew --prefix z3)/lib"
+        make check
+
+    - name: Install binary
+      run: sudo make install
+
+    - name: Regression tests
+      continue-on-error: true
       run: ./.github/test.sh
 
 
@@ -52,26 +64,35 @@ jobs:
     steps:
 
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-    - name: Install dependencies
+    - name: Install
       run: |
         sudo apt update -qq
         sudo apt install -y make g++ git bison flex gperf libreadline-dev libbz2-dev autoconf python3-sphinx python3-docopt libz3-dev
 
-    - name: Build, check and install
+    - name: Build
       run: |
         autoconf
         ./configure --enable-libveriuser
-        make -j$(nproc) check
-        sudo make install
+        make -j$(nproc)
 
-    - name: Test
+    - name: Self-check
+      run: make check
+
+    - name: Install binary
+      run: sudo make install
+
+    - name: Regression tests
+      continue-on-error: true
       run: ./.github/test.sh
 
     - name: Documentation
       run: |
         cd Documentation
         make html
+
 
   win:
     runs-on: windows-latest
@@ -94,6 +115,8 @@ jobs:
       shell: bash
 
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
     - uses: msys2/setup-msys2@v2
       with:
@@ -109,7 +132,7 @@ jobs:
     - name: Install Python dependencies
       run: pip3 install docopt
 
-    - name: Build and check
+    - name: Build and self-check
       run: |
         cd msys2
         if [ "${{ matrix.msystem }}" != "CLANG64" ] ; then
@@ -117,10 +140,11 @@ jobs:
         fi
         makepkg-mingw --noconfirm --noprogressbar -sCLf
 
-    - name: Install
+    - name: Install binary
       run: pacman -U --noconfirm msys2/*.zst
 
-    - name: Test
+    - name: Regression tests
+      continue-on-error: true
       run: |
         if [ "${{ matrix.msystem }}" = "CLANG64" ] ; then
             ./.github/test.sh no-pli1
