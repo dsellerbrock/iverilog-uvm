@@ -2706,7 +2706,7 @@ vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx)
             use_context = first_live_stacked_context(running_thread->rd_context, ctx_scope);
       if (!use_context && running_thread->rd_context
           && context_live_matches_scope_(running_thread->rd_context, ctx_scope)) {
-            if (!warned_wt_fallback_to_rd) {
+            if (!warned_wt_fallback_to_rd && auto_ctx_warn_enabled()) {
                   const char*scope_name = 0;
                   if (ctx_scope)
                         scope_name = vpi_get_str(vpiFullName, ctx_scope);
@@ -2721,7 +2721,7 @@ vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx)
       }
 
       if (!use_context) {
-	    if (!warned_stale_wt_context) {
+	    if (!warned_stale_wt_context && auto_ctx_warn_enabled()) {
 		  const char*scope_name = 0;
 		  if (ctx_scope)
 			scope_name = vpi_get_str(vpiFullName, ctx_scope);
@@ -2771,7 +2771,7 @@ vvp_context_item_t vthread_get_rd_context_item(unsigned context_idx)
             use_context = running_thread->owned_context;
       if (!use_context && running_thread->wt_context
           && context_live_matches_scope_(running_thread->wt_context, ctx_scope)) {
-            if (!warned_rd_fallback_to_wt) {
+            if (!warned_rd_fallback_to_wt && auto_ctx_warn_enabled()) {
                   const char*scope_name = 0;
                   if (ctx_scope)
                         scope_name = vpi_get_str(vpiFullName, ctx_scope);
@@ -2786,7 +2786,7 @@ vvp_context_item_t vthread_get_rd_context_item(unsigned context_idx)
       }
 
       if (!use_context) {
-	    if (!warned_stale_rd_context) {
+	    if (!warned_stale_rd_context && auto_ctx_warn_enabled()) {
 		  const char*scope_name = 0;
 		  if (ctx_scope)
 			scope_name = vpi_get_str(vpiFullName, ctx_scope);
@@ -2856,7 +2856,7 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
                           running_thread->rd_context, running_thread->wt_context,
                           running_thread->owned_context, context_idx);
             }
-            if (!warned_scoped_context_miss) {
+            if (!warned_scoped_context_miss && auto_ctx_warn_enabled()) {
                   const char*scope_name = vpi_get_str(vpiFullName, ctx_scope);
                   fprintf(stderr,
                           "Warning: vthread_get_rd_context_item_scoped could not find"
@@ -2888,6 +2888,16 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
          already walks the chain correctly, so the lazy advancement is both
          redundant and harmful. */
       return vvp_get_context_item(use_context, context_idx);
+}
+
+bool auto_ctx_warn_enabled()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_AUTO_CTX_WARN");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled != 0;
 }
 
 vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
@@ -2957,7 +2967,7 @@ static void sanitize_thread_contexts_(vthread_t thr, const char*reason)
       if (!clean_rd && clean_wt && context_live_matches_scope_(clean_wt, ctx_scope))
             clean_rd = clean_wt;
 
-      if (!warned && (clean_wt != thr->wt_context)) {
+      if (!warned && (clean_wt != thr->wt_context) && auto_ctx_warn_enabled()) {
             const char*scope_name = ctx_scope ? vpi_get_str(vpiFullName, ctx_scope) : 0;
             fprintf(stderr,
                     "Warning: sanitized thread automatic contexts after %s"
@@ -3019,7 +3029,7 @@ static vvp_context_t ensure_write_context_(vthread_t thr, const char*where)
             use_context = first_live_stacked_context(thr->rd_context, ctx_scope);
       if (!use_context && thr->owned_context
           && context_live_matches_scope_(thr->owned_context, ctx_scope)) {
-            if (!warned_owned_fallback) {
+            if (!warned_owned_fallback && auto_ctx_warn_enabled()) {
                   const char*scope_name = thr->parent_scope
                                         ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
                   fprintf(stderr,
@@ -3035,7 +3045,7 @@ static vvp_context_t ensure_write_context_(vthread_t thr, const char*where)
 
       if (!thr->wt_context && use_context && thr->rd_context
           && context_live_matches_scope_(use_context, ctx_scope)) {
-            if (!warned) {
+            if (!warned && auto_ctx_warn_enabled()) {
                   const char*scope_name = thr->parent_scope
                                         ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
                   fprintf(stderr,

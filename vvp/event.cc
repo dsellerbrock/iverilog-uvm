@@ -50,21 +50,22 @@ static vvp_context_t recover_automatic_event_context_(vvp_context_t context,
             return context;
 
       vvp_context_t resolved = vthread_recover_context_for_scope(context, scope);
-      if (!warned_missing && !context && resolved) {
-            fprintf(stderr,
-                    "Warning: recovered missing automatic event context during %s"
-                    " (further similar warnings suppressed)\n",
-                    where ? where : "<unknown>");
-            warned_missing = true;
+      if (auto_ctx_warn_enabled()) {
+            if (!warned_missing && !context && resolved) {
+                  fprintf(stderr,
+                          "Warning: recovered missing automatic event context during %s"
+                          " (further similar warnings suppressed)\n",
+                          where ? where : "<unknown>");
+                  warned_missing = true;
+            }
+            if (!warned_scoped && context && resolved && context != resolved) {
+                  fprintf(stderr,
+                          "Warning: repaired automatic event context scope mismatch during %s"
+                          " (further similar warnings suppressed)\n",
+                          where ? where : "<unknown>");
+                  warned_scoped = true;
+            }
       }
-      if (!warned_scoped && context && resolved && context != resolved) {
-            fprintf(stderr,
-                    "Warning: repaired automatic event context scope mismatch during %s"
-                    " (further similar warnings suppressed)\n",
-                    where ? where : "<unknown>");
-            warned_scoped = true;
-      }
-
       return resolved;
 }
 
