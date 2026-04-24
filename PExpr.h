@@ -1009,9 +1009,16 @@ class PECallFunction : public PExpr {
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
 
+    public:
+      void set_with_constraints(std::vector<PExpr*> c)
+            { with_constraints_ = std::move(c); }
+      const std::vector<PExpr*>& with_constraints() const
+            { return with_constraints_; }
+
     private:
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;
+      std::vector<PExpr*> with_constraints_;
       struct parmvalue_t*leading_type_args_ = 0;
 
         // For system functions.

@@ -610,6 +610,7 @@ void pform_put_enum_type_in_scope(enum_type_t*enum_set);
 
 bool pform_requires_sv(const struct vlltype&loc, const char *feature);
 void pform_block_decls_requires_sv(void);
+bool pform_block_scope_is_empty(void);
 
 void pform_start_parameter_port_list();
 void pform_end_parameter_port_list();

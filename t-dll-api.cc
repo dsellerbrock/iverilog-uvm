@@ -33,7 +33,10 @@
 # include  <cstdio>
 # include  <cstring>
 # include  <sstream>
-# include  <execinfo.h>
+# include  "config.h"
+# ifdef HAVE_EXECINFO_H
+#  include  <execinfo.h>
+# endif
 # include  "ivl_alloc.h"
 
 using namespace std;
@@ -2684,10 +2687,12 @@ extern "C" ivl_delaypath_t ivl_signal_path(ivl_signal_t net, unsigned idx)
 extern "C" ivl_signal_type_t ivl_signal_type(ivl_signal_t net)
 {
       if (!net) {
+	    fprintf(stderr, "ivl internal error: ivl_signal_type called with null signal\n");
+# ifdef HAVE_EXECINFO_H
 	    void*frames[32];
 	    int depth = backtrace(frames, 32);
-	    fprintf(stderr, "ivl internal error: ivl_signal_type called with null signal\n");
 	    backtrace_symbols_fd(frames, depth, 2);
+# endif
 	    abort();
       }
       return net->type_;

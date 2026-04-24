@@ -1527,6 +1527,60 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
       return true;
 }
 
+bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
+{
+	// code->text      = IR string (with possible "v:N:W" slot placeholders)
+	// code->bit_idx[0] = number of runtime value slots on the vec4 stack
+      unsigned n_vals = code->bit_idx[0];
+      const char* ir_text = code->text ? code->text : "";
+
+	// Pop runtime slot values (pushed in reverse: slot 0 is deepest).
+      vector<uint64_t> slot_vals(n_vals);
+      for (unsigned i = n_vals ; i > 0 ; i--) {
+	    vvp_vector4_t v = thr->pop_vec4();
+	    uint64_t bits = 0;
+	    unsigned wid = v.size(); if (wid > 64) wid = 64;
+	    for (unsigned b = 0 ; b < wid ; b++)
+		  if (v.value(b) == BIT4_1) bits |= (1ULL << b);
+	    slot_vals[i - 1] = bits;
+      }
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      if (cobj) {
+	    const class_type*defn = cobj->get_defn();
+
+	      // Randomize all rand properties first.
+	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+		  if (!defn->property_is_rand(pid)) continue;
+		  vvp_vector4_t val;
+		  cobj->get_vec4(pid, val);
+		  unsigned wid = val.size();
+		  if (wid == 0) continue;
+		  for (unsigned i = 0 ; i < wid ; i += 32) {
+			unsigned rnd = (unsigned)rand();
+			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
+			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+		  }
+		  cobj->set_vec4(pid, val);
+	    }
+
+	      // Solve with Z3: class constraints + with-constraints.
+	    vector<string> extra_ir;
+	    if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
+	    vvp_z3_randomize(defn, cobj, extra_ir, slot_vals);
+      }
+
+      vvp_object_t tmp;
+      thr->pop_object(tmp);
+
+      vvp_vector4_t result(32, BIT4_0);
+      result.set_bit(0, BIT4_1);
+      thr->push_vec4(result);
+      return true;
+}
+
 /*
  * The following are used to allow a common template to be written for
  * queue real/string/vec4 operations

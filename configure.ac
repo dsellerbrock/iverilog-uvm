@@ -138,7 +138,7 @@ fi
 iverilog_temp_cxxflags="$CXXFLAGS"
 CXXFLAGS="-DHAVE_DECL_BASENAME $CXXFLAGS"
 
-AC_CHECK_HEADERS(getopt.h inttypes.h libiberty.h iosfwd sys/wait.h)
+AC_CHECK_HEADERS(getopt.h inttypes.h libiberty.h iosfwd sys/wait.h execinfo.h)
 CXXFLAGS="$iverilog_temp_cxxflags"
 
 AC_CHECK_SIZEOF(unsigned long long)

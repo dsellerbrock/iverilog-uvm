@@ -1290,6 +1290,27 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%randomize;\n");
 	    return;
       }
+      if (strncmp(ivl_expr_name(expr),"$ivl_class_method$randomize_with|",33)==0) {
+	      /* Mangled name: "$ivl_class_method$randomize_with|N_vals|ir_string"
+	       * parm[0] = object, parm[1..N_vals] = runtime slot values */
+	    const char*rest = ivl_expr_name(expr) + 33;
+	    unsigned n_vals = (unsigned)strtoul(rest, NULL, 10);
+	    while (*rest && *rest != '|') rest++;
+	    if (*rest == '|') rest++;
+	    const char*ir = rest;
+	      /* Push runtime slot values (vec4 stack) first so they're
+	       * under the result when %randomize/with pops them. */
+	    for (unsigned i = 0 ; i < n_vals ; i++) {
+		  ivl_expr_t slot = ivl_expr_parm(expr, 1 + i);
+		  if (slot) draw_eval_vec4(slot);
+		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    }
+	      /* Push the object. */
+	    ivl_expr_t obj_arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    if (obj_arg) draw_eval_object(obj_arg);
+	    fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir, n_vals);
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),"$ivl_queue_method$size")==0) {
 	    ivl_expr_t arg = ivl_expr_parm(expr, 0);
 	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL && ivl_expr_signal(arg)) {
