@@ -2879,7 +2879,14 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
                     running_thread->owned_context,
                     rd_context, wt_context, owned_context, use_context, context_idx);
       }
-      running_thread->rd_context = use_context;
+      /* Do NOT update rd_context here. After a function returns, do_join
+         places the child frame at the head of the rd_context chain so the
+         caller's copy-out code can read back inout/output parameters. If we
+         advance rd_context when we find a parent-scope context deeper in the
+         chain, we silently drop the child frame and subsequent loads from
+         that frame return null. Each call to first_live_context_for_scope
+         already walks the chain correctly, so the lazy advancement is both
+         redundant and harmful. */
       return vvp_get_context_item(use_context, context_idx);
 }
 
@@ -11839,8 +11846,8 @@ bool of_STORE_PROP_OBJ(vthread_t thr, vvp_code_t cp)
 
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
-      bool has_propobj = cobj != 0 || vif != 0;
+      vvp_vinterface*vif_base = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif_base != 0;
       prop_trace_log_(thr, "%store/prop/obj", pid, idx, obj, has_propobj);
       if (!has_propobj) {
 	      // Compile-progress fallback: storing into an unresolved/null class
@@ -11868,7 +11875,7 @@ bool of_STORE_PROP_OBJ(vthread_t thr, vvp_code_t cp)
       if (cobj)
 	    cobj->set_object(pid, val, idx);
       else
-	    vif->set_object(pid, val, idx);
+	    vif_base->set_object(pid, val, idx);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-obj");
 
@@ -13028,7 +13035,10 @@ bool of_WAIT_VIF_POSEDGE(vthread_t thr, vvp_code_t cp)
       thr->pop_object(obj);
       vvp_vinterface*vif = obj.peek<vvp_vinterface>();
       if (!vif) {
-	    fprintf(stderr, "%%wait/vif/posedge: object is not a virtual interface\n");
+	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
+	    fprintf(stderr, "%%wait/vif/posedge: object is not a virtual interface"
+	            " (nil=%d, cobject=%p, raw=%p)\n",
+	            (int)obj.test_nil(), (void*)cobj, (void*)obj.peek<vvp_object>());
 	    assert(vif);
       }
 

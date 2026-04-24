@@ -198,6 +198,56 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
       if (port_is_unsupported_aggregate_formal_(port))
 	    return;
 
+      /* Handle copy-out to a class property actual (e.g. inout vif → this.vif) */
+      if (ivl_expr_type(actual) == IVL_EX_PROPERTY) {
+	    ivl_signal_t base_sig = ivl_expr_signal(actual);
+	    if (!base_sig || ivl_expr_oper1(actual)) {
+		  if (!warned_unsupported_copy_out) {
+			fprintf(stderr,
+			        "Warning: Skipping unsupported nested/indexed property"
+			        " copy-out for %s (further similar warnings suppressed)\n",
+			        ivl_signal_basename(port));
+			warned_unsupported_copy_out = 1;
+		  }
+		  return;
+	    }
+	    int pidx = (int)ivl_expr_property_idx(actual);
+	    dtype = ivl_signal_data_type(port);
+	    switch (dtype) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
+		  fprintf(vvp_out, "    %%store/prop/v %d, %u;\n", pidx,
+		          ivl_signal_width(port));
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  break;
+		case IVL_VT_REAL:
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
+		  fprintf(vvp_out, "    %%load/real v%p_0;\n", port);
+		  fprintf(vvp_out, "    %%store/prop/r %d;\n", pidx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  break;
+		case IVL_VT_STRING:
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
+		  fprintf(vvp_out, "    %%load/str v%p_0;\n", port);
+		  fprintf(vvp_out, "    %%store/prop/str %d;\n", pidx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE:
+		default:
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+		  fprintf(vvp_out, "    %%store/prop/obj %d, 0;\n", pidx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  break;
+	    }
+	    return;
+      }
+
       if (!function_argument_actual_signal_(actual, &sig, &word)) {
 	    if (!warned_unsupported_copy_out) {
 		  fprintf(stderr,

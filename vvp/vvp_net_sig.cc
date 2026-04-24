@@ -1083,9 +1083,8 @@ void vvp_fun_signal_object_aa::reset_instance(vvp_context_t context)
 
 vvp_object_t vvp_fun_signal_object_aa::get_object() const
 {
-      signal_object_aa_slot*slot =
-            signal_object_aa_slot_from_raw(vthread_get_rd_context_item_scoped(context_idx_,
-                                                                               context_scope_));
+      void*raw_item = vthread_get_rd_context_item_scoped(context_idx_, context_scope_);
+      signal_object_aa_slot*slot = signal_object_aa_slot_from_raw(raw_item);
       if (!slot) {
             vvp_object_t empty;
             return empty;
