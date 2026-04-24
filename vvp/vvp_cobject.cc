@@ -25,8 +25,26 @@
 using namespace std;
 
 vvp_cobject::vvp_cobject(const class_type*defn)
-: defn_(defn), properties_(defn->instance_new())
+: defn_(defn), properties_(defn->instance_new()),
+  rand_mode_(defn->property_count(), true)
 {
+}
+
+bool vvp_cobject::rand_mode(size_t pid) const
+{
+      if (pid < rand_mode_.size()) return rand_mode_[pid];
+      return true;
+}
+
+void vvp_cobject::set_rand_mode(size_t pid, bool mode)
+{
+      if (pid < rand_mode_.size()) rand_mode_[pid] = mode;
+}
+
+void vvp_cobject::set_all_rand_mode(bool mode)
+{
+      for (size_t i = 0 ; i < rand_mode_.size() ; i += 1)
+	    rand_mode_[i] = mode;
 }
 
 vvp_cobject::~vvp_cobject()
