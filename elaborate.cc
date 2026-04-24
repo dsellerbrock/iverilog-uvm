@@ -4560,13 +4560,67 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 
 	    if (gn_system_verilog() && path_.size() > 1) {
 		    // Compile-progress fallback: multi-component task path
-		    // that couldn't be resolved as a method call. Treat as
-		    // no-op to keep elaboration progressing.
+		    // that couldn't be resolved as a method call.
 		  perm_string tail = peek_tail_name(path_);
-		  // SV built-in constraint/rand controls: silently ignore as noops.
-		  // These have no iverilog implementation and are always noops.
-		  bool silent_noop = (tail == perm_string::literal("constraint_mode")
-				      || tail == perm_string::literal("rand_mode"));
+		  // obj.constraint_name.constraint_mode(mode) — enable/disable a specific constraint.
+		  // path_ = [obj..., constraint_name, constraint_mode]
+		  if (tail == perm_string::literal("constraint_mode")
+		      && path_.size() >= 2 && parms_.size() == 1) {
+			// pform_name_t is a list; get second-to-last element
+			perm_string cname = std::next(path_.end(), -2)->name;
+			NetNet *obj_net = nullptr;
+			if (path_.size() == 2) {
+			      // Implicit this: constraint_name.constraint_mode(mode)
+			      for (NetScope *s = scope; s && !obj_net; s = s->parent())
+				    obj_net = s->find_signal(perm_string::literal(THIS_TOKEN));
+			} else {
+			      // Build object path from all but last 2 components
+			      pform_name_t obj_path;
+			      auto it = path_.begin();
+			      auto end_it = std::next(path_.end(), -2);
+			      for (; it != end_it; ++it)
+				    obj_path.push_back(*it);
+			      symbol_search_results sr;
+			      symbol_search(this, des, scope, obj_path, UINT_MAX, &sr);
+			      obj_net = sr.net;
+			}
+			if (obj_net) {
+			      const netclass_t *ctype =
+				    dynamic_cast<const netclass_t*>(obj_net->net_type());
+			      if (ctype) {
+				    size_t cid = ctype->constraint_ir_count();
+				    for (size_t ci = 0; ci < ctype->constraint_ir_count(); ++ci) {
+					  if (ctype->constraint_ir_name(ci) == string(cname)) {
+						cid = ci; break;
+					  }
+				    }
+				    if (cid < ctype->constraint_ir_count()) {
+					  NetExpr *obj_expr = new NetESignal(obj_net);
+					  obj_expr->set_line(*this);
+					  NetExpr *mode_expr = elab_sys_task_arg(des, scope,
+						tail, 0, parms_[0].parm);
+					  NetExpr *cid_expr = new NetEConst(
+						verinum((uint64_t)cid, 32));
+					  cid_expr->set_line(*this);
+					  vector<NetExpr*> argv(3);
+					  argv[0] = obj_expr;
+					  argv[1] = mode_expr;
+					  argv[2] = cid_expr;
+					  NetSTask *sys = new NetSTask(
+						"$ivl_class_method$constraint_mode",
+						IVL_SFUNC_AS_TASK_IGNORE, argv);
+					  sys->set_line(*this);
+					  return sys;
+				    }
+			      }
+			}
+			// Fallthrough: constraint name not found — silent noop
+			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			noop->set_line(*this);
+			return noop;
+		  }
+		  // rand_mode with multi-component path is still a noop.
+		  bool silent_noop = (tail == perm_string::literal("rand_mode"));
 		  if (!silent_noop) {
 			cerr << get_fileline() << ": warning: Enable of unknown task "
 			     << "``" << path_ << "'' ignored (compile-progress fallback)." << endl;
@@ -5410,7 +5464,41 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			noop->set_line(*this);
 			return noop;
 		  }
-		  // constraint_mode(en) is still a noop; rand_mode(en) emits %rand_mode.
+		  // obj.constraint_mode(en): enable/disable all constraints on the object.
+		  // Emit a separate %constraint_mode N for each N in the class.
+		  if (method_name == perm_string::literal("constraint_mode")
+		      && parms_.size() == 1) {
+			const netclass_t*ctype = dynamic_cast<const netclass_t*>(obj_type);
+			if (ctype && ctype->constraint_ir_count() > 0) {
+			      NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+			      blk->set_line(*this);
+			      NetExpr*mode_expr = elab_sys_task_arg(des, scope,
+						method_name, 0, parms_[0].parm);
+			      for (size_t ci = 0; ci < ctype->constraint_ir_count(); ++ci) {
+				    NetExpr*obj_copy = obj_expr->dup_expr();
+				    NetExpr*mode_copy = mode_expr->dup_expr();
+				    NetExpr*cid_expr = new NetEConst(
+					  verinum((uint64_t)ci, 32));
+				    cid_expr->set_line(*this);
+				    vector<NetExpr*> argv(3);
+				    argv[0] = obj_copy;
+				    argv[1] = mode_copy;
+				    argv[2] = cid_expr;
+				    NetSTask*sys = new NetSTask(
+					  "$ivl_class_method$constraint_mode",
+					  IVL_SFUNC_AS_TASK_IGNORE, argv);
+				    sys->set_line(*this);
+				    blk->append(sys);
+			      }
+			      delete obj_expr;
+			      delete mode_expr;
+			      return blk;
+			}
+			delete obj_expr;
+			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			noop->set_line(*this);
+			return noop;
+		  }
 		  if (method_name == perm_string::literal("constraint_mode")) {
 			delete obj_expr;
 			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
@@ -6731,6 +6819,44 @@ cerr << endl;
 			for (unsigned p = 0 ; p < pr->pin_count() ; p += 1) {
 			      unsigned src = (expr_[idx]->type() == PEEvent::ANYEDGE) ? p : 0;
 			      connect(prop_set->at(src).lnk, pr->pin(p));
+			}
+
+			// Detect VIF posedge chain: outer(M)->mid(N)->NetESignal(this)
+			// where mid's type is a virtual interface class.
+			// Must be done before delete tmp.
+			{
+			      PEEvent::edge_t etype = expr_[idx]->type();
+			      if (etype == PEEvent::POSEDGE || etype == PEEvent::NEGEDGE
+				  || etype == PEEvent::ANYEDGE) {
+				    NetEProperty*outer_p = dynamic_cast<NetEProperty*>(tmp);
+				    if (outer_p && !outer_p->get_sig()) {
+					  NetEProperty*mid_p = dynamic_cast<NetEProperty*>(
+					      const_cast<NetExpr*>(outer_p->get_base()));
+					  if (mid_p && !mid_p->get_sig()) {
+					      const NetESignal*root_e = dynamic_cast<NetESignal*>(
+						  const_cast<NetExpr*>(mid_p->get_base()));
+					      if (root_e && root_e->sig()) {
+						    const netclass_t*this_cls = dynamic_cast<const netclass_t*>(
+							root_e->sig()->net_type());
+						    if (this_cls) {
+							  ivl_type_t pt = this_cls->get_prop_type(
+							      mid_p->property_idx());
+							  const netclass_t*vif_cls = dynamic_cast<const netclass_t*>(pt);
+							  if (vif_cls && vif_cls->is_interface()) {
+							      unsigned N = mid_p->property_idx();
+							      unsigned M = outer_p->property_idx();
+							      if (etype == PEEvent::POSEDGE)
+								    pr->set_vif_posedge(N, M);
+							      else if (etype == PEEvent::NEGEDGE)
+								    pr->set_vif_negedge(N, M);
+							      else
+								    pr->set_vif_anyedge(N, M);
+							}
+						    }
+					      }
+					  }
+				    }
+			      }
 			}
 
 			delete prop_set;

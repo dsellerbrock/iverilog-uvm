@@ -1585,6 +1585,26 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 }
 
 /*
+ * %constraint_mode N
+ *
+ * Set constraint_mode for constraint index N of the cobject on the object
+ * stack. Pops mode (0=disable, nonzero=enable) from vec4 stack, pops object.
+ */
+bool of_CONSTRAINT_MODE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      bool mode = (mode_vec.value(0) == BIT4_1);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      if (cobj)
+	    cobj->set_constraint_mode(cp->number, mode);
+      return true;
+}
+
+/*
  * %rand_mode
  *
  * Set rand_mode for all rand properties of the cobject on the object stack.
@@ -2706,7 +2726,7 @@ vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx)
             use_context = first_live_stacked_context(running_thread->rd_context, ctx_scope);
       if (!use_context && running_thread->rd_context
           && context_live_matches_scope_(running_thread->rd_context, ctx_scope)) {
-            if (!warned_wt_fallback_to_rd) {
+            if (!warned_wt_fallback_to_rd && auto_ctx_warn_enabled()) {
                   const char*scope_name = 0;
                   if (ctx_scope)
                         scope_name = vpi_get_str(vpiFullName, ctx_scope);
@@ -2721,7 +2741,7 @@ vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx)
       }
 
       if (!use_context) {
-	    if (!warned_stale_wt_context) {
+	    if (!warned_stale_wt_context && auto_ctx_warn_enabled()) {
 		  const char*scope_name = 0;
 		  if (ctx_scope)
 			scope_name = vpi_get_str(vpiFullName, ctx_scope);
@@ -2771,7 +2791,7 @@ vvp_context_item_t vthread_get_rd_context_item(unsigned context_idx)
             use_context = running_thread->owned_context;
       if (!use_context && running_thread->wt_context
           && context_live_matches_scope_(running_thread->wt_context, ctx_scope)) {
-            if (!warned_rd_fallback_to_wt) {
+            if (!warned_rd_fallback_to_wt && auto_ctx_warn_enabled()) {
                   const char*scope_name = 0;
                   if (ctx_scope)
                         scope_name = vpi_get_str(vpiFullName, ctx_scope);
@@ -2786,7 +2806,7 @@ vvp_context_item_t vthread_get_rd_context_item(unsigned context_idx)
       }
 
       if (!use_context) {
-	    if (!warned_stale_rd_context) {
+	    if (!warned_stale_rd_context && auto_ctx_warn_enabled()) {
 		  const char*scope_name = 0;
 		  if (ctx_scope)
 			scope_name = vpi_get_str(vpiFullName, ctx_scope);
@@ -2856,7 +2876,7 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
                           running_thread->rd_context, running_thread->wt_context,
                           running_thread->owned_context, context_idx);
             }
-            if (!warned_scoped_context_miss) {
+            if (!warned_scoped_context_miss && auto_ctx_warn_enabled()) {
                   const char*scope_name = vpi_get_str(vpiFullName, ctx_scope);
                   fprintf(stderr,
                           "Warning: vthread_get_rd_context_item_scoped could not find"
@@ -2879,8 +2899,25 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
                     running_thread->owned_context,
                     rd_context, wt_context, owned_context, use_context, context_idx);
       }
-      running_thread->rd_context = use_context;
+      /* Do NOT update rd_context here. After a function returns, do_join
+         places the child frame at the head of the rd_context chain so the
+         caller's copy-out code can read back inout/output parameters. If we
+         advance rd_context when we find a parent-scope context deeper in the
+         chain, we silently drop the child frame and subsequent loads from
+         that frame return null. Each call to first_live_context_for_scope
+         already walks the chain correctly, so the lazy advancement is both
+         redundant and harmful. */
       return vvp_get_context_item(use_context, context_idx);
+}
+
+bool auto_ctx_warn_enabled()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_AUTO_CTX_WARN");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled != 0;
 }
 
 vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
@@ -2950,7 +2987,7 @@ static void sanitize_thread_contexts_(vthread_t thr, const char*reason)
       if (!clean_rd && clean_wt && context_live_matches_scope_(clean_wt, ctx_scope))
             clean_rd = clean_wt;
 
-      if (!warned && (clean_wt != thr->wt_context)) {
+      if (!warned && (clean_wt != thr->wt_context) && auto_ctx_warn_enabled()) {
             const char*scope_name = ctx_scope ? vpi_get_str(vpiFullName, ctx_scope) : 0;
             fprintf(stderr,
                     "Warning: sanitized thread automatic contexts after %s"
@@ -3012,7 +3049,7 @@ static vvp_context_t ensure_write_context_(vthread_t thr, const char*where)
             use_context = first_live_stacked_context(thr->rd_context, ctx_scope);
       if (!use_context && thr->owned_context
           && context_live_matches_scope_(thr->owned_context, ctx_scope)) {
-            if (!warned_owned_fallback) {
+            if (!warned_owned_fallback && auto_ctx_warn_enabled()) {
                   const char*scope_name = thr->parent_scope
                                         ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
                   fprintf(stderr,
@@ -3028,7 +3065,7 @@ static vvp_context_t ensure_write_context_(vthread_t thr, const char*where)
 
       if (!thr->wt_context && use_context && thr->rd_context
           && context_live_matches_scope_(use_context, ctx_scope)) {
-            if (!warned) {
+            if (!warned && auto_ctx_warn_enabled()) {
                   const char*scope_name = thr->parent_scope
                                         ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
                   fprintf(stderr,
@@ -11839,8 +11876,8 @@ bool of_STORE_PROP_OBJ(vthread_t thr, vvp_code_t cp)
 
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
-      bool has_propobj = cobj != 0 || vif != 0;
+      vvp_vinterface*vif_base = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif_base != 0;
       prop_trace_log_(thr, "%store/prop/obj", pid, idx, obj, has_propobj);
       if (!has_propobj) {
 	      // Compile-progress fallback: storing into an unresolved/null class
@@ -11868,7 +11905,7 @@ bool of_STORE_PROP_OBJ(vthread_t thr, vvp_code_t cp)
       if (cobj)
 	    cobj->set_object(pid, val, idx);
       else
-	    vif->set_object(pid, val, idx);
+	    vif_base->set_object(pid, val, idx);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-obj");
 
@@ -13012,6 +13049,67 @@ bool of_WAIT_FORK(vthread_t thr, vvp_code_t)
 	/* Flag that this process is waiting for the detached children
 	 * to finish and suspend it. */
       thr->i_am_waiting = 1;
+      return false;
+}
+
+/*
+ * %wait/vif/posedge <M>
+ * Pop a vvp_vinterface object from the object stack (loaded by
+ * %load/obj + %prop/obj N, 0), get or create a vvp_fun_edge_sa
+ * subscribed to the M-th signal of the interface, add this thread
+ * to its wait list, and suspend until posedge fires.
+ */
+bool of_WAIT_VIF_POSEDGE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      if (!vif) {
+	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
+	    fprintf(stderr, "%%wait/vif/posedge: object is not a virtual interface"
+	            " (nil=%d, cobject=%p, raw=%p)\n",
+	            (int)obj.test_nil(), (void*)cobj, (void*)obj.peek<vvp_object>());
+	    assert(vif);
+      }
+
+      vvp_fun_edge_sa*edge = vif->get_posedge_functor(cp->number);
+
+      thr->waiting_for_event = 1;
+      thr->wait_next = edge->add_waiting_thread(thr);
+      return false;
+}
+
+bool of_WAIT_VIF_NEGEDGE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      if (!vif) {
+	    fprintf(stderr, "%%wait/vif/negedge: object is not a virtual interface\n");
+	    assert(vif);
+      }
+
+      vvp_fun_edge_sa*edge = vif->get_negedge_functor(cp->number);
+
+      thr->waiting_for_event = 1;
+      thr->wait_next = edge->add_waiting_thread(thr);
+      return false;
+}
+
+bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      if (!vif) {
+	    fprintf(stderr, "%%wait/vif/anyedge: object is not a virtual interface\n");
+	    assert(vif);
+      }
+
+      vvp_fun_edge_sa*edge = vif->get_anyedge_functor(cp->number);
+
+      thr->waiting_for_event = 1;
+      thr->wait_next = edge->add_waiting_thread(thr);
       return false;
 }
 

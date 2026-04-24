@@ -120,6 +120,10 @@ extern vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_id
 extern vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
                                                        __vpiScope*scope);
 
+/* Returns true if automatic-context debug warnings should be printed.
+   Set IVL_AUTO_CTX_WARN=1 to enable. */
+extern bool auto_ctx_warn_enabled();
+
 /*
  * Access value stacks from thread space.
  */

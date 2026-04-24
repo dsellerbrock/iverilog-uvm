@@ -339,8 +339,9 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       Z3_optimize opt = Z3_mk_optimize(ctx);
       Z3_optimize_inc_ref(ctx, opt);
 
-      // Assert hard constraints (class-level).
+      // Assert hard constraints (class-level), skipping disabled ones.
       for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
+	    if (cobj && !cobj->constraint_mode(ci)) continue;
 	    const string& ir = defn->constraint_ir(ci);
 	    if (ir.empty()) continue;
 	    Z3_ast assertion = parse_constraint_ir(ir, builder);
@@ -361,6 +362,7 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	    Z3_solver chk = Z3_mk_solver(ctx);
 	    Z3_solver_inc_ref(ctx, chk);
 	    for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
+		  if (cobj && !cobj->constraint_mode(ci)) continue;
 		  const string& ir = defn->constraint_ir(ci);
 		  if (ir.empty()) continue;
 		  Z3_ast a = parse_constraint_ir(ir, builder);

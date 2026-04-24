@@ -3666,6 +3666,16 @@ class NetEvProbe  : public NetNode {
 
       void find_similar_probes(std::list<NetEvProbe*>&);
 
+      // VIF edge support: @(posedge/negedge/edge vif.signal)
+      void set_vif_posedge(unsigned N, unsigned M);
+      void set_vif_negedge(unsigned N, unsigned M);
+      void set_vif_anyedge(unsigned N, unsigned M);
+      bool is_vif_posedge() const { return is_vif_posedge_; }
+      bool is_vif_negedge() const { return is_vif_negedge_; }
+      bool is_vif_anyedge() const { return is_vif_anyedge_; }
+      unsigned vif_N() const { return vif_N_; }
+      unsigned vif_M() const { return vif_M_; }
+
       virtual bool emit_node(struct target_t*) const override;
       virtual void dump_node(std::ostream&, unsigned ind) const override;
 
@@ -3674,6 +3684,11 @@ class NetEvProbe  : public NetNode {
       edge_t edge_;
 	// The NetEvent class uses this to list me.
       NetEvProbe*enext_;
+      bool is_vif_posedge_ = false;
+      bool is_vif_negedge_ = false;
+      bool is_vif_anyedge_ = false;
+      unsigned vif_N_ = 0;
+      unsigned vif_M_ = 0;
 };
 
 /*

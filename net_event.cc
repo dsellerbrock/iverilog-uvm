@@ -313,6 +313,27 @@ NetEvProbe::NetEvProbe(NetScope*s, perm_string n, NetEvent*tgt,
       event_->probes_ = this;
 }
 
+void NetEvProbe::set_vif_posedge(unsigned N, unsigned M)
+{
+      is_vif_posedge_ = true;
+      vif_N_ = N;
+      vif_M_ = M;
+}
+
+void NetEvProbe::set_vif_negedge(unsigned N, unsigned M)
+{
+      is_vif_negedge_ = true;
+      vif_N_ = N;
+      vif_M_ = M;
+}
+
+void NetEvProbe::set_vif_anyedge(unsigned N, unsigned M)
+{
+      is_vif_anyedge_ = true;
+      vif_N_ = N;
+      vif_M_ = M;
+}
+
 NetEvProbe::~NetEvProbe()
 {
       if (event_->probes_ == this) {

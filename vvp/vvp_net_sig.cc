@@ -70,21 +70,22 @@ static vvp_context_t recover_automatic_recv_context_(vvp_context_t context,
       static bool warned_scoped = false;
 
       vvp_context_t resolved = vthread_recover_context_for_scope(context, scope);
-      if (!warned_missing && !context && resolved) {
-            fprintf(stderr,
-                    "Warning: recovered missing automatic signal context during %s"
-                    " (further similar warnings suppressed)\n",
-                    where ? where : "<unknown>");
-            warned_missing = true;
+      if (auto_ctx_warn_enabled()) {
+            if (!warned_missing && !context && resolved) {
+                  fprintf(stderr,
+                          "Warning: recovered missing automatic signal context during %s"
+                          " (further similar warnings suppressed)\n",
+                          where ? where : "<unknown>");
+                  warned_missing = true;
+            }
+            if (!warned_scoped && context && resolved && context != resolved) {
+                  fprintf(stderr,
+                          "Warning: repaired automatic signal context scope mismatch during %s"
+                          " (further similar warnings suppressed)\n",
+                          where ? where : "<unknown>");
+                  warned_scoped = true;
+            }
       }
-      if (!warned_scoped && context && resolved && context != resolved) {
-            fprintf(stderr,
-                    "Warning: repaired automatic signal context scope mismatch during %s"
-                    " (further similar warnings suppressed)\n",
-                    where ? where : "<unknown>");
-            warned_scoped = true;
-      }
-
       return resolved;
 }
 
@@ -1083,9 +1084,8 @@ void vvp_fun_signal_object_aa::reset_instance(vvp_context_t context)
 
 vvp_object_t vvp_fun_signal_object_aa::get_object() const
 {
-      signal_object_aa_slot*slot =
-            signal_object_aa_slot_from_raw(vthread_get_rd_context_item_scoped(context_idx_,
-                                                                               context_scope_));
+      void*raw_item = vthread_get_rd_context_item_scoped(context_idx_, context_scope_);
+      signal_object_aa_slot*slot = signal_object_aa_slot_from_raw(raw_item);
       if (!slot) {
             vvp_object_t empty;
             return empty;
