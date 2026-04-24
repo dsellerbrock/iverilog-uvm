@@ -4,7 +4,7 @@ on:
   # Every push onto the main branch triggers a retest.
   push:
     branches:
-      - master
+      - main
   # All pull_requests trigger a retest.
   pull_request:
   workflow_dispatch:
