@@ -26,7 +26,8 @@ using namespace std;
 
 vvp_cobject::vvp_cobject(const class_type*defn)
 : defn_(defn), properties_(defn->instance_new()),
-  rand_mode_(defn->property_count(), true)
+  rand_mode_(defn->property_count(), true),
+  constraint_mode_(defn->constraint_count(), true)
 {
 }
 
@@ -45,6 +46,17 @@ void vvp_cobject::set_all_rand_mode(bool mode)
 {
       for (size_t i = 0 ; i < rand_mode_.size() ; i += 1)
 	    rand_mode_[i] = mode;
+}
+
+bool vvp_cobject::constraint_mode(size_t cid) const
+{
+      if (cid < constraint_mode_.size()) return constraint_mode_[cid];
+      return true;
+}
+
+void vvp_cobject::set_constraint_mode(size_t cid, bool mode)
+{
+      if (cid < constraint_mode_.size()) constraint_mode_[cid] = mode;
 }
 
 vvp_cobject::~vvp_cobject()

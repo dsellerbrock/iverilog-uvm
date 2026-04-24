@@ -307,6 +307,7 @@ extern bool of_QPOP_O_F_STR(vthread_t thr, vvp_code_t code);
 extern bool of_QPOP_O_F_V(vthread_t thr, vvp_code_t code);
 extern bool of_QSIZE(vthread_t thr, vvp_code_t code);
 extern bool of_QSIZE_O(vthread_t thr, vvp_code_t code);
+extern bool of_CONSTRAINT_MODE(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE(vthread_t thr, vvp_code_t code);
 extern bool of_RANDOMIZE(vthread_t thr, vvp_code_t code);
 extern bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code);

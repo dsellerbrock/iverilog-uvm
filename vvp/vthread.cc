@@ -1585,6 +1585,26 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 }
 
 /*
+ * %constraint_mode N
+ *
+ * Set constraint_mode for constraint index N of the cobject on the object
+ * stack. Pops mode (0=disable, nonzero=enable) from vec4 stack, pops object.
+ */
+bool of_CONSTRAINT_MODE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      bool mode = (mode_vec.value(0) == BIT4_1);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      if (cobj)
+	    cobj->set_constraint_mode(cp->number, mode);
+      return true;
+}
+
+/*
  * %rand_mode
  *
  * Set rand_mode for all rand properties of the cobject on the object stack.

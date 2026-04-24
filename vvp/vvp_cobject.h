@@ -52,11 +52,15 @@ class vvp_cobject : public vvp_object {
       void set_rand_mode(size_t pid, bool mode);
       void set_all_rand_mode(bool mode);
 
+      bool constraint_mode(size_t cid) const;
+      void set_constraint_mode(size_t cid, bool mode);
+
     private:
       const class_type* defn_;
 	// For now, only support 32bit bool signed properties.
       class_type::inst_t properties_;
       std::vector<bool> rand_mode_;
+      std::vector<bool> constraint_mode_;
 };
 
 #endif /* IVL_vvp_cobject_H */
