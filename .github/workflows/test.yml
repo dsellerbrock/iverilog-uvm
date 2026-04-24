@@ -28,6 +28,8 @@ jobs:
     - name: Build, check and install
       run: |
         export PATH="$(brew --prefix bison)/bin:$PATH"
+        export CPPFLAGS="-I$(brew --prefix z3)/include"
+        export LDFLAGS="-L$(brew --prefix z3)/lib"
         autoconf
         ./configure --enable-libveriuser
         make -j$(sysctl -n hw.logicalcpu) check

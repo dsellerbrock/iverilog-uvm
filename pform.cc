@@ -3770,6 +3770,15 @@ void pform_block_decls_requires_sv(void)
       }
 }
 
+/* Returns true if the current block scope has no wires, parameters, or events
+ * (i.e. no declarations were added, including inline SV-style declarations). */
+bool pform_block_scope_is_empty(void)
+{
+      return lexical_scope->wires.empty()
+	  && lexical_scope->parameters.empty()
+	  && lexical_scope->events.empty();
+}
+
 void pform_check_net_data_type(const struct vlltype&loc, NetNet::Type net_type,
 			       const data_type_t *data_type)
 {

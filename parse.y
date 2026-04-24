@@ -9991,10 +9991,16 @@ statement_item /* This is roughly statement_item in the LRM */
 	      }
 	    statement_or_null_list_opt K_end label_opt
 	      { PBlock*tmp;
+		bool scope_empty = !$2 && !$4 && pform_block_scope_is_empty();
 		pform_pop_scope();
 		assert(! current_block_stack.empty());
 		tmp = current_block_stack.top();
 		current_block_stack.pop();
+		if (scope_empty) {
+		      delete tmp;
+		      tmp = new PBlock(PBlock::BL_SEQ);
+		      FILE_NAME(tmp, @1);
+		}
 	if ($6) tmp->set_statement(*$6);
 	delete $6;
 	check_end_label(@8, "block", $2, $8);
@@ -10018,10 +10024,16 @@ statement_item /* This is roughly statement_item in the LRM */
 	      }
 	    statement_or_null_list_opt join_keyword label_opt
 	      { PBlock*tmp;
+		bool scope_empty = !$2 && !$4 && pform_block_scope_is_empty();
 		pform_pop_scope();
 		assert(! current_block_stack.empty());
 		tmp = current_block_stack.top();
 		current_block_stack.pop();
+		if (scope_empty) {
+		      delete tmp;
+		      tmp = new PBlock(PBlock::BL_PAR);
+		      FILE_NAME(tmp, @1);
+		}
 		tmp->set_join_type($7);
 	if ($6) tmp->set_statement(*$6);
 	delete $6;
