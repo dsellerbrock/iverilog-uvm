@@ -482,33 +482,39 @@ static bool assoc_compat_supports_indexed_method_target_(ivl_type_t type,
       if (!queue || !queue->assoc_compat())
 	    return true;
 
-	      const netclass_t*elem_cls =
-		    dynamic_cast<const netclass_t*>(queue->element_type());
-	      if (assoc_compat_selected_collection_method_allowed_(queue->element_type(),
-								 method_name))
-		    return true;
+      const netclass_t*elem_cls =
+	    dynamic_cast<const netclass_t*>(queue->element_type());
 
-	      for (const netclass_t*cur = elem_cls ; cur ; cur = cur->get_super()) {
-		    if (cur->get_name() == perm_string::literal("uvm_queue"))
-			  return true;
-		    if (assoc_compat_selected_component_method_allowed_(method_name)
-			&& cur->get_name() == perm_string::literal("uvm_component"))
-			  return true;
-		    if (assoc_compat_selected_reg_block_method_allowed_(method_name)
-			&& cur->get_name() == perm_string::literal("uvm_reg_block"))
-			  return true;
-		    if (assoc_compat_selected_reg_method_allowed_(method_name)
-			&& cur->get_name() == perm_string::literal("uvm_reg"))
-			  return true;
-		    if (assoc_compat_selected_mem_method_allowed_(method_name)
-			&& cur->get_name() == perm_string::literal("uvm_mem"))
-			  return true;
-		    if (assoc_compat_selected_vreg_method_allowed_(method_name)
-			&& cur->get_name() == perm_string::literal("uvm_vreg"))
-			  return true;
-	      }
+      if (assoc_compat_selected_collection_method_allowed_(queue->element_type(),
+							   method_name))
+	    return true;
 
-	      return false;
+      // Any user-defined class element type: allow the call attempt.
+      // The method lookup will fail gracefully if the method doesn't exist.
+      if (elem_cls)
+	    return true;
+
+      for (const netclass_t*cur = elem_cls ; cur ; cur = cur->get_super()) {
+	    if (cur->get_name() == perm_string::literal("uvm_queue"))
+		  return true;
+	    if (assoc_compat_selected_component_method_allowed_(method_name)
+		&& cur->get_name() == perm_string::literal("uvm_component"))
+		  return true;
+	    if (assoc_compat_selected_reg_block_method_allowed_(method_name)
+		&& cur->get_name() == perm_string::literal("uvm_reg_block"))
+		  return true;
+	    if (assoc_compat_selected_reg_method_allowed_(method_name)
+		&& cur->get_name() == perm_string::literal("uvm_reg"))
+		  return true;
+	    if (assoc_compat_selected_mem_method_allowed_(method_name)
+		&& cur->get_name() == perm_string::literal("uvm_mem"))
+		  return true;
+	    if (assoc_compat_selected_vreg_method_allowed_(method_name)
+		&& cur->get_name() == perm_string::literal("uvm_vreg"))
+		  return true;
+      }
+
+      return false;
 }
 
 static NetExpr* elaborate_root_indexed_method_target_expr_(const LineInfo*li,

@@ -23,14 +23,14 @@ jobs:
     - name: Install dependencies
       run: |
         brew install bison
-        pip3 install --break-system-packages docopt
+        pip3 install --break-system-packages docopt || pip3 install docopt
 
     - name: Build, check and install
       run: |
-        export PATH="/usr/local/opt/bison/bin:$PATH"
+        export PATH="$(brew --prefix bison)/bin:$PATH"
         autoconf
         ./configure --enable-libveriuser
-        make -j$(nproc) check
+        make -j$(sysctl -n hw.logicalcpu) check
         sudo make install
 
     - name: Test
@@ -100,17 +100,16 @@ jobs:
         install: >
           git
           base-devel
-          python-pip
+          mingw-w64-${{ matrix.env }}-python-pip
           mingw-w64-${{ matrix.env }}-perl
 
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '>=3.5'
+    - name: Install Python dependencies
+      run: pip3 install docopt
 
     - name: Build and check
       run: |
         cd msys2
-        if [ ${{ matrix.msystem }} != "CLANG64" ] ; then
+        if [ "${{ matrix.msystem }}" != "CLANG64" ] ; then
             export IVL_CONFIG_OPTIONS="--enable-libveriuser"
         fi
         makepkg-mingw --noconfirm --noprogressbar -sCLf
@@ -120,7 +119,7 @@ jobs:
 
     - name: Test
       run: |
-        if [ ${{ matrix.msystem }} = "CLANG64" ] ; then
+        if [ "${{ matrix.msystem }}" = "CLANG64" ] ; then
             ./.github/test.sh no-pli1
         else
             ./.github/test.sh
