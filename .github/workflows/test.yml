@@ -22,7 +22,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        brew install bison
+        brew install bison z3
         pip3 install --break-system-packages docopt || pip3 install docopt
 
     - name: Build, check and install
@@ -54,7 +54,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update -qq
-        sudo apt install -y make g++ git bison flex gperf libreadline-dev libbz2-dev autoconf python3-sphinx python3-docopt
+        sudo apt install -y make g++ git bison flex gperf libreadline-dev libbz2-dev autoconf python3-sphinx python3-docopt libz3-dev
 
     - name: Build, check and install
       run: |
@@ -102,6 +102,7 @@ jobs:
           base-devel
           mingw-w64-${{ matrix.env }}-python-pip
           mingw-w64-${{ matrix.env }}-perl
+          mingw-w64-${{ matrix.env }}-z3
 
     - name: Install Python dependencies
       run: pip3 install docopt
