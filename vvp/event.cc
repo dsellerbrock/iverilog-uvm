@@ -373,6 +373,11 @@ vthread_t vvp_fun_edge_aa::add_waiting_thread(vthread_t thread)
       return tmp;
 }
 
+void vvp_fun_edge_aa::recv_object(vvp_net_ptr_t, vvp_object_t, vvp_context_t)
+{
+      // Silently ignore object values on automatic edge events.
+}
+
 void vvp_fun_edge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                 vvp_context_t context)
 {

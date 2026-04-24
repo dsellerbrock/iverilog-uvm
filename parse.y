@@ -1090,13 +1090,25 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %%
 
 
-  /* IEEE1800-2005: A.1.2 */
+/* IEEE1800-2005: A.1.2 */
   /* source_text ::= [ timeunits_declaration ] { description } */
-source_text
-  : timeunits_declaration_opt
-      { pform_set_scope_timescale(yyloc); }
-    description_list
-  | /* empty */
+ source_text
+   : timeunits_declaration_opt
+       { pform_set_scope_timescale(yyloc); }
+     file_import_list description_list
+   | timeunits_declaration_opt
+       { pform_set_scope_timescale(yyloc); }
+     description_list
+   | /* empty */
+   ;
+
+file_import_list
+  : file_import_item
+  | file_import_list file_import_item
+  ;
+
+file_import_item
+  : package_import_declaration
   ;
 
 assert_or_assume
@@ -9972,30 +9984,14 @@ statement_item /* This is roughly statement_item in the LRM */
       }
 	    block_item_decls_opt
 	      {
-	        if (!$2) {
-		      if ($4) {
-			    pform_block_decls_requires_sv();
-		      } else {
-			    /* If there are no declarations in the scope then just delete it. */
-			    pform_pop_scope();
-			    assert(! current_block_stack.empty());
-			    PBlock*tmp = current_block_stack.top();
-			    current_block_stack.pop();
-			    delete tmp;
-		      }
-		}
+		if (!$2 && $4) pform_block_decls_requires_sv();
 	      }
 	    statement_or_null_list_opt K_end label_opt
 	      { PBlock*tmp;
-		if ($2 || $4) {
-		      pform_pop_scope();
-		      assert(! current_block_stack.empty());
-		      tmp = current_block_stack.top();
-	      current_block_stack.pop();
-	} else {
-	      tmp = new PBlock(PBlock::BL_SEQ);
-	      FILE_NAME(tmp, @1);
-	}
+		pform_pop_scope();
+		assert(! current_block_stack.empty());
+		tmp = current_block_stack.top();
+		current_block_stack.pop();
 	if ($6) tmp->set_statement(*$6);
 	delete $6;
 	check_end_label(@8, "block", $2, $8);
@@ -10015,31 +10011,15 @@ statement_item /* This is roughly statement_item in the LRM */
       }
 	    block_item_decls_opt
 	      {
-	        if (!$2) {
-		      if ($4) {
-			    pform_requires_sv(@4, "Variable declaration in unnamed block");
-		      } else {
-			    /* If there are no declarations in the scope then just delete it. */
-			    pform_pop_scope();
-			    assert(! current_block_stack.empty());
-			    PBlock*tmp = current_block_stack.top();
-			    current_block_stack.pop();
-			    delete tmp;
-		      }
-		}
+		if (!$2 && $4) pform_requires_sv(@4, "Variable declaration in unnamed block");
 	      }
 	    statement_or_null_list_opt join_keyword label_opt
 	      { PBlock*tmp;
-		if ($2 || $4) {
-		      pform_pop_scope();
-		      assert(! current_block_stack.empty());
-		      tmp = current_block_stack.top();
-	      current_block_stack.pop();
-	      tmp->set_join_type($7);
-	} else {
-	      tmp = new PBlock($7);
-	      FILE_NAME(tmp, @1);
-	}
+		pform_pop_scope();
+		assert(! current_block_stack.empty());
+		tmp = current_block_stack.top();
+		current_block_stack.pop();
+		tmp->set_join_type($7);
 	if ($6) tmp->set_statement(*$6);
 	delete $6;
 	check_end_label(@8, "fork", $2, $8);

@@ -210,6 +210,10 @@ class vvp_fun_edge_aa : public vvp_fun_edge, public automatic_hooks_s {
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t context) override;
+      // Silently ignore object values on automatic edge events (e.g. VIF
+      // handle changes from compile-progress stubs hooked to events).
+      void recv_object(vvp_net_ptr_t port, vvp_object_t val,
+                       vvp_context_t context) override;
 
     private:
       __vpiScope*context_scope_;

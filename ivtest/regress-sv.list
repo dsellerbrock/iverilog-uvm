@@ -1070,3 +1070,4 @@ sv_string_cmp_empty1 normal,-g2012 ivltests
 sv_class_getter_handle_wait1 normal,-g2012 ivltests
 sv_mailbox_blocking_peek1 normal
 sv_mailbox_try_int1 normal
+sv_class_function_fork_task1 normal,-g2012 ivltests
