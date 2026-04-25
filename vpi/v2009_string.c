@@ -449,6 +449,169 @@ static PLI_INT32 realtoa_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+static PLI_INT32 compare_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv;
+      vpiHandle str1_arg, str2_arg;
+      s_vpi_value value;
+      char buf1[4096], buf2[4096];
+
+      int case_insensitive = (name && strstr(name, "icompare")) ? 1 : 0;
+
+      argv = vpi_iterate(vpiArgument, callh);
+      assert(argv);
+      str1_arg = vpi_scan(argv);
+      assert(str1_arg);
+      str2_arg = vpi_scan(argv);
+      vpi_free_object(argv);
+
+      value.format = vpiStringVal;
+      vpi_get_value(str1_arg, &value);
+      strncpy(buf1, value.value.str ? value.value.str : "", sizeof(buf1)-1);
+      buf1[sizeof(buf1)-1] = '\0';
+
+      if (str2_arg) {
+	    value.format = vpiStringVal;
+	    vpi_get_value(str2_arg, &value);
+	    strncpy(buf2, value.value.str ? value.value.str : "", sizeof(buf2)-1);
+	    buf2[sizeof(buf2)-1] = '\0';
+      } else {
+	    buf2[0] = '\0';
+      }
+
+      int res;
+      if (case_insensitive) {
+	    /* icompare: case-insensitive */
+	    char*p1 = buf1, *p2 = buf2;
+	    while (*p1 && *p2 && tolower((unsigned char)*p1) == tolower((unsigned char)*p2)) {
+		  p1++; p2++;
+	    }
+	    res = tolower((unsigned char)*p1) - tolower((unsigned char)*p2);
+      } else {
+	    res = strcmp(buf1, buf2);
+      }
+
+      value.format = vpiIntVal;
+      value.value.integer = res;
+      vpi_put_value(callh, &value, 0, vpiNoDelay);
+
+      return 0;
+}
+
+static PLI_INT32 getc_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv;
+      vpiHandle str_arg, idx_arg;
+      s_vpi_value value;
+
+      (void)name;
+
+      argv = vpi_iterate(vpiArgument, callh);
+      assert(argv);
+      str_arg = vpi_scan(argv);
+      assert(str_arg);
+      idx_arg = vpi_scan(argv);
+      vpi_free_object(argv);
+
+      value.format = vpiStringVal;
+      vpi_get_value(str_arg, &value);
+      const char*str = value.value.str ? value.value.str : "";
+
+      int idx = 0;
+      if (idx_arg) {
+	    value.format = vpiIntVal;
+	    vpi_get_value(idx_arg, &value);
+	    idx = value.value.integer;
+      }
+
+      int len = (int)strlen(str);
+      int ch = 0;
+      if (idx >= 0 && idx < len)
+	    ch = (unsigned char)str[idx];
+
+      value.format = vpiIntVal;
+      value.value.integer = ch;
+      vpi_put_value(callh, &value, 0, vpiNoDelay);
+
+      return 0;
+}
+
+static PLI_INT32 toupper_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv;
+      vpiHandle arg;
+      s_vpi_value value;
+
+      (void)name;
+
+      argv = vpi_iterate(vpiArgument, callh);
+      assert(argv);
+      arg = vpi_scan(argv);
+      assert(arg);
+      vpi_free_object(argv);
+
+      value.format = vpiStringVal;
+      vpi_get_value(arg, &value);
+
+      char*buf = 0;
+      if (value.value.str) {
+	    size_t len = strlen(value.value.str);
+	    buf = (char*)malloc(len + 1);
+	    for (size_t ii = 0 ; ii <= len ; ii += 1)
+		  buf[ii] = (char)toupper((unsigned char)value.value.str[ii]);
+      } else {
+	    buf = (char*)malloc(1);
+	    buf[0] = '\0';
+      }
+
+      value.format = vpiStringVal;
+      value.value.str = buf;
+      vpi_put_value(callh, &value, 0, vpiNoDelay);
+      free(buf);
+
+      return 0;
+}
+
+static PLI_INT32 tolower_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv;
+      vpiHandle arg;
+      s_vpi_value value;
+
+      (void)name;
+
+      argv = vpi_iterate(vpiArgument, callh);
+      assert(argv);
+      arg = vpi_scan(argv);
+      assert(arg);
+      vpi_free_object(argv);
+
+      value.format = vpiStringVal;
+      vpi_get_value(arg, &value);
+
+      char*buf = 0;
+      if (value.value.str) {
+	    size_t len = strlen(value.value.str);
+	    buf = (char*)malloc(len + 1);
+	    for (size_t ii = 0 ; ii <= len ; ii += 1)
+		  buf[ii] = (char)tolower((unsigned char)value.value.str[ii]);
+      } else {
+	    buf = (char*)malloc(1);
+	    buf[0] = '\0';
+      }
+
+      value.format = vpiStringVal;
+      value.value.str = buf;
+      vpi_put_value(callh, &value, 0, vpiNoDelay);
+      free(buf);
+
+      return 0;
+}
+
 void v2009_string_register(void)
 {
       s_vpi_systf_data tf_data;
@@ -554,5 +717,55 @@ void v2009_string_register(void)
       tf_data.user_data = "$ivl_string_method$realtoa";
       res = vpi_register_systf(&tf_data);
 
+      vpip_make_systf_system_defined(res);
+
+      tf_data.type      = vpiSysFunc;
+      tf_data.sysfunctype = vpiIntFunc;
+      tf_data.tfname    = "$ivl_string_method$compare";
+      tf_data.calltf    = compare_calltf;
+      tf_data.compiletf = two_arg_compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = "$ivl_string_method$compare";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.type      = vpiSysFunc;
+      tf_data.sysfunctype = vpiIntFunc;
+      tf_data.tfname    = "$ivl_string_method$icompare";
+      tf_data.calltf    = compare_calltf;
+      tf_data.compiletf = two_arg_compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = "$ivl_string_method$icompare";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.type      = vpiSysFunc;
+      tf_data.sysfunctype = vpiIntFunc;
+      tf_data.tfname    = "$ivl_string_method$getc";
+      tf_data.calltf    = getc_calltf;
+      tf_data.compiletf = two_arg_compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = "$ivl_string_method$getc";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.type      = vpiSysFunc;
+      tf_data.sysfunctype = vpiStringFunc;
+      tf_data.tfname    = "$ivl_string_method$toupper";
+      tf_data.calltf    = toupper_calltf;
+      tf_data.compiletf = one_arg_compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = "$ivl_string_method$toupper";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.type      = vpiSysFunc;
+      tf_data.sysfunctype = vpiStringFunc;
+      tf_data.tfname    = "$ivl_string_method$tolower";
+      tf_data.calltf    = tolower_calltf;
+      tf_data.compiletf = one_arg_compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = "$ivl_string_method$tolower";
+      res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 }

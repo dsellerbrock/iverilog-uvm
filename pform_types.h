@@ -435,6 +435,22 @@ struct class_type_t : public data_type_t {
 	// constraint expressions (PEInside, comparisons, etc.).
       std::map<perm_string, std::vector<PExpr*>> constraints;
 
+	// Coverage group definitions (class-embedded covergroups).
+      struct pform_cov_bins_t {
+	    perm_string name;
+	    std::vector<std::pair<PExpr*, PExpr*>> ranges; // [lo, hi] pairs
+      };
+      struct pform_coverpoint_t {
+	    perm_string label;  // coverpoint label (or same as expr name)
+	    PExpr* expr;        // expression being covered (e.g., val)
+	    std::vector<pform_cov_bins_t> bins;
+      };
+      struct pform_covergroup_t {
+	    perm_string name;   // covergroup instance name (e.g., "cg")
+	    std::vector<pform_coverpoint_t> coverpoints;
+      };
+      std::vector<pform_covergroup_t*> covergroups;
+
       ivl_type_t elaborate_type_raw(Design*, NetScope*) const override;
 
       perm_string name;

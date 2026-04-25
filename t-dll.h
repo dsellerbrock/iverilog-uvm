@@ -716,6 +716,8 @@ struct ivl_scope_s {
       ivl_variable_type_t func_type;
       bool func_signed;
       unsigned func_width;
+      bool is_dpi_import;
+      const char*dpi_c_name;
 
       unsigned is_cell;
 

@@ -220,6 +220,42 @@ class netclass_t : public ivl_type_s {
 	    std::string ir;
       };
       std::vector<constraint_ir_t> constraint_irs_;
+
+    public:
+	// Covergroup bin metadata (for synthesized covergroup class types).
+	// Each entry represents one bin: the cp_idx selects which
+	// coverpoint value to sample (matches the order they are pushed
+	// on the vec4 stack at the sample() call site), prop_idx is the
+	// property index in THIS class that holds the bin hit count,
+	// and lo/hi define the inclusive range.
+      struct covgrp_bin_t {
+	    unsigned cp_idx;
+	    unsigned prop_idx;
+	    uint64_t lo;
+	    uint64_t hi;
+      };
+
+      void add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi);
+      size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
+      const covgrp_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
+      bool is_covergroup() const { return is_covergroup_; }
+      void set_is_covergroup(bool f) { is_covergroup_ = f; }
+      unsigned covgrp_ncoverpoints() const { return covgrp_ncoverpoints_; }
+      void set_covgrp_ncoverpoints(unsigned n) { covgrp_ncoverpoints_ = n; }
+
+	// Property index in the PARENT class for each coverpoint
+	// (in coverpoint order). Used at sample() call sites.
+      void add_covgrp_cp_parent_prop(int pidx) { covgrp_cp_parent_props_.push_back(pidx); }
+      int covgrp_cp_parent_prop(unsigned cp_idx) const {
+	    if (cp_idx < covgrp_cp_parent_props_.size()) return covgrp_cp_parent_props_[cp_idx];
+	    return -1;
+      }
+
+    private:
+      std::vector<covgrp_bin_t> covgrp_bins_;
+      std::vector<int> covgrp_cp_parent_props_;
+      bool is_covergroup_ = false;
+      unsigned covgrp_ncoverpoints_ = 0;
 };
 
 inline NetScope*netclass_t::definition_scope(void)

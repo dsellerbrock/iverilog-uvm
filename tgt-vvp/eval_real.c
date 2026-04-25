@@ -354,6 +354,18 @@ static void real_ex_pop(ivl_expr_t expr)
 
 static void draw_sfunc_real(ivl_expr_t expr)
 {
+      /* $ivl_class_method$covgrp_get_inst_coverage(cg_obj)
+       * Pop cg object from obj stack, compute (hit_bins/total_bins)*100.0 */
+      if (ivl_expr_value(expr) == IVL_VT_REAL &&
+          strcmp(ivl_expr_name(expr),
+                 "$ivl_class_method$covgrp_get_inst_coverage") == 0) {
+	    ivl_expr_t obj_arg = (ivl_expr_parms(expr) > 0)
+				  ? ivl_expr_parm(expr, 0) : 0;
+	    if (obj_arg) draw_eval_object(obj_arg);
+	    fprintf(vvp_out, "    %%covgrp/get_inst_coverage;\n");
+	    return;
+      }
+
       switch (ivl_expr_value(expr)) {
 
 	  case IVL_VT_REAL:

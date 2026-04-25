@@ -5522,6 +5522,56 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			noop->set_line(*this);
 			return noop;
 		  }
+
+		  // Covergroup sample(): emit system task that pushes coverpoint
+		  // values (from the parent object's properties) + the cg object,
+		  // then calls %covgrp/sample.
+		  if (method_name == perm_string::literal("sample")) {
+			const netclass_t*cgtype = dynamic_cast<const netclass_t*>(obj_type);
+			if (cgtype && cgtype->is_covergroup()) {
+			      unsigned ncp = cgtype->covgrp_ncoverpoints();
+			      vector<NetExpr*> argv;
+			      // arg 0 = cg object expression
+			      argv.push_back(obj_expr);
+
+			      // args 1..ncp: coverpoint values from parent class
+			      NetNet* this_net = find_implicit_this_handle(des, scope);
+			      if (this_net) {
+				    for (unsigned cpi = 0; cpi < ncp; ++cpi) {
+					  int pp = cgtype->covgrp_cp_parent_prop(cpi);
+					  if (pp >= 0) {
+					      NetESignal* sig = new NetESignal(this_net);
+					      sig->set_line(*this);
+					      NetEProperty* prop = new NetEProperty(sig, pp, nullptr);
+					      prop->set_line(*this);
+					      argv.push_back(prop);
+					  } else {
+					      // Unknown coverpoint: push zero
+					      argv.push_back(new NetEConst(verinum((uint64_t)0, 32)));
+					  }
+				    }
+			      }
+
+			      NetSTask* sys = new NetSTask(
+				    "$ivl_class_method$covgrp_sample",
+				    IVL_SFUNC_AS_TASK_IGNORE, argv);
+			      sys->set_line(*this);
+			      return sys;
+			}
+		  }
+
+		  // Covergroup get_inst_coverage(): handled in elab_expr.cc.
+		  // For task context (e.g. void'(cg.get_inst_coverage())), emit noop.
+		  if (method_name == perm_string::literal("get_inst_coverage")) {
+			const netclass_t*cgtype = dynamic_cast<const netclass_t*>(obj_type);
+			if (cgtype && cgtype->is_covergroup()) {
+			      delete obj_expr;
+			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			      noop->set_line(*this);
+			      return noop;
+			}
+		  }
+
 		    // If an implicit this was added it is not an error if we
 		    // don't find a method. It might actually be a call to a
 		    // function outside of the class.
@@ -9214,6 +9264,80 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    }
 		    if (!ir.empty())
 			  add_constraint_ir(string(cit.first), ir);
+	      }
+
+	      // Elaborate covergroup declarations: synthesize a hidden
+	      // class type for each covergroup with one int property per
+	      // bin (holding the hit count).  The covergroup property on
+	      // the parent class is set to this synthesized type so that
+	      // the normal %new/cobj mechanism can create instances.
+	      for (auto* cgdef : pclass->type->covergroups) {
+		    if (!cgdef) continue;
+
+		    // Build synthesized class name
+		    string cg_cname = string("__covgrp_")
+				      + string(name_.str())
+				      + "_" + string(cgdef->name.str()) + "_t";
+		    perm_string cg_class_pname = lex_strings.make(cg_cname.c_str());
+
+		    netclass_t* cg_class = new netclass_t(cg_class_pname, nullptr);
+		    cg_class->set_scope_ready(true);
+		    cg_class->set_body_elaborated(true);
+		    cg_class->set_is_covergroup(true);
+
+		    unsigned prop_idx = 0;
+		    unsigned cp_idx  = 0;
+		    for (auto& cp : cgdef->coverpoints) {
+			  // Resolve coverpoint expression to a parent property index.
+			  // For now, handle simple identifiers only (most common case).
+			  int parent_prop = -1;
+			  if (const PEIdent* pe = dynamic_cast<const PEIdent*>(cp.expr)) {
+				perm_string cp_var_name = peek_head_name(pe->path());
+				parent_prop = property_idx_from_name(cp_var_name);
+			  }
+			  cg_class->add_covgrp_cp_parent_prop(parent_prop);
+
+			  for (auto& bin : cp.bins) {
+				// Add one int32 property for this bin's hit count
+				string bpname = string("__bin_")
+						+ string(cp.label)
+						+ "_" + string(bin.name);
+				perm_string bpp = lex_strings.make(bpname.c_str());
+				cg_class->set_property(bpp,
+						       property_qualifier_t::make_none(),
+						       &netvector_t::atom2s32);
+
+				// Collect bin ranges and store as metadata
+				for (auto& range : bin.ranges) {
+				      if (!range.first || !range.second) continue;
+				      // Evaluate lo and hi as compile-time constants
+				      NetExpr* lo_e = elab_and_eval(des, class_scope_,
+								    range.first, -1,
+								    false, false);
+				      NetExpr* hi_e = elab_and_eval(des, class_scope_,
+								    range.second, -1,
+								    false, false);
+				      NetEConst* lo_c = dynamic_cast<NetEConst*>(lo_e);
+				      NetEConst* hi_c = dynamic_cast<NetEConst*>(hi_e);
+				      if (lo_c && hi_c) {
+					    uint64_t lo = lo_c->value().as_ulong64();
+					    uint64_t hi = hi_c->value().as_ulong64();
+					    cg_class->add_covgrp_bin(cp_idx, prop_idx, lo, hi);
+				      }
+				      delete lo_e;
+				      delete hi_e;
+				}
+				prop_idx++;
+			  }
+			  cp_idx++;
+		    }
+		    cg_class->set_covgrp_ncoverpoints(cp_idx);
+
+		    // Replace the covergroup property declaration on the
+		    // parent class with a handle to the synthesized class.
+		    set_property(cgdef->name,
+				 property_qualifier_t::make_none(),
+				 cg_class);
 	      }
 
 	      for (map<perm_string,PFunction*>::iterator cur = pclass->funcs.begin()

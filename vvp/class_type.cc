@@ -218,21 +218,27 @@ void class_property_t::warn_unsupported_(const char*op, const char*detail) const
  */
 template <class T> class property_atom : public class_property_t {
     public:
-      inline explicit property_atom(void) { }
+      inline explicit property_atom(size_t as=0) : array_size_(as==0? 1 : as) { }
       ~property_atom() override { }
 
-      size_t instance_size() const override { return sizeof(T); }
+      size_t instance_size() const override { return array_size_ * sizeof(T); }
 
     public:
       void construct(char*buf) const override
       { T*tmp = reinterpret_cast<T*> (buf+offset_);
-	*tmp = 0;
+	for (size_t ii = 0; ii < array_size_; ii += 1)
+	      tmp[ii] = 0;
       }
 
       void set_vec4(char*buf, const vvp_vector4_t&val) override;
       void get_vec4(char*buf, vvp_vector4_t&val) override;
+      void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
+      void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
 
       void copy(char*dst, char*src) override;
+
+    private:
+      size_t array_size_;
 };
 
 class property_bit : public class_property_t {
@@ -515,11 +521,46 @@ template <class T> void property_atom<T>::get_vec4(char*buf, vvp_vector4_t&val)
       val.setarray(0, val.size(), tmp);
 }
 
+template <class T> void property_atom<T>::set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx)
+{
+      if (idx >= array_size_) return;
+      T*tmp = reinterpret_cast<T*> (buf+offset_);
+      bool flag = vector4_to_value(val, tmp[idx], true, false);
+      if (!flag) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr,
+			  "Warning: property_atom::set_vec4 indexed conversion failed;"
+			  " coercing non-numeric value to 0\n");
+		  warned = true;
+	    }
+	    tmp[idx] = 0;
+      }
+}
+
+template <class T> void property_atom<T>::get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx)
+{
+      if (idx >= array_size_) { val = vvp_vector4_t(8*sizeof(T), BIT4_0); return; }
+      T*src = reinterpret_cast<T*> (buf+offset_);
+      const size_t tmp_cnt = sizeof(T)<sizeof(unsigned long)
+			       ? 1
+			       : sizeof(T) / sizeof(unsigned long);
+      unsigned long tmp[tmp_cnt];
+      tmp[0] = (unsigned long)src[idx];
+
+      for (size_t ii = 1 ; ii < tmp_cnt ; ii += 1)
+	    tmp[ii] = (unsigned long)(src[idx] >> (uint64_t)(ii * 8 * sizeof(tmp[0])));
+
+      val.resize(8*sizeof(T));
+      val.setarray(0, val.size(), tmp);
+}
+
 template <class T> void property_atom<T>::copy(char*dst, char*src)
 {
       T*dst_obj = reinterpret_cast<T*> (dst+offset_);
       T*src_obj = reinterpret_cast<T*> (src+offset_);
-      *dst_obj = *src_obj;
+      for (size_t ii = 0; ii < array_size_; ii += 1)
+	    dst_obj[ii] = src_obj[ii];
 }
 
 void property_bit::set_vec4(char*buf, const vvp_vector4_t&val)
@@ -870,21 +911,21 @@ void class_type::set_property(size_t idx, const string&name, const string&type, 
 
       const string&t = type_to_use;
       if (t == "b8")
-	    properties_[idx].type = new property_atom<uint8_t>;
+	    properties_[idx].type = new property_atom<uint8_t>(array_size);
       else if (t == "b16")
-	    properties_[idx].type = new property_atom<uint16_t>;
+	    properties_[idx].type = new property_atom<uint16_t>(array_size);
       else if (t == "b32")
-	    properties_[idx].type = new property_atom<uint32_t>;
+	    properties_[idx].type = new property_atom<uint32_t>(array_size);
       else if (t == "b64")
-	    properties_[idx].type = new property_atom<uint64_t>;
+	    properties_[idx].type = new property_atom<uint64_t>(array_size);
       else if (t == "sb8")
-	    properties_[idx].type = new property_atom<int8_t>;
+	    properties_[idx].type = new property_atom<int8_t>(array_size);
       else if (t == "sb16")
-	    properties_[idx].type = new property_atom<int16_t>;
+	    properties_[idx].type = new property_atom<int16_t>(array_size);
       else if (t == "sb32")
-	    properties_[idx].type = new property_atom<int32_t>;
+	    properties_[idx].type = new property_atom<int32_t>(array_size);
       else if (t == "sb64")
-	    properties_[idx].type = new property_atom<int64_t>;
+	    properties_[idx].type = new property_atom<int64_t>(array_size);
       else if (t == "r")
 	    properties_[idx].type = new property_real<double>;
       else if (t == "S")
@@ -1267,6 +1308,25 @@ void compile_class_constraint(char*name, char*ir)
       compile_class->add_constraint(string(name), string(ir));
       delete[]name;
       delete[]ir;
+}
+
+void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,
+				uint64_t lo, uint64_t hi)
+{
+      cov_bin_t b;
+      b.cp_idx   = cp_idx;
+      b.prop_idx = prop_idx;
+      b.lo       = lo;
+      b.hi       = hi;
+      covgrp_bins_.push_back(b);
+}
+
+void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
+			      uint64_t lo, uint64_t hi)
+{
+      assert(compile_class);
+      compile_class->add_covgrp_bin((unsigned)cp_idx, (unsigned)prop_idx,
+				    lo, hi);
 }
 
 void compile_class_done(void)

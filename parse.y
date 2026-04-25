@@ -781,6 +781,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
       inside_range_t* irange;
       std::list<inside_range_t>* irange_list;
+      class_type_t::pform_coverpoint_t* coverpoint;
+      std::list<class_type_t::pform_coverpoint_t*>* coverpoints;
+      class_type_t::pform_cov_bins_t* cov_bins;
+      std::list<class_type_t::pform_cov_bins_t*>* cov_bins_list;
 };
 
 %token <text>      IDENTIFIER SYSTEM_IDENTIFIER STRING TIME_LITERAL
@@ -974,6 +978,11 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <irange> inside_value_range
 %type <irange_list> inside_range_list
+
+%type <coverpoint>  covergroup_item
+%type <coverpoints> covergroup_item_list covergroup_item_list_opt
+%type <cov_bins>    bins_item
+%type <cov_bins_list> bins_item_list bins_item_list_opt
 
 %type <expr>  constraint_expression constraint_block_item
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
@@ -1884,6 +1893,19 @@ class_item /* IEEE1800-2005: A.1.8 */
 
   | class_constraint
 
+    /* Class covergroups (functional coverage) */
+
+  | K_covergroup IDENTIFIER ';' covergroup_item_list_opt K_endgroup
+      { pform_class_covergroup(@1, $2, $4);
+	delete[] $2;
+      }
+
+  | K_covergroup IDENTIFIER ';' error K_endgroup
+      { yyerror(@1, "error: Errors in covergroup body.");
+	yyerrok;
+	delete[] $2;
+      }
+
     /* Here are some error matching rules to help recover from various
        syntax errors within a class declaration. */
 
@@ -2154,6 +2176,107 @@ constraint_set /* IEEE1800-2005 A.1.9 */
   : constraint_expression
   | '{' constraint_expression_list '}'
   ;
+
+/* ========= Covergroup grammar (functional coverage) ========= */
+
+covergroup_item_list_opt
+  :
+      { $$ = nullptr; }
+  | covergroup_item_list
+      { $$ = $1; }
+  ;
+
+covergroup_item_list
+  : covergroup_item_list covergroup_item
+      { if ($2) $1->push_back($2);
+	$$ = $1;
+      }
+  | covergroup_item
+      { $$ = new std::list<class_type_t::pform_coverpoint_t*>();
+	if ($1) $$->push_back($1);
+      }
+  ;
+
+/* Labeled coverpoint: "cp: coverpoint expr { ... }" */
+covergroup_item
+  : IDENTIFIER ':' K_coverpoint expression '{' bins_item_list_opt '}'
+      { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
+	cp->label = lex_strings.make($1);
+	cp->expr  = $4;
+	if ($6) {
+	      for (auto* b : *$6) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $6;
+	}
+	delete[] $1;
+	$$ = cp;
+      }
+  /* Unlabeled coverpoint: "coverpoint expr { ... }" */
+  | K_coverpoint expression '{' bins_item_list_opt '}'
+      { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
+	cp->label = perm_string::literal("cp");
+	cp->expr  = $2;
+	if ($4) {
+	      for (auto* b : *$4) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $4;
+	}
+	$$ = cp;
+      }
+  ;
+
+bins_item_list_opt
+  :
+      { $$ = nullptr; }
+  | bins_item_list
+      { $$ = $1; }
+  ;
+
+bins_item_list
+  : bins_item_list bins_item
+      { if ($2) $1->push_back($2);
+	$$ = $1;
+      }
+  | bins_item
+      { $$ = new std::list<class_type_t::pform_cov_bins_t*>();
+	if ($1) $$->push_back($1);
+      }
+  ;
+
+/* "bins name = { [lo:hi], ... };" */
+bins_item
+  : K_bins IDENTIFIER '=' '{' inside_range_list '}' ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	for (auto& r : *$5) {
+	      if (r.is_range && r.lo && r.hi)
+		    b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	      else if (!r.is_range && r.hi) {
+		    /* single value: treat as [val:val] range */
+		    PExpr* dup = r.hi;  /* reuse the expr for lo */
+		    b->ranges.push_back(std::make_pair(dup, r.hi));
+		    r.hi = nullptr;  /* prevent double-free; lo/hi now same ptr */
+	      }
+	}
+	delete[] $2;
+	delete $5;
+	$$ = b;
+      }
+  | K_ignore_bins IDENTIFIER '=' '{' inside_range_list '}' ';'
+      { /* ignore bins: just discard */
+	delete[] $2;
+	for (auto& r : *$5) { delete r.lo; delete r.hi; }
+	delete $5;
+	$$ = nullptr;
+      }
+  | K_illegal_bins IDENTIFIER '=' '{' inside_range_list '}' ';'
+      { /* illegal bins: just discard */
+	delete[] $2;
+	for (auto& r : *$5) { delete r.lo; delete r.hi; }
+	delete $5;
+	$$ = nullptr;
+      }
+  ;
+
+/* ========= End covergroup grammar ========= */
 
 data_declaration /* IEEE1800-2005: A.2.1.3 */
    : attribute_list_opt K_const_opt data_type list_of_variable_decl_assignments ';'
@@ -3346,6 +3469,7 @@ dpi_import_export_declaration
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
+	current_function->set_dpi_import($6);
 	pform_pop_scope();
 	current_function = 0;
 	if ($2) delete[] $2;

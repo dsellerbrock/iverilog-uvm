@@ -33,6 +33,7 @@ const char COPYRIGHT[] =
 #endif
 
 #include "libvvp.h"
+#include "vvp_dpi.h"
 
 using namespace std;
 
@@ -46,6 +47,8 @@ bool version_flag = false;
 
 unsigned module_cnt = 0;
 const char*module_tab[64];
+static unsigned dpi_lib_cnt = 0;
+static const char*dpi_lib_tab[64];
 
 int main(int argc, char*argv[])
 {
@@ -53,13 +56,14 @@ int main(int argc, char*argv[])
       unsigned flag_errors = 0;
       const char *logfile_name = 0x0;
 
-      while ((opt = getopt(argc, argv, "+hil:M:m:nNqsvV")) != EOF) switch (opt) {
+      while ((opt = getopt(argc, argv, "+d:hil:M:m:nNqsvV")) != EOF) switch (opt) {
          case 'h':
            fprintf(stderr,
                    "Usage: vvp [options] input-file [+plusargs...]\n"
                    "Options:\n"
                    " -h             Print this help message.\n"
                    " -i             Interactive mode (unbuffered stdio).\n"
+                   " -d lib.so      Load DPI shared library.\n"
                    " -l file        Logfile, '-' for <stderr>\n"
                    " -M path        VPI module directory\n"
 		   " -M -           Clear VPI module path\n"
@@ -71,6 +75,9 @@ int main(int argc, char*argv[])
                    " -v             Verbose progress messages.\n"
                    " -V             Print the version information.\n" );
            exit(0);
+	  case 'd':
+	    dpi_lib_tab[dpi_lib_cnt++] = optarg;
+	    break;
 	  case 'i':
 	    setvbuf(stdout, 0, _IONBF, 0);
 	    break;
@@ -143,6 +150,9 @@ int main(int argc, char*argv[])
 
       for (unsigned idx = 0 ;  idx < module_cnt ;  idx += 1)
 	    vpip_load_module(module_tab[idx]);
+
+      for (unsigned idx = 0 ;  idx < dpi_lib_cnt ;  idx += 1)
+	    vvp_dpi_load_lib(dpi_lib_tab[idx]);
 
       return vvp_run(argv[optind]);
 }

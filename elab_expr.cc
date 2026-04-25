@@ -2322,17 +2322,14 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 	  || method_name == perm_string::literal("get_line_prefix")
 	  || method_name == perm_string::literal("sprint")
 	  || method_name == perm_string::literal("name")
-	  || method_name == perm_string::literal("convert2string")
-	  || method_name == perm_string::literal("toupper"))
+	  || method_name == perm_string::literal("convert2string"))
 	    return CP_EXPR_METHOD_STUB_STRING_EMPTY;
       if (method_name == perm_string::literal("get_inst_id")
 	  || method_name == perm_string::literal("get_max_size")
 	  || method_name == perm_string::literal("len")
-	  || method_name == perm_string::literal("status")
-	  || method_name == perm_string::literal("getc"))
+	  || method_name == perm_string::literal("status"))
 	    return CP_EXPR_METHOD_STUB_INT0;
-      if (method_name == perm_string::literal("compare")
-	  || method_name == perm_string::literal("is_open")
+      if (method_name == perm_string::literal("is_open")
 	  || method_name == perm_string::literal("get_randomize_enabled"))
 	    return CP_EXPR_METHOD_STUB_BOOL0;
 	      if (method_name == perm_string::literal("clone")
@@ -5898,6 +5895,19 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 			}
 		    }
 
+		    // Covergroup get_inst_coverage(): returns real.
+		    if (method_name == perm_string::literal("get_inst_coverage")) {
+			  if (class_type && class_type->is_covergroup()) {
+				// Returns a real value: percentage of bins hit.
+				NetESFunc*sys = new NetESFunc(
+					"$ivl_class_method$covgrp_get_inst_coverage",
+					&netreal_t::type_real, 1);
+				sys->set_line(*this);
+				sys->parm(0, sub_expr);
+				return sys;
+			  }
+		    }
+
 		    NetScope*method = class_type->resolve_method_call_scope(des, method_name);
 		    if (method == 0) {
 			  // Handle randomize() as a real built-in: emit %randomize opcode
@@ -6084,18 +6094,63 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  return sys_expr;
 	    }
 
+	    if (method_name == "compare" || method_name == "icompare") {
+		  const char*sysname = (method_name == "compare")
+				       ? "$ivl_string_method$compare"
+				       : "$ivl_string_method$icompare";
+		  static const std::vector<perm_string> cmp_parm_names = {
+			perm_string::literal("s")
+		  };
+		  auto args = map_named_args(des, cmp_parm_names, parms_);
+		  NetESFunc*sys_expr = new NetESFunc(sysname,
+						     netvector_t::integer_type(), 2);
+		  sys_expr->set_line(*this);
+		  sys_expr->parm(0, sub_expr);
+		  if (args[0]) {
+			NetExpr*s2_e = elaborate_rval_expr(des, scope,
+							   &netstring_t::type_string,
+							   args[0], false);
+			sys_expr->parm(1, s2_e);
+		  } else {
+			sys_expr->parm(1, new NetECString(string()));
+		  }
+		  return sys_expr;
+	    }
+
 	    if (method_name == "getc") {
-		  delete sub_expr;
-		  NetEConst*tmp = make_const_val(0);
-		  tmp->set_line(*this);
-		  return tmp;
+		  static const std::vector<perm_string> getc_parm_names = {
+			perm_string::literal("i")
+		  };
+		  auto args = map_named_args(des, getc_parm_names, parms_);
+		  NetESFunc*sys_expr = new NetESFunc("$ivl_string_method$getc",
+						     netvector_t::integer_type(), 2);
+		  sys_expr->set_line(*this);
+		  sys_expr->parm(0, sub_expr);
+		  if (args[0]) {
+			NetExpr*idx_e = elaborate_rval_expr(des, scope,
+							    &netvector_t::atom2u32,
+							    args[0], false);
+			sys_expr->parm(1, idx_e);
+		  } else {
+			sys_expr->parm(1, make_const_val(0));
+		  }
+		  return sys_expr;
 	    }
 
 	    if (method_name == "toupper") {
-		  delete sub_expr;
-		  NetECString*tmp = new NetECString(string());
-		  tmp->set_line(*this);
-		  return tmp;
+		  NetESFunc*sys_expr = new NetESFunc("$ivl_string_method$toupper",
+						     &netstring_t::type_string, 1);
+		  sys_expr->set_line(*this);
+		  sys_expr->parm(0, sub_expr);
+		  return sys_expr;
+	    }
+
+	    if (method_name == "tolower") {
+		  NetESFunc*sys_expr = new NetESFunc("$ivl_string_method$tolower",
+						     &netstring_t::type_string, 1);
+		  sys_expr->set_line(*this);
+		  sys_expr->parm(0, sub_expr);
+		  return sys_expr;
 	    }
 
 	    cerr << get_fileline() << ": error: Method " << method_name
