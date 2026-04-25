@@ -5693,6 +5693,13 @@ NetProc* PCallTask::elaborate_function_(Design*des, NetScope*scope) const
 	    }
       }
 
+	// When a package_ pointer is set (from PACKAGE_IDENTIFIER::func grammar),
+	// look up the function directly in the package scope.
+      if (!func && package_) {
+	    if (NetScope*pkg_scope = des->find_package(package_->pscope_name()))
+		  func = des->find_function(pkg_scope, path_);
+      }
+
 	// This is not a function, so this task call cannot be a function
 	// call with a missing return assignment.
       if (!func)

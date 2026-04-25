@@ -1058,7 +1058,8 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
       } else if (cast_type == IVL_VT_NO_TYPE) {
 	    compatible = true;
       } else {
-	    compatible = cast_type == expr_type;
+	    compatible = cast_type == expr_type ||
+	                (type_is_vectorable(cast_type) && type_is_vectorable(expr_type));
       }
 
       if (!compatible) {

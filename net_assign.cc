@@ -71,7 +71,7 @@ NetAssign_::~NetAssign_()
 		  sig_->type(NetNet::WIRE);
       }
 
-      ivl_assert(*this, more == 0 );
+      delete more;
       delete word_;
 }
 

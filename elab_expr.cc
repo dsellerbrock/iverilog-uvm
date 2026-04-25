@@ -1018,19 +1018,48 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 {
       auto &members = struct_type->members();
 
-      if (members.size() != parms_.size()) {
-	    cerr << get_fileline() << ": error: Struct assignment pattern expects "
-	         << members.size() << " element(s) in this context.\n"
-	         << get_fileline() << ":      : Found "
-		 << parms_.size() << " element(s)." << endl;
-	    des->errors++;
-      }
+      vector<NetExpr*> items(members.size(), nullptr);
 
-      vector<NetExpr*> items(parms_.size(), nullptr);
-      for (size_t idx = 0; idx < std::min(parms_.size(), members.size()); idx += 1)
-	    items[idx] = elaborate_rval_expr(des, scope,
-					     members[idx].net_type,
-					     parms_[idx], need_const);
+      if (!parm_names_.empty()) {
+	    // Named member pattern: '{field: val, ..., default: val}
+	    // Build a name→expr map; "default" key supplies missing members.
+	    map<perm_string, PExpr*> name_map;
+	    for (size_t ii = 0; ii < parm_names_.size(); ii++)
+		  name_map[parm_names_[ii]] = parms_[ii];
+
+	    static const perm_string def_key = lex_strings.make("default");
+	    PExpr*dflt = nullptr;
+	    auto dit = name_map.find(def_key);
+	    if (dit != name_map.end()) dflt = dit->second;
+
+	    for (size_t idx = 0; idx < members.size(); idx++) {
+		  auto it = name_map.find(members[idx].name);
+		  PExpr*src = (it != name_map.end()) ? it->second : dflt;
+		  if (!src) {
+			cerr << get_fileline() << ": error: Named struct pattern "
+			     << "has no value for member '"
+			     << members[idx].name << "'." << endl;
+			des->errors++;
+		  } else {
+			items[idx] = elaborate_rval_expr(des, scope,
+							 members[idx].net_type,
+							 src, need_const);
+		  }
+	    }
+      } else {
+	    // Positional pattern
+	    if (members.size() != parms_.size()) {
+		  cerr << get_fileline() << ": error: Struct assignment pattern expects "
+		       << members.size() << " element(s) in this context.\n"
+		       << get_fileline() << ":      : Found "
+		       << parms_.size() << " element(s)." << endl;
+		  des->errors++;
+	    }
+	    for (size_t idx = 0; idx < std::min(parms_.size(), members.size()); idx += 1)
+		  items[idx] = elaborate_rval_expr(des, scope,
+						   members[idx].net_type,
+						   parms_[idx], need_const);
+      }
 
       if (!struct_type->packed()) {
 	    NetEArrayPattern *res = new NetEArrayPattern(struct_type, items);
@@ -1038,7 +1067,7 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	    return res;
       }
 
-      NetEConcat *neconcat = new NetEConcat(parms_.size(), 1, struct_type->base_type());
+      NetEConcat *neconcat = new NetEConcat(items.size(), 1, struct_type->base_type());
       for (size_t idx = 0; idx < items.size(); idx += 1)
 	    if (items[idx])
 		  neconcat->set(idx, items[idx]);
@@ -3637,6 +3666,12 @@ bool calculate_part(const LineInfo*li, Design*des, NetScope*scope,
 	    wid = lsb;
 	    off = msb;
 	    break;
+
+	  case index_component_t::SEL_PART_LAST:
+	    // [lo:$] — use lo as both offset and width=1 (approximation)
+	    off = msb;
+	    wid = 1;
+	    return true;
 
 	  default:
 	    ivl_assert(*li, 0);
@@ -7135,6 +7170,9 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 		       << "Queue/Darray last index ($)" << endl;
 	    }
 	    break;
+	  case index_component_t::SEL_PART_LAST:
+	    // [lo:$] queue slice — width is dynamic; treat as unbounded
+	    break;
 	  default:
 	    ivl_assert(*this, 0);
       }
@@ -10058,6 +10096,14 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
       if (use_sel == index_component_t::SEL_BIT_LAST)
 	    return elaborate_expr_net_bit_last_(des, scope, node, found_in,
 						need_const);
+
+      if (use_sel == index_component_t::SEL_PART_LAST) {
+	    // [lo:$] queue slice — compile-progress fallback: treat as SEL_BIT_LAST
+	    cerr << get_fileline() << ": sorry: [lo:$] queue slice not fully "
+		 << "implemented; using last-element approximation." << endl;
+	    return elaborate_expr_net_bit_last_(des, scope, node, found_in,
+					       need_const);
+      }
 
 	// It's not anything else, so this must be a simple identifier
 	// expression with no part or bit select. Return the signal

@@ -117,7 +117,8 @@ struct pform_port_t {
  * that is the last item in the variable.
  */
 struct index_component_t {
-      enum ctype_t { SEL_NONE, SEL_BIT, SEL_BIT_LAST, SEL_PART, SEL_IDX_UP, SEL_IDX_DO };
+      enum ctype_t { SEL_NONE, SEL_BIT, SEL_BIT_LAST, SEL_PART, SEL_IDX_UP, SEL_IDX_DO,
+		     SEL_PART_LAST /* [lo:$] queue slice to last element */ };
 
       index_component_t() : sel(SEL_NONE), msb(0), lsb(0) { };
       ~index_component_t() { }

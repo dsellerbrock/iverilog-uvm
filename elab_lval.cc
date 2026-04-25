@@ -435,7 +435,8 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	    return 0;
       }
 
-      if (use_sel == index_component_t::SEL_PART) {
+      if (use_sel == index_component_t::SEL_PART ||
+          use_sel == index_component_t::SEL_PART_LAST) {
 	    NetAssign_*lv = new NetAssign_(reg);
 	    elaborate_lval_net_part_(des, scope, lv, is_force);
 	    return lv;
