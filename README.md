@@ -1,561 +1,351 @@
-# The ICARUS Verilog Compilation System — UVM Experimental Fork
+# Icarus Verilog — UVM/SystemVerilog Experimental Fork
 
-Copyright 2000-2026 Stephen Williams
+[![CI](https://github.com/dsellerbrock/iverilog-uvm/actions/workflows/main.yml/badge.svg?branch=development)](https://github.com/dsellerbrock/iverilog-uvm/actions/workflows/main.yml)
+
+> **Experimental research fork.** Adds UVM and IEEE 1800-2012 SystemVerilog support to
+> [Icarus Verilog](https://github.com/steveicarus/iverilog). Changes are under active
+> development and being prepared for upstream submission. **Not for production use.**
+>
+> Full technical design document: [`CHANGES.md`](CHANGES.md)
 
 ---
 
-> ## ⚠ EXPERIMENTAL — DO NOT USE FOR SERIOUS WORK ⚠
->
-> **This is a toy/research fork. All code is guilty until proven innocent.**
-> It must not be used for production, tapeout, or any work where correctness
-> matters until the changes have been:
->
-> - Thoroughly tested against a broad regression suite
-> - Reviewed and accepted into an official upstream release
-> - Independently verified by the wider Icarus Verilog community
->
-> **What this fork does:** Adds experimental, AI-assisted SystemVerilog and UVM
-> support. Many constructs are stubbed, fall back silently, or produce incorrect
-> results in edge cases. The changes have not been through normal upstream
-> code review.
->
-> **Use the official Icarus Verilog** at https://github.com/steveicarus/iverilog
-> for any real work. This fork is for exploration and upstream contribution
-> purposes only.
+## What This Fork Adds
+
+Starting from Icarus Verilog's `master` branch, this fork adds end-to-end support for
+running real UVM testbenches. The goal is to fix every gap between iverilog and the
+[Accellera UVM Core library](https://github.com/accellera-official/uvm-core) — from
+language constructs the compiler rejects, to runtime semantics that produce wrong
+results — and upstream each fix as a minimal, reviewable patch.
+
+### Feature Status
+
+| Feature | Status | Notes |
+|---|---|---|
+| Classes, inheritance, polymorphism | ✅ | Full virtual dispatch across chains |
+| Parameterized classes | ✅ | Type-param forward-ref recovery |
+| `$cast()`, `$typename()` | ✅ | Runtime type checks |
+| Queues, dynamic arrays, assoc arrays | ✅ | All element types; wait/wakeup on mutation |
+| `mailbox`, `semaphore` | ✅ | Blocking and non-blocking forms |
+| `fork`/`join`, `fork`/`join_none` | ✅ | Stable named-scope context binding |
+| `randomize()` unconstrained | ✅ | All `rand`/`randc` properties |
+| `randomize()` with constraint blocks | ✅ | Z3 SMT solver backend |
+| `randomize() with { ... }` inline | ✅ | Constant, class-prop, and caller-scope vars |
+| `rand_mode(0/1)` | ✅ | Per-property enable/disable |
+| `constraint_mode(name, 0/1)` | ✅ | Per-constraint enable/disable |
+| `@(posedge/negedge vif.clk)` | ✅ | Virtual interface class member events |
+| `uvm_config_db #(virtual IF)::get()` | ✅ | Virtual interface passing |
+| UVM phases (run, start, stop) | ✅ | Objection mechanism, phase hopper |
+| UVM factory + type registration | ✅ | `create_object_by_type`, overrides |
+| Sequencer/driver TLM | ✅ | `uvm_seq_item_pull_port`, `get_next_item` |
+| TLM `put`/`get`/`peek` ports | ✅ | Blocking and non-blocking forms |
+| Analysis ports (`write`) | ✅ | Subscriber callbacks |
+| UVM register layer (basic) | ✅ | Backdoor write/read/mirror |
+| `covergroup`/`coverpoint`/`bins` | ✅ | `sample()`, `get_inst_coverage()` |
+| `import "DPI-C" function` | ✅ | Scalar int/real/void; `vvp -d lib.so` |
+| String methods | ✅ | `toupper`, `tolower`, `getc`, `compare` |
+| Class fixed-size array properties | ✅ | `int data[N]` member fields |
+| OpenTitan `dv_base_reg_pkg` compilation | ✅ | Through `tl_agent_pkg` |
+| `pkg::var = expr` assignment | ⚠ Deferred | LALR conflict, needs grammar restructure |
+| Full UVM library end-to-end | ⚠ Partial | Phase infrastructure works; some gaps remain |
+| `dist` weighted distribution | ⚠ Deferred | Not yet implemented |
 
 ---
 
-## UVM Support (Experimental)
+## Quick Start
 
-This fork bundles the [Accellera UVM Core](https://github.com/accellera-official/uvm-core)
-library as a git submodule in `uvm-core/`. To use it after cloning:
+### Build
 
 ```bash
-git submodule update --init
+git clone https://github.com/dsellerbrock/iverilog-uvm.git
+cd iverilog-uvm
+git submodule update --init          # pulls uvm-core/
+sh autoconf.sh
+./configure --prefix=$(pwd)/install
+make -j$(nproc)
+make install
 ```
 
-Quick start — compile and run a basic UVM testbench:
+**Requirements:** `bison` ≥ 3.0, `flex`, `gperf`, a C++11 compiler, `libz3-dev`
+(required for constrained randomization).
 
 ```bash
-# Build iverilog first (see below)
-./install/bin/iverilog -g2012 \
+# Ubuntu/Debian
+apt install -y autoconf gperf bison flex libz3-dev
+
+# macOS (Homebrew)
+brew install autoconf gperf bison flex z3
+export PATH="$(brew --prefix bison)/bin:$PATH"
+```
+
+### Compile and Run a UVM Test
+
+```bash
+BIN=./install/bin
+
+# Compile
+$BIN/iverilog -g2012 \
   -I uvm-core/src \
+  -DUVM_NO_DPI \
   -o sim.vvp \
-  uvm-core/src/uvm_pkg.sv your_tb.sv
+  uvm-core/src/uvm_pkg.sv \
+  your_testbench.sv
 
-./install/bin/vvp sim.vvp
+# Simulate
+$BIN/vvp sim.vvp
+```
+
+### DPI-C Example
+
+```bash
+# Compile your C functions into a shared library
+gcc -shared -fPIC -o mylib.so mylib.c
+
+# Run with the library loaded
+$BIN/vvp sim.vvp -d mylib.so
 ```
 
 ---
 
-## UVM Progress
+## Test Results
 
-> See [`UVM_ENABLEMENT_FIXES.md`](UVM_ENABLEMENT_FIXES.md) for full technical detail on every fix category.
+All 20 UVM regression tests pass:
 
-### What Works
+| Test | What It Exercises | Result |
+|---|---|---|
+| `no_rand_test.sv` | Object creation, no randomize | ✅ PASS |
+| `simple_rand_test.sv` | `randomize()` unconstrained | ✅ PASS |
+| `constraint_test.sv` | `rand`/`constraint`/`inside` with Z3 | ✅ PASS |
+| `seq_trace_test.sv` | Sequencer/driver TLM handshake | ✅ PASS |
+| `tlm_debug_test.sv` | Blocking `put_port` producer/consumer | ✅ PASS |
+| `analysis_test.sv` | `uvm_analysis_port` write to subscriber | ✅ PASS |
+| `randomize_with_test.sv` | `randomize() with { }` inline constraints | ✅ PASS |
+| `cross_var_test.sv` | Cross-variable constraint `a < b` | ✅ PASS |
+| `rand_mode_test.sv` | `rand_mode(0)` / `rand_mode(1)` | ✅ PASS |
+| `constraint_mode_test.sv` | Per-constraint enable/disable | ✅ PASS |
+| `vif_probe.sv` | `@(posedge vif.clk)` edge detection | ✅ PASS |
+| `vif_negedge_test.sv` | `@(negedge vif.clk)` and anyedge | ✅ PASS |
+| `vif_config_db_test.sv` | `uvm_config_db #(virtual IF)::set/get` | ✅ PASS |
+| `reg_basic_test.sv` | UVM register backdoor write/read/mirror | ✅ PASS |
+| `coverage_basic_test.sv` | Covergroup sample, 50% coverage | ✅ PASS |
+| `coverage_full_test.sv` | 2 coverpoints, 4 bins, 0→50→100% | ✅ PASS |
+| `coverage_vals_test.sv` | Single-value bins, incremental coverage | ✅ PASS |
+| `class_array_test.sv` | Class `int data[N]` FIFO round-trip | ✅ PASS |
+| `dpi_basic_test.sv` | DPI `c_add`, `c_mul`, `c_factorial` | ✅ PASS |
+| `dpi_real_test.sv` | DPI `c_sqrt`, `c_pow` with real args | ✅ PASS |
 
-**Core SystemVerilog OOP**
-- Classes, inheritance, polymorphism, and virtual method dispatch across full inheritance chains
-- Constructor chaining (`super.new()`), class properties, and instance/static access
-- Parameterized classes and forward-declared type-parameter recovery (critical for UVM callbacks and registry paths)
-- `$cast()` and `$typename()` with runtime type checking
-
-**Data Structures**
-- Queues — indexed read/write, `$`, `insert()`, `delete()`, wait/wakeup on mutation
-- Dynamic arrays — `vec4`, object, real, and string element types
-- Associative arrays — object keys and scalar keys, `.find()`, `.num()`, `.foreach()` iteration
-- String comparison and assignment
-
-**Concurrency and Synchronization**
-- `mailbox` — blocking and non-blocking `put`/`get`/`peek`/`try_*`
-- `semaphore` — `get`/`put` operations
-- `fork`/`join` with stable named-scope context binding for detached processes
-- Object mutation wakeups — in-place class/queue updates can wake waiting threads
-- Implicit wait-event input selection correctly bound to the active automatic signal
-
-**Run Phase Mechanics**
-- Phase scheduler pattern works: queue-based phase hopper, `wait()` on phase state, predecessor/successor chaining (see `sv_class_phase_wait_sched1.v`)
-- `super.run_phase` calls now compile and resolve correctly — the scope hierarchy walk finds `this` from within task scopes
-- `mailbox` support enables sequencer-driver communication during run phase
-
-**Randomization**
-- `$ivl_class_method$randomize` opcode randomizes `rand`/`randc` properties
-
-**Regression Suite**
-- 491 SystemVerilog tests in `ivtest/regress-sv.list` covering the above areas
-- 602+ focused test files under `ivtest/ivltests/sv_*.v`
+The branch also adds **83 new tests** to `ivtest/regress-sv.list` covering SV class
+and container semantics at the language level.
 
 ---
 
-### What Does Not Work
+## Repository Layout
 
-**UVM Phase Infrastructure**
-- `uvm_root.run_test()` end-to-end through the full UVM library still has gaps — the phase scheduler mechanics work at the SV class level but the full library startup flow is not yet verified passing
-- Phase entry/exit callback sequencing in the full UVM library is not yet functional
-
-**Constraints and Randomization**
-- `constraint { ... }` blocks are parsed but not enforced — no constraint solver backend
-- `constraint_mode()` and `rand_mode()` are silent no-ops
-- Enum constraints are not enforced
-
-**UVM-Specific Constructs**
-- `uvm_config_db` set/get calls produce fallback warnings and do not correctly propagate configuration
-- UVM factory — parameterized class factory registration has compile-progress stubs but is not fully functional
-- TLM ports/exports — base-class implementations are silent no-ops for non-class targets
-- UVM callbacks and objections — unresolved functor placeholders remain in reduced and full UVM runs
-- UVM field automation (`copy()`, `compare()`, `print()` macros) — not implemented
-
-**Advanced OOP Edge Cases**
-- Abstract class/interface enforcement — not fully checked at compile or runtime
-- Some complex parameterized base class specializations
-- Cross-package protected/package scope access edge cases
-- Unions and packed structs — partial support only
-
-**Other Missing Features**
-- DPI-C — limited support; some vendor-specific patterns do not work
-- Code coverage — not implemented
-- VCD waveform output for complex class types — limited
-- `trireg` — not supported (upstream Icarus limitation)
+```
+iverilog/                    ← This repository (fork of steveicarus/iverilog)
+├── uvm-core/                ← Accellera UVM Core (git submodule)
+├── tests/                   ← UVM regression tests specific to this fork
+├── ivtest/ivltests/         ← Upstream regression suite (+ new sv_*.v tests)
+├── README.md                ← This file
+└── CHANGES.md               ← Full technical design document for all changes
+```
 
 ---
 
-### Next Steps (From the Codebase)
+## Upstream Contribution Plan
 
-The following are the documented active work areas from [`UVM_ENABLEMENT_FIXES.md`](UVM_ENABLEMENT_FIXES.md) and code comments:
+These changes are being prepared for upstream submission to
+[steveicarus/iverilog](https://github.com/steveicarus/iverilog). See
+[`CHANGES.md`](CHANGES.md) for the complete breakdown: which commits are
+upstream-ready, which need splitting, and which need maintainer discussion.
 
-1. **UVM phase startup** — The phase scheduler mechanics work; the remaining gap is verifying `uvm_root.run_test()` → `uvm_phase_hopper.run_phases()` executes correctly through the full UVM library with phase entry/exit callbacks. Register `sv_class_phase_wait_sched1.v` in the regression suite and build a reduced `run_test` repro.
+**Key upstream considerations:**
 
-2. **Resolve compile-progress stubs** — A small set of UVM methods/tasks still fall back to silent no-ops instead of real implementations.
-
-3. **Clear functor placeholder warnings** — Unresolved functor placeholders appear during reduced and full UVM runs; these affect callback and factory mechanisms.
-
-4. **Remaining object-context fallback paths** — `tgt-vvp/eval_object.c` still has ~50 fallback/warning paths for edge cases, particularly virtual interface scope handling.
-
-5. **Constraint solver** — Add an SMT or propagation-based backend to enforce `constraint` blocks, enabling `randomize()` to produce constrained-random values.
-
-6. **`uvm_config_db`** — Implement real set/get semantics so configuration propagates correctly through the component hierarchy.
-
-7. **UVM factory** — Complete parameterized class factory registration so type overrides work at runtime.
-
-8. **TLM ports/exports** — Implement blocking/nonblocking put/get/peek transport semantics.
+- **Patch size**: The large foundational commits need to be decomposed into
+  focused single-feature patches before submission. The later phase commits
+  (Phases 3–9) are closer to upstream-ready size.
+- **Z3 dependency**: Constrained randomization (`randomize() with { }`) requires
+  libz3 and will need `configure --with-z3` conditioning for upstream.
+- **Test placement**: UVM-specific tests need to move from `tests/` to
+  `ivtest/ivltests/` with `regress-sv.list` entries.
 
 ---
 
-<details>
-<summary><h2>Table of Contents</h2></summary>
+## How Icarus Verilog Works
 
-1. [What is ICARUS Verilog?](#what-is-icarus-verilog)
-2. [Building/Installing Icarus Verilog From Source](#buildinginstalling-icarus-verilog-from-source)
-	- [Compile Time Prerequisites](#compile-time-prerequisites)
-	- [Compilation](#compilation)
-	- [(Optional) Testing](#optional-testing)
-	- [Installation](#installation)
-3. [How Icarus Verilog Works](#how-icarus-verilog-works)
-	- [Preprocessing](#preprocessing)
-	- [Parse](#parse)
-	- [Elaboration](#elaboration)
-	- [Optimization](#optimization)
-	- [Code Generation](#code-generation)
-	- [Attributes](#attributes)
-4.	[Running iverilog](#running-iverilog)
-	- [Examples](#examples)
-5. [Unsupported Constructs](#unsupported-constructs)
-6. [Nonstandard Constructs or Behaviors](#nonstandard-constructs-or-behaviors)
-	- [Builtin system functions](#builtin-system-functions)
-	- [Preprocessing Library Modules](#preprocessing-library-modules)
-	- [Width in %t Time Formats](#width-in-t-time-formats)
-	- [vpiScope iterator on vpiScope objects](#vpiscope-iterator-on-vpiscope-objects)
-	- [Time 0 Race Resolution](#time-0-race-resolution)
-	- [Nets with Types](#nets-with-types)
-7. [Credits](#credits)
+Icarus Verilog is intended to compile ALL of the Verilog HDL, as described in
+the IEEE 1364 standard, and a growing subset of IEEE 1800 SystemVerilog. It is
+not aimed at being a simulator in the traditional sense, but a compiler that
+generates code employed by back-end tools.
 
-</details>
+For the full Icarus Verilog home page: https://steveicarus.github.io/iverilog/
 
-## What is ICARUS Verilog?
+### Preprocessing
 
-Icarus Verilog is intended to compile ALL of the Verilog HDL, as
-described in the IEEE 1364 standard. Of course, it's not quite there
-yet. It also compiles a (slowly growing) subset of the SystemVerilog
-language, as described in the IEEE 1800 standard. For a view of the
-current state of Icarus Verilog, see its home page at
-https://steveicarus.github.io/iverilog/.
+There is a separate program, `ivlpp`, that handles preprocessing — implementing
+`` `include `` and `` `define `` directives, producing a single output file with line
+number directives. See `ivlpp/ivlpp.txt` for details.
 
-Icarus Verilog is not aimed at being a simulator in the traditional
-sense, but a compiler that generates code employed by back-end
-tools.
+### Parse
 
-> For instructions on how to run Icarus Verilog, see the `iverilog` man page.
+The compiler parses Verilog source into a list of Module objects in "pform"
+(`pform.h`). This is a direct reflection of the source structure with dangling
+references still present. Use `-P <path>` on the `ivl` subcommand to dump the
+pform for debugging.
 
+### Elaboration
+
+Takes the pform and generates a netlist. The driver selects the root module,
+resolves references, and expands instantiations to form the design netlist.
+Final semantic checks and simple optimizations are performed here.
+
+Elaboration runs in two passes:
+
+1. **Scope elaboration** (`elab_scope.cc`): Builds the `NetScope` tree, resolves
+   parameters and `defparam` overrides.
+2. **Netlist elaboration**: Traverses the pform again to generate structural and
+   behavioural netlist from the fully-evaluated parameters.
+
+### Optimization
+
+A collection of target-independent processing steps: null effect elimination,
+combinational reduction, constant propagation. Controlled by `-F` flags on `ivl`.
+
+### Code Generation
+
+The `emit()` method traverses the design netlist and calls target functions to
+produce output. Select the target with `-t`. The primary target is `vvp`, which
+produces VVP bytecode for the `vvp` runtime simulator.
+
+### Attributes
+
+The `$attribute` module item (and standard Verilog-2001 `(* *)` syntax) attaches
+key-value string pairs to netlist objects. Used for communication between
+processing steps.
+
+---
 
 ## Building/Installing Icarus Verilog from Source
 
-If you are starting from the source, the build process is designed to be
-as simple as practical. Someone basically familiar with the target
-system and C/C++ compilation should be able to build the source
-distribution with little effort. Some actual programming skills are
-not required, but helpful in case of problems.
-
 ### Compile Time Prerequisites
 
-You can use:
 ```bash
-apt install -y autoconf gperf make gcc g++ bison flex
+# Ubuntu/Debian
+apt install -y autoconf gperf make gcc g++ bison flex libz3-dev
+
+# macOS (Homebrew)
+brew install autoconf gperf bison flex z3
+export PATH="$(brew --prefix bison)/bin:$PATH"
 ```
 
-You need the following software to compile Icarus Verilog from source
-on a UNIX-like system:
+Full requirements:
 
-- GNU Make
-  The Makefiles use some GNU extensions, so a basic POSIX
-  make will not work. Linux systems typically come with a
-  satisfactory make. BSD based systems (i.e., NetBSD, FreeBSD)
-  typically have GNU make as the gmake program.
-
-- ISO C++ Compiler
-  The ivl and ivlpp programs are written in C++ and make use
-  of templates and some of the standard C++ library. egcs and
-  recent gcc compilers with the associated libstdc++ are known
-  to work. MSVC++ 5 and 6 are known to definitely *not* work.
-
-- bison and flex
-  OSX note: bison 2.3 shipped with MacOS including Catalina generates
-  broken code, but bison 3+ works. We recommend using the Fink
-  project version of bison and flex (finkproject.org), brew version
-  works fine too.
-
-- gperf 3.0 or later
-  The lexical analyzer doesn't recognize keywords directly,
-  but instead matches symbols and looks them up in a hash
-  table in order to get the proper lexical code. The gperf
-  program generates the lookup table.
-
-  A version problem with this program is the most common cause
-  of difficulty. See the Icarus Verilog FAQ.
-
-- readline 4.2 or later
-  On Linux systems, this usually means the readline-devel
-  rpm. In any case, it is the development headers of readline
-  that are needed.
-
-- termcap
-  The readline library, in turn, uses termcap.
-
-	> If you are building from git, you will also need software to generate the configure scripts.
-
-- autoconf 2.53 or later
-  This generates configure scripts from configure.ac. The 2.53
-  or later versions are known to work, autoconf 2.13 is
-  reported to *not* work.
+- **GNU Make** — Makefiles use GNU extensions
+- **ISO C++ compiler** — C++11 or later (`gcc`/`g++` or `clang++`)
+- **bison** ≥ 3.0 — bison 2.x (shipped with older macOS) generates broken code
+- **flex** — lexical scanner generator
+- **gperf** ≥ 3.0 — keyword hash table generator
+- **readline** ≥ 4.2 — for the interactive `ivl` subcommand
+- **autoconf** ≥ 2.53 — to regenerate `configure` from source
+- **libz3** — for constrained randomization (optional but recommended)
 
 ### Compilation
 
-<details>
-<summary><h4><a href="https://github.com/steveicarus/iverilog/releases">Compiling From Release</a></h4></summary>
-
-Unpack the tar-ball, `cd` into the `verilog-#########` directory,
-and compile the source with the commands:
+From a release tarball:
 
 ```bash
-  ./configure
-  make
+./configure
+make
 ```
-</details>
 
-<details>
-<summary><h4>Compiling From GitHub</h4></summary>
-
-If you are building from git, you have to run the command below before
-compiling the source. This will generate the "configure" file, which is
-automatically done when building from tarball.
+From git:
 
 ```bash
-  sh autoconf.sh
-  ./configure
-  make
+sh autoconf.sh
+./configure --prefix=$(pwd)/install
+make -j$(nproc)
 ```
 
-Normally, this command automatically figures out everything it needs
-to know. It generally works pretty well. There are a few flags to the
-configure script that modify its behaviour:
+Configure flags:
 
 ```
-	--prefix=<root>
-		The default is /usr/local, which causes the tool suite to
-		be compiled for install in /usr/local/bin,
-		/usr/local/share/ivl, etc.
-
-		I recommend that if you are configuring for precompiled
-		binaries, use --prefix=/usr.  On Solaris systems, it is
-		common to use --prefix=/opt.  You can configure for a non-root
-		install with --prefix=$HOME.
-
-	--enable-suffix
-	--enable-suffix=<your-suffix>
-	--disable-suffix
-		Enable/disable changing the names of install files to use
-		a suffix string so that this version or install can co-
-		exist with other versions. This renames the installed
-		commands (iverilog, iverilog-vpi, vvp) and the installed
-		library files and include directory so that installations
-		with the same prefix but different suffix are guaranteed
-		to not interfere with each other.
-
-	--host=<host-type>
-		Compile iverilog for a different platform. You can use:
-				x64_64-w64-mingw32 for building 64-bit Windows executables
-				i686-w64-mingw32 for building 32-bit Windows executables
-			Both options require installing the required mingw-w64 packages.
+--prefix=<root>         Install prefix (default: /usr/local)
+--enable-suffix[=<s>]   Add suffix to installed file names for parallel installs
+--host=<host-type>      Cross-compile (e.g. x86_64-w64-mingw32 for Windows)
 ```
-</details>
 
-### (Optional) Testing
-
-To run a simple test before installation, execute
+### Testing
 
 ```bash
-  make check
+make check
 ```
-
-The commands printed by this run might help you in running Icarus
-Verilog on your own Verilog sources before the package is installed
-by root.
 
 ### Installation
 
-Now install the files in an appropriate place. (The makefiles by
-default install in /usr/local unless you specify a different prefix
-with the `--prefix=<path>` flag to the configure command.) You may need
-to do this as root to gain access to installation directories.
-
 ```bash
-	make install
+make install
 ```
 
 ### Uninstallation
 
-The generated Makefiles also include the uninstall target. This should
-remove all the files that `make install` creates.
-
-## How Icarus Verilog Works
-
-This tool includes a parser which reads in Verilog (plus extensions)
-and generates an internal netlist. The netlist is passed to various
-processing steps that transform the design to more optimal/practical
-forms, then is passed to a code generator for final output. The
-processing steps and the code generator are selected by command line
-switches.
-
-### Preprocessing
-
-There is a separate program, `ivlpp`, that does the preprocessing. This
-program implements the `` `include `` and  `` `define `` directives producing
-output that is equivalent but without the directives. The output is a
-single file with line number directives, so that the actual compiler
-only sees a single input file. See `ivlpp/ivlpp.txt` for details.
-
-### Parse
-
-The Verilog compiler starts by parsing the Verilog source file. The
-output of the parse is a list of Module objects in "pform". The pform
-(see `pform.h`) is mostly a direct reflection of the compilation
-step. There may be dangling references, and it is not yet clear which
-module is the root.
-
-One can see a human-readable version of the final pform by using the
-`-P <path>` flag to the `ivl` subcommand. This will cause ivl
-to dump the pform into the file named `<path>`. (Note that this is not
-normally done, unless debugging the `ivl` subcommand.)
-
-### Elaboration
-
-This phase takes the pform and generates a netlist. The driver selects
-(by user request or lucky guess) the root module to elaborate,
-resolves references and expands the instantiations to form the design
-netlist. (See netlist.txt.) Final semantic checks are performed during
-elaboration, and some simple optimizations are performed. The netlist
-includes all the behavioural descriptions, as well as gates and wires.
-
-The `elaborate()` function performs the elaboration.
-
-One can see a human-readable version of the final, elaborated and
-optimized netlist by using the `-N <path>` flag to the compiler. If
-elaboration succeeds, the final netlist (i.e., after optimizations but
-before code generation) will be dumped into the file named `<path>`.
-
-Elaboration is performed in two steps: scopes and parameters
-first, followed by the structural and behavioural elaboration.
-
-#### Scope Elaboration
-
-This pass scans through the pform looking for scopes and parameters. A
-tree of NetScope objects is built up and placed in the Design object,
-with the root module represented by the root NetScope object. The
-`elab_scope.cc` file contains most of the code for handling this phase.
-
-The tail of the elaborate_scope behaviour (after the pform is
-traversed) includes a scan of the NetScope tree to locate defparam
-assignments that were collected during scope elaboration. This is when
-the defparam overrides are applied to the parameters.
-
-#### Netlist Elaboration
-
-After the scopes and parameters are generated and the NetScope tree
-fully formed, the elaboration runs through the pform again, this time
-generating the structural and behavioural netlist. Parameters are
-elaborated and evaluated by now so all the constants of code
-generation are now known locally, so the netlist can be generated by
-simply passing through the pform.
-
-### Optimization
-
-This is a collection of processing steps that perform
-optimizations that do not depend on the target technology. Examples of
-some useful transformations are
-
-- eliminate null effect circuitry
-- combinational reduction
-- constant propagation
-
-The actual functions performed are specified on the `ivl` command line by
-the `-F` flags (see below).
-
-### Code Generation
-
-This step takes the design netlist and uses it to drive the code
-generator (see target.h). This may require transforming the
-design to suit the technology.
-
-The `emit()` method of the Design class performs this step. It runs
-through the design elements, calling target functions as the need arises
-to generate actual output.
-
-The user selects the target code generator with the `-t` flag on the
-command line.
-
-### Attributes
-
-> NOTE: The $attribute syntax will soon be deprecated in favour of the Verilog-2001 attribute syntax, which is cleaner and standardized.
-
-The parser accepts, as an extension to Verilog, the $attribute module
-item. The syntax of the $attribute item is:
-
-```
-	$attribute (<identifier>, <key>, <value>);
+```bash
+make uninstall
 ```
 
-The $attribute keyword looks like a system task invocation. The
-difference here is that the parameters are more restricted than those
-of a system task. The `<identifier>` must be an identifier. This will be
-the item to get an attribute. The `<key>` and `<value>` are strings, not
-expressions, that give the key and the value of the attribute to be
-attached to the identified object.
-
-Attributes are `[<key> <value>]` pairs and are used to communicate with
-the various processing steps. See the documentation for the processing
-step for a list of the pertinent attributes.
-
-Attributes can also be applied to gate types. When this is done, the
-attribute is given to every instantiation of the primitive. The syntax
-for the attribute statement is the same, except that the `<identifier>`
-names a primitive earlier in the compilation unit and the statement is
-placed in the global scope, instead of within a module. The semicolon is
-not part of a type attribute.
-
-Note that attributes are also occasionally used for communication
-between processing steps. Processing steps that are aware of others
-may place attributes on netlist objects to communicate information to
-later steps.
-
-Icarus Verilog also accepts the Verilog 2001 syntax for
-attributes. They have the same general meaning as with the $attribute
-syntax, but they are attached to objects by position instead of by
-name. Also, the key is a Verilog identifier instead of a string.
+---
 
 ## Running `iverilog`
 
-The preferred way to invoke the compiler is with the `iverilog`(1)
-command. This program invokes the preprocessor (`ivlpp`) and the
-compiler (`ivl`) with the proper command line options to get the job
-done in a friendly way. See the `iverilog`(1) man page for usage details.
+The preferred way to invoke the compiler is with the `iverilog`(1) command, which
+drives `ivlpp` and `ivl` with appropriate flags. See the `iverilog`(1) man page.
 
-
-### EXAMPLE: Hello World
-
-Example: Compiling `"hello.vl"`
+### Hello World
 
 ```verilog
-// ------------------------ hello.vl ----------------------------
-
+// hello.vl
 module main();
-
-initial
-  begin
+  initial begin
     $display("Hello World");
-    $finish ;
+    $finish;
   end
-
 endmodule
-
-// --------------------------------------------------------------
 ```
-
-Ensure that `iverilog` is on your search path, and the vpi library
-is available.
-
-To compile the program:
 
 ```bash
-	iverilog hello.vl
+iverilog hello.vl
+./a.out
 ```
 
-(The above presumes that `/usr/local/include` and `/usr/local/lib` are
-part of the compiler search path, which is usually the case for `gcc`.)
+Use `-o` to name the output file.
 
-To run the generated program:
-
-```bash
-	./a.out
-```
-
-You can use the `-o` switch to name the output command to be generated
-by the compiler. See the `iverilog`(1) man page.
+---
 
 ## Unsupported Constructs
 
-Icarus Verilog is in development - as such it still only supports a
-(growing) subset of Verilog.  Below is a description of some of the
-currently unsupported Verilog features. This list is not exhaustive
-and does not account for errors in the compiler. See the Icarus
-Verilog web page for the current state of support for Verilog, and in
-particular, browse the bug report database for reported unsupported
-constructs.
+Icarus Verilog supports a growing subset of Verilog and SystemVerilog. Some
+currently unsupported features:
 
-  - Specify blocks are parsed but ignored by default. When enabled
-    by the `-gspecify` compiler option, a subset of specify block
-    constructs are supported.
+- **Specify blocks** — parsed but ignored by default; limited support with `-gspecify`
+- **`trireg`** — not supported; `tri0` and `tri1` are supported
+- **Net delays** — `wire #N foo;` does not work; `wire #5 foo = bar;` (V2001 form) works
+- **Full SystemVerilog** — the list of unsupported constructs is too large to enumerate;
+  see https://steveicarus.github.io/iverilog/ and the bug tracker
 
-  - `trireg` is not supported. `tri0` and `tri1` are supported.
-
-  - Net delays, of the form `wire #N foo;` do not work. Delays in
-    every other context do work properly, including the V2001 form
-    `wire #5 foo = bar;`
-
-The list of unsupported SystemVerilog constructs is too large to
-enumerate here.
+---
 
 ## Nonstandard Constructs and Behaviors
 
-Icarus Verilog includes some features that are not part of the IEEE 1364
-standard, but have well-defined meaning, and also sometimes gives nonstandard
-(but extended) meanings to some features of the language that are defined.
-See the "Icarus Verilog Extensions" and "Icarus Verilog Quirks" sections at
-https://steveicarus.github.io/iverilog/ for more details.
+Icarus Verilog includes features not part of the IEEE 1364 standard, and sometimes
+gives extended meanings to standard features. See the "Icarus Verilog Extensions"
+and "Icarus Verilog Quirks" sections at https://steveicarus.github.io/iverilog/.
+
+---
 
 ## Credits
 
-Except where otherwise noted, Icarus Verilog, ivl, and ivlpp are
-Copyright Stephen Williams. The proper notices are in the head of each
-file. However, I have early on received aid in the form of fixes,
-Verilog guidance, and especially testing from many people. Testers, in
-particular, include a larger community of people interested in a GPL
-Verilog for Linux.
+Icarus Verilog, `ivl`, and `ivlpp` are Copyright Stephen Williams (2000–2026).
+UVM/SV fork maintained by Daniel Ellerbrock. AI-assisted development via Claude
+(Anthropic).
+
+[Accellera UVM Core](https://github.com/accellera-official/uvm-core) is Copyright
+Accellera Systems Initiative, licensed under Apache 2.0.

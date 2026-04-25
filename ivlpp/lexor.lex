@@ -651,12 +651,15 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 }
 
 <MA_START>. {
-    emit_pathline(istack);
-    fprintf(stderr, "error: missing argument list for `%s.\n", macro_name());
-    error_count += 1;
-
-    yy_pop_state();
-    yyless(0);
+    /* Skip SV token-paste `` delimiter -- a backtick here is always
+       the first of a `` pair, so just discard it and keep waiting for '(' */
+    if (yytext[0] == '`') { /* skip */ } else {
+        emit_pathline(istack);
+        fprintf(stderr, "error: missing argument list for `%s.\n", macro_name());
+        error_count += 1;
+        yy_pop_state();
+        yyless(0);
+    }
 }
 
 <MA_ADD>\"([^\"\\\n\r]|\\.|\\\n|\\\r\n|\\\r)*\" { macro_add_to_arg(0); }
