@@ -286,5 +286,16 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    }
       }
 
+      {
+	    int nb = ivl_type_covgrp_bins(classtype);
+	    for (idx = 0 ; idx < nb ; idx += 1) {
+		  fprintf(vvp_out, " .covgrp_bin %u %u %" PRIu64 " %" PRIu64 "\n",
+			  ivl_type_covgrp_bin_cp(classtype, idx),
+			  ivl_type_covgrp_bin_prop(classtype, idx),
+			  ivl_type_covgrp_bin_lo(classtype, idx),
+			  ivl_type_covgrp_bin_hi(classtype, idx));
+	    }
+      }
+
       fprintf(vvp_out, " ;\n");
 }

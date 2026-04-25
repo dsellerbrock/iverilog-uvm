@@ -2243,6 +2243,18 @@ extern "C" unsigned ivl_scope_is_auto(ivl_scope_t net)
       return net->is_auto;
 }
 
+extern "C" int ivl_scope_is_dpi_import(ivl_scope_t net)
+{
+      assert(net);
+      return net->is_dpi_import ? 1 : 0;
+}
+
+extern "C" const char*ivl_scope_dpi_c_name(ivl_scope_t net)
+{
+      assert(net);
+      return net->dpi_c_name;
+}
+
 extern "C" unsigned ivl_scope_is_cell(ivl_scope_t net)
 {
       assert(net);
@@ -3490,6 +3502,54 @@ extern "C" const char* ivl_type_constraint_ir(ivl_type_t net, int idx)
       if (class_type && idx >= 0)
 	    return class_type->constraint_ir_str((size_t)idx).c_str();
       return "";
+}
+
+extern "C" int ivl_type_covgrp_bins(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && class_type->is_covergroup())
+	    return (int)class_type->covgrp_bin_count();
+      return 0;
+}
+
+extern "C" int ivl_type_covgrp_ncoverpoints(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && class_type->is_covergroup())
+	    return (int)class_type->covgrp_ncoverpoints();
+      return 0;
+}
+
+extern "C" unsigned ivl_type_covgrp_bin_cp(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_bin((size_t)idx).cp_idx;
+      return 0;
+}
+
+extern "C" unsigned ivl_type_covgrp_bin_prop(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_bin((size_t)idx).prop_idx;
+      return 0;
+}
+
+extern "C" uint64_t ivl_type_covgrp_bin_lo(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_bin((size_t)idx).lo;
+      return 0;
+}
+
+extern "C" uint64_t ivl_type_covgrp_bin_hi(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_bin((size_t)idx).hi;
+      return 0;
 }
 
 extern "C" int ivl_type_signed(ivl_type_t net)

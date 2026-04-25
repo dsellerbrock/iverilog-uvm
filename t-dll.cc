@@ -25,6 +25,7 @@
 # include  <cstring>
 # include  <cstdio> // sprintf()
 # include  "compiler.h"
+# include  "PTask.h"
 # include  "t-dll.h"
 # include  "netclass.h"
 # include  "netqueue.h"
@@ -111,6 +112,8 @@ ivl_scope_s::ivl_scope_s()
 {
       func_signed = false;
       func_width = 0;
+      is_dpi_import = false;
+      dpi_c_name = 0;
 }
 
 /*
@@ -620,6 +623,13 @@ static void fill_in_scope_function(ivl_scope_t scope, const NetScope*net)
       }
 
       scope->tname_ = def->scope()->basename();
+
+      if (const PFunction*pfunc = net->func_pform()) {
+            if (pfunc->is_dpi_import()) {
+                  scope->is_dpi_import = true;
+                  scope->dpi_c_name = pfunc->dpi_c_name().c_str();
+            }
+      }
 }
 
 void dll_target::add_root(const NetScope *s)

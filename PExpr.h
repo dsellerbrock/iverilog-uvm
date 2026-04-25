@@ -204,6 +204,7 @@ class PEAssignPattern : public PExpr {
     public:
       explicit PEAssignPattern();
       explicit PEAssignPattern(const std::list<PExpr*>&p);
+      explicit PEAssignPattern(const std::list<std::pair<perm_string,PExpr*>>&named);
       ~PEAssignPattern() override;
 
       void dump(std::ostream&) const override;
@@ -236,6 +237,7 @@ class PEAssignPattern : public PExpr {
 
     private:
       std::vector<PExpr*>parms_;
+      std::vector<perm_string>parm_names_; // non-empty → named member pattern
 };
 
 class PEConcat : public PExpr {

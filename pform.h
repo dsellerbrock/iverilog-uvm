@@ -197,6 +197,14 @@ extern void pform_class_constraint(const struct vlltype&loc,
 				    const char*name,
 				    std::list<PExpr*>*items);
 
+// covergroup declaration inside a class body.
+// coverpoints is a list<pform_covergroup_t::pform_coverpoint_t*> built by parse.y.
+// Takes ownership of the list; each element is move-constructed into covergroup.
+#include "pform_types.h"
+extern void pform_class_covergroup(const struct vlltype&loc,
+				    const char*name,
+				    std::list<class_type_t::pform_coverpoint_t*>*coverpoints);
+
 extern void pform_make_udp(const struct vlltype&loc, perm_string name,
 			   std::list<pform_ident_t>*parms,
 			   std::vector<PWire*>*decl, std::list<std::string>*table,

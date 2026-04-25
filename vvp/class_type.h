@@ -19,6 +19,7 @@
  *    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+# include  <cstdint>
 # include  <string>
 # include  <vector>
 # include  "vpi_priv.h"
@@ -112,6 +113,21 @@ class class_type : public __vpiHandle {
 	    std::string ir;
       };
       std::vector<constraint_t> constraints_;
+
+    public:
+      struct cov_bin_t {
+	    unsigned cp_idx;
+	    unsigned prop_idx;
+	    uint64_t lo;
+	    uint64_t hi;
+      };
+      void add_covgrp_bin(unsigned cp_idx, unsigned prop_idx, uint64_t lo, uint64_t hi);
+      size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
+      const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
+      bool is_covergroup() const { return !covgrp_bins_.empty(); }
+
+    private:
+      std::vector<cov_bin_t> covgrp_bins_;
 };
 
 const class_type* class_type_from_dispatch_prefix(const std::string&prefix);

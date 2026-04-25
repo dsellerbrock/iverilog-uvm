@@ -105,6 +105,14 @@ PEAssignPattern::PEAssignPattern(const list<PExpr*>&p)
 {
 }
 
+PEAssignPattern::PEAssignPattern(const list<pair<perm_string,PExpr*>>&named)
+{
+      for (auto&kv : named) {
+	    parm_names_.push_back(kv.first);
+	    parms_.push_back(kv.second);
+      }
+}
+
 PEAssignPattern::~PEAssignPattern()
 {
 }

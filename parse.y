@@ -739,6 +739,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       std::list<struct_member_t*>*struct_members;
       struct_type_t*struct_type;
 
+      std::list<std::pair<perm_string,PExpr*>>*named_pattern;
+
       data_type_t*data_type;
       class_type_t*class_type;
       real_type_t::type_t real_type;
@@ -781,6 +783,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
       inside_range_t* irange;
       std::list<inside_range_t>* irange_list;
+      class_type_t::pform_coverpoint_t* coverpoint;
+      std::list<class_type_t::pform_coverpoint_t*>* coverpoints;
+      class_type_t::pform_cov_bins_t* cov_bins;
+      std::list<class_type_t::pform_cov_bins_t*>* cov_bins_list;
 };
 
 %token <text>      IDENTIFIER SYSTEM_IDENTIFIER STRING TIME_LITERAL
@@ -906,7 +912,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <text> event_variable label_opt class_declaration_endlabel_opt
 %type <text> block_identifier_opt
-%type <text> identifier_name
+%type <text> identifier_name bins_name package_cg_port_prefix
 %type <identifiers> event_variable_list
 %type <identifiers> class_type_parameter_port_list class_type_parameter_port_list_opt
 %type <identifiers> class_type_parameter_port_item
@@ -962,6 +968,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <spec_optional_args> timeskew_fullskew_opt_remain_active_flag
 
 %type <expr>  assignment_pattern expression expression_opt expr_mintypmax
+%type <named_pattern> assignment_pattern_named_list
 %type <expr>  expr_primary_or_typename expr_primary
 %type <expr>  class_new dynamic_array_new
 %type <expr>  var_decl_initializer_opt initializer_opt
@@ -974,6 +981,11 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <irange> inside_value_range
 %type <irange_list> inside_range_list
+
+%type <coverpoint>  covergroup_item
+%type <coverpoints> covergroup_item_list covergroup_item_list_opt
+%type <cov_bins>    bins_item
+%type <cov_bins_list> bins_item_list bins_item_list_opt
 
 %type <expr>  constraint_expression constraint_block_item
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
@@ -1137,10 +1149,38 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | K_LP assignment_pattern_named_list '}'
+      { PEAssignPattern*tmp = new PEAssignPattern(*$2);
+	FILE_NAME(tmp, @1);
+	delete $2;
+	$$ = tmp;
+      }
   | K_LP '}'
       { PEAssignPattern*tmp = new PEAssignPattern;
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
+      }
+  ;
+
+  /* Named member assignment pattern: '{field: val, ..., default: val} */
+assignment_pattern_named_list
+  : IDENTIFIER ':' expression
+      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
+	$$->push_back(std::make_pair(lex_strings.make($1), $3));
+	delete[] $1;
+      }
+  | K_default ':' expression
+      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
+	$$->push_back(std::make_pair(lex_strings.make("default"), $3));
+      }
+  | assignment_pattern_named_list ',' IDENTIFIER ':' expression
+      { $1->push_back(std::make_pair(lex_strings.make($3), $5));
+	delete[] $3;
+	$$ = $1;
+      }
+  | assignment_pattern_named_list ',' K_default ':' expression
+      { $1->push_back(std::make_pair(lex_strings.make("default"), $5));
+	$$ = $1;
       }
   ;
 
@@ -1690,16 +1730,16 @@ class_item /* IEEE1800-2005: A.1.8 */
 	pform_pop_scope();
 	current_function = 0;
       }
-  | K_extern method_qualifier_opt K_function data_type_or_implicit_or_void
+  | K_extern method_qualifier_opt K_function lifetime_opt data_type_or_implicit_or_void
     IDENTIFIER
-      { current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED); }
+      { current_function = pform_push_function_scope(@3, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
-      { current_function->set_ports($7);
-	current_function->set_return($4);
-	pform_set_this_class(@5, current_function);
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
-	delete[] $5;
+	delete[] $6;
       }
   | K_extern method_qualifier_opt K_task IDENTIFIER
       { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED); }
@@ -1719,15 +1759,15 @@ class_item /* IEEE1800-2005: A.1.8 */
 	pform_pop_scope();
 	current_function = 0;
       }
-  | K_extern K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED); }
+  | K_extern K_virtual K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@3, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
-      { current_function->set_ports($7);
-	current_function->set_return($4);
-	pform_set_this_class(@5, current_function);
+      { current_function->set_ports($8);
+	current_function->set_return($5);
+	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
-	delete[] $5;
+	delete[] $6;
       }
   | K_extern K_virtual K_task IDENTIFIER
       { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED); }
@@ -1747,16 +1787,16 @@ class_item /* IEEE1800-2005: A.1.8 */
 	pform_pop_scope();
 	current_function = 0;
       }
-  | K_extern class_item_qualifier_opt method_qualifier_opt K_function data_type_or_implicit_or_void
+  | K_extern class_item_qualifier_opt method_qualifier_opt K_function lifetime_opt data_type_or_implicit_or_void
     IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
-      { current_function->set_ports($8);
-	current_function->set_return($5);
-	pform_set_this_class(@6, current_function);
+      { current_function->set_ports($9);
+	current_function->set_return($6);
+	pform_set_this_class(@7, current_function);
 	pform_pop_scope();
 	current_function = 0;
-	delete[] $6;
+	delete[] $7;
       }
   | K_extern class_item_qualifier_opt method_qualifier_opt K_task IDENTIFIER
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
@@ -1776,15 +1816,15 @@ class_item /* IEEE1800-2005: A.1.8 */
 	pform_pop_scope();
 	current_function = 0;
       }
-  | K_extern K_virtual class_item_qualifier_opt K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+  | K_extern K_virtual class_item_qualifier_opt K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
-      { current_function->set_ports($8);
-	current_function->set_return($5);
-	pform_set_this_class(@6, current_function);
+      { current_function->set_ports($9);
+	current_function->set_return($6);
+	pform_set_this_class(@7, current_function);
 	pform_pop_scope();
 	current_function = 0;
-	delete[] $6;
+	delete[] $7;
       }
   | K_extern K_virtual class_item_qualifier_opt K_task IDENTIFIER
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
@@ -1804,15 +1844,15 @@ class_item /* IEEE1800-2005: A.1.8 */
 	pform_pop_scope();
 	current_function = 0;
       }
-  | K_extern class_item_qualifier_opt K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+  | K_extern class_item_qualifier_opt K_virtual K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
-      { current_function->set_ports($8);
-	current_function->set_return($5);
-	pform_set_this_class(@6, current_function);
+      { current_function->set_ports($9);
+	current_function->set_return($6);
+	pform_set_this_class(@7, current_function);
 	pform_pop_scope();
 	current_function = 0;
-	delete[] $6;
+	delete[] $7;
       }
   | K_extern class_item_qualifier_opt K_virtual K_task IDENTIFIER
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
@@ -1841,25 +1881,25 @@ class_item /* IEEE1800-2005: A.1.8 */
 	pform_pop_scope();
 	current_function = 0;
       }
-  | K_extern K_protected K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+  | K_extern K_protected K_virtual K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
-      { current_function->set_ports($8);
-	current_function->set_return($5);
-	pform_set_this_class(@6, current_function);
+      { current_function->set_ports($9);
+	current_function->set_return($6);
+	pform_set_this_class(@7, current_function);
 	pform_pop_scope();
 	current_function = 0;
-	delete[] $6;
+	delete[] $7;
       }
-  | K_extern K_virtual K_protected K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+  | K_extern K_virtual K_protected K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER
+      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
-      { current_function->set_ports($8);
-	current_function->set_return($5);
-	pform_set_this_class(@6, current_function);
+      { current_function->set_ports($9);
+	current_function->set_return($6);
+	pform_set_this_class(@7, current_function);
 	pform_pop_scope();
 	current_function = 0;
-	delete[] $6;
+	delete[] $7;
       }
   | K_extern K_protected K_virtual K_task IDENTIFIER
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
@@ -1883,6 +1923,45 @@ class_item /* IEEE1800-2005: A.1.8 */
     /* Class constraints... */
 
   | class_constraint
+
+    /* Class covergroups (functional coverage) */
+
+  | K_covergroup IDENTIFIER ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_class_covergroup(@1, $2, $4);
+	delete[] $2; if ($6) delete[] $6;
+      }
+
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_class_covergroup(@1, $2, $5);
+	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
+      }
+
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER tf_port_list_parens_opt ';'
+    covergroup_item_list_opt K_endgroup label_opt
+      { pform_class_covergroup(@1, $2, $9);
+	delete[] $2; if ($3) delete $3; delete[] $6; if ($7) delete $7;
+	if ($11) delete[] $11;
+      }
+
+  | K_covergroup IDENTIFIER ';' error K_endgroup label_opt
+      { yyerror(@1, "error: Errors in covergroup body.");
+	yyerrok;
+	delete[] $2; if ($6) delete[] $6;
+      }
+
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt ';' error K_endgroup label_opt
+      { yyerror(@1, "error: Errors in covergroup body.");
+	yyerrok;
+	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
+      }
+
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER
+    tf_port_list_parens_opt ';' error K_endgroup label_opt
+      { yyerror(@1, "error: Errors in covergroup body.");
+	yyerrok;
+	delete[] $2; if ($3) delete $3; delete[] $6; if ($7) delete $7;
+	if ($11) delete[] $11;
+      }
 
     /* Here are some error matching rules to help recover from various
        syntax errors within a class declaration. */
@@ -2073,6 +2152,8 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 constraint_block_item /* IEEE1800-2005 A.1.9 */
   : constraint_expression
       { $$ = $1; }
+  | error ';'
+      { yyerrok; $$ = nullptr; }
   ;
 
 constraint_block_item_list
@@ -2118,6 +2199,16 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
       { $$ = nullptr; }
   | K_foreach '(' IDENTIFIER '[' loop_variables ']' ')' constraint_set
       { $$ = nullptr; delete[] $3; }
+  /* soft constraint: soft expression; — priority modifier, silently accepted */
+  | K_soft expression ';'
+      { $$ = $2; }
+  | K_soft expression K_dist '{' dist_list_opt '}' ';'
+      { $$ = $2; }
+  /* implication with soft: A -> soft B; (-> is K_TRIGGER when not followed by '{') */
+  | expression K_TRIGGER K_soft expression ';'
+      { delete $1; $$ = $4; }
+  | expression K_TRIGGER K_soft expression K_dist '{' dist_list_opt '}' ';'
+      { delete $1; $$ = $4; }
   ;
 
 dist_list_opt
@@ -2148,12 +2239,247 @@ constraint_expression_list /* */
 constraint_prototype /* IEEE1800-2005: A.1.9 */
   : K_static_opt K_constraint IDENTIFIER ';'
       { yyerror(@2, "sorry: Constraint prototypes not supported."); }
+  /* extern constraint name; — out-of-body definition (not yet supported) */
+  | K_extern K_constraint IDENTIFIER ';'
+      { /* silently accept extern constraint prototype */ delete[] $3; }
+  | K_extern K_static K_constraint IDENTIFIER ';'
+      { /* silently accept extern static constraint prototype */ delete[] $4; }
   ;
 
 constraint_set /* IEEE1800-2005 A.1.9 */
   : constraint_expression
   | '{' constraint_expression_list '}'
   ;
+
+/* ========= Covergroup grammar (functional coverage) ========= */
+
+covergroup_item_list_opt
+  :
+      { $$ = nullptr; }
+  | covergroup_item_list
+      { $$ = $1; }
+  ;
+
+covergroup_item_list
+  : covergroup_item_list covergroup_item
+      { if ($2) $1->push_back($2);
+	$$ = $1;
+      }
+  | covergroup_item
+      { $$ = new std::list<class_type_t::pform_coverpoint_t*>();
+	if ($1) $$->push_back($1);
+      }
+  ;
+
+/* Labeled coverpoint: "cp: coverpoint expr { ... }" */
+covergroup_item
+  : IDENTIFIER ':' K_coverpoint expression '{' bins_item_list_opt '}'
+      { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
+	cp->label = lex_strings.make($1);
+	cp->expr  = $4;
+	if ($6) {
+	      for (auto* b : *$6) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $6;
+	}
+	delete[] $1;
+	$$ = cp;
+      }
+  /* Labeled coverpoint without bins block: "cp: coverpoint expr;" (auto-bins) */
+  | IDENTIFIER ':' K_coverpoint expression ';'
+      { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
+	cp->label = lex_strings.make($1);
+	cp->expr  = $4;
+	delete[] $1;
+	$$ = cp;
+      }
+  /* Unlabeled coverpoint: "coverpoint expr { ... }" */
+  | K_coverpoint expression '{' bins_item_list_opt '}'
+      { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
+	cp->label = perm_string::literal("cp");
+	cp->expr  = $2;
+	if ($4) {
+	      for (auto* b : *$4) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $4;
+	}
+	$$ = cp;
+      }
+  /* Unlabeled coverpoint without bins block: "coverpoint expr;" (auto-bins) */
+  | K_coverpoint expression ';'
+      { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
+	cp->label = perm_string::literal("cp");
+	cp->expr  = $2;
+	$$ = cp;
+      }
+  /* option.foo = expr; and type_option.foo = expr; — silently accept */
+  | IDENTIFIER '.' IDENTIFIER '=' expression ';'
+      { delete[] $1; delete[] $3; delete $5; $$ = nullptr; }
+  /* cross declaration: cross cp1, cp2, ...; — silently accept */
+  | K_cross cross_item_list ';'
+      { $$ = nullptr; }
+  /* Error recovery: skip unrecognized covergroup items */
+  | error ';'
+      { yyerrok; $$ = nullptr; }
+  ;
+
+bins_item_list_opt
+  :
+      { $$ = nullptr; }
+  | bins_item_list
+      { $$ = $1; }
+  ;
+
+bins_item_list
+  : bins_item_list bins_item
+      { if ($2) $1->push_back($2);
+	$$ = $1;
+      }
+  | bins_item
+      { $$ = new std::list<class_type_t::pform_cov_bins_t*>();
+	if ($1) $$->push_back($1);
+      }
+  ;
+
+/* bins_name: identifier (true/false/etc are plain IDENTIFIER in our lexer) */
+bins_name
+  : IDENTIFIER   { $$ = $1; }
+  | K_default    { $$ = dup_cstr("default"); }
+  ;
+
+/* "bins name = { [lo:hi], ... };" — also handles indexed [N] and with() forms */
+bins_item
+  : K_bins bins_name '=' '{' inside_range_list '}' ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	for (auto& r : *$5) {
+	      if (r.is_range && r.lo && r.hi)
+		    b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	      else if (!r.is_range && r.hi) {
+		    PExpr* dup = r.hi;
+		    b->ranges.push_back(std::make_pair(dup, r.hi));
+		    r.hi = nullptr;
+	      }
+	}
+	delete[] $2;
+	delete $5;
+	$$ = b;
+      }
+  /* bins name[] = { ... }; — auto bins (one per value), treat like basic bins */
+  | K_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	for (auto& r : *$7) {
+	      if (r.is_range && r.lo && r.hi)
+		    b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	      else if (!r.is_range && r.hi) {
+		    PExpr* dup = r.hi;
+		    b->ranges.push_back(std::make_pair(dup, r.hi));
+		    r.hi = nullptr;
+	      }
+	}
+	delete[] $2;
+	delete $7;
+	$$ = b;
+      }
+  | K_bins bins_name '[' ']' '=' '{' inside_range_list '}' K_with '(' expression ')' ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	delete[] $2; delete $11;
+	for (auto& r : *$7) { delete r.lo; delete r.hi; }
+	delete $7;
+	$$ = b;
+      }
+  | K_ignore_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
+      { delete[] $2;
+	for (auto& r : *$7) { delete r.lo; delete r.hi; }
+	delete $7;
+	$$ = nullptr;
+      }
+  | K_illegal_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
+      { delete[] $2;
+	for (auto& r : *$7) { delete r.lo; delete r.hi; }
+	delete $7;
+	$$ = nullptr;
+      }
+  /* bins name[count] = { ... } with (cond); — indexed bins, ignore count+cond */
+  | K_bins bins_name '[' expression ']' '=' '{' inside_range_list '}' ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	delete[] $2; delete $4;
+	for (auto& r : *$8) { delete r.lo; delete r.hi; }
+	delete $8;
+	$$ = b;
+      }
+  | K_bins bins_name '[' expression ']' '=' '{' inside_range_list '}' K_with '(' expression ')' ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	delete[] $2; delete $4; delete $12;
+	for (auto& r : *$8) { delete r.lo; delete r.hi; }
+	delete $8;
+	$$ = b;
+      }
+  /* bins name = { ... } with (cond); */
+  | K_bins bins_name '=' '{' inside_range_list '}' K_with '(' expression ')' ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	delete[] $2; delete $9;
+	for (auto& r : *$5) { delete r.lo; delete r.hi; }
+	delete $5;
+	$$ = b;
+      }
+  | K_ignore_bins bins_name '=' '{' inside_range_list '}' ';'
+      { delete[] $2;
+	for (auto& r : *$5) { delete r.lo; delete r.hi; }
+	delete $5;
+	$$ = nullptr;
+      }
+  | K_illegal_bins bins_name '=' '{' inside_range_list '}' ';'
+      { delete[] $2;
+	for (auto& r : *$5) { delete r.lo; delete r.hi; }
+	delete $5;
+	$$ = nullptr;
+      }
+  /* Transition bins: bins b = (val => val => ...); — silently accepted */
+  | K_bins bins_name '=' '(' transition_list ')' ';'
+      { delete[] $2; $$ = nullptr; }
+  | K_bins bins_name '[' ']' '=' '(' transition_list ')' ';'
+      { delete[] $2; $$ = nullptr; }
+  | K_ignore_bins bins_name '=' '(' transition_list ')' ';'
+      { delete[] $2; $$ = nullptr; }
+  | K_illegal_bins bins_name '=' '(' transition_list ')' ';'
+      { delete[] $2; $$ = nullptr; }
+  /* Default bins: bins b = default; */
+  | K_bins bins_name '=' K_default ';'
+      { delete[] $2; $$ = nullptr; }
+  | K_ignore_bins bins_name '=' K_default ';'
+      { delete[] $2; $$ = nullptr; }
+  /* Coverpoint option: option.field = expr; — silently accepted */
+  | IDENTIFIER '.' IDENTIFIER '=' expression ';'
+      { delete[] $1; delete[] $3; delete $5; $$ = nullptr; }
+  /* type_option.field = expr; and similar */
+  | IDENTIFIER '.' IDENTIFIER '.' IDENTIFIER '=' expression ';'
+      { delete[] $1; delete[] $3; delete[] $5; delete $7; $$ = nullptr; }
+  /* Error recovery for unrecognized bins forms */
+  | error ';'
+      { yyerrok; $$ = nullptr; }
+  ;
+
+/* cross_item_list: comma-separated list of coverpoint names for 'cross' */
+cross_item_list
+  : IDENTIFIER { delete[] $1; }
+  | TYPE_IDENTIFIER { delete[] $1.text; }
+  | cross_item_list ',' IDENTIFIER { delete[] $3; }
+  | cross_item_list ',' TYPE_IDENTIFIER { delete[] $3.text; }
+  ;
+
+/* transition_list: list of values separated by => for transition bins */
+transition_list
+  : expression K_EG expression
+      { delete $1; delete $3; }
+  | transition_list K_EG expression
+      { delete $3; }
+  ;
+
+/* ========= End covergroup grammar ========= */
 
 data_declaration /* IEEE1800-2005: A.2.1.3 */
    : attribute_list_opt K_const_opt data_type list_of_variable_decl_assignments ';'
@@ -2260,7 +2586,7 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
-  | K_virtual TYPE_IDENTIFIER
+  | K_virtual TYPE_IDENTIFIER parameter_value_opt
       { if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0) {
 	      yyerror(@2, "error: virtual may only be used with interface types.");
 	      $$ = new interface_type_t(lex_strings.make($2.text));
@@ -2270,6 +2596,15 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 	      FILE_NAME($$, @1);
 	}
 	delete[] $2.text;
+	if ($3) delete $3;
+      }
+  | K_virtual IDENTIFIER parameter_value_opt
+      { /* Forward-referenced or un-typed interface — create by name */
+	interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
+	FILE_NAME(tmp, @1);
+	delete[] $2;
+	if ($3) delete $3;
+	$$ = tmp;
       }
   ;
 
@@ -2284,6 +2619,13 @@ virtual_interface_type
 	      FILE_NAME($$, @1);
 	}
 	delete[] $1.text;
+      }
+  /* Forward-referenced or unknown interface — accept IDENTIFIER form too */
+  | IDENTIFIER
+      { interface_type_t*tmp = new interface_type_t(lex_strings.make($1));
+	FILE_NAME(tmp, @1);
+	delete[] $1;
+	$$ = tmp;
       }
   ;
 
@@ -2953,6 +3295,36 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	$$ = tmp_blk;
       }
 
+      // Support foreach(arr[const].member[var]): fixed outer index, loop over
+      // the inner member array. E.g. foreach (paths[0].slices[i]).
+  | K_foreach '(' foreach_array_identifier '[' expression ']' '.'
+    foreach_array_identifier '[' loop_variables ']' ')'
+      {
+	char for_block_name[64];
+	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
+	foreach_block_counter += 1;
+
+	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+
+	pform_make_foreach_declarations(@1, 0, $10);
+      }
+    statement_or_null
+      { /* paths[0].slices[i] — hierarchical target with const prefix index */
+	pform_requires_sv(@1, "foreach over hierarchical array target");
+	warn_count += 1;
+	delete $5;
+	delete $10;
+	delete $14;
+	delete $3;
+	delete $8;
+
+	pform_pop_scope();
+	PBlock*tmp_blk = current_block_stack.top();
+	current_block_stack.pop();
+	$$ = tmp_blk;
+      }
+
       // Support nested indexed targets such as foreach(a[i].b[j]) without
       // changing the generic foreach target grammar. These still elaborate as
       // hierarchical targets and currently fall back to the existing warning.
@@ -3094,6 +3466,25 @@ variable_decl_assignment /* IEEE1800-2005 A.2.3 */
 	}
 	tmp->expr.reset($3);
 	delete[]$1;
+	$$ = tmp;
+      }
+  /* Allow a TYPE_IDENTIFIER as a variable name — it shadows the type in local scope */
+  | TYPE_IDENTIFIER dimensions_opt var_decl_initializer_opt
+      { if ($3 && pform_peek_scope()->var_init_needs_explicit_lifetime()
+	    && (var_lifetime == LexicalScope::INHERITED)) {
+	      cerr << @1 << ": warning: Static variable initialization requires "
+			    "explicit lifetime in this context." << endl;
+	      warn_count += 1;
+	}
+
+	decl_assignment_t*tmp = new decl_assignment_t;
+	tmp->name = { lex_strings.make($1.text), @1.lexical_pos };
+	if ($2) {
+	      tmp->index = *$2;
+	      delete $2;
+	}
+	tmp->expr.reset($3);
+	delete[]$1.text;
 	$$ = tmp;
       }
   ;
@@ -3346,6 +3737,7 @@ dpi_import_export_declaration
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
+	current_function->set_dpi_import($6);
 	pform_pop_scope();
 	current_function = 0;
 	if ($2) delete[] $2;
@@ -3412,6 +3804,78 @@ package_item /* IEEE1800-2005 A.1.10 */
   | data_declaration
   | class_declaration
   | package_import_export_declaration
+  | package_constraint_declaration
+  | package_covergroup_declaration
+  ;
+
+/* Package-scope covergroup (IEEE 1800-2017 §19.3).
+   Use a factored non-terminal for the (port_list) prefix to avoid duplicate MRAs
+   which cause LALR reduce/reduce conflicts. */
+package_cg_port_prefix
+  : K_covergroup IDENTIFIER
+      { /* Register name as class-like type so member var decls like "cg_t m_cg;" work */
+        pform_forward_typedef(@2, lex_strings.make($2), typedef_t::CLASS);
+        /* Unbound scope: push without registering in parent — avoids cross-covergroup conflicts */
+        current_function = pform_push_function_scope_unbound(@2, $2, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt
+      { if ($4) current_function->set_ports($4);
+        $$ = $2; /* pass name up for deletion */ }
+  ;
+
+package_covergroup_declaration
+  : K_covergroup IDENTIFIER ';' covergroup_item_list_opt K_endgroup label_opt
+      { /* Register name as class-like type; ignore body */
+        pform_forward_typedef(@2, lex_strings.make($2), typedef_t::CLASS);
+        delete[] $2; if ($6) delete[] $6; }
+  | package_cg_port_prefix ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_pop_scope(); current_function = 0;
+        delete[] $1; if ($5) delete[] $5; }
+  | package_cg_port_prefix K_with K_function IDENTIFIER
+      { pform_pop_scope();
+        current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
+      { if ($6) current_function->set_ports($6);
+        pform_pop_scope(); current_function = 0;
+        delete[] $1; delete[] $4; if ($10) delete[] $10; }
+  | package_cg_port_prefix ';' error K_endgroup label_opt
+      { pform_pop_scope(); current_function = 0; yyerrok;
+        delete[] $1; if ($5) delete[] $5; }
+  | package_cg_port_prefix K_with K_function IDENTIFIER
+      { pform_pop_scope();
+        current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';' error K_endgroup label_opt
+      { pform_pop_scope(); current_function = 0; yyerrok;
+        delete[] $1; delete[] $4; if ($6) delete $6; if ($10) delete[] $10; }
+  ;
+
+/* Out-of-class constraint body: constraint ClassName::name { ... } */
+package_constraint_declaration
+  : K_static_opt K_constraint TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      '{' constraint_block_item_list_opt '}'
+      { if (!pform_reenter_class_scope(@3, $3.text))
+	      yyerror(@3, "error: Unable to resolve class scope for %s.", $3.text);
+	pform_class_constraint(@2, $1, $5, $7);
+	pform_leave_class_scope(@3);
+	delete[] $3.text; delete[] $5;
+      }
+  | K_static_opt K_constraint IDENTIFIER K_SCOPE_RES IDENTIFIER
+      '{' constraint_block_item_list_opt '}'
+      { if (!pform_reenter_class_scope(@3, $3))
+	      yyerror(@3, "error: Unable to resolve class scope for %s.", $3);
+	pform_class_constraint(@2, $1, $5, $7);
+	pform_leave_class_scope(@3);
+	delete[] $3; delete[] $5;
+      }
+  | K_static_opt K_constraint TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      '{' error '}'
+      { yyerror(@6, "error: Errors in the constraint block item list.");
+	delete[] $3.text; delete[] $5;
+      }
+  | K_static_opt K_constraint IDENTIFIER K_SCOPE_RES IDENTIFIER
+      '{' error '}'
+      { yyerror(@6, "error: Errors in the constraint block item list.");
+	delete[] $3; delete[] $5;
+      }
   ;
 
 package_import_export_declaration
@@ -4091,6 +4555,41 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 		// Otherwise, the decorations for this identifier
 		// indicate the type. Save the type for any right
 		// context that may come later.
+	      port_declaration_context.port_type = use_port_type;
+	      if ($3 == 0) {
+		    $3 = new vector_type_t(IVL_VT_LOGIC, false, 0);
+		    FILE_NAME($3, @4);
+	      }
+	      port_declaration_context.data_type = $3;
+	      tmp = pform_make_task_ports(@3, use_port_type, $3, port_list);
+	}
+
+	$$ = tmp;
+	if ($6) {
+	      pform_requires_sv(@6, "Task/function default argument");
+	      assert(tmp->size()==1);
+	      tmp->front().defe = $6;
+	}
+      }
+
+  /* Allow TYPE_IDENTIFIER as port name — type name shadows in local port scope */
+  | tf_port_direction_opt K_var_opt data_type_or_implicit TYPE_IDENTIFIER dimensions_opt initializer_opt
+      { std::vector<pform_tf_port_t>*tmp;
+	NetNet::PortType use_port_type = $1;
+        if ((use_port_type == NetNet::PIMPLICIT) && (gn_system_verilog() || ($3 == 0)))
+              use_port_type = port_declaration_context.port_type;
+	/* make_port_list takes ownership of $4.text and deletes it */
+	list<pform_port_t>* port_list = make_port_list($4.text, @4.lexical_pos, $5, 0);
+
+	if (use_port_type == NetNet::PIMPLICIT) {
+	      yyerror(@1, "error: Missing task/function port direction.");
+	      use_port_type = NetNet::PINPUT;
+	}
+	if (($3 == 0) && ($1==NetNet::PIMPLICIT)) {
+	      tmp = pform_make_task_ports(@4, use_port_type,
+					  port_declaration_context.data_type,
+					  port_list);
+	} else {
 	      port_declaration_context.port_type = use_port_type;
 	      if ($3 == 0) {
 		    $3 = new vector_type_t(IVL_VT_LOGIC, false, 0);
@@ -5992,6 +6491,22 @@ expr_primary
 	delete $4;
 	$$ = tmp;
       }
+  /* pkg::randomize(vars) with { constraints } — e.g. std::randomize(x) with { x > 0; } */
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with '{' constraint_block_item_list_opt '}'
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
+	if ($7) {
+	      std::vector<PExpr*> wc($7->begin(), $7->end());
+	      tmp->set_with_constraints(std::move(wc));
+	      delete $7;
+	}
+	delete[]$1;
+	delete[]$3;
+	delete $4;
+	$$ = tmp;
+      }
   | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
@@ -6945,6 +7460,17 @@ hierarchy_identifier
 	$$->push_back(name_component_t(lex_strings.make($1.text)));
 	delete[]$1.text;
       }
+  /* local::var — strip the local:: scope qualifier */
+  | K_local K_SCOPE_RES IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($3)));
+	delete[]$3;
+      }
+  | K_local K_SCOPE_RES TYPE_IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($3.text)));
+	delete[]$3.text;
+      }
   | hierarchy_identifier '.' IDENTIFIER
       { pform_name_t * tmp = $1;
 	tmp->push_back(name_component_t(lex_strings.make($3)));
@@ -6984,6 +7510,17 @@ hierarchy_identifier
 	itmp.sel = index_component_t::SEL_PART;
 	itmp.msb = $3;
 	itmp.lsb = $5;
+	tail.index.push_back(itmp);
+	$$ = tmp;
+      }
+  | hierarchy_identifier '[' expression ':' '$' ']'
+      { pform_requires_sv(@5, "Queue slice [lo:$]");
+	pform_name_t * tmp = $1;
+	name_component_t&tail = tmp->back();
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_PART_LAST;
+	itmp.msb = $3;  /* lo index */
+	itmp.lsb = 0;
 	tail.index.push_back(itmp);
 	$$ = tmp;
       }
@@ -7494,9 +8031,10 @@ module_end
   ;
 
 label_opt
-  : ':' IDENTIFIER { $$ = $2; }
-  | ':' K_new      { $$ = dup_cstr("new"); }
-  |                { $$ = 0; }
+  : ':' IDENTIFIER      { $$ = $2; }
+  | ':' TYPE_IDENTIFIER { $$ = $2.text; } /* covergroup/class names become TYPE_IDENTIFIER */
+  | ':' K_new           { $$ = dup_cstr("new"); }
+  |                     { $$ = 0; }
   ;
 
 module_attribute_foreign
@@ -8391,6 +8929,15 @@ named_expression
 	delete[]$2;
 	$$ = tmp;
       }
+  /* Allow TYPE_IDENTIFIER as named parameter key (e.g. type param names) */
+  | '.' TYPE_IDENTIFIER '(' expression ')'
+      { named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = lex_strings.make($2.text);
+	tmp->parm = $4;
+	delete[]$2.text;
+	$$ = tmp;
+      }
 
 named_expression_opt
   : named_expression
@@ -8400,6 +8947,15 @@ named_expression_opt
 	tmp->name = lex_strings.make($2);
 	tmp->parm = 0;
 	delete[]$2;
+	$$ = tmp;
+      }
+  /* Allow TYPE_IDENTIFIER as named parameter key with no value */
+  | '.' TYPE_IDENTIFIER '(' ')'
+      { named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = lex_strings.make($2.text);
+	tmp->parm = 0;
+	delete[]$2.text;
 	$$ = tmp;
       }
   ;
@@ -9617,6 +10173,15 @@ subroutine_call
 	delete[]$2.text;
 	delete[]$4;
 	delete $5;
+	$$ = tmp;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens_opt
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PCallTask*tmp = new PCallTask($1, hident, *$4);
+	FILE_NAME(tmp, @3);
+	delete[]$3;
+	delete $4;
 	$$ = tmp;
       }
   | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens_opt

@@ -343,3 +343,20 @@ void pform_class_constraint(const struct vlltype& /*loc*/,
 	    delete items;
       }
 }
+
+void pform_class_covergroup(const struct vlltype& /*loc*/,
+			     const char*name,
+			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints)
+{
+      if (!pform_cur_class || !name)
+	    return;
+
+      class_type_t::pform_covergroup_t* cg = new class_type_t::pform_covergroup_t();
+      cg->name = lex_strings.make(name);
+      if (coverpoints) {
+	    for (auto* cp : *coverpoints)
+		  cg->coverpoints.push_back(std::move(*cp));
+	    delete coverpoints;
+      }
+      pform_cur_class->type->covergroups.push_back(cg);
+}

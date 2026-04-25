@@ -27,6 +27,7 @@
 # include  "vvp_net_sig.h"
 # include  "vvp_assoc.h"
 # include  "vvp_cobject.h"
+# include  "vvp_dpi.h"
 # include  "vvp_darray.h"
 # include  "vvp_mailbox.h"
 # include  "vvp_vinterface.h"
@@ -452,6 +453,7 @@ struct vthread_s {
       unsigned delete_pending    :1;
       unsigned pending_nonlocal_jmp :1;
       unsigned is_callf_child    :1;
+      unsigned is_fork_v_child   :1;
       unsigned owns_automatic_context :1;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
@@ -1473,8 +1475,9 @@ bool of_QSIZE_O(vthread_t thr, vvp_code_t)
       vvp_object_t recv;
       thr->pop_object(recv);
 
+      size_t sz = dynamic_collection_size_(recv);
       vvp_vector4_t val;
-      size_to_vec4_(dynamic_collection_size_(recv), val);
+      size_to_vec4_(sz, val);
       thr->push_vec4(val);
       return true;
 }
@@ -1626,6 +1629,89 @@ bool of_RAND_MODE(vthread_t thr, vvp_code_t)
 			cobj->set_rand_mode(pid, mode);
 	    }
       }
+      return true;
+}
+
+/* %covgrp/sample N
+ * Stack on entry: obj-stack top = cg_obj; vec4-stack top N items = cp values
+ * For each bin: get cp_idx value, check if in [lo,hi], if so increment prop. */
+bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
+{
+      unsigned ncp = cp->number;
+
+      /* Pop coverpoint values (last pushed = top of stack = cp[ncp-1]) */
+      vector<vvp_vector4_t> cp_vals(ncp);
+      for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1)
+	    cp_vals[ii] = thr->pop_vec4();
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj) return true;
+
+      const class_type*defn = cobj->get_defn();
+      size_t nbins = defn->covgrp_bin_count();
+
+      for (size_t bi = 0 ; bi < nbins ; bi += 1) {
+	    const class_type::cov_bin_t& bin = defn->covgrp_bin(bi);
+	    if (bin.cp_idx >= ncp) continue;
+
+	    const vvp_vector4_t&v = cp_vals[bin.cp_idx];
+	    /* Convert vec4 to uint64 — treat X/Z bits as 0 for comparison */
+	    uint64_t val = 0;
+	    for (unsigned bi2 = 0 ; bi2 < v.size() && bi2 < 64 ; bi2 += 1) {
+		  if (v.value(bi2) == BIT4_1)
+			val |= ((uint64_t)1 << bi2);
+	    }
+
+	    if (val >= bin.lo && val <= bin.hi) {
+		  vvp_vector4_t cur(32, BIT4_0);
+		  cobj->get_vec4(bin.prop_idx, cur);
+		  /* Increment: convert to integer, add 1, store back */
+	          uint32_t count = 0;
+		  for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
+			if (cur.value(bi3) == BIT4_1)
+			      count |= (1u << bi3);
+		  }
+		  count += 1;
+		  vvp_vector4_t newval(32, BIT4_0);
+		  for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
+			if (count & (1u << bi3))
+			      newval.set_bit(bi3, BIT4_1);
+		  }
+		  cobj->set_vec4(bin.prop_idx, newval);
+	    }
+      }
+      return true;
+}
+
+/* %covgrp/get_inst_coverage
+ * Stack on entry: obj-stack top = cg_obj
+ * Pushes real value = (bins_hit / total_bins) * 100.0 onto real stack */
+bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      double result = 0.0;
+      if (cobj) {
+	    const class_type*defn = cobj->get_defn();
+	    size_t nbins = defn->covgrp_bin_count();
+	    if (nbins > 0) {
+		  size_t hit = 0;
+		  for (size_t bi = 0 ; bi < nbins ; bi += 1) {
+			unsigned prop_idx = defn->covgrp_bin(bi).prop_idx;
+			vvp_vector4_t cur(32, BIT4_0);
+			cobj->get_vec4(prop_idx, cur);
+			for (unsigned bi2 = 0 ; bi2 < 32 ; bi2 += 1) {
+			      if (cur.value(bi2) == BIT4_1) { hit++; break; }
+			}
+		  }
+		  result = (double)hit / (double)nbins * 100.0;
+	    }
+      }
+      thr->push_real(result);
       return true;
 }
 
@@ -2973,13 +3059,21 @@ static void sanitize_thread_contexts_(vthread_t thr, const char*reason)
       /* The write-context stack may legitimately carry staged automatic
          frames for upcoming calls in scopes other than the currently
          executing thread scope. Keep the top live write frame, regardless
-         of owner scope, and only scope-filter the read side. */
+         of owner scope, and only scope-filter the read side.
+
+         Similarly, the read-context head may legitimately hold a child
+         task/function context for post-join copy-out (the VVP %load/%store
+         pairs that follow %join read from this foreign-scope context).
+         Preserve the head of rd_context if it is still live in its owner,
+         just like wt_context, so those copy-out loads are not silently broken
+         by a sanitize triggered by an intervening %store. */
       if (thr->wt_context && context_live_in_owner(thr->wt_context))
             clean_wt = thr->wt_context;
       else
             clean_wt = first_live_stacked_context(thr->wt_context, 0);
 
-      if (thr->rd_context && context_live_matches_scope_(thr->rd_context, ctx_scope))
+      if (thr->rd_context && (context_live_matches_scope_(thr->rd_context, ctx_scope)
+                              || context_live_in_owner(thr->rd_context)))
             clean_rd = thr->rd_context;
       else
             clean_rd = first_live_stacked_context(thr->rd_context, ctx_scope);
@@ -5261,14 +5355,16 @@ bool of_CAST_VEC4_STR(vthread_t thr, vvp_code_t cp)
       unsigned wid = cp->number;
       string str = thr->pop_str();
 
-      vvp_vector4_t vec(wid, BIT4_0);
       const unsigned swid = 8 * str.length();
-      const unsigned use_wid = (wid < swid)? wid : swid;
+      // When the compile-time width is smaller than the actual string width
+      // (e.g. ivl_expr_width returned 1 for a string var in a case selector),
+      // use the runtime string width so case comparisons work correctly.
+      if (wid < swid) wid = swid;
+
+      vvp_vector4_t vec(wid, BIT4_0);
+      const unsigned use_wid = swid;
       const unsigned use_chars = (use_wid + 7) / 8;
 
-      // SV compile-progress behavior: permit width/length mismatch by
-      // truncating high-order bytes when target width is narrower and
-      // zero-padding when target width is wider.
       unsigned sdx = 0;
       unsigned vdx = wid;
       while (vdx > 0 && sdx < use_chars) {
@@ -5632,11 +5728,14 @@ static void do_CMPU(vthread_t thr, const vvp_vector4_t&lval, const vvp_vector4_t
       vvp_bit4_t lt = BIT4_0;
 
       if (rval.size() != lval.size()) {
-	    cerr << thr->get_fileline()
-	         << "VVP ERROR: %cmp/u operand width mismatch: lval=" << lval
-		 << ", rval=" << rval << endl;
+	    unsigned wid = std::max(lval.size(), rval.size());
+	    vvp_vector4_t ext_lval = lval;
+	    vvp_vector4_t ext_rval = rval;
+	    if (ext_lval.size() < wid) ext_lval.resize(wid, BIT4_0);
+	    if (ext_rval.size() < wid) ext_rval.resize(wid, BIT4_0);
+	    do_CMPU(thr, ext_lval, ext_rval);
+	    return;
       }
-      assert(rval.size() == lval.size());
       unsigned wid = lval.size();
 
       unsigned long*larray = lval.subarray(0,wid);
@@ -6036,6 +6135,188 @@ bool of_DEBUG_THR(vthread_t thr, vvp_code_t cp)
 {
       const char*text = cp->text;
       thr->debug_dump(cerr, text);
+      return true;
+}
+
+/*
+ * DPI helper: extract a signed 32-bit int from the top of the vec4 stack
+ */
+static int32_t dpi_pop_int32(vthread_t thr)
+{
+      const vvp_vector4_t& v = thr->peek_vec4(0);
+      unsigned nbits = v.size() < 32 ? v.size() : 32;
+      int32_t val = 0;
+      for (unsigned i = 0; i < nbits; ++i)
+	    if (v.value(i) == BIT4_1) val |= (int32_t)(1 << i);
+      thr->pop_vec4(1);
+      return val;
+}
+
+static void dpi_push_int32(vthread_t thr, int32_t val, unsigned wid)
+{
+      vvp_vector4_t res(wid, BIT4_0);
+      unsigned nbits = wid < 32 ? wid : 32;
+      for (unsigned i = 0; i < nbits; ++i)
+	    res.set_bit(i, (val >> i) & 1 ? BIT4_1 : BIT4_0);
+      thr->push_vec4(res);
+}
+
+/*
+ * %dpi/call/vec4 "c_name" nargs wid
+ *
+ * Pops nargs int32 args from vec4 stack (in reverse param order),
+ * calls the named C function, pushes the int32 result as wid-bit vec4.
+ */
+bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      const char*c_name = cp->text;
+      unsigned nargs = cp->bit_idx[0];
+      unsigned wid   = cp->bit_idx[1];
+
+      void*sym = vvp_dpi_find_symbol(c_name);
+      if (!sym) {
+	    fprintf(stderr, "DPI error: symbol '%s' not found in any loaded DPI library\n",
+		    c_name);
+	    thr->pop_vec4(nargs);
+	    dpi_push_int32(thr, 0, wid);
+	    return true;
+      }
+
+      int32_t args[8];
+      if (nargs > 8) nargs = 8;
+      for (unsigned ii = 0; ii < nargs; ++ii)
+	    args[nargs-1-ii] = dpi_pop_int32(thr);
+
+      typedef int32_t(*fn0_t)(void);
+      typedef int32_t(*fn1_t)(int32_t);
+      typedef int32_t(*fn2_t)(int32_t,int32_t);
+      typedef int32_t(*fn3_t)(int32_t,int32_t,int32_t);
+      typedef int32_t(*fn4_t)(int32_t,int32_t,int32_t,int32_t);
+      typedef int32_t(*fn5_t)(int32_t,int32_t,int32_t,int32_t,int32_t);
+      typedef int32_t(*fn6_t)(int32_t,int32_t,int32_t,int32_t,int32_t,int32_t);
+      typedef int32_t(*fn7_t)(int32_t,int32_t,int32_t,int32_t,int32_t,int32_t,int32_t);
+      typedef int32_t(*fn8_t)(int32_t,int32_t,int32_t,int32_t,int32_t,int32_t,int32_t,int32_t);
+
+      int32_t result = 0;
+      switch (nargs) {
+	    case 0: result = ((fn0_t)sym)(); break;
+	    case 1: result = ((fn1_t)sym)(args[0]); break;
+	    case 2: result = ((fn2_t)sym)(args[0],args[1]); break;
+	    case 3: result = ((fn3_t)sym)(args[0],args[1],args[2]); break;
+	    case 4: result = ((fn4_t)sym)(args[0],args[1],args[2],args[3]); break;
+	    case 5: result = ((fn5_t)sym)(args[0],args[1],args[2],args[3],args[4]); break;
+	    case 6: result = ((fn6_t)sym)(args[0],args[1],args[2],args[3],args[4],args[5]); break;
+	    case 7: result = ((fn7_t)sym)(args[0],args[1],args[2],args[3],args[4],args[5],args[6]); break;
+	    default: result = ((fn8_t)sym)(args[0],args[1],args[2],args[3],args[4],args[5],args[6],args[7]); break;
+      }
+      dpi_push_int32(thr, result, wid);
+      return true;
+}
+
+/*
+ * %dpi/call/real "c_name" nargs
+ *
+ * Pops nargs double args from real stack, calls C function, pushes double result.
+ */
+bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t cp)
+{
+      const char*c_name = cp->text;
+      unsigned nargs = cp->bit_idx[0];
+
+      void*sym = vvp_dpi_find_symbol(c_name);
+      if (!sym) {
+	    fprintf(stderr, "DPI error: symbol '%s' not found\n", c_name);
+	    thr->pop_real(nargs);
+	    thr->push_real(0.0);
+	    return true;
+      }
+
+      double dargs[8];
+      if (nargs > 8) nargs = 8;
+      for (unsigned ii = 0; ii < nargs; ++ii)
+	    dargs[nargs-1-ii] = thr->pop_real();
+
+      typedef double(*dfn0_t)(void);
+      typedef double(*dfn1_t)(double);
+      typedef double(*dfn2_t)(double,double);
+      typedef double(*dfn4_t)(double,double,double,double);
+
+      double result = 0.0;
+      switch (nargs) {
+	    case 0: result = ((dfn0_t)sym)(); break;
+	    case 1: result = ((dfn1_t)sym)(dargs[0]); break;
+	    case 2: result = ((dfn2_t)sym)(dargs[0],dargs[1]); break;
+	    default: result = ((dfn4_t)sym)(dargs[0],dargs[1],dargs[2],dargs[3]); break;
+      }
+      thr->push_real(result);
+      return true;
+}
+
+/*
+ * %dpi/call/str "c_name" nargs
+ *
+ * Calls C function that returns const char*. Pushes result as string.
+ */
+bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t cp)
+{
+      const char*c_name = cp->text;
+      unsigned nargs = cp->bit_idx[0];
+
+      void*sym = vvp_dpi_find_symbol(c_name);
+      if (!sym) {
+	    fprintf(stderr, "DPI error: symbol '%s' not found\n", c_name);
+	    thr->pop_str(nargs);
+	    thr->push_str("");
+	    return true;
+      }
+
+      typedef const char*(*sfn0_t)(void);
+      typedef const char*(*sfn1_t)(const char*);
+
+      const char*result = "";
+      if (nargs == 0) {
+	    result = ((sfn0_t)sym)();
+      } else {
+	    string sarg0 = thr->pop_str();
+	    result = ((sfn1_t)sym)(sarg0.c_str());
+      }
+      thr->push_str(result ? result : "");
+      return true;
+}
+
+/*
+ * %dpi/call/void "c_name" nargs
+ *
+ * Calls C void function with int32 args from vec4 stack.
+ */
+bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
+{
+      const char*c_name = cp->text;
+      unsigned nargs = cp->bit_idx[0];
+
+      void*sym = vvp_dpi_find_symbol(c_name);
+      if (!sym) {
+	    fprintf(stderr, "DPI error: symbol '%s' not found\n", c_name);
+	    thr->pop_vec4(nargs);
+	    return true;
+      }
+
+      int32_t args[8];
+      if (nargs > 8) nargs = 8;
+      for (unsigned ii = 0; ii < nargs; ++ii)
+	    args[nargs-1-ii] = dpi_pop_int32(thr);
+
+      typedef void(*vfn0_t)(void);
+      typedef void(*vfn1_t)(int32_t);
+      typedef void(*vfn2_t)(int32_t,int32_t);
+      typedef void(*vfn4_t)(int32_t,int32_t,int32_t,int32_t);
+
+      switch (nargs) {
+	    case 0: ((vfn0_t)sym)(); break;
+	    case 1: ((vfn1_t)sym)(args[0]); break;
+	    case 2: ((vfn2_t)sym)(args[0],args[1]); break;
+	    default: ((vfn4_t)sym)(args[0],args[1],args[2],args[3]); break;
+      }
       return true;
 }
 
@@ -7185,6 +7466,7 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
       child->parent = thr;
+      child->is_fork_v_child = 1;
       thr->children.insert(child);
 
 	      if (thr->i_am_in_function && !(thr->pc && thr->pc->opcode == of_JOIN_DETACH)) {
@@ -7915,6 +8197,27 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
       // else word remains nil (default-constructed vvp_object_t)
 
       thr->push_object(word);
+      return true;
+}
+
+/*
+ * %load/dar/obj/vec4 <index>
+ *    Read a vec4 from the darray object on top of the object stack at
+ *    index words[cp->number].  Does not pop the object stack.
+ */
+bool of_LOAD_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      int64_t adr = thr->words[cp->number].w_int;
+
+      vvp_object_t&top = thr->peek_object();
+      vvp_darray*darray = top.peek<vvp_darray>();
+
+      vvp_vector4_t word;
+      if (darray && (adr >= 0) && (thr->flags[4] == BIT4_0))
+            darray->get_word((unsigned)adr, word);
+
+
+      thr->push_vec4(word);
       return true;
 }
 
@@ -9749,7 +10052,11 @@ bool of_NEW_VIF(vthread_t thr, vvp_code_t cp)
 
 static vthread_t logical_process_thread_(vthread_t thr)
 {
-      while (thr && thr->is_callf_child && thr->parent)
+      // Walk up both callf children (function calls) and fork/v children
+      // (synchronous task calls) to reach the logical calling process.
+      // Only explicit fork...join_none threads (is_fork_v_child=0,
+      // is_callf_child=0) are their own logical process.
+      while (thr && (thr->is_callf_child || thr->is_fork_v_child) && thr->parent)
 	    thr = thr->parent;
       return thr;
 }
@@ -11435,7 +11742,7 @@ static bool set_dar_obj(vthread_t thr, vvp_code_t cp)
 	    queue->set_word_max(adr, value, 0);
       else {
 	    vvp_darray*darray = top.peek<vvp_darray>();
-	    assert(darray);
+	    if (!darray) return true;
 	    darray->set_word(adr, value);
       }
       notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),

@@ -1018,19 +1018,48 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 {
       auto &members = struct_type->members();
 
-      if (members.size() != parms_.size()) {
-	    cerr << get_fileline() << ": error: Struct assignment pattern expects "
-	         << members.size() << " element(s) in this context.\n"
-	         << get_fileline() << ":      : Found "
-		 << parms_.size() << " element(s)." << endl;
-	    des->errors++;
-      }
+      vector<NetExpr*> items(members.size(), nullptr);
 
-      vector<NetExpr*> items(parms_.size(), nullptr);
-      for (size_t idx = 0; idx < std::min(parms_.size(), members.size()); idx += 1)
-	    items[idx] = elaborate_rval_expr(des, scope,
-					     members[idx].net_type,
-					     parms_[idx], need_const);
+      if (!parm_names_.empty()) {
+	    // Named member pattern: '{field: val, ..., default: val}
+	    // Build a name→expr map; "default" key supplies missing members.
+	    map<perm_string, PExpr*> name_map;
+	    for (size_t ii = 0; ii < parm_names_.size(); ii++)
+		  name_map[parm_names_[ii]] = parms_[ii];
+
+	    static const perm_string def_key = lex_strings.make("default");
+	    PExpr*dflt = nullptr;
+	    auto dit = name_map.find(def_key);
+	    if (dit != name_map.end()) dflt = dit->second;
+
+	    for (size_t idx = 0; idx < members.size(); idx++) {
+		  auto it = name_map.find(members[idx].name);
+		  PExpr*src = (it != name_map.end()) ? it->second : dflt;
+		  if (!src) {
+			cerr << get_fileline() << ": error: Named struct pattern "
+			     << "has no value for member '"
+			     << members[idx].name << "'." << endl;
+			des->errors++;
+		  } else {
+			items[idx] = elaborate_rval_expr(des, scope,
+							 members[idx].net_type,
+							 src, need_const);
+		  }
+	    }
+      } else {
+	    // Positional pattern
+	    if (members.size() != parms_.size()) {
+		  cerr << get_fileline() << ": error: Struct assignment pattern expects "
+		       << members.size() << " element(s) in this context.\n"
+		       << get_fileline() << ":      : Found "
+		       << parms_.size() << " element(s)." << endl;
+		  des->errors++;
+	    }
+	    for (size_t idx = 0; idx < std::min(parms_.size(), members.size()); idx += 1)
+		  items[idx] = elaborate_rval_expr(des, scope,
+						   members[idx].net_type,
+						   parms_[idx], need_const);
+      }
 
       if (!struct_type->packed()) {
 	    NetEArrayPattern *res = new NetEArrayPattern(struct_type, items);
@@ -1038,7 +1067,7 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	    return res;
       }
 
-      NetEConcat *neconcat = new NetEConcat(parms_.size(), 1, struct_type->base_type());
+      NetEConcat *neconcat = new NetEConcat(items.size(), 1, struct_type->base_type());
       for (size_t idx = 0; idx < items.size(); idx += 1)
 	    if (items[idx])
 		  neconcat->set(idx, items[idx]);
@@ -2322,17 +2351,14 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 	  || method_name == perm_string::literal("get_line_prefix")
 	  || method_name == perm_string::literal("sprint")
 	  || method_name == perm_string::literal("name")
-	  || method_name == perm_string::literal("convert2string")
-	  || method_name == perm_string::literal("toupper"))
+	  || method_name == perm_string::literal("convert2string"))
 	    return CP_EXPR_METHOD_STUB_STRING_EMPTY;
       if (method_name == perm_string::literal("get_inst_id")
 	  || method_name == perm_string::literal("get_max_size")
 	  || method_name == perm_string::literal("len")
-	  || method_name == perm_string::literal("status")
-	  || method_name == perm_string::literal("getc"))
+	  || method_name == perm_string::literal("status"))
 	    return CP_EXPR_METHOD_STUB_INT0;
-      if (method_name == perm_string::literal("compare")
-	  || method_name == perm_string::literal("is_open")
+      if (method_name == perm_string::literal("is_open")
 	  || method_name == perm_string::literal("get_randomize_enabled"))
 	    return CP_EXPR_METHOD_STUB_BOOL0;
 	      if (method_name == perm_string::literal("clone")
@@ -3640,6 +3666,12 @@ bool calculate_part(const LineInfo*li, Design*des, NetScope*scope,
 	    wid = lsb;
 	    off = msb;
 	    break;
+
+	  case index_component_t::SEL_PART_LAST:
+	    // [lo:$] — use lo as both offset and width=1 (approximation)
+	    off = msb;
+	    wid = 1;
+	    return true;
 
 	  default:
 	    ivl_assert(*li, 0);
@@ -5898,6 +5930,19 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 			}
 		    }
 
+		    // Covergroup get_inst_coverage(): returns real.
+		    if (method_name == perm_string::literal("get_inst_coverage")) {
+			  if (class_type && class_type->is_covergroup()) {
+				// Returns a real value: percentage of bins hit.
+				NetESFunc*sys = new NetESFunc(
+					"$ivl_class_method$covgrp_get_inst_coverage",
+					&netreal_t::type_real, 1);
+				sys->set_line(*this);
+				sys->parm(0, sub_expr);
+				return sys;
+			  }
+		    }
+
 		    NetScope*method = class_type->resolve_method_call_scope(des, method_name);
 		    if (method == 0) {
 			  // Handle randomize() as a real built-in: emit %randomize opcode
@@ -6084,18 +6129,63 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  return sys_expr;
 	    }
 
+	    if (method_name == "compare" || method_name == "icompare") {
+		  const char*sysname = (method_name == "compare")
+				       ? "$ivl_string_method$compare"
+				       : "$ivl_string_method$icompare";
+		  static const std::vector<perm_string> cmp_parm_names = {
+			perm_string::literal("s")
+		  };
+		  auto args = map_named_args(des, cmp_parm_names, parms_);
+		  NetESFunc*sys_expr = new NetESFunc(sysname,
+						     netvector_t::integer_type(), 2);
+		  sys_expr->set_line(*this);
+		  sys_expr->parm(0, sub_expr);
+		  if (args[0]) {
+			NetExpr*s2_e = elaborate_rval_expr(des, scope,
+							   &netstring_t::type_string,
+							   args[0], false);
+			sys_expr->parm(1, s2_e);
+		  } else {
+			sys_expr->parm(1, new NetECString(string()));
+		  }
+		  return sys_expr;
+	    }
+
 	    if (method_name == "getc") {
-		  delete sub_expr;
-		  NetEConst*tmp = make_const_val(0);
-		  tmp->set_line(*this);
-		  return tmp;
+		  static const std::vector<perm_string> getc_parm_names = {
+			perm_string::literal("i")
+		  };
+		  auto args = map_named_args(des, getc_parm_names, parms_);
+		  NetESFunc*sys_expr = new NetESFunc("$ivl_string_method$getc",
+						     netvector_t::integer_type(), 2);
+		  sys_expr->set_line(*this);
+		  sys_expr->parm(0, sub_expr);
+		  if (args[0]) {
+			NetExpr*idx_e = elaborate_rval_expr(des, scope,
+							    &netvector_t::atom2u32,
+							    args[0], false);
+			sys_expr->parm(1, idx_e);
+		  } else {
+			sys_expr->parm(1, make_const_val(0));
+		  }
+		  return sys_expr;
 	    }
 
 	    if (method_name == "toupper") {
-		  delete sub_expr;
-		  NetECString*tmp = new NetECString(string());
-		  tmp->set_line(*this);
-		  return tmp;
+		  NetESFunc*sys_expr = new NetESFunc("$ivl_string_method$toupper",
+						     &netstring_t::type_string, 1);
+		  sys_expr->set_line(*this);
+		  sys_expr->parm(0, sub_expr);
+		  return sys_expr;
+	    }
+
+	    if (method_name == "tolower") {
+		  NetESFunc*sys_expr = new NetESFunc("$ivl_string_method$tolower",
+						     &netstring_t::type_string, 1);
+		  sys_expr->set_line(*this);
+		  sys_expr->parm(0, sub_expr);
+		  return sys_expr;
 	    }
 
 	    cerr << get_fileline() << ": error: Method " << method_name
@@ -7079,6 +7169,9 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 		  cerr << get_fileline() << ": PEIdent::test_width: "
 		       << "Queue/Darray last index ($)" << endl;
 	    }
+	    break;
+	  case index_component_t::SEL_PART_LAST:
+	    // [lo:$] queue slice — width is dynamic; treat as unbounded
 	    break;
 	  default:
 	    ivl_assert(*this, 0);
@@ -10003,6 +10096,14 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
       if (use_sel == index_component_t::SEL_BIT_LAST)
 	    return elaborate_expr_net_bit_last_(des, scope, node, found_in,
 						need_const);
+
+      if (use_sel == index_component_t::SEL_PART_LAST) {
+	    // [lo:$] queue slice — compile-progress fallback: treat as SEL_BIT_LAST
+	    cerr << get_fileline() << ": sorry: [lo:$] queue slice not fully "
+		 << "implemented; using last-element approximation." << endl;
+	    return elaborate_expr_net_bit_last_(des, scope, node, found_in,
+					       need_const);
+      }
 
 	// It's not anything else, so this must be a simple identifier
 	// expression with no part or bit select. Return the signal

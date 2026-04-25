@@ -380,8 +380,10 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 <DEF_ESC>[^ \t\b\f\n\r]+{W}"("{W}? { BEGIN(DEF_ARG); def_start(); }
 <DEF_ESC>[^ \t\b\f\n\r]+{W}        { BEGIN(DEF_TXT); def_start(); }
 
-  /* define arg: <name> = <text> */
-<DEF_ARG>[a-zA-Z_][a-zA-Z0-9_$]*{W}*"="([^,\)]|\([^()]*\))*{W}? { BEGIN(DEF_SEP); def_add_arg(); }
+  /* define arg: <name> = <text>
+   * Default value may contain: plain chars (not , ) " (), balanced parens,
+   * or double-quoted strings (including ones with commas like ","). */
+<DEF_ARG>[a-zA-Z_][a-zA-Z0-9_$]*{W}*"="([^,\)\"(]|\([^()]*\)|\"([^\"\\]|\\.)*\")*{W}? { BEGIN(DEF_SEP); def_add_arg(); }
   /* define arg: <name> */
 <DEF_ARG>[a-zA-Z_][a-zA-Z0-9_$]*{W}? { BEGIN(DEF_SEP); def_add_arg(); }
 
@@ -657,9 +659,9 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
     yyless(0);
 }
 
-<MA_ADD>\"([^\"\\\n\r]|\\.)*\" { macro_add_to_arg(0); }
+<MA_ADD>\"([^\"\\\n\r]|\\.|\\\n|\\\r\n|\\\r)*\" { macro_add_to_arg(0); }
 
-<MA_ADD>\"([^\"\\\n\r]|\\.)* {
+<MA_ADD>\"([^\"\\\n\r]|\\.|\\\n|\\\r\n|\\\r)* {
     emit_pathline(istack);
 
     fprintf(stderr, "error: unterminated string.\n");

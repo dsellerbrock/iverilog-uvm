@@ -2569,6 +2569,24 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+      /* $ivl_class_method$covgrp_sample(cg_obj, cp0_val, cp1_val, ...)
+       * argv[0] = cg object, argv[1..N] = coverpoint values.
+       * Emit: push cp values onto vec4 stack, push cg obj, %covgrp/sample N */
+      if (strcmp(stmt_name, "$ivl_class_method$covgrp_sample") == 0) {
+	    unsigned nparms = ivl_stmt_parm_count(net);
+	    /* nparms = 1 + ncoverpoints; argv[0] is cg object */
+	    unsigned ncp = (nparms > 0) ? (nparms - 1) : 0;
+	    for (unsigned ii = 1 ; ii < nparms ; ii += 1) {
+		  ivl_expr_t cp_arg = ivl_stmt_parm(net, ii);
+		  if (cp_arg) draw_eval_vec4(cp_arg);
+		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    }
+	    ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
+	    if (obj_arg) draw_eval_object(obj_arg);
+	    fprintf(vvp_out, "    %%covgrp/sample %u;\n", ncp);
+	    return 0;
+      }
+
       show_stmt_file_line(net, "System task call.");
 
       draw_vpi_task_call(net);
@@ -3225,6 +3243,42 @@ int draw_task_definition(ivl_scope_t scope)
       return rc;
 }
 
+static void draw_dpi_func_body(ivl_scope_t scope)
+{
+      const char*c_name = ivl_scope_dpi_c_name(scope);
+      unsigned nports = ivl_scope_ports(scope);
+      unsigned ncp = (nports > 0) ? (nports - 1) : 0;
+      ivl_variable_type_t rtype = ivl_scope_func_type(scope);
+      unsigned rwid = (rtype == IVL_VT_LOGIC || rtype == IVL_VT_BOOL)
+                    ? ivl_scope_func_width(scope) : 0;
+
+      for (unsigned ii = 1; ii <= ncp; ii += 1) {
+	    ivl_signal_t port = ivl_scope_port(scope, ii);
+	    ivl_variable_type_t ptype = ivl_signal_data_type(port);
+	    if (ptype == IVL_VT_REAL) {
+		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
+	    } else if (ptype == IVL_VT_STRING) {
+		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
+	    } else {
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
+	    }
+      }
+
+      if (rtype == IVL_VT_REAL) {
+	    fprintf(vvp_out, "    %%dpi/call/real \"%s\", %u;\n", c_name, ncp);
+	    fprintf(vvp_out, "    %%ret/real 0;\n");
+      } else if (rtype == IVL_VT_STRING) {
+	    fprintf(vvp_out, "    %%dpi/call/str \"%s\", %u;\n", c_name, ncp);
+	    fprintf(vvp_out, "    %%ret/str 0;\n");
+      } else if (rtype == IVL_VT_VOID) {
+	    fprintf(vvp_out, "    %%dpi/call/void \"%s\", %u;\n", c_name, ncp);
+      } else {
+	    fprintf(vvp_out, "    %%dpi/call/vec4 \"%s\", %u, %u;\n",
+		    c_name, ncp, rwid);
+	    fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", rwid);
+      }
+}
+
 int draw_func_definition(ivl_scope_t scope)
 {
       int rc = 0;
@@ -3237,7 +3291,11 @@ int draw_func_definition(ivl_scope_t scope)
       fprintf(vvp_out, "TD_%s ;\n", label);
       note_td_definition(label);
 
-      rc += show_statement(def, scope);
+      if (ivl_scope_is_dpi_import(scope)) {
+	    draw_dpi_func_body(scope);
+      } else {
+	    rc += show_statement(def, scope);
+      }
 
       fprintf(vvp_out, "    %%end;\n");
 

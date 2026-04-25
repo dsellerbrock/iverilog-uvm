@@ -976,6 +976,7 @@ static void draw_property_vec4(ivl_expr_t expr)
       int idx_word = 0;
       int queue_indexed = property_is_indexed_queue_expr_(expr);
       int assoc_indexed = property_is_assoc_indexed_expr_(expr);
+      int darray_indexed = property_is_indexed_darray_expr_(expr);
       unsigned pidx = ivl_expr_property_idx(expr);
 
       if (idx_expr && !queue_indexed && !assoc_indexed) {
@@ -1011,12 +1012,17 @@ static void draw_property_vec4(ivl_expr_t expr)
 		    if (ivl_expr_value(expr) == IVL_VT_BOOL)
 			  fprintf(vvp_out, "    %%cast2;\n");
 		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	      } else if (darray_indexed && idx_word) {
+		    /* darray property element read: push darray as object, load element */
+		    fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pidx);
+		    fprintf(vvp_out, "    %%load/dar/obj/vec4 %d;\n", idx_word);
+		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n"); /* pop darray */
 	      } else if (idx_word)
 	    fprintf(vvp_out, "    %%prop/v/i %u, %d;\n", pidx, idx_word);
       else
 	    fprintf(vvp_out, "    %%prop/v %u;\n", pidx);
       if (!assoc_indexed && !queue_indexed)
-	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n"); /* pop cobject */
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
       fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
@@ -1077,6 +1083,17 @@ static void draw_select_vec4(ivl_expr_t expr)
                   fprintf(vvp_out, "    %%aa/load/sig/v/obj v%p_0, %u;\n", sig, wid);
                   if (ivl_expr_value(expr) == IVL_VT_BOOL)
                         fprintf(vvp_out, "    %%cast2;\n");
+                  return;
+            }
+	    if (net_type && ivl_type_queue_assoc_compat(net_type)
+                && expr_is_string_assoc_key_(base)) {
+                  /* String-keyed assoc array read: push str key, push obj, %aa/load/v/str */
+                  draw_eval_string(base);
+                  fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+                  fprintf(vvp_out, "    %%aa/load/v/str %u;\n", wid);
+                  if (ivl_expr_value(expr) == IVL_VT_BOOL)
+                        fprintf(vvp_out, "    %%cast2;\n");
+                  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
                   return;
             }
 	    draw_eval_expr_into_integer(base, 3);
@@ -1318,6 +1335,14 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  return;
 	    }
 	    if (expr_is_queue_container_(arg)) {
+		  draw_eval_object(arg);
+		  fprintf(vvp_out, "    %%qsize/o;\n");
+		  return;
+	    }
+	    /* Handle darray objects (e.g. this.value.size() where value is a
+	     * darray class property). %qsize/o supports both queues and darrays. */
+	    if (arg && (ivl_expr_value(arg) == IVL_VT_DARRAY
+		        || ivl_expr_type(arg) == IVL_EX_PROPERTY)) {
 		  draw_eval_object(arg);
 		  fprintf(vvp_out, "    %%qsize/o;\n");
 		  return;

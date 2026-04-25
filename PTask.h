@@ -157,10 +157,19 @@ class PFunction : public PTaskFunc {
 
       SymbolType symbol_type() const override;
 
+      void set_dpi_import(const char*c_name) {
+            is_dpi_import_ = true;
+            dpi_c_name_ = c_name;
+      }
+      bool is_dpi_import() const { return is_dpi_import_; }
+      const std::string& dpi_c_name() const { return dpi_c_name_; }
+
     private:
       data_type_t* return_type_;
       Statement *statement_;
       bool is_auto_;
+      bool is_dpi_import_ = false;
+      std::string dpi_c_name_;
 };
 
 // A let is like a simple function that is expanded in the compiler

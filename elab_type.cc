@@ -805,6 +805,11 @@ static ivl_type_t elaborate_darray_check_type(Design *des, const LineInfo &li,
 					      ivl_type_t type,
 					      const char *darray_type)
 {
+      // A null type means element-type elaboration already failed and
+      // reported an error; just recover without adding another message.
+      if (type == nullptr)
+	    return new netvector_t(IVL_VT_LOGIC);
+
       if (dynamic_cast<const netvector_t*>(type) ||
 	  dynamic_cast<const netparray_t*>(type) ||
 	  dynamic_cast<const netdarray_t*>(type) ||

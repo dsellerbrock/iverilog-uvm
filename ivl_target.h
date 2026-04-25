@@ -1935,6 +1935,8 @@ extern int          ivl_scope_time_units(ivl_scope_t net);
 extern ivl_variable_type_t ivl_scope_func_type(ivl_scope_t net);
 extern int ivl_scope_func_signed(ivl_scope_t net);
 extern unsigned ivl_scope_func_width(ivl_scope_t net);
+extern int ivl_scope_is_dpi_import(ivl_scope_t net);
+extern const char*ivl_scope_dpi_c_name(ivl_scope_t net);
 
 /* SIGNALS
  * Signals are named things in the Verilog source, like wires and
@@ -2438,6 +2440,15 @@ extern int         ivl_type_prop_qual(ivl_type_t net, int idx);
 extern int         ivl_type_constraints(ivl_type_t net);
 extern const char* ivl_type_constraint_name(ivl_type_t net, int idx);
 extern const char* ivl_type_constraint_ir(ivl_type_t net, int idx);
+
+/* Covergroup bin metadata on synthesized covergroup class types.
+ * Only valid when the class type represents a covergroup. */
+extern int      ivl_type_covgrp_bins(ivl_type_t net);
+extern int      ivl_type_covgrp_ncoverpoints(ivl_type_t net);
+extern unsigned ivl_type_covgrp_bin_cp(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_bin_prop(ivl_type_t net, int idx);
+extern uint64_t ivl_type_covgrp_bin_lo(ivl_type_t net, int idx);
+extern uint64_t ivl_type_covgrp_bin_hi(ivl_type_t net, int idx);
 
 
 #if defined(__MINGW32__) || defined (__CYGWIN__)

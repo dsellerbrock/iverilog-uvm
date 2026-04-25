@@ -71,6 +71,8 @@ char* yytext_string_filter(const char*str, size_t str_len)
 		  } else {
 			buf[didx] = str[sidx];
 		  }
+	    } else if (str[sidx] == '\n') { /* bare newline from macro stringification */
+		  buf[didx] = ' ';
 	    } else {
 		  buf[didx] = str[sidx];
 	    }
@@ -285,11 +287,8 @@ TU [munpf]
 <CSTRING>\\\" { yymore(); /* Catch \", which is an escaped quote */ }
 <CSTRING>\\\n { yymore(); /* Catch \\n, which will be filtered out */
 		yylloc.first_line += 1; }
-<CSTRING>\n   { BEGIN(0);
-		yylval.text = yytext_string_filter(yytext, yyleng);
-		VLerror(yylloc, "error: Missing closing quote for string.");
-		yylloc.first_line += 1;
-		return STRING; }
+<CSTRING>\n   { yymore(); /* bare newline from macro stringification; filter replaces with space */
+		yylloc.first_line += 1; }
 <CSTRING>\"   { BEGIN(0);
 		yylval.text = yytext_string_filter(yytext, yyleng);
 		yylval.text[strlen(yylval.text)-1] = 0;
