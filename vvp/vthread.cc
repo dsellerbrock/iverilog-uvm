@@ -452,6 +452,7 @@ struct vthread_s {
       unsigned delete_pending    :1;
       unsigned pending_nonlocal_jmp :1;
       unsigned is_callf_child    :1;
+      unsigned is_fork_v_child   :1;
       unsigned owns_automatic_context :1;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
@@ -1473,8 +1474,9 @@ bool of_QSIZE_O(vthread_t thr, vvp_code_t)
       vvp_object_t recv;
       thr->pop_object(recv);
 
+      size_t sz = dynamic_collection_size_(recv);
       vvp_vector4_t val;
-      size_to_vec4_(dynamic_collection_size_(recv), val);
+      size_to_vec4_(sz, val);
       thr->push_vec4(val);
       return true;
 }
@@ -2973,13 +2975,21 @@ static void sanitize_thread_contexts_(vthread_t thr, const char*reason)
       /* The write-context stack may legitimately carry staged automatic
          frames for upcoming calls in scopes other than the currently
          executing thread scope. Keep the top live write frame, regardless
-         of owner scope, and only scope-filter the read side. */
+         of owner scope, and only scope-filter the read side.
+
+         Similarly, the read-context head may legitimately hold a child
+         task/function context for post-join copy-out (the VVP %load/%store
+         pairs that follow %join read from this foreign-scope context).
+         Preserve the head of rd_context if it is still live in its owner,
+         just like wt_context, so those copy-out loads are not silently broken
+         by a sanitize triggered by an intervening %store. */
       if (thr->wt_context && context_live_in_owner(thr->wt_context))
             clean_wt = thr->wt_context;
       else
             clean_wt = first_live_stacked_context(thr->wt_context, 0);
 
-      if (thr->rd_context && context_live_matches_scope_(thr->rd_context, ctx_scope))
+      if (thr->rd_context && (context_live_matches_scope_(thr->rd_context, ctx_scope)
+                              || context_live_in_owner(thr->rd_context)))
             clean_rd = thr->rd_context;
       else
             clean_rd = first_live_stacked_context(thr->rd_context, ctx_scope);
@@ -5261,14 +5271,16 @@ bool of_CAST_VEC4_STR(vthread_t thr, vvp_code_t cp)
       unsigned wid = cp->number;
       string str = thr->pop_str();
 
-      vvp_vector4_t vec(wid, BIT4_0);
       const unsigned swid = 8 * str.length();
-      const unsigned use_wid = (wid < swid)? wid : swid;
+      // When the compile-time width is smaller than the actual string width
+      // (e.g. ivl_expr_width returned 1 for a string var in a case selector),
+      // use the runtime string width so case comparisons work correctly.
+      if (wid < swid) wid = swid;
+
+      vvp_vector4_t vec(wid, BIT4_0);
+      const unsigned use_wid = swid;
       const unsigned use_chars = (use_wid + 7) / 8;
 
-      // SV compile-progress behavior: permit width/length mismatch by
-      // truncating high-order bytes when target width is narrower and
-      // zero-padding when target width is wider.
       unsigned sdx = 0;
       unsigned vdx = wid;
       while (vdx > 0 && sdx < use_chars) {
@@ -5632,11 +5644,14 @@ static void do_CMPU(vthread_t thr, const vvp_vector4_t&lval, const vvp_vector4_t
       vvp_bit4_t lt = BIT4_0;
 
       if (rval.size() != lval.size()) {
-	    cerr << thr->get_fileline()
-	         << "VVP ERROR: %cmp/u operand width mismatch: lval=" << lval
-		 << ", rval=" << rval << endl;
+	    unsigned wid = std::max(lval.size(), rval.size());
+	    vvp_vector4_t ext_lval = lval;
+	    vvp_vector4_t ext_rval = rval;
+	    if (ext_lval.size() < wid) ext_lval.resize(wid, BIT4_0);
+	    if (ext_rval.size() < wid) ext_rval.resize(wid, BIT4_0);
+	    do_CMPU(thr, ext_lval, ext_rval);
+	    return;
       }
-      assert(rval.size() == lval.size());
       unsigned wid = lval.size();
 
       unsigned long*larray = lval.subarray(0,wid);
@@ -7185,6 +7200,7 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
       child->parent = thr;
+      child->is_fork_v_child = 1;
       thr->children.insert(child);
 
 	      if (thr->i_am_in_function && !(thr->pc && thr->pc->opcode == of_JOIN_DETACH)) {
@@ -7915,6 +7931,27 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
       // else word remains nil (default-constructed vvp_object_t)
 
       thr->push_object(word);
+      return true;
+}
+
+/*
+ * %load/dar/obj/vec4 <index>
+ *    Read a vec4 from the darray object on top of the object stack at
+ *    index words[cp->number].  Does not pop the object stack.
+ */
+bool of_LOAD_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      int64_t adr = thr->words[cp->number].w_int;
+
+      vvp_object_t&top = thr->peek_object();
+      vvp_darray*darray = top.peek<vvp_darray>();
+
+      vvp_vector4_t word;
+      if (darray && (adr >= 0) && (thr->flags[4] == BIT4_0))
+            darray->get_word((unsigned)adr, word);
+
+
+      thr->push_vec4(word);
       return true;
 }
 
@@ -9749,7 +9786,11 @@ bool of_NEW_VIF(vthread_t thr, vvp_code_t cp)
 
 static vthread_t logical_process_thread_(vthread_t thr)
 {
-      while (thr && thr->is_callf_child && thr->parent)
+      // Walk up both callf children (function calls) and fork/v children
+      // (synchronous task calls) to reach the logical calling process.
+      // Only explicit fork...join_none threads (is_fork_v_child=0,
+      // is_callf_child=0) are their own logical process.
+      while (thr && (thr->is_callf_child || thr->is_fork_v_child) && thr->parent)
 	    thr = thr->parent;
       return thr;
 }
@@ -11435,7 +11476,7 @@ static bool set_dar_obj(vthread_t thr, vvp_code_t cp)
 	    queue->set_word_max(adr, value, 0);
       else {
 	    vvp_darray*darray = top.peek<vvp_darray>();
-	    assert(darray);
+	    if (!darray) return true;
 	    darray->set_word(adr, value);
       }
       notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),

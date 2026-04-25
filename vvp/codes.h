@@ -235,6 +235,7 @@ extern bool of_JOIN_DETACH(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_AR(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_REAL(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t code);
+extern bool of_LOAD_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_DAR_R(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_DAR_STR(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_DAR_VEC4(vthread_t thr, vvp_code_t code);

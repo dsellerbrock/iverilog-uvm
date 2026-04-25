@@ -466,6 +466,22 @@ static inline int property_is_assoc_indexed_expr_(ivl_expr_t expr)
           && property_assoc_container_type_(expr) != 0;
 }
 
+static inline int property_is_indexed_darray_expr_(ivl_expr_t expr)
+{
+      ivl_type_t base_type;
+      ivl_type_t prop_type;
+
+      if (!expr_has_numeric_container_index_(expr))
+            return 0;
+
+      base_type = property_receiver_class_type_(expr);
+      if (!base_type || ivl_type_properties(base_type) <= 0)
+            return 0;
+
+      prop_type = ivl_type_prop_type(base_type, ivl_expr_property_idx(expr));
+      return prop_type && ivl_type_base(prop_type) == IVL_VT_DARRAY;
+}
+
 static inline int same_property_receiver_path_(ivl_expr_t lhs, ivl_expr_t rhs)
 {
       if (lhs == rhs)
