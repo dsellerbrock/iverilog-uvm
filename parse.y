@@ -71,6 +71,9 @@ static struct {
    task/function that is currently in progress. */
 static PTask* current_task = 0;
 static PFunction* current_function = 0;
+/* Set by the last completed class task/function declaration so that the
+   outer class_item rule can mark it virtual when K_virtual is present. */
+static PTaskFunc* recently_completed_class_method_ = 0;
 static stack<PBlock*> current_block_stack;
 
 /* The variable declaration rules need to know if a lifetime has been
@@ -1516,6 +1519,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { /* The function_declaration rule puts this into the class */ }
 
   | K_virtual virtual_class_item
+      { pform_mark_recent_class_method_virtual(); }
 
   | method_qualifier_opt class_item_qualifier_opt task_declaration
       { /* The task_declaration rule puts this into the class */ }
@@ -1530,10 +1534,10 @@ class_item /* IEEE1800-2005: A.1.8 */
       { /* The function_declaration rule puts this into the class */ }
 
   | class_item_qualifier_opt K_virtual task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { pform_mark_recent_class_method_virtual(); }
 
   | class_item_qualifier_opt K_virtual function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { pform_mark_recent_class_method_virtual(); }
 
   | class_item_qualifier_opt task_declaration
       { /* The task_declaration rule puts this into the class */ }
@@ -1549,9 +1553,9 @@ class_item /* IEEE1800-2005: A.1.8 */
   | K_protected K_static function_declaration
       { /* The function_declaration rule puts this into the class */ }
   | K_protected K_virtual task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { pform_mark_recent_class_method_virtual(); }
   | K_protected K_virtual function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { pform_mark_recent_class_method_virtual(); }
   | K_static K_protected task_declaration
       { /* The task_declaration rule puts this into the class */ }
   | K_static K_protected function_declaration
@@ -1590,6 +1594,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	current_function->set_return($4);
+	current_function->set_virtual_method(true);
 	pform_set_this_class(@5, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -1599,6 +1604,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@3, $5, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
+	current_task->set_virtual_method(true);
 	pform_set_this_class(@5, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -1609,6 +1615,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
+	current_function->set_virtual_method(true);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -1619,6 +1626,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
+	current_function->set_virtual_method(true);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -1628,6 +1636,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
+	current_task->set_virtual_method(true);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -1637,6 +1646,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
+	current_task->set_virtual_method(true);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -1666,6 +1676,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
+	current_function->set_virtual_method(true);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -1675,6 +1686,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
+	current_task->set_virtual_method(true);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -1704,6 +1716,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
+	current_function->set_virtual_method(true);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -1713,6 +1726,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
+	current_task->set_virtual_method(true);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -1751,7 +1765,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $4;
       }
   | K_extern K_virtual K_function K_new
-      { current_function = pform_push_constructor_scope(@4); }
+      { current_function = pform_push_constructor_scope(@4);
+	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($6);
 	pform_set_constructor_return(current_function);
@@ -1760,7 +1775,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_function = 0;
       }
   | K_extern K_virtual K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@3, $6, LexicalScope::INHERITED); }
+      { current_function = pform_push_function_scope(@3, $6, LexicalScope::INHERITED);
+	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
@@ -1770,7 +1786,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $6;
       }
   | K_extern K_virtual K_task IDENTIFIER
-      { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED); }
+      { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED);
+	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($6);
 	pform_set_this_class(@4, current_task);
@@ -1808,7 +1825,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $5;
       }
   | K_extern K_virtual class_item_qualifier_opt K_function K_new
-      { current_function = pform_push_constructor_scope(@5); }
+      { current_function = pform_push_constructor_scope(@5);
+	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	pform_set_constructor_return(current_function);
@@ -1817,7 +1835,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_function = 0;
       }
   | K_extern K_virtual class_item_qualifier_opt K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED); }
+      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED);
+	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($9);
 	current_function->set_return($6);
@@ -1827,7 +1846,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $7;
       }
   | K_extern K_virtual class_item_qualifier_opt K_task IDENTIFIER
-      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
 	pform_set_this_class(@5, current_task);
@@ -1836,7 +1856,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $5;
       }
   | K_extern class_item_qualifier_opt K_virtual K_function K_new
-      { current_function = pform_push_constructor_scope(@5); }
+      { current_function = pform_push_constructor_scope(@5);
+	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	pform_set_constructor_return(current_function);
@@ -1845,7 +1866,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_function = 0;
       }
   | K_extern class_item_qualifier_opt K_virtual K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED); }
+      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED);
+	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($9);
 	current_function->set_return($6);
@@ -1855,7 +1877,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $7;
       }
   | K_extern class_item_qualifier_opt K_virtual K_task IDENTIFIER
-      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
 	pform_set_this_class(@5, current_task);
@@ -1864,7 +1887,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $5;
       }
   | K_extern K_protected K_virtual K_function K_new
-      { current_function = pform_push_constructor_scope(@5); }
+      { current_function = pform_push_constructor_scope(@5);
+	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	pform_set_constructor_return(current_function);
@@ -1873,7 +1897,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_function = 0;
       }
   | K_extern K_virtual K_protected K_function K_new
-      { current_function = pform_push_constructor_scope(@5); }
+      { current_function = pform_push_constructor_scope(@5);
+	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	pform_set_constructor_return(current_function);
@@ -1882,7 +1907,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_function = 0;
       }
   | K_extern K_protected K_virtual K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED); }
+      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED);
+	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($9);
 	current_function->set_return($6);
@@ -1892,7 +1918,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $7;
       }
   | K_extern K_virtual K_protected K_function lifetime_opt data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED); }
+      { current_function = pform_push_function_scope(@4, $7, LexicalScope::INHERITED);
+	current_function->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($9);
 	current_function->set_return($6);
@@ -1902,7 +1929,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $7;
       }
   | K_extern K_protected K_virtual K_task IDENTIFIER
-      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
 	pform_set_this_class(@5, current_task);
@@ -1911,7 +1939,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $5;
       }
   | K_extern K_virtual K_protected K_task IDENTIFIER
-      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
 	pform_set_this_class(@5, current_task);
@@ -1995,13 +2024,15 @@ class_item /* IEEE1800-2005: A.1.8 */
 
 virtual_class_item
   : task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { /* The task_declaration rule puts this into the class;
+           pform_mark_recent_class_method_virtual() is called by the
+           outer class_item K_virtual virtual_class_item action */ }
   | function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { /* same as above */ }
   | class_item_qualifier_opt task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { /* same as above */ }
   | class_item_qualifier_opt function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { /* same as above */ }
   | virtual_interface_type list_of_variable_decl_assignments ';'
       { pform_class_property(@1, property_qualifier_t::make_none(), $1, $2); }
   ;
@@ -2319,7 +2350,10 @@ covergroup_item
   /* cross declaration: cross cp1, cp2, ...; — silently accept */
   | K_cross cross_item_list ';'
       { $$ = nullptr; }
-  /* cross with body { illegal_bins/bins ... } — silently accept */
+  /* cross with body { illegal_bins/bins ... } — silently accept.
+     Per IEEE 1800-2012 §19.5, the { } body terminates the item; no extra ';'. */
+  | K_cross cross_item_list '{' cross_body_opt '}'
+      { $$ = nullptr; }
   | K_cross cross_item_list '{' cross_body_opt '}' ';'
       { $$ = nullptr; }
   /* Labeled cross: name: cross cp1, cp2; — silently accept */
@@ -2328,8 +2362,12 @@ covergroup_item
   | TYPE_IDENTIFIER ':' K_cross cross_item_list ';'
       { delete[] $1.text; $$ = nullptr; }
   /* Labeled cross with body */
+  | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}'
+      { delete[] $1; $$ = nullptr; }
   | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' ';'
       { delete[] $1; $$ = nullptr; }
+  | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}'
+      { delete[] $1.text; $$ = nullptr; }
   | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' ';'
       { delete[] $1.text; $$ = nullptr; }
   /* Error recovery: skip unrecognized covergroup items */
@@ -6342,6 +6380,23 @@ expr_primary
 	delete $2;
 	$$ = tmp;
       }
+  /* this.randomize(vars) with { constraints } — class handle form */
+  | class_hierarchy_identifier argument_list_parens K_with '{' constraint_block_item_list_opt '}'
+      { if (peek_tail_name(*$1) == "randomize") {
+	      pform_requires_sv(@3, "Randomize with constraint");
+	} else {
+	      yyerror(@3, "error: Constraint block can only be applied to randomize method.");
+	}
+	PECallFunction*tmp = pform_make_call_function(@1, *$1, *$2);
+	if ($5) {
+	      std::vector<PExpr*> wc($5->begin(), $5->end());
+	      tmp->set_with_constraints(std::move(wc));
+	      delete $5;
+	}
+	delete $1;
+	delete $2;
+	$$ = tmp;
+      }
   | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER argument_list_parens
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
@@ -7303,6 +7358,21 @@ expr_primary
 
   | assignment_pattern
       { $$ = $1; }
+
+  /* Type-prefixed assignment pattern: T'{expr, expr, ...} or T'{key: val, ...}.
+     IEEE 1800-2012 §10.9. Treat identically to the untyped form — the type
+     prefix guides structural matching which we do not enforce at this level.
+     NOTE: The lexer tokenizes '{  as K_LP (a single two-char token), so the
+     type-prefixed form is TYPE '\'' K_LP... — but K_LP IS the start of
+     assignment_pattern. The standalone-tick form (simple_type_or_string '\''
+     assignment_pattern) handles things like 'signed' '(...)' — a different
+     path. For TYPE_IDENTIFIER, we add two sub-rules:
+       - TYPE_IDENTIFIER assignment_pattern: matches TYPE_IDENTIFIER K_LP...
+         (i.e., my_struct_t'{1,2}) — no tick, K_LP immediately follows type */
+  | simple_type_or_string '\'' assignment_pattern
+      { delete $1; $$ = $3; }
+  | TYPE_IDENTIFIER assignment_pattern
+      { delete[] $1.text; $$ = $2; }
 
   /* SystemVerilog supports streaming concatenation */
   | streaming_concatenation
@@ -10601,6 +10671,31 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
 
+  /* pkg::var = expr; — package-scoped variable assignment.
+     IEEE 1800-2012: package members are l-values in procedural contexts.
+     Disambiguated from type declarations by '=' lookahead (type decls start
+     with another IDENTIFIER as the variable name, not '='). */
+  | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER '=' expression ';'
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PEIdent*lv = new PEIdent($1, hident, @1.lexical_pos);
+	FILE_NAME(lv, @1);
+	delete[] $3;
+	PAssign*tmp = new PAssign(lv, $5);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '=' expression ';'
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	PEIdent*lv = new PEIdent($1, hident, @1.lexical_pos);
+	FILE_NAME(lv, @1);
+	delete[] $3.text;
+	PAssign*tmp = new PAssign(lv, $5);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+
   | type_declaration
       { $$ = nullptr; }
 
@@ -10621,6 +10716,9 @@ statement_item /* This is roughly statement_item in the LRM */
 	      }
 	    statement_or_null_list_opt K_end label_opt
 	      { PBlock*tmp;
+		/* Inline SV-style var decls in statements also need the SV check. */
+		if (!$2 && !$4 && !pform_block_scope_is_empty())
+		      pform_block_decls_requires_sv();
 		bool scope_empty = !$2 && !$4 && pform_block_scope_is_empty();
 		pform_pop_scope();
 		assert(! current_block_stack.empty());
@@ -10654,6 +10752,9 @@ statement_item /* This is roughly statement_item in the LRM */
 	      }
 	    statement_or_null_list_opt join_keyword label_opt
 	      { PBlock*tmp;
+		/* Inline SV-style var decls in statements also need the SV check. */
+		if (!$2 && !$4 && !pform_block_scope_is_empty())
+		      pform_block_decls_requires_sv();
 		pform_pop_scope();
 		assert(! current_block_stack.empty());
 		tmp = current_block_stack.top();
