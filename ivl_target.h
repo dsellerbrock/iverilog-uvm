@@ -1937,6 +1937,7 @@ extern int ivl_scope_func_signed(ivl_scope_t net);
 extern unsigned ivl_scope_func_width(ivl_scope_t net);
 extern int ivl_scope_is_dpi_import(ivl_scope_t net);
 extern const char*ivl_scope_dpi_c_name(ivl_scope_t net);
+extern int ivl_scope_is_virtual_method(ivl_scope_t net);
 
 /* SIGNALS
  * Signals are named things in the Verilog source, like wires and

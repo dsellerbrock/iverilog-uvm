@@ -274,6 +274,7 @@ ivl_signal_packed_lsb
 ivl_signal_packed_msb
 ivl_signal_path
 ivl_signal_port
+ivl_signal_module_port_index
 ivl_signal_scope
 ivl_signal_signed
 ivl_signal_type
@@ -348,6 +349,22 @@ ivl_type_queue_assoc_compat
 ivl_type_constraints
 ivl_type_constraint_name
 ivl_type_constraint_ir
+ivl_type_covgrp_ncoverpoints
+ivl_type_covgrp_bins
+ivl_type_covgrp_bin_prop
+ivl_type_covgrp_bin_lo
+ivl_type_covgrp_bin_hi
+ivl_type_covgrp_bin_cp
+
+ivl_event_is_vif_posedge
+ivl_event_is_vif_negedge
+ivl_event_is_vif_anyedge
+ivl_event_vif_N
+ivl_event_vif_M
+
+ivl_scope_is_dpi_import
+ivl_scope_dpi_c_name
+ivl_scope_is_virtual_method
 
 ivl_udp_init
 ivl_udp_file

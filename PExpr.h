@@ -205,6 +205,9 @@ class PEAssignPattern : public PExpr {
       explicit PEAssignPattern();
       explicit PEAssignPattern(const std::list<PExpr*>&p);
       explicit PEAssignPattern(const std::list<std::pair<perm_string,PExpr*>>&named);
+      // Replication form: '{N{elem0, elem1, ...}} — parms_ holds the base elements,
+      // replication_ holds the count expression.
+      explicit PEAssignPattern(PExpr*replication, const std::list<PExpr*>&p);
       ~PEAssignPattern() override;
 
       void dump(std::ostream&) const override;
@@ -216,6 +219,8 @@ class PEAssignPattern : public PExpr {
       virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
 				     unsigned expr_wid,
                                      unsigned flags) const override;
+      const std::vector<PExpr*>& parms() const { return parms_; }
+      PExpr* replication() const { return replication_; }
     private:
       NetExpr* elaborate_expr_packed_(Design *des, NetScope *scope,
 				      ivl_variable_type_t base_type,
@@ -238,6 +243,7 @@ class PEAssignPattern : public PExpr {
     private:
       std::vector<PExpr*>parms_;
       std::vector<perm_string>parm_names_; // non-empty → named member pattern
+      PExpr* replication_ = nullptr;       // non-null for '{N{...}} form
 };
 
 class PEConcat : public PExpr {

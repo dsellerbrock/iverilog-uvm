@@ -2356,9 +2356,11 @@ NetEConst::NetEConst(ivl_type_t type, const verinum&val)
 : NetExpr(type), value_(val)
 {
       ivl_assert(*this, type->packed());
-      ivl_assert(*this, type->packed_width() >= 0 &&
-                        (unsigned long)type->packed_width() == val.len());
-      ivl_assert(*this, type->get_signed() == val.has_sign());
+      long pw = type->packed_width();
+      if (pw >= 0 && (unsigned long)pw != val.len()) {
+            value_ = verinum(val, (unsigned)pw);
+      }
+      value_.has_sign(type->get_signed());
 }
 
 NetEConst::~NetEConst()

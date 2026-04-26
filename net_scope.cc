@@ -381,6 +381,7 @@ void NetScope::set_parameter(perm_string key, bool is_annotatable,
       ref.overridable = param.overridable;
       ref.type_flag = param.type_flag;
       ref.lexical_pos = param.lexical_pos;
+      ref.is_array_param = (param.udims != nullptr && !param.udims->empty());
       ivl_assert(param, !ref.range);
       ref.range = range_list;
       ref.val = 0;
@@ -548,6 +549,13 @@ LineInfo NetScope::get_parameter_line_info(perm_string key) const
       assert(0);
 	// But return something to avoid a compiler warning.
       return LineInfo();
+}
+
+bool NetScope::is_array_parameter(perm_string key) const
+{
+      map<perm_string,param_expr_t>::const_iterator idx = parameters.find(key);
+      if (idx == parameters.end()) return false;
+      return idx->second.is_array_param;
 }
 
 unsigned NetScope::get_parameter_lexical_pos(perm_string key) const

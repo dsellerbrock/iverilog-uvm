@@ -535,10 +535,15 @@ TU [munpf]
       }
 }
 
-  /* This rule handles scaled time values for SystemVerilog. */
+  /* This rule handles scaled time values for SystemVerilog.
+     Strip underscore separators (IEEE 1800-2012 §5.7.1) so atof() works. */
 [0-9][0-9_]*(\.[0-9][0-9_]*)?{TU}?s {
       if (gn_system_verilog()) {
-	    yylval.text = strdupnew(yytext);
+	    char *tmp = strdupnew(yytext);
+	    char *r = tmp, *w = tmp;
+	    while (*r) { if (*r != '_') *w++ = *r; r++; }
+	    *w = '\0';
+	    yylval.text = tmp;
 	    return TIME_LITERAL;
       } else REJECT; }
 

@@ -113,6 +113,11 @@ PEAssignPattern::PEAssignPattern(const list<pair<perm_string,PExpr*>>&named)
       }
 }
 
+PEAssignPattern::PEAssignPattern(PExpr*replication, const list<PExpr*>&p)
+: parms_(p.begin(), p.end()), replication_(replication)
+{
+}
+
 PEAssignPattern::~PEAssignPattern()
 {
 }

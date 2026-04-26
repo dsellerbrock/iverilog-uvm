@@ -1146,6 +1146,11 @@ class NetScope : public Definitions, public Attrib {
       void calls_sys_task(bool calls_stask__) { calls_stask_ = calls_stask__; };
       bool calls_sys_task() const { return calls_stask_; };
 
+	/* True if this task/function scope was declared with the virtual
+	   keyword in a class body, enabling dynamic dispatch. */
+      void is_virtual_method(bool v) { is_virtual_method_ = v; };
+      bool is_virtual_method() const { return is_virtual_method_; };
+
         /* Is this scope elaborating a final procedure? */
       void in_final(bool in_final__) { in_final_ = in_final__; };
       bool in_final() const { return in_final_; };
@@ -1270,6 +1275,8 @@ class NetScope : public Definitions, public Attrib {
 	    bool overridable = false;
 	    // Is it a type parameter
 	    bool type_flag = false;
+	    // Is it an unpacked array parameter (elements stored as "name[i]")
+	    bool is_array_param = false;
 	    // The lexical position of the declaration
 	    unsigned lexical_pos = 0;
 	    // range constraints
@@ -1289,6 +1296,7 @@ class NetScope : public Definitions, public Attrib {
       typedef std::map<perm_string,param_expr_t>::iterator param_ref_t;
 
       LineInfo get_parameter_line_info(perm_string name) const;
+      bool is_array_parameter(perm_string name) const;
 
       unsigned get_parameter_lexical_pos(perm_string name) const;
 
@@ -1313,6 +1321,7 @@ class NetScope : public Definitions, public Attrib {
       static void evaluate_parameter_logic_(Design*des, param_ref_t cur);
       static void evaluate_parameter_real_(Design*des, param_ref_t cur);
       static void evaluate_parameter_string_(Design*des, param_ref_t cur);
+      void evaluate_parameter_array_(Design*des, param_ref_t cur);
       void evaluate_parameter_(Design*des, param_ref_t cur);
 
     private:
@@ -1375,6 +1384,7 @@ class NetScope : public Definitions, public Attrib {
 
       unsigned lcounter_;
       bool need_const_func_, is_const_func_, is_auto_, is_cell_, calls_stask_;
+      bool is_virtual_method_ = false;
 
       /* Final procedures sets this to notify statements that
 	 they are part of a final procedure. */

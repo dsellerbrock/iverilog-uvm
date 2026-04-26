@@ -123,6 +123,8 @@ class LexicalScope {
 	    bool type_flag = false;
 	      // The lexical position of the declaration
 	    unsigned lexical_pos = 0;
+	      // Unpacked dimensions (non-null for array parameters)
+	    const std::list<pform_range_t>* udims = nullptr;
 
 	    SymbolType symbol_type() const;
       };
