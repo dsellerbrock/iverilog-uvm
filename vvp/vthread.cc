@@ -7427,6 +7427,12 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
       child->parent = thr;
+	/* Task calls compiled as %fork...%join should share the parent's
+	   logical process for process::self(), matching SV semantics where
+	   a task call runs in the calling thread's process. Mark them
+	   is_fork_v_child so logical_process_thread_() walks up to the parent. */
+      if (cp->scope->get_type_code() == vpiTask)
+	    child->is_fork_v_child = 1;
       thr->children.insert(child);
 
 	      if (thr->i_am_in_function && !(thr->pc && thr->pc->opcode == of_JOIN_DETACH)) {

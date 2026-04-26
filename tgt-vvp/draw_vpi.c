@@ -160,6 +160,12 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	      if (!sig)
 		    return 0;
 	      class_like = expr_is_class_like_(expr);
+	      /* For a class-typed property access (e.g., $cast(dst, this.m_parent)),
+	         the base signal handle is the CONTAINING object, not the property
+	         value. Fall back to draw_eval_object so the property is loaded at
+	         runtime and pushed onto the obj_stack. */
+	      if (class_like && ivl_expr_type(expr) == IVL_EX_PROPERTY)
+		    return 0;
 	      /* If the signal node is narrower than the signal itself,
 	         then this is a part select so I'm going to need to
 	         evaluate the expression.
