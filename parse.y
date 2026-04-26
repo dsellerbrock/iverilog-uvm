@@ -1163,6 +1163,19 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+    /* Replication form: '{N{val0, val1, ...}} — IEEE 1800-2012 A.6.7.1 */
+  | K_LP expression '{' expression_list_proper '}' '}'
+      { PEAssignPattern*tmp = new PEAssignPattern($2, *$4);
+	FILE_NAME(tmp, @1);
+	delete $4;
+	$$ = tmp;
+      }
+  | K_LP expression '{' '}' '}'
+      { std::list<PExpr*> empty;
+	PEAssignPattern*tmp = new PEAssignPattern($2, empty);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   ;
 
   /* Named member assignment pattern: '{field: val, ..., default: val} */
@@ -1965,11 +1978,15 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
       }
 
-  | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER tf_port_list_parens_opt ';'
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER
+      { current_function = pform_push_function_scope_unbound(@6, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';'
     covergroup_item_list_opt K_endgroup label_opt
-      { pform_class_covergroup(@1, $2, $9);
-	delete[] $2; if ($3) delete $3; delete[] $6; if ($7) delete $7;
-	if ($11) delete[] $11;
+      { if ($8) current_function->set_ports($8);
+        pform_pop_scope(); current_function = 0;
+        pform_class_covergroup(@1, $2, $10);
+	delete[] $2; if ($3) delete $3; delete[] $6;
+	if ($12) delete[] $12;
       }
 
   | K_covergroup IDENTIFIER ';' error K_endgroup label_opt
@@ -1985,11 +2002,13 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
 
   | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER
+      { current_function = pform_push_function_scope_unbound(@6, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';' error K_endgroup label_opt
-      { yyerror(@1, "error: Errors in covergroup body.");
+      { pform_pop_scope(); current_function = 0;
+        yyerror(@1, "error: Errors in covergroup body.");
 	yyerrok;
-	delete[] $2; if ($3) delete $3; delete[] $6; if ($7) delete $7;
-	if ($11) delete[] $11;
+	delete[] $2; if ($3) delete $3; delete[] $6; if ($8) delete $8;
+	if ($12) delete[] $12;
       }
 
     /* Here are some error matching rules to help recover from various
@@ -3104,6 +3123,23 @@ inside_value_range
 	r->lo = $2;  r->hi = $4;  r->is_range = true;
 	$$ = r;
       }
+  /* [lo:$] — $ means maximum value in bins/inside context */
+  | '[' expression ':' '$' ']'
+      { inside_range_t*r = new inside_range_t;
+	r->lo = $2;  r->hi = nullptr;  r->is_range = true;
+	$$ = r;
+      }
+  /* [$:hi] */
+  | '[' '$' ':' expression ']'
+      { inside_range_t*r = new inside_range_t;
+	r->lo = nullptr;  r->hi = $4;  r->is_range = true;
+	$$ = r;
+      }
+  | '[' '$' ':' '$' ']'
+      { inside_range_t*r = new inside_range_t;
+	r->lo = nullptr;  r->hi = nullptr;  r->is_range = true;
+	$$ = r;
+      }
   ;
 
 inside_range_list
@@ -3741,6 +3777,15 @@ clocking_item
 		       ; cur != $2->end() ; ++cur)
 		  pform_add_clocking_signal(@2, cur->first);
 	    delete $2;
+      }
+  /* clocking skew: input/output #delay id_list; — parse and ignore skew */
+  | port_direction '#' expression list_of_identifiers ';'
+      {
+	    delete $3;
+	    for (std::list<pform_ident_t>::iterator cur = $4->begin()
+		       ; cur != $4->end() ; ++cur)
+		  pform_add_clocking_signal(@4, cur->first);
+	    delete $4;
       }
   ;
 
@@ -7522,6 +7567,58 @@ gate_instance
 	delete[]$1;
 	$$ = tmp;
       }
+
+  /* Instance name same as type name: e.g. "clk_rst_if clk_rst_if(...)" */
+  | TYPE_IDENTIFIER '(' port_conn_expression_list_with_nuls ')'
+      { lgate*tmp = new lgate;
+	tmp->name = $1.text;
+	tmp->parms = $3;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER '(' port_name_list ')'
+      { lgate*tmp = new lgate;
+	tmp->name = $1.text;
+	tmp->parms = 0;
+	tmp->parms_by_name = $3;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER
+      { lgate*tmp = new lgate;
+	tmp->name = $1.text;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER dimensions '(' port_conn_expression_list_with_nuls ')'
+      { lgate*tmp = new lgate;
+	tmp->name = $1.text;
+	tmp->parms = $4;
+	tmp->ranges = $2;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER dimensions '(' port_name_list ')'
+      { lgate*tmp = new lgate;
+	tmp->name = $1.text;
+	tmp->parms = 0;
+	tmp->parms_by_name = $4;
+	tmp->ranges = $2;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER '(' error ')'
+      { lgate*tmp = new lgate;
+	tmp->name = $1.text;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	FILE_NAME(tmp, @1);
+	yyerror(@2, "error: Syntax error in instance port "
+	        "expression(s).");
+	$$ = tmp;
+      }
   ;
 
 gate_instance_list
@@ -8519,6 +8616,50 @@ module_item
       { yyerror(@2, "error: Invalid module instantiation");
 		  delete[]$2.text;
 		  if ($1) delete $1;
+      }
+
+  /* Packed array of typedef: e.g. "my_t [N-1:0] arr;" in module scope.
+     The TYPE_IDENTIFIER followed by '[' is ambiguous with module instantiation,
+     so we add an explicit rule here that shifts '[' before the error path fires. */
+  | attribute_list_opt
+	TYPE_IDENTIFIER dimensions list_of_variable_decl_assignments ';'
+      { pform_set_type_referenced(@2, $2.text);
+	typeref_t*tref = new typeref_t($2.type);
+	FILE_NAME(tref, @2);
+	parray_type_t*arr = new parray_type_t(tref, $3);
+	FILE_NAME(arr, @2);
+	attributes_in_context = $1;
+	pform_make_var(@2, $4, arr, attributes_in_context, 0);
+	var_lifetime = LexicalScope::INHERITED;
+	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$2.text;
+      }
+
+  /* Package-qualified variable: "pkg::type_t arr;" or "pkg::type_t [N:0] arr;" in module scope.
+     Uses package_scope to call lex_in_package_scope so the type name is looked up correctly. */
+  | attribute_list_opt
+	package_scope TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { lex_in_package_scope(0);
+	typeref_t*tref = new typeref_t($3.type, $2);
+	FILE_NAME(tref, @3);
+	attributes_in_context = $1;
+	pform_make_var(@3, $4, tref, attributes_in_context, 0);
+	var_lifetime = LexicalScope::INHERITED;
+	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$3.text;
+      }
+  | attribute_list_opt
+	package_scope TYPE_IDENTIFIER dimensions list_of_variable_decl_assignments ';'
+      { lex_in_package_scope(0);
+	typeref_t*tref = new typeref_t($3.type, $2);
+	FILE_NAME(tref, @3);
+	parray_type_t*arr = new parray_type_t(tref, $4);
+	FILE_NAME(arr, @3);
+	attributes_in_context = $1;
+	pform_make_var(@3, $5, arr, attributes_in_context, 0);
+	var_lifetime = LexicalScope::INHERITED;
+	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$3.text;
       }
 
   /* Continuous assignment can have an optional drive strength, then
@@ -10970,6 +11111,17 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   | lpvalue K_LE expression ';'
       { PAssignNB*tmp = new PAssignNB($1,$3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  /* Concatenation on the left of a non-blocking assignment: {a,b} <= expr;
+     This explicit rule lets SHIFT win over the reduce-reduce conflict between
+     lpvalue→{...} and expression→{...} (comparison) when followed by <=. */
+  | '{' expression_list_proper '}' K_LE expression ';'
+      { PEConcat*lhs = new PEConcat(*$2);
+	FILE_NAME(lhs, @1);
+	delete $2;
+	PAssignNB*tmp = new PAssignNB(lhs, $5);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }

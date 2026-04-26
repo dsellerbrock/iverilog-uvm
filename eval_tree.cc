@@ -564,6 +564,13 @@ NetEConst* NetEBComp::eval_eqeq_(bool ne_flag, const NetExpr*le, const NetExpr*r
       const verinum::V eq_res = ne_flag? verinum::V0 : verinum::V1;
       const verinum::V ne_res = ne_flag? verinum::V1 : verinum::V0;
 
+	// String equality: compare as strings (lengths may differ for different-length strings).
+      if (lv.is_string() && rv.is_string()) {
+	    bool strings_equal = (lv.as_string() == rv.as_string());
+	    verinum::V res = (strings_equal ? eq_res : ne_res);
+	    return new NetEConst(verinum(res, 1));
+      }
+
       verinum::V res = eq_res;
 
 	// The two expressions should already be padded to the same size.

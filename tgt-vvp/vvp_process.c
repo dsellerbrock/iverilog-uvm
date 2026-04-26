@@ -1670,19 +1670,25 @@ static int show_stmt_utask(ivl_statement_t net)
 
       show_stmt_file_line(net, "User task call.");
 
+      /* Use virtual dispatch (/v suffix) only for virtual methods or
+         when calling through an object whose static type may differ from
+         the dynamic type (i.e. the method is declared virtual). Super
+         calls always use static dispatch. */
+      int use_virtual = !ivl_stmt_is_super_call(net)
+                        && ivl_scope_is_virtual_method(task);
       if (ivl_scope_type(task) == IVL_SCT_FUNCTION) {
 	    const char*target = vvp_mangle_id(ivl_scope_name(task));
 	    note_td_reference(target);
 	      // A function called as a task is (presumably) a void function.
 	      // Use the %callf/void instruction to call it.
 	    fprintf(vvp_out, "    %%callf/void%s TD_%s",
-		    ivl_stmt_is_super_call(net) ? "" : "/v", target);
+		    use_virtual ? "/v" : "", target);
 	    fprintf(vvp_out, ", S_%p;\n", task);
       } else {
 	    const char*target = vvp_mangle_id(ivl_scope_name(task));
 	    note_td_reference(target);
 	    fprintf(vvp_out, "    %%fork%s TD_%s",
-		    ivl_stmt_is_super_call(net) ? "" : "/v", target);
+		    use_virtual ? "/v" : "", target);
 	    fprintf(vvp_out, ", S_%p;\n", task);
 	    fprintf(vvp_out, "    %%join;\n");
       }

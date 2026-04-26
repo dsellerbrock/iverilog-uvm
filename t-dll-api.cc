@@ -2249,6 +2249,12 @@ extern "C" int ivl_scope_is_dpi_import(ivl_scope_t net)
       return net->is_dpi_import ? 1 : 0;
 }
 
+extern "C" int ivl_scope_is_virtual_method(ivl_scope_t net)
+{
+      assert(net);
+      return net->is_virtual_method ? 1 : 0;
+}
+
 extern "C" const char*ivl_scope_dpi_c_name(ivl_scope_t net)
 {
       assert(net);

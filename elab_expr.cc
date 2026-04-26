@@ -7747,24 +7747,6 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		 << endl;
       }
 
-      if (path_.size() > 1) {
-            if (NEED_CONST & flags) {
-                  cerr << get_fileline() << ": error: A hierarchical reference"
-                          " (`" << path_ << "') is not allowed in a constant"
-                          " expression." << endl;
-                  des->errors += 1;
-                  return 0;
-            }
-            if (scope->need_const_func()) {
-                  cerr << get_fileline() << ": error: A hierarchical reference"
-                          " (`" << path_ << "') is not allowed in a constant"
-                          " function." << endl;
-                  des->errors += 1;
-                  return 0;
-            }
-            scope->is_const_func(false);
-      }
-
 	// Find the net/parameter/event object that this name refers
 	// to. The path_ may be a scoped path, and may include method
 	// or member name parts. For example, main.a.b.c may refer to
@@ -7772,6 +7754,30 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// named "c". symbol_search() handles this for us.
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+      if (path_.size() > 1) {
+	      // Package parameters accessed via a self-package-scope reference
+	      // (pkg_b::Y inside pkg_b) may parse as a hierarchical path if the
+	      // package was not yet registered at lex time. Still allow them as
+	      // constants when symbol_search resolves them to a parameter value.
+            if (sr.par_val == 0) {
+                  if (NEED_CONST & flags) {
+                        cerr << get_fileline() << ": error: A hierarchical reference"
+                                " (`" << path_ << "') is not allowed in a constant"
+                                " expression." << endl;
+                        des->errors += 1;
+                        return 0;
+                  }
+                  if (scope->need_const_func()) {
+                        cerr << get_fileline() << ": error: A hierarchical reference"
+                                " (`" << path_ << "') is not allowed in a constant"
+                                " function." << endl;
+                        des->errors += 1;
+                        return 0;
+                  }
+                  scope->is_const_func(false);
+            }
+      }
 
 	// If the identifier name is a parameter name, then return
 	// the parameter value.
@@ -8538,6 +8544,41 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 					    ivl_type_t par_type,
                                             bool need_const) const
 {
+      perm_string name = peek_tail_name(path_);
+
+      // Handle unpacked array parameters: UART_PERMIT[i] where UART_PERMIT
+      // was declared as `parameter logic [3:0] UART_PERMIT [13]`.
+      // The array is expanded into individual parameters named "UART_PERMIT[i]".
+      if (const_cast<NetScope*>(found_in)->is_array_parameter(name)) {
+	    const name_component_t&name_tail = path_.back();
+	    ivl_assert(*this, !name_tail.index.empty());
+	    const index_component_t&index_tail = name_tail.index.back();
+	    ivl_assert(*this, index_tail.msb);
+
+	    NetExpr*sel = elab_and_eval(des, scope, index_tail.msb, -1, need_const);
+	    if (!sel) return 0;
+
+	    const NetEConst*sel_c = dynamic_cast<const NetEConst*>(sel);
+	    if (sel_c) {
+		  long sel_v = sel_c->value().as_long();
+		  char buf[64];
+		  snprintf(buf, sizeof(buf), "[%ld]", sel_v);
+		  string elem_str = string(name.str()) + buf;
+		  perm_string elem_name = lex_strings.make(elem_str.c_str());
+		  ivl_type_t elem_type = 0;
+		  const NetExpr*elem = const_cast<NetScope*>(found_in)->get_parameter(des, elem_name, elem_type);
+		  if (elem) {
+			NetExpr*result = elem->dup_expr();
+			result->set_line(*this);
+			return result;
+		  }
+	    }
+	    cerr << get_fileline() << ": error: "
+		 << "Array parameter '" << name << "': index must be a constant." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
       const NetEConst*par_ex = dynamic_cast<const NetEConst*> (par);
       ivl_assert(*this, par_ex);
 
@@ -8553,8 +8594,6 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 
       NetExpr*sel = elab_and_eval(des, scope, index_tail.msb, -1, need_const);
       if (sel == 0) return 0;
-
-      perm_string name = peek_tail_name(path_);
 
       if (sel->expr_type() == IVL_VT_REAL) {
 	    cerr << get_fileline() << ": error: Index expression for "

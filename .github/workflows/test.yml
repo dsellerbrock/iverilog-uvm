@@ -53,6 +53,10 @@ jobs:
       continue-on-error: true
       run: ./.github/test.sh
 
+    - name: UVM regression tests
+      continue-on-error: true
+      run: ./.github/uvm_test.sh
+
 
   lin:
     strategy:
@@ -90,6 +94,10 @@ jobs:
     - name: Regression tests
       continue-on-error: true
       run: ./.github/test.sh
+
+    - name: UVM regression tests
+      continue-on-error: true
+      run: ./.github/uvm_test.sh
 
     - name: Documentation
       run: |
@@ -154,6 +162,10 @@ jobs:
         else
             ./.github/test.sh
         fi
+
+    - name: UVM regression tests
+      continue-on-error: true
+      run: ./.github/uvm_test.sh
 
     - uses: actions/upload-artifact@v4
       with:

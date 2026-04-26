@@ -402,6 +402,8 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
       }
       note_td_reference(mangled);
       unsigned super_call = ivl_expr_is_super_call(expr);
+      /* Only dispatch virtually for methods declared with "virtual" keyword. */
+      unsigned use_virtual = !super_call && ivl_scope_is_virtual_method(def);
 
       /* Use the function scope's return type as the authoritative opcode
        * selector. The call-site expression type (ivl_expr_value) can be
@@ -423,26 +425,26 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
       switch (call_type) {
 	  case IVL_VT_VOID:
 	    fprintf(vvp_out, "    %%callf/void%s TD_%s",
-		    super_call ? "" : "/v", mangled);
+		    use_virtual ? "/v" : "", mangled);
 	    fprintf(vvp_out, ", S_%p;\n", def);
 	    fflush(vvp_out);
 	    break;
 	  case IVL_VT_REAL:
 	    fprintf(vvp_out, "    %%callf/real%s TD_%s",
-		    super_call ? "" : "/v", mangled);
+		    use_virtual ? "/v" : "", mangled);
 	    fprintf(vvp_out, ", S_%p;\n", def);
 	    fflush(vvp_out);
 	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
 	    fprintf(vvp_out, "    %%callf/vec4%s TD_%s",
-		    super_call ? "" : "/v", mangled);
+		    use_virtual ? "/v" : "", mangled);
 	    fprintf(vvp_out, ", S_%p;\n", def);
 	    fflush(vvp_out);
 	    break;
 	  case IVL_VT_STRING:
 	    fprintf(vvp_out, "    %%callf/str%s TD_%s",
-		    super_call ? "" : "/v", mangled);
+		    use_virtual ? "/v" : "", mangled);
 	    fprintf(vvp_out, ", S_%p;\n", def);
 	    fflush(vvp_out);
 	    break;
@@ -451,14 +453,14 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
 	    fprintf(vvp_out, "    %%callf/obj%s TD_%s",
-		    super_call ? "" : "/v", mangled);
+		    use_virtual ? "/v" : "", mangled);
 	    fflush(vvp_out); // Flush immediately in case of crash
 	    fprintf(vvp_out, ", S_%p;\n", def);
 	    fflush(vvp_out); // Flush immediately in case of crash
 	    break;
 	  default:
 	    fprintf(vvp_out, "    %%fork%s TD_%s",
-		    super_call ? "" : "/v", mangled);
+		    use_virtual ? "/v" : "", mangled);
 	    fprintf(vvp_out, ", S_%p;\n", def);
 	    fprintf(vvp_out, "    %%join;\n");
 	    fflush(vvp_out);

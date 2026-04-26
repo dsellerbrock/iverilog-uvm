@@ -23,6 +23,7 @@
 # include  <set>
 # include  <cstdlib>
 # include  <cstring>
+# include  <string>
 
 /*
  * This source file contains all the implementations of the Design
@@ -659,6 +660,125 @@ void Design::evaluate_parameters()
       }
 }
 
+/* Expand an unpacked array parameter into individual scalar parameters.
+ * For  `parameter logic [3:0] UART_PERMIT [13] = '{4'b0011, ...}`
+ * this creates parameters named "UART_PERMIT[0]", "UART_PERMIT[1]", etc.
+ * The original parameter gets a sentinel val so get_parameter() won't
+ * try to re-evaluate it, and is_array_param remains true for indexed access.
+ */
+void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
+{
+      PEAssignPattern* ap = dynamic_cast<PEAssignPattern*>(cur->second.val_expr);
+      if (!ap) {
+	    /* If val_expr is an identifier reference (e.g. a parent's array
+	     * parameter passed through a port), look for elements "<name>[0]",
+	     * "<name>[1]", ... in val_scope and propagate them here. */
+	    PEIdent* id = dynamic_cast<PEIdent*>(cur->second.val_expr);
+	    if (id && cur->second.val_scope) {
+		  perm_string src_name = peek_tail_name(id->path().name);
+		  NetScope* src_scope = cur->second.val_scope;
+		  // Find how many "[i]" elements exist in src_scope.
+		  for (size_t i = 0; ; i++) {
+			char buf[64];
+			snprintf(buf, sizeof(buf), "[%zu]", i);
+			string elem_str = string(src_name.str()) + buf;
+			perm_string elem_name = lex_strings.make(elem_str.c_str());
+			// Stop if src_scope has no more elements.
+			ivl_type_t dummy_type = 0;
+			if (!src_scope->get_parameter(des, elem_name, dummy_type))
+			      break;
+			// Create a corresponding element in this scope.
+			string dst_str = string(cur->first.str()) + buf;
+			perm_string dst_name = lex_strings.make(dst_str.c_str());
+			param_expr_t& ref = parameters[dst_name];
+			ref.is_annotatable = false;
+			ref.val_expr = nullptr;
+			ref.val_type = nullptr;
+			ref.val_scope = src_scope;
+			ref.local_flag = cur->second.local_flag;
+			ref.overridable = false;
+			ref.type_flag = false;
+			ref.is_array_param = false;
+			ref.ivl_type = nullptr;
+			ref.solving = false;
+			ref.range = nullptr;
+			// Copy the already-evaluated value from the src element.
+			const NetExpr* src_val = src_scope->get_parameter(des, elem_name, dummy_type);
+			ref.val = src_val ? src_val->dup_expr() : new NetEConst(verinum(verinum::Vx, 1));
+			ref.set_line(cur->second);
+		  }
+		  cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
+		  cur->second.val_expr = nullptr;
+		  return;
+	    }
+	    /* Fall back: warn and use X for all elements (index unknown
+	     * without udims info). */
+	    cerr << cur->second.get_fileline() << ": warning: "
+		 << "Array parameter '" << cur->first
+		 << "' has non-pattern initializer; elements set to X." << endl;
+	    cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
+	    cur->second.val_expr = nullptr;
+	    return;
+      }
+
+      // Build the flat list of element expressions, expanding any replication.
+      std::vector<PExpr*> elems;
+      if (ap->replication()) {
+	    // '{N{e0, e1, ...}} form: evaluate N and replicate
+	    NetExpr* count_expr = elab_and_eval(des, cur->second.val_scope,
+					        ap->replication(), -1, true);
+	    const NetEConst* count_c = dynamic_cast<const NetEConst*>(count_expr);
+	    if (!count_c) {
+		  cerr << cur->second.get_fileline() << ": error: "
+		       << "Replication count in array parameter '" << cur->first
+		       << "' is not a constant." << endl;
+		  des->errors += 1;
+		  cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
+		  cur->second.val_expr = nullptr;
+		  return;
+	    }
+	    long count = count_c->value().as_long();
+	    const std::vector<PExpr*>& base = ap->parms();
+	    for (long r = 0; r < count; r++)
+		  for (size_t j = 0; j < base.size(); j++)
+			elems.push_back(base[j]);
+      } else {
+	    elems = ap->parms();
+      }
+
+      ivl_type_t elem_type = cur->second.ivl_type;
+
+      for (size_t i = 0; i < elems.size(); i++) {
+	    char buf[64];
+	    snprintf(buf, sizeof(buf), "[%zu]", i);
+	    string elem_str = string(cur->first.str()) + buf;
+	    perm_string elem_name = lex_strings.make(elem_str.c_str());
+
+	    param_expr_t& ref = parameters[elem_name];
+	    ref.is_annotatable = false;
+	    ref.val_expr = elems[i];
+	    ref.val_type = nullptr;
+	    ref.val_scope = this;
+	    ref.local_flag = cur->second.local_flag;
+	    ref.overridable = false;
+	    ref.type_flag = false;
+	    ref.is_array_param = false;
+	    // Don't set ivl_type here: evaluate_parameter_ checks (val||ivl_type)
+	    // for early exit, and val is null until the child param is evaluated.
+	    // Let evaluate_parameter_logic_ infer the type from the expression.
+	    ref.ivl_type = nullptr;
+	    ref.val = nullptr;
+	    ref.solving = false;
+	    ref.range = nullptr;
+	    ref.set_line(cur->second);
+	    (void)elem_type;
+      }
+
+      // Set sentinel so get_parameter() returns non-null (is_array_param stays true)
+      cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
+      cur->second.val_expr = nullptr;
+}
+
 void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
 {
 	/* Evaluate the parameter expression. */
@@ -1145,6 +1265,11 @@ void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
 	    param_type = cur->second.val_type->elaborate_type(des, this);
 	    cur->second.ivl_type = param_type;
 	    cur->second.val_type = 0;
+      }
+
+      if (cur->second.is_array_param) {
+	    evaluate_parameter_array_(des, cur);
+	    return;
       }
 
       // Guess the varaiable type of the parameter. If the parameter has no

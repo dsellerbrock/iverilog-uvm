@@ -52,6 +52,9 @@ class PTaskFunc : public PScope, public PNamedItem {
 	// to the class type.
       inline class_type_t* method_of() const { return this_type_; }
 
+      inline bool is_virtual_method() const { return is_virtual_; }
+      inline void set_virtual_method(bool v) { is_virtual_ = v; }
+
 
       virtual void elaborate_sig(Design*des, NetScope*scope) const =0;
       virtual void elaborate(Design*des, NetScope*scope) const =0;
@@ -71,6 +74,7 @@ class PTaskFunc : public PScope, public PNamedItem {
 
     private:
       class_type_t*this_type_;
+      bool is_virtual_ = false;
       std::vector<pform_tf_port_t>*ports_;
 };
 

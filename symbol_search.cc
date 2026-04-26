@@ -561,6 +561,17 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 		  res->path_head = path;
 		  return true;
 	    }
+
+	    // Also try as a package scope. Self-references like pkg::Y inside
+	    // pkg_b parse as hierarchical when the package isn't yet registered
+	    // at lex time. Resolve them here so cross-package constants work.
+	    NetScope*pkg_scope = des->find_package(path_tail.name);
+	    if (pkg_scope) {
+		  path.push_back(path_tail);
+		  res->scope = pkg_scope;
+		  res->path_head = path;
+		  return true;
+	    }
       }
 
       return false;

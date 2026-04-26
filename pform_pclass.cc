@@ -175,6 +175,8 @@ void pform_class_property(const struct vlltype&loc,
       }
 }
 
+static PTaskFunc* pform_recent_class_method_ = 0;
+
 void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
 {
       if (pform_cur_class == 0)
@@ -194,6 +196,14 @@ void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
       delete this_port;
 
       net->set_this(pform_cur_class->type, this_wire);
+      pform_recent_class_method_ = net;
+}
+
+void pform_mark_recent_class_method_virtual(void)
+{
+      if (pform_recent_class_method_)
+	    pform_recent_class_method_->set_virtual_method(true);
+      pform_recent_class_method_ = 0;
 }
 
 void pform_set_constructor_return(PFunction*net)
@@ -299,6 +309,8 @@ void pform_bind_extern_func(PFunction*func)
 	    PFunction*proto = it->second;
 	    if (!func->method_of() && proto->method_of())
 		  func->set_method_type_only(proto->method_of());
+	    if (!func->is_virtual_method() && proto->is_virtual_method())
+		  func->set_virtual_method(true);
 	    it->second = func;
       } else {
 	    pform_cur_class->funcs[name] = func;
@@ -322,6 +334,8 @@ void pform_bind_extern_task(PTask*task)
 	    PTask*proto = it->second;
 	    if (!task->method_of() && proto->method_of())
 		  task->set_method_type_only(proto->method_of());
+	    if (!task->is_virtual_method() && proto->is_virtual_method())
+		  task->set_virtual_method(true);
 	    it->second = task;
       } else {
 	    pform_cur_class->tasks[name] = task;

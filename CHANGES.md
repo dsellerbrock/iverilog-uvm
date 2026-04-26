@@ -751,7 +751,75 @@ Additional parse.y grammar fixes and one `ivlpp/lexor.lex` fix:
 
 ---
 
-## 10. CI / Build Portability
+## 10. Phase 10 — OpenTitan cip_base_pkg Grammar Fixes (2026-04-25)
+
+**Files:** `parse.y`, `lexor.lex`
+
+This phase extends iverilog's SystemVerilog grammar to compile the OpenTitan
+`cip_base_pkg` DV stack — the last major DV package boundary — without errors.
+Three grammar gaps were fixed:
+
+### 10a. `pkg::var = expr` — Package-scoped variable assignment
+
+**Root cause:** The assignment rules were placed inside `subroutine_call`
+(typed `PCallTask*`) instead of `statement_item` (typed `Statement*`), causing
+a C++ type mismatch at compile time.
+
+**Fix:** Moved `PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER '=' expression ';'`
+and the `TYPE_IDENTIFIER` variant into `statement_item` after other pkg-scoped
+rules. Used `new PEIdent($1, hident, @1.lexical_pos)` to pass the package
+pointer directly to the lvalue constructor.
+
+### 10b. `TYPE'(expr)` cast and `TYPE'{...}` aggregate pattern
+
+**`TYPE'(expr)` (type cast):** Added `TYPE_IDENTIFIER '\'' '(' expression ')'`
+and `package_scope TYPE_IDENTIFIER '\'' '(' expression ')'` as pass-through
+rules in `expr_primary`. Pass-through (just return `$4`) avoids an assertion
+failure in `netlist.cc:2359` when enum packed-width mismatches constant width.
+
+**`TYPE'{...}` (aggregate pattern):** The `'` in `my_struct_t'{...}` is NOT a
+standalone token — the lexer consumes `'{` as single token `K_LP`. Grammar rule
+changed from `TYPE_IDENTIFIER '\'' assignment_pattern` to `TYPE_IDENTIFIER
+assignment_pattern` (K_LP is the first token of `assignment_pattern`).
+
+### 10c. `this.randomize() with { ... }` — class handle form
+
+**Root cause:** The `K_with '{' constraint_block_item_list_opt '}'` rule only
+existed for `hierarchy_identifier` (starts with IDENTIFIER). `this.randomize`
+uses `class_hierarchy_identifier` (starts with `K_this`), which had no `K_with`
+alternative.
+
+**Fix:** Added `class_hierarchy_identifier argument_list_parens K_with '{' constraint_block_item_list_opt '}'` rule with the same body as the existing
+`hierarchy_identifier` form.
+
+### 10d. `#10_000ns` — Underscore separators in time literals (IEEE 1800 §5.7.1)
+
+**Root cause:** The TIME_LITERAL lexer rule accepted `[0-9][0-9_]*...` but
+`get_time_unit()` explicitly rejected strings containing `_`. Additionally,
+`atof("10_000ns")` returns 10.0 (stops at `_`) rather than 10000.0.
+
+**Fix:** Strip underscore separators from the matched text in the TIME_LITERAL
+lexer action before returning the token. Both `get_time_unit()` and `atof()`
+then see the clean numeric string.
+
+### 10e. New exports in `ivl.def` (Windows DLL compatibility)
+
+New API functions from Phases 3, 5, and DPI were missing from `ivl.def`,
+which controls which symbols are exported by the Windows DLL:
+- Phase 3 (VIF events): `ivl_event_is_vif_posedge/negedge/anyedge`,
+  `ivl_event_vif_N/M`
+- Phase 5 (coverage): `ivl_type_covgrp_ncoverpoints/bins/bin_prop/lo/hi/cp`
+- DPI: `ivl_scope_is_dpi_import`
+
+### 10f. UVM regression tests added to CI
+
+The 22 UVM tests in `tests/` are now tracked in the git repository and run
+as a separate `UVM regression tests` step in the GitHub Actions workflow
+(`.github/uvm_test.sh`), on all three platforms (Linux, macOS, Windows/MSYS2).
+
+---
+
+## 10b. CI / Build Portability
 
 **Commits:** `4a595c2`, `2f740b2`, `21d0f17`, `d5d50b1`, `6991bd6`, `844be75`,
 `20850e9`, `f1244e8`
@@ -806,20 +874,10 @@ Key fixes:
 
 ### `pkg::var = expr` Assignment (Package-Scoped Lvalue)
 
-**Status:** Deferred.
+**Status:** ✅ Fixed in Phase 10.
 
-`pkg::var = 7;` at statement level fails with a syntax error. The LALR(1) grammar
-has a shift-reduce conflict: after `PACKAGE_IDENTIFIER K_SCOPE_RES`, the parser
-prefers to SHIFT into `subroutine_call` over REDUCE to `package_scope`. This means
-`lex_in_package_scope()` is never called, so the following identifier is tokenized as
-`IDENTIFIER` not `TYPE_IDENTIFIER`, and the expression tree is wrong.
-
-**Impact:** Package-scoped variables cannot be assigned directly. Package-scoped
-*functions* and *constants* work correctly in expression contexts.
-
-**Fix required:** Remove direct `PACKAGE_IDENTIFIER K_SCOPE_RES` alternatives from
-`subroutine_call` and `statement_item`, replacing them with `package_scope`-based
-alternatives using mid-rule actions. This is a significant grammar restructuring.
+Rules moved to `statement_item`; lvalue constructed via `new PEIdent($pkg, hident, @pos)`.
+Both `IDENTIFIER` and `TYPE_IDENTIFIER` variants handled.
 
 ### `dist` Weighted Distribution
 
@@ -862,6 +920,7 @@ All 41 commits ahead of `steveicarus/iverilog` `master`:
 
 | Hash | Phase | Description |
 |---|---|---|
+| *(pending)* | 10 | cip_base_pkg: TYPE cast, this.randomize with, time underscores, ivl.def |
 | `4aa74ed` | 9 | Grammar fixes for lc_ctrl_pkg and tlul_pkg compilation |
 | `e632876` | 8 | OpenTitan DV packages compile through tl_agent_pkg |
 | `061c7b3` | 7 | SV grammar fixes for OpenTitan DV package compilation |

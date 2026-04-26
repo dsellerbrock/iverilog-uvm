@@ -3284,10 +3284,10 @@ void pform_set_parameter(const struct vlltype&loc,
       }
 
       if (udims) {
-	    if (pform_requires_sv(loc, "unpacked array parameter")) {
-		  VLerror(loc, "sorry: unpacked array parameters are not supported yet.");
+	    if (!pform_requires_sv(loc, "unpacked array parameter")) {
+		  return;
 	    }
-	    return;
+	    // In SV mode: allow 1D unpacked array params; elements expanded at elaboration
       }
 
       bool overridable = !is_local;
@@ -3327,6 +3327,7 @@ void pform_set_parameter(const struct vlltype&loc,
       parm->overridable = overridable;
       parm->type_flag = is_type;
       parm->lexical_pos = loc.lexical_pos;
+      parm->udims = udims;
 
       bool new_parameter = (scope->parameters.find(name) == scope->parameters.end());
       scope->parameters[name] = parm;
@@ -3714,7 +3715,8 @@ void pform_start_clocking_block(const struct vlltype&loc,
 {
       Module*scope = pform_cur_module.front();
       ivl_assert(loc, scope && scope->is_interface);
-      ivl_assert(loc, pform_cur_clocking == 0);
+      /* On parse error, a previous clocking block may not have been ended. Reset it. */
+      if (pform_cur_clocking) pform_cur_clocking = 0;
 
       perm_string use_name = lex_strings.make(name);
       if (scope->clocking_blocks.find(use_name) != scope->clocking_blocks.end()) {
@@ -3746,7 +3748,7 @@ void pform_add_clocking_signal(const struct vlltype&loc, perm_string name)
 
 void pform_end_clocking_block(const struct vlltype&loc)
 {
-      ivl_assert(loc, pform_cur_clocking);
+      /* May be 0 if the block body had a parse error and was skipped */
       pform_cur_clocking = 0;
 }
 

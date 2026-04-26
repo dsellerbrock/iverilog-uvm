@@ -114,6 +114,7 @@ ivl_scope_s::ivl_scope_s()
       func_width = 0;
       is_dpi_import = false;
       dpi_c_name = 0;
+      is_virtual_method = false;
 }
 
 /*
@@ -2572,6 +2573,7 @@ void dll_target::scope(const NetScope*net)
 	    scop->attr = fill_in_attributes(net);
 	    scop->is_auto = net->is_auto();
 	    scop->is_cell = net->is_cell();
+	    scop->is_virtual_method = net->is_virtual_method();
 
 	    switch (net->type()) {
 		case NetScope::PACKAGE:
