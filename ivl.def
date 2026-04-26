@@ -362,6 +362,7 @@ ivl_event_vif_N
 ivl_event_vif_M
 
 ivl_scope_is_dpi_import
+ivl_scope_dpi_c_name
 ivl_scope_is_virtual_method
 
 ivl_udp_init
