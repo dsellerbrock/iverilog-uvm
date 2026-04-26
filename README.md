@@ -2,9 +2,24 @@
 
 [![CI](https://github.com/dsellerbrock/iverilog-uvm/actions/workflows/main.yml/badge.svg?branch=development)](https://github.com/dsellerbrock/iverilog-uvm/actions/workflows/main.yml)
 
-> **Experimental research fork.** Adds UVM and IEEE 1800-2012 SystemVerilog support to
-> [Icarus Verilog](https://github.com/steveicarus/iverilog). Changes are under active
-> development and being prepared for upstream submission. **Not for production use.**
+> ## ⚠ EXPERIMENTAL — DO NOT USE FOR SERIOUS WORK ⚠
+>
+> **This is a toy/research fork. All code is guilty until proven innocent.**
+> It must not be used for production, tapeout, or any work where correctness
+> matters until the changes have been:
+>
+> - Thoroughly tested against a broad regression suite
+> - Reviewed and accepted into an official upstream release
+> - Independently verified by the wider Icarus Verilog community
+>
+> **What this fork does:** Adds experimental, AI-assisted SystemVerilog and UVM
+> support. Many constructs are stubbed, fall back silently, or produce incorrect
+> results in edge cases. The changes have not been through normal upstream
+> code review.
+>
+> **Use the official Icarus Verilog** at https://github.com/steveicarus/iverilog
+> for any real work. This fork is for exploration and upstream contribution
+> purposes only.
 >
 > Full technical design document: [`CHANGES.md`](CHANGES.md)
 
