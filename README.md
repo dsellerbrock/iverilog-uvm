@@ -72,6 +72,11 @@ results — and upstream each fix as a minimal, reviewable patch.
 | `dist` weighted distribution | ⚠ Deferred | Not yet implemented |
 | `std::randomize(var) with {...}` | ⚠ Stub | Returns success; variable retains current value |
 | Concurrent assertions (`assert property`) | ⚠ Deferred | Immediate `assert` works; `\|->`/`\|=>` not yet |
+| SVA sampling (`$rose/$fell/$stable/$past`) | ⚠ Stub | Returns safe defaults; no clock-edge sampling |
+| Clocking blocks `@(iface.cb)` + `iface.cb.sig` | ✅ | Flat rewrite to underlying interface signals |
+| Program blocks | ✅ | Treated like modules |
+| Output-arg into nested class property (e.g. `env.cfg.vif`) | ✅ | inout writeback through `cfg.vif`, `env.cfg.vif`, etc. |
+| Output-arg into indexed property (`cfg.q[key]`) | ⚠ Deferred | Writeback skipped — see Issue #27 OpenTitan DV |
 
 ---
 
