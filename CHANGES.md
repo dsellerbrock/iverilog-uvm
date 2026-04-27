@@ -5,7 +5,7 @@ This document describes every change in the `development` branch relative to
 feature: what was broken, the root cause, the fix, files changed, and test coverage.
 
 **Branch:** `dsellerbrock/iverilog-uvm` `development`
-**Base:** `steveicarus/iverilog` `master` (82 commits ahead)
+**Base:** `steveicarus/iverilog` `master` (86 commits ahead)
 **Upstream status** is noted for each group — see §11 for the summary table.
 
 ---
@@ -916,10 +916,13 @@ iverilog -g2012 -I hw/ip/prim/rtl \
 
 ## 13. Commit Index
 
-All 82 commits ahead of `steveicarus/iverilog` `master`:
+All 86 commits ahead of `steveicarus/iverilog` `master`:
 
 | Hash | Phase | Description |
 |---|---|---|
+| `11ba528` | 33 | `sequence`/`property` declarations parse via error recovery; body dropped |
+| `382961c` | 32 | `default disable iff (...)` and `default clocking ... endclocking` parse silently at module scope |
+| `6b9509b` | 31 | `assert property (... \|-> ...)` and `\|=>` parse without erroring; gn_unsupported_assertions defaults to false |
 | `ca20d7a` | 30 | `dist` weighted constraint: drop silently instead of returning lhs (would crash randomize) |
 | `9aeecf4` | 29 | README: dvsim runs all 3 UART vseqs to TEST PASSED CHECKS |
 | `89fcf58` | 29 | OpenTitan UART DV runs end-to-end through dvsim+fusesoc (bind, case-inside, multi-dim packed param flatten, +plusarg reorder, wildcard-import shadow) |

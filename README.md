@@ -73,7 +73,9 @@ results — and upstream each fix as a minimal, reviewable patch.
 | Full UVM library end-to-end | ⚠ Partial | Phase infrastructure works; some gaps remain |
 | `dist` weighted distribution | ⚠ Stub | Parses without crashing — actual weighting TODO (Phase 30 / Issue #12) |
 | `std::randomize(var) with {...}` | ⚠ Stub | Returns success; variable retains current value |
-| Concurrent assertions (`assert property`) | ⚠ Deferred | Immediate `assert` works; `\|->`/`\|=>` not yet |
+| Concurrent assertions (`assert property`) | ⚠ Stub | Parses with `\|->`, `\|=>`, `disable iff`; semantics TODO (Phase 31) |
+| SVA `default disable iff` / `default clocking` | ⚠ Stub | Parses silently at module scope (Phase 32) |
+| SVA `sequence ... endsequence` / `property ... endproperty` | ⚠ Stub | Parses via error recovery; body dropped (Phase 33) |
 | SVA sampling (`$rose/$fell/$stable/$past`) | ⚠ Stub | Returns safe defaults; no clock-edge sampling |
 | Clocking blocks `@(iface.cb)` + `iface.cb.sig` | ✅ | Flat rewrite to underlying interface signals |
 | Program blocks | ✅ | Treated like modules |
