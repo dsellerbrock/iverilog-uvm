@@ -3773,6 +3773,16 @@ clocking_declaration
       }
     clocking_items_opt K_endclocking
       { pform_end_clocking_block(@7); }
+  /* SV `default clocking [name] event_control; ... endclocking` — silently
+     accepted at module/interface scope. We don't yet model clocking-block
+     sample/drive semantics; the declaration is parsed and dropped. */
+  | K_default K_clocking IDENTIFIER event_control ';' clocking_items_opt K_endclocking
+      { delete[] $3; }
+  | K_default K_clocking event_control ';' clocking_items_opt K_endclocking
+      { /* anonymous default clocking */ }
+  /* SV `default disable iff (expr);` — silently accepted. */
+  | K_default K_disable K_iff '(' expression ')' ';'
+      { delete $5; }
   ;
 
 clocking_item
