@@ -580,9 +580,27 @@ static bool find_foreach_path_root_type_(Design*des, NetScope*scope,
 	    if (!pclass || !pclass->type)
 		  continue;
 
+	    // Look for the property in this class first; if not found,
+	    // walk up the super-class chain. A class's own pform only
+	    // lists declarations made directly in that class -- if `cfg`
+	    // is inherited (e.g. cip_base_env extends dv_base_env where
+	    // dv_base_env declares cfg), the immediate pform has no
+	    // entry for `cfg` but a super pform does.
+	    const PClass*search_pclass = pclass;
+	    const netclass_t*search_class = cur->class_def();
 	    map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
-		  pclass->type->properties.find(name);
-	    if (pcur == pclass->type->properties.end())
+		  search_pclass->type->properties.find(name);
+	    while (pcur == search_pclass->type->properties.end()
+	           && search_class) {
+		  search_class = search_class->get_super();
+		  if (!search_class) break;
+		  const NetScope*sc = search_class->class_scope();
+		  search_pclass = sc ? sc->class_pform() : 0;
+		  if (!search_pclass || !search_pclass->type) break;
+		  pcur = search_pclass->type->properties.find(name);
+	    }
+	    if (!search_pclass || !search_pclass->type
+	        || pcur == search_pclass->type->properties.end())
 		  continue;
 
 	    if (!pcur->second.type.get())
@@ -593,6 +611,30 @@ static bool find_foreach_path_root_type_(Design*des, NetScope*scope,
 
       root_type = ensure_visible_class_type(des, scope, name);
       return root_type != 0;
+}
+
+// Walk a class's pform property table, then climb the inheritance
+// chain until we find the named property (or run out of supers).
+// Needed because a foreach over `derived.<prop>` resolves the receiver
+// class to the derived class, but the property declaration may live on
+// a base class's pform (derived adds no new properties of its own).
+static const class_type_t::prop_info_t*
+find_class_property_via_inheritance_(const netclass_t*cur_class,
+                                     perm_string prop_name)
+{
+      while (cur_class) {
+            const NetScope*class_scope = cur_class->class_scope();
+            const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
+            if (pclass && pclass->type) {
+                  map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
+                        pclass->type->properties.find(prop_name);
+                  if (pcur != pclass->type->properties.end()
+                      && pcur->second.type.get())
+                        return &pcur->second;
+            }
+            cur_class = cur_class->get_super();
+      }
+      return 0;
 }
 
 static const data_type_t* find_foreach_selected_path_type_(
@@ -607,20 +649,18 @@ static const data_type_t* find_foreach_selected_path_type_(
 
       for (size_t idx = 1 ; idx < target_path.size() ; idx += 1) {
 	    const netclass_t*cur_class = dynamic_cast<const netclass_t*>(cur_type);
-	    const NetScope*class_scope = cur_class ? cur_class->class_scope() : 0;
-	    const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
-	    if (!pclass || !pclass->type)
+	    if (!cur_class)
 		  return 0;
 
-	    map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
-		  pclass->type->properties.find(target_path[idx]);
-	    if (pcur == pclass->type->properties.end() || !pcur->second.type.get())
+	    const class_type_t::prop_info_t*prop =
+		  find_class_property_via_inheritance_(cur_class, target_path[idx]);
+	    if (!prop)
 		  return 0;
 
 	    if (idx + 1 == target_path.size())
-		  return pcur->second.type.get();
+		  return prop->type.get();
 
-	    cur_type = const_cast<data_type_t*>(pcur->second.type.get())->elaborate_type(des, scope);
+	    cur_type = const_cast<data_type_t*>(prop->type.get())->elaborate_type(des, scope);
 	    if (!cur_type)
 		  return 0;
       }
