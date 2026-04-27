@@ -4621,6 +4621,55 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  return noop;
 	    }
 
+	    // Route `<assoc>.first/last/next/prev(key)` task calls through
+	    // the existing assoc-method runtime hooks. This case typically
+	    // arrives via `void'(m_maps.first(map))` — UVM does this in
+	    // get_default_map / get_local_map. Without this, the call falls
+	    // into the "unknown task" warning path and silently NOOPs, so
+	    // `map` stays null and the register layer trips a null-map
+	    // UVM_ERROR.
+	    if (gn_system_verilog() && path_.size() >= 2 && parms_.size() == 1) {
+		  perm_string mname = peek_tail_name(path_);
+		  bool is_aa_traversal =
+			(mname == perm_string::literal("first")
+			 || mname == perm_string::literal("last")
+			 || mname == perm_string::literal("next")
+			 || mname == perm_string::literal("prev"));
+		  if (is_aa_traversal) {
+			// Build the receiver via PEIdent so class-property
+			// chains (this.m_maps) resolve through NetEProperty,
+			// not just bare signals.
+			pform_name_t obj_path = path_;
+			obj_path.pop_back();
+			PEIdent*obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
+			obj_id->set_file(get_file());
+			obj_id->set_lineno(get_lineno());
+			NetExpr*obj_expr = obj_id->elaborate_expr(des, scope, /*expr_wid*/0u, /*flags*/0u);
+			if (obj_expr) {
+			      NetExpr*key_expr = elab_and_eval(des, scope, parms_[0].parm, -1, false);
+			      if (key_expr) {
+				    string sys_name = "$ivl_assoc_method$";
+				    sys_name += mname.str();
+				    NetESFunc*sys_expr = new NetESFunc(
+					    sys_name.c_str(), &netvector_t::atom2u32, 2);
+				    sys_expr->set_line(*this);
+				    sys_expr->parm(0, obj_expr);
+				    sys_expr->parm(1, key_expr);
+				    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+					    NetNet::REG, &netvector_t::atom2u32);
+				    tmp->set_line(*this);
+				    NetAssign_*lv = new NetAssign_(tmp);
+				    NetAssign*na = new NetAssign(lv, sys_expr);
+				    na->set_line(*this);
+				    delete obj_id;
+				    return na;
+			      }
+			      delete obj_expr;
+			}
+			delete obj_id;
+		  }
+	    }
+
 	    if (gn_system_verilog() && path_.size() > 1) {
 		    // Compile-progress fallback: multi-component task path
 		    // that couldn't be resolved as a method call.

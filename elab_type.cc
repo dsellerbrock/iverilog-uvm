@@ -683,9 +683,18 @@ ivl_type_t foreach_index_type_t::elaborate_type_raw(Design*des, NetScope*scope) 
       if (class_prop_index_type) {
 	    if (trace && *trace)
 		  cerr << "foreach-type: class property assoc index type resolved for "
-		       << target_path_string << "[" << index_depth << "]" << endl;
+		       << target_path_string << "[" << index_depth << "]"
+		       << " kind=" << typeid(*class_prop_index_type).name() << endl;
 	    ivl_type_t index_type =
 		  const_cast<data_type_t*>(class_prop_index_type)->elaborate_type(des, scope);
+	    if (trace && *trace) {
+		  cerr << "foreach-type: elaborate_type for " << target_path_string << " returned ";
+		  if (index_type)
+			cerr << "base=" << ivl_type_base(index_type);
+		  else
+			cerr << "<nil>";
+		  cerr << endl;
+	    }
 	    if (index_type)
 		  return index_type;
       }

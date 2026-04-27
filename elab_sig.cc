@@ -195,6 +195,11 @@ static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
       if (!des || !scope || !type_pf)
 	    return 0;
 
+      if (getenv("IVL_FOREACH_TYPE_TRACE")) {
+            cerr << "[resolve-placeholder] type_pf="
+                 << typeid(*type_pf).name() << endl;
+      }
+
       if (const class_type_t*class_pf = dynamic_cast<const class_type_t*>(type_pf))
 	    return ensure_visible_class_type(des, scope, class_pf->name);
 
@@ -203,6 +208,32 @@ static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
 	    scope->get_parameter(des, type_par->name, par_type);
 	    if (dynamic_cast<const netclass_t*>(par_type))
 		  return par_type;
+	    return 0;
+      }
+
+      // Foreach loop variables for class-keyed assoc arrays (e.g.
+      //   bit m_maps[uvm_reg_map];
+      //   foreach (m_maps[map]) ...)
+      // arrive here as `foreach_index_type_t`. Evaluate it to the
+      // resolved key type so the loop var is predeclared as a cobj
+      // signal instead of a default string. Without this the foreach
+      // index var ends up `IVL_VT_STRING`, which mistypes downstream
+      // codegen (`%aa/first/str` instead of `%aa/first/obj`) and
+      // breaks UVM register-model traversals.
+      if (const foreach_index_type_t*idx_type =
+		dynamic_cast<const foreach_index_type_t*>(type_pf)) {
+	    ivl_type_t resolved =
+		  const_cast<foreach_index_type_t*>(idx_type)->elaborate_type(des, scope);
+	    if (getenv("IVL_FOREACH_TYPE_TRACE")) {
+		  cerr << "[resolve-placeholder/foreach] resolved=";
+		  if (resolved)
+			cerr << "base=" << ivl_type_base(resolved);
+		  else
+			cerr << "<nil>";
+		  cerr << endl;
+	    }
+	    if (resolved && ivl_type_base(resolved) == IVL_VT_CLASS)
+		  return resolved;
 	    return 0;
       }
 
