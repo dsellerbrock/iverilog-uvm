@@ -5261,14 +5261,33 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				       || method_name=="rsort"
 				       || method_name=="unique") {
 				  if (gn_system_verilog()) {
-					static const std::vector<perm_string> no_parm_names;
+					/* The IEEE 1800 form `q.sort(x) with (expr)` carries an
+					   iterator-variable arg + a with-clause. We don't yet
+					   support a custom comparator — fall back to default
+					   compare, ignoring extra args. */
+					if (parms_.size() > 0) {
+					      static int warned_sort_with = 0;
+					      if (!warned_sort_with) {
+						    cerr << get_fileline()
+							 << ": warning: " << method_name
+							 << "() iterator arg or with-clause "
+							    "not yet supported; using default "
+							    "compare (further similar warnings "
+							    "suppressed)." << endl;
+						    warned_sort_with = 1;
+					      }
+					}
+					vector<NetExpr*> argv(1);
+					argv[0] = obj_expr;
 					const char*sys_name =
 					      (method_name == "sort")  ? "$ivl_queue_method$sort"  :
 					      (method_name == "rsort") ? "$ivl_queue_method$rsort" :
 					                                 "$ivl_queue_method$unique";
-					return elaborate_sys_task_method_(des, scope, obj_expr,
-									  obj_type, method_name,
-									  sys_name, no_parm_names);
+					NetSTask*sys = new NetSTask(sys_name,
+								    IVL_SFUNC_AS_TASK_IGNORE,
+								    argv);
+					sys->set_line(*this);
+					return sys;
 				  }
 				  cerr << get_fileline() << ": sorry: '"
 				       << method_name
