@@ -170,9 +170,18 @@ level:
 | Stress + sec_cm + alerts (stress_all, stress_all_with_rand_reset, sec_cm, alert_test, tl_errors, tl_intg_err) | 6 | ✅ all PASSED CHECKS |
 
 The null-map UVM_ERROR is now resolved (Phase 36 — task-call routing
-for `void'(<assoc>.first/last/next/prev(key))`). UVM
+for `void'(<assoc>.first/last/next/prev(key))` plus
+`foreach_index_type_t` propagation in `elab_sig.cc`). UVM
 `get_default_map()` now returns the registered map, the m_maps
 traversal works, and frontdoor register access reaches the bus.
+
+Residual UVM messages on the full 27-test regression:
+
+| Severity | Count | Reason |
+|---|---|---|
+| `UVM_ERROR null map` | **0 / 27** | ✅ closed by Phase 36 |
+| `UVM_ERROR [TYPNTF]` factory override | 4 / 27 | UVM factory type-override registration gap |
+| `UVM_FATAL [SEQ]` sequencer not supplied | 26 / 27 | OpenTitan testbench sequencer-wiring gap (now exposed because RAL frontdoor actually attempts a CSR access) |
 
 The hand-curated `scripts/compile_uart_dv.sh` path also still works
 for end-to-end `uart_smoke_vseq` runs.
