@@ -198,6 +198,79 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
       if (port_is_unsupported_aggregate_formal_(port))
 	    return;
 
+      /* Handle copy-out to an indexed assoc-array entry of a class
+         property (e.g. cfg.vifs[key]). Iverilog represents this as
+         IVL_EX_SELECT(arr, key) where `arr` is the IVL_EX_PROPERTY for
+         cfg.vifs. Emit the containing cobj load + %prop/obj to push
+         the assoc-array, then the key, then the port value, then
+         %aa/store/<v>/<k>. */
+      (void)warned_unsupported_copy_out;
+      if (ivl_expr_type(actual) == IVL_EX_SELECT) {
+	    ivl_expr_t arr_expr = ivl_expr_oper1(actual);
+	    ivl_expr_t key_expr = ivl_expr_oper2(actual);
+	    if (arr_expr && key_expr
+		&& ivl_expr_type(arr_expr) == IVL_EX_PROPERTY
+		&& !ivl_expr_oper1(arr_expr)) {
+		  ivl_signal_t base_sig = ivl_expr_signal(arr_expr);
+		  int aa_pidx = (int)ivl_expr_property_idx(arr_expr);
+		  dtype = ivl_signal_data_type(port);
+
+		  /* Push containing cobj */
+		  if (base_sig) {
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
+		  } else {
+			ivl_expr_t base_expr = ivl_expr_oper2(arr_expr);
+			if (!base_expr) {
+			      if (!warned_unsupported_copy_out) {
+				    fprintf(stderr,
+				            "Warning: Skipping nested-base assoc"
+					    " copy-out for %s (further similar"
+					    " warnings suppressed)\n",
+					    ivl_signal_basename(port));
+				    warned_unsupported_copy_out = 1;
+			      }
+			      return;
+			}
+			draw_eval_object(base_expr);
+		  }
+		  /* Load the assoc array (as obj) on top */
+		  fprintf(vvp_out, "    %%prop/obj %d, 0;\n", aa_pidx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n"); /* drop cobj keep aa */
+
+		  /* Push the key with the right type for the assoc store.
+		     draw_eval_assoc_key_ uses iverilog's notion of which
+		     key type the assoc array expects (str/obj/v). */
+		  const char*key_kind = draw_eval_assoc_key_(key_expr, 0);
+		  /* Push the port value, emit aa/store */
+		  switch (dtype) {
+		      case IVL_VT_BOOL:
+		      case IVL_VT_LOGIC:
+			fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
+			fprintf(vvp_out, "    %%aa/store/v/%s %u;\n", key_kind,
+				ivl_signal_width(port));
+			break;
+		      case IVL_VT_REAL:
+			fprintf(vvp_out, "    %%load/real v%p_0;\n", port);
+			fprintf(vvp_out, "    %%aa/store/r/%s;\n", key_kind);
+			break;
+		      case IVL_VT_STRING:
+			fprintf(vvp_out, "    %%load/str v%p_0;\n", port);
+			fprintf(vvp_out, "    %%aa/store/str/%s;\n", key_kind);
+			break;
+		      case IVL_VT_CLASS:
+		      case IVL_VT_DARRAY:
+		      case IVL_VT_QUEUE:
+		      case IVL_VT_NO_TYPE:
+		      default:
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
+			break;
+		  }
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n"); /* drop aa */
+		  return;
+	    }
+      }
+
       if (ivl_expr_type(actual) == IVL_EX_PROPERTY) {
 	    ivl_signal_t base_sig = ivl_expr_signal(actual);
 	    /* If an index is set, the actual is an assoc-array / queue / array
