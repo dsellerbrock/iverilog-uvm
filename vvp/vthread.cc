@@ -9027,7 +9027,14 @@ static bool aa_traversal_finish_(vthread_t thr, vvp_net_t*key_net,
       if (ok && !write_signal_assoc_key_<KEY>(thr, key_net, key, why))
             ok = false;
 
-      vvp_vector4_t val(wid, ok ? BIT4_1 : BIT4_0);
+      // Push the success flag as a `wid`-bit value: zero-padded with
+      // the LSB carrying the truth bit. The previous code passed
+      // `ok ? BIT4_1 : BIT4_0` as the fill bit which set every bit of
+      // the result, turning success into 0xFFFFFFFF (-1) rather than 1
+      // when wid > 1.
+      vvp_vector4_t val(wid, BIT4_0);
+      if (ok && wid > 0)
+            val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
