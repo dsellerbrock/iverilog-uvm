@@ -3165,17 +3165,37 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
          keeping rd_context on the caller frame long enough to evaluate
          initializers. For scoped reads in the current automatic scope,
          prefer the live write-head first so subsequent loads see locals
-         that were just initialized in the new frame. */
+         that were just initialized in the new frame.
+
+         After a callf joins, however, do_join's pop-push branch moves the
+         just-returned child frame to the head of rd_context (and the
+         child's frame is no longer on wt_context). The caller's next load
+         is the post-call copy-out from the freshly-returned frame, so when
+         wt's HEAD does NOT match the requested scope but rd's HEAD does,
+         we must read from rd's HEAD rather than walking deeper into wt --
+         deeper wt entries can hold stale frames of the same scope from an
+         outer mutually-recursive call. */
       vvp_context_t wt_context = first_live_context_for_scope(running_thread->wt_context, ctx_scope);
       vvp_context_t rd_context = first_live_context_for_scope(running_thread->rd_context, ctx_scope);
       vvp_context_t owned_context = first_live_context_for_scope(running_thread->owned_context, ctx_scope);
-      vvp_context_t use_context = wt_context;
-      const char*source = "wt";
-      if (!use_context) {
+      vvp_context_t use_context = 0;
+      const char*source = "none";
+
+      if (running_thread->wt_context
+          && context_live_matches_scope_(running_thread->wt_context, ctx_scope)) {
+            use_context = running_thread->wt_context;
+            source = "wt-head";
+      } else if (running_thread->rd_context
+                 && context_live_matches_scope_(running_thread->rd_context, ctx_scope)) {
+            use_context = running_thread->rd_context;
+            source = "rd-head";
+      } else if (wt_context) {
+            use_context = wt_context;
+            source = "wt";
+      } else if (rd_context) {
             use_context = rd_context;
             source = "rd";
-      }
-      if (!use_context) {
+      } else if (owned_context) {
             use_context = owned_context;
             source = "owned";
       }
