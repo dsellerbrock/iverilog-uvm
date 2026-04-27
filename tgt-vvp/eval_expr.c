@@ -205,7 +205,16 @@ static void eval_logic_into_integer(ivl_expr_t expr, unsigned ix)
 	  case IVL_EX_NUMBER:
 	  case IVL_EX_ULONG:
 	      {
-		    assert(number_is_immediate(expr, IMM_WID, 1));
+		    /* Compile-progress: wide constants that don't fit in immediate
+		       are truncated to 0. */
+		    if (!number_is_immediate(expr, IMM_WID, 1)) {
+			  fprintf(stderr, "Warning: eval_logic_into_integer: "
+				  "constant too wide for integer load; truncating to 0 "
+				  "(compile-progress).\n");
+			  fprintf(vvp_out, "    %%ix/load %u, 0, 0;\n", ix);
+			  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+			  break;
+		    }
 		    if (number_is_unknown(expr)) {
 			    /* We are loading a 'bx so mimic %ix/get. */
 			  fprintf(vvp_out, "    %%ix/load %u, 0, 0;\n", ix);

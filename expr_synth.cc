@@ -88,6 +88,14 @@ NetNet* NetExpr::synthesize(Design*des, NetScope*, NetExpr*)
       return 0;
 }
 
+// Class property accesses (obj.prop or nested chains) cannot be synthesized
+// to a gate-level net. Return null silently — the event-expression call site
+// in elaborate.cc already handles this with a compile-progress warning.
+NetNet* NetEProperty::synthesize(Design*, NetScope*, NetExpr*)
+{
+      return 0;
+}
+
 /*
  * Make an LPM_ADD_SUB device from addition operators.
  */

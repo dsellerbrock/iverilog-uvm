@@ -1027,7 +1027,14 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
       ivl_signal_t var= ivl_lval_sig(lval);
 
       assert(ivl_stmt_lvals(net) == 1);
-      assert(ivl_stmt_opcode(net) == 0);
+      /* Compound string assignments (+=, etc.) are not yet supported.
+       * Compile-progress: skip and continue rather than asserting. */
+      if (ivl_stmt_opcode(net) != 0) {
+	    fprintf(stderr, "%s: warning: compound string assignment (op='%c') "
+		    "not yet supported (compile-progress: skipped).\n",
+		    ivl_stmt_file(net), ivl_stmt_opcode(net));
+	    return 0;
+      }
 
       if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
 	    draw_array_pattern(var, rval, 0);

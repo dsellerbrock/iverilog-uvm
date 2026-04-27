@@ -240,6 +240,8 @@ class netclass_t : public ivl_type_s {
       const covgrp_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
       bool is_covergroup() const { return is_covergroup_; }
       void set_is_covergroup(bool f) { is_covergroup_ = f; }
+      bool has_embedded_covergroups() const { return has_embedded_cgs_; }
+      void set_has_embedded_covergroups(bool f) { has_embedded_cgs_ = f; }
       unsigned covgrp_ncoverpoints() const { return covgrp_ncoverpoints_; }
       void set_covgrp_ncoverpoints(unsigned n) { covgrp_ncoverpoints_ = n; }
 
@@ -255,6 +257,7 @@ class netclass_t : public ivl_type_s {
       std::vector<covgrp_bin_t> covgrp_bins_;
       std::vector<int> covgrp_cp_parent_props_;
       bool is_covergroup_ = false;
+      bool has_embedded_cgs_ = false;
       unsigned covgrp_ncoverpoints_ = 0;
 };
 

@@ -3614,6 +3614,7 @@ class NetEvWait  : public NetProc {
 
       NetProc*statement();
       const NetProc*statement() const;
+      inline void set_statement(NetProc*s) { statement_ = s; }
 
       virtual bool emit_proc(struct target_t*) const override;
       bool emit_recurse(struct target_t*) const;
@@ -4726,6 +4727,7 @@ class NetEProperty : public NetExpr {
 	                                  bool nested_func = false) const override;
 
       virtual void dump(std::ostream&os) const override;
+      virtual NetNet*synthesize(Design*, NetScope*scope, NetExpr*root) override;
 
     private:
       NetNet*net_;

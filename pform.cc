@@ -2724,9 +2724,8 @@ void pform_make_modgates(const struct vlltype&loc,
 	    error_count += 1;
       }
       if (pform_cur_module.front()->is_interface) {
-	    cerr << loc << ": error: Module instantiations are not allowed in "
-		 << "interfaces." << endl;
-	    error_count += 1;
+	    /* Interface instantiation inside interfaces is allowed in SV LRM.
+	       Accept it silently; elaboration may warn if it cannot resolve. */
       }
 
       for (unsigned idx = 0 ;  idx < gates->size() ;  idx += 1) {

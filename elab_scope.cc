@@ -1514,6 +1514,10 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       use_class->set_class_scope(class_scope);
       use_class->set_definition_scope(definition_scope);
       use_class->set_virtual(use_type->virtual_class);
+      if (use_type->is_covergroup_stub)
+	    use_class->set_is_covergroup(true);
+      if (!use_type->covergroups.empty())
+	    use_class->set_has_embedded_covergroups(true);
       use_class->set_specialized_instance(true);
       set_scope_timescale(des, class_scope, pclass);
       cache[key_str] = use_class;
@@ -1709,6 +1713,10 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
       use_class->set_class_scope(class_scope);
       use_class->set_definition_scope(scope);
       use_class->set_virtual(use_type->virtual_class);
+      if (use_type->is_covergroup_stub)
+	    use_class->set_is_covergroup(true);
+      if (!use_type->covergroups.empty())
+	    use_class->set_has_embedded_covergroups(true);
       set_scope_timescale(des, class_scope, pclass);
       scope->add_class(use_class);
 
