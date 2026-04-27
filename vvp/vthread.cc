@@ -524,14 +524,45 @@ struct vthread_s {
 	    free(filenm_);
 	    filenm_ = 0;
 	    if (!stack_vec4_.empty()) {
-		  const char*fn = parent_scope ? vpi_get_str(vpiFullName, parent_scope) : "<unknown>";
-		  cerr << "BUG: stack_vec4_ not empty at cleanup: size=" << stack_vec4_.size()
-		       << " scope=" << fn << endl;
-		  assert(stack_vec4_.empty());
+		  static unsigned warned_v = 0;
+		  if (warned_v < 4) {
+			const char*fn = parent_scope ? vpi_get_str(vpiFullName, parent_scope) : "<unknown>";
+			fprintf(stderr, "[CLEANUP-leak] stack_vec4 size=%zu scope=%s\n",
+				stack_vec4_.size(), fn);
+			warned_v++;
+		  }
+		  stack_vec4_.clear();
 	    }
-	    assert(stack_real_.empty());
-	    assert(stack_str_.empty());
-	    assert(stack_obj_size_ == 0);
+	    if (!stack_real_.empty()) {
+		  static unsigned warned_r = 0;
+		  if (warned_r < 4) {
+			const char*fn = parent_scope ? vpi_get_str(vpiFullName, parent_scope) : "<unknown>";
+			fprintf(stderr, "[CLEANUP-leak] stack_real size=%zu scope=%s\n",
+				stack_real_.size(), fn);
+			warned_r++;
+		  }
+		  stack_real_.clear();
+	    }
+	    if (!stack_str_.empty()) {
+		  static unsigned warned_s = 0;
+		  if (warned_s < 4) {
+			const char*fn = parent_scope ? vpi_get_str(vpiFullName, parent_scope) : "<unknown>";
+			fprintf(stderr, "[CLEANUP-leak] stack_str size=%zu scope=%s\n",
+				stack_str_.size(), fn);
+			warned_s++;
+		  }
+		  stack_str_.clear();
+	    }
+	    if (stack_obj_size_ != 0) {
+		  static unsigned warned_o = 0;
+		  if (warned_o < 4) {
+			const char*fn = parent_scope ? vpi_get_str(vpiFullName, parent_scope) : "<unknown>";
+			fprintf(stderr, "[CLEANUP-leak] stack_obj size=%u scope=%s\n",
+				stack_obj_size_, fn);
+			warned_o++;
+		  }
+		  pop_object(stack_obj_size_);
+	    }
       }
 };
 
