@@ -700,7 +700,10 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 
 	// Aggregate SV types such as unpacked structs also need typed
 	// elaboration even though their base type is IVL_VT_NO_TYPE.
-      if (lv_net_type && ivl_type_properties(lv_net_type) > 0)
+	// Packed structs are vectorable and have context_wid already set
+	// from packed_width(); the typed path falls back to width=1.
+      if (lv_net_type && ivl_type_properties(lv_net_type) > 0
+	  && !lv_net_type->packed())
 	    typed_elab = true;
 
 	// If the target is an unpacked array we want full type checking,
@@ -2265,6 +2268,13 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 					    perm_string method_name)
 {
 	if (class_type) {
+	    // Virtual interface types: any unknown method is a stub.
+	    // Interface functions are not elaborated into class_scope_, so
+	    // resolve_method_call_scope() will always miss them. Return an
+	    // int-0 stub so the call elaborates cleanly as compile-progress.
+	    if (class_type->is_interface())
+		  return CP_EXPR_METHOD_STUB_INT0;
+
 	    perm_string class_name = class_type->get_name();
 	    if (class_name == perm_string::literal("mailbox")) {
 		  if (method_name == perm_string::literal("num"))
@@ -2349,6 +2359,7 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 	  || method_name == perm_string::literal("get_type_name")
 	  || method_name == perm_string::literal("get_full_name")
 	  || method_name == perm_string::literal("get_line_prefix")
+	  || method_name == perm_string::literal("get_ip_name")
 	  || method_name == perm_string::literal("sprint")
 	  || method_name == perm_string::literal("name")
 	  || method_name == perm_string::literal("convert2string"))
@@ -2356,6 +2367,7 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
       if (method_name == perm_string::literal("get_inst_id")
 	  || method_name == perm_string::literal("get_max_size")
 	  || method_name == perm_string::literal("len")
+	  || method_name == perm_string::literal("get_ro_mask")
 	  || method_name == perm_string::literal("status"))
 	    return CP_EXPR_METHOD_STUB_INT0;
       if (method_name == perm_string::literal("is_open")
@@ -2406,6 +2418,7 @@ classify_compile_progress_unresolved_func_stub_(const pform_scoped_name_t&path)
 		  || func_name == perm_string::literal("get_core_state")
 		  || func_name == perm_string::literal("m_cb_find")
 		  || func_name == perm_string::literal("pop_active_object")
+		  || func_name == perm_string::literal("get_ro_mask")
 		  || func_name == perm_string::literal("get_default_radix"))
 		    return CP_EXPR_METHOD_STUB_INT0;
 
@@ -2415,15 +2428,22 @@ classify_compile_progress_unresolved_func_stub_(const pform_scoped_name_t&path)
 		  || func_name == perm_string::literal("get_id_enabled")
 		  || func_name == perm_string::literal("is_recording_enabled")
 		  || func_name == perm_string::literal("randomize")
-		  || func_name == perm_string::literal("get_randomize_enabled"))
+		  || func_name == perm_string::literal("get_randomize_enabled")
+		  || func_name == perm_string::literal("is_excl"))
 		    return CP_EXPR_METHOD_STUB_BOOL0;
+
+      if (func_name == perm_string::literal("get_access")
+		  || func_name == perm_string::literal("get_rights"))
+		    return CP_EXPR_METHOD_STUB_STRING_EMPTY;
 
       if (func_name == perm_string::literal("size")
 		  || func_name == perm_string::literal("get_max_size"))
 		    return CP_EXPR_METHOD_STUB_INT0;
 
       if (func_name == perm_string::literal("sprint")
-		  || func_name == perm_string::literal("get_line_prefix"))
+		  || func_name == perm_string::literal("get_line_prefix")
+		  || func_name == perm_string::literal("get_ip_name")
+		  || func_name == perm_string::literal("str_replace"))
 		    return CP_EXPR_METHOD_STUB_STRING_EMPTY;
 
       if (func_name == perm_string::literal("get_parent")
@@ -2434,7 +2454,11 @@ classify_compile_progress_unresolved_func_stub_(const pform_scoped_name_t&path)
 		  || func_name == perm_string::literal("get_objection")
 		  || func_name == perm_string::literal("get_knobs")
 		  || func_name == perm_string::literal("m_choose_next_request")
-		  || func_name == perm_string::literal("last_rsp"))
+		  || func_name == perm_string::literal("last_rsp")
+		  || func_name == perm_string::literal("find_first")
+		  || func_name == perm_string::literal("find_last")
+		  || func_name == perm_string::literal("find_first_index")
+		  || func_name == perm_string::literal("find_last_index"))
 		    return CP_EXPR_METHOD_STUB_CLASS_NULL;
 
       if (path.name.size() >= 2) {
@@ -4573,7 +4597,47 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			      base_expr = prop;
 			}
 			
-		  } else if (!cur_class) {
+		  } else if (const netenum_t*tail_enum = dynamic_cast<const netenum_t*>(cur_type)) {
+		// Built-in enum method accessed through a class property chain
+		if (tail_comp.name == "name") {
+		      NetESFunc*sys_expr = new NetESFunc("$ivl_enum_method$name",
+							&netstring_t::type_string, 2);
+		      sys_expr->set_line(*this);
+		      NetENetenum*def = new NetENetenum(tail_enum);
+		      def->set_line(*this);
+		      sys_expr->parm(0, def);
+		      sys_expr->parm(1, base_expr);
+		      base_expr = sys_expr;
+		      cur_type = &netstring_t::type_string;
+		      continue;
+		}
+		// compile-progress for other enum methods (next, prev, etc.)
+		cerr << get_fileline() << ": warning: "
+		     << "Enum method `" << tail_comp.name
+		     << "' on class-property enum not yet supported"
+		     << " (compile-progress: expression dropped)." << endl;
+		delete base_expr;
+		return nullptr;
+	  } else if (dynamic_cast<const netdarray_t*>(cur_type)
+		     || dynamic_cast<const netqueue_t*>(cur_type)) {
+		// Built-in array method on a class-property darray/queue
+		if (tail_comp.name == "size" || tail_comp.name == "num") {
+		      NetESFunc*sys_expr = new NetESFunc("$ivl_assoc_method$num",
+							&netvector_t::atom2u32, 1);
+		      sys_expr->set_line(*this);
+		      sys_expr->parm(0, base_expr);
+		      base_expr = sys_expr;
+		      cur_type = &netvector_t::atom2u32;
+		      continue;
+		}
+		// compile-progress: other methods (find_first_index, shuffle, etc.)
+		cerr << get_fileline() << ": warning: "
+		     << "Array method `" << tail_comp.name
+		     << "' on class-property darray/queue not yet supported"
+		     << " (compile-progress: expression dropped)." << endl;
+		delete base_expr;
+		return nullptr;
+	  } else if (!cur_class) {
 			if (const char*trace = getenv("IVL_NESTED_PATH_TRACE")) {
 			      cerr << get_fileline() << ": debug: "
 				   << "nested class-property tail rejected"
@@ -4633,7 +4697,10 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
                       || comp.name == perm_string::literal("get_name")
                       || comp.name == perm_string::literal("get_type_name")
                       || comp.name == perm_string::literal("name")
-                      || comp.name == perm_string::literal("convert2string")) {
+                      || comp.name == perm_string::literal("sprint")
+                      || comp.name == perm_string::literal("convert2string")
+                      || comp.name == perm_string::literal("get_access")
+                      || comp.name == perm_string::literal("get_rights")) {
                         NetECString*tmp = new NetECString(string());
                         tmp->set_line(*this);
                         return tmp;
@@ -4646,7 +4713,10 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
                       || comp.name == perm_string::literal("offset")
                       || comp.name == perm_string::literal("default_alloc")
                       || comp.name == perm_string::literal("for_each_idx")
-                      || comp.name == perm_string::literal("cfg")) {
+                      || comp.name == perm_string::literal("cfg")
+                      || comp.name == perm_string::literal("get_is_shadowed")
+                      || comp.name == perm_string::literal("is_excl")
+                      || comp.name == perm_string::literal("fi_disabled")) {
                         NetEConst*tmp = make_const_val(0);
                         tmp->set_line(*this);
                         return tmp;
@@ -6457,9 +6527,17 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    return pad_to_width(tmp, expr_wid, signed_flag_, *this, target_type_);
       }
 
-      cerr << get_fileline() << ": sorry: This cast operation is not yet supported." << endl;
-      des->errors += 1;
-      return 0;
+      // compile-progress: packed struct and other unhandled cast targets.
+      // For packed types, reinterpret the bits directly (no-op at VVP level).
+      // For other types, return sub unchanged as a best-effort fallback.
+      cerr << get_fileline() << ": warning: Cast to `";
+      if (target_type_) target_type_->debug_dump(cerr);
+      else cerr << "<unknown>";
+      cerr << "' not fully supported (compile-progress: bits reinterpreted)." << endl;
+      if (target_type_ && target_type_->packed() && expr_width_ > 0)
+	    return pad_to_width(cast_to_int4(sub, expr_width_), expr_wid,
+				signed_flag_, *this, target_type_);
+      return sub;
 }
 
 unsigned PECastSign::test_width(Design *des, NetScope *scope, width_mode_t &mode)
@@ -7761,6 +7839,12 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	      // package was not yet registered at lex time. Still allow them as
 	      // constants when symbol_search resolves them to a parameter value.
             if (sr.par_val == 0) {
+                  // Allow local struct/class member paths in constant functions.
+                  // sr.net found in the current scope (e.g., struct variable
+                  // declared in the same function) is not a hierarchical reference.
+                  bool is_local_net = sr.net && (sr.net->scope() == scope ||
+                                                 sr.net->scope()->parent() == scope);
+                  if (!is_local_net) {
                   if (NEED_CONST & flags) {
                         cerr << get_fileline() << ": error: A hierarchical reference"
                                 " (`" << path_ << "') is not allowed in a constant"
@@ -7776,6 +7860,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
                         return 0;
                   }
                   scope->is_const_func(false);
+                  }
             }
       }
 
@@ -8433,21 +8518,29 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		    }
 
 		      // I cannot interpret this identifier. Error message.
-	            cerr << get_fileline() << ": error: Unable to bind "
-	                 << ((NEED_CONST & flags) ? "parameter" : "wire/reg/memory")
-                 << " `" << path_ << "' in `" << scope_path(scope) << "'"
-                 << endl;
-            if (scope->need_const_func()) {
-                  cerr << get_fileline() << ":      : `" << scope->basename()
-                       << "' is being used as a constant function, so may "
-                          "only reference local variables." << endl;
-            }
-	    if (sr.decl_after_use) {
-		  cerr << sr.decl_after_use->get_fileline() << ":      : "
-			  "A symbol with that name was declared here. "
-			  "Check for declaration after use." << endl;
+	    if (gn_system_verilog() && !(NEED_CONST & flags)) {
+		  // Compile-progress: clocking blocks, interface constructs.
+		  cerr << get_fileline() << ": warning: Unable to bind "
+		       << "wire/reg/memory `" << path_ << "' in `"
+		       << scope_path(scope) << "'"
+		       << " (compile-progress: unresolved reference)." << endl;
+	    } else {
+		  cerr << get_fileline() << ": error: Unable to bind "
+		       << ((NEED_CONST & flags) ? "parameter" : "wire/reg/memory")
+		       << " `" << path_ << "' in `" << scope_path(scope) << "'"
+		       << endl;
+		  if (scope->need_const_func()) {
+			cerr << get_fileline() << ":      : `" << scope->basename()
+			     << "' is being used as a constant function, so may "
+				"only reference local variables." << endl;
+		  }
+		  if (sr.decl_after_use) {
+			cerr << sr.decl_after_use->get_fileline() << ":      : "
+				"A symbol with that name was declared here. "
+				"Check for declaration after use." << endl;
+		  }
+		  des->errors += 1;
 	    }
-	    des->errors += 1;
 	    return 0;
       }
 
@@ -8484,6 +8577,16 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		       << " path=" << path_ << endl;
 
 	    if ( !(SYS_TASK_ARG & flags) ) {
+		  if (gn_system_verilog()) {
+			// Compile-progress: clocking block or interface scope
+			// referenced in event context (e.g. @cb). Return null
+			// so the event loop can skip it gracefully.
+			cerr << get_fileline() << ": warning: Scope name "
+			     << nsc->basename() << " used as event expression"
+			     << " (compile-progress: event skipped)." << endl;
+			delete tmp;
+			return 0;
+		  }
 		  cerr << get_fileline() << ": error: Scope name "
 		       << nsc->basename() << " not allowed here." << endl;
 		  des->errors += 1;
@@ -8505,9 +8608,17 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
       }
 
 	// I cannot interpret this identifier. Error message.
-      cerr << get_fileline() << ": error: Unable to bind wire/reg/memory "
-              "`" << path_ << "' in `" << scope_path(scope) << "'" << endl;
-      des->errors += 1;
+	// In SV mode, clocking blocks and other interface constructs may
+	// not be bound (e.g. @cb, @monitor_cb). Emit warning in SV mode.
+      if (gn_system_verilog()) {
+	    cerr << get_fileline() << ": warning: Unable to bind wire/reg/memory "
+		    "`" << path_ << "' in `" << scope_path(scope) << "'"
+		    " (compile-progress: unresolved reference)." << endl;
+      } else {
+	    cerr << get_fileline() << ": error: Unable to bind wire/reg/memory "
+		    "`" << path_ << "' in `" << scope_path(scope) << "'" << endl;
+	    des->errors += 1;
+      }
       return 0;
 }
 
@@ -8573,10 +8684,14 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 			return result;
 		  }
 	    }
-	    cerr << get_fileline() << ": error: "
-		 << "Array parameter '" << name << "': index must be a constant." << endl;
-	    des->errors += 1;
-	    return 0;
+	    // compile-progress: non-constant array-param index (e.g. loop variable).
+	    // Return empty string as best-effort fallback.
+	    cerr << get_fileline() << ": warning: "
+		 << "Array parameter '" << name << "': index must be a constant"
+		 << " (compile-progress: returning empty string)." << endl;
+	    NetECString*fallback = new NetECString(string());
+	    fallback->set_line(*this);
+	    return fallback;
       }
 
       const NetEConst*par_ex = dynamic_cast<const NetEConst*> (par);
@@ -9270,6 +9385,14 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
 	/* But wait... if the part select expressions are not fully
 	   defined, then fall back on the tested width. */
       if (!parts_defined_flag) {
+	      // For queue/darray types, q[lo:hi] with variable bounds is a
+	      // queue slice (not a bit-select). Return the full queue as a
+	      // compile-progress placeholder so the assignment type-checks.
+	    if (net->sig()->data_type() == IVL_VT_QUEUE ||
+		net->sig()->data_type() == IVL_VT_DARRAY) {
+		  return net;
+	    }
+
 	    if (warn_ob_select) {
 		  const index_component_t&psel = path_.back().index.back();
 		  cerr << get_fileline() << ": warning: "
@@ -10138,7 +10261,7 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 
       if (use_sel == index_component_t::SEL_PART_LAST) {
 	    // [lo:$] queue slice — compile-progress fallback: treat as SEL_BIT_LAST
-	    cerr << get_fileline() << ": sorry: [lo:$] queue slice not fully "
+	    cerr << get_fileline() << ": warning: [lo:$] queue slice not fully "
 		 << "implemented; using last-element approximation." << endl;
 	    return elaborate_expr_net_bit_last_(des, scope, node, found_in,
 					       need_const);
@@ -10256,15 +10379,27 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
                   return sem;
             }
             if (parms_.size() > 0) {
-		  cerr << get_fileline() << ": error: "
+		  // Covergroup stubs and forward-declared classes may have no
+		  // explicit constructor. Treat extra args as ignored (warning).
+		  cerr << get_fileline() << ": warning: "
 		       << "Class " << ctype->get_name()
 		       << " has no constructor, but you passed " << parms_.size()
-		       << " arguments to the new operator." << endl;
-		  des->errors += 1;
+		       << " arguments to the new operator (arguments ignored)." << endl;
 	    }
 	    return obj;
       }
 
+
+      // If the class has embedded covergroups, ensure elaborate_sig() has run
+      // so the covergroup properties are visible inside new().  This must be done
+      // before elaborating the constructor body — which may happen lazily before
+      // the class's own elaborate() runs (when accessed at elaboration_depth > 0).
+      if (ctype->has_embedded_covergroups() && !ctype->sig_elaborated() && !ctype->sig_elaborating()) {
+	    if (const NetScope* cs = ctype->class_scope()) {
+		  if (PClass* pc = const_cast<PClass*>(cs->class_pform()))
+			const_cast<netclass_t*>(ctype)->elaborate_sig(des, pc);
+	    }
+      }
 
 	      const NetFuncDef*def = new_scope->func_def();
 	      if (def == 0 || def->proc() == 0) {

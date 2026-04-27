@@ -164,8 +164,11 @@ static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
 	    if (const parmvalue_t*overrides = type_ref->parameter_values()) {
 		  if (const netclass_t*base_class =
 			      dynamic_cast<const netclass_t*>(alias_class))
+			// Use the original caller scope (not the package scope) so
+			// override expressions like #(.AddrWidth(AddrWidth)) are
+			// evaluated in the scope where the type reference appears.
 			return const_cast<netclass_t*>(
-			      elaborate_specialized_class_type(des, type_scope, base_class,
+			      elaborate_specialized_class_type(des, scope, base_class,
 						       overrides, false));
 	    }
 	    return alias_class;
@@ -176,8 +179,9 @@ static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
 	    return 0;
 
       if (const parmvalue_t*overrides = type_ref->parameter_values())
+	    // Use the original caller scope, not type_scope (the package scope).
 	    return const_cast<netclass_t*>(
-		  elaborate_specialized_class_type(des, type_scope, base_class, overrides,
+		  elaborate_specialized_class_type(des, scope, base_class, overrides,
 						   false));
 
       return base_class;
@@ -644,6 +648,26 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    if (class_scope_->find_signal(cur->first) == 0)
 		  /* NetNet*sig = */ new NetNet(class_scope_, cur->first, NetNet::REG,
 						use_type);
+      }
+
+      // Synthesize properties for class-embedded covergroups so they are
+      // visible inside the constructor (new()) when it is elaborated.
+      // This must happen before function body elaboration, which may be
+      // triggered lazily by PENew before netclass_t::elaborate() has run.
+      for (auto* cgdef : pclass->type->covergroups) {
+	    if (!cgdef) continue;
+	    // Skip if the property was already added (e.g. by a prior elaborate() call).
+	    if (property_idx_from_name(cgdef->name) >= 0)
+		  continue;
+	    string cg_cname = string("__covgrp_")
+			      + string(name_.str())
+			      + "_" + string(cgdef->name.str()) + "_t";
+	    perm_string cg_class_pname = lex_strings.make(cg_cname.c_str());
+	    netclass_t* cg_class = new netclass_t(cg_class_pname, nullptr);
+	    cg_class->set_scope_ready(true);
+	    cg_class->set_body_elaborated(true);
+	    cg_class->set_is_covergroup(true);
+	    set_property(cgdef->name, property_qualifier_t::make_none(), cg_class);
       }
 
       for (map<perm_string,PFunction*>::iterator cur = pclass->funcs.begin()
@@ -1251,6 +1275,16 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				  // Accept the common SV/UVM pattern of class handle
 				  // defaults set to null (e.g. constructor parent=null).
 				if (dynamic_cast<const PENull*>(ports_->at(idx).defe)) {
+				      NetENull*nval = new NetENull;
+				      nval->set_line(*ports_->at(idx).defe);
+				      tmp_def = nval;
+				} else
+				  // SV: {} (empty concat) as default for queue/darray port —
+				  // synthesize a null placeholder (empty queue default).
+				if ((tmp->data_type() == IVL_VT_QUEUE
+				     || tmp->data_type() == IVL_VT_DARRAY)
+				    && dynamic_cast<const PEConcat*>(ports_->at(idx).defe)
+				    && static_cast<const PEConcat*>(ports_->at(idx).defe)->is_empty_concat()) {
 				      NetENull*nval = new NetENull;
 				      nval->set_line(*ports_->at(idx).defe);
 				      tmp_def = nval;

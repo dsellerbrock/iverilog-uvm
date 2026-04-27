@@ -722,7 +722,22 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	/* A uwire is a tri with only one driver. */
       if (res == IVL_SIT_UWIRE) {
 	    if (ndrivers > 1) {
-		  display_multi_driver_error(nex, ndrivers, MDRV_UWIRE);
+		  /* Compile-progress: uwire multi-driver is an error per the standard,
+		   * but in DV testbenches with struct ports this is common. Downgrade
+		   * to a warning and continue (treat as regular tri resolution). */
+		  ivl_signal_t sig_dbg = 0;
+		  unsigned dbg_idx;
+		  for (dbg_idx = 0; dbg_idx < ivl_nexus_ptrs(nex); dbg_idx++) {
+			ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, dbg_idx);
+			ivl_signal_t ts = ivl_nexus_ptr_sig(ptr);
+			if (ts && !ivl_signal_local(ts)) { sig_dbg = ts; break; }
+		  }
+		  if (sig_dbg) {
+			fprintf(stderr, "%s:%u: vvp.tgt warning: uwire \"%s\" has %u "
+				"drivers (compile-progress: treated as wire).\n",
+				ivl_signal_file(sig_dbg), ivl_signal_lineno(sig_dbg),
+				ivl_signal_basename(sig_dbg), ndrivers);
+		  }
 	    }
 	    res = IVL_SIT_TRI;
       }

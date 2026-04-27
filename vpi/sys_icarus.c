@@ -18,6 +18,8 @@
 
 #include "sys_priv.h"
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 static PLI_INT32 finish_and_return_calltf(ICARUS_VPI_CONST PLI_BYTE8* name)
 {
@@ -50,6 +52,31 @@ static PLI_INT32 task_not_implemented_compiletf(ICARUS_VPI_CONST PLI_BYTE8* name
                  name);
       vpip_set_return_value(1);
       vpi_control(vpiFinish, 1);
+      return 0;
+}
+
+/*
+ * Implement $system(cmd) — execute a shell command and return its exit status.
+ * This matches the behavior expected by OpenTitan DV testbenches.
+ */
+static PLI_INT32 system_calltf(ICARUS_VPI_CONST PLI_BYTE8* name)
+{
+      (void)name;
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      int ret = 0;
+      if (argv) {
+	    vpiHandle arg = vpi_scan(argv);
+	    if (arg) {
+		  s_vpi_value val;
+		  val.format = vpiStringVal;
+		  vpi_get_value(arg, &val);
+		  if (val.value.str)
+			ret = system(val.value.str);
+	    }
+	    vpi_free_object(argv);
+      }
+      vpip_set_return_value(ret);
       return 0;
 }
 
@@ -290,6 +317,17 @@ void sys_special_register(void)
 
       tf_data.tfname      = "$scale";
       tf_data.user_data   = "$scale";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      /* $system(cmd) — execute a shell command, return exit status. */
+      tf_data.type        = vpiSysFunc;
+      tf_data.sysfunctype = vpiIntFunc;
+      tf_data.calltf      = system_calltf;
+      tf_data.compiletf   = 0;
+      tf_data.sizetf      = 0;
+      tf_data.tfname      = "$system";
+      tf_data.user_data   = "$system";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 }

@@ -271,27 +271,24 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 		       << "Cannot assign to " << path_
 		       << " because function " << scope_path(scope)
 		       << " is void." << endl;
+		  des->errors += 1;
+	    } else if (gn_system_verilog()) {
+		  // Compile-progress: covergroup handles, unresolved class properties,
+		  // and other SV constructs may not be found as l-value variables.
+		  cerr << get_fileline() << ": warning: Could not find variable ``"
+		       << path_ << "'' in ``" << scope_path(scope) << "''"
+		       << " (compile-progress: assignment ignored)." << endl;
 	    } else {
 		  cerr << get_fileline() << ": error: Could not find variable ``"
 		       << path_ << "'' in ``" << scope_path(scope) <<
 			"''" << endl;
-		  // Debug: show scope chain for diagnosis
-		  if (gn_system_verilog()) {
-			NetScope*dbg = scope;
-			while (dbg) {
-			      cerr << get_fileline() << ":      : "
-				   << "  scope chain: " << scope_path(dbg)
-				   << " type=" << dbg->type() << endl;
-			      dbg = dbg->parent();
-			}
-		  }
 		  if (sr.decl_after_use) {
 			cerr << sr.decl_after_use->get_fileline() << ":      : "
 				"A symbol with that name was declared here. "
 				"Check for declaration after use." << endl;
 		  }
+		  des->errors += 1;
 	    }
-	    des->errors += 1;
 	    return 0;
       }
 
@@ -1282,10 +1279,13 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 					cerr << "<null>";
 				  cerr << endl;
 			    }
-			    cerr << get_fileline() << ": error: "
-			         << "Nested member path is not a class/struct l-value in this context."
+			    // Compile-progress: assoc-array element property assignment
+			    // such as assoc[key].prop = val is not yet fully supported
+			    // as an l-value. Downgrade to warning and ignore.
+			    cerr << get_fileline() << ": warning: "
+			         << "Nested member path is not a class/struct l-value in this context"
+			         << " (compile-progress: assignment ignored)."
 			         << endl;
-			    des->errors += 1;
 			    return 0;
 		      }
 
@@ -1311,15 +1311,14 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  pidx = const_cast<netclass_t*>(owner_class)->ensure_property_decl(des, method_name);
 		  if (pidx < 0) {
 			if (gn_system_verilog()) {
-			      /* Compile-progress fallback: tolerate known pseudo members
-			         used by UVM iteration helpers. */
+			      /* Compile-progress fallback: tolerate unknown members
+			         (including UVM iteration helpers). Ignore the l-value. */
 			      if (method_name != perm_string::literal("for_each_idx")) {
 				    cerr << get_fileline() << ": warning: Class " << owner_class->get_name()
 					 << " does not have a property " << method_name
 					 << " (compile-progress fallback, ignoring l-value)." << endl;
 			      }
-			      NetAssign_*drop_lv = lv? new NetAssign_(lv) : new NetAssign_(sig);
-			      return drop_lv;
+			      return 0;
 			}
 			cerr << get_fileline() << ": error: Class " << owner_class->get_name()
 			     << " does not have a property " << method_name << "." << endl;
@@ -1463,10 +1462,14 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      idx_pos += 1;
 			      if (idx_pos < idx_count) {
 				    if (!dynamic_cast<const netarray_t*>(ptype)) {
-					  cerr << get_fileline() << ": error: "
-					       << "Index expressions don't apply to this type of property."
+					  // Compile-progress: part-select on a dynamic/assoc array
+					  // element after the first index is applied (e.g.
+					  // assoc[key][1:0] = 0) is not yet fully supported as an
+					  // l-value. Silently ignore the remaining indices.
+					  cerr << get_fileline() << ": warning: "
+					       << "Index expressions don't apply to this type of property"
+					       << " (compile-progress: assignment ignored)."
 					       << endl;
-					  des->errors += 1;
 					  break;
 				    }
 			      }

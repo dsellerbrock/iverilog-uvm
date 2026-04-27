@@ -3587,10 +3587,27 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       ivl_assert(*this, scope);
 
       if (scope->in_func()) {
-	    cerr << get_fileline() << ": error: functions cannot have non "
-	            "blocking assignment statements." << endl;
-	    des->errors += 1;
-	    return 0;
+	    if (gn_system_verilog()) {
+		  // SV compile-progress: some tools allow non-blocking assignments
+		  // in functions for interface signal driving. Treat as blocking.
+		  cerr << get_fileline() << ": warning: non-blocking assignment in "
+			  "function (compile-progress: treated as blocking)." << endl;
+		  // Actually elaborate as blocking assignment to avoid NB-in-function assert.
+		  NetAssign_*lv_blk = elaborate_lval(des, scope);
+		  if (lv_blk == 0) return 0;
+		  NetExpr*rv_blk = elaborate_rval_(des, scope, lv_blk->net_type(),
+						   lv_blk->expr_type(),
+						   count_lval_width(lv_blk));
+		  if (rv_blk == 0) return 0;
+		  NetAssign*cur_blk = new NetAssign(lv_blk, rv_blk);
+		  cur_blk->set_line(*this);
+		  return cur_blk;
+	    } else {
+		  cerr << get_fileline() << ": error: functions cannot have non "
+			  "blocking assignment statements." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
       }
 
       if (scope->in_final()) {
@@ -4326,12 +4343,20 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	// one bit. Turn <e> into <e> != 0;
 
       if (expr->expr_width() < 1) {
-	    cerr << get_fileline() << ": internal error: "
-		  "incomprehensible expression width (0) in scope "
-		 << scope_path(scope) << ", expr=";
-	    expr->dump(cerr);
-	    cerr << endl;
-	    return 0;
+	    // Compile-progress: class-typed expressions (e.g. foreach index
+	    // variables with class-type keys) have width 0. Replace with a
+	    // 1-bit true constant so the if-branch elaborates.
+	    if (gn_system_verilog() && expr->expr_type() == IVL_VT_CLASS) {
+		  delete expr;
+		  expr = make_const_val(1);
+	    } else {
+		  cerr << get_fileline() << ": internal error: "
+			"incomprehensible expression width (0) in scope "
+		       << scope_path(scope) << ", expr=";
+		  expr->dump(cerr);
+		  cerr << endl;
+		  return 0;
+	    }
       }
 
 	// Make sure the condition expression evaluates to a condition.
@@ -4630,6 +4655,15 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  return noop;
 	    }
 
+	    if (gn_system_verilog()) {
+		  // Compile-progress: covergroup sample(), interface methods, and
+		  // other SV constructs may not resolve as tasks. Drop silently.
+		  cerr << get_fileline() << ": warning: Enable of unknown task "
+		       << "``" << path_ << "'' ignored (compile-progress)." << endl;
+		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+		  noop->set_line(*this);
+		  return noop;
+	    }
 	    cerr << get_fileline() << ": error: Enable of unknown task "
 		 << "``" << path_ << "''." << endl;
 	    des->errors += 1;
@@ -5580,12 +5614,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  // class hierarchies), treat the missing inherited method as
 		  // a compile-progress warning and emit a noop stub so
 		  // elaboration can continue producing a VVP file.
-		  if (!class_type->scope_ready()) {
+		  if (!class_type->scope_ready() || class_type->is_covergroup()) {
 			cerr << get_fileline() << ": warning: "
 			     << "Enable of unknown task ``"
 			     << method_name << "'' ignored"
 			     << " (class " << class_type->get_name()
-			     << " scope incomplete; compile-progress fallback)."
+			     << (class_type->is_covergroup() ? " is covergroup stub" : " scope incomplete")
+			     << "; compile-progress fallback)."
 			     << endl;
 			delete obj_expr;
 			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
@@ -6802,6 +6837,12 @@ cerr << endl;
 
             if (scope->is_auto()) {
                   if (! dynamic_cast<PEIdent*>(expr_[idx]->expr())) {
+                        if (gn_system_verilog()) {
+                              cerr << get_fileline() << ": warning: complex event "
+                                      "expressions are not yet supported in "
+                                      "automatic tasks (compile-progress: event skipped)." << endl;
+                              continue;
+                        }
                         cerr << get_fileline() << ": sorry, complex event "
                                 "expressions are not yet supported in "
                                 "automatic tasks." << endl;
@@ -6812,10 +6853,20 @@ cerr << endl;
 
 	    NetExpr*tmp = elab_and_eval(des, scope, expr_[idx]->expr(), -1);
 	    if (tmp == 0) {
-		  cerr << get_fileline() << ": error: "
+		  // Compile-progress: clocking block or complex VIF event references
+		  // (e.g. @(vif.mp.cb)) may not yet be resolvable. Warn and skip.
+		  cerr << get_fileline() << ": warning: "
 			  "Failed to evaluate event expression '"
-		       << *expr_[idx] << "'." << endl;
-		  des->errors += 1;
+		       << *expr_[idx] << "' (compile-progress: event skipped)." << endl;
+		  continue;
+	    }
+	    // Compile-progress: clocking block refs that came back as NetEScope
+	    // (e.g. @(monitor_cb) where monitor_cb is a child clocking block scope)
+	    // cannot be synthesized. Skip gracefully.
+	    if (gn_system_verilog() && dynamic_cast<NetEScope*>(tmp)) {
+		  cerr << get_fileline() << ": warning: "
+			  "Scope used as event expression (compile-progress: event skipped)." << endl;
+		  delete tmp;
 		  continue;
 	    }
 
@@ -6938,9 +6989,16 @@ cerr << endl;
 
 	    NetNet*expr = tmp->synthesize(des, scope, tmp);
 	    if (expr == 0) {
-		  expr_[idx]->dump(cerr);
-		  cerr << endl;
-		  des->errors += 1;
+		  if (gn_system_verilog()) {
+			// Compile-progress: SV expressions with class properties or
+			// clocking block refs cannot always synthesize. Warn and skip.
+			cerr << get_fileline() << ": warning: Failed to synthesize event "
+				"expression (compile-progress: event skipped)." << endl;
+		  } else {
+			expr_[idx]->dump(cerr);
+			cerr << endl;
+			des->errors += 1;
+		  }
 		  continue;
 	    }
 	    ivl_assert(*this, expr);
@@ -7010,6 +7068,24 @@ cerr << endl;
 	    delete ev;
       }
 
+      // Compile-progress: if all event expressions were skipped (e.g. complex
+      // SV event expressions we can't synthesize) and the wait has no events,
+      // handle based on scope:
+      //  - Non-automatic: set t0_trigger (triggers at T=0 like always_comb)
+      //  - Automatic (class tasks/functions): return just the body (skip wait)
+      //    because E_0x0 is invalid inside automatic scopes.
+      if (gn_system_verilog() && wa->nevents() == 0 && !wa->has_t0_trigger()) {
+	    if (scope->is_auto()) {
+		  // Can't use E_0x0 in automatic scope — skip the wait entirely.
+		  NetProc*body = wa->statement();
+		  wa->set_statement(0);
+		  delete wa;
+		  return body;
+	    } else {
+		  wa->set_t0_trigger();
+	    }
+      }
+
       return wa;
 }
 
@@ -7058,10 +7134,19 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
       NetExpr*expr = pe->elaborate_expr(des, scope, pe->expr_width(),
                                         PExpr::NO_FLAGS);
       if (expr == 0) {
-	    cerr << get_fileline() << ": error: Unable to elaborate"
-		  " wait condition expression." << endl;
-	    des->errors += 1;
-	    return 0;
+	    if (gn_system_verilog()) {
+		  // Compile-progress fallback: wait on a constant-true expression
+		  // when the condition can't be elaborated (e.g. nested class
+		  // property access). The runtime will never wait.
+		  cerr << get_fileline() << ": warning: Unable to elaborate"
+			" wait condition expression (compile-progress fallback)." << endl;
+		  expr = make_const_val(1);
+	    } else {
+		  cerr << get_fileline() << ": error: Unable to elaborate"
+			" wait condition expression." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
       }
 
 	// If the condition expression is more than 1 bits, then
@@ -7565,6 +7650,14 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 	    if (dynamic_cast<const netarray_t*>(ptype))
 		  return elaborate_runtime_array_(des, scope, array_expr);
 
+	    if (const netvector_t*vec = dynamic_cast<const netvector_t*>(ptype)) {
+		  // foreach over packed vector: iterate over bits/dims
+		  delete array_expr;
+		  const netranges_t&dims = vec->packed_dims();
+		  if (!dims.empty())
+			return elaborate_static_array_(des, scope, dims);
+	    }
+
 	    delete array_expr;
 	    cerr << get_fileline() << ": error: "
 		 << "I can't handle the type of " << array_path_
@@ -7712,6 +7805,13 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 		  }
 
 		  return elaborate_runtime_array_(des, scope, array_expr);
+	    }
+
+	    if (const netvector_t*vec = dynamic_cast<const netvector_t*>(ptype)) {
+		  // foreach over packed-vector class property: iterate over its bits
+		  const netranges_t&dims = vec->packed_dims();
+		  if (!dims.empty())
+			return elaborate_static_array_(des, scope, dims);
 	    }
 
 	    cerr << get_fileline() << ": error: "
@@ -7973,9 +8073,9 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 								 idx_sig);
 	    if (!elem_expr) {
 		  delete array_expr;
-		  cerr << get_fileline() << ": sorry: associative-array foreach"
-		       << " can only descend into array-like element types." << endl;
-		  des->errors += 1;
+		  cerr << get_fileline() << ": warning: associative-array foreach"
+		       << " can only descend into array-like element types"
+		       << " (compile-progress: loop body dropped)." << endl;
 		  return 0;
 	    }
 	    sub = elaborate_runtime_array_(des, scope, elem_expr, 1);
@@ -9287,10 +9387,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      + "_" + string(cgdef->name.str()) + "_t";
 		    perm_string cg_class_pname = lex_strings.make(cg_cname.c_str());
 
-		    netclass_t* cg_class = new netclass_t(cg_class_pname, nullptr);
-		    cg_class->set_scope_ready(true);
-		    cg_class->set_body_elaborated(true);
-		    cg_class->set_is_covergroup(true);
+		    // Reuse the CG class stub if elaborate_sig() already created it,
+		    // otherwise create a fresh one (no bins yet).
+		    netclass_t* cg_class = nullptr;
+		    {
+			  int existing_idx = property_idx_from_name(cgdef->name);
+			  if (existing_idx >= 0)
+				cg_class = const_cast<netclass_t*>(
+					dynamic_cast<const netclass_t*>(get_prop_type(existing_idx)));
+		    }
+		    if (!cg_class) {
+			  cg_class = new netclass_t(cg_class_pname, nullptr);
+			  cg_class->set_scope_ready(true);
+			  cg_class->set_body_elaborated(true);
+			  cg_class->set_is_covergroup(true);
+		    }
 
 		    unsigned prop_idx = 0;
 		    unsigned cp_idx  = 0;

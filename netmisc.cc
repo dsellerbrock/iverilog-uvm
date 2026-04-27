@@ -1074,6 +1074,12 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  // gets elaborated to NetENull.
 		  if (dynamic_cast<PEAssignPattern*>(pe))
 			return tmp;
+
+		  // Queue/darray slice with variable-bounds (q[lo:hi] where lo/hi
+		  // are runtime) elaborates as LOGIC in the bit-select fallback
+		  // path. Allow it through for queue targets as compile-progress.
+		  if (gn_system_verilog() && type_is_vectorable(expr_type))
+			return tmp;
 		  // fall through
 		case IVL_VT_STRING:
 		  if (dynamic_cast<PEConcat*>(pe))

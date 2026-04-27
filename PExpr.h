@@ -252,6 +252,8 @@ class PEConcat : public PExpr {
       explicit PEConcat(const std::list<PExpr*>&p, PExpr*r =0);
       ~PEConcat() override;
 
+      bool is_empty_concat() const { return parms_.empty() && repeat_ == 0; }
+
       virtual void dump(std::ostream&) const override;
 
       virtual void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;

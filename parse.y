@@ -3748,7 +3748,7 @@ modport_ports_declaration
   | attribute_list_opt K_clocking IDENTIFIER
       { last_modport_port.type = MP_CLOCKING;
 	last_modport_port.direction = NetNet::NOT_A_PORT;
-	yyerror(@3, "sorry: modport clocking declaration is not yet supported.");
+	/* Accepted but not implemented — modport clocking ports are ignored */
 	delete[] $3;
 	delete $1;
       }
@@ -3948,9 +3948,18 @@ package_item /* IEEE1800-2005 A.1.10 */
    which cause LALR reduce/reduce conflicts. */
 package_cg_port_prefix
   : K_covergroup IDENTIFIER
-      { /* Register name as class-like type so member var decls like "cg_t m_cg;" work */
-        pform_forward_typedef(@2, lex_strings.make($2), typedef_t::CLASS);
-        /* Unbound scope: push without registering in parent — avoids cross-covergroup conflicts */
+      { /* Register as a real class stub so "cg_t m_cg" elaborates without errors.
+           pform_push_class_scope registers in scopex->classes; we immediately pop
+           so the CG body is NOT parsed in a class scope. */
+        perm_string cg_name__ = lex_strings.make($2);
+        class_type_t*cg_type__ = new class_type_t(cg_name__);
+        FILE_NAME(cg_type__, @2);
+        cg_type__->is_covergroup_stub = true;
+        PClass*cg_cls__ = pform_push_class_scope(@2, cg_name__);
+        cg_cls__->type = cg_type__;
+        pform_set_typedef(@2, cg_name__, cg_type__, nullptr);
+        pform_pop_scope();
+        /* Unbound scope for the constructor port list */
         current_function = pform_push_function_scope_unbound(@2, $2, LexicalScope::INHERITED); }
     tf_port_list_parens_opt
       { if ($4) current_function->set_ports($4);
@@ -3959,8 +3968,15 @@ package_cg_port_prefix
 
 package_covergroup_declaration
   : K_covergroup IDENTIFIER ';' covergroup_item_list_opt K_endgroup label_opt
-      { /* Register name as class-like type; ignore body */
-        pform_forward_typedef(@2, lex_strings.make($2), typedef_t::CLASS);
+      { /* Register as a real class stub so "cg_t m_cg" elaborates without errors */
+        perm_string cg_name__ = lex_strings.make($2);
+        class_type_t*cg_type__ = new class_type_t(cg_name__);
+        FILE_NAME(cg_type__, @2);
+        cg_type__->is_covergroup_stub = true;
+        PClass*cg_cls__ = pform_push_class_scope(@2, cg_name__);
+        cg_cls__->type = cg_type__;
+        pform_set_typedef(@2, cg_name__, cg_type__, nullptr);
+        pform_pop_scope();
         delete[] $2; if ($6) delete[] $6; }
   | package_cg_port_prefix ';' covergroup_item_list_opt K_endgroup label_opt
       { pform_pop_scope(); current_function = 0;

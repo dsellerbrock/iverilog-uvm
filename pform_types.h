@@ -396,7 +396,7 @@ struct interface_type_t : public data_type_t {
 
 struct class_type_t : public data_type_t {
 
-      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; }
+      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; is_covergroup_stub = false; }
 
       void pform_dump(std::ostream&out, unsigned indent) const override;
       void pform_dump_init(std::ostream&out, unsigned indent) const;
@@ -409,6 +409,7 @@ struct class_type_t : public data_type_t {
       std::vector<named_pexpr_t> base_args;
 
       bool virtual_class;
+      bool is_covergroup_stub; // true when created as a package-level CG stub
 
 	// This is a map of the properties. Map the name to the type.
       struct prop_info_t : public LineInfo {

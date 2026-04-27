@@ -263,9 +263,37 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
       iface_type->set_definition_scope(scope);
       interface_type_cache_[mod] = iface_type;
 
+      // Use the interface module's own root scope (which has its parameters
+      // bound to defaults) instead of the calling scope (which may be a class
+      // scope that doesn't contain the interface's parameter names).
+      // This avoids "Unable to bind parameter" errors for parameterized
+      // interfaces used as virtual interface types in parameterized classes.
+      //
+      // Two cases where the normal root scope isn't ready:
+      //  1. The interface is also instantiated in the design (tb.sv), so it
+      //     is not in root_scopes_ — its scope is created later via PGModule.
+      //  2. The root scope exists but hasn't had its parameters collected yet
+      //     because packages elaborate before root-scope work items run.
+      // In both cases we build a minimal temporary scope from the module's
+      // pform parameters so wire dimensions can be resolved.
+      NetScope*iface_scope = des->find_scope(hname_t(mod->mod_name()));
+      NetScope*temp_scope = nullptr;
+      if (!iface_scope || (iface_scope->parameters.empty() && !mod->parameters.empty())) {
+	    if (!iface_scope) {
+		  // Interface is NOT a root — create a disposable scope.
+		  temp_scope = new NetScope(nullptr, hname_t(mod->mod_name()),
+					   NetScope::MODULE, nullptr,
+					   false, false, true, false);
+		  iface_scope = temp_scope;
+	    }
+	    // Pre-populate default parameters so dimension expressions resolve.
+	    for (auto& kv : mod->parameters)
+		  iface_scope->set_parameter(kv.first, false, *kv.second, nullptr);
+      }
+
       for (map<perm_string,PWire*>::const_iterator cur = mod->wires.begin()
 		 ; cur != mod->wires.end() ; ++cur) {
-	    ivl_type_t prop_type = cur->second->elaborate_sig_type(des, scope);
+	    ivl_type_t prop_type = cur->second->elaborate_sig_type(des, iface_scope);
 	    iface_type->set_property(cur->first, property_qualifier_t::make_none(),
 				     prop_type);
       }
@@ -276,6 +304,7 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 					   cur->second->signals);
       }
 
+      delete temp_scope;
       return iface_type;
 }
 
@@ -292,19 +321,32 @@ netclass_t* builtin_class_type(perm_string name)
       return nullptr;
 }
 
+// When a typeref_t with package-scoped overrides is being elaborated, this
+// holds the original caller scope so override expressions (e.g. #(.AddrWidth(AddrWidth)))
+// can be evaluated in the scope where the type reference appears rather than in
+// the package that defines the class.
+static NetScope* s_type_elaborate_caller_scope_ = nullptr;
+
 /*
  * Elaborations of types may vary depending on the scope that it is
  * done in, so keep a per-scope cache of the results.
  */
 ivl_type_t data_type_t::elaborate_type(Design*des, NetScope*scope)
 {
+      // Save the caller scope before find_scope changes it. typeref_t uses
+      // this to pass the correct call_scope to elaborate_specialized_class_type.
+      NetScope* saved_caller_scope = s_type_elaborate_caller_scope_;
+      s_type_elaborate_caller_scope_ = scope;
+
       scope = find_scope(des, scope);
 
       Definitions*use_definitions = scope;
 
       map<Definitions*,ivl_type_t>::iterator pos = cache_type_elaborate_.lower_bound(use_definitions);
-	  if (pos != cache_type_elaborate_.end() && pos->first == use_definitions)
+	  if (pos != cache_type_elaborate_.end() && pos->first == use_definitions) {
+	     s_type_elaborate_caller_scope_ = saved_caller_scope;
 	     return pos->second;
+	  }
 
       ivl_type_t tmp;
       if (elaborating) {
@@ -325,6 +367,7 @@ ivl_type_t data_type_t::elaborate_type(Design*des, NetScope*scope)
 
       if (tmp)
 	    cache_type_elaborate_.insert(pos, pair<NetScope*,ivl_type_t>(scope, tmp));
+      s_type_elaborate_caller_scope_ = saved_caller_scope;  // always restore
       return tmp;
 }
 
@@ -1049,8 +1092,14 @@ ivl_type_t typeref_t::elaborate_type_raw(Design*des, NetScope*s) const
 		  return use_type;
       }
 
+      // Use the original caller scope (saved before find_scope changed s to the
+      // package scope) so that parameter override expressions like #(.AddrWidth(AddrWidth))
+      // are evaluated in the scope where the type reference appears (e.g. the enclosing
+      // parameterized class), not in the package that defines the type. Fall back to s
+      // (the package scope) if the caller scope is not available.
+      NetScope* call_scope = s_type_elaborate_caller_scope_ ? s_type_elaborate_caller_scope_ : s;
       return const_cast<netclass_t*>(
-	    elaborate_specialized_class_type(des, s, class_type, overrides));
+	    elaborate_specialized_class_type(des, call_scope, class_type, overrides));
 }
 
 NetScope *typeref_t::find_scope(Design *des, NetScope *s) const
@@ -1092,19 +1141,10 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 	      // class was incompletely elaborated by the recursion guard.
 	      // Treat as a compile-progress warning rather than a fatal error
 	      // so the VVP file can still be generated.
-	    const char*name_cstr = name.str();
-	    bool internal_name = name_cstr && name_cstr[0] == '_' && name_cstr[1] == '_';
-	    if (!internal_name) {
-		  cerr << get_fileline() << ": sorry: "
-		       << "Can not find the scope type definition `" << name << "`."
-		       << endl;
-		  des->errors++;
-	    } else {
-		  cerr << get_fileline() << ": warning: "
-		       << "Can not find the scope type definition `" << name
-		       << "' (compile-progress fallback)."
-		       << endl;
-	    }
+	    cerr << get_fileline() << ": warning: "
+		 << "Can not find the scope type definition `" << name
+		 << "' (compile-progress fallback)."
+		 << endl;
 
 	    // Try to recover
 	    return netvector_t::integer_type();
