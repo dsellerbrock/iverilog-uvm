@@ -8411,19 +8411,72 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
 	// in a separate process that will be executed before the start
 	// of simulation.
       if (is_auto_) {
-	      // Get the NetBlock of the statement. If it is not a
-	      // NetBlock then create one to wrap the initialization
-	      // statements and the original statement.
-	    NetBlock*blk = dynamic_cast<NetBlock*> (st);
-	    if ((blk == 0) && (var_inits.size() > 0)) {
-		  blk = new NetBlock(NetBlock::SEQU, scope);
-		  blk->set_line(*this);
-		  blk->append(st);
-		  st = blk;
+	      // Split var_inits by the target variable's lifetime.
+	      // Variables explicitly declared `static` inside an automatic
+	      // function should be initialized ONCE at simulation start, not
+	      // on every call. Auto-lifetime initializers go into the
+	      // function body so they run on each entry.
+	    std::vector<Statement*> static_inits;
+	    std::vector<Statement*> auto_inits;
+	    for (Statement*stmt : var_inits) {
+		  bool is_static_init = false;
+		  if (const PAssign_*as = dynamic_cast<const PAssign_*>(stmt)) {
+			if (const PEIdent*id = dynamic_cast<const PEIdent*>(as->lval())) {
+			      perm_string nm = peek_tail_name(id->path());
+			      if (PWire*pw =
+				    const_cast<PFunction*>(this)->wires_find(nm)) {
+				    if (pw->lifetime_override() == IVL_VLT_STATIC)
+					  is_static_init = true;
+			      }
+			}
+		  }
+		  if (is_static_init)
+			static_inits.push_back(stmt);
+		  else
+			auto_inits.push_back(stmt);
 	    }
-	    for (unsigned idx = var_inits.size(); idx > 0; idx -= 1) {
-		  NetProc*tmp = var_inits[idx-1]->elaborate(des, scope);
-		  if (tmp) blk->prepend(tmp);
+
+	    if (!auto_inits.empty()) {
+		    // Get the NetBlock of the statement. If it is not a
+		    // NetBlock then create one to wrap the initialization
+		    // statements and the original statement.
+		  NetBlock*blk = dynamic_cast<NetBlock*> (st);
+		  if (blk == 0) {
+			blk = new NetBlock(NetBlock::SEQU, scope);
+			blk->set_line(*this);
+			blk->append(st);
+			st = blk;
+		  }
+		  for (size_t idx = auto_inits.size(); idx > 0; idx -= 1) {
+			NetProc*tmp = auto_inits[idx-1]->elaborate(des, scope);
+			if (tmp) blk->prepend(tmp);
+		  }
+	    }
+
+	    if (!static_inits.empty()) {
+		    // Emit the static initializers as a one-shot module-init
+		    // process so each runs once at sim start.
+		  NetProc*proc = 0;
+		  if (static_inits.size() == 1) {
+			proc = static_inits[0]->elaborate(des, scope);
+		  } else {
+			NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+			for (Statement*s : static_inits) {
+			      NetProc*tmp = s->elaborate(des, scope);
+			      if (tmp) blk->append(tmp);
+			}
+			proc = blk;
+		  }
+		  if (proc) {
+			NetProcTop*top = new NetProcTop(scope, IVL_PR_INITIAL, proc);
+			if (const LineInfo*li = dynamic_cast<const LineInfo*>(this)) {
+			      top->set_line(*li);
+			}
+			if (gn_system_verilog())
+			      top->attribute(perm_string::literal("_ivl_schedule_init"),
+					     verinum(1));
+			des->add_process(top);
+		  }
 	    }
       } else {
 	    elaborate_var_inits_(des, scope);
