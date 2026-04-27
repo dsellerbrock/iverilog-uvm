@@ -198,19 +198,19 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
       if (port_is_unsupported_aggregate_formal_(port))
 	    return;
 
-      /* Handle copy-out to a class property actual (e.g. inout vif → this.vif),
-         including nested property paths like env.cfg.o. For the nested case
-         the property's base is itself a NetEProperty (sig=null, base=expr);
-         we evaluate the base expression to push the containing cobj onto
-         the obj stack instead of using a single-signal load. */
       if (ivl_expr_type(actual) == IVL_EX_PROPERTY) {
 	    ivl_signal_t base_sig = ivl_expr_signal(actual);
+	    /* If an index is set, the actual is an assoc-array / queue / array
+	       entry of a class property (e.g. cfg.vifs[key]). We don't yet
+	       emit a proper %aa/store sequence here — fall through with a
+	       warning so the call still elaborates (the value just won't be
+	       written back to the indexed slot). */
 	    if (ivl_expr_oper1(actual)) {
 		  if (!warned_unsupported_copy_out) {
 			fprintf(stderr,
-			        "Warning: Skipping unsupported indexed property"
-			        " copy-out for %s (further similar warnings suppressed)\n",
-			        ivl_signal_basename(port));
+				"Warning: Skipping indexed property copy-out for"
+				" %s (further similar warnings suppressed)\n",
+				ivl_signal_basename(port));
 			warned_unsupported_copy_out = 1;
 		  }
 		  return;
