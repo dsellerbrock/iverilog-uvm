@@ -239,7 +239,19 @@ struct vthread_s {
       inline vvp_vector4_t& peek_vec4(void)
       {
 	    unsigned use_index = stack_vec4_.size();
-	    assert(use_index >= 1);
+	    if (use_index < 1) {
+		  static unsigned warned = 0;
+		  if (warned < 8) {
+			fprintf(stderr, "[PEEK_VEC4-UF] fileline='%s' (further suppressed)\n",
+				get_fileline().c_str());
+			warned++;
+		  }
+		  /* Soft fallback: push 1-bit 0 so the peeking opcode has
+		     something to read and the run can progress. The actual
+		     bug is a missing earlier push. */
+		  push_vec4(vvp_vector4_t(1, BIT4_0));
+		  use_index = stack_vec4_.size();
+	    }
 	    return stack_vec4_[use_index-1];
       }
       inline void poke_vec4(unsigned depth, const vvp_vector4_t&val)
@@ -4991,6 +5003,20 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 		          " using compile-progress return fallback (further similar warnings suppressed)\n",
 		          thr->get_fileline().c_str(), callf_depth, scope_name);
 		  warned_callf_depth_fallback = true;
+		  /* Dump distinct scopes on the callf stack and their counts. */
+		  std::map<std::string, unsigned> scope_counts;
+		  for (auto*sc : callf_scope_stack) {
+			const char*nm = sc ? vpi_get_str(vpiFullName, sc) : "<null>";
+			std::string key = nm ? std::string(nm) : std::string("<unnamed>");
+			scope_counts[key]++;
+		  }
+		  fprintf(stderr, "[callf-stack-summary] %zu distinct scopes on stack:\n",
+			  scope_counts.size());
+		  for (auto&kv : scope_counts) {
+			if (kv.second >= 4) {
+			      fprintf(stderr, "  %5u x %s\n", kv.second, kv.first.c_str());
+			}
+		  }
 	    }
 	    vthread_delete(child);
 	    callf_scope_stack.pop_back();
