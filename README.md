@@ -61,7 +61,9 @@ results — and upstream each fix as a minimal, reviewable patch.
 | String methods | ✅ | `toupper`, `tolower`, `getc`, `compare` |
 | Class fixed-size array properties | ✅ | `int data[N]` member fields |
 | OpenTitan `dv_base_reg_pkg` compilation | ✅ | Through `tl_agent_pkg` |
-| OpenTitan UART DV compile + UVM boot | ✅ | Full RTL+DV bundle compiles; runs uart_base_test through RAL setup; stops at config_db lookup |
+| OpenTitan UART DV compile + UVM boot | ✅ | Full RTL+DV bundle compiles; runs uart_base_test through RAL setup |
+| OpenTitan UART DV `uart_smoke_vseq` end-to-end | ✅ | Test sequence runs to completion, watchdog drains, exit=0 |
+| `pkg::func()` inside class method | ✅ | Was previously mis-resolving to virtual-method-on-this — Phase 25 |
 | `inside { queue }` runtime membership | ✅ | `%inside/arr` opcode; correctly terminates `while inside` loops |
 | Queue `.sort()`, `.rsort()`, `.unique()` | ✅ | vec4/real/string elements; iterator-arg form accepted |
 | Enum `.name()/.next()/.prev()/.first()/.last()` | ✅ | Both no-paren and paren forms |
