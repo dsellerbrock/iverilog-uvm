@@ -158,20 +158,23 @@ fork](https://github.com/dsellerbrock/opentitan-iverilog) for the
 patches to `dv_base_env.sv`, `dv_base_test.sv`, and the
 `hw/dv/tools/dvsim/iverilog.hjson` config.)
 
-**Status (2026-04-27)**: dvsim → fusesoc → iverilog runs the full UART
-target end-to-end. All three smoke vseqs reach `TEST PASSED CHECKS`
-(UVM-level pass):
+**Status (2026-04-27)**: dvsim → fusesoc → iverilog runs the **full UART
+DV regression**. All 27 vseqs reach `TEST PASSED CHECKS` at the UVM
+level:
 
-* `uart_smoke` ✅ TEST PASSED CHECKS
-* `uart_csr_hw_reset` ✅ TEST PASSED CHECKS
-* `uart_csr_rw` ✅ TEST PASSED CHECKS
+| Stage | Tests | Result |
+|---|---|---|
+| Build (full RTL+DV bundle, fusesoc-resolved) | 1 | ✅ |
+| Smoke + CSR (smoke, csr_hw_reset, csr_rw, csr_aliasing, csr_bit_bash, csr_mem_rw_with_rand_reset, same_csr_outstanding) | 7 | ✅ all PASSED CHECKS |
+| Functional (tx_rx, fifo_full, fifo_overflow, fifo_reset, intr, intr_test, loopback, noise_filter, perf, rx_oversample, rx_parity_err, rx_start_bit_filter, tx_ovrd, long_xfer_wo_dly) | 14 | ✅ all PASSED CHECKS |
+| Stress + sec_cm + alerts (stress_all, stress_all_with_rand_reset, sec_cm, alert_test, tl_errors, tl_intg_err) | 6 | ✅ all PASSED CHECKS |
 
-A residual non-fatal `UVM_ERROR` (RAL null-map setup, Issue #19) fires
-once per test before the test sequence runs — UVM's checks still pass
-but dvsim's job-status logic flags any `UVM_ERROR` as failed. The
-underlying iverilog gap is in `m_maps.first(map)` for object-keyed
-assoc arrays (the runtime `aa_first<vvp_object_t>` is implemented but
-the codegen path doesn't yet round-trip the key into a class handle).
+9 tests are completely clean (zero UVM messages of severity ≥ ERROR).
+The remaining 18 still emit a single residual `UVM_ERROR` from the
+m_maps foreach class-prop typing gap — UVM-level checks pass but
+dvsim's job-status logic flags any `UVM_ERROR` as failed. The runtime
+`aa_first<vvp_object_t>` path itself is now correct (Phase 34/35).
+
 The hand-curated `scripts/compile_uart_dv.sh` path also still works
 for end-to-end `uart_smoke_vseq` runs.
 
