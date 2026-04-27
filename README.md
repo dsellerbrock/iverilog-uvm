@@ -135,6 +135,34 @@ gcc -shared -fPIC -o mylib.so mylib.c
 $BIN/vvp sim.vvp -d mylib.so
 ```
 
+### OpenTitan DV (dvsim + fusesoc)
+
+This iverilog fork plugs into OpenTitan's native DV flow. Drop
+`iverilog.hjson` (in this repo's companion OpenTitan tree) into
+`hw/dv/tools/dvsim/` and run:
+
+```bash
+PATH="$(pwd)/install/bin:$PATH" \
+UVM_HOME=/path/to/uvm-core \
+opentitan/util/dvsim/dvsim.py \
+    opentitan/hw/ip/uart/dv/uart_sim_cfg.hjson \
+    --tool=iverilog -i smoke
+```
+
+dvsim invokes `fusesoc --tool=icarus --setup` to produce a `.scr`
+filelist + Makefile, then iverilog consumes the filelist directly. No
+hand-curated source list is needed. (See the [iverilog-uvm OpenTitan
+fork](https://github.com/dsellerbrock/opentitan-iverilog) for the
+patches to `dv_base_env.sv`, `dv_base_test.sv`, and the
+`hw/dv/tools/dvsim/iverilog.hjson` config.)
+
+The dvsim flow is wired up; remaining failures on the full UART target
+are iverilog feature gaps for transitive deps (e.g., `prim_cipher_pkg`
+multi-dim packed parameters, pulp riscv-dbg `dm_mem.sv` constructs)
+that get pulled in by fusesoc but were skipped by the hand-curated
+list. The hand-curated `scripts/compile_uart_dv.sh` path remains
+working for end-to-end `uart_smoke_vseq` runs.
+
 ---
 
 ## Test Results

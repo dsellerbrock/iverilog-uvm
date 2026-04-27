@@ -1439,9 +1439,36 @@ int main(int argc, char **argv)
       defparm_size = 0;
 
 	/* Finally, process all the remaining words on the command
-	   line as file names. */
-      for (int idx = optind ;  idx < argc ;  idx += 1)
-	    process_file_name(argv[idx], 0);
+	   line as file names. Also accept the +incdir+ and +define+
+	   forms here so that callers can pass the same `+...` flags
+	   they use in command files. Anything else starting with `+`
+	   is silently ignored (matching the cfparse skip behavior).  */
+      for (int idx = optind ;  idx < argc ;  idx += 1) {
+	    const char *arg = argv[idx];
+	    if (strncmp(arg, "+define+", 8) == 0) {
+		  /* +define+NAME[=VAL][+NAME2[=VAL2]...] -> emit one D: per token */
+		  char *dup = strdup(arg + 8);
+		  char *tok = strtok(dup, "+");
+		  while (tok) {
+			process_define(tok);
+			tok = strtok(NULL, "+");
+		  }
+		  free(dup);
+	    } else if (strncmp(arg, "+incdir+", 8) == 0) {
+		  char *dup = strdup(arg + 8);
+		  char *tok = strtok(dup, "+");
+		  while (tok) {
+			process_include_dir(tok);
+			tok = strtok(NULL, "+");
+		  }
+		  free(dup);
+	    } else if (arg[0] == '+') {
+		  /* Skip unknown +flags rather than treating them as filenames. */
+		  fprintf(stderr, "%s: ignoring unknown plusarg %s\n", argv[0], arg);
+	    } else {
+		  process_file_name(arg, 0);
+	    }
+      }
 
 	/* If the use of a default include directory is not
 	   specifically disabled, then write that directory as the
