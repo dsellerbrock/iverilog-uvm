@@ -4595,6 +4595,16 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	      // For SystemVerilog this may be a few other things.
 	    if (gn_system_verilog()) {
 		  NetProc *tmp;
+		    // If a package was explicitly named (`pkg::name(...)` form),
+		    // resolve as a package function call directly. Do NOT try
+		    // implicit-this method dispatch — that would mis-resolve to
+		    // a virtual method on the calling class with the same name
+		    // (e.g. dv_base_env_cfg::reset_asserted calling
+		    // csr_utils_pkg::reset_asserted would otherwise recurse).
+		  if (package_) {
+			tmp = elaborate_function_(des, scope);
+			if (tmp) return tmp;
+		  }
 		    // This could be a method attached to a signal
 		    // or defined in this object?
 		  bool try_implicit_this = scope->get_class_scope() && path_.size() == 1;
@@ -5755,25 +5765,33 @@ NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) c
 
 NetProc* PCallTask::elaborate_function_(Design*des, NetScope*scope) const
 {
-      NetFuncDef*func = des->find_function(scope, path_);
+      NetFuncDef*func = nullptr;
 
-	// If the normal lookup failed and path_ has 2 components, check if the
-	// first component is a package name (Form 2 of pkg::fn parsed as a
-	// hierarchical path inside the same package body before it is registered).
-      if (!func && path_.size() == 2 && package_ == nullptr) {
-	    perm_string possible_pkg = path_.front().name;
-	    if (NetScope*pkg_scope = des->find_package(possible_pkg)) {
-		  pform_name_t tail_path;
-		  tail_path.push_back(path_.back());
-		  func = des->find_function(pkg_scope, tail_path);
-	    }
-      }
-
-	// When a package_ pointer is set (from PACKAGE_IDENTIFIER::func grammar),
-	// look up the function directly in the package scope.
-      if (!func && package_) {
+	// When a package_ pointer is set (from PACKAGE_IDENTIFIER::func grammar
+	// or recovered via pform_make_call_task), look up the function ONLY in
+	// the package scope. Do not fall back to the caller scope: that would
+	// re-find a same-named class method on `this` and cause infinite
+	// virtual-dispatch recursion (see csr_utils_pkg::reset_asserted being
+	// called from dv_base_env_cfg::reset_asserted).
+      if (package_) {
 	    if (NetScope*pkg_scope = des->find_package(package_->pscope_name()))
 		  func = des->find_function(pkg_scope, path_);
+	    if (!func) return nullptr;
+      } else {
+	    func = des->find_function(scope, path_);
+
+	      // If the normal lookup failed and path_ has 2 components, check
+	      // if the first component is a package name (Form 2 of pkg::fn
+	      // parsed as a hierarchical path inside the same package body
+	      // before it is registered).
+	    if (!func && path_.size() == 2) {
+		  perm_string possible_pkg = path_.front().name;
+		  if (NetScope*pkg_scope = des->find_package(possible_pkg)) {
+			pform_name_t tail_path;
+			tail_path.push_back(path_.back());
+			func = des->find_function(pkg_scope, tail_path);
+		  }
+	    }
       }
 
 	// This is not a function, so this task call cannot be a function

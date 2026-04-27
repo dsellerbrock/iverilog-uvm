@@ -10242,6 +10242,16 @@ subroutine_call
 	delete $2;
 	$$ = tmp;
       }
+  | package_scope hierarchy_identifier { lex_in_package_scope(0); } argument_list_parens_opt
+      { /* Statement form of `pkg::func(args)` — preserves the package
+	   context so symbol_search resolves into the package, not into
+	   `this.func` (which would mis-dispatch as a virtual method). */
+	PCallTask*tmp = new PCallTask($1, *$2, *$4);
+	FILE_NAME(tmp, @2);
+	delete $2;
+	delete $4;
+	$$ = tmp;
+      }
   | hierarchy_identifier '.' K_unique argument_list_parens_opt
       { /* Statement form of q.unique() — `unique` is a keyword so it isn't
 	   captured by the IDENTIFIER rule above. */

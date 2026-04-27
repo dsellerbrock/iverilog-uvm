@@ -1217,7 +1217,25 @@ PCallTask* pform_make_call_task(const struct vlltype&loc,
       if (gn_system_verilog())
 	    check_potential_imports(loc, name.front().name, true);
 
-      PCallTask*tmp = new PCallTask(name, parms);
+      /* If the head of the path matches a known package name, attach the
+         package context so symbol_search resolves into that package
+         directly. This recovers the package qualifier when the parser
+         produced an IDENTIFIER K_SCOPE_RES IDENTIFIER form rather than
+         the explicit package_scope rule (e.g. statement form
+         `mypkg::func();`). */
+      PPackage*pkg = nullptr;
+      if (gn_system_verilog() && name.size() >= 2) {
+	    pkg = pform_test_package_identifier(name.front().name.str());
+      }
+
+      PCallTask*tmp;
+      if (pkg) {
+	    pform_name_t tail_path = name;
+	    tail_path.pop_front();
+	    tmp = new PCallTask(pkg, tail_path, parms);
+      } else {
+	    tmp = new PCallTask(name, parms);
+      }
       tmp->set_leading_type_args(type_args);
       FILE_NAME(tmp, loc);
       return tmp;
