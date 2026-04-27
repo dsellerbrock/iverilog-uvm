@@ -175,13 +175,27 @@ for `void'(<assoc>.first/last/next/prev(key))` plus
 `get_default_map()` now returns the registered map, the m_maps
 traversal works, and frontdoor register access reaches the bus.
 
+The TYPNTF UVM_ERROR is resolved (Phase 37 — vvp/vthread.cc
+`vthread_get_rd_context_item_scoped` now prefers the rd-context head
+over deeper wt entries when both match, so mutually-recursive
+class-handle returns from `find_override_by_type` no longer collapse
+to null).
+
+The sequencer-wiring UVM_FATAL is resolved (Phase 38 — `elab_type.cc`
+`find_foreach_path_root_type_` and `find_foreach_selected_path_type_`
+now walk the super-class chain when locating an inherited assoc-array
+property, so `foreach (cfg.m_tl_agent_cfgs[i])` in
+`cip_base_env::end_of_elaboration_phase` correctly iterates and binds
+the reg-map's bus sequencer).
+
 Residual UVM messages on the full 27-test regression:
 
 | Severity | Count | Reason |
 |---|---|---|
 | `UVM_ERROR null map` | **0 / 27** | ✅ closed by Phase 36 |
-| `UVM_ERROR [TYPNTF]` factory override | 4 / 27 | UVM factory type-override registration gap |
-| `UVM_FATAL [SEQ]` sequencer not supplied | 26 / 27 | OpenTitan testbench sequencer-wiring gap (now exposed because RAL frontdoor actually attempts a CSR access) |
+| `UVM_ERROR [TYPNTF]` factory override | **0 / 27** | ✅ closed by Phase 37 |
+| `UVM_FATAL [SEQ]` sequencer not supplied | **0 / 27** | ✅ closed by Phase 38 |
+| `get_registers` runtime hotspot | TBD | New residual exposed by Phase 38: now that the foreach-over-inherited-assoc-prop runs, `cip_base_vseq::extract_common_csrs` actually reaches the RAL traversal. `uvm_reg_block.get_registers` is then called many times (~12K invocations observed) and the foreach over `this.regs[rg]` hits the per-PC 200K non-callf-loop fallback. The callf sync-resume/drain budgets were also bumped from 256 → 65536 (overridable via `IVL_CALLF_SYNC_RESUME_LIMIT` / `IVL_CALLF_SYNC_DRAIN_LIMIT`) so synchronous deep-traversal calls don't time out artificially. Smoke vseq still doesn't reach `TEST PASSED CHECKS` in this run; investigating the reentry/recursion path. |
 
 The hand-curated `scripts/compile_uart_dv.sh` path also still works
 for end-to-end `uart_smoke_vseq` runs.
