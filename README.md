@@ -169,11 +169,10 @@ level:
 | Functional (tx_rx, fifo_full, fifo_overflow, fifo_reset, intr, intr_test, loopback, noise_filter, perf, rx_oversample, rx_parity_err, rx_start_bit_filter, tx_ovrd, long_xfer_wo_dly) | 14 | ✅ all PASSED CHECKS |
 | Stress + sec_cm + alerts (stress_all, stress_all_with_rand_reset, sec_cm, alert_test, tl_errors, tl_intg_err) | 6 | ✅ all PASSED CHECKS |
 
-9 tests are completely clean (zero UVM messages of severity ≥ ERROR).
-The remaining 18 still emit a single residual `UVM_ERROR` from the
-m_maps foreach class-prop typing gap — UVM-level checks pass but
-dvsim's job-status logic flags any `UVM_ERROR` as failed. The runtime
-`aa_first<vvp_object_t>` path itself is now correct (Phase 34/35).
+The null-map UVM_ERROR is now resolved (Phase 36 — task-call routing
+for `void'(<assoc>.first/last/next/prev(key))`). UVM
+`get_default_map()` now returns the registered map, the m_maps
+traversal works, and frontdoor register access reaches the bus.
 
 The hand-curated `scripts/compile_uart_dv.sh` path also still works
 for end-to-end `uart_smoke_vseq` runs.
