@@ -21,6 +21,7 @@
 
 # include  "sys_priv.h"
 # include  <assert.h>
+# include  <string.h>
 
 static PLI_INT32 one_array_arg_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
@@ -208,6 +209,22 @@ static PLI_INT32 high_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    }
 	    return 0;
 
+	  case vpiStringVar:
+	    {
+		  /* $high(string) returns length-1 (string is iterable as a
+		     sequence of bytes). */
+		  s_vpi_value value;
+		  value.format = vpiStringVal;
+		  vpi_get_value(arg, &value);
+		  int len = (value.format != vpiSuppressVal && value.value.str)
+				  ? (int)strlen(value.value.str)
+				  : 0;
+		  value.format = vpiIntVal;
+		  value.value.integer = len - 1;
+		  vpi_put_value(callh, &value, 0, vpiNoDelay);
+	    }
+	    return 0;
+
 	  default:
 	    {
 		  static int warned = 0;
@@ -271,6 +288,15 @@ static PLI_INT32 low_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    low_array(name, callh, arg);
 	    break;
 	  case vpiConstant:
+	    {
+		  s_vpi_value value;
+		  value.format = vpiIntVal;
+		  value.value.integer = 0;
+		  vpi_put_value(callh, &value, 0, vpiNoDelay);
+	    }
+	    return 0;
+
+	  case vpiStringVar:
 	    {
 		  s_vpi_value value;
 		  value.format = vpiIntVal;
