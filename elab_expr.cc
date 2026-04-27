@@ -8598,19 +8598,30 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			    resolve_scoped_class_static_property_expr_(des, scope, path_, this))
 			  return static_prop;
 
-		      // Compile-progress fallback for unresolved type-parameter
-		      // diagnostics such as TYPE::type_name used in UVM warnings.
+		      // For unresolved type-parameter forms such as
+		      // TYPE::type_name (UVM passes RAL_T or similar through
+		      // a parameter list), look up the underlying type. If
+		      // the parameter resolves to a class, return the class
+		      // name as a string; otherwise return an empty string as
+		      // a compile-progress fallback.
 		    if (!path_.package && path_.name.size() == 2) {
 			  const name_component_t&head_comp = path_.name.front();
 			  const name_component_t&tail_comp = path_.name.back();
 
 			  if (head_comp.index.empty() && tail_comp.index.empty()
 			      && tail_comp.name == perm_string::literal("type_name")) {
+				auto resolve_type_name = [&](ivl_type_t pt) -> std::string {
+				      if (!pt) return std::string();
+				      if (const netclass_t*cls = dynamic_cast<const netclass_t*>(pt))
+					    return std::string(cls->get_name().str() ?
+							       cls->get_name().str() : "");
+				      return std::string();
+				};
 				for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
 				      ivl_type_t par_type = nullptr;
 				      (void) cur->get_parameter(des, head_comp.name, par_type);
 				      if (par_type) {
-					    NetECString*tmp = new NetECString(string());
+					    NetECString*tmp = new NetECString(resolve_type_name(par_type));
 					    tmp->set_line(*this);
 					    return tmp;
 				      }
@@ -8619,7 +8630,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				      ivl_type_t par_type = nullptr;
 				      (void) unit->get_parameter(des, head_comp.name, par_type);
 				      if (par_type) {
-					    NetECString*tmp = new NetECString(string());
+					    NetECString*tmp = new NetECString(resolve_type_name(par_type));
 					    tmp->set_line(*this);
 					    return tmp;
 				      }
