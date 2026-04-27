@@ -5035,20 +5035,14 @@ static bool is_uvm_compile_progress_task_stub_candidate_(const pform_name_t&path
 	    }
       }
 
-      // Associative-array map operations on the UVM reg model's m_maps table.
-      if (tail == perm_string::literal("first")
-	  || tail == perm_string::literal("last")
-	  || tail == perm_string::literal("next")
-	  || tail == perm_string::literal("prev")
-	  || tail == perm_string::literal("delete")) {
-	    pform_name_t use_path = path;
-	    use_path.pop_back();
-	    if (!use_path.empty()) {
-		  perm_string parent = peek_tail_name(use_path);
-		  if (parent == perm_string::literal("m_maps"))
-			return true;
-	    }
-      }
+      // (Previously stubbed `m_maps.first/last/next/prev` here because
+      // the codegen for `%aa/first/sig/obj` pushed a 1-bit success flag
+      // while the caller expected 32 bits, tripping an of_STORE_VEC4
+      // assertion. That width mismatch is now fixed in
+      // `tgt-vvp/eval_vec4.c` — a `%pad/u` is emitted after the /sig/
+      // form so the result extends to the expected width. With the
+      // codegen fixed, UVM `get_default_map` returns the registered
+      // map and the null-map UVM_ERROR no longer fires.)
 
       return false;
 }

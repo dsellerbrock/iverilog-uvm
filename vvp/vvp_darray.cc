@@ -27,44 +27,75 @@ vvp_darray::~vvp_darray()
 {
 }
 
+// Type-mismatched set_word/get_word fallback. These methods are
+// virtual on vvp_darray and are overridden in concrete subclasses for
+// the concrete element type (vec4, double, string, object). Calls
+// reaching the base class indicate a code-gen mismatch — typically a
+// foreach over a queue-of-objects emitting a vec4 read. Rather than
+// spam the log on every hit (which can flood megabytes inside a hot
+// loop and stall sim runs), suppress repeats globally and zero-init
+// the out parameter so the caller sees a well-defined fallback value.
+
+namespace {
+unsigned darray_typemismatch_warn_count = 0;
+const unsigned darray_typemismatch_warn_max = 4;
+
+void darray_typemismatch_warn(const char *op, const char *type, const char *cls)
+{
+      if (darray_typemismatch_warn_count < darray_typemismatch_warn_max) {
+            cerr << "Warning: " << op << "(" << type
+                 << ") not implemented for " << cls
+                 << " (further suppressed; code-gen type mismatch)" << endl;
+            ++darray_typemismatch_warn_count;
+            if (darray_typemismatch_warn_count == darray_typemismatch_warn_max)
+                  cerr << "Warning: further darray type-mismatch warnings suppressed."
+                       << endl;
+      }
+}
+} // namespace
+
 void vvp_darray::set_word(unsigned, const vvp_vector4_t&)
 {
-      cerr << "XXXX set_word(vvp_vector4_t) not implemented for " << typeid(*this).name() << endl;
+      darray_typemismatch_warn("set_word", "vvp_vector4_t", typeid(*this).name());
 }
 
 void vvp_darray::set_word(unsigned, double)
 {
-      cerr << "XXXX set_word(double) not implemented for " << typeid(*this).name() << endl;
+      darray_typemismatch_warn("set_word", "double", typeid(*this).name());
 }
 
 void vvp_darray::set_word(unsigned, const string&)
 {
-      cerr << "XXXX set_word(string) not implemented for " << typeid(*this).name() << endl;
+      darray_typemismatch_warn("set_word", "string", typeid(*this).name());
 }
 
 void vvp_darray::set_word(unsigned, const vvp_object_t&)
 {
-      cerr << "XXXX set_word(vvp_object_t) not implemented for " << typeid(*this).name() << endl;
+      darray_typemismatch_warn("set_word", "vvp_object_t", typeid(*this).name());
 }
 
-void vvp_darray::get_word(unsigned, vvp_vector4_t&)
+void vvp_darray::get_word(unsigned, vvp_vector4_t&out)
 {
-      cerr << "XXXX get_word(vvp_vector4_t) not implemented for " << typeid(*this).name() << endl;
+      darray_typemismatch_warn("get_word", "vvp_vector4_t", typeid(*this).name());
+      out = vvp_vector4_t();
 }
 
-void vvp_darray::get_word(unsigned, double&)
+void vvp_darray::get_word(unsigned, double&out)
 {
-      cerr << "XXXX get_word(double) not implemented for " << typeid(*this).name() << endl;
+      darray_typemismatch_warn("get_word", "double", typeid(*this).name());
+      out = 0.0;
 }
 
-void vvp_darray::get_word(unsigned, string&)
+void vvp_darray::get_word(unsigned, string&out)
 {
-      cerr << "XXXX get_word(string) not implemented for " << typeid(*this).name() << endl;
+      darray_typemismatch_warn("get_word", "string", typeid(*this).name());
+      out.clear();
 }
 
-void vvp_darray::get_word(unsigned, vvp_object_t&)
+void vvp_darray::get_word(unsigned, vvp_object_t&out)
 {
-      cerr << "XXXX get_word(vvp_object_t) not implemented for " << typeid(*this).name() << endl;
+      darray_typemismatch_warn("get_word", "vvp_object_t", typeid(*this).name());
+      out = vvp_object_t();
 }
 
 vvp_vector4_t vvp_darray::get_bitstream(bool)

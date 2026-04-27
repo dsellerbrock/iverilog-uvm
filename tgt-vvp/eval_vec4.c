@@ -1263,6 +1263,11 @@ static int draw_assoc_traversal_vec4(ivl_expr_t expr)
       if (recv_sig) {
 	    fprintf(vvp_out, "    %%aa/%s/sig/%s v%p_0, v%p_0;\n",
 	            method_name, key_kind, recv_sig, key_sig);
+	    /* The /sig/ opcode pushes a 1-bit success flag. Caller expects
+	       `wid` bits (typically 32 for the int return of .first(key)),
+	       so zero-extend to match. */
+	    if (wid > 1)
+	          fprintf(vvp_out, "    %%pad/u %u;\n", wid);
       } else {
 	    draw_eval_object(recv);
 	    fprintf(vvp_out, "    %%aa/%s/%s v%p_0, %u;\n",
