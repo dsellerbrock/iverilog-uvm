@@ -156,12 +156,17 @@ fork](https://github.com/dsellerbrock/opentitan-iverilog) for the
 patches to `dv_base_env.sv`, `dv_base_test.sv`, and the
 `hw/dv/tools/dvsim/iverilog.hjson` config.)
 
-The dvsim flow is wired up; remaining failures on the full UART target
-are iverilog feature gaps for transitive deps (e.g., `prim_cipher_pkg`
-multi-dim packed parameters, pulp riscv-dbg `dm_mem.sv` constructs)
-that get pulled in by fusesoc but were skipped by the hand-curated
-list. The hand-curated `scripts/compile_uart_dv.sh` path remains
-working for end-to-end `uart_smoke_vseq` runs.
+**Status (2026-04-27)**: dvsim → fusesoc → iverilog runs the full UART
+target end-to-end. All three smoke vseqs reach `TEST PASSED CHECKS`:
+
+* `uart_smoke` ✅ TEST PASSED CHECKS
+* `uart_csr_hw_reset` ✅ TEST PASSED CHECKS
+* `uart_csr_rw` ✅ TEST PASSED CHECKS
+
+A single residual non-fatal `UVM_ERROR` (RAL null-map setup) appears
+during reg-block elaboration — runtime checks still pass. The hand-
+curated `scripts/compile_uart_dv.sh` path also still works for
+end-to-end `uart_smoke_vseq` runs.
 
 ---
 
