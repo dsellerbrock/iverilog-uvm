@@ -71,7 +71,7 @@ results — and upstream each fix as a minimal, reviewable patch.
 | `$cast(class_property, src)` | ✅ | Direct property-store sequence |
 | `pkg::var = expr` assignment | ⚠ Deferred | LALR conflict, needs grammar restructure |
 | Full UVM library end-to-end | ⚠ Partial | Phase infrastructure works; some gaps remain |
-| `dist` weighted distribution | ⚠ Deferred | Not yet implemented |
+| `dist` weighted distribution | ⚠ Stub | Parses without crashing — actual weighting TODO (Phase 30 / Issue #12) |
 | `std::randomize(var) with {...}` | ⚠ Stub | Returns success; variable retains current value |
 | Concurrent assertions (`assert property`) | ⚠ Deferred | Immediate `assert` works; `\|->`/`\|=>` not yet |
 | SVA sampling (`$rose/$fell/$stable/$past`) | ⚠ Stub | Returns safe defaults; no clock-edge sampling |
@@ -172,7 +172,7 @@ end-to-end `uart_smoke_vseq` runs.
 
 ## Test Results
 
-All 20 UVM regression tests pass:
+All 21 UVM regression tests pass:
 
 | Test | What It Exercises | Result |
 |---|---|---|
@@ -196,6 +196,7 @@ All 20 UVM regression tests pass:
 | `class_array_test.sv` | Class `int data[N]` FIFO round-trip | ✅ PASS |
 | `dpi_basic_test.sv` | DPI `c_add`, `c_mul`, `c_factorial` | ✅ PASS |
 | `dpi_real_test.sv` | DPI `c_sqrt`, `c_pow` with real args | ✅ PASS |
+| `dist_test.sv` | `dist` weighted constraint parses; randomize succeeds 10/10 | ✅ PASS |
 
 The branch also adds **83 new tests** to `ivtest/regress-sv.list` covering SV class
 and container semantics at the language level.
