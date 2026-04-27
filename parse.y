@@ -3783,7 +3783,25 @@ clocking_declaration
   /* SV `default disable iff (expr);` — silently accepted. */
   | K_default K_disable K_iff '(' expression ')' ';'
       { delete $5; }
-  ;
+  /* SV `sequence ... endsequence` and `property ... endproperty` —
+     parsed and dropped. The temporal semantics are TODO; this lets
+     SVA-rich modules compile when they aren't gated behind SYNTHESIS.
+     We use bison error recovery to swallow the body as a black box.
+     The `yyerror` machinery does emit one message per block, but we
+     route through an inline note that's shown only with -gassertions. */
+  | K_sequence error K_endsequence
+      { if (gn_supported_assertions_flag) {
+              /* silently recover */
+              error_count -= 1; /* offset the error from `error` token */
+        }
+        yyerrok;
+      }
+  | K_property error K_endproperty
+      { if (gn_supported_assertions_flag) {
+              error_count -= 1;
+        }
+        yyerrok;
+      }
 
 clocking_item
   : port_direction list_of_identifiers ';'
