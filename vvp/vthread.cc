@@ -5104,7 +5104,16 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       running_thread = thr;
       {
             unsigned sync_resume_count = 0;
-            const unsigned sync_resume_limit = 256;
+            // Real UVM testbenches synchronously chain very deep RAL/factory
+            // traversals through %callf -- 256 resumes was set when most tests
+            // were small. Raise to 65536 to cover OpenTitan-class DVs without
+            // stalling on synchronous function calls.
+            static unsigned sync_resume_limit = 0;
+            if (!sync_resume_limit) {
+                  const char*env = getenv("IVL_CALLF_SYNC_RESUME_LIMIT");
+                  sync_resume_limit = env && *env ? strtoul(env, 0, 10) : 65536;
+                  if (!sync_resume_limit) sync_resume_limit = 65536;
+            }
             while (!child->i_have_ended
                    && child->parent == thr
                    && child->is_callf_child
@@ -5130,7 +5139,12 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       }
 	      {
 	            unsigned sync_drain_count = 0;
-	            const unsigned sync_drain_limit = 256;
+	            static unsigned sync_drain_limit = 0;
+	            if (!sync_drain_limit) {
+	                  const char*env = getenv("IVL_CALLF_SYNC_DRAIN_LIMIT");
+	                  sync_drain_limit = env && *env ? strtoul(env, 0, 10) : 65536;
+	                  if (!sync_drain_limit) sync_drain_limit = 65536;
+	            }
 	            while (!child->i_have_ended
 	                   && child->parent == thr
 	                   && child->is_callf_child
