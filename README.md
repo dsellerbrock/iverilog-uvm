@@ -159,16 +159,21 @@ patches to `dv_base_env.sv`, `dv_base_test.sv`, and the
 `hw/dv/tools/dvsim/iverilog.hjson` config.)
 
 **Status (2026-04-27)**: dvsim → fusesoc → iverilog runs the full UART
-target end-to-end. All three smoke vseqs reach `TEST PASSED CHECKS`:
+target end-to-end. All three smoke vseqs reach `TEST PASSED CHECKS`
+(UVM-level pass):
 
 * `uart_smoke` ✅ TEST PASSED CHECKS
 * `uart_csr_hw_reset` ✅ TEST PASSED CHECKS
 * `uart_csr_rw` ✅ TEST PASSED CHECKS
 
-A single residual non-fatal `UVM_ERROR` (RAL null-map setup) appears
-during reg-block elaboration — runtime checks still pass. The hand-
-curated `scripts/compile_uart_dv.sh` path also still works for
-end-to-end `uart_smoke_vseq` runs.
+A residual non-fatal `UVM_ERROR` (RAL null-map setup, Issue #19) fires
+once per test before the test sequence runs — UVM's checks still pass
+but dvsim's job-status logic flags any `UVM_ERROR` as failed. The
+underlying iverilog gap is in `m_maps.first(map)` for object-keyed
+assoc arrays (the runtime `aa_first<vvp_object_t>` is implemented but
+the codegen path doesn't yet round-trip the key into a class handle).
+The hand-curated `scripts/compile_uart_dv.sh` path also still works
+for end-to-end `uart_smoke_vseq` runs.
 
 ---
 
