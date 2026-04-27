@@ -198,13 +198,17 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
       if (port_is_unsupported_aggregate_formal_(port))
 	    return;
 
-      /* Handle copy-out to a class property actual (e.g. inout vif → this.vif) */
+      /* Handle copy-out to a class property actual (e.g. inout vif → this.vif),
+         including nested property paths like env.cfg.o. For the nested case
+         the property's base is itself a NetEProperty (sig=null, base=expr);
+         we evaluate the base expression to push the containing cobj onto
+         the obj stack instead of using a single-signal load. */
       if (ivl_expr_type(actual) == IVL_EX_PROPERTY) {
 	    ivl_signal_t base_sig = ivl_expr_signal(actual);
-	    if (!base_sig || ivl_expr_oper1(actual)) {
+	    if (ivl_expr_oper1(actual)) {
 		  if (!warned_unsupported_copy_out) {
 			fprintf(stderr,
-			        "Warning: Skipping unsupported nested/indexed property"
+			        "Warning: Skipping unsupported indexed property"
 			        " copy-out for %s (further similar warnings suppressed)\n",
 			        ivl_signal_basename(port));
 			warned_unsupported_copy_out = 1;
@@ -213,23 +217,42 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	    }
 	    int pidx = (int)ivl_expr_property_idx(actual);
 	    dtype = ivl_signal_data_type(port);
+
+	    /* Push the containing cobj. If base_sig is set, use a direct
+	       load; otherwise oper2 holds the nested-base property expression
+	       (e.g. env.cfg in env.cfg.o). draw_eval_object pushes that
+	       cobj's value onto the obj stack. */
+	    if (base_sig) {
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
+	    } else {
+		  ivl_expr_t base_expr = ivl_expr_oper2(actual);
+		  if (!base_expr) {
+			if (!warned_unsupported_copy_out) {
+			      fprintf(stderr,
+				      "Warning: Skipping nested-base property copy-out"
+				      " for %s — no base expr"
+				      " (further similar warnings suppressed)\n",
+				      ivl_signal_basename(port));
+			      warned_unsupported_copy_out = 1;
+			}
+			return;
+		  }
+		  draw_eval_object(base_expr);
+	    }
 	    switch (dtype) {
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
 		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
 		  fprintf(vvp_out, "    %%store/prop/v %d, %u;\n", pidx,
 		          ivl_signal_width(port));
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  break;
 		case IVL_VT_REAL:
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
 		  fprintf(vvp_out, "    %%load/real v%p_0;\n", port);
 		  fprintf(vvp_out, "    %%store/prop/r %d;\n", pidx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  break;
 		case IVL_VT_STRING:
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", port);
 		  fprintf(vvp_out, "    %%store/prop/str %d;\n", pidx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
@@ -239,7 +262,6 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		case IVL_VT_QUEUE:
 		case IVL_VT_NO_TYPE:
 		default:
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
 		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
 		  fprintf(vvp_out, "    %%store/prop/obj %d, 0;\n", pidx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
