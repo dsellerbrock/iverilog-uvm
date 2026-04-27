@@ -7516,6 +7516,23 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 		  return tmp;
 	    }
 
+	    /* SV permits calling a 0-arg static function without parens:
+	         string s = MyClass::type_name;
+	       Symbol search treats `MyClass::type_name` as an identifier
+	       and fails when no signal is found. Try to resolve it as a
+	       static method call before erroring. */
+	    if (gn_system_verilog() && path_.size() >= 2) {
+		  if (resolve_scoped_class_method_func_(des, scope, path_,
+							  nullptr)) {
+			std::vector<named_pexpr_t> empty_parms;
+			PECallFunction*call = new PECallFunction(path_.name, empty_parms);
+			call->set_line(*this);
+			NetExpr*r = call->elaborate_expr(des, scope, ntype, flags);
+			delete call;
+			if (r) return r;
+		  }
+	    }
+
             cerr << get_fileline() << ": error: Unable to bind variable `"
 	         << path_ << "' in `" << scope_path(scope) << "'" << endl;
 	    if (sr.decl_after_use) {
@@ -8644,6 +8661,21 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			  }
 		    }
 
+		      // SV permits a 0-arg static function call without parens
+		      // (e.g. `MyClass::type_name`). Try to resolve the path as
+		      // a class static method before reporting it unbindable.
+		    if (gn_system_verilog() && path_.name.size() >= 2) {
+			  if (resolve_scoped_class_method_func_(des, scope, path_,
+								nullptr)) {
+				std::vector<named_pexpr_t> empty_parms;
+				PECallFunction*call = new PECallFunction(path_.name, empty_parms);
+				call->set_line(*this);
+				NetExpr*r = call->elaborate_expr(des, scope, expr_wid, flags);
+				delete call;
+				if (r) return r;
+			  }
+		    }
+
 		      // I cannot interpret this identifier. Error message.
 	    if (gn_system_verilog() && !(NEED_CONST & flags)) {
 		  // Compile-progress: clocking blocks, interface constructs.
@@ -8695,6 +8727,17 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 
 	// Try full hierarchical scope name.
       if (NetScope*nsc = des->find_scope(spath)) {
+	    /* If the scope is a function, treat the no-paren form as a
+	       call and elaborate as a function expression. */
+	    if (gn_system_verilog() && nsc->type() == NetScope::FUNC
+		&& !(SYS_TASK_ARG & flags)) {
+		  std::vector<named_pexpr_t> empty_parms;
+		  PECallFunction*call = new PECallFunction(path_.name, empty_parms);
+		  call->set_line(*this);
+		  NetExpr*r = call->elaborate_expr(des, scope, expr_wid, flags);
+		  delete call;
+		  if (r) return r;
+	    }
 	    NetEScope*tmp = new NetEScope(nsc);
 	    tmp->set_line(*this);
 
@@ -8724,6 +8767,15 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 
 	// Try relative scope name.
       if (NetScope*nsc = des->find_scope(scope, spath)) {
+	    if (gn_system_verilog() && nsc->type() == NetScope::FUNC
+		&& !(SYS_TASK_ARG & flags)) {
+		  std::vector<named_pexpr_t> empty_parms;
+		  PECallFunction*call = new PECallFunction(path_.name, empty_parms);
+		  call->set_line(*this);
+		  NetExpr*r = call->elaborate_expr(des, scope, expr_wid, flags);
+		  delete call;
+		  if (r) return r;
+	    }
 	    NetEScope*tmp = new NetEScope(nsc);
 	    tmp->set_line(*this);
 
@@ -8732,6 +8784,20 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		       << nsc->basename() << " in " << scope_path(scope) << endl;
 
 	    return tmp;
+      }
+
+	/* SV permits a 0-arg static function call without parens. Before
+	   reporting the identifier as unbindable, try to resolve it as a
+	   class static method (e.g. `MyClass::type_name`). */
+      if (gn_system_verilog() && path_.size() >= 2) {
+	    if (resolve_scoped_class_method_func_(des, scope, path_, nullptr)) {
+		  std::vector<named_pexpr_t> empty_parms;
+		  PECallFunction*call = new PECallFunction(path_.name, empty_parms);
+		  call->set_line(*this);
+		  NetExpr*r = call->elaborate_expr(des, scope, expr_wid, flags);
+		  delete call;
+		  if (r) return r;
+	    }
       }
 
 	// I cannot interpret this identifier. Error message.
