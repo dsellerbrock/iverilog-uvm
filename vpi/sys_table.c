@@ -36,6 +36,7 @@ extern void sys_plusargs_register(void);
 extern void sys_queue_register(void);
 extern void sys_random_register(void);
 extern void sys_random_mti_register(void);
+extern void sys_sva_register(void);
 extern void sys_readmem_register(void);
 extern void sys_scanf_register(void);
 extern void sys_sdf_register(void);
@@ -212,6 +213,7 @@ void (*vlog_startup_routines[])(void) = {
       sys_queue_register,
       sys_random_register,
       sys_random_mti_register,
+      sys_sva_register,
       sys_readmem_register,
       sys_scanf_register,
       sys_time_register,
