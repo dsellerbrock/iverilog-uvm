@@ -30,6 +30,8 @@
 
 # include  "PPackage.h"
 # include  "pform.h"
+# include  "parse_api.h"
+# include  "Module.h"
 # include  "netlist.h"
 # include  "netclass.h"
 # include  "netenum.h"
@@ -259,6 +261,46 @@ static int ensure_class_property_idx_(Design*des, const netclass_t*class_type,
 	    return pidx;
 
       return const_cast<netclass_t*>(class_type)->ensure_property_decl(des, name);
+}
+
+/* When the interface instance is a plain Verilog scope (sr.net is null
+   but sr.scope is an interface scope), rewrite `iface.cb.sig` to
+   `iface.sig` by looking up the clocking block in pform_modules.
+   Drops clocking-block scoping from the path so the underlying
+   interface signal is accessed directly. */
+static bool rewrite_interface_clocking_member_path_via_scope_(const PEIdent*ident,
+							      const symbol_search_results&sr,
+							      pform_name_t&rewritten)
+{
+      if (sr.net || !sr.scope) return false;
+      if (!sr.scope->is_interface()) return false;
+      if (ident->path().size() < 3) return false;
+      perm_string iface_module = sr.scope->module_name();
+      if (iface_module.nil()) return false;
+      auto cur = pform_modules.find(iface_module);
+      if (cur == pform_modules.end() || !cur->second->is_interface)
+	    return false;
+      const Module*iface_mod = cur->second;
+
+      pform_name_t newpath = ident->path().name;
+      auto it = newpath.begin();
+      ++it; /* skip iface name */
+      while (it != newpath.end()) {
+	    auto nx = it; ++nx;
+	    if (nx == newpath.end()) break;
+	    auto cb_it = iface_mod->clocking_blocks.find(it->name);
+	    if (cb_it != iface_mod->clocking_blocks.end()) {
+		  const auto&signals = cb_it->second->signals;
+		  if (std::find(signals.begin(), signals.end(), nx->name)
+			    != signals.end()) {
+			newpath.erase(it);
+			rewritten = newpath;
+			return true;
+		  }
+	    }
+	    ++it;
+      }
+      return false;
 }
 
 static bool rewrite_interface_clocking_member_path_(const PEIdent*ident,
@@ -4633,7 +4675,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       const name_component_t comp = sr.path_tail.front();
 
       pform_name_t rewritten_path;
-      if (rewrite_interface_clocking_member_path_(this, sr, rewritten_path)) {
+      if (rewrite_interface_clocking_member_path_(this, sr, rewritten_path)
+	  || rewrite_interface_clocking_member_path_via_scope_(this, sr, rewritten_path)) {
 	    if (path_.package) {
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
 		  return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
@@ -8708,6 +8751,16 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			  }
 		    }
 
+		      // SV clocking-block path: bif.cb.sig -> bif.sig (clocking
+		      // semantics not yet implemented; do a flat rewrite).
+		    if (gn_system_verilog()) {
+			  pform_name_t rewritten;
+			  if (rewrite_interface_clocking_member_path_via_scope_(this, sr, rewritten)) {
+				PEIdent mapped(rewritten, lexical_pos_);
+				return mapped.elaborate_expr(des, scope, expr_wid, flags);
+			  }
+		    }
+
 		      // I cannot interpret this identifier. Error message.
 	    if (gn_system_verilog() && !(NEED_CONST & flags)) {
 		  // Compile-progress: clocking blocks, interface constructs.
@@ -8829,6 +8882,15 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  NetExpr*r = call->elaborate_expr(des, scope, expr_wid, flags);
 		  delete call;
 		  if (r) return r;
+	    }
+      }
+
+	/* SV clocking-block path: bif.cb.sig -> bif.sig */
+      if (gn_system_verilog()) {
+	    pform_name_t rewritten;
+	    if (rewrite_interface_clocking_member_path_via_scope_(this, sr, rewritten)) {
+		  PEIdent mapped(rewritten, lexical_pos_);
+		  return mapped.elaborate_expr(des, scope, expr_wid, flags);
 	    }
       }
 

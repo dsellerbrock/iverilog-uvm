@@ -29,6 +29,8 @@
 # include  "netmisc.h"
 # include  "netstruct.h"
 # include  "netclass.h"
+# include  "Module.h"
+# include  "parse_api.h"
 # include  "netdarray.h"
 # include  "netparray.h"
 # include  "netqueue.h"
@@ -43,6 +45,47 @@
 using namespace std;
 
 static bool warned_darray_multi_index_fallback = false;
+
+/* When the interface instance is a plain Verilog scope (sr.net is null
+   but sr.scope is an interface scope), rewrite `iface.cb.sig` to
+   `iface.sig` by looking up the clocking block in pform_modules. */
+static bool rewrite_interface_clocking_member_path_via_scope_(const PEIdent*ident,
+							      const symbol_search_results&sr,
+							      pform_name_t&rewritten)
+{
+      if (sr.net || !sr.scope) return false;
+      if (!sr.scope->is_interface()) return false;
+      if (ident->path().size() < 3) return false;
+      perm_string iface_module = sr.scope->module_name();
+      if (iface_module.nil()) return false;
+      auto cur = pform_modules.find(iface_module);
+      if (cur == pform_modules.end() || !cur->second->is_interface)
+	    return false;
+      const Module*iface_mod = cur->second;
+
+      /* Walk the path: [iface, cb, sig, ...]. Find a component that
+         names a clocking block and the next component must be a signal
+         in that block. */
+      pform_name_t newpath = ident->path().name;
+      auto it = newpath.begin();
+      ++it; /* skip the iface name */
+      while (it != newpath.end()) {
+	    auto nx = it; ++nx;
+	    if (nx == newpath.end()) break;
+	    auto cb_it = iface_mod->clocking_blocks.find(it->name);
+	    if (cb_it != iface_mod->clocking_blocks.end()) {
+		  const auto&signals = cb_it->second->signals;
+		  if (std::find(signals.begin(), signals.end(), nx->name)
+			    != signals.end()) {
+			newpath.erase(it);
+			rewritten = newpath;
+			return true;
+		  }
+	    }
+	    ++it;
+      }
+      return false;
+}
 
 static bool rewrite_interface_clocking_member_path_(const PEIdent*ident,
 						    const symbol_search_results&sr,
@@ -250,7 +293,8 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       const pform_name_t &member_path = sr.path_tail;
 
       pform_name_t rewritten_path;
-      if (reg && rewrite_interface_clocking_member_path_(this, sr, rewritten_path)) {
+      if ((reg && rewrite_interface_clocking_member_path_(this, sr, rewritten_path))
+	  || rewrite_interface_clocking_member_path_via_scope_(this, sr, rewritten_path)) {
 	    if (path_.package) {
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
 		  return mapped_ident.elaborate_lval(des, scope, is_cassign,
