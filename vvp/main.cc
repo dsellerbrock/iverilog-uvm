@@ -56,7 +56,12 @@ int main(int argc, char*argv[])
       unsigned flag_errors = 0;
       const char *logfile_name = 0x0;
 
-      while ((opt = getopt(argc, argv, "+d:hil:M:m:nNqsvV")) != EOF) switch (opt) {
+      // No leading "+" in the optstring — let getopt permute argv so
+      // options (`-n`, `-M`) can be intermixed with the input file and
+      // `+plusargs`. dvsim places test plusargs ahead of our run_opts,
+      // so without permutation getopt stops at the first `+arg` and
+      // mistakes the plusarg for an input filename.
+      while ((opt = getopt(argc, argv, "d:hil:M:m:nNqsvV")) != EOF) switch (opt) {
          case 'h':
            fprintf(stderr,
                    "Usage: vvp [options] input-file [+plusargs...]\n"
@@ -144,6 +149,28 @@ int main(int argc, char*argv[])
       if (optind == argc) {
 	    fprintf(stderr, "%s: no input file.\n", argv[0]);
 	    return -1;
+      }
+
+      // The first non-option argument that does NOT start with `+` is the
+      // input file; everything else (both before and after) is a plusarg.
+      // dvsim and other test runners often pass `+plusargs` interleaved
+      // with the input file path, so we can't rely on the conventional
+      // ordering of [options] [file] [+plusargs].
+      int input_idx = -1;
+      for (int i = optind; i < argc; ++i) {
+	    if (argv[i][0] != '+') { input_idx = i; break; }
+      }
+      if (input_idx < 0) {
+	    fprintf(stderr, "%s: no input file.\n", argv[0]);
+	    return -1;
+      }
+      // Reorder: move the input file to argv[optind] so vvp_init/vvp_run
+      // see the same layout they used to. Plusargs are passed via argv as
+      // a contiguous list (excluding the input file itself).
+      if (input_idx != optind) {
+	    char* in_arg = argv[input_idx];
+	    for (int i = input_idx; i > optind; --i) argv[i] = argv[i-1];
+	    argv[optind] = in_arg;
       }
 
       vvp_init(logfile_name, argc - optind, argv + optind);

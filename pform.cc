@@ -498,12 +498,27 @@ static void add_local_symbol(LexicalScope*scope, perm_string name, PNamedItem*it
       map<perm_string,PPackage*>::const_iterator cur_pkg
 	    = scope->explicit_imports.find(name);
       if (cur_pkg != scope->explicit_imports.end()) {
-	    cerr << item->get_fileline() << ": error: "
-		    "'" << name << "' has already been "
-		    "imported into this scope from package '"
-		 << cur_pkg->second->pscope_name() << "'." << endl;
-	    error_count += 1;
-	    return;
+	    // IEEE 1800-2012 26.3: a wildcard import is a "tentative" import
+	    // that gets pinned to explicit_imports the first time the name is
+	    // referenced. A subsequent local declaration of the same name
+	    // shadows the pinned import. Detect this case by checking whether
+	    // the pinned package is in the scope's potential_imports list — if
+	    // so, drop the pin and let the local declaration take precedence.
+	    bool from_wildcard = false;
+	    for (PPackage*wp : scope->potential_imports) {
+		  if (wp == cur_pkg->second) { from_wildcard = true; break; }
+	    }
+	    if (from_wildcard) {
+		  scope->explicit_imports.erase(cur_pkg);
+		  scope->explicit_imports_from.erase(name);
+	    } else {
+		  cerr << item->get_fileline() << ": error: "
+			  "'" << name << "' has already been "
+			  "imported into this scope from package '"
+		       << cur_pkg->second->pscope_name() << "'." << endl;
+		  error_count += 1;
+		  return;
+	    }
       }
 
       scope->local_symbols[name] = item;
@@ -3297,36 +3312,70 @@ void pform_set_parameter(const struct vlltype&loc,
 	    if (!pform_requires_sv(loc, "packed array parameter")) {
 		  return;
 	    }
-	    // Multi-dim packed parameter (e.g., logic [15:0][3:0] X = ...).
-	    // Flatten the packed dims into a single combined range with width
-	    // equal to the product of the inner widths. The flattened param
+	    // Multi-dim packed parameter (e.g., logic [N-1:0][W-1:0] X = ...).
+	    // Flatten the packed dims into a single combined range whose
+	    // width is the product of the inner widths. The flattened param
 	    // is stored as a flat bit-vector; multi-dim element indexing
 	    // (e.g., X[i] returning an inner-width slice) is NOT preserved.
 	    // This is sufficient for compile-only consumers (e.g., upstream
-	    // packages that declare cipher SBOXes that the testbench never
-	    // exercises). Only attempt this when all dims are PENumber
-	    // constants — anything more exotic falls back to the original
-	    // sorry-message error path.
-	    uint64_t total_width = 1;
+	    // packages that declare cipher SBOXes the testbench never
+	    // exercises).
+	    //
+	    // When all bounds are constant we collapse to a numeric literal
+	    // up front; otherwise we build a multiplicative expression that
+	    // elaboration evaluates per parameter binding. This handles the
+	    // common OpenTitan idiom `[NumCnt-1:0][Width-1:0]`.
+	    uint64_t const_width = 1;
+	    PExpr*expr_width = 0;
 	    bool all_constants = true;
+	    auto width_of = [&](const pform_range_t&dim) -> PExpr* {
+		  // Build expression: (msb - lsb + 1)
+		  PExpr*one = new PENumber(new verinum((uint64_t)1, 32));
+		  return new PEBinary('+',
+				new PEBinary('-', dim.first, dim.second),
+				one);
+	    };
 	    for (const auto&dim : *vt->pdims) {
 		  PENumber*hi = dynamic_cast<PENumber*>(dim.first);
 		  PENumber*lo = dynamic_cast<PENumber*>(dim.second);
-		  if (!hi || !lo) { all_constants = false; break; }
-		  long h = hi->value().as_long();
-		  long l = lo->value().as_long();
-		  long w = (h >= l) ? (h - l + 1) : (l - h + 1);
-		  if (w <= 0) { all_constants = false; break; }
-		  total_width *= (uint64_t)w;
+		  if (hi && lo) {
+			long h = hi->value().as_long();
+			long l = lo->value().as_long();
+			long w = (h >= l) ? (h - l + 1) : (l - h + 1);
+			if (w <= 0) {
+			      all_constants = false;
+			      break;
+			}
+			const_width *= (uint64_t)w;
+		  } else {
+			all_constants = false;
+			PExpr*w = width_of(dim);
+			expr_width = expr_width
+				? new PEBinary('*', expr_width, w) : w;
+		  }
 	    }
-	    if (!all_constants) {
-		  VLerror(loc, "sorry: packed array parameters with non-constant "
-				"bounds are not supported yet.");
-		  return;
+	    PExpr*new_msb;
+	    if (all_constants) {
+		  new_msb = new PENumber(
+			new verinum((uint64_t)(const_width - 1), 32));
+	    } else {
+		  // Combine const part with expr part: total_w = const_width * expr_width
+		  PExpr*total_w;
+		  if (expr_width && const_width != 1) {
+			total_w = new PEBinary('*',
+				    new PENumber(new verinum(const_width, 32)),
+				    expr_width);
+		  } else if (expr_width) {
+			total_w = expr_width;
+		  } else {
+			total_w = new PENumber(new verinum(const_width, 32));
+		  }
+		  new_msb = new PEBinary('-', total_w,
+				new PENumber(new verinum((uint64_t)1, 32)));
 	    }
 	    auto*new_pd = new std::list<pform_range_t>;
 	    new_pd->push_back(pform_range_t(
-		    new PENumber(new verinum((uint64_t)(total_width - 1), 32)),
+		    new_msb,
 		    new PENumber(new verinum((uint64_t)0, 32))));
 	    vt->pdims.reset(new_pd);
       }

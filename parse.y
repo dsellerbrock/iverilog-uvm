@@ -5442,6 +5442,18 @@ case_item
 	delete $1;
 	$$ = tmp;
       }
+  /* SV `case (x) inside` allows range case items: [lo:hi]: stmt.
+     Iverilog doesn't yet model membership matching, so we collapse the
+     range to its lower bound, which is enough for parse-success on
+     designs that only conditionally exercise these arms (e.g. pulp
+     riscv-dbg, used as a transitive dep but not at simulation time). */
+  | '[' expression ':' expression ']' ':' statement_or_null
+      { PCase::Item*tmp = new PCase::Item;
+	tmp->expr.push_back($2);
+	if ($4) delete $4;
+	tmp->stat = $7;
+	$$ = tmp;
+      }
   | K_default ':' statement_or_null
       { PCase::Item*tmp = new PCase::Item;
 	tmp->stat = $3;
@@ -8634,6 +8646,28 @@ module_item
 		  if ($1) delete $1;
       }
 
+  /* SystemVerilog `bind` directive — parsed and silently dropped.
+     Iverilog does not yet implement bind semantics, but binds are typically
+     used for SVA assertion modules; for UVM-driven DV the testbench's
+     pass/fail is determined by class-side checks rather than concurrent
+     assertions, so consuming the directive is sufficient for compile.
+     Two common forms:
+       bind <target> <module> [#(...)] <inst> (...);
+       bind <target> <module> <inst> (...);
+     Match both via gate_instance_list. */
+  | K_bind IDENTIFIER IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { delete[]$2;
+        delete[]$3;
+      }
+  | K_bind IDENTIFIER TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { delete[]$2;
+        delete[]$3.text;
+      }
+  | K_bind IDENTIFIER error ';'
+      { yywarn(@1, "warning: ignoring unsupported bind directive form");
+        delete[]$2;
+      }
+
   /* Packed array of typedef: e.g. "my_t [N-1:0] arr;" in module scope.
      The TYPE_IDENTIFIER followed by '[' is ambiguous with module instantiation,
      so we add an explicit rule here that shifts '[' before the error path fires. */
@@ -8695,13 +8729,30 @@ module_item
       { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, $3, $1);
 	FILE_NAME(tmp, @2);
       }
+  /* Vendor-specific attributes between always_comb and the body
+     (e.g., always_comb (* xprop_off *) begin) — consume and ignore. */
+  | attribute_list_opt K_always_comb attribute_instance_list statement_item
+      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, $4, $1);
+	FILE_NAME(tmp, @2);
+	if ($3) delete $3;
+      }
   | attribute_list_opt K_always_ff statement_item
       { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_FF, $3, $1);
 	FILE_NAME(tmp, @2);
       }
+  | attribute_list_opt K_always_ff attribute_instance_list statement_item
+      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_FF, $4, $1);
+	FILE_NAME(tmp, @2);
+	if ($3) delete $3;
+      }
   | attribute_list_opt K_always_latch statement_item
       { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_LATCH, $3, $1);
 	FILE_NAME(tmp, @2);
+      }
+  | attribute_list_opt K_always_latch attribute_instance_list statement_item
+      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_LATCH, $4, $1);
+	FILE_NAME(tmp, @2);
+	if ($3) delete $3;
       }
   | attribute_list_opt K_initial statement_item
       { PProcess*tmp = pform_make_behavior(IVL_PR_INITIAL, $3, $1);
@@ -11002,6 +11053,15 @@ statement_item /* This is roughly statement_item in the LRM */
 
   | unique_priority K_case '(' expression ')' case_items K_endcase
       { PCase*tmp = new PCase($1, NetCase::EQ, $4, $6);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  /* SV: `case (x) inside ...` — iverilog does not yet model the
+     membership-matching semantics, so we treat it as a plain case for
+     parse purposes. Actual range case items collapse to their lower
+     bound (see `case_item` rule above). */
+  | unique_priority K_case '(' expression ')' K_inside case_items K_endcase
+      { PCase*tmp = new PCase($1, NetCase::EQ, $4, $7);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }

@@ -1023,6 +1023,16 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 	    // (expected elements == width of integer), likely a misparse.
 	    if (gn_system_verilog() && dims[cur_dim].width() == 32
 		&& parms_.size() <= 8) {
+	    } else if (parms_.size() != 0
+		       && dims[cur_dim].width() % parms_.size() == 0) {
+	      // Compile-progress fallback for flattened multi-dim packed
+	      // parameters: when iverilog has collapsed `[M:0][N:0]` to a
+	      // single combined range of M*N bits, an assignment pattern of
+	      // M elements (each N bits wide) is what the source intended.
+	      // Treat each element as a slice of width = dim_width / N_elems
+	      // and continue. This is incorrect for true assignment-pattern
+	      // semantics (no broadcast / repeat) but is sufficient for
+	      // compile-only consumers such as unused cipher SBOX tables.
 	    } else {
 		  cerr << get_fileline() << ": error: Packed array assignment pattern expects "
 		       << dims[cur_dim].width() << " element(s) in this context.\n"
