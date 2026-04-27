@@ -5,7 +5,7 @@ This document describes every change in the `development` branch relative to
 feature: what was broken, the root cause, the fix, files changed, and test coverage.
 
 **Branch:** `dsellerbrock/iverilog-uvm` `development`
-**Base:** `steveicarus/iverilog` `master` (41 commits ahead)
+**Base:** `steveicarus/iverilog` `master` (82 commits ahead)
 **Upstream status** is noted for each group — see §11 for the summary table.
 
 ---
@@ -916,10 +916,14 @@ iverilog -g2012 -I hw/ip/prim/rtl \
 
 ## 13. Commit Index
 
-All 41 commits ahead of `steveicarus/iverilog` `master`:
+All 82 commits ahead of `steveicarus/iverilog` `master`:
 
 | Hash | Phase | Description |
 |---|---|---|
+| `ca20d7a` | 30 | `dist` weighted constraint: drop silently instead of returning lhs (would crash randomize) |
+| `9aeecf4` | 29 | README: dvsim runs all 3 UART vseqs to TEST PASSED CHECKS |
+| `89fcf58` | 29 | OpenTitan UART DV runs end-to-end through dvsim+fusesoc (bind, case-inside, multi-dim packed param flatten, +plusarg reorder, wildcard-import shadow) |
+| `8edd029` | 28 | dvsim+fusesoc integration for OpenTitan DV — driver accepts `+define+`/`+incdir+`, packed-array-param flatten |
 | *(pending)* | 10 | cip_base_pkg: TYPE cast, this.randomize with, time underscores, ivl.def |
 | `4aa74ed` | 9 | Grammar fixes for lc_ctrl_pkg and tlul_pkg compilation |
 | `e632876` | 8 | OpenTitan DV packages compile through tl_agent_pkg |
