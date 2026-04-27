@@ -2384,6 +2384,7 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 enum compile_progress_expr_method_stub_kind_t {
       CP_EXPR_METHOD_STUB_NONE = 0,
       CP_EXPR_METHOD_STUB_BOOL0,
+      CP_EXPR_METHOD_STUB_BOOL1,
       CP_EXPR_METHOD_STUB_INT0,
       CP_EXPR_METHOD_STUB_STRING_EMPTY,
       CP_EXPR_METHOD_STUB_CLASS_NULL
@@ -2554,10 +2555,24 @@ classify_compile_progress_unresolved_func_stub_(const pform_scoped_name_t&path)
 		  || func_name == perm_string::literal("is_read_only")
 		  || func_name == perm_string::literal("get_id_enabled")
 		  || func_name == perm_string::literal("is_recording_enabled")
-		  || func_name == perm_string::literal("randomize")
 		  || func_name == perm_string::literal("get_randomize_enabled")
 		  || func_name == perm_string::literal("is_excl"))
 		    return CP_EXPR_METHOD_STUB_BOOL0;
+
+      /* std::randomize(var) with {...} — we don't yet implement the
+         free-standing std::randomize, but UVM/DV use it as an "did
+         randomization succeed" check and treat 0 as fatal. Return true
+         so DV can proceed; the variable retains its current value
+         (often 0), which usually satisfies the with-constraint or is
+         caught by a downstream check. */
+      if (func_name == perm_string::literal("randomize")) {
+	    if (path.name.size() >= 2) {
+		  pform_name_t::const_iterator head = path.name.begin();
+		  if (head->name == perm_string::literal("std"))
+			return CP_EXPR_METHOD_STUB_BOOL1;
+	    }
+	    return CP_EXPR_METHOD_STUB_BOOL0;
+      }
 
       if (func_name == perm_string::literal("get_access")
 		  || func_name == perm_string::literal("get_rights"))
@@ -2626,6 +2641,7 @@ static bool apply_compile_progress_expr_method_stub_width_(
 {
       switch (kind) {
 	  case CP_EXPR_METHOD_STUB_BOOL0:
+	  case CP_EXPR_METHOD_STUB_BOOL1:
 	    expr_type = IVL_VT_BOOL;
 	    expr_width = 1;
 	    min_width = 1;
@@ -2662,6 +2678,11 @@ static NetExpr* elaborate_compile_progress_expr_method_stub_(
       switch (kind) {
 	  case CP_EXPR_METHOD_STUB_BOOL0: {
 		NetEConst*tmp = make_const_0(1);
+		tmp->set_line(*li);
+		return tmp;
+	  }
+	  case CP_EXPR_METHOD_STUB_BOOL1: {
+		NetEConst*tmp = new NetEConst(verinum(verinum::V1, 1));
 		tmp->set_line(*li);
 		return tmp;
 	  }
