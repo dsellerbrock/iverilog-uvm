@@ -129,7 +129,10 @@ char depmode = 'a';
 const char*generation = "2005";
 const char*gen_specify = "no-specify";
 const char*gen_interconnect = "no-interconnect";
-const char*gen_assertions = "assertions";
+// iverilog-uvm: default to "supported-assertions" so unsupported
+// concurrent assertions parse as silent no-ops instead of erroring.
+// Pass `-gassertions` to restore strict behavior.
+const char*gen_assertions = "supported-assertions";
 const char*gen_xtypes = "xtypes";
 const char*gen_icarus = "icarus-misc";
 const char*gen_io_range_error = "io-range-error";

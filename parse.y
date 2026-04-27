@@ -806,6 +806,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %token K_PO_POS K_PO_NEG K_POW
 %token K_PSTAR K_STARP K_DOTSTAR
 %token K_LOR K_LAND K_NAND K_NOR K_NXOR K_TRIGGER K_NB_TRIGGER K_LEQUIV
+%token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV
 %token K_SCOPE_RES
 %token K_edge_descriptor
 
@@ -4386,6 +4387,14 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 
 property_expr /* IEEE1800-2012 A.2.10 */
   : expression
+  /* SV concurrent assertion implication operators. We don't yet model
+     the temporal semantics; the property is parsed and silently dropped
+     by the surrounding `assert property` rule. Accept the common forms:
+       expr |-> expr     // overlapping implication
+       expr |=> expr     // non-overlapping implication
+     so headers can compile (e.g. tlul_assert.sv when SVA gating is off). */
+  | expression K_PIPE_IMPL_OV expression { delete $1; delete $3; }
+  | expression K_PIPE_IMPL_NOV expression { delete $1; delete $3; }
   ;
 
   /* The property_qualifier rule is as literally described in the LRM,
