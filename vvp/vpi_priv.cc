@@ -417,6 +417,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiRealVar";
 	  case vpiReg:
 	    return "vpiReg";
+	  case vpiRegArray:
+	    return "vpiRegArray";
 	  case vpiRegBit:
 	    return "vpiRegBit";
 	  case vpiShortIntVar:

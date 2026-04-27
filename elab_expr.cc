@@ -1642,6 +1642,133 @@ NetExpr*PEBLogic::elaborate_expr(Design*des, NetScope*scope,
       return pad_to_width(tmp, expr_wid, signed_flag_, *this);
 }
 
+/*
+ * Elaborate "inside" operator:
+ *   base inside { item, item, ... }
+ *   item is either a single value (is_range=false, hi holds the value, lo=null)
+ *         or a range [lo:hi] (is_range=true, both endpoints set)
+ *         or a queue/array signal (is_range=false, hi is a signal expr to a
+ *         dynamic array / queue / fixed array)
+ *
+ * Lowering: each item becomes a 1-bit boolean term, all OR'ed together.
+ *   - range  → (base >= lo) && (base <= hi)
+ *   - scalar → (base == value)
+ *   - array  → call $ivl_inside_arr(arr, base) which iterates at runtime
+ *
+ * If a particular item is missing (open range), drop the corresponding side
+ * of the comparison: [:hi] → base<=hi only; [lo:] → base>=lo only.
+ */
+NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
+				  unsigned expr_wid, unsigned flags) const
+{
+      flags &= ~SYS_TASK_ARG;
+
+      ivl_assert(*this, expr_);
+
+      bool need_const = NEED_CONST & flags;
+      NetExpr*base = elab_and_eval(des, scope, expr_, -1, need_const);
+      if (base == 0) {
+	    NetEConst*z = new NetEConst(verinum(verinum::V0, 1));
+	    z->set_line(*this);
+	    return pad_to_width(z, expr_wid, false, *this);
+      }
+
+      NetExpr*result = 0;
+
+      for (size_t i = 0 ; i < ranges_.size() ; i += 1) {
+	    const inside_range_t&r = ranges_[i];
+	    NetExpr*term = 0;
+
+	    if (r.is_range) {
+		  NetExpr*lo = 0;
+		  NetExpr*hi = 0;
+		  if (r.lo) lo = elab_and_eval(des, scope, r.lo, -1, need_const);
+		  if (r.hi) hi = elab_and_eval(des, scope, r.hi, -1, need_const);
+
+		  NetExpr*ge = 0;
+		  NetExpr*le = 0;
+		  if (lo) {
+			ge = new NetEBComp('G', base->dup_expr(), lo);
+			ge->set_line(*this);
+		  }
+		  if (hi) {
+			le = new NetEBComp('L', base->dup_expr(), hi);
+			le->set_line(*this);
+		  }
+		  if (ge && le) {
+			term = new NetEBLogic('a', condition_reduce(ge),
+						 condition_reduce(le));
+			term->set_line(*this);
+		  } else if (ge) {
+			term = condition_reduce(ge);
+		  } else if (le) {
+			term = condition_reduce(le);
+		  } else {
+			term = new NetEConst(verinum(verinum::V0, 1));
+			term->set_line(*this);
+		  }
+
+	    } else {
+		  /* Single value or array reference — held in r.hi */
+		  if (r.hi == 0) continue;
+
+		  NetExpr*item = elab_and_eval(des, scope, r.hi, -1, need_const);
+		  if (item == 0) continue;
+
+		  /* If the item is a signal that refers to a dynamic array
+		     or queue (or a fixed-size unpacked array), do a runtime
+		     membership test via $ivl_inside_arr. */
+		  bool is_array_sig = false;
+		  if (NetESignal*sig_e = dynamic_cast<NetESignal*>(item)) {
+			const NetNet*nn = sig_e->sig();
+			if (nn && (nn->darray_type() != 0
+				   || nn->queue_type() != 0
+				   || nn->unpacked_dimensions() > 0)) {
+			      is_array_sig = true;
+			}
+		  }
+
+		  if (is_array_sig) {
+			NetESFunc*sys = new NetESFunc("$ivl_inside_arr",
+						      &netvector_t::atom2u32, 2);
+			sys->set_line(*this);
+			sys->parm(0, item);
+			sys->parm(1, base->dup_expr());
+			term = condition_reduce(sys);
+		  } else {
+			NetExpr*eq = new NetEBComp('e', base->dup_expr(), item);
+			eq->set_line(*this);
+			term = condition_reduce(eq);
+		  }
+	    }
+
+	    if (term == 0) continue;
+
+	    if (result == 0) {
+		  result = term;
+	    } else {
+		  NetExpr*combined = new NetEBLogic('o', result, term);
+		  combined->set_line(*this);
+		  result = combined;
+	    }
+      }
+
+      delete base;
+
+      if (result == 0) {
+	    result = new NetEConst(verinum(verinum::V0, 1));
+	    result->set_line(*this);
+      }
+
+      return pad_to_width(result, expr_wid, false, *this);
+}
+
+NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
+				  ivl_type_t /*type*/, unsigned flags) const
+{
+      return elaborate_expr(des, scope, (unsigned)1, flags);
+}
+
 unsigned PEBLeftWidth::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
       ivl_assert(*this, left_);

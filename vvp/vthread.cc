@@ -1459,6 +1459,59 @@ static VVP_QUEUE*pop_queue_receiver_(vthread_t thr, vvp_object_t&recv,
       return dynamic_cast<VVP_QUEUE*>(queue);
 }
 
+/*
+ * %inside/arr <signal>
+ *
+ * Pops one vec4 value from the thread's vec4 stack.  Gets the array/queue
+ * object stored in <signal>.  Iterates every element (as a vec4) and
+ * compares with the popped value using 4-state equality (X/Z bits ignored).
+ * Pushes a 1-bit result: '1' if any element matched, '0' otherwise.
+ */
+bool of_INSIDE_ARR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) {
+            thr->push_vec4(vvp_vector4_t(1, BIT4_0));
+            return true;
+      }
+
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      if (!arr) {
+            thr->pop_vec4();   /* discard value */
+            thr->push_vec4(vvp_vector4_t(1, BIT4_0));
+            return true;
+      }
+
+      vvp_vector4_t val = thr->pop_vec4();
+      bool matched = false;
+      size_t sz = arr->get_size();
+      for (size_t i = 0 ; i < sz && !matched ; i += 1) {
+            vvp_vector4_t elem;
+            arr->get_word((unsigned)i, elem);
+            if (elem.size() != val.size()) {
+                  /* resize: pad or truncate to val width */
+                  vvp_vector4_t tmp(val.size(), BIT4_0);
+                  size_t copy_sz = (elem.size() < val.size()) ? elem.size() : val.size();
+                  for (size_t b = 0 ; b < copy_sz ; b += 1) tmp.set_bit(b, elem.value(b));
+                  elem = tmp;
+            }
+            /* 4-state equality: treat X/Z as don't-care in the element */
+            bool eq = true;
+            for (size_t b = 0 ; b < val.size() && eq ; b += 1) {
+                  vvp_bit4_t ev = elem.value(b);
+                  vvp_bit4_t vv = val.value(b);
+                  if (ev == BIT4_X || ev == BIT4_Z) continue; /* wildcard */
+                  if (vv == BIT4_X || vv == BIT4_Z) continue; /* wildcard */
+                  if (ev != vv) eq = false;
+            }
+            if (eq) matched = true;
+      }
+
+      thr->push_vec4(vvp_vector4_t(1, matched ? BIT4_1 : BIT4_0));
+      return true;
+}
+
 bool of_QSIZE(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (cp->net->fun);

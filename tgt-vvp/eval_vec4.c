@@ -1328,6 +1328,21 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir, n_vals);
 	    return;
       }
+      if (strcmp(ivl_expr_name(expr), "$ivl_inside_arr")==0) {
+	    /* parm 0: array signal (receiver), parm 1: value to check */
+	    ivl_expr_t arr_arg = (ivl_expr_parms(expr) > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    ivl_expr_t val_arg = (ivl_expr_parms(expr) > 1) ? ivl_expr_parm(expr, 1) : 0;
+	    if (arr_arg && val_arg
+		&& ivl_expr_type(arr_arg) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(arr_arg)) {
+		  draw_eval_vec4(val_arg);
+		  fprintf(vvp_out, "    %%inside/arr v%p_0;\n", ivl_expr_signal(arr_arg));
+		  return;
+	    }
+	    /* Fallback: push 0 (no match) */
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),"$ivl_queue_method$size")==0) {
 	    ivl_expr_t arg = ivl_expr_parm(expr, 0);
 	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL && ivl_expr_signal(arg)) {

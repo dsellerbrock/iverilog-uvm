@@ -219,6 +219,7 @@ extern bool of_FORCE_WR(vthread_t thr, vvp_code_t code);
 extern bool of_FORK(vthread_t thr, vvp_code_t code);
 extern bool of_FORK_V(vthread_t thr, vvp_code_t code);
 extern bool of_FREE(vthread_t thr, vvp_code_t code);
+extern bool of_INSIDE_ARR(vthread_t thr, vvp_code_t code);
 extern bool of_INV(vthread_t thr, vvp_code_t code);
 extern bool of_IX_ADD(vthread_t thr, vvp_code_t code);
 extern bool of_IX_GETV(vthread_t thr, vvp_code_t code);
