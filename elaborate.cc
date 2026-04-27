@@ -308,6 +308,34 @@ static NetEvent* resolve_named_event_member_from_search_(const symbol_search_res
       return nullptr;
 }
 
+/* Resolve `<iface_instance_scope>` (no NetNet, but path consumed) to the
+   clocking block named by the LAST component of the original path. This
+   handles the @(bif.cb) case where symbol_search resolves `bif` as a
+   sub-scope of the current module and absorbs `cb` as part of the scope
+   path. */
+static const PEventStatement*
+resolve_interface_pform_clocking_event_(const PEIdent*id,
+					const symbol_search_results&sr,
+					perm_string&cb_name_out,
+					size_t&base_path_components)
+{
+      if (sr.net || !sr.scope) return nullptr;
+      if (!sr.scope->is_interface()) return nullptr;
+      if (id->path().size() < 2) return nullptr;
+
+      perm_string iface_module = sr.scope->module_name();
+      if (iface_module.nil()) return nullptr;
+      auto cur = pform_modules.find(iface_module);
+      if (cur == pform_modules.end() || !cur->second->is_interface)
+	    return nullptr;
+      perm_string cb_name = id->path().name.back().name;
+      auto cb_it = cur->second->clocking_blocks.find(cb_name);
+      if (cb_it == cur->second->clocking_blocks.end()) return nullptr;
+      base_path_components = id->path().size() - 1;
+      cb_name_out = cb_name;
+      return cb_it->second->event;
+}
+
 static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from_search_(
 					      const symbol_search_results&sr,
 					      size_t&base_path_components)
@@ -6628,23 +6656,30 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  symbol_search(this, des, scope, id->path(), id->lexical_pos(), &sr);
 		  size_t base_path_components = 0;
 
-		  if (const netclass_t::clocking_block_t*clocking =
-			      resolve_interface_clocking_block_from_search_(sr, base_path_components)) {
+		  const netclass_t::clocking_block_t*clocking =
+			      resolve_interface_clocking_block_from_search_(sr, base_path_components);
+		  perm_string scope_cb_name;
+		  const PEventStatement*pform_event = clocking
+			? clocking->event
+			: resolve_interface_pform_clocking_event_(id, sr, scope_cb_name,
+							      base_path_components);
+		  if (clocking || pform_event) {
 			if (expr_[0]->type() != PEEvent::ANYEDGE) {
 			      cerr << get_fileline() << ": error: edge qualifiers may not be applied "
 				   << "to clocking block event controls." << endl;
 			      des->errors += 1;
 			      return 0;
 			}
-			if (!clocking->event || clocking->event->event_expressions().empty()) {
-			      cerr << get_fileline() << ": error: clocking block " << clocking->name
+			if (!pform_event || pform_event->event_expressions().empty()) {
+			      cerr << get_fileline() << ": error: clocking block "
+				   << (clocking ? clocking->name : scope_cb_name)
 				   << " has no event expression." << endl;
 			      des->errors += 1;
 			      return 0;
 			}
 
 			std::vector<PEEvent*> mapped_events;
-			for (const PEEvent*cb_event : clocking->event->event_expressions()) {
+			for (const PEEvent*cb_event : pform_event->event_expressions()) {
 			      const PEIdent*cb_ident = cb_event
 				    ? dynamic_cast<const PEIdent*>(cb_event->expr()) : nullptr;
 			      if (!cb_ident) {
@@ -6658,7 +6693,9 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			      if (!build_interface_clocking_event_path_(id, base_path_components,
 									 cb_ident, mapped_path)) {
 				    cerr << get_fileline() << ": sorry: failed to map clocking block "
-					 << "event expression for " << clocking->name << "." << endl;
+					 << "event expression for "
+					 << (clocking ? clocking->name : scope_cb_name)
+					 << "." << endl;
 				    des->errors += 1;
 				    return 0;
 			      }
