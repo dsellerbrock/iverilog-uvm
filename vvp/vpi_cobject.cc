@@ -190,9 +190,25 @@ vpiHandle __vpiCobjectVar::vpi_put_value(p_vpi_value val, int)
             if (val->value.str
                 && strcmp(val->value.str, "null") != 0
                 && strcmp(val->value.str, "    null") != 0) {
-                  fprintf(stderr, "vvp error: string value '%s' not supported "
-                                  "for vpiClassVar put\n", val->value.str);
-                  assert(0);
+                  /* iverilog emits the wrapping vpiClassVar handle
+                     when a class-property of string type is used as
+                     the destination of $value$plusargs (or similar
+                     VPI lvalue). VPI doesn't have a way for us to
+                     reach the inner string field from here, so this
+                     assignment is silently dropped. The plusarg's
+                     return value (matched/not-matched) is unaffected.
+                     One-shot warning so the user knows the value did
+                     not propagate. */
+                  static bool warned = false;
+                  if (!warned) {
+                        fprintf(stderr, "vvp warning: dropping string put"
+                                " of '%s' to a vpiClassVar — class string"
+                                " properties cannot yet receive VPI string"
+                                " writes (further similar warnings"
+                                " suppressed)\n", val->value.str);
+                        warned = true;
+                  }
+                  return 0;
             }
             break;
 

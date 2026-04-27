@@ -11244,6 +11244,10 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 		  // Compile-progress fallback: unresolved/stubbed UVM calls can
 		  // cause one side of a message-building ternary to collapse to a
 		  // bool placeholder while the other side is still string-typed.
+		  // TODO: when one branch is a string-concat that elaborated as
+		  // logic (e.g. {"prefix_", varname}), this fallback drops both
+		  // branches and the result is empty. Workaround: rewrite as
+		  // if/else in source. See OpenTitan dv_base_env if_name.
 		  delete con;
 		  delete tru;
 		  delete fal;
