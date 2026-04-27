@@ -2372,6 +2372,26 @@ static int show_system_task_call(ivl_statement_t net)
       if (strcmp(stmt_name,"$ivl_queue_method$push_back") == 0)
 	    return show_push_frontback_method(net, false);
 
+      if (strcmp(stmt_name,"$ivl_queue_method$sort") == 0
+	  || strcmp(stmt_name,"$ivl_queue_method$rsort") == 0
+	  || strcmp(stmt_name,"$ivl_queue_method$unique") == 0) {
+	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
+		  ? ivl_stmt_parm(net, 0) : 0;
+	    if (!parm0 || ivl_expr_type(parm0) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(parm0)) {
+		  fprintf(stderr, "Warning: %s requires a signal at %s:%u; skipping\n",
+			  stmt_name, ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 0;
+	    }
+	    ivl_signal_t sig = ivl_expr_signal(parm0);
+	    const char*opcode =
+		  (strcmp(stmt_name,"$ivl_queue_method$sort")==0)  ? "%qsort"   :
+		  (strcmp(stmt_name,"$ivl_queue_method$rsort")==0) ? "%qsort/r" :
+		                                                    "%qunique";
+	    fprintf(vvp_out, "    %s v%p_0;\n", opcode, sig);
+	    return 0;
+      }
+
       if (strcmp(stmt_name, "$ivl_process$kill") == 0
 	  || strcmp(stmt_name, "$ivl_process$await") == 0) {
 	    ivl_expr_t recv = ivl_stmt_parm(net, 0);

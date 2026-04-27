@@ -10242,6 +10242,16 @@ subroutine_call
 	delete $2;
 	$$ = tmp;
       }
+  | hierarchy_identifier '.' K_unique argument_list_parens_opt
+      { /* Statement form of q.unique() — `unique` is a keyword so it isn't
+	   captured by the IDENTIFIER rule above. */
+	pform_name_t *nm = $1;
+	nm->push_back(name_component_t(lex_strings.make("unique")));
+	PCallTask*tmp = pform_make_call_task(@1, *nm, *$4);
+	delete nm;
+	delete $4;
+	$$ = tmp;
+      }
   | class_hierarchy_identifier argument_list_parens_opt
       { PCallTask*tmp = new PCallTask(*$1, *$2);
 	FILE_NAME(tmp, @1);

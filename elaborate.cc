@@ -5257,30 +5257,24 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			  des->errors += 1;
 				  delete obj_expr;
 				  return 0;
-			    } else if (method_name=="sort") {
+			    } else if (method_name=="sort"
+				       || method_name=="rsort"
+				       || method_name=="unique") {
 				  if (gn_system_verilog()) {
-					delete obj_expr;
-					NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
-					tmp->set_line(*this);
-					return tmp;
-			  }
-			  cerr << get_fileline() << ": sorry: 'sort()' "
-			          "array sorting method is not currently supported."
-			       << endl;
-			  des->errors += 1;
-				  delete obj_expr;
-				  return 0;
-			    } else if (method_name=="rsort") {
-				  if (gn_system_verilog()) {
-					delete obj_expr;
-					NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
-					tmp->set_line(*this);
-					return tmp;
-			  }
-			  cerr << get_fileline() << ": sorry: 'rsort()' "
-			          "array sorting method is not currently supported."
-			       << endl;
-			  des->errors += 1;
+					static const std::vector<perm_string> no_parm_names;
+					const char*sys_name =
+					      (method_name == "sort")  ? "$ivl_queue_method$sort"  :
+					      (method_name == "rsort") ? "$ivl_queue_method$rsort" :
+					                                 "$ivl_queue_method$unique";
+					return elaborate_sys_task_method_(des, scope, obj_expr,
+									  obj_type, method_name,
+									  sys_name, no_parm_names);
+				  }
+				  cerr << get_fileline() << ": sorry: '"
+				       << method_name
+				       << "()' array sorting method is not currently supported."
+				       << endl;
+				  des->errors += 1;
 				  delete obj_expr;
 				  return 0;
 			    } else if (method_name=="shuffle") {

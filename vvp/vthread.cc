@@ -41,6 +41,7 @@
 # include  <map>
 # include  <typeinfo>
 # include  <vector>
+# include  <algorithm>
 # include  <cstdlib>
 # include  <climits>
 # include  <cstring>
@@ -1533,6 +1534,134 @@ bool of_QSIZE_O(vthread_t thr, vvp_code_t)
       size_to_vec4_(sz, val);
       thr->push_vec4(val);
       return true;
+}
+
+/*
+ * Compare two vvp_vector4_t values numerically (treating X/Z as 0).
+ * Returns true if a < b.
+ */
+static bool vec4_lt_(const vvp_vector4_t&a, const vvp_vector4_t&b)
+{
+      size_t na = a.size(), nb = b.size();
+      size_t n = na > nb ? na : nb;
+      for (ssize_t i = (ssize_t)n - 1 ; i >= 0 ; i -= 1) {
+            vvp_bit4_t av = (i < (ssize_t)na) ? a.value(i) : BIT4_0;
+            vvp_bit4_t bv = (i < (ssize_t)nb) ? b.value(i) : BIT4_0;
+            int ai = (av == BIT4_1) ? 1 : 0;
+            int bi = (bv == BIT4_1) ? 1 : 0;
+            if (ai != bi) return ai < bi;
+      }
+      return false;
+}
+
+static bool vec4_eq_(const vvp_vector4_t&a, const vvp_vector4_t&b)
+{
+      return !vec4_lt_(a, b) && !vec4_lt_(b, a);
+}
+
+template<typename ELEM>
+static void qsort_helper_(vvp_darray*arr, bool reverse, bool unique_only,
+                          bool (*lt)(const ELEM&, const ELEM&),
+                          bool (*eq)(const ELEM&, const ELEM&))
+{
+      size_t sz = arr->get_size();
+      std::vector<ELEM> tmp(sz);
+      for (size_t i = 0 ; i < sz ; i += 1)
+            arr->get_word((unsigned)i, tmp[i]);
+
+      if (unique_only) {
+            std::vector<ELEM> uniq;
+            for (size_t i = 0 ; i < tmp.size() ; i += 1) {
+                  bool found = false;
+                  for (size_t j = 0 ; j < uniq.size() ; j += 1)
+                        if (eq(tmp[i], uniq[j])) { found = true; break; }
+                  if (!found) uniq.push_back(tmp[i]);
+            }
+            tmp.swap(uniq);
+      } else {
+            std::sort(tmp.begin(), tmp.end(),
+                      [&](const ELEM&a, const ELEM&b){
+                            return reverse ? lt(b, a) : lt(a, b);
+                      });
+      }
+
+      /* If size changed (unique), shrink the queue first by popping. */
+      vvp_queue*q = dynamic_cast<vvp_queue*>(arr);
+      if (q) {
+            while (q->get_size() > tmp.size()) q->pop_back();
+            for (size_t i = 0 ; i < tmp.size() ; i += 1) {
+                  if (i < q->get_size()) {
+                        arr->set_word((unsigned)i, tmp[i]);
+                  } else {
+                        q->push_back(tmp[i], 0);
+                  }
+            }
+      } else {
+            /* Fixed array: only sort/rsort makes sense; unique would change
+               the element count which we cannot do for fixed arrays. */
+            size_t n = tmp.size() < sz ? tmp.size() : sz;
+            for (size_t i = 0 ; i < n ; i += 1)
+                  arr->set_word((unsigned)i, tmp[i]);
+      }
+}
+
+static bool double_lt_(const double&a, const double&b) { return a < b; }
+static bool double_eq_(const double&a, const double&b) { return a == b; }
+static bool str_lt_(const string&a, const string&b) { return a < b; }
+static bool str_eq_(const string&a, const string&b) { return a == b; }
+
+static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_only)
+{
+      if (!arr) return true;
+
+      size_t sz = arr->get_size();
+      if (sz == 0) return true;
+
+      if (dynamic_cast<vvp_queue_real*>(arr) ||
+          dynamic_cast<vvp_darray_real*>(arr)) {
+            qsort_helper_<double>(arr, reverse, unique_only,
+                                  double_lt_, double_eq_);
+            return true;
+      }
+
+      if (dynamic_cast<vvp_queue_string*>(arr) ||
+          dynamic_cast<vvp_darray_string*>(arr)) {
+            qsort_helper_<string>(arr, reverse, unique_only,
+                                  str_lt_, str_eq_);
+            return true;
+      }
+
+      /* Default: vec4 */
+      qsort_helper_<vvp_vector4_t>(arr, reverse, unique_only,
+                                   vec4_lt_, vec4_eq_);
+      return true;
+}
+
+bool of_QSORT(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) return true;
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      return qsort_unique_dispatch_(arr, false, false);
+}
+
+bool of_QSORT_R(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) return true;
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      return qsort_unique_dispatch_(arr, true, false);
+}
+
+bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) return true;
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      return qsort_unique_dispatch_(arr, false, true);
 }
 
 /*
