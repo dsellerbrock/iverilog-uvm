@@ -2243,7 +2243,11 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
   : expression ';'
       { $$ = $1; }
   | expression K_dist '{' dist_list_opt '}' ';'
-      { $$ = $1; }
+      { /* `dist` weighted distribution — parse and silently drop until the
+           Z3 IR grows a `dist` node. Returning the lhs expression as the
+           constraint (the previous behavior) made randomize() require it
+           be non-zero, which produced spurious failures and crashes. */
+        delete $1; $$ = nullptr; }
   | expression constraint_trigger
       { $$ = $1; }
   | K_if '(' expression ')' constraint_set %prec less_than_K_else
@@ -2256,7 +2260,7 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
   | K_soft expression ';'
       { $$ = $2; }
   | K_soft expression K_dist '{' dist_list_opt '}' ';'
-      { $$ = $2; }
+      { delete $2; $$ = nullptr; }
   /* implication with soft: A -> soft B; (-> is K_TRIGGER when not followed by '{') */
   | expression K_TRIGGER K_soft expression ';'
       { delete $1; $$ = $4; }
