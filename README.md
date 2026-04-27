@@ -61,9 +61,17 @@ results — and upstream each fix as a minimal, reviewable patch.
 | String methods | ✅ | `toupper`, `tolower`, `getc`, `compare` |
 | Class fixed-size array properties | ✅ | `int data[N]` member fields |
 | OpenTitan `dv_base_reg_pkg` compilation | ✅ | Through `tl_agent_pkg` |
+| OpenTitan UART DV compile + UVM boot | ✅ | Full RTL+DV bundle compiles; runs uart_base_test through RAL setup; stops at config_db lookup |
+| `inside { queue }` runtime membership | ✅ | `%inside/arr` opcode; correctly terminates `while inside` loops |
+| Queue `.sort()`, `.rsort()`, `.unique()` | ✅ | vec4/real/string elements; iterator-arg form accepted |
+| Enum `.name()/.next()/.prev()/.first()/.last()` | ✅ | Both no-paren and paren forms |
+| `Class::static_func` (no-parens form) | ✅ | `MyClass::type_name` resolves to function call |
+| `$cast(class_property, src)` | ✅ | Direct property-store sequence |
 | `pkg::var = expr` assignment | ⚠ Deferred | LALR conflict, needs grammar restructure |
 | Full UVM library end-to-end | ⚠ Partial | Phase infrastructure works; some gaps remain |
 | `dist` weighted distribution | ⚠ Deferred | Not yet implemented |
+| `std::randomize(var) with {...}` | ⚠ Stub | Returns success; variable retains current value |
+| Concurrent assertions (`assert property`) | ⚠ Deferred | Immediate `assert` works; `\|->`/`\|=>` not yet |
 
 ---
 
