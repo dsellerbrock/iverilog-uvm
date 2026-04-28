@@ -11830,7 +11830,15 @@ static vthread_t get_func(vthread_t thr)
 {
       vthread_t fun_thr = thr;
 
-      while (fun_thr->parent_scope->get_type_code() != vpiFunction) {
+	/* Walk up until we reach the thread that owns the return slot.
+	   An autofunction's fork body runs in the same vpiFunction scope as
+	   the callf/exec_ufunc child, but was created by %fork so it has no
+	   args_vec4/real/str.  Continue past such zero-slot threads to find
+	   the actual return-slot owner. */
+      while (fun_thr->parent_scope->get_type_code() != vpiFunction
+	     || (fun_thr->args_vec4.empty()
+	         && fun_thr->args_real.empty()
+	         && fun_thr->args_str.empty())) {
 	    assert(fun_thr->parent);
 	    fun_thr = fun_thr->parent;
       }

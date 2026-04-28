@@ -410,21 +410,42 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
 	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
-	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
-		    sig, ivl_signal_width(sig));
+	    if (signal_is_return_value(sig))
+		  fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n",
+			  ivl_signal_width(sig));
+	    else
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+			  sig, ivl_signal_width(sig));
 	    break;
 	  case IVL_VT_REAL:
 	    fprintf(vvp_out, "    %%load/real v%p_0;\n", port);
-	    fprintf(vvp_out, "    %%store/real v%p_0;\n", sig);
+	    if (signal_is_return_value(sig))
+		  fprintf(vvp_out, "    %%ret/real 0;\n");
+	    else
+		  fprintf(vvp_out, "    %%store/real v%p_0;\n", sig);
 	    break;
 	  case IVL_VT_STRING:
 	    fprintf(vvp_out, "    %%load/str v%p_0;\n", port);
-	    fprintf(vvp_out, "    %%store/str v%p_0;\n", sig);
+	    if (signal_is_return_value(sig))
+		  fprintf(vvp_out, "    %%ret/str 0;\n");
+	    else
+		  fprintf(vvp_out, "    %%store/str v%p_0;\n", sig);
 	    break;
 	  case IVL_VT_CLASS:
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
+	    if (signal_is_return_value(sig)) {
+		  if (!warned_unsupported_copy_out) {
+			fprintf(stderr,
+			        "Warning: Skipping copy-out to function return"
+			        " object value for %s (not implemented)"
+			        " (further similar warnings suppressed)\n",
+			        ivl_signal_basename(port));
+			warned_unsupported_copy_out = 1;
+		  }
+		  break;
+	    }
 	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
 	    break;
