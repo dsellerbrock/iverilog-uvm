@@ -188,6 +188,13 @@ property, so `foreach (cfg.m_tl_agent_cfgs[i])` in
 `cip_base_env::end_of_elaboration_phase` correctly iterates and binds
 the reg-map's bus sequencer).
 
+Function-local `static` is now correctly persistent (Phase 39 —
+`elaborate.cc`:`PFunction::elaborate` splits `var_inits` by lifetime
+and emits static-lifetime initializers as a one-shot `IVL_PR_INITIAL`
+process, instead of prepending them to the function body where they
+would re-run on every call). This may unblock UVM internals that rely
+on per-function static counters or visited sets.
+
 Residual UVM messages on the full 27-test regression:
 
 | Severity | Count | Reason |
