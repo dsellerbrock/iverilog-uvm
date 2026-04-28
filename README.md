@@ -202,6 +202,15 @@ multi-segment `cfg.<inherited-prop>[i]` case; OpenTitan also hits the
 simple-path case via `cip_base_env_cfg::check_shadow_reg_alerts`'s
 `foreach (ral_models[i])`.
 
+Nested `foreach` reusing the loop-variable name now correctly shadows
+(Phase 41 — `elab_type.cc`:`find_assoc_foreach_index_signal_` no longer
+walks up the scope chain when the immediate scope is a `$ivl_foreach...`
+autobegin). Previously, `foreach (regs[i])` inside `foreach (m_aa[i])`
+mis-bound the inner `i` to the outer foreach's signal, so the inner
+foreach's variable initialization corrupted the outer foreach's loop
+state -- making the outer iterate forever with the same key. This was
+the residual hang in OpenTitan UART DV's `extract_common_csrs`.
+
 Residual UVM messages on the full 27-test regression:
 
 | Severity | Count | Reason |
@@ -209,7 +218,7 @@ Residual UVM messages on the full 27-test regression:
 | `UVM_ERROR null map` | **0 / 27** | ✅ closed by Phase 36 |
 | `UVM_ERROR [TYPNTF]` factory override | **0 / 27** | ✅ closed by Phase 37 |
 | `UVM_FATAL [SEQ]` sequencer not supplied | **0 / 27** | ✅ closed by Phase 38 |
-| `get_registers` runtime hotspot | TBD | New residual exposed by Phase 38: now that the foreach-over-inherited-assoc-prop runs, `cip_base_vseq::extract_common_csrs` actually reaches the RAL traversal. `uvm_reg_block.get_registers` is then called many times (~12K invocations observed) and the foreach over `this.regs[rg]` hits the per-PC 200K non-callf-loop fallback. The callf sync-resume/drain budgets were also bumped from 256 → 65536 (overridable via `IVL_CALLF_SYNC_RESUME_LIMIT` / `IVL_CALLF_SYNC_DRAIN_LIMIT`) so synchronous deep-traversal calls don't time out artificially. Smoke vseq still doesn't reach `TEST PASSED CHECKS` in this run; investigating the reentry/recursion path. |
+| `csr_wr` timeout in body | 1 / TBD | Smoke vseq `uart_smoke_vseq` now reaches CSR access in body (past pre_start RAL traversal), but `csr_wr uart_reg_block.fifo_ctrl` times out. Most likely a clock/reset interface or TL-driver scheduling gap (the bus driver isn't responding). Tracked separately. |
 
 The hand-curated `scripts/compile_uart_dv.sh` path also still works
 for end-to-end `uart_smoke_vseq` runs.
