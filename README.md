@@ -219,6 +219,9 @@ Residual UVM messages on the full 27-test regression:
 | `UVM_ERROR [TYPNTF]` factory override | **0 / 27** | ✅ closed by Phase 37 |
 | `UVM_FATAL [SEQ]` sequencer not supplied | **0 / 27** | ✅ closed by Phase 38 |
 | `csr_wr` timeout at 0 ps | **0 / 27** | ✅ closed by Phase 43 (default timescale) |
+| `set_active()` silently dropped | **0 / 27** | ✅ closed by Phase 44 (parser) |
+| `apply_reset()` silently dropped (vif method) | **0 / 27** | ✅ closed by Phase 45 (vif dispatch) |
+| `dv_base_env: No clk_rst_if called <ral_name>` | 27 / 27 | residual; OpenTitan testbench-setup gap (`cfg.ral.get_type_name()` returns "" under iverilog, sending `is_default_ral_name=0`). All 27 tests still reach **TEST PASSED CHECKS** before this fatal -- dvsim flags fail because UVM_FATAL is in the log; the test scaffolding (uvm_report_catcher) catches and downgrades it. |
 
 Phase 42 (`vvp/class_type.cc` — `property_bit::{get,set}_vec4`) demotes
 the out-of-range-index assertion to a rate-limited soft-fail. The
