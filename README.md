@@ -195,6 +195,13 @@ process, instead of prepending them to the function body where they
 would re-run on every call). This may unblock UVM internals that rely
 on per-function static counters or visited sets.
 
+Simple-path `foreach (<inherited-prop>[i])` is now also covered (Phase
+40 — `elab_type.cc`:`find_foreach_simple_class_property_index_type_`
+walks the netclass_t super-class chain). Phase 38 only covered the
+multi-segment `cfg.<inherited-prop>[i]` case; OpenTitan also hits the
+simple-path case via `cip_base_env_cfg::check_shadow_reg_alerts`'s
+`foreach (ral_models[i])`.
+
 Residual UVM messages on the full 27-test regression:
 
 | Severity | Count | Reason |
