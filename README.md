@@ -251,6 +251,22 @@ every UART DV test deadlocked at the first CSR access. The fix splices
 the leading `PEIdent`'s path into the call's hierarchy. Repro:
 `tests/iface_name_shadow_test.sv`.
 
+Phase 45 (`elab_type.cc` `elaborate_interface_type_` + `elaborate.cc`
+`PCallTask::elaborate_method_`) makes virtual-interface task dispatch
+work. The netclass_t cached for an interface was missing its
+`class_scope_`, so `method_from_name` always returned null and
+`resolve_method_call_scope` fell through to the "class scope incomplete"
+warn-and-noop branch. Now the elaborator attaches the actual interface
+instance scope (looking up the module name in root scopes, then walking
+each root's children) so per-instance task and function children are
+visible. The dispatch site additionally passes `nullptr` (instead of the
+receiver expression) for `use_this` when `class_type->is_interface()` is
+true -- interface tasks aren't class methods and have no `this` first
+port. This fixes `cfg.clk_rst_vif.apply_reset()` on UART DV: without
+`apply_reset()` actually running, the test never deasserted reset, the
+clock generator stayed paused on `wait_for_reset`, and every CSR access
+hit DV_WAIT_TIMEOUT. Repro: `tests/vif_method_test.sv`.
+
 The hand-curated `scripts/compile_uart_dv.sh` path also still works
 for end-to-end `uart_smoke_vseq` runs.
 

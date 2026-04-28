@@ -5737,6 +5737,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		       << " method " << task->basename() << endl;
 	    }
 
+	    // Virtual-interface task dispatch: the resolved task lives in an
+	    // interface scope and is NOT a class method, so there is no `this`
+	    // first port. Drop the receiver expression and call as a free task.
+	    if (class_type->is_interface()) {
+		  delete obj_expr;
+		  return elaborate_build_call_(des, scope, task, nullptr);
+	    }
 	    return elaborate_build_call_(des, scope, task, obj_expr, explicit_super);
       }
 

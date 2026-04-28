@@ -451,7 +451,32 @@ NetScope*netclass_t::method_from_name(perm_string name) const
 
 NetScope*netclass_t::resolve_method_call_scope(const Design*des, perm_string name) const
 {
-      (void) des;
+      // For interface types, the netclass_t is created (and cached) before
+      // the interface's actual instance scope is elaborated, so class_scope_
+      // is often null at method-dispatch time. Look it up lazily by walking
+      // the design's root scopes for a MODULE child whose module_name matches
+      // this interface's name. Once found, attach it so subsequent lookups
+      // hit the fast path.
+      if (interface_type_ && class_scope_ == nullptr && des) {
+            NetScope*found = nullptr;
+            for (NetScope*root_scope : const_cast<Design*>(des)->find_root_scopes()) {
+                  for (auto&kv : root_scope->children()) {
+                        NetScope*child = kv.second;
+                        if (!child || child->type() != NetScope::MODULE)
+                              continue;
+                        if (child->module_name() == get_name()) {
+                              found = child;
+                              break;
+                        }
+                  }
+                  if (found) break;
+            }
+            if (found) {
+                  // const_cast is safe here -- this is a one-shot lazy
+                  // attachment, observed only on the first method dispatch.
+                  const_cast<netclass_t*>(this)->set_class_scope(found);
+            }
+      }
 
       NetScope*method = method_from_name(name);
       if (!method) {

@@ -304,6 +304,42 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 					   cur->second->signals);
       }
 
+      // If a real interface instance scope exists somewhere in the design,
+      // attach it as the netclass_t's class_scope so virtual-interface method
+      // dispatch (`vif.task()` / `vif.func()`) can find the per-instance task
+      // and function child scopes. Without this, `method_from_name` returns
+      // null and the elaborator falls into the "scope incomplete" warn-and-noop
+      // path. module_name() asserts type_==MODULE||PACKAGE, so we must guard
+      // the call when walking arbitrary children.
+      NetScope*method_scope = des->find_scope(hname_t(mod->mod_name()));
+      if (method_scope && method_scope->type() != NetScope::MODULE)
+            method_scope = nullptr;
+      if (!method_scope) {
+            // The interface might be instantiated as a child of some other
+            // module (the typical OpenTitan tb.sv pattern). Walk every root
+            // scope and its MODULE children whose module_name matches.
+            for (NetScope*root_scope : des->find_root_scopes()) {
+                  for (auto&kv : root_scope->children()) {
+                        NetScope*child = kv.second;
+                        if (!child || child->type() != NetScope::MODULE)
+                              continue;
+                        if (child->module_name() == mod->mod_name()) {
+                              method_scope = child;
+                              break;
+                        }
+                  }
+                  if (method_scope) break;
+            }
+      }
+      if (method_scope && iface_type->class_scope() == nullptr)
+            iface_type->set_class_scope(method_scope);
+
+      // Do NOT set scope_ready=true: when class_scope_ is null at the time
+      // of method dispatch (because the interface's instance scope hasn't
+      // been elaborated yet), the elaborator's NOOP fallback is the safe
+      // path. The lazy lookup in `resolve_method_call_scope` upgrades this
+      // to a real call when an instance is available.
+
       delete temp_scope;
       return iface_type;
 }
