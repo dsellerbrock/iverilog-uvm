@@ -270,6 +270,53 @@ port. This fixes `cfg.clk_rst_vif.apply_reset()` on UART DV: without
 clock generator stayed paused on `wait_for_reset`, and every CSR access
 hit DV_WAIT_TIMEOUT. Repro: `tests/vif_method_test.sv`.
 
+Phase 46 (`elab_expr.cc` `PETypename::elaborate_expr`) redirects to the
+interface instance scope when the type name shadows an instance.
+`uvm_config_db#(virtual clk_rst_if)::set(null, "*.env", "clk_rst_vif",
+clk_rst_if)` was storing null because the parser routes the bare
+`clk_rst_if` reference (TYPE_IDENTIFIER) through `data_type ->
+typeref_t -> PETypename`, whose `elaborate_expr` returned an empty
+`NetECString`. The fix: when the typeref names a typedef AND there's
+an interface scope visible from the call site with the same name,
+build a `NetEScope` wrapping that instance scope so callers receive
+the real interface handle. Repro: `tests/iface_arg_pass_test.sv`.
+
+Phase 47 (`elab_scope.cc` `specialization_perf_base_label_`) makes the
+parameterized class specialization cache key stable for interface
+types. Phase 45's lazy `class_scope_` attachment caused the same
+`virtual <iface>` parameter to hash to two different cache entries
+("clk_rst_if" before lazy attach, "tb.clk_rst_if" after), producing
+two distinct `uvm_resource#(virtual <iface>)` netclass_t specs whose
+static `my_type` instances diverged. The resource pool's type filter
+then rejected the SET-time entry at GET time. Use the bare type name
+for `is_interface()` netclass_t so the label is canonical and
+time-invariant. Repro: `tests/cfgdb_iface_shadow_test.sv`.
+
+Phase 48 (`vvp/vthread.cc` `of_RANDOMIZE`) walks the class inheritance
+chain to apply constraints declared on base-class rand properties.
+Previously `defn->constraint_count()` only consulted the runtime
+class itself, so constraints declared in a base class on its own
+rand properties were silently dropped when the runtime instance was
+deeper-derived. UART DV's `uart_period_glitch_pct` (declared with
+`inside {[0:10]}` in `uart_base_vseq`) was tripping
+`uart_agent_cfg`'s `pct < 20` fatal at the start of every body().
+Repro: `tests/rand_inh_constraint_test.sv`.
+
+Phase 49 (`elaborate.cc`, after constraint-block elaboration) auto-
+generates an `inside` constraint for every rand/randc property whose
+type is an enum. Without this, `%randomize` seeded the property with
+raw `rand()` bits and almost never landed on a valid enum label, so
+downstream `case (field) ... default: $fatal` traps fired. Auto-emit
+`(inside p:N:W c:val1 c:val2 ...)` from the enum's runtime values;
+the existing Z3 path handles it. Repro: `tests/rand_enum_test.sv`.
+
+Residual UART DV regression failures (Phase 49 baseline):
+
+| Failure | Count | Reason |
+|---|---|---|
+| `csr_wr` Timeout at 2 ms | ~7 | TL bus driver does not respond to CSR transactions; tracked separately. Test runs full 2 ms simulated time, real bus driver issue (not iverilog parsing/elaboration). |
+| `+csr_` plusarg invalid | 8 | $value$plusargs to vpiClassVar of string type silently drops VPI puts; OT-side workaround re-applied (uses local string + manual copy). |
+
 The hand-curated `scripts/compile_uart_dv.sh` path also still works
 for end-to-end `uart_smoke_vseq` runs.
 
