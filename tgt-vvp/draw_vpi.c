@@ -166,6 +166,14 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	         runtime and pushed onto the obj_stack. */
 	      if (class_like && ivl_expr_type(expr) == IVL_EX_PROPERTY)
 		    return 0;
+	      /* Same idea for string-typed class properties: handing VPI the
+	         base class signal would make `%s` read the type name (or in
+	         lvalue position, drop the put). Fall through so the caller's
+	         switch dispatches to draw_eval_string / VPI string-stack
+	         passing instead. */
+	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+		  && ivl_expr_value(expr) == IVL_VT_STRING)
+		    return 0;
 	      /* If the signal node is narrower than the signal itself,
 	         then this is a part select so I'm going to need to
 	         evaluate the expression.
