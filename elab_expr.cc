@@ -11334,9 +11334,51 @@ unsigned PETypename::test_width(Design*des, NetScope*, width_mode_t&)
       return expr_width_;
 }
 
-NetExpr*PETypename::elaborate_expr(Design*des, NetScope*,
-				   ivl_type_t, unsigned) const
+NetExpr*PETypename::elaborate_expr(Design*des, NetScope*scope_in,
+				   ivl_type_t want_type, unsigned flags) const
 {
+      // Phase 46 / iface name shadow: when an interface instance shares its
+      // name with the interface type (the canonical OpenTitan tb pattern,
+      // `clk_rst_if clk_rst_if(.clk, .rst_n);`), the parser ambiguously
+      // reduces a bare reference to TYPE_IDENTIFIER through `data_type`,
+      // building a PETypename. The resulting elaborator path emits an empty
+      // string and any function arg of `virtual <iface>` type silently gets
+      // null. Detect when the type name matches an interface instance scope
+      // visible from this scope and redirect to a PEIdent-style elaboration
+      // so callers receive the real interface handle.
+      if (gn_system_verilog() && scope_in) {
+            const typeref_t*tref = dynamic_cast<const typeref_t*>(data_type_);
+            const typedef_t*td = tref ? tref->typedef_ref() : nullptr;
+            if (td && (!tref->parameter_values())) {
+                  pform_name_t hident;
+                  hident.push_back(name_component_t(td->name));
+                  symbol_search_results sr;
+                  symbol_search(this, des, scope_in, hident, /*lex_pos*/0, &sr);
+                  if (sr.is_found() && sr.is_scope()
+                      && sr.scope && sr.scope->is_interface()) {
+                        const netclass_t*want_class =
+                              dynamic_cast<const netclass_t*>(want_type);
+                        if (!want_type
+                            || (want_class && want_class->is_interface())) {
+                              ivl_type_t use_type = want_type
+                                    ? want_type
+                                    : (ivl_type_t)sr.scope->class_def();
+                              if (!use_type) {
+                                    // Fall back: still build a NetEScope so
+                                    // downstream uses the real instance, even
+                                    // if its type isn't fully known yet.
+                                    NetEScope*tmp = new NetEScope(sr.scope, nullptr);
+                                    tmp->set_line(*this);
+                                    return tmp;
+                              }
+                              NetEScope*tmp = new NetEScope(sr.scope, use_type);
+                              tmp->set_line(*this);
+                              return tmp;
+                        }
+                  }
+            }
+      }
+      (void)flags;
       if (gn_system_verilog()) {
 	    NetECString*tmp = new NetECString(string());
 	    tmp->set_line(*this);
