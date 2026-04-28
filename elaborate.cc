@@ -9558,6 +9558,33 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  add_constraint_ir(string(cit.first), ir);
 	      }
 
+	      // Phase 49: synthesize an `inside` constraint for every rand
+	      // (or randc) property whose type is an enum. Without this,
+	      // %randomize seeds the property with raw rand() bits and the
+	      // resulting value almost never lands on a valid enum label
+	      // (causing UVM_FATAL "Unsupported <enum>" downstream).
+	      for (size_t pid = 0; pid < get_properties(); ++pid) {
+		    property_qualifier_t qual = get_prop_qual(pid);
+		    if (!qual.test_rand() && !qual.test_randc())
+			  continue;
+		    ivl_type_t ptype = get_prop_type(pid);
+		    const netenum_t*etype = dynamic_cast<const netenum_t*>(ptype);
+		    if (!etype || etype->size() == 0)
+			  continue;
+		    unsigned wid = (unsigned)etype->packed_width();
+		    if (wid == 0) wid = 32;
+		    std::ostringstream ir;
+		    ir << "(inside p:" << pid << ":" << wid;
+		    for (size_t v = 0; v < etype->size(); ++v) {
+			  uint64_t val = etype->value_at(v).as_unsigned();
+			  ir << " c:" << val;
+		    }
+		    ir << ")";
+		    std::ostringstream nm;
+		    nm << "_enum_" << get_prop_name(pid);
+		    add_constraint_ir(nm.str(), ir.str());
+	      }
+
 	      // Elaborate covergroup declarations: synthesize a hidden
 	      // class type for each covergroup with one int property per
 	      // bin (holding the hit count).  The covergroup property on
