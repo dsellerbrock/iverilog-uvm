@@ -10539,9 +10539,26 @@ subroutine_call
 	$$ = tmp;
       }
   | expr_primary '.' IDENTIFIER argument_list_parens_opt
-      { /* Temporary parse support for method calls on expressions used
-	   as statements, e.g. pkg::queue.push_back(x). */
-	PCallTask*tmp = new PCallTask(lex_strings.make($3), *$4);
+      { /* Method-call statement on an expression, e.g. pkg::queue.push_back(x).
+	   When the expr_primary is a PEIdent (typical for TYPE_IDENTIFIER or
+	   hierarchy_identifier reductions, including the case where an
+	   interface instance shares its name with the interface type), splice
+	   its path into the PCallTask hierarchy so the receiver is preserved.
+	   Otherwise fall back to a name-only call (UVM, queue helpers, etc.
+	   work via the symbol_search inside elaborate_method_). */
+	PCallTask*tmp = nullptr;
+	PEIdent*pid = dynamic_cast<PEIdent*>($1);
+	if (pid && !pid->path().package) {
+	      pform_name_t hident = pid->path().name;
+	      hident.push_back(name_component_t(lex_strings.make($3)));
+	      tmp = new PCallTask(hident, *$4);
+	} else if (pid && pid->path().package) {
+	      pform_name_t hident = pid->path().name;
+	      hident.push_back(name_component_t(lex_strings.make($3)));
+	      tmp = new PCallTask(pid->path().package, hident, *$4);
+	} else {
+	      tmp = new PCallTask(lex_strings.make($3), *$4);
+	}
 	FILE_NAME(tmp, @2);
 	delete $1;
 	delete[]$3;

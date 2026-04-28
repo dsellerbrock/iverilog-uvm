@@ -218,7 +218,38 @@ Residual UVM messages on the full 27-test regression:
 | `UVM_ERROR null map` | **0 / 27** | ✅ closed by Phase 36 |
 | `UVM_ERROR [TYPNTF]` factory override | **0 / 27** | ✅ closed by Phase 37 |
 | `UVM_FATAL [SEQ]` sequencer not supplied | **0 / 27** | ✅ closed by Phase 38 |
-| `csr_wr` timeout in body | 1 / TBD | Smoke vseq `uart_smoke_vseq` now reaches CSR access in body (past pre_start RAL traversal), but `csr_wr uart_reg_block.fifo_ctrl` times out. Most likely a clock/reset interface or TL-driver scheduling gap (the bus driver isn't responding). Tracked separately. |
+| `csr_wr` timeout at 0 ps | **0 / 27** | ✅ closed by Phase 43 (default timescale) |
+
+Phase 42 (`vvp/class_type.cc` — `property_bit::{get,set}_vec4`) demotes
+the out-of-range-index assertion to a rate-limited soft-fail. The
+PEEK_VEC4-UF cascade can push an X value into a class fixed-size-array
+property write/read; aborting via assert took down 14 otherwise-clean
+UART tests. Warn-and-skip lets diagnosis continue without losing all
+prior progress to a single bad index.
+
+Phase 43 (`opentitan/hw/dv/tools/dvsim/iverilog.hjson` — prelude
+`+timescale+1ns/1ps`) sets a default timescale before any module is
+parsed. OpenTitan DV packages don't declare their own `\`timescale`;
+under VCS/Xcelium/dsim it's set via the simulator's `-timescale 1ns/1ps`
+flag. iverilog has no equivalent CLI option, so without an explicit
+prelude every `#(N * 1ns)` in task bodies (notably `DV_WAIT_TIMEOUT`)
+collapses to 0 ticks and `csr_wr` fires the timeout branch immediately.
+With the prelude, simulation actually advances real time and tests run
+through their bodies. Repro: `tests/delay_arg_timescale_test.sv`.
+
+Phase 44 (`parse.y` — `expr_primary '.' IDENTIFIER ...` rule) preserves
+the receiver expression when the parser falls into the method-call form
+of `subroutine_call`. Previously the rule built a name-only `PCallTask`
+and `delete $1`'d the receiver, which silently dropped the prefix. This
+hit OpenTitan tb.sv where every clock interface uses
+`clk_rst_if clk_rst_if(...)` (instance name == type name), making the
+lexer pick `TYPE_IDENTIFIER` over `IDENTIFIER` for the leading token --
+which routed `clk_rst_if.set_active()` through this broken rule and
+turned it into a bare `set_active()` call that nothing matched. Without
+`set_active()` the interface stays inactive (no clock, no reset) and
+every UART DV test deadlocked at the first CSR access. The fix splices
+the leading `PEIdent`'s path into the call's hierarchy. Repro:
+`tests/iface_name_shadow_test.sv`.
 
 The hand-curated `scripts/compile_uart_dv.sh` path also still works
 for end-to-end `uart_smoke_vseq` runs.
