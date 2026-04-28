@@ -517,17 +517,31 @@ static const data_type_t* find_foreach_wire_index_type_(
 static const data_type_t* find_foreach_simple_class_property_index_type_(
 		NetScope*scope, perm_string name, size_t index_depth)
 {
+	// Look up `name` in the immediate class scope, walking up the super
+	// class chain when the property is inherited (a derived class's pform
+	// only contains its own declarations, not those of its base classes).
       const NetScope*class_scope = scope ? scope->get_class_scope() : 0;
-      if (class_scope) {
-	    const PClass*pclass = class_scope->class_pform();
-	    if (pclass && pclass->type) {
-		  std::map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
-			pclass->type->properties.find(name);
-		  if (pcur != pclass->type->properties.end())
-			return pcur->second.type.get();
-	    }
+      const netclass_t*search_class = class_scope ? class_scope->class_def() : 0;
+      (void)index_depth;
+      while (search_class) {
+            const NetScope*sc = search_class->class_scope();
+            const PClass*pclass = sc ? sc->class_pform() : 0;
+            if (pclass && pclass->type) {
+                  std::map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
+                        pclass->type->properties.find(name);
+                  if (pcur != pclass->type->properties.end()
+                      && pcur->second.type.get())
+                        // Return the property's full data_type_t; the caller
+                        // (find_foreach_class_property_index_type_) extracts
+                        // the index dimension via
+                        // find_foreach_assoc_index_type_in_data_type_.
+                        return pcur->second.type.get();
+            }
+            search_class = search_class->get_super();
       }
 
+	// Fall back to the original scope-tree walk (e.g. for non-class
+	// scopes that nonetheless host a class_pform).
       for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
 	    const PClass*pclass = cur->class_pform();
 	    if (!pclass || !pclass->type)
