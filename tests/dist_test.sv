@@ -1,6 +1,6 @@
 // dist_test.sv - verify `dist` weighted constraint parses and randomize
-//                doesn't crash. The actual distribution is NOT yet
-//                enforced (Phase 8 work), but compile/run progresses.
+//                succeeds. Phase 8: dist ranges are lowered to `inside`;
+//                weights are dropped (proper weighted distribution is TODO).
 
 class C;
   rand int x;

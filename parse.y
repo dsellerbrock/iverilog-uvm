@@ -985,6 +985,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <irange> inside_value_range
 %type <irange_list> inside_range_list
+%type <irange> dist_item
+%type <irange_list> dist_list dist_list_opt
 
 %type <coverpoint>  covergroup_item
 %type <coverpoints> covergroup_item_list covergroup_item_list_opt
@@ -2244,11 +2246,17 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
   : expression ';'
       { $$ = $1; }
   | expression K_dist '{' dist_list_opt '}' ';'
-      { /* `dist` weighted distribution — parse and silently drop until the
-           Z3 IR grows a `dist` node. Returning the lhs expression as the
-           constraint (the previous behavior) made randomize() require it
-           be non-zero, which produced spurious failures and crashes. */
-        delete $1; $$ = nullptr; }
+      { /* `dist` — lower weights ignored, ranges lowered to `inside` to
+           enforce the value domain. Proper weighted distribution is TODO. */
+        if ($4) {
+              PEInside*tmp = new PEInside($1, $4);
+              FILE_NAME(tmp, @2);
+              $$ = tmp;
+        } else {
+              delete $1;
+              $$ = nullptr;
+        }
+      }
   | expression constraint_trigger
       { $$ = $1; }
   | K_if '(' expression ')' constraint_set %prec less_than_K_else
@@ -2261,28 +2269,69 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
   | K_soft expression ';'
       { $$ = $2; }
   | K_soft expression K_dist '{' dist_list_opt '}' ';'
-      { delete $2; $$ = nullptr; }
+      { if ($5) {
+              PEInside*tmp = new PEInside($2, $5);
+              FILE_NAME(tmp, @3);
+              $$ = tmp;
+        } else {
+              delete $2;
+              $$ = nullptr;
+        }
+      }
   /* implication with soft: A -> soft B; (-> is K_TRIGGER when not followed by '{') */
   | expression K_TRIGGER K_soft expression ';'
       { delete $1; $$ = $4; }
   | expression K_TRIGGER K_soft expression K_dist '{' dist_list_opt '}' ';'
-      { delete $1; $$ = $4; }
+      { delete $1;
+        if ($7) {
+              PEInside*tmp = new PEInside($4, $7);
+              FILE_NAME(tmp, @5);
+              $$ = tmp;
+        } else {
+              delete $4;
+              $$ = nullptr;
+        }
+      }
   ;
 
 dist_list_opt
-  :
-  | dist_list
+  :       { $$ = nullptr; }
+  | dist_list { $$ = $1; }
   ;
 
 dist_list
   : dist_item
+      { $$ = new std::list<inside_range_t>();
+        if ($1) { $$->push_back(*$1); delete $1; } }
   | dist_list ',' dist_item
+      { $$ = $1; if ($3) { $$->push_back(*$3); delete $3; } }
   ;
 
+/* Each dist_item extracts the value-range (scalar or [lo:hi]) and drops
+   the optional weight (both := and :/ forms). */
 dist_item
-  : value_range
-  | value_range ':' '=' expression
-  | value_range ':' '/' expression
+  : expression
+      { inside_range_t*r = new inside_range_t;
+        r->lo = nullptr; r->hi = $1; r->is_range = false; $$ = r; }
+  | '[' expression ':' expression ']'
+      { inside_range_t*r = new inside_range_t;
+        r->lo = $2; r->hi = $4; r->is_range = true; $$ = r; }
+  | expression ':' '=' expression
+      { inside_range_t*r = new inside_range_t;
+        r->lo = nullptr; r->hi = $1; r->is_range = false;
+        delete $4; $$ = r; }
+  | expression ':' '/' expression
+      { inside_range_t*r = new inside_range_t;
+        r->lo = nullptr; r->hi = $1; r->is_range = false;
+        delete $4; $$ = r; }
+  | '[' expression ':' expression ']' ':' '=' expression
+      { inside_range_t*r = new inside_range_t;
+        r->lo = $2; r->hi = $4; r->is_range = true;
+        delete $8; $$ = r; }
+  | '[' expression ':' expression ']' ':' '/' expression
+      { inside_range_t*r = new inside_range_t;
+        r->lo = $2; r->hi = $4; r->is_range = true;
+        delete $8; $$ = r; }
   ;
 
 constraint_trigger
