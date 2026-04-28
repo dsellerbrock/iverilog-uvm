@@ -122,6 +122,20 @@ static std::string specialization_perf_base_label_(const netclass_t*base_class)
       if (!base_class)
 	    return "(null)";
 
+      // For interface types, the netclass_t's class_scope_ may be set
+      // lazily (Phase 45) to whichever instance scope happened to be
+      // visible at the time of first method dispatch. That makes the
+      // label time-dependent and breaks the specialization cache: a
+      // `uvm_resource#(virtual <iface>)` reference elaborated before
+      // class_scope_ is attached produces a different key than one
+      // elaborated after, even though both should resolve to the same
+      // specialized netclass_t. Use the bare type name (which is the
+      // interface module name) as the canonical label.
+      if (base_class->is_interface()) {
+	    if (perm_string name = base_class->get_name())
+		  return name.str();
+      }
+
       if (const NetScope*base_scope = base_class->class_scope()) {
 	    if (const PClass*pclass = base_scope->class_pform()) {
 		  std::ostringstream tmp;
