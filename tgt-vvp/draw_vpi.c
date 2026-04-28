@@ -166,11 +166,22 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	         runtime and pushed onto the obj_stack. */
 	      if (class_like && ivl_expr_type(expr) == IVL_EX_PROPERTY)
 		    return 0;
-	      /* Same idea for string-typed class properties: handing VPI the
-	         base class signal would make `%s` read the type name (or in
-	         lvalue position, drop the put). Fall through so the caller's
-	         switch dispatches to draw_eval_string / VPI string-stack
-	         passing instead. */
+	      /* For a string-typed class property (e.g. obj.str_field), emit
+         &CPS<vSIG_0,pidx> so the runtime handle supports both
+         vpi_get_value and vpi_put_value on the specific string property.
+         Only handle the simple case (direct signal base, not nested). */
+	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+		  && ivl_expr_value(expr) == IVL_VT_STRING
+		  && ivl_expr_signal(expr)
+		  && !ivl_expr_oper1(expr)) {
+		    unsigned pidx = (unsigned)ivl_expr_property_idx(expr);
+		    snprintf(buffer, sizeof buffer, "&CPS<v%p_0, %u>",
+			     (void*)ivl_expr_signal(expr), pidx);
+		    result->text = strdup(buffer);
+		    return 1;
+	      }
+	      /* Nested or array-indexed string property: fall back so the
+	         caller dispatches to draw_eval_string (rvalue-only). */
 	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
 		  && ivl_expr_value(expr) == IVL_VT_STRING)
 		    return 0;

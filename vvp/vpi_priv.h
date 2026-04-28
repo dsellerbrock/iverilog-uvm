@@ -899,6 +899,12 @@ class __vpiCobjectVar : public __vpiBaseVar {
 
 extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net);
 
+/* Phase 51: VPI handle targeting a specific string property of a
+ * class instance. tgt-vvp emits this for class string property
+ * lvalues passed to sysfuncs such as `$value$plusargs`. */
+extern vpiHandle vpip_make_cobject_property_string_var(char*label,
+                                                       size_t prop_idx);
+
 /*
  * When a loaded VPI module announces a system task/function, one
  * __vpiUserSystf object is created to hold the definition of that

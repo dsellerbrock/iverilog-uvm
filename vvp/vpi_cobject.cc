@@ -234,6 +234,104 @@ vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net)
       return obj;
 }
 
+/*
+ * Phase 51: a VPI handle that targets a specific string property of a
+ * class instance. The wrapping handle for the class instance does not
+ * carry a property index; without one, a vpi_put_value(vpiStringVal)
+ * has nowhere to write to. tgt-vvp emits this property-aware handle
+ * (via the &cprop_str<ADDR,N> token) when a class string property is
+ * passed as an lvalue to a sysfunc such as $value$plusargs.
+ *
+ * Both get_value(vpiStringVal) and put_value(vpiStringVal) delegate
+ * to the cobject's get_string/set_string at the captured property
+ * index. Other format codes report a clear error so we don't silently
+ * mishandle them.
+ */
+class __vpiClassPropertyStringVar : public __vpiHandle {
+    public:
+      __vpiClassPropertyStringVar(size_t prop_idx)
+            : cobj_net_(nullptr), prop_idx_(prop_idx) {}
+
+      vvp_net_t*cobj_net_;
+
+      int get_type_code(void) const override { return vpiStringVar; }
+
+      int vpi_get(int code) override
+      {
+            switch (code) {
+                case vpiSize:        return 8;
+                case vpiAutomatic:   return 0;
+                case vpiSigned:      return 0;
+                case vpiConstType:   return vpiNullConst;
+                default: return 0;
+            }
+      }
+
+      char* vpi_get_str(int) override { return nullptr; }
+
+      void vpi_get_value(p_vpi_value val) override
+      {
+            std::string current = read_property_string_();
+            if (val->format == vpiObjTypeVal)
+                  val->format = vpiStringVal;
+            if (val->format != vpiStringVal) {
+                  val->format = vpiSuppressVal;
+                  return;
+            }
+            char*rbuf = static_cast<char*>(
+                  need_result_buf(current.size()+1, RBUF_VAL));
+            memcpy(rbuf, current.c_str(), current.size()+1);
+            val->value.str = rbuf;
+      }
+
+      vpiHandle vpi_put_value(p_vpi_value val, int) override
+      {
+            if (val->format != vpiStringVal || !val->value.str)
+                  return 0;
+            write_property_string_(val->value.str);
+            return 0;
+      }
+
+      vpiHandle vpi_handle(int) override { return nullptr; }
+
+    private:
+      size_t prop_idx_;
+
+      std::string read_property_string_()
+      {
+            vvp_object_t obj;
+            vvp_fun_signal_object*fun =
+                  cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fun) : nullptr;
+            if (!fun)
+                  fun = cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fil) : nullptr;
+            if (fun) obj = fun->peek_object();
+            if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+                  return cobj->get_string(prop_idx_);
+            return std::string();
+      }
+
+      void write_property_string_(const char*s)
+      {
+            vvp_object_t obj;
+            vvp_fun_signal_object*fun =
+                  cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fun) : nullptr;
+            if (!fun)
+                  fun = cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fil) : nullptr;
+            if (!fun) return;
+            obj = fun->peek_object();
+            if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+                  cobj->set_string(prop_idx_, std::string(s));
+      }
+
+};
+
+vpiHandle vpip_make_cobject_property_string_var(char*label, size_t prop_idx)
+{
+      __vpiClassPropertyStringVar*obj = new __vpiClassPropertyStringVar(prop_idx);
+      functor_ref_lookup(&obj->cobj_net_, label);
+      return obj;
+}
+
 #ifdef CHECK_WITH_VALGRIND
 void class_delete(vpiHandle item)
 {
