@@ -544,6 +544,13 @@ static bool runtime_lookup_code_scope_by_suffix_(const char*label,
       if (*head != '.')
             return false;
 
+      /* _ivl_N names are package-local auto-counters; the same N appears
+         independently in different packages and cannot be used as a
+         globally-unique suffix for dispatch matching. */
+      std::string class_component(head+1, tail);
+      if (class_component.size() >= 4 && class_component.substr(0,4) == "_ivl")
+            return false;
+
       std::string suffix(head);
       std::map<std::string, runtime_code_scope_entry_s>::const_iterator match
             = runtime_code_scope_map.end();
