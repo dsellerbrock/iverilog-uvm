@@ -1741,9 +1741,16 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 		  cobj->set_vec4(pid, val);
 	    }
 
-	      // If this class has constraints, solve with Z3.
-	    if (defn->constraint_count() > 0)
-		  vvp_z3_randomize(defn, cobj);
+	      // Solve constraints with Z3 for this class AND every base
+	      // class in the inheritance chain. Without walking the chain,
+	      // a constraint declared on a base class's rand property is
+	      // silently dropped when the runtime instance is a derived
+	      // class, leaving those properties with raw rand() values that
+	      // ignore inside-range / equality constraints.
+	    for (const class_type*walker = defn; walker; walker = walker->runtime_super()) {
+		  if (walker->constraint_count() > 0)
+			vvp_z3_randomize(walker, cobj);
+	    }
       }
 
       vvp_object_t tmp;
