@@ -7595,6 +7595,20 @@ static NetNet* find_assoc_foreach_index_signal_(Design*des, NetScope*scope,
       if (!idx_sig)
             return 0;
 
+      // If the immediate scope is a foreach autobegin (e.g. $ivl_foreach...),
+      // the local index_name signal IS the real foreach loop variable for
+      // this foreach. Do not walk up looking for a "real" outer match -- a
+      // nested `foreach (regs[i])` inside an outer `foreach (m_aa[i])` must
+      // bind the inner `i` to the inner foreach's signal, not the outer.
+      auto is_foreach_scope_ = [](NetScope*s) {
+            if (!s)
+                  return false;
+            const char*nm = s->basename().str();
+            return nm && (strncmp(nm, "$ivl_foreach", 12) == 0);
+      };
+      if (is_foreach_scope_(scope))
+            return idx_sig;
+
       bool is_sized_int_shadow =
             idx_sig->get_signed()
          && idx_sig->vector_width() == 32
