@@ -974,6 +974,7 @@ void dll_target::event(const NetEvent*net)
       obj->is_vif_anyedge = false;
       obj->vif_N = 0;
       obj->vif_M = 0;
+      obj->vif_pre_N = UINT_MAX;
 
       if (net->nprobe() >= 1) {
 
@@ -986,6 +987,7 @@ void dll_target::event(const NetEvent*net)
 			      obj->is_vif_anyedge = true;
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
+			      obj->vif_pre_N = pr->vif_pre_N();
 			}
 			break;
 		      case NetEvProbe::NEGEDGE:
@@ -994,6 +996,7 @@ void dll_target::event(const NetEvent*net)
 			      obj->is_vif_negedge = true;
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
+			      obj->vif_pre_N = pr->vif_pre_N();
 			}
 			break;
 		      case NetEvProbe::POSEDGE:
@@ -1002,6 +1005,7 @@ void dll_target::event(const NetEvent*net)
 			      obj->is_vif_posedge = true;
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
+			      obj->vif_pre_N = pr->vif_pre_N();
 			}
 			break;
 		      case NetEvProbe::EDGE:

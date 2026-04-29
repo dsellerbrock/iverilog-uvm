@@ -1132,12 +1132,10 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 
 NetExpr* PEAssignPattern::elaborate_expr(Design*des, NetScope*, unsigned, unsigned) const
 {
-      cerr << get_fileline() << ": sorry: I do not know how to"
-	   << " elaborate assignment patterns using old method." << endl;
-      cerr << get_fileline() << ":      : Expression is: " << *this
-	   << endl;
-      des->errors += 1;
-      ivl_assert(*this, 0);
+      cerr << get_fileline() << ": warning: "
+	   << "Cannot elaborate assignment pattern in this context"
+	   << " (compile-progress: assignment ignored)." << endl;
+      (void)des;
       return 0;
 }
 

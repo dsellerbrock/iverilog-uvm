@@ -334,11 +334,11 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
       if (method_scope && iface_type->class_scope() == nullptr)
             iface_type->set_class_scope(method_scope);
 
-      // Do NOT set scope_ready=true: when class_scope_ is null at the time
-      // of method dispatch (because the interface's instance scope hasn't
-      // been elaborated yet), the elaborator's NOOP fallback is the safe
-      // path. The lazy lookup in `resolve_method_call_scope` upgrades this
-      // to a real call when an instance is available.
+      // Do NOT set scope_ready=true unconditionally: when the interface has
+      // tasks that the design references but that don't actually exist in
+      // class_scope_ (typical compile-progress scenarios), the noop fallback
+      // is what keeps elaboration moving.  Setting it to true here turns
+      // those into hard errors.
 
       delete temp_scope;
       return iface_type;

@@ -53,6 +53,10 @@ int debug_draw = 0;
 
 static ivl_design_t saved_design = NULL;
 
+/* Accessor for tgt-vvp helpers that need design-wide scope navigation
+ * (e.g. randomize() pre/post-hook lookup in eval_vec4.c). */
+ivl_design_t vvp_get_saved_design(void) { return saved_design; }
+
 static void segfault_handler(int sig)
 {
       (void)sig;

@@ -1310,7 +1310,39 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		      ivl_type_t owner_type = lv ? lv->net_type() : root_type;
 		      const netclass_t*owner_class = dynamic_cast<const netclass_t*>(owner_type);
 		      const netstruct_t*owner_struct = dynamic_cast<const netstruct_t*>(owner_type);
-		      if (!owner_class && !(gn_system_verilog() && owner_struct && !owner_struct->packed())) {
+		      // Packed struct field access within a VIF/class property: compute
+	      // the bit offset of the named field within the packed struct and
+	      // encode as a part-select on the current lv (read-modify-write at
+	      // runtime via %store/prop/v/bits).
+	      if (!owner_class && owner_struct && owner_struct->packed()) {
+		    perm_string field_name = peek_head_name(member_path);
+		    member_path.pop_front();
+		    unsigned long member_off = 0;
+		    const netstruct_t::member_t*mbr =
+			  owner_struct->packed_member(field_name, member_off);
+		    if (!mbr) {
+			  cerr << get_fileline() << ": error: Packed struct "
+			       << "does not have member " << field_name << "." << endl;
+			  des->errors += 1;
+			  return 0;
+		    }
+		    long field_wid = mbr->net_type->packed_width();
+		    if (field_wid <= 0) {
+			  cerr << get_fileline() << ": sorry: packed struct field "
+			       << field_name << " has non-positive width." << endl;
+			  return 0;
+		    }
+		    lv->set_part(new NetEConst(verinum(member_off, 64)),
+				 (unsigned)field_wid);
+		    if (!member_path.empty()) {
+			  cerr << get_fileline() << ": warning: "
+			       << "Deeply nested packed struct field in VIF property "
+			       << "(compile-progress: only outermost field written)." << endl;
+		    }
+		    break;
+	      }
+
+	      if (!owner_class && !(gn_system_verilog() && owner_struct && !owner_struct->packed())) {
 			    if (const char*trace = getenv("IVL_NESTED_PATH_TRACE")) {
 				  cerr << get_fileline() << ": debug: "
 				       << "nested l-value tail rejected"

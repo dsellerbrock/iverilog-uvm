@@ -2142,6 +2142,32 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 	        ivl_type_base(prop_type) == IVL_VT_LOGIC) {
 		  int prop_word_idx = 0;
 		  ivl_expr_t idx_expr = ivl_lval_idx(lval);
+		  ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
+
+		  /* Packed struct field write via bit-offset RMW.  This is
+		     generated when a VIF packed-struct property field is
+		     used as an l-value (e.g. cfg.vif.h2d_int.a_valid <= 1).
+		     The part_off_ex holds the field's bit offset within the
+		     property and lwid is the field width. */
+		  if (part_off_ex && !idx_expr &&
+		      ivl_expr_type(part_off_ex) == IVL_EX_NUMBER) {
+			unsigned bitoff = (unsigned)ivl_expr_uvalue(part_off_ex);
+			draw_eval_vec4(rval);
+			draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
+						       ivl_expr_signed(rval));
+			fprintf(vvp_out,
+				"    %%store/prop/v/bits %d, %u, %u;"
+				" Store field [%u+:%u] of property %s\n",
+				prop_idx, bitoff, lwid, bitoff, lwid,
+				ivl_type_prop_name(sig_type, prop_idx));
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			/* Emit the null-guard epilogue inline and return. */
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			return errors;
+		  }
 
 		  if (idx_expr) {
 			prop_word_idx = allocate_word();

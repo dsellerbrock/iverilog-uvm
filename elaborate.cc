@@ -28,6 +28,7 @@
  */
 
 # include  <algorithm>
+# include  <functional>
 # include  <typeinfo>
 # include  <climits>
 # include  <cstdlib>
@@ -5748,6 +5749,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       }
 
       if (is_multi_hop_collection_task_stub_candidate_(use_path, method_name)) {
+	    if (getenv("IVL_PHASE50D_TRACE"))
+		  fprintf(stderr, "[P50D-NOOP] method=%s use_path.size=%zu obj_type=%s\n",
+			  method_name.str(), use_path.size(),
+			  obj_type ? typeid(*obj_type).name() : "<null>");
 	    delete obj_expr;
 	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 	    noop->set_line(*this);
@@ -6726,6 +6731,13 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 
 		  const netclass_t::clocking_block_t*clocking =
 			      resolve_interface_clocking_block_from_search_(sr, base_path_components);
+		  /* resolve_interface_clocking_block_from_search_ sets
+		     base_path_components = offset (0-based index into
+		     sr.path_tail where the clocking block was found).
+		     Adjust to account for the root_id components consumed
+		     before path_tail: add (id->path().size() - path_tail.size()). */
+		  if (clocking)
+			base_path_components += id->path().size() - sr.path_tail.size();
 		  perm_string scope_cb_name;
 		  const PEventStatement*pform_event = clocking
 			? clocking->event
@@ -7047,9 +7059,12 @@ cerr << endl;
 			      connect(prop_set->at(src).lnk, pr->pin(p));
 			}
 
-			// Detect VIF posedge chain: outer(M)->mid(N)->NetESignal(this)
-			// where mid's type is a virtual interface class.
-			// Must be done before delete tmp.
+			// Detect VIF edge chain:
+			//   2-level: outer(M)->mid(N)->NetESignal(base)
+			//     base.vif[N].sig[M] — emits %load/obj base; %prop/obj N; %wait/vif/edge M
+			//   3-level: outer(M)->mid(N)->cfg_p(pre_N)->NetESignal(base)
+			//     base.cfg[pre_N].vif[N].sig[M] — emits extra %prop/obj pre_N first
+			// mid's resolved type must be a virtual interface class.
 			{
 			      PEEvent::edge_t etype = expr_[idx]->type();
 			      if (etype == PEEvent::POSEDGE || etype == PEEvent::NEGEDGE
@@ -7059,25 +7074,52 @@ cerr << endl;
 					  NetEProperty*mid_p = dynamic_cast<NetEProperty*>(
 					      const_cast<NetExpr*>(outer_p->get_base()));
 					  if (mid_p && !mid_p->get_sig()) {
+					      // Try 2-level first: mid->NetESignal
 					      const NetESignal*root_e = dynamic_cast<NetESignal*>(
 						  const_cast<NetExpr*>(mid_p->get_base()));
+					      NetEProperty*cfg_p = nullptr;
+					      if (!root_e) {
+						    // Try 3-level: mid->cfg_p->NetESignal
+						    cfg_p = dynamic_cast<NetEProperty*>(
+							const_cast<NetExpr*>(mid_p->get_base()));
+						    if (cfg_p && !cfg_p->get_sig())
+							  root_e = dynamic_cast<NetESignal*>(
+							      const_cast<NetExpr*>(cfg_p->get_base()));
+					      }
 					      if (root_e && root_e->sig()) {
-						    const netclass_t*this_cls = dynamic_cast<const netclass_t*>(
+						    const netclass_t*base_cls = dynamic_cast<const netclass_t*>(
 							root_e->sig()->net_type());
-						    if (this_cls) {
-							  ivl_type_t pt = this_cls->get_prop_type(
-							      mid_p->property_idx());
-							  const netclass_t*vif_cls = dynamic_cast<const netclass_t*>(pt);
-							  if (vif_cls && vif_cls->is_interface()) {
-							      unsigned N = mid_p->property_idx();
-							      unsigned M = outer_p->property_idx();
-							      if (etype == PEEvent::POSEDGE)
-								    pr->set_vif_posedge(N, M);
-							      else if (etype == PEEvent::NEGEDGE)
-								    pr->set_vif_negedge(N, M);
-							      else
-								    pr->set_vif_anyedge(N, M);
-							}
+						    if (base_cls) {
+							  // For 3-level: base_cls → cfg property → vif class
+							  // For 2-level: base_cls → vif property directly
+							  const netclass_t*vif_host_cls = base_cls;
+							  unsigned pre_N = UINT_MAX;
+							  if (cfg_p) {
+								unsigned cfg_idx = cfg_p->property_idx();
+								ivl_type_t cfg_pt = base_cls->get_prop_type(cfg_idx);
+								const netclass_t*cfg_cls = dynamic_cast<const netclass_t*>(cfg_pt);
+								if (cfg_cls) {
+								      pre_N = cfg_idx;
+								      vif_host_cls = cfg_cls;
+								} else {
+								      root_e = nullptr; // cfg not a class → skip
+								}
+							  }
+							  if (root_e) {
+								ivl_type_t pt = vif_host_cls->get_prop_type(
+								    mid_p->property_idx());
+								const netclass_t*vif_cls = dynamic_cast<const netclass_t*>(pt);
+								if (vif_cls && vif_cls->is_interface()) {
+								      unsigned N = mid_p->property_idx();
+								      unsigned M = outer_p->property_idx();
+								      if (etype == PEEvent::POSEDGE)
+									    pr->set_vif_posedge(N, M, pre_N);
+								      else if (etype == PEEvent::NEGEDGE)
+									    pr->set_vif_negedge(N, M, pre_N);
+								      else
+									    pr->set_vif_anyedge(N, M, pre_N);
+								}
+							  }
 						    }
 					      }
 					  }
@@ -7390,6 +7432,66 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 
       delete wait_set;
       des->add_node(wait_pr);
+
+      // Phase 55: Detect VIF signal chain in wait() for RTL-driven wakeup.
+      // Mirrors the @(posedge/anyedge) detection at lines ~7067-7123.
+      // expr here is NetEBComp('N', original_cond, 1'b1) due to line ~7367
+      // inversion, so we recurse into binary subexpressions to find the chain.
+      {
+	    std::function<void(const NetExpr*)> try_set_vif_anyedge;
+	    try_set_vif_anyedge = [&](const NetExpr*e) {
+		  NetEProperty*outer_p = dynamic_cast<NetEProperty*>(
+		      const_cast<NetExpr*>(e));
+		  if (outer_p && !outer_p->get_sig()) {
+			NetEProperty*mid_p = dynamic_cast<NetEProperty*>(
+			    const_cast<NetExpr*>(outer_p->get_base()));
+			if (mid_p && !mid_p->get_sig()) {
+			      const NetESignal*root_e = dynamic_cast<NetESignal*>(
+				  const_cast<NetExpr*>(mid_p->get_base()));
+			      NetEProperty*cfg_p = nullptr;
+			      if (!root_e) {
+				    cfg_p = dynamic_cast<NetEProperty*>(
+					const_cast<NetExpr*>(mid_p->get_base()));
+				    if (cfg_p && !cfg_p->get_sig())
+					  root_e = dynamic_cast<NetESignal*>(
+					      const_cast<NetExpr*>(cfg_p->get_base()));
+			      }
+			      if (root_e && root_e->sig()) {
+				    const netclass_t*base_cls = dynamic_cast<const netclass_t*>(
+					root_e->sig()->net_type());
+				    if (base_cls) {
+					  const netclass_t*vif_host_cls = base_cls;
+					  unsigned pre_N = UINT_MAX;
+					  if (cfg_p) {
+						unsigned cfg_idx = cfg_p->property_idx();
+						ivl_type_t cfg_pt = base_cls->get_prop_type(cfg_idx);
+						const netclass_t*cfg_cls = dynamic_cast<const netclass_t*>(cfg_pt);
+						if (cfg_cls) {
+						      pre_N = cfg_idx;
+						      vif_host_cls = cfg_cls;
+						} else {
+						      return;
+						}
+					  }
+					  ivl_type_t pt = vif_host_cls->get_prop_type(
+					      mid_p->property_idx());
+					  const netclass_t*vif_cls = dynamic_cast<const netclass_t*>(pt);
+					  if (vif_cls && vif_cls->is_interface())
+						wait_pr->set_vif_anyedge(mid_p->property_idx(),
+									 outer_p->property_idx(), pre_N);
+				    }
+			      }
+			}
+			return;
+		  }
+		  // Recurse into binary subexpressions to find the VIF chain.
+		  if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(e)) {
+			try_set_vif_anyedge(bin->left());
+			try_set_vif_anyedge(bin->right());
+		  }
+	    };
+	    try_set_vif_anyedge(expr);
+      }
 
       NetWhile*loop = new NetWhile(expr, wait);
       loop->set_line(*this);

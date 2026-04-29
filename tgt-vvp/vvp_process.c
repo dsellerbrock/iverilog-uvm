@@ -22,6 +22,7 @@
 # include  <assert.h>
 # include  <stdlib.h>
 # include  <stdbool.h>
+# include  <limits.h>
 
 unsigned local_count = 0;
 unsigned thread_count = 0;
@@ -1722,9 +1723,12 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 	    } else if (ivl_event_is_vif_posedge(ev)
 		       || ivl_event_is_vif_negedge(ev)
 		       || ivl_event_is_vif_anyedge(ev)) {
-		  /* VIF edge: @(posedge/negedge/edge vif.clk) in a class method.
-		   * Load 'this', get the vif property (N), then wait
-		   * for the edge of vif signal index M. */
+		  /* VIF edge: @(posedge/negedge/edge [cfg.]vif.clk) in a class method.
+		   * 2-level: base→vif[N]→sig[M]:
+		   *   %load/obj base; %prop/obj N,0; %pop/obj 1,1; %wait/vif/edge M
+		   * 3-level: base→cfg[pre_N]→vif[N]→sig[M]:
+		   *   %load/obj base; %prop/obj pre_N,0; %prop/obj N,0; %pop/obj 2,1; %wait/vif/edge M
+		   */
 		  const char*opcode = ivl_event_is_vif_posedge(ev)
 			? "posedge"
 			: ivl_event_is_vif_negedge(ev) ? "negedge" : "anyedge";
@@ -1734,10 +1738,14 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		  else if (ivl_event_nany(ev) > 0) this_nex = ivl_event_any(ev, 0);
 		  const char*this_var = draw_input_from_net(this_nex,
 							    ivl_event_scope(ev));
+		  unsigned pre_N = ivl_event_vif_pre_N(ev);
+		  int has_pre = (pre_N != UINT_MAX);
 		  fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
+		  if (has_pre)
+			fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
 		  fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
 			  ivl_event_vif_N(ev));
-		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  fprintf(vvp_out, "    %%pop/obj %d, 1;\n", has_pre ? 2 : 1);
 		  fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
 			  opcode, ivl_event_vif_M(ev));
 	    } else {
@@ -2274,7 +2282,22 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 					ivl_stmt_file(net), ivl_stmt_lineno(net));
 				return 0;
 			  }
-			  switch (ivl_expr_value(parm1)) {
+			  /* Phase 50d: dispatch based on the QUEUE element type
+			   * (parm0's element), not the value-expression type.  An
+			   * argument like the string literal "A" is widened to
+			   * IVL_VT_LOGIC and would silently take the vec4 store
+			   * path, which the runtime then casts to vvp_queue_vec4
+			   * and no-ops because the actual storage is
+			   * vvp_queue_string.  Pull the element type off parm0
+			   * when we have a net_type. */
+			  ivl_variable_type_t elem_kind = ivl_expr_value(parm1);
+			  ivl_type_t parm0_type = ivl_expr_net_type(parm0);
+			  if (parm0_type) {
+				ivl_type_t elem_type = ivl_type_element(parm0_type);
+				if (elem_type)
+				      elem_kind = ivl_type_base(elem_type);
+			  }
+			  switch (elem_kind) {
 		      case IVL_VT_REAL:
 			draw_eval_real(parm1);
 			fprintf(vvp_out, "    %%store/qo/%s/r;\n", type_code + 1);
