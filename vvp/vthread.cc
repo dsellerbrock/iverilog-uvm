@@ -1728,6 +1728,47 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 			continue;
 		  if (!cobj->rand_mode(pid))
 			continue;
+
+		    // Phase 50b: rand assoc-vec4 array properties.  When a
+		    // property is `rand uint x[KEY]`, the storage is a
+		    // vvp_assoc_vec4 reachable via get_object().  The default
+		    // get_vec4 path returns a 1-bit "exists" flag and never
+		    // touches the actual entry values, so randomize() left
+		    // assoc entries at their initialised value (typically 0)
+		    // for OpenTitan's clk_freqs_mhz pattern.  Iterate string
+		    // keys here and replace each entry's value with random
+		    // bits of the entry's natural width, capped so the value
+		    // is within `int` range and non-zero.  The constraint
+		    // foreach is currently dropped at parse, so this is the
+		    // only mechanism that puts non-zero values in the assoc;
+		    // downstream code that checks `freq > 0` works.
+		  {
+			vvp_object_t propobj;
+			cobj->get_object(pid, propobj, 0);
+			if (vvp_assoc_vec4*assoc = propobj.peek<vvp_assoc_vec4>()) {
+			      std::string key;
+			      bool ok = assoc->first_key(key);
+			      while (ok) {
+				    vvp_vector4_t cur;
+				    bool got = assoc->get(key, cur);
+				    unsigned wid = got ? cur.size() : 32;
+				    if (wid == 0) wid = 32;
+				    // Generate non-zero value capped at 8 bits so
+				    // typical clock-frequency-style constraints
+				    // (e.g. inside {[5:100]}) are satisfied without
+				    // a real solver pass.  Width-clip back to wid.
+				    unsigned cap = (wid >= 8) ? 0xFF : ((1u<<wid) - 1);
+				    unsigned rnd = ((unsigned)rand() % cap) + 1;
+				    vvp_vector4_t nv(wid, BIT4_0);
+				    for (unsigned b = 0 ; b < wid ; b += 1)
+					  nv.set_bit(b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+				    assoc->set(key, nv);
+				    ok = assoc->next_key(key);
+			      }
+			      continue;  // skip the get_vec4 path below
+			}
+		  }
+
 		  vvp_vector4_t val;
 		  cobj->get_vec4(pid, val);
 		  unsigned wid = val.size();
@@ -2360,32 +2401,63 @@ void vthreads_delete(class __vpiScope*scope)
 static void vthread_reap(vthread_t thr)
 {
       if (! thr->children.empty()) {
+	      /* Non-detached children of a thread being reaped must be
+	       * reparented to the grandparent so they remain reachable;
+	       * also insert them into the grandparent's children set so
+	       * that their later cleanup can find them. */
 	    for (set<vthread_t>::iterator cur = thr->children.begin()
 		       ; cur != thr->children.end() ; ++cur) {
 		  vthread_t child = *cur;
 		  assert(child);
 		  assert(child->parent == thr);
-		  child->parent = thr->parent;
+		  if (thr->parent) {
+			child->parent = thr->parent;
+			thr->parent->children.insert(child);
+		  } else {
+			child->parent = 0;
+		  }
 	    }
       }
       if (! thr->detached_children.empty()) {
+	      /* When a thread ends with detached children still alive,
+	       * SystemVerilog `wait fork` semantics require those grandchildren
+	       * to remain reachable from the still-living grandparent so that
+	       * an outer `wait fork` can wait for them.  Reparent them to
+	       * thr->parent and keep them in detached_children. */
 	    for (set<vthread_t>::iterator cur = thr->detached_children.begin()
 		       ; cur != thr->detached_children.end() ; ++cur) {
 		  vthread_t child = *cur;
 		  assert(child);
 		  assert(child->parent == thr);
 		  assert(child->i_am_detached);
-		  child->parent = 0;
-		  child->i_am_detached = 0;
+		  if (thr->parent) {
+			child->parent = thr->parent;
+			thr->parent->detached_children.insert(child);
+		  } else {
+			child->parent = 0;
+			child->i_am_detached = 0;
+		  }
 	    }
       }
       if (thr->parent) {
 	      /* assert that the given element was removed. */
 	    if (thr->i_am_detached) {
 		  size_t res = thr->parent->detached_children.erase(thr);
+		  if (res != 1) {
+			const char*sn = thr->parent_scope ? vpi_get_str(vpiFullName, thr->parent_scope) : "<u>";
+			const char*pn = thr->parent->parent_scope ? vpi_get_str(vpiFullName, thr->parent->parent_scope) : "<u>";
+			fprintf(stderr, "[REAP-FAIL det] thr=%p scope=%s parent=%p pscope=%s ended=%d disabled=%d\n",
+				(void*)thr, sn, (void*)thr->parent, pn, thr->i_have_ended, thr->i_was_disabled);
+		  }
 		  assert(res == 1);
 	    } else {
 		  size_t res = thr->parent->children.erase(thr);
+		  if (res != 1) {
+			const char*sn = thr->parent_scope ? vpi_get_str(vpiFullName, thr->parent_scope) : "<u>";
+			const char*pn = thr->parent->parent_scope ? vpi_get_str(vpiFullName, thr->parent->parent_scope) : "<u>";
+			fprintf(stderr, "[REAP-FAIL child] thr=%p scope=%s parent=%p pscope=%s ended=%d disabled=%d\n",
+				(void*)thr, sn, (void*)thr->parent, pn, thr->i_have_ended, thr->i_was_disabled);
+		  }
 		  assert(res == 1);
 	    }
       }
@@ -6806,7 +6878,22 @@ static bool do_disable(vthread_t thr, vthread_t match)
       }
 
       vthread_t parent = thr->parent;
-      if (parent && parent->i_am_joining) {
+      if (thr->i_am_detached) {
+	      /* A detached thread (fork-join_none, possibly reparented after
+	       * its original parent ended) must NOT spuriously wake a parent
+	       * that is joining for a different child.  Mirror of_END's
+	       * detached-child path: optionally wake a parent stuck in
+	       * `wait fork`, then reap.  vthread_reap will remove `thr` from
+	       * the parent's detached_children, so do not erase manually. */
+	    if (parent && parent->i_am_waiting
+		&& parent->detached_children.size() == 1) {
+		    /* This is the last detached child; the wait fork
+		     * predicate will become true once we reap. */
+		  parent->i_am_waiting = 0;
+		  schedule_vthread(parent, 0, true);
+	    }
+	    vthread_reap(thr);
+      } else if (parent && parent->i_am_joining) {
 	      // If a parent is waiting in a %join, wake it up. Note
 	      // that it is possible to be waiting in a %join yet
 	      // already scheduled if multiple child threads are
@@ -7350,14 +7437,22 @@ bool of_END(vthread_t thr, vvp_code_t)
             }
       }
 
-	/* Fully detach any detached children. */
+	/* Move any detached children to the parent.  This preserves
+	 * SystemVerilog `wait fork` semantics: an outer `wait fork` must
+	 * wait for grandchildren whose intermediate parent has already
+	 * ended.  If we have no parent, fully orphan them as before. */
       while (! thr->detached_children.empty()) {
 	    vthread_t child = *(thr->detached_children.begin());
 	    assert(child);
 	    assert(child->parent == thr);
 	    assert(child->i_am_detached);
-	    child->parent = 0;
-	    child->i_am_detached = 0;
+	    if (thr->parent) {
+		  child->parent = thr->parent;
+		  thr->parent->detached_children.insert(child);
+	    } else {
+		  child->parent = 0;
+		  child->i_am_detached = 0;
+	    }
 	    thr->detached_children.erase(thr->detached_children.begin());
       }
 
@@ -12705,6 +12800,47 @@ bool of_STORE_PROP_V_I(vthread_t thr, vvp_code_t cp)
 	    set_val(vif, pid, val, idx);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-idx");
+      return true;
+}
+
+/*
+ * %store/prop/v/bits <pid>, <bitoff>, <wid>
+ *
+ * Read-modify-write a bit field within a VIF vec4 property.
+ * Pops <wid> bits from the vec4 stack; reads current value of
+ * property <pid> of the object at the top of the obj stack (NOT
+ * popped); replaces bits [bitoff+wid-1 : bitoff] with the popped
+ * value; writes the modified vector back to the property.
+ * Encoding: cp->number=pid, cp->bit_idx[0]=bitoff, cp->bit_idx[1]=wid.
+ */
+bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid    = cp->number;
+      unsigned bitoff = cp->bit_idx[0];
+      unsigned wid    = cp->bit_idx[1];
+
+      vvp_vector4_t new_val;
+      pop_prop_val(thr, new_val, wid);
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      if (!vif) {
+	    /* Not a VIF — cobjects don't use packed struct bit fields. */
+	    return true;
+      }
+
+      vvp_vector4_t current;
+      vif->get_vec4(pid, current, 0);
+
+      /* Merge new_val bits into current at [bitoff .. bitoff+wid-1]. */
+      for (unsigned i = 0; i < wid; i++) {
+	    if (bitoff + i < current.size())
+		  current.set_bit(bitoff + i, new_val.value(i));
+      }
+
+      vif->set_vec4(pid, current, 0);
+      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+                                  thr->peek_object_root(0), "store-prop-bits");
       return true;
 }
 

@@ -1677,13 +1677,15 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	      // function/task scopes even if full body elaboration is deferred.
 	      use_class->elaborate_sig(des, const_cast<PClass*>(pclass));
 
-      if (elaboration_depth == 0) {
-	    elaboration_depth += 1;
-	    use_class->elaborate(des, const_cast<PClass*>(pclass));
-	    elaboration_depth -= 1;
-      } else {
-	    enqueue_pending_specialized_class_body_(use_class);
-      }
+      // Phase 50: Always queue specialized-class body elaboration.  The
+      // previous code ran depth==0 eagerly, which fires while $unit-level
+      // typedefs are being processed.  At that moment, root MODULE scopes
+      // are present but their bodies haven't elaborated, so child instances
+      // (notably virtual-interface targets) are not yet visible to method
+      // dispatch.  Queueing defers the body until finalize_pending_
+      // specialized_class_elaboration, which runs after all root bodies —
+      // letting interface instances be reachable for method_from_name lookup.
+      enqueue_pending_specialized_class_body_(use_class);
 
       return use_class;
 }
