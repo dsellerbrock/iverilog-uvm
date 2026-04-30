@@ -127,6 +127,22 @@ static unsigned bv_width(Z3_context ctx, Z3_ast a)
       return 32;
 }
 
+/* Phase 56: coerce a Z3 AST to Bool sort.  SV logical operators (&&, ||,
+ * !) accept any-width vector operands and treat zero as false / non-zero
+ * as true.  Our IR uses Bool-typed Z3 ops (Z3_mk_and / Z3_mk_or /
+ * Z3_mk_not) so we have to bridge BitVec inputs by comparing to zero. */
+static Z3_ast bv_to_bool(Z3_context ctx, Z3_ast a)
+{
+      Z3_sort sort = Z3_get_sort(ctx, a);
+      if (Z3_get_sort_kind(ctx, sort) == Z3_BV_SORT) {
+	    unsigned w = Z3_get_bv_sort_size(ctx, sort);
+	    Z3_ast zero = Z3_mk_int(ctx, 0, Z3_mk_bv_sort(ctx, w));
+	    /* (a != 0) is true when a is non-zero. */
+	    return Z3_mk_distinct(ctx, 2, (Z3_ast[]){a, zero});
+      }
+      return a;
+}
+
 static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
 {
       par.skip_ws();
@@ -152,8 +168,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
       if (op.empty()) return b.mk_true();
 
       if (op == "and" || op == "or") {
-	    Z3_ast left  = build_z3_atom(par, b);
-	    Z3_ast right = build_z3_atom(par, b);
+	    Z3_ast left  = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    Z3_ast right = bv_to_bool(b.ctx, build_z3_atom(par, b));
 	    par.skip_ws(); par.expect(')');
 	    if (op == "and") {
 		  Z3_ast args[2] = {left, right};
@@ -165,9 +181,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
       }
 
       if (op == "not") {
-	    Z3_ast sub = build_z3_atom(par, b);
+	    /* SV `!x` returns a 1-bit value (1 if x==0 else 0).  Our IR
+	     * generator uses `(not x)` for this; downstream consumers
+	     * (e.g. `(eq lhs (not c:1))`) expect a BitVec result, not a
+	     * Bool.  Implement as ITE over a Bool view of the operand. */
+	    Z3_ast raw = build_z3_atom(par, b);
 	    par.skip_ws(); par.expect(')');
-	    return Z3_mk_not(b.ctx, sub);
+	    Z3_ast cond = bv_to_bool(b.ctx, raw);
+	    Z3_sort bv1 = Z3_mk_bv_sort(b.ctx, 1);
+	    Z3_ast one  = Z3_mk_unsigned_int64(b.ctx, 1, bv1);
+	    Z3_ast zero = Z3_mk_unsigned_int64(b.ctx, 0, bv1);
+	    /* If x is true (non-zero), !x = 0; if false, !x = 1. */
+	    return Z3_mk_ite(b.ctx, cond, zero, one);
       }
 
       // Binary comparison: lt le gt ge eq ne
