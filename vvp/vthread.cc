@@ -7788,6 +7788,20 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
                  on the write context stack. */
             child->wt_context = thr->wt_context;
             child->rd_context = thr->wt_context;
+            /* Phase 59: keep a retained self-reference to the just-allocated
+               autotask frame in owned_context.  Nested calls inside the
+               forked task body (e.g. forever loops with %alloc/%free for
+               sub-task calls) can sanitize or pop the wt/rd chains; without
+               a self-pin in owned_context the thread loses access to its
+               own `this` slot on subsequent iterations and reads it as nil.
+               Pin only when not already held to avoid clobbering a parent's
+               retained owned_context inheritance below. */
+            if (!child->owned_context
+                && context_live_matches_scope_(thr->wt_context, cp->scope)) {
+                  retain_context_chain_(thr->wt_context);
+                  child->owns_automatic_context = 1;
+                  child->owned_context = thr->wt_context;
+            }
       }
       if (thr->owned_context && !child->owned_context
           && context_live_in_owner(thr->owned_context)) {
