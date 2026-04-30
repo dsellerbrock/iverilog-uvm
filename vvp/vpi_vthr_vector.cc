@@ -734,10 +734,17 @@ void __vpiVThrVec4Stack::vpi_get_value_string_(p_vpi_value vp, const vvp_vector4
 void __vpiVThrVec4Stack::vpi_get_value_vector_(p_vpi_value vp, const vvp_vector4_t&val)
 {
       unsigned wid = val.size();
+      unsigned nwords = (wid+31)/32;
 
       vp->value.vector = static_cast<s_vpi_vecval*>
-                         (need_result_buf((wid+31)/32*sizeof(s_vpi_vecval), RBUF_VAL));
+                         (need_result_buf(nwords*sizeof(s_vpi_vecval), RBUF_VAL));
       assert(vp->value.vector);
+
+      // Phase 58: need_result_buf reuses one buffer across calls; bits beyond
+      // wid would leak prior aval/bval state and make $isunknown / vpiVectorVal
+      // return spurious X/Z. format_vpiVectorVal in vpi_signal.cc zeroes for
+      // the same reason.
+      memset(vp->value.vector, 0, nwords*sizeof(s_vpi_vecval));
 
       for (unsigned idx = 0 ;  idx < wid ;  idx += 1) {
 	    int word = idx/32;

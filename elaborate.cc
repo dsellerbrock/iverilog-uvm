@@ -7563,13 +7563,16 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
       delete wait_set;
       des->add_node(wait_pr);
 
-      // Phase 55: Detect VIF signal chain in wait() for RTL-driven wakeup.
+      // Phase 55/58: Detect VIF signal chain in wait() for RTL-driven wakeup.
       // Mirrors the @(posedge/anyedge) detection at lines ~7067-7123.
-      // expr here is NetEBComp('N', original_cond, 1'b1) due to line ~7367
-      // inversion, so we recurse into binary subexpressions to find the chain.
+      // expr here is NetEBComp('N', original_cond, 1'b1) due to the inversion
+      // above, plus an optional NetEUReduce wrapper for multi-bit conditions.
+      // Recurse into binary, unary, and system-function subexpressions to find
+      // the chain. Stop on first match so we don't double-record the slot.
       {
-	    std::function<void(const NetExpr*)> try_set_vif_anyedge;
-	    try_set_vif_anyedge = [&](const NetExpr*e) {
+	    std::function<bool(const NetExpr*)> try_set_vif_anyedge;
+	    try_set_vif_anyedge = [&](const NetExpr*e) -> bool {
+		  if (!e) return false;
 		  NetEProperty*outer_p = dynamic_cast<NetEProperty*>(
 		      const_cast<NetExpr*>(e));
 		  if (outer_p && !outer_p->get_sig()) {
@@ -7600,25 +7603,41 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 						      pre_N = cfg_idx;
 						      vif_host_cls = cfg_cls;
 						} else {
-						      return;
+						      return false;
 						}
 					  }
 					  ivl_type_t pt = vif_host_cls->get_prop_type(
 					      mid_p->property_idx());
 					  const netclass_t*vif_cls = dynamic_cast<const netclass_t*>(pt);
-					  if (vif_cls && vif_cls->is_interface())
+					  if (vif_cls && vif_cls->is_interface()) {
 						wait_pr->set_vif_anyedge(mid_p->property_idx(),
 									 outer_p->property_idx(), pre_N);
+						return true;
+					  }
 				    }
 			      }
 			}
-			return;
+			return false;
 		  }
-		  // Recurse into binary subexpressions to find the VIF chain.
 		  if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(e)) {
-			try_set_vif_anyedge(bin->left());
-			try_set_vif_anyedge(bin->right());
+			if (try_set_vif_anyedge(bin->left())) return true;
+			return try_set_vif_anyedge(bin->right());
 		  }
+		  // Phase 58: dive through NetEUnary so wait(!$isunknown(vif.sig))
+		  // and the implicit NetEUReduce wrapper for multi-bit conditions
+		  // can find the chain.
+		  if (const NetEUnary*un = dynamic_cast<const NetEUnary*>(e)) {
+			return try_set_vif_anyedge(un->expr());
+		  }
+		  // Phase 58: dive through system-function args so vif chains
+		  // inside $isunknown / $past / etc. are detected.
+		  if (const NetESFunc*sf = dynamic_cast<const NetESFunc*>(e)) {
+			for (unsigned i = 0; i < sf->nparms(); ++i) {
+			      if (try_set_vif_anyedge(sf->parm(i))) return true;
+			}
+			return false;
+		  }
+		  return false;
 	    };
 	    try_set_vif_anyedge(expr);
       }
