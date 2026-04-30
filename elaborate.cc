@@ -6808,8 +6808,47 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  symbol_search(this, des, scope, id->path(), id->lexical_pos(), &sr);
 		  size_t base_path_components = 0;
 
+		  /* Phase 55: simple clocking-block reference like `@cb` from
+		   * inside the same interface (or task within it) -- the
+		   * `cb` identifier is a single-name path that doesn't pass
+		   * the path_tail check in resolve_interface_clocking_block_from_search_.
+		   * Walk the scope chain looking for an enclosing class
+		   * (interface) that defines the named clocking block.  If
+		   * found, fall through to the existing rewrite that
+		   * substitutes the clocking-block's underlying event
+		   * expression (e.g. @(posedge clk)).  Without this, the
+		   * `@cb` event got skipped at compile-progress fallback,
+		   * which broke wait_clks (= repeat (N) @cb) -- it would
+		   * return without waiting and apply_reset's o_rst_n NBAs
+		   * collapsed before the testbench clock could start. */
+		  /* Cache for the pform PClocking we discovered while walking
+		   * scopes -- used by the rewrite path below to substitute
+		   * the underlying event expression. */
+		  const Module::PClocking*pform_clocking_inner = nullptr;
+		  if (id->path().size() == 1 && gn_system_verilog()) {
+			perm_string cb_name = id->path().back().name;
+			for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
+			      /* Interface scopes appear as MODULE-type NetScopes
+			       * with is_interface()==true; their pform side has
+			       * the clocking_blocks map.  Class scopes use
+			       * netclass_t::find_clocking_block (already covered
+			       * by the existing path_tail-based resolver). */
+			      if (walker->type() != NetScope::MODULE)
+				    continue;
+			      perm_string mn = walker->module_name();
+			      if (mn.nil()) continue;
+			      auto pmod_it = pform_modules.find(mn);
+			      if (pmod_it == pform_modules.end()) continue;
+			      auto cb_it = pmod_it->second->clocking_blocks.find(cb_name);
+			      if (cb_it != pmod_it->second->clocking_blocks.end()) {
+				    pform_clocking_inner = cb_it->second;
+				    break;
+			      }
+			}
+		  }
+
 		  const netclass_t::clocking_block_t*clocking =
-			      resolve_interface_clocking_block_from_search_(sr, base_path_components);
+			resolve_interface_clocking_block_from_search_(sr, base_path_components);
 		  /* resolve_interface_clocking_block_from_search_ sets
 		     base_path_components = offset (0-based index into
 		     sr.path_tail where the clocking block was found).
@@ -6822,6 +6861,18 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			? clocking->event
 			: resolve_interface_pform_clocking_event_(id, sr, scope_cb_name,
 							      base_path_components);
+		  /* Phase 55: pform-side clocking-block lookup for the simple
+		   * `@cb` form within the same interface body or task. */
+		  if (!pform_event && pform_clocking_inner) {
+			pform_event = pform_clocking_inner->event;
+			scope_cb_name = pform_clocking_inner->name;
+			/* Same-scope clocking block: the underlying event
+			 * identifier (e.g. `clk`) resolves in the caller's
+			 * scope without any prefix.  base_path_components=0
+			 * makes build_interface_clocking_event_path_ skip
+			 * prefix prepending. */
+			base_path_components = 0;
+		  }
 		  if (clocking || pform_event) {
 			if (expr_[0]->type() != PEEvent::ANYEDGE) {
 			      cerr << get_fileline() << ": error: edge qualifiers may not be applied "
