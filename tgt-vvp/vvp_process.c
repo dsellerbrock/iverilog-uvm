@@ -2379,9 +2379,165 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
       return 0;
 }
 
+/* Phase 54: deferred interface task dispatch.  When iverilog can't
+ * statically resolve cfg.iface.method() at elaboration time (because the
+ * caller's class body elaborates before the testbench's interface
+ * instance scope is populated), elaborate.cc emits a NetSTask with name
+ * "$ivl_iface_late$<iface>$<method>" carrying the user-supplied args.
+ * Here we walk the design tree (now fully populated at code-gen time)
+ * to find the unique interface instance scope and emit a real %callf or
+ * %fork to its method scope.  Unsupplied ports keep their auto-init
+ * zero defaults from the .var declarations -- sufficient for OpenTitan's
+ * apply_reset()/drive_rst_pin() pattern (rst_n_scheme=0 still drives
+ * o_rst_n=0 then 1, repeat(0) skips, so the rst_n line still toggles).
+ */
+/* Walk the design and pick the BEST interface instance whose tname (the
+ * module/interface type) matches the target.  We prefer:
+ *   1. Instances whose basename equals the type name (the OpenTitan
+ *      convention of `clk_rst_if clk_rst_if(...)` in the tb top).
+ *   2. Otherwise the first instance encountered.
+ * Returns null only if no instance is found at all.  Returns the
+ * preferred match if multiple exist. */
+static void find_module_scope_recurse_(ivl_scope_t node, const char*target,
+                                       ivl_scope_t*best, ivl_scope_t*first)
+{
+      if (!node) return;
+      if (ivl_scope_type(node) == IVL_SCT_MODULE
+          && strcmp(ivl_scope_tname(node), target) == 0) {
+            if (!*first) *first = node;
+            if (!*best
+                && strcmp(ivl_scope_basename(node), target) == 0) {
+                  *best = node;
+            }
+      }
+      for (size_t i = 0 ; i < ivl_scope_childs(node) ; i += 1)
+            find_module_scope_recurse_(ivl_scope_child(node, i), target,
+                                       best, first);
+}
+
+static int show_iface_late_call(ivl_statement_t net)
+{
+      const char*stmt_name = ivl_stmt_name(net);
+      const char*p = stmt_name + 16; /* skip "$ivl_iface_late$" */
+      const char*sep = strchr(p, '$');
+      if (!sep) {
+            fprintf(stderr, "Warning: malformed $ivl_iface_late name '%s'; skipping\n",
+                    stmt_name);
+            return 0;
+      }
+      char iface_name[256];
+      size_t ifn_len = sep - p;
+      if (ifn_len >= sizeof(iface_name)) ifn_len = sizeof(iface_name) - 1;
+      memcpy(iface_name, p, ifn_len);
+      iface_name[ifn_len] = '\0';
+      const char*method_name = sep + 1;
+
+      ivl_design_t des = vvp_get_saved_design();
+      if (!des) return 0;
+      ivl_scope_t*roots = 0;
+      unsigned nroots = 0;
+      ivl_design_roots(des, &roots, &nroots);
+      ivl_scope_t best = 0, first = 0;
+      for (unsigned i = 0 ; i < nroots ; i += 1)
+            find_module_scope_recurse_(roots[i], iface_name, &best, &first);
+      ivl_scope_t found = best ? best : first;
+
+      if (!found) {
+            static int warned = 0;
+            if (!warned) {
+                  fprintf(stderr,
+                          "Warning: deferred interface call %s.%s -- no instance found\n",
+                          iface_name, method_name);
+                  warned = 1;
+            }
+            return 0;
+      }
+
+      /* Find the method scope as a child of `found`. */
+      ivl_scope_t method = 0;
+      for (size_t i = 0 ; i < ivl_scope_childs(found) ; i += 1) {
+            ivl_scope_t ch = ivl_scope_child(found, i);
+            if (ch && (ivl_scope_type(ch) == IVL_SCT_TASK
+                       || ivl_scope_type(ch) == IVL_SCT_FUNCTION)
+                && strcmp(ivl_scope_basename(ch), method_name) == 0) {
+                  method = ch;
+                  break;
+            }
+      }
+      if (!method) {
+            fprintf(stderr,
+                    "Warning: deferred interface call %s.%s -- method not found; skipping\n",
+                    iface_name, method_name);
+            return 0;
+      }
+
+      const char*mangled = vvp_mangle_id(ivl_scope_name(method));
+      if (!mangled) return 0;
+      note_td_reference(mangled);
+
+      int is_auto = ivl_scope_is_auto(method);
+      if (is_auto)
+            fprintf(vvp_out, "    %%alloc S_%p;\n", method);
+
+      /* Map caller-supplied parms to the task's ports.  ivl_scope_port(method, i)
+       * returns the i-th port; for an interface task there's no implicit `this`,
+       * so port[0] is the first user-visible argument. */
+      unsigned nparms = ivl_stmt_parm_count(net);
+      unsigned nports = ivl_scope_ports(method);
+      for (unsigned i = 0 ; i < nparms && i < nports ; i += 1) {
+            ivl_expr_t pe = ivl_stmt_parm(net, i);
+            if (!pe) continue;
+            ivl_signal_t port = ivl_scope_port(method, i);
+            if (!port) continue;
+            ivl_variable_type_t pt = ivl_signal_data_type(port);
+            switch (pt) {
+                case IVL_VT_BOOL:
+                case IVL_VT_LOGIC:
+                  draw_eval_vec4(pe);
+                  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+                          port, ivl_signal_width(port));
+                  break;
+                case IVL_VT_REAL:
+                  draw_eval_real(pe);
+                  fprintf(vvp_out, "    %%store/real v%p_0;\n", port);
+                  break;
+                case IVL_VT_STRING:
+                  draw_eval_string(pe);
+                  fprintf(vvp_out, "    %%store/str v%p_0;\n", port);
+                  break;
+                case IVL_VT_CLASS:
+                case IVL_VT_DARRAY:
+                case IVL_VT_QUEUE:
+                  draw_eval_object(pe);
+                  fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
+                  break;
+                default:
+                  break;
+            }
+      }
+
+      /* Tasks use %fork ... %join to maintain the run-to-completion semantics
+       * of a blocking call.  Functions would use %callf/* but interface
+       * methods called as tasks are always tasks here. */
+      if (ivl_scope_type(method) == IVL_SCT_FUNCTION) {
+            fprintf(vvp_out, "    %%callf/void TD_%s, S_%p;\n", mangled, method);
+      } else {
+            fprintf(vvp_out, "    %%fork TD_%s, S_%p;\n", mangled, method);
+            fprintf(vvp_out, "    %%join;\n");
+      }
+
+      if (is_auto)
+            fprintf(vvp_out, "    %%free S_%p;\n", method);
+
+      return 0;
+}
+
 static int show_system_task_call(ivl_statement_t net)
 {
       const char*stmt_name = ivl_stmt_name(net);
+
+      if (strncmp(stmt_name, "$ivl_iface_late$", 16) == 0)
+	    return show_iface_late_call(net);
 
       if (strcmp(stmt_name,"$ivl_darray_method$delete") == 0)
 	    return show_delete_method(net);

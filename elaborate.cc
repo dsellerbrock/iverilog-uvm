@@ -5710,6 +5710,85 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  // a compile-progress warning and emit a noop stub so
 		  // elaboration can continue producing a VVP file.
 		  if (!class_type->scope_ready() || class_type->is_covergroup()) {
+			// Phase 54: deferred interface task dispatch.  When the
+			// caller is a parameterized class body that elaborates
+			// before the interface's testbench instance scope is
+			// populated, the regular method lookup fails and we
+			// fall through here.  For interface types where the
+			// pform definition exists and contains the requested
+			// task, emit a deferred NetSTask with name
+			// "$ivl_iface_late$<iface>$<method>".  The caller-
+			// supplied arguments are passed through as parms; the
+			// task will use the .var auto-init zero defaults for
+			// any unspecified ports (sufficient for the common
+			// OpenTitan apply_reset/drive_rst_pin pattern, since
+			// `repeat (0)` is a no-op and rst_n_scheme=0 picks the
+			// sync-deassert path that still toggles rst_n).
+			// tgt-vvp recognizes the name prefix, walks the design
+			// for a unique IVL_SCT_MODULE scope whose module_name
+			// matches <iface>, finds the child task scope by
+			// basename, and emits %callf/void with the resolved
+			// scope handle.
+			if (class_type->is_interface() && gn_system_verilog()) {
+			      auto pmod_it = pform_modules.find(class_type->get_name());
+			      if (pmod_it != pform_modules.end()
+				  && pmod_it->second->is_interface) {
+				    auto task_it =
+					  pmod_it->second->tasks.find(method_name);
+				    if (task_it != pmod_it->second->tasks.end()) {
+				    PTask*ptask = task_it->second;
+				    std::string defer_name = "$ivl_iface_late$";
+				    defer_name += class_type->get_name().str();
+				    defer_name += "$";
+				    defer_name += method_name.str();
+				    std::vector<NetExpr*> argv;
+				    for (size_t pi = 0 ; pi < parms_.size() ; pi += 1) {
+					  if (!parms_[pi].parm) {
+						argv.push_back(0);
+						continue;
+					  }
+					  NetExpr*ev =
+						elab_sys_task_arg(des, scope,
+								  method_name,
+								  pi, parms_[pi].parm);
+					  argv.push_back(ev);
+				    }
+				    // Pad missing args with the pform default
+				    // expressions evaluated in the caller's
+				    // scope.  This preserves SV semantics where
+				    // unsupplied args use the task's declared
+				    // default (e.g. apply_reset(reset_width_clks
+				    // = $urandom_range(50, 100), ...) requires
+				    // a non-zero width or rst_n won't actually
+				    // toggle through 0 to fire negedge events).
+				    const std::vector<pform_tf_port_t>*pports =
+					  ptask->peek_ports();
+				    if (pports) {
+					  for (size_t pi = parms_.size();
+					       pi < pports->size() ; pi += 1) {
+						pform_tf_port_t pp = (*pports)[pi];
+						if (pp.defe) {
+						      NetExpr*ev =
+							    elab_sys_task_arg(
+								des, scope,
+								method_name,
+								pi, pp.defe);
+						      argv.push_back(ev);
+						} else {
+						      argv.push_back(0);
+						}
+					  }
+				    }
+				    perm_string pn = perm_string::literal(strdup(defer_name.c_str()));
+				    NetSTask*sys = new NetSTask(pn.str(),
+								IVL_SFUNC_AS_TASK_IGNORE,
+								argv);
+				    sys->set_line(*this);
+				    delete obj_expr;
+				    return sys;
+				    }
+			      }
+			}
 			cerr << get_fileline() << ": warning: "
 			     << "Enable of unknown task ``"
 			     << method_name << "'' ignored"
