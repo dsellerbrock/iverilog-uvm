@@ -81,6 +81,15 @@ results — and upstream each fix as a minimal, reviewable patch.
 | Program blocks | ✅ | Treated like modules |
 | Output-arg into nested class property (e.g. `env.cfg.vif`) | ✅ | inout writeback through `cfg.vif`, `env.cfg.vif`, etc. |
 | Output-arg into indexed property (`cfg.q[key]`) | ⚠ Deferred | Writeback skipped — see Issue #27 OpenTitan DV |
+| `q.push_back("str")` element-type dispatch | ✅ | Phase 50d — was using value-expr type, now uses queue's element type |
+| `pre_randomize()` / `post_randomize()` callbacks | ✅ | Phase 50e — tgt-vvp emits `%callf/void` to inherited hooks around `%randomize` |
+| `cfg.aa["key"]` read via class-property chain | ✅ | Phase 50f — `draw_select_vec4` distinguishes assoc-compat from queue containers |
+| Deferred interface task dispatch (parameterized callers) | ✅ | Phase 54 — emits `$ivl_iface_late$<iface>$<method>` NetSTask, tgt-vvp resolves at code-gen via design walk; pform default args evaluated in caller scope |
+| Same-scope `@cb` (clocking-block) event | ✅ | Phase 55 — scope-walk lookup of pform `Module::clocking_blocks` rewrites `@cb` → underlying `@(posedge clk)` |
+| Z3 BV/Bool sort coercion in `randomize()` | ✅ | Phase 56 — SV `!x` produces `(not x)` IR; ITE returns `BV[1]`; `and`/`or` operands coerced via `(a != 0)` |
+| `wait()`-loop sensitivity through virtual-interface chain | ⚠ Open | iverilog's nex_input on a `NetEProperty` chain returns the root `this` nexus, not the iface signal — see Issue #28 |
+| UVM port-imp virtual dispatch (`seq_item_port.try_next_item`) | ⚠ Open | Falls through to `uvm_sqr_if_base` error stub — see Issue #29 |
+| Class property handle preservation across method-internal control flow | ⚠ Open | `cfg` reads non-null at `a_channel_thread` entry, null 20 ns later in callee — see Issue #30 |
 
 ---
 
@@ -363,7 +372,7 @@ applied via a prelude `.scr` file, matching the dvsim flow).
 
 ## Test Results
 
-All 23 UVM regression tests pass:
+All UVM regression tests pass (~30 tests including new Phase 50d/e/f, 54, 55, 56 reproducers):
 
 | Test | What It Exercises | Result |
 |---|---|---|
@@ -389,6 +398,13 @@ All 23 UVM regression tests pass:
 | `dpi_real_test.sv` | DPI `c_sqrt`, `c_pow` with real args | ✅ PASS |
 | `dist_test.sv` | `dist` weighted constraint parses; randomize succeeds 10/10 | ✅ PASS |
 | `dist_constraint_test.sv` | `dist` ranges enforced via `inside`; all `clk_freq_mhz` in [5:100] (Phase 8) | ✅ PASS |
+| `pre_post_randomize_test.sv` | `pre_randomize`/`post_randomize` callbacks fire and counters increment (Phase 50e) | ✅ PASS |
+| `post_member_assoc_test.sv` | `cfg.aa["key"] = 99` inside `post_randomize` persists across class-property chain (Phase 50f) | ✅ PASS |
+| `cfg_aa_read_test.sv` | `cfg.aa["key"]` read via class-property chain returns the assoc-stored value (Phase 50f) | ✅ PASS |
+| `queue_push_test.sv` | `q.push_back("str")` for string queue dispatches via element type (Phase 50d) | ✅ PASS |
+| `iface_late_apply_test.sv` | Interface task call from a class through `cfg.vifs[key].apply_reset()` (Phase 54) | ✅ PASS |
+| `iface_late_param_test.sv` | Parameterized base sequence with fork/join_none + wait fork pattern (Phase 54) | ✅ PASS |
+| `wait_clks_test.sv` | `wait_clks(N)` over `clocking cb @(posedge clk)` waits the right number of cycles (Phase 55) | ✅ PASS |
 | `plusargs_class_string_test.sv` | `$value$plusargs` writes to class string property via `&CPS` handle (Phase 51) | ✅ PASS |
 
 The branch also adds **83 new tests** to `ivtest/regress-sv.list` covering SV class

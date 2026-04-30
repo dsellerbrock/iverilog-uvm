@@ -897,6 +897,28 @@ The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remai
 - Some parameterized factory override combinations
 - `uvm_reg_frontdoor` (gap: `atomic_lock`, `start`, `atomic_unlock`)
 
+### OpenTitan UART DV — Three Open Issues After Phase 56
+
+**Status:** UART DV simulation reaches `uart_smoke_vseq starting run 1/2`. Three remaining issues track the path to full pass:
+
+- **#29 — Phase 58: wait()-loop sensitivity through virtual-interface signal chain.**
+  `wait(<vif-chain-expr>)` does not trigger when the underlying VIF signal changes;
+  `nex_input` on a `NetEProperty` chain returns the root `this` nexus, not the iface signal.
+  The `%wait/vif/anyedge` opcode and `set_vif_anyedge` netlist marker exist (used by
+  `@(vif edge)`) but `wait()`-loop elaboration doesn't wire them. OT workaround: replace
+  `wait(!\$isunknown(vif.rst_n))` with `@(vif.rst_n)` (committed in opentitan
+  iverilog-uvm branch `3416154`).
+
+- **#30 — Phase 59: UVM port-imp virtual dispatch (`seq_item_port.try_next_item`).**
+  Dispatch through `uvm_seq_item_pull_port` → `m_imp` → user sequencer falls through to
+  the `uvm_sqr_if_base` error stub instead of the sequencer's override. Same family as
+  Phase 50 (parameterized class indexed-vif method dispatch through fork).
+
+- **#31 — Phase 60: Class-property handle (`cfg`) reads null mid-method execution.**
+  Property reads non-null at method entry, null 20 ns later in the same method's call
+  to a sibling task. No explicit assignment in between. Likely fork/control-flow boundary
+  losing class-property state. Causes vvp core dump on `%wait/vif/posedge` assertion.
+
 ### OpenTitan `lc_ctrl_pkg.sv` and `tlul_pkg.sv`
 
 **Status:** ✅ Compile cleanly as of Phase 9.
@@ -920,6 +942,15 @@ All 86 commits ahead of `steveicarus/iverilog` `master`:
 
 | Hash | Phase | Description |
 |---|---|---|
+| `0b64ab3e8` | 56 | Z3 BV/Bool sort coercion in randomize logical ops (`(not x)` → ITE BV[1]; `and`/`or` operands coerced via `(a != 0)`) |
+| `66e5e80a4` | 55 | Same-scope `@cb` (clocking-block) event resolution via scope-walk lookup of pform `Module::clocking_blocks` |
+| `a085db844` | 54 | Deferred interface task dispatch via tgt-vvp late binding (`$ivl_iface_late$<iface>$<method>` NetSTask; pform default args evaluated in caller scope) |
+| `0e196c4fd` | 50d/e/f | Queue push_back element-type dispatch; pre/post_randomize hook emission; assoc-read via class-property chain |
+| `54ffdb9d3` | 53 | Parameterized-class body deferral, rand assoc-vec4 randomization, wait_fork descendants reparenting |
+| `a735e6273` | 52 | Autofunction copy-out fix and get_func fork-body walk |
+| `e0716e3f0` | 50 | Skip `_ivl_N` suffix in VVP runtime dispatch |
+| `48108152a` | 51 | `$value$plusargs` to class string property via `&CPS` VPI handle |
+| `6c26198c1` | 8 | Lower `dist` constraint ranges to `inside` |
 | `11ba528` | 33 | `sequence`/`property` declarations parse via error recovery; body dropped |
 | `382961c` | 32 | `default disable iff (...)` and `default clocking ... endclocking` parse silently at module scope |
 | `6b9509b` | 31 | `assert property (... \|-> ...)` and `\|=>` parse without erroring; gn_unsupported_assertions defaults to false |
