@@ -3253,10 +3253,16 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
          wt's HEAD does NOT match the requested scope but rd's HEAD does,
          we must read from rd's HEAD rather than walking deeper into wt --
          deeper wt entries can hold stale frames of the same scope from an
-         outer mutually-recursive call. */
-      vvp_context_t wt_context = first_live_context_for_scope(running_thread->wt_context, ctx_scope);
-      vvp_context_t rd_context = first_live_context_for_scope(running_thread->rd_context, ctx_scope);
-      vvp_context_t owned_context = first_live_context_for_scope(running_thread->owned_context, ctx_scope);
+         outer mutually-recursive call.
+
+         Phase 59 perf: defer the three first_live_context_for_scope chain
+         walks until we know the heads don't match.  In the common case
+         (the head IS the right context), we skip the chain walks entirely.
+         These chain walks are O(N) hash lookups each and were dominating
+         scoped-read time in OT-class testbenches. */
+      vvp_context_t wt_context = 0;
+      vvp_context_t rd_context = 0;
+      vvp_context_t owned_context = 0;
       vvp_context_t use_context = 0;
       const char*source = "none";
 
@@ -3268,15 +3274,20 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
                  && context_live_matches_scope_(running_thread->rd_context, ctx_scope)) {
             use_context = running_thread->rd_context;
             source = "rd-head";
-      } else if (wt_context) {
-            use_context = wt_context;
-            source = "wt";
-      } else if (rd_context) {
-            use_context = rd_context;
-            source = "rd";
-      } else if (owned_context) {
-            use_context = owned_context;
-            source = "owned";
+      } else {
+            wt_context = first_live_context_for_scope(running_thread->wt_context, ctx_scope);
+            rd_context = first_live_context_for_scope(running_thread->rd_context, ctx_scope);
+            owned_context = first_live_context_for_scope(running_thread->owned_context, ctx_scope);
+            if (wt_context) {
+                  use_context = wt_context;
+                  source = "wt";
+            } else if (rd_context) {
+                  use_context = rd_context;
+                  source = "rd";
+            } else if (owned_context) {
+                  use_context = owned_context;
+                  source = "owned";
+            }
       }
       if (!use_context) {
             if (trace_this) {
