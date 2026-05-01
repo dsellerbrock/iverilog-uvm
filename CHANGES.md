@@ -1082,6 +1082,13 @@ All 86 commits ahead of `steveicarus/iverilog` `master`:
 
 | Hash | Phase | Description |
 |---|---|---|
+| `fc8e3db91` | 62e | C6 — Parse `std::randomize(var) with{}` as bare statement and void'() form |
+| `9e9dd8eb8` | 62d | C5 — Streaming concatenation operators (RHS bit-reverse and chunk-reverse) |
+| `314b3a38c` | 62c | I4 — Soft constraints via Z3_optimize_assert_soft |
+| `6b3300cb5` | 62b | C7 — Dist weighting via Z3 soft assertions per branch (real probabilistic semantics) |
+| `5eff7c48f` | 62a + I7 | C1 randc cyclic randomization (per-property history bitmap); silence vvp_queue_object get_word warning |
+| `b9450999b` | 62 / I6 | Parse tagged union (treated as plain union; semantics unenforced) |
+| `e66a4ad5e` | 61e | Bypass malloc_usable_size globally in vvp_get_context_item |
 | `2a1680d41` | 61d | Bypass malloc_usable_size in signal_object_aa slot getter |
 | `d49afb836` | 61c | O(1) suffix index for runtime virtual-dispatch lookup (replaces O(M) linear scan) |
 | `86ee43659` | 61b | Hoist malloc_usable_size bounds check from anyedge_aa fallback loop |

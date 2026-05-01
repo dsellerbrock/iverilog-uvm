@@ -92,6 +92,17 @@ results — and upstream each fix as a minimal, reviewable patch.
 | Time literals in class methods | ✅ | Phase 60 — `pform_set_scope_timescale` propagates the file's `` `timescale`` to PClass; `#100ns` no longer evaluates to 0 or 1e9× too long |
 | Runtime virtual-dispatch suffix lookup O(1) | ✅ | Phase 61c — `runtime_lookup_code_scope_by_suffix_` uses a parallel suffix index instead of linear scan; ~57% of CPU eliminated under heavy virtual-method workloads |
 | anyedge_aa null-context fallback gating | ✅ | Phase 61/61b — skip recursive recv_object delivery to no-waiter contexts; hoist malloc_usable_size bounds check; closes 30µs CPU-loop hang in OT smoke |
+| `randc` cyclic semantics | ✅ | Phase 62a — per-property history bitmap; randomize() picks unused values until cycle exhausts (capped at 16-bit width = 65536 period). 2-bit randc visits all 4 values uniquely in first cycle. |
+| `dist` weighted distribution | ✅ | Phase 62b — `(dist <expr> (b W <range>) ...)` IR opcode; Z3_optimize_assert_soft per branch with weight. `x dist {0:=90, 1:=10}` produces 91/9 over 100 iterations. |
+| `soft` constraints | ✅ | Phase 62c — wraps in `(soft <expr>)` IR; Z3_optimize_assert_soft default weight 256 dominates bvxor diversity. Hard constraints still override soft. |
+| Streaming concatenation `{<<N{x}}` (RHS) | ✅ | Phase 62d — bit-reverse and chunk-reverse via NetEConcat of NetESelect. `{>>}` identity. Width%N remainder placed at LSB. LHS form deferred. |
+| Tagged unions (parse) | ✅ | Phase 62 / I6 — `union tagged { ... }` parses, lowered to plain union (tag values not enforced). |
+| `std::randomize(var) with{}` (parse) | ⚠ Stub | Phase 62e / C6 — bare-statement and void'() forms now parse (no Malformed-statement error). Runtime constraint solving for non-class vars still no-op. |
+| Concurrent assertions (`assert property`) | ⚠ Stub | C2 deferred — false-pass risk; multi-week semantics work to enable real |->/|=>/disable iff. |
+| Coverage `cross` / `illegal_bins` | ⚠ Stub | I1 deferred — parser drops cross items at parse.y:2433; needs covergroup runtime + tgt-vvp metadata. |
+| `uvm_object.print()` printer dispatch | ⚠ Stub | I2 deferred — virtual dispatch on uvm_table_printer::emit falls through to uvm_printer base. Same family as Phase 61c suffix-index work. |
+| `uvm_resource_db#(T)::set/read_by_name` | ⚠ Stub | C3 deferred — runtime warnings on parameterized class typed pool ("signal assoc on unexpected container type"). |
+| `uvm_cmdline_processor.get_args()` | ⚠ DPI | C4 deferred — needs DPI lib (script: scripts/build_uvm_dpi_iverilog.sh) plus downstream vthread::pop_str robustness fix. |
 | `wait()`-loop sensitivity through virtual-interface chain | ⚠ Open | iverilog's nex_input on a `NetEProperty` chain returns the root `this` nexus, not the iface signal — see Issue #28 |
 | UVM port-imp virtual dispatch (`seq_item_port.try_next_item`) | ⚠ Open | Falls through to `uvm_sqr_if_base` error stub — see Issue #29 |
 | Class property handle preservation across method-internal control flow | ⚠ Open | `cfg` reads non-null at `a_channel_thread` entry, null 20 ns later in callee — see Issue #30 |
