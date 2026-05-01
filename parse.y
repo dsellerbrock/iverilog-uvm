@@ -5454,6 +5454,29 @@ struct_data_type /* IEEE 1800-2012 A.2.2.1 */
 	tmp->members .reset($4);
 	$$ = tmp;
       }
+  /* Tagged union — IEEE 1800-2017 §7.3.2.  Currently parses and lowers to
+     a regular union; tag values and pattern-matching are not enforced.
+     Without this rule, real testbenches that use `union tagged { ... }`
+     fail with a syntax error. */
+  | K_union K_tagged packed_signing '{' struct_union_member_list '}'
+      { struct_type_t*tmp = new struct_type_t;
+	FILE_NAME(tmp, @1);
+	tmp->packed_flag = $3.packed_flag;
+	tmp->signed_flag = $3.signed_flag;
+	tmp->union_flag = true;
+	tmp->members .reset($5);
+	$$ = tmp;
+      }
+  | K_union K_tagged packed_signing '{' error '}'
+      { yyerror(@4, "warning: tagged-union member list parse failure; treating as empty.");
+	yyerrok;
+	struct_type_t*tmp = new struct_type_t;
+	FILE_NAME(tmp, @1);
+	tmp->packed_flag = $3.packed_flag;
+	tmp->signed_flag = $3.signed_flag;
+	tmp->union_flag = true;
+	$$ = tmp;
+      }
   | K_struct packed_signing '{' error '}'
       { yyerror(@3, "error: Errors in struct member list.");
 	yyerrok;
