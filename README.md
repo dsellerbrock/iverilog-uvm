@@ -62,7 +62,7 @@ results — and upstream each fix as a minimal, reviewable patch.
 | Class fixed-size array properties | ✅ | `int data[N]` member fields |
 | OpenTitan `dv_base_reg_pkg` compilation | ✅ | Through `tl_agent_pkg` |
 | OpenTitan UART DV compile + UVM boot | ✅ | Full RTL+DV bundle compiles; runs uart_base_test through RAL setup |
-| OpenTitan UART DV `uart_smoke_vseq` end-to-end | ✅ | Test sequence runs to completion, watchdog drains, exit=0 |
+| OpenTitan UART DV `uart_smoke_vseq` linear progress | ✅ | Phase 60-61d: smoke advances ~1.76ms sim time in 2hr wallclock without crashing (was 30µs hang). 0 fatals. End-to-end completion is throughput-bound, not bug-bound — see CHANGES.md §12 |
 | `pkg::func()` inside class method | ✅ | Was previously mis-resolving to virtual-method-on-this — Phase 25 |
 | `inside { queue }` runtime membership | ✅ | `%inside/arr` opcode; correctly terminates `while inside` loops |
 | Queue `.sort()`, `.rsort()`, `.unique()` | ✅ | vec4/real/string elements; iterator-arg form accepted |
@@ -87,6 +87,11 @@ results — and upstream each fix as a minimal, reviewable patch.
 | Deferred interface task dispatch (parameterized callers) | ✅ | Phase 54 — emits `$ivl_iface_late$<iface>$<method>` NetSTask, tgt-vvp resolves at code-gen via design walk; pform default args evaluated in caller scope |
 | Same-scope `@cb` (clocking-block) event | ✅ | Phase 55 — scope-walk lookup of pform `Module::clocking_blocks` rewrites `@cb` → underlying `@(posedge clk)` |
 | Z3 BV/Bool sort coercion in `randomize()` | ✅ | Phase 56 — SV `!x` produces `(not x)` IR; ITE returns `BV[1]`; `and`/`or` operands coerced via `(a != 0)` |
+| `wait()`-loop sensitivity through VIF chain | ✅ | Phase 58 — `try_set_vif_anyedge` recurses NetEUnary/NetESFunc; `vpi_get_value_vector_` zeros buffer to fix bval bleed |
+| Autotask self-frame pinning across forks | ✅ | Phase 59 — closes "cfg=null mid-method" and "try_next_item dispatch fail" by retaining the autotask's own frame in `owned_context` |
+| Time literals in class methods | ✅ | Phase 60 — `pform_set_scope_timescale` propagates the file's `` `timescale`` to PClass; `#100ns` no longer evaluates to 0 or 1e9× too long |
+| Runtime virtual-dispatch suffix lookup O(1) | ✅ | Phase 61c — `runtime_lookup_code_scope_by_suffix_` uses a parallel suffix index instead of linear scan; ~57% of CPU eliminated under heavy virtual-method workloads |
+| anyedge_aa null-context fallback gating | ✅ | Phase 61/61b — skip recursive recv_object delivery to no-waiter contexts; hoist malloc_usable_size bounds check; closes 30µs CPU-loop hang in OT smoke |
 | `wait()`-loop sensitivity through virtual-interface chain | ⚠ Open | iverilog's nex_input on a `NetEProperty` chain returns the root `this` nexus, not the iface signal — see Issue #28 |
 | UVM port-imp virtual dispatch (`seq_item_port.try_next_item`) | ⚠ Open | Falls through to `uvm_sqr_if_base` error stub — see Issue #29 |
 | Class property handle preservation across method-internal control flow | ⚠ Open | `cfg` reads non-null at `a_channel_thread` entry, null 20 ns later in callee — see Issue #30 |
