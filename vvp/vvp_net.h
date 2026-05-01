@@ -107,6 +107,17 @@ inline void vvp_set_stacked_context(vvp_context_t context, vvp_context_t stack)
       context[1] = stack;
 }
 
+// Phase 61e: bypass the malloc_usable_size bounds check.  context_idx is
+// set at compile time by the elaboration pass and is guaranteed to fit any
+// allocated context for the matching scope; the malloc_usable_size call
+// dominates many hot paths (signal_object_aa::recv_object, anyedge_aa
+// fallback, copy-in/out for foreach loops).  See SIGUSR1 sample histograms
+// in CHANGES.md §12 — previously called per recv_object on every signal-
+// alias notification.
+//
+// Build-time IVL_KEEP_CONTEXT_BOUNDS_CHECK restores the old behavior for
+// debugging compile-time index bugs.
+#if defined(IVL_KEEP_CONTEXT_BOUNDS_CHECK)
 inline vvp_context_item_t vvp_get_context_item(vvp_context_t context,
                                                unsigned item_idx)
 {
@@ -126,6 +137,21 @@ inline void vvp_set_context_item(vvp_context_t context, unsigned item_idx,
             return;
       context[item_idx] = item;
 }
+#else
+inline vvp_context_item_t vvp_get_context_item(vvp_context_t context,
+                                               unsigned item_idx)
+{
+      if (!context) return 0;
+      return (vvp_context_item_t)context[item_idx];
+}
+
+inline void vvp_set_context_item(vvp_context_t context, unsigned item_idx,
+                                 vvp_context_item_t item)
+{
+      if (!context) return;
+      context[item_idx] = item;
+}
+#endif
 
 /*
  * An "automatic" functor is one which may be associated with an automatically
