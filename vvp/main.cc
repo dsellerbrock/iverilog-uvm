@@ -32,8 +32,15 @@ const char COPYRIGHT[] =
 # include  <windows.h>
 #endif
 
+#if !defined(__MINGW32__)
+# include  <signal.h>
+# include  <execinfo.h>
+# include  <unistd.h>
+#endif
+
 #include "libvvp.h"
 #include "vvp_dpi.h"
+#include "vthread.h"
 
 using namespace std;
 
@@ -50,11 +57,37 @@ const char*module_tab[64];
 static unsigned dpi_lib_cnt = 0;
 static const char*dpi_lib_tab[64];
 
+#if !defined(__MINGW32__)
+static void sigusr1_dump(int)
+{
+      // SIGUSR1: dump current vthread + C++ backtrace.  Reentrancy-safe-ish
+      // (write/backtrace_symbols_fd are async-signal-safe).
+      const char*hdr = "=== SIGUSR1 dump ===\n";
+      write(2, hdr, sizeof(hdr) - 1);
+      vthread_dump_running_thread("sigusr1");
+      void*frames[64];
+      int n = backtrace(frames, 64);
+      backtrace_symbols_fd(frames, n, 2);
+      const char*ftr = "=== end SIGUSR1 dump ===\n";
+      write(2, ftr, sizeof(ftr) - 1);
+}
+#endif
+
 int main(int argc, char*argv[])
 {
       int opt;
       unsigned flag_errors = 0;
       const char *logfile_name = 0x0;
+
+#if !defined(__MINGW32__)
+      {
+            struct sigaction sa;
+            sa.sa_handler = sigusr1_dump;
+            sigemptyset(&sa.sa_mask);
+            sa.sa_flags = SA_RESTART;
+            sigaction(SIGUSR1, &sa, 0);
+      }
+#endif
 
       // No leading "+" in the optstring — let getopt permute argv so
       // options (`-n`, `-M`) can be intermixed with the input file and
