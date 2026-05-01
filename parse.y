@@ -11494,6 +11494,23 @@ statement_item /* This is roughly statement_item in the LRM */
       { $4->void_cast();
 	$$ = $4;
       }
+  /* C6 (Phase 62e): void'(pkg::func(args) with {...}) form. */
+  | K_void '\'' '(' IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with '{' constraint_block_item_list_opt '}' ')' ';'
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	hident.push_back(name_component_t(lex_strings.make($6)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$7);
+	tmp->void_cast();
+	delete[]$4;
+	delete[]$6;
+	delete $7;
+	if ($10) {
+	      while (!$10->empty()) { delete $10->front(); $10->pop_front(); }
+	      delete $10;
+	}
+	pform_requires_sv(@8, "void'(pkg::func with-clause)");
+	$$ = tmp;
+      }
 
 	| subroutine_call K_with '(' expression ')' ';'
 	      { /* Temporary parse-only support for array method sort/rsort with-clauses
@@ -11514,6 +11531,26 @@ statement_item /* This is roughly statement_item in the LRM */
 
   | subroutine_call ';'
       { $$ = $1;
+      }
+  /* C6 (Phase 62e): bare-statement form of pkg::func(args) with {...};
+     Used by `std::randomize(x) with {...};`.  Direct statement-item
+     pattern to avoid shift-reduce conflicts via the subroutine_call
+     intermediate.  Runtime stub for std::randomize doesn't apply the
+     with-clause; this is a parse-without-error fix. */
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with '{' constraint_block_item_list_opt '}' ';'
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+	delete[]$1;
+	delete[]$3;
+	delete $4;
+	if ($7) {
+	      while (!$7->empty()) { delete $7->front(); $7->pop_front(); }
+	      delete $7;
+	}
+	pform_requires_sv(@5, "Statement-form pkg::func(args) with-clause");
+	$$ = tmp;
       }
 
 	| hierarchy_identifier K_with '{' constraint_block_item_list_opt '}' ';'
