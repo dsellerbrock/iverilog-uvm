@@ -71,6 +71,12 @@ static struct {
    task/function that is currently in progress. */
 static PTask* current_task = 0;
 static PFunction* current_function = 0;
+
+/* I1 (Phase 62g): accumulator for cross declarations seen during the
+   current covergroup parse.  cross_item rules append here; the enclosing
+   covergroup action moves them to the pform_covergroup_t.  Non-static
+   so pform_pclass.cc can drain it. */
+std::vector<class_type_t::pform_cross_t> pending_crosses_;
 /* Set by the last completed class task/function declaration so that the
    outer class_item rule can mark it virtual when K_virtual is present. */
 static PTaskFunc* recently_completed_class_method_ = 0;
@@ -939,6 +945,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <expr> property_spec_disable_iff_opt
 %type <event_statement> clocking_event_opt
 %type <sva_prop> property_expr property_spec
+%type <perm_strings> cross_item_list
 
 %type <named_pexprs> enum_name_list enum_name
 %type <data_type> enum_data_type enum_base_type
@@ -2547,29 +2554,72 @@ covergroup_item
   /* option.foo = expr; and type_option.foo = expr; — silently accept */
   | IDENTIFIER '.' IDENTIFIER '=' expression ';'
       { delete[] $1; delete[] $3; delete $5; $$ = nullptr; }
-  /* cross declaration: cross cp1, cp2, ...; — silently accept */
+  /* cross declaration.  I1 (Phase 62g): captures the contributing coverpoint
+     names into pending_crosses_ for the surrounding covergroup to pick up.
+     Body items (illegal_bins / ignore_bins / bins) are still dropped — the
+     auto-bin generation in elaboration only handles the simple cartesian
+     product case for now. */
   | K_cross cross_item_list ';'
-      { $$ = nullptr; }
-  /* cross with body { illegal_bins/bins ... } — silently accept.
-     Per IEEE 1800-2012 §19.5, the { } body terminates the item; no extra ';'. */
+      { class_type_t::pform_cross_t cx;
+	cx.label = perm_string();
+	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
+	pending_crosses_.push_back(std::move(cx));
+	delete $2;
+	$$ = nullptr; }
   | K_cross cross_item_list '{' cross_body_opt '}'
-      { $$ = nullptr; }
+      { class_type_t::pform_cross_t cx;
+	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
+	pending_crosses_.push_back(std::move(cx));
+	delete $2;
+	$$ = nullptr; }
   | K_cross cross_item_list '{' cross_body_opt '}' ';'
-      { $$ = nullptr; }
-  /* Labeled cross: name: cross cp1, cp2; — silently accept */
+      { class_type_t::pform_cross_t cx;
+	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
+	pending_crosses_.push_back(std::move(cx));
+	delete $2;
+	$$ = nullptr; }
   | IDENTIFIER ':' K_cross cross_item_list ';'
-      { delete[] $1; $$ = nullptr; }
+      { class_type_t::pform_cross_t cx;
+	cx.label = lex_strings.make($1);
+	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	pending_crosses_.push_back(std::move(cx));
+	delete[] $1; delete $4;
+	$$ = nullptr; }
   | TYPE_IDENTIFIER ':' K_cross cross_item_list ';'
-      { delete[] $1.text; $$ = nullptr; }
-  /* Labeled cross with body */
+      { class_type_t::pform_cross_t cx;
+	cx.label = lex_strings.make($1.text);
+	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	pending_crosses_.push_back(std::move(cx));
+	delete[] $1.text; delete $4;
+	$$ = nullptr; }
   | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}'
-      { delete[] $1; $$ = nullptr; }
+      { class_type_t::pform_cross_t cx;
+	cx.label = lex_strings.make($1);
+	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	pending_crosses_.push_back(std::move(cx));
+	delete[] $1; delete $4;
+	$$ = nullptr; }
   | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' ';'
-      { delete[] $1; $$ = nullptr; }
+      { class_type_t::pform_cross_t cx;
+	cx.label = lex_strings.make($1);
+	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	pending_crosses_.push_back(std::move(cx));
+	delete[] $1; delete $4;
+	$$ = nullptr; }
   | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}'
-      { delete[] $1.text; $$ = nullptr; }
+      { class_type_t::pform_cross_t cx;
+	cx.label = lex_strings.make($1.text);
+	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	pending_crosses_.push_back(std::move(cx));
+	delete[] $1.text; delete $4;
+	$$ = nullptr; }
   | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' ';'
-      { delete[] $1.text; $$ = nullptr; }
+      { class_type_t::pform_cross_t cx;
+	cx.label = lex_strings.make($1.text);
+	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	pending_crosses_.push_back(std::move(cx));
+	delete[] $1.text; delete $4;
+	$$ = nullptr; }
   /* Error recovery: skip unrecognized covergroup items */
   | error ';'
       { yyerrok; $$ = nullptr; }
@@ -2717,12 +2767,22 @@ bins_item
       { yyerrok; $$ = nullptr; }
   ;
 
-/* cross_item_list: comma-separated list of coverpoint names for 'cross' */
+/* cross_item_list: comma-separated list of coverpoint names for 'cross'.
+   I1 (Phase 62g): captures the names so the surrounding cross-declaration
+   action can store them on pform_covergroup_t. */
 cross_item_list
-  : IDENTIFIER { delete[] $1; }
-  | TYPE_IDENTIFIER { delete[] $1.text; }
-  | cross_item_list ',' IDENTIFIER { delete[] $3; }
-  | cross_item_list ',' TYPE_IDENTIFIER { delete[] $3.text; }
+  : IDENTIFIER
+      { std::list<perm_string>*lst = new std::list<perm_string>();
+	lst->push_back(lex_strings.make($1)); delete[] $1;
+	$$ = lst; }
+  | TYPE_IDENTIFIER
+      { std::list<perm_string>*lst = new std::list<perm_string>();
+	lst->push_back(lex_strings.make($1.text)); delete[] $1.text;
+	$$ = lst; }
+  | cross_item_list ',' IDENTIFIER
+      { $1->push_back(lex_strings.make($3)); delete[] $3; $$ = $1; }
+  | cross_item_list ',' TYPE_IDENTIFIER
+      { $1->push_back(lex_strings.make($3.text)); delete[] $3.text; $$ = $1; }
   ;
 
 /* cross_body_opt: optional body of illegal_bins/bins items inside cross { } */
