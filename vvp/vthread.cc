@@ -7795,10 +7795,13 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
                a self-pin in owned_context the thread loses access to its
                own `this` slot on subsequent iterations and reads it as nil.
                Pin only when not already held to avoid clobbering a parent's
-               retained owned_context inheritance below. */
+               retained owned_context inheritance below.  Retain just the
+               head context (not the whole chain) -- the chain entries are
+               already kept alive via the parent's wt_context references,
+               and retaining only the head avoids an O(N) walk per fork. */
             if (!child->owned_context
                 && context_live_matches_scope_(thr->wt_context, cp->scope)) {
-                  retain_context_chain_(thr->wt_context);
+                  retain_automatic_context_(thr->wt_context);
                   child->owns_automatic_context = 1;
                   child->owned_context = thr->wt_context;
             }
