@@ -2265,9 +2265,12 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
       { $$ = nullptr; }
   | K_foreach '(' IDENTIFIER '[' loop_variables ']' ')' constraint_set
       { $$ = nullptr; delete[] $3; }
-  /* soft constraint: soft expression; — priority modifier, silently accepted */
+  /* I4 (Phase 62c): soft constraint — wrap in PESoft so the IR emitter
+     marks it for Z3_optimize_assert_soft (default weight 1).  Other
+     contexts (non-constraint elaboration) delegate through to the inner
+     expression so the soft flag is invisible there. */
   | K_soft expression ';'
-      { $$ = $2; }
+      { PESoft*tmp = new PESoft($2); FILE_NAME(tmp, @1); $$ = tmp; }
   | K_soft expression K_dist '{' dist_list_opt '}' ';'
       { if ($5) {
               PEInside*tmp = new PEInside($2, $5);

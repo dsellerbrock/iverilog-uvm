@@ -88,8 +88,17 @@ struct Z3Builder {
       // higher-weight values.  The builder also collects pending soft
       // asserts here so the caller can apply them once.
       Z3_optimize opt;
-      struct SoftAssert { Z3_ast a; unsigned weight; };
+      // C7/I4: pending soft assertions.  `from_soft_kw` distinguishes the
+      // explicit `soft` keyword (deterministic preference — should force
+      // optimize even if hard constraints are already satisfied) from
+      // `dist` branches (probabilistic — bvxor diversity randomizes the
+      // pick across branches; early-return on hard satisfaction is OK).
+      struct SoftAssert { Z3_ast a; unsigned weight; bool from_soft_kw; };
       vector<SoftAssert> pending_soft;
+      bool any_soft_kw_assert() const {
+            for (const auto& s : pending_soft) if (s.from_soft_kw) return true;
+            return false;
+      }
 
       Z3Builder(Z3_context c, const class_type* d, vvp_cobject* o)
       : ctx(c), defn(d), cobj(o), opt(0) {}
@@ -280,6 +289,26 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    return Z3_mk_or(b.ctx, (unsigned)clauses.size(), clauses.data());
       }
 
+      if (op == "soft") {
+	    // I4 (Phase 62c): soft constraint.  Build the inner expression
+	    // as a Z3 boolean and queue it as a soft assert.
+	    //
+	    // Default weight 256: Z3's optimize check is multi-objective
+	    // lex-ordered.  Our diversity bvxor minimize objectives produce
+	    // costs in 0..2^width-1 (typically 0..255 for 8-bit props).  A
+	    // soft default weight that's 256 ensures the soft preference
+	    // dominates the bvxor diversity cost when both are feasible
+	    // — soft constraints get satisfied unless a hard conflict.
+	    // Hard constraints still take priority (soft asserts are
+	    // optional by definition).
+	    Z3_ast inner = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    par.skip_ws();
+	    par.expect(')');
+	    Z3Builder::SoftAssert sa = { inner, 256, true /* from_soft_kw */ };
+	    b.pending_soft.push_back(sa);
+	    return b.mk_true();
+      }
+
       if (op == "dist") {
 	    // C7 (Phase 62b): weighted distribution.
 	    // Format: (dist <expr> (b W <range>) ...)
@@ -347,7 +376,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 		  par.skip_ws();
 		  hard_clauses.push_back(clause);
 		  // Queue the soft assert; caller applies it after build.
-		  Z3Builder::SoftAssert sa = { clause, weight };
+		  Z3Builder::SoftAssert sa = { clause, weight, false /* dist */ };
 		  b.pending_soft.push_back(sa);
 	    }
 	    par.expect(')');
@@ -505,8 +534,14 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	    Z3_lbool precheck = Z3_solver_check(ctx, chk);
 	    Z3_solver_dec_ref(ctx, chk);
 
-	    if (precheck == Z3_L_TRUE) {
-		  // Random values already satisfy all constraints — keep them.
+	    if (precheck == Z3_L_TRUE && !builder.any_soft_kw_assert()) {
+		  // C7/I4: only fast-path early-out when there are no
+		  // `soft`-keyword assertions queued.  Dist branches use the
+		  // soft-assert mechanism but rely on the bvxor diversity
+		  // minimize for probabilistic outcome — early-return is OK
+		  // for dist (random pre-fill provides the diversity).  Plain
+		  // `soft` is deterministic preference and must always run
+		  // the optimize check.
 		  Z3_optimize_dec_ref(ctx, opt);
 		  Z3_del_context(ctx);
 		  return false;

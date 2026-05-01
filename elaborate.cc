@@ -9710,6 +9710,16 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    return "";
       }
 
+      // I4 (Phase 62c): soft constraint wrapper.  Emit `(soft <expr>)`
+      // so the Z3 backend applies the inner expression via
+      // Z3_optimize_assert_soft (default weight 1) instead of a hard
+      // conjunct.
+      if (const PESoft*sf = dynamic_cast<const PESoft*>(expr)) {
+	    string s = pexpr_to_constraint_ir(sf->get_inner(), cls, value_slots);
+	    if (s.empty() || s[0] == '?') return "";
+	    return "(soft " + s + ")";
+      }
+
       if (const PEInside*ins = dynamic_cast<const PEInside*>(expr)) {
 	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots);
 	    if (s.empty() || s[0] == '?') return "";

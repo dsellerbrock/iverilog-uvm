@@ -1164,6 +1164,36 @@ struct inside_range_t {
 };
 
 /*
+ * I4 (Phase 62c): wraps a soft constraint expression.  Constraint solving
+ * applies it as a soft assertion (default weight 1) rather than a hard
+ * conjunct — Z3 satisfies it when feasible but allows violation if other
+ * hard constraints conflict.  Plain elaboration just delegates to the
+ * inner expression so non-constraint contexts ignore the soft flag.
+ */
+class PESoft : public PExpr {
+    public:
+      explicit PESoft(PExpr* inner) : inner_(inner) {}
+      ~PESoft() override { delete inner_; }
+      PExpr* get_inner() const { return inner_; }
+      void dump(std::ostream& out) const override {
+            out << "(soft "; inner_->dump(out); out << ")";
+      }
+      unsigned test_width(Design*des, NetScope*scope, width_mode_t&mode) override {
+            return inner_->test_width(des, scope, mode);
+      }
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+                              ivl_type_t type, unsigned flags) const override {
+            return inner_->elaborate_expr(des, scope, type, flags);
+      }
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+                              unsigned w, unsigned flags) const override {
+            return inner_->elaborate_expr(des, scope, w, flags);
+      }
+    private:
+      PExpr* inner_;
+};
+
+/*
  * Represents the SystemVerilog "inside" expression:
  *   expr inside {[lo:hi], val, ...}
  */
