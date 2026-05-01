@@ -8818,8 +8818,14 @@ static ASSOC* peek_signal_assoc_(vvp_net_t*net)
 
       ASSOC*typed_assoc = dynamic_cast<ASSOC*>(assoc);
       if (!typed_assoc && !warned) {
-            cerr << "Warning: signal assoc operation on unexpected container type."
-                 << endl;
+            // C3 (Phase 62h): include actual type name in the warning so
+            // downstream investigation has data to work with.  The dynamic
+            // cast failed — the runtime container is the wrong subtype for
+            // the requested operation.  Often a code-gen mismatch emitted
+            // by elaboration for parameterized-class assoc-array properties.
+            cerr << "Warning: signal assoc operation on unexpected container "
+                 << "type (have " << typeid(*assoc).name()
+                 << ", want " << typeid(ASSOC).name() << ")." << endl;
             warned = true;
       }
 
