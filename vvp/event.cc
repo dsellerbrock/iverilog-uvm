@@ -885,9 +885,22 @@ void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t,
                           " iterating %d live_contexts of scope=%s\n",
                           n, vpi_get_str(vpiFullName, context_scope_));
             }
+            // Phase 61: skip per-context recursive delivery when that
+            // context has no waiting threads.  vvp_fun_anyedge_aa::recv_object
+            // only wakes threads; the upstream vvp_fun_signal_object_aa
+            // already did the storage and downstream propagation.  Without
+            // this gate, OT-class testbenches with many automatic contexts
+            // per scope (deep fork chains) burned CPU walking
+            // vthread_recover_context_for_scope chains for contexts with
+            // no waiters, hanging smoke vseq at sim ~30us.
             context = context_scope_->live_contexts;
             while (context) {
-                  recv_object(port, vvp_object_t(), context);
+                  vvp_fun_anyedge_state_s*state =
+                        static_cast<vvp_fun_anyedge_state_s*>
+                              (vvp_get_context_item(context, context_idx_));
+                  if (state && state->threads) {
+                        recv_object(port, vvp_object_t(), context);
+                  }
                   context = vvp_get_next_context(context);
             }
       }
