@@ -137,8 +137,11 @@ static Z3_ast bv_to_bool(Z3_context ctx, Z3_ast a)
       if (Z3_get_sort_kind(ctx, sort) == Z3_BV_SORT) {
 	    unsigned w = Z3_get_bv_sort_size(ctx, sort);
 	    Z3_ast zero = Z3_mk_int(ctx, 0, Z3_mk_bv_sort(ctx, w));
-	    /* (a != 0) is true when a is non-zero. */
-	    return Z3_mk_distinct(ctx, 2, (Z3_ast[]){a, zero});
+	    /* (a != 0) is true when a is non-zero.  Use a named array (not a
+	       compound literal) — older gcc treats `(Z3_ast[]){...}` in C++ as
+	       a non-conforming GNU extension and rejects taking its address. */
+	    Z3_ast args[2] = { a, zero };
+	    return Z3_mk_distinct(ctx, 2, args);
       }
       return a;
 }

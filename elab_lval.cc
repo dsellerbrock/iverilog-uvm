@@ -1332,7 +1332,10 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			       << field_name << " has non-positive width." << endl;
 			  return 0;
 		    }
-		    lv->set_part(new NetEConst(verinum(member_off, 64)),
+		    /* Cast disambiguates `verinum(uint64_t, unsigned)` from the
+		       `verinum(V, unsigned, bool)` constructor — older gcc/clang
+		       on macOS/MinGW reject the implicit conversion. */
+		    lv->set_part(new NetEConst(verinum((uint64_t)member_off, 64u)),
 				 (unsigned)field_wid);
 		    if (!member_path.empty()) {
 			  cerr << get_fileline() << ": warning: "
