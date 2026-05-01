@@ -525,6 +525,35 @@ struct runtime_code_scope_entry_s {
 };
 static std::map<std::string, runtime_code_scope_entry_s> runtime_code_scope_map;
 
+/* Phase 61c: O(1) suffix lookup index for runtime virtual-dispatch.
+   Built lazily on first miss; rebuilt automatically when stale (epoch bump
+   on map insert).  Maps ".<class>.<method>" suffix to a list of full keys
+   sharing that suffix.  If a suffix has exactly one entry, dispatch wins
+   in O(log N).  Tracks an "ambiguous" marker for suffixes with >1 entry,
+   which the original linear scan returned as "no match" anyway. */
+static std::map<std::string, std::vector<std::string> > runtime_code_scope_suffix_index_;
+static size_t runtime_code_scope_suffix_index_size_ = (size_t)-1;
+
+static void runtime_code_scope_suffix_index_rebuild_()
+{
+      runtime_code_scope_suffix_index_.clear();
+      for (std::map<std::string, runtime_code_scope_entry_s>::const_iterator
+                 cur = runtime_code_scope_map.begin()
+                 ; cur != runtime_code_scope_map.end() ; ++cur) {
+            const std::string&key = cur->first;
+            // suffix = ".<class>.<method>" — find second-to-last '.'
+            size_t tail = key.rfind('.');
+            if (tail == std::string::npos || tail == 0)
+                  continue;
+            size_t head = key.rfind('.', tail - 1);
+            if (head == std::string::npos)
+                  continue;
+            std::string suffix = key.substr(head);
+            runtime_code_scope_suffix_index_[suffix].push_back(key);
+      }
+      runtime_code_scope_suffix_index_size_ = runtime_code_scope_map.size();
+}
+
 static bool runtime_lookup_code_scope_by_suffix_(const char*label,
                                                  vvp_code_t*code,
                                                  __vpiScope**scope)
@@ -553,21 +582,23 @@ static bool runtime_lookup_code_scope_by_suffix_(const char*label,
             return false;
 
       std::string suffix(head);
-      std::map<std::string, runtime_code_scope_entry_s>::const_iterator match
-            = runtime_code_scope_map.end();
-      for (std::map<std::string, runtime_code_scope_entry_s>::const_iterator cur
-                 = runtime_code_scope_map.begin()
-                 ; cur != runtime_code_scope_map.end() ; ++cur) {
-            const std::string&key = cur->first;
-            if (key.size() < suffix.size())
-                  continue;
-            if (key.compare(key.size() - suffix.size(), suffix.size(), suffix) != 0)
-                  continue;
-            if (match != runtime_code_scope_map.end())
-                  return false;
-            match = cur;
-      }
 
+      // Phase 61c: rebuild the suffix index if the source map grew.  Common
+      // case after compile: map is stable, this check is one comparison.
+      if (runtime_code_scope_suffix_index_size_ != runtime_code_scope_map.size())
+            runtime_code_scope_suffix_index_rebuild_();
+
+      std::map<std::string, std::vector<std::string> >::const_iterator
+            entries = runtime_code_scope_suffix_index_.find(suffix);
+      if (entries == runtime_code_scope_suffix_index_.end())
+            return false;
+      // Original linear scan returned "no match" if more than one suffix
+      // hit was found (ambiguous).  Mirror that here.
+      if (entries->second.size() != 1)
+            return false;
+
+      std::map<std::string, runtime_code_scope_entry_s>::const_iterator match
+            = runtime_code_scope_map.find(entries->second[0]);
       if (match == runtime_code_scope_map.end())
             return false;
 
