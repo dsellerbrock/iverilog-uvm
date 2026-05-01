@@ -96,9 +96,10 @@ results — and upstream each fix as a minimal, reviewable patch.
 | `dist` weighted distribution | ✅ | Phase 62b — `(dist <expr> (b W <range>) ...)` IR opcode; Z3_optimize_assert_soft per branch with weight. `x dist {0:=90, 1:=10}` produces 91/9 over 100 iterations. |
 | `soft` constraints | ✅ | Phase 62c — wraps in `(soft <expr>)` IR; Z3_optimize_assert_soft default weight 256 dominates bvxor diversity. Hard constraints still override soft. |
 | Streaming concatenation `{<<N{x}}` (RHS) | ✅ | Phase 62d — bit-reverse and chunk-reverse via NetEConcat of NetESelect. `{>>}` identity. Width%N remainder placed at LSB. LHS form deferred. |
+| Concurrent assertions `assert property` | ✅ Basic | Phase 62f — `@(clk) [disable iff (rst)] a |-> b else <fail>;` synthesizes always block; `|=>` approximated as `|->`; sequence/property declarations still drop body |
 | Tagged unions (parse) | ✅ | Phase 62 / I6 — `union tagged { ... }` parses, lowered to plain union (tag values not enforced). |
 | `std::randomize(var) with{}` (parse) | ⚠ Stub | Phase 62e / C6 — bare-statement and void'() forms now parse (no Malformed-statement error). Runtime constraint solving for non-class vars still no-op. |
-| Concurrent assertions (`assert property`) | ⚠ Stub | C2 deferred — false-pass risk; multi-week semantics work to enable real |->/|=>/disable iff. |
+| Concurrent assertions (`assert property`) | ✅ Basic | Phase 62f — basic forms work; sequence/property declarations + edge primitives ($rose etc.) still stub |
 | Coverage `cross` / `illegal_bins` | ⚠ Stub | I1 deferred — parser drops cross items at parse.y:2433; needs covergroup runtime + tgt-vvp metadata. |
 | `uvm_object.print()` printer dispatch | ⚠ Stub | I2 deferred — virtual dispatch on uvm_table_printer::emit falls through to uvm_printer base. Same family as Phase 61c suffix-index work. |
 | `uvm_resource_db#(T)::set/read_by_name` | ⚠ Stub | C3 deferred — runtime warnings on parameterized class typed pool ("signal assoc on unexpected container type"). |

@@ -1082,6 +1082,7 @@ All 86 commits ahead of `steveicarus/iverilog` `master`:
 
 | Hash | Phase | Description |
 |---|---|---|
+| `2fc00e3cf` | 62f | C2 — SVA `assert property` basic semantics (`|->`, `disable iff`, clocking event); synthesizes always-block check |
 | `fc8e3db91` | 62e | C6 — Parse `std::randomize(var) with{}` as bare statement and void'() form |
 | `9e9dd8eb8` | 62d | C5 — Streaming concatenation operators (RHS bit-reverse and chunk-reverse) |
 | `314b3a38c` | 62c | I4 — Soft constraints via Z3_optimize_assert_soft |
