@@ -9713,17 +9713,35 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       if (const PEInside*ins = dynamic_cast<const PEInside*>(expr)) {
 	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots);
 	    if (s.empty() || s[0] == '?') return "";
-	    string result = "(inside " + s;
+	    // C7 (Phase 62b): dist form preserves per-branch weights as
+	    // `(dist <expr> (b W <range>) ...)` where W is the literal
+	    // weight integer.  Plain inside emits the existing form.
+	    bool is_dist = ins->is_dist();
+	    string result = is_dist ? "(dist " : "(inside ";
+	    result += s;
 	    for (auto& r : ins->get_ranges()) {
+		  string range_ir;
 		  if (r.is_range) {
 			string lo = pexpr_to_constraint_ir(r.lo, cls, value_slots);
 			string hi = pexpr_to_constraint_ir(r.hi, cls, value_slots);
 			if (lo.empty() || hi.empty()) continue;
-			result += " [" + lo + "," + hi + "]";
+			range_ir = "[" + lo + "," + hi + "]";
 		  } else {
 			string v = pexpr_to_constraint_ir(r.hi, cls, value_slots);
 			if (v.empty()) continue;
-			result += " " + v;
+			range_ir = v;
+		  }
+		  if (is_dist) {
+			// Default weight 1 for unweighted branches in a
+			// dist (rare, but legal in mixed forms).
+			string w = "1";
+			if (r.weight) {
+			      string we = pexpr_to_constraint_ir(r.weight, cls, value_slots);
+			      if (!we.empty()) w = we;
+			}
+			result += " (b " + w + " " + range_ir + ")";
+		  } else {
+			result += " " + range_ir;
 		  }
 	    }
 	    result += ")";

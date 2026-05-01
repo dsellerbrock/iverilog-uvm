@@ -649,7 +649,16 @@ PEInside::~PEInside()
       for (auto& r : ranges_) {
 	    delete r.lo;
 	    delete r.hi;
+	    delete r.weight;
       }
+}
+
+bool PEInside::is_dist() const
+{
+      for (size_t i = 0 ; i < ranges_.size() ; i++) {
+	    if (ranges_[i].weight) return true;
+      }
+      return false;
 }
 
 void PEInside::dump(std::ostream& out) const

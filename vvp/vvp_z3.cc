@@ -82,9 +82,17 @@ struct Z3Builder {
       vector<PropVar> prop_vars;
       const class_type* defn;
       vvp_cobject* cobj;
+      // C7 (Phase 62b): optional optimize handle for soft asserts.
+      // When non-null, dist branches emit Z3_optimize_assert_soft per
+      // branch with the user-specified weight, biasing the model toward
+      // higher-weight values.  The builder also collects pending soft
+      // asserts here so the caller can apply them once.
+      Z3_optimize opt;
+      struct SoftAssert { Z3_ast a; unsigned weight; };
+      vector<SoftAssert> pending_soft;
 
       Z3Builder(Z3_context c, const class_type* d, vvp_cobject* o)
-      : ctx(c), defn(d), cobj(o) {}
+      : ctx(c), defn(d), cobj(o), opt(0) {}
 
       Z3_ast get_prop_var(unsigned idx, unsigned width) {
 	    for (auto& v : prop_vars)
@@ -272,6 +280,82 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    return Z3_mk_or(b.ctx, (unsigned)clauses.size(), clauses.data());
       }
 
+      if (op == "dist") {
+	    // C7 (Phase 62b): weighted distribution.
+	    // Format: (dist <expr> (b W <range>) ...)
+	    // - Hard constraint: <expr> ∈ union of all branches.
+	    // - Soft preference: per branch, Z3_optimize_assert_soft of
+	    //   `(<expr> matches branch)` with weight W, so the optimizer
+	    //   prefers higher-weight branches when feasible.
+	    Z3_ast subject = build_z3_atom(par, b);
+	    unsigned sw = bv_width(b.ctx, subject);
+
+	    vector<Z3_ast> hard_clauses;
+	    par.skip_ws();
+	    while (par.peek() != ')' && !par.at_end()) {
+		  // Each branch is `(b W <range>)`.
+		  if (par.peek() != '(') break;
+		  par.consume(); // '('
+		  string br_op = par.read_token();
+		  if (br_op != "b") {
+			// Unknown branch shape; skip to matching ')'.
+			int depth = 1;
+			while (!par.at_end() && depth > 0) {
+			      char c = par.consume();
+			      if (c == '(') ++depth;
+			      else if (c == ')') --depth;
+			}
+			par.skip_ws();
+			continue;
+		  }
+		  string w_tok = par.read_token();
+		  unsigned weight = 1;
+		  if (!w_tok.empty()) {
+			weight = (unsigned)strtoul(w_tok.c_str()+
+				    (w_tok.substr(0,2)=="c:" ? 2 : 0), 0, 10);
+			if (weight == 0) weight = 1;
+		  }
+		  Z3_ast clause = b.mk_false();
+		  par.skip_ws();
+		  if (par.peek() == '[') {
+			par.consume();
+			string lo_tok = par.read_token();
+			par.expect(',');
+			string hi_tok = par.read_token();
+			par.expect(']');
+			uint64_t lo_v = strtoull(lo_tok.c_str()+2, 0, 10);
+			uint64_t hi_v = strtoull(hi_tok.c_str()+2, 0, 10);
+			Z3_ast lo = Z3_mk_unsigned_int64(b.ctx, lo_v,
+					 Z3_mk_bv_sort(b.ctx, sw));
+			Z3_ast hi = Z3_mk_unsigned_int64(b.ctx, hi_v,
+					 Z3_mk_bv_sort(b.ctx, sw));
+			Z3_ast c1 = Z3_mk_bvuge(b.ctx, subject, lo);
+			Z3_ast c2 = Z3_mk_bvule(b.ctx, subject, hi);
+			Z3_ast both[2] = {c1, c2};
+			clause = Z3_mk_and(b.ctx, 2, both);
+		  } else {
+			string tok = par.read_token();
+			if (tok.substr(0,2) == "c:") {
+			      uint64_t v = strtoull(tok.c_str()+2, 0, 10);
+			      Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
+					      Z3_mk_bv_sort(b.ctx, sw));
+			      clause = Z3_mk_eq(b.ctx, subject, cv);
+			}
+		  }
+		  par.skip_ws();
+		  par.expect(')'); // close (b ...)
+		  par.skip_ws();
+		  hard_clauses.push_back(clause);
+		  // Queue the soft assert; caller applies it after build.
+		  Z3Builder::SoftAssert sa = { clause, weight };
+		  b.pending_soft.push_back(sa);
+	    }
+	    par.expect(')');
+	    if (hard_clauses.empty()) return b.mk_true();
+	    if (hard_clauses.size() == 1) return hard_clauses[0];
+	    return Z3_mk_or(b.ctx, (unsigned)hard_clauses.size(), hard_clauses.data());
+      }
+
       // Unknown operator — skip to matching ')' and return true
       int depth = 1;
       while (!par.at_end() && depth > 0) {
@@ -366,6 +450,7 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       // to guide solutions toward varied values.
       Z3_optimize opt = Z3_mk_optimize(ctx);
       Z3_optimize_inc_ref(ctx, opt);
+      builder.opt = opt; // C7: collect dist soft asserts during build
 
       // Assert hard constraints (class-level), skipping disabled ones.
       for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
@@ -381,6 +466,15 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	    string sub = substitute_slots(wir, slot_vals);
 	    Z3_ast assertion = parse_constraint_ir(sub, builder);
 	    Z3_optimize_assert(ctx, opt, assertion);
+      }
+      // C7: apply queued soft asserts from dist branches.  Each carries a
+      // weight; Z3_optimize_assert_soft prefers higher-weight branches when
+      // multiple feasible solutions exist.
+      for (const auto& sa : builder.pending_soft) {
+	    char w_str[32];
+	    snprintf(w_str, sizeof(w_str), "%u", sa.weight);
+	    Z3_symbol grp = Z3_mk_string_symbol(ctx, "dist");
+	    Z3_optimize_assert_soft(ctx, opt, sa.a, w_str, grp);
       }
 
       // Check if the already-randomized values satisfy all hard constraints.

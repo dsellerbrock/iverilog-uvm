@@ -1154,6 +1154,13 @@ struct inside_range_t {
     PExpr* lo;
     PExpr* hi;
     bool is_range;
+    // C7 (Phase 62b): dist weight expression.  Non-null only for `dist`-form
+    // ranges that carry an explicit weight (`val := w` or `val :/ w`).
+    // Weight is null for plain `inside { ... }` ranges (uniform pick).
+    PExpr* weight = nullptr;
+    // C7: true if the weight was specified with `:/` (divide across range
+    // count) rather than `:=` (per-item).  Only meaningful when weight!=null.
+    bool weight_is_divided = false;
 };
 
 /*
@@ -1167,6 +1174,12 @@ class PEInside : public PExpr {
 
       PExpr* get_expr() const { return expr_; }
       const std::vector<inside_range_t>& get_ranges() const { return ranges_; }
+
+      // C7: PEInside doubles as the `dist` lowering target.  When any
+      // range carries a non-null weight, emit a `(dist ...)` constraint
+      // IR opcode instead of `(inside ...)` so the Z3 backend can apply
+      // soft assertions.
+      bool is_dist() const;
 
       void dump(std::ostream& out) const override;
       unsigned test_width(Design* des, NetScope* scope,

@@ -2307,8 +2307,11 @@ dist_list
       { $$ = $1; if ($3) { $$->push_back(*$3); delete $3; } }
   ;
 
-/* Each dist_item extracts the value-range (scalar or [lo:hi]) and drops
-   the optional weight (both := and :/ forms). */
+/* Each dist_item extracts the value-range (scalar or [lo:hi]) and now
+   preserves the optional weight in inside_range_t.  PEInside::is_dist()
+   returns true when any range carries a weight; the constraint IR emit
+   path can use that to apply soft-assertion semantics in the Z3 backend
+   when the IR layer learns the new opcode. */
 dist_item
   : expression
       { inside_range_t*r = new inside_range_t;
@@ -2319,19 +2322,19 @@ dist_item
   | expression ':' '=' expression
       { inside_range_t*r = new inside_range_t;
         r->lo = nullptr; r->hi = $1; r->is_range = false;
-        delete $4; $$ = r; }
+        r->weight = $4; r->weight_is_divided = false; $$ = r; }
   | expression ':' '/' expression
       { inside_range_t*r = new inside_range_t;
         r->lo = nullptr; r->hi = $1; r->is_range = false;
-        delete $4; $$ = r; }
+        r->weight = $4; r->weight_is_divided = true; $$ = r; }
   | '[' expression ':' expression ']' ':' '=' expression
       { inside_range_t*r = new inside_range_t;
         r->lo = $2; r->hi = $4; r->is_range = true;
-        delete $8; $$ = r; }
+        r->weight = $8; r->weight_is_divided = false; $$ = r; }
   | '[' expression ':' expression ']' ':' '/' expression
       { inside_range_t*r = new inside_range_t;
         r->lo = $2; r->hi = $4; r->is_range = true;
-        delete $8; $$ = r; }
+        r->weight = $8; r->weight_is_divided = true; $$ = r; }
   ;
 
 constraint_trigger
