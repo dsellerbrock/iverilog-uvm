@@ -894,7 +894,15 @@ remaining constraints.
 The UVM phase infrastructure (phases, objections, sequencer/driver TLM) works.
 The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remain in:
 - `uvm_field_automation`: `copy()` and `compare()` work; `print()` printer-subclass
-  dispatch fires `[NO_OVERRIDE] emit() method not overridden` (audit 2026-05-01)
+  dispatch fires `[NO_OVERRIDE] emit() method not overridden` (audit 2026-05-01).
+  **Root cause confirmed Phase 62 (memory/i2_root_cause_findings.md):** the package-
+  global `uvm_default_table_printer` (uvm_object_globals.svh:734) is emitted as
+  `.var/i` (logic vector) instead of `.var/cobj`, because PWire::elaborate_sig fires
+  inside elaborate_specialized_class_type (uvm_printer_element_proxy) before the
+  add_class call for uvm_table_printer. Direct `uvm_default_table_printer = new()`
+  silently no-ops. Two fix attempts (prealloc class stubs, PACKAGE-scope fallback in
+  ensure_visible_class_type) regressed function-def setup elsewhere. Working fix
+  candidates and reproducer in memory file.
 - `randc` cyclic semantics: behaves as `rand` (Phase 63 candidate)
 - Concurrent assertions (`assert property |->`, `|=>`, `disable iff`): silently
   pass-no-op (Phase 62 candidate — false-pass risk)
