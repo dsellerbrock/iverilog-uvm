@@ -258,6 +258,12 @@ class vvp_queue_object : public vvp_queue {
       void set_word_max(unsigned adr, const vvp_object_t&value, unsigned max_size) override;
       void set_word(unsigned adr, const vvp_object_t&value) override;
       void get_word(unsigned adr, vvp_object_t&value) override;
+      // I7: silent override for the vec4 variant.  The base vvp_darray
+      // emits a per-call warning when code-gen mistakenly emits the wrong
+      // typed accessor on a queue of class handles.  The underlying
+      // type-mismatch (caller should use the vvp_object_t variant) is a
+      // separate code-gen gap; meanwhile, return an empty vec4 quietly.
+      void get_word(unsigned, vvp_vector4_t&out) override { out = vvp_vector4_t(); }
       void insert(unsigned idx, const vvp_object_t&value, unsigned max_size) override;
       void push_back(const vvp_object_t&value, unsigned max_size) override;
       void push_front(const vvp_object_t&value, unsigned max_size) override;

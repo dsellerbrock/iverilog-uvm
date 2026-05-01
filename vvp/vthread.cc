@@ -1774,6 +1774,38 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 		  unsigned wid = val.size();
 		  if (wid == 0)
 			continue;
+		  // C1 (Phase 62a): cyclic randc — pick unused value in current
+		  // cycle. randc_mark resets bitmap when cycle exhausted.
+		  if (defn->property_is_randc(pid)) {
+			uint64_t period = cobj->randc_period(pid);
+			if (period > 0) {
+			      uint64_t pick = 0;
+			      bool found = false;
+			      for (unsigned attempt = 0;
+				   attempt < 4 * (unsigned)period;
+				   attempt += 1) {
+				    uint64_t cand = (uint64_t)rand() % period;
+				    if (!cobj->randc_seen(pid, cand)) {
+					  pick = cand; found = true; break;
+				    }
+			      }
+			      if (!found) {
+				    for (uint64_t i = 0; i < period; i += 1) {
+					  if (!cobj->randc_seen(pid, i)) {
+						pick = i; found = true; break;
+					  }
+				    }
+			      }
+			      if (found) {
+				    cobj->randc_mark(pid, pick);
+				    for (unsigned b = 0; b < wid; b += 1)
+					  val.set_bit(b, (pick >> b) & 1
+							? BIT4_1 : BIT4_0);
+				    cobj->set_vec4(pid, val);
+				    continue;
+			      }
+			}
+		  }
 		  for (unsigned i = 0 ; i < wid ; i += 32) {
 			unsigned rnd = (unsigned)rand();
 			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
@@ -1837,6 +1869,36 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 		  cobj->get_vec4(pid, val);
 		  unsigned wid = val.size();
 		  if (wid == 0) continue;
+		  // C1 (Phase 62a): cyclic randc — same logic as of_RANDOMIZE.
+		  if (defn->property_is_randc(pid)) {
+			uint64_t period = cobj->randc_period(pid);
+			if (period > 0) {
+			      uint64_t pick = 0;
+			      bool found = false;
+			      for (unsigned attempt = 0;
+				   attempt < 4 * (unsigned)period; attempt += 1) {
+				    uint64_t cand = (uint64_t)rand() % period;
+				    if (!cobj->randc_seen(pid, cand)) {
+					  pick = cand; found = true; break;
+				    }
+			      }
+			      if (!found) {
+				    for (uint64_t i = 0; i < period; i += 1) {
+					  if (!cobj->randc_seen(pid, i)) {
+						pick = i; found = true; break;
+					  }
+				    }
+			      }
+			      if (found) {
+				    cobj->randc_mark(pid, pick);
+				    for (unsigned b = 0; b < wid; b += 1)
+					  val.set_bit(b, (pick >> b) & 1
+							? BIT4_1 : BIT4_0);
+				    cobj->set_vec4(pid, val);
+				    continue;
+			      }
+			}
+		  }
 		  for (unsigned i = 0 ; i < wid ; i += 32) {
 			unsigned rnd = (unsigned)rand();
 			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)

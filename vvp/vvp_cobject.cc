@@ -59,6 +59,45 @@ void vvp_cobject::set_constraint_mode(size_t cid, bool mode)
       if (cid < constraint_mode_.size()) constraint_mode_[cid] = mode;
 }
 
+// C1 (Phase 62a): randc cyclic state.  Cycle period = 2^width capped at
+// 65536 so the bitmap stays bounded.  Wider properties fall back to plain
+// rand (period reported as 0).
+uint64_t vvp_cobject::randc_period(size_t pid) const
+{
+      if (pid >= defn_->property_count()) return 0;
+      vvp_vector4_t probe;
+      const_cast<vvp_cobject*>(this)->get_vec4(pid, probe);
+      unsigned w = probe.size();
+      if (w == 0 || w > 16) return 0;
+      return (uint64_t)1 << w;
+}
+
+bool vvp_cobject::randc_seen(size_t pid, uint64_t val) const
+{
+      std::map<size_t, std::vector<bool> >::const_iterator it
+            = randc_history_.find(pid);
+      if (it == randc_history_.end()) return false;
+      if (val >= it->second.size()) return false;
+      return it->second[val];
+}
+
+void vvp_cobject::randc_mark(size_t pid, uint64_t val)
+{
+      uint64_t period = randc_period(pid);
+      if (period == 0) return;
+      std::vector<bool>&hist = randc_history_[pid];
+      if (hist.size() != period) hist.assign((size_t)period, false);
+      if (val >= period) return;
+      hist[val] = true;
+      bool all_used = true;
+      for (size_t i = 0; i < hist.size(); i += 1) {
+            if (!hist[i]) { all_used = false; break; }
+      }
+      if (all_used) {
+            for (size_t i = 0; i < hist.size(); i += 1) hist[i] = false;
+      }
+}
+
 vvp_cobject::~vvp_cobject()
 {
       defn_->instance_delete(properties_);
