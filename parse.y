@@ -735,6 +735,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       Statement*statement;
       std::vector<Statement*>*statement_list;
 
+      // C2 (Phase 62f): pointer to file-scope sva_property_t (defined above).
+      sva_property_t* sva_prop;
+
       decl_assignment_t*decl_assignment;
       std::list<decl_assignment_t*>*decl_assignments;
 
@@ -933,6 +936,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <value_range> parameter_value_range parameter_value_ranges
 %type <value_range> parameter_value_ranges_opt
 %type <expr> value_range_expression
+%type <expr> property_spec_disable_iff_opt
+%type <event_statement> clocking_event_opt
+%type <sva_prop> property_expr property_spec
 
 %type <named_pexprs> enum_name_list enum_name
 %type <data_type> enum_data_type enum_base_type
@@ -2118,20 +2124,120 @@ concurrent_assertion_item /* IEEE1800-2012 A.2.10 */
 
 concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
   : assert_or_assume K_property '(' property_spec ')' statement_or_null %prec less_than_K_else
-      { /* */
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: concurrent_assertion_item not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+      { /* C2 (Phase 62f): build always-block-equivalent of the assert.
+	   Lowering for `assert property (@(clk) [disable iff (rst)] A |-> B)
+	   else <fail>;` is:
+	     always @(clk) begin
+	       if (!disable_iff && A && !B) <fail>;
+	     end
+	   For `|=>` (next-cycle implication) we synthesize a sticky reg
+	   that captures the antecedent at this clock and is checked at
+	   the next clock against the consequent — this is approximated
+	   here by also using $past, which iverilog has as a stub; users
+	   needing strict |=> semantics should follow up.  When no
+	   else-clause is provided, default action is $error.
+
+	   Only when supported-assertions flag is on; with the older
+	   "unsupported" flag, behave as before (silent drop). */
+	if (gn_supported_assertions_flag && $4) {
+	      // Default fail action: $error("...")
+	      std::list<named_pexpr_t> arg_list;
+	      PCallTask*fail = new PCallTask(lex_strings.make("$error"), arg_list);
+	      FILE_NAME(fail, @1);
+	      // Compose: !consequent ? fail : nothing
+	      Statement*body = nullptr;
+	      if ($4->op_type == 0) {
+		    // Plain: assert(antecedent); fail when antecedent false
+		    PCondit*c = new PCondit($4->antecedent, nullptr, fail);
+		    FILE_NAME(c, @1);
+		    body = c;
+	      } else {
+		    // |-> or |=>: when antecedent true, check consequent
+		    // For |=> approximate as |-> for now (sticky reg
+		    // future enhancement).
+		    PExpr*not_c = new PEUnary('!', $4->consequent);
+		    FILE_NAME(not_c, @1);
+		    PCondit*chk = new PCondit(not_c, fail, nullptr);
+		    FILE_NAME(chk, @1);
+		    PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
+		    FILE_NAME(ifa, @1);
+		    body = ifa;
+	      }
+	      // disable iff guard
+	      if ($4->disable_iff_expr) {
+		    PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
+		    FILE_NAME(ndis, @1);
+		    PCondit*gd = new PCondit(ndis, body, nullptr);
+		    FILE_NAME(gd, @1);
+		    body = gd;
+	      }
+	      // wrap in clocking event, if any
+	      if ($4->clk_evt) {
+		    $4->clk_evt->set_statement(body);
+		    body = $4->clk_evt;
+	      }
+	      // Append as an always block at module scope.
+	      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, body, nullptr);
+	      FILE_NAME(pp, @1);
+	      // The user-provided pass-clause (statement_or_null) is dropped
+	      // — concurrent assertions don't typically have a "pass" action.
+	      delete $6;
+	      delete $4;
+	} else {
+	      if (gn_unsupported_assertions_flag) {
+		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      }
+	      if ($4) { delete $4->antecedent; delete $4->consequent;
+			delete $4->disable_iff_expr; delete $4->clk_evt;
+			delete $4; }
+	      delete $6;
 	}
         $$ = 0;
       }
   | assert_or_assume K_property '(' property_spec ')' K_else statement_or_null
-      { /* */
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: concurrent_assertion_item not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+      { /* assert property (...) else <fail-action>; */
+	if (gn_supported_assertions_flag && $4) {
+	      Statement*fail = $7 ? $7 : new PNoop;
+	      Statement*body = nullptr;
+	      if ($4->op_type == 0) {
+		    PCondit*c = new PCondit($4->antecedent, nullptr, fail);
+		    FILE_NAME(c, @1);
+		    body = c;
+	      } else {
+		    PExpr*not_c = new PEUnary('!', $4->consequent);
+		    FILE_NAME(not_c, @1);
+		    PCondit*chk = new PCondit(not_c, fail, nullptr);
+		    FILE_NAME(chk, @1);
+		    PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
+		    FILE_NAME(ifa, @1);
+		    body = ifa;
+	      }
+	      if ($4->disable_iff_expr) {
+		    PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
+		    FILE_NAME(ndis, @1);
+		    PCondit*gd = new PCondit(ndis, body, nullptr);
+		    FILE_NAME(gd, @1);
+		    body = gd;
+	      }
+	      if ($4->clk_evt) {
+		    $4->clk_evt->set_statement(body);
+		    body = $4->clk_evt;
+	      }
+	      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, body, nullptr);
+	      FILE_NAME(pp, @1);
+	      delete $4;
+	} else {
+	      if (gn_unsupported_assertions_flag) {
+		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      }
+	      if ($4) { delete $4->antecedent; delete $4->consequent;
+			delete $4->disable_iff_expr; delete $4->clk_evt;
+			delete $4; }
+	      delete $7;
 	}
         $$ = 0;
       }
@@ -2142,35 +2248,47 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 		      " Try -gno-assertions or -gsupported-assertions"
 		      " to turn this message off.");
 	}
+	if ($4) { delete $4->antecedent; delete $4->consequent;
+		  delete $4->disable_iff_expr; delete $4->clk_evt;
+		  delete $4; }
+	delete $6; delete $8;
         $$ = 0;
       }
   | K_cover K_property '(' property_spec ')' statement_or_null
-      { /* */
+      { /* cover property: not synthesized; just free captured data. */
 	if (gn_unsupported_assertions_flag) {
 	      yyerror(@1, "sorry: concurrent_assertion_item not supported."
 		      " Try -gno-assertions or -gsupported-assertions"
 		      " to turn this message off.");
 	}
+	if ($4) { delete $4->antecedent; delete $4->consequent;
+		  delete $4->disable_iff_expr; delete $4->clk_evt; delete $4; }
+	delete $6;
         $$ = 0;
       }
       /* For now, cheat, and use property_spec for the sequence specification.
          They are syntactically identical. */
   | K_cover K_sequence '(' property_spec ')' statement_or_null
-      { /* */
+      { /* cover sequence: not synthesized; free captured data. */
 	if (gn_unsupported_assertions_flag) {
 	      yyerror(@1, "sorry: concurrent_assertion_item not supported."
 		      " Try -gno-assertions or -gsupported-assertions"
 		      " to turn this message off.");
 	}
+	if ($4) { delete $4->antecedent; delete $4->consequent;
+		  delete $4->disable_iff_expr; delete $4->clk_evt; delete $4; }
+	delete $6;
         $$ = 0;
       }
   | K_restrict K_property '(' property_spec ')' ';'
-      { /* */
+      { /* restrict property: not synthesized; free captured data. */
 	if (gn_unsupported_assertions_flag) {
 	      yyerror(@2, "sorry: concurrent_assertion_item not supported."
 		      " Try -gno-assertions or -gsupported-assertions"
 		      " to turn this message off.");
 	}
+	if ($4) { delete $4->antecedent; delete $4->consequent;
+		  delete $4->disable_iff_expr; delete $4->clk_evt; delete $4; }
         $$ = 0;
       }
   | assert_or_assume K_property '(' error ')' statement_or_null %prec less_than_K_else
@@ -4473,14 +4591,20 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 
 property_expr /* IEEE1800-2012 A.2.10 */
   : expression
-  /* SV concurrent assertion implication operators. We don't yet model
-     the temporal semantics; the property is parsed and silently dropped
-     by the surrounding `assert property` rule. Accept the common forms:
-       expr |-> expr     // overlapping implication
-       expr |=> expr     // non-overlapping implication
-     so headers can compile (e.g. tlul_assert.sv when SVA gating is off). */
-  | expression K_PIPE_IMPL_OV expression { delete $1; delete $3; }
-  | expression K_PIPE_IMPL_NOV expression { delete $1; delete $3; }
+      { sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = $1; p->consequent = nullptr; p->op_type = 0;
+	$$ = p; }
+  | expression K_PIPE_IMPL_OV expression
+      { sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = $1; p->consequent = $3; p->op_type = 1;
+	$$ = p; }
+  | expression K_PIPE_IMPL_NOV expression
+      { sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = $1; p->consequent = $3; p->op_type = 2;
+	$$ = p; }
   ;
 
   /* The property_qualifier rule is as literally described in the LRM,
@@ -4509,11 +4633,14 @@ property_qualifier_list /* IEEE1800-2005 A.1.8 */
 
 property_spec /* IEEE1800-2012 A.2.10 */
   : clocking_event_opt property_spec_disable_iff_opt property_expr
+      { sva_property_t*p = $3;
+	if (p) { p->clk_evt = $1; p->disable_iff_expr = $2; }
+	$$ = p; }
   ;
 
 property_spec_disable_iff_opt /* */
-  : K_disable K_iff '(' expression ')'
-  |
+  : K_disable K_iff '(' expression ')' { $$ = $4; }
+  | { $$ = nullptr; }
   ;
 
 random_qualifier /* IEEE1800-2005 A.1.8 */
@@ -5959,8 +6086,8 @@ dr_strength1
   ;
 
 clocking_event_opt /* */
-  : event_control
-  |
+  : event_control { $$ = $1; }
+  | { $$ = nullptr; }
   ;
 
 event_control /* A.K.A. clocking_event */
