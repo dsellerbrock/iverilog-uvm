@@ -1819,6 +1819,109 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
       return elaborate_expr(des, scope, (unsigned)1, flags);
 }
 
+/*
+ * C5 (Phase 62d): streaming concatenation elaboration.
+ *
+ * For {<<N {expr}}: build a NetEConcat that takes N-bit slices of expr
+ * (via NetESelect) in REVERSE chunk order.  N=1 gives full bit-reverse.
+ *
+ * For {>>N {expr}}: identity — return inner unchanged.
+ *
+ * If width%N != 0, the IEEE rule says the leftmost partial slice (most
+ * significant bits) is the smaller chunk.  We approximate by emitting the
+ * remainder as the first concat element (so it ends up at the MSBs of
+ * the result, matching the spec).
+ */
+unsigned PEStreaming::test_width(Design*des, NetScope*scope, width_mode_t&mode)
+{
+      expr_width_ = inner_->test_width(des, scope, mode);
+      expr_type_  = IVL_VT_LOGIC;
+      signed_flag_ = false;
+      min_width_ = expr_width_;
+      return expr_width_;
+}
+
+NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
+				     ivl_type_t /*type*/, unsigned flags) const
+{
+      return elaborate_expr(des, scope, (unsigned)0, flags);
+}
+
+NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
+				     unsigned /*expr_wid*/, unsigned flags) const
+{
+      if (!inner_) return nullptr;
+      width_mode_t m = SIZED;
+      unsigned w = inner_->test_width(des, scope, m);
+      if (w == 0) {
+            cerr << get_fileline() << ": error: streaming concatenation "
+                  "requires a known-width inner expression." << endl;
+            des->errors += 1;
+            return nullptr;
+      }
+      NetExpr*body = inner_->elaborate_expr(des, scope, w, flags);
+      if (!body) return nullptr;
+
+      // {>>N {x}} is identity — inner already produces the correct value.
+      if (dir_ == DIR_RSHIFT) return body;
+
+      unsigned slice = slice_ ? slice_ : 1;
+      // Number of full slices and remainder bits.
+      unsigned full = w / slice;
+      unsigned rem  = w % slice;
+      unsigned nelt = full + (rem ? 1 : 0);
+      if (nelt == 0) return body;
+      if (nelt == 1) {
+            // No reversal needed (single slice covers the whole expr).
+            return body;
+      }
+
+      std::vector<NetExpr*> parts;
+      parts.reserve(nelt);
+      // Element 0 (high bits of result) = leftmost slice of body.
+      // For body width w with slices size N (LSB index 0):
+      //   slice i covers bits [i*N .. i*N + N-1] (LSB at body[i*N]).
+      // Reversed-chunk order: the FIRST concat element is slice (full-1)
+      // (the highest-index = MSB-side slice in the original).  Wait, no
+      // — that's identity.  For {<<N {body}}, the chunk-reverse means:
+      //   result high bits  = body LSB chunk (slice 0)
+      //   result next chunk = slice 1
+      //   ...
+      //   result low bits   = body MSB chunk (slice full-1)
+      // So concat order (high→low) is: [slice 0, slice 1, ..., slice full-1].
+      // If there's a remainder, IEEE puts it at the LSB unmodified;
+      // i.e. it stays as the LAST concat element.
+      for (unsigned i = 0; i < full; i += 1) {
+            // Slice i of body: bits [i*slice .. i*slice + slice-1].
+            NetExpr*idx = new NetEConst(verinum((uint64_t)(i*slice), 32u));
+            idx->set_line(*this);
+            // We need an independent copy of `body` per element since
+            // NetESelect takes ownership.  Use dup_expr() if available;
+            // otherwise re-elaborate.
+            NetExpr*body_dup = body->dup_expr();
+            NetESelect*sel = new NetESelect(body_dup, idx, slice);
+            sel->set_line(*this);
+            parts.push_back(sel);
+      }
+      if (rem) {
+            // Remainder bits at the LSB of body, placed at LSB of result.
+            NetExpr*idx = new NetEConst(verinum((uint64_t)(full*slice), 32u));
+            idx->set_line(*this);
+            NetExpr*body_dup = body->dup_expr();
+            NetESelect*sel = new NetESelect(body_dup, idx, rem);
+            sel->set_line(*this);
+            parts.push_back(sel);
+      }
+      // We've duplicated body into each slice — delete the original.
+      delete body;
+
+      NetEConcat*cat = new NetEConcat((unsigned)parts.size(), 1, IVL_VT_LOGIC);
+      cat->set_line(*this);
+      for (size_t i = 0; i < parts.size(); i += 1)
+            cat->set(i, parts[i]);
+      return cat;
+}
+
 unsigned PEBLeftWidth::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
       ivl_assert(*this, left_);

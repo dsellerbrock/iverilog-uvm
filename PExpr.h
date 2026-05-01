@@ -1164,6 +1164,41 @@ struct inside_range_t {
 };
 
 /*
+ * C5 (Phase 62d): SystemVerilog streaming-concatenation operator.
+ *   {<<N {expr}}  — pack with chunk-reverse.  N=1: full bit-reverse.
+ *   {>>N {expr}}  — pack normally (same as plain concatenation).
+ * Currently supports a single inner expression (the most common form).
+ * Multi-element inner concat is deferred — most real testbenches use
+ * the single-expr form as in `{<<{send_data}} = {stop, parity, data}`.
+ */
+class PEStreaming : public PExpr {
+    public:
+      enum direction_t { DIR_LSHIFT, DIR_RSHIFT };
+      PEStreaming(direction_t dir, unsigned slice, PExpr* inner)
+      : dir_(dir), slice_(slice ? slice : 1), inner_(inner) {}
+      ~PEStreaming() override { delete inner_; }
+      direction_t get_dir() const { return dir_; }
+      unsigned get_slice() const { return slice_; }
+      PExpr* get_inner() const { return inner_; }
+      void dump(std::ostream& out) const override {
+            out << "{" << (dir_ == DIR_LSHIFT ? "<<" : ">>")
+                << slice_ << "{";
+            inner_->dump(out);
+            out << "}}";
+      }
+      unsigned test_width(Design* des, NetScope* scope,
+                          width_mode_t& mode) override;
+      NetExpr* elaborate_expr(Design* des, NetScope* scope,
+                              ivl_type_t type, unsigned flags) const override;
+      NetExpr* elaborate_expr(Design* des, NetScope* scope,
+                              unsigned expr_wid, unsigned flags) const override;
+    private:
+      direction_t dir_;
+      unsigned slice_;
+      PExpr* inner_;
+};
+
+/*
  * I4 (Phase 62c): wraps a soft constraint expression.  Constraint solving
  * applies it as a soft assertion (default weight 1) rather than a hard
  * conjunct — Z3 satisfies it when feasible but allows violation if other

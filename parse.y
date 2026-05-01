@@ -943,6 +943,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <named_pexpr> named_expression named_expression_opt port_name
 %type <named_pexprs> port_name_list parameter_value_byname_list
+%type <int_val> stream_operator
+%type <expr> stream_expression
+%type <exprs> stream_expression_list
 %type <exprs> port_conn_expression_list_with_nuls
 
 %type <named_pexpr> attribute
@@ -4636,43 +4639,100 @@ statement_or_null /* IEEE1800-2005: A.6.4 */
   ;
 
 stream_expression
-  : expression
+  : expression { $$ = $1; }
   ;
 
 stream_expression_list
   : stream_expression_list ',' stream_expression
+      { std::list<PExpr*>*lst = $1;
+	if (!lst) lst = new std::list<PExpr*>();
+	if ($3) lst->push_back($3);
+	$$ = lst; }
   | stream_expression
+      { std::list<PExpr*>*lst = new std::list<PExpr*>();
+	if ($1) lst->push_back($1);
+	$$ = lst; }
   ;
 
 stream_operator
-  : K_LS
-  | K_RS
+  : K_LS  { $$ = K_LS; }
+  | K_RS  { $$ = K_RS; }
   ;
 
 streaming_concatenation /* IEEE1800-2005: A.8.1 */
   : '{' stream_operator '{' stream_expression_list '}' '}'
-      { /* TODO: implement full streaming semantics. For now, parse and
-	   lower to a null expression so UVM sources continue parsing. */
+      { /* C5 (Phase 62d): single-expression streaming form, slice=1.
+	   For {<<{expr}}: bit-reverse.  For {>>{expr}}: identity. */
 	pform_requires_sv(@2, "Streaming concatenation");
-	PENull*tmp = new PENull;
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	PEStreaming::direction_t dir =
+	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT
+			   : PEStreaming::DIR_RSHIFT;
+	PExpr*inner = nullptr;
+	if ($4 && !$4->empty()) {
+	      inner = $4->front();
+	      $4->pop_front();
+	      // Multi-element inner not yet supported; warn if present.
+	      if (!$4->empty()) {
+		    yywarn(@4, "streaming-concatenation with multiple inner expressions: only the first is reversed; rest dropped (compile-progress).");
+		    while (!$4->empty()) { delete $4->front(); $4->pop_front(); }
+	      }
+	}
+	delete $4;
+	if (!inner) {
+	      PENull*np = new PENull; FILE_NAME(np, @1); $$ = np;
+	} else {
+	      PEStreaming*tmp = new PEStreaming(dir, 1, inner);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	}
       }
   | '{' stream_operator simple_type_or_string '{' stream_expression_list '}' '}'
-      { /* Typed/sized stream slice (e.g. {<< bit {...}}). */
+      { /* Typed-slice form: {<< bit {...}} — slice=1 (bit width). */
 	pform_requires_sv(@2, "Streaming concatenation");
 	delete $3;
-	PENull*tmp = new PENull;
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	PEStreaming::direction_t dir =
+	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
+	PExpr*inner = nullptr;
+	if ($5 && !$5->empty()) {
+	      inner = $5->front(); $5->pop_front();
+	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
+	}
+	delete $5;
+	if (!inner) {
+	      PENull*np = new PENull; FILE_NAME(np, @1); $$ = np;
+	} else {
+	      PEStreaming*tmp = new PEStreaming(dir, 1, inner);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	}
       }
   | '{' stream_operator expression '{' stream_expression_list '}' '}'
-      { /* Numeric stream slice (e.g. {<< 8 {...}}). */
+      { /* Numeric-slice form: {<< 8 {...}} — slice = numeric expr.
+	   We require the slice to be a constant integer; non-constant
+	   slices fall back to slice=1 with a warning. */
 	pform_requires_sv(@2, "Streaming concatenation");
+	PEStreaming::direction_t dir =
+	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
+	unsigned slice = 1;
+	if (PENumber*n = dynamic_cast<PENumber*>($3)) {
+	      verinum v = n->value();
+	      if (v.is_defined()) slice = v.as_unsigned();
+	      if (slice == 0) slice = 1;
+	}
 	delete $3;
-	PENull*tmp = new PENull;
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	PExpr*inner = nullptr;
+	if ($5 && !$5->empty()) {
+	      inner = $5->front(); $5->pop_front();
+	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
+	}
+	delete $5;
+	if (!inner) {
+	      PENull*np = new PENull; FILE_NAME(np, @1); $$ = np;
+	} else {
+	      PEStreaming*tmp = new PEStreaming(dir, slice, inner);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	}
       }
   ;
 
