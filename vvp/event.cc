@@ -893,11 +893,23 @@ void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t,
             // per scope (deep fork chains) burned CPU walking
             // vthread_recover_context_for_scope chains for contexts with
             // no waiters, hanging smoke vseq at sim ~30us.
+            //
+            // Phase 61b: hoist the bounds check out of the loop.  All live
+            // contexts of the same scope have the same allocation size, so
+            // one malloc_usable_size check suffices for the head; subsequent
+            // iterations can read context[context_idx_] directly.  This
+            // eliminates K calls to malloc_usable_size per delivery.
             context = context_scope_->live_contexts;
+            if (context) {
+                  size_t need = ((size_t)context_idx_ + 1) * sizeof(void*);
+                  if (need > vvp_malloc_usable_size(context)) {
+                        // bounds-check fail (uninitialized scope); abandon
+                        return;
+                  }
+            }
             while (context) {
                   vvp_fun_anyedge_state_s*state =
-                        static_cast<vvp_fun_anyedge_state_s*>
-                              (vvp_get_context_item(context, context_idx_));
+                        static_cast<vvp_fun_anyedge_state_s*>(context[context_idx_]);
                   if (state && state->threads) {
                         recv_object(port, vvp_object_t(), context);
                   }
