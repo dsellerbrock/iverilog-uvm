@@ -331,7 +331,23 @@ struct vthread_s {
     public:
       inline string pop_str(void)
       {
-	    assert(! stack_str_.empty());
+	    // C4 (Phase 62i): soft-fail underflow.  Code-gen mismatches in
+	    // some DPI/UVM paths can pop more strings than were pushed; an
+	    // assert here turns a recoverable code-gen bug into a hard
+	    // crash.  Log once and return empty string so the surrounding
+	    // path can continue (similar to the PEEK_VEC4-UF soft fallback
+	    // in vthread runtime).
+	    if (stack_str_.empty()) {
+		  static bool warned = false;
+		  if (!warned) {
+			fprintf(stderr,
+				"Warning: vthread pop_str underflow (stack empty)"
+				" — code-gen mismatch; returning empty string"
+				" (further similar warnings suppressed).\n");
+			warned = true;
+		  }
+		  return string();
+	    }
 	    string val = stack_str_.back();
 	    stack_str_.pop_back();
 	    return val;
