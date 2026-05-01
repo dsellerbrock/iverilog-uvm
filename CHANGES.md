@@ -915,7 +915,16 @@ The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remai
 - `uvm_reg.lock_model()` task missing — blocks register layer beyond raw backdoor
 - Coverage `cross` / `illegal_bins`: silently inactive
 - User-defined UVM phase (extends `uvm_task_phase`): `exec_task` never called
-- `uvm_callbacks::add` registration check warns CBUNREG (dispatch works)
+- `uvm_callbacks::add` registration check warns CBUNREG (dispatch works).
+  **Phase 62 (I5 fix):** the simplest cause — alphabetical class iteration in
+  `elaborate_classes` causing class-static initializers to fire in the wrong
+  order (a base class's `static = 0` initializer running AFTER a derived
+  class mutated it) — is fixed by `elaborate_classes_lexical()` (PPackage
+  and Module now iterate `classes_lexical` instead of `classes`). Test:
+  `tests/static_init_order_test.sv`. Residual CBUNREG in full UVM scenario
+  (parameterized `uvm_callbacks#(T,CB)::m_register_pair` not propagating
+  m_registered=1) is a separate parameterized-class specialization-order
+  issue and remains open.
 - Tagged unions (`union tagged { ... }`): syntax error
 - Some parameterized factory override combinations
 - `uvm_reg_frontdoor` (gap: `atomic_lock`, `start`, `atomic_unlock`)

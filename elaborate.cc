@@ -9578,6 +9578,32 @@ static void elaborate_classes(Design*des, NetScope*scope,
       }
 }
 
+// I5 (Phase 62i): same as elaborate_classes, but iterates classes in
+// declaration (lexical) order rather than alphabetical (std::map).  Used
+// for code paths that emit class-static initializers as IVL_PR_INITIAL
+// processes, where ordering matters: `uvm_register_cb` and similar
+// patterns rely on the base class's `static` initializers running before
+// derived classes' static initializers.  add_process / dll_target::process_
+// each prepend, so the run order in vvp is the same as the iteration
+// order here.
+static void elaborate_classes_lexical(Design*des, NetScope*scope,
+			      const std::vector<PClass*>&classes_lexical)
+{
+      for (PClass*pcl : classes_lexical) {
+	    if (!pcl) continue;
+	    netclass_t*use_class = scope->find_class(des, pcl->pscope_name());
+	    if (!use_class) continue;
+	    use_class->elaborate(des, pcl);
+
+	    if (use_class->test_for_missing_initializers()) {
+		  cerr << pcl->get_fileline() << ": error: "
+		       << "Const properties of class " << use_class->get_name()
+		       << " are missing initialization." << endl;
+		  des->errors += 1;
+	    }
+      }
+}
+
 bool PPackage::elaborate(Design*des, NetScope*scope) const
 {
       bool result_flag = true;
@@ -9588,8 +9614,11 @@ bool PPackage::elaborate(Design*des, NetScope*scope) const
 	// Elaborate task methods.
       elaborate_tasks(des, scope, tasks);
 
-	// Elaborate class definitions.
-      elaborate_classes(des, scope, classes);
+	// Elaborate class definitions in declaration (lexical) order so
+	// the static initializers run in declaration order (I5 fix —
+	// uvm_register_cb relies on the base typed_callbacks#(T)::m_b_inst
+	// being initialized before the derived class's m_register_pair).
+      elaborate_classes_lexical(des, scope, classes_lexical);
 
 	// Elaborate the variable initialization statements, making a
 	// single initial process out of them.
@@ -9627,8 +9656,9 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // the signals so that the tasks can reference them.
 	    elaborate_tasks(des, scope, tasks);
 
-	      // Elaborate class definitions.
-	    elaborate_classes(des, scope, classes);
+	      // Elaborate class definitions in declaration (lexical) order
+	      // so static initializers fire in declaration order (I5 fix).
+	    elaborate_classes_lexical(des, scope, classes_lexical);
 
 	      // Get all the gates of the module and elaborate them by
 	      // connecting them to the signals. The gate may be simple or
