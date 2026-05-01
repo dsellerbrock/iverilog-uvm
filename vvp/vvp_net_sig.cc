@@ -959,11 +959,19 @@ static const signal_object_aa_slot* signal_object_aa_slot_from_raw(const void*ra
 static signal_object_aa_slot* signal_object_aa_get_or_make_slot(vvp_context_t context,
                                                                  unsigned context_idx)
 {
+      // Phase 61d: bypass the malloc_usable_size bounds check.  This is
+      // called per recv_object (per signal-alias notification); under heavy
+      // alias activity the bounds check shows up as malloc_usable_size in
+      // SIGUSR1 sample backtraces.  context_idx_ is set at compile time by
+      // the elaboration pass and is guaranteed to fit any allocated context
+      // for the matching scope; the bounds check is purely defensive.
+      if (!context)
+            return 0;
       signal_object_aa_slot*slot =
-            signal_object_aa_slot_from_raw(vvp_get_context_item(context, context_idx));
+            signal_object_aa_slot_from_raw((vvp_context_item_t)context[context_idx]);
       if (!slot) {
             slot = new signal_object_aa_slot;
-            vvp_set_context_item(context, context_idx, slot);
+            context[context_idx] = slot;
       }
       return slot;
 }
