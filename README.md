@@ -43,7 +43,7 @@ results — and upstream each fix as a minimal, reviewable patch.
 | Queues, dynamic arrays, assoc arrays | ✅ | All element types; wait/wakeup on mutation |
 | `mailbox`, `semaphore` | ✅ | Blocking and non-blocking forms |
 | `fork`/`join`, `fork`/`join_none` | ✅ | Stable named-scope context binding |
-| `randomize()` unconstrained | ✅ | All `rand`/`randc` properties |
+| `randomize()` unconstrained | ✅ | `rand` properties — `randc` currently behaves as `rand`, see Phase 63 / Issue C1 |
 | `randomize()` with constraint blocks | ✅ | Z3 SMT solver backend |
 | `randomize() with { ... }` inline | ✅ | Constant, class-prop, and caller-scope vars |
 | `rand_mode(0/1)` | ✅ | Per-property enable/disable |
@@ -69,7 +69,7 @@ results — and upstream each fix as a minimal, reviewable patch.
 | Enum `.name()/.next()/.prev()/.first()/.last()` | ✅ | Both no-paren and paren forms |
 | `Class::static_func` (no-parens form) | ✅ | `MyClass::type_name` resolves to function call |
 | `$cast(class_property, src)` | ✅ | Direct property-store sequence |
-| `pkg::var = expr` assignment | ⚠ Deferred | LALR conflict, needs grammar restructure |
+| `pkg::var = expr` assignment | ✅ | Phase 10 — rules in `statement_item`; both `IDENTIFIER` and `TYPE_IDENTIFIER` lvalue forms handled |
 | Full UVM library end-to-end | ⚠ Partial | Phase infrastructure works; some gaps remain |
 | `dist` weighted distribution | ⚠ Stub | Parses without crashing — actual weighting TODO (Phase 30 / Issue #12) |
 | `std::randomize(var) with {...}` | ⚠ Stub | Returns success; variable retains current value |
@@ -80,7 +80,7 @@ results — and upstream each fix as a minimal, reviewable patch.
 | Clocking blocks `@(iface.cb)` + `iface.cb.sig` | ✅ | Flat rewrite to underlying interface signals |
 | Program blocks | ✅ | Treated like modules |
 | Output-arg into nested class property (e.g. `env.cfg.vif`) | ✅ | inout writeback through `cfg.vif`, `env.cfg.vif`, etc. |
-| Output-arg into indexed property (`cfg.q[key]`) | ⚠ Deferred | Writeback skipped — see Issue #27 OpenTitan DV |
+| Output-arg into indexed property (`cfg.q[key]`) | ✅ | Verified by audit 2026-05-01; OT-DV Issue #27 may be a different shape |
 | `q.push_back("str")` element-type dispatch | ✅ | Phase 50d — was using value-expr type, now uses queue's element type |
 | `pre_randomize()` / `post_randomize()` callbacks | ✅ | Phase 50e — tgt-vvp emits `%callf/void` to inherited hooks around `%randomize` |
 | `cfg.aa["key"]` read via class-property chain | ✅ | Phase 50f — `draw_select_vec4` distinguishes assoc-compat from queue containers |

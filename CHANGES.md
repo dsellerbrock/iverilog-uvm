@@ -893,7 +893,22 @@ remaining constraints.
 
 The UVM phase infrastructure (phases, objections, sequencer/driver TLM) works.
 The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remain in:
-- `uvm_field_automation` macros (`copy()`, `compare()`, `print()`)
+- `uvm_field_automation`: `copy()` and `compare()` work; `print()` printer-subclass
+  dispatch fires `[NO_OVERRIDE] emit() method not overridden` (audit 2026-05-01)
+- `randc` cyclic semantics: behaves as `rand` (Phase 63 candidate)
+- Concurrent assertions (`assert property |->`, `|=>`, `disable iff`): silently
+  pass-no-op (Phase 62 candidate — false-pass risk)
+- `dist` weighting: uniform regardless of weights (Phase 66 candidate)
+- `soft` constraints: treated as hard (Phase 66 candidate)
+- Streaming operators `{<<{}}` `{>>{}}`: silently produce zero
+- `std::randomize(var) with {...}`: `with` clause not parsed
+- `uvm_resource_db#(T)::set/read_by_name`: typed-pool path returns 0
+- `uvm_cmdline_processor.get_args(args)`: elaboration error on output arg
+- `uvm_reg.lock_model()` task missing — blocks register layer beyond raw backdoor
+- Coverage `cross` / `illegal_bins`: silently inactive
+- User-defined UVM phase (extends `uvm_task_phase`): `exec_task` never called
+- `uvm_callbacks::add` registration check warns CBUNREG (dispatch works)
+- Tagged unions (`union tagged { ... }`): syntax error
 - Some parameterized factory override combinations
 - `uvm_reg_frontdoor` (gap: `atomic_lock`, `start`, `atomic_unlock`)
 
