@@ -610,6 +610,13 @@ void pform_set_scope_timescale(const struct vlltype&loc)
  * Set the local time unit/precision. This version is used for setting
  * the time scale for subsidiary items (classes, subroutines, etc.),
  * which simply inherit their time scale from their parent scope.
+ *
+ * Phase 60: when the parent is the compilation unit ($unit) and a
+ * `timescale directive is in effect, prefer the directive's values
+ * over $unit's defaults.  Without this, classes declared at file scope
+ * inherit $unit->time_unit=0 (which is `def_ts_units`, default 1 sec)
+ * instead of the file's `timescale, and time literals like `100ns`
+ * inside class methods scale incorrectly.
  */
 static void pform_set_scope_timescale(PScope*scope, const PScope*parent)
 {
@@ -617,6 +624,15 @@ static void pform_set_scope_timescale(PScope*scope, const PScope*parent)
       scope->time_precision       = parent->time_precision;
       scope->time_unit_is_default = parent->time_unit_is_default;
       scope->time_prec_is_default = parent->time_prec_is_default;
+
+      if (parent->time_unit_is_default && pform_timescale_file != 0) {
+            scope->time_unit            = pform_time_unit;
+            scope->time_unit_is_default = false;
+      }
+      if (parent->time_prec_is_default && pform_timescale_file != 0) {
+            scope->time_precision       = pform_time_prec;
+            scope->time_prec_is_default = false;
+      }
 }
 
 PClass* pform_push_class_scope(const struct vlltype&loc, perm_string name)
@@ -1526,17 +1542,61 @@ void pform_set_timeunit(const char*txt, bool initial_decl)
       }
 }
 
+// Walk up parent_scope chain looking for a PScopeExtra whose time_unit/prec
+// has been explicitly set (is_default=false).  PClass is a PScopeExtra but
+// usually has no `timescale` directive of its own; the timescale should
+// come from the enclosing module or compilation-unit scope.  Without this
+// walk, time literals like `100ns` inside class methods evaluate to 0
+// because they see PClass's default time_unit=0 (PClass scope's parents
+// haven't been finalized yet when the time literal is parsed).
+static PScopeExtra* find_scopex_with_explicit_time_unit_(LexicalScope*scope)
+{
+      PScopeExtra*best = 0;
+      LexicalScope*cur = scope;
+      while (cur) {
+            if (PScopeExtra*sx = dynamic_cast<PScopeExtra*>(cur)) {
+                  if (!best) best = sx;
+                  if (!sx->time_unit_is_default) return sx;
+            }
+            cur = cur->parent_scope();
+      }
+      return best;
+}
+
+static PScopeExtra* find_scopex_with_explicit_time_prec_(LexicalScope*scope)
+{
+      PScopeExtra*best = 0;
+      LexicalScope*cur = scope;
+      while (cur) {
+            if (PScopeExtra*sx = dynamic_cast<PScopeExtra*>(cur)) {
+                  if (!best) best = sx;
+                  if (!sx->time_prec_is_default) return sx;
+            }
+            cur = cur->parent_scope();
+      }
+      return best;
+}
+
 int pform_get_timeunit()
 {
-      PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
+      PScopeExtra*scopex = find_scopex_with_explicit_time_unit_(lexical_scope);
       assert(scopex);
+      // If we couldn't find any scope with an explicit time_unit, fall
+      // back to the global pform_time_unit set by the most recent
+      // `timescale directive (if any).  Without this, time literals
+      // parsed during a class body whose parent module hasn't yet been
+      // finalized see scope->time_unit=0.
+      if (scopex->time_unit_is_default && pform_timescale_file != 0)
+            return pform_time_unit;
       return scopex->time_unit;
 }
 
 int pform_get_timeprec()
 {
-      PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
+      PScopeExtra*scopex = find_scopex_with_explicit_time_prec_(lexical_scope);
       assert(scopex);
+      if (scopex->time_prec_is_default && pform_timescale_file != 0)
+            return pform_time_prec;
       return scopex->time_precision;
 }
 
