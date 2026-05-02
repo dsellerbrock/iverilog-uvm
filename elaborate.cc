@@ -4744,6 +4744,16 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  }
 		  // rand_mode with multi-component path is still a noop.
 		  bool silent_noop = (tail == perm_string::literal("rand_mode"));
+		  // Phase 63b/B3: silence task-enable warnings for known
+		  // UVM dead-spec patterns (uvm_pair.first.copy() /
+		  // uvm_pair.second.copy() etc., where T=int default).
+		  if (!silent_noop && (
+			tail == perm_string::literal("copy")
+			|| tail == perm_string::literal("do_copy")
+			|| tail == perm_string::literal("print")
+			|| tail == perm_string::literal("record"))) {
+			silent_noop = true;
+		  }
 		  if (!silent_noop) {
 			cerr << get_fileline() << ": warning: Enable of unknown task "
 			     << "``" << path_ << "'' ignored (compile-progress fallback)." << endl;
