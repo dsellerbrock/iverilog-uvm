@@ -4751,7 +4751,17 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			tail == perm_string::literal("copy")
 			|| tail == perm_string::literal("do_copy")
 			|| tail == perm_string::literal("print")
-			|| tail == perm_string::literal("record"))) {
+			|| tail == perm_string::literal("record")
+			// Phase 63b/B4: uvm_registry.svh:656 calls
+			// rgtry.initialize() inside a static
+			// __deferred_init.  The spec class doesn't always
+			// elaborate initialize() at static init time, so
+			// the call appears unresolved.  The task is
+			// otherwise resolved later via uvm_init's
+			// deferred-init queue, so the static-time
+			// no-op is safe.
+			|| tail == perm_string::literal("initialize")
+			|| tail == perm_string::literal("m_initialize"))) {
 			silent_noop = true;
 		  }
 		  if (!silent_noop) {
