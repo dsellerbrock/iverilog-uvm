@@ -343,6 +343,41 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	    return;
       }
 
+      /* Phase 63b/B6 (real impl): handle IVL_EX_SELECT-wrapped
+	 signal actuals that arise from width-cast / sign-cast
+	 normalization at the call site.  When the SELECT has no
+	 base (oper2 nil) and oper1 is a signal of vectorable type,
+	 the SELECT is a width pad/truncate of the underlying
+	 signal — we copy out from the port directly into the
+	 underlying signal, padding/truncating as needed.  This
+	 covers the common UVM pattern
+	   uvm_config_int::get(... , tmp);
+	 where iverilog wraps `tmp` in a SELECT for type
+	 normalization. */
+      if (ivl_expr_type(actual) == IVL_EX_SELECT
+	  && !ivl_expr_oper2(actual)
+	  && ivl_expr_oper1(actual)
+	  && ivl_expr_type(ivl_expr_oper1(actual)) == IVL_EX_SIGNAL) {
+	    ivl_expr_t op1 = ivl_expr_oper1(actual);
+	    ivl_signal_t under_sig = ivl_expr_signal(op1);
+	    if (under_sig && ivl_signal_dimensions(under_sig) == 0) {
+		  ivl_variable_type_t udtype = ivl_signal_data_type(under_sig);
+		  unsigned port_wid = ivl_signal_width(port);
+		  unsigned sig_wid  = ivl_signal_width(under_sig);
+		  if (udtype == IVL_VT_BOOL || udtype == IVL_VT_LOGIC) {
+			fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
+			if (sig_wid != port_wid) {
+			      const char*pad = ivl_signal_signed(under_sig)
+				    ? "%pad/s" : "%pad/u";
+			      fprintf(vvp_out, "    %s %u;\n", pad, sig_wid);
+			}
+			fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+				under_sig, sig_wid);
+			return;
+		  }
+	    }
+      }
+
       if (!function_argument_actual_signal_(actual, &sig, &word)) {
 	    /* Phase 63b/B6: surface the file:line of the call site so
 	       users can find and rewrite affected callers.  The runtime
