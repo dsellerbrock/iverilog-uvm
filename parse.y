@@ -11838,8 +11838,11 @@ statement_item /* This is roughly statement_item in the LRM */
   /* C6 (Phase 62e): bare-statement form of pkg::func(args) with {...};
      Used by `std::randomize(x) with {...};`.  Direct statement-item
      pattern to avoid shift-reduce conflicts via the subroutine_call
-     intermediate.  Runtime stub for std::randomize doesn't apply the
-     with-clause; this is a parse-without-error fix. */
+     intermediate.
+     Phase 63b/B8: surface a one-time warning when the with-clause
+     is dropped — the runtime stub doesn't apply it, so user
+     constraints silently no-op.  Emit a clear advisory so users
+     don't trust a green return value. */
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with '{' constraint_block_item_list_opt '}' ';'
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
@@ -11853,6 +11856,15 @@ statement_item /* This is roughly statement_item in the LRM */
 	      delete $7;
 	}
 	pform_requires_sv(@5, "Statement-form pkg::func(args) with-clause");
+	{ static bool warned = false;
+	  if (!warned) {
+		std::cerr << @5
+			  << ": warning: std::randomize(...) with-clause is parsed "
+			  << "but not enforced (compile-progress; constraints are "
+			  << "silently dropped; further similar warnings "
+			  << "suppressed)." << std::endl;
+		warned = true;
+	  } }
 	$$ = tmp;
       }
 
