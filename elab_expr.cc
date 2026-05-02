@@ -6840,6 +6840,36 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 		default:
 		  break;
 	    }
+      } else if (const netqueue_t*qt = dynamic_cast<const netqueue_t*>(target_type_)) {
+	    // Phase 63a/A4: cast to queue.  When the source is already a
+	    // queue/darray/packed-vector with bit/logic elements compatible
+	    // with the target queue's element type, the cast is a no-op
+	    // at the value level — both the source and target are the
+	    // same logical bit stream.  This eliminates the
+	    // "bits reinterpreted" warning on UVM uvm_reg_map.svh:2160/2169
+	    // (`bit_q_t'({<<{p}})`) where the streaming + cast pair
+	    // round-trips a bit queue without changing its semantics.
+	    ivl_type_t qet = qt->element_type();
+	    if (qet && (qet->base_type() == IVL_VT_BOOL
+			|| qet->base_type() == IVL_VT_LOGIC)) {
+		  ivl_variable_type_t st = sub->expr_type();
+		  if (st == IVL_VT_BOOL || st == IVL_VT_LOGIC
+		      || st == IVL_VT_QUEUE || st == IVL_VT_DARRAY) {
+			return sub;
+		  }
+	    }
+      } else if (dynamic_cast<const netdarray_t*>(target_type_)) {
+	    // Symmetric handling for darray cast targets.
+	    const netdarray_t*dt = dynamic_cast<const netdarray_t*>(target_type_);
+	    ivl_type_t det = dt->element_type();
+	    if (det && (det->base_type() == IVL_VT_BOOL
+			|| det->base_type() == IVL_VT_LOGIC)) {
+		  ivl_variable_type_t st = sub->expr_type();
+		  if (st == IVL_VT_BOOL || st == IVL_VT_LOGIC
+		      || st == IVL_VT_QUEUE || st == IVL_VT_DARRAY) {
+			return sub;
+		  }
+	    }
       }
       if (tmp) {
 	    if (tmp == sub) {
