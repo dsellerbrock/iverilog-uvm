@@ -2553,7 +2553,9 @@ static int show_system_task_call(ivl_statement_t net)
 
       if (strcmp(stmt_name,"$ivl_queue_method$sort") == 0
 	  || strcmp(stmt_name,"$ivl_queue_method$rsort") == 0
-	  || strcmp(stmt_name,"$ivl_queue_method$unique") == 0) {
+	  || strcmp(stmt_name,"$ivl_queue_method$unique") == 0
+	  || strcmp(stmt_name,"$ivl_queue_method$reverse") == 0
+	  || strcmp(stmt_name,"$ivl_queue_method$shuffle") == 0) {
 	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
 		  ? ivl_stmt_parm(net, 0) : 0;
 	    if (!parm0 || ivl_expr_type(parm0) != IVL_EX_SIGNAL
@@ -2563,17 +2565,16 @@ static int show_system_task_call(ivl_statement_t net)
 		     %qsort/%qunique opcodes which take a signal argument.
 		     A real implementation would need a queue-by-handle
 		     variant of the opcodes; until that lands, silently
-		     skip rather than warning on every UVM compile.
-		     UVM's uvm_root.svh:827 m_time_settings.sort() hits
-		     this; missing sort just means iteration order isn't
-		     guaranteed in time-based verbosity settings. */
+		     skip rather than warning on every UVM compile. */
 		  return 0;
 	    }
 	    ivl_signal_t sig = ivl_expr_signal(parm0);
 	    const char*opcode =
-		  (strcmp(stmt_name,"$ivl_queue_method$sort")==0)  ? "%qsort"   :
-		  (strcmp(stmt_name,"$ivl_queue_method$rsort")==0) ? "%qsort/r" :
-		                                                    "%qunique";
+		  (strcmp(stmt_name,"$ivl_queue_method$sort")==0)    ? "%qsort"    :
+		  (strcmp(stmt_name,"$ivl_queue_method$rsort")==0)   ? "%qsort/r"  :
+		  (strcmp(stmt_name,"$ivl_queue_method$reverse")==0) ? "%qreverse" :
+		  (strcmp(stmt_name,"$ivl_queue_method$shuffle")==0) ? "%qshuffle" :
+		                                                       "%qunique";
 	    fprintf(vvp_out, "    %s v%p_0;\n", opcode, sig);
 	    return 0;
       }

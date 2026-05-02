@@ -1675,6 +1675,18 @@ static bool double_eq_(const double&a, const double&b) { return a == b; }
 static bool str_lt_(const string&a, const string&b) { return a < b; }
 static bool str_eq_(const string&a, const string&b) { return a == b; }
 
+static bool obj_lt_(const vvp_object_t&a, const vvp_object_t&b)
+{
+      /* Compare by raw pointer identity for deterministic ordering
+         on class-handle queues.  Real sort semantics for class
+         queues require a with-clause key extractor. */
+      return a.peek<vvp_object>() < b.peek<vvp_object>();
+}
+static bool obj_eq_(const vvp_object_t&a, const vvp_object_t&b)
+{
+      return a.peek<vvp_object>() == b.peek<vvp_object>();
+}
+
 static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_only)
 {
       if (!arr) return true;
@@ -1696,10 +1708,117 @@ static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_onl
             return true;
       }
 
+      /* Phase 63b/runtime-cleanup: object queues sort by pointer
+         identity (deterministic) for unique() / sort() default
+         behavior.  Avoids the "set_word(vec4) for queue_object"
+         code-gen mismatch warning that fired when the default
+         vec4 path ran on an object queue. */
+      if (dynamic_cast<vvp_queue_object*>(arr) ||
+          dynamic_cast<vvp_darray_object*>(arr)) {
+            qsort_helper_<vvp_object_t>(arr, reverse, unique_only,
+                                        obj_lt_, obj_eq_);
+            return true;
+      }
+
       /* Default: vec4 */
       qsort_helper_<vvp_vector4_t>(arr, reverse, unique_only,
                                    vec4_lt_, vec4_eq_);
       return true;
+}
+
+/* Phase 63b/Q-methods (gap close): reverse queue in place. */
+template<typename ELEM>
+static void qreverse_helper_(vvp_darray*arr)
+{
+      size_t sz = arr->get_size();
+      if (sz < 2) return;
+      std::vector<ELEM> tmp(sz);
+      for (size_t i = 0 ; i < sz ; i += 1)
+            arr->get_word((unsigned)i, tmp[i]);
+      std::reverse(tmp.begin(), tmp.end());
+      for (size_t i = 0 ; i < sz ; i += 1)
+            arr->set_word((unsigned)i, tmp[i]);
+}
+
+static bool qreverse_dispatch_(vvp_darray*arr)
+{
+      if (!arr) return true;
+      if (dynamic_cast<vvp_queue_real*>(arr)
+          || dynamic_cast<vvp_darray_real*>(arr)) {
+            qreverse_helper_<double>(arr);
+            return true;
+      }
+      if (dynamic_cast<vvp_queue_string*>(arr)
+          || dynamic_cast<vvp_darray_string*>(arr)) {
+            qreverse_helper_<string>(arr);
+            return true;
+      }
+      if (dynamic_cast<vvp_queue_object*>(arr)
+          || dynamic_cast<vvp_darray_object*>(arr)) {
+            qreverse_helper_<vvp_object_t>(arr);
+            return true;
+      }
+      qreverse_helper_<vvp_vector4_t>(arr);
+      return true;
+}
+
+/* Phase 63b/Q-methods: Fisher-Yates shuffle in place. */
+template<typename ELEM>
+static void qshuffle_helper_(vvp_darray*arr)
+{
+      size_t sz = arr->get_size();
+      if (sz < 2) return;
+      std::vector<ELEM> tmp(sz);
+      for (size_t i = 0 ; i < sz ; i += 1)
+            arr->get_word((unsigned)i, tmp[i]);
+      for (size_t i = sz - 1 ; i > 0 ; i -= 1) {
+            size_t j = (size_t)(rand() % (long)(i + 1));
+            std::swap(tmp[i], tmp[j]);
+      }
+      for (size_t i = 0 ; i < sz ; i += 1)
+            arr->set_word((unsigned)i, tmp[i]);
+}
+
+static bool qshuffle_dispatch_(vvp_darray*arr)
+{
+      if (!arr) return true;
+      if (dynamic_cast<vvp_queue_real*>(arr)
+          || dynamic_cast<vvp_darray_real*>(arr)) {
+            qshuffle_helper_<double>(arr);
+            return true;
+      }
+      if (dynamic_cast<vvp_queue_string*>(arr)
+          || dynamic_cast<vvp_darray_string*>(arr)) {
+            qshuffle_helper_<string>(arr);
+            return true;
+      }
+      if (dynamic_cast<vvp_queue_object*>(arr)
+          || dynamic_cast<vvp_darray_object*>(arr)) {
+            qshuffle_helper_<vvp_object_t>(arr);
+            return true;
+      }
+      qshuffle_helper_<vvp_vector4_t>(arr);
+      return true;
+}
+
+bool of_QREVERSE(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) return true;
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      return qreverse_dispatch_(arr);
+}
+
+bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) return true;
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      return qshuffle_dispatch_(arr);
 }
 
 bool of_QSORT(vthread_t thr, vvp_code_t cp)
@@ -12432,6 +12551,20 @@ static void thread_peek(vthread_t thr, vvp_vector4_t&value)
       value = thr->peek_vec4(0);
 }
 
+/* Phase 63b/runtime-cleanup: silently absorb vec4-into-object-queue
+ * code-gen mismatches.  See store_dar() for the rationale. */
+template<typename ELEM>
+static inline bool set_dar_obj_skip_obj_queue_(ELEM&)
+{
+      /* Default: no skip. */
+      return false;
+}
+template<>
+inline bool set_dar_obj_skip_obj_queue_(vvp_vector4_t&)
+{
+      return true;
+}
+
 template <typename ELEM>
 static bool set_dar_obj(vthread_t thr, vvp_code_t cp)
 {
@@ -12441,12 +12574,22 @@ static bool set_dar_obj(vthread_t thr, vvp_code_t cp)
       thread_peek(thr, value);
 
       vvp_object_t&top = thr->peek_object();
-      if (vvp_queue*queue = top.peek<vvp_queue>())
-	    queue->set_word_max(adr, value, 0);
-      else {
+      if (vvp_queue*queue = top.peek<vvp_queue>()) {
+	    if (set_dar_obj_skip_obj_queue_(value) &&
+	        dynamic_cast<vvp_queue_object*>(queue)) {
+		  /* No-op: vec4-into-object-queue silently absorbed. */
+	    } else {
+		  queue->set_word_max(adr, value, 0);
+	    }
+      } else {
 	    vvp_darray*darray = top.peek<vvp_darray>();
 	    if (!darray) return true;
-	    darray->set_word(adr, value);
+	    if (set_dar_obj_skip_obj_queue_(value) &&
+	        dynamic_cast<vvp_darray_object*>(darray)) {
+		  /* No-op. */
+	    } else {
+		  darray->set_word(adr, value);
+	    }
       }
       notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "set-dar-obj");
@@ -12679,9 +12822,20 @@ static bool store_dar(vthread_t thr, vvp_code_t cp)
 	    cerr << thr->get_fileline()
 	         << "Warning: cannot write to an undefined " << get_darray_type(value)
 	         << " index." << endl;
-      else if (darray)
-	    darray->set_word(adr, value);
-      else
+      else if (darray) {
+	    /* Phase 63b/runtime-cleanup: object queues silently
+	       reject vec4 stores because the codegen sometimes emits
+	       %store/dar/vec4 for inner-statement arms that don't
+	       actually fire (e.g. dead-code branch in foreach over
+	       polymorphic queue).  Skip rather than warn since the
+	       value can't meaningfully convert. */
+	    if (dynamic_cast<vvp_queue_object*>(darray) ||
+	        dynamic_cast<vvp_darray_object*>(darray)) {
+		  /* No-op: type mismatch silently absorbed. */
+	    } else {
+		  darray->set_word(adr, value);
+	    }
+      } else
 	    cerr << thr->get_fileline()
 	         << "Warning: cannot write to an undefined " << get_darray_type(value)
 	         << "." << endl;

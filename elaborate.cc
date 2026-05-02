@@ -5558,10 +5558,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			                                method_name, "$size");
 			    } else if (method_name == "reverse") {
 				  if (gn_system_verilog()) {
-					delete obj_expr;
-					NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
-					tmp->set_line(*this);
-					return tmp;
+					/* Phase 63b/Q-methods (gap close): wire to %qreverse. */
+					vector<NetExpr*> argv(1);
+					argv[0] = obj_expr;
+					NetSTask*sys = new NetSTask("$ivl_queue_method$reverse",
+								    IVL_SFUNC_AS_TASK_IGNORE, argv);
+					sys->set_line(*this);
+					return sys;
 			  }
 			  cerr << get_fileline() << ": sorry: 'reverse()' "
 			          "array sorting method is not currently supported."
@@ -5610,10 +5613,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				  return 0;
 			    } else if (method_name=="shuffle") {
 				  if (gn_system_verilog()) {
-					delete obj_expr;
-					NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
-					tmp->set_line(*this);
-					return tmp;
+					/* Phase 63b/Q-methods (gap close): wire to %qshuffle. */
+					vector<NetExpr*> argv(1);
+					argv[0] = obj_expr;
+					NetSTask*sys = new NetSTask("$ivl_queue_method$shuffle",
+								    IVL_SFUNC_AS_TASK_IGNORE, argv);
+					sys->set_line(*this);
+					return sys;
 			  }
 			  cerr << get_fileline() << ": sorry: 'shuffle()' "
 			          "array sorting method is not currently supported."
