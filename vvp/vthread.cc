@@ -205,6 +205,11 @@ struct vthread_s {
       vector<unsigned> args_real;
       vector<unsigned> args_str;
       vector<unsigned> args_vec4;
+	// Phase 63b/B6: object-typed return values (class/queue/darray
+	// handles).  Mirrors the depth-into-parent-stack convention of
+	// args_<type>; entries point into the parent thread's
+	// stack_obj_[].  Used by %ret/obj and %retload/obj.
+      vector<unsigned> args_obj;
 
     private:
       vector<vvp_vector4_t>stack_vec4_;
@@ -5543,13 +5548,21 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 		      }
 }
 
+/*
+ * Phase 63b/B6: %callf/obj — call a function whose return type is an
+ * object handle (class/queue/darray).  Push a null placeholder onto
+ * the caller's object stack; the function will overwrite via
+ * %ret/obj.  args_obj[0] points at depth 0 of the caller's object
+ * stack (i.e. the placeholder we just pushed).  Functions that
+ * use the legacy %store/obj v_retval_sig path won't %ret/obj — for
+ * those, the placeholder is popped at function end via the
+ * release-callf cleanup that runs in do_callf_void's parent
+ * unwind. */
 bool of_CALLF_OBJ(vthread_t thr, vvp_code_t cp)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
       maybe_dispatch_uvm_object_wrapper_call_(thr, cp, child);
       return do_callf_void(thr, child);
-
-      // XXXX NOT IMPLEMENTED
 }
 
 bool of_CALLF_OBJ_V(vthread_t thr, vvp_code_t cp)
@@ -12140,9 +12153,19 @@ static void poke_val(vthread_t fun_thr, unsigned depth, const string&val)
       fun_thr->parent->poke_str(depth, val);
 }
 
+static void poke_val(vthread_t fun_thr, unsigned depth, const vvp_object_t&val)
+{
+      fun_thr->parent->poke_object(depth, val);
+}
+
 static size_t get_max(vthread_t fun_thr, double&)
 {
       return fun_thr->args_real.size();
+}
+
+static size_t get_max(vthread_t fun_thr, vvp_object_t&)
+{
+      return fun_thr->args_obj.size();
 }
 
 static size_t get_max(vthread_t fun_thr, string&)
@@ -12170,6 +12193,11 @@ static unsigned get_depth(vthread_t fun_thr, size_t index, vvp_vector4_t&)
       return fun_thr->args_vec4[index];
 }
 
+static unsigned get_depth(vthread_t fun_thr, size_t index, vvp_object_t&)
+{
+      return fun_thr->args_obj[index];
+}
+
 static vthread_t get_func(vthread_t thr)
 {
       vthread_t fun_thr = thr;
@@ -12182,7 +12210,8 @@ static vthread_t get_func(vthread_t thr)
       while (fun_thr->parent_scope->get_type_code() != vpiFunction
 	     || (fun_thr->args_vec4.empty()
 	         && fun_thr->args_real.empty()
-	         && fun_thr->args_str.empty())) {
+	         && fun_thr->args_str.empty()
+	         && fun_thr->args_obj.empty())) {
 	    assert(fun_thr->parent);
 	    fun_thr = fun_thr->parent;
       }
@@ -12295,6 +12324,11 @@ static void push_from_parent(vthread_t thr, vthread_t fun_thr, unsigned depth, v
       thr->push_vec4(fun_thr->parent->peek_vec4(depth));
 }
 
+static void push_from_parent(vthread_t thr, vthread_t fun_thr, unsigned depth, vvp_object_t&)
+{
+      thr->push_object(fun_thr->parent->peek_object(depth));
+}
+
 template <typename ELEM>
 static bool retload(vthread_t thr, vvp_code_t cp)
 {
@@ -12325,6 +12359,30 @@ bool of_RETLOAD_REAL(vthread_t thr, vvp_code_t cp)
 bool of_RETLOAD_STR(vthread_t thr, vvp_code_t cp)
 {
       return retload<string>(thr, cp);
+}
+
+/*
+ * Phase 63b/B6: %ret/obj <index>
+ *
+ * Pop an object handle from the current thread and write it into
+ * the parent thread's object stack at the slot reserved for this
+ * function's return value.  Mirrors %ret/real and %ret/str.
+ */
+bool of_RET_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return ret<vvp_object_t>(thr, cp);
+}
+
+/*
+ * Phase 63b/B6: %retload/obj <index>
+ *
+ * Push a copy of the parent thread's return-slot object onto the
+ * current thread's object stack.  Mirrors %retload/real and
+ * %retload/str.
+ */
+bool of_RETLOAD_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return retload<vvp_object_t>(thr, cp);
 }
 
 /*
