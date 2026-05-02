@@ -87,6 +87,98 @@ static stack<PBlock*> current_block_stack;
 static LexicalScope::lifetime_t var_lifetime;
 static bool warned_stream_concat_lval_incomplete = false;
 
+/* Phase 63b/B8 (gap close): range bound for std::randomize with-clause
+ * detection.  Used to lower simple range constraints to
+ * $urandom_range, which gives uniform sampling over the bounded
+ * domain instead of the retry-loop's best-effort approach (which
+ * fails for ranges < ~1% of 2^32).  See std_rand_collect_bounds_(). */
+struct b8_range_t {
+      bool has_min = false;
+      bool has_max = false;
+      int64_t min_v = 0;
+      int64_t max_v = 0;
+};
+
+/* Walk a constraint PExpr AST and collect simple range bounds for the
+ * named arg.  Returns true if the entire AST consists of supported
+ * range patterns ((arg > C), (arg < C), (arg >= C), (arg <= C),
+ * (arg == C), and conjunctions thereof), false otherwise (caller
+ * should fall back to retry loop).  C must be PENumber. */
+static bool std_rand_collect_bounds_(const PExpr*expr,
+				     const std::string&arg_name,
+				     b8_range_t&r)
+{
+      if (!expr) return true;
+      // Conjunction: a && b
+      if (auto*lg = dynamic_cast<const PEBLogic*>(expr)) {
+	    if (lg->get_op() != 'a') return false;
+	    return std_rand_collect_bounds_(lg->get_left(),  arg_name, r)
+		&& std_rand_collect_bounds_(lg->get_right(), arg_name, r);
+      }
+      // Comparison: arg <op> const  or  const <op> arg.  The const may
+      // be wrapped in PEUnary('-', PENumber) for negative literals.
+      const PEBinary*cmp = dynamic_cast<const PEBComp*>(expr);
+      if (!cmp) cmp = dynamic_cast<const PEBinary*>(expr);
+      if (!cmp) return false;
+      char op = cmp->get_op();
+      auto extract_num = [](const PExpr*e, int64_t&out)->bool {
+	    if (auto*n = dynamic_cast<const PENumber*>(e)) {
+		  out = n->value().as_long();
+		  return true;
+	    }
+	    if (auto*u = dynamic_cast<const PEUnary*>(e)) {
+		  if (u->get_op() == '-') {
+			int64_t inner;
+			if (auto*n = dynamic_cast<const PENumber*>(u->get_expr())) {
+			      inner = n->value().as_long();
+			      out = -inner;
+			      return true;
+			}
+		  }
+	    }
+	    return false;
+      };
+      const PEIdent*ide = dynamic_cast<const PEIdent*>(cmp->get_left());
+      int64_t v;
+      bool got_num = extract_num(cmp->get_right(), v);
+      bool swapped = false;
+      if (!(ide && got_num)) {
+	    ide = dynamic_cast<const PEIdent*>(cmp->get_right());
+	    got_num = extract_num(cmp->get_left(), v);
+	    swapped = true;
+      }
+      if (!ide || !got_num) return false;
+      if (ide->path().size() != 1) return false;
+      if (ide->path().back().name.str() != arg_name) return false;
+      if (swapped) {
+	    /* C <op> arg  →  arg <swapped-op> C */
+	    if (op == '<') op = '>';
+	    else if (op == '>') op = '<';
+	    else if (op == 'L') op = 'G';
+	    else if (op == 'G') op = 'L';
+      }
+      switch (op) {
+	  case '>':                              // arg > v   → min = v+1
+	    if (!r.has_min || v + 1 > r.min_v) { r.min_v = v + 1; r.has_min = true; }
+	    return true;
+	  case 'G':                              // arg >= v  → min = v
+	    if (!r.has_min || v > r.min_v)     { r.min_v = v;     r.has_min = true; }
+	    return true;
+	  case '<':                              // arg < v   → max = v-1
+	    if (!r.has_max || v - 1 < r.max_v) { r.max_v = v - 1; r.has_max = true; }
+	    return true;
+	  case 'L':                              // arg <= v  → max = v
+	    if (!r.has_max || v < r.max_v)     { r.max_v = v;     r.has_max = true; }
+	    return true;
+	  case 'e':                              // arg == v  → fixed
+	    r.min_v = v; r.max_v = v;
+	    r.has_min = r.has_max = true;
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
 static void check_in_gen_region(const struct vlltype &loc)
 {
       if (in_gen_region) {
@@ -11903,30 +11995,162 @@ statement_item /* This is roughly statement_item in the LRM */
 			    && strcmp($3, "randomize")==0
 			    && $4 && !$4->empty());
 	if (is_std_rand) {
-	      std::vector<Statement*> stmts;
+	      /* Phase 63b/B8 (gap close): real with-clause enforcement.
+		 Two paths:
+		 (A) Range-bound fast path: if the constraint is a
+		     conjunction of `arg <op> const` patterns where each
+		     arg has clean min/max bounds, lower the assignment
+		     to `arg = $urandom_range(min, max)`.  This handles
+		     tight ranges (e.g. 1<x<16) that the retry loop
+		     can't satisfy in finite tries.
+		 (B) Retry loop fallback: for arbitrary constraints,
+		       repeat (4096) begin args=$random; if (CONSTR) break; end
+		     Best-effort; tight-domain constraints that don't
+		     match (A) and have <0.1% prob will likely not
+		     converge — those need full Z3 routing (future). */
+	      std::vector<std::string> arg_names;
 	      for (auto &arg : *$4) {
-		    if (!arg.parm) continue;
-		    PECallFunction*rng = new PECallFunction(
-			  perm_string::literal("$random"));
-		    FILE_NAME(rng, @1);
-		    PAssign*a = new PAssign(arg.parm, rng);
+		    if (!arg.parm) { arg_names.push_back(""); continue; }
+		    auto*aid = dynamic_cast<PEIdent*>(arg.parm);
+		    if (aid && aid->path().size() == 1)
+			  arg_names.push_back(aid->path().back().name.str());
+		    else
+			  arg_names.push_back("");
+	      }
+
+	      /* Try the range-bound fast path: collect bounds for each
+		 arg from the constraint list.  If every arg gets a
+		 clean min+max and every constraint item is recognized,
+		 lower to $urandom_range. */
+	      bool fast_path_ok = true;
+	      std::vector<b8_range_t> bounds(arg_names.size());
+	      if (!$7 || $7->empty()) {
+		    fast_path_ok = false;  // no constraints — no fast path
+	      } else if (arg_names.empty()) {
+		    fast_path_ok = false;
+	      } else {
+		    for (size_t ai = 0; ai < arg_names.size(); ai++) {
+			  if (arg_names[ai].empty()) {
+				fast_path_ok = false; break;
+			  }
+			  for (PExpr*c : *$7) {
+				if (!c) continue;
+				if (!std_rand_collect_bounds_(c,
+				        arg_names[ai], bounds[ai])) {
+				      fast_path_ok = false; break;
+				}
+			  }
+			  if (!fast_path_ok) break;
+			  if (!bounds[ai].has_min || !bounds[ai].has_max) {
+				fast_path_ok = false; break;
+			  }
+			  if (bounds[ai].min_v > bounds[ai].max_v) {
+				fast_path_ok = false; break;  // contradictory
+			  }
+		    }
+	      }
+
+	      std::vector<Statement*> rand_assign_stmts;
+	      size_t ai = 0;
+	      for (auto &arg : *$4) {
+		    if (!arg.parm) { ai++; continue; }
+		    PExpr*rng_call = nullptr;
+		    if (fast_path_ok) {
+			  /* arg = $urandom_range(max-min) + min
+			     ($urandom_range takes unsigned args, so shift
+			     by min to support negative bounds.) */
+			  int64_t mn = bounds[ai].min_v;
+			  int64_t mx = bounds[ai].max_v;
+			  uint64_t span = (uint64_t)(mx - mn);
+			  std::vector<named_pexpr_t> ur_parms;
+			  named_pexpr_t lo_p, hi_p;
+			  lo_p.parm = new PENumber(new verinum((uint64_t)0, 32));
+			  FILE_NAME(lo_p.parm, @1);
+			  hi_p.parm = new PENumber(new verinum(span, 32));
+			  FILE_NAME(hi_p.parm, @1);
+			  ur_parms.push_back(hi_p); // $urandom_range(max, min)
+			  ur_parms.push_back(lo_p);
+			  PECallFunction*ur = new PECallFunction(
+				perm_string::literal("$urandom_range"), ur_parms);
+			  FILE_NAME(ur, @1);
+			  if (mn == 0) {
+				rng_call = ur;
+			  } else {
+				/* (ur + mn) — emit as PEBinary('+', ur, mn) */
+				PENumber*offs = new PENumber(
+				      new verinum((int64_t)mn));
+				FILE_NAME(offs, @1);
+				PEBinary*sum = new PEBinary('+', ur, offs);
+				FILE_NAME(sum, @1);
+				rng_call = sum;
+			  }
+		    } else {
+			  rng_call = new PECallFunction(
+				perm_string::literal("$random"));
+			  FILE_NAME(rng_call, @1);
+		    }
+		    PAssign*a = new PAssign(arg.parm, rng_call);
 		    FILE_NAME(a, @1);
-		    stmts.push_back(a);
+		    rand_assign_stmts.push_back(a);
+		    ai++;
 	      }
-	      PBlock*blk = new PBlock(PBlock::BL_SEQ);
-	      FILE_NAME(blk, @1);
-	      blk->set_statement(stmts);
-	      stmt = blk;
-	      static bool warned_drop = false;
-	      if (!warned_drop && $7 && !$7->empty()) {
-		    std::cerr << @5
-			      << ": warning: std::randomize(...) with-clause "
-			      << "constraints are dropped (compile-progress; "
-			      << "args are randomized but the predicate is "
-			      << "not enforced; further similar warnings "
-			      << "suppressed)." << std::endl;
-		    warned_drop = true;
+
+	      /* Combine constraint items via &&. */
+	      PExpr*combined = nullptr;
+	      if ($7) {
+		    for (PExpr*c : *$7) {
+			  if (!c) continue;
+			  if (!combined) {
+				combined = c;
+			  } else {
+				PEBinary*conj = new PEBLogic('a', combined, c);
+				FILE_NAME(conj, @5);
+				combined = conj;
+			  }
+		    }
 	      }
+
+	      PBlock*outer = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(outer, @1);
+	      std::vector<Statement*> outer_stmts;
+
+	      if (fast_path_ok) {
+		    /* Range-bound fast path: just emit per-arg
+		       $urandom_range — single uniform draw per arg. */
+		    outer_stmts = rand_assign_stmts;
+		    /* Constraint expressions consumed in the analysis
+		       above; they are not owned by anything else, so
+		       delete them. */
+		    if ($7) {
+			  for (PExpr*c : *$7) delete c;
+		    }
+	      } else if (combined) {
+		    /* Retry-loop fallback: repeat (4096) { args=$random;
+		       if (CONSTR) break; } */
+		    PBlock*body = new PBlock(PBlock::BL_SEQ);
+		    FILE_NAME(body, @1);
+		    std::vector<Statement*> body_stmts = rand_assign_stmts;
+		    PBreak*brk = new PBreak;
+		    FILE_NAME(brk, @1);
+		    PCondit*cond = new PCondit(combined, brk, nullptr);
+		    FILE_NAME(cond, @5);
+		    body_stmts.push_back(cond);
+		    body->set_statement(body_stmts);
+
+		    PENumber*n = new PENumber(new verinum((uint64_t)4096, 32));
+		    FILE_NAME(n, @1);
+		    PRepeat*rep = new PRepeat(n, body);
+		    FILE_NAME(rep, @1);
+		    outer_stmts.push_back(rep);
+	      } else {
+		    /* No constraints — just one round of $random. */
+		    outer_stmts = rand_assign_stmts;
+	      }
+	      outer->set_statement(outer_stmts);
+	      stmt = outer;
+	      /* Constraint list shell can be freed; items are owned
+		 (or freed) above. */
+	      if ($7) { delete $7; $7 = nullptr; }
 	} else {
 	      pform_name_t hident;
 	      hident.push_back(name_component_t(lex_strings.make($1)));

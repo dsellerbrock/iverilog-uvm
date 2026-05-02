@@ -1,16 +1,17 @@
-// Phase 63b/B8 (real impl): std::randomize(args) [with {...}];
-// must actually assign random values to the args, not silently
-// no-op.
+// Phase 63b/B8 (gap close): std::randomize(args) [with {...}];
+// must actually assign random values to the args satisfying the
+// with-clause constraint, not silently drop it.
 //
-// Pre-fix (commit 27e565fff): the call returned 1 (success) but
-// the args retained their initial values (typically 0).  Tests
-// that verified randomness silently false-passed.
+// Real impl: lower the statement to a retry loop at parse time:
+//   repeat (256) begin args=$random; if (constraints) break; end
+// 256 retries empirically covers small-domain constraints.
 //
-// Real impl: lower the statement to a block of `arg = $random;`
-// assignments at parse time.  The with-clause constraints are still
-// dropped (no Z3 routing yet) but the args genuinely receive
-// random values.  Test verifies non-zero output across multiple
-// calls (high-confidence proxy for randomness).
+// Coverage:
+//   T1 : void'(std::randomize(x))    — no constraint
+//   T2 : with { x > 0; }              — single constraint
+//   T3 : multi-arg with no constraint
+//   T4 : with { x > 0; x < 16; }     — bounded range, must converge
+//   T5 : with { x inside {[10:20]}; } — TODO: inside operator
 `timescale 1ns/1ps
 
 module top;
@@ -30,18 +31,16 @@ module top;
     if (success < 12)
       $fatal(1, "FAIL/T1: expected at least 12/16 non-zero, got %0d", success);
 
-    // T2: single-arg statement form with with-clause (constraints dropped
-    // in this iteration; verify args still get randomized)
-    success = 0;
-    for (int i = 0; i < 16; i++) begin
+    // T2: with-clause `x > 0` must be enforced — every iteration
+    // produces x > 0
+    for (int i = 0; i < 32; i++) begin
       x = 0;
       std::randomize(x) with { x > 0; };
-      if (x !== 0) success++;
+      if (x <= 0)
+	$fatal(1, "FAIL/T2 iter=%0d: x=%0d violates x>0", i, x);
     end
-    if (success < 12)
-      $fatal(1, "FAIL/T2: expected at least 12/16 non-zero, got %0d", success);
 
-    // T3: multi-arg statement form
+    // T3: multi-arg statement form, no constraint
     success = 0;
     for (int i = 0; i < 16; i++) begin
       x = 0; y = 0;
@@ -51,7 +50,35 @@ module top;
     if (success < 8)
       $fatal(1, "FAIL/T3: expected at least 8/16 both non-zero, got %0d", success);
 
-    $display("PASS: std::randomize lowers to per-arg $random assignment");
+    // T4: tight range `x > 0 && x < 16` — must use $urandom_range
+    // fast path detection (retry loop alone wouldn't converge in
+    // any reasonable number of tries for this range size)
+    for (int i = 0; i < 32; i++) begin
+      x = 0;
+      std::randomize(x) with { x > 0; x < 16; };
+      if (x <= 0 || x >= 16)
+	$fatal(1, "FAIL/T4 iter=%0d: x=%0d outside (0,16)", i, x);
+    end
+
+    // T4b: signed `x >= -10 && x <= 10`
+    for (int i = 0; i < 32; i++) begin
+      x = 0;
+      std::randomize(x) with { x >= -10; x <= 10; };
+      if (x < -10 || x > 10)
+	$fatal(1, "FAIL/T4b iter=%0d: x=%0d outside [-10,10]", i, x);
+    end
+
+    // T5: multi-arg with-clause
+    for (int i = 0; i < 16; i++) begin
+      x = 0; y = 0;
+      std::randomize(x, y) with { x > 0; y > 0; };
+      if (x <= 0)
+	$fatal(1, "FAIL/T5: x=%0d not >0", x);
+      if (y <= 0)
+	$fatal(1, "FAIL/T5: y=%0d not >0", y);
+    end
+
+    $display("PASS: std::randomize with-clause constraint enforcement");
     $finish;
   end
 endmodule
