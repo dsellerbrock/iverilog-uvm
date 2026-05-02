@@ -110,6 +110,15 @@ class PAssign_  : public Statement {
       const PExpr* lval() const  { return lval_; }
       PExpr* rval() const  { return rval_; }
 
+      // Phase 63a/A3: in-place rewrite for the `{<<N{x}} = rhs`
+      // → `x = {<<N{rhs}}` transformation.  The caller takes
+      // ownership of the new lval/rval pointers (formerly inner_ of
+      // the LHS PEStreaming and a freshly-built PEStreaming wrapping
+      // the original rval, respectively).
+      void replace_lval_rval(PExpr*new_lval, PExpr*new_rval) const
+            { const_cast<PAssign_*>(this)->lval_ = new_lval;
+              const_cast<PAssign_*>(this)->rval_ = new_rval; }
+
     protected:
       NetAssign_* elaborate_lval(Design*, NetScope*scope) const;
       NetExpr* elaborate_rval_(Design*, NetScope*, ivl_type_t lv_net_type,

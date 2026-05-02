@@ -8554,15 +8554,10 @@ lpvalue
       }
 
   | streaming_concatenation
-      { /* Parse-only fallback used by UVM packer macros:
-	   { << bit {arr} } = expr; */
+      { /* Phase 63a/A3: streaming-concatenation l-value reachable
+	   only via this fallback; the dedicated statement-level rules
+	   for `{<<N{x}} = rhs` rewrite the assignment directly. */
 	pform_requires_sv(@1, "Streaming concatenation l-value");
-	warn_count += 1;
-	if (!warned_stream_concat_lval_incomplete) {
-	      cerr << @1 << ": warning: streaming concatenation l-value support is incomplete."
-		   << " (further similar warnings suppressed)." << endl;
-	      warned_stream_concat_lval_incomplete = true;
-	}
 	$$ = $1;
       }
 
@@ -11605,32 +11600,92 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
 
+  /* Phase 63a/A3: streaming-concatenation l-value assignment.
+     Rewrite `{<<N{x}} = rhs` → `x = {<<N{rhs}}` directly at parse
+     time so the rest of the elaborate path sees a normal assignment.
+     Three forms below match the three slice variants. */
   | '{' stream_operator '{' stream_expression_list '}' '}' '=' expression ';'
-      { /* Parse-only fallback for streaming-concatenation l-value assignment
-	   used by UVM packer macros. */
-	pform_requires_sv(@2, "Streaming concatenation l-value");
-	delete $8;
-	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+      { pform_requires_sv(@2, "Streaming concatenation l-value");
+	PEStreaming::direction_t dir =
+	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT
+			   : PEStreaming::DIR_RSHIFT;
+	PExpr*lhs_inner = nullptr;
+	if ($4 && !$4->empty()) {
+	      lhs_inner = $4->front();
+	      $4->pop_front();
+	      while (!$4->empty()) { delete $4->front(); $4->pop_front(); }
+	}
+	delete $4;
+	if (!lhs_inner) {
+	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(tmp, @1);
+	      delete $8;
+	      $$ = tmp;
+	} else {
+	      PEStreaming*rstream = new PEStreaming(dir, 1, $8);
+	      FILE_NAME(rstream, @1);
+	      PAssign*tmp = new PAssign(lhs_inner, rstream);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	}
       }
   | '{' stream_operator simple_type_or_string '{' stream_expression_list '}' '}' '=' expression ';'
-      { /* Typed/sized streaming-concat l-value assignment fallback. */
-	pform_requires_sv(@2, "Streaming concatenation l-value");
+      { pform_requires_sv(@2, "Streaming concatenation l-value");
 	delete $3;
-	delete $9;
-	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	PEStreaming::direction_t dir =
+	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
+	PExpr*lhs_inner = nullptr;
+	if ($5 && !$5->empty()) {
+	      lhs_inner = $5->front();
+	      $5->pop_front();
+	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
+	}
+	delete $5;
+	if (!lhs_inner) {
+	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(tmp, @1);
+	      delete $9;
+	      $$ = tmp;
+	} else {
+	      PEStreaming*rstream = new PEStreaming(dir, 1, $9);
+	      FILE_NAME(rstream, @1);
+	      PAssign*tmp = new PAssign(lhs_inner, rstream);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	}
       }
   | '{' stream_operator expression '{' stream_expression_list '}' '}' '=' expression ';'
-      { /* Numeric slice streaming-concat l-value assignment fallback. */
-	pform_requires_sv(@2, "Streaming concatenation l-value");
+      { pform_requires_sv(@2, "Streaming concatenation l-value");
+	PEStreaming::direction_t dir =
+	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
+	unsigned slice = 1;
+	if (PENumber*n = dynamic_cast<PENumber*>($3)) {
+	      const verinum&v = n->value();
+	      if (v.is_defined() && !v.is_negative()) {
+		    unsigned long u = v.as_ulong();
+		    if (u >= 1 && u <= UINT_MAX) slice = (unsigned)u;
+	      }
+	}
 	delete $3;
-	delete $9;
-	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	PExpr*lhs_inner = nullptr;
+	if ($5 && !$5->empty()) {
+	      lhs_inner = $5->front();
+	      $5->pop_front();
+	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
+	}
+	delete $5;
+	if (!lhs_inner) {
+	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(tmp, @1);
+	      delete $9;
+	      $$ = tmp;
+	} else {
+	      PEStreaming*rstream = new PEStreaming(dir, slice, $9);
+	      FILE_NAME(rstream, @1);
+	      PAssign*tmp = new PAssign(lhs_inner, rstream);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	}
       }
 
   | error '=' expression ';'

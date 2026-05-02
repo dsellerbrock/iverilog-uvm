@@ -1191,6 +1191,11 @@ class PEStreaming : public PExpr {
       direction_t get_dir() const { return dir_; }
       unsigned get_slice() const { return slice_; }
       PExpr* get_inner() const { return inner_; }
+      // Phase 63a/A3: release ownership of inner_ so the LHS-streaming
+      // rewrite in PAssign::elaborate can reparent the original lval
+      // expression onto the assignment without a double-delete when
+      // PEStreaming is itself destroyed.
+      PExpr* release_inner() { PExpr*r = inner_; inner_ = nullptr; return r; }
       void dump(std::ostream& out) const override {
             out << "{" << (dir_ == DIR_LSHIFT ? "<<" : ">>")
                 << slice_ << "{";
