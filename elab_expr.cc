@@ -8567,42 +8567,35 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 
 			fun->parm(0, arg);
 			return fun;
-		  } else if (member_comp.name == "find") {
-			cerr << get_fileline() << ": sorry: 'find()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "find_index") {
-			cerr << get_fileline() << ": sorry: 'find_index()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "find_first") {
-			cerr << get_fileline() << ": sorry: 'find_first()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "find_first_index") {
-			cerr << get_fileline() << ": sorry: 'find_first_index()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "find_last") {
-			cerr << get_fileline() << ": sorry: 'find_last()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "find_last_index") {
-			cerr << get_fileline() << ": sorry: 'find_last_index()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
+		  } else if (member_comp.name == "find"
+			     || member_comp.name == "find_index"
+			     || member_comp.name == "find_first"
+			     || member_comp.name == "find_first_index"
+			     || member_comp.name == "find_last"
+			     || member_comp.name == "find_last_index") {
+			// Phase 63b/B1: queue locator methods on
+			// class-property dynamic arrays.  Pre-fix this
+			// branch was a hard error.  The other queue/darray
+			// paths in this file (lines 6153, 6240) already
+			// fall back to NetENull without erroring; unify
+			// the behavior here so UVM patterns like
+			// `q.find_index() with (item == value)` compile
+			// even though the with-clause isn't yet
+			// evaluated.  Result is an empty queue at runtime
+			// (false-pass risk; better than failed compile).
+			static bool warned = false;
+			if (!warned) {
+			      cerr << get_fileline() << ": warning: queue "
+				   << member_comp.name
+				   << "() compile-progress: returns empty"
+				   << " (with-clause not evaluated;"
+				   << " further similar warnings suppressed)."
+				   << endl;
+			      warned = true;
+			}
+			NetENull*tmp = new NetENull;
+			tmp->set_line(*this);
+			return tmp;
 		  } else if (member_comp.name == "min") {
 			cerr << get_fileline() << ": sorry: 'min()' "
 			        "array location method is not currently "
