@@ -1345,6 +1345,17 @@ unsigned PEBinary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 	    des->errors += 1;
       }
 
+      /* Phase 63b: SystemVerilog `string + string` is concatenation;
+         the result is string-typed.  Detect and propagate so chained
+         `a + b + c` correctly classifies inner sub-expressions. */
+      if (op_ == '+' && l_type == IVL_VT_STRING && r_type == IVL_VT_STRING) {
+            expr_type_ = IVL_VT_STRING;
+            expr_width_ = 1;  // strings have indeterminate compile-time width
+            min_width_ = 1;
+            signed_flag_ = false;
+            return fix_width_(mode);
+      }
+
       if (l_type == IVL_VT_REAL || r_type == IVL_VT_REAL)
 	    expr_type_ = IVL_VT_REAL;
       else if (l_type == IVL_VT_LOGIC || r_type == IVL_VT_LOGIC)
@@ -1420,6 +1431,35 @@ NetExpr* PEBinary::elaborate_expr(Design*des, NetScope*scope,
 
       ivl_assert(*this, left_);
       ivl_assert(*this, right_);
+
+	/* Phase 63b: SystemVerilog `string + string` should be string
+	   concatenation, not numeric add (which would treat strings
+	   as packed vec4 and crash on size mismatch).  Need test_width
+	   to have run; if expr_type isn't yet known, force a probe. */
+      if (op_ == '+') {
+	    width_mode_t lmode = SIZED, rmode = SIZED;
+	    if (left_->expr_type() == IVL_VT_NO_TYPE)
+		  left_->test_width(des, scope, lmode);
+	    if (right_->expr_type() == IVL_VT_NO_TYPE)
+		  right_->test_width(des, scope, rmode);
+	    if (left_->expr_type() == IVL_VT_STRING
+		&& right_->expr_type() == IVL_VT_STRING) {
+		  /* Use elab_and_eval which routes through test_width
+		     and produces a properly-typed string NetExpr for
+		     PEIdent string operands.  Pass cast_type=IVL_VT_STRING
+		     so the result is string-typed. */
+		  NetExpr*lp = elab_and_eval(des, scope, left_, -1, false,
+		                             false, IVL_VT_STRING);
+		  NetExpr*rp = elab_and_eval(des, scope, right_, -1, false,
+		                             false, IVL_VT_STRING);
+		  if (!lp || !rp) { delete lp; delete rp; return 0; }
+		  NetEConcat*cat = new NetEConcat(2, 1, IVL_VT_STRING);
+		  cat->set_line(*this);
+		  cat->set(0, lp);
+		  cat->set(1, rp);
+		  return cat;
+	    }
+      }
 
 	// Handle the special case that one of the operands is a real
 	// value and the other is a vector type. In that case,
