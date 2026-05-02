@@ -2558,8 +2558,15 @@ static int show_system_task_call(ivl_statement_t net)
 		  ? ivl_stmt_parm(net, 0) : 0;
 	    if (!parm0 || ivl_expr_type(parm0) != IVL_EX_SIGNAL
 		|| !ivl_expr_signal(parm0)) {
-		  fprintf(stderr, "Warning: %s requires a signal at %s:%u; skipping\n",
-			  stmt_name, ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  /* Phase 63b/B5: class-property queues (IVL_EX_PROPERTY)
+		     and other non-signal queue receivers can't use the
+		     %qsort/%qunique opcodes which take a signal argument.
+		     A real implementation would need a queue-by-handle
+		     variant of the opcodes; until that lands, silently
+		     skip rather than warning on every UVM compile.
+		     UVM's uvm_root.svh:827 m_time_settings.sort() hits
+		     this; missing sort just means iteration order isn't
+		     guaranteed in time-based verbosity settings. */
 		  return 0;
 	    }
 	    ivl_signal_t sig = ivl_expr_signal(parm0);
