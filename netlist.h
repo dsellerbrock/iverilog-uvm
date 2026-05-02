@@ -1044,6 +1044,14 @@ class NetScope : public Definitions, public Attrib {
       void rem_signal(NetNet*);
       NetNet* find_signal(perm_string name);
 
+      // I2 (Phase 62m): post-elab fix-up pass.  Iterates signals_map_
+      // and replaces the net_type of NetNets that were emitted with a
+      // logic-vector fallback (because their typeref'd class had not
+      // yet been registered when PWire::elaborate_sig fired).  Called
+      // after finalize_pending_specialized_class_elaboration so all
+      // classes are visible.
+      void repair_typed_class_signals(class Design*des);
+
       netclass_t* find_class(const Design*des, perm_string name);
 
 	/* The unit(), parent(), and child() methods allow users of

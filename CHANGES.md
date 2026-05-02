@@ -894,15 +894,24 @@ remaining constraints.
 The UVM phase infrastructure (phases, objections, sequencer/driver TLM) works.
 The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remain in:
 - `uvm_field_automation`: `copy()` and `compare()` work; `print()` printer-subclass
-  dispatch fires `[NO_OVERRIDE] emit() method not overridden` (audit 2026-05-01).
-  **Root cause confirmed Phase 62 (memory/i2_root_cause_findings.md):** the package-
-  global `uvm_default_table_printer` (uvm_object_globals.svh:734) is emitted as
-  `.var/i` (logic vector) instead of `.var/cobj`, because PWire::elaborate_sig fires
-  inside elaborate_specialized_class_type (uvm_printer_element_proxy) before the
-  add_class call for uvm_table_printer. Direct `uvm_default_table_printer = new()`
-  silently no-ops. Two fix attempts (prealloc class stubs, PACKAGE-scope fallback in
-  ensure_visible_class_type) regressed function-def setup elsewhere. Working fix
-  candidates and reproducer in memory file.
+  dispatch — ✅ **Phase 62 (I2 full fix):** PWire::elaborate_sig fires
+  inside elaborate_specialized_class_type (uvm_printer_element_proxy)
+  before `add_class` registers the typedef'd class (uvm_table_printer
+  forward-declared in uvm_object_globals.svh:727, defined later in
+  uvm_printer.svh:455).  ensure_visible_class_type returned null, so
+  `class_type_t::elaborate_type` returned the netvector_t fallback,
+  emitting the wire as `.var/i` (logic vector) instead of `.var/cobj`.
+  Assignments like `uvm_default_table_printer = new()` were then
+  compiled as `%null; %store/obj v...` (number fallback for the rhs)
+  and silently no-op'd at runtime.  Fix: post-`elaborate_sig`,
+  pre-statement-elab repair pass (`NetScope::repair_typed_class_signals`)
+  walks `signals_map_`, identifies logic-vector NetNets whose
+  originating PWire had a typeref-to-CLASS data type, and re-resolves
+  the class (now visible) via `ensure_visible_class_type`.  Calls
+  `set_net_type` to patch the NetNet.  Tests:
+  `tests/typedef_class_global_test.sv` (synthetic), and `obj.print()`
+  on a uvm_object now dispatches to `uvm_table_printer::emit` and
+  produces table output.
 - `randc` cyclic semantics: behaves as `rand` (Phase 63 candidate)
 - Concurrent assertions (`assert property |->`, `|=>`, `disable iff`): silently
   pass-no-op (Phase 62 candidate — false-pass risk)

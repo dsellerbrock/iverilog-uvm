@@ -11097,6 +11097,21 @@ Design* elaborate(list<perm_string>roots)
 	    }
       }
 
+	// I2 (Phase 62m): now that elaborate_sig has been called for
+	// all packages and root modules (so all classes are
+	// registered), run a repair pass to patch signals whose
+	// typeref-to-class data type was unresolvable at PWire::elaborate_sig
+	// time.  Those signals fell through to a logic-vector net_type;
+	// re-resolve them to the proper netclass_t before statement
+	// elaboration emits assignments against them.  Without this,
+	// e.g. `uvm_default_table_printer = new()` compiles as
+	// "%null; %store/obj v..." (number-fallback rhs) and the
+	// assignment silently no-ops at runtime.
+      for (NetScope*pkg : des->find_package_scopes())
+	    pkg->repair_typed_class_signals(des);
+      for (NetScope*root : des->find_root_scopes())
+	    root->repair_typed_class_signals(des);
+
 	// Now that the structure and parameters are taken care of,
 	// run through the pform again and generate the full netlist.
 
