@@ -656,6 +656,141 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    return 0;
       }
 
+      /* Phase 63b/B1: queue locator with predicate
+       *   $ivl_queue_method$find_with|<kind>(queue, iter_sig, result_sig, pred)
+       * Emit an inline loop that walks the queue, sets iter_sig per
+       * element, evaluates the predicate, and conditionally pushes
+       * to result_sig.  Final value is result_sig loaded as an object.
+       *
+       * Currently handles BOOL/LOGIC element types (the most common
+       * case in UVM); REAL/STRING/object-typed queues fall back to
+       * an empty result with a one-time advisory warning. */
+      if (strncmp(name, "$ivl_queue_method$find_with|", 28) == 0) {
+	    const char*kind = name + 28;
+	    int is_index = (strstr(kind, "index") != NULL);
+	    int stop_first = (strcmp(kind, "find_first") == 0
+			      || strcmp(kind, "find_first_index") == 0);
+
+	    if (parm_count < 5) {
+		  fprintf(vvp_out, "    %%null; ; find_with: bad parm count\n");
+		  return 0;
+	    }
+	    ivl_expr_t q_arg = ivl_expr_parm(expr, 0);
+	    ivl_expr_t iter_arg = ivl_expr_parm(expr, 1);
+	    ivl_expr_t result_arg = ivl_expr_parm(expr, 2);
+	    ivl_expr_t idx_arg = ivl_expr_parm(expr, 3);
+	    ivl_expr_t pred = ivl_expr_parm(expr, 4);
+
+	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(q_arg)
+		|| !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(iter_arg)
+		|| !result_arg || ivl_expr_type(result_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(result_arg)
+		|| !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(idx_arg)
+		|| !pred) {
+		  fprintf(vvp_out, "    %%null; ; find_with: bad arg shape\n");
+		  return 0;
+	    }
+	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
+	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
+	    ivl_signal_t result_sig = ivl_expr_signal(result_arg);
+	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
+
+	    ivl_type_t iter_type = ivl_signal_net_type(iter_sig);
+	    unsigned iter_wid = ivl_type_packed_width(iter_type);
+	    if (iter_wid == 0) iter_wid = 32;
+	    ivl_variable_type_t bt = ivl_type_base(iter_type);
+
+	    /* Only integer-element queues (BOOL/LOGIC) supported in this
+	     * pass.  Other element types fall back to empty with warning. */
+	    if (bt != IVL_VT_BOOL && bt != IVL_VT_LOGIC) {
+		  static int warned_unsupp = 0;
+		  if (!warned_unsupp) {
+			fprintf(stderr, "Warning: %s on non-integer queue element type %d"
+				" not yet supported (compile-progress: empty result;"
+				" further similar warnings suppressed)\n",
+				name, (int)bt);
+			warned_unsupp = 1;
+		  }
+		  fprintf(vvp_out, "    %%null; ; find_with: non-int element type\n");
+		  return 0;
+	    }
+
+	    unsigned lab_top = local_count++;
+	    unsigned lab_end = local_count++;
+	    unsigned lab_skip = local_count++;
+	    int pred_flag = allocate_flag();
+	    const char*sgn = ivl_type_signed(iter_type) ? "s" : "";
+	    const char*type_enc = (bt == IVL_VT_BOOL) ? "b" : "v";
+	    char enc_buf[32];
+	    snprintf(enc_buf, sizeof enc_buf, "%s%s%u",
+		     sgn, type_enc, iter_wid);
+
+	    /* result_sig = empty queue/darray of element type */
+	    fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+	    if (is_index)
+		  fprintf(vvp_out, "    %%new/darray 5, \"sb32\";\n");
+	    else
+		  fprintf(vvp_out, "    %%new/darray 5, \"%s\";\n", enc_buf);
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", result_sig);
+
+	    /* idx_sig = 0 */
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
+	    /* if (!(idx < qsize)) goto end */
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%qsize v%p_0;\n", q_sig);
+	    fprintf(vvp_out, "    %%cmp/s;\n");
+	    /* %cmp/s sets flag 5 = lt; jump to end if NOT lt */
+	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
+		    thread_count, lab_end);
+
+	    /* iter_sig = q[idx_sig] */
+	    fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", q_sig);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", iter_sig, iter_wid);
+
+	    /* Evaluate predicate */
+	    draw_eval_vec4(pred);
+	    if (ivl_expr_width(pred) > 1)
+		  fprintf(vvp_out, "    %%or/r;\n");
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", pred_flag);
+	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
+		    thread_count, lab_skip, pred_flag);
+
+	    /* Push q[idx] (or idx) into result_sig.  %store/qb/v
+	     * pops the value; max-size in word reg 5 is already 0. */
+	    if (is_index) {
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, 32;\n", result_sig);
+	    } else {
+		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", q_sig);
+		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, %u;\n",
+			  result_sig, iter_wid);
+	    }
+
+	    if (stop_first)
+		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_skip);
+	    /* idx_sig += 1 */
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+	    fprintf(vvp_out, "    %%add;\n");
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_top);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", result_sig);
+	    clr_flag(pred_flag);
+	    return 0;
+      }
+
       if (!warned_non_queue) {
 	    fprintf(stderr, "Warning: eval_object_sfunc: unsupported sfunc '%s'"
 		    " in object context; emitting null fallback"

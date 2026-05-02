@@ -99,6 +99,110 @@ static NetESFunc* make_randomize_with_expr(
 static bool warned_object_missing_method_fallback = false;
 static bool warned_multi_index_array_prop_fallback = false;
 
+/* Phase 63b/B1 (real impl): build a NetESFunc that the tgt-vvp side
+ * lowers to an inline queue-walking loop applying the with-clause
+ * predicate per element.
+ *
+ * Approach: at elab, allocate a hidden NetNet `item' (or whatever the
+ * user-named iter is) of the queue's element type in the enclosing
+ * scope.  The NetNet is added under the iter name so the predicate
+ * resolves PEIdent("item") to it via symbol_search.  Also allocate a
+ * hidden RESULT NetNet of queue type (queue-of-T for find/first/last,
+ * queue-of-int for *_index variants) to serve as the accumulator.
+ * Wrap as
+ *   NetESFunc("$ivl_queue_method$find_with|<kind>", ...)
+ * with parm[0] = queue, parm[1] = NetESignal(iter NetNet),
+ * parm[2] = NetESignal(result NetNet), parm[3] = predicate.
+ * tgt-vvp recognizes the mangled name and emits the loop bytecode.
+ *
+ * Returns nullptr if the predicate fails to elaborate.
+ */
+static NetExpr* make_queue_locator_with_expr_(
+      const PECallFunction*call,
+      Design*des, NetScope*scope,
+      NetExpr*queue_expr,
+      ivl_type_t element_type,
+      const char*kind /* "find" / "find_index" / ... */,
+      const std::vector<named_pexpr_t>&parms)
+{
+      if (call->with_constraints().empty())
+            return nullptr;
+
+      /* Determine the iterator name: first parameter of the find call
+       * (if any), otherwise the LRM default "item". */
+      perm_string iter_name = perm_string::literal("item");
+      if (!parms.empty() && parms[0].parm) {
+            const PEIdent*ip = dynamic_cast<const PEIdent*>(parms[0].parm);
+            if (ip && ip->path().size() == 1) {
+                  iter_name = ip->path().back().name;
+            }
+      }
+
+      /* Allocate a hidden iter NetNet.  Reuse if a same-named NetNet
+       * already exists in the scope (sibling find calls). */
+      NetNet*iter_net = scope->find_signal(iter_name);
+      if (!iter_net) {
+            iter_net = new NetNet(scope, iter_name, NetNet::REG, element_type);
+            iter_net->set_line(*call);
+            iter_net->local_flag(true);
+      }
+
+      /* Allocate a hidden result NetNet of queue type.  Use
+       * scope->local_symbol() for a unique name. */
+      bool is_index_kind = (strncmp(kind, "find_", 5) == 0
+                            && strstr(kind, "index") != nullptr);
+      ivl_type_t result_elem = is_index_kind
+            ? &netvector_t::atom2s32 : element_type;
+      netqueue_t*result_qtype = new netqueue_t(result_elem, -1, false);
+      NetNet*result_net = new NetNet(scope, scope->local_symbol(),
+                                     NetNet::REG, result_qtype);
+      result_net->set_line(*call);
+      result_net->local_flag(true);
+
+      /* Allocate a hidden idx NetNet (signed 32-bit reg) for the loop
+       * counter.  Lets the bytecode use `%load/vec4 v_idx` + `%qsize`
+       * + `%cmp/s` for the loop bound check, the same pattern that
+       * normal SV for-loops compile to. */
+      NetNet*idx_net = new NetNet(scope, scope->local_symbol(),
+                                  NetNet::REG, &netvector_t::atom2s32);
+      idx_net->set_line(*call);
+      idx_net->local_flag(true);
+
+      /* Elaborate the predicate.  PEIdent(iter_name) resolves to
+       * iter_net via symbol_search in the enclosing scope.
+       * Use elab_and_eval with self-determined context width so
+       * subexpressions size themselves naturally (esp. literal
+       * operands of comparisons). */
+      PExpr*pred_pe = call->with_constraints().front();
+      if (!pred_pe)
+            return nullptr;
+      NetExpr*pred_expr = elab_and_eval(des, scope, pred_pe, -1, false);
+      if (!pred_expr)
+            return nullptr;
+
+      /* Build the NetESFunc with five params:
+       *   0: queue
+       *   1: iter NetESignal
+       *   2: result NetESignal
+       *   3: idx NetESignal
+       *   4: predicate */
+      string mangled = string("$ivl_queue_method$find_with|") + kind;
+      NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 5);
+      fn->parm(0, queue_expr);
+      NetESignal*iter_ref = new NetESignal(iter_net);
+      iter_ref->set_line(*call);
+      fn->parm(1, iter_ref);
+      NetESignal*result_ref = new NetESignal(result_net);
+      result_ref->set_line(*call);
+      fn->parm(2, result_ref);
+      NetESignal*idx_ref = new NetESignal(idx_net);
+      idx_ref->set_line(*call);
+      fn->parm(3, idx_ref);
+      fn->parm(4, pred_expr);
+      fn->set_line(*call);
+      return fn;
+}
+
 static int number_elab_trace_enabled_(void)
 {
       static int enabled = -1;
@@ -6189,6 +6293,12 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  return tmp;
       }
 
+      if (getenv("IVL_FIND_TRACE"))
+	    cerr << get_fileline() << ": [find-trace] dispatch: method="
+		 << method_name << " target_indexed=" << target_indexed
+		 << " is_queue=" << (target_type && dynamic_cast<const netqueue_t*>(target_type))
+		 << " is_darray=" << (target_type && dynamic_cast<const netdarray_t*>(target_type))
+		 << endl;
       // Queue methods. This handles the case that the located signal is a
       // QUEUE object, and there is a method.
       if (target_type && dynamic_cast<const netqueue_t*>(target_type)
@@ -6237,27 +6347,38 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  return sys_expr;
 	    }
 
-	    if (method_name == "find") {
-		  // Compile-progress fallback for queue locator methods.
-		  // Return null (evaluates to empty queue at runtime) rather than
-		  // sub_expr (the whole source queue), to avoid type mismatches when
-		  // the source element type differs from the destination queue type.
+	    if (method_name == "find"
+		|| method_name == "find_index"
+		|| method_name == "find_first"
+		|| method_name == "find_first_index"
+		|| method_name == "find_last"
+		|| method_name == "find_last_index") {
+		  if (getenv("IVL_FIND_TRACE"))
+			cerr << get_fileline() << ": [find-trace] method="
+			     << method_name << " with_constraints="
+			     << with_constraints().size() << endl;
+		  // Phase 63b/B1 (real impl): synthesize a NetESFunc that
+		  // tgt-vvp lowers to an inline predicate-evaluating loop.
+		  // If with_constraints is empty (rare; LRM allows but most
+		  // code uses one), fall back to null-empty.
+		  if (!with_constraints().empty()) {
+			NetExpr*loc = make_queue_locator_with_expr_(
+			      this, des, scope, sub_expr, element_type,
+			      method_name.str(), parms_);
+			if (getenv("IVL_FIND_TRACE"))
+			      cerr << get_fileline() << ": [find-trace] make_locator="
+				   << (void*)loc << endl;
+			if (loc) return loc;
+		  }
 		  delete sub_expr;
 		  NetENull*tmp = new NetENull();
 		  tmp->set_line(*this);
 		  return tmp;
 	    }
       if (method_name == "unique"
-		|| method_name == "unique_index"
-		|| method_name == "find_first"
-		|| method_name == "find_last"
-		|| method_name == "find_index"
-		|| method_name == "find_first_index"
-		|| method_name == "find_last_index") {
-		  // Compile-progress fallback for locator/uniqueness methods
-		  // (with ignored `with (...)` clauses).
-		  // Return null so the destination queue is cleared (empty result),
-		  // rather than returning the wrong-type source queue.
+		|| method_name == "unique_index") {
+		  // Compile-progress fallback for uniqueness methods.
+		  // Real implementation deferred.
 		  delete sub_expr;
 		  NetENull*tmp = new NetENull();
 		  tmp->set_line(*this);

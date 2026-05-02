@@ -6817,16 +6817,38 @@ expr_primary
 	$$ = tmp;
       }
 	| hierarchy_identifier attribute_list_opt argument_list_parens K_with '(' expression ')'
-	      { /* Temporary parse-only support for array locator/reduction method
-		   with-clauses in expression context (e.g. q.find_index(x) with (...)). */
+	      { /* Phase 63b/B1 (real impl): capture the with-clause
+		   predicate for array locator/reduction methods
+		   (q.find_index(x) with (...)) in PECallFunction's
+		   with_constraints_.  Elaboration time uses it to
+		   synthesize a per-element predicate evaluation loop. */
 		pform_requires_sv(@4, "Method with-clause");
 		PECallFunction*tmp = pform_make_call_function(@1, *$1, *$3);
+		if ($6) {
+		      std::vector<PExpr*> wc;
+		      wc.push_back($6);
+		      tmp->set_with_constraints(std::move(wc));
+		}
 	delete $1;
 	delete $2;
 	delete $3;
-	delete $6;
 	$$ = tmp;
       }
+  /* Phase 63b/B1: no-parens form `q.find with (pred)` — argument
+     list is empty.  Captures the with-clause same as the parens
+     form above. */
+	| hierarchy_identifier K_with '(' expression ')'
+	      { pform_requires_sv(@2, "Method with-clause (no args)");
+		std::list<named_pexpr_t> pt;
+		PECallFunction*tmp = pform_make_call_function(@1, *$1, pt);
+		if ($4) {
+		      std::vector<PExpr*> wc;
+		      wc.push_back($4);
+		      tmp->set_with_constraints(std::move(wc));
+		}
+		delete $1;
+		$$ = tmp;
+	      }
 	| hierarchy_identifier attribute_list_opt argument_list_parens K_with '{' constraint_block_item_list_opt '}'
 	      { if (peek_tail_name(*$1) == "randomize") {
 		      pform_requires_sv(@4, "Randomize with constraint");
