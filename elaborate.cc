@@ -4546,6 +4546,33 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
+      /* Phase 63b/B8 (real impl): lower `std::randomize(args);' to a
+	 sequential block of NetAssign(arg, $random).  Catches both the
+	 plain statement form and the void'(std::randomize(...)) form,
+	 since both arrive here as PCallTask with path `std.randomize`.
+	 The with-clause variant is handled at parse time (see parse.y);
+	 this catches the without-with form. */
+      if (gn_system_verilog() && path_.size() == 2
+	  && path_.front().name == perm_string::literal("std")
+	  && path_.back().name == perm_string::literal("randomize")
+	  && !parms_.empty()) {
+	    NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+	    blk->set_line(*this);
+	    for (unsigned i = 0; i < parms_.size(); i++) {
+		  PExpr*lvexpr = parms_[i].parm;
+		  if (!lvexpr) continue;
+		  NetAssign_*lv = lvexpr->elaborate_lval(des, scope, false, false);
+		  if (!lv) continue;
+		  NetESFunc*rhs = new NetESFunc(
+			"$random", IVL_VT_LOGIC, 32, 0);
+		  rhs->set_line(*this);
+		  NetAssign*as = new NetAssign(lv, rhs);
+		  as->set_line(*this);
+		  blk->append(as);
+	    }
+	    return blk;
+      }
+
       bool has_indexed_path_component = false;
       for (const auto& comp : path_) {
 	    if (!comp.index.empty()) {

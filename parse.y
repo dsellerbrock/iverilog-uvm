@@ -11888,15 +11888,60 @@ statement_item /* This is roughly statement_item in the LRM */
      Used by `std::randomize(x) with {...};`.  Direct statement-item
      pattern to avoid shift-reduce conflicts via the subroutine_call
      intermediate.
-     Phase 63b/B8: surface a one-time warning when the with-clause
-     is dropped — the runtime stub doesn't apply it, so user
-     constraints silently no-op.  Emit a clear advisory so users
-     don't trust a green return value. */
+     Phase 63b/B8 (real impl): for `std::randomize(args) with {...};`
+     lower the call to a sequential block of `arg = $random;`
+     assignments — the variables actually receive random values now
+     instead of being silent no-ops.  The with-clause constraints
+     are still dropped (no Z3 routing yet); a one-time advisory
+     surfaces that gap so users don't trust the constraint output.
+     For other pkg::func(args) with{} forms, fall through to the
+     existing PCallTask stub. */
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with '{' constraint_block_item_list_opt '}' ';'
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+      { Statement*stmt = nullptr;
+	bool is_std_rand = ($1 && $3
+			    && strcmp($1, "std")==0
+			    && strcmp($3, "randomize")==0
+			    && $4 && !$4->empty());
+	if (is_std_rand) {
+	      std::vector<Statement*> stmts;
+	      for (auto &arg : *$4) {
+		    if (!arg.parm) continue;
+		    PECallFunction*rng = new PECallFunction(
+			  perm_string::literal("$random"));
+		    FILE_NAME(rng, @1);
+		    PAssign*a = new PAssign(arg.parm, rng);
+		    FILE_NAME(a, @1);
+		    stmts.push_back(a);
+	      }
+	      PBlock*blk = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(blk, @1);
+	      blk->set_statement(stmts);
+	      stmt = blk;
+	      static bool warned_drop = false;
+	      if (!warned_drop && $7 && !$7->empty()) {
+		    std::cerr << @5
+			      << ": warning: std::randomize(...) with-clause "
+			      << "constraints are dropped (compile-progress; "
+			      << "args are randomized but the predicate is "
+			      << "not enforced; further similar warnings "
+			      << "suppressed)." << std::endl;
+		    warned_drop = true;
+	      }
+	} else {
+	      pform_name_t hident;
+	      hident.push_back(name_component_t(lex_strings.make($1)));
+	      hident.push_back(name_component_t(lex_strings.make($3)));
+	      stmt = pform_make_call_task(@1, hident, *$4);
+	      static bool warned = false;
+	      if (!warned) {
+		    std::cerr << @5
+			      << ": warning: pkg::func(...) with-clause is "
+			      << "parsed but not enforced (compile-progress; "
+			      << "constraints are silently dropped; further "
+			      << "similar warnings suppressed)." << std::endl;
+		    warned = true;
+	      }
+	}
 	delete[]$1;
 	delete[]$3;
 	delete $4;
@@ -11905,16 +11950,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	      delete $7;
 	}
 	pform_requires_sv(@5, "Statement-form pkg::func(args) with-clause");
-	{ static bool warned = false;
-	  if (!warned) {
-		std::cerr << @5
-			  << ": warning: std::randomize(...) with-clause is parsed "
-			  << "but not enforced (compile-progress; constraints are "
-			  << "silently dropped; further similar warnings "
-			  << "suppressed)." << std::endl;
-		warned = true;
-	  } }
-	$$ = tmp;
+	$$ = stmt;
       }
 
 	| hierarchy_identifier K_with '{' constraint_block_item_list_opt '}' ';'
