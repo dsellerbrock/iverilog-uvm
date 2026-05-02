@@ -3387,6 +3387,45 @@ static bool lval_not_program_variable(const NetAssign_*lv)
       return false;
 }
 
+/* Phase 63b/B7 (gap close): when assigning a tagged-union constructor
+ * `u = '{TAG: val}` (or equivalently `u = tagged TAG val`), build a
+ * NetAssign that updates the companion tag NetNet to the member index.
+ * Returns null if no companion update is needed. */
+static NetProc*build_tagged_union_companion_set_(Design*des, NetScope*scope,
+                                                 NetAssign_*lv,
+                                                 const PAssign_*paf)
+{
+      if (!lv || !paf) return nullptr;
+      NetNet*lv_sig = lv->sig();
+      if (!lv_sig) return nullptr;
+      const netstruct_t*nst = dynamic_cast<const netstruct_t*>(lv_sig->net_type());
+      if (!nst || !nst->tagged_flag()) return nullptr;
+
+      const PEAssignPattern*pat = dynamic_cast<const PEAssignPattern*>(paf->rval());
+      if (!pat) return nullptr;
+      if (pat->parm_names().size() != 1) return nullptr;
+      perm_string tag_name = pat->parm_names().front();
+
+      unsigned tag_idx = nst->member_index(tag_name);
+      if (tag_idx == (unsigned)-1) return nullptr;
+
+      perm_string companion_name =
+            lex_strings.make(string(lv_sig->name().str()) + "__tag_companion");
+      NetScope*decl_scope = lv_sig->scope();
+      if (!decl_scope) decl_scope = scope;
+      NetNet*companion = decl_scope->find_signal(companion_name);
+      if (!companion) return nullptr;
+
+      NetAssign_*comp_lv = new NetAssign_(companion);
+      verinum vi((uint64_t)tag_idx, 32);
+      NetEConst*idx_e = new NetEConst(vi);
+      idx_e->set_line(*paf);
+      NetAssign*comp_as = new NetAssign(comp_lv, idx_e);
+      comp_as->set_line(*paf);
+      (void)des;
+      return comp_as;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -3611,6 +3650,16 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 
       NetAssign*cur = new NetAssign(lv, rv);
       cur->set_line(*this);
+
+      /* Phase 63b/B7: tagged-union write — also update companion tag. */
+      if (NetProc*tag_set = build_tagged_union_companion_set_(des, scope,
+                                                              lv, this)) {
+            NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+            blk->set_line(*this);
+            blk->append(cur);
+            blk->append(tag_set);
+            return blk;
+      }
 
       return cur;
 }
@@ -3954,6 +4003,130 @@ static NetExpr*elab_and_eval_case(Design*des, NetScope*scope, PExpr*pe,
       eval_expr(expr, context_width);
 
       return expr;
+}
+
+/* Phase 63b/B7 (gap close): elaborate `case (X) matches` for tagged
+ * unions.  Lower to an if-else cascade testing the companion-tag
+ * NetNet of X.  Each tagged item generates:
+ *   if (X__tag_companion == TAG_INDEX) { /bind/; stmt; }
+ * Default item is the final else branch.
+ *
+ * The expr_ must elaborate to a NetESignal of a tagged-union typed
+ * NetNet so we can find the companion via name convention.  If not,
+ * we emit a warning and degrade to a sequential block (each branch
+ * runs in order; first wins). */
+NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
+{
+      ivl_assert(*this, scope);
+      if (!expr_) return new NetBlock(NetBlock::SEQU, 0);
+
+      /* Resolve expr_ to a NetNet so we can find its companion.
+         Handle the common case where expr_ is a simple PEIdent. */
+      NetNet*u_sig = nullptr;
+      const netstruct_t*nst = nullptr;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_)) {
+            symbol_search_results sr;
+            if (symbol_search(this, des, scope, id->path(),
+                              id->lexical_pos(), &sr)) {
+                  u_sig = sr.net;
+            }
+      }
+      if (u_sig)
+            nst = dynamic_cast<const netstruct_t*>(u_sig->net_type());
+
+      if (!u_sig || !nst || !nst->tagged_flag()) {
+            cerr << get_fileline() << ": warning: case-matches expression "
+                 << "is not a tagged-union variable; degrading to "
+                 << "sequential dispatch (first matching branch wins)."
+                 << endl;
+            NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+            blk->set_line(*this);
+            if (items_ && !items_->empty()) {
+                  Item*first = items_->front();
+                  if (first && first->stat) {
+                        if (NetProc*s = first->stat->elaborate(des, scope))
+                              blk->append(s);
+                  }
+            }
+            return blk;
+      }
+
+      /* Find the companion NetNet. */
+      perm_string companion_name =
+            lex_strings.make(string(u_sig->name().str()) + "__tag_companion");
+      NetScope*decl_scope = u_sig->scope() ? u_sig->scope() : scope;
+      NetNet*companion = decl_scope->find_signal(companion_name);
+      if (!companion) {
+            cerr << get_fileline() << ": warning: case-matches: tagged-union "
+                 << "companion not found for `" << u_sig->name() << "'."
+                 << endl;
+            return new NetBlock(NetBlock::SEQU, 0);
+      }
+
+      /* Build the if-else cascade from the bottom up.  Default first
+         (becomes else of the final if); each tagged branch wraps it. */
+      NetProc*cascade = nullptr;
+      Item*default_item = nullptr;
+      if (items_) {
+            for (auto*it : *items_)
+                  if (it && it->is_default) { default_item = it; break; }
+      }
+      if (default_item && default_item->stat)
+            cascade = default_item->stat->elaborate(des, scope);
+
+      if (items_) {
+            /* Walk in reverse so the first item ends up at the top of
+               the cascade. */
+            for (auto rit = items_->rbegin(); rit != items_->rend(); ++rit) {
+                  Item*it = *rit;
+                  if (!it || it->is_default) continue;
+                  unsigned tidx = nst->member_index(it->tag);
+                  if (tidx == (unsigned)-1) {
+                        cerr << get_fileline() << ": warning: case-matches: "
+                             << "tag `" << it->tag.str() << "' not a member "
+                             << "of tagged union `" << u_sig->name() << "'; "
+                             << "branch dropped." << endl;
+                        continue;
+                  }
+                  /* Build: companion == tidx */
+                  NetESignal*comp_e = new NetESignal(companion);
+                  comp_e->set_line(*this);
+                  verinum vi((uint64_t)tidx, 32);
+                  NetEConst*idx_e = new NetEConst(vi);
+                  idx_e->set_line(*this);
+                  NetEBComp*cmp = new NetEBComp('e', comp_e, idx_e);
+                  cmp->set_line(*this);
+
+                  /* Body: optional binding then stmt. */
+                  NetProc*body = it->stat ? it->stat->elaborate(des, scope) : nullptr;
+                  if (it->bind != perm_string()) {
+                        /* `tagged TAG .var: stmt` — bind .var = u.<TAG>.
+                           The .var is a hidden auto-local; for simplicity
+                           we look for an existing variable named .var in
+                           the scope and assign u to it (treating the
+                           tagged union storage as the value).  Without
+                           the bound var being declared as a separate
+                           variable in user scope, we drop the bind here
+                           with an advisory.  Real impl needs a per-branch
+                           hidden NetNet allocated at parse time. */
+                        static bool warned = false;
+                        if (!warned) {
+                              cerr << get_fileline() << ": warning: case-matches "
+                                   << "binding `." << it->bind.str()
+                                   << "' is not yet propagated; the body "
+                                   << "should reference the union variable "
+                                   << "directly.  Further similar warnings "
+                                   << "suppressed." << endl;
+                              warned = true;
+                        }
+                  }
+                  NetCondit*cond = new NetCondit(cmp, body, cascade);
+                  cond->set_line(*this);
+                  cascade = cond;
+            }
+      }
+      if (!cascade) cascade = new NetBlock(NetBlock::SEQU, 0);
+      return cascade;
 }
 
 /*

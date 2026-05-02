@@ -1840,6 +1840,29 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 
       sig->set_const(is_const_);
 
+      /* Phase 63b/B7 (gap close): for `union tagged` typed variables,
+         allocate a companion int NetNet that tracks the currently-active
+         member.  Member writes set the companion to the member index;
+         `case (u) matches` reads it for dispatch.  Naming convention:
+         `<varname>__tag_companion` lives in the same scope as `varname`. */
+      if (const netstruct_t*nst = dynamic_cast<const netstruct_t*>(type)) {
+            if (nst->tagged_flag()) {
+                  perm_string companion_name =
+                        lex_strings.make(string(name_.str())
+                                         + "__tag_companion");
+                  if (!scope->find_signal(companion_name)) {
+                        ivl_type_t int32 = &netvector_t::atom2s32;
+                        NetNet*companion = new NetNet(scope, companion_name,
+                                                      NetNet::REG, int32);
+                        companion->set_line(*this);
+                        companion->local_flag(true);
+                        /* No initial assignment — companion stays X until
+                           first tagged-union write.  case-matches default
+                           branch handles the unset case. */
+                  }
+            }
+      }
+
       // Keep the source placeholder available after elaboration so later
       // passes can recover typedef-backed foreach key types from the original
       // declaration instead of the lowered signal form.

@@ -224,6 +224,18 @@ PCase::~PCase()
       delete[]items_;
 }
 
+PCaseMatches::~PCaseMatches()
+{
+      delete expr_;
+      if (items_) {
+            for (auto*it : *items_) {
+                  if (it && it->stat) delete it->stat;
+                  delete it;
+            }
+            delete items_;
+      }
+}
+
 PCAssign::PCAssign(PExpr*l, PExpr*r)
 : lval_(l), expr_(r)
 {

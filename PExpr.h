@@ -220,6 +220,7 @@ class PEAssignPattern : public PExpr {
 				     unsigned expr_wid,
                                      unsigned flags) const override;
       const std::vector<PExpr*>& parms() const { return parms_; }
+      const std::vector<perm_string>& parm_names() const { return parm_names_; }
       PExpr* replication() const { return replication_; }
     private:
       NetExpr* elaborate_expr_packed_(Design *des, NetScope *scope,

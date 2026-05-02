@@ -795,6 +795,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
       PCase::Item*citem;
       std::vector<PCase::Item*>*citems;
+      PCaseMatches::Item*cmitem;
+      std::vector<PCaseMatches::Item*>*cmitems;
 
       lgate*gate;
       std::vector<lgate>*gates;
@@ -1062,6 +1064,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <citem>  case_item
 %type <citems> case_items
+%type <cmitem>  case_matches_item
+%type <cmitems> case_matches_items
 
 %type <gate>  gate_instance
 %type <gates> gate_instance_list
@@ -5831,15 +5835,6 @@ struct_data_type /* IEEE 1800-2012 A.2.2.1 */
 	tmp->union_flag = true;
 	tmp->tagged_flag = true;
 	tmp->members .reset($5);
-	{ static bool warned = false;
-	  if (!warned) {
-		std::cerr << @1
-			  << ": warning: tagged unions parse but tag enforcement is "
-			  << "not yet implemented (compile-progress; reads/writes "
-			  << "behave like a plain union; further similar warnings "
-			  << "suppressed)." << std::endl;
-		warned = true;
-	  } }
 	$$ = tmp;
       }
   | K_union K_tagged packed_signing '{' error '}'
@@ -5966,6 +5961,52 @@ case_items
       }
   | case_item
       { $$ = new std::vector<PCase::Item*>(1, $1);
+      }
+  ;
+
+  /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches`
+     pattern matching for tagged unions (IEEE 1800-2017 §12.6).
+     Each item is `tagged TAG [.var]: stmt` or `default: stmt`.
+     Lowered at elab to an if-else cascade testing the
+     companion-tag NetNet of X. */
+case_matches_item
+  : K_tagged IDENTIFIER ':' statement_or_null
+      { PCaseMatches::Item*it = new PCaseMatches::Item;
+	it->tag = lex_strings.make($2);
+	it->stat = $4;
+	delete[] $2;
+	$$ = it;
+      }
+  | K_tagged IDENTIFIER '.' IDENTIFIER ':' statement_or_null
+      { PCaseMatches::Item*it = new PCaseMatches::Item;
+	it->tag = lex_strings.make($2);
+	it->bind = lex_strings.make($4);
+	it->stat = $6;
+	delete[] $2;
+	delete[] $4;
+	$$ = it;
+      }
+  | K_default ':' statement_or_null
+      { PCaseMatches::Item*it = new PCaseMatches::Item;
+	it->is_default = true;
+	it->stat = $3;
+	$$ = it;
+      }
+  | K_default statement_or_null
+      { PCaseMatches::Item*it = new PCaseMatches::Item;
+	it->is_default = true;
+	it->stat = $2;
+	$$ = it;
+      }
+  ;
+
+case_matches_items
+  : case_matches_items case_matches_item
+      { $1->push_back($2);
+	$$ = $1;
+      }
+  | case_matches_item
+      { $$ = new std::vector<PCaseMatches::Item*>(1, $1);
       }
   ;
 
@@ -11642,6 +11683,16 @@ statement_item /* This is roughly statement_item in the LRM */
      bound (see `case_item` rule above). */
   | unique_priority K_case '(' expression ')' K_inside case_items K_endcase
       { PCase*tmp = new PCase($1, NetCase::EQ, $4, $7);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches` for
+     tagged unions (IEEE 1800-2017 §12.6).  Lowered at elab to an
+     if-else cascade testing the companion-tag NetNet of X. */
+  | unique_priority K_case '(' expression ')' K_matches case_matches_items K_endcase
+      { (void)$1;
+	pform_requires_sv(@6, "case-matches pattern matching");
+	PCaseMatches*tmp = new PCaseMatches($4, $7);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }

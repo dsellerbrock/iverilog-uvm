@@ -325,6 +325,41 @@ class PCase  : public Statement {
       PCase& operator= (const PCase&);
 };
 
+/* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches` pattern
+ * matching for tagged unions (IEEE 1800-2017 §12.6).  Each item is
+ * `tagged TAG [.var]: stmt` or `default: stmt`.  Lowered at elab to
+ * an if-else cascade testing the companion-tag NetNet of X. */
+class PCaseMatches : public Statement {
+
+    public:
+      struct Item {
+            // For tagged items: the named tag
+            perm_string tag;
+            // For tagged items with binding: the bound variable name
+            // (zero-length if no binding)
+            perm_string bind;
+            // True if `default:` (no tag/bind)
+            bool is_default;
+            Statement *stat;
+            Item() : is_default(false), stat(nullptr) {}
+      };
+
+      PCaseMatches(PExpr*expr, std::vector<Item*>*items)
+            : expr_(expr), items_(items) {}
+      ~PCaseMatches() override;
+
+      virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
+      virtual void dump(std::ostream&out, unsigned ind) const override;
+
+    private:
+      PExpr *expr_;
+      std::vector<Item*>*items_;
+
+    private: // not implemented
+      PCaseMatches(const PCaseMatches&) = delete;
+      PCaseMatches& operator=(const PCaseMatches&) = delete;
+};
+
 class PCAssign  : public Statement {
 
     public:
