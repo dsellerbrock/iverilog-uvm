@@ -2617,16 +2617,52 @@ static int show_system_task_call(ivl_statement_t net)
 	    if (iter_wid == 0) iter_wid = 32;
 	    ivl_variable_type_t bt = ivl_type_base(iter_type);
 
-	    /* Class/string/real iterator types: predicate could still
-	       yield vec4 (e.g. item.priority where priority is int).
-	       For now, only support iterator types that we can read
-	       via %load/dar/vec4 (BOOL/LOGIC).  Class iter types
-	       deferred (require %load/dar/obj path). */
-	    if (bt != IVL_VT_BOOL && bt != IVL_VT_LOGIC) {
+	    /* Iterator-type dispatch: pick the right %load/dar/* +
+	       %store/* pair to fetch q[idx] into iter.
+	       Supported: BOOL/LOGIC (vec4), REAL, STRING, CLASS/
+	       DARRAY/QUEUE/NO_TYPE (object).  The predicate yields a
+	       32-bit vec4 key regardless of iter type. */
+	    const char*load_dar = NULL;
+	    const char*store_iter = NULL;
+	    char store_iter_buf[64];
+	    switch (bt) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		  load_dar = "load/dar/vec4";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/vec4 v%p_0, 0, %u", iter_sig, iter_wid);
+		  store_iter = store_iter_buf;
+		  break;
+		case IVL_VT_REAL:
+		  load_dar = "load/dar/r";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/real v%p_0", iter_sig);
+		  store_iter = store_iter_buf;
+		  break;
+		case IVL_VT_STRING:
+		  load_dar = "load/dar/str";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/str v%p_0", iter_sig);
+		  store_iter = store_iter_buf;
+		  break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE:
+		  load_dar = "load/dar/obj";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/obj v%p_0", iter_sig);
+		  store_iter = store_iter_buf;
+		  break;
+		default:
+		  /* Truly unrecognized — fall back. */
+		  break;
+	    }
+	    if (!load_dar) {
 		  static int warned = 0;
 		  if (!warned) {
-			fprintf(stderr, "Warning: %s with-clause on non-vector iter "
-				"type %d not yet supported; falling back to default "
+			fprintf(stderr, "Warning: %s with-clause on iter type %d "
+				"not yet supported; falling back to default "
 				"compare (further similar warnings suppressed)\n",
 				stmt_name, (int)bt);
 			warned = 1;
@@ -2656,11 +2692,10 @@ static int show_system_task_call(ivl_statement_t net)
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
 		    thread_count, outer_end);
 
-	    /* iter = q[idx] */
+	    /* iter = q[idx] (type-dispatched) */
 	    fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
-	    fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", q_sig);
-	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
-		    iter_sig, iter_wid);
+	    fprintf(vvp_out, "    %%%s v%p_0;\n", load_dar, q_sig);
+	    fprintf(vvp_out, "    %%%s;\n", store_iter);
 
 	    /* eval predicate (key) and store to keys queue */
 	    {
