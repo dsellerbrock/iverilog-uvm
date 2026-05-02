@@ -136,7 +136,17 @@ static inline bool should_eagerly_elaborate_class_method_(perm_string name)
 	  || name == perm_string::literal("get_type_name")
 	  || name == perm_string::literal("type_name")
 	  || name == perm_string::literal("initialize")
-	  || name == perm_string::literal("m_initialize");
+	  || name == perm_string::literal("m_initialize")
+	  // I5 (Phase 62o): virtual override targets for the
+	  // uvm_callbacks#(T,CB) lazy-elaborated classes.  Without
+	  // these in the eager set, the parameterized specialization's
+	  // m_is_registered / m_is_for_me / m_am_i_a are not emitted,
+	  // and virtual dispatch falls through to the base class
+	  // (which returns 0), causing CBUNREG warnings even after a
+	  // valid m_register_pair() call.
+	  || name == perm_string::literal("m_is_registered")
+	  || name == perm_string::literal("m_is_for_me")
+	  || name == perm_string::literal("m_am_i_a");
 }
 
 static inline bool should_lazy_specialized_class_body_(const netclass_t*cls)

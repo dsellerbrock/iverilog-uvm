@@ -1335,7 +1335,13 @@ static bool should_seed_specialized_method_body_(perm_string name)
 	  || name == perm_string::literal("get_type_name")
 	  || name == perm_string::literal("type_name")
 	  || name == perm_string::literal("initialize")
-	  || name == perm_string::literal("m_initialize");
+	  || name == perm_string::literal("m_initialize")
+	  // I5 (Phase 62o): keep in sync with
+	  // should_eagerly_elaborate_class_method_ in elaborate.cc —
+	  // these are virtual override targets for uvm_callbacks#(T,CB).
+	  || name == perm_string::literal("m_is_registered")
+	  || name == perm_string::literal("m_is_for_me")
+	  || name == perm_string::literal("m_am_i_a");
 }
 
 static void seed_specialized_method_bodies_(Design*des, netclass_t*cls,
