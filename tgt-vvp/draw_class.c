@@ -138,39 +138,40 @@ static void show_prop_type_vector(ivl_type_t ptype, const char*rand_prefix)
       }
 }
 
-static void show_prop_type_queue(ivl_type_t ptype)
+static void show_prop_type_queue(ivl_type_t ptype, const char*rand_prefix)
 {
       ivl_type_t element_type = ivl_type_element(ptype);
       int assoc_compat = ivl_type_queue_assoc_compat(ptype);
+      const char*rp = rand_prefix ? rand_prefix : "";
 
       if (!element_type) {
-	    fprintf(vvp_out, assoc_compat ? "\"Mo\"" : "\"Qo\"");
+	    fprintf(vvp_out, assoc_compat ? "\"%sMo\"" : "\"%sQo\"", rp);
 	    return;
       }
 
       switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
-	    fprintf(vvp_out, assoc_compat ? "\"Mr\"" : "\"Qr\"");
+	    fprintf(vvp_out, assoc_compat ? "\"%sMr\"" : "\"%sQr\"", rp);
 	    break;
 	  case IVL_VT_STRING:
-	    fprintf(vvp_out, assoc_compat ? "\"MS\"" : "\"QS\"");
+	    fprintf(vvp_out, assoc_compat ? "\"%sMS\"" : "\"%sQS\"", rp);
 	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
 	    if (assoc_compat)
-		  fprintf(vvp_out, "\"Mv%u\"", ivl_type_packed_width(element_type));
+		  fprintf(vvp_out, "\"%sMv%u\"", rp, ivl_type_packed_width(element_type));
 	    else
-		  fprintf(vvp_out, "\"Qv\"");
+		  fprintf(vvp_out, "\"%sQv\"", rp);
 	    break;
 	  case IVL_VT_CLASS:
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
 	  case IVL_VT_VOID:
-	    fprintf(vvp_out, assoc_compat ? "\"Mo\"" : "\"Qo\"");
+	    fprintf(vvp_out, assoc_compat ? "\"%sMo\"" : "\"%sQo\"", rp);
 	    break;
 	  default:
-	    fprintf(vvp_out, assoc_compat ? "\"Mo\"" : "\"Qo\"");
+	    fprintf(vvp_out, assoc_compat ? "\"%sMo\"" : "\"%sQo\"", rp);
 	    break;
       }
 }
@@ -200,7 +201,7 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
 	    fprintf(vvp_out, "\"S\"");
 	    break;
 	  case IVL_VT_QUEUE:
-	    show_prop_type_queue(base_ptype);
+	    show_prop_type_queue(base_ptype, rand_prefix);
 	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:

@@ -361,6 +361,7 @@ ivl_event_is_vif_negedge
 ivl_event_is_vif_anyedge
 ivl_event_vif_N
 ivl_event_vif_M
+ivl_event_vif_pre_N
 
 ivl_scope_is_dpi_import
 ivl_scope_dpi_c_name

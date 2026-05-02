@@ -1177,6 +1177,25 @@ void schedule_simulate(void)
       // process events and when done run the final blocks.
       run_finals = schedule_runnable;
 
+      // Phase 59 diagnostics (env-gated, no overhead when disabled):
+      // IVL_SAME_TIME_LIMIT=N: bail out after N consecutive events at the
+      //   same sim time (zero-time spin detection).  Default 0 = disabled.
+      // IVL_TIME_TRACE_NS=N: print "TIMETRACE @ N ps" every time sim time
+      //   advances by N ns.  Default 0 = disabled.
+      unsigned long same_time_count = 0;
+      static unsigned long same_time_limit = (unsigned long)-1;
+      if (same_time_limit == (unsigned long)-1) {
+            const char*env = getenv("IVL_SAME_TIME_LIMIT");
+            same_time_limit = env && *env ? strtoul(env, 0, 10) : 0;
+      }
+      static unsigned long time_trace_step_ns = (unsigned long)-1;
+      if (time_trace_step_ns == (unsigned long)-1) {
+            const char*env = getenv("IVL_TIME_TRACE_NS");
+            time_trace_step_ns = env && *env ? strtoul(env, 0, 10) : 0;
+      }
+      vvp_time64_t last_trace_time = 0;
+      vvp_time64_t last_sim_time = schedule_time;
+
       if (schedule_runnable) while (sched_list) {
 
 	    if (schedule_stopped_flag) {
@@ -1190,12 +1209,36 @@ void schedule_simulate(void)
 	      /* ctim is the current time step. */
 	    struct event_time_s* ctim = sched_list;
 
+	    if (ctim->delay > 0) {
+		  if (schedule_time != last_sim_time) {
+			last_sim_time = schedule_time;
+			same_time_count = 0;
+		  }
+	    } else if (same_time_limit > 0) {
+		  same_time_count += 1;
+		  if (same_time_count == same_time_limit) {
+			fprintf(stderr,
+				"Watchdog: %lu events at sim time %llu ps -- bailing out\n",
+				same_time_count,
+				(unsigned long long)schedule_time);
+			vthread_dump_live_threads("watchdog-zero-time-spin");
+			schedule_runnable = false;
+			break;
+		  }
+	    }
+
 	      /* If the time is advancing, then first run the
 		 postponed sync events. Run them all. */
 	    if (ctim->delay > 0) {
 
 		  if (!schedule_runnable) break;
 		  schedule_time += ctim->delay;
+		  if (time_trace_step_ns > 0
+		      && schedule_time >= last_trace_time + time_trace_step_ns * 1000) {
+			fprintf(stderr, "TIMETRACE @ %llu ps\n",
+				(unsigned long long)schedule_time);
+			last_trace_time = schedule_time;
+		  }
 		    /* When the design is being traced (we are emitting
 		     * file/line information) also print any time changes. */
 		  if (show_file_line) {

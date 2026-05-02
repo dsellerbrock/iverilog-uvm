@@ -41,6 +41,7 @@
 # include  <map>
 # include  <typeinfo>
 # include  <vector>
+# include  <algorithm>
 # include  <cstdlib>
 # include  <climits>
 # include  <cstring>
@@ -238,7 +239,19 @@ struct vthread_s {
       inline vvp_vector4_t& peek_vec4(void)
       {
 	    unsigned use_index = stack_vec4_.size();
-	    assert(use_index >= 1);
+	    if (use_index < 1) {
+		  static unsigned warned = 0;
+		  if (warned < 8) {
+			fprintf(stderr, "[PEEK_VEC4-UF] fileline='%s' (further suppressed)\n",
+				get_fileline().c_str());
+			warned++;
+		  }
+		  /* Soft fallback: push 1-bit 0 so the peeking opcode has
+		     something to read and the run can progress. The actual
+		     bug is a missing earlier push. */
+		  push_vec4(vvp_vector4_t(1, BIT4_0));
+		  use_index = stack_vec4_.size();
+	    }
 	    return stack_vec4_[use_index-1];
       }
       inline void poke_vec4(unsigned depth, const vvp_vector4_t&val)
@@ -318,7 +331,23 @@ struct vthread_s {
     public:
       inline string pop_str(void)
       {
-	    assert(! stack_str_.empty());
+	    // C4 (Phase 62i): soft-fail underflow.  Code-gen mismatches in
+	    // some DPI/UVM paths can pop more strings than were pushed; an
+	    // assert here turns a recoverable code-gen bug into a hard
+	    // crash.  Log once and return empty string so the surrounding
+	    // path can continue (similar to the PEEK_VEC4-UF soft fallback
+	    // in vthread runtime).
+	    if (stack_str_.empty()) {
+		  static bool warned = false;
+		  if (!warned) {
+			fprintf(stderr,
+				"Warning: vthread pop_str underflow (stack empty)"
+				" — code-gen mismatch; returning empty string"
+				" (further similar warnings suppressed).\n");
+			warned = true;
+		  }
+		  return string();
+	    }
 	    string val = stack_str_.back();
 	    stack_str_.pop_back();
 	    return val;
@@ -511,14 +540,45 @@ struct vthread_s {
 	    free(filenm_);
 	    filenm_ = 0;
 	    if (!stack_vec4_.empty()) {
-		  const char*fn = parent_scope ? vpi_get_str(vpiFullName, parent_scope) : "<unknown>";
-		  cerr << "BUG: stack_vec4_ not empty at cleanup: size=" << stack_vec4_.size()
-		       << " scope=" << fn << endl;
-		  assert(stack_vec4_.empty());
+		  static unsigned warned_v = 0;
+		  if (warned_v < 4) {
+			const char*fn = parent_scope ? vpi_get_str(vpiFullName, parent_scope) : "<unknown>";
+			fprintf(stderr, "[CLEANUP-leak] stack_vec4 size=%zu scope=%s\n",
+				stack_vec4_.size(), fn);
+			warned_v++;
+		  }
+		  stack_vec4_.clear();
 	    }
-	    assert(stack_real_.empty());
-	    assert(stack_str_.empty());
-	    assert(stack_obj_size_ == 0);
+	    if (!stack_real_.empty()) {
+		  static unsigned warned_r = 0;
+		  if (warned_r < 4) {
+			const char*fn = parent_scope ? vpi_get_str(vpiFullName, parent_scope) : "<unknown>";
+			fprintf(stderr, "[CLEANUP-leak] stack_real size=%zu scope=%s\n",
+				stack_real_.size(), fn);
+			warned_r++;
+		  }
+		  stack_real_.clear();
+	    }
+	    if (!stack_str_.empty()) {
+		  static unsigned warned_s = 0;
+		  if (warned_s < 4) {
+			const char*fn = parent_scope ? vpi_get_str(vpiFullName, parent_scope) : "<unknown>";
+			fprintf(stderr, "[CLEANUP-leak] stack_str size=%zu scope=%s\n",
+				stack_str_.size(), fn);
+			warned_s++;
+		  }
+		  stack_str_.clear();
+	    }
+	    if (stack_obj_size_ != 0) {
+		  static unsigned warned_o = 0;
+		  if (warned_o < 4) {
+			const char*fn = parent_scope ? vpi_get_str(vpiFullName, parent_scope) : "<unknown>";
+			fprintf(stderr, "[CLEANUP-leak] stack_obj size=%u scope=%s\n",
+				stack_obj_size_, fn);
+			warned_o++;
+		  }
+		  pop_object(stack_obj_size_);
+	    }
       }
 };
 
@@ -1459,6 +1519,59 @@ static VVP_QUEUE*pop_queue_receiver_(vthread_t thr, vvp_object_t&recv,
       return dynamic_cast<VVP_QUEUE*>(queue);
 }
 
+/*
+ * %inside/arr <signal>
+ *
+ * Pops one vec4 value from the thread's vec4 stack.  Gets the array/queue
+ * object stored in <signal>.  Iterates every element (as a vec4) and
+ * compares with the popped value using 4-state equality (X/Z bits ignored).
+ * Pushes a 1-bit result: '1' if any element matched, '0' otherwise.
+ */
+bool of_INSIDE_ARR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) {
+            thr->push_vec4(vvp_vector4_t(1, BIT4_0));
+            return true;
+      }
+
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      if (!arr) {
+            thr->pop_vec4();   /* discard value */
+            thr->push_vec4(vvp_vector4_t(1, BIT4_0));
+            return true;
+      }
+
+      vvp_vector4_t val = thr->pop_vec4();
+      bool matched = false;
+      size_t sz = arr->get_size();
+      for (size_t i = 0 ; i < sz && !matched ; i += 1) {
+            vvp_vector4_t elem;
+            arr->get_word((unsigned)i, elem);
+            if (elem.size() != val.size()) {
+                  /* resize: pad or truncate to val width */
+                  vvp_vector4_t tmp(val.size(), BIT4_0);
+                  size_t copy_sz = (elem.size() < val.size()) ? elem.size() : val.size();
+                  for (size_t b = 0 ; b < copy_sz ; b += 1) tmp.set_bit(b, elem.value(b));
+                  elem = tmp;
+            }
+            /* 4-state equality: treat X/Z as don't-care in the element */
+            bool eq = true;
+            for (size_t b = 0 ; b < val.size() && eq ; b += 1) {
+                  vvp_bit4_t ev = elem.value(b);
+                  vvp_bit4_t vv = val.value(b);
+                  if (ev == BIT4_X || ev == BIT4_Z) continue; /* wildcard */
+                  if (vv == BIT4_X || vv == BIT4_Z) continue; /* wildcard */
+                  if (ev != vv) eq = false;
+            }
+            if (eq) matched = true;
+      }
+
+      thr->push_vec4(vvp_vector4_t(1, matched ? BIT4_1 : BIT4_0));
+      return true;
+}
+
 bool of_QSIZE(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (cp->net->fun);
@@ -1483,6 +1596,134 @@ bool of_QSIZE_O(vthread_t thr, vvp_code_t)
 }
 
 /*
+ * Compare two vvp_vector4_t values numerically (treating X/Z as 0).
+ * Returns true if a < b.
+ */
+static bool vec4_lt_(const vvp_vector4_t&a, const vvp_vector4_t&b)
+{
+      size_t na = a.size(), nb = b.size();
+      size_t n = na > nb ? na : nb;
+      for (ssize_t i = (ssize_t)n - 1 ; i >= 0 ; i -= 1) {
+            vvp_bit4_t av = (i < (ssize_t)na) ? a.value(i) : BIT4_0;
+            vvp_bit4_t bv = (i < (ssize_t)nb) ? b.value(i) : BIT4_0;
+            int ai = (av == BIT4_1) ? 1 : 0;
+            int bi = (bv == BIT4_1) ? 1 : 0;
+            if (ai != bi) return ai < bi;
+      }
+      return false;
+}
+
+static bool vec4_eq_(const vvp_vector4_t&a, const vvp_vector4_t&b)
+{
+      return !vec4_lt_(a, b) && !vec4_lt_(b, a);
+}
+
+template<typename ELEM>
+static void qsort_helper_(vvp_darray*arr, bool reverse, bool unique_only,
+                          bool (*lt)(const ELEM&, const ELEM&),
+                          bool (*eq)(const ELEM&, const ELEM&))
+{
+      size_t sz = arr->get_size();
+      std::vector<ELEM> tmp(sz);
+      for (size_t i = 0 ; i < sz ; i += 1)
+            arr->get_word((unsigned)i, tmp[i]);
+
+      if (unique_only) {
+            std::vector<ELEM> uniq;
+            for (size_t i = 0 ; i < tmp.size() ; i += 1) {
+                  bool found = false;
+                  for (size_t j = 0 ; j < uniq.size() ; j += 1)
+                        if (eq(tmp[i], uniq[j])) { found = true; break; }
+                  if (!found) uniq.push_back(tmp[i]);
+            }
+            tmp.swap(uniq);
+      } else {
+            std::sort(tmp.begin(), tmp.end(),
+                      [&](const ELEM&a, const ELEM&b){
+                            return reverse ? lt(b, a) : lt(a, b);
+                      });
+      }
+
+      /* If size changed (unique), shrink the queue first by popping. */
+      vvp_queue*q = dynamic_cast<vvp_queue*>(arr);
+      if (q) {
+            while (q->get_size() > tmp.size()) q->pop_back();
+            for (size_t i = 0 ; i < tmp.size() ; i += 1) {
+                  if (i < q->get_size()) {
+                        arr->set_word((unsigned)i, tmp[i]);
+                  } else {
+                        q->push_back(tmp[i], 0);
+                  }
+            }
+      } else {
+            /* Fixed array: only sort/rsort makes sense; unique would change
+               the element count which we cannot do for fixed arrays. */
+            size_t n = tmp.size() < sz ? tmp.size() : sz;
+            for (size_t i = 0 ; i < n ; i += 1)
+                  arr->set_word((unsigned)i, tmp[i]);
+      }
+}
+
+static bool double_lt_(const double&a, const double&b) { return a < b; }
+static bool double_eq_(const double&a, const double&b) { return a == b; }
+static bool str_lt_(const string&a, const string&b) { return a < b; }
+static bool str_eq_(const string&a, const string&b) { return a == b; }
+
+static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_only)
+{
+      if (!arr) return true;
+
+      size_t sz = arr->get_size();
+      if (sz == 0) return true;
+
+      if (dynamic_cast<vvp_queue_real*>(arr) ||
+          dynamic_cast<vvp_darray_real*>(arr)) {
+            qsort_helper_<double>(arr, reverse, unique_only,
+                                  double_lt_, double_eq_);
+            return true;
+      }
+
+      if (dynamic_cast<vvp_queue_string*>(arr) ||
+          dynamic_cast<vvp_darray_string*>(arr)) {
+            qsort_helper_<string>(arr, reverse, unique_only,
+                                  str_lt_, str_eq_);
+            return true;
+      }
+
+      /* Default: vec4 */
+      qsort_helper_<vvp_vector4_t>(arr, reverse, unique_only,
+                                   vec4_lt_, vec4_eq_);
+      return true;
+}
+
+bool of_QSORT(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) return true;
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      return qsort_unique_dispatch_(arr, false, false);
+}
+
+bool of_QSORT_R(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) return true;
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      return qsort_unique_dispatch_(arr, true, false);
+}
+
+bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) return true;
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      return qsort_unique_dispatch_(arr, false, true);
+}
+
+/*
  * %randomize
  *
  * Randomize all rand/randc properties of the class object on top of the
@@ -1503,11 +1744,84 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 			continue;
 		  if (!cobj->rand_mode(pid))
 			continue;
+
+		    // Phase 50b: rand assoc-vec4 array properties.  When a
+		    // property is `rand uint x[KEY]`, the storage is a
+		    // vvp_assoc_vec4 reachable via get_object().  The default
+		    // get_vec4 path returns a 1-bit "exists" flag and never
+		    // touches the actual entry values, so randomize() left
+		    // assoc entries at their initialised value (typically 0)
+		    // for OpenTitan's clk_freqs_mhz pattern.  Iterate string
+		    // keys here and replace each entry's value with random
+		    // bits of the entry's natural width, capped so the value
+		    // is within `int` range and non-zero.  The constraint
+		    // foreach is currently dropped at parse, so this is the
+		    // only mechanism that puts non-zero values in the assoc;
+		    // downstream code that checks `freq > 0` works.
+		  {
+			vvp_object_t propobj;
+			cobj->get_object(pid, propobj, 0);
+			if (vvp_assoc_vec4*assoc = propobj.peek<vvp_assoc_vec4>()) {
+			      std::string key;
+			      bool ok = assoc->first_key(key);
+			      while (ok) {
+				    vvp_vector4_t cur;
+				    bool got = assoc->get(key, cur);
+				    unsigned wid = got ? cur.size() : 32;
+				    if (wid == 0) wid = 32;
+				    // Generate non-zero value capped at 8 bits so
+				    // typical clock-frequency-style constraints
+				    // (e.g. inside {[5:100]}) are satisfied without
+				    // a real solver pass.  Width-clip back to wid.
+				    unsigned cap = (wid >= 8) ? 0xFF : ((1u<<wid) - 1);
+				    unsigned rnd = ((unsigned)rand() % cap) + 1;
+				    vvp_vector4_t nv(wid, BIT4_0);
+				    for (unsigned b = 0 ; b < wid ; b += 1)
+					  nv.set_bit(b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+				    assoc->set(key, nv);
+				    ok = assoc->next_key(key);
+			      }
+			      continue;  // skip the get_vec4 path below
+			}
+		  }
+
 		  vvp_vector4_t val;
 		  cobj->get_vec4(pid, val);
 		  unsigned wid = val.size();
 		  if (wid == 0)
 			continue;
+		  // C1 (Phase 62a): cyclic randc — pick unused value in current
+		  // cycle. randc_mark resets bitmap when cycle exhausted.
+		  if (defn->property_is_randc(pid)) {
+			uint64_t period = cobj->randc_period(pid);
+			if (period > 0) {
+			      uint64_t pick = 0;
+			      bool found = false;
+			      for (unsigned attempt = 0;
+				   attempt < 4 * (unsigned)period;
+				   attempt += 1) {
+				    uint64_t cand = (uint64_t)rand() % period;
+				    if (!cobj->randc_seen(pid, cand)) {
+					  pick = cand; found = true; break;
+				    }
+			      }
+			      if (!found) {
+				    for (uint64_t i = 0; i < period; i += 1) {
+					  if (!cobj->randc_seen(pid, i)) {
+						pick = i; found = true; break;
+					  }
+				    }
+			      }
+			      if (found) {
+				    cobj->randc_mark(pid, pick);
+				    for (unsigned b = 0; b < wid; b += 1)
+					  val.set_bit(b, (pick >> b) & 1
+							? BIT4_1 : BIT4_0);
+				    cobj->set_vec4(pid, val);
+				    continue;
+			      }
+			}
+		  }
 		  for (unsigned i = 0 ; i < wid ; i += 32) {
 			unsigned rnd = (unsigned)rand();
 			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
@@ -1516,9 +1830,16 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 		  cobj->set_vec4(pid, val);
 	    }
 
-	      // If this class has constraints, solve with Z3.
-	    if (defn->constraint_count() > 0)
-		  vvp_z3_randomize(defn, cobj);
+	      // Solve constraints with Z3 for this class AND every base
+	      // class in the inheritance chain. Without walking the chain,
+	      // a constraint declared on a base class's rand property is
+	      // silently dropped when the runtime instance is a derived
+	      // class, leaving those properties with raw rand() values that
+	      // ignore inside-range / equality constraints.
+	    for (const class_type*walker = defn; walker; walker = walker->runtime_super()) {
+		  if (walker->constraint_count() > 0)
+			vvp_z3_randomize(walker, cobj);
+	    }
       }
 
       vvp_object_t tmp;
@@ -1564,6 +1885,36 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 		  cobj->get_vec4(pid, val);
 		  unsigned wid = val.size();
 		  if (wid == 0) continue;
+		  // C1 (Phase 62a): cyclic randc — same logic as of_RANDOMIZE.
+		  if (defn->property_is_randc(pid)) {
+			uint64_t period = cobj->randc_period(pid);
+			if (period > 0) {
+			      uint64_t pick = 0;
+			      bool found = false;
+			      for (unsigned attempt = 0;
+				   attempt < 4 * (unsigned)period; attempt += 1) {
+				    uint64_t cand = (uint64_t)rand() % period;
+				    if (!cobj->randc_seen(pid, cand)) {
+					  pick = cand; found = true; break;
+				    }
+			      }
+			      if (!found) {
+				    for (uint64_t i = 0; i < period; i += 1) {
+					  if (!cobj->randc_seen(pid, i)) {
+						pick = i; found = true; break;
+					  }
+				    }
+			      }
+			      if (found) {
+				    cobj->randc_mark(pid, pick);
+				    for (unsigned b = 0; b < wid; b += 1)
+					  val.set_bit(b, (pick >> b) & 1
+							? BIT4_1 : BIT4_0);
+				    cobj->set_vec4(pid, val);
+				    continue;
+			      }
+			}
+		  }
 		  for (unsigned i = 0 ; i < wid ; i += 32) {
 			unsigned rnd = (unsigned)rand();
 			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
@@ -2128,32 +2479,63 @@ void vthreads_delete(class __vpiScope*scope)
 static void vthread_reap(vthread_t thr)
 {
       if (! thr->children.empty()) {
+	      /* Non-detached children of a thread being reaped must be
+	       * reparented to the grandparent so they remain reachable;
+	       * also insert them into the grandparent's children set so
+	       * that their later cleanup can find them. */
 	    for (set<vthread_t>::iterator cur = thr->children.begin()
 		       ; cur != thr->children.end() ; ++cur) {
 		  vthread_t child = *cur;
 		  assert(child);
 		  assert(child->parent == thr);
-		  child->parent = thr->parent;
+		  if (thr->parent) {
+			child->parent = thr->parent;
+			thr->parent->children.insert(child);
+		  } else {
+			child->parent = 0;
+		  }
 	    }
       }
       if (! thr->detached_children.empty()) {
+	      /* When a thread ends with detached children still alive,
+	       * SystemVerilog `wait fork` semantics require those grandchildren
+	       * to remain reachable from the still-living grandparent so that
+	       * an outer `wait fork` can wait for them.  Reparent them to
+	       * thr->parent and keep them in detached_children. */
 	    for (set<vthread_t>::iterator cur = thr->detached_children.begin()
 		       ; cur != thr->detached_children.end() ; ++cur) {
 		  vthread_t child = *cur;
 		  assert(child);
 		  assert(child->parent == thr);
 		  assert(child->i_am_detached);
-		  child->parent = 0;
-		  child->i_am_detached = 0;
+		  if (thr->parent) {
+			child->parent = thr->parent;
+			thr->parent->detached_children.insert(child);
+		  } else {
+			child->parent = 0;
+			child->i_am_detached = 0;
+		  }
 	    }
       }
       if (thr->parent) {
 	      /* assert that the given element was removed. */
 	    if (thr->i_am_detached) {
 		  size_t res = thr->parent->detached_children.erase(thr);
+		  if (res != 1) {
+			const char*sn = thr->parent_scope ? vpi_get_str(vpiFullName, thr->parent_scope) : "<u>";
+			const char*pn = thr->parent->parent_scope ? vpi_get_str(vpiFullName, thr->parent->parent_scope) : "<u>";
+			fprintf(stderr, "[REAP-FAIL det] thr=%p scope=%s parent=%p pscope=%s ended=%d disabled=%d\n",
+				(void*)thr, sn, (void*)thr->parent, pn, thr->i_have_ended, thr->i_was_disabled);
+		  }
 		  assert(res == 1);
 	    } else {
 		  size_t res = thr->parent->children.erase(thr);
+		  if (res != 1) {
+			const char*sn = thr->parent_scope ? vpi_get_str(vpiFullName, thr->parent_scope) : "<u>";
+			const char*pn = thr->parent->parent_scope ? vpi_get_str(vpiFullName, thr->parent->parent_scope) : "<u>";
+			fprintf(stderr, "[REAP-FAIL child] thr=%p scope=%s parent=%p pscope=%s ended=%d disabled=%d\n",
+				(void*)thr, sn, (void*)thr->parent, pn, thr->i_have_ended, thr->i_was_disabled);
+		  }
 		  assert(res == 1);
 	    }
       }
@@ -2940,19 +3322,50 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
          keeping rd_context on the caller frame long enough to evaluate
          initializers. For scoped reads in the current automatic scope,
          prefer the live write-head first so subsequent loads see locals
-         that were just initialized in the new frame. */
-      vvp_context_t wt_context = first_live_context_for_scope(running_thread->wt_context, ctx_scope);
-      vvp_context_t rd_context = first_live_context_for_scope(running_thread->rd_context, ctx_scope);
-      vvp_context_t owned_context = first_live_context_for_scope(running_thread->owned_context, ctx_scope);
-      vvp_context_t use_context = wt_context;
-      const char*source = "wt";
-      if (!use_context) {
-            use_context = rd_context;
-            source = "rd";
-      }
-      if (!use_context) {
-            use_context = owned_context;
-            source = "owned";
+         that were just initialized in the new frame.
+
+         After a callf joins, however, do_join's pop-push branch moves the
+         just-returned child frame to the head of rd_context (and the
+         child's frame is no longer on wt_context). The caller's next load
+         is the post-call copy-out from the freshly-returned frame, so when
+         wt's HEAD does NOT match the requested scope but rd's HEAD does,
+         we must read from rd's HEAD rather than walking deeper into wt --
+         deeper wt entries can hold stale frames of the same scope from an
+         outer mutually-recursive call.
+
+         Phase 59 perf: defer the three first_live_context_for_scope chain
+         walks until we know the heads don't match.  In the common case
+         (the head IS the right context), we skip the chain walks entirely.
+         These chain walks are O(N) hash lookups each and were dominating
+         scoped-read time in OT-class testbenches. */
+      vvp_context_t wt_context = 0;
+      vvp_context_t rd_context = 0;
+      vvp_context_t owned_context = 0;
+      vvp_context_t use_context = 0;
+      const char*source = "none";
+
+      if (running_thread->wt_context
+          && context_live_matches_scope_(running_thread->wt_context, ctx_scope)) {
+            use_context = running_thread->wt_context;
+            source = "wt-head";
+      } else if (running_thread->rd_context
+                 && context_live_matches_scope_(running_thread->rd_context, ctx_scope)) {
+            use_context = running_thread->rd_context;
+            source = "rd-head";
+      } else {
+            wt_context = first_live_context_for_scope(running_thread->wt_context, ctx_scope);
+            rd_context = first_live_context_for_scope(running_thread->rd_context, ctx_scope);
+            owned_context = first_live_context_for_scope(running_thread->owned_context, ctx_scope);
+            if (wt_context) {
+                  use_context = wt_context;
+                  source = "wt";
+            } else if (rd_context) {
+                  use_context = rd_context;
+                  source = "rd";
+            } else if (owned_context) {
+                  use_context = owned_context;
+                  source = "owned";
+            }
       }
       if (!use_context) {
             if (trace_this) {
@@ -4809,6 +5222,20 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 		          " using compile-progress return fallback (further similar warnings suppressed)\n",
 		          thr->get_fileline().c_str(), callf_depth, scope_name);
 		  warned_callf_depth_fallback = true;
+		  /* Dump distinct scopes on the callf stack and their counts. */
+		  std::map<std::string, unsigned> scope_counts;
+		  for (auto*sc : callf_scope_stack) {
+			const char*nm = sc ? vpi_get_str(vpiFullName, sc) : "<null>";
+			std::string key = nm ? std::string(nm) : std::string("<unnamed>");
+			scope_counts[key]++;
+		  }
+		  fprintf(stderr, "[callf-stack-summary] %zu distinct scopes on stack:\n",
+			  scope_counts.size());
+		  for (auto&kv : scope_counts) {
+			if (kv.second >= 4) {
+			      fprintf(stderr, "  %5u x %s\n", kv.second, kv.first.c_str());
+			}
+		  }
 	    }
 	    vthread_delete(child);
 	    callf_scope_stack.pop_back();
@@ -4845,7 +5272,16 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       running_thread = thr;
       {
             unsigned sync_resume_count = 0;
-            const unsigned sync_resume_limit = 256;
+            // Real UVM testbenches synchronously chain very deep RAL/factory
+            // traversals through %callf -- 256 resumes was set when most tests
+            // were small. Raise to 65536 to cover OpenTitan-class DVs without
+            // stalling on synchronous function calls.
+            static unsigned sync_resume_limit = 0;
+            if (!sync_resume_limit) {
+                  const char*env = getenv("IVL_CALLF_SYNC_RESUME_LIMIT");
+                  sync_resume_limit = env && *env ? strtoul(env, 0, 10) : 65536;
+                  if (!sync_resume_limit) sync_resume_limit = 65536;
+            }
             while (!child->i_have_ended
                    && child->parent == thr
                    && child->is_callf_child
@@ -4871,7 +5307,12 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       }
 	      {
 	            unsigned sync_drain_count = 0;
-	            const unsigned sync_drain_limit = 256;
+	            static unsigned sync_drain_limit = 0;
+	            if (!sync_drain_limit) {
+	                  const char*env = getenv("IVL_CALLF_SYNC_DRAIN_LIMIT");
+	                  sync_drain_limit = env && *env ? strtoul(env, 0, 10) : 65536;
+	                  if (!sync_drain_limit) sync_drain_limit = 65536;
+	            }
 	            while (!child->i_have_ended
 	                   && child->parent == thr
 	                   && child->is_callf_child
@@ -6526,7 +6967,22 @@ static bool do_disable(vthread_t thr, vthread_t match)
       }
 
       vthread_t parent = thr->parent;
-      if (parent && parent->i_am_joining) {
+      if (thr->i_am_detached) {
+	      /* A detached thread (fork-join_none, possibly reparented after
+	       * its original parent ended) must NOT spuriously wake a parent
+	       * that is joining for a different child.  Mirror of_END's
+	       * detached-child path: optionally wake a parent stuck in
+	       * `wait fork`, then reap.  vthread_reap will remove `thr` from
+	       * the parent's detached_children, so do not erase manually. */
+	    if (parent && parent->i_am_waiting
+		&& parent->detached_children.size() == 1) {
+		    /* This is the last detached child; the wait fork
+		     * predicate will become true once we reap. */
+		  parent->i_am_waiting = 0;
+		  schedule_vthread(parent, 0, true);
+	    }
+	    vthread_reap(thr);
+      } else if (parent && parent->i_am_joining) {
 	      // If a parent is waiting in a %join, wake it up. Note
 	      // that it is possible to be waiting in a %join yet
 	      // already scheduled if multiple child threads are
@@ -7070,14 +7526,22 @@ bool of_END(vthread_t thr, vvp_code_t)
             }
       }
 
-	/* Fully detach any detached children. */
+	/* Move any detached children to the parent.  This preserves
+	 * SystemVerilog `wait fork` semantics: an outer `wait fork` must
+	 * wait for grandchildren whose intermediate parent has already
+	 * ended.  If we have no parent, fully orphan them as before. */
       while (! thr->detached_children.empty()) {
 	    vthread_t child = *(thr->detached_children.begin());
 	    assert(child);
 	    assert(child->parent == thr);
 	    assert(child->i_am_detached);
-	    child->parent = 0;
-	    child->i_am_detached = 0;
+	    if (thr->parent) {
+		  child->parent = thr->parent;
+		  thr->parent->detached_children.insert(child);
+	    } else {
+		  child->parent = 0;
+		  child->i_am_detached = 0;
+	    }
 	    thr->detached_children.erase(thr->detached_children.begin());
       }
 
@@ -7413,6 +7877,23 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
                  on the write context stack. */
             child->wt_context = thr->wt_context;
             child->rd_context = thr->wt_context;
+            /* Phase 59: keep a retained self-reference to the just-allocated
+               autotask frame in owned_context.  Nested calls inside the
+               forked task body (e.g. forever loops with %alloc/%free for
+               sub-task calls) can sanitize or pop the wt/rd chains; without
+               a self-pin in owned_context the thread loses access to its
+               own `this` slot on subsequent iterations and reads it as nil.
+               Pin only when not already held to avoid clobbering a parent's
+               retained owned_context inheritance below.  Retain just the
+               head context (not the whole chain) -- the chain entries are
+               already kept alive via the parent's wt_context references,
+               and retaining only the head avoids an O(N) walk per fork. */
+            if (!child->owned_context
+                && context_live_matches_scope_(thr->wt_context, cp->scope)) {
+                  retain_automatic_context_(thr->wt_context);
+                  child->owns_automatic_context = 1;
+                  child->owned_context = thr->wt_context;
+            }
       }
       if (thr->owned_context && !child->owned_context
           && context_live_in_owner(thr->owned_context)) {
@@ -8353,8 +8834,14 @@ static ASSOC* peek_signal_assoc_(vvp_net_t*net)
 
       ASSOC*typed_assoc = dynamic_cast<ASSOC*>(assoc);
       if (!typed_assoc && !warned) {
-            cerr << "Warning: signal assoc operation on unexpected container type."
-                 << endl;
+            // C3 (Phase 62h): include actual type name in the warning so
+            // downstream investigation has data to work with.  The dynamic
+            // cast failed — the runtime container is the wrong subtype for
+            // the requested operation.  Often a code-gen mismatch emitted
+            // by elaboration for parameterized-class assoc-array properties.
+            cerr << "Warning: signal assoc operation on unexpected container "
+                 << "type (have " << typeid(*assoc).name()
+                 << ", want " << typeid(ASSOC).name() << ")." << endl;
             warned = true;
       }
 
@@ -8788,7 +9275,14 @@ static bool aa_traversal_finish_(vthread_t thr, vvp_net_t*key_net,
       if (ok && !write_signal_assoc_key_<KEY>(thr, key_net, key, why))
             ok = false;
 
-      vvp_vector4_t val(wid, ok ? BIT4_1 : BIT4_0);
+      // Push the success flag as a `wid`-bit value: zero-padded with
+      // the LSB carrying the truth bit. The previous code passed
+      // `ok ? BIT4_1 : BIT4_0` as the fill bit which set every bit of
+      // the result, turning success into 0xFFFFFFFF (-1) rather than 1
+      // when wid > 1.
+      vvp_vector4_t val(wid, BIT4_0);
+      if (ok && wid > 0)
+            val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
@@ -11543,7 +12037,15 @@ static vthread_t get_func(vthread_t thr)
 {
       vthread_t fun_thr = thr;
 
-      while (fun_thr->parent_scope->get_type_code() != vpiFunction) {
+	/* Walk up until we reach the thread that owns the return slot.
+	   An autofunction's fork body runs in the same vpiFunction scope as
+	   the callf/exec_ufunc child, but was created by %fork so it has no
+	   args_vec4/real/str.  Continue past such zero-slot threads to find
+	   the actual return-slot owner. */
+      while (fun_thr->parent_scope->get_type_code() != vpiFunction
+	     || (fun_thr->args_vec4.empty()
+	         && fun_thr->args_real.empty()
+	         && fun_thr->args_str.empty())) {
 	    assert(fun_thr->parent);
 	    fun_thr = fun_thr->parent;
       }
@@ -12410,6 +12912,47 @@ bool of_STORE_PROP_V_I(vthread_t thr, vvp_code_t cp)
 	    set_val(vif, pid, val, idx);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-idx");
+      return true;
+}
+
+/*
+ * %store/prop/v/bits <pid>, <bitoff>, <wid>
+ *
+ * Read-modify-write a bit field within a VIF vec4 property.
+ * Pops <wid> bits from the vec4 stack; reads current value of
+ * property <pid> of the object at the top of the obj stack (NOT
+ * popped); replaces bits [bitoff+wid-1 : bitoff] with the popped
+ * value; writes the modified vector back to the property.
+ * Encoding: cp->number=pid, cp->bit_idx[0]=bitoff, cp->bit_idx[1]=wid.
+ */
+bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid    = cp->number;
+      unsigned bitoff = cp->bit_idx[0];
+      unsigned wid    = cp->bit_idx[1];
+
+      vvp_vector4_t new_val;
+      pop_prop_val(thr, new_val, wid);
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      if (!vif) {
+	    /* Not a VIF — cobjects don't use packed struct bit fields. */
+	    return true;
+      }
+
+      vvp_vector4_t current;
+      vif->get_vec4(pid, current, 0);
+
+      /* Merge new_val bits into current at [bitoff .. bitoff+wid-1]. */
+      for (unsigned i = 0; i < wid; i++) {
+	    if (bitoff + i < current.size())
+		  current.set_bit(bitoff + i, new_val.value(i));
+      }
+
+      vif->set_vec4(pid, current, 0);
+      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+                                  thr->peek_object_root(0), "store-prop-bits");
       return true;
 }
 

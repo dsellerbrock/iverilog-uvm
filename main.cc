@@ -111,7 +111,12 @@ bool gn_cadence_types_flag = true;
 bool gn_specify_blocks_flag = true;
 bool gn_interconnect_flag = true;
 bool gn_supported_assertions_flag = true;
-bool gn_unsupported_assertions_flag = true;
+// iverilog-uvm: default unsupported-assertions to false so concurrent
+// assertions parse as silent no-ops instead of erroring out. SVA modules
+// (tlul_assert, prim_assert) are typically gated out via SYNTHESIS but
+// some testbenches still embed `assert property(@(posedge clk) a |-> b)`
+// inline. Re-enable with -gunsupported-assertions if you want errors.
+bool gn_unsupported_assertions_flag = false;
 bool gn_io_range_error_flag = true;
 bool gn_strict_ca_eval_flag = false;
 bool gn_strict_expr_width_flag = false;

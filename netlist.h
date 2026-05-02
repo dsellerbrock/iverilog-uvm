@@ -3678,14 +3678,18 @@ class NetEvProbe  : public NetNode {
       void find_similar_probes(std::list<NetEvProbe*>&);
 
       // VIF edge support: @(posedge/negedge/edge vif.signal)
-      void set_vif_posedge(unsigned N, unsigned M);
-      void set_vif_negedge(unsigned N, unsigned M);
-      void set_vif_anyedge(unsigned N, unsigned M);
+      // For 2-level: base.vif[N].signal[M]   (pre_N = UINT_MAX = unused)
+      // For 3-level: base.pre[pre_N].vif[N].signal[M]
+      void set_vif_posedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
+      void set_vif_negedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
+      void set_vif_anyedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
       bool is_vif_posedge() const { return is_vif_posedge_; }
       bool is_vif_negedge() const { return is_vif_negedge_; }
       bool is_vif_anyedge() const { return is_vif_anyedge_; }
       unsigned vif_N() const { return vif_N_; }
       unsigned vif_M() const { return vif_M_; }
+      unsigned vif_pre_N() const { return vif_pre_N_; }
+      bool has_vif_pre_N() const { return vif_pre_N_ != UINT_MAX; }
 
       virtual bool emit_node(struct target_t*) const override;
       virtual void dump_node(std::ostream&, unsigned ind) const override;
@@ -3700,6 +3704,7 @@ class NetEvProbe  : public NetNode {
       bool is_vif_anyedge_ = false;
       unsigned vif_N_ = 0;
       unsigned vif_M_ = 0;
+      unsigned vif_pre_N_ = UINT_MAX;
 };
 
 /*

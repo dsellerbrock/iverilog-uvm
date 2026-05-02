@@ -274,6 +274,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 
 "&A" { return K_A; }
 "&APV" { return K_APV; }
+"&CPS" { return K_CPS; }
 "&PV" { return K_PV; }
 
 "%"[.$_/a-zA-Z0-9]+ {

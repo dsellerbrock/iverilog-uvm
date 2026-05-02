@@ -166,6 +166,25 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	         runtime and pushed onto the obj_stack. */
 	      if (class_like && ivl_expr_type(expr) == IVL_EX_PROPERTY)
 		    return 0;
+	      /* For a string-typed class property (e.g. obj.str_field), emit
+         &CPS<vSIG_0,pidx> so the runtime handle supports both
+         vpi_get_value and vpi_put_value on the specific string property.
+         Only handle the simple case (direct signal base, not nested). */
+	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+		  && ivl_expr_value(expr) == IVL_VT_STRING
+		  && ivl_expr_signal(expr)
+		  && !ivl_expr_oper1(expr)) {
+		    unsigned pidx = (unsigned)ivl_expr_property_idx(expr);
+		    snprintf(buffer, sizeof buffer, "&CPS<v%p_0, %u>",
+			     (void*)ivl_expr_signal(expr), pidx);
+		    result->text = strdup(buffer);
+		    return 1;
+	      }
+	      /* Nested or array-indexed string property: fall back so the
+	         caller dispatches to draw_eval_string (rvalue-only). */
+	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+		  && ivl_expr_value(expr) == IVL_VT_STRING)
+		    return 0;
 	      /* If the signal node is narrower than the signal itself,
 	         then this is a part select so I'm going to need to
 	         evaluate the expression.
@@ -699,9 +718,63 @@ void draw_vpi_task_call(ivl_statement_t tnet)
       }
 }
 
+/*
+ * Function-form $cast(dest, src) shortcut when dest is a class-property
+ * lvalue. The default VPI path passes a handle to the containing class
+ * object (`this`) instead of the property, so the runtime cast checks
+ * the wrong class type. Emit a direct property-store sequence and push
+ * 1 (success) onto the vec4 stack as the function result.
+ */
+static int draw_sv_cast_class_func(ivl_expr_t fnet)
+{
+      const char*name = ivl_expr_name(fnet);
+      if (!(name && strcmp(name, "$cast") == 0))
+            return 0;
+      if (ivl_expr_parms(fnet) != 2)
+            return 0;
+
+      ivl_expr_t dest = ivl_expr_parm(fnet, 0);
+      ivl_expr_t src  = ivl_expr_parm(fnet, 1);
+      if (!(dest && src))
+            return 0;
+      if (ivl_expr_value(dest) != IVL_VT_CLASS)
+            return 0;
+      if (ivl_expr_type(dest) != IVL_EX_PROPERTY)
+            return 0;
+
+      /* base signal (the containing class object — typically `this`) and
+         the property index of the destination. */
+      ivl_signal_t base_sig = ivl_expr_signal(dest);
+      if (!base_sig)
+            return 0;
+      int pidx = (int) ivl_expr_property_idx(dest);
+
+      /* Emit:
+            push src as object (top of obj stack)
+            push base (this) — now [base, src]
+            swap so order is [src, base]:
+              actually %store/prop/obj pops the value and peeks the cobj,
+              so the stack must be [..., cobj, value]. Push base FIRST,
+              then value last.
+         %store/prop/obj N, 0; %pop/obj 1, 0.
+         Then push 1 (success) onto vec4 as the function return. */
+      fprintf(vvp_out, "    %%load/obj v%p_0; $cast: push base (this)\n",
+              base_sig);
+      draw_eval_object(src);
+      fprintf(vvp_out, "    %%store/prop/obj %d, 0; $cast: store property\n",
+              pidx);
+      fprintf(vvp_out, "    %%pop/obj 1, 0; $cast: drop base\n");
+      fprintf(vvp_out, "    %%pushi/vec4 1, 0, %u; $cast: success\n",
+              ivl_expr_width(fnet));
+      return 1;
+}
+
 void draw_vpi_func_call(ivl_expr_t fnet)
 {
       char call_string[1024];
+
+      if (draw_sv_cast_class_func(fnet))
+            return;
 
       snprintf(call_string, sizeof(call_string),
 	       "    %%vpi_func %u %u \"%s\" %u",

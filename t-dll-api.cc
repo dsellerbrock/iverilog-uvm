@@ -444,6 +444,12 @@ extern "C" unsigned ivl_event_vif_M(ivl_event_t net)
       return net->vif_M;
 }
 
+extern "C" unsigned ivl_event_vif_pre_N(ivl_event_t net)
+{
+      assert(net);
+      return net->vif_pre_N;
+}
+
 extern "C" const char* ivl_expr_bits(ivl_expr_t net)
 {
       assert(net);

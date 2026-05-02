@@ -5,7 +5,7 @@ This document describes every change in the `development` branch relative to
 feature: what was broken, the root cause, the fix, files changed, and test coverage.
 
 **Branch:** `dsellerbrock/iverilog-uvm` `development`
-**Base:** `steveicarus/iverilog` `master` (41 commits ahead)
+**Base:** `steveicarus/iverilog` `master` (86 commits ahead)
 **Upstream status** is noted for each group — see §11 for the summary table.
 
 ---
@@ -893,9 +893,171 @@ remaining constraints.
 
 The UVM phase infrastructure (phases, objections, sequencer/driver TLM) works.
 The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remain in:
-- `uvm_field_automation` macros (`copy()`, `compare()`, `print()`)
+- `uvm_field_automation`: `copy()` and `compare()` work; `print()` printer-subclass
+  dispatch fires `[NO_OVERRIDE] emit() method not overridden` (audit 2026-05-01)
+- `randc` cyclic semantics: behaves as `rand` (Phase 63 candidate)
+- Concurrent assertions (`assert property |->`, `|=>`, `disable iff`): silently
+  pass-no-op (Phase 62 candidate — false-pass risk)
+- `dist` weighting: uniform regardless of weights (Phase 66 candidate)
+- `soft` constraints: treated as hard (Phase 66 candidate)
+- Streaming operators `{<<{}}` `{>>{}}`: silently produce zero
+- `std::randomize(var) with {...}`: `with` clause not parsed
+- `uvm_resource_db#(T)::set/read_by_name`: typed-pool path returns 0
+- `uvm_cmdline_processor.get_args(args)`: elaboration error on output arg
+- `uvm_reg.lock_model()` task missing — blocks register layer beyond raw backdoor
+- Coverage `cross` / `illegal_bins`: silently inactive
+- User-defined UVM phase (extends `uvm_task_phase`): `exec_task` never called
+- `uvm_callbacks::add` registration check warns CBUNREG (dispatch works)
+- Tagged unions (`union tagged { ... }`): syntax error
 - Some parameterized factory override combinations
 - `uvm_reg_frontdoor` (gap: `atomic_lock`, `start`, `atomic_unlock`)
+
+### OpenTitan UART DV — Status After Phase 61d
+
+**Status:** UART smoke vseq advances linearly past prior plateau points. 2-hour
+smoke run reaches sim 1.76 ms (vs pre-Phase-61 30 µs hang) with 0 fatals and
+1 pre-existing tl_host_driver UVM_ERROR. Smoke does not reach `Finished test
+sequence` within the 2 hr wallclock budget — remaining gap is throughput-bound,
+not bug-bound.
+
+Issues #29, #30, #31 are all closed. Phase 58 fixed wait()-loop sensitivity.
+Phase 59 fixed both try_next_item and class-property staleness as one bug
+(autotask self-frame pinning in owned_context). Phase 60 fixed time literals
+in class methods (was a major silent bug). Phase 61 series fixed three
+performance pathologies in the runtime that previously hung smoke at sim 30 µs.
+
+#### Phase 58 — wait()-loop sensitivity through VIF signal chain (`3bd688e9b`)
+
+Two distinct bugs landed as one phase. (a) `elaborate.cc:try_set_vif_anyedge`
+only recursed through `NetEBinary`; extended to `NetEUnary` (covers `!` and
+`NetEUReduce`) and `NetESFunc` (covers `$isunknown`/`$past`/`$rose`/`$fell`/
+`$stable`/`$countbits`/`$onehot`). (b) `vvp/vpi_vthr_vector.cc::__vpiVThrVec4Stack
+::vpi_get_value_vector_` did not zero the result buffer, so bval bits beyond
+the value's width carried over from prior VPI calls (mirror `format_vpiVectorVal`
+in `vpi_signal.cc` via `memset`). Repro: `tests/wait_vif_isunknown_test.sv`.
+
+#### Phase 59 — Pin autotask self-frame in owned_context on fork (`2d4432afb`)
+
+Trace via `IVL_VDISPATCH_TRACE=1 IVL_LOAD_STR_TRACE=a_channel_thread` showed
+`vthread_get_rd_context_item_scoped` returning nil on the second iteration of
+a forever loop in a forked autotask: the autotask's own frame was no longer on
+any of the running thread's chains (wt, rd, owned), so `@`-slot reads fell
+through to nil and cascaded down through `port → m_if → _ivl_414.try_next_item`
+virtual dispatch, hitting the base error stub. Fix in `vvp/vthread.cc::of_FORK`:
+when launching an automatic-scope child task, pin the just-allocated autotask
+frame as a retained self-reference in `child->owned_context`.
+
+The owned-chain fallback in `vthread_get_rd_context_item_scoped` then always
+finds the autotask's own context, even after intervening sub-call activity has
+pruned wt/rd. Closes #30 (try_next_item dispatch) AND #31 (cfg=null fork core
+dump) — same root cause.
+
+#### Phase 59 perf — Single-frame autotask retain (`098f2e1f7`)
+
+`retain_context_chain_(thr->wt_context)` was walking the entire stacked context
+chain on every autotask fork (one hash insert per entry). For OT-class
+testbenches with deep fork chains, this turned every fork into O(N) hash-update
+work. Replaced with `retain_automatic_context_(thr->wt_context)` (single hash
+insert for just the head). Sim time advance jumped from ~10 ns/s wall-clock to
+~70 ns/s for OT smoke.
+
+#### Phase 60 — Time literals in class methods respect file timescale (`1b80ea624`)
+
+Before this fix, time literals like `100ns` parsed inside a class method
+evaluated to 0, and `#100ns` advanced 1e9 times too far (treated as 100s).
+Root cause: `PClass` is a `PScopeExtra` and gets its `time_unit/precision`
+from the parent's at PClass-creation time via `pform_set_scope_timescale`.
+The parent of a file-level class is the compilation unit (`$unit`), whose
+`time_unit` gets initialized to `def_ts_units` (default 0 = "1 second")
+rather than the file's `` `timescale`` value. Fix in two places:
+
+1. `pform_set_scope_timescale(scope, parent)`: when the parent's `time_unit`
+   is the default but a `` `timescale`` directive is in effect, propagate the
+   directive's unit to the scope.
+2. `pform_get_timeunit/prec`: walk up the scope chain via
+   `find_scopex_with_explicit_time_unit_/prec_` looking for non-default;
+   fall back to `pform_time_unit`.
+
+#### Phase 61 — anyedge_aa::recv_object recursive fallback skip (`ab5e1b7c0`)
+
+`vvp_fun_anyedge_aa::recv_object` had a fallback at `event.cc:888` that ran
+when context recovery returned null: iterate `context_scope_->live_contexts`
+and recursively invoke `recv_object` for every live context. In OT-class
+testbenches with deep fork chains stacking thousands of automatic contexts,
+each recursive call did its own O(K) `vthread_recover_context_for_scope` chain
+walk — total O(K²) per @-event delivery. Smoke vseq hung at sim ~30 µs with
+100% CPU and zero minfaults.
+
+Captured via two SIGUSR1 dumps showing the hot stack:
+`STORE_PROP_*` → `notify_signal_aliases` → `vvp_fun_signal_object_aa::recv_object`
+→ recursive `vvp_fun_anyedge_aa::recv_object` → memmove. Fix: gate the
+recursive call on `state->threads != null` — anyedge_aa only wakes threads,
+doesn't store, so contexts with no waiters can be skipped.
+
+#### Phase 61b — Hoist bounds check from anyedge_aa fallback (`86ee43659`)
+
+Phase 61 left an O(K) iteration where each step called `vvp_get_context_item`
+which calls `malloc_usable_size`. All live contexts of the same scope have
+the same allocation size, so one head check suffices. Eliminates K calls to
+`malloc_usable_size` per delivery.
+
+#### Phase 61c — O(1) suffix index for runtime virtual-dispatch (`d49afb836`)
+
+`runtime_lookup_code_scope_by_suffix_` linearly scanned `runtime_code_scope_map`
+on every miss in the direct-name lookup. SIGUSR1 sample backtraces showed it
+as 17/30 frames (~57%) — tied with `of_FORK_V` for hottest non-runtime symbol.
+Each `maybe_dispatch_virtual_method_call_` walks the class hierarchy chain,
+multiplying the cost. Built a parallel `std::map<suffix, vector<key>>` index,
+lazily populated on first miss and rebuilt when the source map grows. Lookup
+is now O(log N).
+
+#### Phase 61d — Bypass malloc_usable_size in signal_object_aa slot getter (`2a1680d41`)
+
+After Phase 61c, sample histogram shifted to make
+`vvp_fun_signal_object_aa::recv_object` the hottest non-runtime symbol (19/30).
+Each call goes through `signal_object_aa_get_or_make_slot` → `vvp_get_context_item`
+(with `malloc_usable_size`). `context_idx_` is set at compile time and is
+guaranteed valid; the bounds check is purely defensive.
+
+#### Phase 61 series performance summary
+
+| Stage | Smoke @ 10 min | Multiplier vs prior |
+|---|---:|---:|
+| Pre-Phase-61 | 30 µs (hang) | — |
+| Phase 61 | ~210 µs | 7× |
+| Phase 61b | ~270 µs | 1.3× |
+| Phase 61c | ~590 µs | 2.2× |
+| Phase 61d | ~590 µs | 1.0× (bypass cheap relative to recovery) |
+
+Phase 61 stack reaches sim 1.76 ms in 2 hr. Average ~244 ns/s wallclock with
+slowdown in the byte-transfer phase (UART RTL clocks dominate). Reaching
+smoke completion within minutes would require iverilog event-loop work
+measured in weeks (lock-free scheduler, JIT, or similar fundamental changes).
+
+#### vvp SIGUSR1 dump handler (`a7b8a0db8`)
+
+Send `kill -USR1 <vvp_pid>` to print the currently-running vthread (scope/pc/
+state via `vthread_dump_running_thread`) plus a C-level backtrace via
+`backtrace_symbols_fd`. Works around `ptrace_scope=1` environments where gdb
+attach fails. Used to identify Phase 61's hot loop. Sample histogram via:
+
+```bash
+grep -oE "_Z[A-Za-z0-9_]+" smoke.log | c++filt | sort | uniq -c | sort -rn
+```
+
+#### vvp diagnostic env vars (`ae6e5afad`)
+
+- `IVL_SAME_TIME_LIMIT=N` — bail with stack dump after N consecutive same-sim-time
+  events (zero-time-spin watchdog).
+- `IVL_TIME_TRACE_NS=N` — print `TIMETRACE @ X ps` every N ns of sim-time advance.
+
+Both env-gated; no overhead when unset.
+
+#### vvp scoped-read fast path (`6d12cd552`)
+
+`vthread_get_rd_context_item_scoped` was unconditionally walking three chains
+via `first_live_context_for_scope` even when the head context already matched
+the scope. Reorganized to only walk the chains when both heads (wt/rd) miss.
 
 ### OpenTitan `lc_ctrl_pkg.sv` and `tlul_pkg.sv`
 
@@ -916,10 +1078,45 @@ iverilog -g2012 -I hw/ip/prim/rtl \
 
 ## 13. Commit Index
 
-All 41 commits ahead of `steveicarus/iverilog` `master`:
+All 86 commits ahead of `steveicarus/iverilog` `master`:
 
 | Hash | Phase | Description |
 |---|---|---|
+| `2fc00e3cf` | 62f | C2 — SVA `assert property` basic semantics (`|->`, `disable iff`, clocking event); synthesizes always-block check |
+| `fc8e3db91` | 62e | C6 — Parse `std::randomize(var) with{}` as bare statement and void'() form |
+| `9e9dd8eb8` | 62d | C5 — Streaming concatenation operators (RHS bit-reverse and chunk-reverse) |
+| `314b3a38c` | 62c | I4 — Soft constraints via Z3_optimize_assert_soft |
+| `6b3300cb5` | 62b | C7 — Dist weighting via Z3 soft assertions per branch (real probabilistic semantics) |
+| `5eff7c48f` | 62a + I7 | C1 randc cyclic randomization (per-property history bitmap); silence vvp_queue_object get_word warning |
+| `b9450999b` | 62 / I6 | Parse tagged union (treated as plain union; semantics unenforced) |
+| `e66a4ad5e` | 61e | Bypass malloc_usable_size globally in vvp_get_context_item |
+| `2a1680d41` | 61d | Bypass malloc_usable_size in signal_object_aa slot getter |
+| `d49afb836` | 61c | O(1) suffix index for runtime virtual-dispatch lookup (replaces O(M) linear scan) |
+| `86ee43659` | 61b | Hoist malloc_usable_size bounds check from anyedge_aa fallback loop |
+| `ab5e1b7c0` | 61 | Skip recv_object recursive delivery to non-waiting contexts (closes 30 µs smoke hang) |
+| `a7b8a0db8` | Diag | vvp SIGUSR1 dump handler (vthread state + C backtrace; works around ptrace_scope=1) |
+| `1b80ea624` | 60 | Time literals in class methods now respect file timescale (`#100ns` was 1e9× too long) |
+| `6d12cd552` | Perf | Defer chain-walk fallbacks in `vthread_get_rd_context_item_scoped` |
+| `098f2e1f7` | 59-perf | Retain only head autotask frame on fork (was O(N) chain walk per fork) |
+| `ae6e5afad` | Diag | Env-gated zero-time-spin watchdog and time-advance trace (`IVL_SAME_TIME_LIMIT`, `IVL_TIME_TRACE_NS`) |
+| `2d4432afb` | 59 | Pin autotask self-frame in owned_context on fork (closes #30 + #31) |
+| `3bd688e9b` | 58 | wait()-loop sensitivity through VIF signal chain (NetEUnary/NetESFunc recursion + vec4 buffer zero) |
+| `0b64ab3e8` | 56 | Z3 BV/Bool sort coercion in randomize logical ops (`(not x)` → ITE BV[1]; `and`/`or` operands coerced via `(a != 0)`) |
+| `66e5e80a4` | 55 | Same-scope `@cb` (clocking-block) event resolution via scope-walk lookup of pform `Module::clocking_blocks` |
+| `a085db844` | 54 | Deferred interface task dispatch via tgt-vvp late binding (`$ivl_iface_late$<iface>$<method>` NetSTask; pform default args evaluated in caller scope) |
+| `0e196c4fd` | 50d/e/f | Queue push_back element-type dispatch; pre/post_randomize hook emission; assoc-read via class-property chain |
+| `54ffdb9d3` | 53 | Parameterized-class body deferral, rand assoc-vec4 randomization, wait_fork descendants reparenting |
+| `a735e6273` | 52 | Autofunction copy-out fix and get_func fork-body walk |
+| `e0716e3f0` | 50 | Skip `_ivl_N` suffix in VVP runtime dispatch |
+| `48108152a` | 51 | `$value$plusargs` to class string property via `&CPS` VPI handle |
+| `6c26198c1` | 8 | Lower `dist` constraint ranges to `inside` |
+| `11ba528` | 33 | `sequence`/`property` declarations parse via error recovery; body dropped |
+| `382961c` | 32 | `default disable iff (...)` and `default clocking ... endclocking` parse silently at module scope |
+| `6b9509b` | 31 | `assert property (... \|-> ...)` and `\|=>` parse without erroring; gn_unsupported_assertions defaults to false |
+| `ca20d7a` | 30 | `dist` weighted constraint: drop silently instead of returning lhs (would crash randomize) |
+| `9aeecf4` | 29 | README: dvsim runs all 3 UART vseqs to TEST PASSED CHECKS |
+| `89fcf58` | 29 | OpenTitan UART DV runs end-to-end through dvsim+fusesoc (bind, case-inside, multi-dim packed param flatten, +plusarg reorder, wildcard-import shadow) |
+| `8edd029` | 28 | dvsim+fusesoc integration for OpenTitan DV — driver accepts `+define+`/`+incdir+`, packed-array-param flatten |
 | *(pending)* | 10 | cip_base_pkg: TYPE cast, this.randomize with, time underscores, ivl.def |
 | `4aa74ed` | 9 | Grammar fixes for lc_ctrl_pkg and tlul_pkg compilation |
 | `e632876` | 8 | OpenTitan DV packages compile through tl_agent_pkg |

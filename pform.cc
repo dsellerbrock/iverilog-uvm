@@ -498,12 +498,27 @@ static void add_local_symbol(LexicalScope*scope, perm_string name, PNamedItem*it
       map<perm_string,PPackage*>::const_iterator cur_pkg
 	    = scope->explicit_imports.find(name);
       if (cur_pkg != scope->explicit_imports.end()) {
-	    cerr << item->get_fileline() << ": error: "
-		    "'" << name << "' has already been "
-		    "imported into this scope from package '"
-		 << cur_pkg->second->pscope_name() << "'." << endl;
-	    error_count += 1;
-	    return;
+	    // IEEE 1800-2012 26.3: a wildcard import is a "tentative" import
+	    // that gets pinned to explicit_imports the first time the name is
+	    // referenced. A subsequent local declaration of the same name
+	    // shadows the pinned import. Detect this case by checking whether
+	    // the pinned package is in the scope's potential_imports list — if
+	    // so, drop the pin and let the local declaration take precedence.
+	    bool from_wildcard = false;
+	    for (PPackage*wp : scope->potential_imports) {
+		  if (wp == cur_pkg->second) { from_wildcard = true; break; }
+	    }
+	    if (from_wildcard) {
+		  scope->explicit_imports.erase(cur_pkg);
+		  scope->explicit_imports_from.erase(name);
+	    } else {
+		  cerr << item->get_fileline() << ": error: "
+			  "'" << name << "' has already been "
+			  "imported into this scope from package '"
+		       << cur_pkg->second->pscope_name() << "'." << endl;
+		  error_count += 1;
+		  return;
+	    }
       }
 
       scope->local_symbols[name] = item;
@@ -595,6 +610,13 @@ void pform_set_scope_timescale(const struct vlltype&loc)
  * Set the local time unit/precision. This version is used for setting
  * the time scale for subsidiary items (classes, subroutines, etc.),
  * which simply inherit their time scale from their parent scope.
+ *
+ * Phase 60: when the parent is the compilation unit ($unit) and a
+ * `timescale directive is in effect, prefer the directive's values
+ * over $unit's defaults.  Without this, classes declared at file scope
+ * inherit $unit->time_unit=0 (which is `def_ts_units`, default 1 sec)
+ * instead of the file's `timescale, and time literals like `100ns`
+ * inside class methods scale incorrectly.
  */
 static void pform_set_scope_timescale(PScope*scope, const PScope*parent)
 {
@@ -602,6 +624,15 @@ static void pform_set_scope_timescale(PScope*scope, const PScope*parent)
       scope->time_precision       = parent->time_precision;
       scope->time_unit_is_default = parent->time_unit_is_default;
       scope->time_prec_is_default = parent->time_prec_is_default;
+
+      if (parent->time_unit_is_default && pform_timescale_file != 0) {
+            scope->time_unit            = pform_time_unit;
+            scope->time_unit_is_default = false;
+      }
+      if (parent->time_prec_is_default && pform_timescale_file != 0) {
+            scope->time_precision       = pform_time_prec;
+            scope->time_prec_is_default = false;
+      }
 }
 
 PClass* pform_push_class_scope(const struct vlltype&loc, perm_string name)
@@ -1217,7 +1248,25 @@ PCallTask* pform_make_call_task(const struct vlltype&loc,
       if (gn_system_verilog())
 	    check_potential_imports(loc, name.front().name, true);
 
-      PCallTask*tmp = new PCallTask(name, parms);
+      /* If the head of the path matches a known package name, attach the
+         package context so symbol_search resolves into that package
+         directly. This recovers the package qualifier when the parser
+         produced an IDENTIFIER K_SCOPE_RES IDENTIFIER form rather than
+         the explicit package_scope rule (e.g. statement form
+         `mypkg::func();`). */
+      PPackage*pkg = nullptr;
+      if (gn_system_verilog() && name.size() >= 2) {
+	    pkg = pform_test_package_identifier(name.front().name.str());
+      }
+
+      PCallTask*tmp;
+      if (pkg) {
+	    pform_name_t tail_path = name;
+	    tail_path.pop_front();
+	    tmp = new PCallTask(pkg, tail_path, parms);
+      } else {
+	    tmp = new PCallTask(name, parms);
+      }
       tmp->set_leading_type_args(type_args);
       FILE_NAME(tmp, loc);
       return tmp;
@@ -1493,17 +1542,61 @@ void pform_set_timeunit(const char*txt, bool initial_decl)
       }
 }
 
+// Walk up parent_scope chain looking for a PScopeExtra whose time_unit/prec
+// has been explicitly set (is_default=false).  PClass is a PScopeExtra but
+// usually has no `timescale` directive of its own; the timescale should
+// come from the enclosing module or compilation-unit scope.  Without this
+// walk, time literals like `100ns` inside class methods evaluate to 0
+// because they see PClass's default time_unit=0 (PClass scope's parents
+// haven't been finalized yet when the time literal is parsed).
+static PScopeExtra* find_scopex_with_explicit_time_unit_(LexicalScope*scope)
+{
+      PScopeExtra*best = 0;
+      LexicalScope*cur = scope;
+      while (cur) {
+            if (PScopeExtra*sx = dynamic_cast<PScopeExtra*>(cur)) {
+                  if (!best) best = sx;
+                  if (!sx->time_unit_is_default) return sx;
+            }
+            cur = cur->parent_scope();
+      }
+      return best;
+}
+
+static PScopeExtra* find_scopex_with_explicit_time_prec_(LexicalScope*scope)
+{
+      PScopeExtra*best = 0;
+      LexicalScope*cur = scope;
+      while (cur) {
+            if (PScopeExtra*sx = dynamic_cast<PScopeExtra*>(cur)) {
+                  if (!best) best = sx;
+                  if (!sx->time_prec_is_default) return sx;
+            }
+            cur = cur->parent_scope();
+      }
+      return best;
+}
+
 int pform_get_timeunit()
 {
-      PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
+      PScopeExtra*scopex = find_scopex_with_explicit_time_unit_(lexical_scope);
       assert(scopex);
+      // If we couldn't find any scope with an explicit time_unit, fall
+      // back to the global pform_time_unit set by the most recent
+      // `timescale directive (if any).  Without this, time literals
+      // parsed during a class body whose parent module hasn't yet been
+      // finalized see scope->time_unit=0.
+      if (scopex->time_unit_is_default && pform_timescale_file != 0)
+            return pform_time_unit;
       return scopex->time_unit;
 }
 
 int pform_get_timeprec()
 {
-      PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
+      PScopeExtra*scopex = find_scopex_with_explicit_time_prec_(lexical_scope);
       assert(scopex);
+      if (scopex->time_prec_is_default && pform_timescale_file != 0)
+            return pform_time_prec;
       return scopex->time_precision;
 }
 
@@ -3276,10 +3369,75 @@ void pform_set_parameter(const struct vlltype&loc,
 
       vector_type_t*vt = dynamic_cast<vector_type_t*>(data_type);
       if (vt && vt->pdims && vt->pdims->size() > 1) {
-	    if (pform_requires_sv(loc, "packed array parameter")) {
-		  VLerror(loc, "sorry: packed array parameters are not supported yet.");
+	    if (!pform_requires_sv(loc, "packed array parameter")) {
+		  return;
 	    }
-	    return;
+	    // Multi-dim packed parameter (e.g., logic [N-1:0][W-1:0] X = ...).
+	    // Flatten the packed dims into a single combined range whose
+	    // width is the product of the inner widths. The flattened param
+	    // is stored as a flat bit-vector; multi-dim element indexing
+	    // (e.g., X[i] returning an inner-width slice) is NOT preserved.
+	    // This is sufficient for compile-only consumers (e.g., upstream
+	    // packages that declare cipher SBOXes the testbench never
+	    // exercises).
+	    //
+	    // When all bounds are constant we collapse to a numeric literal
+	    // up front; otherwise we build a multiplicative expression that
+	    // elaboration evaluates per parameter binding. This handles the
+	    // common OpenTitan idiom `[NumCnt-1:0][Width-1:0]`.
+	    uint64_t const_width = 1;
+	    PExpr*expr_width = 0;
+	    bool all_constants = true;
+	    auto width_of = [&](const pform_range_t&dim) -> PExpr* {
+		  // Build expression: (msb - lsb + 1)
+		  PExpr*one = new PENumber(new verinum((uint64_t)1, 32));
+		  return new PEBinary('+',
+				new PEBinary('-', dim.first, dim.second),
+				one);
+	    };
+	    for (const auto&dim : *vt->pdims) {
+		  PENumber*hi = dynamic_cast<PENumber*>(dim.first);
+		  PENumber*lo = dynamic_cast<PENumber*>(dim.second);
+		  if (hi && lo) {
+			long h = hi->value().as_long();
+			long l = lo->value().as_long();
+			long w = (h >= l) ? (h - l + 1) : (l - h + 1);
+			if (w <= 0) {
+			      all_constants = false;
+			      break;
+			}
+			const_width *= (uint64_t)w;
+		  } else {
+			all_constants = false;
+			PExpr*w = width_of(dim);
+			expr_width = expr_width
+				? new PEBinary('*', expr_width, w) : w;
+		  }
+	    }
+	    PExpr*new_msb;
+	    if (all_constants) {
+		  new_msb = new PENumber(
+			new verinum((uint64_t)(const_width - 1), 32));
+	    } else {
+		  // Combine const part with expr part: total_w = const_width * expr_width
+		  PExpr*total_w;
+		  if (expr_width && const_width != 1) {
+			total_w = new PEBinary('*',
+				    new PENumber(new verinum(const_width, 32)),
+				    expr_width);
+		  } else if (expr_width) {
+			total_w = expr_width;
+		  } else {
+			total_w = new PENumber(new verinum(const_width, 32));
+		  }
+		  new_msb = new PEBinary('-', total_w,
+				new PENumber(new verinum((uint64_t)1, 32)));
+	    }
+	    auto*new_pd = new std::list<pform_range_t>;
+	    new_pd->push_back(pform_range_t(
+		    new_msb,
+		    new PENumber(new verinum((uint64_t)0, 32))));
+	    vt->pdims.reset(new_pd);
       }
 
       if (udims) {

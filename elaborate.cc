@@ -28,6 +28,7 @@
  */
 
 # include  <algorithm>
+# include  <functional>
 # include  <typeinfo>
 # include  <climits>
 # include  <cstdlib>
@@ -306,6 +307,34 @@ static NetEvent* resolve_named_event_member_from_search_(const symbol_search_res
       }
 
       return nullptr;
+}
+
+/* Resolve `<iface_instance_scope>` (no NetNet, but path consumed) to the
+   clocking block named by the LAST component of the original path. This
+   handles the @(bif.cb) case where symbol_search resolves `bif` as a
+   sub-scope of the current module and absorbs `cb` as part of the scope
+   path. */
+static const PEventStatement*
+resolve_interface_pform_clocking_event_(const PEIdent*id,
+					const symbol_search_results&sr,
+					perm_string&cb_name_out,
+					size_t&base_path_components)
+{
+      if (sr.net || !sr.scope) return nullptr;
+      if (!sr.scope->is_interface()) return nullptr;
+      if (id->path().size() < 2) return nullptr;
+
+      perm_string iface_module = sr.scope->module_name();
+      if (iface_module.nil()) return nullptr;
+      auto cur = pform_modules.find(iface_module);
+      if (cur == pform_modules.end() || !cur->second->is_interface)
+	    return nullptr;
+      perm_string cb_name = id->path().name.back().name;
+      auto cb_it = cur->second->clocking_blocks.find(cb_name);
+      if (cb_it == cur->second->clocking_blocks.end()) return nullptr;
+      base_path_components = id->path().size() - 1;
+      cb_name_out = cb_name;
+      return cb_it->second->event;
 }
 
 static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from_search_(
@@ -4567,6 +4596,16 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	      // For SystemVerilog this may be a few other things.
 	    if (gn_system_verilog()) {
 		  NetProc *tmp;
+		    // If a package was explicitly named (`pkg::name(...)` form),
+		    // resolve as a package function call directly. Do NOT try
+		    // implicit-this method dispatch — that would mis-resolve to
+		    // a virtual method on the calling class with the same name
+		    // (e.g. dv_base_env_cfg::reset_asserted calling
+		    // csr_utils_pkg::reset_asserted would otherwise recurse).
+		  if (package_) {
+			tmp = elaborate_function_(des, scope);
+			if (tmp) return tmp;
+		  }
 		    // This could be a method attached to a signal
 		    // or defined in this object?
 		  bool try_implicit_this = scope->get_class_scope() && path_.size() == 1;
@@ -4581,6 +4620,55 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 		  noop->set_line(*this);
 		  return noop;
+	    }
+
+	    // Route `<assoc>.first/last/next/prev(key)` task calls through
+	    // the existing assoc-method runtime hooks. This case typically
+	    // arrives via `void'(m_maps.first(map))` — UVM does this in
+	    // get_default_map / get_local_map. Without this, the call falls
+	    // into the "unknown task" warning path and silently NOOPs, so
+	    // `map` stays null and the register layer trips a null-map
+	    // UVM_ERROR.
+	    if (gn_system_verilog() && path_.size() >= 2 && parms_.size() == 1) {
+		  perm_string mname = peek_tail_name(path_);
+		  bool is_aa_traversal =
+			(mname == perm_string::literal("first")
+			 || mname == perm_string::literal("last")
+			 || mname == perm_string::literal("next")
+			 || mname == perm_string::literal("prev"));
+		  if (is_aa_traversal) {
+			// Build the receiver via PEIdent so class-property
+			// chains (this.m_maps) resolve through NetEProperty,
+			// not just bare signals.
+			pform_name_t obj_path = path_;
+			obj_path.pop_back();
+			PEIdent*obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
+			obj_id->set_file(get_file());
+			obj_id->set_lineno(get_lineno());
+			NetExpr*obj_expr = obj_id->elaborate_expr(des, scope, /*expr_wid*/0u, /*flags*/0u);
+			if (obj_expr) {
+			      NetExpr*key_expr = elab_and_eval(des, scope, parms_[0].parm, -1, false);
+			      if (key_expr) {
+				    string sys_name = "$ivl_assoc_method$";
+				    sys_name += mname.str();
+				    NetESFunc*sys_expr = new NetESFunc(
+					    sys_name.c_str(), &netvector_t::atom2u32, 2);
+				    sys_expr->set_line(*this);
+				    sys_expr->parm(0, obj_expr);
+				    sys_expr->parm(1, key_expr);
+				    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+					    NetNet::REG, &netvector_t::atom2u32);
+				    tmp->set_line(*this);
+				    NetAssign_*lv = new NetAssign_(tmp);
+				    NetAssign*na = new NetAssign(lv, sys_expr);
+				    na->set_line(*this);
+				    delete obj_id;
+				    return na;
+			      }
+			      delete obj_expr;
+			}
+			delete obj_id;
+		  }
 	    }
 
 	    if (gn_system_verilog() && path_.size() > 1) {
@@ -4997,20 +5085,14 @@ static bool is_uvm_compile_progress_task_stub_candidate_(const pform_name_t&path
 	    }
       }
 
-      // Associative-array map operations on the UVM reg model's m_maps table.
-      if (tail == perm_string::literal("first")
-	  || tail == perm_string::literal("last")
-	  || tail == perm_string::literal("next")
-	  || tail == perm_string::literal("prev")
-	  || tail == perm_string::literal("delete")) {
-	    pform_name_t use_path = path;
-	    use_path.pop_back();
-	    if (!use_path.empty()) {
-		  perm_string parent = peek_tail_name(use_path);
-		  if (parent == perm_string::literal("m_maps"))
-			return true;
-	    }
-      }
+      // (Previously stubbed `m_maps.first/last/next/prev` here because
+      // the codegen for `%aa/first/sig/obj` pushed a 1-bit success flag
+      // while the caller expected 32 bits, tripping an of_STORE_VEC4
+      // assertion. That width mismatch is now fixed in
+      // `tgt-vvp/eval_vec4.c` — a `%pad/u` is emitted after the /sig/
+      // form so the result extends to the expected width. With the
+      // codegen fixed, UVM `get_default_map` returns the registered
+      // map and the null-map UVM_ERROR no longer fires.)
 
       return false;
 }
@@ -5257,30 +5339,43 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			  des->errors += 1;
 				  delete obj_expr;
 				  return 0;
-			    } else if (method_name=="sort") {
+			    } else if (method_name=="sort"
+				       || method_name=="rsort"
+				       || method_name=="unique") {
 				  if (gn_system_verilog()) {
-					delete obj_expr;
-					NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
-					tmp->set_line(*this);
-					return tmp;
-			  }
-			  cerr << get_fileline() << ": sorry: 'sort()' "
-			          "array sorting method is not currently supported."
-			       << endl;
-			  des->errors += 1;
-				  delete obj_expr;
-				  return 0;
-			    } else if (method_name=="rsort") {
-				  if (gn_system_verilog()) {
-					delete obj_expr;
-					NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
-					tmp->set_line(*this);
-					return tmp;
-			  }
-			  cerr << get_fileline() << ": sorry: 'rsort()' "
-			          "array sorting method is not currently supported."
-			       << endl;
-			  des->errors += 1;
+					/* The IEEE 1800 form `q.sort(x) with (expr)` carries an
+					   iterator-variable arg + a with-clause. We don't yet
+					   support a custom comparator — fall back to default
+					   compare, ignoring extra args. */
+					if (parms_.size() > 0) {
+					      static int warned_sort_with = 0;
+					      if (!warned_sort_with) {
+						    cerr << get_fileline()
+							 << ": warning: " << method_name
+							 << "() iterator arg or with-clause "
+							    "not yet supported; using default "
+							    "compare (further similar warnings "
+							    "suppressed)." << endl;
+						    warned_sort_with = 1;
+					      }
+					}
+					vector<NetExpr*> argv(1);
+					argv[0] = obj_expr;
+					const char*sys_name =
+					      (method_name == "sort")  ? "$ivl_queue_method$sort"  :
+					      (method_name == "rsort") ? "$ivl_queue_method$rsort" :
+					                                 "$ivl_queue_method$unique";
+					NetSTask*sys = new NetSTask(sys_name,
+								    IVL_SFUNC_AS_TASK_IGNORE,
+								    argv);
+					sys->set_line(*this);
+					return sys;
+				  }
+				  cerr << get_fileline() << ": sorry: '"
+				       << method_name
+				       << "()' array sorting method is not currently supported."
+				       << endl;
+				  des->errors += 1;
 				  delete obj_expr;
 				  return 0;
 			    } else if (method_name=="shuffle") {
@@ -5615,6 +5710,85 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  // a compile-progress warning and emit a noop stub so
 		  // elaboration can continue producing a VVP file.
 		  if (!class_type->scope_ready() || class_type->is_covergroup()) {
+			// Phase 54: deferred interface task dispatch.  When the
+			// caller is a parameterized class body that elaborates
+			// before the interface's testbench instance scope is
+			// populated, the regular method lookup fails and we
+			// fall through here.  For interface types where the
+			// pform definition exists and contains the requested
+			// task, emit a deferred NetSTask with name
+			// "$ivl_iface_late$<iface>$<method>".  The caller-
+			// supplied arguments are passed through as parms; the
+			// task will use the .var auto-init zero defaults for
+			// any unspecified ports (sufficient for the common
+			// OpenTitan apply_reset/drive_rst_pin pattern, since
+			// `repeat (0)` is a no-op and rst_n_scheme=0 picks the
+			// sync-deassert path that still toggles rst_n).
+			// tgt-vvp recognizes the name prefix, walks the design
+			// for a unique IVL_SCT_MODULE scope whose module_name
+			// matches <iface>, finds the child task scope by
+			// basename, and emits %callf/void with the resolved
+			// scope handle.
+			if (class_type->is_interface() && gn_system_verilog()) {
+			      auto pmod_it = pform_modules.find(class_type->get_name());
+			      if (pmod_it != pform_modules.end()
+				  && pmod_it->second->is_interface) {
+				    auto task_it =
+					  pmod_it->second->tasks.find(method_name);
+				    if (task_it != pmod_it->second->tasks.end()) {
+				    PTask*ptask = task_it->second;
+				    std::string defer_name = "$ivl_iface_late$";
+				    defer_name += class_type->get_name().str();
+				    defer_name += "$";
+				    defer_name += method_name.str();
+				    std::vector<NetExpr*> argv;
+				    for (size_t pi = 0 ; pi < parms_.size() ; pi += 1) {
+					  if (!parms_[pi].parm) {
+						argv.push_back(0);
+						continue;
+					  }
+					  NetExpr*ev =
+						elab_sys_task_arg(des, scope,
+								  method_name,
+								  pi, parms_[pi].parm);
+					  argv.push_back(ev);
+				    }
+				    // Pad missing args with the pform default
+				    // expressions evaluated in the caller's
+				    // scope.  This preserves SV semantics where
+				    // unsupplied args use the task's declared
+				    // default (e.g. apply_reset(reset_width_clks
+				    // = $urandom_range(50, 100), ...) requires
+				    // a non-zero width or rst_n won't actually
+				    // toggle through 0 to fire negedge events).
+				    const std::vector<pform_tf_port_t>*pports =
+					  ptask->peek_ports();
+				    if (pports) {
+					  for (size_t pi = parms_.size();
+					       pi < pports->size() ; pi += 1) {
+						pform_tf_port_t pp = (*pports)[pi];
+						if (pp.defe) {
+						      NetExpr*ev =
+							    elab_sys_task_arg(
+								des, scope,
+								method_name,
+								pi, pp.defe);
+						      argv.push_back(ev);
+						} else {
+						      argv.push_back(0);
+						}
+					  }
+				    }
+				    perm_string pn = perm_string::literal(strdup(defer_name.c_str()));
+				    NetSTask*sys = new NetSTask(pn.str(),
+								IVL_SFUNC_AS_TASK_IGNORE,
+								argv);
+				    sys->set_line(*this);
+				    delete obj_expr;
+				    return sys;
+				    }
+			      }
+			}
 			cerr << get_fileline() << ": warning: "
 			     << "Enable of unknown task ``"
 			     << method_name << "'' ignored"
@@ -5643,10 +5817,21 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		       << " method " << task->basename() << endl;
 	    }
 
+	    // Virtual-interface task dispatch: the resolved task lives in an
+	    // interface scope and is NOT a class method, so there is no `this`
+	    // first port. Drop the receiver expression and call as a free task.
+	    if (class_type->is_interface()) {
+		  delete obj_expr;
+		  return elaborate_build_call_(des, scope, task, nullptr);
+	    }
 	    return elaborate_build_call_(des, scope, task, obj_expr, explicit_super);
       }
 
       if (is_multi_hop_collection_task_stub_candidate_(use_path, method_name)) {
+	    if (getenv("IVL_PHASE50D_TRACE"))
+		  fprintf(stderr, "[P50D-NOOP] method=%s use_path.size=%zu obj_type=%s\n",
+			  method_name.str(), use_path.size(),
+			  obj_type ? typeid(*obj_type).name() : "<null>");
 	    delete obj_expr;
 	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 	    noop->set_line(*this);
@@ -5714,25 +5899,33 @@ NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) c
 
 NetProc* PCallTask::elaborate_function_(Design*des, NetScope*scope) const
 {
-      NetFuncDef*func = des->find_function(scope, path_);
+      NetFuncDef*func = nullptr;
 
-	// If the normal lookup failed and path_ has 2 components, check if the
-	// first component is a package name (Form 2 of pkg::fn parsed as a
-	// hierarchical path inside the same package body before it is registered).
-      if (!func && path_.size() == 2 && package_ == nullptr) {
-	    perm_string possible_pkg = path_.front().name;
-	    if (NetScope*pkg_scope = des->find_package(possible_pkg)) {
-		  pform_name_t tail_path;
-		  tail_path.push_back(path_.back());
-		  func = des->find_function(pkg_scope, tail_path);
-	    }
-      }
-
-	// When a package_ pointer is set (from PACKAGE_IDENTIFIER::func grammar),
-	// look up the function directly in the package scope.
-      if (!func && package_) {
+	// When a package_ pointer is set (from PACKAGE_IDENTIFIER::func grammar
+	// or recovered via pform_make_call_task), look up the function ONLY in
+	// the package scope. Do not fall back to the caller scope: that would
+	// re-find a same-named class method on `this` and cause infinite
+	// virtual-dispatch recursion (see csr_utils_pkg::reset_asserted being
+	// called from dv_base_env_cfg::reset_asserted).
+      if (package_) {
 	    if (NetScope*pkg_scope = des->find_package(package_->pscope_name()))
 		  func = des->find_function(pkg_scope, path_);
+	    if (!func) return nullptr;
+      } else {
+	    func = des->find_function(scope, path_);
+
+	      // If the normal lookup failed and path_ has 2 components, check
+	      // if the first component is a package name (Form 2 of pkg::fn
+	      // parsed as a hierarchical path inside the same package body
+	      // before it is registered).
+	    if (!func && path_.size() == 2) {
+		  perm_string possible_pkg = path_.front().name;
+		  if (NetScope*pkg_scope = des->find_package(possible_pkg)) {
+			pform_name_t tail_path;
+			tail_path.push_back(path_.back());
+			func = des->find_function(pkg_scope, tail_path);
+		  }
+	    }
       }
 
 	// This is not a function, so this task call cannot be a function
@@ -6615,23 +6808,88 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  symbol_search(this, des, scope, id->path(), id->lexical_pos(), &sr);
 		  size_t base_path_components = 0;
 
-		  if (const netclass_t::clocking_block_t*clocking =
-			      resolve_interface_clocking_block_from_search_(sr, base_path_components)) {
+		  /* Phase 55: simple clocking-block reference like `@cb` from
+		   * inside the same interface (or task within it) -- the
+		   * `cb` identifier is a single-name path that doesn't pass
+		   * the path_tail check in resolve_interface_clocking_block_from_search_.
+		   * Walk the scope chain looking for an enclosing class
+		   * (interface) that defines the named clocking block.  If
+		   * found, fall through to the existing rewrite that
+		   * substitutes the clocking-block's underlying event
+		   * expression (e.g. @(posedge clk)).  Without this, the
+		   * `@cb` event got skipped at compile-progress fallback,
+		   * which broke wait_clks (= repeat (N) @cb) -- it would
+		   * return without waiting and apply_reset's o_rst_n NBAs
+		   * collapsed before the testbench clock could start. */
+		  /* Cache for the pform PClocking we discovered while walking
+		   * scopes -- used by the rewrite path below to substitute
+		   * the underlying event expression. */
+		  const Module::PClocking*pform_clocking_inner = nullptr;
+		  if (id->path().size() == 1 && gn_system_verilog()) {
+			perm_string cb_name = id->path().back().name;
+			for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
+			      /* Interface scopes appear as MODULE-type NetScopes
+			       * with is_interface()==true; their pform side has
+			       * the clocking_blocks map.  Class scopes use
+			       * netclass_t::find_clocking_block (already covered
+			       * by the existing path_tail-based resolver). */
+			      if (walker->type() != NetScope::MODULE)
+				    continue;
+			      perm_string mn = walker->module_name();
+			      if (mn.nil()) continue;
+			      auto pmod_it = pform_modules.find(mn);
+			      if (pmod_it == pform_modules.end()) continue;
+			      auto cb_it = pmod_it->second->clocking_blocks.find(cb_name);
+			      if (cb_it != pmod_it->second->clocking_blocks.end()) {
+				    pform_clocking_inner = cb_it->second;
+				    break;
+			      }
+			}
+		  }
+
+		  const netclass_t::clocking_block_t*clocking =
+			resolve_interface_clocking_block_from_search_(sr, base_path_components);
+		  /* resolve_interface_clocking_block_from_search_ sets
+		     base_path_components = offset (0-based index into
+		     sr.path_tail where the clocking block was found).
+		     Adjust to account for the root_id components consumed
+		     before path_tail: add (id->path().size() - path_tail.size()). */
+		  if (clocking)
+			base_path_components += id->path().size() - sr.path_tail.size();
+		  perm_string scope_cb_name;
+		  const PEventStatement*pform_event = clocking
+			? clocking->event
+			: resolve_interface_pform_clocking_event_(id, sr, scope_cb_name,
+							      base_path_components);
+		  /* Phase 55: pform-side clocking-block lookup for the simple
+		   * `@cb` form within the same interface body or task. */
+		  if (!pform_event && pform_clocking_inner) {
+			pform_event = pform_clocking_inner->event;
+			scope_cb_name = pform_clocking_inner->name;
+			/* Same-scope clocking block: the underlying event
+			 * identifier (e.g. `clk`) resolves in the caller's
+			 * scope without any prefix.  base_path_components=0
+			 * makes build_interface_clocking_event_path_ skip
+			 * prefix prepending. */
+			base_path_components = 0;
+		  }
+		  if (clocking || pform_event) {
 			if (expr_[0]->type() != PEEvent::ANYEDGE) {
 			      cerr << get_fileline() << ": error: edge qualifiers may not be applied "
 				   << "to clocking block event controls." << endl;
 			      des->errors += 1;
 			      return 0;
 			}
-			if (!clocking->event || clocking->event->event_expressions().empty()) {
-			      cerr << get_fileline() << ": error: clocking block " << clocking->name
+			if (!pform_event || pform_event->event_expressions().empty()) {
+			      cerr << get_fileline() << ": error: clocking block "
+				   << (clocking ? clocking->name : scope_cb_name)
 				   << " has no event expression." << endl;
 			      des->errors += 1;
 			      return 0;
 			}
 
 			std::vector<PEEvent*> mapped_events;
-			for (const PEEvent*cb_event : clocking->event->event_expressions()) {
+			for (const PEEvent*cb_event : pform_event->event_expressions()) {
 			      const PEIdent*cb_ident = cb_event
 				    ? dynamic_cast<const PEIdent*>(cb_event->expr()) : nullptr;
 			      if (!cb_ident) {
@@ -6645,7 +6903,9 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			      if (!build_interface_clocking_event_path_(id, base_path_components,
 									 cb_ident, mapped_path)) {
 				    cerr << get_fileline() << ": sorry: failed to map clocking block "
-					 << "event expression for " << clocking->name << "." << endl;
+					 << "event expression for "
+					 << (clocking ? clocking->name : scope_cb_name)
+					 << "." << endl;
 				    des->errors += 1;
 				    return 0;
 			      }
@@ -6929,9 +7189,12 @@ cerr << endl;
 			      connect(prop_set->at(src).lnk, pr->pin(p));
 			}
 
-			// Detect VIF posedge chain: outer(M)->mid(N)->NetESignal(this)
-			// where mid's type is a virtual interface class.
-			// Must be done before delete tmp.
+			// Detect VIF edge chain:
+			//   2-level: outer(M)->mid(N)->NetESignal(base)
+			//     base.vif[N].sig[M] — emits %load/obj base; %prop/obj N; %wait/vif/edge M
+			//   3-level: outer(M)->mid(N)->cfg_p(pre_N)->NetESignal(base)
+			//     base.cfg[pre_N].vif[N].sig[M] — emits extra %prop/obj pre_N first
+			// mid's resolved type must be a virtual interface class.
 			{
 			      PEEvent::edge_t etype = expr_[idx]->type();
 			      if (etype == PEEvent::POSEDGE || etype == PEEvent::NEGEDGE
@@ -6941,25 +7204,52 @@ cerr << endl;
 					  NetEProperty*mid_p = dynamic_cast<NetEProperty*>(
 					      const_cast<NetExpr*>(outer_p->get_base()));
 					  if (mid_p && !mid_p->get_sig()) {
+					      // Try 2-level first: mid->NetESignal
 					      const NetESignal*root_e = dynamic_cast<NetESignal*>(
 						  const_cast<NetExpr*>(mid_p->get_base()));
+					      NetEProperty*cfg_p = nullptr;
+					      if (!root_e) {
+						    // Try 3-level: mid->cfg_p->NetESignal
+						    cfg_p = dynamic_cast<NetEProperty*>(
+							const_cast<NetExpr*>(mid_p->get_base()));
+						    if (cfg_p && !cfg_p->get_sig())
+							  root_e = dynamic_cast<NetESignal*>(
+							      const_cast<NetExpr*>(cfg_p->get_base()));
+					      }
 					      if (root_e && root_e->sig()) {
-						    const netclass_t*this_cls = dynamic_cast<const netclass_t*>(
+						    const netclass_t*base_cls = dynamic_cast<const netclass_t*>(
 							root_e->sig()->net_type());
-						    if (this_cls) {
-							  ivl_type_t pt = this_cls->get_prop_type(
-							      mid_p->property_idx());
-							  const netclass_t*vif_cls = dynamic_cast<const netclass_t*>(pt);
-							  if (vif_cls && vif_cls->is_interface()) {
-							      unsigned N = mid_p->property_idx();
-							      unsigned M = outer_p->property_idx();
-							      if (etype == PEEvent::POSEDGE)
-								    pr->set_vif_posedge(N, M);
-							      else if (etype == PEEvent::NEGEDGE)
-								    pr->set_vif_negedge(N, M);
-							      else
-								    pr->set_vif_anyedge(N, M);
-							}
+						    if (base_cls) {
+							  // For 3-level: base_cls → cfg property → vif class
+							  // For 2-level: base_cls → vif property directly
+							  const netclass_t*vif_host_cls = base_cls;
+							  unsigned pre_N = UINT_MAX;
+							  if (cfg_p) {
+								unsigned cfg_idx = cfg_p->property_idx();
+								ivl_type_t cfg_pt = base_cls->get_prop_type(cfg_idx);
+								const netclass_t*cfg_cls = dynamic_cast<const netclass_t*>(cfg_pt);
+								if (cfg_cls) {
+								      pre_N = cfg_idx;
+								      vif_host_cls = cfg_cls;
+								} else {
+								      root_e = nullptr; // cfg not a class → skip
+								}
+							  }
+							  if (root_e) {
+								ivl_type_t pt = vif_host_cls->get_prop_type(
+								    mid_p->property_idx());
+								const netclass_t*vif_cls = dynamic_cast<const netclass_t*>(pt);
+								if (vif_cls && vif_cls->is_interface()) {
+								      unsigned N = mid_p->property_idx();
+								      unsigned M = outer_p->property_idx();
+								      if (etype == PEEvent::POSEDGE)
+									    pr->set_vif_posedge(N, M, pre_N);
+								      else if (etype == PEEvent::NEGEDGE)
+									    pr->set_vif_negedge(N, M, pre_N);
+								      else
+									    pr->set_vif_anyedge(N, M, pre_N);
+								}
+							  }
 						    }
 					      }
 					  }
@@ -7273,6 +7563,85 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
       delete wait_set;
       des->add_node(wait_pr);
 
+      // Phase 55/58: Detect VIF signal chain in wait() for RTL-driven wakeup.
+      // Mirrors the @(posedge/anyedge) detection at lines ~7067-7123.
+      // expr here is NetEBComp('N', original_cond, 1'b1) due to the inversion
+      // above, plus an optional NetEUReduce wrapper for multi-bit conditions.
+      // Recurse into binary, unary, and system-function subexpressions to find
+      // the chain. Stop on first match so we don't double-record the slot.
+      {
+	    std::function<bool(const NetExpr*)> try_set_vif_anyedge;
+	    try_set_vif_anyedge = [&](const NetExpr*e) -> bool {
+		  if (!e) return false;
+		  NetEProperty*outer_p = dynamic_cast<NetEProperty*>(
+		      const_cast<NetExpr*>(e));
+		  if (outer_p && !outer_p->get_sig()) {
+			NetEProperty*mid_p = dynamic_cast<NetEProperty*>(
+			    const_cast<NetExpr*>(outer_p->get_base()));
+			if (mid_p && !mid_p->get_sig()) {
+			      const NetESignal*root_e = dynamic_cast<NetESignal*>(
+				  const_cast<NetExpr*>(mid_p->get_base()));
+			      NetEProperty*cfg_p = nullptr;
+			      if (!root_e) {
+				    cfg_p = dynamic_cast<NetEProperty*>(
+					const_cast<NetExpr*>(mid_p->get_base()));
+				    if (cfg_p && !cfg_p->get_sig())
+					  root_e = dynamic_cast<NetESignal*>(
+					      const_cast<NetExpr*>(cfg_p->get_base()));
+			      }
+			      if (root_e && root_e->sig()) {
+				    const netclass_t*base_cls = dynamic_cast<const netclass_t*>(
+					root_e->sig()->net_type());
+				    if (base_cls) {
+					  const netclass_t*vif_host_cls = base_cls;
+					  unsigned pre_N = UINT_MAX;
+					  if (cfg_p) {
+						unsigned cfg_idx = cfg_p->property_idx();
+						ivl_type_t cfg_pt = base_cls->get_prop_type(cfg_idx);
+						const netclass_t*cfg_cls = dynamic_cast<const netclass_t*>(cfg_pt);
+						if (cfg_cls) {
+						      pre_N = cfg_idx;
+						      vif_host_cls = cfg_cls;
+						} else {
+						      return false;
+						}
+					  }
+					  ivl_type_t pt = vif_host_cls->get_prop_type(
+					      mid_p->property_idx());
+					  const netclass_t*vif_cls = dynamic_cast<const netclass_t*>(pt);
+					  if (vif_cls && vif_cls->is_interface()) {
+						wait_pr->set_vif_anyedge(mid_p->property_idx(),
+									 outer_p->property_idx(), pre_N);
+						return true;
+					  }
+				    }
+			      }
+			}
+			return false;
+		  }
+		  if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(e)) {
+			if (try_set_vif_anyedge(bin->left())) return true;
+			return try_set_vif_anyedge(bin->right());
+		  }
+		  // Phase 58: dive through NetEUnary so wait(!$isunknown(vif.sig))
+		  // and the implicit NetEUReduce wrapper for multi-bit conditions
+		  // can find the chain.
+		  if (const NetEUnary*un = dynamic_cast<const NetEUnary*>(e)) {
+			return try_set_vif_anyedge(un->expr());
+		  }
+		  // Phase 58: dive through system-function args so vif chains
+		  // inside $isunknown / $past / etc. are detected.
+		  if (const NetESFunc*sf = dynamic_cast<const NetESFunc*>(e)) {
+			for (unsigned i = 0; i < sf->nparms(); ++i) {
+			      if (try_set_vif_anyedge(sf->parm(i))) return true;
+			}
+			return false;
+		  }
+		  return false;
+	    };
+	    try_set_vif_anyedge(expr);
+      }
+
       NetWhile*loop = new NetWhile(expr, wait);
       loop->set_line(*this);
 
@@ -7483,6 +7852,20 @@ static NetNet* find_assoc_foreach_index_signal_(Design*des, NetScope*scope,
       NetNet*idx_sig = scope ? scope->find_signal(index_name) : 0;
       if (!idx_sig)
             return 0;
+
+      // If the immediate scope is a foreach autobegin (e.g. $ivl_foreach...),
+      // the local index_name signal IS the real foreach loop variable for
+      // this foreach. Do not walk up looking for a "real" outer match -- a
+      // nested `foreach (regs[i])` inside an outer `foreach (m_aa[i])` must
+      // bind the inner `i` to the inner foreach's signal, not the outer.
+      auto is_foreach_scope_ = [](NetScope*s) {
+            if (!s)
+                  return false;
+            const char*nm = s->basename().str();
+            return nm && (strncmp(nm, "$ivl_foreach", 12) == 0);
+      };
+      if (is_foreach_scope_(scope))
+            return idx_sig;
 
       bool is_sized_int_shadow =
             idx_sig->get_signed()
@@ -8300,19 +8683,72 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
 	// in a separate process that will be executed before the start
 	// of simulation.
       if (is_auto_) {
-	      // Get the NetBlock of the statement. If it is not a
-	      // NetBlock then create one to wrap the initialization
-	      // statements and the original statement.
-	    NetBlock*blk = dynamic_cast<NetBlock*> (st);
-	    if ((blk == 0) && (var_inits.size() > 0)) {
-		  blk = new NetBlock(NetBlock::SEQU, scope);
-		  blk->set_line(*this);
-		  blk->append(st);
-		  st = blk;
+	      // Split var_inits by the target variable's lifetime.
+	      // Variables explicitly declared `static` inside an automatic
+	      // function should be initialized ONCE at simulation start, not
+	      // on every call. Auto-lifetime initializers go into the
+	      // function body so they run on each entry.
+	    std::vector<Statement*> static_inits;
+	    std::vector<Statement*> auto_inits;
+	    for (Statement*stmt : var_inits) {
+		  bool is_static_init = false;
+		  if (const PAssign_*as = dynamic_cast<const PAssign_*>(stmt)) {
+			if (const PEIdent*id = dynamic_cast<const PEIdent*>(as->lval())) {
+			      perm_string nm = peek_tail_name(id->path());
+			      if (PWire*pw =
+				    const_cast<PFunction*>(this)->wires_find(nm)) {
+				    if (pw->lifetime_override() == IVL_VLT_STATIC)
+					  is_static_init = true;
+			      }
+			}
+		  }
+		  if (is_static_init)
+			static_inits.push_back(stmt);
+		  else
+			auto_inits.push_back(stmt);
 	    }
-	    for (unsigned idx = var_inits.size(); idx > 0; idx -= 1) {
-		  NetProc*tmp = var_inits[idx-1]->elaborate(des, scope);
-		  if (tmp) blk->prepend(tmp);
+
+	    if (!auto_inits.empty()) {
+		    // Get the NetBlock of the statement. If it is not a
+		    // NetBlock then create one to wrap the initialization
+		    // statements and the original statement.
+		  NetBlock*blk = dynamic_cast<NetBlock*> (st);
+		  if (blk == 0) {
+			blk = new NetBlock(NetBlock::SEQU, scope);
+			blk->set_line(*this);
+			blk->append(st);
+			st = blk;
+		  }
+		  for (size_t idx = auto_inits.size(); idx > 0; idx -= 1) {
+			NetProc*tmp = auto_inits[idx-1]->elaborate(des, scope);
+			if (tmp) blk->prepend(tmp);
+		  }
+	    }
+
+	    if (!static_inits.empty()) {
+		    // Emit the static initializers as a one-shot module-init
+		    // process so each runs once at sim start.
+		  NetProc*proc = 0;
+		  if (static_inits.size() == 1) {
+			proc = static_inits[0]->elaborate(des, scope);
+		  } else {
+			NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+			for (Statement*s : static_inits) {
+			      NetProc*tmp = s->elaborate(des, scope);
+			      if (tmp) blk->append(tmp);
+			}
+			proc = blk;
+		  }
+		  if (proc) {
+			NetProcTop*top = new NetProcTop(scope, IVL_PR_INITIAL, proc);
+			if (const LineInfo*li = dynamic_cast<const LineInfo*>(this)) {
+			      top->set_line(*li);
+			}
+			if (gn_system_verilog())
+			      top->attribute(perm_string::literal("_ivl_schedule_init"),
+					     verinum(1));
+			des->add_process(top);
+		  }
 	    }
       } else {
 	    elaborate_var_inits_(des, scope);
@@ -9274,20 +9710,48 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    return "";
       }
 
+      // I4 (Phase 62c): soft constraint wrapper.  Emit `(soft <expr>)`
+      // so the Z3 backend applies the inner expression via
+      // Z3_optimize_assert_soft (default weight 1) instead of a hard
+      // conjunct.
+      if (const PESoft*sf = dynamic_cast<const PESoft*>(expr)) {
+	    string s = pexpr_to_constraint_ir(sf->get_inner(), cls, value_slots);
+	    if (s.empty() || s[0] == '?') return "";
+	    return "(soft " + s + ")";
+      }
+
       if (const PEInside*ins = dynamic_cast<const PEInside*>(expr)) {
 	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots);
 	    if (s.empty() || s[0] == '?') return "";
-	    string result = "(inside " + s;
+	    // C7 (Phase 62b): dist form preserves per-branch weights as
+	    // `(dist <expr> (b W <range>) ...)` where W is the literal
+	    // weight integer.  Plain inside emits the existing form.
+	    bool is_dist = ins->is_dist();
+	    string result = is_dist ? "(dist " : "(inside ";
+	    result += s;
 	    for (auto& r : ins->get_ranges()) {
+		  string range_ir;
 		  if (r.is_range) {
 			string lo = pexpr_to_constraint_ir(r.lo, cls, value_slots);
 			string hi = pexpr_to_constraint_ir(r.hi, cls, value_slots);
 			if (lo.empty() || hi.empty()) continue;
-			result += " [" + lo + "," + hi + "]";
+			range_ir = "[" + lo + "," + hi + "]";
 		  } else {
 			string v = pexpr_to_constraint_ir(r.hi, cls, value_slots);
 			if (v.empty()) continue;
-			result += " " + v;
+			range_ir = v;
+		  }
+		  if (is_dist) {
+			// Default weight 1 for unweighted branches in a
+			// dist (rare, but legal in mixed forms).
+			string w = "1";
+			if (r.weight) {
+			      string we = pexpr_to_constraint_ir(r.weight, cls, value_slots);
+			      if (!we.empty()) w = we;
+			}
+			result += " (b " + w + " " + range_ir + ")";
+		  } else {
+			result += " " + range_ir;
 		  }
 	    }
 	    result += ")";
@@ -9371,6 +9835,33 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    }
 		    if (!ir.empty())
 			  add_constraint_ir(string(cit.first), ir);
+	      }
+
+	      // Phase 49: synthesize an `inside` constraint for every rand
+	      // (or randc) property whose type is an enum. Without this,
+	      // %randomize seeds the property with raw rand() bits and the
+	      // resulting value almost never lands on a valid enum label
+	      // (causing UVM_FATAL "Unsupported <enum>" downstream).
+	      for (size_t pid = 0; pid < get_properties(); ++pid) {
+		    property_qualifier_t qual = get_prop_qual(pid);
+		    if (!qual.test_rand() && !qual.test_randc())
+			  continue;
+		    ivl_type_t ptype = get_prop_type(pid);
+		    const netenum_t*etype = dynamic_cast<const netenum_t*>(ptype);
+		    if (!etype || etype->size() == 0)
+			  continue;
+		    unsigned wid = (unsigned)etype->packed_width();
+		    if (wid == 0) wid = 32;
+		    std::ostringstream ir;
+		    ir << "(inside p:" << pid << ":" << wid;
+		    for (size_t v = 0; v < etype->size(); ++v) {
+			  uint64_t val = etype->value_at(v).as_unsigned();
+			  ir << " c:" << val;
+		    }
+		    ir << ")";
+		    std::ostringstream nm;
+		    nm << "_enum_" << get_prop_name(pid);
+		    add_constraint_ir(nm.str(), ir.str());
 	      }
 
 	      // Elaborate covergroup declarations: synthesize a hidden

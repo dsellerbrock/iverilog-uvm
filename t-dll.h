@@ -229,6 +229,7 @@ struct ivl_event_s {
       bool is_vif_anyedge;
       unsigned vif_N;
       unsigned vif_M;
+      unsigned vif_pre_N; // UINT_MAX = unused (2-level); set = extra prop hop (3-level)
 };
 
 /*

@@ -867,6 +867,60 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
        * be a binary string (can contain NULLs). */
       break;
 
+    case 'p':
+    case 'P':
+      /* SV %p: pretty-print. For arrays/queues iterate elements; for scalars
+         fall through to string representation. */
+      *idx += 1;
+      if (*idx >= info->nitems) {
+        vpi_printf("WARNING: %s:%d: missing argument for %s%s.\n",
+                   info->filename, info->lineno, info->name, fmtb);
+      } else {
+        vpiHandle item = info->items[*idx];
+        PLI_INT32 itype = vpi_get(vpiType, item);
+        if (itype == vpiRegArray || itype == vpiNetArray || itype == vpiMemory) {
+          /* Iterate elements and format as '{el0, el1, ...}' */
+          vpiHandle iter = vpi_iterate(vpiMemoryWord, item);
+          char *acc = strdup("'{");
+          unsigned acc_sz = 3;
+          int first = 1;
+          if (iter) {
+            vpiHandle word;
+            while ((word = vpi_scan(iter)) != 0) {
+              value.format = vpiStringVal;
+              vpi_get_value(word, &value);
+              const char *ws = (value.format != vpiSuppressVal && value.value.str)
+                               ? value.value.str : "?";
+              size_t wl = strlen(ws);
+              acc = realloc(acc, acc_sz + (first ? 0 : 2) + wl + 1);
+              if (!first) { strcat(acc, ", "); acc_sz += 2; }
+              strcat(acc, ws);
+              acc_sz += (unsigned)wl;
+              first = 0;
+            }
+          }
+          acc = realloc(acc, acc_sz + 2);
+          strcat(acc, "}");
+          acc_sz += 1;
+          size = acc_sz + 1;
+          if (size > ini_size) result = realloc(result, size * sizeof(char));
+          strcpy(result, acc);
+          free(acc);
+          size = strlen(result) + 1;
+        } else {
+          /* Scalar: use string representation */
+          value.format = vpiStringVal;
+          vpi_get_value(item, &value);
+          const char *sv = (value.format != vpiSuppressVal && value.value.str)
+                           ? value.value.str : "?";
+          size = strlen(sv) + 1;
+          if (size > ini_size) result = realloc(result, size * sizeof(char));
+          strcpy(result, sv);
+          size = strlen(result) + 1;
+        }
+      }
+      break;
+
     default:
       vpi_printf("WARNING: %s:%d: unknown format %s%s.\n",
                  info->filename, info->lineno, info->name, fmtb);
@@ -1215,6 +1269,9 @@ static int sys_check_args(vpiHandle callh, vpiHandle argv, const PLI_BYTE8*name,
 #endif
 	      case vpiClassVar:
 	      case vpiSysFuncCall:
+	      case vpiRegArray:   /* e.g. string[$] queue — %p will format it */
+	      case vpiNetArray:
+	      case vpiMemory:
 		  break;
 
 	      default:

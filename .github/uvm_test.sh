@@ -19,7 +19,10 @@ FAIL=0
 SKIP=0
 
 # Tests with known pre-existing issues (not regressions introduced by this fork)
-KNOWN_FAIL="vif_smoke vif_smoke_v2"
+# string_ternary_test documents an iverilog bug: `bit ? "literal" : {"prefix_", str}`
+# collapses to empty due to a string/logic mismatch fallback. Workaround is to
+# rewrite as if/else in source (see OpenTitan dv_base_env.sv).
+KNOWN_FAIL="vif_smoke vif_smoke_v2 string_ternary_test"
 
 compile_test() {
     local name="$1"

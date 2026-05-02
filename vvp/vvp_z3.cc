@@ -82,9 +82,26 @@ struct Z3Builder {
       vector<PropVar> prop_vars;
       const class_type* defn;
       vvp_cobject* cobj;
+      // C7 (Phase 62b): optional optimize handle for soft asserts.
+      // When non-null, dist branches emit Z3_optimize_assert_soft per
+      // branch with the user-specified weight, biasing the model toward
+      // higher-weight values.  The builder also collects pending soft
+      // asserts here so the caller can apply them once.
+      Z3_optimize opt;
+      // C7/I4: pending soft assertions.  `from_soft_kw` distinguishes the
+      // explicit `soft` keyword (deterministic preference — should force
+      // optimize even if hard constraints are already satisfied) from
+      // `dist` branches (probabilistic — bvxor diversity randomizes the
+      // pick across branches; early-return on hard satisfaction is OK).
+      struct SoftAssert { Z3_ast a; unsigned weight; bool from_soft_kw; };
+      vector<SoftAssert> pending_soft;
+      bool any_soft_kw_assert() const {
+            for (const auto& s : pending_soft) if (s.from_soft_kw) return true;
+            return false;
+      }
 
       Z3Builder(Z3_context c, const class_type* d, vvp_cobject* o)
-      : ctx(c), defn(d), cobj(o) {}
+      : ctx(c), defn(d), cobj(o), opt(0) {}
 
       Z3_ast get_prop_var(unsigned idx, unsigned width) {
 	    for (auto& v : prop_vars)
@@ -127,6 +144,25 @@ static unsigned bv_width(Z3_context ctx, Z3_ast a)
       return 32;
 }
 
+/* Phase 56: coerce a Z3 AST to Bool sort.  SV logical operators (&&, ||,
+ * !) accept any-width vector operands and treat zero as false / non-zero
+ * as true.  Our IR uses Bool-typed Z3 ops (Z3_mk_and / Z3_mk_or /
+ * Z3_mk_not) so we have to bridge BitVec inputs by comparing to zero. */
+static Z3_ast bv_to_bool(Z3_context ctx, Z3_ast a)
+{
+      Z3_sort sort = Z3_get_sort(ctx, a);
+      if (Z3_get_sort_kind(ctx, sort) == Z3_BV_SORT) {
+	    unsigned w = Z3_get_bv_sort_size(ctx, sort);
+	    Z3_ast zero = Z3_mk_int(ctx, 0, Z3_mk_bv_sort(ctx, w));
+	    /* (a != 0) is true when a is non-zero.  Use a named array (not a
+	       compound literal) — older gcc treats `(Z3_ast[]){...}` in C++ as
+	       a non-conforming GNU extension and rejects taking its address. */
+	    Z3_ast args[2] = { a, zero };
+	    return Z3_mk_distinct(ctx, 2, args);
+      }
+      return a;
+}
+
 static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
 {
       par.skip_ws();
@@ -152,8 +188,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
       if (op.empty()) return b.mk_true();
 
       if (op == "and" || op == "or") {
-	    Z3_ast left  = build_z3_atom(par, b);
-	    Z3_ast right = build_z3_atom(par, b);
+	    Z3_ast left  = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    Z3_ast right = bv_to_bool(b.ctx, build_z3_atom(par, b));
 	    par.skip_ws(); par.expect(')');
 	    if (op == "and") {
 		  Z3_ast args[2] = {left, right};
@@ -165,9 +201,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
       }
 
       if (op == "not") {
-	    Z3_ast sub = build_z3_atom(par, b);
+	    /* SV `!x` returns a 1-bit value (1 if x==0 else 0).  Our IR
+	     * generator uses `(not x)` for this; downstream consumers
+	     * (e.g. `(eq lhs (not c:1))`) expect a BitVec result, not a
+	     * Bool.  Implement as ITE over a Bool view of the operand. */
+	    Z3_ast raw = build_z3_atom(par, b);
 	    par.skip_ws(); par.expect(')');
-	    return Z3_mk_not(b.ctx, sub);
+	    Z3_ast cond = bv_to_bool(b.ctx, raw);
+	    Z3_sort bv1 = Z3_mk_bv_sort(b.ctx, 1);
+	    Z3_ast one  = Z3_mk_unsigned_int64(b.ctx, 1, bv1);
+	    Z3_ast zero = Z3_mk_unsigned_int64(b.ctx, 0, bv1);
+	    /* If x is true (non-zero), !x = 0; if false, !x = 1. */
+	    return Z3_mk_ite(b.ctx, cond, zero, one);
       }
 
       // Binary comparison: lt le gt ge eq ne
@@ -242,6 +287,102 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    if (clauses.empty()) return b.mk_true();
 	    if (clauses.size() == 1) return clauses[0];
 	    return Z3_mk_or(b.ctx, (unsigned)clauses.size(), clauses.data());
+      }
+
+      if (op == "soft") {
+	    // I4 (Phase 62c): soft constraint.  Build the inner expression
+	    // as a Z3 boolean and queue it as a soft assert.
+	    //
+	    // Default weight 256: Z3's optimize check is multi-objective
+	    // lex-ordered.  Our diversity bvxor minimize objectives produce
+	    // costs in 0..2^width-1 (typically 0..255 for 8-bit props).  A
+	    // soft default weight that's 256 ensures the soft preference
+	    // dominates the bvxor diversity cost when both are feasible
+	    // — soft constraints get satisfied unless a hard conflict.
+	    // Hard constraints still take priority (soft asserts are
+	    // optional by definition).
+	    Z3_ast inner = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    par.skip_ws();
+	    par.expect(')');
+	    Z3Builder::SoftAssert sa = { inner, 256, true /* from_soft_kw */ };
+	    b.pending_soft.push_back(sa);
+	    return b.mk_true();
+      }
+
+      if (op == "dist") {
+	    // C7 (Phase 62b): weighted distribution.
+	    // Format: (dist <expr> (b W <range>) ...)
+	    // - Hard constraint: <expr> ∈ union of all branches.
+	    // - Soft preference: per branch, Z3_optimize_assert_soft of
+	    //   `(<expr> matches branch)` with weight W, so the optimizer
+	    //   prefers higher-weight branches when feasible.
+	    Z3_ast subject = build_z3_atom(par, b);
+	    unsigned sw = bv_width(b.ctx, subject);
+
+	    vector<Z3_ast> hard_clauses;
+	    par.skip_ws();
+	    while (par.peek() != ')' && !par.at_end()) {
+		  // Each branch is `(b W <range>)`.
+		  if (par.peek() != '(') break;
+		  par.consume(); // '('
+		  string br_op = par.read_token();
+		  if (br_op != "b") {
+			// Unknown branch shape; skip to matching ')'.
+			int depth = 1;
+			while (!par.at_end() && depth > 0) {
+			      char c = par.consume();
+			      if (c == '(') ++depth;
+			      else if (c == ')') --depth;
+			}
+			par.skip_ws();
+			continue;
+		  }
+		  string w_tok = par.read_token();
+		  unsigned weight = 1;
+		  if (!w_tok.empty()) {
+			weight = (unsigned)strtoul(w_tok.c_str()+
+				    (w_tok.substr(0,2)=="c:" ? 2 : 0), 0, 10);
+			if (weight == 0) weight = 1;
+		  }
+		  Z3_ast clause = b.mk_false();
+		  par.skip_ws();
+		  if (par.peek() == '[') {
+			par.consume();
+			string lo_tok = par.read_token();
+			par.expect(',');
+			string hi_tok = par.read_token();
+			par.expect(']');
+			uint64_t lo_v = strtoull(lo_tok.c_str()+2, 0, 10);
+			uint64_t hi_v = strtoull(hi_tok.c_str()+2, 0, 10);
+			Z3_ast lo = Z3_mk_unsigned_int64(b.ctx, lo_v,
+					 Z3_mk_bv_sort(b.ctx, sw));
+			Z3_ast hi = Z3_mk_unsigned_int64(b.ctx, hi_v,
+					 Z3_mk_bv_sort(b.ctx, sw));
+			Z3_ast c1 = Z3_mk_bvuge(b.ctx, subject, lo);
+			Z3_ast c2 = Z3_mk_bvule(b.ctx, subject, hi);
+			Z3_ast both[2] = {c1, c2};
+			clause = Z3_mk_and(b.ctx, 2, both);
+		  } else {
+			string tok = par.read_token();
+			if (tok.substr(0,2) == "c:") {
+			      uint64_t v = strtoull(tok.c_str()+2, 0, 10);
+			      Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
+					      Z3_mk_bv_sort(b.ctx, sw));
+			      clause = Z3_mk_eq(b.ctx, subject, cv);
+			}
+		  }
+		  par.skip_ws();
+		  par.expect(')'); // close (b ...)
+		  par.skip_ws();
+		  hard_clauses.push_back(clause);
+		  // Queue the soft assert; caller applies it after build.
+		  Z3Builder::SoftAssert sa = { clause, weight, false /* dist */ };
+		  b.pending_soft.push_back(sa);
+	    }
+	    par.expect(')');
+	    if (hard_clauses.empty()) return b.mk_true();
+	    if (hard_clauses.size() == 1) return hard_clauses[0];
+	    return Z3_mk_or(b.ctx, (unsigned)hard_clauses.size(), hard_clauses.data());
       }
 
       // Unknown operator — skip to matching ')' and return true
@@ -338,6 +479,7 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       // to guide solutions toward varied values.
       Z3_optimize opt = Z3_mk_optimize(ctx);
       Z3_optimize_inc_ref(ctx, opt);
+      builder.opt = opt; // C7: collect dist soft asserts during build
 
       // Assert hard constraints (class-level), skipping disabled ones.
       for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
@@ -353,6 +495,15 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	    string sub = substitute_slots(wir, slot_vals);
 	    Z3_ast assertion = parse_constraint_ir(sub, builder);
 	    Z3_optimize_assert(ctx, opt, assertion);
+      }
+      // C7: apply queued soft asserts from dist branches.  Each carries a
+      // weight; Z3_optimize_assert_soft prefers higher-weight branches when
+      // multiple feasible solutions exist.
+      for (const auto& sa : builder.pending_soft) {
+	    char w_str[32];
+	    snprintf(w_str, sizeof(w_str), "%u", sa.weight);
+	    Z3_symbol grp = Z3_mk_string_symbol(ctx, "dist");
+	    Z3_optimize_assert_soft(ctx, opt, sa.a, w_str, grp);
       }
 
       // Check if the already-randomized values satisfy all hard constraints.
@@ -383,8 +534,14 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	    Z3_lbool precheck = Z3_solver_check(ctx, chk);
 	    Z3_solver_dec_ref(ctx, chk);
 
-	    if (precheck == Z3_L_TRUE) {
-		  // Random values already satisfy all constraints — keep them.
+	    if (precheck == Z3_L_TRUE && !builder.any_soft_kw_assert()) {
+		  // C7/I4: only fast-path early-out when there are no
+		  // `soft`-keyword assertions queued.  Dist branches use the
+		  // soft-assert mechanism but rely on the bvxor diversity
+		  // minimize for probabilistic outcome — early-return is OK
+		  // for dist (random pre-fill provides the diversity).  Plain
+		  // `soft` is deterministic preference and must always run
+		  // the optimize check.
 		  Z3_optimize_dec_ref(ctx, opt);
 		  Z3_del_context(ctx);
 		  return false;

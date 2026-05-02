@@ -649,7 +649,16 @@ PEInside::~PEInside()
       for (auto& r : ranges_) {
 	    delete r.lo;
 	    delete r.hi;
+	    delete r.weight;
       }
+}
+
+bool PEInside::is_dist() const
+{
+      for (size_t i = 0 ; i < ranges_.size() ; i++) {
+	    if (ranges_[i].weight) return true;
+      }
+      return false;
 }
 
 void PEInside::dump(std::ostream& out) const
@@ -677,25 +686,5 @@ unsigned PEInside::test_width(Design*, NetScope*, width_mode_t&)
       return 1;
 }
 
-NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
-                                   ivl_type_t type, unsigned flags) const
-{
-	// Fall back to elaborating the inner expression to preserve
-	// the bit-width of the expression context, then return
-	// a constant 1 (true) as a conservative approximation.
-	// Constraint evaluation is handled separately via Z3.
-      NetExpr* inner = expr_->elaborate_expr(des, scope, type, flags);
-      if (inner) {
-	    unsigned wid = inner->expr_width();
-	    delete inner;
-	    // Return a 1-bit "true" constant — inside() results are boolean.
-	    return new NetEConst(verinum(verinum::V1, 1));
-      }
-      return new NetEConst(verinum(verinum::V1, 1));
-}
-
-NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
-                                   unsigned expr_wid, unsigned flags) const
-{
-      return new NetEConst(verinum(verinum::V1, 1));
-}
+/* Note: PEInside::elaborate_expr is implemented in elab_expr.cc
+ * where netlist.h, NetEBComp, NetEBLogic, NetESFunc, etc. are available. */

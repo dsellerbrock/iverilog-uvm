@@ -1154,6 +1154,78 @@ struct inside_range_t {
     PExpr* lo;
     PExpr* hi;
     bool is_range;
+    // C7 (Phase 62b): dist weight expression.  Non-null only for `dist`-form
+    // ranges that carry an explicit weight (`val := w` or `val :/ w`).
+    // Weight is null for plain `inside { ... }` ranges (uniform pick).
+    PExpr* weight = nullptr;
+    // C7: true if the weight was specified with `:/` (divide across range
+    // count) rather than `:=` (per-item).  Only meaningful when weight!=null.
+    bool weight_is_divided = false;
+};
+
+/*
+ * C5 (Phase 62d): SystemVerilog streaming-concatenation operator.
+ *   {<<N {expr}}  — pack with chunk-reverse.  N=1: full bit-reverse.
+ *   {>>N {expr}}  — pack normally (same as plain concatenation).
+ * Currently supports a single inner expression (the most common form).
+ * Multi-element inner concat is deferred — most real testbenches use
+ * the single-expr form as in `{<<{send_data}} = {stop, parity, data}`.
+ */
+class PEStreaming : public PExpr {
+    public:
+      enum direction_t { DIR_LSHIFT, DIR_RSHIFT };
+      PEStreaming(direction_t dir, unsigned slice, PExpr* inner)
+      : dir_(dir), slice_(slice ? slice : 1), inner_(inner) {}
+      ~PEStreaming() override { delete inner_; }
+      direction_t get_dir() const { return dir_; }
+      unsigned get_slice() const { return slice_; }
+      PExpr* get_inner() const { return inner_; }
+      void dump(std::ostream& out) const override {
+            out << "{" << (dir_ == DIR_LSHIFT ? "<<" : ">>")
+                << slice_ << "{";
+            inner_->dump(out);
+            out << "}}";
+      }
+      unsigned test_width(Design* des, NetScope* scope,
+                          width_mode_t& mode) override;
+      NetExpr* elaborate_expr(Design* des, NetScope* scope,
+                              ivl_type_t type, unsigned flags) const override;
+      NetExpr* elaborate_expr(Design* des, NetScope* scope,
+                              unsigned expr_wid, unsigned flags) const override;
+    private:
+      direction_t dir_;
+      unsigned slice_;
+      PExpr* inner_;
+};
+
+/*
+ * I4 (Phase 62c): wraps a soft constraint expression.  Constraint solving
+ * applies it as a soft assertion (default weight 1) rather than a hard
+ * conjunct — Z3 satisfies it when feasible but allows violation if other
+ * hard constraints conflict.  Plain elaboration just delegates to the
+ * inner expression so non-constraint contexts ignore the soft flag.
+ */
+class PESoft : public PExpr {
+    public:
+      explicit PESoft(PExpr* inner) : inner_(inner) {}
+      ~PESoft() override { delete inner_; }
+      PExpr* get_inner() const { return inner_; }
+      void dump(std::ostream& out) const override {
+            out << "(soft "; inner_->dump(out); out << ")";
+      }
+      unsigned test_width(Design*des, NetScope*scope, width_mode_t&mode) override {
+            return inner_->test_width(des, scope, mode);
+      }
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+                              ivl_type_t type, unsigned flags) const override {
+            return inner_->elaborate_expr(des, scope, type, flags);
+      }
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+                              unsigned w, unsigned flags) const override {
+            return inner_->elaborate_expr(des, scope, w, flags);
+      }
+    private:
+      PExpr* inner_;
 };
 
 /*
@@ -1167,6 +1239,12 @@ class PEInside : public PExpr {
 
       PExpr* get_expr() const { return expr_; }
       const std::vector<inside_range_t>& get_ranges() const { return ranges_; }
+
+      // C7: PEInside doubles as the `dist` lowering target.  When any
+      // range carries a non-null weight, emit a `(dist ...)` constraint
+      // IR opcode instead of `(inside ...)` so the Z3 backend can apply
+      // soft assertions.
+      bool is_dist() const;
 
       void dump(std::ostream& out) const override;
       unsigned test_width(Design* des, NetScope* scope,

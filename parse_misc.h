@@ -24,6 +24,21 @@
 # include  "compiler.h"
 # include  "pform.h"
 
+class PEventStatement;
+class PExpr;
+
+/*
+ * C2 (Phase 62f): captured concurrent-assertion property data so the
+ * assert-property action can build an always-block check.
+ */
+struct sva_property_t {
+      PEventStatement* clk_evt;       // clocking event (may be null)
+      PExpr* disable_iff_expr;        // disable iff expr (may be null)
+      PExpr* antecedent;
+      PExpr* consequent;              // null => no implication
+      int op_type;                    // 0=plain, 1=|->, 2=|=>
+};
+
 /*
  * The vlltype supports the passing of detailed source file location
  * information between the lexical analyzer and the parser. Defining

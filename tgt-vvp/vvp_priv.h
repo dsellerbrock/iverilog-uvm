@@ -26,6 +26,8 @@
 
 extern int debug_draw;
 
+extern ivl_design_t vvp_get_saved_design(void);
+
 /*
  * The target_design entry opens the output file that receives the
  * compiled design, and sets the vvp_out to the descriptor.

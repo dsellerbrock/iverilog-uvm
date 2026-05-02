@@ -447,9 +447,20 @@ struct class_type_t : public data_type_t {
 	    PExpr* expr;        // expression being covered (e.g., val)
 	    std::vector<pform_cov_bins_t> bins;
       };
+      // I1 (Phase 62g): captured cross declaration.  A cross combines
+      // existing coverpoint labels into bins that count when ALL
+      // contributing coverpoint bins are hit on the same sample.  The
+      // current minimum-viable implementation captures the labels here
+      // so elaboration can later auto-generate bins (one per cartesian
+      // product of contributing coverpoint bins).
+      struct pform_cross_t {
+	    perm_string label;                 // cross label (or auto)
+	    std::vector<perm_string> cp_labels; // names of contributing coverpoints
+      };
       struct pform_covergroup_t {
 	    perm_string name;   // covergroup instance name (e.g., "cg")
 	    std::vector<pform_coverpoint_t> coverpoints;
+	    std::vector<pform_cross_t> crosses;  // I1: cross declarations
       };
       std::vector<pform_covergroup_t*> covergroups;
 

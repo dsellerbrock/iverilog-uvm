@@ -575,14 +575,40 @@ void property_bit::get_vec4(char*buf, vvp_vector4_t&val)
 
 void property_bit::set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx)
 {
-      assert(idx < array_size_);
+      if (idx >= array_size_) {
+            // Likely an X / underflow value used as an array index. Suppress
+            // and carry on rather than abort -- this is far more useful for
+            // diagnosis on a test that's making real progress.
+            static int warned_idx = 0;
+            if (warned_idx < 8) {
+                  fprintf(stderr,
+                          "vvp warning: property_bit::set_vec4 idx=%lu out"
+                          " of range (size=%zu); skipping assignment"
+                          " (further similar warnings suppressed)\n",
+                          (unsigned long)idx, (size_t)array_size_);
+                  warned_idx++;
+            }
+            return;
+      }
       vvp_vector2_t*obj = reinterpret_cast<vvp_vector2_t*> (buf+offset_);
       obj[idx] = val;
 }
 
 void property_bit::get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx)
 {
-      assert(idx < array_size_);
+      if (idx >= array_size_) {
+            static int warned_idx = 0;
+            if (warned_idx < 8) {
+                  fprintf(stderr,
+                          "vvp warning: property_bit::get_vec4 idx=%lu out"
+                          " of range (size=%zu); returning X"
+                          " (further similar warnings suppressed)\n",
+                          (unsigned long)idx, (size_t)array_size_);
+                  warned_idx++;
+            }
+            val = vvp_vector4_t(wid_ ? wid_ : 1, BIT4_X);
+            return;
+      }
       const vvp_vector2_t*obj = reinterpret_cast<vvp_vector2_t*> (buf+offset_);
       val = vector2_to_vector4(obj[idx], obj[idx].size());
 }

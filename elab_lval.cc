@@ -29,6 +29,8 @@
 # include  "netmisc.h"
 # include  "netstruct.h"
 # include  "netclass.h"
+# include  "Module.h"
+# include  "parse_api.h"
 # include  "netdarray.h"
 # include  "netparray.h"
 # include  "netqueue.h"
@@ -43,6 +45,47 @@
 using namespace std;
 
 static bool warned_darray_multi_index_fallback = false;
+
+/* When the interface instance is a plain Verilog scope (sr.net is null
+   but sr.scope is an interface scope), rewrite `iface.cb.sig` to
+   `iface.sig` by looking up the clocking block in pform_modules. */
+static bool rewrite_interface_clocking_member_path_via_scope_(const PEIdent*ident,
+							      const symbol_search_results&sr,
+							      pform_name_t&rewritten)
+{
+      if (sr.net || !sr.scope) return false;
+      if (!sr.scope->is_interface()) return false;
+      if (ident->path().size() < 3) return false;
+      perm_string iface_module = sr.scope->module_name();
+      if (iface_module.nil()) return false;
+      auto cur = pform_modules.find(iface_module);
+      if (cur == pform_modules.end() || !cur->second->is_interface)
+	    return false;
+      const Module*iface_mod = cur->second;
+
+      /* Walk the path: [iface, cb, sig, ...]. Find a component that
+         names a clocking block and the next component must be a signal
+         in that block. */
+      pform_name_t newpath = ident->path().name;
+      auto it = newpath.begin();
+      ++it; /* skip the iface name */
+      while (it != newpath.end()) {
+	    auto nx = it; ++nx;
+	    if (nx == newpath.end()) break;
+	    auto cb_it = iface_mod->clocking_blocks.find(it->name);
+	    if (cb_it != iface_mod->clocking_blocks.end()) {
+		  const auto&signals = cb_it->second->signals;
+		  if (std::find(signals.begin(), signals.end(), nx->name)
+			    != signals.end()) {
+			newpath.erase(it);
+			rewritten = newpath;
+			return true;
+		  }
+	    }
+	    ++it;
+      }
+      return false;
+}
 
 static bool rewrite_interface_clocking_member_path_(const PEIdent*ident,
 						    const symbol_search_results&sr,
@@ -250,7 +293,8 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       const pform_name_t &member_path = sr.path_tail;
 
       pform_name_t rewritten_path;
-      if (reg && rewrite_interface_clocking_member_path_(this, sr, rewritten_path)) {
+      if ((reg && rewrite_interface_clocking_member_path_(this, sr, rewritten_path))
+	  || rewrite_interface_clocking_member_path_via_scope_(this, sr, rewritten_path)) {
 	    if (path_.package) {
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
 		  return mapped_ident.elaborate_lval(des, scope, is_cassign,
@@ -1266,7 +1310,42 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		      ivl_type_t owner_type = lv ? lv->net_type() : root_type;
 		      const netclass_t*owner_class = dynamic_cast<const netclass_t*>(owner_type);
 		      const netstruct_t*owner_struct = dynamic_cast<const netstruct_t*>(owner_type);
-		      if (!owner_class && !(gn_system_verilog() && owner_struct && !owner_struct->packed())) {
+		      // Packed struct field access within a VIF/class property: compute
+	      // the bit offset of the named field within the packed struct and
+	      // encode as a part-select on the current lv (read-modify-write at
+	      // runtime via %store/prop/v/bits).
+	      if (!owner_class && owner_struct && owner_struct->packed()) {
+		    perm_string field_name = peek_head_name(member_path);
+		    member_path.pop_front();
+		    unsigned long member_off = 0;
+		    const netstruct_t::member_t*mbr =
+			  owner_struct->packed_member(field_name, member_off);
+		    if (!mbr) {
+			  cerr << get_fileline() << ": error: Packed struct "
+			       << "does not have member " << field_name << "." << endl;
+			  des->errors += 1;
+			  return 0;
+		    }
+		    long field_wid = mbr->net_type->packed_width();
+		    if (field_wid <= 0) {
+			  cerr << get_fileline() << ": sorry: packed struct field "
+			       << field_name << " has non-positive width." << endl;
+			  return 0;
+		    }
+		    /* Cast disambiguates `verinum(uint64_t, unsigned)` from the
+		       `verinum(V, unsigned, bool)` constructor — older gcc/clang
+		       on macOS/MinGW reject the implicit conversion. */
+		    lv->set_part(new NetEConst(verinum((uint64_t)member_off, 64u)),
+				 (unsigned)field_wid);
+		    if (!member_path.empty()) {
+			  cerr << get_fileline() << ": warning: "
+			       << "Deeply nested packed struct field in VIF property "
+			       << "(compile-progress: only outermost field written)." << endl;
+		    }
+		    break;
+	      }
+
+	      if (!owner_class && !(gn_system_verilog() && owner_struct && !owner_struct->packed())) {
 			    if (const char*trace = getenv("IVL_NESTED_PATH_TRACE")) {
 				  cerr << get_fileline() << ": debug: "
 				       << "nested l-value tail rejected"

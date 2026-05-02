@@ -21,6 +21,8 @@
 
 # include  <string>
 # include  <stdint.h>
+# include  <map>
+# include  <vector>
 # include  "vvp_object.h"
 # include  "class_type.h"
 
@@ -55,12 +57,18 @@ class vvp_cobject : public vvp_object {
       bool constraint_mode(size_t cid) const;
       void set_constraint_mode(size_t cid, bool mode);
 
+      // C1 (Phase 62a): randc cyclic state.
+      bool randc_seen(size_t pid, uint64_t val) const;
+      void randc_mark(size_t pid, uint64_t val);
+      uint64_t randc_period(size_t pid) const;
+
     private:
       const class_type* defn_;
 	// For now, only support 32bit bool signed properties.
       class_type::inst_t properties_;
       std::vector<bool> rand_mode_;
       std::vector<bool> constraint_mode_;
+      std::map<size_t, std::vector<bool> > randc_history_;
 };
 
 #endif /* IVL_vvp_cobject_H */

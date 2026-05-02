@@ -1060,6 +1060,32 @@ static void draw_select_vec4(ivl_expr_t expr)
       if (expr_is_queue_container_(subexpr) &&
           ivl_expr_type(subexpr) != IVL_EX_SIGNAL) {
 	    assert(base);
+	      /* Phase 50f: when the queue container is actually an
+	       * associative array (Mv/Mr/MS), the index is a key (string
+	       * or class-typed), not an integer.  Treating "key" as a
+	       * numeric queue index reads garbage; emit %aa/load/v/* with
+	       * the proper key type instead. */
+	    ivl_type_t sub_type = ivl_expr_net_type(subexpr);
+	    if (sub_type && ivl_type_queue_assoc_compat(sub_type)) {
+		  if (expr_is_string_assoc_key_(base)) {
+			draw_eval_string(base);
+			draw_eval_object(subexpr);
+			fprintf(vvp_out, "    %%aa/load/v/str %u;\n", wid);
+			if (ivl_expr_value(expr) == IVL_VT_BOOL)
+			      fprintf(vvp_out, "    %%cast2;\n");
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			return;
+		  }
+		  if (expr_is_object_assoc_key_(base)) {
+			draw_eval_object(base);
+			draw_eval_object(subexpr);
+			fprintf(vvp_out, "    %%aa/load/v/obj %u;\n", wid);
+			if (ivl_expr_value(expr) == IVL_VT_BOOL)
+			      fprintf(vvp_out, "    %%cast2;\n");
+			fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+			return;
+		  }
+	    }
 	    draw_eval_object(subexpr);
 	    draw_eval_expr_into_integer(base, 3);
 	    fprintf(vvp_out, "    %%load/qo/v %u;\n", wid);
@@ -1263,6 +1289,11 @@ static int draw_assoc_traversal_vec4(ivl_expr_t expr)
       if (recv_sig) {
 	    fprintf(vvp_out, "    %%aa/%s/sig/%s v%p_0, v%p_0;\n",
 	            method_name, key_kind, recv_sig, key_sig);
+	    /* The /sig/ opcode pushes a 1-bit success flag. Caller expects
+	       `wid` bits (typically 32 for the int return of .first(key)),
+	       so zero-extend to match. */
+	    if (wid > 1)
+	          fprintf(vvp_out, "    %%pad/u %u;\n", wid);
       } else {
 	    draw_eval_object(recv);
 	    fprintf(vvp_out, "    %%aa/%s/%s v%p_0, %u;\n",
@@ -1270,6 +1301,159 @@ static int draw_assoc_traversal_vec4(ivl_expr_t expr)
       }
 
       return 1;
+}
+
+/* Phase 50e: Locate pre_randomize / post_randomize child scopes on a
+ * class given the receiver expression for a randomize() call.
+ *
+ * Per IEEE 1800-2017 §18.10 randomize() must invoke pre_randomize()
+ * before constraint solving and post_randomize() after.  These hooks
+ * are not virtual, so static lookup from the receiver's declared type
+ * is correct.  The class type's method_prefix is the full scope path
+ * of the class scope (e.g. "$unit.Cfg" or "pkg::Cfg") which we match
+ * against ivl_scope_name walking the design tree.  Walks the
+ * superclass chain via ivl_type_super so a hook defined on the base
+ * class is still found for derived receivers.
+ */
+typedef struct rand_hook_pair_s {
+      const char*prefix;
+      ivl_scope_t pre;
+      ivl_scope_t post;
+      struct rand_hook_pair_s*next;
+} rand_hook_pair_t;
+
+static rand_hook_pair_t*rand_hook_cache = 0;
+static int rand_hook_cache_built = 0;
+
+static void rand_hook_walk_(ivl_scope_t scope)
+{
+      if (!scope) return;
+      if (ivl_scope_type(scope) == IVL_SCT_CLASS) {
+            const char*full = ivl_scope_name(scope);
+            size_t nch = ivl_scope_childs(scope);
+            ivl_scope_t pre = 0, post = 0;
+            if (getenv("IVL_RAND_HOOKS_DBG"))
+                  fprintf(stderr, "[RHK]   class scope '%s' nch=%zu\n",
+                          full ?: "<n>", nch);
+            for (size_t i = 0 ; i < nch ; i += 1) {
+                  ivl_scope_t ch = ivl_scope_child(scope, i);
+                  if (!ch) continue;
+                  if (ivl_scope_type(ch) != IVL_SCT_FUNCTION
+                      && ivl_scope_type(ch) != IVL_SCT_TASK) continue;
+                  const char*base = ivl_scope_basename(ch);
+                  if (getenv("IVL_RAND_HOOKS_DBG"))
+                        fprintf(stderr, "[RHK]     child[%zu] type=%d base=%s\n",
+                                i, (int)ivl_scope_type(ch), base ?: "<n>");
+                  if (!base) continue;
+                  if (strcmp(base, "pre_randomize") == 0)  pre  = ch;
+                  if (strcmp(base, "post_randomize") == 0) post = ch;
+            }
+            if (full && (pre || post)) {
+                  rand_hook_pair_t*p = (rand_hook_pair_t*)
+                        calloc(1, sizeof(rand_hook_pair_t));
+                  /* ivl_scope_name() returns a pointer to a static
+                   * buffer that is rewritten on each call, so copy it
+                   * before storing. */
+                  p->prefix = strdup(full);
+                  p->pre  = pre;
+                  p->post = post;
+                  p->next = rand_hook_cache;
+                  rand_hook_cache = p;
+            }
+      }
+      for (size_t i = 0 ; i < ivl_scope_childs(scope) ; i += 1)
+            rand_hook_walk_(ivl_scope_child(scope, i));
+}
+
+static void rand_hook_build_cache_(void)
+{
+      ivl_design_t des = vvp_get_saved_design();
+      if (!des) return;
+      ivl_scope_t*roots = 0;
+      unsigned nroots = 0;
+      ivl_design_roots(des, &roots, &nroots);
+      for (unsigned i = 0 ; i < nroots ; i += 1)
+            rand_hook_walk_(roots[i]);
+      rand_hook_cache_built = 1;
+      if (getenv("IVL_RAND_HOOKS_DBG")) {
+            fprintf(stderr, "[RHK] cache contents (nroots=%u):\n", nroots);
+            for (rand_hook_pair_t*p = rand_hook_cache ; p ; p = p->next) {
+                  fprintf(stderr, "[RHK]   '%s' pre=%p post=%p\n",
+                          p->prefix, (void*)p->pre, (void*)p->post);
+            }
+      }
+}
+
+static rand_hook_pair_t*rand_hook_find_(const char*prefix)
+{
+      if (!prefix) return 0;
+      if (!rand_hook_cache_built)
+            rand_hook_build_cache_();
+      for (rand_hook_pair_t*p = rand_hook_cache ; p ; p = p->next) {
+            if (strcmp(p->prefix, prefix) == 0)
+                  return p;
+      }
+      return 0;
+}
+
+/* Walk the class type's super chain (including the type itself) and
+ * collect the first non-NULL pre_randomize and the first non-NULL
+ * post_randomize.  Returns 1 if either hook was found. */
+static int rand_hooks_for_type_(ivl_type_t classtype,
+                                ivl_scope_t*pre_out, ivl_scope_t*post_out)
+{
+      *pre_out = 0;
+      *post_out = 0;
+      ivl_type_t t = classtype;
+      int debug = getenv("IVL_RAND_HOOKS_DBG") ? 1 : 0;
+      while (t && (!*pre_out || !*post_out)) {
+            const char*prefix = ivl_type_method_prefix(t);
+            if (debug)
+                  fprintf(stderr, "[RHK]   walk t=%p prefix=%s\n",
+                          (void*)t, prefix ?: "<null>");
+            if (prefix && *prefix) {
+                  rand_hook_pair_t*p = rand_hook_find_(prefix);
+                  if (debug)
+                        fprintf(stderr, "[RHK]   lookup '%s' -> %p\n", prefix,
+                                (void*)p);
+                  if (p) {
+                        if (!*pre_out  && p->pre)  *pre_out  = p->pre;
+                        if (!*post_out && p->post) *post_out = p->post;
+                  }
+            }
+            t = ivl_type_super(t);
+      }
+      return (*pre_out != 0) || (*post_out != 0);
+}
+
+/* Emit the bytecode sequence to invoke a void method that takes only
+ * the implicit `this` argument.  The receiver expression is drawn,
+ * pushed onto the object stack, then stored into the method scope's
+ * port[0] inside an automatic context.  No copy-out is needed for the
+ * void return. */
+static void emit_void_this_method_call_(ivl_expr_t recv, ivl_scope_t target)
+{
+      if (!target || !recv) return;
+      unsigned nports = ivl_scope_ports(target);
+      /* Class methods: port[0] is the return slot (or unused for void),
+       * port[1] is the implicit `this`.  Try port[1] first; fall back
+       * to port[0] for the (rare) case of a non-method void task. */
+      ivl_signal_t this_port = (nports >= 2) ? ivl_scope_port(target, 1)
+                                              : ivl_scope_port(target, 0);
+      const char*mangled = vvp_mangle_id(ivl_scope_name(target));
+      if (!this_port || !mangled) return;
+      note_td_reference(mangled);
+
+      int is_auto = ivl_scope_is_auto(target);
+      if (is_auto)
+            fprintf(vvp_out, "    %%alloc S_%p;\n", target);
+      draw_eval_object(recv);
+      fprintf(vvp_out, "    %%store/obj v%p_0;\n", this_port);
+      int use_virtual = ivl_scope_is_virtual_method(target);
+      fprintf(vvp_out, "    %%callf/void%s TD_%s, S_%p;\n",
+              use_virtual ? "/v" : "", mangled, target);
+      if (is_auto)
+            fprintf(vvp_out, "    %%free S_%p;\n", target);
 }
 
 static void draw_sfunc_vec4(ivl_expr_t expr)
@@ -1299,12 +1483,42 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
       }
       if (strcmp(ivl_expr_name(expr),"$ivl_class_method$randomize")==0) {
 	    ivl_expr_t arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    /* Phase 50e: invoke pre_randomize / post_randomize hooks on
+	     * the receiver class (and inherited from super) per IEEE
+	     * 1800-2017 §18.10.  Without these, OpenTitan's
+	     * dv_base_env_cfg::post_randomize never runs and class
+	     * properties such as clk_freqs_mhz["uart_reg_block"] read 0. */
+	    ivl_scope_t pre = 0, post = 0;
+	    if (arg) {
+		  ivl_type_t rt = ivl_expr_net_type(arg);
+		  if (!rt && ivl_expr_type(arg) == IVL_EX_SIGNAL) {
+			ivl_signal_t sig = ivl_expr_signal(arg);
+			if (sig) rt = ivl_signal_net_type(sig);
+		  }
+		  if (rt && ivl_type_base(rt) == IVL_VT_CLASS)
+			rand_hooks_for_type_(rt, &pre, &post);
+		  if (getenv("IVL_RAND_HOOKS_DBG"))
+			fprintf(stderr, "[RHK] rand rt=%p prefix=%s pre=%p post=%p\n",
+				(void*)rt,
+				rt ? (ivl_type_method_prefix(rt) ?: "<n>") : "<no rt>",
+				(void*)pre, (void*)post);
+	    }
+	    if (pre && arg) {
+		  emit_void_this_method_call_(arg, pre);
+	    }
 	    if (arg) {
 		  draw_eval_object(arg);
 	    }
 	      /* %randomize peeks at the object stack and pops it, then
 	       * pushes 1 (success) onto the vec4 stack. */
 	    fprintf(vvp_out, "    %%randomize;\n");
+	    if (post && arg) {
+		    /* Save the success result on a stack slot the
+		     * post_randomize call cannot touch (it uses its own
+		     * vec4 stack frame).  Just keep it on top of the vec4
+		     * stack — %callf/void preserves the parent's vec4 stack. */
+		    emit_void_this_method_call_(arg, post);
+	    }
 	    return;
       }
       if (strncmp(ivl_expr_name(expr),"$ivl_class_method$randomize_with|",33)==0) {
@@ -1315,6 +1529,20 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    while (*rest && *rest != '|') rest++;
 	    if (*rest == '|') rest++;
 	    const char*ir = rest;
+	    ivl_expr_t obj_arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+	      /* Phase 50e: pre/post_randomize hooks for randomize() with {...}
+	       * see plain randomize() above. */
+	    ivl_scope_t pre = 0, post = 0;
+	    if (obj_arg) {
+		  ivl_type_t rt = ivl_expr_net_type(obj_arg);
+		  if (!rt && ivl_expr_type(obj_arg) == IVL_EX_SIGNAL) {
+			ivl_signal_t sig = ivl_expr_signal(obj_arg);
+			if (sig) rt = ivl_signal_net_type(sig);
+		  }
+		  if (rt && ivl_type_base(rt) == IVL_VT_CLASS)
+			rand_hooks_for_type_(rt, &pre, &post);
+	    }
+	    if (pre && obj_arg) emit_void_this_method_call_(obj_arg, pre);
 	      /* Push runtime slot values (vec4 stack) first so they're
 	       * under the result when %randomize/with pops them. */
 	    for (unsigned i = 0 ; i < n_vals ; i++) {
@@ -1323,9 +1551,24 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
 	    }
 	      /* Push the object. */
-	    ivl_expr_t obj_arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
 	    if (obj_arg) draw_eval_object(obj_arg);
 	    fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir, n_vals);
+	    if (post && obj_arg) emit_void_this_method_call_(obj_arg, post);
+	    return;
+      }
+      if (strcmp(ivl_expr_name(expr), "$ivl_inside_arr")==0) {
+	    /* parm 0: array signal (receiver), parm 1: value to check */
+	    ivl_expr_t arr_arg = (ivl_expr_parms(expr) > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    ivl_expr_t val_arg = (ivl_expr_parms(expr) > 1) ? ivl_expr_parm(expr, 1) : 0;
+	    if (arr_arg && val_arg
+		&& ivl_expr_type(arr_arg) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(arr_arg)) {
+		  draw_eval_vec4(val_arg);
+		  fprintf(vvp_out, "    %%inside/arr v%p_0;\n", ivl_expr_signal(arr_arg));
+		  return;
+	    }
+	    /* Fallback: push 0 (no match) */
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
 	    return;
       }
       if (strcmp(ivl_expr_name(expr),"$ivl_queue_method$size")==0) {

@@ -122,6 +122,9 @@ static PLI_INT32 sys_value_plusargs_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	  case vpiRealVar:
 	  case vpiTimeVar:
 	  case vpiStringVar:
+	  case vpiClassVar:   /* class property — vpi_put_value() at calltf */
+	  case vpiConstant:   /* constant — calltf skips the write */
+	  case vpiParameter:  /* parameter — calltf skips the write */
 	    break;
 
 	  default:
@@ -378,7 +381,13 @@ static PLI_INT32 sys_value_plusargs_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  assert(0);
 	    }
 
-	    vpi_put_value(vpi_scan(argv), &res, 0, vpiNoDelay);
+	    {
+		  vpiHandle dest = vpi_scan(argv);
+		  PLI_INT32 dtype = vpi_get(vpiType, dest);
+		  /* Constants and parameters cannot receive a value — skip write. */
+		  if (dtype != vpiConstant && dtype != vpiParameter)
+		        vpi_put_value(dest, &res, 0, vpiNoDelay);
+	    }
 	    flag = 1;
 	    break;
       }

@@ -283,6 +283,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%fork",   of_FORK,   2,  {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
       { "%fork/v", of_FORK_V, 2,  {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
       { "%free",   of_FREE,   1,  {OA_VPI_PTR,  OA_NONE,     OA_NONE} },
+      { "%inside/arr", of_INSIDE_ARR, 1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%inv",    of_INV,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%ix/add", of_IX_ADD, 3,  {OA_NUMBER,   OA_BIT1,     OA_BIT2} },
       { "%ix/getv",of_IX_GETV,2,  {OA_BIT1,     OA_FUNC_PTR, OA_NONE} },
@@ -398,6 +399,9 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qpop/o/f/v",   of_QPOP_O_F_V,   1,{OA_BIT1, OA_NONE, OA_NONE} },
       { "%qsize",      of_QSIZE,   1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qsize/o",    of_QSIZE_O, 0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%qsort",      of_QSORT,   1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+      { "%qsort/r",    of_QSORT_R, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+      { "%qunique",    of_QUNIQUE, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%rand_mode",      of_RAND_MODE,       0,{OA_NONE,   OA_NONE,OA_NONE} },
       { "%randomize",      of_RANDOMIZE,      0,{OA_NONE,   OA_NONE,OA_NONE} },
       { "%randomize/with", of_RANDOMIZE_WITH,  2,{OA_STRING, OA_BIT1,OA_NONE} },
@@ -435,6 +439,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%store/prop/r",  of_STORE_PROP_R,  1, {OA_NUMBER,  OA_NONE, OA_NONE} },
       { "%store/prop/str",of_STORE_PROP_STR,1, {OA_NUMBER,  OA_NONE, OA_NONE} },
       { "%store/prop/v",  of_STORE_PROP_V,  2, {OA_NUMBER,  OA_BIT1, OA_NONE} },
+      { "%store/prop/v/bits",of_STORE_PROP_V_BITS,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
       { "%store/prop/v/i",of_STORE_PROP_V_I,3,{OA_NUMBER,  OA_BIT1, OA_BIT2} },
       { "%store/qb/obj", of_STORE_QB_OBJ,  2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
       { "%store/qb/r",   of_STORE_QB_R,    2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
@@ -520,6 +525,35 @@ struct runtime_code_scope_entry_s {
 };
 static std::map<std::string, runtime_code_scope_entry_s> runtime_code_scope_map;
 
+/* Phase 61c: O(1) suffix lookup index for runtime virtual-dispatch.
+   Built lazily on first miss; rebuilt automatically when stale (epoch bump
+   on map insert).  Maps ".<class>.<method>" suffix to a list of full keys
+   sharing that suffix.  If a suffix has exactly one entry, dispatch wins
+   in O(log N).  Tracks an "ambiguous" marker for suffixes with >1 entry,
+   which the original linear scan returned as "no match" anyway. */
+static std::map<std::string, std::vector<std::string> > runtime_code_scope_suffix_index_;
+static size_t runtime_code_scope_suffix_index_size_ = (size_t)-1;
+
+static void runtime_code_scope_suffix_index_rebuild_()
+{
+      runtime_code_scope_suffix_index_.clear();
+      for (std::map<std::string, runtime_code_scope_entry_s>::const_iterator
+                 cur = runtime_code_scope_map.begin()
+                 ; cur != runtime_code_scope_map.end() ; ++cur) {
+            const std::string&key = cur->first;
+            // suffix = ".<class>.<method>" — find second-to-last '.'
+            size_t tail = key.rfind('.');
+            if (tail == std::string::npos || tail == 0)
+                  continue;
+            size_t head = key.rfind('.', tail - 1);
+            if (head == std::string::npos)
+                  continue;
+            std::string suffix = key.substr(head);
+            runtime_code_scope_suffix_index_[suffix].push_back(key);
+      }
+      runtime_code_scope_suffix_index_size_ = runtime_code_scope_map.size();
+}
+
 static bool runtime_lookup_code_scope_by_suffix_(const char*label,
                                                  vvp_code_t*code,
                                                  __vpiScope**scope)
@@ -540,22 +574,31 @@ static bool runtime_lookup_code_scope_by_suffix_(const char*label,
       if (*head != '.')
             return false;
 
-      std::string suffix(head);
-      std::map<std::string, runtime_code_scope_entry_s>::const_iterator match
-            = runtime_code_scope_map.end();
-      for (std::map<std::string, runtime_code_scope_entry_s>::const_iterator cur
-                 = runtime_code_scope_map.begin()
-                 ; cur != runtime_code_scope_map.end() ; ++cur) {
-            const std::string&key = cur->first;
-            if (key.size() < suffix.size())
-                  continue;
-            if (key.compare(key.size() - suffix.size(), suffix.size(), suffix) != 0)
-                  continue;
-            if (match != runtime_code_scope_map.end())
-                  return false;
-            match = cur;
-      }
+      /* _ivl_N names are package-local auto-counters; the same N appears
+         independently in different packages and cannot be used as a
+         globally-unique suffix for dispatch matching. */
+      std::string class_component(head+1, tail);
+      if (class_component.size() >= 4 && class_component.substr(0,4) == "_ivl")
+            return false;
 
+      std::string suffix(head);
+
+      // Phase 61c: rebuild the suffix index if the source map grew.  Common
+      // case after compile: map is stable, this check is one comparison.
+      if (runtime_code_scope_suffix_index_size_ != runtime_code_scope_map.size())
+            runtime_code_scope_suffix_index_rebuild_();
+
+      std::map<std::string, std::vector<std::string> >::const_iterator
+            entries = runtime_code_scope_suffix_index_.find(suffix);
+      if (entries == runtime_code_scope_suffix_index_.end())
+            return false;
+      // Original linear scan returned "no match" if more than one suffix
+      // hit was found (ambiguous).  Mirror that here.
+      if (entries->second.size() != 1)
+            return false;
+
+      std::map<std::string, runtime_code_scope_entry_s>::const_iterator match
+            = runtime_code_scope_map.find(entries->second[0]);
       if (match == runtime_code_scope_map.end())
             return false;
 

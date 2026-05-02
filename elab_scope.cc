@@ -122,6 +122,20 @@ static std::string specialization_perf_base_label_(const netclass_t*base_class)
       if (!base_class)
 	    return "(null)";
 
+      // For interface types, the netclass_t's class_scope_ may be set
+      // lazily (Phase 45) to whichever instance scope happened to be
+      // visible at the time of first method dispatch. That makes the
+      // label time-dependent and breaks the specialization cache: a
+      // `uvm_resource#(virtual <iface>)` reference elaborated before
+      // class_scope_ is attached produces a different key than one
+      // elaborated after, even though both should resolve to the same
+      // specialized netclass_t. Use the bare type name (which is the
+      // interface module name) as the canonical label.
+      if (base_class->is_interface()) {
+	    if (perm_string name = base_class->get_name())
+		  return name.str();
+      }
+
       if (const NetScope*base_scope = base_class->class_scope()) {
 	    if (const PClass*pclass = base_scope->class_pform()) {
 		  std::ostringstream tmp;
@@ -1663,13 +1677,15 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	      // function/task scopes even if full body elaboration is deferred.
 	      use_class->elaborate_sig(des, const_cast<PClass*>(pclass));
 
-      if (elaboration_depth == 0) {
-	    elaboration_depth += 1;
-	    use_class->elaborate(des, const_cast<PClass*>(pclass));
-	    elaboration_depth -= 1;
-      } else {
-	    enqueue_pending_specialized_class_body_(use_class);
-      }
+      // Phase 50: Always queue specialized-class body elaboration.  The
+      // previous code ran depth==0 eagerly, which fires while $unit-level
+      // typedefs are being processed.  At that moment, root MODULE scopes
+      // are present but their bodies haven't elaborated, so child instances
+      // (notably virtual-interface targets) are not yet visible to method
+      // dispatch.  Queueing defers the body until finalize_pending_
+      // specialized_class_elaboration, which runs after all root bodies —
+      // letting interface instances be reachable for method_from_name lookup.
+      enqueue_pending_specialized_class_body_(use_class);
 
       return use_class;
 }
