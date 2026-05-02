@@ -392,6 +392,11 @@ struct interface_type_t : public data_type_t {
       ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
 
       perm_string name;
+      // Phase 63a/A1: optional modport name from `if.modport` port header.
+      // When set, restricts which interface members are accessible
+      // through this port reference.  Currently captured but not yet
+      // enforced — modport direction-checking is a follow-up.
+      perm_string modport;
 };
 
 struct class_type_t : public data_type_t {

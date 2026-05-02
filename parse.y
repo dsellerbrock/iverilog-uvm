@@ -8360,6 +8360,33 @@ port_declaration
 	$$ = module_declare_port(@3, $3, port_declaration_context.port_type,
 			         NetNet::IMPLICIT, $2, $4, $5, $1);
       }
+  /* Phase 63a/A1: interface_port_header form per IEEE 1800 A.2.2.3.
+     `counter_if.master dut_if` — interface_identifier '.' modport_identifier port_identifier.
+     The modport name is recorded for elaboration; a forward-declared
+     interface (IDENTIFIER not yet visible as TYPE_IDENTIFIER) goes
+     through the same path. */
+  | attribute_list_opt TYPE_IDENTIFIER '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { perm_string ifname = lex_strings.make($2.text);
+	interface_type_t*it = new interface_type_t(ifname);
+	it->modport = lex_strings.make($4);
+	FILE_NAME(it, @2);
+	delete[] $2.text;
+	delete[] $4;
+	pform_requires_sv(@5, "interface_port_header");
+	$$ = module_declare_port(@5, $5, port_declaration_context.port_type,
+				 NetNet::IMPLICIT, it, $6, $7, $1);
+      }
+  | attribute_list_opt IDENTIFIER '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { perm_string ifname = lex_strings.make($2);
+	interface_type_t*it = new interface_type_t(ifname);
+	it->modport = lex_strings.make($4);
+	FILE_NAME(it, @2);
+	delete[] $2;
+	delete[] $4;
+	pform_requires_sv(@5, "interface_port_header");
+	$$ = module_declare_port(@5, $5, port_declaration_context.port_type,
+				 NetNet::IMPLICIT, it, $6, $7, $1);
+      }
   | attribute_list_opt port_direction K_wreal IDENTIFIER
       { real_type_t*real_type = new real_type_t(real_type_t::REAL);
 	FILE_NAME(real_type, @3);

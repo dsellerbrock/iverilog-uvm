@@ -348,6 +348,14 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
       if (type->base_type() == IVL_VT_REAL)
 	    return;
 
+      // Phase 63a/A1: allow interface-typed module ports.  Interfaces
+      // elaborate to netclass_t with is_interface()==true; treat them
+      // as a permitted port type even though netclass_t isn't a wire.
+      // Modport direction enforcement is a follow-up.
+      if (const netclass_t*nc = dynamic_cast<const netclass_t*>(type)) {
+	    if (nc->is_interface())
+		  return;
+      }
       if (wire->symbol_type() == PNamedItem::NET) {
 	    cerr << wire->get_fileline() << ": error: Net `"
 	         << wire->basename() << "` can not be of type `"
