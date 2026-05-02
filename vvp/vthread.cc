@@ -1821,6 +1821,71 @@ bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
       return qshuffle_dispatch_(arr);
 }
 
+/* Phase 63b/Q-methods: expression-form q.unique() — return a new
+ * queue (on obj stack) containing each value from q at most once,
+ * in order of first appearance.  Vec4 element type only for now. */
+bool of_QUNIQUE_COPY(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      vvp_object_t src_obj = fun->get_object();
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      if (!src) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      size_t sz = src->get_size();
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      vector<vvp_vector4_t> seen;
+      for (size_t i = 0; i < sz; i += 1) {
+            vvp_vector4_t v;
+            src->get_word((unsigned)i, v);
+            bool found = false;
+            for (auto&s : seen) if (vec4_eq_(v, s)) { found = true; break; }
+            if (!found) { seen.push_back(v); dst->push_back(v, 0); }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
+/* Phase 63b/Q-methods: expression-form q.unique_index() — return a
+ * queue of indices of unique-first elements. */
+bool of_QUNIQUE_IDX(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      vvp_object_t src_obj = fun->get_object();
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      if (!src) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      size_t sz = src->get_size();
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      vector<vvp_vector4_t> seen;
+      for (size_t i = 0; i < sz; i += 1) {
+            vvp_vector4_t v;
+            src->get_word((unsigned)i, v);
+            bool found = false;
+            for (auto&s : seen) if (vec4_eq_(v, s)) { found = true; break; }
+            if (!found) {
+                  seen.push_back(v);
+                  vvp_vector4_t idx_v(32, BIT4_0);
+                  for (unsigned b = 0; b < 32; b++)
+                        if ((i >> b) & 1) idx_v.set_bit(b, BIT4_1);
+                  dst->push_back(idx_v, 0);
+            }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
 bool of_QSORT(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);

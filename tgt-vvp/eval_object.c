@@ -665,6 +665,30 @@ static int eval_object_sfunc(ivl_expr_t expr)
        * Currently handles BOOL/LOGIC element types (the most common
        * case in UVM); REAL/STRING/object-typed queues fall back to
        * an empty result with a one-time advisory warning. */
+      /* Phase 63b/Q-methods (gap close): expression-form q.unique()
+       * and q.unique_index().  Emit a single runtime opcode
+       * %qunique_copy that reads the queue and returns a new
+       * dedup'd copy on the object stack. */
+      if (strncmp(name, "$ivl_queue_method$unique_with|", 30) == 0) {
+	    const char*kind = name + 30;
+	    int is_index = (strstr(kind, "index") != NULL);
+
+	    if (parm_count < 1) {
+		  fprintf(vvp_out, "    %%null; ; unique_with: bad parm count\n");
+		  return 0;
+	    }
+	    ivl_expr_t q_arg = ivl_expr_parm(expr, 0);
+	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(q_arg)) {
+		  fprintf(vvp_out, "    %%null; ; unique_with: bad arg shape\n");
+		  return 0;
+	    }
+	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
+	    fprintf(vvp_out, "    %s v%p_0;\n",
+		    is_index ? "%qunique_idx" : "%qunique_copy", q_sig);
+	    return 0;
+      }
+
       if (strncmp(name, "$ivl_queue_method$find_with|", 28) == 0) {
 	    const char*kind = name + 28;
 	    int is_index = (strstr(kind, "index") != NULL);

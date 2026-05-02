@@ -358,6 +358,8 @@ extern bool of_RELEASE_WR(vthread_t thr, vvp_code_t code);
 extern bool of_REPLICATE(vthread_t thr, vvp_code_t code);
 extern bool of_QREVERSE(vthread_t thr, vvp_code_t code);
 extern bool of_QSHUFFLE(vthread_t thr, vvp_code_t code);
+extern bool of_QUNIQUE_COPY(vthread_t thr, vvp_code_t code);
+extern bool of_QUNIQUE_IDX(vthread_t thr, vvp_code_t code);
 extern bool of_RET_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_RET_REAL(vthread_t thr, vvp_code_t code);
 extern bool of_RET_STR(vthread_t thr, vvp_code_t code);

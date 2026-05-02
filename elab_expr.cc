@@ -6436,8 +6436,20 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    }
       if (method_name == "unique"
 		|| method_name == "unique_index") {
-		  // Compile-progress fallback for uniqueness methods.
-		  // Real implementation deferred.
+		  /* Phase 63b/Q-methods (gap close): emit a runtime
+		     %qunique_copy / %qunique_idx opcode that returns
+		     a dedup'd copy.  Only enable when the queue
+		     receiver is a simple signal — UVM has property-
+		     based queue uses where this expression form
+		     interferes with sequencer scheduling. */
+		  if (NetESignal*qsig = dynamic_cast<NetESignal*>(sub_expr)) {
+			(void)qsig;
+			string mangled = string("$ivl_queue_method$unique_with|") + method_name.str();
+			NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 1);
+			fn->parm(0, sub_expr);
+			fn->set_line(*this);
+			return fn;
+		  }
 		  delete sub_expr;
 		  NetENull*tmp = new NetENull();
 		  tmp->set_line(*this);
