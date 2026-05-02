@@ -2451,6 +2451,8 @@ extern unsigned ivl_type_covgrp_bin_cp(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_bin_prop(ivl_type_t net, int idx);
 extern uint64_t ivl_type_covgrp_bin_lo(ivl_type_t net, int idx);
 extern uint64_t ivl_type_covgrp_bin_hi(ivl_type_t net, int idx);
+/* I1 (Phase 62o): 0=normal counted bin, 1=ignore_bin (excluded), 2=illegal_bin (errors). */
+extern unsigned ivl_type_covgrp_bin_kind(ivl_type_t net, int idx);
 
 
 #if defined(__MINGW32__) || defined (__CYGWIN__)

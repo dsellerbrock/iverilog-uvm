@@ -2693,16 +2693,26 @@ bins_item
 	$$ = b;
       }
   | K_ignore_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
-      { delete[] $2;
-	for (auto& r : *$7) { delete r.lo; delete r.hi; }
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = class_type_t::pform_cov_bins_t::BIN_IGNORE;
+	delete[] $2;
+	for (auto& r : *$7) {
+	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	}
 	delete $7;
-	$$ = nullptr;
+	$$ = b;
       }
   | K_illegal_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
-      { delete[] $2;
-	for (auto& r : *$7) { delete r.lo; delete r.hi; }
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = class_type_t::pform_cov_bins_t::BIN_ILLEGAL;
+	delete[] $2;
+	for (auto& r : *$7) {
+	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	}
 	delete $7;
-	$$ = nullptr;
+	$$ = b;
       }
   /* bins name[count] = { ... } with (cond); — indexed bins, ignore count+cond */
   | K_bins bins_name '[' expression ']' '=' '{' inside_range_list '}' ';'
@@ -2731,16 +2741,26 @@ bins_item
 	$$ = b;
       }
   | K_ignore_bins bins_name '=' '{' inside_range_list '}' ';'
-      { delete[] $2;
-	for (auto& r : *$5) { delete r.lo; delete r.hi; }
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = class_type_t::pform_cov_bins_t::BIN_IGNORE;
+	delete[] $2;
+	for (auto& r : *$5) {
+	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	}
 	delete $5;
-	$$ = nullptr;
+	$$ = b;
       }
   | K_illegal_bins bins_name '=' '{' inside_range_list '}' ';'
-      { delete[] $2;
-	for (auto& r : *$5) { delete r.lo; delete r.hi; }
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = class_type_t::pform_cov_bins_t::BIN_ILLEGAL;
+	delete[] $2;
+	for (auto& r : *$5) {
+	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	}
 	delete $5;
-	$$ = nullptr;
+	$$ = b;
       }
   /* Transition bins: bins b = (val => val), ...; — one or more sequences */
   | K_bins bins_name '=' transition_seq_list ';'

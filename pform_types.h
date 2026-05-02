@@ -439,8 +439,10 @@ struct class_type_t : public data_type_t {
 
 	// Coverage group definitions (class-embedded covergroups).
       struct pform_cov_bins_t {
+	    enum kind_t { BIN_NORMAL, BIN_IGNORE, BIN_ILLEGAL };
 	    perm_string name;
 	    std::vector<std::pair<PExpr*, PExpr*>> ranges; // [lo, hi] pairs
+	    kind_t kind = BIN_NORMAL; // I1 (Phase 62o): ignore_bins/illegal_bins
       };
       struct pform_coverpoint_t {
 	    perm_string label;  // coverpoint label (or same as expr name)

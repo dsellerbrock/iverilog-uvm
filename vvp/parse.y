@@ -950,6 +950,8 @@ class_property
       { compile_class_constraint($2, $3); }
   | K_COVGRP_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_bin($2, $3, $4, $5); }
+  | K_COVGRP_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER
+      { compile_class_covgrp_bin($2, $3, $4, $5, $6); }
   ;
 
 /*

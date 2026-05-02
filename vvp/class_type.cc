@@ -1337,22 +1337,23 @@ void compile_class_constraint(char*name, char*ir)
 }
 
 void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,
-				uint64_t lo, uint64_t hi)
+				uint64_t lo, uint64_t hi, unsigned kind)
 {
       cov_bin_t b;
       b.cp_idx   = cp_idx;
       b.prop_idx = prop_idx;
       b.lo       = lo;
       b.hi       = hi;
+      b.kind     = kind;
       covgrp_bins_.push_back(b);
 }
 
 void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
-			      uint64_t lo, uint64_t hi)
+			      uint64_t lo, uint64_t hi, uint64_t kind)
 {
       assert(compile_class);
       compile_class->add_covgrp_bin((unsigned)cp_idx, (unsigned)prop_idx,
-				    lo, hi);
+				    lo, hi, (unsigned)kind);
 }
 
 void compile_class_done(void)

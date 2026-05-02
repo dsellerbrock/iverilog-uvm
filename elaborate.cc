@@ -9940,6 +9940,17 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cg_class->add_covgrp_cp_parent_prop(parent_prop);
 
 			  for (auto& bin : cp.bins) {
+				// I1 (Phase 62o): ignore_bins are excluded
+				// from coverage entirely — drop them now so
+				// they don't affect prop_idx layout or the
+				// runtime sample/coverage logic.
+				if (bin.kind == class_type_t::pform_cov_bins_t::BIN_IGNORE)
+				      continue;
+
+				unsigned bkind = 0;
+				if (bin.kind == class_type_t::pform_cov_bins_t::BIN_ILLEGAL)
+				      bkind = 2;
+
 				// Add one int32 property for this bin's hit count
 				string bpname = string("__bin_")
 						+ string(cp.label)
@@ -9964,7 +9975,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      if (lo_c && hi_c) {
 					    uint64_t lo = lo_c->value().as_ulong64();
 					    uint64_t hi = hi_c->value().as_ulong64();
-					    cg_class->add_covgrp_bin(cp_idx, prop_idx, lo, hi);
+					    cg_class->add_covgrp_bin(cp_idx, prop_idx, lo, hi, bkind);
 				      }
 				      delete lo_e;
 				      delete hi_e;

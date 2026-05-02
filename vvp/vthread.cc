@@ -2029,6 +2029,7 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       for (auto& kv : by_prop) {
 	    unsigned prop_idx = kv.first;
 	    bool all_match = true;
+	    bool is_illegal = false;
 	    for (size_t bi : kv.second) {
 		  const class_type::cov_bin_t& bin = defn->covgrp_bin(bi);
 		  if (bin.cp_idx >= ncp) { all_match = false; break; }
@@ -2037,8 +2038,19 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 			all_match = false;
 			break;
 		  }
+		  if (bin.kind == 2)
+			is_illegal = true;
 	    }
 	    if (!all_match) continue;
+
+	    // I1 (Phase 62o): illegal_bins fire an error on match
+	    // before incrementing the counter.  We use a plain stderr
+	    // message so the test infra can detect via grep — UVM's
+	    // uvm_report_error is unavailable from runtime context here.
+	    if (is_illegal) {
+		  std::cerr << "ERROR: covergroup illegal_bin matched"
+			    << " (prop_idx=" << prop_idx << ")" << std::endl;
+	    }
 
 	    vvp_vector4_t cur(32, BIT4_0);
 	    cobj->get_vec4(prop_idx, cur);
@@ -2077,7 +2089,13 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 		  std::set<unsigned> unique_props;
 		  std::set<unsigned> hit_props;
 		  for (size_t bi = 0 ; bi < nbins ; bi += 1) {
-			unsigned prop_idx = defn->covgrp_bin(bi).prop_idx;
+			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+			// I1 (Phase 62o): exclude illegal_bins from
+			// coverage denominator — they shouldn't be hit
+			// and counting them just skews the percentage.
+			// (ignore_bins are stripped at elaborate time.)
+			if (bin.kind == 2) continue;
+			unsigned prop_idx = bin.prop_idx;
 			unique_props.insert(prop_idx);
 			if (hit_props.count(prop_idx)) continue;
 			vvp_vector4_t cur(32, BIT4_0);
@@ -2089,8 +2107,10 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 			      }
 			}
 		  }
-		  result = (double)hit_props.size() /
-			   (double)unique_props.size() * 100.0;
+		  if (unique_props.size() > 0) {
+			result = (double)hit_props.size() /
+				 (double)unique_props.size() * 100.0;
+		  }
 	    }
       }
       thr->push_real(result);

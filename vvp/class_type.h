@@ -120,8 +120,11 @@ class class_type : public __vpiHandle {
 	    unsigned prop_idx;
 	    uint64_t lo;
 	    uint64_t hi;
+	    // I1 (Phase 62o): 0=normal, 1=ignore, 2=illegal.
+	    unsigned kind = 0;
       };
-      void add_covgrp_bin(unsigned cp_idx, unsigned prop_idx, uint64_t lo, uint64_t hi);
+      void add_covgrp_bin(unsigned cp_idx, unsigned prop_idx, uint64_t lo, uint64_t hi,
+			  unsigned kind = 0);
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
       bool is_covergroup() const { return !covgrp_bins_.empty(); }
