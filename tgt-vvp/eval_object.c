@@ -703,18 +703,41 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    if (iter_wid == 0) iter_wid = 32;
 	    ivl_variable_type_t bt = ivl_type_base(iter_type);
 
-	    /* Only integer-element queues (BOOL/LOGIC) supported in this
-	     * pass.  Other element types fall back to empty with warning. */
-	    if (bt != IVL_VT_BOOL && bt != IVL_VT_LOGIC) {
+	    /* Per-element-type bytecode shape:
+	     *   load_elem    — fetch q[idx] onto the appropriate stack
+	     *   store_iter   — pop and store into iter_sig
+	     *   reload_iter  — push iter_sig back (predicate may consume it)
+	     *   store_result — pop value and append to result queue
+	     * For find_index variants the result is always a queue of
+	     * int32 indices, so the result encoding is "sb32" with v-form
+	     * %store/qb/v regardless of the element type. */
+	    const char*result_enc;
+	    char elem_enc_buf[32];
+	    if (is_index) {
+		  result_enc = "sb32";
+	    } else if (bt == IVL_VT_BOOL || bt == IVL_VT_LOGIC) {
+		  const char*sgn = ivl_type_signed(iter_type) ? "s" : "";
+		  const char*type_enc = (bt == IVL_VT_BOOL) ? "b" : "v";
+		  snprintf(elem_enc_buf, sizeof elem_enc_buf, "%s%s%u",
+			   sgn, type_enc, iter_wid);
+		  result_enc = elem_enc_buf;
+	    } else if (bt == IVL_VT_REAL) {
+		  result_enc = "r";
+	    } else if (bt == IVL_VT_STRING) {
+		  result_enc = "S";
+	    } else if (bt == IVL_VT_CLASS || bt == IVL_VT_DARRAY
+		       || bt == IVL_VT_QUEUE || bt == IVL_VT_NO_TYPE) {
+		  result_enc = "o";
+	    } else {
 		  static int warned_unsupp = 0;
 		  if (!warned_unsupp) {
-			fprintf(stderr, "Warning: %s on non-integer queue element type %d"
-				" not yet supported (compile-progress: empty result;"
+			fprintf(stderr, "Warning: %s on unrecognized queue element"
+				" type %d (compile-progress: empty result;"
 				" further similar warnings suppressed)\n",
 				name, (int)bt);
 			warned_unsupp = 1;
 		  }
-		  fprintf(vvp_out, "    %%null; ; find_with: non-int element type\n");
+		  fprintf(vvp_out, "    %%null; ; find_with: unknown element type\n");
 		  return 0;
 	    }
 
@@ -722,18 +745,12 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    unsigned lab_end = local_count++;
 	    unsigned lab_skip = local_count++;
 	    int pred_flag = allocate_flag();
-	    const char*sgn = ivl_type_signed(iter_type) ? "s" : "";
-	    const char*type_enc = (bt == IVL_VT_BOOL) ? "b" : "v";
-	    char enc_buf[32];
-	    snprintf(enc_buf, sizeof enc_buf, "%s%s%u",
-		     sgn, type_enc, iter_wid);
 
-	    /* result_sig = empty queue/darray of element type */
+	    /* result_sig = empty queue of result element type.
+	     * %new/queue takes a single string operand.  ix5 is also
+	     * used as the max-size bound for %store/qb/* (0 = unbounded). */
 	    fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
-	    if (is_index)
-		  fprintf(vvp_out, "    %%new/darray 5, \"sb32\";\n");
-	    else
-		  fprintf(vvp_out, "    %%new/darray 5, \"%s\";\n", enc_buf);
+	    fprintf(vvp_out, "    %%new/queue \"%s\";\n", result_enc);
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", result_sig);
 
 	    /* idx_sig = 0 */
@@ -749,12 +766,24 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
 		    thread_count, lab_end);
 
-	    /* iter_sig = q[idx_sig] */
+	    /* iter_sig = q[idx_sig] — type-specific load/store pair */
 	    fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
-	    fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", q_sig);
-	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", iter_sig, iter_wid);
+	    if (bt == IVL_VT_BOOL || bt == IVL_VT_LOGIC) {
+		  fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", q_sig);
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+			  iter_sig, iter_wid);
+	    } else if (bt == IVL_VT_REAL) {
+		  fprintf(vvp_out, "    %%load/dar/r v%p_0;\n", q_sig);
+		  fprintf(vvp_out, "    %%store/real v%p_0;\n", iter_sig);
+	    } else if (bt == IVL_VT_STRING) {
+		  fprintf(vvp_out, "    %%load/dar/str v%p_0;\n", q_sig);
+		  fprintf(vvp_out, "    %%store/str v%p_0;\n", iter_sig);
+	    } else { /* CLASS/DARRAY/QUEUE/NO_TYPE — handle via obj */
+		  fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", q_sig);
+		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", iter_sig);
+	    }
 
-	    /* Evaluate predicate */
+	    /* Evaluate predicate (always returns a vec4 boolean) */
 	    draw_eval_vec4(pred);
 	    if (ivl_expr_width(pred) > 1)
 		  fprintf(vvp_out, "    %%or/r;\n");
@@ -762,16 +791,25 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
 		    thread_count, lab_skip, pred_flag);
 
-	    /* Push q[idx] (or idx) into result_sig.  %store/qb/v
-	     * pops the value; max-size in word reg 5 is already 0. */
+	    /* Push q[idx] (or idx) into result_sig.  Index variants always
+	     * push the int32 idx onto a vec4 queue. */
 	    if (is_index) {
 		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
 		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, 32;\n", result_sig);
-	    } else {
+	    } else if (bt == IVL_VT_BOOL || bt == IVL_VT_LOGIC) {
 		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
 		  fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", q_sig);
 		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, %u;\n",
 			  result_sig, iter_wid);
+	    } else if (bt == IVL_VT_REAL) {
+		  fprintf(vvp_out, "    %%load/real v%p_0;\n", iter_sig);
+		  fprintf(vvp_out, "    %%store/qb/r v%p_0, 5;\n", result_sig);
+	    } else if (bt == IVL_VT_STRING) {
+		  fprintf(vvp_out, "    %%load/str v%p_0;\n", iter_sig);
+		  fprintf(vvp_out, "    %%store/qb/str v%p_0, 5;\n", result_sig);
+	    } else { /* CLASS/DARRAY/QUEUE/NO_TYPE — store handle via obj */
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", iter_sig);
+		  fprintf(vvp_out, "    %%store/qb/obj v%p_0, 5;\n", result_sig);
 	    }
 
 	    if (stop_first)

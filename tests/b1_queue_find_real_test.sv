@@ -4,14 +4,24 @@
 //
 // This replaces the silent-null compile-progress fallback that
 // landed in commit 2566a0aec.
+//
+// Coverage:
+//   T1-T6 : int element queues
+//   T7    : real element queues
+//   T8    : string element queues
+//   T9    : class-handle element queues
 `timescale 1ns/1ps
+
+class my_obj;
+  int data;
+  function new(int d); data = d; endfunction
+endclass
 
 module top;
   initial begin
     int q[$];
     int found[$];
     int idx[$];
-    int n;
 
     q.push_back(10);
     q.push_back(25);
@@ -48,7 +58,47 @@ module top;
     if (found.size() != 0)
       $fatal(1, "FAIL/T6: expected empty got size=%0d", found.size());
 
-    $display("PASS: queue find/find_index/find_first* with predicate");
+    // Test 7: real element queue
+    begin
+      real rq[$];
+      real rf[$];
+      rq.push_back(1.5);
+      rq.push_back(2.7);
+      rq.push_back(3.9);
+      rf = rq.find with (item > 2.0);
+      if (rf.size() != 2 || rf[0] != 2.7 || rf[1] != 3.9)
+	$fatal(1, "FAIL/T7: expected [2.7,3.9] got size=%0d", rf.size());
+    end
+
+    // Test 8: string element queue
+    begin
+      string sq[$];
+      string sf[$];
+      sq.push_back("alpha");
+      sq.push_back("beta");
+      sq.push_back("gamma");
+      sf = sq.find with (item == "beta");
+      if (sf.size() != 1 || sf[0] != "beta")
+	$fatal(1, "FAIL/T8: expected [beta] got size=%0d", sf.size());
+    end
+
+    // Test 9: class-handle element queue
+    begin
+      my_obj cq[$];
+      my_obj cf[$];
+      my_obj o0, o1, o2;
+      o0 = new(7);
+      o1 = new(42);
+      o2 = new(13);
+      cq.push_back(o0);
+      cq.push_back(o1);
+      cq.push_back(o2);
+      cf = cq.find with (item.data == 42);
+      if (cf.size() != 1 || cf[0] == null || cf[0].data !== 42)
+	$fatal(1, "FAIL/T9: expected [obj(42)] got size=%0d", cf.size());
+    end
+
+    $display("PASS: queue find with predicate (int/real/string/class)");
     $finish;
   end
 endmodule

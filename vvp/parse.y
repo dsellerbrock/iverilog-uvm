@@ -767,14 +767,28 @@ statement
   | T_LABEL K_VAR_R storage_flag T_STRING ',' signed_t_number signed_t_number ';'
       { compile_var_real($1, $4, $3); }
 
+  /* Phase 63b/B1 (real impl): tgt-vvp emits the local_flag prefix
+     (`*`) on synthetic iter NetNets for non-vector types (real/str/
+     queue/cobj/darray); accept it here so the produced bytecode
+     parses.  The flag is consumed but not used for anything beyond
+     scope-dump suppression. */
+  | T_LABEL K_VAR_R local_flag storage_flag T_STRING ',' signed_t_number signed_t_number ';'
+      { (void)$3; compile_var_real($1, $5, $4); }
+
   | T_LABEL K_VAR_STR storage_flag T_STRING ';'
       { compile_var_string($1, $4, $3); }
+  | T_LABEL K_VAR_STR local_flag storage_flag T_STRING ';'
+      { (void)$3; compile_var_string($1, $5, $4); }
 
   | T_LABEL K_VAR_DARRAY storage_flag T_STRING ',' T_NUMBER ';'
       { compile_var_darray($1, $4, $6, $3); }
+  | T_LABEL K_VAR_DARRAY local_flag storage_flag T_STRING ',' T_NUMBER ';'
+      { (void)$3; compile_var_darray($1, $5, $7, $4); }
 
   | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER';'
       { compile_var_queue($1, $4, $6, 0, $3); }
+  | T_LABEL K_VAR_QUEUE local_flag storage_flag T_STRING  ',' T_NUMBER';'
+      { (void)$3; compile_var_queue($1, $5, $7, 0, $4); }
 
   | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER ',' T_STRING ';'
       {
@@ -782,12 +796,23 @@ statement
             delete[] $8;
             compile_var_queue($1, $4, $6, queue_type, $3);
       }
+  | T_LABEL K_VAR_QUEUE local_flag storage_flag T_STRING  ',' T_NUMBER ',' T_STRING ';'
+      {
+            char*queue_type = $9 ? strdup($9) : 0;
+            delete[] $9;
+            (void)$3;
+            compile_var_queue($1, $5, $7, queue_type, $4);
+      }
 
   | T_LABEL K_VAR_COBJECT storage_flag T_STRING ';'
       { compile_var_cobject($1, $4, 0, $3); }
+  | T_LABEL K_VAR_COBJECT local_flag storage_flag T_STRING ';'
+      { (void)$3; compile_var_cobject($1, $5, 0, $4); }
 
   | T_LABEL K_VAR_COBJECT storage_flag T_STRING ',' T_SYMBOL ';'
       { compile_var_cobject($1, $4, $6, $3); }
+  | T_LABEL K_VAR_COBJECT local_flag storage_flag T_STRING ',' T_SYMBOL ';'
+      { (void)$3; compile_var_cobject($1, $5, $7, $4); }
 
   /* Net statements are similar to .var statements, except that they
      declare nets, and they have an input list. */
