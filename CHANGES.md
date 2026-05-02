@@ -920,15 +920,17 @@ The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remai
 - Streaming operators `{<<{}}` `{>>{}}`: silently produce zero
 - `std::randomize(var) with {...}`: `with` clause not parsed
 - `uvm_resource_db#(T)::set/read_by_name`: typed-pool path returns 0.
-  **Phase 62 (C3 partial):** root cause is a runtime type mismatch — the
-  pool's class-keyed assoc-array (`bit children_array[uvm_sequence_base]`
-  and similar) is stored as `vvp_assoc_map<vvp_vector4_t>` (because the
-  VALUE is bit) but the access path inside `read_by_name` expects
-  `vvp_assoc_map<vvp_object_t>`.  Diagnostic (commit 9da3b4e9c) prints
-  the actual vs expected types in the warning so downstream investigation
-  has data.  A full fix needs multi-line elaboration changes to emit
-  the right typed lookup opcode for each access; deferred.  Reproducer:
-  /tmp/audit/c3_resource_db.sv.
+  **Phase 62 (C3 partial):** root cause is a runtime template-specialization
+  mismatch on assoc-array containers — `vvp_assoc_map<vvp_vector4_t>`
+  found where `vvp_assoc_map<vvp_object_t>` was expected.  Mitigation
+  (Phase 62m): runtime warnings silenced (env-traced via
+  `IVL_ASSOC_TYPE_TRACE`); read paths return null on mismatch (which
+  is the SV "key-not-found" semantic); writes go through
+  `ensure_signal_assoc_<ASSOC>` which creates a fresh container of the
+  right type.  This stops the noise but does not restore set/read
+  functionality — that needs identifying which elaboration site
+  emits the wrong-typed assoc and fixing the type-emit path.
+  Reproducer: /tmp/audit/c3_resource_db.sv (still returns ok=0).
 - `uvm_cmdline_processor.get_args(args)`: ✅ **Phase 62 (C4 fix):** the
   bug was at runtime, not elaboration: `string foo(int)` DPI imports
   were calling `pop_str()` for the int argument, underflowing the str

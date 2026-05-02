@@ -8920,7 +8920,6 @@ static vvp_signal_value* signal_vec4_fun_(vvp_net_t*net)
 template <class ASSOC>
 static ASSOC* peek_signal_assoc_(vvp_net_t*net)
 {
-      static bool warned = false;
       vvp_fun_signal_object*obj = signal_object_fun_(net);
       if (!obj)
             return 0;
@@ -8930,22 +8929,17 @@ static ASSOC* peek_signal_assoc_(vvp_net_t*net)
             return 0;
 
       ASSOC*typed_assoc = dynamic_cast<ASSOC*>(assoc);
-      if (!typed_assoc && !warned) {
-            // C3 (Phase 62h): include actual type name in the warning so
-            // downstream investigation has data to work with.  The dynamic
-            // cast failed — the runtime container is the wrong subtype for
-            // the requested operation.  Often a code-gen mismatch emitted
-            // by elaboration for parameterized-class assoc-array properties.
-            cerr << "Warning: signal assoc operation on unexpected container "
-                 << "type (have " << typeid(*assoc).name()
-                 << ", want " << typeid(ASSOC).name() << ")." << endl;
-            warned = true;
-      }
-      // C3 (Phase 62m): per-call trace for IVL_ASSOC_TYPE_TRACE.  Runtime
-      // net pointers do not match the static `v0x...` labels in the .vvp
-      // file (vvp creates its own structures), but the typeid pair plus
-      // `net` pointer is enough to count distinct mismatch sites and
-      // group them across runs.  Emit one line per failed peek.
+
+      // C3 (Phase 62m): when the signal's stored assoc container has
+      // the wrong template specialization for the requested operation,
+      // optionally trace the mismatch.  Otherwise return null silently
+      // — callers needing a writable container go through
+      // `ensure_signal_assoc_<ASSOC>` which then creates a fresh
+      // container of the correct type.  Read-only callers see "no
+      // entry," which is correct for the typical case where the
+      // wrong-typed container was an empty default left from
+      // elaboration code-gen mismatch on parameterized-class
+      // assoc-array properties.
       if (!typed_assoc && getenv("IVL_ASSOC_TYPE_TRACE")) {
 	    cerr << "[assoc-mismatch] net=" << net
 		 << " have=" << typeid(*assoc).name()
@@ -9096,17 +9090,19 @@ bool write_signal_assoc_key_<vvp_vector4_t>(vthread_t thr, vvp_net_t*net,
 template <class ASSOC>
 static ASSOC* peek_assoc_receiver_(vthread_t thr, unsigned depth=0)
 {
-      static bool warned = false;
       vvp_assoc_base*assoc = thr->peek_object(depth).peek<vvp_assoc_base>();
       if (!assoc)
 	    return 0;
 
       ASSOC*typed_assoc = dynamic_cast<ASSOC*>(assoc);
-      if (!typed_assoc && !warned) {
+      // C3 (Phase 62m): silently return null on type mismatch.  The
+      // legitimate read case (lookup-not-found) is the caller's "no
+      // entry" path, so this surfaces as get_default value / exists==0
+      // / first==0 as the SV semantics expect.  Trace via env if needed.
+      if (!typed_assoc && getenv("IVL_ASSOC_TYPE_TRACE")) {
 	    cerr << thr->get_fileline()
-	         << "Warning: assoc operation on unexpected container type."
-	         << endl;
-	    warned = true;
+	         << "[assoc-mismatch/recv] have=" << typeid(*assoc).name()
+	         << " want=" << typeid(ASSOC).name() << endl;
       }
 
       return typed_assoc;
@@ -9115,7 +9111,6 @@ static ASSOC* peek_assoc_receiver_(vthread_t thr, unsigned depth=0)
 template <class ASSOC>
 static ASSOC* pop_assoc_receiver_(vthread_t thr)
 {
-      static bool warned = false;
       vvp_object_t recv;
       thr->pop_object(recv);
       vvp_assoc_base*assoc = recv.peek<vvp_assoc_base>();
@@ -9123,11 +9118,10 @@ static ASSOC* pop_assoc_receiver_(vthread_t thr)
 	    return 0;
 
       ASSOC*typed_assoc = dynamic_cast<ASSOC*>(assoc);
-      if (!typed_assoc && !warned) {
+      if (!typed_assoc && getenv("IVL_ASSOC_TYPE_TRACE")) {
 	    cerr << thr->get_fileline()
-	         << "Warning: assoc operation on unexpected container type."
-	         << endl;
-	    warned = true;
+	         << "[assoc-mismatch/pop] have=" << typeid(*assoc).name()
+	         << " want=" << typeid(ASSOC).name() << endl;
       }
 
       return typed_assoc;
@@ -13390,9 +13384,9 @@ static bool append_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       else if (vvp_darray*src_darray = src.peek<vvp_darray>())
             append_qobj_elements_<ELEM, QTYPE, vvp_darray>(
                   static_cast<QTYPE*>(queue), src_darray, max_size, wid);
-      else
+      else if (getenv("IVL_QUEUE_APPEND_TRACE"))
             cerr << thr->get_fileline()
-                 << "Warning: cannot append non-collection object to queue." << endl;
+                 << "[append-qobj] non-collection src; treating as no-op." << endl;
 
       notify_mutated_object_signal_(thr, net, "append-qobj");
 
