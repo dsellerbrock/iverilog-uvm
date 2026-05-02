@@ -344,10 +344,18 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
       }
 
       if (!function_argument_actual_signal_(actual, &sig, &word)) {
+	    /* Phase 63b/B6: surface the file:line of the call site so
+	       users can find and rewrite affected callers.  The runtime
+	       behavior is unchanged — the copy-out is still silently
+	       skipped — but the diagnostic is now actionable. */
 	    if (!warned_unsupported_copy_out) {
+		  const char*f = ivl_expr_file(actual);
+		  unsigned ln = ivl_expr_lineno(actual);
 		  fprintf(stderr,
-		          "Warning: Skipping unsupported function copy-out argument for %s"
-		          " (further similar warnings suppressed)\n",
+		          "%s:%u: warning: Skipping unsupported function copy-out"
+		          " argument for `%s' (further similar warnings"
+		          " suppressed)\n",
+		          f ? f : "<unknown>", ln,
 		          ivl_signal_basename(port));
 		  warned_unsupported_copy_out = 1;
 	    }
