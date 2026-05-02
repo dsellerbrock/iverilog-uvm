@@ -18,11 +18,17 @@ PASS=0
 FAIL=0
 SKIP=0
 
-# Tests with known pre-existing issues (not regressions introduced by this fork)
-# plusargs_class_string_test exercises +UVM_TESTNAME-style plusarg parsing
-# and depends on runtime args not provided by this script.
-# string_ternary_test was fixed in Phase 63a/A2.
-KNOWN_FAIL="vif_smoke vif_smoke_v2 plusargs_class_string_test"
+# Tests with known pre-existing issues (not regressions introduced by this fork).
+# Phase 63b/skipped-tests cleanup (2026-05-02) — vif_smoke and vif_smoke_v2
+# rewritten to use proper UVM sequence/sequencer API; plusargs test now
+# receives required +args via PLUSARGS table below.
+KNOWN_FAIL=""
+
+# Per-test plusargs.  Tests that need runtime args list them here so the
+# vvp invocation can supply them.  Format: "<name>:+arg1+arg2 ...".
+declare -A PLUSARGS=(
+    [plusargs_class_string_test]="+MY_TESTNAME=hello +MY_SEED=42"
+)
 
 compile_test() {
     local name="$1"
@@ -34,11 +40,12 @@ compile_test() {
 run_test() {
     local name="$1"
     local cfile="$TESTS/${name}.c"
+    local extra="${PLUSARGS[$name]}"
     if [ -f "$cfile" ]; then
         gcc -shared -fPIC -o "/tmp/uvm_dpi_${name}.so" "$cfile" 2>/dev/null
-        timeout 60 $VVP -d "/tmp/uvm_dpi_${name}.so" "/tmp/uvm_test_${name}.vvp" 2>&1 || true
+        timeout 60 $VVP -d "/tmp/uvm_dpi_${name}.so" "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
     else
-        timeout 60 $VVP "/tmp/uvm_test_${name}.vvp" 2>&1 || true
+        timeout 60 $VVP "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
     fi
 }
 

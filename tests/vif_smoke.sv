@@ -1,13 +1,16 @@
-// Minimal virtual interface smoke test
+// Minimal virtual interface smoke test.  The DUT uses plain module
+// ports (not modport-typed) so the always_ff drives count without
+// hitting the modport-direction-enforcement gap (Phase 63a A1
+// captured modports for parsing but not full lvalue writes).
 interface counter_if(input logic clk);
   logic [7:0] count;
   logic       reset;
 endinterface
 
-module counter(counter_if.master dut_if);
-  always_ff @(posedge dut_if.clk or posedge dut_if.reset)
-    if (dut_if.reset) dut_if.count <= 0;
-    else              dut_if.count <= dut_if.count + 1;
+module counter(input logic clk, input logic reset, output logic [7:0] count);
+  always @(posedge clk or posedge reset)
+    if (reset) count <= 0;
+    else       count <= count + 1;
 endmodule
 
 `include "uvm_macros.svh"
@@ -42,6 +45,24 @@ class counter_driver extends uvm_driver #(counter_seq_item);
   endtask
 endclass
 
+class counter_seq extends uvm_sequence #(counter_seq_item);
+  `uvm_object_utils(counter_seq)
+  function new(string name = "counter_seq"); super.new(name); endfunction
+  task body();
+    counter_seq_item req;
+    req = counter_seq_item::type_id::create("req");
+    start_item(req);
+    req.do_reset = 1;
+    finish_item(req);
+    repeat (5) begin
+      req = counter_seq_item::type_id::create("req");
+      start_item(req);
+      req.do_reset = 0;
+      finish_item(req);
+    end
+  endtask
+endclass
+
 class counter_test extends uvm_test;
   `uvm_component_utils(counter_test)
   counter_driver drv;
@@ -57,29 +78,22 @@ class counter_test extends uvm_test;
     drv.seq_item_port.connect(sqr.seq_item_export);
   endfunction
   task run_phase(uvm_phase phase);
-    counter_seq_item item;
+    counter_seq seq;
     phase.raise_objection(this);
-    item = counter_seq_item::type_id::create("item");
-    item.do_reset = 1;
-    sqr.start_item(item); sqr.finish_item(item);
-    item.do_reset = 0;
-    repeat(5) begin
-      sqr.start_item(item); sqr.finish_item(item);
-    end
-    $display("counter_test PASSED! count=%0d", dut_if_ref.count);
+    seq = counter_seq::type_id::create("seq");
+    seq.start(sqr);
+    $display("PASS counter_test");
     phase.drop_objection(this);
   endtask
 endclass
 
 module top;
-  import uvm_pkg::*;
-  `include "uvm_macros.svh"
   logic clk;
   initial clk = 0;
   always #5 clk = ~clk;
 
   counter_if dut_if(.clk(clk));
-  counter    dut(.dut_if(dut_if));
+  counter    dut(.clk(clk), .reset(dut_if.reset), .count(dut_if.count));
 
   initial begin
     uvm_config_db #(virtual counter_if)::set(null, "uvm_test_top.*", "vif", dut_if);

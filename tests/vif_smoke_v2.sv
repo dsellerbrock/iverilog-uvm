@@ -42,6 +42,24 @@ class counter_driver extends uvm_driver #(counter_seq_item);
   endtask
 endclass
 
+class counter_seq extends uvm_sequence #(counter_seq_item);
+  `uvm_object_utils(counter_seq)
+  function new(string name = "counter_seq"); super.new(name); endfunction
+  task body();
+    counter_seq_item req;
+    req = counter_seq_item::type_id::create("req");
+    start_item(req);
+    req.do_reset = 1;
+    finish_item(req);
+    repeat (5) begin
+      req = counter_seq_item::type_id::create("req");
+      start_item(req);
+      req.do_reset = 0;
+      finish_item(req);
+    end
+  endtask
+endclass
+
 class counter_test extends uvm_test;
   `uvm_component_utils(counter_test)
   counter_driver drv;
@@ -57,16 +75,11 @@ class counter_test extends uvm_test;
     drv.seq_item_port.connect(sqr.seq_item_export);
   endfunction
   task run_phase(uvm_phase phase);
-    counter_seq_item item;
+    counter_seq seq;
     phase.raise_objection(this);
-    item = counter_seq_item::type_id::create("item");
-    item.do_reset = 1;
-    sqr.start_item(item); sqr.finish_item(item);
-    item.do_reset = 0;
-    repeat(5) begin
-      sqr.start_item(item); sqr.finish_item(item);
-    end
-    $display("counter_test PASSED! count=%0d", dut_if_ref.count);
+    seq = counter_seq::type_id::create("seq");
+    seq.start(sqr);
+    $display("PASS counter_test");
     phase.drop_objection(this);
   endtask
 endclass
