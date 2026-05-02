@@ -12105,10 +12105,17 @@ statement_item /* This is roughly statement_item in the LRM */
       }
 
 	| subroutine_call K_with '(' expression ')' ';'
-	      { /* Temporary parse-only support for array method sort/rsort with-clauses
-		   used as standalone statements. */
+	      { /* Phase 63b/Q-methods (gap close): attach the with-
+		   clause to the PCallTask so sort/rsort/unique can use
+		   it as a key extractor.  $1 is the call statement. */
 		pform_requires_sv(@2, "Method with-clause");
-		delete $4;
+		if (auto*ct = dynamic_cast<PCallTask*>($1)) {
+		      std::vector<PExpr*> wc;
+		      wc.push_back($4);
+		      ct->set_with_constraints(std::move(wc));
+		} else {
+		      delete $4;
+		}
 		$$ = $1;
 	      }
 	| hierarchy_identifier K_with '(' expression ')' ';'
@@ -12116,8 +12123,10 @@ statement_item /* This is roughly statement_item in the LRM */
 		pform_requires_sv(@2, "Method with-clause");
 		std::list<named_pexpr_t> pt;
 	PCallTask*tmp = pform_make_call_task(@1, *$1, pt);
+	std::vector<PExpr*> wc;
+	wc.push_back($4);
+	tmp->set_with_constraints(std::move(wc));
 	delete $1;
-	delete $4;
 	$$ = tmp;
       }
 

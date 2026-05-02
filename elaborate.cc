@@ -5597,22 +5597,77 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				       || method_name=="rsort"
 				       || method_name=="unique") {
 				  if (gn_system_verilog()) {
-					/* The IEEE 1800 form `q.sort(x) with (expr)` carries an
-					   iterator-variable arg + a with-clause. We don't yet
-					   support a custom comparator — fall back to default
-					   compare, ignoring extra args. */
-					if (parms_.size() > 0) {
-					      static int warned_sort_with = 0;
-					      if (!warned_sort_with) {
-						    cerr << get_fileline()
-							 << ": warning: " << method_name
-							 << "() iterator arg or with-clause "
-							    "not yet supported; using default "
-							    "compare (further similar warnings "
-							    "suppressed)." << endl;
-						    warned_sort_with = 1;
+					/* Phase 63b/Q-methods (gap close): when a with-
+					   clause is present, route through a sort_with
+					   variant that the tgt-vvp codegen lowers to an
+					   inline insertion sort using the predicate as
+					   key extractor.  Without a with-clause, use
+					   the existing default-compare runtime path. */
+					if (!with_constraints().empty()) {
+					      ivl_type_t element_type = nullptr;
+					      if (auto que = dynamic_cast<const netqueue_t*>(obj_type))
+						    element_type = que->element_type();
+					      else if (auto darr = dynamic_cast<const netdarray_t*>(obj_type))
+						    element_type = darr->element_type();
+					      if (element_type) {
+						    /* Determine the iterator name: parms_[0] if set,
+						       else "item" per LRM default. */
+						    perm_string iter_name = perm_string::literal("item");
+						    if (!parms_.empty() && parms_[0].parm) {
+							  if (auto ip = dynamic_cast<const PEIdent*>(parms_[0].parm))
+								if (ip->path().size() == 1)
+								      iter_name = ip->path().back().name;
+						    }
+						    NetNet*iter_net = scope->find_signal(iter_name);
+						    if (!iter_net) {
+							  iter_net = new NetNet(scope, iter_name,
+										NetNet::REG, element_type);
+							  iter_net->set_line(*this);
+							  iter_net->local_flag(true);
+						    }
+						    /* Allocate a keys queue (vec4 32-bit) — predicate
+						       result is stored here for paired sort. */
+						    netqueue_t*keys_qtype = new netqueue_t(
+							  &netvector_t::atom2s32, -1, false);
+						    NetNet*keys_net = new NetNet(scope, scope->local_symbol(),
+										 NetNet::REG, keys_qtype);
+						    keys_net->set_line(*this);
+						    keys_net->local_flag(true);
+						    /* Loop-counter NetNet (s32) for the inline key-build loop. */
+						    NetNet*idx_net = new NetNet(scope, scope->local_symbol(),
+										NetNet::REG, &netvector_t::atom2s32);
+						    idx_net->set_line(*this);
+						    idx_net->local_flag(true);
+						    PExpr*pred_pe = with_constraints().front();
+						    NetExpr*pred_expr = pred_pe
+							  ? elab_and_eval(des, scope, pred_pe, -1, false)
+							  : nullptr;
+						    if (pred_expr) {
+							  vector<NetExpr*> argv(5);
+							  argv[0] = obj_expr;
+							  NetESignal*iter_e = new NetESignal(iter_net);
+							  iter_e->set_line(*this);
+							  argv[1] = iter_e;
+							  NetESignal*keys_e = new NetESignal(keys_net);
+							  keys_e->set_line(*this);
+							  argv[2] = keys_e;
+							  NetESignal*idx_e = new NetESignal(idx_net);
+							  idx_e->set_line(*this);
+							  argv[3] = idx_e;
+							  argv[4] = pred_expr;
+							  string sys_name = string("$ivl_queue_method$") +
+								(method_name == "sort"  ? "sort_with"
+								 : method_name == "rsort" ? "rsort_with"
+								 : "unique_with_kx");
+							  NetSTask*sys = new NetSTask(
+								sys_name.c_str(),
+								IVL_SFUNC_AS_TASK_IGNORE, argv);
+							  sys->set_line(*this);
+							  return sys;
+						    }
 					      }
 					}
+					/* No with-clause (or fallback): default compare. */
 					vector<NetExpr*> argv(1);
 					argv[0] = obj_expr;
 					const char*sys_name =

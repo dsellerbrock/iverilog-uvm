@@ -246,6 +246,14 @@ class PCallTask  : public Statement {
       const pform_name_t& path() const;
       const std::vector<named_pexpr_t>& parms() const { return parms_; }
 
+      /* Phase 63b/Q-methods: with-clause predicate for sort/rsort/
+         unique task-form calls (`q.sort with (item.key);`).  Empty
+         vector when no with-clause was attached at parse time. */
+      void set_with_constraints(std::vector<PExpr*> c)
+            { with_constraints_ = std::move(c); }
+      const std::vector<PExpr*>& with_constraints() const
+            { return with_constraints_; }
+
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
 
@@ -295,6 +303,7 @@ class PCallTask  : public Statement {
       std::vector<named_pexpr_t> parms_;
       struct parmvalue_t*leading_type_args_ = 0;
       bool void_cast_ = false;
+      std::vector<PExpr*> with_constraints_;
 };
 
 class PCase  : public Statement {

@@ -2579,6 +2579,127 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+      /* Phase 63b/Q-methods (gap close): sort/rsort/unique with
+       * iterator+with-clause comparator.  Decorate-sort-undecorate:
+       * walk q, evaluate predicate per element (with iter set to
+       * q[i]) and push key into a parallel `keys` queue; then call
+       * %qsort_with_keys / %qrsort_with_keys / %qunique_with_keys
+       * which sort q by keys at runtime.
+       *   parm[0]=queue NetESignal
+       *   parm[1]=iter NetNet (predicate references it)
+       *   parm[2]=keys queue NetNet (output of key-build loop)
+       *   parm[3]=idx NetNet (loop counter)
+       *   parm[4]=predicate NetExpr (yielding the key, vec4 32-bit)
+       */
+      if (strcmp(stmt_name,"$ivl_queue_method$sort_with") == 0
+	  || strcmp(stmt_name,"$ivl_queue_method$rsort_with") == 0
+	  || strcmp(stmt_name,"$ivl_queue_method$unique_with_kx") == 0) {
+	    int is_rsort = (strcmp(stmt_name,"$ivl_queue_method$rsort_with") == 0);
+	    int is_unique = (strcmp(stmt_name,"$ivl_queue_method$unique_with_kx") == 0);
+	    if (ivl_stmt_parm_count(net) < 5) return 0;
+	    ivl_expr_t q_arg = ivl_stmt_parm(net, 0);
+	    ivl_expr_t iter_arg = ivl_stmt_parm(net, 1);
+	    ivl_expr_t keys_arg = ivl_stmt_parm(net, 2);
+	    ivl_expr_t idx_arg = ivl_stmt_parm(net, 3);
+	    ivl_expr_t pred = ivl_stmt_parm(net, 4);
+	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL
+		|| !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+		|| !keys_arg || ivl_expr_type(keys_arg) != IVL_EX_SIGNAL
+		|| !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
+		|| !pred) return 0;
+	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
+	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
+	    ivl_signal_t keys_sig = ivl_expr_signal(keys_arg);
+	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
+	    if (!q_sig || !iter_sig || !keys_sig || !idx_sig) return 0;
+	    ivl_type_t iter_type = ivl_signal_net_type(iter_sig);
+	    unsigned iter_wid = ivl_type_packed_width(iter_type);
+	    if (iter_wid == 0) iter_wid = 32;
+	    ivl_variable_type_t bt = ivl_type_base(iter_type);
+
+	    /* Class/string/real iterator types: predicate could still
+	       yield vec4 (e.g. item.priority where priority is int).
+	       For now, only support iterator types that we can read
+	       via %load/dar/vec4 (BOOL/LOGIC).  Class iter types
+	       deferred (require %load/dar/obj path). */
+	    if (bt != IVL_VT_BOOL && bt != IVL_VT_LOGIC) {
+		  static int warned = 0;
+		  if (!warned) {
+			fprintf(stderr, "Warning: %s with-clause on non-vector iter "
+				"type %d not yet supported; falling back to default "
+				"compare (further similar warnings suppressed)\n",
+				stmt_name, (int)bt);
+			warned = 1;
+		  }
+		  fprintf(vvp_out, "    %s v%p_0;\n",
+			  is_unique ? "%qunique" : (is_rsort ? "%qsort/r" : "%qsort"),
+			  q_sig);
+		  return 0;
+	    }
+
+	    /* Step 1: keys = empty queue */
+	    fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+	    fprintf(vvp_out, "    %%new/queue \"sb32\";\n");
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", keys_sig);
+
+	    /* Step 2: idx_sig = 0 */
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+
+	    /* Step 3: outer loop building keys */
+	    unsigned outer_top = local_count++;
+	    unsigned outer_end = local_count++;
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, outer_top);
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%qsize v%p_0;\n", q_sig);
+	    fprintf(vvp_out, "    %%cmp/s;\n");
+	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
+		    thread_count, outer_end);
+
+	    /* iter = q[idx] */
+	    fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", q_sig);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+		    iter_sig, iter_wid);
+
+	    /* eval predicate (key) and store to keys queue */
+	    {
+		  /* Save line number for predicate trace. */
+		  unsigned pred_wid = ivl_expr_width(pred);
+		  draw_eval_vec4(pred);
+		  /* Pad/truncate to 32-bit signed for keys queue. */
+		  if (pred_wid != 32) {
+			fprintf(vvp_out, "    %%pad/%s 32;\n",
+				ivl_expr_signed(pred) ? "s" : "u");
+		  }
+		  fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, 32;\n",
+			  keys_sig);
+	    }
+
+	    /* idx_sig += 1 */
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+	    fprintf(vvp_out, "    %%add;\n");
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, outer_top);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, outer_end);
+
+	    /* Step 4: emit the runtime opcode that sorts q by keys */
+	    if (is_unique) {
+		  fprintf(vvp_out, "    %%qunique/keys v%p_0, v%p_0;\n",
+			  q_sig, keys_sig);
+	    } else if (is_rsort) {
+		  fprintf(vvp_out, "    %%qrsort/keys v%p_0, v%p_0;\n",
+			  q_sig, keys_sig);
+	    } else {
+		  fprintf(vvp_out, "    %%qsort/keys v%p_0, v%p_0;\n",
+			  q_sig, keys_sig);
+	    }
+	    return 0;
+      }
+
       if (strcmp(stmt_name, "$ivl_process$kill") == 0
 	  || strcmp(stmt_name, "$ivl_process$await") == 0) {
 	    ivl_expr_t recv = ivl_stmt_parm(net, 0);
