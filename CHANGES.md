@@ -911,7 +911,15 @@ The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remai
 - Streaming operators `{<<{}}` `{>>{}}`: silently produce zero
 - `std::randomize(var) with {...}`: `with` clause not parsed
 - `uvm_resource_db#(T)::set/read_by_name`: typed-pool path returns 0
-- `uvm_cmdline_processor.get_args(args)`: elaboration error on output arg
+- `uvm_cmdline_processor.get_args(args)`: ✅ **Phase 62 (C4 fix):** the
+  bug was at runtime, not elaboration: `string foo(int)` DPI imports
+  were calling `pop_str()` for the int argument, underflowing the str
+  stack and leaking the int on the vec4 stack.  Now the tgt-vvp emitter
+  packs a per-arg type signature into the function-name string with `|`
+  as separator (`"name|types"`), and `of_DPI_CALL_STR/REAL/VOID/VEC4`
+  parse it to pop each arg from the right stack.  uvm_dpi_get_next_arg_c
+  now returns real argv strings; `get_args(args)` populates `args`
+  correctly with `+arg`/`-arg` plusargs from the command line.
 - `uvm_reg.lock_model()` task missing — blocks register layer beyond raw backdoor
 - Coverage `cross` / `illegal_bins`: silently inactive
 - User-defined UVM phase (extends `uvm_task_phase`): `exec_task` never called

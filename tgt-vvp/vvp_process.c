@@ -3457,29 +3457,53 @@ static void draw_dpi_func_body(ivl_scope_t scope)
       unsigned rwid = (rtype == IVL_VT_LOGIC || rtype == IVL_VT_BOOL)
                     ? ivl_scope_func_width(scope) : 0;
 
+      // C4 (Phase 62k): build per-arg type signature so the runtime
+      // %dpi/call/* opcode can pop each argument from the right stack.
+      // 'i' = int (vec4), 's' = string, 'r' = real.  Cap at 16 to keep
+      // the buffer small and match runtime expectations.
+      char arg_types[17] = {0};
+      unsigned types_n = (ncp <= 16) ? ncp : 16;
+
       for (unsigned ii = 1; ii <= ncp; ii += 1) {
 	    ivl_signal_t port = ivl_scope_port(scope, ii);
 	    ivl_variable_type_t ptype = ivl_signal_data_type(port);
 	    if (ptype == IVL_VT_REAL) {
 		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
+		  if (ii <= types_n) arg_types[ii-1] = 'r';
 	    } else if (ptype == IVL_VT_STRING) {
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
+		  if (ii <= types_n) arg_types[ii-1] = 's';
 	    } else {
 		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
+		  if (ii <= types_n) arg_types[ii-1] = 'i';
 	    }
       }
 
+      // C4 (Phase 62k): pack the per-arg type signature into the
+      // function-name string using a SOH (\x01) separator, since the
+      // opcode struct only allows 3 operands.  The runtime splits on
+      // \x01 to recover (name, types).  Always emit the suffix (even
+      // for all-int signatures) so the runtime can rely on it.
+      int emit_types = 1;
+      (void)emit_types;
+
+      // Use '|' as the name/types separator: it's not legal in C function
+      // names, and the vvp lexer's strdup_and_demangle passes it through
+      // as a regular character (it only unescapes \" and \\).
       if (rtype == IVL_VT_REAL) {
-	    fprintf(vvp_out, "    %%dpi/call/real \"%s\", %u;\n", c_name, ncp);
+	    fprintf(vvp_out, "    %%dpi/call/real \"%s|%s\", %u;\n",
+		    c_name, arg_types, ncp);
 	    fprintf(vvp_out, "    %%ret/real 0;\n");
       } else if (rtype == IVL_VT_STRING) {
-	    fprintf(vvp_out, "    %%dpi/call/str \"%s\", %u;\n", c_name, ncp);
+	    fprintf(vvp_out, "    %%dpi/call/str \"%s|%s\", %u;\n",
+		    c_name, arg_types, ncp);
 	    fprintf(vvp_out, "    %%ret/str 0;\n");
       } else if (rtype == IVL_VT_VOID) {
-	    fprintf(vvp_out, "    %%dpi/call/void \"%s\", %u;\n", c_name, ncp);
+	    fprintf(vvp_out, "    %%dpi/call/void \"%s|%s\", %u;\n",
+		    c_name, arg_types, ncp);
       } else {
-	    fprintf(vvp_out, "    %%dpi/call/vec4 \"%s\", %u, %u;\n",
-		    c_name, ncp, rwid);
+	    fprintf(vvp_out, "    %%dpi/call/vec4 \"%s|%s\", %u, %u;\n",
+		    c_name, arg_types, ncp, rwid);
 	    fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", rwid);
       }
 }
