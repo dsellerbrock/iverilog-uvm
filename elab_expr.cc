@@ -7928,6 +7928,35 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       ivl_type_t check_type = indexed_elem_type ? indexed_elem_type : ntype;
       if (const netdarray_t*array_type = dynamic_cast<const netdarray_t*> (ntype)) {
             if (have_type && array_type->type_compatible(have_type)) {
+                  // C3 (Phase 62n): if the source has a subscript
+                  // (`pool[K]` reading from an assoc-of-queue), build
+                  // the NetESelect so tgt-vvp emits %aa/load/sig/obj/*
+                  // instead of degrading to a whole-container %load/obj.
+                  if (indexed_elem_type
+                      && (net->darray_type() || net->queue_type())
+                      && !use_comp.index.empty()) {
+                        NetESignal*node = new NetESignal(net);
+                        node->set_line(*this);
+                        const index_component_t&idx = use_comp.index.back();
+                        bool need_const = NEED_CONST & flags;
+                        NetExpr*mux = idx.msb
+                              ? elab_and_eval(des, scope, idx.msb, -1, need_const)
+                              : nullptr;
+                        if (mux) {
+                              unsigned elem_width = 1;
+                              if (const netdarray_t*el =
+                                  dynamic_cast<const netdarray_t*>(indexed_elem_type))
+                                    elem_width = el->element_width();
+                              else if (const netvector_t*vt =
+                                  dynamic_cast<const netvector_t*>(indexed_elem_type))
+                                    elem_width = vt->packed_width();
+                              NetESelect*sel =
+                                    new NetESelect(node, mux, elem_width, indexed_elem_type);
+                              sel->set_line(*this);
+                              return sel;
+                        }
+                        // Fall through to whole-signal fallback if mux failed.
+                  }
                   NetESignal*tmp = new NetESignal(net);
                   tmp->set_line(*this);
                   return tmp;

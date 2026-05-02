@@ -41,6 +41,7 @@
 # include  <map>
 # include  <typeinfo>
 # include  <vector>
+# include  <functional>
 # include  <algorithm>
 # include  <cstdlib>
 # include  <climits>
@@ -8932,16 +8933,31 @@ static ASSOC* peek_signal_assoc_(vvp_net_t*net)
 
       // C3 (Phase 62m): when the signal's stored assoc container has
       // the wrong template specialization for the requested operation,
-      // optionally trace the mismatch.  Otherwise return null silently
-      // — callers needing a writable container go through
-      // `ensure_signal_assoc_<ASSOC>` which then creates a fresh
-      // container of the correct type.  Read-only callers see "no
-      // entry," which is correct for the typical case where the
-      // wrong-typed container was an empty default left from
-      // elaboration code-gen mismatch on parameterized-class
-      // assoc-array properties.
+      // optionally trace the mismatch — by walking the VPI scope tree
+      // to find the FullName of whichever signal owns this net.
       if (!typed_assoc && getenv("IVL_ASSOC_TYPE_TRACE")) {
+	    extern void vpip_make_root_iterator(__vpiHandle**&, unsigned&);
+	    __vpiHandle**roots = 0; unsigned nroots = 0;
+	    vpip_make_root_iterator(roots, nroots);
+	    std::function<vpiHandle(__vpiScope*)> walk_scope =
+		  [&](__vpiScope*scp) -> vpiHandle {
+		  for (vpiHandle h : scp->intern) {
+			if (__vpiSignal*s = dynamic_cast<__vpiSignal*>(h))
+			      if (s->node == net) return h;
+			if (__vpiBaseVar*bv = dynamic_cast<__vpiBaseVar*>(h))
+			      if (bv->get_net() == net) return h;
+			if (__vpiScope*sub = dynamic_cast<__vpiScope*>(h))
+			      if (vpiHandle r = walk_scope(sub)) return r;
+		  }
+		  return 0;
+	    };
+	    vpiHandle found = 0;
+	    for (unsigned ii = 0; !found && ii < nroots; ii++) {
+		  if (__vpiScope*scp = dynamic_cast<__vpiScope*>(roots[ii]))
+			found = walk_scope(scp);
+	    }
 	    cerr << "[assoc-mismatch] net=" << net
+		 << " name=" << (found ? vpi_get_str(vpiFullName, found) : "<unknown>")
 		 << " have=" << typeid(*assoc).name()
 		 << " want=" << typeid(ASSOC).name() << endl;
       }

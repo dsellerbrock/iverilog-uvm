@@ -678,6 +678,17 @@ static void draw_reg_in_scope(ivl_signal_t sig)
                   break;
                 case IVL_VT_CLASS:
                 case IVL_VT_NO_TYPE:
+                case IVL_VT_DARRAY:
+                case IVL_VT_QUEUE:
+                  // C3 (Phase 62n): queue-of-queue and queue-of-darray
+                  // are object-like at runtime (each entry is a
+                  // class-like vvp_queue/vvp_darray handle).  Without
+                  // these cases, `T[$] foo[KEY]` (a typedef'd
+                  // queue-of-class used as the value type of an assoc
+                  // array, e.g. UVM's
+                  // `uvm_resource_types::rsrc_sv_q_t all[int]`) was
+                  // emitted with `Mv` and runtime peeks expecting
+                  // `vvp_assoc_object` saw `vvp_assoc_vec4` instead.
                   queue_kind = assoc_compat ? "Mo" : "Qo";
                   break;
                 default:
