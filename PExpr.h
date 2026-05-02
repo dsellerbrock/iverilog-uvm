@@ -403,10 +403,21 @@ class PEIdent : public PExpr {
 
       unsigned lexical_pos() const { return lexical_pos_; }
 
+      // I5 (Phase 62m): when path was parsed from `Class#(args)::var`,
+      // these are the leading type arguments needed to identify the
+      // parameterized-class specialization.  Without this, the
+      // elaborator falls back to the unspecialized class, so static
+      // property accesses target the base instead of the specialization.
+      void set_leading_type_args(struct parmvalue_t*type_args)
+            { leading_type_args_ = type_args; }
+      const struct parmvalue_t* leading_type_args() const
+            { return leading_type_args_; }
+
     private:
       pform_scoped_name_t path_;
       unsigned lexical_pos_;
       bool no_implicit_sig_;
+      struct parmvalue_t* leading_type_args_ = 0;
 
     private:
 	// Common functions to calculate parts of part/bit

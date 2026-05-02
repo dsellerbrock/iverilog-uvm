@@ -941,15 +941,28 @@ The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remai
   remain silently inactive (auto-bin form only).
 - User-defined UVM phase (extends `uvm_task_phase`): `exec_task` never called
 - `uvm_callbacks::add` registration check warns CBUNREG (dispatch works).
-  **Phase 62 (I5 fix):** the simplest cause — alphabetical class iteration in
-  `elaborate_classes` causing class-static initializers to fire in the wrong
-  order (a base class's `static = 0` initializer running AFTER a derived
-  class mutated it) — is fixed by `elaborate_classes_lexical()` (PPackage
-  and Module now iterate `classes_lexical` instead of `classes`). Test:
-  `tests/static_init_order_test.sv`. Residual CBUNREG in full UVM scenario
-  (parameterized `uvm_callbacks#(T,CB)::m_register_pair` not propagating
-  m_registered=1) is a separate parameterized-class specialization-order
-  issue and remains open.
+  **Phase 62 (I5):** three causes addressed:
+  1. Alphabetical class iteration in `elaborate_classes` → fixed by
+     `elaborate_classes_lexical()` (declaration-order traversal of
+     `classes_lexical`).  Test: `tests/static_init_order_test.sv`.
+  2. `Class#(args)::var` resolved to the unparameterized base class's
+     static property — `delete_parmvalue_t($2)` in parse.y dropped the
+     specialization args.  Now `PEIdent` carries `leading_type_args_`
+     (mirror of the existing `PECallFunction` field), the parser
+     populates it, and `PEIdent::elaborate_expr_` re-targets `sr.net` to
+     the specialized class's static property.  `resolve_scoped_class_static_property_expr_`
+     also threads through the args to specialize the class on lookup.
+  3. The parameterized-class specialization's static `= 0` reset ran
+     AFTER a user-class init that mutated the spec via
+     `uvm_register_cb` — `Design::add_process_at_tail()` puts spec inits
+     at the TAIL of `procs_`, which after the dll/emit double-reversal
+     places the spec init FIRST in vvp's schedule_init list.  Test:
+     `tests/param_static_property_test.sv`.
+
+  Synthetic `TypedPool#(MyClass)` test passes.  Residual UVM CBUNREG
+  on the full pattern (uvm_callbacks#(T,CB) with deeper inheritance
+  and per-spec lazy `m_inst` allocation) likely needs additional
+  changes to the `m_inst = new` lazy-init ordering; deferred.
 - Tagged unions (`union tagged { ... }`): syntax error
 - Some parameterized factory override combinations
 - `uvm_reg_frontdoor` (gap: `atomic_lock`, `start`, `atomic_unlock`)

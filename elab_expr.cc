@@ -4423,7 +4423,8 @@ static NetExpr* class_static_property_expression(const LineInfo*li,
 static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 							   NetScope*scope,
 							   const pform_scoped_name_t&path,
-							   const LineInfo*li)
+							   const LineInfo*li,
+							   const parmvalue_t*leading_type_args = 0)
 {
       if (!gn_system_verilog())
 	    return nullptr;
@@ -4460,6 +4461,18 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 	    class_type = resolve_scoped_class_type_name_(des, comp_scope, comp.name);
 	    if (!class_type)
 		  return nullptr;
+
+	    // I5 (Phase 62m): when the path was parsed as
+	    // `Class#(args)::var`, the parameterized-class specialization
+	    // args reach here via leading_type_args.  Replace the base
+	    // class with its specialized netclass_t so the static
+	    // property lookup targets the right (specialized) signal.
+	    if (first_comp && leading_type_args) {
+		  class_type = elaborate_specialized_class_type(des, comp_scope,
+							class_type,
+							leading_type_args,
+							false);
+	    }
 
 	    first_comp = false;
       }
@@ -4783,6 +4796,16 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 {
 
       const netclass_t *class_type = dynamic_cast<const netclass_t*>(sr.type);
+      // I5 (Phase 62m): when path was parsed as `Class#(args)::var`,
+      // leading_type_args identifies the specialization.  Replace the
+      // resolved (base) class_type with its specialization so static
+      // property access targets the right specialized signal.
+      if (class_type && leading_type_args()) {
+	    class_type = elaborate_specialized_class_type(des, scope,
+						class_type,
+						leading_type_args(),
+						false);
+      }
       const name_component_t comp = sr.path_tail.front();
 
       pform_name_t rewritten_path;
@@ -8199,6 +8222,27 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 						      expr_wid, flags);
       }
 
+	// I5 (Phase 62m): when path was parsed as `Class#(args)::var`,
+	// the leading_type_args identify the specialization.
+	// symbol_search resolves sr.net to the BASE class's static
+	// property.  Re-target sr.net to the specialization's static
+	// property before the generic signal-handling path runs.
+      if (sr.net != 0 && leading_type_args() && path_.name.size() >= 2) {
+	    if (NetScope*owner = sr.net->scope()) {
+		  if (const netclass_t*base_cls = owner->class_def()) {
+			const netclass_t*spec_cls =
+			      elaborate_specialized_class_type(des, scope,
+						base_cls, leading_type_args(),
+						false);
+			if (spec_cls && spec_cls != base_cls) {
+			      perm_string prop = path_.name.back().name;
+			      if (NetNet*spec_sig = spec_cls->find_static_property(prop))
+				    sr.net = spec_sig;
+			}
+		  }
+	    }
+      }
+
 	// If the identifier names a signal (a variable or a net)
 	// then create a NetESignal node to handle it.
       if (sr.net != 0) {
@@ -8768,9 +8812,12 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 
 	      if ( !(SYS_TASK_ARG & flags) ) {
 		      // Fallback for scoped class static properties, including
-		      // type-parameter forms such as TYPE::type_name.
+		      // type-parameter forms such as TYPE::type_name.  Pass
+		      // leading_type_args() so `Class#(args)::var` resolves to
+		      // the parameterized specialization, not the base.
 		    if (NetExpr*static_prop =
-			    resolve_scoped_class_static_property_expr_(des, scope, path_, this))
+			    resolve_scoped_class_static_property_expr_(
+				    des, scope, path_, this, leading_type_args()))
 			  return static_prop;
 
 		      // For unresolved type-parameter forms such as

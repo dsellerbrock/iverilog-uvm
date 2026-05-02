@@ -8941,6 +8941,16 @@ static ASSOC* peek_signal_assoc_(vvp_net_t*net)
                  << ", want " << typeid(ASSOC).name() << ")." << endl;
             warned = true;
       }
+      // C3 (Phase 62m): per-call trace for IVL_ASSOC_TYPE_TRACE.  Runtime
+      // net pointers do not match the static `v0x...` labels in the .vvp
+      // file (vvp creates its own structures), but the typeid pair plus
+      // `net` pointer is enough to count distinct mismatch sites and
+      // group them across runs.  Emit one line per failed peek.
+      if (!typed_assoc && getenv("IVL_ASSOC_TYPE_TRACE")) {
+	    cerr << "[assoc-mismatch] net=" << net
+		 << " have=" << typeid(*assoc).name()
+		 << " want=" << typeid(ASSOC).name() << endl;
+      }
 
       return typed_assoc;
 }

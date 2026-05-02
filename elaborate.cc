@@ -9833,7 +9833,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  top->attribute(perm_string::literal("_ivl_schedule_init"),
 					 verinum(1));
 		    }
-		    des->add_process(top);
+		    // I5 (Phase 62m): for parameterized-class specializations,
+		    // append at the TAIL so the static init runs FIRST in vvp's
+		    // schedule_init list (after two reversals via emit/dll).
+		    // Without this, code patterns like UVM `uvm_register_cb`
+		    // see the spec's `static = 0` reset wipe state set by a
+		    // user-class static initializer that called into the spec.
+		    if (this->specialized_instance())
+			  des->add_process_at_tail(top);
+		    else
+			  des->add_process(top);
 	      }
 
 	      // Elaborate constraint blocks: convert PExpr* to IR strings.

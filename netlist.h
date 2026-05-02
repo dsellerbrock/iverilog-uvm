@@ -5239,6 +5239,14 @@ class Design {
 
 	// PROCESSES
       void add_process(NetProcTop*);
+      // I5 (Phase 62m): append a process at the TAIL of procs_ (versus
+      // the default prepend).  After the dll/emit double-reversal, this
+      // makes the process end up FIRST in vvp's schedule_init list, so
+      // its init runs BEFORE other inits.  Used for parameterized-class
+      // specialization static initializers, which must run before any
+      // user-class init that calls into the specialization (e.g. the
+      // UVM `uvm_register_cb` pattern).
+      void add_process_at_tail(NetProcTop*);
       void add_process(NetAnalogTop*);
       void delete_process(NetProcTop*);
       bool check_proc_delay() const;

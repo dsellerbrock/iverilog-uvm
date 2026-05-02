@@ -7189,7 +7189,10 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
+	// I5 (Phase 62m): retain the parameterized-class specialization
+	// args so elaboration can resolve the right specialized
+	// netclass_t for static-property access (`Class#(args)::var`).
+	tmp->set_leading_type_args($2);
 	delete[]$1.text;
 	delete[]$4;
 	$$ = tmp;
