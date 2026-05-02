@@ -11426,15 +11426,37 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	    bool fal_str = (fal->expr_type() == IVL_VT_STRING);
 	    bool tru_boolish = (tru->expr_type() == IVL_VT_BOOL || tru->expr_type() == IVL_VT_LOGIC);
 	    bool fal_boolish = (fal->expr_type() == IVL_VT_BOOL || fal->expr_type() == IVL_VT_LOGIC);
+	    // Phase 63a/A2: when one branch is a string-typed concat that
+	    // got elaborated as a logic vector (PEConcat dispatches each
+	    // child via the width-driven elaborate_expr, producing
+	    // NetEConst from PEString), the result has an inner-vector
+	    // bottom but PETernary needs to compare with a string-typed
+	    // sibling.  Detect this case (one side string, other side
+	    // boolish) and re-elaborate the boolish side via the typed
+	    // path with NetECString::type_string so it lands as a real
+	    // string.  This replaces the prior empty-string fallback.
 	    if (gn_system_verilog()
 		&& ((tru_str && fal_boolish) || (fal_str && tru_boolish))) {
-		  // Compile-progress fallback: unresolved/stubbed UVM calls can
-		  // cause one side of a message-building ternary to collapse to a
-		  // bool placeholder while the other side is still string-typed.
-		  // TODO: when one branch is a string-concat that elaborated as
-		  // logic (e.g. {"prefix_", varname}), this fallback drops both
-		  // branches and the result is empty. Workaround: rewrite as
-		  // if/else in source. See OpenTitan dv_base_env if_name.
+		  PExpr*reelab_pe = tru_str ? fal_ : tru_;
+		  NetExpr*reelab = reelab_pe->elaborate_expr(des, scope,
+						       &netstring_t::type_string, flags);
+		  if (reelab && reelab->expr_type() == IVL_VT_STRING) {
+			if (tru_str) {
+			      delete fal;
+			      fal = reelab;
+			} else {
+			      delete tru;
+			      tru = reelab;
+			}
+			NetETernary*res = new NetETernary(con, tru, fal,
+							  expr_wid, signed_flag_);
+			res->set_line(*this);
+			return res;
+		  }
+		  delete reelab;
+		  // Fall back to the prior compile-progress empty stub on
+		  // re-elaborate failure (preserves old behavior for cases
+		  // we don't yet handle).
 		  delete con;
 		  delete tru;
 		  delete fal;

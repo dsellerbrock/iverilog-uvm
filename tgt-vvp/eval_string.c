@@ -287,6 +287,44 @@ static void draw_sfunc_string(ivl_expr_t expr)
     draw_vpi_sfunc_call(expr);
 }
 
+/* Phase 63a/A2: string-typed ternary
+ *
+ *    s = cond ? tru_str : fal_str
+ *
+ * Evaluate cond; jump-on-true to push tru, otherwise push fal.  No
+ * blending for x/z — pick the false branch (matches the SV-2017
+ * "indeterminate => either value" relaxation).
+ */
+static void draw_ternary_string(ivl_expr_t expr)
+{
+      ivl_expr_t cond = ivl_expr_oper1(expr);
+      ivl_expr_t true_ex = ivl_expr_oper2(expr);
+      ivl_expr_t false_ex = ivl_expr_oper3(expr);
+
+      unsigned lab_true = local_count++;
+      unsigned lab_out = local_count++;
+      int cond_flag = allocate_flag();
+
+      draw_eval_vec4(cond);
+      if (ivl_expr_width(cond) > 1)
+            fprintf(vvp_out, "    %%or/r;\n");
+      fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", cond_flag);
+
+      fprintf(vvp_out, "    %%jmp/1  T_%u.%u, %d;\n",
+              thread_count, lab_true, cond_flag);
+
+      /* False branch */
+      draw_eval_string(false_ex);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+
+      /* True branch */
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_true);
+      draw_eval_string(true_ex);
+
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_out);
+      clr_flag(cond_flag);
+}
+
 void draw_eval_string(ivl_expr_t expr)
 {
 
@@ -324,6 +362,11 @@ void draw_eval_string(ivl_expr_t expr)
 
 	  case IVL_EX_UFUNC:
 	    draw_ufunc_string(expr);
+	    break;
+
+	  case IVL_EX_TERNARY:
+	    /* Phase 63a/A2: string-typed ternary */
+	    draw_ternary_string(expr);
 	    break;
 
 	  default:
