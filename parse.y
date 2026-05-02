@@ -99,11 +99,69 @@ struct b8_range_t {
       int64_t max_v = 0;
 };
 
+/* Phase 63b/B8 (gap close): enum-form detection.  Recognizes
+ *   arg inside { v1, v2, v3, ... }
+ * (a single PEInside with all single-value entries).  Lowered to a
+ * uniform pick:
+ *   begin arg = $urandom_range(0, N-1);
+ *         case (arg) 0:arg=v1; 1:arg=v2; ...; endcase
+ *   end
+ * Returns true if the constraint matches and populates `values`. */
+static bool std_rand_collect_enum_(const PExpr*expr,
+				   const std::string&arg_name,
+				   std::vector<int64_t>&values)
+{
+      if (!expr) return false;
+      auto*ins = dynamic_cast<const PEInside*>(expr);
+      if (!ins) return false;
+      auto*ide = dynamic_cast<const PEIdent*>(ins->get_expr());
+      if (!ide || ide->path().size() != 1) return false;
+      if (ide->path().back().name.str() != arg_name) return false;
+      auto extract = [](const PExpr*e, int64_t&out)->bool {
+	    if (auto*n = dynamic_cast<const PENumber*>(e)) {
+		  out = n->value().as_long(); return true;
+	    }
+	    if (auto*u = dynamic_cast<const PEUnary*>(e)) {
+		  if (u->get_op() == '-')
+			if (auto*n = dynamic_cast<const PENumber*>(u->get_expr())) {
+			      out = -n->value().as_long(); return true;
+			}
+	    }
+	    return false;
+      };
+      const auto&ranges = ins->get_ranges();
+      if (ranges.empty()) return false;
+      values.clear();
+      for (const auto&r : ranges) {
+	    if (r.weight) return false;
+	    if (r.is_range) {
+		  /* For range entries inside enum-form, expand the range
+		     fully — but only if it's small (<= 256 values) to
+		     avoid runaway code.  Otherwise fall back to retry. */
+		  int64_t lo, hi;
+		  if (!extract(r.lo, lo)) return false;
+		  if (!extract(r.hi, hi)) return false;
+		  if (hi < lo) return false;
+		  if (hi - lo > 255) return false;
+		  for (int64_t v = lo; v <= hi; v++) values.push_back(v);
+	    } else {
+		  /* Single-value entry: parser stores it in r.hi
+		     (with r.lo = nullptr).  See inside_value_range
+		     production. */
+		  int64_t v;
+		  if (!extract(r.hi, v)) return false;
+		  values.push_back(v);
+	    }
+      }
+      return !values.empty();
+}
+
 /* Walk a constraint PExpr AST and collect simple range bounds for the
  * named arg.  Returns true if the entire AST consists of supported
  * range patterns ((arg > C), (arg < C), (arg >= C), (arg <= C),
- * (arg == C), and conjunctions thereof), false otherwise (caller
- * should fall back to retry loop).  C must be PENumber. */
+ * (arg == C), `arg inside [lo:hi]`, `arg inside {v}` and conjunctions
+ * thereof), false otherwise (caller should fall back to retry loop).
+ * C/lo/hi/v must be PENumber (or PEUnary('-', PENumber) for negative). */
 static bool std_rand_collect_bounds_(const PExpr*expr,
 				     const std::string&arg_name,
 				     b8_range_t&r)
@@ -114,6 +172,45 @@ static bool std_rand_collect_bounds_(const PExpr*expr,
 	    if (lg->get_op() != 'a') return false;
 	    return std_rand_collect_bounds_(lg->get_left(),  arg_name, r)
 		&& std_rand_collect_bounds_(lg->get_right(), arg_name, r);
+      }
+      // `arg inside { ... }` — handle single range or single value forms.
+      if (auto*ins = dynamic_cast<const PEInside*>(expr)) {
+	    auto*ide = dynamic_cast<const PEIdent*>(ins->get_expr());
+	    if (!ide || ide->path().size() != 1) return false;
+	    if (ide->path().back().name.str() != arg_name) return false;
+	    auto extract_num_local = [](const PExpr*e, int64_t&out)->bool {
+		  if (auto*n = dynamic_cast<const PENumber*>(e)) {
+			out = n->value().as_long(); return true;
+		  }
+		  if (auto*u = dynamic_cast<const PEUnary*>(e)) {
+			if (u->get_op() == '-')
+			      if (auto*n = dynamic_cast<const PENumber*>(u->get_expr())) {
+				    out = -n->value().as_long(); return true;
+			      }
+		  }
+		  return false;
+	    };
+	    const auto&ranges = ins->get_ranges();
+	    if (ranges.size() != 1) return false;  // multi-element handled by fallback
+	    const auto&rg = ranges[0];
+	    if (rg.weight) return false;  // dist not handled here
+	    if (rg.is_range) {
+		  // arg inside [lo:hi]  →  min=lo, max=hi
+		  int64_t lo, hi;
+		  if (!extract_num_local(rg.lo, lo)) return false;
+		  if (!extract_num_local(rg.hi, hi)) return false;
+		  if (!r.has_min || lo > r.min_v) { r.min_v = lo; r.has_min = true; }
+		  if (!r.has_max || hi < r.max_v) { r.max_v = hi; r.has_max = true; }
+		  return true;
+	    } else {
+		  // arg inside {v}  →  arg == v.  Single-value entry: parser
+		  // stores the value in rg.hi (rg.lo = nullptr).
+		  int64_t v;
+		  if (!extract_num_local(rg.hi, v)) return false;
+		  r.min_v = v; r.max_v = v;
+		  r.has_min = r.has_max = true;
+		  return true;
+	    }
       }
       // Comparison: arg <op> const  or  const <op> arg.  The const may
       // be wrapped in PEUnary('-', PENumber) for negative literals.
@@ -12101,15 +12198,93 @@ statement_item /* This is roughly statement_item in the LRM */
 		    }
 	      }
 
+	      /* Per-arg enum detection: if arg's constraint is a single
+		 `inside { v1, v2, v3, ... }`, prefer the enum-pick
+		 lowering over the bounds-fast-path or retry. */
+	      std::vector<std::vector<int64_t> > arg_enums(arg_names.size());
+	      std::vector<bool> arg_is_enum(arg_names.size(), false);
+	      if (!fast_path_ok && $7 && !$7->empty() && !arg_names.empty()) {
+		    bool all_enum = true;
+		    for (size_t ai = 0; ai < arg_names.size(); ai++) {
+			  if (arg_names[ai].empty()) { all_enum = false; break; }
+			  bool found = false;
+			  for (PExpr*c : *$7) {
+				if (!c) continue;
+				std::vector<int64_t> vals;
+				if (std_rand_collect_enum_(c, arg_names[ai], vals)) {
+				      arg_enums[ai] = vals;
+				      arg_is_enum[ai] = true;
+				      found = true;
+				      break;
+				}
+			  }
+			  if (!found) { all_enum = false; break; }
+		    }
+		    if (!all_enum) {
+			  for (size_t ai = 0; ai < arg_names.size(); ai++)
+				arg_is_enum[ai] = false;
+		    } else {
+			  /* For enum mode we no longer need the retry loop
+			     fallback; treat it like a fast path. */
+			  fast_path_ok = true;
+		    }
+	      }
+
 	      std::vector<Statement*> rand_assign_stmts;
 	      size_t ai = 0;
 	      for (auto &arg : *$4) {
 		    if (!arg.parm) { ai++; continue; }
 		    PExpr*rng_call = nullptr;
+		    if (arg_is_enum[ai]) {
+			  /* arg = $urandom_range(0, N-1); case(arg) 0:arg=v0; ... */
+			  std::vector<int64_t>&vals = arg_enums[ai];
+			  std::vector<named_pexpr_t> ur_parms;
+			  named_pexpr_t lo_p, hi_p;
+			  lo_p.parm = new PENumber(new verinum((uint64_t)0, 32));
+			  FILE_NAME(lo_p.parm, @1);
+			  hi_p.parm = new PENumber(new verinum((uint64_t)(vals.size()-1), 32));
+			  FILE_NAME(hi_p.parm, @1);
+			  ur_parms.push_back(hi_p);
+			  ur_parms.push_back(lo_p);
+			  PECallFunction*ur = new PECallFunction(
+				perm_string::literal("$urandom_range"), ur_parms);
+			  FILE_NAME(ur, @1);
+			  PAssign*idx_assign = new PAssign(arg.parm, ur);
+			  FILE_NAME(idx_assign, @1);
+
+			  /* Build PCase items: for each i, item where expr=i,
+			     stmt = arg = vals[i]. */
+			  std::vector<PCase::Item*>*items =
+				new std::vector<PCase::Item*>();
+			  for (size_t vi = 0; vi < vals.size(); vi++) {
+				PCase::Item*it = new PCase::Item;
+				PENumber*ki = new PENumber(
+				      new verinum((uint64_t)vi, 32));
+				FILE_NAME(ki, @1);
+				it->expr.push_back(ki);
+				PENumber*v = new PENumber(
+				      new verinum((int64_t)vals[vi]));
+				FILE_NAME(v, @1);
+				PAssign*va = new PAssign(arg.parm, v);
+				FILE_NAME(va, @1);
+				it->stat = va;
+				items->push_back(it);
+			  }
+			  PCase*cs = new PCase(IVL_CASE_QUALITY_BASIC,
+					       NetCase::EQ, arg.parm, items);
+			  FILE_NAME(cs, @1);
+			  PBlock*enum_blk = new PBlock(PBlock::BL_SEQ);
+			  FILE_NAME(enum_blk, @1);
+			  std::vector<Statement*> enum_stmts;
+			  enum_stmts.push_back(idx_assign);
+			  enum_stmts.push_back(cs);
+			  enum_blk->set_statement(enum_stmts);
+			  rand_assign_stmts.push_back(enum_blk);
+			  ai++;
+			  continue;
+		    }
 		    if (fast_path_ok) {
-			  /* arg = $urandom_range(max-min) + min
-			     ($urandom_range takes unsigned args, so shift
-			     by min to support negative bounds.) */
+			  /* arg = $urandom_range(max-min) + min */
 			  int64_t mn = bounds[ai].min_v;
 			  int64_t mx = bounds[ai].max_v;
 			  uint64_t span = (uint64_t)(mx - mn);
@@ -12119,7 +12294,7 @@ statement_item /* This is roughly statement_item in the LRM */
 			  FILE_NAME(lo_p.parm, @1);
 			  hi_p.parm = new PENumber(new verinum(span, 32));
 			  FILE_NAME(hi_p.parm, @1);
-			  ur_parms.push_back(hi_p); // $urandom_range(max, min)
+			  ur_parms.push_back(hi_p);
 			  ur_parms.push_back(lo_p);
 			  PECallFunction*ur = new PECallFunction(
 				perm_string::literal("$urandom_range"), ur_parms);
@@ -12127,7 +12302,6 @@ statement_item /* This is roughly statement_item in the LRM */
 			  if (mn == 0) {
 				rng_call = ur;
 			  } else {
-				/* (ur + mn) — emit as PEBinary('+', ur, mn) */
 				PENumber*offs = new PENumber(
 				      new verinum((int64_t)mn));
 				FILE_NAME(offs, @1);

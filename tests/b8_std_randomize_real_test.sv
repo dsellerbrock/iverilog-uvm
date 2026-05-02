@@ -78,6 +78,45 @@ module top;
 	$fatal(1, "FAIL/T5: y=%0d not >0", y);
     end
 
+    // T6: tight range via `inside` operator — fast path detects
+    // `arg inside [lo:hi]` and folds into min/max bounds.
+    for (int i = 0; i < 32; i++) begin
+      x = 0;
+      std::randomize(x) with { x inside {[5:9]}; };
+      if (x < 5 || x > 9)
+	$fatal(1, "FAIL/T6 iter=%0d: x=%0d outside [5,9]", i, x);
+    end
+
+    // T7: single-element range — `inside {[42:42]}` collapses to ==
+    for (int i = 0; i < 8; i++) begin
+      x = 0;
+      std::randomize(x) with { x inside {[42:42]}; };
+      if (x !== 42)
+	$fatal(1, "FAIL/T7 iter=%0d: x=%0d expected 42", i, x);
+    end
+
+    // T8: multi-value enum — `inside {1, 5, 10, 100}` exercises the
+    // case-statement uniform-pick lowering.  Verify all returned
+    // values are in the set.
+    begin
+      bit hit_1 = 0, hit_5 = 0, hit_10 = 0, hit_100 = 0;
+      for (int i = 0; i < 64; i++) begin
+	x = 0;
+	std::randomize(x) with { x inside {1, 5, 10, 100}; };
+	case (x)
+	  1:   hit_1 = 1;
+	  5:   hit_5 = 1;
+	  10:  hit_10 = 1;
+	  100: hit_100 = 1;
+	  default:
+	    $fatal(1, "FAIL/T8 iter=%0d: x=%0d not in {1,5,10,100}", i, x);
+	endcase
+      end
+      if (!hit_1 || !hit_5 || !hit_10 || !hit_100)
+	$fatal(1, "FAIL/T8: missing values 1=%0d 5=%0d 10=%0d 100=%0d",
+	       hit_1, hit_5, hit_10, hit_100);
+    end
+
     $display("PASS: std::randomize with-clause constraint enforcement");
     $finish;
   end
