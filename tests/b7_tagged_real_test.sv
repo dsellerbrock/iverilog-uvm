@@ -12,7 +12,7 @@
 `timescale 1ns/1ps
 
 module top;
-  typedef union tagged {
+  typedef union tagged packed {
     int   a;
     int   b;
     int   c;
@@ -67,7 +67,23 @@ module top;
       $fatal(1, "FAIL/T5: expected hits_c=1 after b->c, got a=%0d b=%0d c=%0d",
              hits_a, hits_b, hits_c);
 
-    $display("PASS: tagged-union constructor + case matches dispatch");
+    // T6: .var binding — user declares int x in outer scope; case-matches
+    // copies u into x for the matching branch.  Verify x has the value
+    // that was tagged in.
+    begin
+      int x;
+      x = -1;
+      u = tagged b 12345;
+      case (u) matches
+        tagged a .x: hits_a = 1;
+        tagged b .x: hits_b = 1;  // x = u when this branch fires
+        tagged c .x: hits_c = 1;
+      endcase
+      if (x !== 12345)
+        $fatal(1, "FAIL/T6: x=%0d expected 12345 (binding propagation)", x);
+    end
+
+    $display("PASS: tagged-union constructor + case matches dispatch + .var bind");
     $finish;
   end
 endmodule

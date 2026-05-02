@@ -4100,24 +4100,45 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
                   /* Body: optional binding then stmt. */
                   NetProc*body = it->stat ? it->stat->elaborate(des, scope) : nullptr;
                   if (it->bind != perm_string()) {
-                        /* `tagged TAG .var: stmt` — bind .var = u.<TAG>.
-                           The .var is a hidden auto-local; for simplicity
-                           we look for an existing variable named .var in
-                           the scope and assign u to it (treating the
-                           tagged union storage as the value).  Without
-                           the bound var being declared as a separate
-                           variable in user scope, we drop the bind here
-                           with an advisory.  Real impl needs a per-branch
-                           hidden NetNet allocated at parse time. */
-                        static bool warned = false;
-                        if (!warned) {
+                        /* `tagged TAG .var: stmt` — assign .var = u.
+                           The user must have declared `.var` as a regular
+                           variable in scope before the case-matches; we
+                           look it up and emit a NetAssign that copies the
+                           tagged-union storage into it.  Since union
+                           members share storage, reading u and writing
+                           the bind var gives the value that was last
+                           written via tagged TAG (in the ordinary sense
+                           of union semantics, with the tag-companion
+                           protecting against cross-tag reads). */
+                        /* Look up the binding by walking enclosing
+                           scopes manually — symbol_search uses the
+                           PExpr's lexical position, but case-matches
+                           items are anonymous statements without
+                           lexical context. */
+                        NetNet*bind_net = nullptr;
+                        for (NetScope*s = scope; s != nullptr; s = s->parent()) {
+                              if (NetNet*n = s->find_signal(it->bind)) {
+                                    bind_net = n; break;
+                              }
+                        }
+                        if (!bind_net) {
                               cerr << get_fileline() << ": warning: case-matches "
                                    << "binding `." << it->bind.str()
-                                   << "' is not yet propagated; the body "
-                                   << "should reference the union variable "
-                                   << "directly.  Further similar warnings "
-                                   << "suppressed." << endl;
-                              warned = true;
+                                   << "': no variable named `" << it->bind.str()
+                                   << "' found in scope; binding skipped." << endl;
+                        } else {
+                              /* Build: bind_net = u (with implicit
+                                 width adjust). */
+                              NetAssign_*bind_lv = new NetAssign_(bind_net);
+                              NetESignal*u_e = new NetESignal(u_sig);
+                              u_e->set_line(*this);
+                              NetAssign*bind_as = new NetAssign(bind_lv, u_e);
+                              bind_as->set_line(*this);
+                              NetBlock*body_blk = new NetBlock(NetBlock::SEQU, 0);
+                              body_blk->set_line(*this);
+                              body_blk->append(bind_as);
+                              if (body) body_blk->append(body);
+                              body = body_blk;
                         }
                   }
                   NetCondit*cond = new NetCondit(cmp, body, cascade);

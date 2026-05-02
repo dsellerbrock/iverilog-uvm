@@ -1244,6 +1244,47 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	    return res;
       }
 
+      /* Phase 63b/B7 (gap close 2): for packed unions, the storage
+         is the size of one member (all members same packed_width).
+         Concatenating ALL items would produce a multi-of-packed-width
+         result that gets truncated to the LSB, losing the named
+         entry's value.  Instead emit a single-element concat of just
+         the FIRST mentioned member (or the first item for positional
+         form).  This is the value that gets written to the union. */
+      if (struct_type->union_flag()) {
+            NetExpr*single = nullptr;
+            if (!parm_names_.empty()) {
+                  /* Find the first non-default named entry. */
+                  static const perm_string def_key = lex_strings.make("default");
+                  for (size_t ii = 0; ii < parm_names_.size(); ii++) {
+                        if (parm_names_[ii] == def_key) continue;
+                        unsigned mi = members.size();
+                        for (size_t k = 0; k < members.size(); k++)
+                              if (members[k].name == parm_names_[ii]) { mi = k; break; }
+                        if (mi < items.size() && items[mi]) {
+                              single = items[mi];
+                              items[mi] = nullptr;  // detach so dtor doesn't double-free
+                              break;
+                        }
+                  }
+            } else if (!parms_.empty()) {
+                  if (items[0]) {
+                        single = items[0];
+                        items[0] = nullptr;
+                  }
+            }
+            /* Free items we're not using. */
+            for (auto*it : items) if (it) delete it;
+            if (!single) {
+                  /* No named entry — emit zero. */
+                  unsigned w = struct_type->packed_width();
+                  verinum z((uint64_t)0, w ? w : 1);
+                  single = new NetEConst(z);
+                  single->set_line(*this);
+            }
+            return single;
+      }
+
       NetEConcat *neconcat = new NetEConcat(items.size(), 1, struct_type->base_type());
       for (size_t idx = 0; idx < items.size(); idx += 1)
 	    if (items[idx])
