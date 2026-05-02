@@ -908,6 +908,8 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 
       if (union_flag)
 	    res->union_flag(true);
+      if (tagged_flag)
+	    res->tagged_flag(true);
 
       for (list<struct_member_t*>::iterator cur = members->begin()
 		 ; cur != members->end() ; ++ cur) {

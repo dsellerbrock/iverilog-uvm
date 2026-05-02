@@ -48,6 +48,16 @@ class netstruct_t : public LineInfo, public ivl_type_s {
       void union_flag(bool);
       bool union_flag(void) const;
 
+	// Phase 63b/B7: marks a `union tagged` (vs plain union).
+	// When set, packed_width() includes ceil(log2(member_count))
+	// tag bits at the MSB, and member access codegen sets the
+	// tag on write / checks the tag on case-matches dispatch.
+      void tagged_flag(bool);
+      bool tagged_flag(void) const;
+      unsigned tag_bits() const;
+      // Index of a member by name (0..N-1), or (unsigned)-1 if not found.
+      unsigned member_index(perm_string name) const;
+
       void packed(bool flag);
       bool packed(void) const override;
 
@@ -84,10 +94,12 @@ class netstruct_t : public LineInfo, public ivl_type_s {
       bool union_;
       bool packed_;
       bool signed_;
+      bool tagged_ = false;
       std::vector<member_t>members_;
 };
 
 inline bool netstruct_t::union_flag(void) const { return union_; }
 inline bool netstruct_t::packed(void) const { return packed_; }
+inline bool netstruct_t::tagged_flag(void) const { return tagged_; }
 
 #endif /* IVL_netstruct_H */
