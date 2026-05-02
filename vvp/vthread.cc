@@ -1985,7 +1985,10 @@ bool of_RAND_MODE(vthread_t thr, vvp_code_t)
 
 /* %covgrp/sample N
  * Stack on entry: obj-stack top = cg_obj; vec4-stack top N items = cp values
- * For each bin: get cp_idx value, check if in [lo,hi], if so increment prop. */
+ * Single-coverpoint bins increment when val matches.  Cross bins (multiple
+ * records sharing the same prop_idx) increment only when ALL records match
+ * — the runtime AND of all (cp_idx, lo, hi) tuples mapped to the same
+ * counter property.  See I1 (Phase 62l) elaborate.cc cross emission. */
 bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 {
       unsigned ncp = cp->number;
@@ -2003,42 +2006,62 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       const class_type*defn = cobj->get_defn();
       size_t nbins = defn->covgrp_bin_count();
 
-      for (size_t bi = 0 ; bi < nbins ; bi += 1) {
-	    const class_type::cov_bin_t& bin = defn->covgrp_bin(bi);
-	    if (bin.cp_idx >= ncp) continue;
+      // Group bins by prop_idx so that cross records (multiple bins on
+      // the same prop_idx) are AND'd together.  The first occurrence of a
+      // prop_idx determines the increment site; subsequent records refine
+      // the predicate.
+      std::map<unsigned, std::vector<size_t>> by_prop;
+      for (size_t bi = 0 ; bi < nbins ; bi += 1)
+	    by_prop[defn->covgrp_bin(bi).prop_idx].push_back(bi);
 
-	    const vvp_vector4_t&v = cp_vals[bin.cp_idx];
-	    /* Convert vec4 to uint64 — treat X/Z bits as 0 for comparison */
+      auto val_of = [&](unsigned cp_idx) -> uint64_t {
+	    if (cp_idx >= ncp) return 0;
+	    const vvp_vector4_t&v = cp_vals[cp_idx];
 	    uint64_t val = 0;
 	    for (unsigned bi2 = 0 ; bi2 < v.size() && bi2 < 64 ; bi2 += 1) {
 		  if (v.value(bi2) == BIT4_1)
 			val |= ((uint64_t)1 << bi2);
 	    }
+	    return val;
+      };
 
-	    if (val >= bin.lo && val <= bin.hi) {
-		  vvp_vector4_t cur(32, BIT4_0);
-		  cobj->get_vec4(bin.prop_idx, cur);
-		  /* Increment: convert to integer, add 1, store back */
-	          uint32_t count = 0;
-		  for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
-			if (cur.value(bi3) == BIT4_1)
-			      count |= (1u << bi3);
+      for (auto& kv : by_prop) {
+	    unsigned prop_idx = kv.first;
+	    bool all_match = true;
+	    for (size_t bi : kv.second) {
+		  const class_type::cov_bin_t& bin = defn->covgrp_bin(bi);
+		  if (bin.cp_idx >= ncp) { all_match = false; break; }
+		  uint64_t val = val_of(bin.cp_idx);
+		  if (val < bin.lo || val > bin.hi) {
+			all_match = false;
+			break;
 		  }
-		  count += 1;
-		  vvp_vector4_t newval(32, BIT4_0);
-		  for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
-			if (count & (1u << bi3))
-			      newval.set_bit(bi3, BIT4_1);
-		  }
-		  cobj->set_vec4(bin.prop_idx, newval);
 	    }
+	    if (!all_match) continue;
+
+	    vvp_vector4_t cur(32, BIT4_0);
+	    cobj->get_vec4(prop_idx, cur);
+	    uint32_t count = 0;
+	    for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
+		  if (cur.value(bi3) == BIT4_1)
+			count |= (1u << bi3);
+	    }
+	    count += 1;
+	    vvp_vector4_t newval(32, BIT4_0);
+	    for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
+		  if (count & (1u << bi3))
+			newval.set_bit(bi3, BIT4_1);
+	    }
+	    cobj->set_vec4(prop_idx, newval);
       }
       return true;
 }
 
 /* %covgrp/get_inst_coverage
  * Stack on entry: obj-stack top = cg_obj
- * Pushes real value = (bins_hit / total_bins) * 100.0 onto real stack */
+ * Pushes real value = (unique-bins-hit / unique-bins-total) * 100.0
+ * I1 (Phase 62l): cross bins emit multiple cov_bin_t records sharing one
+ * prop_idx — count each unique prop_idx once. */
 bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 {
       vvp_object_t obj;
@@ -2050,16 +2073,23 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 	    const class_type*defn = cobj->get_defn();
 	    size_t nbins = defn->covgrp_bin_count();
 	    if (nbins > 0) {
-		  size_t hit = 0;
+		  std::set<unsigned> unique_props;
+		  std::set<unsigned> hit_props;
 		  for (size_t bi = 0 ; bi < nbins ; bi += 1) {
 			unsigned prop_idx = defn->covgrp_bin(bi).prop_idx;
+			unique_props.insert(prop_idx);
+			if (hit_props.count(prop_idx)) continue;
 			vvp_vector4_t cur(32, BIT4_0);
 			cobj->get_vec4(prop_idx, cur);
 			for (unsigned bi2 = 0 ; bi2 < 32 ; bi2 += 1) {
-			      if (cur.value(bi2) == BIT4_1) { hit++; break; }
+			      if (cur.value(bi2) == BIT4_1) {
+				    hit_props.insert(prop_idx);
+				    break;
+			      }
 			}
 		  }
-		  result = (double)hit / (double)nbins * 100.0;
+		  result = (double)hit_props.size() /
+			   (double)unique_props.size() * 100.0;
 	    }
       }
       thr->push_real(result);

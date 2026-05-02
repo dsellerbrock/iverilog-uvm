@@ -9972,6 +9972,95 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    }
 		    cg_class->set_covgrp_ncoverpoints(cp_idx);
 
+		    // I1 (Phase 62l): generate cartesian-product bins for
+		    // each cross declaration.  Resolve each named
+		    // contributing coverpoint to its index; for each
+		    // combination of bins from each contributing cp, emit
+		    // one int32 counter property.  Bin metadata
+		    // (cpi, prop_idx, lo, hi) is added once per range.
+		    for (auto& cross : cgdef->crosses) {
+			  std::vector<unsigned> cp_indexes;
+			  cp_indexes.reserve(cross.cp_labels.size());
+			  bool resolved = true;
+			  for (perm_string cp_label : cross.cp_labels) {
+				int found = -1;
+				for (size_t i = 0;
+				     i < cgdef->coverpoints.size(); i++) {
+				      if (cgdef->coverpoints[i].label
+					  == cp_label) {
+					    found = static_cast<int>(i);
+					    break;
+				      }
+				}
+				if (found < 0) { resolved = false; break; }
+				cp_indexes.push_back(found);
+			  }
+			  if (!resolved) continue;
+			  if (cp_indexes.empty()) continue;
+
+			  std::vector<unsigned> idx(cp_indexes.size(), 0);
+			  bool done = false;
+			  while (!done) {
+				std::string bpname = std::string("__xbin_");
+				bpname += cross.label.nil()
+					    ? std::string("auto")
+					    : std::string(cross.label.str());
+				for (size_t k = 0; k < idx.size(); k++) {
+				      bpname += "_";
+				      bpname += std::to_string(idx[k]);
+				}
+				perm_string bpp = lex_strings.make(bpname.c_str());
+				cg_class->set_property(bpp,
+				      property_qualifier_t::make_none(),
+				      &netvector_t::atom2s32);
+
+				for (size_t k = 0; k < idx.size(); k++) {
+				      unsigned cpi = cp_indexes[k];
+				      auto& cp_x = cgdef->coverpoints[cpi];
+				      if (idx[k] >= cp_x.bins.size()) break;
+				      auto& xbin = cp_x.bins[idx[k]];
+				      for (auto& range : xbin.ranges) {
+					    if (!range.first ||
+						!range.second) continue;
+					    NetExpr* lo_e =
+					      elab_and_eval(des, class_scope_,
+							    range.first, -1,
+							    false, false);
+					    NetExpr* hi_e =
+					      elab_and_eval(des, class_scope_,
+							    range.second, -1,
+							    false, false);
+					    NetEConst* lo_c =
+					      dynamic_cast<NetEConst*>(lo_e);
+					    NetEConst* hi_c =
+					      dynamic_cast<NetEConst*>(hi_e);
+					    if (lo_c && hi_c) {
+						  uint64_t lo =
+						    lo_c->value().as_ulong64();
+						  uint64_t hi =
+						    hi_c->value().as_ulong64();
+						  cg_class->add_covgrp_bin(
+						    cpi, prop_idx, lo, hi);
+					    }
+					    delete lo_e;
+					    delete hi_e;
+				      }
+				}
+				prop_idx++;
+
+				size_t k = 0;
+				while (k < idx.size()) {
+				      auto& cp_x =
+					cgdef->coverpoints[cp_indexes[k]];
+				      idx[k]++;
+				      if (idx[k] < cp_x.bins.size()) break;
+				      idx[k] = 0;
+				      k++;
+				}
+				if (k == idx.size()) done = true;
+			  }
+		    }
+
 		    // Replace the covergroup property declaration on the
 		    // parent class with a handle to the synthesized class.
 		    set_property(cgdef->name,

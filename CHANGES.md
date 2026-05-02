@@ -910,7 +910,16 @@ The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remai
 - `soft` constraints: treated as hard (Phase 66 candidate)
 - Streaming operators `{<<{}}` `{>>{}}`: silently produce zero
 - `std::randomize(var) with {...}`: `with` clause not parsed
-- `uvm_resource_db#(T)::set/read_by_name`: typed-pool path returns 0
+- `uvm_resource_db#(T)::set/read_by_name`: typed-pool path returns 0.
+  **Phase 62 (C3 partial):** root cause is a runtime type mismatch — the
+  pool's class-keyed assoc-array (`bit children_array[uvm_sequence_base]`
+  and similar) is stored as `vvp_assoc_map<vvp_vector4_t>` (because the
+  VALUE is bit) but the access path inside `read_by_name` expects
+  `vvp_assoc_map<vvp_object_t>`.  Diagnostic (commit 9da3b4e9c) prints
+  the actual vs expected types in the warning so downstream investigation
+  has data.  A full fix needs multi-line elaboration changes to emit
+  the right typed lookup opcode for each access; deferred.  Reproducer:
+  /tmp/audit/c3_resource_db.sv.
 - `uvm_cmdline_processor.get_args(args)`: ✅ **Phase 62 (C4 fix):** the
   bug was at runtime, not elaboration: `string foo(int)` DPI imports
   were calling `pop_str()` for the int argument, underflowing the str
@@ -921,7 +930,15 @@ The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remai
   now returns real argv strings; `get_args(args)` populates `args`
   correctly with `+arg`/`-arg` plusargs from the command line.
 - `uvm_reg.lock_model()` task missing — blocks register layer beyond raw backdoor
-- Coverage `cross` / `illegal_bins`: silently inactive
+- Coverage `cross`: ✅ **Phase 62 (I1):** elaboration generates cartesian-
+  product bins from `cgdef->crosses` (a record per (cp_idx, bin_lo,
+  bin_hi) per dimension, all sharing one prop_idx counter).  Runtime
+  `%covgrp/sample` groups records by prop_idx and increments the
+  counter only when ALL constituent records match — implementing the
+  AND-of-dimensions semantic.  `get_inst_coverage` dedups by prop_idx
+  so cross bins count as one bin, not N.  Test:
+  `tests/coverage_cross_test.sv`.  `illegal_bins` / `ignore_bins`
+  remain silently inactive (auto-bin form only).
 - User-defined UVM phase (extends `uvm_task_phase`): `exec_task` never called
 - `uvm_callbacks::add` registration check warns CBUNREG (dispatch works).
   **Phase 62 (I5 fix):** the simplest cause — alphabetical class iteration in
