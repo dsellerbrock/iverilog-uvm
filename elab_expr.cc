@@ -1191,10 +1191,28 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	    auto dit = name_map.find(def_key);
 	    if (dit != name_map.end()) dflt = dit->second;
 
+	    /* Phase 63b/B7: union members share storage — only the
+	       named member needs a value.  Skip the missing-member
+	       error when the struct is a union; default-construct
+	       (zero) the unmentioned members so the items[] is fully
+	       populated for downstream concatenation. */
+	    bool is_union = struct_type->union_flag();
 	    for (size_t idx = 0; idx < members.size(); idx++) {
 		  auto it = name_map.find(members[idx].name);
 		  PExpr*src = (it != name_map.end()) ? it->second : dflt;
 		  if (!src) {
+			if (is_union) {
+			      /* Default-construct the unmentioned member to zero
+			         of the appropriate width; storage overlaps the
+			         active member so this slot is harmless. */
+			      ivl_type_t nt = members[idx].net_type;
+			      unsigned w = nt ? nt->packed_width() : 0;
+			      if (w == 0) w = 1;
+			      verinum z((uint64_t)0, w);
+			      items[idx] = new NetEConst(z);
+			      items[idx]->set_line(*this);
+			      continue;
+			}
 			cerr << get_fileline() << ": error: Named struct pattern "
 			     << "has no value for member '"
 			     << members[idx].name << "'." << endl;

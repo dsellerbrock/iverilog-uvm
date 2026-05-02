@@ -7854,6 +7854,33 @@ expr_primary
   | assignment_pattern
       { $$ = $1; }
 
+  /* Phase 63b/B7 (real impl): tagged-union constructor expression
+     IEEE 1800-2017 §6.13:  tagged TAG VALUE  or  tagged TAG  (void tag).
+     Lower to a named assignment-pattern with one entry, so existing
+     struct/union elaboration handles it.  Tag-set tracking is still
+     advisory (no runtime mismatch enforcement) — see B7 plan. */
+  | K_tagged IDENTIFIER expr_primary
+      { pform_requires_sv(@1, "tagged-union constructor");
+	std::list<std::pair<perm_string,PExpr*> > pat;
+	pat.push_back(std::make_pair(lex_strings.make($2), $3));
+	PEAssignPattern*tmp = new PEAssignPattern(pat);
+	FILE_NAME(tmp, @1);
+	delete[] $2;
+	$$ = tmp;
+      }
+  | K_tagged IDENTIFIER %prec UNARY_PREC
+      { pform_requires_sv(@1, "tagged-union void constructor");
+	/* Void-tag form: `tagged TAG` with no value.  Lower to an
+	   empty named pattern; downstream elab keeps default values. */
+	std::list<std::pair<perm_string,PExpr*> > pat;
+	pat.push_back(std::make_pair(lex_strings.make($2),
+				     (PExpr*)new PENumber(new verinum((uint64_t)0,32))));
+	PEAssignPattern*tmp = new PEAssignPattern(pat);
+	FILE_NAME(tmp, @1);
+	delete[] $2;
+	$$ = tmp;
+      }
+
   /* Type-prefixed assignment pattern: T'{expr, expr, ...} or T'{key: val, ...}.
      IEEE 1800-2012 §10.9. Treat identically to the untyped form — the type
      prefix guides structural matching which we do not enforce at this level.
