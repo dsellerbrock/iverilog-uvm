@@ -5737,7 +5737,17 @@ struct_data_type /* IEEE 1800-2012 A.2.2.1 */
 	tmp->packed_flag = $3.packed_flag;
 	tmp->signed_flag = $3.signed_flag;
 	tmp->union_flag = true;
+	tmp->tagged_flag = true;
 	tmp->members .reset($5);
+	{ static bool warned = false;
+	  if (!warned) {
+		std::cerr << @1
+			  << ": warning: tagged unions parse but tag enforcement is "
+			  << "not yet implemented (compile-progress; reads/writes "
+			  << "behave like a plain union; further similar warnings "
+			  << "suppressed)." << std::endl;
+		warned = true;
+	  } }
 	$$ = tmp;
       }
   | K_union K_tagged packed_signing '{' error '}'
@@ -5748,6 +5758,7 @@ struct_data_type /* IEEE 1800-2012 A.2.2.1 */
 	tmp->packed_flag = $3.packed_flag;
 	tmp->signed_flag = $3.signed_flag;
 	tmp->union_flag = true;
+	tmp->tagged_flag = true;
 	$$ = tmp;
       }
   | K_struct packed_signing '{' error '}'
