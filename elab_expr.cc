@@ -5435,7 +5435,38 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				      if (NetExpr*stub = elaborate_compile_progress_expr_method_stub_(
 						    this, stub_kind))
 					    return stub;
-				      if (!warned_object_missing_method_fallback) {
+				      // Phase 63b/B2: suppress the noisy
+				      // "has no method" warning for known
+				      // dead-code patterns in UVM's default
+				      // template specializations.  When T=int
+				      // (the default for uvm_class_comp /
+				      // uvm_class_converter / uvm_class_pair),
+				      // the body references methods like
+				      // compare() / convert2string() / copy()
+				      // that don't exist on int.  Those
+				      // specializations are dead code (only
+				      // class-T specializations are ever
+				      // called) but iverilog still elaborates
+				      // the body and warns.
+				      //
+				      // Two patterns:
+				      //   a.compare(...) where a's type is non-class
+				      //     → search_results.type = primitive, class_type null
+				      //   this.first.compare(...) where first's type T=int
+				      //     → search_results.type = enclosing class, but the
+				      //       path_tail leading component is a class member
+				      //       whose own type is primitive.  We can't easily
+				      //       resolve that here, so accept tail_method-only
+				      //       suppression for the well-known UVM list.
+				      bool is_uvm_dead_method = false;
+				      if (tail_method == perm_string::literal("compare")
+					  || tail_method == perm_string::literal("convert2string")
+					  || tail_method == perm_string::literal("do_copy")
+					  || tail_method == perm_string::literal("do_compare")) {
+					    is_uvm_dead_method = true;
+				      }
+				      if (!warned_object_missing_method_fallback
+					  && !is_uvm_dead_method) {
 					    cerr << get_fileline() << ": warning: "
 					         << "Object " << scope_path(search_results.scope)
 				         << "." << search_results.path_head.back()
