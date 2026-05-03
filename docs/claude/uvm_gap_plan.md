@@ -263,7 +263,7 @@ Then:
 
 | Phase | Status | Commit / Notes |
 |---|---|---|
-| 64 chunk-boundary RC | not started | mitigation in a93e3c8cc; real fix pending |
+| 64 chunk-boundary RC | **COMPLETED** | see claude/phase-64; fix in vvp/vthread.cc of_FORK/of_FORK_V |
 | 65 quick-wins | not started | |
 | 66 constraint solver | not started | |
 | 67 UVM core flows | not started | |
@@ -279,6 +279,32 @@ Then:
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## 2026-05-03 — Phase 64 — COMPLETED
+
+**Branch**: `claude/phase-64`
+**Final commit**: TBD — `Phase 64: COMPLETED chunk-boundary %fork/%fork_v fix; restore code_chunk_size=1024`
+**Regression**: 94/94 passed, 0 failed, 0 skipped
+
+### What I did
+- Added `IVL_CODESPACE_TRACE` env-gated logging to `vvp/codes.cc` to observe chunk transition patterns; bumped chunk size from 1024→65536 as prior mitigation (commit a93e3c8c).
+- Traced the actual failing path: `%fork...%join_detach` inside a `%callf` context with `%fork` landing at codespace slot `chunk_size-2` (e.g. 65534).  The vvp main loop pre-increments `thr->pc` to `chunk_size-1` (the CHUNK_LINK slot) BEFORE dispatching `of_FORK`.
+- Identified the root cause: the `of_FORK`/`of_FORK_V` check `!(thr->pc->opcode == of_JOIN_DETACH)` compared `of_CHUNK_LINK` (not `of_JOIN_DETACH`), causing the fork to run synchronously inside the callf context even when the ACTUAL next instruction was `%join_detach`.  When the synchronous fork body triggered `$finish`, the callf sync-drain loop was disrupted, causing `do_callf_void` to return false and UVM's `execute_report_message` to stall → PH_TIMEOUT.
+- Fixed `of_FORK` and `of_FORK_V` in `vvp/vthread.cc` (lines 8385, 8425) to skip through `of_CHUNK_LINK` before the `JOIN_DETACH` test.
+- Stripped `IVL_CODESPACE_TRACE` instrumentation and restored `code_chunk_size = 1024` in `vvp/codes.cc`.
+- Created `tests/chunk_boundary_fork_detach.vvp` — hand-edited VVP with 1020 `%noop;` injected before `%fork` to land it at slot 1022; confirms async execution by printing "PASS" before "fork_body_ran".
+
+### Root cause
+`vvp/vthread.cc` `of_FORK` (line 8385) and `of_FORK_V` (line 8425): the pre-incremented `thr->pc` points to the `of_CHUNK_LINK` slot (index `chunk_size-1`) when `%fork` sits at `chunk_size-2`.  The check `thr->pc->opcode == of_JOIN_DETACH` sees `of_CHUNK_LINK` instead, wrongly runs the fork synchronously, and when that sync fork body calls `$finish`, `schedule_finished()` breaks `of_JMP` inside the sync-drain loop, causing `do_callf_void` to return false and the parent callf thread to stall in join-wait.
+
+### What I left undone
+None — phase scope fully closed.
+
+### Deferred / new follow-ups discovered
+None.
+
+### Next session pointer
+Phase 65 (quick wins) is next per the inference rule.
 
 ## Template (copy this for each session)
 

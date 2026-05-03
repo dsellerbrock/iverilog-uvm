@@ -25,6 +25,8 @@
 #endif
 # include  <cstring>
 # include  <cassert>
+# include  <cstdio>
+# include  <cstdlib>
 
 /*
  * The code space is broken into chunks, to make for efficient
@@ -33,7 +35,7 @@
  * instruction to branch to the next chunk. This handles the case
  * where the program counter steps off the end of a chunk.
  */
-const unsigned code_chunk_size = 65536;
+const unsigned code_chunk_size = 1024;
 
 static struct vvp_code_s *first_chunk = 0;
 static struct vvp_code_s *current_chunk = 0;
