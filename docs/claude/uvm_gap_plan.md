@@ -278,6 +278,66 @@ Then:
 
 # Working notes (agent appends)
 
-(Each agent run appends a dated entry: what was attempted, what passed/failed, what's deferred, next-step pointer. Newest at top.)
+Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## Template (copy this for each session)
+
+```markdown
+## YYYY-MM-DD — Phase NN — <COMPLETED | WIP | BLOCKED>
+
+**Branch**: `claude/phase-NN`
+**Final commit**: `<short SHA>` — `<final commit subject line>`
+**Regression**: <94/N> passed, <0/X> failed, <0/Y> skipped (vs baseline 94/0/0)
+
+### What I did
+- <bullet 1: probe added, source file touched, behavior changed>
+- <bullet 2>
+- <bullet 3>
+
+### Root cause (if applicable)
+<2-4 sentences on the actual bug if this phase was a root-cause investigation. Cite file:line.>
+
+### What I left undone (if WIP or scope-trimmed)
+- <gap ID + reason — "G19 dist :/ : codegen done, runtime unwired; needs tgt-vvp/vvp_scope.c emit + new opcode dispatcher">
+- <gap ID + reason>
+
+### Deferred / new follow-ups discovered
+- <if a deeper bug was found, file as a follow-up phase here. Format: "Phase 76 (proposed): <one-line scope> — <why deferred>">
+
+### Next session pointer
+- <if WIP: what to do first when resuming. If COMPLETED: empty>
+```
+
+## Worked example (delete this once a real entry exists)
+
+```markdown
+## 2026-05-04 — Phase 64 — COMPLETED
+
+**Branch**: `claude/phase-64`
+**Final commit**: `abc1234` — `Phase 64: COMPLETED chunk-boundary root cause; restore code_chunk_size=1024`
+**Regression**: 95/95 passed, 0 failed, 0 skipped (added tests/chunk_boundary_repro_test.sv)
+
+### What I did
+- Added `IVL_CODESPACE_TRACE` env-gated logging to vvp/codes.cc::codespace_next + codespace_allocate
+- Diffed baseline vs hand-edited-with-noop runs; isolated chunk-boundary mishandling to <file>:<line>
+- Implemented fix: <one-line description>
+- Restored `code_chunk_size = 1024` in vvp/codes.cc
+- Added `tests/chunk_boundary_repro_test.sv` exercising a function that crosses a boundary at chunk_size=1024
+
+### Root cause
+<2-4 sentences citing file:line>
+
+### What I left undone
+None — phase scope fully closed.
+
+### Deferred / new follow-ups discovered
+None.
+
+### Next session pointer
+Phase 65 (quick wins) is next per the inference rule.
+```
 
 ---
+
+(Real entries below this line. Newest first.)
+
