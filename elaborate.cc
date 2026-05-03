@@ -5556,6 +5556,15 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  return elaborate_sys_task_method_(des, scope, obj_expr, obj_type, method_name,
 						    "$ivl_string_method$realtoa",
 						    parm_names);
+	    } else if (method_name == "putc") {
+		  static const std::vector<perm_string> parm_names = {
+			perm_string::literal("index"),
+			perm_string::literal("c"),
+		  };
+
+		  return elaborate_sys_task_method_(des, scope, obj_expr, obj_type, method_name,
+						    "$ivl_string_method$putc",
+						    parm_names);
 	    }
       }
 

@@ -945,7 +945,14 @@ bool vpi_handle_resolv_list_s::resolve(bool mes)
       }
 
       if (mes) {
-	    unresolved_warn_once("vpi name lookup", label(), "using null handle");
+	    /* G47: v<hex>_<N> labels are class-property signal references.
+	       Class properties are not addressable via VPI, so a null
+	       handle is the correct silent fallback — no warning needed. */
+	    const char*lp = label();
+	    bool is_class_prop = (lp[0] == 'v' && lp[1] != '<'
+				  && strchr(lp, '_') != nullptr);
+	    if (!is_class_prop)
+		  unresolved_warn_once("vpi name lookup", lp, "using null handle");
 	    val.ptr = vpip_make_null_const();
 	    sym_set_value(sym_vpi, label(), val);
 	    *handle = static_cast<vpiHandle>(val.ptr);

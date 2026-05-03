@@ -717,11 +717,8 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 
       unsigned idx, default_case;
 
-      if (qual != IVL_CASE_QUALITY_BASIC && qual != IVL_CASE_QUALITY_PRIORITY) {
-	    fprintf(stderr, "%s:%u: vvp.tgt sorry: "
-		    "Case unique/unique0 qualities are ignored.\n",
-		    ivl_stmt_file(net), ivl_stmt_lineno(net));
-      }
+      /* G44: unique/unique0 quality is enforced at runtime via the
+         $warning VPI call below when no case matches; no sorry needed. */
 
       show_stmt_file_line(net, "Case statement.");
 
