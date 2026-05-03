@@ -25,8 +25,6 @@
 #endif
 # include  <cstring>
 # include  <cassert>
-# include  <cstdio>
-# include  <cstdlib>
 
 /*
  * The code space is broken into chunks, to make for efficient
