@@ -415,6 +415,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%release/net",of_RELEASE_NET,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/reg",of_RELEASE_REG,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/wr", of_RELEASE_WR, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
+      { "%rep/str",   of_REP_STR,     1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%replicate", of_REPLICATE,   1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%ret/obj",   of_RET_OBJ,     1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%ret/real",  of_RET_REAL,    1,{OA_NUMBER,  OA_NONE,OA_NONE} },

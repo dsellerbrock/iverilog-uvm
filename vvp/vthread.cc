@@ -6766,6 +6766,23 @@ bool of_CONCAT_STR(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* Phase 63b: %rep/str <ix-reg> — replace top-of-str-stack `unit`
+ * with `words[ix-reg]` copies of `unit` concatenated.  Used by
+ * the string codegen when {N{x}} has a runtime-variable N. */
+bool of_REP_STR(vthread_t thr, vvp_code_t cp)
+{
+      unsigned use_idx = cp->number;
+      int64_t count = thr->words[use_idx].w_int;
+      string unit = thr->pop_str();
+      string out;
+      if (count > 0 && count < (1<<20)) {  // 1M cap
+            out.reserve(unit.size() * (size_t)count);
+            for (int64_t i = 0; i < count; i++) out += unit;
+      }
+      thr->push_str(out);
+      return true;
+}
+
 /*
  *  %concati/str <string>;
  */

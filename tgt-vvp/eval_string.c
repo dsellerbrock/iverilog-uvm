@@ -356,6 +356,15 @@ void draw_eval_string(ivl_expr_t expr)
 		  string_ex_pop(expr);
 	    else if (strcmp(ivl_expr_name(expr), "$ivl_queue_method$pop_front")==0)
 		  string_ex_pop(expr);
+	    else if (strcmp(ivl_expr_name(expr), "$ivl_string$repeat") == 0) {
+		  /* Phase 63b/string-replicate: parm0=unit string,
+		     parm1=count vec4.  Build unit string, push count
+		     to ix4, emit %rep/str. */
+		  draw_eval_string(ivl_expr_parm(expr, 0));
+		  draw_eval_vec4(ivl_expr_parm(expr, 1));
+		  fprintf(vvp_out, "    %%ix/vec4 4;\n");
+		  fprintf(vvp_out, "    %%rep/str 4;\n");
+	    }
 	    else
 		  draw_sfunc_string(expr);
 	    break;

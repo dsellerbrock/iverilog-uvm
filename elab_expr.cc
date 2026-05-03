@@ -7246,9 +7246,14 @@ unsigned PEConcat::test_width(Design*des, NetScope*scope, width_mode_t&)
 			  // Variable replication of a string — use a
 			  // placeholder count of 1 for compile-time width
 			  // and let the runtime handle the actual count.
+			  // Phase 63b: save the elaborated repeat expr so
+			  // elaborate_expr can plumb it to NetEConcat.
 			repeat_count_ = 1;
 			tested_scope_ = scope;
-			delete tmp;
+			if (!runtime_repeat_)
+			      runtime_repeat_ = tmp;  // ownership transferred
+			else
+			      delete tmp;  // duplicate test_width call
 			goto repeat_done;
 		  }
 		  cerr << get_fileline() << ": error: "
@@ -7426,6 +7431,26 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 	    concat_depth -= 1;
 	    delete cncat;
 	    return 0;
+      }
+
+	/* Phase 63b: for string concatenations with a runtime-variable
+	   repeat count (e.g. `{N{"-"}}` with N a variable), wrap the
+	   fully-populated NetEConcat (which holds 1 copy of the unit)
+	   in a NetESFunc("$ivl_string$repeat", unit, count) so codegen
+	   can emit a runtime loop.  Doing this AFTER the parameter
+	   loop ensures the inner cncat has its parms set. */
+      if (runtime_repeat_ && expr_type_ == IVL_VT_STRING) {
+	    NetESFunc*fn = new NetESFunc("$ivl_string$repeat",
+	                                 IVL_VT_STRING, 1, 2);
+	    fn->set_line(*this);
+	    fn->parm(0, cncat);
+	    fn->parm(1, runtime_repeat_);
+	    runtime_repeat_ = nullptr;  // ownership transferred
+	    concat_depth -= 1;
+	    return fn;
+      } else if (runtime_repeat_) {
+	    delete runtime_repeat_;
+	    runtime_repeat_ = nullptr;
       }
 
       NetExpr*tmp = pad_to_width(cncat, expr_wid, signed_flag_, *this);

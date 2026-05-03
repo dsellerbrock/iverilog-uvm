@@ -293,6 +293,13 @@ class PEConcat : public PExpr {
       PExpr*repeat_;
       NetScope*tested_scope_;
       unsigned repeat_count_;
+      // Phase 63b: when a string concat has a runtime-variable
+      // repeat count, test_width saves the elaborated runtime
+      // expression here so the elaborate_expr stage can plumb it
+      // through to NetEConcat::set_repeat_expr without re-eval.
+      // mutable because elaborate_expr is a const member but needs
+      // to take ownership.
+      mutable NetExpr*runtime_repeat_ = nullptr;
 };
 
 /*
