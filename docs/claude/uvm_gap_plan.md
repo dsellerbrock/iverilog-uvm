@@ -14,7 +14,52 @@ If a phase exceeds 1 session: leave the in-progress work on a topic branch, docu
 
 If a phase reveals a deeper bug than scoped: STOP, document, and either (a) split the deeper bug into its own follow-up phase, or (b) escalate via memory note for the user to triage. Do NOT silently expand scope.
 
-Audit reference: `memory/uvm_ieee1800_gap_audit_2026_05.md` (gap IDs G01-G65).
+Audit reference: `docs/claude/uvm_ieee1800_gap_audit_2026_05.md` (gap IDs G01-G65).
+
+## Branch-state convention (source of truth for "what's done")
+
+Topic branches `claude/phase-NN` ARE the source of truth for cross-session state. The Status table at the bottom of this file is informational only; `development` never sees Status updates between phases (topic branches merge at the end). The agent infers global state by inspecting remote branches at session start.
+
+**Done-marker convention.** When a phase is complete, the FINAL commit on `claude/phase-NN` MUST have a subject line starting with `Phase NN: COMPLETED` — e.g. `Phase 64: COMPLETED chunk-boundary root cause + restore chunk_size=1024`. The agent's session-start logic greps `git log -1 --format=%s origin/claude/phase-NN` for this marker.
+
+**Session-start state inference** (the agent runs this at the top of every session):
+
+```bash
+git fetch origin --prune
+NEXT_PHASE=""
+RESUME=""
+for NN in 64 65 66 67 68 69 70 71 72 73 74 75; do
+  REF="refs/remotes/origin/claude/phase-$NN"
+  if git rev-parse --verify --quiet "$REF" >/dev/null; then
+    LAST_MSG=$(git log -1 --format=%s "$REF")
+    if echo "$LAST_MSG" | grep -q "^Phase $NN: COMPLETED"; then
+      continue   # done, skip
+    else
+      RESUME="$NN"   # branch exists, no done-marker → resume this
+      break
+    fi
+  else
+    NEXT_PHASE="$NN"   # no branch → next to start
+    break
+  fi
+done
+
+# Prefer resume over start
+PHASE="${RESUME:-$NEXT_PHASE}"
+[ -z "$PHASE" ] && { echo "All phases complete!"; exit 0; }
+```
+
+Then:
+- If `RESUME` matched: `git checkout -B claude/phase-$PHASE origin/claude/phase-$PHASE`
+- If `NEXT_PHASE` matched: `git checkout -b claude/phase-$PHASE` (off `origin/development`)
+
+**Implementation work** lands as one or more commits with normal subject lines.
+
+**Final commit** of a completed phase has subject `Phase NN: COMPLETED <one-line outcome>`. This is the marker that flips state. If you push without this marker, the next session will resume your branch (treats as in-progress).
+
+**WIP exit (phase exceeds session)**: push your branch with the LAST commit subject like `Phase NN: WIP <what's left>` (anything that doesn't start with `Phase NN: COMPLETED`). Next session resumes.
+
+**Status table at bottom of this file**: still updated on the topic branch (in the same commit as the done-marker, ideally) for human readability when you eventually merge to development. NOT the source of truth for the agent.
 
 # Phase 64 — vvp chunk-boundary root cause + real fix
 
