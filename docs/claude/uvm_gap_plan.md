@@ -280,6 +280,30 @@ Then:
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
 
+## 2026-05-03 (session 2) — Phase 64 — COMPLETED (re-marker)
+
+**Branch**: `claude/phase-64`
+**Final commit**: `ec414d9` + new re-marker commit — two post-COMPLETED commits (doc update + unused-include cleanup) broke state detection; added new COMPLETED commit to restore inference invariant.
+**Regression**: 94/94 passed, 0 failed, 0 skipped (verified after clean rebuild)
+
+### What I did
+- Detected that two commits after `3d03cf9` (the COMPLETED commit) broke the session-start state machine (last commit subject didn't start with "Phase 64: COMPLETED").
+- Performed clean rebuild (discovered partial build from flex/z3 install sequence caused test failures; `make clean && make` fixed all 17 spurious failures).
+- Re-verified 94/94 regression.
+- Added this re-marker COMPLETED commit.
+
+### Root cause
+Prior session pushed cleanup commits after the COMPLETED marker, violating rule #10. Clean rebuild was needed because flex/gperf/z3 were installed mid-build, leaving stale object files.
+
+### What I left undone
+None — phase scope fully closed.
+
+### Deferred / new follow-ups discovered
+None.
+
+### Next session pointer
+Phase 65 (quick wins) is next.
+
 ## 2026-05-03 — Phase 64 — COMPLETED
 
 **Branch**: `claude/phase-64`
