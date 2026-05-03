@@ -283,7 +283,7 @@ Each session appends ONE entry at the TOP of this section (newest first). Format
 ## 2026-05-03 — Phase 64 — COMPLETED
 
 **Branch**: `claude/phase-64`
-**Final commit**: TBD — `Phase 64: COMPLETED chunk-boundary %fork/%fork_v fix; restore code_chunk_size=1024`
+**Final commit**: `3d03cf9` — `Phase 64: COMPLETED chunk-boundary %fork/%fork_v fix; restore code_chunk_size=1024`
 **Regression**: 94/94 passed, 0 failed, 0 skipped
 
 ### What I did
