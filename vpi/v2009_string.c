@@ -133,6 +133,8 @@ static PLI_INT32 putc_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpiHandle argv, obj_h, idx_h, ch_h;
       s_vpi_value value;
       char buf[4096];
+      int idx, ch;
+      size_t len;
 
       (void)name;
 
@@ -150,14 +152,14 @@ static PLI_INT32 putc_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       strncpy(buf, value.value.str ? value.value.str : "", sizeof(buf)-1);
       buf[sizeof(buf)-1] = '\0';
 
-      int idx = 0;
+      idx = 0;
       if (idx_h) {
 	    value.format = vpiIntVal;
 	    vpi_get_value(idx_h, &value);
 	    idx = value.value.integer;
       }
 
-      int ch = 0;
+      ch = 0;
       if (ch_h) {
 	    value.format = vpiIntVal;
 	    vpi_get_value(ch_h, &value);
@@ -167,7 +169,7 @@ static PLI_INT32 putc_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       /* SV spec: putc with ch==0 has no effect. */
       if (ch == 0) return 0;
 
-      size_t len = strlen(buf);
+      len = strlen(buf);
       if (idx >= 0 && (size_t)idx < len) {
 	    buf[idx] = (char)ch;
 	    value.format = vpiStringVal;
