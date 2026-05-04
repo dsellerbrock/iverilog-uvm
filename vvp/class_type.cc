@@ -235,6 +235,9 @@ template <class T> class property_atom : public class_property_t {
       void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
       void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
 
+      // G49: integer properties use get_vec4; get_object returns null silently.
+      void get_object(char*, vvp_object_t&, uint64_t) override {}
+
       void copy(char*dst, char*src) override;
 
     private:
@@ -267,6 +270,8 @@ class property_bit : public class_property_t {
       void get_vec4(char*buf, vvp_vector4_t&val) override;
       void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
       void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
+
+      void get_object(char*, vvp_object_t&, uint64_t) override {}
 
       void copy(char*dst, char*src) override;
 
@@ -301,6 +306,8 @@ class property_logic : public class_property_t {
       void get_vec4(char*buf, vvp_vector4_t&val) override;
       void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
       void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
+
+      void get_object(char*, vvp_object_t&, uint64_t) override {}
 
       void copy(char*dst, char*src) override;
 

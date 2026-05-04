@@ -5849,14 +5849,10 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 			          child_in_scope,
 			          child->pc == codespace_null() ? 1 : 0);
 		    }
-		    if (!warned_callf_child_not_ended) {
-			  fprintf(stderr,
-				          "Warning: callf child did not end synchronously"
-				          " (caller=%s callee=%s); caller entering join wait (further similar warnings suppressed)\n",
-				          caller_name ? caller_name : "<unknown>",
-				          child_name ? child_name : "<unknown>");
-				  warned_callf_child_not_ended = true;
-			    }
+		    /* G48: suppress this diagnostic — async callf children
+		       (e.g. UVM tasks with event-waits) enter join-wait
+		       correctly; the message is purely cosmetic. */
+		    (void)warned_callf_child_not_ended;
 			    if (callf_dump_tree_enabled_(caller_name, child_name))
 			          dump_callf_tree_(child, 0);
 			    thr->i_am_joining = 1;

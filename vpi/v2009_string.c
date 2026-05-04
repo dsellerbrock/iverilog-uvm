@@ -105,6 +105,81 @@ static PLI_INT32 two_arg_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+static PLI_INT32 three_arg_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv;
+
+      argv = vpi_iterate(vpiArgument, callh);
+      if (argv == 0) {
+	    vpi_printf("ERROR: %s:%d: %s missing arguments.\n",
+	               vpi_get_str(vpiFile, callh),
+	               (int)vpi_get(vpiLineNo, callh), name);
+	    vpip_set_return_value(1);
+	    vpi_control(vpiFinish, 1);
+	    return 0;
+      }
+      (void)vpi_scan(argv); /* obj */
+      (void)vpi_scan(argv); /* arg1 */
+      (void)vpi_scan(argv); /* arg2 */
+      vpi_free_object(argv);
+      return 0;
+}
+
+/* G38: string.putc(index, ch) — set character at index in-place. */
+static PLI_INT32 putc_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv, obj_h, idx_h, ch_h;
+      s_vpi_value value;
+      char buf[4096];
+      int idx, ch;
+      size_t len;
+
+      (void)name;
+
+      argv = vpi_iterate(vpiArgument, callh);
+      if (!argv) return 0;
+      obj_h = vpi_scan(argv);
+      idx_h = vpi_scan(argv);
+      ch_h  = vpi_scan(argv);
+      vpi_free_object(argv);
+
+      if (!obj_h) return 0;
+
+      value.format = vpiStringVal;
+      vpi_get_value(obj_h, &value);
+      strncpy(buf, value.value.str ? value.value.str : "", sizeof(buf)-1);
+      buf[sizeof(buf)-1] = '\0';
+
+      idx = 0;
+      if (idx_h) {
+	    value.format = vpiIntVal;
+	    vpi_get_value(idx_h, &value);
+	    idx = value.value.integer;
+      }
+
+      ch = 0;
+      if (ch_h) {
+	    value.format = vpiIntVal;
+	    vpi_get_value(ch_h, &value);
+	    ch = value.value.integer & 0xFF;
+      }
+
+      /* SV spec: putc with ch==0 has no effect. */
+      if (ch == 0) return 0;
+
+      len = strlen(buf);
+      if (idx >= 0 && (size_t)idx < len) {
+	    buf[idx] = (char)ch;
+	    value.format = vpiStringVal;
+	    value.value.str = buf;
+	    vpi_put_value(obj_h, &value, 0, vpiNoDelay);
+      }
+
+      return 0;
+}
+
 static PLI_INT32 len_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -746,6 +821,15 @@ void v2009_string_register(void)
       tf_data.compiletf = two_arg_compiletf;
       tf_data.sizetf    = 0;
       tf_data.user_data = "$ivl_string_method$getc";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.type      = vpiSysTask;
+      tf_data.tfname    = "$ivl_string_method$putc";
+      tf_data.calltf    = putc_calltf;
+      tf_data.compiletf = three_arg_compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = "$ivl_string_method$putc";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 
