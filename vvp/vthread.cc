@@ -8382,7 +8382,13 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
 	    child->is_fork_v_child = 1;
       thr->children.insert(child);
 
-	      if (thr->i_am_in_function && !(thr->pc && thr->pc->opcode == of_JOIN_DETACH)) {
+		    /* When %fork sits at chunk_size-2, the pre-incremented pc lands
+	       on of_CHUNK_LINK rather than the actual next instruction. Skip
+	       through the link so the %join_detach check sees the real opcode. */
+	    { vvp_code_t next_pc = thr->pc;
+	      if (next_pc && next_pc->opcode == of_CHUNK_LINK && next_pc->cptr)
+		    next_pc = next_pc->cptr;
+	      if (thr->i_am_in_function && !(next_pc && next_pc->opcode == of_JOIN_DETACH)) {
 		    child->is_scheduled = 1;
 		    child->i_am_in_function = 1;
 		    vthread_run(child);
@@ -8390,6 +8396,7 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
 	      } else {
 		    schedule_vthread(child, 0, true);
 	      }
+	    }
 	      return true;
 }
 
@@ -8422,7 +8429,12 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
       child->is_fork_v_child = 1;
       thr->children.insert(child);
 
-	      if (thr->i_am_in_function && !(thr->pc && thr->pc->opcode == of_JOIN_DETACH)) {
+		    /* Same chunk-boundary fix: skip of_CHUNK_LINK when checking the
+	       next opcode so %fork...%join_detach at a boundary goes async. */
+	    { vvp_code_t next_pc = thr->pc;
+	      if (next_pc && next_pc->opcode == of_CHUNK_LINK && next_pc->cptr)
+		    next_pc = next_pc->cptr;
+	      if (thr->i_am_in_function && !(next_pc && next_pc->opcode == of_JOIN_DETACH)) {
 		    child->is_scheduled = 1;
 		    child->i_am_in_function = 1;
 		    vthread_run(child);
@@ -8430,6 +8442,7 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
 	      } else {
 		    schedule_vthread(child, 0, true);
 	      }
+	    }
 	      return true;
 }
 
