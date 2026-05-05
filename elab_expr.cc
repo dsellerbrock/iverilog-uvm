@@ -5577,6 +5577,25 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  return stub;
 	    if (NetScope*lazy_func = find_lazy_function_scope_(des, scope, path_))
 		  return elaborate_base_(des, scope, lazy_func, flags);
+
+	    // Handle method call on a function-call result: fn().method(args).
+	    // The parser stores the receiver expression in subject_expr_; elaborate
+	    // it to find the class type, then dispatch the method on that type.
+	    if (subject_expr_ && path_.name.size() == 1) {
+		  NetExpr*rcvr = subject_expr_->elaborate_expr(des, scope, -1, 0);
+		  if (rcvr) {
+			const netclass_t*class_type =
+			      dynamic_cast<const netclass_t*>(rcvr->net_type());
+			if (class_type) {
+			      perm_string method_name = peek_tail_name(path_);
+			      NetScope*method_scope = class_type->method_from_name(method_name);
+			      if (method_scope && method_scope->type() == NetScope::FUNC)
+				    return elaborate_base_(des, scope, method_scope, flags, rcvr);
+			}
+			delete rcvr;
+		  }
+	    }
+
 	    cerr << get_fileline() << ": error: No function named `" << path_
 		 << "' found in this context (" << scope_path(scope) << ")."
 		 << endl;
@@ -5849,7 +5868,8 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 }
 
 NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*dscope,
-					 unsigned flags) const
+					 unsigned flags,
+					 NetExpr*this_override) const
 {
 
       if (! check_call_matches_definition_(des, dscope))
@@ -5909,14 +5929,16 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
       unsigned parm_off = 0;
       if (parms_count > 0 && path_.size() >= 1
 	  && scope_method_uses_implicit_this(des, dscope)) {
-	    NetExpr*this_arg = nullptr;
-	    if (path_.size() == 1
-		|| peek_head_name(path_) == perm_string::literal(THIS_TOKEN)
-		|| peek_head_name(path_) == perm_string::literal(SUPER_TOKEN)) {
-		  if (NetNet*this_net = find_implicit_this_handle(des, scope)) {
-			NetESignal*sig = new NetESignal(this_net);
-			sig->set_line(*this);
-			this_arg = sig;
+	    NetExpr*this_arg = this_override;
+	    if (!this_arg) {
+		  if (path_.size() == 1
+		      || peek_head_name(path_) == perm_string::literal(THIS_TOKEN)
+		      || peek_head_name(path_) == perm_string::literal(SUPER_TOKEN)) {
+			if (NetNet*this_net = find_implicit_this_handle(des, scope)) {
+			      NetESignal*sig = new NetESignal(this_net);
+			      sig->set_line(*this);
+			      this_arg = sig;
+			}
 		  }
 	    }
 	    if (!this_arg) {

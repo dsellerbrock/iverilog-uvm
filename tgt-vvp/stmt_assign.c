@@ -2192,9 +2192,26 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  if (prop_word_idx)
 			fprintf(vvp_out, "    %%store/prop/v/i %d, %d, %u; Store in logic property %s\n",
 				prop_idx, prop_word_idx, lwid, ivl_type_prop_name(sig_type, prop_idx));
-		  else
+		  else {
+			/* For whole unpacked-array property stores, netuarray_t::packed_width()
+			   falls back to 1. Compute the real total width from element type ×
+			   array count so %store/prop/v pops the right number of bits. */
+			unsigned store_wid = lwid;
+			ivl_type_t etype = ivl_type_element(prop_type);
+			unsigned ndims = etype ? ivl_type_packed_dimensions(prop_type) : 0;
+			if (ndims > 0) {
+			      unsigned cnt = 1;
+			      for (unsigned d = 0; d < ndims; d++) {
+				    int msb = ivl_type_packed_msb(prop_type, d);
+				    int lsb = ivl_type_packed_lsb(prop_type, d);
+				    cnt *= (unsigned)((msb >= lsb) ? (msb-lsb+1) : (lsb-msb+1));
+			      }
+			      unsigned ewid = ivl_type_packed_width(etype);
+			      if (ewid > 0) store_wid = cnt * ewid;
+			}
 			fprintf(vvp_out, "    %%store/prop/v %d, %u; Store in logic property %s\n",
-				prop_idx, lwid, ivl_type_prop_name(sig_type, prop_idx));
+				prop_idx, store_wid, ivl_type_prop_name(sig_type, prop_idx));
+		  }
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  if (prop_word_idx) clr_word(prop_word_idx);
 
