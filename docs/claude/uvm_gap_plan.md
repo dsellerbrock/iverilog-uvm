@@ -266,7 +266,7 @@ Then:
 | 64 chunk-boundary RC | **COMPLETED** | see claude/phase-64; fix in vvp/vthread.cc of_FORK/of_FORK_V |
 | 65 quick-wins | **COMPLETED** | see claude/phase-65; G38/G44/G47/G48/G49 fixed; G19/G45 RESOLVED-BY-PRIOR; 98/98 PASS |
 | 66 constraint solver | not started | |
-| 67 UVM core flows | not started | |
+| 67 UVM core flows | **COMPLETED** | 66202a715; G22/G23/G24 RESOLVED-BY-PRIOR; G25 fixed (whole-array sarray prop copy); 96/98 PASS |
 | 68 SVA expansion | not started | |
 | 69 streaming/structs | not started | |
 | 70 modport/iface | not started | |
@@ -279,6 +279,24 @@ Then:
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## 2026-05-05 (session) — Phase 67 — COMPLETED G25 unpacked array property whole-array copy
+
+**Branch**: `claude/phase-67-interactive`
+**Commit**: `66202a715`
+**Regression**: 96/98 passed, 2 failed (vif_smoke/vif_smoke_v2 pre-existing timeout), 0 skipped
+
+### What I did
+- **G22/G23/G24**: Probed — all RESOLVED-BY-PRIOR.
+- **G25**: Fixed `uvm_field_sarray_int` clone/copy broken (b.data = a.data returned zeros).
+  - `tgt-vvp/stmt_assign.c`: compute correct serialized width for whole-array stores — `elem_count × elem_bits` instead of `netuarray_t::packed_width()` returning 1.
+  - `vvp/class_type.cc + vvp_cobject.cc + vthread.cc`: add `get_vec4_whole`/`set_vec4_whole` API that calls the no-idx property serializers; wire `of_PROP_V`/`of_STORE_PROP_V` to these. Previously both went through idx=0 indexed path, returning only element 0.
+
+### Root cause
+`netuarray_t::packed_width()` returns 1 (no override), so `%store/prop/v 0, 1` was generated. At runtime `of_PROP_V` called indexed idx=0 form returning 32-bit element 0, then `%store/prop/v 0, 1` stored only 1 bit. Two-part codegen+runtime fix.
+
+### What I left undone
+None — full Phase 67 scope addressed.
 
 ## 2026-05-03 (session 3) — Phase 65 — COMPLETED quick-wins
 
