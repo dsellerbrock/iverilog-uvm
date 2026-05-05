@@ -11624,7 +11624,7 @@ static void get_from_obj(unsigned pid, vvp_vinterface*vif, string&val)
 
 static void get_from_obj(unsigned pid, vvp_cobject*cobj, vvp_vector4_t&val)
 {
-      cobj->get_vec4(pid, val);
+      cobj->get_vec4_whole(pid, val);
 }
 
 static void get_from_obj(unsigned pid, vvp_vinterface*vif, vvp_vector4_t&val)
@@ -13340,7 +13340,7 @@ static void set_val(vvp_vinterface*vif, size_t pid, const string&val)
 
 static void set_val(vvp_cobject*cobj, size_t pid, const vvp_vector4_t&val)
 {
-      cobj->set_vec4(pid, val);
+      cobj->set_vec4_whole(pid, val);
 }
 
 static void set_val(vvp_vinterface*vif, size_t pid, const vvp_vector4_t&val)

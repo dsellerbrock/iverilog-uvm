@@ -115,6 +115,17 @@ void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
       defn_->get_vec4(properties_, pid, val, idx);
 }
 
+void vvp_cobject::set_vec4_whole(size_t pid, const vvp_vector4_t&val)
+{
+      defn_->set_vec4_whole(properties_, pid, val);
+      touch();
+}
+
+void vvp_cobject::get_vec4_whole(size_t pid, vvp_vector4_t&val)
+{
+      defn_->get_vec4_whole(properties_, pid, val);
+}
+
 void vvp_cobject::set_real(size_t pid, double val)
 {
       defn_->set_real(properties_, pid, val);

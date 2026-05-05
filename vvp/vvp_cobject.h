@@ -36,6 +36,8 @@ class vvp_cobject : public vvp_object {
 
       void set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx = 0);
       void get_vec4(size_t pid, vvp_vector4_t&val, size_t idx = 0);
+      void set_vec4_whole(size_t pid, const vvp_vector4_t&val);
+      void get_vec4_whole(size_t pid, vvp_vector4_t&val);
 
       void set_real(size_t pid, double val);
       double get_real(size_t pid);
