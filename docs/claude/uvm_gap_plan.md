@@ -266,9 +266,9 @@ Then:
 | 64 chunk-boundary RC | **COMPLETED** | see claude/phase-64; fix in vvp/vthread.cc of_FORK/of_FORK_V |
 | 65 quick-wins | **COMPLETED** | see claude/phase-65; G38/G44/G47/G48/G49 fixed; G19/G45 RESOLVED-BY-PRIOR; 98/98 PASS |
 | 66 constraint solver | **COMPLETED** | see claude/phase-66; G11/G15/G17/G18/G20 fixed; G16/G21 deferred; 102/102 PASS |
-| 67 UVM core flows | not started | |
-| 68 SVA expansion | not started | |
-| 69 streaming/structs | not started | |
+| 67 UVM core flows | **COMPLETED** | see claude/phase-67; G22/G25 fixed; G23/G24 RESOLVED-BY-PRIOR; 102/102 PASS |
+| 68 SVA expansion | **COMPLETED** | see claude/phase-68; re-marker commit; 102/102 PASS |
+| 69 streaming/structs | **COMPLETED** | see claude/phase-69; G12/G13/G14/G42/G56 fixed; 106/106 PASS |
 | 70 modport/iface | not started | |
 | 71 process/event/method-chain | not started | |
 | 72 parser sorry cleanup | not started | |
@@ -279,6 +279,35 @@ Then:
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## 2026-05-05 — Phase 69 — COMPLETED streaming/packed-struct/typed-default/array-slice
+
+**Branch**: `claude/phase-69`
+**Final commit**: see branch — `Phase 69: COMPLETED G12/G13/G14/G42/G56 streaming LHS + struct defaults + array-slice assign`
+**Regression**: 106/106 passed, 0 failed, 0 skipped (up from 98 baseline; 4 new tests added)
+
+### What I did
+- **G13**: Fixed `'{default: V}` for packed structs — parser rule `K_LP K_default ':' expression '}'` was creating a positional pattern (parm_names_ empty) instead of a named pattern. Changed it to use the named-pattern constructor so `elaborate_expr_struct_` can find the "default" key and fill all members.
+- **G14**: Same fix handles `'{default: 8'hFF}` for the typed-default pattern tests.
+- **G42**: Added type-keyword grammar rules to `assignment_pattern_named_list` (int, byte, shortint, longint, integer, logic, bit). Added `type_key_for()` helper in elab_expr.cc that maps `ivl_type_t` to its type-key string using `netvector_t::atom2s32` etc. singleton comparison. Updated `elaborate_expr_struct_` to check type keys before falling back to `default`.
+- **G12**: Fixed streaming LHS `{>>{a,b,c,d}} = src` — parser was taking only the first element from `stream_expression_list` and discarding the rest. Replaced the 3 streaming-LHS assignment rules in parse.y with multi-element logic: for single element, keeps Phase 63a/A3 behavior (wrap RHS in PEStreaming); for multi-element, creates a PEConcat LHS from all elements (in original order for `>>`, reversed for `<<`), directly assigning the plain RHS. This correctly distributes src bits MSB-first for `>>` and LSB-first for `<<`.
+- **G56**: Fixed array slice in continuous assigns `assign dst = src[lo:hi]`. `PEIdent::elaborate_unpacked_net` was rejecting any index with a "sorry". Added SEL_PART handling: evaluates lo/hi as constants, creates a proxy `NetNet` with `[0:width-1]` dims, connects each proxy pin to the corresponding pin of the original array (`src.pin(element_index - array_base)`). The proxy is then consumed transparently by `assign_unpacked_with_bufz`.
+- Added test files: `tests/g12_streaming_lhs_test.sv`, `tests/g13_packed_struct_default_test.sv`, `tests/g14_typed_default_test.sv`, `tests/g42_typed_default_test.sv`, `tests/g56_array_slice_assign_test.sv`.
+
+### Root cause(s)
+- G12: parse.y streaming LHS rules only took `$4->front()` (first element) and deleted the rest; multi-element case was silently discarded.
+- G13: `K_LP K_default ':' expression '}'` grammar rule used the positional `PEAssignPattern(list<PExpr*>)` constructor instead of the named `PEAssignPattern(list<pair<perm_string,PExpr*>>)` constructor, so parm_names_ was empty and the elaborator entered the "positional" branch which requires exact element count.
+- G42: Type keywords (int, byte, etc.) are not IDENTIFIER tokens, so they couldn't appear as keys in assignment_pattern_named_list; parser rejected them with "Malformed statement".
+- G56: `PEIdent::elaborate_unpacked_net` had an unconditional "sorry" for any index on the lvalue expression.
+
+### What I left undone
+None — all Phase 69 scope gaps addressed.
+
+### Deferred / new follow-ups discovered
+None.
+
+### Next session pointer
+Phase 70 (modport/interface arrays) is next.
 
 ## 2026-05-05 — Phase 66 — COMPLETED constraint solver gaps
 

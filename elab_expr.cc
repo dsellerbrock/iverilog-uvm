@@ -1171,6 +1171,33 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
       return neconcat;
 }
 
+/* Return the typed-key string that matches net_type, or empty string.
+   Used for IEEE 1800-2012 typed-default assignment patterns like
+   '{int: 0, default: 8'hFF}.  Only the most common atom/vector keywords
+   are checked; other types fall back to "default". */
+static perm_string type_key_for(ivl_type_t net_type)
+{
+      if (!net_type) return perm_string();
+      if (net_type == &netvector_t::atom2s32 || net_type == &netvector_t::atom2u32)
+	    return lex_strings.make("int");
+      if (net_type == &netvector_t::atom2s8  || net_type == &netvector_t::atom2u8)
+	    return lex_strings.make("byte");
+      if (net_type == &netvector_t::atom2s16 || net_type == &netvector_t::atom2u16)
+	    return lex_strings.make("shortint");
+      if (net_type == &netvector_t::atom2s64 || net_type == &netvector_t::atom2u64)
+	    return lex_strings.make("longint");
+      {
+	    auto *nv = dynamic_cast<const netvector_t*>(net_type);
+	    if (nv && nv->get_isint())
+		  return lex_strings.make("integer");
+	    if (nv && nv->base_type() == IVL_VT_LOGIC)
+		  return lex_strings.make("logic");
+	    if (nv && nv->base_type() == IVL_VT_BOOL && !nv->get_isint())
+		  return lex_strings.make("bit");
+      }
+      return perm_string();
+}
+
 NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 						 const netstruct_t *struct_type,
 						 bool need_const) const
@@ -1181,6 +1208,7 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 
       if (!parm_names_.empty()) {
 	    // Named member pattern: '{field: val, ..., default: val}
+	    // Also supports typed-key form: '{int: 0, default: 8'hFF}
 	    // Build a name→expr map; "default" key supplies missing members.
 	    map<perm_string, PExpr*> name_map;
 	    for (size_t ii = 0; ii < parm_names_.size(); ii++)
@@ -1199,7 +1227,18 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	    bool is_union = struct_type->union_flag();
 	    for (size_t idx = 0; idx < members.size(); idx++) {
 		  auto it = name_map.find(members[idx].name);
-		  PExpr*src = (it != name_map.end()) ? it->second : dflt;
+		  PExpr*src = nullptr;
+		  if (it != name_map.end()) {
+			src = it->second;
+		  } else {
+			// Type-key lookup: check if map has a key matching this member's type.
+			perm_string tkey = type_key_for(members[idx].net_type);
+			if (tkey.str()) {
+			      auto tit = name_map.find(tkey);
+			      if (tit != name_map.end()) src = tit->second;
+			}
+			if (!src) src = dflt;
+		  }
 		  if (!src) {
 			if (is_union) {
 			      /* Default-construct the unmentioned member to zero

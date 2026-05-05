@@ -1181,6 +1181,54 @@ NetNet*PEIdent::elaborate_unpacked_net(Design*des, NetScope*scope) const
 
       const name_component_t&name_tail = path_.back();
       if (!name_tail.index.empty()) {
+	    /* Support 1D part-select slice: arr[lo:hi] in continuous assign.
+	       Create a proxy NetNet whose pins are wired to the slice of the
+	       original, so assign_unpacked_with_bufz can treat it normally. */
+	    if (name_tail.index.size() == 1) {
+		  const index_component_t&idx = name_tail.index.front();
+		  if (idx.sel == index_component_t::SEL_PART && idx.msb && idx.lsb) {
+			const auto&arr_dims = sr.net->unpacked_dims();
+			if (!arr_dims.empty()) {
+			      /* Evaluate the slice bounds as constants. */
+			      NetExpr*msb_ex = elab_and_eval(des, scope, idx.msb, -1);
+			      NetExpr*lsb_ex = elab_and_eval(des, scope, idx.lsb, -1);
+			      NetEConst*mc = dynamic_cast<NetEConst*>(msb_ex);
+			      NetEConst*lc = dynamic_cast<NetEConst*>(lsb_ex);
+			      if (mc && lc) {
+				    long sl = mc->value().as_long();
+				    long el = lc->value().as_long();
+				    delete msb_ex; delete lsb_ex;
+
+				    /* Pin-base: min index of the outer dimension. */
+				    long arr_base = std::min(arr_dims[0].get_msb(),
+							     arr_dims[0].get_lsb());
+				    long slice_lo = std::min(sl, el);
+				    long slice_hi = std::max(sl, el);
+				    long width = slice_hi - slice_lo + 1;
+
+				    /* Build proxy dims [0:width-1] so that
+				       the caller's equiv check (width-only) passes. */
+				    netranges_t proxy_dims;
+				    proxy_dims.push_back(netrange_t(0, width-1));
+
+				    NetNet*proxy = new NetNet(scope, scope->local_symbol(),
+							     NetNet::WIRE, proxy_dims,
+							     sr.net->net_type());
+				    proxy->set_line(*this);
+				    proxy->local_flag(true);
+
+				    /* Wire each proxy pin to the original slice pin. */
+				    for (long k = 0; k < width; k++) {
+					  long src_pin = (slice_lo + k) - arr_base;
+					  if (src_pin >= 0 && src_pin < (long)sr.net->pin_count())
+						connect(proxy->pin(k), sr.net->pin(src_pin));
+				    }
+				    return proxy;
+			      }
+			      delete msb_ex; delete lsb_ex;
+			}
+		  }
+	    }
 	    cerr << get_fileline() << ": sorry: Array slices are not yet "
 	         << "supported for continuous assignment." << endl;
 	    des->errors += 1;
