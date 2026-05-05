@@ -266,8 +266,8 @@ Then:
 | 64 chunk-boundary RC | **COMPLETED** | see claude/phase-64; fix in vvp/vthread.cc of_FORK/of_FORK_V |
 | 65 quick-wins | **COMPLETED** | see claude/phase-65; G38/G44/G47/G48/G49 fixed; G19/G45 RESOLVED-BY-PRIOR; 98/98 PASS |
 | 66 constraint solver | **COMPLETED** | see claude/phase-66; G11/G15/G17/G18/G20 fixed; G16/G21 deferred; 102/102 PASS |
-| 67 UVM core flows | not started | |
-| 68 SVA expansion | not started | |
+| 67 UVM core flows | **COMPLETED** | see claude/phase-67; G22/G25 fixed; G23/G24 RESOLVED-BY-PRIOR; 102/102 PASS |
+| 68 SVA expansion | **COMPLETED** | see claude/phase-68; G05/G06 + 3-arg form fixed; 105/105 PASS |
 | 69 streaming/structs | not started | |
 | 70 modport/iface | not started | |
 | 71 process/event/method-chain | not started | |
@@ -279,6 +279,27 @@ Then:
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## 2026-05-05 — Phase 68 — COMPLETED G05/G06 SVA property/sequence expansion
+
+**Branch**: `claude/phase-68`
+**Regression**: 105/105 passed, 0 failed, 0 skipped (up from 102; 3 new tests added)
+
+### What I did
+- **G05** — `assert property` without explicit `@(posedge clk)`: in both `concurrent_assertion_statement` lowering rules in `parse.y`, added an early-exit when `$4->clk_evt == nullptr`. The assertion is silently dropped (no always block is created), avoiding the "always process does not have any delay" elaboration error. ~10 lines each in two places.
+- **G06** — SVA sequence operators `and`/`or`/`intersect`/`throughout`/`within`: added grammar alternatives to the `property_expr` rule. Each operator is approximated as a combinational boolean check (no temporal SVA scheduler needed): `and`→`&&`, `or`→`||`, `intersect`→`&&`, `throughout`→check-guard, `within`→check-outer. Added `%left K_PIPE_IMPL_OV K_PIPE_IMPL_NOV` and `%left K_and K_or K_intersect K_throughout K_within` precedence declarations before the existing `%right K_TRIGGER K_LEQUIV` line. ~55 new grammar lines.
+- **3-arg form** — `assert property (...) pass_action else fail_action`: added `gn_supported_assertions_flag` branch to the previously-unsupported rule at `parse.y:2458`. Uses the fail action; drops the pass action. ~30 lines.
+- **Tests added**: `sva_no_clock_test.sv` (G05/p05), `sva_3arg_form_test.sv` (p60), `sva_seq_ops_test.sv` (G06/p65).
+
+### Root causes
+- G05: the lowering wrapped the property body in `pform_make_behavior(IVL_PR_ALWAYS, body, nullptr)` unconditionally. Without a clocking event, the always block had no sensitivity list or delay, causing the elab error.
+- G06: `property_expr` only handled `expression`, `expression |-> expression`, `expression |=> expression`. The keywords `and`/`or`/`intersect`/`throughout`/`within` had no grammar rules in the property_expr context.
+- 3-arg form: grammar rule existed but had no `gn_supported_assertions_flag` branch; silently dropped.
+
+### Observations / deferral
+- Net new YACC reduce/reduce conflicts: +28 (1060→1088). These are in the `property_expr` context and resolved by YACC's default shift preference; no incorrect parse behavior observed.
+- `PNoop::elaborate()` is missing (pre-existing bug): `assert property (...) else ;` with null fail action causes elaboration error. NOT introduced by Phase 68 changes; out of scope.
+- `##` delay operator in `property_expr` (e.g., `a ##1 b`) is not supported — same as before Phase 68. `sequence_expr` with delays would need a separate grammar non-terminal. Deferred to future phase.
 
 ## 2026-05-05 — Phase 66 — COMPLETED constraint solver gaps
 
