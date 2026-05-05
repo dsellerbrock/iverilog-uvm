@@ -10062,6 +10062,19 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    // `(dist <expr> (b W <range>) ...)` where W is the literal
 	    // weight integer.  Plain inside emits the existing form.
 	    bool is_dist = ins->is_dist();
+
+	    // G18: if subject is an enum-typed class property, resolve enum
+	    // name identifiers in the range list to their numeric values.
+	    const netenum_t* subj_enum = nullptr;
+	    if (const PEIdent*sid = dynamic_cast<const PEIdent*>(ins->get_expr())) {
+		  perm_string sname = sid->path().back().name;
+		  int sidx = cls->property_idx_from_name(sname);
+		  if (sidx >= 0) {
+			ivl_type_t stype = cls->get_prop_type((size_t)sidx);
+			subj_enum = dynamic_cast<const netenum_t*>(stype);
+		  }
+	    }
+
 	    string result = is_dist ? "(dist " : "(inside ";
 	    result += s;
 	    for (auto& r : ins->get_ranges()) {
@@ -10073,6 +10086,16 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			range_ir = "[" + lo + "," + hi + "]";
 		  } else {
 			string v = pexpr_to_constraint_ir(r.hi, cls, value_slots);
+			// G18: if v is empty and subject is enum-typed, try to
+			// resolve the identifier as an enum literal name.
+			if (v.empty() && subj_enum) {
+			      if (const PEIdent*eid = dynamic_cast<const PEIdent*>(r.hi)) {
+				    perm_string ename = eid->path().back().name;
+				    netenum_t::iterator it = subj_enum->find_name(ename);
+				    if (it != subj_enum->end_name())
+					  v = "c:" + std::to_string(it->second.as_unsigned());
+			      }
+			}
 			if (v.empty()) continue;
 			range_ir = v;
 		  }
@@ -10109,6 +10132,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		case 'o': op = "or";  break;  // || (K_LOR)
 		case '+': op = "add"; break;
 		case '-': op = "sub"; break;
+		case '*': op = "mul"; break;
+		case 'q': op = "implies"; break;  // -> (K_TRIGGER, implication)
 		default:  return "";
 	    }
 	    return "(" + op + " " + left + " " + right + ")";
@@ -10119,6 +10144,45 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (sub.empty()) return "";
 	    if (un->get_op() == '!') return "(not " + sub + ")";
 	    return "";
+      }
+
+      // G17 (Phase 66): if-block constraint → (implies cond then) [&& (implies !cond else)]
+      if (const PEConstraintIf*cif = dynamic_cast<const PEConstraintIf*>(expr)) {
+	    string cond_s = pexpr_to_constraint_ir(cif->get_cond(), cls, value_slots);
+	    if (cond_s.empty()) return "";
+
+	    // Build AND of then-branch items: each item implies cond
+	    string then_ir;
+	    if (cif->get_then()) {
+		  for (auto* item : *cif->get_then()) {
+			if (!item) continue;
+			string s = pexpr_to_constraint_ir(item, cls, value_slots);
+			if (s.empty()) continue;
+			then_ir = then_ir.empty() ? s
+			        : "(and " + then_ir + " " + s + ")";
+		  }
+	    }
+	    string result = then_ir.empty() ? ""
+	                  : "(implies " + cond_s + " " + then_ir + ")";
+
+	    // Build AND of else-branch items: each item implies !cond
+	    if (cif->get_else() && !cif->get_else()->empty()) {
+		  string else_ir;
+		  for (auto* item : *cif->get_else()) {
+			if (!item) continue;
+			string s = pexpr_to_constraint_ir(item, cls, value_slots);
+			if (s.empty()) continue;
+			else_ir = else_ir.empty() ? s
+			        : "(and " + else_ir + " " + s + ")";
+		  }
+		  if (!else_ir.empty()) {
+			string not_cond = "(not " + cond_s + ")";
+			string else_clause = "(implies " + not_cond + " " + else_ir + ")";
+			result = result.empty() ? else_clause
+			       : "(and " + result + " " + else_clause + ")";
+		  }
+	    }
+	    return result;
       }
 
       return "";
