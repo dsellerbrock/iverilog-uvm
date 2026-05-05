@@ -266,7 +266,7 @@ Then:
 | 64 chunk-boundary RC | **COMPLETED** | see claude/phase-64; fix in vvp/vthread.cc of_FORK/of_FORK_V |
 | 65 quick-wins | **COMPLETED** | see claude/phase-65; G38/G44/G47/G48/G49 fixed; G19/G45 RESOLVED-BY-PRIOR; 98/98 PASS |
 | 66 constraint solver | **COMPLETED** | see claude/phase-66; G11/G15/G17/G18/G20 fixed; G16/G21 deferred; 102/102 PASS |
-| 67 UVM core flows | not started | |
+| 67 UVM core flows | **COMPLETED** | see claude/phase-67; G25/G22 fixed; G23/G24 RESOLVED-BY-PRIOR; 102/102 PASS |
 | 68 SVA expansion | not started | |
 | 69 streaming/structs | not started | |
 | 70 modport/iface | not started | |
@@ -279,6 +279,24 @@ Then:
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## 2026-05-05 (session 4) — Phase 67 — COMPLETED UVM core flows
+
+**Branch**: `claude/phase-67`
+**Regression**: 102/102 passed, 0 failed, 0 skipped (up from 98 baseline; 4 new tests added)
+
+### What I did
+- **G25** (uvm_field_sarray_int whole-array clone/copy): Ported from claude/phase-67-interactive (prior work on a non-standard branch name). Added whole-array `set_vec4`/`get_vec4` overloads to `property_atom<T>`, `property_bit`, `property_logic` in `vvp/class_type.cc` that serialize all array elements in one call. Added `set_vec4_whole`/`get_vec4_whole` on `vvp_cobject` and `class_type`. Updated `vvp/vthread.cc` to use the whole-array variants in `get_from_obj`/`set_val`. Fixed codegen in `tgt-vvp/stmt_assign.c` to emit the correct total bit-width for whole unpacked-array property stores.
+- **G22** (`uvm_factory::get().create_object_by_name` chained dispatch): New fix. `parse.y` rule `expr_primary '.' IDENTIFIER argument_list_parens` was discarding the receiver expression (`$1`) entirely. Added `PExpr* subject_expr_` to `PECallFunction` (PExpr.h/PExpr.cc). In the `!search_flag` branch of `elaborate_expr_`, when `subject_expr_` is set and the method name is single-component, elaborate the receiver, look up the class type via `dynamic_cast<netclass_t*>`, find the method via `method_from_name`, and call `elaborate_base_` with `this_override = rcvr` so the receiver is passed as the implicit `this` parameter.
+- **G23** (`uvm_register_cb` macro): RESOLVED-BY-PRIOR — macro expands without errors; regression test added.
+- **G24** (`uvm_config_db#(class_obj)::get`): RESOLVED-BY-PRIOR — set/get round-trip works for class handles; regression test added.
+
+### Root cause(s)
+- G25: The generic `set_vec4`/`get_vec4` on property classes operated element-by-element but needed whole-array serialization for the clone/copy code path.
+- G22: The parser was discarding the receiver expression for `fn().method()` patterns, making the elaborator unable to resolve the method in the class type.
+
+### What I left undone
+All Phase 67 scope gaps addressed.
 
 ## 2026-05-05 — Phase 66 — COMPLETED constraint solver gaps
 
@@ -307,7 +325,7 @@ Each session appends ONE entry at the TOP of this section (newest first). Format
 None.
 
 ### Next session pointer
-Phase 67 (UVM core flows: G22 factory.create_object_by_name, G24 config_db class obj, G25 field_sarray, G23 register_cb).
+Phase 68 (SVA + property/sequence) is next.
 
 ## 2026-05-03 (session 3) — Phase 65 — COMPLETED quick-wins
 
