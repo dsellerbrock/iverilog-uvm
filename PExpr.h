@@ -1283,6 +1283,32 @@ class PEInside : public PExpr {
 };
 
 /*
+ * G17 (Phase 66): if-block constraint.  Carries (cond, then_list, else_list)
+ * for `if(cond) { A; B; } else { C; }` in a constraint body.
+ * Lowered to (implies cond AND(then)) and (implies !cond AND(else)) in IR.
+ */
+class PEConstraintIf : public PExpr {
+    public:
+      PEConstraintIf(PExpr* cond, std::list<PExpr*>* then_l,
+                     std::list<PExpr*>* else_l);
+      ~PEConstraintIf() override;
+
+      PExpr* get_cond() const { return cond_; }
+      const std::list<PExpr*>* get_then() const { return then_; }
+      const std::list<PExpr*>* get_else() const { return else_; }
+
+      void dump(std::ostream& out) const override;
+      NetExpr* elaborate_expr(Design* des, NetScope* scope,
+                              ivl_type_t type, unsigned flags) const override;
+      NetExpr* elaborate_expr(Design* des, NetScope* scope,
+                              unsigned expr_wid, unsigned flags) const override;
+    private:
+      PExpr* cond_;
+      std::list<PExpr*>* then_;
+      std::list<PExpr*>* else_;  // may be null
+};
+
+/*
  * This class is used for error recovery. All methods do nothing and return
  * null or default values.
  */

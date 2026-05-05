@@ -265,7 +265,7 @@ Then:
 |---|---|---|
 | 64 chunk-boundary RC | **COMPLETED** | see claude/phase-64; fix in vvp/vthread.cc of_FORK/of_FORK_V |
 | 65 quick-wins | **COMPLETED** | see claude/phase-65; G38/G44/G47/G48/G49 fixed; G19/G45 RESOLVED-BY-PRIOR; 98/98 PASS |
-| 66 constraint solver | not started | |
+| 66 constraint solver | **COMPLETED** | see claude/phase-66; G11/G15/G17/G18/G20 fixed; G16/G21 deferred; 102/102 PASS |
 | 67 UVM core flows | not started | |
 | 68 SVA expansion | not started | |
 | 69 streaming/structs | not started | |
@@ -279,6 +279,35 @@ Then:
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## 2026-05-05 — Phase 66 — COMPLETED constraint solver gaps
+
+**Branch**: `claude/phase-66`
+**Regression**: 102/102 passed, 0 failed, 0 skipped (up from 98; 4 new tests added)
+
+### What I did
+- **G15/G11** — Implication `A -> B` constraint: added `'q'` case to `pexpr_to_constraint_ir` (elaborate.cc) and `"implies"` handler in `vvp/vvp_z3.cc` using `Z3_mk_implies`. Also added `"mul"`, `"add"`, `"sub"` arithmetic ops to Z3 backend (needed for G20).
+- **G18** — `inside {enum_set}` excluded values: in `pexpr_to_constraint_ir`, detect when the inside subject is an enum-typed class property and resolve unresolved identifiers (PEIdent) against that enum's name table (`netenum_t::find_name`). ~20 lines in elaborate.cc.
+- **G17** — if-block constraint: added new `PEConstraintIf` class (PExpr.h/PExpr.cc) carrying (cond, then_list, else_list). Added `%type <exprs>` grammar types for `constraint_set` and `constraint_expression_list` in parse.y; K_if rules now create PEConstraintIf nodes instead of returning nullptr. Lowered to `(implies cond AND(then))` and `(implies (not cond) AND(else))` IR in `pexpr_to_constraint_ir`.
+- **G20** — cross-class constraint (child refs parent property): changed `of_RANDOMIZE` and `of_RANDOMIZE_WITH` in `vvp/vthread.cc` to gather ancestor constraint IRs into `extra_ir` for a single joint `vvp_z3_randomize` call instead of independent calls per class in the chain.
+- **G19** — already passes (was fixed by Phase 65 or works with existing Z3 soft-weight machinery).
+- **Tests added**: `g11_g15_implication_test.sv`, `g17_if_constraint_test.sv`, `g18_enum_inside_test.sv`, `g20_cross_class_constraint_test.sv`.
+
+### Root causes
+- G15/G11: `PEBLogic('q')` (op for `->`) fell through to `default: return ""` in `pexpr_to_constraint_ir`; Z3 IR had no implies op.
+- G18: enum literal names (RED, BLUE, etc.) are PEIdent nodes not matching any class property → returned "" → range silently dropped from inside constraint.
+- G17: K_if rules in constraint_expression returned nullptr, dropping the entire if-block.
+- G20: Independent Z3 calls per class in the hierarchy meant child constraint `y==x*2` was solved without P's `x inside {[1:50]}` — two Z3 contexts couldn't share property solutions.
+
+### What I left undone
+- **G16** — `foreach(arr[i]) arr[i] inside {[i*10:...]}`: requires runtime expansion of foreach over array indices before Z3. Deferred; parser rule still drops foreach constraint.
+- **G21** — `arr.size() == sz` randomize for dynamic arrays: requires runtime resize hook before Z3. Deferred.
+
+### Deferred / new follow-ups discovered
+None.
+
+### Next session pointer
+Phase 67 (UVM core flows: G22 factory.create_object_by_name, G24 config_db class obj, G25 field_sarray, G23 register_cb).
 
 ## 2026-05-03 (session 3) — Phase 65 — COMPLETED quick-wins
 
