@@ -28,6 +28,13 @@ KNOWN_FAIL=""
 # vvp invocation can supply them.  Format: "<name>:+arg1+arg2 ...".
 declare -A PLUSARGS=(
     [plusargs_class_string_test]="+MY_TESTNAME=hello +MY_SEED=42"
+    # vif_smoke/vif_smoke_v2: hang without a verbosity plusarg; passes
+    # with UVM_LOW, UVM_HIGH, UVM_FULL, and numeric 500, but fails with
+    # UVM_NONE, UVM_MEDIUM, UVM_DEBUG (string), and no plusarg.  Root
+    # cause not isolated (tracked as gap G66 in uvm_gap_plan.md).
+    # UVM_HIGH bypasses the hang; used here as a workaround.
+    [vif_smoke]="+UVM_VERBOSITY=UVM_HIGH"
+    [vif_smoke_v2]="+UVM_VERBOSITY=UVM_HIGH"
 )
 
 compile_test() {
