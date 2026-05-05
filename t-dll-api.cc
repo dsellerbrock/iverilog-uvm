@@ -3564,6 +3564,14 @@ extern "C" uint64_t ivl_type_covgrp_bin_hi(ivl_type_t net, int idx)
       return 0;
 }
 
+extern "C" unsigned ivl_type_covgrp_bin_kind(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_bin((size_t)idx).kind;
+      return 0;
+}
+
 extern "C" int ivl_type_signed(ivl_type_t net)
 {
       assert(net);

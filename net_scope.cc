@@ -818,6 +818,65 @@ void NetScope::rem_signal_placeholder(const PWire*wire)
       signal_placeholders_.erase(wire->basename());
 }
 
+// I2 (Phase 62m): post-elab signal type repair.  Walk all NetNets in
+// this scope; for any NetNet whose net_type is not a class but whose
+// originating PWire's data_type was a typeref to a CLASS-typedef, try
+// to resolve the class type now (after all classes are visible) and
+// patch the NetNet via set_net_type.  Without this, package-global
+// class handles like `uvm_default_table_printer` end up with a logic
+// vector type and assignments to them silently no-op at runtime.
+void NetScope::repair_typed_class_signals(Design*des)
+{
+      if (!des) return;
+
+      for (auto&kv : signals_map_) {
+	    NetNet*sig = kv.second;
+	    if (!sig) continue;
+
+	    // Only patch logic-vector signals.  Class types, queues,
+	    // strings, reals, etc. all have non-LOGIC base — the
+	    // fallback netvector_t that this fix targets is specifically
+	    // IVL_VT_LOGIC.
+	    if (!sig->net_type()) continue;
+	    if (ivl_type_base(sig->net_type()) != IVL_VT_LOGIC) continue;
+	    if (sig->unpacked_dimensions() > 0) continue;
+
+	    // Find the originating PWire to inspect its declared type.
+	    PWire*pw = find_signal_placeholder(kv.first);
+	    if (!pw) continue;
+
+	    const data_type_t*dt = pw->data_type();
+	    if (!dt) continue;
+
+	    // Only repair typeref-to-class.  Other forms (atom_type_t,
+	    // string_type_t, vector_type_t, etc.) are not class-handle
+	    // signals and should keep their resolved type.
+	    const typeref_t*tr = dynamic_cast<const typeref_t*>(dt);
+	    if (!tr) continue;
+
+	    typedef_t*td = tr->typedef_ref();
+	    if (!td) continue;
+	    if (td->get_basic_type() != typedef_t::CLASS) continue;
+
+	    // Resolve the class type now.  ensure_visible_class_type
+	    // searches the type's scope (the package the typedef was
+	    // declared in) recursively for the class.
+	    NetScope*type_scope = tr->find_scope(des, this);
+	    if (!type_scope) continue;
+	    netclass_t*cls = ensure_visible_class_type(des, type_scope, td->name);
+	    if (!cls) continue;
+
+	    sig->set_net_type(cls);
+      }
+
+      // Recurse into children.  Class scopes contain their own static
+      // properties; module scopes contain instance signals.
+      for (auto&ch : children_) {
+	    if (ch.second)
+		  ch.second->repair_typed_class_signals(des);
+      }
+}
+
 PWire* NetScope::find_signal_placeholder(perm_string name)
 {
       map<perm_string,PWire*>::iterator it = signal_placeholders_.find(name);

@@ -87,6 +87,195 @@ static stack<PBlock*> current_block_stack;
 static LexicalScope::lifetime_t var_lifetime;
 static bool warned_stream_concat_lval_incomplete = false;
 
+/* Phase 63b/B8 (gap close): range bound for std::randomize with-clause
+ * detection.  Used to lower simple range constraints to
+ * $urandom_range, which gives uniform sampling over the bounded
+ * domain instead of the retry-loop's best-effort approach (which
+ * fails for ranges < ~1% of 2^32).  See std_rand_collect_bounds_(). */
+struct b8_range_t {
+      bool has_min = false;
+      bool has_max = false;
+      int64_t min_v = 0;
+      int64_t max_v = 0;
+};
+
+/* Phase 63b/B8 (gap close): enum-form detection.  Recognizes
+ *   arg inside { v1, v2, v3, ... }
+ * (a single PEInside with all single-value entries).  Lowered to a
+ * uniform pick:
+ *   begin arg = $urandom_range(0, N-1);
+ *         case (arg) 0:arg=v1; 1:arg=v2; ...; endcase
+ *   end
+ * Returns true if the constraint matches and populates `values`. */
+static bool std_rand_collect_enum_(const PExpr*expr,
+				   const std::string&arg_name,
+				   std::vector<int64_t>&values)
+{
+      if (!expr) return false;
+      auto*ins = dynamic_cast<const PEInside*>(expr);
+      if (!ins) return false;
+      auto*ide = dynamic_cast<const PEIdent*>(ins->get_expr());
+      if (!ide || ide->path().size() != 1) return false;
+      if (ide->path().back().name.str() != arg_name) return false;
+      auto extract = [](const PExpr*e, int64_t&out)->bool {
+	    if (auto*n = dynamic_cast<const PENumber*>(e)) {
+		  out = n->value().as_long(); return true;
+	    }
+	    if (auto*u = dynamic_cast<const PEUnary*>(e)) {
+		  if (u->get_op() == '-')
+			if (auto*n = dynamic_cast<const PENumber*>(u->get_expr())) {
+			      out = -n->value().as_long(); return true;
+			}
+	    }
+	    return false;
+      };
+      const auto&ranges = ins->get_ranges();
+      if (ranges.empty()) return false;
+      values.clear();
+      for (const auto&r : ranges) {
+	    if (r.weight) return false;
+	    if (r.is_range) {
+		  /* For range entries inside enum-form, expand the range
+		     fully — but only if it's small (<= 256 values) to
+		     avoid runaway code.  Otherwise fall back to retry. */
+		  int64_t lo, hi;
+		  if (!extract(r.lo, lo)) return false;
+		  if (!extract(r.hi, hi)) return false;
+		  if (hi < lo) return false;
+		  if (hi - lo > 255) return false;
+		  for (int64_t v = lo; v <= hi; v++) values.push_back(v);
+	    } else {
+		  /* Single-value entry: parser stores it in r.hi
+		     (with r.lo = nullptr).  See inside_value_range
+		     production. */
+		  int64_t v;
+		  if (!extract(r.hi, v)) return false;
+		  values.push_back(v);
+	    }
+      }
+      return !values.empty();
+}
+
+/* Walk a constraint PExpr AST and collect simple range bounds for the
+ * named arg.  Returns true if the entire AST consists of supported
+ * range patterns ((arg > C), (arg < C), (arg >= C), (arg <= C),
+ * (arg == C), `arg inside [lo:hi]`, `arg inside {v}` and conjunctions
+ * thereof), false otherwise (caller should fall back to retry loop).
+ * C/lo/hi/v must be PENumber (or PEUnary('-', PENumber) for negative). */
+static bool std_rand_collect_bounds_(const PExpr*expr,
+				     const std::string&arg_name,
+				     b8_range_t&r)
+{
+      if (!expr) return true;
+      // Conjunction: a && b
+      if (auto*lg = dynamic_cast<const PEBLogic*>(expr)) {
+	    if (lg->get_op() != 'a') return false;
+	    return std_rand_collect_bounds_(lg->get_left(),  arg_name, r)
+		&& std_rand_collect_bounds_(lg->get_right(), arg_name, r);
+      }
+      // `arg inside { ... }` — handle single range or single value forms.
+      if (auto*ins = dynamic_cast<const PEInside*>(expr)) {
+	    auto*ide = dynamic_cast<const PEIdent*>(ins->get_expr());
+	    if (!ide || ide->path().size() != 1) return false;
+	    if (ide->path().back().name.str() != arg_name) return false;
+	    auto extract_num_local = [](const PExpr*e, int64_t&out)->bool {
+		  if (auto*n = dynamic_cast<const PENumber*>(e)) {
+			out = n->value().as_long(); return true;
+		  }
+		  if (auto*u = dynamic_cast<const PEUnary*>(e)) {
+			if (u->get_op() == '-')
+			      if (auto*n = dynamic_cast<const PENumber*>(u->get_expr())) {
+				    out = -n->value().as_long(); return true;
+			      }
+		  }
+		  return false;
+	    };
+	    const auto&ranges = ins->get_ranges();
+	    if (ranges.size() != 1) return false;  // multi-element handled by fallback
+	    const auto&rg = ranges[0];
+	    if (rg.weight) return false;  // dist not handled here
+	    if (rg.is_range) {
+		  // arg inside [lo:hi]  →  min=lo, max=hi
+		  int64_t lo, hi;
+		  if (!extract_num_local(rg.lo, lo)) return false;
+		  if (!extract_num_local(rg.hi, hi)) return false;
+		  if (!r.has_min || lo > r.min_v) { r.min_v = lo; r.has_min = true; }
+		  if (!r.has_max || hi < r.max_v) { r.max_v = hi; r.has_max = true; }
+		  return true;
+	    } else {
+		  // arg inside {v}  →  arg == v.  Single-value entry: parser
+		  // stores the value in rg.hi (rg.lo = nullptr).
+		  int64_t v;
+		  if (!extract_num_local(rg.hi, v)) return false;
+		  r.min_v = v; r.max_v = v;
+		  r.has_min = r.has_max = true;
+		  return true;
+	    }
+      }
+      // Comparison: arg <op> const  or  const <op> arg.  The const may
+      // be wrapped in PEUnary('-', PENumber) for negative literals.
+      const PEBinary*cmp = dynamic_cast<const PEBComp*>(expr);
+      if (!cmp) cmp = dynamic_cast<const PEBinary*>(expr);
+      if (!cmp) return false;
+      char op = cmp->get_op();
+      auto extract_num = [](const PExpr*e, int64_t&out)->bool {
+	    if (auto*n = dynamic_cast<const PENumber*>(e)) {
+		  out = n->value().as_long();
+		  return true;
+	    }
+	    if (auto*u = dynamic_cast<const PEUnary*>(e)) {
+		  if (u->get_op() == '-') {
+			int64_t inner;
+			if (auto*n = dynamic_cast<const PENumber*>(u->get_expr())) {
+			      inner = n->value().as_long();
+			      out = -inner;
+			      return true;
+			}
+		  }
+	    }
+	    return false;
+      };
+      const PEIdent*ide = dynamic_cast<const PEIdent*>(cmp->get_left());
+      int64_t v;
+      bool got_num = extract_num(cmp->get_right(), v);
+      bool swapped = false;
+      if (!(ide && got_num)) {
+	    ide = dynamic_cast<const PEIdent*>(cmp->get_right());
+	    got_num = extract_num(cmp->get_left(), v);
+	    swapped = true;
+      }
+      if (!ide || !got_num) return false;
+      if (ide->path().size() != 1) return false;
+      if (ide->path().back().name.str() != arg_name) return false;
+      if (swapped) {
+	    /* C <op> arg  →  arg <swapped-op> C */
+	    if (op == '<') op = '>';
+	    else if (op == '>') op = '<';
+	    else if (op == 'L') op = 'G';
+	    else if (op == 'G') op = 'L';
+      }
+      switch (op) {
+	  case '>':                              // arg > v   → min = v+1
+	    if (!r.has_min || v + 1 > r.min_v) { r.min_v = v + 1; r.has_min = true; }
+	    return true;
+	  case 'G':                              // arg >= v  → min = v
+	    if (!r.has_min || v > r.min_v)     { r.min_v = v;     r.has_min = true; }
+	    return true;
+	  case '<':                              // arg < v   → max = v-1
+	    if (!r.has_max || v - 1 < r.max_v) { r.max_v = v - 1; r.has_max = true; }
+	    return true;
+	  case 'L':                              // arg <= v  → max = v
+	    if (!r.has_max || v < r.max_v)     { r.max_v = v;     r.has_max = true; }
+	    return true;
+	  case 'e':                              // arg == v  → fixed
+	    r.min_v = v; r.max_v = v;
+	    r.has_min = r.has_max = true;
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
 static void check_in_gen_region(const struct vlltype &loc)
 {
       if (in_gen_region) {
@@ -703,6 +892,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
       PCase::Item*citem;
       std::vector<PCase::Item*>*citems;
+      PCaseMatches::Item*cmitem;
+      std::vector<PCaseMatches::Item*>*cmitems;
 
       lgate*gate;
       std::vector<lgate>*gates;
@@ -970,6 +1161,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <citem>  case_item
 %type <citems> case_items
+%type <cmitem>  case_matches_item
+%type <cmitems> case_matches_items
 
 %type <gate>  gate_instance
 %type <gates> gate_instance_list
@@ -2693,16 +2886,26 @@ bins_item
 	$$ = b;
       }
   | K_ignore_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
-      { delete[] $2;
-	for (auto& r : *$7) { delete r.lo; delete r.hi; }
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = class_type_t::pform_cov_bins_t::BIN_IGNORE;
+	delete[] $2;
+	for (auto& r : *$7) {
+	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	}
 	delete $7;
-	$$ = nullptr;
+	$$ = b;
       }
   | K_illegal_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
-      { delete[] $2;
-	for (auto& r : *$7) { delete r.lo; delete r.hi; }
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = class_type_t::pform_cov_bins_t::BIN_ILLEGAL;
+	delete[] $2;
+	for (auto& r : *$7) {
+	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	}
 	delete $7;
-	$$ = nullptr;
+	$$ = b;
       }
   /* bins name[count] = { ... } with (cond); — indexed bins, ignore count+cond */
   | K_bins bins_name '[' expression ']' '=' '{' inside_range_list '}' ';'
@@ -2731,16 +2934,26 @@ bins_item
 	$$ = b;
       }
   | K_ignore_bins bins_name '=' '{' inside_range_list '}' ';'
-      { delete[] $2;
-	for (auto& r : *$5) { delete r.lo; delete r.hi; }
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = class_type_t::pform_cov_bins_t::BIN_IGNORE;
+	delete[] $2;
+	for (auto& r : *$5) {
+	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	}
 	delete $5;
-	$$ = nullptr;
+	$$ = b;
       }
   | K_illegal_bins bins_name '=' '{' inside_range_list '}' ';'
-      { delete[] $2;
-	for (auto& r : *$5) { delete r.lo; delete r.hi; }
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = class_type_t::pform_cov_bins_t::BIN_ILLEGAL;
+	delete[] $2;
+	for (auto& r : *$5) {
+	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	}
 	delete $5;
-	$$ = nullptr;
+	$$ = b;
       }
   /* Transition bins: bins b = (val => val), ...; — one or more sequences */
   | K_bins bins_name '=' transition_seq_list ';'
@@ -5717,6 +5930,7 @@ struct_data_type /* IEEE 1800-2012 A.2.2.1 */
 	tmp->packed_flag = $3.packed_flag;
 	tmp->signed_flag = $3.signed_flag;
 	tmp->union_flag = true;
+	tmp->tagged_flag = true;
 	tmp->members .reset($5);
 	$$ = tmp;
       }
@@ -5728,6 +5942,7 @@ struct_data_type /* IEEE 1800-2012 A.2.2.1 */
 	tmp->packed_flag = $3.packed_flag;
 	tmp->signed_flag = $3.signed_flag;
 	tmp->union_flag = true;
+	tmp->tagged_flag = true;
 	$$ = tmp;
       }
   | K_struct packed_signing '{' error '}'
@@ -5843,6 +6058,52 @@ case_items
       }
   | case_item
       { $$ = new std::vector<PCase::Item*>(1, $1);
+      }
+  ;
+
+  /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches`
+     pattern matching for tagged unions (IEEE 1800-2017 §12.6).
+     Each item is `tagged TAG [.var]: stmt` or `default: stmt`.
+     Lowered at elab to an if-else cascade testing the
+     companion-tag NetNet of X. */
+case_matches_item
+  : K_tagged IDENTIFIER ':' statement_or_null
+      { PCaseMatches::Item*it = new PCaseMatches::Item;
+	it->tag = lex_strings.make($2);
+	it->stat = $4;
+	delete[] $2;
+	$$ = it;
+      }
+  | K_tagged IDENTIFIER '.' IDENTIFIER ':' statement_or_null
+      { PCaseMatches::Item*it = new PCaseMatches::Item;
+	it->tag = lex_strings.make($2);
+	it->bind = lex_strings.make($4);
+	it->stat = $6;
+	delete[] $2;
+	delete[] $4;
+	$$ = it;
+      }
+  | K_default ':' statement_or_null
+      { PCaseMatches::Item*it = new PCaseMatches::Item;
+	it->is_default = true;
+	it->stat = $3;
+	$$ = it;
+      }
+  | K_default statement_or_null
+      { PCaseMatches::Item*it = new PCaseMatches::Item;
+	it->is_default = true;
+	it->stat = $2;
+	$$ = it;
+      }
+  ;
+
+case_matches_items
+  : case_matches_items case_matches_item
+      { $1->push_back($2);
+	$$ = $1;
+      }
+  | case_matches_item
+      { $$ = new std::vector<PCaseMatches::Item*>(1, $1);
       }
   ;
 
@@ -6786,16 +7047,38 @@ expr_primary
 	$$ = tmp;
       }
 	| hierarchy_identifier attribute_list_opt argument_list_parens K_with '(' expression ')'
-	      { /* Temporary parse-only support for array locator/reduction method
-		   with-clauses in expression context (e.g. q.find_index(x) with (...)). */
+	      { /* Phase 63b/B1 (real impl): capture the with-clause
+		   predicate for array locator/reduction methods
+		   (q.find_index(x) with (...)) in PECallFunction's
+		   with_constraints_.  Elaboration time uses it to
+		   synthesize a per-element predicate evaluation loop. */
 		pform_requires_sv(@4, "Method with-clause");
 		PECallFunction*tmp = pform_make_call_function(@1, *$1, *$3);
+		if ($6) {
+		      std::vector<PExpr*> wc;
+		      wc.push_back($6);
+		      tmp->set_with_constraints(std::move(wc));
+		}
 	delete $1;
 	delete $2;
 	delete $3;
-	delete $6;
 	$$ = tmp;
       }
+  /* Phase 63b/B1: no-parens form `q.find with (pred)` — argument
+     list is empty.  Captures the with-clause same as the parens
+     form above. */
+	| hierarchy_identifier K_with '(' expression ')'
+	      { pform_requires_sv(@2, "Method with-clause (no args)");
+		std::list<named_pexpr_t> pt;
+		PECallFunction*tmp = pform_make_call_function(@1, *$1, pt);
+		if ($4) {
+		      std::vector<PExpr*> wc;
+		      wc.push_back($4);
+		      tmp->set_with_constraints(std::move(wc));
+		}
+		delete $1;
+		$$ = tmp;
+	      }
 	| hierarchy_identifier attribute_list_opt argument_list_parens K_with '{' constraint_block_item_list_opt '}'
 	      { if (peek_tail_name(*$1) == "randomize") {
 		      pform_requires_sv(@4, "Randomize with constraint");
@@ -7189,7 +7472,10 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
+	// I5 (Phase 62m): retain the parameterized-class specialization
+	// args so elaboration can resolve the right specialized
+	// netclass_t for static-property access (`Class#(args)::var`).
+	tmp->set_leading_type_args($2);
 	delete[]$1.text;
 	delete[]$4;
 	$$ = tmp;
@@ -7798,6 +8084,33 @@ expr_primary
   | assignment_pattern
       { $$ = $1; }
 
+  /* Phase 63b/B7 (real impl): tagged-union constructor expression
+     IEEE 1800-2017 §6.13:  tagged TAG VALUE  or  tagged TAG  (void tag).
+     Lower to a named assignment-pattern with one entry, so existing
+     struct/union elaboration handles it.  Tag-set tracking is still
+     advisory (no runtime mismatch enforcement) — see B7 plan. */
+  | K_tagged IDENTIFIER expr_primary
+      { pform_requires_sv(@1, "tagged-union constructor");
+	std::list<std::pair<perm_string,PExpr*> > pat;
+	pat.push_back(std::make_pair(lex_strings.make($2), $3));
+	PEAssignPattern*tmp = new PEAssignPattern(pat);
+	FILE_NAME(tmp, @1);
+	delete[] $2;
+	$$ = tmp;
+      }
+  | K_tagged IDENTIFIER %prec UNARY_PREC
+      { pform_requires_sv(@1, "tagged-union void constructor");
+	/* Void-tag form: `tagged TAG` with no value.  Lower to an
+	   empty named pattern; downstream elab keeps default values. */
+	std::list<std::pair<perm_string,PExpr*> > pat;
+	pat.push_back(std::make_pair(lex_strings.make($2),
+				     (PExpr*)new PENumber(new verinum((uint64_t)0,32))));
+	PEAssignPattern*tmp = new PEAssignPattern(pat);
+	FILE_NAME(tmp, @1);
+	delete[] $2;
+	$$ = tmp;
+      }
+
   /* Type-prefixed assignment pattern: T'{expr, expr, ...} or T'{key: val, ...}.
      IEEE 1800-2012 §10.9. Treat identically to the untyped form — the type
      prefix guides structural matching which we do not enforce at this level.
@@ -8337,6 +8650,33 @@ port_declaration
 	$$ = module_declare_port(@3, $3, port_declaration_context.port_type,
 			         NetNet::IMPLICIT, $2, $4, $5, $1);
       }
+  /* Phase 63a/A1: interface_port_header form per IEEE 1800 A.2.2.3.
+     `counter_if.master dut_if` — interface_identifier '.' modport_identifier port_identifier.
+     The modport name is recorded for elaboration; a forward-declared
+     interface (IDENTIFIER not yet visible as TYPE_IDENTIFIER) goes
+     through the same path. */
+  | attribute_list_opt TYPE_IDENTIFIER '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { perm_string ifname = lex_strings.make($2.text);
+	interface_type_t*it = new interface_type_t(ifname);
+	it->modport = lex_strings.make($4);
+	FILE_NAME(it, @2);
+	delete[] $2.text;
+	delete[] $4;
+	pform_requires_sv(@5, "interface_port_header");
+	$$ = module_declare_port(@5, $5, port_declaration_context.port_type,
+				 NetNet::IMPLICIT, it, $6, $7, $1);
+      }
+  | attribute_list_opt IDENTIFIER '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { perm_string ifname = lex_strings.make($2);
+	interface_type_t*it = new interface_type_t(ifname);
+	it->modport = lex_strings.make($4);
+	FILE_NAME(it, @2);
+	delete[] $2;
+	delete[] $4;
+	pform_requires_sv(@5, "interface_port_header");
+	$$ = module_declare_port(@5, $5, port_declaration_context.port_type,
+				 NetNet::IMPLICIT, it, $6, $7, $1);
+      }
   | attribute_list_opt port_direction K_wreal IDENTIFIER
       { real_type_t*real_type = new real_type_t(real_type_t::REAL);
 	FILE_NAME(real_type, @3);
@@ -8504,15 +8844,10 @@ lpvalue
       }
 
   | streaming_concatenation
-      { /* Parse-only fallback used by UVM packer macros:
-	   { << bit {arr} } = expr; */
+      { /* Phase 63a/A3: streaming-concatenation l-value reachable
+	   only via this fallback; the dedicated statement-level rules
+	   for `{<<N{x}} = rhs` rewrite the assignment directly. */
 	pform_requires_sv(@1, "Streaming concatenation l-value");
-	warn_count += 1;
-	if (!warned_stream_concat_lval_incomplete) {
-	      cerr << @1 << ": warning: streaming concatenation l-value support is incomplete."
-		   << " (further similar warnings suppressed)." << endl;
-	      warned_stream_concat_lval_incomplete = true;
-	}
 	$$ = $1;
       }
 
@@ -11448,6 +11783,16 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
+  /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches` for
+     tagged unions (IEEE 1800-2017 §12.6).  Lowered at elab to an
+     if-else cascade testing the companion-tag NetNet of X. */
+  | unique_priority K_case '(' expression ')' K_matches case_matches_items K_endcase
+      { (void)$1;
+	pform_requires_sv(@6, "case-matches pattern matching");
+	PCaseMatches*tmp = new PCaseMatches($4, $7);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
   | unique_priority K_casex '(' expression ')' case_items K_endcase
       { PCase*tmp = new PCase($1, NetCase::EQX, $4, $6);
 	FILE_NAME(tmp, @2);
@@ -11555,32 +11900,92 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
 
+  /* Phase 63a/A3: streaming-concatenation l-value assignment.
+     Rewrite `{<<N{x}} = rhs` → `x = {<<N{rhs}}` directly at parse
+     time so the rest of the elaborate path sees a normal assignment.
+     Three forms below match the three slice variants. */
   | '{' stream_operator '{' stream_expression_list '}' '}' '=' expression ';'
-      { /* Parse-only fallback for streaming-concatenation l-value assignment
-	   used by UVM packer macros. */
-	pform_requires_sv(@2, "Streaming concatenation l-value");
-	delete $8;
-	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+      { pform_requires_sv(@2, "Streaming concatenation l-value");
+	PEStreaming::direction_t dir =
+	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT
+			   : PEStreaming::DIR_RSHIFT;
+	PExpr*lhs_inner = nullptr;
+	if ($4 && !$4->empty()) {
+	      lhs_inner = $4->front();
+	      $4->pop_front();
+	      while (!$4->empty()) { delete $4->front(); $4->pop_front(); }
+	}
+	delete $4;
+	if (!lhs_inner) {
+	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(tmp, @1);
+	      delete $8;
+	      $$ = tmp;
+	} else {
+	      PEStreaming*rstream = new PEStreaming(dir, 1, $8);
+	      FILE_NAME(rstream, @1);
+	      PAssign*tmp = new PAssign(lhs_inner, rstream);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	}
       }
   | '{' stream_operator simple_type_or_string '{' stream_expression_list '}' '}' '=' expression ';'
-      { /* Typed/sized streaming-concat l-value assignment fallback. */
-	pform_requires_sv(@2, "Streaming concatenation l-value");
+      { pform_requires_sv(@2, "Streaming concatenation l-value");
 	delete $3;
-	delete $9;
-	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	PEStreaming::direction_t dir =
+	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
+	PExpr*lhs_inner = nullptr;
+	if ($5 && !$5->empty()) {
+	      lhs_inner = $5->front();
+	      $5->pop_front();
+	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
+	}
+	delete $5;
+	if (!lhs_inner) {
+	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(tmp, @1);
+	      delete $9;
+	      $$ = tmp;
+	} else {
+	      PEStreaming*rstream = new PEStreaming(dir, 1, $9);
+	      FILE_NAME(rstream, @1);
+	      PAssign*tmp = new PAssign(lhs_inner, rstream);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	}
       }
   | '{' stream_operator expression '{' stream_expression_list '}' '}' '=' expression ';'
-      { /* Numeric slice streaming-concat l-value assignment fallback. */
-	pform_requires_sv(@2, "Streaming concatenation l-value");
+      { pform_requires_sv(@2, "Streaming concatenation l-value");
+	PEStreaming::direction_t dir =
+	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
+	unsigned slice = 1;
+	if (PENumber*n = dynamic_cast<PENumber*>($3)) {
+	      const verinum&v = n->value();
+	      if (v.is_defined() && !v.is_negative()) {
+		    unsigned long u = v.as_ulong();
+		    if (u >= 1 && u <= UINT_MAX) slice = (unsigned)u;
+	      }
+	}
 	delete $3;
-	delete $9;
-	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	PExpr*lhs_inner = nullptr;
+	if ($5 && !$5->empty()) {
+	      lhs_inner = $5->front();
+	      $5->pop_front();
+	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
+	}
+	delete $5;
+	if (!lhs_inner) {
+	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(tmp, @1);
+	      delete $9;
+	      $$ = tmp;
+	} else {
+	      PEStreaming*rstream = new PEStreaming(dir, slice, $9);
+	      FILE_NAME(rstream, @1);
+	      PAssign*tmp = new PAssign(lhs_inner, rstream);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	}
       }
 
   | error '=' expression ';'
@@ -11700,10 +12105,17 @@ statement_item /* This is roughly statement_item in the LRM */
       }
 
 	| subroutine_call K_with '(' expression ')' ';'
-	      { /* Temporary parse-only support for array method sort/rsort with-clauses
-		   used as standalone statements. */
+	      { /* Phase 63b/Q-methods (gap close): attach the with-
+		   clause to the PCallTask so sort/rsort/unique can use
+		   it as a key extractor.  $1 is the call statement. */
 		pform_requires_sv(@2, "Method with-clause");
-		delete $4;
+		if (auto*ct = dynamic_cast<PCallTask*>($1)) {
+		      std::vector<PExpr*> wc;
+		      wc.push_back($4);
+		      ct->set_with_constraints(std::move(wc));
+		} else {
+		      delete $4;
+		}
 		$$ = $1;
 	      }
 	| hierarchy_identifier K_with '(' expression ')' ';'
@@ -11711,8 +12123,10 @@ statement_item /* This is roughly statement_item in the LRM */
 		pform_requires_sv(@2, "Method with-clause");
 		std::list<named_pexpr_t> pt;
 	PCallTask*tmp = pform_make_call_task(@1, *$1, pt);
+	std::vector<PExpr*> wc;
+	wc.push_back($4);
+	tmp->set_with_constraints(std::move(wc));
 	delete $1;
-	delete $4;
 	$$ = tmp;
       }
 
@@ -11722,13 +12136,270 @@ statement_item /* This is roughly statement_item in the LRM */
   /* C6 (Phase 62e): bare-statement form of pkg::func(args) with {...};
      Used by `std::randomize(x) with {...};`.  Direct statement-item
      pattern to avoid shift-reduce conflicts via the subroutine_call
-     intermediate.  Runtime stub for std::randomize doesn't apply the
-     with-clause; this is a parse-without-error fix. */
+     intermediate.
+     Phase 63b/B8 (real impl): for `std::randomize(args) with {...};`
+     lower the call to a sequential block of `arg = $random;`
+     assignments — the variables actually receive random values now
+     instead of being silent no-ops.  The with-clause constraints
+     are still dropped (no Z3 routing yet); a one-time advisory
+     surfaces that gap so users don't trust the constraint output.
+     For other pkg::func(args) with{} forms, fall through to the
+     existing PCallTask stub. */
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with '{' constraint_block_item_list_opt '}' ';'
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+      { Statement*stmt = nullptr;
+	bool is_std_rand = ($1 && $3
+			    && strcmp($1, "std")==0
+			    && strcmp($3, "randomize")==0
+			    && $4 && !$4->empty());
+	if (is_std_rand) {
+	      /* Phase 63b/B8 (gap close): real with-clause enforcement.
+		 Two paths:
+		 (A) Range-bound fast path: if the constraint is a
+		     conjunction of `arg <op> const` patterns where each
+		     arg has clean min/max bounds, lower the assignment
+		     to `arg = $urandom_range(min, max)`.  This handles
+		     tight ranges (e.g. 1<x<16) that the retry loop
+		     can't satisfy in finite tries.
+		 (B) Retry loop fallback: for arbitrary constraints,
+		       repeat (4096) begin args=$random; if (CONSTR) break; end
+		     Best-effort; tight-domain constraints that don't
+		     match (A) and have <0.1% prob will likely not
+		     converge — those need full Z3 routing (future). */
+	      std::vector<std::string> arg_names;
+	      for (auto &arg : *$4) {
+		    if (!arg.parm) { arg_names.push_back(""); continue; }
+		    auto*aid = dynamic_cast<PEIdent*>(arg.parm);
+		    if (aid && aid->path().size() == 1)
+			  arg_names.push_back(aid->path().back().name.str());
+		    else
+			  arg_names.push_back("");
+	      }
+
+	      /* Try the range-bound fast path: collect bounds for each
+		 arg from the constraint list.  If every arg gets a
+		 clean min+max and every constraint item is recognized,
+		 lower to $urandom_range. */
+	      bool fast_path_ok = true;
+	      std::vector<b8_range_t> bounds(arg_names.size());
+	      if (!$7 || $7->empty()) {
+		    fast_path_ok = false;  // no constraints — no fast path
+	      } else if (arg_names.empty()) {
+		    fast_path_ok = false;
+	      } else {
+		    for (size_t ai = 0; ai < arg_names.size(); ai++) {
+			  if (arg_names[ai].empty()) {
+				fast_path_ok = false; break;
+			  }
+			  for (PExpr*c : *$7) {
+				if (!c) continue;
+				if (!std_rand_collect_bounds_(c,
+				        arg_names[ai], bounds[ai])) {
+				      fast_path_ok = false; break;
+				}
+			  }
+			  if (!fast_path_ok) break;
+			  if (!bounds[ai].has_min || !bounds[ai].has_max) {
+				fast_path_ok = false; break;
+			  }
+			  if (bounds[ai].min_v > bounds[ai].max_v) {
+				fast_path_ok = false; break;  // contradictory
+			  }
+		    }
+	      }
+
+	      /* Per-arg enum detection: if arg's constraint is a single
+		 `inside { v1, v2, v3, ... }`, prefer the enum-pick
+		 lowering over the bounds-fast-path or retry. */
+	      std::vector<std::vector<int64_t> > arg_enums(arg_names.size());
+	      std::vector<bool> arg_is_enum(arg_names.size(), false);
+	      if (!fast_path_ok && $7 && !$7->empty() && !arg_names.empty()) {
+		    bool all_enum = true;
+		    for (size_t ai = 0; ai < arg_names.size(); ai++) {
+			  if (arg_names[ai].empty()) { all_enum = false; break; }
+			  bool found = false;
+			  for (PExpr*c : *$7) {
+				if (!c) continue;
+				std::vector<int64_t> vals;
+				if (std_rand_collect_enum_(c, arg_names[ai], vals)) {
+				      arg_enums[ai] = vals;
+				      arg_is_enum[ai] = true;
+				      found = true;
+				      break;
+				}
+			  }
+			  if (!found) { all_enum = false; break; }
+		    }
+		    if (!all_enum) {
+			  for (size_t ai = 0; ai < arg_names.size(); ai++)
+				arg_is_enum[ai] = false;
+		    } else {
+			  /* For enum mode we no longer need the retry loop
+			     fallback; treat it like a fast path. */
+			  fast_path_ok = true;
+		    }
+	      }
+
+	      std::vector<Statement*> rand_assign_stmts;
+	      size_t ai = 0;
+	      for (auto &arg : *$4) {
+		    if (!arg.parm) { ai++; continue; }
+		    PExpr*rng_call = nullptr;
+		    if (arg_is_enum[ai]) {
+			  /* arg = $urandom_range(0, N-1); case(arg) 0:arg=v0; ... */
+			  std::vector<int64_t>&vals = arg_enums[ai];
+			  std::vector<named_pexpr_t> ur_parms;
+			  named_pexpr_t lo_p, hi_p;
+			  lo_p.parm = new PENumber(new verinum((uint64_t)0, 32));
+			  FILE_NAME(lo_p.parm, @1);
+			  hi_p.parm = new PENumber(new verinum((uint64_t)(vals.size()-1), 32));
+			  FILE_NAME(hi_p.parm, @1);
+			  ur_parms.push_back(hi_p);
+			  ur_parms.push_back(lo_p);
+			  PECallFunction*ur = new PECallFunction(
+				perm_string::literal("$urandom_range"), ur_parms);
+			  FILE_NAME(ur, @1);
+			  PAssign*idx_assign = new PAssign(arg.parm, ur);
+			  FILE_NAME(idx_assign, @1);
+
+			  /* Build PCase items: for each i, item where expr=i,
+			     stmt = arg = vals[i]. */
+			  std::vector<PCase::Item*>*items =
+				new std::vector<PCase::Item*>();
+			  for (size_t vi = 0; vi < vals.size(); vi++) {
+				PCase::Item*it = new PCase::Item;
+				PENumber*ki = new PENumber(
+				      new verinum((uint64_t)vi, 32));
+				FILE_NAME(ki, @1);
+				it->expr.push_back(ki);
+				PENumber*v = new PENumber(
+				      new verinum((int64_t)vals[vi]));
+				FILE_NAME(v, @1);
+				PAssign*va = new PAssign(arg.parm, v);
+				FILE_NAME(va, @1);
+				it->stat = va;
+				items->push_back(it);
+			  }
+			  PCase*cs = new PCase(IVL_CASE_QUALITY_BASIC,
+					       NetCase::EQ, arg.parm, items);
+			  FILE_NAME(cs, @1);
+			  PBlock*enum_blk = new PBlock(PBlock::BL_SEQ);
+			  FILE_NAME(enum_blk, @1);
+			  std::vector<Statement*> enum_stmts;
+			  enum_stmts.push_back(idx_assign);
+			  enum_stmts.push_back(cs);
+			  enum_blk->set_statement(enum_stmts);
+			  rand_assign_stmts.push_back(enum_blk);
+			  ai++;
+			  continue;
+		    }
+		    if (fast_path_ok) {
+			  /* arg = $urandom_range(max-min) + min */
+			  int64_t mn = bounds[ai].min_v;
+			  int64_t mx = bounds[ai].max_v;
+			  uint64_t span = (uint64_t)(mx - mn);
+			  std::vector<named_pexpr_t> ur_parms;
+			  named_pexpr_t lo_p, hi_p;
+			  lo_p.parm = new PENumber(new verinum((uint64_t)0, 32));
+			  FILE_NAME(lo_p.parm, @1);
+			  hi_p.parm = new PENumber(new verinum(span, 32));
+			  FILE_NAME(hi_p.parm, @1);
+			  ur_parms.push_back(hi_p);
+			  ur_parms.push_back(lo_p);
+			  PECallFunction*ur = new PECallFunction(
+				perm_string::literal("$urandom_range"), ur_parms);
+			  FILE_NAME(ur, @1);
+			  if (mn == 0) {
+				rng_call = ur;
+			  } else {
+				PENumber*offs = new PENumber(
+				      new verinum((int64_t)mn));
+				FILE_NAME(offs, @1);
+				PEBinary*sum = new PEBinary('+', ur, offs);
+				FILE_NAME(sum, @1);
+				rng_call = sum;
+			  }
+		    } else {
+			  rng_call = new PECallFunction(
+				perm_string::literal("$random"));
+			  FILE_NAME(rng_call, @1);
+		    }
+		    PAssign*a = new PAssign(arg.parm, rng_call);
+		    FILE_NAME(a, @1);
+		    rand_assign_stmts.push_back(a);
+		    ai++;
+	      }
+
+	      /* Combine constraint items via &&. */
+	      PExpr*combined = nullptr;
+	      if ($7) {
+		    for (PExpr*c : *$7) {
+			  if (!c) continue;
+			  if (!combined) {
+				combined = c;
+			  } else {
+				PEBinary*conj = new PEBLogic('a', combined, c);
+				FILE_NAME(conj, @5);
+				combined = conj;
+			  }
+		    }
+	      }
+
+	      PBlock*outer = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(outer, @1);
+	      std::vector<Statement*> outer_stmts;
+
+	      if (fast_path_ok) {
+		    /* Range-bound fast path: just emit per-arg
+		       $urandom_range — single uniform draw per arg. */
+		    outer_stmts = rand_assign_stmts;
+		    /* Constraint expressions consumed in the analysis
+		       above; they are not owned by anything else, so
+		       delete them. */
+		    if ($7) {
+			  for (PExpr*c : *$7) delete c;
+		    }
+	      } else if (combined) {
+		    /* Retry-loop fallback: repeat (4096) { args=$random;
+		       if (CONSTR) break; } */
+		    PBlock*body = new PBlock(PBlock::BL_SEQ);
+		    FILE_NAME(body, @1);
+		    std::vector<Statement*> body_stmts = rand_assign_stmts;
+		    PBreak*brk = new PBreak;
+		    FILE_NAME(brk, @1);
+		    PCondit*cond = new PCondit(combined, brk, nullptr);
+		    FILE_NAME(cond, @5);
+		    body_stmts.push_back(cond);
+		    body->set_statement(body_stmts);
+
+		    PENumber*n = new PENumber(new verinum((uint64_t)4096, 32));
+		    FILE_NAME(n, @1);
+		    PRepeat*rep = new PRepeat(n, body);
+		    FILE_NAME(rep, @1);
+		    outer_stmts.push_back(rep);
+	      } else {
+		    /* No constraints — just one round of $random. */
+		    outer_stmts = rand_assign_stmts;
+	      }
+	      outer->set_statement(outer_stmts);
+	      stmt = outer;
+	      /* Constraint list shell can be freed; items are owned
+		 (or freed) above. */
+	      if ($7) { delete $7; $7 = nullptr; }
+	} else {
+	      pform_name_t hident;
+	      hident.push_back(name_component_t(lex_strings.make($1)));
+	      hident.push_back(name_component_t(lex_strings.make($3)));
+	      stmt = pform_make_call_task(@1, hident, *$4);
+	      static bool warned = false;
+	      if (!warned) {
+		    std::cerr << @5
+			      << ": warning: pkg::func(...) with-clause is "
+			      << "parsed but not enforced (compile-progress; "
+			      << "constraints are silently dropped; further "
+			      << "similar warnings suppressed)." << std::endl;
+		    warned = true;
+	      }
+	}
 	delete[]$1;
 	delete[]$3;
 	delete $4;
@@ -11737,7 +12408,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	      delete $7;
 	}
 	pform_requires_sv(@5, "Statement-form pkg::func(args) with-clause");
-	$$ = tmp;
+	$$ = stmt;
       }
 
 	| hierarchy_identifier K_with '{' constraint_block_item_list_opt '}' ';'

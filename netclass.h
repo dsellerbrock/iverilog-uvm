@@ -233,9 +233,15 @@ class netclass_t : public ivl_type_s {
 	    unsigned prop_idx;
 	    uint64_t lo;
 	    uint64_t hi;
+	    // I1 (Phase 62o): kind tag for illegal_bins/ignore_bins.
+	    // 0 = normal counted bin
+	    // 1 = ignore_bin (excluded from coverage; not emitted as prop)
+	    // 2 = illegal_bin (counted; runtime fires error on increment)
+	    unsigned kind = 0;
       };
 
-      void add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi);
+      void add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi,
+			  unsigned kind = 0);
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const covgrp_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
       bool is_covergroup() const { return is_covergroup_; }

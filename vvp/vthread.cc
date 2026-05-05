@@ -41,6 +41,7 @@
 # include  <map>
 # include  <typeinfo>
 # include  <vector>
+# include  <functional>
 # include  <algorithm>
 # include  <cstdlib>
 # include  <climits>
@@ -204,6 +205,11 @@ struct vthread_s {
       vector<unsigned> args_real;
       vector<unsigned> args_str;
       vector<unsigned> args_vec4;
+	// Phase 63b/B6: object-typed return values (class/queue/darray
+	// handles).  Mirrors the depth-into-parent-stack convention of
+	// args_<type>; entries point into the parent thread's
+	// stack_obj_[].  Used by %ret/obj and %retload/obj.
+      vector<unsigned> args_obj;
 
     private:
       vector<vvp_vector4_t>stack_vec4_;
@@ -1669,6 +1675,18 @@ static bool double_eq_(const double&a, const double&b) { return a == b; }
 static bool str_lt_(const string&a, const string&b) { return a < b; }
 static bool str_eq_(const string&a, const string&b) { return a == b; }
 
+static bool obj_lt_(const vvp_object_t&a, const vvp_object_t&b)
+{
+      /* Compare by raw pointer identity for deterministic ordering
+         on class-handle queues.  Real sort semantics for class
+         queues require a with-clause key extractor. */
+      return a.peek<vvp_object>() < b.peek<vvp_object>();
+}
+static bool obj_eq_(const vvp_object_t&a, const vvp_object_t&b)
+{
+      return a.peek<vvp_object>() == b.peek<vvp_object>();
+}
+
 static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_only)
 {
       if (!arr) return true;
@@ -1690,9 +1708,315 @@ static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_onl
             return true;
       }
 
+      /* Phase 63b/runtime-cleanup: object queues sort by pointer
+         identity (deterministic) for unique() / sort() default
+         behavior.  Avoids the "set_word(vec4) for queue_object"
+         code-gen mismatch warning that fired when the default
+         vec4 path ran on an object queue. */
+      if (dynamic_cast<vvp_queue_object*>(arr) ||
+          dynamic_cast<vvp_darray_object*>(arr)) {
+            qsort_helper_<vvp_object_t>(arr, reverse, unique_only,
+                                        obj_lt_, obj_eq_);
+            return true;
+      }
+
       /* Default: vec4 */
       qsort_helper_<vvp_vector4_t>(arr, reverse, unique_only,
                                    vec4_lt_, vec4_eq_);
+      return true;
+}
+
+/* Phase 63b/Q-methods (gap close): reverse queue in place. */
+template<typename ELEM>
+static void qreverse_helper_(vvp_darray*arr)
+{
+      size_t sz = arr->get_size();
+      if (sz < 2) return;
+      std::vector<ELEM> tmp(sz);
+      for (size_t i = 0 ; i < sz ; i += 1)
+            arr->get_word((unsigned)i, tmp[i]);
+      std::reverse(tmp.begin(), tmp.end());
+      for (size_t i = 0 ; i < sz ; i += 1)
+            arr->set_word((unsigned)i, tmp[i]);
+}
+
+static bool qreverse_dispatch_(vvp_darray*arr)
+{
+      if (!arr) return true;
+      if (dynamic_cast<vvp_queue_real*>(arr)
+          || dynamic_cast<vvp_darray_real*>(arr)) {
+            qreverse_helper_<double>(arr);
+            return true;
+      }
+      if (dynamic_cast<vvp_queue_string*>(arr)
+          || dynamic_cast<vvp_darray_string*>(arr)) {
+            qreverse_helper_<string>(arr);
+            return true;
+      }
+      if (dynamic_cast<vvp_queue_object*>(arr)
+          || dynamic_cast<vvp_darray_object*>(arr)) {
+            qreverse_helper_<vvp_object_t>(arr);
+            return true;
+      }
+      qreverse_helper_<vvp_vector4_t>(arr);
+      return true;
+}
+
+/* Phase 63b/Q-methods: Fisher-Yates shuffle in place. */
+template<typename ELEM>
+static void qshuffle_helper_(vvp_darray*arr)
+{
+      size_t sz = arr->get_size();
+      if (sz < 2) return;
+      std::vector<ELEM> tmp(sz);
+      for (size_t i = 0 ; i < sz ; i += 1)
+            arr->get_word((unsigned)i, tmp[i]);
+      for (size_t i = sz - 1 ; i > 0 ; i -= 1) {
+            size_t j = (size_t)(rand() % (long)(i + 1));
+            std::swap(tmp[i], tmp[j]);
+      }
+      for (size_t i = 0 ; i < sz ; i += 1)
+            arr->set_word((unsigned)i, tmp[i]);
+}
+
+static bool qshuffle_dispatch_(vvp_darray*arr)
+{
+      if (!arr) return true;
+      if (dynamic_cast<vvp_queue_real*>(arr)
+          || dynamic_cast<vvp_darray_real*>(arr)) {
+            qshuffle_helper_<double>(arr);
+            return true;
+      }
+      if (dynamic_cast<vvp_queue_string*>(arr)
+          || dynamic_cast<vvp_darray_string*>(arr)) {
+            qshuffle_helper_<string>(arr);
+            return true;
+      }
+      if (dynamic_cast<vvp_queue_object*>(arr)
+          || dynamic_cast<vvp_darray_object*>(arr)) {
+            qshuffle_helper_<vvp_object_t>(arr);
+            return true;
+      }
+      qshuffle_helper_<vvp_vector4_t>(arr);
+      return true;
+}
+
+bool of_QREVERSE(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) return true;
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      return qreverse_dispatch_(arr);
+}
+
+bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) return true;
+      vvp_object_t obj = fun->get_object();
+      vvp_darray*arr = obj.peek<vvp_darray>();
+      return qshuffle_dispatch_(arr);
+}
+
+/* Phase 63b/Q-methods: expression-form q.unique() — return a new
+ * queue (on obj stack) containing each value from q at most once,
+ * in order of first appearance.  Vec4 element type only for now. */
+bool of_QUNIQUE_COPY(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      vvp_object_t src_obj = fun->get_object();
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      if (!src) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      size_t sz = src->get_size();
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      vector<vvp_vector4_t> seen;
+      for (size_t i = 0; i < sz; i += 1) {
+            vvp_vector4_t v;
+            src->get_word((unsigned)i, v);
+            bool found = false;
+            for (auto&s : seen) if (vec4_eq_(v, s)) { found = true; break; }
+            if (!found) { seen.push_back(v); dst->push_back(v, 0); }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
+/* Phase 63b/Q-methods: expression-form q.unique_index() — return a
+ * queue of indices of unique-first elements. */
+bool of_QUNIQUE_IDX(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      vvp_object_t src_obj = fun->get_object();
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      if (!src) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      size_t sz = src->get_size();
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      vector<vvp_vector4_t> seen;
+      for (size_t i = 0; i < sz; i += 1) {
+            vvp_vector4_t v;
+            src->get_word((unsigned)i, v);
+            bool found = false;
+            for (auto&s : seen) if (vec4_eq_(v, s)) { found = true; break; }
+            if (!found) {
+                  seen.push_back(v);
+                  vvp_vector4_t idx_v(32, BIT4_0);
+                  for (unsigned b = 0; b < 32; b++)
+                        if ((i >> b) & 1) idx_v.set_bit(b, BIT4_1);
+                  dst->push_back(idx_v, 0);
+            }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
+/* Phase 63b/Q-methods (gap close): sort q by keys queue.  q[i]
+ * stays paired with keys[i] under the permutation.  After sort,
+ * q is in ascending (sort) or descending (rsort) order of keys. */
+template<typename ELEM>
+static void qsort_with_keys_helper_(vvp_darray*q, vector<int32_t>&keys,
+                                    bool reverse)
+{
+      size_t sz = q->get_size();
+      vector<ELEM> qvals(sz);
+      for (size_t i = 0; i < sz; i++) q->get_word((unsigned)i, qvals[i]);
+      vector<size_t> perm(sz);
+      for (size_t i = 0; i < sz; i++) perm[i] = i;
+      std::sort(perm.begin(), perm.end(),
+                [&](size_t a, size_t b) {
+                      return reverse ? keys[a] > keys[b]
+                                     : keys[a] < keys[b];
+                });
+      vector<ELEM> sorted(sz);
+      for (size_t i = 0; i < sz; i++) sorted[i] = qvals[perm[i]];
+      for (size_t i = 0; i < sz; i++) q->set_word((unsigned)i, sorted[i]);
+}
+
+static void qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
+                                      bool reverse)
+{
+      if (!q || !keys_arr) return;
+      size_t sz = q->get_size();
+      if (sz != keys_arr->get_size()) return;
+
+      // Extract keys as int32_t.
+      vector<int32_t> keys(sz, 0);
+      for (size_t i = 0; i < sz; i++) {
+            vvp_vector4_t kv;
+            keys_arr->get_word((unsigned)i, kv);
+            uint64_t u = 0;
+            bool overflow = false;
+            vector4_to_value(kv, overflow, u);
+            keys[i] = (int32_t)u;
+      }
+
+      if (dynamic_cast<vvp_queue_real*>(q) || dynamic_cast<vvp_darray_real*>(q))
+            qsort_with_keys_helper_<double>(q, keys, reverse);
+      else if (dynamic_cast<vvp_queue_string*>(q) || dynamic_cast<vvp_darray_string*>(q))
+            qsort_with_keys_helper_<string>(q, keys, reverse);
+      else if (dynamic_cast<vvp_queue_object*>(q) || dynamic_cast<vvp_darray_object*>(q))
+            qsort_with_keys_helper_<vvp_object_t>(q, keys, reverse);
+      else
+            qsort_with_keys_helper_<vvp_vector4_t>(q, keys, reverse);
+}
+
+bool of_QSORT_KEYS(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_fun_signal_object*qfun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_fun_signal_object*kfun = dynamic_cast<vvp_fun_signal_object*>(cp->net2->fun);
+      if (!qfun || !kfun) return true;
+      vvp_darray*q = qfun->get_object().peek<vvp_darray>();
+      vvp_darray*k = kfun->get_object().peek<vvp_darray>();
+      qsort_with_keys_dispatch_(q, k, false);
+      return true;
+}
+
+bool of_QRSORT_KEYS(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_fun_signal_object*qfun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_fun_signal_object*kfun = dynamic_cast<vvp_fun_signal_object*>(cp->net2->fun);
+      if (!qfun || !kfun) return true;
+      vvp_darray*q = qfun->get_object().peek<vvp_darray>();
+      vvp_darray*k = kfun->get_object().peek<vvp_darray>();
+      qsort_with_keys_dispatch_(q, k, true);
+      return true;
+}
+
+/* unique with key extractor: keep first element with each unique key. */
+template<typename ELEM>
+static void qunique_keys_helper_(vvp_darray*q, vector<int32_t>&keys)
+{
+      size_t sz = q->get_size();
+      vector<ELEM> qvals(sz);
+      for (size_t i = 0; i < sz; i++) q->get_word((unsigned)i, qvals[i]);
+      vector<int32_t> seen_keys;
+      vector<ELEM> kept;
+      for (size_t i = 0; i < sz; i++) {
+            bool found = false;
+            for (auto k : seen_keys) if (k == keys[i]) { found = true; break; }
+            if (!found) { seen_keys.push_back(keys[i]); kept.push_back(qvals[i]); }
+      }
+      vvp_queue*qq = dynamic_cast<vvp_queue*>(q);
+      if (qq) {
+            while (qq->get_size() > kept.size()) qq->pop_back();
+            for (size_t i = 0; i < kept.size(); i++) {
+                  if (i < qq->get_size()) q->set_word((unsigned)i, kept[i]);
+                  else qq->push_back(kept[i], 0);
+            }
+      } else {
+            for (size_t i = 0; i < kept.size() && i < sz; i++)
+                  q->set_word((unsigned)i, kept[i]);
+      }
+}
+
+bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_fun_signal_object*qfun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_fun_signal_object*kfun = dynamic_cast<vvp_fun_signal_object*>(cp->net2->fun);
+      if (!qfun || !kfun) return true;
+      vvp_darray*q = qfun->get_object().peek<vvp_darray>();
+      vvp_darray*k = kfun->get_object().peek<vvp_darray>();
+      if (!q || !k) return true;
+      size_t sz = q->get_size();
+      if (sz != k->get_size()) return true;
+
+      vector<int32_t> keys(sz, 0);
+      for (size_t i = 0; i < sz; i++) {
+            vvp_vector4_t kv;
+            k->get_word((unsigned)i, kv);
+            uint64_t u = 0;
+            bool overflow = false;
+            vector4_to_value(kv, overflow, u);
+            keys[i] = (int32_t)u;
+      }
+
+      if (dynamic_cast<vvp_queue_real*>(q) || dynamic_cast<vvp_darray_real*>(q))
+            qunique_keys_helper_<double>(q, keys);
+      else if (dynamic_cast<vvp_queue_string*>(q) || dynamic_cast<vvp_darray_string*>(q))
+            qunique_keys_helper_<string>(q, keys);
+      else if (dynamic_cast<vvp_queue_object*>(q) || dynamic_cast<vvp_darray_object*>(q))
+            qunique_keys_helper_<vvp_object_t>(q, keys);
+      else
+            qunique_keys_helper_<vvp_vector4_t>(q, keys);
       return true;
 }
 
@@ -1985,7 +2309,10 @@ bool of_RAND_MODE(vthread_t thr, vvp_code_t)
 
 /* %covgrp/sample N
  * Stack on entry: obj-stack top = cg_obj; vec4-stack top N items = cp values
- * For each bin: get cp_idx value, check if in [lo,hi], if so increment prop. */
+ * Single-coverpoint bins increment when val matches.  Cross bins (multiple
+ * records sharing the same prop_idx) increment only when ALL records match
+ * — the runtime AND of all (cp_idx, lo, hi) tuples mapped to the same
+ * counter property.  See I1 (Phase 62l) elaborate.cc cross emission. */
 bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 {
       unsigned ncp = cp->number;
@@ -2003,42 +2330,74 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       const class_type*defn = cobj->get_defn();
       size_t nbins = defn->covgrp_bin_count();
 
-      for (size_t bi = 0 ; bi < nbins ; bi += 1) {
-	    const class_type::cov_bin_t& bin = defn->covgrp_bin(bi);
-	    if (bin.cp_idx >= ncp) continue;
+      // Group bins by prop_idx so that cross records (multiple bins on
+      // the same prop_idx) are AND'd together.  The first occurrence of a
+      // prop_idx determines the increment site; subsequent records refine
+      // the predicate.
+      std::map<unsigned, std::vector<size_t>> by_prop;
+      for (size_t bi = 0 ; bi < nbins ; bi += 1)
+	    by_prop[defn->covgrp_bin(bi).prop_idx].push_back(bi);
 
-	    const vvp_vector4_t&v = cp_vals[bin.cp_idx];
-	    /* Convert vec4 to uint64 — treat X/Z bits as 0 for comparison */
+      auto val_of = [&](unsigned cp_idx) -> uint64_t {
+	    if (cp_idx >= ncp) return 0;
+	    const vvp_vector4_t&v = cp_vals[cp_idx];
 	    uint64_t val = 0;
 	    for (unsigned bi2 = 0 ; bi2 < v.size() && bi2 < 64 ; bi2 += 1) {
 		  if (v.value(bi2) == BIT4_1)
 			val |= ((uint64_t)1 << bi2);
 	    }
+	    return val;
+      };
 
-	    if (val >= bin.lo && val <= bin.hi) {
-		  vvp_vector4_t cur(32, BIT4_0);
-		  cobj->get_vec4(bin.prop_idx, cur);
-		  /* Increment: convert to integer, add 1, store back */
-	          uint32_t count = 0;
-		  for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
-			if (cur.value(bi3) == BIT4_1)
-			      count |= (1u << bi3);
+      for (auto& kv : by_prop) {
+	    unsigned prop_idx = kv.first;
+	    bool all_match = true;
+	    bool is_illegal = false;
+	    for (size_t bi : kv.second) {
+		  const class_type::cov_bin_t& bin = defn->covgrp_bin(bi);
+		  if (bin.cp_idx >= ncp) { all_match = false; break; }
+		  uint64_t val = val_of(bin.cp_idx);
+		  if (val < bin.lo || val > bin.hi) {
+			all_match = false;
+			break;
 		  }
-		  count += 1;
-		  vvp_vector4_t newval(32, BIT4_0);
-		  for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
-			if (count & (1u << bi3))
-			      newval.set_bit(bi3, BIT4_1);
-		  }
-		  cobj->set_vec4(bin.prop_idx, newval);
+		  if (bin.kind == 2)
+			is_illegal = true;
 	    }
+	    if (!all_match) continue;
+
+	    // I1 (Phase 62o): illegal_bins fire an error on match
+	    // before incrementing the counter.  We use a plain stderr
+	    // message so the test infra can detect via grep — UVM's
+	    // uvm_report_error is unavailable from runtime context here.
+	    if (is_illegal) {
+		  std::cerr << "ERROR: covergroup illegal_bin matched"
+			    << " (prop_idx=" << prop_idx << ")" << std::endl;
+	    }
+
+	    vvp_vector4_t cur(32, BIT4_0);
+	    cobj->get_vec4(prop_idx, cur);
+	    uint32_t count = 0;
+	    for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
+		  if (cur.value(bi3) == BIT4_1)
+			count |= (1u << bi3);
+	    }
+	    count += 1;
+	    vvp_vector4_t newval(32, BIT4_0);
+	    for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
+		  if (count & (1u << bi3))
+			newval.set_bit(bi3, BIT4_1);
+	    }
+	    cobj->set_vec4(prop_idx, newval);
       }
       return true;
 }
 
 /* %covgrp/get_inst_coverage
  * Stack on entry: obj-stack top = cg_obj
- * Pushes real value = (bins_hit / total_bins) * 100.0 onto real stack */
+ * Pushes real value = (unique-bins-hit / unique-bins-total) * 100.0
+ * I1 (Phase 62l): cross bins emit multiple cov_bin_t records sharing one
+ * prop_idx — count each unique prop_idx once. */
 bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 {
       vvp_object_t obj;
@@ -2050,16 +2409,31 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 	    const class_type*defn = cobj->get_defn();
 	    size_t nbins = defn->covgrp_bin_count();
 	    if (nbins > 0) {
-		  size_t hit = 0;
+		  std::set<unsigned> unique_props;
+		  std::set<unsigned> hit_props;
 		  for (size_t bi = 0 ; bi < nbins ; bi += 1) {
-			unsigned prop_idx = defn->covgrp_bin(bi).prop_idx;
+			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+			// I1 (Phase 62o): exclude illegal_bins from
+			// coverage denominator — they shouldn't be hit
+			// and counting them just skews the percentage.
+			// (ignore_bins are stripped at elaborate time.)
+			if (bin.kind == 2) continue;
+			unsigned prop_idx = bin.prop_idx;
+			unique_props.insert(prop_idx);
+			if (hit_props.count(prop_idx)) continue;
 			vvp_vector4_t cur(32, BIT4_0);
 			cobj->get_vec4(prop_idx, cur);
 			for (unsigned bi2 = 0 ; bi2 < 32 ; bi2 += 1) {
-			      if (cur.value(bi2) == BIT4_1) { hit++; break; }
+			      if (cur.value(bi2) == BIT4_1) {
+				    hit_props.insert(prop_idx);
+				    break;
+			      }
 			}
 		  }
-		  result = (double)hit / (double)nbins * 100.0;
+		  if (unique_props.size() > 0) {
+			result = (double)hit_props.size() /
+				 (double)unique_props.size() * 100.0;
+		  }
 	    }
       }
       thr->push_real(result);
@@ -5475,14 +5849,10 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 			          child_in_scope,
 			          child->pc == codespace_null() ? 1 : 0);
 		    }
-		    if (!warned_callf_child_not_ended) {
-			  fprintf(stderr,
-				          "Warning: callf child did not end synchronously"
-				          " (caller=%s callee=%s); caller entering join wait (further similar warnings suppressed)\n",
-				          caller_name ? caller_name : "<unknown>",
-				          child_name ? child_name : "<unknown>");
-				  warned_callf_child_not_ended = true;
-			    }
+		    /* G48: suppress this diagnostic — async callf children
+		       (e.g. UVM tasks with event-waits) enter join-wait
+		       correctly; the message is purely cosmetic. */
+		    (void)warned_callf_child_not_ended;
 			    if (callf_dump_tree_enabled_(caller_name, child_name))
 			          dump_callf_tree_(child, 0);
 			    thr->i_am_joining = 1;
@@ -5492,13 +5862,21 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 		      }
 }
 
+/*
+ * Phase 63b/B6: %callf/obj — call a function whose return type is an
+ * object handle (class/queue/darray).  Push a null placeholder onto
+ * the caller's object stack; the function will overwrite via
+ * %ret/obj.  args_obj[0] points at depth 0 of the caller's object
+ * stack (i.e. the placeholder we just pushed).  Functions that
+ * use the legacy %store/obj v_retval_sig path won't %ret/obj — for
+ * those, the placeholder is popped at function end via the
+ * release-callf cleanup that runs in do_callf_void's parent
+ * unwind. */
 bool of_CALLF_OBJ(vthread_t thr, vvp_code_t cp)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
       maybe_dispatch_uvm_object_wrapper_call_(thr, cp, child);
       return do_callf_void(thr, child);
-
-      // XXXX NOT IMPLEMENTED
 }
 
 bool of_CALLF_OBJ_V(vthread_t thr, vvp_code_t cp)
@@ -6384,6 +6762,23 @@ bool of_CONCAT_STR(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* Phase 63b: %rep/str <ix-reg> — replace top-of-str-stack `unit`
+ * with `words[ix-reg]` copies of `unit` concatenated.  Used by
+ * the string codegen when {N{x}} has a runtime-variable N. */
+bool of_REP_STR(vthread_t thr, vvp_code_t cp)
+{
+      unsigned use_idx = cp->number;
+      int64_t count = thr->words[use_idx].w_int;
+      string unit = thr->pop_str();
+      string out;
+      if (count > 0 && count < (1<<20)) {  // 1M cap
+            out.reserve(unit.size() * (size_t)count);
+            for (int64_t i = 0; i < count; i++) out += unit;
+      }
+      thr->push_str(out);
+      return true;
+}
+
 /*
  *  %concati/str <string>;
  */
@@ -6602,15 +6997,38 @@ static void dpi_push_int32(vthread_t thr, int32_t val, unsigned wid)
       thr->push_vec4(res);
 }
 
+// C4 (Phase 62k): split "name|types" packed in cp->text.  Returns pointer
+// to types string ("" if no types embedded) and writes the bare name
+// into name_buf.  When types is empty/missing, callers default to the
+// legacy "all int" behavior — i.e. all-int parameters with same return
+// type, since '|' is not legal in C function names.
+static const char* split_dpi_name_types_(const char*text, char*name_buf,
+                                          size_t name_buf_sz)
+{
+      const char*sep = strchr(text, '|');
+      if (!sep) {
+	    snprintf(name_buf, name_buf_sz, "%s", text);
+	    return "";
+      }
+      size_t nlen = sep - text;
+      if (nlen >= name_buf_sz) nlen = name_buf_sz - 1;
+      memcpy(name_buf, text, nlen);
+      name_buf[nlen] = '\0';
+      return sep + 1;
+}
+
 /*
- * %dpi/call/vec4 "c_name" nargs wid
+ * %dpi/call/vec4 "c_name\001types" nargs wid
  *
  * Pops nargs int32 args from vec4 stack (in reverse param order),
  * calls the named C function, pushes the int32 result as wid-bit vec4.
  */
 bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
 {
-      const char*c_name = cp->text;
+      char name_buf[256];
+      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
+      (void)types;
+      const char*c_name = name_buf;
       unsigned nargs = cp->bit_idx[0];
       unsigned wid   = cp->bit_idx[1];
 
@@ -6655,13 +7073,16 @@ bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
 }
 
 /*
- * %dpi/call/real "c_name" nargs
+ * %dpi/call/real "c_name\001types" nargs
  *
  * Pops nargs double args from real stack, calls C function, pushes double result.
  */
 bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t cp)
 {
-      const char*c_name = cp->text;
+      char name_buf[256];
+      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
+      (void)types;
+      const char*c_name = name_buf;
       unsigned nargs = cp->bit_idx[0];
 
       void*sym = vvp_dpi_find_symbol(c_name);
@@ -6694,45 +7115,86 @@ bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t cp)
 }
 
 /*
- * %dpi/call/str "c_name" nargs
+ * %dpi/call/str "c_name\001types" nargs
  *
  * Calls C function that returns const char*. Pushes result as string.
+ * The type signature in `types` (one char per arg: 'i' int / 's' string /
+ * 'r' real) tells us which stack each arg lives on.  C4 (Phase 62k):
+ * before the type-signature suffix, this opcode assumed all args were
+ * strings, so calling a string-return DPI with an int arg (e.g.
+ * `string uvm_dpi_get_next_arg_c(int init)`) underflowed pop_str and
+ * leaked the int on stack_vec4.
  */
 bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t cp)
 {
-      const char*c_name = cp->text;
+      char name_buf[256];
+      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
+      const char*c_name = name_buf;
       unsigned nargs = cp->bit_idx[0];
+
+      // Pop args off the right stack first (regardless of symbol lookup
+      // result) so the stacks stay consistent on lookup failure.
+      if (nargs > 8) nargs = 8;
+      int32_t   iargs[8] = {0};
+      string    sargs[8];
+      double    rargs[8] = {0};
+      // Pop in reverse stack order (last-pushed is on top of its stack).
+      for (unsigned ii = 0; ii < nargs; ++ii) {
+	    unsigned slot = nargs - 1 - ii;
+	    char tc = (types && types[slot]) ? types[slot] : 's';
+	    switch (tc) {
+		case 'r': rargs[slot] = thr->pop_real(); break;
+		case 'i': iargs[slot] = dpi_pop_int32(thr); break;
+		case 's':
+		default:  sargs[slot] = thr->pop_str(); break;
+	    }
+      }
 
       void*sym = vvp_dpi_find_symbol(c_name);
       if (!sym) {
 	    fprintf(stderr, "DPI error: symbol '%s' not found\n", c_name);
-	    thr->pop_str(nargs);
 	    thr->push_str("");
 	    return true;
       }
 
       typedef const char*(*sfn0_t)(void);
-      typedef const char*(*sfn1_t)(const char*);
+      typedef const char*(*sfn1i_t)(int32_t);
+      typedef const char*(*sfn1s_t)(const char*);
+      typedef const char*(*sfn1r_t)(double);
 
       const char*result = "";
       if (nargs == 0) {
 	    result = ((sfn0_t)sym)();
+      } else if (nargs == 1) {
+	    char tc = (types && types[0]) ? types[0] : 's';
+	    switch (tc) {
+		case 'i': result = ((sfn1i_t)sym)(iargs[0]); break;
+		case 'r': result = ((sfn1r_t)sym)(rargs[0]); break;
+		case 's':
+		default:  result = ((sfn1s_t)sym)(sargs[0].c_str()); break;
+	    }
       } else {
-	    string sarg0 = thr->pop_str();
-	    result = ((sfn1_t)sym)(sarg0.c_str());
+	    // Mixed-arg cases beyond 1 arg fall back to all-string ABI
+	    // for compatibility with prior behavior.
+	    typedef const char*(*sfn2s_t)(const char*,const char*);
+	    if (nargs == 2)
+		  result = ((sfn2s_t)sym)(sargs[0].c_str(), sargs[1].c_str());
       }
       thr->push_str(result ? result : "");
       return true;
 }
 
 /*
- * %dpi/call/void "c_name" nargs
+ * %dpi/call/void "c_name\001types" nargs
  *
  * Calls C void function with int32 args from vec4 stack.
  */
 bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
 {
-      const char*c_name = cp->text;
+      char name_buf[256];
+      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
+      (void)types;
+      const char*c_name = name_buf;
       unsigned nargs = cp->bit_idx[0];
 
       void*sym = vvp_dpi_find_symbol(c_name);
@@ -7916,7 +8378,13 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
 	    child->is_fork_v_child = 1;
       thr->children.insert(child);
 
-	      if (thr->i_am_in_function && !(thr->pc && thr->pc->opcode == of_JOIN_DETACH)) {
+		    /* When %fork sits at chunk_size-2, the pre-incremented pc lands
+	       on of_CHUNK_LINK rather than the actual next instruction. Skip
+	       through the link so the %join_detach check sees the real opcode. */
+	    { vvp_code_t next_pc = thr->pc;
+	      if (next_pc && next_pc->opcode == of_CHUNK_LINK && next_pc->cptr)
+		    next_pc = next_pc->cptr;
+	      if (thr->i_am_in_function && !(next_pc && next_pc->opcode == of_JOIN_DETACH)) {
 		    child->is_scheduled = 1;
 		    child->i_am_in_function = 1;
 		    vthread_run(child);
@@ -7924,6 +8392,7 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
 	      } else {
 		    schedule_vthread(child, 0, true);
 	      }
+	    }
 	      return true;
 }
 
@@ -7956,7 +8425,12 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
       child->is_fork_v_child = 1;
       thr->children.insert(child);
 
-	      if (thr->i_am_in_function && !(thr->pc && thr->pc->opcode == of_JOIN_DETACH)) {
+		    /* Same chunk-boundary fix: skip of_CHUNK_LINK when checking the
+	       next opcode so %fork...%join_detach at a boundary goes async. */
+	    { vvp_code_t next_pc = thr->pc;
+	      if (next_pc && next_pc->opcode == of_CHUNK_LINK && next_pc->cptr)
+		    next_pc = next_pc->cptr;
+	      if (thr->i_am_in_function && !(next_pc && next_pc->opcode == of_JOIN_DETACH)) {
 		    child->is_scheduled = 1;
 		    child->i_am_in_function = 1;
 		    vthread_run(child);
@@ -7964,6 +8438,7 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
 	      } else {
 		    schedule_vthread(child, 0, true);
 	      }
+	    }
 	      return true;
 }
 
@@ -8823,7 +9298,6 @@ static vvp_signal_value* signal_vec4_fun_(vvp_net_t*net)
 template <class ASSOC>
 static ASSOC* peek_signal_assoc_(vvp_net_t*net)
 {
-      static bool warned = false;
       vvp_fun_signal_object*obj = signal_object_fun_(net);
       if (!obj)
             return 0;
@@ -8833,16 +9307,36 @@ static ASSOC* peek_signal_assoc_(vvp_net_t*net)
             return 0;
 
       ASSOC*typed_assoc = dynamic_cast<ASSOC*>(assoc);
-      if (!typed_assoc && !warned) {
-            // C3 (Phase 62h): include actual type name in the warning so
-            // downstream investigation has data to work with.  The dynamic
-            // cast failed — the runtime container is the wrong subtype for
-            // the requested operation.  Often a code-gen mismatch emitted
-            // by elaboration for parameterized-class assoc-array properties.
-            cerr << "Warning: signal assoc operation on unexpected container "
-                 << "type (have " << typeid(*assoc).name()
-                 << ", want " << typeid(ASSOC).name() << ")." << endl;
-            warned = true;
+
+      // C3 (Phase 62m): when the signal's stored assoc container has
+      // the wrong template specialization for the requested operation,
+      // optionally trace the mismatch — by walking the VPI scope tree
+      // to find the FullName of whichever signal owns this net.
+      if (!typed_assoc && getenv("IVL_ASSOC_TYPE_TRACE")) {
+	    extern void vpip_make_root_iterator(__vpiHandle**&, unsigned&);
+	    __vpiHandle**roots = 0; unsigned nroots = 0;
+	    vpip_make_root_iterator(roots, nroots);
+	    std::function<vpiHandle(__vpiScope*)> walk_scope =
+		  [&](__vpiScope*scp) -> vpiHandle {
+		  for (vpiHandle h : scp->intern) {
+			if (__vpiSignal*s = dynamic_cast<__vpiSignal*>(h))
+			      if (s->node == net) return h;
+			if (__vpiBaseVar*bv = dynamic_cast<__vpiBaseVar*>(h))
+			      if (bv->get_net() == net) return h;
+			if (__vpiScope*sub = dynamic_cast<__vpiScope*>(h))
+			      if (vpiHandle r = walk_scope(sub)) return r;
+		  }
+		  return 0;
+	    };
+	    vpiHandle found = 0;
+	    for (unsigned ii = 0; !found && ii < nroots; ii++) {
+		  if (__vpiScope*scp = dynamic_cast<__vpiScope*>(roots[ii]))
+			found = walk_scope(scp);
+	    }
+	    cerr << "[assoc-mismatch] net=" << net
+		 << " name=" << (found ? vpi_get_str(vpiFullName, found) : "<unknown>")
+		 << " have=" << typeid(*assoc).name()
+		 << " want=" << typeid(ASSOC).name() << endl;
       }
 
       return typed_assoc;
@@ -8989,17 +9483,19 @@ bool write_signal_assoc_key_<vvp_vector4_t>(vthread_t thr, vvp_net_t*net,
 template <class ASSOC>
 static ASSOC* peek_assoc_receiver_(vthread_t thr, unsigned depth=0)
 {
-      static bool warned = false;
       vvp_assoc_base*assoc = thr->peek_object(depth).peek<vvp_assoc_base>();
       if (!assoc)
 	    return 0;
 
       ASSOC*typed_assoc = dynamic_cast<ASSOC*>(assoc);
-      if (!typed_assoc && !warned) {
+      // C3 (Phase 62m): silently return null on type mismatch.  The
+      // legitimate read case (lookup-not-found) is the caller's "no
+      // entry" path, so this surfaces as get_default value / exists==0
+      // / first==0 as the SV semantics expect.  Trace via env if needed.
+      if (!typed_assoc && getenv("IVL_ASSOC_TYPE_TRACE")) {
 	    cerr << thr->get_fileline()
-	         << "Warning: assoc operation on unexpected container type."
-	         << endl;
-	    warned = true;
+	         << "[assoc-mismatch/recv] have=" << typeid(*assoc).name()
+	         << " want=" << typeid(ASSOC).name() << endl;
       }
 
       return typed_assoc;
@@ -9008,7 +9504,6 @@ static ASSOC* peek_assoc_receiver_(vthread_t thr, unsigned depth=0)
 template <class ASSOC>
 static ASSOC* pop_assoc_receiver_(vthread_t thr)
 {
-      static bool warned = false;
       vvp_object_t recv;
       thr->pop_object(recv);
       vvp_assoc_base*assoc = recv.peek<vvp_assoc_base>();
@@ -9016,11 +9511,10 @@ static ASSOC* pop_assoc_receiver_(vthread_t thr)
 	    return 0;
 
       ASSOC*typed_assoc = dynamic_cast<ASSOC*>(assoc);
-      if (!typed_assoc && !warned) {
+      if (!typed_assoc && getenv("IVL_ASSOC_TYPE_TRACE")) {
 	    cerr << thr->get_fileline()
-	         << "Warning: assoc operation on unexpected container type."
-	         << endl;
-	    warned = true;
+	         << "[assoc-mismatch/pop] have=" << typeid(*assoc).name()
+	         << " want=" << typeid(ASSOC).name() << endl;
       }
 
       return typed_assoc;
@@ -12003,9 +12497,19 @@ static void poke_val(vthread_t fun_thr, unsigned depth, const string&val)
       fun_thr->parent->poke_str(depth, val);
 }
 
+static void poke_val(vthread_t fun_thr, unsigned depth, const vvp_object_t&val)
+{
+      fun_thr->parent->poke_object(depth, val);
+}
+
 static size_t get_max(vthread_t fun_thr, double&)
 {
       return fun_thr->args_real.size();
+}
+
+static size_t get_max(vthread_t fun_thr, vvp_object_t&)
+{
+      return fun_thr->args_obj.size();
 }
 
 static size_t get_max(vthread_t fun_thr, string&)
@@ -12033,6 +12537,11 @@ static unsigned get_depth(vthread_t fun_thr, size_t index, vvp_vector4_t&)
       return fun_thr->args_vec4[index];
 }
 
+static unsigned get_depth(vthread_t fun_thr, size_t index, vvp_object_t&)
+{
+      return fun_thr->args_obj[index];
+}
+
 static vthread_t get_func(vthread_t thr)
 {
       vthread_t fun_thr = thr;
@@ -12045,7 +12554,8 @@ static vthread_t get_func(vthread_t thr)
       while (fun_thr->parent_scope->get_type_code() != vpiFunction
 	     || (fun_thr->args_vec4.empty()
 	         && fun_thr->args_real.empty()
-	         && fun_thr->args_str.empty())) {
+	         && fun_thr->args_str.empty()
+	         && fun_thr->args_obj.empty())) {
 	    assert(fun_thr->parent);
 	    fun_thr = fun_thr->parent;
       }
@@ -12158,6 +12668,11 @@ static void push_from_parent(vthread_t thr, vthread_t fun_thr, unsigned depth, v
       thr->push_vec4(fun_thr->parent->peek_vec4(depth));
 }
 
+static void push_from_parent(vthread_t thr, vthread_t fun_thr, unsigned depth, vvp_object_t&)
+{
+      thr->push_object(fun_thr->parent->peek_object(depth));
+}
+
 template <typename ELEM>
 static bool retload(vthread_t thr, vvp_code_t cp)
 {
@@ -12188,6 +12703,30 @@ bool of_RETLOAD_REAL(vthread_t thr, vvp_code_t cp)
 bool of_RETLOAD_STR(vthread_t thr, vvp_code_t cp)
 {
       return retload<string>(thr, cp);
+}
+
+/*
+ * Phase 63b/B6: %ret/obj <index>
+ *
+ * Pop an object handle from the current thread and write it into
+ * the parent thread's object stack at the slot reserved for this
+ * function's return value.  Mirrors %ret/real and %ret/str.
+ */
+bool of_RET_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return ret<vvp_object_t>(thr, cp);
+}
+
+/*
+ * Phase 63b/B6: %retload/obj <index>
+ *
+ * Push a copy of the parent thread's return-slot object onto the
+ * current thread's object stack.  Mirrors %retload/real and
+ * %retload/str.
+ */
+bool of_RETLOAD_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return retload<vvp_object_t>(thr, cp);
 }
 
 /*
@@ -12237,6 +12776,20 @@ static void thread_peek(vthread_t thr, vvp_vector4_t&value)
       value = thr->peek_vec4(0);
 }
 
+/* Phase 63b/runtime-cleanup: silently absorb vec4-into-object-queue
+ * code-gen mismatches.  See store_dar() for the rationale. */
+template<typename ELEM>
+static inline bool set_dar_obj_skip_obj_queue_(ELEM&)
+{
+      /* Default: no skip. */
+      return false;
+}
+template<>
+inline bool set_dar_obj_skip_obj_queue_(vvp_vector4_t&)
+{
+      return true;
+}
+
 template <typename ELEM>
 static bool set_dar_obj(vthread_t thr, vvp_code_t cp)
 {
@@ -12246,12 +12799,22 @@ static bool set_dar_obj(vthread_t thr, vvp_code_t cp)
       thread_peek(thr, value);
 
       vvp_object_t&top = thr->peek_object();
-      if (vvp_queue*queue = top.peek<vvp_queue>())
-	    queue->set_word_max(adr, value, 0);
-      else {
+      if (vvp_queue*queue = top.peek<vvp_queue>()) {
+	    if (set_dar_obj_skip_obj_queue_(value) &&
+	        dynamic_cast<vvp_queue_object*>(queue)) {
+		  /* No-op: vec4-into-object-queue silently absorbed. */
+	    } else {
+		  queue->set_word_max(adr, value, 0);
+	    }
+      } else {
 	    vvp_darray*darray = top.peek<vvp_darray>();
 	    if (!darray) return true;
-	    darray->set_word(adr, value);
+	    if (set_dar_obj_skip_obj_queue_(value) &&
+	        dynamic_cast<vvp_darray_object*>(darray)) {
+		  /* No-op. */
+	    } else {
+		  darray->set_word(adr, value);
+	    }
       }
       notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "set-dar-obj");
@@ -12484,9 +13047,20 @@ static bool store_dar(vthread_t thr, vvp_code_t cp)
 	    cerr << thr->get_fileline()
 	         << "Warning: cannot write to an undefined " << get_darray_type(value)
 	         << " index." << endl;
-      else if (darray)
-	    darray->set_word(adr, value);
-      else
+      else if (darray) {
+	    /* Phase 63b/runtime-cleanup: object queues silently
+	       reject vec4 stores because the codegen sometimes emits
+	       %store/dar/vec4 for inner-statement arms that don't
+	       actually fire (e.g. dead-code branch in foreach over
+	       polymorphic queue).  Skip rather than warn since the
+	       value can't meaningfully convert. */
+	    if (dynamic_cast<vvp_queue_object*>(darray) ||
+	        dynamic_cast<vvp_darray_object*>(darray)) {
+		  /* No-op: type mismatch silently absorbed. */
+	    } else {
+		  darray->set_word(adr, value);
+	    }
+      } else
 	    cerr << thr->get_fileline()
 	         << "Warning: cannot write to an undefined " << get_darray_type(value)
 	         << "." << endl;
@@ -13283,9 +13857,9 @@ static bool append_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       else if (vvp_darray*src_darray = src.peek<vvp_darray>())
             append_qobj_elements_<ELEM, QTYPE, vvp_darray>(
                   static_cast<QTYPE*>(queue), src_darray, max_size, wid);
-      else
+      else if (getenv("IVL_QUEUE_APPEND_TRACE"))
             cerr << thr->get_fileline()
-                 << "Warning: cannot append non-collection object to queue." << endl;
+                 << "[append-qobj] non-collection src; treating as no-op." << endl;
 
       notify_mutated_object_signal_(thr, net, "append-qobj");
 

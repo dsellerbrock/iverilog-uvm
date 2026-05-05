@@ -1520,6 +1520,21 @@ void Design::add_process(NetProcTop*pro)
       procs_ = pro;
 }
 
+// I5 (Phase 62m): append at TAIL.  procs_ is a singly-linked list that
+// add_process prepends to; for the small N typical of a design, walking
+// to the tail to insert is cheap relative to elaboration.
+void Design::add_process_at_tail(NetProcTop*pro)
+{
+      pro->next_ = 0;
+      if (!procs_) {
+	    procs_ = pro;
+      } else {
+	    NetProcTop*cur = procs_;
+	    while (cur->next_) cur = cur->next_;
+	    cur->next_ = pro;
+      }
+}
+
 void Design::add_process(NetAnalogTop*pro)
 {
       pro->next_ = aprocs_;

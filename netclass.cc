@@ -587,13 +587,15 @@ void netclass_t::add_constraint_ir(const string&name, const string&ir)
       constraint_irs_.push_back(c);
 }
 
-void netclass_t::add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi)
+void netclass_t::add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi,
+				unsigned kind)
 {
       covgrp_bin_t b;
       b.cp_idx   = cp;
       b.prop_idx = prop;
       b.lo = lo;
       b.hi = hi;
+      b.kind = kind;
       covgrp_bins_.push_back(b);
 }
 

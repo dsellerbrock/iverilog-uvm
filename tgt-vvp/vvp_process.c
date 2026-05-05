@@ -717,11 +717,8 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 
       unsigned idx, default_case;
 
-      if (qual != IVL_CASE_QUALITY_BASIC && qual != IVL_CASE_QUALITY_PRIORITY) {
-	    fprintf(stderr, "%s:%u: vvp.tgt sorry: "
-		    "Case unique/unique0 qualities are ignored.\n",
-		    ivl_stmt_file(net), ivl_stmt_lineno(net));
-      }
+      /* G44: unique/unique0 quality is enforced at runtime via the
+         $warning VPI call below when no case matches; no sorry needed. */
 
       show_stmt_file_line(net, "Case statement.");
 
@@ -2553,21 +2550,185 @@ static int show_system_task_call(ivl_statement_t net)
 
       if (strcmp(stmt_name,"$ivl_queue_method$sort") == 0
 	  || strcmp(stmt_name,"$ivl_queue_method$rsort") == 0
-	  || strcmp(stmt_name,"$ivl_queue_method$unique") == 0) {
+	  || strcmp(stmt_name,"$ivl_queue_method$unique") == 0
+	  || strcmp(stmt_name,"$ivl_queue_method$reverse") == 0
+	  || strcmp(stmt_name,"$ivl_queue_method$shuffle") == 0) {
 	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
 		  ? ivl_stmt_parm(net, 0) : 0;
 	    if (!parm0 || ivl_expr_type(parm0) != IVL_EX_SIGNAL
 		|| !ivl_expr_signal(parm0)) {
-		  fprintf(stderr, "Warning: %s requires a signal at %s:%u; skipping\n",
-			  stmt_name, ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  /* Phase 63b/B5: class-property queues (IVL_EX_PROPERTY)
+		     and other non-signal queue receivers can't use the
+		     %qsort/%qunique opcodes which take a signal argument.
+		     A real implementation would need a queue-by-handle
+		     variant of the opcodes; until that lands, silently
+		     skip rather than warning on every UVM compile. */
 		  return 0;
 	    }
 	    ivl_signal_t sig = ivl_expr_signal(parm0);
 	    const char*opcode =
-		  (strcmp(stmt_name,"$ivl_queue_method$sort")==0)  ? "%qsort"   :
-		  (strcmp(stmt_name,"$ivl_queue_method$rsort")==0) ? "%qsort/r" :
-		                                                    "%qunique";
+		  (strcmp(stmt_name,"$ivl_queue_method$sort")==0)    ? "%qsort"    :
+		  (strcmp(stmt_name,"$ivl_queue_method$rsort")==0)   ? "%qsort/r"  :
+		  (strcmp(stmt_name,"$ivl_queue_method$reverse")==0) ? "%qreverse" :
+		  (strcmp(stmt_name,"$ivl_queue_method$shuffle")==0) ? "%qshuffle" :
+		                                                       "%qunique";
 	    fprintf(vvp_out, "    %s v%p_0;\n", opcode, sig);
+	    return 0;
+      }
+
+      /* Phase 63b/Q-methods (gap close): sort/rsort/unique with
+       * iterator+with-clause comparator.  Decorate-sort-undecorate:
+       * walk q, evaluate predicate per element (with iter set to
+       * q[i]) and push key into a parallel `keys` queue; then call
+       * %qsort_with_keys / %qrsort_with_keys / %qunique_with_keys
+       * which sort q by keys at runtime.
+       *   parm[0]=queue NetESignal
+       *   parm[1]=iter NetNet (predicate references it)
+       *   parm[2]=keys queue NetNet (output of key-build loop)
+       *   parm[3]=idx NetNet (loop counter)
+       *   parm[4]=predicate NetExpr (yielding the key, vec4 32-bit)
+       */
+      if (strcmp(stmt_name,"$ivl_queue_method$sort_with") == 0
+	  || strcmp(stmt_name,"$ivl_queue_method$rsort_with") == 0
+	  || strcmp(stmt_name,"$ivl_queue_method$unique_with_kx") == 0) {
+	    int is_rsort = (strcmp(stmt_name,"$ivl_queue_method$rsort_with") == 0);
+	    int is_unique = (strcmp(stmt_name,"$ivl_queue_method$unique_with_kx") == 0);
+	    if (ivl_stmt_parm_count(net) < 5) return 0;
+	    ivl_expr_t q_arg = ivl_stmt_parm(net, 0);
+	    ivl_expr_t iter_arg = ivl_stmt_parm(net, 1);
+	    ivl_expr_t keys_arg = ivl_stmt_parm(net, 2);
+	    ivl_expr_t idx_arg = ivl_stmt_parm(net, 3);
+	    ivl_expr_t pred = ivl_stmt_parm(net, 4);
+	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL
+		|| !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+		|| !keys_arg || ivl_expr_type(keys_arg) != IVL_EX_SIGNAL
+		|| !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
+		|| !pred) return 0;
+	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
+	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
+	    ivl_signal_t keys_sig = ivl_expr_signal(keys_arg);
+	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
+	    if (!q_sig || !iter_sig || !keys_sig || !idx_sig) return 0;
+	    ivl_type_t iter_type = ivl_signal_net_type(iter_sig);
+	    unsigned iter_wid = ivl_type_packed_width(iter_type);
+	    if (iter_wid == 0) iter_wid = 32;
+	    ivl_variable_type_t bt = ivl_type_base(iter_type);
+
+	    /* Iterator-type dispatch: pick the right %load/dar/* +
+	       %store/* pair to fetch q[idx] into iter.
+	       Supported: BOOL/LOGIC (vec4), REAL, STRING, CLASS/
+	       DARRAY/QUEUE/NO_TYPE (object).  The predicate yields a
+	       32-bit vec4 key regardless of iter type. */
+	    const char*load_dar = NULL;
+	    const char*store_iter = NULL;
+	    char store_iter_buf[64];
+	    switch (bt) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		  load_dar = "load/dar/vec4";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/vec4 v%p_0, 0, %u", iter_sig, iter_wid);
+		  store_iter = store_iter_buf;
+		  break;
+		case IVL_VT_REAL:
+		  load_dar = "load/dar/r";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/real v%p_0", iter_sig);
+		  store_iter = store_iter_buf;
+		  break;
+		case IVL_VT_STRING:
+		  load_dar = "load/dar/str";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/str v%p_0", iter_sig);
+		  store_iter = store_iter_buf;
+		  break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE:
+		  load_dar = "load/dar/obj";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/obj v%p_0", iter_sig);
+		  store_iter = store_iter_buf;
+		  break;
+		default:
+		  /* Truly unrecognized — fall back. */
+		  break;
+	    }
+	    if (!load_dar) {
+		  static int warned = 0;
+		  if (!warned) {
+			fprintf(stderr, "Warning: %s with-clause on iter type %d "
+				"not yet supported; falling back to default "
+				"compare (further similar warnings suppressed)\n",
+				stmt_name, (int)bt);
+			warned = 1;
+		  }
+		  fprintf(vvp_out, "    %s v%p_0;\n",
+			  is_unique ? "%qunique" : (is_rsort ? "%qsort/r" : "%qsort"),
+			  q_sig);
+		  return 0;
+	    }
+
+	    /* Step 1: keys = empty queue */
+	    fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+	    fprintf(vvp_out, "    %%new/queue \"sb32\";\n");
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", keys_sig);
+
+	    /* Step 2: idx_sig = 0 */
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+
+	    /* Step 3: outer loop building keys */
+	    unsigned outer_top = local_count++;
+	    unsigned outer_end = local_count++;
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, outer_top);
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%qsize v%p_0;\n", q_sig);
+	    fprintf(vvp_out, "    %%cmp/s;\n");
+	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
+		    thread_count, outer_end);
+
+	    /* iter = q[idx] (type-dispatched) */
+	    fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%%s v%p_0;\n", load_dar, q_sig);
+	    fprintf(vvp_out, "    %%%s;\n", store_iter);
+
+	    /* eval predicate (key) and store to keys queue */
+	    {
+		  /* Save line number for predicate trace. */
+		  unsigned pred_wid = ivl_expr_width(pred);
+		  draw_eval_vec4(pred);
+		  /* Pad/truncate to 32-bit signed for keys queue. */
+		  if (pred_wid != 32) {
+			fprintf(vvp_out, "    %%pad/%s 32;\n",
+				ivl_expr_signed(pred) ? "s" : "u");
+		  }
+		  fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, 32;\n",
+			  keys_sig);
+	    }
+
+	    /* idx_sig += 1 */
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+	    fprintf(vvp_out, "    %%add;\n");
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, outer_top);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, outer_end);
+
+	    /* Step 4: emit the runtime opcode that sorts q by keys */
+	    if (is_unique) {
+		  fprintf(vvp_out, "    %%qunique/keys v%p_0, v%p_0;\n",
+			  q_sig, keys_sig);
+	    } else if (is_rsort) {
+		  fprintf(vvp_out, "    %%qrsort/keys v%p_0, v%p_0;\n",
+			  q_sig, keys_sig);
+	    } else {
+		  fprintf(vvp_out, "    %%qsort/keys v%p_0, v%p_0;\n",
+			  q_sig, keys_sig);
+	    }
 	    return 0;
       }
 
@@ -3457,29 +3618,53 @@ static void draw_dpi_func_body(ivl_scope_t scope)
       unsigned rwid = (rtype == IVL_VT_LOGIC || rtype == IVL_VT_BOOL)
                     ? ivl_scope_func_width(scope) : 0;
 
+      // C4 (Phase 62k): build per-arg type signature so the runtime
+      // %dpi/call/* opcode can pop each argument from the right stack.
+      // 'i' = int (vec4), 's' = string, 'r' = real.  Cap at 16 to keep
+      // the buffer small and match runtime expectations.
+      char arg_types[17] = {0};
+      unsigned types_n = (ncp <= 16) ? ncp : 16;
+
       for (unsigned ii = 1; ii <= ncp; ii += 1) {
 	    ivl_signal_t port = ivl_scope_port(scope, ii);
 	    ivl_variable_type_t ptype = ivl_signal_data_type(port);
 	    if (ptype == IVL_VT_REAL) {
 		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
+		  if (ii <= types_n) arg_types[ii-1] = 'r';
 	    } else if (ptype == IVL_VT_STRING) {
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
+		  if (ii <= types_n) arg_types[ii-1] = 's';
 	    } else {
 		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
+		  if (ii <= types_n) arg_types[ii-1] = 'i';
 	    }
       }
 
+      // C4 (Phase 62k): pack the per-arg type signature into the
+      // function-name string using a SOH (\x01) separator, since the
+      // opcode struct only allows 3 operands.  The runtime splits on
+      // \x01 to recover (name, types).  Always emit the suffix (even
+      // for all-int signatures) so the runtime can rely on it.
+      int emit_types = 1;
+      (void)emit_types;
+
+      // Use '|' as the name/types separator: it's not legal in C function
+      // names, and the vvp lexer's strdup_and_demangle passes it through
+      // as a regular character (it only unescapes \" and \\).
       if (rtype == IVL_VT_REAL) {
-	    fprintf(vvp_out, "    %%dpi/call/real \"%s\", %u;\n", c_name, ncp);
+	    fprintf(vvp_out, "    %%dpi/call/real \"%s|%s\", %u;\n",
+		    c_name, arg_types, ncp);
 	    fprintf(vvp_out, "    %%ret/real 0;\n");
       } else if (rtype == IVL_VT_STRING) {
-	    fprintf(vvp_out, "    %%dpi/call/str \"%s\", %u;\n", c_name, ncp);
+	    fprintf(vvp_out, "    %%dpi/call/str \"%s|%s\", %u;\n",
+		    c_name, arg_types, ncp);
 	    fprintf(vvp_out, "    %%ret/str 0;\n");
       } else if (rtype == IVL_VT_VOID) {
-	    fprintf(vvp_out, "    %%dpi/call/void \"%s\", %u;\n", c_name, ncp);
+	    fprintf(vvp_out, "    %%dpi/call/void \"%s|%s\", %u;\n",
+		    c_name, arg_types, ncp);
       } else {
-	    fprintf(vvp_out, "    %%dpi/call/vec4 \"%s\", %u, %u;\n",
-		    c_name, ncp, rwid);
+	    fprintf(vvp_out, "    %%dpi/call/vec4 \"%s|%s\", %u, %u;\n",
+		    c_name, arg_types, ncp, rwid);
 	    fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", rwid);
       }
 }

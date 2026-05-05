@@ -998,6 +998,27 @@ void PCase::dump(ostream&out, unsigned ind) const
       out << setw(ind) << "" << "endcase" << endl;
 }
 
+void PCaseMatches::dump(ostream&out, unsigned ind) const
+{
+      out << setw(ind) << "" << "case (" << *expr_ << ") matches /* "
+          << get_fileline() << " */" << endl;
+      if (items_) {
+            for (auto*it : *items_) {
+                  if (!it) continue;
+                  out << setw(ind+2) << "";
+                  if (it->is_default) out << "default";
+                  else {
+                        out << "tagged " << it->tag.str();
+                        if (it->bind != perm_string()) out << " ." << it->bind.str();
+                  }
+                  out << ":";
+                  if (it->stat) { out << endl; it->stat->dump(out, ind+6); }
+                  else out << " ;" << endl;
+            }
+      }
+      out << setw(ind) << "" << "endcase" << endl;
+}
+
 void PChainConstructor::dump(ostream&out, unsigned ind) const
 {
       out << setw(ind) << "" << "super.new(" << parms_ << ")" <<endl;

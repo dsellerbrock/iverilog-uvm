@@ -220,6 +220,7 @@ class PEAssignPattern : public PExpr {
 				     unsigned expr_wid,
                                      unsigned flags) const override;
       const std::vector<PExpr*>& parms() const { return parms_; }
+      const std::vector<perm_string>& parm_names() const { return parm_names_; }
       PExpr* replication() const { return replication_; }
     private:
       NetExpr* elaborate_expr_packed_(Design *des, NetScope *scope,
@@ -292,6 +293,13 @@ class PEConcat : public PExpr {
       PExpr*repeat_;
       NetScope*tested_scope_;
       unsigned repeat_count_;
+      // Phase 63b: when a string concat has a runtime-variable
+      // repeat count, test_width saves the elaborated runtime
+      // expression here so the elaborate_expr stage can plumb it
+      // through to NetEConcat::set_repeat_expr without re-eval.
+      // mutable because elaborate_expr is a const member but needs
+      // to take ownership.
+      mutable NetExpr*runtime_repeat_ = nullptr;
 };
 
 /*
@@ -403,10 +411,21 @@ class PEIdent : public PExpr {
 
       unsigned lexical_pos() const { return lexical_pos_; }
 
+      // I5 (Phase 62m): when path was parsed from `Class#(args)::var`,
+      // these are the leading type arguments needed to identify the
+      // parameterized-class specialization.  Without this, the
+      // elaborator falls back to the unspecialized class, so static
+      // property accesses target the base instead of the specialization.
+      void set_leading_type_args(struct parmvalue_t*type_args)
+            { leading_type_args_ = type_args; }
+      const struct parmvalue_t* leading_type_args() const
+            { return leading_type_args_; }
+
     private:
       pform_scoped_name_t path_;
       unsigned lexical_pos_;
       bool no_implicit_sig_;
+      struct parmvalue_t* leading_type_args_ = 0;
 
     private:
 	// Common functions to calculate parts of part/bit
@@ -1180,6 +1199,11 @@ class PEStreaming : public PExpr {
       direction_t get_dir() const { return dir_; }
       unsigned get_slice() const { return slice_; }
       PExpr* get_inner() const { return inner_; }
+      // Phase 63a/A3: release ownership of inner_ so the LHS-streaming
+      // rewrite in PAssign::elaborate can reparent the original lval
+      // expression onto the assignment without a double-delete when
+      // PEStreaming is itself destroyed.
+      PExpr* release_inner() { PExpr*r = inner_; inner_ = nullptr; return r; }
       void dump(std::ostream& out) const override {
             out << "{" << (dir_ == DIR_LSHIFT ? "<<" : ">>")
                 << slice_ << "{";

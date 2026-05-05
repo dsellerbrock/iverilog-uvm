@@ -355,6 +355,7 @@ ivl_type_covgrp_bin_prop
 ivl_type_covgrp_bin_lo
 ivl_type_covgrp_bin_hi
 ivl_type_covgrp_bin_cp
+ivl_type_covgrp_bin_kind
 
 ivl_event_is_vif_posedge
 ivl_event_is_vif_negedge

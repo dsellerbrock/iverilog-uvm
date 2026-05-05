@@ -110,6 +110,15 @@ class PAssign_  : public Statement {
       const PExpr* lval() const  { return lval_; }
       PExpr* rval() const  { return rval_; }
 
+      // Phase 63a/A3: in-place rewrite for the `{<<N{x}} = rhs`
+      // → `x = {<<N{rhs}}` transformation.  The caller takes
+      // ownership of the new lval/rval pointers (formerly inner_ of
+      // the LHS PEStreaming and a freshly-built PEStreaming wrapping
+      // the original rval, respectively).
+      void replace_lval_rval(PExpr*new_lval, PExpr*new_rval) const
+            { const_cast<PAssign_*>(this)->lval_ = new_lval;
+              const_cast<PAssign_*>(this)->rval_ = new_rval; }
+
     protected:
       NetAssign_* elaborate_lval(Design*, NetScope*scope) const;
       NetExpr* elaborate_rval_(Design*, NetScope*, ivl_type_t lv_net_type,
@@ -237,6 +246,14 @@ class PCallTask  : public Statement {
       const pform_name_t& path() const;
       const std::vector<named_pexpr_t>& parms() const { return parms_; }
 
+      /* Phase 63b/Q-methods: with-clause predicate for sort/rsort/
+         unique task-form calls (`q.sort with (item.key);`).  Empty
+         vector when no with-clause was attached at parse time. */
+      void set_with_constraints(std::vector<PExpr*> c)
+            { with_constraints_ = std::move(c); }
+      const std::vector<PExpr*>& with_constraints() const
+            { return with_constraints_; }
+
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
 
@@ -286,6 +303,7 @@ class PCallTask  : public Statement {
       std::vector<named_pexpr_t> parms_;
       struct parmvalue_t*leading_type_args_ = 0;
       bool void_cast_ = false;
+      std::vector<PExpr*> with_constraints_;
 };
 
 class PCase  : public Statement {
@@ -314,6 +332,41 @@ class PCase  : public Statement {
     private: // not implemented
       PCase(const PCase&);
       PCase& operator= (const PCase&);
+};
+
+/* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches` pattern
+ * matching for tagged unions (IEEE 1800-2017 §12.6).  Each item is
+ * `tagged TAG [.var]: stmt` or `default: stmt`.  Lowered at elab to
+ * an if-else cascade testing the companion-tag NetNet of X. */
+class PCaseMatches : public Statement {
+
+    public:
+      struct Item {
+            // For tagged items: the named tag
+            perm_string tag;
+            // For tagged items with binding: the bound variable name
+            // (zero-length if no binding)
+            perm_string bind;
+            // True if `default:` (no tag/bind)
+            bool is_default;
+            Statement *stat;
+            Item() : is_default(false), stat(nullptr) {}
+      };
+
+      PCaseMatches(PExpr*expr, std::vector<Item*>*items)
+            : expr_(expr), items_(items) {}
+      ~PCaseMatches() override;
+
+      virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
+      virtual void dump(std::ostream&out, unsigned ind) const override;
+
+    private:
+      PExpr *expr_;
+      std::vector<Item*>*items_;
+
+    private: // not implemented
+      PCaseMatches(const PCaseMatches&) = delete;
+      PCaseMatches& operator=(const PCaseMatches&) = delete;
 };
 
 class PCAssign  : public Statement {

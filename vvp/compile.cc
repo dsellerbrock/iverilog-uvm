@@ -397,21 +397,31 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qpop/o/f/real",of_QPOP_O_F_REAL,0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%qpop/o/f/str", of_QPOP_O_F_STR, 0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%qpop/o/f/v",   of_QPOP_O_F_V,   1,{OA_BIT1, OA_NONE, OA_NONE} },
+      { "%qreverse",   of_QREVERSE, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+      { "%qrsort/keys",of_QRSORT_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+      { "%qshuffle",   of_QSHUFFLE, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qsize",      of_QSIZE,   1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qsize/o",    of_QSIZE_O, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%qsort",      of_QSORT,   1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+      { "%qsort/keys", of_QSORT_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%qsort/r",    of_QSORT_R, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qunique",    of_QUNIQUE, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+      { "%qunique/keys",of_QUNIQUE_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+      { "%qunique_copy",of_QUNIQUE_COPY,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+      { "%qunique_idx",of_QUNIQUE_IDX, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%rand_mode",      of_RAND_MODE,       0,{OA_NONE,   OA_NONE,OA_NONE} },
       { "%randomize",      of_RANDOMIZE,      0,{OA_NONE,   OA_NONE,OA_NONE} },
       { "%randomize/with", of_RANDOMIZE_WITH,  2,{OA_STRING, OA_BIT1,OA_NONE} },
       { "%release/net",of_RELEASE_NET,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/reg",of_RELEASE_REG,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/wr", of_RELEASE_WR, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
+      { "%rep/str",   of_REP_STR,     1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%replicate", of_REPLICATE,   1,{OA_NUMBER,  OA_NONE,OA_NONE} },
+      { "%ret/obj",   of_RET_OBJ,     1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%ret/real",  of_RET_REAL,    1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%ret/str",   of_RET_STR,     1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%ret/vec4",  of_RET_VEC4,    3,{OA_NUMBER,  OA_BIT1,OA_BIT2} },
+      { "%retload/obj",of_RETLOAD_OBJ,1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%retload/real",of_RETLOAD_REAL,1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%retload/str", of_RETLOAD_STR, 1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%retload/vec4",of_RETLOAD_VEC4,1,{OA_NUMBER,  OA_NONE,OA_NONE} },
@@ -935,7 +945,14 @@ bool vpi_handle_resolv_list_s::resolve(bool mes)
       }
 
       if (mes) {
-	    unresolved_warn_once("vpi name lookup", label(), "using null handle");
+	    /* G47: v<hex>_<N> labels are class-property signal references.
+	       Class properties are not addressable via VPI, so a null
+	       handle is the correct silent fallback — no warning needed. */
+	    const char*lp = label();
+	    bool is_class_prop = (lp[0] == 'v' && lp[1] != '<'
+				  && strchr(lp, '_') != nullptr);
+	    if (!is_class_prop)
+		  unresolved_warn_once("vpi name lookup", lp, "using null handle");
 	    val.ptr = vpip_make_null_const();
 	    sym_set_value(sym_vpi, label(), val);
 	    *handle = static_cast<vpiHandle>(val.ptr);

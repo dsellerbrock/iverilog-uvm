@@ -1335,7 +1335,13 @@ static bool should_seed_specialized_method_body_(perm_string name)
 	  || name == perm_string::literal("get_type_name")
 	  || name == perm_string::literal("type_name")
 	  || name == perm_string::literal("initialize")
-	  || name == perm_string::literal("m_initialize");
+	  || name == perm_string::literal("m_initialize")
+	  // I5 (Phase 62o): keep in sync with
+	  // should_eagerly_elaborate_class_method_ in elaborate.cc —
+	  // these are virtual override targets for uvm_callbacks#(T,CB).
+	  || name == perm_string::literal("m_is_registered")
+	  || name == perm_string::literal("m_is_for_me")
+	  || name == perm_string::literal("m_am_i_a");
 }
 
 static void seed_specialized_method_bodies_(Design*des, netclass_t*cls,
@@ -3113,6 +3119,13 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 
               // Scan through all the named events in this scope.
             elaborate_scope_events_(des, my_scope, events);
+
+	    /* Phase 63b: enum types declared inside a begin/end block
+	       must be elaborated so their named values are visible
+	       inside the block.  Without this, `typedef enum {RED,
+	       GREEN} c; c x = GREEN;` failed at use of GREEN with
+	       "Unable to bind wire/reg/memory `GREEN'". */
+	    elaborate_scope_enumerations(des, my_scope, enum_sets);
       }
 
       for (unsigned idx = 0 ;  idx < list_.size() ;  idx += 1)

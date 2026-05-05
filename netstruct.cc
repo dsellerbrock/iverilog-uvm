@@ -44,6 +44,33 @@ void netstruct_t::union_flag(bool flag)
       union_ = flag;
 }
 
+void netstruct_t::tagged_flag(bool flag)
+{
+      // Phase 63b/B7: marks a `union tagged`.  The flag is pure
+      // metadata — it does NOT change packed_width() (storage stays
+      // the same as a plain union), tag tracking is implemented
+      // out-of-band by the case-matches lowering and member-write
+      // codegen via a parallel hidden integer signal.  Storing the
+      // flag here lets later passes detect "this is a tagged union".
+      tagged_ = flag;
+}
+
+unsigned netstruct_t::tag_bits() const
+{
+      if (members_.empty()) return 0;
+      unsigned n = (unsigned)members_.size();
+      unsigned b = 0;
+      while ((1u << b) < n) b++;
+      return b ? b : 1;
+}
+
+unsigned netstruct_t::member_index(perm_string name) const
+{
+      for (unsigned i = 0; i < members_.size(); i++)
+            if (members_[i].name == name) return i;
+      return (unsigned)-1;
+}
+
 void netstruct_t::packed(bool flag)
 {
       ivl_assert(*this, members_.empty());

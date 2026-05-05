@@ -198,6 +198,21 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
       if (port_is_unsupported_aggregate_formal_(port))
 	    return;
 
+      /* Phase 63b/B6 (gap close): unwrap a single-level IVL_EX_SELECT
+         that's just a width/sign cast wrapping an IVL_EX_PROPERTY.
+         iverilog emits this when `uvm_config_db#(T)::get(this, "",
+         "name", this.m_field)` casts the formal type to the actual
+         field's width.  After unwrap, the existing IVL_EX_PROPERTY
+         handler below copies out via %store/prop/<v>.  Don't unwrap
+         the assoc-array form (SELECT with both oper1=PROPERTY and
+         oper2=key) — that's handled by its own dedicated branch. */
+      if (ivl_expr_type(actual) == IVL_EX_SELECT
+	  && !ivl_expr_oper2(actual)
+	  && ivl_expr_oper1(actual)
+	  && ivl_expr_type(ivl_expr_oper1(actual)) == IVL_EX_PROPERTY) {
+	    actual = ivl_expr_oper1(actual);
+      }
+
       /* Handle copy-out to an indexed assoc-array entry of a class
          property (e.g. cfg.vifs[key]). Iverilog represents this as
          IVL_EX_SELECT(arr, key) where `arr` is the IVL_EX_PROPERTY for
@@ -343,11 +358,54 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	    return;
       }
 
+      /* Phase 63b/B6 (real impl): handle IVL_EX_SELECT-wrapped
+	 signal actuals that arise from width-cast / sign-cast
+	 normalization at the call site.  When the SELECT has no
+	 base (oper2 nil) and oper1 is a signal of vectorable type,
+	 the SELECT is a width pad/truncate of the underlying
+	 signal — we copy out from the port directly into the
+	 underlying signal, padding/truncating as needed.  This
+	 covers the common UVM pattern
+	   uvm_config_int::get(... , tmp);
+	 where iverilog wraps `tmp` in a SELECT for type
+	 normalization. */
+      if (ivl_expr_type(actual) == IVL_EX_SELECT
+	  && !ivl_expr_oper2(actual)
+	  && ivl_expr_oper1(actual)
+	  && ivl_expr_type(ivl_expr_oper1(actual)) == IVL_EX_SIGNAL) {
+	    ivl_expr_t op1 = ivl_expr_oper1(actual);
+	    ivl_signal_t under_sig = ivl_expr_signal(op1);
+	    if (under_sig && ivl_signal_dimensions(under_sig) == 0) {
+		  ivl_variable_type_t udtype = ivl_signal_data_type(under_sig);
+		  unsigned port_wid = ivl_signal_width(port);
+		  unsigned sig_wid  = ivl_signal_width(under_sig);
+		  if (udtype == IVL_VT_BOOL || udtype == IVL_VT_LOGIC) {
+			fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
+			if (sig_wid != port_wid) {
+			      const char*pad = ivl_signal_signed(under_sig)
+				    ? "%pad/s" : "%pad/u";
+			      fprintf(vvp_out, "    %s %u;\n", pad, sig_wid);
+			}
+			fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+				under_sig, sig_wid);
+			return;
+		  }
+	    }
+      }
+
       if (!function_argument_actual_signal_(actual, &sig, &word)) {
+	    /* Phase 63b/B6: surface the file:line of the call site so
+	       users can find and rewrite affected callers.  The runtime
+	       behavior is unchanged — the copy-out is still silently
+	       skipped — but the diagnostic is now actionable. */
 	    if (!warned_unsupported_copy_out) {
+		  const char*f = ivl_expr_file(actual);
+		  unsigned ln = ivl_expr_lineno(actual);
 		  fprintf(stderr,
-		          "Warning: Skipping unsupported function copy-out argument for %s"
-		          " (further similar warnings suppressed)\n",
+		          "%s:%u: warning: Skipping unsupported function copy-out"
+		          " argument for `%s' (further similar warnings"
+		          " suppressed)\n",
+		          f ? f : "<unknown>", ln,
 		          ivl_signal_basename(port));
 		  warned_unsupported_copy_out = 1;
 	    }
@@ -435,17 +493,6 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
-	    if (signal_is_return_value(sig)) {
-		  if (!warned_unsupported_copy_out) {
-			fprintf(stderr,
-			        "Warning: Skipping copy-out to function return"
-			        " object value for %s (not implemented)"
-			        " (further similar warnings suppressed)\n",
-			        ivl_signal_basename(port));
-			warned_unsupported_copy_out = 1;
-		  }
-		  break;
-	    }
 	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
 	    break;

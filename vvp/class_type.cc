@@ -235,6 +235,9 @@ template <class T> class property_atom : public class_property_t {
       void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
       void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
 
+      // G49: integer properties use get_vec4; get_object returns null silently.
+      void get_object(char*, vvp_object_t&, uint64_t) override {}
+
       void copy(char*dst, char*src) override;
 
     private:
@@ -267,6 +270,8 @@ class property_bit : public class_property_t {
       void get_vec4(char*buf, vvp_vector4_t&val) override;
       void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
       void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
+
+      void get_object(char*, vvp_object_t&, uint64_t) override {}
 
       void copy(char*dst, char*src) override;
 
@@ -301,6 +306,8 @@ class property_logic : public class_property_t {
       void get_vec4(char*buf, vvp_vector4_t&val) override;
       void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
       void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
+
+      void get_object(char*, vvp_object_t&, uint64_t) override {}
 
       void copy(char*dst, char*src) override;
 
@@ -1337,22 +1344,23 @@ void compile_class_constraint(char*name, char*ir)
 }
 
 void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,
-				uint64_t lo, uint64_t hi)
+				uint64_t lo, uint64_t hi, unsigned kind)
 {
       cov_bin_t b;
       b.cp_idx   = cp_idx;
       b.prop_idx = prop_idx;
       b.lo       = lo;
       b.hi       = hi;
+      b.kind     = kind;
       covgrp_bins_.push_back(b);
 }
 
 void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
-			      uint64_t lo, uint64_t hi)
+			      uint64_t lo, uint64_t hi, uint64_t kind)
 {
       assert(compile_class);
       compile_class->add_covgrp_bin((unsigned)cp_idx, (unsigned)prop_idx,
-				    lo, hi);
+				    lo, hi, (unsigned)kind);
 }
 
 void compile_class_done(void)

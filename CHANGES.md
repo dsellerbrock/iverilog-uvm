@@ -894,7 +894,24 @@ remaining constraints.
 The UVM phase infrastructure (phases, objections, sequencer/driver TLM) works.
 The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remain in:
 - `uvm_field_automation`: `copy()` and `compare()` work; `print()` printer-subclass
-  dispatch fires `[NO_OVERRIDE] emit() method not overridden` (audit 2026-05-01)
+  dispatch — ✅ **Phase 62 (I2 full fix):** PWire::elaborate_sig fires
+  inside elaborate_specialized_class_type (uvm_printer_element_proxy)
+  before `add_class` registers the typedef'd class (uvm_table_printer
+  forward-declared in uvm_object_globals.svh:727, defined later in
+  uvm_printer.svh:455).  ensure_visible_class_type returned null, so
+  `class_type_t::elaborate_type` returned the netvector_t fallback,
+  emitting the wire as `.var/i` (logic vector) instead of `.var/cobj`.
+  Assignments like `uvm_default_table_printer = new()` were then
+  compiled as `%null; %store/obj v...` (number fallback for the rhs)
+  and silently no-op'd at runtime.  Fix: post-`elaborate_sig`,
+  pre-statement-elab repair pass (`NetScope::repair_typed_class_signals`)
+  walks `signals_map_`, identifies logic-vector NetNets whose
+  originating PWire had a typeref-to-CLASS data type, and re-resolves
+  the class (now visible) via `ensure_visible_class_type`.  Calls
+  `set_net_type` to patch the NetNet.  Tests:
+  `tests/typedef_class_global_test.sv` (synthetic), and `obj.print()`
+  on a uvm_object now dispatches to `uvm_table_printer::emit` and
+  produces table output.
 - `randc` cyclic semantics: behaves as `rand` (Phase 63 candidate)
 - Concurrent assertions (`assert property |->`, `|=>`, `disable iff`): silently
   pass-no-op (Phase 62 candidate — false-pass risk)
@@ -902,12 +919,61 @@ The UVM factory works. The UVM register layer (basic backdoor) works. Gaps remai
 - `soft` constraints: treated as hard (Phase 66 candidate)
 - Streaming operators `{<<{}}` `{>>{}}`: silently produce zero
 - `std::randomize(var) with {...}`: `with` clause not parsed
-- `uvm_resource_db#(T)::set/read_by_name`: typed-pool path returns 0
-- `uvm_cmdline_processor.get_args(args)`: elaboration error on output arg
+- `uvm_resource_db#(T)::set/read_by_name`: typed-pool path returns 0.
+  **Phase 62 (C3 partial):** root cause is a runtime template-specialization
+  mismatch on assoc-array containers — `vvp_assoc_map<vvp_vector4_t>`
+  found where `vvp_assoc_map<vvp_object_t>` was expected.  Mitigation
+  (Phase 62m): runtime warnings silenced (env-traced via
+  `IVL_ASSOC_TYPE_TRACE`); read paths return null on mismatch (which
+  is the SV "key-not-found" semantic); writes go through
+  `ensure_signal_assoc_<ASSOC>` which creates a fresh container of the
+  right type.  This stops the noise but does not restore set/read
+  functionality — that needs identifying which elaboration site
+  emits the wrong-typed assoc and fixing the type-emit path.
+  Reproducer: /tmp/audit/c3_resource_db.sv (still returns ok=0).
+- `uvm_cmdline_processor.get_args(args)`: ✅ **Phase 62 (C4 fix):** the
+  bug was at runtime, not elaboration: `string foo(int)` DPI imports
+  were calling `pop_str()` for the int argument, underflowing the str
+  stack and leaking the int on the vec4 stack.  Now the tgt-vvp emitter
+  packs a per-arg type signature into the function-name string with `|`
+  as separator (`"name|types"`), and `of_DPI_CALL_STR/REAL/VOID/VEC4`
+  parse it to pop each arg from the right stack.  uvm_dpi_get_next_arg_c
+  now returns real argv strings; `get_args(args)` populates `args`
+  correctly with `+arg`/`-arg` plusargs from the command line.
 - `uvm_reg.lock_model()` task missing — blocks register layer beyond raw backdoor
-- Coverage `cross` / `illegal_bins`: silently inactive
+- Coverage `cross`: ✅ **Phase 62 (I1):** elaboration generates cartesian-
+  product bins from `cgdef->crosses` (a record per (cp_idx, bin_lo,
+  bin_hi) per dimension, all sharing one prop_idx counter).  Runtime
+  `%covgrp/sample` groups records by prop_idx and increments the
+  counter only when ALL constituent records match — implementing the
+  AND-of-dimensions semantic.  `get_inst_coverage` dedups by prop_idx
+  so cross bins count as one bin, not N.  Test:
+  `tests/coverage_cross_test.sv`.  `illegal_bins` / `ignore_bins`
+  remain silently inactive (auto-bin form only).
 - User-defined UVM phase (extends `uvm_task_phase`): `exec_task` never called
-- `uvm_callbacks::add` registration check warns CBUNREG (dispatch works)
+- `uvm_callbacks::add` registration check warns CBUNREG (dispatch works).
+  **Phase 62 (I5):** three causes addressed:
+  1. Alphabetical class iteration in `elaborate_classes` → fixed by
+     `elaborate_classes_lexical()` (declaration-order traversal of
+     `classes_lexical`).  Test: `tests/static_init_order_test.sv`.
+  2. `Class#(args)::var` resolved to the unparameterized base class's
+     static property — `delete_parmvalue_t($2)` in parse.y dropped the
+     specialization args.  Now `PEIdent` carries `leading_type_args_`
+     (mirror of the existing `PECallFunction` field), the parser
+     populates it, and `PEIdent::elaborate_expr_` re-targets `sr.net` to
+     the specialized class's static property.  `resolve_scoped_class_static_property_expr_`
+     also threads through the args to specialize the class on lookup.
+  3. The parameterized-class specialization's static `= 0` reset ran
+     AFTER a user-class init that mutated the spec via
+     `uvm_register_cb` — `Design::add_process_at_tail()` puts spec inits
+     at the TAIL of `procs_`, which after the dll/emit double-reversal
+     places the spec init FIRST in vvp's schedule_init list.  Test:
+     `tests/param_static_property_test.sv`.
+
+  Synthetic `TypedPool#(MyClass)` test passes.  Residual UVM CBUNREG
+  on the full pattern (uvm_callbacks#(T,CB) with deeper inheritance
+  and per-spec lazy `m_inst` allocation) likely needs additional
+  changes to the `m_inst = new` lazy-init ordering; deferred.
 - Tagged unions (`union tagged { ... }`): syntax error
 - Some parameterized factory override combinations
 - `uvm_reg_frontdoor` (gap: `atomic_lock`, `start`, `atomic_unlock`)

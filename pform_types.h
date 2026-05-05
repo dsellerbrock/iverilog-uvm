@@ -275,6 +275,11 @@ struct struct_type_t : public data_type_t {
       bool packed_flag;
       bool union_flag;
       bool signed_flag;
+      // Phase 63b/B7: marks a `union tagged` (vs plain union).  Tag
+      // semantics are not yet enforced — this flag exists so the
+      // declaration site can emit a one-time warning and so future
+      // enforcement passes have a stable place to look.
+      bool tagged_flag = false;
       std::unique_ptr< std::list<struct_member_t*> > members;
 };
 
@@ -392,6 +397,11 @@ struct interface_type_t : public data_type_t {
       ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
 
       perm_string name;
+      // Phase 63a/A1: optional modport name from `if.modport` port header.
+      // When set, restricts which interface members are accessible
+      // through this port reference.  Currently captured but not yet
+      // enforced — modport direction-checking is a follow-up.
+      perm_string modport;
 };
 
 struct class_type_t : public data_type_t {
@@ -439,8 +449,10 @@ struct class_type_t : public data_type_t {
 
 	// Coverage group definitions (class-embedded covergroups).
       struct pform_cov_bins_t {
+	    enum kind_t { BIN_NORMAL, BIN_IGNORE, BIN_ILLEGAL };
 	    perm_string name;
 	    std::vector<std::pair<PExpr*, PExpr*>> ranges; // [lo, hi] pairs
+	    kind_t kind = BIN_NORMAL; // I1 (Phase 62o): ignore_bins/illegal_bins
       };
       struct pform_coverpoint_t {
 	    perm_string label;  // coverpoint label (or same as expr name)

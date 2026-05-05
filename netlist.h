@@ -1044,6 +1044,14 @@ class NetScope : public Definitions, public Attrib {
       void rem_signal(NetNet*);
       NetNet* find_signal(perm_string name);
 
+      // I2 (Phase 62m): post-elab fix-up pass.  Iterates signals_map_
+      // and replaces the net_type of NetNets that were emitted with a
+      // logic-vector fallback (because their typeref'd class had not
+      // yet been registered when PWire::elaborate_sig fired).  Called
+      // after finalize_pending_specialized_class_elaboration so all
+      // classes are visible.
+      void repair_typed_class_signals(class Design*des);
+
       netclass_t* find_class(const Design*des, perm_string name);
 
 	/* The unit(), parent(), and child() methods allow users of
@@ -5239,6 +5247,14 @@ class Design {
 
 	// PROCESSES
       void add_process(NetProcTop*);
+      // I5 (Phase 62m): append a process at the TAIL of procs_ (versus
+      // the default prepend).  After the dll/emit double-reversal, this
+      // makes the process end up FIRST in vvp's schedule_init list, so
+      // its init runs BEFORE other inits.  Used for parameterized-class
+      // specialization static initializers, which must run before any
+      // user-class init that calls into the specialization (e.g. the
+      // UVM `uvm_register_cb` pattern).
+      void add_process_at_tail(NetProcTop*);
       void add_process(NetAnalogTop*);
       void delete_process(NetProcTop*);
       bool check_proc_delay() const;
