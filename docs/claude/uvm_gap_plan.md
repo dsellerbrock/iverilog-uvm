@@ -267,7 +267,7 @@ Then:
 | 65 quick-wins | **COMPLETED** | see claude/phase-65; G38/G44/G47/G48/G49 fixed; G19/G45 RESOLVED-BY-PRIOR; 98/98 PASS |
 | 66 constraint solver | **COMPLETED** | see claude/phase-66; G11/G15/G17/G18/G20 fixed; G16/G21 deferred; 102/102 PASS |
 | 67 UVM core flows | **COMPLETED** | see claude/phase-67; G22/G25 fixed; G23/G24 RESOLVED-BY-PRIOR; 102/102 PASS |
-| 68 SVA expansion | **COMPLETED** | see claude/phase-68; G05/G06 + 3-arg form fixed; 105/105 PASS |
+| 68 SVA expansion | **COMPLETED** | see claude/phase-68; G05/G06/3-arg fixed; 105/105 PASS; commit c93f926 |
 | 69 streaming/structs | not started | |
 | 70 modport/iface | not started | |
 | 71 process/event/method-chain | not started | |
