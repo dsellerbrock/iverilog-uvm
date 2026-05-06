@@ -278,6 +278,7 @@ PECallFunction::PECallFunction(perm_string n, const list<named_pexpr_t> &parms)
 PECallFunction::~PECallFunction()
 {
       delete_parmvalue(leading_type_args_);
+      delete subject_expr_;
 }
 
 void PECallFunction::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)

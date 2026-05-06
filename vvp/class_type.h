@@ -79,6 +79,8 @@ class class_type : public __vpiHandle {
 
       void set_vec4(inst_t inst, size_t pid, const vvp_vector4_t&val, size_t idx = 0) const;
       void get_vec4(inst_t inst, size_t pid, vvp_vector4_t&val, size_t idx = 0) const;
+      void set_vec4_whole(inst_t inst, size_t pid, const vvp_vector4_t&val) const;
+      void get_vec4_whole(inst_t inst, size_t pid, vvp_vector4_t&val) const;
       void set_real(inst_t inst, size_t pid, double val) const;
       double get_real(inst_t inst, size_t pid) const;
       void set_string(inst_t inst, size_t pid, const std::string&val) const;

@@ -1044,11 +1044,14 @@ class PECallFunction : public PExpr {
       const std::vector<PExpr*>& with_constraints() const
             { return with_constraints_; }
 
+      void set_subject(PExpr*s) { subject_expr_ = s; }
+
     private:
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;
       std::vector<PExpr*> with_constraints_;
       struct parmvalue_t*leading_type_args_ = 0;
+      PExpr* subject_expr_ = nullptr;
 
         // For system functions.
       bool is_overridden_;
@@ -1081,7 +1084,8 @@ class PECallFunction : public PExpr {
 				  width_mode_t&mode);
 
       NetExpr*elaborate_base_(Design*des, NetScope*scope, NetScope*dscope,
-			      unsigned flags) const;
+			      unsigned flags,
+			      NetExpr*this_override = nullptr) const;
 
       unsigned elaborate_arguments_(Design*des, NetScope*scope,
                                     const NetFuncDef*def, bool need_const,

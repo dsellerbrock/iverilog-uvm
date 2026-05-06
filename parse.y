@@ -7382,9 +7382,11 @@ expr_primary
       }
   | expr_primary '.' IDENTIFIER argument_list_parens
       { // Parse method calls on temporary expressions (e.g. fn().method()).
+	// Store $1 as the subject expression so the elaborator can resolve
+	// the class type and dispatch the method on the function-call result.
 	PECallFunction*tmp = new PECallFunction(lex_strings.make($3), *$4);
 	FILE_NAME(tmp, @2);
-	delete $1;
+	tmp->set_subject($1);
 	delete[]$3;
 	delete $4;
 	$$ = tmp;
@@ -7392,7 +7394,7 @@ expr_primary
   | expr_primary '.' TYPE_IDENTIFIER argument_list_parens
       { PECallFunction*tmp = new PECallFunction(lex_strings.make($3.text), *$4);
 	FILE_NAME(tmp, @2);
-	delete $1;
+	tmp->set_subject($1);
 	delete[]$3.text;
 	delete $4;
 	$$ = tmp;
