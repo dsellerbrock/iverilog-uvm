@@ -77,7 +77,10 @@ dep
 /lexor_keyword.cc
 /parse.cc
 /parse.h
+/parse.hh
 /parse.output
+/parse.tab.c
+/parse.tab.h
 /syn-rules.cc
 /syn-rules.output
 
@@ -119,3 +122,4 @@ dep
 # Check output
 /check.vvp
 ivlpp/lex.yy.c
+parse.hh

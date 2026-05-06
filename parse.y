@@ -1283,6 +1283,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %token K_TAND
 %nonassoc K_PLUS_EQ K_MINUS_EQ K_MUL_EQ K_DIV_EQ K_MOD_EQ K_AND_EQ K_OR_EQ
 %nonassoc K_XOR_EQ K_LS_EQ K_RS_EQ K_RSS_EQ K_NB_TRIGGER
+/* G06 (Phase 68): SVA property/sequence operators — lower precedence than
+   all expression operators so they bind outside the sub-expressions. */
+%left K_PIPE_IMPL_OV K_PIPE_IMPL_NOV
+%left K_and K_or K_intersect K_throughout K_within
 %right K_TRIGGER K_LEQUIV
 %right '?' ':' K_inside
 %left K_LOR
@@ -2397,49 +2401,53 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 	   Only when supported-assertions flag is on; with the older
 	   "unsupported" flag, behave as before (silent drop). */
 	if (gn_supported_assertions_flag && $4) {
-	      // Default fail action: $error("...")
-	      std::list<named_pexpr_t> arg_list;
-	      PCallTask*fail = new PCallTask(lex_strings.make("$error"), arg_list);
-	      FILE_NAME(fail, @1);
-	      // Compose: !consequent ? fail : nothing
-	      Statement*body = nullptr;
-	      if ($4->op_type == 0) {
-		    // Plain: assert(antecedent); fail when antecedent false
-		    PCondit*c = new PCondit($4->antecedent, nullptr, fail);
-		    FILE_NAME(c, @1);
-		    body = c;
+	      // G05 (Phase 68): no clocking event → cannot create an
+	      // always block; skip assertion silently to avoid the
+	      // "always process does not have any delay" elab error.
+	      if (!$4->clk_evt) {
+		    delete $4->antecedent; delete $4->consequent;
+		    delete $4->disable_iff_expr; delete $4;
+		    delete $6;
 	      } else {
-		    // |-> or |=>: when antecedent true, check consequent
-		    // For |=> approximate as |-> for now (sticky reg
-		    // future enhancement).
-		    PExpr*not_c = new PEUnary('!', $4->consequent);
-		    FILE_NAME(not_c, @1);
-		    PCondit*chk = new PCondit(not_c, fail, nullptr);
-		    FILE_NAME(chk, @1);
-		    PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
-		    FILE_NAME(ifa, @1);
-		    body = ifa;
-	      }
-	      // disable iff guard
-	      if ($4->disable_iff_expr) {
-		    PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
-		    FILE_NAME(ndis, @1);
-		    PCondit*gd = new PCondit(ndis, body, nullptr);
-		    FILE_NAME(gd, @1);
-		    body = gd;
-	      }
-	      // wrap in clocking event, if any
-	      if ($4->clk_evt) {
+		    // Default fail action: $error("...")
+		    std::list<named_pexpr_t> arg_list;
+		    PCallTask*fail = new PCallTask(lex_strings.make("$error"), arg_list);
+		    FILE_NAME(fail, @1);
+		    // Compose: !consequent ? fail : nothing
+		    Statement*body = nullptr;
+		    if ($4->op_type == 0) {
+			  // Plain: assert(antecedent); fail when antecedent false
+			  PCondit*c = new PCondit($4->antecedent, nullptr, fail);
+			  FILE_NAME(c, @1);
+			  body = c;
+		    } else {
+			  // |-> or |=>: when antecedent true, check consequent.
+			  // For |=> approximate as |-> (sticky reg is future work).
+			  PExpr*not_c = new PEUnary('!', $4->consequent);
+			  FILE_NAME(not_c, @1);
+			  PCondit*chk = new PCondit(not_c, fail, nullptr);
+			  FILE_NAME(chk, @1);
+			  PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
+			  FILE_NAME(ifa, @1);
+			  body = ifa;
+		    }
+		    // disable iff guard
+		    if ($4->disable_iff_expr) {
+			  PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
+			  FILE_NAME(ndis, @1);
+			  PCondit*gd = new PCondit(ndis, body, nullptr);
+			  FILE_NAME(gd, @1);
+			  body = gd;
+		    }
 		    $4->clk_evt->set_statement(body);
 		    body = $4->clk_evt;
+		    // Append as an always block at module scope.
+		    PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, body, nullptr);
+		    FILE_NAME(pp, @1);
+		    // The user-provided pass-clause (statement_or_null) is dropped.
+		    delete $6;
+		    delete $4;
 	      }
-	      // Append as an always block at module scope.
-	      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, body, nullptr);
-	      FILE_NAME(pp, @1);
-	      // The user-provided pass-clause (statement_or_null) is dropped
-	      // — concurrent assertions don't typically have a "pass" action.
-	      delete $6;
-	      delete $4;
 	} else {
 	      if (gn_unsupported_assertions_flag) {
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
@@ -2456,35 +2464,40 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
   | assert_or_assume K_property '(' property_spec ')' K_else statement_or_null
       { /* assert property (...) else <fail-action>; */
 	if (gn_supported_assertions_flag && $4) {
-	      Statement*fail = $7 ? $7 : new PNoop;
-	      Statement*body = nullptr;
-	      if ($4->op_type == 0) {
-		    PCondit*c = new PCondit($4->antecedent, nullptr, fail);
-		    FILE_NAME(c, @1);
-		    body = c;
+	      // G05 (Phase 68): no clocking event → skip silently.
+	      if (!$4->clk_evt) {
+		    delete $4->antecedent; delete $4->consequent;
+		    delete $4->disable_iff_expr; delete $4;
+		    delete $7;
 	      } else {
-		    PExpr*not_c = new PEUnary('!', $4->consequent);
-		    FILE_NAME(not_c, @1);
-		    PCondit*chk = new PCondit(not_c, fail, nullptr);
-		    FILE_NAME(chk, @1);
-		    PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
-		    FILE_NAME(ifa, @1);
-		    body = ifa;
-	      }
-	      if ($4->disable_iff_expr) {
-		    PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
-		    FILE_NAME(ndis, @1);
-		    PCondit*gd = new PCondit(ndis, body, nullptr);
-		    FILE_NAME(gd, @1);
-		    body = gd;
-	      }
-	      if ($4->clk_evt) {
+		    Statement*fail = $7 ? $7 : new PNoop;
+		    Statement*body = nullptr;
+		    if ($4->op_type == 0) {
+			  PCondit*c = new PCondit($4->antecedent, nullptr, fail);
+			  FILE_NAME(c, @1);
+			  body = c;
+		    } else {
+			  PExpr*not_c = new PEUnary('!', $4->consequent);
+			  FILE_NAME(not_c, @1);
+			  PCondit*chk = new PCondit(not_c, fail, nullptr);
+			  FILE_NAME(chk, @1);
+			  PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
+			  FILE_NAME(ifa, @1);
+			  body = ifa;
+		    }
+		    if ($4->disable_iff_expr) {
+			  PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
+			  FILE_NAME(ndis, @1);
+			  PCondit*gd = new PCondit(ndis, body, nullptr);
+			  FILE_NAME(gd, @1);
+			  body = gd;
+		    }
 		    $4->clk_evt->set_statement(body);
 		    body = $4->clk_evt;
+		    PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, body, nullptr);
+		    FILE_NAME(pp, @1);
+		    delete $4;
 	      }
-	      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, body, nullptr);
-	      FILE_NAME(pp, @1);
-	      delete $4;
 	} else {
 	      if (gn_unsupported_assertions_flag) {
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
@@ -2499,16 +2512,54 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
         $$ = 0;
       }
   | assert_or_assume K_property '(' property_spec ')' statement_or_null K_else statement_or_null
-      { /* */
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: concurrent_assertion_item not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+      { /* assert property (...) pass_action else fail_action (3-arg form). */
+	if (gn_supported_assertions_flag && $4) {
+	      // G05: skip if no clocking event.
+	      if (!$4->clk_evt) {
+		    delete $4->antecedent; delete $4->consequent;
+		    delete $4->disable_iff_expr; delete $4;
+		    delete $6; delete $8;
+	      } else {
+		    // Use the fail-action ($8); drop the pass-action ($6).
+		    Statement*fail = $8 ? $8 : new PNoop;
+		    Statement*body = nullptr;
+		    if ($4->op_type == 0) {
+			  PCondit*c = new PCondit($4->antecedent, nullptr, fail);
+			  FILE_NAME(c, @1);
+			  body = c;
+		    } else {
+			  PExpr*not_c = new PEUnary('!', $4->consequent);
+			  FILE_NAME(not_c, @1);
+			  PCondit*chk = new PCondit(not_c, fail, nullptr);
+			  FILE_NAME(chk, @1);
+			  PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
+			  FILE_NAME(ifa, @1);
+			  body = ifa;
+		    }
+		    if ($4->disable_iff_expr) {
+			  PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
+			  FILE_NAME(ndis, @1);
+			  PCondit*gd = new PCondit(ndis, body, nullptr);
+			  FILE_NAME(gd, @1);
+			  body = gd;
+		    }
+		    $4->clk_evt->set_statement(body);
+		    body = $4->clk_evt;
+		    PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, body, nullptr);
+		    FILE_NAME(pp, @1);
+		    delete $6; delete $4;
+	      }
+	} else {
+	      if (gn_unsupported_assertions_flag) {
+		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      }
+	      if ($4) { delete $4->antecedent; delete $4->consequent;
+			delete $4->disable_iff_expr; delete $4->clk_evt;
+			delete $4; }
+	      delete $6; delete $8;
 	}
-	if ($4) { delete $4->antecedent; delete $4->consequent;
-		  delete $4->disable_iff_expr; delete $4->clk_evt;
-		  delete $4; }
-	delete $6; delete $8;
         $$ = 0;
       }
   | K_cover K_property '(' property_spec ')' statement_or_null
@@ -4952,6 +5003,49 @@ property_expr /* IEEE1800-2012 A.2.10 */
       { sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
 	p->antecedent = $1; p->consequent = $3; p->op_type = 2;
+	$$ = p; }
+  /* G06 (Phase 68): SVA sequence operators — approximate temporals as
+     combinational boolean operations.  No true SVA scheduler is needed
+     for the common DV idioms these probes cover. */
+  | expression K_and expression
+      { /* 'and': both sequences must hold — approximate as logical && */
+	sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = new PEBLogic('a', $1, $3);
+	FILE_NAME(p->antecedent, @2);
+	p->consequent = nullptr; p->op_type = 0;
+	$$ = p; }
+  | expression K_or expression
+      { /* 'or': either sequence must hold — approximate as logical || */
+	sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = new PEBLogic('o', $1, $3);
+	FILE_NAME(p->antecedent, @2);
+	p->consequent = nullptr; p->op_type = 0;
+	$$ = p; }
+  | expression K_intersect expression
+      { /* 'intersect': both hold same endpoints — approximate as && */
+	sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = new PEBLogic('a', $1, $3);
+	FILE_NAME(p->antecedent, @2);
+	p->consequent = nullptr; p->op_type = 0;
+	$$ = p; }
+  | expression K_throughout expression
+      { /* 'throughout': guard holds during sequence — check guard only */
+	sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = $1;
+	delete $3;
+	p->consequent = nullptr; p->op_type = 0;
+	$$ = p; }
+  | expression K_within expression
+      { /* 'within': inner seq within outer seq — check outer only */
+	sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = $3;
+	delete $1;
+	p->consequent = nullptr; p->op_type = 0;
 	$$ = p; }
   ;
 
