@@ -69,6 +69,22 @@ static vvp_context_t recover_automatic_event_context_(vvp_context_t context,
       return resolved;
 }
 
+class named_event_triggered_clear_s : public vvp_gen_event_s {
+    public:
+      named_event_triggered_clear_s(vvp_named_event*event,
+                                    vvp_context_t context)
+      : event_(event), context_(context) {}
+
+      void run_run() override
+      {
+            event_->clear_triggered(context_);
+      }
+
+    private:
+      vvp_named_event*event_;
+      vvp_context_t context_;
+};
+
 void waitable_hooks_s::run_waiting_threads_(vthread_t&threads)
 {
 	// Run the non-blocking event controls.
@@ -1024,8 +1040,15 @@ vvp_named_event::~vvp_named_event()
 {
 }
 
+void vvp_named_event::schedule_triggered_clear_(vvp_context_t context)
+{
+      schedule_generic(new named_event_triggered_clear_s(this, context),
+                       0, true, false, true);
+}
+
 vvp_named_event_sa::vvp_named_event_sa(__vpiHandle*h)
-: vvp_named_event(h), threads_(0)
+: vvp_named_event(h), threads_(0), triggered_(false),
+  triggered_clear_scheduled_(false)
 {
 }
 
@@ -1041,9 +1064,26 @@ vthread_t vvp_named_event_sa::add_waiting_thread(vthread_t thread)
       return tmp;
 }
 
+bool vvp_named_event_sa::is_triggered(vvp_context_t) const
+{
+      return triggered_;
+}
+
+void vvp_named_event_sa::clear_triggered(vvp_context_t)
+{
+      triggered_ = false;
+      triggered_clear_scheduled_ = false;
+}
+
 void vvp_named_event_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t)
 {
+      triggered_ = true;
+      if (!triggered_clear_scheduled_) {
+            triggered_clear_scheduled_ = true;
+            schedule_triggered_clear_(0);
+      }
+
       run_waiting_threads_(threads_);
       vvp_net_t*net = port.ptr();
       net->send_vec4(bit, 0);
@@ -1075,6 +1115,8 @@ void vvp_named_event_aa::reset_instance(vvp_context_t context)
             (vvp_get_context_item(context, context_idx_));
 
       state->threads = 0;
+      state->triggered = false;
+      state->triggered_clear_scheduled = false;
 }
 
 #ifdef CHECK_WITH_VALGRIND
@@ -1097,6 +1139,34 @@ vthread_t vvp_named_event_aa::add_waiting_thread(vthread_t thread)
       return tmp;
 }
 
+bool vvp_named_event_aa::is_triggered(vvp_context_t context) const
+{
+      context = recover_automatic_event_context_(context, context_scope_,
+                                                 "event-triggered-aa");
+      if (!context)
+            return false;
+
+      waitable_state_s*state = static_cast<waitable_state_s*>
+            (vvp_get_context_item(context, context_idx_));
+      return state && state->triggered;
+}
+
+void vvp_named_event_aa::clear_triggered(vvp_context_t context)
+{
+      context = recover_automatic_event_context_(context, context_scope_,
+                                                 "clear-event-triggered-aa");
+      if (!context)
+            return;
+
+      waitable_state_s*state = static_cast<waitable_state_s*>
+            (vvp_get_context_item(context, context_idx_));
+      if (!state)
+            return;
+
+      state->triggered = false;
+      state->triggered_clear_scheduled = false;
+}
+
 void vvp_named_event_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t context)
 {
@@ -1106,6 +1176,12 @@ void vvp_named_event_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 
       waitable_state_s*state = static_cast<waitable_state_s*>
             (vvp_get_context_item(context, context_idx_));
+
+      state->triggered = true;
+      if (!state->triggered_clear_scheduled) {
+            state->triggered_clear_scheduled = true;
+            schedule_triggered_clear_(context);
+      }
 
       run_waiting_threads_(state->threads);
       vvp_net_t*net = port.ptr();

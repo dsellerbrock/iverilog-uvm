@@ -201,6 +201,7 @@ extern bool of_DUP_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_END(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_NB(vthread_t thr, vvp_code_t code);
+extern bool of_EVENT_TRIGGERED(vthread_t thr, vvp_code_t code);
 extern bool of_EVCTL(vthread_t thr, vvp_code_t code);
 extern bool of_EVCTLC(vthread_t thr, vvp_code_t code);
 extern bool of_EVCTLI(vthread_t thr, vvp_code_t code);

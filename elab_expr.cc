@@ -9174,7 +9174,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		      && sr.path_tail.size() == 1
 		      && peek_head_name(sr.path_tail) == perm_string::literal("triggered")
 		      && sr.path_tail.front().index.empty()) {
-			NetEConst*tmp = make_const_0(1);
+			NetEEvent*tmp = new NetEEvent(sr.eve);
 			tmp->set_line(*this);
 			return tmp;
 		  }

@@ -7780,6 +7780,10 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	    expr = cmp;
       }
 
+      NetEvent*triggered_event = 0;
+      if (NetEEvent*eve_expr = dynamic_cast<NetEEvent*>(expr))
+	    triggered_event = const_cast<NetEvent*>(eve_expr->event());
+
 	/* precalculate as much as possible of the wait expression. */
       eval_expr(expr);
 
@@ -7823,6 +7827,24 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
       expr = new NetEBComp('N', expr, new NetEConst(verinum(verinum::V1)));
       expr->set_line(*pe);
       eval_expr(expr);
+
+      if (triggered_event) {
+	    NetEvWait*wait = new NetEvWait(0 /* noop */);
+	    wait->add_event(triggered_event);
+	    wait->set_line(*this);
+
+	    NetWhile*loop = new NetWhile(expr, wait);
+	    loop->set_line(*this);
+
+	    if (enet == 0)
+		  return loop;
+
+	    NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+	    block->append(loop);
+	    block->append(enet);
+	    block->set_line(*this);
+	    return block;
+      }
 
       NetEvent*wait_event = new NetEvent(scope->local_symbol());
       wait_event->set_line(*this);
