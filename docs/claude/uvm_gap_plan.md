@@ -281,6 +281,19 @@ Then:
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
 
+## 2026-05-06 — Phase 68 — COMPLETED re-marker (merge commits buried prior COMPLETED invariant)
+
+**Branch**: `claude/phase-68`
+**Regression**: 118 passed, 0 failed, 0 skipped
+
+### What I did
+No new code changes. Prior COMPLETED commits (`2e719af`, `b78342a`, `d2db128`) were buried when development (containing phases 69/70/71 merges) was merged back into claude/phase-68. Added this re-marker commit to restore the phase-state-machine invariant.
+
+### Observations
+- Phase 68 scope (G05/G06 SVA) was completed in the 2026-05-05 session.
+- Post-completion, development branches were merged in, pushing the COMPLETED marker down in history.
+- Regression at 118 (above 94 threshold): phases 69 and 70 work is included via prior merges.
+
 ## 2026-05-05 — Phase 68 — COMPLETED G05/G06 SVA property/sequence expansion
 
 **Branch**: `claude/phase-68`
