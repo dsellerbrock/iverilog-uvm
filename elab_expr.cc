@@ -1047,9 +1047,60 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
       if (dims.size() <= cur_dim)
 	    return nullptr;
 
-      if (dims[cur_dim].width() != parms_.size()) {
+      unsigned dim_width = dims[cur_dim].width();
+
+      /* Replication form: '{N{elem...}} — expand to N copies of the element
+	 list.  Build a temporary expanded list and recurse as if the pattern
+	 had been written out in full.  */
+      if (replication_) {
+	    NetExpr*rep_expr = elab_and_eval(des, scope, replication_, -1, true);
+	    const NetEConst*rep_const = dynamic_cast<const NetEConst*>(rep_expr);
+	    unsigned rep_cnt = rep_const ? rep_const->value().as_ulong() : 0;
+	    delete rep_expr;
+
+	    unsigned effective = rep_cnt * parms_.size();
+	    if (effective != dim_width) {
+		  cerr << get_fileline() << ": error: Unpacked array assignment pattern expects "
+		       << dim_width << " element(s) in this context.\n"
+		       << get_fileline() << ":      : Found replication of "
+		       << parms_.size() << " base element(s) × " << rep_cnt << " = "
+		       << effective << " element(s)." << endl;
+		  des->errors++;
+	    }
+
+	    bool up = dims[cur_dim].get_msb() < dims[cur_dim].get_lsb();
+	    /* Build a synthetic non-replication PEAssignPattern with the
+	     * expanded element list, then recurse for the next dimension or
+	     * leaf elaboration. */
+	    std::list<PExpr*> expanded_list;
+	    for (unsigned r = 0; r < rep_cnt; r++)
+		  for (auto p : parms_) expanded_list.push_back(p);
+	    PEAssignPattern expanded(expanded_list);
+	    expanded.set_line(*this);
+
+	    if (cur_dim == dims.size() - 1)
+		  return expanded.elaborate_expr_array_(des, scope, uarray_type,
+						       need_const, up);
+
+	    vector<NetExpr*> elem_exprs(expanded.parms_.size());
+	    size_t ei = up ? 0 : expanded.parms_.size() - 1;
+	    unsigned next_dim = cur_dim + 1;
+	    for (size_t idx = 0; idx < expanded.parms_.size(); idx++) {
+		  NetExpr *expr = nullptr;
+		  if (const auto ap = dynamic_cast<PEAssignPattern*>(expanded.parms_[idx]))
+			expr = ap->elaborate_expr_uarray_(des, scope, uarray_type,
+							  dims, next_dim, need_const);
+		  elem_exprs[ei] = expr;
+		  if (up) ei++; else ei--;
+	    }
+	    NetEArrayPattern *res2 = new NetEArrayPattern(uarray_type, elem_exprs);
+	    res2->set_line(*this);
+	    return res2;
+      }
+
+      if (dim_width != parms_.size()) {
 	    cerr << get_fileline() << ": error: Unpacked array assignment pattern expects "
-	         << dims[cur_dim].width() << " element(s) in this context.\n"
+	         << dim_width << " element(s) in this context.\n"
 	         << get_fileline() << ":      : Found "
 		 << parms_.size() << " element(s)." << endl;
 	    des->errors++;

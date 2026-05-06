@@ -1864,6 +1864,21 @@ assignment_pattern_named_list
       { $$ = new std::list<std::pair<perm_string,PExpr*>>;
 	$$->push_back(std::make_pair(lex_strings.make("bit"), $3));
       }
+  /* Numeric-index keys in assignment patterns: '{1:val, 2:val, default:val} */
+  | DEC_NUMBER ':' expression
+      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
+	ostringstream buf;
+	buf << $1->as_ulong();
+	delete $1;
+	$$->push_back(std::make_pair(lex_strings.make(buf.str()), $3));
+      }
+  | assignment_pattern_named_list ',' DEC_NUMBER ':' expression
+      { ostringstream buf;
+	buf << $3->as_ulong();
+	delete $3;
+	$1->push_back(std::make_pair(lex_strings.make(buf.str()), $5));
+	$$ = $1;
+      }
   | assignment_pattern_named_list ',' IDENTIFIER ':' expression
       { $1->push_back(std::make_pair(lex_strings.make($3), $5));
 	delete[] $3;
