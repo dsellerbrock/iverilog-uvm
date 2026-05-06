@@ -160,6 +160,7 @@ void lex_in_package_scope(PPackage*pkg)
 %x PPBEGIN_KEYWORDS_ERROR
 %s EDGES
 %x REAL_SCALE
+%x AFTER_INTERFACE
 
 W [ \t\b\f\r]+
 
@@ -428,7 +429,43 @@ TU [munpf]
 	    }
       }
 
-      return rc;
+      /* "interface class" two-word lookahead: if this is "interface" and the
+         next non-whitespace token is "class" (complete word), emit the combined
+         K_interface_class token to avoid LALR conflicts with module-style
+         interface declarations. BEGIN(AFTER_INTERFACE) without returning causes
+         flex to rescan in that state, which produces the final token. */
+      if (rc == K_interface) {
+	    yylval.text = 0;
+	    BEGIN(AFTER_INTERFACE);
+	    /* Intentionally no return — AFTER_INTERFACE rules emit the token */
+      } else {
+	    return rc;
+      }
+  }
+
+
+  /* AFTER_INTERFACE state: lookahead to distinguish "interface class" (SV
+     interface class declaration) from "interface <name>" (module-style interface).
+     Entered without returning a token from the "interface" keyword match above. */
+<AFTER_INTERFACE>[ \t\b\f\r]+ { /* absorb horizontal whitespace */ }
+<AFTER_INTERFACE>\n  { yylloc.first_line += 1; /* absorb newlines */ }
+<AFTER_INTERFACE>"class"/[^a-zA-Z0-9_$] {
+      /* "interface class" — return the combined K_interface_class token */
+      BEGIN(INITIAL);
+      yylval.text = 0;
+      return K_interface_class;
+  }
+<AFTER_INTERFACE>.  {
+      /* Not "class" — push back this char and return K_interface */
+      yyless(0);
+      BEGIN(INITIAL);
+      yylval.text = 0;
+      return K_interface;
+  }
+<AFTER_INTERFACE><<EOF>> {
+      BEGIN(INITIAL);
+      yylval.text = 0;
+      return K_interface;
   }
 
 

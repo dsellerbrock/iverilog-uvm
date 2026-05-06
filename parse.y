@@ -1072,7 +1072,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %token K_sync_reject_on K_unique0 K_until K_until_with K_untyped K_weak
 
  /* The new tokens from 1800-2012. */
-%token K_implements K_interconnect K_nettype K_soft
+%token K_implements K_interconnect K_interface_class K_nettype K_soft
 
  /* The new tokens for Verilog-AMS 2.3. */
 %token K_above K_abs K_absdelay K_abstol K_access K_acos K_acosh
@@ -1097,6 +1097,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <flag>    signing unsigned_signed_opt signed_unsigned_opt
 %type <flag>    import_export
 %type <flag>    K_genvar_opt K_static_opt K_virtual_opt K_const_opt
+%type <flag>    implements_class_list implements_class_item
 %type <flag>    udp_reg_opt edge_operator
 %type <drive>   drive_strength drive_strength_opt dr_strength0 dr_strength1
 %type <letter>  udp_input_sym udp_output_sym
@@ -1526,6 +1527,37 @@ class_declaration /* IEEE1800-2005: A.1.2 */
 	check_end_label(@12, "class", $4, $12);
 	delete[] $4;
       }
+
+    /* interface class Foo [#(params)] [extends ...] [implements ...];
+       Lowered to a virtual class — method enforcement is not yet done.
+       K_interface_class is a combined two-word token from the lexer to avoid
+       LALR conflicts with module-style interface declarations. */
+  | K_interface_class lifetime_opt identifier_name class_type_parameter_port_list_opt class_declaration_extends_opt ';'
+      { perm_string name = lex_strings.make($3);
+	class_type_t *class_type = new class_type_t(name);
+	FILE_NAME(class_type, @3);
+	pform_set_typedef(@3, name, class_type, nullptr);
+	pform_start_class_declaration(@1, class_type, $5.type, $5.args, true);
+	if (!pending_class_params.empty()) {
+	      pform_start_parameter_port_list();
+	      for (std::vector<pending_class_param_t>::iterator cur = pending_class_params.begin()
+			 ; cur != pending_class_params.end() ; ++cur) {
+		    pform_set_parameter(@4, cur->name, false, cur->is_type,
+					cur->data_type, 0, cur->expr, 0);
+		    cur->data_type = 0;
+		    cur->expr = 0;
+	      }
+	      pform_end_parameter_port_list();
+	}
+	clear_pending_class_params();
+	if ($4) delete $4;
+      }
+    class_items_opt K_endclass
+      { pform_end_class_declaration(@9); }
+    class_declaration_endlabel_opt
+      { check_end_label(@11, "class", $3, $11);
+	delete[] $3;
+      }
   ;
 
 class_type_parameter_port_list_opt
@@ -1624,6 +1656,14 @@ class_declaration_extends_opt /* IEEE1800-2005: A.1.2 */
 	$$.type = $2;
 	$$.args = $4;
       }
+  | K_extends ps_type_identifier class_extends_type_params_opt argument_list_parens_opt K_implements implements_class_list
+      { if (typeref_t*tmp = dynamic_cast<typeref_t*>($2))
+	      tmp->set_parameter_values($3);
+	else
+	      delete_parmvalue_t($3);
+	$$.type = $2;
+	$$.args = $4;
+      }
   | K_extends IDENTIFIER class_extends_type_params_opt argument_list_parens_opt
       { type_parameter_t*tmp = new type_parameter_t(lex_strings.make($2));
 	FILE_NAME(tmp, @2);
@@ -1632,9 +1672,34 @@ class_declaration_extends_opt /* IEEE1800-2005: A.1.2 */
 	$$.args = $4;
 	delete[]$2;
       }
+  | K_extends IDENTIFIER class_extends_type_params_opt argument_list_parens_opt K_implements implements_class_list
+      { type_parameter_t*tmp = new type_parameter_t(lex_strings.make($2));
+	FILE_NAME(tmp, @2);
+	delete_parmvalue_t($3);
+	$$.type = tmp;
+	$$.args = $4;
+	delete[]$2;
+      }
+  | K_implements implements_class_list
+      { $$ = {nullptr, nullptr};
+      }
   |
       { $$ = {nullptr, nullptr};
       }
+  ;
+
+implements_class_list
+  : implements_class_list ',' implements_class_item
+      { $$ = false; }
+  | implements_class_item
+      { $$ = false; }
+  ;
+
+implements_class_item
+  : ps_type_identifier class_extends_type_params_opt
+      { delete_parmvalue_t($2); if ($1) delete $1; $$ = false; }
+  | IDENTIFIER class_extends_type_params_opt
+      { delete_parmvalue_t($2); delete[] $1; $$ = false; }
   ;
 
 class_extends_type_params_opt
@@ -2303,6 +2368,9 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
 
   | parameter_declaration
+
+    /* Nested class declaration (IEEE1800-2017 §8.3) */
+  | class_declaration
 
     /* Empty class item */
   | ';'
