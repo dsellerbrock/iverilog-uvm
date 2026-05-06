@@ -22,8 +22,10 @@
 
 # include  "PExpr.h"
 # include  "PPackage.h"
+# include  "PWire.h"
 # include  "netlist.h"
 # include  "netmisc.h"
+# include  "netclass.h"
 # include  "netstruct.h"
 # include  "netvector.h"
 # include  "compiler.h"
@@ -540,6 +542,52 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       NetNet*sig = sr.net;
       pform_name_t base_path = sr.path_head;
       pform_name_t member_path = sr.path_tail;
+
+      if (sig == 0) {
+	    // G28/G29: interface array element (b[0]) or modport-select
+	    // (b.mst) resolve to scopes with no companion net.  Synthesise
+	    // a WIRE net for the interface instance so port connection can
+	    // proceed.  For b.mst the modport name is captured in path_tail
+	    // and direction enforcement is a follow-up.
+	    NetScope *iface_scope = nullptr;
+	    if (sr.scope) {
+		  if (sr.scope->is_interface()) {
+			// G28: b[0] — sr.scope IS the interface element scope.
+			iface_scope = sr.scope;
+		  } else if (sr.scope->parent() && sr.scope->parent()->is_interface()) {
+			// G29: b.mst — sr.scope is a modport scope inside interface b.
+			iface_scope = sr.scope->parent();
+		  }
+	    }
+	    if (iface_scope && iface_scope->parent()) {
+		  perm_string iname = iface_scope->basename();
+		  NetScope *pscope = iface_scope->parent();
+		  // Check signals_map_ first (may have been elaborated already).
+		  sig = pscope->find_signal(iname);
+		  // Try un-elaborated placeholder.
+		  if (!sig) {
+			if (PWire*pw = pscope->find_signal_placeholder(iname))
+			      sig = pw->elaborate_sig(des, pscope);
+		  }
+		  // Synthesise a typed wire for the interface instance.  This
+		  // mirrors what declare_implicit_nets does for simple identifiers,
+		  // but deferred to elaboration for dotted paths like b.mst.
+		  if (!sig) {
+			perm_string imod = iface_scope->module_name();
+			ivl_type_t net_type = nullptr;
+			if (!imod.nil())
+			      net_type = ensure_visible_class_type(des, pscope, imod);
+			if (net_type) {
+			      sig = new NetNet(pscope, iname, NetNet::WIRE, net_type);
+			} else {
+			      const netvector_t *logic1 =
+				    new netvector_t(IVL_VT_LOGIC, 0, 0);
+			      sig = new NetNet(pscope, iname, NetNet::WIRE, logic1);
+			}
+			sig->set_line(*this);
+		  }
+	    }
+      }
 
       if (sig == 0) {
 	    cerr << get_fileline() << ": error: Net " << path_
@@ -1181,6 +1229,54 @@ NetNet*PEIdent::elaborate_unpacked_net(Design*des, NetScope*scope) const
 
       const name_component_t&name_tail = path_.back();
       if (!name_tail.index.empty()) {
+	    /* Support 1D part-select slice: arr[lo:hi] in continuous assign.
+	       Create a proxy NetNet whose pins are wired to the slice of the
+	       original, so assign_unpacked_with_bufz can treat it normally. */
+	    if (name_tail.index.size() == 1) {
+		  const index_component_t&idx = name_tail.index.front();
+		  if (idx.sel == index_component_t::SEL_PART && idx.msb && idx.lsb) {
+			const auto&arr_dims = sr.net->unpacked_dims();
+			if (!arr_dims.empty()) {
+			      /* Evaluate the slice bounds as constants. */
+			      NetExpr*msb_ex = elab_and_eval(des, scope, idx.msb, -1);
+			      NetExpr*lsb_ex = elab_and_eval(des, scope, idx.lsb, -1);
+			      NetEConst*mc = dynamic_cast<NetEConst*>(msb_ex);
+			      NetEConst*lc = dynamic_cast<NetEConst*>(lsb_ex);
+			      if (mc && lc) {
+				    long sl = mc->value().as_long();
+				    long el = lc->value().as_long();
+				    delete msb_ex; delete lsb_ex;
+
+				    /* Pin-base: min index of the outer dimension. */
+				    long arr_base = std::min(arr_dims[0].get_msb(),
+							     arr_dims[0].get_lsb());
+				    long slice_lo = std::min(sl, el);
+				    long slice_hi = std::max(sl, el);
+				    long width = slice_hi - slice_lo + 1;
+
+				    /* Build proxy dims [0:width-1] so that
+				       the caller's equiv check (width-only) passes. */
+				    netranges_t proxy_dims;
+				    proxy_dims.push_back(netrange_t(0, width-1));
+
+				    NetNet*proxy = new NetNet(scope, scope->local_symbol(),
+							     NetNet::WIRE, proxy_dims,
+							     sr.net->net_type());
+				    proxy->set_line(*this);
+				    proxy->local_flag(true);
+
+				    /* Wire each proxy pin to the original slice pin. */
+				    for (long k = 0; k < width; k++) {
+					  long src_pin = (slice_lo + k) - arr_base;
+					  if (src_pin >= 0 && src_pin < (long)sr.net->pin_count())
+						connect(proxy->pin(k), sr.net->pin(src_pin));
+				    }
+				    return proxy;
+			      }
+			      delete msb_ex; delete lsb_ex;
+			}
+		  }
+	    }
 	    cerr << get_fileline() << ": sorry: Array slices are not yet "
 	         << "supported for continuous assignment." << endl;
 	    des->errors += 1;
