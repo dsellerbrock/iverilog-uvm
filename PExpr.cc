@@ -278,6 +278,7 @@ PECallFunction::PECallFunction(perm_string n, const list<named_pexpr_t> &parms)
 PECallFunction::~PECallFunction()
 {
       delete_parmvalue(leading_type_args_);
+      delete subject_expr_;
 }
 
 void PECallFunction::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
@@ -624,6 +625,44 @@ bool PEUnary::has_aa_term(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, expr_);
       return expr_->has_aa_term(des, scope);
+}
+
+PEConstraintIf::PEConstraintIf(PExpr* cond, std::list<PExpr*>* then_l,
+                               std::list<PExpr*>* else_l)
+: cond_(cond), then_(then_l), else_(else_l)
+{
+}
+
+PEConstraintIf::~PEConstraintIf()
+{
+      delete cond_;
+      if (then_) {
+	    for (auto* e : *then_) delete e;
+	    delete then_;
+      }
+      if (else_) {
+	    for (auto* e : *else_) delete e;
+	    delete else_;
+      }
+}
+
+void PEConstraintIf::dump(std::ostream& out) const
+{
+      out << "(constraint-if ";
+      cond_->dump(out);
+      out << " ...)";
+}
+
+NetExpr* PEConstraintIf::elaborate_expr(Design*, NetScope*,
+                                        ivl_type_t, unsigned) const
+{
+      return nullptr;
+}
+
+NetExpr* PEConstraintIf::elaborate_expr(Design*, NetScope*,
+                                        unsigned, unsigned) const
+{
+      return nullptr;
 }
 
 PEVoid::PEVoid()

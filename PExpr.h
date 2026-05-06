@@ -1044,11 +1044,14 @@ class PECallFunction : public PExpr {
       const std::vector<PExpr*>& with_constraints() const
             { return with_constraints_; }
 
+      void set_subject(PExpr*s) { subject_expr_ = s; }
+
     private:
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;
       std::vector<PExpr*> with_constraints_;
       struct parmvalue_t*leading_type_args_ = 0;
+      PExpr* subject_expr_ = nullptr;
 
         // For system functions.
       bool is_overridden_;
@@ -1081,7 +1084,8 @@ class PECallFunction : public PExpr {
 				  width_mode_t&mode);
 
       NetExpr*elaborate_base_(Design*des, NetScope*scope, NetScope*dscope,
-			      unsigned flags) const;
+			      unsigned flags,
+			      NetExpr*this_override = nullptr) const;
 
       unsigned elaborate_arguments_(Design*des, NetScope*scope,
                                     const NetFuncDef*def, bool need_const,
@@ -1280,6 +1284,32 @@ class PEInside : public PExpr {
     private:
       PExpr* expr_;
       std::vector<inside_range_t> ranges_;
+};
+
+/*
+ * G17 (Phase 66): if-block constraint.  Carries (cond, then_list, else_list)
+ * for `if(cond) { A; B; } else { C; }` in a constraint body.
+ * Lowered to (implies cond AND(then)) and (implies !cond AND(else)) in IR.
+ */
+class PEConstraintIf : public PExpr {
+    public:
+      PEConstraintIf(PExpr* cond, std::list<PExpr*>* then_l,
+                     std::list<PExpr*>* else_l);
+      ~PEConstraintIf() override;
+
+      PExpr* get_cond() const { return cond_; }
+      const std::list<PExpr*>* get_then() const { return then_; }
+      const std::list<PExpr*>* get_else() const { return else_; }
+
+      void dump(std::ostream& out) const override;
+      NetExpr* elaborate_expr(Design* des, NetScope* scope,
+                              ivl_type_t type, unsigned flags) const override;
+      NetExpr* elaborate_expr(Design* des, NetScope* scope,
+                              unsigned expr_wid, unsigned flags) const override;
+    private:
+      PExpr* cond_;
+      std::list<PExpr*>* then_;
+      std::list<PExpr*>* else_;  // may be null
 };
 
 /*

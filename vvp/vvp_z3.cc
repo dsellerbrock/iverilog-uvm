@@ -385,6 +385,30 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    return Z3_mk_or(b.ctx, (unsigned)hard_clauses.size(), hard_clauses.data());
       }
 
+      // G15/G11: implication A -> B  (cond -> cons)
+      if (op == "implies") {
+	    Z3_ast ant = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    Z3_ast con = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    par.skip_ws(); par.expect(')');
+	    return Z3_mk_implies(b.ctx, ant, con);
+      }
+
+      // Arithmetic: add, sub, mul — used in equality constraints like y == x*2.
+      if (op == "add" || op == "sub" || op == "mul") {
+	    Z3_ast left  = build_z3_atom(par, b);
+	    Z3_ast right = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    unsigned lw = bv_width(b.ctx, left);
+	    unsigned rw = bv_width(b.ctx, right);
+	    if (lw != rw) {
+		  if (rw < lw) right = Z3_mk_zero_ext(b.ctx, lw - rw, right);
+		  else         left  = Z3_mk_zero_ext(b.ctx, rw - lw, left);
+	    }
+	    if (op == "add") return Z3_mk_bvadd(b.ctx, left, right);
+	    if (op == "sub") return Z3_mk_bvsub(b.ctx, left, right);
+	    return Z3_mk_bvmul(b.ctx, left, right);
+      }
+
       // Unknown operator — skip to matching ')' and return true
       int depth = 1;
       while (!par.at_end() && depth > 0) {

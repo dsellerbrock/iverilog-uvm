@@ -2154,15 +2154,28 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 		  cobj->set_vec4(pid, val);
 	    }
 
-	      // Solve constraints with Z3 for this class AND every base
-	      // class in the inheritance chain. Without walking the chain,
-	      // a constraint declared on a base class's rand property is
-	      // silently dropped when the runtime instance is a derived
-	      // class, leaving those properties with raw rand() values that
-	      // ignore inside-range / equality constraints.
-	    for (const class_type*walker = defn; walker; walker = walker->runtime_super()) {
-		  if (walker->constraint_count() > 0)
-			vvp_z3_randomize(walker, cobj);
+	      // G20 (Phase 66): Solve ALL constraints from the entire class
+	      // hierarchy in a SINGLE Z3 call so cross-class constraints
+	      // (e.g. child's `y == x*2` referencing parent's rand `x`) are
+	      // solved jointly.  Separate calls see independent Z3 contexts and
+	      // can clobber each other's solutions.
+	      // Property indices are absolute (include ancestor offsets), so all
+	      // IRs from the hierarchy share the same "p:N" namespace.
+	    {
+		  bool any_constraints = false;
+		  for (const class_type*w = defn; w; w = w->runtime_super())
+			if (w->constraint_count() > 0) { any_constraints = true; break; }
+		  if (any_constraints) {
+			// Collect ancestor IRs (skip defn — vvp_z3_randomize handles it)
+			vector<string> hier_ir;
+			for (const class_type*w = defn->runtime_super(); w; w = w->runtime_super()) {
+			      for (size_t ci = 0; ci < w->constraint_count(); ++ci) {
+				    const string& ir = w->constraint_ir(ci);
+				    if (!ir.empty()) hier_ir.push_back(ir);
+			      }
+			}
+			vvp_z3_randomize(defn, cobj, hier_ir);
+		  }
 	    }
       }
 
@@ -2247,8 +2260,14 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 		  cobj->set_vec4(pid, val);
 	    }
 
-	      // Solve with Z3: class constraints + with-constraints.
+	      // G20: Solve with Z3: class constraints + ancestor IRs + with-constraints.
 	    vector<string> extra_ir;
+	    for (const class_type*w = defn->runtime_super(); w; w = w->runtime_super()) {
+		  for (size_t ci = 0; ci < w->constraint_count(); ++ci) {
+			const string& ir = w->constraint_ir(ci);
+			if (!ir.empty()) extra_ir.push_back(ir);
+		  }
+	    }
 	    if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
 	    vvp_z3_randomize(defn, cobj, extra_ir, slot_vals);
       }
@@ -11624,7 +11643,7 @@ static void get_from_obj(unsigned pid, vvp_vinterface*vif, string&val)
 
 static void get_from_obj(unsigned pid, vvp_cobject*cobj, vvp_vector4_t&val)
 {
-      cobj->get_vec4(pid, val);
+      cobj->get_vec4_whole(pid, val);
 }
 
 static void get_from_obj(unsigned pid, vvp_vinterface*vif, vvp_vector4_t&val)
@@ -13340,7 +13359,7 @@ static void set_val(vvp_vinterface*vif, size_t pid, const string&val)
 
 static void set_val(vvp_cobject*cobj, size_t pid, const vvp_vector4_t&val)
 {
-      cobj->set_vec4(pid, val);
+      cobj->set_vec4_whole(pid, val);
 }
 
 static void set_val(vvp_vinterface*vif, size_t pid, const vvp_vector4_t&val)
