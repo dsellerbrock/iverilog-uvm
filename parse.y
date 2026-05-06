@@ -4856,9 +4856,8 @@ modport_tf_port
 
 clocking_declaration
   : K_clocking IDENTIFIER event_control ';'
-      { if (!pform_in_interface())
-	      yyerror(@1, "error: clocking declarations are only allowed "
-			  "in interfaces.");
+      { /* G-SV18: clocking blocks allowed in both interfaces and modules
+	   per IEEE 1800-2017 §14.3 */
 	pform_start_clocking_block(@2, $2, $3);
       }
     clocking_items_opt K_endclocking
@@ -4870,6 +4869,11 @@ clocking_declaration
       { delete[] $3; }
   | K_default K_clocking event_control ';' clocking_items_opt K_endclocking
       { /* anonymous default clocking */ }
+  /* G-SV18: `global clocking [name] event_control; endclocking` — parse and drop */
+  | K_global K_clocking IDENTIFIER event_control ';' clocking_items_opt K_endclocking
+      { delete[] $3; delete $4; }
+  | K_global K_clocking event_control ';' clocking_items_opt K_endclocking
+      { delete $3; }
   /* SV `default disable iff (expr);` — silently accepted. */
   | K_default K_disable K_iff '(' expression ')' ';'
       { delete $5; }
@@ -4910,6 +4914,16 @@ clocking_item
 		  pform_add_clocking_signal(@4, cur->first);
 	    delete $4;
       }
+  /* G-SV18: `default input skew output skew ;` and variants — parse and drop */
+  | K_default K_input '#' delay_value K_output '#' delay_value ';'
+      { delete $4; delete $7; }
+  | K_default K_input '#' delay_value ';'
+      { delete $4; }
+  | K_default K_output '#' delay_value ';'
+      { delete $4; }
+  | K_default K_input K_output '#' delay_value ';'
+      { delete $5; }
+  | K_default K_input K_output ';'
   ;
 
 clocking_items
