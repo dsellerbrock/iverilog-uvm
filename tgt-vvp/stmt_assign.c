@@ -1399,6 +1399,88 @@ static int show_stmt_assign_queue_pattern(ivl_signal_t var, ivl_expr_t rval,
             }
       }
 
+      /* G-SV7/8: When any element of a vec4-element queue pattern is itself
+       * a queue (e.g. a queue slice q[lo:hi]), switch to push_back/append
+       * because static element indices are not known at compile time.
+       *
+       * Self-referencing: if a slice references `var` (e.g. q={q[0:1],10,q[2:$]}),
+       * the source must be preserved before clearing.  We do this by pushing var's
+       * current object onto the obj stack (peekobj variants read from depth 0). */
+      if (max_elems >= 1
+          && (ivl_type_base(element_type) == IVL_VT_BOOL
+              || ivl_type_base(element_type) == IVL_VT_LOGIC)) {
+            int has_queue_elem = 0;
+            int has_self_slice = 0;
+            for (idx = 0 ; idx < max_elems ; idx += 1) {
+                  ivl_expr_t parm = ivl_expr_parm(rval, idx);
+                  if (expr_is_queue_container_(parm)) {
+                        has_queue_elem = 1;
+                        /* Detect self-referencing slice: $ivl_queue_slice(var,...) */
+                        if (ivl_expr_type(parm) == IVL_EX_SFUNC) {
+                              const char*nm = ivl_expr_name(parm);
+                              if ((strcmp(nm,"$ivl_queue_slice")==0
+                                   || strcmp(nm,"$ivl_queue_slice_from")==0)
+                                  && ivl_expr_parms(parm) >= 1) {
+                                    ivl_expr_t qa = ivl_expr_parm(parm, 0);
+                                    if (qa && ivl_expr_type(qa)==IVL_EX_SIGNAL
+                                        && ivl_expr_signal(qa)==var)
+                                          has_self_slice = 1;
+                              }
+                        }
+                  }
+            }
+            if (has_queue_elem) {
+                  unsigned wid = ivl_type_packed_width(element_type);
+                  if (has_self_slice) {
+                        /* Push var's current object so peekobj variants can see it */
+                        fprintf(vvp_out, "    %%load/obj v%p_0;\n", var);
+                  }
+                  /* Clear the queue */
+                  fprintf(vvp_out, "    %%null;\n");
+                  fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
+                  for (idx = 0 ; idx < max_elems ; idx += 1) {
+                        ivl_expr_t parm = ivl_expr_parm(rval, idx);
+                        if (expr_is_queue_container_(parm)) {
+                              if (has_self_slice
+                                  && ivl_expr_type(parm) == IVL_EX_SFUNC) {
+                                    const char*nm = ivl_expr_name(parm);
+                                    if (strcmp(nm,"$ivl_queue_slice")==0
+                                        && ivl_expr_parms(parm) >= 3) {
+                                          /* push lo, hi, then use peekobj */
+                                          draw_eval_vec4(ivl_expr_parm(parm, 1));
+                                          draw_eval_vec4(ivl_expr_parm(parm, 2));
+                                          fprintf(vvp_out, "    %%qslice/peekobj;\n");
+                                          fprintf(vvp_out, "    %%append/qv/v v%p_0, %d, %u;\n",
+                                                  var, max_idx, wid);
+                                          continue;
+                                    }
+                                    if (strcmp(nm,"$ivl_queue_slice_from")==0
+                                        && ivl_expr_parms(parm) >= 2) {
+                                          draw_eval_vec4(ivl_expr_parm(parm, 1));
+                                          fprintf(vvp_out, "    %%ix/vec4/s 3;\n");
+                                          fprintf(vvp_out, "    %%qslice_from/peekobj;\n");
+                                          fprintf(vvp_out, "    %%append/qv/v v%p_0, %d, %u;\n",
+                                                  var, max_idx, wid);
+                                          continue;
+                                    }
+                              }
+                              errors += draw_eval_object(parm);
+                              fprintf(vvp_out, "    %%append/qv/v v%p_0, %d, %u;\n",
+                                      var, max_idx, wid);
+                        } else {
+                              draw_eval_vec4(parm);
+                              fprintf(vvp_out, "    %%qpush_back/v v%p_0, %d, %u;\n",
+                                      var, max_idx, wid);
+                        }
+                  }
+                  if (has_self_slice) {
+                        /* Pop the saved source object */
+                        fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+                  }
+                  return errors;
+            }
+      }
+
       if (type_is_object_like_(element_type)) {
             for (idx = 0 ; idx < max_elems ; idx += 1) {
                   if (queue_pattern_operand_is_object_collection_(

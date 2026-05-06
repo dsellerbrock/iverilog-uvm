@@ -13897,6 +13897,53 @@ bool of_QSLICE(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %qslice/peekobj
+ * Like %qslice but reads source by PEEKING at top of obj stack (depth 0).
+ * Pops lo/hi from vec4 stack; pushes result queue on obj stack.
+ * Source remains at depth 1 (under the result). */
+bool of_QSLICE_PEEKOBJ(vthread_t thr, vvp_code_t cp)
+{
+      int64_t hi = (int64_t)vec4_to_index(thr, true);
+      int64_t lo = (int64_t)vec4_to_index(thr, true);
+      vvp_object_t& src_ref = thr->peek_object(0);
+      vvp_queue_vec4* src = dynamic_cast<vvp_queue_vec4*>(src_ref.peek<vvp_queue>());
+      vvp_queue_vec4* dst = new vvp_queue_vec4;
+      if (src) {
+            int64_t sz = (int64_t)src->get_size();
+            if (lo < 0) lo = 0;
+            if (hi >= sz) hi = sz - 1;
+            for (int64_t i = lo; i <= hi; i++) {
+                  vvp_vector4_t v;
+                  src->get_word((unsigned)i, v);
+                  dst->push_back(v, 0);
+            }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
+/* %qslice_from/peekobj
+ * Like %qslice_from but reads source by PEEKING at top of obj stack.
+ * Lo is in words[3]; pushes result queue on obj stack. */
+bool of_QSLICE_FROM_PEEKOBJ(vthread_t thr, vvp_code_t cp)
+{
+      int64_t lo = thr->words[3].w_int;
+      vvp_object_t& src_ref = thr->peek_object(0);
+      vvp_queue_vec4* src = dynamic_cast<vvp_queue_vec4*>(src_ref.peek<vvp_queue>());
+      vvp_queue_vec4* dst = new vvp_queue_vec4;
+      if (src) {
+            int64_t sz = (int64_t)src->get_size();
+            if (lo < 0) lo = 0;
+            for (int64_t i = lo; i < sz; i++) {
+                  vvp_vector4_t v;
+                  src->get_word((unsigned)i, v);
+                  dst->push_back(v, 0);
+            }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
 /*
  * %store/qdar/obj <var>, idx
  * Store an object into a queue element
@@ -14098,6 +14145,13 @@ static bool append_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 bool of_APPEND_QOBJ_OBJ(vthread_t thr, vvp_code_t cp)
 {
       return append_qobj<vvp_object_t, vvp_queue_object>(thr, cp);
+}
+
+/* %append/qv/v <var>, max_idx, wid
+ * Pop a queue object from the obj stack; append each vec4 element to <var>. */
+bool of_APPEND_QV_V(vthread_t thr, vvp_code_t cp)
+{
+      return append_qobj<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
 }
 
 static void vvp_send(vthread_t thr, vvp_net_ptr_t ptr, const double&val)

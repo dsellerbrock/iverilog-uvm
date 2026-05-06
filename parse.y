@@ -6143,6 +6143,16 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	tmp->push_back(index);
 	$$ = tmp;
       }
+  | '[' '*' ']'
+      { /* G-SV19: associative array with wildcard index [*] (IEEE 1800-2017 §7.8.1).
+	   Lowered to an integer-indexed associative array as a compile-progress stub. */
+	list<pform_range_t> *tmp = new std::list<pform_range_t>;
+	atom_type_t* itype = new atom_type_t(atom_type_t::INT, true);
+	pform_range_t index (new PEAssocType(itype),0);
+	pform_requires_sv(@$, "Associative array wildcard declaration");
+	tmp->push_back(index);
+	$$ = tmp;
+      }
   ;
 
 variable_lifetime_opt
@@ -12660,17 +12670,107 @@ statement_item /* This is roughly statement_item in the LRM */
   | unique_priority K_casez '(' expression ')' error K_endcase
       { yyerrok; }
 
-  /* randcase: randomly select from weighted items — parse and discard */
+  /* G-SV17: randcase — weighted random case (IEEE 1800-2017 §18.16).
+     Lowered to: declare __rc_wi per branch, __rc_sum, __rc_r;
+     assign weights; compute sum; pick random; build if-else chain. */
   | K_randcase case_items K_endcase
-      { for (auto* it : *$2) {
-	    for (auto* e : it->expr) delete e;
-	    if (it->stat) delete it->stat;
-	    delete it;
+      { static int rc_uid = 0;
+	int uid = rc_uid++;
+	auto& items = *$2;
+
+	/* Declare per-branch weight vars + sum + random result */
+	std::vector<char*> wnames;
+	for (size_t i = 0; i < items.size(); i++) {
+	      char* wn = new char[32];
+	      snprintf(wn, 32, "__rc_w%d_%zu", uid, i);
+	      rs_declare_int_(@1, wn);
+	      wnames.push_back(wn);
+	}
+	char rc_sum[32], rc_r[32];
+	snprintf(rc_sum, sizeof(rc_sum), "__rc_sum%d", uid);
+	snprintf(rc_r,   sizeof(rc_r),   "__rc_r%d",   uid);
+	rs_declare_int_(@1, rc_sum);
+	rs_declare_int_(@1, rc_r);
+
+	std::vector<Statement*> stmts;
+
+	/* __rc_wi = weight_i */
+	for (size_t i = 0; i < items.size(); i++) {
+	      PExpr* w;
+	      if (items[i]->expr.empty()) {
+		    w = new PENumber(new verinum((uint64_t)0, 32));
+	      } else {
+		    w = items[i]->expr.front();
+		    items[i]->expr.front() = nullptr; /* transfer ownership */
+	      }
+	      PAssign* a = new PAssign(rs_ident_(wnames[i]), w);
+	      FILE_NAME(a, @1);
+	      stmts.push_back(a);
+	}
+
+	/* __rc_sum = __rc_w0 + __rc_w1 + ... */
+	PExpr* sum_e = static_cast<PExpr*>(new PENumber(new verinum((uint64_t)0, 32)));
+	FILE_NAME(sum_e, @1);
+	for (size_t i = 0; i < items.size(); i++) {
+	      PEBinary* plus = new PEBinary('+', sum_e, rs_ident_(wnames[i]));
+	      FILE_NAME(plus, @1);
+	      sum_e = plus;
+	}
+	PAssign* asgn_sum = new PAssign(rs_ident_(rc_sum), sum_e);
+	FILE_NAME(asgn_sum, @1);
+	stmts.push_back(asgn_sum);
+
+	/* __rc_r = $urandom % __rc_sum */
+	pform_name_t ufn;
+	ufn.push_back(name_component_t(lex_strings.make("$urandom")));
+	list<named_pexpr_t> ufargs;
+	PECallFunction* urnd = new PECallFunction(ufn, ufargs);
+	FILE_NAME(urnd, @1);
+	PEBinary* mod_e = new PEBinary('%', urnd, rs_ident_(rc_sum));
+	FILE_NAME(mod_e, @1);
+	PAssign* asgn_r = new PAssign(rs_ident_(rc_r), mod_e);
+	FILE_NAME(asgn_r, @1);
+	stmts.push_back(asgn_r);
+
+	/* Build if-else chain (back-to-front):
+	   if (__rc_r < __rc_w0) s0
+	   else if (__rc_r < __rc_w0+__rc_w1) s1
+	   ...
+	   else sN-1 */
+	/* Compute cumulative weight identifiers */
+	std::vector<PExpr*> cum;
+	PExpr* run = nullptr;
+	for (size_t i = 0; i < items.size(); i++) {
+	      PEIdent* wi = rs_ident_(wnames[i]);
+	      if (!run) { run = wi; }
+	      else { run = new PEBinary('+', run, wi); FILE_NAME(run, @1); }
+	      cum.push_back(run);
+	}
+
+	Statement* chain = items.empty() ? nullptr : items.back()->stat;
+	if (!items.empty()) items.back()->stat = nullptr;
+	for (int i = (int)items.size()-2; i >= 0; --i) {
+	      PEBComp* cond = new PEBComp('<', rs_ident_(rc_r), cum[i]);
+	      FILE_NAME(cond, @1);
+	      chain = new PCondit(cond, items[i]->stat, chain);
+	      FILE_NAME(chain, @1);
+	      items[i]->stat = nullptr;
+	}
+	if (chain) stmts.push_back(chain);
+
+	/* Cleanup */
+	for (auto* wn : wnames) delete[] wn;
+	for (auto* it : items) {
+	      for (auto* e : it->expr) delete e;
+	      if (it->stat) delete it->stat;
+	      delete it;
 	}
 	delete $2;
-	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+
+	PBlock* blk = new PBlock(PBlock::BL_SEQ);
+	FILE_NAME(blk, @1);
+	blk->set_statement(stmts);
+	$$ = blk;
       }
   | K_randcase error K_endcase
       { yyerrok;
