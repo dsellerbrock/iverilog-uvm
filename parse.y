@@ -1356,9 +1356,9 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
 	$$ = tmp;
       }
   | K_LP K_default ':' expression '}'
-      { std::list<PExpr*> vals;
-	vals.push_back($4);
-	PEAssignPattern*tmp = new PEAssignPattern(vals);
+      { std::list<std::pair<perm_string,PExpr*>> named;
+	named.push_back(std::make_pair(lex_strings.make("default"), $4));
+	PEAssignPattern*tmp = new PEAssignPattern(named);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
@@ -1388,7 +1388,10 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
       }
   ;
 
-  /* Named member assignment pattern: '{field: val, ..., default: val} */
+  /* Named member assignment pattern: '{field: val, ..., default: val}
+     Also supports typed-key form: '{int: 0, byte: 1, default: val}
+     per IEEE 1800-2012 A.6.7.1.  Type keywords are stored as their
+     string name so the elaborator can do type-based member matching. */
 assignment_pattern_named_list
   : IDENTIFIER ':' expression
       { $$ = new std::list<std::pair<perm_string,PExpr*>>;
@@ -1399,6 +1402,34 @@ assignment_pattern_named_list
       { $$ = new std::list<std::pair<perm_string,PExpr*>>;
 	$$->push_back(std::make_pair(lex_strings.make("default"), $3));
       }
+  | K_int ':' expression
+      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
+	$$->push_back(std::make_pair(lex_strings.make("int"), $3));
+      }
+  | K_byte ':' expression
+      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
+	$$->push_back(std::make_pair(lex_strings.make("byte"), $3));
+      }
+  | K_shortint ':' expression
+      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
+	$$->push_back(std::make_pair(lex_strings.make("shortint"), $3));
+      }
+  | K_longint ':' expression
+      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
+	$$->push_back(std::make_pair(lex_strings.make("longint"), $3));
+      }
+  | K_integer ':' expression
+      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
+	$$->push_back(std::make_pair(lex_strings.make("integer"), $3));
+      }
+  | K_logic ':' expression
+      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
+	$$->push_back(std::make_pair(lex_strings.make("logic"), $3));
+      }
+  | K_bit ':' expression
+      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
+	$$->push_back(std::make_pair(lex_strings.make("bit"), $3));
+      }
   | assignment_pattern_named_list ',' IDENTIFIER ':' expression
       { $1->push_back(std::make_pair(lex_strings.make($3), $5));
 	delete[] $3;
@@ -1406,6 +1437,34 @@ assignment_pattern_named_list
       }
   | assignment_pattern_named_list ',' K_default ':' expression
       { $1->push_back(std::make_pair(lex_strings.make("default"), $5));
+	$$ = $1;
+      }
+  | assignment_pattern_named_list ',' K_int ':' expression
+      { $1->push_back(std::make_pair(lex_strings.make("int"), $5));
+	$$ = $1;
+      }
+  | assignment_pattern_named_list ',' K_byte ':' expression
+      { $1->push_back(std::make_pair(lex_strings.make("byte"), $5));
+	$$ = $1;
+      }
+  | assignment_pattern_named_list ',' K_shortint ':' expression
+      { $1->push_back(std::make_pair(lex_strings.make("shortint"), $5));
+	$$ = $1;
+      }
+  | assignment_pattern_named_list ',' K_longint ':' expression
+      { $1->push_back(std::make_pair(lex_strings.make("longint"), $5));
+	$$ = $1;
+      }
+  | assignment_pattern_named_list ',' K_integer ':' expression
+      { $1->push_back(std::make_pair(lex_strings.make("integer"), $5));
+	$$ = $1;
+      }
+  | assignment_pattern_named_list ',' K_logic ':' expression
+      { $1->push_back(std::make_pair(lex_strings.make("logic"), $5));
+	$$ = $1;
+      }
+  | assignment_pattern_named_list ',' K_bit ':' expression
+      { $1->push_back(std::make_pair(lex_strings.make("bit"), $5));
 	$$ = $1;
       }
   ;
@@ -11927,22 +11986,29 @@ statement_item /* This is roughly statement_item in the LRM */
 	PEStreaming::direction_t dir =
 	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT
 			   : PEStreaming::DIR_RSHIFT;
-	PExpr*lhs_inner = nullptr;
-	if ($4 && !$4->empty()) {
-	      lhs_inner = $4->front();
-	      $4->pop_front();
-	      while (!$4->empty()) { delete $4->front(); $4->pop_front(); }
-	}
-	delete $4;
-	if (!lhs_inner) {
+	if (!$4 || $4->empty()) {
 	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
 	      FILE_NAME(tmp, @1);
+	      delete $4;
 	      delete $8;
 	      $$ = tmp;
-	} else {
+	} else if ($4->size() == 1) {
+	      /* Single-element: {dir{x}} = rhs → x = {dir{rhs}} (Phase 63a/A3). */
+	      PExpr*lhs_inner = $4->front();
+	      delete $4;
 	      PEStreaming*rstream = new PEStreaming(dir, 1, $8);
 	      FILE_NAME(rstream, @1);
 	      PAssign*tmp = new PAssign(lhs_inner, rstream);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	} else {
+	      /* Multi-element: {>>{a,b,...}} = rhs → {a,b,...} = rhs (MSB-first).
+	         {<<{a,b,...}} = rhs → {b,a,...} = rhs (LSB-first, reverse order). */
+	      if (dir == PEStreaming::DIR_LSHIFT) $4->reverse();
+	      PEConcat*lhs = new PEConcat(*$4);
+	      FILE_NAME(lhs, @1);
+	      delete $4;
+	      PAssign*tmp = new PAssign(lhs, $8);
 	      FILE_NAME(tmp, @1);
 	      $$ = tmp;
 	}
@@ -11952,22 +12018,26 @@ statement_item /* This is roughly statement_item in the LRM */
 	delete $3;
 	PEStreaming::direction_t dir =
 	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
-	PExpr*lhs_inner = nullptr;
-	if ($5 && !$5->empty()) {
-	      lhs_inner = $5->front();
-	      $5->pop_front();
-	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
-	}
-	delete $5;
-	if (!lhs_inner) {
+	if (!$5 || $5->empty()) {
 	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
 	      FILE_NAME(tmp, @1);
+	      delete $5;
 	      delete $9;
 	      $$ = tmp;
-	} else {
+	} else if ($5->size() == 1) {
+	      PExpr*lhs_inner = $5->front();
+	      delete $5;
 	      PEStreaming*rstream = new PEStreaming(dir, 1, $9);
 	      FILE_NAME(rstream, @1);
 	      PAssign*tmp = new PAssign(lhs_inner, rstream);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	} else {
+	      if (dir == PEStreaming::DIR_LSHIFT) $5->reverse();
+	      PEConcat*lhs = new PEConcat(*$5);
+	      FILE_NAME(lhs, @1);
+	      delete $5;
+	      PAssign*tmp = new PAssign(lhs, $9);
 	      FILE_NAME(tmp, @1);
 	      $$ = tmp;
 	}
@@ -11985,22 +12055,26 @@ statement_item /* This is roughly statement_item in the LRM */
 	      }
 	}
 	delete $3;
-	PExpr*lhs_inner = nullptr;
-	if ($5 && !$5->empty()) {
-	      lhs_inner = $5->front();
-	      $5->pop_front();
-	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
-	}
-	delete $5;
-	if (!lhs_inner) {
+	if (!$5 || $5->empty()) {
 	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
 	      FILE_NAME(tmp, @1);
+	      delete $5;
 	      delete $9;
 	      $$ = tmp;
-	} else {
+	} else if ($5->size() == 1) {
+	      PExpr*lhs_inner = $5->front();
+	      delete $5;
 	      PEStreaming*rstream = new PEStreaming(dir, slice, $9);
 	      FILE_NAME(rstream, @1);
 	      PAssign*tmp = new PAssign(lhs_inner, rstream);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	} else {
+	      if (dir == PEStreaming::DIR_LSHIFT) $5->reverse();
+	      PEConcat*lhs = new PEConcat(*$5);
+	      FILE_NAME(lhs, @1);
+	      delete $5;
+	      PAssign*tmp = new PAssign(lhs, $9);
 	      FILE_NAME(tmp, @1);
 	      $$ = tmp;
 	}
