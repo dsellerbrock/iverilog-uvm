@@ -4525,6 +4525,27 @@ class NetEBShift : public NetEBinary {
 
 
 /*
+ * Assignment-in-expression node: (a = rhs), (a += rhs), etc.
+ * op_ is always '=' here (the compound expansion is done in elaborate_expr).
+ * left_ holds the lval signal expression (for type/width); right_ is the
+ * value to store.  Evaluated by drawing rhs, dup, store, leaving rhs on stack.
+ */
+class NetEBAssign : public NetEBinary {
+
+    public:
+      NetEBAssign(char op, NetExpr*lval, NetExpr*rhs, unsigned wid, bool sign);
+      ~NetEBAssign() override;
+
+      virtual NetEBAssign* dup_expr() const override;
+      virtual NetExpr* eval_tree() override;
+      virtual NetExpr* evaluate_function(const LineInfo&loc,
+	    std::map<perm_string,LocalVar>&ctx) const override;
+
+    private:
+      virtual NetExpr* eval_arguments_(const NetExpr*, const NetExpr*) const override;
+};
+
+/*
  * This expression node supports the concat expression. This is an
  * operator that just glues the results of many expressions into a
  * single value.

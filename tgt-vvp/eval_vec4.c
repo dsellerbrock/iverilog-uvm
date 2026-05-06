@@ -746,6 +746,82 @@ static void draw_binary_vec4_lrs(ivl_expr_t expr)
       clr_word(use_index_reg);
 }
 
+/* Emit code for assignment-in-expression (a=rhs), (a+=rhs), etc.
+ * oper1 = lval expression (signal/property/select); oper2 = new value.
+ * Pattern: eval oper2 → %dup/vec4 → %store → result (oper2) stays on stack.
+ */
+static void draw_assign_expr_vec4(ivl_expr_t expr)
+{
+      ivl_expr_t lval = ivl_expr_oper1(expr);
+      ivl_expr_t rval = ivl_expr_oper2(expr);
+      unsigned wid = ivl_expr_width(expr);
+
+      draw_eval_vec4(rval);
+      fprintf(vvp_out, "    %%dup/vec4;\n");
+
+      switch (ivl_expr_type(lval)) {
+	  case IVL_EX_SIGNAL: {
+	    ivl_signal_t sig = ivl_expr_signal(lval);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
+	    break;
+	  }
+
+	  case IVL_EX_PROPERTY: {
+	    unsigned pidx     = ivl_expr_property_idx(lval);
+	    ivl_expr_t pbase  = ivl_expr_oper2(lval);
+	    ivl_expr_t pword  = ivl_expr_oper1(lval);
+	    if ((pidx == (unsigned)-1) || !pbase || pword) {
+		  fprintf(stderr, "%s:%u: vvp.tgt sorry: assign-in-expr "
+			  "on unsupported property form.\n",
+			  ivl_expr_file(lval), ivl_expr_lineno(lval));
+		  /* leave rval on stack as fallback */
+		  break;
+	    }
+	    /* stack: ... rval rval-dup  → store rval-dup, pop object */
+	    /* We need the object on stack first for %store/prop/v.
+	     * Swap: draw object, move rval-dup to slot, store.
+	     * Simpler: pop dup, eval object, re-eval rval, store. */
+	    fprintf(vvp_out, "    %%pop/vec4 1;\n");
+	    draw_eval_object(pbase);
+	    draw_eval_vec4(rval);
+	    fprintf(vvp_out, "    %%dup/vec4;\n");
+	    fprintf(vvp_out, "    %%store/prop/v %u, %u;\n", pidx, wid);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    break;
+	  }
+
+	  case IVL_EX_SELECT: {
+	    ivl_expr_t e1 = ivl_expr_oper1(lval);
+	    ivl_signal_t sig = ivl_expr_signal(e1);
+	    unsigned base = 0;
+	    ivl_expr_t base_expr = ivl_expr_oper2(lval);
+	    if (base_expr) {
+		  /* dynamic base — use %store/vec4 with a word offset.
+		   * For simple cases draw offset, then store. */
+		  fprintf(stderr, "%s:%u: vvp.tgt sorry: assign-in-expr "
+			  "on dynamic select not yet supported.\n",
+			  ivl_expr_file(lval), ivl_expr_lineno(lval));
+		  /* fallback: drop dup, store full signal */
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+			  sig, wid);
+	    } else {
+		  (void)base;
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+			  sig, wid);
+	    }
+	    break;
+	  }
+
+	  default:
+	    fprintf(stderr, "%s:%u: vvp.tgt sorry: assign-in-expr "
+		    "lval type %d not supported.\n",
+		    ivl_expr_file(lval), ivl_expr_lineno(lval),
+		    ivl_expr_type(lval));
+	    /* rval stays on stack as the expression result */
+	    break;
+      }
+}
+
 static void draw_binary_vec4(ivl_expr_t expr)
 {
       switch (ivl_expr_opcode(expr)) {
@@ -800,6 +876,10 @@ static void draw_binary_vec4(ivl_expr_t expr)
 
 	  case 'Q': /* <-> (logical equivalence) */
 	    draw_binary_vec4_lequiv(expr);
+	    break;
+
+	  case '=': /* assignment-in-expression */
+	    draw_assign_expr_vec4(expr);
 	    break;
 
 	  default:

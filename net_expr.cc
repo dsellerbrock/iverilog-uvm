@@ -297,6 +297,41 @@ ivl_variable_type_t NetEBShift::expr_type() const
       return IVL_VT_BOOL;
 }
 
+NetEBAssign::NetEBAssign(char op__, NetExpr*lval, NetExpr*rhs, unsigned wid, bool sign)
+: NetEBinary(op__, lval, rhs, wid, sign)
+{
+}
+
+NetEBAssign::~NetEBAssign()
+{
+}
+
+NetEBAssign* NetEBAssign::dup_expr() const
+{
+      NetEBAssign*tmp = new NetEBAssign(op_, left_->dup_expr(), right_->dup_expr(),
+					expr_width(), has_sign());
+      tmp->set_line(*this);
+      return tmp;
+}
+
+NetExpr* NetEBAssign::eval_tree()
+{
+      return nullptr;
+}
+
+NetExpr* NetEBAssign::evaluate_function(const LineInfo&loc,
+      std::map<perm_string,LocalVar>&) const
+{
+      cerr << loc.get_fileline() << ": sorry: assignment-in-expression "
+	   << "not supported inside constant functions." << endl;
+      return nullptr;
+}
+
+NetExpr* NetEBAssign::eval_arguments_(const NetExpr*, const NetExpr*) const
+{
+      return nullptr;
+}
+
 NetEConcat::NetEConcat(unsigned cnt, unsigned r, ivl_variable_type_t vt)
 : parms_(cnt), repeat_(r), expr_type_(vt)
 {

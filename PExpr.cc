@@ -231,6 +231,40 @@ PEBShift::~PEBShift()
 {
 }
 
+PEAssignExpr::PEAssignExpr(PExpr*lval, char op, PExpr*rhs)
+: lval_(lval), op_(op), rhs_(rhs)
+{
+}
+
+PEAssignExpr::~PEAssignExpr()
+{
+      delete lval_;
+      delete rhs_;
+}
+
+void PEAssignExpr::dump(std::ostream&out) const
+{
+      out << "(";
+      lval_->dump(out);
+      if (op_ == '=')
+	    out << " = ";
+      else
+	    out << " " << op_ << "= ";
+      rhs_->dump(out);
+      out << ")";
+}
+
+bool PEAssignExpr::has_aa_term(Design*des, NetScope*scope) const
+{
+      return lval_->has_aa_term(des, scope) || rhs_->has_aa_term(des, scope);
+}
+
+void PEAssignExpr::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
+{
+      lval_->declare_implicit_nets(scope, type);
+      rhs_->declare_implicit_nets(scope, type);
+}
+
 PECallFunction::PECallFunction(const pform_name_t &n, const vector<named_pexpr_t> &parms)
 : path_(n), parms_(parms), is_overridden_(false)
 {

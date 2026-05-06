@@ -961,6 +961,33 @@ class PEBShift  : public PEBLeftWidth {
 };
 
 /*
+ * Assignment-in-expression: (lval = rhs), (lval += rhs), etc.
+ * op_ is '=' for simple assignment, or a compressed_operator char.
+ */
+class PEAssignExpr : public PExpr {
+
+    public:
+      explicit PEAssignExpr(PExpr*lval, char op, PExpr*rhs);
+      ~PEAssignExpr() override;
+
+      void dump(std::ostream&out) const override;
+
+      bool has_aa_term(Design*des, NetScope*scope) const override;
+      void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
+
+      unsigned test_width(Design*des, NetScope*scope,
+			  width_mode_t&mode) override;
+
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+			      unsigned expr_wid, unsigned flags) const override;
+
+    private:
+      PExpr* lval_;
+      char   op_;
+      PExpr* rhs_;
+};
+
+/*
  * This class supports the ternary (?:) operator. The operator takes
  * three expressions, the test, the true result and the false result.
  */

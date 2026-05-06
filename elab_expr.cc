@@ -11679,6 +11679,100 @@ NetEConst* PEString::elaborate_expr(Design*, NetScope*,
       return tmp;
 }
 
+unsigned PEAssignExpr::test_width(Design*des, NetScope*scope, width_mode_t&mode)
+{
+      unsigned wid = lval_->test_width(des, scope, mode);
+      expr_type_   = lval_->expr_type();
+      expr_width_  = wid;
+      min_width_   = wid;
+      signed_flag_ = lval_->has_sign();
+      return fix_width_(mode);
+}
+
+NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
+				      unsigned expr_wid, unsigned flags) const
+{
+      flags &= ~SYS_TASK_ARG;
+
+      // Elaborate the lval as a read expression to get type/width.
+      NetExpr*lval_expr = lval_->elaborate_expr(des, scope, expr_wid, flags);
+      if (!lval_expr) return nullptr;
+
+      unsigned wid = lval_expr->expr_width();
+      bool sign    = lval_expr->has_sign();
+
+      // Elaborate rhs — use lval width as context width.
+      NetExpr*rval_expr = rhs_->elaborate_expr(des, scope, wid, flags);
+      if (!rval_expr) {
+	    delete lval_expr;
+	    return nullptr;
+      }
+
+      // Build the new value to store.
+      NetExpr*new_val = rval_expr;
+
+      if (op_ != '=') {
+	    // For compound ops, re-elaborate lval as a fresh read.
+	    NetExpr*lval_read = lval_->elaborate_expr(des, scope, wid, flags);
+	    if (!lval_read) {
+		  delete lval_expr;
+		  delete rval_expr;
+		  return nullptr;
+	    }
+
+	    switch (op_) {
+	      case '+':
+		new_val = new NetEBAdd('+', lval_read, rval_expr, wid, sign);
+		break;
+	      case '-':
+		new_val = new NetEBAdd('-', lval_read, rval_expr, wid, sign);
+		break;
+	      case '*':
+		new_val = new NetEBMult('*', lval_read, rval_expr, wid, sign);
+		break;
+	      case '/':
+		new_val = new NetEBDiv('/', lval_read, rval_expr, wid, sign);
+		break;
+	      case '%':
+		new_val = new NetEBDiv('%', lval_read, rval_expr, wid, sign);
+		break;
+	      case '&':
+		new_val = new NetEBBits('&', lval_read, rval_expr, wid, sign);
+		break;
+	      case '|':
+		new_val = new NetEBBits('|', lval_read, rval_expr, wid, sign);
+		break;
+	      case '^':
+		new_val = new NetEBBits('^', lval_read, rval_expr, wid, sign);
+		break;
+	      case 'l': /* <<= */
+		new_val = new NetEBShift('l', lval_read, rval_expr, wid, sign);
+		break;
+	      case 'r': /* >>= */
+		new_val = new NetEBShift('r', lval_read, rval_expr, wid, sign);
+		break;
+	      case 'R': /* >>>= */
+		new_val = new NetEBShift('R', lval_read, rval_expr, wid, sign);
+		break;
+	      default:
+		cerr << get_fileline() << ": sorry: compound assign-in-expression "
+		     << "operator '" << op_ << "' not supported." << endl;
+		des->errors += 1;
+		delete lval_expr;
+		delete lval_read;
+		delete rval_expr;
+		return nullptr;
+	    }
+	    new_val->set_line(*this);
+      }
+
+      // NetEBAssign(op='=', lval_expr, new_val): lval_expr carries the
+      // signal identity for the store; new_val is the value to write.
+      NetEBAssign*tmp = new NetEBAssign('=', lval_expr, new_val, wid, sign);
+      tmp->set_line(*this);
+      return tmp;
+}
+
 unsigned PETernary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
 	// The condition of the ternary is self-determined, so

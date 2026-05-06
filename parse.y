@@ -8245,6 +8245,18 @@ expr_primary
   | '(' expr_mintypmax ')'
       { $$ = $2; }
 
+  /* Assignment-in-expression: (lval = rhs) and (lval op= rhs) */
+  | '(' lpvalue '=' expression ')'
+      { PEAssignExpr*tmp = new PEAssignExpr($2, '=', $4);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  | '(' lpvalue compressed_operator expression ')'
+      { PEAssignExpr*tmp = new PEAssignExpr($2, $3, $4);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+
   /* Various kinds of concatenation expressions. */
 
   | '{' expression_list_proper '}'
