@@ -22,8 +22,10 @@
 
 # include  "PExpr.h"
 # include  "PPackage.h"
+# include  "PWire.h"
 # include  "netlist.h"
 # include  "netmisc.h"
+# include  "netclass.h"
 # include  "netstruct.h"
 # include  "netvector.h"
 # include  "compiler.h"
@@ -540,6 +542,52 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       NetNet*sig = sr.net;
       pform_name_t base_path = sr.path_head;
       pform_name_t member_path = sr.path_tail;
+
+      if (sig == 0) {
+	    // G28/G29: interface array element (b[0]) or modport-select
+	    // (b.mst) resolve to scopes with no companion net.  Synthesise
+	    // a WIRE net for the interface instance so port connection can
+	    // proceed.  For b.mst the modport name is captured in path_tail
+	    // and direction enforcement is a follow-up.
+	    NetScope *iface_scope = nullptr;
+	    if (sr.scope) {
+		  if (sr.scope->is_interface()) {
+			// G28: b[0] — sr.scope IS the interface element scope.
+			iface_scope = sr.scope;
+		  } else if (sr.scope->parent() && sr.scope->parent()->is_interface()) {
+			// G29: b.mst — sr.scope is a modport scope inside interface b.
+			iface_scope = sr.scope->parent();
+		  }
+	    }
+	    if (iface_scope && iface_scope->parent()) {
+		  perm_string iname = iface_scope->basename();
+		  NetScope *pscope = iface_scope->parent();
+		  // Check signals_map_ first (may have been elaborated already).
+		  sig = pscope->find_signal(iname);
+		  // Try un-elaborated placeholder.
+		  if (!sig) {
+			if (PWire*pw = pscope->find_signal_placeholder(iname))
+			      sig = pw->elaborate_sig(des, pscope);
+		  }
+		  // Synthesise a typed wire for the interface instance.  This
+		  // mirrors what declare_implicit_nets does for simple identifiers,
+		  // but deferred to elaboration for dotted paths like b.mst.
+		  if (!sig) {
+			perm_string imod = iface_scope->module_name();
+			ivl_type_t net_type = nullptr;
+			if (!imod.nil())
+			      net_type = ensure_visible_class_type(des, pscope, imod);
+			if (net_type) {
+			      sig = new NetNet(pscope, iname, NetNet::WIRE, net_type);
+			} else {
+			      const netvector_t *logic1 =
+				    new netvector_t(IVL_VT_LOGIC, 0, 0);
+			      sig = new NetNet(pscope, iname, NetNet::WIRE, logic1);
+			}
+			sig->set_line(*this);
+		  }
+	    }
+      }
 
       if (sig == 0) {
 	    cerr << get_fileline() << ": error: Net " << path_
