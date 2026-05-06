@@ -2576,6 +2576,40 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+      /* G35: reverse() on fixed-size unpacked arrays (netuarray_t). */
+      if (strcmp(stmt_name,"$ivl_uarray_method$reverse") == 0) {
+	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
+		  ? ivl_stmt_parm(net, 0) : 0;
+	    ivl_expr_type_t etype = parm0 ? ivl_expr_type(parm0) : IVL_EX_NONE;
+	    if (!parm0 || (etype != IVL_EX_SIGNAL && etype != IVL_EX_ARRAY)
+		|| !ivl_expr_signal(parm0)) {
+		  return 0;
+	    }
+	    ivl_signal_t sig = ivl_expr_signal(parm0);
+	    fprintf(vvp_out, "    %%uarray_reverse v%p;\n", sig);
+	    return 0;
+      }
+
+      /* G36: sort()/rsort()/shuffle() on fixed-size unpacked arrays. */
+      if (strcmp(stmt_name,"$ivl_uarray_method$sort") == 0
+	  || strcmp(stmt_name,"$ivl_uarray_method$rsort") == 0
+	  || strcmp(stmt_name,"$ivl_uarray_method$shuffle") == 0) {
+	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
+		  ? ivl_stmt_parm(net, 0) : 0;
+	    ivl_expr_type_t etype = parm0 ? ivl_expr_type(parm0) : IVL_EX_NONE;
+	    if (!parm0 || (etype != IVL_EX_SIGNAL && etype != IVL_EX_ARRAY)
+		|| !ivl_expr_signal(parm0)) {
+		  return 0;
+	    }
+	    ivl_signal_t sig = ivl_expr_signal(parm0);
+	    const char*opcode =
+		  (strcmp(stmt_name,"$ivl_uarray_method$sort")==0)    ? "%uarray_sort"    :
+		  (strcmp(stmt_name,"$ivl_uarray_method$rsort")==0)   ? "%uarray_rsort"   :
+		  "%uarray_shuffle";
+	    fprintf(vvp_out, "    %s v%p;\n", opcode, sig);
+	    return 0;
+      }
+
       /* Phase 63b/Q-methods (gap close): sort/rsort/unique with
        * iterator+with-clause comparator.  Decorate-sort-undecorate:
        * walk q, evaluate predicate per element (with iter set to

@@ -332,6 +332,7 @@ extern bool of_PROP_V_I(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_KILL(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_SELF(vthread_t thr, vvp_code_t code);
+extern bool of_PROCESS_STATUS(vthread_t thr, vvp_code_t code);
 /* Mailbox opcodes */
 extern bool of_MBX_NEW(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_PUT(vthread_t thr, vvp_code_t code);
@@ -359,6 +360,10 @@ extern bool of_RELEASE_REG(vthread_t thr, vvp_code_t code);
 extern bool of_RELEASE_WR(vthread_t thr, vvp_code_t code);
 extern bool of_REPLICATE(vthread_t thr, vvp_code_t code);
 extern bool of_QREVERSE(vthread_t thr, vvp_code_t code);
+extern bool of_UARRAY_REVERSE(vthread_t thr, vvp_code_t code);
+extern bool of_UARRAY_RSORT(vthread_t thr, vvp_code_t code);
+extern bool of_UARRAY_SHUFFLE(vthread_t thr, vvp_code_t code);
+extern bool of_UARRAY_SORT(vthread_t thr, vvp_code_t code);
 extern bool of_QRSORT_KEYS(vthread_t thr, vvp_code_t code);
 extern bool of_QSHUFFLE(vthread_t thr, vvp_code_t code);
 extern bool of_QSORT_KEYS(vthread_t thr, vvp_code_t code);

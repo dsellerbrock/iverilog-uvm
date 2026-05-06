@@ -2759,6 +2759,11 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 	    if (class_type->is_interface())
 		  return CP_EXPR_METHOD_STUB_INT0;
 
+	    // process built-ins (status, kill, self) have real implementations;
+	    // never stub them so the real built-in dispatch path is reached.
+	    if (class_type->get_name() == perm_string::literal("process"))
+		  return CP_EXPR_METHOD_STUB_NONE;
+
 	    perm_string class_name = class_type->get_name();
 	    if (class_name == perm_string::literal("mailbox")) {
 		  if (method_name == perm_string::literal("num"))
@@ -5580,7 +5585,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 
 	    // Handle method call on a function-call result: fn().method(args).
 	    // The parser stores the receiver expression in subject_expr_; elaborate
-	    // it to find the class type, then dispatch the method on that type.
+	    // it to find the class/enum type, then dispatch the method on that type.
 	    if (subject_expr_ && path_.name.size() == 1) {
 		  NetExpr*rcvr = subject_expr_->elaborate_expr(des, scope, -1, 0);
 		  if (rcvr) {
@@ -5595,6 +5600,25 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      NetScope*method_scope = class_type->method_from_name(method_name);
 			      if (method_scope && method_scope->type() == NetScope::FUNC)
 				    return elaborate_base_(des, scope, method_scope, flags, rcvr);
+			}
+			// G31: enum.method() on function-return value.
+			// NetEUFunc stores net_type_ from res->net_type() in ctor,
+			// so rcvr->net_type() may already be the netenum_t if the
+			// return signal has enum type.  Fall back to result_sig() if not.
+			const netenum_t*enum_type =
+			      dynamic_cast<const netenum_t*>(rcvr->net_type());
+			if (!enum_type) {
+			      const NetEUFunc*ufunc = dynamic_cast<const NetEUFunc*>(rcvr);
+			      if (ufunc && ufunc->result_sig())
+				    enum_type = dynamic_cast<const netenum_t*>(
+					  ufunc->result_sig()->net_type());
+			}
+			if (enum_type) {
+			      perm_string method_name = peek_tail_name(path_);
+			      if (NetExpr*result = check_for_enum_methods(this, des, scope,
+								enum_type, path_,
+								method_name, rcvr, parms_))
+				    return result;
 			}
 			delete rcvr;
 		  }
@@ -6666,10 +6690,10 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 				delete sub_expr;
 				return 0;
 			  }
-			  int pidx = class_type->property_idx_from_name(method_name);
-			  ivl_assert(*this, pidx >= 0);
-			  NetEProperty*tmp = new NetEProperty(sub_expr, pidx, 0);
+			  NetESFunc*tmp = new NetESFunc("$ivl_process$status",
+						       IVL_VT_LOGIC, 32, 1);
 			  tmp->set_line(*this);
+			  tmp->parm(0, sub_expr);
 			  return tmp;
 		    }
 		    if (method_name == perm_string::literal("get_randstate")
