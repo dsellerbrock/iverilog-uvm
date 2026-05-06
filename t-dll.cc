@@ -512,6 +512,12 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
       for (pit_t cur_pit = net->parameters.begin()
 		 ; cur_pit != net->parameters.end() ; ++ cur_pit ) {
 
+	    /* Unresolved parameters in unspecialized class templates have
+	     * no evaluated type yet; skip them silently. */
+	    if (cur_pit->second.ivl_type == 0
+		&& net->type() == NetScope::CLASS)
+		  continue;
+
 	    assert(idx < scop->param.size());
 	    ivl_parameter_t cur_par = &scop->param[idx];
 	    cur_par->basename = cur_pit->first;
@@ -549,6 +555,9 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 
 	    idx += 1;
       }
+      /* Trim trailing slots that were pre-allocated but not used
+       * (e.g., unresolved class template parameters that were skipped). */
+      scop->param.resize(idx);
 }
 
 void dll_target::make_scope_param_expr(ivl_parameter_t cur_par, NetExpr*etmp)

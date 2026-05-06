@@ -2019,11 +2019,17 @@ class_type_parameter_port_item
 	pending_class_params.push_back(tmp);
 	$$ = list_from_identifier($2, @2.lexical_pos);
       }
-  /* Support shorthand continuation after a type parameter, e.g.
-     #(type KEY=int, T=uvm_void) */
+  /* Support shorthand continuation after a type or value parameter, e.g.
+     #(type KEY=int, T=uvm_void) or #(parameter A, B) (IEEE 1800 §6.20). */
   | IDENTIFIER initializer_opt
-      { if (!pending_class_params.empty() && pending_class_params.back().is_type) {
-	      pending_class_param_t tmp = { lex_strings.make($1), true, 0, $2 };
+      { if (!pending_class_params.empty()) {
+	      pending_class_param_t&prev = pending_class_params.back();
+	      pending_class_param_t tmp = {
+		    lex_strings.make($1),
+		    prev.is_type,
+		    prev.is_type ? nullptr : prev.data_type,
+		    $2
+	      };
 	      pending_class_params.push_back(tmp);
 	      $$ = list_from_identifier($1, @1.lexical_pos);
 	} else {
@@ -2220,6 +2226,11 @@ class_item /* IEEE1800-2005: A.1.8 */
 
   | K_const class_item_qualifier_opt data_type list_of_variable_decl_assignments ';'
       { pform_class_property(@1, $2 | property_qualifier_t::make_const(), $3, $4); }
+
+  /* Allow qualifier order: static const / local const / protected const
+     as well as the canonical const [static|local|protected] form above. */
+  | class_item_qualifier_list K_const data_type list_of_variable_decl_assignments ';'
+      { pform_class_property(@1, $1 | property_qualifier_t::make_const(), $3, $4); }
 
   | property_qualifier_opt K_event event_variable_list ';'
       { if ($3) pform_make_events(@2, $3); }

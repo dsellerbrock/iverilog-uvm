@@ -1243,6 +1243,27 @@ void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
             return;
 
       if (cur->second.val_expr == 0) {
+	    /* Class parameters without default values are valid in an
+	     * unspecialized class (IEEE 1800 §8.25).  The error is only
+	     * meaningful when the class is specialized without an override.
+	     * Still elaborate the declared type so downstream code
+	     * (dll_target::make_scope_parameters) has a non-null ivl_type. */
+	    if (type() == NetScope::CLASS) {
+		  if (cur->second.type_flag) {
+			/* type parameter — leave ivl_type as null; the
+			 * specialization pass will fill it in. */
+		  } else if (cur->second.val_type) {
+			cur->second.ivl_type =
+			      cur->second.val_type->elaborate_type(des, this);
+			cur->second.val_type = 0;
+		  }
+		  /* Use a placeholder value so make_scope_parameters doesn't
+		   * assert on null val when iterating class parameters. */
+		  if (!cur->second.type_flag && !cur->second.val)
+			cur->second.val = new NetEConst(verinum(verinum::Vx));
+		  return;
+	    }
+
 	    cerr << this->get_fileline() << ": error: "
 	         << "Missing value for parameter `"
 	         << cur->first << "`." << endl;
