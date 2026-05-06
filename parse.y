@@ -3204,6 +3204,12 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
               $$ = nullptr;
         }
       }
+  /* SV §18.5.14.2: disable soft var — drop all soft constraints on var */
+  | K_disable K_soft expression ';'
+      { delete $3; $$ = nullptr; }
+  /* SV §18.5.5: unique {a, b, ...} — uniqueness constraint (not yet enforced) */
+  | K_unique '{' expression_list_proper '}' ';'
+      { delete $3; $$ = nullptr; }
   ;
 
 dist_list_opt
@@ -3274,6 +3280,11 @@ constraint_prototype /* IEEE1800-2005: A.1.9 */
       { /* silently accept extern constraint prototype */ delete[] $3; }
   | K_extern K_static K_constraint IDENTIFIER ';'
       { /* silently accept extern static constraint prototype */ delete[] $4; }
+  /* SV §18.5.2: pure constraint — abstract constraint in virtual class */
+  | K_pure K_constraint IDENTIFIER ';'
+      { delete[] $3; }
+  | K_pure K_static K_constraint IDENTIFIER ';'
+      { delete[] $4; }
   ;
 
 constraint_set /* G17: typed, returns list of constraint expressions */
@@ -7257,9 +7268,22 @@ event_expression
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  /* SV §9.4.2.3: posedge/negedge/edge with iff guard — drop guard */
+  | K_posedge expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::POSEDGE, $2);
+	FILE_NAME(tmp, @1);
+	delete $4;
+	$$ = tmp;
+      }
   | K_negedge expression
       { PEEvent*tmp = new PEEvent(PEEvent::NEGEDGE, $2);
 	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_negedge expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::NEGEDGE, $2);
+	FILE_NAME(tmp, @1);
+	delete $4;
 	$$ = tmp;
       }
   | K_edge expression
@@ -7268,9 +7292,21 @@ event_expression
 	$$ = tmp;
 	pform_requires_sv(@1, "Edge event");
       }
+  | K_edge expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::EDGE, $2);
+	FILE_NAME(tmp, @1);
+	delete $4;
+	$$ = tmp;
+      }
   | expression
       { PEEvent*tmp = new PEEvent(PEEvent::ANYEDGE, $1);
 	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::ANYEDGE, $1);
+	FILE_NAME(tmp, @1);
+	delete $3;
 	$$ = tmp;
       }
   ;
@@ -10296,7 +10332,7 @@ module_item
 
   | task_declaration
 
-  | function_declaration
+  | package_function_declaration
 
   | dpi_import_export_declaration
 
@@ -12825,6 +12861,38 @@ statement_item /* This is roughly statement_item in the LRM */
   | K_if '(' error ')' statement_or_null K_else statement_or_null
       { yyerror(@1, "error: Malformed conditional expression.");
 	$$ = $5;
+      }
+  /* SV §12.4.2: unique/unique0/priority qualifiers on if statements.
+     The qualifier is a simulation hint; lower to plain if. */
+  | K_unique K_if '(' expression ')' statement_or_null %prec less_than_K_else
+      { PCondit*tmp = new PCondit($4, $6, 0);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_unique K_if '(' expression ')' statement_or_null K_else statement_or_null
+      { PCondit*tmp = new PCondit($4, $6, $8);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_unique0 K_if '(' expression ')' statement_or_null %prec less_than_K_else
+      { PCondit*tmp = new PCondit($4, $6, 0);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_unique0 K_if '(' expression ')' statement_or_null K_else statement_or_null
+      { PCondit*tmp = new PCondit($4, $6, $8);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_priority K_if '(' expression ')' statement_or_null %prec less_than_K_else
+      { PCondit*tmp = new PCondit($4, $6, 0);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_priority K_if '(' expression ')' statement_or_null K_else statement_or_null
+      { PCondit*tmp = new PCondit($4, $6, $8);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
       }
   /* SystemVerilog adds the compressed_statement */
 
