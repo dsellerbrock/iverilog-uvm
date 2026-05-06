@@ -9102,6 +9102,31 @@ gate_instance
 	$$ = tmp;
       }
 
+  /* Variable declaration with initializer: TYPE_IDENTIFIER var = expr;
+     The '=' disambiguates from plain module instantiation. */
+  | IDENTIFIER '=' expression
+      { lgate*tmp = new lgate;
+	tmp->name = $1;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	tmp->init_expr = $3;
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+
+  | IDENTIFIER dimensions '=' expression
+      { lgate*tmp = new lgate;
+	tmp->name = $1;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	tmp->ranges = $2;
+	tmp->init_expr = $4;
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+
   | IDENTIFIER dimensions '(' port_conn_expression_list_with_nuls ')'
       { lgate*tmp = new lgate;
 	tmp->name = $1;

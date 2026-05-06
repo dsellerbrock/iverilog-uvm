@@ -2777,6 +2777,8 @@ void pform_make_modgates(const struct vlltype&loc,
 			      delete cur.ranges;
 			      cur.ranges = 0;
 			}
+			if (cur.init_expr)
+			      decl->expr.reset(cur.init_expr);
 			decls->push_back(decl);
 		  }
 

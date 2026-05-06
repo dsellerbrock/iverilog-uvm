@@ -1098,6 +1098,62 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
 	    return res2;
       }
 
+      /* Named/keyed array pattern: '{idx: val, ..., default: val}
+         Expand to a positional list ordered by the dimension's index range. */
+      if (!parm_names_.empty()) {
+	    static const perm_string def_key = lex_strings.make("default");
+	    map<perm_string,PExpr*> name_map;
+	    for (size_t ii = 0; ii < parm_names_.size(); ii++)
+		  name_map[parm_names_[ii]] = parms_[ii];
+	    PExpr*dflt = nullptr;
+	    auto dit = name_map.find(def_key);
+	    if (dit != name_map.end()) dflt = dit->second;
+
+	    long lo = dims[cur_dim].get_msb();
+	    long hi = dims[cur_dim].get_lsb();
+	    bool up_local = lo < hi;
+	    long step = up_local ? 1 : -1;
+	    std::list<PExpr*> expanded;
+	    for (long idx = lo; ; idx += step) {
+		  ostringstream key_buf;
+		  key_buf << idx;
+		  perm_string key = lex_strings.make(key_buf.str());
+		  auto it = name_map.find(key);
+		  PExpr*src = (it != name_map.end()) ? it->second : dflt;
+		  if (!src) {
+			cerr << get_fileline() << ": error: Named array pattern "
+			     << "has no value for index " << idx
+			     << " and no default." << endl;
+			des->errors++;
+			src = parms_[0]; // dummy to continue
+		  }
+		  expanded.push_back(src);
+		  if (idx == hi) break;
+	    }
+	    PEAssignPattern expanded_pat(expanded);
+	    expanded_pat.set_line(*this);
+	    bool up_dim = dims[cur_dim].get_msb() < dims[cur_dim].get_lsb();
+	    if (cur_dim == dims.size() - 1)
+		  return expanded_pat.elaborate_expr_array_(des, scope, uarray_type,
+							   need_const, up_dim);
+	    /* multi-dim: recurse per element */
+	    vector<NetExpr*> elem_exprs2(dim_width);
+	    size_t ei2 = up_dim ? 0 : dim_width - 1;
+	    unsigned next_dim2 = cur_dim + 1;
+	    auto it2 = expanded.begin();
+	    for (unsigned idx2 = 0; idx2 < dim_width; idx2++, ++it2) {
+		  NetExpr *expr = nullptr;
+		  if (const auto ap = dynamic_cast<PEAssignPattern*>(*it2))
+			expr = ap->elaborate_expr_uarray_(des, scope, uarray_type,
+							  dims, next_dim2, need_const);
+		  elem_exprs2[ei2] = expr;
+		  if (up_dim) ei2++; else ei2--;
+	    }
+	    NetEArrayPattern *res3 = new NetEArrayPattern(uarray_type, elem_exprs2);
+	    res3->set_line(*this);
+	    return res3;
+      }
+
       if (dim_width != parms_.size()) {
 	    cerr << get_fileline() << ": error: Unpacked array assignment pattern expects "
 	         << dim_width << " element(s) in this context.\n"
@@ -1254,6 +1310,20 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 						 bool need_const) const
 {
       auto &members = struct_type->members();
+
+      /* Replication form: '{N{elem...}} — expand to N copies of the element list. */
+      if (replication_) {
+	    NetExpr*rep_expr = elab_and_eval(des, scope, replication_, -1, true);
+	    const NetEConst*rep_const = dynamic_cast<const NetEConst*>(rep_expr);
+	    unsigned rep_cnt = rep_const ? rep_const->value().as_ulong() : 0;
+	    delete rep_expr;
+	    std::list<PExpr*> expanded_list;
+	    for (unsigned r = 0; r < rep_cnt; r++)
+		  for (auto p : parms_) expanded_list.push_back(p);
+	    PEAssignPattern expanded(expanded_list);
+	    expanded.set_line(*this);
+	    return expanded.elaborate_expr_struct_(des, scope, struct_type, need_const);
+      }
 
       vector<NetExpr*> items(members.size(), nullptr);
 
