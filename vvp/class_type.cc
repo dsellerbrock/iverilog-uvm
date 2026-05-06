@@ -498,6 +498,22 @@ template <class QUEUE_TYPE> class property_queue : public class_property_t {
 
 template <class T> void property_atom<T>::set_vec4(char*buf, const vvp_vector4_t&val)
 {
+      if (array_size_ > 1) {
+	    /* Whole-array store: deserialize val into each element.
+	       Element i occupies bits [i*elem_bits : (i+1)*elem_bits-1]. */
+	    const unsigned elem_bits = 8 * sizeof(T);
+	    for (size_t i = 0; i < array_size_; i += 1) {
+		  unsigned offset = i * elem_bits;
+		  vvp_vector4_t elem(elem_bits);
+		  for (unsigned b = 0; b < elem_bits; b += 1) {
+			vvp_bit4_t bit = ((offset + b) < val.size())
+			      ? val.value(offset + b) : BIT4_0;
+			elem.set_bit(b, bit);
+		  }
+		  set_vec4(buf, elem, (uint64_t)i);
+	    }
+	    return;
+      }
       T*tmp = reinterpret_cast<T*> (buf+offset_);
       bool flag = vector4_to_value(val, *tmp, true, false);
       if (!flag) {
@@ -514,6 +530,19 @@ template <class T> void property_atom<T>::set_vec4(char*buf, const vvp_vector4_t
 
 template <class T> void property_atom<T>::get_vec4(char*buf, vvp_vector4_t&val)
 {
+      if (array_size_ > 1) {
+	    /* Whole-array load: serialize all elements into val.
+	       Element i occupies bits [i*elem_bits : (i+1)*elem_bits-1]. */
+	    const unsigned elem_bits = 8 * sizeof(T);
+	    val.resize(elem_bits * array_size_);
+	    for (size_t i = 0; i < array_size_; i += 1) {
+		  vvp_vector4_t elem;
+		  get_vec4(buf, elem, (uint64_t)i);
+		  for (unsigned b = 0; b < elem_bits; b += 1)
+			val.set_bit(i * elem_bits + b, elem.value(b));
+	    }
+	    return;
+      }
       T*src = reinterpret_cast<T*> (buf+offset_);
       const size_t tmp_cnt = sizeof(T)<sizeof(unsigned long)
 				       ? 1
@@ -572,11 +601,33 @@ template <class T> void property_atom<T>::copy(char*dst, char*src)
 
 void property_bit::set_vec4(char*buf, const vvp_vector4_t&val)
 {
+      if (array_size_ > 1) {
+	    for (size_t i = 0; i < array_size_; i += 1) {
+		  unsigned offset = i * wid_;
+		  vvp_vector4_t elem(wid_);
+		  for (unsigned b = 0; b < wid_; b += 1) {
+			vvp_bit4_t bit = ((offset+b) < val.size()) ? val.value(offset+b) : BIT4_0;
+			elem.set_bit(b, bit);
+		  }
+		  set_vec4(buf, elem, (uint64_t)i);
+	    }
+	    return;
+      }
       set_vec4(buf, val, 0);
 }
 
 void property_bit::get_vec4(char*buf, vvp_vector4_t&val)
 {
+      if (array_size_ > 1) {
+	    val.resize(wid_ * array_size_);
+	    for (size_t i = 0; i < array_size_; i += 1) {
+		  vvp_vector4_t elem;
+		  get_vec4(buf, elem, (uint64_t)i);
+		  for (unsigned b = 0; b < wid_; b += 1)
+			val.set_bit(i * wid_ + b, elem.value(b));
+	    }
+	    return;
+      }
       get_vec4(buf, val, 0);
 }
 
@@ -630,11 +681,33 @@ void property_bit::copy(char*dst, char*src)
 
 void property_logic::set_vec4(char*buf, const vvp_vector4_t&val)
 {
+      if (array_size_ > 1) {
+	    for (size_t i = 0; i < array_size_; i += 1) {
+		  unsigned offset = i * wid_;
+		  vvp_vector4_t elem(wid_);
+		  for (unsigned b = 0; b < wid_; b += 1) {
+			vvp_bit4_t bit = ((offset+b) < val.size()) ? val.value(offset+b) : BIT4_0;
+			elem.set_bit(b, bit);
+		  }
+		  set_vec4(buf, elem, (uint64_t)i);
+	    }
+	    return;
+      }
       set_vec4(buf, val, 0);
 }
 
 void property_logic::get_vec4(char*buf, vvp_vector4_t&val)
 {
+      if (array_size_ > 1) {
+	    val.resize(wid_ * array_size_);
+	    for (size_t i = 0; i < array_size_; i += 1) {
+		  vvp_vector4_t elem;
+		  get_vec4(buf, elem, (uint64_t)i);
+		  for (unsigned b = 0; b < wid_; b += 1)
+			val.set_bit(i * wid_ + b, elem.value(b));
+	    }
+	    return;
+      }
       get_vec4(buf, val, 0);
 }
 
@@ -1104,6 +1177,22 @@ void class_type::get_vec4(class_type::inst_t obj, size_t pid,
                     obj, properties_[pid].type);
       }
       properties_[pid].type->get_vec4(buf, val, idx);
+}
+
+void class_type::set_vec4_whole(class_type::inst_t obj, size_t pid,
+				const vvp_vector4_t&val) const
+{
+      char*buf = reinterpret_cast<char*> (obj);
+      if (pid >= properties_.size()) return;
+      properties_[pid].type->set_vec4(buf, val);
+}
+
+void class_type::get_vec4_whole(class_type::inst_t obj, size_t pid,
+				vvp_vector4_t&val) const
+{
+      char*buf = reinterpret_cast<char*> (obj);
+      if (pid >= properties_.size()) return;
+      properties_[pid].type->get_vec4(buf, val);
 }
 
 void class_type::set_real(class_type::inst_t obj, size_t pid,
