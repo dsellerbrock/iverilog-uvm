@@ -185,7 +185,9 @@ static PLI_INT32 sys_typename_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
                     case vpiStringVar: type_name = "string"; break;
                     case vpiRealVar:   type_name = "real"; break;
                     case vpiIntegerVar:type_name = "integer"; break;
-                    case vpiReg:       type_name = "reg"; break;
+                    /* In SV mode, logic and reg are equivalent; per IEEE 1800
+                     * §20.6.1 $typename returns "logic" for 4-state variables. */
+                    case vpiReg:       type_name = "logic"; break;
                     case vpiNet:       type_name = "wire"; break;
                     default: break;
                   }

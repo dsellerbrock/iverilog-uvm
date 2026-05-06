@@ -5760,19 +5760,22 @@ stream_operator
 streaming_concatenation /* IEEE1800-2005: A.8.1 */
   : '{' stream_operator '{' stream_expression_list '}' '}'
       { /* C5 (Phase 62d): single-expression streaming form, slice=1.
-	   For {<<{expr}}: bit-reverse.  For {>>{expr}}: identity. */
+	   For {<<{expr}}: bit-reverse.  For {>>{expr}}: identity.
+	   Multiple inner expressions are wrapped in a concat. */
 	pform_requires_sv(@2, "Streaming concatenation");
 	PEStreaming::direction_t dir =
 	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT
 			   : PEStreaming::DIR_RSHIFT;
 	PExpr*inner = nullptr;
 	if ($4 && !$4->empty()) {
-	      inner = $4->front();
-	      $4->pop_front();
-	      // Multi-element inner not yet supported; warn if present.
-	      if (!$4->empty()) {
-		    yywarn(@4, "streaming-concatenation with multiple inner expressions: only the first is reversed; rest dropped (compile-progress).");
-		    while (!$4->empty()) { delete $4->front(); $4->pop_front(); }
+	      if ($4->size() == 1) {
+		    inner = $4->front(); $4->pop_front();
+	      } else {
+		    /* Wrap multiple stream exprs in a concat. */
+		    list<PExpr*>*cat_l = new list<PExpr*>($4->begin(), $4->end());
+		    inner = new PEConcat(*cat_l, nullptr);
+		    FILE_NAME(inner, @4);
+		    delete cat_l; $4->clear();
 	      }
 	}
 	delete $4;
@@ -5792,8 +5795,14 @@ streaming_concatenation /* IEEE1800-2005: A.8.1 */
 	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
 	PExpr*inner = nullptr;
 	if ($5 && !$5->empty()) {
-	      inner = $5->front(); $5->pop_front();
-	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
+	      if ($5->size() == 1) {
+		    inner = $5->front(); $5->pop_front();
+	      } else {
+		    list<PExpr*>*cat_l = new list<PExpr*>($5->begin(), $5->end());
+		    inner = new PEConcat(*cat_l, nullptr);
+		    FILE_NAME(inner, @5);
+		    delete cat_l; $5->clear();
+	      }
 	}
 	delete $5;
 	if (!inner) {
@@ -5820,8 +5829,14 @@ streaming_concatenation /* IEEE1800-2005: A.8.1 */
 	delete $3;
 	PExpr*inner = nullptr;
 	if ($5 && !$5->empty()) {
-	      inner = $5->front(); $5->pop_front();
-	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
+	      if ($5->size() == 1) {
+		    inner = $5->front(); $5->pop_front();
+	      } else {
+		    list<PExpr*>*cat_l = new list<PExpr*>($5->begin(), $5->end());
+		    inner = new PEConcat(*cat_l, nullptr);
+		    FILE_NAME(inner, @5);
+		    delete cat_l; $5->clear();
+	      }
 	}
 	delete $5;
 	if (!inner) {
