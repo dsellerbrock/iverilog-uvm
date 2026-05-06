@@ -570,6 +570,28 @@ void reset_parser_file_state(void)
       lex_in_package_scope(0);
 }
 
+/* Return the bit width implied by a streaming-operator type specifier.
+ * IEEE 1800 §11.4.14: the slice_size can be a simple_type giving the
+ * chunk width as the number of bits in that type. */
+static unsigned streaming_slice_from_type(data_type_t*dtype)
+{
+      if (auto*a = dynamic_cast<atom_type_t*>(dtype)) {
+	    switch (a->type_code) {
+		case atom_type_t::BYTE:     return 8;
+		case atom_type_t::SHORTINT: return 16;
+		case atom_type_t::INT:      return 32;
+		case atom_type_t::LONGINT:  return 64;
+		case atom_type_t::INTEGER:  return 32;
+		case atom_type_t::TIME:     return 64;
+	    }
+      }
+      if (auto*r = dynamic_cast<real_type_t*>(dtype)) {
+	    return (r->type_code() == real_type_t::SHORTREAL) ? 32 : 64;
+      }
+      /* vector_type_t with no dims (bit/logic) → 1; string/other → 1 */
+      return 1;
+}
+
 static Statement* append_for_step_stmt(const YYLTYPE&loc, Statement*lhs, Statement*rhs)
 {
       if (!lhs)
@@ -5799,8 +5821,10 @@ streaming_concatenation /* IEEE1800-2005: A.8.1 */
 	}
       }
   | '{' stream_operator simple_type_or_string '{' stream_expression_list '}' '}'
-      { /* Typed-slice form: {<< bit {...}} — slice=1 (bit width). */
+      { /* Typed-slice form: {<< byte {...}}, {<< int {...}}, etc.
+	   Derive the slice width from the type (IEEE 1800 §11.4.14). */
 	pform_requires_sv(@2, "Streaming concatenation");
+	unsigned slice = streaming_slice_from_type($3);
 	delete $3;
 	PEStreaming::direction_t dir =
 	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
@@ -5819,7 +5843,7 @@ streaming_concatenation /* IEEE1800-2005: A.8.1 */
 	if (!inner) {
 	      PENull*np = new PENull; FILE_NAME(np, @1); $$ = np;
 	} else {
-	      PEStreaming*tmp = new PEStreaming(dir, 1, inner);
+	      PEStreaming*tmp = new PEStreaming(dir, slice, inner);
 	      FILE_NAME(tmp, @1);
 	      $$ = tmp;
 	}
@@ -12985,6 +13009,7 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   | '{' stream_operator simple_type_or_string '{' stream_expression_list '}' '}' '=' expression ';'
       { pform_requires_sv(@2, "Streaming concatenation l-value");
+	unsigned slice = streaming_slice_from_type($3);
 	delete $3;
 	PEStreaming::direction_t dir =
 	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
@@ -12997,7 +13022,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	} else if ($5->size() == 1) {
 	      PExpr*lhs_inner = $5->front();
 	      delete $5;
-	      PEStreaming*rstream = new PEStreaming(dir, 1, $9);
+	      PEStreaming*rstream = new PEStreaming(dir, slice, $9);
 	      FILE_NAME(rstream, @1);
 	      PAssign*tmp = new PAssign(lhs_inner, rstream);
 	      FILE_NAME(tmp, @1);

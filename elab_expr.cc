@@ -7275,17 +7275,21 @@ unsigned PEConcat::test_width(Design*des, NetScope*scope, width_mode_t&)
 	    if (expr_is_string == NO)
 		  continue;
 
-	      // If this expression is a string, then the
-	      // concatenation is a string until we find a reason to
-	      // deny it.
+	      // String literals (PEString) are bit-vector values in
+	      // concatenation context (IEEE 1800 §6.22.1); they do not
+	      // make the concat a string type — only actual string-typed
+	      // expressions (variables/calls) do.  Check for PEString
+	      // before the expr_type test, because PEString::test_width
+	      // sets expr_type_=IVL_VT_STRING, which would otherwise
+	      // incorrectly promote all-literal concats to string type.
+	    if (dynamic_cast<PEString*> (parms_[idx]))
+		  continue;
+
+	      // If a string-typed expression appears, the concat is a string.
 	    if (parms_[idx]->expr_type()==IVL_VT_STRING) {
 		  expr_is_string = YES;
 		  continue;
 	    }
-
-	      // If this is a string literal, then this may yet be a string.
-	    if (dynamic_cast<PEString*> (parms_[idx]))
-		  continue;
 
 	      // Failed to allow a string result.
 	    expr_is_string = NO;
