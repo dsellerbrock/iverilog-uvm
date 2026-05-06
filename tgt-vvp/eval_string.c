@@ -168,10 +168,17 @@ static void string_ex_select(ivl_expr_t expr)
 
 	      /* Dynamic array / queue of strings. */
 	    if (sig_type == IVL_VT_DARRAY || sig_type == IVL_VT_QUEUE) {
-                  if (net_type && ivl_type_queue_assoc_compat(net_type)
-                      && expr_is_object_assoc_key_(shift)) {
-                        draw_eval_object(shift);
-                        fprintf(vvp_out, "    %%aa/load/sig/str/obj v%p_0;\n", sig);
+                  if (net_type && ivl_type_queue_assoc_compat(net_type)) {
+                        if (expr_is_object_assoc_key_(shift)) {
+                              draw_eval_object(shift);
+                              fprintf(vvp_out, "    %%aa/load/sig/str/obj v%p_0;\n", sig);
+                        } else if (expr_is_string_assoc_key_(shift)) {
+                              draw_eval_string(shift);
+                              fprintf(vvp_out, "    %%aa/load/sig/str/str v%p_0;\n", sig);
+                        } else {
+                              draw_eval_vec4(shift);
+                              fprintf(vvp_out, "    %%aa/load/sig/v/str v%p_0;\n", sig);
+                        }
                         return;
                   }
 		  draw_eval_expr_into_integer(shift, 3);

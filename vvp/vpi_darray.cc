@@ -22,6 +22,7 @@
 # include  "vpi_priv.h"
 # include  "vvp_net_sig.h"
 # include  "vvp_darray.h"
+# include  "vvp_assoc.h"
 # include  "array_common.h"
 # include  "schedule.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -312,10 +313,12 @@ int __vpiQueueVar::vpi_get(int code)
 	    assert(fun);
 	    vvp_object_t val = fun->get_object();
 	    const vvp_queue*aval = val.peek<vvp_queue>();
-	    if (aval == 0)
-		  return 0;
-	    else
+	    if (aval)
 		  return aval->get_size();
+	    const vvp_assoc_base*mval = val.peek<vvp_assoc_base>();
+	    if (mval)
+		  return (int)mval->size();
+	    return 0;
 	  }
 	  default:
 	    return 0;

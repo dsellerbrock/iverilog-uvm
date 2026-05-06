@@ -1642,7 +1642,11 @@ static int show_stmt_trigger(ivl_statement_t net)
 static int show_stmt_nb_trigger(ivl_statement_t net)
 {
       ivl_event_t ev = ivl_stmt_events(net, 0);
-      assert(ev);
+      if (!ev) {
+	    fprintf(stderr, "%s:%u: vvp.tgt sorry: ->> event not found.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 0;
+      }
 
       show_stmt_file_line(net, "Non-blocking event trigger statement.");
 

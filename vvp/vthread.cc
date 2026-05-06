@@ -1886,6 +1886,95 @@ bool of_QUNIQUE_IDX(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* Locator methods: s.max / s.min on dynamic arrays or queues.
+ * Returns a 1-element queue containing the max (or min) element,
+ * or an empty queue if the source is empty or non-vec4. */
+bool of_QMAX(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) { thr->push_object(vvp_object_t()); return true; }
+      vvp_object_t src_obj = fun->get_object();
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      if (!src || src->get_size() == 0) { thr->push_object(vvp_object_t()); return true; }
+      vvp_vector4_t best;
+      src->get_word(0, best);
+      for (size_t i = 1 ; i < src->get_size() ; i += 1) {
+            vvp_vector4_t v;
+            src->get_word((unsigned)i, v);
+            if (vec4_lt_(best, v)) best = v;
+      }
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      dst->push_back(best, 0);
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
+bool of_QMIN(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) { thr->push_object(vvp_object_t()); return true; }
+      vvp_object_t src_obj = fun->get_object();
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      if (!src || src->get_size() == 0) { thr->push_object(vvp_object_t()); return true; }
+      vvp_vector4_t best;
+      src->get_word(0, best);
+      for (size_t i = 1 ; i < src->get_size() ; i += 1) {
+            vvp_vector4_t v;
+            src->get_word((unsigned)i, v);
+            if (vec4_lt_(v, best)) best = v;
+      }
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      dst->push_back(best, 0);
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
+/* Reduction methods: b.sum / b.product / b.and / b.or / b.xor
+ * Returns a scalar pushed onto the vec4 stack.
+ * Elements are read as unsigned 64-bit values (X/Z treated as 0). */
+enum qreduce_op { QREDUCE_SUM, QREDUCE_PROD, QREDUCE_AND, QREDUCE_OR, QREDUCE_XOR };
+static bool of_QREDUCE_(vthread_t thr, vvp_code_t cp, qreduce_op op)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      if (!fun) { thr->push_vec4(vvp_vector4_t(32, BIT4_0)); return true; }
+      vvp_object_t src_obj = fun->get_object();
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      if (!src) { thr->push_vec4(vvp_vector4_t(32, BIT4_0)); return true; }
+      size_t sz = src->get_size();
+      unsigned wid = 32;
+      uint64_t acc = (op == QREDUCE_PROD) ? 1ULL
+                   : (op == QREDUCE_AND)  ? ~0ULL
+                   : 0ULL;
+      for (size_t i = 0 ; i < sz ; i += 1) {
+            vvp_vector4_t v;
+            src->get_word((unsigned)i, v);
+            if (i == 0) wid = v.size() ? v.size() : 32;
+            uint64_t val = 0;
+            vector4_to_value(v, val);
+            switch (op) {
+                case QREDUCE_SUM:  acc += val; break;
+                case QREDUCE_PROD: acc *= val; break;
+                case QREDUCE_AND:  acc &= val; break;
+                case QREDUCE_OR:   acc |= val; break;
+                case QREDUCE_XOR:  acc ^= val; break;
+            }
+      }
+      if (wid < 32) wid = 32;
+      uint64_t mask = (wid >= 64) ? ~0ULL : ((1ULL << wid) - 1ULL);
+      acc &= mask;
+      vvp_vector4_t result(wid, BIT4_0);
+      for (unsigned b = 0; b < wid && b < 64; b++)
+            if ((acc >> b) & 1ULL) result.set_bit(b, BIT4_1);
+      thr->push_vec4(result);
+      return true;
+}
+
+bool of_QSUM (vthread_t thr, vvp_code_t cp) { return of_QREDUCE_(thr, cp, QREDUCE_SUM);  }
+bool of_QPROD(vthread_t thr, vvp_code_t cp) { return of_QREDUCE_(thr, cp, QREDUCE_PROD); }
+bool of_QAND (vthread_t thr, vvp_code_t cp) { return of_QREDUCE_(thr, cp, QREDUCE_AND);  }
+bool of_QOR  (vthread_t thr, vvp_code_t cp) { return of_QREDUCE_(thr, cp, QREDUCE_OR);   }
+bool of_QXOR (vthread_t thr, vvp_code_t cp) { return of_QREDUCE_(thr, cp, QREDUCE_XOR);  }
+
 /* Phase 63b/Q-methods (gap close): sort q by keys queue.  q[i]
  * stays paired with keys[i] under the permutation.  After sort,
  * q is in ascending (sort) or descending (rsort) order of keys. */
@@ -9507,11 +9596,23 @@ bool write_signal_assoc_key_<vvp_vector4_t>(vthread_t thr, vvp_net_t*net,
 {
       if (!(thr && net))
             return false;
-      if (!signal_vec4_fun_(net))
+      vvp_signal_value*fun = signal_vec4_fun_(net);
+      if (!fun)
             return false;
 
-      vvp_send_vec4(vvp_net_ptr_t(net, 0), value,
-		    ensure_write_context_(thr, why));
+      unsigned sig_wid = fun->value_size();
+      if (value.size() == sig_wid) {
+	    vvp_send_vec4(vvp_net_ptr_t(net, 0), value,
+			  ensure_write_context_(thr, why));
+      } else {
+	    /* Key width doesn't match signal width — truncate or zero-extend. */
+	    vvp_vector4_t resized(sig_wid, BIT4_0);
+	    unsigned copy = value.size() < sig_wid ? value.size() : sig_wid;
+	    for (unsigned i = 0; i < copy; i++)
+		  resized.set_bit(i, value.value(i));
+	    vvp_send_vec4(vvp_net_ptr_t(net, 0), resized,
+			  ensure_write_context_(thr, why));
+      }
       return true;
 }
 
@@ -9791,7 +9892,10 @@ static bool aa_exists_signal(vthread_t thr, vvp_net_t*net, unsigned wid)
 {
       KEY key = pop_assoc_key_<KEY>(thr);
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(net);
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+      bool found = assoc && assoc->exists_key(key);
+      vvp_vector4_t val(wid, BIT4_0);
+      if (found && wid > 0)
+            val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
@@ -10336,10 +10440,22 @@ bool of_AA_LOAD_SIG_STR_OBJ(vthread_t thr, vvp_code_t cp)
       return aa_load_signal<vvp_object_t, string, vvp_assoc_string>(thr, cp->net);
 }
 
+bool of_AA_LOAD_SIG_STR_STR(vthread_t thr, vvp_code_t cp)
+{
+      /* KEY=string, ELEM=string: load string value from string-keyed assoc map */
+      return aa_load_signal<string, string, vvp_assoc_string>(thr, cp->net);
+}
+
 bool of_AA_LOAD_SIG_V_OBJ(vthread_t thr, vvp_code_t cp)
 {
       return aa_load_signal<vvp_object_t, vvp_vector4_t, vvp_assoc_vec4>(thr, cp->net,
                                                                          cp->bit_idx[0]);
+}
+
+bool of_AA_LOAD_SIG_V_STR(vthread_t thr, vvp_code_t cp)
+{
+      /* KEY=vvp_vector4_t, ELEM=string: load string value from vec4-keyed assoc map */
+      return aa_load_signal<vvp_vector4_t, string, vvp_assoc_string>(thr, cp->net);
 }
 
 /*
@@ -13701,6 +13817,84 @@ bool of_STORE_QDAR_STR(vthread_t thr, vvp_code_t cp)
 bool of_STORE_QDAR_V(vthread_t thr, vvp_code_t cp)
 {
       return store_qdar<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
+}
+
+/* %qpush_back/v <var>, <max_idx_reg>, <wid>
+ * Pop a vec4 from the vec4 stack and push_back into the queue signal. */
+bool of_QPUSH_BACK_V(vthread_t thr, vvp_code_t cp)
+{
+      unsigned wid = cp->bit_idx[1];
+      vvp_vector4_t value;
+      pop_value(thr, value, wid);
+      vvp_net_t*net = cp->net;
+      vvp_queue*queue = get_queue_object<vvp_queue_vec4>(thr, net);
+      assert(queue);
+      unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
+      static_cast<vvp_queue_vec4*>(queue)->push_back(value, max_size);
+      notify_mutated_object_signal_(thr, net, "qpush_back");
+      return true;
+}
+
+/* %qpush_front/v <var>, <max_idx_reg>, <wid>
+ * Pop a vec4 from the vec4 stack and push_front into the queue signal. */
+bool of_QPUSH_FRONT_V(vthread_t thr, vvp_code_t cp)
+{
+      unsigned wid = cp->bit_idx[1];
+      vvp_vector4_t value;
+      pop_value(thr, value, wid);
+      vvp_net_t*net = cp->net;
+      vvp_queue*queue = get_queue_object<vvp_queue_vec4>(thr, net);
+      assert(queue);
+      unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
+      static_cast<vvp_queue_vec4*>(queue)->push_front(value, max_size);
+      notify_mutated_object_signal_(thr, net, "qpush_front");
+      return true;
+}
+
+/* %qslice_from <var>
+ * Push a new queue containing elements [words[3]..end] of the queue signal. */
+bool of_QSLICE_FROM(vthread_t thr, vvp_code_t cp)
+{
+      int64_t lo = thr->words[3].w_int;
+      vvp_net_t*net = cp->net;
+      vvp_queue_vec4*src = dynamic_cast<vvp_queue_vec4*>(
+            get_queue_object<vvp_queue_vec4>(thr, net));
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      if (src && lo >= 0) {
+            size_t sz = src->get_size();
+            for (size_t i = (size_t)lo; i < sz; i++) {
+                  vvp_vector4_t v;
+                  src->get_word(i, v);
+                  dst->push_back(v, 0);
+            }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
+/* %qslice <var>
+ * Pop hi then lo from vec4 stack. Push new queue with elements
+ * [max(0,lo)..min(hi,size-1)] of the signal. Empty if lo>hi. */
+bool of_QSLICE(vthread_t thr, vvp_code_t cp)
+{
+      int64_t hi = (int64_t)vec4_to_index(thr, true);  // hi on top
+      int64_t lo = (int64_t)vec4_to_index(thr, true);  // lo below
+      vvp_net_t*net = cp->net;
+      vvp_queue_vec4*src = dynamic_cast<vvp_queue_vec4*>(
+            get_queue_object<vvp_queue_vec4>(thr, net));
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      if (src) {
+            int64_t sz = (int64_t)src->get_size();
+            if (lo < 0) lo = 0;
+            if (hi >= sz) hi = sz - 1;
+            for (int64_t i = lo; i <= hi; i++) {
+                  vvp_vector4_t v;
+                  src->get_word((unsigned)i, v);
+                  dst->push_back(v, 0);
+            }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
 }
 
 /*

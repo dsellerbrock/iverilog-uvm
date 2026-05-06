@@ -647,6 +647,8 @@ class PNoop  : public Statement {
     public:
       PNoop() { }
       ~PNoop() override { }
+
+      virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
 };
 
 class PRepeat : public Statement {

@@ -3414,7 +3414,7 @@ deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
 	  /* Coverage collection is not currently supported. */
 	delete $4;
 	delete $6;
-	$$ = 0;
+	$$ = new PNoop;
       }
   | assert_or_assume deferred_mode '(' error ')' statement_or_null %prec less_than_K_else
       { yyerror(@1, "error: Malformed conditional expression.");
@@ -5141,7 +5141,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
 	  /* Coverage collection is not currently supported. */
 	delete $3;
 	delete $5;
-	$$ = 0;
+	$$ = new PNoop;
       }
   | assert_or_assume '(' error ')' statement_or_null %prec less_than_K_else
       { yyerror(@1, "error: Malformed conditional expression.");

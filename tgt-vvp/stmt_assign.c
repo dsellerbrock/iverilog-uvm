@@ -579,7 +579,14 @@ static void store_vec4_to_lval(ivl_statement_t net)
 	    } else {
 		    /* No offset expression, so use simpler store function. */
 		  assert(lsig);
-		  assert(lwid == ivl_signal_width(lsig));
+		  if (lwid != ivl_signal_width(lsig)) {
+			fprintf(stderr, "%s:%u: vvp.tgt sorry: width mismatch "
+				"assigning to %s (lval=%u, signal=%u).\n",
+				ivl_stmt_file(net), ivl_stmt_lineno(net),
+				ivl_signal_basename(lsig), lwid,
+				ivl_signal_width(lsig));
+			lwid = ivl_signal_width(lsig);
+		  }
 		  if (signal_is_return_value(lsig)) {
 			fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;  Assign to %s (store_vec4_to_lval)\n",
 				lwid, ivl_signal_basename(lsig));
@@ -1361,6 +1368,36 @@ static int show_stmt_assign_queue_pattern(ivl_signal_t var, ivl_expr_t rval,
       assert(ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN);
       max_size = ivl_signal_array_count(var);
       max_elems = ivl_expr_parms(rval);
+
+      /* Special case: { var, v1, v2, ... } → push_back each element.
+       * Special case: { v1, v2, ..., var } → push_front each element in reverse.
+       * These patterns arise from q = { q, x } (push_back) and q = { x, q }
+       * (push_front) and only apply to vec4-element queues. */
+      if (max_elems >= 1
+          && (ivl_type_base(element_type) == IVL_VT_BOOL
+              || ivl_type_base(element_type) == IVL_VT_LOGIC)) {
+            unsigned wid = ivl_type_packed_width(element_type);
+            ivl_expr_t first_parm = ivl_expr_parm(rval, 0);
+            if (ivl_expr_type(first_parm) == IVL_EX_SIGNAL
+                && ivl_expr_signal(first_parm) == var) {
+                  for (idx = 1; idx < max_elems; idx++) {
+                        draw_eval_vec4(ivl_expr_parm(rval, idx));
+                        fprintf(vvp_out, "    %%qpush_back/v v%p_0, %d, %u;\n",
+                                var, max_idx, wid);
+                  }
+                  return errors;
+            }
+            ivl_expr_t last_parm = ivl_expr_parm(rval, max_elems - 1);
+            if (ivl_expr_type(last_parm) == IVL_EX_SIGNAL
+                && ivl_expr_signal(last_parm) == var) {
+                  for (int i = (int)max_elems - 2; i >= 0; i--) {
+                        draw_eval_vec4(ivl_expr_parm(rval, i));
+                        fprintf(vvp_out, "    %%qpush_front/v v%p_0, %d, %u;\n",
+                                var, max_idx, wid);
+                  }
+                  return errors;
+            }
+      }
 
       if (type_is_object_like_(element_type)) {
             for (idx = 0 ; idx < max_elems ; idx += 1) {

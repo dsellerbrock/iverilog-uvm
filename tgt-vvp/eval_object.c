@@ -669,6 +669,66 @@ static int eval_object_sfunc(ivl_expr_t expr)
        * and q.unique_index().  Emit a single runtime opcode
        * %qunique_copy that reads the queue and returns a new
        * dedup'd copy on the object stack. */
+      if (strcmp(name, "$ivl_queue_slice") == 0) {
+	    /* q[lo:hi] — push lo then hi on vec4 stack, then %qslice v_q pops them */
+	    if (parm_count < 3) {
+		  fprintf(vvp_out, "    %%null; ; queue_slice: bad parm count\n");
+		  return 0;
+	    }
+	    ivl_expr_t q_arg  = ivl_expr_parm(expr, 0);
+	    ivl_expr_t lo_arg = ivl_expr_parm(expr, 1);
+	    ivl_expr_t hi_arg = ivl_expr_parm(expr, 2);
+	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(q_arg)) {
+		  fprintf(vvp_out, "    %%null; ; queue_slice: bad queue arg\n");
+		  return 0;
+	    }
+	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
+	    draw_eval_vec4(lo_arg);   /* push lo (bottom) */
+	    draw_eval_vec4(hi_arg);   /* push hi (top) */
+	    fprintf(vvp_out, "    %%qslice v%p_0;\n", q_sig);
+	    return 0;
+      }
+
+      if (strcmp(name, "$ivl_queue_slice_from") == 0) {
+	    /* q[lo:$] — emit lo into words[3], then %qslice_from v_q */
+	    if (parm_count < 2) {
+		  fprintf(vvp_out, "    %%null; ; slice_from: bad parm count\n");
+		  return 0;
+	    }
+	    ivl_expr_t q_arg  = ivl_expr_parm(expr, 0);
+	    ivl_expr_t lo_arg = ivl_expr_parm(expr, 1);
+	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(q_arg)) {
+		  fprintf(vvp_out, "    %%null; ; slice_from: bad queue arg\n");
+		  return 0;
+	    }
+	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
+	    draw_eval_vec4(lo_arg);
+	    fprintf(vvp_out, "    %%ix/vec4/s 3;\n");
+	    fprintf(vvp_out, "    %%qslice_from v%p_0;\n", q_sig);
+	    return 0;
+      }
+
+      if (strcmp(name, "$ivl_queue_method$max") == 0
+	  || strcmp(name, "$ivl_queue_method$min") == 0) {
+	    int is_max = (strcmp(name, "$ivl_queue_method$max") == 0);
+	    if (parm_count < 1) {
+		  fprintf(vvp_out, "    %%null; ; max/min: bad parm count\n");
+		  return 0;
+	    }
+	    ivl_expr_t q_arg = ivl_expr_parm(expr, 0);
+	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(q_arg)) {
+		  fprintf(vvp_out, "    %%null; ; max/min: bad arg shape\n");
+		  return 0;
+	    }
+	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
+	    fprintf(vvp_out, "    %s v%p_0;\n",
+		    is_max ? "%qmax" : "%qmin", q_sig);
+	    return 0;
+      }
+
       if (strncmp(name, "$ivl_queue_method$unique_with|", 30) == 0) {
 	    const char*kind = name + 30;
 	    int is_index = (strstr(kind, "index") != NULL);
@@ -694,6 +754,8 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    int is_index = (strstr(kind, "index") != NULL);
 	    int stop_first = (strcmp(kind, "find_first") == 0
 			      || strcmp(kind, "find_first_index") == 0);
+	    int stop_last = (strcmp(kind, "find_last") == 0
+			     || strcmp(kind, "find_last_index") == 0);
 
 	    if (parm_count < 5) {
 		  fprintf(vvp_out, "    %%null; ; find_with: bad parm count\n");
@@ -777,18 +839,35 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%new/queue \"%s\";\n", result_enc);
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", result_sig);
 
-	    /* idx_sig = 0 */
-	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
-	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    /* idx_sig = (stop_last ? qsize-1 : 0) */
+	    if (stop_last) {
+		  fprintf(vvp_out, "    %%qsize v%p_0;\n", q_sig);
+		  fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+		  fprintf(vvp_out, "    %%sub;\n");
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    } else {
+		  fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    }
 
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
-	    /* if (!(idx < qsize)) goto end */
-	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
-	    fprintf(vvp_out, "    %%qsize v%p_0;\n", q_sig);
-	    fprintf(vvp_out, "    %%cmp/s;\n");
-	    /* %cmp/s sets flag 5 = lt; jump to end if NOT lt */
-	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
-		    thread_count, lab_end);
+	    if (stop_last) {
+		  /* if (idx < 0) goto end */
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+		  fprintf(vvp_out, "    %%cmp/s;\n");
+		  /* flag5 = (idx < 0); jump to end if set */
+		  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 5;\n",
+			  thread_count, lab_end);
+	    } else {
+		  /* if (!(idx < qsize)) goto end */
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%qsize v%p_0;\n", q_sig);
+		  fprintf(vvp_out, "    %%cmp/s;\n");
+		  /* %cmp/s sets flag 5 = lt; jump to end if NOT lt */
+		  fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
+			  thread_count, lab_end);
+	    }
 
 	    /* iter_sig = q[idx_sig] — type-specific load/store pair */
 	    fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
@@ -836,15 +915,23 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%store/qb/obj v%p_0, 5;\n", result_sig);
 	    }
 
-	    if (stop_first)
+	    if (stop_first || stop_last)
 		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
 
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_skip);
-	    /* idx_sig += 1 */
-	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
-	    fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
-	    fprintf(vvp_out, "    %%add;\n");
-	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    if (stop_last) {
+		  /* idx_sig -= 1 */
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+		  fprintf(vvp_out, "    %%sub;\n");
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    } else {
+		  /* idx_sig += 1 */
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+		  fprintf(vvp_out, "    %%add;\n");
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    }
 	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_top);
 
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);

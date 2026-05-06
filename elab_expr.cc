@@ -6414,22 +6414,34 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    }
 	    if (NetExpr*tmp = elaborate_assoc_array_compat_method_(des, scope, this, sub_expr, method_name, parms_))
 		  return tmp;
-	    if (method_name == "find") {
-		  // Compile-progress fallback: return null (empty result) rather
-		  // than the whole source queue, to avoid type-mismatch crashes.
+	    if (method_name == "find"
+		|| method_name == "find_index"
+		|| method_name == "find_first"
+		|| method_name == "find_first_index"
+		|| method_name == "find_last"
+		|| method_name == "find_last_index") {
+		  if (!with_constraints().empty()) {
+			const netdarray_t*darray = dynamic_cast<const netdarray_t*>(target_type);
+			ivl_type_t element_type = darray->element_type();
+			NetExpr*loc = make_queue_locator_with_expr_(
+				this, des, scope, sub_expr, element_type,
+				method_name.str(), parms_);
+			if (loc) return loc;
+		  }
 		  delete sub_expr;
 		  NetENull*tmp = new NetENull();
 		  tmp->set_line(*this);
 		  return tmp;
 	    }
-      if (method_name == "unique"
-		|| method_name == "unique_index"
-		|| method_name == "find_first"
-		|| method_name == "find_last"
-		|| method_name == "find_index"
-		|| method_name == "find_first_index"
-		|| method_name == "find_last_index") {
-		  // Compile-progress fallback: return null (empty result).
+	    if (method_name == "unique" || method_name == "unique_index") {
+		  if (NetESignal*qsig = dynamic_cast<NetESignal*>(sub_expr)) {
+			(void)qsig;
+			string mangled = string("$ivl_queue_method$unique_with|") + method_name.str();
+			NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 1);
+			fn->parm(0, sub_expr);
+			fn->set_line(*this);
+			return fn;
+		  }
 		  delete sub_expr;
 		  NetENull*tmp = new NetENull();
 		  tmp->set_line(*this);
@@ -8285,6 +8297,40 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 		  }
 	    } else if (dynamic_cast<const netclass_t*>(sr.type)) {
 		  return elaborate_expr_class_field_(des, scope, sr, 0, flags);
+	    } else if (net->darray_type()
+		       && !dynamic_cast<const netqueue_t*>(net->net_type())
+		       && sr.path_tail.size() == 1) {
+		  // Darray locator methods accessed without parens via PEIdent
+		  // (e.g. qi = s.max, qi = s.unique).
+		  perm_string method_name = sr.path_tail.front().name;
+		  NetESignal*sub = new NetESignal(net);
+		  sub->set_line(*this);
+		  if (method_name == "max" || method_name == "min") {
+			string mangled = string("$ivl_queue_method$") + method_name.str();
+			NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 1);
+			fn->parm(0, sub);
+			fn->set_line(*this);
+			return fn;
+		  }
+		  if (method_name == "unique" || method_name == "unique_index") {
+			string mangled = string("$ivl_queue_method$unique_with|") + method_name.str();
+			NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 1);
+			fn->parm(0, sub);
+			fn->set_line(*this);
+			return fn;
+		  }
+		  if (method_name == "sum" || method_name == "product"
+		      || method_name == "and" || method_name == "or"
+		      || method_name == "xor") {
+			string mangled = string("$ivl_darray_method$") + method_name.str();
+			NetESFunc*fn = new NetESFunc(mangled.c_str(),
+						     &netvector_t::atom2s32, 1);
+			fn->parm(0, sub);
+			fn->set_line(*this);
+			return fn;
+		  }
+		  delete sub;
+		  // Fall through for other (unrecognized) darray methods.
 	    }
       }
 
@@ -8874,9 +8920,9 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			return make_nested_stub(indexed_member_type);
 		  }
 		  const name_component_t member_comp = sr.path_tail.front();
-		  if (member_comp.name == "size") {
-			NetESFunc*fun = new NetESFunc("$size",
-						      &netvector_t::atom2s32,
+		  if (member_comp.name == "size" || member_comp.name == "num") {
+			NetESFunc*fun = new NetESFunc("$ivl_queue_method$size",
+						      &netvector_t::atom2u32,
 						      1);
 			fun->set_line(*this);
 
@@ -8914,62 +8960,37 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			NetENull*tmp = new NetENull;
 			tmp->set_line(*this);
 			return tmp;
-		  } else if (member_comp.name == "min") {
-			cerr << get_fileline() << ": sorry: 'min()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "max") {
-			cerr << get_fileline() << ": sorry: 'max()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "unique") {
-			cerr << get_fileline() << ": sorry: 'unique()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "unique_index") {
-			cerr << get_fileline() << ": sorry: 'unique_index()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-// FIXME: Check this is a real or integral type.
-		  } else if (member_comp.name == "sum") {
-			cerr << get_fileline() << ": sorry: 'sum()' "
-			        "array reduction method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "product") {
-			cerr << get_fileline() << ": sorry: 'product()' "
-			        "array reduction method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-// FIXME: Check this is only an integral type.
-		  } else if (member_comp.name == "and") {
-			cerr << get_fileline() << ": sorry: 'and()' "
-			        "array reduction method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "or") {
-			cerr << get_fileline() << ": sorry: 'or()' "
-			        "array reduction method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "xor") {
-			cerr << get_fileline() << ": sorry: 'xor()' "
-			        "array reduction method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
+		  } else if (member_comp.name == "min"
+			     || member_comp.name == "max") {
+			NetESignal*arg = new NetESignal(sr.net);
+			arg->set_line(*sr.net);
+			string mangled = string("$ivl_queue_method$") + member_comp.name.str();
+			NetESFunc*fun = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 1);
+			fun->set_line(*this);
+			fun->parm(0, arg);
+			return fun;
+		  } else if (member_comp.name == "unique"
+			     || member_comp.name == "unique_index") {
+			NetESignal*arg = new NetESignal(sr.net);
+			arg->set_line(*sr.net);
+			string mangled = string("$ivl_queue_method$unique_with|") + member_comp.name.str();
+			NetESFunc*fun = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 1);
+			fun->set_line(*this);
+			fun->parm(0, arg);
+			return fun;
+		  } else if (member_comp.name == "sum"
+			     || member_comp.name == "product"
+			     || member_comp.name == "and"
+			     || member_comp.name == "or"
+			     || member_comp.name == "xor") {
+			NetESignal*arg = new NetESignal(sr.net);
+			arg->set_line(*sr.net);
+			string mangled = string("$ivl_darray_method$") + member_comp.name.str();
+			NetESFunc*fun = new NetESFunc(mangled.c_str(),
+						      &netvector_t::atom2s32, 1);
+			fun->set_line(*this);
+			fun->parm(0, arg);
+			return fun;
 		  }
 	    }
 
@@ -8995,6 +9016,15 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  const name_component_t member_comp = sr.path_tail.front();
 		  const netqueue_t*queue = sr.net->queue_type();
 		  ivl_type_t element_type = queue->element_type();
+		  if (member_comp.name == "size" || member_comp.name == "num") {
+			NetESFunc*fun = new NetESFunc("$ivl_queue_method$size",
+						      &netvector_t::atom2u32, 1);
+			fun->set_line(*this);
+			NetESignal*arg = new NetESignal(sr.net);
+			arg->set_line(*sr.net);
+			fun->parm(0, arg);
+			return fun;
+		  }
 		  if (member_comp.name == "pop_back") {
 			NetESFunc*fun = new NetESFunc("$ivl_queue_method$pop_back",
 			                              element_type, 1);
@@ -10219,6 +10249,21 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
 	    return 0;
       }
 
+      // q[lo:hi] on a queue/darray: return a new queue slice expression
+      if (net->sig()->data_type() == IVL_VT_QUEUE) {
+	    const index_component_t&psel = path_.back().index.back();
+	    bool nc = NEED_CONST & (unsigned)0;
+	    NetExpr*lo_e = elab_and_eval(des, scope, psel.msb, 32, nc);
+	    NetExpr*hi_e = elab_and_eval(des, scope, psel.lsb, 32, nc);
+	    if (!lo_e || !hi_e) { delete lo_e; delete hi_e; return net; }
+	    NetESFunc*fn = new NetESFunc("$ivl_queue_slice", IVL_VT_QUEUE, 3, 3);
+	    fn->set_line(*this);
+	    fn->parm(0, net);
+	    fn->parm(1, lo_e);
+	    fn->parm(2, hi_e);
+	    return fn;
+      }
+
       list<long> prefix_indices;
       bool rc = calculate_packed_indices_(des, scope, net->sig(), prefix_indices);
       if (!rc)
@@ -11106,11 +11151,16 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 						need_const);
 
       if (use_sel == index_component_t::SEL_PART_LAST) {
-	    // [lo:$] queue slice — compile-progress fallback: treat as SEL_BIT_LAST
-	    cerr << get_fileline() << ": warning: [lo:$] queue slice not fully "
-		 << "implemented; using last-element approximation." << endl;
-	    return elaborate_expr_net_bit_last_(des, scope, node, found_in,
-					       need_const);
+	    // q[lo:$] — return a new queue with elements from lo to end
+	    const index_component_t&part_idx = path_.back().index.back();
+	    ivl_assert(*this, part_idx.msb != 0);
+	    NetExpr*lo_expr = elab_and_eval(des, scope, part_idx.msb, -1, need_const);
+	    if (!lo_expr) return 0;
+	    NetESFunc*fn = new NetESFunc("$ivl_queue_slice_from", IVL_VT_QUEUE, 2, 2);
+	    fn->set_line(*this);
+	    fn->parm(0, node);
+	    fn->parm(1, lo_expr);
+	    return fn;
       }
 
 	// It's not anything else, so this must be a simple identifier
