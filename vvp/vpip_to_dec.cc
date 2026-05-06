@@ -125,6 +125,11 @@ unsigned vpip_vec4_to_dec_str(const vvp_vector4_t&vec4,
       unsigned int mbits=vec4.size();   /* number of non-sign bits */
       unsigned count_x = 0, count_z = 0;
 
+      if (mbits == 0) {
+	    if (nbuf > 0) buf[0] = 0;
+	    return 0;
+      }
+
       unsigned long val=0;
       int comp=0;
       if (signed_flag) {

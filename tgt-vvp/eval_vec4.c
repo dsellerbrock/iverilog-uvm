@@ -1594,6 +1594,27 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	            ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
 	    return;
       }
+      if (strncmp(ivl_expr_name(expr), "$ivl_darray_method$", 19) == 0) {
+	    /* Reduction methods: sum, product, and, or, xor */
+	    const char*method = ivl_expr_name(expr) + 19;
+	    const char*opcode = NULL;
+	    if      (strcmp(method, "sum")     == 0) opcode = "%qsum";
+	    else if (strcmp(method, "product") == 0) opcode = "%qprod";
+	    else if (strcmp(method, "and")     == 0) opcode = "%qand";
+	    else if (strcmp(method, "or")      == 0) opcode = "%qor";
+	    else if (strcmp(method, "xor")     == 0) opcode = "%qxor";
+	    if (opcode) {
+		  ivl_expr_t arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+		  if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL
+		      && ivl_expr_signal(arg)) {
+			fprintf(vvp_out, "    %s v%p_0;\n",
+				opcode, ivl_expr_signal(arg));
+			return;
+		  }
+		  fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+		  return;
+	    }
+      }
       if (strcmp(ivl_expr_name(expr), "$ivl_assoc_method$exists")==0) {
 	    if (draw_assoc_exists_vec4(expr))
 		  return;

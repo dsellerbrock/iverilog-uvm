@@ -911,9 +911,12 @@ void vvp_queue_vec4::set_word(unsigned adr, const vvp_vector4_t&value)
 
 void vvp_queue_vec4::get_word(unsigned adr, vvp_vector4_t&value)
 {
-      if (adr >= queue.size())
-	    value = vvp_vector4_t(queue[0].size());
-      else
+      if (adr >= queue.size()) {
+	    /* Out-of-bounds: use element size from first element if present,
+	     * otherwise 0-width so callers get a defined default. */
+	    unsigned wid = queue.empty() ? 0 : queue[0].size();
+	    value = vvp_vector4_t(wid);
+      } else
 	    value = queue[adr];
 }
 

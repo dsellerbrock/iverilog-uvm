@@ -3153,6 +3153,11 @@ NetProc* Statement::elaborate(Design*des, NetScope*) const
       return cur;
 }
 
+NetProc* PNoop::elaborate(Design*, NetScope*) const
+{
+      return new NetBlock(NetBlock::SEQU, 0);
+}
+
 
 NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope) const
 {
