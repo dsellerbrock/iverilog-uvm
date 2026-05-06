@@ -429,10 +429,17 @@ void netclass_t::set_prop_initialized(size_t idx) const
 bool netclass_t::test_for_missing_initializers() const
 {
       for (size_t idx = 0 ; idx < property_table_.size() ; idx += 1) {
+	    /* Only instance const (non-static const) properties must be
+	     * initialized in new().  Non-const properties have default
+	     * values; static const properties can be initialized at
+	     * declaration (they never go through new()). */
+	    if (!property_table_[idx].qual.test_const())
+		  continue;
+	    if (property_table_[idx].qual.test_static())
+		  continue;
 	    if (property_table_[idx].initialized_flag)
 		  continue;
-	    if (property_table_[idx].qual.test_const())
-		  return true;
+	    return true;
       }
 
       return false;

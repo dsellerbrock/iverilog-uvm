@@ -367,10 +367,19 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       }
 
 	/* We are elaborating procedural assignments. Wires are not allowed
-	   unless this is the l-value of a force. */
+	   unless this is the l-value of a force or a modport output port.
+	   Interface module ports arrive as UNRESOLVED_WIRE with PINOUT (the
+	   module treats the interface handle as bidirectional); permit them
+	   as procedural l-values so that modport output members can be driven.
+	   Explicitly-typed wire/net output ports (clocking block outputs etc.)
+	   remain blocked because their type is WIRE, not UNRESOLVED_WIRE. */
+      bool lval_modport_output =
+	    (reg->type() == NetNet::UNRESOLVED_WIRE)
+	    && (reg->port_type() == NetNet::PINOUT || reg->port_type() == NetNet::POUTPUT);
       if ((reg->type() != NetNet::REG)
 	  && ((reg->type() != NetNet::UNRESOLVED_WIRE) || !reg->coerced_to_uwire())
-	  && !is_force) {
+	  && !is_force
+	  && !lval_modport_output) {
 	    cerr << get_fileline() << ": error: '" << path_
 		 << "' is not a valid l-value for a procedural assignment."
 		 << endl;
