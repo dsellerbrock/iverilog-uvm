@@ -4211,13 +4211,23 @@ inside_expression /* IEEE1800-2005 A.8.3 */
       }
   ;
 
-  /* G-SV6: `expr matches tagged T [struct_pat]` (IEEE 1800-2017 §12.6).
-     Stub: declares pattern-binding variables, evaluates to 0 (no match).
+  /* G-SV6: `expr matches tagged T struct_pat` (IEEE 1800-2017 §12.6).
+     Stub: declares pattern-binding variables, evaluates to x (no match).
      Bound vars are implicitly int, declared in the enclosing scope.
-     Sufficient to compile and run tests that only use $display in arms. */
+     Sufficient to compile and run tests that only use $display in arms.
+     The `matches_struct_pat` starts with K_LP (= '{) which is distinct
+     from `'(' expr ')'` value-constructors and regular parens, so there
+     is no shift/reduce conflict with expr_primary tagged-value forms. */
 matches_expression
-  : expression K_matches matches_tagged_pat %prec K_matches
-      { delete $1;
+  : expression K_matches K_tagged IDENTIFIER matches_struct_pat %prec K_matches
+      { delete $1; delete[] $4;
+	verinum*v = new verinum(verinum::Vx, 1);
+	PENumber*zero = new PENumber(v);
+	FILE_NAME(zero, @2);
+	$$ = zero;
+      }
+  | expression K_matches K_tagged IDENTIFIER %prec K_matches
+      { delete $1; delete[] $4;
 	verinum*v = new verinum(verinum::Vx, 1);
 	PENumber*zero = new PENumber(v);
 	FILE_NAME(zero, @2);
@@ -6666,6 +6676,16 @@ struct_union_member /* IEEE 1800-2012 A.2.2.1 */
 	tmp->names .reset($3);
 	$$ = tmp;
       }
+  /* G-SV3: `void MemberName;` in tagged union (IEEE 1800-2017 §7.3.2) */
+  | attribute_list_opt K_void list_of_variable_decl_assignments ';'
+      { struct_member_t*tmp = new struct_member_t;
+	FILE_NAME(tmp, @2);
+	void_type_t*vt = new void_type_t;
+	FILE_NAME(vt, @2);
+	tmp->type.reset(vt);
+	tmp->names.reset($3);
+	$$ = tmp;
+      }
   | attribute_list_opt IDENTIFIER list_of_variable_decl_assignments ';'
       { struct_member_t*tmp = nullptr;
 	typedef_t*type = pform_test_type_identifier(@2, $2);
@@ -6796,16 +6816,6 @@ pat_match_member_list
 matches_struct_pat
   : K_LP pat_match_member_list '}'
   | K_LP '}'
-  ;
-
-  /* Full tagged-union match pattern: `tagged T [struct_pat | .var | (none)]` */
-matches_tagged_pat
-  : K_tagged IDENTIFIER matches_struct_pat
-      { delete[] $2; }
-  | K_tagged IDENTIFIER '.' IDENTIFIER
-      { pat_declare_var_if_new_(@4, $4); delete[] $2; delete[] $4; }
-  | K_tagged IDENTIFIER
-      { delete[] $2; }
   ;
 
   /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches`

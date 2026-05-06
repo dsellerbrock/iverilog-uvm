@@ -242,6 +242,8 @@ struct type_parameter_t : data_type_t {
 
 struct void_type_t : public data_type_t {
       virtual void pform_dump(std::ostream&out, unsigned indent) const override;
+      /* G-SV3: elaborate as 1-bit logic placeholder for tagged-union void members */
+      ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
 };
 
 /*

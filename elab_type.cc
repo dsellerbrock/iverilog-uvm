@@ -421,6 +421,14 @@ ivl_type_t data_type_t::elaborate_type_raw(Design*des, NetScope*) const
       return 0;
 }
 
+/* G-SV3: `void` tagged-union member type (IEEE 1800-2017 §7.3.2).
+   Void members have no storage; elaborate as a 1-bit logic placeholder
+   so netstruct_t::append_member's net_type != null assertion is satisfied. */
+ivl_type_t void_type_t::elaborate_type_raw(Design*, NetScope*) const
+{
+      return new netvector_t(IVL_VT_LOGIC);
+}
+
 ivl_type_t atom_type_t::elaborate_type_raw(Design*des, NetScope*) const
 {
       switch (type_code) {
