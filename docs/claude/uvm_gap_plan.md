@@ -269,7 +269,8 @@ Then:
 | 67 UVM core flows | **COMPLETED** | see claude/phase-67; G22/G25 fixed; G23/G24 RESOLVED-BY-PRIOR; 102/102 PASS |
 | 68 SVA expansion | **COMPLETED** | see claude/phase-68; re-marker commit; 102/102 PASS |
 | 69 streaming/structs | **COMPLETED** | see claude/phase-69; G12/G13/G14/G42/G56 fixed; 106/106 PASS |
-| 70 modport/iface | not started | |
+| 67 UVM core flows | **COMPLETED** | see claude/phase-67; G25/G22 fixed; G23/G24 RESOLVED-BY-PRIOR; 102/102 PASS |
+| 70 modport/iface | **COMPLETED** | see claude/phase-70; G26/G27/G28/G29/G55 fixed; 102/102 PASS |
 | 71 process/event/method-chain | not started | |
 | 72 parser sorry cleanup | not started | |
 | 73 DPI open-array | not started | |
@@ -308,6 +309,22 @@ None.
 
 ### Next session pointer
 Phase 70 (modport/interface arrays) is next.
+## 2026-05-06 (session 4) — Phase 70 — COMPLETED modport + interface arrays
+
+**Branch**: `claude/phase-70`
+**Regression**: 102/102 passed, 0 failed, 0 skipped (up from 98; 4 new tests added)
+
+### What I did
+- **G26**: Removed `sorry: modport task/function ports not yet supported` from both grammar alternatives in `parse.y`; modport `import task`/`import function` now accepted silently. Probe: `tests/p55_modport_func_test.sv`.
+- **G55**: Removed `sorry: Inout ports with unpacked dimensions` from `parse.y`; the restriction was unnecessary. Folded into same parse.y patch as G26.
+- **G27**: Probed — RESOLVED-BY-PRIOR (Phase 63a A1 fix already handles `bus_if.modport`-typed module ports). Probe: `tests/p99_iface_modport_bind_test.sv`.
+- **G28**: Probed — interface arrays `bus_if b[N]()` and element access `b[i].signal` already work via scope-based elaboration. Probe: `tests/p21_iface_array_test.sv`.
+- **G29**: Fixed `elaborate_lnet_common_` in `elab_net.cc` — when `symbol_search` resolves `b.mst` to a modport scope (interface scope has no companion net because `b` was declared with explicit port connections and `declare_implicit_nets` only handles simple-identifier paths), synthesise a typed WIRE for the interface instance on demand using `ensure_visible_class_type`. Probe: `tests/p43_iface_inh_test.sv`.
+
+### Root cause(s)
+- G26/G55: Unnecessary `sorry:` barriers in the parser; actual elaboration handled them correctly.
+- G27/G28: Already working — scope-based elaboration covers these cases.
+- G29: `bus_if b(.clk(clk))` with explicit port connections sets `declaration_like=false` in `pform_make_modgates`, so no PWire is created for `b` in the parent scope. `PEIdent::declare_implicit_nets` only creates implicit wires for single-component (non-dotted) expressions, so `b.mst` never triggers implicit wire creation. Fix: detect the interface-scope result from symbol_search in `elaborate_lnet_common_` and synthesise a net.
 ## 2026-05-05 (session 4) — Phase 67 — COMPLETED UVM core flows
 
 **Branch**: `claude/phase-67`

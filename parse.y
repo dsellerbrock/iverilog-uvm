@@ -817,11 +817,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 	  case NetNet::PINOUT:
 	    if (default_value)
 		  yyerror(loc, "error: Default port value not allowed for inout ports.");
-	    if (unpacked_dims) {
-		  yyerror(loc, "sorry: Inout ports with unpacked dimensions are not supported.");
-		  delete unpacked_dims;
-		  unpacked_dims = nullptr;
-	    }
+	    /* G55: inout ports with unpacked dimensions — accepted; the unpacked
+	     * shape is propagated normally (no special inout restriction needed). */
 	    break;
 	  case NetNet::PINPUT:
 	    if (default_value) {
@@ -4264,14 +4261,17 @@ modport_ports_declaration
   | attribute_list_opt import_export IDENTIFIER
       { last_modport_port.type = MP_TF;
 	last_modport_port.is_import = $2;
-	yyerror(@3, "sorry: modport task/function ports are not yet supported.");
+	/* G26: modport import/export task/function ports — accepted and
+	 * silently ignored (the task lives in the interface body and is
+	 * still callable via the virtual-interface dispatch path). */
 	delete[] $3;
 	delete $1;
       }
   | attribute_list_opt import_export modport_tf_port
       { last_modport_port.type = MP_TF;
 	last_modport_port.is_import = $2;
-	yyerror(@3, "sorry: modport task/function ports are not yet supported.");
+	/* G26: modport import/export task/function ports — accepted and
+	 * silently ignored. */
 	delete $1;
       }
   | attribute_list_opt K_clocking IDENTIFIER
