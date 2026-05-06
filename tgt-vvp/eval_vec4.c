@@ -2211,6 +2211,11 @@ void draw_eval_vec4(ivl_expr_t expr)
 	    draw_concat_vec4(expr);
 	    return;
 
+	  case IVL_EX_EVENT:
+	    fprintf(vvp_out, "    %%event/triggered E_%p;\n",
+	            ivl_expr_event(expr));
+	    return;
+
 	  case IVL_EX_NUMBER:
 	  case IVL_EX_SELECT:
 	    if (ivl_expr_oper2(expr)==0)

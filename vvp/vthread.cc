@@ -8097,6 +8097,22 @@ bool of_EVENT_NB(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %event/triggered <var-label>
+ */
+bool of_EVENT_TRIGGERED(vthread_t thr, vvp_code_t cp)
+{
+      vvp_named_event*event = dynamic_cast<vvp_named_event*>(cp->net->fun);
+      bool triggered = false;
+
+      if (event)
+            triggered = event->is_triggered(
+                  ensure_write_context_(thr, "event-triggered"));
+
+      thr->push_vec4(vvp_vector4_t(1, triggered ? BIT4_1 : BIT4_0));
+      return true;
+}
+
 bool of_EVCTL(vthread_t thr, vvp_code_t cp)
 {
       assert(thr->event == 0 && thr->ecount == 0);

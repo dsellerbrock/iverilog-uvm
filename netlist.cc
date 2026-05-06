@@ -2439,7 +2439,7 @@ const NetScope* NetEConstParam::scope() const
 }
 
 NetEEvent::NetEEvent(NetEvent*e)
-: event_(e)
+: NetExpr(1), event_(e)
 {
     e->exprref_ += 1;
 }

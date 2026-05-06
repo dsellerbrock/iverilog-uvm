@@ -139,9 +139,12 @@ struct waitable_hooks_s {
  * needed is the list of threads waiting on that instance.
  */
 struct waitable_state_s {
-      waitable_state_s() : threads(0) {}
+      waitable_state_s()
+      : threads(0), triggered(false), triggered_clear_scheduled(false) {}
 
       vthread_t threads;
+      bool triggered;
+      bool triggered_clear_scheduled;
 };
 
 /*
@@ -378,7 +381,12 @@ class vvp_named_event : public vvp_net_fun_t, public waitable_hooks_s {
       explicit vvp_named_event(class __vpiHandle*eh);
       ~vvp_named_event() override;
 
+      virtual bool is_triggered(vvp_context_t context) const = 0;
+      virtual void clear_triggered(vvp_context_t context) = 0;
+
     protected:
+      void schedule_triggered_clear_(vvp_context_t context);
+
       class __vpiHandle*handle_;
 };
 
@@ -392,12 +400,16 @@ class vvp_named_event_sa : public vvp_named_event {
       ~vvp_named_event_sa() override;
 
       vthread_t add_waiting_thread(vthread_t thread) override;
+      bool is_triggered(vvp_context_t context) const override;
+      void clear_triggered(vvp_context_t context) override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
 
     private:
       vthread_t threads_;
+      bool triggered_;
+      bool triggered_clear_scheduled_;
 };
 
 /*
@@ -416,6 +428,8 @@ class vvp_named_event_aa : public vvp_named_event, public automatic_hooks_s {
 #endif
 
       vthread_t add_waiting_thread(vthread_t thread) override;
+      bool is_triggered(vvp_context_t context) const override;
+      void clear_triggered(vvp_context_t context) override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t context) override;

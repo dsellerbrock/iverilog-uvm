@@ -490,7 +490,8 @@ void dll_target::expr_event(const NetEEvent*net)
 
       expr_->type_ = IVL_EX_EVENT;
       FILE_NAME(expr_, net);
-      expr_->value_= IVL_VT_VOID;
+      expr_->value_= IVL_VT_LOGIC;
+      expr_->width_= net->expr_width() ? net->expr_width() : 1;
       expr_->net_type=0;
 
         /* Locate the event by name. Save the ivl_event_t in the
