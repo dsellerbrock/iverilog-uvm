@@ -12446,6 +12446,26 @@ statement_item /* This is roughly statement_item in the LRM */
      name. These are handled by pushing the scope name, then matching
      the declarations. The scope is popped at the end of the block. */
 
+  /* G-SV16: labeled begin: `name: begin ... end: name` (IEEE 1800-2017 §9.3.5) */
+  | IDENTIFIER ':' K_begin
+      { PBlock*tmp = pform_push_block_scope(@3, $1, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+      }
+	    block_item_decls_opt
+	    statement_or_null_list_opt K_end label_opt
+	      { /* $1=IDENTIFIER $2=: $3=K_begin $4=action $5=decls $6=stmts $7=K_end $8=label */
+		PBlock*tmp;
+		pform_pop_scope();
+		assert(! current_block_stack.empty());
+		tmp = current_block_stack.top();
+		current_block_stack.pop();
+		if ($6) tmp->set_statement(*$6);
+		delete $6;
+		check_end_label(@8, "block", $1, $8);
+		delete[]$1;
+		$$ = tmp;
+	      }
+
   /* In SystemVerilog an unnamed block can contain variable declarations. */
   | K_begin label_opt
       { PBlock*tmp = pform_push_block_scope(@1, $2, PBlock::BL_SEQ);
@@ -12481,6 +12501,26 @@ statement_item /* This is roughly statement_item in the LRM */
      from the parser's perspective there is no real difference. All we
      need to do is remember that this is a parallel block so that the
      code generator can do the right thing. */
+
+  /* G-SV16: labeled fork: `name: fork ... join: name` (IEEE 1800-2017 §9.3.5) */
+  | IDENTIFIER ':' K_fork
+      { PBlock*tmp = pform_push_block_scope(@3, $1, PBlock::BL_PAR);
+	current_block_stack.push(tmp);
+      }
+	    block_item_decls_opt
+	    statement_or_null_list_opt join_keyword label_opt
+	      { PBlock*tmp;
+		pform_pop_scope();
+		assert(! current_block_stack.empty());
+		tmp = current_block_stack.top();
+		current_block_stack.pop();
+		tmp->set_join_type($7);
+		if ($6) tmp->set_statement(*$6);
+		delete $6;
+		check_end_label(@8, "fork", $1, $8);
+		delete[]$1;
+		$$ = tmp;
+	      }
 
   /* In SystemVerilog an unnamed block can contain variable declarations. */
   | K_fork label_opt
