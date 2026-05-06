@@ -856,6 +856,385 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       return port;
 }
 
+/* G-SV5 cast macros for void* union member */
+#define RS_ITEM(p)   static_cast<rs_item_t*>(p)
+#define RS_ITEMS(p)  static_cast<std::vector<rs_item_t*>*>(p)
+#define RS_RULE(p)   static_cast<rs_rule_t*>(p)
+#define RS_RULES(p)  static_cast<std::vector<rs_rule_t*>*>(p)
+#define RS_PROD(p)   static_cast<rs_prod_t*>(p)
+#define RS_PRODS(p)  static_cast<std::vector<rs_prod_t*>*>(p)
+#define RS_ARMS(p)   static_cast<std::vector<rs_item_t::case_arm_t>*>(p)
+#define RS_ARM(p)    static_cast<rs_item_t::case_arm_t*>(p)
+
+/* G-SV5: randsequence intermediate representation (lowered at endsequence time) */
+struct rs_item_t {
+      enum RsKind { RS_CODE, RS_CALL, RS_IF, RS_REPEAT, RS_RAND_JOIN, RS_CASE } kind;
+      std::vector<Statement*>* stmts;   // RS_CODE
+      char* name;                        // RS_CALL
+      std::list<PExpr*>* call_args;     // RS_CALL argument expressions (may be null)
+      PExpr* expr;                       // RS_IF cond / RS_REPEAT count / RS_CASE expr
+      std::vector<rs_item_t*>* items1;   // RS_IF(then) / RS_REPEAT(body) / RS_RAND_JOIN(all)
+      std::vector<rs_item_t*>* items2;   // RS_IF(else)
+      using case_arm_t = std::pair<PExpr*, std::vector<rs_item_t*>*>;
+      std::vector<case_arm_t>* case_arms; // RS_CASE
+      rs_item_t() : kind(RS_CODE), stmts(nullptr), name(nullptr), call_args(nullptr),
+                    expr(nullptr), items1(nullptr), items2(nullptr), case_arms(nullptr) {}
+};
+
+struct rs_rule_t {
+      long weight;   /* -1 = unweighted (equal prob) */
+      std::vector<rs_item_t*>* items;
+      rs_rule_t() : weight(-1), items(nullptr) {}
+};
+
+struct rs_prod_t {
+      perm_string name;
+      std::vector<rs_rule_t*>* rules;
+      std::vector<perm_string>* params;  // parameter names for value-passing (null = no params)
+      rs_prod_t() : rules(nullptr), params(nullptr) {}
+};
+
+/* When true, K_break/K_return in jump_statement emit rs flag assignments */
+static bool parsing_rs_code_block_ = false;
+static int  rs_unique_counter_ = 0;
+
+/* Build a PEIdent for a simple name (lexical_pos 0 = synthetic) */
+static PEIdent* rs_ident_(const char* n) {
+      pform_name_t nm;
+      nm.push_back(name_component_t(lex_strings.make(n)));
+      return new PEIdent(nm, 0);
+}
+
+/* Build PAssign(name = constant) */
+static PAssign* rs_assign_const_(const struct vlltype& loc, const char* n, uint64_t v) {
+      PEIdent* lv = rs_ident_(n);
+      PENumber* rv = new PENumber(new verinum(v, 32));
+      FILE_NAME(lv, loc);
+      FILE_NAME(rv, loc);
+      PAssign* a = new PAssign(lv, rv);
+      FILE_NAME(a, loc);
+      return a;
+}
+
+/* Build expression !__rs_brk && !__rs_ret (or just !__rs_brk if no_ret) */
+static PExpr* rs_guard_expr_(const struct vlltype& loc, bool no_ret = false) {
+      PEUnary* nb = new PEUnary('!', rs_ident_("__rs_brk"));
+      FILE_NAME(nb, loc);
+      if (no_ret) return nb;
+      PEUnary* nr = new PEUnary('!', rs_ident_("__rs_ret"));
+      FILE_NAME(nr, loc);
+      PEBinary* g = new PEBLogic('a', nb, nr);
+      FILE_NAME(g, loc);
+      return g;
+}
+
+/* Wrap a Statement in: if (!__rs_brk && !__rs_ret) <stmt> */
+static Statement* rs_guard_stmt_(const struct vlltype& loc, Statement* s, bool no_ret = false) {
+      PCondit* c = new PCondit(rs_guard_expr_(loc, no_ret), s, nullptr);
+      FILE_NAME(c, loc);
+      return c;
+}
+
+/* Declare an int variable (name) in the current lexical_scope.
+   Use lexical_pos=0 so synthetic references (also pos=0) satisfy
+   the wire->lexical_pos() <= reference_pos check in symbol_search. */
+static void rs_declare_int_(const struct vlltype& loc, const char* varname) {
+      list<decl_assignment_t*> alist;
+      decl_assignment_t* da = new decl_assignment_t;
+      da->name = { lex_strings.make(varname), 0 };
+      alist.push_back(da);
+      atom_type_t* itype = new atom_type_t(atom_type_t::INT, true);
+      pform_make_var(loc, &alist, itype);
+}
+
+/* Forward declaration */
+static std::vector<Statement*>* rs_lower_items_(
+      const std::vector<rs_item_t*>& items,
+      const std::map<perm_string, rs_prod_t*>& pmap,
+      const struct vlltype& loc);
+
+/* Lower a single production (inline all its rules / items) into statements */
+static std::vector<Statement*>* rs_lower_prod_(
+      const rs_prod_t* prod,
+      const std::map<perm_string, rs_prod_t*>& pmap,
+      const struct vlltype& loc)
+{
+      auto* out = new std::vector<Statement*>();
+      if (!prod || !prod->rules || prod->rules->empty()) return out;
+
+      /* Determine which rules are selectable (non-zero weight) */
+      auto& rules = *prod->rules;
+      std::vector<rs_rule_t*> active;
+      for (auto* r : rules) {
+            if (r->weight != 0) active.push_back(r);
+      }
+      if (active.empty()) return out;
+
+      if (active.size() == 1) {
+            /* Single (or only active) rule — inline directly */
+            auto* items = rs_lower_items_(*active[0]->items, pmap, loc);
+            for (auto* s : *items) out->push_back(s);
+            delete items;
+      } else {
+            /* Multiple equal-weight alternatives: use $urandom */
+            /* Build: case ($urandom_range(N-1, 0)) 0: ... 1: ... endcase */
+            /* wrapped in if (!__rs_brk && !__rs_ret) */
+            pform_name_t fn;
+            fn.push_back(name_component_t(lex_strings.make("$urandom_range")));
+            list<named_pexpr_t> fargs;
+            named_pexpr_t hi_arg;
+            hi_arg.parm = new PENumber(new verinum((uint64_t)(active.size()-1), 32));
+            FILE_NAME(hi_arg.parm, loc);
+            named_pexpr_t lo_arg;
+            lo_arg.parm = new PENumber(new verinum((uint64_t)0, 32));
+            FILE_NAME(lo_arg.parm, loc);
+            fargs.push_back(hi_arg);
+            fargs.push_back(lo_arg);
+            PECallFunction* rnd = new PECallFunction(fn, fargs);
+            FILE_NAME(rnd, loc);
+
+            std::vector<PCase::Item*>* citems = new std::vector<PCase::Item*>();
+            for (size_t i = 0; i < active.size(); i++) {
+                  PCase::Item* ci = new PCase::Item();
+                  PENumber* idx = new PENumber(new verinum((uint64_t)i, 32));
+                  FILE_NAME(idx, loc);
+                  ci->expr.push_back(idx);
+                  auto* body_stmts = rs_lower_items_(*active[i]->items, pmap, loc);
+                  PBlock* body_blk = new PBlock(PBlock::BL_SEQ);
+                  FILE_NAME(body_blk, loc);
+                  body_blk->set_statement(*body_stmts);
+                  delete body_stmts;
+                  ci->stat = body_blk;
+                  citems->push_back(ci);
+            }
+            PCase* cs = new PCase(IVL_CASE_QUALITY_BASIC, NetCase::EQ, rnd, citems);
+            FILE_NAME(cs, loc);
+            out->push_back(rs_guard_stmt_(loc, cs));
+      }
+      return out;
+}
+
+/* Lower a list of rs_item_t into PStatement* list */
+static std::vector<Statement*>* rs_lower_items_(
+      const std::vector<rs_item_t*>& items,
+      const std::map<perm_string, rs_prod_t*>& pmap,
+      const struct vlltype& loc)
+{
+      auto* out = new std::vector<Statement*>();
+      for (auto* it : items) {
+            switch (it->kind) {
+              case rs_item_t::RS_CODE: {
+                    /* Wrap each statement in the code block with a guard */
+                    if (it->stmts) {
+                          for (auto* s : *it->stmts) {
+                                if (s) out->push_back(rs_guard_stmt_(loc, s));
+                          }
+                    }
+                    break;
+              }
+              case rs_item_t::RS_CALL: {
+                    /* Inline the named production */
+                    perm_string pn = lex_strings.make(it->name);
+                    auto pi = pmap.find(pn);
+                    if (pi == pmap.end()) break; /* unknown production */
+                    auto* prod = pi->second;
+
+                    if (prod->params && !prod->params->empty()) {
+                          /* Parameterized production: create inner named scope, bind args */
+                          char call_name[48];
+                          snprintf(call_name, sizeof(call_name), "__rs_call_%d",
+                                   rs_unique_counter_++);
+                          PBlock* inner_blk = pform_push_block_scope(loc, call_name,
+                                                                      PBlock::BL_SEQ);
+                          current_block_stack.push(inner_blk);
+
+                          /* Declare each parameter as int (pos=0 = always visible) */
+                          for (perm_string pname : *prod->params) {
+                                list<decl_assignment_t*> alist;
+                                decl_assignment_t* da = new decl_assignment_t;
+                                da->name = { pname, 0 };
+                                alist.push_back(da);
+                                atom_type_t* itype = new atom_type_t(atom_type_t::INT, true);
+                                pform_make_var(loc, &alist, itype);
+                          }
+
+                          std::vector<Statement*> inner_body;
+
+                          /* Assign actual args to params */
+                          if (it->call_args) {
+                                size_t np = prod->params->size();
+                                size_t na = it->call_args->size();
+                                auto arg_it = it->call_args->begin();
+                                for (size_t i = 0; i < np && i < na; i++, ++arg_it) {
+                                      pform_name_t nm;
+                                      nm.push_back(name_component_t((*prod->params)[i]));
+                                      PEIdent* lv = new PEIdent(nm, 0);
+                                      FILE_NAME(lv, loc);
+                                      PAssign* a = new PAssign(lv, *arg_it);
+                                      FILE_NAME(a, loc);
+                                      inner_body.push_back(a);
+                                }
+                          }
+
+                          /* Inline production body */
+                          auto* prod_stmts = rs_lower_prod_(prod, pmap, loc);
+                          for (auto* s : *prod_stmts) inner_body.push_back(s);
+                          delete prod_stmts;
+
+                          pform_pop_scope();
+                          PBlock* inner = current_block_stack.top();
+                          current_block_stack.pop();
+                          inner->set_statement(inner_body);
+
+                          out->push_back(rs_guard_stmt_(loc, inner));
+                          out->push_back(rs_assign_const_(loc, "__rs_ret", 0));
+                    } else {
+                          /* Unparameterized production */
+                          auto* prod_stmts = rs_lower_prod_(prod, pmap, loc);
+                          PBlock* call_blk = new PBlock(PBlock::BL_SEQ);
+                          FILE_NAME(call_blk, loc);
+                          call_blk->set_statement(*prod_stmts);
+                          delete prod_stmts;
+                          out->push_back(rs_guard_stmt_(loc, call_blk));
+                          out->push_back(rs_assign_const_(loc, "__rs_ret", 0));
+                    }
+                    break;
+              }
+              case rs_item_t::RS_IF: {
+                    PExpr* cond = it->expr;
+                    /* build then-block */
+                    PBlock* then_blk = new PBlock(PBlock::BL_SEQ);
+                    FILE_NAME(then_blk, loc);
+                    if (it->items1 && !it->items1->empty()) {
+                          auto* ts = rs_lower_items_(*it->items1, pmap, loc);
+                          then_blk->set_statement(*ts);
+                          delete ts;
+                    }
+                    /* build else-block if present */
+                    Statement* else_stmt = nullptr;
+                    if (it->items2 && !it->items2->empty()) {
+                          PBlock* else_blk = new PBlock(PBlock::BL_SEQ);
+                          FILE_NAME(else_blk, loc);
+                          auto* es = rs_lower_items_(*it->items2, pmap, loc);
+                          else_blk->set_statement(*es);
+                          delete es;
+                          else_stmt = else_blk;
+                    }
+                    PCondit* ifstmt = new PCondit(cond, then_blk, else_stmt);
+                    FILE_NAME(ifstmt, loc);
+                    out->push_back(rs_guard_stmt_(loc, ifstmt));
+                    break;
+              }
+              case rs_item_t::RS_REPEAT: {
+                    /* repeat(N) { lower body items } */
+                    auto* body_stmts = it->items1 ?
+                          rs_lower_items_(*it->items1, pmap, loc) :
+                          new std::vector<Statement*>();
+                    PBlock* body_blk = new PBlock(PBlock::BL_SEQ);
+                    FILE_NAME(body_blk, loc);
+                    body_blk->set_statement(*body_stmts);
+                    delete body_stmts;
+                    PRepeat* rep = new PRepeat(it->expr, body_blk);
+                    FILE_NAME(rep, loc);
+                    out->push_back(rs_guard_stmt_(loc, rep));
+                    break;
+              }
+              case rs_item_t::RS_RAND_JOIN: {
+                    /* treat as sequential: lower all items in order */
+                    if (it->items1) {
+                          auto* js = rs_lower_items_(*it->items1, pmap, loc);
+                          for (auto* s : *js) out->push_back(s);
+                          delete js;
+                    }
+                    break;
+              }
+              case rs_item_t::RS_CASE: {
+                    /* Build a PCase from the arms */
+                    std::vector<PCase::Item*>* ci_list = new std::vector<PCase::Item*>();
+                    if (it->case_arms) {
+                          for (auto& arm : *it->case_arms) {
+                                PCase::Item* ci = new PCase::Item();
+                                if (arm.first) ci->expr.push_back(arm.first);
+                                /* arm.first == nullptr means default */
+                                auto* arm_stmts = rs_lower_items_(*arm.second, pmap, loc);
+                                PBlock* arm_blk = new PBlock(PBlock::BL_SEQ);
+                                FILE_NAME(arm_blk, loc);
+                                arm_blk->set_statement(*arm_stmts);
+                                delete arm_stmts;
+                                ci->stat = arm_blk;
+                                ci_list->push_back(ci);
+                          }
+                    }
+                    PCase* cs = new PCase(IVL_CASE_QUALITY_BASIC, NetCase::EQ, it->expr, ci_list);
+                    FILE_NAME(cs, loc);
+                    out->push_back(rs_guard_stmt_(loc, cs));
+                    break;
+              }
+            }
+      }
+      return out;
+}
+
+/* Top-level lowering: build the outer named block from the start production */
+static Statement* lower_randsequence_(const char* start_name,
+                                      std::vector<rs_prod_t*>* prods,
+                                      const struct vlltype& loc)
+{
+      if (!prods || prods->empty()) {
+            PBlock* empty = new PBlock(PBlock::BL_SEQ);
+            FILE_NAME(empty, loc);
+            delete prods;
+            return empty;
+      }
+
+      /* Build production map */
+      std::map<perm_string, rs_prod_t*> pmap;
+      for (auto* p : *prods) pmap[p->name] = p;
+
+      /* Identify start production */
+      perm_string start = start_name ? lex_strings.make(start_name) : (*prods)[0]->name;
+      auto si = pmap.find(start);
+
+      /* Create outer block and declare flags */
+      char blk_name[48];
+      snprintf(blk_name, sizeof(blk_name), "__rs_blk_%d", rs_unique_counter_++);
+      PBlock* outer = pform_push_block_scope(loc, blk_name, PBlock::BL_SEQ);
+      current_block_stack.push(outer);
+
+      rs_declare_int_(loc, "__rs_brk");
+      rs_declare_int_(loc, "__rs_ret");
+
+      /* Build body statements */
+      std::vector<Statement*> body;
+      body.push_back(rs_assign_const_(loc, "__rs_brk", 0));
+      body.push_back(rs_assign_const_(loc, "__rs_ret", 0));
+
+      if (si != pmap.end()) {
+            auto* main_stmts = rs_lower_prod_(si->second, pmap, loc);
+            for (auto* s : *main_stmts) body.push_back(s);
+            delete main_stmts;
+      }
+
+      pform_pop_scope();
+      PBlock* blk = current_block_stack.top();
+      current_block_stack.pop();
+      blk->set_statement(body);
+
+      /* clean up intermediate structures */
+      for (auto* p : *prods) {
+            if (p->rules) {
+                  for (auto* r : *p->rules) {
+                        delete r->items;
+                        delete r;
+                  }
+                  delete p->rules;
+            }
+            delete p;
+      }
+      delete prods;
+      return blk;
+}
+
 %}
 
 %union {
@@ -987,6 +1366,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       std::list<class_type_t::pform_coverpoint_t*>* coverpoints;
       class_type_t::pform_cov_bins_t* cov_bins;
       std::list<class_type_t::pform_cov_bins_t*>* cov_bins_list;
+
+      /* G-SV5: randsequence IR — use void* to avoid header dependency */
+      void* rs_opaque;
 };
 
 %token <text>      IDENTIFIER SYSTEM_IDENTIFIER STRING TIME_LITERAL
@@ -1252,6 +1634,19 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <statement_list> statement_or_null_list statement_or_null_list_opt
 
 %type <statement> analog_statement
+
+/* G-SV5: randsequence grammar types (all use rs_opaque void* with casts) */
+%type <rs_opaque>    rs_item rs_simple_item
+%type <rs_opaque>    rs_item_list rs_simple_item_list
+%type <rs_opaque>    rs_weighted_rule
+%type <rs_opaque>    rs_alt_list
+%type <rs_opaque>    rs_production
+%type <rs_opaque>    rs_production_list
+%type <rs_opaque>    rs_case_item_list
+%type <rs_opaque>    rs_case_item
+%type <int_val>      rs_production_weight
+%type <rs_opaque>    rs_prod_param_list
+%type <text>         rs_prod_param
 
 %type <subroutine_call> subroutine_call
 
@@ -3822,9 +4217,20 @@ join_keyword /* IEEE1800-2005: A.6.3 */
 
 jump_statement /* IEEE1800-2005: A.6.5 */
   : K_break ';'
-      { PBreak*tmp = new PBreak;
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+      { if (parsing_rs_code_block_) {
+            /* RS break: set __rs_brk=1 and __rs_ret=1 */
+            std::vector<Statement*> sv;
+            sv.push_back(rs_assign_const_(@1, "__rs_brk", 1));
+            sv.push_back(rs_assign_const_(@1, "__rs_ret", 1));
+            PBlock* blk = new PBlock(PBlock::BL_SEQ);
+            FILE_NAME(blk, @1);
+            blk->set_statement(sv);
+            $$ = blk;
+        } else {
+            PBreak*tmp = new PBreak;
+            FILE_NAME(tmp, @1);
+            $$ = tmp;
+        }
       }
   | K_continue ';'
       { PContinue*tmp = new PContinue;
@@ -3832,9 +4238,14 @@ jump_statement /* IEEE1800-2005: A.6.5 */
 	$$ = tmp;
       }
   | K_return ';'
-      { PReturn*tmp = new PReturn(0);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+      { if (parsing_rs_code_block_) {
+            /* RS return: set __rs_ret=1 (exit current production only) */
+            $$ = rs_assign_const_(@1, "__rs_ret", 1);
+        } else {
+            PReturn*tmp = new PReturn(0);
+            FILE_NAME(tmp, @1);
+            $$ = tmp;
+        }
       }
   | K_return expression ';'
       { PReturn*tmp = new PReturn($2);
@@ -12080,6 +12491,20 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
 
+  /* G-SV5: randsequence — parse all productions then lower to a named block */
+  | K_randsequence '(' IDENTIFIER ')' rs_production_list K_endsequence
+      { $$ = lower_randsequence_($3, RS_PRODS($5), @1);
+        delete[] $3;
+      }
+  | K_randsequence '(' ')' rs_production_list K_endsequence
+      { $$ = lower_randsequence_(nullptr, RS_PRODS($4), @1); }
+  | K_randsequence error K_endsequence
+      { yyerrok;
+        PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+        FILE_NAME(tmp, @1);
+        $$ = tmp;
+      }
+
   | K_if '(' expression ')' statement_or_null %prec less_than_K_else
       { PCondit*tmp = new PCondit($3, $5, 0);
 	FILE_NAME(tmp, @1);
@@ -12746,6 +13171,211 @@ statement_or_null_list_opt
       { $$ = $1; }
   |
       { $$ = 0; }
+  ;
+
+/* G-SV5: randsequence grammar (IEEE 1800-2017 §18.17) */
+
+rs_production_list
+  : rs_production
+      { auto* v = new std::vector<rs_prod_t*>(); v->push_back(RS_PROD($1)); $$ = v; }
+  | rs_production_list rs_production
+      { RS_PRODS($1)->push_back(RS_PROD($2)); $$ = $1; }
+  ;
+
+rs_production
+  : IDENTIFIER ':' rs_alt_list ';'
+      { rs_prod_t* p = new rs_prod_t();
+        p->name = lex_strings.make($1);
+        p->rules = RS_RULES($3);
+        delete[] $1;
+        $$ = p;
+      }
+  | K_void IDENTIFIER '(' rs_prod_param_list ')' ':' rs_alt_list ';'
+      { rs_prod_t* p = new rs_prod_t();
+        p->name = lex_strings.make($2);
+        p->params = static_cast<std::vector<perm_string>*>($4);
+        p->rules = RS_RULES($7);
+        delete[] $2;
+        $$ = p;
+      }
+  ;
+
+/* Typed-production parameter list: just capture names (types are for checking only) */
+rs_prod_param_list
+  : rs_prod_param
+      { auto* v = new std::vector<perm_string>();
+        v->push_back(lex_strings.make($1)); delete[] $1; $$ = v; }
+  | rs_prod_param_list ',' rs_prod_param
+      { static_cast<std::vector<perm_string>*>($1)->push_back(lex_strings.make($3));
+        delete[] $3; $$ = $1; }
+  ;
+
+rs_prod_param /* type + name — returns the param name as char* */
+  : K_int IDENTIFIER
+      { $$ = $2; }
+  | K_bit IDENTIFIER
+      { $$ = $2; }
+  | K_logic IDENTIFIER
+      { $$ = $2; }
+  | K_byte IDENTIFIER
+      { $$ = $2; }
+  | K_shortint IDENTIFIER
+      { $$ = $2; }
+  | K_longint IDENTIFIER
+      { $$ = $2; }
+  | IDENTIFIER IDENTIFIER
+      { $$ = $2; delete[] $1; }
+  ;
+
+rs_alt_list
+  : rs_weighted_rule
+      { auto* v = new std::vector<rs_rule_t*>(); v->push_back(RS_RULE($1)); $$ = v; }
+  | rs_alt_list '|' rs_weighted_rule
+      { RS_RULES($1)->push_back(RS_RULE($3)); $$ = $1; }
+  ;
+
+rs_weighted_rule
+  : rs_item_list
+      { rs_rule_t* r = new rs_rule_t(); r->weight = -1; r->items = RS_ITEMS($1); $$ = r; }
+  | rs_item_list ':' '=' rs_production_weight
+      { rs_rule_t* r = new rs_rule_t();
+        r->weight = (long)$4;
+        r->items = RS_ITEMS($1);
+        $$ = r;
+      }
+  ;
+
+/* Weight must be a primary (not a binary expr) to avoid conflict with '|' separator */
+rs_production_weight
+  : DEC_NUMBER
+      { $$ = (long)$1->as_long(); delete $1; }
+  | BASED_NUMBER
+      { $$ = 1; delete $1; }
+  | IDENTIFIER
+      { $$ = 1; delete[] $1; }
+  | '(' expression ')'
+      { if (PENumber*n = dynamic_cast<PENumber*>($2)) $$ = (long)n->value().as_long();
+        else $$ = 1; delete $2;
+      }
+  ;
+
+rs_item_list
+  : rs_item
+      { auto* v = new std::vector<rs_item_t*>(); v->push_back(RS_ITEM($1)); $$ = v; }
+  | rs_item_list rs_item
+      { RS_ITEMS($1)->push_back(RS_ITEM($2)); $$ = $1; }
+  ;
+
+rs_item
+  : IDENTIFIER
+      { rs_item_t* it = new rs_item_t();
+        it->kind = rs_item_t::RS_CALL;
+        it->name = $1;
+        $$ = it;
+      }
+  | IDENTIFIER '(' expression_list_with_nuls ')'
+      { rs_item_t* it = new rs_item_t();
+        it->kind = rs_item_t::RS_CALL;
+        it->name = $1;
+        /* Keep args for value-passing productions */
+        it->call_args = $3;
+        $$ = it;
+      }
+  | '{' { parsing_rs_code_block_ = true; }
+    statement_or_null_list_opt
+    { parsing_rs_code_block_ = false; }
+    '}'
+      { rs_item_t* it = new rs_item_t();
+        it->kind = rs_item_t::RS_CODE;
+        it->stmts = $3 ? $3 : new std::vector<Statement*>();
+        $$ = it;
+      }
+  | K_if '(' expression ')' rs_item %prec less_than_K_else
+      { rs_item_t* it = new rs_item_t();
+        it->kind = rs_item_t::RS_IF;
+        it->expr = $3;
+        it->items1 = new std::vector<rs_item_t*>(); it->items1->push_back(RS_ITEM($5));
+        it->items2 = nullptr;
+        $$ = it;
+      }
+  | K_if '(' expression ')' rs_item K_else rs_item
+      { rs_item_t* it = new rs_item_t();
+        it->kind = rs_item_t::RS_IF;
+        it->expr = $3;
+        it->items1 = new std::vector<rs_item_t*>(); it->items1->push_back(RS_ITEM($5));
+        it->items2 = new std::vector<rs_item_t*>(); it->items2->push_back(RS_ITEM($7));
+        $$ = it;
+      }
+  | K_repeat '(' expression ')' rs_item
+      { rs_item_t* it = new rs_item_t();
+        it->kind = rs_item_t::RS_REPEAT;
+        it->expr = $3;
+        it->items1 = new std::vector<rs_item_t*>(); it->items1->push_back(RS_ITEM($5));
+        $$ = it;
+      }
+  | K_rand K_join rs_simple_item_list
+      { rs_item_t* it = new rs_item_t();
+        it->kind = rs_item_t::RS_RAND_JOIN;
+        it->items1 = RS_ITEMS($3);
+        $$ = it;
+      }
+  | K_rand K_join '(' REALTIME ')' rs_simple_item_list
+      { rs_item_t* it = new rs_item_t();
+        it->kind = rs_item_t::RS_RAND_JOIN;
+        delete $4;
+        it->items1 = RS_ITEMS($6);
+        $$ = it;
+      }
+  | K_case '(' expression ')' rs_case_item_list K_endcase
+      { rs_item_t* it = new rs_item_t();
+        it->kind = rs_item_t::RS_CASE;
+        it->expr = $3;
+        it->case_arms = RS_ARMS($5);
+        $$ = it;
+      }
+  ;
+
+rs_simple_item_list
+  : rs_simple_item
+      { auto* v = new std::vector<rs_item_t*>(); v->push_back(RS_ITEM($1)); $$ = v; }
+  | rs_simple_item_list rs_simple_item
+      { RS_ITEMS($1)->push_back(RS_ITEM($2)); $$ = $1; }
+  ;
+
+rs_simple_item
+  : IDENTIFIER
+      { rs_item_t* it = new rs_item_t();
+        it->kind = rs_item_t::RS_CALL;
+        it->name = $1;
+        $$ = it;
+      }
+  | '{' { parsing_rs_code_block_ = true; }
+    statement_or_null_list_opt
+    { parsing_rs_code_block_ = false; }
+    '}'
+      { rs_item_t* it = new rs_item_t();
+        it->kind = rs_item_t::RS_CODE;
+        it->stmts = $3 ? $3 : new std::vector<Statement*>();
+        $$ = it;
+      }
+  ;
+
+rs_case_item_list
+  : rs_case_item
+      { auto* v = new std::vector<rs_item_t::case_arm_t>();
+        v->push_back(*RS_ARM($1)); delete RS_ARM($1); $$ = v;
+      }
+  | rs_case_item_list rs_case_item
+      { RS_ARMS($1)->push_back(*RS_ARM($2)); delete RS_ARM($2); $$ = $1; }
+  ;
+
+rs_case_item
+  : expression ':' rs_item_list ';'
+      { $$ = new rs_item_t::case_arm_t($1, RS_ITEMS($3)); }
+  | K_default ':' rs_item_list ';'
+      { $$ = new rs_item_t::case_arm_t(nullptr, RS_ITEMS($3)); }
+  | K_default rs_item_list ';'
+      { $$ = new rs_item_t::case_arm_t(nullptr, RS_ITEMS($2)); }
   ;
 
 statement_or_null_list
