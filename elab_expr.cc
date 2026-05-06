@@ -5584,10 +5584,14 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	    if (subject_expr_ && path_.name.size() == 1) {
 		  NetExpr*rcvr = subject_expr_->elaborate_expr(des, scope, -1, 0);
 		  if (rcvr) {
+			perm_string method_name = peek_tail_name(path_);
+			if (const netenum_t*enum_type = dynamic_cast<const netenum_t*>(rcvr->net_type())) {
+			      return check_for_enum_methods(this, des, scope, enum_type,
+							    path_, method_name, rcvr, parms_);
+			}
 			const netclass_t*class_type =
 			      dynamic_cast<const netclass_t*>(rcvr->net_type());
 			if (class_type) {
-			      perm_string method_name = peek_tail_name(path_);
 			      NetScope*method_scope = class_type->method_from_name(method_name);
 			      if (method_scope && method_scope->type() == NetScope::FUNC)
 				    return elaborate_base_(des, scope, method_scope, flags, rcvr);
