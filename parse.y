@@ -947,6 +947,17 @@ static void rs_declare_int_(const struct vlltype& loc, const char* varname) {
       pform_make_var(loc, &alist, itype);
 }
 
+/* G-SV6: Declare a pattern-binding variable if not already in current scope.
+   Pattern syntax `'{.v, 0}` creates implicit variables; duplicates across arms
+   (e.g. `tagged a '{.v,0}` and `tagged c '{0,.v}`) must not re-declare. */
+static void pat_declare_var_if_new_(const struct vlltype& loc, const char* varname) {
+      LexicalScope* cur = pform_peek_scope();
+      if (cur && cur->local_symbols.find(lex_strings.make(varname))
+                       != cur->local_symbols.end())
+            return;
+      rs_declare_int_(loc, varname);
+}
+
 /* Forward declaration */
 static std::vector<Statement*>* rs_lower_items_(
       const std::vector<rs_item_t*>& items,
@@ -1539,8 +1550,8 @@ static Statement* lower_randsequence_(const char* start_name,
 %type <named_pexprs> argument_list
 %type <named_pexprs> argument_list_parens argument_list_parens_opt
 
-%type <citem>  case_item
-%type <citems> case_items
+%type <citem>  case_item inside_case_item
+%type <citems> case_items inside_case_items
 %type <cmitem>  case_matches_item
 %type <cmitems> case_matches_items
 
@@ -1565,7 +1576,7 @@ static Statement* lower_randsequence_(const char* start_name,
 %type <expr>  expr_primary_or_typename expr_primary
 %type <expr>  class_new dynamic_array_new
 %type <expr>  var_decl_initializer_opt initializer_opt
-%type <expr>  inc_or_dec_expression inside_expression lpvalue
+%type <expr>  inc_or_dec_expression inside_expression matches_expression lpvalue
 %type <expr>  branch_probe_expression streaming_concatenation
 %type <expr>  delay_value delay_value_simple
 %type <exprs> delay1 delay3 delay3_opt delay_value_list
@@ -1685,6 +1696,7 @@ static Statement* lower_randsequence_(const char* start_name,
 %left K_and K_or K_intersect K_throughout K_within
 %right K_TRIGGER K_LEQUIV
 %right '?' ':' K_inside
+%left K_matches
 %left K_LOR
 %left K_LAND
 %left '|'
@@ -4199,6 +4211,20 @@ inside_expression /* IEEE1800-2005 A.8.3 */
       }
   ;
 
+  /* G-SV6: `expr matches tagged T [struct_pat]` (IEEE 1800-2017 §12.6).
+     Stub: declares pattern-binding variables, evaluates to 0 (no match).
+     Bound vars are implicitly int, declared in the enclosing scope.
+     Sufficient to compile and run tests that only use $display in arms. */
+matches_expression
+  : expression K_matches matches_tagged_pat %prec K_matches
+      { delete $1;
+	verinum*v = new verinum(verinum::Vx, 1);
+	PENumber*zero = new PENumber(v);
+	FILE_NAME(zero, @2);
+	$$ = zero;
+      }
+  ;
+
 integer_vector_type /* IEEE1800-2005: A.2.2.1 */
   : K_reg   { $$ = IVL_VT_LOGIC; } /* A synonym for logic. */
   | K_bit   { $$ = IVL_VT_BOOL; }
@@ -6709,6 +6735,79 @@ case_items
       }
   ;
 
+  /* G-SV6: `case(x) inside` items allow ranges like [lo:hi] mixed with
+     plain expressions.  Use inside_range_list (which handles both) instead
+     of expression_list_proper so that `4'b01??, [5:6]: stmt` parses. */
+inside_case_item
+  : inside_range_list ':' statement_or_null
+      { PCase::Item*tmp = new PCase::Item;
+	for (auto& r : *$1) {
+	      PExpr* e = r.is_range ? r.lo : r.hi;
+	      if (e) tmp->expr.push_back(e);
+	}
+	delete $1;
+	tmp->stat = $3;
+	$$ = tmp;
+      }
+  | K_default ':' statement_or_null
+      { PCase::Item*tmp = new PCase::Item;
+	tmp->stat = $3;
+	$$ = tmp;
+      }
+  | K_default statement_or_null
+      { PCase::Item*tmp = new PCase::Item;
+	tmp->stat = $2;
+	$$ = tmp;
+      }
+  | error ':' statement_or_null
+      { yyerror(@2, "error: Incomprehensible case expression.");
+	yyerrok;
+      }
+  ;
+
+inside_case_items
+  : inside_case_items inside_case_item
+      { $1->push_back($2);
+	$$ = $1;
+      }
+  | inside_case_item
+      { $$ = new std::vector<PCase::Item*>(1, $1);
+      }
+  ;
+
+  /* G-SV6: pattern members for `case(x) matches tagged T '{...}'` struct
+     patterns (IEEE 1800-2017 §12.6).  A member is either `.var` (capture,
+     declares var in scope) or any expression (literal/wildcard, discarded).
+     Variables that appear in multiple arms (e.g. both `'{.v,0}` and
+     `'{0,.v}`) are declared only once via pat_declare_var_if_new_. */
+pat_match_member
+  : '.' IDENTIFIER
+      { pat_declare_var_if_new_(@2, $2); delete[] $2; }
+  | expression
+      { delete $1; }
+  ;
+
+pat_match_member_list
+  : pat_match_member
+  | pat_match_member_list ',' pat_match_member
+  ;
+
+  /* Struct pattern '{...}' used in tagged-union pattern matching. */
+matches_struct_pat
+  : K_LP pat_match_member_list '}'
+  | K_LP '}'
+  ;
+
+  /* Full tagged-union match pattern: `tagged T [struct_pat | .var | (none)]` */
+matches_tagged_pat
+  : K_tagged IDENTIFIER matches_struct_pat
+      { delete[] $2; }
+  | K_tagged IDENTIFIER '.' IDENTIFIER
+      { pat_declare_var_if_new_(@4, $4); delete[] $2; delete[] $4; }
+  | K_tagged IDENTIFIER
+      { delete[] $2; }
+  ;
+
   /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches`
      pattern matching for tagged unions (IEEE 1800-2017 §12.6).
      Each item is `tagged TAG [.var]: stmt` or `default: stmt`.
@@ -6729,6 +6828,14 @@ case_matches_item
 	it->stat = $6;
 	delete[] $2;
 	delete[] $4;
+	$$ = it;
+      }
+  /* G-SV6: struct-pattern arm: tagged T '{.v1, 0, .v2, ...}' : stmt */
+  | K_tagged IDENTIFIER matches_struct_pat ':' statement_or_null
+      { PCaseMatches::Item*it = new PCaseMatches::Item;
+	it->tag = lex_strings.make($2);
+	it->stat = $5;
+	delete[] $2;
 	$$ = it;
       }
   | K_default ':' statement_or_null
@@ -7136,6 +7243,8 @@ expression
   | inc_or_dec_expression
       { $$ = $1; }
   | inside_expression
+      { $$ = $1; }
+  | matches_expression
       { $$ = $1; }
   | '+' attribute_list_opt expr_primary %prec UNARY_PREC
       { $$ = $3; }
@@ -12438,9 +12547,9 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   /* SV: `case (x) inside ...` — iverilog does not yet model the
      membership-matching semantics, so we treat it as a plain case for
-     parse purposes. Actual range case items collapse to their lower
-     bound (see `case_item` rule above). */
-  | unique_priority K_case '(' expression ')' K_inside case_items K_endcase
+     parse purposes.  G-SV6: use inside_case_items so that range items
+     like [5:6] can appear alongside plain expressions in the same arm. */
+  | unique_priority K_case '(' expression ')' K_inside inside_case_items K_endcase
       { PCase*tmp = new PCase($1, NetCase::EQ, $4, $7);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
@@ -12451,6 +12560,21 @@ statement_item /* This is roughly statement_item in the LRM */
   | unique_priority K_case '(' expression ')' K_matches case_matches_items K_endcase
       { (void)$1;
 	pform_requires_sv(@6, "case-matches pattern matching");
+	PCaseMatches*tmp = new PCaseMatches($4, $7);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  /* G-SV6: casex/casez variants of `case matches` for tagged unions. */
+  | unique_priority K_casex '(' expression ')' K_matches case_matches_items K_endcase
+      { (void)$1;
+	pform_requires_sv(@6, "casex-matches pattern matching");
+	PCaseMatches*tmp = new PCaseMatches($4, $7);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  | unique_priority K_casez '(' expression ')' K_matches case_matches_items K_endcase
+      { (void)$1;
+	pform_requires_sv(@6, "casez-matches pattern matching");
 	PCaseMatches*tmp = new PCaseMatches($4, $7);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
