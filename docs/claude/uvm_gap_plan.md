@@ -280,6 +280,22 @@ Then:
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
 
+## 2026-05-06 (session 5) — Phase 70 — re-marker (merge commits buried COMPLETED invariant)
+
+**Branch**: `claude/phase-70`
+**Regression**: 110/110 passed, 0 failed, 0 skipped
+
+### What I did
+- Phase 70 was already fully completed in the prior session (commit `a20565c`).
+- A subsequent merge commit (`a9cb11a` — Merge branch 'development' into claude/phase-70) landed on top of the COMPLETED commit, so the branch tip no longer matched the `Phase 70: COMPLETED ...` invariant that the phase-detection state machine relies on.
+- No code changes needed; this commit is a pure re-marker to restore the invariant.
+
+### Root cause
+Same pattern as phases 68 and 69: a development-branch merge was applied after the COMPLETED commit, burying the done marker.
+
+### What I left undone
+Nothing — Phase 70 work was fully done in the prior session.
+
 ## 2026-05-06 (session 4) — Phase 70 — COMPLETED modport + interface arrays
 
 **Branch**: `claude/phase-70`
