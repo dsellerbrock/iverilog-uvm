@@ -3363,6 +3363,18 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 				   count_lval_width(lv), force_unsigned);
       if (rv == 0) return 0;
 
+      /* IEEE 1800-2017 §6.19.4: compound assignments on enum variables
+         produce a non-enum integer result that cannot be implicitly
+         stored back to the enum.  Error unless the lval is not an enum. */
+      if (lv->sig()) {
+	    if (dynamic_cast<const netenum_t*>(lv->sig()->net_type())) {
+		  cerr << get_fileline() << ": error: "
+		       << "Compound assignment on enum variable without explicit cast."
+		       << endl;
+		  des->errors += 1;
+	    }
+      }
+
 	// The ivl_target API doesn't support signalling the type
 	// of a lval, so convert arithmetic shifts into logical
 	// shifts now if the lval is unsigned.

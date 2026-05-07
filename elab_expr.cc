@@ -883,13 +883,11 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 	    const netenum_t *rval_enum = rval->enumeration();
 	    if (!rval_enum) {
 	      if (gn_system_verilog() && dynamic_cast<const NetEConst*>(rval)) {
-		    // Compile-progress fallback: unresolved UVM enum-producing
-		    // calls/macros often collapse to integral placeholder constants.
-		    // Allow elaboration to continue and surface later semantic issues.
-		    if (debug_elaborate)
-			  cerr << expr->get_fileline() << ": debug: "
-			       << "integer constant assigned to enum lvalue without explicit cast"
-			       << " (compile-progress fallback)." << endl;
+		    /* IEEE 1800-2017 §6.19.3: assigning an integer literal to
+		       an enum variable without an explicit cast is an error. */
+		    cerr << expr->get_fileline() << ": error: "
+			 << "This assignment requires an explicit cast." << endl;
+		    des->errors += 1;
 	      } else if (gn_system_verilog()) {
 		    // Compile-progress fallback: enum assignments in complex macro
 		    // expansions (e.g. UVM resource macros) may lose type information
