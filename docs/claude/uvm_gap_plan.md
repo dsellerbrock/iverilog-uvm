@@ -281,6 +281,16 @@ Then:
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
 
+## 2026-05-07 — Phase 74 — COMPLETED re-marker (chore commit buried COMPLETED invariant)
+
+**Branch**: `claude/phase-74`
+**Regression**: 120 passed, 0 failed, 0 skipped
+
+### What I did
+No new code changes. A `chore: ignore a.out build artifact` commit made after the prior COMPLETED commit (740e140) pushed the COMPLETED marker off the branch tip. Re-baseline confirmed 120/120 PASS with rebuilt binary. Added this re-marker to restore the phase-state-machine invariant.
+
+---
+
 ## 2026-05-07 — Phase 74 — COMPLETED performance + reliability hardening
 
 **Branch**: `claude/phase-74`
