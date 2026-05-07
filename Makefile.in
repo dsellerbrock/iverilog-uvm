@@ -358,6 +358,7 @@ F = ./ivl@EXEEXT@ \
 	$(srcdir)/vpi_user.h \
 	$(srcdir)/acc_user.h \
 	$(srcdir)/veriuser.h \
+	$(srcdir)/svdpi.h \
 	$(INSTALL_DOC) \
 	$(WIN32_INSTALL)
 
@@ -380,6 +381,7 @@ installfiles: $(F) | installdirs
 	$(INSTALL_DATA) $(srcdir)/vpi_user.h "$(DESTDIR)$(includedir)/vpi_user.h"
 	$(INSTALL_DATA) $(srcdir)/acc_user.h "$(DESTDIR)$(includedir)/acc_user.h"
 	$(INSTALL_DATA) $(srcdir)/veriuser.h "$(DESTDIR)$(includedir)/veriuser.h"
+	$(INSTALL_DATA) $(srcdir)/svdpi.h "$(DESTDIR)$(includedir)/svdpi.h"
 
 installdirs: $(srcdir)/mkinstalldirs
 	$(srcdir)/mkinstalldirs "$(DESTDIR)$(bindir)" \
@@ -397,7 +399,7 @@ uninstall:
 	-rmdir "$(DESTDIR)$(libdir)/ivl$(suffix)"
 	for f in verilog$(suffix) iverilog-vpi$(suffix) gverilog$(suffix)@EXEEXT@; \
 	    do rm -f "$(DESTDIR)$(bindir)/$$f"; done
-	for f in ivl_target.h vpi_user.h _pli_types.h sv_vpi_user.h acc_user.h veriuser.h; \
+	for f in ivl_target.h vpi_user.h _pli_types.h sv_vpi_user.h acc_user.h veriuser.h svdpi.h; \
 	    do rm -f "$(DESTDIR)$(includedir)/$$f"; done
 	-test X$(suffix) = X || rmdir "$(DESTDIR)$(includedir)"
 	rm -f "$(DESTDIR)$(mandir)/man1/iverilog-vpi$(suffix).1" \
