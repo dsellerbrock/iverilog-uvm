@@ -1618,6 +1618,7 @@ static Statement* lower_randsequence_(const char* start_name,
 %type <expr>  constraint_expression constraint_block_item
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
 %type <exprs> constraint_set constraint_expression_list
+%type <exprs> randomize_var_list
 
 %type <decl_assignment> variable_decl_assignment
 %type <decl_assignments> list_of_variable_decl_assignments
@@ -3224,6 +3225,14 @@ constraint_block_item_list_opt
       { $$ = $1; }
   ;
 
+/* randomize() with (varlist) — variable list (parsed, ignored at elaboration) */
+randomize_var_list
+  : randomize_var_list ',' IDENTIFIER { delete[] $3; $$ = nullptr; }
+  | randomize_var_list ',' TYPE_IDENTIFIER { delete[] $3.text; $$ = nullptr; }
+  | IDENTIFIER { delete[] $1; $$ = nullptr; }
+  | TYPE_IDENTIFIER { delete[] $1.text; $$ = nullptr; }
+  ;
+
 constraint_declaration /* IEEE1800-2005: A.1.9 */
   : K_static_opt K_constraint IDENTIFIER '{' constraint_block_item_list_opt '}'
       { pform_class_constraint(@2, $1, $3, $5);
@@ -4544,6 +4553,45 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	tmp_blk->set_statement(tmp_for_list);
 		$$ = tmp_blk;
 		delete[]$5;
+      }
+
+  /* for (type1 var1=init1, type2 var2=init2; cond; step) — multi-type init */
+  | K_for '(' K_var_opt data_type IDENTIFIER '=' expression ',' data_type IDENTIFIER '=' expression ';' expression_opt ';' for_step_opt ')'
+      { static unsigned for_counter2 = 0;
+	char for_block_name [64];
+	snprintf(for_block_name, sizeof for_block_name, "$ivl_for_loop2_%u", for_counter2);
+	for_counter2 += 1;
+	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+	/* Declare both variables in the synthetic block scope */
+	list<decl_assignment_t*>al1;
+	decl_assignment_t*ta1 = new decl_assignment_t;
+	ta1->name = { lex_strings.make($5), @5.lexical_pos };
+	al1.push_back(ta1);
+	pform_make_var(@5, &al1, $4);
+	list<decl_assignment_t*>al2;
+	decl_assignment_t*ta2 = new decl_assignment_t;
+	ta2->name = { lex_strings.make($10), @10.lexical_pos };
+	al2.push_back(ta2);
+	pform_make_var(@10, &al2, $9);
+      }
+    statement_or_null
+      { pform_name_t tmp_hident;
+	tmp_hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp_ident = pform_new_ident(@5, tmp_hident);
+	FILE_NAME(tmp_ident, @5);
+	check_for_loop(@1, $7, $14, $16);
+	PForStatement*tmp_for = new PForStatement(tmp_ident, $7, $14, $16, $19);
+	FILE_NAME(tmp_for, @1);
+	pform_pop_scope();
+	vector<Statement*>tmp_for_list (1);
+	tmp_for_list[0] = tmp_for;
+	PBlock*tmp_blk = current_block_stack.top();
+	current_block_stack.pop();
+	tmp_blk->set_statement(tmp_for_list);
+	$$ = tmp_blk;
+	delete[]$5;
+	delete[]$10;
       }
 
   | K_forever statement_or_null
@@ -6597,6 +6645,11 @@ type_declaration
 	pform_set_typedef(@3, name, $2, $4);
 	delete[]$3;
       }
+  /* Allow Icarus-extension keyword 'bool' as a typedef name in SV mode */
+  | K_typedef data_type K_bool dimensions_opt ';'
+      { perm_string name = lex_strings.make("bool");
+	pform_set_typedef(@3, name, $2, $4);
+      }
   | K_typedef IDENTIFIER identifier_name dimensions_opt ';'
       { typedef_t*base = pform_test_type_identifier(@2, $2);
 	if (base) {
@@ -8030,6 +8083,24 @@ expr_primary
 		delete $3;
 		$$ = tmp;
       }
+	/* obj.randomize() with (varlist) { constraints } — variable-list form */
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with '(' randomize_var_list ')' '{' constraint_block_item_list_opt '}'
+	      { if (peek_tail_name(*$1) == "randomize") {
+		      pform_requires_sv(@4, "Randomize with constraint");
+		} else {
+		      yyerror(@4, "error: Constraint block can only be applied to randomize method.");
+		}
+		PECallFunction*tmp = pform_make_call_function(@1, *$1, *$3);
+		if ($9) {
+		      std::vector<PExpr*> wc($9->begin(), $9->end());
+		      tmp->set_with_constraints(std::move(wc));
+		      delete $9;
+		}
+		delete $1;
+		delete $2;
+		delete $3;
+		$$ = tmp;
+      }
   | class_hierarchy_identifier argument_list_parens
       { PECallFunction*tmp = pform_make_call_function(@1, *$1, *$2);
 	delete $1;
@@ -8048,6 +8119,23 @@ expr_primary
 	      std::vector<PExpr*> wc($5->begin(), $5->end());
 	      tmp->set_with_constraints(std::move(wc));
 	      delete $5;
+	}
+	delete $1;
+	delete $2;
+	$$ = tmp;
+      }
+  /* obj.randomize() with (varlist) { constraints } — variable-list form */
+  | class_hierarchy_identifier argument_list_parens K_with '(' randomize_var_list ')' '{' constraint_block_item_list_opt '}'
+      { if (peek_tail_name(*$1) == "randomize") {
+	      pform_requires_sv(@3, "Randomize with constraint");
+	} else {
+	      yyerror(@3, "error: Constraint block can only be applied to randomize method.");
+	}
+	PECallFunction*tmp = pform_make_call_function(@1, *$1, *$2);
+	if ($8) {
+	      std::vector<PExpr*> wc($8->begin(), $8->end());
+	      tmp->set_with_constraints(std::move(wc));
+	      delete $8;
 	}
 	delete $1;
 	delete $2;
@@ -9446,6 +9534,17 @@ hierarchy_identifier
 	itmp.sel = index_component_t::SEL_PART_LAST;
 	itmp.msb = $3;  /* lo index */
 	itmp.lsb = 0;
+	tail.index.push_back(itmp);
+	$$ = tmp;
+      }
+  | hierarchy_identifier '[' expression ':' '$' '-' expression ']'
+      { pform_requires_sv(@5, "Queue slice [lo:$-N]");
+	pform_name_t * tmp = $1;
+	name_component_t&tail = tmp->back();
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_PART_LAST_MINUS;
+	itmp.msb = $3;  /* lo index */
+	itmp.lsb = $7;  /* offset N */
 	tail.index.push_back(itmp);
 	$$ = tmp;
       }

@@ -4377,6 +4377,12 @@ bool calculate_part(const LineInfo*li, Design*des, NetScope*scope,
 	    wid = 1;
 	    return true;
 
+	  case index_component_t::SEL_PART_LAST_MINUS:
+	    // [lo:$-N] — approximate same as SEL_PART_LAST
+	    off = msb;
+	    wid = 1;
+	    return true;
+
 	  default:
 	    ivl_assert(*li, 0);
 	    break;
@@ -8106,7 +8112,8 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 	    }
 	    break;
 	  case index_component_t::SEL_PART_LAST:
-	    // [lo:$] queue slice — width is dynamic; treat as unbounded
+	  case index_component_t::SEL_PART_LAST_MINUS:
+	    // [lo:$] / [lo:$-N] queue slice — width is dynamic; treat as unbounded
 	    break;
 	  default:
 	    ivl_assert(*this, 0);
@@ -11309,6 +11316,21 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	    fn->set_line(*this);
 	    fn->parm(0, node);
 	    fn->parm(1, lo_expr);
+	    return fn;
+      }
+
+      if (use_sel == index_component_t::SEL_PART_LAST_MINUS) {
+	    // q[lo:$-N] — return new queue with elements from lo to size-1-N
+	    const index_component_t&part_idx = path_.back().index.back();
+	    ivl_assert(*this, part_idx.msb != 0 && part_idx.lsb != 0);
+	    NetExpr*lo_expr  = elab_and_eval(des, scope, part_idx.msb, -1, need_const);
+	    NetExpr*off_expr = elab_and_eval(des, scope, part_idx.lsb, -1, need_const);
+	    if (!lo_expr || !off_expr) return 0;
+	    NetESFunc*fn = new NetESFunc("$ivl_queue_slice_to_n", IVL_VT_QUEUE, 3, 3);
+	    fn->set_line(*this);
+	    fn->parm(0, node);
+	    fn->parm(1, lo_expr);
+	    fn->parm(2, off_expr);
 	    return fn;
       }
 

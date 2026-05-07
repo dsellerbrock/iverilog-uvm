@@ -13872,6 +13872,31 @@ bool of_QSLICE_FROM(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %qslice_to_n <var>
+ * lo in words[3], offset N popped from vec4 stack.
+ * Push new queue with elements [lo .. size-1-N] of the signal. */
+bool of_QSLICE_TO_N(vthread_t thr, vvp_code_t cp)
+{
+      int64_t offset = (int64_t)vec4_to_index(thr, true); /* pop N from vec4 */
+      int64_t lo     = thr->words[3].w_int;
+      vvp_net_t*net = cp->net;
+      vvp_queue_vec4*src = dynamic_cast<vvp_queue_vec4*>(
+            get_queue_object<vvp_queue_vec4>(thr, net));
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      if (src) {
+            int64_t sz = (int64_t)src->get_size();
+            int64_t hi = sz - 1 - offset;
+            if (lo < 0) lo = 0;
+            for (int64_t i = lo; i <= hi; i++) {
+                  vvp_vector4_t v;
+                  src->get_word((unsigned)i, v);
+                  dst->push_back(v, 0);
+            }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
 /* %qslice <var>
  * Pop hi then lo from vec4 stack. Push new queue with elements
  * [max(0,lo)..min(hi,size-1)] of the signal. Empty if lo>hi. */
@@ -13935,6 +13960,30 @@ bool of_QSLICE_FROM_PEEKOBJ(vthread_t thr, vvp_code_t cp)
             int64_t sz = (int64_t)src->get_size();
             if (lo < 0) lo = 0;
             for (int64_t i = lo; i < sz; i++) {
+                  vvp_vector4_t v;
+                  src->get_word((unsigned)i, v);
+                  dst->push_back(v, 0);
+            }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
+/* %qslice_to_n/peekobj
+ * Like %qslice_to_n but reads source by PEEKING at top of obj stack.
+ * Lo in words[3], offset N popped from vec4 stack; pushes result queue on obj stack. */
+bool of_QSLICE_TO_N_PEEKOBJ(vthread_t thr, vvp_code_t)
+{
+      int64_t offset = (int64_t)vec4_to_index(thr, true); /* pop N from vec4 */
+      int64_t lo     = thr->words[3].w_int;
+      vvp_object_t& src_ref = thr->peek_object(0);
+      vvp_queue_vec4* src = dynamic_cast<vvp_queue_vec4*>(src_ref.peek<vvp_queue>());
+      vvp_queue_vec4* dst = new vvp_queue_vec4;
+      if (src) {
+            int64_t sz = (int64_t)src->get_size();
+            int64_t hi = sz - 1 - offset;
+            if (lo < 0) lo = 0;
+            for (int64_t i = lo; i <= hi; i++) {
                   vvp_vector4_t v;
                   src->get_word((unsigned)i, v);
                   dst->push_back(v, 0);

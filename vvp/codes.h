@@ -379,6 +379,8 @@ extern bool of_QPUSH_BACK_V(vthread_t thr, vvp_code_t code);
 extern bool of_QPUSH_FRONT_V(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE_FROM(vthread_t thr, vvp_code_t code);
+extern bool of_QSLICE_TO_N(vthread_t thr, vvp_code_t code);
+extern bool of_QSLICE_TO_N_PEEKOBJ(vthread_t thr, vvp_code_t code);
 extern bool of_QAND(vthread_t thr, vvp_code_t code);
 extern bool of_QOR(vthread_t thr, vvp_code_t code);
 extern bool of_QXOR(vthread_t thr, vvp_code_t code);

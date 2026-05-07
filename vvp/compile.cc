@@ -418,6 +418,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qslice/peekobj",  of_QSLICE_PEEKOBJ,   0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%qslice_from",     of_QSLICE_FROM,      1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qslice_from/peekobj",of_QSLICE_FROM_PEEKOBJ,0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%qslice_to_n",         of_QSLICE_TO_N,         1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+      { "%qslice_to_n/peekobj", of_QSLICE_TO_N_PEEKOBJ, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%qsort",      of_QSORT,       1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qsort/keys", of_QSORT_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%qsort/r",    of_QSORT_R, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },

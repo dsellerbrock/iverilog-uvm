@@ -1419,7 +1419,8 @@ static int show_stmt_assign_queue_pattern(ivl_signal_t var, ivl_expr_t rval,
                         if (ivl_expr_type(parm) == IVL_EX_SFUNC) {
                               const char*nm = ivl_expr_name(parm);
                               if ((strcmp(nm,"$ivl_queue_slice")==0
-                                   || strcmp(nm,"$ivl_queue_slice_from")==0)
+                                   || strcmp(nm,"$ivl_queue_slice_from")==0
+                                   || strcmp(nm,"$ivl_queue_slice_to_n")==0)
                                   && ivl_expr_parms(parm) >= 1) {
                                     ivl_expr_t qa = ivl_expr_parm(parm, 0);
                                     if (qa && ivl_expr_type(qa)==IVL_EX_SIGNAL
@@ -1459,6 +1460,16 @@ static int show_stmt_assign_queue_pattern(ivl_signal_t var, ivl_expr_t rval,
                                           draw_eval_vec4(ivl_expr_parm(parm, 1));
                                           fprintf(vvp_out, "    %%ix/vec4/s 3;\n");
                                           fprintf(vvp_out, "    %%qslice_from/peekobj;\n");
+                                          fprintf(vvp_out, "    %%append/qv/v v%p_0, %d, %u;\n",
+                                                  var, max_idx, wid);
+                                          continue;
+                                    }
+                                    if (strcmp(nm,"$ivl_queue_slice_to_n")==0
+                                        && ivl_expr_parms(parm) >= 3) {
+                                          draw_eval_vec4(ivl_expr_parm(parm, 1));
+                                          fprintf(vvp_out, "    %%ix/vec4/s 3;\n");
+                                          draw_eval_vec4(ivl_expr_parm(parm, 2));
+                                          fprintf(vvp_out, "    %%qslice_to_n/peekobj;\n");
                                           fprintf(vvp_out, "    %%append/qv/v v%p_0, %d, %u;\n",
                                                   var, max_idx, wid);
                                           continue;

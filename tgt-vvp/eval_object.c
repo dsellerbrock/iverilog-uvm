@@ -710,6 +710,28 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    return 0;
       }
 
+      if (strcmp(name, "$ivl_queue_slice_to_n") == 0) {
+	    /* q[lo:$-N] — lo into words[3], N on top of vec4 stack */
+	    if (parm_count < 3) {
+		  fprintf(vvp_out, "    %%null; ; slice_to_n: bad parm count\n");
+		  return 0;
+	    }
+	    ivl_expr_t q_arg  = ivl_expr_parm(expr, 0);
+	    ivl_expr_t lo_arg = ivl_expr_parm(expr, 1);
+	    ivl_expr_t n_arg  = ivl_expr_parm(expr, 2);
+	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(q_arg)) {
+		  fprintf(vvp_out, "    %%null; ; slice_to_n: bad queue arg\n");
+		  return 0;
+	    }
+	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
+	    draw_eval_vec4(lo_arg);
+	    fprintf(vvp_out, "    %%ix/vec4/s 3;\n");
+	    draw_eval_vec4(n_arg);   /* N stays on vec4 stack */
+	    fprintf(vvp_out, "    %%qslice_to_n v%p_0;\n", q_sig);
+	    return 0;
+      }
+
       if (strcmp(name, "$ivl_queue_method$max") == 0
 	  || strcmp(name, "$ivl_queue_method$min") == 0) {
 	    int is_max = (strcmp(name, "$ivl_queue_method$max") == 0);

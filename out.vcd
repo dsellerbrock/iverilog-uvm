@@ -1,0 +1,38 @@
+$date
+	Thu May  7 02:11:44 2026
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1s
+$end
+$scope module top $end
+$var integer 32 ! i [31:0] $end
+$upscope $end
+$enddefinitions $end
+$comment Show the parameter values. $end
+$dumpall
+$end
+#0
+$dumpvars
+b1 !
+$end
+#100
+b10 !
+#300
+$dumpoff
+bx !
+$end
+#1100
+$dumpon
+b11 !
+$end
+b100 !
+#1200
+b101 !
+#1500
+$dumpall
+b101 !
+$end
+b110 !

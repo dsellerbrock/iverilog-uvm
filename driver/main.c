@@ -1378,6 +1378,18 @@ int main(int argc, char **argv)
           strcmp(generation, "2009") == 0 ||
           strcmp(generation, "2012") == 0) {
 	    fprintf(iconfig_file, "module:%s%cv2009.vpi\n", vpi_dir, sep);
+	    /* IEEE 1800-2017 Section 20.14: coverage control macros */
+	    fprintf(defines_file, "D:SV_COV_START=1\n");
+	    fprintf(defines_file, "D:SV_COV_STOP=2\n");
+	    fprintf(defines_file, "D:SV_COV_RESET=3\n");
+	    fprintf(defines_file, "D:SV_COV_CHECK=4\n");
+	    fprintf(defines_file, "D:SV_COV_ALL=0\n");
+	    fprintf(defines_file, "D:SV_COV_HIER=10\n");
+	    fprintf(defines_file, "D:SV_COV_MODULE=11\n");
+	    fprintf(defines_file, "D:SV_COV_TOGGLE=20\n");
+	    fprintf(defines_file, "D:SV_COV_STATEMENT=21\n");
+	    fprintf(defines_file, "D:SV_COV_ASSERTION=22\n");
+	    fprintf(defines_file, "D:SV_COV_FSM_STATE=23\n");
       }
 
       if (mtm != 0) fprintf(iconfig_file, "-T:%s\n", mtm);
