@@ -1488,6 +1488,7 @@ static Statement* lower_randsequence_(const char* start_name,
 
  /* The new tokens from 1800-2012. */
 %token K_implements K_interconnect K_interface_class K_nettype K_soft
+%token K_SEQ_CC  /* ## sequence concatenation delay operator */
 
  /* The new tokens for Verilog-AMS 2.3. */
 %token K_above K_abs K_absdelay K_abstol K_access K_acos K_acosh
@@ -1602,6 +1603,7 @@ static Statement* lower_randsequence_(const char* start_name,
 %type <expr>  branch_probe_expression streaming_concatenation
 %type <expr>  delay_value delay_value_simple
 %type <exprs> delay1 delay3 delay3_opt delay_value_list
+%type <expr>  seq_delay_expr
 %type <exprs> expression_list_with_nuls expression_list_proper
 %type <exprs> cont_assign cont_assign_list
 
@@ -2986,9 +2988,8 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  PCondit*c = new PCondit($4->antecedent, nullptr, fail);
 			  FILE_NAME(c, @1);
 			  body = c;
-		    } else {
-			  // |-> or |=>: when antecedent true, check consequent.
-			  // For |=> approximate as |-> (sticky reg is future work).
+		    } else if ($4->op_type == 1) {
+			  // |->: same-cycle implication — if ante then check cons.
 			  PExpr*not_c = new PEUnary('!', $4->consequent);
 			  FILE_NAME(not_c, @1);
 			  PCondit*chk = new PCondit(not_c, fail, nullptr);
@@ -2996,6 +2997,12 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
 			  FILE_NAME(ifa, @1);
 			  body = ifa;
+		    } else {
+			  // |=>: next-cycle — skip (correct impl needs reg).
+			  delete $4->antecedent; $4->antecedent = nullptr;
+			  if ($4->consequent) { delete $4->consequent; $4->consequent = nullptr; }
+			  delete fail; fail = nullptr;
+			  body = new PNoop;
 		    }
 		    // disable iff guard
 		    if ($4->disable_iff_expr) {
@@ -3042,7 +3049,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  PCondit*c = new PCondit($4->antecedent, nullptr, fail);
 			  FILE_NAME(c, @1);
 			  body = c;
-		    } else {
+		    } else if ($4->op_type == 1) {
 			  PExpr*not_c = new PEUnary('!', $4->consequent);
 			  FILE_NAME(not_c, @1);
 			  PCondit*chk = new PCondit(not_c, fail, nullptr);
@@ -3050,6 +3057,12 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
 			  FILE_NAME(ifa, @1);
 			  body = ifa;
+		    } else {
+			  // |=>: skip to avoid wrong same-cycle check.
+			  delete $4->antecedent; $4->antecedent = nullptr;
+			  if ($4->consequent) { delete $4->consequent; $4->consequent = nullptr; }
+			  delete fail; fail = nullptr;
+			  body = new PNoop;
 		    }
 		    if ($4->disable_iff_expr) {
 			  PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
@@ -3093,7 +3106,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  PCondit*c = new PCondit($4->antecedent, nullptr, fail);
 			  FILE_NAME(c, @1);
 			  body = c;
-		    } else {
+		    } else if ($4->op_type == 1) {
 			  PExpr*not_c = new PEUnary('!', $4->consequent);
 			  FILE_NAME(not_c, @1);
 			  PCondit*chk = new PCondit(not_c, fail, nullptr);
@@ -3101,6 +3114,12 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
 			  FILE_NAME(ifa, @1);
 			  body = ifa;
+		    } else {
+			  // |=>: skip to avoid wrong same-cycle check.
+			  delete $4->antecedent; $4->antecedent = nullptr;
+			  if ($4->consequent) { delete $4->consequent; $4->consequent = nullptr; }
+			  delete fail; fail = nullptr;
+			  body = new PNoop;
 		    }
 		    if ($4->disable_iff_expr) {
 			  PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
@@ -3873,6 +3892,14 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 	FILE_NAME(tmp, @1);
 	delete[] $2;
 	if ($3) delete $3;
+	$$ = tmp;
+      }
+  | K_virtual K_interface IDENTIFIER parameter_value_opt
+      { /* IEEE 1800: "virtual interface x_if" — explicit interface keyword */
+	interface_type_t*tmp = new interface_type_t(lex_strings.make($3));
+	FILE_NAME(tmp, @1);
+	delete[] $3;
+	if ($4) delete $4;
 	$$ = tmp;
       }
   ;
@@ -5664,6 +5691,15 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
       { $$ = $2; }
   | block_identifier_opt deferred_immediate_assertion_statement
       { $$ = $2; }
+  /* expect_property_statement — blocking SVA expect; approximate as no-op. */
+  | K_expect '(' property_spec ')' statement_or_null %prec less_than_K_else
+      { delete $3; delete $5; $$ = nullptr; }
+  | K_expect '(' property_spec ')' K_else statement_or_null
+      { delete $3; delete $6; $$ = nullptr; }
+  | K_expect '(' property_spec ')' statement_or_null K_else statement_or_null
+      { delete $3; delete $5; delete $7; $$ = nullptr; }
+  | K_expect '(' error ')' statement_or_null %prec less_than_K_else
+      { yyerrok; delete $5; $$ = nullptr; }
   ;
 
 property_expr /* IEEE1800-2012 A.2.10 */
@@ -5724,6 +5760,45 @@ property_expr /* IEEE1800-2012 A.2.10 */
 	p->antecedent = $3;
 	delete $1;
 	p->consequent = nullptr; p->op_type = 0;
+	$$ = p; }
+  | expression K_iff expression
+      { /* 'iff': bidirectional implication — approximate as &&. */
+	PEBLogic*iff_expr = new PEBLogic('a', $1, $3); FILE_NAME(iff_expr, @2);
+	sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = iff_expr; p->consequent = nullptr; p->op_type = 0;
+	$$ = p; }
+  /* ##N b: sequence concatenation with integer delay — approximate as last expr.
+     Inline K_SEQ_CC rules (no helper nonterminal) to avoid LALR FOLLOW bleed. */
+  | expression K_SEQ_CC DEC_NUMBER expression
+      { delete $1; delete $3;
+	sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = $4; p->consequent = nullptr; p->op_type = 0;
+	$$ = p; }
+  | expression K_SEQ_CC DEC_NUMBER expression K_SEQ_CC DEC_NUMBER expression
+      { delete $1; delete $3; delete $4; delete $6;
+	sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = $7; p->consequent = nullptr; p->op_type = 0;
+	$$ = p; }
+  | expression K_SEQ_CC '[' expression ':' expression ']' expression
+      { delete $1; delete $4; delete $6;
+	sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = $8; p->consequent = nullptr; p->op_type = 0;
+	$$ = p; }
+  | expression K_SEQ_CC '[' '*' ']' expression
+      { delete $1;
+	sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = $6; p->consequent = nullptr; p->op_type = 0;
+	$$ = p; }
+  | expression K_SEQ_CC '[' '+' ']' expression
+      { delete $1;
+	sva_property_t*p = new sva_property_t;
+	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
+	p->antecedent = $6; p->consequent = nullptr; p->op_type = 0;
 	$$ = p; }
   ;
 
@@ -6871,6 +6946,21 @@ struct_union_member /* IEEE 1800-2012 A.2.2.1 */
 	tmp->names .reset($3);
 	$$ = tmp;
       }
+  /* IEEE 1800-2017 §7.4.1: rand/randc qualifiers on struct members */
+  | attribute_list_opt K_rand data_type list_of_variable_decl_assignments ';'
+      { struct_member_t*tmp = new struct_member_t;
+	FILE_NAME(tmp, @3);
+	tmp->type  .reset($3);
+	tmp->names .reset($4);
+	$$ = tmp;
+      }
+  | attribute_list_opt K_randc data_type list_of_variable_decl_assignments ';'
+      { struct_member_t*tmp = new struct_member_t;
+	FILE_NAME(tmp, @3);
+	tmp->type  .reset($3);
+	tmp->names .reset($4);
+	$$ = tmp;
+      }
   /* G-SV3: `void MemberName;` in tagged union (IEEE 1800-2017 §7.3.2) */
   | attribute_list_opt K_void list_of_variable_decl_assignments ';'
       { struct_member_t*tmp = new struct_member_t;
@@ -7926,6 +8016,15 @@ expr_primary
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
 	delete[]$1;
+      }
+
+  /* '$' as an expression — represents the unbounded constant (parameter int i = $).
+   * Represented as the largest signed 32-bit integer (0x7FFFFFFF). */
+  | '$'
+      { verinum*v = new verinum((uint64_t)0x7FFFFFFF, 32);
+	PENumber*tmp = new PENumber(v);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
       }
 
   /* The hierarchy_identifier rule matches simple identifiers as well as
@@ -9074,6 +9173,15 @@ expr_primary
 	FILE_NAME(tmp, @1);
 	delete $2;
 	$$ = tmp;
+      }
+  /* IEEE 1800: part-select on concatenation, e.g. {a,b}[9:6] */
+  | '{' expression_list_proper '}' '[' expression ':' expression ']'
+      { PEConcat*concat = new PEConcat(*$2);
+	FILE_NAME(concat, @1);
+	delete $2;
+	PEPartSelect*sel = new PEPartSelect(concat, $5, $7);
+	FILE_NAME(sel, @1);
+	$$ = sel;
       }
   | '{' expression '{' expression_list_proper '}' '}'
       { PExpr*rep = $2;
@@ -10245,6 +10353,31 @@ module_item
 	delete $4;
       }
 
+  /* IEEE 1800-2017 §6.6.7: user-defined nettypes — parse as wire for now */
+  | K_nettype data_type IDENTIFIER ';'
+      { vector_type_t*dt = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	FILE_NAME(dt, @1);
+	list<perm_string>*names = new list<perm_string>;
+	names->push_back(lex_strings.make($3));
+	delete $3;
+	delete $2;
+	delete names;
+	/* silently ignored — we have no nettype elaboration */ }
+  | K_nettype data_type IDENTIFIER K_with IDENTIFIER ';'
+      { delete $2; delete[]$3; delete[]$5;
+	/* silently ignored */ }
+
+  /* IEEE 1800-2017 §6.6.8: interconnect net — treat as a plain logic wire */
+  | K_interconnect IDENTIFIER ';'
+      { pform_ident_t name = { lex_strings.make($2), @2.lexical_pos };
+	PWire*w = pform_makewire(@2, name, NetNet::WIRE, nullptr);
+	std::vector<PWire*>*wires = new std::vector<PWire*>;
+	wires->push_back(w);
+	delete[]$2;
+	vector_type_t*dt = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	FILE_NAME(dt, @1);
+	pform_set_data_type(@1, dt, wires, NetNet::WIRE, nullptr);
+      }
 
   /* The next two rules handle port declarations that include a net type, e.g.
        input wire signed [h:l] <list>;

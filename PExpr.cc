@@ -441,6 +441,28 @@ PEIdent::~PEIdent()
 {
 }
 
+PEPartSelect::PEPartSelect(PExpr*base, PExpr*msb, PExpr*lsb)
+: base_(base), msb_(msb), lsb_(lsb)
+{
+}
+
+PEPartSelect::~PEPartSelect()
+{
+      delete base_;
+      delete msb_;
+      delete lsb_;
+}
+
+void PEPartSelect::dump(std::ostream&out) const
+{
+      base_->dump(out);
+      out << "[";
+      msb_->dump(out);
+      out << ":";
+      lsb_->dump(out);
+      out << "]";
+}
+
 PEMemberAccess::PEMemberAccess(PExpr*base, perm_string member_name)
 : base_(base), member_name_(member_name)
 {

@@ -283,6 +283,7 @@ TU [munpf]
 "("{W}*"*"{W}*")" { return '*'; }
 
 <EDGES>"]" { BEGIN(0); return yytext[0]; }
+"##"  { return K_SEQ_CC; }
 [}{;:\[\],()#=.@&!?<>%|^~+*/-] { return yytext[0]; }
 
 \"            { BEGIN(CSTRING); }

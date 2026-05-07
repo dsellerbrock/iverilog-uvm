@@ -589,6 +589,28 @@ class PEIdent : public PExpr {
 			     long&midx, long&lidx) const;
 };
 
+/* IEEE 1800: Part-select on a non-identifier primary expression, e.g.
+ * {a,b}[9:6] or func()[3:0].  The base can be any PExpr; msb and lsb
+ * are the range boundaries (constant or parametric). */
+class PEPartSelect : public PExpr {
+    public:
+      PEPartSelect(PExpr*base, PExpr*msb, PExpr*lsb);
+      ~PEPartSelect() override;
+
+      virtual void dump(std::ostream&) const override;
+      virtual unsigned test_width(Design*des, NetScope*scope,
+				  width_mode_t&mode) override;
+      virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
+				     ivl_type_t type, unsigned flags) const override;
+      virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
+				     unsigned expr_wid,
+				     unsigned flags) const override;
+    private:
+      PExpr*base_;
+      PExpr*msb_;
+      PExpr*lsb_;
+};
+
 class PEMemberAccess : public PExpr {
 
     public:

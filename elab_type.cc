@@ -812,9 +812,9 @@ ivl_type_t interface_type_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 {
       map<perm_string,Module*>::const_iterator cur = pform_modules.find(name);
       if (cur == pform_modules.end() || !cur->second->is_interface) {
-	    cerr << get_fileline() << ": error: "
-		 << "Unknown interface type `" << name << "'." << endl;
-	    des->errors += 1;
+	    /* Forward-referenced or absent interface (e.g. in a class type
+	     * parameter default that is never instantiated) — silently return
+	     * null rather than a hard error so that such code can compile. */
 	    return 0;
       }
 

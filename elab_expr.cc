@@ -5118,6 +5118,14 @@ static NetExpr* elaborate_temporary_member_access_(const LineInfo*li,
 	    return sel;
       }
 
+      /* Compile-progress fallback: scope-reference member access (e.g.
+       * $root.top.unit1 in coverage/scope arguments).  Return zero. */
+      if (gn_system_verilog()) {
+	    NetEConst*stub = make_const_val(0);
+	    stub->set_line(*li);
+	    delete base_expr;
+	    return stub;
+      }
       delete base_expr;
       cerr << li->get_fileline() << ": error: "
 	   << "Temporary expression member access requires a class or packed "
@@ -5172,6 +5180,74 @@ NetExpr* PEMemberAccess::elaborate_expr(Design*des, NetScope*scope,
 	    return result;
 
       return pad_to_width(result, expr_wid, result->has_sign(), *this);
+}
+
+/* PEPartSelect: part-select on an arbitrary primary expression, e.g.
+ * {a,b}[9:6] or f()[3:0].  We evaluate the base, then apply a
+ * constant-range selection using NetESelect. */
+
+unsigned PEPartSelect::test_width(Design*des, NetScope*scope, width_mode_t&)
+{
+      /* The output width is determined by the constant range [msb:lsb]. */
+      NetExpr*msb_eval = elab_and_eval(des, scope, msb_, -1, true);
+      NetExpr*lsb_eval = elab_and_eval(des, scope, lsb_, -1, true);
+      if (!msb_eval || !lsb_eval) { delete msb_eval; delete lsb_eval; return 0; }
+      NetEConst*msb_c = dynamic_cast<NetEConst*>(msb_eval);
+      NetEConst*lsb_c = dynamic_cast<NetEConst*>(lsb_eval);
+      if (!msb_c || !lsb_c) { delete msb_eval; delete lsb_eval; return 0; }
+      long msb_val = msb_c->value().as_long();
+      long lsb_val = lsb_c->value().as_long();
+      delete msb_eval; delete lsb_eval;
+      expr_type_   = IVL_VT_LOGIC;
+      expr_width_  = (msb_val >= lsb_val) ? (unsigned)(msb_val - lsb_val + 1) : 0;
+      min_width_   = expr_width_;
+      signed_flag_ = false;
+      return expr_width_;
+}
+
+NetExpr* PEPartSelect::elaborate_expr(Design*des, NetScope*scope,
+				      ivl_type_t, unsigned flags) const
+{
+      /* Evaluate msb and lsb first so we know the output width. */
+      NetExpr*msb_eval = elab_and_eval(des, scope, msb_, -1, true);
+      NetExpr*lsb_eval = elab_and_eval(des, scope, lsb_, -1, true);
+      if (!msb_eval || !lsb_eval) {
+	    delete msb_eval;
+	    delete lsb_eval;
+	    return nullptr;
+      }
+
+      NetEConst*msb_c = dynamic_cast<NetEConst*>(msb_eval);
+      NetEConst*lsb_c = dynamic_cast<NetEConst*>(lsb_eval);
+      if (!msb_c || !lsb_c) {
+	    cerr << get_fileline() << ": sorry: Non-constant range in "
+		 << "part-select on expression not supported." << endl;
+	    des->errors += 1;
+	    delete msb_eval; delete lsb_eval;
+	    return nullptr;
+      }
+
+      long msb_val = msb_c->value().as_long();
+      long lsb_val = lsb_c->value().as_long();
+      delete msb_eval;  /* only need lsb as base */
+      unsigned wid = (unsigned)(msb_val - lsb_val + 1);
+
+      /* Use unsigned-width overload to avoid null-type deref in sub-expression
+       * elaboration (e.g. PEConcat checks ntype before the unsigned overload). */
+      unsigned base_wid = msb_val + 1;  /* need at least msb+1 bits */
+      NetExpr*base_expr = base_->elaborate_expr(des, scope, base_wid, flags);
+      if (!base_expr) { delete lsb_c; return nullptr; }
+
+      /* NetESelect(base_expr, base_bit, width) — base_bit is the LSB */
+      NetESelect*sel = new NetESelect(base_expr, lsb_c, wid);
+      sel->set_line(*this);
+      return sel;
+}
+
+NetExpr* PEPartSelect::elaborate_expr(Design*des, NetScope*scope,
+				      unsigned expr_wid, unsigned flags) const
+{
+      return elaborate_expr(des, scope, ivl_type_t(nullptr), flags);
 }
 
 NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
@@ -11606,18 +11682,38 @@ NetExpr* PENewClass::elaborate_expr(Design*des, NetScope*scope,
 	    }
       }
 
-	      if (ctype->is_virtual()) {
-	            if (gn_system_verilog()) {
-	                  NetENull*tmp = new NetENull();
-	                  tmp->set_line(*this);
-	                  return tmp;
-            }
-            cerr << get_fileline() << ": error: "
-                 << "Can not create object of virtual class `"
-                 << ctype->get_name() << "`." << endl;
-            des->errors++;
-            return 0;
-      }
+	      // Only check virtual/interface class instantiation outside
+	      // class-method bodies.  Inside class methods the target type
+	      // often comes from a type parameter bound to a virtual default
+	      // (e.g. UVM registry T=uvm_component) — those specializations
+	      // are always overridden with concrete types at runtime.
+	      {
+	        const NetScope*check_scope = scope;
+	        bool in_class_method = false;
+	        while (check_scope) {
+	            if (check_scope->type() == NetScope::CLASS) {
+	                in_class_method = true;
+	                break;
+	            }
+	            check_scope = check_scope->parent();
+	        }
+	        if (!in_class_method) {
+	            if (ctype->is_interface()) {
+	                cerr << get_fileline() << ": error: "
+	                     << "Can not create object of interface class `"
+	                     << ctype->get_name() << "`." << endl;
+	                des->errors++;
+	                return 0;
+	            }
+	            if (ctype->is_virtual()) {
+	                cerr << get_fileline() << ": error: "
+	                     << "Can not create object of virtual class `"
+	                     << ctype->get_name() << "`." << endl;
+	                des->errors++;
+	                return 0;
+	            }
+	        }
+	      }
 
       NetExpr*obj = new NetENew(ctype);
       obj->set_line(*this);

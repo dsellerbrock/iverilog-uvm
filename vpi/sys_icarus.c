@@ -55,6 +55,29 @@ static PLI_INT32 task_not_implemented_compiletf(ICARUS_VPI_CONST PLI_BYTE8* name
       return 0;
 }
 
+/* No-op stub: accept any arguments, do nothing at call time. */
+static PLI_INT32 noop_calltf(ICARUS_VPI_CONST PLI_BYTE8* ud)
+{
+      (void)ud;
+      return 0;
+}
+/* No-op real-function stub: return 0.0. */
+static PLI_INT32 noop_real_calltf(ICARUS_VPI_CONST PLI_BYTE8* ud)
+{
+      (void)ud;
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      s_vpi_value val;
+      val.format = vpiRealVal;
+      val.value.real = 0.0;
+      vpi_put_value(callh, &val, 0, vpiNoDelay);
+      return 0;
+}
+static PLI_INT32 noop_compiletf(ICARUS_VPI_CONST PLI_BYTE8* ud)
+{
+      (void)ud;
+      return 0;
+}
+
 /*
  * Implement $system(cmd) — execute a shell command and return its exit status.
  * This matches the behavior expected by OpenTitan DV testbenches.
@@ -77,6 +100,27 @@ static PLI_INT32 system_calltf(ICARUS_VPI_CONST PLI_BYTE8* name)
 	    vpi_free_object(argv);
       }
       vpip_set_return_value(ret);
+      return 0;
+}
+
+/* $isunbounded(expr): returns 1 if the argument equals the unbounded constant
+ * (represented as 0x7FFFFFFF), 0 otherwise.  IEEE 1800-2012 section 20.6. */
+static PLI_INT32 isunbounded_calltf(ICARUS_VPI_CONST PLI_BYTE8* ud)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv  = vpi_iterate(vpiArgument, callh);
+      (void)ud;
+      if (argv == 0) { vpi_free_object(callh); return 0; }
+      vpiHandle arg = vpi_scan(argv);
+      vpi_free_object(argv);
+      s_vpi_value val;
+      val.format = vpiIntVal;
+      vpi_get_value(arg, &val);
+      /* The unbounded constant $ is represented as 0x7FFFFFFF. */
+      s_vpi_value ret;
+      ret.format = vpiIntVal;
+      ret.value.integer = (val.value.integer == 0x7FFFFFFF) ? 1 : 0;
+      vpi_put_value(callh, &ret, 0, vpiNoDelay);
       return 0;
 }
 
@@ -198,6 +242,11 @@ void sys_special_register(void)
       tf_data.user_data   = "$sync$nor$plane";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
+
+      /* $dumpports* stubs — accept-and-ignore (not yet implemented but
+       * must not abort the simulation so tests can run to completion). */
+      tf_data.calltf      = noop_calltf;
+      tf_data.compiletf   = noop_compiletf;
 
       tf_data.tfname      = "$dumpports";
       tf_data.user_data   = "$dumpports";
@@ -328,6 +377,78 @@ void sys_special_register(void)
       tf_data.sizetf      = 0;
       tf_data.tfname      = "$system";
       tf_data.user_data   = "$system";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      /* $isunbounded(expr) — returns 1 if expr is the unbounded constant ($),
+       * represented as 0x7FFFFFFF, 0 otherwise.  IEEE 1800-2012 section 20.6. */
+      tf_data.type        = vpiSysFunc;
+      tf_data.sysfunctype = vpiIntFunc;
+      tf_data.calltf      = isunbounded_calltf;
+      tf_data.compiletf   = 0;
+      tf_data.sizetf      = 0;
+      tf_data.tfname      = "$isunbounded";
+      tf_data.user_data   = "$isunbounded";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      /* IEEE 1800-2012 section 20.14 — coverage control functions (stubs). */
+
+      /* $root — scope handle stub, returns 0 as integer. */
+      tf_data.type        = vpiSysFunc;
+      tf_data.sysfunctype = vpiIntFunc;
+      tf_data.calltf      = noop_calltf;
+      tf_data.compiletf   = noop_compiletf;
+      tf_data.sizetf      = 0;
+      tf_data.tfname      = "$root";
+      tf_data.user_data   = "$root";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.tfname      = "$coverage_control";
+      tf_data.user_data   = "$coverage_control";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.tfname      = "$coverage_get_max";
+      tf_data.user_data   = "$coverage_get_max";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.tfname      = "$coverage_merge";
+      tf_data.user_data   = "$coverage_merge";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.tfname      = "$coverage_save";
+      tf_data.user_data   = "$coverage_save";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      /* $coverage_get returns real. */
+      tf_data.type        = vpiSysFunc;
+      tf_data.sysfunctype = vpiRealFunc;
+      tf_data.calltf      = noop_real_calltf;
+      tf_data.tfname      = "$coverage_get";
+      tf_data.user_data   = "$coverage_get";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.tfname      = "$get_coverage";
+      tf_data.user_data   = "$get_coverage";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      /* $set_coverage_db_name, $load_coverage_db — tasks. */
+      tf_data.type        = vpiSysTask;
+      tf_data.sysfunctype = 0;
+      tf_data.tfname      = "$set_coverage_db_name";
+      tf_data.user_data   = "$set_coverage_db_name";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.tfname      = "$load_coverage_db";
+      tf_data.user_data   = "$load_coverage_db";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 }

@@ -2105,6 +2105,18 @@ class generate_schemes_work_item_t : public elaborator_work_item_t {
       Module*mod_;
 };
 
+static void check_unresolved_forward_typedefs_(Design*des, const PScope*scope)
+{
+      for (auto &entry : scope->typedefs) {
+	    if (!entry.second->get_data_type()) {
+		  cerr << entry.second->get_fileline() << ": error: "
+		       << "Forward typedef `" << entry.first
+		       << "` was never resolved in this scope." << endl;
+		  des->errors++;
+	    }
+      }
+}
+
 bool PPackage::elaborate_scope(Design*des, NetScope*scope)
 {
       if (debug_scopes) {
@@ -2112,6 +2124,7 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
 		 << "Elaborate package " << scope_path(scope) << "." << endl;
       }
 
+      check_unresolved_forward_typedefs_(des, this);
       scope->add_typedefs(&typedefs);
 
       collect_scope_parameters(des, scope, parameters);
@@ -2141,6 +2154,7 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 		 << "Elaborate " << scope_path(scope) << "." << endl;
       }
 
+      check_unresolved_forward_typedefs_(des, this);
       scope->add_typedefs(&typedefs);
 
 	// Add the genvars to the scope.
