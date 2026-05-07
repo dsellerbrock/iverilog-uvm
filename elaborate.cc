@@ -4531,6 +4531,11 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	    // If in SystemVerilog mode and inside a function, assume the
 	    // condition is false and continue elaboration as a no-op.
 	    if (gn_system_verilog()) {
+		  if (debug_elaborate)
+			cerr << get_fileline() << ": debug: "
+			     << "condition expression failed to elaborate; "
+			     << (else_ ? "using else branch" : "using empty block")
+			     << " as fallback (compile-progress fallback)." << endl;
 		  // Elaborate only the else branch (if present) or return empty block
 		  if (else_)
 			return else_->elaborate(des, scope);

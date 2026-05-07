@@ -255,11 +255,17 @@ NetExpr* NetExpr::evaluate_function(const LineInfo&,
       return 0;
 }
 
-bool NetProc::evaluate_function(const LineInfo&,
+bool NetProc::evaluate_function(const LineInfo&loc,
 				map<perm_string,LocalVar>&) const
 {
       // Compile-progress fallback: unsupported statement kinds in constant
       // function evaluation are treated as no-ops.
+      if (debug_elaborate) {
+	    cerr << loc.get_fileline() << ": debug: "
+		 << "unsupported statement type \"" << typeid(*this).name()
+		 << "\" in constant function evaluation; treated as no-op"
+		 << " (compile-progress fallback)." << endl;
+      }
       return true;
 }
 
@@ -364,6 +370,12 @@ bool NetAssign::eval_func_lval_(const LineInfo&loc,
 	    if (gn_system_verilog()) {
 		  // Compile-progress fallback: unresolved/non-local l-values
 		  // in constant-function evaluation are ignored.
+		  if (debug_elaborate) {
+			cerr << loc.get_fileline() << ": debug: "
+			     << "non-local l-value \"" << lval->name()
+			     << "\" in constant function evaluation ignored"
+			     << " (compile-progress fallback)." << endl;
+		  }
 		  delete rval_result;
 		  return true;
 	    }
