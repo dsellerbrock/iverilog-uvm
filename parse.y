@@ -2079,7 +2079,6 @@ class_constraint /* IEEE1800-2005: A.1.8 */
 identifier_name
   : IDENTIFIER { $$ = $1; }
   | TYPE_IDENTIFIER { $$ = $1.text; }
-  | K_bool { $$ = strdup("bool"); }
   ;
 
   /* The endlabel after a class declaration is a little tricky because
@@ -2885,6 +2884,15 @@ class_new /* IEEE1800-2005 A.2.4 */
       { PENewClass *new_expr = new PENewClass(*$3, $1);
 	FILE_NAME(new_expr, @2);
 	delete $3;
+	$$ = new_expr;
+      }
+  /* ClassName::new — allow plain IDENTIFIER scope for when the class
+     isn't yet visible as TYPE_IDENTIFIER (e.g. forward references). */
+  | IDENTIFIER K_SCOPE_RES K_new argument_list_parens_opt
+      { PENewClass *new_expr = new PENewClass(*$4);
+	FILE_NAME(new_expr, @3);
+	delete $4;
+	delete[] $1;
 	$$ = new_expr;
       }
   | K_new hierarchy_identifier
@@ -4505,50 +4513,6 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 		delete[]$5;
       }
 
-  /* Multi-typed for-loop: for ([var] type1 x=e1, [var] type2 y=e2; cond; step)
-     IEEE 1800-2012 A.6.8 for_variable_declaration list. */
-  | K_for '(' K_var_opt data_type IDENTIFIER '=' expression ',' K_var_opt data_type IDENTIFIER '=' expression ';' expression_opt ';' for_step_opt ')'
-      { static unsigned for_counter = 0;
-	char for_block_name[64];
-	snprintf(for_block_name, sizeof for_block_name, "$ivl_for_loop%u", for_counter);
-	for_counter += 1;
-	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
-
-	list<decl_assignment_t*> assign1;
-	decl_assignment_t*a1 = new decl_assignment_t;
-	a1->name = { lex_strings.make($5), @5.lexical_pos };
-	assign1.push_back(a1);
-	pform_make_var(@5, &assign1, $4);
-
-	list<decl_assignment_t*> assign2;
-	decl_assignment_t*a2 = new decl_assignment_t;
-	a2->name = { lex_strings.make($11), @11.lexical_pos };
-	assign2.push_back(a2);
-	pform_make_var(@11, &assign2, $10);
-      }
-    statement_or_null
-      { pform_name_t tmp_hident;
-	tmp_hident.push_back(name_component_t(lex_strings.make($5)));
-	PEIdent*tmp_ident = pform_new_ident(@5, tmp_hident);
-	FILE_NAME(tmp_ident, @5);
-
-	check_for_loop(@1, $7, $15, $17);
-	PForStatement*tmp_for = new PForStatement(tmp_ident, $7, $15, $17, $20);
-	FILE_NAME(tmp_for, @1);
-
-	pform_pop_scope();
-	vector<Statement*> tmp_for_list(1);
-	tmp_for_list[0] = tmp_for;
-	PBlock*tmp_blk = current_block_stack.top();
-	current_block_stack.pop();
-	tmp_blk->set_statement(tmp_for_list);
-	$$ = tmp_blk;
-	delete[]$5;
-	delete[]$11;
-	delete $13;
-      }
-
   | K_forever statement_or_null
       { PForever*tmp = new PForever($2);
 	FILE_NAME(tmp, @1);
@@ -5678,14 +5642,6 @@ property_expr /* IEEE1800-2012 A.2.10 */
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
 	p->antecedent = $3;
 	delete $1;
-	p->consequent = nullptr; p->op_type = 0;
-	$$ = p; }
-  | expression K_iff expression
-      { /* 'iff': biconditional — approximate as logical equality */
-	sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = new PEBLogic('a', $1, $3);
-	FILE_NAME(p->antecedent, @2);
 	p->consequent = nullptr; p->op_type = 0;
 	$$ = p; }
   ;
@@ -6827,14 +6783,6 @@ struct_union_member /* IEEE 1800-2012 A.2.2.1 */
 	FILE_NAME(tmp, @2);
 	tmp->type  .reset($2);
 	tmp->names .reset($3);
-	$$ = tmp;
-      }
-  /* rand/randc qualifiers on struct members (IEEE 1800-2012 §18.4) */
-  | attribute_list_opt random_qualifier data_type list_of_variable_decl_assignments ';'
-      { struct_member_t*tmp = new struct_member_t;
-	FILE_NAME(tmp, @3);
-	tmp->type.reset($3);
-	tmp->names.reset($4);
 	$$ = tmp;
       }
   /* G-SV3: `void MemberName;` in tagged union (IEEE 1800-2017 §7.3.2) */
@@ -8017,28 +7965,6 @@ expr_primary
 	delete $3;
 	$$ = tmp;
       }
-	/* obj.randomize() with (vars) { constraints } expression form:
-	   extends the K_with '(' expression ')' rule by appending a
-	   constraint block. Shift-wins-reduce means when '{' follows ')',
-	   this rule is preferred over the standalone predicate form. */
-	| hierarchy_identifier attribute_list_opt argument_list_parens K_with '(' expression ')' '{' constraint_block_item_list_opt '}'
-	      { if (peek_tail_name(*$1) == "randomize") {
-		      pform_requires_sv(@4, "Randomize with constraint");
-		} else {
-		      yyerror(@4, "error: Constraint block can only be applied to randomize method.");
-		}
-		PECallFunction*tmp = pform_make_call_function(@1, *$1, *$3);
-		if ($9) {
-		      std::vector<PExpr*> wc($9->begin(), $9->end());
-		      tmp->set_with_constraints(std::move(wc));
-		      delete $9;
-		}
-		delete $6;  /* discard the variable list expression */
-		delete $1;
-		delete $2;
-		delete $3;
-		$$ = tmp;
-	      }
   /* Phase 63b/B1: no-parens form `q.find with (pred)` — argument
      list is empty.  Captures the with-clause same as the parens
      form above. */
@@ -8803,6 +8729,31 @@ expr_primary
 	FILE_NAME(tmp, @1);
 	delete[]$1.text;
 	delete[]$3;
+	$$ = tmp;
+      }
+
+  /* ClassName::new(args) typed constructor — direct rule avoids LALR(1) conflict
+     with the class_scope/class_new path since the parser enters the
+     TYPE_IDENTIFIER K_SCOPE_RES . state from expr_primary/lpvalue rules. */
+  | TYPE_IDENTIFIER K_SCOPE_RES K_new argument_list_parens_opt
+      { pform_set_type_referenced(@1, $1.text);
+	data_type_t*dtype = new typeref_t($1.type);
+	FILE_NAME(dtype, @1);
+	delete[] $1.text;
+	PENewClass *tmp = new PENewClass(*$4, dtype);
+	FILE_NAME(tmp, @3);
+	delete $4;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES K_new argument_list_parens_opt
+      { pform_set_type_referenced(@1, $1.text);
+	typeref_t*dtype = new typeref_t($1.type);
+	dtype->set_parameter_values($2);
+	FILE_NAME(dtype, @1);
+	delete[] $1.text;
+	PENewClass *tmp = new PENewClass(*$5, dtype);
+	FILE_NAME(tmp, @4);
+	delete $5;
 	$$ = tmp;
       }
 
@@ -13339,6 +13290,24 @@ statement_item /* This is roughly statement_item in the LRM */
 		}
 		$$ = $1;
 	      }
+
+	/* obj.randomize() with { constraints }; — inline constraint block form */
+	| subroutine_call K_with '{' constraint_block_item_list_opt '}' ';'
+	      { pform_requires_sv(@2, "Randomize with constraint block");
+		if (auto*ct = dynamic_cast<PCallTask*>($1)) {
+		      if ($4) {
+			    std::vector<PExpr*> wc($4->begin(), $4->end());
+			    ct->set_with_constraints(std::move(wc));
+			    delete $4;
+		      }
+		} else {
+		      if ($4) {
+			    while (!$4->empty()) { delete $4->front(); $4->pop_front(); }
+			    delete $4;
+		      }
+		}
+		$$ = $1;
+	      }
 	| hierarchy_identifier K_with '(' expression ')' ';'
 	      { /* No-parens method form: q.sort with (...). */
 		pform_requires_sv(@2, "Method with-clause");
@@ -13645,6 +13614,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	delete $1;
 	$$ = tmp;
       }
+
 
     /* IEEE1800 A.1.8: class_constructor_declaration with a call to
        parent constructor. Note that the implicit_class_handle must

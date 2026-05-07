@@ -120,14 +120,4 @@ void sys_finish_register(void)
       tf_data.user_data = "$stop";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
-
-      /* $exit is the SystemVerilog equivalent of $finish. */
-      tf_data.type      = vpiSysTask;
-      tf_data.tfname    = "$exit";
-      tf_data.calltf    = sys_finish_calltf;
-      tf_data.compiletf = sys_one_opt_numeric_arg_compiletf;
-      tf_data.sizetf    = 0;
-      tf_data.user_data = "$exit";
-      res = vpi_register_systf(&tf_data);
-      vpip_make_systf_system_defined(res);
 }
