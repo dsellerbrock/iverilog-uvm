@@ -529,7 +529,7 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       return lv;
 }
 
-NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *,
+NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 				          bool is_force, NetNet *reg) const
 {
       if (!gn_system_verilog()) {
@@ -550,6 +550,54 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *,
 	    }
 	    NetAssign_*lv = new NetAssign_(reg);
 	    return lv;
+      }
+
+      /* Partial-index subarray lvalue: arr[i][j] on a 3D array with 1 remaining dim.
+       * Lower to a chain of individual element lvals along the final dimension. */
+      {
+	    unsigned provided = (unsigned)name_tail.index.size();
+	    unsigned ndims = reg->unpacked_dimensions();
+	    if (ndims - provided == 1 && provided > 0) {
+		  bool all_bit = true;
+		  for (const index_component_t& ic : name_tail.index) {
+			if (ic.sel != index_component_t::SEL_BIT) { all_bit = false; break; }
+		  }
+		  if (all_bit) {
+			list<long> base_idx;
+			bool all_const = true;
+			for (const index_component_t& ic : name_tail.index) {
+			      NetExpr*e = elab_and_eval(des, scope, ic.msb, -1, false);
+			      const NetEConst*c = e ? dynamic_cast<const NetEConst*>(e) : 0;
+			      if (!c) { all_const = false; break; }
+			      base_idx.push_back(c->value().as_long());
+			}
+			if (all_const) {
+			      const netranges_t& dims = reg->unpacked_dims();
+			      const netrange_t& last = dims.back();
+			      long lo = last.get_lsb() <= last.get_msb()
+					? last.get_lsb() : last.get_msb();
+			      long hi = last.get_lsb() <= last.get_msb()
+					? last.get_msb() : last.get_lsb();
+			      long count = hi - lo + 1;
+			      NetAssign_*chain = 0;
+			      /* Build MSB-first so lo ends up as chain head (l_val(0)). */
+			      for (long i = 0; i < count; i++) {
+				    long inner = hi - i; /* hi, hi-1, ..., lo */
+				    list<long> full_idx = base_idx;
+				    full_idx.push_back(inner);
+				    NetExpr*cidx = normalize_variable_unpacked(reg, full_idx);
+				    if (cidx == 0)
+					  cidx = new NetEConst(verinum(verinum::Vx));
+				    cidx->set_line(*this);
+				    NetAssign_*elem = new NetAssign_(reg);
+				    elem->set_word(cidx);
+				    elem->more = chain;
+				    chain = elem;
+			      }
+			      return chain;
+			}
+		  }
+	    }
       }
 
       cerr << get_fileline() << ": sorry: Assignment to an "
@@ -583,6 +631,54 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 
 	// Make sure there are enough indices to address an array element.
       const index_component_t&index_head = name_tail.index.front();
+	// Handle 1D unpacked array slice lvalue: arr[hi:lo], arr[base+:w], arr[base-:w].
+	// Lower to a chained list of individual element lvalues (LSB-first).
+      if (reg->unpacked_dimensions() == 1
+	  && name_tail.index.size() == 1
+	  && (index_head.sel == index_component_t::SEL_PART
+	      || index_head.sel == index_component_t::SEL_IDX_UP
+	      || index_head.sel == index_component_t::SEL_IDX_DO)) {
+	    NetExpr*msb_e = elab_and_eval(des, scope, index_head.msb, -1, false);
+	    NetExpr*lsb_e = elab_and_eval(des, scope, index_head.lsb, -1, false);
+	    const NetEConst*mc = msb_e ? dynamic_cast<const NetEConst*>(msb_e) : 0;
+	    const NetEConst*lc = lsb_e ? dynamic_cast<const NetEConst*>(lsb_e) : 0;
+	    if (mc && lc) {
+		  long mv = mc->value().as_long();
+		  long lv = lc->value().as_long();
+		  long width;
+		  if (index_head.sel == index_component_t::SEL_PART)
+			width = (mv >= lv) ? mv - lv + 1 : lv - mv + 1;
+		  else
+			width = lv;
+		  if (width > 0) {
+			NetAssign_*chain = 0;
+			/* Build chain MSB-first so LSB ends up as head (l_val(0)). */
+			for (long i = 0; i < width; i++) {
+			      long user_idx;
+			      if (index_head.sel == index_component_t::SEL_PART) {
+				    long step = (lv > mv) ? 1 : -1;
+				    user_idx = mv + i * step;
+			      } else if (index_head.sel == index_component_t::SEL_IDX_UP) {
+				    user_idx = mv + lv - 1 - i;
+			      } else { /* SEL_IDX_DO */
+				    user_idx = mv - i;
+			      }
+			      list<long> idx_list;
+			      idx_list.push_back(user_idx);
+			      NetExpr*cidx = normalize_variable_unpacked(reg, idx_list);
+			      if (cidx == 0)
+				    cidx = new NetEConst(verinum(verinum::Vx));
+			      cidx->set_line(*this);
+			      NetAssign_*elem = new NetAssign_(reg);
+			      elem->set_word(cidx);
+			      elem->more = chain;
+			      chain = elem;
+			}
+			return chain;
+		  }
+	    }
+	    /* non-constant slice — fall through to existing error */
+      }
       if (index_head.sel == index_component_t::SEL_PART) {
 	    cerr << get_fileline() << ": error: cannot perform a part "
 	         << "select on array " << reg->name() << "." << endl;

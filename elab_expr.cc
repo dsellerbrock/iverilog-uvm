@@ -8922,6 +8922,57 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 	    return tmp;
       }
 
+	// Handle 1D unpacked array slice: arr[hi:lo], arr[base+:w], arr[base-:w].
+	// Lower to a packed concatenation of individual element reads.
+      if (net->unpacked_dimensions() == 1 && use_comp.index.size() == 1) {
+	    const index_component_t& idx0 = use_comp.index.front();
+	    if (idx0.sel == index_component_t::SEL_PART ||
+		idx0.sel == index_component_t::SEL_IDX_UP ||
+		idx0.sel == index_component_t::SEL_IDX_DO) {
+		  NetExpr*msb_e = elab_and_eval(des, scope, idx0.msb, -1, false);
+		  NetExpr*lsb_e = elab_and_eval(des, scope, idx0.lsb, -1, false);
+		  const NetEConst*mc = msb_e ? dynamic_cast<const NetEConst*>(msb_e) : 0;
+		  const NetEConst*lc = lsb_e ? dynamic_cast<const NetEConst*>(lsb_e) : 0;
+		  if (mc && lc) {
+			long mv = mc->value().as_long();
+			long lv = lc->value().as_long();
+			long width;
+			if (idx0.sel == index_component_t::SEL_PART)
+			      width = (mv >= lv) ? mv - lv + 1 : lv - mv + 1;
+			else
+			      width = lv; /* lsb holds the count for +: and -: */
+			if (width > 0) {
+			      unsigned elem_wid = net->get_scalar() ? 1
+						: net->vector_width();
+			      NetEConcat*cat = new NetEConcat(
+				    (unsigned)width, 1, net->data_type());
+			      cat->set_line(*this);
+			      for (long i = 0; i < width; i++) {
+				    long user_idx;
+				    if (idx0.sel == index_component_t::SEL_PART) {
+					  long step = (lv > mv) ? 1 : -1;
+					  user_idx = mv + i * step;
+				    } else if (idx0.sel == index_component_t::SEL_IDX_UP) {
+					  user_idx = mv + lv - 1 - i;
+				    } else { /* SEL_IDX_DO */
+					  user_idx = mv - i;
+				    }
+				    list<long> idx_list;
+				    idx_list.push_back(user_idx);
+				    NetExpr*cidx = normalize_variable_unpacked(net, idx_list);
+				    if (cidx == 0)
+					  cidx = new NetEConst(verinum(verinum::Vx, elem_wid));
+				    cidx->set_line(*this);
+				    NetESignal*elem = new NetESignal(net, cidx);
+				    elem->set_line(*this);
+				    cat->set((unsigned)i, elem);
+			      }
+			      return cat;
+			}
+		  }
+	    }
+      }
+
 	// Convert a set of index expressions to a single expression
 	// that addresses the canonical element.
       list<NetExpr*>unpacked_indices;
@@ -10535,11 +10586,108 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 
 	// Make sure there are enough indices to address an array element.
       if (name_tail.index.size() < net->unpacked_dimensions()) {
+	    unsigned provided = (unsigned)name_tail.index.size();
+	    unsigned ndims = net->unpacked_dimensions();
+	    /* Handle partial-index subarray: arr[i][j] on 3D array with 1 remaining dim.
+	     * Lower to a packed concat of element reads along the final dimension. */
+	    if (ndims - provided == 1 && provided > 0) {
+		  bool all_bit = true;
+		  for (const index_component_t& ic : name_tail.index) {
+			if (ic.sel != index_component_t::SEL_BIT) { all_bit = false; break; }
+		  }
+		  if (all_bit) {
+			list<long> base_idx;
+			bool all_const = true;
+			for (const index_component_t& ic : name_tail.index) {
+			      NetExpr*e = elab_and_eval(des, scope, ic.msb, -1, false);
+			      const NetEConst*c = e ? dynamic_cast<const NetEConst*>(e) : 0;
+			      if (!c) { all_const = false; break; }
+			      base_idx.push_back(c->value().as_long());
+			}
+			if (all_const) {
+			      const netranges_t& dims = net->unpacked_dims();
+			      const netrange_t& last = dims.back();
+			      long lo = last.get_lsb() <= last.get_msb()
+					? last.get_lsb() : last.get_msb();
+			      long hi = last.get_lsb() <= last.get_msb()
+					? last.get_msb() : last.get_lsb();
+			      long count = hi - lo + 1;
+			      unsigned elem_wid = net->vector_width();
+			      NetEConcat*cat = new NetEConcat(
+				    (unsigned)count, 1, net->data_type());
+			      cat->set_line(*this);
+			      for (long i = 0; i < count; i++) {
+				    long inner = hi - i; /* MSB-first: hi, hi-1, ..., lo */
+				    list<long> full_idx = base_idx;
+				    full_idx.push_back(inner);
+				    NetExpr*cidx = normalize_variable_unpacked(net, full_idx);
+				    if (cidx == 0)
+					  cidx = new NetEConst(verinum(verinum::Vx, elem_wid));
+				    cidx->set_line(*this);
+				    NetESignal*elem = new NetESignal(net, cidx);
+				    elem->set_line(*this);
+				    cat->set((unsigned)i, elem);
+			      }
+			      return cat;
+			}
+		  }
+	    }
 	    cerr << get_fileline() << ": error: Array " << path()
 		 << " needs " << net->unpacked_dimensions() << " indices,"
 		 << " but got only " << name_tail.index.size() << "." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+	// Handle 1D unpacked array slice: arr[hi:lo], arr[base+:w], arr[base-:w].
+	// Lower to a packed concatenation of individual element reads.
+      if (net->unpacked_dimensions() == 1 && name_tail.index.size() == 1) {
+	    const index_component_t& idx0 = name_tail.index.front();
+	    if (idx0.sel == index_component_t::SEL_PART ||
+		idx0.sel == index_component_t::SEL_IDX_UP ||
+		idx0.sel == index_component_t::SEL_IDX_DO) {
+		  NetExpr*msb_e = elab_and_eval(des, scope, idx0.msb, -1, false);
+		  NetExpr*lsb_e = elab_and_eval(des, scope, idx0.lsb, -1, false);
+		  const NetEConst*mc = msb_e ? dynamic_cast<const NetEConst*>(msb_e) : 0;
+		  const NetEConst*lc = lsb_e ? dynamic_cast<const NetEConst*>(lsb_e) : 0;
+		  if (mc && lc) {
+			long mv = mc->value().as_long();
+			long lv = lc->value().as_long();
+			long width;
+			if (idx0.sel == index_component_t::SEL_PART)
+			      width = (mv >= lv) ? mv - lv + 1 : lv - mv + 1;
+			else
+			      width = lv;
+			if (width > 0) {
+			      unsigned elem_wid = net->get_scalar() ? 1
+						: net->vector_width();
+			      NetEConcat*cat = new NetEConcat(
+				    (unsigned)width, 1, net->data_type());
+			      cat->set_line(*this);
+			      for (long i = 0; i < width; i++) {
+				    long user_idx;
+				    if (idx0.sel == index_component_t::SEL_PART) {
+					  long step = (lv > mv) ? 1 : -1;
+					  user_idx = mv + i * step;
+				    } else if (idx0.sel == index_component_t::SEL_IDX_UP) {
+					  user_idx = mv + lv - 1 - i;
+				    } else { /* SEL_IDX_DO */
+					  user_idx = mv - i;
+				    }
+				    list<long> idx_list;
+				    idx_list.push_back(user_idx);
+				    NetExpr*cidx = normalize_variable_unpacked(net, idx_list);
+				    if (cidx == 0)
+					  cidx = new NetEConst(verinum(verinum::Vx, elem_wid));
+				    cidx->set_line(*this);
+				    NetESignal*elem = new NetESignal(net, cidx);
+				    elem->set_line(*this);
+				    cat->set((unsigned)i, elem);
+			      }
+			      return cat;
+			}
+		  }
+	    }
       }
 
 	// Evaluate all the index expressions into an
