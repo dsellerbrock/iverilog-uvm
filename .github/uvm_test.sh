@@ -7,6 +7,8 @@ BIN=$(which iverilog)
 VVP=$(which vvp)
 UVM="uvm-core/src"
 TESTS="tests"
+# Include path for DPI C files that use svdpi.h (resolved relative to iverilog binary)
+IVL_INCLUDE="$(dirname "$(dirname "$(which iverilog)")")/include/iverilog"
 
 # Verify UVM sources are available
 if [ ! -f "$UVM/uvm_pkg.sv" ]; then
@@ -42,7 +44,7 @@ run_test() {
     local cfile="$TESTS/${name}.c"
     local extra="${PLUSARGS[$name]}"
     if [ -f "$cfile" ]; then
-        gcc -shared -fPIC -o "/tmp/uvm_dpi_${name}.so" "$cfile" 2>/dev/null
+        gcc -shared -fPIC -I "$IVL_INCLUDE" -o "/tmp/uvm_dpi_${name}.so" "$cfile" 2>/dev/null
         timeout 60 $VVP -d "/tmp/uvm_dpi_${name}.so" "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
     else
         timeout 60 $VVP "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
