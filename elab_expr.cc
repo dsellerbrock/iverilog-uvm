@@ -882,9 +882,13 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
       if (lval_enum) {
 	    const netenum_t *rval_enum = rval->enumeration();
 	    if (!rval_enum) {
-	      if (gn_system_verilog() && dynamic_cast<const NetEConst*>(rval)) {
+	      if (gn_system_verilog() && dynamic_cast<const PENumber*>(expr)
+		  && dynamic_cast<const NetEConst*>(rval)) {
 		    /* IEEE 1800-2017 §6.19.3: assigning an integer literal to
-		       an enum variable without an explicit cast is an error. */
+		       an enum variable without an explicit cast is an error.
+		       Only flag when the SOURCE is a PENumber (integer literal)
+		       to avoid false positives on enum literals that iverilog
+		       elaborates as NetEConst without type context. */
 		    cerr << expr->get_fileline() << ": error: "
 			 << "This assignment requires an explicit cast." << endl;
 		    des->errors += 1;
@@ -3180,7 +3184,6 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 	  || method_name == perm_string::literal("get_objection")
 	  || method_name == perm_string::literal("get_schedule")
 	  || method_name == perm_string::literal("get_domain")
-	  || method_name == perm_string::literal("get_phase_type")
 	  || method_name == perm_string::literal("get_knobs"))
 	    return CP_EXPR_METHOD_STUB_CLASS_NULL;
 
