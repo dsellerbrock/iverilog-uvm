@@ -465,6 +465,41 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       if (reg->unpacked_dimensions() > 0)
 	    return elaborate_lval_net_word_(des, scope, reg, need_const_idx, is_force);
 
+      // G41: static class array properties store the array type as netuarray_t
+      // in net_type_ with 0 unpacked_dimensions(). If an index is present,
+      // compute the word index using the netuarray dimensions.
+      if (!name_tail.index.empty()) {
+	    if (const netuarray_t*uarray =
+		      dynamic_cast<const netuarray_t*>(reg->net_type())) {
+		  const netranges_t&dims = uarray->static_dimensions();
+		  if (!dims.empty() && name_tail.index.size() >= dims.size()) {
+			list<NetExpr*>unpacked_indices;
+			list<long>unpacked_indices_const;
+			indices_flags flags;
+			indices_to_expressions(des, scope, this,
+					       name_tail.index, dims.size(),
+					       false, flags,
+					       unpacked_indices,
+					       unpacked_indices_const);
+			NetExpr*canon_index = 0;
+			if (!flags.invalid && !flags.undefined) {
+			      if (flags.variable)
+				    canon_index = normalize_variable_unpacked(
+					  *this, uarray, unpacked_indices);
+			      else
+				    canon_index = normalize_variable_unpacked(
+					  uarray, unpacked_indices_const);
+			}
+			if (!canon_index)
+			      canon_index = new NetEConst(verinum(verinum::Vx));
+			canon_index->set_line(*this);
+			NetAssign_*lv = new NetAssign_(reg);
+			lv->set_word(canon_index);
+			return lv;
+		  }
+	    }
+      }
+
 	// This must be after the array word elaboration above!
       if (reg->get_scalar() &&
           use_sel != index_component_t::SEL_NONE) {
@@ -1422,6 +1457,24 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			ivl_assert(*this, psig);
 
 			lv = new NetAssign_(psig);
+
+			// G41: apply any array index from member_cur (e.g. arr[i] = v)
+			if (!member_cur.index.empty()) {
+			      ivl_type_t sptype = owner_class->get_prop_type(pidx);
+			      if (const netsarray_t *stype = dynamic_cast<const netsarray_t*>(sptype)) {
+				    NetExpr*word_index = make_canonical_index(des, scope, this,
+							 member_cur.index, stype, false);
+				    if (word_index)
+					  lv->set_word(word_index);
+			      } else if (dynamic_cast<const netdarray_t*>(sptype)) {
+				    for (const auto&index_tail : member_cur.index) {
+					  if (index_tail.msb) {
+						NetExpr*idx_expr = elab_and_eval(des, scope, index_tail.msb, -1);
+						if (idx_expr) lv->set_word(idx_expr);
+					  }
+				    }
+			      }
+			}
 			return lv;
 
 		  } else if (qual.test_const()) {

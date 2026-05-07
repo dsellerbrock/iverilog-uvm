@@ -8809,10 +8809,34 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 		       << " (compile-progress: loop body dropped)." << endl;
 		  return 0;
 	    }
-	    sub = elaborate_runtime_array_(des, scope, elem_expr, 1);
-	    if (!sub) {
-		  delete array_expr;
-		  return 0;
+	    // G09: if the inner element is itself an assoc-compat array, build
+	    // a nested first/next loop over its keys instead of an integer loop.
+	    const netqueue_t*inner_assoc = dynamic_cast<const netqueue_t*>(elem_expr->net_type());
+	    if (inner_assoc && inner_assoc->assoc_compat() && !index_vars_[1].nil()) {
+		  NetNet*idx_inner = find_assoc_foreach_index_signal_(des, scope, index_vars_[1]);
+		  ivl_assert(*this, idx_inner);
+		  NetProc*inner_body = statement_
+			? statement_->elaborate(des, scope)
+			: new NetBlock(NetBlock::SEQU, 0);
+		  NetExpr*next_inner = make_assoc_foreach_method_call_(*this,
+								       "$ivl_assoc_method$next",
+								       elem_expr,
+								       idx_inner);
+		  NetDoWhile*inner_loop = new NetDoWhile(next_inner, inner_body);
+		  inner_loop->set_line(*this);
+		  NetExpr*first_inner = make_assoc_foreach_method_call_(*this,
+								        "$ivl_assoc_method$first",
+								        elem_expr->dup_expr(),
+								        idx_inner);
+		  NetBlock*inner_noop = new NetBlock(NetBlock::SEQU, 0);
+		  sub = new NetCondit(first_inner, inner_loop, inner_noop);
+		  sub->set_line(*this);
+	    } else {
+		  sub = elaborate_runtime_array_(des, scope, elem_expr, 1);
+		  if (!sub) {
+			delete array_expr;
+			return 0;
+		  }
 	    }
       } else if (statement_) {
 	    sub = statement_->elaborate(des, scope);
