@@ -684,9 +684,14 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		       << "." << endl;
 	    }
 
-	    if (class_scope_->find_signal(cur->first) == 0)
-		  /* NetNet*sig = */ new NetNet(class_scope_, cur->first, NetNet::REG,
-						use_type);
+	    if (class_scope_->find_signal(cur->first) == 0) {
+		  if (auto*ua = dynamic_cast<const netuarray_t*>(use_type))
+			/* NetNet*sig = */ new NetNet(class_scope_, cur->first, NetNet::REG,
+						     ua->static_dimensions(), ua->element_type());
+		  else
+			/* NetNet*sig = */ new NetNet(class_scope_, cur->first, NetNet::REG,
+						     use_type);
+	    }
       }
 
       // Synthesize properties for class-embedded covergroups so they are
@@ -936,9 +941,16 @@ static void seed_super_chain_properties_(Design*des, const netclass_t*cls)
 	    if (!use_type) continue;
 	    bool added = super_mut->set_property(cur->first, cur->second.qual, use_type);
 	    if (added && cur->second.qual.test_static()) {
-		  if (super_scope_mut->find_signal(cur->first) == 0)
-			/* NetNet*sig = */ new NetNet(super_scope_mut, cur->first,
-						     NetNet::REG, use_type);
+		  if (super_scope_mut->find_signal(cur->first) == 0) {
+			if (auto*ua = dynamic_cast<const netuarray_t*>(use_type))
+			      /* NetNet*sig = */ new NetNet(super_scope_mut, cur->first,
+							   NetNet::REG,
+							   ua->static_dimensions(),
+							   ua->element_type());
+			else
+			      /* NetNet*sig = */ new NetNet(super_scope_mut, cur->first,
+							   NetNet::REG, use_type);
+		  }
 	    }
       }
 }
@@ -983,9 +995,16 @@ static void seed_class_scope_properties_for_method_elab_(Design*des,
 								 clsnet, cur->second.type.get());
 	    bool added = clsnet->set_property(cur->first, cur->second.qual, use_type);
 	    if (added && cur->second.qual.test_static()) {
-		  if (class_scope->find_signal(cur->first) == 0)
-			/* NetNet*sig = */ new NetNet(class_scope, cur->first,
-						     NetNet::REG, use_type);
+		  if (class_scope->find_signal(cur->first) == 0) {
+			if (auto*ua = dynamic_cast<const netuarray_t*>(use_type))
+			      /* NetNet*sig = */ new NetNet(class_scope, cur->first,
+							   NetNet::REG,
+							   ua->static_dimensions(),
+							   ua->element_type());
+			else
+			      /* NetNet*sig = */ new NetNet(class_scope, cur->first,
+							   NetNet::REG, use_type);
+		  }
 	    }
       }
 }

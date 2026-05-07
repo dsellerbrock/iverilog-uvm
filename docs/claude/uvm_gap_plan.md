@@ -276,10 +276,38 @@ Then:
 | 73 DPI open-array | not started | |
 | 74 perf hardening | not started | |
 | 75 fallback hardening | not started | |
+| 77 G41 static class array | **COMPLETED** | see claude/phase-77; G41 fixed; 119/119 PASS |
 
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## 2026-05-07 — Phase 77 — COMPLETED G41 static class member array assignment
+
+**Branch**: `claude/phase-77`
+**Regression**: 119 passed, 0 failed, 0 skipped (up from 118 baseline; 1 new test added)
+
+### What I did
+- **G41**: Fixed assignment to elements of a static unpacked array in a class (e.g., `instances[i] = value;`).
+
+Root cause: Static class member arrays were created with the 3-arg `NetNet(scope, name, REG, netuarray_t)` constructor, which always sets `pin_count=1` and `unpacked_dimensions()=0`. This caused two problems:
+1. `elaborate_lval_var_` saw `unpacked_dimensions()==0` and fell through to `calculate_packed_indices_`, which returned false (index count > 0 packed dims), leaving the lvalue without a word-selector. `net_type()` then returned the full array type instead of the element type, causing an implicit-cast error.
+2. The VVP code generator emitted `.var/2u "arr", 0 0` (1-word signal) instead of `.array/2u "arr", 9 0, 31 0` (10-word array), so any array-store instruction failed at runtime.
+
+Fix: At all 5 static class member NetNet creation sites (`netclass.cc:ensure_property_decl`, `netclass.cc:ensure_all_properties_declared`, `elab_sig.cc:elaborate_sig`, `elab_sig.cc:seed_super_chain_properties_`, `elab_sig.cc:seed_class_scope_properties_for_method_elab_`):
+- If `use_type` is a `netuarray_t`, extract `ua->static_dimensions()` (the unpacked ranges) and `ua->element_type()`, then call the 5-arg constructor `NetNet(scope, name, REG, dims, element_type)` instead of the 3-arg.
+- The 5-arg constructor calls `calculate_count(unpacked)` for the correct `pin_count`, sets `unpacked_dims_`, and creates the proper `array_type_`.
+- With `unpacked_dimensions()==1`, `elaborate_lval_var_` correctly routes to `elaborate_lval_net_word_`, which sets the word index. The VVP code generator then emits `.array` with the full element count.
+
+Also added `netparray.h` include to `netclass.cc` (needed for `dynamic_cast<const netuarray_t*>`).
+
+Test added: `tests/g41_static_class_array_test.sv`.
+
+### Root cause
+Static class members need the same constructor path used for non-class static arrays (which was already using the 5-arg constructor at `elab_sig.cc:1822`). The class-specific code paths were missing the unpacked array check.
+
+### What I left undone
+G40 (unique/unique_index on unpacked arrays): The VVP runtime uses `vvp_darray` handles for dynamic array/queue unique operations; static unpacked arrays (multi-pin nexus) would need a different implementation path. Deferred.
 
 ## 2026-05-06 — Phase 68 — COMPLETED re-marker (merge commits buried prior COMPLETED invariant)
 

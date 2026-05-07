@@ -330,6 +330,8 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: rare.
 
 ### G41 `static int instances[10];` (static class array) + `i*100` cast diagnostic confused
+- **FIXED in Phase 77** (2026-05-07).
+- Root cause: static class member arrays created with 3-arg NetNet constructor (pin_count=1, unpacked_dimensions=0). Fixed at 5 creation sites in netclass.cc and elab_sig.cc to use 5-arg constructor for netuarray_t types.
 - Symptom: `instances[i] = i * 100;` from constructor reports `error: The expression '(i)*('sd100)' cannot be implicitly cast to the target type.` The mismatch is between idx-expr and array element type when static class array is in scope.
 - Probe: p90_class_static_arr (VERIFIED-FAILS).
 - Location: elaborate.cc lvalue-resolution for static class properties (likely net_link.cc:455 fallback hit).
