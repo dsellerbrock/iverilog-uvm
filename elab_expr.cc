@@ -1972,6 +1972,60 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 		 << ", flags=0x" << hex << flags << dec << endl;
       }
 
+      // SV §7.4.3: unpacked array equality/inequality.  When both operands
+      // are bare PEIdent references to static unpacked arrays with the same
+      // element count, expand into element-wise comparisons and combine with
+      // AND (for ==) or OR (for !=).
+      if (gn_system_verilog()
+	  && (op_=='e' || op_=='n' || op_=='E' || op_=='N')) {
+	    const PEIdent*lid = dynamic_cast<const PEIdent*>(left_);
+	    const PEIdent*rid = dynamic_cast<const PEIdent*>(right_);
+	    if (lid && rid
+		&& lid->path().back().index.empty()
+		&& rid->path().back().index.empty()) {
+		  symbol_search_results lsr, rsr;
+		  symbol_search(lid, des, scope, lid->path(),
+		                lid->lexical_pos(), &lsr);
+		  symbol_search(rid, des, scope, rid->path(),
+		                rid->lexical_pos(), &rsr);
+		  if (lsr.net && rsr.net
+		      && lsr.net->unpacked_dimensions() > 0
+		      && rsr.net->unpacked_dimensions() > 0) {
+		        NetNet*lnet = lsr.net;
+		        NetNet*rnet = rsr.net;
+		        long N = lnet->unpacked_dims()[0].width();
+		        if (N == (long)rnet->unpacked_dims()[0].width()) {
+			      char elem_op = (op_=='n'||op_=='N') ? 'n' : 'e';
+			      char combine = (op_=='n'||op_=='N') ? 'o' : 'a'; // | or &
+			      NetExpr*result = nullptr;
+			      for (long i = 0; i < N; i++) {
+				    NetEConst*li = new NetEConst(verinum(i));
+				    li->set_line(*this);
+				    NetEConst*ri = new NetEConst(verinum(i));
+				    ri->set_line(*this);
+				    NetESignal*le = new NetESignal(lnet, li);
+				    le->set_line(*this);
+				    NetESignal*re = new NetESignal(rnet, ri);
+				    re->set_line(*this);
+				    NetExpr*cmp = new NetEBComp(elem_op, le, re);
+				    cmp->set_line(*this);
+				    if (!result) {
+					  result = cmp;
+				    } else {
+					  result = new NetEBLogic(combine, result, cmp);
+					  result->set_line(*this);
+				    }
+			      }
+			      if (!result) {
+				    result = make_const_val(op_=='n'||op_=='N' ? 0 : 1);
+				    result->set_line(*this);
+			      }
+			      return result;
+		        }
+		  }
+	    }
+      }
+
         // Propagate the comparison type (signed/unsigned) down to
         // the operands.
       if (type_is_vectorable(left_->expr_type()) && !left_->has_sign())
