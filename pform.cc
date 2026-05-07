@@ -3111,6 +3111,33 @@ void pform_makewire(const struct vlltype&li,
 
       pform_set_data_type(li, data_type, wires, type, attr, is_const);
 
+      // Emit var_inits for struct member default values (SV 7.2.2).
+      // Walk each declared variable × each struct member with a default
+      // expression and synthesise an init assignment `var.member = expr`.
+      if (struct_type_t* stype = dynamic_cast<struct_type_t*>(data_type)) {
+	    if (!stype->packed_flag && stype->members) {
+		  for (list<decl_assignment_t*>::iterator va = assign_list->begin();
+		       va != assign_list->end(); ++va) {
+			perm_string var_name = (*va)->name.first;
+			unsigned var_pos  = (*va)->name.second;
+			for (struct_member_t* mbrp : *stype->members) {
+			      for (decl_assignment_t* mname : *mbrp->names) {
+				    if (PExpr* dflt = mname->expr.release()) {
+					  pform_name_t mpath;
+					  mpath.push_back(name_component_t(var_name));
+					  mpath.push_back(name_component_t(mname->name.first));
+					  PEIdent*lval = new PEIdent(mpath, var_pos);
+					  FILE_NAME(lval, li);
+					  PAssign*ass = new PAssign(lval, dflt, false, true);
+					  FILE_NAME(ass, li);
+					  lexical_scope->var_inits.push_back(ass);
+				    }
+			      }
+			}
+		  }
+	    }
+      }
+
       while (! assign_list->empty()) {
 	    decl_assignment_t*first = assign_list->front();
 	    assign_list->pop_front();
