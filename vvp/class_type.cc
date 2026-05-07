@@ -84,6 +84,7 @@ class class_property_t {
       virtual void get_vec4(char*buf, vvp_vector4_t&val);
       virtual void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx);
       virtual void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx);
+      virtual unsigned packed_width() const { return 0; }
 
       virtual void set_real(char*buf, double val);
       virtual double get_real(char*buf);
@@ -270,6 +271,7 @@ class property_bit : public class_property_t {
       void get_vec4(char*buf, vvp_vector4_t&val) override;
       void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
       void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
+      unsigned packed_width() const override { return (unsigned)wid_; }
 
       void get_object(char*, vvp_object_t&, uint64_t) override {}
 
@@ -306,6 +308,7 @@ class property_logic : public class_property_t {
       void get_vec4(char*buf, vvp_vector4_t&val) override;
       void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
       void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
+      unsigned packed_width() const override { return (unsigned)wid_; }
 
       void get_object(char*, vvp_object_t&, uint64_t) override {}
 
@@ -1153,6 +1156,20 @@ void class_type::set_vec4(class_type::inst_t obj, size_t pid,
                     obj, properties_[pid].type);
       }
       properties_[pid].type->set_vec4(buf, val, idx);
+      /* Union sharing: propagate bits to all other vector properties. */
+      if (is_union_) {
+	    for (size_t j = 0; j < properties_.size(); j++) {
+		  if (j == pid) continue;
+		  unsigned wj = properties_[j].type->packed_width();
+		  if (wj == 0) continue;
+		  vvp_vector4_t trunc(wj);
+		  for (unsigned b = 0; b < wj; b++) {
+			vvp_bit4_t bit = (b < val.size()) ? val.value(b) : BIT4_0;
+			trunc.set_bit(b, bit);
+		  }
+		  properties_[j].type->set_vec4(buf, trunc);
+	    }
+      }
 }
 
 void class_type::get_vec4(class_type::inst_t obj, size_t pid,
@@ -1185,6 +1202,19 @@ void class_type::set_vec4_whole(class_type::inst_t obj, size_t pid,
       char*buf = reinterpret_cast<char*> (obj);
       if (pid >= properties_.size()) return;
       properties_[pid].type->set_vec4(buf, val);
+      if (is_union_) {
+	    for (size_t j = 0; j < properties_.size(); j++) {
+		  if (j == pid) continue;
+		  unsigned wj = properties_[j].type->packed_width();
+		  if (wj == 0) continue;
+		  vvp_vector4_t trunc(wj);
+		  for (unsigned b = 0; b < wj; b++) {
+			vvp_bit4_t bit = (b < val.size()) ? val.value(b) : BIT4_0;
+			trunc.set_bit(b, bit);
+		  }
+		  properties_[j].type->set_vec4(buf, trunc);
+	    }
+      }
 }
 
 void class_type::get_vec4_whole(class_type::inst_t obj, size_t pid,
@@ -1414,6 +1444,12 @@ void compile_class_start(char*lab, char*nam, char*dispatch_prefix,
       delete[]nam;
       delete[]dispatch_prefix;
       delete[]super_dispatch_prefix;
+}
+
+void compile_class_set_union(void)
+{
+      assert(compile_class);
+      compile_class->set_union(true);
 }
 
 void compile_class_property(unsigned idx, char*nam, char*typ, uint64_t array_size)

@@ -42,6 +42,9 @@ class class_type : public __vpiHandle {
       explicit class_type(const std::string&nam, size_t nprop);
       ~class_type() override;
 
+      bool is_union() const { return is_union_; }
+      void set_union(bool f) { is_union_ = f; }
+
 	// This is the name of the class type.
       inline const std::string&class_name(void) const { return class_name_; }
       inline const std::string&scope_path(void) const { return scope_path_; }
@@ -96,6 +99,7 @@ class class_type : public __vpiHandle {
       vpiHandle vpi_handle(int code) override;
 
     private:
+      bool is_union_ = false;
       std::string class_name_;
       std::string scope_path_;
       std::string dispatch_prefix_;

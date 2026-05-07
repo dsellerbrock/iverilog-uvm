@@ -2421,6 +2421,7 @@ extern unsigned ivl_switch_lineno(ivl_switch_t net);
  * Class types have names and properties.
  */
 extern ivl_variable_type_t ivl_type_base(ivl_type_t net);
+extern int ivl_type_is_union(ivl_type_t net);
 extern ivl_type_t ivl_type_element(ivl_type_t net);
 extern unsigned ivl_type_packed_dimensions(ivl_type_t net);
 extern int ivl_type_packed_lsb(ivl_type_t net, unsigned dim);

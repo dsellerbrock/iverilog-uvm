@@ -85,8 +85,9 @@ static void emit_struct_cobject_definition_(ivl_type_t struct_type)
       if (!name)
 	    name = "";
 
-      fprintf(vvp_out, "C%p  .class \"%s\" [%d]\n",
-	      struct_type, name, ivl_type_properties(struct_type));
+      fprintf(vvp_out, "C%p  .class \"%s\" [%d]%s\n",
+	      struct_type, name, ivl_type_properties(struct_type),
+	      ivl_type_is_union(struct_type) ? " union" : "");
       for (idx = 0 ; idx < ivl_type_properties(struct_type) ; idx += 1) {
 	    ivl_type_t ptype = ivl_type_prop_type(struct_type, idx);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(struct_type, idx));
@@ -247,18 +248,23 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    emit_struct_cobject_dependencies_(ivl_type_prop_type(classtype, idx));
       }
 
-      if (dispatch_prefix && *dispatch_prefix
-          && super_dispatch_prefix && *super_dispatch_prefix) {
-	    fprintf(vvp_out, "C%p  .class \"%s\" \"%s\" \"%s\" [%d]\n",
-		    classtype, ivl_type_name(classtype), dispatch_prefix,
-		    super_dispatch_prefix, ivl_type_properties(classtype));
-      } else if (dispatch_prefix && *dispatch_prefix) {
-	    fprintf(vvp_out, "C%p  .class \"%s\" \"%s\" [%d]\n",
-		    classtype, ivl_type_name(classtype), dispatch_prefix,
-		    ivl_type_properties(classtype));
-      } else {
-	    fprintf(vvp_out, "C%p  .class \"%s\" [%d]\n",
-		    classtype, ivl_type_name(classtype), ivl_type_properties(classtype));
+      {
+	    const char*cname = ivl_type_name(classtype);
+	    const char*union_sfx = ivl_type_is_union(classtype) ? " union" : "";
+	    if (!cname) cname = "";
+	    if (dispatch_prefix && *dispatch_prefix
+		&& super_dispatch_prefix && *super_dispatch_prefix) {
+		  fprintf(vvp_out, "C%p  .class \"%s\" \"%s\" \"%s\" [%d]%s\n",
+			  classtype, cname, dispatch_prefix,
+			  super_dispatch_prefix, ivl_type_properties(classtype), union_sfx);
+	    } else if (dispatch_prefix && *dispatch_prefix) {
+		  fprintf(vvp_out, "C%p  .class \"%s\" \"%s\" [%d]%s\n",
+			  classtype, cname, dispatch_prefix,
+			  ivl_type_properties(classtype), union_sfx);
+	    } else {
+		  fprintf(vvp_out, "C%p  .class \"%s\" [%d]%s\n",
+			  classtype, cname, ivl_type_properties(classtype), union_sfx);
+	    }
       }
 
       for (idx = 0 ; idx < ivl_type_properties(classtype) ; idx += 1) {
