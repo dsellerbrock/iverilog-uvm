@@ -665,6 +665,25 @@ static int eval_object_sfunc(ivl_expr_t expr)
        * Currently handles BOOL/LOGIC element types (the most common
        * case in UVM); REAL/STRING/object-typed queues fall back to
        * an empty result with a one-time advisory warning. */
+      /* G10/Phase78: dynamic array min/max returning a one-element queue
+       * on the object stack.  Emit %da/min or %da/max v<sig>_0. */
+      if (strncmp(name, "$ivl_queue_method$", 18) == 0) {
+	    const char*meth = name + 18;
+	    const char*opcode = 0;
+	    if (strcmp(meth,"min")==0)     opcode = "%da/min";
+	    else if (strcmp(meth,"max")==0) opcode = "%da/max";
+	    if (opcode && parm_count >= 1) {
+		  ivl_expr_t arg = ivl_expr_parm(expr, 0);
+		  if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL
+		      && ivl_expr_signal(arg)) {
+			fprintf(vvp_out, "    %s v%p_0;\n",
+				opcode, ivl_expr_signal(arg));
+			return 0;
+		  }
+	    }
+	    /* Fall through to existing handlers (pop_back, find_with, unique_with). */
+      }
+
       /* Phase 63b/Q-methods (gap close): expression-form q.unique()
        * and q.unique_index().  Emit a single runtime opcode
        * %qunique_copy that reads the queue and returns a new

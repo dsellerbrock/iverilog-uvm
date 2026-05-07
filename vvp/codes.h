@@ -33,6 +33,13 @@ typedef bool (*vvp_code_fun)(vthread_t thr, vvp_code_t code);
  */
 extern bool of_ABS_WR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_OBJ(vthread_t thr, vvp_code_t code);
+extern bool of_DA_AND(vthread_t thr, vvp_code_t code);
+extern bool of_DA_MAX(vthread_t thr, vvp_code_t code);
+extern bool of_DA_MIN(vthread_t thr, vvp_code_t code);
+extern bool of_DA_OR(vthread_t thr, vvp_code_t code);
+extern bool of_DA_PROD(vthread_t thr, vvp_code_t code);
+extern bool of_DA_SUM(vthread_t thr, vvp_code_t code);
+extern bool of_DA_XOR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_STR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_V(vthread_t thr, vvp_code_t code);
 extern bool of_AA_EXISTS_OBJ(vthread_t thr, vvp_code_t code);

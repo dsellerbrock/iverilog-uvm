@@ -1481,6 +1481,31 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    draw_darray_pop(expr);
 	    return;
       }
+      /* G10/Phase78: dynamic array reduction methods returning a scalar
+       * (sum, product, and, or, xor).  Emit %da/<op> v<sig>_0; which
+       * reads the array from the signal and pushes the result to the
+       * vec4 stack.  Only handles signal-form receivers. */
+      if (strncmp(ivl_expr_name(expr), "$ivl_darray_method$", 19) == 0) {
+	    const char*meth = ivl_expr_name(expr) + 19;
+	    const char*opcode = 0;
+	    if (strcmp(meth,"sum")==0)     opcode = "%da/sum";
+	    else if (strcmp(meth,"product")==0) opcode = "%da/prod";
+	    else if (strcmp(meth,"and")==0)     opcode = "%da/and";
+	    else if (strcmp(meth,"or")==0)      opcode = "%da/or";
+	    else if (strcmp(meth,"xor")==0)     opcode = "%da/xor";
+	    if (opcode && parm_count >= 1) {
+		  ivl_expr_t arg = ivl_expr_parm(expr, 0);
+		  if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL
+		      && ivl_expr_signal(arg)) {
+			fprintf(vvp_out, "    %s v%p_0;\n",
+				opcode, ivl_expr_signal(arg));
+			return;
+		  }
+	    }
+	    /* Fallback: unsupported darray method shape — emit zero. */
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32; ; darray_method fallback\n");
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),"$ivl_class_method$randomize")==0) {
 	    ivl_expr_t arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
 	    /* Phase 50e: invoke pre_randomize / post_randomize hooks on

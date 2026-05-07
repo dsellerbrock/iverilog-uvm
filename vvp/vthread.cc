@@ -2047,6 +2047,161 @@ bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
       return qsort_unique_dispatch_(arr, false, true);
 }
 
+/* G10/Phase78: dynamic array reduction helper — extract bit-integer from
+ * a vvp_vector4_t (X/Z treated as 0, same as IEEE 1800 reduction rules). */
+static int64_t vec4_to_i64_(const vvp_vector4_t& v)
+{
+      int64_t r = 0;
+      unsigned n = v.size();
+      if (n > 64) n = 64;
+      for (unsigned i = 0; i < n; i++)
+            if (v.value(i) == BIT4_1) r |= (int64_t)1 << i;
+      return r;
+}
+
+static vvp_vector4_t i64_to_vec4_(int64_t val, unsigned wid)
+{
+      if (wid == 0) wid = 32;
+      vvp_vector4_t r(wid, BIT4_0);
+      for (unsigned i = 0; i < wid; i++)
+            r.set_bit(i, ((val >> i) & 1) ? BIT4_1 : BIT4_0);
+      return r;
+}
+
+/* %da/sum  v<sig>_0 — push sum of darray elements to vec4 stack. */
+bool of_DA_SUM(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      int64_t acc = 0;
+      if (fun) {
+            vvp_darray*src = fun->get_object().peek<vvp_darray>();
+            if (src) {
+                  for (size_t i = 0; i < src->get_size(); i++) {
+                        vvp_vector4_t v; src->get_word((unsigned)i, v);
+                        acc += vec4_to_i64_(v);
+                  }
+            }
+      }
+      thr->push_vec4(i64_to_vec4_(acc, 32));
+      return true;
+}
+
+/* %da/prod  v<sig>_0 — push product of darray elements to vec4 stack. */
+bool of_DA_PROD(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      int64_t acc = 1;
+      if (fun) {
+            vvp_darray*src = fun->get_object().peek<vvp_darray>();
+            if (src) {
+                  if (src->get_size() == 0) acc = 0;
+                  for (size_t i = 0; i < src->get_size(); i++) {
+                        vvp_vector4_t v; src->get_word((unsigned)i, v);
+                        acc *= vec4_to_i64_(v);
+                  }
+            } else { acc = 0; }
+      } else { acc = 0; }
+      thr->push_vec4(i64_to_vec4_(acc, 32));
+      return true;
+}
+
+/* %da/and  v<sig>_0 — bitwise AND reduction, push to vec4 stack. */
+bool of_DA_AND(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      int64_t acc = ~(int64_t)0; // all-ones
+      if (fun) {
+            vvp_darray*src = fun->get_object().peek<vvp_darray>();
+            if (src) {
+                  if (src->get_size() == 0) acc = 0;
+                  for (size_t i = 0; i < src->get_size(); i++) {
+                        vvp_vector4_t v; src->get_word((unsigned)i, v);
+                        acc &= vec4_to_i64_(v);
+                  }
+            } else { acc = 0; }
+      } else { acc = 0; }
+      thr->push_vec4(i64_to_vec4_(acc, 32));
+      return true;
+}
+
+/* %da/or  v<sig>_0 — bitwise OR reduction, push to vec4 stack. */
+bool of_DA_OR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      int64_t acc = 0;
+      if (fun) {
+            vvp_darray*src = fun->get_object().peek<vvp_darray>();
+            if (src) {
+                  for (size_t i = 0; i < src->get_size(); i++) {
+                        vvp_vector4_t v; src->get_word((unsigned)i, v);
+                        acc |= vec4_to_i64_(v);
+                  }
+            }
+      }
+      thr->push_vec4(i64_to_vec4_(acc, 32));
+      return true;
+}
+
+/* %da/xor  v<sig>_0 — bitwise XOR reduction, push to vec4 stack. */
+bool of_DA_XOR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      int64_t acc = 0;
+      if (fun) {
+            vvp_darray*src = fun->get_object().peek<vvp_darray>();
+            if (src) {
+                  for (size_t i = 0; i < src->get_size(); i++) {
+                        vvp_vector4_t v; src->get_word((unsigned)i, v);
+                        acc ^= vec4_to_i64_(v);
+                  }
+            }
+      }
+      thr->push_vec4(i64_to_vec4_(acc, 32));
+      return true;
+}
+
+/* %da/min  v<sig>_0 — push one-element queue containing minimum to
+ * object stack.  Returns empty queue if array is empty. */
+bool of_DA_MIN(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      if (fun) {
+            vvp_darray*src = fun->get_object().peek<vvp_darray>();
+            if (src && src->get_size() > 0) {
+                  vvp_vector4_t best; src->get_word(0, best);
+                  for (size_t i = 1; i < src->get_size(); i++) {
+                        vvp_vector4_t v; src->get_word((unsigned)i, v);
+                        if (vec4_lt_(v, best)) best = v;
+                  }
+                  dst->push_back(best, 0);
+            }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
+/* %da/max  v<sig>_0 — push one-element queue containing maximum to
+ * object stack.  Returns empty queue if array is empty. */
+bool of_DA_MAX(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      if (fun) {
+            vvp_darray*src = fun->get_object().peek<vvp_darray>();
+            if (src && src->get_size() > 0) {
+                  vvp_vector4_t best; src->get_word(0, best);
+                  for (size_t i = 1; i < src->get_size(); i++) {
+                        vvp_vector4_t v; src->get_word((unsigned)i, v);
+                        if (vec4_lt_(best, v)) best = v;
+                  }
+                  dst->push_back(best, 0);
+            }
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
 /*
  * %randomize
  *

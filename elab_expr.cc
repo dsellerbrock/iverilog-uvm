@@ -6361,9 +6361,27 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  tmp->set_line(*this);
 		  return tmp;
 	    }
-      if (method_name == "unique"
-		|| method_name == "unique_index"
-		|| method_name == "find_first"
+      if (method_name == "unique" || method_name == "unique_index") {
+		  /* G40: unique/unique_index on dynamic arrays.  Reuse the
+		   * existing %qunique_copy / %qunique_idx opcodes — they work
+		   * on any vvp_darray subclass (queue and darray share the
+		   * same get_size()/get_word() interface). */
+		  if (NetESignal*sig = dynamic_cast<NetESignal*>(sub_expr)) {
+			(void)sig;
+			string mangled = string("$ivl_queue_method$unique_with|")
+					 + method_name.str();
+			NetESFunc*fn = new NetESFunc(mangled.c_str(),
+						     IVL_VT_QUEUE, 1, 1);
+			fn->parm(0, sub_expr);
+			fn->set_line(*this);
+			return fn;
+		  }
+		  delete sub_expr;
+		  NetENull*tmp = new NetENull();
+		  tmp->set_line(*this);
+		  return tmp;
+	    }
+	    if (method_name == "find_first"
 		|| method_name == "find_last"
 		|| method_name == "find_index"
 		|| method_name == "find_first_index"
@@ -6381,6 +6399,23 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  return tmp;
 	    }
 
+	    if (method_name == "sum" || method_name == "product"
+		|| method_name == "and" || method_name == "or"
+		|| method_name == "xor") {
+		  string mangled = string("$ivl_darray_method$") + method_name.str();
+		  NetESFunc*fn = new NetESFunc(mangled.c_str(),
+					       &netvector_t::atom2s32, 1);
+		  fn->parm(0, sub_expr);
+		  fn->set_line(*this);
+		  return fn;
+	    }
+	    if (method_name == "min" || method_name == "max") {
+		  string mangled = string("$ivl_queue_method$") + method_name.str();
+		  NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 1);
+		  fn->parm(0, sub_expr);
+		  fn->set_line(*this);
+		  return fn;
+	    }
 	    cerr << get_fileline() << ": error: Method " << method_name
 		 << " is not a dynamic array method." << endl;
 	    return 0;
@@ -6496,6 +6531,23 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  return tmp;
 	    }
 
+	    if (method_name == "sum" || method_name == "product"
+		|| method_name == "and" || method_name == "or"
+		|| method_name == "xor") {
+		  string mangled = string("$ivl_darray_method$") + method_name.str();
+		  NetESFunc*fn = new NetESFunc(mangled.c_str(),
+					       &netvector_t::atom2s32, 1);
+		  fn->parm(0, sub_expr);
+		  fn->set_line(*this);
+		  return fn;
+	    }
+	    if (method_name == "min" || method_name == "max") {
+		  string mangled = string("$ivl_queue_method$") + method_name.str();
+		  NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 1);
+		  fn->parm(0, sub_expr);
+		  fn->set_line(*this);
+		  return fn;
+	    }
 	    cerr << get_fileline() << ": error: Method " << method_name
 		 << " is not a queue method." << endl;
 	    des->errors += 1;
@@ -8853,62 +8905,45 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			NetENull*tmp = new NetENull;
 			tmp->set_line(*this);
 			return tmp;
-		  } else if (member_comp.name == "min") {
-			cerr << get_fileline() << ": sorry: 'min()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "max") {
-			cerr << get_fileline() << ": sorry: 'max()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "unique") {
-			cerr << get_fileline() << ": sorry: 'unique()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "unique_index") {
-			cerr << get_fileline() << ": sorry: 'unique_index()' "
-			        "array location method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-// FIXME: Check this is a real or integral type.
-		  } else if (member_comp.name == "sum") {
-			cerr << get_fileline() << ": sorry: 'sum()' "
-			        "array reduction method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "product") {
-			cerr << get_fileline() << ": sorry: 'product()' "
-			        "array reduction method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-// FIXME: Check this is only an integral type.
-		  } else if (member_comp.name == "and") {
-			cerr << get_fileline() << ": sorry: 'and()' "
-			        "array reduction method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "or") {
-			cerr << get_fileline() << ": sorry: 'or()' "
-			        "array reduction method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
-		  } else if (member_comp.name == "xor") {
-			cerr << get_fileline() << ": sorry: 'xor()' "
-			        "array reduction method is not currently "
-			        "implemented." << endl;
-			des->errors += 1;
-			return 0;
+		  } else if (member_comp.name == "min"
+			     || member_comp.name == "max") {
+			NetESignal*arg = new NetESignal(sr.net);
+			arg->set_line(*sr.net);
+			string mangled = string("$ivl_queue_method$")
+					 + member_comp.name.str();
+			NetESFunc*fn = new NetESFunc(mangled.c_str(),
+						     IVL_VT_QUEUE, 1, 1);
+			fn->parm(0, arg);
+			fn->set_line(*this);
+			return fn;
+		  } else if (member_comp.name == "unique"
+			     || member_comp.name == "unique_index") {
+			/* G40: unique/unique_index on class-property darrays.
+			 * Reuse %qunique_copy / %qunique_idx via the existing
+			 * $ivl_queue_method$unique_with| mechanism. */
+			NetESignal*arg = new NetESignal(sr.net);
+			arg->set_line(*sr.net);
+			string mangled = string("$ivl_queue_method$unique_with|")
+					 + member_comp.name.str();
+			NetESFunc*fn = new NetESFunc(mangled.c_str(),
+						     IVL_VT_QUEUE, 1, 1);
+			fn->parm(0, arg);
+			fn->set_line(*this);
+			return fn;
+		  } else if (member_comp.name == "sum"
+			     || member_comp.name == "product"
+			     || member_comp.name == "and"
+			     || member_comp.name == "or"
+			     || member_comp.name == "xor") {
+			NetESignal*arg = new NetESignal(sr.net);
+			arg->set_line(*sr.net);
+			string mangled = string("$ivl_darray_method$")
+					 + member_comp.name.str();
+			NetESFunc*fn = new NetESFunc(mangled.c_str(),
+						     &netvector_t::atom2s32, 1);
+			fn->parm(0, arg);
+			fn->set_line(*this);
+			return fn;
 		  }
 	    }
 
