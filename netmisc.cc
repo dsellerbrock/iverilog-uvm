@@ -1066,6 +1066,14 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  compatible = lv_net_type->type_compatible(tmp->net_type());
 	    else
 		  compatible = false;
+	    // NetESignal::net_type() returns element type for unpacked arrays;
+	    // fall back to the full array_type() when the element check fails.
+	    if (!compatible) {
+		  if (const NetESignal*sig = dynamic_cast<const NetESignal*>(tmp)) {
+		        const netarray_t*arr = sig->sig()->array_type();
+		        if (arr) compatible = lv_net_type->type_compatible(arr);
+		  }
+	    }
       } else if (cast_type == IVL_VT_NO_TYPE) {
 	    compatible = true;
       } else {

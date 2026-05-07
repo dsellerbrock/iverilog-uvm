@@ -8683,6 +8683,23 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 			  }
 		    }
 
+		    // SV §7.6: whole unpacked-array assignment (e.g. B = A where
+		    // both are static unpacked arrays).  net->net_type() returns the
+		    // element type for unpacked arrays, so the naive check above
+		    // fails.  Use net->array_type() to get the full netuarray_t and
+		    // re-check against the context type.
+		    if (gn_system_verilog()
+			&& dynamic_cast<const netuarray_t*>(ntype)
+			&& net->unpacked_dimensions() > 0
+			&& use_comp.index.empty()) {
+			  const netarray_t*src_arr = net->array_type();
+			  if (src_arr && ntype->type_compatible(src_arr)) {
+			        NetESignal*tmp = new NetESignal(net);
+			        tmp->set_line(*this);
+			        return tmp;
+			  }
+		    }
+
 		    cerr << get_fileline() << ": error: the type of the variable '"
 			 << path_ << "' doesn't match the context type." << endl;
 

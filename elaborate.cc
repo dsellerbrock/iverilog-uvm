@@ -3653,6 +3653,51 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    return bl;
       }
 
+      // SV §7.6: B = A where both B and A are static unpacked arrays
+      // (netuarray_t) and no element index on either side.  tgt-vvp cannot
+      // handle a direct whole-array NetAssign; expand into N element-wise
+      // copies.  Declaration-order copy: position i of A → position i of B,
+      // where position counts from MSB end of the declared range.  This
+      // matches the SV spec behavior for arrays with different index
+      // orientations (e.g., int B[0:3] = A[3:0]).
+      if (!delay && !event_
+	  && dynamic_cast<const netuarray_t*>(lv_net_type)
+	  && lv->word() == nullptr) {
+	    if (const NetESignal*rsig = dynamic_cast<const NetESignal*>(rv)) {
+		  NetNet*rnet = const_cast<NetNet*>(rsig->sig());
+		  NetNet*lnet = lv->sig();
+		  if (rnet && lnet
+		      && rnet->unpacked_dimensions() > 0
+		      && lnet->unpacked_dimensions() > 0) {
+		        const netranges_t&dims_lv = lnet->unpacked_dims();
+		        const netranges_t&dims_rv = rnet->unpacked_dims();
+		        long N = dims_lv[0].width();
+		        long msb_lv = dims_lv[0].get_msb(), lsb_lv = dims_lv[0].get_lsb();
+		        long msb_rv = dims_rv[0].get_msb(), lsb_rv = dims_rv[0].get_lsb();
+		        NetBlock*bl = new NetBlock(NetBlock::SEQU, 0);
+		        bl->set_line(*this);
+		        for (long pos = 0; pos < N; pos++) {
+			      long canon_lv = (msb_lv >= lsb_lv) ? (N-1-pos) : pos;
+			      long canon_rv = (msb_rv >= lsb_rv) ? (N-1-pos) : pos;
+			      NetEConst*li = new NetEConst(verinum(canon_lv));
+			      li->set_line(*this);
+			      NetEConst*ri = new NetEConst(verinum(canon_rv));
+			      ri->set_line(*this);
+			      NetAssign_*elv = new NetAssign_(lnet);
+			      elv->set_word(li);
+			      NetESignal*erv = new NetESignal(rnet, ri);
+			      erv->set_line(*this);
+			      NetAssign*ea = new NetAssign(elv, erv);
+			      ea->set_line(*this);
+			      bl->append(ea);
+		        }
+		        delete lv;
+		        delete rv;
+		        return bl;
+		  }
+	    }
+      }
+
       NetAssign*cur = new NetAssign(lv, rv);
       cur->set_line(*this);
 
