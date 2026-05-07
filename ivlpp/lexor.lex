@@ -1474,6 +1474,25 @@ static void def_finish(void)
     if (!define_text) {
 	define_macro(def_argv(0), "", 0, def_argc);
     } else {
+	/* Check for unterminated string literal in macro text (SV 22.5.1). */
+	int in_str = 0;
+	const char *cp = define_text;
+	while (*cp) {
+	    if (*cp == '\\' && *(cp+1)) { cp += 2; continue; }
+	    if (*cp == '"') in_str = !in_str;
+	    cp++;
+	}
+	if (in_str) {
+	    emit_pathline(istack);
+	    fprintf(stderr, "error: macro text contains unterminated string literal\n");
+	    error_count += 1;
+	    free(define_text);
+	    define_text = 0;
+	    define_cnt = 0;
+	    def_argc = 0;
+	    return;
+	}
+
 	define_macro(def_argv(0), define_text, 0, def_argc);
 
 	free(define_text);
