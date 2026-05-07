@@ -3903,6 +3903,14 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 	if ($4) delete $4;
 	$$ = tmp;
       }
+  | K_type '(' expression ')'
+      { /* IEEE 1800-2017 §6.23: type() operator — use logic as placeholder
+           (full type-inference not yet implemented). */
+	delete $3;
+	vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   ;
 
 virtual_interface_type
