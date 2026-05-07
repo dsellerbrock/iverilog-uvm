@@ -270,7 +270,7 @@ Then:
 | 68 SVA expansion | not started | |
 | 69 streaming/structs | not started | |
 | 70 modport/iface | **COMPLETED** | see claude/phase-70; G26/G27/G28/G29/G55 fixed; 102/102 PASS |
-| 71 process/event/method-chain | not started | |
+| 71 process/event/method-chain | **COMPLETED** | see claude/phase-71; G07/G08/G31/G32/G34/G35/G36/G65 fixed; 128/128 PASS |
 | 72 parser sorry cleanup | not started | |
 | 73 DPI open-array | not started | |
 | 74 perf hardening | not started | |
@@ -279,6 +279,20 @@ Then:
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## 2026-05-07 — Phase 71 — COMPLETED re-marker (post-COMPLETED gitignore commit buried state marker)
+
+**Branch**: `claude/phase-71`
+**Regression**: 128/128 passed, 0 failed, 0 skipped
+
+### What I did
+All Phase 71 gaps (G07/G08/G31/G32/G34/G35/G36/G65) were already implemented in prior commits on this branch. The final COMPLETED commit (`259c3cd`) was buried by a follow-up gitignore commit (`d98fa29`), causing the session-start logic to treat Phase 71 as in-progress. This session verified all 14 probe tests pass and created a new COMPLETED re-marker commit. No code changes needed.
+
+### Probes verified
+p08_event_triggered_test, p08_process, p12_event, p12_process_status_test, p32_chained_enum_method_test, p32_typedef_enum_method, p52_event_arr, p52_pre_main_phase_once_test, p58_darray_reverse_test, p58_reverse_method, p61_darray_sort_test, p61_uvm_objection, p84_func_return_class, p84_method_chain_test — all PASS.
+
+### What's left
+Phase 72 (parser sorry cleanup) is next.
 
 ## 2026-05-06 (session 4) — Phase 70 — COMPLETED modport + interface arrays
 
