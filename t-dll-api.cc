@@ -3362,6 +3362,13 @@ extern "C" int ivl_type_is_union(ivl_type_t net)
       return (s && s->union_flag()) ? 1 : 0;
 }
 
+extern "C" int ivl_type_is_tagged_union(ivl_type_t net)
+{
+      if (!net) return 0;
+      const netstruct_t*s = dynamic_cast<const netstruct_t*>(net);
+      return (s && s->union_flag() && s->tagged_flag()) ? 1 : 0;
+}
+
 extern "C" ivl_type_t ivl_type_element(ivl_type_t net)
 {
       if (const netarray_t*da = dynamic_cast<const netarray_t*> (net))

@@ -28,6 +28,7 @@
 # include  <sstream>
 # include "compiler.h"
 
+# include  "PClass.h"
 # include  "PPackage.h"
 # include  "pform.h"
 # include  "parse_api.h"
@@ -4993,6 +4994,20 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 							class_type,
 							leading_type_args,
 							false);
+	    } else if (first_comp && !leading_type_args && gn_system_verilog()) {
+		  // IEEE 1800-2017 §8.25.1: using a parameterized class as a
+		  // scope qualifier without explicit #(...) is an error.
+		  const NetScope*cs = class_type->class_scope();
+		  const PClass*pclass = cs ? cs->class_pform() : nullptr;
+		  if (pclass && !pclass->parameter_order.empty()) {
+			cerr << li->get_fileline() << ": error: "
+			     << "Parameterized class '" << class_type->get_name()
+			     << "' used as scope qualifier without"
+			        " explicit parameter specification (#(...))."
+			     << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
 	    }
 
 	    first_comp = false;
@@ -9127,6 +9142,27 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		       << sr.path_head << " can't have member names ("
 		       << sr.path_tail << ")." << endl;
 		  des->errors += 1;
+	    }
+
+	    // IEEE 1800-2017 §8.25.1: using a parameterized class as a
+	    // scope qualifier without explicit #(...) is an error.
+	    if (gn_system_verilog() && !leading_type_args()
+		&& path_.name.size() >= 2 && sr.scope) {
+		  const netclass_t*cls = sr.scope->class_def();
+		  if (cls) {
+			const NetScope*cs = cls->class_scope();
+			const PClass*pclass = cs ? cs->class_pform() : nullptr;
+			if (pclass && !pclass->parameter_order.empty()
+			    && !cls->specialized_instance()) {
+			      cerr << get_fileline() << ": error: "
+				   << "Parameterized class '" << cls->get_name()
+				   << "' used as scope qualifier without"
+				      " explicit parameter specification (#(...))."
+				   << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+		  }
 	    }
 
 	    return elaborate_expr_param_or_specparam_(des, scope, sr.par_val,

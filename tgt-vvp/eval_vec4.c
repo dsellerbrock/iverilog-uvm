@@ -1046,6 +1046,45 @@ static void draw_number_vec4(ivl_expr_t expr)
       draw_concat_number_vec4(expr, 0);
 }
 
+/* Find the tag companion signal for a tagged-union signal.
+ * Returns the companion ivl_signal_t, or NULL if not a tagged union. */
+/* Find the tag companion signal for a tagged-union signal.
+ * Returns the companion ivl_signal_t, or NULL if not a tagged union. */
+static ivl_signal_t find_tag_companion_(ivl_signal_t sig)
+{
+      if (!sig) return 0;
+      ivl_type_t stype = ivl_signal_net_type(sig);
+      if (!ivl_type_is_tagged_union(stype)) return 0;
+      const char*base = ivl_signal_basename(sig);
+      char*companion_name = malloc(strlen(base) + 16);
+      sprintf(companion_name, "%s__tag_companion", base);
+      ivl_scope_t sc = ivl_signal_scope(sig);
+      ivl_signal_t result = 0;
+      if (sc) {
+	    unsigned nsigs = ivl_scope_sigs(sc);
+	    unsigned i;
+	    for (i = 0; i < nsigs; i++) {
+		  ivl_signal_t s = ivl_scope_sig(sc, i);
+		  if (strcmp(ivl_signal_basename(s), companion_name) == 0) {
+			result = s;
+			break;
+		  }
+	    }
+      }
+      free(companion_name);
+      return result;
+}
+
+/* Extract the base signal from a property expression's base_expr,
+ * if the base_expr is a direct signal reference. */
+static ivl_signal_t base_expr_signal_(ivl_expr_t base_expr)
+{
+      if (!base_expr) return 0;
+      if (ivl_expr_type(base_expr) == IVL_EX_SIGNAL)
+	    return ivl_expr_signal(base_expr);
+      return 0;
+}
+
 static void draw_property_vec4(ivl_expr_t expr)
 {
       ivl_signal_t sig = ivl_expr_signal(expr);
@@ -1076,6 +1115,32 @@ static void draw_property_vec4(ivl_expr_t expr)
       }
       fprintf(vvp_out, "    %%test_nul/obj;\n");
       fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+
+      /* IEEE 1800-2017 §11.9: runtime tag check for tagged unions. */
+      ivl_signal_t tag_base_sig = sig ? sig : base_expr_signal_(base_expr);
+      ivl_signal_t tag_comp = find_tag_companion_(tag_base_sig);
+      if (tag_comp && !assoc_indexed && !queue_indexed && !darray_indexed) {
+	    unsigned lab_tag_ok = local_count++;
+	    /* Load tag companion and compare with expected member index.
+	       %cmp/u sets flag 4 = equality. */
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", tag_comp);
+	    fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n", pidx);
+	    fprintf(vvp_out, "    %%cmp/u;\n");
+	    /* flag 4 = equality result; jump to OK if equal */
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+		    thread_count, lab_tag_ok);
+	    /* Tag mismatch: pop the object, call $fatal to abort. */
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    fprintf(vvp_out,
+		    "    %%vpi_call/w %u %u \"$fatal\","
+		    " 32'sb00000000000000000000000000000001,"
+		    " \"Tagged union member access error: wrong tag\" {0 0 0 0};\n",
+		    ivl_file_table_index(ivl_expr_file(expr)),
+		    ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%end;\n");
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_tag_ok);
+      }
+
       if (assoc_indexed) {
             const char*key_kind;
 	    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_assoc_property\n", pidx);
