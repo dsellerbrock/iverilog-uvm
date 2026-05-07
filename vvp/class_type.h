@@ -72,6 +72,9 @@ class class_type : public __vpiHandle {
 	// defined. This calculates information about the definition.
       void finish_setup(void);
 
+      void set_is_union(bool f) { is_union_ = f; }
+      bool is_union() const { return is_union_; }
+
     public:
 	// Constructors and destructors for making instances.
       inst_t instance_new() const;
@@ -109,6 +112,7 @@ class class_type : public __vpiHandle {
       };
       std::vector<prop_t> properties_;
       size_t instance_size_;
+      bool is_union_ = false;
 
       struct constraint_t {
 	    std::string name;

@@ -649,7 +649,15 @@ void property_bit::set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx)
             return;
       }
       vvp_vector2_t*obj = reinterpret_cast<vvp_vector2_t*> (buf+offset_);
-      obj[idx] = val;
+      if (val.size() == wid_) {
+	    obj[idx] = val;
+      } else {
+	    /* Truncate or zero-extend to property width to preserve stored size. */
+	    vvp_vector4_t tmp(wid_);
+	    for (unsigned b = 0; b < wid_; b++)
+		  tmp.set_bit(b, b < val.size() ? val.value(b) : BIT4_0);
+	    obj[idx] = tmp;
+      }
 }
 
 void property_bit::get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx)
@@ -1153,6 +1161,13 @@ void class_type::set_vec4(class_type::inst_t obj, size_t pid,
                     obj, properties_[pid].type);
       }
       properties_[pid].type->set_vec4(buf, val, idx);
+
+      if (is_union_ && idx == 0) {
+	    for (size_t other = 0; other < properties_.size(); other++) {
+		  if (other == pid) continue;
+		  properties_[other].type->set_vec4(buf, val);
+	    }
+      }
 }
 
 void class_type::get_vec4(class_type::inst_t obj, size_t pid,
@@ -1185,6 +1200,13 @@ void class_type::set_vec4_whole(class_type::inst_t obj, size_t pid,
       char*buf = reinterpret_cast<char*> (obj);
       if (pid >= properties_.size()) return;
       properties_[pid].type->set_vec4(buf, val);
+
+      if (is_union_) {
+	    for (size_t other = 0; other < properties_.size(); other++) {
+		  if (other == pid) continue;
+		  properties_[other].type->set_vec4(buf, val);
+	    }
+      }
 }
 
 void class_type::get_vec4_whole(class_type::inst_t obj, size_t pid,
@@ -1401,10 +1423,12 @@ static string build_scope_path_(__vpiScope*scope)
 }
 
 void compile_class_start(char*lab, char*nam, char*dispatch_prefix,
-                         char*super_dispatch_prefix, unsigned ntype)
+                         char*super_dispatch_prefix, unsigned ntype,
+                         bool is_union)
 {
       assert(compile_class == 0);
       compile_class = new class_type(nam, ntype);
+      compile_class->set_is_union(is_union);
       if (dispatch_prefix && *dispatch_prefix)
             compile_class->set_dispatch_prefix(dispatch_prefix);
       if (super_dispatch_prefix && *super_dispatch_prefix)

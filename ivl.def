@@ -349,6 +349,7 @@ ivl_type_queue_assoc_compat
 ivl_type_constraints
 ivl_type_constraint_name
 ivl_type_constraint_ir
+ivl_type_is_union
 ivl_type_covgrp_ncoverpoints
 ivl_type_covgrp_bins
 ivl_type_covgrp_bin_prop

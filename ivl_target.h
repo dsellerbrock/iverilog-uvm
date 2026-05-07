@@ -2443,6 +2443,8 @@ extern int         ivl_type_constraints(ivl_type_t net);
 extern const char* ivl_type_constraint_name(ivl_type_t net, int idx);
 extern const char* ivl_type_constraint_ir(ivl_type_t net, int idx);
 
+extern int         ivl_type_is_union(ivl_type_t net);
+
 /* Covergroup bin metadata on synthesized covergroup class types.
  * Only valid when the class type represents a covergroup. */
 extern int      ivl_type_covgrp_bins(ivl_type_t net);

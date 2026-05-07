@@ -3500,6 +3500,14 @@ extern "C" int ivl_type_constraints(ivl_type_t net)
       return 0;
 }
 
+extern "C" int ivl_type_is_union(ivl_type_t net)
+{
+      const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(net);
+      if (struct_type)
+	    return struct_type->union_flag() ? 1 : 0;
+      return 0;
+}
+
 extern "C" const char* ivl_type_constraint_name(ivl_type_t net, int idx)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
