@@ -242,6 +242,7 @@ struct type_parameter_t : data_type_t {
 
 struct void_type_t : public data_type_t {
       virtual void pform_dump(std::ostream&out, unsigned indent) const override;
+      ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
 };
 
 /*

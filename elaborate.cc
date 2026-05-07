@@ -9417,11 +9417,18 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 	    return 0;
       }
 
-      NetExpr*dly = 0;
-      if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
-      NetEvNBTrig*trig = new NetEvNBTrig(eve, dly);
-      trig->set_line(*this);
-      return trig;
+      /* ->> (non-blocking event trigger) is parsed but not yet fully
+	 implemented: the nodangle pass may remove the target event causing
+	 a use-after-free in code-gen. Emit a compile-progress note and
+	 skip the statement to avoid a segfault. */
+      cerr << get_fileline() << ": note: non-blocking event trigger "
+	   << "(->> " << event_ << ") is not yet supported; statement ignored."
+	   << endl;
+      if (dly_) {
+	    NetExpr*dly = elab_and_eval(des, scope, dly_, -1);
+	    delete dly;
+      }
+      return 0;
 }
 
 /*

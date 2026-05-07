@@ -421,6 +421,12 @@ ivl_type_t data_type_t::elaborate_type_raw(Design*des, NetScope*) const
       return 0;
 }
 
+ivl_type_t void_type_t::elaborate_type_raw(Design*, NetScope*) const
+{
+      /* void members in tagged unions have no data payload; skip them. */
+      return 0;
+}
+
 ivl_type_t atom_type_t::elaborate_type_raw(Design*des, NetScope*) const
 {
       switch (type_code) {

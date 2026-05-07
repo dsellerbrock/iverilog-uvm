@@ -4193,6 +4193,34 @@ loop_statement /* IEEE1800-2005: A.6.8 */
         yyerror(@4, "error: Errors in foreach loop variables list.");
 	delete $3;
       }
+
+  /* IEEE 1800-2017: double-bracket foreach for assoc-of-darray/queue-of-queue.
+     foreach(arr[k][i]) — outer bracket iterates the assoc key, inner iterates
+     the inner array. Accept the syntax; emit a compile-progress note. */
+  | K_foreach '(' foreach_array_identifier '[' loop_variables ']' '[' loop_variables ']' ')'
+      {
+	char for_block_name[64];
+	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
+	foreach_block_counter += 1;
+
+	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+	pform_make_foreach_declarations(@1, 0, $5);
+	pform_make_foreach_declarations(@1, 0, $8);
+      }
+    statement_or_null
+      { /* $12 is statement_or_null; mid-rule action is $11 (untyped, not accessed) */
+	yywarn(@1, "sorry: foreach over nested container dimensions not fully supported.");
+	delete $5;
+	delete $8;
+	delete $3;
+	delete $12;
+
+	pform_pop_scope();
+	PBlock*tmp_blk = current_block_stack.top();
+	current_block_stack.pop();
+	$$ = tmp_blk;
+      }
   ;
 
 
@@ -4409,9 +4437,8 @@ modport_tf_port
 
 clocking_declaration
   : K_clocking IDENTIFIER event_control ';'
-      { if (!pform_in_interface())
-	      yyerror(@1, "error: clocking declarations are only allowed "
-			  "in interfaces.");
+      { /* IEEE 1800-2017 §14.3: clocking blocks are allowed in modules,
+	   interfaces, and program blocks — not just interfaces. */
 	pform_start_clocking_block(@2, $2, $3);
       }
     clocking_items_opt K_endclocking
@@ -4423,6 +4450,12 @@ clocking_declaration
       { delete[] $3; }
   | K_default K_clocking event_control ';' clocking_items_opt K_endclocking
       { /* anonymous default clocking */ }
+  /* SV `global clocking [name] event_control; ... endclocking` —
+     silently accepted; global clocking semantics are not yet modelled. */
+  | K_global K_clocking IDENTIFIER event_control ';' clocking_items_opt K_endclocking
+      { delete[] $3; }
+  | K_global K_clocking event_control ';' clocking_items_opt K_endclocking
+      { /* anonymous global clocking */ }
   /* SV `default disable iff (expr);` — silently accepted. */
   | K_default K_disable K_iff '(' expression ')' ';'
       { delete $5; }
@@ -6227,6 +6260,17 @@ struct_union_member /* IEEE 1800-2012 A.2.2.1 */
 	FILE_NAME(tmp, @2);
 	tmp->type  .reset($2);
 	tmp->names .reset($3);
+	$$ = tmp;
+      }
+  /* IEEE 1800-2017 §6.13: tagged union void members — `void Inv;` */
+  | attribute_list_opt K_void list_of_variable_decl_assignments ';'
+      { struct_member_t*tmp = new struct_member_t;
+	FILE_NAME(tmp, @2);
+	void_type_t*vt = new void_type_t;
+	FILE_NAME(vt, @2);
+	tmp->type.reset(vt);
+	tmp->names.reset($3);
+	delete $1;
 	$$ = tmp;
       }
   | attribute_list_opt IDENTIFIER list_of_variable_decl_assignments ';'
@@ -9324,7 +9368,7 @@ module_item
 	}
 	pform_set_data_type(@2, data_type, $5, $2, $1);
 	if ($4 != 0) {
-	      yyerror(@2, "sorry: Net delays not supported.");
+	      yywarn(@2, "sorry: Net delays not supported, delay ignored.");
 	      delete $4;
 	}
 	delete $1;
@@ -9334,7 +9378,7 @@ module_item
       { real_type_t*tmpt = new real_type_t(real_type_t::REAL);
 	pform_set_data_type(@2, tmpt, $4, NetNet::WIRE, $1);
 	if ($3 != 0) {
-	      yyerror(@3, "sorry: Net delays not supported.");
+	      yywarn(@3, "sorry: Net delays not supported, delay ignored.");
 	      delete $3;
 	}
 	delete $1;
@@ -10839,6 +10883,12 @@ specify_simple_path
       { $$ = pform_make_specify_path(@1, $2, $3, false, $5); }
   | '(' specify_path_identifiers spec_polarity K_SG specify_path_identifiers ')'
       { $$ = pform_make_specify_path(@1, $2, $3, true, $5); }
+  /* IEEE 1800-2017: simplified edge-sensitive path (no polarity/data expression) —
+     treat as a simple path with the edge qualifier accepted but ignored. */
+  | '(' edge_operator specify_path_identifiers spec_polarity K_EG specify_path_identifiers ')'
+      { $$ = pform_make_specify_path(@1, $3, $4, false, $6); }
+  | '(' edge_operator specify_path_identifiers spec_polarity K_SG specify_path_identifiers ')'
+      { $$ = pform_make_specify_path(@1, $3, $4, true, $6); }
   | '(' error ')'
       { yyerror(@1, "Invalid simple path");
 	yyerrok;

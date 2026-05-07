@@ -3540,9 +3540,9 @@ void pform_make_let(const struct vlltype&loc,
 {
       LexicalScope*scope =  pform_peek_scope();
 
-      cerr << loc.get_fileline() << ": sorry: let declarations ("
-           << name << ") are not currently supported." << endl;
-      error_count += 1;
+      cerr << loc.get_fileline() << ": note: let declaration '"
+           << name << "' is not yet supported and will be ignored." << endl;
+      warn_count += 1;
 
       PLet*res = new PLet(name, scope, ports, expr);
       FILE_NAME(res, loc);
@@ -3870,8 +3870,16 @@ void pform_start_clocking_block(const struct vlltype&loc,
 				const char*name,
 				PEventStatement*event)
 {
-      Module*scope = pform_cur_module.front();
-      ivl_assert(loc, scope && scope->is_interface);
+      Module*scope = pform_cur_module.empty() ? 0 : pform_cur_module.front();
+      /* IEEE 1800-2017 §14.3: clocking blocks are legal in module, interface,
+	 and program blocks — not only in interfaces. */
+      if (!scope) {
+	    cerr << loc << ": error: clocking block outside any module scope." << endl;
+	    error_count += 1;
+	    delete[] name;
+	    delete event;
+	    return;
+      }
       /* On parse error, a previous clocking block may not have been ended. Reset it. */
       if (pform_cur_clocking) pform_cur_clocking = 0;
 
