@@ -7028,6 +7028,26 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  return tmp;
 	    }
 
+	    /* G10: reduction methods (sum/product/and/or/xor) and
+	       comparison methods (min/max) on dynamic arrays. */
+	    if (method_name == "sum" || method_name == "product"
+		|| method_name == "and" || method_name == "or"
+		|| method_name == "xor") {
+		  string mangled = string("$ivl_darray_method$") + method_name.str();
+		  NetESFunc*fn = new NetESFunc(mangled.c_str(),
+					       &netvector_t::atom2s32, 1);
+		  fn->parm(0, sub_expr);
+		  fn->set_line(*this);
+		  return fn;
+	    }
+	    if (method_name == "min" || method_name == "max") {
+		  string mangled = string("$ivl_queue_method$") + method_name.str();
+		  NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 1);
+		  fn->parm(0, sub_expr);
+		  fn->set_line(*this);
+		  return fn;
+	    }
+
 	    cerr << get_fileline() << ": error: Method " << method_name
 		 << " is not a dynamic array method." << endl;
 	    return 0;
@@ -7141,6 +7161,28 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  NetENull*tmp = new NetENull();
 		  tmp->set_line(*this);
 		  return tmp;
+	    }
+
+	    /* G10: reduction methods (sum/product/and/or/xor) and
+	       comparison methods (min/max) on queues.  The runtime
+	       opcodes %qsum/%qprod etc. handle vvp_darray/vvp_queue;
+	       %qmin/%qmax return a one-element queue with the extreme. */
+	    if (method_name == "sum" || method_name == "product"
+		|| method_name == "and" || method_name == "or"
+		|| method_name == "xor") {
+		  string mangled = string("$ivl_darray_method$") + method_name.str();
+		  NetESFunc*fn = new NetESFunc(mangled.c_str(),
+					       &netvector_t::atom2s32, 1);
+		  fn->parm(0, sub_expr);
+		  fn->set_line(*this);
+		  return fn;
+	    }
+	    if (method_name == "min" || method_name == "max") {
+		  string mangled = string("$ivl_queue_method$") + method_name.str();
+		  NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 1);
+		  fn->parm(0, sub_expr);
+		  fn->set_line(*this);
+		  return fn;
 	    }
 
 	    cerr << get_fileline() << ": error: Method " << method_name

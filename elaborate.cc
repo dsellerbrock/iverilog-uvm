@@ -9461,21 +9461,47 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 
       NetProc*sub;
       if (index_vars_.size() > 1) {
-	    NetExpr*elem_expr = make_foreach_array_element_expr_(*this,
-								 array_expr->dup_expr(),
-								 idx_sig);
-	    if (!elem_expr) {
+	    /* G09: assoc-of-assoc foreach.  Build a nested first/next loop for the
+	       element (inner associative array) indexed by index_vars_[1].
+	       Two elem expressions are needed: one for the inner $first condition
+	       and one for the inner $next loop condition, each dynamically
+	       re-evaluating array_expr[k1] via the outer index signal. */
+	    NetExpr*elem_for_first = make_foreach_array_element_expr_(*this,
+								      array_expr->dup_expr(),
+								      idx_sig);
+	    if (!elem_for_first) {
 		  delete array_expr;
 		  cerr << get_fileline() << ": warning: associative-array foreach"
 		       << " can only descend into array-like element types"
 		       << " (compile-progress: loop body dropped)." << endl;
 		  return 0;
 	    }
-	    sub = elaborate_runtime_array_(des, scope, elem_expr, 1);
-	    if (!sub) {
-		  delete array_expr;
+	    NetExpr*elem_for_next = make_foreach_array_element_expr_(*this,
+								     array_expr->dup_expr(),
+								     idx_sig);
+	    NetNet*inner_idx_sig = find_assoc_foreach_index_signal_(des, scope,
+								    index_vars_[1]);
+	    if (!inner_idx_sig) {
+		  delete array_expr; delete elem_for_first; delete elem_for_next;
 		  return 0;
 	    }
+	    NetProc*inner_body = statement_
+		  ? statement_->elaborate(des, scope)
+		  : new NetBlock(NetBlock::SEQU, 0);
+	    NetExpr*inner_next_expr = make_assoc_foreach_method_call_(*this,
+								      "$ivl_assoc_method$next",
+								      elem_for_next,
+								      inner_idx_sig);
+	    NetDoWhile*inner_loop = new NetDoWhile(inner_next_expr, inner_body);
+	    inner_loop->set_line(*this);
+	    NetExpr*inner_first_expr = make_assoc_foreach_method_call_(*this,
+								       "$ivl_assoc_method$first",
+								       elem_for_first,
+								       inner_idx_sig);
+	    NetBlock*inner_noop = new NetBlock(NetBlock::SEQU, 0);
+	    NetCondit*inner_cond = new NetCondit(inner_first_expr, inner_loop, inner_noop);
+	    inner_cond->set_line(*this);
+	    sub = inner_cond;
       } else if (statement_) {
 	    sub = statement_->elaborate(des, scope);
       } else {
