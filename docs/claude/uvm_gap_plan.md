@@ -276,10 +276,43 @@ Then:
 | 73 DPI open-array | not started | |
 | 74 perf hardening | not started | |
 | 75 fallback hardening | not started | |
+| 76 G10 queue/darray reductions | **COMPLETED** | see claude/phase-76; G10 sum/product/and/or/xor/min/max on queue+darray; NBA wait fix; 121/121 PASS |
 
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## 2026-05-07 — Phase 76 — COMPLETED G10 queue/darray reduction methods + NBA wait fix
+
+**Branch**: `claude/phase-76`
+**Final commit**: see branch — `Phase 76: COMPLETED G10 queue/darray sum/product/and/or/xor/min/max; NBA wait fix`
+**Regression**: 121/121 passed, 0 failed, 0 skipped (up from 119; 2 pre-existing failures fixed by NBA define)
+
+### What I did
+- **G10 (queues)**: Added `sum`, `product`, `and`, `or`, `xor`, `min`, `max` method dispatch to the queue method section of `elab_expr.cc` (before the "is not a queue method" error, around line 6572). All 7 reduction/comparison methods map to existing vvp opcodes (`%qsum`, `%qprod`, `%qand`, `%qor`, `%qxor`, `%qmin`, `%qmax`).
+- **G10 (darrays)**: Added the same 7 methods to the dynamic array method section (before "is not a dynamic array method", around line 6456). Same mapping to existing opcodes — the darray runtime already handled them via the queue opcode family.
+- **NBA wait fix**: Diagnosed that `uvm_wait_for_nba_region()` in the UVM core uses `nba <= next_nba; @(nba)` — a non-blocking assignment to a static task variable followed by waiting for its change event. iverilog does not raise the `@(nba)` change event from NBA-region writes, so `wait_for_sequences()` blocked forever, causing all UVM sequencer tests to time out (PH_TIMEOUT @ 9200 ns). Fix: added `-DUVM_NO_WAIT_FOR_NBA -DUVM_POUND_ZERO_COUNT=10` to the `compile_test` step in `.github/uvm_test.sh`. This selects the `repeat(10) #0` path, which correctly yields to other processes without relying on NBA change events.
+- **Tests added**: `tests/g10_queue_reduction_test.sv`, `tests/g10_darray_reduction_test.sv`.
+
+### Root causes
+- G10: `elab_expr.cc` queue/darray method dispatch ended with a compile error for any unrecognized method, but `sum`/`product`/`and`/`or`/`xor`/`min`/`max` were never in the dispatch table. Runtime opcodes `%qsum`/`%qprod`/`%qand`/`%qor`/`%qxor` (in `vvp/vvp_darray.cc`) and `%qmin`/`%qmax` (in `vvp/event.cc`) existed since earlier phases.
+- NBA wait: iverilog's `@(variable)` change event does not fire when the variable is written via non-blocking assignment (NBA region). This is a simulator model limitation; the UVM workaround macro `UVM_NO_WAIT_FOR_NBA` replaces the NBA wait with delta-cycle loops.
+
+### G09 root cause (deeper bug, deferred)
+- Attempted `foreach(aa[k1,k2])` for assoc-of-assoc arrays (G09). Implemented proper inner first/next loop in `elaborate.cc::PForeach::elaborate_assoc_array_`. VVP bytecode is correct (`%aa/load/sig/obj/str` + `%aa/first/v`), but the test showed total=0.
+- Root cause: `aa["a"][1] = 10` generates `%null` + `%aa/store/sig/obj/str`, storing a null object at `aa["a"]` instead of creating/updating the inner associative array. This is a 2D assoc array **write** bug in the codegen layer (tgt-vvp or elab_lval), not a foreach iteration bug.
+- G09 is deferred until the 2D assoc array storage bug is fixed. See `tgt-vvp/eval_object.c` and the lvalue codegen for `aa[k1][k2] = v`.
+
+### What I left undone
+- G09: foreach over assoc-of-assoc (blocked by 2D assoc storage bug).
+- G19: `std::randomize() with { dist ... }` uses weighted distribution; deeper codegen work needed.
+- G40: `unique` on unpacked arrays not yet implemented.
+
+### Deferred / new follow-ups discovered
+- Phase 77 (proposed): Fix 2D assoc array write `aa[k1][k2] = v` — `tgt-vvp/eval_object.c` generates `%null; %aa/store/sig/obj/str` instead of evaluating the inner array value. Fix: in `eval_object_select`, when the inner object is an assoc array signal, generate `%aa/load/sig/obj/str` before `%aa/store/sig/obj/str`. Then G09 foreach codegen (already correct) will work end-to-end.
+
+### Next session pointer
+Phase 77: fix 2D assoc array write. Start by reading `tgt-vvp/eval_object.c` around the `%aa/store` generation path.
 
 ## 2026-05-06 — Phase 68 — COMPLETED re-marker (merge commits buried prior COMPLETED invariant)
 

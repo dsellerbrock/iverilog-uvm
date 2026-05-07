@@ -33,7 +33,11 @@ declare -A PLUSARGS=(
 compile_test() {
     local name="$1"
     local sv="$TESTS/${name}.sv"
-    $BIN -g2012 -I "$UVM" -DUVM_NO_DPI -o "/tmp/uvm_test_${name}.vvp" \
+    # UVM_NO_WAIT_FOR_NBA: iverilog does not support @(var) on NBA-region writes
+    # (the uvm_wait_for_nba_region mechanism); use #0 delta loop instead.
+    $BIN -g2012 -I "$UVM" -DUVM_NO_DPI \
+         -DUVM_NO_WAIT_FOR_NBA -DUVM_POUND_ZERO_COUNT=10 \
+         -o "/tmp/uvm_test_${name}.vvp" \
          "$UVM/uvm_pkg.sv" "$sv" 2>/dev/null
 }
 
