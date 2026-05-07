@@ -274,12 +274,34 @@ Then:
 | 71 process/event/method-chain | not started | |
 | 72 parser sorry cleanup | not started | |
 | 73 DPI open-array | not started | |
-| 74 perf hardening | not started | |
+| 74 perf hardening | **COMPLETED** | see claude/phase-74; callf scope-name cache + unordered containers + vpi crash hardening; 120/120 PASS |
 | 75 fallback hardening | not started | |
 
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## 2026-05-07 — Phase 74 — COMPLETED performance + reliability hardening
+
+**Branch**: `claude/phase-74`
+**Regression**: 120 passed, 0 failed, 0 skipped
+
+### What I did
+- **Profiled hot path**: SIGUSR1 sampling (100 samples at 50ms intervals) on vif_smoke. `do_callf_void` appeared in 58/100 samples; `of_FORK` in 30. Root cause: `vpi_get_str(vpiFullName, scope)` called twice per task invocation — O(n) string concat — plus O(n) scope stack scan and O(log n) ordered-map lookups.
+- **scope_fullname_cached_**: New static function wrapping `vpi_get_str(vpiFullName)` with a `static unordered_map<__vpiScope*, string>` cache. Scope names are immutable after elaboration so this is always correct. Replaces two `string` copy+paste allocations per `do_callf_void` call with O(1) pointer lookup.
+- **O(1) depth tracking**: Replaced O(n) for-loop scan over `callf_scope_stack` with a `callf_scope_stack_depth_` `unordered_map<__vpiScope*, unsigned>` counter. New `callf_scope_stack_pop_()` helper maintains consistency on all 5 pop sites.
+- **Unordered containers**: Converted `callf_edge_invocations`, `callf_edge_hot_warned`, `callf_self_site_invocations`, `callf_scope_invocations`, `callf_scope_hot_warned`, `callf_scope_stack_depth_`, `live_threads_registry_`, `vthread_s::children/detached_children`, and `__vpiScope::threads` from `std::set`/`std::map` to `std::unordered_set`/`std::unordered_map`. Added `std::hash` specializations for `callf_edge_key_s` and `callf_self_site_key_s`.
+- **VPI crash hardening**: Replaced `assert(0)` / `assert(false)` in `vpip_vec4_get_value` (vpi_priv.cc), `get_word_value` (vpi_darray.cc), `put_word_value` (vpi_darray.cc), and `vpi_get` (vpi_darray.cc) with graceful `fprintf(stderr, ...)` + `vpiSuppressVal` returns. Prevents simulator crashes when VPI tools query unsupported formats.
+- **New test**: `tests/perf_callf_cache_test.sv` — 200 outer × 10 inner iterations across a 3-level UVM class hierarchy to stress the callf cache path.
+
+### Measurements
+- vif_smoke: 8125ms → 6457ms (~21% faster)
+- vif_smoke_v2: 7174ms → 6262ms (~13% faster)
+
+### Root causes
+- `vpi_get_str(vpiFullName, scope)` traverses the entire scope chain on every call; with thousands of task calls per UVM test this dominates.
+- `std::set`/`std::map` with pointer keys are O(log n) and have poor cache behaviour; `unordered_*` gives O(1) with better locality.
+- `assert(0)` in VPI handlers is a latent crash: any VPI-based tool querying an unsupported format would abort the simulation.
 
 ## 2026-05-06 — Phase 68 — COMPLETED re-marker (merge commits buried prior COMPLETED invariant)
 
