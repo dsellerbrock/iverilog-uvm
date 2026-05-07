@@ -579,20 +579,31 @@ static void store_vec4_to_lval(ivl_statement_t net)
 	    } else {
 		    /* No offset expression, so use simpler store function. */
 		  assert(lsig);
-		  if (lwid != ivl_signal_width(lsig)) {
-			fprintf(stderr, "%s:%u: vvp.tgt sorry: width mismatch "
-				"assigning to %s (lval=%u, signal=%u).\n",
-				ivl_stmt_file(net), ivl_stmt_lineno(net),
-				ivl_signal_basename(lsig), lwid,
-				ivl_signal_width(lsig));
-			lwid = ivl_signal_width(lsig);
-		  }
-		  if (signal_is_return_value(lsig)) {
-			fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;  Assign to %s (store_vec4_to_lval)\n",
-				lwid, ivl_signal_basename(lsig));
+		  if (ivl_signal_dimensions(lsig) > 0) {
+			/* Unpacked array with no explicit index — store to element 0
+			 * using %store/vec4a (not %store/vec4 v_0 which is unresolved). */
+			unsigned elem_wid = ivl_signal_width(lsig);
+			fprintf(vvp_out, "    %%pad/u %u;\n", elem_wid);
+			fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
+			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+			note_array_signal_use(lsig);
+			fprintf(vvp_out, "    %%store/vec4a v%p, 3, 0;\n", lsig);
 		  } else {
-			fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
-				lsig, lwid);
+			if (lwid != ivl_signal_width(lsig)) {
+			      fprintf(stderr, "%s:%u: vvp.tgt sorry: width mismatch "
+				      "assigning to %s (lval=%u, signal=%u).\n",
+				      ivl_stmt_file(net), ivl_stmt_lineno(net),
+				      ivl_signal_basename(lsig), lwid,
+				      ivl_signal_width(lsig));
+			      lwid = ivl_signal_width(lsig);
+			}
+			if (signal_is_return_value(lsig)) {
+			      fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;  Assign to %s (store_vec4_to_lval)\n",
+				      lwid, ivl_signal_basename(lsig));
+			} else {
+			      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+				      lsig, lwid);
+			}
 		  }
 	    }
       }
@@ -757,6 +768,37 @@ static int show_stmt_assign_vector(ivl_statement_t net)
 	    ivl_signal_t sig = ivl_lval_sig(lval);
 	    draw_array_pattern(sig, rval, 0);
 	    return 0;
+      }
+
+      /* String literal assigned to unpacked byte array:
+       * byte b[M-1:0] = "str" — decompose into per-element stores. */
+      if (ivl_stmt_lvals(net) == 1
+	  && ivl_expr_type(rval) == IVL_EX_STRING) {
+	    ivl_lval_t lval0 = ivl_stmt_lval(net, 0);
+	    ivl_signal_t sig0 = ivl_lval_sig(lval0);
+	    if (sig0 && ivl_signal_dimensions(sig0) > 0
+		&& ivl_lval_idx(lval0) == 0) {
+		  unsigned count = ivl_signal_array_count(sig0);
+		  unsigned elem_wid = ivl_signal_width(sig0);
+		  unsigned str_wid = ivl_expr_width(rval);
+		  char*sbuf = process_octal_codes(ivl_expr_string(rval),
+						  str_wid);
+		  unsigned slen = str_wid / 8;
+		  /* Store chars left-justified: b[count-1]=str[0], ... */
+		  for (unsigned i = 0; i < count; i++) {
+			unsigned vvp_idx = count - 1 - i;
+			unsigned char c = (i < slen) ? (unsigned char)sbuf[i] : 0;
+			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, %u;\n",
+				c, elem_wid);
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", vvp_idx);
+			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+			note_array_signal_use(sig0);
+			fprintf(vvp_out, "    %%store/vec4a v%p, 3, 0;\n",
+				sig0);
+		  }
+		  free(sbuf);
+		  return 0;
+	    }
       }
 
       unsigned wid = ivl_stmt_lwidth(net);

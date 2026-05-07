@@ -187,6 +187,22 @@ void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
       if (pform_cur_class == 0)
 	    return;
 
+      /* IEEE 1800-2017 §18.6.3/§18.8/§18.9: randomize(), rand_mode(), and
+       * constraint_mode() are built-in methods that cannot be overridden. */
+      static const char* const builtin_no_override[] = {
+	    "randomize", "rand_mode", "constraint_mode", nullptr
+      };
+      const char* mname = net->pscope_name();
+      for (int bi = 0; builtin_no_override[bi]; ++bi) {
+	    if (strcmp(mname, builtin_no_override[bi]) == 0) {
+		  cerr << loc << ": error: method `" << mname
+		       << "' is a built-in method and cannot be overridden."
+		       << endl;
+		  error_count += 1;
+		  break;
+	    }
+      }
+
       list<pform_port_t>*this_name = new list<pform_port_t>;
       this_name->push_back(pform_port_t({ perm_string::literal(THIS_TOKEN), 0 }, 0, 0));
       vector<pform_tf_port_t>*this_port = pform_make_task_ports(loc,
