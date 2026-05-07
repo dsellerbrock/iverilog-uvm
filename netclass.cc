@@ -19,6 +19,7 @@
 
 # include  "netclass.h"
 # include  "netlist.h"
+# include  "netparray.h"
 # include  "PClass.h"
 # include  "PTask.h"
 # include  "pform_types.h"
@@ -255,9 +256,13 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
 
             bool added = set_property(cur->first, cur->second.qual, use_type);
             if (added && cur->second.qual.test_static()) {
-                  if (class_scope_->find_signal(cur->first) == 0)
-                        /* NetNet*sig = */ new NetNet(class_scope_, cur->first,
-                                                     NetNet::REG, use_type);
+                  if (class_scope_->find_signal(cur->first) == 0) {
+                        if (auto*ua = dynamic_cast<const netuarray_t*>(use_type))
+                              new NetNet(class_scope_, cur->first, NetNet::REG,
+                                         ua->static_dimensions(), ua->element_type());
+                        else
+                              new NetNet(class_scope_, cur->first, NetNet::REG, use_type);
+                  }
             }
       }
 
@@ -333,9 +338,14 @@ void netclass_t::ensure_all_properties_declared(Design*des)
 
                         bool added = set_property(cur->first, cur->second.qual, use_type);
                         if (added && cur->second.qual.test_static()) {
-                              if (class_scope_->find_signal(cur->first) == 0)
-                                    new NetNet(class_scope_, cur->first,
-                                               NetNet::REG, use_type);
+                              if (class_scope_->find_signal(cur->first) == 0) {
+                                    if (auto*ua = dynamic_cast<const netuarray_t*>(use_type))
+                                          new NetNet(class_scope_, cur->first, NetNet::REG,
+                                                     ua->static_dimensions(), ua->element_type());
+                                    else
+                                          new NetNet(class_scope_, cur->first,
+                                                     NetNet::REG, use_type);
+                              }
                         }
                   }
             }
