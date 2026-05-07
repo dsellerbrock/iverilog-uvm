@@ -10299,7 +10299,7 @@ module_item
 	}
 	pform_set_data_type(@2, data_type, $5, $2, $1);
 	if ($4 != 0) {
-	      yyerror(@2, "sorry: Net delays not supported.");
+	      yywarn(@2, "warning: Net delays not supported, ignored.");
 	      delete $4;
 	}
 	delete $1;
@@ -10309,7 +10309,7 @@ module_item
       { real_type_t*tmpt = new real_type_t(real_type_t::REAL);
 	pform_set_data_type(@2, tmpt, $4, NetNet::WIRE, $1);
 	if ($3 != 0) {
-	      yyerror(@3, "sorry: Net delays not supported.");
+	      yywarn(@3, "warning: Net delays not supported, ignored.");
 	      delete $3;
 	}
 	delete $1;

@@ -3567,23 +3567,47 @@ void pform_make_let(const struct vlltype&loc,
                     list<PLet::let_port*>*ports,
                     PExpr*expr)
 {
-      LexicalScope*scope =  pform_peek_scope();
+      // Lower let to an ordinary function: ports become inputs and the let
+      // expression becomes the return value.  This gives op(args) call sites
+      // free via the existing PECallFunction elaboration path.
+      PFunction*func = pform_push_function_scope(loc, name,
+                                                  LexicalScope::INHERITED);
 
-      cerr << loc.get_fileline() << ": sorry: let declarations ("
-           << name << ") are not currently supported." << endl;
-      error_count += 1;
+      vector<pform_tf_port_t>*port_vec = new vector<pform_tf_port_t>();
+      if (ports) {
+	    for (PLet::let_port_t*p : *ports) {
+		  pform_ident_t pid(p->name_, 0);
+		  data_type_t*ptype = p->type_;
+		  p->type_ = nullptr;
+		  if (!ptype) {
+			ptype = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+			FILE_NAME(ptype, loc);
+		  }
+		  PWire*pw = pform_get_or_make_wire(loc, pid,
+						    NetNet::IMPLICIT_REG,
+						    NetNet::PINPUT, SR_BOTH);
+		  pw->set_data_type(ptype);
+		  pform_tf_port_t entry(pw);
+		  entry.defe = p->def_;
+		  p->def_ = nullptr;
+		  port_vec->push_back(entry);
+	    }
+      }
+      func->set_ports(port_vec);
 
-      PLet*res = new PLet(name, scope, ports, expr);
-      FILE_NAME(res, loc);
+      PReturn*ret = new PReturn(expr);
+      FILE_NAME(ret, loc);
+      func->set_statement(ret);
 
-/*
-      cerr << "Found: ";
-      res->dump(cerr, 0);
-*/
+      pform_pop_scope();
 
-      delete res;
-      delete ports;
-      delete expr;
+      if (ports) {
+	    for (PLet::let_port_t*p : *ports) {
+		  delete p->range_;
+		  delete p;
+	    }
+	    delete ports;
+      }
 }
 
 PLet::let_port_t* pform_make_let_port(data_type_t*data_type,
