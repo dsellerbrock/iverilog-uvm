@@ -41,6 +41,7 @@
 
 # include  "Module.h"
 # include  "PClass.h"
+# include  "pform_types.h"
 # include  "PExpr.h"
 # include  "PEvent.h"
 # include  "PClass.h"
@@ -2143,6 +2144,19 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
       elaborate_scope_funcs(des, scope, funcs);
       elaborate_scope_tasks(des, scope, tasks);
       elaborate_scope_events_(des, scope, events);
+
+      // For $unit scopes, eagerly elaborate struct/union typedefs so that
+      // undefined identifiers in dimension expressions are caught even when
+      // the typedef is never used.
+      if (scope->is_unit()) {
+	    for (auto &entry : typedefs) {
+		  typedef_t*td = entry.second;
+		  const data_type_t*dt = td->get_data_type();
+		  if (!dt) continue; // forward-only typedef
+		  if (!dynamic_cast<const struct_type_t*>(dt)) continue;
+		  td->elaborate_type(des, scope);
+	    }
+      }
       return true;
 }
 
