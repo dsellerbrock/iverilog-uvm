@@ -3571,16 +3571,24 @@ int draw_process(ivl_process_t net, void*x)
       switch (ivl_process_type(net)) {
 
 	  case IVL_PR_INITIAL:
+	    if (init_flag) {
+		  fprintf(vvp_out, "    .thread T_%u, $init;\n", thread_count);
+	    } else {
+		  fprintf(vvp_out, "    .thread T_%u;\n", thread_count);
+	    }
+	    break;
+
 	  case IVL_PR_ALWAYS:
 	  case IVL_PR_ALWAYS_COMB:
 	  case IVL_PR_ALWAYS_FF:
 	  case IVL_PR_ALWAYS_LATCH:
+	      /* Always-blocks must reach their first @-wait before initial
+	       * blocks fire events, so they always use $push scheduling.
+	       * This matches standard Verilog simulation initialization. */
 	    if (init_flag) {
 		  fprintf(vvp_out, "    .thread T_%u, $init;\n", thread_count);
-	    } else if (push_flag) {
-		  fprintf(vvp_out, "    .thread T_%u, $push;\n", thread_count);
 	    } else {
-		  fprintf(vvp_out, "    .thread T_%u;\n", thread_count);
+		  fprintf(vvp_out, "    .thread T_%u, $push;\n", thread_count);
 	    }
 	    break;
 
