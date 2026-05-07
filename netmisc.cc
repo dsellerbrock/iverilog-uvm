@@ -829,6 +829,11 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  // class handles through scalar/string/real contexts before full
 		  // type information is available.
 		  if (!need_const) {
+			if (debug_elaborate)
+			      cerr << pe->get_fileline() << ": debug: "
+				   << "class/null r-value coerced to scalar/null placeholder"
+				   << " in cast_type=" << cast_type
+				   << " context (compile-progress fallback)." << endl;
 			if (cast_type == IVL_VT_BOOL || cast_type == IVL_VT_LOGIC) {
 			      NetEConst*tmp = make_const_0(1);
 			      tmp->set_line(*pe);
@@ -945,6 +950,11 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  // class-typed but expression typing arrived as non-class
 		  // (common with parameterized UVM container wrappers),
 		  // degrade to null and keep elaboration moving.
+		  if (debug_elaborate)
+			cerr << pe->get_fileline() << ": debug: "
+			     << "class-typed context received non-class expression (type="
+			     << tmp->expr_type() << "); coerced to null"
+			     << " (compile-progress fallback)." << endl;
 		  NetENull*stub = new NetENull();
 		  stub->set_line(*tmp);
 		  delete tmp;
@@ -959,6 +969,12 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 	    if (gn_system_verilog() && !need_const && !normal_scalar_cast_path) {
 		  // Compile-progress fallback for unresolved parameterized
 		  // helper/container method paths that lose argument typing.
+		  if (debug_elaborate)
+			cerr << pe->get_fileline() << ": debug: "
+			     << "parameterized method lost argument typing (expr_type="
+			     << tmp->expr_type() << ", cast_type=" << cast_type
+			     << "); using typed placeholder"
+			     << " (compile-progress fallback)." << endl;
 		  if (cast_type == IVL_VT_STRING) {
 			if (const PEString*str_pe = dynamic_cast<const PEString*>(pe)) {
 			      NetECString*lit = new NetECString(str_pe->parsed_value());
@@ -1116,6 +1132,11 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 				// parameter create()/lookup helpers). Degrade to
 				// null for class targets instead of terminating
 				// elaboration at the cast check.
+				if (debug_elaborate)
+				      cerr << pe->get_fileline() << ": debug: "
+					   << "class-target expression has non-class type (expr_type="
+					   << expr_type << "); coerced to null"
+					   << " (compile-progress fallback)." << endl;
 				NetENull*stub = new NetENull();
 				stub->set_line(*tmp);
 				delete tmp;
@@ -1140,6 +1161,12 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  // parameterized class/container helper typing is lost and
 		  // arguments/returns are routed through the wrong scalar/string
 		  // target type. Prefer typed placeholders over hard failure.
+		  if (debug_elaborate)
+			cerr << pe->get_fileline() << ": debug: "
+			     << "UVM container/helper typing lost; expr_type="
+			     << tmp->expr_type() << " cast_type=" << cast_type
+			     << "; using typed placeholder"
+			     << " (compile-progress fallback)." << endl;
 		  if (cast_type == IVL_VT_STRING) {
 			if (const PEString*str_pe = dynamic_cast<const PEString*>(pe)) {
 			      NetECString*lit = new NetECString(str_pe->parsed_value());

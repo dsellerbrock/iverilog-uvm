@@ -879,12 +879,20 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 		    // Compile-progress fallback: unresolved UVM enum-producing
 		    // calls/macros often collapse to integral placeholder constants.
 		    // Allow elaboration to continue and surface later semantic issues.
+		    if (debug_elaborate)
+			  cerr << expr->get_fileline() << ": debug: "
+			       << "integer constant assigned to enum lvalue without explicit cast"
+			       << " (compile-progress fallback)." << endl;
 	      } else if (gn_system_verilog()) {
 		    // Compile-progress fallback: enum assignments in complex macro
 		    // expansions (e.g. UVM resource macros) may lose type information
 		    // through intermediate casts. Allow if vectorable.
 		    if (type_is_vectorable(rval->expr_type())) {
 			  // Type-compatible integral value, allow assignment
+			  if (debug_elaborate)
+				cerr << expr->get_fileline() << ": debug: "
+				     << "non-enum vectorable type assigned to enum lvalue without explicit cast"
+				     << " (compile-progress fallback)." << endl;
 		    } else {
 		      cerr << expr->get_fileline() << ": error: "
 				"This assignment requires an explicit cast." << endl;
@@ -1234,6 +1242,11 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 	    // (expected elements == width of integer), likely a misparse.
 	    if (gn_system_verilog() && dims[cur_dim].width() == 32
 		&& parms_.size() <= 8) {
+		  if (debug_elaborate)
+			cerr << get_fileline() << ": debug: "
+			     << "packed assignment pattern element count (" << parms_.size()
+			     << ") mismatch vs 32-bit dimension; treating as UVM macro artefact"
+			     << " (compile-progress fallback)." << endl;
 	    } else if (parms_.size() != 0
 		       && dims[cur_dim].width() % parms_.size() == 0) {
 	      // Compile-progress fallback for flattened multi-dim packed
@@ -1244,6 +1257,13 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 	      // and continue. This is incorrect for true assignment-pattern
 	      // semantics (no broadcast / repeat) but is sufficient for
 	      // compile-only consumers such as unused cipher SBOX tables.
+		  if (debug_elaborate)
+			cerr << get_fileline() << ": debug: "
+			     << "packed assignment pattern has " << parms_.size()
+			     << " elements vs " << dims[cur_dim].width()
+			     << "-bit dimension; treating as "
+			     << (dims[cur_dim].width()/parms_.size())
+			     << "-bit slices (compile-progress fallback)." << endl;
 	    } else {
 		  cerr << get_fileline() << ": error: Packed array assignment pattern expects "
 		       << dims[cur_dim].width() << " element(s) in this context.\n"

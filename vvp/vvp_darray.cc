@@ -1035,6 +1035,16 @@ void vvp_queue_object::set_word(unsigned adr, const vvp_object_t&value)
 
       // Compile-progress fallback: permit sparse queue<object> indexed stores
       // by growing and null-filling intermediate elements.
+      {
+	    static bool warned_sparse_queue_store = false;
+	    if (!warned_sparse_queue_store) {
+		  cerr << "Warning: sparse queue<object> store at index " << adr
+		       << " beyond queue size " << queue.size()
+		       << "; null-filling intermediate elements"
+		       << " (compile-progress fallback; further similar warnings suppressed)." << endl;
+		  warned_sparse_queue_store = true;
+	    }
+      }
       queue.resize(adr+1);
       queue[adr] = value;
       touch();
