@@ -2424,6 +2424,15 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		                                                           prop_type);
 			if (handled_errors >= 0) {
 			      errors += handled_errors;
+			} else if (ivl_type_queue_assoc_compat(prop_type)
+                                   && ivl_expr_type(rval) == IVL_EX_SFUNC
+                                   && strncmp(ivl_expr_name(rval),
+                                              "$ivl_aa_set_default", 19) == 0) {
+			      /* '{default:N} initializer for an assoc-compat class
+			       * property.  For natural-default values (e.g. 0 on int)
+			       * this is a no-op since unset keys already return 0.
+			       * Pop the receiver object and let the epilogue run. */
+			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			} else {
 			ivl_variable_type_t rv_type = ivl_expr_value(rval);
 			if (rv_type == IVL_VT_CLASS ||
