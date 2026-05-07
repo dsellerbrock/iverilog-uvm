@@ -2136,6 +2136,71 @@ bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
       return qsort_unique_dispatch_(arr, false, true);
 }
 
+/* G35/G36: reverse/sort/rsort/shuffle on fixed-size unpacked arrays. */
+bool of_UARRAY_REVERSE(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_array_t array = resolve_runtime_array_(cp, "%uarray_reverse");
+      if (!array) return true;
+      unsigned sz = array->get_size();
+      if (sz < 2) return true;
+      for (unsigned lo = 0, hi = sz - 1; lo < hi; lo++, hi--) {
+            vvp_vector4_t a = array->get_word(lo);
+            vvp_vector4_t b = array->get_word(hi);
+            array->set_word(lo, 0, b);
+            array->set_word(hi, 0, a);
+      }
+      return true;
+}
+
+bool of_UARRAY_SORT(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_array_t array = resolve_runtime_array_(cp, "%uarray_sort");
+      if (!array) return true;
+      unsigned sz = array->get_size();
+      if (sz < 2) return true;
+      std::vector<vvp_vector4_t> tmp(sz);
+      for (unsigned i = 0; i < sz; i++) tmp[i] = array->get_word(i);
+      std::stable_sort(tmp.begin(), tmp.end(), vec4_lt_);
+      for (unsigned i = 0; i < sz; i++) array->set_word(i, 0, tmp[i]);
+      return true;
+}
+
+bool of_UARRAY_RSORT(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_array_t array = resolve_runtime_array_(cp, "%uarray_rsort");
+      if (!array) return true;
+      unsigned sz = array->get_size();
+      if (sz < 2) return true;
+      std::vector<vvp_vector4_t> tmp(sz);
+      for (unsigned i = 0; i < sz; i++) tmp[i] = array->get_word(i);
+      std::stable_sort(tmp.begin(), tmp.end(),
+                       [](const vvp_vector4_t&a, const vvp_vector4_t&b){
+                             return vec4_lt_(b, a);
+                       });
+      for (unsigned i = 0; i < sz; i++) array->set_word(i, 0, tmp[i]);
+      return true;
+}
+
+bool of_UARRAY_SHUFFLE(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_array_t array = resolve_runtime_array_(cp, "%uarray_shuffle");
+      if (!array) return true;
+      unsigned sz = array->get_size();
+      if (sz < 2) return true;
+      std::vector<vvp_vector4_t> tmp(sz);
+      for (unsigned i = 0; i < sz; i++) tmp[i] = array->get_word(i);
+      for (unsigned i = sz - 1; i > 0; i--) {
+            unsigned j = (unsigned)(rand() % (int)(i + 1));
+            std::swap(tmp[i], tmp[j]);
+      }
+      for (unsigned i = 0; i < sz; i++) array->set_word(i, 0, tmp[i]);
+      return true;
+}
+
 /*
  * %randomize
  *

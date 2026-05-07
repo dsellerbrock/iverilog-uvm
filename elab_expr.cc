@@ -5619,14 +5619,31 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 
 	    // Handle method call on a function-call result: fn().method(args).
 	    // The parser stores the receiver expression in subject_expr_; elaborate
-	    // it to find the class type, then dispatch the method on that type.
+	    // it to find the class/enum type, then dispatch the method on that type.
 	    if (subject_expr_ && path_.name.size() == 1) {
 		  NetExpr*rcvr = subject_expr_->elaborate_expr(des, scope, -1, 0);
 		  if (rcvr) {
+			perm_string method_name = peek_tail_name(path_);
+			// G31: enum method on function-return value (e.g., get_e().name()).
+			// Try rcvr->net_type() first; fall back to result_sig()->net_type()
+			// for NetEUFunc whose net_type_ may lag the return signal's type.
+			const netenum_t*enum_type =
+			      dynamic_cast<const netenum_t*>(rcvr->net_type());
+			if (!enum_type) {
+			      const NetEUFunc*ufunc = dynamic_cast<const NetEUFunc*>(rcvr);
+			      if (ufunc && ufunc->result_sig())
+				    enum_type = dynamic_cast<const netenum_t*>(
+					  ufunc->result_sig()->net_type());
+			}
+			if (enum_type) {
+			      if (NetExpr*result = check_for_enum_methods(this, des, scope,
+								enum_type, path_,
+								method_name, rcvr, parms_))
+				    return result;
+			}
 			const netclass_t*class_type =
 			      dynamic_cast<const netclass_t*>(rcvr->net_type());
 			if (class_type) {
-			      perm_string method_name = peek_tail_name(path_);
 			      NetScope*method_scope = class_type->method_from_name(method_name);
 			      if (method_scope && method_scope->type() == NetScope::FUNC)
 				    return elaborate_base_(des, scope, method_scope, flags, rcvr);

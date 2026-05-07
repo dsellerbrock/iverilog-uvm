@@ -378,6 +378,11 @@ extern bool of_QAND(vthread_t thr, vvp_code_t code);
 extern bool of_QOR(vthread_t thr, vvp_code_t code);
 extern bool of_QXOR(vthread_t thr, vvp_code_t code);
 extern bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t code);
+/* Unpacked fixed-size array methods (G35/G36) */
+extern bool of_UARRAY_REVERSE(vthread_t thr, vvp_code_t code);
+extern bool of_UARRAY_RSORT(vthread_t thr, vvp_code_t code);
+extern bool of_UARRAY_SHUFFLE(vthread_t thr, vvp_code_t code);
+extern bool of_UARRAY_SORT(vthread_t thr, vvp_code_t code);
 extern bool of_RET_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_RET_REAL(vthread_t thr, vvp_code_t code);
 extern bool of_RET_STR(vthread_t thr, vvp_code_t code);

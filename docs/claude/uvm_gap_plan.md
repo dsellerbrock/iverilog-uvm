@@ -276,10 +276,30 @@ Then:
 | 73 DPI open-array | not started | |
 | 74 perf hardening | not started | |
 | 75 fallback hardening | not started | |
+| 79 enum-chain + unpacked-array sort/reverse | **COMPLETED** | see claude/phase-79; G31/G35/G36 fixed; 122/122 PASS |
 
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
+
+## 2026-05-07 — Phase 79 — COMPLETED G31/G35/G36 enum-chain + unpacked-array sort/reverse
+
+**Branch**: `claude/phase-79`
+**Regression**: 122 passed, 0 failed, 0 skipped (up from 119; 3 new tests added)
+
+### What I did
+- **G31**: `get_enum().name()` — in `elab_expr.cc` `subject_expr_` dispatch block, added enum-type check before class-type check, with fallback that reads `NetEUFunc->result_sig()->net_type()` to get enum type from function return signal. Returns `check_for_enum_methods(...)` result.
+- **G35**: `arr.reverse()` on fixed-size unpacked arrays — 4-file pipeline: (1) `elaborate.cc`: new `$ivl_uarray_method$reverse` dispatch in `elaborate_method_()` gated on `obj_uarray`; (2) `tgt-vvp/vvp_process.c`: code-emit for `%uarray_reverse` using `v%p` format; (3) `vvp/compile.cc`: opcode table entry with `OA_ARR_PTR`; (4) `vvp/vthread.cc`: `of_UARRAY_REVERSE()` using `resolve_runtime_array_()` + in-place swap.
+- **G36**: `arr.sort()/rsort()/shuffle()` — same 4-file pipeline as G35 with `%uarray_sort`, `%uarray_rsort`, `%uarray_shuffle` opcodes; sort uses `std::stable_sort` with `vec4_lt_`; rsort reverses comparator; shuffle uses Fisher-Yates.
+- **Root cause for G35/G36**: `elaborate_method_()` used `net->net_type()` which for `int arr[4]` returns the element type (`netvector_t`), not `netuarray_t`. Fixed by adding a fallback: if `obj_type` is not `netuarray_t`, check `net->array_type()` and use that if it is `netuarray_t`.
+- **Tests added**: `tests/g31_enum_chain_test.sv`, `tests/g35_uarray_reverse_test.sv`, `tests/g36_uarray_sort_test.sv`.
+
+### Root causes
+- G31: `elab_expr.cc` `subject_expr_` block checked class type before enum type; `NetEUFunc` result signal carries the enum type via `result_sig()->net_type()`.
+- G35/G36: `elaborate_method_()` computed `obj_type = sr.type ?: net->net_type()` which for unpacked arrays gives the element type, causing `netuarray_t` cast to fail. Fix: also check `net->array_type()`.
+
+### Deferred
+- G32 (same-function double method chain): VVP `staged_alloc_rd_context` bug; `%free` finds the wrong context frame when the same scope is stacked twice. Too deep; deferred.
 
 ## 2026-05-06 — Phase 68 — COMPLETED re-marker (merge commits buried prior COMPLETED invariant)
 
