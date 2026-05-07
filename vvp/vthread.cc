@@ -1811,6 +1811,75 @@ bool of_QREVERSE(vthread_t thr, vvp_code_t cp)
       return qreverse_dispatch_(arr);
 }
 
+bool of_UARRAY_REVERSE(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_array_t array = resolve_runtime_array_(cp, "%uarray_reverse");
+      if (!array) return true;
+      unsigned sz = array->get_size();
+      if (sz < 2) return true;
+      for (unsigned lo = 0, hi = sz - 1; lo < hi; lo++, hi--) {
+            vvp_vector4_t a = array->get_word(lo);
+            vvp_vector4_t b = array->get_word(hi);
+            array->set_word(lo, 0, b);
+            array->set_word(hi, 0, a);
+      }
+      return true;
+}
+
+bool of_UARRAY_SORT(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_array_t array = resolve_runtime_array_(cp, "%uarray_sort");
+      if (!array) return true;
+      unsigned sz = array->get_size();
+      if (sz < 2) return true;
+      std::vector<vvp_vector4_t> tmp(sz);
+      for (unsigned i = 0; i < sz; i++)
+            tmp[i] = array->get_word(i);
+      std::stable_sort(tmp.begin(), tmp.end(),
+                       [](const vvp_vector4_t&a, const vvp_vector4_t&b){ return vec4_lt_(a, b); });
+      for (unsigned i = 0; i < sz; i++)
+            array->set_word(i, 0, tmp[i]);
+      return true;
+}
+
+bool of_UARRAY_RSORT(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_array_t array = resolve_runtime_array_(cp, "%uarray_rsort");
+      if (!array) return true;
+      unsigned sz = array->get_size();
+      if (sz < 2) return true;
+      std::vector<vvp_vector4_t> tmp(sz);
+      for (unsigned i = 0; i < sz; i++)
+            tmp[i] = array->get_word(i);
+      std::stable_sort(tmp.begin(), tmp.end(),
+                       [](const vvp_vector4_t&a, const vvp_vector4_t&b){ return vec4_lt_(b, a); });
+      for (unsigned i = 0; i < sz; i++)
+            array->set_word(i, 0, tmp[i]);
+      return true;
+}
+
+bool of_UARRAY_SHUFFLE(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_array_t array = resolve_runtime_array_(cp, "%uarray_shuffle");
+      if (!array) return true;
+      unsigned sz = array->get_size();
+      if (sz < 2) return true;
+      std::vector<vvp_vector4_t> tmp(sz);
+      for (unsigned i = 0; i < sz; i++)
+            tmp[i] = array->get_word(i);
+      for (unsigned i = sz - 1; i > 0; i--) {
+            unsigned j = (unsigned)(rand() % (long)(i + 1));
+            std::swap(tmp[i], tmp[j]);
+      }
+      for (unsigned i = 0; i < sz; i++)
+            array->set_word(i, 0, tmp[i]);
+      return true;
+}
+
 bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
 {
       (void)thr;
@@ -11227,6 +11296,21 @@ bool of_PROCESS_SELF(vthread_t thr, vvp_code_t)
       return true;
 }
 
+bool of_PROCESS_STATUS(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_process*proc = obj.peek<vvp_process>();
+      unsigned status = proc ? proc->status() : PROCESS_STATE_FINISHED;
+      vvp_vector4_t val(32, BIT4_0);
+      for (unsigned idx = 0; idx < 32; idx++) {
+            if ((status >> idx) & 1U)
+                  val.set_bit(idx, BIT4_1);
+      }
+      thr->push_vec4(val);
+      return true;
+}
+
 bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t)
 {
       vvp_object_t obj;
@@ -11264,6 +11348,7 @@ bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
       vthread_t self_process = logical_process_thread_(thr);
       bool self_kill = (target == thr) || (target == self_process);
 
+      proc->mark_killed();
       (void)do_disable(target, target);
       return !self_kill;
 }

@@ -27,6 +27,7 @@
 # include  "PTask.h"
 # include  "PWire.h"
 # include  "pform_types.h"
+# include  "PExpr.h"
 # include  "ivl_assert.h"
 
 using namespace std;
@@ -266,6 +267,33 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			      return true;
 			} else if (!res->decl_after_use) {
 			      res->decl_after_use = eve;
+			}
+		  }
+
+		    // For event arrays: if "arr" is not found directly but
+		    // path_tail has a constant bit-select index, try "arr[N]".
+		  if (!path_tail.index.empty()
+		      && path_tail.index.size() == 1
+		      && path_tail.index.front().sel == index_component_t::SEL_BIT) {
+			const PENumber*idx_num = path_tail.index.front().msb
+			      ? dynamic_cast<const PENumber*>(path_tail.index.front().msb)
+			      : static_cast<const PENumber*>(0);
+			if (idx_num) {
+			      long idx_val = idx_num->value().as_long();
+			      char buf[256];
+			      snprintf(buf, sizeof buf, "%s[%ld]",
+				       path_tail.name.str(), idx_val);
+			      perm_string indexed_name = lex_strings.make(buf);
+			      if (NetEvent*arr_eve = scope->find_event(indexed_name)) {
+				    if (prefix_scope || (arr_eve->lexical_pos() <= lexical_pos)) {
+					  name_component_t indexed_comp(indexed_name);
+					  path.push_back(indexed_comp);
+					  res->scope = scope;
+					  res->eve = arr_eve;
+					  res->path_head = path;
+					  return true;
+				    }
+			      }
 			}
 		  }
 

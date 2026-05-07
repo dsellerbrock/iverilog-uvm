@@ -1528,7 +1528,8 @@ static Statement* lower_randsequence_(const char* start_name,
 %type <wire> net_variable
 %type <wires> net_variable_list
 
-%type <text> event_variable label_opt class_declaration_endlabel_opt
+%type <identifiers> event_variable
+%type <text> label_opt class_declaration_endlabel_opt
 %type <text> block_identifier_opt
 %type <text> identifier_name bins_name package_cg_port_prefix
 %type <identifiers> event_variable_list
@@ -11513,19 +11514,60 @@ net_variable_list
 
 event_variable
   : IDENTIFIER dimensions_opt
-      { if ($2) {
-	      yyerror(@2, "sorry: event arrays are not supported.");
+      { std::list<pform_ident_t>*tmp = new std::list<pform_ident_t>;
+	if ($2 && $2->size() == 1) {
+	      pform_range_t&dim = $2->front();
+	      /* [N] form: msb is the size, lsb is null */
+	      const PENumber*msb_num = dim.first
+		    ? dynamic_cast<const PENumber*>(dim.first) : 0;
+	      if (dim.second == 0 && msb_num) {
+		    long n = msb_num->value().as_long();
+		    for (long idx = 0; idx < n; idx++) {
+			  char buf[256];
+			  snprintf(buf, sizeof buf, "%s[%ld]", $1, idx);
+			  tmp->push_back({ lex_strings.make(buf), @1.lexical_pos });
+		    }
+	      } else if (dim.first && dim.second) {
+		    /* [msb:lsb] form */
+		    const PENumber*lsb_num = dynamic_cast<const PENumber*>(dim.second);
+		    if (msb_num && lsb_num) {
+			  long lo = lsb_num->value().as_long();
+			  long hi = msb_num->value().as_long();
+			  if (lo > hi) { long t = lo; lo = hi; hi = t; }
+			  for (long idx = lo; idx <= hi; idx++) {
+				char buf[256];
+				snprintf(buf, sizeof buf, "%s[%ld]", $1, idx);
+				tmp->push_back({ lex_strings.make(buf), @1.lexical_pos });
+			  }
+		    } else {
+			  yyerror(@2, "sorry: event arrays with non-constant dimensions are not supported.");
+			  tmp->push_back({ lex_strings.make($1), @1.lexical_pos });
+		    }
+	      } else {
+		    yyerror(@2, "sorry: event arrays with unsupported dimension form.");
+		    tmp->push_back({ lex_strings.make($1), @1.lexical_pos });
+	      }
 	      delete $2;
+	} else if ($2) {
+	      yyerror(@2, "sorry: multi-dimensional event arrays are not supported.");
+	      delete $2;
+	      tmp->push_back({ lex_strings.make($1), @1.lexical_pos });
+	} else {
+	      tmp->push_back({ lex_strings.make($1), @1.lexical_pos });
 	}
-	$$ = $1;
+	delete[] $1;
+	$$ = tmp;
       }
   ;
 
 event_variable_list
   : event_variable
-      { $$ = list_from_identifier($1, @1.lexical_pos); }
+      { $$ = $1; }
   | event_variable_list ',' event_variable
-      { $$ = list_from_identifier($1, $3, @3.lexical_pos); }
+      { $1->splice($1->end(), *$3);
+	delete $3;
+	$$ = $1;
+      }
   ;
 
 specify_item

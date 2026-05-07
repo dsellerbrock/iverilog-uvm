@@ -5478,6 +5478,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       NetExpr*obj_expr = new NetESignal(net);
       obj_expr->set_line(*this);
       ivl_type_t obj_type = sr.type? sr.type : net->net_type();
+      // For unpacked arrays: net_type() returns the element type but
+      // array_type() returns the netuarray_t container; prefer the latter.
+      if (!dynamic_cast<const netdarray_t*>(obj_type)
+	  && !dynamic_cast<const netuarray_t*>(obj_type)) {
+	    if (const netarray_t*arr = net->array_type())
+		  obj_type = arr;
+      }
 
       if (!sr.path_head.empty() && !sr.path_head.back().index.empty()) {
 	    obj_expr = elaborate_root_indexed_method_target_expr_(this, des, scope,
@@ -5764,6 +5771,30 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			  return 0;
 		    }
 	      }
+
+      if (obj_uarray && method_name == "reverse") {
+	    static const std::vector<perm_string> no_parms;
+	    return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+					      method_name,
+					      "$ivl_uarray_method$reverse",
+					      no_parms);
+      }
+
+      if (obj_uarray && (method_name == "sort" || method_name == "rsort")) {
+	    static const std::vector<perm_string> no_parms;
+	    const char*sys_name = (method_name == "sort")
+		  ? "$ivl_uarray_method$sort" : "$ivl_uarray_method$rsort";
+	    return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+					      method_name, sys_name, no_parms);
+      }
+
+      if (obj_uarray && method_name == "shuffle") {
+	    static const std::vector<perm_string> no_parms;
+	    return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
+					      method_name,
+					      "$ivl_uarray_method$shuffle",
+					      no_parms);
+      }
 
       if (obj_uarray && method_name == "delete" && parms_.size() == 1) {
 	    static const std::vector<perm_string> parm_names = {

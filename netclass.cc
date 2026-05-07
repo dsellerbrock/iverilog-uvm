@@ -50,10 +50,16 @@ static bool method_scope_has_concrete_body_(const NetScope*scope)
 	  case NetScope::TASK:
 	    if (const NetTaskDef*def = scope->task_def()) {
 		  const NetProc*proc = def->proc();
-		  if (const NetBlock*blk = dynamic_cast<const NetBlock*>(proc))
-			return blk->proc_first() != 0;
-		  return proc != 0;
+		  // proc may be null when body not yet elaborated; fall back to pform
+		  if (proc) {
+			if (const NetBlock*blk = dynamic_cast<const NetBlock*>(proc))
+			      return blk->proc_first() != 0;
+			return true;
+		  }
 	    }
+	    // task_def() null or proc null: check pform body
+	    if (const PTask*ptask = scope->task_pform())
+		  return ptask->get_statement() != 0;
 	    return false;
 
 	  default:

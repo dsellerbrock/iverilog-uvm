@@ -1553,6 +1553,12 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    return;
       }
 
+      if (strcmp(ivl_expr_name(expr), "$ivl_process$status")==0) {
+	    ivl_expr_t arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    if (arg) draw_eval_object(arg);
+	    fprintf(vvp_out, "    %%process/status;\n");
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr), "$ivl_queue_method$pop_back")==0) {
 	    draw_darray_pop(expr);
 	    return;
