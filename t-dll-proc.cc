@@ -933,11 +933,14 @@ bool dll_target::proc_nb_trigger(const NetEvNBTrig*net)
       const NetEvent*ev = net->event();
       ivl_scope_t ev_scope = lookup_scope_(ev->scope());
 
-      for (unsigned idx = 0 ;  idx < ev_scope->nevent_ ;  idx += 1) {
-	    const char*ename = ivl_event_basename(ev_scope->event_[idx]);
-	    if (strcmp(ev->name(), ename) == 0) {
-		  stmt_cur_->u_.wait_.event = ev_scope->event_[idx];
-		  break;
+      stmt_cur_->u_.wait_.event = 0;
+      if (ev_scope) {
+	    for (unsigned idx = 0 ;  idx < ev_scope->nevent_ ;  idx += 1) {
+		  const char*ename = ivl_event_basename(ev_scope->event_[idx]);
+		  if (strcmp(ev->name(), ename) == 0) {
+			stmt_cur_->u_.wait_.event = ev_scope->event_[idx];
+			break;
+		  }
 	    }
       }
 

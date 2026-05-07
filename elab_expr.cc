@@ -2211,7 +2211,7 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 }
 
 NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
-				     unsigned /*expr_wid*/, unsigned flags) const
+				     unsigned expr_wid, unsigned flags) const
 {
       if (!inner_) return nullptr;
       width_mode_t m = SIZED;
@@ -2282,6 +2282,22 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
       cat->set_line(*this);
       for (size_t i = 0; i < parts.size(); i += 1)
             cat->set(i, parts[i]);
+
+      /* IEEE 1800-2012 §11.4.14.3: when the streaming result is narrower
+         than the assignment target, zeros are appended to the LSB side
+         (not zero-extended at the MSB).  Prepend a zero constant to the
+         concatenation so the stream value occupies the MSB portion. */
+      if (expr_wid > w) {
+            unsigned pad = expr_wid - w;
+            NetEConst*zero = new NetEConst(verinum((uint64_t)0, pad));
+            zero->set_line(*this);
+            NetEConcat*padded = new NetEConcat(2, 1, IVL_VT_LOGIC);
+            padded->set_line(*this);
+            padded->set(0, cat);
+            padded->set(1, zero);
+            return padded;
+      }
+
       return cat;
 }
 

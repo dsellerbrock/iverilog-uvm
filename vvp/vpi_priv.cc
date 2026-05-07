@@ -1026,21 +1026,24 @@ void vpip_string_get_value(const string&val, s_vpi_value*vp)
 
       switch (vp->format) {
 	  default:
-	    fprintf(stderr, "sorry: Format %d not implemented for "
-	                    "getting string values.\n", (int)vp->format);
-	    assert(0);
-
-	  case vpiSuppressVal:
-	    break;
-
+	  case vpiDecStrVal:
+	  case vpiBinStrVal:
+	  case vpiOctStrVal:
+	  case vpiHexStrVal:
+	    /* Numeric display formats applied to a string: return the string
+	       text itself (IEEE 1800 §6.22.1 — string variables display as text). */
+	    vp->format = vpiStringVal;
+	    // fallthrough
 	  case vpiObjTypeVal:
-	    // Use the following case to actually set the value!
 	    vp->format = vpiStringVal;
 	    // fallthrough
 	  case vpiStringVal:
 	    rbuf = static_cast<char *>(need_result_buf(val.size() + 1, RBUF_VAL));
 	    strcpy(rbuf, val.c_str());
 	    vp->value.str = rbuf;
+	    break;
+
+	  case vpiSuppressVal:
 	    break;
       }
 }
