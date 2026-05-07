@@ -742,7 +742,8 @@ void vpip_vec4_get_value(const vvp_vector4_t&word_val, unsigned width,
 	  default:
 	    fprintf(stderr, "sorry: Format %d not implemented for "
 	                    "getting vector values.\n", (int)vp->format);
-	    assert(0);
+	    vp->format = vpiSuppressVal;
+	    break;
 
 	  case vpiSuppressVal:
 	    break;

@@ -135,8 +135,10 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
       break;
 
       default:
-          fprintf(stderr, "vpi sorry: format is not implemented\n");
-          assert(false);
+          fprintf(stderr, "vpi sorry: get_word_value format %d not implemented for darray\n",
+                  (int)vp->format);
+          vp->format = vpiSuppressVal;
+          break;
       }
 }
 
@@ -198,8 +200,9 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
         break;
 
       default:
-          fprintf(stderr, "vpi sorry: format is not implemented");
-          assert(false);
+          fprintf(stderr, "vpi sorry: put_word_value format %d not implemented for darray\n",
+                  (int)vp->format);
+          break;
       }
 }
 
@@ -223,8 +226,8 @@ int __vpiDarrayVar::vpi_get(int code)
             return get_size();
 
 	  default:
-	    fprintf(stderr, "vpi sorry: property is not implemented");
-	    assert(false);
+	    fprintf(stderr, "vpi sorry: vpi_get property %d not implemented for darray\n",
+	            code);
 	    return 0;
       }
 }
