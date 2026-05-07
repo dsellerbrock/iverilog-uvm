@@ -24,6 +24,7 @@ cscope.*
 
 gmon*.out
 gmon*.txt
+a.out
 
 # From autoconf
 configure
