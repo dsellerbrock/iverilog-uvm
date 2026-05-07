@@ -125,6 +125,17 @@ unsigned NetEvent::nexpr() const
       return exprref_;
 }
 
+unsigned NetEvent::nnbtrig() const
+{
+      unsigned cnt = 0;
+      const NetEvNBTrig*cur = nb_trig_;
+      while (cur) {
+	    cnt += 1;
+	    cur = cur->enext_;
+      }
+      return cnt;
+}
+
 /*
  * A "similar" event is one that has an identical non-nil set of
  * probes.

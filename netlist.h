@@ -3503,6 +3503,7 @@ class NetEvent : public LineInfo {
       unsigned nwait() const;
       unsigned ntrig() const;
       unsigned nexpr() const;
+      unsigned nnbtrig() const;
 
       NetScope* scope();
       const NetScope* scope() const;
