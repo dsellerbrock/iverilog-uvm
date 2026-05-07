@@ -59,6 +59,8 @@ class PTaskFunc : public PScope, public PNamedItem {
 
       inline bool is_virtual_method() const { return is_virtual_; }
       inline void set_virtual_method(bool v) { is_virtual_ = v; }
+      inline bool is_pure_virtual() const { return is_pure_virtual_; }
+      inline void set_pure_virtual() { is_pure_virtual_ = true; }
 
 
       virtual void elaborate_sig(Design*des, NetScope*scope) const =0;
@@ -80,6 +82,7 @@ class PTaskFunc : public PScope, public PNamedItem {
     private:
       class_type_t*this_type_;
       bool is_virtual_ = false;
+      bool is_pure_virtual_ = false;
       std::vector<pform_tf_port_t>*ports_;
 };
 

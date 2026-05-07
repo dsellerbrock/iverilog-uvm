@@ -2130,6 +2130,23 @@ class_declaration_extends_opt /* IEEE1800-2005: A.1.2 */
 	$$.args = $4;
 	delete[]$2;
       }
+  /* Multiple extends for interface class: extends A, B, C — treat A as base, B..C ignored */
+  | K_extends ps_type_identifier class_extends_type_params_opt ',' implements_class_list
+      { if (typeref_t*tmp = dynamic_cast<typeref_t*>($2))
+	      tmp->set_parameter_values($3);
+	else
+	      delete_parmvalue_t($3);
+	$$.type = $2;
+	$$.args = nullptr;
+      }
+  | K_extends IDENTIFIER class_extends_type_params_opt ',' implements_class_list
+      { type_parameter_t*tmp = new type_parameter_t(lex_strings.make($2));
+	FILE_NAME(tmp, @2);
+	delete_parmvalue_t($3);
+	$$.type = tmp;
+	$$.args = nullptr;
+	delete[]$2;
+      }
   | K_implements implements_class_list
       { $$ = {nullptr, nullptr};
       }
@@ -2377,7 +2394,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 
     /* Pure method prototypes in virtual classes. */
   | K_pure method_qualifier_opt K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	current_function->set_return($4);
@@ -2387,7 +2405,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $5;
       }
   | K_pure method_qualifier_opt K_task IDENTIFIER
-      { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($6);
 	pform_set_this_class(@4, current_task);
@@ -2396,7 +2415,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $4;
       }
   | K_pure K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	current_function->set_return($4);
@@ -2407,7 +2427,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $5;
       }
   | K_pure K_virtual K_task lifetime_opt IDENTIFIER
-      { current_task = pform_push_task_scope(@3, $5, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_task = pform_push_task_scope(@3, $5, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
 	current_task->set_virtual_method(true);
@@ -2417,7 +2438,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $5;
       }
   | K_pure K_protected K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
@@ -2428,7 +2450,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $6;
       }
   | K_pure K_virtual K_protected K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
@@ -2439,7 +2462,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $6;
       }
   | K_pure K_protected K_virtual K_task lifetime_opt IDENTIFIER
-      { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
 	current_task->set_virtual_method(true);
@@ -2449,7 +2473,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $6;
       }
   | K_pure K_virtual K_protected K_task lifetime_opt IDENTIFIER
-      { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
 	current_task->set_virtual_method(true);
@@ -2459,7 +2484,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $6;
       }
   | K_pure method_qualifier_opt class_item_qualifier_opt K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
@@ -2469,7 +2495,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $6;
       }
   | K_pure method_qualifier_opt class_item_qualifier_opt K_task IDENTIFIER
-      { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
 	pform_set_this_class(@5, current_task);
@@ -2478,7 +2505,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $5;
       }
   | K_pure K_virtual class_item_qualifier_opt K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
@@ -2489,7 +2517,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $6;
       }
   | K_pure K_virtual class_item_qualifier_opt K_task lifetime_opt IDENTIFIER
-      { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
 	current_task->set_virtual_method(true);
@@ -2499,7 +2528,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $6;
       }
   | K_pure class_item_qualifier_opt method_qualifier_opt K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
@@ -2509,7 +2539,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $6;
       }
   | K_pure class_item_qualifier_opt method_qualifier_opt K_task lifetime_opt IDENTIFIER
-      { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
 	pform_set_this_class(@6, current_task);
@@ -2518,7 +2549,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $6;
       }
   | K_pure class_item_qualifier_opt K_virtual K_function data_type_or_implicit_or_void IDENTIFIER
-      { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
@@ -2529,7 +2561,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $6;
       }
   | K_pure class_item_qualifier_opt K_virtual K_task lifetime_opt IDENTIFIER
-      { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
+      { pform_mark_next_method_pure_virtual();
+	current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
 	current_task->set_virtual_method(true);
@@ -12685,6 +12718,10 @@ statement_item /* This is roughly statement_item in the LRM */
 		tmp = current_block_stack.top();
 		current_block_stack.pop();
 		tmp->set_join_type($7);
+		if (current_function && $7 != PBlock::BL_JOIN_NONE) {
+		      yyerror(@3, "error: Only fork...join_none is allowed inside a function.");
+		      error_count += 1;
+		}
 		if ($6) tmp->set_statement(*$6);
 		delete $6;
 		check_end_label(@8, "fork", $1, $8);
@@ -12711,6 +12748,10 @@ statement_item /* This is roughly statement_item in the LRM */
 		tmp = current_block_stack.top();
 		current_block_stack.pop();
 		tmp->set_join_type($7);
+	if (current_function && $7 != PBlock::BL_JOIN_NONE) {
+	      yyerror(@1, "error: Only fork...join_none is allowed inside a function.");
+	      error_count += 1;
+	}
 	if ($6) tmp->set_statement(*$6);
 	delete $6;
 	check_end_label(@8, "fork", $2, $8);

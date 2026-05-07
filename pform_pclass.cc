@@ -25,6 +25,7 @@
 # include  "pform.h"
 # include  "PClass.h"
 # include  "PExpr.h"
+# include  "PTask.h"
 # include  "parse_misc.h"
 # include  "ivl_assert.h"
 
@@ -37,6 +38,7 @@ using namespace std;
  */
 static vector<PClass*> pform_class_stack_;
 static PClass*pform_cur_class = 0;
+static bool pform_next_method_is_pure_virtual_ = false;
 
 void pform_blend_class_constructors(PClass*pclass)
 {
@@ -199,6 +201,10 @@ void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
       delete this_port;
 
       net->set_this(pform_cur_class->type, this_wire);
+      if (pform_next_method_is_pure_virtual_) {
+	    net->set_pure_virtual();
+	    pform_next_method_is_pure_virtual_ = false;
+      }
       pform_recent_class_method_ = net;
 }
 
@@ -207,6 +213,11 @@ void pform_mark_recent_class_method_virtual(void)
       if (pform_recent_class_method_)
 	    pform_recent_class_method_->set_virtual_method(true);
       pform_recent_class_method_ = 0;
+}
+
+void pform_mark_next_method_pure_virtual(void)
+{
+      pform_next_method_is_pure_virtual_ = true;
 }
 
 void pform_set_constructor_return(PFunction*net)
@@ -290,6 +301,30 @@ void pform_end_class_declaration(const struct vlltype&loc)
 
       pform_blend_class_constructors(pform_cur_class);
 
+      // Pure virtual methods are only allowed in virtual classes (8.21)
+      if (!pform_cur_class->type->virtual_class) {
+	    for (auto&it : pform_cur_class->tasks) {
+		  if (it.second->is_pure_virtual()) {
+			cerr << it.second->get_file() << ":"
+			     << it.second->get_lineno() << ": error: "
+			     << "pure virtual method `" << it.first
+			     << "' declared in non-virtual class `"
+			     << pform_cur_class->pscope_name() << "'." << endl;
+			error_count += 1;
+		  }
+	    }
+	    for (auto&it : pform_cur_class->funcs) {
+		  if (it.second->is_pure_virtual()) {
+			cerr << it.second->get_file() << ":"
+			     << it.second->get_lineno() << ": error: "
+			     << "pure virtual method `" << it.first
+			     << "' declared in non-virtual class `"
+			     << pform_cur_class->pscope_name() << "'." << endl;
+			error_count += 1;
+		  }
+	    }
+      }
+
       if (!pform_class_stack_.empty()) {
 	    pform_cur_class = pform_class_stack_.back();
 	    pform_class_stack_.pop_back();
@@ -302,6 +337,11 @@ void pform_end_class_declaration(const struct vlltype&loc)
 bool pform_in_class()
 {
       return pform_cur_class != 0;
+}
+
+bool pform_in_virtual_class()
+{
+      return pform_cur_class != 0 && pform_cur_class->type->virtual_class;
 }
 
 /*

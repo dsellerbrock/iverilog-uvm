@@ -189,6 +189,8 @@ extern void pform_leave_class_scope(const struct vlltype&loc);
 
 extern void pform_end_class_declaration(const struct vlltype&loc);
 extern bool pform_in_class();
+extern bool pform_in_virtual_class();
+extern void pform_mark_next_method_pure_virtual(void);
 extern void pform_bind_extern_func(PFunction*func);
 extern void pform_bind_extern_task(PTask*task);
 extern void pform_blend_class_constructors(PClass*pclass);

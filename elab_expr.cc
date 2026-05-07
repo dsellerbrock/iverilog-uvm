@@ -8590,6 +8590,13 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				      }
 				      check = check->get_super();
 				}
+				// Allow assigning concrete class to interface class
+				// variable — iverilog doesn't track implements lists
+				if (want_class->is_virtual() && !have_class->is_virtual()) {
+				      NetESignal*tmp = new NetESignal(net);
+				      tmp->set_line(*this);
+				      return tmp;
+				}
 			  }
 		    }
 
@@ -10118,10 +10125,11 @@ NetExpr* PEIdent::elaborate_expr_param_or_specparam_(Design*des,
       if (need_const && !(ANNOTATABLE & flags)) {
             perm_string name = peek_tail_name(path_);
             if (found_in->make_parameter_unannotatable(name)) {
-                  cerr << get_fileline() << ": warning: specparam '" << name
-                       << "' is being used in a constant expression." << endl;
-                  cerr << get_fileline() << ":        : This will prevent it "
-                          "being annotated at run time." << endl;
+                  cerr << get_fileline() << ": error: specparam '" << name
+                       << "' cannot be used in a constant expression." << endl;
+                  cerr << get_fileline() << ":        : specparams are annotatable "
+                          "at run time and cannot appear in parameter values." << endl;
+                  des->errors += 1;
             }
       }
 
