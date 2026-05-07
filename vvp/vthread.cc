@@ -14458,6 +14458,13 @@ bool of_STORE_VEC4(vthread_t thr, vvp_code_t cp)
       unsigned off_index = cp->bit_idx[0];
       unsigned int wid = cp->bit_idx[1];
 
+      /* Object/darray nets have fil=0 and cannot be stored via vec4.
+         Skip the store (pop the value) rather than crash. */
+      if (!sig) {
+            thr->pop_vec4(1);
+            return true;
+      }
+
       int64_t off = off_index ? thr->words[off_index].w_int : 0;
       unsigned int sig_value_size = sig->value_size();
 
