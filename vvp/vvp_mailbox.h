@@ -153,4 +153,27 @@ class vvp_boxed_vec4 : public vvp_object {
       vvp_vector4_t value_;
 };
 
+/*
+ * vvp_boxed_str -- wraps a std::string as a vvp_object_t so that it can
+ * be stored in a mailbox.  Used when mailbox #(string) is instantiated.
+ */
+class vvp_boxed_str : public vvp_object {
+    public:
+      explicit vvp_boxed_str(const std::string& s) : value_(s) {}
+      ~vvp_boxed_str() override {}
+
+      vvp_object* duplicate() const override {
+	    return new vvp_boxed_str(value_);
+      }
+      void shallow_copy(const vvp_object* src) override {
+	    if (const vvp_boxed_str* s = dynamic_cast<const vvp_boxed_str*>(src))
+		  value_ = s->value_;
+      }
+
+      const std::string& get_value() const { return value_; }
+
+    private:
+      std::string value_;
+};
+
 #endif /* VVP_MAILBOX_H */

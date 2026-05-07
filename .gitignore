@@ -123,3 +123,6 @@ dep
 /check.vvp
 ivlpp/lex.yy.c
 parse.hh
+a.out
+y.tab.c
+y.tab.h

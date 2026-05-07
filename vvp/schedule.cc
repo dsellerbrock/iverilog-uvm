@@ -1309,6 +1309,20 @@ void schedule_simulate(void)
 	    cur->run_run();
 
 	    delete (cur);
+
+	      /* Eagerly drain del_thr after every active event.  Without
+		 this, zero-time-spin loops (e.g. 'forever begin:L disable L;
+		 end') never reach run_rosync and accumulate unbounded
+		 vthread/vvp_process objects, causing OOM. */
+	    while (ctim->del_thr) {
+		  struct event_s*dthr = ctim->del_thr->next;
+		  if (dthr->next == dthr)
+			ctim->del_thr = 0;
+		  else
+			ctim->del_thr->next = dthr->next;
+		  dthr->run_run();
+		  delete dthr;
+	    }
       }
 
       if (schedule_runnable && !sched_list)

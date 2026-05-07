@@ -15319,3 +15319,34 @@ bool of_UNBOX_VEC4(vthread_t thr, vvp_code_t cp)
       thr->push_vec4(res);
       return true;
 }
+
+/*
+ * %box/str
+ * Pop a string from the string stack, wrap it in a vvp_boxed_str
+ * object, and push the object onto the obj stack.
+ */
+bool of_BOX_STR(vthread_t thr, vvp_code_t)
+{
+      string s = thr->pop_str();
+      vvp_object_t box(new vvp_boxed_str(s));
+      thr->push_object(box);
+      return true;
+}
+
+/*
+ * %unbox/str
+ * Pop an object from the obj stack.  If it is a vvp_boxed_str,
+ * extract and push the string onto the string stack.
+ * Otherwise push an empty string.
+ */
+bool of_UNBOX_STR(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_boxed_str*box = obj.peek<vvp_boxed_str>()) {
+	    thr->push_str(box->get_value());
+      } else {
+	    thr->push_str("");
+      }
+      return true;
+}

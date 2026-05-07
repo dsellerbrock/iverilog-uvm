@@ -2750,11 +2750,15 @@ static int show_system_task_call(ivl_statement_t net)
       /* ---- Mailbox task methods ---- */
 
       /* Helper: push a mailbox item onto the obj stack.
-       * Class types are pushed directly; primitives are boxed as vvp_boxed_vec4. */
+       * Class types are pushed directly; strings are boxed as vvp_boxed_str;
+       * primitives are boxed as vvp_boxed_vec4. */
 #define EMIT_MBX_PUSH_ITEM(item_expr) \
       do { \
 	    if ((item_expr) && ivl_expr_value(item_expr) == IVL_VT_CLASS) { \
 		  draw_eval_object(item_expr); \
+	    } else if ((item_expr) && ivl_expr_value(item_expr) == IVL_VT_STRING) { \
+		  draw_eval_string(item_expr); \
+		  fprintf(vvp_out, "    %%box/str;\n"); \
 	    } else if (item_expr) { \
 		  draw_eval_vec4(item_expr); \
 		  unsigned _wid = ivl_expr_width(item_expr); \
@@ -2777,7 +2781,8 @@ static int show_system_task_call(ivl_statement_t net)
       }
 
       /* Helper: pop item from obj stack and store to output variable.
-       * Class signals: %store/obj.  Primitive signals: %unbox/vec4 + %store/vec4. */
+       * Class signals: %store/obj.  String signals: %unbox/str + %store/str.
+       * Primitive signals: %unbox/vec4 + %store/vec4. */
 #define EMIT_MBX_STORE_ITEM(net_arg_idx) \
       do { \
 	    if (ivl_stmt_parm_count(net) > (net_arg_idx)) { \
@@ -2786,6 +2791,9 @@ static int show_system_task_call(ivl_statement_t net)
 			ivl_signal_t _sig = ivl_expr_signal(_item); \
 			if (_sig && ivl_signal_data_type(_sig) == IVL_VT_CLASS) { \
 			      fprintf(vvp_out, "    %%store/obj v%p_0;\n", _sig); \
+			} else if (_sig && ivl_signal_data_type(_sig) == IVL_VT_STRING) { \
+			      fprintf(vvp_out, "    %%unbox/str;\n"); \
+			      fprintf(vvp_out, "    %%store/str v%p_0;\n", _sig); \
 			} else if (_sig) { \
 			      unsigned _wid = ivl_signal_width(_sig); \
 			      if (!_wid) _wid = 32; \

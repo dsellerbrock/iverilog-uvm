@@ -1752,6 +1752,9 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    if (item_e) {
 		  if (ivl_expr_value(item_e) == IVL_VT_CLASS) {
 			draw_eval_object(item_e);
+		  } else if (ivl_expr_value(item_e) == IVL_VT_STRING) {
+			draw_eval_string(item_e);
+			fprintf(vvp_out, "    %%box/str;\n");
 		  } else {
 			unsigned wid = ivl_expr_width(item_e);
 			if (!wid) wid = 32;
@@ -1781,6 +1784,9 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  ivl_signal_t sig = ivl_expr_signal(item_e);
 		  if (ivl_signal_data_type(sig) == IVL_VT_CLASS) {
 			fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+		  } else if (ivl_signal_data_type(sig) == IVL_VT_STRING) {
+			fprintf(vvp_out, "    %%unbox/str;\n");
+			fprintf(vvp_out, "    %%store/str v%p_0;\n", sig);
 		  } else {
 			unsigned wid = ivl_signal_width(sig);
 			if (!wid) wid = 32;
