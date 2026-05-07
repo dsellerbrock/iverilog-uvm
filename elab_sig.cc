@@ -1381,11 +1381,9 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 			des->errors += 1;
 		  }
 	    }
-	    if (tmp->unpacked_dimensions() != 0) {
-		  cerr << get_fileline() << ": sorry: Subroutine ports with "
-			  "unpacked dimensions are not yet supported." << endl;
-		 des->errors += 1;
-	    }
+	    /* G-SV: subroutine ports with static unpacked dimensions are
+	     * accepted; whole-array copy-in/-out is handled at the call site
+	     * via NetAssign on the port signal. */
       }
 }
 

@@ -905,6 +905,17 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
             }
       }
 
+      /* IEEE 1800-2012 §11.4.14.3: streaming concatenation must not be wider
+       * than its assignment target — it is a static elaboration error. */
+      if (pos_context_width > 0 && dynamic_cast<PEStreaming*>(pe)
+	  && expr_width > pos_context_width) {
+	    cerr << pe->get_fileline() << ": error: streaming concatenation "
+		    "(width " << expr_width << ") is wider than the assignment "
+		    "target (width " << pos_context_width << ")." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
       if ((mode >= PExpr::LOSSLESS) && (expr_width > width_cap)
           && (expr_width > pos_context_width)) {
             cerr << pe->get_fileline() << ": warning: excessive unsized "

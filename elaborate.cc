@@ -6473,6 +6473,50 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    if (port->port_type() == NetNet::POUTPUT)
 		  continue;
 
+	      /* SV §7.4.2: 1D static unpacked array port — generate
+	       * element-wise copy-in when the argument is a bare array
+	       * identifier so that every element is transferred, not just
+	       * the first word. */
+	    if (gn_system_verilog()
+		&& port->unpacked_dimensions() == 1
+		&& args[parms_idx]) {
+		  if (PEIdent *arg_id = dynamic_cast<PEIdent*>(args[parms_idx])) {
+			if (arg_id->path().back().index.empty()) {
+			      symbol_search_results arg_sr;
+			      symbol_search(arg_id, des, scope,
+					    arg_id->path(), arg_id->lexical_pos(), &arg_sr);
+			      if (arg_sr.net && arg_sr.net->unpacked_dimensions() == 1) {
+				    NetNet *arg_net = arg_sr.net;
+				    const netranges_t& dims = port->unpacked_dims();
+				    long lo = std::min(dims[0].get_msb(), dims[0].get_lsb());
+				    long hi = std::max(dims[0].get_msb(), dims[0].get_lsb());
+				    bool elem_ok = true;
+				    for (long elem = lo; elem <= hi && elem_ok; elem++) {
+					  list<long> idx_l(1, elem);
+					  NetExpr *pidx = normalize_variable_unpacked(port, idx_l);
+					  NetExpr *aidx = normalize_variable_unpacked(arg_net, idx_l);
+					  if (!pidx || !aidx) {
+						delete pidx; delete aidx;
+						elem_ok = false;
+						break;
+					  }
+					  pidx->set_line(*this);
+					  aidx->set_line(*this);
+					  NetAssign_*elv = new NetAssign_(port);
+					  elv->set_word(pidx);
+					  NetESignal*erv = new NetESignal(arg_net, aidx);
+					  erv->set_line(*this);
+					  NetAssign*pr = new NetAssign(elv, erv);
+					  pr->set_line(*this);
+					  block->append(pr);
+				    }
+				    if (elem_ok)
+					  continue;
+			      }
+			}
+		  }
+	    }
+
 	    NetAssign_*lv = new NetAssign_(port);
 	    unsigned wid = count_lval_width(lv);
 	    ivl_variable_type_t lv_type = lv->expr_type();
@@ -6540,6 +6584,46 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    if (port->port_type() == NetNet::PINPUT)
 		  continue;
 
+	      /* SV §7.4.2: 1D static unpacked array port — element-wise copy-out. */
+	    if (gn_system_verilog()
+		&& port->unpacked_dimensions() == 1
+		&& args[parms_idx]) {
+		  if (PEIdent *arg_id = dynamic_cast<PEIdent*>(args[parms_idx])) {
+			if (arg_id->path().back().index.empty()) {
+			      symbol_search_results arg_sr;
+			      symbol_search(arg_id, des, scope,
+					    arg_id->path(), arg_id->lexical_pos(), &arg_sr);
+			      if (arg_sr.net && arg_sr.net->unpacked_dimensions() == 1) {
+				    NetNet *arg_net = arg_sr.net;
+				    const netranges_t& dims = port->unpacked_dims();
+				    long lo = std::min(dims[0].get_msb(), dims[0].get_lsb());
+				    long hi = std::max(dims[0].get_msb(), dims[0].get_lsb());
+				    bool elem_ok = true;
+				    for (long elem = lo; elem <= hi && elem_ok; elem++) {
+					  list<long> idx_l(1, elem);
+					  NetExpr *pidx = normalize_variable_unpacked(port, idx_l);
+					  NetExpr *aidx = normalize_variable_unpacked(arg_net, idx_l);
+					  if (!pidx || !aidx) {
+						delete pidx; delete aidx;
+						elem_ok = false;
+						break;
+					  }
+					  pidx->set_line(*this);
+					  aidx->set_line(*this);
+					  NetAssign_*elv = new NetAssign_(arg_net);
+					  elv->set_word(aidx);
+					  NetESignal*erv = new NetESignal(port, pidx);
+					  erv->set_line(*this);
+					  NetAssign*pr = new NetAssign(elv, erv);
+					  pr->set_line(*this);
+					  block->append(pr);
+				    }
+				    if (elem_ok)
+					  continue;
+			      }
+			}
+		  }
+	    }
 
 	      /* Elaborate an l-value version of the port expression
 		 for output and inout ports. If the expression does
