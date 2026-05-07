@@ -2867,6 +2867,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->delete_pending = 0;
       thr->pending_nonlocal_jmp = 0;
       thr->is_callf_child = 0;
+      thr->is_fork_v_child = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context = 0;
       thr->transferred_context = 0;
