@@ -32,7 +32,10 @@ using namespace std;
 
 /*
  * The functions here help the parser put together class type declarations.
+ * pform_class_stack_ supports nested class declarations; pform_cur_class
+ * always points to the innermost class being parsed (top of the stack).
  */
+static vector<PClass*> pform_class_stack_;
 static PClass*pform_cur_class = 0;
 
 void pform_blend_class_constructors(PClass*pclass)
@@ -118,7 +121,7 @@ void pform_start_class_declaration(const struct vlltype&loc,
 {
       PClass*class_scope = pform_push_class_scope(loc, type->name);
       class_scope->type = type;
-      ivl_assert(loc, pform_cur_class == 0);
+      pform_class_stack_.push_back(pform_cur_class);
       pform_cur_class = class_scope;
 
       ivl_assert(loc, type->base_type == 0);
@@ -214,8 +217,7 @@ void pform_set_constructor_return(PFunction*net)
 
 bool pform_reenter_class_scope(const struct vlltype&loc, const char*name)
 {
-      ivl_assert(loc, pform_cur_class == 0);
-
+      (void)loc;
       for (LexicalScope*scope = pform_peek_scope(); scope; scope = scope->parent_scope()) {
 	    PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope);
 	    if (scopex == 0)
@@ -225,6 +227,7 @@ bool pform_reenter_class_scope(const struct vlltype&loc, const char*name)
 		  if (std::strcmp(it->first, name) != 0)
 			continue;
 
+		  pform_class_stack_.push_back(pform_cur_class);
 		  pform_cur_class = it->second;
 		  pform_push_existing_scope(it->second);
 		  return true;
@@ -239,7 +242,12 @@ void pform_leave_class_scope(const struct vlltype&loc)
       if (pform_cur_class == 0)
 	    return;
 
-      pform_cur_class = 0;
+      if (!pform_class_stack_.empty()) {
+	    pform_cur_class = pform_class_stack_.back();
+	    pform_class_stack_.pop_back();
+      } else {
+	    pform_cur_class = 0;
+      }
       pform_pop_scope();
       (void)loc;
 }
@@ -282,7 +290,12 @@ void pform_end_class_declaration(const struct vlltype&loc)
 
       pform_blend_class_constructors(pform_cur_class);
 
-      pform_cur_class = 0;
+      if (!pform_class_stack_.empty()) {
+	    pform_cur_class = pform_class_stack_.back();
+	    pform_class_stack_.pop_back();
+      } else {
+	    pform_cur_class = 0;
+      }
       pform_pop_scope();
 }
 
