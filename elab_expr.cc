@@ -162,11 +162,18 @@ static NetExpr* make_queue_locator_with_expr_(
       /* Allocate a hidden idx NetNet (signed 32-bit reg) for the loop
        * counter.  Lets the bytecode use `%load/vec4 v_idx` + `%qsize`
        * + `%cmp/s` for the loop bound check, the same pattern that
-       * normal SV for-loops compile to. */
-      NetNet*idx_net = new NetNet(scope, scope->local_symbol(),
-                                  NetNet::REG, &netvector_t::atom2s32);
-      idx_net->set_line(*call);
-      idx_net->local_flag(true);
+       * normal SV for-loops compile to.
+       * Also registered as "<iter>$idx" so that item.index in the
+       * predicate can resolve to it (IEEE 1800-2017 §7.12.4). */
+      string idx_sym = string(iter_name) + "$idx";
+      perm_string idx_pname = lex_strings.make(idx_sym);
+      NetNet*idx_net = scope->find_signal(idx_pname);
+      if (!idx_net) {
+            idx_net = new NetNet(scope, idx_pname,
+                                 NetNet::REG, &netvector_t::atom2s32);
+            idx_net->set_line(*call);
+            idx_net->local_flag(true);
+      }
 
       /* Elaborate the predicate.  PEIdent(iter_name) resolves to
        * iter_net via symbol_search in the enclosing scope.
@@ -9478,6 +9485,21 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		      || tail_name == perm_string::literal("max"))
 			return elaborate_static_array_property_(*this, des, sr.net,
 								tail_name);
+	    }
+
+	    /* IEEE 1800-2017 §7.12.4: item.index inside a with-clause predicate
+	     * refers to the current array index of the iterator variable. */
+	    if (sr.net && sr.net->local_flag()
+		&& sr.path_tail.size() == 1
+		&& sr.path_tail.front().index.empty()
+		&& sr.path_tail.front().name == perm_string::literal("index")) {
+		  string idx_sym = string(sr.net->name()) + "$idx";
+		  NetNet*idx_net = scope->find_signal(lex_strings.make(idx_sym));
+		  if (idx_net) {
+			NetESignal*tmp = new NetESignal(idx_net);
+			tmp->set_line(*this);
+			return tmp;
+		  }
 	    }
 
 	    if (! sr.path_tail.empty()) {
