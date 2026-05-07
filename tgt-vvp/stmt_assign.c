@@ -1644,6 +1644,15 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 		  fprintf(vvp_out, "    %%store/qdar/obj v%p_0, %d;\n", var, idx);
 		  break;
 	    }
+      } else if (ivl_type_queue_assoc_compat(var_type)
+                 && ivl_expr_type(rval) == IVL_EX_SFUNC
+                 && strcmp(ivl_expr_name(rval), "$ivl_aa_set_default_str") == 0) {
+	    assert(ivl_stmt_opcode(net) == 0);
+	    draw_eval_string(ivl_expr_parm(rval, 0));
+	    fprintf(vvp_out, "    %%aa/set_default/str v%p_0;\n", var);
+	    clr_word(idx);
+	    return errors;
+
       } else if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
 	    assert(ivl_stmt_opcode(net) == 0);
 

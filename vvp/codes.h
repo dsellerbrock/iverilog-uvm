@@ -97,6 +97,7 @@ extern bool of_AA_STORE_OBJ_V(vthread_t thr, vvp_code_t code);
 extern bool of_AA_STORE_R_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_AA_STORE_R_STR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_STORE_R_V(vthread_t thr, vvp_code_t code);
+extern bool of_AA_SET_DEFAULT_STR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_STORE_SIG_OBJ_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_AA_STORE_SIG_OBJ_STR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_STORE_SIG_OBJ_V(vthread_t thr, vvp_code_t code);

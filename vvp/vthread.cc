@@ -13461,6 +13461,16 @@ bool of_STORE_OBJA(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_AA_SET_DEFAULT_STR(vthread_t thr, vvp_code_t cp)
+{
+      string dflt = thr->pop_str();
+      vvp_assoc_string*assoc = ensure_signal_assoc_<vvp_assoc_string>(thr, cp->net,
+                                                                       "aa-set-default-str");
+      if (assoc)
+            assoc->set_default(dflt);
+      return true;
+}
+
 bool of_AA_STORE_SIG_OBJ_OBJ(vthread_t thr, vvp_code_t cp)
 {
       return aa_store_signal<vvp_object_t, vvp_object_t, vvp_assoc_object>(thr, cp->net);

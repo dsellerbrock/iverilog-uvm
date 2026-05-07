@@ -56,7 +56,7 @@ class vvp_assoc_base : public vvp_object {
 
 template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
     public:
-      inline vvp_assoc_map() { }
+      inline vvp_assoc_map() : has_default_(false), default_value_() { }
       ~vvp_assoc_map() override { }
 
       size_t size() const override
@@ -109,11 +109,15 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             entry.value = value;
       }
 
+      void set_default(const TYPE&v) { has_default_ = true; default_value_ = v; }
+
       bool get(const std::string&key, TYPE&value) const
       {
             typename std::map<std::string, TYPE>::const_iterator cur = str_map_.find(key);
-            if (cur == str_map_.end())
+            if (cur == str_map_.end()) {
+                  if (has_default_) { value = default_value_; return true; }
                   return false;
+            }
             value = cur->second;
             return true;
       }
@@ -121,8 +125,10 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       bool get(const vvp_object_t&key, TYPE&value) const
       {
             typename std::map<const vvp_object*, TYPE>::const_iterator cur = obj_map_.find(object_key_(key));
-            if (cur == obj_map_.end())
+            if (cur == obj_map_.end()) {
+                  if (has_default_) { value = default_value_; return true; }
                   return false;
+            }
             value = cur->second;
             return true;
       }
@@ -130,8 +136,10 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       bool get(const vvp_vector4_t&key, TYPE&value) const
       {
             typename std::map<std::string, vec_entry_t>::const_iterator cur = vec_map_.find(vec4_key_(key));
-            if (cur == vec_map_.end())
+            if (cur == vec_map_.end()) {
+                  if (has_default_) { value = default_value_; return true; }
                   return false;
+            }
             value = cur->second.value;
             return true;
       }
@@ -143,6 +151,8 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             str_map_ = that->str_map_;
             obj_map_ = that->obj_map_;
             vec_map_ = that->vec_map_;
+            has_default_ = that->has_default_;
+            default_value_ = that->default_value_;
       }
 
       vvp_object* duplicate(void) const override
@@ -151,6 +161,8 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             that->str_map_ = str_map_;
             that->obj_map_ = obj_map_;
             that->vec_map_ = vec_map_;
+            that->has_default_ = has_default_;
+            that->default_value_ = default_value_;
             return that;
       }
 
@@ -273,6 +285,8 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             return true;
       }
 
+      bool has_default_;
+      TYPE default_value_;
       std::map<std::string, TYPE> str_map_;
       std::map<const vvp_object*, TYPE> obj_map_;
       std::map<std::string, vec_entry_t> vec_map_;

@@ -984,6 +984,27 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 {
       bool need_const = NEED_CONST & flags;
 
+      /* Associative array '{default: val} initializer.  When the target is an
+       * assoc-compat queue and the only named key is "default", produce a
+       * $ivl_aa_set_default_str sentinel that the codegen can pattern-match to
+       * emit the %aa/set_default/str opcode rather than a queue-element store. */
+      if (auto queue_type = dynamic_cast<const netqueue_t*>(ntype)) {
+	    static const perm_string def_key = lex_strings.make("default");
+	    if (queue_type->assoc_compat()
+		&& parm_names_.size() == 1
+		&& parm_names_[0] == def_key) {
+		  ivl_type_t elem_type = queue_type->element_type();
+		  NetExpr*dflt = elaborate_rval_expr(des, scope, elem_type,
+						     parms_[0], need_const);
+		  if (!dflt) return nullptr;
+		  NetESFunc*sfunc = new NetESFunc("$ivl_aa_set_default_str",
+						  IVL_VT_BOOL, 1, 1);
+		  sfunc->parm(0, dflt);
+		  sfunc->set_line(*this);
+		  return sfunc;
+	    }
+      }
+
       if (auto darray_type = dynamic_cast<const netdarray_t*>(ntype))
 	    return elaborate_expr_array_(des, scope, darray_type, need_const, true);
 

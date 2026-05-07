@@ -151,6 +151,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%aa/prev/sig/v", of_AA_PREV_SIG_V, 2, {OA_FUNC_PTR, OA_FUNC_PTR2, OA_NONE} },
       { "%aa/prev/str", of_AA_PREV_STR, 2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
       { "%aa/prev/v", of_AA_PREV_V, 2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
+      { "%aa/set_default/str", of_AA_SET_DEFAULT_STR, 1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%aa/store/obj/obj", of_AA_STORE_OBJ_OBJ, 0, {OA_NONE, OA_NONE,   OA_NONE} },
       { "%aa/store/obj/str", of_AA_STORE_OBJ_STR, 0, {OA_NONE, OA_NONE,   OA_NONE} },
       { "%aa/store/obj/v", of_AA_STORE_OBJ_V, 0, {OA_NONE,   OA_NONE,   OA_NONE} },
