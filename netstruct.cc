@@ -130,9 +130,13 @@ long netstruct_t::packed_width(void) const
 
 	// If this is a packed union, then all the members are the
 	// same width, so it is sufficient to return the width of any
-	// single member.
-      if (union_)
-	    return members_.front().net_type->packed_width();
+	// single member.  For tagged packed unions, add the tag bits
+	// (ceil(log2(member_count))) at the MSB per IEEE 1800-2017 §7.3.2.
+      if (union_) {
+	    long data_wid = members_.front().net_type->packed_width();
+	    if (tagged_) return data_wid + (long)tag_bits();
+	    return data_wid;
+      }
 
 	// The width of a packed struct is the sum of member widths.
       long res = 0;

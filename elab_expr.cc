@@ -1458,9 +1458,12 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
          result that gets truncated to the LSB, losing the named
          entry's value.  Instead emit a single-element concat of just
          the FIRST mentioned member (or the first item for positional
-         form).  This is the value that gets written to the union. */
+         form).  This is the value that gets written to the union.
+         For tagged packed unions, embed the tag index in the MSBs
+         per IEEE 1800-2017 §7.3.2: {tag[tb-1:0], data[dw-1:0]}. */
       if (struct_type->union_flag()) {
             NetExpr*single = nullptr;
+            unsigned single_mi = (unsigned)-1;
             if (!parm_names_.empty()) {
                   /* Find the first non-default named entry. */
                   static const perm_string def_key = lex_strings.make("default");
@@ -1472,6 +1475,7 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
                         if (mi < items.size() && items[mi]) {
                               single = items[mi];
                               items[mi] = nullptr;  // detach so dtor doesn't double-free
+                              single_mi = mi;
                               break;
                         }
                   }
@@ -1479,16 +1483,40 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
                   if (items[0]) {
                         single = items[0];
                         items[0] = nullptr;
+                        single_mi = 0;
                   }
             }
             /* Free items we're not using. */
             for (auto*it : items) if (it) delete it;
             if (!single) {
-                  /* No named entry — emit zero. */
+                  /* No named entry — emit zero of full packed width. */
                   unsigned w = struct_type->packed_width();
                   verinum z((uint64_t)0, w ? w : 1);
                   single = new NetEConst(z);
                   single->set_line(*this);
+                  return single;
+            }
+            /* For tagged packed unions, build {tag[tb-1:0], data[dw-1:0]}.
+               The data field must be zero-extended (not sign-extended) so
+               that signed integer literals (e.g., plain '85') don't bleed
+               into the tag field at the MSBs. */
+            if (struct_type->tagged_flag() && single_mi != (unsigned)-1) {
+                  unsigned tag_b  = struct_type->tag_bits();
+                  long     pw     = struct_type->packed_width();
+                  unsigned data_w = (pw > (long)tag_b) ? (unsigned)(pw - tag_b) : 1;
+                  /* Force data to unsigned so pad_to_width zero-extends. */
+                  single->cast_signed(false);
+                  if (single->expr_width() < data_w)
+                        single = pad_to_width(single, data_w, false, *this);
+                  verinum tag_vn((uint64_t)single_mi, tag_b);
+                  NetEConst *tag_e = new NetEConst(tag_vn);
+                  tag_e->set_line(*this);
+                  /* NetEConcat index 0 = MSB. */
+                  NetEConcat *cat = new NetEConcat(2, 1, struct_type->base_type());
+                  cat->set(0, tag_e);
+                  cat->set(1, single);
+                  cat->set_line(*this);
+                  return cat;
             }
             return single;
       }
