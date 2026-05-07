@@ -4999,7 +4999,8 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 		  // scope qualifier without explicit #(...) is an error.
 		  const NetScope*cs = class_type->class_scope();
 		  const PClass*pclass = cs ? cs->class_pform() : nullptr;
-		  if (pclass && !pclass->parameter_order.empty()) {
+		  if (pclass && !pclass->parameter_order.empty()
+		  && comp.name == class_type->get_name()) {
 			cerr << li->get_fileline() << ": error: "
 			     << "Parameterized class '" << class_type->get_name()
 			     << "' used as scope qualifier without"
@@ -9146,14 +9147,22 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 
 	    // IEEE 1800-2017 §8.25.1: using a parameterized class as a
 	    // scope qualifier without explicit #(...) is an error.
+	    // IEEE 1800-2017 §8.25.1: using a parameterized class as a scope
+	    // qualifier without explicit #(...) is an error.  Only fire when
+	    // the first path component LITERALLY names the class (i.e., the
+	    // class was found by its own name, not via a type-parameter
+	    // indirection like `Tregistry::type_name` where Tregistry is a
+	    // formal type parameter bound to a class at instantiation time).
 	    if (gn_system_verilog() && !leading_type_args()
 		&& path_.name.size() >= 2 && sr.scope) {
 		  const netclass_t*cls = sr.scope->class_def();
 		  if (cls) {
 			const NetScope*cs = cls->class_scope();
 			const PClass*pclass = cs ? cs->class_pform() : nullptr;
+			perm_string first_comp = path_.name.front().name;
 			if (pclass && !pclass->parameter_order.empty()
-			    && !cls->specialized_instance()) {
+			    && !cls->specialized_instance()
+			    && first_comp == cls->get_name()) {
 			      cerr << get_fileline() << ": error: "
 				   << "Parameterized class '" << cls->get_name()
 				   << "' used as scope qualifier without"
