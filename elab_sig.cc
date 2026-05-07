@@ -685,12 +685,16 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    }
 
 	    if (class_scope_->find_signal(cur->first) == 0) {
-		  if (auto*ua = dynamic_cast<const netuarray_t*>(use_type))
-			/* NetNet*sig = */ new NetNet(class_scope_, cur->first, NetNet::REG,
-						     ua->static_dimensions(), ua->element_type());
+		  // G41: unpacked-array static properties need proper unpacked
+		  // dimensions so the VVP backend emits an array declaration.
+		  if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(use_type))
+			/* NetNet*sig = */ new NetNet(class_scope_, cur->first,
+						     NetNet::REG,
+						     ua->static_dimensions(),
+						     ua->element_type());
 		  else
-			/* NetNet*sig = */ new NetNet(class_scope_, cur->first, NetNet::REG,
-						     use_type);
+			/* NetNet*sig = */ new NetNet(class_scope_, cur->first,
+						     NetNet::REG, use_type);
 	    }
       }
 
@@ -942,7 +946,9 @@ static void seed_super_chain_properties_(Design*des, const netclass_t*cls)
 	    bool added = super_mut->set_property(cur->first, cur->second.qual, use_type);
 	    if (added && cur->second.qual.test_static()) {
 		  if (super_scope_mut->find_signal(cur->first) == 0) {
-			if (auto*ua = dynamic_cast<const netuarray_t*>(use_type))
+			// G41: unpacked-array static properties must be created with
+			// proper unpacked dimensions so ivl_signal_dimensions() > 0.
+			if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(use_type))
 			      /* NetNet*sig = */ new NetNet(super_scope_mut, cur->first,
 							   NetNet::REG,
 							   ua->static_dimensions(),
@@ -996,7 +1002,9 @@ static void seed_class_scope_properties_for_method_elab_(Design*des,
 	    bool added = clsnet->set_property(cur->first, cur->second.qual, use_type);
 	    if (added && cur->second.qual.test_static()) {
 		  if (class_scope->find_signal(cur->first) == 0) {
-			if (auto*ua = dynamic_cast<const netuarray_t*>(use_type))
+			// G41: unpacked-array static properties must be created with
+			// proper unpacked dimensions so ivl_signal_dimensions() > 0.
+			if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(use_type))
 			      /* NetNet*sig = */ new NetNet(class_scope, cur->first,
 							   NetNet::REG,
 							   ua->static_dimensions(),

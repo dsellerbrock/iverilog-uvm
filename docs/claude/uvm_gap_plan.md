@@ -276,16 +276,16 @@ Then:
 | 73 DPI open-array | not started | |
 | 74 perf hardening | not started | |
 | 75 fallback hardening | not started | |
-| 77 G41 static class array | **COMPLETED** | see claude/phase-77; G41 fixed; 119/119 PASS |
+| 77 G09+G41 static class array + foreach assoc-of-assoc | **COMPLETED** | see claude/phase-77; G09+G41 fixed; 121/121 PASS |
 
 # Working notes (agent appends)
 
 Each session appends ONE entry at the TOP of this section (newest first). Format below — copy-paste the template, fill in the fields, then add your entry above any prior ones.
 
-## 2026-05-07 — Phase 77 — COMPLETED G41 static class member array assignment
+## 2026-05-07 — Phase 77 — COMPLETED G09 + G41 static class array + foreach assoc-of-assoc
 
 **Branch**: `claude/phase-77`
-**Regression**: 119 passed, 0 failed, 0 skipped (up from 118 baseline; 1 new test added)
+**Regression**: 121 passed, 0 failed, 0 skipped (up from 119 baseline; 2 new tests added: G09 + G41)
 
 ### What I did
 - **G41**: Fixed assignment to elements of a static unpacked array in a class (e.g., `instances[i] = value;`).

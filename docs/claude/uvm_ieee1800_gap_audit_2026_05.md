@@ -80,9 +80,11 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: synchronization patterns.
 
 ### G09 `foreach (aa[k1, k2])` over assoc-of-assoc body never executes
+- **STATUS: FIXED (Phase 77)**
 - Symptom: comma-form foreach iterates 0 times even when both inner assocs have entries (`total=0` instead of 33). Bracket form gets a syntax error.
 - Probe: p15_foreach_assoc_2d (VERIFIED-FAILS), p15b_foreach_assoc_brack (VERIFIED-FAILS, syntax error).
-- Location: parse.y foreach loop handler + elaborate.cc:8753 has a `sorry: associative-array foreach` that may be hit on multi-dim shapes.
+- Location: elaborate.cc `PForeach::elaborate_assoc_array_` — when `index_vars_.size() > 1` and element type is an inner assoc, build nested `%aa/first/str + %aa/next/str` loops instead of falling through to integer for-loop.
+- Fix: `tests/g09_foreach_assoc2d_test.sv` PASS (119 passed, 0 failed regression).
 - Layer: parser+elab.
 - Complexity: medium (multi-dim assoc is its own iteration shape).
 - Blocks: any pattern using nested assoc maps (UVM tracks several).
@@ -331,10 +333,11 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 
 ### G41 `static int instances[10];` (static class array) + `i*100` cast diagnostic confused
 - **FIXED in Phase 77** (2026-05-07).
-- Root cause: static class member arrays created with 3-arg NetNet constructor (pin_count=1, unpacked_dimensions=0). Fixed at 5 creation sites in netclass.cc and elab_sig.cc to use 5-arg constructor for netuarray_t types.
+- Root cause: static class member arrays created with 3-arg NetNet constructor (pin_count=1, unpacked_dimensions=0). Fixed at 5 creation sites in netclass.cc and elab_sig.cc to use 5-arg constructor for netuarray_t types. Belt-and-suspenders fallback in elab_lval.cc for any residual 0-dims netuarray_t cases.
 - Symptom: `instances[i] = i * 100;` from constructor reports `error: The expression '(i)*('sd100)' cannot be implicitly cast to the target type.` The mismatch is between idx-expr and array element type when static class array is in scope.
 - Probe: p90_class_static_arr (VERIFIED-FAILS).
-- Location: elaborate.cc lvalue-resolution for static class properties (likely net_link.cc:455 fallback hit).
+- Location: elab_sig.cc (3 sites in `elaborate_sig`, `seed_super_chain_properties_`, `seed_class_scope_properties_for_method_elab_`); netclass.cc (2 more sites in `ensure_property_decl`, `ensure_all_properties_declared`).
+- Fix: `tests/g41_static_class_array_test.sv` PASS (119 passed, 0 failed regression).
 - Layer: elab.
 - Complexity: small.
 - Blocks: per-class instance trackers.

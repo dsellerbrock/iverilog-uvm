@@ -1,40 +1,50 @@
-// G41: static class member array assignment and read-back
-// Verifies that static unpacked arrays in a class are correctly
-// allocated as multi-word arrays and support element-level read/write.
+// g41_static_class_array_test.sv — static fixed-size array property indexed by variable.
+// G41: elab_lval emitted context-type error "netuarray_t" because the NetNet for
+// a static class array was created without proper unpacked dimensions, so
+// elaborate_lval_net_word_ was never called.
 `include "uvm_macros.svh"
 import uvm_pkg::*;
 
-class TrackingClass;
-  static int registry[8];
-  static int call_count = 0;
+class Registry;
+  static int instances[10];
 
-  function new(int id);
-    registry[call_count] = id;
-    call_count++;
+  static function void register(int idx, int val);
+    instances[idx] = val;
+  endfunction
+
+  static function int lookup(int idx);
+    return instances[idx];
   endfunction
 endclass
 
-module g41_static_class_array_test;
-  TrackingClass objs[4];
+class g41_static_class_array_test extends uvm_test;
+  `uvm_component_utils(g41_static_class_array_test)
 
-  initial begin
-    for (int i = 0; i < 4; i++)
-      objs[i] = new(i * 10);
+  function new(string name, uvm_component parent);
+    super.new(name, parent);
+  endfunction
 
-    if (TrackingClass::call_count !== 4) begin
-      `uvm_error("G41", $sformatf("FAIL: call_count=%0d expected 4",
-                                   TrackingClass::call_count))
-    end else if (TrackingClass::registry[0] !== 0  ||
-                 TrackingClass::registry[1] !== 10 ||
-                 TrackingClass::registry[2] !== 20 ||
-                 TrackingClass::registry[3] !== 30) begin
-      `uvm_error("G41", $sformatf("FAIL: registry=[%0d,%0d,%0d,%0d] expected [0,10,20,30]",
-                                   TrackingClass::registry[0],
-                                   TrackingClass::registry[1],
-                                   TrackingClass::registry[2],
-                                   TrackingClass::registry[3]))
-    end else begin
-      $display("PASS");
-    end
-  end
+  task run_phase(uvm_phase phase);
+    int pass_count;
+    phase.raise_objection(this);
+    pass_count = 0;
+
+    for (int i = 0; i < 5; i++)
+      Registry::register(i, i * 10);
+
+    for (int i = 0; i < 5; i++)
+      if (Registry::lookup(i) == i * 10)
+        pass_count++;
+
+    if (pass_count == 5)
+      `uvm_info("G41", "PASS: static class array index lvalue works", UVM_NONE)
+    else
+      `uvm_error("G41", $sformatf("FAIL: only %0d/5 checks passed", pass_count))
+
+    phase.drop_objection(this);
+  endtask
+endclass
+
+module top;
+  initial run_test("g41_static_class_array_test");
 endmodule
