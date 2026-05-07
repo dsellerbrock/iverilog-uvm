@@ -39,6 +39,8 @@
 #endif
 # include  <set>
 # include  <map>
+# include  <unordered_map>
+# include  <unordered_set>
 # include  <typeinfo>
 # include  <vector>
 # include  <functional>
@@ -82,7 +84,7 @@ static void notify_mutated_object_signal_(vthread_t thr, vvp_net_t*net, const ch
 static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
                                         vvp_net_t*root_net, const vvp_object_t&root_obj,
                                         const char*where);
-static set<vthread_t> live_threads_registry_;
+static unordered_set<vthread_t> live_threads_registry_;
 
 static bool sched_dump_threads_enabled_(const char*reason)
 {
@@ -491,9 +493,9 @@ struct vthread_s {
       unsigned is_fork_v_child   :1;
       unsigned owns_automatic_context :1;
 	/* This points to the children of the thread. */
-      set<struct vthread_s*>children;
+      unordered_set<struct vthread_s*>children;
 	/* This points to the detached children of the thread. */
-      set<struct vthread_s*>detached_children;
+      unordered_set<struct vthread_s*>detached_children;
 	/* This points to my parent, if I have one. */
       struct vthread_s*parent;
 	/* This points to the containing scope. */
@@ -657,7 +659,7 @@ void vvp_process::signal_waiters_()
 {
       std::set<vthread_t> waiters = waiters_;
       waiters_.clear();
-      for (set<vthread_t>::iterator cur = waiters.begin()
+      for (auto cur = waiters.begin()
 		 ; cur != waiters.end() ; ++cur) {
 	    vthread_t waiter = *cur;
 	    if (!waiter)
@@ -2946,7 +2948,7 @@ static void child_delete(vthread_t base)
 
 void vthreads_delete(class __vpiScope*scope)
 {
-      for (std::set<vthread_t>::iterator cur = scope->threads.begin()
+      for (std::auto cur = scope->threads.begin()
 		 ; cur != scope->threads.end() ; ++ cur ) {
 	    delete *cur;
       }
@@ -2965,7 +2967,7 @@ static void vthread_reap(vthread_t thr)
 	       * reparented to the grandparent so they remain reachable;
 	       * also insert them into the grandparent's children set so
 	       * that their later cleanup can find them. */
-	    for (set<vthread_t>::iterator cur = thr->children.begin()
+	    for (auto cur = thr->children.begin()
 		       ; cur != thr->children.end() ; ++cur) {
 		  vthread_t child = *cur;
 		  assert(child);
@@ -2984,7 +2986,7 @@ static void vthread_reap(vthread_t thr)
 	       * to remain reachable from the still-living grandparent so that
 	       * an outer `wait fork` can wait for them.  Reparent them to
 	       * thr->parent and keep them in detached_children. */
-	    for (set<vthread_t>::iterator cur = thr->detached_children.begin()
+	    for (auto cur = thr->detached_children.begin()
 		       ; cur != thr->detached_children.end() ; ++cur) {
 		  vthread_t child = *cur;
 		  assert(child);
@@ -3068,7 +3070,7 @@ void vthread_dump_live_threads(const char*reason)
               reason ? reason : "<unknown>",
               live_threads_registry_.size());
 
-      for (set<vthread_t>::const_iterator it = live_threads_registry_.begin()
+      for (auto it = live_threads_registry_.begin()
                  ; it != live_threads_registry_.end() ; ++it) {
             vthread_t thr = *it;
             if (!thr)
@@ -4646,8 +4648,8 @@ static bool warned_callf_child_not_ended = false;
 static unsigned callf_target_trace_count = 0;
 static unsigned callf_target_trace_limit = 256;
 static std::vector<__vpiScope*> callf_scope_stack;
-static std::map<const __vpiScope*, unsigned long> callf_scope_invocations;
-static std::set<const __vpiScope*> callf_scope_hot_warned;
+static std::unordered_map<const __vpiScope*, unsigned long> callf_scope_invocations;
+static std::unordered_set<const __vpiScope*> callf_scope_hot_warned;
 struct callf_edge_key_s {
       const __vpiScope*from;
       const __vpiScope*to;
@@ -4657,9 +4659,19 @@ struct callf_edge_key_s {
 	    if (from > that.from) return false;
 	    return to < that.to;
       }
+      bool operator==(const callf_edge_key_s&that) const
+      { return from == that.from && to == that.to; }
 };
-static std::map<callf_edge_key_s, unsigned long> callf_edge_invocations;
-static std::set<callf_edge_key_s> callf_edge_hot_warned;
+namespace std {
+  template<> struct hash<callf_edge_key_s> {
+    size_t operator()(const callf_edge_key_s&k) const {
+      return hash<const void*>()((const void*)k.from) * 2654435761UL
+           ^ hash<const void*>()((const void*)k.to);
+    }
+  };
+}
+static std::unordered_map<callf_edge_key_s, unsigned long> callf_edge_invocations;
+static std::unordered_set<callf_edge_key_s> callf_edge_hot_warned;
 struct callf_self_site_key_s {
       const __vpiScope*scope;
       const struct vvp_code_s*pc;
@@ -4669,9 +4681,21 @@ struct callf_self_site_key_s {
             if (scope > that.scope) return false;
             return pc < that.pc;
       }
+      bool operator==(const callf_self_site_key_s&that) const
+      { return scope == that.scope && pc == that.pc; }
 };
-static std::map<callf_self_site_key_s, unsigned long> callf_self_site_invocations;
-static std::map<const struct vvp_code_s*, unsigned long> callf_self_name_site_invocations;
+namespace std {
+  template<> struct hash<callf_self_site_key_s> {
+    size_t operator()(const callf_self_site_key_s&k) const {
+      return hash<const void*>()((const void*)k.scope) * 2654435761UL
+           ^ hash<const void*>()((const void*)k.pc);
+    }
+  };
+}
+static std::unordered_map<callf_self_site_key_s, unsigned long> callf_self_site_invocations;
+static std::unordered_map<const struct vvp_code_s*, unsigned long> callf_self_name_site_invocations;
+/* Per-scope depth count — O(1) replacement for the O(n) callf_scope_stack scan. */
+static std::unordered_map<const __vpiScope*, unsigned> callf_scope_stack_depth_;
 
 static bool scope_has_own_automatic_context_(__vpiScope*scope)
 {
@@ -4798,7 +4822,7 @@ static void dump_callf_tree_(vthread_t thr, unsigned depth)
               pc_op ? pc_op : "<unknown>",
               pause_op ? pause_op : "<unknown>");
 
-      for (set<vthread_t>::const_iterator it = thr->children.begin()
+      for (auto it = thr->children.begin()
                  ; it != thr->children.end() ; ++it)
             dump_callf_tree_(*it, depth + 1);
 }
@@ -4926,6 +4950,19 @@ static bool callf_trace_enabled_()
             }
       }
       return enabled != 0;
+}
+
+/* Cache vpi_get_str(vpiFullName, scope) results — scope names are immutable
+   after elaboration, so one lookup per scope object suffices. */
+static const char* scope_fullname_cached_(const __vpiScope*scope)
+{
+      if (!scope) return nullptr;
+      static unordered_map<const __vpiScope*, string> cache_;
+      auto it = cache_.find(scope);
+      if (it != cache_.end()) return it->second.c_str();
+      const char*tmp = vpi_get_str(vpiFullName, const_cast<__vpiScope*>(scope));
+      if (!tmp) return nullptr;
+      return cache_.emplace(scope, tmp).first->second.c_str();
 }
 
 static bool virtual_dispatch_trace_enabled_()
@@ -5517,6 +5554,16 @@ static void mirror_dynamic_dispatch_outputs_if_needed_(vthread_t thr, vthread_t 
       }
 }
 
+static inline void callf_scope_stack_pop_(__vpiScope*scope)
+{
+      callf_scope_stack.pop_back();
+      auto it = callf_scope_stack_depth_.find(scope);
+      if (it != callf_scope_stack_depth_.end()) {
+            if (it->second <= 1) callf_scope_stack_depth_.erase(it);
+            else --it->second;
+      }
+}
+
 static bool do_callf_void(vthread_t thr, vthread_t child)
 {
       callf_depth++;
@@ -5530,24 +5577,8 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
             thr->staged_alloc_rd_scope = 0;
       }
       vvp_code_t callsite_pc = thr->pc ? (thr->pc - 1) : 0;
-      string caller_name_buf;
-      string child_name_buf;
-      const char*caller_name = 0;
-      const char*child_name = 0;
-      if (caller_scope) {
-            const char*tmp = vpi_get_str(vpiFullName, caller_scope);
-            if (tmp) {
-                  caller_name_buf = tmp;
-                  caller_name = caller_name_buf.c_str();
-            }
-      }
-      if (child_scope) {
-            const char*tmp = vpi_get_str(vpiFullName, child_scope);
-            if (tmp) {
-                  child_name_buf = tmp;
-                  child_name = child_name_buf.c_str();
-            }
-      }
+      const char*caller_name = scope_fullname_cached_(caller_scope);
+      const char*child_name  = scope_fullname_cached_(child_scope);
       if (callf_trace_enabled_()
           && callf_target_trace_count < callf_target_trace_limit
           && (callf_trace_scope_match_(caller_name) || callf_trace_scope_match_(child_name))) {
@@ -5620,46 +5651,30 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       callf_edge_key_s edge = { caller_scope, child_scope };
       unsigned long edge_invoc = ++callf_edge_invocations[edge];
       if ((edge_invoc >= 50000) && (callf_edge_hot_warned.count(edge) == 0)) {
-	    const char*from_name = "<unknown>";
-	    const char*to_name = "<unknown>";
-	    if (caller_scope) {
-		  const char*nm = vpi_get_str(vpiFullName, caller_scope);
-		  if (nm) from_name = nm;
-	    }
-	    if (child_scope) {
-		  const char*nm = vpi_get_str(vpiFullName, child_scope);
-		  if (nm) to_name = nm;
-	    }
+	    const char*from_name = caller_name ? caller_name : "<unknown>";
+	    const char*to_name   = child_name  ? child_name  : "<unknown>";
 	    fprintf(stderr, "Warning: hot callf edge %s -> %s has %lu invocations; potential zero-time liveness loop\n",
 	            from_name, to_name, edge_invoc);
 	    callf_edge_hot_warned.insert(edge);
       }
       unsigned long invoc = ++callf_scope_invocations[child_scope];
       if ((invoc >= 50000) && (callf_scope_hot_warned.count(child_scope) == 0)) {
-	    const char*scope_name = "<unknown>";
-	    if (child_scope) {
-		  const char*nm = vpi_get_str(vpiFullName, child_scope);
-		  if (nm) scope_name = nm;
-	    }
+	    const char*scope_name = child_name ? child_name : "<unknown>";
 	    fprintf(stderr, "Warning: hot callf scope %s has %lu invocations; potential zero-time liveness loop\n",
 	            scope_name, invoc);
 	    callf_scope_hot_warned.insert(child_scope);
       }
-	      unsigned scope_hits = 0;
-	      for (size_t idx = 0 ; idx < callf_scope_stack.size() ; idx += 1) {
-		    if (callf_scope_stack[idx] == child_scope)
-			  scope_hits += 1;
-	      }
+	      /* O(1) depth lookup — callf_scope_stack_depth_ is kept in sync with
+	         callf_scope_stack by push/pop helpers below. */
+	      auto depth_it = callf_scope_stack_depth_.find(child_scope);
+	      unsigned scope_hits = depth_it != callf_scope_stack_depth_.end()
+	                          ? depth_it->second : 0u;
 	      unsigned scope_limit = 4096;
 	      if (child_name && strstr(child_name, "uvm_root.m_uvm_get_root"))
 	            scope_limit = 16384;
 	      if (scope_hits >= scope_limit) {
 		    if (!warned_callf_scope_cycle_fallback) {
-			  const char*scope_name = "<unknown>";
-			  if (child_scope) {
-				const char*nm = vpi_get_str(vpiFullName, child_scope);
-				if (nm) scope_name = nm;
-			  }
+			  const char*scope_name = child_name ? child_name : "<unknown>";
 			  fprintf(stderr,
 			          "Warning: callf scope-cycle detected at %s (hits=%u limit=%u);"
 			          " using compile-progress return fallback (further similar warnings suppressed)\n",
@@ -5672,6 +5687,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       }
 
       callf_scope_stack.push_back(child_scope);
+      callf_scope_stack_depth_[child_scope]++;
       unsigned depth_limit = 2048;
       if (child_name && strstr(child_name, "uvm_report_object.uvm_report_info"))
             depth_limit = 16384;
@@ -5681,7 +5697,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
           && child->parent_scope == thr->parent_scope
           && callf_depth > depth_limit) {
 	    if (!warned_callf_self_recursion_fallback) {
-		  const char*scope_name = vpi_get_str(vpiFullName, child->parent_scope);
+		  const char*scope_name = scope_fullname_cached_(child->parent_scope);
 		  if (!scope_name) scope_name = "<unknown>";
 		  fprintf(stderr, "Warning: callf recursion on %s exceeded %u frames;"
 		          " using compile-progress return fallback (further similar warnings suppressed)\n",
@@ -5689,17 +5705,14 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 		  warned_callf_self_recursion_fallback = true;
 	    }
 	    vthread_delete(child);
-	    callf_scope_stack.pop_back();
+	    callf_scope_stack_pop_(child_scope);
 	    callf_depth--;
 	    return true;
       }
       if (callf_depth > 4096) {
 	    if (!warned_callf_depth_fallback) {
-		  const char*scope_name = "<unknown>";
-		  if (child->parent_scope) {
-			const char*nm = vpi_get_str(vpiFullName, child->parent_scope);
-			if (nm) scope_name = nm;
-		  }
+		  const char*scope_name = scope_fullname_cached_(child->parent_scope);
+		  if (!scope_name) scope_name = "<unknown>";
 		  fprintf(stderr, "%sWarning: do_callf_void recursion depth %d exceeded at %s;"
 		          " using compile-progress return fallback (further similar warnings suppressed)\n",
 		          thr->get_fileline().c_str(), callf_depth, scope_name);
@@ -5707,7 +5720,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 		  /* Dump distinct scopes on the callf stack and their counts. */
 		  std::map<std::string, unsigned> scope_counts;
 		  for (auto*sc : callf_scope_stack) {
-			const char*nm = sc ? vpi_get_str(vpiFullName, sc) : "<null>";
+			const char*nm = sc ? scope_fullname_cached_(sc) : "<null>";
 			std::string key = nm ? std::string(nm) : std::string("<unnamed>");
 			scope_counts[key]++;
 		  }
@@ -5720,7 +5733,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 		  }
 	    }
 	    vthread_delete(child);
-	    callf_scope_stack.pop_back();
+	    callf_scope_stack_pop_(child_scope);
 	    callf_depth--;
 	    return true; /* pretend it returned normally */
       }
@@ -5820,7 +5833,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 	                            && (cur->is_scheduled
 	                                || cur->children.empty()))
 	                              drive = cur;
-	                        for (set<vthread_t>::const_iterator it = cur->children.begin()
+	                        for (auto it = cur->children.begin()
 	                                   ; it != cur->children.end() ; ++it)
 	                              pending.push_back(*it);
 	                  }
@@ -5895,7 +5908,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 			          " treating call as completed (further similar warnings suppressed)\n");
 			  warned_callf_child_reaped = true;
 		    }
-	    callf_scope_stack.pop_back();
+	    callf_scope_stack_pop_(child_scope);
 	    callf_depth--;
 	    return true;
       }
@@ -5910,7 +5923,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
                     }
 		    trace_context_event_("callf-after-join", thr, child->parent_scope,
 		                         child->wt_context);
-		    callf_scope_stack.pop_back();
+		    callf_scope_stack_pop_(child_scope);
 		    callf_depth--;
 		    return true;
 	      } else {
@@ -5927,7 +5940,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 			  const char*nested_op = "<none>";
 			  int child_in_scope = 0;
 			  if (child->parent_scope) {
-				const char*nm = vpi_get_str(vpiFullName, child->parent_scope);
+				const char*nm = scope_fullname_cached_(child->parent_scope);
 				if (nm) wait_scope = nm;
 				child_in_scope = child->parent_scope->threads.count(child) ? 1 : 0;
 			  }
@@ -5938,7 +5951,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 			  if (!child->children.empty()) {
 				vthread_t nested = *(child->children.begin());
 				if (nested && nested->parent_scope) {
-				      const char*nm = vpi_get_str(vpiFullName, nested->parent_scope);
+				      const char*nm = scope_fullname_cached_(nested->parent_scope);
 				      if (nm) nested_scope = nm;
 				}
 				if (nested && nested->pc)
@@ -5964,7 +5977,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 			    if (callf_dump_tree_enabled_(caller_name, child_name))
 			          dump_callf_tree_(child, 0);
 			    thr->i_am_joining = 1;
-			    callf_scope_stack.pop_back();
+			    callf_scope_stack_pop_(child_scope);
 			    callf_depth--;
 			    return false;
 		      }
@@ -7585,7 +7598,7 @@ bool of_DISABLE(vthread_t thr, vvp_code_t cp)
       bool disabled_myself_flag = false;
 
       while (! scope->threads.empty()) {
-	    set<vthread_t>::iterator cur = scope->threads.begin();
+	    auto cur = scope->threads.begin();
 
 	    if (do_disable(*cur, thr))
 		  disabled_myself_flag = true;
@@ -9107,7 +9120,7 @@ static bool do_join_opcode(vthread_t thr)
 
 	// Are there any children that have already ended? If so, then
 	// join with that one.
-      for (set<vthread_t>::iterator cur = thr->children.begin()
+      for (auto cur = thr->children.begin()
 		 ; cur != thr->children.end() ; ++cur) {
 	    vthread_t curp = *cur;
 	    if (! curp->i_have_ended)

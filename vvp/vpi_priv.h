@@ -26,6 +26,7 @@
 
 # include  <map>
 # include  <set>
+# include  <unordered_set>
 # include  <string>
 # include  <vector>
 
@@ -294,7 +295,7 @@ class __vpiScope : public __vpiHandle {
         /* Keep a list of freed contexts. */
       vvp_context_t free_contexts;
 	/* Keep a list of threads in the scope. */
-      std::set<vthread_t> threads;
+      std::unordered_set<vthread_t> threads;
       signed int time_units :8;
       signed int time_precision :8;
 
