@@ -241,6 +241,97 @@ void pform_sva_rewrite_sampling(PExpr*&expr,
       expr = rewrite_(expr, caps);
 }
 
+Statement* pform_sva_build_seq_delay(PExpr*ant, PExpr*cons,
+                                     unsigned n_cyc,
+                                     Statement*fail,
+                                     unsigned line, const char*file)
+{
+      if (n_cyc < 2) return nullptr;
+      vlltype loc = make_loc_(line, file);
+
+      // Allocate fresh shift-register name.
+      static unsigned uid_ = 0;
+      char namebuf[64];
+      snprintf(namebuf, sizeof namebuf, "__sva_seq_dly_%u", uid_++);
+      perm_string reg_name = lex_strings.make(namebuf);
+
+      // reg [n_cyc-1:0] __sva_seq_dly_<n>;  (bool, defaults to 0)
+      std::list<decl_assignment_t*> dlist;
+      decl_assignment_t* da = new decl_assignment_t;
+      da->name = pform_ident_t{reg_name, 0};
+      dlist.push_back(da);
+      std::list<pform_range_t>*rng = new std::list<pform_range_t>;
+      pform_range_t r;
+      r.first  = new PENumber(new verinum((uint64_t)(n_cyc - 1), 32));
+      r.second = new PENumber(new verinum((uint64_t)0, 32));
+      FILE_NAME(r.first, loc);
+      FILE_NAME(r.second, loc);
+      rng->push_back(r);
+      vector_type_t* t = new vector_type_t(IVL_VT_BOOL, false, rng);
+      FILE_NAME(t, loc);
+      pform_make_var(loc, &dlist, t, nullptr, false);
+
+      pform_name_t pn;
+      pn.push_back(name_component_t(reg_name));
+
+      // Check: if (reg[n_cyc-1] && !B) fail
+      // Build reg[n_cyc-1] as a part-select.
+      pform_name_t pn_msb;
+      name_component_t nc(reg_name);
+      // Bit-select via index list:
+      index_component_t idx;
+      idx.sel = index_component_t::SEL_BIT;
+      idx.msb = new PENumber(new verinum((uint64_t)(n_cyc - 1), 32));
+      idx.lsb = nullptr;
+      FILE_NAME(idx.msb, loc);
+      nc.index.push_back(idx);
+      pn_msb.push_back(nc);
+      PEIdent*reg_msb = pform_new_ident(loc, pn_msb);
+      FILE_NAME(reg_msb, loc);
+
+      PExpr*not_cons = new PEUnary('!', cons);
+      FILE_NAME(not_cons, loc);
+      PExpr*and_cond = new PEBLogic('a', reg_msb, not_cons);
+      FILE_NAME(and_cond, loc);
+      PCondit*chk = new PCondit(and_cond, fail, nullptr);
+      FILE_NAME(chk, loc);
+
+      // Shift NBA: reg <= {reg[n_cyc-2:0], A};
+      // Build {reg[n_cyc-2:0], A}.
+      pform_name_t pn_lsbs;
+      name_component_t nc2(reg_name);
+      index_component_t pidx;
+      pidx.sel = index_component_t::SEL_PART;
+      pidx.msb = new PENumber(new verinum((uint64_t)(n_cyc - 2), 32));
+      pidx.lsb = new PENumber(new verinum((uint64_t)0, 32));
+      FILE_NAME(pidx.msb, loc);
+      FILE_NAME(pidx.lsb, loc);
+      nc2.index.push_back(pidx);
+      pn_lsbs.push_back(nc2);
+      PEIdent*reg_lsbs = pform_new_ident(loc, pn_lsbs);
+      FILE_NAME(reg_lsbs, loc);
+
+      std::list<PExpr*> concat_list;
+      concat_list.push_back(reg_lsbs);
+      concat_list.push_back(ant);
+      PEConcat*concat = new PEConcat(concat_list);
+      FILE_NAME(concat, loc);
+
+      PEIdent*reg_lhs = pform_new_ident(loc, pn);
+      FILE_NAME(reg_lhs, loc);
+      PAssignNB*shift = new PAssignNB(reg_lhs, concat);
+      FILE_NAME(shift, loc);
+
+      // Wrap into a sequential block: { check; shift; }
+      std::vector<Statement*> stmts;
+      stmts.push_back(chk);
+      stmts.push_back(shift);
+      PBlock*blk = new PBlock(PBlock::BL_SEQ);
+      blk->set_statement(stmts);
+      FILE_NAME(blk, loc);
+      return blk;
+}
+
 void pform_sva_emit_captures(const std::vector<pform_sva_capture_t>&caps,
                              std::vector<Statement*>&stmts)
 {

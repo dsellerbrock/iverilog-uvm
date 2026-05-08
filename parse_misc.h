@@ -36,7 +36,8 @@ struct sva_property_t {
       PExpr* disable_iff_expr;        // disable iff expr (may be null)
       PExpr* antecedent;
       PExpr* consequent;              // null => no implication
-      int op_type;                    // 0=plain, 1=|->, 2=|=>
+      int op_type;                    // 0=plain, 1=|->, 2=|=>, 3=##N
+      int delay_n;                    // S4: delay in cycles for op_type==3
 };
 
 /*

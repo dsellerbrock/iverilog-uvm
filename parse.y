@@ -3005,6 +3005,11 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
 			  FILE_NAME(ifa, @1);
 			  body = ifa;
+		    } else if ($4->op_type == 3) {
+			  // S4: A ##N B (N>=2) — length-N shift register.
+			  body = pform_sva_build_seq_delay($4->antecedent,
+				   $4->consequent, $4->delay_n, fail,
+				   @1.first_line, @1.text);
 		    } else {
 			  // S1 (sva-temporal): real |=> next-cycle implication.
 			  // Synthesize:
@@ -3122,6 +3127,11 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
 			  FILE_NAME(ifa, @1);
 			  body = ifa;
+		    } else if ($4->op_type == 3) {
+			  // S4: A ##N B — length-N shift register.
+			  body = pform_sva_build_seq_delay($4->antecedent,
+				   $4->consequent, $4->delay_n, fail,
+				   @1.first_line, @1.text);
 		    } else {
 			  // S1 (sva-temporal): real |=> next-cycle implication.
 			  // See sister branch above for the full lowering.
@@ -3227,6 +3237,11 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
 			  FILE_NAME(ifa, @1);
 			  body = ifa;
+		    } else if ($4->op_type == 3) {
+			  // S4: A ##N B — length-N shift register.
+			  body = pform_sva_build_seq_delay($4->antecedent,
+				   $4->consequent, $4->delay_n, fail,
+				   @1.first_line, @1.text);
 		    } else {
 			  // S1 (sva-temporal): real |=> next-cycle implication.
 			  // See sister branch above for the full lowering.
@@ -5881,17 +5896,17 @@ property_expr /* IEEE1800-2012 A.2.10 */
   : expression
       { sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = nullptr; p->op_type = 0;
+	p->antecedent = $1; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
 	$$ = p; }
   | expression K_PIPE_IMPL_OV expression
       { sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = $3; p->op_type = 1;
+	p->antecedent = $1; p->consequent = $3; p->op_type = 1; p->delay_n = 0;
 	$$ = p; }
   | expression K_PIPE_IMPL_NOV expression
       { sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = $3; p->op_type = 2;
+	p->antecedent = $1; p->consequent = $3; p->op_type = 2; p->delay_n = 0;
 	$$ = p; }
   /* G06 (Phase 68): SVA sequence operators — approximate temporals as
      combinational boolean operations.  No true SVA scheduler is needed
@@ -5902,7 +5917,7 @@ property_expr /* IEEE1800-2012 A.2.10 */
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
 	p->antecedent = new PEBLogic('a', $1, $3);
 	FILE_NAME(p->antecedent, @2);
-	p->consequent = nullptr; p->op_type = 0;
+	p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
 	$$ = p; }
   | expression K_or expression
       { /* 'or': either sequence must hold — approximate as logical || */
@@ -5910,7 +5925,7 @@ property_expr /* IEEE1800-2012 A.2.10 */
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
 	p->antecedent = new PEBLogic('o', $1, $3);
 	FILE_NAME(p->antecedent, @2);
-	p->consequent = nullptr; p->op_type = 0;
+	p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
 	$$ = p; }
   | expression K_intersect expression
       { /* 'intersect': both hold same endpoints — approximate as && */
@@ -5918,7 +5933,7 @@ property_expr /* IEEE1800-2012 A.2.10 */
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
 	p->antecedent = new PEBLogic('a', $1, $3);
 	FILE_NAME(p->antecedent, @2);
-	p->consequent = nullptr; p->op_type = 0;
+	p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
 	$$ = p; }
   | expression K_throughout expression
       { /* 'throughout': guard holds during sequence — check guard only */
@@ -5926,7 +5941,7 @@ property_expr /* IEEE1800-2012 A.2.10 */
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
 	p->antecedent = $1;
 	delete $3;
-	p->consequent = nullptr; p->op_type = 0;
+	p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
 	$$ = p; }
   | expression K_within expression
       { /* 'within': inner seq within outer seq — check outer only */
@@ -5934,46 +5949,63 @@ property_expr /* IEEE1800-2012 A.2.10 */
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
 	p->antecedent = $3;
 	delete $1;
-	p->consequent = nullptr; p->op_type = 0;
+	p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
 	$$ = p; }
   | expression K_iff expression
       { /* 'iff': bidirectional implication — approximate as &&. */
 	PEBLogic*iff_expr = new PEBLogic('a', $1, $3); FILE_NAME(iff_expr, @2);
 	sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = iff_expr; p->consequent = nullptr; p->op_type = 0;
+	p->antecedent = iff_expr; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
 	$$ = p; }
-  /* ##N b: sequence concatenation with integer delay — approximate as last expr.
-     Inline K_SEQ_CC rules (no helper nonterminal) to avoid LALR FOLLOW bleed. */
+  /* A ##N B: sequence concatenation with integer delay.
+     S4: lower as op_type==3 with delay_n captured.  N==0 collapses to A&&B
+     (same-cycle); N==1 is the same as A |=> B (next-cycle); for N>=2 we
+     synthesize a length-N shift register that captures A and the assertion
+     fires when the shifted-out bit is 1 and B is false. */
   | expression K_SEQ_CC DEC_NUMBER expression
-      { delete $1; delete $3;
+      { unsigned n_cyc = $3 ? $3->as_unsigned() : 0;
+	delete $3;
 	sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $4; p->consequent = nullptr; p->op_type = 0;
+	if (n_cyc == 0) {
+	      // ##0: same-cycle conjunction.
+	      PEBLogic*conj = new PEBLogic('a', $1, $4);
+	      FILE_NAME(conj, @2);
+	      p->antecedent = conj; p->consequent = nullptr;
+	      p->op_type = 0; p->delay_n = 0;
+	} else if (n_cyc == 1) {
+	      // ##1: identical to |=>.
+	      p->antecedent = $1; p->consequent = $4;
+	      p->op_type = 2; p->delay_n = 0;
+	} else {
+	      p->antecedent = $1; p->consequent = $4;
+	      p->op_type = 3; p->delay_n = n_cyc;
+	}
 	$$ = p; }
   | expression K_SEQ_CC DEC_NUMBER expression K_SEQ_CC DEC_NUMBER expression
       { delete $1; delete $3; delete $4; delete $6;
 	sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $7; p->consequent = nullptr; p->op_type = 0;
+	p->antecedent = $7; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
 	$$ = p; }
   | expression K_SEQ_CC '[' expression ':' expression ']' expression
       { delete $1; delete $4; delete $6;
 	sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $8; p->consequent = nullptr; p->op_type = 0;
+	p->antecedent = $8; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
 	$$ = p; }
   | expression K_SEQ_CC '[' '*' ']' expression
       { delete $1;
 	sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $6; p->consequent = nullptr; p->op_type = 0;
+	p->antecedent = $6; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
 	$$ = p; }
   | expression K_SEQ_CC '[' '+' ']' expression
       { delete $1;
 	sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $6; p->consequent = nullptr; p->op_type = 0;
+	p->antecedent = $6; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
 	$$ = p; }
   ;
 

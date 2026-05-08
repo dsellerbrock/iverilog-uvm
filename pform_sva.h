@@ -37,4 +37,18 @@ extern void pform_sva_rewrite_sampling(PExpr*&expr,
 extern void pform_sva_emit_captures(const std::vector<pform_sva_capture_t>&caps,
                                     std::vector<Statement*>&stmts);
 
+// S4: build the body for an `A ##N B` (op_type==3) assertion.
+// Synthesizes a length-N shift register that captures A at each clock and
+// fires `fail` when the shifted-out cell is 1 and B is false at cycle T+N.
+//
+// Returns the body statement (a PBlock containing check + shift NBA), or
+// nullptr if N is out of range.  Caller is responsible for splicing into
+// the always block (and for handling captures from S2 if any).
+class Statement;
+class PExpr;
+extern Statement* pform_sva_build_seq_delay(PExpr*ant, PExpr*cons,
+                                            unsigned n_cyc,
+                                            Statement*fail,
+                                            unsigned line, const char*file);
+
 #endif /* IVL_pform_sva_H */
