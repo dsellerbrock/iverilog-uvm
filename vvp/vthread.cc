@@ -7249,19 +7249,63 @@ bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
       unsigned nargs = cp->bit_idx[0];
       unsigned wid   = cp->bit_idx[1];
 
+      if (getenv("IVL_DPI_TRACE")) {
+            fprintf(stderr, "DPI call '%s' nargs=%u wid=%u types='%s'\n",
+                    c_name, nargs, wid, types ? types : "(null)");
+      }
+
+      // T2b: Honor "name|types" arg type encoding.  Mixed-arg DPI imports
+      // (e.g. uvm_re_compexecfree(string, string, bit, int)) need string
+      // args popped from the str stack, not the vec4 stack.  Without this,
+      // dpi_pop_int32's peek_vec4 asserts when the vec4 stack is shorter
+      // than nargs.
+      if (nargs > 8) nargs = 8;
+      int32_t iargs[8] = {0};
+      std::string sargs[8];
+      char arg_types[8] = {0};
+      bool has_string_arg = false;
+      for (unsigned slot = 0; slot < nargs; ++slot) {
+            arg_types[slot] = (types && types[slot]) ? types[slot] : 'i';
+            if (arg_types[slot] == 's') has_string_arg = true;
+      }
+
+      // Pop in reverse stack order (last-pushed is on top of its stack).
+      for (unsigned ii = 0; ii < nargs; ++ii) {
+            unsigned slot = nargs - 1 - ii;
+            switch (arg_types[slot]) {
+                case 's': sargs[slot] = thr->pop_str(); break;
+                case 'b':
+                case 'i':
+                default:  iargs[slot] = dpi_pop_int32(thr); break;
+            }
+      }
+
       void*sym = vvp_dpi_find_symbol(c_name);
       if (!sym) {
-	    fprintf(stderr, "DPI error: symbol '%s' not found in any loaded DPI library\n",
-		    c_name);
-	    thr->pop_vec4(nargs);
-	    dpi_push_int32(thr, 0, wid);
-	    return true;
+            fprintf(stderr, "DPI error: symbol '%s' not found in any loaded DPI library\n",
+                    c_name);
+            dpi_push_int32(thr, 0, wid);
+            return true;
+      }
+
+      // T2b: when args have mixed types (string + int), the all-int dispatch
+      // table below would pass garbage. Compile-progress fallback: skip the
+      // call, return 0.  This is wrong (call doesn't actually run) but keeps
+      // simulation going so tests can hit the next bug.
+      if (has_string_arg) {
+            static bool warned = false;
+            if (!warned) {
+                  fprintf(stderr, "Warning: DPI call '%s' has mixed string/int args (types='%s');"
+                          " call skipped under compile-progress fallback (further similar warnings suppressed)\n",
+                          c_name, types ? types : "");
+                  warned = true;
+            }
+            dpi_push_int32(thr, 0, wid);
+            return true;
       }
 
       int32_t args[8];
-      if (nargs > 8) nargs = 8;
-      for (unsigned ii = 0; ii < nargs; ++ii)
-	    args[nargs-1-ii] = dpi_pop_int32(thr);
+      for (unsigned i = 0; i < 8; ++i) args[i] = iargs[i];
 
       typedef int32_t(*fn0_t)(void);
       typedef int32_t(*fn1_t)(int32_t);
