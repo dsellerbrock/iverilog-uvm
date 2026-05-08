@@ -492,6 +492,13 @@ struct vthread_s {
       unsigned is_callf_child    :1;
       unsigned is_fork_v_child   :1;
       unsigned owns_automatic_context :1;
+	/* T1 fix (2026-05-08): when set, release_owned_context_ only frees
+	 * the HEAD of owned_context, not the whole chain.  Phase 59 self-pin
+	 * sets this because retain_automatic_context_ (used by Phase 59 perf
+	 * fix 098f2e1f7) only retains the head — walking deeper would
+	 * decrement the caller frames' refcounts to 0 and free them
+	 * mid-execution, which is the chapter-16 hang root cause. */
+      unsigned owned_head_only :1;
 	/* This points to the children of the thread. */
       unordered_set<struct vthread_s*>children;
 	/* This points to the detached children of the thread. */
@@ -598,6 +605,7 @@ inline vthread_s::vthread_s()
       filenm_ = 0;
       lineno_ = 0;
       owns_automatic_context = 0;
+      owned_head_only = 0;
       owned_context = 0;
       transferred_context = 0;
       skip_free_context = 0;
@@ -2960,6 +2968,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->is_callf_child = 0;
       thr->is_fork_v_child = 0;
       thr->owns_automatic_context = 0;
+      thr->owned_head_only = 0;
       thr->owned_context = 0;
       thr->transferred_context = 0;
       thr->skip_free_context = 0;
@@ -4070,8 +4079,10 @@ static void release_owned_context_(vthread_t thr)
             return;
 
       vvp_context_t owned = thr->owned_context;
+      bool head_only = thr->owned_head_only;
       thr->owned_context = 0;
       thr->owns_automatic_context = 0;
+      thr->owned_head_only = 0;
 
       while (owned) {
             vvp_context_t next_owned = vvp_get_stacked_context(owned);
@@ -4086,6 +4097,8 @@ static void release_owned_context_(vthread_t thr)
 
             if (ctx_scope && ctx_scope->is_automatic())
                   vthread_free_context(owned, ctx_scope);
+            if (head_only)
+                  break;
             owned = next_owned;
       }
 }
@@ -8561,6 +8574,7 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
                 && context_live_matches_scope_(thr->wt_context, cp->scope)) {
                   retain_automatic_context_(thr->wt_context);
                   child->owns_automatic_context = 1;
+                  child->owned_head_only = 1;
                   child->owned_context = thr->wt_context;
             }
       }
