@@ -50,6 +50,20 @@ A commit must show measurable improvement on at least one of:
 - canonical regression wall-clock under 90 s.
 - sv-tests wall-clock at TIMEOUT=10 (currently ~3.5 min in non-parallel mode).
 
+## CAVEAT (added 2026-05-08, post-P2.2)
+The OT smoke vseq is hung in the same chapter-16 forever-clock + uvm_phase_hopper
+pattern: stdout shows only 4 lines through "Running test ..." and never reaches
+connect_phase, while sim time advances via the clock toggler.  The SIGUSR1
+histogram is therefore dominated by scheduler bookkeeping (vthread_run +
+schedule_simulate every sample), with almost no opcode frames — which is the
+hung idle-loop signature, not real workload.
+
+**P2.1 and P2.2 are mechanically correct (cache + dyncast removal both target
+real frames) but the smoke "2.4x / 2.83x" numbers measure the idle loop
+running faster, not test progress.**  Until T1 lands the chapter-16 hang fix,
+this perf branch has no valid smoke benchmark.  Resume perf optimization
+after T1 with a fresh SIGUSR1 histogram on a running smoke vseq.
+
 ## Non-goals (do not implement on this branch)
 - JIT bytecode compiler.
 - Lock-free scheduler.
