@@ -2999,11 +2999,53 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  FILE_NAME(ifa, @1);
 			  body = ifa;
 		    } else {
-			  // |=>: next-cycle — skip (correct impl needs reg).
-			  delete $4->antecedent; $4->antecedent = nullptr;
-			  if ($4->consequent) { delete $4->consequent; $4->consequent = nullptr; }
-			  delete fail; fail = nullptr;
-			  body = new PNoop;
+			  // S1 (sva-temporal): real |=> next-cycle implication.
+			  // Synthesize:
+			  //   reg __sva_ant_<n>;
+			  //   always @(clk) begin
+			  //     if (__sva_ant_<n> && !B) <fail>;
+			  //     __sva_ant_<n> <= A;
+			  //   end
+			  // Was: silently dropped via PNoop, which made every
+			  // chapter-16 |=> assertion a false-positive PASS in
+			  // sv-tests (no `:assert: (False)` ever printed).
+			  static unsigned sva_ant_uid_ = 0;
+			  char namebuf[64];
+			  snprintf(namebuf, sizeof namebuf, "__sva_ant_%u", sva_ant_uid_++);
+			  perm_string ant_name = lex_strings.make(namebuf);
+
+			  std::list<decl_assignment_t*> dlist;
+			  decl_assignment_t* da = new decl_assignment_t;
+			  da->name = pform_ident_t{ant_name, 0};
+			  dlist.push_back(da);
+			  vector_type_t* ant_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+			  FILE_NAME(ant_type, @1);
+			  pform_make_var(@1, &dlist, ant_type, nullptr, false);
+
+			  pform_name_t ant_hident;
+			  ant_hident.push_back(name_component_t(ant_name));
+			  PEIdent* ant_ref_check = pform_new_ident(@1, ant_hident);
+			  PEIdent* ant_ref_assign = pform_new_ident(@1, ant_hident);
+			  FILE_NAME(ant_ref_check, @1);
+			  FILE_NAME(ant_ref_assign, @1);
+
+			  PExpr* not_b = new PEUnary('!', $4->consequent);
+			  FILE_NAME(not_b, @1);
+			  PExpr* check_cond = new PEBLogic('a', ant_ref_check, not_b);
+			  FILE_NAME(check_cond, @1);
+			  PCondit* check_stmt = new PCondit(check_cond, fail, nullptr);
+			  FILE_NAME(check_stmt, @1);
+
+			  PAssignNB* capture = new PAssignNB(ant_ref_assign, $4->antecedent);
+			  FILE_NAME(capture, @1);
+
+			  std::vector<Statement*> stmts;
+			  stmts.push_back(check_stmt);
+			  stmts.push_back(capture);
+			  PBlock* blk = new PBlock(PBlock::BL_SEQ);
+			  blk->set_statement(stmts);
+			  FILE_NAME(blk, @1);
+			  body = blk;
 		    }
 		    // disable iff guard
 		    if ($4->disable_iff_expr) {
@@ -3059,11 +3101,45 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  FILE_NAME(ifa, @1);
 			  body = ifa;
 		    } else {
-			  // |=>: skip to avoid wrong same-cycle check.
-			  delete $4->antecedent; $4->antecedent = nullptr;
-			  if ($4->consequent) { delete $4->consequent; $4->consequent = nullptr; }
-			  delete fail; fail = nullptr;
-			  body = new PNoop;
+			  // S1 (sva-temporal): real |=> next-cycle implication.
+			  // See sister branch above for the full lowering.
+			  static unsigned sva_ant_uid_e_ = 0;
+			  char namebuf[64];
+			  snprintf(namebuf, sizeof namebuf, "__sva_ant_e_%u", sva_ant_uid_e_++);
+			  perm_string ant_name = lex_strings.make(namebuf);
+
+			  std::list<decl_assignment_t*> dlist;
+			  decl_assignment_t* da = new decl_assignment_t;
+			  da->name = pform_ident_t{ant_name, 0};
+			  dlist.push_back(da);
+			  vector_type_t* ant_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+			  FILE_NAME(ant_type, @1);
+			  pform_make_var(@1, &dlist, ant_type, nullptr, false);
+
+			  pform_name_t ant_hident;
+			  ant_hident.push_back(name_component_t(ant_name));
+			  PEIdent* ant_ref_check = pform_new_ident(@1, ant_hident);
+			  PEIdent* ant_ref_assign = pform_new_ident(@1, ant_hident);
+			  FILE_NAME(ant_ref_check, @1);
+			  FILE_NAME(ant_ref_assign, @1);
+
+			  PExpr* not_b = new PEUnary('!', $4->consequent);
+			  FILE_NAME(not_b, @1);
+			  PExpr* check_cond = new PEBLogic('a', ant_ref_check, not_b);
+			  FILE_NAME(check_cond, @1);
+			  PCondit* check_stmt = new PCondit(check_cond, fail, nullptr);
+			  FILE_NAME(check_stmt, @1);
+
+			  PAssignNB* capture = new PAssignNB(ant_ref_assign, $4->antecedent);
+			  FILE_NAME(capture, @1);
+
+			  std::vector<Statement*> stmts;
+			  stmts.push_back(check_stmt);
+			  stmts.push_back(capture);
+			  PBlock* blk = new PBlock(PBlock::BL_SEQ);
+			  blk->set_statement(stmts);
+			  FILE_NAME(blk, @1);
+			  body = blk;
 		    }
 		    if ($4->disable_iff_expr) {
 			  PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
@@ -3116,11 +3192,45 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  FILE_NAME(ifa, @1);
 			  body = ifa;
 		    } else {
-			  // |=>: skip to avoid wrong same-cycle check.
-			  delete $4->antecedent; $4->antecedent = nullptr;
-			  if ($4->consequent) { delete $4->consequent; $4->consequent = nullptr; }
-			  delete fail; fail = nullptr;
-			  body = new PNoop;
+			  // S1 (sva-temporal): real |=> next-cycle implication.
+			  // See sister branch above for the full lowering.
+			  static unsigned sva_ant_uid_e_ = 0;
+			  char namebuf[64];
+			  snprintf(namebuf, sizeof namebuf, "__sva_ant_e_%u", sva_ant_uid_e_++);
+			  perm_string ant_name = lex_strings.make(namebuf);
+
+			  std::list<decl_assignment_t*> dlist;
+			  decl_assignment_t* da = new decl_assignment_t;
+			  da->name = pform_ident_t{ant_name, 0};
+			  dlist.push_back(da);
+			  vector_type_t* ant_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+			  FILE_NAME(ant_type, @1);
+			  pform_make_var(@1, &dlist, ant_type, nullptr, false);
+
+			  pform_name_t ant_hident;
+			  ant_hident.push_back(name_component_t(ant_name));
+			  PEIdent* ant_ref_check = pform_new_ident(@1, ant_hident);
+			  PEIdent* ant_ref_assign = pform_new_ident(@1, ant_hident);
+			  FILE_NAME(ant_ref_check, @1);
+			  FILE_NAME(ant_ref_assign, @1);
+
+			  PExpr* not_b = new PEUnary('!', $4->consequent);
+			  FILE_NAME(not_b, @1);
+			  PExpr* check_cond = new PEBLogic('a', ant_ref_check, not_b);
+			  FILE_NAME(check_cond, @1);
+			  PCondit* check_stmt = new PCondit(check_cond, fail, nullptr);
+			  FILE_NAME(check_stmt, @1);
+
+			  PAssignNB* capture = new PAssignNB(ant_ref_assign, $4->antecedent);
+			  FILE_NAME(capture, @1);
+
+			  std::vector<Statement*> stmts;
+			  stmts.push_back(check_stmt);
+			  stmts.push_back(capture);
+			  PBlock* blk = new PBlock(PBlock::BL_SEQ);
+			  blk->set_statement(stmts);
+			  FILE_NAME(blk, @1);
+			  body = blk;
 		    }
 		    if ($4->disable_iff_expr) {
 			  PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
