@@ -1257,6 +1257,16 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
         // Search upwards from where the type was referenced
       scope = scope->find_typedef_scope(des, this);
       if (!scope) {
+	      // T3 fix: pform_find_interface_typedef synthesizes typedef_t
+	      // wrappers for interfaces on demand (so the lexer can return
+	      // TYPE_IDENTIFIER), but those typedefs are cached globally and
+	      // never registered in any scope.  find_typedef_scope therefore
+	      // returns null even though data_type is a valid interface_type_t.
+	      // Without this branch we fell through to the integer fallback,
+	      // making `module dut(my_if mif);` ports degrade to 32-bit.
+	      if (dynamic_cast<const interface_type_t*>(data_type.get()))
+		    return const_cast<data_type_t*>(data_type.get())->elaborate_type(des, 0);
+
 	      // Phase 63a/A5: UVM macros declare compiler-synthesized
 	      // typedefs like `__tmp_int_t__` (uvm_resource_defines.svh)
 	      // inside a begin/end block, then reference them as a

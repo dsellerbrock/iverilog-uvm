@@ -8493,16 +8493,40 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 						      par_wid, flags);
       }
 
-      if (!sr.net) {
+      // T3 fix: when a name resolves to BOTH an interface scope AND a net
+      // (the latter synthesized by `dut d(.mif(mif));` port connections),
+      // but ntype is a virtual-interface class, prefer the scope.  The
+      // net was created for the port wiring but is not what `virtual T`
+      // arguments need — we need the iface scope so %new/vif can build a
+      // real virtual-interface handle from it.
+      {
 	    const netclass_t*want_class = dynamic_cast<const netclass_t*>(ntype);
 	    if (want_class && want_class->is_interface()
-		&& sr.scope && sr.path_tail.empty()
-		&& sr.scope->is_interface()
-		&& sr.scope->module_name() == want_class->get_name()) {
-		  NetEScope*tmp = new NetEScope(sr.scope, ntype);
-		  tmp->set_line(*this);
-		  return tmp;
+		&& sr.path_tail.empty()) {
+		  NetScope*iface_scope = nullptr;
+		  if (sr.scope && sr.scope->is_interface()
+		      && sr.scope->module_name() == want_class->get_name())
+			iface_scope = sr.scope;
+		  // Also handle the case where sr.scope is the *parent* module
+		  // and the interface lives as a child scope (sr.net came from a
+		  // port-connection-synthesized net of the same name).
+		  if (!iface_scope && sr.scope) {
+			hname_t hn(path_.back().name);
+			if (NetScope*child = sr.scope->child(hn)) {
+			      if (child->is_interface()
+				  && child->module_name() == want_class->get_name())
+				    iface_scope = child;
+			}
+		  }
+		  if (iface_scope) {
+			NetEScope*tmp = new NetEScope(iface_scope, ntype);
+			tmp->set_line(*this);
+			return tmp;
+		  }
 	    }
+      }
+
+      if (!sr.net) {
 
 	    /* SV permits calling a 0-arg static function without parens:
 	         string s = MyClass::type_name;
