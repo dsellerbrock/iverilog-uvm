@@ -46,9 +46,23 @@ extern void pform_sva_emit_captures(const std::vector<pform_sva_capture_t>&caps,
 // the always block (and for handling captures from S2 if any).
 class Statement;
 class PExpr;
+struct sva_property_t;
 extern Statement* pform_sva_build_seq_delay(PExpr*ant, PExpr*cons,
                                             unsigned n_cyc,
                                             Statement*fail,
                                             unsigned line, const char*file);
+
+// S3: register a named `sequence ID; ...; endsequence` or
+// `property ID; ...; endproperty` declaration.  The body is stored
+// for later inline-substitution.  Re-registration with the same name
+// is a hard error.
+extern void pform_sva_register_named_property(perm_string name,
+                                              sva_property_t*body);
+
+// Look up a named sequence/property; returns the stored body (which
+// the caller takes ownership of) or nullptr if no such name was
+// registered or the name has already been consumed.  Marks the
+// stored entry as consumed so a second use produces nullptr.
+extern sva_property_t* pform_sva_take_named_property(perm_string name);
 
 #endif /* IVL_pform_sva_H */

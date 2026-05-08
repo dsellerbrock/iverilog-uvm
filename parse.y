@@ -45,6 +45,31 @@ class PSpecPath;
 
 extern void lex_end_table();
 
+/* S3 helper: if the property's antecedent is a bare PEIdent that names
+   a registered sequence/property, splice the stored body into *p.  No-op
+   otherwise.  Inherits clk_evt and disable_iff_expr from the stored
+   body when not already set in *p. */
+static void try_substitute_named_property_(sva_property_t*p)
+{
+      if (!p || !p->antecedent || p->op_type != 0 || p->consequent) return;
+      PEIdent*id = dynamic_cast<PEIdent*>(p->antecedent);
+      if (!id) return;
+      const pform_name_t&pn = id->path().name;
+      if (pn.size() != 1) return;
+      if (!pn.front().index.empty()) return;
+      perm_string nm = peek_head_name(pn);
+      sva_property_t*stored = pform_sva_take_named_property(nm);
+      if (!stored) return;
+      if (!p->clk_evt) p->clk_evt = stored->clk_evt;
+      if (!p->disable_iff_expr) p->disable_iff_expr = stored->disable_iff_expr;
+      delete p->antecedent;
+      p->antecedent = stored->antecedent;
+      p->consequent = stored->consequent;
+      p->op_type = stored->op_type;
+      p->delay_n = stored->delay_n;
+      delete stored;
+}
+
 static data_type_t* param_data_type = 0;
 static bool param_is_local = false;
 static bool param_is_type = false;
@@ -2971,6 +2996,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 	   Only when supported-assertions flag is on; with the older
 	   "unsupported" flag, behave as before (silent drop). */
 	if (gn_supported_assertions_flag && $4) {
+	      try_substitute_named_property_($4);
 	      // G05 (Phase 68): no clocking event → cannot create an
 	      // always block; skip assertion silently to avoid the
 	      // "always process does not have any delay" elab error.
@@ -3103,6 +3129,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
   | assert_or_assume K_property '(' property_spec ')' K_else statement_or_null
       { /* assert property (...) else <fail-action>; */
 	if (gn_supported_assertions_flag && $4) {
+	      try_substitute_named_property_($4);
 	      // G05 (Phase 68): no clocking event → skip silently.
 	      if (!$4->clk_evt) {
 		    delete $4->antecedent; delete $4->consequent;
@@ -3212,6 +3239,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
   | assert_or_assume K_property '(' property_spec ')' statement_or_null K_else statement_or_null
       { /* assert property (...) pass_action else fail_action (3-arg form). */
 	if (gn_supported_assertions_flag && $4) {
+	      try_substitute_named_property_($4);
 	      // G05: skip if no clocking event.
 	      if (!$4->clk_evt) {
 		    delete $4->antecedent; delete $4->consequent;
@@ -5243,25 +5271,36 @@ clocking_declaration
   /* SV `default disable iff (expr);` — silently accepted. */
   | K_default K_disable K_iff '(' expression ')' ';'
       { delete $5; }
-  /* SV `sequence ... endsequence` and `property ... endproperty` —
-     parsed and dropped. The temporal semantics are TODO; this lets
-     SVA-rich modules compile when they aren't gated behind SYNTHESIS.
-     We use bison error recovery to swallow the body as a black box.
-     The `yyerror` machinery does emit one message per block, but we
-     route through an inline note that's shown only with -gassertions. */
+  /* S3 (sva-temporal): real `sequence ID; ...; endsequence` and
+     `property ID; ...; endproperty`.  Named entity is stored in a
+     parse-time map and inline-substituted at the assertion-synthesis
+     site.  Hard-error on parameterized declarations / property
+     locals / multi-clock — those would be silent semantic loss. */
+  | K_sequence IDENTIFIER ';' property_spec ';' K_endsequence
+      { perm_string nm = lex_strings.make($2);
+	delete[]$2;
+	if ($4) pform_sva_register_named_property(nm, $4);
+      }
+  | K_property IDENTIFIER ';' property_spec ';' K_endproperty
+      { perm_string nm = lex_strings.make($2);
+	delete[]$2;
+	if ($4) pform_sva_register_named_property(nm, $4);
+      }
+  /* Hard-error parameterized variants — sv-tests honesty: don't
+     silently accept what we'd then misinterpret. */
+  | K_sequence IDENTIFIER '(' error ')' ';' property_spec ';' K_endsequence
+      { yyerror(@1, "sorry: parameterized `sequence ID(args)` not yet "
+                    "supported by sva-temporal."); delete[]$2; if ($7){delete $7;} }
+  | K_property IDENTIFIER '(' error ')' ';' property_spec ';' K_endproperty
+      { yyerror(@1, "sorry: parameterized `property ID(args)` not yet "
+                    "supported by sva-temporal."); delete[]$2; if ($7){delete $7;} }
+  /* Fallback: malformed sequence/property body — parse-error recovery. */
   | K_sequence error K_endsequence
-      { if (gn_supported_assertions_flag) {
-              /* silently recover */
-              error_count -= 1; /* offset the error from `error` token */
-        }
-        yyerrok;
-      }
+      { if (gn_supported_assertions_flag) error_count -= 1;
+        yyerrok; }
   | K_property error K_endproperty
-      { if (gn_supported_assertions_flag) {
-              error_count -= 1;
-        }
-        yyerrok;
-      }
+      { if (gn_supported_assertions_flag) error_count -= 1;
+        yyerrok; }
 
 clocking_item
   : port_direction list_of_identifiers ';'

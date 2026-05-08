@@ -17,6 +17,7 @@
 # include <cstdio>
 # include <cstring>
 # include <iostream>
+# include <map>
 
 using std::cerr;
 using std::endl;
@@ -330,6 +331,50 @@ Statement* pform_sva_build_seq_delay(PExpr*ant, PExpr*cons,
       blk->set_statement(stmts);
       FILE_NAME(blk, loc);
       return blk;
+}
+
+/*
+ * S3 named sequence / property registry.
+ *
+ * Single global map keyed by perm_string.  Real SV scopes named entities
+ * per-module/interface; for sva-temporal v1 we accept the simplification
+ * since chapter-16 tests use module-local definitions.  If two modules
+ * declare a sequence with the same name, second registration is rejected.
+ */
+
+static std::map<perm_string, sva_property_t*>& sva_named_properties_()
+{
+      static std::map<perm_string, sva_property_t*> m;
+      return m;
+}
+
+void pform_sva_register_named_property(perm_string name,
+                                       sva_property_t*body)
+{
+      auto&m = sva_named_properties_();
+      if (m.find(name) != m.end()) {
+            cerr << "sorry: SVA named sequence/property `" << name.str()
+                 << "' already declared." << endl;
+            return;
+      }
+      m[name] = body;
+}
+
+sva_property_t* pform_sva_take_named_property(perm_string name)
+{
+      auto&m = sva_named_properties_();
+      auto it = m.find(name);
+      if (it == m.end()) return nullptr;
+      sva_property_t*p = it->second;
+      if (!p) {
+            // Already consumed.
+            cerr << "sorry: SVA named sequence/property `" << name.str()
+                 << "' already used elsewhere; multi-use is not yet "
+                 << "supported." << endl;
+            return nullptr;
+      }
+      it->second = nullptr;  // mark consumed
+      return p;
 }
 
 void pform_sva_emit_captures(const std::vector<pform_sva_capture_t>&caps,
