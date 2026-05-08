@@ -3625,23 +3625,48 @@ static vvp_context_t find_stacked_context_match_(vvp_context_t candidate,
                                                  const char*where,
                                                  MatchFn match_fn)
 {
-      /* P3 perf: replace per-call std::set<vvp_context_t> allocation with
-       * a bounded iteration count.  vvp_get_stacked_context follows a
-       * forward link that should never cycle in well-formed chains; the
-       * cycle detection was defensive paranoia.  This function fires per
-       * object signal recv_object — under running OT smoke that's ~50%
-       * of CPU.  Bounding by depth catches corruption cheaply with no
-       * malloc per call. */
-      const unsigned MAX_CHAIN_DEPTH = 4096;
-      unsigned depth = 0;
+      /* P3 perf: avoid the per-call std::set<vvp_context_t> allocation in
+       * the typical case (short chains).  Walk the chain with a small
+       * stack-allocated array first; if it overflows (chain longer than
+       * the typical OT smoke depth), promote to a heap set for cycle
+       * detection on the deeper portion.
+       *
+       * vvp_get_stacked_context follows a forward link that should not
+       * cycle, but post_apply_reset's nested fork blocks legitimately
+       * produce chains with shared contexts seen multiple times — that's
+       * a real cycle, not corruption — so we still need the detection.
+       * Just not malloc per call. */
+      vvp_context_t small_seen[64];
+      unsigned small_count = 0;
+      std::set<vvp_context_t> *big_seen = nullptr;
       for (vvp_context_t cur = candidate ; cur ; cur = vvp_get_stacked_context(cur)) {
-            if (++depth > MAX_CHAIN_DEPTH) {
-                  warn_stacked_context_cycle_(where, ctx_scope, candidate, cur);
-                  return 0;
+            if (small_count < 64) {
+                  bool dup = false;
+                  for (unsigned i = 0; i < small_count; ++i) {
+                        if (small_seen[i] == cur) { dup = true; break; }
+                  }
+                  if (dup) {
+                        warn_stacked_context_cycle_(where, ctx_scope, candidate, cur);
+                        delete big_seen;
+                        return 0;
+                  }
+                  small_seen[small_count++] = cur;
+            } else {
+                  if (!big_seen) {
+                        big_seen = new std::set<vvp_context_t>(small_seen, small_seen + 64);
+                  }
+                  if (!big_seen->insert(cur).second) {
+                        warn_stacked_context_cycle_(where, ctx_scope, candidate, cur);
+                        delete big_seen;
+                        return 0;
+                  }
             }
-            if (match_fn(cur))
+            if (match_fn(cur)) {
+                  delete big_seen;
                   return cur;
+            }
       }
+      delete big_seen;
       return 0;
 }
 
@@ -4208,13 +4233,25 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
         /* Allocate a context. */
       vvp_context_t child_context = vthread_alloc_context(ctx_scope);
 
-        /* If this context is being reused from the free list, scrub any
-           stale references to the same storage out of the current thread's
-           stacked chains before pushing it again. */
-      thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context,
-                                                           child_context);
-      thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context,
-                                                           child_context);
+        /* P3d perf: only scrub stale chain references when there's a
+           plausible chance the new child_context appears in the chain.
+           vthread_alloc_context resets stacked_context to 0 on both the
+           freshly-malloced and freelist-reused paths, so the only way
+           child_context can appear in thr->wt_context/rd_context is if
+           the same storage was previously stacked.  context_on_stacked_chain_
+           is the same chain walk; do it once cheaply per side and only
+           remove when found.  Saves two O(K) walks per of_ALLOC under
+           OT smoke (~40% of CPU pre-P3d). */
+      if (thr->wt_context && context_on_stacked_chain_(thr->wt_context,
+                                                       child_context, ctx_scope,
+                                                       "alloc-scrub-wt"))
+            thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context,
+                                                                 child_context);
+      if (thr->rd_context && thr->rd_context != thr->wt_context
+          && context_on_stacked_chain_(thr->rd_context, child_context, ctx_scope,
+                                       "alloc-scrub-rd"))
+            thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context,
+                                                                 child_context);
 
         /* Push the allocated context onto the write context stack. */
       vvp_set_stacked_context(child_context, thr->wt_context);
@@ -4826,6 +4863,16 @@ static bool scope_has_own_automatic_context_(__vpiScope*scope)
 
 static __vpiScope* resolve_context_scope(__vpiScope*scope)
 {
+      /* P3c perf: cache the resolution.  This function is called from
+       * of_ALLOC, of_FREE, vthread_get_*_context_item, sanitize_*, etc.
+       * — under running OT smoke, of_ALLOC alone hits 27/30 SIGUSR1
+       * samples.  Scope hierarchies don't change post-elaboration so
+       * the cache never needs invalidation. */
+      static unordered_map<__vpiScope*, __vpiScope*> cache_;
+      auto cached = cache_.find(scope);
+      if (cached != cache_.end())
+            return cached->second;
+
       __vpiScope*orig_scope = scope;
       __vpiScope*ctx_scope = scope;
 
@@ -4837,13 +4884,17 @@ static __vpiScope* resolve_context_scope(__vpiScope*scope)
             ctx_scope = ctx_scope->scope;
       }
 
-      if (!ctx_scope)
-            return orig_scope;
-
-      while (!scope_has_own_automatic_context_(ctx_scope)
-             && ctx_scope->scope && ctx_scope->scope->is_automatic())
-            ctx_scope = ctx_scope->scope;
-      return ctx_scope;
+      __vpiScope*result;
+      if (!ctx_scope) {
+            result = orig_scope;
+      } else {
+            while (!scope_has_own_automatic_context_(ctx_scope)
+                   && ctx_scope->scope && ctx_scope->scope->is_automatic())
+                  ctx_scope = ctx_scope->scope;
+            result = ctx_scope;
+      }
+      cache_[orig_scope] = result;
+      return result;
 }
 
 static bool flow_trace_enabled_()
