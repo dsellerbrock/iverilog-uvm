@@ -279,6 +279,11 @@ class __vpiScope : public __vpiHandle {
       unsigned def_file_idx;
       unsigned def_lineno;
       bool is_cell;
+	/* Lazily-computed cache for vpi_get_str(vpiFullName).  Filled on
+	 * first access in scope_get_str(); scope hierarchies are immutable
+	 * post-elaboration so no invalidation is needed.  Stays nullptr
+	 * until requested. */
+      char *cached_fullname;
 	/* The scope has a system time of its own. */
       __vpiScopedTime scoped_time;
       struct __vpiScopedSTime scoped_stime;

@@ -165,19 +165,42 @@ void root_table_delete(void)
 }
 #endif
 
-static void construct_scope_fullname(__vpiScope*ref, char*buf)
+/* Fill `buf` with `ref`'s full hierarchical name and return the pointer
+ * one past the trailing NUL.  Walks parents iteratively + appends names
+ * in order, so the total cost is O(D + L) per call (was O(D × L) when
+ * each level called strcat). */
+static char* construct_scope_fullname(__vpiScope*ref, char*buf, size_t cap)
 {
-      if (ref->scope) {
-	    construct_scope_fullname(ref->scope, buf);
-	      // Add a "." separator, unless this is for a package
-	    if (ref->scope->get_type_code() != vpiPackage) {
-		  strcat(buf, ".");
+      __vpiScope *chain[64];
+      unsigned depth = 0;
+      for (__vpiScope*p = ref; p; p = p->scope) {
+	    if (depth >= sizeof chain / sizeof chain[0]) {
+		    // Pathologically deep — fall back to a slower strcat path.
+		  while (p) { chain[depth++ % (sizeof chain / sizeof chain[0])] = p; p = p->scope; }
+		  break;
+	    }
+	    chain[depth++] = p;
+      }
+      char*end = buf;
+      char*limit = buf + cap;
+      bool first = true;
+      for (int i = (int)depth - 1; i >= 0; i--) {
+	    __vpiScope*s = chain[i];
+	    if (!first) {
+		  if (s->scope && s->scope->get_type_code() != vpiPackage) {
+			if (end + 1 < limit) *end++ = '.';
+		  }
+	    }
+	    first = false;
+	    const char*nm = s->scope_name();
+	    while (*nm && end + 1 < limit) *end++ = *nm++;
+	    if (s->get_type_code() == vpiPackage) {
+		  if (end + 2 < limit) { *end++ = ':'; *end++ = ':'; }
 	    }
       }
-
-      strcat(buf, ref->scope_name());
-	// For a package, add a "::" to the end
-      if (ref->get_type_code() == vpiPackage) strcat(buf, "::");
+      if (end < limit) *end = 0;
+      else *(limit - 1) = 0;
+      return end;
 }
 
 static const char* scope_get_type(int code)
@@ -218,9 +241,11 @@ static char* scope_get_str(int code, vpiHandle obj)
 	    break;
 
 	  case vpiFullName:
-	    buf[0] = 0;
-	    construct_scope_fullname(ref, buf);
-	    p = buf;
+	    if (!ref->cached_fullname) {
+		  construct_scope_fullname(ref, buf, sizeof buf);
+		  ref->cached_fullname = strdup(buf);
+	    }
+	    p = ref->cached_fullname;
 	    break;
 
 	  case vpiName:
@@ -339,7 +364,7 @@ static vpiHandle module_iter(int code, vpiHandle obj)
 
 
 __vpiScope::__vpiScope(const char*nam, const char*tnam, bool auto_flag)
-: is_automatic_(auto_flag)
+: cached_fullname(nullptr), is_automatic_(auto_flag)
 {
       name_ = vpip_name_string(nam);
       tname_ = vpip_name_string(tnam? tnam : "");
