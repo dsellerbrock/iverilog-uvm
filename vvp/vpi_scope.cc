@@ -224,11 +224,8 @@ static const char* scope_get_type(int code)
       }
 }
 
-static char* scope_get_str(int code, vpiHandle obj)
+static char* scope_get_str(int code, __vpiScope*ref)
 {
-      __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
-      assert(ref);
-
       char buf[4096];  // XXX is a fixed buffer size really reliable?
       const char *p=0;
       switch (code) {
