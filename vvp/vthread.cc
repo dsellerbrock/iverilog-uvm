@@ -2767,15 +2767,21 @@ template vvp_vector4_t coerce_to_width(const vvp_vector4_t&that,
  * Keep a best-effort owner map for automatic contexts so we can free
  * through the allocating scope even if callers pass a mismatched scope.
  */
-static map<vvp_context_t, __vpiScope*> automatic_context_owner;
-static map<vvp_context_t, unsigned> automatic_context_refcount;
+/* P3 perf: switched from std::map to std::unordered_map.  These maps
+ * are looked up O(K) times per object-signal recv (vthread_recover_context_for_scope
+ * + first_live_context_for_scope chain walks), which under T1+T2+T3
+ * smoke now actually executes — a SIGUSR1 sample on running smoke shows
+ * ~50% of frames in vthread_recover_context_for_scope.  Hashing for
+ * O(1) avg lookup over the prior O(log N). */
+static unordered_map<vvp_context_t, __vpiScope*> automatic_context_owner;
+static unordered_map<vvp_context_t, unsigned> automatic_context_refcount;
 
 static void retain_automatic_context_(vvp_context_t context)
 {
       if (!context)
             return;
 
-      map<vvp_context_t, unsigned>::iterator ref_it =
+      unordered_map<vvp_context_t, unsigned>::iterator ref_it =
             automatic_context_refcount.find(context);
       if (ref_it == automatic_context_refcount.end()) {
             automatic_context_refcount[context] = 1;
@@ -2857,14 +2863,14 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
       if (!context)
             return;
 
-      map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
+      unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
       if (owner_it != automatic_context_owner.end()) {
             __vpiScope*owner = owner_it->second;
             if (owner && owner != scope && owner->is_automatic())
                   scope = owner;
       }
 
-      map<vvp_context_t, unsigned>::iterator ref_it =
+      unordered_map<vvp_context_t, unsigned>::iterator ref_it =
             automatic_context_refcount.find(context);
       if (ref_it != automatic_context_refcount.end()) {
             if (ref_it->second > 1) {
@@ -3570,7 +3576,7 @@ static bool context_live_in_owner(vvp_context_t context)
 {
       if (!context)
             return false;
-      map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
+      unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
       if (owner_it == automatic_context_owner.end())
             return false;
       __vpiScope*owner = owner_it->second;
@@ -3587,7 +3593,7 @@ static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_sc
       if (!(ctx_scope && ctx_scope->is_automatic()))
             return context_live_in_owner(context);
 
-      map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
+      unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
       if (owner_it == automatic_context_owner.end())
             return false;
       if (owner_it->second != ctx_scope)
@@ -3619,9 +3625,17 @@ static vvp_context_t find_stacked_context_match_(vvp_context_t candidate,
                                                  const char*where,
                                                  MatchFn match_fn)
 {
-      std::set<vvp_context_t> seen;
+      /* P3 perf: replace per-call std::set<vvp_context_t> allocation with
+       * a bounded iteration count.  vvp_get_stacked_context follows a
+       * forward link that should never cycle in well-formed chains; the
+       * cycle detection was defensive paranoia.  This function fires per
+       * object signal recv_object — under running OT smoke that's ~50%
+       * of CPU.  Bounding by depth catches corruption cheaply with no
+       * malloc per call. */
+      const unsigned MAX_CHAIN_DEPTH = 4096;
+      unsigned depth = 0;
       for (vvp_context_t cur = candidate ; cur ; cur = vvp_get_stacked_context(cur)) {
-            if (!seen.insert(cur).second) {
+            if (++depth > MAX_CHAIN_DEPTH) {
                   warn_stacked_context_cycle_(where, ctx_scope, candidate, cur);
                   return 0;
             }
@@ -3677,7 +3691,7 @@ static vvp_context_t remove_context_from_stacked_chain_(vvp_context_t head,
                    * Discriminator: refcount > 1 means at least one other thread
                    * retains the same context (Phase 59 self-pin or forkv-inherit
                    * retain_context_chain_). */
-                  map<vvp_context_t, unsigned>::const_iterator ref_it =
+                  unordered_map<vvp_context_t, unsigned>::const_iterator ref_it =
                         automatic_context_refcount.find(cur);
                   bool shared = (ref_it != automatic_context_refcount.end()
                                  && ref_it->second > 1);
@@ -3717,7 +3731,7 @@ static vvp_context_t first_live_stacked_context(vvp_context_t candidate, __vpiSc
       return find_stacked_context_match_(candidate, ctx_scope,
                   "first_live_stacked_context(owner)",
                   [](vvp_context_t cur) {
-                        map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+                        unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
                               automatic_context_owner.find(cur);
                         if (owner_it == automatic_context_owner.end())
                               return false;
@@ -3735,7 +3749,7 @@ static vvp_context_t first_live_context_for_scope(vvp_context_t candidate, __vpi
       return find_stacked_context_match_(candidate, ctx_scope,
                   "first_live_context_for_scope",
                   [ctx_scope](vvp_context_t cur) {
-                        map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+                        unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
                               automatic_context_owner.find(cur);
                         if (owner_it == automatic_context_owner.end())
                               return false;
@@ -4100,7 +4114,7 @@ static void release_owned_context_(vthread_t thr)
       while (owned) {
             vvp_context_t next_owned = vvp_get_stacked_context(owned);
             __vpiScope*ctx_scope = resolve_context_scope(thr->parent_scope);
-            map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+            unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
                   automatic_context_owner.find(owned);
             if (owner_it != automatic_context_owner.end() && owner_it->second)
                   ctx_scope = owner_it->second;
@@ -4965,13 +4979,13 @@ static void trace_context_event_(const char*where, vthread_t thr,
             return;
 
       if (thr && thr->wt_context) {
-            map<vvp_context_t, __vpiScope*>::const_iterator wt_owner_it =
+            unordered_map<vvp_context_t, __vpiScope*>::const_iterator wt_owner_it =
                   automatic_context_owner.find(thr->wt_context);
             if (wt_owner_it != automatic_context_owner.end())
                   wt_owner_name = scope_name_or_unknown_(wt_owner_it->second);
       }
       if (thr && thr->rd_context) {
-            map<vvp_context_t, __vpiScope*>::const_iterator rd_owner_it =
+            unordered_map<vvp_context_t, __vpiScope*>::const_iterator rd_owner_it =
                   automatic_context_owner.find(thr->rd_context);
             if (rd_owner_it != automatic_context_owner.end())
                   rd_owner_name = scope_name_or_unknown_(rd_owner_it->second);
@@ -8739,7 +8753,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
                                   ? thr->skip_free_scope : ctx_scope;
             vvp_context_t saved_skip_next = vvp_get_stacked_context(skip_context);
             bool retain_skip_chain = false;
-            map<vvp_context_t, unsigned>::const_iterator ref_it =
+            unordered_map<vvp_context_t, unsigned>::const_iterator ref_it =
                   automatic_context_refcount.find(skip_context);
             if (ref_it != automatic_context_refcount.end() && ref_it->second > 1)
                   retain_skip_chain = true;
@@ -9304,7 +9318,7 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
 		      // is OK if the child context is distinct (See %exec_ufunc.)
 		    if (child->wt_context && thr->wt_context == child->wt_context) {
 			  vvp_context_t child_context = child->wt_context;
-			  map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+			  unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
 				automatic_context_owner.find(child_context);
 			  __vpiScope*child_context_scope =
 				(owner_it != automatic_context_owner.end())
