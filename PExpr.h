@@ -849,6 +849,8 @@ class PEUnary : public PExpr {
     public:
       inline char get_op() const { return op_; }
       inline PExpr*get_expr() const { return expr_; }
+      // For SVA sampled-value rewriting (S2): replace child in place.
+      inline void set_expr(PExpr*ne) { expr_ = ne; }
 
     private:
       NetExpr* elaborate_expr_bits_(NetExpr*operand, unsigned expr_wid) const;
@@ -880,6 +882,9 @@ class PEBinary : public PExpr {
       inline char   get_op()    const { return op_; }
       inline PExpr* get_left()  const { return left_; }
       inline PExpr* get_right() const { return right_; }
+      // For SVA sampled-value rewriting (S2): replace children in place.
+      inline void   set_left(PExpr*ne)  { left_ = ne; }
+      inline void   set_right(PExpr*ne) { right_ = ne; }
 
     protected:
       char op_;
@@ -1032,6 +1037,15 @@ class PETernary : public PExpr {
 		                     unsigned expr_wid,
                                      unsigned flags) const override;
 
+    public:
+      // For SVA sampled-value rewriting (S2): expose children for in-place rewrite.
+      inline PExpr* get_test() const { return expr_; }
+      inline PExpr* get_true() const { return tru_; }
+      inline PExpr* get_false() const { return fal_; }
+      inline void set_test (PExpr*ne) { expr_ = ne; }
+      inline void set_true (PExpr*ne) { tru_  = ne; }
+      inline void set_false(PExpr*ne) { fal_  = ne; }
+
     private:
       NetExpr* elab_and_eval_alternative_(Design*des, NetScope*scope,
 					  PExpr*expr, unsigned expr_wid,
@@ -1094,6 +1108,11 @@ class PECallFunction : public PExpr {
             { return with_constraints_; }
 
       void set_subject(PExpr*s) { subject_expr_ = s; }
+
+      // For SVA sampled-value rewriting (S2): expose name + parms.
+      const pform_scoped_name_t& get_path_() const { return path_; }
+      std::vector<named_pexpr_t>& get_parms_() { return parms_; }
+      const std::vector<named_pexpr_t>& get_parms_() const { return parms_; }
 
     private:
       pform_scoped_name_t path_;

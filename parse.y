@@ -32,6 +32,7 @@
 # include  "PSpec.h"
 # include  "PTimingCheck.h"
 # include  "PPackage.h"
+# include  "pform_sva.h"
 # include  <stack>
 # include  <set>
 # include  <cstring>
@@ -2978,6 +2979,12 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 		    delete $4->disable_iff_expr; delete $4;
 		    delete $6;
 	      } else {
+		    // S2: rewrite SVA sampled-value calls in antecedent/
+		    // consequent and accumulate per-call capture entries
+		    // so the synthesized always block can update history.
+		    std::vector<pform_sva_capture_t> sva_caps;
+		    pform_sva_rewrite_sampling($4->antecedent, sva_caps);
+		    pform_sva_rewrite_sampling($4->consequent, sva_caps);
 		    // Default fail action: $error("...")
 		    std::list<named_pexpr_t> arg_list;
 		    PCallTask*fail = new PCallTask(lex_strings.make("$error"), arg_list);
@@ -3047,6 +3054,17 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  FILE_NAME(blk, @1);
 			  body = blk;
 		    }
+		    // S2: append sampled-value history captures so $past
+		    // and friends see the right value next cycle.
+		    if (!sva_caps.empty()) {
+			  std::vector<Statement*> all_stmts;
+			  all_stmts.push_back(body);
+			  pform_sva_emit_captures(sva_caps, all_stmts);
+			  PBlock* sblk = new PBlock(PBlock::BL_SEQ);
+			  sblk->set_statement(all_stmts);
+			  FILE_NAME(sblk, @1);
+			  body = sblk;
+		    }
 		    // disable iff guard
 		    if ($4->disable_iff_expr) {
 			  PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
@@ -3086,6 +3104,10 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 		    delete $4->disable_iff_expr; delete $4;
 		    delete $7;
 	      } else {
+		    // S2: rewrite SVA sampled-value calls (see comment above).
+		    std::vector<pform_sva_capture_t> sva_caps;
+		    pform_sva_rewrite_sampling($4->antecedent, sva_caps);
+		    pform_sva_rewrite_sampling($4->consequent, sva_caps);
 		    Statement*fail = $7 ? $7 : new PNoop;
 		    Statement*body = nullptr;
 		    if ($4->op_type == 0) {
@@ -3141,6 +3163,16 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  FILE_NAME(blk, @1);
 			  body = blk;
 		    }
+		    // S2: append sampled-value history captures.
+		    if (!sva_caps.empty()) {
+			  std::vector<Statement*> all_stmts;
+			  all_stmts.push_back(body);
+			  pform_sva_emit_captures(sva_caps, all_stmts);
+			  PBlock* sblk = new PBlock(PBlock::BL_SEQ);
+			  sblk->set_statement(all_stmts);
+			  FILE_NAME(sblk, @1);
+			  body = sblk;
+		    }
 		    if ($4->disable_iff_expr) {
 			  PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
 			  FILE_NAME(ndis, @1);
@@ -3176,6 +3208,10 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 		    delete $4->disable_iff_expr; delete $4;
 		    delete $6; delete $8;
 	      } else {
+		    // S2: rewrite SVA sampled-value calls (see comment above).
+		    std::vector<pform_sva_capture_t> sva_caps;
+		    pform_sva_rewrite_sampling($4->antecedent, sva_caps);
+		    pform_sva_rewrite_sampling($4->consequent, sva_caps);
 		    // Use the fail-action ($8); drop the pass-action ($6).
 		    Statement*fail = $8 ? $8 : new PNoop;
 		    Statement*body = nullptr;
@@ -3231,6 +3267,16 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  blk->set_statement(stmts);
 			  FILE_NAME(blk, @1);
 			  body = blk;
+		    }
+		    // S2: append sampled-value history captures.
+		    if (!sva_caps.empty()) {
+			  std::vector<Statement*> all_stmts;
+			  all_stmts.push_back(body);
+			  pform_sva_emit_captures(sva_caps, all_stmts);
+			  PBlock* sblk = new PBlock(PBlock::BL_SEQ);
+			  sblk->set_statement(all_stmts);
+			  FILE_NAME(sblk, @1);
+			  body = sblk;
 		    }
 		    if ($4->disable_iff_expr) {
 			  PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
