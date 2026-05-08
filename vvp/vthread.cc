@@ -3669,7 +3669,20 @@ static vvp_context_t remove_context_from_stacked_chain_(vvp_context_t head,
                         vvp_set_stacked_context(prev, next);
                   else
                         new_head = next;
-                  vvp_set_stacked_context(cur, 0);
+                  /* T2 (chapter-16-closure): only zero needle's own stacked
+                   * link if no other thread retains it.  Multiple threads can
+                   * share contexts via fork inheritance — clearing the needle's
+                   * stacked link here would break those other chains, leaving
+                   * a downstream frame's chain disconnected mid-execution.
+                   * Discriminator: refcount > 1 means at least one other thread
+                   * retains the same context (Phase 59 self-pin or forkv-inherit
+                   * retain_context_chain_). */
+                  map<vvp_context_t, unsigned>::const_iterator ref_it =
+                        automatic_context_refcount.find(cur);
+                  bool shared = (ref_it != automatic_context_refcount.end()
+                                 && ref_it->second > 1);
+                  if (!shared)
+                        vvp_set_stacked_context(cur, 0);
                   break;
             }
 
