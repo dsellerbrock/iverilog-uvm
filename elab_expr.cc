@@ -12680,6 +12680,14 @@ NetExpr* PETernary::elab_and_eval_alternative_(Design*des, NetScope*scope,
 unsigned PETypename::test_width(Design*des, NetScope*, width_mode_t&)
 {
       if (gn_system_verilog()) {
+	    if (dynamic_cast<const type_of_t*>(data_type_)) {
+		  // type(X) — returns a 64-bit type-identity hash
+		  expr_type_   = IVL_VT_LOGIC;
+		  expr_width_  = 64;
+		  min_width_   = 64;
+		  signed_flag_ = false;
+		  return expr_width_;
+	    }
             // Compile-progress fallback for UVM `uvm_typename(T)`-style macro
             // expansions that leave bare type names in string expressions.
           expr_type_   = IVL_VT_STRING;
@@ -12700,9 +12708,31 @@ unsigned PETypename::test_width(Design*des, NetScope*, width_mode_t&)
       return expr_width_;
 }
 
+static uint64_t type_to_hash_(ivl_type_t t)
+{
+      if (!t) return 0;
+      ivl_variable_type_t bt = t->base_type();
+      if (const netvector_t*nv = dynamic_cast<const netvector_t*>(t)) {
+	    long w  = nv->packed_width();
+	    unsigned sg = nv->get_signed() ? 1u : 0u;
+	    return ((uint64_t)bt << 24) | ((uint64_t)(unsigned long)w << 1) | sg;
+      }
+      return ((uint64_t)bt << 32) ^ (uint64_t)(uintptr_t)t;
+}
+
 NetExpr*PETypename::elaborate_expr(Design*des, NetScope*scope_in,
 				   ivl_type_t want_type, unsigned flags) const
 {
+      if (const type_of_t*tot = dynamic_cast<const type_of_t*>(data_type_)) {
+	    ivl_type_t t = tot->inner_
+		  ? const_cast<data_type_t*>(tot->inner_)->elaborate_type(des, scope_in)
+		  : nullptr;
+	    uint64_t hash = type_to_hash_(t);
+	    NetEConst*result = new NetEConst(verinum((uint64_t)hash, 64));
+	    result->set_line(*this);
+	    return result;
+      }
+
       // Phase 46 / iface name shadow: when an interface instance shares its
       // name with the interface type (the canonical OpenTitan tb pattern,
       // `clk_rst_if clk_rst_if(.clk, .rst_n);`), the parser ambiguously

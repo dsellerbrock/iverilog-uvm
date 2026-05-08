@@ -429,6 +429,18 @@ ivl_type_t void_type_t::elaborate_type_raw(Design*, NetScope*) const
       return new netvector_t(IVL_VT_LOGIC);
 }
 
+type_of_t::~type_of_t()
+{
+      delete inner_;
+}
+
+ivl_type_t type_of_t::elaborate_type_raw(Design*des, NetScope*scope) const
+{
+      if (inner_)
+	    return const_cast<data_type_t*>(inner_)->elaborate_type(des, scope);
+      return new netvector_t(IVL_VT_LOGIC);
+}
+
 ivl_type_t atom_type_t::elaborate_type_raw(Design*des, NetScope*) const
 {
       switch (type_code) {

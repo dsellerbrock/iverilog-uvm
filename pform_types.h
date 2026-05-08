@@ -248,6 +248,17 @@ struct void_type_t : public data_type_t {
       ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
 };
 
+/* type_of_t: represents the 'type(X)' operator (IEEE 1800-2017 §6.23).
+ * Wraps the inner data_type for elaboration.  When used in expression context
+ * via PETypename::elaborate_expr, a stable 64-bit type-identity hash is
+ * returned so that type(T) === type(logic[11:0]) compares correctly. */
+struct type_of_t : public data_type_t {
+      explicit type_of_t(data_type_t*inner) : inner_(inner) { }
+      ~type_of_t() override;
+      ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
+      data_type_t*inner_;
+};
+
 /*
  * The enum_type_t holds the parsed declaration to represent an
  * enumeration. Since this is in the pform, it represents the type

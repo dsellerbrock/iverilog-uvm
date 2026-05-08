@@ -3904,12 +3904,22 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 	$$ = tmp;
       }
   | K_type '(' expression ')'
-      { /* IEEE 1800-2017 §6.23: type() operator — use logic as placeholder
-           (full type-inference not yet implemented). */
+      { /* IEEE 1800-2017 §6.23: type() operator — wrap inner data_type in
+           type_of_t so type(T) expressions carry the real type identity. */
+	data_type_t*dt = nullptr;
+	if (PETypename*pt = dynamic_cast<PETypename*>($3)) {
+	      dt = pt->get_type();
+	}
 	delete $3;
-	vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	if (dt) {
+	      type_of_t*tmp = new type_of_t(dt);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	} else {
+	      vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	}
       }
   ;
 
