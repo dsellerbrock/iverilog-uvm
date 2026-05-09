@@ -1147,17 +1147,60 @@ Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
                   FILE_NAME(chk, loc);
                   return chk;
             }
-            if (sub->kind != sva_seq_t::SEQ_CONCAT
-                || !is_pure_bool_(sub->kids_[0])
-                || !is_pure_bool_(sub->kids_[1])
-                || sub->unbounded_hi) {
+            // Fuse `bool throughout INTERSECT(CONCAT, CONCAT)` to
+            // `bool throughout CONCAT(shared_ant, conj_cons, s_lo,
+            // s_hi)` when the two CONCATs share the same first cond.
+            // This handles `gnt2 throughout (req ##5 gnt0) intersect
+            // (req ##[1:9] gnt1)` cleanly.
+            sva_seq_t*fused = nullptr;
+            if (sub->kind == sva_seq_t::SEQ_INTERSECT
+                && sub->kids_.size() == 2
+                && sub->kids_[0]->kind == sva_seq_t::SEQ_CONCAT
+                && sub->kids_[1]->kind == sva_seq_t::SEQ_CONCAT
+                && is_pure_bool_(sub->kids_[0]->kids_[0])
+                && is_pure_bool_(sub->kids_[0]->kids_[1])
+                && is_pure_bool_(sub->kids_[1]->kids_[0])
+                && is_pure_bool_(sub->kids_[1]->kids_[1])
+                && !sub->kids_[0]->unbounded_hi
+                && !sub->kids_[1]->unbounded_hi) {
+                  unsigned s_lo = std::max(sub->kids_[0]->n_lo,
+                                            sub->kids_[1]->n_lo);
+                  unsigned s_hi = std::min(sub->kids_[0]->n_hi,
+                                            sub->kids_[1]->n_hi);
+                  if (s_hi >= s_lo) {
+                        // Build a fused SEQ_CONCAT.  The shared first
+                        // cond is the AND of both first conds (which
+                        // for chapter-16 is `req && req` = `req`); the
+                        // merged consequent is AND of both second conds.
+                        PExpr*a_ant = clone_pe_or_share_(sub->kids_[0]->kids_[0]->expr_);
+                        PExpr*b_ant = clone_pe_or_share_(sub->kids_[1]->kids_[0]->expr_);
+                        PExpr*ant_and = new PEBLogic('a', a_ant, b_ant);
+                        FILE_NAME(ant_and, loc);
+                        PExpr*a_cons = clone_pe_or_share_(sub->kids_[0]->kids_[1]->expr_);
+                        PExpr*b_cons = clone_pe_or_share_(sub->kids_[1]->kids_[1]->expr_);
+                        PExpr*cons_and = new PEBLogic('a', a_cons, b_cons);
+                        FILE_NAME(cons_and, loc);
+                        sva_seq_t*ant_node = sva_seq_make_bool(ant_and);
+                        sva_seq_t*cons_node = sva_seq_make_bool(cons_and);
+                        fused = sva_seq_make_concat(ant_node, cons_node, s_lo, s_hi, false);
+                  }
+            }
+            const sva_seq_t*effective_sub = fused ? fused : sub;
+            if (effective_sub->kind != sva_seq_t::SEQ_CONCAT
+                || !is_pure_bool_(effective_sub->kids_[0])
+                || !is_pure_bool_(effective_sub->kids_[1])
+                || effective_sub->unbounded_hi) {
+                  if (fused) sva_seq_free(fused);
                   cerr << file << ":" << line << ": sorry: SVA `throughout'"
                        << " currently supports `expr throughout"
-                       << " (a ##N..M b)' or `expr throughout bool'."
-                       << endl;
+                       << " (a ##N..M b)', `expr throughout bool', or"
+                       << " `expr throughout (X intersect Y)' where X"
+                       << " and Y are bounded a##Nb sub-sequences." << endl;
                   return nullptr;
             }
-            return synth_throughout_(guard, sub, fail, loc);
+            Statement*body = synth_throughout_(guard, effective_sub, fail, loc);
+            if (fused) sva_seq_free(fused);
+            return body;
           }
 
           // SEQ_REPEAT migrated to the framework — handled above.

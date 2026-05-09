@@ -46,10 +46,66 @@ class PSpecPath;
 
 extern void lex_end_table();
 
+/* S3 helper: try to splice a registered named sequence/property where
+   `node` is a SEQ_BOOL whose expr is a bare PEIdent matching a name.
+   Returns the (possibly new) sva_seq_t* node.  If no substitution
+   happens, returns the original.  Caller owns the result. */
+static sva_seq_t* try_substitute_seq_node_(sva_seq_t*node)
+{
+      if (!node) return node;
+      if (node->kind != sva_seq_t::SEQ_BOOL || !node->expr_) return node;
+      PEIdent*id = dynamic_cast<PEIdent*>(node->expr_);
+      if (!id) return node;
+      const pform_name_t&pn = id->path().name;
+      if (pn.size() != 1) return node;
+      if (!pn.front().index.empty()) return node;
+      perm_string nm = peek_head_name(pn);
+      sva_property_t*stored = pform_sva_take_named_property(nm);
+      if (!stored) return node;
+      // The named entity must have a sva_seq_t form to splice into a
+      // seq tree.  If it's a legacy op_type=0/1/2/3 (PExpr-only), wrap
+      // into SEQ_BOOL/SEQ_CONCAT as appropriate.
+      sva_seq_t*body = stored->seq_form;
+      stored->seq_form = nullptr;  // detach (we own body now)
+      if (!body) {
+            // Legacy: build seq tree from antecedent/consequent/op_type.
+            if (stored->op_type == 0 && stored->antecedent) {
+                  body = sva_seq_make_bool(stored->antecedent);
+                  stored->antecedent = nullptr;
+            }
+            // Other legacy op_types not supported in this nested-substitution
+            // path; the named entity becomes a no-op.
+      }
+      delete stored;
+      if (!body) return node;
+      sva_seq_free(node);
+      return body;
+}
+
+/* Recursively walk the seq tree, substituting any SEQ_BOOL leaves
+   whose expr is a bare PEIdent matching a registered name. */
+static sva_seq_t* substitute_named_in_seq_(sva_seq_t*s)
+{
+      if (!s) return s;
+      // First try to substitute this node.
+      sva_seq_t*ns = try_substitute_seq_node_(s);
+      if (ns != s) {
+            // We replaced s entirely.  Continue to recurse into the new
+            // node in case the substituted body itself contains named
+            // refs (multi-level).
+            return substitute_named_in_seq_(ns);
+      }
+      // Recurse into children.
+      for (size_t i = 0; i < s->kids_.size(); ++i)
+            s->kids_[i] = substitute_named_in_seq_(s->kids_[i]);
+      return s;
+}
+
 /* S3 helper: if the property's antecedent / seq_form is a bare PEIdent
    that names a registered sequence/property, splice the stored body
-   into *p.  No-op otherwise.  Inherits clk_evt and disable_iff_expr
-   from the stored body when not already set in *p. */
+   into *p.  Recurses through nested seq operators (e.g. inside
+   throughout, or, intersect, ...).  Inherits clk_evt and
+   disable_iff_expr from the stored body when not already set. */
 static void try_substitute_named_property_(sva_property_t*p)
 {
       if (!p) return;
@@ -63,28 +119,35 @@ static void try_substitute_named_property_(sva_property_t*p)
                  && p->seq_form->expr_) {
             id = dynamic_cast<PEIdent*>(p->seq_form->expr_);
       }
-      if (!id) return;
-      const pform_name_t&pn = id->path().name;
-      if (pn.size() != 1) return;
-      if (!pn.front().index.empty()) return;
-      perm_string nm = peek_head_name(pn);
-      sva_property_t*stored = pform_sva_take_named_property(nm);
-      if (!stored) return;
-      if (!p->clk_evt) p->clk_evt = stored->clk_evt;
-      if (!p->disable_iff_expr) p->disable_iff_expr = stored->disable_iff_expr;
-      // Tear down current contents, copy from stored.
-      if (p->op_type == 4 && p->seq_form) {
-            sva_seq_free(p->seq_form);
-            p->seq_form = nullptr;
-      } else if (p->antecedent) {
-            delete p->antecedent;
+      if (id) {
+            const pform_name_t&pn = id->path().name;
+            if (pn.size() == 1 && pn.front().index.empty()) {
+                  perm_string nm = peek_head_name(pn);
+                  sva_property_t*stored = pform_sva_take_named_property(nm);
+                  if (stored) {
+                        if (!p->clk_evt) p->clk_evt = stored->clk_evt;
+                        if (!p->disable_iff_expr) p->disable_iff_expr = stored->disable_iff_expr;
+                        // Tear down current contents, copy from stored.
+                        if (p->op_type == 4 && p->seq_form) {
+                              sva_seq_free(p->seq_form);
+                              p->seq_form = nullptr;
+                        } else if (p->antecedent) {
+                              delete p->antecedent;
+                        }
+                        p->antecedent = stored->antecedent;
+                        p->consequent = stored->consequent;
+                        p->op_type = stored->op_type;
+                        p->delay_n = stored->delay_n;
+                        p->seq_form = stored->seq_form;
+                        delete stored;
+                  }
+            }
       }
-      p->antecedent = stored->antecedent;
-      p->consequent = stored->consequent;
-      p->op_type = stored->op_type;
-      p->delay_n = stored->delay_n;
-      p->seq_form = stored->seq_form;
-      delete stored;
+      // After top-level substitution, recurse into nested seq tree to
+      // substitute any further named refs (e.g. `gnt2 throughout seq`).
+      if (p->op_type == 4 && p->seq_form) {
+            p->seq_form = substitute_named_in_seq_(p->seq_form);
+      }
 }
 
 static data_type_t* param_data_type = 0;
