@@ -628,6 +628,182 @@ Statement* synth_bool_concat_(PExpr*ant, PExpr*cons, unsigned n_cyc,
 
 } // anonymous
 
+// =====================================================================
+// S6 framework: seq_synth_result_t-based composition.
+// =====================================================================
+
+namespace {
+
+// Build a 1-bit "1" literal for use as match_started for SEQ_BOOL
+// and other unconditional-attempt nodes.
+PExpr* literal_one_(const vlltype&loc)
+{
+      PExpr*one = new PENumber(new verinum((uint64_t)1, 1));
+      FILE_NAME(one, loc);
+      return one;
+}
+
+seq_synth_result_t* synth_bool_(const sva_seq_t*seq, const vlltype&loc)
+{
+      // SEQ_BOOL: every cycle a non-vacuous attempt starts; the
+      // attempt matches in the same cycle if expr is 1.
+      seq_synth_result_t*r = new seq_synth_result_t;
+      r->match_started_expr = literal_one_(loc);
+      r->match_done_expr    = clone_pe_or_share_(seq->expr_);
+      r->length_lo = 0;
+      r->length_hi = 0;
+      r->unbounded_hi = false;
+      return r;
+}
+
+}  // anonymous
+
+seq_synth_result_t* sva_seq_synth(const sva_seq_t*seq,
+                                  unsigned line, const char*file)
+{
+      if (!seq) return nullptr;
+      vlltype loc = make_loc_(line, file);
+      switch (seq->kind) {
+          case sva_seq_t::SEQ_BOOL:
+            return synth_bool_(seq, loc);
+          default:
+            // Other operators not yet migrated to the framework.
+            cerr << file << ":" << line << ": sva_seq_synth: operator"
+                 << " not yet migrated to seq_synth_result_t framework."
+                 << endl;
+            return nullptr;
+      }
+}
+
+void sva_seq_synth_free(seq_synth_result_t*r)
+{
+      delete r;
+}
+
+Statement* sva_seq_assert_wrap(seq_synth_result_t*r,
+                               Statement*fail,
+                               unsigned line, const char*file)
+{
+      if (!r) return nullptr;
+      vlltype loc = make_loc_(line, file);
+
+      if (r->unbounded_hi) {
+            cerr << file << ":" << line << ": sorry: unbounded sequence"
+                 << " length not supported by assert framework." << endl;
+            return nullptr;
+      }
+
+      Statement*body = nullptr;
+
+      if (r->length_lo == 0 && r->length_hi == 0) {
+            // Deterministic L=0 (e.g. SEQ_BOOL): attempt matches or
+            // fails at the same cycle.  Fire iff match_started &&
+            // !match_done at this cycle.
+            PExpr*not_done = new PEUnary('!', r->match_done_expr);
+            FILE_NAME(not_done, loc);
+            PExpr*cond = new PEBLogic('a', r->match_started_expr, not_done);
+            FILE_NAME(cond, loc);
+            PCondit*chk = new PCondit(cond, fail, nullptr);
+            FILE_NAME(chk, loc);
+            body = chk;
+      } else if (r->length_lo == r->length_hi) {
+            // Fixed-length deterministic seq.  Track started in a
+            // shift register of width L+1; at cycle X the oldest
+            // in-flight attempt (started at X-L) deadlines.
+            unsigned L = r->length_hi;
+            perm_string sreg = declare_shift_reg_(L + 1, loc);
+            // Failure: started_dly[L] && !match_done@X.
+            PEIdent*sm = make_bit_select_(sreg, L, loc);
+            PExpr*not_done = new PEUnary('!', r->match_done_expr);
+            FILE_NAME(not_done, loc);
+            PExpr*cond = new PEBLogic('a', sm, not_done);
+            FILE_NAME(cond, loc);
+            PCondit*chk = new PCondit(cond, fail, nullptr);
+            FILE_NAME(chk, loc);
+            // NBA: sreg <= {sreg[L-1:0], match_started}.
+            PExpr*shift_rhs = (L + 1 == 1)
+                                 ? r->match_started_expr
+                                 : build_shift_concat_(sreg, L + 1,
+                                                       r->match_started_expr,
+                                                       loc);
+            pform_name_t spn;
+            spn.push_back(name_component_t(sreg));
+            PEIdent*slhs = pform_new_ident(loc, spn);
+            FILE_NAME(slhs, loc);
+            PAssignNB*snba = new PAssignNB(slhs, shift_rhs);
+            FILE_NAME(snba, loc);
+
+            std::vector<Statement*> stmts;
+            stmts.push_back(chk);
+            for (auto*nba : r->nba_stmts) stmts.push_back(nba);
+            stmts.push_back(snba);
+            PBlock*blk = new PBlock(PBlock::BL_SEQ);
+            blk->set_statement(stmts);
+            FILE_NAME(blk, loc);
+            body = blk;
+      } else {
+            // Range-length seq: track started over [0..L_hi] and
+            // matches over [L_lo..L_hi] window.  Fail at cycle X if
+            // started_dly[L_hi] (oldest expired) is set AND no match
+            // occurred in any cycle in window [X-L_hi+L_lo, X].
+            unsigned Lhi = r->length_hi;
+            unsigned Llo = r->length_lo;
+            unsigned win = Lhi - Llo + 1;
+
+            perm_string sreg = declare_shift_reg_(Lhi + 1, loc);
+            perm_string mreg = declare_shift_reg_(win, loc);
+
+            PExpr*any_match = clone_pe_or_share_(r->match_done_expr);
+            for (unsigned i = 0; i < win; ++i) {
+                  PEIdent*bit = make_bit_select_(mreg, i, loc);
+                  PExpr*o = new PEBLogic('o', any_match, bit);
+                  FILE_NAME(o, loc);
+                  any_match = o;
+            }
+
+            PEIdent*sm = make_bit_select_(sreg, Lhi, loc);
+            PExpr*not_match = new PEUnary('!', any_match);
+            FILE_NAME(not_match, loc);
+            PExpr*cond = new PEBLogic('a', sm, not_match);
+            FILE_NAME(cond, loc);
+            PCondit*chk = new PCondit(cond, fail, nullptr);
+            FILE_NAME(chk, loc);
+
+            auto build_nba = [&](perm_string reg, unsigned w, PExpr*rhs_val)
+                              -> PAssignNB* {
+                  PExpr*rhs = (w == 1) ? rhs_val
+                                       : build_shift_concat_(reg, w, rhs_val, loc);
+                  pform_name_t pn;
+                  pn.push_back(name_component_t(reg));
+                  PEIdent*lhs = pform_new_ident(loc, pn);
+                  FILE_NAME(lhs, loc);
+                  PAssignNB*nba = new PAssignNB(lhs, rhs);
+                  FILE_NAME(nba, loc);
+                  return nba;
+            };
+            PAssignNB*snba = build_nba(sreg, Lhi + 1, r->match_started_expr);
+            PAssignNB*mnba = build_nba(mreg, win,
+                                       clone_pe_or_share_(r->match_done_expr));
+
+            std::vector<Statement*> stmts;
+            stmts.push_back(chk);
+            for (auto*nba : r->nba_stmts) stmts.push_back(nba);
+            stmts.push_back(snba);
+            stmts.push_back(mnba);
+            PBlock*blk = new PBlock(PBlock::BL_SEQ);
+            blk->set_statement(stmts);
+            FILE_NAME(blk, loc);
+            body = blk;
+      }
+
+      return body;
+}
+
+// =====================================================================
+// Legacy direct synthesizer; operators migrate one-by-one to the
+// seq_synth_result_t framework above.
+// =====================================================================
+
 Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
                                     Statement*fail,
                                     unsigned line, const char*file)
@@ -637,11 +813,12 @@ Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
 
       switch (seq->kind) {
           case sva_seq_t::SEQ_BOOL: {
-            // Plain assert(seq) — fail if seq is false at the clock.
-            PExpr*e = clone_pe_or_share_(seq->expr_);
-            PCondit*chk = new PCondit(e, nullptr, fail);
-            FILE_NAME(chk, loc);
-            return chk;
+            // Migrated to the framework path.
+            seq_synth_result_t*r = sva_seq_synth(seq, line, file);
+            if (!r) return nullptr;
+            Statement*s = sva_seq_assert_wrap(r, fail, line, file);
+            sva_seq_synth_free(r);
+            return s;
           }
 
           case sva_seq_t::SEQ_CONCAT: {

@@ -108,11 +108,48 @@ struct sva_nfa_t {
 extern sva_nfa_t* sva_seq_build_nfa(const sva_seq_t*s);
 extern void sva_nfa_free(sva_nfa_t*n);
 
-// Synthesize the assertion check for `sequence` interpreted as
-// "every cycle the sequence is attempted, it must complete".
-// Returns the body Statement to splice into the always block (the
-// parser's site is responsible for the disable-iff guard, the
-// always wrapper, etc.), or nullptr on error.
+// S6 framework: each sva_seq_t lowers to a `seq_synth_result_t`
+// exposing the signals an enclosing operator (or the assert wrapper)
+// needs to compose with.
+//
+// match_started_expr: 1-bit PExpr that's true when a non-vacuous
+//   attempt could begin at this cycle.  Used by the assert wrapper
+//   as the "started" gate for deadline-fail; used by enclosing ops
+//   (or, and, intersect) to compose start conditions.
+// match_done_expr:    1-bit PExpr that's true when some in-flight
+//   attempt completes a match at this cycle.
+// length_lo/length_hi: the range of possible match lengths in
+//   cycles.  Both 0 for SEQ_BOOL.
+// unbounded_hi:       true for ##[N:$] / [*N:$] (currently always
+//   refused with hard-error before reaching here).
+// nba_stmts:          per-cycle NBA shift-register updates that the
+//   enclosing always block must execute every clock for the synth
+//   state to track input history correctly.
+struct seq_synth_result_t {
+      class PExpr* match_started_expr;
+      class PExpr* match_done_expr;
+      unsigned length_lo;
+      unsigned length_hi;
+      bool unbounded_hi;
+      std::vector<class Statement*> nba_stmts;
+};
+
+// Build a synth result for a sequence.  Returns nullptr on error
+// (a "sorry: ..." message has already been printed to stderr).
+extern seq_synth_result_t* sva_seq_synth(const sva_seq_t*seq,
+                                         unsigned line, const char*file);
+extern void sva_seq_synth_free(seq_synth_result_t*r);
+
+// Wrap a synthesized sequence as an assert-property check.  The
+// wrapper synthesizes the deadline machinery (per-attempt history
+// shift register) and produces a Statement to splice into the
+// always block.  `fail` is the failure action.
+extern Statement* sva_seq_assert_wrap(seq_synth_result_t*r,
+                                      Statement*fail,
+                                      unsigned line, const char*file);
+
+// Legacy direct-synthesis path.  Used while operators are migrated
+// to the seq_synth_result_t framework one-at-a-time.
 extern Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
                                            Statement*fail,
                                            unsigned line, const char*file);
