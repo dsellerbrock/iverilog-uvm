@@ -358,6 +358,88 @@ Statement* synth_bool_concat_range_(PExpr*ant, PExpr*cons,
       return blk;
 }
 
+// Build the body for `intersect((A_ant ##A_lo..A_hi A_cons),
+// (B_ant ##B_lo..B_hi B_cons))`.  Both sub-sequences must match
+// starting at the same cycle T and ending at the same cycle X.
+// The shared window [s_lo, s_hi] = [max(A_lo,B_lo), min(A_hi,B_hi)].
+//
+// Allocate three shift registers:
+//   a_ant_dly[s_hi-1:0]    A's first cond history
+//   b_ant_dly[s_hi-1:0]    B's first cond history
+//   match_win[(s_hi-s_lo):0]   `(A_cons && B_cons)` history over
+//                              the shared window
+//
+// At cycle X, the OLDEST attempt that started at T = X - s_hi
+// fails iff `a_ant_dly[s_hi-1] && b_ant_dly[s_hi-1]`
+// (both first conds held at T) and no cycle in
+// [T+s_lo, T+s_hi] showed (A_cons && B_cons).
+Statement* synth_intersect_concat_(const sva_seq_t*a, const sva_seq_t*b,
+                                   unsigned s_lo, unsigned s_hi,
+                                   Statement*fail, const vlltype&loc)
+{
+      PExpr*a_ant  = clone_pe_or_share_(a->kids_[0]->expr_);
+      PExpr*a_cons = clone_pe_or_share_(a->kids_[1]->expr_);
+      PExpr*b_ant  = clone_pe_or_share_(b->kids_[0]->expr_);
+      PExpr*b_cons = clone_pe_or_share_(b->kids_[1]->expr_);
+
+      // Compute shared-window match condition: (a_cons && b_cons).
+      PExpr*match_now = new PEBLogic('a', a_cons, b_cons);
+      FILE_NAME(match_now, loc);
+
+      perm_string a_reg = declare_shift_reg_(s_hi, loc);
+      perm_string b_reg = declare_shift_reg_(s_hi, loc);
+      unsigned win = s_hi - s_lo + 1;
+      perm_string m_reg = declare_shift_reg_(win, loc);
+
+      // any_match_in_window: OR(m_reg[win-1:0]) || match_now (current).
+      PExpr*any_match = match_now;
+      for (unsigned i = 0; i < win; ++i) {
+            PEIdent*bit = make_bit_select_(m_reg, i, loc);
+            PExpr*o = new PEBLogic('o', any_match, bit);
+            FILE_NAME(o, loc);
+            any_match = o;
+      }
+
+      // started_at_oldest: a_ant_dly[s_hi-1] && b_ant_dly[s_hi-1].
+      PEIdent*a_msb = make_bit_select_(a_reg, s_hi - 1, loc);
+      PEIdent*b_msb = make_bit_select_(b_reg, s_hi - 1, loc);
+      PExpr*started = new PEBLogic('a', a_msb, b_msb);
+      FILE_NAME(started, loc);
+
+      PExpr*not_match = new PEUnary('!', any_match);
+      FILE_NAME(not_match, loc);
+      PExpr*fail_cond = new PEBLogic('a', started, not_match);
+      FILE_NAME(fail_cond, loc);
+      PCondit*chk = new PCondit(fail_cond, fail, nullptr);
+      FILE_NAME(chk, loc);
+
+      // NBA shifters.
+      auto build_nba = [&](perm_string reg, unsigned w, PExpr*rhs_val) -> PAssignNB* {
+            PExpr*rhs = (w == 1) ? rhs_val : build_shift_concat_(reg, w, rhs_val, loc);
+            pform_name_t pn;
+            pn.push_back(name_component_t(reg));
+            PEIdent*lhs = pform_new_ident(loc, pn);
+            FILE_NAME(lhs, loc);
+            PAssignNB*nba = new PAssignNB(lhs, rhs);
+            FILE_NAME(nba, loc);
+            return nba;
+      };
+
+      PAssignNB*a_nba = build_nba(a_reg, s_hi, a_ant);
+      PAssignNB*b_nba = build_nba(b_reg, s_hi, b_ant);
+      PAssignNB*m_nba = build_nba(m_reg, win, match_now);
+
+      std::vector<Statement*> stmts;
+      stmts.push_back(chk);
+      stmts.push_back(a_nba);
+      stmts.push_back(b_nba);
+      stmts.push_back(m_nba);
+      PBlock*blk = new PBlock(PBlock::BL_SEQ);
+      blk->set_statement(stmts);
+      FILE_NAME(blk, loc);
+      return blk;
+}
+
 // Build the body for a CONCAT-of-bools sequence (`A ##N B`).  Reuses
 // the S4 shift-register technique.  N==0: A&&B same-cycle; N==1:
 // caller should handle as |=> via S1 (this returns a synthesized
@@ -474,19 +556,49 @@ Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
             return chk;
           }
 
+          case sva_seq_t::SEQ_INTERSECT: {
+            // intersect requires same start AND same end across both
+            // sub-sequences.  We currently support intersect of two
+            // SEQ_CONCAT operands whose match-windows overlap.  The
+            // shared-window range determines deadline; the consequent
+            // is the AND of both sub-seqs' second conditions; the
+            // first conditions must both hold at the start.
+            sva_seq_t*a = seq->kids_[0];
+            sva_seq_t*b = seq->kids_[1];
+            if (a->kind != sva_seq_t::SEQ_CONCAT
+                || b->kind != sva_seq_t::SEQ_CONCAT
+                || !is_pure_bool_(a->kids_[0]) || !is_pure_bool_(a->kids_[1])
+                || !is_pure_bool_(b->kids_[0]) || !is_pure_bool_(b->kids_[1])
+                || a->unbounded_hi || b->unbounded_hi) {
+                  cerr << file << ":" << line << ": sorry: SVA `intersect'"
+                       << " currently supports only two `expr ##N..M expr'"
+                       << " sub-sequences with bounded delay." << endl;
+                  return nullptr;
+            }
+            unsigned s_lo = a->n_lo > b->n_lo ? a->n_lo : b->n_lo;
+            unsigned s_hi = a->n_hi < b->n_hi ? a->n_hi : b->n_hi;
+            if (s_hi < s_lo) {
+                  cerr << file << ":" << line << ": error: SVA `intersect'"
+                       << " sub-sequence windows do not overlap [" << a->n_lo
+                       << ":" << a->n_hi << "] vs [" << b->n_lo << ":"
+                       << b->n_hi << "]; the property is unsatisfiable."
+                       << endl;
+                  return nullptr;
+            }
+            return synth_intersect_concat_(a, b, s_lo, s_hi, fail, loc);
+          }
+
           case sva_seq_t::SEQ_AND:
-          case sva_seq_t::SEQ_INTERSECT:
           case sva_seq_t::SEQ_THROUGHOUT:
           case sva_seq_t::SEQ_WITHIN:
           case sva_seq_t::SEQ_REPEAT:
           case sva_seq_t::SEQ_GOTO:
           case sva_seq_t::SEQ_NONCONS:
             cerr << file << ":" << line << ": sorry: SVA sequence operator"
-                 << " not yet supported by sva-temporal (S5 step 3 covers"
-                 << " SEQ_BOOL, SEQ_CONCAT fixed/range, and SEQ_OR with"
-                 << " bool operands).  Multi-cycle and/intersect/throughout"
-                 << " require per-attempt tracking; not silently"
-                 << " approximated." << endl;
+                 << " not yet supported by sva-temporal.  `and' (different"
+                 << " end-times), `throughout' (span tracking), `within'"
+                 << " and repetition operators require per-attempt"
+                 << " tracking; not silently approximated." << endl;
             return nullptr;
       }
       return nullptr;
