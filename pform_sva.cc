@@ -124,10 +124,28 @@ PExpr* rewrite_one_call_(PECallFunction*call,
                  << "call missing argument." << endl;
             return new PENumber(new verinum((uint64_t)0, 1));
       }
+      // $past supports N>=1 lookback; the others are single-cycle.
+      unsigned lookback_n = 1;
       if (kind == SVA_SAMPLE_PAST && parms.size() > 1 && parms[1].parm) {
-            cerr << call->get_fileline() << ": sorry: "
-                 << "$past(expr, N>1) not yet supported "
-                 << "(only one-cycle lookback)." << endl;
+            // The lookback arg should evaluate to a constant unsigned int.
+            // For simple integer literals, drill into PENumber.
+            PENumber*pn = dynamic_cast<PENumber*>(parms[1].parm);
+            if (pn) {
+                  lookback_n = pn->value().as_unsigned();
+                  if (lookback_n == 0) lookback_n = 1;  // $past(x,0) = x
+                  if (lookback_n > 64) {
+                        cerr << call->get_fileline() << ": sorry: "
+                             << "$past lookback N=" << lookback_n
+                             << " exceeds 64 (register width limit)."
+                             << endl;
+                        lookback_n = 64;
+                  }
+            } else {
+                  cerr << call->get_fileline() << ": sorry: "
+                       << "$past(expr, N) requires N to be a constant"
+                       << " literal (non-constant N not yet supported)."
+                       << endl;
+            }
       }
       if (parms.size() > 1 && kind != SVA_SAMPLE_PAST) {
             cerr << call->get_fileline() << ": sorry: "
@@ -150,7 +168,22 @@ PExpr* rewrite_one_call_(PECallFunction*call,
       caps.push_back(cap);
 
       vlltype where = make_loc_from_line_info_(call);
-      PEIdent*hist = make_ident_(reg_name, where);
+      // For lookback N, $past(x, N) is the bit at index N-1 of the
+      // history register (which is shifted at LSB each clock).
+      // Always use bit-select so single-bit comparisons match;
+      // assigning the whole 64-bit register would carry stale
+      // history bits and break == comparisons.
+      pform_name_t pn;
+      name_component_t nc(reg_name);
+      index_component_t bidx;
+      bidx.sel = index_component_t::SEL_BIT;
+      bidx.msb = new PENumber(new verinum((uint64_t)(lookback_n - 1), 32));
+      bidx.lsb = nullptr;
+      FILE_NAME(bidx.msb, where);
+      nc.index.push_back(bidx);
+      pn.push_back(nc);
+      PEIdent*hist = pform_new_ident(where, pn);
+      FILE_NAME(hist, where);
 
       switch (kind) {
           case SVA_SAMPLE_PAST:
@@ -408,7 +441,31 @@ void pform_sva_emit_captures(const std::vector<pform_sva_capture_t>&caps,
             PEIdent*lhs = pform_new_ident(loc, pn);
             FILE_NAME(lhs, loc);
 
-            PAssignNB*nba = new PAssignNB(lhs, cap.captured_expr);
+            // Shift NBA: reg <= {reg[62:0], captured_expr}.  This
+            // gives multi-cycle history: bit 0 = value 1 cycle ago,
+            // bit i = value (i+1) cycles ago.  $past(x, N) reads
+            // bit N-1.  For the original single-cycle $past use,
+            // bit 0 is the only one read and the shift is benign.
+            pform_name_t pn_lo;
+            name_component_t nc(cap.reg_name);
+            index_component_t pidx;
+            pidx.sel = index_component_t::SEL_PART;
+            pidx.msb = new PENumber(new verinum((uint64_t)62, 32));
+            pidx.lsb = new PENumber(new verinum((uint64_t)0, 32));
+            FILE_NAME(pidx.msb, loc);
+            FILE_NAME(pidx.lsb, loc);
+            nc.index.push_back(pidx);
+            pn_lo.push_back(nc);
+            PEIdent*reg_lsbs = pform_new_ident(loc, pn_lo);
+            FILE_NAME(reg_lsbs, loc);
+
+            std::list<PExpr*> concat_list;
+            concat_list.push_back(reg_lsbs);
+            concat_list.push_back(cap.captured_expr);
+            PEConcat*concat = new PEConcat(concat_list);
+            FILE_NAME(concat, loc);
+
+            PAssignNB*nba = new PAssignNB(lhs, concat);
             FILE_NAME(nba, loc);
             stmts.push_back(nba);
       }
