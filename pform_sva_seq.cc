@@ -757,6 +757,77 @@ seq_synth_result_t* synth_concat_(const sva_seq_t*seq, const vlltype&loc,
       return r;
 }
 
+seq_synth_result_t* synth_repeat_(const sva_seq_t*seq, const vlltype&loc,
+                                  unsigned line, const char*file)
+{
+      // Step 4: only SEQ_BOOL operand with fixed count.
+      if (!is_pure_bool_(seq->kids_[0])) {
+            cerr << file << ":" << line << ": sorry: SVA `[*N]'"
+                 << " repetition with composite operand not yet"
+                 << " supported." << endl;
+            return nullptr;
+      }
+      if (seq->unbounded_hi) {
+            cerr << file << ":" << line << ": sorry: `[*N:$]'"
+                 << " unbounded repetition not supported." << endl;
+            return nullptr;
+      }
+      if (seq->n_lo != seq->n_hi) {
+            cerr << file << ":" << line << ": sorry: range `[*N:M]'"
+                 << " repetition not yet supported (step 5)." << endl;
+            return nullptr;
+      }
+      unsigned N = seq->n_lo;
+      if (N == 0) {
+            cerr << file << ":" << line << ": sorry: `[*0]'"
+                 << " (empty match) not supported." << endl;
+            return nullptr;
+      }
+
+      PExpr*b_expr = seq->kids_[0]->expr_;
+
+      seq_synth_result_t*r = new seq_synth_result_t;
+      r->length_lo = N - 1;
+      r->length_hi = N - 1;
+      r->unbounded_hi = false;
+      r->match_started_expr = clone_pe_or_share_(b_expr);
+
+      if (N == 1) {
+            // [*1]: identical to b alone.  L=0.
+            r->match_done_expr = clone_pe_or_share_(b_expr);
+            return r;
+      }
+
+      // N >= 2: track b's history in width-(N-1) shift register.
+      perm_string b_reg = declare_shift_reg_(N - 1, loc);
+
+      // match_done = b@X && b_dly[0] && b_dly[1] && ... && b_dly[N-2].
+      PExpr*all = clone_pe_or_share_(b_expr);
+      for (unsigned i = 0; i + 1 < N; ++i) {
+            PEIdent*bit = make_bit_select_(b_reg, i, loc);
+            PExpr*and_ = new PEBLogic('a', all, bit);
+            FILE_NAME(and_, loc);
+            all = and_;
+      }
+      r->match_done_expr = all;
+
+      // NBA: b_reg <= {b_reg[N-3:0], b}.
+      PExpr*shift_rhs = (N - 1 == 1)
+                          ? clone_pe_or_share_(b_expr)
+                          : build_shift_concat_(b_reg, N - 1,
+                                                clone_pe_or_share_(b_expr),
+                                                loc);
+      pform_name_t pn;
+      pn.push_back(name_component_t(b_reg));
+      PEIdent*lhs = pform_new_ident(loc, pn);
+      FILE_NAME(lhs, loc);
+      PAssignNB*nba = new PAssignNB(lhs, shift_rhs);
+      FILE_NAME(nba, loc);
+      r->nba_stmts.push_back(nba);
+
+      return r;
+}
+
 seq_synth_result_t* synth_or_(const sva_seq_t*seq, const vlltype&loc,
                               unsigned line, const char*file)
 {
@@ -806,6 +877,8 @@ seq_synth_result_t* sva_seq_synth(const sva_seq_t*seq,
             return synth_concat_(seq, loc, line, file);
           case sva_seq_t::SEQ_OR:
             return synth_or_(seq, loc, line, file);
+          case sva_seq_t::SEQ_REPEAT:
+            return synth_repeat_(seq, loc, line, file);
           default:
             // Other operators not yet migrated to the framework.
             cerr << file << ":" << line << ": sva_seq_synth: operator"
@@ -983,7 +1056,8 @@ Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
       switch (seq->kind) {
           case sva_seq_t::SEQ_BOOL:
           case sva_seq_t::SEQ_CONCAT:
-          case sva_seq_t::SEQ_OR: {
+          case sva_seq_t::SEQ_OR:
+          case sva_seq_t::SEQ_REPEAT: {
             // Migrated to the framework path.
             seq_synth_result_t*r = sva_seq_synth(seq, line, file);
             if (!r) return nullptr;
@@ -1090,14 +1164,14 @@ Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
             return synth_throughout_(guard, sub, fail, loc);
           }
 
+          // SEQ_REPEAT migrated to the framework — handled above.
           case sva_seq_t::SEQ_WITHIN:
-          case sva_seq_t::SEQ_REPEAT:
           case sva_seq_t::SEQ_GOTO:
           case sva_seq_t::SEQ_NONCONS:
-            cerr << file << ":" << line << ": sorry: SVA `within' and"
-                 << " repetition operators require per-attempt tracking"
-                 << " not yet implemented; not silently approximated."
-                 << endl;
+            cerr << file << ":" << line << ": sorry: SVA `within' /"
+                 << " `[->N]' / `[=N]' operators require per-attempt"
+                 << " tracking not yet implemented; not silently"
+                 << " approximated." << endl;
             return nullptr;
       }
       return nullptr;

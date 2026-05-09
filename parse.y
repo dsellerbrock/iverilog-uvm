@@ -1464,6 +1464,7 @@ static Statement* lower_randsequence_(const char* start_name,
 %token K_PSTAR K_STARP K_DOTSTAR
 %token K_LOR K_LAND K_NAND K_NOR K_NXOR K_TRIGGER K_NB_TRIGGER K_LEQUIV
 %token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV
+%token K_LB_STAR K_LB_GOTO K_LB_EQ
 %token K_SCOPE_RES
 %token K_edge_descriptor
 
@@ -5990,15 +5991,33 @@ sva_seq_expr
       { $$ = sva_seq_make_throughout($1, $3); }
   | sva_seq_expr K_within sva_seq_expr
       { $$ = sva_seq_make_within($1, $3); }
-  | sva_seq_expr '[' '*' DEC_NUMBER ']'
-      { unsigned n = $4 ? $4->as_unsigned() : 0;
-	delete $4;
+  | sva_seq_expr K_LB_STAR DEC_NUMBER ']'
+      { unsigned n = $3 ? $3->as_unsigned() : 0;
+	delete $3;
 	$$ = sva_seq_make_repeat($1, n, n, false); }
-  | sva_seq_expr '[' '*' DEC_NUMBER ':' DEC_NUMBER ']'
-      { unsigned lo = $4 ? $4->as_unsigned() : 0;
-	unsigned hi = $6 ? $6->as_unsigned() : 0;
-	delete $4; delete $6;
+  | sva_seq_expr K_LB_STAR DEC_NUMBER ':' DEC_NUMBER ']'
+      { unsigned lo = $3 ? $3->as_unsigned() : 0;
+	unsigned hi = $5 ? $5->as_unsigned() : 0;
+	delete $3; delete $5;
 	$$ = sva_seq_make_repeat($1, lo, hi, false); }
+  | sva_seq_expr K_LB_GOTO DEC_NUMBER ']'
+      { unsigned n = $3 ? $3->as_unsigned() : 0;
+	delete $3;
+	$$ = sva_seq_make_goto($1, n, n, false); }
+  | sva_seq_expr K_LB_GOTO DEC_NUMBER ':' DEC_NUMBER ']'
+      { unsigned lo = $3 ? $3->as_unsigned() : 0;
+	unsigned hi = $5 ? $5->as_unsigned() : 0;
+	delete $3; delete $5;
+	$$ = sva_seq_make_goto($1, lo, hi, false); }
+  | sva_seq_expr K_LB_EQ DEC_NUMBER ']'
+      { unsigned n = $3 ? $3->as_unsigned() : 0;
+	delete $3;
+	$$ = sva_seq_make_noncons($1, n, n, false); }
+  | sva_seq_expr K_LB_EQ DEC_NUMBER ':' DEC_NUMBER ']'
+      { unsigned lo = $3 ? $3->as_unsigned() : 0;
+	unsigned hi = $5 ? $5->as_unsigned() : 0;
+	delete $3; delete $5;
+	$$ = sva_seq_make_noncons($1, lo, hi, false); }
   ;
 
 property_expr /* IEEE1800-2012 A.2.10 */
@@ -6611,7 +6630,7 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	tmp->push_back(index);
 	$$ = tmp;
       }
-  | '[' '*' ']'
+  | K_LB_STAR ']'
       { /* G-SV19: associative array with wildcard index [*] (IEEE 1800-2017 §7.8.1).
 	   Lowered to an integer-indexed associative array as a compile-progress stub. */
 	list<pform_range_t> *tmp = new std::list<pform_range_t>;

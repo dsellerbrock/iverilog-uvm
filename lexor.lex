@@ -245,6 +245,12 @@ TU [munpf]
 "^~" { return K_NXOR; }
 "~&" { return K_NAND; }
 "->" { return K_TRIGGER; }
+  /* SVA repetition operators: tokenize `[*`, `[->`, `[=` as single
+     tokens to disambiguate from `[` followed by an expression
+     (bit/part-select, array index). */
+"[*" { return K_LB_STAR; }
+"[->" { return K_LB_GOTO; }
+"[=" { return K_LB_EQ; }
 "->>" { return K_NB_TRIGGER; }
 "|->" { return K_PIPE_IMPL_OV; }
 "|=>" { return K_PIPE_IMPL_NOV; }
