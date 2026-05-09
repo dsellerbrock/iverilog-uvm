@@ -2603,6 +2603,13 @@ int show_stmt_assign(ivl_statement_t net)
       }
 
       if (sig && (ivl_signal_data_type(sig) == IVL_VT_DARRAY)) {
+	    if (ivl_stmt_lvals(net) != 1) {
+		  fprintf(stderr, "%s:%u: sorry: multi-lval assignment with"
+			  " a dynamic-array element is not yet supported.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  vvp_errors += 1;
+		  return 1;
+	    }
 	    return show_stmt_assign_sig_darray(net);
       }
 

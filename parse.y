@@ -6208,6 +6208,31 @@ statement_or_null /* IEEE1800-2005: A.6.4 */
 
 stream_expression
   : expression { $$ = $1; }
+  /* SV `id with [range]` form for stream-with slice on dynamic-array
+     operands.  Use hierarchy_identifier (not expression) to avoid the
+     shift-reduce conflict with `expr_primary K_with '(' ... )` (the
+     array method-with-clause).  Drop the with-clause for now since
+     dynamic-array LHS sizing isn't fully implemented. */
+  | hierarchy_identifier K_with '[' expression ']'
+      { PEIdent*tmp = pform_new_ident(@1, *$1);
+	FILE_NAME(tmp, @1);
+	delete $1; delete $4;
+	$$ = tmp; }
+  | hierarchy_identifier K_with '[' expression ':' expression ']'
+      { PEIdent*tmp = pform_new_ident(@1, *$1);
+	FILE_NAME(tmp, @1);
+	delete $1; delete $4; delete $6;
+	$$ = tmp; }
+  | hierarchy_identifier K_with '[' expression K_PO_POS expression ']'
+      { PEIdent*tmp = pform_new_ident(@1, *$1);
+	FILE_NAME(tmp, @1);
+	delete $1; delete $4; delete $6;
+	$$ = tmp; }
+  | hierarchy_identifier K_with '[' expression K_PO_NEG expression ']'
+      { PEIdent*tmp = pform_new_ident(@1, *$1);
+	FILE_NAME(tmp, @1);
+	delete $1; delete $4; delete $6;
+	$$ = tmp; }
   ;
 
 stream_expression_list
@@ -6633,6 +6658,17 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
   | K_LB_STAR ']'
       { /* G-SV19: associative array with wildcard index [*] (IEEE 1800-2017 §7.8.1).
 	   Lowered to an integer-indexed associative array as a compile-progress stub. */
+	list<pform_range_t> *tmp = new std::list<pform_range_t>;
+	atom_type_t* itype = new atom_type_t(atom_type_t::INT, true);
+	pform_range_t index (new PEAssocType(itype),0);
+	pform_requires_sv(@$, "Associative array wildcard declaration");
+	tmp->push_back(index);
+	$$ = tmp;
+      }
+  | '[' '*' ']'
+      { /* Same as K_LB_STAR ']' but for the form with whitespace
+	   between '[' and '*' (e.g. `[ * ]`).  The lexer only
+	   tokenizes `[*` (no internal space) as K_LB_STAR. */
 	list<pform_range_t> *tmp = new std::list<pform_range_t>;
 	atom_type_t* itype = new atom_type_t(atom_type_t::INT, true);
 	pform_range_t index (new PEAssocType(itype),0);
@@ -13710,11 +13746,20 @@ statement_item /* This is roughly statement_item in the LRM */
 	      FILE_NAME(tmp, @1);
 	      $$ = tmp;
 	} else {
-	      if (dir == PEStreaming::DIR_LSHIFT) $5->reverse();
+	      /* Multi-element with numeric slice: rewrite as
+	         `{a, b, c, ...} = {<<N {rhs}}` (preserve LHS element
+	         order; chunk-reverse the RHS).  `>>` is identity. */
 	      PEConcat*lhs = new PEConcat(*$5);
 	      FILE_NAME(lhs, @1);
 	      delete $5;
-	      PAssign*tmp = new PAssign(lhs, $9);
+	      PExpr*rstream;
+	      if (dir == PEStreaming::DIR_LSHIFT) {
+		    rstream = new PEStreaming(dir, slice, $9);
+		    FILE_NAME(rstream, @1);
+	      } else {
+		    rstream = $9;
+	      }
+	      PAssign*tmp = new PAssign(lhs, rstream);
 	      FILE_NAME(tmp, @1);
 	      $$ = tmp;
 	}
