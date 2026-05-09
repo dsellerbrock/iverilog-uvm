@@ -31,13 +31,16 @@ class PExpr;
  * C2 (Phase 62f): captured concurrent-assertion property data so the
  * assert-property action can build an always-block check.
  */
+struct sva_seq_t;
+
 struct sva_property_t {
       PEventStatement* clk_evt;       // clocking event (may be null)
       PExpr* disable_iff_expr;        // disable iff expr (may be null)
       PExpr* antecedent;
       PExpr* consequent;              // null => no implication
-      int op_type;                    // 0=plain, 1=|->, 2=|=>, 3=##N
+      int op_type;                    // 0=plain, 1=|->, 2=|=>, 3=##N, 4=seq_form
       int delay_n;                    // S4: delay in cycles for op_type==3
+      sva_seq_t* seq_form;            // S5: composite sequence IR for op_type==4
 };
 
 /*

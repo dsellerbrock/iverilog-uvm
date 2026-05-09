@@ -33,6 +33,7 @@
 # include  "PTimingCheck.h"
 # include  "PPackage.h"
 # include  "pform_sva.h"
+# include  "pform_sva_seq.h"
 # include  <stack>
 # include  <set>
 # include  <cstring>
@@ -45,14 +46,23 @@ class PSpecPath;
 
 extern void lex_end_table();
 
-/* S3 helper: if the property's antecedent is a bare PEIdent that names
-   a registered sequence/property, splice the stored body into *p.  No-op
-   otherwise.  Inherits clk_evt and disable_iff_expr from the stored
-   body when not already set in *p. */
+/* S3 helper: if the property's antecedent / seq_form is a bare PEIdent
+   that names a registered sequence/property, splice the stored body
+   into *p.  No-op otherwise.  Inherits clk_evt and disable_iff_expr
+   from the stored body when not already set in *p. */
 static void try_substitute_named_property_(sva_property_t*p)
 {
-      if (!p || !p->antecedent || p->op_type != 0 || p->consequent) return;
-      PEIdent*id = dynamic_cast<PEIdent*>(p->antecedent);
+      if (!p) return;
+      // Find the candidate PEIdent in either op_type==0 (legacy
+      // antecedent) or op_type==4 (seq_form is SEQ_BOOL).
+      PEIdent*id = nullptr;
+      if (p->op_type == 0 && p->antecedent && !p->consequent) {
+            id = dynamic_cast<PEIdent*>(p->antecedent);
+      } else if (p->op_type == 4 && p->seq_form
+                 && p->seq_form->kind == sva_seq_t::SEQ_BOOL
+                 && p->seq_form->expr_) {
+            id = dynamic_cast<PEIdent*>(p->seq_form->expr_);
+      }
       if (!id) return;
       const pform_name_t&pn = id->path().name;
       if (pn.size() != 1) return;
@@ -62,11 +72,18 @@ static void try_substitute_named_property_(sva_property_t*p)
       if (!stored) return;
       if (!p->clk_evt) p->clk_evt = stored->clk_evt;
       if (!p->disable_iff_expr) p->disable_iff_expr = stored->disable_iff_expr;
-      delete p->antecedent;
+      // Tear down current contents, copy from stored.
+      if (p->op_type == 4 && p->seq_form) {
+            sva_seq_free(p->seq_form);
+            p->seq_form = nullptr;
+      } else if (p->antecedent) {
+            delete p->antecedent;
+      }
       p->antecedent = stored->antecedent;
       p->consequent = stored->consequent;
       p->op_type = stored->op_type;
       p->delay_n = stored->delay_n;
+      p->seq_form = stored->seq_form;
       delete stored;
 }
 
@@ -1369,6 +1386,8 @@ static Statement* lower_randsequence_(const char* start_name,
 
       // C2 (Phase 62f): pointer to file-scope sva_property_t (defined above).
       sva_property_t* sva_prop;
+      // S5 (sva-temporal): pointer to sva_seq_t for sequence_expr productions.
+      sva_seq_t* sva_seq;
 
       decl_assignment_t*decl_assignment;
       std::list<decl_assignment_t*>*decl_assignments;
@@ -1577,6 +1596,7 @@ static Statement* lower_randsequence_(const char* start_name,
 %type <expr> property_spec_disable_iff_opt
 %type <event_statement> clocking_event_opt
 %type <sva_prop> property_expr property_spec
+%type <sva_seq>  sva_seq_expr
 %type <perm_strings> cross_item_list
 
 %type <named_pexprs> enum_name_list enum_name
@@ -3011,6 +3031,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 		    std::vector<pform_sva_capture_t> sva_caps;
 		    pform_sva_rewrite_sampling($4->antecedent, sva_caps);
 		    pform_sva_rewrite_sampling($4->consequent, sva_caps);
+		    if ($4->seq_form) sva_seq_rewrite_sampling($4->seq_form, sva_caps);
 		    // Default fail action: $error("...")
 		    std::list<named_pexpr_t> arg_list;
 		    PCallTask*fail = new PCallTask(lex_strings.make("$error"), arg_list);
@@ -3036,7 +3057,10 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  body = pform_sva_build_seq_delay($4->antecedent,
 				   $4->consequent, $4->delay_n, fail,
 				   @1.first_line, @1.text);
-		    } else {
+		    } else if ($4->op_type == 4) {			  // S5: composite sequence_expr IR; lower via the
+			  // sequence-matcher synthesizer.
+			  body = sva_seq_synthesize_check($4->seq_form, fail,
+				   @1.first_line, @1.text);		    } else {
 			  // S1 (sva-temporal): real |=> next-cycle implication.
 			  // Synthesize:
 			  //   reg __sva_ant_<n>;
@@ -3127,19 +3151,18 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
         $$ = 0;
       }
   | assert_or_assume K_property '(' property_spec ')' K_else statement_or_null
-      { /* assert property (...) else <fail-action>; */
-	if (gn_supported_assertions_flag && $4) {
+      { /* assert property (...) else <fail-action>; */	if (gn_supported_assertions_flag && $4) {
 	      try_substitute_named_property_($4);
 	      // G05 (Phase 68): no clocking event → skip silently.
 	      if (!$4->clk_evt) {
 		    delete $4->antecedent; delete $4->consequent;
 		    delete $4->disable_iff_expr; delete $4;
 		    delete $7;
-	      } else {
-		    // S2: rewrite SVA sampled-value calls (see comment above).
+	      } else {		    // S2: rewrite SVA sampled-value calls (see comment above).
 		    std::vector<pform_sva_capture_t> sva_caps;
 		    pform_sva_rewrite_sampling($4->antecedent, sva_caps);
 		    pform_sva_rewrite_sampling($4->consequent, sva_caps);
+		    if ($4->seq_form) sva_seq_rewrite_sampling($4->seq_form, sva_caps);
 		    Statement*fail = $7 ? $7 : new PNoop;
 		    Statement*body = nullptr;
 		    if ($4->op_type == 0) {
@@ -3159,7 +3182,10 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  body = pform_sva_build_seq_delay($4->antecedent,
 				   $4->consequent, $4->delay_n, fail,
 				   @1.first_line, @1.text);
-		    } else {
+		    } else if ($4->op_type == 4) {			  // S5: composite sequence_expr IR; lower via the
+			  // sequence-matcher synthesizer.
+			  body = sva_seq_synthesize_check($4->seq_form, fail,
+				   @1.first_line, @1.text);		    } else {
 			  // S1 (sva-temporal): real |=> next-cycle implication.
 			  // See sister branch above for the full lowering.
 			  static unsigned sva_ant_uid_e_ = 0;
@@ -3250,6 +3276,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 		    std::vector<pform_sva_capture_t> sva_caps;
 		    pform_sva_rewrite_sampling($4->antecedent, sva_caps);
 		    pform_sva_rewrite_sampling($4->consequent, sva_caps);
+		    if ($4->seq_form) sva_seq_rewrite_sampling($4->seq_form, sva_caps);
 		    // Use the fail-action ($8); drop the pass-action ($6).
 		    Statement*fail = $8 ? $8 : new PNoop;
 		    Statement*body = nullptr;
@@ -3270,7 +3297,10 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 			  body = pform_sva_build_seq_delay($4->antecedent,
 				   $4->consequent, $4->delay_n, fail,
 				   @1.first_line, @1.text);
-		    } else {
+		    } else if ($4->op_type == 4) {			  // S5: composite sequence_expr IR; lower via the
+			  // sequence-matcher synthesizer.
+			  body = sva_seq_synthesize_check($4->seq_form, fail,
+				   @1.first_line, @1.text);		    } else {
 			  // S1 (sva-temporal): real |=> next-cycle implication.
 			  // See sister branch above for the full lowering.
 			  static unsigned sva_ant_uid_e_ = 0;
@@ -5931,120 +5961,71 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
       { yyerrok; delete $5; $$ = nullptr; }
   ;
 
-property_expr /* IEEE1800-2012 A.2.10 */
+/* S5 sequence_expr: the parsed sequence-level grammar.  Builds an
+   sva_seq_t IR which the assertion-synthesis path lowers to a real
+   match-state always block.  All sequence operators (and / or /
+   intersect / ##N / ##[N:M] / throughout / within / repetition) go
+   through this nonterminal — no boolean approximations remain. */
+sva_seq_expr
   : expression
+      { $$ = sva_seq_make_bool($1); }
+  | '(' sva_seq_expr ')'
+      { $$ = $2; }
+  | sva_seq_expr K_SEQ_CC DEC_NUMBER sva_seq_expr
+      { unsigned n = $3 ? $3->as_unsigned() : 0;
+	delete $3;
+	$$ = sva_seq_make_concat($1, $4, n, n, false); }
+  | sva_seq_expr K_SEQ_CC '[' DEC_NUMBER ':' DEC_NUMBER ']' sva_seq_expr
+      { unsigned lo = $4 ? $4->as_unsigned() : 0;
+	unsigned hi = $6 ? $6->as_unsigned() : 0;
+	delete $4; delete $6;
+	$$ = sva_seq_make_concat($1, $8, lo, hi, false); }
+  | sva_seq_expr K_and sva_seq_expr
+      { $$ = sva_seq_make_and($1, $3); }
+  | sva_seq_expr K_or sva_seq_expr
+      { $$ = sva_seq_make_or($1, $3); }
+  | sva_seq_expr K_intersect sva_seq_expr
+      { $$ = sva_seq_make_intersect($1, $3); }
+  | expression K_throughout sva_seq_expr
+      { $$ = sva_seq_make_throughout($1, $3); }
+  | sva_seq_expr K_within sva_seq_expr
+      { $$ = sva_seq_make_within($1, $3); }
+  | sva_seq_expr '[' '*' DEC_NUMBER ']'
+      { unsigned n = $4 ? $4->as_unsigned() : 0;
+	delete $4;
+	$$ = sva_seq_make_repeat($1, n, n, false); }
+  | sva_seq_expr '[' '*' DEC_NUMBER ':' DEC_NUMBER ']'
+      { unsigned lo = $4 ? $4->as_unsigned() : 0;
+	unsigned hi = $6 ? $6->as_unsigned() : 0;
+	delete $4; delete $6;
+	$$ = sva_seq_make_repeat($1, lo, hi, false); }
+  ;
+
+property_expr /* IEEE1800-2012 A.2.10 */
+  : sva_seq_expr
       { sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
+	p->antecedent = nullptr; p->consequent = nullptr;
+	p->op_type = 4; p->delay_n = 0;
+	p->seq_form = $1;
 	$$ = p; }
   | expression K_PIPE_IMPL_OV expression
       { sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = $3; p->op_type = 1; p->delay_n = 0;
+	p->antecedent = $1; p->consequent = $3; p->op_type = 1; p->delay_n = 0; p->seq_form = nullptr;
 	$$ = p; }
   | expression K_PIPE_IMPL_NOV expression
       { sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = $3; p->op_type = 2; p->delay_n = 0;
-	$$ = p; }
-  /* G06 (Phase 68): SVA sequence operators — approximate temporals as
-     combinational boolean operations.  No true SVA scheduler is needed
-     for the common DV idioms these probes cover. */
-  | expression K_and expression
-      { /* 'and': both sequences must hold — approximate as logical && */
-	sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = new PEBLogic('a', $1, $3);
-	FILE_NAME(p->antecedent, @2);
-	p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
-	$$ = p; }
-  | expression K_or expression
-      { /* 'or': either sequence must hold — approximate as logical || */
-	sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = new PEBLogic('o', $1, $3);
-	FILE_NAME(p->antecedent, @2);
-	p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
-	$$ = p; }
-  | expression K_intersect expression
-      { /* 'intersect': both hold same endpoints — approximate as && */
-	sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = new PEBLogic('a', $1, $3);
-	FILE_NAME(p->antecedent, @2);
-	p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
-	$$ = p; }
-  | expression K_throughout expression
-      { /* 'throughout': guard holds during sequence — check guard only */
-	sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1;
-	delete $3;
-	p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
-	$$ = p; }
-  | expression K_within expression
-      { /* 'within': inner seq within outer seq — check outer only */
-	sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $3;
-	delete $1;
-	p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
+	p->antecedent = $1; p->consequent = $3; p->op_type = 2; p->delay_n = 0; p->seq_form = nullptr;
 	$$ = p; }
   | expression K_iff expression
-      { /* 'iff': bidirectional implication — approximate as &&. */
-	PEBLogic*iff_expr = new PEBLogic('a', $1, $3); FILE_NAME(iff_expr, @2);
+      { /* `iff`: bidirectional implication.  Lowered as `(a == b)`. */
+	PEBComp*eq_expr = new PEBComp('e', $1, $3); FILE_NAME(eq_expr, @2);
 	sva_property_t*p = new sva_property_t;
 	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = iff_expr; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
-	$$ = p; }
-  /* A ##N B: sequence concatenation with integer delay.
-     S4: lower as op_type==3 with delay_n captured.  N==0 collapses to A&&B
-     (same-cycle); N==1 is the same as A |=> B (next-cycle); for N>=2 we
-     synthesize a length-N shift register that captures A and the assertion
-     fires when the shifted-out bit is 1 and B is false. */
-  | expression K_SEQ_CC DEC_NUMBER expression
-      { unsigned n_cyc = $3 ? $3->as_unsigned() : 0;
-	delete $3;
-	sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	if (n_cyc == 0) {
-	      // ##0: same-cycle conjunction.
-	      PEBLogic*conj = new PEBLogic('a', $1, $4);
-	      FILE_NAME(conj, @2);
-	      p->antecedent = conj; p->consequent = nullptr;
-	      p->op_type = 0; p->delay_n = 0;
-	} else if (n_cyc == 1) {
-	      // ##1: identical to |=>.
-	      p->antecedent = $1; p->consequent = $4;
-	      p->op_type = 2; p->delay_n = 0;
-	} else {
-	      p->antecedent = $1; p->consequent = $4;
-	      p->op_type = 3; p->delay_n = n_cyc;
-	}
-	$$ = p; }
-  | expression K_SEQ_CC DEC_NUMBER expression K_SEQ_CC DEC_NUMBER expression
-      { delete $1; delete $3; delete $4; delete $6;
-	sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $7; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
-	$$ = p; }
-  | expression K_SEQ_CC '[' expression ':' expression ']' expression
-      { delete $1; delete $4; delete $6;
-	sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $8; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
-	$$ = p; }
-  | expression K_SEQ_CC '[' '*' ']' expression
-      { delete $1;
-	sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $6; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
-	$$ = p; }
-  | expression K_SEQ_CC '[' '+' ']' expression
-      { delete $1;
-	sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $6; p->consequent = nullptr; p->op_type = 0; p->delay_n = 0;
+	p->antecedent = eq_expr; p->consequent = nullptr;
+	p->op_type = 0; p->delay_n = 0; p->seq_form = nullptr;
 	$$ = p; }
   ;
 
