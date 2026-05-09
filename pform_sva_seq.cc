@@ -262,6 +262,102 @@ PEIdent* make_bit_select_(perm_string reg_name, unsigned idx,
       return id;
 }
 
+// Build the body for a CONCAT-range `A ##[N:M] B`.  Strategy:
+// maintain a length-M shift register of A's sampled values, plus a
+// length-(M-N+1) "deadline" register tracking attempts that have
+// not yet matched.  At each clock:
+//   match_now  := B && OR(dly[N-1..M-1])    -- A matched at any
+//                                              cycle T-(N..M) and B now
+//   deadline_t := dly[M-1] && !match_in_T_window
+//   if deadline_t fire $error.
+// Equivalently, the simpler form: compute "fail at cycle T" =
+//   "A held at T-M but no B in window T-(M-N) .. T".
+//
+// Implementation: track A_dly[M-1:0] and a parallel "matched" flag
+// for each in-flight attempt that already saw B in window.
+//
+// Because attempts can match at any cycle in the window, we use a
+// per-cycle "match_progress" reduction rather than per-attempt regs.
+Statement* synth_bool_concat_range_(PExpr*ant, PExpr*cons,
+                                    unsigned n_lo, unsigned n_hi,
+                                    Statement*fail, const vlltype&loc)
+{
+      // Allocate A history shift register of width n_hi (track A
+      // up to n_hi cycles back).
+      perm_string a_reg = declare_shift_reg_(n_hi, loc);
+      // Allocate "still-waiting" register: bit i is 1 if there is an
+      // in-flight attempt whose A fired i+1 cycles ago AND B has not
+      // matched in any cycle since.  Width n_hi - n_lo + 1 tracks
+      // the active window; bit (n_hi - n_lo) being 1 at the next
+      // clock and B==0 means deadline missed.
+      // For simplicity, use the A history alone and OR over the
+      // window: an attempt fails at cycle T = T_start + n_hi if A
+      // held at T_start AND B never held during T_start+n_lo ..
+      // T_start+n_hi.
+      // To check "B never held during a window of size n_hi-n_lo+1",
+      // maintain a B-history register of width n_hi-n_lo+1.
+
+      // Allocate B history shift register of width win (= n_hi - n_lo + 1).
+      unsigned win = n_hi - n_lo + 1;
+      perm_string b_reg = declare_shift_reg_(win, loc);
+
+      // Build "any_b_in_window" =  OR(b_reg[win-1:0]) || cons (the
+      // current cycle).  cons fires the same cycle as we're checking
+      // T = T_start + n_hi; the attempt's deadline window is
+      // T_start+n_lo .. T_start+n_hi, which corresponds to b_reg
+      // bits 0..win-2 and cons (the current cycle).
+      // Build the OR via a chain of PEBLogic('o', ...).
+      PExpr*any_b = clone_pe_or_share_(cons);
+      for (unsigned i = 0; i < win; ++i) {
+            PEIdent*bit = make_bit_select_(b_reg, i, loc);
+            PExpr*e = new PEBLogic('o', any_b, bit);
+            FILE_NAME(e, loc);
+            any_b = e;
+      }
+
+      // Failure condition: a_reg[n_hi-1] && !any_b_in_window.
+      PEIdent*a_msb = make_bit_select_(a_reg, n_hi - 1, loc);
+      PExpr*not_any_b = new PEUnary('!', any_b);
+      FILE_NAME(not_any_b, loc);
+      PExpr*fail_cond = new PEBLogic('a', a_msb, not_any_b);
+      FILE_NAME(fail_cond, loc);
+      PCondit*chk = new PCondit(fail_cond, fail, nullptr);
+      FILE_NAME(chk, loc);
+
+      // Build NBA shifters for both registers.
+      // a_reg <= {a_reg[n_hi-2:0], ant}
+      PExpr*a_shift_rhs;
+      if (n_hi == 1) a_shift_rhs = ant;
+      else a_shift_rhs = build_shift_concat_(a_reg, n_hi, ant, loc);
+      pform_name_t a_pn;
+      a_pn.push_back(name_component_t(a_reg));
+      PEIdent*a_lhs = pform_new_ident(loc, a_pn);
+      FILE_NAME(a_lhs, loc);
+      PAssignNB*a_shift_nba = new PAssignNB(a_lhs, a_shift_rhs);
+      FILE_NAME(a_shift_nba, loc);
+
+      // b_reg <= {b_reg[win-2:0], cons}
+      PExpr*b_shift_rhs;
+      if (win == 1) b_shift_rhs = clone_pe_or_share_(cons);
+      else b_shift_rhs = build_shift_concat_(b_reg, win,
+                                             clone_pe_or_share_(cons), loc);
+      pform_name_t b_pn;
+      b_pn.push_back(name_component_t(b_reg));
+      PEIdent*b_lhs = pform_new_ident(loc, b_pn);
+      FILE_NAME(b_lhs, loc);
+      PAssignNB*b_shift_nba = new PAssignNB(b_lhs, b_shift_rhs);
+      FILE_NAME(b_shift_nba, loc);
+
+      std::vector<Statement*> stmts;
+      stmts.push_back(chk);
+      stmts.push_back(a_shift_nba);
+      stmts.push_back(b_shift_nba);
+      PBlock*blk = new PBlock(PBlock::BL_SEQ);
+      blk->set_statement(stmts);
+      FILE_NAME(blk, loc);
+      return blk;
+}
+
 // Build the body for a CONCAT-of-bools sequence (`A ##N B`).  Reuses
 // the S4 shift-register technique.  N==0: A&&B same-cycle; N==1:
 // caller should handle as |=> via S1 (this returns a synthesized
@@ -333,26 +429,52 @@ Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
           }
 
           case sva_seq_t::SEQ_CONCAT: {
-            // A ##N B (fixed delay only at this step).
-            if (seq->n_lo != seq->n_hi || seq->unbounded_hi) {
-                  cerr << file << ":" << line << ": sorry: SVA `##[N:M]'"
-                       << " range delay not yet supported by sva-temporal."
-                       << endl;
-                  return nullptr;
-            }
+            // A ##N B (fixed) or A ##[N:M] B (range, both bool ops).
             if (!is_pure_bool_(seq->kids_[0]) || !is_pure_bool_(seq->kids_[1])) {
-                  cerr << file << ":" << line << ": sorry: SVA `##N'"
-                       << " with non-boolean operands not yet supported."
-                       << endl;
+                  cerr << file << ":" << line << ": sorry: SVA `##N'/`##[N:M]'"
+                       << " with non-boolean (composite) operands not yet"
+                       << " supported." << endl;
                   return nullptr;
             }
             PExpr*a = clone_pe_or_share_(seq->kids_[0]->expr_);
             PExpr*b = clone_pe_or_share_(seq->kids_[1]->expr_);
-            return synth_bool_concat_(a, b, seq->n_lo, fail, loc);
+            if (seq->n_lo == seq->n_hi && !seq->unbounded_hi)
+                  return synth_bool_concat_(a, b, seq->n_lo, fail, loc);
+            if (seq->unbounded_hi) {
+                  cerr << file << ":" << line << ": sorry: SVA `##[N:$]'"
+                       << " unbounded delay not supported (would need"
+                       << " unbounded match-tracking buffer)." << endl;
+                  return nullptr;
+            }
+            return synth_bool_concat_range_(a, b, seq->n_lo, seq->n_hi,
+                                            fail, loc);
+          }
+
+          case sva_seq_t::SEQ_OR: {
+            // seq1 or seq2 — at every cycle, at least one sub-sequence's
+            // attempt (started L cycles ago) must complete here, where L
+            // is the per-sub-sequence length.  For step 3 we restrict to
+            // the case where both sub-seqs are SEQ_BOOL (L==0): in that
+            // case, fail = !(a || b).
+            // The general case requires per-attempt tracking which we
+            // hard-error on rather than silently approximate.
+            if (!is_pure_bool_(seq->kids_[0]) || !is_pure_bool_(seq->kids_[1])) {
+                  cerr << file << ":" << line << ": sorry: SVA `or'"
+                       << " with multi-cycle sub-sequences not yet"
+                       << " supported (step 3 covers only single-cycle"
+                       << " bool operands)." << endl;
+                  return nullptr;
+            }
+            PExpr*a = clone_pe_or_share_(seq->kids_[0]->expr_);
+            PExpr*b = clone_pe_or_share_(seq->kids_[1]->expr_);
+            PExpr*ored = new PEBLogic('o', a, b);
+            FILE_NAME(ored, loc);
+            PCondit*chk = new PCondit(ored, nullptr, fail);
+            FILE_NAME(chk, loc);
+            return chk;
           }
 
           case sva_seq_t::SEQ_AND:
-          case sva_seq_t::SEQ_OR:
           case sva_seq_t::SEQ_INTERSECT:
           case sva_seq_t::SEQ_THROUGHOUT:
           case sva_seq_t::SEQ_WITHIN:
@@ -360,8 +482,11 @@ Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
           case sva_seq_t::SEQ_GOTO:
           case sva_seq_t::SEQ_NONCONS:
             cerr << file << ":" << line << ": sorry: SVA sequence operator"
-                 << " not yet supported by sva-temporal (S5 step 1 only"
-                 << " covers SEQ_BOOL and SEQ_CONCAT fixed-delay)." << endl;
+                 << " not yet supported by sva-temporal (S5 step 3 covers"
+                 << " SEQ_BOOL, SEQ_CONCAT fixed/range, and SEQ_OR with"
+                 << " bool operands).  Multi-cycle and/intersect/throughout"
+                 << " require per-attempt tracking; not silently"
+                 << " approximated." << endl;
             return nullptr;
       }
       return nullptr;
