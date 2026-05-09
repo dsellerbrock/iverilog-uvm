@@ -656,6 +656,107 @@ seq_synth_result_t* synth_bool_(const sva_seq_t*seq, const vlltype&loc)
       return r;
 }
 
+seq_synth_result_t* synth_concat_(const sva_seq_t*seq, const vlltype&loc,
+                                  unsigned line, const char*file)
+{
+      // For step 2, both operands must be SEQ_BOOL.  Composite
+      // operands need recursive composition that follows in step 7+.
+      if (!is_pure_bool_(seq->kids_[0]) || !is_pure_bool_(seq->kids_[1])) {
+            cerr << file << ":" << line << ": sorry: SEQ_CONCAT with"
+                 << " composite (non-BOOL) operands not yet migrated"
+                 << " to the framework." << endl;
+            return nullptr;
+      }
+      if (seq->unbounded_hi) {
+            cerr << file << ":" << line << ": sorry: ##[N:$] unbounded"
+                 << " delay not supported." << endl;
+            return nullptr;
+      }
+      PExpr*a_expr = seq->kids_[0]->expr_;
+      PExpr*b_expr = seq->kids_[1]->expr_;
+      unsigned n_lo = seq->n_lo, n_hi = seq->n_hi;
+
+      seq_synth_result_t*r = new seq_synth_result_t;
+      r->length_lo = n_lo;
+      r->length_hi = n_hi;
+      r->unbounded_hi = false;
+
+      if (n_hi == 0) {
+            // ##0: same-cycle conjunction.  match_started filters
+            // non-vacuous attempts via a; match_done = a && b at X.
+            r->match_started_expr = clone_pe_or_share_(a_expr);
+            PExpr*both = new PEBLogic('a',
+                                       clone_pe_or_share_(a_expr),
+                                       clone_pe_or_share_(b_expr));
+            FILE_NAME(both, loc);
+            r->match_done_expr = both;
+            return r;
+      }
+
+      // n_hi >= 1: need a's history.  Track via shift register width n_hi.
+      perm_string a_reg = declare_shift_reg_(n_hi, loc);
+
+      // match_started filter: a held this cycle (so an attempt
+      // could begin here).  The framework will track this in its
+      // started_dly so the deadline check at X gates on a@(X-n_hi).
+      r->match_started_expr = clone_pe_or_share_(a_expr);
+
+      // match_done: the OLDEST attempt at X-n_hi matches at X iff
+      // (started: framework gates on a@(X-n_hi)) AND b@X.
+      // For range, the oldest attempt could match at any cycle in
+      // [X-n_hi+n_lo, X] -- but we report match_done at the deadline
+      // cycle so the framework's deadline_match wraps correctly.
+      // Simplification: for fixed delay, match_done = b@X.
+      // For range, use OR(b_dly[hi-d] for d in [n_lo, n_hi]).
+      // The framework's range branch reduces this further; but we
+      // produce match_done as "any cycle in window matched B" via
+      // its own b_dly tracking the cycle-by-cycle match condition.
+      //
+      // Specifically: match_done at cycle Y = b@Y for ANY Y where the
+      // attempt could match.  For deterministic delay (n_lo == n_hi),
+      // the match cycle is unique: Y = T + n_hi.
+      // For range, multiple Y candidates in [T+n_lo, T+n_hi].
+      //
+      // We expose match_done as the per-cycle indicator "an attempt
+      // at any started point could have matched here, given B@Y".
+      // For SEQ_CONCAT(a, b, n_lo, n_hi):
+      //   match_done@Y = (a@(Y-d) for some d in [n_lo, n_hi]) && b@Y
+      //                = (OR of a_dly[d-1] for d in [n_lo, n_hi]) && b@Y
+      // For n_lo == 0, include a@Y itself for d=0:
+      PExpr*a_window_or = nullptr;
+      for (unsigned d = n_lo; d <= n_hi; ++d) {
+            PExpr*a_at_xd;
+            if (d == 0) a_at_xd = clone_pe_or_share_(a_expr);
+            else        a_at_xd = make_bit_select_(a_reg, d - 1, loc);
+            if (!a_window_or) a_window_or = a_at_xd;
+            else {
+                  PExpr*o = new PEBLogic('o', a_window_or, a_at_xd);
+                  FILE_NAME(o, loc);
+                  a_window_or = o;
+            }
+      }
+      PExpr*md = new PEBLogic('a', a_window_or,
+                              clone_pe_or_share_(b_expr));
+      FILE_NAME(md, loc);
+      r->match_done_expr = md;
+
+      // NBA: a_reg <= {a_reg[n_hi-2:0], a_expr}.
+      PExpr*shift_rhs = (n_hi == 1)
+                          ? clone_pe_or_share_(a_expr)
+                          : build_shift_concat_(a_reg, n_hi,
+                                                clone_pe_or_share_(a_expr),
+                                                loc);
+      pform_name_t pn;
+      pn.push_back(name_component_t(a_reg));
+      PEIdent*lhs = pform_new_ident(loc, pn);
+      FILE_NAME(lhs, loc);
+      PAssignNB*nba = new PAssignNB(lhs, shift_rhs);
+      FILE_NAME(nba, loc);
+      r->nba_stmts.push_back(nba);
+
+      return r;
+}
+
 }  // anonymous
 
 seq_synth_result_t* sva_seq_synth(const sva_seq_t*seq,
@@ -666,6 +767,8 @@ seq_synth_result_t* sva_seq_synth(const sva_seq_t*seq,
       switch (seq->kind) {
           case sva_seq_t::SEQ_BOOL:
             return synth_bool_(seq, loc);
+          case sva_seq_t::SEQ_CONCAT:
+            return synth_concat_(seq, loc, line, file);
           default:
             // Other operators not yet migrated to the framework.
             cerr << file << ":" << line << ": sva_seq_synth: operator"
@@ -695,35 +798,57 @@ Statement* sva_seq_assert_wrap(seq_synth_result_t*r,
 
       Statement*body = nullptr;
 
+      // Note on cycle accounting: at the active region of cycle X,
+      // the NBAs from cycle X-1 have already executed.  So a shift
+      // register `dly` updated with `dly <= {dly[w-2:0], v}` at each
+      // clock has, at the active region of X, dly[i] = v@(X-1-i) for
+      // i = 0..w-1.  To read v from k cycles ago (i.e. v@(X-k)) we
+      // index dly[k-1].  Width w = k_max means bit w-1 holds v@(X-w).
+      //
+      // For deadline checks, the oldest in-flight attempt at cycle X
+      // started at X - L_hi.  We need started_dly[L_hi - 1].
+
       if (r->length_lo == 0 && r->length_hi == 0) {
             // Deterministic L=0 (e.g. SEQ_BOOL): attempt matches or
             // fails at the same cycle.  Fire iff match_started &&
-            // !match_done at this cycle.
+            // !match_done at this cycle.  No shift register needed.
             PExpr*not_done = new PEUnary('!', r->match_done_expr);
             FILE_NAME(not_done, loc);
             PExpr*cond = new PEBLogic('a', r->match_started_expr, not_done);
             FILE_NAME(cond, loc);
             PCondit*chk = new PCondit(cond, fail, nullptr);
             FILE_NAME(chk, loc);
-            body = chk;
+
+            std::vector<Statement*> stmts;
+            stmts.push_back(chk);
+            for (auto*nba : r->nba_stmts) stmts.push_back(nba);
+            if (stmts.size() == 1) { body = chk; }
+            else {
+                  PBlock*blk = new PBlock(PBlock::BL_SEQ);
+                  blk->set_statement(stmts);
+                  FILE_NAME(blk, loc);
+                  body = blk;
+            }
       } else if (r->length_lo == r->length_hi) {
-            // Fixed-length deterministic seq.  Track started in a
-            // shift register of width L+1; at cycle X the oldest
-            // in-flight attempt (started at X-L) deadlines.
+            // Fixed-length deterministic seq with L>=1.  Track
+            // started in a width-L shift register; at cycle X the
+            // oldest in-flight attempt (started at X-L) is read at
+            // started_dly[L-1].
             unsigned L = r->length_hi;
-            perm_string sreg = declare_shift_reg_(L + 1, loc);
-            // Failure: started_dly[L] && !match_done@X.
-            PEIdent*sm = make_bit_select_(sreg, L, loc);
+            perm_string sreg = declare_shift_reg_(L, loc);
+
+            PEIdent*sm = make_bit_select_(sreg, L - 1, loc);
             PExpr*not_done = new PEUnary('!', r->match_done_expr);
             FILE_NAME(not_done, loc);
             PExpr*cond = new PEBLogic('a', sm, not_done);
             FILE_NAME(cond, loc);
             PCondit*chk = new PCondit(cond, fail, nullptr);
             FILE_NAME(chk, loc);
-            // NBA: sreg <= {sreg[L-1:0], match_started}.
-            PExpr*shift_rhs = (L + 1 == 1)
+
+            // NBA: sreg <= {sreg[L-2:0], match_started}.
+            PExpr*shift_rhs = (L == 1)
                                  ? r->match_started_expr
-                                 : build_shift_concat_(sreg, L + 1,
+                                 : build_shift_concat_(sreg, L,
                                                        r->match_started_expr,
                                                        loc);
             pform_name_t spn;
@@ -742,17 +867,24 @@ Statement* sva_seq_assert_wrap(seq_synth_result_t*r,
             FILE_NAME(blk, loc);
             body = blk;
       } else {
-            // Range-length seq: track started over [0..L_hi] and
-            // matches over [L_lo..L_hi] window.  Fail at cycle X if
-            // started_dly[L_hi] (oldest expired) is set AND no match
-            // occurred in any cycle in window [X-L_hi+L_lo, X].
+            // Range-length seq.  started_dly width = L_hi (so
+            // started_dly[L_hi-1] = match_started@(X-L_hi)).
+            // match_window register tracks match_done over the
+            // [L_lo, L_hi] window for the OLDEST attempt; we OR
+            // across the window at deadline.
             unsigned Lhi = r->length_hi;
             unsigned Llo = r->length_lo;
             unsigned win = Lhi - Llo + 1;
 
-            perm_string sreg = declare_shift_reg_(Lhi + 1, loc);
+            perm_string sreg = declare_shift_reg_(Lhi, loc);
             perm_string mreg = declare_shift_reg_(win, loc);
 
+            // any_match = match_done@X (for d=L_lo if Llo==0, but
+            // generally L_lo>=1) OR mreg[i] for older d's.
+            // Indexing: at active of X, mreg[i] = match_done@(X-1-i).
+            // Window: cycles [X-L_hi+L_lo, X].  X = mreg index -1
+            // (live).  cycle X-k = mreg[k-1] for k>=1.  Cycle X is
+            // the live match_done.
             PExpr*any_match = clone_pe_or_share_(r->match_done_expr);
             for (unsigned i = 0; i < win; ++i) {
                   PEIdent*bit = make_bit_select_(mreg, i, loc);
@@ -761,7 +893,7 @@ Statement* sva_seq_assert_wrap(seq_synth_result_t*r,
                   any_match = o;
             }
 
-            PEIdent*sm = make_bit_select_(sreg, Lhi, loc);
+            PEIdent*sm = make_bit_select_(sreg, Lhi - 1, loc);
             PExpr*not_match = new PEUnary('!', any_match);
             FILE_NAME(not_match, loc);
             PExpr*cond = new PEBLogic('a', sm, not_match);
@@ -781,7 +913,7 @@ Statement* sva_seq_assert_wrap(seq_synth_result_t*r,
                   FILE_NAME(nba, loc);
                   return nba;
             };
-            PAssignNB*snba = build_nba(sreg, Lhi + 1, r->match_started_expr);
+            PAssignNB*snba = build_nba(sreg, Lhi, r->match_started_expr);
             PAssignNB*mnba = build_nba(mreg, win,
                                        clone_pe_or_share_(r->match_done_expr));
 
@@ -812,35 +944,14 @@ Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
       vlltype loc = make_loc_(line, file);
 
       switch (seq->kind) {
-          case sva_seq_t::SEQ_BOOL: {
+          case sva_seq_t::SEQ_BOOL:
+          case sva_seq_t::SEQ_CONCAT: {
             // Migrated to the framework path.
             seq_synth_result_t*r = sva_seq_synth(seq, line, file);
             if (!r) return nullptr;
             Statement*s = sva_seq_assert_wrap(r, fail, line, file);
             sva_seq_synth_free(r);
             return s;
-          }
-
-          case sva_seq_t::SEQ_CONCAT: {
-            // A ##N B (fixed) or A ##[N:M] B (range, both bool ops).
-            if (!is_pure_bool_(seq->kids_[0]) || !is_pure_bool_(seq->kids_[1])) {
-                  cerr << file << ":" << line << ": sorry: SVA `##N'/`##[N:M]'"
-                       << " with non-boolean (composite) operands not yet"
-                       << " supported." << endl;
-                  return nullptr;
-            }
-            PExpr*a = clone_pe_or_share_(seq->kids_[0]->expr_);
-            PExpr*b = clone_pe_or_share_(seq->kids_[1]->expr_);
-            if (seq->n_lo == seq->n_hi && !seq->unbounded_hi)
-                  return synth_bool_concat_(a, b, seq->n_lo, fail, loc);
-            if (seq->unbounded_hi) {
-                  cerr << file << ":" << line << ": sorry: SVA `##[N:$]'"
-                       << " unbounded delay not supported (would need"
-                       << " unbounded match-tracking buffer)." << endl;
-                  return nullptr;
-            }
-            return synth_bool_concat_range_(a, b, seq->n_lo, seq->n_hi,
-                                            fail, loc);
           }
 
           case sva_seq_t::SEQ_OR: {
