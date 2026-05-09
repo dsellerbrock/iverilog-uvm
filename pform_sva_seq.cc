@@ -757,6 +757,41 @@ seq_synth_result_t* synth_concat_(const sva_seq_t*seq, const vlltype&loc,
       return r;
 }
 
+seq_synth_result_t* synth_or_(const sva_seq_t*seq, const vlltype&loc,
+                              unsigned line, const char*file)
+{
+      seq_synth_result_t*a = sva_seq_synth(seq->kids_[0], line, file);
+      seq_synth_result_t*b = sva_seq_synth(seq->kids_[1], line, file);
+      if (!a || !b) { delete a; delete b; return nullptr; }
+      if (a->unbounded_hi || b->unbounded_hi) {
+            cerr << file << ":" << line << ": sorry: SEQ_OR with"
+                 << " unbounded sub-sequence." << endl;
+            delete a; delete b; return nullptr;
+      }
+      if (a->length_lo != b->length_lo || a->length_hi != b->length_hi) {
+            cerr << file << ":" << line << ": sorry: SEQ_OR currently"
+                 << " requires sub-sequences with the same length range."
+                 << "  Different lengths need per-sub deadline tracking;"
+                 << " not silently approximated." << endl;
+            delete a; delete b; return nullptr;
+      }
+
+      seq_synth_result_t*r = new seq_synth_result_t;
+      r->match_started_expr = new PEBLogic('o', a->match_started_expr,
+                                           b->match_started_expr);
+      FILE_NAME(r->match_started_expr, loc);
+      r->match_done_expr = new PEBLogic('o', a->match_done_expr,
+                                        b->match_done_expr);
+      FILE_NAME(r->match_done_expr, loc);
+      r->length_lo = a->length_lo;
+      r->length_hi = a->length_hi;
+      r->unbounded_hi = false;
+      for (auto*nba : a->nba_stmts) r->nba_stmts.push_back(nba);
+      for (auto*nba : b->nba_stmts) r->nba_stmts.push_back(nba);
+      delete a; delete b;  // shells freed; contents now owned by r
+      return r;
+}
+
 }  // anonymous
 
 seq_synth_result_t* sva_seq_synth(const sva_seq_t*seq,
@@ -769,6 +804,8 @@ seq_synth_result_t* sva_seq_synth(const sva_seq_t*seq,
             return synth_bool_(seq, loc);
           case sva_seq_t::SEQ_CONCAT:
             return synth_concat_(seq, loc, line, file);
+          case sva_seq_t::SEQ_OR:
+            return synth_or_(seq, loc, line, file);
           default:
             // Other operators not yet migrated to the framework.
             cerr << file << ":" << line << ": sva_seq_synth: operator"
@@ -945,7 +982,8 @@ Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
 
       switch (seq->kind) {
           case sva_seq_t::SEQ_BOOL:
-          case sva_seq_t::SEQ_CONCAT: {
+          case sva_seq_t::SEQ_CONCAT:
+          case sva_seq_t::SEQ_OR: {
             // Migrated to the framework path.
             seq_synth_result_t*r = sva_seq_synth(seq, line, file);
             if (!r) return nullptr;
@@ -954,29 +992,7 @@ Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
             return s;
           }
 
-          case sva_seq_t::SEQ_OR: {
-            // seq1 or seq2 — at every cycle, at least one sub-sequence's
-            // attempt (started L cycles ago) must complete here, where L
-            // is the per-sub-sequence length.  For step 3 we restrict to
-            // the case where both sub-seqs are SEQ_BOOL (L==0): in that
-            // case, fail = !(a || b).
-            // The general case requires per-attempt tracking which we
-            // hard-error on rather than silently approximate.
-            if (!is_pure_bool_(seq->kids_[0]) || !is_pure_bool_(seq->kids_[1])) {
-                  cerr << file << ":" << line << ": sorry: SVA `or'"
-                       << " with multi-cycle sub-sequences not yet"
-                       << " supported (step 3 covers only single-cycle"
-                       << " bool operands)." << endl;
-                  return nullptr;
-            }
-            PExpr*a = clone_pe_or_share_(seq->kids_[0]->expr_);
-            PExpr*b = clone_pe_or_share_(seq->kids_[1]->expr_);
-            PExpr*ored = new PEBLogic('o', a, b);
-            FILE_NAME(ored, loc);
-            PCondit*chk = new PCondit(ored, nullptr, fail);
-            FILE_NAME(chk, loc);
-            return chk;
-          }
+          // SEQ_OR migrated to the framework — handled above.
 
           case sva_seq_t::SEQ_INTERSECT: {
             // intersect requires same start AND same end across both
