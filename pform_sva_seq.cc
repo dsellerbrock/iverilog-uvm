@@ -358,6 +358,140 @@ Statement* synth_bool_concat_range_(PExpr*ant, PExpr*cons,
       return blk;
 }
 
+// Build the body for `guard throughout (A_ant ##A_lo..A_hi A_cons)`.
+// guard must hold at every cycle of the matched span.  For an attempt
+// started at T, the span is [T, T+d] where d ∈ [a_lo, a_hi] is the
+// chosen delay.  guard must be 1 at every cycle in [T, T+d].
+//
+// Implementation: track A_ant in a length-a_hi shift register; track
+// guard (sampled per cycle) in a length-(a_hi+1) shift register.  At
+// cycle X, the oldest in-flight attempt (started at X-a_hi) fails
+// iff: A_ant held at start AND no successful match across the window
+// (all-guard-held && A_cons-at-this-cycle).
+//
+// "all-guard-held over window" means: for some d ∈ [a_lo, a_hi] such
+// that an attempt started at T = X-d found A_cons@(T+d)==A_cons@X
+// AND guard held at every cycle T..X.
+//
+// For tractability we check the OLDEST attempt's deadline; later
+// attempts that succeed will retire themselves.  At deadline X for
+// start T = X-a_hi: any d in [a_lo, a_hi] gives a candidate match
+// cycle T+d = X-a_hi+d.  For each such candidate Y, success iff
+// A_cons@Y AND guard held at every cycle in [T, Y] = [X-a_hi, Y].
+//
+// Implemented via an "any-match-success" reduction across candidate
+// match cycles: any_match = OR over d ∈ [a_lo, a_hi] of
+//   guard_dly[a_hi-d:a_hi] all 1 AND A_cons sampled at cycle X-a_hi+d.
+Statement* synth_throughout_(PExpr*guard, const sva_seq_t*sub,
+                              Statement*fail, const vlltype&loc)
+{
+      PExpr*a_ant  = clone_pe_or_share_(sub->kids_[0]->expr_);
+      PExpr*a_cons = clone_pe_or_share_(sub->kids_[1]->expr_);
+      unsigned a_lo = sub->n_lo, a_hi = sub->n_hi;
+
+      // a_ant_dly[a_hi-1:0]
+      perm_string a_reg = declare_shift_reg_(a_hi, loc);
+      // guard_dly[a_hi:0] -- includes current cycle's guard plus
+      // a_hi cycles of history.  Width = a_hi + 1.
+      perm_string g_reg = declare_shift_reg_(a_hi + 1, loc);
+      // a_cons_dly[a_hi-a_lo:0] -- A_cons over candidate match cycles.
+      unsigned win = a_hi - a_lo + 1;
+      perm_string c_reg = declare_shift_reg_(win, loc);
+
+      // any_match: OR over d ∈ [a_lo, a_hi] of:
+      //   (a_cons sampled at start_cycle + d, currently in c_reg
+      //    or being sampled this cycle for d=a_hi)
+      //   AND  guard held at every cycle in start..(start+d), which
+      //        means every guard_dly bit covering [a_hi-d, a_hi] is 1.
+      // For start T = X-a_hi, after a_hi clocks: at cycle X we evaluate.
+      //
+      // Indexing convention:
+      //   a_cons sampled at cycle (X - a_hi + d):
+      //     if d == a_hi -> current cycle's a_cons (not yet shifted in)
+      //     else         -> c_reg[a_hi - 1 - d]   (shifted in d cycles ago,
+      //                       at cycle X-a_hi+d, currently at offset a_hi-1-d)
+      //   guard at cycle (X - a_hi + i) for i ∈ [0, d]:
+      //     if i == a_hi -> current cycle's guard (not yet shifted in)
+      //     else         -> g_reg[a_hi - 1 - i]
+      // For a span of d+1 cycles starting at X-a_hi, all guard bits
+      // [a_hi - d, a_hi] over the g_reg index space (with bit a_hi
+      // representing the current cycle, not shifted in) must be 1.
+      //
+      // We model bit a_hi of "guard" as the live `guard` expr; for
+      // shifted bits use g_reg[i].
+      PExpr*any_match = nullptr;
+      for (unsigned d = a_lo; d <= a_hi; ++d) {
+            // Build all_guard for this d: guard_at(X-a_hi+i) for
+            // i ∈ [0..d].
+            PExpr*all_guard = nullptr;
+            for (unsigned i = 0; i <= d; ++i) {
+                  PExpr*g_i;
+                  if (i == a_hi) {
+                        g_i = clone_pe_or_share_(guard);
+                  } else if (i < a_hi) {
+                        g_i = make_bit_select_(g_reg, a_hi - 1 - i, loc);
+                  } else {
+                        // Shouldn't happen: i > a_hi.
+                        continue;
+                  }
+                  if (!all_guard) all_guard = g_i;
+                  else {
+                        PExpr*c = new PEBLogic('a', all_guard, g_i);
+                        FILE_NAME(c, loc);
+                        all_guard = c;
+                  }
+            }
+            // Build a_cons_at(X-a_hi+d).
+            PExpr*c_d;
+            if (d == a_hi) c_d = clone_pe_or_share_(a_cons);
+            else c_d = make_bit_select_(c_reg, a_hi - 1 - d, loc);
+
+            PExpr*span_match = new PEBLogic('a', all_guard, c_d);
+            FILE_NAME(span_match, loc);
+
+            if (!any_match) any_match = span_match;
+            else {
+                  PExpr*o = new PEBLogic('o', any_match, span_match);
+                  FILE_NAME(o, loc);
+                  any_match = o;
+            }
+      }
+
+      // started: A_ant held at X-a_hi.
+      PEIdent*a_msb = make_bit_select_(a_reg, a_hi - 1, loc);
+      PExpr*not_match = new PEUnary('!', any_match);
+      FILE_NAME(not_match, loc);
+      PExpr*fail_cond = new PEBLogic('a', a_msb, not_match);
+      FILE_NAME(fail_cond, loc);
+      PCondit*chk = new PCondit(fail_cond, fail, nullptr);
+      FILE_NAME(chk, loc);
+
+      auto build_nba = [&](perm_string reg, unsigned w, PExpr*rhs_val) -> PAssignNB* {
+            PExpr*rhs = (w == 1) ? rhs_val : build_shift_concat_(reg, w, rhs_val, loc);
+            pform_name_t pn;
+            pn.push_back(name_component_t(reg));
+            PEIdent*lhs = pform_new_ident(loc, pn);
+            FILE_NAME(lhs, loc);
+            PAssignNB*nba = new PAssignNB(lhs, rhs);
+            FILE_NAME(nba, loc);
+            return nba;
+      };
+
+      PAssignNB*a_nba = build_nba(a_reg, a_hi, a_ant);
+      PAssignNB*g_nba = build_nba(g_reg, a_hi + 1, clone_pe_or_share_(guard));
+      PAssignNB*c_nba = build_nba(c_reg, win, clone_pe_or_share_(a_cons));
+
+      std::vector<Statement*> stmts;
+      stmts.push_back(chk);
+      stmts.push_back(a_nba);
+      stmts.push_back(g_nba);
+      stmts.push_back(c_nba);
+      PBlock*blk = new PBlock(PBlock::BL_SEQ);
+      blk->set_statement(stmts);
+      FILE_NAME(blk, loc);
+      return blk;
+}
+
 // Build the body for `intersect((A_ant ##A_lo..A_hi A_cons),
 // (B_ant ##B_lo..B_hi B_cons))`.  Both sub-sequences must match
 // starting at the same cycle T and ending at the same cycle X.
@@ -588,17 +722,78 @@ Statement* sva_seq_synthesize_check(const sva_seq_t*seq,
             return synth_intersect_concat_(a, b, s_lo, s_hi, fail, loc);
           }
 
-          case sva_seq_t::SEQ_AND:
-          case sva_seq_t::SEQ_THROUGHOUT:
+          case sva_seq_t::SEQ_AND: {
+            // `and`: both sub-sequences must match starting at same T;
+            // end time is max of the two ends.  We restrict to two
+            // SEQ_CONCAT operands with the same upper-bound delay
+            // (same end time); for SEQ_BOOL pair it degenerates to
+            // single-cycle &&.
+            sva_seq_t*a = seq->kids_[0];
+            sva_seq_t*b = seq->kids_[1];
+            if (is_pure_bool_(a) && is_pure_bool_(b)) {
+                  PExpr*ax = clone_pe_or_share_(a->expr_);
+                  PExpr*bx = clone_pe_or_share_(b->expr_);
+                  PExpr*both = new PEBLogic('a', ax, bx);
+                  FILE_NAME(both, loc);
+                  PCondit*chk = new PCondit(both, nullptr, fail);
+                  FILE_NAME(chk, loc);
+                  return chk;
+            }
+            if (a->kind != sva_seq_t::SEQ_CONCAT
+                || b->kind != sva_seq_t::SEQ_CONCAT
+                || !is_pure_bool_(a->kids_[0]) || !is_pure_bool_(a->kids_[1])
+                || !is_pure_bool_(b->kids_[0]) || !is_pure_bool_(b->kids_[1])
+                || a->unbounded_hi || b->unbounded_hi
+                || a->n_hi != b->n_hi) {
+                  cerr << file << ":" << line << ": sorry: SVA `and'"
+                       << " currently supports only two `expr ##N..M expr'"
+                       << " sub-sequences with the same upper-bound delay"
+                       << " (so end-time is shared)." << endl;
+                  return nullptr;
+            }
+            // Same end time => same as intersect with merged windows.
+            unsigned s_lo = a->n_lo > b->n_lo ? a->n_lo : b->n_lo;
+            unsigned s_hi = a->n_hi;
+            return synth_intersect_concat_(a, b, s_lo, s_hi, fail, loc);
+          }
+
+          case sva_seq_t::SEQ_THROUGHOUT: {
+            // `expr throughout seq`: expr must hold at every cycle of
+            // seq's match span.  We support `bool throughout
+            // SEQ_CONCAT(bool, bool, lo, hi)` and `bool throughout
+            // SEQ_BOOL`; multi-cycle and intersect/and inside the seq
+            // need composability that we don't yet provide.
+            PExpr*guard = clone_pe_or_share_(seq->expr_);
+            sva_seq_t*sub = seq->kids_[0];
+            if (is_pure_bool_(sub)) {
+                  PExpr*sx = clone_pe_or_share_(sub->expr_);
+                  PExpr*both = new PEBLogic('a', guard, sx);
+                  FILE_NAME(both, loc);
+                  PCondit*chk = new PCondit(both, nullptr, fail);
+                  FILE_NAME(chk, loc);
+                  return chk;
+            }
+            if (sub->kind != sva_seq_t::SEQ_CONCAT
+                || !is_pure_bool_(sub->kids_[0])
+                || !is_pure_bool_(sub->kids_[1])
+                || sub->unbounded_hi) {
+                  cerr << file << ":" << line << ": sorry: SVA `throughout'"
+                       << " currently supports `expr throughout"
+                       << " (a ##N..M b)' or `expr throughout bool'."
+                       << endl;
+                  return nullptr;
+            }
+            return synth_throughout_(guard, sub, fail, loc);
+          }
+
           case sva_seq_t::SEQ_WITHIN:
           case sva_seq_t::SEQ_REPEAT:
           case sva_seq_t::SEQ_GOTO:
           case sva_seq_t::SEQ_NONCONS:
-            cerr << file << ":" << line << ": sorry: SVA sequence operator"
-                 << " not yet supported by sva-temporal.  `and' (different"
-                 << " end-times), `throughout' (span tracking), `within'"
-                 << " and repetition operators require per-attempt"
-                 << " tracking; not silently approximated." << endl;
+            cerr << file << ":" << line << ": sorry: SVA `within' and"
+                 << " repetition operators require per-attempt tracking"
+                 << " not yet implemented; not silently approximated."
+                 << endl;
             return nullptr;
       }
       return nullptr;
