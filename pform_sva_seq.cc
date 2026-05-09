@@ -772,58 +772,54 @@ seq_synth_result_t* synth_repeat_(const sva_seq_t*seq, const vlltype&loc,
                  << " unbounded repetition not supported." << endl;
             return nullptr;
       }
-      if (seq->n_lo != seq->n_hi) {
-            cerr << file << ":" << line << ": sorry: range `[*N:M]'"
-                 << " repetition not yet supported (step 5)." << endl;
-            return nullptr;
-      }
-      unsigned N = seq->n_lo;
-      if (N == 0) {
-            cerr << file << ":" << line << ": sorry: `[*0]'"
-                 << " (empty match) not supported." << endl;
+      unsigned lo = seq->n_lo, hi = seq->n_hi;
+      if (lo == 0) {
+            cerr << file << ":" << line << ": sorry: `[*0...]'"
+                 << " (empty-match start) not supported." << endl;
             return nullptr;
       }
 
       PExpr*b_expr = seq->kids_[0]->expr_;
 
       seq_synth_result_t*r = new seq_synth_result_t;
-      r->length_lo = N - 1;
-      r->length_hi = N - 1;
+      r->length_lo = lo - 1;
+      r->length_hi = hi - 1;
       r->unbounded_hi = false;
       r->match_started_expr = clone_pe_or_share_(b_expr);
 
-      if (N == 1) {
+      if (lo == 1 && hi == 1) {
             // [*1]: identical to b alone.  L=0.
             r->match_done_expr = clone_pe_or_share_(b_expr);
             return r;
       }
 
-      // N >= 2: track b's history in width-(N-1) shift register.
-      perm_string b_reg = declare_shift_reg_(N - 1, loc);
-
-      // match_done = b@X && b_dly[0] && b_dly[1] && ... && b_dly[N-2].
+      // Need b_dly of width lo-1 to express "run of length >= lo
+      // ending at this cycle".  For lo == 1, no register needed.
       PExpr*all = clone_pe_or_share_(b_expr);
-      for (unsigned i = 0; i + 1 < N; ++i) {
-            PEIdent*bit = make_bit_select_(b_reg, i, loc);
-            PExpr*and_ = new PEBLogic('a', all, bit);
-            FILE_NAME(and_, loc);
-            all = and_;
+      if (lo >= 2) {
+            perm_string b_reg = declare_shift_reg_(lo - 1, loc);
+            for (unsigned i = 0; i + 1 < lo; ++i) {
+                  PEIdent*bit = make_bit_select_(b_reg, i, loc);
+                  PExpr*and_ = new PEBLogic('a', all, bit);
+                  FILE_NAME(and_, loc);
+                  all = and_;
+            }
+
+            // NBA: b_reg <= {b_reg[lo-3:0], b}.
+            PExpr*shift_rhs = (lo - 1 == 1)
+                                ? clone_pe_or_share_(b_expr)
+                                : build_shift_concat_(b_reg, lo - 1,
+                                                      clone_pe_or_share_(b_expr),
+                                                      loc);
+            pform_name_t pn;
+            pn.push_back(name_component_t(b_reg));
+            PEIdent*lhs = pform_new_ident(loc, pn);
+            FILE_NAME(lhs, loc);
+            PAssignNB*nba = new PAssignNB(lhs, shift_rhs);
+            FILE_NAME(nba, loc);
+            r->nba_stmts.push_back(nba);
       }
       r->match_done_expr = all;
-
-      // NBA: b_reg <= {b_reg[N-3:0], b}.
-      PExpr*shift_rhs = (N - 1 == 1)
-                          ? clone_pe_or_share_(b_expr)
-                          : build_shift_concat_(b_reg, N - 1,
-                                                clone_pe_or_share_(b_expr),
-                                                loc);
-      pform_name_t pn;
-      pn.push_back(name_component_t(b_reg));
-      PEIdent*lhs = pform_new_ident(loc, pn);
-      FILE_NAME(lhs, loc);
-      PAssignNB*nba = new PAssignNB(lhs, shift_rhs);
-      FILE_NAME(nba, loc);
-      r->nba_stmts.push_back(nba);
 
       return r;
 }
