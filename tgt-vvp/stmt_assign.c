@@ -1703,6 +1703,47 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 		 the l-value. */
 	    errors += show_stmt_assign_queue_pattern(var, rval, element_type, idx);
 
+      } else if (ivl_expr_type(rval) == IVL_EX_CONCAT
+                 && (ivl_type_base(element_type) == IVL_VT_BOOL
+                     || ivl_type_base(element_type) == IVL_VT_LOGIC)
+                 && !ivl_type_queue_assoc_compat(var_type)
+                 && ivl_type_packed_width(element_type) > 0
+                 && ivl_expr_width(rval) > 0
+                 && (ivl_expr_width(rval)
+                     % ivl_type_packed_width(element_type)) == 0) {
+	    /* Vector → byte/word queue conversion (e.g. result of
+	     * `pkt = {<<8 {x}}`).  Slice the vec4 rval into element-
+	     * sized chunks and push each into the queue.  Order: MSB
+	     * slice goes to queue[0]. */
+	    assert(ivl_stmt_opcode(net) == 0);
+	    unsigned elem_wid = ivl_type_packed_width(element_type);
+	    unsigned rval_wid = ivl_expr_width(rval);
+	    unsigned n_elem = rval_wid / elem_wid;
+
+	    /* Evaluate the vec4 rval. */
+	    draw_eval_vec4(rval);
+	    /* Slice each element with %dup + %parti/u and push to queue. */
+	    for (unsigned i = 0; i < n_elem; i += 1) {
+		  fprintf(vvp_out, "    %%dup/vec4;\n");
+		  /* MSB-first ordering: queue[0] = high bits.  vec4 is
+		   * stored LSB-at-bit-0; element i (MSB-first in queue)
+		   * lives at bits [(n_elem-1-i)*elem_wid +: elem_wid]. */
+		  unsigned off = (n_elem - 1 - i) * elem_wid;
+		  /* %parti/u <wid>, <base>, <base_wid> — extracts wid bits
+		   * at immediate base from the vec4 on top of stack. */
+		  fprintf(vvp_out, "    %%parti/u %u, %u, 32;\n",
+			  elem_wid, off);
+		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", i);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  fprintf(vvp_out, "    %%store/qdar/v v%p_0, %d, %u;\n",
+			  var, idx, elem_wid);
+	    }
+	    /* Discard the original vec4 we duplicated from. */
+	    fprintf(vvp_out, "    %%pop/vec4 1;\n");
+	    /* Truncate the queue to exactly n_elem entries (in case it
+	     * had stale elements from a previous assignment). */
+	    fprintf(vvp_out, "    %%ix/load 5, %u, 0;\n", n_elem);
+	    fprintf(vvp_out, "    %%delete/tail v%p_0, 5;\n", var);
       } else {
 	    assert(ivl_stmt_opcode(net) == 0);
 
