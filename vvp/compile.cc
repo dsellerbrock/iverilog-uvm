@@ -392,6 +392,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qmax",       of_QMAX,        1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qmin",       of_QMIN,        1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qor",        of_QOR,         1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+      { "%qpack_dar_byte",of_QPACK_DAR_BYTE, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%qpop/b/obj", of_QPOP_B_OBJ, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qpop/b/real",of_QPOP_B_REAL,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qpop/b/str", of_QPOP_B_STR, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },

@@ -14101,6 +14101,41 @@ bool of_QPUSH_BACK_V(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %qpack_dar_byte <var>, <wid>
+ * Chapter-11 closure: pack a byte-element darray (popped from object stack)
+ * into a byte-element queue signal in REVERSE element order.  This
+ * implements the LSB-first byte ordering of `q = {<<8 {..., darray, ...}}`
+ * where the darray operand sits at the LSB position of the inner concat. */
+bool of_QPACK_DAR_BYTE(vthread_t thr, vvp_code_t cp)
+{
+      unsigned wid = cp->bit_idx[0];   // 8 for byte queue
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_darray*src = obj.peek<vvp_darray>();
+      if (!src) return true;  // null darray → nothing to push
+
+      vvp_net_t*net = cp->net;
+      vvp_queue*queue = get_queue_object<vvp_queue_vec4>(thr, net);
+      assert(queue);
+
+      size_t sz = src->get_size();
+      for (size_t i = sz; i > 0; i--) {
+            vvp_vector4_t v;
+            src->get_word((unsigned)(i-1), v);
+            // Element width may differ from queue word width; resize.
+            if (v.size() != wid) {
+                  vvp_vector4_t adj(wid, BIT4_0);
+                  unsigned copy = v.size() < wid ? v.size() : wid;
+                  for (unsigned b = 0; b < copy; b++)
+                        adj.set_bit(b, v.value(b));
+                  v = adj;
+            }
+            static_cast<vvp_queue_vec4*>(queue)->push_back(v, 0);
+      }
+      notify_mutated_object_signal_(thr, net, "qpack_dar_byte");
+      return true;
+}
+
 /* %qpush_front/v <var>, <max_idx_reg>, <wid>
  * Pop a vec4 from the vec4 stack and push_front into the queue signal. */
 bool of_QPUSH_FRONT_V(vthread_t thr, vvp_code_t cp)

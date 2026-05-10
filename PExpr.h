@@ -282,6 +282,11 @@ class PEConcat : public PExpr {
 					 bool is_init = false) const override;
       virtual bool is_collapsible_net(Design*des, NetScope*scope,
                                       NetNet::PortType port_type) const override;
+
+      // Public accessor for the concat parm list, used by PAssign::elaborate
+      // to detect streaming-concat-with-darray-operand patterns and lower
+      // them procedurally.
+      const std::vector<PExpr*>& parms() const { return parms_; }
     private:
       NetNet* elaborate_lnet_common_(Design*des, NetScope*scope,
 				     bool bidirectional_flag,

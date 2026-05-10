@@ -2552,6 +2552,38 @@ static int show_system_task_call(ivl_statement_t net)
       if (strcmp(stmt_name,"$ivl_queue_method$push_back") == 0)
 	    return show_push_frontback_method(net, false);
 
+      // Chapter-11 closure: clear a queue (set to empty) — emitted by
+      // PAssign::elaborate when lowering streaming-concat-with-darray to
+      // procedural form.
+      if (strcmp(stmt_name,"$ivl_q_clear") == 0) {
+	    if (ivl_stmt_parm_count(net) != 1) return 0;
+	    ivl_expr_t q_arg = ivl_stmt_parm(net, 0);
+	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL) return 0;
+	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
+	    if (!q_sig) return 0;
+	    fprintf(vvp_out, "    %%null;\n");
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", q_sig);
+	    return 0;
+      }
+
+      // Chapter-11 closure: pack a byte-element darray into a byte-element
+      // queue at runtime, in REVERSE element order.  Emitted by
+      // PAssign::elaborate for the darray operands of a streaming concat.
+      //   parm[0] = target queue (signal)
+      //   parm[1] = source darray (object expression)
+      if (strcmp(stmt_name,"$ivl_q_pack_dar_byte") == 0) {
+	    if (ivl_stmt_parm_count(net) != 2) return 0;
+	    ivl_expr_t q_arg = ivl_stmt_parm(net, 0);
+	    ivl_expr_t d_arg = ivl_stmt_parm(net, 1);
+	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL || !d_arg)
+		  return 0;
+	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
+	    if (!q_sig) return 0;
+	    draw_eval_object(d_arg);
+	    fprintf(vvp_out, "    %%qpack_dar_byte v%p_0, 8;\n", q_sig);
+	    return 0;
+      }
+
       if (strcmp(stmt_name,"$ivl_queue_method$sort") == 0
 	  || strcmp(stmt_name,"$ivl_queue_method$rsort") == 0
 	  || strcmp(stmt_name,"$ivl_queue_method$unique") == 0

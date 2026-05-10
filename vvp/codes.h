@@ -381,6 +381,7 @@ extern bool of_QMAX(vthread_t thr, vvp_code_t code);
 extern bool of_QMIN(vthread_t thr, vvp_code_t code);
 extern bool of_QSUM(vthread_t thr, vvp_code_t code);
 extern bool of_QPROD(vthread_t thr, vvp_code_t code);
+extern bool of_QPACK_DAR_BYTE(vthread_t thr, vvp_code_t code);
 extern bool of_QPUSH_BACK_V(vthread_t thr, vvp_code_t code);
 extern bool of_QPUSH_FRONT_V(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE(vthread_t thr, vvp_code_t code);

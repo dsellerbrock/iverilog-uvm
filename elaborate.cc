@@ -3443,6 +3443,155 @@ static NetProc*build_tagged_union_companion_set_(Design*des, NetScope*scope,
       return comp_as;
 }
 
+// Chapter-11 closure: streaming concat with darray operand → byte queue.
+// `pkt = {<<8 {hdr, len, crc, data}}` where data is a byte darray.  The
+// streaming-concat width is unknown at elaboration time (darrays size at
+// runtime), so the standard NetEConcat-of-NetESelect lowering produces
+// wrong widths.  Instead, lower to a procedural NetBlock that pushes
+// bytes one at a time:
+//   pkt = empty
+//   for each operand from RIGHT to LEFT (LSB position first):
+//     if darray of byte: push darray[size-1], darray[size-2], ..., darray[0]
+//     if fixed-width vec: push byte 0, byte 1, ..., byte N-1
+static const netdarray_t* operand_byte_darray_(Design*des, NetScope*scope,
+                                                PExpr*op)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(op);
+      if (!id) return nullptr;
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(),
+                         id->lexical_pos(), &sr))
+            return nullptr;
+      if (!sr.net) return nullptr;
+      ivl_type_t t = sr.net->net_type();
+      const netdarray_t*da = dynamic_cast<const netdarray_t*>(t);
+      if (!da) return nullptr;
+      ivl_type_t et = da->element_type();
+      if (!et) return nullptr;
+      if (et->base_type() != IVL_VT_BOOL && et->base_type() != IVL_VT_LOGIC)
+            return nullptr;
+      long w = et->packed_width();
+      if (w != 8) return nullptr;  // byte-element darrays only for chapter-11
+      return da;
+}
+
+static NetProc* build_stream_pack_to_byte_queue_(Design*des, NetScope*scope,
+                                                  NetAssign_*lv,
+                                                  const PEStreaming*stream,
+                                                  const PEConcat*inner,
+                                                  const LineInfo&loc)
+{
+      if (!lv || !stream || !inner) return nullptr;
+      if (stream->get_dir() != PEStreaming::DIR_LSHIFT) return nullptr;
+      unsigned slice = stream->get_slice();
+      if (slice != 8) return nullptr;
+
+      const netqueue_t*lvq = dynamic_cast<const netqueue_t*>(lv->net_type());
+      if (!lvq) return nullptr;
+      ivl_type_t elt = lvq->element_type();
+      if (!elt) return nullptr;
+      if (elt->base_type() != IVL_VT_BOOL && elt->base_type() != IVL_VT_LOGIC)
+            return nullptr;
+      if (elt->packed_width() != 8) return nullptr;
+
+      const std::vector<PExpr*>&ops = inner->parms();
+      if (ops.empty()) return nullptr;
+
+      // Need at least one byte-darray operand; otherwise the existing
+      // fixed-width vec→queue path handles the case correctly.
+      bool has_darray = false;
+      for (PExpr*op : ops) {
+            if (operand_byte_darray_(des, scope, op)) {
+                  has_darray = true;
+                  break;
+            }
+      }
+      if (!has_darray) return nullptr;
+
+      NetNet*tgt_sig = lv->sig();
+      if (!tgt_sig) return nullptr;
+
+      NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+      blk->set_line(loc);
+
+      // Step 1: clear the queue via $ivl_q_clear system task.
+      {
+            std::vector<NetExpr*> argv;
+            NetESignal*qsig = new NetESignal(tgt_sig);
+            qsig->set_line(loc);
+            argv.push_back(qsig);
+            NetSTask*clear = new NetSTask("$ivl_q_clear",
+                                          IVL_SFUNC_AS_TASK_IGNORE, argv);
+            clear->set_line(loc);
+            blk->append(clear);
+      }
+
+      // Step 2: for each operand from RIGHT to LEFT (LSB first):
+      for (size_t k = ops.size(); k > 0; k--) {
+            PExpr*op = ops[k-1];
+            const netdarray_t*opda = operand_byte_darray_(des, scope, op);
+            if (opda) {
+                  // Darray of bytes: push darray[size-1..0] via system task.
+                  NetExpr*op_expr = op->elaborate_expr(des, scope,
+                                                       (ivl_type_t)opda,
+                                                       PExpr::NO_FLAGS);
+                  if (!op_expr) {
+                        delete blk;
+                        return nullptr;
+                  }
+                  std::vector<NetExpr*> argv;
+                  NetESignal*qsig = new NetESignal(tgt_sig);
+                  qsig->set_line(loc);
+                  argv.push_back(qsig);
+                  argv.push_back(op_expr);
+                  NetSTask*pack = new NetSTask("$ivl_q_pack_dar_byte",
+                                               IVL_SFUNC_AS_TASK_IGNORE, argv);
+                  pack->set_line(loc);
+                  blk->append(pack);
+            } else {
+                  // Fixed-width operand: emit byte-by-byte push_back via
+                  // $ivl_queue_method$push_back with NetESelect for each byte.
+                  PExpr::width_mode_t m = PExpr::SIZED;
+                  unsigned w = op->test_width(des, scope, m);
+                  if (w == 0 || (w % 8) != 0) {
+                        cerr << loc.get_fileline() << ": sorry: streaming "
+                             << "concat operand width " << w
+                             << " not a byte multiple."
+                             << endl;
+                        des->errors += 1;
+                        delete blk;
+                        return nullptr;
+                  }
+                  unsigned nbytes = w / 8;
+                  NetExpr*body = op->elaborate_expr(des, scope, w, PExpr::NO_FLAGS);
+                  if (!body) {
+                        delete blk;
+                        return nullptr;
+                  }
+                  for (unsigned j = 0; j < nbytes; j++) {
+                        NetExpr*body_dup = body->dup_expr();
+                        NetEConst*idxe = new NetEConst(verinum((uint64_t)(j*8), 32u));
+                        idxe->set_line(loc);
+                        NetESelect*sel = new NetESelect(body_dup, idxe, 8);
+                        sel->set_line(loc);
+                        std::vector<NetExpr*> argv;
+                        NetESignal*qsig = new NetESignal(tgt_sig);
+                        qsig->set_line(loc);
+                        argv.push_back(qsig);
+                        argv.push_back(sel);
+                        NetSTask*push = new NetSTask("$ivl_queue_method$push_back",
+                                                     IVL_SFUNC_AS_TASK_IGNORE,
+                                                     argv);
+                        push->set_line(loc);
+                        blk->append(push);
+                  }
+                  delete body;
+            }
+      }
+
+      return blk;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -3498,6 +3647,22 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		  cerr << "lv_net_type=" << *lv_net_type << endl;
 	    else
 		  cerr << "lv_net_type=<nil>" << endl;
+      }
+
+	// Chapter-11 closure: detect `<byte_queue> = {<<8 {..., <byte_darray>, ...}}`
+	// and lower to a procedural NetBlock that pushes bytes one at a time.
+	// The standard NetEConcat-of-NetESelect lowering produces wrong widths
+	// because PEIdent::test_width returns 1 for darray references.
+      if (!delay && !event_ && !count_) {
+	    if (dynamic_cast<const netqueue_t*>(lv_net_type)) {
+		  if (PEStreaming*pst = dynamic_cast<PEStreaming*>(rval())) {
+			if (PEConcat*pinner = dynamic_cast<PEConcat*>(pst->get_inner())) {
+			      NetProc*p = build_stream_pack_to_byte_queue_(
+					des, scope, lv, pst, pinner, *this);
+			      if (p) return p;
+			}
+		  }
+	    }
       }
 
 	/* If the l-value is a compound type of some sort, then use
