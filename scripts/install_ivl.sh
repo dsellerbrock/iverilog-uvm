@@ -25,8 +25,9 @@ install -m 755 "$SRC/ivl"             "$INST/lib/ivl/ivl"
 install -m 755 "$SRC/ivl"             "$INST/bin/ivl"
 install -m 755 "$SRC/vvp/vvp"         "$INST/bin/vvp"
 install -m 755 "$SRC/driver/iverilog" "$INST/bin/iverilog"
+install -m 755 "$SRC/tgt-vvp/vvp.tgt" "$INST/lib/ivl/vvp.tgt"
 
 printf 'installed:\n'
-for f in "$INST/lib/ivl/ivl" "$INST/bin/ivl" "$INST/bin/vvp" "$INST/bin/iverilog"; do
+for f in "$INST/lib/ivl/ivl" "$INST/bin/ivl" "$INST/bin/vvp" "$INST/bin/iverilog" "$INST/lib/ivl/vvp.tgt"; do
       printf '  %s (%s)\n' "$f" "$(stat -c %y "$f" | cut -d. -f1)"
 done
