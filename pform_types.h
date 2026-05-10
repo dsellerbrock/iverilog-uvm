@@ -421,7 +421,23 @@ struct interface_type_t : public data_type_t {
 
 struct class_type_t : public data_type_t {
 
-      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; is_covergroup_stub = false; }
+      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; is_covergroup_stub = false; is_interface_class = false; }
+
+      // S7 (interface class semantics): a reference to a base interface
+      // class — by name plus optional type parameter values.  Used in
+      // both `implements ...` (regular class implementing interfaces)
+      // and `extends I1, I2` (interface class with multi-inheritance,
+      // where the extra parents beyond base_type go in extends_extra).
+      struct iface_ref_t {
+            perm_string name;
+            std::vector<named_pexpr_t> args;
+      };
+      // For regular classes: interfaces from `implements`.
+      // For interface classes: ancestors from extra `extends I1, I2, ...`
+      //   beyond the first one (which goes in base_type).
+      std::vector<iface_ref_t> implements_list;
+      std::vector<iface_ref_t> extends_extra;
+      bool is_interface_class;
 
       void pform_dump(std::ostream&out, unsigned indent) const override;
       void pform_dump_init(std::ostream&out, unsigned indent) const;

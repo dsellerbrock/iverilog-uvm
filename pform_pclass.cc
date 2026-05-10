@@ -21,6 +21,7 @@
 # include  <cstring>
 # include  <iostream>
 # include  <list>
+# include  <sstream>
 # include  <vector>
 # include  "pform.h"
 # include  "PClass.h"
@@ -115,6 +116,261 @@ void pform_blend_class_constructors(PClass*pclass)
  * if present, are the "exprs" that would be passed to a chained
  * constructor.
  */
+extern std::vector<class_type_t::iface_ref_t> pending_implements_list_;
+extern std::vector<class_type_t::iface_ref_t> pending_extends_extra_;
+
+/*
+ * S7: lookup helper.  Walk up the lexical scope chain from `from_scope`
+ * looking for a class with the given name registered in any enclosing
+ * scope's `classes` map.  Returns nullptr if not found.
+ */
+static PClass* lookup_class_by_name_(LexicalScope*from_scope, perm_string name)
+{
+      LexicalScope*scope = from_scope;
+      while (scope) {
+            PScopeExtra*sx = dynamic_cast<PScopeExtra*>(scope);
+            if (sx) {
+                  auto it = sx->classes.find(name);
+                  if (it != sx->classes.end()) return it->second;
+            }
+            scope = scope->parent_scope();
+      }
+      return nullptr;
+}
+
+/*
+ * S7: collect pure-virtual method signatures (name + return-type-name)
+ * from a given class scope.  Returns a map of name → typeref-string.
+ * Used by the implements-conflict check.
+ */
+static std::map<perm_string, std::string>
+collect_pure_virtual_signatures_(PClass*ifc)
+{
+      std::map<perm_string, std::string> sigs;
+      if (!ifc) return sigs;
+      // Collect from this class's funcs (return-typed methods).
+      for (auto&it : ifc->funcs) {
+            if (it.second && it.second->is_pure_virtual()) {
+                  // Use the function's return-type name as the signature.
+                  std::ostringstream os;
+                  if (auto*rt = it.second->get_return_type()) {
+                        os << *rt;
+                  } else {
+                        os << "<no-return-type>";
+                  }
+                  sigs[it.first] = os.str();
+            }
+      }
+      // Tasks have no return type so we don't conflict-check those.
+      // Recurse into base interface (if it's an interface class).
+      if (ifc->type && ifc->type->is_interface_class) {
+            // base_type
+            if (typeref_t*tr = dynamic_cast<typeref_t*>(ifc->type->base_type.get())) {
+                  if (tr->typedef_ref()) {
+                        PClass*base_pc = lookup_class_by_name_(ifc, tr->typedef_ref()->name);
+                        if (base_pc) {
+                              auto base_sigs = collect_pure_virtual_signatures_(base_pc);
+                              for (auto&p : base_sigs) {
+                                    if (sigs.find(p.first) == sigs.end())
+                                          sigs[p.first] = p.second;
+                              }
+                        }
+                  }
+            }
+            // extends_extra
+            for (auto&ref : ifc->type->extends_extra) {
+                  PClass*ex_pc = lookup_class_by_name_(ifc, ref.name);
+                  if (ex_pc) {
+                        auto base_sigs = collect_pure_virtual_signatures_(ex_pc);
+                        for (auto&p : base_sigs) {
+                              if (sigs.find(p.first) == sigs.end())
+                                    sigs[p.first] = p.second;
+                        }
+                  }
+            }
+      }
+      return sigs;
+}
+
+/*
+ * S7: walk full ancestor chain (recursively) and record (name, args)
+ * pairs.  Args are serialized to a textual signature so that
+ * different specializations (ibase#(bit) vs ibase#(string)) compare
+ * as distinct.
+ */
+struct ancestor_visit_t {
+      perm_string name;
+      std::string args_sig;
+};
+
+static std::string serialize_typeref_args_(typeref_t*tr)
+{
+      std::ostringstream os;
+      const parmvalue_t*pv = tr ? tr->parameter_values() : nullptr;
+      if (pv && pv->by_order) {
+            os << "<" << pv->by_order->size() << ":";
+            for (auto*e : *pv->by_order) {
+                  if (PETypename*tn = dynamic_cast<PETypename*>(e)) {
+                        // Dump the contained data_type more concretely
+                        // so different types (bit vs string) compare distinct.
+                        if (tn->get_type()) {
+                              os << typeid(*tn->get_type()).name();
+                              // For atom types, the type-tag distinguishes
+                              // signed int vs unsigned bit etc.; that's
+                              // enough for our diamond check.
+                        } else {
+                              os << "?";
+                        }
+                  } else if (e) {
+                        e->dump(os);
+                  }
+                  os << ",";
+            }
+            os << ">";
+      } else if (pv && pv->by_name) {
+            os << "<n" << pv->by_name->size() << ">";
+      }
+      return os.str();
+}
+
+static void collect_ancestors_(PClass*ifc,
+                               std::vector<ancestor_visit_t>&out)
+{
+      if (!ifc || !ifc->type || !ifc->type->is_interface_class) return;
+      if (typeref_t*tr = dynamic_cast<typeref_t*>(ifc->type->base_type.get())) {
+            if (tr->typedef_ref()) {
+                  ancestor_visit_t v;
+                  v.name = tr->typedef_ref()->name;
+                  v.args_sig = serialize_typeref_args_(tr);
+                  out.push_back(v);
+                  PClass*base_pc = lookup_class_by_name_(ifc, v.name);
+                  if (base_pc) collect_ancestors_(base_pc, out);
+            }
+      }
+      for (auto&ref : ifc->type->extends_extra) {
+            ancestor_visit_t v;
+            v.name = ref.name;
+            v.args_sig = "<" + std::to_string(ref.args.size()) + ":>";
+            out.push_back(v);
+            PClass*pc = lookup_class_by_name_(ifc, ref.name);
+            if (pc) collect_ancestors_(pc, out);
+      }
+}
+
+/*
+ * S7: run interface class semantic checks on the just-finished class
+ * declaration.  Currently catches:
+ *  - implements with conflicting same-name pure-virtual return types
+ *  - interface-class diamond with same ancestor at different
+ *    specialization arg counts
+ *  - parametrized interface class extending two parametrized
+ *    interfaces with the same type-parameter name (per LRM 8.26.6.2)
+ */
+static void check_interface_class_conflicts_(PClass*pc)
+{
+      if (!pc || !pc->type) return;
+      class_type_t*ct = pc->type;
+
+      // Check 1 (LRM 8.26.6.1): regular class implementing multiple
+      // interfaces with conflicting same-name pure-virtual methods.
+      if (!ct->is_interface_class && !ct->implements_list.empty()) {
+            std::map<perm_string, std::string> all_sigs;
+            for (auto&ref : ct->implements_list) {
+                  PClass*ifc = lookup_class_by_name_(pc, ref.name);
+                  if (!ifc) continue;
+                  auto sigs = collect_pure_virtual_signatures_(ifc);
+                  for (auto&p : sigs) {
+                        auto found = all_sigs.find(p.first);
+                        if (found != all_sigs.end() && found->second != p.second) {
+                              cerr << pc->get_fileline() << ": error: class `"
+                                   << pc->pscope_name() << "' implements multiple"
+                                   << " interface classes that declare method `"
+                                   << p.first << "' with conflicting return types: `"
+                                   << found->second << "' vs `" << p.second
+                                   << "'.  IEEE 1800-2017 §8.26.6.1: this conflict"
+                                   << " must be explicitly resolved." << endl;
+                              error_count++;
+                              return;
+                        }
+                        all_sigs[p.first] = p.second;
+                  }
+            }
+      }
+
+      // Check 2 (LRM 8.26.6.3): interface class diamond inheritance with
+      // different specializations.  Walk full ancestor chain; if the
+      // same ancestor name appears multiple times with different arg
+      // counts (different specializations), error.
+      if (ct->is_interface_class
+          && (ct->base_type.get() != nullptr || !ct->extends_extra.empty())) {
+            std::vector<ancestor_visit_t> ancestors;
+            collect_ancestors_(pc, ancestors);
+            std::map<perm_string, std::string> seen;
+            for (auto&v : ancestors) {
+                  auto it = seen.find(v.name);
+                  if (it != seen.end() && it->second != v.args_sig) {
+                        cerr << pc->get_fileline() << ": error: interface class `"
+                             << pc->pscope_name() << "' has ancestor `"
+                             << v.name << "' with conflicting specializations"
+                             << " (`" << it->second << "' vs `"
+                             << v.args_sig << "').  IEEE 1800-2017 §8.26.6.3:"
+                             << " different specializations are unique types."
+                             << endl;
+                        error_count++;
+                        return;
+                  }
+                  seen[v.name] = v.args_sig;
+            }
+      }
+
+      // Check 3 (LRM 8.26.6.2): parametrized interface class extending
+      // multiple parametrized interface classes with the same
+      // type-parameter name in their port lists.  Detected when
+      // extends_extra has 1+ entries AND multiple parents declare a
+      // type parameter with the same name AND the derived class
+      // doesn't redeclare that parameter to disambiguate.
+      if (ct->is_interface_class && !ct->extends_extra.empty()) {
+            // Collect type-parameter names from each parent.
+            std::map<perm_string, int> tparam_counts;
+            auto collect_parent_tparams = [&](perm_string parent_name) {
+                  PClass*pp = lookup_class_by_name_(pc, parent_name);
+                  if (!pp || !pp->type) return;
+                  // The class's parameters are tracked via its scope's
+                  // parameter map.
+                  for (auto&pp_param : pp->parameters) {
+                        if (pp_param.second && pp_param.second->type_flag) {
+                              tparam_counts[pp_param.first]++;
+                        }
+                  }
+            };
+            // base_type (first parent)
+            if (typeref_t*tr = dynamic_cast<typeref_t*>(ct->base_type.get())) {
+                  if (tr->typedef_ref())
+                        collect_parent_tparams(tr->typedef_ref()->name);
+            }
+            for (auto&ref : ct->extends_extra)
+                  collect_parent_tparams(ref.name);
+            // If any tparam name appears in 2+ parents AND this class
+            // doesn't redeclare it (as a parameter OR a typedef), error.
+            for (auto&p : tparam_counts) {
+                  if (p.second < 2) continue;
+                  bool resolved = pc->parameters.find(p.first) != pc->parameters.end()
+                               || pc->typedefs.find(p.first) != pc->typedefs.end();
+                  if (!resolved) {
+                        cerr << pc->get_fileline() << ": error: interface class `"
+                             << pc->pscope_name() << "' extends multiple"
+                             << " parametrized interfaces that share type"
+                             << " parameter name `" << p.first << "' but"
+                             << " does not redeclare it.  IEEE 1800-2017"
+                             << " §8.26.6.2: type parameter conflicts must"
+                             << " be resolved by the derived class." << endl;
+                        error_count++;
+                        return;
+                  }
+            }
+      }
+}
+
 void pform_start_class_declaration(const struct vlltype&loc,
 				   class_type_t*type,
 				   data_type_t*base_type,
@@ -137,6 +393,19 @@ void pform_start_class_declaration(const struct vlltype&loc,
 			           base_args->end());
 	    delete base_args;
       }
+
+      // S7: drain pending implements / extends-extra lists into this class.
+      // For interface classes, extra `extends` parents go through
+      // implements_class_list (grammar reuse) — route them to
+      // extends_extra.  For regular classes, implements_class_list
+      // entries are actual `implements` interfaces.
+      if (type->is_interface_class) {
+            type->extends_extra = std::move(pending_implements_list_);
+      } else {
+            type->implements_list = std::move(pending_implements_list_);
+      }
+      pending_implements_list_.clear();
+      pending_extends_extra_.clear();
 }
 
 void pform_class_property(const struct vlltype&loc,
@@ -340,6 +609,9 @@ void pform_end_class_declaration(const struct vlltype&loc)
 		  }
 	    }
       }
+
+      // S7: run interface class semantic checks before popping.
+      check_interface_class_conflicts_(pform_cur_class);
 
       if (!pform_class_stack_.empty()) {
 	    pform_cur_class = pform_class_stack_.back();

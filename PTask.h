@@ -176,6 +176,9 @@ class PFunction : public PTaskFunc {
       bool is_dpi_import() const { return is_dpi_import_; }
       const std::string& dpi_c_name() const { return dpi_c_name_; }
 
+      // S7: expose return type for interface-class signature checks.
+      const data_type_t* get_return_type() const { return return_type_; }
+
     private:
       data_type_t* return_type_;
       Statement *statement_;

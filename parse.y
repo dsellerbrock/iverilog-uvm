@@ -183,6 +183,14 @@ static PFunction* current_function = 0;
    covergroup action moves them to the pform_covergroup_t.  Non-static
    so pform_pclass.cc can drain it. */
 std::vector<class_type_t::pform_cross_t> pending_crosses_;
+
+/* S7 (interface class semantics): accumulator for `implements I1, I2`
+   refs and for extra `extends X, Y` parents on interface classes.
+   The implements_class_item rules append; the enclosing class
+   declaration action moves them to the class_type_t.  Non-static so
+   pform_pclass.cc can drain them. */
+std::vector<class_type_t::iface_ref_t> pending_implements_list_;
+std::vector<class_type_t::iface_ref_t> pending_extends_extra_;
 /* Set by the last completed class task/function declaration so that the
    outer class_item rule can mark it virtual when K_virtual is present. */
 static PTaskFunc* recently_completed_class_method_ = 0;
@@ -2094,6 +2102,7 @@ class_declaration /* IEEE1800-2005: A.1.2 */
       { perm_string name = lex_strings.make($3);
 	class_type_t *class_type = new class_type_t(name);
 	FILE_NAME(class_type, @3);
+	class_type->is_interface_class = true;
 	pform_set_typedef(@3, name, class_type, nullptr);
 	pform_start_class_declaration(@1, class_type, $5.type, $5.args, true);
 	if (!pending_class_params.empty()) {
@@ -2278,9 +2287,39 @@ implements_class_list
 
 implements_class_item
   : ps_type_identifier class_extends_type_params_opt
-      { delete_parmvalue_t($2); if ($1) delete $1; $$ = false; }
+      { /* Capture interface name (and a flag for whether type args
+	   were provided) for later semantic checks.  We only need
+	   the name + arg-count for the chapter-8 conflict detection
+	   patterns. */
+	class_type_t::iface_ref_t ref;
+	if (typeref_t*tr = dynamic_cast<typeref_t*>($1)) {
+	      if (tr->typedef_ref())
+		    ref.name = tr->typedef_ref()->name;
+	} else if (type_parameter_t*tp = dynamic_cast<type_parameter_t*>($1)) {
+	      ref.name = tp->name;
+	}
+	if ($2 && $2->by_order) {
+	      // record arg count via dummy args (just length)
+	      for (size_t i = 0; i < $2->by_order->size(); ++i) {
+		    ref.args.push_back(named_pexpr_t());
+	      }
+	}
+	pending_implements_list_.push_back(std::move(ref));
+	delete_parmvalue_t($2);
+	if ($1) delete $1;
+	$$ = false; }
   | IDENTIFIER class_extends_type_params_opt
-      { delete_parmvalue_t($2); delete[] $1; $$ = false; }
+      { class_type_t::iface_ref_t ref;
+	ref.name = lex_strings.make($1);
+	if ($2 && $2->by_order) {
+	      for (size_t i = 0; i < $2->by_order->size(); ++i) {
+		    ref.args.push_back(named_pexpr_t());
+	      }
+	}
+	pending_implements_list_.push_back(std::move(ref));
+	delete_parmvalue_t($2);
+	delete[] $1;
+	$$ = false; }
   ;
 
 class_extends_type_params_opt
