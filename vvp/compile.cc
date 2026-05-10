@@ -431,6 +431,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qunique/keys",of_QUNIQUE_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%qunique_copy",of_QUNIQUE_COPY,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qunique_idx",of_QUNIQUE_IDX, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+      { "%qunpack_byte_to_dar",of_QUNPACK_BYTE_TO_DAR,2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
+      { "%qunpack_byte_to_op", of_QUNPACK_BYTE_TO_OP, 3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%qxor",       of_QXOR,        1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%rand_mode",      of_RAND_MODE,       0,{OA_NONE,   OA_NONE,OA_NONE} },
       { "%randomize",      of_RANDOMIZE,      0,{OA_NONE,   OA_NONE,OA_NONE} },

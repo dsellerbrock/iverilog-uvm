@@ -14136,6 +14136,79 @@ bool of_QPACK_DAR_BYTE(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %qunpack_byte_to_dar <darray_var>, <wreg_size>
+ * Chapter-11 LHS closure: peek source byte queue at top of obj stack.
+ * Read word_reg[wreg_size] = darray_size.  Allocate vvp_darray_atom<int8_t>
+ * (signed 8-bit elements for `byte d[]`); for i = 0..darray_size-1, copy
+ * pkt[i] (8-bit vec4 byte) to darray[darray_size-1-i].  Store darray to
+ * cp->net via vvp_send_object.  This realizes the LSB-first byte ordering:
+ * pkt[0] (LSB byte of stream) lands at darray's MSB-end (darray[N-1]),
+ * pkt[N-1] (MSB byte) at darray[0]. */
+bool of_QUNPACK_BYTE_TO_DAR(vthread_t thr, vvp_code_t cp)
+{
+      unsigned wreg = cp->bit_idx[0];
+      int64_t darray_size_signed = thr->words[wreg].w_int;
+      size_t darray_size = (darray_size_signed > 0)
+                           ? (size_t)darray_size_signed : 0;
+
+      const vvp_object_t&pkt_obj = thr->peek_object(0);
+      vvp_queue*pkt_queue = pkt_obj.peek<vvp_queue>();
+      if (!pkt_queue) return true;
+
+      vvp_darray_atom<int8_t>*darray = new vvp_darray_atom<int8_t>(darray_size);
+      for (size_t i = 0; i < darray_size; i += 1) {
+            vvp_vector4_t b;
+            pkt_queue->get_word((unsigned)i, b);
+            // Place b at darray[darray_size-1-i].  vvp_darray_atom::set_word
+            // takes a vvp_vector4_t (8 bits for int8_t).
+            vvp_vector4_t bv(8, BIT4_0);
+            unsigned copy = b.size() < 8 ? b.size() : 8;
+            for (unsigned bb = 0; bb < copy; bb += 1)
+                  bv.set_bit(bb, b.value(bb));
+            darray->set_word((unsigned)(darray_size - 1 - i), bv);
+      }
+
+      vvp_object_t val(darray);
+      vvp_net_ptr_t ptr(cp->net, 0);
+      vvp_send_object(ptr, val, ensure_write_context_(thr, "qunpack-dar"));
+      return true;
+}
+
+/* %qunpack_byte_to_op <op_var>, <wreg_offset>, <op_bytes>
+ * Chapter-11 LHS closure: peek source byte queue at top of obj stack.
+ * Read word_reg[wreg_offset] = pkt offset.  For j = 0..op_bytes-1, take
+ * pkt[offset+j] (8-bit byte) and place at bits [j*8 +: 8] of an
+ * op_bytes*8-bit vec4 result.  Store result to cp->net (= v_op) via
+ * vvp_send_vec4.  This realizes the LSB-first byte ordering within the
+ * fixed-width operand: low pkt index → low bit position. */
+bool of_QUNPACK_BYTE_TO_OP(vthread_t thr, vvp_code_t cp)
+{
+      unsigned wreg = cp->bit_idx[0];
+      unsigned op_bytes = cp->bit_idx[1];
+      int64_t offset_signed = thr->words[wreg].w_int;
+      if (offset_signed < 0 || op_bytes == 0) return true;
+      size_t offset = (size_t)offset_signed;
+
+      const vvp_object_t&pkt_obj = thr->peek_object(0);
+      vvp_queue*pkt_queue = pkt_obj.peek<vvp_queue>();
+      if (!pkt_queue) return true;
+
+      unsigned op_wid = op_bytes * 8;
+      vvp_vector4_t op_val(op_wid, BIT4_0);
+
+      for (size_t j = 0; j < op_bytes; j += 1) {
+            vvp_vector4_t b;
+            pkt_queue->get_word((unsigned)(offset + j), b);
+            unsigned copy = b.size() < 8 ? b.size() : 8;
+            for (unsigned bb = 0; bb < copy; bb += 1)
+                  op_val.set_bit((unsigned)(j*8 + bb), b.value(bb));
+      }
+
+      vvp_net_ptr_t ptr(cp->net, 0);
+      vvp_send_vec4(ptr, op_val, ensure_write_context_(thr, "qunpack-op"));
+      return true;
+}
+
 /* %qpush_front/v <var>, <max_idx_reg>, <wid>
  * Pop a vec4 from the vec4 stack and push_front into the queue signal. */
 bool of_QPUSH_FRONT_V(vthread_t thr, vvp_code_t cp)

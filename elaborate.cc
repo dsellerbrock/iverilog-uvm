@@ -3443,6 +3443,143 @@ static NetProc*build_tagged_union_companion_set_(Design*des, NetScope*scope,
       return comp_as;
 }
 
+// Chapter-11 LHS closure: `{<<8 {o_hdr, ..., o_data}} = pkt` where o_data
+// is a byte darray (LSB position) and pkt is a byte queue.  The parse-time
+// rewrite for `{<<N {ops}} = rhs` with N>1 produces `{ops} = {<<N {rhs}}`,
+// which keeps the same darray-width gap as the RHS path plus a multi-lval
+// assign that tgt-vvp doesn't support.  Lower to a NetSTask call that
+// emits the runtime byte unpacking:
+//   pkt[0..darray_size-1]            → darray bytes (reverse: pkt[0] = LSB byte)
+//   pkt[darray_size..darray_size+W0] → first fixed op (LSB first, low byte of op)
+//   ...
+static const netdarray_t* lval_byte_darray_(Design*des, NetScope*scope, PExpr*op);
+static bool lval_byte_multiple_vec_(Design*des, NetScope*scope, PExpr*op, unsigned*wid_out);
+
+static NetProc* build_stream_unpack_byte_queue_(Design*des, NetScope*scope,
+                                                 const PEConcat*lhs_concat,
+                                                 PEStreaming*rhs_stream,
+                                                 const LineInfo&loc)
+{
+      if (!lhs_concat || !rhs_stream) return nullptr;
+      if (rhs_stream->get_dir() != PEStreaming::DIR_LSHIFT) return nullptr;
+      if (rhs_stream->get_slice() != 8) return nullptr;
+
+      // RHS inner must be a PEIdent that resolves to a byte queue.
+      PExpr*inner = rhs_stream->get_inner();
+      const PEIdent*pkt_id = dynamic_cast<const PEIdent*>(inner);
+      if (!pkt_id) return nullptr;
+      symbol_search_results sr;
+      if (!symbol_search(pkt_id, des, scope, pkt_id->path(),
+                         pkt_id->lexical_pos(), &sr))
+            return nullptr;
+      if (!sr.net) return nullptr;
+      const netqueue_t*pkt_q = dynamic_cast<const netqueue_t*>(sr.net->net_type());
+      if (!pkt_q) return nullptr;
+      ivl_type_t pkt_elt = pkt_q->element_type();
+      if (!pkt_elt) return nullptr;
+      if (pkt_elt->base_type() != IVL_VT_BOOL && pkt_elt->base_type() != IVL_VT_LOGIC)
+            return nullptr;
+      if (pkt_elt->packed_width() != 8) return nullptr;
+
+      const std::vector<PExpr*>&ops = lhs_concat->parms();
+      if (ops.empty()) return nullptr;
+
+      // Last operand must be a byte darray.
+      PExpr*last_op = ops.back();
+      if (!lval_byte_darray_(des, scope, last_op)) return nullptr;
+
+      // All other operands must be byte-multiple-width fixed-width vecs.
+      std::vector<unsigned> fixed_widths;
+      for (size_t k = 0; k+1 < ops.size(); k++) {
+            unsigned w = 0;
+            if (!lval_byte_multiple_vec_(des, scope, ops[k], &w)) return nullptr;
+            fixed_widths.push_back(w);
+      }
+
+      // Build the NetSTask call:
+      //   $ivl_q_unpack_byte_dar_ops(pkt_sig, darray_sig, fixed_op0, fixed_op1, ...)
+      //   (fixed ops in original concat order — MSB-first.)
+      std::vector<NetExpr*> argv;
+
+      // arg[0] = pkt
+      NetESignal*pkt_sig = new NetESignal(sr.net);
+      pkt_sig->set_line(loc);
+      argv.push_back(pkt_sig);
+
+      // arg[1] = darray
+      const PEIdent*da_id = dynamic_cast<const PEIdent*>(last_op);
+      symbol_search_results da_sr;
+      if (!symbol_search(da_id, des, scope, da_id->path(),
+                         da_id->lexical_pos(), &da_sr) || !da_sr.net)
+            return nullptr;
+      NetESignal*da_sig = new NetESignal(da_sr.net);
+      da_sig->set_line(loc);
+      argv.push_back(da_sig);
+
+      // args[2..] = fixed ops in original (MSB-first) concat order.
+      for (size_t k = 0; k+1 < ops.size(); k++) {
+            const PEIdent*op_id = dynamic_cast<const PEIdent*>(ops[k]);
+            if (!op_id) return nullptr;
+            symbol_search_results op_sr;
+            if (!symbol_search(op_id, des, scope, op_id->path(),
+                               op_id->lexical_pos(), &op_sr) || !op_sr.net)
+                  return nullptr;
+            NetESignal*op_sig = new NetESignal(op_sr.net);
+            op_sig->set_line(loc);
+            argv.push_back(op_sig);
+      }
+
+      NetSTask*task = new NetSTask("$ivl_q_unpack_byte_dar_ops",
+                                   IVL_SFUNC_AS_TASK_IGNORE, argv);
+      task->set_line(loc);
+      return task;
+}
+
+static const netdarray_t* lval_byte_darray_(Design*des, NetScope*scope, PExpr*op)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(op);
+      if (!id) return nullptr;
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(),
+                         id->lexical_pos(), &sr))
+            return nullptr;
+      if (!sr.net) return nullptr;
+      const netdarray_t*da = dynamic_cast<const netdarray_t*>(sr.net->net_type());
+      if (!da) return nullptr;
+      // Reject queues here — only plain darrays (byte d[]).
+      if (dynamic_cast<const netqueue_t*>(sr.net->net_type())) return nullptr;
+      ivl_type_t et = da->element_type();
+      if (!et) return nullptr;
+      if (et->base_type() != IVL_VT_BOOL && et->base_type() != IVL_VT_LOGIC)
+            return nullptr;
+      if (et->packed_width() != 8) return nullptr;
+      return da;
+}
+
+static bool lval_byte_multiple_vec_(Design*des, NetScope*scope, PExpr*op,
+                                     unsigned*wid_out)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(op);
+      if (!id) return false;
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(),
+                         id->lexical_pos(), &sr))
+            return false;
+      if (!sr.net) return false;
+      ivl_type_t t = sr.net->net_type();
+      if (!t) return false;
+      // Reject darray/queue/class/string types — only plain vectors.
+      if (dynamic_cast<const netdarray_t*>(t)) return false;
+      if (dynamic_cast<const netuarray_t*>(t)) return false;
+      if (dynamic_cast<const netclass_t*>(t)) return false;
+      if (t->base_type() != IVL_VT_BOOL && t->base_type() != IVL_VT_LOGIC)
+            return false;
+      long w = t->packed_width();
+      if (w <= 0 || (w % 8) != 0) return false;
+      if (wid_out) *wid_out = (unsigned)w;
+      return true;
+}
+
 // Chapter-11 closure: streaming concat with darray operand → byte queue.
 // `pkt = {<<8 {hdr, len, crc, data}}` where data is a byte darray.  The
 // streaming-concat width is unknown at elaboration time (darrays size at
@@ -3660,6 +3797,24 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			      NetProc*p = build_stream_pack_to_byte_queue_(
 					des, scope, lv, pst, pinner, *this);
 			      if (p) return p;
+			}
+		  }
+	    }
+      }
+
+	// Chapter-11 LHS closure: detect `{ops..., <byte_darray>} = {<<8 {<byte_queue>}}`
+	// (the parse-time rewrite for `{<<8 {ops..., darray}} = pkt`).  The fixed
+	// LHS multi-lval path can't handle a darray element, so lower the whole
+	// statement to a $ivl_q_unpack_byte_dar_ops system task that codegen
+	// expands to a runtime byte unpacking sequence.
+      if (!delay && !event_ && !count_) {
+	    if (const PEConcat*lhs_concat = dynamic_cast<const PEConcat*>(lval())) {
+		  if (PEStreaming*pst = dynamic_cast<PEStreaming*>(rval())) {
+			NetProc*p = build_stream_unpack_byte_queue_(
+				  des, scope, lhs_concat, pst, *this);
+			if (p) {
+			      delete lv;
+			      return p;
 			}
 		  }
 	    }

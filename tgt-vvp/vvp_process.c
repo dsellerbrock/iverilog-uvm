@@ -2584,6 +2584,68 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+      // Chapter-11 LHS closure: unpack a byte queue into byte-multiple
+      // fixed-width vec destinations and one trailing byte-element darray.
+      //   parm[0] = pkt source (signal — byte queue)
+      //   parm[1] = darray destination (signal — byte darray, LSB position)
+      //   parm[2..N] = fixed-width destinations (signals, MSB-first concat order)
+      if (strcmp(stmt_name,"$ivl_q_unpack_byte_dar_ops") == 0) {
+	    unsigned nparm = ivl_stmt_parm_count(net);
+	    if (nparm < 2) return 0;
+	    ivl_expr_t pkt_e = ivl_stmt_parm(net, 0);
+	    ivl_expr_t dar_e = ivl_stmt_parm(net, 1);
+	    if (!pkt_e || !dar_e
+		|| ivl_expr_type(pkt_e) != IVL_EX_SIGNAL
+		|| ivl_expr_type(dar_e) != IVL_EX_SIGNAL)
+		  return 0;
+	    ivl_signal_t pkt_sig = ivl_expr_signal(pkt_e);
+	    ivl_signal_t dar_sig = ivl_expr_signal(dar_e);
+	    if (!pkt_sig || !dar_sig) return 0;
+
+	    // Compute fixed_total_bytes from compile-time signal widths.
+	    unsigned fixed_total_bytes = 0;
+	    for (unsigned k = 2 ; k < nparm ; k += 1) {
+		  ivl_expr_t op_e = ivl_stmt_parm(net, k);
+		  if (!op_e || ivl_expr_type(op_e) != IVL_EX_SIGNAL) return 0;
+		  ivl_signal_t op_sig = ivl_expr_signal(op_e);
+		  if (!op_sig) return 0;
+		  unsigned w = ivl_signal_width(op_sig);
+		  if ((w % 8) != 0 || w == 0) return 0;
+		  fixed_total_bytes += w / 8;
+	    }
+
+	    // Emit the runtime sequence:
+	    //   load pkt onto obj stack
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", pkt_sig);
+	    //   word_reg[5] = pkt.size() - fixed_total_bytes
+	    fprintf(vvp_out, "    %%qsize/o;\n");
+	    fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n", fixed_total_bytes);
+	    fprintf(vvp_out, "    %%sub;\n");
+	    fprintf(vvp_out, "    %%ix/vec4 5;\n");
+	    //   re-push pkt (qsize/o popped it)
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", pkt_sig);
+	    //   allocate + populate darray; uses word_reg[5] = darray_size, peeks pkt
+	    fprintf(vvp_out, "    %%qunpack_byte_to_dar v%p_0, 5;\n", dar_sig);
+	    //   word_reg[6] = running offset into pkt; init = darray_size
+	    fprintf(vvp_out, "    %%ix/mov 6, 5;\n");
+
+	    //   For each fixed op in REVERSE order (LSB position first):
+	    for (int k = (int)nparm - 1 ; k >= 2 ; k -= 1) {
+		  ivl_expr_t op_e = ivl_stmt_parm(net, k);
+		  ivl_signal_t op_sig = ivl_expr_signal(op_e);
+		  unsigned w = ivl_signal_width(op_sig);
+		  unsigned op_bytes = w / 8;
+		  fprintf(vvp_out,
+			  "    %%qunpack_byte_to_op v%p_0, 6, %u;\n",
+			  op_sig, op_bytes);
+		  fprintf(vvp_out, "    %%ix/add 6, %u, 0;\n", op_bytes);
+	    }
+
+	    //   pop pkt off obj stack
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    return 0;
+      }
+
       if (strcmp(stmt_name,"$ivl_queue_method$sort") == 0
 	  || strcmp(stmt_name,"$ivl_queue_method$rsort") == 0
 	  || strcmp(stmt_name,"$ivl_queue_method$unique") == 0

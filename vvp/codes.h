@@ -384,6 +384,8 @@ extern bool of_QPROD(vthread_t thr, vvp_code_t code);
 extern bool of_QPACK_DAR_BYTE(vthread_t thr, vvp_code_t code);
 extern bool of_QPUSH_BACK_V(vthread_t thr, vvp_code_t code);
 extern bool of_QPUSH_FRONT_V(vthread_t thr, vvp_code_t code);
+extern bool of_QUNPACK_BYTE_TO_DAR(vthread_t thr, vvp_code_t code);
+extern bool of_QUNPACK_BYTE_TO_OP(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE_FROM(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE_TO_N(vthread_t thr, vvp_code_t code);
