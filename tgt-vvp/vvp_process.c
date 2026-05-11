@@ -3782,12 +3782,24 @@ static void draw_dpi_func_body(ivl_scope_t scope)
       for (unsigned ii = 1; ii <= ncp; ii += 1) {
 	    ivl_signal_t port = ivl_scope_port(scope, ii);
 	    ivl_variable_type_t ptype = ivl_signal_data_type(port);
+	      // Phase 85: DPI output int — encoded as 'o' so the runtime
+	      // allocates a stack temp, passes its address to C, then
+	      // writes the temp back to the formal after the call.  Used
+	      // by uvm_re_compexec / uvm_re_compexecfree (`output int
+	      // exec_ret`).  String/real OUTPUT ports aren't yet handled
+	      // (no UVM usage observed).
+	    ivl_signal_port_t ptype_dir = ivl_signal_port(port);
+	    bool is_out = (ptype_dir == IVL_SIP_OUTPUT
+			   || ptype_dir == IVL_SIP_INOUT);
 	    if (ptype == IVL_VT_REAL) {
 		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
 		  if (ii <= types_n) arg_types[ii-1] = 'r';
 	    } else if (ptype == IVL_VT_STRING) {
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
 		  if (ii <= types_n) arg_types[ii-1] = 's';
+	    } else if (is_out) {
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
+		  if (ii <= types_n) arg_types[ii-1] = 'o';
 	    } else {
 		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
 		  if (ii <= types_n) arg_types[ii-1] = 'i';
@@ -3820,6 +3832,24 @@ static void draw_dpi_func_body(ivl_scope_t scope)
 	    fprintf(vvp_out, "    %%dpi/call/vec4 \"%s|%s\", %u, %u;\n",
 		    c_name, arg_types, ncp, rwid);
 	    fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", rwid);
+      }
+
+	// Phase 85: write back output ports.  Runtime pushes outputs
+	// in arg order, then the return value on top.  Iterate ports in
+	// REVERSE order to pop outputs LIFO (the last output pushed is
+	// on top after %ret/vec4 consumed the return value).
+      for (unsigned ii = ncp; ii >= 1; ii -= 1) {
+	    ivl_signal_t port = ivl_scope_port(scope, ii);
+	    ivl_signal_port_t pdir = ivl_signal_port(port);
+	    if (pdir != IVL_SIP_OUTPUT && pdir != IVL_SIP_INOUT)
+		  continue;
+	    if (ivl_signal_data_type(port) != IVL_VT_LOGIC
+		&& ivl_signal_data_type(port) != IVL_VT_BOOL)
+		  continue;
+	    unsigned pwid = ivl_signal_width(port);
+	    if (pwid == 0) pwid = 32;
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+		    (void*)port, pwid);
       }
 }
 

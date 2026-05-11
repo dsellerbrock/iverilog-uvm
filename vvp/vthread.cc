@@ -7378,10 +7378,21 @@ bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
       }
 
       // Pop in reverse stack order (last-pushed is on top of its stack).
+      // Phase 85: track output-int args ('o').  Each is initialised from
+      // the current formal value (popped from vec4) and a stack temp is
+      // passed to C; after the call we push the temp's new value onto
+      // the vec4 stack so tgt-vvp's post-call `%store/vec4` writes it
+      // back to the formal.
+      int32_t out_temps[8] = {0};
+      bool    out_present[8] = {false};
       for (unsigned ii = 0; ii < nargs; ++ii) {
             unsigned slot = nargs - 1 - ii;
             switch (arg_types[slot]) {
                 case 's': sargs[slot] = thr->pop_str(); break;
+                case 'o': out_temps[slot] = dpi_pop_int32(thr);
+                          out_present[slot] = true;
+                          has_string_arg = true; // route through mixed path
+                          break;
                 case 'b':
                 case 'i':
                 default:  iargs[slot] = dpi_pop_int32(thr); break;
@@ -7396,19 +7407,56 @@ bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
             return true;
       }
 
-      // T2b: when args have mixed types (string + int), the all-int dispatch
-      // table below would pass garbage. Compile-progress fallback: skip the
-      // call, return 0.  This is wrong (call doesn't actually run) but keeps
-      // simulation going so tests can hit the next bug.
+	// Phase 85: mixed-type DPI dispatch.  On x86-64 SysV the first
+	// 6 integer/pointer args pass in RDI/RSI/RDX/RCX/R8/R9 — both
+	// `char*` (8B) and `int32_t` (4B) live in the same register set,
+	// just with different read widths in the callee.  Pass every arg
+	// as `size_t` (a 64-bit value) and cast the function pointer to
+	// `int32_t(*)(size_t, size_t, …)`.  The called function reads
+	// only the declared width of each parameter, so pointer args
+	// pick up all 8 bytes while int32_t args read the low 4.
       if (has_string_arg) {
-            static bool warned = false;
-            if (!warned) {
-                  fprintf(stderr, "Warning: DPI call '%s' has mixed string/int args (types='%s');"
-                          " call skipped under compile-progress fallback (further similar warnings suppressed)\n",
-                          c_name, types ? types : "");
-                  warned = true;
+            size_t aargs[8] = {0};
+            for (unsigned i = 0; i < nargs; ++i) {
+                  switch (arg_types[i]) {
+                      case 's': aargs[i] = (size_t)sargs[i].c_str(); break;
+                      case 'o': aargs[i] = (size_t)(void*)&out_temps[i]; break;
+                      case 'b':
+                      case 'i':
+                      default:  aargs[i] = (size_t)(int64_t)(int32_t)iargs[i]; break;
+                  }
             }
-            dpi_push_int32(thr, 0, wid);
+            typedef int32_t(*mf0_t)();
+            typedef int32_t(*mf1_t)(size_t);
+            typedef int32_t(*mf2_t)(size_t,size_t);
+            typedef int32_t(*mf3_t)(size_t,size_t,size_t);
+            typedef int32_t(*mf4_t)(size_t,size_t,size_t,size_t);
+            typedef int32_t(*mf5_t)(size_t,size_t,size_t,size_t,size_t);
+            typedef int32_t(*mf6_t)(size_t,size_t,size_t,size_t,size_t,size_t);
+            typedef int32_t(*mf7_t)(size_t,size_t,size_t,size_t,size_t,size_t,size_t);
+            typedef int32_t(*mf8_t)(size_t,size_t,size_t,size_t,size_t,size_t,size_t,size_t);
+            int32_t mres = 0;
+            switch (nargs) {
+                case 0: mres = ((mf0_t)sym)(); break;
+                case 1: mres = ((mf1_t)sym)(aargs[0]); break;
+                case 2: mres = ((mf2_t)sym)(aargs[0],aargs[1]); break;
+                case 3: mres = ((mf3_t)sym)(aargs[0],aargs[1],aargs[2]); break;
+                case 4: mres = ((mf4_t)sym)(aargs[0],aargs[1],aargs[2],aargs[3]); break;
+                case 5: mres = ((mf5_t)sym)(aargs[0],aargs[1],aargs[2],aargs[3],aargs[4]); break;
+                case 6: mres = ((mf6_t)sym)(aargs[0],aargs[1],aargs[2],aargs[3],aargs[4],aargs[5]); break;
+                case 7: mres = ((mf7_t)sym)(aargs[0],aargs[1],aargs[2],aargs[3],aargs[4],aargs[5],aargs[6]); break;
+                default: mres = ((mf8_t)sym)(aargs[0],aargs[1],aargs[2],aargs[3],aargs[4],aargs[5],aargs[6],aargs[7]); break;
+            }
+              // Phase 85: push output values onto vec4 stack BEFORE the
+              // function return so tgt-vvp's emitted post-call store
+              // sequence (one `%store/vec4` per output formal, emitted
+              // in reverse arg order) consumes them in matching order
+              // after the `%ret/vec4` consumes the return value.
+            for (unsigned i = 0; i < nargs; ++i) {
+                  if (out_present[i])
+                        dpi_push_int32(thr, out_temps[i], 32);
+            }
+            dpi_push_int32(thr, mres, wid);
             return true;
       }
 
