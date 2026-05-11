@@ -594,6 +594,17 @@ bool netclass_t::test_compatibility(ivl_type_t that) const
 
 void netclass_t::add_constraint_ir(const string&name, const string&ir)
 {
+	// If a placeholder for this name was pre-registered (empty IR)
+	// during elaborate_sig, populate it in place rather than appending
+	// a duplicate.  Same name with non-empty IR overrides the empty
+	// placeholder.
+      for (auto& c : constraint_irs_) {
+	    if (c.name == name) {
+		  if (c.ir.empty() && !ir.empty())
+			c.ir = ir;
+		  return;
+	    }
+      }
       constraint_ir_t c;
       c.name = name;
       c.ir = ir;

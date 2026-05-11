@@ -3623,8 +3623,13 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
       { PEConstraintIf*tmp = new PEConstraintIf($3, $5, $7);
         FILE_NAME(tmp, @1); $$ = tmp; }
   | K_foreach '(' IDENTIFIER '[' loop_variables ']' ')' constraint_set
-      { $$ = nullptr; delete[] $3;
-        if ($8) { for (auto*e : *$8) delete e; delete $8; } }
+      { perm_string arr = lex_strings.make($3);
+        delete[] $3;
+        std::list<perm_string> lv;
+        if ($5) { lv = *$5; delete $5; }
+        PEForeachConstraint*tmp = new PEForeachConstraint(arr, lv, $8);
+        FILE_NAME(tmp, @1);
+        $$ = tmp; }
   /* I4 (Phase 62c): soft constraint — wrap in PESoft so the IR emitter
      marks it for Z3_optimize_assert_soft (default weight 1).  Other
      contexts (non-constraint elaboration) delegate through to the inner

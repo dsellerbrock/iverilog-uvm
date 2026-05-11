@@ -79,9 +79,15 @@ extern void schedule_propagate_vector(vvp_net_t*ptr,
 				      const vvp_vector4_t&val);
 
 /*
- * Create an event to propagate the output of an event.
+ * Schedule a non-blocking named-event trigger (`->>` operator).
+ * Captured `context` is delivered to the net's input port 0 so that the
+ * vvp_named_event functor's recv_vec4 runs the trigger logic (wake
+ * waiters, fire VPI callbacks, set `triggered`) — *not* a bare
+ * downstream `send_vec4`, which would miss the trigger semantics for
+ * vvp_named_event_sa / vvp_named_event_aa.
  */
 extern void schedule_propagate_event(vvp_net_t*ptr,
+				     vvp_context_t context,
 				     vvp_time64_t delay);
 
 /*

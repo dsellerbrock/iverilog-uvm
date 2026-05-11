@@ -911,16 +911,35 @@ void schedule_propagate_vector(vvp_net_t*net,
       schedule_event_(cur, delay, SEQ_NBASSIGN);
 }
 
-// FIXME: This needs to create a non-blocking event, but only one per time slot.
-//        Is schedule_event_ or execution actually filtering since the net is
-//        already X because this is not triggering?
+struct propagate_event_trigger_s : public event_s {
+      vvp_net_t*net;
+      vvp_context_t context;
+      void run_run(void) override;
+      void single_step_display(void) override;
+};
+
+void propagate_event_trigger_s::run_run(void)
+{
+	// Deliver into the named-event functor at input port 0 so that
+	// vvp_named_event::recv_vec4 runs (wake waiters, set triggered,
+	// fire VPI callbacks).  A bare send_vec4(0) on the net would
+	// propagate to downstream consumers and bypass that logic.
+      vvp_vector4_t tmp (1, BIT4_X);
+      vvp_send_vec4(vvp_net_ptr_t(net, 0), tmp, context);
+}
+
+void propagate_event_trigger_s::single_step_display(void)
+{
+      cerr << "propagate_event_trigger: net=" << (void*)net << endl;
+}
+
 void schedule_propagate_event(vvp_net_t*net,
+                              vvp_context_t context,
                               vvp_time64_t delay)
 {
-      vvp_vector4_t tmp (1, BIT4_X);
-      struct propagate_vector4_event_s*cur
-	    = new struct propagate_vector4_event_s(tmp);
+      struct propagate_event_trigger_s*cur = new struct propagate_event_trigger_s;
       cur->net = net;
+      cur->context = context;
       schedule_event_(cur, delay, SEQ_NBASSIGN);
 }
 

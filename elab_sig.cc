@@ -733,6 +733,25 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    cur->second->elaborate_sig(des, scope);
       }
 
+	// Register constraint names early (empty IR placeholder).  The full
+	// IR is populated during netclass_t::elaborate(); name-only lookup
+	// here lets `obj.<cname>.constraint_mode(mode)` and the matching
+	// query form resolve `<cname>` during statement/expression elaboration
+	// even if those happen before the constraint body is fully elaborated
+	// or if pexpr_to_constraint_ir returned empty (e.g. unsupported
+	// expression form).  Skip names that are already present.
+      for (auto& cit : pclass->type->constraints) {
+	    bool already = false;
+	    for (size_t ci = 0; ci < constraint_ir_count(); ++ci) {
+		  if (constraint_ir_name(ci) == string(cit.first)) {
+			already = true;
+			break;
+		  }
+	    }
+	    if (!already)
+		  add_constraint_ir(string(cit.first), "");
+      }
+
       sig_elaborating_ = false;
       sig_elaborated_ = true;
 }

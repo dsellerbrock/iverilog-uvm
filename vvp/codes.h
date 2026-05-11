@@ -325,6 +325,7 @@ extern bool of_QSORT(vthread_t thr, vvp_code_t code);
 extern bool of_QSORT_R(vthread_t thr, vvp_code_t code);
 extern bool of_QUNIQUE(vthread_t thr, vvp_code_t code);
 extern bool of_CONSTRAINT_MODE(vthread_t thr, vvp_code_t code);
+extern bool of_CONSTRAINT_MODE_GET(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE(vthread_t thr, vvp_code_t code);
@@ -337,8 +338,10 @@ extern bool of_PROP_V(vthread_t thr, vvp_code_t code);
 extern bool of_PROP_V_I(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_KILL(vthread_t thr, vvp_code_t code);
+extern bool of_PROCESS_RESUME(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_SELF(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_STATUS(vthread_t thr, vvp_code_t code);
+extern bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t code);
 /* Mailbox opcodes */
 extern bool of_MBX_NEW(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_PUT(vthread_t thr, vvp_code_t code);

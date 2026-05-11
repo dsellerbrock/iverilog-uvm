@@ -59,6 +59,9 @@
 # include  "compiler.h"
 # include  "ivl_assert.h"
 # include "map_named_args.h"
+# include "pform_sva.h"
+# include "pform_sva_seq.h"
+# include "parse_misc.h"
 
 using namespace std;
 
@@ -5299,52 +5302,89 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		      && path_.size() >= 2 && parms_.size() == 1) {
 			// pform_name_t is a list; get second-to-last element
 			perm_string cname = std::next(path_.end(), -2)->name;
-			NetNet *obj_net = nullptr;
-			if (path_.size() == 2) {
-			      // Implicit this: constraint_name.constraint_mode(mode)
-			      for (NetScope *s = scope; s && !obj_net; s = s->parent())
-				    obj_net = s->find_signal(perm_string::literal(THIS_TOKEN));
-			} else {
-			      // Build object path from all but last 2 components
-			      pform_name_t obj_path;
-			      auto it = path_.begin();
-			      auto end_it = std::next(path_.end(), -2);
-			      for (; it != end_it; ++it)
-				    obj_path.push_back(*it);
-			      symbol_search_results sr;
-			      symbol_search(this, des, scope, obj_path, UINT_MAX, &sr);
-			      obj_net = sr.net;
+
+			// Resolve the receiver via the full pform path_:
+			// path_ = [a, b, ..., cname, constraint_mode]
+			// Leading components (before cname) are property
+			// accesses on a base receiver.  Start from `this`
+			// or a scope signal, then walk each component as
+			// a property of the current class.
+			NetNet *base_net = nullptr;
+			for (NetScope *s = scope; s && !base_net; s = s->parent())
+			      base_net = s->find_signal(perm_string::literal(THIS_TOKEN));
+			if (!base_net && !path_.empty()) {
+			      // Top-level call (not inside a class method) —
+			      // try to find the first path component as a
+			      // module-level signal.
+			      symbol_search_results sr0;
+			      pform_name_t head; head.push_back(path_.front());
+			      symbol_search(this, des, scope, head, UINT_MAX, &sr0);
+			      base_net = sr0.net;
 			}
-			if (obj_net) {
-			      const netclass_t *ctype =
-				    dynamic_cast<const netclass_t*>(obj_net->net_type());
-			      if (ctype) {
-				    size_t cid = ctype->constraint_ir_count();
-				    for (size_t ci = 0; ci < ctype->constraint_ir_count(); ++ci) {
-					  if (ctype->constraint_ir_name(ci) == string(cname)) {
-						cid = ci; break;
-					  }
-				    }
-				    if (cid < ctype->constraint_ir_count()) {
-					  NetExpr *obj_expr = new NetESignal(obj_net);
-					  obj_expr->set_line(*this);
-					  NetExpr *mode_expr = elab_sys_task_arg(des, scope,
-						tail, 0, parms_[0].parm);
-					  NetExpr *cid_expr = new NetEConst(
-						verinum((uint64_t)cid, 32));
-					  cid_expr->set_line(*this);
-					  vector<NetExpr*> argv(3);
-					  argv[0] = obj_expr;
-					  argv[1] = mode_expr;
-					  argv[2] = cid_expr;
-					  NetSTask *sys = new NetSTask(
-						"$ivl_class_method$constraint_mode",
-						IVL_SFUNC_AS_TASK_IGNORE, argv);
-					  sys->set_line(*this);
-					  return sys;
+			NetExpr *recv = nullptr;
+			const netclass_t *recv_class = nullptr;
+			if (base_net) {
+			      recv_class = dynamic_cast<const netclass_t*>(
+				    base_net->net_type());
+			      recv = new NetESignal(base_net);
+			      recv->set_line(*this);
+			}
+			// Walk property components: everything between the
+			// receiver root and the trailing [cname, constraint_mode].
+			size_t leading = path_.size() - 2;
+			size_t skip_first =
+			      (base_net && path_.front().name
+				 == base_net->name()) ? 1 : 0;
+			auto pit = path_.begin();
+			for (size_t i = 0; i < skip_first && pit != path_.end(); ++i)
+			      ++pit;
+			for (size_t step = skip_first; step < leading && recv_class
+				 && pit != path_.end(); ++step, ++pit) {
+			      perm_string pname = pit->name;
+			      int pidx = recv_class->property_idx_from_name(pname);
+			      if (pidx < 0) {
+				    delete recv; recv = nullptr; recv_class = nullptr;
+				    break;
+			      }
+			      ivl_type_t pt = recv_class->get_prop_type(pidx);
+			      const netclass_t *next_class =
+				    dynamic_cast<const netclass_t*>(pt);
+			      if (!next_class) {
+				    delete recv; recv = nullptr; recv_class = nullptr;
+				    break;
+			      }
+			      recv = new NetEProperty(recv, (size_t)pidx);
+			      recv->set_line(*this);
+			      recv_class = next_class;
+			}
+			if (recv && recv_class) {
+			      size_t cid = recv_class->constraint_ir_count();
+			      for (size_t ci = 0;
+				   ci < recv_class->constraint_ir_count(); ++ci) {
+				    if (recv_class->constraint_ir_name(ci)
+					== string(cname)) {
+					  cid = ci; break;
 				    }
 			      }
+			      if (cid < recv_class->constraint_ir_count()) {
+				    NetExpr *mode_expr =
+					  elab_sys_task_arg(des, scope, tail, 0,
+							    parms_[0].parm);
+				    NetExpr *cid_expr = new NetEConst(
+					  verinum((uint64_t)cid, 32));
+				    cid_expr->set_line(*this);
+				    vector<NetExpr*> argv(3);
+				    argv[0] = recv;
+				    argv[1] = mode_expr;
+				    argv[2] = cid_expr;
+				    NetSTask *sys = new NetSTask(
+					  "$ivl_class_method$constraint_mode",
+					  IVL_SFUNC_AS_TASK_IGNORE, argv);
+				    sys->set_line(*this);
+				    return sys;
+			      }
 			}
+			if (recv) delete recv;
 			// Fallthrough: constraint name not found — silent noop
 			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			noop->set_line(*this);
@@ -6196,12 +6236,19 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    perm_string cname = class_type->get_name();
 	    if (cname == perm_string::literal("process")
 		&& (method_name == perm_string::literal("kill")
-		    || method_name == perm_string::literal("await"))) {
+		    || method_name == perm_string::literal("await")
+		    || method_name == perm_string::literal("suspend")
+		    || method_name == perm_string::literal("resume"))) {
 		  static const std::vector<perm_string> no_parm_names;
-		  const char*sys_task_name =
-			(method_name == perm_string::literal("kill"))
-			      ? "$ivl_process$kill"
-			      : "$ivl_process$await";
+		  const char*sys_task_name;
+		  if (method_name == perm_string::literal("kill"))
+			sys_task_name = "$ivl_process$kill";
+		  else if (method_name == perm_string::literal("await"))
+			sys_task_name = "$ivl_process$await";
+		  else if (method_name == perm_string::literal("suspend"))
+			sys_task_name = "$ivl_process$suspend";
+		  else
+			sys_task_name = "$ivl_process$resume";
 		  return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
 						    method_name, sys_task_name,
 						    no_parm_names);
@@ -7605,6 +7652,28 @@ NetProc* PDoWhile::elaborate(Design*des, NetScope*scope) const
  * NetEvWait object can refer to.
  */
 
+/* Phase 78: extract the terminal boolean condition E_last from an SVA
+ * sequence body so that `@<seq>` can wait until E_last evaluates true
+ * at the sequence's clocking event.  Supports two pform shapes:
+ *  - op_type==0 plain antecedent (single bool):     E_last = antecedent
+ *  - op_type==4 seq_form CONCAT chain of SEQ_BOOLs: E_last = rightmost
+ *    leaf's expression
+ * Returns nullptr for shapes outside the linear-chain subset (operators
+ * AND/OR/INTERSECT/THROUGHOUT/REPEAT/GOTO/NONCONS); caller falls back
+ * to the existing skip-with-warning path and prints a `sorry: ...`.
+ */
+static PExpr* sva_seq_extract_terminal_(const sva_seq_t*s)
+{
+      if (!s) return nullptr;
+      while (s->kind == sva_seq_t::SEQ_CONCAT) {
+	    if (s->kids_.size() != 2) return nullptr;
+	    s = s->kids_[1];
+	    if (!s) return nullptr;
+      }
+      if (s->kind != sva_seq_t::SEQ_BOOL) return nullptr;
+      return s->expr_;
+}
+
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet) const
 {
@@ -7622,6 +7691,102 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	            "have event statements." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+	/* Phase 78: `@<seq>` where <seq> is a registered SVA named
+	 * sequence/property.  Synthesize a procedural wait whose loop
+	 * iterates on the sequence's clocking event until the terminal
+	 * boolean of the sequence body is true.  This is approximate
+	 * for non-trivial sequences (it doesn't track prefix history),
+	 * but it produces real timing behaviour and is strictly better
+	 * than the prior "compile-progress: event skipped" no-op.
+	 *
+	 * Triggers only for simple `@ident` references (single PEEvent
+	 * whose expression is a single-component PEIdent), and only
+	 * when symbol_search would otherwise fail to resolve the name
+	 * as a signal/event/clocking-block (we let the existing
+	 * resolvers run first).
+	 */
+      if (gn_system_verilog() && expr_.size() == 1
+	  && expr_[0]->type() == PEEvent::ANYEDGE) {
+	    const PEIdent*pid = dynamic_cast<const PEIdent*>(expr_[0]->expr());
+	    if (pid && pid->path().size() == 1) {
+		  perm_string nm = peek_head_name(pid->path().name);
+		  symbol_search_results sr_chk;
+		  symbol_search(this, des, scope, pid->path(),
+				pid->lexical_pos(), &sr_chk);
+		  bool resolves_as_event = (sr_chk.net != nullptr);
+		  if (!resolves_as_event) {
+			sva_property_t*prop = pform_sva_take_named_property(nm);
+			if (prop) {
+			      PExpr*e_last = nullptr;
+			      if (prop->op_type == 0 && prop->antecedent
+				  && !prop->consequent) {
+				    e_last = prop->antecedent;
+				    prop->antecedent = nullptr;
+			      } else if (prop->op_type == 4 && prop->seq_form) {
+				    e_last = sva_seq_extract_terminal_(prop->seq_form);
+			      }
+			      PEventStatement*clk = prop->clk_evt;
+			      prop->clk_evt = nullptr;
+			      if (clk && e_last) {
+				    char nbuf[64];
+				    snprintf(nbuf, sizeof nbuf,
+					     "__sv_seq_wait_%u", get_lineno());
+				    perm_string blk_name =
+					  lex_strings.make(nbuf);
+				    PBlock*outer = new PBlock(
+					  blk_name,
+					  dynamic_cast<LexicalScope*>(scope),
+					  PBlock::BL_SEQ);
+				    outer->set_file(get_file());
+				    outer->set_lineno(get_lineno());
+
+				    pform_name_t disable_path;
+				    disable_path.push_back(
+					  name_component_t(blk_name));
+				    PDisable*disable_stmt =
+					  new PDisable(disable_path);
+				    disable_stmt->set_file(get_file());
+				    disable_stmt->set_lineno(get_lineno());
+
+				    PCondit*check = new PCondit(
+					  e_last, disable_stmt, nullptr);
+				    check->set_file(get_file());
+				    check->set_lineno(get_lineno());
+
+				    clk->set_statement(check);
+
+				    PForever*loop = new PForever(clk);
+				    loop->set_file(get_file());
+				    loop->set_lineno(get_lineno());
+
+				    std::vector<Statement*> outer_stmts;
+				    outer_stmts.push_back(loop);
+				    outer->set_statement(outer_stmts);
+
+				      // PBlock with a name needs a NetScope
+				      // registered before elaborate() can find
+				      // it (for `disable` target resolution).
+				      // Run the same elaborate_scope/elaborate_sig
+				      // sequence the module-level pass does.
+				    outer->elaborate_scope(des, scope);
+				    outer->elaborate_sig(des, scope);
+				    NetProc*wait_net =
+					  outer->elaborate(des, scope);
+				    if (wait_net) {
+					  NetBlock*combo = new NetBlock(
+						NetBlock::SEQU, 0);
+					  combo->set_line(*this);
+					  combo->append(wait_net);
+					  if (enet) combo->append(enet);
+					  return combo;
+				    }
+			      }
+			      delete prop;
+			}
+		  }
+	    }
       }
 
       if (expr_.size() == 1) {
@@ -10527,6 +10692,12 @@ bool Module::elaborate(Design*des, NetScope*scope) const
  * value_slots:  if non-null, non-property caller-scope identifiers are
  *               collected here (returned as "v:N:W" placeholders in IR).
  *               Caller must elaborate and push these at the call site. */
+// Phase 81: per-thread loop-variable substitution map used when expanding
+// `foreach (B[i]) ...` constraint blocks.  The map is populated by the
+// PEForeachConstraint expansion driver below and consulted by the
+// PEIdent / array-element branches to materialise concrete literals.
+static thread_local std::map<perm_string, long>* g_constraint_loop_subs = nullptr;
+
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots)
@@ -10547,15 +10718,114 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
 	    perm_string name = id->path().back().name;
+
+	      // Phase 81: foreach loop-variable substitution.  Bare PEIdent
+	      // whose name matches an active loop var is materialised as a
+	      // constant literal.
+	    if (id->path().size() == 1 && id->path().back().index.empty()
+		&& g_constraint_loop_subs) {
+		  auto it = g_constraint_loop_subs->find(name);
+		  if (it != g_constraint_loop_subs->end())
+			return "c:" + to_string((uint64_t)it->second);
+	    }
+
 	    int idx = cls->property_idx_from_name(name);
 	    if (idx >= 0) {
 		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
 		  if (!q.test_rand()) return "";
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+
+		    // Phase 81: indexed access on an unpacked-array property —
+		    // `B[i]` or `B[const]`.  Emit `(extract p:idx:flat hi lo)`
+		    // so the element's bit range inside the flat property BV
+		    // is constrained.  Single-dim arrays only.
+		  const netuarray_t *ua =
+			dynamic_cast<const netuarray_t*>(ptype);
+		  if (ua && ua->static_dimensions().size() == 1
+		      && id->path().back().index.size() == 1) {
+			const index_component_t&ic = id->path().back().index.back();
+			if (ic.sel == index_component_t::SEL_BIT && ic.msb) {
+			      long ival = LONG_MIN;
+			      if (const PENumber*pn =
+					dynamic_cast<const PENumber*>(ic.msb)) {
+				    ival = pn->value().as_long();
+			      } else if (const PEIdent*pi =
+					dynamic_cast<const PEIdent*>(ic.msb)) {
+				    if (pi->path().size() == 1
+					&& g_constraint_loop_subs) {
+					  perm_string lv =
+						pi->path().back().name;
+					  auto it =
+						g_constraint_loop_subs->find(lv);
+					  if (it != g_constraint_loop_subs->end())
+						ival = it->second;
+				    }
+			      }
+			      if (ival != LONG_MIN) {
+				    const netrange_t &dim =
+					  ua->static_dimensions().front();
+				    if (dim.defined()) {
+					  long lsb = dim.get_lsb();
+					  long msb = dim.get_msb();
+					  long lo_b = lsb < msb ? lsb : msb;
+					  long elem_idx = ival - lo_b;
+					  unsigned elem_wid = 32;
+					  if (ivl_type_t et = ua->element_type())
+						elem_wid =
+						      et->packed_width() > 0
+						      ? (unsigned)et->packed_width()
+						      : 32;
+					  unsigned n = (unsigned)dim.width();
+					  if (elem_idx >= 0
+					      && (unsigned)elem_idx < n) {
+						unsigned flat = n * elem_wid;
+						unsigned hi =
+						      ((unsigned)elem_idx + 1)
+						      * elem_wid - 1;
+						unsigned lo =
+						      (unsigned)elem_idx
+						      * elem_wid;
+						return "(extract p:"
+						      + to_string(idx)
+						      + ":" + to_string(flat)
+						      + " " + to_string(hi)
+						      + " " + to_string(lo)
+						      + ")";
+					  }
+				    }
+			      }
+			}
+		  }
+
 		  unsigned wid = 0;
 		  if (ptype) {
 			const netvector_t*nvec = dynamic_cast<const netvector_t*>(ptype);
 			if (nvec) wid = nvec->packed_width();
+			    // Phase 81 follow-up: unpacked-array property referenced
+			    // as a bare PEIdent (no element index) must declare its
+			    // flat width (N × elem_wid).  The Z3 builder's
+			    // `get_prop_var` dedupes by idx and the first emission's
+			    // width wins, so mixing this with a `.sum()` fold (which
+			    // also references `p:idx:flat`) needs both sites to agree.
+			    // Without the consistency, the second emission's value
+			    // would be silently truncated to the first one's width.
+			else if (const netuarray_t*ua =
+					dynamic_cast<const netuarray_t*>(ptype)) {
+			      if (ua->static_dimensions().size() == 1) {
+				    const netrange_t &dim =
+					  ua->static_dimensions().front();
+				    if (dim.defined()) {
+					  unsigned elem_wid = 32;
+					  if (ivl_type_t et = ua->element_type())
+						elem_wid =
+						      et->packed_width() > 0
+						      ? (unsigned)et->packed_width()
+						      : 32;
+					  unsigned n = (unsigned)dim.width();
+					  wid = n * elem_wid;
+				    }
+			      }
+			}
 		  }
 		  if (wid == 0) wid = 32;
 		  return "p:" + to_string(idx) + ":" + to_string(wid);
@@ -10567,6 +10837,99 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  return "v:" + to_string(slot) + ":32";
 	    }
 	    return "";
+      }
+
+	// Phase 81: foreach (B[i]) <body> — expand the loop over B's element
+	// count and emit the body N times with the loop variable bound to
+	// each literal index.  Multiple bodies in the constraint_set are
+	// space-separated (top-level IR conjunction).
+      if (const PEForeachConstraint*fc =
+		dynamic_cast<const PEForeachConstraint*>(expr)) {
+	    int arr_idx = cls->property_idx_from_name(fc->array_name());
+	    if (arr_idx < 0) return "";
+	    ivl_type_t arr_type = cls->get_prop_type((size_t)arr_idx);
+	    const netuarray_t *ua =
+		  dynamic_cast<const netuarray_t*>(arr_type);
+	    if (!ua || ua->static_dimensions().size() != 1) return "";
+	    const netrange_t &dim = ua->static_dimensions().front();
+	    if (!dim.defined()) return "";
+	    long lsb = dim.get_lsb();
+	    long msb = dim.get_msb();
+	    long lo = lsb < msb ? lsb : msb;
+	    long hi = lsb < msb ? msb : lsb;
+	    if (fc->loop_vars().size() != 1) return "";
+	    perm_string lv = fc->loop_vars().front();
+	    std::map<perm_string,long> *prev = g_constraint_loop_subs;
+	    std::map<perm_string,long> local;
+	    if (prev) local = *prev;
+	    string out;
+	    for (long i = lo; i <= hi; ++i) {
+		  local[lv] = i;
+		  g_constraint_loop_subs = &local;
+		  for (const PExpr *bexp : *fc->body()) {
+			string s = pexpr_to_constraint_ir(bexp, cls, value_slots);
+			if (s.empty()) continue;
+			if (!out.empty()) out += " ";
+			out += s;
+		  }
+	    }
+	    g_constraint_loop_subs = prev;
+	    return out;
+      }
+
+	// Phase 81: array reduction `arr.sum()` on a fixed-size unpacked
+	// rand array property — fold into a bitvector sum of per-element
+	// extract slices.  Z3 backend gains an `extract` operator to
+	// materialise the slices.  Constraints like `B.sum() == 5` thus
+	// become Z3 `(add (extract bv 31 0) (extract bv 63 32) ...)` and
+	// constrain the actual values of B[0..N-1] inside the flat BV.
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
+	    const pform_name_t&pn = call->get_path_().name;
+	    if (call->get_parms_().empty()
+		&& pn.size() == 2
+		&& pn.back().name == perm_string::literal("sum")) {
+		  perm_string arr_name = pn.front().name;
+		  int idx = cls->property_idx_from_name(arr_name);
+		  if (idx >= 0) {
+			property_qualifier_t q =
+			      cls->get_prop_qual((size_t)idx);
+			if (!q.test_rand()) return "";
+			ivl_type_t ptype =
+			      cls->get_prop_type((size_t)idx);
+			const netuarray_t *ua =
+			      dynamic_cast<const netuarray_t*>(ptype);
+			if (ua && ua->static_dimensions().size() == 1) {
+			      const netrange_t &dim =
+				    ua->static_dimensions().front();
+			      if (dim.defined()) {
+				    unsigned elem_wid = 32;
+				    if (ivl_type_t et = ua->element_type())
+					  elem_wid = et->packed_width() > 0
+						? (unsigned)et->packed_width()
+						: 32;
+				    unsigned n = (unsigned)dim.width();
+				    unsigned flat_wid = n * elem_wid;
+				    string p_tok = "p:" + to_string(idx) + ":"
+					    + to_string(flat_wid);
+				    string acc = p_tok;
+				    // Build nested (add (extract …) (add (extract …) …))
+				    // since the IR's add is binary.
+				    string fold;
+				    for (unsigned i = 0 ; i < n ; i += 1) {
+					  unsigned hi = (i + 1) * elem_wid - 1;
+					  unsigned lo = i * elem_wid;
+					  string ex = "(extract " + p_tok
+						+ " " + to_string(hi)
+						+ " " + to_string(lo) + ")";
+					  if (fold.empty()) fold = ex;
+					  else fold = "(add " + fold
+						+ " " + ex + ")";
+				    }
+				    return fold;
+			      }
+			}
+		  }
+	    }
       }
 
       // I4 (Phase 62c): soft constraint wrapper.  Emit `(soft <expr>)`
@@ -10755,6 +11118,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 	      }
 
 	      // Elaborate constraint blocks: convert PExpr* to IR strings.
+	      // Names are pre-registered (empty IR) in elaborate_sig so the
+	      // setter / getter paths can resolve `obj.<cname>.constraint_mode`
+	      // by name even when the IR translation drops to "".  Here we
+	      // either populate the IR for an already-registered name, or
+	      // register a fresh entry if it wasn't pre-registered (defensive).
 	      for (auto& cit : pclass->type->constraints) {
 		    string ir;
 		    for (PExpr*item : cit.second) {
@@ -10765,8 +11133,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				ir += s;
 			  }
 		    }
-		    if (!ir.empty())
-			  add_constraint_ir(string(cit.first), ir);
+		    if (getenv("IVL_CIR_TRACE"))
+			  cerr << "[CIR] class=" << get_name()
+			       << " constraint=" << cit.first
+			       << " ir=" << ir << endl;
+		    add_constraint_ir(string(cit.first), ir);
 	      }
 
 	      // Phase 49: synthesize an `inside` constraint for every rand

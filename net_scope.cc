@@ -905,6 +905,14 @@ NetNet* NetScope::find_signal(perm_string key)
       return it != signals_map_.end()? it->second : 0;
 }
 
+typedef_t* NetScope::find_typedef_local(perm_string name)
+{
+      map<perm_string,typedef_t*>::const_iterator td = typedefs_.find(name);
+      if (td != typedefs_.end())
+	    return td->second;
+      return nullptr;
+}
+
 typedef_t* NetScope::find_typedef(const Design*des, perm_string name)
 {
       map<perm_string,typedef_t*>::const_iterator cache_td = typedef_search_cache_.find(name);

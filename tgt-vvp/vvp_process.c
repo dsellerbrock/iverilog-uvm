@@ -1660,9 +1660,6 @@ static int show_stmt_nb_trigger(ivl_statement_t net)
 
       fprintf(vvp_out, "    %%event/nb E_%p, %d;\n", ev, use_idx);
       clr_word(use_idx);
-	// FIXME: VVP needs to be updated to correctly support %event/nb
-      fprintf(stderr, "%s:%u: vvp.tgt sorry: ->> is not currently supported.\n",
-                      ivl_stmt_file(net), ivl_stmt_lineno(net));
       return 0;
 }
 
@@ -2865,13 +2862,22 @@ static int show_system_task_call(ivl_statement_t net)
       }
 
       if (strcmp(stmt_name, "$ivl_process$kill") == 0
-	  || strcmp(stmt_name, "$ivl_process$await") == 0) {
+	  || strcmp(stmt_name, "$ivl_process$await") == 0
+	  || strcmp(stmt_name, "$ivl_process$suspend") == 0
+	  || strcmp(stmt_name, "$ivl_process$resume") == 0) {
 	    ivl_expr_t recv = ivl_stmt_parm(net, 0);
 	    if (recv)
 		  draw_eval_object(recv);
-	    fprintf(vvp_out, "    %s;\n",
-		    strcmp(stmt_name, "$ivl_process$kill") == 0
-			  ? "%process/kill" : "%process/await");
+	    const char *op;
+	    if (strcmp(stmt_name, "$ivl_process$kill") == 0)
+		  op = "%process/kill";
+	    else if (strcmp(stmt_name, "$ivl_process$await") == 0)
+		  op = "%process/await";
+	    else if (strcmp(stmt_name, "$ivl_process$suspend") == 0)
+		  op = "%process/suspend";
+	    else
+		  op = "%process/resume";
+	    fprintf(vvp_out, "    %s;\n", op);
 	    return 0;
       }
 

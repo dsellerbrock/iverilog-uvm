@@ -104,8 +104,26 @@ struct Z3Builder {
       : ctx(c), defn(d), cobj(o), opt(0) {}
 
       Z3_ast get_prop_var(unsigned idx, unsigned width) {
-	    for (auto& v : prop_vars)
-		  if (v.idx == idx) return v.var;
+	    for (auto& v : prop_vars) {
+		  if (v.idx == idx) {
+			  // Phase 81 follow-up: two emissions for the same
+			  // property idx MUST agree on width.  Disagreement
+			  // means the IR layer mixed `p:idx:flat` and
+			  // `p:idx:scalar_default` for the same property and
+			  // the second emission would be silently truncated
+			  // to the first's BV width.  Better to surface this
+			  // as a hard error than corrupt the solver state.
+			if (width && v.width && width != v.width) {
+			      fprintf(stderr,
+				      "vvp_z3: internal error: prop idx=%u "
+				      "width mismatch (existing=%u, requested=%u);"
+				      " constraint IR has inconsistent width emissions"
+				      " for this property — first one wins.\n",
+				      idx, v.width, width);
+			}
+			return v.var;
+		  }
+	    }
 	    char name[32];
 	    snprintf(name, sizeof(name), "p%u", idx);
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, width ? width : 32);
@@ -409,6 +427,23 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    return Z3_mk_bvmul(b.ctx, left, right);
       }
 
+	// Phase 81: `(extract <bv> hi lo)` — Z3 bit-slice on a bitvector.
+	// Used by the array-reduction lowering to address per-element bit
+	// ranges inside a flat property BV.  hi/lo are decimal literals
+	// (no `c:` prefix needed since they are operator metadata, not
+	// addressable constraint values).
+      if (op == "extract") {
+	    Z3_ast bv = build_z3_atom(par, b);
+	    par.skip_ws();
+	    string hi_tok = par.read_token();
+	    par.skip_ws();
+	    string lo_tok = par.read_token();
+	    par.skip_ws(); par.expect(')');
+	    unsigned hi = (unsigned)atoi(hi_tok.c_str());
+	    unsigned lo = (unsigned)atoi(lo_tok.c_str());
+	    return Z3_mk_extract(b.ctx, hi, lo, bv);
+      }
+
       // Unknown operator — skip to matching ')' and return true
       int depth = 1;
       while (!par.at_end() && depth > 0) {
@@ -439,7 +474,12 @@ static Z3_ast parse_constraint_ir(const string& ir, Z3Builder& b)
 static uint64_t cobj_prop_bits(vvp_cobject* cobj, unsigned idx)
 {
       vvp_vector4_t vec;
-      cobj->get_vec4(idx, vec);
+	// Phase 81: use the whole-property accessor so unpacked-array
+	// properties (e.g. `rand int B[5]`) are read as a single flat
+	// bitvector covering all elements.  The element-only get_vec4
+	// path returned only element 0 and made the Z3 solver miss the
+	// remaining bits of an array reduction constraint.
+      cobj->get_vec4_whole(idx, vec);
       uint64_t bits = 0;
       unsigned wid = vec.size();
       if (wid > 64) wid = 64;
@@ -452,12 +492,55 @@ static uint64_t cobj_prop_bits(vvp_cobject* cobj, unsigned idx)
 static void cobj_set_prop_bits(vvp_cobject* cobj, unsigned idx, uint64_t bits)
 {
       vvp_vector4_t vec;
-      cobj->get_vec4(idx, vec);
+      cobj->get_vec4_whole(idx, vec);
       unsigned wid = vec.size();
       if (wid == 0) return;
       for (unsigned b = 0; b < wid; ++b)
 	    vec.set_bit(b, ((bits >> b) & 1) ? BIT4_1 : BIT4_0);
-      cobj->set_vec4(idx, vec);
+      cobj->set_vec4_whole(idx, vec);
+}
+
+/* Phase 81: write a Z3 numeral of arbitrary width back to a vvp_cobject
+ * property.  Used for unpacked-array properties whose flat width exceeds
+ * 64 bits — uint64 truncation would lose the upper elements.  Z3's
+ * `Z3_get_numeral_string` returns the unsigned-decimal representation
+ * of any bitvector; we walk the digits and decode bit-by-bit. */
+static void cobj_set_prop_from_z3(vvp_cobject* cobj, unsigned idx,
+				  Z3_context ctx, Z3_ast interp, unsigned width)
+{
+      vvp_vector4_t vec;
+      cobj->get_vec4_whole(idx, vec);
+      unsigned wid = vec.size();
+      if (wid == 0 || width == 0) return;
+      if (wid > width) wid = width;
+
+      const char *s = Z3_get_numeral_string(ctx, interp);
+      // Convert decimal string to a bit-vector via repeated /2 division.
+      // The string represents the unsigned value of the Z3 BV.
+      std::vector<char> digits;
+      digits.reserve(strlen(s));
+      for (const char *p = s; *p; ++p) digits.push_back(*p - '0');
+
+      // Initialise vec to all zeros so we only set the 1-bits.
+      for (unsigned b = 0; b < wid; ++b) vec.set_bit(b, BIT4_0);
+
+      unsigned bit_pos = 0;
+      while (bit_pos < wid && !digits.empty()) {
+	    // Long division: digits /= 2, capture remainder as bit.
+	    unsigned rem = 0;
+	    for (size_t i = 0 ; i < digits.size() ; ++i) {
+		  unsigned d = rem * 10 + digits[i];
+		  digits[i] = (char)(d / 2);
+		  rem = d % 2;
+	    }
+	    if (rem) vec.set_bit(bit_pos, BIT4_1);
+	    bit_pos += 1;
+	    // Strip leading zeros from the digit string.
+	    while (!digits.empty() && digits[0] == 0)
+		  digits.erase(digits.begin());
+      }
+
+      cobj->set_vec4_whole(idx, vec);
 }
 
 /* Substitute "v:N:W" value-slot tokens in an IR string with "c:V". */
@@ -598,9 +681,18 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       for (auto& pv : builder.prop_vars) {
 	    Z3_ast interp = nullptr;
 	    if (Z3_model_eval(ctx, model, pv.var, 1, &interp) && interp) {
-		  uint64_t bits = 0;
-		  if (Z3_get_numeral_uint64(ctx, interp, &bits))
-			cobj_set_prop_bits(cobj, pv.idx, bits);
+		  if (getenv("IVL_Z3_TRACE"))
+			fprintf(stderr, "[Z3WB] pid=%u width=%u value=%s\n",
+				pv.idx, pv.width,
+				Z3_get_numeral_string(ctx, interp));
+		  if (pv.width <= 64) {
+			uint64_t bits = 0;
+			if (Z3_get_numeral_uint64(ctx, interp, &bits))
+			      cobj_set_prop_bits(cobj, pv.idx, bits);
+		  } else {
+			cobj_set_prop_from_z3(cobj, pv.idx, ctx, interp,
+					      pv.width);
+		  }
 	    }
       }
 

@@ -948,6 +948,14 @@ class Definitions {
 	// This is a map of all the classes (by name) in this scope.
       std::map<perm_string,netclass_t*> classes_;
 
+    public:
+	// Local-only class lookup map.  Used by symbol_search to find a
+	// class declared *directly* in this scope without walking up the
+	// scope chain (unlike find_class), so an unrelated class at an
+	// outer scope doesn't shadow a same-named local variable in an
+	// inner scope.
+      const std::map<perm_string,netclass_t*>& classes_local() const { return classes_; }
+
 };
 
 /*
@@ -983,6 +991,10 @@ class NetScope : public Definitions, public Attrib {
         /* Search the scope hierarchy for the scope where 'type' was defined. */
       NetScope*find_typedef_scope(const Design*des, const typedef_t*type);
       typedef_t*find_typedef(const Design*des, perm_string name);
+	// Local-only typedef lookup: checks only this scope's own typedef
+	// map, no upward walk.  Used by symbol_search's class-as-scope
+	// fallback so an outer typedef doesn't shadow an inner variable.
+      typedef_t*find_typedef_local(perm_string name);
 
 	/* Parameters exist within a scope, and these methods allow
 	   one to manipulate the set. In these cases, the name is the

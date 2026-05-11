@@ -6084,6 +6084,186 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					    return rand_expr;
 				      }
 
+					// obj.<cname>.constraint_mode() — 0-arg query form
+					// returns 1 if the named constraint block is enabled,
+					// 0 if disabled.  Walk search_results.path_tail (which
+					// is the unresolved chain past `this`) to build the
+					// receiver: zero leading components means implicit
+					// `this`, one means `this.<prop>`.  Resolve the
+					// constraint name against the receiver's class type.
+				      if (tail_method == perm_string::literal("constraint_mode")
+					  && parms_.size() == 0
+					  && search_results.path_tail.size() >= 2
+					  && search_results.net) {
+					    auto &ptail = search_results.path_tail;
+					    perm_string cname =
+						  std::next(ptail.end(), -2)->name;
+					    NetNet *base_net = search_results.net;
+					    const netclass_t *base_class =
+						  dynamic_cast<const netclass_t*>(
+							base_net->net_type());
+					    NetExpr *recv = nullptr;
+					    const netclass_t *recv_class = nullptr;
+					    if (ptail.size() == 2) {
+						  // [cname, constraint_mode] — receiver = this
+						  recv = new NetESignal(base_net);
+						  recv->set_line(*this);
+						  recv_class = base_class;
+					    } else if (ptail.size() == 3 && base_class) {
+						  // [<prop>, cname, constraint_mode] — receiver = this.prop
+						  perm_string pname = ptail.front().name;
+						  int pidx = base_class->property_idx_from_name(pname);
+						  if (pidx >= 0) {
+							ivl_type_t pt = base_class->get_prop_type(pidx);
+							recv_class = dynamic_cast<const netclass_t*>(pt);
+							if (recv_class) {
+							      NetESignal *base_sig =
+								    new NetESignal(base_net);
+							      base_sig->set_line(*this);
+							      recv = new NetEProperty(
+								    base_sig, (size_t)pidx);
+							      recv->set_line(*this);
+							}
+						  }
+					    }
+					    if (recv && recv_class) {
+						  netclass_t *resolved =
+							scope->find_class(des,
+							      recv_class->get_name());
+						  if (resolved
+						      && resolved->constraint_ir_count() >
+							 recv_class->constraint_ir_count())
+							recv_class = resolved;
+						  size_t cid = recv_class->constraint_ir_count();
+						  for (size_t ci = 0;
+						       ci < recv_class->constraint_ir_count();
+						       ++ci) {
+							if (recv_class->constraint_ir_name(ci)
+							    == string(cname)) {
+							      cid = ci;
+							      break;
+							}
+						  }
+						  if (cid < recv_class->constraint_ir_count()) {
+							NetEConst *cid_expr =
+							      new NetEConst(verinum(
+								    (uint64_t)cid, 32));
+							cid_expr->set_line(*this);
+							NetESFunc *gf = new NetESFunc(
+							      "$ivl_class_method$constraint_mode_get",
+							      IVL_VT_LOGIC, 32, 2);
+							gf->set_line(*this);
+							gf->parm(0, recv);
+							gf->parm(1, cid_expr);
+							return gf;
+						  }
+						  delete recv;
+					    }
+					    // Constraint name not resolved — fall through to
+					    // generic compile-progress stub (returns 0).
+				      }
+
+					// Phase 81: `<recv>.<arr>.sum()` on a fixed-size unpacked
+					// array property — lower to NetEBAdd fold over array
+					// elements at elab time.  Uses the same receiver-walking
+					// pattern as the P76 constraint_mode getter.  Combined
+					// with the whole-property randomise (vthread.cc) and
+					// constraint-IR `sum`-translation, gives proper
+					// chapter-18 array-reduction-constraint support.
+				      if (tail_method == perm_string::literal("sum")
+					  && parms_.size() == 0
+					  && search_results.path_tail.size() >= 2
+					  && search_results.net) {
+					    auto &ptail = search_results.path_tail;
+					    perm_string arr_name =
+						  std::next(ptail.end(), -2)->name;
+					    NetNet *base_net = search_results.net;
+					    const netclass_t *base_class =
+						  dynamic_cast<const netclass_t*>(
+							base_net->net_type());
+					    NetExpr *recv = nullptr;
+					    const netclass_t *recv_class = base_class;
+					    if (ptail.size() == 2) {
+						  recv = new NetESignal(base_net);
+						  recv->set_line(*this);
+					    } else if (ptail.size() == 3 && base_class) {
+						  perm_string pname = ptail.front().name;
+						  int pidx = base_class->property_idx_from_name(pname);
+						  if (pidx >= 0) {
+							ivl_type_t pt = base_class->get_prop_type(pidx);
+							const netclass_t *next_cls =
+							      dynamic_cast<const netclass_t*>(pt);
+							if (next_cls) {
+							      NetESignal *bs = new NetESignal(base_net);
+							      bs->set_line(*this);
+							      recv = new NetEProperty(
+								    bs, (size_t)pidx);
+							      recv->set_line(*this);
+							      recv_class = next_cls;
+							}
+						  }
+					    }
+					    if (recv && recv_class) {
+						  int arr_pidx =
+							recv_class->property_idx_from_name(arr_name);
+						  if (arr_pidx >= 0) {
+							ivl_type_t arr_type =
+							      recv_class->get_prop_type(arr_pidx);
+							const netuarray_t *ua =
+							      dynamic_cast<const netuarray_t*>(arr_type);
+							if (ua && ua->static_dimensions().size() == 1) {
+							      const netrange_t &dim =
+								    ua->static_dimensions().front();
+							      if (dim.defined()) {
+								    long lsb = dim.get_lsb();
+								    long msb = dim.get_msb();
+								    long lo = lsb < msb ? lsb : msb;
+								    long hi = lsb < msb ? msb : lsb;
+								    unsigned elem_wid = 32;
+								    if (ivl_type_t et = ua->element_type())
+									  elem_wid =
+										et->packed_width() > 0
+										? (unsigned)et->packed_width()
+										: 32;
+								    NetExpr *acc = nullptr;
+								    for (long i = lo; i <= hi; ++i) {
+									  NetExpr *recv_i = recv->dup_expr();
+									  NetEConst *idx =
+										new NetEConst(
+										      verinum(
+											    (uint64_t)(int64_t)i, 32));
+									  idx->set_line(*this);
+									    // Use the NetEProperty `canon_index`
+									    // form so tgt-vvp emits `%prop/v/i`
+									    // (element select) instead of
+									    // bit-selecting on the whole-property
+									    // load (`%prop/v` + `%select`).
+									  NetEProperty *elem =
+										new NetEProperty(
+										      recv_i,
+										      (size_t)arr_pidx,
+										      idx);
+									  elem->set_line(*this);
+									  if (acc == nullptr) {
+										acc = elem;
+									  } else {
+										acc = new NetEBAdd(
+										      '+', acc, elem, elem_wid,
+										      true);
+										acc->set_line(*this);
+									  }
+								    }
+								    if (acc) {
+									  delete recv;
+									  return acc;
+								    }
+							      }
+							}
+						  }
+					    }
+					    if (recv) delete recv;
+				      }
+
 				      compile_progress_expr_method_stub_kind_t stub_kind =
 					    classify_compile_progress_expr_method_stub_(
 						  search_results.path_head, class_type, tail_method);

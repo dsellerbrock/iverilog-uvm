@@ -481,6 +481,7 @@ struct vthread_s {
       unsigned i_am_joining      :1;
       unsigned i_am_detached     :1;
       unsigned i_am_waiting      :1;
+      unsigned i_am_suspended    :1;  // Phase 77: process::suspend()
       unsigned i_am_in_function  :1; // True if running function code
       unsigned i_have_ended      :1;
       unsigned i_was_disabled    :1;
@@ -709,6 +710,9 @@ unsigned vvp_process::status() const
 
       if (owner_->i_have_ended)
 	    return PROCESS_STATE_FINISHED;
+
+      if (owner_->i_am_suspended)
+	    return PROCESS_STATE_SUSPENDED;
 
       if (owner_->i_am_waiting || owner_->waiting_for_event || owner_->i_am_joining)
 	    return PROCESS_STATE_WAITING;
@@ -2278,7 +2282,12 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 		  }
 
 		  vvp_vector4_t val;
-		  cobj->get_vec4(pid, val);
+		    // Phase 81: use whole-property accessors so unpacked
+		    // arrays (e.g. `rand int B[5]`) get all elements
+		    // randomised, not just element 0.  The default
+		    // get_vec4(pid, val) reads only element idx=0 and
+		    // leaves the rest of the array at its initial value.
+		  cobj->get_vec4_whole(pid, val);
 		  unsigned wid = val.size();
 		  if (wid == 0)
 			continue;
@@ -2319,7 +2328,7 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
 			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
 		  }
-		  cobj->set_vec4(pid, val);
+		  cobj->set_vec4_whole(pid, val);
 	    }
 
 	      // G20 (Phase 66): Solve ALL constraints from the entire class
@@ -2466,6 +2475,29 @@ bool of_CONSTRAINT_MODE(vthread_t thr, vvp_code_t cp)
 
       if (cobj)
 	    cobj->set_constraint_mode(cp->number, mode);
+      return true;
+}
+
+/*
+ * %constraint_mode/get N
+ *
+ * Read constraint_mode for constraint index N of the cobject on the object
+ * stack. Pops object, pushes vec4(32-bit) with 1 if enabled, 0 if disabled
+ * (default 1 for any uninitialized entry).
+ */
+bool of_CONSTRAINT_MODE_GET(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      bool enabled = true;
+      if (cobj)
+	    enabled = cobj->constraint_mode(cp->number);
+
+      vvp_vector4_t result(32, BIT4_0);
+      if (enabled) result.set_bit(0, BIT4_1);
+      thr->push_vec4(result);
       return true;
 }
 
@@ -2964,6 +2996,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->i_am_joining  = 0;
       thr->i_am_detached = 0;
       thr->i_am_waiting  = 0;
+      thr->i_am_suspended = 0;
       thr->i_am_in_function = 0;
       thr->is_scheduled  = 0;
       thr->i_have_ended  = 0;
@@ -3358,6 +3391,16 @@ void vthread_run(vthread_t thr)
 
 	    assert(thr->is_scheduled);
 	    thr->is_scheduled = 0;
+
+	      // Phase 77: a thread suspended via process::suspend() must
+	      // not execute even if it landed in the active queue (e.g., a
+	      // value-change event scheduled it before the suspend opcode
+	      // had a chance to skip it).  Re-check here and bail out;
+	      // %process/resume will schedule_vthread it again later.
+	    if (thr->i_am_suspended) {
+		  thr = tmp;
+		  continue;
+	    }
 
             running_thread = thr;
             __vpiScope*run_ctx_scope = resolve_context_scope(thr->parent_scope);
@@ -8400,7 +8443,8 @@ bool of_EVENT_NB(vthread_t thr, vvp_code_t cp)
       vvp_time64_t delay;
 
       delay = thr->words[cp->bit_idx[0]].w_uint;
-      schedule_propagate_event(cp->net, delay);
+      vvp_context_t context = ensure_write_context_(thr, "event-nb");
+      schedule_propagate_event(cp->net, context, delay);
       return true;
 }
 
@@ -11476,6 +11520,88 @@ bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t)
 
       proc->add_waiter(thr);
       return false;
+}
+
+/*
+ * %process/suspend
+ *
+ * Pops a vvp_process object from the object stack and marks its owner
+ * thread as suspended.  If the target is the calling thread itself, we
+ * yield (return false) — the scheduler will see the i_am_suspended flag
+ * and refuse to re-run the thread until %process/resume clears it.
+ * Idempotent (re-suspending an already-suspended thread is a no-op).
+ */
+bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      vvp_process*proc = obj.peek<vvp_process>();
+      if (!proc)
+	    return true;
+
+      vthread_t target = proc->owner();
+      if (!target)
+	    return true;
+
+      unsigned status = proc->status();
+      if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
+	    return true;
+
+      if (target->i_am_suspended)
+	    return true;
+
+      target->i_am_suspended = 1;
+
+      vthread_t self_process = logical_process_thread_(thr);
+      bool self_suspend = (target == thr) || (target == self_process);
+	// Returning false yields control without rescheduling the thread.
+	// The scheduler's run path checks i_am_suspended to keep the
+	// thread parked until %process/resume re-enqueues it.
+      return !self_suspend;
+}
+
+/*
+ * %process/resume
+ *
+ * Pops a vvp_process object and resumes its owner thread by clearing
+ * the i_am_suspended flag and scheduling it for execution.  Resuming a
+ * non-suspended thread is a no-op.  Resuming a thread suspended while
+ * inside a wait (i_am_waiting / waiting_for_event) does NOT wake the
+ * wait — only the suspend block is removed; the wait condition still
+ * has to fire.
+ */
+bool of_PROCESS_RESUME(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      vvp_process*proc = obj.peek<vvp_process>();
+      if (!proc)
+	    return true;
+
+      vthread_t target = proc->owner();
+      if (!target)
+	    return true;
+
+      if (!target->i_am_suspended)
+	    return true;
+
+      target->i_am_suspended = 0;
+
+	// Only re-enter the active queue if the thread isn't otherwise
+	// blocked (waiting on an event, joined under a parent, etc.).
+	// Other blocked-state flags own their own wake path; here we just
+	// undo the suspend gate.
+      if (!target->i_am_waiting
+	  && !target->waiting_for_event
+	  && !target->i_am_joining
+	  && !target->i_have_ended
+	  && !target->i_was_disabled
+	  && !target->is_scheduled) {
+	    schedule_vthread(target, 0);
+      }
+      return true;
 }
 
 bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)

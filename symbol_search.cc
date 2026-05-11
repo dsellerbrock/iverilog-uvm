@@ -77,6 +77,34 @@ static const netclass_t* resolve_prefix_class_type_(Design*des,
       return nullptr;
 }
 
+/* Local-only variant of the above: search ONLY the given scope's direct
+ * tables (no walking up via find_class/find_typedef).  Used inside the
+ * symbol_search scope-walk so an outer class named `a` does not shadow
+ * a function-local variable also named `a` declared in a closer scope.
+ * The walk handles upward propagation naturally — when control reaches
+ * the scope where the class is registered, the local check picks it up.
+ */
+static const netclass_t* resolve_prefix_class_type_local_(Design*des,
+							  NetScope*scope,
+							  perm_string name)
+{
+      if (!gn_system_verilog() || !scope)
+	    return nullptr;
+
+      auto cls_it = scope->classes_local().find(name);
+      if (cls_it != scope->classes_local().end())
+	    return cls_it->second;
+
+      typedef_t*td = scope->find_typedef_local(name);
+      if (td) {
+	    ivl_type_t td_type = td->elaborate_type(des, scope);
+	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(td_type))
+		  return cls;
+      }
+
+      return nullptr;
+}
+
 /*
  * Search for the hierarchical name. The path may have multiple components. If
  * that's the case, then recursively pull the path apart until we find the
@@ -89,7 +117,8 @@ static const netclass_t* resolve_prefix_class_type_(Design*des,
 bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 		   pform_name_t path, unsigned lexical_pos,
 		   struct symbol_search_results*res,
-		   NetScope*start_scope, bool prefix_scope)
+		   NetScope*start_scope, bool prefix_scope,
+		   bool resolving_prefix)
 {
       assert(scope);
 
@@ -119,7 +148,8 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
       // for the tail key, but there are other special cases as well.
       if (! path.empty()) {
 	    bool flag = symbol_search(li, des, scope, path, lexical_pos,
-				      res, start_scope, prefix_scope);
+				      res, start_scope, prefix_scope,
+				      /*resolving_prefix=*/true);
 	    if (! flag)
 		  return false;
 
@@ -456,6 +486,32 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 				}
 		  }
 
+		    // SV compile-progress: allow class type names (including
+		    // typedef aliases to class types) to act as prefix scopes in
+		    // paths such as `alias_t::static_obj.member` or
+		    // `ClassName.static_member`.  Use LOCAL-only class lookup so
+		    // a class declared at the module/package level doesn't
+		    // shadow a function-local variable with the same name in an
+		    // inner scope.  The scope walk naturally reaches the
+		    // class's enclosing scope on a later iteration.
+		    //
+		    // Only fire when resolving a prefix of a multi-component
+		    // path — for a bare single-name lookup `a = ...` we want
+		    // variable resolution to win.
+		  if (resolving_prefix && path_tail.index.empty()) {
+			if (const netclass_t*cls = resolve_prefix_class_type_local_(
+				    des, scope, path_tail.name)) {
+			      NetScope*cls_scope =
+				    const_cast<NetScope*>(cls->class_scope());
+			      if (cls_scope) {
+				    path.push_back(path_tail);
+				    res->scope = cls_scope;
+				    res->path_head = path;
+				    return true;
+			      }
+			}
+		  }
+
 		    // Finally check the rare case of a signal that hasn't
 		    // been elaborated yet.
 		  if (PWire*wire = scope->find_signal_placeholder(path_tail.name)) {
@@ -472,25 +528,6 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			}
 		  }
 
-		    // SV compile-progress: allow class type names (including
-		    // typedef aliases to class types) to act as prefix scopes in
-		    // paths such as alias_t::static_obj.member. The parser stores
-		    // both "." and "::" chains in the same name list, so this
-		    // fallback intentionally keys off class-type lookup only after
-		    // normal object lookup fails.
-		  if (path_tail.index.empty()) {
-			if (const netclass_t*cls = resolve_prefix_class_type_(
-				    des, scope, path_tail.name)) {
-			      NetScope*cls_scope =
-				    const_cast<NetScope*>(cls->class_scope());
-			      if (cls_scope) {
-				    path.push_back(path_tail);
-				    res->scope = cls_scope;
-				    res->path_head = path;
-				    return true;
-			      }
-			}
-		  }
 	    }
 
 	    // Could not find an object. Maybe this is a child scope name? If

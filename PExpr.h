@@ -1306,6 +1306,45 @@ class PEStreaming : public PExpr {
  * hard constraints conflict.  Plain elaboration just delegates to the
  * inner expression so non-constraint contexts ignore the soft flag.
  */
+/*
+ * Phase 81: foreach constraint expression — captures the loop array
+ * identifier, the loop variable name(s), and the body constraint set so
+ * `pexpr_to_constraint_ir` can expand the loop over the array's known
+ * element count at IR-emit time.  Previously the parser silently
+ * discarded these (parse.y:3625), making constraints like
+ * `foreach (B[i]) B[i] == 5;` a no-op.
+ */
+class PEForeachConstraint : public PExpr {
+    public:
+      PEForeachConstraint(perm_string arr,
+                          const std::list<perm_string>& loop_vars,
+                          std::list<PExpr*>* body)
+      : arr_(arr), loop_vars_(loop_vars), body_(body) {}
+      ~PEForeachConstraint() override {
+            if (body_) { for (auto*e : *body_) delete e; delete body_; }
+      }
+
+      perm_string array_name() const { return arr_; }
+      const std::list<perm_string>& loop_vars() const { return loop_vars_; }
+      const std::list<PExpr*>* body() const { return body_; }
+
+      void dump(std::ostream& out) const override {
+            out << "(foreach " << arr_ << " ...";
+            out << ")";
+      }
+      unsigned test_width(Design*, NetScope*, width_mode_t&) override
+            { return 1; }
+      NetExpr* elaborate_expr(Design*, NetScope*, ivl_type_t,
+                              unsigned) const override { return nullptr; }
+      NetExpr* elaborate_expr(Design*, NetScope*, unsigned,
+                              unsigned) const override { return nullptr; }
+
+    private:
+      perm_string arr_;
+      std::list<perm_string> loop_vars_;
+      std::list<PExpr*>* body_;
+};
+
 class PESoft : public PExpr {
     public:
       explicit PESoft(PExpr* inner) : inner_(inner) {}
