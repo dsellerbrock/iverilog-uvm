@@ -7604,28 +7604,88 @@ bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t cp)
 /*
  * %dpi/call/void "c_name\001types" nargs
  *
- * Calls C void function with int32 args from vec4 stack.
+ * Calls C void function.  Phase 85 follow-up: mirror the VEC4 path —
+ * support mixed string/int/output-int args via the size_t-arg
+ * dispatch and push output values onto vec4 stack for the tgt-vvp
+ * %store/vec4 sequence to write back.
  */
 bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
 {
       char name_buf[256];
       const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
-      (void)types;
       const char*c_name = name_buf;
       unsigned nargs = cp->bit_idx[0];
+
+      if (nargs > 8) nargs = 8;
+      int32_t iargs[8] = {0};
+      std::string sargs[8];
+      int32_t out_temps[8] = {0};
+      bool    out_present[8] = {false};
+      char    arg_types[8] = {0};
+      bool    has_special = false;
+      for (unsigned slot = 0; slot < nargs; ++slot) {
+	    arg_types[slot] = (types && types[slot]) ? types[slot] : 'i';
+	    if (arg_types[slot] == 's' || arg_types[slot] == 'o')
+		  has_special = true;
+      }
+      // Pop in reverse stack order (last-pushed is on top).
+      for (unsigned ii = 0; ii < nargs; ++ii) {
+	    unsigned slot = nargs - 1 - ii;
+	    switch (arg_types[slot]) {
+		case 's': sargs[slot] = thr->pop_str(); break;
+		case 'o': out_temps[slot] = dpi_pop_int32(thr);
+		          out_present[slot] = true; break;
+		case 'b':
+		case 'i':
+		default:  iargs[slot] = dpi_pop_int32(thr); break;
+	    }
+      }
 
       void*sym = vvp_dpi_find_symbol(c_name);
       if (!sym) {
 	    fprintf(stderr, "DPI error: symbol '%s' not found\n", c_name);
-	    thr->pop_vec4(nargs);
+	    return true;
+      }
+
+      if (has_special) {
+	    size_t aargs[8] = {0};
+	    for (unsigned i = 0; i < nargs; ++i) {
+		  switch (arg_types[i]) {
+		      case 's': aargs[i] = (size_t)sargs[i].c_str(); break;
+		      case 'o': aargs[i] = (size_t)(void*)&out_temps[i]; break;
+		      case 'b':
+		      case 'i':
+		      default:  aargs[i] = (size_t)(int64_t)(int32_t)iargs[i]; break;
+		  }
+	    }
+	    typedef void(*mv0_t)();
+	    typedef void(*mv1_t)(size_t);
+	    typedef void(*mv2_t)(size_t,size_t);
+	    typedef void(*mv3_t)(size_t,size_t,size_t);
+	    typedef void(*mv4_t)(size_t,size_t,size_t,size_t);
+	    typedef void(*mv5_t)(size_t,size_t,size_t,size_t,size_t);
+	    typedef void(*mv6_t)(size_t,size_t,size_t,size_t,size_t,size_t);
+	    typedef void(*mv7_t)(size_t,size_t,size_t,size_t,size_t,size_t,size_t);
+	    typedef void(*mv8_t)(size_t,size_t,size_t,size_t,size_t,size_t,size_t,size_t);
+	    switch (nargs) {
+		case 0: ((mv0_t)sym)(); break;
+		case 1: ((mv1_t)sym)(aargs[0]); break;
+		case 2: ((mv2_t)sym)(aargs[0],aargs[1]); break;
+		case 3: ((mv3_t)sym)(aargs[0],aargs[1],aargs[2]); break;
+		case 4: ((mv4_t)sym)(aargs[0],aargs[1],aargs[2],aargs[3]); break;
+		case 5: ((mv5_t)sym)(aargs[0],aargs[1],aargs[2],aargs[3],aargs[4]); break;
+		case 6: ((mv6_t)sym)(aargs[0],aargs[1],aargs[2],aargs[3],aargs[4],aargs[5]); break;
+		case 7: ((mv7_t)sym)(aargs[0],aargs[1],aargs[2],aargs[3],aargs[4],aargs[5],aargs[6]); break;
+		default: ((mv8_t)sym)(aargs[0],aargs[1],aargs[2],aargs[3],aargs[4],aargs[5],aargs[6],aargs[7]); break;
+	    }
+	    for (unsigned i = 0; i < nargs; ++i)
+		  if (out_present[i])
+			dpi_push_int32(thr, out_temps[i], 32);
 	    return true;
       }
 
       int32_t args[8];
-      if (nargs > 8) nargs = 8;
-      for (unsigned ii = 0; ii < nargs; ++ii)
-	    args[nargs-1-ii] = dpi_pop_int32(thr);
-
+      for (unsigned i = 0; i < 8; ++i) args[i] = iargs[i];
       typedef void(*vfn0_t)(void);
       typedef void(*vfn1_t)(int32_t);
       typedef void(*vfn2_t)(int32_t,int32_t);
