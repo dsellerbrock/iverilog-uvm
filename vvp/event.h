@@ -309,6 +309,15 @@ class vvp_fun_anyedge_aa : public vvp_fun_anyedge, public automatic_hooks_s {
     private:
       __vpiScope*context_scope_;
       unsigned context_idx_;
+	// Phase 86: cached count of threads currently waiting across all
+	// allocated contexts.  Incremented in add_waiting_thread; decremented
+	// in recv_* after run_waiting_threads_ consumes state->threads.
+	// When zero, recv_* skips the expensive
+	// recover_automatic_event_context_ chain walk — the hot loop in
+	// OT UART DV (vvp_send_object → recv_object →
+	// vthread_recover_context_for_scope) burns CPU re-walking owner
+	// chains for anyedge functors that no thread is actually waiting on.
+      unsigned pending_waiters_ = 0;
 };
 
 /*

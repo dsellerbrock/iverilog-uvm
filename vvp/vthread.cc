@@ -3588,6 +3588,16 @@ void vthread_schedule_list(vthread_t thr)
       schedule_vthread(thr, 0);
 }
 
+// Phase 86: count the length of a vthread wait-list (linked via wait_next).
+// Used by event.cc to keep vvp_fun_anyedge_aa::pending_waiters_ in sync after
+// run_waiting_threads_ consumes the list wholesale.
+unsigned vthread_count_wait_list_(vthread_t head)
+{
+      unsigned n = 0;
+      for (vthread_t cur = head; cur; cur = cur->wait_next) n += 1;
+      return n;
+}
+
 static __vpiScope* resolve_context_scope(__vpiScope*scope);
 
 vvp_context_t vthread_get_wt_context()

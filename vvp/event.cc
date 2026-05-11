@@ -761,9 +761,13 @@ vthread_t vvp_fun_anyedge_aa::add_waiting_thread(vthread_t thread)
 
       vthread_t tmp = state->threads;
       state->threads = thread;
+      pending_waiters_ += 1;  // Phase 86: track pending waiters for fast-path
 
       return tmp;
 }
+
+// Phase 86: implemented in vthread.cc (needs vthread_s::wait_next access).
+extern unsigned vthread_count_wait_list_(vthread_t head);
 
 void vvp_fun_anyedge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t context)
@@ -869,6 +873,21 @@ void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t,
             fprintf(stderr, "trace anyedge-aa recv_object net=%p ctx=%p\n",
                     (void*)port.ptr(), context);
       }
+	// Phase 86: short-circuit when no thread is currently waiting on
+	// this anyedge anywhere in any context.  The expensive part of
+	// this function is recover_automatic_event_context_ (a multi-chain
+	// walk that profiles as ~50% of OT UART DV CPU at ~1.5 us sim time).
+	// `pending_waiters_` is a monotonic counter incremented in
+	// add_waiting_thread and decremented by exactly the number of
+	// threads each run_waiting_threads_ consumes — when zero, no waiter
+	// exists anywhere on this functor, so the only useful work would be
+	// downstream propagation via the net.  Do that minimally and
+	// return.
+      if (pending_waiters_ == 0) {
+            vvp_net_t *net = port.ptr();
+            net->send_vec4(vvp_vector4_t(), context);
+            return;
+      }
       vvp_context_t input_context = context;
       context = recover_automatic_event_context_(context, context_scope_,
                                                  "recv-anyedge-object-aa");
@@ -888,7 +907,10 @@ void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t,
                           "[SEQ_TRACE anyedge recv_object] ctx=%p state=%p threads=%p\n",
                           context, (void*)state, state ? (void*)state->threads : 0);
             }
+            unsigned n = vthread_count_wait_list_(state->threads);
             run_waiting_threads_(state->threads);
+            if (n <= pending_waiters_) pending_waiters_ -= n;
+            else                       pending_waiters_ = 0;
             vvp_net_t*net = port.ptr();
             net->send_vec4(vvp_vector4_t(), context);
       } else {
