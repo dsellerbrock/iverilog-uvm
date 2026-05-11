@@ -69,6 +69,9 @@ static void trace_context_event_(const char*where, vthread_t thr,
                                  vvp_context_t extra_context = 0);
 static bool context_live_in_owner(vvp_context_t context);
 static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_scope);
+// Phase 87: forward decls; defined further down.
+static inline void set_stacked_tracked_(vvp_context_t context, vvp_context_t new_target);
+static inline bool has_inbound_stacked_(vvp_context_t needle);
 static vvp_context_t ensure_write_context_(vthread_t thr, const char*where);
 static bool copy_call_inputs_to_allocated_context_(__vpiScope*scope, vthread_t thr,
                                                    vvp_context_t dst_context);
@@ -2863,14 +2866,14 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
       if (context) {
             scope->free_contexts = vvp_get_next_context(context);
             vvp_set_next_context(context, 0);
-            vvp_set_stacked_context(context, 0);
+            set_stacked_tracked_(context, 0);
             for (unsigned idx = 0 ; idx < scope->nitem ; idx += 1) {
                   scope->item[idx]->reset_instance(context);
             }
       } else {
             context = vvp_allocate_context(scope->nitem);
             vvp_set_next_context(context, 0);
-            vvp_set_stacked_context(context, 0);
+            set_stacked_tracked_(context, 0);
             for (unsigned idx = 0 ; idx < scope->nitem ; idx += 1) {
                   scope->item[idx]->alloc_instance(context);
             }
@@ -2944,7 +2947,7 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
                               << endl;
                         warned = true;
                   }
-                  vvp_set_stacked_context(context, 0);
+                  set_stacked_tracked_(context, 0);
                   vvp_set_next_context(context, scope->free_contexts);
                   scope->free_contexts = context;
                   return;
@@ -2957,7 +2960,7 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
                   obj->clear_current_alias(context);
       }
 
-      vvp_set_stacked_context(context, 0);
+      set_stacked_tracked_(context, 0);
       vvp_set_next_context(context, scope->free_contexts);
       scope->free_contexts = context;
 }
@@ -3655,6 +3658,41 @@ static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_sc
       return context_on_list(ctx_scope->live_contexts, context);
 }
 
+// Phase 87: track how many contexts currently have their stacked-context
+// link (context[1]) pointing AT a given target.  Maintained by
+// set_stacked_tracked_ on every write.  context_on_stacked_chain_ uses
+// this to O(1)-short-circuit: if no context points at `needle`, then
+// `needle` is not reachable as anything but the head of a chain.
+static std::unordered_map<vvp_context_t, unsigned> inbound_stacked_count_;
+
+static inline void set_stacked_tracked_(vvp_context_t context,
+                                        vvp_context_t new_target)
+{
+      if (!context) return;
+      vvp_context_t old_target = vvp_get_stacked_context(context);
+      if (old_target != new_target) {
+            if (old_target) {
+                  auto it = inbound_stacked_count_.find(old_target);
+                  if (it != inbound_stacked_count_.end()) {
+                        if (it->second <= 1)
+                              inbound_stacked_count_.erase(it);
+                        else
+                              it->second -= 1;
+                  }
+            }
+            if (new_target)
+                  inbound_stacked_count_[new_target] += 1;
+      }
+      vvp_set_stacked_context(context, new_target);
+}
+
+static inline bool has_inbound_stacked_(vvp_context_t needle)
+{
+      if (!needle) return false;
+      auto it = inbound_stacked_count_.find(needle);
+      return it != inbound_stacked_count_.end() && it->second > 0;
+}
+
 static void warn_stacked_context_cycle_(const char*where, __vpiScope*ctx_scope,
                                         vvp_context_t start, vvp_context_t cur)
 {
@@ -3672,61 +3710,83 @@ static void warn_stacked_context_cycle_(const char*where, __vpiScope*ctx_scope,
       warned = true;
 }
 
+// Phase 87: static reusable scratch set for cycle detection in
+// find_stacked_context_match_.  vvp is single-threaded; reusing a static
+// unordered_set across calls eliminates the per-call new/delete of a
+// std::set that previously dominated of_ALLOC under OT UART DV (SIGUSR1
+// samples showed _Rb_tree::insert_unique on every of_ALLOC).  The set is
+// only touched when the chain exceeds the larger small-array threshold.
+static std::unordered_set<vvp_context_t> stacked_seen_scratch_;
+
 template <typename MatchFn>
 static vvp_context_t find_stacked_context_match_(vvp_context_t candidate,
                                                  __vpiScope*ctx_scope,
                                                  const char*where,
                                                  MatchFn match_fn)
 {
-      /* P3 perf: avoid the per-call std::set<vvp_context_t> allocation in
-       * the typical case (short chains).  Walk the chain with a small
-       * stack-allocated array first; if it overflows (chain longer than
-       * the typical OT smoke depth), promote to a heap set for cycle
-       * detection on the deeper portion.
+      /* P87 perf: enlarge the inline array to 256 (linear search remains
+       * cheaper than a hashed insert for small N), and when we DO need a
+       * set, use a static reusable unordered_set instead of heap-allocating
+       * a fresh std::set per call.
        *
        * vvp_get_stacked_context follows a forward link that should not
        * cycle, but post_apply_reset's nested fork blocks legitimately
        * produce chains with shared contexts seen multiple times — that's
-       * a real cycle, not corruption — so we still need the detection.
-       * Just not malloc per call. */
-      vvp_context_t small_seen[64];
+       * a real cycle, not corruption — so we still need the detection. */
+      enum { SMALL_CAP = 256 };
+      vvp_context_t small_seen[SMALL_CAP];
       unsigned small_count = 0;
-      std::set<vvp_context_t> *big_seen = nullptr;
+      bool using_set = false;
+      vvp_context_t found = 0;
       for (vvp_context_t cur = candidate ; cur ; cur = vvp_get_stacked_context(cur)) {
-            if (small_count < 64) {
+            if (!using_set) {
                   bool dup = false;
                   for (unsigned i = 0; i < small_count; ++i) {
                         if (small_seen[i] == cur) { dup = true; break; }
                   }
                   if (dup) {
                         warn_stacked_context_cycle_(where, ctx_scope, candidate, cur);
-                        delete big_seen;
                         return 0;
                   }
-                  small_seen[small_count++] = cur;
-            } else {
-                  if (!big_seen) {
-                        big_seen = new std::set<vvp_context_t>(small_seen, small_seen + 64);
+                  if (small_count < SMALL_CAP) {
+                        small_seen[small_count++] = cur;
+                  } else {
+                        stacked_seen_scratch_.clear();
+                        stacked_seen_scratch_.reserve(SMALL_CAP + 64);
+                        for (unsigned i = 0; i < SMALL_CAP; ++i)
+                              stacked_seen_scratch_.insert(small_seen[i]);
+                        stacked_seen_scratch_.insert(cur);
+                        using_set = true;
                   }
-                  if (!big_seen->insert(cur).second) {
+            } else {
+                  if (!stacked_seen_scratch_.insert(cur).second) {
                         warn_stacked_context_cycle_(where, ctx_scope, candidate, cur);
-                        delete big_seen;
                         return 0;
                   }
             }
             if (match_fn(cur)) {
-                  delete big_seen;
-                  return cur;
+                  found = cur;
+                  break;
             }
       }
-      delete big_seen;
-      return 0;
+      return found;
 }
 
 static bool context_on_stacked_chain_(vvp_context_t head, vvp_context_t needle,
                                       __vpiScope*ctx_scope, const char*where)
 {
       if (!(head && needle))
+            return false;
+
+      // Phase 87: trivial head-match still requires walk? No — head==needle
+      // is reachable in one step.  But we don't need to walk to answer.
+      if (head == needle)
+            return true;
+
+      // Phase 87 O(1) early-out: if no context points AT `needle` via
+      // context[1], `needle` cannot appear past the head of any chain.
+      // Since head != needle here, the answer must be false.
+      if (!has_inbound_stacked_(needle))
             return false;
 
       return find_stacked_context_match_(head, ctx_scope, where,
@@ -3749,16 +3809,16 @@ static vvp_context_t remove_context_from_stacked_chain_(vvp_context_t head,
                   warn_stacked_context_cycle_("remove_context_from_stacked_chain_",
                                               0, head, cur);
                   if (prev)
-                        vvp_set_stacked_context(prev, 0);
+                        set_stacked_tracked_(prev, 0);
                   else if (new_head == cur)
-                        vvp_set_stacked_context(cur, 0);
+                        set_stacked_tracked_(cur, 0);
                   break;
             }
 
             vvp_context_t next = vvp_get_stacked_context(cur);
             if (cur == needle) {
                   if (prev)
-                        vvp_set_stacked_context(prev, next);
+                        set_stacked_tracked_(prev, next);
                   else
                         new_head = next;
                   /* T2 (chapter-16-closure): only zero needle's own stacked
@@ -3774,7 +3834,7 @@ static vvp_context_t remove_context_from_stacked_chain_(vvp_context_t head,
                   bool shared = (ref_it != automatic_context_refcount.end()
                                  && ref_it->second > 1);
                   if (!shared)
-                        vvp_set_stacked_context(cur, 0);
+                        set_stacked_tracked_(cur, 0);
                   break;
             }
 
@@ -4307,7 +4367,7 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
                                                                  child_context);
 
         /* Push the allocated context onto the write context stack. */
-      vvp_set_stacked_context(child_context, thr->wt_context);
+      set_stacked_tracked_(child_context, thr->wt_context);
       thr->wt_context = child_context;
 
       /* %alloc stages a fresh automatic frame for the upcoming child
@@ -8979,7 +9039,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
             thr->skip_free_scope = 0;
             vthread_free_context(skip_context, skip_scope);
             if (retain_skip_chain)
-                  vvp_set_stacked_context(skip_context, saved_skip_next);
+                  set_stacked_tracked_(skip_context, saved_skip_next);
             ensure_write_context_(thr, "free-skip");
             return true;
       }
@@ -9425,7 +9485,7 @@ static void do_join(vthread_t thr, vthread_t child)
 	                  caller_rd = remove_context_from_stacked_chain_(thr->rd_context,
 	                                                                 child_context);
 	                  thr->rd_context = caller_rd;
-	                  vvp_set_stacked_context(child_context, thr->rd_context);
+	                  set_stacked_tracked_(child_context, thr->rd_context);
 	                  thr->rd_context = child_context;
 	                  if (!thr->wt_context && thr_ctx_scope && thr_ctx_scope->is_automatic()
 	                      && caller_rd
@@ -9548,7 +9608,7 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
                               && parent_context != child_context
                               && context_live_in_owner(parent_context)) {
                                 retain_automatic_context_(parent_context);
-                                vvp_set_stacked_context(child_context, parent_context);
+                                set_stacked_tracked_(child_context, parent_context);
                           }
                           thr->skip_free_context = child_context;
                           thr->skip_free_scope = child_context_scope;
