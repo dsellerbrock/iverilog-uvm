@@ -9723,7 +9723,16 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
 	    darray->get_word(adr, word);
       // else word remains nil (default-constructed vvp_object_t)
 
-      thr->push_object(word);
+	/* Task 2 (2026-06-19): carry the container's source net + root object
+	 * with the loaded element so that a subsequent %store/prop/* on this
+	 * element notifies waiters via notify_mutated_object_root_.  Without
+	 * this, `wait(assoc[k].member)` / `wait(array[i].member)` never wakes:
+	 * the element was pushed with a null source net (bare push_object),
+	 * so the property write notified only the element's own aliases, not
+	 * the container net the wait's anyedge event is sensitized to.  The
+	 * read side (nex_input -> anyedge on `net`) was already correct; this
+	 * is the write-side half that closes the loop. */
+      thr->push_object(word, net, obj->get_object());
       return true;
 }
 
@@ -9748,23 +9757,41 @@ bool of_LOAD_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-inline static void push_loaded_qo_value_(vthread_t thr, double value, unsigned)
+static vvp_fun_signal_object* signal_object_fun_(vvp_net_t*net);  // fwd decl
+
+// Task 2 (2026-06-19): optional src_net.  Non-object loads ignore it.  For
+// OBJECT loads from an assoc/queue *signal*, attach the container's source
+// net + root object so a later %store/prop on the element notifies waiters
+// on that net (the net the wait's anyedge is sensitized to).  src_net
+// defaults to 0, so queue loads (load_qo) keep the old bare-push behavior.
+inline static void push_loaded_qo_value_(vthread_t thr, double value, unsigned,
+                                         vvp_net_t* /*src_net*/ = 0)
 {
       thr->push_real(value);
 }
 
-inline static void push_loaded_qo_value_(vthread_t thr, const string&value, unsigned)
+inline static void push_loaded_qo_value_(vthread_t thr, const string&value, unsigned,
+                                         vvp_net_t* /*src_net*/ = 0)
 {
       thr->push_str(value);
 }
 
-inline static void push_loaded_qo_value_(vthread_t thr, const vvp_vector4_t&value, unsigned)
+inline static void push_loaded_qo_value_(vthread_t thr, const vvp_vector4_t&value, unsigned,
+                                         vvp_net_t* /*src_net*/ = 0)
 {
       thr->push_vec4(value);
 }
 
-inline static void push_loaded_qo_value_(vthread_t thr, const vvp_object_t&value, unsigned)
+inline static void push_loaded_qo_value_(vthread_t thr, const vvp_object_t&value, unsigned,
+                                         vvp_net_t*src_net = 0)
 {
+      if (src_net) {
+            vvp_fun_signal_object*fun = signal_object_fun_(src_net);
+            if (fun) {
+                  thr->push_object(value, src_net, fun->get_object());
+                  return;
+            }
+      }
       thr->push_object(value);
 }
 
@@ -10482,7 +10509,9 @@ static bool aa_load_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
 
       assoc_trace_signal_load_(thr, net, assoc, key, value);
 
-      push_loaded_qo_value_(thr, value, wid);
+	/* Task 2: pass `net` so an OBJECT element is pushed with the assoc
+	 * signal's source net, enabling %store/prop notify -> wait wakeup. */
+      push_loaded_qo_value_(thr, value, wid, net);
       return true;
 }
 
