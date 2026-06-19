@@ -67,6 +67,7 @@ static void string_ex_property(ivl_expr_t expr)
       ivl_expr_t idx_expr = ivl_expr_oper1(expr);
       int queue_indexed = property_is_indexed_queue_expr_(expr);
       int assoc_indexed = property_is_assoc_indexed_expr_(expr);
+      int darray_indexed = property_is_indexed_darray_expr_(expr);
 
       if (sig) {
 	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
@@ -92,6 +93,17 @@ static void string_ex_property(ivl_expr_t expr)
 		    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_queue_property\n", pidx);
 		    fprintf(vvp_out, "    %%load/qo/str;\n");
 		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	      } else if (darray_indexed) {
+		    /* darray-of-string property element read:
+		       cfg.list_of_alerts[i] where list_of_alerts is a string[]
+		       class property (bug b).  Push the darray as an object,
+		       then load the string element at the index word. */
+		    int idx_word = allocate_word();
+		    draw_eval_expr_into_integer(idx_expr, idx_word);
+		    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_darray_property\n", pidx);
+		    fprintf(vvp_out, "    %%load/dar/obj/str %d;\n", idx_word);
+		    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+		    clr_word(idx_word);
 	      } else {
 	    fprintf(vvp_out, "    %%prop/str %u;\n", pidx);
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
@@ -202,6 +214,20 @@ static void string_ex_select(ivl_expr_t expr)
 		  draw_eval_object(sube);
 		  draw_eval_expr_into_integer(shift, 3);
 		  fprintf(vvp_out, "    %%load/qo/str;\n");
+		  return;
+	    }
+	    if (expr_is_darray_container_(sube)) {
+		    /* darray-of-string property element read where the
+		       receiver is a nested property chain (this.cfg.keys[i]),
+		       so it arrives as SELECT-of-PROPERTY rather than a single
+		       indexed PROPERTY (bug b).  Evaluate the index first, push
+		       the darray object, then load the string element. */
+		  int idx_word = allocate_word();
+		  draw_eval_expr_into_integer(shift, idx_word);
+		  draw_eval_object(sube);
+		  fprintf(vvp_out, "    %%load/dar/obj/str %d;\n", idx_word);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  clr_word(idx_word);
 		  return;
 	    }
       }

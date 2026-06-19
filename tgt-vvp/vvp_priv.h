@@ -314,6 +314,20 @@ static inline int expr_is_queue_container_(ivl_expr_t expr)
       return ivl_expr_value(expr) == IVL_VT_QUEUE;
 }
 
+static inline int expr_is_darray_container_(ivl_expr_t expr)
+{
+      ivl_type_t net_type;
+
+      if (!expr)
+            return 0;
+
+      net_type = ivl_expr_net_type(expr);
+      if (net_type && ivl_type_base(net_type) == IVL_VT_DARRAY)
+            return 1;
+
+      return ivl_expr_value(expr) == IVL_VT_DARRAY;
+}
+
 static inline int expr_is_assoc_queue_container_(ivl_expr_t expr)
 {
       ivl_type_t net_type;

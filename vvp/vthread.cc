@@ -9757,6 +9757,28 @@ bool of_LOAD_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %load/dar/obj/str <index>
+ *    Read a string from the darray object on top of the object stack at
+ *    index words[cp->number].  Does not pop the object stack.  Mirrors
+ *    %load/dar/obj/vec4 for string-element darray properties (bug b:
+ *    cfg.list_of_alerts[i] where list_of_alerts is a string[] property).
+ */
+bool of_LOAD_DAR_OBJ_STR(vthread_t thr, vvp_code_t cp)
+{
+      int64_t adr = thr->words[cp->number].w_int;
+
+      vvp_object_t&top = thr->peek_object();
+      vvp_darray*darray = top.peek<vvp_darray>();
+
+      string word;
+      if (darray && (adr >= 0) && (thr->flags[4] == BIT4_0))
+            darray->get_word((unsigned)adr, word);
+
+      thr->push_str(word);
+      return true;
+}
+
 static vvp_fun_signal_object* signal_object_fun_(vvp_net_t*net);  // fwd decl
 
 // Task 2 (gated wait-wake): optional src_net.  Non-object loads ignore it.
