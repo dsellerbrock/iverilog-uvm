@@ -8,8 +8,19 @@ This repository is the iverilog source tree: the compiler, elaborator, code gene
 
 Run all build commands from `iverilog/` unless noted.
 
+> **MEMORY SAFETY (mandatory).** This host's interactive agent/harness runs with a high OOM
+> priority (`oom_score_adj` ~200), so any session-wide memory spike gets the *harness* killed
+> first — not the build/sim that caused it. Therefore **wrap every heavy command in the cgroup
+> memory guard** `scripts/memguard.sh MEM_MB WALL_SEC -- <cmd>`, which runs it in its own cgroup v2
+> scope with a hard RSS cap (`MemoryMax`) so an OOM is contained inside that scope. Examples:
+> `scripts/memguard.sh 6000 600 -- make -j2` and `scripts/memguard.sh 4000 120 -- vvp design.vvp`.
+> Use **`-j2`** (a single `vvp/vthread.cc` TU alone peaks ~656 MB RSS); never bare `make -j$(nproc)`
+> (= `-j24` here). Do NOT use `prlimit --as` as a guard — it caps virtual size, not RSS, and does
+> not prevent OOM. `install/` is persistent disk, so after a reboot the last-installed binaries are
+> still valid — only rebuild when source changed. Clean `/tmp/*.vvp` after runs (`/tmp` is tmpfs = RAM).
+
 - `sh autoconf.sh && ./configure --enable-libveriuser`: generate configure files and prepare a local build.
-- `make -j$(nproc)`: build the compiler, targets, and `vvp` runtime.
+- `scripts/memguard.sh 6000 600 -- make -j2`: build the compiler, targets, and `vvp` runtime (memory-guarded; preferred). Bare `make -j$(nproc)` is unsafe here — see MEMORY SAFETY above.
 - `make check`: run the built-in pre-install checks.
 - `make install`: install into the configured prefix; this workspace commonly uses `iverilog/install/` for local testing.
 - `cd ivtest && ./vvp_reg.pl --strict`: run the main simulation regression suite.
