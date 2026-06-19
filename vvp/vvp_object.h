@@ -73,6 +73,19 @@ class vvp_object {
       void unregister_signal_alias(vvp_net_t*net, void*context);
       void notify_signal_aliases() const;
 
+	// Edge-only aliases (Task 2 cross-net wake): used when an object is
+	// stored into an assoc/darray that is reached through a root signal
+	// net (e.g. a class-property assoc `cfg.m[k]`, whose wait elaborates
+	// to an anyedge on the *root* cfg net, not on any net for the
+	// container).  Unlike a normal alias, the notify must NOT
+	// vvp_send_object(net, this) -- that would overwrite the root signal's
+	// stored value with this element (type-unsound).  Instead the notify
+	// only fires the waitable (anyedge/...) consumers in the net's
+	// fan-out, waking wait(cfg.m[k].member) without disturbing readers of
+	// the root signal.  notify_signal_aliases() fires these too.
+      void register_signal_alias_edge_only(vvp_net_t*net, void*context);
+      void unregister_signal_alias_edge_only(vvp_net_t*net, void*context);
+
     private:
       static void register_live_ptr_(const vvp_object*ptr);
       static void unregister_live_ptr_(const vvp_object*ptr);
@@ -111,6 +124,10 @@ class vvp_object_t {
           { if (ref_) ref_->unregister_signal_alias(net, context); }
       inline void notify_signal_aliases() const
           { if (ref_) ref_->notify_signal_aliases(); }
+      inline void register_signal_alias_edge_only(vvp_net_t*net, void*context) const
+          { if (ref_) ref_->register_signal_alias_edge_only(net, context); }
+      inline void unregister_signal_alias_edge_only(vvp_net_t*net, void*context) const
+          { if (ref_) ref_->unregister_signal_alias_edge_only(net, context); }
 
       inline void shallow_copy(const vvp_object_t&that)
           { ref_->shallow_copy(that.ref_); }

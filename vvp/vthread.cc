@@ -9829,6 +9829,54 @@ static bool net_has_waiter_(vvp_net_t*net)
       return false;
 }
 
+// Task 2 (cross-net wake): STRUCTURAL variant of net_has_waiter_ -- true if
+// `net` fans out to any waitable functor at all, regardless of whether a
+// thread is *currently* waiting.  Used to gate edge-only alias registration
+// at element-load time: in a spinwait the wait expression is evaluated once
+// BEFORE the %wait registers the waiter, so net_has_waiter_ would be false on
+// that first pass and the alias would never be created (deadlock).  The
+// anyedge functor itself exists from elaboration, so this structural check is
+// stable across the spin loop yet still skips the vast majority of loads
+// (nets with no wait sensitive to them).
+static bool net_has_waitable_(vvp_net_t*net)
+{
+      if (!net)
+            return false;
+      for (vvp_net_ptr_t cur = net->out_ ; cur.ptr() ;
+           cur = cur.ptr()->port[cur.port()]) {
+            if (dynamic_cast<waitable_hooks_s*>(cur.ptr()->fun))
+                  return true;
+      }
+      return false;
+}
+
+// Task 2 (cross-net wake): fire only the waitable (anyedge/edge/event)
+// consumers in `net`'s fan-out, passing a nil object.  Used by
+// vvp_object::notify_signal_aliases() for edge-only aliases: an element
+// object stored into a container reached through `net` registers `net` as an
+// edge-only alias, so any write to the element (through ANY handle) wakes a
+// wait(container[k].member) sitting on `net` -- WITHOUT re-sending the element
+// onto `net` (which would overwrite the root signal's stored value).  The
+// anyedge recv_object ignores the object value (it only wakes waiters), so a
+// nil object is correct; non-waitable consumers are skipped entirely.  Each
+// waitable is gated on has_waiters() so this is a no-op when nobody waits.
+void vvp_object_fire_net_waiters_(vvp_net_t*net, void*context)
+{
+      if (!net)
+            return;
+      vvp_context_t ctx = static_cast<vvp_context_t>(context);
+      for (vvp_net_ptr_t cur = net->out_ ; cur.ptr() ;
+           cur = cur.ptr()->port[cur.port()]) {
+            vvp_net_t*dst = cur.ptr();
+            waitable_hooks_s*w = dynamic_cast<waitable_hooks_s*>(dst->fun);
+            if (!w)
+                  continue;
+            if (!w->has_waiters())
+                  continue;
+            dst->fun->recv_object(cur, vvp_object_t(), ctx);
+      }
+}
+
 static void notify_mutated_object_signal_(vthread_t thr, vvp_net_t*net, const char*where)
 {
       vvp_fun_signal_object*fun = signal_object_fun_(net);
@@ -10146,6 +10194,32 @@ static ASSOC* pop_assoc_receiver_(vthread_t thr)
       return typed_assoc;
 }
 
+// Task 2 (cross-net wake): when an OBJECT element is LOADED from a container
+// while evaluating a wait expression, register the container's ROOT net (the
+// outermost handle of the access chain, propagated by of_PROP_OBJ /
+// aa_load_signal -- e.g. the `this`/`@` net for `wait(cfg.m[k].member)` inside
+// a class method, or the assoc signal net for a module-level `wait(ac[k].f)`)
+// as an edge-only alias of the loaded element.  A wait's anyedge sits on that
+// root net, and store_prop always calls element.notify_signal_aliases(), so a
+// write to the element's property through ANY handle (the same assoc select,
+// or a separate direct handle as in OpenTitan's
+// alert_monitor.cfg.alert_init_done vs cip_base_vseq.cfg.m_alert_agent_cfgs[k])
+// fires that anyedge and wakes the wait.  Registering at LOAD (not store) is
+// essential: the wait and the store may reach the same element through
+// different outermost handles, so only the wait's own load sees the right net.
+// Gated on net_has_waitable_ (structural, not has_waiters) so it is a no-op for
+// the vast majority of assoc reads that no wait is sensitive to, while still
+// firing on the first spin-loop pass before the %wait registers its waiter.
+// No-op for non-object element types and when there is no waitable root net.
+static inline void register_assoc_elem_edge_alias_(const vvp_vector4_t&, vvp_net_t*) {}
+static inline void register_assoc_elem_edge_alias_(double, vvp_net_t*) {}
+static inline void register_assoc_elem_edge_alias_(const std::string&, vvp_net_t*) {}
+static inline void register_assoc_elem_edge_alias_(const vvp_object_t&val, vvp_net_t*root_net)
+{
+      if (root_net && !val.test_nil() && net_has_waitable_(root_net))
+            val.register_signal_alias_edge_only(root_net, 0);
+}
+
 template <typename ELEM, class ASSOC>
 static bool aa_load_str(vthread_t thr, unsigned wid=0)
 {
@@ -10156,6 +10230,10 @@ static bool aa_load_str(vthread_t thr, unsigned wid=0)
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc)
 	    assoc->get(key, value);
+
+      // receiver is at obj depth 0 here; its source net is the outermost
+      // (root) net of the access chain -- the net a wait on this element sits on.
+      register_assoc_elem_edge_alias_(value, thr->peek_object_source_net(0));
 
       push_loaded_qo_value_(thr, value, wid);
       return true;
@@ -10173,6 +10251,8 @@ static bool aa_load_obj(vthread_t thr, unsigned wid=0)
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc)
 	    assoc->get(key, value);
+
+      register_assoc_elem_edge_alias_(value, thr->peek_object_source_net(0));
 
       if (assoc_trace_scope_match_(thr)) {
             fprintf(stderr,
@@ -10199,6 +10279,8 @@ static bool aa_load_vec(vthread_t thr, unsigned wid=0)
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc)
 	    assoc->get(key, value);
+
+      register_assoc_elem_edge_alias_(value, thr->peek_object_source_net(0));
 
       push_loaded_qo_value_(thr, value, wid);
       return true;
@@ -10533,6 +10615,10 @@ static bool aa_load_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
 
 	/* Task 2: pass `net` so an OBJECT element is pushed with the assoc
 	 * signal's source net (gated on net_has_waiter_) -> %store/prop wakeup. */
+      // Cross-net wake: for a signal-backed assoc the wait anyedge sits on
+      // `net` itself; register the loaded element so a write through any handle
+      // wakes wait(ac[k].member).
+      register_assoc_elem_edge_alias_(value, net);
       push_loaded_qo_value_(thr, value, wid, net);
       return true;
 }
@@ -10974,6 +11060,22 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
       vvp_net_t*root_net = fun->get_root_net();
       vvp_object_t root_obj = fun->get_root_object();
       if (!root_net || root_obj.test_nil()) {
+            root_net = net;
+            root_obj = val;
+      }
+
+      // Task 2 (cross-net wake): when this variable's own net carries a wait
+      // sensitivity (an anyedge/edge/event consumer), propagate the LITERAL
+      // net as the root rather than the object's provenance net.  A wait like
+      // `wait(this.cfg.member)` elaborates its anyedge onto the net of the
+      // outermost handle in the chain (e.g. the automatic `@`/this net), but
+      // the object's provenance root_net points elsewhere (e.g. the caller's
+      // handle).  Without this, a nested member write notifies the provenance
+      // net and never the net the wait sits on, so the wait never wakes.
+      // Gated on net_has_waitable_ so the (rare) wait-sensitive loads are the
+      // only ones whose root channel is redirected; all other loads keep their
+      // provenance semantics unchanged.
+      if (net_has_waitable_(net)) {
             root_net = net;
             root_obj = val;
       }

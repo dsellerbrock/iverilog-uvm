@@ -32,6 +32,14 @@ static std::set<const vvp_object*> live_vvp_objects_;
 typedef std::pair<vvp_net_t*, void*> object_alias_key_t;
 static std::map<const vvp_object*, std::set<object_alias_key_t> > object_signal_aliases_;
 
+// Edge-only aliases: net the object lives "inside" (a root signal whose
+// fan-out carries a wait on this object via a container select).  On notify
+// we only fire the waitable consumers of the net, never re-send the object
+// onto it.  Defined in vthread.cc, where the net fan-out + waitable types
+// are visible.
+extern void vvp_object_fire_net_waiters_(vvp_net_t*net, void*context);
+static std::map<const vvp_object*, std::set<object_alias_key_t> > object_signal_edge_aliases_;
+
 void vvp_object::register_live_ptr_(const vvp_object*ptr)
 {
       if (ptr)
@@ -56,6 +64,7 @@ void vvp_object::cleanup(void)
 vvp_object::~vvp_object()
 {
       object_signal_aliases_.erase(this);
+      object_signal_edge_aliases_.erase(this);
       unregister_live_ptr_(this);
       total_active_cnt_ -= 1;
 }
@@ -107,26 +116,68 @@ void vvp_object::notify_signal_aliases() const
       }
       std::map<const vvp_object*, std::set<object_alias_key_t> >::const_iterator it =
             object_signal_aliases_.find(this);
-      if (it == object_signal_aliases_.end())
-            return;
-
-      if (trace_alias) {
-            fprintf(stderr, "trace obj-alias notify obj=%p aliases=%zu\n",
-                    (const void*)this, it->second.size());
-      }
-      std::vector<object_alias_key_t> aliases(it->second.begin(), it->second.end());
-      vvp_object_t self(const_cast<vvp_object*>(this));
-      for (std::vector<object_alias_key_t>::const_iterator cur = aliases.begin()
-                 ; cur != aliases.end() ; ++cur) {
-            if (!cur->first)
-                  continue;
+      if (it != object_signal_aliases_.end()) {
             if (trace_alias) {
-                  fprintf(stderr, "trace obj-alias send obj=%p net=%p ctx=%p\n",
-                          (const void*)this, (void*)cur->first, cur->second);
+                  fprintf(stderr, "trace obj-alias notify obj=%p aliases=%zu\n",
+                          (const void*)this, it->second.size());
             }
-            vvp_send_object(vvp_net_ptr_t(cur->first, 0), self,
-                            static_cast<vvp_context_t>(cur->second));
+            std::vector<object_alias_key_t> aliases(it->second.begin(), it->second.end());
+            vvp_object_t self(const_cast<vvp_object*>(this));
+            for (std::vector<object_alias_key_t>::const_iterator cur = aliases.begin()
+                       ; cur != aliases.end() ; ++cur) {
+                  if (!cur->first)
+                        continue;
+                  if (trace_alias) {
+                        fprintf(stderr, "trace obj-alias send obj=%p net=%p ctx=%p\n",
+                                (const void*)this, (void*)cur->first, cur->second);
+                  }
+                  vvp_send_object(vvp_net_ptr_t(cur->first, 0), self,
+                                  static_cast<vvp_context_t>(cur->second));
+            }
       }
+
+	// Edge-only aliases: fire just the waitable consumers of each net so a
+	// wait(container[k].member) wakes, without re-sending this element on
+	// the root signal net (which would corrupt that signal's value).
+      std::map<const vvp_object*, std::set<object_alias_key_t> >::const_iterator eit =
+            object_signal_edge_aliases_.find(this);
+      if (eit != object_signal_edge_aliases_.end()) {
+            if (trace_alias) {
+                  fprintf(stderr, "trace obj-alias notify-edge obj=%p aliases=%zu\n",
+                          (const void*)this, eit->second.size());
+            }
+            std::vector<object_alias_key_t> aliases(eit->second.begin(), eit->second.end());
+            for (std::vector<object_alias_key_t>::const_iterator cur = aliases.begin()
+                       ; cur != aliases.end() ; ++cur) {
+                  if (!cur->first)
+                        continue;
+                  if (trace_alias) {
+                        fprintf(stderr, "trace obj-alias fire-edge obj=%p net=%p ctx=%p\n",
+                                (const void*)this, (void*)cur->first, cur->second);
+                  }
+                  vvp_object_fire_net_waiters_(cur->first, cur->second);
+            }
+      }
+}
+
+void vvp_object::register_signal_alias_edge_only(vvp_net_t*net, void*context)
+{
+      if (!net)
+            return;
+      object_signal_edge_aliases_[this].insert(object_alias_key_t(net, context));
+}
+
+void vvp_object::unregister_signal_alias_edge_only(vvp_net_t*net, void*context)
+{
+      if (!net)
+            return;
+      std::map<const vvp_object*, std::set<object_alias_key_t> >::iterator it =
+            object_signal_edge_aliases_.find(this);
+      if (it == object_signal_edge_aliases_.end())
+            return;
+      it->second.erase(object_alias_key_t(net, context));
+      if (it->second.empty())
+            object_signal_edge_aliases_.erase(it);
 }
 
 void vvp_object::shallow_copy(const vvp_object*)
