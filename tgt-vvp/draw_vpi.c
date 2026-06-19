@@ -381,16 +381,39 @@ static int draw_sv_cast_class_task(ivl_statement_t tnet)
             return 0;
       if (ivl_expr_value(dest) != IVL_VT_CLASS)
             return 0;
-      if (ivl_expr_type(dest) != IVL_EX_SIGNAL)
-            return 0;
 
-      ivl_signal_t sig = ivl_expr_signal(dest);
-      if (!(sig && ivl_signal_dimensions(sig) == 0))
-            return 0;
+      if (ivl_expr_type(dest) == IVL_EX_SIGNAL) {
+            ivl_signal_t sig = ivl_expr_signal(dest);
+            if (!(sig && ivl_signal_dimensions(sig) == 0))
+                  return 0;
 
-      draw_eval_object(src);
-      fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
-      return 1;
+            draw_eval_object(src);
+            fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+            return 1;
+      }
+
+      if (ivl_expr_type(dest) == IVL_EX_PROPERTY) {
+            /* Task-form $cast into a class property.  The generic VPI
+               path passes the containing object (`this`) as the
+               destination, so the runtime cast checks the enclosing
+               class type instead of the property's type and fails
+               (rsp stays null -> e.g. UVM SQRPUT in a driver doing
+               $cast(rsp, req.clone())).  Mirror draw_sv_cast_class_func:
+               store the source object directly into the property. */
+            ivl_signal_t base_sig = ivl_expr_signal(dest);
+            if (!base_sig)
+                  return 0;
+            int pidx = (int) ivl_expr_property_idx(dest);
+            fprintf(vvp_out, "    %%load/obj v%p_0; $cast: push base (this)\n",
+                    base_sig);
+            draw_eval_object(src);
+            fprintf(vvp_out, "    %%store/prop/obj %d, 0; $cast: store property\n",
+                    pidx);
+            fprintf(vvp_out, "    %%pop/obj 1, 0; $cast: drop base\n");
+            return 1;
+      }
+
+      return 0;
 }
 
 static int get_vpi_taskfunc_lvalue_arg(struct args_info *result,
