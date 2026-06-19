@@ -5,8 +5,13 @@ This document describes every change in the `development` branch relative to
 feature: what was broken, the root cause, the fix, files changed, and test coverage.
 
 **Branch:** `dsellerbrock/iverilog-uvm` `development`
-**Base:** `steveicarus/iverilog` `master` (86 commits ahead)
+**Base:** `steveicarus/iverilog` `master`
 **Upstream status** is noted for each group — see §11 for the summary table.
+
+> **This document is the change history and design rationale** (per feature: what was
+> broken, the root cause, the fix, files, tests). It deliberately does **not** restate
+> current pass-rates or commit counts — those live in one place,
+> [`IEEE1800_UVM_SUPPORT.md`](IEEE1800_UVM_SUPPORT.md) (the canonical status doc).
 
 ---
 
@@ -871,6 +876,53 @@ Key fixes:
 ---
 
 ## 12. Known Limitations and Deferred Work
+
+### Recent phases P85–P88 (2026-05-11) — DPI, perf, and the OpenTitan DV frontier
+
+- **P85 — DPI mixed-arg + `output int`** (`aa8ccdc95`, `2f0cf6490`). `import "DPI-C"`
+  calls with mixed string/int args (e.g. UVM's `uvm_re_compexec(re, str, deglob,
+  output int)`) were silently skipped under a compile-progress fallback, producing
+  ~160 UVM_ERRORs at time 0 with DPI enabled. Now dispatched via an x86-64 SysV
+  `size_t`-arg cast, with `output int` formals written back post-call. Extended to
+  `%dpi/call/void`. (Portable only to x86-64 SysV; ARM64/Win64 would need libffi.)
+- **P86 — anyedge_aa `pending_waiters_`** (`15211ec07`). `vvp_fun_anyedge_aa::recv_object`
+  short-circuits the expensive `recover_automatic_event_context_` chain walk when no
+  thread is waiting anywhere on the functor. Eliminates the prior dominant OT hot path.
+- **P87 — O(1) stacked-chain scrub** (`60c7a2eb5`). `context_on_stacked_chain_` gains an
+  O(1) early-out via an `inbound_stacked_count_` map, removing per-`of_ALLOC` heap-set
+  rebuilds. Both P86/P87 are correctness-preserving CPU wins.
+
+### OpenTitan UART DV plateau — `wait(assoc[k].class_member)` never wakes (THE current UVM blocker)
+
+**Status:** Open. Diagnosed Phase 88 (2026-05-11), re-confirmed 2026-06-19.
+
+The full OpenTitan UART DV stack compiles and boots cleanly with DPI; sim advances to
+**~1.534 µs and then plateaus** — it does not complete. This is a **correctness bug,
+not a throughput limit** (earlier docs that called it "throughput-bound" were wrong).
+
+Root cause: a `wait` on a **class member reached through an associative-array (or
+dynamic-array) select** — `wait(cfg.m_alert_agent_cfgs[key].alert_init_done == 1)` —
+never wakes, because writing that member through an `assoc[k]` select emits **no nexus
+value-change event** for the wait's sensitivity list. OpenTitan's `DV_WAIT` macro wraps
+the wait in `fork ... #timeout ... join_any; disable fork;`; since the real condition
+never fires, the timeout fork unblocks each iteration and the pattern **leaks threads**.
+By 1.534 µs there are ~100 K live threads (99 978 parked in
+`cip_base_pkg::...post_apply_reset`), and the scheduler grinds in a zero-time delta storm.
+
+Verified with a minimal reproducer: `wait(c.field)` on a direct handle wakes correctly;
+`wait(assoc[k].field)` does not. A partial fix (P88: `NetEProperty::nex_input` retaining
+the property nexus) was insufficient and reverted — the gap is in the assoc-select
+**write → event** path, not the read-side sensitivity set. The direct-handle case already
+works via the `vvp_fun_signal_object_aa` / `notify_signal_aliases` object-aliasing
+machinery; the fix is to make assoc/array-select member writes participate in it.
+
+### Honest accounting
+
+For the full, current IEEE-1800 / UVM support delta — corpus pass-rate (1027/1027,
+re-verified 2026-06-19 at P87), canonical UVM regression (104/106), deferred LRM
+features, and the inventory of **active compile-progress fallback stubs** — see the
+project status doc `IEEE1800_UVM_SUPPORT.md` and the fallback inventory `FALLBACKS.md`.
+Passing the sv-tests corpus is **not** the same as a complete IEEE 1800 implementation.
 
 ### `pkg::var = expr` Assignment (Package-Scoped Lvalue)
 

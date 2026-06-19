@@ -25,6 +25,21 @@
 
 ---
 
+## Documentation map
+
+Each document has one purpose; there is a single canonical source for each kind of fact.
+
+| Document | Purpose (single source of truth for…) |
+|---|---|
+| **`README.md`** (this file) | Entry point: what the fork is, the feature matrix, how to build/run. |
+| **[`IEEE1800_UVM_SUPPORT.md`](IEEE1800_UVM_SUPPORT.md)** | **Canonical status** — current sv-tests / canonical-UVM / OpenTitan numbers, coverage tables, the gap list, and what to add next. All other docs link here for status rather than restating it. |
+| **[`CHANGES.md`](CHANGES.md)** | Change history & design rationale — per feature: what was broken, root cause, fix, files, tests. Does not restate pass-rates. |
+| **[`FALLBACKS.md`](FALLBACKS.md)** | Engineering checklist of active *compile-progress fallback stubs* (silent-degrade paths). Grep here first on any new frontier. |
+| **[`AGENTS.md`](AGENTS.md)** | Contributor/agent workflow — build/test commands, coding style, reproducer discipline. |
+| **[`RESUME_PROMPT.md`](RESUME_PROMPT.md)** | Session-resume / onboarding workflow for continuing the work. |
+
+---
+
 ## What This Fork Adds
 
 Starting from Icarus Verilog's `master` branch, this fork adds end-to-end support for
@@ -62,7 +77,7 @@ results — and upstream each fix as a minimal, reviewable patch.
 | Class fixed-size array properties | ✅ | `int data[N]` member fields |
 | OpenTitan `dv_base_reg_pkg` compilation | ✅ | Through `tl_agent_pkg` |
 | OpenTitan UART DV compile + UVM boot | ✅ | Full RTL+DV bundle compiles; runs uart_base_test through RAL setup |
-| OpenTitan UART DV `uart_smoke_vseq` linear progress | ✅ | Phase 60-61d: smoke advances ~1.76ms sim time in 2hr wallclock without crashing (was 30µs hang). 0 fatals. End-to-end completion is throughput-bound, not bug-bound — see CHANGES.md §12 |
+| OpenTitan UART DV `uart_smoke_vseq` run-to-completion | ⚠ | Compiles + boots cleanly; sim advances to **~1.534 µs then plateaus** (does *not* complete). Root cause is a **correctness bug, not throughput**: `wait(assoc[k].class_member)` never wakes (assoc-select member writes emit no value-change event) → OpenTitan's `DV_WAIT` timeout-fork pattern leaks ~100K threads → delta-cycle storm. See [`IEEE1800_UVM_SUPPORT.md`](IEEE1800_UVM_SUPPORT.md) §2.3. This is the #1 gap for real UVM DV. |
 | `pkg::func()` inside class method | ✅ | Was previously mis-resolving to virtual-method-on-this — Phase 25 |
 | `inside { queue }` runtime membership | ✅ | `%inside/arr` opcode; correctly terminates `while inside` loops |
 | Queue `.sort()`, `.rsort()`, `.unique()` | ✅ | vec4/real/string elements; iterator-arg form accepted |
