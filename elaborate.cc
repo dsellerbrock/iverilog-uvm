@@ -6352,7 +6352,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					        "$ivl_class_method$randomize");
 	    }
 
-	    NetScope*task = class_type->resolve_method_call_scope(des, method_name);
+	    NetScope*task = class_type->resolve_method_call_scope(des, method_name, explicit_super);
 	    if (trace_class_method) {
                   cerr << get_fileline() << ": trace task-method "
                        << "class=" << class_type->get_name()

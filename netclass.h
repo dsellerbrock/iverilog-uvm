@@ -101,7 +101,16 @@ class netclass_t : public ivl_type_s {
 	// found on the static class type, but if that resolves to an
 	// abstract/bodyless prototype then this may redirect to a unique
 	// concrete override found in a descendant class.
-      NetScope*resolve_method_call_scope(const Design*des, perm_string mname) const;
+	//
+	// static_dispatch=true is used for explicit `super.method()` calls:
+	// these must bind statically to the named ancestor's own method, even
+	// when that method has an empty body.  Without it, an empty parent
+	// override (e.g. dv_base_vseq::post_apply_reset {}) is treated as a
+	// bodyless prototype and the override search redirects back to the
+	// derived class's method, so `super.method()` calls itself -> infinite
+	// recursion.
+      NetScope*resolve_method_call_scope(const Design*des, perm_string mname,
+					 bool static_dispatch=false) const;
 
 	// Returns the constructor task method of the class. Might be nullptr if
 	// there is nothing to do in the constructor.

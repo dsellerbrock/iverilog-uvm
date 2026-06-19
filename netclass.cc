@@ -472,7 +472,8 @@ NetScope*netclass_t::method_from_name(perm_string name) const
 
 }
 
-NetScope*netclass_t::resolve_method_call_scope(const Design*des, perm_string name) const
+NetScope*netclass_t::resolve_method_call_scope(const Design*des, perm_string name,
+					       bool static_dispatch) const
 {
       // For interface types, the netclass_t is created (and cached) before
       // the interface's actual instance scope is elaborated, so class_scope_
@@ -528,6 +529,12 @@ NetScope*netclass_t::resolve_method_call_scope(const Design*des, perm_string nam
       }
       if (!method)
 	    return 0;
+
+      // Explicit super.method() call: bind statically to this (the named
+      // ancestor) class's own method.  Do NOT run the descendant override
+      // search -- super means "the parent's implementation", even if empty.
+      if (static_dispatch)
+	    return method;
 
       if (method_scope_has_concrete_body_(method))
 	    return method;
