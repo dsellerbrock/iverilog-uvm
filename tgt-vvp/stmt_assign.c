@@ -405,23 +405,6 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    if (word_ex && sig_type) {
 		  ivl_type_t element_type = ivl_type_element(sig_type);
 		  if (element_type && ivl_type_base(element_type) == IVL_VT_CLASS) {
-			/* Task 2 (2026-06-19): associative array of class
-			 * (an assoc-compat queue).  The lvalue load must mirror
-			 * the rvalue path in eval_object.c -- push the key and
-			 * use %aa/load/sig/obj/<key_kind>.  Previously this fell
-			 * through to %load/dar/obj below, which evaluated a
-			 * string/object key as an INTEGER darray index (e.g.
-			 * "k" -> 107) and loaded a nil element, so
-			 * `assoc[k].member = ...` silently no-op'd and
-			 * `wait(assoc[k].member)` never woke.  Must run before
-			 * draw_eval_expr_into_integer (the key is not an int). */
-			if (ivl_type_base(sig_type) == IVL_VT_QUEUE
-			    && ivl_type_queue_assoc_compat(sig_type)) {
-			      const char*key_kind = draw_eval_assoc_key_(word_ex, 0);
-			      fprintf(vvp_out, "    %%aa/load/sig/obj/%s v%p_0;\n",
-				      key_kind, lval_sig);
-			      return element_type;
-			}
 			draw_eval_expr_into_integer(word_ex, 3);
 			if (ivl_type_base(sig_type) == IVL_VT_DARRAY ||
 			    ivl_type_base(sig_type) == IVL_VT_QUEUE) {
