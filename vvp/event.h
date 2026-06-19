@@ -126,6 +126,12 @@ struct waitable_hooks_s {
 
       virtual vthread_t add_waiting_thread(vthread_t thread) = 0;
 
+      // Task 2 (gated wait-wake): does any thread currently wait on this
+      // functor?  Conservative default TRUE (never skip a needed wake);
+      // anyedge subclasses override with their exact waiter state so the
+      // element-write notify can be gated when nobody is waiting.
+      virtual bool has_waiters() const { return true; }
+
       evctl*event_ctls;
       evctl**last;
 
@@ -259,6 +265,7 @@ class vvp_fun_anyedge_sa : public vvp_fun_anyedge {
       virtual ~vvp_fun_anyedge_sa() override;
 
       vthread_t add_waiting_thread(vthread_t thread) override;
+      bool has_waiters() const override { return threads_ != 0; }
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t context) override;
@@ -293,6 +300,7 @@ class vvp_fun_anyedge_aa : public vvp_fun_anyedge, public automatic_hooks_s {
 #endif
 
       vthread_t add_waiting_thread(vthread_t thread) override;
+      bool has_waiters() const override { return pending_waiters_ != 0; }
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t context) override;

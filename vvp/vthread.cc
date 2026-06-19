@@ -72,6 +72,7 @@ static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_sc
 // Phase 87: forward decls; defined further down.
 static inline void set_stacked_tracked_(vvp_context_t context, vvp_context_t new_target);
 static inline bool has_inbound_stacked_(vvp_context_t needle);
+static bool net_has_waiter_(vvp_net_t*net);  // Task 2 gated wait-wake
 static vvp_context_t ensure_write_context_(vthread_t thr, const char*where);
 static bool copy_call_inputs_to_allocated_context_(__vpiScope*scope, vthread_t thr,
                                                    vvp_context_t dst_context);
@@ -9723,7 +9724,15 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
 	    darray->get_word(adr, word);
       // else word remains nil (default-constructed vvp_object_t)
 
-      thr->push_object(word);
+	/* Task 2 (gated): when a thread waits on this container net, attach it
+	 * (and the container root object) to the loaded element so a later
+	 * %store/prop wakes the wait via notify_mutated_object_root_.  Gated on
+	 * net_has_waiter_ -- with no waiter we push bare and skip the container
+	 * re-send, avoiding the cascade that destabilizes non-waiting UVM code. */
+      if (net_has_waiter_(net))
+            thr->push_object(word, net, obj->get_object());
+      else
+            thr->push_object(word);
       return true;
 }
 
@@ -9748,23 +9757,42 @@ bool of_LOAD_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-inline static void push_loaded_qo_value_(vthread_t thr, double value, unsigned)
+static vvp_fun_signal_object* signal_object_fun_(vvp_net_t*net);  // fwd decl
+
+// Task 2 (gated wait-wake): optional src_net.  Non-object loads ignore it.
+// For an OBJECT loaded from an assoc/queue *signal*, attach the container's
+// source net + root object -- but ONLY when a thread actually waits on that
+// net -- so a later %store/prop wakes the wait without the whole-container
+// re-send cascade in the no-waiter case.  src_net defaults to 0, so queue
+// loads (load_qo) keep the old bare-push behavior.
+inline static void push_loaded_qo_value_(vthread_t thr, double value, unsigned,
+                                         vvp_net_t* /*src_net*/ = 0)
 {
       thr->push_real(value);
 }
 
-inline static void push_loaded_qo_value_(vthread_t thr, const string&value, unsigned)
+inline static void push_loaded_qo_value_(vthread_t thr, const string&value, unsigned,
+                                         vvp_net_t* /*src_net*/ = 0)
 {
       thr->push_str(value);
 }
 
-inline static void push_loaded_qo_value_(vthread_t thr, const vvp_vector4_t&value, unsigned)
+inline static void push_loaded_qo_value_(vthread_t thr, const vvp_vector4_t&value, unsigned,
+                                         vvp_net_t* /*src_net*/ = 0)
 {
       thr->push_vec4(value);
 }
 
-inline static void push_loaded_qo_value_(vthread_t thr, const vvp_object_t&value, unsigned)
+inline static void push_loaded_qo_value_(vthread_t thr, const vvp_object_t&value, unsigned,
+                                         vvp_net_t*src_net = 0)
 {
+      if (src_net && net_has_waiter_(src_net)) {
+            vvp_fun_signal_object*fun = signal_object_fun_(src_net);
+            if (fun) {
+                  thr->push_object(value, src_net, fun->get_object());
+                  return;
+            }
+      }
       thr->push_object(value);
 }
 
@@ -9778,6 +9806,27 @@ static vvp_fun_signal_object* signal_object_fun_(vvp_net_t*net)
       if (!fun)
             fun = dynamic_cast<vvp_fun_signal_object*>(net->fil);
       return fun;
+}
+
+// Task 2 (gated wait-wake): true if `net` fans out to any waitable
+// (edge/anyedge/named-event/...) functor that currently has a thread
+// waiting.  Walks the standard out_ -> port[] fan-out chain.  Used to gate
+// attaching the container source net to a loaded element: if nobody waits,
+// we skip it and avoid the container re-send cascade in
+// notify_mutated_object_root_ (which regressed chapter-18 randomize).
+static bool net_has_waiter_(vvp_net_t*net)
+{
+      if (!net)
+            return false;
+      for (vvp_net_ptr_t cur = net->out_ ; cur.ptr() ;
+           cur = cur.ptr()->port[cur.port()]) {
+            if (waitable_hooks_s*w =
+                    dynamic_cast<waitable_hooks_s*>(cur.ptr()->fun)) {
+                  if (w->has_waiters())
+                        return true;
+            }
+      }
+      return false;
 }
 
 static void notify_mutated_object_signal_(vthread_t thr, vvp_net_t*net, const char*where)
@@ -10482,7 +10531,9 @@ static bool aa_load_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
 
       assoc_trace_signal_load_(thr, net, assoc, key, value);
 
-      push_loaded_qo_value_(thr, value, wid);
+	/* Task 2: pass `net` so an OBJECT element is pushed with the assoc
+	 * signal's source net (gated on net_has_waiter_) -> %store/prop wakeup. */
+      push_loaded_qo_value_(thr, value, wid, net);
       return true;
 }
 
