@@ -15,7 +15,7 @@
 | Passes the full sv-tests corpus | **Yes — 1027/1027, re-verified 2026-06-19 at P87** (0 WARN-PASS / 0 FAIL / 0 TIMEOUT / 0 ERROR). |
 | = "Full IEEE 1800 implementation" | **No.** sv-tests is a *sampling* corpus, not an exhaustive LRM conformance suite. Several LRM features are deferred (hard-error or stub) — see §3. There are also **active runtime fallback stubs** that degrade rather than implement — see `FALLBACKS.md`. |
 | Core UVM mechanisms work | **Yes** — factory, phasing, config_db, TLM, sequences, reg layer, callbacks, coverage all exercised by 104/106 canonical tests. |
-| = "Full modern UVM support" | **No.** A real OpenTitan DV testbench compiles and *starts*, then stalls at ~1.534 µs sim time on a specific wait-sensitivity gap (§2.3). Two canonical tests still `COMPILE_FAIL` (§2.2). |
+| = "Full modern UVM support" | **No.** A real OpenTitan DV testbench compiles, *starts*, and (since 2026-06-19) advances past the long-standing ~1.56 µs plateau into the real smoke sequence, where a further UVM driver/sequencer blocker surfaces (§2.3). Two canonical tests still `COMPILE_FAIL` (§2.2). |
 
 The rest of this document quantifies that delta. The companion `FALLBACKS.md` is the authoritative inventory of compile-progress fallbacks and is the first thing to grep on any new frontier.
 
@@ -96,16 +96,17 @@ Run: `PATH=iverilog/install/bin:$PATH bash iverilog/.github/uvm_test.sh`
 
 > The previous version of this doc claimed "106/106" — that was an overcount. The honest number is **104/106**.
 
-### 2.3 OpenTitan UART DV — compiles, starts, then plateaus (THE headline UVM gap)
+### 2.3 OpenTitan UART DV — the ~1.56 µs plateau is BROKEN (2026-06-19); a new blocker is past it
 
-The full OpenTitan UART DV stack (`uvm_pkg` + TileLink agent + `uvm_reg` + scoreboards + DPI) **compiles cleanly and runs**: UVM build/connect phases complete, the smoke vseq starts, and sim time advances 0 → **1.534 µs**. Then it **stops advancing** — not slow, *stuck*.
+The full OpenTitan UART DV stack (`uvm_pkg` + TileLink agent + `uvm_reg` + scoreboards + DPI) **compiles cleanly and runs**. It previously **stopped advancing at ~1.56 µs** — a zero-time delta storm with ~100 K–200 K live threads parked in `cip_base_pkg::…post_apply_reset`. The earlier diagnosis (an assoc-select `wait` never waking) turned out to be **incomplete**: the plateau was actually **three independent bugs**, and the dominant one is now fixed.
 
-**Root cause (diagnosed 2026-05-11, re-confirmed 2026-06-19):**
-`wait(cfg.m_alert_agent_cfgs[key].alert_init_done == 1)` — a `wait` on a **class member reached through an associative-array select** — never wakes, because writing that member through an `assoc[k]` select emits **no nexus value-change event** for the wait's sensitivity list to observe. OpenTitan's `DV_WAIT` macro wraps such waits in a `fork ... #timeout ... join_any; disable fork;` pattern; because the real condition never fires, the timeout fork is what unblocks each iteration, and the pattern **leaks threads**. By 1.534 µs there are **~100 K live threads** (99 978 parked in `cip_base_pkg::...post_apply_reset`), and the scheduler grinds in a zero-time delta storm.
+**(a) The storm — `super.method()` infinite recursion [FIXED].** `super.post_apply_reset()` in the specialised `cip_base_vseq` forked **itself** instead of the empty parent `dv_base_vseq::post_apply_reset`, recursing without bound. Root cause: `netclass_t::resolve_method_call_scope` treated the empty parent body as a bodyless prototype and redirected an explicit-`super` call to the *derived* override. Fixed by binding `super.` calls statically to the named ancestor's own method (commit "super.method() binds statically to parent"). **With this fix the storm is gone and the smoke sim advances 1.56 µs → ~1.81 µs**, where it begins the real smoke vseq ("sending 5 tx bytes").
 
-**Verified today** with a minimal reproducer: `wait(c.field)` on a direct handle wakes correctly; `wait(assoc[k].field)` does **not** (the timeout fires). This is the single most valuable thing to fix for real UVM DV support.
+**(b) Empty assoc key `assoc[ string_darray_property[i] ]` [identified, NOT yet fixed].** OpenTitan's `cfg.m_alert_agent_cfgs[cfg.list_of_alerts[i]]` uses a key that is a string element of a `string[]` (dynamic-array) class property. `tgt-vvp/eval_string.c` (`string_ex_select` / `string_ex_property`) handles assoc/queue property elements but not darray, so the key lowers to `%pushi/str ""; ; select fallback` and the access reads `m[""]` (null). This makes the `is_active` guard read 0 and the `DV_WAIT` is skipped — so it is **not** what stalls smoke, but it is the next correctness fix for any test with active alert agents. Fix sketch: add a `%load/dar/obj/str` opcode (mirroring `%load/dar/obj/vec4`) and emit the darray-property-element path in both string lowering functions.
 
-A partial attempt (Phase 88, `NetEProperty::nex_input` retaining the property nexus) was found **insufficient** and reverted — it does not cover the assoc-select write→event path. The fix needs class-member writes routed through `assoc[k]`/`array[i]` selects to generate a value-change event (likely via the existing `vvp_fun_signal_object_aa` / `notify_signal_aliases` aliasing machinery that already makes the *direct-handle* case work).
+**(c) `wait(this.cfg.assoc[k].member)` cross-handle wakeup [FIXED, independent].** Nested-member waits reached through a class-property/`this` handle did not wake when the member was written through a different handle. Fixed in vvp (commit "wake wait(this.cfg.assoc[k].member) …"), validated by reproducers + the full sweep. **Note:** this rode along inert in OT smoke — because (b) skips the alert `DV_WAIT`, (c) is not exercised there; it is credited to the reproducers, not to the OT advance.
+
+**New blocker past the plateau:** at ~1.81 µs the smoke vseq hits `UVM_FATAL [SQRPUT] Driver put a null response` — a separate UVM driver/sequencer response-handshake issue, the next frontier (not a regression).
 
 ---
 
@@ -141,8 +142,10 @@ These let compilation continue by emitting a placeholder instead of the real beh
 
 ## 4. What needs to be added (prioritised)
 
-1. **Assoc/array-select class-member write → wait event** (§2.3). Unblocks OpenTitan DV. Highest leverage.
-2. **Close the 2 canonical `COMPILE_FAIL`s** (§2.2): `foreach` iterator-method resolution on parameterised class types; mutual class/function recursion elab order.
+1. **Empty assoc key `assoc[ string_darray_property[i] ]`** (§2.3 bug (b)). Next OT correctness fix: a `string[]` class-property element used as an assoc key lowers to `%pushi/str ""`. Add a `%load/dar/obj/str` opcode + darray-property path in `tgt-vvp/eval_string.c`.
+2. **OT `[SQRPUT] Driver put a null response`** (§2.3): the new blocker past the ~1.81 µs mark — UVM driver/sequencer response handshake.
+3. **Close the 2 canonical `COMPILE_FAIL`s** (§2.2): `foreach` iterator-method resolution on parameterised class types; mutual class/function recursion elab order.
+4. **`super.func()` static dispatch** — the expression-context twin of the 2026-06-19 task-call fix (elab_expr.cc does not yet plumb `explicit_super`); same empty-override recursion risk, not currently exercised.
 3. **Retire active fallback stubs** (`FALLBACKS.md`) one by one with regression tests — convert silent degrade → real impl or honest hard-error.
 4. **SVA completeness**: real `[->]`/`[=]` semantics, `##[N:$]`, multi-clock, `first_match`, property local vars.
 5. **DPI breadth**: open arrays, `output string`/`output real`; portability beyond x86-64 SysV (libffi).
@@ -154,7 +157,7 @@ These let compilation continue by emitting a placeholder instead of the real beh
 
 - **P86** (`15211ec07`): `vvp_fun_anyedge_aa::pending_waiters_` short-circuit eliminates the dominant `recv_object → recover_automatic_event_context_` chain walk when no thread is waiting.
 - **P87** (`60c7a2eb5`): O(1) `inbound_stacked_count_` early-out in `context_on_stacked_chain_`, removing per-`of_ALLOC` heap-set rebuilds.
-- Both are correctness-preserving CPU wins on legitimate hot paths. Neither changes the OT result: the 1.534 µs plateau is a **delta-cycle thread storm** (a correctness bug, §2.3), not a throughput wall — so faster hot paths can't make a hung sim tick.
+- Both are correctness-preserving CPU wins on legitimate hot paths. The ~1.56 µs plateau they could not move was a **delta-cycle thread storm** (a correctness bug) — now traced to `super.method()` recursion and **fixed** 2026-06-19 (§2.3); the sim advances past it.
 - Benchmark harness: `perf/run_ot_smoke_bench.sh` → one-line `commit / ns-per-s / final-ps`; history in `perf/HISTORY.tsv`.
 - Full sv-tests sweep: ~5 min wall on this box (`JOBS=4`).
 
