@@ -9396,6 +9396,17 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
 	    init_expr->set_line(*this);
 	    limit_expr = make_foreach_queue_size_expr_(*this, array_expr);
 	    cond_op = '<';
+      } else if (!dynamic_cast<const NetESignal*>(array_expr)) {
+	    /* Object-accessed darray (e.g. a class-property darray like
+	       cfg.list_of_alerts).  There is no standalone signal handle for
+	       $low/$high to resolve, so the foreach bound lowering would emit
+	       garbage and iterate zero times.  Darrays are 0-indexed, so use
+	       size-based bounds (init=0, idx<size) -- $ivl_queue_method$size
+	       lowers to %qsize/o, which handles darray property arguments. */
+	    init_expr = make_const_val(0);
+	    init_expr->set_line(*this);
+	    limit_expr = make_foreach_queue_size_expr_(*this, array_expr);
+	    cond_op = '<';
       } else {
 	    NetESFunc*low_expr = new NetESFunc("$low", &netvector_t::atom2s32, 1);
 	    low_expr->set_line(*this);
