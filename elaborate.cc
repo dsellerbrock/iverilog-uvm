@@ -10807,6 +10807,42 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 // PEIdent / array-element branches to materialise concrete literals.
 static thread_local std::map<perm_string, long>* g_constraint_loop_subs = nullptr;
 
+// Design + scope context for the constraint currently being lowered.  Set by
+// the class-constraint elaboration (netclass_t::elaborate) and by
+// make_randomize_with_expr().  Lets pexpr_to_constraint_ir fold compile-time
+// constants (enum labels such as `PutFullData`, localparams, package
+// parameters) and resolve part-select bounds (e.g. `a_addr[SizeWidth-1:0]`)
+// that are not bare numerals — both needed by the OpenTitan tl_seq_item
+// well-formedness constraints.
+static thread_local Design*   g_cir_des   = nullptr;
+static thread_local NetScope* g_cir_scope = nullptr;
+
+// Try to fold a constraint sub-expression to a compile-time constant using the
+// current constraint scope.  Returns true and sets `out` on success.
+static bool cir_fold_const_(const PExpr*expr, uint64_t&out)
+{
+      if (!(expr && g_cir_des && g_cir_scope))
+            return false;
+      // Suppress spurious error accounting from speculative elaboration: a
+      // non-constant operand simply means "not foldable here".
+      int saved_errors = g_cir_des->errors;
+      NetExpr*ne = elab_and_eval(g_cir_des, g_cir_scope,
+                                 const_cast<PExpr*>(expr), -1, true /*need_const*/);
+      bool ok = false;
+      if (NetEConst*c = dynamic_cast<NetEConst*>(ne)) {
+            verinum v = c->value();
+            uint64_t val = 0;
+            unsigned bits = v.len();
+            for (unsigned i = 0 ; i < bits && i < 64 ; i += 1)
+                  if (v.get(i) == verinum::V1)
+                        val |= (uint64_t)1 << i;
+            out = val;
+            ok = true;
+      }
+      g_cir_des->errors = saved_errors;
+      return ok;
+}
+
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots)
@@ -10950,15 +10986,20 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (!id->path().back().index.empty()) {
 			const index_component_t&ic = id->path().back().index.back();
 			long hi = LONG_MIN, lo = LONG_MIN;
+			uint64_t fv = 0;
 			if (ic.sel == index_component_t::SEL_BIT && ic.msb) {
 			      if (const PENumber*pn = dynamic_cast<const PENumber*>(ic.msb))
 				    hi = lo = pn->value().as_long();
+			      else if (cir_fold_const_(ic.msb, fv))
+				    hi = lo = (long)fv;
 			} else if (ic.sel == index_component_t::SEL_PART
 				   && ic.msb && ic.lsb) {
 			      const PENumber*pm = dynamic_cast<const PENumber*>(ic.msb);
 			      const PENumber*pl = dynamic_cast<const PENumber*>(ic.lsb);
-			      if (pm && pl) { hi = pm->value().as_long();
-					      lo = pl->value().as_long(); }
+			      if (pm) hi = pm->value().as_long();
+			      else if (cir_fold_const_(ic.msb, fv)) hi = (long)fv;
+			      if (pl) lo = pl->value().as_long();
+			      else if (cir_fold_const_(ic.lsb, fv)) lo = (long)fv;
 			}
 			if (hi >= lo && lo >= 0 && hi < (long)wid)
 			      return "(extract p:" + to_string(idx) + ":"
@@ -10969,7 +11010,19 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 
 		  return "p:" + to_string(idx) + ":" + to_string(wid);
 	    }
-	    // Non-class-property identifier: treat as caller-scope runtime value.
+	    // Non-class-property identifier.  First try to fold it to a
+	    // compile-time constant (enum label like `PutFullData`, a localparam,
+	    // or a package parameter).  This is required for class constraints
+	    // such as `a_opcode == PutFullData -> ...`, where the literal is not a
+	    // rand property and value_slots is null.  A genuine runtime variable
+	    // (e.g. a caller-scope `rw.addr` in a with-clause) does not fold and
+	    // falls through to the value-slot path below.
+	    {
+		  uint64_t cval = 0;
+		  if (cir_fold_const_(expr, cval))
+			return "c:" + to_string(cval);
+	    }
+	    // Caller-scope runtime value (with-clause only).
 	    if (value_slots) {
 		  unsigned slot = (unsigned)value_slots->size();
 		  value_slots->push_back(expr);
@@ -11322,21 +11375,29 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 	      // by name even when the IR translation drops to "".  Here we
 	      // either populate the IR for an already-registered name, or
 	      // register a fresh entry if it wasn't pre-registered (defensive).
-	      for (auto& cit : pclass->type->constraints) {
-		    string ir;
-		    for (PExpr*item : cit.second) {
-			  if (!item) continue;
-			  string s = pexpr_to_constraint_ir(item, this, nullptr);
-			  if (!s.empty()) {
-				if (!ir.empty()) ir += " ";
-				ir += s;
+	      {
+		    Design*prev_des = g_cir_des;
+		    NetScope*prev_scope = g_cir_scope;
+		    g_cir_des = des;
+		    g_cir_scope = const_cast<NetScope*>(class_scope());
+		    for (auto& cit : pclass->type->constraints) {
+			  string ir;
+			  for (PExpr*item : cit.second) {
+				if (!item) continue;
+				string s = pexpr_to_constraint_ir(item, this, nullptr);
+				if (!s.empty()) {
+				      if (!ir.empty()) ir += " ";
+				      ir += s;
+				}
 			  }
+			  if (getenv("IVL_CIR_TRACE"))
+				cerr << "[CIR] class=" << get_name()
+				     << " constraint=" << cit.first
+				     << " ir=" << ir << endl;
+			  add_constraint_ir(string(cit.first), ir);
 		    }
-		    if (getenv("IVL_CIR_TRACE"))
-			  cerr << "[CIR] class=" << get_name()
-			       << " constraint=" << cit.first
-			       << " ir=" << ir << endl;
-		    add_constraint_ir(string(cit.first), ir);
+		    g_cir_des = prev_des;
+		    g_cir_scope = prev_scope;
 	      }
 
 	      // Phase 49: synthesize an `inside` constraint for every rand
