@@ -11181,6 +11181,44 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    return result;
       }
 
+      // Size/type/sign cast in a constraint relation, e.g. the OT reg
+      // adapter's `bus_req.a_addr == AddrWidth'(rw.addr)`.  Without this
+      // the cast node fell through to `return ""`, which made the enclosing
+      // `==` relation collapse (left/right empty guard at the PEBinary
+      // handler) and the whole constraint was silently dropped — leaving the
+      // rand field free (random address => OT CSR writes never land).  Fix:
+      // when the cast wraps a non-rand (caller-scope / constant) expression
+      // and we are building an inline with-clause (value_slots present), push
+      // the ENTIRE cast PExpr as a value slot.  make_randomize_with_expr()
+      // elaborates each slot at the call site (32-bit width), which applies
+      // the cast's resize/truncate for free and yields the correct runtime
+      // constant.  Only when the cast wraps a rand property of `cls` do we
+      // recurse into the base (the cast width is then approximated, but the
+      // property constraint is preserved rather than dropped).
+      {
+	    const PExpr*cast_base = nullptr;
+	    if (const PECastSize*cz = dynamic_cast<const PECastSize*>(expr))
+		  cast_base = cz->get_base();
+	    else if (const PECastType*ct = dynamic_cast<const PECastType*>(expr))
+		  cast_base = ct->get_base();
+	    else if (const PECastSign*cs = dynamic_cast<const PECastSign*>(expr))
+		  cast_base = cs->get_base();
+
+	    if (cast_base) {
+		    // Recurse into the cast's base.  For a caller-scope (non-rand)
+		    // base this lowers to a value slot (v:slot:32); for a constant
+		    // it folds to c:V; for a rand property it stays p:idx:wid.  The
+		    // value-slot path in make_randomize_with_expr() always
+		    // elaborates the slot at 32-bit width, so a widening/narrowing
+		    // cast to <=32 bits (the OT `AddrWidth'(rw.addr)` 64->32 case)
+		    // is applied correctly by that elaboration.  Note: elaborating
+		    // the *whole* cast PExpr as a slot was tried and produced a
+		    // constant 0 at runtime (PECast* slot codegen), so we delegate
+		    // to the base instead.
+		  return pexpr_to_constraint_ir(cast_base, cls, value_slots);
+	    }
+      }
+
       return "";
 }
 

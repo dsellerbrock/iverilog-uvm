@@ -1186,6 +1186,10 @@ class PECastSize  : public PExpr {
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
 
+	// Accessor for constraint-IR lowering (pexpr_to_constraint_ir):
+	// the expression being cast.
+      const PExpr* get_base() const { return base_; }
+
     private:
       PExpr* size_;
       PExpr* base_;
@@ -1213,6 +1217,10 @@ class PECastType  : public PExpr {
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
 
+	// Accessor for constraint-IR lowering (pexpr_to_constraint_ir):
+	// the expression being cast.
+      const PExpr* get_base() const { return base_; }
+
     private:
       data_type_t* target_;
       ivl_type_t target_type_;
@@ -1236,6 +1244,10 @@ class PECastSign : public PExpr {
       virtual bool has_aa_term(Design *des, NetScope *scope) const override;
 
       unsigned test_width(Design *des, NetScope *scope, width_mode_t &mode) override;
+
+	// Accessor for constraint-IR lowering (pexpr_to_constraint_ir):
+	// the expression being cast.
+      const PExpr* get_base() const { return base_.get(); }
 
     private:
       std::unique_ptr<PExpr> base_;
