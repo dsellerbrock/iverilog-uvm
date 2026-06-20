@@ -1913,6 +1913,20 @@ static int show_delete_property_method(ivl_statement_t net, ivl_expr_t parm, uns
 	      if (!prop_type)
 		    prop_type = ivl_expr_net_type(parm);
 
+	      /* The no-argument aa.delete() form clears the whole associative
+		 array. The generic queue path below (%delete/o/obj) casts the
+		 receiver to vvp_queue and is a silent no-op on an assoc-compat
+		 object, so handle assoc clear-all here with %aa/clear. */
+	      if ((parm_count == 1) && !prop_word && prop_type
+		  && ivl_type_base(prop_type) == IVL_VT_QUEUE
+		  && ivl_type_queue_assoc_compat(prop_type)) {
+		    draw_eval_object(base);
+		    fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+		    fprintf(vvp_out, "    %%aa/clear;\n");
+		    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+		    return 0;
+	      }
+
 	      if ((parm_count == 2) && !prop_word && prop_type
 		  && ivl_type_base(prop_type) == IVL_VT_QUEUE
 		  && ivl_type_queue_assoc_compat(prop_type)) {
@@ -2039,6 +2053,18 @@ static int show_delete_method(ivl_statement_t net)
             fprintf(vvp_out, "    %%load/obj v%p_0;\n", var);
             key_kind = draw_eval_assoc_key_(ivl_stmt_parm(net, 1), 0);
             fprintf(vvp_out, "    %%aa/delete/%s;\n", key_kind);
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            return 0;
+      }
+
+	/* The no-argument aa.delete() form clears the whole associative
+	   array. The %delete/obj path below does not clear an assoc-compat
+	   object, so handle assoc clear-all here with %aa/clear. */
+      if ((parm_count == 1) && var_type
+          && ivl_type_base(var_type) == IVL_VT_QUEUE
+          && ivl_type_queue_assoc_compat(var_type)) {
+            fprintf(vvp_out, "    %%load/obj v%p_0;\n", var);
+            fprintf(vvp_out, "    %%aa/clear;\n");
             fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
             return 0;
       }

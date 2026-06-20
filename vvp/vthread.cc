@@ -10563,6 +10563,17 @@ static bool aa_delete_str(vthread_t thr)
       return true;
 }
 
+// %aa/clear: the no-argument SystemVerilog aa.delete() form. Peek the assoc
+// receiver (left on the object stack, like aa_delete_*) and clear every entry.
+template <class ASSOC>
+static bool aa_clear(vthread_t thr)
+{
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
+      if (assoc)
+	    assoc->clear_all();
+      return true;
+}
+
 template <class ASSOC>
 static bool aa_delete_obj(vthread_t thr)
 {
@@ -11016,6 +11027,11 @@ bool of_AA_STORE_V_STR(vthread_t thr, vvp_code_t cp)
 bool of_AA_STORE_V_V(vthread_t thr, vvp_code_t cp)
 {
       return aa_store_vec<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
+}
+
+bool of_AA_CLEAR(vthread_t thr, vvp_code_t)
+{
+      return aa_clear<vvp_assoc_base>(thr);
 }
 
 bool of_AA_DELETE_OBJ(vthread_t thr, vvp_code_t)

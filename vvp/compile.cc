@@ -92,6 +92,7 @@ struct opcode_table_s {
 };
 
 static const struct opcode_table_s opcode_table[] = {
+      { "%aa/clear", of_AA_CLEAR, 0, {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%aa/delete/obj", of_AA_DELETE_OBJ, 0, {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%aa/delete/str", of_AA_DELETE_STR, 0, {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%aa/delete/v", of_AA_DELETE_V, 0, {OA_NONE,       OA_NONE,     OA_NONE} },

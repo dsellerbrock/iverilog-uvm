@@ -32,6 +32,7 @@ typedef bool (*vvp_code_fun)(vthread_t thr, vvp_code_t code);
  * access to the thread context.
  */
 extern bool of_ABS_WR(vthread_t thr, vvp_code_t code);
+extern bool of_AA_CLEAR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_STR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_V(vthread_t thr, vvp_code_t code);

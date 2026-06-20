@@ -48,6 +48,8 @@ class vvp_assoc_base : public vvp_object {
       virtual void erase_key(const std::string&key) =0;
       virtual void erase_key(const vvp_object_t&key) =0;
       virtual void erase_key(const vvp_vector4_t&key) =0;
+	// Clear every entry (the no-argument SystemVerilog aa.delete() form).
+      virtual void clear_all() =0;
 
     protected:
       static const vvp_object* object_key_(const vvp_object_t&key);
@@ -97,6 +99,8 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       { obj_map_.erase(object_key_(key)); }
       void erase_key(const vvp_vector4_t&key) override
       { vec_map_.erase(vec4_key_(key)); }
+      void clear_all() override
+      { str_map_.clear(); obj_map_.clear(); vec_map_.clear(); }
 
       void set(const std::string&key, const TYPE&value)
       { str_map_[key] = value; }
