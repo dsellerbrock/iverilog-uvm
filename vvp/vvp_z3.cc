@@ -622,6 +622,24 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_assert_soft(ctx, opt, sa.a, w_str, grp);
       }
 
+      // IEEE 1800-2017 §18.8: a property with rand_mode(0) is INACTIVE -- it is a
+      // state variable (constant), not solved.  Pin each inactive prop_var to its
+      // current value so the solver keeps it fixed (and constraints referencing it
+      // use that value).  Without this the Z3 solve treats it as a free variable
+      // and overwrites it -- e.g. OpenTitan's num_trans.rand_mode(0) was ignored,
+      // so num_trans was re-randomized every iteration.  (Width <= 64 only; wider
+      // inactive properties keep prior behavior.)
+      if (cobj) {
+	    for (auto& pv : builder.prop_vars) {
+		  if (cobj->rand_mode(pv.idx)) continue;        // active: leave free
+		  if (pv.width > 64) continue;
+		  uint64_t bits = cobj_prop_bits(cobj, pv.idx);
+		  Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
+		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits, sort);
+		  Z3_optimize_assert(ctx, opt, Z3_mk_eq(ctx, pv.var, cv));
+	    }
+      }
+
       // Check if the already-randomized values satisfy all hard constraints.
       // Use a temporary solver for this fast-path check (opt is slow for pure
       // feasibility when we already have a candidate).

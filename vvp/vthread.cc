@@ -2555,6 +2555,25 @@ bool of_RAND_MODE(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* %rand_mode/p <pid>
+ *
+ * Per-property rand_mode (IEEE 1800-2017 §18.8): set rand_mode for ONLY the
+ * property whose index is the opcode operand, on the cobject on the object
+ * stack.  Pops mode (0=disable,nonzero=enable) from vec4 stack, pops object.
+ */
+bool of_RAND_MODE_P(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid = cp->number;
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      bool mode = (mode_vec.value(0) == BIT4_1);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (cobj) cobj->set_rand_mode(pid, mode);
+      return true;
+}
+
 /* %covgrp/sample N
  * Stack on entry: obj-stack top = cg_obj; vec4-stack top N items = cp values
  * Single-coverpoint bins increment when val matches.  Cross bins (multiple

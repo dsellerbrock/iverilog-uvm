@@ -439,6 +439,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qunpack_byte_to_op", of_QUNPACK_BYTE_TO_OP, 3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%qxor",       of_QXOR,        1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%rand_mode",      of_RAND_MODE,       0,{OA_NONE,   OA_NONE,OA_NONE} },
+      { "%rand_mode/p",    of_RAND_MODE_P,     1,{OA_NUMBER, OA_NONE,OA_NONE} },
       { "%randomize",      of_RANDOMIZE,      0,{OA_NONE,   OA_NONE,OA_NONE} },
       { "%randomize/with", of_RANDOMIZE_WITH,  2,{OA_STRING, OA_BIT1,OA_NONE} },
       { "%release/net",of_RELEASE_NET,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },

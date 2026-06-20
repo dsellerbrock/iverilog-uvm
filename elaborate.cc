@@ -5390,7 +5390,79 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			noop->set_line(*this);
 			return noop;
 		  }
-		  // rand_mode with multi-component path is still a noop.
+		  // obj.prop.rand_mode(mode) / prop.rand_mode(mode) — enable/disable
+		  // randomization of ONE property (IEEE 1800-2017 §18.8).  path_ =
+		  // [recv..., prop_name, rand_mode].  Mirror the constraint_mode path
+		  // above but resolve a PROPERTY index instead of a constraint id, and
+		  // only for a NON-class property (a class-typed penultimate component
+		  // is the whole-object obj.rand_mode form, handled elsewhere).
+		  if (tail == perm_string::literal("rand_mode")
+		      && path_.size() >= 2 && parms_.size() <= 1) {
+			perm_string pname = std::next(path_.end(), -2)->name;
+			NetNet *base_net = nullptr;
+			for (NetScope *s = scope; s && !base_net; s = s->parent())
+			      base_net = s->find_signal(perm_string::literal(THIS_TOKEN));
+			if (!base_net && !path_.empty()) {
+			      symbol_search_results sr0;
+			      pform_name_t head; head.push_back(path_.front());
+			      symbol_search(this, des, scope, head, UINT_MAX, &sr0);
+			      base_net = sr0.net;
+			}
+			NetExpr *recv = nullptr;
+			const netclass_t *recv_class = nullptr;
+			if (base_net) {
+			      recv_class = dynamic_cast<const netclass_t*>(
+				    base_net->net_type());
+			      recv = new NetESignal(base_net);
+			      recv->set_line(*this);
+			}
+			size_t leading = path_.size() - 2;
+			size_t skip_first =
+			      (base_net && path_.front().name
+				 == base_net->name()) ? 1 : 0;
+			auto pit = path_.begin();
+			for (size_t i = 0; i < skip_first && pit != path_.end(); ++i)
+			      ++pit;
+			for (size_t step = skip_first; step < leading && recv_class
+				 && pit != path_.end(); ++step, ++pit) {
+			      int pidx = recv_class->property_idx_from_name(pit->name);
+			      if (pidx < 0) { delete recv; recv=nullptr; recv_class=nullptr; break; }
+			      ivl_type_t pt = recv_class->get_prop_type(pidx);
+			      const netclass_t *nc = dynamic_cast<const netclass_t*>(pt);
+			      if (!nc) { delete recv; recv=nullptr; recv_class=nullptr; break; }
+			      recv = new NetEProperty(recv, (size_t)pidx);
+			      recv->set_line(*this);
+			      recv_class = nc;
+			}
+			if (recv && recv_class) {
+			      int pidx = recv_class->property_idx_from_name(pname);
+			      ivl_type_t pt = (pidx >= 0)
+				    ? recv_class->get_prop_type(pidx) : nullptr;
+			      bool prop_is_class =
+				    dynamic_cast<const netclass_t*>(pt) != nullptr;
+			      if (pidx >= 0 && !prop_is_class) {
+				    NetExpr *mode_expr = parms_.size() == 1
+					  ? elab_sys_task_arg(des, scope, tail, 0,
+							      parms_[0].parm)
+					  : new NetEConst(verinum((uint64_t)1, 32));
+				    if (parms_.size() != 1) mode_expr->set_line(*this);
+				    NetEConst *pid_expr =
+					  new NetEConst(verinum((uint64_t)pidx, 32));
+				    pid_expr->set_line(*this);
+				    vector<NetExpr*> argv(3);
+				    argv[0] = recv;
+				    argv[1] = mode_expr;
+				    argv[2] = pid_expr;
+				    NetSTask *sys = new NetSTask(
+					  "$ivl_class_method$rand_mode",
+					  IVL_SFUNC_AS_TASK_IGNORE, argv);
+				    sys->set_line(*this);
+				    return sys;
+			      }
+			}
+			if (recv) delete recv;
+		  }
+		  // rand_mode with an unresolved multi-component path is still a noop.
 		  bool silent_noop = (tail == perm_string::literal("rand_mode"));
 		  // Phase 63b/B3: silence task-enable warnings for known
 		  // UVM dead-spec patterns (uvm_pair.first.copy() /

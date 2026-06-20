@@ -330,6 +330,7 @@ extern bool of_CONSTRAINT_MODE_GET(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE(vthread_t thr, vvp_code_t code);
+extern bool of_RAND_MODE_P(vthread_t thr, vvp_code_t code);
 extern bool of_RANDOMIZE(vthread_t thr, vvp_code_t code);
 extern bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code);
 extern bool of_PROP_OBJ(vthread_t thr, vvp_code_t code);
