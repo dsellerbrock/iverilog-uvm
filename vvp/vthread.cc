@@ -12462,6 +12462,18 @@ bool of_PROP_OBJ(vthread_t thr, vvp_code_t cp)
       else
 	    vif->get_object(pid, val, idx);
 
+      // Cross-net wake (sibling of the assoc-element case): when the parent's
+      // source net carries a wait sensitivity, register the loaded property
+      // object as an edge-only alias of that net.  Covers a scalar member wait
+      // such as wait(!this.cfg.in_reset): cfg is loaded here via %prop/obj, its
+      // source net is the outermost (this/@) net the wait's anyedge sits on, and
+      // store_prop calls notify_signal_aliases(), so a write to cfg's property
+      // through ANY handle (e.g. tl_monitor vs tl_host_driver sharing one cfg)
+      // fires that anyedge and wakes the wait.  Gated on net_has_waitable_
+      // inside the helper, so it is a no-op for the vast majority of property
+      // loads no wait is sensitive to.
+      register_assoc_elem_edge_alias_(val, thr->peek_object_source_net(0));
+
       thr->push_object(val, thr->peek_object_source_net(0), thr->peek_object_root(0));
 
       return true;
