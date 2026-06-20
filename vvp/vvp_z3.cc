@@ -162,6 +162,20 @@ static unsigned bv_width(Z3_context ctx, Z3_ast a)
       return 32;
 }
 
+/* Coerce a Z3 bitvector AST to exactly target_w bits (zero-extend if narrower,
+ * truncate if wider).  Used to match `inside`-range/value bound expressions to
+ * the subject's width before bvuge/bvule/eq, since bound expressions
+ * (e.g. (add c:10 c:2)) and literals carry their own widths. */
+static Z3_ast bv_coerce(Z3_context ctx, Z3_ast a, unsigned target_w)
+{
+      Z3_sort sort = Z3_get_sort(ctx, a);
+      if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT) return a;
+      unsigned w = Z3_get_bv_sort_size(ctx, sort);
+      if (w == target_w) return a;
+      if (w < target_w)  return Z3_mk_zero_ext(ctx, target_w - w, a);
+      return Z3_mk_extract(ctx, target_w - 1, 0, a);
+}
+
 /* Phase 56: coerce a Z3 AST to Bool sort.  SV logical operators (&&, ||,
  * !) accept any-width vector operands and treat zero as false / non-zero
  * as true.  Our IR uses Bool-typed Z3 ops (Z3_mk_and / Z3_mk_or /
@@ -273,30 +287,25 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    while (par.peek() != ')' && !par.at_end()) {
 		  if (par.peek() == '[') {
 			par.consume(); // '['
-			string lo_tok = par.read_token();
-			par.expect(',');
-			string hi_tok = par.read_token();
-			par.expect(']');
-			uint64_t lo_v = strtoull(lo_tok.c_str()+2, nullptr, 10);
-			uint64_t hi_v = strtoull(hi_tok.c_str()+2, nullptr, 10);
-			Z3_ast lo = Z3_mk_unsigned_int64(b.ctx, lo_v,
-						 Z3_mk_bv_sort(b.ctx, sw));
-			Z3_ast hi = Z3_mk_unsigned_int64(b.ctx, hi_v,
-						 Z3_mk_bv_sort(b.ctx, sw));
+			// Range bounds are full IR expressions (a literal c:V, a
+			// property p:N:W, or a nested (op ...) such as
+			// (add (add c:10 c:2) c:1)) -- parse with build_z3_atom and
+			// coerce to the subject width.  The old read_token+strtoull
+			// path only handled c:V literals and corrupted the parse (->
+			// degenerate Z3 expr -> hang) on expression bounds.
+			Z3_ast lo = bv_coerce(b.ctx, build_z3_atom(par, b), sw);
+			par.skip_ws(); par.expect(',');
+			Z3_ast hi = bv_coerce(b.ctx, build_z3_atom(par, b), sw);
+			par.skip_ws(); par.expect(']');
 			// subject >= lo && subject <= hi
 			Z3_ast c1 = Z3_mk_bvuge(b.ctx, subject, lo);
 			Z3_ast c2 = Z3_mk_bvule(b.ctx, subject, hi);
 			Z3_ast both[2] = {c1, c2};
 			clauses.push_back(Z3_mk_and(b.ctx, 2, both));
 		  } else {
-			// Single value
-			string tok = par.read_token();
-			if (tok.substr(0,2) == "c:") {
-			      uint64_t v = strtoull(tok.c_str()+2, nullptr, 10);
-			      Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
-						      Z3_mk_bv_sort(b.ctx, sw));
-			      clauses.push_back(Z3_mk_eq(b.ctx, subject, cv));
-			}
+			// Single value: also a full IR expression, coerced to sw.
+			Z3_ast cv = bv_coerce(b.ctx, build_z3_atom(par, b), sw);
+			clauses.push_back(Z3_mk_eq(b.ctx, subject, cv));
 		  }
 		  par.skip_ws();
 	    }
