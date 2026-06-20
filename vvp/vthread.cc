@@ -2224,6 +2224,41 @@ bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * IEEE 1800-2017 §18.5.2: a constraint declared in a derived class with the
+ * same NAME as a base-class constraint OVERRIDES (replaces) the base one.
+ * Collect the ancestor (super-chain) constraint IRs for the joint Z3 solve,
+ * skipping any whose name is already defined in a more-derived class (defn,
+ * or a nearer ancestor walked earlier).  Without this both the derived and the
+ * overridden base constraint are asserted; if they conflict (e.g. x==50 in the
+ * derived vs x==7 in the base) the whole solve is UNSAT and randomize bails to
+ * free-random for ALL variables (OpenTitan uart_fifo_full_vseq:
+ * weight_to_skip_rx_read_c).  defn's own constraints are asserted separately by
+ * vvp_z3_randomize and always take precedence, so their names are pre-seeded.
+ */
+static std::vector<std::string>
+collect_overriding_ancestor_ir_(const class_type*defn)
+{
+      std::vector<std::string> hier_ir;
+      std::set<std::string> seen_names;
+      for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
+            const std::string& nm = defn->constraint_name(ci);
+            if (!nm.empty()) seen_names.insert(nm);
+      }
+      for (const class_type*w = defn->runtime_super(); w; w = w->runtime_super()) {
+            for (size_t ci = 0; ci < w->constraint_count(); ++ci) {
+                  const std::string& nm = w->constraint_name(ci);
+                  if (!nm.empty()) {
+                        if (seen_names.count(nm)) continue; // overridden by derived
+                        seen_names.insert(nm);
+                  }
+                  const std::string& ir = w->constraint_ir(ci);
+                  if (!ir.empty()) hier_ir.push_back(ir);
+            }
+      }
+      return hier_ir;
+}
+
+/*
  * %randomize
  *
  * Randomize all rand/randc properties of the class object on top of the
@@ -2347,14 +2382,9 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 		  for (const class_type*w = defn; w; w = w->runtime_super())
 			if (w->constraint_count() > 0) { any_constraints = true; break; }
 		  if (any_constraints) {
-			// Collect ancestor IRs (skip defn — vvp_z3_randomize handles it)
-			vector<string> hier_ir;
-			for (const class_type*w = defn->runtime_super(); w; w = w->runtime_super()) {
-			      for (size_t ci = 0; ci < w->constraint_count(); ++ci) {
-				    const string& ir = w->constraint_ir(ci);
-				    if (!ir.empty()) hier_ir.push_back(ir);
-			      }
-			}
+			// Collect ancestor IRs (skip defn — vvp_z3_randomize handles it),
+			// honouring same-name constraint override (IEEE 1800 §18.5.2).
+			vector<string> hier_ir = collect_overriding_ancestor_ir_(defn);
 			vvp_z3_randomize(defn, cobj, hier_ir);
 		  }
 	    }
@@ -2442,13 +2472,8 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    }
 
 	      // G20: Solve with Z3: class constraints + ancestor IRs + with-constraints.
-	    vector<string> extra_ir;
-	    for (const class_type*w = defn->runtime_super(); w; w = w->runtime_super()) {
-		  for (size_t ci = 0; ci < w->constraint_count(); ++ci) {
-			const string& ir = w->constraint_ir(ci);
-			if (!ir.empty()) extra_ir.push_back(ir);
-		  }
-	    }
+	      // Honour same-name constraint override (IEEE 1800 §18.5.2).
+	    vector<string> extra_ir = collect_overriding_ancestor_ir_(defn);
 	    if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
 	    vvp_z3_randomize(defn, cobj, extra_ir, slot_vals);
       }
