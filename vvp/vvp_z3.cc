@@ -436,6 +436,70 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    return Z3_mk_bvmul(b.ctx, left, right);
       }
 
+      // Bitwise and shift binary operators — needed by constraints such as
+      // the OpenTitan tl_seq_item address/mask checks
+      //   (a_addr & ((1 << a_size) - 1)) == 0
+      // Both operands are width-matched (zero-extend the narrower) so Z3's
+      // same-sort requirement for bvand/bvshl/etc. is satisfied.
+      if (op == "band" || op == "bor" || op == "bxor"
+	  || op == "shl" || op == "shr" || op == "ashr") {
+	    Z3_ast left  = build_z3_atom(par, b);
+	    Z3_ast right = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    unsigned lw = bv_width(b.ctx, left);
+	    unsigned rw = bv_width(b.ctx, right);
+	    if (lw != rw) {
+		  if (rw < lw) right = Z3_mk_zero_ext(b.ctx, lw - rw, right);
+		  else         left  = Z3_mk_zero_ext(b.ctx, rw - lw, left);
+	    }
+	    if (op == "band") return Z3_mk_bvand(b.ctx, left, right);
+	    if (op == "bor")  return Z3_mk_bvor(b.ctx, left, right);
+	    if (op == "bxor") return Z3_mk_bvxor(b.ctx, left, right);
+	    if (op == "shl")  return Z3_mk_bvshl(b.ctx, left, right);
+	    if (op == "shr")  return Z3_mk_bvlshr(b.ctx, left, right);
+	    return Z3_mk_bvashr(b.ctx, left, right);   // ashr (>>>)
+      }
+
+      // Unary bitwise NOT (~x).
+      if (op == "bnot") {
+	    Z3_ast a = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    return Z3_mk_bvnot(b.ctx, a);
+      }
+
+      // Concatenation {a, b, ...} — operands listed MSB-first, matching SV.
+      if (op == "concat") {
+	    vector<Z3_ast> parts;
+	    par.skip_ws();
+	    while (par.peek() != ')' && !par.at_end()) {
+		  parts.push_back(build_z3_atom(par, b));
+		  par.skip_ws();
+	    }
+	    par.expect(')');
+	    if (parts.empty()) return b.mk_true();
+	    Z3_ast acc = parts[0];
+	    for (size_t i = 1 ; i < parts.size() ; i += 1)
+		  acc = Z3_mk_concat(b.ctx, acc, parts[i]);
+	    return acc;
+      }
+
+      // $countones(x): population count.  Z3 has no native popcount, so build
+      // it as the sum of each bit zero-extended to a 32-bit accumulator.
+      if (op == "countones") {
+	    Z3_ast a = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    unsigned w = bv_width(b.ctx, a);
+	    const unsigned RW = 32;
+	    Z3_sort rs = Z3_mk_bv_sort(b.ctx, RW);
+	    Z3_ast sum = Z3_mk_unsigned_int64(b.ctx, 0, rs);
+	    for (unsigned i = 0 ; i < w ; i += 1) {
+		  Z3_ast bit = Z3_mk_extract(b.ctx, i, i, a);      // 1-bit
+		  Z3_ast bz  = Z3_mk_zero_ext(b.ctx, RW - 1, bit); // -> RW bits
+		  sum = Z3_mk_bvadd(b.ctx, sum, bz);
+	    }
+	    return sum;
+      }
+
 	// Phase 81: `(extract <bv> hi lo)` — Z3 bit-slice on a bitvector.
 	// Used by the array-reduction lowering to address per-element bit
 	// ranges inside a flat property BV.  hi/lo are decimal literals

@@ -10937,6 +10937,36 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			}
 		  }
 		  if (wid == 0) wid = 32;
+
+		    // Packed bit/part-select on a property, e.g. a_addr[1:0].
+		    // We can only model a part-select with CONSTANT bounds as a
+		    // Z3 `(extract p:idx:wid hi lo)`.  Emitting the bare property
+		    // instead would silently widen the operand and corrupt the
+		    // constraint (the shift-amount blows up -> UNSAT -> the solver
+		    // bails to free-random for ALL vars).  So: fold constant bounds
+		    // to an extract; if the bounds aren't constant-foldable here,
+		    // DROP the whole constraint (return "") rather than emit a wrong
+		    // full-width reference.
+		  if (!id->path().back().index.empty()) {
+			const index_component_t&ic = id->path().back().index.back();
+			long hi = LONG_MIN, lo = LONG_MIN;
+			if (ic.sel == index_component_t::SEL_BIT && ic.msb) {
+			      if (const PENumber*pn = dynamic_cast<const PENumber*>(ic.msb))
+				    hi = lo = pn->value().as_long();
+			} else if (ic.sel == index_component_t::SEL_PART
+				   && ic.msb && ic.lsb) {
+			      const PENumber*pm = dynamic_cast<const PENumber*>(ic.msb);
+			      const PENumber*pl = dynamic_cast<const PENumber*>(ic.lsb);
+			      if (pm && pl) { hi = pm->value().as_long();
+					      lo = pl->value().as_long(); }
+			}
+			if (hi >= lo && lo >= 0 && hi < (long)wid)
+			      return "(extract p:" + to_string(idx) + ":"
+				    + to_string(wid) + " " + to_string(hi)
+				    + " " + to_string(lo) + ")";
+			return "";   // non-constant / out-of-range bounds: drop
+		  }
+
 		  return "p:" + to_string(idx) + ":" + to_string(wid);
 	    }
 	    // Non-class-property identifier: treat as caller-scope runtime value.
@@ -11130,6 +11160,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		case '-': op = "sub"; break;
 		case '*': op = "mul"; break;
 		case 'q': op = "implies"; break;  // -> (K_TRIGGER, implication)
+		case '&': op = "band"; break; // bitwise AND
+		case '|': op = "bor";  break; // bitwise OR
+		case '^': op = "bxor"; break; // bitwise XOR
+		case 'l': op = "shl";  break; // << (K_LS)
+		case 'r': op = "shr";  break; // >> (K_RS, logical)
+		case 'R': op = "ashr"; break; // >>> (K_RSS, arithmetic)
 		default:  return "";
 	    }
 	    return "(" + op + " " + left + " " + right + ")";
@@ -11139,6 +11175,22 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    string sub = pexpr_to_constraint_ir(un->get_expr(), cls, value_slots);
 	    if (sub.empty()) return "";
 	    if (un->get_op() == '!') return "(not " + sub + ")";
+	    if (un->get_op() == '~') return "(bnot " + sub + ")";
+	    return "";
+      }
+
+      // $countones(x) in a constraint, e.g. the OT
+      //   a_opcode == PutFullData -> $countones(a_mask) == (1 << a_size)
+      // mask-fullness check.  Lowered to the Z3 popcount builder.
+      if (const PECallFunction*cf = dynamic_cast<const PECallFunction*>(expr)) {
+	    perm_string fn = peek_tail_name(cf->get_path_());
+	    if (fn == "$countones") {
+		  const std::vector<named_pexpr_t>&ps = cf->get_parms_();
+		  if (ps.size() == 1 && ps[0].parm) {
+			string s = pexpr_to_constraint_ir(ps[0].parm, cls, value_slots);
+			if (!s.empty()) return "(countones " + s + ")";
+		  }
+	    }
 	    return "";
       }
 
