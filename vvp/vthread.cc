@@ -10589,7 +10589,15 @@ static bool aa_exists_str(vthread_t thr, unsigned wid)
 {
       string key = thr->pop_str();
       ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+      // exists() returns a 1-bit boolean (0 or 1).  Build an all-zero result
+      // of the context width and set ONLY bit 0 when the key is present —
+      // mirroring aa_exists_signal().  The previous `vvp_vector4_t(wid, BIT4_1)`
+      // form filled ALL wid bits, so a present key in a >1-bit context (e.g.
+      // an int-typed result) returned 0xffff...f (-1) instead of 1.
+      bool found = (assoc && assoc->exists_key(key));
+      vvp_vector4_t val(wid, BIT4_0);
+      if (found && wid > 0)
+            val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
@@ -10599,7 +10607,15 @@ static bool aa_exists_vec(vthread_t thr, unsigned wid)
 {
       vvp_vector4_t key = thr->pop_vec4();
       ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+      // exists() returns a 1-bit boolean (0 or 1).  Build an all-zero result
+      // of the context width and set ONLY bit 0 when the key is present —
+      // mirroring aa_exists_signal().  The previous `vvp_vector4_t(wid, BIT4_1)`
+      // form filled ALL wid bits, so a present key in a >1-bit context (e.g.
+      // an int-typed result) returned 0xffff...f (-1) instead of 1.
+      bool found = (assoc && assoc->exists_key(key));
+      vvp_vector4_t val(wid, BIT4_0);
+      if (found && wid > 0)
+            val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
@@ -10620,7 +10636,15 @@ static bool aa_exists_obj(vthread_t thr, unsigned wid)
                     object_trace_class_(key),
                     (assoc && assoc->exists_key(key)) ? 1 : 0);
       }
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+      // exists() returns a 1-bit boolean (0 or 1).  Build an all-zero result
+      // of the context width and set ONLY bit 0 when the key is present —
+      // mirroring aa_exists_signal().  The previous `vvp_vector4_t(wid, BIT4_1)`
+      // form filled ALL wid bits, so a present key in a >1-bit context (e.g.
+      // an int-typed result) returned 0xffff...f (-1) instead of 1.
+      bool found = (assoc && assoc->exists_key(key));
+      vvp_vector4_t val(wid, BIT4_0);
+      if (found && wid > 0)
+            val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
