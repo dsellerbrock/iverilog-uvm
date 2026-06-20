@@ -207,6 +207,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%callf/vec4/v",    of_CALLF_VEC4_V,    2,{OA_CODE_PTR2,OA_VPI_PTR, OA_NONE} },
       { "%callf/void",      of_CALLF_VOID,      2,{OA_CODE_PTR2,OA_VPI_PTR, OA_NONE} },
       { "%callf/void/v",    of_CALLF_VOID_V,    2,{OA_CODE_PTR2,OA_VPI_PTR, OA_NONE} },
+      { "%callf/void/vh",   of_CALLF_VOID_VH,   2,{OA_CODE_PTR2,OA_VPI_PTR, OA_NONE} },
       { "%cassign/link",    of_CASSIGN_LINK,    2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%cassign/vec4",    of_CASSIGN_VEC4,    1,{OA_FUNC_PTR,OA_NONE,     OA_NONE} },
       { "%cassign/vec4/off",of_CASSIGN_VEC4_OFF,2,{OA_FUNC_PTR,OA_BIT1,     OA_NONE} },
@@ -1108,7 +1109,8 @@ bool code_label_resolv_list_s::resolve(bool mes)
 		    || code->opcode == of_CALLF_VEC4
 		    || code->opcode == of_CALLF_VEC4_V
 		    || code->opcode == of_CALLF_VOID
-		    || code->opcode == of_CALLF_VOID_V)) {
+		    || code->opcode == of_CALLF_VOID_V
+		    || code->opcode == of_CALLF_VOID_VH)) {
 		  if (dispatch_scope_val.ptr != 0) {
 			code->scope = reinterpret_cast<__vpiScope*>(dispatch_scope_val.ptr);
 			if (dispatch_warn_enabled)

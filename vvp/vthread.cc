@@ -6414,6 +6414,106 @@ bool of_CALLF_VOID_V(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %callf/void/vh — "virtual hook" call, used for randomize()'s pre_randomize
+ * / post_randomize hooks (IEEE 1800-2017 §18.6.2: these run on the actual
+ * object).  The hook may be defined ONLY on a class derived from the static
+ * receiver type (e.g. cip_tl_seq_item::post_randomize when the handle is a
+ * tl_seq_item), so static up-chain lookup finds nothing and the regular /v
+ * call would wrongly run the seed scope on a dispatch miss.
+ *
+ * Here the named target (cp->scope) is just a SEED that carries the method
+ * name and holds `this` (stored by the caller's %store/obj).  We resolve the
+ * method on the OBJECT's dynamic class, walking its runtime_super chain; if a
+ * definition exists we call it, otherwise we SKIP entirely (never run the
+ * seed).  This makes the hook effectively virtual without requiring a vtable
+ * slot on the base class.
+ */
+bool of_CALLF_VOID_VH(vthread_t thr, vvp_code_t cp)
+{
+      if (!(thr && cp && cp->scope))
+            return true;
+
+      __vpiScope*base_scope = cp->scope;
+      const char*method_name = base_scope->scope_name();
+      if (!method_name)
+            return true;
+
+      vvp_context_t saved_rd_context = 0;
+      bool staged_reads = stage_scope_reads_from_write_context_(thr, base_scope,
+                                                                saved_rd_context);
+
+      vpiHandle base_this = lookup_scope_item_(base_scope, "@");
+      vvp_object_t this_obj;
+      if (!read_handle_object_in_thread_(base_this, thr, this_obj)) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            return true;
+      }
+      vvp_cobject*cobj = this_obj.peek<vvp_cobject>();
+      if (!cobj) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            return true;
+      }
+      const class_type*defn = cobj->get_defn();
+      if (!defn) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            return true;
+      }
+
+      /* Resolve method on the dynamic class, walking up its runtime supers. */
+      string label;
+      const class_type*dispatch_type = defn;
+      vvp_code_t override_pc = 0;
+      __vpiScope*override_scope = 0;
+      while (dispatch_type
+             && build_dynamic_method_label_(dispatch_type, method_name, label)) {
+            if (compile_lookup_code_scope(label.c_str(), &override_pc, &override_scope))
+                  break;
+            override_pc = 0;
+            override_scope = 0;
+            dispatch_type = dispatch_type->runtime_super();
+      }
+
+      if (!override_pc || !override_scope || !override_scope->is_automatic()) {
+            /* The dynamic class (and its supers) do not define this hook —
+             * nothing to call.  Skip without running the seed. */
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            if (virtual_dispatch_trace_enabled_())
+                  fprintf(stderr, "vdispatch(hook): %s has no %s; skipping\n",
+                          defn->class_name().c_str(), method_name);
+            return true;
+      }
+
+      vpiHandle override_this = lookup_scope_item_(override_scope, "@");
+      if (!override_this) {
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            return true;
+      }
+
+      vvp_context_t override_context = vthread_alloc_context(override_scope);
+      if (!write_handle_object_to_context_(override_this, this_obj, override_context)) {
+            vthread_free_context(override_context, override_scope);
+            restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+            return true;
+      }
+      copy_method_ports_to_context_(base_scope, thr, override_scope,
+                                    override_context, false);
+      restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
+
+      if (virtual_dispatch_trace_enabled_())
+            fprintf(stderr, "vdispatch(hook): %s -> %s via %s\n",
+                    scope_name_or_unknown_(base_scope),
+                    scope_name_or_unknown_(override_scope), label.c_str());
+
+      vthread_t child = vthread_new(override_pc, override_scope);
+      child->wt_context = override_context;
+      child->rd_context = override_context;
+      child->owns_automatic_context = 1;
+      child->owned_context = override_context;
+      child->dynamic_dispatch_base_scope = base_scope;
+      return do_callf_void(thr, child);
+}
+
+/*
  * The %cassign/link instruction connects a source node to a
  * destination node. The destination node must be a signal, as it is
  * marked with the source of the cassign so that it may later be

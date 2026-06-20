@@ -1470,6 +1470,15 @@ typedef struct rand_hook_pair_s {
 static rand_hook_pair_t*rand_hook_cache = 0;
 static int rand_hook_cache_built = 0;
 
+/* Design-wide fallback seeds: the first pre_randomize / post_randomize scope
+ * seen anywhere.  Used as the SEED for the %callf/void/vh virtual-hook call
+ * when the static receiver type's class chain has no such hook but a derived
+ * class (resolved at runtime) might.  The seed only carries the method name +
+ * holds `this`; the runtime re-resolves the actual override on the object's
+ * dynamic class, so any scope of the right kind works. */
+static ivl_scope_t rand_hook_any_pre = 0;
+static ivl_scope_t rand_hook_any_post = 0;
+
 static void rand_hook_walk_(ivl_scope_t scope)
 {
       if (!scope) return;
@@ -1493,6 +1502,8 @@ static void rand_hook_walk_(ivl_scope_t scope)
                   if (strcmp(base, "pre_randomize") == 0)  pre  = ch;
                   if (strcmp(base, "post_randomize") == 0) post = ch;
             }
+            if (pre  && !rand_hook_any_pre)  rand_hook_any_pre  = pre;
+            if (post && !rand_hook_any_post) rand_hook_any_post = post;
             if (full && (pre || post)) {
                   rand_hook_pair_t*p = (rand_hook_pair_t*)
                         calloc(1, sizeof(rand_hook_pair_t));
@@ -1576,7 +1587,16 @@ static int rand_hooks_for_type_(ivl_type_t classtype,
  * pushed onto the object stack, then stored into the method scope's
  * port[0] inside an automatic context.  No copy-out is needed for the
  * void return. */
-static void emit_void_this_method_call_(ivl_expr_t recv, ivl_scope_t target)
+/* hook==0: ordinary void this-method call ( %callf/void or /v for a virtual
+ *          method).
+ * hook==1: randomize() pre/post hook.  `target` is only a SEED carrying the
+ *          method name + holding `this`; emit %callf/void/vh, which resolves
+ *          the method on the OBJECT's dynamic class at runtime and calls the
+ *          override if present (else skips).  This makes pre_randomize /
+ *          post_randomize effectively virtual even when the static receiver
+ *          type's class chain does not define them (IEEE 1800-2017 §18.6.2). */
+static void emit_void_this_method_call_x_(ivl_expr_t recv, ivl_scope_t target,
+                                          int hook)
 {
       if (!target || !recv) return;
       unsigned nports = ivl_scope_ports(target);
@@ -1594,12 +1614,14 @@ static void emit_void_this_method_call_(ivl_expr_t recv, ivl_scope_t target)
             fprintf(vvp_out, "    %%alloc S_%p;\n", target);
       draw_eval_object(recv);
       fprintf(vvp_out, "    %%store/obj v%p_0;\n", this_port);
-      int use_virtual = ivl_scope_is_virtual_method(target);
+      const char*variant = hook ? "/vh"
+                                : (ivl_scope_is_virtual_method(target) ? "/v" : "");
       fprintf(vvp_out, "    %%callf/void%s TD_%s, S_%p;\n",
-              use_virtual ? "/v" : "", mangled, target);
+              variant, mangled, target);
       if (is_auto)
             fprintf(vvp_out, "    %%free S_%p;\n", target);
 }
+
 
 static void draw_sfunc_vec4(ivl_expr_t expr)
 {
@@ -1665,8 +1687,17 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 				rt ? (ivl_type_method_prefix(rt) ?: "<n>") : "<no rt>",
 				(void*)pre, (void*)post);
 	    }
+	      /* A pre/post_randomize hook may be defined only on a class
+	       * DERIVED from the static receiver type (e.g. the factory override
+	       * cip_tl_seq_item::post_randomize behind a tl_seq_item handle).
+	       * When the static chain has no hook, seed the virtual-hook call
+	       * (%callf/void/vh) with any hook scope; the runtime resolves the
+	       * real override on the object's dynamic class (or skips). */
+	    int pre_hook = 0, post_hook = 0;
+	    if (!pre && rand_hook_any_pre)   { pre  = rand_hook_any_pre;  pre_hook  = 1; }
+	    if (!post && rand_hook_any_post) { post = rand_hook_any_post; post_hook = 1; }
 	    if (pre && arg) {
-		  emit_void_this_method_call_(arg, pre);
+		  emit_void_this_method_call_x_(arg, pre, pre_hook);
 	    }
 	    if (arg) {
 		  draw_eval_object(arg);
@@ -1679,7 +1710,7 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		     * post_randomize call cannot touch (it uses its own
 		     * vec4 stack frame).  Just keep it on top of the vec4
 		     * stack — %callf/void preserves the parent's vec4 stack. */
-		    emit_void_this_method_call_(arg, post);
+		    emit_void_this_method_call_x_(arg, post, post_hook);
 	    }
 	    return;
       }
@@ -1704,7 +1735,12 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  if (rt && ivl_type_base(rt) == IVL_VT_CLASS)
 			rand_hooks_for_type_(rt, &pre, &post);
 	    }
-	    if (pre && obj_arg) emit_void_this_method_call_(obj_arg, pre);
+	      /* See plain randomize() above: seed the virtual-hook call so a
+	       * derived-class hook (factory override) runs on the dynamic type. */
+	    int pre_hook = 0, post_hook = 0;
+	    if (!pre && rand_hook_any_pre)   { pre  = rand_hook_any_pre;  pre_hook  = 1; }
+	    if (!post && rand_hook_any_post) { post = rand_hook_any_post; post_hook = 1; }
+	    if (pre && obj_arg) emit_void_this_method_call_x_(obj_arg, pre, pre_hook);
 	      /* Push runtime slot values (vec4 stack) first so they're
 	       * under the result when %randomize/with pops them. */
 	    for (unsigned i = 0 ; i < n_vals ; i++) {
@@ -1715,7 +1751,7 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	      /* Push the object. */
 	    if (obj_arg) draw_eval_object(obj_arg);
 	    fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir, n_vals);
-	    if (post && obj_arg) emit_void_this_method_call_(obj_arg, post);
+	    if (post && obj_arg) emit_void_this_method_call_x_(obj_arg, post, post_hook);
 	    return;
       }
       if (strcmp(ivl_expr_name(expr), "$ivl_inside_arr")==0) {
