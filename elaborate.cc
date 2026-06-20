@@ -11017,9 +11017,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    // rand property and value_slots is null.  A genuine runtime variable
 	    // (e.g. a caller-scope `rw.addr` in a with-clause) does not fold and
 	    // falls through to the value-slot path below.
+	    // Skip object-hierarchical references such as `p_sequencer.cfg.odd_parity`:
+	    // the head component is a class property, so this is a runtime member
+	    // access, never a compile-time constant.  Attempting to fold it with
+	    // need_const would emit a spurious "hierarchical reference not allowed
+	    // in a constant expression" error (the fold fails and is discarded, but
+	    // the message is still printed).
 	    {
+		  bool obj_hier_ref =
+			id->path().size() > 1
+			&& cls->property_idx_from_name(peek_head_name(id->path())) >= 0;
 		  uint64_t cval = 0;
-		  if (cir_fold_const_(expr, cval))
+		  if (!obj_hier_ref && cir_fold_const_(expr, cval))
 			return "c:" + to_string(cval);
 	    }
 	    // Caller-scope runtime value (with-clause only).
