@@ -382,35 +382,74 @@ static int ensure_class_property_idx_(Design*des, const netclass_t*class_type,
    interface signal is accessed directly. */
 static bool rewrite_interface_clocking_member_path_via_scope_(const PEIdent*ident,
 							      const symbol_search_results&sr,
+							      NetScope*scope,
 							      pform_name_t&rewritten)
 {
-      if (sr.net || !sr.scope) return false;
-      if (!sr.scope->is_interface()) return false;
-      if (ident->path().size() < 3) return false;
-      perm_string iface_module = sr.scope->module_name();
-      if (iface_module.nil()) return false;
-      auto cur = pform_modules.find(iface_module);
-      if (cur == pform_modules.end() || !cur->second->is_interface)
-	    return false;
-      const Module*iface_mod = cur->second;
+      if (sr.net) return false;
 
-      pform_name_t newpath = ident->path().name;
-      auto it = newpath.begin();
-      ++it; /* skip iface name */
-      while (it != newpath.end()) {
-	    auto nx = it; ++nx;
-	    if (nx == newpath.end()) break;
-	    auto cb_it = iface_mod->clocking_blocks.find(it->name);
-	    if (cb_it != iface_mod->clocking_blocks.end()) {
-		  const auto&signals = cb_it->second->signals;
-		  if (std::find(signals.begin(), signals.end(), nx->name)
-			    != signals.end()) {
-			newpath.erase(it);
-			rewritten = newpath;
-			return true;
+      /* Interface case: sr.scope is an interface instance scope and the
+	 path is `iface.cb.sig`.  Drop the clocking-block component, reading
+	 the underlying interface signal (clocking semantics not modelled;
+	 flat unsampled read). */
+      if (sr.scope && sr.scope->is_interface() && ident->path().size() >= 3) {
+	    perm_string iface_module = sr.scope->module_name();
+	    if (!iface_module.nil()) {
+		  auto cur = pform_modules.find(iface_module);
+		  if (cur != pform_modules.end() && cur->second->is_interface) {
+			const Module*iface_mod = cur->second;
+			pform_name_t newpath = ident->path().name;
+			auto it = newpath.begin();
+			++it; /* skip iface name */
+			while (it != newpath.end()) {
+			      auto nx = it; ++nx;
+			      if (nx == newpath.end()) break;
+			      auto cb_it = iface_mod->clocking_blocks.find(it->name);
+			      if (cb_it != iface_mod->clocking_blocks.end()) {
+				    const auto&signals = cb_it->second->signals;
+				    if (std::find(signals.begin(), signals.end(), nx->name)
+					      != signals.end()) {
+					  newpath.erase(it);
+					  rewritten = newpath;
+					  return true;
+				    }
+			      }
+			      ++it;
+			}
 		  }
 	    }
-	    ++it;
+      }
+
+      /* Module case: the clocking block is declared directly in the
+	 enclosing module.  symbol_search does not model module-level
+	 clocking blocks as scopes, so sr is empty here.  Resolve
+	 `cb.sig` -> `sig` by consulting the enclosing module's pform
+	 clocking_blocks (same flat, unsampled rewrite as the interface
+	 case above).  Only fires when the name is otherwise unbindable. */
+      if (scope && gn_system_verilog() && ident->path().size() >= 2) {
+	    NetScope*mscope = scope;
+	    while (mscope && mscope->type() != NetScope::MODULE)
+		  mscope = mscope->parent();
+	    if (mscope) {
+		  auto cur = pform_modules.find(mscope->module_name());
+		  if (cur != pform_modules.end()) {
+			const Module*mod = cur->second;
+			pform_name_t newpath = ident->path().name;
+			for (auto it = newpath.begin(); it != newpath.end(); ++it) {
+			      auto nx = it; ++nx;
+			      if (nx == newpath.end()) break;
+			      auto cb_it = mod->clocking_blocks.find(it->name);
+			      if (cb_it != mod->clocking_blocks.end()) {
+				    const auto&signals = cb_it->second->signals;
+				    if (std::find(signals.begin(), signals.end(), nx->name)
+					      != signals.end()) {
+					  newpath.erase(it);
+					  rewritten = newpath;
+					  return true;
+				    }
+			      }
+			}
+		  }
+	    }
       }
       return false;
 }
@@ -5423,7 +5462,7 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 
       pform_name_t rewritten_path;
       if (rewrite_interface_clocking_member_path_(this, sr, rewritten_path)
-	  || rewrite_interface_clocking_member_path_via_scope_(this, sr, rewritten_path)) {
+	  || rewrite_interface_clocking_member_path_via_scope_(this, sr, scope, rewritten_path)) {
 	    if (path_.package) {
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
 		  return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
@@ -10108,7 +10147,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		      // semantics not yet implemented; do a flat rewrite).
 		    if (gn_system_verilog()) {
 			  pform_name_t rewritten;
-			  if (rewrite_interface_clocking_member_path_via_scope_(this, sr, rewritten)) {
+			  if (rewrite_interface_clocking_member_path_via_scope_(this, sr, scope, rewritten)) {
 				PEIdent mapped(rewritten, lexical_pos_);
 				return mapped.elaborate_expr(des, scope, expr_wid, flags);
 			  }
@@ -10241,7 +10280,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	/* SV clocking-block path: bif.cb.sig -> bif.sig */
       if (gn_system_verilog()) {
 	    pform_name_t rewritten;
-	    if (rewrite_interface_clocking_member_path_via_scope_(this, sr, rewritten)) {
+	    if (rewrite_interface_clocking_member_path_via_scope_(this, sr, scope, rewritten)) {
 		  PEIdent mapped(rewritten, lexical_pos_);
 		  return mapped.elaborate_expr(des, scope, expr_wid, flags);
 	    }
