@@ -2145,6 +2145,16 @@ class NetExpr  : public LineInfo {
 	// any. This is a deep copy operation.
       virtual NetExpr*dup_expr() const =0;
 
+	// Rebind references to a particular `this` net (a method's port-0
+	// signal) to a different receiver expression, recursing into
+	// subexpressions. Used to fix up a default argument expression that
+	// was elaborated in the callee's scope (so its `this` is the callee's
+	// port-0) when it is used at a call site where the real receiver
+	// differs. Operates in place; call only on a fresh dup_expr() copy.
+	// The default is a no-op (leaf nodes have no `this` to rebind), so
+	// unhandled node types simply keep their current behavior.
+      virtual void replace_this_refs(const NetNet*old_this, const NetExpr*recv);
+
 	// Evaluate the expression at compile time, a la within a
 	// constant function. This is used by the constant function
 	// evaluation function code, and the return value is an
@@ -4065,6 +4075,7 @@ class NetEUFunc  : public NetExpr {
 
       virtual void expr_scan(struct expr_scan_t*) const override;
       virtual NetEUFunc*dup_expr() const override;
+      void replace_this_refs(const NetNet*old_this, const NetExpr*recv) override;
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                                   bool nested_func = false) const override;
       virtual NetExpr* eval_tree() override;
@@ -4297,6 +4308,7 @@ class NetEBinary  : public NetExpr {
       virtual bool has_width() const override;
 
       virtual NetEBinary* dup_expr() const override;
+      void replace_this_refs(const NetNet*old_this, const NetExpr*recv) override;
       virtual NetExpr* eval_tree() override;
       virtual NetExpr* evaluate_function(const LineInfo&loc,
 					 std::map<perm_string,LocalVar>&ctx) const override;
@@ -4584,6 +4596,7 @@ class NetEConcat  : public NetExpr {
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                                   bool nested_func = false) const override;
       virtual NetEConcat* dup_expr() const override;
+      void replace_this_refs(const NetNet*old_this, const NetExpr*recv) override;
       virtual NetEConst*  eval_tree() override;
       virtual NetExpr* evaluate_function(const LineInfo&loc,
 					 std::map<perm_string,LocalVar>&ctx) const override;
@@ -4643,6 +4656,7 @@ class NetESelect  : public NetExpr {
       virtual NetExpr*evaluate_function(const LineInfo&loc,
 					std::map<perm_string,LocalVar>&ctx) const override;
       virtual NetESelect* dup_expr() const override;
+      void replace_this_refs(const NetNet*old_this, const NetExpr*recv) override;
       virtual NetNet*synthesize(Design*des, NetScope*scope, NetExpr*root) override;
       virtual void dump(std::ostream&) const override;
 
@@ -4768,6 +4782,7 @@ class NetEProperty : public NetExpr {
     public: // Overridden methods
 	      virtual void expr_scan(struct expr_scan_t*) const override;
 	      virtual NetEProperty* dup_expr() const override;
+      void replace_this_refs(const NetNet*old_this, const NetExpr*recv) override;
 	      virtual NetExpr* evaluate_function(const LineInfo&loc,
 						 std::map<perm_string,LocalVar>&ctx) const override;
 	      virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
@@ -4838,6 +4853,7 @@ class NetESFunc  : public NetExpr {
 
       virtual void expr_scan(struct expr_scan_t*) const override;
       virtual NetESFunc*dup_expr() const override;
+      void replace_this_refs(const NetNet*old_this, const NetExpr*recv) override;
       virtual NetNet*synthesize(Design*, NetScope*scope, NetExpr*root) override;
 
     private:
@@ -4997,6 +5013,7 @@ class NetETernary  : public NetExpr {
       const NetExpr*false_expr() const;
 
       virtual NetETernary* dup_expr() const override;
+      void replace_this_refs(const NetNet*old_this, const NetExpr*recv) override;
       virtual NetExpr* eval_tree() override;
       virtual NetExpr*evaluate_function(const LineInfo&loc,
 					std::map<perm_string,LocalVar>&ctx) const override;
@@ -5051,6 +5068,7 @@ class NetEUnary  : public NetExpr {
       const NetExpr* expr() const { return expr_; }
 
       virtual NetEUnary* dup_expr() const override;
+      void replace_this_refs(const NetNet*old_this, const NetExpr*recv) override;
       virtual NetExpr* eval_tree() override;
       virtual NetExpr* evaluate_function(const LineInfo&loc,
 					 std::map<perm_string,LocalVar>&ctx) const override;

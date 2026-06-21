@@ -6727,6 +6727,16 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			des->errors += 1;
 		  }
 		  parms[pidx] = def->port_defe(pidx)->dup_expr();
+		    // A default argument expression is elaborated in the callee's
+		    // scope, so any `this` references in it point at the callee's
+		    // port-0 net, which is not yet bound when the caller evaluates
+		    // the default. Per IEEE 1800 §13.5.3 the default is evaluated
+		    // at the call site, so rebind those `this` references to the
+		    // call's actual receiver (parms[0] for a method call).
+		  if (parm_off == 1 && parms[0] && def->port_count() > 0) {
+			if (const NetNet*callee_this = def->port(0))
+			      rebind_default_this(parms[pidx], callee_this, parms[0]);
+		  }
 
 		    } else {
 			  missing_parms += 1;

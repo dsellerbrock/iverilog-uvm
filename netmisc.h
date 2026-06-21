@@ -182,6 +182,16 @@ extern NetExpr*cast_to_real(NetExpr*expr);
 extern NetExpr*condition_reduce(NetExpr*expr);
 
 /*
+ * Rebind references to a method's `this` net (its port-0 signal) in an
+ * expression to a different receiver expression, recursing through
+ * subexpressions. Used to fix up a default-argument expression elaborated in
+ * the callee scope when it is applied at a call site whose receiver differs.
+ * Operates in place; call only on a fresh dup_expr() copy. See dup_expr.cc.
+ */
+extern void rebind_default_this(NetExpr*&expr, const NetNet*old_this,
+				const NetExpr*recv);
+
+/*
  * This function transforms an expression by cropping the high bits
  * off with a part select. The result has the width w passed in. This
  * function does not pad, use pad_to_width if padding is desired.

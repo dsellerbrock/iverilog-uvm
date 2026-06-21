@@ -26,6 +26,97 @@
 
 using namespace std;
 
+/*
+ * Rebind references to a method's `this` (its port-0 net, `old_this`) to a
+ * different receiver expression `recv`, recursing through subexpressions.
+ *
+ * This fixes up a default-argument expression that was elaborated in the
+ * callee's scope (so its `this` references are the callee's port-0 net) when
+ * it is used at a call site whose actual receiver differs. The rewrite runs
+ * on a fresh dup_expr() copy and mutates it in place.
+ *
+ * rebind_default_this() handles one expression pointer: a direct
+ * NetESignal of old_this (including the top-level default itself) is replaced
+ * by a fresh dup of the receiver; otherwise the node recurses via its
+ * replace_this_refs() override. `recv` is duplicated per occurrence so no
+ * node is shared across substitutions. The base replace_this_refs() is a
+ * no-op, so node types without an override simply keep their current behavior.
+ */
+void rebind_default_this(NetExpr*&expr, const NetNet*old_this,
+			 const NetExpr*recv)
+{
+      if (!expr || !old_this || !recv) return;
+      if (NetESignal*sig = dynamic_cast<NetESignal*>(expr)) {
+	    if (sig->sig() == old_this) {
+		  delete expr;
+		  expr = recv->dup_expr();
+		  return;
+	    }
+      }
+      expr->replace_this_refs(old_this, recv);
+}
+
+void NetExpr::replace_this_refs(const NetNet*, const NetExpr*)
+{
+}
+
+void NetEUFunc::replace_this_refs(const NetNet*old_this, const NetExpr*recv)
+{
+      for (unsigned idx = 0 ; idx < parms_.size() ; idx += 1)
+	    rebind_default_this(parms_[idx], old_this, recv);
+}
+
+void NetESFunc::replace_this_refs(const NetNet*old_this, const NetExpr*recv)
+{
+      for (unsigned idx = 0 ; idx < parms_.size() ; idx += 1)
+	    rebind_default_this(parms_[idx], old_this, recv);
+}
+
+void NetEBinary::replace_this_refs(const NetNet*old_this, const NetExpr*recv)
+{
+      rebind_default_this(left_, old_this, recv);
+      rebind_default_this(right_, old_this, recv);
+}
+
+void NetEUnary::replace_this_refs(const NetNet*old_this, const NetExpr*recv)
+{
+      rebind_default_this(expr_, old_this, recv);
+}
+
+void NetETernary::replace_this_refs(const NetNet*old_this, const NetExpr*recv)
+{
+      rebind_default_this(cond_, old_this, recv);
+      rebind_default_this(true_val_, old_this, recv);
+      rebind_default_this(false_val_, old_this, recv);
+}
+
+void NetEConcat::replace_this_refs(const NetNet*old_this, const NetExpr*recv)
+{
+      for (unsigned idx = 0 ; idx < parms_.size() ; idx += 1)
+	    rebind_default_this(parms_[idx], old_this, recv);
+}
+
+void NetESelect::replace_this_refs(const NetNet*old_this, const NetExpr*recv)
+{
+      rebind_default_this(expr_, old_this, recv);
+      rebind_default_this(base_, old_this, recv);
+}
+
+void NetEProperty::replace_this_refs(const NetNet*old_this, const NetExpr*recv)
+{
+      if (expr_) {
+	    rebind_default_this(expr_, old_this, recv);
+      } else if (net_ && net_ == old_this) {
+	      // `this.member` form stores the base as a direct net. Redirect
+	      // it when the receiver is a simple signal (no array word index);
+	      // a complex receiver is left unchanged as a safe fallback.
+	    const NetESignal*rs = dynamic_cast<const NetESignal*>(recv);
+	    if (rs && rs->word_index() == 0)
+		  net_ = const_cast<NetNet*>(rs->sig());
+      }
+      rebind_default_this(index_, old_this, recv);
+}
+
 NetEAccess* NetEAccess::dup_expr() const
 {
       NetEAccess*tmp = new NetEAccess(branch_, nature_);
