@@ -89,12 +89,15 @@ static int queue_pattern_operand_is_object_collection_(ivl_expr_t expr,
 
 static ivl_expr_t prop_lval_index_expr_(ivl_lval_t lval)
 {
-      ivl_expr_t idx_expr = ivl_lval_idx(lval);
-
-      if (!idx_expr && ivl_lval_nest(lval))
-            idx_expr = ivl_lval_idx(ivl_lval_nest(lval));
-
-      return idx_expr;
+      // The property's own element index, if any (e.g. obj.darray[i] = x).
+      // Do NOT fall back to the nested lval's index: a nest index is the
+      // element/key selector for the nest receiver (arr[i].prop /
+      // assoc[key].prop) and is already consumed by draw_lval_expr() to load
+      // the receiver. Reusing it here misapplied an associative-array key as a
+      // darray element index, so a whole-array store like
+      // `m_regs_info[rg].addr = addrs` was silently dropped (it generated a
+      // darray-element set at index = key instead).
+      return ivl_lval_idx(lval);
 }
 
 static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
