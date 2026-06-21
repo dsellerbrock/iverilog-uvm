@@ -5754,15 +5754,26 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			     << " got " << comp.index.size() << " indices." << endl;
 		  }
 
-		  if (dims.size() != comp.index.size()) {
+		  if (comp.index.size() < dims.size()) {
 			cerr << get_fileline() << ": error: "
 			     << "Got " << comp.index.size() << " indices, "
 			     << "expecting " << dims.size()
 			     << " to index the property " << class_type->get_prop_name(pidx) << "." << endl;
 			des->errors++;
 		  } else {
+			// The first dims.size() components index the unpacked
+			// array; any remaining trailing components are part/bit
+			// selects on the (packed) element, e.g. an unpacked-array
+			// class property `bit[63:0] a[N]` used as `a[i][31:0]`.
+			std::list<index_component_t> array_index(
+			      comp.index.begin(),
+			      std::next(comp.index.begin(), dims.size()));
 			canon_index = make_canonical_index(des, scope, this,
-							   comp.index, tmp_ua, false);
+							   array_index, tmp_ua, false);
+			if (comp.index.size() > dims.size())
+			      trailing_indices.assign(
+				    std::next(comp.index.begin(), dims.size()),
+				    comp.index.end());
 		  }
 		  } else if (const netarray_t *tmp_arr = dynamic_cast<const netarray_t*>(tmp_type)) {
 			const index_component_t&idx_comp = comp.index.front();
@@ -5836,6 +5847,49 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		  NetExpr*cur_expr = base_expr;
 		  ivl_type_t cur_type = start_type;
 		  for (const auto&idx_comp : trailing_indices) {
+			// Part/bit-select on a packed element of an unpacked-array
+			// class property, e.g. `bit[63:0] a[N]` used as
+			// `a[i][31:0]` or `a[i][j]`. After the array index the
+			// element type is a packed vector; apply the trailing
+			// select to it rather than treating it as another array
+			// dimension.
+			bool elem_is_packed =
+			      (cur_type == nullptr)
+			      || (dynamic_cast<const netvector_t*>(cur_type) != nullptr);
+			if (elem_is_packed
+			    && idx_comp.sel == index_component_t::SEL_PART) {
+			      NetExpr*msb_e = elab_and_eval(des, scope, idx_comp.msb, -1, true);
+			      NetExpr*lsb_e = elab_and_eval(des, scope, idx_comp.lsb, -1, true);
+			      long msb_v = 0, lsb_v = 0;
+			      if (!msb_e || !lsb_e
+				  || !eval_as_long(msb_v, msb_e)
+				  || !eval_as_long(lsb_v, lsb_e)) {
+				    delete msb_e; delete lsb_e;
+				    return cur_expr;
+			      }
+			      delete msb_e; delete lsb_e;
+			      long base_v = (msb_v >= lsb_v) ? lsb_v : msb_v;
+			      unsigned w = (msb_v >= lsb_v)
+				    ? (unsigned)(msb_v - lsb_v + 1)
+				    : (unsigned)(lsb_v - msb_v + 1);
+			      NetESelect*psel =
+				    new NetESelect(cur_expr, make_const_val(base_v), w);
+			      psel->set_line(*this);
+			      cur_expr = psel;
+			      cur_type = nullptr;
+			      continue;
+			}
+			if (elem_is_packed
+			    && idx_comp.sel == index_component_t::SEL_BIT) {
+			      NetExpr*bit_e = elab_and_eval(des, scope, idx_comp.msb, -1, false);
+			      if (!bit_e)
+				    return cur_expr;
+			      NetESelect*bsel = new NetESelect(cur_expr, bit_e, 1);
+			      bsel->set_line(*this);
+			      cur_expr = bsel;
+			      cur_type = nullptr;
+			      continue;
+			}
 			NetExpr*idx_expr = nullptr;
 			if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
 			      idx_expr = make_last_array_index_expr_(*this, cur_expr->dup_expr(),
