@@ -375,6 +375,35 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
                               return clocking;
 			}
 		  }
+
+		    /* Modport-qualified clocking block: vif.modport.cb. A modport
+		       exposes an interface clocking block (`modport mp(clocking
+		       cb)`); the clocking block itself is an interface-level
+		       construct, so `it` (the modport) followed by `next` (the
+		       clocking block, the final component) resolves to the
+		       interface's clocking block. The modport is not part of the
+		       underlying event-signal path, so the prefix (base_path_
+		       components) stops at the modport. Without this, the generic
+		       event elaboration of `@(vif.mp.cb)` fails and the event is
+		       silently skipped (the wait does not block). */
+		  if (it->index.empty() && next != sr.path_tail.end()
+		      && next->index.empty()) {
+			pform_name_t::const_iterator after = next;
+			++after;
+			if (after == sr.path_tail.end()) {
+			      auto mod_it = pform_modules.find(class_type->get_name());
+			      bool is_modport = (mod_it != pform_modules.end()
+				    && mod_it->second->modports.find(it->name)
+				       != mod_it->second->modports.end());
+			      if (is_modport) {
+				    if (const netclass_t::clocking_block_t*clocking =
+					    class_type->find_clocking_block(next->name)) {
+					  base_path_components = offset;
+					  return clocking;
+				    }
+			      }
+			}
+		  }
 	    }
 
 	    int pidx = class_type->property_idx_from_name(it->name);
