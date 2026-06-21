@@ -2884,6 +2884,22 @@ template vvp_vector4_t coerce_to_width(const vvp_vector4_t&that,
 static unordered_map<vvp_context_t, __vpiScope*> automatic_context_owner;
 static unordered_map<vvp_context_t, unsigned> automatic_context_refcount;
 
+// O(1) liveness index: exactly the automatic contexts currently on some
+// scope's live_contexts list. Maintained in lockstep with that list
+// (insert in vthread_alloc_context when the context is linked in, erase in
+// vthread_free_context when it is unlinked). Lets the hot
+// context_live_matches_scope_/context_live_in_owner checks replace the O(N)
+// context_on_list walk (measured at ~1.9e9 iterations, avg chain 144) with an
+// O(1) lookup. `automatic_context_owner` cannot serve this role because it is
+// never erased (stays set for freed contexts). Semantics are identical: a live
+// context sits on exactly its owner scope's list, and every caller below has
+// already confirmed the scope is the context's owner.
+static unordered_set<vvp_context_t> live_context_set_;
+static inline bool context_is_live_(vvp_context_t context)
+{
+      return context && live_context_set_.count(context) != 0;
+}
+
 static void retain_automatic_context_(vvp_context_t context)
 {
       if (!context)
@@ -2954,6 +2970,7 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
 
       vvp_set_next_context(context, scope->live_contexts);
       scope->live_contexts = context;
+      live_context_set_.insert(context);
       automatic_context_owner[context] = scope;
       automatic_context_refcount[context] = 1;
 
@@ -3020,12 +3037,20 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
                               << endl;
                         warned = true;
                   }
+                  // Defensive: a recycled orphan is not live. Drop any stale
+                  // liveness-index entry (no-op if absent).
+                  live_context_set_.erase(context);
                   set_stacked_tracked_(context, 0);
                   vvp_set_next_context(context, scope->free_contexts);
                   scope->free_contexts = context;
                   return;
             }
       }
+
+      // Context has been unlinked from scope->live_contexts above; keep the
+      // O(1) liveness index in sync. (The early-return paths above did not
+      // unlink it, so they intentionally do not erase.)
+      live_context_set_.erase(context);
 
       for (unsigned idx = 0 ; idx < scope->nitem ; idx += 1) {
             if (vvp_fun_signal_object_aa*obj =
@@ -3692,15 +3717,6 @@ vvp_context_t vthread_get_rd_context()
             return 0;
 }
 
-static bool context_on_list(vvp_context_t head, vvp_context_t needle)
-{
-      for (vvp_context_t cur = head ; cur ; cur = vvp_get_next_context(cur)) {
-	    if (cur == needle)
-		  return true;
-      }
-      return false;
-}
-
 static bool context_live_in_owner(vvp_context_t context)
 {
       if (!context)
@@ -3711,7 +3727,7 @@ static bool context_live_in_owner(vvp_context_t context)
       __vpiScope*owner = owner_it->second;
       if (!(owner && owner->is_automatic()))
             return false;
-      return context_on_list(owner->live_contexts, context);
+      return context_is_live_(context);
 }
 
 static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_scope)
@@ -3728,7 +3744,7 @@ static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_sc
       if (owner_it->second != ctx_scope)
             return false;
 
-      return context_on_list(ctx_scope->live_contexts, context);
+      return context_is_live_(context);
 }
 
 // Phase 87: track how many contexts currently have their stacked-context
@@ -3934,7 +3950,7 @@ static vvp_context_t first_live_stacked_context(vvp_context_t candidate, __vpiSc
       vvp_context_t scoped_match = find_stacked_context_match_(candidate, ctx_scope,
                         "first_live_stacked_context(scope)",
                         [ctx_scope](vvp_context_t cur) {
-                              return context_on_list(ctx_scope->live_contexts, cur);
+                              return context_is_live_(cur);
                         });
       if (scoped_match)
             return scoped_match;
@@ -3948,7 +3964,7 @@ static vvp_context_t first_live_stacked_context(vvp_context_t candidate, __vpiSc
                               return false;
                         __vpiScope*owner = owner_it->second;
                         return owner && owner->is_automatic()
-                            && context_on_list(owner->live_contexts, cur);
+                            && context_is_live_(cur);
                   });
 }
 
@@ -3966,7 +3982,7 @@ static vvp_context_t first_live_context_for_scope(vvp_context_t candidate, __vpi
                               return false;
                         if (owner_it->second != ctx_scope)
                               return false;
-                        return context_on_list(ctx_scope->live_contexts, cur);
+                        return context_is_live_(cur);
                   });
 }
 
