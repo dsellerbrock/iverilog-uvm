@@ -12672,6 +12672,24 @@ subroutine_call
 	delete $2;
 	$$ = tmp;
       }
+  | hierarchy_identifier argument_list_parens '.' IDENTIFIER argument_list_parens_opt
+      { /* Bare chained method-call statement: f(...).method(...). Without
+	   this rule `f(...)` reduces as a complete subroutine_call and the
+	   trailing `.method(...)` cannot attach (the parenthesised form
+	   `(f(...)).method(...)` reaches the expr_primary rule instead). Build
+	   the leading call as a PECallFunction expression and make it the
+	   subject of the method-call statement, matching the semantics path. */
+	PECallFunction*base = new PECallFunction(*$1, *$2);
+	FILE_NAME(base, @1);
+	PCallTask*tmp = new PCallTask(lex_strings.make($4), *$5);
+	tmp->set_subject(base);
+	FILE_NAME(tmp, @4);
+	delete $1;
+	delete $2;
+	delete[]$4;
+	delete $5;
+	$$ = tmp;
+      }
   | package_scope hierarchy_identifier { lex_in_package_scope(0); } argument_list_parens_opt
       { /* Statement form of `pkg::func(args)` — preserves the package
 	   context so symbol_search resolves into the package, not into
