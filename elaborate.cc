@@ -5057,6 +5057,18 @@ NetProc* PContinue::elaborate(Design*des, NetScope*) const
 
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 {
+	// Chained method-call statement (fn().method(args)): the receiver is
+	// the subject expression, not a hierarchical name. Dispatch directly
+	// as a method on the subject's type.
+      if (subject_) {
+	    if (NetProc*tmp = elaborate_method_(des, scope, false))
+		  return tmp;
+	    cerr << get_fileline() << ": error: Unable to elaborate method `"
+		 << peek_tail_name(path_) << "' on the result of a call." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
       if (peek_tail_name(path_)[0] == '$') {
 	    if (void_cast_)
 		  return elaborate_non_void_function_(des, scope);
@@ -5918,82 +5930,104 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		 << endl;
       }
 
-	// There is no signal to search for so this cannot be a method.
-      if (use_path.empty()) return 0;
+      NetExpr*obj_expr = nullptr;
+      ivl_type_t obj_type = nullptr;
+      NetNet*net = nullptr;
 
-	// Search for an object using the use_path. This should
-	// resolve to a class object. Note that the "this" symbol
-	// (internally represented as "@") is handled by there being a
-	// "this" object in the instance scope.
-      symbol_search_results sr;
-      symbol_search(this, des, search_scope, use_path, UINT_MAX, &sr);
-
-      if (!package_ && sr.net == 0 && use_path.size() >= 2) {
-	    pform_name_t pkg_use_path = use_path;
-	    perm_string pkg_name = pkg_use_path.front().name;
-
-	    for (NetScope*pkg_scope : des->find_package_scopes()) {
-		  if (pkg_scope->basename() != pkg_name)
-			continue;
-
-		  pkg_use_path.pop_front();
-		  symbol_search(this, des, pkg_scope, pkg_use_path, UINT_MAX, &sr);
-		  if (sr.net != 0)
-			break;
-	    }
-      }
-
-      NetNet*net = sr.net;
-      if (net == 0) {
-	    if (NetScope*static_method = resolve_scoped_class_method_task_(des, search_scope,
-								       use_path, method_name,
-								       leading_type_args())) {
-		  return elaborate_build_call_(des, scope, static_method, nullptr);
-	    }
-	    return 0;
-      }
-
-      NetExpr*obj_expr = new NetESignal(net);
-      obj_expr->set_line(*this);
-      ivl_type_t obj_type = sr.type? sr.type : net->net_type();
-      // For unpacked arrays: net_type() returns the element type but
-      // array_type() returns the netuarray_t container; prefer the latter.
-      if (!dynamic_cast<const netdarray_t*>(obj_type)
-	  && !dynamic_cast<const netuarray_t*>(obj_type)) {
-	    if (const netarray_t*arr = net->array_type())
-		  obj_type = arr;
-      }
-
-      if (!sr.path_head.empty() && !sr.path_head.back().index.empty()) {
-	    obj_expr = elaborate_root_indexed_method_target_expr_(this, des, scope,
-								  obj_expr, obj_type,
-								  sr.path_head.back().index,
-								  method_name,
-								  obj_type);
-	    if (!obj_expr)
+      if (subject_) {
+	      // Chained method-call statement: the receiver is an arbitrary
+	      // expression (e.g. fn().method(args) or obj.get().method()).
+	      // Mirror the expression-context handling in
+	      // PECallFunction::elaborate_expr: elaborate the subject to a
+	      // NetExpr and dispatch the method on its type. path_ holds only
+	      // the trailing method name in this form, so use_path is empty.
+	    ivl_assert(*this, use_path.empty());
+	    obj_expr = subject_->elaborate_expr(des, scope, -1, 0);
+	    if (obj_expr == 0)
 		  return 0;
-      }
+	    obj_type = obj_expr->net_type();
+	    if (obj_type == 0) {
+		  delete obj_expr;
+		  return 0;
+	    }
+      } else {
+	      // There is no signal to search for so this cannot be a method.
+	    if (use_path.empty()) return 0;
 
-      if (!sr.path_tail.empty()) {
-	    while (!sr.path_tail.empty()) {
-		  const netclass_t*class_type = dynamic_cast<const netclass_t*>(obj_type);
-		  const name_component_t&comp = sr.path_tail.front();
-		  if (!class_type) {
-			delete obj_expr;
-			return 0;
+	      // Search for an object using the use_path. This should
+	      // resolve to a class object. Note that the "this" symbol
+	      // (internally represented as "@") is handled by there being a
+	      // "this" object in the instance scope.
+	    symbol_search_results sr;
+	    symbol_search(this, des, search_scope, use_path, UINT_MAX, &sr);
+
+	    if (!package_ && sr.net == 0 && use_path.size() >= 2) {
+		  pform_name_t pkg_use_path = use_path;
+		  perm_string pkg_name = pkg_use_path.front().name;
+
+		  for (NetScope*pkg_scope : des->find_package_scopes()) {
+			if (pkg_scope->basename() != pkg_name)
+			      continue;
+
+			pkg_use_path.pop_front();
+			symbol_search(this, des, pkg_scope, pkg_use_path, UINT_MAX, &sr);
+			if (sr.net != 0)
+			      break;
 		  }
-		  obj_expr = elaborate_nested_method_target_property_task_(this, des, scope,
-									   obj_expr, class_type,
-									   comp, method_name,
-									   obj_type);
+	    }
+
+	    net = sr.net;
+	    if (net == 0) {
+		  if (NetScope*static_method = resolve_scoped_class_method_task_(des, search_scope,
+									     use_path, method_name,
+									     leading_type_args())) {
+			return elaborate_build_call_(des, scope, static_method, nullptr);
+		  }
+		  return 0;
+	    }
+
+	    obj_expr = new NetESignal(net);
+	    obj_expr->set_line(*this);
+	    obj_type = sr.type? sr.type : net->net_type();
+	      // For unpacked arrays: net_type() returns the element type but
+	      // array_type() returns the netuarray_t container; prefer the latter.
+	    if (!dynamic_cast<const netdarray_t*>(obj_type)
+		&& !dynamic_cast<const netuarray_t*>(obj_type)) {
+		  if (const netarray_t*arr = net->array_type())
+			obj_type = arr;
+	    }
+
+	    if (!sr.path_head.empty() && !sr.path_head.back().index.empty()) {
+		  obj_expr = elaborate_root_indexed_method_target_expr_(this, des, scope,
+									obj_expr, obj_type,
+									sr.path_head.back().index,
+									method_name,
+									obj_type);
 		  if (!obj_expr)
 			return 0;
+	    }
 
-		  sr.path_tail.pop_front();
+	    if (!sr.path_tail.empty()) {
+		  while (!sr.path_tail.empty()) {
+			const netclass_t*class_type = dynamic_cast<const netclass_t*>(obj_type);
+			const name_component_t&comp = sr.path_tail.front();
+			if (!class_type) {
+			      delete obj_expr;
+			      return 0;
+			}
+			obj_expr = elaborate_nested_method_target_property_task_(this, des, scope,
+										 obj_expr, class_type,
+										 comp, method_name,
+										 obj_type);
+			if (!obj_expr)
+			      return 0;
+
+			sr.path_tail.pop_front();
+		  }
 	    }
       }
 
-      if (debug_elaborate) {
+      if (net && debug_elaborate) {
 	    cerr << get_fileline() << ": PCallTask::elaborate_method_: "
 		 << "Try to match method " << method_name
 		 << " of object " << net->name()

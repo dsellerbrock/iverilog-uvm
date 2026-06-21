@@ -12885,6 +12885,7 @@ subroutine_call
 	   Otherwise fall back to a name-only call (UVM, queue helpers, etc.
 	   work via the symbol_search inside elaborate_method_). */
 	PCallTask*tmp = nullptr;
+	bool subject_kept = false;
 	PEIdent*pid = dynamic_cast<PEIdent*>($1);
 	if (pid && !pid->path().package) {
 	      pform_name_t hident = pid->path().name;
@@ -12895,10 +12896,16 @@ subroutine_call
 	      hident.push_back(name_component_t(lex_strings.make($3)));
 	      tmp = new PCallTask(pid->path().package, hident, *$4);
 	} else {
+	      /* Chained method-call statement on a non-name expression
+		 (e.g. fn().method(args)): keep the receiver expression as the
+		 call's subject so the method dispatches on its type, instead
+		 of dropping it and treating the method as a bare task name. */
 	      tmp = new PCallTask(lex_strings.make($3), *$4);
+	      tmp->set_subject($1);
+	      subject_kept = true;
 	}
 	FILE_NAME(tmp, @2);
-	delete $1;
+	if (!subject_kept) delete $1;
 	delete[]$3;
 	delete $4;
 	$$ = tmp;

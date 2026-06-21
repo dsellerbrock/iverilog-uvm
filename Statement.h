@@ -265,6 +265,13 @@ class PCallTask  : public Statement {
       const struct parmvalue_t* leading_type_args() const
             { return leading_type_args_; }
 
+      /* Chained method-call statement: the receiver is an arbitrary
+         expression (e.g. fn().method(args)) rather than a hierarchical
+         name. When set, path_ holds only the trailing method name and the
+         method is dispatched on the type of this subject expression. */
+      void set_subject(PExpr*e) { subject_ = e; }
+      const PExpr* subject() const { return subject_; }
+
     private:
       NetProc* elaborate_sys(Design*des, NetScope*scope) const;
       NetProc* elaborate_usr(Design*des, NetScope*scope) const;
@@ -304,6 +311,7 @@ class PCallTask  : public Statement {
       struct parmvalue_t*leading_type_args_ = 0;
       bool void_cast_ = false;
       std::vector<PExpr*> with_constraints_;
+      PExpr* subject_ = nullptr;
 };
 
 class PCase  : public Statement {
