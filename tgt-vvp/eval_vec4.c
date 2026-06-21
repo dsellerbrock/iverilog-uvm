@@ -1765,6 +1765,18 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%inside/arr v%p_0;\n", ivl_expr_signal(arr_arg));
 		  return;
 	    }
+	    /* Object form: the array is a queue/darray container that is not a
+	       plain signal (e.g. a queue class property reached through an
+	       associative-array element, cfg.ral_models[name].csr_addrs). Push
+	       the value, push the array object, then use %%inside/arr/o. */
+	    if (arr_arg && val_arg
+		&& (expr_is_queue_container_(arr_arg)
+		    || expr_is_darray_container_(arr_arg))) {
+		  draw_eval_vec4(val_arg);
+		  draw_eval_object(arr_arg);
+		  fprintf(vvp_out, "    %%inside/arr/o;\n");
+		  return;
+	    }
 	    /* Fallback: push 0 (no match) */
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
 	    return;

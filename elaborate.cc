@@ -9036,6 +9036,29 @@ static bool foreach_target_is_non_simple_(const pform_name_t&array_path)
       return true;
 }
 
+// A hierarchical foreach target with a fixed index on a non-final component,
+// e.g. `cfg.ral_models[name].csr_addrs`. The iterated array (the last
+// component) is itself unindexed, while an earlier component carries a fixed
+// (non-loop) index that selects into an array/associative array. These can be
+// elaborated as a target expression (PEIdent handles the indexed chain) and
+// then dispatched by the resulting type, like the pure-dotted case.
+static bool foreach_target_is_hier_indexed_(const pform_name_t&array_path)
+{
+      if (array_path.size() <= 1)
+	    return false;
+      if (!array_path.back().index.empty())
+	    return false;
+
+      pform_name_t::const_iterator last = array_path.end();
+      --last;
+      for (pform_name_t::const_iterator cur = array_path.begin()
+		 ; cur != last ; ++cur) {
+	    if (!cur->index.empty())
+		  return true;
+      }
+      return false;
+}
+
 static NetExpr* elaborate_foreach_target_expr_(Design*des,
 					       const LineInfo&li,
 					       unsigned lexical_pos,
@@ -9044,7 +9067,8 @@ static NetExpr* elaborate_foreach_target_expr_(Design*des,
 					       ivl_type_t&ptype)
 {
       ptype = 0;
-      if (!foreach_target_is_non_simple_(array_path))
+      if (!foreach_target_is_non_simple_(array_path)
+	  && !foreach_target_is_hier_indexed_(array_path))
 	    return 0;
 
       PEIdent ident(array_path, lexical_pos);
@@ -9068,7 +9092,8 @@ static NetExpr* elaborate_foreach_target_expr_(Design*des,
  */
 NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 {
-      if (foreach_target_is_non_simple_(array_path_)) {
+      if (foreach_target_is_non_simple_(array_path_)
+	  || foreach_target_is_hier_indexed_(array_path_)) {
 	    ivl_type_t ptype = 0;
 	    NetExpr*array_expr = elaborate_foreach_target_expr_(
 		  des, *this, lexical_pos_, scope, array_path_, ptype);

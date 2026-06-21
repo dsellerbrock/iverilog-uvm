@@ -2312,6 +2312,17 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 			      is_array_sig = true;
 			}
 		  }
+		  /* Also handle array/queue-typed expressions that are not plain
+		     signals, e.g. a queue/darray class property reached through an
+		     associative-array element (cfg.ral_models[name].csr_addrs).
+		     netarray_t covers static unpacked arrays, dynamic arrays, and
+		     queues (netqueue_t : netdarray_t : netarray_t); a packed
+		     vector is not a netarray_t so scalars stay scalars. */
+		  if (!is_array_sig) {
+			ivl_type_t itype = item->net_type();
+			if (itype && dynamic_cast<const netarray_t*>(itype))
+			      is_array_sig = true;
+		  }
 
 		  if (is_array_sig) {
 			NetESFunc*sys = new NetESFunc("$ivl_inside_arr",
