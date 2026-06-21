@@ -1839,7 +1839,7 @@ static Statement* lower_randsequence_(const char* start_name,
 %left K_PIPE_IMPL_OV K_PIPE_IMPL_NOV
 %left K_and K_or K_intersect K_throughout K_within
 %right K_TRIGGER K_LEQUIV
-%right '?' ':' K_inside
+%right '?' ':'
 %left K_matches
 %left K_LOR
 %left K_LAND
@@ -1847,7 +1847,10 @@ static Statement* lower_randsequence_(const char* start_name,
 %left '^' K_NXOR K_NOR
 %left '&' K_NAND
 %left K_EQ K_NE K_CEQ K_CNE K_WEQ K_WNE
-%left K_GE K_LE '<' '>'
+/* IEEE 1800-2017 Table 11-2: `inside` has relational precedence (above ==,
+ * &&, ||), not the ternary level it was previously declared at. Otherwise
+ * `a || b inside {s}` wrongly parsed as `(a || b) inside {s}`. */
+%left K_GE K_LE '<' '>' K_inside
 %left K_LS K_RS K_RSS
 %left '+' '-'
 %left '*' '/' '%'
