@@ -2411,6 +2411,39 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			return errors;
 		  }
 
+		  /* Part/bit-select of a WORD-INDEXED property element, e.g. an
+		     unpacked-array class property `bit[63:0] a[N]` assigned as
+		     `a[i][31:0] = ...` or `a[i][j] = ...`. Read-modify-write via
+		     %store/prop/v/i/bits, which takes the array index and the bit
+		     offset (possibly a runtime value) in registers. */
+		  if (part_off_ex && idx_expr) {
+			/* pid and wid are packed into the opcode number as
+			   (pid | wid<<16); guard the 16-bit field assumption. */
+			assert(prop_idx >= 0 && prop_idx < 0x10000 && lwid < 0x10000);
+			int rmw_idx = allocate_word();
+			draw_eval_expr_into_integer(idx_expr, rmw_idx);
+			int rmw_off = allocate_word();
+			draw_eval_expr_into_integer(part_off_ex, rmw_off);
+			draw_eval_vec4(rval);
+			draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
+						       ivl_expr_signed(rval));
+			fprintf(vvp_out,
+				"    %%store/prop/v/i/bits %lu, %d, %d;"
+				" Store [off r%d +: %u] of element of property %s\n",
+				((unsigned long)prop_idx) | (((unsigned long)lwid) << 16),
+				rmw_idx, rmw_off, rmw_off, lwid,
+				ivl_type_prop_name(sig_type, prop_idx));
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			clr_word(rmw_idx);
+			clr_word(rmw_off);
+			/* null-guard epilogue (mirror the /bits case). */
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			return errors;
+		  }
+
 		  if (idx_expr) {
 			prop_word_idx = allocate_word();
 			draw_eval_expr_into_integer(idx_expr, prop_word_idx);

@@ -14666,6 +14666,70 @@ bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %store/prop/v/i/bits <pid|wid<<16>, <idx-reg>, <bitoff-reg>
+ *
+ * Read-modify-write a part/bit field of a WORD-INDEXED vec4 property element,
+ * e.g. an unpacked-array class property `bit[63:0] a[N]` assigned as
+ * `a[i][bitoff +: wid] = ...`. Pops <wid> bits from the vec4 stack; reads the
+ * current element a[idx] (idx from <idx-reg>); replaces bits
+ * [bitoff + wid-1 : bitoff] (bitoff from <bitoff-reg>, may be a runtime index);
+ * writes the modified word back. Works for both cobjects and VIFs.
+ * Encoding: cp->number = pid | (wid<<16) (pid,wid each < 65536);
+ *           cp->bit_idx[0] = idx register; cp->bit_idx[1] = bitoff register.
+ */
+bool of_STORE_PROP_V_I_BITS(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid    = (unsigned)(cp->number & 0xffff);
+      unsigned wid    = (unsigned)((cp->number >> 16) & 0xffff);
+      size_t idx_reg  = cp->bit_idx[0];
+      size_t off_reg  = cp->bit_idx[1];
+
+      vvp_vector4_t new_val;
+      pop_prop_val(thr, new_val, wid);
+
+      assert(idx_reg < vthread_s::WORDS_COUNT);
+      assert(off_reg < vthread_s::WORDS_COUNT);
+      size_t   idx    = thr->words[idx_reg].w_uint;
+      unsigned bitoff = thr->words[off_reg].w_uint;
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%store/prop/v/i/bits", pid, idx, obj, has_propobj);
+      if (!has_propobj) {
+	    if (!warned_store_prop_fallback) {
+		  cerr << thr->get_fileline()
+		       << "Warning: cannot store into null/uninitialized class object"
+		       << " (property " << pid << ", idx=" << idx << "); skipping further similar stores."
+		       << endl;
+		  warned_store_prop_fallback = true;
+	    }
+	    return true;
+      }
+
+      vvp_vector4_t current;
+      if (cobj)
+	    cobj->get_vec4(pid, current, idx);
+      else
+	    vif->get_vec4(pid, current, idx);
+
+      /* Merge new_val bits into current at [bitoff .. bitoff+wid-1]. */
+      for (unsigned i = 0; i < wid; i++) {
+	    if (bitoff + i < current.size())
+		  current.set_bit(bitoff + i, new_val.value(i));
+      }
+
+      if (cobj)
+	    set_val(cobj, pid, current, idx);
+      else
+	    set_val(vif, pid, current, idx);
+      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+                                  thr->peek_object_root(0), "store-prop-idx-bits");
+      return true;
+}
+
 template <typename ELEM, class QTYPE>
 static bool store_qb(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {

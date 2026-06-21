@@ -1608,10 +1608,27 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 	    NetExpr *word_index = nullptr;
 	    bool applied_multi_dyn_word_index = false;
+	    std::list<index_component_t> elem_part_indices;
 	    if (!member_cur.index.empty()) {
 		  if (const netsarray_t *stype = dynamic_cast<const netsarray_t*>(ptype)) {
-			word_index = make_canonical_index(des, scope, this,
-							  member_cur.index, stype, false);
+			const size_t ndims = stype->static_dimensions().size();
+			if (member_cur.index.size() > ndims) {
+			      // a[i][part]: the first ndims components index the
+			      // unpacked array; the remaining trailing components
+			      // are a part/bit-select on the packed element, e.g.
+			      // `bit[63:0] a[N]` assigned as `a[i][31:0] = ...`.
+			      std::list<index_component_t> array_idx(
+				    member_cur.index.begin(),
+				    std::next(member_cur.index.begin(), ndims));
+			      word_index = make_canonical_index(des, scope, this,
+								array_idx, stype, false);
+			      elem_part_indices.assign(
+				    std::next(member_cur.index.begin(), ndims),
+				    member_cur.index.end());
+			} else {
+			      word_index = make_canonical_index(des, scope, this,
+								member_cur.index, stype, false);
+			}
 
 		  } else if (dynamic_cast<const netdarray_t*>(ptype)) {
 			size_t idx_pos = 0;
@@ -1692,7 +1709,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			}
 		  }
 
-		  if (!member_cur.index.empty() && dims.size() != member_cur.index.size()) {
+		  if (!member_cur.index.empty() && member_cur.index.size() < dims.size()) {
 			cerr << get_fileline() << ": error: "
 			     << "Got " << member_cur.index.size() << " indices, "
 			     << "expecting " << dims.size()
@@ -1703,6 +1720,41 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 	    if (word_index)
 		  lv->set_word(word_index);
+
+	      // Apply a trailing part/bit-select on the (packed) array element,
+	      // e.g. `bit[63:0] a[N]` assigned as `a[i][31:0] = ...`. The array
+	      // word was selected above (set_word); now narrow to the element
+	      // bits. Assumes a zero-based packed element range (the common case).
+	    for (const auto&pc : elem_part_indices) {
+		  if (pc.sel == index_component_t::SEL_PART) {
+			NetExpr*msb_e = elab_and_eval(des, scope, pc.msb, -1);
+			NetExpr*lsb_e = elab_and_eval(des, scope, pc.lsb, -1);
+			long msb_v = 0, lsb_v = 0;
+			if (msb_e && lsb_e
+			    && eval_as_long(msb_v, msb_e)
+			    && eval_as_long(lsb_v, lsb_e)) {
+			      long base_v = (msb_v >= lsb_v) ? lsb_v : msb_v;
+			      unsigned w = (msb_v >= lsb_v)
+				    ? (unsigned)(msb_v - lsb_v + 1)
+				    : (unsigned)(lsb_v - msb_v + 1);
+			      // Use the data-type form so the l-value's net_type()
+			      // is the packed part (not null), otherwise PAssign
+			      // sees the target as the enclosing object and nulls
+			      // the r-value.
+			      ivl_type_t pt = new netvector_t(IVL_VT_LOGIC,
+							      (long)w - 1, 0L);
+			      lv->set_part(new NetEConst(verinum(base_v)), pt);
+			}
+			delete msb_e;
+			delete lsb_e;
+		  } else if (pc.sel == index_component_t::SEL_BIT) {
+			NetExpr*bit_e = elab_and_eval(des, scope, pc.msb, -1);
+			if (bit_e) {
+			      ivl_type_t pt = new netvector_t(IVL_VT_LOGIC, 0L, 0L);
+			      lv->set_part(bit_e, pt);
+			}
+		  }
+	    }
 
 	      // The next-step type must come from the l-value node after any
 	      // property and index selections are applied (e.g. m_events[obj]
