@@ -5778,14 +5778,6 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		  const netstruct_t*cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
 		  
 		  if (cur_struct && gn_system_verilog()) {
-			    // Handle struct member access after array indexing
-			if (!tail_comp.index.empty()) {
-			      delete base_expr;
-			      cerr << get_fileline() << ": sorry: "
-				   << "Indexed struct member access not yet supported."
-				   << endl;
-			      return nullptr;
-			}
 			
 			unsigned long member_off = 0;
 			const netstruct_t::member_t*member = cur_struct->packed_member(tail_comp.name, member_off);
@@ -5797,6 +5789,37 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			      return nullptr;
 			}
 			
+			// Indexed access to an UNPACKED struct member that is an
+			// array/queue/assoc (struct.r[key]).  The member is modeled
+			// as a NetEProperty; the elaborated index is the property
+			// element-select.
+			if (!tail_comp.index.empty() && !cur_struct->packed()) {
+			      const std::vector<netstruct_t::member_t>&umembers = cur_struct->members();
+			      size_t member_idx = member - &umembers.front();
+			      const index_component_t&ixc = tail_comp.index.front();
+			      NetExpr*ixe = elab_and_eval(des, scope, ixc.msb, -1, false);
+			      if (!ixe) { delete base_expr; return nullptr; }
+			      NetEProperty*iprop = new NetEProperty(base_expr, member_idx, ixe);
+			      iprop->set_line(*this);
+			      base_expr = iprop;
+			      ivl_type_t mt = member->net_type;
+			      if (const netarray_t*ar = dynamic_cast<const netarray_t*>(mt))
+				    cur_type = ar->element_type();
+			      else if (const netdarray_t*dr = dynamic_cast<const netdarray_t*>(mt))
+				    cur_type = dr->element_type();
+			      else if (const netqueue_t*qr = dynamic_cast<const netqueue_t*>(mt))
+				    cur_type = qr->element_type();
+			      else
+				    cur_type = mt;
+			      continue;
+			}
+			if (!tail_comp.index.empty()) {
+			      delete base_expr;
+			      cerr << get_fileline() << ": sorry: "
+				   << "Indexed struct member access not yet supported."
+				   << endl;
+			      return nullptr;
+			}
 			cur_type = member->net_type;
 			if (cur_struct->packed()) {
 			      unsigned long member_width = cur_type->packed_width();
