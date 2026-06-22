@@ -1242,7 +1242,26 @@ static void draw_select_vec4(ivl_expr_t expr)
       if (ivl_expr_value(subexpr)==IVL_VT_DARRAY) {
 	    ivl_signal_t sig = ivl_expr_signal(subexpr);
             ivl_type_t net_type;
-	    assert(sig);
+	    if (!sig) {
+		  /* The dynamic-array/queue being indexed is not a plain
+		   * signal (e.g. a class property `obj.arr[i]`, or another
+		   * indexed element). Evaluate it as an object and load the
+		   * element from the object on the stack. %load/dar/obj/vec4
+		   * peeks the base vvp_darray, so it works for both dynamic
+		   * arrays and queues. (Non-signal assoc-compat queues are
+		   * handled by the queue-container branch above, so a null-sig
+		   * darray here is a plain, integer-indexed container.) */
+		  assert(base);
+		  int idx_word = allocate_word();
+		  draw_eval_object(subexpr);
+		  draw_eval_expr_into_integer(base, idx_word);
+		  fprintf(vvp_out, "    %%load/dar/obj/vec4 %d;\n", idx_word);
+		  if (ivl_expr_value(expr) == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2;\n");
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  clr_word(idx_word);
+		  return;
+	    }
             net_type = ivl_signal_net_type(sig);
 	    assert( (ivl_signal_data_type(sig)==IVL_VT_DARRAY)
 		    || (ivl_signal_data_type(sig)==IVL_VT_QUEUE) );
