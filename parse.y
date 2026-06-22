@@ -3805,19 +3805,19 @@ covergroup_item_list
 
 /* Labeled coverpoint: "cp: coverpoint expr { ... }" */
 covergroup_item
-  : IDENTIFIER ':' K_coverpoint expression '{' bins_item_list_opt '}'
+  : IDENTIFIER ':' K_coverpoint expression cross_iff_opt '{' bins_item_list_opt '}'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = lex_strings.make($1);
 	cp->expr  = $4;
-	if ($6) {
-	      for (auto* b : *$6) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
-	      delete $6;
+	if ($7) {
+	      for (auto* b : *$7) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $7;
 	}
 	delete[] $1;
 	$$ = cp;
       }
   /* Labeled coverpoint without bins block: "cp: coverpoint expr;" (auto-bins) */
-  | IDENTIFIER ':' K_coverpoint expression ';'
+  | IDENTIFIER ':' K_coverpoint expression cross_iff_opt ';'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = lex_strings.make($1);
 	cp->expr  = $4;
@@ -3825,18 +3825,18 @@ covergroup_item
 	$$ = cp;
       }
   /* Unlabeled coverpoint: "coverpoint expr { ... }" */
-  | K_coverpoint expression '{' bins_item_list_opt '}'
+  | K_coverpoint expression cross_iff_opt '{' bins_item_list_opt '}'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = perm_string::literal("cp");
 	cp->expr  = $2;
-	if ($4) {
-	      for (auto* b : *$4) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
-	      delete $4;
+	if ($5) {
+	      for (auto* b : *$5) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $5;
 	}
 	$$ = cp;
       }
   /* Unlabeled coverpoint without bins block: "coverpoint expr;" (auto-bins) */
-  | K_coverpoint expression ';'
+  | K_coverpoint expression cross_iff_opt ';'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = perm_string::literal("cp");
 	cp->expr  = $2;
@@ -3850,61 +3850,61 @@ covergroup_item
      Body items (illegal_bins / ignore_bins / bins) are still dropped — the
      auto-bin generation in elaboration only handles the simple cartesian
      product case for now. */
-  | K_cross cross_item_list ';'
+  | K_cross cross_item_list cross_iff_opt ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = perm_string();
 	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
 	pending_crosses_.push_back(std::move(cx));
 	delete $2;
 	$$ = nullptr; }
-  | K_cross cross_item_list '{' cross_body_opt '}'
+  | K_cross cross_item_list cross_iff_opt '{' cross_body_opt '}'
       { class_type_t::pform_cross_t cx;
 	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
 	pending_crosses_.push_back(std::move(cx));
 	delete $2;
 	$$ = nullptr; }
-  | K_cross cross_item_list '{' cross_body_opt '}' ';'
+  | K_cross cross_item_list cross_iff_opt '{' cross_body_opt '}' ';'
       { class_type_t::pform_cross_t cx;
 	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
 	pending_crosses_.push_back(std::move(cx));
 	delete $2;
 	$$ = nullptr; }
-  | IDENTIFIER ':' K_cross cross_item_list ';'
+  | IDENTIFIER ':' K_cross cross_item_list cross_iff_opt ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1; delete $4;
 	$$ = nullptr; }
-  | TYPE_IDENTIFIER ':' K_cross cross_item_list ';'
+  | TYPE_IDENTIFIER ':' K_cross cross_item_list cross_iff_opt ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1.text);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1.text; delete $4;
 	$$ = nullptr; }
-  | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}'
+  | IDENTIFIER ':' K_cross cross_item_list cross_iff_opt '{' cross_body_opt '}'
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1; delete $4;
 	$$ = nullptr; }
-  | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' ';'
+  | IDENTIFIER ':' K_cross cross_item_list cross_iff_opt '{' cross_body_opt '}' ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1; delete $4;
 	$$ = nullptr; }
-  | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}'
+  | TYPE_IDENTIFIER ':' K_cross cross_item_list cross_iff_opt '{' cross_body_opt '}'
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1.text);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1.text; delete $4;
 	$$ = nullptr; }
-  | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' ';'
+  | TYPE_IDENTIFIER ':' K_cross cross_item_list cross_iff_opt '{' cross_body_opt '}' ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1.text);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
@@ -4078,6 +4078,14 @@ bins_item
       { yyerrok; $$ = nullptr; }
   ;
 
+/* cross_iff_opt: optional "iff (expr)" guard on a cross. The guard only gates
+   coverage sampling, which is a no-op here, so the expression is discarded. */
+cross_iff_opt
+  : /* empty */
+  | K_iff '(' expression ')'
+      { delete $3; }
+  ;
+
 /* cross_item_list: comma-separated list of coverpoint names for 'cross'.
    I1 (Phase 62g): captures the names so the surrounding cross-declaration
    action can store them on pform_covergroup_t. */
@@ -4130,11 +4138,18 @@ transition_seq_list
   | transition_seq_list ',' '(' transition_list ')'
   ;
 
-/* transition_list: list of values separated by => for transition bins */
+/* transition_list: value-sets separated by => for transition bins. Each step
+   is a comma-separated set of trans ranges, e.g. (A, B => C, D => E). All
+   discarded (coverage is parse-and-ignore). */
 transition_list
-  : expression K_EG expression
-      { delete $1; delete $3; }
-  | transition_list K_EG expression
+  : trans_range_set K_EG trans_range_set
+  | transition_list K_EG trans_range_set
+  ;
+
+trans_range_set
+  : expression
+      { delete $1; }
+  | trans_range_set ',' expression
       { delete $3; }
   ;
 
