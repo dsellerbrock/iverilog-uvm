@@ -1155,14 +1155,46 @@ static int eval_object_array_pattern(ivl_expr_t expr)
 		case IVL_VT_CLASS:
 		case IVL_VT_DARRAY:
 		case IVL_VT_QUEUE:
-		case IVL_VT_NO_TYPE:
+		case IVL_VT_NO_TYPE: {
+		  /* Is any operand itself a queue/darray collection?  Then this
+		     is a concatenation {q1,q2,...} whose element lists must be
+		     spliced, not a plain element pattern '{a,b,...}. */
+		  int any_collection = 0;
 		  for (idx = 0 ; idx < nparm ; idx += 1) {
-			draw_eval_object(ivl_expr_parm(expr, idx));
-			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-			fprintf(vvp_out, "    %%set/dar/obj/obj 3;\n");
-			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			ivl_type_t pt = ivl_expr_net_type(ivl_expr_parm(expr, idx));
+			if (pt && (ivl_type_base(pt) == IVL_VT_QUEUE
+				   || ivl_type_base(pt) == IVL_VT_DARRAY)) {
+			      any_collection = 1;
+			      break;
+			}
+		  }
+		  if (any_collection && ivl_type_base(net_type) == IVL_VT_QUEUE) {
+			/* Queue-of-objects concatenation: append each operand's
+			   elements to the destination queue (left on the object
+			   stack by %new/queue). */
+			for (idx = 0 ; idx < nparm ; idx += 1) {
+			      draw_eval_object(ivl_expr_parm(expr, idx));
+			      fprintf(vvp_out, "    %%append/qobj/stk/obj;\n");
+			}
+		  } else {
+			if (any_collection)
+			      fprintf(stderr, "%s:%u: vvp.tgt sorry: concatenation "
+				      "of collections into a dynamic array is not yet "
+				      "supported.\n", ivl_expr_file(expr),
+				      ivl_expr_lineno(expr));
+			/* Plain object element pattern.  %set/dar/obj/obj already
+			   pops the value and leaves the container on the stack, so
+			   no %pop/obj follows (an earlier %pop/obj here wrongly
+			   popped the container and broke every pattern with two or
+			   more elements). */
+			for (idx = 0 ; idx < nparm ; idx += 1) {
+			      draw_eval_object(ivl_expr_parm(expr, idx));
+			      fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+			      fprintf(vvp_out, "    %%set/dar/obj/obj 3;\n");
+			}
 		  }
 		  break;
+		}
 		default:
 		  fprintf(stderr, "Warning: object array-pattern: unsupported "
 			  "element type %d; emitting empty darray\n",

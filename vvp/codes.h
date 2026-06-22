@@ -118,6 +118,7 @@ extern bool of_ALLOC(vthread_t thr, vvp_code_t code);
 extern bool of_AND(vthread_t thr, vvp_code_t code);
 extern bool of_ANDR(vthread_t thr, vvp_code_t code);
 extern bool of_APPEND_QOBJ_OBJ(vthread_t thr, vvp_code_t code);
+extern bool of_APPEND_QOBJ_STK_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_APPEND_QV_V(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE_PEEKOBJ(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE_FROM_PEEKOBJ(vthread_t thr, vvp_code_t code);

@@ -179,6 +179,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%and",    of_AND,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%and/r",  of_ANDR,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%append/qobj/obj", of_APPEND_QOBJ_OBJ, 2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
+      { "%append/qobj/stk/obj", of_APPEND_QOBJ_STK_OBJ, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%append/qv/v",    of_APPEND_QV_V,     3, {OA_FUNC_PTR, OA_BIT1, OA_BIT2} },
       { "%assign/ar",of_ASSIGN_AR,2,{OA_ARR_PTR,OA_BIT1,     OA_NONE} },
       { "%assign/ar/d",of_ASSIGN_ARD,2,{OA_ARR_PTR,OA_BIT1,  OA_NONE} },

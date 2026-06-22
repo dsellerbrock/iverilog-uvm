@@ -15459,6 +15459,42 @@ bool of_APPEND_QOBJ_OBJ(vthread_t thr, vvp_code_t cp)
       return append_qobj<vvp_object_t, vvp_queue_object>(thr, cp);
 }
 
+/*
+ * %append/qobj/stk/obj
+ *
+ * Build a queue-of-objects concatenation as an object-stack value (used when
+ * the l-value is a class property, so there is no destination signal for
+ * %append/qobj/obj).  Pop a source operand from the object-stack top; the
+ * destination queue-object (created by %new/queue) is the next entry and is
+ * left in place.  If the source is itself a queue/dynamic-array, append all of
+ * its elements; otherwise treat it as a single object element and push it back.
+ * A null source contributes nothing (matches concatenating an empty queue).
+ */
+bool of_APPEND_QOBJ_STK_OBJ(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t src;
+      thr->pop_object(src);
+
+      vvp_object_t&dst = thr->peek_object();
+      vvp_queue*dq = dst.peek<vvp_queue>();
+      assert(dq);
+      vvp_queue_object*dqo = static_cast<vvp_queue_object*>(dq);
+
+      if (src.test_nil())
+            return true;
+
+      if (vvp_queue*src_queue = src.peek<vvp_queue>())
+            append_qobj_elements_<vvp_object_t, vvp_queue_object, vvp_queue>(
+                  dqo, src_queue, 0, 0);
+      else if (vvp_darray*src_darray = src.peek<vvp_darray>())
+            append_qobj_elements_<vvp_object_t, vvp_queue_object, vvp_darray>(
+                  dqo, src_darray, 0, 0);
+      else
+            dqo->push_back(src, 0);
+
+      return true;
+}
+
 /* %append/qv/v <var>, max_idx, wid
  * Pop a queue object from the obj stack; append each vec4 element to <var>. */
 bool of_APPEND_QV_V(vthread_t thr, vvp_code_t cp)
