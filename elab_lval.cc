@@ -1567,11 +1567,11 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      if (pit != pclass->type->properties.end() && pit->second.type) {
 				    perm_string resolved_name;
 				    if (const typeref_t*tref =
-					  dynamic_cast<const typeref_t*>(pit->second.type.get())) {
+					  dynamic_cast<const typeref_t*>(pit->second.type)) {
 					  if (tref->typedef_ref())
 						resolved_name = tref->typedef_ref()->name;
 				    } else if (const class_type_t*ct =
-					  dynamic_cast<const class_type_t*>(pit->second.type.get())) {
+					  dynamic_cast<const class_type_t*>(pit->second.type)) {
 					  resolved_name = ct->name;
 				    }
 				    if (!resolved_name.nil()) {

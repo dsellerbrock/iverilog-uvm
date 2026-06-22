@@ -586,12 +586,12 @@ static const data_type_t* find_foreach_simple_class_property_index_type_(
                   std::map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
                         pclass->type->properties.find(name);
                   if (pcur != pclass->type->properties.end()
-                      && pcur->second.type.get())
+                      && pcur->second.type)
                         // Return the property's full data_type_t; the caller
                         // (find_foreach_class_property_index_type_) extracts
                         // the index dimension via
                         // find_foreach_assoc_index_type_in_data_type_.
-                        return pcur->second.type.get();
+                        return pcur->second.type;
             }
             search_class = search_class->get_super();
       }
@@ -609,7 +609,7 @@ static const data_type_t* find_foreach_simple_class_property_index_type_(
 		  continue;
 
 	    return find_foreach_assoc_index_type_in_data_type_(
-		  pcur->second.type.get(), index_depth);
+		  pcur->second.type, index_depth);
       }
 
       return 0;
@@ -673,9 +673,9 @@ static bool find_foreach_path_root_type_(Design*des, NetScope*scope,
 	        || pcur == search_pclass->type->properties.end())
 		  continue;
 
-	    if (!pcur->second.type.get())
+	    if (!pcur->second.type)
 		  return false;
-	    root_type = const_cast<data_type_t*>(pcur->second.type.get())->elaborate_type(des, cur);
+	    root_type = const_cast<data_type_t*>(pcur->second.type)->elaborate_type(des, cur);
 	    return root_type != 0;
       }
 
@@ -699,7 +699,7 @@ find_class_property_via_inheritance_(const netclass_t*cur_class,
                   map<perm_string,class_type_t::prop_info_t>::const_iterator pcur =
                         pclass->type->properties.find(prop_name);
                   if (pcur != pclass->type->properties.end()
-                      && pcur->second.type.get())
+                      && pcur->second.type)
                         return &pcur->second;
             }
             cur_class = cur_class->get_super();
@@ -728,9 +728,9 @@ static const data_type_t* find_foreach_selected_path_type_(
 		  return 0;
 
 	    if (idx + 1 == target_path.size())
-		  return prop->type.get();
+		  return prop->type;
 
-	    cur_type = const_cast<data_type_t*>(prop->type.get())->elaborate_type(des, scope);
+	    cur_type = const_cast<data_type_t*>(prop->type)->elaborate_type(des, scope);
 	    if (!cur_type)
 		  return 0;
       }

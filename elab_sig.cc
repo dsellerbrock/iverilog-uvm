@@ -648,7 +648,7 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
             ivl_assert(*pclass, cur != pclass->type->properties.end());
 
 	    ivl_type_t use_type = elaborate_class_property_type_(des, class_scope_,
-								 this, cur->second.type.get());
+								 this, cur->second.type);
 	    if (const char*trace = getenv("IVL_NESTED_PATH_TRACE")) {
 		  if (cur->first == perm_string::literal("m_time_settings")
 		      || cur->first == perm_string::literal("m_verbosity_settings")
@@ -956,7 +956,7 @@ static void seed_super_chain_properties_(Design*des, const netclass_t*cls)
 		 cur = super_pclass->type->properties.begin()
 	       ; cur != super_pclass->type->properties.end() ; ++cur) {
 	    ivl_type_t use_type = elaborate_class_property_type_(des, super_scope_mut,
-								 super_mut, cur->second.type.get());
+								 super_mut, cur->second.type);
 	    if (!use_type) continue;
 	    bool added = super_mut->set_property(cur->first, cur->second.qual, use_type);
 	    if (added && cur->second.qual.test_static()) {
@@ -1011,7 +1011,7 @@ static void seed_class_scope_properties_for_method_elab_(Design*des,
 		 cur = pclass_type->properties.begin()
 	       ; cur != pclass_type->properties.end() ; ++ cur) {
 	    ivl_type_t use_type = elaborate_class_property_type_(des, class_scope,
-								 clsnet, cur->second.type.get());
+								 clsnet, cur->second.type);
 	    bool added = clsnet->set_property(cur->first, cur->second.qual, use_type);
 	    if (added && cur->second.qual.test_static()) {
 		  if (class_scope->find_signal(cur->first) == 0) {

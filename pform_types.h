@@ -459,7 +459,13 @@ struct class_type_t : public data_type_t {
 	    prop_info_t(prop_info_t&&) = default;
 	    prop_info_t& operator=(prop_info_t&&) = default;
 	    property_qualifier_t qual;
-	    std::unique_ptr<data_type_t> type;
+	    // Non-owning: data_type_t nodes are front-end objects that live for
+	    // the whole compile (and may be SHARED across a comma-separated
+	    // declaration, e.g. `int a, b;`, or be a static singleton like
+	    // netvector_t::atom2s32). An owning unique_ptr here double-freed the
+	    // shared/static type at teardown (crash with 2+ such properties).
+	    // Leaving them non-owning leaks at process exit, which is harmless.
+	    data_type_t* type = nullptr;
       };
       std::map<perm_string, struct prop_info_t> properties;
       std::vector<perm_string> property_order;

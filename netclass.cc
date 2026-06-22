@@ -238,7 +238,7 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
                   continue;
 
             if (const typeref_t*type_ref =
-                        dynamic_cast<const typeref_t*>(cur->second.type.get())) {
+                        dynamic_cast<const typeref_t*>(cur->second.type)) {
                   typedef_t*td = type_ref->typedef_ref();
                   if (td && td->name == get_name() && type_ref->parameter_values()) {
                         // Self-referential parameterized class properties such as
@@ -310,8 +310,8 @@ void netclass_t::ensure_all_properties_declared(Design*des)
                               ivl_type_t stored = property_table_[already->second].type;
                               bool needs_repair =
                                     !dynamic_cast<const netclass_t*>(stored)
-                                    && (dynamic_cast<const class_type_t*>(cur->second.type.get())
-                                        || dynamic_cast<const typeref_t*>(cur->second.type.get()));
+                                    && (dynamic_cast<const class_type_t*>(cur->second.type)
+                                        || dynamic_cast<const typeref_t*>(cur->second.type));
                               if (needs_repair) {
                                     ivl_type_t repaired = cur->second.type->elaborate_type(des, class_scope_);
                                     if (dynamic_cast<const netclass_t*>(repaired))
@@ -323,7 +323,7 @@ void netclass_t::ensure_all_properties_declared(Design*des)
                         ivl_type_t use_type = 0;
 
                         if (const typeref_t*type_ref =
-                                    dynamic_cast<const typeref_t*>(cur->second.type.get())) {
+                                    dynamic_cast<const typeref_t*>(cur->second.type)) {
                               typedef_t*td = type_ref->typedef_ref();
                               if (td && td->name == get_name()
                                   && type_ref->parameter_values()) {
