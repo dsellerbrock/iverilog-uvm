@@ -2678,6 +2678,64 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
       return errors;
 }
 
+/*
+ * A concatenation l-value whose targets are dynamic-array elements:
+ *   {data[3], data[2], data[1], data[0]} = rhs;   // byte unsigned data[]
+ *
+ * The generic multi-lval vector distribution (store_vec4_to_lval) cannot be
+ * reused here because ivl_lval_width() reports 1 for a dynamic-array element
+ * reference (and ivl_stmt_lwidth() is likewise wrong for the concat).  Instead
+ * derive each element's true width from the darray element type, evaluate the
+ * r-value once, and split it across the elements LSB-first (l-value 0 is the
+ * least-significant element), storing each piece with %store/dar/vec4.
+ */
+static int show_stmt_assign_darray_concat(ivl_statement_t net)
+{
+      unsigned nlvals = ivl_stmt_lvals(net);
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      unsigned total = 0;
+      unsigned lidx;
+
+      for (lidx = 0 ; lidx < nlvals ; lidx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, lidx);
+	    ivl_signal_t lsig = ivl_lval_sig(lval);
+	    ivl_type_t et = ivl_type_element(ivl_signal_net_type(lsig));
+	    if (ivl_signal_data_type(lsig) != IVL_VT_DARRAY
+		|| (ivl_type_base(et) != IVL_VT_BOOL
+		    && ivl_type_base(et) != IVL_VT_LOGIC)) {
+		  fprintf(stderr, "%s:%u: vvp.tgt sorry: concatenation l-value "
+			  "mixing dynamic-array elements with other targets is "
+			  "not yet supported.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  vvp_errors += 1;
+		  return 1;
+	    }
+	    total += ivl_type_packed_width(et);
+      }
+
+      draw_eval_vec4(rval);
+      resize_vec4_wid(rval, total);
+
+	/* l-value 0 is the least-significant element; %split/vec4 peels the
+	   low element-width bits to the stack top for each lval but the last. */
+      for (lidx = 0 ; lidx < nlvals ; lidx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, lidx);
+	    ivl_signal_t lsig = ivl_lval_sig(lval);
+	    ivl_type_t et = ivl_type_element(ivl_signal_net_type(lsig));
+	    unsigned ew = ivl_type_packed_width(et);
+	    ivl_expr_t word_ex = ivl_lval_idx(lval);
+
+	    if (lidx+1 < nlvals)
+		  fprintf(vvp_out, "    %%split/vec4 %u;\n", ew);
+
+	    assert(word_ex);
+	    draw_eval_expr_into_integer(word_ex, 3);
+	    fprintf(vvp_out, "    %%store/dar/vec4 v%p_0;\n", lsig);
+      }
+
+      return 0;
+}
+
 int show_stmt_assign(ivl_statement_t net)
 {
       ivl_lval_t lval;
@@ -2698,11 +2756,9 @@ int show_stmt_assign(ivl_statement_t net)
 
       if (sig && (ivl_signal_data_type(sig) == IVL_VT_DARRAY)) {
 	    if (ivl_stmt_lvals(net) != 1) {
-		  fprintf(stderr, "%s:%u: sorry: multi-lval assignment with"
-			  " a dynamic-array element is not yet supported.\n",
-			  ivl_stmt_file(net), ivl_stmt_lineno(net));
-		  vvp_errors += 1;
-		  return 1;
+		  /* A concatenation l-value whose elements are dynamic-array
+		     elements, e.g. {data[3],data[2],data[1],data[0]} = rhs. */
+		  return show_stmt_assign_darray_concat(net);
 	    }
 	    return show_stmt_assign_sig_darray(net);
       }
