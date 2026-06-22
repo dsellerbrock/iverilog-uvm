@@ -344,6 +344,81 @@ TU [munpf]
 <EDGES>"z0" { return K_edge_descriptor; }
 <EDGES>"z1" { return K_edge_descriptor; }
 
+[a-zA-Z_][a-zA-Z0-9$_]*"::"[a-zA-Z_][a-zA-Z0-9$_]*/"]" {
+      /* A contiguous "class::member" immediately followed by "]" -- i.e. an
+         associative-array index type, "uvm_reg_data_t r[my_class::some_enum_e]".
+         That is the ONLY place a class-scoped type name is mis-parsed as a
+         class-scoped static-reference *expression* (failing with "Dimensions
+         must be constant").  Everywhere else -- declarations, casts, the UVM
+         factory idiom "klass::type_id::create(...)" -- the multi-token
+         TYPE_IDENTIFIER "::" IDENTIFIER form already works, so we leave it
+         untouched.  Restricting the merge to the "]" lookahead is also what
+         keeps this conflict-free: CLASS_SCOPED_TYPE_TOKEN appears in the
+         grammar only inside "[ ... ]", never at a statement/item start where
+         it would clash with the data-declaration vs module-instantiation
+         decision.
+
+         When "member" is a type in class "name" (visible from the current
+         scope), return a single CLASS_SCOPED_TYPE_TOKEN carrying the two
+         names; the parser turns it into a class-scoped typeref via
+         make_class_scoped_typeref.  A scoped name that is NOT a type
+         ("class::STATIC_CONST" used as an index value) is left untouched: we
+         rewind to the first identifier and resolve it as the plain rule. */
+      char*sep = strstr(yytext, "::");
+      size_t first_len = (size_t)(sep - yytext);
+
+      if (!in_package_scope && gn_system_verilog()) {
+	    *sep = '\0';
+	    typedef_t*cst = pform_test_class_scoped_type_identifier(yytext, sep+2);
+	    if (cst) {
+		  assert(yylloc.lexical_pos != UINT_MAX);
+		  yylloc.lexical_pos += 1;
+		  yylval.scoped_type_name.scope_name = strdupnew(yytext);
+		  yylval.scoped_type_name.member_name = strdupnew(sep+2);
+		  return CLASS_SCOPED_TYPE_TOKEN;
+	    }
+	    *sep = ':';
+      }
+
+	/* Not a class-scoped type: keep only the first identifier. */
+      yyless(first_len);
+
+      int rc = lexor_keyword_code(yytext, yyleng);
+      if (rc != IDENTIFIER) {
+	      // A keyword used as a scope qualifier is degenerate; emit it and
+	      // let the parser handle the following "::".
+	    yylval.text = 0;
+	    return rc;
+      }
+      assert(yylloc.lexical_pos != UINT_MAX);
+      yylloc.lexical_pos += 1;
+      yylval.text = strdupnew(yytext);
+
+	/* Package-scoped member (parser set in_package_scope on "pkg ::"). */
+      if (in_package_scope) {
+	    if (typedef_t*type = pform_test_type_identifier(in_package_scope, yylval.text)) {
+		  yylval.type_identifier.text = yylval.text;
+		  yylval.type_identifier.type = type;
+		  rc = TYPE_IDENTIFIER;
+	    }
+	    in_package_scope = 0;
+	    return rc;
+      }
+      if (gn_system_verilog()) {
+	    if (PPackage*pkg = pform_test_package_identifier(yylval.text)) {
+		  delete[]yylval.text;
+		  yylval.package = pkg;
+		  return PACKAGE_IDENTIFIER;
+	    }
+	    if (typedef_t*type = pform_test_type_identifier(yylloc, yylval.text)) {
+		  yylval.type_identifier.text = yylval.text;
+		  yylval.type_identifier.type = type;
+		  rc = TYPE_IDENTIFIER;
+	    }
+      }
+      return rc;
+  }
+
 [a-zA-Z_][a-zA-Z0-9$_]* {
       int rc = lexor_keyword_code(yytext, yyleng);
       switch (rc) {

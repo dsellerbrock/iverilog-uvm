@@ -1480,6 +1480,13 @@ static Statement* lower_randsequence_(const char* start_name,
 	    typedef_t*type;
       } type_identifier;
 
+	/* A class-scoped type name "class_name::member_name" that the lexor
+	   has resolved to a class-scoped type (see CLASS_SCOPED_TYPE_TOKEN). */
+      struct {
+	    char*scope_name;
+	    char*member_name;
+      } scoped_type_name;
+
       struct {
 	    data_type_t*type;
 	    std::list<named_pexpr_t> *args;
@@ -1522,6 +1529,7 @@ static Statement* lower_randsequence_(const char* start_name,
 
 %token <text>      IDENTIFIER SYSTEM_IDENTIFIER STRING TIME_LITERAL
 %token <type_identifier> TYPE_IDENTIFIER
+%token <scoped_type_name> CLASS_SCOPED_TYPE_TOKEN
 %token <package>   PACKAGE_IDENTIFIER
 %token <discipline> DISCIPLINE_IDENTIFIER
 %token <text>   PATHPULSE_IDENTIFIER
@@ -6904,6 +6912,21 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	pform_range_t index (new PEAssocType($2),0);
 	pform_requires_sv(@$, "Associative array declaration");
 	tmp->push_back(index);
+	$$ = tmp;
+      }
+  | '[' CLASS_SCOPED_TYPE_TOKEN ']'
+      { // Associative array indexed by a class-scoped type "class::member"
+	// that the lexor resolved (and which would otherwise be mis-parsed as
+	// a class-scoped static-reference expression).  CLASS_SCOPED_TYPE_TOKEN
+	// is used ONLY here, so it adds no grammar conflicts.
+	pform_set_type_referenced(@2, $2.scope_name);
+	data_type_t*dt = make_class_scoped_typeref(@2, @2, $2.scope_name, $2.member_name);
+	list<pform_range_t> *tmp = new std::list<pform_range_t>;
+	pform_range_t index (new PEAssocType(dt),0);
+	pform_requires_sv(@$, "Associative array declaration");
+	tmp->push_back(index);
+	delete[] $2.scope_name;
+	delete[] $2.member_name;
 	$$ = tmp;
       }
   | K_LB_STAR ']'

@@ -113,6 +113,14 @@ extern typedef_t* pform_test_type_identifier(const YYLTYPE&loc, const char*txt);
 extern typedef_t* pform_test_type_identifier(PPackage*pkg, const char*txt);
 
 /*
+ * Test if "class_name::member_name" names a class-scoped type visible from
+ * the current scope (returns the member typedef, else 0).  Lets the lexor
+ * emit a single TYPE_IDENTIFIER for a class-scoped type name.
+ */
+extern typedef_t* pform_test_class_scoped_type_identifier(const char*class_name,
+							  const char*member_name);
+
+/*
  * Test if this identifier is a package name. The pform needs to help
  * the lexor here because the parser detects packages and saves them.
  */

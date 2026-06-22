@@ -1235,6 +1235,38 @@ typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
       return 0;
 }
 
+/*
+ * Side-effect-free test: does "class_name::member_name" name a class-scoped
+ * type visible from the current lexical scope?  Returns the member typedef
+ * if so, otherwise 0.  Used by the lexer to emit a single TYPE_IDENTIFIER
+ * for a class-scoped type name (e.g. "my_class::some_enum_e"), so that it
+ * matches the same grammar paths as a bare type name (including an
+ * associative-array index type "[my_class::some_enum_e]").  Unlike
+ * make_class_scoped_typeref it never emits errors and never marks the class
+ * as referenced, so a non-type "class::static_member" name is left untouched
+ * for the normal scoped-expression handling.
+ */
+typedef_t* pform_test_class_scoped_type_identifier(const char*class_name,
+						   const char*member_name)
+{
+      if (!gn_system_verilog())
+	    return 0;
+
+      perm_string class_key = lex_strings.make(class_name);
+      perm_string member_key = lex_strings.make(member_name);
+
+      PClass*class_scope = pform_find_visible_class_scope(lexical_scope, class_key);
+      if (class_scope == 0)
+	    return 0;
+
+      LexicalScope::typedef_map_t::const_iterator it =
+	    class_scope->typedefs.find(member_key);
+      if (it != class_scope->typedefs.end())
+	    return it->second;
+
+      return pform_find_inherited_class_typedef(class_scope, member_key);
+}
+
 void delete_parmvalue(struct parmvalue_t*parms)
 {
       if (parms == 0)
