@@ -4177,10 +4177,28 @@ transition_list
   ;
 
 trans_range_set
+  : trans_item
+  | trans_range_set ',' trans_item
+  ;
+
+/* trans_item: a single value or a [lo:hi] range in a transition bin, e.g.
+   `bins b[] = ([Standard:Quad] => [Standard:Quad]);` (spi_host_env_cov.sv).
+   All discarded (coverage is parse-and-ignore). */
+trans_item
   : expression
       { delete $1; }
-  | trans_range_set ',' expression
-      { delete $3; }
+  | '[' expression ':' expression ']'
+      { delete $2; delete $4; }
+  ;
+
+/* bind_target_path: the (possibly hierarchical) instance/scope a bind directive
+   targets, e.g. `bind dut.u_spi_core <type> <inst>();` (spi_host tb.sv). The
+   target is discarded (bind directives are parsed and ignored for compile). */
+bind_target_path
+  : IDENTIFIER
+      { delete[] $1; }
+  | bind_target_path '.' IDENTIFIER
+      { delete[] $3; }
   ;
 
 /* ========= End covergroup grammar ========= */
@@ -11098,13 +11116,11 @@ module_item
        bind <target> <module> [#(...)] <inst> (...);
        bind <target> <module> <inst> (...);
      Match both via gate_instance_list. */
-  | K_bind IDENTIFIER IDENTIFIER parameter_value_opt gate_instance_list ';'
-      { delete[]$2;
-        delete[]$3;
+  | K_bind bind_target_path IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { delete[]$3;
       }
-  | K_bind IDENTIFIER TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
-      { delete[]$2;
-        delete[]$3.text;
+  | K_bind bind_target_path TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { delete[]$3.text;
       }
   | K_bind IDENTIFIER error ';'
       { yywarn(@1, "warning: ignoring unsupported bind directive form");
