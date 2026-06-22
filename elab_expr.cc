@@ -1061,6 +1061,55 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
       }
 
       if (auto parray_type = dynamic_cast<const netparray_t*>(ntype)) {
+	    // Constant packed array of a struct, e.g.
+	    //   localparam racl_range_t [0:0] R = '{ '{ base:.., limit:.., ... } };
+	    // The generic packed path flattens the struct into the dimension list
+	    // (netparray_t::slice_dimensions concatenates the element's slice
+	    // dims), so the inner named struct pattern is mis-counted against the
+	    // struct's bit width. When the elements fold to constants, each struct
+	    // element elaborates to a flat NetEConst, so concatenate those into the
+	    // packed-array bit value (a packed array is flat bit storage). Non-
+	    // constant elements fall through to the generic packed path, which
+	    // reports a clean error rather than silently mis-storing.
+	    const netstruct_t*elem_struct =
+		  dynamic_cast<const netstruct_t*>(parray_type->element_type());
+	    if (need_const && elem_struct
+		&& parray_type->static_dimensions().size() == 1
+		&& parray_type->static_dimensions()[0].width() == parms_.size()) {
+		  const netrange_t&dim = parray_type->static_dimensions()[0];
+		  // Source order: first pattern element maps to the first declared
+		  // index. For a descending range [N-1:0] that is the MSB element;
+		  // for ascending [0:N-1] it is the LSB element. Build ops MSB-first.
+		  bool descending = dim.get_msb() >= dim.get_lsb();
+		  std::vector<NetExpr*> ops;
+		  bool ok = true;
+		  for (size_t e = 0 ; e < parms_.size() && ok ; e += 1) {
+			size_t ei = descending ? e : (parms_.size()-1-e);
+			NetExpr*se = elaborate_rval_expr(des, scope, elem_struct,
+							 parms_[ei], true);
+			if (!dynamic_cast<NetEConst*>(se)) { ok = false; delete se; break; }
+			ops.push_back(se);
+		  }
+		  if (ok && ops.size() == 1) {
+			ops[0]->set_line(*this);
+			return ops[0];
+		  }
+		  if (ok && !ops.empty()) {
+			NetEConcat*cat = new NetEConcat(ops.size(), 1,
+							parray_type->base_type());
+			cat->set_line(*this);
+			for (size_t i = 0 ; i < ops.size() ; i += 1)
+			      cat->set(i, ops[i]);
+			NetEConst*folded = cat->eval_tree();
+			delete cat;
+			if (folded) {
+			      folded->set_line(*this);
+			      return folded;
+			}
+		  } else {
+			for (auto*o : ops) delete o;
+		  }
+	    }
 	    return elaborate_expr_packed_(des, scope, parray_type->base_type(),
 					  parray_type->packed_width(),
 					  parray_type->slice_dimensions(), 0,
