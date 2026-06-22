@@ -1095,7 +1095,8 @@ static ivl_type_t elaborate_assoc_array_type(Design *des, NetScope *scope,
 
 // If dims is not empty create a unpacked array type and clear dims, otherwise
 // return the base type. Also check that we actually support the base type.
-static ivl_type_t elaborate_static_array_type(Design *des, const LineInfo &li,
+static ivl_type_t elaborate_static_array_type(Design *des, NetScope *scope,
+					      const LineInfo &li,
 					      ivl_type_t base_type,
 					      netranges_t &dims)
 {
@@ -1103,12 +1104,27 @@ static ivl_type_t elaborate_static_array_type(Design *des, const LineInfo &li,
 	    return base_type;
 
       if (dynamic_cast<const netqueue_t*>(base_type)) {
-	    cerr << li.get_fileline() << ": sorry: "
-		 << "array of queue type is not yet supported."
-		 << endl;
-	    des->errors++;
-	    // Recover
-	    base_type = new netvector_t(IVL_VT_LOGIC);
+	    // A fixed unpacked array whose ELEMENT is a queue -- e.g.
+	    // `bit q[N][$]`, or `data_q mem[N]` where data_q is a queue typedef
+	    // -- is not supported as a true dense fixed array. Lower it to an
+	    // integer-keyed ASSOCIATIVE array of the queue (one assoc level per
+	    // fixed dimension), reusing the working assoc-of-queue machinery
+	    // (an assoc is just an assoc_compat netqueue_t). OpenTitan DV uses
+	    // these purely index-and-use plus foreach (e.g.
+	    // response_mem[addr].push_back/.size/.pop_front, foreach-delete),
+	    // for which an associative array is behaviorally equivalent.
+	    //
+	    // This is a pragmatic lowering, NOT a true fixed array: foreach
+	    // iterates only touched indices and the outer .size() reflects the
+	    // touched count rather than the declared dimension.
+	    // TODO(fixed-array-of-queue): a real fixed-array-of-object backend
+	    // (.array/obj with empty-queue element initialization) would keep
+	    // dense semantics; this lowering unblocks the OT DV usage now.
+	    ivl_type_t type = base_type;
+	    for (size_t i = 0 ; i < dims.size() ; i += 1)
+		  type = elaborate_queue_type(des, scope, li, type, 0, true);
+	    dims.clear();
+	    return type;
       } else if (dynamic_cast<const netdarray_t*>(base_type)) {
 	    cerr << li.get_fileline() << ": sorry: "
 		 << "array of dynamic array type is not yet supported."
@@ -1168,19 +1184,19 @@ ivl_type_t elaborate_array_type(Design *des, NetScope *scope,
 		    // Special case: If we encounter an undefined dimensions,
 		    // then turn this into a dynamic array and put all the
 		    // packed dimensions there.
-		  type = elaborate_static_array_type(des, li, type, dimensions);
+		  type = elaborate_static_array_type(des, scope, li, type, dimensions);
 		  type = elaborate_darray_check_type(des, li, type, "Dynamic array");
 		  type = new netdarray_t(type);
 		  continue;
 	    } else if (const PEAssocType*assoc_idx = dynamic_cast<PEAssocType*>(lidx)) {
 		    // Preserve associative-array semantics through lowering.
-		  type = elaborate_static_array_type(des, li, type, dimensions);
+		  type = elaborate_static_array_type(des, scope, li, type, dimensions);
 		  type = elaborate_assoc_array_type(des, scope, li, type, assoc_idx);
 		  continue;
 	    } else if (dynamic_cast<PENull*>(lidx)) {
 		    // Special case: Detect the mark for a QUEUE declaration,
 		    // which is the dimensions [null:max_idx].
-		  type = elaborate_static_array_type(des, li, type, dimensions);
+		  type = elaborate_static_array_type(des, scope, li, type, dimensions);
 		  type = elaborate_queue_type(des, scope, li, type, ridx);
 		  continue;
 	    }
@@ -1198,7 +1214,7 @@ ivl_type_t elaborate_array_type(Design *des, NetScope *scope,
 	    dimensions.push_back(netrange_t(index_l, index_r));
       }
 
-      return elaborate_static_array_type(des, li, type, dimensions);
+      return elaborate_static_array_type(des, scope, li, type, dimensions);
 }
 
 ivl_type_t uarray_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
