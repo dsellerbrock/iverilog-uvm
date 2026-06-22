@@ -344,26 +344,31 @@ TU [munpf]
 <EDGES>"z0" { return K_edge_descriptor; }
 <EDGES>"z1" { return K_edge_descriptor; }
 
-[a-zA-Z_][a-zA-Z0-9$_]*"::"[a-zA-Z_][a-zA-Z0-9$_]*/"]" {
-      /* A contiguous "class::member" immediately followed by "]" -- i.e. an
-         associative-array index type, "uvm_reg_data_t r[my_class::some_enum_e]".
-         That is the ONLY place a class-scoped type name is mis-parsed as a
-         class-scoped static-reference *expression* (failing with "Dimensions
-         must be constant").  Everywhere else -- declarations, casts, the UVM
-         factory idiom "klass::type_id::create(...)" -- the multi-token
-         TYPE_IDENTIFIER "::" IDENTIFIER form already works, so we leave it
-         untouched.  Restricting the merge to the "]" lookahead is also what
-         keeps this conflict-free: CLASS_SCOPED_TYPE_TOKEN appears in the
-         grammar only inside "[ ... ]", never at a statement/item start where
-         it would clash with the data-declaration vs module-instantiation
-         decision.
+[a-zA-Z_][a-zA-Z0-9$_]*"::"[a-zA-Z_][a-zA-Z0-9$_]*/[]'] {
+      /* A contiguous "class::member" immediately followed by "]" or "'" --
+         the two places a class-scoped type name is mis-parsed as a
+         class-scoped static-reference *expression*:
+           "]"  -> an associative-array index type,
+                   "uvm_reg_data_t r[my_class::some_enum_e]"
+                   (otherwise "Dimensions must be constant");
+           "'"  -> a type cast, "my_class::some_enum_e'(expr)"
+                   (otherwise taken as a size cast -> "Cast size expression
+                   must be constant").
+         Everywhere else -- declarations, the UVM factory idiom
+         "klass::type_id::create(...)" -- the multi-token TYPE_IDENTIFIER
+         "::" IDENTIFIER form already works, so we leave it untouched.
+         Restricting the merge to the "]"/"'" lookahead is what keeps this
+         conflict-free: CLASS_SCOPED_TYPE_TOKEN appears in the grammar only
+         inside "[ ... ]" and immediately before a "'(...)" cast, never at a
+         statement/item start where it would clash with the data-declaration
+         vs module-instantiation decision.
 
          When "member" is a type in class "name" (visible from the current
          scope), return a single CLASS_SCOPED_TYPE_TOKEN carrying the two
          names; the parser turns it into a class-scoped typeref via
          make_class_scoped_typeref.  A scoped name that is NOT a type
-         ("class::STATIC_CONST" used as an index value) is left untouched: we
-         rewind to the first identifier and resolve it as the plain rule. */
+         ("class::STATIC_CONST") is left untouched: we rewind to the first
+         identifier and resolve it as the plain rule. */
       char*sep = strstr(yytext, "::");
       size_t first_len = (size_t)(sep - yytext);
 

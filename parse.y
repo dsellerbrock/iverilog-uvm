@@ -9805,6 +9805,24 @@ expr_primary
 	      $$ = base;
 	}
       }
+  | CLASS_SCOPED_TYPE_TOKEN '\'' '(' expression ')'
+      { // A type cast whose target is a class-scoped type "class::member"
+	// that the lexor resolved (e.g. "my_class::some_enum_e'(expr)").
+	// CLASS_SCOPED_TYPE_TOKEN is used only here and in the assoc-index
+	// rule, so it adds no grammar conflicts.
+	PExpr*base = $4;
+	pform_set_type_referenced(@1, $1.scope_name);
+	data_type_t*dt = make_class_scoped_typeref(@1, @1, $1.scope_name, $1.member_name);
+	delete[] $1.scope_name;
+	delete[] $1.member_name;
+	if (pform_requires_sv(@1, "Type cast")) {
+	      PECastType*tmp = new PECastType(dt, base);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	} else {
+	      $$ = base;
+	}
+      }
   | signing '\'' '(' expression ')'
       { PExpr*base = $4;
 	if (pform_requires_sv(@1, "Signing cast")) {
