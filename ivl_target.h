@@ -2316,6 +2316,8 @@ extern uint64_t ivl_stmt_delay_val(ivl_statement_t net);
 extern unsigned    ivl_stmt_needs_t0_trigger(ivl_statement_t net);
 extern unsigned    ivl_stmt_nevent(ivl_statement_t net);
 extern ivl_event_t ivl_stmt_events(ivl_statement_t net, unsigned idx);
+  /* IVL_ST_WAIT dynamic event-handle ("event" task-port) wait, else 0 */
+extern ivl_expr_t  ivl_stmt_wait_handle(ivl_statement_t net);
   /* IVL_ST_DISABLE */
 extern bool ivl_stmt_flow_control(ivl_statement_t net);
   /* IVL_ST_CONTRIB */

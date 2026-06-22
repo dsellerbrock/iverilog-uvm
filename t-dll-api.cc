@@ -3067,6 +3067,16 @@ extern "C" ivl_event_t ivl_stmt_events(ivl_statement_t net, unsigned idx)
       return 0;
 }
 
+/* For a dynamic event-handle wait (IVL_ST_WAIT with nevent==0 and a handle
+   expression), return the handle expression to resolve at run time; else 0. */
+extern "C" ivl_expr_t ivl_stmt_wait_handle(ivl_statement_t net)
+{
+      assert(net);
+      if (net->type_ == IVL_ST_WAIT)
+	    return net->u_.wait_.handle_;
+      return 0;
+}
+
 extern "C" ivl_expr_t ivl_stmt_lexp(ivl_statement_t net)
 {
       assert(net);

@@ -3638,6 +3638,13 @@ class NetEvWait  : public NetProc {
       void replace_event(NetEvent*orig, NetEvent*repl);
       inline void set_t0_trigger() { has_t0_trigger_ = true; };
 
+	// A dynamic event-handle wait: "@(formal)" where formal is an
+	// "event" task port.  The handle expression is resolved at run time
+	// to the actual event net to wait on (see %wait/obj).  When set,
+	// there are no static events_.
+      inline void set_handle_expr(NetExpr*h) { handle_ = h; };
+      inline NetExpr* handle_expr() const { return handle_; };
+
       inline unsigned nevents() const { return events_.size(); }
       inline const NetEvent*event(unsigned idx) const { return events_[idx]; }
       inline NetEvent*event(unsigned idx) { return events_[idx]; }
@@ -3687,6 +3694,8 @@ class NetEvWait  : public NetProc {
 	// Events that I might wait for.
       std::vector<NetEvent*>events_;
       bool has_t0_trigger_;
+	// Dynamic event-handle wait expression (nil for ordinary waits).
+      NetExpr*handle_ = nullptr;
 };
 
 std::ostream& operator << (std::ostream&out, const NetEvWait&obj);

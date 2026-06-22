@@ -1326,3 +1326,20 @@ void named_event_delete(__vpiHandle*handle)
       delete dynamic_cast<__vpiNamedEvent *>(handle);
 }
 #endif
+
+/*
+ * vvp_event_handle: a reference-by-pointer carrier for a SystemVerilog
+ * event passed by value/argument.  Copying the handle shares the same
+ * underlying static event net (reference semantics), so both shallow_copy
+ * and duplicate just propagate the net pointer.
+ */
+void vvp_event_handle::shallow_copy(const vvp_object*that)
+{
+      const vvp_event_handle*src = dynamic_cast<const vvp_event_handle*>(that);
+      if (src) net_ = src->net_;
+}
+
+vvp_object* vvp_event_handle::duplicate(void) const
+{
+      return new vvp_event_handle(net_);
+}

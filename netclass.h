@@ -283,4 +283,10 @@ inline NetScope*netclass_t::definition_scope(void)
 
 extern netclass_t* builtin_class_type(perm_string name);
 
+  /* The built-in (empty) class type used to represent a SystemVerilog
+     "event" reference passed by value, e.g. an "event" task port.  An
+     event-handle variable is an object handle that, at run time, carries a
+     reference to a named event's net (see vvp_event_handle). */
+extern netclass_t* make_builtin_event_handle_type_();
+
 #endif /* IVL_netclass_H */

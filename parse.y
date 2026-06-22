@@ -6760,6 +6760,21 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	}
       }
 
+  /* A SystemVerilog "event" port (e.g. "task t(event e); ... @(e)").  The
+     event is passed by reference; we represent the formal as an
+     event-handle object that carries the actual event's net at run time. */
+  | tf_port_direction_opt K_event IDENTIFIER dimensions_opt
+      { NetNet::PortType use_port_type = $1;
+	if (use_port_type == NetNet::PIMPLICIT)
+	      use_port_type = NetNet::PINPUT;
+	list<pform_port_t>* port_list = make_port_list($3, @3.lexical_pos, $4, 0);
+	event_handle_type_t*evt = new event_handle_type_t;
+	FILE_NAME(evt, @2);
+	port_declaration_context.port_type = use_port_type;
+	port_declaration_context.data_type = evt;
+	$$ = pform_make_task_ports(@2, use_port_type, evt, port_list);
+      }
+
   /* Rules to match error cases... */
 
   | tf_port_direction_opt K_var_opt data_type_or_implicit IDENTIFIER error

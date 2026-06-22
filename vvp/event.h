@@ -23,6 +23,7 @@
 # include  "array.h"
 # include  "vthread.h"
 # include  "config.h"
+# include  "vvp_object.h"
 
 class evctl {
 
@@ -454,6 +455,31 @@ class vvp_named_event_aa : public vvp_named_event, public automatic_hooks_s {
     private:
       __vpiScope*context_scope_;
       unsigned context_idx_;
+};
+
+/*
+ * A vvp_event_handle is the runtime carrier for a SystemVerilog "event"
+ * passed by reference (e.g. as a task port: "task t(event e); ... @(e)").
+ * It is a garbage-collected object (so it flows through automatic-task
+ * argument contexts like any class handle) that simply holds a pointer to
+ * the static vvp_net_t of a named event.  A "@(formal)" wait loads this
+ * object and adds the waiting thread to the referenced event net (see
+ * %wait/obj / of_WAIT_OBJ).  Named events are static nets (never freed),
+ * so the bare pointer is stable for the life of the simulation.
+ */
+class vvp_event_handle : public vvp_object {
+
+    public:
+      explicit vvp_event_handle(vvp_net_t*net) : net_(net) { }
+      ~vvp_event_handle() override { }
+
+      vvp_net_t* net() const { return net_; }
+
+      void shallow_copy(const vvp_object*that) override;
+      vvp_object* duplicate(void) const override;
+
+    private:
+      vvp_net_t*net_;
 };
 
 #endif /* IVL_event_H */

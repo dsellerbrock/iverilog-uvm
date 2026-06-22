@@ -346,6 +346,14 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 
 }
 
+netclass_t* make_builtin_event_handle_type_()
+{
+      static netclass_t*builtin_event_handle_type = nullptr;
+      if (!builtin_event_handle_type)
+	    builtin_event_handle_type = new netclass_t(perm_string::literal("$event_handle"), 0);
+      return builtin_event_handle_type;
+}
+
 netclass_t* builtin_class_type(perm_string name)
 {
       if (name == perm_string::literal("process"))
@@ -897,6 +905,11 @@ ivl_type_t real_type_t::elaborate_type_raw(Design*, NetScope*) const
 ivl_type_t string_type_t::elaborate_type_raw(Design*, NetScope*) const
 {
       return &netstring_t::type_string;
+}
+
+ivl_type_t event_handle_type_t::elaborate_type_raw(Design*, NetScope*) const
+{
+      return make_builtin_event_handle_type_();
 }
 
 ivl_type_t parray_type_t::elaborate_type_raw(Design*des, NetScope*scope) const

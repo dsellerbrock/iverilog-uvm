@@ -406,6 +406,15 @@ struct string_type_t : public data_type_t {
       ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
 };
 
+  /* The type of a SystemVerilog "event" reference passed by value, used for
+     an "event" task/function port (e.g. "task t(event e); ... @(e)").  It
+     elaborates to the built-in event-handle class type (an object handle). */
+struct event_handle_type_t : public data_type_t {
+      inline explicit event_handle_type_t() { }
+
+      ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
+};
+
 struct interface_type_t : public data_type_t {
       inline explicit interface_type_t(perm_string n) : name(n) { }
 

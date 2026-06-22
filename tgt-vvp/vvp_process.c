@@ -1698,6 +1698,19 @@ static int show_stmt_utask(ivl_statement_t net)
 static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 {
       static unsigned int cascade_counter = 0;
+
+	/* Dynamic event-handle wait: "@(formal)" where formal is an
+	   "event" task port.  Evaluate the handle object (the formal
+	   variable, or a built-in event reference) onto the object stack
+	   and wait on the event net it carries. */
+      ivl_expr_t wait_handle = ivl_stmt_wait_handle(net);
+      if (wait_handle) {
+	    show_stmt_file_line(net, "Event-handle wait (@) statement.");
+	    draw_eval_object(wait_handle);
+	    fprintf(vvp_out, "    %%wait/obj;\n");
+	    return show_statement(ivl_stmt_sub_stmt(net), sscope);
+      }
+
 	/* Look to see if this is a SystemVerilog wait fork. */
       if ((ivl_stmt_nevent(net) == 1) && (ivl_stmt_events(net, 0) == 0)) {
 	    assert(ivl_statement_type(ivl_stmt_sub_stmt(net)) == IVL_ST_NOOP);

@@ -968,6 +968,27 @@ bool dll_target::proc_wait(const NetEvWait*net)
       stmt_cur_->u_.wait_.stmt_ = static_cast<struct ivl_statement_s*>
                                   (calloc(1, sizeof(struct ivl_statement_s)));
 
+	/* Dynamic event-handle wait: "@(formal)" where formal is an
+	   "event" task port.  Resolve the handle expression at run time;
+	   there are no static events.  Fall through to emit the
+	   sub-statement below. */
+      if (NetExpr*handle = net->handle_expr()) {
+	    handle->expr_scan(this);
+	    stmt_cur_->u_.wait_.handle_ = expr_;
+	    expr_ = 0;
+	    stmt_cur_->u_.wait_.nevent = 0;
+	    stmt_cur_->u_.wait_.needs_t0_trigger = 0;
+	    stmt_cur_->u_.wait_.event = 0;
+
+	    ivl_statement_t save_cur = stmt_cur_;
+	    stmt_cur_ = stmt_cur_->u_.wait_.stmt_;
+	    bool flag = net->emit_recurse(this);
+	    if (flag && (stmt_cur_->type_ == IVL_ST_NONE))
+		  stmt_cur_->type_ = IVL_ST_NOOP;
+	    stmt_cur_ = save_cur;
+	    return flag;
+      }
+
       stmt_cur_->u_.wait_.nevent = net->nevents();
 
 	/* This is a wait fork statement. */

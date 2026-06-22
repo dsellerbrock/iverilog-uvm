@@ -898,6 +898,11 @@ struct ivl_statement_s {
 			ivl_event_t*events;
 		  };
 		  ivl_expr_t delay;
+		    /* For a dynamic event-handle wait ("@(formal)" where formal
+		       is an "event" task port): the handle expression to resolve
+		       at run time.  When non-null, nevent==0 and the code
+		       generator emits %wait/obj instead of a static %wait. */
+		  ivl_expr_t handle_;
 		  ivl_statement_t stmt_;
 	    } wait_;
 

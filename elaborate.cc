@@ -7119,14 +7119,43 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    NetExpr*rv = 0;
 
 	    if (args[parms_idx]) {
-		  rv = elaborate_rval_expr(des, scope, port->net_type(),
-					   args[parms_idx]);
+		    /* Passing a named event to an "event" port: the port is
+		       an event-handle object.  Resolve the argument to its
+		       NetEvent and wrap it in a NetEEvent so the code
+		       generator builds a handle carrying the event net (see
+		       %event/obj).  Done before elaborate_rval_expr because a
+		       bare event name does not bind as an ordinary variable. */
+		  bool is_event_handle_port =
+			(port->net_type() == make_builtin_event_handle_type_());
+		  if (is_event_handle_port) {
+			if (PEIdent*arg_id = dynamic_cast<PEIdent*>(args[parms_idx])) {
+			      symbol_search_results esr;
+			      symbol_search(arg_id, des, scope, arg_id->path(),
+					    arg_id->lexical_pos(), &esr);
+			      if (esr.eve && esr.path_tail.empty()) {
+				    NetEEvent*ee = new NetEEvent(esr.eve);
+				    ee->set_line(*this);
+				    rv = ee;
+			      }
+			}
+		  }
+
+		  if (rv == 0)
+			rv = elaborate_rval_expr(des, scope, port->net_type(),
+						 args[parms_idx]);
 		  if (const NetEEvent*evt = dynamic_cast<NetEEvent*> (rv)) {
-			cerr << evt->get_fileline() << ": error: An event '"
-			     << evt->event()->name() << "' can not be a user "
-			      "task argument." << endl;
-			des->errors += 1;
-			continue;
+			  /* Passing a named event to an "event" port: the
+			     port is an event-handle object; the NetEEvent is
+			     turned into a handle that carries the event net
+			     (see %event/obj).  Keep rv and let the normal
+			     object copy-in store it into the port slot. */
+			if (!is_event_handle_port) {
+			      cerr << evt->get_fileline() << ": error: An event '"
+				   << evt->event()->name() << "' can not be a user "
+				    "task argument." << endl;
+			      des->errors += 1;
+			      continue;
+			}
 		  }
 
 	    } else if (def->port_defe(idx)) {
@@ -8042,6 +8071,30 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			PEventStatement mapped_stmt(mapped_events);
 			mapped_stmt.set_statement(statement_);
 			return mapped_stmt.elaborate_st(des, scope, enet);
+		  }
+	    }
+      }
+
+	/* Dynamic event-handle wait: "@(formal)" where "formal" is an
+	   "event" task port.  The formal resolves to an event-handle object
+	   (built-in event-handle class) rather than to a static NetEvent.
+	   Build a NetEvWait that carries the handle expression so the actual
+	   event net is resolved at run time (see %wait/obj). */
+      if (expr_.size() == 1 && expr_[0]->type() == PEEvent::ANYEDGE) {
+	    if (const PEIdent*hid = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
+		  symbol_search_results hsr;
+		  symbol_search(this, des, scope, hid->path(), hid->lexical_pos(), &hsr);
+		  if (hsr.net && hsr.path_tail.empty() && hsr.eve == 0
+		      && hsr.net->net_type() == make_builtin_event_handle_type_()) {
+			NetExpr*handle = elab_and_eval(des, scope,
+						       const_cast<PEIdent*>(hid),
+						       make_builtin_event_handle_type_(),
+						       false);
+			if (handle == 0) return 0;
+			NetEvWait*wad = new NetEvWait(enet);
+			wad->set_line(*this);
+			wad->set_handle_expr(handle);
+			return wad;
 		  }
 	    }
       }

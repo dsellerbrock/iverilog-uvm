@@ -16040,6 +16040,51 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %event/obj E_<label>
+ * Build a vvp_event_handle object wrapping the named-event net <label>
+ * and push it onto the object stack.  Used to evaluate a named-event
+ * reference (IVL_EX_EVENT) in object context, e.g. passing "event e" as a
+ * task argument:  the actual event's net is captured into a handle that
+ * flows through the callee's automatic context like any class handle.
+ */
+bool of_EVENT_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t tmp (new vvp_event_handle(cp->net));
+      thr->push_object(tmp);
+      return true;
+}
+
+/*
+ * %wait/obj
+ * Pop a vvp_event_handle from the object stack (loaded by %load/obj of an
+ * event-handle variable, or built by %event/obj) and suspend this thread
+ * on the referenced event net.  This is the dynamic counterpart of %wait:
+ * the event to wait on is resolved at run time from the passed handle
+ * rather than from a static instruction operand, which is what makes
+ * "@(formal)" inside a task with an "event" port work for whatever actual
+ * event each call passed in.
+ */
+bool of_WAIT_OBJ(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_event_handle*eh = obj.peek<vvp_event_handle>();
+      if (!eh || eh->net()==0) {
+	      // A null event handle never triggers.  Treat "@(null)" as a
+	      // wait that blocks forever (the thread simply never resumes),
+	      // which matches passing an unbound event reference.
+	    thr->waiting_for_event = 1;
+	    return false;
+      }
+
+      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (eh->net()->fun);
+      assert(ep);
+      thr->waiting_for_event = 1;
+      thr->wait_next = ep->add_waiting_thread(thr);
+      return false;
+}
+
+/*
  * %xnor
  */
 bool of_XNOR(vthread_t thr, vvp_code_t)

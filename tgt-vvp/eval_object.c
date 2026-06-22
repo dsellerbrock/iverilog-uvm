@@ -1224,6 +1224,14 @@ int draw_eval_object(ivl_expr_t ex)
 	  case IVL_EX_NULL:
 	    return eval_object_null(ex);
 
+	  case IVL_EX_EVENT:
+	      /* A named-event reference used in object context (e.g. passing
+		 "event e" as a task argument, or "@(formal)"): build a
+		 vvp_event_handle wrapping the event net onto the object
+		 stack. */
+	    fprintf(vvp_out, "    %%event/obj E_%p;\n", ivl_expr_event(ex));
+	    return 0;
+
 	  case IVL_EX_PROPERTY:
 	    return eval_object_property(ex);
 
