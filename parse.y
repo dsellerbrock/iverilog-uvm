@@ -3552,12 +3552,22 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
       }
   ;
 
+/* solve_expr_list: comma-separated variable list for a "solve ... before ..."
+   ordering directive. Narrow (used only by solve) so it does not introduce the
+   conflicts the general expression_list_proper does. All discarded. */
+solve_expr_list
+  : expression
+      { delete $1; }
+  | solve_expr_list ',' expression
+      { delete $3; }
+  ;
+
 constraint_block_item /* IEEE1800-2005 A.1.9 */
   : constraint_expression
       { $$ = $1; }
-  /* solve X, Y before Z; — constraint ordering directive, silently accept */
-  | K_solve expression_list_proper K_before expression_list_proper ';'
-      { delete $2; delete $4; $$ = nullptr; }
+  /* (solve ... before ...; is handled by constraint_expression below, in a
+     list-capable form, so it works both at the constraint-block top level and
+     nested inside foreach/if bodies.) */
   | error ';'
       { yyerrok; $$ = nullptr; }
   ;
@@ -3603,14 +3613,14 @@ constraint_declaration /* IEEE1800-2005: A.1.9 */
 constraint_expression /* IEEE1800-2005 A.1.9 */
   : expression ';'
       { $$ = $1; }
-  /* `solve a before b;` ordering directive inside a foreach/if constraint body
-     (constraint_set uses constraint_expression; the top-level body uses
-     constraint_block_item). Single-expression form (kept narrow — the
-     expression_list_proper form introduces ~85 reduce/reduce conflicts here);
-     solve-before only affects solver variable ordering, which the IR path does
-     not model, so parse and discard. (OpenTitan sysrst_ctrl vseqs.) */
-  | K_solve expression K_before expression ';'
-      { delete $2; delete $4; $$ = nullptr; }
+  /* `solve a, b before c, d;` ordering directive (works at the constraint-block
+     top level and nested inside foreach/if bodies). A dedicated solve_expr_list
+     is used instead of the general expression_list_proper, which avoids the ~85
+     reduce/reduce conflicts the shared list caused here. solve-before only
+     affects solver variable ordering, which the IR path does not model, so
+     parse and discard. (OpenTitan i2c/sysrst_ctrl vseqs.) */
+  | K_solve solve_expr_list K_before solve_expr_list ';'
+      { $$ = nullptr; }
   | expression K_dist '{' dist_list_opt '}' ';'
       { /* `dist` — lower weights ignored, ranges lowered to `inside` to
            enforce the value domain. Proper weighted distribution is TODO. */
