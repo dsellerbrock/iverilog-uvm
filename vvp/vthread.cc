@@ -15079,6 +15079,94 @@ bool of_QSLICE(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * Reverse the slice-sized blocks of a packed bit vector, implementing the
+ * IEEE 1800-2017 §11.4.14 left-shift streaming operator {<<slice{...}} on a
+ * pre-packed bit stream.  This matches the verified behaviour of iverilog's
+ * packed-vector lowering:
+ *   flat = C73F, slice=8  -> 3FC7   (block 0 = LSB block -> MSB of result)
+ *   flat = C73F, slice=1  -> FCE3   (full bit-reverse)
+ * `flat.value(0)` is the LSB.  block k = flat[k*slice +: slice] (block 0 at
+ * the LSB); blocks are emitted in reverse order (block 0 -> MSB of result),
+ * and a partial high block (size%slice != 0) stays at the LSB of the result.
+ */
+static vvp_vector4_t stream_reverse_blocks_(const vvp_vector4_t&flat,
+                                            unsigned slice)
+{
+      unsigned W = flat.size();
+      if (slice == 0) slice = 1;
+      vvp_vector4_t res(W, BIT4_0);
+      unsigned full = W / slice;
+      unsigned rem  = W % slice;
+      unsigned out  = W;                 // fill res from the MSB downward
+      for (unsigned k = 0 ; k < full ; k += 1) {
+            for (unsigned b = slice ; b > 0 ; b -= 1) {
+                  out -= 1;
+                  res.set_bit(out, flat.value(k*slice + (b-1)));
+            }
+      }
+      for (unsigned b = rem ; b > 0 ; b -= 1) {
+            out -= 1;
+            res.set_bit(out, flat.value(full*slice + (b-1)));
+      }
+      return res;
+}
+
+/*
+ * %stream/vec4 <slice>
+ * Pop a dynamic array/queue object, flatten it to its packed bit stream
+ * (element[0] at the MSB -- via get_bitstream), reverse the <slice>-bit
+ * blocks, and push the result as a vec4.  Implements {<<slice{dyn}} in a
+ * vector context.
+ */
+bool of_STREAM_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      unsigned slice = cp->bit_idx[0];
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_darray*src = obj.peek<vvp_darray>();
+      if (!src) { thr->push_vec4(vvp_vector4_t()); return true; }
+
+      vvp_vector4_t flat = src->get_bitstream(true);
+      thr->push_vec4(stream_reverse_blocks_(flat, slice));
+      return true;
+}
+
+/*
+ * %stream/obj <slice>, <elem_wid>
+ * Pop a dynamic array/queue object, flatten to its packed bit stream,
+ * reverse the <slice>-bit blocks, then re-pack into a darray of
+ * <elem_wid>-bit elements (element[0] from the MSB of the stream -- the
+ * inverse of get_bitstream).  Pushes the result darray.  Implements
+ * {<<slice{dyn}} assigned to a dynamic-array target.
+ */
+bool of_STREAM_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      unsigned slice = cp->bit_idx[0];
+      unsigned ew    = cp->bit_idx[1];
+      if (ew == 0) ew = 1;
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_darray*src = obj.peek<vvp_darray>();
+      if (!src) { thr->push_object(vvp_object_t()); return true; }
+
+      vvp_vector4_t flat = src->get_bitstream(true);
+      vvp_vector4_t res  = stream_reverse_blocks_(flat, slice);
+      unsigned W  = res.size();
+      unsigned ne = W / ew;                 // element count (must divide)
+
+      vvp_darray_vec4*dst = new vvp_darray_vec4(ne, ew);
+      for (unsigned j = 0 ; j < ne ; j += 1) {
+            vvp_vector4_t e(ew, BIT4_0);
+            unsigned base = W - (j+1)*ew;     // element[0] from the MSB end
+            for (unsigned b = 0 ; b < ew ; b += 1)
+                  e.set_bit(b, res.value(base + b));
+            dst->set_word(j, e);
+      }
+      thr->push_object(vvp_object_t(dst));
+      return true;
+}
+
 /* %qslice/peekobj
  * Like %qslice but reads source by PEEKING at top of obj stack (depth 0).
  * Pops lo/hi from vec4 stack; pushes result queue on obj stack.

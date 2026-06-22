@@ -2463,9 +2463,107 @@ unsigned PEStreaming::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       return expr_width_;
 }
 
-NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
-				     ivl_type_t /*type*/, unsigned flags) const
+/*
+ * If the streaming inner is a single dynamic-array/queue operand (a whole
+ * dynamic array/queue or a [lo:hi] slice of one, the cases the fixed-width
+ * NetEConcat lowering gets wrong), return that operand and, via *otype, its
+ * net type.  Otherwise return nullptr.  Single-element selects (q[i]) and
+ * indexed part-selects (q[base+:W]) are fixed-width and excluded.
+ */
+static PExpr* dynamic_stream_operand_(Design*des, NetScope*scope,
+				      PExpr*inner, ivl_type_t*otype)
 {
+      PExpr*op = inner;
+	// Unwrap a single-element brace concatenation "{ x }".
+      if (PEConcat*cat = dynamic_cast<PEConcat*>(op)) {
+	    if (cat->parms().size() != 1) return nullptr;
+	    op = cat->parms()[0];
+      }
+      PEIdent*id = dynamic_cast<PEIdent*>(op);
+      if (!id) return nullptr;
+
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr))
+	    return nullptr;
+      if (!sr.net) return nullptr;
+      ivl_type_t t = sr.net->net_type();
+      if (!dynamic_cast<const netdarray_t*>(t)
+	  && !dynamic_cast<const netqueue_t*>(t))
+	    return nullptr;
+
+      const name_component_t&tail = id->path().back();
+      if (!tail.index.empty()) {
+	    switch (tail.index.back().sel) {
+		case index_component_t::SEL_PART:
+		case index_component_t::SEL_PART_LAST:
+		case index_component_t::SEL_PART_LAST_MINUS:
+		  break;            // [lo:hi]/[lo:$] slice -> dynamic
+		default:
+		  return nullptr;   // single element / indexed -> fixed width
+	    }
+      }
+      if (otype) *otype = t;
+      return op;
+}
+
+/*
+ * Lower a left-shift streaming concatenation over a single dynamic operand
+ * ({<<slice{queue/darray-or-slice}}) to a runtime helper:
+ *   $ivl_stream_obj(src, slice, elem_wid)  -> a dynamic-array result, or
+ *   $ivl_stream_vec4(src, slice)           -> a packed-vector result.
+ * The runtime flattens src to its packed bit stream, reverses the slice-bit
+ * blocks (matching packed {<<N{}}), and repacks for the target kind.  Returns
+ * nullptr if this isn't a single-dynamic-operand << stream (caller falls back
+ * to the existing fixed-width path).  want_obj selects the result kind;
+ * elem_wid is the target element width (object result only).
+ */
+NetExpr* PEStreaming::elaborate_dynamic_stream_(Design*des, NetScope*scope,
+						ivl_type_t result_type,
+						unsigned elem_wid,
+						unsigned flags) const
+{
+      if (dir_ != DIR_LSHIFT) return nullptr;
+      ivl_type_t otype = nullptr;
+      PExpr*op = dynamic_stream_operand_(des, scope, inner_, &otype);
+      if (!op) return nullptr;
+
+	// Elaborate the operand as an object (queue/darray) expression.
+      NetExpr*src = op->elaborate_expr(des, scope, otype, flags);
+      if (!src) return nullptr;
+
+      unsigned slice = slice_ ? slice_ : 1;
+
+      if (result_type) {
+	      // Dynamic-array result with the target's element width.
+	    NetESFunc*fn = new NetESFunc("$ivl_stream_obj", result_type, 3);
+	    fn->set_line(*this);
+	    fn->parm(0, src);
+	    fn->parm(1, new NetEConst(verinum((uint64_t)slice, 32)));
+	    fn->parm(2, new NetEConst(verinum((uint64_t)elem_wid, 32)));
+	    return fn;
+      }
+
+	// Vector (packed) result: deferred to a later increment.
+      return nullptr;
+}
+
+NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
+				     ivl_type_t type, unsigned flags) const
+{
+	// A << stream over a single dynamic operand assigned to a dynamic
+	// array/queue target: produce a dynamic-array result with the target's
+	// element width.
+      if (type) {
+	    unsigned ew = 0;
+	    if (const netdarray_t*da = dynamic_cast<const netdarray_t*>(type)) {
+		  if (da->element_type()) ew = da->element_type()->packed_width();
+	    }
+	    if (ew) {
+		  if (NetExpr*dyn = elaborate_dynamic_stream_(des, scope, type,
+							      ew, flags))
+			return dyn;
+	    }
+      }
       return elaborate_expr(des, scope, (unsigned)0, flags);
 }
 
@@ -2473,6 +2571,13 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 				     unsigned expr_wid, unsigned flags) const
 {
       if (!inner_) return nullptr;
+
+	// A << stream over a single dynamic operand in a packed (vector)
+	// context: produce a packed-vector result.  Done before test_width
+	// because a variable-bound slice would otherwise error there.
+      if (NetExpr*dyn = elaborate_dynamic_stream_(des, scope, nullptr, 0, flags))
+	    return dyn;
+
       width_mode_t m = SIZED;
       unsigned w = inner_->test_width(des, scope, m);
       if (w == 0) {

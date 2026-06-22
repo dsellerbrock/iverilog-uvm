@@ -244,6 +244,7 @@ class vvp_queue_vec4 : public vvp_queue {
       void pop_front(void) override { queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
+      vvp_vector4_t get_bitstream(bool as_vec4) override;
 
     private:
       std::deque<vvp_vector4_t> queue;

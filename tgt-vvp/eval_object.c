@@ -670,6 +670,20 @@ static int eval_object_sfunc(ivl_expr_t expr)
        * and q.unique_index().  Emit a single runtime opcode
        * %qunique_copy that reads the queue and returns a new
        * dedup'd copy on the object stack. */
+      if (strcmp(name, "$ivl_stream_obj") == 0) {
+	    /* {<<slice{dyn}} -> dynamic-array result.
+	     * parm0 = source object, parm1 = slice, parm2 = elem width. */
+	    if (parm_count < 3) { fprintf(vvp_out, "    %%null;\n"); return 0; }
+	    ivl_expr_t src = ivl_expr_parm(expr, 0);
+	    ivl_expr_t sl  = ivl_expr_parm(expr, 1);
+	    ivl_expr_t ew  = ivl_expr_parm(expr, 2);
+	    draw_eval_object(src);
+	    fprintf(vvp_out, "    %%stream/obj %lu, %lu;\n",
+		    (unsigned long)get_number_immediate(sl),
+		    (unsigned long)get_number_immediate(ew));
+	    return 0;
+      }
+
       if (strcmp(name, "$ivl_queue_slice") == 0) {
 	    /* q[lo:hi] — push lo then hi on vec4 stack, then %qslice v_q pops them */
 	    if (parm_count < 3) {

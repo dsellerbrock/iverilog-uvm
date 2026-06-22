@@ -1306,6 +1306,10 @@ class PEStreaming : public PExpr {
       NetExpr* elaborate_expr(Design* des, NetScope* scope,
                               unsigned expr_wid, unsigned flags) const override;
     private:
+      NetExpr* elaborate_dynamic_stream_(Design*des, NetScope*scope,
+                                         ivl_type_t result_type,
+                                         unsigned elem_wid,
+                                         unsigned flags) const;
       direction_t dir_;
       unsigned slice_;
       PExpr* inner_;

@@ -260,6 +260,30 @@ vvp_vector4_t vvp_darray_vec4::get_bitstream(bool as_vec4)
       return vec;
 }
 
+/* Flatten a queue to its packed bit stream: element[0] occupies the most
+ * significant bits, each element MSB-first.  Matches vvp_darray_vec4 but the
+ * element width is taken per-element (queue elements may differ in width). */
+vvp_vector4_t vvp_queue_vec4::get_bitstream(bool as_vec4)
+{
+      unsigned total = 0;
+      for (size_t adx = 0 ; adx < queue.size() ; adx += 1)
+            total += queue[adx].size();
+
+      vvp_vector4_t vec(total, BIT4_0);
+      unsigned vdx = total;
+      for (size_t adx = 0 ; adx < queue.size() ; adx += 1) {
+            unsigned ew = queue[adx].size();
+            vdx -= ew;
+            for (unsigned bdx = 0 ; bdx < ew ; bdx += 1) {
+                  vvp_bit4_t bit = queue[adx].value(bdx);
+                  if (as_vec4 || (bit == BIT4_1))
+                        vec.set_bit(vdx+bdx, bit);
+            }
+      }
+
+      return vec;
+}
+
 vvp_darray_vec2::~vvp_darray_vec2()
 {
 }
