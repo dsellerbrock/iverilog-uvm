@@ -349,6 +349,12 @@ extern void pform_set_typedef(const struct vlltype&loc, perm_string name,
 extern void pform_forward_typedef(const struct vlltype&loc, perm_string name,
 			      enum typedef_t::basic_type basic_type);
 
+// COVERGROUP STUB hook: register a covergroup name as an is_covergroup_stub
+// class type so uses of it (new()/sample()/...) elaborate as no-ops. See the
+// definition in pform.cc for how to add real covergroup support later.
+extern void pform_covergroup_stub_typedef(const struct vlltype&loc,
+					  perm_string name);
+
 extern void pform_set_type_referenced(const struct vlltype&loc, const char*name);
 
 /*

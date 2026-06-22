@@ -982,6 +982,37 @@ void pform_set_type_referenced(const struct vlltype&loc, const char*name)
       check_potential_imports(loc, lex_name, false);
 }
 
+// ===========================================================================
+// COVERGROUP STUB (functional coverage is not yet implemented)
+// ---------------------------------------------------------------------------
+// Register a covergroup NAME as an `is_covergroup_stub` class type in the
+// current scope, so that everything that *uses* the covergroup as a type --
+//   <cg_name> inst = new();   inst.sample(...);   inst.get_inst_coverage();
+// -- parses and elaborates as a no-op (elab_scope.cc turns the stub into a
+// netclass with set_is_covergroup(true); elab_expr.cc / elaborate.cc treat
+// method calls on such a netclass as no-ops).
+//
+// This deliberately throws the covergroup BODY away (coverpoints/bins/cross):
+// no coverage is collected. It is the single hook point for adding real
+// covergroup support later -- a real implementation would, instead of
+// discarding, build the synthesized bin-counting class (see the class-scope
+// path in elaborate.cc that emits __covgrp_<...>_t with one counter property
+// per bin) and wire sample() to update it.
+//
+// Shared by the package-scope and module/interface-scope covergroup grammar
+// rules so both behave identically.
+// ===========================================================================
+void pform_covergroup_stub_typedef(const struct vlltype&loc, perm_string name)
+{
+      class_type_t*cg_type = new class_type_t(name);
+      FILE_NAME(cg_type, loc);
+      cg_type->is_covergroup_stub = true;
+      PClass*cg_cls = pform_push_class_scope(loc, name);
+      cg_cls->type = cg_type;
+      pform_set_typedef(loc, name, cg_type, nullptr);
+      pform_pop_scope();
+}
+
 static PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name)
 {
       for (LexicalScope*cur = start ; cur ; cur = cur->parent_scope()) {

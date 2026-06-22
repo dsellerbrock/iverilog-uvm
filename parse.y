@@ -11301,21 +11301,27 @@ module_item
      reasonable error message can be produced. */
 
   /* Covergroups in a module/interface (e.g. DV functional-coverage interfaces
-     bound into the DUT). Functional coverage is a no-op in this flow, so parse
-     the covergroup (optionally clocked with @(...) or `with function sample`)
-     and discard it. Mirrors the class-item covergroup handling. */
+     bound into the DUT, or SVA checker modules that instantiate their own
+     covergroups). Functional coverage is a no-op in this flow, but the
+     covergroup NAME must still be registered as a (stub) type so that
+     `cg_name inst = new(); inst.sample(...);` parses and elaborates -- see
+     pform_covergroup_stub_typedef(). The covergroup body is discarded.
+     TODO(covergroup): build real bin-counting coverage instead of a stub. */
   | K_covergroup IDENTIFIER clocking_event_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { if ($5) { for (auto*c : *$5) delete c; delete $5; }
+      { pform_covergroup_stub_typedef(@2, lex_strings.make($2));
+	if ($5) { for (auto*c : *$5) delete c; delete $5; }
 	if ($3) delete $3;
 	delete[] $2; if ($7) delete[] $7;
       }
   | K_covergroup IDENTIFIER tf_port_list_parens_opt clocking_event_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { if ($6) { for (auto*c : *$6) delete c; delete $6; }
+      { pform_covergroup_stub_typedef(@2, lex_strings.make($2));
+	if ($6) { for (auto*c : *$6) delete c; delete $6; }
 	if ($3) delete $3; if ($4) delete $4;
 	delete[] $2; if ($8) delete[] $8;
       }
   | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { if ($9) { for (auto*c : *$9) delete c; delete $9; }
+      { pform_covergroup_stub_typedef(@2, lex_strings.make($2));
+	if ($9) { for (auto*c : *$9) delete c; delete $9; }
 	if ($3) delete $3; if ($7) delete $7;
 	delete[] $2; delete[] $6; if ($11) delete[] $11;
       }
