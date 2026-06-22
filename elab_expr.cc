@@ -689,6 +689,29 @@ static ivl_nature_t find_access_function(const pform_scoped_name_t &path)
       return access_function_nature[peek_tail_name(path)];
 }
 
+/*
+ * Test whether a class is genuinely parameterized, i.e. it has at least one
+ * parameter *port* that must be specified with #(...) when the class name is
+ * used as a scope qualifier (IEEE 1800-2017 §8.25.1).  A class may carry
+ * `localparam` members (constants computed from nothing, e.g. enum-sized
+ * widths in a BFM) -- those are recorded in parameter_order too, but they are
+ * NOT parameter ports, so the class is not "parameterized" for this purpose.
+ * Distinguish by local_flag (set for localparam; class parameters get
+ * overridable=false regardless, so overridable can't be used here).
+ */
+static bool pclass_has_parameter_ports_(const PClass*pclass)
+{
+      if (!pclass)
+	    return false;
+      for (const perm_string&pname : pclass->parameter_order) {
+	    auto it = pclass->parameters.find(pname);
+	    if (it != pclass->parameters.end() && it->second
+		&& !it->second->local_flag)
+		  return true;
+      }
+      return false;
+}
+
 static const netclass_t* resolve_scoped_class_type_name_(Design*des, NetScope*scope,
 							 perm_string name)
 {
@@ -5102,7 +5125,7 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 		  // scope qualifier without explicit #(...) is an error.
 		  const NetScope*cs = class_type->class_scope();
 		  const PClass*pclass = cs ? cs->class_pform() : nullptr;
-		  if (pclass && !pclass->parameter_order.empty()
+		  if (pclass_has_parameter_ports_(pclass)
 		  && comp.name == class_type->get_name()) {
 			cerr << li->get_fileline() << ": error: "
 			     << "Parameterized class '" << class_type->get_name()
@@ -9582,7 +9605,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			const NetScope*cs = cls->class_scope();
 			const PClass*pclass = cs ? cs->class_pform() : nullptr;
 			perm_string first_comp = path_.name.front().name;
-			if (pclass && !pclass->parameter_order.empty()
+			if (pclass_has_parameter_ports_(pclass)
 			    && !cls->specialized_instance()
 			    && first_comp == cls->get_name()) {
 			      cerr << get_fileline() << ": error: "
