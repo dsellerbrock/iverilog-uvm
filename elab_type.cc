@@ -1134,8 +1134,33 @@ ivl_type_t elaborate_array_type(Design *des, NetScope *scope,
 
       ivl_type_t type = base_type;
 
-      for (list<pform_range_t>::const_iterator cur = dims.begin();
-	   cur != dims.end() ; ++cur) {
+      // Unpacked dimensions are written left-to-right, outermost-first
+      // (IEEE 1800 §7.4), so for `T a[KEY][$]` / `T a[N][$]` the queue [$] is
+      // the INNERMOST type (an array/assoc OF queue). The historical loop below
+      // builds left-to-right and wraps each dimension OUTSIDE the previous one,
+      // which is correct for plain multi-dimensional fixed arrays and for
+      // nested assoc/dynamic arrays (whose accessors are order-insensitive),
+      // but would wrongly make a trailing queue/dynamic-array the OUTERMOST
+      // type. Handle that one mismatch surgically: if the LAST dimension is a
+      // queue [$] or dynamic array [] and it is not the only dimension, peel it
+      // off and wrap the base FIRST, then let the original loop process the
+      // leading dimensions around it. This leaves pure-fixed, pure-assoc,
+      // single-dimension and leading-special cases byte-for-byte unchanged.
+      list<pform_range_t> use_dims(dims);
+      if (use_dims.size() >= 2) {
+	    const pform_range_t &last = use_dims.back();
+	    if (last.first == 0 && last.second == 0) {
+		  type = elaborate_darray_check_type(des, li, type, "Dynamic array");
+		  type = new netdarray_t(type);
+		  use_dims.pop_back();
+	    } else if (dynamic_cast<PENull*>(last.first)) {
+		  type = elaborate_queue_type(des, scope, li, type, last.second);
+		  use_dims.pop_back();
+	    }
+      }
+
+      for (list<pform_range_t>::const_iterator cur = use_dims.begin();
+	   cur != use_dims.end() ; ++cur) {
 	    PExpr *lidx = cur->first;
 	    PExpr *ridx = cur->second;
 

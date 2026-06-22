@@ -7180,9 +7180,16 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		 << " is_darray=" << (target_type && dynamic_cast<const netdarray_t*>(target_type))
 		 << endl;
       // Queue methods. This handles the case that the located signal is a
-      // QUEUE object, and there is a method.
+      // QUEUE object, and there is a method. An indexed target is allowed here
+      // only when the selected VALUE is a real (non-assoc-compat) queue, e.g.
+      // an assoc-of-queue element q[key].size()/.push_back(...): the receiver
+      // itself is a queue and queue methods apply. Associative arrays are
+      // themselves represented as assoc-compat netqueue_t, so an indexed access
+      // into a NESTED assoc (whose value is another assoc) must NOT be treated
+      // as a queue-method receiver -- that path is handled elsewhere.
       if (target_type && dynamic_cast<const netqueue_t*>(target_type)
-	  && !target_indexed) {
+	  && (!target_indexed
+	      || !dynamic_cast<const netqueue_t*>(target_type)->assoc_compat())) {
 
 	    if (method_name == "size") {
 		  if (parms_.size() != 0) {
