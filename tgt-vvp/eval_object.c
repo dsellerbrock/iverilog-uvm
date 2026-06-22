@@ -462,6 +462,23 @@ static int eval_object_select(ivl_expr_t expr)
 		  return 0;
 	    }
 
+		  /* Dynamic-array-of-objects property element:
+		     obj.darray_prop[idx].  Load the darray object then read
+		     element idx from it; the fixed-array %prop/obj path below
+		     cannot index a dynamic array. */
+		  {
+			ivl_type_t sube_nt = ivl_expr_net_type(sube);
+			if (sube_nt && ivl_type_base(sube_nt) == IVL_VT_DARRAY) {
+			      draw_eval_object(sube);
+			      if (index)
+				    draw_eval_expr_into_integer(index, 3);
+			      else
+				    fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
+			      fprintf(vvp_out, "    %%load/dar/obj/obj;\n");
+			      return 0;
+			}
+		  }
+
 	    if (prop_idx) {
 		  fprintf(vvp_out, "    %%null; ; nested property select fallback\n");
 		  return 0;

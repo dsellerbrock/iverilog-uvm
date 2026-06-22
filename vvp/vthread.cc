@@ -10923,6 +10923,31 @@ bool of_LOAD_QO_OBJ(vthread_t thr, vvp_code_t)
       return load_qo<vvp_object_t, vvp_queue_object>(thr);
 }
 
+/*
+ * %load/dar/obj/obj
+ *    Stack form of %load/dar/obj: pop the dynamic-array (or queue) object from
+ *    the object-stack top, read its element at index words[3] as an object,
+ *    and push the element.  Used for a darray-of-objects that is a class
+ *    property (obj.darray_prop[idx]), which has no backing signal net.
+ */
+bool of_LOAD_DAR_OBJ_OBJ(vthread_t thr, vvp_code_t)
+{
+      int64_t adr = thr->words[3].w_int;
+
+      vvp_object_t recv;
+      thr->pop_object(recv);
+
+      vvp_object_t word;
+      if (vvp_darray*darray = recv.peek<vvp_darray>()) {
+	    if (adr >= 0 && thr->flags[4] == BIT4_0
+		&& static_cast<size_t>(adr) < darray->get_size())
+		  darray->get_word(adr, word);
+      }
+
+      thr->push_object(word);
+      return true;
+}
+
 bool of_AA_LOAD_OBJ_OBJ(vthread_t thr, vvp_code_t)
 {
       return aa_load_obj<vvp_object_t, vvp_assoc_object>(thr);
