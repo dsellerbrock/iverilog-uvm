@@ -581,6 +581,14 @@ TU [munpf]
       }
 }
 
+  /* `1step` time-step literal (IEEE 1800 §14.4), used in clocking-block default
+     skews (e.g. `default input #1step`). flex longest-match makes this win over
+     the plain `1` number rule. SystemVerilog only. */
+1step {
+      if (gn_system_verilog()) {
+	    return K_1step;
+      } else REJECT; }
+
   /* This rule handles scaled time values for SystemVerilog.
      Strip underscore separators (IEEE 1800-2012 §5.7.1) so atof() works. */
 [0-9][0-9_]*(\.[0-9][0-9_]*)?{TU}?s {

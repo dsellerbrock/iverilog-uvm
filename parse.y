@@ -1596,6 +1596,7 @@ static Statement* lower_randsequence_(const char* start_name,
 %token K_tagged K_this K_throughout K_timeprecision K_timeunit K_type
 %token K_typedef K_union K_unique K_var K_virtual K_void K_wait_order
 %token K_wildcard K_with K_within
+%token K_1step
 
  /* The new tokens from 1800-2009. */
 %token K_accept_on K_checker K_endchecker K_eventually K_global K_implies
@@ -7747,11 +7748,23 @@ delay_value
       }
   | expression ':' expression ':' expression
       { $$ = pform_select_mtm_expr($1, $3, $5); }
+  /* `1step` time-step literal (IEEE 1800 §14.4), as a clocking-skew delay. */
+  | K_1step
+      { $$ = new PENumber(new verinum((uint64_t)1, integer_width));
+	FILE_NAME($$, @1);
+      }
   ;
 
 
 delay_value_simple
-  : DEC_NUMBER
+  : K_1step
+      { /* `1step` time-step literal (IEEE 1800 §14.4), used in clocking-block
+	   default skews. We drop clocking sample/drive timing, so represent it
+	   as a placeholder 1 — its only appearances are in skews we discard. */
+	$$ = new PENumber(new verinum((uint64_t)1, integer_width));
+	FILE_NAME($$, @1);
+      }
+  | DEC_NUMBER
       { verinum*tmp = $1;
 	if (tmp == 0) {
 	      yyerror(@1, "internal error: decimal delay.");
