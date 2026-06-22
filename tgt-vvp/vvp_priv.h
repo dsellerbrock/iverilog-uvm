@@ -630,6 +630,10 @@ extern unsigned thread_count;
 
 extern void darray_new(ivl_type_t element_type, unsigned size_reg);
 
+/* Emit %new/queue for the given queue type, pushing a new empty queue object.
+ * (Defined in vvp_process.c.) */
+extern void emit_new_queue_object_(ivl_type_t queue_type);
+
 /*
  * These are various statement code generators.
  */

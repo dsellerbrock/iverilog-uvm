@@ -1771,7 +1771,7 @@ static int expr_is_queue_expr(ivl_expr_t expr);
 static int show_queue_object_receiver(ivl_expr_t parm);
 static int expr_is_static_array_expr(ivl_expr_t expr);
 
-static void emit_new_queue_object_(ivl_type_t queue_type)
+void emit_new_queue_object_(ivl_type_t queue_type)
 {
       ivl_type_t element_type = ivl_type_element(queue_type);
       ivl_variable_type_t type = element_type ? ivl_type_base(element_type) : IVL_VT_NO_TYPE;

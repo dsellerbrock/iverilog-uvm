@@ -19,6 +19,7 @@
 
 # include  "vvp_priv.h"
 # include  <string.h>
+# include  <stdlib.h>
 # include  <assert.h>
 
 void darray_new(ivl_type_t element_type, unsigned size_reg)
@@ -1087,6 +1088,75 @@ static int eval_object_array_pattern(ivl_expr_t expr)
 {
       unsigned nparm = ivl_expr_parms(expr);
       int errors;
+
+      /* A dynamic-array / queue array-pattern (e.g. `q = '{1,2,3}` where q is a
+       * darray/queue, including a class property `obj.q = '{...}`): build the
+       * darray object and populate it from the pattern elements, leaving the
+       * object on the stack. (eval_object_aggregate_literal_ below only handles
+       * class aggregates; without this, a darray pattern fell through to the
+       * first element and produced a null object.) */
+      ivl_type_t net_type = ivl_expr_net_type(expr);
+      if (net_type && (ivl_type_base(net_type) == IVL_VT_DARRAY
+                       || ivl_type_base(net_type) == IVL_VT_QUEUE)) {
+	    ivl_type_t element_type = ivl_type_element(net_type);
+	    unsigned idx;
+	    if (ivl_type_base(net_type) == IVL_VT_QUEUE) {
+		  /* Build a queue object. %set/dar/obj/* on a queue grows it
+		   * (set_word_max), so the sequential index loop below appends
+		   * elements without pre-sizing. */
+		  emit_new_queue_object_(net_type);
+	    } else {
+		  /* Build a pre-sized dynamic array of nparm elements. */
+		  unsigned size_reg = allocate_word();
+		  fprintf(vvp_out, "    %%ix/load %u, %u, 0;\n", size_reg, nparm);
+		  darray_new(element_type, size_reg);
+		  clr_word(size_reg);
+	    }
+	    switch (ivl_type_base(element_type)) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		  for (idx = 0 ; idx < nparm ; idx += 1) {
+			draw_eval_vec4(ivl_expr_parm(expr, idx));
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+			fprintf(vvp_out, "    %%set/dar/obj/vec4 3;\n");
+			fprintf(vvp_out, "    %%pop/vec4 1;\n");
+		  }
+		  break;
+		case IVL_VT_REAL:
+		  for (idx = 0 ; idx < nparm ; idx += 1) {
+			draw_eval_real(ivl_expr_parm(expr, idx));
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+			fprintf(vvp_out, "    %%set/dar/obj/real 3;\n");
+			fprintf(vvp_out, "    %%pop/real 1;\n");
+		  }
+		  break;
+		case IVL_VT_STRING:
+		  for (idx = 0 ; idx < nparm ; idx += 1) {
+			draw_eval_string(ivl_expr_parm(expr, idx));
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+			fprintf(vvp_out, "    %%set/dar/obj/str 3;\n");
+			fprintf(vvp_out, "    %%pop/str 1;\n");
+		  }
+		  break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE:
+		  for (idx = 0 ; idx < nparm ; idx += 1) {
+			draw_eval_object(ivl_expr_parm(expr, idx));
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+			fprintf(vvp_out, "    %%set/dar/obj/obj 3;\n");
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  }
+		  break;
+		default:
+		  fprintf(stderr, "Warning: object array-pattern: unsupported "
+			  "element type %d; emitting empty darray\n",
+			  ivl_type_base(element_type));
+		  break;
+	    }
+	    return 0;
+      }
 
       errors = eval_object_aggregate_literal_(expr);
       if (errors >= 0)
