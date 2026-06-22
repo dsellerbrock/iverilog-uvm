@@ -9769,6 +9769,10 @@ NetProc* PForStatement::elaborate(Design*des, NetScope*scope) const
       NetExpr*initial_expr;
       NetNet*sig;
       bool error_flag = false;
+	// When the loop variable is a class property (not a signal), the
+	// initial assignment is elaborated as a normal l-value assignment and
+	// lifted out in front of the loop (see below).
+      NetProc*prefix_init = nullptr;
       ivl_assert(*this, scope);
 
       if (!name1_) {
@@ -9784,11 +9788,38 @@ NetProc* PForStatement::elaborate(Design*des, NetScope*scope) const
 	    // statement in the for loop is very specifically an assignment.
 	    sig = des->find_signal(scope, id1->path().name);
 	    if (sig == 0) {
-		  cerr << id1->get_fileline() << ": register ``" << id1->path()
-		       << "'' unknown in " << scope_path(scope) << "." << endl;
-		  des->errors += 1;
-		  return 0;
-	    }
+		  // The loop variable may be a class property used directly as
+		  // the loop control, e.g. an inherited `rand` member in a UVM
+		  // sequence: `for (member = 0; member < N; member++)`.  Such a
+		  // member is not a signal, so find_signal() fails.  Elaborate
+		  // the initial assignment as a normal l-value assignment and
+		  // run it once in front of a NetForLoop that has no built-in
+		  // init -- semantically `init; for (; cond; step) body`.
+		  // Keeping cond/step inside the NetForLoop preserves
+		  // continue/break semantics.
+		  NetAssign_*lv = name1_->elaborate_lval(des, scope,
+							 false, false, false);
+		  if (lv == 0) {
+			cerr << id1->get_fileline() << ": register ``"
+			     << id1->path() << "'' unknown in "
+			     << scope_path(scope) << "." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  NetExpr*ival = elaborate_rval_expr(des, scope,
+						     lv->net_type(), expr1_);
+		  if (ival == 0) {
+			delete lv;
+			error_flag = true;
+		  } else {
+			NetAssign*ia = new NetAssign(lv, ival);
+			ia->set_line(*this);
+			prefix_init = ia;
+		  }
+		  sig = nullptr;
+		  initial_expr = nullptr;
+
+	    } else {
 
 	    // Make the r-value of the initial assignment, and size it
 	    // properly. Then use it to build the assignment statement.
@@ -9800,6 +9831,7 @@ NetProc* PForStatement::elaborate(Design*des, NetScope*scope) const
 	    if (debug_elaborate && initial_expr) {
 		  cerr << get_fileline() << ": debug: FOR initial assign: "
 		       << sig->name() << " = " << *initial_expr << endl;
+	    }
 	    }
 
       } else {
@@ -9849,6 +9881,7 @@ NetProc* PForStatement::elaborate(Design*des, NetScope*scope) const
       // expressions, give up now. Error counts where handled elsewhere.
       if (error_flag) {
 	    if (initial_expr) delete initial_expr;
+	    if (prefix_init) delete prefix_init;
 	    if (ce) delete ce;
 	    if (step) delete step;
 	    if (sub) delete sub;
@@ -9863,6 +9896,17 @@ NetProc* PForStatement::elaborate(Design*des, NetScope*scope) const
 
       NetForLoop*loop = new NetForLoop(sig, initial_expr, ce, sub, step);
       loop->set_line(*this);
+
+	// If the initial assignment was lifted out (class-property loop
+	// variable), run it once before the loop.
+      if (prefix_init) {
+	    NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+	    blk->set_line(*this);
+	    blk->append(prefix_init);
+	    blk->append(loop);
+	    return blk;
+      }
+
       return loop;
 }
 
