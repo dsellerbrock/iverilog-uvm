@@ -15121,14 +15121,32 @@ static vvp_vector4_t stream_reverse_blocks_(const vvp_vector4_t&flat,
  */
 bool of_STREAM_VEC4(vthread_t thr, vvp_code_t cp)
 {
-      unsigned slice = cp->bit_idx[0];
+      unsigned slice     = cp->bit_idx[0];
+      unsigned out_width = cp->bit_idx[1];   // 0 = use the stream's own width
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_darray*src = obj.peek<vvp_darray>();
-      if (!src) { thr->push_vec4(vvp_vector4_t()); return true; }
+      if (!src) { thr->push_vec4(vvp_vector4_t(out_width ? out_width : 0)); return true; }
 
       vvp_vector4_t flat = src->get_bitstream(true);
-      thr->push_vec4(stream_reverse_blocks_(flat, slice));
+      vvp_vector4_t res  = stream_reverse_blocks_(flat, slice);
+      unsigned W = res.size();
+      if (out_width == 0 || out_width == W) {
+            thr->push_vec4(res);
+            return true;
+      }
+	// IEEE 1800-2017 §11.4.14.3: the stream value occupies the most
+	// significant bits of the target; a narrower stream is zero-filled at
+	// the LSB, a wider stream is truncated at the LSB.
+      vvp_vector4_t out(out_width, BIT4_0);
+      if (W <= out_width) {
+            for (unsigned b = 0 ; b < W ; b += 1)
+                  out.set_bit(out_width - W + b, res.value(b));
+      } else {
+            for (unsigned b = 0 ; b < out_width ; b += 1)
+                  out.set_bit(b, res.value(W - out_width + b));
+      }
+      thr->push_vec4(out);
       return true;
 }
 

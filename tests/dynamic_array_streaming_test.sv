@@ -30,15 +30,27 @@ module dynamic_array_streaming_test;
       dslice = {<<1{q2[32:31+n]}};        // -> FC E3
     end
 
-    if (d1.size()==2     && d1[0]==8'hFC && d1[1]==8'hE3 &&
-        d8.size()==2     && d8[0]==8'h3F && d8[1]==8'hC7 &&
-        dslice.size()==2 && dslice[0]==8'hFC && dslice[1]==8'hE3)
-      $display("PASS d1=%02h%02h d8=%02h%02h slice=%02h%02h",
-               d1[0],d1[1], d8[0],d8[1], dslice[0],dslice[1]);
-    else
-      $display("FAIL d1.sz=%0d %02h%02h d8.sz=%0d %02h%02h slice.sz=%0d %02h%02h",
-               d1.size(),d1[0],d1[1], d8.size(),d8[0],d8[1],
-               dslice.size(),dslice[0],dslice[1]);
+    // Vector (packed) target: {<<N{queue}} into a fixed vector (the
+    // usb20_monitor crc16 = {<<{slice}} pattern).
+    begin
+      logic [15:0] v1, v8, vslice;
+      bit q3[$];
+      v1 = {<<1{q}};                     // FCE3
+      v8 = {<<8{q}};                     // 3FC7
+      for (int i = 0; i < 32; i++) q3.push_back(0);
+      foreach (src[i]) q3.push_back(src[i]);
+      vslice = {<<1{q3[32:31+(q3.size()-32)]}};   // FCE3
+
+      if (d1.size()==2     && d1[0]==8'hFC && d1[1]==8'hE3 &&
+          d8.size()==2     && d8[0]==8'h3F && d8[1]==8'hC7 &&
+          dslice.size()==2 && dslice[0]==8'hFC && dslice[1]==8'hE3 &&
+          v1==16'hFCE3 && v8==16'h3FC7 && vslice==16'hFCE3)
+        $display("PASS d1=%02h%02h d8=%02h%02h slice=%02h%02h v1=%04h v8=%04h vslice=%04h",
+                 d1[0],d1[1], d8[0],d8[1], dslice[0],dslice[1], v1, v8, vslice);
+      else
+        $display("FAIL d1=%0d d8=%0d slice=%0d v1=%04h v8=%04h vslice=%04h",
+                 d1.size(), d8.size(), dslice.size(), v1, v8, vslice);
+    end
     $finish;
   end
 endmodule

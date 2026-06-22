@@ -1671,8 +1671,9 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    ivl_expr_t src = ivl_expr_parm(expr, 0);
 	    ivl_expr_t sl  = ivl_expr_parm(expr, 1);
 	    draw_eval_object(src);
-	    fprintf(vvp_out, "    %%stream/vec4 %lu;\n",
-		    (unsigned long)get_number_immediate(sl));
+	    fprintf(vvp_out, "    %%stream/vec4 %lu, %u;\n",
+		    (unsigned long)get_number_immediate(sl),
+		    ivl_expr_width(expr));
 	    return;
       }
       if (strcmp(ivl_expr_name(expr), "$ivl_queue_method$pop_back")==0) {

@@ -2454,8 +2454,25 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
  * remainder as the first concat element (so it ends up at the MSBs of
  * the result, matching the spec).
  */
+static PExpr* dynamic_stream_operand_(Design*des, NetScope*scope,
+				      PExpr*inner, ivl_type_t*otype);
+
 unsigned PEStreaming::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
+	// A << stream over a dynamic operand has a run-time-determined width;
+	// don't call inner_->test_width (a variable-bound slice would error
+	// there).  The real width comes from the assignment target / vec4
+	// opcode; report a nonzero self-determined width here.
+      ivl_type_t ot = nullptr;
+      if (dir_ == DIR_LSHIFT
+	  && dynamic_stream_operand_(des, scope, inner_, &ot)) {
+	    expr_width_  = 1;
+	    expr_type_   = IVL_VT_LOGIC;
+	    signed_flag_ = false;
+	    min_width_   = 1;
+	    return expr_width_;
+      }
+
       expr_width_ = inner_->test_width(des, scope, mode);
       expr_type_  = IVL_VT_LOGIC;
       signed_flag_ = false;
@@ -2543,8 +2560,15 @@ NetExpr* PEStreaming::elaborate_dynamic_stream_(Design*des, NetScope*scope,
 	    return fn;
       }
 
-	// Vector (packed) result: deferred to a later increment.
-      return nullptr;
+	// Packed (vector) result.  elem_wid carries the context width; the
+	// runtime resizes the streamed bits to it (stream at the MSB).  A
+	// width of 0 means "use the stream's own width".
+      NetESFunc*fn = new NetESFunc("$ivl_stream_vec4", IVL_VT_LOGIC,
+				   elem_wid ? elem_wid : 1, 2);
+      fn->set_line(*this);
+      fn->parm(0, src);
+      fn->parm(1, new NetEConst(verinum((uint64_t)slice, 32)));
+      return fn;
 }
 
 NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
@@ -2573,9 +2597,11 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
       if (!inner_) return nullptr;
 
 	// A << stream over a single dynamic operand in a packed (vector)
-	// context: produce a packed-vector result.  Done before test_width
-	// because a variable-bound slice would otherwise error there.
-      if (NetExpr*dyn = elaborate_dynamic_stream_(des, scope, nullptr, 0, flags))
+	// context: produce a packed-vector result sized to the context width.
+	// Done before test_width because a variable-bound slice would error
+	// there.
+      if (NetExpr*dyn = elaborate_dynamic_stream_(des, scope, nullptr,
+						  expr_wid, flags))
 	    return dyn;
 
       width_mode_t m = SIZED;
