@@ -4062,6 +4062,15 @@ bins_item
       { delete[] $2; $$ = nullptr; }
   | K_illegal_bins bins_name '=' transition_seq_list ';'
       { delete[] $2; $$ = nullptr; }
+  /* wildcard bins/ignore_bins/illegal_bins name = { ranges }; — the wildcard
+     qualifier allows x/z/? don't-cares in the value set. Coverage is a no-op
+     here, so accept and discard. (OpenTitan i2c_protocol_cov.sv) */
+  | K_wildcard K_bins bins_name '=' '{' inside_range_list '}' ';'
+      { delete[] $3; for (auto& r : *$6) { delete r.lo; delete r.hi; } delete $6; $$ = nullptr; }
+  | K_wildcard K_ignore_bins bins_name '=' '{' inside_range_list '}' ';'
+      { delete[] $3; for (auto& r : *$6) { delete r.lo; delete r.hi; } delete $6; $$ = nullptr; }
+  | K_wildcard K_illegal_bins bins_name '=' '{' inside_range_list '}' ';'
+      { delete[] $3; for (auto& r : *$6) { delete r.lo; delete r.hi; } delete $6; $$ = nullptr; }
   /* Default bins: bins b = default; */
   | K_bins bins_name '=' K_default ';'
       { delete[] $2; $$ = nullptr; }
@@ -4127,6 +4136,16 @@ cross_bins_expr
       { delete[] $4; }
   | '!' K_binsof '(' IDENTIFIER ')' K_intersect '{' inside_range_list '}'
       { delete[] $4; delete $8; }
+  /* binsof(coverpoint.bin) — dotted argument selecting a named bin of a
+     coverpoint (OpenTitan i2c_env_cov.sv). Discarded (coverage no-op). */
+  | K_binsof '(' IDENTIFIER '.' IDENTIFIER ')'
+      { delete[] $3; delete[] $5; }
+  | K_binsof '(' IDENTIFIER '.' IDENTIFIER ')' K_intersect '{' inside_range_list '}'
+      { delete[] $3; delete[] $5; delete $9; }
+  | '!' K_binsof '(' IDENTIFIER '.' IDENTIFIER ')'
+      { delete[] $4; delete[] $6; }
+  | '!' K_binsof '(' IDENTIFIER '.' IDENTIFIER ')' K_intersect '{' inside_range_list '}'
+      { delete[] $4; delete[] $6; delete $10; }
   | cross_bins_expr K_LAND cross_bins_expr
   | cross_bins_expr K_LOR cross_bins_expr
   | '(' cross_bins_expr ')'
