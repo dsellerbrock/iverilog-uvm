@@ -3603,6 +3603,14 @@ constraint_declaration /* IEEE1800-2005: A.1.9 */
 constraint_expression /* IEEE1800-2005 A.1.9 */
   : expression ';'
       { $$ = $1; }
+  /* `solve a before b;` ordering directive inside a foreach/if constraint body
+     (constraint_set uses constraint_expression; the top-level body uses
+     constraint_block_item). Single-expression form (kept narrow — the
+     expression_list_proper form introduces ~85 reduce/reduce conflicts here);
+     solve-before only affects solver variable ordering, which the IR path does
+     not model, so parse and discard. (OpenTitan sysrst_ctrl vseqs.) */
+  | K_solve expression K_before expression ';'
+      { delete $2; delete $4; $$ = nullptr; }
   | expression K_dist '{' dist_list_opt '}' ';'
       { /* `dist` — lower weights ignored, ranges lowered to `inside` to
            enforce the value domain. Proper weighted distribution is TODO. */
