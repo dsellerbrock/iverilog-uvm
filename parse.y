@@ -4284,6 +4284,24 @@ virtual_interface_type
 	if ($2) delete $2;
 	$$ = tmp;
       }
+  /* Explicit `interface` keyword form: `virtual interface <type> v;`
+     (IEEE 1800 allows `virtual interface_identifier` with or without the
+     `interface` keyword). UVM testbenches use both, e.g. OpenTitan's
+     `virtual interface spi_host_fsm_if force_spi_fsm_vif;`. */
+  | K_interface TYPE_IDENTIFIER parameter_value_opt
+      { interface_type_t*tmp = new interface_type_t(lex_strings.make($2.text));
+	FILE_NAME(tmp, @2);
+	delete[] $2.text;
+	if ($3) delete $3;
+	$$ = tmp;
+      }
+  | K_interface IDENTIFIER parameter_value_opt
+      { interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
+	FILE_NAME(tmp, @2);
+	delete[] $2;
+	if ($3) delete $3;
+	$$ = tmp;
+      }
   ;
 
 /* Data type or nothing, but not implicit */
