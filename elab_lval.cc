@@ -1379,25 +1379,29 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		    }
 
 		    const index_component_t&root_index = base_index.back();
+		    NetExpr*root_word_index = nullptr;
 		    if (root_index.sel == index_component_t::SEL_BIT_LAST) {
-			  cerr << get_fileline() << ": sorry: "
-			       << "Last element select of dynamic/queue class l-value roots is not supported."
-			       << endl;
-			  des->errors += 1;
-			  return 0;
-		    }
-		    if (root_index.msb == 0 || root_index.lsb != 0
-			|| root_index.sel != index_component_t::SEL_BIT) {
-			  cerr << get_fileline() << ": sorry: "
-			       << "Only simple index selects of dynamic/queue class l-value roots are supported."
-			       << endl;
-			  des->errors += 1;
-			  return 0;
-		    }
+			  // txn[$] last-element select: index = txn.size()-1.
+			  NetESignal*rd = new NetESignal(sig);
+			  rd->set_line(*this);
+			  root_word_index = make_last_array_index_expr_(*this, rd,
+						sig->darray_type());
+			  if (!root_word_index)
+				return 0;
+		    } else {
+			  if (root_index.msb == 0 || root_index.lsb != 0
+			      || root_index.sel != index_component_t::SEL_BIT) {
+				cerr << get_fileline() << ": sorry: "
+				     << "Only simple index selects of dynamic/queue class l-value roots are supported."
+				     << endl;
+				des->errors += 1;
+				return 0;
+			  }
 
-		    NetExpr*root_word_index = elab_and_eval(des, scope, root_index.msb, -1);
-		    if (!root_word_index)
-			  return 0;
+			  root_word_index = elab_and_eval(des, scope, root_index.msb, -1);
+			  if (!root_word_index)
+				return 0;
+		    }
 
 		    lv = new NetAssign_(sig);
 		    lv->set_word(root_word_index);
@@ -1634,25 +1638,65 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			size_t idx_pos = 0;
 			const size_t idx_count = member_cur.index.size();
 			for (const auto&index_tail : member_cur.index) {
+			      NetExpr*idx_expr = nullptr;
 			      if (index_tail.sel == index_component_t::SEL_BIT_LAST) {
-				    cerr << get_fileline() << ": sorry: "
-				         << "Last-element select of dynamic/queue class properties is not supported."
-				         << endl;
-				    des->errors += 1;
-				    break;
-			      }
-			      if (index_tail.msb == 0 || index_tail.lsb != 0
-				  || index_tail.sel != index_component_t::SEL_BIT) {
-				    cerr << get_fileline() << ": sorry: "
-				         << "Part-select of dynamic/queue class properties is not supported."
-				         << endl;
-				    des->errors += 1;
-				    break;
-			      }
+				    // prop[$] last-element select: index =
+				    // prop.size()-1. Supported at the first index
+				    // position, where a read-expression of the
+				    // queue property can be reconstructed -- including
+				    // the case where the owning object is itself an
+				    // indexed queue/array element, e.g.
+				    // txn[$].data_ack_q[$].
+				    if (!applied_multi_dyn_word_index) {
+					  NetExpr*objrd = new NetESignal(sig);
+					  objrd->set_line(*this);
+					  if (!base_index.empty() && sig->darray_type()) {
+						const index_component_t&ri = base_index.back();
+						const netdarray_t*rda = sig->darray_type();
+						NetExpr*ridx = nullptr;
+						if (ri.sel == index_component_t::SEL_BIT_LAST) {
+						      NetESignal*rsz = new NetESignal(sig);
+						      rsz->set_line(*this);
+						      ridx = make_last_array_index_expr_(*this, rsz, rda);
+						} else {
+						      ridx = elab_and_eval(des, scope, ri.msb, -1);
+						}
+						if (ridx) {
+						      NetESelect*rsel = new NetESelect(objrd, ridx,
+							    rda->element_width(), rda->element_type());
+						      rsel->set_line(*this);
+						      objrd = rsel;
+						} else {
+						      objrd = nullptr;
+						}
+					  }
+					  if (objrd) {
+						NetEProperty*prd = new NetEProperty(objrd, pidx, nullptr);
+						prd->set_line(*this);
+						idx_expr = make_last_array_index_expr_(*this, prd, ptype);
+					  }
+				    }
+				    if (!idx_expr) {
+					  cerr << get_fileline() << ": sorry: "
+					       << "Last-element select of dynamic/queue class properties is not supported here."
+					       << endl;
+					  des->errors += 1;
+					  break;
+				    }
+			      } else {
+				    if (index_tail.msb == 0 || index_tail.lsb != 0
+					|| index_tail.sel != index_component_t::SEL_BIT) {
+					  cerr << get_fileline() << ": sorry: "
+					       << "Part-select of dynamic/queue class properties is not supported."
+					       << endl;
+					  des->errors += 1;
+					  break;
+				    }
 
-			      NetExpr*idx_expr = elab_and_eval(des, scope, index_tail.msb, -1);
-			      if (!idx_expr)
-				    break;
+				    idx_expr = elab_and_eval(des, scope, index_tail.msb, -1);
+				    if (!idx_expr)
+					  break;
+			      }
 
 			      if (applied_multi_dyn_word_index)
 				    lv = new NetAssign_(lv);

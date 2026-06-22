@@ -572,7 +572,11 @@ static NetExpr* static_array_word_expr_(const LineInfo&loc, NetNet*net, long ind
       return res;
 }
 
-static NetExpr* make_last_array_index_expr_(const LineInfo&loc,
+// Build the index expression for a `[$]` last-element select of a queue or
+// dynamic array: `<array>.size() - 1`. array_expr must be a READ expression of
+// the array/queue. Returns nullptr if array_type is not a queue/darray.
+// (Shared with elab_lval.cc for last-element-select l-values.)
+NetExpr* make_last_array_index_expr_(const LineInfo&loc,
                                             NetExpr*array_expr,
                                             ivl_type_t array_type)
 {
@@ -5235,25 +5239,27 @@ static NetExpr* elaborate_root_indexed_class_base_expr_(const LineInfo*li,
 	      }
 
 	      const index_component_t&root_index = base_index.back();
+	      NetExpr*mux = nullptr;
 	      if (root_index.sel == index_component_t::SEL_BIT_LAST) {
-		    cerr << li->get_fileline() << ": sorry: "
-			 << "Last element select of dynamic/queue class object access is not supported."
-			 << endl;
-		    des->errors += 1;
-		    delete base_expr;
-		    return 0;
-	      }
-	      if (root_index.msb == 0 || root_index.lsb != 0
-		  || root_index.sel != index_component_t::SEL_BIT) {
-		    cerr << li->get_fileline() << ": sorry: "
-			 << "Only simple index selects of dynamic/queue class object access are supported."
-			 << endl;
-		    des->errors += 1;
-		    delete base_expr;
-		    return 0;
-	      }
+		    // q[$] last-element select: index = q.size()-1.
+		    mux = make_last_array_index_expr_(*li, base_expr->dup_expr(), darray);
+		    if (!mux) {
+			  delete base_expr;
+			  return 0;
+		    }
+	      } else {
+		    if (root_index.msb == 0 || root_index.lsb != 0
+			|| root_index.sel != index_component_t::SEL_BIT) {
+			  cerr << li->get_fileline() << ": sorry: "
+			       << "Only simple index selects of dynamic/queue class object access are supported."
+			       << endl;
+			  des->errors += 1;
+			  delete base_expr;
+			  return 0;
+		    }
 
-	      NetExpr*mux = elab_and_eval(des, scope, root_index.msb, -1, false);
+		    mux = elab_and_eval(des, scope, root_index.msb, -1, false);
+	      }
 	      if (!mux) {
 		    delete base_expr;
 		    return 0;

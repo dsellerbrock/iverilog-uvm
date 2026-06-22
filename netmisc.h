@@ -368,6 +368,13 @@ extern NetExpr* elab_and_eval(Design*des, NetScope*scope,
 			      PExpr*expr, ivl_type_t lv_net_type,
 			      bool need_const);
 
+/* Build the index for a `[$]` last-element select of a queue/dynamic array:
+ * `array_expr.size() - 1`. array_expr must be a READ expression of the array.
+ * Returns nullptr if array_type is not a queue/darray. (Defined in elab_expr.cc.) */
+extern NetExpr* make_last_array_index_expr_(const LineInfo&loc,
+					    NetExpr*array_expr,
+					    ivl_type_t array_type);
+
 /*
  * This function is a variant of elab_and_eval that elaborates and
  * evaluates the arguments of a system task.
