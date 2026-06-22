@@ -2540,12 +2540,31 @@ NetExpr* PEStreaming::elaborate_dynamic_stream_(Design*des, NetScope*scope,
 						unsigned flags) const
 {
       if (dir_ != DIR_LSHIFT) return nullptr;
-      ivl_type_t otype = nullptr;
-      PExpr*op = dynamic_stream_operand_(des, scope, inner_, &otype);
-      if (!op) return nullptr;
 
-	// Elaborate the operand as an object (queue/darray) expression.
-      NetExpr*src = op->elaborate_expr(des, scope, otype, flags);
+      NetExpr*src = nullptr;
+      ivl_type_t otype = nullptr;
+      if (PExpr*op = dynamic_stream_operand_(des, scope, inner_, &otype)) {
+	      // A single dynamic identifier operand (whole queue/darray or a
+	      // [lo:hi] slice of one).
+	    src = op->elaborate_expr(des, scope, otype, flags);
+      } else if (result_type) {
+	      // The operand may itself produce a dynamic array -- a cast to a
+	      // queue/darray type or a nested streaming concatenation, e.g.
+	      // UVM's {<<8{bit_q_t'({<<{p}})}}.  Elaborate it and proceed only
+	      // if it is queue/darray-typed (else fall back).
+	    PExpr*op = inner_;
+	    if (PEConcat*cat = dynamic_cast<PEConcat*>(op)) {
+		  if (cat->parms().size() != 1) return nullptr;
+		  op = cat->parms()[0];
+	    }
+	    if (!dynamic_cast<PECastType*>(op) && !dynamic_cast<PEStreaming*>(op))
+		  return nullptr;
+	    NetExpr*tmp = op->elaborate_expr(des, scope, result_type, flags);
+	    if (tmp && (tmp->expr_type() == IVL_VT_QUEUE
+			|| tmp->expr_type() == IVL_VT_DARRAY))
+		  src = tmp;
+	    else { delete tmp; return nullptr; }
+      }
       if (!src) return nullptr;
 
       unsigned slice = slice_ ? slice_ : 1;
@@ -8048,6 +8067,16 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
     // Casting array of vectors to dynamic array type
     if((darray = dynamic_cast<const netdarray_t*>(type)) &&
             (vector = dynamic_cast<const netvector_t*>(darray->element_type()))) {
+	// A streaming concatenation base produces a run-time-sized bit stream;
+	// the width-based path below would truncate it to its (unknown)
+	// compile-time width.  Elaborate it directly as the target dynamic
+	// array instead (its own dynamic lowering repacks to the element
+	// width).  This is the inner cast of UVM's
+	// "{<<8{bit_q_t'({<<{p}})}}".
+	if (dynamic_cast<const PEStreaming*>(base_)) {
+	    if (NetExpr*ds = base_->elaborate_expr(des, scope, type, flags))
+		  return ds;
+	}
         PExpr::width_mode_t mode = PExpr::SIZED;
         unsigned use_wid = base_->test_width(des, scope, mode);
         NetExpr*base = base_->elaborate_expr(des, scope, use_wid, NO_FLAGS);

@@ -35,6 +35,13 @@ module dynamic_array_streaming_test;
     begin
       logic [15:0] v1, v8, vslice;
       bit q3[$];
+      // Nested stream + cast (the UVM uvm_reg_map byte<->bit idiom):
+      // {<<8{bit_q_t'({<<{byte_q}})}}.  p={C7,3F}: inner {<<{p}}=FCE3,
+      // bit_q_t'(...), outer {<<8{...}} = byte-reverse(FCE3) = E3FC.
+      typedef bit bit_q_t[$];
+      byte unsigned bq[$]; bit bn[$];
+      bq.push_back(8'hC7); bq.push_back(8'h3F);
+      bn = {<<8{bit_q_t'({<<{bq}})}};   // -> 16 bits, E3FC = 1110_0011_1111_1100
       v1 = {<<1{q}};                     // FCE3
       v8 = {<<8{q}};                     // 3FC7
       for (int i = 0; i < 32; i++) q3.push_back(0);
@@ -44,12 +51,13 @@ module dynamic_array_streaming_test;
       if (d1.size()==2     && d1[0]==8'hFC && d1[1]==8'hE3 &&
           d8.size()==2     && d8[0]==8'h3F && d8[1]==8'hC7 &&
           dslice.size()==2 && dslice[0]==8'hFC && dslice[1]==8'hE3 &&
-          v1==16'hFCE3 && v8==16'h3FC7 && vslice==16'hFCE3)
+          v1==16'hFCE3 && v8==16'h3FC7 && vslice==16'hFCE3 &&
+          bn.size()==16 && bn[0]==1 && bn[3]==0 && bn[8]==1 && bn[15]==0)
         $display("PASS d1=%02h%02h d8=%02h%02h slice=%02h%02h v1=%04h v8=%04h vslice=%04h",
                  d1[0],d1[1], d8[0],d8[1], dslice[0],dslice[1], v1, v8, vslice);
       else
-        $display("FAIL d1=%0d d8=%0d slice=%0d v1=%04h v8=%04h vslice=%04h",
-                 d1.size(), d8.size(), dslice.size(), v1, v8, vslice);
+        $display("FAIL d1=%0d d8=%0d slice=%0d v1=%04h v8=%04h vslice=%04h bn=%0d",
+                 d1.size(), d8.size(), dslice.size(), v1, v8, vslice, bn.size());
     end
     $finish;
   end
