@@ -27,6 +27,7 @@
 # include  "netmisc.h"
 # include  "netclass.h"
 # include  "netstruct.h"
+# include  "netparray.h"
 # include  "netvector.h"
 # include  "compiler.h"
 
@@ -738,9 +739,38 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
 		  if (const netstruct_t*tmp_struct = dynamic_cast<const netstruct_t*> (member->net_type)) {
 		        struct_type = tmp_struct;
+		  } else if (! use_path.empty()) {
+			// More member path remains (e.g. ".q"), so this member
+			// must be a packed array of structs indexed by this
+			// component, e.g. reg2hw.data_ch0[i].q where data_ch0
+			// is declared "mreg_t [1:0]". Apply the element index to
+			// advance member_off into the selected element and then
+			// descend into its struct type so the remaining path can
+			// be resolved. (Pervasive in OpenTitan *_reg_top.sv.)
+			const netparray_t*pa =
+			      dynamic_cast<const netparray_t*> (member->net_type);
+			ivl_assert(*this, pa);
+			const netstruct_t*elem_struct =
+			      dynamic_cast<const netstruct_t*> (pa->element_type());
+			ivl_assert(*this, elem_struct);
+			ivl_assert(*this, member_comp.index.size() == 1);
+			const index_component_t&asel = member_comp.index.back();
+			ivl_assert(*this, asel.sel == index_component_t::SEL_BIT);
+			NetExpr*ae = elab_and_eval(des, scope, asel.msb, -1, true);
+			long aidx = 0;
+			bool arc = ae && eval_as_long(aidx, ae);
+			ivl_assert(*this, arc);
+			const netranges_t&dims = pa->static_dimensions();
+			ivl_assert(*this, dims.size() == 1);
+			long elem_wid = elem_struct->packed_width();
+			long a_lsb = dims[0].get_lsb();
+			long a_msb = dims[0].get_msb();
+			long norm = (a_msb >= a_lsb) ? (aidx - a_lsb) : (a_lsb - aidx);
+			member_off += norm * elem_wid;
+			member_width = elem_wid;
+			struct_type = elem_struct;
 		  } else {
 		        struct_type = 0;
-			assert (use_path.empty());
 		  }
 	    }
 
