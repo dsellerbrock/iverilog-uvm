@@ -3633,6 +3633,28 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
         PEForeachConstraint*tmp = new PEForeachConstraint(arr, lv, $8);
         FILE_NAME(tmp, @1);
         $$ = tmp; }
+  /* Member/hierarchical foreach target in a constraint, e.g.
+     `foreach (cfg.regs.csnlead[i]) { ... }` (OpenTitan spi_host). The IR
+     expander keys off the leaf array name; when the leaf isn't a direct
+     property of the constraining class the constraint drops to a no-op (not
+     mis-emitted), but the class compiles. Targeted 2-/3-component dotted forms
+     (kept narrow to avoid constraint-grammar conflicts). */
+  | K_foreach '(' IDENTIFIER '.' IDENTIFIER '[' loop_variables ']' ')' constraint_set
+      { perm_string arr = lex_strings.make($5);
+        delete[] $3; delete[] $5;
+        std::list<perm_string> lv;
+        if ($7) { lv = *$7; delete $7; }
+        PEForeachConstraint*tmp = new PEForeachConstraint(arr, lv, $10);
+        FILE_NAME(tmp, @1);
+        $$ = tmp; }
+  | K_foreach '(' IDENTIFIER '.' IDENTIFIER '.' IDENTIFIER '[' loop_variables ']' ')' constraint_set
+      { perm_string arr = lex_strings.make($7);
+        delete[] $3; delete[] $5; delete[] $7;
+        std::list<perm_string> lv;
+        if ($9) { lv = *$9; delete $9; }
+        PEForeachConstraint*tmp = new PEForeachConstraint(arr, lv, $12);
+        FILE_NAME(tmp, @1);
+        $$ = tmp; }
   /* I4 (Phase 62c): soft constraint — wrap in PESoft so the IR emitter
      marks it for Z3_optimize_assert_soft (default weight 1).  Other
      contexts (non-constraint elaboration) delegate through to the inner
