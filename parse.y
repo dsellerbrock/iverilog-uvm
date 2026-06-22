@@ -11195,6 +11195,30 @@ module_item
      module items. These rules try to catch them at a point where a
      reasonable error message can be produced. */
 
+  /* Covergroups in a module/interface (e.g. DV functional-coverage interfaces
+     bound into the DUT). Functional coverage is a no-op in this flow, so parse
+     the covergroup (optionally clocked with @(...) or `with function sample`)
+     and discard it. Mirrors the class-item covergroup handling. */
+  | K_covergroup IDENTIFIER clocking_event_opt ';' covergroup_item_list_opt K_endgroup label_opt
+      { if ($5) { for (auto*c : *$5) delete c; delete $5; }
+	if ($3) delete $3;
+	delete[] $2; if ($7) delete[] $7;
+      }
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt clocking_event_opt ';' covergroup_item_list_opt K_endgroup label_opt
+      { if ($6) { for (auto*c : *$6) delete c; delete $6; }
+	if ($3) delete $3; if ($4) delete $4;
+	delete[] $2; if ($8) delete[] $8;
+      }
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
+      { if ($9) { for (auto*c : *$9) delete c; delete $9; }
+	if ($3) delete $3; if ($7) delete $7;
+	delete[] $2; delete[] $6; if ($11) delete[] $11;
+      }
+  | K_covergroup IDENTIFIER error K_endgroup label_opt
+      { yyerrok;
+	delete[] $2; if ($5) delete[] $5;
+      }
+
   | error ';'
       { yyerror(@2, "error: Invalid module item.");
 	yyerrok;
