@@ -7602,6 +7602,23 @@ static const char* split_dpi_name_types_(const char*text, char*name_buf,
 }
 
 /*
+ * A DPI imported function may call VPI routines (e.g. a uvm_hdl backdoor
+ * backend using vpi_handle_by_name / vpi_get_value).  Those routines assert
+ * that vpi_mode_flag is not VPI_MODE_NONE, but DPI calls run in procedural
+ * thread context where the flag is normally NONE.  This guard puts VPI into a
+ * read/write-sync mode for the duration of a DPI call (and restores it after),
+ * the same access mode used while servicing VPI callbacks.
+ */
+struct dpi_vpi_mode_guard_ {
+      vpi_mode_t saved_;
+      dpi_vpi_mode_guard_() : saved_(vpi_mode_flag) {
+	    if (vpi_mode_flag == VPI_MODE_NONE)
+		  vpi_mode_flag = VPI_MODE_RWSYNC;
+      }
+      ~dpi_vpi_mode_guard_() { vpi_mode_flag = saved_; }
+};
+
+/*
  * %dpi/call/vec4 "c_name\001types" nargs wid
  *
  * Pops nargs int32 args from vec4 stack (in reverse param order),
@@ -7609,6 +7626,7 @@ static const char* split_dpi_name_types_(const char*text, char*name_buf,
  */
 bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
 {
+      dpi_vpi_mode_guard_ dpi_mode_guard_;
       char name_buf[256];
       const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
       (void)types;
@@ -7644,6 +7662,14 @@ bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
       // back to the formal.
       int32_t out_temps[8] = {0};
       bool    out_present[8] = {false};
+        // Wide (>32-bit) vector args ('V' input, 'O' output/inout) are passed
+        // by pointer to an svLogicVec32 buffer ({aval,bval} per 32-bit word,
+        // the same 4-state encoding as VPI s_vpi_vecval).  'O' is written back
+        // to the formal after the call.
+      struct sv32_word { uint32_t aval; uint32_t bval; };
+      sv32_word*vecbuf[8] = {0};
+      unsigned  vecwid[8]  = {0};
+      bool      vecout[8]  = {false};
       for (unsigned ii = 0; ii < nargs; ++ii) {
             unsigned slot = nargs - 1 - ii;
             switch (arg_types[slot]) {
@@ -7652,6 +7678,29 @@ bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
                           out_present[slot] = true;
                           has_string_arg = true; // route through mixed path
                           break;
+                case 'V':
+                case 'O': {
+                          vvp_vector4_t v = thr->pop_vec4();
+                          unsigned W = v.size();
+                          unsigned words = (W + 31) / 32;
+                          if (words == 0) words = 1;
+                          sv32_word*buf = (sv32_word*)calloc(words, sizeof(sv32_word));
+                          for (unsigned b = 0; b < W; b += 1) {
+                                unsigned wi = b / 32;
+                                uint32_t m = 1u << (b % 32);
+                                switch (v.value(b)) {
+                                    case BIT4_1: buf[wi].aval |= m; break;
+                                    case BIT4_Z: buf[wi].bval |= m; break;
+                                    case BIT4_X: buf[wi].aval |= m; buf[wi].bval |= m; break;
+                                    default: break; // BIT4_0
+                                }
+                          }
+                          vecbuf[slot] = buf;
+                          vecwid[slot] = W;
+                          vecout[slot] = (arg_types[slot] == 'O');
+                          has_string_arg = true; // route through pointer path
+                          break;
+                }
                 case 'b':
                 case 'i':
                 default:  iargs[slot] = dpi_pop_int32(thr); break;
@@ -7680,6 +7729,8 @@ bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
                   switch (arg_types[i]) {
                       case 's': aargs[i] = (size_t)sargs[i].c_str(); break;
                       case 'o': aargs[i] = (size_t)(void*)&out_temps[i]; break;
+                      case 'V':
+                      case 'O': aargs[i] = (size_t)(void*)vecbuf[i]; break;
                       case 'b':
                       case 'i':
                       default:  aargs[i] = (size_t)(int64_t)(int32_t)iargs[i]; break;
@@ -7712,10 +7763,25 @@ bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
               // in reverse arg order) consumes them in matching order
               // after the `%ret/vec4` consumes the return value.
             for (unsigned i = 0; i < nargs; ++i) {
-                  if (out_present[i])
+                  if (out_present[i]) {
                         dpi_push_int32(thr, out_temps[i], 32);
+                  } else if (vecout[i]) {
+                        vvp_vector4_t v(vecwid[i], BIT4_0);
+                        for (unsigned b = 0; b < vecwid[i]; b += 1) {
+                              unsigned wi = b / 32;
+                              uint32_t m = 1u << (b % 32);
+                              bool a  = (vecbuf[i][wi].aval & m) != 0;
+                              bool bb = (vecbuf[i][wi].bval & m) != 0;
+                              vvp_bit4_t bit = !bb ? (a ? BIT4_1 : BIT4_0)
+                                                   : (a ? BIT4_X : BIT4_Z);
+                              v.set_bit(b, bit);
+                        }
+                        thr->push_vec4(v);
+                  }
             }
             dpi_push_int32(thr, mres, wid);
+            for (unsigned i = 0; i < nargs; ++i)
+                  if (vecbuf[i]) free(vecbuf[i]);
             return true;
       }
 
@@ -7755,6 +7821,7 @@ bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t cp)
 {
+      dpi_vpi_mode_guard_ dpi_mode_guard_;
       char name_buf[256];
       const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
       (void)types;
@@ -7803,6 +7870,7 @@ bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t cp)
 {
+      dpi_vpi_mode_guard_ dpi_mode_guard_;
       char name_buf[256];
       const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
       const char*c_name = name_buf;
@@ -7870,6 +7938,7 @@ bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
 {
+      dpi_vpi_mode_guard_ dpi_mode_guard_;
       char name_buf[256];
       const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
       const char*c_name = name_buf;

@@ -3838,6 +3838,7 @@ static void draw_dpi_func_body(ivl_scope_t scope)
 	    ivl_signal_port_t ptype_dir = ivl_signal_port(port);
 	    bool is_out = (ptype_dir == IVL_SIP_OUTPUT
 			   || ptype_dir == IVL_SIP_INOUT);
+	    unsigned pwid = ivl_signal_width(port);
 	    if (ptype == IVL_VT_REAL) {
 		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
 		  if (ii <= types_n) arg_types[ii-1] = 'r';
@@ -3845,11 +3846,15 @@ static void draw_dpi_func_body(ivl_scope_t scope)
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
 		  if (ii <= types_n) arg_types[ii-1] = 's';
 	    } else if (is_out) {
+		    /* 'o' marshals one int32; a wider output/inout vector
+		       (UVM uvm_hdl_data_t = logic[1023:0]) goes by pointer to an
+		       svLogicVec32 buffer, written back after the call ('O'). */
 		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
-		  if (ii <= types_n) arg_types[ii-1] = 'o';
+		  if (ii <= types_n) arg_types[ii-1] = (pwid > 32) ? 'O' : 'o';
 	    } else {
+		    /* 'V' = wide input vector passed by pointer. */
 		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
-		  if (ii <= types_n) arg_types[ii-1] = 'i';
+		  if (ii <= types_n) arg_types[ii-1] = (pwid > 32) ? 'V' : 'i';
 	    }
       }
 
