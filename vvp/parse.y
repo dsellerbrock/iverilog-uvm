@@ -75,7 +75,7 @@ static struct __vpiModPath*modpath_dst = 0;
       int      vpi_enum;
 };
 
-%token K_A K_APV K_CPS
+%token K_A K_APV K_CPS K_CPV
 %token K_ARITH_ABS K_ARITH_DIV K_ARITH_DIV_R K_ARITH_DIV_S K_ARITH_MOD
 %token K_ARITH_MOD_R K_ARITH_MOD_S
 %token K_ARITH_MULT K_ARITH_MULT_R K_ARITH_SUB K_ARITH_SUB_R
@@ -1197,6 +1197,8 @@ symbol_access
       { $$ = vpip_make_vthr_APV($3, $5, $7, $9); }
   | K_CPS '<' T_SYMBOL ',' T_NUMBER '>'
       { $$ = vpip_make_cobject_property_string_var($3, $5); }
+  | K_CPV '<' T_SYMBOL ',' T_NUMBER '>'
+      { $$ = vpip_make_cobject_property_var($3, $5); }
   ;
 
   /* functor operands can only be a list of symbols. */

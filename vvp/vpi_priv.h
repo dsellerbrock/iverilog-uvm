@@ -911,6 +911,11 @@ extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net);
 extern vpiHandle vpip_make_cobject_property_string_var(char*label,
                                                        size_t prop_idx);
 
+/* Like the above, but for a VECTOR (bit/logic/int) class property used as a
+ * VPI lvalue.  tgt-vvp emits &CPV<label,prop_idx> for these. */
+extern vpiHandle vpip_make_cobject_property_var(char*label,
+                                                size_t prop_idx);
+
 /*
  * When a loaded VPI module announces a system task/function, one
  * __vpiUserSystf object is created to hold the definition of that

@@ -185,6 +185,24 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
 		  && ivl_expr_value(expr) == IVL_VT_STRING)
 		    return 0;
+	      /* For a vector-typed class property (e.g. obj.int_field) used as
+	         an lvalue, emit &CPV<vSIG_0,pidx> so the runtime handle can
+	         vpi_put_value back into the property.  Without this the value
+	         was evaluated to a throwaway thread-stack temporary and the
+	         write (e.g. $value$plusargs("x=%0d", cfg.max_quit_count)) was
+	         silently dropped.  Only the simple direct case (signal base,
+	         no part/array select). */
+	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+		  && (ivl_expr_value(expr) == IVL_VT_BOOL
+		      || ivl_expr_value(expr) == IVL_VT_LOGIC)
+		  && ivl_expr_signal(expr)
+		  && !ivl_expr_oper1(expr)) {
+		    unsigned pidx = (unsigned)ivl_expr_property_idx(expr);
+		    snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u>",
+			     (void*)ivl_expr_signal(expr), pidx);
+		    result->text = strdup(buffer);
+		    return 1;
+	      }
 	      /* Any other (plain value-typed) class property: the base signal
 	         `sig` is the CONTAINING OBJECT, not the property's storage, so
 	         it cannot stand in for the property value.  Wider properties

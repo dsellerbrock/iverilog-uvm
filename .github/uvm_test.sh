@@ -30,6 +30,7 @@ KNOWN_FAIL=""
 # vvp invocation can supply them.  Format: "<name>:+arg1+arg2 ...".
 declare -A PLUSARGS=(
     [plusargs_class_string_test]="+MY_TESTNAME=hello +MY_SEED=42"
+    [plusargs_class_vector_test]="+QUIT=100 +ADDR=beef +MASK=11110000 +TMO=2000000"
 )
 
 compile_test() {

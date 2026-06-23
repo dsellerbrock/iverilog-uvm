@@ -332,6 +332,95 @@ vpiHandle vpip_make_cobject_property_string_var(char*label, size_t prop_idx)
       return obj;
 }
 
+/*
+ * A VPI handle that targets a specific VECTOR (bit/logic/int) property of
+ * a class instance, the value-typed analog of __vpiClassPropertyStringVar.
+ * Without this, a vector class property used as the lvalue of a sysfunc
+ * such as $value$plusargs ("max_quit_count=%0d", cfg.max_quit_count) was
+ * emitted as a throwaway thread-stack temporary with no write-back, so the
+ * assignment was silently dropped.  tgt-vvp emits &CPV<ADDR,N> for the
+ * simple (direct, non-nested, non-indexed) case.
+ *
+ * put_value decodes any incoming format (DecStr/Hex/Bin/Oct/Int/Vector)
+ * into a vvp_vector4_t sized to the property's declared width and writes
+ * it via cobject::set_vec4; get_value reads it back via get_vec4.
+ */
+class __vpiClassPropertyVectorVar : public __vpiHandle {
+    public:
+      explicit __vpiClassPropertyVectorVar(size_t prop_idx)
+            : cobj_net_(nullptr), prop_idx_(prop_idx) {}
+
+      vvp_net_t*cobj_net_;
+
+      int get_type_code(void) const override { return vpiReg; }
+
+      int vpi_get(int code) override
+      {
+            switch (code) {
+                case vpiSize:        return (int)current_width_();
+                case vpiAutomatic:   return 0;
+                case vpiSigned:      return 0;
+                case vpiConstType:   return vpiNullConst;
+                default: return 0;
+            }
+      }
+
+      char* vpi_get_str(int) override { return nullptr; }
+
+      void vpi_get_value(p_vpi_value val) override
+      {
+            vvp_cobject*cobj = peek_cobject_();
+            if (!cobj) { val->format = vpiSuppressVal; return; }
+            vvp_vector4_t vec;
+            cobj->get_vec4(prop_idx_, vec);
+            vpip_vec4_get_value(vec, vec.size(), false, val);
+      }
+
+      vpiHandle vpi_put_value(p_vpi_value val, int) override
+      {
+            vvp_cobject*cobj = peek_cobject_();
+            if (!cobj)
+                  return 0;
+            unsigned wid = current_width_();
+            if (wid == 0) wid = 32;
+            vvp_vector4_t vec = vec4_from_vpi_value(val, wid);
+            cobj->set_vec4(prop_idx_, vec);
+            return 0;
+      }
+
+      vpiHandle vpi_handle(int) override { return nullptr; }
+
+    private:
+      size_t prop_idx_;
+
+      vvp_cobject*peek_cobject_()
+      {
+            vvp_fun_signal_object*fun =
+                  cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fun) : nullptr;
+            if (!fun)
+                  fun = cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fil) : nullptr;
+            if (!fun) return nullptr;
+            vvp_object_t obj = fun->peek_object();
+            return obj.peek<vvp_cobject>();
+      }
+
+      unsigned current_width_()
+      {
+            vvp_cobject*cobj = peek_cobject_();
+            if (!cobj) return 0;
+            vvp_vector4_t vec;
+            cobj->get_vec4(prop_idx_, vec);
+            return vec.size();
+      }
+};
+
+vpiHandle vpip_make_cobject_property_var(char*label, size_t prop_idx)
+{
+      __vpiClassPropertyVectorVar*obj = new __vpiClassPropertyVectorVar(prop_idx);
+      functor_ref_lookup(&obj->cobj_net_, label);
+      return obj;
+}
+
 #ifdef CHECK_WITH_VALGRIND
 void class_delete(vpiHandle item)
 {
