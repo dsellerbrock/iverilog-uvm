@@ -2472,7 +2472,12 @@ static void find_module_scope_recurse_(ivl_scope_t node, const char*target,
 static int show_iface_late_call(ivl_statement_t net)
 {
       const char*stmt_name = ivl_stmt_name(net);
-      const char*p = stmt_name + 16; /* skip "$ivl_iface_late$" */
+	/* "$ivl_iface_late_vif$..." carries the runtime virtual-interface handle
+	 * as parm[0]; dispatch to the actual instance via %fork/vif.  The plain
+	 * "$ivl_iface_late$..." form has no receiver and runs a statically-chosen
+	 * instance. */
+      int carry_vif = (strncmp(stmt_name, "$ivl_iface_late_vif$", 20) == 0);
+      const char*p = stmt_name + (carry_vif ? 20 : 16);
       const char*sep = strchr(p, '$');
       if (!sep) {
             fprintf(stderr, "Warning: malformed $ivl_iface_late name '%s'; skipping\n",
@@ -2538,8 +2543,12 @@ static int show_iface_late_call(ivl_statement_t net)
        * so port[0] is the first user-visible argument. */
       unsigned nparms = ivl_stmt_parm_count(net);
       unsigned nports = ivl_scope_ports(method);
-      for (unsigned i = 0 ; i < nparms && i < nports ; i += 1) {
-            ivl_expr_t pe = ivl_stmt_parm(net, i);
+	/* For the _vif variant, parm[0] is the runtime virtual-interface receiver
+	 * (drawn onto the object stack just before %fork/vif); the user arguments
+	 * start at parm[1] and still map onto the reference task's ports 0.. */
+      unsigned arg_base = carry_vif ? 1 : 0;
+      for (unsigned i = 0 ; (i + arg_base) < nparms && i < nports ; i += 1) {
+            ivl_expr_t pe = ivl_stmt_parm(net, i + arg_base);
             if (!pe) continue;
             ivl_signal_t port = ivl_scope_port(method, i);
             if (!port) continue;
@@ -2573,7 +2582,19 @@ static int show_iface_late_call(ivl_statement_t net)
       /* Tasks use %fork ... %join to maintain the run-to-completion semantics
        * of a blocking call.  Functions would use %callf/* but interface
        * methods called as tasks are always tasks here. */
-      if (ivl_scope_type(method) == IVL_SCT_FUNCTION) {
+      if (carry_vif) {
+		/* Runtime instance dispatch.  Push the vif handle (parm[0]) onto
+		 * the object stack last -- exactly as the direct %fork/vif path
+		 * does -- then %fork/vif overrides the static reference scope
+		 * (S_method) with the task in the instance the handle points at,
+		 * copying the staged args from the reference ports into that
+		 * instance's context (see of_FORK_VIF / copy_method_ports_to_context_). */
+            ivl_expr_t vif_expr = ivl_stmt_parm(net, 0);
+            draw_eval_object(vif_expr);
+            fprintf(vvp_out, "    %%fork/vif TD_%s", mangled);
+            fprintf(vvp_out, ", S_%p;\n", method);
+            fprintf(vvp_out, "    %%join;\n");
+      } else if (ivl_scope_type(method) == IVL_SCT_FUNCTION) {
             fprintf(vvp_out, "    %%callf/void TD_%s, S_%p;\n", mangled, method);
       } else {
             fprintf(vvp_out, "    %%fork TD_%s, S_%p;\n", mangled, method);
@@ -2590,7 +2611,8 @@ static int show_system_task_call(ivl_statement_t net)
 {
       const char*stmt_name = ivl_stmt_name(net);
 
-      if (strncmp(stmt_name, "$ivl_iface_late$", 16) == 0)
+      if (strncmp(stmt_name, "$ivl_iface_late_vif$", 20) == 0
+	  || strncmp(stmt_name, "$ivl_iface_late$", 16) == 0)
 	    return show_iface_late_call(net);
 
       if (strcmp(stmt_name,"$ivl_darray_method$delete") == 0)

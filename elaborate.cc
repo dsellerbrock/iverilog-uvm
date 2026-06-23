@@ -6658,11 +6658,27 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  pmod_it->second->tasks.find(method_name);
 				    if (task_it != pmod_it->second->tasks.end()) {
 				    PTask*ptask = task_it->second;
-				    std::string defer_name = "$ivl_iface_late$";
+				      // If we have the runtime virtual-interface handle
+				      // (obj_expr), emit the receiver-carrying variant so
+				      // tgt-vvp can dispatch to the per-instance task of the
+				      // actual instance the handle points at (%fork/vif),
+				      // rather than a single statically-chosen instance.  The
+				      // latter silently runs the WRONG instance when the
+				      // interface has multiple instances (e.g. OpenTitan's
+				      // clk_rst_if: fast/aon/alert/edn) -- the fast reset was
+				      // applied to the wrong clk_rst_if, so the fast clock
+				      // never started and the first frontdoor CSR write hung.
+				    bool carry_vif = (obj_expr != 0);
+				    std::string defer_name = carry_vif
+					  ? "$ivl_iface_late_vif$" : "$ivl_iface_late$";
 				    defer_name += class_type->get_name().str();
 				    defer_name += "$";
 				    defer_name += method_name.str();
 				    std::vector<NetExpr*> argv;
+				      // arg[0] = the vif receiver (drawn as an object and
+				      // popped by %fork/vif at runtime).
+				    if (carry_vif)
+					  argv.push_back(obj_expr);
 				    for (size_t pi = 0 ; pi < parms_.size() ; pi += 1) {
 					  if (!parms_[pi].parm) {
 						argv.push_back(0);
@@ -6705,7 +6721,8 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 								IVL_SFUNC_AS_TASK_IGNORE,
 								argv);
 				    sys->set_line(*this);
-				    delete obj_expr;
+				    if (!carry_vif)
+					  delete obj_expr;   // not referenced by argv
 				    return sys;
 				    }
 			      }
