@@ -3586,9 +3586,19 @@ void vthread_run(vthread_t thr)
 				" forcing function return fallback (further similar warnings suppressed per-PC)\n",
 				(void*)cp, op_name, (void*)cp->opcode, scope_name, hits);
 			noncallf_loop_reported.insert(cp);
-			thr->pc = codespace_null();
-			thr->i_have_ended = 1;
-			break;
+			/* Only force-terminate a thread with no live forked
+			   children: killing a thread that still has (detached)
+			   children abandons the join bookkeeping and trips
+			   vthread_reap's children.empty() assert.  A genuinely
+			   looping thread that has children will still be broken
+			   at a lower (childless) frame, or hang -- both strictly
+			   better than crashing.  This is the OpenTitan aon_timer
+			   time-0 build case (large UVM zero-time recursion). */
+			if (thr->children.empty() && thr->detached_children.empty()) {
+			      thr->pc = codespace_null();
+			      thr->i_have_ended = 1;
+			      break;
+			}
 		  }
 
 		    /* Run the opcode implementation. If the execution of
