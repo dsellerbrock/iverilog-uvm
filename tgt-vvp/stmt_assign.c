@@ -2608,7 +2608,21 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			} else {
 			ivl_variable_type_t rv_type = ivl_expr_value(rval);
-			if (rv_type == IVL_VT_CLASS ||
+			if (ivl_type_base(prop_type) == IVL_VT_QUEUE
+			    && ivl_expr_type(rval) == IVL_EX_NULL) {
+			      /* `q = {}` -- an EMPTY queue literal.  iverilog elaborates an
+			       * empty queue assignment-pattern as a null expression, so the
+			       * IVL_EX_NULL branch below would %store/prop/obj a null,
+			       * leaving the property holding null instead of an empty queue
+			       * -- a later q.push_back(...) then operates on null and is
+			       * silently dropped.  A queue is never null in SV, so build an
+			       * actual empty queue object and store that. */
+			      emit_new_queue_object_(prop_type);
+			      fprintf(vvp_out, "    %%store/prop/obj %d, 0;"
+				      " empty queue literal %s\n", prop_idx,
+				      ivl_type_prop_name(sig_type, prop_idx));
+			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			} else if (rv_type == IVL_VT_CLASS ||
 			    rv_type == IVL_VT_DARRAY ||
 			    rv_type == IVL_VT_QUEUE ||
 			    ivl_expr_type(rval) == IVL_EX_NULL) {
