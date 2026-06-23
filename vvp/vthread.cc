@@ -14621,12 +14621,22 @@ bool of_STORE_PROP_OBJ(vthread_t thr, vvp_code_t cp)
             return true;
       }
 
-      if (cobj)
+	/* Only wake @() waiters on an actual change of the object handle (same
+	 * rationale as store_prop): a same-handle write (e.g. uvm_event::trigger
+	 * re-storing the same trigger_data every call) must not re-wake every
+	 * member-event waiter on the (possibly enclosing) object and spin. */
+      bool obj_changed = true;
+      if (cobj) {
+	    vvp_object_t old;
+	    cobj->get_object(pid, old, idx);
+	    obj_changed = !(old == val);
 	    cobj->set_object(pid, val, idx);
-      else
+      } else {
 	    vif_base->set_object(pid, val, idx);
-      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
-                                  thr->peek_object_root(0), "store-prop-obj");
+      }
+      if (obj_changed)
+	    notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+					thr->peek_object_root(0), "store-prop-obj");
 
       return true;
 }
@@ -14753,6 +14763,24 @@ static void set_val(vvp_vinterface*vif, size_t pid, const vvp_vector4_t&val, siz
       vif->set_vec4(pid, val, idx);
 }
 
+// Return true if writing `val` to property `pid` of `cobj` would NOT change
+// its current value.  Used to suppress the @(obj.property) wake on same-value
+// writes (see store_prop below).
+static bool cobj_prop_same_(vvp_cobject*cobj, size_t pid, const vvp_vector4_t&val)
+{
+      vvp_vector4_t old;
+      cobj->get_vec4_whole(pid, old);
+      return old.size() == val.size() && old.eeq(val);
+}
+static bool cobj_prop_same_(vvp_cobject*cobj, size_t pid, const double&val)
+{
+      return cobj->get_real(pid) == val;
+}
+static bool cobj_prop_same_(vvp_cobject*cobj, size_t pid, const std::string&val)
+{
+      return cobj->get_string(pid) == val;
+}
+
 template <typename ELEM>
 static bool store_prop(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {
@@ -14779,12 +14807,26 @@ static bool store_prop(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 	    return true;
       }
 
-      if (cobj)
+	/* Only wake @(obj.property) waiters on an ACTUAL value change, like
+	 * standard @(var) edge semantics.  An unconditional notify made every
+	 * property write -- including same-value writes -- wake ALL member-event
+	 * waiters on the object (the sensitivity is the whole object handle, not
+	 * the specific property).  Two forever-loops each waiting on @(a distinct
+	 * member) of the same object then cross-fired and spun forever in zero
+	 * time -- e.g. OpenTitan aon_timer_scoreboard's WKUP_thread/WDOG_thread
+	 * (@(wkup_num_update_due) / @(wdog_num_update_due)), which starved the
+	 * time wheel so reset never advanced.  The vif path keeps the old
+	 * unconditional notify (its properties are signal-backed). */
+      bool prop_changed = true;
+      if (cobj) {
+	    prop_changed = !cobj_prop_same_(cobj, pid, val);
 	    set_val(cobj, pid, val);
-      else
+      } else {
 	    set_val(vif, pid, val);
-      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
-                                  thr->peek_object_root(0), "store-prop");
+      }
+      if (prop_changed)
+	    notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+					thr->peek_object_root(0), "store-prop");
 
       return true;
 }
