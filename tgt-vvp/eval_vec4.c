@@ -1096,9 +1096,13 @@ static void draw_property_vec4(ivl_expr_t expr)
       int queue_indexed = property_is_indexed_queue_expr_(expr);
       int assoc_indexed = property_is_assoc_indexed_expr_(expr);
       int darray_indexed = property_is_indexed_darray_expr_(expr);
+      int packed_bitsel = property_is_packed_vector_bitsel_(expr);
       unsigned pidx = ivl_expr_property_idx(expr);
 
-      if (idx_expr && !queue_indexed && !assoc_indexed) {
+	/* A bit-select of a packed-vector property is not an element index:
+	 * load the whole value (%prop/v) and %part-select the bit below, rather
+	 * than the (wrong) element-indexed %prop/v/i. */
+      if (idx_expr && !queue_indexed && !assoc_indexed && !packed_bitsel) {
 	    idx_word = allocate_word();
 	    draw_eval_expr_into_integer(idx_expr, idx_word);
       }
@@ -1168,6 +1172,15 @@ static void draw_property_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%prop/v %u;\n", pidx);
       if (!assoc_indexed && !queue_indexed)
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n"); /* pop cobject */
+      if (packed_bitsel) {
+	      /* The whole packed property value is on the vec4 stack; select the
+	       * one bit at [idx_expr], then pad to the expression width so both
+	       * the value and the null-receiver fallback below agree. */
+	    draw_eval_vec4(idx_expr);
+	    fprintf(vvp_out, "    %%part/u 1;\n");
+	    if (ivl_expr_width(expr) > 1)
+		  fprintf(vvp_out, "    %%pad/u %u;\n", ivl_expr_width(expr));
+      }
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
       fprintf(vvp_out, "    %%pop/obj 1, 0;\n");

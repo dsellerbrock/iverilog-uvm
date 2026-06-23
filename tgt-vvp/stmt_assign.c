@@ -2386,6 +2386,43 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  ivl_expr_t idx_expr = ivl_lval_idx(lval);
 		  ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
 
+		  /* Bit-select write of a PACKED-VECTOR property (`bit [1:0] p;
+		     p[i] = v`).  The index is a BIT offset into a single packed
+		     value, not an element index into an array (a packed vector
+		     has no array element type).  Without this it is mis-routed to
+		     the element-indexed %store/prop/v/i and silently dropped.
+		     Route it to the same bit-field RMW store used for packed
+		     struct fields. */
+		  if (idx_expr && !part_off_ex
+		      && ivl_type_element(prop_type) == 0
+		      && ivl_type_packed_width(prop_type) > 1) {
+			assert(prop_idx >= 0 && prop_idx < 0x10000);
+			int rmw_off = allocate_word();
+			draw_eval_expr_into_integer(idx_expr, rmw_off);
+			int rmw_idx0 = allocate_word();
+			fprintf(vvp_out, "    %%ix/load %d, 0, 0;\n", rmw_idx0);
+			  /* A bit-select writes exactly ONE bit at [idx].  The lval
+			     width can be the stale whole-vector width, so force a
+			     1-bit RMW and take bit 0 of the rval -- merging more bits
+			     would clobber neighbours. */
+			draw_eval_vec4(rval);
+			fprintf(vvp_out, "    %%parti/u 1, 0, 2;\n");
+			fprintf(vvp_out,
+				"    %%store/prop/v/i/bits %lu, %d, %d;"
+				" bit-select write of packed property %s\n",
+				((unsigned long)prop_idx) | (1UL << 16),
+				rmw_idx0, rmw_off,
+				ivl_type_prop_name(sig_type, prop_idx));
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			clr_word(rmw_idx0);
+			clr_word(rmw_off);
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			return errors;
+		  }
+
 		  /* Packed struct field write via bit-offset RMW.  This is
 		     generated when a VIF packed-struct property field is
 		     used as an l-value (e.g. cfg.vif.h2d_int.a_valid <= 1).

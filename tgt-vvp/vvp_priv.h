@@ -498,6 +498,36 @@ static inline int property_is_indexed_darray_expr_(ivl_expr_t expr)
       return prop_type && ivl_type_base(prop_type) == IVL_VT_DARRAY;
 }
 
+/* True when expr is an indexed access to a class property that is a PACKED
+ * integral vector (e.g. `bit [1:0] p; ... p[i]`).  Such an index is a
+ * BIT-SELECT of a single packed value, not an element index into an array.
+ * The packed-vector property has no array element type (ivl_type_element is
+ * null) -- an unpacked array property (`bit foo[N]`, `bit [1:0] mem[N]`) has a
+ * non-null element type and must keep using the element-indexed opcode.
+ * Without this, p[i] is mis-routed to property_bit::get_vec4(idx) (element 1 of
+ * a 1-element array) and returns the whole value / X. */
+static inline int property_is_packed_vector_bitsel_(ivl_expr_t expr)
+{
+      ivl_type_t base_type;
+      ivl_type_t prop_type;
+      ivl_variable_type_t b;
+
+      if (!expr || ivl_expr_oper1(expr) == 0)
+            return 0;
+      base_type = property_receiver_class_type_(expr);
+      if (!base_type || ivl_type_properties(base_type) <= 0)
+            return 0;
+      prop_type = ivl_type_prop_type(base_type, ivl_expr_property_idx(expr));
+      if (!prop_type)
+            return 0;
+      if (ivl_type_element(prop_type) != 0)   /* an array: keep element index */
+            return 0;
+      b = ivl_type_base(prop_type);
+      if (b != IVL_VT_BOOL && b != IVL_VT_LOGIC)
+            return 0;
+      return ivl_type_packed_width(prop_type) > 1;
+}
+
 static inline int same_property_receiver_path_(ivl_expr_t lhs, ivl_expr_t rhs)
 {
       if (lhs == rhs)
