@@ -14621,6 +14621,26 @@ bool of_STORE_PROP_OBJ(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %store/prop/obj/d <pid>
+ *
+ * Like %store/prop/obj, but stores an independent DEEP duplicate of the value
+ * object.  Used for an unpacked-struct value copy (`a = b;` where the struct
+ * has dynamic members such as an associative array): SystemVerilog struct
+ * assignment has value semantics, so the destination must not alias the
+ * source's dynamic members.
+ */
+bool of_STORE_PROP_OBJ_D(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t val;
+      thr->pop_object(val);
+      if (val.test_nil())
+	    thr->push_object(val);
+      else
+	    thr->push_object(val.duplicate());
+      return of_STORE_PROP_OBJ(thr, cp);
+}
+
 static void pop_prop_val(vthread_t thr, double&val, unsigned)
 {
       val = thr->pop_real();

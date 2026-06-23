@@ -171,3 +171,12 @@ void vvp_cobject::shallow_copy(const vvp_object*obj)
       touch();
 
 }
+
+vvp_object* vvp_cobject::duplicate(void) const
+{
+      vvp_cobject*dup = new vvp_cobject(defn_);
+	// copy_property (via shallow_copy) deep-copies dynamic members
+	// (assoc/darray/object properties), giving struct value semantics.
+      dup->shallow_copy(this);
+      return dup;
+}

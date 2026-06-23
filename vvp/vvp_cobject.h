@@ -49,6 +49,10 @@ class vvp_cobject : public vvp_object {
       void get_object(size_t pid, vvp_object_t&val, size_t idx);
 
       void shallow_copy(const vvp_object*that) override;
+	// Deep copy: a new object of the same class whose properties are copied
+	// per-property (object/assoc/darray members are duplicated, not
+	// aliased).  Used for unpacked-struct value-semantics assignment.
+      vvp_object* duplicate(void) const override;
 
       const class_type* get_defn() const { return defn_; }
 

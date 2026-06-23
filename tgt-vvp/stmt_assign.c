@@ -2596,7 +2596,22 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 
 	    } else if (ivl_type_base(prop_type) == IVL_VT_NO_TYPE) {
 		  ivl_variable_type_t rv_type = ivl_expr_value(rval);
-		  if (rv_type == IVL_VT_CLASS ||
+		  ivl_type_t rnt = ivl_expr_net_type(rval);
+		    /* An unpacked-struct value copy (`a = b;`): the r-value is an
+		       object-modelled struct (NO_TYPE aggregate).  Store a DEEP
+		       duplicate so the destination does not alias the source's
+		       dynamic members (assoc/darray) -- SV struct assignment has
+		       value semantics.  Previously a NO_TYPE r-value was not
+		       recognised as object-like and was coerced to a null object,
+		       silently dropping the struct contents. */
+		  if (rv_type == IVL_VT_NO_TYPE
+		      && ivl_expr_type(rval) != IVL_EX_NULL
+		      && rnt && ivl_type_base(rnt) == IVL_VT_NO_TYPE) {
+			errors += draw_eval_object(rval);
+			fprintf(vvp_out, "    %%store/prop/obj/d %d, 0;"
+				" ; unpacked-struct value copy\n", prop_idx);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  } else if (rv_type == IVL_VT_CLASS ||
 		      rv_type == IVL_VT_DARRAY ||
 		      rv_type == IVL_VT_QUEUE ||
 		      ivl_expr_type(rval) == IVL_EX_NULL) {
