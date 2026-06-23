@@ -1197,8 +1197,8 @@ symbol_access
       { $$ = vpip_make_vthr_APV($3, $5, $7, $9); }
   | K_CPS '<' T_SYMBOL ',' T_NUMBER '>'
       { $$ = vpip_make_cobject_property_string_var($3, $5); }
-  | K_CPV '<' T_SYMBOL ',' T_NUMBER '>'
-      { $$ = vpip_make_cobject_property_var($3, $5); }
+  | K_CPV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER '>'
+      { $$ = vpip_make_cobject_property_var($3, $5, $7 != 0); }
   ;
 
   /* functor operands can only be a list of symbols. */

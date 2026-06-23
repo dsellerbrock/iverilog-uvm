@@ -347,8 +347,8 @@ vpiHandle vpip_make_cobject_property_string_var(char*label, size_t prop_idx)
  */
 class __vpiClassPropertyVectorVar : public __vpiHandle {
     public:
-      explicit __vpiClassPropertyVectorVar(size_t prop_idx)
-            : cobj_net_(nullptr), prop_idx_(prop_idx) {}
+      __vpiClassPropertyVectorVar(size_t prop_idx, bool signed_flag)
+            : cobj_net_(nullptr), prop_idx_(prop_idx), signed_(signed_flag) {}
 
       vvp_net_t*cobj_net_;
 
@@ -359,7 +359,7 @@ class __vpiClassPropertyVectorVar : public __vpiHandle {
             switch (code) {
                 case vpiSize:        return (int)current_width_();
                 case vpiAutomatic:   return 0;
-                case vpiSigned:      return 0;
+                case vpiSigned:      return signed_ ? 1 : 0;
                 case vpiConstType:   return vpiNullConst;
                 default: return 0;
             }
@@ -373,7 +373,7 @@ class __vpiClassPropertyVectorVar : public __vpiHandle {
             if (!cobj) { val->format = vpiSuppressVal; return; }
             vvp_vector4_t vec;
             cobj->get_vec4(prop_idx_, vec);
-            vpip_vec4_get_value(vec, vec.size(), false, val);
+            vpip_vec4_get_value(vec, vec.size(), signed_, val);
       }
 
       vpiHandle vpi_put_value(p_vpi_value val, int) override
@@ -392,6 +392,7 @@ class __vpiClassPropertyVectorVar : public __vpiHandle {
 
     private:
       size_t prop_idx_;
+      bool signed_;
 
       vvp_cobject*peek_cobject_()
       {
@@ -414,9 +415,9 @@ class __vpiClassPropertyVectorVar : public __vpiHandle {
       }
 };
 
-vpiHandle vpip_make_cobject_property_var(char*label, size_t prop_idx)
+vpiHandle vpip_make_cobject_property_var(char*label, size_t prop_idx, bool signed_flag)
 {
-      __vpiClassPropertyVectorVar*obj = new __vpiClassPropertyVectorVar(prop_idx);
+      __vpiClassPropertyVectorVar*obj = new __vpiClassPropertyVectorVar(prop_idx, signed_flag);
       functor_ref_lookup(&obj->cobj_net_, label);
       return obj;
 }

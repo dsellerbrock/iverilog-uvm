@@ -198,8 +198,9 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 		  && ivl_expr_signal(expr)
 		  && !ivl_expr_oper1(expr)) {
 		    unsigned pidx = (unsigned)ivl_expr_property_idx(expr);
-		    snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u>",
-			     (void*)ivl_expr_signal(expr), pidx);
+		    snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u, %d>",
+			     (void*)ivl_expr_signal(expr), pidx,
+			     ivl_expr_signed(expr) ? 1 : 0);
 		    result->text = strdup(buffer);
 		    return 1;
 	      }
