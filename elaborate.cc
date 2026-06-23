@@ -11140,6 +11140,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (ptype) {
 			const netvector_t*nvec = dynamic_cast<const netvector_t*>(ptype);
 			if (nvec) wid = nvec->packed_width();
+			    // An enum property is NOT a netvector, so it would
+			    // otherwise fall through to the wid==0 -> 32 default.
+			    // The auto-synthesized `inside` constraint for a rand
+			    // enum (below) declares the property at the enum packed
+			    // width; get_prop_var dedupes by idx with the first width
+			    // winning, so a user constraint referencing the same enum
+			    // property must agree or the solver state is corrupted.
+				else if (const netenum_t*en =
+					dynamic_cast<const netenum_t*>(ptype)) {
+				      wid = (unsigned)en->packed_width();
+				}
 			    // Phase 81 follow-up: unpacked-array property referenced
 			    // as a bare PEIdent (no element index) must declare its
 			    // flat width (N × elem_wid).  The Z3 builder's
