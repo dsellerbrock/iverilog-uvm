@@ -4147,6 +4147,14 @@ class NetUTask  : public NetProc {
       const NetScope* task() const;
       bool super_call() const;
 
+	// Virtual-interface dynamic dispatch: when set, task_ is a reference
+	// instance's interface task and this expression evaluates the runtime
+	// virtual-interface handle.  Code generation loads the handle and
+	// dispatches the call to the per-instance task of the actual instance
+	// (via the %fork/vif opcode) instead of the static reference target.
+      void set_vif_expr(NetExpr*e) { vif_expr_ = e; }
+      const NetExpr* vif_expr() const { return vif_expr_; }
+
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                                   bool nested_func = false) const override;
       virtual void nex_output(NexusSet&) override;
@@ -4158,6 +4166,7 @@ class NetUTask  : public NetProc {
     private:
       NetScope*task_;
       bool super_call_;
+      NetExpr*vif_expr_ = nullptr;
 };
 
 /*

@@ -285,7 +285,8 @@ class PCallTask  : public Statement {
 
       NetProc*elaborate_build_call_(Design*des, NetScope*scope,
 				    NetScope*task, NetExpr*use_this,
-				    bool super_call = false) const;
+				    bool super_call = false,
+				    NetExpr*vif_dispatch_expr = nullptr) const;
       NetProc*elaborate_sys_task_method_(Design*des, NetScope*scope,
 					 NetExpr*obj,
 					 ivl_type_t obj_type,

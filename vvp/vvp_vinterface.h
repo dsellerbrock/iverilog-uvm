@@ -35,6 +35,11 @@ class vvp_vinterface : public vvp_object {
       vvp_vinterface(__vpiScope*scope, const class_type*defn);
       ~vvp_vinterface() override;
 
+      // The interface instance scope this handle refers to.  Used by
+      // %fork/vif to dynamically dispatch an interface task call to the
+      // per-instance task of the actual instance the handle points at.
+      __vpiScope* scope() const { return scope_; }
+
       void set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx = 0);
       void get_vec4(size_t pid, vvp_vector4_t&val, size_t idx = 0) const;
 

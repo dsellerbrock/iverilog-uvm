@@ -6740,10 +6740,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 
 	    // Virtual-interface task dispatch: the resolved task lives in an
 	    // interface scope and is NOT a class method, so there is no `this`
-	    // first port. Drop the receiver expression and call as a free task.
+	    // first port.  `task` is a reference instance's copy of the task
+	    // (resolved from the interface type); keep the receiver expression
+	    // (the runtime virtual-interface handle) so code generation can
+	    // dispatch the call to the per-instance task of the actual instance
+	    // the handle points at (%fork/vif) -- otherwise a handle that
+	    // refers to anything but the reference instance runs the wrong
+	    // instance's task (and its signals).
 	    if (class_type->is_interface()) {
-		  delete obj_expr;
-		  return elaborate_build_call_(des, scope, task, nullptr);
+		  return elaborate_build_call_(des, scope, task, nullptr,
+					       false, obj_expr);
 	    }
 	    return elaborate_build_call_(des, scope, task, obj_expr, explicit_super);
       }
@@ -6884,7 +6890,8 @@ NetProc* PCallTask::elaborate_void_function_(Design*des, NetScope*scope,
 
 NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 					  NetScope*task, NetExpr*use_this,
-					  bool super_call) const
+					  bool super_call,
+					  NetExpr*vif_dispatch_expr) const
 {
 	      const NetBaseDef*def = 0;
 		      if (task->type() == NetScope::TASK) {
@@ -7185,6 +7192,8 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	/* Generate the task call proper... */
       NetUTask*cur = new NetUTask(task, super_call);
       cur->set_line(*this);
+      if (vif_dispatch_expr)
+	    cur->set_vif_expr(vif_dispatch_expr);
       block->append(cur);
 
 	/* Generate assignment statements for the output and INOUT

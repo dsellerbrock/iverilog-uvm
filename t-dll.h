@@ -888,6 +888,9 @@ struct ivl_statement_s {
 	    struct { /* IVL_ST_UTASK */
 		  ivl_scope_t def;
 		  unsigned super_call;
+		    /* Virtual-interface dynamic dispatch handle (or 0): the
+		       runtime vif handle whose instance's task should run. */
+		  ivl_expr_t vif_expr;
 	    } utask_;
 
 	    struct { /* IVL_ST_TRIGGER IVL_ST_NB_TRIGGER IVL_ST_WAIT */

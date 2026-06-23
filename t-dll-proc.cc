@@ -956,6 +956,13 @@ void dll_target::proc_utask(const NetUTask*net)
       stmt_cur_->type_ = IVL_ST_UTASK;
       stmt_cur_->u_.utask_.def = lookup_scope_(net->task());
       stmt_cur_->u_.utask_.super_call = net->super_call() ? 1 : 0;
+      stmt_cur_->u_.utask_.vif_expr = 0;
+      if (const NetExpr*ve = net->vif_expr()) {
+	    assert(expr_ == 0);
+	    ve->expr_scan(this);
+	    stmt_cur_->u_.utask_.vif_expr = expr_;
+	    expr_ = 0;
+      }
 }
 
 bool dll_target::proc_wait(const NetEvWait*net)

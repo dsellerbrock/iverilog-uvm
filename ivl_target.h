@@ -2292,6 +2292,9 @@ extern ivl_scope_t ivl_stmt_block_scope(ivl_statement_t net);
 extern ivl_statement_t ivl_stmt_block_stmt(ivl_statement_t net, unsigned i);
   /* IVL_ST_UTASK IVL_ST_DISABLE */
 extern ivl_scope_t ivl_stmt_call(ivl_statement_t net);
+  /* IVL_ST_UTASK: for a virtual-interface task dispatch, the runtime vif-handle
+     expression whose instance's per-instance task should run; 0 otherwise. */
+extern ivl_expr_t ivl_stmt_vif_expr(ivl_statement_t net);
   /* IVL_ST_UTASK */
 extern unsigned ivl_stmt_is_super_call(ivl_statement_t net);
   /* IVL_ST_CASE,IVL_ST_CASER,IVL_ST_CASEX,IVL_ST_CASEZ */

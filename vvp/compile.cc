@@ -293,6 +293,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%force/wr",      of_FORCE_WR,      1,{OA_FUNC_PTR, OA_NONE,      OA_NONE} },
       { "%fork",   of_FORK,   2,  {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
       { "%fork/v", of_FORK_V, 2,  {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
+      { "%fork/vif",of_FORK_VIF,2, {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
       { "%free",   of_FREE,   1,  {OA_VPI_PTR,  OA_NONE,     OA_NONE} },
       { "%inside/arr", of_INSIDE_ARR, 1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%inside/arr/o", of_INSIDE_ARR_O, 0, {OA_NONE, OA_NONE, OA_NONE} },

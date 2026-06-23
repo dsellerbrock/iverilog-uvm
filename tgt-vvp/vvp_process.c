@@ -1675,6 +1675,23 @@ static int show_stmt_utask(ivl_statement_t net)
          calls always use static dispatch. */
       int use_virtual = !ivl_stmt_is_super_call(net)
                         && ivl_scope_is_virtual_method(task);
+
+	/* Virtual-interface task dispatch: `task` is a reference instance's
+	   copy of the interface task; the runtime vif handle selects which
+	   instance's task actually runs.  Load the handle onto the object
+	   stack and use %fork/vif (the reference task supplies the method
+	   name + argument staging and is the fallback for a nil handle). */
+      ivl_expr_t vif_expr = ivl_stmt_vif_expr(net);
+      if (vif_expr) {
+	    const char*target = vvp_mangle_id(ivl_scope_name(task));
+	    note_td_reference(target);
+	    draw_eval_object(vif_expr);
+	    fprintf(vvp_out, "    %%fork/vif TD_%s", target);
+	    fprintf(vvp_out, ", S_%p;\n", task);
+	    fprintf(vvp_out, "    %%join;\n");
+	    return 0;
+      }
+
       if (ivl_scope_type(task) == IVL_SCT_FUNCTION) {
 	    const char*target = vvp_mangle_id(ivl_scope_name(task));
 	    note_td_reference(target);

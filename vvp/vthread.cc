@@ -9265,6 +9265,117 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
 	      return true;
 }
 
+/*
+ * Retarget a forked child to the interface-task copy of the actual instance a
+ * virtual-interface handle points at.  cp->scope is a *reference* instance's
+ * task (used for the method name and for staging the call arguments); vif_obj
+ * is the runtime virtual-interface handle.  Build "<vif instance full name>.
+ * <method>", look up that per-instance task, allocate its context, copy the
+ * staged arguments into it, and point the child there.  Returns false (keep the
+ * static reference target) for a nil/non-vif handle or an unresolved lookup --
+ * which preserves the existing single-instance/const-folded behaviour.
+ */
+static bool dispatch_vif_task_call_(vthread_t thr, vvp_code_t cp,
+                                    vthread_t child, const vvp_object_t&vif_obj)
+{
+      if (!(thr && cp && cp->scope && child))
+            return false;
+
+      vvp_vinterface*vif = vif_obj.peek<vvp_vinterface>();
+      if (!vif)
+            return false;
+      __vpiScope*vif_scope = vif->scope();
+      if (!vif_scope)
+            return false;
+
+      __vpiScope*base_scope = cp->scope;            // static reference task
+      const char*method_name = base_scope->scope_name();
+      if (!method_name)
+            return false;
+
+      const char*vif_full = vpi_get_str(vpiFullName, vif_scope);
+      if (!vif_full)
+            return false;
+      std::string label = std::string(vif_full) + "." + method_name;
+
+      vvp_code_t override_pc = 0;
+      __vpiScope*override_scope = 0;
+      if (!compile_lookup_code_scope(label.c_str(), &override_pc, &override_scope))
+            return false;
+      if (!(override_pc && override_scope && override_scope->is_automatic()))
+            return false;
+      if (override_scope == base_scope)
+            return false;  // already the right instance; keep the static target
+
+      vvp_context_t override_context = vthread_alloc_context(override_scope);
+      copy_method_ports_to_context_(base_scope, thr, override_scope,
+                                    override_context, false);
+
+      child->pc = override_pc;
+      child->parent_scope = override_scope;
+      child->wt_context = override_context;
+      child->rd_context = override_context;
+      child->owns_automatic_context = 1;
+      child->owned_context = override_context;
+      child->dynamic_dispatch_base_scope = base_scope;
+      return true;
+}
+
+/*
+ * %fork/vif <ref_task>, <ref_scope>
+ *
+ * Like %fork, but the top of the object stack is a virtual-interface handle:
+ * dispatch the interface task to the per-instance task of the instance the
+ * handle actually points at (see dispatch_vif_task_call_).  The reference
+ * task/scope operand supplies the method name + argument staging and is the
+ * fallback when the handle is nil or cannot be resolved.
+ */
+bool of_FORK_VIF(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t vif_obj;
+      thr->pop_object(vif_obj);
+
+      vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      __vpiScope*child_ctx_scope = resolve_context_scope(cp->scope);
+      if (thr->staged_alloc_rd_scope
+          && child_ctx_scope == thr->staged_alloc_rd_scope) {
+            thr->staged_alloc_rd_context = 0;
+            thr->staged_alloc_rd_scope = 0;
+      }
+
+      dispatch_vif_task_call_(thr, cp, child, vif_obj);
+
+      if (cp->scope->is_automatic() && !child->wt_context) {
+            child->wt_context = thr->wt_context;
+            child->rd_context = thr->wt_context;
+      }
+      if (thr->owned_context && !child->owned_context
+          && context_live_in_owner(thr->owned_context)) {
+            retain_context_chain_(thr->owned_context);
+            child->owns_automatic_context = 1;
+            child->owned_context = thr->owned_context;
+      }
+      trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
+
+      child->parent = thr;
+      child->is_fork_v_child = 1;
+      thr->children.insert(child);
+
+      { vvp_code_t next_pc = thr->pc;
+        if (next_pc && next_pc->opcode == of_CHUNK_LINK && next_pc->cptr)
+              next_pc = next_pc->cptr;
+        if (thr->i_am_in_function && !(next_pc && next_pc->opcode == of_JOIN_DETACH)) {
+              child->is_scheduled = 1;
+              child->i_am_in_function = 1;
+              vthread_run(child);
+              running_thread = thr;
+        } else {
+              schedule_vthread(child, 0, true);
+        }
+      }
+      return true;
+}
+
 bool of_FREE(vthread_t thr, vvp_code_t cp)
 {
       __vpiScope*ctx_scope = resolve_context_scope(cp->scope);

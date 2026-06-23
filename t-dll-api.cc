@@ -2837,6 +2837,14 @@ extern "C" ivl_scope_t ivl_stmt_call(ivl_statement_t net)
       }
 }
 
+extern "C" ivl_expr_t ivl_stmt_vif_expr(ivl_statement_t net)
+{
+      assert(net);
+      if (net->type_ == IVL_ST_UTASK)
+	    return net->u_.utask_.vif_expr;
+      return 0;
+}
+
 extern "C" unsigned ivl_stmt_is_super_call(ivl_statement_t net)
 {
       assert(net);
