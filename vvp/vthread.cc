@@ -10313,6 +10313,17 @@ static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
                     root_obj.peek<vvp_object>(),
                     root_obj.test_nil() ? 1 : 0);
       }
+      /* A vif field write (e.g. `cfg.vif.host_cb.x <= v`) changes an interface
+       * SIGNAL -- already driven to the design by set_vec4 -- not an
+       * object-member handle.  It must NOT fire @(obj)/@(obj.member) anyedge
+       * waiters on the vif or its containing object (e.g. wait(cfg.in_reset)):
+       * doing so let UVM driver threads (tl_host_driver a_channel_thread /
+       * d_ready_rsp / d_channel_thread) drive each other in an unbounded
+       * zero-time cross-fire whenever they toggled bus signals.  Signal-level
+       * @(vif.sig) waiters are served by the edge functor via set_vec4. */
+      if (recv.peek<vvp_vinterface>())
+            return;
+
       if (!root_net || root_obj.test_nil()) {
             if (!recv.test_nil()) {
                   recv.touch();
