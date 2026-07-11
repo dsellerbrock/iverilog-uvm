@@ -3718,7 +3718,35 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
       vvp_context_t use_context = 0;
       const char*source = "none";
 
-      if (running_thread->wt_context
+      /* After a callf joins, do_join's pop-push branch moves the returned
+         child frame to the head of rd_context and removes it from the
+         wt_context chain. Until the matching %free, scoped reads must see
+         that returned frame (function result and output copy-out), even
+         when the caller holds a pre-%alloc'd frame of the SAME scope at
+         the write head. That happens for nested calls of one function,
+         e.g. builder chains obj.f(...).f(...) or f(g(f(x))) with f==g.
+         The returned frame is recognizable because it is live for this
+         scope but no longer anywhere in the wt chain. The %alloc staging
+         window is not affected: there the caller frame at rd-head is
+         still a member of the wt chain. */
+      bool rd_head_returned_frame = false;
+      if (running_thread->rd_context
+          && running_thread->rd_context != running_thread->wt_context
+          && context_live_matches_scope_(running_thread->rd_context, ctx_scope)) {
+            rd_head_returned_frame = true;
+            for (vvp_context_t search = running_thread->wt_context ; search ;
+                 search = vvp_get_stacked_context(search)) {
+                  if (search == running_thread->rd_context) {
+                        rd_head_returned_frame = false;
+                        break;
+                  }
+            }
+      }
+
+      if (rd_head_returned_frame) {
+            use_context = running_thread->rd_context;
+            source = "rd-head-returned";
+      } else if (running_thread->wt_context
           && context_live_matches_scope_(running_thread->wt_context, ctx_scope)) {
             use_context = running_thread->wt_context;
             source = "wt-head";

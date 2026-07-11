@@ -184,6 +184,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: payload-size-rand patterns.
 
 ### G22 `factory.create_object_by_name` and `uvm_factory::get().create_object_by_name` both unresolvable
+- **STATUS 2026-07-11: FIXED** (typed-expression dispatch session, branch `claude/ieee1800-systemverilog-uvm-tqk5qy`). `uvm_factory::get().create_object_by_name(...)` works against unmodified Accellera UVM; test `tests/m1_uvm_factory_by_name_test.sv`. Root cause was the parser deleting the receiver in `expr_primary '.' IDENT (args)` plus no expression-keyed method dispatch. See docs/conformance/session_logs/2026-07-11_typed_expression_dispatch.md.
 - Symptom: both `factory.create_object_by_name(...)` (UVM global) and `uvm_factory::get().create_object_by_name(...)` (canonical IEEE 1800.2 path) report `error: No function named 'create_object_by_name' found in this context.` `set_type_override_by_name` warns "Enable of unknown task ignored (compile-progress)." Confirmed working: `T::type_id::create("name")` (registry-style).
 - Probe: p25_uvm_factory_create_name (VERIFIED-FAILS); p96_uvm_obj_factory (PASS — type_id::create + set_type_override).
 - Location: elab_expr.cc class-method dispatch on the singleton-returning factory accessor.
@@ -200,6 +201,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: dynamic callback-based UVM patterns.
 
 ### G24 `uvm_config_db#(class_obj)::get` returns false for class-typed objects
+- **STATUS 2026-07-11: PASSES** after the typed-expression dispatch work (the config-db internals traverse singleton-accessor call chains). Round-trip verified with unmodified UVM; test `tests/m1_uvm_cfgdb_class_test.sv`. If the original p95 probe (sequence-context get) still fails, the residual is narrower than this entry describes — reprobe before Phase 67 work.
 - Symptom: `set` followed by `get` of a class object via `uvm_config_db` returns 0 — the get fails silently. Int and string forms work.
 - Probe: p95_uvm_seq_cfg (VERIFIED-FAILS).
 - Location: deep in uvm_config_db parameterized-set/get; likely a class-handle stored as `uvm_object` then $cast back fails for derived types.
@@ -258,6 +260,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 # Important (works around but limits common patterns)
 
 ### G31 `process::self().status().name()` chained — enum method on function-return fails
+- **STATUS 2026-07-11: FIXED** (language level). Enum methods on function-call results and chained enum methods work; test `tests/m1_enum_method_chain_test.sv`. Note process::status() semantics itself is still G07 territory.
 - Symptom: `c.next().name()` fails with `error: No function named 'name' found in this context.` The same call without chain (`c2 = c.next(); c2.name();`) works.
 - Probe: p32_typedef_enum_method (VERIFIED-FAILS chained), p32 with no chain (PASS).
 - Location: elab_expr.cc method-call-on-function-call-result codepath.
@@ -266,6 +269,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: idiomatic chained method calls.
 
 ### G32 method-call chaining on class-handle returns: `c.with_v(42).with_v(100).v` fails
+- **STATUS 2026-07-11: FIXED**. Builder chains work, including nested same-method calls, which also required a vvp automatic-context fix (returned child frame vs same-scope pre-alloc'd caller frame in `vthread_get_rd_context_item_scoped`). Tests `tests/m1_method_chain_builder_test.sv`, `tests/m1_method_on_call_result_test.sv`, `tests/m1_static_accessor_chain_test.sv`.
 - Symptom: `c.with_v(42).with_v(100).v` produces `error: No function named 'with_v' found in this context.` Same call broken into temp variables works.
 - Probe: p84_func_return_class (VERIFIED-FAILS chain, PASS no-chain).
 - Location: same area as G31 — chained method/property dispatch on function-return class handles.

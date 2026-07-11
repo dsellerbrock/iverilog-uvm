@@ -4638,6 +4638,11 @@ NetProc* PContinue::elaborate(Design*des, NetScope*) const
 
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 {
+	// Method-call statement on an arbitrary receiver expression,
+	// e.g. f().method(args); (IEEE 1800-2017 8.10).
+      if (receiver_)
+	    return elaborate_receiver_method_(des, scope);
+
       if (peek_tail_name(path_)[0] == '$') {
 	    if (void_cast_)
 		  return elaborate_non_void_function_(des, scope);
@@ -5346,6 +5351,81 @@ static bool is_uvm_compile_progress_task_stub_candidate_(const pform_name_t&path
       // map and the null-map UVM_ERROR no longer fires.)
 
       return false;
+}
+
+/*
+ * Elaborate a method-call statement whose target is an arbitrary
+ * receiver expression, e.g. f().method(args); or
+ * C#(T)::get().method(args);. The receiver is elaborated first and the
+ * method is resolved against the exact class type of its result
+ * (IEEE 1800-2017 8.10). Void methods and tasks go through the regular
+ * build-call path; non-void methods are re-expressed as a function call
+ * assigned to nothing (result discarded, 13.4.1).
+ */
+NetProc* PCallTask::elaborate_receiver_method_(Design*des, NetScope*scope) const
+{
+      ivl_assert(*this, receiver_);
+      perm_string method_name = peek_tail_name(path_);
+
+      NetExpr*sub_expr = receiver_->elaborate_expr(des, scope,
+						   ivl_type_t(nullptr),
+						   PExpr::NO_FLAGS);
+      if (!sub_expr)
+	    return 0;
+
+      ivl_type_t target_type = sub_expr->net_type();
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(target_type);
+      if (!class_type) {
+	    cerr << get_fileline() << ": sorry: Method-call statements on "
+		 << "receiver expressions are only supported for class-typed "
+		 << "receivers." << endl;
+	    des->errors += 1;
+	    delete sub_expr;
+	    return 0;
+      }
+
+      if (!class_type->scope_ready()) {
+	    if (netclass_t*visible_class = ensure_visible_class_type(des, scope,
+							class_type->get_name()))
+		  class_type = visible_class;
+      }
+
+      NetScope*task = class_type->resolve_method_call_scope(des, method_name);
+      if (!task) {
+	    cerr << get_fileline() << ": error: " << method_name
+		 << " is not a method of class " << class_type->get_name()
+		 << "." << endl;
+	    des->errors += 1;
+	    delete sub_expr;
+	    return 0;
+      }
+
+      if (task->type() == NetScope::FUNC) {
+	    const NetFuncDef*def = task->func_def();
+	    if (!def) {
+		  const PFunction*pfunc = task->func_pform();
+		  if (pfunc)
+			elaborate_function_outside_caller_fork_(des, pfunc, task);
+		  def = task->func_def();
+	    }
+	    if (def && !def->is_void()) {
+		    // The method returns a value that this statement
+		    // discards. Re-express as a receiver-based function
+		    // call assigned to nothing.
+		  delete sub_expr;
+		  list<named_pexpr_t> use_parms(parms_.begin(), parms_.end());
+		  PECallFunction*rcv_call =
+			new PECallFunction(receiver_, method_name, use_parms);
+		  rcv_call->set_file(get_file());
+		  rcv_call->set_lineno(get_lineno());
+		  PAssign*tmp = new PAssign(0, rcv_call);
+		  tmp->set_file(get_file());
+		  tmp->set_lineno(get_lineno());
+		  return tmp->elaborate(des, scope);
+	    }
+      }
+
+      return elaborate_build_call_(des, scope, task, sub_expr);
 }
 
 NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,

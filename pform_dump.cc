@@ -421,6 +421,10 @@ void PEConcat::dump(ostream&out) const
 
 void PECallFunction::dump(ostream &out) const
 {
+      if (receiver_) {
+	    receiver_->dump(out);
+	    out << ".";
+      }
       out << path_ << "(" << parms_ << ")";
 }
 

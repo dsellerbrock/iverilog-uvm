@@ -3435,6 +3435,21 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 		 << "mode: " << width_mode_name(mode) << endl;
       }
 
+	// Method call on an arbitrary receiver expression. Elaborate the
+	// full call to learn its result type and width. This mirrors
+	// PEMemberAccess::test_width.
+      if (receiver_) {
+	    NetExpr*tmp = elaborate_receiver_method_(des, scope, NO_FLAGS);
+	    if (!tmp)
+		  return 0;
+	    expr_type_ = tmp->expr_type();
+	    expr_width_ = tmp->expr_width();
+	    min_width_ = expr_width_;
+	    signed_flag_ = tmp->has_sign();
+	    delete tmp;
+	    return expr_width_;
+      }
+
       if (peek_tail_name(path_)[0] == '$')
 	    return test_width_sfunc_(des, scope, mode);
 
@@ -5467,6 +5482,12 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 {
       flags &= ~SYS_TASK_ARG; // don't propagate the SYS_TASK_ARG flag
 
+	// Method call on an arbitrary receiver expression, e.g.
+	// f().method(). Elaborate the receiver and dispatch the method
+	// against the receiver's exact result type.
+      if (receiver_)
+	    return elaborate_receiver_method_(des, scope, flags);
+
       if (path_.size() == 2
 	  && peek_head_name(path_) == perm_string::literal("process")
 	  && peek_tail_name(path_) == perm_string::literal("self")) {
@@ -6147,6 +6168,61 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
  * Then net refers to object named x, and path_head is "<scope>.x". The method is
  * "len" in path_tail, and if x is a string object, we can handle the case.
  */
+/*
+ * Elaborate a method call whose target is an arbitrary receiver
+ * expression (e.g. f().method(), C#(T)::get().method(), or a chain of
+ * such calls). The receiver expression is elaborated first; its exact
+ * result type (class, enum, string, queue, ...) selects the method
+ * dispatch. IEEE 1800-2017 8.10 (object methods on class-valued
+ * expressions) and 6.19.5 (enumerated type methods).
+ */
+NetExpr* PECallFunction::elaborate_receiver_method_(Design*des, NetScope*scope,
+						    unsigned flags) const
+{
+      ivl_assert(*this, receiver_);
+
+      if (!gn_system_verilog()) {
+	    cerr << get_fileline() << ": error: "
+		 << "Enable SystemVerilog to support object methods." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+      NetExpr*sub_expr = receiver_->elaborate_expr(des, scope,
+						   ivl_type_t(nullptr), flags);
+      if (!sub_expr)
+	    return 0;
+
+      ivl_type_t target_type = sub_expr->net_type();
+      perm_string method_name = peek_tail_name(path_);
+      pform_name_t use_path = path_.name;
+
+      if (debug_elaborate) {
+	    cerr << get_fileline() << ": PECallFunction::elaborate_receiver_method_: "
+		 << "method: " << method_name
+		 << ", receiver expr_type: " << sub_expr->expr_type() << endl;
+	    if (target_type)
+		  cerr << get_fileline() << ": PECallFunction::elaborate_receiver_method_: "
+		       << "receiver net_type: " << *target_type << endl;
+      }
+
+      unsigned errors_before = des->errors;
+      NetExpr*res = elaborate_method_dispatch_(des, scope, sub_expr, target_type,
+					       false /* target_indexed */,
+					       method_name, use_path,
+					       false /* explicit_super */);
+      if (!res && des->errors == errors_before) {
+	    cerr << get_fileline() << ": error: No method named `"
+		 << method_name << "' can be applied to the receiver "
+		 << "expression";
+	    if (target_type)
+		  cerr << " of type " << *target_type;
+	    cerr << "." << endl;
+	    des->errors += 1;
+      }
+      return res;
+}
+
 NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 						symbol_search_results&search_results)
 						const
@@ -6331,6 +6407,28 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  use_path.push_back(*it);
       }
 
+      bool explicit_super = !search_results.path_head.empty()
+	    && search_results.path_head.front().name == perm_string::literal(SUPER_TOKEN);
+
+      return elaborate_method_dispatch_(des, scope, sub_expr, target_type,
+					target_indexed, method_name, use_path,
+					explicit_super);
+}
+
+/*
+ * Dispatch a method call against an already-elaborated receiver expression
+ * and its exact result type. This is the shared tail used both by the
+ * symbol-search driven method path and by method calls on arbitrary
+ * receiver expressions such as f().method() (IEEE 1800-2017 8.10, 6.19.5).
+ */
+NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
+						    NetExpr*sub_expr,
+						    ivl_type_t target_type,
+						    bool target_indexed,
+						    perm_string method_name,
+						    const pform_name_t&use_path,
+						    bool explicit_super) const
+{
       // Dynamic array methods. This handles the case that the located signal
       // is a dynamic array, and there is no index.
       if (target_type && dynamic_cast<const netdarray_t*>(target_type)
@@ -6700,9 +6798,6 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 
 		    elaborate_arguments_(des, scope, def, false, parms, parm_off);
 
-		    bool explicit_super =
-			  !search_results.path_head.empty()
-			  && search_results.path_head.front().name == perm_string::literal(SUPER_TOKEN);
 		    NetESignal*eres = new NetESignal(res);
 		    NetEUFunc*call = new NetEUFunc(scope, method, eres, parms, false,
 						   explicit_super);

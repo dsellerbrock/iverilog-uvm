@@ -7365,18 +7365,40 @@ expr_primary
 	$$ = tmp;
       }
   | expr_primary '.' IDENTIFIER argument_list_parens
-      { // Parse method calls on temporary expressions (e.g. fn().method()).
-	PECallFunction*tmp = new PECallFunction(lex_strings.make($3), *$4);
+      { /* Method call on a primary expression (e.g. fn().method()).
+	   PEIdent receivers keep the hierarchical-path form so existing
+	   name-based lookup is unchanged; any other receiver expression
+	   is preserved and the method is dispatched against the exact
+	   type of the receiver result (IEEE 1800-2017 8.10). */
+	PECallFunction*tmp;
+	if (PEIdent*id = dynamic_cast<PEIdent*>($1)) {
+	      pform_scoped_name_t path = id->path();
+	      path.name.push_back(name_component_t(lex_strings.make($3)));
+	      tmp = path.package
+		  ? new PECallFunction(path.package, path.name, *$4)
+		  : new PECallFunction(path.name, *$4);
+	      delete $1;
+	} else {
+	      tmp = new PECallFunction($1, lex_strings.make($3), *$4);
+	}
 	FILE_NAME(tmp, @2);
-	delete $1;
 	delete[]$3;
 	delete $4;
 	$$ = tmp;
       }
   | expr_primary '.' TYPE_IDENTIFIER argument_list_parens
-      { PECallFunction*tmp = new PECallFunction(lex_strings.make($3.text), *$4);
+      { PECallFunction*tmp;
+	if (PEIdent*id = dynamic_cast<PEIdent*>($1)) {
+	      pform_scoped_name_t path = id->path();
+	      path.name.push_back(name_component_t(lex_strings.make($3.text)));
+	      tmp = path.package
+		  ? new PECallFunction(path.package, path.name, *$4)
+		  : new PECallFunction(path.name, *$4);
+	      delete $1;
+	} else {
+	      tmp = new PECallFunction($1, lex_strings.make($3.text), *$4);
+	}
 	FILE_NAME(tmp, @2);
-	delete $1;
 	delete[]$3.text;
 	delete $4;
 	$$ = tmp;
@@ -10992,6 +11014,53 @@ subroutine_call
       { PCallTask*tmp = pform_make_call_task(@1, *$1, *$2);
 	delete $1;
 	delete $2;
+	$$ = tmp;
+      }
+  | hierarchy_identifier argument_list_parens '.' IDENTIFIER argument_list_parens_opt
+      { /* Method-call statement on a call result: f(args).method(args);
+	   (IEEE 1800-2017 8.10). The receiver call is preserved as an
+	   expression and the method is dispatched against its exact
+	   result type at elaboration. */
+	PECallFunction*rcv = pform_make_call_function(@1, *$1, *$2, 0);
+	PCallTask*tmp = new PCallTask(rcv, lex_strings.make($4), *$5);
+	FILE_NAME(tmp, @3);
+	delete $1;
+	delete $2;
+	delete[]$4;
+	delete $5;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens '.' IDENTIFIER argument_list_parens_opt
+      { /* Method-call statement on a static-method call result:
+	   Class::get(args).method(args); (IEEE 1800-2017 8.10, 8.23). */
+	pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PECallFunction*rcv = pform_make_call_function(@1, hident, *$4, 0);
+	PCallTask*tmp = new PCallTask(rcv, lex_strings.make($6), *$7);
+	FILE_NAME(tmp, @5);
+	delete[]$1.text;
+	delete[]$3;
+	delete $4;
+	delete[]$6;
+	delete $7;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER argument_list_parens '.' IDENTIFIER argument_list_parens_opt
+      { /* Method-call statement on a parameterized static-method call
+	   result: Class#(args)::get(args).method(args);
+	   (IEEE 1800-2017 8.10, 8.25). */
+	pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	PECallFunction*rcv = pform_make_call_function(@1, hident, *$5, $2);
+	PCallTask*tmp = new PCallTask(rcv, lex_strings.make($7), *$8);
+	FILE_NAME(tmp, @6);
+	delete[]$1.text;
+	delete[]$4;
+	delete $5;
+	delete[]$7;
+	delete $8;
 	$$ = tmp;
       }
   | package_scope hierarchy_identifier { lex_in_package_scope(0); } argument_list_parens_opt
