@@ -200,9 +200,20 @@ PCallTask::PCallTask(perm_string n, const list<named_pexpr_t> &p)
       path_.push_back(name_component_t(n));
 }
 
+PCallTask::PCallTask(PExpr*receiver, perm_string method_name,
+		     const list<named_pexpr_t> &p)
+: package_(0), parms_(p.begin(), p.end()), receiver_(receiver)
+{
+      path_.push_back(name_component_t(method_name));
+}
+
 PCallTask::~PCallTask()
 {
       delete_parmvalue(leading_type_args_);
+	// receiver_ is deliberately not deleted here: elaboration may
+	// transfer it into a synthesized PECallFunction (which owns its
+	// receiver). pform objects are process-lifetime, so this does not
+	// leak in practice.
 }
 
 const pform_name_t& PCallTask::path() const

@@ -3426,6 +3426,116 @@ static NetProc*build_tagged_union_companion_set_(Design*des, NetScope*scope,
       return comp_as;
 }
 
+/*
+ * Whole unpacked-array assignment (IEEE 1800-2017 7.6): the vvp code
+ * generator has no whole-array store, so lower "dst = src" between
+ * one-dimensional static unpacked arrays into an element-by-element
+ * copy loop over canonical indexes. Canonical-to-canonical copy
+ * implements the left-to-right element correspondence of 7.6
+ * regardless of the declared index directions. The element
+ * assignments reuse the existing word-indexed l-value and
+ * word-indexed property/signal read machinery.
+ *
+ * The lv is adopted on success (word select attached); the caller
+ * must not reuse it. elem_rval must be an expression template
+ * factory: it is called once with the index expression to use.
+ */
+static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
+				       const LineInfo&loc,
+				       NetAssign_*lv,
+				       unsigned long count,
+				       NetNet*src_sig,
+				       const NetEProperty*src_prop)
+{
+      (void)des;
+
+      NetNet*idx_sig = new NetNet(scope, scope->local_symbol(),
+				  NetNet::REG, &netvector_t::atom2s32);
+      idx_sig->local_flag(true);
+      idx_sig->set_line(loc);
+
+      NetEConst*init_expr = make_const_val_s(0);
+      init_expr->set_line(loc);
+
+      NetESignal*cond_idx = new NetESignal(idx_sig);
+      cond_idx->set_line(loc);
+      NetEConst*count_expr = make_const_val_s(count);
+      count_expr->set_line(loc);
+      NetEBComp*cond_expr = new NetEBComp('<', cond_idx, count_expr);
+      cond_expr->set_line(loc);
+
+      NetAssign_*step_lv = new NetAssign_(idx_sig);
+      NetEConst*step_val = make_const_val_s(1);
+      NetAssign*step = new NetAssign(step_lv, '+', step_val);
+      step->set_line(loc);
+
+      NetESignal*lv_word = new NetESignal(idx_sig);
+      lv_word->set_line(loc);
+      lv->set_word(lv_word);
+
+      NetExpr*elem_rv = 0;
+      if (src_sig) {
+	    NetESignal*rv_word = new NetESignal(idx_sig);
+	    rv_word->set_line(loc);
+	    NetESignal*tmp = new NetESignal(src_sig, rv_word);
+	    tmp->set_line(loc);
+	    elem_rv = tmp;
+      } else {
+	    ivl_assert(loc, src_prop);
+	    NetESignal*rv_word = new NetESignal(idx_sig);
+	    rv_word->set_line(loc);
+	    NetEProperty*tmp;
+	    if (const NetExpr*base = src_prop->get_base())
+		  tmp = new NetEProperty(base->dup_expr(),
+					 src_prop->property_idx(), rv_word);
+	    else
+		  tmp = new NetEProperty(const_cast<NetNet*>(src_prop->get_sig()),
+					 src_prop->property_idx(), rv_word);
+	    tmp->set_line(loc);
+	    elem_rv = tmp;
+      }
+
+      NetAssign*body = new NetAssign(lv, elem_rv);
+      body->set_line(loc);
+
+      NetForLoop*loop = new NetForLoop(idx_sig, init_expr, cond_expr,
+				       body, step);
+      loop->set_line(loc);
+      return loop;
+}
+
+/*
+ * Check that the source element shape is assignment compatible with
+ * the destination unpacked array (IEEE 1800-2017 7.6: equal element
+ * counts and equivalent element types; we require matching packed
+ * width and vector base kind).
+ */
+static bool uarray_copy_shapes_compatible_(const netuarray_t*dst,
+					   unsigned long src_count,
+					   ivl_type_t src_elem)
+{
+      const netranges_t&dims = dst->static_dimensions();
+      if (dims.size() != 1)
+	    return false;
+      if (dims[0].width() != src_count)
+	    return false;
+
+      ivl_type_t dst_elem = dst->element_type();
+      if (!dst_elem || !src_elem)
+	    return false;
+      if (dst_elem->packed_width() != src_elem->packed_width())
+	    return false;
+
+      ivl_variable_type_t dst_vt = dst_elem->base_type();
+      ivl_variable_type_t src_vt = src_elem->base_type();
+      auto is_vec = [](ivl_variable_type_t vt) {
+	    return vt == IVL_VT_BOOL || vt == IVL_VT_LOGIC;
+      };
+      if (is_vec(dst_vt) && is_vec(src_vt))
+	    return true;
+      return dst_vt == src_vt;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -3509,7 +3619,8 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    // as net_type() returned it.
 	    rv = elaborate_rval_(des, scope, lv_net_type);
 
-      } else if (dynamic_cast<const netuarray_t*>(lv_net_type)) {
+      } else if (const netuarray_t*lv_uarray =
+		 dynamic_cast<const netuarray_t*>(lv_net_type)) {
 	    ivl_assert(*this, lv->more==0);
 	    if (debug_elaborate) {
 		  if (lv->word())
@@ -3519,9 +3630,81 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			cerr << get_fileline() << ": PAssign::elaborate: "
 			     << "lv->word() = <nil>" << endl;
 	    }
+
+	      // Whole static-array copy (IEEE 1800-2017 7.6). Handle
+	      // "dst = src" where src is a one-dimensional unpacked
+	      // array signal before general r-value elaboration (the
+	      // typed r-value path has no whole-array representation
+	      // for word-array signals). Property sources are handled
+	      // after r-value elaboration below.
+	    bool simple_blocking = (delay_ == 0) && (event_ == 0)
+		  && (count_ == 0) && !lv->word()
+		  && lv_uarray->static_dimensions().size() == 1;
+
+	    if (simple_blocking) {
+		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rval())) {
+			symbol_search_results sr;
+			bool found = symbol_search(this, des, scope, rid->path(),
+						   rid->lexical_pos(), &sr);
+			if (found && sr.net && sr.path_tail.empty()
+			    && rid->path().name.back().index.empty()
+			    && sr.net->unpacked_dimensions() == 1) {
+			      if (!uarray_copy_shapes_compatible_(
+					lv_uarray, sr.net->unpacked_count(),
+					sr.net->net_type())) {
+				    cerr << get_fileline() << ": error: "
+					 << "Unpacked array types of '"
+					 << lv->name() << "' and '" << rid->path()
+					 << "' are not assignment compatible."
+					 << endl;
+				    des->errors += 1;
+				    delete lv;
+				    return 0;
+			      }
+			      return make_uarray_copy_loop_(des, scope, *this,
+							    lv, sr.net->unpacked_count(),
+							    sr.net, 0);
+			}
+		  }
+	    }
+
 	    // Same C3 reasoning as above for netuarray l-values.
 	    ivl_assert(*this, lv_net_type);
 	    rv = elaborate_rval_(des, scope, lv_net_type);
+
+	      // Whole static-array copy from a class property source
+	      // (e.g. the UVM field-macro COPY path "arr = rhs.arr").
+	      // Without this, code generation degrades the property
+	      // read/store to a 1-bit vector - a silent miscompile.
+	    if (simple_blocking && rv) {
+		  if (NetEProperty*rprop = dynamic_cast<NetEProperty*>(rv)) {
+			const netuarray_t*src_ua =
+			      dynamic_cast<const netuarray_t*>(rprop->net_type());
+			if (src_ua && !rprop->get_index()
+			    && src_ua->static_dimensions().size() == 1) {
+			      unsigned long src_count =
+				    src_ua->static_dimensions()[0].width();
+			      if (!uarray_copy_shapes_compatible_(
+					lv_uarray, src_count,
+					src_ua->element_type())) {
+				    cerr << get_fileline() << ": error: "
+					 << "Unpacked array property types in "
+					 << "assignment to '" << lv->name()
+					 << "' are not assignment compatible."
+					 << endl;
+				    des->errors += 1;
+				    delete lv;
+				    delete rv;
+				    return 0;
+			      }
+			      NetProc*loop = make_uarray_copy_loop_(des, scope, *this,
+								    lv, src_count,
+								    0, rprop);
+			      delete rv;
+			      return loop;
+			}
+		  }
+	    }
 
       } else {
 	      /* Elaborate the r-value expression, then try to evaluate it. */
@@ -4638,6 +4821,11 @@ NetProc* PContinue::elaborate(Design*des, NetScope*) const
 
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 {
+	// Method-call statement on an arbitrary receiver expression,
+	// e.g. f().method(args); (IEEE 1800-2017 8.10).
+      if (receiver_)
+	    return elaborate_receiver_method_(des, scope);
+
       if (peek_tail_name(path_)[0] == '$') {
 	    if (void_cast_)
 		  return elaborate_non_void_function_(des, scope);
@@ -5346,6 +5534,81 @@ static bool is_uvm_compile_progress_task_stub_candidate_(const pform_name_t&path
       // map and the null-map UVM_ERROR no longer fires.)
 
       return false;
+}
+
+/*
+ * Elaborate a method-call statement whose target is an arbitrary
+ * receiver expression, e.g. f().method(args); or
+ * C#(T)::get().method(args);. The receiver is elaborated first and the
+ * method is resolved against the exact class type of its result
+ * (IEEE 1800-2017 8.10). Void methods and tasks go through the regular
+ * build-call path; non-void methods are re-expressed as a function call
+ * assigned to nothing (result discarded, 13.4.1).
+ */
+NetProc* PCallTask::elaborate_receiver_method_(Design*des, NetScope*scope) const
+{
+      ivl_assert(*this, receiver_);
+      perm_string method_name = peek_tail_name(path_);
+
+      NetExpr*sub_expr = receiver_->elaborate_expr(des, scope,
+						   ivl_type_t(nullptr),
+						   PExpr::NO_FLAGS);
+      if (!sub_expr)
+	    return 0;
+
+      ivl_type_t target_type = sub_expr->net_type();
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(target_type);
+      if (!class_type) {
+	    cerr << get_fileline() << ": sorry: Method-call statements on "
+		 << "receiver expressions are only supported for class-typed "
+		 << "receivers." << endl;
+	    des->errors += 1;
+	    delete sub_expr;
+	    return 0;
+      }
+
+      if (!class_type->scope_ready()) {
+	    if (netclass_t*visible_class = ensure_visible_class_type(des, scope,
+							class_type->get_name()))
+		  class_type = visible_class;
+      }
+
+      NetScope*task = class_type->resolve_method_call_scope(des, method_name);
+      if (!task) {
+	    cerr << get_fileline() << ": error: " << method_name
+		 << " is not a method of class " << class_type->get_name()
+		 << "." << endl;
+	    des->errors += 1;
+	    delete sub_expr;
+	    return 0;
+      }
+
+      if (task->type() == NetScope::FUNC) {
+	    const NetFuncDef*def = task->func_def();
+	    if (!def) {
+		  const PFunction*pfunc = task->func_pform();
+		  if (pfunc)
+			elaborate_function_outside_caller_fork_(des, pfunc, task);
+		  def = task->func_def();
+	    }
+	    if (def && !def->is_void()) {
+		    // The method returns a value that this statement
+		    // discards. Re-express as a receiver-based function
+		    // call assigned to nothing.
+		  delete sub_expr;
+		  list<named_pexpr_t> use_parms(parms_.begin(), parms_.end());
+		  PECallFunction*rcv_call =
+			new PECallFunction(receiver_, method_name, use_parms);
+		  rcv_call->set_file(get_file());
+		  rcv_call->set_lineno(get_lineno());
+		  PAssign*tmp = new PAssign(0, rcv_call);
+		  tmp->set_file(get_file());
+		  tmp->set_lineno(get_lineno());
+		  return tmp->elaborate(des, scope);
+	    }
+      }
+
+      return elaborate_build_call_(des, scope, task, sub_expr);
 }
 
 NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,

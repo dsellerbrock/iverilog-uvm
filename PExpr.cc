@@ -275,13 +275,23 @@ PECallFunction::PECallFunction(perm_string n, const list<named_pexpr_t> &parms)
 {
 }
 
+PECallFunction::PECallFunction(PExpr*receiver, perm_string method_name,
+			       const list<named_pexpr_t> &parms)
+: path_(pn_from_ps(method_name)), parms_(parms.begin(), parms.end()),
+  receiver_(receiver), is_overridden_(false)
+{
+}
+
 PECallFunction::~PECallFunction()
 {
       delete_parmvalue(leading_type_args_);
+      delete receiver_;
 }
 
 void PECallFunction::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
 {
+      if (receiver_)
+	    receiver_->declare_implicit_nets(scope, type);
       for (const auto &parm : parms_) {
 	    if (parm.parm)
 		  parm.parm->declare_implicit_nets(scope, type);
@@ -291,6 +301,8 @@ void PECallFunction::declare_implicit_nets(LexicalScope*scope, NetNet::Type type
 bool PECallFunction::has_aa_term(Design*des, NetScope*scope) const
 {
       bool flag = false;
+      if (receiver_)
+	    flag |= receiver_->has_aa_term(des, scope);
       for (const auto &parm : parms_) {
 	    if (parm.parm)
 		  flag |= parm.parm->has_aa_term(des, scope);

@@ -241,6 +241,11 @@ class PCallTask  : public Statement {
       explicit PCallTask(PPackage *pkg, const pform_name_t &n, const std::list<named_pexpr_t> &parms);
       explicit PCallTask(const pform_name_t &n, const std::list<named_pexpr_t> &parms);
       explicit PCallTask(perm_string n, const std::list<named_pexpr_t> &parms);
+	// Method-call statement on an arbitrary receiver expression,
+	// e.g. f().method(args); (IEEE 1800-2017 8.10). path_ holds only
+	// the method name.
+      explicit PCallTask(PExpr*receiver, perm_string method_name,
+			 const std::list<named_pexpr_t> &parms);
       ~PCallTask() override;
 
       const pform_name_t& path() const;
@@ -271,6 +276,7 @@ class PCallTask  : public Statement {
 
       NetProc*elaborate_method_(Design*des, NetScope*scope,
                                 bool add_this_flag = false) const;
+      NetProc*elaborate_receiver_method_(Design*des, NetScope*scope) const;
       NetProc*elaborate_function_(Design*des, NetScope*scope) const;
       NetProc*elaborate_void_function_(Design*des, NetScope*scope,
 				       NetFuncDef*def) const;
@@ -304,6 +310,9 @@ class PCallTask  : public Statement {
       struct parmvalue_t*leading_type_args_ = 0;
       bool void_cast_ = false;
       std::vector<PExpr*> with_constraints_;
+	// Non-null for method-call statements on arbitrary receiver
+	// expressions. In that case path_ holds only the method name.
+      PExpr*receiver_ = nullptr;
 };
 
 class PCase  : public Statement {

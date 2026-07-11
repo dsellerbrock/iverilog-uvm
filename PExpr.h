@@ -1012,6 +1012,13 @@ class PECallFunction : public PExpr {
       explicit PECallFunction(perm_string n, const std::vector<named_pexpr_t> &parms);
       explicit PECallFunction(perm_string n);
 
+	// Method call on an arbitrary receiver expression, e.g.
+	// f().method(args) or C#(T)::get().method(args). The receiver is
+	// elaborated first and the method is dispatched against the exact
+	// type of the receiver result (IEEE 1800-2017 8.10, 6.19.5).
+      explicit PECallFunction(PExpr*receiver, perm_string method_name,
+			      const std::list<named_pexpr_t> &parms);
+
 	// std::list versions. Should be removed!
       explicit PECallFunction(const pform_name_t &n, const std::list<named_pexpr_t> &parms);
       explicit PECallFunction(perm_string n, const std::list<named_pexpr_t> &parms);
@@ -1049,6 +1056,9 @@ class PECallFunction : public PExpr {
       std::vector<named_pexpr_t> parms_;
       std::vector<PExpr*> with_constraints_;
       struct parmvalue_t*leading_type_args_ = 0;
+	// Non-null for method calls on arbitrary receiver expressions.
+	// In that case path_ holds only the method name.
+      PExpr*receiver_ = nullptr;
 
         // For system functions.
       bool is_overridden_;
@@ -1068,6 +1078,18 @@ class PECallFunction : public PExpr {
 					  const symbol_search_results&search_results)
 					  const;
 
+	// Shared dispatch of a method call against an elaborated receiver
+	// expression and its exact result type. Used both by the
+	// search-result driven path and by receiver-based calls.
+      NetExpr* elaborate_method_dispatch_(Design*des, NetScope*scope,
+					  NetExpr*sub_expr,
+					  ivl_type_t target_type,
+					  bool target_indexed,
+					  perm_string method_name,
+					  const pform_name_t&use_path,
+					  bool explicit_super) const;
+      NetExpr* elaborate_receiver_method_(Design*des, NetScope*scope,
+					  unsigned flags) const;
 
       NetExpr* elaborate_sfunc_(Design*des, NetScope*scope,
                                 unsigned expr_wid,
