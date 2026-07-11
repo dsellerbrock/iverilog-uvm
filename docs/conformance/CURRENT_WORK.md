@@ -6,7 +6,11 @@ the investigation. Update at every meaningful checkpoint.
 ## State as of 2026-07-11 (session: typed-expression dispatch)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy`
-- **Latest pushed commit**: (see `git log` — checkpoint 2 push pending regression)
+- **Latest pushed commit**: `51c0d94` (checkpoint 2 — M1 implementation, tests, vvp fix)
+- **Pull request**: https://github.com/dsellerbrock/iverilog-uvm/pull/66 (draft; CI watched)
+- **Final regression evidence**: UVM 104/104; ivtest byte-identical to pristine
+  baseline (vvp_reg 2961/3101 + same 132 pre-existing fails, vpi 85/85,
+  vvp_reg.py 284/12); make check pass; negative suite 2/2.
 - **Selected feature**: Manifesto M1 — typed-expression method dispatch
   (gaps G22, G31, G32 + latent vvp same-scope frame bug)
 - **Governing IEEE clauses**: 1800-2017 8.10 (object methods), 6.19.5 (enum
@@ -78,12 +82,15 @@ the investigation. Update at every meaningful checkpoint.
 
 ## Exact next actions
 
-1. Wait for/inspect full-regression result including the 5 new tests
-   (expect 103/103).
-2. Commit checkpoint 2 (implementation + tests + docs), push.
-3. Rerun the original UVM probes tied to M2 (config-db class get/set G24,
-   process-status chain G07/G31 UVM level) and select the next gap per the
-   manifesto sequence (M2: factory/config/callbacks/field automation).
+1. Watch PR #66 CI (6 jobs: Ubuntu 22/24, macOS, MSYS2 MINGW64/UCRT64/CLANG64);
+   fix any platform-specific fallout (most likely candidates: C++ dialect
+   nits in the new elab code, or MSYS2 grammar rebuild differences).
+2. Next milestone per manifesto sequence — M2 remainder: G25
+   (`uvm_field_sarray_int` copy/clone field automation) and G23
+   (`uvm_register_cb` class-layout corruption). Start by rerunning probes
+   p72/p28 shapes as reduced language tests; G24 config-db already passes
+   (test committed); G22/G31/G32 closed.
+3. Then M3 constraint solver (Phase 66 scope: G11/G15/G16/G17/G18/G20/G21).
 
 ## Decisions not to revisit without new evidence
 
