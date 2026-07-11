@@ -80,17 +80,30 @@ the investigation. Update at every meaningful checkpoint.
 - `with`-clause locator methods on receiver calls parse to PENull
   (pre-existing parser fallback, unchanged).
 
+## Checkpoint 3 (M2) — in flight
+
+- **G25 FIXED**: whole unpacked-array assignment (IEEE 1800-2017 7.6) lowered
+  to a canonical-index element copy loop in `PAssign::elaborate`
+  (`make_uarray_copy_loop_`, elaborate.cc). Covers sig=sig, prop=prop,
+  sig=prop, prop=sig; size mismatch errors. UVM `uvm_field_sarray_int`
+  clone verified against unmodified library.
+- **G23 RESOLVED-BY-PRIOR** (regression test added).
+- **G66 NEW gap recorded**: $unit class name colliding with uvm_pkg-internal
+  identifiers + specialization breaks unrelated package elaboration;
+  reproducer `tests/probes/g66_unit_class_name_collision_uvm.sv`.
+- Focused tests pass (m2_* 3/3, negative 3/3). Full UVM + ivtest regressions
+  running at last update; commit checkpoint 3 when green.
+
 ## Exact next actions
 
-1. Watch PR #66 CI (6 jobs: Ubuntu 22/24, macOS, MSYS2 MINGW64/UCRT64/CLANG64);
-   fix any platform-specific fallout (most likely candidates: C++ dialect
-   nits in the new elab code, or MSYS2 grammar rebuild differences).
-2. Next milestone per manifesto sequence — M2 remainder: G25
-   (`uvm_field_sarray_int` copy/clone field automation) and G23
-   (`uvm_register_cb` class-layout corruption). Start by rerunning probes
-   p72/p28 shapes as reduced language tests; G24 config-db already passes
-   (test committed); G22/G31/G32 closed.
-3. Then M3 constraint solver (Phase 66 scope: G11/G15/G16/G17/G18/G20/G21).
+1. Confirm the M2 regression runs (UVM expected 108/108; ivtest expected
+   identical to baseline: 2961/3101 + 132 pre-existing fails, 85/85,
+   284/12), then commit + push checkpoint 3.
+2. Watch PR #66 CI (6 platform jobs).
+3. Re-probe dynamic-array field automation (`uvm_field_array_int` /
+   `uvm_field_queue_*`) — G25 covered only the sarray shape.
+4. Then M3 constraint solver (Phase 66 scope: G11/G15/G16/G17/G18/G20/G21),
+   or G66 root-cause (specialization-time name capture) if prioritized.
 
 ## Decisions not to revisit without new evidence
 

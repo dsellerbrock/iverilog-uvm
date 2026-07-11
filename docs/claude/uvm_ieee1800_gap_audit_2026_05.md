@@ -193,6 +193,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: dynamic factory lookup by string (common in scoreboards / config-driven test selection).
 
 ### G23 `uvm_register_cb(T, my_cb)` macro corrupts class layout
+- **STATUS 2026-07-11: RESOLVED-BY-PRIOR**. Full callback flow (`\`uvm_register_cb` + `\`uvm_do_callbacks` + `uvm_callbacks#(T,CB)::add` + virtual dispatch to a derived callback) passes against unmodified UVM. Regression test: `tests/m2_uvm_register_cb_test.sv`. NOTE: while probing, a NEW gap was found — see G66 below.
 - Symptom: a class with `\`uvm_register_cb(T, my_cb)` triggers 15+ cascading errors at elaboration: "first is not a method of class T," "type of variable 'item' doesn't match," "I don't know how to elaborate assignment_pattern expressions for class T{netvector_t:bool unsigned m_register_cb_my_cb}." The macro adds a member that breaks downstream class-property iteration.
 - Probe: p28_uvm_callbacks_dyn (VERIFIED-FAILS).
 - Location: probably the class-properties-iteration (macros/uvm_callbacks_macros.svh expansion creates a property whose type elaborates as netvector_t:bool — wrong); related to the stale I5 entry.
@@ -210,6 +211,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: passing config objects through UVM hierarchy (very common).
 
 ### G25 `uvm_field_sarray_int` (and likely `uvm_field_array_*`) does not propagate values during clone/copy
+- **STATUS 2026-07-11: FIXED** for `uvm_field_sarray_int` (branch `claude/ieee1800-systemverilog-uvm-tqk5qy`). Root cause was NOT the macro: IEEE 1800-2017 7.6 whole unpacked-array assignment (`arr = local_rhs__.arr` in the COPY op) was miscompiled — codegen degraded uarray property load/store to 1-bit `%prop/v`/`%store/prop/v` (silent), and word-array signal RHS hard-errored. Fixed by lowering whole static-array assignment to a canonical-index element copy loop in `PAssign::elaborate` (`make_uarray_copy_loop_`, elaborate.cc). Tests: `tests/m2_uarray_assign_test.sv`, `tests/m2_uvm_field_sarray_copy_test.sv`, `tests/negative/m2_uarray_size_mismatch.sv`. Limitations: multi-dimensional whole-array copy and dynamic `uvm_field_array_*` shapes not yet re-probed.
 - Symptom: cloning an object with a static array field via `uvm_object_utils_begin/end + uvm_field_sarray_int` yields the clone with arr=0..0 even though the source has values. `print()` shows the clone's array entries all 'h0.
 - Probe: p72_uvm_field_macros (VERIFIED-FAILS).
 - Location: macros/uvm_object_defines.svh field-macro expansion; the `do_copy` virtual override for sarray fields is incomplete or hits a vvp_darray type-mismatch.
@@ -493,6 +495,14 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Layer: runtime + UVM.
 - Complexity: medium.
 - Blocks: subtle (objection counts, log dedup).
+
+### G66 (NEW 2026-07-11) $unit class name colliding with uvm_pkg-internal identifiers breaks unrelated package elaboration
+- Symptom: declaring a compilation-unit class named `comp` (a name used for variables/ports inside UVM phase-traversal code) and using it as a specialization parameter (`uvm_callbacks#(comp, my_cb)`) produces `Unable to bind variable 'comp'` in `uvm_bottomup_phase.traverse` / `uvm_topdown_phase.traverse` / `uvm_task_phase` and `No function named 'comp_type.comp'` in `uvm_in_order_comparator` — all unrelated package code. Renaming the class fixes it.
+- Probe: `tests/probes/g66_unit_class_name_collision_uvm.sv` (VERIFIED-FAILS). Simple reductions of plain $unit-class-vs-package-local shadowing PASS (variable, unnamed-block variable, port; even derived from a package base) — the defect needs specialization-time re-elaboration.
+- Location: likely specialization/elaboration order in elab_scope/netclass specialization (type-parameter name capture).
+- Layer: elab.
+- Complexity: medium-deep.
+- Blocks: user code that reuses common short identifiers (comp, item, phase...) as class names.
 
 # Confirmed-working baselines (not gaps; recorded for diff against future regressions)
 

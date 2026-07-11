@@ -162,8 +162,93 @@ method dispatch on arbitrary typed expressions. Covers audit gaps:
   name lists diff empty. All 132+12 failures are pre-existing fork issues,
   unrelated to this change.
 
+## Checkpoint 3 — M2: whole unpacked-array assignment (G25) + G23/G24 disposition
+
+### Requirement
+
+IEEE 1800-2017 **7.6 Assignments in unpacked arrays** (and 6.22.2 equivalent
+types): an unpacked array may be assigned from an assignment-compatible
+unpacked array (same element counts per dimension, equivalent element types),
+with left-to-right element correspondence. UVM's `uvm_field_sarray_int` COPY
+op is literally `ARG = local_rhs__.ARG;` (macros/uvm_object_defines.svh), so
+G25 reduces to this language feature.
+
+### Reproduction (baseline behavior)
+
+- `arr = rhs.arr` (class property = class property): compiled but was a
+  **silent no-op** — tgt-vvp degraded the uarray property load/store to
+  1-bit `%prop/v 0` / `%store/prop/v 0, 1`.
+- `x = y` (word-array signals) and `a.arr = lv` (property = signal):
+  hard elaboration error ("the type of the variable ... doesn't match the
+  context type", netvector vs netuarray) because word-array signals carry
+  unpacked dimensions on the NetNet, not in net_type().
+
+### Root cause
+
+No whole-array assignment lowering existed: vvp has no whole-array store
+(arrays are not stack values), and nothing in elaboration expanded the
+copy. The netuarray-typed r-value paths either mis-elaborated (property)
+or rejected (signal).
+
+### Implementation
+
+`elaborate.cc`: `PAssign::elaborate`'s netuarray l-value branch now lowers
+whole one-dimensional static-array assignments into a canonical-index
+element copy `NetForLoop` (`make_uarray_copy_loop_`), reusing the existing
+word-indexed l-value (`%store/prop/v/i`, array word stores) and r-value
+(`%prop/v/i`, array word reads) machinery. Canonical-to-canonical copy
+implements the 7.6 left-to-right correspondence for any declared index
+directions. Sources handled: word-array signals (pre-checked via
+symbol_search before typed r-value elaboration) and class properties
+(NetEProperty intercepted after r-value elaboration). Shape or element
+incompatibility produces a specific diagnostic
+(`uarray_copy_shapes_compatible_`); count mismatch is a hard error per 7.6.
+
+### Tests
+
+- `tests/m2_uarray_assign_test.sv` — sig=sig, prop=prop, local=prop,
+  prop=local, copy-not-alias, byte-element arrays.
+- `tests/m2_uvm_field_sarray_copy_test.sv` — unmodified-UVM
+  `uvm_field_sarray_int` clone round trip (G25).
+- `tests/m2_uvm_register_cb_test.sv` — G23 callback flow
+  (RESOLVED-BY-PRIOR; regression protection).
+- `tests/negative/m2_uarray_size_mismatch.sv` — `int a[4] = b[5]` rejected
+  with a specific diagnostic.
+
+### Dispositions
+
+- **G25: FIXED** (sarray_int; dynamic `uvm_field_array_*` shapes to re-probe).
+- **G23: RESOLVED-BY-PRIOR** (full register_cb + do_callbacks + add +
+  virtual dispatch passes).
+- **G66 (NEW)**: $unit class named `comp` used as a specialization parameter
+  breaks unrelated uvm_pkg elaboration; reproducer preserved at
+  `tests/probes/g66_unit_class_name_collision_uvm.sv`; simple shadowing
+  reductions pass. Recorded in the gap audit.
+
+### Known limitations
+
+- Multi-dimensional whole-array copy not expanded (falls back to the old
+  paths: loud error for signals; property case unchanged).
+- Function-return unpacked arrays and unpacked-dimension subroutine ports
+  remain separate pre-existing loud gaps (typedef-return / `sorry`).
+
+### Results
+
+- Focused: m2 positive tests 4/4 PASS (uarray assign, UVM sarray clone,
+  UVM register_cb, UVM dynamic field array — the last verified
+  individually, added after the suite run started); negative suite 3/3.
+- Canonical UVM regression: **108 passed, 0 failed, 0 skipped**.
+- Bundled ivtest: **byte-identical to the pristine-baseline results**
+  (vvp_reg 2961/3101 pass + same 132 pre-existing failure names,
+  vpi_reg 85/85, vvp_reg.py 284 ran/12 pre-existing failures).
+- Follow-up noted: `draw_eval_object: unknown expression type 3` warning
+  fires on UVM dynamic-array paths (pre-existing tgt-vvp/eval_object.c
+  compile-progress fallback — Phase 75 scope).
+
 ## Checkpoint history
 
 - Checkpoint 1: manifesto imported to `docs/conformance/`, baseline recorded (this file).
 - Checkpoint 2: typed-expression method dispatch implementation + tests + vvp
-  returned-frame fix (this section).
+  returned-frame fix.
+- Checkpoint 3: M2 whole unpacked-array assignment (G25) + G23/G24/G66
+  dispositions (this section).
