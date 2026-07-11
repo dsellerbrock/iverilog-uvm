@@ -315,7 +315,19 @@ membership (enum literals in sets), 18.5.2 constraint inheritance
 
 ### Results
 
-(recorded when the regression runs complete)
+- Focused: `m3_constraint_semantics_test` PASS (5 families × 20 iterations).
+- Canonical UVM regression: **110 passed, 0 failed, 0 skipped** (108 prior
+  + m3 test + probes dir excluded by the runner glob).
+- Bundled ivtest: **byte-identical to the pristine-baseline results**
+  (vvp_reg 2961/3101 + same 132 pre-existing failure names, vpi_reg 85/85,
+  vvp_reg.py 284/12).
+- The one-shot "constraint item not representable" warning fires once
+  during uvm_pkg compile (honest surface of a pre-existing dropped item).
+
+Note: PR #66 (M1+M2) was merged into main by the repository owner during
+this checkpoint; the topic branch was restarted from the merged main and
+the M3 work committed on top (WIP commit `9d64dda`, regression
+confirmation in the follow-up docs commit). New PR: #67.
 
 ## Checkpoint history
 

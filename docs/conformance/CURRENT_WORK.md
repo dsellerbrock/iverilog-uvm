@@ -80,32 +80,32 @@ the investigation. Update at every meaningful checkpoint.
 - `with`-clause locator methods on receiver calls parse to PENull
   (pre-existing parser fallback, unchanged).
 
-## Checkpoint 3 (M2) — in flight
+## Checkpoint 4 (M3) — regression-clean, PR #67
 
-- **G25 FIXED**: whole unpacked-array assignment (IEEE 1800-2017 7.6) lowered
-  to a canonical-index element copy loop in `PAssign::elaborate`
-  (`make_uarray_copy_loop_`, elaborate.cc). Covers sig=sig, prop=prop,
-  sig=prop, prop=sig; size mismatch errors. UVM `uvm_field_sarray_int`
-  clone verified against unmodified library.
-- **G23 RESOLVED-BY-PRIOR** (regression test added).
-- **G66 NEW gap recorded**: $unit class name colliding with uvm_pkg-internal
-  identifiers + specialization breaks unrelated package elaboration;
-  reproducer `tests/probes/g66_unit_class_name_collision_uvm.sv`.
-- Focused tests pass (m2_* 3/3, negative 3/3). Full UVM + ivtest regressions
-  running at last update; commit checkpoint 3 when green.
+- **G15/G17/G18/G20 FIXED + G11 implication half**: constraint implication,
+  if-else sets, enum-literal sets, inheritance merge, and solver arithmetic
+  (impl/iff/add/sub/mul/div/mod). See session log checkpoint 4.
+- PR #66 (M1+M2) was MERGED into main; branch restarted from merged main.
+- M3 work on PR #67 (draft): WIP commit `9d64dda` + regression-confirmation
+  docs commit.
+- Regressions: UVM **110/110**; ivtest **byte-identical to baseline**
+  (2961/3101+132, 85/85, 284/12); make check pass.
 
 ## Exact next actions
 
-1. Confirm the M2 regression runs (UVM expected 108/108; ivtest expected
-   identical to baseline: 2961/3101 + 132 pre-existing fails, 85/85,
-   284/12), then commit + push checkpoint 3.
-2. Watch PR #66 CI (6 platform jobs).
-3. Re-probe dynamic-array field automation (`uvm_field_array_int` /
-   `uvm_field_queue_*`) — G25 covered only the sarray shape.
-4. Then M3 constraint solver (Phase 66 scope: G11/G15/G16/G17/G18/G20/G21),
-   or G66 root-cause (specialization-time name capture) if prioritized.
+1. Watch PR #67 CI (6 platform jobs); post/act on failures.
+2. Next M3 increment: array-property constraint support — G16 (foreach
+   iterative constraints) and G21 (`arr.size()` with runtime resize hook).
+   Requires extending the p:N:W IR with array-element addressing and a
+   resize protocol in %randomize.
+3. Then: signed comparison support in the IR (p:N:W:s + bvslt family),
+   `solve...before` staged ordering, state-variable (non-rand) references
+   via value slots for class constraints.
+4. Alternatives per manifesto sequence: M5 interfaces/modports (Phase 70)
+   or G66 root-cause.
 
 ## Decisions not to revisit without new evidence
+
 
 - Receiver dispatch reuses `elaborate_method_dispatch_` — do NOT fork a
   second dispatch path for receiver calls.
