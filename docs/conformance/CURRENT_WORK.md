@@ -104,6 +104,45 @@ the investigation. Update at every meaningful checkpoint.
 4. Alternatives per manifesto sequence: M5 interfaces/modports (Phase 70)
    or G66 root-cause.
 
+## Manifesto v2 alignment review (2026-07-11)
+
+The governing manifesto was updated to v2 (commit c2e53d3). Review of this
+session's M1-M3 implementations against v2:
+
+- **Semantic IR remediation**: the M1 receiver-dispatch work matches v2's
+  prescribed migration entry point (expression and member-access
+  semantics). `elaborate_method_dispatch_` is the shared typed-expression
+  dispatch interface; return types flow through `NetEUFunc(net_type)`.
+- **Code-pattern scan** of the full session diff: no added TODO/FIXME,
+  no compile-progress fallbacks, no UVM identifier checks; one explicit
+  `sorry` diagnostic (non-class receivers in statement context) per
+  manifesto principle 4.
+- **Tracked diagnostics added** (v2: "convert silent type-recovery
+  fallbacks into tracked diagnostics"): unrepresentable-constraint-item
+  warning; uarray shape-mismatch errors.
+
+### Architectural debt register (v2 Risks)
+
+1. **PEIdent path-splice adapter** (parse.y receiver rules): legacy
+   name-based lookup retained for identifier receivers. Acceptable
+   adapter now; must not become a permanent duplicate dispatch path
+   (fold into receiver dispatch when the semantic IR migration reaches
+   name resolution).
+2. **test_width double-elaboration** (receiver calls, PEMemberAccess
+   pattern): duplicate diagnostics; symptomatic of missing typed
+   expression interface (v2 Risk 4).
+3. **vvp automatic-context heuristics** (`staged_alloc_rd_*`,
+   `skip_free_*`, chain-membership fix): the returned-frame fix is
+   correct but the surrounding machinery relies on implicit ordering —
+   squarely in v2's scheduler remediation program scope (M6 audit item 4/5:
+   direct thread execution + synchronous-child assumptions in callf).
+4. **Constraint IR is string-based S-expressions** with unsigned-only
+   comparisons and scalar-only properties: adequate for current gaps,
+   but array/signed/ordering support (G16/G21) will strain it; consider
+   a typed constraint IR when extending.
+5. **Pre-existing compile-progress fallback inventory** (45 sites,
+   audit section) remains open — Phase 75 scope.
+
 ## Decisions not to revisit without new evidence
 
 
