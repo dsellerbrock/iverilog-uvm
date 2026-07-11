@@ -245,6 +245,78 @@ incompatibility produces a specific diagnostic
   fires on UVM dynamic-array paths (pre-existing tgt-vvp/eval_object.c
   compile-progress fallback — Phase 75 scope).
 
+## Checkpoint 4 — M3: constraint solver semantics (G15/G17/G18/G20 + G11 impl)
+
+### Requirement
+
+IEEE 1800-2017 Chapter 18 constraint blocks: 18.5.6 implication
+(`expr -> constraint_set`), 18.5.7 if-else constraints, 18.5.3 set
+membership (enum literals in sets), 18.5.2 constraint inheritance
+(derived classes inherit base constraints; same-name overrides).
+
+### Root causes (per gap)
+
+- **G15** (implication): `pexpr_to_constraint_ir` had no case for
+  PEBLogic 'q' (`->`) so the whole item silently vanished; the
+  `A -> { set }` form additionally lost its consequent in parse.y
+  (constraint_trigger returned nothing, action `$$ = $1`).
+- **G17** (if-else): parse.y dropped the entire constraint set
+  (`$$ = nullptr`).
+- **G18** (enum inside): enum literal identifiers resolved to neither
+  property nor constant, so set ranges silently dropped out of the
+  `(inside ...)` IR (leaving it empty ⇒ true ⇒ underconstrained).
+- **G20** (inheritance): (a) derived netclass_t never saw base
+  constraint IRs; (b) the `x * 2` expression used `mul`, absent from
+  both the IR generator switch and the Z3 parser (as were add/sub in
+  the parser — generator emitted them but the solver silently treated
+  them as `true`).
+- **G11**: the implication half is the G15 fix; `solve...before`
+  ordering remains parsed-and-ignored (xor-diversity provides the
+  distribution; staged-order solving deferred).
+
+### Implementation
+
+- `PExpr.h/cc`: new `PEConstraintIf` pform node (cond + then/else item
+  lists) for constraint-set implication and if-else.
+- `parse.y`: constraint_set / constraint_expression_list /
+  constraint_trigger now build `std::list<PExpr*>`; the if/else,
+  `A -> {...}` and foreach rules no longer leak or silently drop
+  (foreach still unsupported: items deleted, documented).
+  Grammar conflicts unchanged (450 s/r, 1060 r/r).
+- `elaborate.cc` (`pexpr_to_constraint_ir`): new ops impl/iff and
+  mul/div/mod; PEConstraintIf lowering
+  `(impl C then) [and (impl (not C) else)]`; enum-literal resolution
+  through the class scope chain (new `scope` parameter); enum-typed
+  property widths; a one-shot warning when a constraint item cannot be
+  represented (silent weakening is a manifesto-4 violation).
+- `netclass.h/cc`: lazy inheritance merge
+  (`merge_inherited_constraint_irs_`), deferred until the base chain
+  has elaborated; local same-name constraints override (18.5.2).
+  Verified property indexes are chain-stable (vvp `.class` dumps show
+  base properties keep their slots in derived classes).
+- `vvp/vvp_z3.cc`: `impl` (Z3_mk_implies), `iff` (Z3_mk_iff),
+  `add/sub/mul/div/mod` bitvector arithmetic with width harmonization.
+
+### Tests
+
+- `tests/m3_constraint_semantics_test.sv`: five constraint families ×
+  20 iterations (implication, if-else sets, enum-literal inside,
+  inherited constraint + child arithmetic constraint, solve-before with
+  implications and distribution sanity check).
+
+### Known limitations (recorded in audit)
+
+- `foreach` iterative constraints (G16) and `arr.size()` constraints
+  (G21): rand arrays are not representable in the scalar p:N:W IR —
+  needs array-property solver support (next M3 increment).
+- `solve...before` ordering semantics; signed comparisons (IR carries
+  no sign; bvult/bvule used); state-variable (non-rand) references in
+  class constraints still drop (now warned).
+
+### Results
+
+(recorded when the regression runs complete)
+
 ## Checkpoint history
 
 - Checkpoint 1: manifesto imported to `docs/conformance/`, baseline recorded (this file).

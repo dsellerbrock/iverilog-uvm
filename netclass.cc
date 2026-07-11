@@ -587,6 +587,45 @@ void netclass_t::add_constraint_ir(const string&name, const string&ir)
       constraint_irs_.push_back(c);
 }
 
+void netclass_t::merge_inherited_constraint_irs_() const
+{
+      if (constraint_irs_merged_)
+	    return;
+
+      if (!super_) {
+	    constraint_irs_merged_ = true;
+	    return;
+      }
+
+	// A count query can arrive while classes are still elaborating
+	// (e.g. netlist dumps). Defer the merge - without latching the
+	// flag - until the base chain has elaborated its own constraint
+	// blocks, so nothing is lost.
+      for (const netclass_t*sup = super_ ; sup ; sup = sup->get_super()) {
+	    if (!sup->body_elaborated())
+		  return;
+      }
+      constraint_irs_merged_ = true;
+
+	// Recurse so the base class merges its own chain first, then
+	// inherit every base entry that is not overridden by a local
+	// constraint of the same name (IEEE 1800-2017 18.5.2). The
+	// synthesized _enum_* constraints regenerate per class and match
+	// by name, so they do not duplicate.
+      super_->merge_inherited_constraint_irs_();
+      for (const constraint_ir_t&base_c : super_->constraint_irs_) {
+	    bool overridden = false;
+	    for (const constraint_ir_t&own_c : constraint_irs_) {
+		  if (own_c.name == base_c.name) {
+			overridden = true;
+			break;
+		  }
+	    }
+	    if (!overridden)
+		  constraint_irs_.push_back(base_c);
+      }
+}
+
 void netclass_t::add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi,
 				unsigned kind)
 {

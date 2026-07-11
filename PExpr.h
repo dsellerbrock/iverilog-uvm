@@ -1275,6 +1275,38 @@ class PESoft : public PExpr {
 };
 
 /*
+ * Represents conditional constraint forms inside constraint blocks
+ * (IEEE 1800-2017 18.5.6 implication with a constraint set,
+ * 18.5.7 if-else constraints):
+ *   cond -> { items... }
+ *   if (cond) { items... } [ else { items... } ]
+ * The item lists are constraint expressions that apply only when the
+ * condition holds (resp. fails). Only meaningful in constraint IR
+ * generation; ordinary expression elaboration reports an error.
+ */
+class PEConstraintIf : public PExpr {
+    public:
+      PEConstraintIf(PExpr*cond, std::list<PExpr*>*then_items,
+		     std::list<PExpr*>*else_items);
+      ~PEConstraintIf() override;
+
+      PExpr* get_cond() const { return cond_; }
+      const std::list<PExpr*>& then_items() const { return then_items_; }
+      const std::list<PExpr*>& else_items() const { return else_items_; }
+
+      void dump(std::ostream&out) const override;
+      unsigned test_width(Design*des, NetScope*scope,
+			  width_mode_t&mode) override;
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+			      unsigned w, unsigned flags) const override;
+
+    private:
+      PExpr*cond_;
+      std::list<PExpr*> then_items_;
+      std::list<PExpr*> else_items_;
+};
+
+/*
  * Represents the SystemVerilog "inside" expression:
  *   expr inside {[lo:hi], val, ...}
  */

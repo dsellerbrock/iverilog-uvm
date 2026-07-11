@@ -10265,10 +10265,14 @@ bool Module::elaborate(Design*des, NetScope*scope) const
  * cls:          class being constrained (for property lookup).
  * value_slots:  if non-null, non-property caller-scope identifiers are
  *               collected here (returned as "v:N:W" placeholders in IR).
- *               Caller must elaborate and push these at the call site. */
+ *               Caller must elaborate and push these at the call site.
+ * scope:        if non-null, non-property identifiers are first resolved
+ *               as enumeration literals through this scope chain and
+ *               emitted as constants (IEEE 1800-2017 18.5.3). */
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
-			      vector<const PExpr*>*value_slots)
+			      vector<const PExpr*>*value_slots,
+			      const NetScope*scope)
 {
       using namespace std;
 
@@ -10295,9 +10299,29 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (ptype) {
 			const netvector_t*nvec = dynamic_cast<const netvector_t*>(ptype);
 			if (nvec) wid = nvec->packed_width();
+			else if (const netenum_t*nenum =
+				 dynamic_cast<const netenum_t*>(ptype))
+			      wid = nenum->packed_width();
 		  }
 		  if (wid == 0) wid = 32;
 		  return "p:" + to_string(idx) + ":" + to_string(wid);
+	    }
+	      // Enumeration literal (IEEE 1800-2017 18.5.3: sets may name
+	      // enum values): resolve to its constant through the scope
+	      // chain. Without this, enum names silently vanish from
+	      // inside/dist sets and under-constrain the solve (G18).
+	    if (id->path().size() == 1) {
+		  for (const NetScope*sc = scope ; sc ; sc = sc->parent()) {
+			const NetExpr*en =
+			      const_cast<NetScope*>(sc)->enumeration_expr(name);
+			if (!en) continue;
+			if (const NetEConst*ec =
+			    dynamic_cast<const NetEConst*>(en)) {
+			      uint64_t val = ec->value().as_unsigned();
+			      return "c:" + to_string(val);
+			}
+			break;
+		  }
 	    }
 	    // Non-class-property identifier: treat as caller-scope runtime value.
 	    if (value_slots) {
@@ -10313,13 +10337,45 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       // Z3_optimize_assert_soft (default weight 1) instead of a hard
       // conjunct.
       if (const PESoft*sf = dynamic_cast<const PESoft*>(expr)) {
-	    string s = pexpr_to_constraint_ir(sf->get_inner(), cls, value_slots);
+	    string s = pexpr_to_constraint_ir(sf->get_inner(), cls, value_slots, scope);
 	    if (s.empty() || s[0] == '?') return "";
 	    return "(soft " + s + ")";
       }
 
+	// Conditional constraint sets: if-else (IEEE 1800-2017 18.5.7)
+	// and "cond -> { ... }" implication sets (18.5.6). Lower to
+	// (impl C then) [and (impl (not C) else)].
+      if (const PEConstraintIf*cif = dynamic_cast<const PEConstraintIf*>(expr)) {
+	    string cond = pexpr_to_constraint_ir(cif->get_cond(), cls,
+						 value_slots, scope);
+	    if (cond.empty()) return "";
+
+	    auto items_to_ir = [&](const std::list<PExpr*>&items) -> string {
+		  string acc;
+		  for (const PExpr*item : items) {
+			if (!item) continue;
+			string s = pexpr_to_constraint_ir(item, cls,
+							  value_slots, scope);
+			if (s.empty()) return "";
+			acc = acc.empty() ? s : "(and " + acc + " " + s + ")";
+		  }
+		  return acc;
+	    };
+
+	    string then_ir = items_to_ir(cif->then_items());
+	    if (then_ir.empty()) return "";
+	    string result = "(impl " + cond + " " + then_ir + ")";
+	    if (!cif->else_items().empty()) {
+		  string else_ir = items_to_ir(cif->else_items());
+		  if (else_ir.empty()) return "";
+		  result = "(and " + result + " (impl (not " + cond + ") "
+			+ else_ir + "))";
+	    }
+	    return result;
+      }
+
       if (const PEInside*ins = dynamic_cast<const PEInside*>(expr)) {
-	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots);
+	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots, scope);
 	    if (s.empty() || s[0] == '?') return "";
 	    // C7 (Phase 62b): dist form preserves per-branch weights as
 	    // `(dist <expr> (b W <range>) ...)` where W is the literal
@@ -10330,12 +10386,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    for (auto& r : ins->get_ranges()) {
 		  string range_ir;
 		  if (r.is_range) {
-			string lo = pexpr_to_constraint_ir(r.lo, cls, value_slots);
-			string hi = pexpr_to_constraint_ir(r.hi, cls, value_slots);
+			string lo = pexpr_to_constraint_ir(r.lo, cls, value_slots, scope);
+			string hi = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope);
 			if (lo.empty() || hi.empty()) continue;
 			range_ir = "[" + lo + "," + hi + "]";
 		  } else {
-			string v = pexpr_to_constraint_ir(r.hi, cls, value_slots);
+			string v = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope);
 			if (v.empty()) continue;
 			range_ir = v;
 		  }
@@ -10344,7 +10400,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			// dist (rare, but legal in mixed forms).
 			string w = "1";
 			if (r.weight) {
-			      string we = pexpr_to_constraint_ir(r.weight, cls, value_slots);
+			      string we = pexpr_to_constraint_ir(r.weight, cls, value_slots, scope);
 			      if (!we.empty()) w = we;
 			}
 			result += " (b " + w + " " + range_ir + ")";
@@ -10357,8 +10413,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
-	    string left = pexpr_to_constraint_ir(bin->get_left(), cls, value_slots);
-	    string right = pexpr_to_constraint_ir(bin->get_right(), cls, value_slots);
+	    string left = pexpr_to_constraint_ir(bin->get_left(), cls, value_slots, scope);
+	    string right = pexpr_to_constraint_ir(bin->get_right(), cls, value_slots, scope);
 	    if (left.empty() || right.empty()) return "";
 	    string op;
 	    switch (bin->get_op()) {
@@ -10370,15 +10426,20 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		case 'n': op = "ne";  break;  // K_NE (!=)
 		case 'a': op = "and"; break;  // && (K_LAND)
 		case 'o': op = "or";  break;  // || (K_LOR)
+		case 'q': op = "impl"; break; // -> (IEEE 1800-2017 18.5.6)
+		case 'Q': op = "iff"; break;  // <-> (equivalence)
 		case '+': op = "add"; break;
 		case '-': op = "sub"; break;
+		case '*': op = "mul"; break;
+		case '/': op = "div"; break;
+		case '%': op = "mod"; break;
 		default:  return "";
 	    }
 	    return "(" + op + " " + left + " " + right + ")";
       }
 
       if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr)) {
-	    string sub = pexpr_to_constraint_ir(un->get_expr(), cls, value_slots);
+	    string sub = pexpr_to_constraint_ir(un->get_expr(), cls, value_slots, scope);
 	    if (sub.empty()) return "";
 	    if (un->get_op() == '!') return "(not " + sub + ")";
 	    return "";
@@ -10434,10 +10495,25 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    string ir;
 		    for (PExpr*item : cit.second) {
 			  if (!item) continue;
-			  string s = pexpr_to_constraint_ir(item, this, nullptr);
+			  string s = pexpr_to_constraint_ir(item, this, nullptr,
+							    class_scope_);
 			  if (!s.empty()) {
 				if (!ir.empty()) ir += " ";
 				ir += s;
+			  } else {
+				  // Manifesto principle 4: a dropped item
+				  // silently WEAKENS the constraint. Say so.
+				static bool warned_unconvertible_constraint = false;
+				if (!warned_unconvertible_constraint) {
+				      cerr << item->get_fileline() << ": warning: "
+					   << "Constraint item in '" << cit.first
+					   << "' of class " << get_name()
+					   << " is not representable in the "
+					   << "constraint solver and is ignored "
+					   << "(further similar warnings "
+					   << "suppressed)." << endl;
+				      warned_unconvertible_constraint = true;
+				}
 			  }
 		    }
 		    if (!ir.empty())

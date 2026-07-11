@@ -200,6 +200,41 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    }
       }
 
+      /* Constraint implication A -> B (IEEE 1800-2017 18.5.6) and
+       * equivalence A <-> B. Both operands take their boolean views. */
+      if (op == "impl" || op == "iff") {
+	    Z3_ast left  = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    Z3_ast right = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    par.skip_ws(); par.expect(')');
+	    if (op == "impl")
+		  return Z3_mk_implies(b.ctx, left, right);
+	    return Z3_mk_iff(b.ctx, left, right);
+      }
+
+      /* Bitvector arithmetic. Widths are harmonized by zero-extension
+       * (same policy as the comparisons below). */
+      if (op == "add" || op == "sub" || op == "mul"
+	  || op == "div" || op == "mod") {
+	    Z3_ast left  = build_z3_atom(par, b);
+	    Z3_ast right = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+
+	    unsigned lw = bv_width(b.ctx, left);
+	    unsigned rw = bv_width(b.ctx, right);
+	    if (lw != rw) {
+		  if (rw < lw)
+			right = Z3_mk_zero_ext(b.ctx, lw - rw, right);
+		  else
+			left = Z3_mk_zero_ext(b.ctx, rw - lw, left);
+	    }
+
+	    if (op == "add") return Z3_mk_bvadd(b.ctx, left, right);
+	    if (op == "sub") return Z3_mk_bvsub(b.ctx, left, right);
+	    if (op == "mul") return Z3_mk_bvmul(b.ctx, left, right);
+	    if (op == "div") return Z3_mk_bvudiv(b.ctx, left, right);
+	    return Z3_mk_bvurem(b.ctx, left, right);
+      }
+
       if (op == "not") {
 	    /* SV `!x` returns a 1-bit value (1 if x==0 else 0).  Our IR
 	     * generator uses `(not x)` for this; downstream consumers

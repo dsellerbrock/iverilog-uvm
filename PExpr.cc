@@ -646,6 +646,56 @@ PEVoid::~PEVoid()
 {
 }
 
+PEConstraintIf::PEConstraintIf(PExpr*cond, std::list<PExpr*>*then_items,
+			       std::list<PExpr*>*else_items)
+: cond_(cond)
+{
+      if (then_items) {
+	    then_items_.assign(then_items->begin(), then_items->end());
+	    delete then_items;
+      }
+      if (else_items) {
+	    else_items_.assign(else_items->begin(), else_items->end());
+	    delete else_items;
+      }
+}
+
+PEConstraintIf::~PEConstraintIf()
+{
+      delete cond_;
+      for (PExpr*item : then_items_)
+	    delete item;
+      for (PExpr*item : else_items_)
+	    delete item;
+}
+
+void PEConstraintIf::dump(std::ostream&out) const
+{
+      out << "if (";
+      if (cond_) cond_->dump(out);
+      out << ") { ... }";
+      if (!else_items_.empty())
+	    out << " else { ... }";
+}
+
+unsigned PEConstraintIf::test_width(Design*, NetScope*, width_mode_t&)
+{
+      expr_type_ = IVL_VT_BOOL;
+      expr_width_ = 1;
+      min_width_ = 1;
+      signed_flag_ = false;
+      return expr_width_;
+}
+
+NetExpr* PEConstraintIf::elaborate_expr(Design*des, NetScope*, unsigned,
+					unsigned) const
+{
+      cerr << get_fileline() << ": error: Conditional constraint sets are "
+	   << "only valid inside constraint blocks." << endl;
+      des->errors += 1;
+      return 0;
+}
+
 PEInside::PEInside(PExpr* expr, std::list<inside_range_t>* ranges)
 : expr_(expr)
 {
