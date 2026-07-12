@@ -72,6 +72,18 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: dynamic process control common in stimulus/checker shutdown flows.
 
 ### G08 `event.triggered` race with `@(event)` — only one of two waiters fires
+- **STATUS 2026-07-12: FIXED** (IEEE 1800-2017 15.5.3). `e.triggered` was a
+  constant-0 miscompile (elab_expr.cc); it now lowers to
+  `$ivl_event_method$triggered` → `%evtest` reading a per-event trigger
+  stamp (`vvp_named_event::triggered_now()`, true for the remainder of the
+  time slot in which the event fired). `elaborate_wait` gives
+  `wait (e.triggered)` event sensitivity so racing `@(e)` and
+  `wait (e.triggered)` waiters both wake, a same-slot late waiter falls
+  straight through, and the property reads false again in the next slot.
+  Class-property events (`uvm_event::wait_ptrigger` shape) covered.
+  Tests: `tests/m6_event_triggered_test.sv`; reduced probes g08a/b/c.
+  NOTE: landing this exposed pre-existing G67 (see below) by shifting heap
+  allocation patterns — root-caused and fixed in the same checkpoint.
 - Symptom: `wait (e.triggered)` and `@(e)` queued in parallel — the trigger only wakes one (the `@(e)` one); the `wait (e.triggered)` waiter never fires.
 - Probe: p12_event (VERIFIED-FAILS — hits=1, expected 2).
 - Location: vvp/event handling.
@@ -511,6 +523,36 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Layer: elab.
 - Complexity: medium-deep.
 - Blocks: user code that reuses common short identifiers (comp, item, phase...) as class names.
+
+### G67 (NEW 2026-07-12, FIXED same day) uninitialized `is_fork_v_child` corrupts process::self() identity — heap-layout-dependent UVM phasing/sequencer deadlocks
+- **STATUS 2026-07-12: FIXED.** `vthread_new` (vvp/vthread.cc) initialized
+  `is_callf_child` but never `is_fork_v_child`; the bitfield inherited heap
+  garbage from whatever previously occupied the malloc'd thread struct.
+  `logical_process_thread_()` walks parents while `is_callf_child ||
+  is_fork_v_child`, so a fork...join_none thread with a garbage flag
+  resolved `process::self()` to an ANCESTOR process. In UVM this made
+  `uvm_task_phase::execute`'s phase process (`proc = process::self()`)
+  alias a shared ancestor, so a later legitimate `kill()` destroyed
+  sibling phase processes — observed as the driver's run_phase chain dying
+  mid-handshake, leaving `uvm_sequencer_base::wait_for_item_done` blocked
+  forever (`vif_smoke`/`vif_smoke_v2` PH_TIMEOUT at 9200).
+- Discovery chain (session 2026-07-12): the G08 codegen change added 4
+  opcodes to never-called `uvm_event_base::wait_ptrigger`, shifting heap
+  allocation patterns; the tests flipped from pass to hang. Bisection
+  proved semantic innocence (byte-identical images differing in ONE label
+  string flipped the outcome; the previously-failing image passes on the
+  fixed runtime). The failure was deterministic per-image and
+  ASLR-independent — the signature of uninitialized-memory dependence, not
+  a race.
+- Fix: one line — `thr->is_fork_v_child = 0;` in `vthread_new`.
+- Test: `tests/m6_process_identity_test.sv` (fork...join_none watcher must
+  be its own process; killing it must not kill the caller chain — the
+  `uvm_sequencer_param_base::m_safe_select_item` shape).
+- Layer: runtime.
+- Complexity: trivial fix, deep diagnosis.
+- Blocks (pre-fix): any process::self()/kill() pattern — UVM phasing,
+  sequencer arbitration watchers, process guards — failing
+  nondeterministically across otherwise-unrelated compiler changes.
 
 # Confirmed-working baselines (not gaps; recorded for diff against future regressions)
 

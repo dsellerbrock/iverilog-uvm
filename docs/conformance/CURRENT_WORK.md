@@ -3,6 +3,34 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-12 (session: G08 event.triggered + G67 process identity)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy`, restarted from
+  merged main (`439ba47`, PR #67 merged — do not reopen; new work gets a
+  NEW draft PR).
+- **This checkpoint**: G08 `event.triggered` (IEEE 1800-2017 15.5.3) is in
+  main via PR #67; the two UVM regressions it exposed
+  (`vif_smoke`/`vif_smoke_v2` PH_TIMEOUT) were root-caused to **G67**:
+  `vthread_new` never initialized `is_fork_v_child`, so
+  `process::self()` inside fork...join_none blocks could alias an ancestor
+  process (heap-garbage dependent), and UVM's phase kill then destroyed
+  sibling phase processes (driver run_phase died mid sequencer handshake).
+  Fix: one line in `vvp/vthread.cc` (`thr->is_fork_v_child = 0;`).
+- **Evidence**: byte-identical compiled images differing in one label
+  string flipped hang/pass pre-fix; the previously-failing image passes
+  unmodified on the fixed runtime. Full chain in
+  `session_logs/2026-07-12_event_triggered_g67_process_identity.md`.
+- **Tests added**: `tests/m6_process_identity_test.sv` (+ G08's
+  `m6_event_triggered_test.sv` from the merged PR).
+- **Gap audit**: G08 FIXED, G67 NEW+FIXED (docs/claude gap audit updated).
+- **Next recorded options** (unchanged priority list): M6 remediation items
+  1/2/4/5 (region tagging + trace hook; Reactive region for program
+  blocks; Preponed/Observed stubs; scheduled-call protocol replacing callf
+  synchronous-drain heuristics — G67 is more evidence this area needs it);
+  M3 tail (dynamic-array foreach, solve...before staged ordering,
+  non-0-based foreach ranges); M4 container runtime; M5
+  interfaces/modports; G66 root-cause.
+
 ## State as of 2026-07-11 (session: typed-expression dispatch)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy`
