@@ -1,0 +1,130 @@
+# vvp Scheduler Architecture Audit — 2026-07-12
+
+Manifesto-v2 "Scheduler remediation program" audit (M6 gate). Evidence:
+`vvp/schedule.h`, `vvp/schedule.cc` (event queues and main loop),
+`vvp/vthread.cc` (thread execution, callf, fork), `vvp/vpi_priv.cc`
+(callback registration), plus defects root-caused in this session's
+checkpoints. IEEE references are to 1800-2017 clause 4 (scheduling
+semantics) region names; the mapping below records what EXISTS, not a
+claim of conformance.
+
+## 1. Queue inventory (per time slot: `struct event_time_s`, schedule.cc)
+
+| Queue | Enqueued by | Drained |
+|---|---|---|
+| `start` | `schedule_at_start_of_simtime` (cbAtStartOfSimTime) | at time advance, after `vpiNextSimTime()` |
+| `active` | `schedule_vthread(delay=0)`, `schedule_set_vector`, propagate/force events, promotions | main loop, one event at a time |
+| `inactive` | `schedule_inactive` (#0), `schedule_t0_trigger` (always_comb T0) | promoted wholesale into `active` when `active` empties |
+| `nbassign` | `schedule_assign_vector` / `schedule_assign_array_word` (NBA), `schedule_vthread(delay>0)` lands via new slot's active | promoted into `active` after `inactive` |
+| `rwsync` | `schedule_generic(sync_flag=1, ro_flag=0)` (cbReadWriteSynch) | promoted into `active` after `nbassign` |
+| `rosync` | `schedule_generic(sync_flag=1, ro_flag=1)` (cbReadOnlySynch, `$strobe`, `$monitor`) | `run_rosync` at slot teardown; writes guarded by `schedule_at_rosync()` |
+| `del_thr` | `schedule_del_thr` | with rosync at slot teardown |
+
+Global (non-slot) lists: `schedule_init_list` (pre-simulation variable
+init, drained before `vpiStartOfSim`), `schedule_final_list` (final
+blocks, drained after the event loop).
+
+Slot sequencing (main loop, `schedule_simulate`): on time advance →
+`vpiNextSimTime` → `start` queue → loop { pop `active`; when empty:
+`inactive`→active, then `nbassign`→active, then `rwsync`→active, then
+`run_rosync` + delete slot }.
+
+## 2. IEEE 1800-2017 region mapping
+
+| IEEE region (4.4.2) | vvp | Status |
+|---|---|---|
+| Preponed | — | **ABSENT** (no sampled-value region; blocks SVA/clocking sampling) |
+| Active | `active` | present |
+| Inactive | `inactive` | present (#0) |
+| Pre-NBA (cbNBASynch) | — | not distinct from NBA |
+| NBA | `nbassign` | present |
+| Post-NBA | — | absent |
+| Observed | — | **ABSENT** (no SVA evaluation region) |
+| Reactive / Re-Inactive / Re-NBA | — | **ABSENT** — program-block code runs in Active (elaborate.cc already warns: "Program blocking assignments are not currently scheduled in the Reactive region") |
+| Pre-Postponed (cbReadWriteSynch) | `rwsync` | present; correctly re-promotes into active so writes re-trigger evaluation |
+| Postponed (cbReadOnlySynch) | `rosync` | present with rosync write guard |
+
+## 3. Implicit-ordering dependencies (audit point 3)
+
+- `schedule_vthread(..., push_flag=true)` pushes to the FRONT of
+  `active`; `%fork` relies on this to run children ahead of pending
+  NBAs. Ordering is a property of queue position, not a declared
+  region.
+- Same-queue events run in insertion order (circular singly linked
+  list, append at tail); several UVM-phasing behaviors observed in this
+  fork depend on that stability (see uvm_gap_plan Phase 64 notes and
+  the I5 static-init ordering fix, add_process_at_tail).
+- `inactive` promotion is wholesale (whole queue moved), so #0 events
+  scheduled DURING inactive draining land in the next promotion round —
+  consistent with LRM iteration, but implicit.
+
+## 4/5. Direct thread execution and synchronous-child assumptions
+
+- `%callf/*` (vthread.cc `do_callf_void` and friends) executes the
+  callee thread synchronously inside the caller's opcode dispatch,
+  bypassing the scheduler. Three defects root-caused this session live
+  here: the chunk-boundary `%fork`/`%join_detach` misparse (Phase 64),
+  the "callf child did not end synchronously" join-wait fallback (G48,
+  suppressed diagnostic), and the same-scope returned-frame shadowing
+  (fixed in checkpoint 2). The automatic-context staging heuristics
+  (`staged_alloc_rd_*`, `skip_free_*`) exist to patch over this
+  direct-execution model and remain the highest-risk area.
+- `%fork ... %join_detach` when detected synchronously executes the
+  fork body inline (vthread.cc of_FORK); interaction with `$finish`
+  inside such bodies previously stalled callf drains (Phase 64 fix).
+
+## 6. Event-trigger lifetime and waiter registration
+
+- Named-event triggers wake `@(event)` waiters but a concurrently
+  queued `wait (e.triggered)` can miss the trigger (gap **G08**,
+  VERIFIED-FAILS): `.triggered` does not implement the LRM
+  time-slot-persistent property (1800-2017 15.5.3); there is no
+  slot-scoped trigger state cleared at slot end.
+- Nonblocking event trigger `->>` is unimplemented (gap G51).
+
+## 7. VPI/DPI callback regions
+
+- Mapped: cbAtStartOfSimTime→`start`, cbReadWriteSynch→`rwsync`,
+  cbReadOnlySynch→`rosync`, cbNextSimTime→`vpiNextSimTime()` at time
+  advance, cbAfterDelay→generic events.
+- cbNBASynch and post-NBA callbacks have no distinct home. DPI blocking
+  tasks execute on the calling thread (no suspension region concept).
+
+## 8. End-of-slot / end-of-simulation
+
+- Slot teardown: `run_rosync` + thread deletion, then the slot is
+  freed. End of simulation: event loop exits when `sched_list` empties
+  or `schedule_finish()`; then final blocks (`schedule_final_list`),
+  `signals_revert`, `vpiPostsim`. `$finish` abandons remaining events
+  (schedule_finished flag checked in opcode loops — the Phase 64 bug
+  showed opcode-level drains must re-check it).
+
+## 9. Invariants / debug support present
+
+- `IVL_SAME_TIME_LIMIT` zero-time-spin watchdog, `IVL_TIME_TRACE_NS`
+  time tracing, `vthread_dump_live_threads` on quiesce/watchdog,
+  `IVL_CTX_TRACE` automatic-context tracing, `IVL_SCHED_DUMP_THREADS`.
+- No region-transition assertions yet; no per-event region tagging.
+
+## 10. Litmus tests (durable regressions added)
+
+`tests/m6_sched_litmus_test.sv`: (a) blocking-then-NBA read ordering
+within a slot, (b) #0 inactive ordering across initial blocks,
+(c) `$strobe` (rosync) observes post-NBA values while `$display`
+(active) observes pre-NBA values. These characterize CURRENT behavior
+per LRM-required outcomes and must stay green through any scheduler
+restructuring.
+
+## Remediation priorities (for M6 implementation, in order)
+
+1. Introduce region tagging on events (enum already exists:
+   `event_queue_e`) + optional trace hook (time, delta, region, event).
+2. Add Reactive/Re-Inactive/Re-NBA queues and route program-block
+   processes there (unblocks 1800-2017 24.x program semantics and the
+   existing elaborate.cc warning).
+3. Add slot-persistent `event.triggered` state (fixes G08) — 15.5.3.
+4. Add Preponed sampling + Observed evaluation stubs as the SVA/clocking
+   foundation (M8/M9 prerequisite).
+5. Replace callf synchronous-drain assumptions with an explicit
+   scheduled-call protocol (retiring the staged-context heuristics) —
+   the largest, riskiest item; requires characterization tests first.

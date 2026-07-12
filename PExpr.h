@@ -1030,6 +1030,8 @@ class PECallFunction : public PExpr {
       const struct parmvalue_t* leading_type_args() const
             { return leading_type_args_; }
 
+      const pform_scoped_name_t& path() const { return path_; }
+
       virtual void dump(std::ostream &) const override;
 
       virtual void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
@@ -1272,6 +1274,66 @@ class PESoft : public PExpr {
       }
     private:
       PExpr* inner_;
+};
+
+/*
+ * Represents conditional constraint forms inside constraint blocks
+ * (IEEE 1800-2017 18.5.6 implication with a constraint set,
+ * 18.5.7 if-else constraints):
+ *   cond -> { items... }
+ *   if (cond) { items... } [ else { items... } ]
+ * The item lists are constraint expressions that apply only when the
+ * condition holds (resp. fails). Only meaningful in constraint IR
+ * generation; ordinary expression elaboration reports an error.
+ */
+class PEConstraintIf : public PExpr {
+    public:
+      PEConstraintIf(PExpr*cond, std::list<PExpr*>*then_items,
+		     std::list<PExpr*>*else_items);
+      ~PEConstraintIf() override;
+
+      PExpr* get_cond() const { return cond_; }
+      const std::list<PExpr*>& then_items() const { return then_items_; }
+      const std::list<PExpr*>& else_items() const { return else_items_; }
+
+      void dump(std::ostream&out) const override;
+      unsigned test_width(Design*des, NetScope*scope,
+			  width_mode_t&mode) override;
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+			      unsigned w, unsigned flags) const override;
+
+    private:
+      PExpr*cond_;
+      std::list<PExpr*> then_items_;
+      std::list<PExpr*> else_items_;
+};
+
+/*
+ * Represents an iterative constraint (IEEE 1800-2017 18.5.8):
+ *   foreach (array_name[i]) { items... }
+ * Only meaningful in constraint IR generation.
+ */
+class PEConstraintForeach : public PExpr {
+    public:
+      PEConstraintForeach(perm_string array_name,
+			  std::list<perm_string>*loop_vars,
+			  std::list<PExpr*>*items);
+      ~PEConstraintForeach() override;
+
+      perm_string array_name() const { return array_name_; }
+      const std::vector<perm_string>& loop_vars() const { return loop_vars_; }
+      const std::list<PExpr*>& items() const { return items_; }
+
+      void dump(std::ostream&out) const override;
+      unsigned test_width(Design*des, NetScope*scope,
+			  width_mode_t&mode) override;
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+			      unsigned w, unsigned flags) const override;
+
+    private:
+      perm_string array_name_;
+      std::vector<perm_string> loop_vars_;
+      std::list<PExpr*> items_;
 };
 
 /*

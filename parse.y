@@ -1204,6 +1204,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <expr>  constraint_expression constraint_block_item
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
+%type <exprs> constraint_expression_list constraint_set constraint_trigger
 
 %type <decl_assignment> variable_decl_assignment
 %type <decl_assignments> list_of_variable_decl_assignments
@@ -2579,13 +2580,30 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
         }
       }
   | expression constraint_trigger
-      { $$ = $1; }
+      { /* A -> { items... } — implication onto a constraint set
+	   (IEEE 1800-2017 18.5.6). */
+	PEConstraintIf*tmp = new PEConstraintIf($1, $2, nullptr);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
   | K_if '(' expression ')' constraint_set %prec less_than_K_else
-      { $$ = nullptr; }
+      { PEConstraintIf*tmp = new PEConstraintIf($3, $5, nullptr);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | K_if '(' expression ')' constraint_set K_else constraint_set
-      { $$ = nullptr; }
+      { PEConstraintIf*tmp = new PEConstraintIf($3, $5, $7);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | K_foreach '(' IDENTIFIER '[' loop_variables ']' ')' constraint_set
-      { $$ = nullptr; delete[] $3; }
+      { /* Iterative constraint (IEEE 1800-2017 18.5.8). */
+	PEConstraintForeach*tmp =
+	      new PEConstraintForeach(lex_strings.make($3), $5, $8);
+	FILE_NAME(tmp, @1);
+	delete[] $3;
+	$$ = tmp;
+      }
   /* I4 (Phase 62c): soft constraint — wrap in PESoft so the IR emitter
      marks it for Z3_optimize_assert_soft (default weight 1).  Other
      contexts (non-constraint elaboration) delegate through to the inner
@@ -2663,11 +2681,18 @@ dist_item
 
 constraint_trigger
   : K_CONSTRAINT_IMPL '{' constraint_expression_list '}'
+      { $$ = $3; }
   ;
 
 constraint_expression_list /* */
   : constraint_expression_list constraint_expression
+      { $$ = $1;
+	if ($2) $$->push_back($2);
+      }
   | constraint_expression
+      { $$ = new std::list<PExpr*>();
+	if ($1) $$->push_back($1);
+      }
   ;
 
 constraint_prototype /* IEEE1800-2005: A.1.9 */
@@ -2682,7 +2707,11 @@ constraint_prototype /* IEEE1800-2005: A.1.9 */
 
 constraint_set /* IEEE1800-2005 A.1.9 */
   : constraint_expression
+      { $$ = new std::list<PExpr*>();
+	if ($1) $$->push_back($1);
+      }
   | '{' constraint_expression_list '}'
+      { $$ = $2; }
   ;
 
 /* ========= Covergroup grammar (functional coverage) ========= */

@@ -154,7 +154,8 @@ class netclass_t : public ivl_type_s {
 	// Format: each item is "name\tir_string" where ir_string is an
 	// S-expression like "(lt p:1:8 c:255)".
       void add_constraint_ir(const std::string&name, const std::string&ir);
-      size_t constraint_ir_count() const { return constraint_irs_.size(); }
+      size_t constraint_ir_count() const
+	    { merge_inherited_constraint_irs_(); return constraint_irs_.size(); }
       const std::string& constraint_ir_name(size_t idx) const;
       const std::string& constraint_ir_str(size_t idx)  const;
       void set_body_elaborated(bool flag) { body_elaborated_ = flag; }
@@ -219,7 +220,17 @@ class netclass_t : public ivl_type_s {
 	    std::string name;
 	    std::string ir;
       };
-      std::vector<constraint_ir_t> constraint_irs_;
+      mutable std::vector<constraint_ir_t> constraint_irs_;
+	// Constraint inheritance (IEEE 1800-2017 18.5.2): derived classes
+	// inherit base-class constraints unless overridden by a local
+	// constraint of the same name. The merge runs lazily on the first
+	// count query, which happens at code-emission time after all
+	// classes have elaborated their own constraint blocks. Property
+	// indexes are stable across the inheritance chain (base properties
+	// keep their slots in derived classes), so base IR strings apply
+	// verbatim.
+      void merge_inherited_constraint_irs_() const;
+      mutable bool constraint_irs_merged_ = false;
 
     public:
 	// Covergroup bin metadata (for synthesized covergroup class types).

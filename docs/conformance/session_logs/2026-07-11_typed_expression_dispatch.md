@@ -245,6 +245,208 @@ incompatibility produces a specific diagnostic
   fires on UVM dynamic-array paths (pre-existing tgt-vvp/eval_object.c
   compile-progress fallback — Phase 75 scope).
 
+## Checkpoint 4 — M3: constraint solver semantics (G15/G17/G18/G20 + G11 impl)
+
+### Requirement
+
+IEEE 1800-2017 Chapter 18 constraint blocks: 18.5.6 implication
+(`expr -> constraint_set`), 18.5.7 if-else constraints, 18.5.3 set
+membership (enum literals in sets), 18.5.2 constraint inheritance
+(derived classes inherit base constraints; same-name overrides).
+
+### Root causes (per gap)
+
+- **G15** (implication): `pexpr_to_constraint_ir` had no case for
+  PEBLogic 'q' (`->`) so the whole item silently vanished; the
+  `A -> { set }` form additionally lost its consequent in parse.y
+  (constraint_trigger returned nothing, action `$$ = $1`).
+- **G17** (if-else): parse.y dropped the entire constraint set
+  (`$$ = nullptr`).
+- **G18** (enum inside): enum literal identifiers resolved to neither
+  property nor constant, so set ranges silently dropped out of the
+  `(inside ...)` IR (leaving it empty ⇒ true ⇒ underconstrained).
+- **G20** (inheritance): (a) derived netclass_t never saw base
+  constraint IRs; (b) the `x * 2` expression used `mul`, absent from
+  both the IR generator switch and the Z3 parser (as were add/sub in
+  the parser — generator emitted them but the solver silently treated
+  them as `true`).
+- **G11**: the implication half is the G15 fix; `solve...before`
+  ordering remains parsed-and-ignored (xor-diversity provides the
+  distribution; staged-order solving deferred).
+
+### Implementation
+
+- `PExpr.h/cc`: new `PEConstraintIf` pform node (cond + then/else item
+  lists) for constraint-set implication and if-else.
+- `parse.y`: constraint_set / constraint_expression_list /
+  constraint_trigger now build `std::list<PExpr*>`; the if/else,
+  `A -> {...}` and foreach rules no longer leak or silently drop
+  (foreach still unsupported: items deleted, documented).
+  Grammar conflicts unchanged (450 s/r, 1060 r/r).
+- `elaborate.cc` (`pexpr_to_constraint_ir`): new ops impl/iff and
+  mul/div/mod; PEConstraintIf lowering
+  `(impl C then) [and (impl (not C) else)]`; enum-literal resolution
+  through the class scope chain (new `scope` parameter); enum-typed
+  property widths; a one-shot warning when a constraint item cannot be
+  represented (silent weakening is a manifesto-4 violation).
+- `netclass.h/cc`: lazy inheritance merge
+  (`merge_inherited_constraint_irs_`), deferred until the base chain
+  has elaborated; local same-name constraints override (18.5.2).
+  Verified property indexes are chain-stable (vvp `.class` dumps show
+  base properties keep their slots in derived classes).
+- `vvp/vvp_z3.cc`: `impl` (Z3_mk_implies), `iff` (Z3_mk_iff),
+  `add/sub/mul/div/mod` bitvector arithmetic with width harmonization.
+
+### Tests
+
+- `tests/m3_constraint_semantics_test.sv`: five constraint families ×
+  20 iterations (implication, if-else sets, enum-literal inside,
+  inherited constraint + child arithmetic constraint, solve-before with
+  implications and distribution sanity check).
+
+### Known limitations (recorded in audit)
+
+- `foreach` iterative constraints (G16) and `arr.size()` constraints
+  (G21): rand arrays are not representable in the scalar p:N:W IR —
+  needs array-property solver support (next M3 increment).
+- `solve...before` ordering semantics; signed comparisons (IR carries
+  no sign; bvult/bvule used); state-variable (non-rand) references in
+  class constraints still drop (now warned).
+
+### Results
+
+- Focused: `m3_constraint_semantics_test` PASS (5 families × 20 iterations).
+- Canonical UVM regression: **110 passed, 0 failed, 0 skipped** (108 prior
+  + m3 test + probes dir excluded by the runner glob).
+- Bundled ivtest: **byte-identical to the pristine-baseline results**
+  (vvp_reg 2961/3101 + same 132 pre-existing failure names, vpi_reg 85/85,
+  vvp_reg.py 284/12).
+- The one-shot "constraint item not representable" warning fires once
+  during uvm_pkg compile (honest surface of a pre-existing dropped item).
+
+Note: PR #66 (M1+M2) was merged into main by the repository owner during
+this checkpoint; the topic branch was restarted from the merged main and
+the M3 work committed on top (WIP commit `9d64dda`, regression
+confirmation in the follow-up docs commit). New PR: #67.
+
+## Checkpoint 5 — M3: array-property constraints (G21 size, G16 foreach)
+
+### Requirement
+
+IEEE 1800-2017 **18.4** (the size of a rand dynamic array is randomized
+subject to constraints; elements are randomized) and **18.5.8 / 18.5.8.1**
+(iterative foreach constraints; loop variables range over the array
+indexes and shadow outer names).
+
+### Root causes
+
+- **G21**: `arr.size()` in constraints had no IR representation (item
+  dropped with the honesty warning); no runtime mechanism resized rand
+  dynamic arrays after solving.
+- **G16**: foreach constraint sets were dropped in parse.y; array
+  ELEMENTS had no IR representation; and rand static-array properties
+  were never even filled with random bits by %randomize (only word 0
+  scalars).
+- **Hang found during implementation**: the solver's inside/dist range
+  parser read only literal tokens and made NO forward progress on
+  unexpected input — an unparseable range hung the simulation. Fixed
+  with expression-capable range parsing plus a guaranteed-progress
+  guard. (This robustness defect pre-existed; it was unreachable only
+  because nothing emitted compound ranges before.)
+
+### Implementation
+
+- `PExpr.h/cc`, `parse.y`: new `PEConstraintForeach` pform node
+  (array name, loop vars, item list) replacing the silent drop.
+- `elaborate.cc` (IR generator):
+  - `arr.size()` → size variable `s:N:T` (T = darray type text for
+    write-back construction, derived from the element type).
+  - foreach over one-dimensional 0-based static-array rand properties:
+    compile-time unroll with a loop-variable environment
+    (`loop_env` parameter; loop vars shadow properties per 18.5.8);
+    indexed property refs `arr[i]` → element variables `e:N:W:I`.
+  - Constant folding for add/sub/mul/div/mod over literal operands so
+    unrolled index arithmetic stays `c:V` in range bounds.
+- `vvp/class_type.h/cc`: properties retain base type text + array size
+  (`property_base_type`, `property_array_size`).
+- `vvp/vthread.cc`: %randomize (both plain and with-variants) fills
+  every element of static-array rand properties with random bits.
+- `vvp/vvp_z3.cc`: `s:`/`e:` variables; pre-check equality includes
+  current sizes/elements; xor-diversity objectives for both; hard size
+  cap 65536 (implementation limit for under-constrained sizes);
+  write-back creates the darray via a type-text factory, fills
+  unconstrained elements randomly, then applies solved element values;
+  inside/dist ranges accept expressions and always make progress.
+
+### Tests
+
+- `tests/m3_constraint_array_test.sv`: SizeC (`sz inside {[3:5]};
+  arr.size() == sz`) and ForeachC (`foreach (arr[i]) arr[i] inside
+  {[i*10:i*10+5]}`) × 10 iterations.
+
+### Known limitations
+
+- foreach over DYNAMIC arrays (runtime-sized) not yet expanded (needs
+  solve-time template expansion after the size var is fixed).
+- Element addressing assumes 0-based one-dimensional declared ranges.
+- Element constraints and `arr.size()` for the SAME array in one solve
+  are independent (element vars index only compile-time-known slots).
+
+### Results
+
+- Focused: single-shot size/foreach probes, the 10-iteration combined
+  probe, and `m3_constraint_array_test` under the regression recipe all
+  PASS.
+- Canonical UVM regression: **111 passed, 0 failed, 0 skipped**.
+- Bundled ivtest: **byte-identical to the pristine-baseline results**
+  (vvp_reg 2961/3101 + same 132 pre-existing failure names, vpi_reg
+  85/85, vvp_reg.py 284/12).
+- WIP marker on `6f7e875` superseded by this regression confirmation.
+
+## Checkpoint 6 — M3: signed constraint comparisons and negative bounds
+
+### Requirement
+
+IEEE 1800-2017 **11.8.1** (comparisons are signed when both operands are
+signed; integer literals are signed) and **11.4.13/18.5.3** (inside with
+signed subjects). Constraints on `int` fields with negative bounds are
+routine in UVM stimulus.
+
+### Root causes
+
+- Unary minus (`-5`) had no IR conversion (PEUnary handled only `!`), so
+  any constraint item containing a negative literal was silently dropped
+  (surfaced by the checkpoint-4 honesty warning).
+- The IR carried no signedness: all comparisons and inside ranges used
+  unsigned BV predicates, making `y < 0` unsatisfiable and negative
+  ranges meaningless.
+
+### Implementation
+
+- Generator (`elaborate.cc`): PEUnary `-` folds literals to 64-bit two's
+  complement (solver numerals reduce mod 2^W at the use width) and lowers
+  non-literal operands to `(sub c:0 x)`; unary `+` passes through.
+  Signed property/element types append `:s` to their `p:`/`e:` tokens.
+- Solver (`vvp/vvp_z3.cc`): signed-variable tracking; comparisons use
+  the bvslt family with sign extension when a signed variable
+  participates; `inside`/`dist` ranges use signed predicates and
+  sign-extended bounds when the subject is signed.
+
+### Tests
+
+- `tests/m3_constraint_signed_test.sv`: `x inside {[-5:5]}`, `y < 0`,
+  `y >= -20` over 20 iterations.
+
+### Results
+
+- Focused: `m3_constraint_signed_test` PASS (plain and under the UVM
+  regression recipe).
+- Canonical UVM regression: **112 passed, 0 failed, 0 skipped**.
+- Bundled ivtest: **byte-identical to the pristine-baseline results**
+  (vvp_reg 2961/3101 + same 132 pre-existing failure names, vpi_reg
+  85/85, vvp_reg.py 284/12).
+- WIP marker on `889d084` superseded by this regression confirmation.
+
 ## Checkpoint history
 
 - Checkpoint 1: manifesto imported to `docs/conformance/`, baseline recorded (this file).

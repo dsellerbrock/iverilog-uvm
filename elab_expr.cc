@@ -54,7 +54,9 @@ using namespace std;
  * be evaluated at the call site and substituted as v:N:W at runtime. */
 extern string pexpr_to_constraint_ir(const PExpr*expr,
 				     const netclass_t*cls,
-				     vector<const PExpr*>*value_slots);
+				     vector<const PExpr*>*value_slots,
+				     const NetScope*scope = nullptr,
+				     const std::map<perm_string,uint64_t>*loop_env = nullptr);
 
 /* Build a NetESFunc for randomize() with inline with-constraints.
  * The mangled function name encodes the N_vals count and IR string so
@@ -71,7 +73,7 @@ static NetESFunc* make_randomize_with_expr(
 
       for (const PExpr*wc : call->with_constraints()) {
 	    if (!wc) continue;
-	    string ir = pexpr_to_constraint_ir(wc, class_type, &value_slots);
+	    string ir = pexpr_to_constraint_ir(wc, class_type, &value_slots, scope);
 	    if (ir.empty()) continue;
 	    if (!combined_ir.empty()) combined_ir += " ";
 	    combined_ir += ir;
@@ -9208,7 +9210,19 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		      && sr.path_tail.size() == 1
 		      && peek_head_name(sr.path_tail) == perm_string::literal("triggered")
 		      && sr.path_tail.front().index.empty()) {
-			NetEConst*tmp = make_const_0(1);
+			  // IEEE 1800-2017 15.5.3: the triggered event
+			  // property is true if the event has been
+			  // triggered in the current time step. Lower to
+			  // a runtime query of the event's trigger stamp
+			  // (previously this was a constant-0 silent
+			  // miscompile that made wait(e.triggered) block
+			  // forever).
+			NetESFunc*tmp = new NetESFunc(
+			      "$ivl_event_method$triggered",
+			      IVL_VT_BOOL, 1, 1);
+			NetEEvent*ev = new NetEEvent(sr.eve);
+			ev->set_line(*this);
+			tmp->parm(0, ev);
 			tmp->set_line(*this);
 			return tmp;
 		  }

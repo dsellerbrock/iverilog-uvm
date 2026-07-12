@@ -378,8 +378,17 @@ class vvp_named_event : public vvp_net_fun_t, public waitable_hooks_s {
       explicit vvp_named_event(class __vpiHandle*eh);
       ~vvp_named_event() override;
 
+	// IEEE 1800-2017 15.5.3 triggered property: record each trigger
+	// and report whether the event fired in the current time step.
+      void note_triggered(void);
+      bool triggered_now(void) const;
+
     protected:
       class __vpiHandle*handle_;
+
+    private:
+      vvp_time64_t last_trigger_time_ = 0;
+      bool ever_triggered_ = false;
 };
 
 /*

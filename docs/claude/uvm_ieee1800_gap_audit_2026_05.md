@@ -96,6 +96,8 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: standard idioms in scoreboard reductions, RAL frontdoor.
 
 ### G11 `solve…before` partially works, but `a -> b == K` implication is dropped
+- **UPDATE 2026-07-12**: signed comparisons and negative constraint bounds now supported (checkpoint 6): unary minus folds to two's complement; signed properties marked `p:N:W:s`; bvslt-family predicates and sign extension applied per IEEE 1800-2017 11.8.1. Test `tests/m3_constraint_signed_test.sv`.
+- **STATUS 2026-07-11: FIXED (implication part)**. `->` implications now emitted as `(impl ...)` IR and enforced by Z3 (M3 checkpoint). `solve...before` ordering is still parsed-and-ignored (distribution handled by the xor-diversity objective; staged ordering semantics deferred). Test `tests/m3_constraint_semantics_test.sv` (SolveC).
 - Symptom: histogram split is correct (a=0 and a=1 both occur ~25 times in 50), but the implications `a -> b == 100` and `a == 0 -> b == 0` are NOT applied. Most iterations show b at random non-100 values.
 - Probe: p17_solve_before (VERIFIED-FAILS).
 - Location: constraint pipeline (elab_expr.cc constraint nodes + Z3 backend).
@@ -128,6 +130,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: clean defaulting in field-rich uvm_objects.
 
 ### G15 implication `->` constraint not enforced (basic)
+- **STATUS 2026-07-11: FIXED**. Root cause: `pexpr_to_constraint_ir` had no case for PEBLogic op q (`->`), so the whole item silently vanished; `A -> {set}` additionally lost its consequent in parse.y (constraint_trigger returned nothing). Both fixed (PEConstraintIf + `(impl ...)` IR + Z3_mk_implies). IEEE 1800-2017 18.5.6.
 - Symptom: `(x == 0) -> (y == 99)` produces y values all over the int range when x==0; same for `(x != 0) -> (y inside ...)`. Range constraints work, implication does not.
 - Probe: p24_constraint_dist_more (VERIFIED-FAILS).
 - Location: Z3 constraint backend + elab_expr.cc implication codegen.
@@ -136,6 +139,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: any non-trivial constraint program.
 
 ### G16 `foreach(arr[i]) arr[i] inside {[i*10:i*10+5]}` — index-dependent constraints not enforced
+- **STATUS 2026-07-12: FIXED (static arrays)**. foreach constraint sets now parse to PEConstraintForeach and unroll at elaboration over 0-based one-dimensional static rand arrays; elements are solver variables (e:N:W:I) written back after the solve; %randomize now fills static-array elements with random bits. Dynamic-array foreach still deferred. Test `tests/m3_constraint_array_test.sv`. IEEE 1800-2017 18.5.8.
 - Symptom: `arr[2]=0`, `arr[3]=0` consistently when constraint says they should be in `[20:25]` and `[30:35]`. Only the first array element occasionally gets a non-zero from the implication chain; rest stay at 0.
 - Probe: p24_constraint_dist_more (VERIFIED-FAILS).
 - Location: same as G15; foreach-over-rand-array constraint codegen — Phase 50c entry in MEMORY.md (still open).
@@ -144,6 +148,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: array-of-fields randomization (common in packet-class definitions).
 
 ### G17 `if-block constraint` syntax: nothing inside the `if(cond) { ... }` block is enforced
+- **STATUS 2026-07-11: FIXED**. Root cause: parse.y dropped the whole constraint_set (`$$ = nullptr`). Now builds PEConstraintIf lowered to `(impl C then)` / `(impl (not C) else)`. IEEE 1800-2017 18.5.7.
 - Symptom: `if(cond==1){ x inside {[100:200]}; y inside {[1:5]}; }` else `{ ... }` — every iteration fails both branches (`t=0 f=0` over 40 iterations).
 - Probe: p45_constraint_imp_block (VERIFIED-FAILS).
 - Location: same as G15.
@@ -152,6 +157,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: structured constraint blocks.
 
 ### G18 `inside {enum_set}` constraint excluded values still picked
+- **STATUS 2026-07-11: FIXED**. Root cause: enum literal identifiers resolved to neither property nor constant in `pexpr_to_constraint_ir`, so ranges silently dropped out of the `(inside ...)` IR, leaving it empty/underconstrained. Enum literals now resolve through the class scope chain to constants. IEEE 1800-2017 18.5.3.
 - Symptom: `c inside {RED, BLUE, MAGENTA}` over 60 iterations yields GREEN=8 and YELLOW=10 (both supposed to be excluded).
 - Probe: p82_constraint_enum (VERIFIED-FAILS).
 - Location: constraint backend — enum value propagation to Z3.
@@ -168,6 +174,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: common dist syntax.
 
 ### G20 `rand`-on-extends: child class `rand` properties + parent constraints not solved together
+- **STATUS 2026-07-11: FIXED**. Two root causes: (a) derived classes never saw base constraint IRs — fixed by lazy inheritance merge in netclass_t (property indexes are chain-stable; local same-name constraints override per IEEE 1800-2017 18.5.2); (b) `x * 2` used `mul`, which the IR generator dropped and the Z3 parser did not implement — arithmetic ops (add/sub/mul/div/mod) now supported end-to-end.
 - Symptom: child `C extends P` with `rand int y; constraint cC { y == x*2; }` and parent `rand int x; constraint cP { x inside {[1:50]}; }` — y comes back as random int (1801979802 etc.), constraint `y == x*2` ignored.
 - Probe: p98_class_inherit_constr (VERIFIED-FAILS).
 - Location: elaborate.cc / class_type rand-property merge across inheritance.
@@ -176,6 +183,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: any UVM stimulus class hierarchy.
 
 ### G21 `rand int arr[]` size-constraining `arr.size() == sz` ignored
+- **STATUS 2026-07-12: FIXED**. `arr.size()` becomes a solver size variable (s:N:T); after solving, the darray property is created/resized to the solved size (cap 65536) and filled with random elements. Test `tests/m3_constraint_array_test.sv`. IEEE 1800-2017 18.4.
 - Symptom: constraint `sz inside {[3:5]}; arr.size() == sz` produces randomized sz but arr.size always 0.
 - Probe: p71_constraint_with_array (VERIFIED-FAILS).
 - Location: dynamic-array sizing in randomize — needs runtime resize hook.

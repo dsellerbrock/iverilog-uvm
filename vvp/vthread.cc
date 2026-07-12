@@ -2082,6 +2082,25 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 		    // foreach is currently dropped at parse, so this is the
 		    // only mechanism that puts non-zero values in the assoc;
 		    // downstream code that checks `freq > 0` works.
+		    // Static-array rand properties (e.g. `rand int arr[4]`):
+		    // fill every element with random bits. Without this only
+		    // word 0 is touched and elements stay at 0.
+		  if (defn->property_array_size(pid) > 1) {
+			uint64_t asize = defn->property_array_size(pid);
+			for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+			      vvp_vector4_t val;
+			      cobj->get_vec4(pid, val, adr);
+			      unsigned wid = val.size();
+			      if (wid == 0)
+				    break;
+			      vvp_vector4_t nv(wid, BIT4_0);
+			      for (unsigned b = 0 ; b < wid ; b += 1)
+				    nv.set_bit(b, (rand() & 1) ? BIT4_1 : BIT4_0);
+			      cobj->set_vec4(pid, nv, adr);
+			}
+			continue;
+		  }
+
 		  {
 			vvp_object_t propobj;
 			cobj->get_object(pid, propobj, 0);
@@ -2205,6 +2224,23 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
 		  if (!defn->property_is_rand(pid)) continue;
 		  if (!cobj->rand_mode(pid)) continue;
+		    // Static-array rand properties: fill each element
+		    // (mirrors of_RANDOMIZE).
+		  if (defn->property_array_size(pid) > 1) {
+			uint64_t asize = defn->property_array_size(pid);
+			for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+			      vvp_vector4_t cur;
+			      cobj->get_vec4(pid, cur, adr);
+			      unsigned awid = cur.size();
+			      if (awid == 0)
+				    break;
+			      vvp_vector4_t nv(awid, BIT4_0);
+			      for (unsigned b = 0 ; b < awid ; b += 1)
+				    nv.set_bit(b, (rand() & 1) ? BIT4_1 : BIT4_0);
+			      cobj->set_vec4(pid, nv, adr);
+			}
+			continue;
+		  }
 		  vvp_vector4_t val;
 		  cobj->get_vec4(pid, val);
 		  unsigned wid = val.size();
@@ -8086,6 +8122,21 @@ bool of_END(vthread_t thr, vvp_code_t)
 /*
  * %event <var-label>
  */
+/*
+ * %evtest <event-label>
+ * Push a 1-bit vec4: 1 if the named event has been triggered in the
+ * current time step (IEEE 1800-2017 15.5.3 triggered property), else 0.
+ */
+bool of_EVTEST(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = cp->net;
+      vvp_named_event*fun = net ? dynamic_cast<vvp_named_event*>(net->fun) : 0;
+      bool trig = fun && fun->triggered_now();
+      vvp_vector4_t val(1, trig ? BIT4_1 : BIT4_0);
+      thr->push_vec4(val);
+      return true;
+}
+
 bool of_EVENT(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_ptr_t ptr (cp->net, 0);

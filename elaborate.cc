@@ -8103,7 +8103,47 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
                                 wait_set->add(nx, 0, nx->vector_width());
                     }
               }
-	      if (wait_set == 0) {
+
+	      // Named events referenced through the triggered property
+	      // (IEEE 1800-2017 15.5.3) contribute event sensitivity, not
+	      // nexus sensitivity: wait (e.triggered) must wake when the
+	      // event fires and must fall straight through when the event
+	      // already fired in the current time step.
+	    std::vector<NetEvent*> trig_events;
+	    {
+		  std::function<void(const NetExpr*)> collect_trig_events;
+		  collect_trig_events = [&](const NetExpr*e) -> void {
+			if (!e) return;
+			if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(e)) {
+			      collect_trig_events(bin->left());
+			      collect_trig_events(bin->right());
+			      return;
+			}
+			if (const NetEUnary*un = dynamic_cast<const NetEUnary*>(e)) {
+			      collect_trig_events(un->expr());
+			      return;
+			}
+			if (const NetESFunc*sf = dynamic_cast<const NetESFunc*>(e)) {
+			      if (strcmp(sf->name(), "$ivl_event_method$triggered") == 0
+				  && sf->nparms() == 1) {
+				    if (const NetEEvent*ee =
+					dynamic_cast<const NetEEvent*>(sf->parm(0))) {
+					  trig_events.push_back(
+						const_cast<NetEvent*>(ee->event()));
+					  return;
+				    }
+			      }
+			      for (unsigned i = 0; i < sf->nparms(); ++i)
+				    collect_trig_events(sf->parm(i));
+			      return;
+			}
+		  };
+		  collect_trig_events(expr);
+	    }
+	    for (NetEvent*tev : trig_events)
+		  wait->add_event(tev);
+
+	      if (wait_set == 0 && trig_events.empty()) {
 		    if (gn_system_verilog()) {
 			  if (!warned_wait_no_event_sources) {
 				cerr << get_fileline() << ": warning: wait expression has no event "
@@ -8120,7 +8160,7 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	    return 0;
       }
 
-	      if (wait_set->size() == 0) {
+	      if (wait_set != 0 && wait_set->size() == 0 && trig_events.empty()) {
 		    if (gn_system_verilog()) {
 			  if (!warned_wait_empty_event_set) {
 				cerr << get_fileline() << ": warning: wait expression has empty event "
@@ -8138,14 +8178,17 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	    return 0;
       }
 
-      NetEvProbe*wait_pr = new NetEvProbe(scope, scope->local_symbol(),
-					  wait_event, NetEvProbe::ANYEDGE,
-					  wait_set->size());
-      for (unsigned idx = 0; idx < wait_set->size() ;  idx += 1)
-	    connect(wait_set->at(idx).lnk, wait_pr->pin(idx));
+      NetEvProbe*wait_pr = 0;
+      if (wait_set != 0 && wait_set->size() > 0) {
+	    wait_pr = new NetEvProbe(scope, scope->local_symbol(),
+				     wait_event, NetEvProbe::ANYEDGE,
+				     wait_set->size());
+	    for (unsigned idx = 0; idx < wait_set->size() ;  idx += 1)
+		  connect(wait_set->at(idx).lnk, wait_pr->pin(idx));
 
+	    des->add_node(wait_pr);
+      }
       delete wait_set;
-      des->add_node(wait_pr);
 
       // Phase 55/58: Detect VIF signal chain in wait() for RTL-driven wakeup.
       // Mirrors the @(posedge/anyedge) detection at lines ~7067-7123.
@@ -8193,7 +8236,7 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 					  ivl_type_t pt = vif_host_cls->get_prop_type(
 					      mid_p->property_idx());
 					  const netclass_t*vif_cls = dynamic_cast<const netclass_t*>(pt);
-					  if (vif_cls && vif_cls->is_interface()) {
+					  if (vif_cls && vif_cls->is_interface() && wait_pr) {
 						wait_pr->set_vif_anyedge(mid_p->property_idx(),
 									 outer_p->property_idx(), pre_N);
 						return true;
@@ -10265,10 +10308,17 @@ bool Module::elaborate(Design*des, NetScope*scope) const
  * cls:          class being constrained (for property lookup).
  * value_slots:  if non-null, non-property caller-scope identifiers are
  *               collected here (returned as "v:N:W" placeholders in IR).
- *               Caller must elaborate and push these at the call site. */
+ *               Caller must elaborate and push these at the call site.
+ * scope:        if non-null, non-property identifiers are first resolved
+ *               as enumeration literals through this scope chain and
+ *               emitted as constants (IEEE 1800-2017 18.5.3).
+ * loop_env:     if non-null, maps foreach loop-variable names to their
+ *               unrolled constant values (IEEE 1800-2017 18.5.8). */
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
-			      vector<const PExpr*>*value_slots)
+			      vector<const PExpr*>*value_slots,
+			      const NetScope*scope,
+			      const map<perm_string,uint64_t>*loop_env)
 {
       using namespace std;
 
@@ -10286,18 +10336,86 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
 	    perm_string name = id->path().back().name;
+
+	      // foreach loop variables shadow properties inside the
+	      // iterated constraint set (IEEE 1800-2017 18.5.8).
+	    if (loop_env && id->path().size() == 1
+		&& id->path().back().index.empty()) {
+		  map<perm_string,uint64_t>::const_iterator lit =
+			loop_env->find(name);
+		  if (lit != loop_env->end())
+			return "c:" + to_string(lit->second);
+	    }
+
 	    int idx = cls->property_idx_from_name(name);
 	    if (idx >= 0) {
 		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
 		  if (!q.test_rand()) return "";
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+
+		    // Indexed reference to a static-array rand property
+		    // (arr[i] in a foreach set): emit an element variable
+		    // e:N:W:I. The index must fold to a constant under the
+		    // loop environment.
+		  if (!id->path().back().index.empty()) {
+			const netuarray_t*ua =
+			      dynamic_cast<const netuarray_t*>(ptype);
+			if (!ua || id->path().back().index.size() != 1)
+			      return "";
+			const index_component_t&ic = id->path().back().index.front();
+			if (!ic.msb || ic.lsb
+			    || ic.sel != index_component_t::SEL_BIT)
+			      return "";
+			string idx_ir = pexpr_to_constraint_ir(ic.msb, cls,
+						value_slots, scope, loop_env);
+			if (idx_ir.compare(0, 2, "c:") != 0)
+			      return "";
+			uint64_t elem = strtoull(idx_ir.c_str() + 2, nullptr, 10);
+			const netranges_t&dims = ua->static_dimensions();
+			if (dims.size() != 1)
+			      return "";
+			  // Element addressing assumes a 0-based canonical
+			  // range; other declared ranges not yet supported.
+			if (dims[0].get_msb() != 0 && dims[0].get_lsb() != 0)
+			      return "";
+			ivl_type_t etype = ua->element_type();
+			unsigned ewid = etype ? etype->packed_width() : 32;
+			if (ewid == 0) ewid = 32;
+			string esfx = (etype && etype->get_signed()) ? ":s" : "";
+			return "e:" + to_string(idx) + ":" + to_string(ewid)
+			      + ":" + to_string(elem) + esfx;
+		  }
+
 		  unsigned wid = 0;
 		  if (ptype) {
 			const netvector_t*nvec = dynamic_cast<const netvector_t*>(ptype);
 			if (nvec) wid = nvec->packed_width();
+			else if (const netenum_t*nenum =
+				 dynamic_cast<const netenum_t*>(ptype))
+			      wid = nenum->packed_width();
 		  }
 		  if (wid == 0) wid = 32;
-		  return "p:" + to_string(idx) + ":" + to_string(wid);
+		    // Signed properties are marked so the solver uses
+		    // signed comparison semantics (IEEE 1800-2017 11.8.1).
+		  string sfx = (ptype && ptype->get_signed()) ? ":s" : "";
+		  return "p:" + to_string(idx) + ":" + to_string(wid) + sfx;
+	    }
+	      // Enumeration literal (IEEE 1800-2017 18.5.3: sets may name
+	      // enum values): resolve to its constant through the scope
+	      // chain. Without this, enum names silently vanish from
+	      // inside/dist sets and under-constrain the solve (G18).
+	    if (id->path().size() == 1) {
+		  for (const NetScope*sc = scope ; sc ; sc = sc->parent()) {
+			const NetExpr*en =
+			      const_cast<NetScope*>(sc)->enumeration_expr(name);
+			if (!en) continue;
+			if (const NetEConst*ec =
+			    dynamic_cast<const NetEConst*>(en)) {
+			      uint64_t val = ec->value().as_unsigned();
+			      return "c:" + to_string(val);
+			}
+			break;
+		  }
 	    }
 	    // Non-class-property identifier: treat as caller-scope runtime value.
 	    if (value_slots) {
@@ -10313,13 +10431,121 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       // Z3_optimize_assert_soft (default weight 1) instead of a hard
       // conjunct.
       if (const PESoft*sf = dynamic_cast<const PESoft*>(expr)) {
-	    string s = pexpr_to_constraint_ir(sf->get_inner(), cls, value_slots);
+	    string s = pexpr_to_constraint_ir(sf->get_inner(), cls, value_slots, scope, loop_env);
 	    if (s.empty() || s[0] == '?') return "";
 	    return "(soft " + s + ")";
       }
 
+	// Conditional constraint sets: if-else (IEEE 1800-2017 18.5.7)
+	// and "cond -> { ... }" implication sets (18.5.6). Lower to
+	// (impl C then) [and (impl (not C) else)].
+      if (const PEConstraintIf*cif = dynamic_cast<const PEConstraintIf*>(expr)) {
+	    string cond = pexpr_to_constraint_ir(cif->get_cond(), cls,
+						 value_slots, scope, loop_env);
+	    if (cond.empty()) return "";
+
+	    auto items_to_ir = [&](const std::list<PExpr*>&items) -> string {
+		  string acc;
+		  for (const PExpr*item : items) {
+			if (!item) continue;
+			string s = pexpr_to_constraint_ir(item, cls,
+							  value_slots, scope,
+							  loop_env);
+			if (s.empty()) return "";
+			acc = acc.empty() ? s : "(and " + acc + " " + s + ")";
+		  }
+		  return acc;
+	    };
+
+	    string then_ir = items_to_ir(cif->then_items());
+	    if (then_ir.empty()) return "";
+	    string result = "(impl " + cond + " " + then_ir + ")";
+	    if (!cif->else_items().empty()) {
+		  string else_ir = items_to_ir(cif->else_items());
+		  if (else_ir.empty()) return "";
+		  result = "(and " + result + " (impl (not " + cond + ") "
+			+ else_ir + "))";
+	    }
+	    return result;
+      }
+
+	// Dynamic-array size in a constraint: `arr.size()` becomes a
+	// solver size variable s:N:T (IEEE 1800-2017 18.4: the size of a
+	// rand dynamic array is randomized subject to constraints). T is
+	// the darray type text used to construct the array at write-back.
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
+	    const pform_name_t&cpath = call->path().name;
+	    if (cpath.size() == 2
+		&& cpath.back().name == perm_string::literal("size")
+		&& cpath.back().index.empty()
+		&& cpath.front().index.empty()) {
+		  perm_string aname = cpath.front().name;
+		  int idx = cls->property_idx_from_name(aname);
+		  if (idx >= 0
+		      && cls->get_prop_qual((size_t)idx).test_rand()) {
+			ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+			const netdarray_t*da =
+			      dynamic_cast<const netdarray_t*>(ptype);
+			if (da && !dynamic_cast<const netqueue_t*>(ptype)) {
+			      ivl_type_t etype = da->element_type();
+			      unsigned ewid = etype ? etype->packed_width() : 32;
+			      if (ewid == 0) ewid = 32;
+			      bool esigned = etype && etype->get_signed();
+			      string ttext;
+			      if (ewid == 8 || ewid == 16
+				  || ewid == 32 || ewid == 64)
+				    ttext = (esigned ? "sb" : "b")
+					  + to_string(ewid);
+			      else
+				    ttext = (esigned ? "sv" : "v")
+					  + to_string(ewid);
+			      return "s:" + to_string(idx) + ":" + ttext;
+			}
+		  }
+	    }
+	    return "";
+      }
+
+	// Iterative constraint over a one-dimensional static-array rand
+	// property (IEEE 1800-2017 18.5.8): unroll at elaboration time,
+	// binding the loop variable to each canonical index.
+      if (const PEConstraintForeach*cfe =
+	  dynamic_cast<const PEConstraintForeach*>(expr)) {
+	    if (cfe->loop_vars().size() != 1 || cfe->loop_vars()[0].nil())
+		  return "";
+	    int idx = cls->property_idx_from_name(cfe->array_name());
+	    if (idx < 0 || !cls->get_prop_qual((size_t)idx).test_rand())
+		  return "";
+	    const netuarray_t*ua =
+		  dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)idx));
+	    if (!ua)
+		  return "";  // dynamic-array foreach: not yet supported
+	    const netranges_t&dims = ua->static_dimensions();
+	    if (dims.size() != 1)
+		  return "";
+	    if (dims[0].get_msb() != 0 && dims[0].get_lsb() != 0)
+		  return "";
+	    unsigned long count = dims[0].width();
+
+	    string acc;
+	    for (unsigned long i = 0 ; i < count ; i += 1) {
+		  map<perm_string,uint64_t> env2;
+		  if (loop_env) env2 = *loop_env;
+		  env2[cfe->loop_vars()[0]] = i;
+		  for (const PExpr*item : cfe->items()) {
+			if (!item) continue;
+			string s = pexpr_to_constraint_ir(item, cls,
+						value_slots, scope, &env2);
+			if (s.empty())
+			      return "";
+			acc = acc.empty() ? s : "(and " + acc + " " + s + ")";
+		  }
+	    }
+	    return acc;
+      }
+
       if (const PEInside*ins = dynamic_cast<const PEInside*>(expr)) {
-	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots);
+	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots, scope, loop_env);
 	    if (s.empty() || s[0] == '?') return "";
 	    // C7 (Phase 62b): dist form preserves per-branch weights as
 	    // `(dist <expr> (b W <range>) ...)` where W is the literal
@@ -10330,12 +10556,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    for (auto& r : ins->get_ranges()) {
 		  string range_ir;
 		  if (r.is_range) {
-			string lo = pexpr_to_constraint_ir(r.lo, cls, value_slots);
-			string hi = pexpr_to_constraint_ir(r.hi, cls, value_slots);
+			string lo = pexpr_to_constraint_ir(r.lo, cls, value_slots, scope, loop_env);
+			string hi = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope, loop_env);
 			if (lo.empty() || hi.empty()) continue;
 			range_ir = "[" + lo + "," + hi + "]";
 		  } else {
-			string v = pexpr_to_constraint_ir(r.hi, cls, value_slots);
+			string v = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope, loop_env);
 			if (v.empty()) continue;
 			range_ir = v;
 		  }
@@ -10344,7 +10570,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			// dist (rare, but legal in mixed forms).
 			string w = "1";
 			if (r.weight) {
-			      string we = pexpr_to_constraint_ir(r.weight, cls, value_slots);
+			      string we = pexpr_to_constraint_ir(r.weight, cls, value_slots, scope, loop_env);
 			      if (!we.empty()) w = we;
 			}
 			result += " (b " + w + " " + range_ir + ")";
@@ -10357,8 +10583,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
-	    string left = pexpr_to_constraint_ir(bin->get_left(), cls, value_slots);
-	    string right = pexpr_to_constraint_ir(bin->get_right(), cls, value_slots);
+	    string left = pexpr_to_constraint_ir(bin->get_left(), cls, value_slots, scope, loop_env);
+	    string right = pexpr_to_constraint_ir(bin->get_right(), cls, value_slots, scope, loop_env);
 	    if (left.empty() || right.empty()) return "";
 	    string op;
 	    switch (bin->get_op()) {
@@ -10370,17 +10596,49 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		case 'n': op = "ne";  break;  // K_NE (!=)
 		case 'a': op = "and"; break;  // && (K_LAND)
 		case 'o': op = "or";  break;  // || (K_LOR)
+		case 'q': op = "impl"; break; // -> (IEEE 1800-2017 18.5.6)
+		case 'Q': op = "iff"; break;  // <-> (equivalence)
 		case '+': op = "add"; break;
 		case '-': op = "sub"; break;
+		case '*': op = "mul"; break;
+		case '/': op = "div"; break;
+		case '%': op = "mod"; break;
 		default:  return "";
+	    }
+	      // Fold constant arithmetic (e.g. unrolled foreach index
+	      // expressions like i*10) so inside/dist range bounds stay
+	      // simple c:V literals.
+	    if (left.compare(0, 2, "c:") == 0 && right.compare(0, 2, "c:") == 0
+		&& (op == "add" || op == "sub" || op == "mul"
+		    || op == "div" || op == "mod")) {
+		  uint64_t lv = strtoull(left.c_str() + 2, nullptr, 10);
+		  uint64_t rv = strtoull(right.c_str() + 2, nullptr, 10);
+		  uint64_t res = 0;
+		  if (op == "add") res = lv + rv;
+		  else if (op == "sub") res = lv - rv;
+		  else if (op == "mul") res = lv * rv;
+		  else if (op == "div") res = rv ? lv / rv : 0;
+		  else res = rv ? lv % rv : 0;
+		  return "c:" + to_string(res);
 	    }
 	    return "(" + op + " " + left + " " + right + ")";
       }
 
       if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr)) {
-	    string sub = pexpr_to_constraint_ir(un->get_expr(), cls, value_slots);
+	    string sub = pexpr_to_constraint_ir(un->get_expr(), cls, value_slots, scope, loop_env);
 	    if (sub.empty()) return "";
 	    if (un->get_op() == '!') return "(not " + sub + ")";
+	    if (un->get_op() == '-') {
+		    // Negation: literals fold to their 64-bit two's
+		    // complement (the solver reduces numerals mod 2^W at
+		    // the use width); other operands become (sub 0 x).
+		  if (sub.compare(0, 2, "c:") == 0) {
+			uint64_t v = strtoull(sub.c_str() + 2, nullptr, 10);
+			return "c:" + to_string((uint64_t)(0 - v));
+		  }
+		  return "(sub c:0 " + sub + ")";
+	    }
+	    if (un->get_op() == '+') return sub;
 	    return "";
       }
 
@@ -10434,10 +10692,25 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    string ir;
 		    for (PExpr*item : cit.second) {
 			  if (!item) continue;
-			  string s = pexpr_to_constraint_ir(item, this, nullptr);
+			  string s = pexpr_to_constraint_ir(item, this, nullptr,
+							    class_scope_, nullptr);
 			  if (!s.empty()) {
 				if (!ir.empty()) ir += " ";
 				ir += s;
+			  } else {
+				  // Manifesto principle 4: a dropped item
+				  // silently WEAKENS the constraint. Say so.
+				static bool warned_unconvertible_constraint = false;
+				if (!warned_unconvertible_constraint) {
+				      cerr << item->get_fileline() << ": warning: "
+					   << "Constraint item in '" << cit.first
+					   << "' of class " << get_name()
+					   << " is not representable in the "
+					   << "constraint solver and is ignored "
+					   << "(further similar warnings "
+					   << "suppressed)." << endl;
+				      warned_unconvertible_constraint = true;
+				}
 			  }
 		    }
 		    if (!ir.empty())

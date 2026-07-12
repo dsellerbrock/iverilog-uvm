@@ -80,32 +80,105 @@ the investigation. Update at every meaningful checkpoint.
 - `with`-clause locator methods on receiver calls parse to PENull
   (pre-existing parser fallback, unchanged).
 
-## Checkpoint 3 (M2) — in flight
+## Checkpoint 4 (M3) — regression-clean, PR #67
 
-- **G25 FIXED**: whole unpacked-array assignment (IEEE 1800-2017 7.6) lowered
-  to a canonical-index element copy loop in `PAssign::elaborate`
-  (`make_uarray_copy_loop_`, elaborate.cc). Covers sig=sig, prop=prop,
-  sig=prop, prop=sig; size mismatch errors. UVM `uvm_field_sarray_int`
-  clone verified against unmodified library.
-- **G23 RESOLVED-BY-PRIOR** (regression test added).
-- **G66 NEW gap recorded**: $unit class name colliding with uvm_pkg-internal
-  identifiers + specialization breaks unrelated package elaboration;
-  reproducer `tests/probes/g66_unit_class_name_collision_uvm.sv`.
-- Focused tests pass (m2_* 3/3, negative 3/3). Full UVM + ivtest regressions
-  running at last update; commit checkpoint 3 when green.
+- **G15/G17/G18/G20 FIXED + G11 implication half**: constraint implication,
+  if-else sets, enum-literal sets, inheritance merge, and solver arithmetic
+  (impl/iff/add/sub/mul/div/mod). See session log checkpoint 4.
+- PR #66 (M1+M2) was MERGED into main; branch restarted from merged main.
+- M3 work on PR #67 (draft): WIP commit `9d64dda` + regression-confirmation
+  docs commit.
+- Regressions: UVM **110/110**; ivtest **byte-identical to baseline**
+  (2961/3101+132, 85/85, 284/12); make check pass.
+
+## Checkpoint 5 (M3 increment 2) — regression-clean
+
+- **G21 FIXED**: `arr.size()` → solver size var `s:N:T`; darray created/
+  resized at write-back (cap 65536), elements filled randomly.
+- **G16 FIXED (static arrays)**: PEConstraintForeach + compile-time unroll
+  with loop-var env; element vars `e:N:W:I` solved and written back;
+  %randomize now fills static-array rand property elements.
+- **Hang fixed**: solver inside/dist range parser now expression-capable
+  and always makes forward progress (previously hung on compound ranges).
+- Focused: single-shot probes + 10-iteration probe + permanent test
+  `tests/m3_constraint_array_test.sv` all PASS. UVM regression
+  **111/111**; ivtest **byte-identical to baseline**. WIP marker on
+  6f7e875 superseded by the regression-confirmation docs commit.
+
+## Checkpoint 6 (M3 tail: signed comparisons) — regression-clean
+
+- Unary minus folded to two's complement (was silently dropped);
+  signed p:/e: markers; bvslt-family + sign extension per IEEE
+  1800-2017 11.8.1; signed inside/dist ranges.
+- Test `tests/m3_constraint_signed_test.sv`. UVM **112/112**; ivtest
+  **byte-identical to baseline**. WIP 889d084 superseded.
+
+## Checkpoint 7 (M6 scheduler audit) — docs + litmus regressions
+
+- `docs/conformance/scheduler_audit_2026_07.md`: queue inventory
+  (start/active/inactive/nbassign/rwsync/rosync/del_thr + init/final
+  lists), IEEE 4.4.2 region mapping (Preponed/Observed/Reactive ABSENT),
+  implicit-ordering inventory (%fork push_flag, insertion-order
+  dependence), direct-execution findings (callf synchronous drains and
+  the staged-context heuristics), event-trigger lifetime (G08),
+  VPI callback mapping, end-of-slot behavior, and a 5-step remediation
+  priority list for M6 implementation.
+- `tests/m6_sched_litmus_test.sv`: NBA-vs-blocking, #0 inactive, and
+  $strobe postponed-region orderings as durable characterization
+  regressions (PASS).
 
 ## Exact next actions
 
-1. Confirm the M2 regression runs (UVM expected 108/108; ivtest expected
-   identical to baseline: 2961/3101 + 132 pre-existing fails, 85/85,
-   284/12), then commit + push checkpoint 3.
-2. Watch PR #66 CI (6 platform jobs).
-3. Re-probe dynamic-array field automation (`uvm_field_array_int` /
-   `uvm_field_queue_*`) — G25 covered only the sarray shape.
-4. Then M3 constraint solver (Phase 66 scope: G11/G15/G16/G17/G18/G20/G21),
-   or G66 root-cause (specialization-time name capture) if prioritized.
+1. Watch PR #67 CI.
+2. M6 implementation per the audit's remediation priorities: (1) region
+   tagging + trace hook, (2) Reactive region for program blocks,
+   (3) slot-persistent event.triggered (G08), (4) Preponed/Observed
+   stubs, (5) scheduled-call protocol replacing callf sync drains.
+3. Remaining M3 tail: dynamic-array foreach, `solve...before` staged
+   ordering, non-0-based array ranges.
+4. Alternatives: M4 container runtime, M5 interfaces/modports, G66.
+
+## Manifesto v2 alignment review (2026-07-11)
+
+The governing manifesto was updated to v2 (commit c2e53d3). Review of this
+session's M1-M3 implementations against v2:
+
+- **Semantic IR remediation**: the M1 receiver-dispatch work matches v2's
+  prescribed migration entry point (expression and member-access
+  semantics). `elaborate_method_dispatch_` is the shared typed-expression
+  dispatch interface; return types flow through `NetEUFunc(net_type)`.
+- **Code-pattern scan** of the full session diff: no added TODO/FIXME,
+  no compile-progress fallbacks, no UVM identifier checks; one explicit
+  `sorry` diagnostic (non-class receivers in statement context) per
+  manifesto principle 4.
+- **Tracked diagnostics added** (v2: "convert silent type-recovery
+  fallbacks into tracked diagnostics"): unrepresentable-constraint-item
+  warning; uarray shape-mismatch errors.
+
+### Architectural debt register (v2 Risks)
+
+1. **PEIdent path-splice adapter** (parse.y receiver rules): legacy
+   name-based lookup retained for identifier receivers. Acceptable
+   adapter now; must not become a permanent duplicate dispatch path
+   (fold into receiver dispatch when the semantic IR migration reaches
+   name resolution).
+2. **test_width double-elaboration** (receiver calls, PEMemberAccess
+   pattern): duplicate diagnostics; symptomatic of missing typed
+   expression interface (v2 Risk 4).
+3. **vvp automatic-context heuristics** (`staged_alloc_rd_*`,
+   `skip_free_*`, chain-membership fix): the returned-frame fix is
+   correct but the surrounding machinery relies on implicit ordering —
+   squarely in v2's scheduler remediation program scope (M6 audit item 4/5:
+   direct thread execution + synchronous-child assumptions in callf).
+4. **Constraint IR is string-based S-expressions** with unsigned-only
+   comparisons and scalar-only properties: adequate for current gaps,
+   but array/signed/ordering support (G16/G21) will strain it; consider
+   a typed constraint IR when extending.
+5. **Pre-existing compile-progress fallback inventory** (45 sites,
+   audit section) remains open — Phase 75 scope.
 
 ## Decisions not to revisit without new evidence
+
 
 - Receiver dispatch reuses `elaborate_method_dispatch_` — do NOT fork a
   second dispatch path for receiver calls.

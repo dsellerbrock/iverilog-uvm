@@ -239,6 +239,96 @@ Add trace support recording:
 - Event identity
 - Source location
 
+### Scheduler remediation program
+
+The current scheduler must not be assumed correct merely because individual UVM tests pass. The existing runtime has accumulated behavior through local fixes, and failures involving fork/join, events, clocking, assertions, program blocks, task calls, and UVM phasing can share the same underlying scheduling defects.
+
+Before adding advanced SVA, program-block, or clocking semantics, perform a scheduler architecture audit.
+
+The audit must:
+
+1. Inventory every runtime queue and scheduling entry point.
+2. Map each queue and callback to an IEEE event region.
+3. Identify operations that currently rely on implicit ordering.
+4. Identify direct thread execution that bypasses normal scheduling.
+5. Identify places where child processes are expected to complete synchronously.
+6. Identify event-trigger lifetime and waiter-registration behavior.
+7. Identify VPI and DPI callbacks whose region is ambiguous.
+8. Identify end-of-time-slot and end-of-simulation behavior.
+9. Add invariants and debug assertions for illegal transitions.
+10. Produce scheduler litmus tests before restructuring code.
+
+The target scheduler model should make the following concepts explicit:
+
+- Time slot
+- Delta cycle
+- Event region
+- Runnable process
+- Suspended process
+- NBA update
+- Reactive/program process
+- Assertion sampling and evaluation
+- Clocking-block sampling and driving
+- VPI callback
+- DPI task suspension and resumption
+- End-of-step cleanup
+
+Do not perform a blind rewrite. Preserve working behavior through characterization tests, then replace implicit ordering incrementally.
+
+The scheduler remediation is complete only when:
+
+- Region ownership is documented for every scheduling API.
+- Race-sensitive litmus tests are durable regressions.
+- Process and event semantics no longer depend on incidental queue order.
+- Clocking blocks, program blocks, SVA, VPI, and DPI use the same documented region model.
+- Existing UVM regressions remain clean.
+
+### Semantic IR remediation program
+
+The current compiler architecture must not be assumed capable of full SystemVerilog merely because isolated syntax has been added successfully.
+
+Repeated failures involving method chaining, parameterized classes, enum identity, assignment patterns, arrays, constraints, and UVM factory paths indicate that semantic information is lost or reconstructed inconsistently across compiler stages.
+
+The typed semantic IR must therefore be introduced as a migration program, not only as a design preference.
+
+The migration must:
+
+1. Inventory existing AST, netlist, expression, type, and elaboration node families.
+2. Identify where type, width, signedness, dimensions, class specialization, and enum identity are discarded.
+3. Identify parser actions that perform premature lowering.
+4. Define one canonical semantic type descriptor.
+5. Define typed expression and typed lvalue interfaces.
+6. Define ownership and lifetime rules for semantic nodes.
+7. Add conversion boundaries between legacy nodes and the new semantic IR.
+8. Migrate one feature family at a time.
+9. Preserve existing behavior with characterization tests.
+10. Remove legacy fallback paths only after equivalent semantic coverage exists.
+
+The migration should begin with expression and member-access semantics because they unblock:
+
+- Function-return method chaining
+- Enum method chaining
+- UVM factory access
+- Parameterized class specialization
+- Class-valued config database operations
+- Assignment compatibility
+- Aggregate member access
+- Constraint expression typing
+
+Do not attempt an all-at-once compiler rewrite.
+
+Use adapters where necessary, but do not let adapters become permanent duplicate type systems.
+
+The semantic IR remediation is complete only when:
+
+- A single canonical type representation is used across name resolution, elaboration, and lowering.
+- Function-call results retain exact static type.
+- Lvalues and rvalues use consistent aggregate layout information.
+- Parameterized class specializations remain distinct.
+- Enum identity survives expression lowering.
+- Unsupported semantic forms fail explicitly rather than entering compile-progress fallbacks.
+- UVM-specific fixes no longer require identifier-based compiler branches.
+
 ---
 
 ## Verified high-priority gap families
@@ -545,6 +635,76 @@ Use the unmodified Accellera UVM library and representative examples.
 
 ---
 
+## Constructive assessment of the current implementation strategy
+
+The existing phase-based work has produced real progress, but the project must avoid interpreting a growing passing-test count as evidence that the architecture is ready for full IEEE 1800 support.
+
+The following risks must remain visible throughout implementation:
+
+### Risk 1: UVM success can conceal incomplete language semantics
+
+UVM exercises a large and valuable subset of SystemVerilog, but it does not exercise every legal language form, scheduling interaction, timing construct, assertion behavior, coverage rule, VPI object, or DPI shape.
+
+A UVM regression is therefore necessary but insufficient.
+
+### Risk 2: Parser acceptance can conceal semantic no-ops
+
+Several advanced constructs can be made to parse while still being ignored, incorrectly lowered, or scheduled in the wrong region.
+
+Every feature must be tested for observable semantics, not syntax alone.
+
+### Risk 3: Local VVP fixes can conceal scheduler inconsistency
+
+A runtime warning or UVM phase failure may be fixed locally while leaving the event-region model inconsistent.
+
+Fork/join, events, process handles, clocking, assertions, program blocks, DPI tasks, and VPI callbacks must ultimately share one scheduler model.
+
+### Risk 4: Repeated type reconstruction signals an inadequate IR
+
+When downstream code must infer class type, enum identity, packed width, array shape, or specialization from context, correctness becomes fragile.
+
+The semantic IR migration is a prerequisite for sustainable completion of the class, aggregate, constraint, and UVM feature sets.
+
+### Risk 5: The existing phase estimates understate some subsystems
+
+Full SVA, functional coverage, DPI open arrays, VPI SystemVerilog coverage, scheduler conformance, and constraint solving are not small parser patches.
+
+They must be planned as multi-stage subsystems with architecture, tests, diagnostics, and runtime support.
+
+### Risk 6: Permissive fallbacks create false progress
+
+A compile-progress path that emits plausible code can be more dangerous than a hard error.
+
+Unsupported semantics must be explicit until implemented correctly.
+
+### Risk 7: Differential testing is evidence, not specification
+
+Commercial and open-source simulators can disagree or contain bugs.
+
+The IEEE standard remains normative; differential results help expose ambiguity and implementation defects.
+
+### Risk 8: Full conformance requires negative testing
+
+Legal examples alone do not validate:
+
+- Illegal syntax rejection
+- Type errors
+- Lifetime restrictions
+- Scheduling restrictions
+- Context restrictions
+- Required diagnostics
+- Failed randomization behavior
+
+Every major feature family needs negative tests.
+
+### Risk 9: Compatibility must not freeze poor architecture
+
+Preserving current regressions is mandatory, but legacy implementation structure should not be treated as untouchable when it prevents correct semantics.
+
+Use characterization tests and incremental migration rather than indefinite accumulation of special cases.
+
+---
+
 ## Milestone sequence
 
 ### M0 — Reproducible baseline
@@ -554,13 +714,21 @@ Use the unmodified Accellera UVM library and representative examples.
 - Record current upstream and fork commit IDs
 - Produce baseline regression results
 
-### M1 — Typed expression and runtime class descriptors
+### M1 — Semantic IR foundation and runtime class descriptors
 
+This milestone is an architectural migration gate, not a collection of isolated UVM fixes.
+
+- Inventory the current AST, elaboration, expression, type, and netlist representations
+- Define the canonical SystemVerilog semantic type descriptor
 - Preserve return types
 - Support method/property lookup on arbitrary expressions
 - Preserve enum identity
 - Preserve parameter specialization
 - Add virtual dispatch metadata
+- Introduce typed lvalue and aggregate-layout interfaces
+- Add adapters for legacy lowering paths
+- Convert silent type-recovery fallbacks into tracked diagnostics
+- Document which compiler paths still bypass the semantic IR
 
 ### M2 — UVM factory, config, callbacks, and field automation
 
@@ -581,10 +749,18 @@ Use the unmodified Accellera UVM library and representative examples.
 
 - Complete connection, array, modport, and virtual interface behavior
 
-### M6 — Process, events, and scheduler
+### M6 — Scheduler architecture, processes, and events
 
+This milestone must precede claims of complete clocking, program, SVA, DPI-task, or race-free UVM behavior.
+
+- Inventory all scheduling queues and entry points
+- Map runtime operations to IEEE event regions
+- Add scheduler trace and invariant checking
+- Add race-sensitive scheduler litmus tests
 - Formalize event-region behavior
 - Fix process state and event observation
+- Remove incidental queue-order dependencies
+- Document VPI, DPI, assertion, program, and clocking integration points
 
 ### M7 — Accellera UVM core qualification
 
