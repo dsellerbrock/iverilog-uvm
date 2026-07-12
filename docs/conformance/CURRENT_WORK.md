@@ -113,14 +113,30 @@ the investigation. Update at every meaningful checkpoint.
 - Test `tests/m3_constraint_signed_test.sv`. UVM **112/112**; ivtest
   **byte-identical to baseline**. WIP 889d084 superseded.
 
+## Checkpoint 7 (M6 scheduler audit) — docs + litmus regressions
+
+- `docs/conformance/scheduler_audit_2026_07.md`: queue inventory
+  (start/active/inactive/nbassign/rwsync/rosync/del_thr + init/final
+  lists), IEEE 4.4.2 region mapping (Preponed/Observed/Reactive ABSENT),
+  implicit-ordering inventory (%fork push_flag, insertion-order
+  dependence), direct-execution findings (callf synchronous drains and
+  the staged-context heuristics), event-trigger lifetime (G08),
+  VPI callback mapping, end-of-slot behavior, and a 5-step remediation
+  priority list for M6 implementation.
+- `tests/m6_sched_litmus_test.sv`: NBA-vs-blocking, #0 inactive, and
+  $strobe postponed-region orderings as durable characterization
+  regressions (PASS).
+
 ## Exact next actions
 
-1. Watch PR #67 CI (re-running after the checkpoint-6 push).
-2. Remaining M3 tail: dynamic-array foreach (solve-time template
-   expansion after the size var fixes), `solve...before` staged
+1. Watch PR #67 CI.
+2. M6 implementation per the audit's remediation priorities: (1) region
+   tagging + trace hook, (2) Reactive region for program blocks,
+   (3) slot-persistent event.triggered (G08), (4) Preponed/Observed
+   stubs, (5) scheduled-call protocol replacing callf sync drains.
+3. Remaining M3 tail: dynamic-array foreach, `solve...before` staged
    ordering, non-0-based array ranges.
-3. Alternatives per manifesto sequence: M4 container runtime, M5
-   interfaces/modports (Phase 70), M6 scheduler audit, or G66 root-cause.
+4. Alternatives: M4 container runtime, M5 interfaces/modports, G66.
 
 ## Manifesto v2 alignment review (2026-07-11)
 
