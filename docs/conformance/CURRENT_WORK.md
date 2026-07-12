@@ -3,6 +3,37 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-12e (session: G10 array reduction methods)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,
+  draft — this checkpoint stacks onto it; head before this checkpoint
+  was 9f7c918, the ivl.def Windows export fix).
+- **This checkpoint**: G10 — IEEE 1800-2017 7.12.3 array reduction
+  methods (`sum`/`product`/`and`/`or`/`xor`) and 7.12.1
+  `min()`/`max()` implemented over queues, dynamic arrays and 1-D
+  fixed-size unpacked arrays, in all four source forms (call,
+  call+with, paren-less, paren-less+with) including the keyword-named
+  `.and()/.or()/.xor()` (new grammar rules, +6 documented s/r
+  conflicts 453→459).  `find*` locators extended to dynamic/fixed
+  arrays.  Result width/signedness follow the with expression
+  (7.12.3).  New `NetScope::set_signal_alias` gives each call its own
+  iterator binding (7.12 "scope for the iterator_argument is the with
+  expression") — also fixes a pre-existing find_with bug where sibling
+  calls with different element types shared one hidden `item` net
+  (signed/width poisoning; could trip a vvp store assertion).  Runtime
+  is inline vvp loops from EXISTING opcodes only
+  (`$ivl_darray_method$reduce|`/`minmax|` lowered in tgt-vvp).
+  Explicit `sorry` diagnostics (no silent fallbacks) for assoc-array
+  and multidimensional receivers and string/real min/max.
+  Details: `session_logs/2026-07-12_g10_array_reduction_methods.md`.
+- **Tests**: `tests/g10_array_methods_test.sv` (29 checks incl. all
+  7.12.3 LRM literal examples);
+  `tests/negative/g10_reduction_non_integral.sv` (negative suite now
+  6/6).
+- **G10 tail remaining**: sort/rsort/reverse/shuffle (7.12.2); unique
+  on non-queue receivers; assoc/multidim receivers; `item.index`;
+  class-property receivers (still on the older PEIdent property path).
+
 ## State as of 2026-07-12d (session: M6 item 2 — Reactive region)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy`, restarted from

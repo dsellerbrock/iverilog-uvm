@@ -1490,6 +1490,12 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    draw_stream_pack_pieces(expr, ivl_expr_width(expr));
 	    return;
       }
+      if (strncmp(ivl_expr_name(expr),"$ivl_darray_method$reduce|",26)==0) {
+	      /* IEEE 1800-2017 7.12.3 array reduction methods: inline
+	         loop leaving the accumulated value on the vec4 stack. */
+	    draw_array_reduce_vec4(expr);
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),"$ivl_event_method$triggered")==0) {
 	      /* IEEE 1800-2017 15.5.3: read the named event's
 	         triggered-this-time-step state. */

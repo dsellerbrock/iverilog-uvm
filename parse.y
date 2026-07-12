@@ -86,6 +86,35 @@ static stack<PBlock*> current_block_stack;
    specified. */
 static LexicalScope::lifetime_t var_lifetime;
 
+/* IEEE 1800-2017 7.12: build a method-call expression for the
+   keyword-named array methods (and/or/xor), which the generic
+   function-call and with-clause rules cannot match.  args may be
+   null (the paren-less with form); with_expr may be null (the plain
+   call form).  Consumes path and args. */
+static PECallFunction* pform_keyword_method_call(const struct vlltype&loc,
+                                                 pform_name_t*path,
+                                                 const char*method,
+                                                 std::list<named_pexpr_t>*args,
+                                                 PExpr*with_expr)
+{
+      path->push_back(name_component_t(lex_strings.make(method)));
+      PECallFunction*tmp;
+      if (args) {
+            tmp = pform_make_call_function(loc, *path, *args);
+            delete args;
+      } else {
+            std::list<named_pexpr_t> empty_args;
+            tmp = pform_make_call_function(loc, *path, empty_args);
+      }
+      if (with_expr) {
+            std::vector<PExpr*> wc;
+            wc.push_back(with_expr);
+            tmp->set_with_constraints(std::move(wc));
+      }
+      delete path;
+      return tmp;
+}
+
 /* Streaming concatenation (IEEE 1800-2017 11.4.14): the operand list
    {e1, e2, ...} concatenates left-to-right into one bit stream, so a
    multi-operand stream is represented as an ordinary concatenation.
@@ -7049,6 +7078,20 @@ expr_primary
 	$$ = tmp;
 	delete nm;
       }
+  /* IEEE 1800-2017 7.12.3: the and()/or()/xor() reduction methods are
+     keywords, so the generic function-call and with-clause rules
+     cannot match them.  Each keyword gets a call form, a call+with
+     form and a paren-less with form. */
+  | hierarchy_identifier '.' K_and argument_list_parens
+      { $$ = pform_keyword_method_call(@1, $1, "and", $4, 0); }
+  | hierarchy_identifier '.' K_and argument_list_parens K_with '(' expression ')'
+      { pform_requires_sv(@5, "Method with-clause");
+	$$ = pform_keyword_method_call(@1, $1, "and", $4, $7);
+      }
+  | hierarchy_identifier '.' K_and K_with '(' expression ')'
+      { pform_requires_sv(@4, "Method with-clause (no args)");
+	$$ = pform_keyword_method_call(@1, $1, "and", 0, $6);
+      }
   | hierarchy_identifier '.' K_or
       { pform_name_t * nm = $1;
 	nm->push_back(name_component_t(lex_strings.make("or")));
@@ -7056,6 +7099,16 @@ expr_primary
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
 	delete nm;
+      }
+  | hierarchy_identifier '.' K_or argument_list_parens
+      { $$ = pform_keyword_method_call(@1, $1, "or", $4, 0); }
+  | hierarchy_identifier '.' K_or argument_list_parens K_with '(' expression ')'
+      { pform_requires_sv(@5, "Method with-clause");
+	$$ = pform_keyword_method_call(@1, $1, "or", $4, $7);
+      }
+  | hierarchy_identifier '.' K_or K_with '(' expression ')'
+      { pform_requires_sv(@4, "Method with-clause (no args)");
+	$$ = pform_keyword_method_call(@1, $1, "or", 0, $6);
       }
   | hierarchy_identifier '.' K_unique argument_list_parens
       { pform_name_t *nm = $1;
@@ -7092,6 +7145,16 @@ expr_primary
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
 	delete nm;
+      }
+  | hierarchy_identifier '.' K_xor argument_list_parens
+      { $$ = pform_keyword_method_call(@1, $1, "xor", $4, 0); }
+  | hierarchy_identifier '.' K_xor argument_list_parens K_with '(' expression ')'
+      { pform_requires_sv(@5, "Method with-clause");
+	$$ = pform_keyword_method_call(@1, $1, "xor", $4, $7);
+      }
+  | hierarchy_identifier '.' K_xor K_with '(' expression ')'
+      { pform_requires_sv(@4, "Method with-clause (no args)");
+	$$ = pform_keyword_method_call(@1, $1, "xor", 0, $6);
       }
 
   | package_scope hierarchy_identifier

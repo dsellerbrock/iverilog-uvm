@@ -905,6 +905,21 @@ NetNet* NetScope::find_signal(perm_string key)
       return it != signals_map_.end()? it->second : 0;
 }
 
+NetNet* NetScope::set_signal_alias(perm_string name, NetNet*net)
+{
+      NetNet*prev = find_signal(name);
+      signals_map_[name] = net;
+      return prev;
+}
+
+void NetScope::restore_signal_alias(perm_string name, NetNet*prev)
+{
+      if (prev)
+	    signals_map_[name] = prev;
+      else
+	    signals_map_.erase(name);
+}
+
 typedef_t* NetScope::find_typedef(const Design*des, perm_string name)
 {
       map<perm_string,typedef_t*>::const_iterator cache_td = typedef_search_cache_.find(name);

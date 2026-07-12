@@ -1044,6 +1044,15 @@ class NetScope : public Definitions, public Attrib {
       void rem_signal(NetNet*);
       NetNet* find_signal(perm_string name);
 
+	// Temporarily bind `name' to a differently-named signal, so
+	// that find_signal (and thus symbol_search) resolves the name
+	// to it.  Used for the iterator binding of array-method with
+	// expressions (IEEE 1800-2017 7.12: "The scope for the
+	// iterator_argument is the with expression").  Returns the
+	// previously bound signal (or nil) for restore_signal_alias.
+      NetNet* set_signal_alias(perm_string name, NetNet*net);
+      void restore_signal_alias(perm_string name, NetNet*prev);
+
       // I2 (Phase 62m): post-elab fix-up pass.  Iterates signals_map_
       // and replaces the net_type of NetNets that were emitted with a
       // logic-vector fallback (because their typeref'd class had not

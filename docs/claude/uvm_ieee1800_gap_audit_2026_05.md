@@ -100,6 +100,32 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: any pattern using nested assoc maps (UVM tracks several).
 
 ### G10 queue `.sum()`, `.product()`, `.min()`, `.max()`, `.unique()`, `.unique_index()`, `.and()`, `.or()`, `.xor()`, `.find()`, `.find_index()` — context-sensitive; some forms emit `not a queue method` errors
+- **STATUS 2026-07-12: FIXED (reductions + min/max + non-queue locators)**.
+  IEEE 1800-2017 7.12.3 reductions (`sum`/`product`/`and`/`or`/`xor`) and
+  7.12.1 `min()`/`max()` now implemented over queues, dynamic arrays and
+  one-dimensional fixed-size unpacked arrays, in all four source forms
+  (call, call+with, paren-less, paren-less+with), including the
+  keyword-named methods via new grammar rules (`.and()`/`.or()`/`.xor()`
+  + with variants; +6 documented s/r conflicts, 453→459).  Result
+  width/signedness follow the with expression per 7.12.3.  `find*`
+  locators extended from queues to dynamic and fixed arrays.  Per-call
+  iterator binding via new `NetScope::set_signal_alias` (7.12: "The
+  scope for the iterator_argument is the with expression") — this also
+  fixed a pre-existing find_with poisoning bug where sibling calls with
+  different element types shared one hidden `item` net (wrong
+  signedness/width -> wrong compares or a vvp width assertion).  Runtime
+  is an inline vvp loop (existing opcodes only;
+  `$ivl_darray_method$reduce|` lowered in
+  tgt-vvp/eval_object.c:draw_array_reduce_vec4, `minmax|` in
+  eval_object_sfunc).  Tests `tests/g10_array_methods_test.sv` (29
+  checks incl. all 7.12.3 LRM literal examples),
+  `tests/negative/g10_reduction_non_integral.sv`.
+- Remaining tail (explicit diagnostics, no silent fallbacks): `sort`/
+  `rsort`/`reverse`/`shuffle` (7.12.2); `unique`/`unique_index` on
+  non-queue arrays; reductions/min/max on associative arrays (sorry) and
+  multidimensional arrays (sorry); `min`/`max` on string/real elements
+  (sorry); `item.index` iterator method; class-property receivers reach
+  the older PEIdent property path, not the new machinery.
 - Symptom: `q.sum()` reports `error: Method sum is not a queue method.` Same for product. Probe got `Variable item does not have a field named: index.` for `with (item.index)`. The Phase-63b B-series only added some shapes.
 - Probe: p16_queue_with (VERIFIED-FAILS), p30_array_methods (VERIFIED-FAILS for .min/.max/.sort on non-queue), p87_unique_index (PASS for queue).
 - Location: elab_expr.cc:8857-8911 (sorry: cluster for non-queue array methods); also `with (item.index)` codepath separately broken in elab_expr.cc.
