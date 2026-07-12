@@ -394,7 +394,14 @@ indexes and shadow outer names).
 
 ### Results
 
-(recorded when regressions complete)
+- Focused: single-shot size/foreach probes, the 10-iteration combined
+  probe, and `m3_constraint_array_test` under the regression recipe all
+  PASS.
+- Canonical UVM regression: **111 passed, 0 failed, 0 skipped**.
+- Bundled ivtest: **byte-identical to the pristine-baseline results**
+  (vvp_reg 2961/3101 + same 132 pre-existing failure names, vpi_reg
+  85/85, vvp_reg.py 284/12).
+- WIP marker on `6f7e875` superseded by this regression confirmation.
 
 ## Checkpoint history
 

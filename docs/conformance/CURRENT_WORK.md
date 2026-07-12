@@ -91,7 +91,7 @@ the investigation. Update at every meaningful checkpoint.
 - Regressions: UVM **110/110**; ivtest **byte-identical to baseline**
   (2961/3101+132, 85/85, 284/12); make check pass.
 
-## Checkpoint 5 (M3 increment 2) — in flight
+## Checkpoint 5 (M3 increment 2) — regression-clean
 
 - **G21 FIXED**: `arr.size()` → solver size var `s:N:T`; darray created/
   resized at write-back (cap 65536), elements filled randomly.
@@ -101,18 +101,18 @@ the investigation. Update at every meaningful checkpoint.
 - **Hang fixed**: solver inside/dist range parser now expression-capable
   and always makes forward progress (previously hung on compound ranges).
 - Focused: single-shot probes + 10-iteration probe + permanent test
-  `tests/m3_constraint_array_test.sv` all PASS. Full UVM + ivtest
-  regressions running; commit checkpoint 5 when green (expect 112/112 and
-  baseline-identical ivtest).
+  `tests/m3_constraint_array_test.sv` all PASS. UVM regression
+  **111/111**; ivtest **byte-identical to baseline**. WIP marker on
+  6f7e875 superseded by the regression-confirmation docs commit.
 
 ## Exact next actions
 
-1. Confirm checkpoint-5 regressions; commit + push; update PR #67.
-2. Watch PR #67 CI (Ubuntu/macOS green at last check; MSYS2 pending).
-3. Remaining M3 tail: dynamic-array foreach (solve-time template
+1. Watch PR #67 CI (Ubuntu/macOS green earlier; MSYS2 re-running after
+   the checkpoint-5 push).
+2. Remaining M3 tail: dynamic-array foreach (solve-time template
    expansion after the size var fixes), signed comparisons in the IR,
    `solve...before` staged ordering, non-0-based array ranges.
-4. Alternatives per manifesto sequence: M4 container runtime, M5
+3. Alternatives per manifesto sequence: M4 container runtime, M5
    interfaces/modports (Phase 70), M6 scheduler audit, or G66 root-cause.
 
 ## Manifesto v2 alignment review (2026-07-11)
