@@ -1207,30 +1207,45 @@ struct inside_range_t {
 };
 
 /*
- * C5 (Phase 62d): SystemVerilog streaming-concatenation operator.
- *   {<<N {expr}}  — pack with chunk-reverse.  N=1: full bit-reverse.
- *   {>>N {expr}}  — pack normally (same as plain concatenation).
- * Currently supports a single inner expression (the most common form).
- * Multi-element inner concat is deferred — most real testbenches use
- * the single-expr form as in `{<<{send_data}} = {stop, parity, data}`.
+ * SystemVerilog streaming-concatenation operator (IEEE 1800-2017
+ * 11.4.14).
+ *   {<<N {e1, e2, ...}}  — pack with N-bit chunk-reverse of the whole
+ *                          concatenated stream.  N=1: full bit-reverse.
+ *   {>>N {e1, e2, ...}}  — pack in stream (concatenation) order.
+ * The slice size may be a constant expression (resolved at elaboration
+ * so parameters work) or a type (slice = the type's packed width, e.g.
+ * {<< byte {...}}); both null means slice 1.
+ *
+ * As an assignment target (11.4.14.4) the parser rewrites
+ *   {op N {l1, l2, ...}} = rhs;
+ * into
+ *   {l1, l2, ...} = {op N {rhs}};   // PEStreaming with lval_context
+ * The lval_context form implements the unpack width rules: it is an
+ * error when the source stream has fewer bits than the target, and
+ * when the source is wider the target takes the leading (left-most)
+ * bits of the reordered stream — see the "hello world" example in
+ * 11.4.14.4.
  */
 class PEStreaming : public PExpr {
     public:
       enum direction_t { DIR_LSHIFT, DIR_RSHIFT };
-      PEStreaming(direction_t dir, unsigned slice, PExpr* inner)
-      : dir_(dir), slice_(slice ? slice : 1), inner_(inner) {}
-      ~PEStreaming() override { delete inner_; }
+      PEStreaming(direction_t dir, PExpr*slice_expr, data_type_t*slice_type,
+                  PExpr*inner, bool lval_context)
+      : dir_(dir), slice_expr_(slice_expr), slice_type_(slice_type),
+        inner_(inner), lval_context_(lval_context) {}
+      ~PEStreaming() override
+          { delete inner_; delete slice_expr_; delete slice_type_; }
       direction_t get_dir() const { return dir_; }
-      unsigned get_slice() const { return slice_; }
       PExpr* get_inner() const { return inner_; }
-      // Phase 63a/A3: release ownership of inner_ so the LHS-streaming
-      // rewrite in PAssign::elaborate can reparent the original lval
-      // expression onto the assignment without a double-delete when
+      bool is_lval_context() const { return lval_context_; }
+      // Release ownership of inner_ so a parse-time rewrite can
+      // reparent the expression without a double-delete when the
       // PEStreaming is itself destroyed.
       PExpr* release_inner() { PExpr*r = inner_; inner_ = nullptr; return r; }
       void dump(std::ostream& out) const override {
-            out << "{" << (dir_ == DIR_LSHIFT ? "<<" : ">>")
-                << slice_ << "{";
+            out << "{" << (dir_ == DIR_LSHIFT ? "<<" : ">>");
+            if (slice_expr_) { out << " "; slice_expr_->dump(out); }
+            out << "{";
             inner_->dump(out);
             out << "}}";
       }
@@ -1240,10 +1255,25 @@ class PEStreaming : public PExpr {
                               ivl_type_t type, unsigned flags) const override;
       NetExpr* elaborate_expr(Design* des, NetScope* scope,
                               unsigned expr_wid, unsigned flags) const override;
+      // Unpack elaboration (11.4.14.3): the streaming concatenation was
+      // the target of an assignment and lv_width is the total width of
+      // the (rewritten) l-value concatenation.
+      NetExpr* elaborate_unpack(Design* des, NetScope* scope,
+                                unsigned lv_width) const;
+      // Pack as assignment source (11.4.14): left-align the stream in
+      // the lv_width-bit target (error if the target is narrower).
+      NetExpr* elaborate_pack_into(Design* des, NetScope* scope,
+                                   unsigned lv_width) const;
+    private:
+      unsigned resolve_slice_(Design* des, NetScope* scope) const;
+      NetExpr* reorder_stream_(NetExpr*body, unsigned wid,
+                               unsigned slice, bool invert) const;
     private:
       direction_t dir_;
-      unsigned slice_;
+      PExpr* slice_expr_;
+      data_type_t* slice_type_;
       PExpr* inner_;
+      bool lval_context_;
 };
 
 /*

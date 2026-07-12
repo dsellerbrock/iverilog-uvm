@@ -3,6 +3,27 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-12b (session: G12 streaming concatenation)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #68 open,
+  draft — this checkpoint stacks onto it).
+- **This checkpoint**: G12 fixed for fixed-size integral operands —
+  multi-operand streaming concatenation pack AND unpack (IEEE
+  1800-2017 11.4.14/.1/.2/.3), removing the parse.y fallback family
+  that silently dropped operands.  Semantics grounded in the published
+  LRM text and its literal examples (all in the permanent test).  Key
+  subtleties implemented: unpack is the INVERSE of the `<<` reorder
+  (differs from forward when slice ∤ width), wider unpack sources are
+  consumed from the left, pack-as-assignment-source is LEFT-aligned
+  with error on narrower targets, slice sizes (expressions/types)
+  resolve at elaboration.  Details:
+  `session_logs/2026-07-12_g12_streaming_concatenation.md`.
+- **Tests**: `tests/g12_streaming_concat_test.sv` (+2 negative tests).
+- **G12 tail (recorded in gap audit)**: dynamic-size operands
+  (queues/darrays/strings, 11.4.14.4 — needed by uvm_reg_map byte
+  packing), `with [range]`, continuous-assign streaming lvalues,
+  struct/class operand flattening.
+
 ## State as of 2026-07-12 (session: G08 event.triggered + G67 process identity)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy`, restarted from

@@ -85,7 +85,67 @@ static stack<PBlock*> current_block_stack;
 /* The variable declaration rules need to know if a lifetime has been
    specified. */
 static LexicalScope::lifetime_t var_lifetime;
-static bool warned_stream_concat_lval_incomplete = false;
+
+/* Streaming concatenation (IEEE 1800-2017 11.4.14): the operand list
+   {e1, e2, ...} concatenates left-to-right into one bit stream, so a
+   multi-operand stream is represented as an ordinary concatenation.
+   Consumes the list container (elements are reparented). */
+static PExpr* pform_stream_operand(const struct vlltype&loc,
+                                   std::list<PExpr*>*lst)
+{
+      if (lst == 0 || lst->empty()) {
+	    delete lst;
+	    return 0;
+      }
+      PExpr*res;
+      if (lst->size() == 1) {
+	    res = lst->front();
+      } else {
+	    PEConcat*cat = new PEConcat(*lst);
+	    FILE_NAME(cat, loc);
+	    res = cat;
+      }
+      delete lst;
+      return res;
+}
+
+/* Streaming concatenation as an assignment target (IEEE 1800-2017
+   11.4.14.4).  Rewrite
+       {op N {l1, ..., lk}} = rhs;
+   into
+       {l1, ..., lk} = {op N {rhs}};
+   with the right-hand PEStreaming marked lval-context so elaboration
+   applies the unpack width rules (error when the source stream is
+   narrower than the target; a wider source is consumed from the
+   left).  Handles blocking and nonblocking assignments. */
+static Statement* pform_stream_lval_assign(const struct vlltype&loc,
+                                           PEStreaming::direction_t dir,
+                                           PExpr*slice_expr,
+                                           data_type_t*slice_type,
+                                           std::list<PExpr*>*lvals,
+                                           PExpr*rhs,
+                                           bool nonblock)
+{
+      PExpr*lhs = pform_stream_operand(loc, lvals);
+      if (lhs == 0) {
+	    delete slice_expr;
+	    delete slice_type;
+	    delete rhs;
+	    PBlock*noop = new PBlock(PBlock::BL_SEQ);
+	    FILE_NAME(noop, loc);
+	    return noop;
+      }
+      PEStreaming*rstream = new PEStreaming(dir, slice_expr, slice_type,
+					    rhs, true);
+      FILE_NAME(rstream, loc);
+      Statement*tmp;
+      if (nonblock)
+	    tmp = new PAssignNB(lhs, rstream);
+      else
+	    tmp = new PAssign(lhs, rstream);
+      FILE_NAME(tmp, loc);
+      return tmp;
+}
 
 /* Phase 63b/B8 (gap close): range bound for std::randomize with-clause
  * detection.  Used to lower simple range constraints to
@@ -5090,75 +5150,51 @@ stream_operator
 
 streaming_concatenation /* IEEE1800-2005: A.8.1 */
   : '{' stream_operator '{' stream_expression_list '}' '}'
-      { /* C5 (Phase 62d): single-expression streaming form, slice=1.
-	   For {<<{expr}}: bit-reverse.  For {>>{expr}}: identity. */
+      { /* Default slice (1 bit).  {<<{...}}: full bit-reverse of the
+	   concatenated stream.  {>>{...}}: stream (concatenation)
+	   order.  IEEE 1800-2017 11.4.14. */
 	pform_requires_sv(@2, "Streaming concatenation");
 	PEStreaming::direction_t dir =
 	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT
 			   : PEStreaming::DIR_RSHIFT;
-	PExpr*inner = nullptr;
-	if ($4 && !$4->empty()) {
-	      inner = $4->front();
-	      $4->pop_front();
-	      // Multi-element inner not yet supported; warn if present.
-	      if (!$4->empty()) {
-		    yywarn(@4, "streaming-concatenation with multiple inner expressions: only the first is reversed; rest dropped (compile-progress).");
-		    while (!$4->empty()) { delete $4->front(); $4->pop_front(); }
-	      }
-	}
-	delete $4;
+	PExpr*inner = pform_stream_operand(@4, $4);
 	if (!inner) {
 	      PENull*np = new PENull; FILE_NAME(np, @1); $$ = np;
 	} else {
-	      PEStreaming*tmp = new PEStreaming(dir, 1, inner);
+	      PEStreaming*tmp = new PEStreaming(dir, 0, 0, inner, false);
 	      FILE_NAME(tmp, @1);
 	      $$ = tmp;
 	}
       }
   | '{' stream_operator simple_type_or_string '{' stream_expression_list '}' '}'
-      { /* Typed-slice form: {<< bit {...}} — slice=1 (bit width). */
+      { /* Typed-slice form: {<< byte {...}} — the slice is the packed
+	   width of the type, resolved at elaboration. */
 	pform_requires_sv(@2, "Streaming concatenation");
-	delete $3;
 	PEStreaming::direction_t dir =
 	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
-	PExpr*inner = nullptr;
-	if ($5 && !$5->empty()) {
-	      inner = $5->front(); $5->pop_front();
-	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
-	}
-	delete $5;
+	PExpr*inner = pform_stream_operand(@5, $5);
 	if (!inner) {
+	      delete $3;
 	      PENull*np = new PENull; FILE_NAME(np, @1); $$ = np;
 	} else {
-	      PEStreaming*tmp = new PEStreaming(dir, 1, inner);
+	      PEStreaming*tmp = new PEStreaming(dir, 0, $3, inner, false);
 	      FILE_NAME(tmp, @1);
 	      $$ = tmp;
 	}
       }
   | '{' stream_operator expression '{' stream_expression_list '}' '}'
-      { /* Numeric-slice form: {<< 8 {...}} — slice = numeric expr.
-	   We require the slice to be a constant integer; non-constant
-	   slices fall back to slice=1 with a warning. */
+      { /* Numeric-slice form: {<< 8 {...}} — the slice expression is
+	   evaluated at elaboration and must be a positive constant
+	   (so parameters work). */
 	pform_requires_sv(@2, "Streaming concatenation");
 	PEStreaming::direction_t dir =
 	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
-	unsigned slice = 1;
-	if (PENumber*n = dynamic_cast<PENumber*>($3)) {
-	      verinum v = n->value();
-	      if (v.is_defined()) slice = v.as_unsigned();
-	      if (slice == 0) slice = 1;
-	}
-	delete $3;
-	PExpr*inner = nullptr;
-	if ($5 && !$5->empty()) {
-	      inner = $5->front(); $5->pop_front();
-	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
-	}
-	delete $5;
+	PExpr*inner = pform_stream_operand(@5, $5);
 	if (!inner) {
+	      delete $3;
 	      PENull*np = new PENull; FILE_NAME(np, @1); $$ = np;
 	} else {
-	      PEStreaming*tmp = new PEStreaming(dir, slice, inner);
+	      PEStreaming*tmp = new PEStreaming(dir, $3, 0, inner, false);
 	      FILE_NAME(tmp, @1);
 	      $$ = tmp;
 	}
@@ -11998,92 +12034,35 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
 
-  /* Phase 63a/A3: streaming-concatenation l-value assignment.
-     Rewrite `{<<N{x}} = rhs` → `x = {<<N{rhs}}` directly at parse
-     time so the rest of the elaborate path sees a normal assignment.
-     Three forms below match the three slice variants. */
+  /* Streaming-concatenation l-value assignment (IEEE 1800-2017
+     11.4.14.4).  Rewrite `{op N {lvals}} = rhs` at parse time into
+     `{lvals} = {op N {rhs}}` (lval-context streaming node) so the
+     rest of the elaborate path sees a normal assignment; unpack width
+     rules are enforced at elaboration.  Three slice variants, each in
+     blocking and nonblocking form. */
   | '{' stream_operator '{' stream_expression_list '}' '}' '=' expression ';'
       { pform_requires_sv(@2, "Streaming concatenation l-value");
-	PEStreaming::direction_t dir =
-	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT
-			   : PEStreaming::DIR_RSHIFT;
-	PExpr*lhs_inner = nullptr;
-	if ($4 && !$4->empty()) {
-	      lhs_inner = $4->front();
-	      $4->pop_front();
-	      while (!$4->empty()) { delete $4->front(); $4->pop_front(); }
-	}
-	delete $4;
-	if (!lhs_inner) {
-	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
-	      FILE_NAME(tmp, @1);
-	      delete $8;
-	      $$ = tmp;
-	} else {
-	      PEStreaming*rstream = new PEStreaming(dir, 1, $8);
-	      FILE_NAME(rstream, @1);
-	      PAssign*tmp = new PAssign(lhs_inner, rstream);
-	      FILE_NAME(tmp, @1);
-	      $$ = tmp;
-	}
+	$$ = pform_stream_lval_assign(@1, ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT, 0, 0, $4, $8, false);
       }
   | '{' stream_operator simple_type_or_string '{' stream_expression_list '}' '}' '=' expression ';'
       { pform_requires_sv(@2, "Streaming concatenation l-value");
-	delete $3;
-	PEStreaming::direction_t dir =
-	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
-	PExpr*lhs_inner = nullptr;
-	if ($5 && !$5->empty()) {
-	      lhs_inner = $5->front();
-	      $5->pop_front();
-	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
-	}
-	delete $5;
-	if (!lhs_inner) {
-	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
-	      FILE_NAME(tmp, @1);
-	      delete $9;
-	      $$ = tmp;
-	} else {
-	      PEStreaming*rstream = new PEStreaming(dir, 1, $9);
-	      FILE_NAME(rstream, @1);
-	      PAssign*tmp = new PAssign(lhs_inner, rstream);
-	      FILE_NAME(tmp, @1);
-	      $$ = tmp;
-	}
+	$$ = pform_stream_lval_assign(@1, ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT, 0, $3, $5, $9, false);
       }
   | '{' stream_operator expression '{' stream_expression_list '}' '}' '=' expression ';'
       { pform_requires_sv(@2, "Streaming concatenation l-value");
-	PEStreaming::direction_t dir =
-	      ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT;
-	unsigned slice = 1;
-	if (PENumber*n = dynamic_cast<PENumber*>($3)) {
-	      const verinum&v = n->value();
-	      if (v.is_defined() && !v.is_negative()) {
-		    unsigned long u = v.as_ulong();
-		    if (u >= 1 && u <= UINT_MAX) slice = (unsigned)u;
-	      }
-	}
-	delete $3;
-	PExpr*lhs_inner = nullptr;
-	if ($5 && !$5->empty()) {
-	      lhs_inner = $5->front();
-	      $5->pop_front();
-	      while (!$5->empty()) { delete $5->front(); $5->pop_front(); }
-	}
-	delete $5;
-	if (!lhs_inner) {
-	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
-	      FILE_NAME(tmp, @1);
-	      delete $9;
-	      $$ = tmp;
-	} else {
-	      PEStreaming*rstream = new PEStreaming(dir, slice, $9);
-	      FILE_NAME(rstream, @1);
-	      PAssign*tmp = new PAssign(lhs_inner, rstream);
-	      FILE_NAME(tmp, @1);
-	      $$ = tmp;
-	}
+	$$ = pform_stream_lval_assign(@1, ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT, $3, 0, $5, $9, false);
+      }
+  | '{' stream_operator '{' stream_expression_list '}' '}' K_LE expression ';'
+      { pform_requires_sv(@2, "Streaming concatenation l-value");
+	$$ = pform_stream_lval_assign(@1, ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT, 0, 0, $4, $8, true);
+      }
+  | '{' stream_operator simple_type_or_string '{' stream_expression_list '}' '}' K_LE expression ';'
+      { pform_requires_sv(@2, "Streaming concatenation l-value");
+	$$ = pform_stream_lval_assign(@1, ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT, 0, $3, $5, $9, true);
+      }
+  | '{' stream_operator expression '{' stream_expression_list '}' '}' K_LE expression ';'
+      { pform_requires_sv(@2, "Streaming concatenation l-value");
+	$$ = pform_stream_lval_assign(@1, ($2 == K_LS) ? PEStreaming::DIR_LSHIFT : PEStreaming::DIR_RSHIFT, $3, 0, $5, $9, true);
       }
 
   | error '=' expression ';'

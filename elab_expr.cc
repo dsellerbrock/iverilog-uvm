@@ -2046,6 +2046,110 @@ unsigned PEStreaming::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       return expr_width_;
 }
 
+/*
+ * Resolve the slice size (IEEE 1800-2017 11.4.14.1): either a constant
+ * integral expression or a type whose packed width is the slice.  Both
+ * absent means slice 1.  Returns 0 on error (diagnostic emitted).
+ */
+unsigned PEStreaming::resolve_slice_(Design*des, NetScope*scope) const
+{
+      if (slice_type_) {
+	    ivl_type_t st = slice_type_->elaborate_type(des, scope);
+	    long wid = st ? st->packed_width() : 0;
+	    if (wid <= 0) {
+		  cerr << get_fileline() << ": error: slice type of "
+		        "streaming concatenation does not have a "
+		        "determinable packed width (IEEE 1800-2017 "
+		        "11.4.14.1)." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    return (unsigned)wid;
+      }
+      if (slice_expr_) {
+	    NetExpr*se = elab_and_eval(des, scope, slice_expr_, -1, true);
+	    NetEConst*sc = dynamic_cast<NetEConst*>(se);
+	    long val = 0;
+	    if (sc && sc->value().is_defined())
+		  val = sc->value().as_long();
+	    delete se;
+	    if (val <= 0) {
+		  cerr << get_fileline() << ": error: slice size of "
+		        "streaming concatenation must be a positive "
+		        "constant integral expression (IEEE 1800-2017 "
+		        "11.4.14.1)." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    return (unsigned)val;
+      }
+      return 1;
+}
+
+/*
+ * Chunk-reorder a wid-bit stream per {<< slice {...}} (IEEE 1800-2017
+ * 11.4.14.2): the stream is sliced into `slice`-bit blocks starting
+ * with the right-most bit; a final left-most partial block keeps the
+ * remaining wid % slice bits; the block order is then reversed
+ * (bit order within each block preserved).  So the input's LSB block
+ * becomes the MSB block of the result and the input's MSB-side
+ * partial block lands at the LSB end.
+ *
+ * With invert=true this computes the INVERSE mapping, needed by the
+ * unpack operation (11.4.14.3: "the streaming operators perform the
+ * reverse operation").  For slice sizes that divide wid the forward
+ * mapping is an involution and the two coincide; with a remainder
+ * they differ.
+ *
+ * Takes ownership of body; returns a new expression of the same width.
+ */
+NetExpr* PEStreaming::reorder_stream_(NetExpr*body, unsigned wid,
+				      unsigned slice, bool invert) const
+{
+      unsigned full = wid / slice;
+      unsigned rem  = wid % slice;
+      unsigned nelt = full + (rem ? 1 : 0);
+      if (nelt <= 1) return body;
+
+	// Describe the result as a concatenation (MSB..LSB) of
+	// base/width selects of the input.
+	//   forward: (0,slice), (slice,slice), ..., ((full-1)*slice,slice),
+	//            (full*slice, rem)
+	//   inverse: (0,rem), (rem,slice), (rem+slice,slice), ...,
+	//            (wid-slice, slice)
+      std::vector< std::pair<unsigned,unsigned> > layout;
+      layout.reserve(nelt);
+      if (invert) {
+	    if (rem)
+		  layout.push_back(std::make_pair(0u, rem));
+	    for (unsigned i = 0; i < full; i += 1)
+		  layout.push_back(std::make_pair(rem + i*slice, slice));
+      } else {
+	    for (unsigned i = 0; i < full; i += 1)
+		  layout.push_back(std::make_pair(i*slice, slice));
+	    if (rem)
+		  layout.push_back(std::make_pair(full*slice, rem));
+      }
+
+      std::vector<NetExpr*> parts;
+      parts.reserve(nelt);
+      for (size_t i = 0; i < layout.size(); i += 1) {
+	    NetExpr*idx = new NetEConst(verinum((uint64_t)layout[i].first, 32u));
+	    idx->set_line(*this);
+	    NetExpr*body_dup = body->dup_expr();
+	    NetESelect*sel = new NetESelect(body_dup, idx, layout[i].second);
+	    sel->set_line(*this);
+	    parts.push_back(sel);
+      }
+      delete body;
+
+      NetEConcat*cat = new NetEConcat((unsigned)parts.size(), 1, IVL_VT_LOGIC);
+      cat->set_line(*this);
+      for (size_t i = 0; i < parts.size(); i += 1)
+	    cat->set(i, parts[i]);
+      return cat;
+}
+
 NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 				     ivl_type_t /*type*/, unsigned flags) const
 {
@@ -2064,67 +2168,110 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
             des->errors += 1;
             return nullptr;
       }
+      unsigned slice = resolve_slice_(des, scope);
+      if (slice == 0) return nullptr;
+
       NetExpr*body = inner_->elaborate_expr(des, scope, w, flags);
       if (!body) return nullptr;
 
-      // {>>N {x}} is identity — inner already produces the correct value.
+      // {>>N {x}} packs in stream order — the concatenation itself.
       if (dir_ == DIR_RSHIFT) return body;
 
-      unsigned slice = slice_ ? slice_ : 1;
-      // Number of full slices and remainder bits.
-      unsigned full = w / slice;
-      unsigned rem  = w % slice;
-      unsigned nelt = full + (rem ? 1 : 0);
-      if (nelt == 0) return body;
-      if (nelt == 1) {
-            // No reversal needed (single slice covers the whole expr).
-            return body;
-      }
+      return reorder_stream_(body, w, slice, false);
+}
 
-      std::vector<NetExpr*> parts;
-      parts.reserve(nelt);
-      // Element 0 (high bits of result) = leftmost slice of body.
-      // For body width w with slices size N (LSB index 0):
-      //   slice i covers bits [i*N .. i*N + N-1] (LSB at body[i*N]).
-      // Reversed-chunk order: the FIRST concat element is slice (full-1)
-      // (the highest-index = MSB-side slice in the original).  Wait, no
-      // — that's identity.  For {<<N {body}}, the chunk-reverse means:
-      //   result high bits  = body LSB chunk (slice 0)
-      //   result next chunk = slice 1
-      //   ...
-      //   result low bits   = body MSB chunk (slice full-1)
-      // So concat order (high→low) is: [slice 0, slice 1, ..., slice full-1].
-      // If there's a remainder, IEEE puts it at the LSB unmodified;
-      // i.e. it stays as the LAST concat element.
-      for (unsigned i = 0; i < full; i += 1) {
-            // Slice i of body: bits [i*slice .. i*slice + slice-1].
-            NetExpr*idx = new NetEConst(verinum((uint64_t)(i*slice), 32u));
-            idx->set_line(*this);
-            // We need an independent copy of `body` per element since
-            // NetESelect takes ownership.  Use dup_expr() if available;
-            // otherwise re-elaborate.
-            NetExpr*body_dup = body->dup_expr();
-            NetESelect*sel = new NetESelect(body_dup, idx, slice);
-            sel->set_line(*this);
-            parts.push_back(sel);
+/*
+ * Pack as the source of an assignment (IEEE 1800-2017 11.4.14): the
+ * stream is left-aligned in the target.  A target with fewer bits
+ * than the stream is an error; a wider target is filled with zero
+ * bits on the right.  (This differs from ordinary rvalue width
+ * adaptation, which pads/truncates on the left.)
+ */
+NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
+					  unsigned lv_width) const
+{
+      if (!inner_) return nullptr;
+      width_mode_t m = SIZED;
+      unsigned w = inner_->test_width(des, scope, m);
+      if (w == 0) {
+            cerr << get_fileline() << ": error: streaming concatenation "
+                  "requires a known-width inner expression." << endl;
+            des->errors += 1;
+            return nullptr;
       }
-      if (rem) {
-            // Remainder bits at the LSB of body, placed at LSB of result.
-            NetExpr*idx = new NetEConst(verinum((uint64_t)(full*slice), 32u));
-            idx->set_line(*this);
-            NetExpr*body_dup = body->dup_expr();
-            NetESelect*sel = new NetESelect(body_dup, idx, rem);
-            sel->set_line(*this);
-            parts.push_back(sel);
+      if (lv_width < w) {
+	    cerr << get_fileline() << ": error: streaming concatenation "
+	          "produces a " << w << "-bit stream, which does not fit "
+	          "in the " << lv_width << "-bit assignment target (IEEE "
+	          "1800-2017 11.4.14)." << endl;
+	    des->errors += 1;
+	    return nullptr;
       }
-      // We've duplicated body into each slice — delete the original.
-      delete body;
+      NetExpr*packed = elaborate_expr(des, scope, w, NO_FLAGS);
+      if (!packed) return nullptr;
+      if (lv_width == w) return packed;
 
-      NetEConcat*cat = new NetEConcat((unsigned)parts.size(), 1, IVL_VT_LOGIC);
+	// Left-align: fill with zero bits on the right.
+      NetEConst*zeros = new NetEConst(verinum(verinum::V0, lv_width - w));
+      zeros->set_line(*this);
+      NetEConcat*cat = new NetEConcat(2, 1, IVL_VT_LOGIC);
       cat->set_line(*this);
-      for (size_t i = 0; i < parts.size(); i += 1)
-            cat->set(i, parts[i]);
+      cat->set(0, packed);
+      cat->set(1, zeros);
       return cat;
+}
+
+/*
+ * Unpack (IEEE 1800-2017 11.4.14.3): this streaming concatenation was
+ * written as the target of an assignment and the parser rewrote
+ *   {op N {l1, ..., lk}} = rhs;   into   {l1, ..., lk} = {op N {rhs}};
+ * lv_width is the total width of the l-value concatenation.  When the
+ * source has more bits than needed, the leading (left-most) lv_width
+ * bits are consumed; a source narrower than the target is an error.
+ * The consumed bits are then mapped through the REVERSE of the pack
+ * re-ordering ("the streaming operators perform the reverse
+ * operation") and assigned to the operands left to right.
+ */
+NetExpr* PEStreaming::elaborate_unpack(Design*des, NetScope*scope,
+				       unsigned lv_width) const
+{
+      if (!inner_) return nullptr;
+      width_mode_t m = SIZED;
+      unsigned w = inner_->test_width(des, scope, m);
+      if (w == 0) {
+            cerr << get_fileline() << ": error: streaming concatenation "
+                  "requires a known-width source expression." << endl;
+            des->errors += 1;
+            return nullptr;
+      }
+      if (w < lv_width) {
+	    cerr << get_fileline() << ": error: streaming concatenation "
+	          "target requires " << lv_width << " bits, but the "
+	          "source stream provides only " << w << " (IEEE "
+	          "1800-2017 11.4.14.3)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+      unsigned slice = resolve_slice_(des, scope);
+      if (slice == 0) return nullptr;
+
+      NetExpr*body = inner_->elaborate_expr(des, scope, w, NO_FLAGS);
+      if (!body) return nullptr;
+
+      if (w > lv_width) {
+	    // Consume the needed bits from the left (MSB) end of the
+	    // source; surplus trailing bits are ignored.
+	    NetExpr*idx = new NetEConst(verinum((uint64_t)(w - lv_width), 32u));
+	    idx->set_line(*this);
+	    NetESelect*sel = new NetESelect(body, idx, lv_width);
+	    sel->set_line(*this);
+	    body = sel;
+      }
+
+      if (dir_ == DIR_LSHIFT)
+	    body = reorder_stream_(body, lv_width, slice, true);
+
+      return body;
 }
 
 unsigned PEBLeftWidth::test_width(Design*des, NetScope*scope, width_mode_t&mode)

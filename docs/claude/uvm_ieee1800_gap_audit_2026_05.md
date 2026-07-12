@@ -118,10 +118,41 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: realistic constraint-based verification.
 
 ### G12 `streaming LHS`: `{>>{a,b,c,d}} = src` puts everything in `a` (last lvalue wins); other lvalues stay zero
+- **STATUS 2026-07-12: FIXED for fixed-size integral operands** (IEEE
+  1800-2017 11.4.14/.1/.2/.3, semantics verified against the published
+  LRM text and its literal examples). Re-audit found the gap was wider
+  than recorded: multi-operand PACK (RHS) also silently dropped all
+  operands after the first, the typed-slice form (`{<<byte{...}}`)
+  silently used slice=1, and pack-into-assignment used ordinary
+  right-aligned padding instead of the required left-alignment.
+  Implemented: (a) multi-operand streams parse into an ordinary concat
+  operand (reordering applies to the whole stream, 11.4.14.1);
+  (b) unpack rewrites `{op N {lvals}} = rhs` (blocking AND nonblocking)
+  into a concat-lvalue assignment with an lval-context streaming RHS
+  enforcing 11.4.14.3 — too-small source is an error, wider source is
+  consumed from the left ("hello world" example), and the `<<` unpack
+  applies the INVERSE block reorder (round-trips even when the slice
+  does not divide the width); (c) pack as assignment source is
+  left-aligned per 11.4.14 — narrower target errors (`int j =
+  {>>{a,b,c}}` example), wider target zero-fills on the right;
+  (d) slice sizes are resolved at elaboration so parameters and types
+  (`{<<byte{...}}` = 8) work, with explicit errors for non-constant or
+  non-positive slices. Grammar +3 s/r conflicts (new nonblocking
+  forms), r/r unchanged. Tests: `tests/g12_streaming_concat_test.sv`
+  (includes every fixed-size literal example from 11.4.14.2/.3),
+  `tests/negative/g12_stream_source_too_small.sv`,
+  `tests/negative/g12_stream_target_too_small.sv`.
+  REMAINING (G12 tail): dynamic-size stream operands (queues, dynamic
+  arrays, strings — 11.4.14.4 greedy resize, used by uvm_reg_map byte
+  packing and uvm_misc string join), `with [range]` stream expressions,
+  streaming lvalues in continuous assignments, and struct/class operand
+  flattening (11.4.14.1 recursion).
 - Symptom: `{>>{a,b,c,d}} = 32'hAABBCCDD` produces `a=dd b=00 c=00 d=00` (only a is written, with bottom byte).
 - Probe: p23_streaming_lhs (VERIFIED-FAILS).
-- Location: elab_lval.cc — the streaming-pattern LHS path; phase63b notes acknowledge "LHS streaming deferred."
-- Layer: elab.
+- Location: parse.y streaming rules + PEStreaming elaboration (the old
+  audit guess of elab_lval.cc was wrong — the parser dropped operands
+  before elaboration ever saw them).
+- Layer: parse+elab.
 - Complexity: medium (mirror of Phase63b/C5 RHS streaming, requires per-slice store).
 - Blocks: packet pack/unpack patterns common in RAL and bus drivers.
 
