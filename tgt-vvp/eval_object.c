@@ -19,6 +19,7 @@
 
 # include  "vvp_priv.h"
 # include  <string.h>
+# include  <stdlib.h>
 # include  <assert.h>
 
 /*
