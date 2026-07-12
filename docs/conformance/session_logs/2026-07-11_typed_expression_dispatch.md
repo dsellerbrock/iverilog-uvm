@@ -403,6 +403,44 @@ indexes and shadow outer names).
   85/85, vvp_reg.py 284/12).
 - WIP marker on `6f7e875` superseded by this regression confirmation.
 
+## Checkpoint 6 — M3: signed constraint comparisons and negative bounds
+
+### Requirement
+
+IEEE 1800-2017 **11.8.1** (comparisons are signed when both operands are
+signed; integer literals are signed) and **11.4.13/18.5.3** (inside with
+signed subjects). Constraints on `int` fields with negative bounds are
+routine in UVM stimulus.
+
+### Root causes
+
+- Unary minus (`-5`) had no IR conversion (PEUnary handled only `!`), so
+  any constraint item containing a negative literal was silently dropped
+  (surfaced by the checkpoint-4 honesty warning).
+- The IR carried no signedness: all comparisons and inside ranges used
+  unsigned BV predicates, making `y < 0` unsatisfiable and negative
+  ranges meaningless.
+
+### Implementation
+
+- Generator (`elaborate.cc`): PEUnary `-` folds literals to 64-bit two's
+  complement (solver numerals reduce mod 2^W at the use width) and lowers
+  non-literal operands to `(sub c:0 x)`; unary `+` passes through.
+  Signed property/element types append `:s` to their `p:`/`e:` tokens.
+- Solver (`vvp/vvp_z3.cc`): signed-variable tracking; comparisons use
+  the bvslt family with sign extension when a signed variable
+  participates; `inside`/`dist` ranges use signed predicates and
+  sign-extended bounds when the subject is signed.
+
+### Tests
+
+- `tests/m3_constraint_signed_test.sv`: `x inside {[-5:5]}`, `y < 0`,
+  `y >= -20` over 20 iterations.
+
+### Results
+
+(recorded when regressions complete)
+
 ## Checkpoint history
 
 - Checkpoint 1: manifesto imported to `docs/conformance/`, baseline recorded (this file).

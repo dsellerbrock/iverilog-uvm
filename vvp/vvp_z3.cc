@@ -25,6 +25,7 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <sstream>
+# include  <set>
 # include  <string>
 # include  <vector>
 # include  <stdint.h>
@@ -148,6 +149,13 @@ struct Z3Builder {
 	    return var;
       }
 
+	// Variables whose SystemVerilog type is signed. Comparisons where
+	// a signed variable participates use the signed BV predicates
+	// (IEEE 1800-2017 11.8.1; integer literals are signed).
+      std::set<Z3_ast> signed_vars;
+      bool is_signed(Z3_ast a) const
+	    { return signed_vars.find(a) != signed_vars.end(); }
+
       Z3Builder(Z3_context c, const class_type* d, vvp_cobject* o)
       : ctx(c), defn(d), cobj(o), opt(0) {}
 
@@ -172,15 +180,19 @@ struct Z3Builder {
 // Forward declaration
 static Z3_ast build_z3_expr(IRParser&, Z3Builder&);
 
-// Parse "p:N:W" — returns Z3 bitvector variable
+// Parse "p:N:W[:s]" — returns Z3 bitvector variable
 static Z3_ast parse_prop(IRParser&, Z3Builder& b, const string& tok)
 {
       const char* s = tok.c_str() + 2; // skip "p:"
       unsigned idx = (unsigned)atoi(s);
       while (*s && *s != ':') ++s;
       unsigned width = 32;
-      if (*s == ':') width = (unsigned)atoi(s + 1);
-      return b.get_prop_var(idx, width);
+      if (*s == ':') { width = (unsigned)atoi(s + 1); ++s; }
+      while (*s && *s != ':') ++s;
+      bool sflag = (*s == ':' && s[1] == 's');
+      Z3_ast var = b.get_prop_var(idx, width);
+      if (sflag) b.signed_vars.insert(var);
+      return var;
 }
 
 // Get width from a Z3 bitvector AST
@@ -235,7 +247,7 @@ static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
 	    return b.get_size_var(idx, dtype);
       }
       if (tok.substr(0,2) == "e:") {
-	      // e:N:W:I — element I of array property N, width W.
+	      // e:N:W:I[:s] — element I of array property N, width W.
 	    const char*s = tok.c_str() + 2;
 	    unsigned idx = (unsigned)atoi(s);
 	    while (*s && *s != ':') ++s;
@@ -243,8 +255,12 @@ static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
 	    if (*s == ':') { width = (unsigned)atoi(s + 1); ++s; }
 	    while (*s && *s != ':') ++s;
 	    unsigned elem = 0;
-	    if (*s == ':') elem = (unsigned)atoi(s + 1);
-	    return b.get_elem_var(idx, width, elem);
+	    if (*s == ':') { elem = (unsigned)atoi(s + 1); ++s; }
+	    while (*s && *s != ':') ++s;
+	    bool sflag = (*s == ':' && s[1] == 's');
+	    Z3_ast var = b.get_elem_var(idx, width, elem);
+	    if (sflag) b.signed_vars.insert(var);
+	    return var;
       }
       return b.mk_true();
 }
@@ -325,24 +341,34 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    Z3_ast right = build_z3_atom(par, b);
 	    par.skip_ws(); par.expect(')');
 
+	      // A signed variable on either side selects signed compare
+	      // semantics (IEEE 1800-2017 11.8.1; bare integer literals
+	      // are themselves signed).
+	    bool use_signed = b.is_signed(left) || b.is_signed(right);
+
 	    // Make sure both sides have the same BV width
 	    unsigned lw = bv_width(b.ctx, left);
 	    unsigned rw = bv_width(b.ctx, right);
 	    if (lw != rw) {
-		  // Resize the constant (right) to match left
-		  // This handles cases like c:8 with a p:N:32 var
 		  if (rw < lw) {
-			// zero-extend right
-			right = Z3_mk_zero_ext(b.ctx, lw - rw, right);
+			right = use_signed
+			      ? Z3_mk_sign_ext(b.ctx, lw - rw, right)
+			      : Z3_mk_zero_ext(b.ctx, lw - rw, right);
 		  } else {
-			left = Z3_mk_zero_ext(b.ctx, rw - lw, left);
+			left = use_signed
+			      ? Z3_mk_sign_ext(b.ctx, rw - lw, left)
+			      : Z3_mk_zero_ext(b.ctx, rw - lw, left);
 		  }
 	    }
 
-	    if (op == "lt") return Z3_mk_bvult(b.ctx, left, right);
-	    if (op == "le") return Z3_mk_bvule(b.ctx, left, right);
-	    if (op == "gt") return Z3_mk_bvugt(b.ctx, left, right);
-	    if (op == "ge") return Z3_mk_bvuge(b.ctx, left, right);
+	    if (op == "lt") return use_signed ? Z3_mk_bvslt(b.ctx, left, right)
+					      : Z3_mk_bvult(b.ctx, left, right);
+	    if (op == "le") return use_signed ? Z3_mk_bvsle(b.ctx, left, right)
+					      : Z3_mk_bvule(b.ctx, left, right);
+	    if (op == "gt") return use_signed ? Z3_mk_bvsgt(b.ctx, left, right)
+					      : Z3_mk_bvugt(b.ctx, left, right);
+	    if (op == "ge") return use_signed ? Z3_mk_bvsge(b.ctx, left, right)
+					      : Z3_mk_bvuge(b.ctx, left, right);
 	    if (op == "eq") return Z3_mk_eq(b.ctx, left, right);
 	    // ne
 	    return Z3_mk_not(b.ctx, Z3_mk_eq(b.ctx, left, right));
@@ -353,13 +379,26 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    // atoms: c:V literals or parenthesized expressions.
 	    Z3_ast subject = build_z3_atom(par, b);
 	    unsigned sw = bv_width(b.ctx, subject);
+	      // A signed subject selects signed range semantics
+	      // (IEEE 1800-2017 11.4.13, 11.8.1).
+	    bool subj_signed = b.is_signed(subject);
 
 	    // Match an atom's width to the subject for the comparisons.
 	    auto match_width = [&](Z3_ast a) -> Z3_ast {
 		  unsigned aw = bv_width(b.ctx, a);
-		  if (aw < sw) return Z3_mk_zero_ext(b.ctx, sw - aw, a);
+		  if (aw < sw) return subj_signed
+			? Z3_mk_sign_ext(b.ctx, sw - aw, a)
+			: Z3_mk_zero_ext(b.ctx, sw - aw, a);
 		  if (aw > sw) return Z3_mk_extract(b.ctx, sw - 1, 0, a);
 		  return a;
+	    };
+	    auto range_ge = [&](Z3_ast x, Z3_ast lo) -> Z3_ast {
+		  return subj_signed ? Z3_mk_bvsge(b.ctx, x, lo)
+				     : Z3_mk_bvuge(b.ctx, x, lo);
+	    };
+	    auto range_le = [&](Z3_ast x, Z3_ast hi) -> Z3_ast {
+		  return subj_signed ? Z3_mk_bvsle(b.ctx, x, hi)
+				     : Z3_mk_bvule(b.ctx, x, hi);
 	    };
 
 	    vector<Z3_ast> clauses;
@@ -372,8 +411,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 			Z3_ast hi = match_width(build_z3_atom(par, b));
 			par.expect(']');
 			// subject >= lo && subject <= hi
-			Z3_ast c1 = Z3_mk_bvuge(b.ctx, subject, lo);
-			Z3_ast c2 = Z3_mk_bvule(b.ctx, subject, hi);
+			Z3_ast c1 = range_ge(subject, lo);
+			Z3_ast c2 = range_le(subject, hi);
 			Z3_ast both[2] = {c1, c2};
 			clauses.push_back(Z3_mk_and(b.ctx, 2, both));
 		  } else if (par.peek() == '(') {

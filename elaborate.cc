@@ -10338,8 +10338,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			ivl_type_t etype = ua->element_type();
 			unsigned ewid = etype ? etype->packed_width() : 32;
 			if (ewid == 0) ewid = 32;
+			string esfx = (etype && etype->get_signed()) ? ":s" : "";
 			return "e:" + to_string(idx) + ":" + to_string(ewid)
-			      + ":" + to_string(elem);
+			      + ":" + to_string(elem) + esfx;
 		  }
 
 		  unsigned wid = 0;
@@ -10351,7 +10352,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      wid = nenum->packed_width();
 		  }
 		  if (wid == 0) wid = 32;
-		  return "p:" + to_string(idx) + ":" + to_string(wid);
+		    // Signed properties are marked so the solver uses
+		    // signed comparison semantics (IEEE 1800-2017 11.8.1).
+		  string sfx = (ptype && ptype->get_signed()) ? ":s" : "";
+		  return "p:" + to_string(idx) + ":" + to_string(wid) + sfx;
 	    }
 	      // Enumeration literal (IEEE 1800-2017 18.5.3: sets may name
 	      // enum values): resolve to its constant through the scope
@@ -10581,6 +10585,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    string sub = pexpr_to_constraint_ir(un->get_expr(), cls, value_slots, scope, loop_env);
 	    if (sub.empty()) return "";
 	    if (un->get_op() == '!') return "(not " + sub + ")";
+	    if (un->get_op() == '-') {
+		    // Negation: literals fold to their 64-bit two's
+		    // complement (the solver reduces numerals mod 2^W at
+		    // the use width); other operands become (sub 0 x).
+		  if (sub.compare(0, 2, "c:") == 0) {
+			uint64_t v = strtoull(sub.c_str() + 2, nullptr, 10);
+			return "c:" + to_string((uint64_t)(0 - v));
+		  }
+		  return "(sub c:0 " + sub + ")";
+	    }
+	    if (un->get_op() == '+') return sub;
 	    return "";
       }
 

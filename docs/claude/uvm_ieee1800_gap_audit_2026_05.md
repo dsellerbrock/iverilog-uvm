@@ -96,6 +96,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: standard idioms in scoreboard reductions, RAL frontdoor.
 
 ### G11 `solve…before` partially works, but `a -> b == K` implication is dropped
+- **UPDATE 2026-07-12**: signed comparisons and negative constraint bounds now supported (checkpoint 6): unary minus folds to two's complement; signed properties marked `p:N:W:s`; bvslt-family predicates and sign extension applied per IEEE 1800-2017 11.8.1. Test `tests/m3_constraint_signed_test.sv`.
 - **STATUS 2026-07-11: FIXED (implication part)**. `->` implications now emitted as `(impl ...)` IR and enforced by Z3 (M3 checkpoint). `solve...before` ordering is still parsed-and-ignored (distribution handled by the xor-diversity objective; staged ordering semantics deferred). Test `tests/m3_constraint_semantics_test.sv` (SolveC).
 - Symptom: histogram split is correct (a=0 and a=1 both occur ~25 times in 50), but the implications `a -> b == 100` and `a == 0 -> b == 0` are NOT applied. Most iterations show b at random non-100 values.
 - Probe: p17_solve_before (VERIFIED-FAILS).
