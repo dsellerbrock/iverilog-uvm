@@ -50,18 +50,21 @@ extern void schedule_final_vthread(vthread_t thr);
 extern void schedule_assign_vector(vvp_net_ptr_t ptr,
 				   unsigned base, unsigned vwid,
 				   const vvp_vector4_t&val,
-				   vvp_time64_t  delay);
+				   vvp_time64_t  delay,
+				   bool reactive =false);
 
 extern void schedule_assign_array_word(vvp_array_t mem,
 				       unsigned word_address,
 				       unsigned off,
 				       const vvp_vector4_t&val,
-				       vvp_time64_t delay);
+				       vvp_time64_t delay,
+				       bool reactive =false);
 
 extern void schedule_assign_array_word(vvp_array_t mem,
 				       unsigned word_address,
 				       double val,
-				       vvp_time64_t delay);
+				       vvp_time64_t delay,
+				       bool reactive =false);
 
 /*
  * Create an event to force the output of a net.

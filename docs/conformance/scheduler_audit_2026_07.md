@@ -40,7 +40,7 @@ Slot sequencing (main loop, `schedule_simulate`): on time advance →
 | NBA | `nbassign` | present |
 | Post-NBA | — | absent |
 | Observed | — | **ABSENT** (no SVA evaluation region) |
-| Reactive / Re-Inactive / Re-NBA | — | **ABSENT** — program-block code runs in Active (elaborate.cc already warns: "Program blocking assignments are not currently scheduled in the Reactive region") |
+| Reactive / Re-Inactive / Re-NBA | `reactive` / `re_inactive` / `re_nbassign` | **PRESENT** (2026-07-12, remediation item 2): program-block processes carry a per-thread reactive flag (scope-chain `vpiProgram` + inheritance to spawned children); event wake chains are partitioned by region; program #0 → Re-Inactive; program NBAs → Re-NBA. Promotion order: active ← inactive ← nbassign ← reactive ← re-inactive ← re-nba ← rwsync. Test: `tests/m6_reactive_region_test.sv` |
 | Pre-Postponed (cbReadWriteSynch) | `rwsync` | present; correctly re-promotes into active so writes re-trigger evaluation |
 | Postponed (cbReadOnlySynch) | `rosync` | present with rosync write guard |
 
@@ -119,10 +119,19 @@ restructuring.
 
 1. Introduce region tagging on events (enum already exists:
    `event_queue_e`) + optional trace hook (time, delta, region, event).
-2. Add Reactive/Re-Inactive/Re-NBA queues and route program-block
-   processes there (unblocks 1800-2017 24.x program semantics and the
-   existing elaborate.cc warning).
+2. **DONE 2026-07-12**: Reactive/Re-Inactive/Re-NBA queues added and
+   program-block processes routed there (per-thread reactive flag from
+   the vpiProgram scope chain, inherited by spawned children; wake
+   chains partitioned by region in vthread_schedule_list; program #0
+   and NBAs land in Re-Inactive/Re-NBA).  The two elaborate.cc
+   compile-progress warnings are retired.  Known approximation: the
+   wholesale queue-promotion model (as with inactive/nbassign) means
+   Active-region events created DURING reactive execution drain in the
+   same promoted queue rather than strictly before the remaining
+   reactive events; exact region-priority popping is item 1's tagging
+   work.  Test: `tests/m6_reactive_region_test.sv`.
 3. Add slot-persistent `event.triggered` state (fixes G08) — 15.5.3.
+   **DONE 2026-07-12** (see gap audit G08).
 4. Add Preponed sampling + Observed evaluation stubs as the SVA/clocking
    foundation (M8/M9 prerequisite).
 5. Replace callf synchronous-drain assumptions with an explicit

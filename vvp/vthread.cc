@@ -489,6 +489,10 @@ struct vthread_s {
       unsigned pending_nonlocal_jmp :1;
       unsigned is_callf_child    :1;
       unsigned is_fork_v_child   :1;
+	/* Program-block process (IEEE 1800-2017 clause 24): scheduled
+	   in the Reactive region set.  Set at creation from the scope
+	   chain and inherited by spawned children. */
+      unsigned is_reactive_process :1;
       unsigned owns_automatic_context :1;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
@@ -2816,6 +2820,13 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->pending_nonlocal_jmp = 0;
       thr->is_callf_child = 0;
       thr->is_fork_v_child = 0;
+      thr->is_reactive_process = 0;
+      for (__vpiScope*sc = scope ; sc ; sc = sc->scope) {
+	    if (sc->get_type_code() == vpiProgram) {
+		  thr->is_reactive_process = 1;
+		  break;
+	    }
+      }
       thr->owns_automatic_context = 0;
       thr->owned_context = 0;
       thr->transferred_context = 0;
@@ -2901,6 +2912,7 @@ static void vthread_reap(vthread_t thr)
 		  assert(child->parent == thr);
 		  if (thr->parent) {
 			child->parent = thr->parent;
+			child->is_reactive_process |= thr->is_reactive_process;
 			thr->parent->children.insert(child);
 		  } else {
 			child->parent = 0;
@@ -2921,6 +2933,7 @@ static void vthread_reap(vthread_t thr)
 		  assert(child->i_am_detached);
 		  if (thr->parent) {
 			child->parent = thr->parent;
+			child->is_reactive_process |= thr->is_reactive_process;
 			thr->parent->detached_children.insert(child);
 		  } else {
 			child->parent = 0;
@@ -3132,6 +3145,16 @@ void vthread_mark_scheduled(vthread_t thr)
 	    thr->is_scheduled = 1;
 	    thr = thr->wait_next;
       }
+}
+
+int vthread_is_reactive(vthread_t thr)
+{
+      return (thr && thr->is_reactive_process) ? 1 : 0;
+}
+
+static inline bool schedule_assign_is_reactive_(vthread_t thr)
+{
+      return thr && thr->is_reactive_process;
 }
 
 void vthread_mark_final(vthread_t thr)
@@ -3384,7 +3407,32 @@ void vthread_schedule_list(vthread_t thr)
 	    cur->waiting_for_event = 0;
       }
 
-      schedule_vthread(thr, 0);
+	/* A single event functor can wake both design processes and
+	   program-block processes.  Those belong in different regions
+	   (IEEE 1800-2017 4.4.2: Active vs. Reactive), so partition
+	   the wake chain by region, preserving relative order within
+	   each partition, and schedule the partitions separately. */
+      vthread_t design_head = 0, design_tail = 0;
+      vthread_t reactive_head = 0, reactive_tail = 0;
+      for (vthread_t cur = thr ;  cur ; ) {
+	    vthread_t next = cur->wait_next;
+	    cur->wait_next = 0;
+	    if (cur->is_reactive_process) {
+		  if (reactive_tail) reactive_tail->wait_next = cur;
+		  else reactive_head = cur;
+		  reactive_tail = cur;
+	    } else {
+		  if (design_tail) design_tail->wait_next = cur;
+		  else design_head = cur;
+		  design_tail = cur;
+	    }
+	    cur = next;
+      }
+
+      if (design_head)
+	    schedule_vthread(design_head, 0);
+      if (reactive_head)
+	    schedule_vthread(reactive_head, 0);
 }
 
 static __vpiScope* resolve_context_scope(__vpiScope*scope);
@@ -4215,7 +4263,8 @@ bool of_ASSIGN_AR(vthread_t thr, vvp_code_t cp)
       if (adr >= 0) {
 	    vvp_array_t array = resolve_runtime_array_(cp, "%assign/ar");
 	    if (array)
-		  schedule_assign_array_word(array, adr, value, delay);
+		  schedule_assign_array_word(array, adr, value, delay,
+					     thr->is_reactive_process);
       }
 
       return true;
@@ -4235,7 +4284,8 @@ bool of_ASSIGN_ARD(vthread_t thr, vvp_code_t cp)
 	    vvp_time64_t delay = thr->words[cp->bit_idx[0]].w_uint;
 	    vvp_array_t array = resolve_runtime_array_(cp, "%assign/ar/d");
 	    if (array)
-		  schedule_assign_array_word(array, adr, value, delay);
+		  schedule_assign_array_word(array, adr, value, delay,
+					     thr->is_reactive_process);
       }
 
       return true;
@@ -4258,7 +4308,8 @@ bool of_ASSIGN_ARE(vthread_t thr, vvp_code_t cp)
 	    if (!array)
 		  return true;
 	    if (thr->ecount == 0) {
-		  schedule_assign_array_word(array, adr, value, 0);
+		  schedule_assign_array_word(array, adr, value, 0,
+					     thr->is_reactive_process);
 	    } else {
 		  schedule_evctl(array, adr, value, thr->event,
 		                 thr->ecount);
@@ -4277,7 +4328,8 @@ bool of_ASSIGN_VEC4(vthread_t thr, vvp_code_t cp)
       unsigned delay = cp->bit_idx[0];
       const vvp_vector4_t&val = thr->peek_vec4();
 
-      schedule_assign_vector(ptr, 0, 0, val, delay);
+      schedule_assign_vector(ptr, 0, 0, val, delay,
+			     thr->is_reactive_process);
       thr->pop_vec4(1);
       return true;
 }
@@ -4353,7 +4405,8 @@ bool of_ASSIGN_VEC4_A_D(vthread_t thr, vvp_code_t cp)
       if (!resize_rval_vec(val, off, array->get_word_size()))
 	    return true;
 
-      schedule_assign_array_word(array, adr, off, val, del);
+      schedule_assign_array_word(array, adr, off, val, del,
+				 schedule_assign_is_reactive_(thr));
 
       return true;
 }
@@ -4384,7 +4437,8 @@ bool of_ASSIGN_VEC4_A_E(vthread_t thr, vvp_code_t cp)
 	    return true;
 
       if (thr->ecount == 0) {
-	    schedule_assign_array_word(array, adr, off, val, 0);
+	    schedule_assign_array_word(array, adr, off, val, 0,
+				       schedule_assign_is_reactive_(thr));
       } else {
 	    schedule_evctl(array, adr, val, off, thr->event, thr->ecount);
       }
@@ -4416,7 +4470,8 @@ bool of_ASSIGN_VEC4_OFF_D(vthread_t thr, vvp_code_t cp)
       if (!resize_rval_vec(val, off, sig->value_size()))
 	    return true;
 
-      schedule_assign_vector(ptr, off, sig->value_size(), val, del);
+      schedule_assign_vector(ptr, off, sig->value_size(), val, del,
+			     schedule_assign_is_reactive_(thr));
       return true;
 }
 
@@ -4443,7 +4498,8 @@ bool of_ASSIGN_VEC4_OFF_E(vthread_t thr, vvp_code_t cp)
 	    return true;
 
       if (thr->ecount == 0) {
-	    schedule_assign_vector(ptr, off, sig->value_size(), val, 0);
+	    schedule_assign_vector(ptr, off, sig->value_size(), val, 0,
+				   schedule_assign_is_reactive_(thr));
       } else {
 	    schedule_evctl(ptr, val, off, sig->value_size(), thr->event, thr->ecount);
       }
@@ -4465,7 +4521,8 @@ bool of_ASSIGN_VEC4D(vthread_t thr, vvp_code_t cp)
       vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (cp->net->fil);
       assert(sig);
 
-      schedule_assign_vector(ptr, 0, sig->value_size(), value, del);
+      schedule_assign_vector(ptr, 0, sig->value_size(), value, del,
+			     schedule_assign_is_reactive_(thr));
 
       return true;
 }
@@ -4482,7 +4539,8 @@ bool of_ASSIGN_VEC4E(vthread_t thr, vvp_code_t cp)
       assert(sig);
 
       if (thr->ecount == 0) {
-	    schedule_assign_vector(ptr, 0, sig->value_size(), value, 0);
+	    schedule_assign_vector(ptr, 0, sig->value_size(), value, 0,
+				   schedule_assign_is_reactive_(thr));
       } else {
 	    schedule_evctl(ptr, value, 0, sig->value_size(), thr->event, thr->ecount);
       }
@@ -5697,6 +5755,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 
         // Mark the function thread as a direct child of the current thread.
       child->parent = thr;
+      child->is_reactive_process |= thr->is_reactive_process;
       thr->children.insert(child);
         // This should be the only child
       assert(thr->children.size()==1);
@@ -8450,6 +8509,7 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
       child->parent = thr;
+      child->is_reactive_process |= thr->is_reactive_process;
 	/* Task calls compiled as %fork...%join should share the parent's
 	   logical process for process::self(), matching SV semantics where
 	   a task call runs in the calling thread's process. Mark them
@@ -8502,6 +8562,7 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
       child->parent = thr;
+      child->is_reactive_process |= thr->is_reactive_process;
       child->is_fork_v_child = 1;
       thr->children.insert(child);
 
@@ -15008,6 +15069,7 @@ static bool do_exec_ufunc(vthread_t thr, vvp_code_t cp, vthread_t child)
       child->delay_delete = 1;
 
       child->parent = thr;
+      child->is_reactive_process |= thr->is_reactive_process;
       thr->children.insert(child);
 	// This should be the only child
       assert(thr->children.size()==1);

@@ -2544,7 +2544,12 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       suffix[0] = 0;
 
       switch (ivl_scope_type(net)) {
-      case IVL_SCT_MODULE:   type = "module";   break;
+      case IVL_SCT_MODULE:
+	    /* Program blocks elaborate as module scopes with the
+	       program flag; the runtime schedules their processes in
+	       the Reactive region set (IEEE 1800-2017 4.4.2.5, 24.3). */
+	    type = ivl_scope_program(net) ? "program" : "module";
+	    break;
       case IVL_SCT_FUNCTION: type = "function"; break;
       case IVL_SCT_TASK:     type = "task";     break;
       case IVL_SCT_BEGIN:    type = "begin";    break;

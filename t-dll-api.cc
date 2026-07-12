@@ -2249,6 +2249,12 @@ extern "C" unsigned ivl_scope_is_auto(ivl_scope_t net)
       return net->is_auto;
 }
 
+extern "C" unsigned ivl_scope_program(ivl_scope_t net)
+{
+      assert(net);
+      return net->is_program;
+}
+
 extern "C" int ivl_scope_is_dpi_import(ivl_scope_t net)
 {
       assert(net);

@@ -3,6 +3,32 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-12d (session: M6 item 2 — Reactive region)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy`, restarted from
+  merged main (PR #68 merged with G67 + G12 static/dynamic streaming —
+  do not reopen; this checkpoint gets a NEW draft PR).
+- **This checkpoint**: M6 scheduler remediation item 2 — program-block
+  processes now schedule in the Reactive region set (IEEE 1800-2017
+  4.4.2.5/.6/.7, clause 24): new vvp slot queues reactive/re-inactive/
+  re-nbassign with LRM promotion order; per-thread reactive flag from
+  the new `.scope program` type (plumbed via new ivl_scope_program API),
+  inherited by spawned children; program #0 → Re-Inactive; program NBAs
+  → Re-NBA; event wake chains PARTITIONED by region (a shared functor
+  previously dragged all waiters into one region).  Both elaborate.cc
+  program-scheduling compile-progress warnings retired.  Programs now
+  sample post-NBA design state race-free.
+  Details: `session_logs/2026-07-12_m6_reactive_region.md`.
+- **Tests**: `tests/m6_reactive_region_test.sv` (4 region orderings).
+- **Regressions**: UVM 118/118 (+1 new test); ivtest 2961/3101 with the
+  same 132 pre-existing fails (baseline-identical).
+- **Known approximation** (recorded in scheduler audit): wholesale
+  queue promotion (pre-existing model) — exact region-priority popping
+  is item 1's region-tagging work.
+- **Next options**: M6 items 1 (region tagging + trace) / 4
+  (Preponed/Observed stubs) / 5 (scheduled-call protocol); G12 tail
+  (struct operand flattening, with[range]); M3 tail; G66; G09/G10.
+
 ## State as of 2026-07-12c (session: G12 tail — dynamic-size streaming)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #68 open,

@@ -3394,22 +3394,6 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
       return cur;
 }
 
-/*
- * Assignments within program blocks are supposed to be run
- * in the Reactive region, but that is currently not supported
- * so find out if we are assigning to something outside a
- * program block and print a warning for that.
- */
-static bool lval_not_program_variable(const NetAssign_*lv)
-{
-      while (lv) {
-	    const NetScope*sig_scope = lv->scope();
-	    if (! sig_scope->program_block()) return true;
-	    lv = lv->more;
-      }
-      return false;
-}
-
 /* Phase 63b/B7 (gap close): when assigning a tagged-union constructor
  * `u = '{TAG: val}` (or equivalently `u = tagged TAG val`), build a
  * NetAssign that updates the companion tag NetNet to the member index.
@@ -3593,12 +3577,7 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
 
-      if (scope->program_block() && lval_not_program_variable(lv)) {
-	    cerr << get_fileline() << ": warning: Program blocking "
-	            "assignments are not currently scheduled in the "
-	            "Reactive region."
-	         << endl;
-      }
+
 
 	/* If there is an internal delay expression, elaborate it. */
       NetExpr*delay = 0;
@@ -3923,12 +3902,6 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
 
-      if (scope->program_block() && lval_not_program_variable(lv)) {
-	    cerr << get_fileline() << ": warning: Program non-blocking "
-	            "assignments are not currently scheduled in the "
-	            "Reactive-NBA region."
-	         << endl;
-      }
 
       NetExpr*rv = elaborate_rval_(des, scope, lv->net_type(), lv->expr_type(), count_lval_width(lv));
       if (rv == 0) return 0;
