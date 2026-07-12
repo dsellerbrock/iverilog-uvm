@@ -3485,6 +3485,12 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 		  return CP_EXPR_METHOD_STUB_INT0;
 
 	    perm_string class_name = class_type->get_name();
+	      // The built-in process class has a REAL status()
+	      // implementation ($ivl_process$status, IEEE 1800-2017
+	      // 9.7) — never stub it to a constant.
+	    if (class_name == perm_string::literal("process")
+		&& method_name == perm_string::literal("status"))
+		  return CP_EXPR_METHOD_STUB_NONE;
 	    if (class_name == perm_string::literal("mailbox")) {
 		  if (method_name == perm_string::literal("num"))
 			return CP_EXPR_METHOD_STUB_INT0;
@@ -5829,6 +5835,25 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		  const netclass_t*cur_class = dynamic_cast<const netclass_t*>(cur_type);
 		  const netstruct_t*cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
 		  
+		    // IEEE 1800-2017 9.7: process.status in paren-less
+		    // form queries the live process state (used inside
+		    // array-method with predicates, e.g. the UVM
+		    // sequencer zombie check).  It must not read the
+		    // placeholder property slot, which nothing writes.
+		  if (cur_class && gn_system_verilog()
+		      && tail_comp.index.empty()
+		      && tail_comp.name == perm_string::literal("status")
+		      && cur_class->get_name() == perm_string::literal("process")
+		      && cur_class->method_from_name(tail_comp.name) == 0) {
+			NetESFunc*sfunc = new NetESFunc("$ivl_process$status",
+							&netvector_t::atom2s32, 1);
+			sfunc->set_line(*this);
+			sfunc->parm(0, base_expr);
+			base_expr = sfunc;
+			cur_type = &netvector_t::atom2s32;
+			continue;
+		  }
+
 		  if (cur_struct && gn_system_verilog()) {
 			    // Handle struct member access after array indexing
 			if (!tail_comp.index.empty()) {
@@ -7609,10 +7634,13 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				delete sub_expr;
 				return 0;
 			  }
-			  int pidx = class_type->property_idx_from_name(method_name);
-			  ivl_assert(*this, pidx >= 0);
-			  NetEProperty*tmp = new NetEProperty(sub_expr, pidx, 0);
+			    // IEEE 1800-2017 9.7: status() queries the
+			    // live process state; it is not a stored
+			    // property.
+			  NetESFunc*tmp = new NetESFunc("$ivl_process$status",
+							&netvector_t::atom2s32, 1);
 			  tmp->set_line(*this);
+			  tmp->parm(0, sub_expr);
 			  return tmp;
 		    }
 		    if (method_name == perm_string::literal("get_randstate")
@@ -10424,6 +10452,26 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	    if (rewrite_interface_clocking_member_path_via_scope_(this, sr, rewritten)) {
 		  PEIdent mapped(rewritten, lexical_pos_);
 		  return mapped.elaborate_expr(des, scope, expr_wid, flags);
+	    }
+      }
+
+	// Built-in process state enum constants (IEEE 1800-2017 9.7)
+	// that arrive as an unresolved two-component reference
+	// (process::KILLED parses the same as process.KILLED here).
+      if (gn_system_verilog() && path_.size() == 2
+	  && path_.name.front().index.empty()
+	  && path_.name.back().index.empty()
+	  && peek_head_name(path_) == perm_string::literal("process")) {
+	    perm_string state_name = path_.name.back().name;
+	    if (state_name == perm_string::literal("FINISHED")
+		|| state_name == perm_string::literal("RUNNING")
+		|| state_name == perm_string::literal("WAITING")
+		|| state_name == perm_string::literal("SUSPENDED")
+		|| state_name == perm_string::literal("KILLED")) {
+		  NetEConst*tmp = make_const_val(
+			builtin_process_state_value_(state_name));
+		  tmp->set_line(*this);
+		  return tmp;
 	    }
       }
 

@@ -1496,6 +1496,14 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    draw_array_reduce_vec4(expr);
 	    return;
       }
+      if (strcmp(ivl_expr_name(expr),"$ivl_process$status")==0) {
+	      /* IEEE 1800-2017 9.7: query the live process state. */
+	    ivl_expr_t parg = ivl_expr_parm(expr, 0);
+	    assert(parg);
+	    draw_eval_object(parg);
+	    fprintf(vvp_out, "    %%process/status;\n");
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),"$ivl_event_method$triggered")==0) {
 	      /* IEEE 1800-2017 15.5.3: read the named event's
 	         triggered-this-time-step state. */

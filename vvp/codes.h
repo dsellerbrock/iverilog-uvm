@@ -332,6 +332,7 @@ extern bool of_PROP_V_I(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_KILL(vthread_t thr, vvp_code_t code);
 extern bool of_PROCESS_SELF(vthread_t thr, vvp_code_t code);
+extern bool of_PROCESS_STATUS(vthread_t thr, vvp_code_t code);
 /* Mailbox opcodes */
 extern bool of_MBX_NEW(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_PUT(vthread_t thr, vvp_code_t code);

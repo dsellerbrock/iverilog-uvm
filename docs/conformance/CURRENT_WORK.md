@@ -3,6 +3,31 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-13b (session: G68 process.status + G69 inside precedence)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,
+  draft).
+- **Regression alert resolved**: checkpoint c6e8206 (property
+  receivers) turned seq_trace_test / vif_smoke / vif_smoke_v2 red
+  (SEQLCKZMB@0 + PH_TIMEOUT@9200) by making the UVM sequencer zombie
+  predicate execute for the first time, exposing TWO pre-existing
+  latent defects, both now fixed:
+  - **G68**: `process::status()` read a dead stored property (always
+    0 = FINISHED per 9.7) — now a live query via new vvp opcode
+    `%process/status` (call form + paren-less property-chain form +
+    stub-classifier exemption + module-scope process:: enum
+    constants).
+  - **G69**: `inside` sat at ternary precedence; Table 11-2 puts it
+    at the relational level — `a && b inside {c,d}` mis-parsed as
+    `(a && b) inside {c,d}`, so `(0) inside {KILLED, FINISHED=0}`
+    matched every non-lock arbitration entry.  K_inside moved to the
+    relational %left group (conflicts unchanged 459/1060).
+  Details: `session_logs/2026-07-13_g68_g69_process_status_inside_precedence.md`.
+- **Tests**: `tests/g68_process_status_test.sv`,
+  `tests/g69_inside_precedence_test.sv`.
+- **Known approximation**: delay-suspended processes read RUNNING;
+  SUSPENDED never reported (no suspend()/resume()).
+
 ## State as of 2026-07-13 (session: G10 tail — class-property receivers)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,

@@ -1376,14 +1376,17 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %nonassoc K_PLUS_EQ K_MINUS_EQ K_MUL_EQ K_DIV_EQ K_MOD_EQ K_AND_EQ K_OR_EQ
 %nonassoc K_XOR_EQ K_LS_EQ K_RS_EQ K_RSS_EQ K_NB_TRIGGER
 %right K_TRIGGER K_LEQUIV
-%right '?' ':' K_inside
+%right '?' ':'
 %left K_LOR
 %left K_LAND
 %left '|'
 %left '^' K_NXOR K_NOR
 %left '&' K_NAND
 %left K_EQ K_NE K_CEQ K_CNE K_WEQ K_WNE
-%left K_GE K_LE '<' '>'
+  /* IEEE 1800-2017 Table 11-2: inside sits at the relational level,
+     binding tighter than equality/&&/|| (a && b inside {c,d} parses
+     as a && (b inside {c,d})). */
+%left K_GE K_LE '<' '>' K_inside
 %left K_LS K_RS K_RSS
 %left '+' '-'
 %left '*' '/' '%'

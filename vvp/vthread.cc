@@ -11496,12 +11496,44 @@ static void process_status_to_vec4_(unsigned status, vvp_vector4_t&val)
 bool of_PROCESS_SELF(vthread_t thr, vvp_code_t)
 {
       vthread_t owner = logical_process_thread_(thr);
+      if (getenv("IVL_PROC_TRACE"))
+	    fprintf(stderr, "[proc] self: thr=%p callf=%d forkv=%d -> owner=%p obj=%p\n",
+		    (void*)thr, thr->is_callf_child ? 1 : 0,
+		    thr->is_fork_v_child ? 1 : 0, (void*)owner,
+		    owner ? (void*)owner->process_obj_.peek<vvp_process>() : 0);
       if (!owner) {
 	    thr->push_object(vvp_object_t());
 	    return true;
       }
 
       thr->push_object(owner->process_obj_);
+      return true;
+}
+
+/*
+ * %process/status
+ *   Pop a process object and push its live state as a 32-bit vec4
+ *   per IEEE 1800-2017 9.7 (FINISHED=0, RUNNING=1, WAITING=2,
+ *   SUSPENDED=3, KILLED=4).  A nil handle pushes x.
+ */
+bool of_PROCESS_STATUS(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      vvp_process*proc = obj.peek<vvp_process>();
+      if (getenv("IVL_PROC_TRACE"))
+	    fprintf(stderr, "[proc] status: proc=%p owner=%p st=%u\n",
+		    (void*)proc, proc ? (void*)proc->owner() : 0,
+		    proc ? proc->status() : 99);
+      if (!proc) {
+	    thr->push_vec4(vvp_vector4_t(32, BIT4_X));
+	    return true;
+      }
+
+      vvp_vector4_t val;
+      process_status_to_vec4_(proc->status(), val);
+      thr->push_vec4(val);
       return true;
 }
 

@@ -142,6 +142,42 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Complexity: medium (each is its own bytecode template; pattern is established in B1).
 - Blocks: standard idioms in scoreboard reductions, RAL frontdoor.
 
+### G68 `process::status()` read a dead property slot — always 0 (=FINISHED)
+- **STATUS 2026-07-13: FIXED.**  The built-in process class declared
+  `status` as a stored property nothing ever wrote, so it read 0 —
+  which is FINISHED in the 9.7 state enum.  Now lowered to a live
+  runtime query: new vvp opcode `%process/status` maps the owning
+  thread's state through `vvp_process::status()` (nil handle pushes
+  x); elaboration routes both the call form (`p.status()`) and the
+  paren-less property-chain form (`item.process_id.status`, the UVM
+  sequencer zombie predicate) to `$ivl_process$status`, and the
+  compile-progress method-stub classifier exempts process.status
+  (it previously constant-folded it to 0).  `process::FINISHED/
+  RUNNING/WAITING/SUSPENDED/KILLED` also now bind in module scope
+  (previously unresolved-reference warnings + dropped expr).
+  Exposed by the G10 property-receiver work: the UVM zombie check
+  `find ... with (request==LOCK && process_id.status inside
+  {KILLED,FINISHED})` previously never ran (receiver fallback), then
+  mis-evaluated (see G69) and killed every arbitration entry at t0
+  (seq_trace_test/vif_smoke/vif_smoke_v2 PH_TIMEOUT@9200).
+  Test `tests/g68_process_status_test.sv`.
+- Known approximation: a delay-suspended process reads RUNNING (the
+  thread wait flags don't distinguish delays); suspend()/resume()
+  are not implemented so SUSPENDED is never reported.
+
+### G69 `inside` operator precedence was at ternary level (Table 11-2 violation)
+- **STATUS 2026-07-13: FIXED.**  parse.y placed K_inside in the
+  `%right '?' ':'` precedence group, so `a && b inside {c,d}` parsed
+  as `(a && b) inside {c,d}`.  IEEE 1800-2017 Table 11-2 puts inside
+  at the RELATIONAL level (with < <= > >=), tighter than equality,
+  &&, || and ?:.  Moved K_inside to the relational `%left` group
+  (grammar conflict counts unchanged: 459 s/r / 1060 r/r).  This
+  latent mis-parse made the UVM sequencer zombie predicate
+  `(request==LOCK && status)` compare against FINISHED=0 — true for
+  every non-lock entry — as soon as the G10 property-receiver work
+  made the predicate actually execute.
+  Test `tests/g69_inside_precedence_test.sv`.
+
 ### G11 `solve…before` partially works, but `a -> b == K` implication is dropped
 - **UPDATE 2026-07-12**: signed comparisons and negative constraint bounds now supported (checkpoint 6): unary minus folds to two's complement; signed properties marked `p:N:W:s`; bvslt-family predicates and sign extension applied per IEEE 1800-2017 11.8.1. Test `tests/m3_constraint_signed_test.sv`.
 - **STATUS 2026-07-11: FIXED (implication part)**. `->` implications now emitted as `(impl ...)` IR and enforced by Z3 (M3 checkpoint). `solve...before` ordering is still parsed-and-ignored (distribution handled by the xor-diversity objective; staged ordering semantics deferred). Test `tests/m3_constraint_semantics_test.sv` (SolveC).
