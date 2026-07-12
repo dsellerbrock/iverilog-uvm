@@ -10268,11 +10268,14 @@ bool Module::elaborate(Design*des, NetScope*scope) const
  *               Caller must elaborate and push these at the call site.
  * scope:        if non-null, non-property identifiers are first resolved
  *               as enumeration literals through this scope chain and
- *               emitted as constants (IEEE 1800-2017 18.5.3). */
+ *               emitted as constants (IEEE 1800-2017 18.5.3).
+ * loop_env:     if non-null, maps foreach loop-variable names to their
+ *               unrolled constant values (IEEE 1800-2017 18.5.8). */
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots,
-			      const NetScope*scope)
+			      const NetScope*scope,
+			      const map<perm_string,uint64_t>*loop_env)
 {
       using namespace std;
 
@@ -10290,11 +10293,55 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
 	    perm_string name = id->path().back().name;
+
+	      // foreach loop variables shadow properties inside the
+	      // iterated constraint set (IEEE 1800-2017 18.5.8).
+	    if (loop_env && id->path().size() == 1
+		&& id->path().back().index.empty()) {
+		  map<perm_string,uint64_t>::const_iterator lit =
+			loop_env->find(name);
+		  if (lit != loop_env->end())
+			return "c:" + to_string(lit->second);
+	    }
+
 	    int idx = cls->property_idx_from_name(name);
 	    if (idx >= 0) {
 		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
 		  if (!q.test_rand()) return "";
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+
+		    // Indexed reference to a static-array rand property
+		    // (arr[i] in a foreach set): emit an element variable
+		    // e:N:W:I. The index must fold to a constant under the
+		    // loop environment.
+		  if (!id->path().back().index.empty()) {
+			const netuarray_t*ua =
+			      dynamic_cast<const netuarray_t*>(ptype);
+			if (!ua || id->path().back().index.size() != 1)
+			      return "";
+			const index_component_t&ic = id->path().back().index.front();
+			if (!ic.msb || ic.lsb
+			    || ic.sel != index_component_t::SEL_BIT)
+			      return "";
+			string idx_ir = pexpr_to_constraint_ir(ic.msb, cls,
+						value_slots, scope, loop_env);
+			if (idx_ir.compare(0, 2, "c:") != 0)
+			      return "";
+			uint64_t elem = strtoull(idx_ir.c_str() + 2, nullptr, 10);
+			const netranges_t&dims = ua->static_dimensions();
+			if (dims.size() != 1)
+			      return "";
+			  // Element addressing assumes a 0-based canonical
+			  // range; other declared ranges not yet supported.
+			if (dims[0].get_msb() != 0 && dims[0].get_lsb() != 0)
+			      return "";
+			ivl_type_t etype = ua->element_type();
+			unsigned ewid = etype ? etype->packed_width() : 32;
+			if (ewid == 0) ewid = 32;
+			return "e:" + to_string(idx) + ":" + to_string(ewid)
+			      + ":" + to_string(elem);
+		  }
+
 		  unsigned wid = 0;
 		  if (ptype) {
 			const netvector_t*nvec = dynamic_cast<const netvector_t*>(ptype);
@@ -10337,7 +10384,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       // Z3_optimize_assert_soft (default weight 1) instead of a hard
       // conjunct.
       if (const PESoft*sf = dynamic_cast<const PESoft*>(expr)) {
-	    string s = pexpr_to_constraint_ir(sf->get_inner(), cls, value_slots, scope);
+	    string s = pexpr_to_constraint_ir(sf->get_inner(), cls, value_slots, scope, loop_env);
 	    if (s.empty() || s[0] == '?') return "";
 	    return "(soft " + s + ")";
       }
@@ -10347,7 +10394,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	// (impl C then) [and (impl (not C) else)].
       if (const PEConstraintIf*cif = dynamic_cast<const PEConstraintIf*>(expr)) {
 	    string cond = pexpr_to_constraint_ir(cif->get_cond(), cls,
-						 value_slots, scope);
+						 value_slots, scope, loop_env);
 	    if (cond.empty()) return "";
 
 	    auto items_to_ir = [&](const std::list<PExpr*>&items) -> string {
@@ -10355,7 +10402,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  for (const PExpr*item : items) {
 			if (!item) continue;
 			string s = pexpr_to_constraint_ir(item, cls,
-							  value_slots, scope);
+							  value_slots, scope,
+							  loop_env);
 			if (s.empty()) return "";
 			acc = acc.empty() ? s : "(and " + acc + " " + s + ")";
 		  }
@@ -10374,8 +10422,83 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    return result;
       }
 
+	// Dynamic-array size in a constraint: `arr.size()` becomes a
+	// solver size variable s:N:T (IEEE 1800-2017 18.4: the size of a
+	// rand dynamic array is randomized subject to constraints). T is
+	// the darray type text used to construct the array at write-back.
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
+	    const pform_name_t&cpath = call->path().name;
+	    if (cpath.size() == 2
+		&& cpath.back().name == perm_string::literal("size")
+		&& cpath.back().index.empty()
+		&& cpath.front().index.empty()) {
+		  perm_string aname = cpath.front().name;
+		  int idx = cls->property_idx_from_name(aname);
+		  if (idx >= 0
+		      && cls->get_prop_qual((size_t)idx).test_rand()) {
+			ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+			const netdarray_t*da =
+			      dynamic_cast<const netdarray_t*>(ptype);
+			if (da && !dynamic_cast<const netqueue_t*>(ptype)) {
+			      ivl_type_t etype = da->element_type();
+			      unsigned ewid = etype ? etype->packed_width() : 32;
+			      if (ewid == 0) ewid = 32;
+			      bool esigned = etype && etype->get_signed();
+			      string ttext;
+			      if (ewid == 8 || ewid == 16
+				  || ewid == 32 || ewid == 64)
+				    ttext = (esigned ? "sb" : "b")
+					  + to_string(ewid);
+			      else
+				    ttext = (esigned ? "sv" : "v")
+					  + to_string(ewid);
+			      return "s:" + to_string(idx) + ":" + ttext;
+			}
+		  }
+	    }
+	    return "";
+      }
+
+	// Iterative constraint over a one-dimensional static-array rand
+	// property (IEEE 1800-2017 18.5.8): unroll at elaboration time,
+	// binding the loop variable to each canonical index.
+      if (const PEConstraintForeach*cfe =
+	  dynamic_cast<const PEConstraintForeach*>(expr)) {
+	    if (cfe->loop_vars().size() != 1 || cfe->loop_vars()[0].nil())
+		  return "";
+	    int idx = cls->property_idx_from_name(cfe->array_name());
+	    if (idx < 0 || !cls->get_prop_qual((size_t)idx).test_rand())
+		  return "";
+	    const netuarray_t*ua =
+		  dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)idx));
+	    if (!ua)
+		  return "";  // dynamic-array foreach: not yet supported
+	    const netranges_t&dims = ua->static_dimensions();
+	    if (dims.size() != 1)
+		  return "";
+	    if (dims[0].get_msb() != 0 && dims[0].get_lsb() != 0)
+		  return "";
+	    unsigned long count = dims[0].width();
+
+	    string acc;
+	    for (unsigned long i = 0 ; i < count ; i += 1) {
+		  map<perm_string,uint64_t> env2;
+		  if (loop_env) env2 = *loop_env;
+		  env2[cfe->loop_vars()[0]] = i;
+		  for (const PExpr*item : cfe->items()) {
+			if (!item) continue;
+			string s = pexpr_to_constraint_ir(item, cls,
+						value_slots, scope, &env2);
+			if (s.empty())
+			      return "";
+			acc = acc.empty() ? s : "(and " + acc + " " + s + ")";
+		  }
+	    }
+	    return acc;
+      }
+
       if (const PEInside*ins = dynamic_cast<const PEInside*>(expr)) {
-	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots, scope);
+	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots, scope, loop_env);
 	    if (s.empty() || s[0] == '?') return "";
 	    // C7 (Phase 62b): dist form preserves per-branch weights as
 	    // `(dist <expr> (b W <range>) ...)` where W is the literal
@@ -10386,12 +10509,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    for (auto& r : ins->get_ranges()) {
 		  string range_ir;
 		  if (r.is_range) {
-			string lo = pexpr_to_constraint_ir(r.lo, cls, value_slots, scope);
-			string hi = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope);
+			string lo = pexpr_to_constraint_ir(r.lo, cls, value_slots, scope, loop_env);
+			string hi = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope, loop_env);
 			if (lo.empty() || hi.empty()) continue;
 			range_ir = "[" + lo + "," + hi + "]";
 		  } else {
-			string v = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope);
+			string v = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope, loop_env);
 			if (v.empty()) continue;
 			range_ir = v;
 		  }
@@ -10400,7 +10523,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			// dist (rare, but legal in mixed forms).
 			string w = "1";
 			if (r.weight) {
-			      string we = pexpr_to_constraint_ir(r.weight, cls, value_slots, scope);
+			      string we = pexpr_to_constraint_ir(r.weight, cls, value_slots, scope, loop_env);
 			      if (!we.empty()) w = we;
 			}
 			result += " (b " + w + " " + range_ir + ")";
@@ -10413,8 +10536,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
-	    string left = pexpr_to_constraint_ir(bin->get_left(), cls, value_slots, scope);
-	    string right = pexpr_to_constraint_ir(bin->get_right(), cls, value_slots, scope);
+	    string left = pexpr_to_constraint_ir(bin->get_left(), cls, value_slots, scope, loop_env);
+	    string right = pexpr_to_constraint_ir(bin->get_right(), cls, value_slots, scope, loop_env);
 	    if (left.empty() || right.empty()) return "";
 	    string op;
 	    switch (bin->get_op()) {
@@ -10435,11 +10558,27 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		case '%': op = "mod"; break;
 		default:  return "";
 	    }
+	      // Fold constant arithmetic (e.g. unrolled foreach index
+	      // expressions like i*10) so inside/dist range bounds stay
+	      // simple c:V literals.
+	    if (left.compare(0, 2, "c:") == 0 && right.compare(0, 2, "c:") == 0
+		&& (op == "add" || op == "sub" || op == "mul"
+		    || op == "div" || op == "mod")) {
+		  uint64_t lv = strtoull(left.c_str() + 2, nullptr, 10);
+		  uint64_t rv = strtoull(right.c_str() + 2, nullptr, 10);
+		  uint64_t res = 0;
+		  if (op == "add") res = lv + rv;
+		  else if (op == "sub") res = lv - rv;
+		  else if (op == "mul") res = lv * rv;
+		  else if (op == "div") res = rv ? lv / rv : 0;
+		  else res = rv ? lv % rv : 0;
+		  return "c:" + to_string(res);
+	    }
 	    return "(" + op + " " + left + " " + right + ")";
       }
 
       if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr)) {
-	    string sub = pexpr_to_constraint_ir(un->get_expr(), cls, value_slots, scope);
+	    string sub = pexpr_to_constraint_ir(un->get_expr(), cls, value_slots, scope, loop_env);
 	    if (sub.empty()) return "";
 	    if (un->get_op() == '!') return "(not " + sub + ")";
 	    return "";
@@ -10496,7 +10635,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    for (PExpr*item : cit.second) {
 			  if (!item) continue;
 			  string s = pexpr_to_constraint_ir(item, this, nullptr,
-							    class_scope_);
+							    class_scope_, nullptr);
 			  if (!s.empty()) {
 				if (!ir.empty()) ir += " ";
 				ir += s;

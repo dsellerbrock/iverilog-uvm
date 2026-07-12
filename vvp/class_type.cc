@@ -865,6 +865,21 @@ bool class_type::property_is_randc(size_t idx) const
       return properties_[idx].randc_flag;
 }
 
+const std::string& class_type::property_base_type(size_t idx) const
+{
+      static const std::string nil;
+      if (idx >= properties_.size())
+	    return nil;
+      return properties_[idx].base_type;
+}
+
+uint64_t class_type::property_array_size(size_t idx) const
+{
+      if (idx >= properties_.size())
+	    return 1;
+      return properties_[idx].array_size;
+}
+
 void class_type::add_constraint(const string&name, const string&ir)
 {
       constraint_t c;
@@ -941,6 +956,9 @@ void class_type::set_property(size_t idx, const string&name, const string&type, 
 	    base_type = type.substr(1);
       }
       const string&type_to_use = base_type;
+
+      properties_[idx].base_type = base_type;
+      properties_[idx].array_size = array_size ? array_size : 1;
 
       const string&t = type_to_use;
       if (t == "b8")

@@ -2597,11 +2597,12 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
 	$$ = tmp;
       }
   | K_foreach '(' IDENTIFIER '[' loop_variables ']' ')' constraint_set
-      { $$ = nullptr; delete[] $3;
-	if ($8) {
-	      for (PExpr*item : *$8) delete item;
-	      delete $8;
-	}
+      { /* Iterative constraint (IEEE 1800-2017 18.5.8). */
+	PEConstraintForeach*tmp =
+	      new PEConstraintForeach(lex_strings.make($3), $5, $8);
+	FILE_NAME(tmp, @1);
+	delete[] $3;
+	$$ = tmp;
       }
   /* I4 (Phase 62c): soft constraint — wrap in PESoft so the IR emitter
      marks it for Z3_optimize_assert_soft (default weight 1).  Other

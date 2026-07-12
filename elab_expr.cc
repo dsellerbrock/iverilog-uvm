@@ -55,7 +55,8 @@ using namespace std;
 extern string pexpr_to_constraint_ir(const PExpr*expr,
 				     const netclass_t*cls,
 				     vector<const PExpr*>*value_slots,
-				     const NetScope*scope = nullptr);
+				     const NetScope*scope = nullptr,
+				     const std::map<perm_string,uint64_t>*loop_env = nullptr);
 
 /* Build a NetESFunc for randomize() with inline with-constraints.
  * The mangled function name encodes the N_vals count and IR string so

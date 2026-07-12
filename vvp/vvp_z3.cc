@@ -17,6 +17,7 @@
 
 # include  "class_type.h"
 # include  "vvp_cobject.h"
+# include  "vvp_darray.h"
 # include  "vvp_z3.h"
 
 # include  <z3.h>
@@ -100,6 +101,53 @@ struct Z3Builder {
             return false;
       }
 
+	// Dynamic-array size variables ("s:N:T"): one 32-bit BV per
+	// property index. T is the %new/darray type text used to create
+	// the array at write-back (IEEE 1800-2017 18.4: the size of a
+	// rand dynamic array is itself randomized subject to constraints).
+      struct SizeVar {
+	    unsigned idx;
+	    string darray_type;
+	    Z3_ast var;
+      };
+      vector<SizeVar> size_vars;
+
+	// Array element variables ("e:N:W:I"): property index, element
+	// width, constant element index (IEEE 1800-2017 18.5.8.1
+	// iterative constraints over static arrays).
+      struct ElemVar {
+	    unsigned idx;
+	    unsigned width;
+	    unsigned elem;
+	    Z3_ast var;
+      };
+      vector<ElemVar> elem_vars;
+
+      Z3_ast get_size_var(unsigned idx, const string&dtype) {
+	    for (auto& v : size_vars)
+		  if (v.idx == idx) return v.var;
+	    char name[32];
+	    snprintf(name, sizeof(name), "s%u", idx);
+	    Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
+	    Z3_ast var = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, name), sort);
+	    SizeVar sv; sv.idx = idx; sv.darray_type = dtype; sv.var = var;
+	    size_vars.push_back(sv);
+	    return var;
+      }
+
+      Z3_ast get_elem_var(unsigned idx, unsigned width, unsigned elem) {
+	    for (auto& v : elem_vars)
+		  if (v.idx == idx && v.elem == elem) return v.var;
+	    char name[48];
+	    snprintf(name, sizeof(name), "e%u_%u", idx, elem);
+	    Z3_sort sort = Z3_mk_bv_sort(ctx, width ? width : 32);
+	    Z3_ast var = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, name), sort);
+	    ElemVar ev; ev.idx = idx; ev.width = width ? width : 32;
+	    ev.elem = elem; ev.var = var;
+	    elem_vars.push_back(ev);
+	    return var;
+      }
+
       Z3Builder(Z3_context c, const class_type* d, vvp_cobject* o)
       : ctx(c), defn(d), cobj(o), opt(0) {}
 
@@ -177,6 +225,26 @@ static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
 	    uint64_t v = (uint64_t)strtoull(tok.c_str()+2, nullptr, 10);
 	    Z3_sort sort = Z3_mk_bv_sort(b.ctx, 32);
 	    return Z3_mk_unsigned_int64(b.ctx, v, sort);
+      }
+      if (tok.substr(0,2) == "s:") {
+	      // s:N:T — size of dynamic-array property N, darray type T.
+	    const char*s = tok.c_str() + 2;
+	    unsigned idx = (unsigned)atoi(s);
+	    while (*s && *s != ':') ++s;
+	    string dtype = (*s == ':') ? string(s + 1) : string("v32");
+	    return b.get_size_var(idx, dtype);
+      }
+      if (tok.substr(0,2) == "e:") {
+	      // e:N:W:I — element I of array property N, width W.
+	    const char*s = tok.c_str() + 2;
+	    unsigned idx = (unsigned)atoi(s);
+	    while (*s && *s != ':') ++s;
+	    unsigned width = 32;
+	    if (*s == ':') { width = (unsigned)atoi(s + 1); ++s; }
+	    while (*s && *s != ':') ++s;
+	    unsigned elem = 0;
+	    if (*s == ':') elem = (unsigned)atoi(s + 1);
+	    return b.get_elem_var(idx, width, elem);
       }
       return b.mk_true();
 }
@@ -281,38 +349,49 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
       }
 
       if (op == "inside") {
-	    // Format: (inside p:N:W [c:lo,c:hi] c:val ...)
+	    // Format: (inside p:N:W [lo,hi] val ...) where lo/hi/val are
+	    // atoms: c:V literals or parenthesized expressions.
 	    Z3_ast subject = build_z3_atom(par, b);
 	    unsigned sw = bv_width(b.ctx, subject);
+
+	    // Match an atom's width to the subject for the comparisons.
+	    auto match_width = [&](Z3_ast a) -> Z3_ast {
+		  unsigned aw = bv_width(b.ctx, a);
+		  if (aw < sw) return Z3_mk_zero_ext(b.ctx, sw - aw, a);
+		  if (aw > sw) return Z3_mk_extract(b.ctx, sw - 1, 0, a);
+		  return a;
+	    };
 
 	    vector<Z3_ast> clauses;
 	    par.skip_ws();
 	    while (par.peek() != ')' && !par.at_end()) {
 		  if (par.peek() == '[') {
 			par.consume(); // '['
-			string lo_tok = par.read_token();
+			Z3_ast lo = match_width(build_z3_atom(par, b));
 			par.expect(',');
-			string hi_tok = par.read_token();
+			Z3_ast hi = match_width(build_z3_atom(par, b));
 			par.expect(']');
-			uint64_t lo_v = strtoull(lo_tok.c_str()+2, nullptr, 10);
-			uint64_t hi_v = strtoull(hi_tok.c_str()+2, nullptr, 10);
-			Z3_ast lo = Z3_mk_unsigned_int64(b.ctx, lo_v,
-						 Z3_mk_bv_sort(b.ctx, sw));
-			Z3_ast hi = Z3_mk_unsigned_int64(b.ctx, hi_v,
-						 Z3_mk_bv_sort(b.ctx, sw));
 			// subject >= lo && subject <= hi
 			Z3_ast c1 = Z3_mk_bvuge(b.ctx, subject, lo);
 			Z3_ast c2 = Z3_mk_bvule(b.ctx, subject, hi);
 			Z3_ast both[2] = {c1, c2};
 			clauses.push_back(Z3_mk_and(b.ctx, 2, both));
+		  } else if (par.peek() == '(') {
+			Z3_ast v = match_width(build_z3_atom(par, b));
+			clauses.push_back(Z3_mk_eq(b.ctx, subject, v));
 		  } else {
-			// Single value
+			// Single value token
 			string tok = par.read_token();
 			if (tok.substr(0,2) == "c:") {
 			      uint64_t v = strtoull(tok.c_str()+2, nullptr, 10);
 			      Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
 						      Z3_mk_bv_sort(b.ctx, sw));
 			      clauses.push_back(Z3_mk_eq(b.ctx, subject, cv));
+			} else if (tok.empty()) {
+			      // Unrecognized input: consume one char so the
+			      // scan always makes forward progress (a stuck
+			      // parser here previously hung the simulation).
+			      if (!par.at_end()) par.consume();
 			}
 		  }
 		  par.skip_ws();
@@ -471,6 +550,87 @@ static void cobj_set_prop_bits(vvp_cobject* cobj, unsigned idx, uint64_t bits)
       cobj->set_vec4(idx, vec);
 }
 
+/* Create a fresh vvp_darray for the given %new/darray-style type text
+ * (subset used by rand dynamic-array properties). */
+static vvp_darray* make_darray_for_type(const string&text, size_t size)
+{
+      unsigned word_wid = 0;
+      size_t n = 0;
+      if (text == "b8")   return new vvp_darray_atom<uint8_t>(size);
+      if (text == "b16")  return new vvp_darray_atom<uint16_t>(size);
+      if (text == "b32")  return new vvp_darray_atom<uint32_t>(size);
+      if (text == "b64")  return new vvp_darray_atom<uint64_t>(size);
+      if (text == "sb8")  return new vvp_darray_atom<int8_t>(size);
+      if (text == "sb16") return new vvp_darray_atom<int16_t>(size);
+      if (text == "sb32") return new vvp_darray_atom<int32_t>(size);
+      if (text == "sb64") return new vvp_darray_atom<int64_t>(size);
+      if ((1 == sscanf(text.c_str(), "v%u%zn", &word_wid, &n))
+	  && n == text.size())
+	    return new vvp_darray_vec4(size, word_wid);
+      if ((1 == sscanf(text.c_str(), "sv%u%zn", &word_wid, &n))
+	  && n == text.size())
+	    return new vvp_darray_vec4(size, word_wid);
+      return new vvp_darray_vec4(size, 32);
+}
+
+/* Read the current bits of an array-property element (darray object or
+ * static array), for the satisfied-already pre-check and xor targets. */
+static uint64_t cobj_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem)
+{
+      vvp_object_t propobj;
+      cobj->get_object(idx, propobj, 0);
+      if (vvp_darray*da = propobj.peek<vvp_darray>()) {
+	    if (elem >= da->get_size()) return 0;
+	    vvp_vector4_t vec;
+	    da->get_word(elem, vec);
+	    uint64_t bits = 0;
+	    unsigned wid = vec.size(); if (wid > 64) wid = 64;
+	    for (unsigned b = 0; b < wid; ++b)
+		  if (vec.value(b) == BIT4_1) bits |= (1ULL << b);
+	    return bits;
+      }
+      vvp_vector4_t vec;
+      cobj->get_vec4(idx, vec, elem);
+      uint64_t bits = 0;
+      unsigned wid = vec.size(); if (wid > 64) wid = 64;
+      for (unsigned b = 0; b < wid; ++b)
+	    if (vec.value(b) == BIT4_1) bits |= (1ULL << b);
+      return bits;
+}
+
+/* Write bits into an array-property element. */
+static void cobj_set_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem,
+			       unsigned width, uint64_t bits)
+{
+      vvp_object_t propobj;
+      cobj->get_object(idx, propobj, 0);
+      if (vvp_darray*da = propobj.peek<vvp_darray>()) {
+	    if (elem >= da->get_size()) return;
+	    vvp_vector4_t vec(width ? width : 32, BIT4_0);
+	    for (unsigned b = 0; b < vec.size() && b < 64; ++b)
+		  vec.set_bit(b, ((bits >> b) & 1) ? BIT4_1 : BIT4_0);
+	    da->set_word(elem, vec);
+	    return;
+      }
+      vvp_vector4_t vec;
+      cobj->get_vec4(idx, vec, elem);
+      unsigned wid = vec.size();
+      if (wid == 0) return;
+      for (unsigned b = 0; b < wid; ++b)
+	    vec.set_bit(b, (b < 64 && ((bits >> b) & 1)) ? BIT4_1 : BIT4_0);
+      cobj->set_vec4(idx, vec, elem);
+}
+
+/* Current size of a dynamic-array property (0 when unallocated). */
+static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx)
+{
+      vvp_object_t propobj;
+      cobj->get_object(idx, propobj, 0);
+      if (vvp_darray*da = propobj.peek<vvp_darray>())
+	    return da->get_size();
+      return 0;
+}
+
 /* Substitute "v:N:W" value-slot tokens in an IR string with "c:V". */
 static string substitute_slots(const string& ir,
                                 const vector<uint64_t>& slot_vals)
@@ -531,6 +691,16 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	    Z3_ast assertion = parse_constraint_ir(sub, builder);
 	    Z3_optimize_assert(ctx, opt, assertion);
       }
+      // Dynamic-array size variables are bounded by a pragmatic hard cap
+      // so an under-constrained `arr.size() > k` cannot demand a huge
+      // allocation. (IEEE places no bound; this is an implementation
+      // limit, matching typical simulator behavior.)
+      for (auto& sv : builder.size_vars) {
+	    Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
+	    Z3_ast cap = Z3_mk_unsigned_int64(ctx, 65536, s32);
+	    Z3_optimize_assert(ctx, opt, Z3_mk_bvule(ctx, sv.var, cap));
+      }
+
       // C7: apply queued soft asserts from dist branches.  Each carries a
       // weight; Z3_optimize_assert_soft prefers higher-weight branches when
       // multiple feasible solutions exist.
@@ -566,6 +736,18 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits, sort);
 		  Z3_solver_assert(ctx, chk, Z3_mk_eq(ctx, pv.var, cv));
 	    }
+	    for (auto& sv : builder.size_vars) {
+		  uint64_t cur = cobj_darray_size(cobj, sv.idx);
+		  Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
+		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, cur, sort);
+		  Z3_solver_assert(ctx, chk, Z3_mk_eq(ctx, sv.var, cv));
+	    }
+	    for (auto& ev : builder.elem_vars) {
+		  uint64_t bits = cobj_elem_bits(cobj, ev.idx, ev.elem);
+		  Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
+		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits, sort);
+		  Z3_solver_assert(ctx, chk, Z3_mk_eq(ctx, ev.var, cv));
+	    }
 	    Z3_lbool precheck = Z3_solver_check(ctx, chk);
 	    Z3_solver_dec_ref(ctx, chk);
 
@@ -595,6 +777,20 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	    Z3_ast xor_expr = Z3_mk_bvxor(ctx, pv.var, rv);
 	    Z3_optimize_minimize(ctx, opt, xor_expr);
       }
+      for (auto& sv : builder.size_vars) {
+	      // Prefer small varied sizes when the constraints leave slack.
+	    Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
+	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, (uint64_t)(rand() & 0xF), sort);
+	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, sv.var, rv));
+      }
+      for (auto& ev : builder.elem_vars) {
+	    uint64_t rand_bits = 0;
+	    for (unsigned b = 0; b < ev.width && b < 64; ++b)
+		  if (rand() & 1) rand_bits |= (1ULL << b);
+	    Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
+	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
+	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, ev.var, rv));
+      }
 
       Z3_lbool result = Z3_optimize_check(ctx, opt, 0, nullptr);
       if (result != Z3_L_TRUE) {
@@ -613,6 +809,43 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 		  if (Z3_get_numeral_uint64(ctx, interp, &bits))
 			cobj_set_prop_bits(cobj, pv.idx, bits);
 	    }
+      }
+
+	// Apply solved dynamic-array sizes: create (or replace) the
+	// property's darray with the solved element count and fill the
+	// elements with random bits. Element constraints, when present,
+	// overwrite specific entries below.
+      for (auto& sv : builder.size_vars) {
+	    Z3_ast interp = nullptr;
+	    uint64_t new_size = 0;
+	    if (!(Z3_model_eval(ctx, model, sv.var, 1, &interp) && interp
+		  && Z3_get_numeral_uint64(ctx, interp, &new_size)))
+		  continue;
+	    if (new_size > 65536) new_size = 65536;
+
+	    vvp_darray*da = make_darray_for_type(sv.darray_type,
+						 (size_t)new_size);
+	    for (uint64_t adr = 0 ; adr < new_size ; adr += 1) {
+		  vvp_vector4_t word;
+		  da->get_word((unsigned)adr, word);
+		  unsigned wid = word.size();
+		  if (wid == 0) wid = 32;
+		  vvp_vector4_t nv(wid, BIT4_0);
+		  for (unsigned b = 0 ; b < wid ; b += 1)
+			nv.set_bit(b, (rand() & 1) ? BIT4_1 : BIT4_0);
+		  da->set_word((unsigned)adr, nv);
+	    }
+	    vvp_object_t obj(da);
+	    cobj->set_object(sv.idx, obj, 0);
+      }
+
+	// Apply solved array-element values.
+      for (auto& ev : builder.elem_vars) {
+	    Z3_ast interp = nullptr;
+	    uint64_t bits = 0;
+	    if (Z3_model_eval(ctx, model, ev.var, 1, &interp) && interp
+		&& Z3_get_numeral_uint64(ctx, interp, &bits))
+		  cobj_set_elem_bits(cobj, ev.idx, ev.elem, ev.width, bits);
       }
 
       Z3_model_dec_ref(ctx, model);

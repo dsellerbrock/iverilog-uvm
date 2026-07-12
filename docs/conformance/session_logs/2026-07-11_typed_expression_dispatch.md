@@ -329,6 +329,73 @@ this checkpoint; the topic branch was restarted from the merged main and
 the M3 work committed on top (WIP commit `9d64dda`, regression
 confirmation in the follow-up docs commit). New PR: #67.
 
+## Checkpoint 5 — M3: array-property constraints (G21 size, G16 foreach)
+
+### Requirement
+
+IEEE 1800-2017 **18.4** (the size of a rand dynamic array is randomized
+subject to constraints; elements are randomized) and **18.5.8 / 18.5.8.1**
+(iterative foreach constraints; loop variables range over the array
+indexes and shadow outer names).
+
+### Root causes
+
+- **G21**: `arr.size()` in constraints had no IR representation (item
+  dropped with the honesty warning); no runtime mechanism resized rand
+  dynamic arrays after solving.
+- **G16**: foreach constraint sets were dropped in parse.y; array
+  ELEMENTS had no IR representation; and rand static-array properties
+  were never even filled with random bits by %randomize (only word 0
+  scalars).
+- **Hang found during implementation**: the solver's inside/dist range
+  parser read only literal tokens and made NO forward progress on
+  unexpected input — an unparseable range hung the simulation. Fixed
+  with expression-capable range parsing plus a guaranteed-progress
+  guard. (This robustness defect pre-existed; it was unreachable only
+  because nothing emitted compound ranges before.)
+
+### Implementation
+
+- `PExpr.h/cc`, `parse.y`: new `PEConstraintForeach` pform node
+  (array name, loop vars, item list) replacing the silent drop.
+- `elaborate.cc` (IR generator):
+  - `arr.size()` → size variable `s:N:T` (T = darray type text for
+    write-back construction, derived from the element type).
+  - foreach over one-dimensional 0-based static-array rand properties:
+    compile-time unroll with a loop-variable environment
+    (`loop_env` parameter; loop vars shadow properties per 18.5.8);
+    indexed property refs `arr[i]` → element variables `e:N:W:I`.
+  - Constant folding for add/sub/mul/div/mod over literal operands so
+    unrolled index arithmetic stays `c:V` in range bounds.
+- `vvp/class_type.h/cc`: properties retain base type text + array size
+  (`property_base_type`, `property_array_size`).
+- `vvp/vthread.cc`: %randomize (both plain and with-variants) fills
+  every element of static-array rand properties with random bits.
+- `vvp/vvp_z3.cc`: `s:`/`e:` variables; pre-check equality includes
+  current sizes/elements; xor-diversity objectives for both; hard size
+  cap 65536 (implementation limit for under-constrained sizes);
+  write-back creates the darray via a type-text factory, fills
+  unconstrained elements randomly, then applies solved element values;
+  inside/dist ranges accept expressions and always make progress.
+
+### Tests
+
+- `tests/m3_constraint_array_test.sv`: SizeC (`sz inside {[3:5]};
+  arr.size() == sz`) and ForeachC (`foreach (arr[i]) arr[i] inside
+  {[i*10:i*10+5]}`) × 10 iterations.
+
+### Known limitations
+
+- foreach over DYNAMIC arrays (runtime-sized) not yet expanded (needs
+  solve-time template expansion after the size var is fixed).
+- Element addressing assumes 0-based one-dimensional declared ranges.
+- Element constraints and `arr.size()` for the SAME array in one solve
+  are independent (element vars index only compile-time-known slots).
+
+### Results
+
+(recorded when regressions complete)
+
 ## Checkpoint history
 
 - Checkpoint 1: manifesto imported to `docs/conformance/`, baseline recorded (this file).

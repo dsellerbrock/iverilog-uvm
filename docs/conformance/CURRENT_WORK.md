@@ -91,18 +91,29 @@ the investigation. Update at every meaningful checkpoint.
 - Regressions: UVM **110/110**; ivtest **byte-identical to baseline**
   (2961/3101+132, 85/85, 284/12); make check pass.
 
+## Checkpoint 5 (M3 increment 2) — in flight
+
+- **G21 FIXED**: `arr.size()` → solver size var `s:N:T`; darray created/
+  resized at write-back (cap 65536), elements filled randomly.
+- **G16 FIXED (static arrays)**: PEConstraintForeach + compile-time unroll
+  with loop-var env; element vars `e:N:W:I` solved and written back;
+  %randomize now fills static-array rand property elements.
+- **Hang fixed**: solver inside/dist range parser now expression-capable
+  and always makes forward progress (previously hung on compound ranges).
+- Focused: single-shot probes + 10-iteration probe + permanent test
+  `tests/m3_constraint_array_test.sv` all PASS. Full UVM + ivtest
+  regressions running; commit checkpoint 5 when green (expect 112/112 and
+  baseline-identical ivtest).
+
 ## Exact next actions
 
-1. Watch PR #67 CI (6 platform jobs); post/act on failures.
-2. Next M3 increment: array-property constraint support — G16 (foreach
-   iterative constraints) and G21 (`arr.size()` with runtime resize hook).
-   Requires extending the p:N:W IR with array-element addressing and a
-   resize protocol in %randomize.
-3. Then: signed comparison support in the IR (p:N:W:s + bvslt family),
-   `solve...before` staged ordering, state-variable (non-rand) references
-   via value slots for class constraints.
-4. Alternatives per manifesto sequence: M5 interfaces/modports (Phase 70)
-   or G66 root-cause.
+1. Confirm checkpoint-5 regressions; commit + push; update PR #67.
+2. Watch PR #67 CI (Ubuntu/macOS green at last check; MSYS2 pending).
+3. Remaining M3 tail: dynamic-array foreach (solve-time template
+   expansion after the size var fixes), signed comparisons in the IR,
+   `solve...before` staged ordering, non-0-based array ranges.
+4. Alternatives per manifesto sequence: M4 container runtime, M5
+   interfaces/modports (Phase 70), M6 scheduler audit, or G66 root-cause.
 
 ## Manifesto v2 alignment review (2026-07-11)
 

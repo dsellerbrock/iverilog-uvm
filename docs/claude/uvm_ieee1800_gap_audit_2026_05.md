@@ -138,6 +138,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: any non-trivial constraint program.
 
 ### G16 `foreach(arr[i]) arr[i] inside {[i*10:i*10+5]}` — index-dependent constraints not enforced
+- **STATUS 2026-07-12: FIXED (static arrays)**. foreach constraint sets now parse to PEConstraintForeach and unroll at elaboration over 0-based one-dimensional static rand arrays; elements are solver variables (e:N:W:I) written back after the solve; %randomize now fills static-array elements with random bits. Dynamic-array foreach still deferred. Test `tests/m3_constraint_array_test.sv`. IEEE 1800-2017 18.5.8.
 - Symptom: `arr[2]=0`, `arr[3]=0` consistently when constraint says they should be in `[20:25]` and `[30:35]`. Only the first array element occasionally gets a non-zero from the implication chain; rest stay at 0.
 - Probe: p24_constraint_dist_more (VERIFIED-FAILS).
 - Location: same as G15; foreach-over-rand-array constraint codegen — Phase 50c entry in MEMORY.md (still open).
@@ -181,6 +182,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: any UVM stimulus class hierarchy.
 
 ### G21 `rand int arr[]` size-constraining `arr.size() == sz` ignored
+- **STATUS 2026-07-12: FIXED**. `arr.size()` becomes a solver size variable (s:N:T); after solving, the darray property is created/resized to the solved size (cap 65536) and filled with random elements. Test `tests/m3_constraint_array_test.sv`. IEEE 1800-2017 18.4.
 - Symptom: constraint `sz inside {[3:5]}; arr.size() == sz` produces randomized sz but arr.size always 0.
 - Probe: p71_constraint_with_array (VERIFIED-FAILS).
 - Location: dynamic-array sizing in randomize — needs runtime resize hook.

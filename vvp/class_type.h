@@ -63,6 +63,13 @@ class class_type : public __vpiHandle {
       bool property_is_rand(size_t idx) const;
       bool property_is_randc(size_t idx) const;
 
+	// Base type text (rand prefix stripped, e.g. "sb32", "o") and
+	// static array element count (1 for scalars) as recorded from
+	// the .class directive. Used by randomize to fill and write
+	// back array-typed rand properties.
+      const std::string& property_base_type(size_t idx) const;
+      uint64_t property_array_size(size_t idx) const;
+
       void add_constraint(const std::string&name, const std::string&ir);
       size_t constraint_count() const { return constraints_.size(); }
       const std::string& constraint_name(size_t idx) const;
@@ -104,6 +111,8 @@ class class_type : public __vpiHandle {
 	    class_property_t*type;
 	    bool rand_flag  = false;
 	    bool randc_flag = false;
+	    std::string base_type;
+	    uint64_t array_size = 1;
       };
       std::vector<prop_t> properties_;
       size_t instance_size_;
