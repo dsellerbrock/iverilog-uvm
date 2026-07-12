@@ -439,7 +439,13 @@ routine in UVM stimulus.
 
 ### Results
 
-(recorded when regressions complete)
+- Focused: `m3_constraint_signed_test` PASS (plain and under the UVM
+  regression recipe).
+- Canonical UVM regression: **112 passed, 0 failed, 0 skipped**.
+- Bundled ivtest: **byte-identical to the pristine-baseline results**
+  (vvp_reg 2961/3101 + same 132 pre-existing failure names, vpi_reg
+  85/85, vvp_reg.py 284/12).
+- WIP marker on `889d084` superseded by this regression confirmation.
 
 ## Checkpoint history
 

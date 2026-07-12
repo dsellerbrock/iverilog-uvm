@@ -105,13 +105,20 @@ the investigation. Update at every meaningful checkpoint.
   **111/111**; ivtest **byte-identical to baseline**. WIP marker on
   6f7e875 superseded by the regression-confirmation docs commit.
 
+## Checkpoint 6 (M3 tail: signed comparisons) — regression-clean
+
+- Unary minus folded to two's complement (was silently dropped);
+  signed p:/e: markers; bvslt-family + sign extension per IEEE
+  1800-2017 11.8.1; signed inside/dist ranges.
+- Test `tests/m3_constraint_signed_test.sv`. UVM **112/112**; ivtest
+  **byte-identical to baseline**. WIP 889d084 superseded.
+
 ## Exact next actions
 
-1. Watch PR #67 CI (Ubuntu/macOS green earlier; MSYS2 re-running after
-   the checkpoint-5 push).
+1. Watch PR #67 CI (re-running after the checkpoint-6 push).
 2. Remaining M3 tail: dynamic-array foreach (solve-time template
-   expansion after the size var fixes), signed comparisons in the IR,
-   `solve...before` staged ordering, non-0-based array ranges.
+   expansion after the size var fixes), `solve...before` staged
+   ordering, non-0-based array ranges.
 3. Alternatives per manifesto sequence: M4 container runtime, M5
    interfaces/modports (Phase 70), M6 scheduler audit, or G66 root-cause.
 
