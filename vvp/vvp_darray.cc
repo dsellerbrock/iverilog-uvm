@@ -493,6 +493,35 @@ vvp_object* vvp_darray_string::duplicate(void) const
       return that;
 }
 
+/*
+ * Flatten to a bit stream (IEEE 1800-2017 11.4.14.1): elements in
+ * index order, element 0 leftmost; each string contributes 8 bits per
+ * character, first character leftmost.
+ */
+vvp_vector4_t vvp_darray_string::get_bitstream(bool)
+{
+      size_t total_chars = 0;
+      for (size_t idx = 0 ; idx < array_.size() ; idx += 1)
+	    total_chars += array_[idx].size();
+
+      vvp_vector4_t vec(total_chars * 8, BIT4_0);
+
+      unsigned vdx = vec.size();
+      for (size_t idx = 0 ; idx < array_.size() ; idx += 1) {
+	    const std::string&str = array_[idx];
+	    for (size_t cdx = 0 ; cdx < str.size() ; cdx += 1) {
+		  unsigned char ch = (unsigned char)str[cdx];
+		  vdx -= 8;
+		  for (unsigned bdx = 0 ; bdx < 8 ; bdx += 1) {
+			if ((ch >> bdx) & 1)
+			      vec.set_bit(vdx + bdx, BIT4_1);
+		  }
+	    }
+      }
+
+      return vec;
+}
+
 vvp_queue::~vvp_queue()
 {
 }
@@ -867,6 +896,30 @@ void vvp_queue_string::erase_tail(unsigned idx)
 	    queue.resize(idx), touch();
 }
 
+vvp_vector4_t vvp_queue_string::get_bitstream(bool)
+{
+      size_t total_chars = 0;
+      for (size_t idx = 0 ; idx < queue.size() ; idx += 1)
+	    total_chars += queue[idx].size();
+
+      vvp_vector4_t vec(total_chars * 8, BIT4_0);
+
+      unsigned vdx = vec.size();
+      for (size_t idx = 0 ; idx < queue.size() ; idx += 1) {
+	    const std::string&str = queue[idx];
+	    for (size_t cdx = 0 ; cdx < str.size() ; cdx += 1) {
+		  unsigned char ch = (unsigned char)str[cdx];
+		  vdx -= 8;
+		  for (unsigned bdx = 0 ; bdx < 8 ; bdx += 1) {
+			if ((ch >> bdx) & 1)
+			      vec.set_bit(vdx + bdx, BIT4_1);
+		  }
+	    }
+      }
+
+      return vec;
+}
+
 void vvp_queue_vec4::copy_elems(vvp_object_t src, unsigned max_size)
 {
       if (vvp_queue*src_queue = src.peek<vvp_queue>())
@@ -983,6 +1036,33 @@ void vvp_queue_vec4::erase_tail(unsigned idx)
       assert(queue.size() >= idx);
       if (queue.size() > idx)
 	    queue.resize(idx), touch();
+}
+
+/*
+ * Flatten to a bit stream (IEEE 1800-2017 11.4.14.1): elements in
+ * index order, element 0 leftmost.  Element widths are taken from the
+ * stored vectors (uniform in practice).
+ */
+vvp_vector4_t vvp_queue_vec4::get_bitstream(bool as_vec4)
+{
+      size_t total_bits = 0;
+      for (size_t idx = 0 ; idx < queue.size() ; idx += 1)
+	    total_bits += queue[idx].size();
+
+      vvp_vector4_t vec(total_bits, BIT4_0);
+
+      unsigned vdx = vec.size();
+      for (size_t idx = 0 ; idx < queue.size() ; idx += 1) {
+	    const vvp_vector4_t&word = queue[idx];
+	    vdx -= word.size();
+	    for (unsigned bdx = 0 ; bdx < word.size() ; bdx += 1) {
+		  vvp_bit4_t bit = word.value(bdx);
+		  if (as_vec4 || (bit == BIT4_1))
+			vec.set_bit(vdx + bdx, bit);
+	    }
+      }
+
+      return vec;
 }
 
 void vvp_queue_object::copy_elems(vvp_object_t src, unsigned max_size)

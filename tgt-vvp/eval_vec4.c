@@ -1481,6 +1481,15 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    draw_darray_pop(expr);
 	    return;
       }
+      if (strncmp(ivl_expr_name(expr),"$ivl_stream$",12)==0) {
+	      /* Streaming concatenation with dynamically sized operands
+	         packed into a fixed-width context (IEEE 1800-2017
+	         11.4.14): the runtime aligns the stream into the
+	         expression width (left-aligned, zero-filled right;
+	         error if the stream is wider). */
+	    draw_stream_pack_pieces(expr, ivl_expr_width(expr));
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),"$ivl_event_method$triggered")==0) {
 	      /* IEEE 1800-2017 15.5.3: read the named event's
 	         triggered-this-time-step state. */

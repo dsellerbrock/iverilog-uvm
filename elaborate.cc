@@ -3218,6 +3218,29 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 {
       ivl_assert(*this, rval_);
 
+	// Streaming concatenation in an assignment (IEEE 1800-2017
+	// 11.4.14): both directions differ from ordinary rvalue width
+	// adaptation, so dispatch directly.  Unpack (the parser
+	// rewrote {op N {lvals}} = rhs into lvals = {op N {rhs}} with
+	// the streaming node marked lval-context, 11.4.14.3): a
+	// too-small source is an error and a wider source is consumed
+	// from the left.  Pack as assignment source (11.4.14): the
+	// stream is left-aligned in the target — a narrower target is
+	// an error, a wider one is zero-filled on the right.
+      if (const PEStreaming*st = dynamic_cast<const PEStreaming*>(rval())) {
+	    if (lv_width > 0
+		&& (lv_type == IVL_VT_LOGIC || lv_type == IVL_VT_BOOL)) {
+		  if (st->is_lval_context())
+			return st->elaborate_unpack(des, scope, lv_width);
+		  return st->elaborate_pack_into(des, scope, lv_width);
+	    }
+	      // String target (e.g. joining a queue of strings): the
+	      // stream materializes as a string.
+	    if (lv_type == IVL_VT_STRING)
+		  return st->elaborate_stream_sfunc(des, scope,
+						    &netstring_t::type_string, 0);
+      }
+
       NetExpr*rv = elaborate_rval_expr(des, scope, lv_net_type, lv_type, lv_width,
 				       rval(), is_constant_, force_unsigned);
 

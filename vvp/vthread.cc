@@ -2815,6 +2815,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->delete_pending = 0;
       thr->pending_nonlocal_jmp = 0;
       thr->is_callf_child = 0;
+      thr->is_fork_v_child = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context = 0;
       thr->transferred_context = 0;
@@ -11106,6 +11107,294 @@ bool of_NEW_COBJ(vthread_t thr, vvp_code_t cp)
       vvp_object_t tmp (new vvp_cobject(defn));
       thr->push_object(tmp);
       return true;
+}
+
+/*
+ * Streaming-operator runtime (IEEE 1800-2017 11.4.14) for
+ * dynamically sized operands.  Code generation lowers a streaming
+ * concatenation with queue/dynamic-array/string operands into:
+ *
+ *     <push operand>  [%stream/flatten/obj | %stream/flatten/str]
+ *     ... %concat/vec4 ...          ; join pieces left-to-right
+ *     %stream/end/{l|r} <slice>, <tw>
+ *     [%stream/to/queue "<t>" | %stream/to/dar "<t>" | %pushv/str]
+ *
+ * %stream/flatten/obj: pop a container object, push its bit stream
+ * (element 0 leftmost, per the 11.4.14.1 foreach traversal).
+ */
+bool of_STREAM_FLATTEN_OBJ(vthread_t thr, vvp_code_t)
+{
+      static bool warned_bad_obj = false;
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      vvp_darray*dar = obj.peek<vvp_darray>();
+      if (dar == 0) {
+	    // Null handles are skipped (not streamed) per 11.4.14.1;
+	    // any other object kind is unsupported here.
+	    if (!obj.test_nil() && !warned_bad_obj) {
+		  cerr << thr->get_fileline()
+		       << "VVP error: unsupported object kind in streaming "
+		          "concatenation; treating as empty stream "
+		          "(further similar messages suppressed)." << endl;
+		  warned_bad_obj = true;
+	    }
+	    thr->push_vec4(vvp_vector4_t(0, BIT4_0));
+	    return true;
+      }
+
+      thr->push_vec4(dar->get_bitstream(true));
+      return true;
+}
+
+/*
+ * %stream/flatten/str: pop a string, push its bit stream (8 bits per
+ * character, first character leftmost).
+ */
+bool of_STREAM_FLATTEN_STR(vthread_t thr, vvp_code_t)
+{
+      string str = thr->pop_str();
+
+      vvp_vector4_t vec(8 * str.size(), BIT4_0);
+      unsigned vdx = vec.size();
+      for (size_t sdx = 0 ; sdx < str.size() ; sdx += 1) {
+	    unsigned char ch = (unsigned char)str[sdx];
+	    vdx -= 8;
+	    for (unsigned bdx = 0 ; bdx < 8 ; bdx += 1) {
+		  if ((ch >> bdx) & 1)
+			vec.set_bit(vdx + bdx, BIT4_1);
+	    }
+      }
+      thr->push_vec4(vec);
+      return true;
+}
+
+/*
+ * %stream/end/l <slice>, <tw>   (stream operator <<)
+ * %stream/end/r <slice>, <tw>   (stream operator >>)
+ *
+ * Finish a runtime stream: pop the joined stream, apply the <<
+ * block re-ordering (11.4.14.2) for the /l form, then if <tw> is
+ * nonzero align the stream into a <tw>-bit fixed-size target
+ * (11.4.14: left-align, zero-fill on the right; a stream wider than
+ * the target is an error).  Push the result.
+ */
+static bool do_stream_end(vthread_t thr, vvp_code_t cp, bool reverse)
+{
+      static bool warned_stream_too_wide = false;
+
+      unsigned slice = cp->bit_idx[0];
+      unsigned tw    = cp->bit_idx[1];
+
+      vvp_vector4_t val = thr->pop_vec4();
+      unsigned w = val.size();
+
+      if (reverse && slice > 0 && w > slice) {
+	    // Slice into blocks starting at the right-most bit; the
+	    // left-most partial block keeps the remaining bits; block
+	    // order is reversed (11.4.14.2).
+	    vvp_vector4_t res(w, BIT4_0);
+	    unsigned full = w / slice;
+	    unsigned rem  = w % slice;
+	    unsigned pos = w;
+	    for (unsigned i = 0 ; i < full ; i += 1) {
+		  pos -= slice;
+		  res.set_vec(pos, val.subvalue(i*slice, slice));
+	    }
+	    if (rem)
+		  res.set_vec(0, val.subvalue(full*slice, rem));
+	    val = res;
+	    w = val.size();
+      }
+
+      if (tw > 0 && w != tw) {
+	    if (w > tw) {
+		  if (!warned_stream_too_wide) {
+			cerr << thr->get_fileline()
+			     << "VVP error: streaming concatenation produces "
+			     << w << " bits, which does not fit in the "
+			     << tw << "-bit assignment target (IEEE "
+			        "1800-2017 11.4.14); keeping the left-most "
+			        "bits (further similar messages "
+			        "suppressed)." << endl;
+			warned_stream_too_wide = true;
+		  }
+		  val = val.subvalue(w - tw, tw);
+	    } else {
+		  // Left-align in the wider target, zero-fill right.
+		  vvp_vector4_t res(tw, BIT4_0);
+		  if (w > 0)
+			res.set_vec(tw - w, val);
+		  val = res;
+	    }
+      }
+
+      thr->push_vec4(val);
+      return true;
+}
+
+bool of_STREAM_END_L(vthread_t thr, vvp_code_t cp)
+{
+      return do_stream_end(thr, cp, true);
+}
+
+bool of_STREAM_END_R(vthread_t thr, vvp_code_t cp)
+{
+      return do_stream_end(thr, cp, false);
+}
+
+/*
+ * %stream/unpack/l <slice>, <tw>   (stream operator <<)
+ * %stream/unpack/r <slice>, <tw>   (stream operator >>)
+ *
+ * Unpack side (11.4.14.3): pop the source stream; when <tw> is
+ * nonzero the target consumes the left-most <tw> bits (a source with
+ * fewer bits is an error); then the /l form applies the INVERSE of
+ * the pack block re-ordering ("the streaming operators perform the
+ * reverse operation").  Push the result.
+ */
+static bool do_stream_unpack(vthread_t thr, vvp_code_t cp, bool reverse)
+{
+      static bool warned_stream_too_small = false;
+
+      unsigned slice = cp->bit_idx[0];
+      unsigned tw    = cp->bit_idx[1];
+
+      vvp_vector4_t val = thr->pop_vec4();
+      unsigned w = val.size();
+
+      if (tw > 0 && w != tw) {
+	    if (w < tw) {
+		  if (!warned_stream_too_small) {
+			cerr << thr->get_fileline()
+			     << "VVP error: streaming concatenation target "
+			        "requires " << tw << " bits, but the source "
+			        "stream provides only " << w << " (IEEE "
+			        "1800-2017 11.4.14.3); zero-filling "
+			        "(further similar messages suppressed)."
+			     << endl;
+			warned_stream_too_small = true;
+		  }
+		  vvp_vector4_t res(tw, BIT4_0);
+		  if (w > 0)
+			res.set_vec(tw - w, val);
+		  val = res;
+	    } else {
+		  // Consume from the left (most significant) end.
+		  val = val.subvalue(w - tw, tw);
+	    }
+	    w = val.size();
+      }
+
+      if (reverse && slice > 0 && w > slice) {
+	    // Inverse of the 11.4.14.2 block re-ordering: the input's
+	    // top slice-size block returns to the LSB end; the LSB-end
+	    // partial block (w % slice bits) returns to the top.
+	    vvp_vector4_t res(w, BIT4_0);
+	    unsigned full = w / slice;
+	    unsigned rem  = w % slice;
+	    if (rem)
+		  res.set_vec(w - rem, val.subvalue(0, rem));
+	    for (unsigned i = 0 ; i < full ; i += 1) {
+		    // Input block just above the rem bits maps to the
+		    // output block below the rem bits, and so on down.
+		  res.set_vec((full - 1 - i)*slice,
+			      val.subvalue(rem + i*slice, slice));
+	    }
+	    val = res;
+      }
+
+      thr->push_vec4(val);
+      return true;
+}
+
+bool of_STREAM_UNPACK_L(vthread_t thr, vvp_code_t cp)
+{
+      return do_stream_unpack(thr, cp, true);
+}
+
+bool of_STREAM_UNPACK_R(vthread_t thr, vvp_code_t cp)
+{
+      return do_stream_unpack(thr, cp, false);
+}
+
+/*
+ * %stream/to/queue "<t>" and %stream/to/dar "<t>"
+ *
+ * Pop a bit stream and materialize it as a dynamically sized
+ * container with elements of the type described by <t> ("b8",
+ * "sb32", "v1", ...).  Per 11.4.14, the container gets the smallest
+ * number of elements that hold the whole stream; a final partial
+ * element is zero-filled on the right.  Element 0 receives the
+ * left-most bits (matching the flatten order above).
+ */
+static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
+{
+      static bool warned_bad_type = false;
+
+      const char*text = cp->text;
+      vvp_vector4_t val = thr->pop_vec4();
+
+	// Parse the element type string: [s] (b|v) <wid>
+      const char*tp = text;
+      if (*tp == 's') tp += 1;
+      unsigned ewid = 0;
+      if (*tp == 'b' || *tp == 'v')
+	    ewid = (unsigned)strtoul(tp+1, 0, 10);
+
+      if (ewid == 0) {
+	    if (!warned_bad_type) {
+		  cerr << thr->get_fileline()
+		       << "VVP error: unsupported element type '" << text
+		       << "' for streaming into a dynamic container; "
+		          "pushing empty container (further similar "
+		          "messages suppressed)." << endl;
+		  warned_bad_type = true;
+	    }
+	    vvp_object_t nil;
+	    thr->push_object(nil);
+	    return true;
+      }
+
+      unsigned w = val.size();
+      size_t count = (w + ewid - 1) / ewid;
+
+      if (as_queue) {
+	    vvp_queue_vec4*res = new vvp_queue_vec4;
+	    for (size_t i = 0 ; i < count ; i += 1) {
+		  vvp_vector4_t elem(ewid, BIT4_0);
+		  unsigned top = w - (unsigned)i*ewid;   // stream bits above this element
+		  unsigned avail = (top >= ewid) ? ewid : top;
+		  elem.set_vec(ewid - avail, val.subvalue(top - avail, avail));
+		  res->push_back(elem, 0);
+	    }
+	    vvp_object_t obj(res);
+	    thr->push_object(obj);
+      } else {
+	    vvp_darray_vec4*res = new vvp_darray_vec4(count, ewid);
+	    for (size_t i = 0 ; i < count ; i += 1) {
+		  vvp_vector4_t elem(ewid, BIT4_0);
+		  unsigned top = w - (unsigned)i*ewid;
+		  unsigned avail = (top >= ewid) ? ewid : top;
+		  elem.set_vec(ewid - avail, val.subvalue(top - avail, avail));
+		  res->set_word((unsigned)i, elem);
+	    }
+	    vvp_object_t obj(res);
+	    thr->push_object(obj);
+      }
+
+      return true;
+}
+
+bool of_STREAM_TO_QUEUE(vthread_t thr, vvp_code_t cp)
+{
+      return do_stream_to_container(thr, cp, true);
+}
+
+bool of_STREAM_TO_DAR(vthread_t thr, vvp_code_t cp)
+{
+      return do_stream_to_container(thr, cp, false);
 }
 
 bool of_NEW_VIF(vthread_t thr, vvp_code_t cp)

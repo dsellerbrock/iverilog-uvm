@@ -130,6 +130,7 @@ class vvp_darray_string : public vvp_darray {
       void get_word(unsigned adr, std::string&value) override;
       void shallow_copy(const vvp_object*obj) override;
       vvp_object* duplicate(void) const override;
+      vvp_vector4_t get_bitstream(bool as_vec4) override;
 
     private:
       std::vector<std::string> array_;
@@ -223,6 +224,7 @@ class vvp_queue_string : public vvp_queue {
       void pop_front(void) override { queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
+      vvp_vector4_t get_bitstream(bool as_vec4) override;
 
     private:
       std::deque<std::string> queue;
@@ -244,6 +246,7 @@ class vvp_queue_vec4 : public vvp_queue {
       void pop_front(void) override { queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
+      vvp_vector4_t get_bitstream(bool as_vec4) override;
 
     private:
       std::deque<vvp_vector4_t> queue;

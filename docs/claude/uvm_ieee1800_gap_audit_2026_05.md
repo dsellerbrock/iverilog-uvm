@@ -72,6 +72,18 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: dynamic process control common in stimulus/checker shutdown flows.
 
 ### G08 `event.triggered` race with `@(event)` — only one of two waiters fires
+- **STATUS 2026-07-12: FIXED** (IEEE 1800-2017 15.5.3). `e.triggered` was a
+  constant-0 miscompile (elab_expr.cc); it now lowers to
+  `$ivl_event_method$triggered` → `%evtest` reading a per-event trigger
+  stamp (`vvp_named_event::triggered_now()`, true for the remainder of the
+  time slot in which the event fired). `elaborate_wait` gives
+  `wait (e.triggered)` event sensitivity so racing `@(e)` and
+  `wait (e.triggered)` waiters both wake, a same-slot late waiter falls
+  straight through, and the property reads false again in the next slot.
+  Class-property events (`uvm_event::wait_ptrigger` shape) covered.
+  Tests: `tests/m6_event_triggered_test.sv`; reduced probes g08a/b/c.
+  NOTE: landing this exposed pre-existing G67 (see below) by shifting heap
+  allocation patterns — root-caused and fixed in the same checkpoint.
 - Symptom: `wait (e.triggered)` and `@(e)` queued in parallel — the trigger only wakes one (the `@(e)` one); the `wait (e.triggered)` waiter never fires.
 - Probe: p12_event (VERIFIED-FAILS — hits=1, expected 2).
 - Location: vvp/event handling.
@@ -106,10 +118,61 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: realistic constraint-based verification.
 
 ### G12 `streaming LHS`: `{>>{a,b,c,d}} = src` puts everything in `a` (last lvalue wins); other lvalues stay zero
+- **STATUS 2026-07-12: FIXED for fixed-size integral operands** (IEEE
+  1800-2017 11.4.14/.1/.2/.3, semantics verified against the published
+  LRM text and its literal examples). Re-audit found the gap was wider
+  than recorded: multi-operand PACK (RHS) also silently dropped all
+  operands after the first, the typed-slice form (`{<<byte{...}}`)
+  silently used slice=1, and pack-into-assignment used ordinary
+  right-aligned padding instead of the required left-alignment.
+  Implemented: (a) multi-operand streams parse into an ordinary concat
+  operand (reordering applies to the whole stream, 11.4.14.1);
+  (b) unpack rewrites `{op N {lvals}} = rhs` (blocking AND nonblocking)
+  into a concat-lvalue assignment with an lval-context streaming RHS
+  enforcing 11.4.14.3 — too-small source is an error, wider source is
+  consumed from the left ("hello world" example), and the `<<` unpack
+  applies the INVERSE block reorder (round-trips even when the slice
+  does not divide the width); (c) pack as assignment source is
+  left-aligned per 11.4.14 — narrower target errors (`int j =
+  {>>{a,b,c}}` example), wider target zero-fills on the right;
+  (d) slice sizes are resolved at elaboration so parameters and types
+  (`{<<byte{...}}` = 8) work, with explicit errors for non-constant or
+  non-positive slices. Grammar +3 s/r conflicts (new nonblocking
+  forms), r/r unchanged. Tests: `tests/g12_streaming_concat_test.sv`
+  (includes every fixed-size literal example from 11.4.14.2/.3),
+  `tests/negative/g12_stream_source_too_small.sv`,
+  `tests/negative/g12_stream_target_too_small.sv`.
+  **UPDATE 2026-07-12b: dynamic-size streams implemented.** Queue,
+  dynamic-array, and string operands and targets now stream correctly
+  via a vvp runtime stream builder (11.4.14.4): operands flatten
+  through `vvp_darray::get_bitstream` (new overrides for
+  vvp_queue_vec4 / vvp_queue_string / vvp_darray_string), joined and
+  re-ordered by new `%stream/end/{l,r}` opcodes (with runtime
+  left-align/error for fixed targets), unpacked by
+  `%stream/unpack/{l,r}` (consume-from-left + INVERSE re-ordering per
+  11.4.14.3), and materialized by `%stream/to/{queue,dar}` (greedy
+  resize) or `%pushv/str` (string join).  Elaboration lowers dynamic
+  streams to internal `$ivl_stream$(un)pack$<dir>$<slice>` functions;
+  casts to dynamic types (`bit_q_t'({<<{p}})`) delegate to the same
+  path.  Both Accellera UVM idioms verified end to end: the
+  uvm_reg_map byte<->bit queue conversion pair (round-trips exactly)
+  and the uvm_misc string-queue join.  Previously ALL of these
+  compiled cleanly and produced silent wrong data (queue treated as a
+  1-bit expr_width; string join produced a constant ""); dynamic
+  streams in unsupported contexts (plain expression operands) now
+  error with a clause reference instead.  Test:
+  `tests/g12_streaming_dynamic_test.sv`.
+  REMAINING (G12 tail): `with [range]` stream expressions, streaming
+  lvalues in continuous assignments, struct/class operand flattening
+  (11.4.14.1 recursion), class-property containers as stream operands,
+  and per-element unpack into MULTIPLE dynamic operands (the greedy
+  first-item rule beyond the single-container case).
 - Symptom: `{>>{a,b,c,d}} = 32'hAABBCCDD` produces `a=dd b=00 c=00 d=00` (only a is written, with bottom byte).
 - Probe: p23_streaming_lhs (VERIFIED-FAILS).
-- Location: elab_lval.cc — the streaming-pattern LHS path; phase63b notes acknowledge "LHS streaming deferred."
-- Layer: elab.
+- Location: parse.y streaming rules + PEStreaming elaboration (the old
+  audit guess of elab_lval.cc was wrong — the parser dropped operands
+  before elaboration ever saw them).
+- Layer: parse+elab.
 - Complexity: medium (mirror of Phase63b/C5 RHS streaming, requires per-slice store).
 - Blocks: packet pack/unpack patterns common in RAL and bus drivers.
 
@@ -511,6 +574,36 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Layer: elab.
 - Complexity: medium-deep.
 - Blocks: user code that reuses common short identifiers (comp, item, phase...) as class names.
+
+### G67 (NEW 2026-07-12, FIXED same day) uninitialized `is_fork_v_child` corrupts process::self() identity — heap-layout-dependent UVM phasing/sequencer deadlocks
+- **STATUS 2026-07-12: FIXED.** `vthread_new` (vvp/vthread.cc) initialized
+  `is_callf_child` but never `is_fork_v_child`; the bitfield inherited heap
+  garbage from whatever previously occupied the malloc'd thread struct.
+  `logical_process_thread_()` walks parents while `is_callf_child ||
+  is_fork_v_child`, so a fork...join_none thread with a garbage flag
+  resolved `process::self()` to an ANCESTOR process. In UVM this made
+  `uvm_task_phase::execute`'s phase process (`proc = process::self()`)
+  alias a shared ancestor, so a later legitimate `kill()` destroyed
+  sibling phase processes — observed as the driver's run_phase chain dying
+  mid-handshake, leaving `uvm_sequencer_base::wait_for_item_done` blocked
+  forever (`vif_smoke`/`vif_smoke_v2` PH_TIMEOUT at 9200).
+- Discovery chain (session 2026-07-12): the G08 codegen change added 4
+  opcodes to never-called `uvm_event_base::wait_ptrigger`, shifting heap
+  allocation patterns; the tests flipped from pass to hang. Bisection
+  proved semantic innocence (byte-identical images differing in ONE label
+  string flipped the outcome; the previously-failing image passes on the
+  fixed runtime). The failure was deterministic per-image and
+  ASLR-independent — the signature of uninitialized-memory dependence, not
+  a race.
+- Fix: one line — `thr->is_fork_v_child = 0;` in `vthread_new`.
+- Test: `tests/m6_process_identity_test.sv` (fork...join_none watcher must
+  be its own process; killing it must not kill the caller chain — the
+  `uvm_sequencer_param_base::m_safe_select_item` shape).
+- Layer: runtime.
+- Complexity: trivial fix, deep diagnosis.
+- Blocks (pre-fix): any process::self()/kill() pattern — UVM phasing,
+  sequencer arbitration watchers, process guards — failing
+  nondeterministically across otherwise-unrelated compiler changes.
 
 # Confirmed-working baselines (not gaps; recorded for diff against future regressions)
 
