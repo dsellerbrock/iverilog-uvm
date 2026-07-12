@@ -284,6 +284,16 @@ static void string_ex_pop(ivl_expr_t expr)
 static void draw_sfunc_string(ivl_expr_t expr)
 {
     assert(ivl_expr_value(expr) == IVL_VT_STRING);
+
+    /* Streaming concatenation in a string context (IEEE 1800-2017
+       11.4.14, e.g. joining a queue of strings): build the stream and
+       convert the bytes to a string. */
+    if (strncmp(ivl_expr_name(expr), "$ivl_stream$", 12) == 0) {
+	  draw_stream_pack_pieces(expr, 0);
+	  fprintf(vvp_out, "    %%pushv/str;\n");
+	  return;
+    }
+
     draw_vpi_sfunc_call(expr);
 }
 

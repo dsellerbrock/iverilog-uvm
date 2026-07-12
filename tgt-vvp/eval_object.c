@@ -21,6 +21,42 @@
 # include  <string.h>
 # include  <assert.h>
 
+/*
+ * Map a container element type to the vvp type string used by
+ * %new/darray, %stream/to/queue and %stream/to/dar ("r", "S", "b8",
+ * "sb32", "v1", ...).  Object-like and unresolved element types map
+ * to "o".
+ */
+void stream_elem_type_text(ivl_type_t element_type, char*buf, size_t bufsz)
+{
+      ivl_variable_type_t type = ivl_type_base(element_type);
+      int wid = 0;
+      const char*signed_char = "";
+
+      if ((type == IVL_VT_BOOL) || (type == IVL_VT_LOGIC)) {
+	    wid = ivl_type_packed_width(element_type);
+	    signed_char = ivl_type_signed(element_type) ? "s" : "";
+      }
+
+      switch (type) {
+	  case IVL_VT_REAL:
+	    snprintf(buf, bufsz, "r");
+	    break;
+	  case IVL_VT_STRING:
+	    snprintf(buf, bufsz, "S");
+	    break;
+	  case IVL_VT_BOOL:
+	    snprintf(buf, bufsz, "%sb%d", signed_char, wid);
+	    break;
+	  case IVL_VT_LOGIC:
+	    snprintf(buf, bufsz, "%sv%d", signed_char, wid);
+	    break;
+	  default:
+	    snprintf(buf, bufsz, "o");
+	    break;
+      }
+}
+
 void darray_new(ivl_type_t element_type, unsigned size_reg)
 {
       static int warned_unhandled_elem_type = 0;
@@ -78,6 +114,79 @@ void darray_new(ivl_type_t element_type, unsigned size_reg)
       }
 
       clr_word(size_reg);
+}
+
+/*
+ * Emit the runtime evaluation of a "$ivl_stream$pack$<l|r>$<slice>"
+ * internal function (streaming concatenation with dynamically sized
+ * operands, IEEE 1800-2017 11.4.14).  Operands are evaluated left to
+ * right; container and string operands are flattened to their bit
+ * streams (11.4.14.1); the pieces are joined with %concat/vec4; and
+ * %stream/end/{l,r} applies the block re-ordering (11.4.14.2) plus
+ * the fixed-target alignment when tw is nonzero.  The stream is left
+ * on the vec4 stack.
+ */
+int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
+{
+      const char*name = ivl_expr_name(expr);
+      if (strncmp(name, "$ivl_stream$", 12) != 0)
+	    return -1;
+
+      const char*tail = name + 12;
+      int unpack = 0;
+      if (strncmp(tail, "pack$", 5) == 0) {
+	    tail += 5;
+      } else if (strncmp(tail, "unpack$", 7) == 0) {
+	    unpack = 1;
+	    tail += 7;
+      } else {
+	    return -1;
+      }
+
+      char dir = tail[0];
+      unsigned long slice = 1;
+      if (tail[1] == '$')
+	    slice = strtoul(tail + 2, 0, 10);
+      if (slice == 0)
+	    slice = 1;
+
+      unsigned parms = ivl_expr_parms(expr);
+      assert(parms > 0);
+
+      for (unsigned idx = 0 ; idx < parms ; idx += 1) {
+	    ivl_expr_t parm = ivl_expr_parm(expr, idx);
+	    switch (ivl_expr_value(parm)) {
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		  draw_eval_object(parm);
+		  fprintf(vvp_out, "    %%stream/flatten/obj;\n");
+		  break;
+		case IVL_VT_STRING:
+		  draw_eval_string(parm);
+		  fprintf(vvp_out, "    %%stream/flatten/str;\n");
+		  break;
+		default:
+		  draw_eval_vec4(parm);
+		  break;
+	    }
+	    if (idx > 0)
+		  fprintf(vvp_out, "    %%concat/vec4;\n");
+      }
+
+      if (unpack) {
+	    /* Unpack (11.4.14.3): consume tw bits from the left (error
+	       when the source is narrower), then the /l form applies
+	       the inverse block re-ordering. */
+	    if (dir == 'l' || tw > 0)
+		  fprintf(vvp_out, "    %%stream/unpack/%c %lu, %u;\n",
+			  (dir == 'l') ? 'l' : 'r', slice, tw);
+      } else {
+	    if (dir == 'l' || tw > 0)
+		  fprintf(vvp_out, "    %%stream/end/%c %lu, %u;\n",
+			  (dir == 'l') ? 'l' : 'r', slice, tw);
+      }
+
+      return 0;
 }
 
 static int eval_darray_new(ivl_expr_t ex)
@@ -591,6 +700,23 @@ static int eval_object_sfunc(ivl_expr_t expr)
 {
       const char*name = ivl_expr_name(expr);
       unsigned parm_count = ivl_expr_parms(expr);
+
+      /* Streaming concatenation materialized into a dynamic container
+         (IEEE 1800-2017 11.4.14): build the stream, then convert it to
+         a queue or dynamic array of the result's element type. */
+      if (strncmp(name, "$ivl_stream$", 12) == 0) {
+	    ivl_type_t net_type = ivl_expr_net_type(expr);
+	    char elem_text[32];
+	    assert(net_type);
+	    stream_elem_type_text(ivl_type_element(net_type),
+				  elem_text, sizeof elem_text);
+	    draw_stream_pack_pieces(expr, 0);
+	    if (ivl_type_base(net_type) == IVL_VT_QUEUE)
+		  fprintf(vvp_out, "    %%stream/to/queue \"%s\";\n", elem_text);
+	    else
+		  fprintf(vvp_out, "    %%stream/to/dar \"%s\";\n", elem_text);
+	    return 0;
+      }
       static int warned_non_queue = 0;
       static int warned_pop_back_non_signal = 0;
       static int warned_pop_front_non_signal = 0;

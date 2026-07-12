@@ -255,6 +255,11 @@ class PEConcat : public PExpr {
 
       bool is_empty_concat() const { return parms_.empty() && repeat_ == 0; }
 
+      // Read-only operand access for the streaming-concatenation
+      // lowering (a multi-operand stream is parsed as a PEConcat).
+      const std::vector<PExpr*>& stream_parms() const { return parms_; }
+      bool has_repeat() const { return repeat_ != 0; }
+
       virtual void dump(std::ostream&) const override;
 
       virtual void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
@@ -1160,9 +1165,15 @@ class PECastType  : public PExpr {
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
 
+      // Streaming-concatenation support: resolve and expose the cast
+      // target type, and the base expression, so a stream operand of
+      // the form queue_type'(...) can be classified and elaborated.
+      ivl_type_t resolve_target_type(Design*des, NetScope*scope) const;
+      PExpr* cast_base() const { return base_; }
+
     private:
       data_type_t* target_;
-      ivl_type_t target_type_;
+      mutable ivl_type_t target_type_;
       PExpr* base_;
 };
 
@@ -1264,7 +1275,20 @@ class PEStreaming : public PExpr {
       // the lv_width-bit target (error if the target is narrower).
       NetExpr* elaborate_pack_into(Design* des, NetScope* scope,
                                    unsigned lv_width) const;
+      // Dynamic-size streaming (11.4.14.4): true when any operand is a
+      // queue, dynamic array, or string (directly or via a cast to
+      // such a type), so the stream width is a runtime value.
+      bool stream_is_dynamic(Design*des, NetScope*scope) const;
+      // Build the runtime stream expression: an internal system
+      // function "$ivl_stream$pack$<l|r>$<slice>" whose arguments are
+      // the elaborated operands.  rtype non-null gives a typed
+      // (container or string) result; otherwise the result is a
+      // vector of expr_wid bits (aligned at runtime).
+      NetExpr* elaborate_stream_sfunc(Design*des, NetScope*scope,
+                                      ivl_type_t rtype,
+                                      unsigned expr_wid) const;
     private:
+      void collect_operands_(std::vector<PExpr*>&ops) const;
       unsigned resolve_slice_(Design* des, NetScope* scope) const;
       NetExpr* reorder_stream_(NetExpr*body, unsigned wid,
                                unsigned slice, bool invert) const;

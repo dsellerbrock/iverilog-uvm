@@ -3234,6 +3234,11 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 			return st->elaborate_unpack(des, scope, lv_width);
 		  return st->elaborate_pack_into(des, scope, lv_width);
 	    }
+	      // String target (e.g. joining a queue of strings): the
+	      // stream materializes as a string.
+	    if (lv_type == IVL_VT_STRING)
+		  return st->elaborate_stream_sfunc(des, scope,
+						    &netstring_t::type_string, 0);
       }
 
       NetExpr*rv = elaborate_rval_expr(des, scope, lv_net_type, lv_type, lv_width,

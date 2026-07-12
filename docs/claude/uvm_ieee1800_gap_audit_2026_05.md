@@ -142,11 +142,31 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   (includes every fixed-size literal example from 11.4.14.2/.3),
   `tests/negative/g12_stream_source_too_small.sv`,
   `tests/negative/g12_stream_target_too_small.sv`.
-  REMAINING (G12 tail): dynamic-size stream operands (queues, dynamic
-  arrays, strings — 11.4.14.4 greedy resize, used by uvm_reg_map byte
-  packing and uvm_misc string join), `with [range]` stream expressions,
-  streaming lvalues in continuous assignments, and struct/class operand
-  flattening (11.4.14.1 recursion).
+  **UPDATE 2026-07-12b: dynamic-size streams implemented.** Queue,
+  dynamic-array, and string operands and targets now stream correctly
+  via a vvp runtime stream builder (11.4.14.4): operands flatten
+  through `vvp_darray::get_bitstream` (new overrides for
+  vvp_queue_vec4 / vvp_queue_string / vvp_darray_string), joined and
+  re-ordered by new `%stream/end/{l,r}` opcodes (with runtime
+  left-align/error for fixed targets), unpacked by
+  `%stream/unpack/{l,r}` (consume-from-left + INVERSE re-ordering per
+  11.4.14.3), and materialized by `%stream/to/{queue,dar}` (greedy
+  resize) or `%pushv/str` (string join).  Elaboration lowers dynamic
+  streams to internal `$ivl_stream$(un)pack$<dir>$<slice>` functions;
+  casts to dynamic types (`bit_q_t'({<<{p}})`) delegate to the same
+  path.  Both Accellera UVM idioms verified end to end: the
+  uvm_reg_map byte<->bit queue conversion pair (round-trips exactly)
+  and the uvm_misc string-queue join.  Previously ALL of these
+  compiled cleanly and produced silent wrong data (queue treated as a
+  1-bit expr_width; string join produced a constant ""); dynamic
+  streams in unsupported contexts (plain expression operands) now
+  error with a clause reference instead.  Test:
+  `tests/g12_streaming_dynamic_test.sv`.
+  REMAINING (G12 tail): `with [range]` stream expressions, streaming
+  lvalues in continuous assignments, struct/class operand flattening
+  (11.4.14.1 recursion), class-property containers as stream operands,
+  and per-element unpack into MULTIPLE dynamic operands (the greedy
+  first-item rule beyond the single-container case).
 - Symptom: `{>>{a,b,c,d}} = 32'hAABBCCDD` produces `a=dd b=00 c=00 d=00` (only a is written, with bottom byte).
 - Probe: p23_streaming_lhs (VERIFIED-FAILS).
 - Location: parse.y streaming rules + PEStreaming elaboration (the old

@@ -617,6 +617,19 @@ extern unsigned thread_count;
 extern void darray_new(ivl_type_t element_type, unsigned size_reg);
 
 /*
+ * Streaming-operator support (IEEE 1800-2017 11.4.14) for dynamically
+ * sized operands.  draw_stream_pack_pieces() recognizes internal
+ * system functions named "$ivl_stream$pack$<l|r>$<slice>", evaluates
+ * each operand (flattening container/string operands), joins the
+ * pieces, and emits %stream/end/{l,r} <slice>, <tw> leaving the
+ * stream on the vec4 stack.  Returns 0 on success, -1 if the name is
+ * not a stream-pack function.
+ */
+extern int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw);
+extern void stream_elem_type_text(ivl_type_t element_type,
+                                  char*buf, size_t bufsz);
+
+/*
  * These are various statement code generators.
  */
 extern int show_statement(ivl_statement_t net, ivl_scope_t sscope);

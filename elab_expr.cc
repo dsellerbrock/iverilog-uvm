@@ -2151,15 +2151,51 @@ NetExpr* PEStreaming::reorder_stream_(NetExpr*body, unsigned wid,
 }
 
 NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
-				     ivl_type_t /*type*/, unsigned flags) const
+				     ivl_type_t type, unsigned flags) const
 {
-      return elaborate_expr(des, scope, (unsigned)0, flags);
+	// A dynamically sized result context (queue/dynamic-array
+	// target or cast, string target) uses the runtime stream
+	// builder; the result is materialized with the context type
+	// (11.4.14: dynamic targets are resized to fit the stream).
+      if (dynamic_cast<const netdarray_t*>(type))
+	    return elaborate_stream_sfunc(des, scope, type, 0);
+      if (dynamic_cast<const netstring_t*>(type))
+	    return elaborate_stream_sfunc(des, scope, type, 0);
+
+      unsigned use_wid = 0;
+      if (type && type->packed()) {
+	    long pw = type->packed_width();
+	    if (pw > 0) use_wid = (unsigned)pw;
+      }
+      return elaborate_expr(des, scope, use_wid, flags);
 }
 
 NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
-				     unsigned /*expr_wid*/, unsigned flags) const
+				     unsigned expr_wid, unsigned flags) const
 {
       if (!inner_) return nullptr;
+
+	// The static lowering below computes widths at elaboration;
+	// dynamically sized operands would silently contribute wrong
+	// widths here.  When the context provides a width (vector
+	// assignment targets, including class-property and array
+	// element l-values that elaborate their r-values in width
+	// context), use the runtime stream builder with that width;
+	// the runtime left-aligns per 11.4.14 and reports a stream
+	// wider than the context.  A width-less context (plain
+	// expression operand) has no LRM meaning without a cast.
+      if (stream_is_dynamic(des, scope)) {
+	    if (expr_wid > 0 && expr_wid != UINT_MAX)
+		  return elaborate_stream_sfunc(des, scope, 0, expr_wid);
+	    cerr << get_fileline() << ": error: streaming concatenation "
+	          "with dynamically sized operands is only supported as "
+	          "an assignment source or target, in a cast to a "
+	          "dynamically sized type, or in a string context "
+	          "(IEEE 1800-2017 11.4.14.4)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
       width_mode_t m = SIZED;
       unsigned w = inner_->test_width(des, scope, m);
       if (w == 0) {
@@ -2191,6 +2227,13 @@ NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
 					  unsigned lv_width) const
 {
       if (!inner_) return nullptr;
+
+	// Dynamically sized operands: the stream width is a runtime
+	// value, so alignment into the fixed-size target happens at
+	// runtime (left-align, zero-fill right; error if wider).
+      if (stream_is_dynamic(des, scope))
+	    return elaborate_stream_sfunc(des, scope, 0, lv_width);
+
       width_mode_t m = SIZED;
       unsigned w = inner_->test_width(des, scope, m);
       if (w == 0) {
@@ -2236,6 +2279,13 @@ NetExpr* PEStreaming::elaborate_unpack(Design*des, NetScope*scope,
 				       unsigned lv_width) const
 {
       if (!inner_) return nullptr;
+
+	// Dynamically sized source: consume-from-the-left and the
+	// inverse re-ordering happen at runtime (the sfunc name
+	// carries the unpack operation via lval_context_).
+      if (stream_is_dynamic(des, scope))
+	    return elaborate_stream_sfunc(des, scope, 0, lv_width);
+
       width_mode_t m = SIZED;
       unsigned w = inner_->test_width(des, scope, m);
       if (w == 0) {
@@ -2272,6 +2322,187 @@ NetExpr* PEStreaming::elaborate_unpack(Design*des, NetScope*scope,
 	    body = reorder_stream_(body, lv_width, slice, true);
 
       return body;
+}
+
+/*
+ * Dynamic-size streaming support (IEEE 1800-2017 11.4.14.4).  The
+ * operand list is the single inner expression or the parsed concat of
+ * multiple operands.
+ */
+void PEStreaming::collect_operands_(std::vector<PExpr*>&ops) const
+{
+      if (PEConcat*cat = dynamic_cast<PEConcat*>(inner_)) {
+	    if (!cat->has_repeat()) {
+		  const std::vector<PExpr*>&parms = cat->stream_parms();
+		  for (size_t idx = 0 ; idx < parms.size() ; idx += 1)
+			ops.push_back(parms[idx]);
+		  return;
+	    }
+      }
+      ops.push_back(inner_);
+}
+
+/*
+ * An operand makes the stream width a runtime value when it is a
+ * queue, dynamic array, or string - directly, via a cast to such a
+ * type, or via a nested streaming concatenation with such operands.
+ */
+static bool stream_operand_is_dynamic_(Design*des, NetScope*scope, PExpr*op)
+{
+      if (PECastType*cast = dynamic_cast<PECastType*>(op)) {
+	    ivl_type_t tt = cast->resolve_target_type(des, scope);
+	    if (dynamic_cast<const netdarray_t*>(tt))
+		  return true;
+	    if (dynamic_cast<const netstring_t*>(tt))
+		  return true;
+	    return false;
+      }
+      if (PEStreaming*sub = dynamic_cast<PEStreaming*>(op))
+	    return sub->stream_is_dynamic(des, scope);
+
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      op->test_width(des, scope, mode);
+      switch (op->expr_type()) {
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_STRING:
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
+bool PEStreaming::stream_is_dynamic(Design*des, NetScope*scope) const
+{
+      if (!inner_) return false;
+      std::vector<PExpr*> ops;
+      collect_operands_(ops);
+      for (size_t idx = 0 ; idx < ops.size() ; idx += 1) {
+	    if (stream_operand_is_dynamic_(des, scope, ops[idx]))
+		  return true;
+      }
+      return false;
+}
+
+/*
+ * Elaborate one stream operand for the runtime pack function.
+ * Container-typed operands elaborate to object-valued expressions;
+ * everything else elaborates at its self-determined width.
+ */
+static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
+					  PExpr*op, const LineInfo*li)
+{
+	// Casts to dynamic container types elaborate through the
+	// typed path (which handles streaming bases as well).
+      if (PECastType*cast = dynamic_cast<PECastType*>(op)) {
+	    ivl_type_t tt = cast->resolve_target_type(des, scope);
+	    if (dynamic_cast<const netdarray_t*>(tt))
+		  return op->elaborate_expr(des, scope, tt, PExpr::NO_FLAGS);
+      }
+
+	// Nested streaming concatenations with dynamic operands
+	// become nested runtime pack functions.
+      if (PEStreaming*sub = dynamic_cast<PEStreaming*>(op)) {
+	    if (sub->stream_is_dynamic(des, scope))
+		  return sub->elaborate_stream_sfunc(des, scope, 0, 0);
+      }
+
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      unsigned w = op->test_width(des, scope, mode);
+
+      switch (op->expr_type()) {
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE: {
+		  // Container identifiers elaborate as object-valued
+		  // signal references.
+		PEIdent*id = dynamic_cast<PEIdent*>(op);
+		if (id) {
+		      symbol_search_results sr;
+		      if (symbol_search(li, des, scope, id->path(),
+					id->lexical_pos(), &sr)
+			  && sr.net && sr.path_tail.empty()
+			  && dynamic_cast<const netdarray_t*>(sr.net->net_type())) {
+			    NetESignal*sig = new NetESignal(sr.net);
+			    sig->set_line(*op);
+			    return sig;
+		      }
+		}
+		cerr << op->get_fileline() << ": sorry: This form of "
+		      "dynamically sized operand in a streaming "
+		      "concatenation is not yet supported (IEEE "
+		      "1800-2017 11.4.14.4)." << endl;
+		des->errors += 1;
+		return 0;
+	  }
+	  case IVL_VT_STRING:
+	    return op->elaborate_expr(des, scope, w, PExpr::NO_FLAGS);
+	  case IVL_VT_LOGIC:
+	  case IVL_VT_BOOL:
+	    if (w == 0) {
+		  cerr << op->get_fileline() << ": error: streaming "
+		        "concatenation operand has indeterminate "
+		        "width." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    return op->elaborate_expr(des, scope, w, PExpr::NO_FLAGS);
+	  default:
+	    cerr << op->get_fileline() << ": error: expression of type "
+		 << op->expr_type() << " is not a bit-stream type and "
+	          "cannot be a streaming concatenation operand (IEEE "
+	          "1800-2017 11.4.14.1)." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+}
+
+NetExpr* PEStreaming::elaborate_stream_sfunc(Design*des, NetScope*scope,
+					     ivl_type_t rtype,
+					     unsigned expr_wid) const
+{
+      if (!inner_) return 0;
+
+      unsigned slice = resolve_slice_(des, scope);
+      if (slice == 0) return 0;
+
+      std::vector<PExpr*> ops;
+      collect_operands_(ops);
+      if (ops.empty()) return 0;
+
+      char name[64];
+      snprintf(name, sizeof name, "$ivl_stream$%s$%c$%u",
+	       lval_context_ ? "unpack" : "pack",
+	       (dir_ == DIR_LSHIFT) ? 'l' : 'r', slice);
+
+      NetESFunc*fun;
+      if (rtype)
+	    fun = new NetESFunc(name, rtype, (unsigned)ops.size());
+      else
+	    fun = new NetESFunc(name, IVL_VT_LOGIC, expr_wid,
+				(unsigned)ops.size());
+      fun->set_line(*this);
+
+      for (size_t idx = 0 ; idx < ops.size() ; idx += 1) {
+	    NetExpr*parm = elaborate_stream_operand_(des, scope, ops[idx], this);
+	    if (parm == 0) {
+		  delete fun;
+		  return 0;
+	    }
+	    fun->parm((unsigned)idx, parm);
+      }
+
+      return fun;
+}
+
+/*
+ * Resolve (and cache) the elaborated target type of a cast, for
+ * stream-operand classification.
+ */
+ivl_type_t PECastType::resolve_target_type(Design*des, NetScope*scope) const
+{
+      if (target_type_ == 0 && target_ != 0)
+	    target_type_ = target_->elaborate_type(des, scope);
+      return target_type_;
 }
 
 unsigned PEBLeftWidth::test_width(Design*des, NetScope*scope, width_mode_t&mode)
@@ -7269,6 +7500,16 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 {
     const netdarray_t*darray = NULL;
     const netvector_t*vector = NULL;
+
+    // A streaming concatenation with dynamically sized operands cast
+    // to a dynamically sized type elaborates as a runtime stream with
+    // the cast's target type (IEEE 1800-2017 11.4.14 / 6.24.3).
+    if (dynamic_cast<const netdarray_t*>(type)) {
+	  if (PEStreaming*st = dynamic_cast<PEStreaming*>(base_)) {
+		if (st->stream_is_dynamic(des, scope))
+		      return st->elaborate_expr(des, scope, type, flags);
+	  }
+    }
 
     // Casting array of vectors to dynamic array type
     if((darray = dynamic_cast<const netdarray_t*>(type)) &&

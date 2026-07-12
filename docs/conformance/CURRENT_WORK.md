@@ -3,6 +3,25 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-12c (session: G12 tail — dynamic-size streaming)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #68 open,
+  draft — three checkpoints stacked).
+- **This checkpoint**: dynamic-size streaming operands/targets
+  (11.4.14.4) implemented via a vvp runtime stream builder — new
+  opcodes `%stream/flatten/{obj,str}`, `%stream/end/{l,r}`,
+  `%stream/unpack/{l,r}`, `%stream/to/{queue,dar}`, plus
+  `get_bitstream` overrides for queue/string containers.  Both UVM
+  idioms verified end to end (uvm_reg_map byte<->bit queue pair
+  round-trips bit-exactly; uvm_misc string-queue join).  Previously
+  all these shapes compiled cleanly with silent wrong data.
+  Unsupported dynamic contexts now error with clause references.
+  Details: `session_logs/2026-07-12_g12_dynamic_streaming.md`.
+- **Tests**: `tests/g12_streaming_dynamic_test.sv`.
+- **G12 tail remaining**: `with [range]`, continuous-assign streaming
+  lvalues, struct/class operand flattening, class-property container
+  operands, multi-operand dynamic unpack.
+
 ## State as of 2026-07-12b (session: G12 streaming concatenation)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #68 open,
