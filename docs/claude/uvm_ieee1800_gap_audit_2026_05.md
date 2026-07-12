@@ -120,12 +120,21 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   eval_object_sfunc).  Tests `tests/g10_array_methods_test.sv` (29
   checks incl. all 7.12.3 LRM literal examples),
   `tests/negative/g10_reduction_non_integral.sv`.
+- **UPDATE 2026-07-13: class-property receivers FIXED** — the dominant
+  UVM shape (`this.q.sum()`, `cfg.st.q.max()`, nested chains, external
+  and paren-less forms).  Any non-signal object receiver is evaluated
+  once and its handle stored into a hidden container-typed net the
+  loop indexes through (extra trailing sfunc parm; tgt-vvp
+  `draw_array_method_recv_`).  The paren-less property tail path
+  (`return q.sum;`), which previously WARNED AND DROPPED the
+  expression, now routes to the same machinery.  Fixed-size-array
+  class properties get an explicit sorry (not object-valued).
 - Remaining tail (explicit diagnostics, no silent fallbacks): `sort`/
   `rsort`/`reverse`/`shuffle` (7.12.2); `unique`/`unique_index` on
   non-queue arrays; reductions/min/max on associative arrays (sorry) and
   multidimensional arrays (sorry); `min`/`max` on string/real elements
-  (sorry); `item.index` iterator method; class-property receivers reach
-  the older PEIdent property path, not the new machinery.
+  (sorry); `item.index` iterator method; fixed-size-array class
+  properties (sorry).
 - Symptom: `q.sum()` reports `error: Method sum is not a queue method.` Same for product. Probe got `Variable item does not have a field named: index.` for `with (item.index)`. The Phase-63b B-series only added some shapes.
 - Probe: p16_queue_with (VERIFIED-FAILS), p30_array_methods (VERIFIED-FAILS for .min/.max/.sort on non-queue), p87_unique_index (PASS for queue).
 - Location: elab_expr.cc:8857-8911 (sorry: cluster for non-queue array methods); also `with (item.index)` codepath separately broken in elab_expr.cc.

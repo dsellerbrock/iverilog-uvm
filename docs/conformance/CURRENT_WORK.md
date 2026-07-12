@@ -3,6 +3,31 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-13 (session: G10 tail — class-property receivers)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,
+  draft; CI green on all 6 platforms at def4cf7 before this
+  checkpoint).
+- **This checkpoint**: array reduction/min-max/find* methods now work
+  on CLASS-PROPERTY receivers — the dominant UVM shape
+  (`this.q.sum()` in scoreboards, `cfg.st.q.max()` nested chains,
+  external `obj.q.sum()`, paren-less `return q.sum;`).  Mechanism: a
+  non-signal object receiver is evaluated once and its handle stored
+  into a hidden container-typed net that the existing inline loop
+  indexes through (extra trailing sfunc parm; tgt-vvp
+  `draw_array_method_recv_`).  The PEIdent class-property tail path
+  that previously WARNED AND SILENTLY DROPPED the expression
+  (`Array method 'sum' on class-property darray/queue not yet
+  supported ... expression dropped`) now routes to the same
+  machinery.  Fixed-size-array class properties: explicit sorry.
+  Details: `session_logs/2026-07-13_g10_property_receivers.md`.
+- **Tests**: `tests/g10_array_methods_test.sv` extended to 43 checks
+  (class-property section: method-internal, external, nested-chain,
+  paren-less, with-clause, locators, empties).
+- **G10 tail remaining**: sort/rsort/reverse/shuffle (7.12.2); unique
+  on non-queue receivers; assoc/multidim receivers; `item.index`;
+  fixed-size-array class properties.
+
 ## State as of 2026-07-12e (session: G10 array reduction methods)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,

@@ -726,6 +726,32 @@ static void draw_array_elem_load_vec4_(ivl_signal_t sig)
 	    fprintf(vvp_out, "    %%load/vec4a v%p, 3;\n", sig);
 }
 
+/* Resolve the signal the array-method loop indexes through.  A plain
+ * signal (or whole-array) receiver is used directly.  Any other
+ * object-valued receiver (class property, nested property chain, call
+ * result) is evaluated once onto the object stack and its handle
+ * stored into the hidden net that elaboration passed as the sfunc's
+ * trailing parameter (recv_parm).  Returns nil if the shapes are
+ * unusable. */
+static ivl_signal_t draw_array_method_recv_(ivl_expr_t a_arg,
+					    ivl_expr_t recv_parm)
+{
+      if (a_arg && (ivl_expr_type(a_arg) == IVL_EX_SIGNAL
+		    || ivl_expr_type(a_arg) == IVL_EX_ARRAY)
+	  && ivl_expr_signal(a_arg))
+	    return ivl_expr_signal(a_arg);
+
+      if (!a_arg || !recv_parm
+	  || ivl_expr_type(recv_parm) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(recv_parm))
+	    return 0;
+
+      ivl_signal_t recv_sig = ivl_expr_signal(recv_parm);
+      draw_eval_object(a_arg);
+      fprintf(vvp_out, "    %%store/obj v%p_0;\n", recv_sig);
+      return recv_sig;
+}
+
 /* IEEE 1800-2017 7.12.3 array reduction methods:
  *   $ivl_darray_method$reduce|<kind>(array, iter, idx, acc, val)
  * kind is one of sum/product/and/or/xor.  Emit an inline loop that
@@ -748,12 +774,14 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       ivl_expr_t idx_arg = (parm_count > 4) ? ivl_expr_parm(expr, 2) : 0;
       ivl_expr_t acc_arg = (parm_count > 4) ? ivl_expr_parm(expr, 3) : 0;
       ivl_expr_t val = (parm_count > 4) ? ivl_expr_parm(expr, 4) : 0;
+      ivl_expr_t recv_parm = (parm_count > 5) ? ivl_expr_parm(expr, 5) : 0;
 
 	/* A whole-array receiver is IVL_EX_SIGNAL for queue/darray
-	 * object variables, IVL_EX_ARRAY for fixed-size arrays. */
-      if (!a_arg || (ivl_expr_type(a_arg) != IVL_EX_SIGNAL
-		     && ivl_expr_type(a_arg) != IVL_EX_ARRAY)
-	  || !ivl_expr_signal(a_arg)
+	 * object variables, IVL_EX_ARRAY for fixed-size arrays; other
+	 * object-valued receivers go through the hidden recv_parm
+	 * net. */
+      ivl_signal_t a_sig = draw_array_method_recv_(a_arg, recv_parm);
+      if (!a_sig
 	  || !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
 	  || !ivl_expr_signal(iter_arg)
 	  || !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
@@ -772,7 +800,6 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
 	    return 0;
       }
 
-      ivl_signal_t a_sig = ivl_expr_signal(a_arg);
       ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
       ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
       ivl_signal_t acc_sig = ivl_expr_signal(acc_arg);
@@ -978,10 +1005,11 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    ivl_expr_t best_arg = ivl_expr_parm(expr, 4);
 	    ivl_expr_t bitem_arg = ivl_expr_parm(expr, 5);
 	    ivl_expr_t val = ivl_expr_parm(expr, 6);
+	    ivl_expr_t recv_parm = (parm_count > 7)
+		  ? ivl_expr_parm(expr, 7) : 0;
 
-	    if (!a_arg || (ivl_expr_type(a_arg) != IVL_EX_SIGNAL
-			   && ivl_expr_type(a_arg) != IVL_EX_ARRAY)
-		|| !ivl_expr_signal(a_arg)
+	    ivl_signal_t a_sig = draw_array_method_recv_(a_arg, recv_parm);
+	    if (!a_sig
 		|| !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
 		|| !ivl_expr_signal(iter_arg)
 		|| !result_arg || ivl_expr_type(result_arg) != IVL_EX_SIGNAL
@@ -996,7 +1024,6 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%null; ; minmax: bad arg shape\n");
 		  return 0;
 	    }
-	    ivl_signal_t a_sig = ivl_expr_signal(a_arg);
 	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
 	    ivl_signal_t result_sig = ivl_expr_signal(result_arg);
 	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
@@ -1129,10 +1156,11 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    ivl_expr_t result_arg = ivl_expr_parm(expr, 2);
 	    ivl_expr_t idx_arg = ivl_expr_parm(expr, 3);
 	    ivl_expr_t pred = ivl_expr_parm(expr, 4);
+	    ivl_expr_t recv_parm = (parm_count > 5)
+		  ? ivl_expr_parm(expr, 5) : 0;
 
-	    if (!q_arg || (ivl_expr_type(q_arg) != IVL_EX_SIGNAL
-			   && ivl_expr_type(q_arg) != IVL_EX_ARRAY)
-		|| !ivl_expr_signal(q_arg)
+	    ivl_signal_t q_sig = draw_array_method_recv_(q_arg, recv_parm);
+	    if (!q_sig
 		|| !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
 		|| !ivl_expr_signal(iter_arg)
 		|| !result_arg || ivl_expr_type(result_arg) != IVL_EX_SIGNAL
@@ -1143,7 +1171,6 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%null; ; find_with: bad arg shape\n");
 		  return 0;
 	    }
-	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
 	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
 	    ivl_signal_t result_sig = ivl_expr_signal(result_arg);
 	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);

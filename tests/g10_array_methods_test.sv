@@ -5,6 +5,36 @@
 // forms, including the keyword-named methods (and/or/xor) and
 // per-call iterator binding ("The scope for the iterator_argument is
 // the with expression").
+// Class-property receivers (the dominant UVM shape): the loop cannot
+// index a property directly, so the code generator evaluates the
+// receiver object once into a hidden container net.
+class g10_stats;
+  int q[$];
+  byte d[];
+endclass
+
+class g10_cfg;
+  g10_stats st;
+  function new; st = new; endfunction
+endclass
+
+class g10_scoreboard;
+  int q[$];
+  function int get_sum(); return q.sum(); endfunction
+  function int get_sum_parenless(); return q.sum; endfunction
+  function int get_sumw(); return q.sum() with (item * 2); endfunction
+  function int get_max();
+    int mq[$];
+    mq = q.max();
+    return mq[0];
+  endfunction
+  function int get_fidx_count();
+    int idxq[$];
+    idxq = q.find_index() with (item > 1);
+    return idxq.size();
+  endfunction
+endclass
+
 module g10_array_methods_test;
   int errors = 0;
 
@@ -99,6 +129,34 @@ module g10_array_methods_test;
       check("shadowed item sum", y, 50);
       check("user item preserved", item, 99);
       qe.delete();
+    end
+
+    // class-property receivers: method-internal, external, nested
+    // chains, paren-less, with-clause, locators, empties
+    begin
+      automatic g10_scoreboard sb = new;
+      automatic g10_cfg cfg = new;
+      automatic int mq2[$];
+      sb.q.push_back(3); sb.q.push_back(1); sb.q.push_back(2);
+      check("prop q.sum()", sb.get_sum(), 6);
+      check("prop q.sum parenless", sb.get_sum_parenless(), 6);
+      check("prop q.sum with", sb.get_sumw(), 12);
+      check("prop q.max", sb.get_max(), 3);
+      check("prop find_index with", sb.get_fidx_count(), 2);
+      check("ext prop sum", sb.q.sum(), 6);
+      check("ext prop sum parenless", sb.q.sum, 6);
+
+      cfg.st.q.push_back(4); cfg.st.q.push_back(5);
+      cfg.st.d = new[3];
+      cfg.st.d[0] = 1; cfg.st.d[1] = 2; cfg.st.d[2] = 3;
+      check("nested prop q.sum", cfg.st.q.sum(), 9);
+      check("nested prop d.sum with", cfg.st.d.sum() with (item * 2), 12);
+      check("nested prop q.and", cfg.st.q.and(), 4);
+      mq2 = cfg.st.q.max();
+      check("nested prop q.max", mq2[0], 5);
+      mq2 = cfg.st.q.find() with (item > 4);
+      check("nested prop find size", mq2.size(), 1);
+      check("nested prop find val", mq2[0], 5);
     end
 
     if (errors == 0) $display("PASS");

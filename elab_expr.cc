@@ -119,14 +119,28 @@ static bool warned_multi_index_array_prop_fallback = false;
  *
  * Returns nullptr if the predicate fails to elaborate.
  */
+static NetNet* make_array_method_recv_net_(
+      const LineInfo*li, Design*des, NetScope*scope,
+      NetExpr*array_expr, ivl_type_t container_type, const char*kind);
+
 static NetExpr* make_queue_locator_with_expr_(
       const PECallFunction*call,
       Design*des, NetScope*scope,
       NetExpr*queue_expr,
+      ivl_type_t container_type,
       ivl_type_t element_type,
       const char*kind /* "find" / "find_index" / ... */,
       const std::vector<named_pexpr_t>&parms)
 {
+      NetNet*recv_net = 0;
+      if (!dynamic_cast<NetESignal*>(queue_expr)) {
+	    recv_net = make_array_method_recv_net_(call, des, scope,
+						   queue_expr,
+						   container_type, kind);
+	    if (!recv_net)
+		  return nullptr;
+      }
+
       if (call->with_constraints().empty())
             return nullptr;
 
@@ -192,7 +206,8 @@ static NetExpr* make_queue_locator_with_expr_(
        *   3: idx NetESignal
        *   4: predicate */
       string mangled = string("$ivl_queue_method$find_with|") + kind;
-      NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 5);
+      NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1,
+				   recv_net ? 6 : 5);
       fn->parm(0, queue_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
       iter_ref->set_line(*call);
@@ -204,6 +219,11 @@ static NetExpr* make_queue_locator_with_expr_(
       idx_ref->set_line(*call);
       fn->parm(3, idx_ref);
       fn->parm(4, pred_expr);
+      if (recv_net) {
+	    NetESignal*recv_ref = new NetESignal(recv_net);
+	    recv_ref->set_line(*call);
+	    fn->parm(5, recv_ref);
+      }
       fn->set_line(*call);
       return fn;
 }
@@ -234,6 +254,38 @@ static NetNet* make_array_method_iter_net_(
       iter_net->set_line(*li);
       iter_net->local_flag(true);
       return iter_net;
+}
+
+/* The tgt-vvp array-method loops index the receiver through a
+ * signal label.  When the receiver is not a plain signal (a class
+ * property, a nested property chain, a call result), allocate a
+ * hidden net of the container type; the code generator evaluates the
+ * receiver expression once, stores the object handle into the hidden
+ * net, and runs the loop against it.  Only dynamic containers are
+ * object-valued, so fixed-size-array properties cannot take this
+ * path.  Returns nil (with a diagnostic) for such receivers. */
+static NetNet* make_array_method_recv_net_(
+      const LineInfo*li, Design*des, NetScope*scope,
+      NetExpr*array_expr, ivl_type_t container_type, const char*kind)
+{
+      if (dynamic_cast<NetESignal*>(array_expr))
+	    return 0; /* plain signal: no copy needed */
+
+      ivl_variable_type_t cbase = container_type
+	    ? container_type->base_type() : IVL_VT_NO_TYPE;
+      if (cbase != IVL_VT_QUEUE && cbase != IVL_VT_DARRAY) {
+	    cerr << li->get_fileline() << ": sorry: " << kind
+		 << "() on a fixed-size array class property is not yet "
+		    "implemented." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+      NetNet*recv_net = new NetNet(scope, scope->local_symbol(),
+				   NetNet::REG, container_type);
+      recv_net->set_line(*li);
+      recv_net->local_flag(true);
+      return recv_net;
 }
 
 /* Elaborate a with expression with the iterator name bound to the
@@ -267,7 +319,8 @@ static NetExpr* elab_array_method_with_expr_(
  */
 static NetExpr* make_array_reduction_expr_(
       const LineInfo*li, Design*des, NetScope*scope,
-      NetExpr*array_expr, ivl_type_t element_type, const char*kind,
+      NetExpr*array_expr, ivl_type_t container_type,
+      ivl_type_t element_type, const char*kind,
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_exprs)
 {
@@ -280,6 +333,17 @@ static NetExpr* make_array_reduction_expr_(
 	    des->errors += 1;
 	    delete array_expr;
 	    return 0;
+      }
+
+      NetNet*recv_net = 0;
+      if (!dynamic_cast<NetESignal*>(array_expr)) {
+	    recv_net = make_array_method_recv_net_(li, des, scope,
+						   array_expr,
+						   container_type, kind);
+	    if (!recv_net) {
+		  delete array_expr;
+		  return 0;
+	    }
       }
 
       perm_string iter_name;
@@ -331,7 +395,8 @@ static NetExpr* make_array_reduction_expr_(
       acc_net->local_flag(true);
 
       string mangled = string("$ivl_darray_method$reduce|") + kind;
-      NetESFunc*fn = new NetESFunc(mangled.c_str(), res_type, 5);
+      NetESFunc*fn = new NetESFunc(mangled.c_str(), res_type,
+				   recv_net ? 6 : 5);
       fn->parm(0, array_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
       iter_ref->set_line(*li);
@@ -343,6 +408,11 @@ static NetExpr* make_array_reduction_expr_(
       acc_ref->set_line(*li);
       fn->parm(3, acc_ref);
       fn->parm(4, val_expr);
+      if (recv_net) {
+	    NetESignal*recv_ref = new NetESignal(recv_net);
+	    recv_ref->set_line(*li);
+	    fn->parm(5, recv_ref);
+      }
       fn->set_line(*li);
       return fn;
 }
@@ -362,7 +432,8 @@ static NetExpr* make_array_reduction_expr_(
  */
 static NetExpr* make_array_minmax_expr_(
       const LineInfo*li, Design*des, NetScope*scope,
-      NetExpr*array_expr, ivl_type_t element_type, const char*kind,
+      NetExpr*array_expr, ivl_type_t container_type,
+      ivl_type_t element_type, const char*kind,
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_exprs)
 {
@@ -375,6 +446,17 @@ static NetExpr* make_array_minmax_expr_(
 	    des->errors += 1;
 	    delete array_expr;
 	    return 0;
+      }
+
+      NetNet*recv_net = 0;
+      if (!dynamic_cast<NetESignal*>(array_expr)) {
+	    recv_net = make_array_method_recv_net_(li, des, scope,
+						   array_expr,
+						   container_type, kind);
+	    if (!recv_net) {
+		  delete array_expr;
+		  return 0;
+	    }
       }
 
       perm_string iter_name;
@@ -433,7 +515,8 @@ static NetExpr* make_array_minmax_expr_(
       result_net->local_flag(true);
 
       string mangled = string("$ivl_darray_method$minmax|") + kind;
-      NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 7);
+      NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1,
+				   recv_net ? 8 : 7);
       fn->parm(0, array_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
       iter_ref->set_line(*li);
@@ -451,6 +534,11 @@ static NetExpr* make_array_minmax_expr_(
       bitem_ref->set_line(*li);
       fn->parm(5, bitem_ref);
       fn->parm(6, val_expr);
+      if (recv_net) {
+	    NetESignal*recv_ref = new NetESignal(recv_net);
+	    recv_ref->set_line(*li);
+	    fn->parm(7, recv_ref);
+      }
       fn->set_line(*li);
       return fn;
 }
@@ -5810,6 +5898,37 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		      cur_type = &netvector_t::atom2u32;
 		      continue;
 		}
+		// IEEE 1800-2017 7.12 reduction and min/max methods in
+		// paren-less form on a class-property darray/queue tail
+		// (e.g. `return q.sum;`): route to the shared array
+		// method machinery.  Only for the final path component
+		// and non-assoc containers; the with forms parse as
+		// calls and never reach this path.
+		if (&tail_comp == &sr.path_tail.back()
+		    && tail_comp.index.empty()
+		    && (is_array_reduction_name_(tail_comp.name)
+			|| tail_comp.name == "min"
+			|| tail_comp.name == "max")) {
+		      const netqueue_t*qt =
+			    dynamic_cast<const netqueue_t*>(cur_type);
+		      const netdarray_t*darr =
+			    dynamic_cast<const netdarray_t*>(cur_type);
+		      if (!(qt && qt->assoc_compat())) {
+			    static const std::vector<named_pexpr_t> no_parms;
+			    static const std::vector<PExpr*> no_with;
+			    if (is_array_reduction_name_(tail_comp.name))
+				  return make_array_reduction_expr_(
+					this, des, scope, base_expr,
+					cur_type, darr->element_type(),
+					tail_comp.name.str(),
+					no_parms, no_with);
+			    return make_array_minmax_expr_(
+				  this, des, scope, base_expr,
+				  cur_type, darr->element_type(),
+				  tail_comp.name.str(),
+				  no_parms, no_with);
+		      }
+		}
 		// compile-progress: other methods (find_first_index, shuffle, etc.)
 		cerr << get_fileline() << ": warning: "
 		     << "Array method `" << tail_comp.name
@@ -7106,12 +7225,14 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 
 	    if (is_array_reduction_name_(method_name))
 		  return make_array_reduction_expr_(this, des, scope,
-						    sub_expr, element_type,
+						    sub_expr, target_type,
+						    element_type,
 						    method_name.str(), parms_,
 						    with_constraints());
 	    if (method_name == "min" || method_name == "max")
 		  return make_array_minmax_expr_(this, des, scope,
-						 sub_expr, element_type,
+						 sub_expr, target_type,
+						 element_type,
 						 method_name.str(), parms_,
 						 with_constraints());
 
@@ -7126,7 +7247,8 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		    // unpacked array).
 		  if (!with_constraints().empty()) {
 			NetExpr*loc = make_queue_locator_with_expr_(
-			      this, des, scope, sub_expr, element_type,
+			      this, des, scope, sub_expr, target_type,
+			      element_type,
 			      method_name.str(), parms_);
 			if (loc) return loc;
 		  }
@@ -7184,12 +7306,14 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 
 	    if (is_array_reduction_name_(method_name))
 		  return make_array_reduction_expr_(this, des, scope,
-						    sub_expr, element_type,
+						    sub_expr, target_type,
+						    element_type,
 						    method_name.str(), parms_,
 						    with_constraints());
 	    if (method_name == "min" || method_name == "max")
 		  return make_array_minmax_expr_(this, des, scope,
-						 sub_expr, element_type,
+						 sub_expr, target_type,
+						 element_type,
 						 method_name.str(), parms_,
 						 with_constraints());
 
@@ -7201,7 +7325,8 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		 || method_name == "find_last_index")
 		&& !with_constraints().empty()) {
 		  NetExpr*loc = make_queue_locator_with_expr_(
-			this, des, scope, sub_expr, element_type,
+			this, des, scope, sub_expr, target_type,
+			element_type,
 			method_name.str(), parms_);
 		  if (loc) return loc;
 	    }
@@ -7277,7 +7402,8 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  // code uses one), fall back to null-empty.
 		  if (!with_constraints().empty()) {
 			NetExpr*loc = make_queue_locator_with_expr_(
-			      this, des, scope, sub_expr, element_type,
+			      this, des, scope, sub_expr, target_type,
+			      element_type,
 			      method_name.str(), parms_);
 			if (getenv("IVL_FIND_TRACE"))
 			      cerr << get_fileline() << ": [find-trace] make_locator="
@@ -7327,11 +7453,13 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  if (is_array_reduction_name_(method_name))
 			return make_array_reduction_expr_(this, des, scope,
 							  sub_expr,
+							  target_type,
 							  element_type,
 							  method_name.str(),
 							  parms_,
 							  with_constraints());
 		  return make_array_minmax_expr_(this, des, scope, sub_expr,
+						 target_type,
 						 element_type,
 						 method_name.str(), parms_,
 						 with_constraints());
@@ -9474,14 +9602,19 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  bool is_mm = (mname == "min" || mname == "max");
 		  if (is_red || is_mm) {
 			ivl_type_t etype = 0;
+			ivl_type_t ctype = 0;
 			if (const netqueue_t*qt = sr.net->queue_type()) {
-			      if (!qt->assoc_compat())
+			      if (!qt->assoc_compat()) {
 				    etype = qt->element_type();
+				    ctype = qt;
+			      }
 			} else if (const netdarray_t*dt = sr.net->darray_type()) {
 			      etype = dt->element_type();
+			      ctype = dt;
 			} else if (sr.net->unpacked_dimensions() == 1
 				   && dynamic_cast<const netuarray_t*>(sr.net->array_type())) {
 			      etype = sr.net->array_type()->element_type();
+			      ctype = sr.net->array_type();
 			}
 			if (etype && (etype->base_type() == IVL_VT_BOOL
 				      || etype->base_type() == IVL_VT_LOGIC)) {
@@ -9491,10 +9624,11 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			      static const std::vector<PExpr*> no_with;
 			      if (is_red)
 				    return make_array_reduction_expr_(
-					  this, des, scope, recv, etype,
+					  this, des, scope, recv, ctype,
+					  etype,
 					  mname.str(), no_parms, no_with);
 			      return make_array_minmax_expr_(
-				    this, des, scope, recv, etype,
+				    this, des, scope, recv, ctype, etype,
 				    mname.str(), no_parms, no_with);
 			}
 		  }
