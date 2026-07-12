@@ -1041,9 +1041,21 @@ vthread_t vvp_named_event_sa::add_waiting_thread(vthread_t thread)
       return tmp;
 }
 
+void vvp_named_event::note_triggered(void)
+{
+      last_trigger_time_ = schedule_simtime();
+      ever_triggered_ = true;
+}
+
+bool vvp_named_event::triggered_now(void) const
+{
+      return ever_triggered_ && last_trigger_time_ == schedule_simtime();
+}
+
 void vvp_named_event_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t)
 {
+      note_triggered();
       run_waiting_threads_(threads_);
       vvp_net_t*net = port.ptr();
       net->send_vec4(bit, 0);
@@ -1107,6 +1119,7 @@ void vvp_named_event_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       waitable_state_s*state = static_cast<waitable_state_s*>
             (vvp_get_context_item(context, context_idx_));
 
+      note_triggered();
       run_waiting_threads_(state->threads);
       vvp_net_t*net = port.ptr();
       net->send_vec4(bit, context);

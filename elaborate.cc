@@ -8103,7 +8103,47 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
                                 wait_set->add(nx, 0, nx->vector_width());
                     }
               }
-	      if (wait_set == 0) {
+
+	      // Named events referenced through the triggered property
+	      // (IEEE 1800-2017 15.5.3) contribute event sensitivity, not
+	      // nexus sensitivity: wait (e.triggered) must wake when the
+	      // event fires and must fall straight through when the event
+	      // already fired in the current time step.
+	    std::vector<NetEvent*> trig_events;
+	    {
+		  std::function<void(const NetExpr*)> collect_trig_events;
+		  collect_trig_events = [&](const NetExpr*e) -> void {
+			if (!e) return;
+			if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(e)) {
+			      collect_trig_events(bin->left());
+			      collect_trig_events(bin->right());
+			      return;
+			}
+			if (const NetEUnary*un = dynamic_cast<const NetEUnary*>(e)) {
+			      collect_trig_events(un->expr());
+			      return;
+			}
+			if (const NetESFunc*sf = dynamic_cast<const NetESFunc*>(e)) {
+			      if (strcmp(sf->name(), "$ivl_event_method$triggered") == 0
+				  && sf->nparms() == 1) {
+				    if (const NetEEvent*ee =
+					dynamic_cast<const NetEEvent*>(sf->parm(0))) {
+					  trig_events.push_back(
+						const_cast<NetEvent*>(ee->event()));
+					  return;
+				    }
+			      }
+			      for (unsigned i = 0; i < sf->nparms(); ++i)
+				    collect_trig_events(sf->parm(i));
+			      return;
+			}
+		  };
+		  collect_trig_events(expr);
+	    }
+	    for (NetEvent*tev : trig_events)
+		  wait->add_event(tev);
+
+	      if (wait_set == 0 && trig_events.empty()) {
 		    if (gn_system_verilog()) {
 			  if (!warned_wait_no_event_sources) {
 				cerr << get_fileline() << ": warning: wait expression has no event "
@@ -8120,7 +8160,7 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	    return 0;
       }
 
-	      if (wait_set->size() == 0) {
+	      if (wait_set != 0 && wait_set->size() == 0 && trig_events.empty()) {
 		    if (gn_system_verilog()) {
 			  if (!warned_wait_empty_event_set) {
 				cerr << get_fileline() << ": warning: wait expression has empty event "
@@ -8138,14 +8178,17 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	    return 0;
       }
 
-      NetEvProbe*wait_pr = new NetEvProbe(scope, scope->local_symbol(),
-					  wait_event, NetEvProbe::ANYEDGE,
-					  wait_set->size());
-      for (unsigned idx = 0; idx < wait_set->size() ;  idx += 1)
-	    connect(wait_set->at(idx).lnk, wait_pr->pin(idx));
+      NetEvProbe*wait_pr = 0;
+      if (wait_set != 0 && wait_set->size() > 0) {
+	    wait_pr = new NetEvProbe(scope, scope->local_symbol(),
+				     wait_event, NetEvProbe::ANYEDGE,
+				     wait_set->size());
+	    for (unsigned idx = 0; idx < wait_set->size() ;  idx += 1)
+		  connect(wait_set->at(idx).lnk, wait_pr->pin(idx));
 
+	    des->add_node(wait_pr);
+      }
       delete wait_set;
-      des->add_node(wait_pr);
 
       // Phase 55/58: Detect VIF signal chain in wait() for RTL-driven wakeup.
       // Mirrors the @(posedge/anyedge) detection at lines ~7067-7123.
@@ -8193,7 +8236,7 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 					  ivl_type_t pt = vif_host_cls->get_prop_type(
 					      mid_p->property_idx());
 					  const netclass_t*vif_cls = dynamic_cast<const netclass_t*>(pt);
-					  if (vif_cls && vif_cls->is_interface()) {
+					  if (vif_cls && vif_cls->is_interface() && wait_pr) {
 						wait_pr->set_vif_anyedge(mid_p->property_idx(),
 									 outer_p->property_idx(), pre_N);
 						return true;

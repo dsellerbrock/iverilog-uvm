@@ -8122,6 +8122,21 @@ bool of_END(vthread_t thr, vvp_code_t)
 /*
  * %event <var-label>
  */
+/*
+ * %evtest <event-label>
+ * Push a 1-bit vec4: 1 if the named event has been triggered in the
+ * current time step (IEEE 1800-2017 15.5.3 triggered property), else 0.
+ */
+bool of_EVTEST(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = cp->net;
+      vvp_named_event*fun = net ? dynamic_cast<vvp_named_event*>(net->fun) : 0;
+      bool trig = fun && fun->triggered_now();
+      vvp_vector4_t val(1, trig ? BIT4_1 : BIT4_0);
+      thr->push_vec4(val);
+      return true;
+}
+
 bool of_EVENT(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_ptr_t ptr (cp->net, 0);

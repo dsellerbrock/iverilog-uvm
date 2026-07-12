@@ -1481,6 +1481,14 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    draw_darray_pop(expr);
 	    return;
       }
+      if (strcmp(ivl_expr_name(expr),"$ivl_event_method$triggered")==0) {
+	      /* IEEE 1800-2017 15.5.3: read the named event's
+	         triggered-this-time-step state. */
+	    ivl_expr_t earg = ivl_expr_parm(expr, 0);
+	    assert(earg && ivl_expr_type(earg) == IVL_EX_EVENT);
+	    fprintf(vvp_out, "    %%evtest E_%p;\n", ivl_expr_event(earg));
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),"$ivl_class_method$randomize")==0) {
 	    ivl_expr_t arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
 	    /* Phase 50e: invoke pre_randomize / post_randomize hooks on
