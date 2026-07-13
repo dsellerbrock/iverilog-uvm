@@ -144,12 +144,29 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   iterator-net scheme — now fresh per-call nets bound via
   NetScope::set_signal_alias.  Test
   `tests/g10_ordering_methods_test.sv` (28 checks).
+- **UPDATE 2026-07-13c: 7.12.4 iterator index querying FIXED** —
+  `item.index` / `item.index()` / `item.index(1)` inside any array
+  method's with expression (find*/reductions/min-max/sort/rsort)
+  resolves to the loop counter via a nesting-safe iterator context
+  stack pushed around predicate elaboration
+  (push/pop/find_array_method_iter_ctx in elab_expr.cc, declared in
+  netmisc.h); works with custom iterator names, class-property
+  receivers, and outer-iterator index references from inside nested
+  with expressions.  dimension != 1 is an explicit sorry.  The fix
+  also required (and pins) a broader test_width repair: array
+  reduction methods used as OPERANDS previously computed context
+  width 0 — `q.sum() + 1` padded its operands to zero bits and the
+  whole expression evaluated to 0; test_width now reports the element
+  type (no with) or a widening int approximation (with present).
+  Test `tests/g10_iter_index_test.sv` (19 checks incl. the 7.12.4 LRM
+  literal example).
 - Remaining tail (explicit diagnostics, no silent fallbacks):
   `unique`/`unique_index` on non-queue arrays; reductions/min/max on
   associative arrays (sorry) and multidimensional arrays (sorry);
-  `min`/`max` on string/real elements (sorry); `item.index` iterator
-  method; fixed-size-array class properties (sorry); ordering methods
-  on fixed-size arrays.
+  `min`/`max` on string/real elements (sorry); fixed-size-array class
+  properties (sorry); ordering methods on fixed-size arrays;
+  `item.index` on fixed arrays with non-zero-based declared ranges
+  (loop counters are canonical 0-based) and dimension > 1.
 - Symptom: `q.sum()` reports `error: Method sum is not a queue method.` Same for product. Probe got `Variable item does not have a field named: index.` for `with (item.index)`. The Phase-63b B-series only added some shapes.
 - Probe: p16_queue_with (VERIFIED-FAILS), p30_array_methods (VERIFIED-FAILS for .min/.max/.sort on non-queue), p87_unique_index (PASS for queue).
 - Location: elab_expr.cc:8857-8911 (sorry: cluster for non-queue array methods); also `with (item.index)` codepath separately broken in elab_expr.cc.

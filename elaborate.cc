@@ -5931,7 +5931,9 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						    if (pred_pe) {
 							  NetNet*prev_bind =
 								scope->set_signal_alias(iter_name, iter_net);
+							  push_array_method_iter_ctx(iter_net, idx_net);
 							  pred_expr = elab_and_eval(des, scope, pred_pe, -1, false);
+							  pop_array_method_iter_ctx();
 							  scope->restore_signal_alias(iter_name, prev_bind);
 						    }
 						    if (pred_expr) {

@@ -3,6 +3,29 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-13e (session: 7.12.4 iterator index querying)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — this checkpoint stacks onto it).
+- **This checkpoint**: IEEE 1800-2017 7.12.4 — `item.index` (and the
+  index()/index(1) call forms) now resolves to the enclosing array
+  method's loop counter in all with-expression contexts
+  (find*/reductions/min-max/sort/rsort; custom iterator names;
+  class-property receivers; nested with expressions including outer
+  index from inside inner).  Mechanism: nesting-safe iterator context
+  stack (elab_expr.cc, API in netmisc.h) pushed around predicate
+  elaboration in all four loop builders; PEIdent + PECallFunction
+  interceptions.  dimension != 1 → sorry.  Bonus general fix exposed
+  en route: test_width reported width 0 for reductions used as
+  operands (`q.sum() + 1` evaluated to 0 — operands padded to zero
+  bits); now element width (no with) / int approximation (with).
+  Details: `session_logs/2026-07-13_g10_iter_index.md`.
+- **Tests**: `tests/g10_iter_index_test.sv` (19 checks incl. the
+  7.12.4 LRM literal example `arr.find with (item == item.index)`).
+- **Remaining 7.12 tail**: unique on non-queue receivers;
+  assoc/multidim receivers; fixed-array class properties; ordering on
+  fixed arrays; index on non-zero-based fixed ranges / dimension > 1.
+
 ## State as of 2026-07-13d — PR #69 MERGED (424a6bc); branch restarted
 
 - **PR #69 is MERGED and FINAL** (merge commit 424a6bc on main): all
