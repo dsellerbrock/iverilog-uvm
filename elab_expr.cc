@@ -4139,6 +4139,58 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  signed_flag_= true;
 		  return expr_width_;
 	    }
+
+	      /* The element is itself a dynamic container
+	       * (aq[k].size(), qa[i].num(), aq[k].pop_back()...):
+	       * report the same result types as for an unindexed
+	       * container receiver.  Without this the methods fall
+	       * through to the class-null compile-progress stub type
+	       * and elab_and_eval substitutes a constant zero before
+	       * the call is ever elaborated. */
+	    if (const netdarray_t*edar =
+		      dynamic_cast<const netdarray_t*>(darray->element_type())) {
+		  if (method_name == "size" || method_name == "num") {
+			expr_type_  = IVL_VT_BOOL;
+			expr_width_ = 32;
+			min_width_  = expr_width_;
+			signed_flag_= true;
+			return expr_width_;
+		  }
+		  if (method_name == "exists"
+		      || method_name == "first"
+		      || method_name == "last"
+		      || method_name == "next"
+		      || method_name == "prev") {
+			expr_type_  = IVL_VT_BOOL;
+			expr_width_ = 1;
+			min_width_  = 1;
+			signed_flag_= false;
+			return expr_width_;
+		  }
+		  if (method_name == "pop_back" || method_name == "pop_front") {
+			expr_type_  = edar->element_base_type();
+			expr_width_ = edar->element_width();
+			min_width_  = expr_width_;
+			signed_flag_= edar->get_signed();
+			return expr_width_;
+		  }
+		  if (method_name == "find"
+		      || method_name == "find_index"
+		      || method_name == "find_first"
+		      || method_name == "find_first_index"
+		      || method_name == "find_last"
+		      || method_name == "find_last_index"
+		      || method_name == "min"
+		      || method_name == "max"
+		      || method_name == "unique"
+		      || method_name == "unique_index") {
+			expr_type_  = IVL_VT_QUEUE;
+			expr_width_ = 1;
+			min_width_  = 1;
+			signed_flag_= false;
+			return expr_width_;
+		  }
+	    }
       }
 
       // Enumeration variable. Check for the various enumeration methods.
@@ -7332,6 +7384,18 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 						    const pform_name_t&use_path,
 						    bool explicit_super) const
 {
+	// An indexed-element receiver whose element type is itself a
+	// dynamic container (aq[k].size(), qa[i].num(), aa[k].sum(),
+	// aq[k].pop_back()...): the element expression IS the container
+	// receiver, so dispatch on the element type exactly as for an
+	// unindexed receiver.  The lowering paths evaluate non-signal
+	// receivers through the object stack (IEEE 1800-2017 7.12 array
+	// methods apply to any unpacked array expression; 7.9/7.10 for
+	// the assoc/queue query methods).
+      if (target_indexed && target_type
+	  && dynamic_cast<const netdarray_t*>(target_type))
+	    target_indexed = false;
+
       // Dynamic array methods. This handles the case that the located signal
       // is a dynamic array, and there is no index.
       if (target_type && dynamic_cast<const netdarray_t*>(target_type)

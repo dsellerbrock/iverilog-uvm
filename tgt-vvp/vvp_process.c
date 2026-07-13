@@ -1974,9 +1974,50 @@ static int show_delete_property_method(ivl_statement_t net, ivl_expr_t parm, uns
 	      return 0;
 }
 
+/* Best-effort container type of a receiver expression: the
+ * expression's own net_type, or the element type of the root signal
+ * for one-level selects (select expressions often carry no net_type
+ * in the t-dll view). */
+static ivl_type_t receiver_container_type_(ivl_expr_t expr)
+{
+      ivl_type_t t = ivl_expr_net_type(expr);
+      if (t)
+	    return t;
+      if (ivl_expr_type(expr) == IVL_EX_SELECT) {
+	    ivl_expr_t root = ivl_expr_oper1(expr);
+	    if (root
+		&& (ivl_expr_type(root) == IVL_EX_SIGNAL
+		    || ivl_expr_type(root) == IVL_EX_ARRAY)
+		&& ivl_expr_signal(root)) {
+		  ivl_type_t rt = ivl_signal_net_type(ivl_expr_signal(root));
+		  if (rt && (ivl_type_base(rt) == IVL_VT_QUEUE
+			     || ivl_type_base(rt) == IVL_VT_DARRAY))
+			return ivl_type_element(rt);
+	    }
+      }
+      return 0;
+}
+
 static int show_delete_queue_object_method(ivl_statement_t net, ivl_expr_t parm,
 					   unsigned parm_count)
 {
+	      /* delete(key) on an ASSOCIATIVE receiver expression must
+	       * erase the keyed entry (IEEE 1800-2017 7.9.2), not queue
+	       * position <key>. */
+	      if (parm_count == 2) {
+		    ivl_type_t rt = receiver_container_type_(parm);
+		    if (rt && ivl_type_base(rt) == IVL_VT_QUEUE
+			&& ivl_type_queue_assoc_compat(rt)) {
+			  const char*key_kind;
+			  if (show_queue_object_receiver(parm) != 0)
+				return -1;
+			  key_kind = draw_eval_assoc_key_(ivl_stmt_parm(net, 1), 0);
+			  fprintf(vvp_out, "    %%aa/delete/%s;\n", key_kind);
+			  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			  return 0;
+		    }
+	      }
+
 	      if (show_queue_object_receiver(parm) != 0)
 		    return -1;
 

@@ -118,9 +118,17 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   (the uvm_resource_pool::sort_by_precedence shape) and queue-of-queue
   2D foreach now work; `aq[k].push_back/push_front` auto-vivify.
   Test `tests/g09_nested_container_test.sv` (15 checks).
-- Remaining tail (after the completion checkpoint): indexed-element
-  method calls in expression context (`aq[5].size()` constant-stubbed
-  to 0); 3-deep chains (%aa/viv/o/* runtime exists, codegen
+- **STATUS 2026-07-13 (3rd checkpoint)**: indexed-element method
+  calls FIXED (`session_logs/2026-07-13_g09_elem_methods.md`) —
+  size/num/sum/exists/traversal/pop/find/min/max/sort/delete on
+  `aq[k]` / `qa[i]` receivers dispatch through the element type in
+  both expression and statement contexts (the assignment-context
+  divergence was a test_width class-null bailout that constant-folded
+  the call before elaboration); keyed delete on assoc elements
+  erases the key instead of positionally mis-deleting.  Bonus general
+  fix: exists() returned an all-ones vector instead of 1 (7.9.3) on
+  ALL receiver shapes.  Test `tests/g09_elem_methods_test.sv` (32).
+- Remaining tail: 3-deep chains (%aa/viv/o/* runtime exists, codegen
   unreferenced); object-valued chained reads in object context;
   darray (`new[]`) outers in the store2 rewrite.
 - Symptom: comma-form foreach iterates 0 times even when both inner assocs have entries (`total=0` instead of 33). Bracket form gets a syntax error.

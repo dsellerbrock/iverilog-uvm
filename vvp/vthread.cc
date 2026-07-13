@@ -9926,7 +9926,11 @@ static bool aa_exists_str(vthread_t thr, unsigned wid)
 {
       string key = thr->pop_str();
       ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+	/* IEEE 1800-2017 7.9.3: exists() returns 1 or 0 (an int), not an
+	   all-ones vector -- only the LSB carries the truth bit. */
+      vvp_vector4_t val(wid, BIT4_0);
+      if (assoc && assoc->exists_key(key))
+	    val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
@@ -9936,7 +9940,11 @@ static bool aa_exists_vec(vthread_t thr, unsigned wid)
 {
       vvp_vector4_t key = thr->pop_vec4();
       ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+	/* IEEE 1800-2017 7.9.3: exists() returns 1 or 0 (an int), not an
+	   all-ones vector -- only the LSB carries the truth bit. */
+      vvp_vector4_t val(wid, BIT4_0);
+      if (assoc && assoc->exists_key(key))
+	    val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
@@ -9957,7 +9965,11 @@ static bool aa_exists_obj(vthread_t thr, unsigned wid)
                     object_trace_class_(key),
                     (assoc && assoc->exists_key(key)) ? 1 : 0);
       }
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+	/* IEEE 1800-2017 7.9.3: exists() returns 1 or 0 (an int), not an
+	   all-ones vector -- only the LSB carries the truth bit. */
+      vvp_vector4_t val(wid, BIT4_0);
+      if (assoc && assoc->exists_key(key))
+	    val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
@@ -9967,7 +9979,11 @@ static bool aa_exists_signal(vthread_t thr, vvp_net_t*net, unsigned wid)
 {
       KEY key = pop_assoc_key_<KEY>(thr);
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(net);
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+	/* IEEE 1800-2017 7.9.3: exists() returns 1 or 0 (an int), not an
+	   all-ones vector -- only the LSB carries the truth bit. */
+      vvp_vector4_t val(wid, BIT4_0);
+      if (assoc && assoc->exists_key(key))
+	    val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }

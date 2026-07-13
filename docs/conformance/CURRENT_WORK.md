@@ -3,6 +3,33 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-13h (session: indexed-element container methods)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — this checkpoint stacks onto it).
+- **This checkpoint**: container method calls on INDEXED-ELEMENT
+  receivers (`aq[k].size()`, `qa[i].num()`, `aa[k].exists(x)`,
+  `aq[k].pop_back()`, `qa[i].delete(key)`) were compile-progress
+  stubs (constant 0 / null / silent positional mis-delete).  Three
+  fixes: (1) `elaborate_method_dispatch_` now dispatches on the
+  element type when an indexed receiver's element is itself a
+  container (7.12 applies to any unpacked array expression; the
+  lowering already handles object-stack receivers); (2) the
+  `PECallFunction::test_width` indexed branch mirrors the container
+  method table — previously pop_back/find fell to the class-null stub
+  type and `elab_and_eval` constant-folded the call to 0 in scalar
+  ASSIGNMENT contexts before elaborating (display contexts worked,
+  which hid the bug); (3) keyed delete on assoc elements emits
+  `%aa/delete/<kind>` through the element handle (was positional
+  `%delete/o/elem` — silent no-op).  BONUS general fix: exists()
+  built its result as an all-ones vector on every receiver shape —
+  `aa.exists(k) + 1` evaluated to 0; 7.9.3 requires 1/0 (all four
+  runtime helpers now LSB-only).
+- **Tests**: `tests/g09_elem_methods_test.sv` (32 checks).
+- **Regressions**: recorded in the checkpoint commit message.
+- **Remaining G09 tail**: 3-deep chains; object-valued chained reads
+  in object context; darray (`new[]`) outers in the store2 rewrite.
+
 ## State as of 2026-07-13g (session: G09 completion)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
