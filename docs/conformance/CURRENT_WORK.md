@@ -3,6 +3,28 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-13c (session: 7.12.2 ordering methods)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,
+  draft).
+- **This checkpoint**: three defects in the sort/rsort/reverse/
+  shuffle/unique statement paths (IEEE 1800-2017 7.12.2): instance-
+  property receivers silently NO-OP'd (explicit skip in
+  tgt-vvp/vvp_process.c — now hidden-recv-net pattern, matching the
+  expression-side G10 work); with-clause sort keys always truncated
+  to int32 (string keys — the UVM `sort() with (item.get_full_name())`
+  shape in uvm_cmdline_report/uvm_root/uvm_phase_hopper — silently
+  mis-sorted past a shared 4-byte prefix; keys now typed
+  string/real/sb32 end to end); shared iterator-net poisoning in the
+  sort_with elaboration (now fresh nets + set_signal_alias).
+  Runtime: qsort/qunique keys helpers generalized over key type — no
+  new opcodes.
+  Details: `session_logs/2026-07-13_g10_ordering_methods.md`.
+- **Tests**: `tests/g10_ordering_methods_test.sv` (28 checks).
+- **Remaining 7.12 tail**: unique on non-queue receivers;
+  assoc/multidim receivers; `item.index`; fixed-array class
+  properties; ordering methods on fixed-size arrays.
+
 ## State as of 2026-07-13b (session: G68 process.status + G69 inside precedence)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,

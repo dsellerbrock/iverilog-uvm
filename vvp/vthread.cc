@@ -1892,9 +1892,12 @@ bool of_QUNIQUE_IDX(vthread_t thr, vvp_code_t cp)
 
 /* Phase 63b/Q-methods (gap close): sort q by keys queue.  q[i]
  * stays paired with keys[i] under the permutation.  After sort,
- * q is in ascending (sort) or descending (rsort) order of keys. */
-template<typename ELEM>
-static void qsort_with_keys_helper_(vvp_darray*q, vector<int32_t>&keys,
+ * q is in ascending (sort) or descending (rsort) order of keys.
+ * The key type follows the with expression (IEEE 1800-2017 7.12.2:
+ * the relational operators shall be defined for the type of the
+ * expression): signed 32-bit integral, string, or real. */
+template<typename ELEM, typename KEY>
+static void qsort_with_keys_helper_(vvp_darray*q, vector<KEY>&keys,
                                     bool reverse)
 {
       size_t sz = q->get_size();
@@ -1904,12 +1907,26 @@ static void qsort_with_keys_helper_(vvp_darray*q, vector<int32_t>&keys,
       for (size_t i = 0; i < sz; i++) perm[i] = i;
       std::sort(perm.begin(), perm.end(),
                 [&](size_t a, size_t b) {
-                      return reverse ? keys[a] > keys[b]
+                      return reverse ? keys[b] < keys[a]
                                      : keys[a] < keys[b];
                 });
       vector<ELEM> sorted(sz);
       for (size_t i = 0; i < sz; i++) sorted[i] = qvals[perm[i]];
       for (size_t i = 0; i < sz; i++) q->set_word((unsigned)i, sorted[i]);
+}
+
+template<typename KEY>
+static void qsort_by_keys_elem_dispatch_(vvp_darray*q, vector<KEY>&keys,
+                                         bool reverse)
+{
+      if (dynamic_cast<vvp_queue_real*>(q) || dynamic_cast<vvp_darray_real*>(q))
+            qsort_with_keys_helper_<double, KEY>(q, keys, reverse);
+      else if (dynamic_cast<vvp_queue_string*>(q) || dynamic_cast<vvp_darray_string*>(q))
+            qsort_with_keys_helper_<string, KEY>(q, keys, reverse);
+      else if (dynamic_cast<vvp_queue_object*>(q) || dynamic_cast<vvp_darray_object*>(q))
+            qsort_with_keys_helper_<vvp_object_t, KEY>(q, keys, reverse);
+      else
+            qsort_with_keys_helper_<vvp_vector4_t, KEY>(q, keys, reverse);
 }
 
 static void qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
@@ -1919,7 +1936,25 @@ static void qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
       size_t sz = q->get_size();
       if (sz != keys_arr->get_size()) return;
 
-      // Extract keys as int32_t.
+      if (dynamic_cast<vvp_queue_string*>(keys_arr)
+          || dynamic_cast<vvp_darray_string*>(keys_arr)) {
+            vector<string> keys(sz);
+            for (size_t i = 0; i < sz; i++)
+                  keys_arr->get_word((unsigned)i, keys[i]);
+            qsort_by_keys_elem_dispatch_<string>(q, keys, reverse);
+            return;
+      }
+
+      if (dynamic_cast<vvp_queue_real*>(keys_arr)
+          || dynamic_cast<vvp_darray_real*>(keys_arr)) {
+            vector<double> keys(sz, 0.0);
+            for (size_t i = 0; i < sz; i++)
+                  keys_arr->get_word((unsigned)i, keys[i]);
+            qsort_by_keys_elem_dispatch_<double>(q, keys, reverse);
+            return;
+      }
+
+      // Default: signed 32-bit integral keys.
       vector<int32_t> keys(sz, 0);
       for (size_t i = 0; i < sz; i++) {
             vvp_vector4_t kv;
@@ -1929,15 +1964,7 @@ static void qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
             vector4_to_value(kv, overflow, u);
             keys[i] = (int32_t)u;
       }
-
-      if (dynamic_cast<vvp_queue_real*>(q) || dynamic_cast<vvp_darray_real*>(q))
-            qsort_with_keys_helper_<double>(q, keys, reverse);
-      else if (dynamic_cast<vvp_queue_string*>(q) || dynamic_cast<vvp_darray_string*>(q))
-            qsort_with_keys_helper_<string>(q, keys, reverse);
-      else if (dynamic_cast<vvp_queue_object*>(q) || dynamic_cast<vvp_darray_object*>(q))
-            qsort_with_keys_helper_<vvp_object_t>(q, keys, reverse);
-      else
-            qsort_with_keys_helper_<vvp_vector4_t>(q, keys, reverse);
+      qsort_by_keys_elem_dispatch_<int32_t>(q, keys, reverse);
 }
 
 bool of_QSORT_KEYS(vthread_t thr, vvp_code_t cp)
@@ -1965,13 +1992,13 @@ bool of_QRSORT_KEYS(vthread_t thr, vvp_code_t cp)
 }
 
 /* unique with key extractor: keep first element with each unique key. */
-template<typename ELEM>
-static void qunique_keys_helper_(vvp_darray*q, vector<int32_t>&keys)
+template<typename ELEM, typename KEY>
+static void qunique_keys_helper_(vvp_darray*q, vector<KEY>&keys)
 {
       size_t sz = q->get_size();
       vector<ELEM> qvals(sz);
       for (size_t i = 0; i < sz; i++) q->get_word((unsigned)i, qvals[i]);
-      vector<int32_t> seen_keys;
+      vector<KEY> seen_keys;
       vector<ELEM> kept;
       for (size_t i = 0; i < sz; i++) {
             bool found = false;
@@ -1991,6 +2018,19 @@ static void qunique_keys_helper_(vvp_darray*q, vector<int32_t>&keys)
       }
 }
 
+template<typename KEY>
+static void qunique_by_keys_elem_dispatch_(vvp_darray*q, vector<KEY>&keys)
+{
+      if (dynamic_cast<vvp_queue_real*>(q) || dynamic_cast<vvp_darray_real*>(q))
+            qunique_keys_helper_<double, KEY>(q, keys);
+      else if (dynamic_cast<vvp_queue_string*>(q) || dynamic_cast<vvp_darray_string*>(q))
+            qunique_keys_helper_<string, KEY>(q, keys);
+      else if (dynamic_cast<vvp_queue_object*>(q) || dynamic_cast<vvp_darray_object*>(q))
+            qunique_keys_helper_<vvp_object_t, KEY>(q, keys);
+      else
+            qunique_keys_helper_<vvp_vector4_t, KEY>(q, keys);
+}
+
 bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
 {
       (void)thr;
@@ -2003,6 +2043,24 @@ bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
       size_t sz = q->get_size();
       if (sz != k->get_size()) return true;
 
+      if (dynamic_cast<vvp_queue_string*>(k)
+          || dynamic_cast<vvp_darray_string*>(k)) {
+            vector<string> keys(sz);
+            for (size_t i = 0; i < sz; i++)
+                  k->get_word((unsigned)i, keys[i]);
+            qunique_by_keys_elem_dispatch_<string>(q, keys);
+            return true;
+      }
+
+      if (dynamic_cast<vvp_queue_real*>(k)
+          || dynamic_cast<vvp_darray_real*>(k)) {
+            vector<double> keys(sz, 0.0);
+            for (size_t i = 0; i < sz; i++)
+                  k->get_word((unsigned)i, keys[i]);
+            qunique_by_keys_elem_dispatch_<double>(q, keys);
+            return true;
+      }
+
       vector<int32_t> keys(sz, 0);
       for (size_t i = 0; i < sz; i++) {
             vvp_vector4_t kv;
@@ -2012,15 +2070,7 @@ bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
             vector4_to_value(kv, overflow, u);
             keys[i] = (int32_t)u;
       }
-
-      if (dynamic_cast<vvp_queue_real*>(q) || dynamic_cast<vvp_darray_real*>(q))
-            qunique_keys_helper_<double>(q, keys);
-      else if (dynamic_cast<vvp_queue_string*>(q) || dynamic_cast<vvp_darray_string*>(q))
-            qunique_keys_helper_<string>(q, keys);
-      else if (dynamic_cast<vvp_queue_object*>(q) || dynamic_cast<vvp_darray_object*>(q))
-            qunique_keys_helper_<vvp_object_t>(q, keys);
-      else
-            qunique_keys_helper_<vvp_vector4_t>(q, keys);
+      qunique_by_keys_elem_dispatch_<int32_t>(q, keys);
       return true;
 }
 

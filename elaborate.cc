@@ -5607,6 +5607,26 @@ NetProc* PCallTask::elaborate_receiver_method_(Design*des, NetScope*scope) const
       return elaborate_build_call_(des, scope, task, sub_expr);
 }
 
+/* IEEE 1800-2017 7.12.2 ordering methods on non-signal object
+ * receivers (class properties, nested chains): the runtime opcodes
+ * take a signal label, so the code generator first stores the
+ * receiver handle into a hidden container-typed net.  Mutation
+ * through the alias reaches the property because queue/darray
+ * variables hold the container by handle. */
+static NetNet* make_ordering_method_recv_net_(const LineInfo*li,
+					      NetScope*scope,
+					      NetExpr*obj_expr,
+					      ivl_type_t obj_type)
+{
+      if (dynamic_cast<NetESignal*>(obj_expr))
+	    return 0;
+      NetNet*recv = new NetNet(scope, scope->local_symbol(),
+			       NetNet::REG, obj_type);
+      recv->set_line(*li);
+      recv->local_flag(true);
+      return recv;
+}
+
 NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				      bool add_this_flag) const
 {
@@ -5848,8 +5868,15 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			    } else if (method_name == "reverse") {
 				  if (gn_system_verilog()) {
 					/* Phase 63b/Q-methods (gap close): wire to %qreverse. */
-					vector<NetExpr*> argv(1);
+					NetNet*recv_net = make_ordering_method_recv_net_(
+					      this, scope, obj_expr, obj_type);
+					vector<NetExpr*> argv(recv_net ? 2 : 1);
 					argv[0] = obj_expr;
+					if (recv_net) {
+					      NetESignal*recv_e = new NetESignal(recv_net);
+					      recv_e->set_line(*this);
+					      argv[1] = recv_e;
+					}
 					NetSTask*sys = new NetSTask("$ivl_queue_method$reverse",
 								    IVL_SFUNC_AS_TASK_IGNORE, argv);
 					sys->set_line(*this);
@@ -5886,32 +5913,45 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 								if (ip->path().size() == 1)
 								      iter_name = ip->path().back().name;
 						    }
-						    NetNet*iter_net = scope->find_signal(iter_name);
-						    if (!iter_net) {
-							  iter_net = new NetNet(scope, iter_name,
-										NetNet::REG, element_type);
-							  iter_net->set_line(*this);
-							  iter_net->local_flag(true);
-						    }
-						    /* Allocate a keys queue (vec4 32-bit) — predicate
-						       result is stored here for paired sort. */
-						    netqueue_t*keys_qtype = new netqueue_t(
-							  &netvector_t::atom2s32, -1, false);
-						    NetNet*keys_net = new NetNet(scope, scope->local_symbol(),
-										 NetNet::REG, keys_qtype);
-						    keys_net->set_line(*this);
-						    keys_net->local_flag(true);
+						    /* Fresh, uniquely named iterator net per call,
+						       bound to the user-visible name only while the
+						       with expression elaborates (7.12: the iterator
+						       is scoped to the with expression). */
+						    NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
+										 NetNet::REG, element_type);
+						    iter_net->set_line(*this);
+						    iter_net->local_flag(true);
 						    /* Loop-counter NetNet (s32) for the inline key-build loop. */
 						    NetNet*idx_net = new NetNet(scope, scope->local_symbol(),
 										NetNet::REG, &netvector_t::atom2s32);
 						    idx_net->set_line(*this);
 						    idx_net->local_flag(true);
 						    PExpr*pred_pe = with_constraints().front();
-						    NetExpr*pred_expr = pred_pe
-							  ? elab_and_eval(des, scope, pred_pe, -1, false)
-							  : nullptr;
+						    NetExpr*pred_expr = nullptr;
+						    if (pred_pe) {
+							  NetNet*prev_bind =
+								scope->set_signal_alias(iter_name, iter_net);
+							  pred_expr = elab_and_eval(des, scope, pred_pe, -1, false);
+							  scope->restore_signal_alias(iter_name, prev_bind);
+						    }
 						    if (pred_expr) {
-							  vector<NetExpr*> argv(5);
+							  /* Keys queue typed by the with expression
+							     (7.12.2: the relational operators shall be
+							     defined for the type of the expression). */
+							  ivl_type_t key_elem = &netvector_t::atom2s32;
+							  if (pred_expr->expr_type() == IVL_VT_STRING)
+								key_elem = &netstring_t::type_string;
+							  else if (pred_expr->expr_type() == IVL_VT_REAL)
+								key_elem = &netreal_t::type_real;
+							  netqueue_t*keys_qtype = new netqueue_t(
+								key_elem, -1, false);
+							  NetNet*keys_net = new NetNet(scope, scope->local_symbol(),
+										       NetNet::REG, keys_qtype);
+							  keys_net->set_line(*this);
+							  keys_net->local_flag(true);
+							  NetNet*recv_net = make_ordering_method_recv_net_(
+								this, scope, obj_expr, obj_type);
+							  vector<NetExpr*> argv(recv_net ? 6 : 5);
 							  argv[0] = obj_expr;
 							  NetESignal*iter_e = new NetESignal(iter_net);
 							  iter_e->set_line(*this);
@@ -5923,6 +5963,11 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 							  idx_e->set_line(*this);
 							  argv[3] = idx_e;
 							  argv[4] = pred_expr;
+							  if (recv_net) {
+								NetESignal*recv_e = new NetESignal(recv_net);
+								recv_e->set_line(*this);
+								argv[5] = recv_e;
+							  }
 							  string sys_name = string("$ivl_queue_method$") +
 								(method_name == "sort"  ? "sort_with"
 								 : method_name == "rsort" ? "rsort_with"
@@ -5936,8 +5981,15 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					      }
 					}
 					/* No with-clause (or fallback): default compare. */
-					vector<NetExpr*> argv(1);
+					NetNet*recv_net = make_ordering_method_recv_net_(
+					      this, scope, obj_expr, obj_type);
+					vector<NetExpr*> argv(recv_net ? 2 : 1);
 					argv[0] = obj_expr;
+					if (recv_net) {
+					      NetESignal*recv_e = new NetESignal(recv_net);
+					      recv_e->set_line(*this);
+					      argv[1] = recv_e;
+					}
 					const char*sys_name =
 					      (method_name == "sort")  ? "$ivl_queue_method$sort"  :
 					      (method_name == "rsort") ? "$ivl_queue_method$rsort" :
@@ -5958,8 +6010,15 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			    } else if (method_name=="shuffle") {
 				  if (gn_system_verilog()) {
 					/* Phase 63b/Q-methods (gap close): wire to %qshuffle. */
-					vector<NetExpr*> argv(1);
+					NetNet*recv_net = make_ordering_method_recv_net_(
+					      this, scope, obj_expr, obj_type);
+					vector<NetExpr*> argv(recv_net ? 2 : 1);
 					argv[0] = obj_expr;
+					if (recv_net) {
+					      NetESignal*recv_e = new NetESignal(recv_net);
+					      recv_e->set_line(*this);
+					      argv[1] = recv_e;
+					}
 					NetSTask*sys = new NetSTask("$ivl_queue_method$shuffle",
 								    IVL_SFUNC_AS_TASK_IGNORE, argv);
 					sys->set_line(*this);

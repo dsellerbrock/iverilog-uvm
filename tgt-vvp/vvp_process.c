@@ -2555,17 +2555,33 @@ static int show_system_task_call(ivl_statement_t net)
 	  || strcmp(stmt_name,"$ivl_queue_method$shuffle") == 0) {
 	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
 		  ? ivl_stmt_parm(net, 0) : 0;
-	    if (!parm0 || ivl_expr_type(parm0) != IVL_EX_SIGNAL
-		|| !ivl_expr_signal(parm0)) {
-		  /* Phase 63b/B5: class-property queues (IVL_EX_PROPERTY)
-		     and other non-signal queue receivers can't use the
-		     %qsort/%qunique opcodes which take a signal argument.
-		     A real implementation would need a queue-by-handle
-		     variant of the opcodes; until that lands, silently
-		     skip rather than warning on every UVM compile. */
+	    ivl_expr_t recv_parm = (ivl_stmt_parm_count(net) > 1)
+		  ? ivl_stmt_parm(net, 1) : 0;
+	    ivl_signal_t sig = 0;
+	    if (parm0 && ivl_expr_type(parm0) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(parm0)) {
+		  sig = ivl_expr_signal(parm0);
+	    } else if (parm0 && recv_parm
+		       && ivl_expr_type(recv_parm) == IVL_EX_SIGNAL
+		       && ivl_expr_signal(recv_parm)) {
+		    /* Non-signal receiver (class property, nested chain):
+		       evaluate the receiver object once and run the
+		       opcode against the hidden net holding its handle
+		       (queue/darray variables hold containers by handle,
+		       so the in-place reorder reaches the property). */
+		  sig = ivl_expr_signal(recv_parm);
+		  draw_eval_object(parm0);
+		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+	    } else {
+		  static int warned_recv = 0;
+		  if (!warned_recv) {
+			fprintf(stderr, "Warning: %s on an unsupported"
+				" receiver shape; skipping (further similar"
+				" warnings suppressed)\n", stmt_name);
+			warned_recv = 1;
+		  }
 		  return 0;
 	    }
-	    ivl_signal_t sig = ivl_expr_signal(parm0);
 	    const char*opcode =
 		  (strcmp(stmt_name,"$ivl_queue_method$sort")==0)    ? "%qsort"    :
 		  (strcmp(stmt_name,"$ivl_queue_method$rsort")==0)   ? "%qsort/r"  :
@@ -2599,12 +2615,25 @@ static int show_system_task_call(ivl_statement_t net)
 	    ivl_expr_t keys_arg = ivl_stmt_parm(net, 2);
 	    ivl_expr_t idx_arg = ivl_stmt_parm(net, 3);
 	    ivl_expr_t pred = ivl_stmt_parm(net, 4);
-	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL
+	    ivl_expr_t recv_parm = (ivl_stmt_parm_count(net) > 5)
+		  ? ivl_stmt_parm(net, 5) : 0;
+	    if (!q_arg
 		|| !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
 		|| !keys_arg || ivl_expr_type(keys_arg) != IVL_EX_SIGNAL
 		|| !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
 		|| !pred) return 0;
-	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
+	    ivl_signal_t q_sig = 0;
+	    if (ivl_expr_type(q_arg) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(q_arg)) {
+		  q_sig = ivl_expr_signal(q_arg);
+	    } else if (recv_parm
+		       && ivl_expr_type(recv_parm) == IVL_EX_SIGNAL
+		       && ivl_expr_signal(recv_parm)) {
+		    /* Non-signal receiver: see the plain family above. */
+		  q_sig = ivl_expr_signal(recv_parm);
+		  draw_eval_object(q_arg);
+		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", q_sig);
+	    }
 	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
 	    ivl_signal_t keys_sig = ivl_expr_signal(keys_arg);
 	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
@@ -2670,9 +2699,15 @@ static int show_system_task_call(ivl_statement_t net)
 		  return 0;
 	    }
 
-	    /* Step 1: keys = empty queue */
+	    /* Step 1: keys = empty queue, typed by the with expression
+	       (IEEE 1800-2017 7.12.2): string and real keys keep their
+	       full value; everything else is a signed 32-bit key. */
+	    ivl_variable_type_t key_vt = ivl_expr_value(pred);
+	    const char*keys_enc =
+		  (key_vt == IVL_VT_STRING) ? "S" :
+		  (key_vt == IVL_VT_REAL)   ? "r" : "sb32";
 	    fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
-	    fprintf(vvp_out, "    %%new/queue \"sb32\";\n");
+	    fprintf(vvp_out, "    %%new/queue \"%s\";\n", keys_enc);
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", keys_sig);
 
 	    /* Step 2: idx_sig = 0 */
@@ -2695,8 +2730,17 @@ static int show_system_task_call(ivl_statement_t net)
 	    fprintf(vvp_out, "    %%%s;\n", store_iter);
 
 	    /* eval predicate (key) and store to keys queue */
-	    {
-		  /* Save line number for predicate trace. */
+	    if (key_vt == IVL_VT_STRING) {
+		  draw_eval_string(pred);
+		  fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+		  fprintf(vvp_out, "    %%store/qb/str v%p_0, 5;\n",
+			  keys_sig);
+	    } else if (key_vt == IVL_VT_REAL) {
+		  draw_eval_real(pred);
+		  fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+		  fprintf(vvp_out, "    %%store/qb/r v%p_0, 5;\n",
+			  keys_sig);
+	    } else {
 		  unsigned pred_wid = ivl_expr_width(pred);
 		  draw_eval_vec4(pred);
 		  /* Pad/truncate to 32-bit signed for keys queue. */

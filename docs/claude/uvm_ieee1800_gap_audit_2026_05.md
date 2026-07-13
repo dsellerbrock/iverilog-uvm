@@ -129,12 +129,27 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   (`return q.sum;`), which previously WARNED AND DROPPED the
   expression, now routes to the same machinery.  Fixed-size-array
   class properties get an explicit sorry (not object-valued).
-- Remaining tail (explicit diagnostics, no silent fallbacks): `sort`/
-  `rsort`/`reverse`/`shuffle` (7.12.2); `unique`/`unique_index` on
-  non-queue arrays; reductions/min/max on associative arrays (sorry) and
-  multidimensional arrays (sorry); `min`/`max` on string/real elements
-  (sorry); `item.index` iterator method; fixed-size-array class
-  properties (sorry).
+- **UPDATE 2026-07-13b: 7.12.2 ordering methods completed** — three
+  defects in the Phase 63b sort/rsort/reverse/shuffle/unique statement
+  paths fixed: (1) instance-property receivers were a SILENT NO-OP
+  (explicit skip in tgt-vvp); now the receiver handle is stored into a
+  hidden container net the opcodes run against (in-place reorder
+  reaches the property because containers are held by handle);
+  (2) with-clause sort keys were always truncated to int32 — string
+  keys (the UVM `sort() with (item.get_full_name())` shape) silently
+  mis-sorted whenever keys shared a 4-byte prefix; keys queues are now
+  typed by the with expression (string / real / signed-32) end to end
+  (elaboration key-net type, codegen key-build, runtime extraction and
+  comparison); (3) the sort_with elaboration still used the shared
+  iterator-net scheme — now fresh per-call nets bound via
+  NetScope::set_signal_alias.  Test
+  `tests/g10_ordering_methods_test.sv` (28 checks).
+- Remaining tail (explicit diagnostics, no silent fallbacks):
+  `unique`/`unique_index` on non-queue arrays; reductions/min/max on
+  associative arrays (sorry) and multidimensional arrays (sorry);
+  `min`/`max` on string/real elements (sorry); `item.index` iterator
+  method; fixed-size-array class properties (sorry); ordering methods
+  on fixed-size arrays.
 - Symptom: `q.sum()` reports `error: Method sum is not a queue method.` Same for product. Probe got `Variable item does not have a field named: index.` for `with (item.index)`. The Phase-63b B-series only added some shapes.
 - Probe: p16_queue_with (VERIFIED-FAILS), p30_array_methods (VERIFIED-FAILS for .min/.max/.sort on non-queue), p87_unique_index (PASS for queue).
 - Location: elab_expr.cc:8857-8911 (sorry: cluster for non-queue array methods); also `with (item.index)` codepath separately broken in elab_expr.cc.
