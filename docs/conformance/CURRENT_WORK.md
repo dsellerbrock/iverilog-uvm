@@ -3,6 +3,42 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-13g (session: G09 completion)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — this checkpoint stacks onto it).
+- **This checkpoint** closes the G09 tail:
+  (1) inner ASSOCIATIVE foreach dimensions (12.7.3) — the first/next
+  key descent now works at any dimension depth
+  (`elaborate_assoc_array_` gained `index_var_start`; the counting
+  loop descends into it), so `foreach (aa[k1,k2])` and
+  `foreach (qa[i,k])` iterate;
+  (2) chained keyed reads through POSITIONAL outers
+  (`qa[0]["a"]`) — the eval_vec4/eval_string root-derivation guards
+  accepted only assoc-compat roots; now any queue/darray root
+  supplies the element type (the keyed branch still requires the
+  ELEMENT to be assoc-compat);
+  (3) chained element stores for ALL four outer/inner combinations —
+  `aq[k][i]=v` was a SILENT NO-OP and `qa[i][k]=v` / `qq[i][j]=v`
+  CLOBBERED the row; the `$ivl_assoc$store2` rewrite now fires for
+  any queue-typed outer with container elements (static-array
+  signals excluded) and the lowering picks keyed-viv vs positional
+  outer access and keyed vs positional inner store; NEW opcodes
+  `%store/qo/i/{v,r,str,obj}` (indexed store through an object-stack
+  queue receiver, set_word_max semantics);
+  (4) value semantics (7.6/7.9.9): element stores of container
+  values used to alias the source handle — `container_value_copy_`
+  duplicates darray/queue/assoc values at every object-valued
+  element-store site (class handles still alias; %aa/viv untouched).
+  Details: `session_logs/2026-07-13_g09_completion.md`.
+- **Tests**: `tests/g09_nested_container_test.sv` extended to 34
+  checks (inner-assoc foreach, queue-of-assoc reads/stores, all four
+  store shapes with neighbor preservation, copy semantics).
+- **Regressions**: recorded in the checkpoint commit message.
+- **Remaining G09 tail**: `aq[k].size()` expression-context method
+  stubs; 3-deep chains; object-valued chained reads in object
+  context; darray (`new[]`) outers in the store2 rewrite.
+
 ## State as of 2026-07-13f (session: G09 nested dynamic containers)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,

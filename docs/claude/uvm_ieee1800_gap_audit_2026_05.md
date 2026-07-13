@@ -92,6 +92,18 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: synchronization patterns.
 
 ### G09 `foreach (aa[k1, k2])` over assoc-of-assoc body never executes
+- **STATUS 2026-07-13 (2nd checkpoint): FIXED** — the completion
+  checkpoint (`session_logs/2026-07-13_g09_completion.md`) closed the
+  recorded tail: inner ASSOCIATIVE foreach dimensions now use the
+  first/next key descent at any depth (`foreach (aa[k1,k2])` and
+  `foreach (qa[i,k])` iterate); chained keyed reads work through
+  POSITIONAL outers (`qa[0]["a"]`, string and vec4 contexts);
+  chained element stores work for all four outer/inner shape
+  combinations (`aq[k][i]=v` was a silent no-op, `qa[i][k]=v` /
+  `qq[i][j]=v` clobbered the row — new `%store/qo/i/*` opcodes);
+  element stores of container values now COPY per 7.6/7.9.9
+  (previously aliased the source handle; class handles still alias).
+  Test extended to 34 checks.  Still-open sub-items tracked below.
 - **STATUS 2026-07-13: LARGELY FIXED** (three layered root causes; see
   `session_logs/2026-07-13_g09_nested_containers.md`):
   (1) mixed unpacked dimension lists composed left-to-right —
@@ -106,11 +118,11 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   (the uvm_resource_pool::sort_by_precedence shape) and queue-of-queue
   2D foreach now work; `aq[k].push_back/push_front` auto-vivify.
   Test `tests/g09_nested_container_test.sv` (15 checks).
-- Remaining tail: foreach over an INNER associative dimension
-  (explicit sorry — the counting descent cannot iterate by key; needs
-  first/next with key-typed loop variables); indexed-element method
-  calls in expression context (`aq[5].size()` constant-stubbed to 0);
-  3-deep chains; object-valued chained reads in object context.
+- Remaining tail (after the completion checkpoint): indexed-element
+  method calls in expression context (`aq[5].size()` constant-stubbed
+  to 0); 3-deep chains (%aa/viv/o/* runtime exists, codegen
+  unreferenced); object-valued chained reads in object context;
+  darray (`new[]`) outers in the store2 rewrite.
 - Symptom: comma-form foreach iterates 0 times even when both inner assocs have entries (`total=0` instead of 33). Bracket form gets a syntax error.
 - Probe: p15_foreach_assoc_2d (VERIFIED-FAILS), p15b_foreach_assoc_brack (VERIFIED-FAILS, syntax error).
 - Location: parse.y foreach loop handler + elaborate.cc:8753 has a `sorry: associative-array foreach` that may be hit on multi-dim shapes.

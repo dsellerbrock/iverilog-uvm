@@ -9815,11 +9815,29 @@ static bool aa_load_keep_vec(vthread_t thr, unsigned wid=0)
       return true;
 }
 
+/* IEEE 1800-2017 7.6/7.9.9: assigning an array into a container
+ * element copies the array value (a class handle aliases).  Element
+ * stores carry object-typed values as handles on the object stack,
+ * so container-typed values (darray/queue/assoc) must be duplicated
+ * at the store.  The non-object overloads keep the store templates
+ * generic. */
+static inline void container_value_copy_(vvp_object_t&val)
+{
+      vvp_object*raw = val.peek<vvp_object>();
+      if (raw && (dynamic_cast<vvp_darray*>(raw)
+                  || dynamic_cast<vvp_assoc_base*>(raw)))
+	    val = val.duplicate();
+}
+static inline void container_value_copy_(vvp_vector4_t&) { }
+static inline void container_value_copy_(double&) { }
+static inline void container_value_copy_(std::string&) { }
+
 template <typename ELEM, class ASSOC>
 static bool aa_store_str(vthread_t thr, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       string key = thr->pop_str();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
@@ -9834,6 +9852,7 @@ static bool aa_store_obj(vthread_t thr, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       vvp_object_t key;
       thr->pop_object(key);
@@ -9861,6 +9880,7 @@ static bool aa_store_vec(vthread_t thr, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       vvp_vector4_t key = thr->pop_vec4();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
@@ -10102,6 +10122,7 @@ static bool aa_store_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       KEY key = pop_assoc_key_<KEY>(thr);
       ASSOC*assoc = ensure_signal_assoc_<ASSOC>(thr, net, "aa-store-sig");
@@ -13702,6 +13723,7 @@ bool of_STORE_DAR_OBJ(vthread_t thr, vvp_code_t cp)
       int64_t adr = thr->words[3].w_int;
       vvp_object_t value;
       thr->pop_object(value);
+      container_value_copy_(value);
 
       vvp_net_t*net = cp->net;
       assert(net);
@@ -14135,6 +14157,7 @@ static bool store_qb(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       vvp_net_t*net = cp->net;
       unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
       pop_value(thr, value, wid); // Pop the value to store.
+      container_value_copy_(value);
 
       vvp_queue*queue = get_queue_object<QTYPE>(thr, net);
       assert(queue);
@@ -14180,6 +14203,7 @@ static bool store_qo_b(vthread_t thr, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       vvp_object_t recv, root_obj;
       vvp_net_t*root_net = 0;
@@ -14190,6 +14214,65 @@ static bool store_qo_b(vthread_t thr, unsigned wid=0)
       queue->push_back(value, 0);
       notify_mutated_object_root_(thr, recv, root_net, root_obj, "store-qo-b");
       return true;
+}
+
+/*
+ * %store/qo/i/<type>
+ * Indexed element store through a queue receiver on the object
+ * stack: pop the value, pop the receiver, and set the element at
+ * the index in word 3.  set_word_max appends when the index equals
+ * the current size and warns on any other out-of-range index, the
+ * same as the signal-based %store/qdar forms.
+ */
+template <typename ELEM, class QTYPE>
+static bool store_qo_i(vthread_t thr, unsigned wid=0)
+{
+      int64_t idx = thr->words[3].w_int;
+      ELEM value;
+      pop_value(thr, value, wid);
+      container_value_copy_(value);
+
+      vvp_object_t recv, root_obj;
+      vvp_net_t*root_net = 0;
+      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv, root_net, root_obj);
+      if (!queue)
+	    return true;
+
+      if (idx < 0) {
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot assign to a negative queue"
+	         << " index (" << idx << "); element was not stored." << endl;
+	    return true;
+      }
+      if (thr->flags[4] != BIT4_0) {
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot assign to an undefined queue"
+	         << " index; element was not stored." << endl;
+	    return true;
+      }
+      queue->set_word_max(idx, value, 0);
+      notify_mutated_object_root_(thr, recv, root_net, root_obj, "store-qo-i");
+      return true;
+}
+
+bool of_STORE_QO_I_R(vthread_t thr, vvp_code_t)
+{
+      return store_qo_i<double, vvp_queue_real>(thr);
+}
+
+bool of_STORE_QO_I_OBJ(vthread_t thr, vvp_code_t)
+{
+      return store_qo_i<vvp_object_t, vvp_queue_object>(thr);
+}
+
+bool of_STORE_QO_I_STR(vthread_t thr, vvp_code_t)
+{
+      return store_qo_i<string, vvp_queue_string>(thr);
+}
+
+bool of_STORE_QO_I_V(vthread_t thr, vvp_code_t cp)
+{
+      return store_qo_i<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
 }
 
 bool of_STORE_QO_B_R(vthread_t thr, vvp_code_t)
@@ -14276,6 +14359,7 @@ bool of_STORE_QDAR_OBJ(vthread_t thr, vvp_code_t cp)
       int64_t idx = thr->words[3].w_int;
       vvp_object_t value;
       thr->pop_object(value);
+      container_value_copy_(value);
 
       vvp_net_t*net = cp->net;
       vvp_queue*queue = get_queue_object<vvp_queue_object>(thr, net);
@@ -14305,6 +14389,7 @@ static bool store_qf(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       vvp_net_t*net = cp->net;
       unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
       pop_value(thr, value, wid); // Pop the value to store.
+      container_value_copy_(value);
 
       vvp_queue*queue = get_queue_object<QTYPE>(thr, net);
       assert(queue);

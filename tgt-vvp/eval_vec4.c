@@ -1077,8 +1077,13 @@ static void draw_select_vec4(ivl_expr_t expr)
 		      && ivl_expr_signal(root)) {
 			ivl_type_t rt =
 			      ivl_signal_net_type(ivl_expr_signal(root));
-			if (rt && ivl_type_base(rt) == IVL_VT_QUEUE
-			    && ivl_type_queue_assoc_compat(rt))
+			  /* Any container root will do: whether the outer
+			     dimension is keyed or positional, the element
+			     type is the sub-select's type.  The branch below
+			     still requires that ELEMENT type to be
+			     assoc-compat before taking the keyed path. */
+			if (rt && (ivl_type_base(rt) == IVL_VT_QUEUE
+				   || ivl_type_base(rt) == IVL_VT_DARRAY))
 			      sub_type = ivl_type_element(rt);
 		  }
 	    }

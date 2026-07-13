@@ -2790,11 +2790,14 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
-      /* Chained dynamic-container element store (assoc-of-assoc /
-       * assoc-of-queue):  $ivl_assoc$store2(outer, k1, k2, value).
-       * Auto-vivify the inner container at k1, then store the value
-       * at k2 through the element handle (the non-sig %aa/store forms
-       * peek their receiver from the object stack). */
+      /* Chained dynamic-container element store, all four outer/inner
+       * combinations of keyed (associative) and positional (queue)
+       * dimensions:  $ivl_assoc$store2(outer, k1, k2, value).
+       * A keyed outer auto-vivifies the inner container at k1; a
+       * positional outer loads the existing element handle.  A keyed
+       * inner stores through the non-sig %aa/store forms (receiver
+       * peeked from the object stack); a positional inner stores
+       * through %store/qo/i (receiver popped). */
       if (strcmp(stmt_name, "$ivl_assoc$store2") == 0) {
 	    if (ivl_stmt_parm_count(net) < 4) return 0;
 	    ivl_expr_t outer_arg = ivl_stmt_parm(net, 0);
@@ -2839,37 +2842,81 @@ static int show_system_task_call(ivl_statement_t net)
 			spec = kind;
 	    }
 
-	      /* inner = viv(outer, k1) */
-	    const char*k1_kind = draw_eval_assoc_key_(k1, 0);
-	    fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
-		    k1_kind, outer_sig, spec);
+	    int outer_keyed = outer_type
+		  && ivl_type_base(outer_type) == IVL_VT_QUEUE
+		  && ivl_type_queue_assoc_compat(outer_type);
+	    int inner_keyed = spec >= 4;
 
-	      /* inner[k2] = value (receiver peeked from the obj stack).
-	       * The store kind follows the declared element type of the
-	       * inner container — string literals may arrive as packed
-	       * vectors and need the %pushv/str conversion. */
-	    const char*k2_kind = draw_eval_assoc_key_(k2, 0);
+	      /* Element handle for outer[k1]. */
+	    if (outer_keyed) {
+		    /* inner = viv(outer, k1) */
+		  const char*k1_kind = draw_eval_assoc_key_(k1, 0);
+		  fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
+			  k1_kind, outer_sig, spec);
+	    } else {
+		    /* Positional outer: load the existing element handle
+		     * (no vivification — an out-of-range index yields a
+		     * nil handle and the inner store is skipped). */
+		  draw_eval_expr_into_integer(k1, 3);
+		  fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", outer_sig);
+	    }
+
 	    unsigned vkind = spec & 3;
-	    if (vkind == 2) {
-		  if (ivl_expr_value(val) == IVL_VT_STRING) {
-			draw_eval_string(val);
+	    if (inner_keyed) {
+		    /* inner[k2] = value (receiver peeked from the obj
+		     * stack).  The store kind follows the declared element
+		     * type of the inner container — string literals may
+		     * arrive as packed vectors and need the %pushv/str
+		     * conversion. */
+		  const char*k2_kind = draw_eval_assoc_key_(k2, 0);
+		  if (vkind == 2) {
+			if (ivl_expr_value(val) == IVL_VT_STRING) {
+			      draw_eval_string(val);
+			} else {
+			      draw_eval_vec4(val);
+			      fprintf(vvp_out, "    %%pushv/str;\n");
+			}
+			fprintf(vvp_out, "    %%aa/store/str/%s;\n", k2_kind);
+		  } else if (vkind == 1) {
+			draw_eval_real(val);
+			fprintf(vvp_out, "    %%aa/store/r/%s;\n", k2_kind);
+		  } else if (vkind == 3) {
+			draw_eval_object(val);
+			fprintf(vvp_out, "    %%aa/store/obj/%s;\n", k2_kind);
 		  } else {
 			draw_eval_vec4(val);
-			fprintf(vvp_out, "    %%pushv/str;\n");
+			fprintf(vvp_out, "    %%aa/store/v/%s %u;\n",
+				k2_kind, ivl_expr_width(val));
 		  }
-		  fprintf(vvp_out, "    %%aa/store/str/%s;\n", k2_kind);
-	    } else if (vkind == 1) {
-		  draw_eval_real(val);
-		  fprintf(vvp_out, "    %%aa/store/r/%s;\n", k2_kind);
-	    } else if (vkind == 3) {
-		  draw_eval_object(val);
-		  fprintf(vvp_out, "    %%aa/store/obj/%s;\n", k2_kind);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    } else {
-		  draw_eval_vec4(val);
-		  fprintf(vvp_out, "    %%aa/store/v/%s %u;\n",
-			  k2_kind, ivl_expr_width(val));
+		    /* Positional inner: evaluate the value, then the index
+		     * into word 3, then store through the queue receiver
+		     * (%store/qo/i pops the receiver itself). */
+		  if (vkind == 2) {
+			if (ivl_expr_value(val) == IVL_VT_STRING) {
+			      draw_eval_string(val);
+			} else {
+			      draw_eval_vec4(val);
+			      fprintf(vvp_out, "    %%pushv/str;\n");
+			}
+			draw_eval_expr_into_integer(k2, 3);
+			fprintf(vvp_out, "    %%store/qo/i/str;\n");
+		  } else if (vkind == 1) {
+			draw_eval_real(val);
+			draw_eval_expr_into_integer(k2, 3);
+			fprintf(vvp_out, "    %%store/qo/i/r;\n");
+		  } else if (vkind == 3) {
+			draw_eval_object(val);
+			draw_eval_expr_into_integer(k2, 3);
+			fprintf(vvp_out, "    %%store/qo/i/obj;\n");
+		  } else {
+			draw_eval_vec4(val);
+			draw_eval_expr_into_integer(k2, 3);
+			fprintf(vvp_out, "    %%store/qo/i/v %u;\n",
+				ivl_expr_width(val));
+		  }
 	    }
-	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    return 0;
       }
 

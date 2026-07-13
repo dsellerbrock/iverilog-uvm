@@ -158,8 +158,12 @@ static void string_ex_select(ivl_expr_t expr)
 		    || ivl_expr_type(root) == IVL_EX_ARRAY)
 		&& ivl_expr_signal(root)) {
 		  ivl_type_t rt = ivl_signal_net_type(ivl_expr_signal(root));
-		  if (rt && ivl_type_base(rt) == IVL_VT_QUEUE
-		      && ivl_type_queue_assoc_compat(rt))
+		    /* Any container root (keyed or positional outer
+		       dimension): the element type is the sub-select's
+		       type; the guard below still requires that element
+		       type to be assoc-compat. */
+		  if (rt && (ivl_type_base(rt) == IVL_VT_QUEUE
+			     || ivl_type_base(rt) == IVL_VT_DARRAY))
 			inner = ivl_type_element(rt);
 	    }
 	    if (inner && ivl_type_base(inner) == IVL_VT_QUEUE

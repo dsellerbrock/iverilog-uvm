@@ -9,7 +9,14 @@
 //      inner queue; aa[k1][k2] = v stores through the inner assoc
 //      (previously the inner key and value were silently dropped —
 //      the shape UVM report_server/printer/recorder depend on);
-//  (3) multi-variable foreach over assoc-of-queue and queue-of-queue.
+//  (3) multi-variable foreach over assoc-of-queue and queue-of-queue;
+//  (4) inner ASSOCIATIVE foreach dimensions (first/next key descent,
+//      12.7.3) — foreach (aa[k1, k2]) and foreach (qa[i, k]);
+//  (5) chained keyed reads where the OUTER dimension is positional
+//      (queue-of-assoc: qa[i][k]);
+//  (6) 7.6/7.9.9 value semantics: storing an array into a container
+//      element copies it — later mutation of the source must not
+//      reach the stored element.
 module g09_nested_container_test;
   int errors = 0;
   int qq[$][$];
@@ -17,7 +24,14 @@ module g09_nested_container_test;
   int aq[int][$];
   int aa[int][string];
   string ss[string][string];
+  int qa[$][string];
+  int ta[string];
+  int asi[string][int];
+  string qs[$][string];
+  string sa[string];
+  int q1[$];
   int total;
+  string keys;
 
   task check(string what, int got, int exp);
     if (got !== exp) begin
@@ -78,6 +92,80 @@ module g09_nested_container_test;
     aa[1]["x"] = 200;
     check("aa overwrite", aa[1]["x"], 200);
     check("aa outer num stable", aa.num(), 2);
+
+    // inner associative foreach dimension (12.7.3): assoc-of-assoc
+    // (previously an explicit sorry — now first/next key descent)
+    total = 0;
+    foreach (aa[k1, k2]) total += aa[k1][k2];
+    check("aa 2D foreach", total, 211);
+
+    // string-keyed outer with int-keyed inner
+    asi["x"][1] = 10; asi["x"][2] = 20; asi["y"][9] = 5;
+    total = 0;
+    foreach (asi[s, n]) total += asi[s][n];
+    check("asi 2D foreach", total, 35);
+
+    // queue-of-assoc: the OUTER dimension is positional, the inner is
+    // keyed — chained reads must key the INNER element, not treat the
+    // key as a queue position
+    ta["a"] = 1; ta["b"] = 2;
+    qa.push_back(ta);
+    check("qa size", qa.size(), 1);
+    check("qa read [0][a]", qa[0]["a"], 1);
+    check("qa read [0][b]", qa[0]["b"], 2);
+    ta.delete(); ta["c"] = 4;
+    qa.push_back(ta);
+    total = 0;
+    foreach (qa[i, k]) total += qa[i][k];
+    check("qa 2D foreach", total, 7);
+    total = 0;
+    foreach (qa[i]) total++;
+    check("qa 1D foreach", total, 2);
+    keys = "";
+    foreach (qa[i, k]) if (i == 0) keys = {keys, k};
+    if (keys != "ab") begin
+      $display("FAIL qa inner key order: got %s expect ab", keys);
+      errors++;
+    end
+
+    // string values through a positional-outer chain (eval_string path)
+    sa["k"] = "v0";
+    qs.push_back(sa);
+    qs[0]["greet"] = "hello";
+    if (qs[0]["greet"] != "hello") begin
+      $display("FAIL qs chained store: got %s", qs[0]["greet"]);
+      errors++;
+    end
+    if (qs[0]["k"] != "v0") begin
+      $display("FAIL qs row preserved: got %s", qs[0]["k"]);
+      errors++;
+    end
+
+    // chained stores for the remaining outer/inner shape combinations
+    // (previously: keyed-outer/positional-inner was a silent no-op;
+    // positional-outer stores clobbered the whole row)
+    aq[5][1] = 42;                  // keyed outer, positional inner
+    check("aq chained store", aq[5][1], 42);
+    check("aq neighbors kept", aq[5][0], 9);
+    qq[0][0] = 60;                  // positional outer, positional inner
+    check("qq chained store", qq[0][0], 60);
+    check("qq neighbors kept", qq[0][1], 2);
+
+    // 7.6/7.9.9 value semantics: element stores copy array values
+    ta.delete(); ta["a"] = 1;
+    qa.delete();
+    qa.push_back(ta);
+    ta["a"] = 99;
+    check("push_back copies (7.6)", qa[0]["a"], 1);
+    q1.push_back(5);
+    aq.delete();
+    aq[3] = q1;
+    q1.push_back(6);
+    check("keyed store copies (7.9.9)", aq[3][0], 5);
+    check("source queue unaffected", q1.size(), 2);
+    total = 0;
+    foreach (aq[k, i]) total++;
+    check("stored queue kept 1 elem", total, 1);
 
     if (errors == 0) $display("PASS");
     else $display("%0d checks failed", errors);
