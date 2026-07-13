@@ -22,6 +22,11 @@ the investigation. Update at every meaningful checkpoint.
   explicit sorry (was silent-0, briefly a hang mid-fix).
   Details: `session_logs/2026-07-13_g09_nested_containers.md`.
 - **Tests**: `tests/g09_nested_container_test.sv` (15 checks).
+- **Regressions (final, quiet machine)**: UVM **124/124**; ivtest
+  vvp_reg.pl 2961/3101 with failure names byte-identical to baseline;
+  negative 6/6; all focused suites (g10 ×3, g68, g69, m6, g12, m3)
+  PASS.  The WIP commit 55b31fe is hereby promoted — the global
+  dimension-composition change is regression-clean.
 - **Remaining G09 tail**: inner-assoc foreach dimension (first/next
   descent, key-typed loop vars); `aq[k].size()` expression-context
   method stubs; 3-deep chains; object-valued chained reads.
