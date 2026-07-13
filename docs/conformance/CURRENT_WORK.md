@@ -3,6 +3,23 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-13d — PR #69 MERGED (424a6bc); branch restarted
+
+- **PR #69 is MERGED and FINAL** (merge commit 424a6bc on main): all
+  five checkpoints (M6 Reactive regions, G10 reductions/min-max, G10
+  property receivers, G68 process.status + G69 inside precedence,
+  7.12.2 ordering methods).  Do not reopen; follow-up work gets a NEW
+  draft PR.
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` restarted
+  from origin/main at 424a6bc (force-with-lease over the
+  already-merged history per protocol).
+- **Next options**: M6 item 1 (region tagging + trace — unlocks exact
+  region-priority popping) or 4 (Preponed/Observed stubs) or 5
+  (scheduled-call protocol); `item.index` (last gap-audit-cited 7.12
+  breakage); G12 tail (with[range], continuous-assign lvalues,
+  struct/class operand flattening); unique on non-queue receivers;
+  G09 (2D assoc foreach); G66.
+
 ## State as of 2026-07-13c (session: 7.12.2 ordering methods)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,
