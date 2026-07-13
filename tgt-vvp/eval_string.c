@@ -146,6 +146,33 @@ static void string_ex_select(ivl_expr_t expr)
       ivl_expr_t shift= ivl_expr_oper2(expr);
 
 	/* sube may be a null/unresolved placeholder from compile-progress fallbacks. */
+	/* Chained keyed read through a nested associative array
+	   (aa[k1][k2] in string context): load the inner element
+	   handle, then do a keyed string load through it (the non-sig
+	   %aa/load forms peek their receiver from the object stack). */
+      if (ivl_expr_type(sube) == IVL_EX_SELECT) {
+	    ivl_expr_t root = ivl_expr_oper1(sube);
+	    ivl_type_t inner = 0;
+	    if (root
+		&& (ivl_expr_type(root) == IVL_EX_SIGNAL
+		    || ivl_expr_type(root) == IVL_EX_ARRAY)
+		&& ivl_expr_signal(root)) {
+		  ivl_type_t rt = ivl_signal_net_type(ivl_expr_signal(root));
+		  if (rt && ivl_type_base(rt) == IVL_VT_QUEUE
+		      && ivl_type_queue_assoc_compat(rt))
+			inner = ivl_type_element(rt);
+	    }
+	    if (inner && ivl_type_base(inner) == IVL_VT_QUEUE
+		&& ivl_type_queue_assoc_compat(inner)) {
+		  const char*key_kind = draw_eval_assoc_key_(shift, 0);
+		  draw_eval_object(sube);
+		  fprintf(vvp_out, "    %%aa/load/str/%s;\n", key_kind);
+		  fprintf(vvp_out, "    %%pop/obj %s;\n",
+			  strcmp(key_kind, "obj") == 0 ? "2, 0" : "1, 0");
+		  return;
+	    }
+      }
+
       if (ivl_expr_type(sube) != IVL_EX_SIGNAL &&
 	  ivl_expr_type(sube) != IVL_EX_ARRAY &&
 	  ivl_expr_type(sube) != IVL_EX_PROPERTY) {

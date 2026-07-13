@@ -10113,6 +10113,93 @@ static bool aa_store_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
       return true;
 }
 
+/* Container spec codes for %aa/viv/*: which empty inner container to
+ * create when auto-vivifying an absent element of a nested
+ * associative array.  Matches the tgt-vvp encoding. */
+enum aa_viv_spec_code {
+      AA_VIV_QUEUE_VEC4   = 0,
+      AA_VIV_QUEUE_REAL   = 1,
+      AA_VIV_QUEUE_STRING = 2,
+      AA_VIV_QUEUE_OBJECT = 3,
+      AA_VIV_ASSOC_VEC4   = 4,
+      AA_VIV_ASSOC_REAL   = 5,
+      AA_VIV_ASSOC_STRING = 6,
+      AA_VIV_ASSOC_OBJECT = 7
+};
+
+static vvp_object_t make_dynamic_container_from_code_(unsigned code)
+{
+      switch (code) {
+	  case AA_VIV_QUEUE_VEC4:   return vvp_object_t(new vvp_queue_vec4);
+	  case AA_VIV_QUEUE_REAL:   return vvp_object_t(new vvp_queue_real);
+	  case AA_VIV_QUEUE_STRING: return vvp_object_t(new vvp_queue_string);
+	  case AA_VIV_QUEUE_OBJECT: return vvp_object_t(new vvp_queue_object);
+	  case AA_VIV_ASSOC_VEC4:   return vvp_object_t(new vvp_assoc_vec4);
+	  case AA_VIV_ASSOC_REAL:   return vvp_object_t(new vvp_assoc_real);
+	  case AA_VIV_ASSOC_STRING: return vvp_object_t(new vvp_assoc_string);
+	  case AA_VIV_ASSOC_OBJECT: return vvp_object_t(new vvp_assoc_object);
+	  default:                  return vvp_object_t();
+      }
+}
+
+/* %aa/viv/sig/{v,str} <asig>, <spec>
+ * %aa/viv/o/{v,str} <spec>
+ *   Element access with auto-vivification for chained writes and
+ *   method calls on nested dynamic containers (assoc-of-queue,
+ *   assoc-of-assoc): pop the key, load the element handle from the
+ *   object-valued associative array (the signal's object, or an
+ *   assoc handle popped from the object stack), creating and
+ *   inserting an empty inner container per the spec code when the
+ *   key is absent.  Pushes the element handle — mutations through
+ *   the handle reach the stored element. */
+template <typename KEY>
+static bool aa_viv_common_(vthread_t thr, vvp_assoc_object*assoc,
+			   unsigned spec)
+{
+      KEY key = pop_assoc_key_<KEY>(thr);
+      vvp_object_t value;
+      if (assoc) {
+	    if (!assoc->get(key, value) || value.test_nil()) {
+		  value = make_dynamic_container_from_code_(spec);
+		  assoc->set(key, value);
+	    }
+      }
+      thr->push_object(value);
+      return true;
+}
+
+bool of_AA_VIV_SIG_V(vthread_t thr, vvp_code_t cp)
+{
+      vvp_assoc_object*assoc =
+	    ensure_signal_assoc_<vvp_assoc_object>(thr, cp->net, "aa-viv-sig");
+      return aa_viv_common_<vvp_vector4_t>(thr, assoc, cp->bit_idx[0]);
+}
+
+bool of_AA_VIV_SIG_STR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_assoc_object*assoc =
+	    ensure_signal_assoc_<vvp_assoc_object>(thr, cp->net, "aa-viv-sig");
+      return aa_viv_common_<std::string>(thr, assoc, cp->bit_idx[0]);
+}
+
+bool of_AA_VIV_O_V(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_assoc_object*assoc =
+	    dynamic_cast<vvp_assoc_object*>(recv.peek<vvp_assoc_base>());
+      return aa_viv_common_<vvp_vector4_t>(thr, assoc, cp->number);
+}
+
+bool of_AA_VIV_O_STR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_assoc_object*assoc =
+	    dynamic_cast<vvp_assoc_object*>(recv.peek<vvp_assoc_base>());
+      return aa_viv_common_<std::string>(thr, assoc, cp->number);
+}
+
 template <typename ELEM, class QTYPE>
 static bool load_qo(vthread_t thr, unsigned wid=0)
 {

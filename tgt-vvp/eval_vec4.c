@@ -1066,6 +1066,22 @@ static void draw_select_vec4(ivl_expr_t expr)
 	       * numeric queue index reads garbage; emit %aa/load/v/* with
 	       * the proper key type instead. */
 	    ivl_type_t sub_type = ivl_expr_net_type(subexpr);
+	    if (!sub_type && ivl_expr_type(subexpr) == IVL_EX_SELECT) {
+		    /* Chained select: derive the inner container type
+		       from the root signal (select exprs often carry
+		       no net_type). */
+		  ivl_expr_t root = ivl_expr_oper1(subexpr);
+		  if (root
+		      && (ivl_expr_type(root) == IVL_EX_SIGNAL
+			  || ivl_expr_type(root) == IVL_EX_ARRAY)
+		      && ivl_expr_signal(root)) {
+			ivl_type_t rt =
+			      ivl_signal_net_type(ivl_expr_signal(root));
+			if (rt && ivl_type_base(rt) == IVL_VT_QUEUE
+			    && ivl_type_queue_assoc_compat(rt))
+			      sub_type = ivl_type_element(rt);
+		  }
+	    }
 	    if (sub_type && ivl_type_queue_assoc_compat(sub_type)) {
 		  if (expr_is_string_assoc_key_(base)) {
 			draw_eval_string(base);
@@ -1085,6 +1101,15 @@ static void draw_select_vec4(ivl_expr_t expr)
 			fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
 			return;
 		  }
+		    /* Integral (vec4) key: still a keyed lookup, not a
+		       positional queue read. */
+		  draw_eval_vec4(base);
+		  draw_eval_object(subexpr);
+		  fprintf(vvp_out, "    %%aa/load/v/v %u;\n", wid);
+		  if (ivl_expr_value(expr) == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2;\n");
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  return;
 	    }
 	    draw_eval_object(subexpr);
 	    draw_eval_expr_into_integer(base, 3);

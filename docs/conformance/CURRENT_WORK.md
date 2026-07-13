@@ -3,6 +3,29 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-13f (session: G09 nested dynamic containers)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — this checkpoint stacks onto it).
+- **This checkpoint**: G09 root-caused to THREE layered defects and
+  fixed: (1) unpacked dimension lists composed left-to-right, so
+  `int aq[int][$]` was a queue-of-assoc (7.4.5/20.7 require
+  right-to-left; every mixed nested declaration was silently wrong);
+  (2) `aa[k1][k2] = v` dropped the inner key — now the internal
+  `$ivl_assoc$store2` task + new auto-vivifying `%aa/viv/{sig,o}/{v,str}`
+  opcodes (spec codes 0-7) + keyed stores through the element handle;
+  (3) chained reads lowered positionally — now keyed loads (vec4 +
+  string contexts; net_type derived from the root signal for chained
+  selects).  assoc-of-queue mutation + 2D foreach (uvm_resource_pool
+  shape) and assoc-of-assoc chained stores/reads (report_server/
+  printer/recorder shape) verified.  Inner-assoc foreach dimension:
+  explicit sorry (was silent-0, briefly a hang mid-fix).
+  Details: `session_logs/2026-07-13_g09_nested_containers.md`.
+- **Tests**: `tests/g09_nested_container_test.sv` (15 checks).
+- **Remaining G09 tail**: inner-assoc foreach dimension (first/next
+  descent, key-typed loop vars); `aq[k].size()` expression-context
+  method stubs; 3-deep chains; object-valued chained reads.
+
 ## State as of 2026-07-13e (session: 7.12.4 iterator index querying)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,

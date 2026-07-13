@@ -92,6 +92,25 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: synchronization patterns.
 
 ### G09 `foreach (aa[k1, k2])` over assoc-of-assoc body never executes
+- **STATUS 2026-07-13: LARGELY FIXED** (three layered root causes; see
+  `session_logs/2026-07-13_g09_nested_containers.md`):
+  (1) mixed unpacked dimension lists composed left-to-right —
+  `int aq[int][$]` built a queue-of-assoc instead of an assoc-of-queues
+  (IEEE 1800-2017 7.4.5/20.7); now composed right-to-left;
+  (2) chained element stores `aa[k1][k2] = v` silently dropped the
+  inner key (UVM report_server/printer/recorder shape) — now rewritten
+  to the internal `$ivl_assoc$store2` task lowered via the new
+  auto-vivifying `%aa/viv/*` opcodes + keyed stores through the element
+  handle; (3) chained reads mis-lowered positionally — now keyed
+  `%aa/load/{v,str}` through the handle.  assoc-of-queue 2D foreach
+  (the uvm_resource_pool::sort_by_precedence shape) and queue-of-queue
+  2D foreach now work; `aq[k].push_back/push_front` auto-vivify.
+  Test `tests/g09_nested_container_test.sv` (15 checks).
+- Remaining tail: foreach over an INNER associative dimension
+  (explicit sorry — the counting descent cannot iterate by key; needs
+  first/next with key-typed loop variables); indexed-element method
+  calls in expression context (`aq[5].size()` constant-stubbed to 0);
+  3-deep chains; object-valued chained reads in object context.
 - Symptom: comma-form foreach iterates 0 times even when both inner assocs have entries (`total=0` instead of 33). Bracket form gets a syntax error.
 - Probe: p15_foreach_assoc_2d (VERIFIED-FAILS), p15b_foreach_assoc_brack (VERIFIED-FAILS, syntax error).
 - Location: parse.y foreach loop handler + elaborate.cc:8753 has a `sorry: associative-array foreach` that may be hit on multi-dim shapes.

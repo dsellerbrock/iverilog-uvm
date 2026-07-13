@@ -2093,6 +2093,20 @@ static int expr_is_static_array_expr(ivl_expr_t expr)
 
 static int show_queue_object_receiver(ivl_expr_t parm)
 {
+      if (getenv("IVL_QRECV_TRACE")) {
+	    ivl_type_t nt = ivl_expr_net_type(parm);
+	    fprintf(stderr, "[qrecv] parm etype=%d isq=%d nt=%p base=%d\n",
+		    (int)ivl_expr_type(parm), expr_is_queue_expr(parm),
+		    (void*)nt, nt ? (int)ivl_type_base(nt) : -1);
+	    if (ivl_expr_type(parm) == IVL_EX_SELECT) {
+		  ivl_expr_t sube = ivl_expr_oper1(parm);
+		  ivl_type_t bt = sube && (ivl_expr_type(sube)==IVL_EX_SIGNAL||ivl_expr_type(sube)==IVL_EX_ARRAY) && ivl_expr_signal(sube) ? ivl_signal_net_type(ivl_expr_signal(sube)) : 0;
+		  fprintf(stderr, "[qrecv] sube etype=%d bt=%p btbase=%d compat=%d\n",
+			  sube ? (int)ivl_expr_type(sube) : -1, (void*)bt,
+			  bt ? (int)ivl_type_base(bt) : -1,
+			  bt ? ivl_type_queue_assoc_compat(bt) : -1);
+	    }
+      }
       if (!expr_is_queue_expr(parm))
 	    return -1;
 
@@ -2773,6 +2787,89 @@ static int show_system_task_call(ivl_statement_t net)
 		  fprintf(vvp_out, "    %%qsort/keys v%p_0, v%p_0;\n",
 			  q_sig, keys_sig);
 	    }
+	    return 0;
+      }
+
+      /* Chained dynamic-container element store (assoc-of-assoc /
+       * assoc-of-queue):  $ivl_assoc$store2(outer, k1, k2, value).
+       * Auto-vivify the inner container at k1, then store the value
+       * at k2 through the element handle (the non-sig %aa/store forms
+       * peek their receiver from the object stack). */
+      if (strcmp(stmt_name, "$ivl_assoc$store2") == 0) {
+	    if (ivl_stmt_parm_count(net) < 4) return 0;
+	    ivl_expr_t outer_arg = ivl_stmt_parm(net, 0);
+	    ivl_expr_t k1 = ivl_stmt_parm(net, 1);
+	    ivl_expr_t k2 = ivl_stmt_parm(net, 2);
+	    ivl_expr_t val = ivl_stmt_parm(net, 3);
+	    ivl_signal_t outer_sig =
+		  (outer_arg && (ivl_expr_type(outer_arg) == IVL_EX_SIGNAL))
+			? ivl_expr_signal(outer_arg) : 0;
+	    if (!outer_sig || !k1 || !k2 || !val) {
+		  fprintf(stderr, "Warning: $ivl_assoc$store2 with"
+			  " unsupported argument shape at %s:%u; skipping\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 0;
+	    }
+
+	      /* Inner container spec code, from the outer element type:
+	       * 0-3 queue of vec4/real/string/object, 4-7 the assoc
+	       * equivalents. */
+	    unsigned spec = 7;
+	    ivl_type_t outer_type = ivl_signal_net_type(outer_sig);
+	    ivl_type_t inner_type = outer_type ? ivl_type_element(outer_type) : 0;
+	    if (inner_type) {
+		  int is_assoc = ivl_type_base(inner_type) == IVL_VT_QUEUE
+			&& ivl_type_queue_assoc_compat(inner_type);
+		  int is_queue = ivl_type_base(inner_type) == IVL_VT_QUEUE
+			|| ivl_type_base(inner_type) == IVL_VT_DARRAY;
+		  ivl_type_t et = ivl_type_element(inner_type);
+		  unsigned kind = 3;
+		  if (et) {
+			switch (ivl_type_base(et)) {
+			    case IVL_VT_BOOL:
+			    case IVL_VT_LOGIC:  kind = 0; break;
+			    case IVL_VT_REAL:   kind = 1; break;
+			    case IVL_VT_STRING: kind = 2; break;
+			    default:            kind = 3; break;
+			}
+		  }
+		  if (is_assoc)
+			spec = 4 + kind;
+		  else if (is_queue)
+			spec = kind;
+	    }
+
+	      /* inner = viv(outer, k1) */
+	    const char*k1_kind = draw_eval_assoc_key_(k1, 0);
+	    fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
+		    k1_kind, outer_sig, spec);
+
+	      /* inner[k2] = value (receiver peeked from the obj stack).
+	       * The store kind follows the declared element type of the
+	       * inner container — string literals may arrive as packed
+	       * vectors and need the %pushv/str conversion. */
+	    const char*k2_kind = draw_eval_assoc_key_(k2, 0);
+	    unsigned vkind = spec & 3;
+	    if (vkind == 2) {
+		  if (ivl_expr_value(val) == IVL_VT_STRING) {
+			draw_eval_string(val);
+		  } else {
+			draw_eval_vec4(val);
+			fprintf(vvp_out, "    %%pushv/str;\n");
+		  }
+		  fprintf(vvp_out, "    %%aa/store/str/%s;\n", k2_kind);
+	    } else if (vkind == 1) {
+		  draw_eval_real(val);
+		  fprintf(vvp_out, "    %%aa/store/r/%s;\n", k2_kind);
+	    } else if (vkind == 3) {
+		  draw_eval_object(val);
+		  fprintf(vvp_out, "    %%aa/store/obj/%s;\n", k2_kind);
+	    } else {
+		  draw_eval_vec4(val);
+		  fprintf(vvp_out, "    %%aa/store/v/%s %u;\n",
+			  k2_kind, ivl_expr_width(val));
+	    }
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    return 0;
       }
 

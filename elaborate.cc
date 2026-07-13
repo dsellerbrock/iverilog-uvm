@@ -3552,6 +3552,72 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
       if (op_ != 0)
 	    return elaborate_compressed_(des, scope);
 
+	// Chained dynamic-container element store:
+	//   assoc_of_container[k1][k2] = value
+	// (assoc-of-assoc / assoc-of-queue).  The NetAssign_ l-value
+	// machinery carries only one word index — the inner key was
+	// previously DROPPED silently (the store degenerated to
+	// `outer[k1] = <null>`).  Rewrite as an internal system task
+	// that the code generator lowers to an auto-vivifying element
+	// access plus a keyed store through the element handle.  UVM
+	// depends on this shape (uvm_report_server m_streams,
+	// uvm_printer/recorder m_recur_states).
+      if (gn_system_verilog() && delay_ == 0 && event_ == 0 && count_ == 0) {
+	    const PEIdent*id_lval = dynamic_cast<const PEIdent*>(lval());
+	    if (id_lval && id_lval->path().size() >= 1
+		&& id_lval->path().back().index.size() == 2) {
+		  symbol_search_results sr;
+		  if (symbol_search(this, des, scope, id_lval->path(),
+				    id_lval->lexical_pos(), &sr)
+		      && sr.net && sr.path_tail.empty()) {
+			const netqueue_t*outer =
+			      dynamic_cast<const netqueue_t*>(sr.net->net_type());
+			const netdarray_t*inner = outer
+			      ? dynamic_cast<const netdarray_t*>(outer->element_type())
+			      : 0;
+			const name_component_t&tail = id_lval->path().back();
+			const index_component_t&i1 = tail.index.front();
+			const index_component_t&i2 = tail.index.back();
+			if (outer && outer->assoc_compat() && inner
+			    && i1.sel == index_component_t::SEL_BIT
+			    && i1.msb && !i1.lsb
+			    && i2.sel == index_component_t::SEL_BIT
+			    && i2.msb && !i2.lsb) {
+			      NetExpr*k1 = elab_and_eval(des, scope, i1.msb, -1, false);
+			      NetExpr*k2 = elab_and_eval(des, scope, i2.msb, -1, false);
+			      ivl_type_t val_type = inner->element_type();
+			      unsigned val_wid = 0;
+			      if (val_type) {
+				    long pw = val_type->packed_width();
+				    val_wid = (pw > 0) ? (unsigned)pw : 1;
+			      }
+			      NetExpr*val = val_type
+				    ? elaborate_rval_expr(des, scope, val_type,
+							  val_type->base_type(),
+							  val_wid, rval())
+				    : 0;
+			      if (k1 && k2 && val) {
+				    NetESignal*outer_e = new NetESignal(sr.net);
+				    outer_e->set_line(*this);
+				    vector<NetExpr*> argv(4);
+				    argv[0] = outer_e;
+				    argv[1] = k1;
+				    argv[2] = k2;
+				    argv[3] = val;
+				    NetSTask*sys = new NetSTask(
+					  "$ivl_assoc$store2",
+					  IVL_SFUNC_AS_TASK_IGNORE, argv);
+				    sys->set_line(*this);
+				    return sys;
+			      }
+			      delete k1;
+			      delete k2;
+			      delete val;
+			}
+		  }
+	    }
+      }
+
         // SV/UVM compile-progress fallback: class members declared as named
         // events ("event m_event;") resolve as NetEvent objects, but there is
         // no procedural event-handle l-value assignment path yet. Ignore plain
@@ -9042,6 +9108,22 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
 	         << " named index variables for iterated dimensions." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+	// An INNER associative dimension iterates by key (first/next),
+	// which this counting loop cannot express: the loop variable
+	// has the key type, so the integer step degenerates and the
+	// loop never terminates.  Diagnose instead of hanging.
+      if (const netqueue_t*aq =
+		dynamic_cast<const netqueue_t*>(array_expr->net_type())) {
+	    if (aq->assoc_compat()) {
+		  delete array_expr;
+		  cerr << get_fileline() << ": sorry: foreach over an inner"
+			  " associative-array dimension is not yet"
+			  " implemented." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
       }
 
       if (index_vars_.size() != index_var_start + 1) {
