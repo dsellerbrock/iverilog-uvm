@@ -714,6 +714,7 @@ struct ivl_scope_s {
 	/* Scopes that are tasks/functions have a definition. */
       ivl_statement_t def;
       unsigned is_auto;
+      unsigned is_program;
       ivl_variable_type_t func_type;
       bool func_signed;
       unsigned func_width;

@@ -3,6 +3,135 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-13c (session: 7.12.2 ordering methods)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,
+  draft).
+- **This checkpoint**: three defects in the sort/rsort/reverse/
+  shuffle/unique statement paths (IEEE 1800-2017 7.12.2): instance-
+  property receivers silently NO-OP'd (explicit skip in
+  tgt-vvp/vvp_process.c — now hidden-recv-net pattern, matching the
+  expression-side G10 work); with-clause sort keys always truncated
+  to int32 (string keys — the UVM `sort() with (item.get_full_name())`
+  shape in uvm_cmdline_report/uvm_root/uvm_phase_hopper — silently
+  mis-sorted past a shared 4-byte prefix; keys now typed
+  string/real/sb32 end to end); shared iterator-net poisoning in the
+  sort_with elaboration (now fresh nets + set_signal_alias).
+  Runtime: qsort/qunique keys helpers generalized over key type — no
+  new opcodes.
+  Details: `session_logs/2026-07-13_g10_ordering_methods.md`.
+- **Tests**: `tests/g10_ordering_methods_test.sv` (28 checks).
+- **Remaining 7.12 tail**: unique on non-queue receivers;
+  assoc/multidim receivers; `item.index`; fixed-array class
+  properties; ordering methods on fixed-size arrays.
+
+## State as of 2026-07-13b (session: G68 process.status + G69 inside precedence)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,
+  draft).
+- **Regression alert resolved**: checkpoint c6e8206 (property
+  receivers) turned seq_trace_test / vif_smoke / vif_smoke_v2 red
+  (SEQLCKZMB@0 + PH_TIMEOUT@9200) by making the UVM sequencer zombie
+  predicate execute for the first time, exposing TWO pre-existing
+  latent defects, both now fixed:
+  - **G68**: `process::status()` read a dead stored property (always
+    0 = FINISHED per 9.7) — now a live query via new vvp opcode
+    `%process/status` (call form + paren-less property-chain form +
+    stub-classifier exemption + module-scope process:: enum
+    constants).
+  - **G69**: `inside` sat at ternary precedence; Table 11-2 puts it
+    at the relational level — `a && b inside {c,d}` mis-parsed as
+    `(a && b) inside {c,d}`, so `(0) inside {KILLED, FINISHED=0}`
+    matched every non-lock arbitration entry.  K_inside moved to the
+    relational %left group (conflicts unchanged 459/1060).
+  Details: `session_logs/2026-07-13_g68_g69_process_status_inside_precedence.md`.
+- **Tests**: `tests/g68_process_status_test.sv`,
+  `tests/g69_inside_precedence_test.sv`.
+- **Known approximation**: delay-suspended processes read RUNNING;
+  SUSPENDED never reported (no suspend()/resume()).
+
+## State as of 2026-07-13 (session: G10 tail — class-property receivers)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,
+  draft; CI green on all 6 platforms at def4cf7 before this
+  checkpoint).
+- **This checkpoint**: array reduction/min-max/find* methods now work
+  on CLASS-PROPERTY receivers — the dominant UVM shape
+  (`this.q.sum()` in scoreboards, `cfg.st.q.max()` nested chains,
+  external `obj.q.sum()`, paren-less `return q.sum;`).  Mechanism: a
+  non-signal object receiver is evaluated once and its handle stored
+  into a hidden container-typed net that the existing inline loop
+  indexes through (extra trailing sfunc parm; tgt-vvp
+  `draw_array_method_recv_`).  The PEIdent class-property tail path
+  that previously WARNED AND SILENTLY DROPPED the expression
+  (`Array method 'sum' on class-property darray/queue not yet
+  supported ... expression dropped`) now routes to the same
+  machinery.  Fixed-size-array class properties: explicit sorry.
+  Details: `session_logs/2026-07-13_g10_property_receivers.md`.
+- **Tests**: `tests/g10_array_methods_test.sv` extended to 43 checks
+  (class-property section: method-internal, external, nested-chain,
+  paren-less, with-clause, locators, empties).
+- **G10 tail remaining**: sort/rsort/reverse/shuffle (7.12.2); unique
+  on non-queue receivers; assoc/multidim receivers; `item.index`;
+  fixed-size-array class properties.
+
+## State as of 2026-07-12e (session: G10 array reduction methods)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,
+  draft — this checkpoint stacks onto it; head before this checkpoint
+  was 9f7c918, the ivl.def Windows export fix).
+- **This checkpoint**: G10 — IEEE 1800-2017 7.12.3 array reduction
+  methods (`sum`/`product`/`and`/`or`/`xor`) and 7.12.1
+  `min()`/`max()` implemented over queues, dynamic arrays and 1-D
+  fixed-size unpacked arrays, in all four source forms (call,
+  call+with, paren-less, paren-less+with) including the keyword-named
+  `.and()/.or()/.xor()` (new grammar rules, +6 documented s/r
+  conflicts 453→459).  `find*` locators extended to dynamic/fixed
+  arrays.  Result width/signedness follow the with expression
+  (7.12.3).  New `NetScope::set_signal_alias` gives each call its own
+  iterator binding (7.12 "scope for the iterator_argument is the with
+  expression") — also fixes a pre-existing find_with bug where sibling
+  calls with different element types shared one hidden `item` net
+  (signed/width poisoning; could trip a vvp store assertion).  Runtime
+  is inline vvp loops from EXISTING opcodes only
+  (`$ivl_darray_method$reduce|`/`minmax|` lowered in tgt-vvp).
+  Explicit `sorry` diagnostics (no silent fallbacks) for assoc-array
+  and multidimensional receivers and string/real min/max.
+  Details: `session_logs/2026-07-12_g10_array_reduction_methods.md`.
+- **Tests**: `tests/g10_array_methods_test.sv` (29 checks incl. all
+  7.12.3 LRM literal examples);
+  `tests/negative/g10_reduction_non_integral.sv` (negative suite now
+  6/6).
+- **G10 tail remaining**: sort/rsort/reverse/shuffle (7.12.2); unique
+  on non-queue receivers; assoc/multidim receivers; `item.index`;
+  class-property receivers (still on the older PEIdent property path).
+
+## State as of 2026-07-12d (session: M6 item 2 — Reactive region)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy`, restarted from
+  merged main (PR #68 merged with G67 + G12 static/dynamic streaming —
+  do not reopen; this checkpoint gets a NEW draft PR).
+- **This checkpoint**: M6 scheduler remediation item 2 — program-block
+  processes now schedule in the Reactive region set (IEEE 1800-2017
+  4.4.2.5/.6/.7, clause 24): new vvp slot queues reactive/re-inactive/
+  re-nbassign with LRM promotion order; per-thread reactive flag from
+  the new `.scope program` type (plumbed via new ivl_scope_program API),
+  inherited by spawned children; program #0 → Re-Inactive; program NBAs
+  → Re-NBA; event wake chains PARTITIONED by region (a shared functor
+  previously dragged all waiters into one region).  Both elaborate.cc
+  program-scheduling compile-progress warnings retired.  Programs now
+  sample post-NBA design state race-free.
+  Details: `session_logs/2026-07-12_m6_reactive_region.md`.
+- **Tests**: `tests/m6_reactive_region_test.sv` (4 region orderings).
+- **Regressions**: UVM 118/118 (+1 new test); ivtest 2961/3101 with the
+  same 132 pre-existing fails (baseline-identical).
+- **Known approximation** (recorded in scheduler audit): wholesale
+  queue promotion (pre-existing model) — exact region-priority popping
+  is item 1's region-tagging work.
+- **Next options**: M6 items 1 (region tagging + trace) / 4
+  (Preponed/Observed stubs) / 5 (scheduled-call protocol); G12 tail
+  (struct operand flattening, with[range]); M3 tail; G66; G09/G10.
+
 ## State as of 2026-07-12c (session: G12 tail — dynamic-size streaming)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #68 open,

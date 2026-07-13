@@ -697,6 +697,171 @@ static int eval_object_ternary(ivl_expr_t expr)
 }
 
 /* Handle system-function expressions in object context. */
+/* IEEE 1800-2017 7.12: the array method loops below run over queues
+ * and dynamic arrays (both held in object variables) as well as
+ * fixed-size unpacked arrays (vvp .array labels with a compile-time
+ * word count).  These helpers hide the receiver difference: push the
+ * element count as a 32-bit vec4, and load element [ix3] as a vec4. */
+static int array_receiver_is_dynamic_(ivl_signal_t sig)
+{
+      ivl_variable_type_t dt = ivl_signal_data_type(sig);
+      return dt == IVL_VT_DARRAY || dt == IVL_VT_QUEUE;
+}
+
+static void draw_array_size_push_(ivl_signal_t sig)
+{
+      if (array_receiver_is_dynamic_(sig))
+	    fprintf(vvp_out, "    %%qsize v%p_0;\n", sig);
+      else
+	    fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n",
+		    ivl_signal_array_count(sig));
+}
+
+static void draw_array_elem_load_vec4_(ivl_signal_t sig)
+{
+	/* Index register 3 holds the canonical element address. */
+      if (array_receiver_is_dynamic_(sig))
+	    fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", sig);
+      else
+	    fprintf(vvp_out, "    %%load/vec4a v%p, 3;\n", sig);
+}
+
+/* Resolve the signal the array-method loop indexes through.  A plain
+ * signal (or whole-array) receiver is used directly.  Any other
+ * object-valued receiver (class property, nested property chain, call
+ * result) is evaluated once onto the object stack and its handle
+ * stored into the hidden net that elaboration passed as the sfunc's
+ * trailing parameter (recv_parm).  Returns nil if the shapes are
+ * unusable. */
+static ivl_signal_t draw_array_method_recv_(ivl_expr_t a_arg,
+					    ivl_expr_t recv_parm)
+{
+      if (a_arg && (ivl_expr_type(a_arg) == IVL_EX_SIGNAL
+		    || ivl_expr_type(a_arg) == IVL_EX_ARRAY)
+	  && ivl_expr_signal(a_arg))
+	    return ivl_expr_signal(a_arg);
+
+      if (!a_arg || !recv_parm
+	  || ivl_expr_type(recv_parm) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(recv_parm))
+	    return 0;
+
+      ivl_signal_t recv_sig = ivl_expr_signal(recv_parm);
+      draw_eval_object(a_arg);
+      fprintf(vvp_out, "    %%store/obj v%p_0;\n", recv_sig);
+      return recv_sig;
+}
+
+/* IEEE 1800-2017 7.12.3 array reduction methods:
+ *   $ivl_darray_method$reduce|<kind>(array, iter, idx, acc, val)
+ * kind is one of sum/product/and/or/xor.  Emit an inline loop that
+ * walks the array, stores each element into the hidden iter signal,
+ * evaluates the value expression (the with expression, or the iter
+ * signal itself), and folds it into the hidden accumulator with the
+ * corresponding operator.  The result is left on the vec4 stack.
+ * Called from draw_sfunc_vec4 (the result is a vector, not an
+ * object). */
+int draw_array_reduce_vec4(ivl_expr_t expr)
+{
+      const char*name = ivl_expr_name(expr);
+      const char*kind = name + 26;
+      unsigned parm_count = ivl_expr_parms(expr);
+      unsigned wid = ivl_expr_width(expr);
+      static int warned_reduce_shape = 0;
+
+      ivl_expr_t a_arg = (parm_count > 4) ? ivl_expr_parm(expr, 0) : 0;
+      ivl_expr_t iter_arg = (parm_count > 4) ? ivl_expr_parm(expr, 1) : 0;
+      ivl_expr_t idx_arg = (parm_count > 4) ? ivl_expr_parm(expr, 2) : 0;
+      ivl_expr_t acc_arg = (parm_count > 4) ? ivl_expr_parm(expr, 3) : 0;
+      ivl_expr_t val = (parm_count > 4) ? ivl_expr_parm(expr, 4) : 0;
+      ivl_expr_t recv_parm = (parm_count > 5) ? ivl_expr_parm(expr, 5) : 0;
+
+	/* A whole-array receiver is IVL_EX_SIGNAL for queue/darray
+	 * object variables, IVL_EX_ARRAY for fixed-size arrays; other
+	 * object-valued receivers go through the hidden recv_parm
+	 * net. */
+      ivl_signal_t a_sig = draw_array_method_recv_(a_arg, recv_parm);
+      if (!a_sig
+	  || !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(iter_arg)
+	  || !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(idx_arg)
+	  || !acc_arg || ivl_expr_type(acc_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(acc_arg)
+	  || !val) {
+	    if (!warned_reduce_shape) {
+		  fprintf(stderr, "Warning: %s requires a simple array"
+			  " variable receiver; emitting 0 fallback"
+			  " (further similar warnings suppressed)\n", name);
+		  warned_reduce_shape = 1;
+	    }
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u; ; reduce fallback\n",
+			  wid);
+	    return 0;
+      }
+
+      ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
+      ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
+      ivl_signal_t acc_sig = ivl_expr_signal(acc_arg);
+
+      unsigned iter_wid = ivl_type_packed_width(ivl_signal_net_type(iter_sig));
+      if (iter_wid == 0) iter_wid = 32;
+
+      const char*op;
+      int acc_ones = 0;
+      if (strcmp(kind, "sum") == 0)          op = "%add";
+      else if (strcmp(kind, "product") == 0) op = "%mul";
+      else if (strcmp(kind, "and") == 0)     { op = "%and"; acc_ones = 1; }
+      else if (strcmp(kind, "or") == 0)      op = "%or";
+      else                                   op = "%xor";
+
+      unsigned lab_top = local_count++;
+      unsigned lab_end = local_count++;
+
+	/* acc = identity element (0; 1 for product; ~0 for and) */
+      fprintf(vvp_out, "    %%pushi/vec4 %d, 0, %u;\n",
+	      (strcmp(kind, "product") == 0) ? 1 : 0, wid);
+      if (acc_ones)
+	    fprintf(vvp_out, "    %%inv;\n");
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", acc_sig, wid);
+
+	/* idx = 0 */
+      fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
+	/* if (!(idx < count)) goto end */
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+      draw_array_size_push_(a_sig);
+      fprintf(vvp_out, "    %%cmp/s;\n");
+      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n", thread_count, lab_end);
+
+	/* iter = a[idx] */
+      fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+      draw_array_elem_load_vec4_(a_sig);
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", iter_sig, iter_wid);
+
+	/* acc = acc OP value(iter) */
+      draw_eval_vec4(val);
+      if (ivl_expr_width(val) != wid)
+	    fprintf(vvp_out, "    %%pad/%c %u;\n",
+		    ivl_expr_signed(val) ? 's' : 'u', wid);
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", acc_sig);
+      fprintf(vvp_out, "    %s;\n", op);
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", acc_sig, wid);
+
+	/* idx += 1 */
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+      fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+      fprintf(vvp_out, "    %%add;\n");
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_top);
+
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", acc_sig);
+      return 0;
+}
+
 static int eval_object_sfunc(ivl_expr_t expr)
 {
       const char*name = ivl_expr_name(expr);
@@ -816,6 +981,166 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    return 0;
       }
 
+      /* IEEE 1800-2017 7.12.1 min()/max():
+       *   $ivl_darray_method$minmax|<kind>(array, iter, result, idx,
+       *                                    best, bestitem, val)
+       * Walk the array tracking the best per-element value (the with
+       * expression, or the element itself) and return a queue holding
+       * the single best element — or an empty queue for an empty
+       * array.  Ties keep the earliest element.  Comparisons whose
+       * flags evaluate to x (x/z bits in the values) keep the current
+       * best. */
+      if (strncmp(name, "$ivl_darray_method$minmax|", 26) == 0) {
+	    const char*kind = name + 26;
+	    int is_min = (strcmp(kind, "min") == 0);
+
+	    if (parm_count < 7) {
+		  fprintf(vvp_out, "    %%null; ; minmax: bad parm count\n");
+		  return 0;
+	    }
+	    ivl_expr_t a_arg = ivl_expr_parm(expr, 0);
+	    ivl_expr_t iter_arg = ivl_expr_parm(expr, 1);
+	    ivl_expr_t result_arg = ivl_expr_parm(expr, 2);
+	    ivl_expr_t idx_arg = ivl_expr_parm(expr, 3);
+	    ivl_expr_t best_arg = ivl_expr_parm(expr, 4);
+	    ivl_expr_t bitem_arg = ivl_expr_parm(expr, 5);
+	    ivl_expr_t val = ivl_expr_parm(expr, 6);
+	    ivl_expr_t recv_parm = (parm_count > 7)
+		  ? ivl_expr_parm(expr, 7) : 0;
+
+	    ivl_signal_t a_sig = draw_array_method_recv_(a_arg, recv_parm);
+	    if (!a_sig
+		|| !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(iter_arg)
+		|| !result_arg || ivl_expr_type(result_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(result_arg)
+		|| !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(idx_arg)
+		|| !best_arg || ivl_expr_type(best_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(best_arg)
+		|| !bitem_arg || ivl_expr_type(bitem_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(bitem_arg)
+		|| !val) {
+		  fprintf(vvp_out, "    %%null; ; minmax: bad arg shape\n");
+		  return 0;
+	    }
+	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
+	    ivl_signal_t result_sig = ivl_expr_signal(result_arg);
+	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
+	    ivl_signal_t best_sig = ivl_expr_signal(best_arg);
+	    ivl_signal_t bitem_sig = ivl_expr_signal(bitem_arg);
+
+	    ivl_type_t iter_type = ivl_signal_net_type(iter_sig);
+	    unsigned iter_wid = ivl_type_packed_width(iter_type);
+	    if (iter_wid == 0) iter_wid = 32;
+	    unsigned val_wid = ivl_expr_width(val);
+	    if (val_wid == 0) val_wid = 32;
+	    const char*cmp_op = ivl_expr_signed(val) ? "%cmp/s" : "%cmp/u";
+
+	    char elem_enc[32];
+	    snprintf(elem_enc, sizeof elem_enc, "%s%s%u",
+		     ivl_type_signed(iter_type) ? "s" : "",
+		     (ivl_type_base(iter_type) == IVL_VT_BOOL) ? "b" : "v",
+		     iter_wid);
+
+	    unsigned lab_top = local_count++;
+	    unsigned lab_end = local_count++;
+	    unsigned lab_take = local_count++;
+	    unsigned lab_skip = local_count++;
+	    unsigned lab_next = local_count++;
+	    unsigned lab_done = local_count++;
+
+	      /* result = empty queue of the element type; ix5 = 0 is
+	       * the (unbounded) max-size operand for %store/qb/v. */
+	    fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+	    fprintf(vvp_out, "    %%new/queue \"%s\";\n", elem_enc);
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", result_sig);
+
+	      /* idx = 0 */
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
+	      /* if (!(idx < count)) goto end */
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+	    draw_array_size_push_(a_sig);
+	    fprintf(vvp_out, "    %%cmp/s;\n");
+	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
+		    thread_count, lab_end);
+
+	      /* iter = a[idx] */
+	    fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+	    draw_array_elem_load_vec4_(a_sig);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+		    iter_sig, iter_wid);
+
+	      /* value on the stack; the first element is always taken */
+	    draw_eval_vec4(val);
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    fprintf(vvp_out, "    %%cmp/u;\n");
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+		    thread_count, lab_take);
+
+	      /* compare val (deeper) vs best: flag5 = val < best */
+	    fprintf(vvp_out, "    %%dup/vec4;\n");
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", best_sig);
+	    fprintf(vvp_out, "    %s;\n", cmp_op);
+	    if (is_min) {
+		    /* take if val < best */
+		  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 5;\n",
+			  thread_count, lab_take);
+		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
+			  thread_count, lab_skip);
+	    } else {
+		    /* take if best < val, i.e. !(val < best) && !(val == best) */
+		  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 5;\n",
+			  thread_count, lab_skip);
+		  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+			  thread_count, lab_skip);
+		  fprintf(vvp_out, "    %%jmp/0 T_%u.%u, 5;\n",
+			  thread_count, lab_take);
+		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
+			  thread_count, lab_skip);
+	    }
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_take);
+	      /* stack: val — becomes the new best; remember the element */
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+		    best_sig, val_wid);
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", iter_sig);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+		    bitem_sig, iter_wid);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_next);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_skip);
+	      /* stack: val — discard */
+	    fprintf(vvp_out, "    %%pop/vec4 1;\n");
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_next);
+	      /* idx += 1 */
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+	    fprintf(vvp_out, "    %%add;\n");
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_top);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
+	      /* if (0 < count) result.push_back(bestitem) */
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    draw_array_size_push_(a_sig);
+	    fprintf(vvp_out, "    %%cmp/u;\n");
+	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
+		    thread_count, lab_done);
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", bitem_sig);
+	    fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, %u;\n",
+		    result_sig, iter_wid);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_done);
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", result_sig);
+	    return 0;
+      }
+
       if (strncmp(name, "$ivl_queue_method$find_with|", 28) == 0) {
 	    const char*kind = name + 28;
 	    int is_index = (strstr(kind, "index") != NULL);
@@ -831,9 +1156,11 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    ivl_expr_t result_arg = ivl_expr_parm(expr, 2);
 	    ivl_expr_t idx_arg = ivl_expr_parm(expr, 3);
 	    ivl_expr_t pred = ivl_expr_parm(expr, 4);
+	    ivl_expr_t recv_parm = (parm_count > 5)
+		  ? ivl_expr_parm(expr, 5) : 0;
 
-	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL
-		|| !ivl_expr_signal(q_arg)
+	    ivl_signal_t q_sig = draw_array_method_recv_(q_arg, recv_parm);
+	    if (!q_sig
 		|| !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
 		|| !ivl_expr_signal(iter_arg)
 		|| !result_arg || ivl_expr_type(result_arg) != IVL_EX_SIGNAL
@@ -844,7 +1171,6 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%null; ; find_with: bad arg shape\n");
 		  return 0;
 	    }
-	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
 	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
 	    ivl_signal_t result_sig = ivl_expr_signal(result_arg);
 	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
@@ -853,6 +1179,23 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    unsigned iter_wid = ivl_type_packed_width(iter_type);
 	    if (iter_wid == 0) iter_wid = 32;
 	    ivl_variable_type_t bt = ivl_type_base(iter_type);
+
+	      /* Fixed-size unpacked array receivers (7.12.1 locators
+	       * apply to any unpacked array) only support vector
+	       * element loads via %load/vec4a. */
+	    if (!array_receiver_is_dynamic_(q_sig)
+		&& bt != IVL_VT_BOOL && bt != IVL_VT_LOGIC) {
+		  static int warned_fixed_elem = 0;
+		  if (!warned_fixed_elem) {
+			fprintf(stderr, "Warning: %s on a fixed-size array"
+				" of non-vector elements (compile-progress:"
+				" empty result; further similar warnings"
+				" suppressed)\n", name);
+			warned_fixed_elem = 1;
+		  }
+		  fprintf(vvp_out, "    %%null; ; find_with: fixed non-vec\n");
+		  return 0;
+	    }
 
 	    /* Per-element-type bytecode shape:
 	     *   load_elem    — fetch q[idx] onto the appropriate stack
@@ -909,9 +1252,9 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
 
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
-	    /* if (!(idx < qsize)) goto end */
+	    /* if (!(idx < size)) goto end */
 	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
-	    fprintf(vvp_out, "    %%qsize v%p_0;\n", q_sig);
+	    draw_array_size_push_(q_sig);
 	    fprintf(vvp_out, "    %%cmp/s;\n");
 	    /* %cmp/s sets flag 5 = lt; jump to end if NOT lt */
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
@@ -920,7 +1263,7 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    /* iter_sig = q[idx_sig] — type-specific load/store pair */
 	    fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
 	    if (bt == IVL_VT_BOOL || bt == IVL_VT_LOGIC) {
-		  fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", q_sig);
+		  draw_array_elem_load_vec4_(q_sig);
 		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
 			  iter_sig, iter_wid);
 	    } else if (bt == IVL_VT_REAL) {
@@ -949,7 +1292,7 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, 32;\n", result_sig);
 	    } else if (bt == IVL_VT_BOOL || bt == IVL_VT_LOGIC) {
 		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
-		  fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", q_sig);
+		  draw_array_elem_load_vec4_(q_sig);
 		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, %u;\n",
 			  result_sig, iter_wid);
 	    } else if (bt == IVL_VT_REAL) {

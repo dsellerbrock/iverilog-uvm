@@ -391,6 +391,16 @@ class vpiScopeModule  : public __vpiScope {
       int get_type_code(void) const override { return vpiModule; }
 };
 
+/* Program-block instance scope (IEEE 1800-2017 clause 24): threads
+   whose scope chain includes one of these schedule in the Reactive
+   region set. */
+class vpiScopeProgram  : public __vpiScope {
+    public:
+      inline vpiScopeProgram(const char*nam, const char*tnam)
+      : __vpiScope(nam,tnam,false) { }
+      int get_type_code(void) const override { return vpiProgram; }
+};
+
 struct vpiScopePackage  : public __vpiScope {
       inline vpiScopePackage(const char*nam, const char*tnam)
       : __vpiScope(nam,tnam) { }
@@ -545,6 +555,8 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    scope = new vpiScopePackage(name, tname);
       } else if (strcmp(type,"class") == 0) {
 	    scope = new vpiScopeClass(name, tname);
+      } else if (strcmp(type,"program") == 0) {
+	    scope = new vpiScopeProgram(name, tname);
       } else {
 	    scope = new vpiScopeModule(name, tname);
 	    assert(0);

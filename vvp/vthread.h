@@ -52,6 +52,14 @@ extern vthread_t vthread_new(vvp_code_t sa, __vpiScope*scope);
 extern void vthread_mark_scheduled(vthread_t thr);
 
 /*
+ * True when the thread belongs to a program block (its scope chain
+ * includes a vpiProgram scope) or was spawned by such a thread; the
+ * scheduler places these in the Reactive region set (IEEE 1800-2017
+ * 4.4.2.5, clause 24).
+ */
+extern int vthread_is_reactive(vthread_t thr);
+
+/*
  * This function marks the thread as being a final procedure.
  */
 extern void vthread_mark_final(vthread_t thr);

@@ -1903,6 +1903,10 @@ extern unsigned     ivl_scope_events(ivl_scope_t net);
 extern ivl_event_t  ivl_scope_event(ivl_scope_t net, unsigned idx);
 extern const char* ivl_scope_file(ivl_scope_t net);
 extern unsigned ivl_scope_is_auto(ivl_scope_t net);
+  /* Return true if the scope is (or is inside) a program block
+     (IEEE 1800-2017 clause 24); program processes schedule in the
+     Reactive region set. */
+extern unsigned ivl_scope_program(ivl_scope_t net);
 extern unsigned ivl_scope_is_cell(ivl_scope_t net);
 extern unsigned ivl_scope_lineno(ivl_scope_t net);
 extern unsigned     ivl_scope_logs(ivl_scope_t net);

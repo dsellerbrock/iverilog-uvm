@@ -489,6 +489,10 @@ struct vthread_s {
       unsigned pending_nonlocal_jmp :1;
       unsigned is_callf_child    :1;
       unsigned is_fork_v_child   :1;
+	/* Program-block process (IEEE 1800-2017 clause 24): scheduled
+	   in the Reactive region set.  Set at creation from the scope
+	   chain and inherited by spawned children. */
+      unsigned is_reactive_process :1;
       unsigned owns_automatic_context :1;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
@@ -1888,9 +1892,12 @@ bool of_QUNIQUE_IDX(vthread_t thr, vvp_code_t cp)
 
 /* Phase 63b/Q-methods (gap close): sort q by keys queue.  q[i]
  * stays paired with keys[i] under the permutation.  After sort,
- * q is in ascending (sort) or descending (rsort) order of keys. */
-template<typename ELEM>
-static void qsort_with_keys_helper_(vvp_darray*q, vector<int32_t>&keys,
+ * q is in ascending (sort) or descending (rsort) order of keys.
+ * The key type follows the with expression (IEEE 1800-2017 7.12.2:
+ * the relational operators shall be defined for the type of the
+ * expression): signed 32-bit integral, string, or real. */
+template<typename ELEM, typename KEY>
+static void qsort_with_keys_helper_(vvp_darray*q, vector<KEY>&keys,
                                     bool reverse)
 {
       size_t sz = q->get_size();
@@ -1900,12 +1907,26 @@ static void qsort_with_keys_helper_(vvp_darray*q, vector<int32_t>&keys,
       for (size_t i = 0; i < sz; i++) perm[i] = i;
       std::sort(perm.begin(), perm.end(),
                 [&](size_t a, size_t b) {
-                      return reverse ? keys[a] > keys[b]
+                      return reverse ? keys[b] < keys[a]
                                      : keys[a] < keys[b];
                 });
       vector<ELEM> sorted(sz);
       for (size_t i = 0; i < sz; i++) sorted[i] = qvals[perm[i]];
       for (size_t i = 0; i < sz; i++) q->set_word((unsigned)i, sorted[i]);
+}
+
+template<typename KEY>
+static void qsort_by_keys_elem_dispatch_(vvp_darray*q, vector<KEY>&keys,
+                                         bool reverse)
+{
+      if (dynamic_cast<vvp_queue_real*>(q) || dynamic_cast<vvp_darray_real*>(q))
+            qsort_with_keys_helper_<double, KEY>(q, keys, reverse);
+      else if (dynamic_cast<vvp_queue_string*>(q) || dynamic_cast<vvp_darray_string*>(q))
+            qsort_with_keys_helper_<string, KEY>(q, keys, reverse);
+      else if (dynamic_cast<vvp_queue_object*>(q) || dynamic_cast<vvp_darray_object*>(q))
+            qsort_with_keys_helper_<vvp_object_t, KEY>(q, keys, reverse);
+      else
+            qsort_with_keys_helper_<vvp_vector4_t, KEY>(q, keys, reverse);
 }
 
 static void qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
@@ -1915,7 +1936,25 @@ static void qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
       size_t sz = q->get_size();
       if (sz != keys_arr->get_size()) return;
 
-      // Extract keys as int32_t.
+      if (dynamic_cast<vvp_queue_string*>(keys_arr)
+          || dynamic_cast<vvp_darray_string*>(keys_arr)) {
+            vector<string> keys(sz);
+            for (size_t i = 0; i < sz; i++)
+                  keys_arr->get_word((unsigned)i, keys[i]);
+            qsort_by_keys_elem_dispatch_<string>(q, keys, reverse);
+            return;
+      }
+
+      if (dynamic_cast<vvp_queue_real*>(keys_arr)
+          || dynamic_cast<vvp_darray_real*>(keys_arr)) {
+            vector<double> keys(sz, 0.0);
+            for (size_t i = 0; i < sz; i++)
+                  keys_arr->get_word((unsigned)i, keys[i]);
+            qsort_by_keys_elem_dispatch_<double>(q, keys, reverse);
+            return;
+      }
+
+      // Default: signed 32-bit integral keys.
       vector<int32_t> keys(sz, 0);
       for (size_t i = 0; i < sz; i++) {
             vvp_vector4_t kv;
@@ -1925,15 +1964,7 @@ static void qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
             vector4_to_value(kv, overflow, u);
             keys[i] = (int32_t)u;
       }
-
-      if (dynamic_cast<vvp_queue_real*>(q) || dynamic_cast<vvp_darray_real*>(q))
-            qsort_with_keys_helper_<double>(q, keys, reverse);
-      else if (dynamic_cast<vvp_queue_string*>(q) || dynamic_cast<vvp_darray_string*>(q))
-            qsort_with_keys_helper_<string>(q, keys, reverse);
-      else if (dynamic_cast<vvp_queue_object*>(q) || dynamic_cast<vvp_darray_object*>(q))
-            qsort_with_keys_helper_<vvp_object_t>(q, keys, reverse);
-      else
-            qsort_with_keys_helper_<vvp_vector4_t>(q, keys, reverse);
+      qsort_by_keys_elem_dispatch_<int32_t>(q, keys, reverse);
 }
 
 bool of_QSORT_KEYS(vthread_t thr, vvp_code_t cp)
@@ -1961,13 +1992,13 @@ bool of_QRSORT_KEYS(vthread_t thr, vvp_code_t cp)
 }
 
 /* unique with key extractor: keep first element with each unique key. */
-template<typename ELEM>
-static void qunique_keys_helper_(vvp_darray*q, vector<int32_t>&keys)
+template<typename ELEM, typename KEY>
+static void qunique_keys_helper_(vvp_darray*q, vector<KEY>&keys)
 {
       size_t sz = q->get_size();
       vector<ELEM> qvals(sz);
       for (size_t i = 0; i < sz; i++) q->get_word((unsigned)i, qvals[i]);
-      vector<int32_t> seen_keys;
+      vector<KEY> seen_keys;
       vector<ELEM> kept;
       for (size_t i = 0; i < sz; i++) {
             bool found = false;
@@ -1987,6 +2018,19 @@ static void qunique_keys_helper_(vvp_darray*q, vector<int32_t>&keys)
       }
 }
 
+template<typename KEY>
+static void qunique_by_keys_elem_dispatch_(vvp_darray*q, vector<KEY>&keys)
+{
+      if (dynamic_cast<vvp_queue_real*>(q) || dynamic_cast<vvp_darray_real*>(q))
+            qunique_keys_helper_<double, KEY>(q, keys);
+      else if (dynamic_cast<vvp_queue_string*>(q) || dynamic_cast<vvp_darray_string*>(q))
+            qunique_keys_helper_<string, KEY>(q, keys);
+      else if (dynamic_cast<vvp_queue_object*>(q) || dynamic_cast<vvp_darray_object*>(q))
+            qunique_keys_helper_<vvp_object_t, KEY>(q, keys);
+      else
+            qunique_keys_helper_<vvp_vector4_t, KEY>(q, keys);
+}
+
 bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
 {
       (void)thr;
@@ -1999,6 +2043,24 @@ bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
       size_t sz = q->get_size();
       if (sz != k->get_size()) return true;
 
+      if (dynamic_cast<vvp_queue_string*>(k)
+          || dynamic_cast<vvp_darray_string*>(k)) {
+            vector<string> keys(sz);
+            for (size_t i = 0; i < sz; i++)
+                  k->get_word((unsigned)i, keys[i]);
+            qunique_by_keys_elem_dispatch_<string>(q, keys);
+            return true;
+      }
+
+      if (dynamic_cast<vvp_queue_real*>(k)
+          || dynamic_cast<vvp_darray_real*>(k)) {
+            vector<double> keys(sz, 0.0);
+            for (size_t i = 0; i < sz; i++)
+                  k->get_word((unsigned)i, keys[i]);
+            qunique_by_keys_elem_dispatch_<double>(q, keys);
+            return true;
+      }
+
       vector<int32_t> keys(sz, 0);
       for (size_t i = 0; i < sz; i++) {
             vvp_vector4_t kv;
@@ -2008,15 +2070,7 @@ bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
             vector4_to_value(kv, overflow, u);
             keys[i] = (int32_t)u;
       }
-
-      if (dynamic_cast<vvp_queue_real*>(q) || dynamic_cast<vvp_darray_real*>(q))
-            qunique_keys_helper_<double>(q, keys);
-      else if (dynamic_cast<vvp_queue_string*>(q) || dynamic_cast<vvp_darray_string*>(q))
-            qunique_keys_helper_<string>(q, keys);
-      else if (dynamic_cast<vvp_queue_object*>(q) || dynamic_cast<vvp_darray_object*>(q))
-            qunique_keys_helper_<vvp_object_t>(q, keys);
-      else
-            qunique_keys_helper_<vvp_vector4_t>(q, keys);
+      qunique_by_keys_elem_dispatch_<int32_t>(q, keys);
       return true;
 }
 
@@ -2816,6 +2870,13 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->pending_nonlocal_jmp = 0;
       thr->is_callf_child = 0;
       thr->is_fork_v_child = 0;
+      thr->is_reactive_process = 0;
+      for (__vpiScope*sc = scope ; sc ; sc = sc->scope) {
+	    if (sc->get_type_code() == vpiProgram) {
+		  thr->is_reactive_process = 1;
+		  break;
+	    }
+      }
       thr->owns_automatic_context = 0;
       thr->owned_context = 0;
       thr->transferred_context = 0;
@@ -2901,6 +2962,7 @@ static void vthread_reap(vthread_t thr)
 		  assert(child->parent == thr);
 		  if (thr->parent) {
 			child->parent = thr->parent;
+			child->is_reactive_process |= thr->is_reactive_process;
 			thr->parent->children.insert(child);
 		  } else {
 			child->parent = 0;
@@ -2921,6 +2983,7 @@ static void vthread_reap(vthread_t thr)
 		  assert(child->i_am_detached);
 		  if (thr->parent) {
 			child->parent = thr->parent;
+			child->is_reactive_process |= thr->is_reactive_process;
 			thr->parent->detached_children.insert(child);
 		  } else {
 			child->parent = 0;
@@ -3132,6 +3195,16 @@ void vthread_mark_scheduled(vthread_t thr)
 	    thr->is_scheduled = 1;
 	    thr = thr->wait_next;
       }
+}
+
+int vthread_is_reactive(vthread_t thr)
+{
+      return (thr && thr->is_reactive_process) ? 1 : 0;
+}
+
+static inline bool schedule_assign_is_reactive_(vthread_t thr)
+{
+      return thr && thr->is_reactive_process;
 }
 
 void vthread_mark_final(vthread_t thr)
@@ -3384,7 +3457,32 @@ void vthread_schedule_list(vthread_t thr)
 	    cur->waiting_for_event = 0;
       }
 
-      schedule_vthread(thr, 0);
+	/* A single event functor can wake both design processes and
+	   program-block processes.  Those belong in different regions
+	   (IEEE 1800-2017 4.4.2: Active vs. Reactive), so partition
+	   the wake chain by region, preserving relative order within
+	   each partition, and schedule the partitions separately. */
+      vthread_t design_head = 0, design_tail = 0;
+      vthread_t reactive_head = 0, reactive_tail = 0;
+      for (vthread_t cur = thr ;  cur ; ) {
+	    vthread_t next = cur->wait_next;
+	    cur->wait_next = 0;
+	    if (cur->is_reactive_process) {
+		  if (reactive_tail) reactive_tail->wait_next = cur;
+		  else reactive_head = cur;
+		  reactive_tail = cur;
+	    } else {
+		  if (design_tail) design_tail->wait_next = cur;
+		  else design_head = cur;
+		  design_tail = cur;
+	    }
+	    cur = next;
+      }
+
+      if (design_head)
+	    schedule_vthread(design_head, 0);
+      if (reactive_head)
+	    schedule_vthread(reactive_head, 0);
 }
 
 static __vpiScope* resolve_context_scope(__vpiScope*scope);
@@ -4215,7 +4313,8 @@ bool of_ASSIGN_AR(vthread_t thr, vvp_code_t cp)
       if (adr >= 0) {
 	    vvp_array_t array = resolve_runtime_array_(cp, "%assign/ar");
 	    if (array)
-		  schedule_assign_array_word(array, adr, value, delay);
+		  schedule_assign_array_word(array, adr, value, delay,
+					     thr->is_reactive_process);
       }
 
       return true;
@@ -4235,7 +4334,8 @@ bool of_ASSIGN_ARD(vthread_t thr, vvp_code_t cp)
 	    vvp_time64_t delay = thr->words[cp->bit_idx[0]].w_uint;
 	    vvp_array_t array = resolve_runtime_array_(cp, "%assign/ar/d");
 	    if (array)
-		  schedule_assign_array_word(array, adr, value, delay);
+		  schedule_assign_array_word(array, adr, value, delay,
+					     thr->is_reactive_process);
       }
 
       return true;
@@ -4258,7 +4358,8 @@ bool of_ASSIGN_ARE(vthread_t thr, vvp_code_t cp)
 	    if (!array)
 		  return true;
 	    if (thr->ecount == 0) {
-		  schedule_assign_array_word(array, adr, value, 0);
+		  schedule_assign_array_word(array, adr, value, 0,
+					     thr->is_reactive_process);
 	    } else {
 		  schedule_evctl(array, adr, value, thr->event,
 		                 thr->ecount);
@@ -4277,7 +4378,8 @@ bool of_ASSIGN_VEC4(vthread_t thr, vvp_code_t cp)
       unsigned delay = cp->bit_idx[0];
       const vvp_vector4_t&val = thr->peek_vec4();
 
-      schedule_assign_vector(ptr, 0, 0, val, delay);
+      schedule_assign_vector(ptr, 0, 0, val, delay,
+			     thr->is_reactive_process);
       thr->pop_vec4(1);
       return true;
 }
@@ -4353,7 +4455,8 @@ bool of_ASSIGN_VEC4_A_D(vthread_t thr, vvp_code_t cp)
       if (!resize_rval_vec(val, off, array->get_word_size()))
 	    return true;
 
-      schedule_assign_array_word(array, adr, off, val, del);
+      schedule_assign_array_word(array, adr, off, val, del,
+				 schedule_assign_is_reactive_(thr));
 
       return true;
 }
@@ -4384,7 +4487,8 @@ bool of_ASSIGN_VEC4_A_E(vthread_t thr, vvp_code_t cp)
 	    return true;
 
       if (thr->ecount == 0) {
-	    schedule_assign_array_word(array, adr, off, val, 0);
+	    schedule_assign_array_word(array, adr, off, val, 0,
+				       schedule_assign_is_reactive_(thr));
       } else {
 	    schedule_evctl(array, adr, val, off, thr->event, thr->ecount);
       }
@@ -4416,7 +4520,8 @@ bool of_ASSIGN_VEC4_OFF_D(vthread_t thr, vvp_code_t cp)
       if (!resize_rval_vec(val, off, sig->value_size()))
 	    return true;
 
-      schedule_assign_vector(ptr, off, sig->value_size(), val, del);
+      schedule_assign_vector(ptr, off, sig->value_size(), val, del,
+			     schedule_assign_is_reactive_(thr));
       return true;
 }
 
@@ -4443,7 +4548,8 @@ bool of_ASSIGN_VEC4_OFF_E(vthread_t thr, vvp_code_t cp)
 	    return true;
 
       if (thr->ecount == 0) {
-	    schedule_assign_vector(ptr, off, sig->value_size(), val, 0);
+	    schedule_assign_vector(ptr, off, sig->value_size(), val, 0,
+				   schedule_assign_is_reactive_(thr));
       } else {
 	    schedule_evctl(ptr, val, off, sig->value_size(), thr->event, thr->ecount);
       }
@@ -4465,7 +4571,8 @@ bool of_ASSIGN_VEC4D(vthread_t thr, vvp_code_t cp)
       vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (cp->net->fil);
       assert(sig);
 
-      schedule_assign_vector(ptr, 0, sig->value_size(), value, del);
+      schedule_assign_vector(ptr, 0, sig->value_size(), value, del,
+			     schedule_assign_is_reactive_(thr));
 
       return true;
 }
@@ -4482,7 +4589,8 @@ bool of_ASSIGN_VEC4E(vthread_t thr, vvp_code_t cp)
       assert(sig);
 
       if (thr->ecount == 0) {
-	    schedule_assign_vector(ptr, 0, sig->value_size(), value, 0);
+	    schedule_assign_vector(ptr, 0, sig->value_size(), value, 0,
+				   schedule_assign_is_reactive_(thr));
       } else {
 	    schedule_evctl(ptr, value, 0, sig->value_size(), thr->event, thr->ecount);
       }
@@ -5697,6 +5805,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 
         // Mark the function thread as a direct child of the current thread.
       child->parent = thr;
+      child->is_reactive_process |= thr->is_reactive_process;
       thr->children.insert(child);
         // This should be the only child
       assert(thr->children.size()==1);
@@ -8450,6 +8559,7 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
       child->parent = thr;
+      child->is_reactive_process |= thr->is_reactive_process;
 	/* Task calls compiled as %fork...%join should share the parent's
 	   logical process for process::self(), matching SV semantics where
 	   a task call runs in the calling thread's process. Mark them
@@ -8502,6 +8612,7 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
       child->parent = thr;
+      child->is_reactive_process |= thr->is_reactive_process;
       child->is_fork_v_child = 1;
       thr->children.insert(child);
 
@@ -11435,12 +11546,44 @@ static void process_status_to_vec4_(unsigned status, vvp_vector4_t&val)
 bool of_PROCESS_SELF(vthread_t thr, vvp_code_t)
 {
       vthread_t owner = logical_process_thread_(thr);
+      if (getenv("IVL_PROC_TRACE"))
+	    fprintf(stderr, "[proc] self: thr=%p callf=%d forkv=%d -> owner=%p obj=%p\n",
+		    (void*)thr, thr->is_callf_child ? 1 : 0,
+		    thr->is_fork_v_child ? 1 : 0, (void*)owner,
+		    owner ? (void*)owner->process_obj_.peek<vvp_process>() : 0);
       if (!owner) {
 	    thr->push_object(vvp_object_t());
 	    return true;
       }
 
       thr->push_object(owner->process_obj_);
+      return true;
+}
+
+/*
+ * %process/status
+ *   Pop a process object and push its live state as a 32-bit vec4
+ *   per IEEE 1800-2017 9.7 (FINISHED=0, RUNNING=1, WAITING=2,
+ *   SUSPENDED=3, KILLED=4).  A nil handle pushes x.
+ */
+bool of_PROCESS_STATUS(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      vvp_process*proc = obj.peek<vvp_process>();
+      if (getenv("IVL_PROC_TRACE"))
+	    fprintf(stderr, "[proc] status: proc=%p owner=%p st=%u\n",
+		    (void*)proc, proc ? (void*)proc->owner() : 0,
+		    proc ? proc->status() : 99);
+      if (!proc) {
+	    thr->push_vec4(vvp_vector4_t(32, BIT4_X));
+	    return true;
+      }
+
+      vvp_vector4_t val;
+      process_status_to_vec4_(proc->status(), val);
+      thr->push_vec4(val);
       return true;
 }
 
@@ -15008,6 +15151,7 @@ static bool do_exec_ufunc(vthread_t thr, vvp_code_t cp, vthread_t child)
       child->delay_delete = 1;
 
       child->parent = thr;
+      child->is_reactive_process |= thr->is_reactive_process;
       thr->children.insert(child);
 	// This should be the only child
       assert(thr->children.size()==1);

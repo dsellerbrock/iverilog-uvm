@@ -100,12 +100,98 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: any pattern using nested assoc maps (UVM tracks several).
 
 ### G10 queue `.sum()`, `.product()`, `.min()`, `.max()`, `.unique()`, `.unique_index()`, `.and()`, `.or()`, `.xor()`, `.find()`, `.find_index()` — context-sensitive; some forms emit `not a queue method` errors
+- **STATUS 2026-07-12: FIXED (reductions + min/max + non-queue locators)**.
+  IEEE 1800-2017 7.12.3 reductions (`sum`/`product`/`and`/`or`/`xor`) and
+  7.12.1 `min()`/`max()` now implemented over queues, dynamic arrays and
+  one-dimensional fixed-size unpacked arrays, in all four source forms
+  (call, call+with, paren-less, paren-less+with), including the
+  keyword-named methods via new grammar rules (`.and()`/`.or()`/`.xor()`
+  + with variants; +6 documented s/r conflicts, 453→459).  Result
+  width/signedness follow the with expression per 7.12.3.  `find*`
+  locators extended from queues to dynamic and fixed arrays.  Per-call
+  iterator binding via new `NetScope::set_signal_alias` (7.12: "The
+  scope for the iterator_argument is the with expression") — this also
+  fixed a pre-existing find_with poisoning bug where sibling calls with
+  different element types shared one hidden `item` net (wrong
+  signedness/width -> wrong compares or a vvp width assertion).  Runtime
+  is an inline vvp loop (existing opcodes only;
+  `$ivl_darray_method$reduce|` lowered in
+  tgt-vvp/eval_object.c:draw_array_reduce_vec4, `minmax|` in
+  eval_object_sfunc).  Tests `tests/g10_array_methods_test.sv` (29
+  checks incl. all 7.12.3 LRM literal examples),
+  `tests/negative/g10_reduction_non_integral.sv`.
+- **UPDATE 2026-07-13: class-property receivers FIXED** — the dominant
+  UVM shape (`this.q.sum()`, `cfg.st.q.max()`, nested chains, external
+  and paren-less forms).  Any non-signal object receiver is evaluated
+  once and its handle stored into a hidden container-typed net the
+  loop indexes through (extra trailing sfunc parm; tgt-vvp
+  `draw_array_method_recv_`).  The paren-less property tail path
+  (`return q.sum;`), which previously WARNED AND DROPPED the
+  expression, now routes to the same machinery.  Fixed-size-array
+  class properties get an explicit sorry (not object-valued).
+- **UPDATE 2026-07-13b: 7.12.2 ordering methods completed** — three
+  defects in the Phase 63b sort/rsort/reverse/shuffle/unique statement
+  paths fixed: (1) instance-property receivers were a SILENT NO-OP
+  (explicit skip in tgt-vvp); now the receiver handle is stored into a
+  hidden container net the opcodes run against (in-place reorder
+  reaches the property because containers are held by handle);
+  (2) with-clause sort keys were always truncated to int32 — string
+  keys (the UVM `sort() with (item.get_full_name())` shape) silently
+  mis-sorted whenever keys shared a 4-byte prefix; keys queues are now
+  typed by the with expression (string / real / signed-32) end to end
+  (elaboration key-net type, codegen key-build, runtime extraction and
+  comparison); (3) the sort_with elaboration still used the shared
+  iterator-net scheme — now fresh per-call nets bound via
+  NetScope::set_signal_alias.  Test
+  `tests/g10_ordering_methods_test.sv` (28 checks).
+- Remaining tail (explicit diagnostics, no silent fallbacks):
+  `unique`/`unique_index` on non-queue arrays; reductions/min/max on
+  associative arrays (sorry) and multidimensional arrays (sorry);
+  `min`/`max` on string/real elements (sorry); `item.index` iterator
+  method; fixed-size-array class properties (sorry); ordering methods
+  on fixed-size arrays.
 - Symptom: `q.sum()` reports `error: Method sum is not a queue method.` Same for product. Probe got `Variable item does not have a field named: index.` for `with (item.index)`. The Phase-63b B-series only added some shapes.
 - Probe: p16_queue_with (VERIFIED-FAILS), p30_array_methods (VERIFIED-FAILS for .min/.max/.sort on non-queue), p87_unique_index (PASS for queue).
 - Location: elab_expr.cc:8857-8911 (sorry: cluster for non-queue array methods); also `with (item.index)` codepath separately broken in elab_expr.cc.
 - Layer: elab.
 - Complexity: medium (each is its own bytecode template; pattern is established in B1).
 - Blocks: standard idioms in scoreboard reductions, RAL frontdoor.
+
+### G68 `process::status()` read a dead property slot — always 0 (=FINISHED)
+- **STATUS 2026-07-13: FIXED.**  The built-in process class declared
+  `status` as a stored property nothing ever wrote, so it read 0 —
+  which is FINISHED in the 9.7 state enum.  Now lowered to a live
+  runtime query: new vvp opcode `%process/status` maps the owning
+  thread's state through `vvp_process::status()` (nil handle pushes
+  x); elaboration routes both the call form (`p.status()`) and the
+  paren-less property-chain form (`item.process_id.status`, the UVM
+  sequencer zombie predicate) to `$ivl_process$status`, and the
+  compile-progress method-stub classifier exempts process.status
+  (it previously constant-folded it to 0).  `process::FINISHED/
+  RUNNING/WAITING/SUSPENDED/KILLED` also now bind in module scope
+  (previously unresolved-reference warnings + dropped expr).
+  Exposed by the G10 property-receiver work: the UVM zombie check
+  `find ... with (request==LOCK && process_id.status inside
+  {KILLED,FINISHED})` previously never ran (receiver fallback), then
+  mis-evaluated (see G69) and killed every arbitration entry at t0
+  (seq_trace_test/vif_smoke/vif_smoke_v2 PH_TIMEOUT@9200).
+  Test `tests/g68_process_status_test.sv`.
+- Known approximation: a delay-suspended process reads RUNNING (the
+  thread wait flags don't distinguish delays); suspend()/resume()
+  are not implemented so SUSPENDED is never reported.
+
+### G69 `inside` operator precedence was at ternary level (Table 11-2 violation)
+- **STATUS 2026-07-13: FIXED.**  parse.y placed K_inside in the
+  `%right '?' ':'` precedence group, so `a && b inside {c,d}` parsed
+  as `(a && b) inside {c,d}`.  IEEE 1800-2017 Table 11-2 puts inside
+  at the RELATIONAL level (with < <= > >=), tighter than equality,
+  &&, || and ?:.  Moved K_inside to the relational `%left` group
+  (grammar conflict counts unchanged: 459 s/r / 1060 r/r).  This
+  latent mis-parse made the UVM sequencer zombie predicate
+  `(request==LOCK && status)` compare against FINISHED=0 — true for
+  every non-lock entry — as soon as the G10 property-receiver work
+  made the predicate actually execute.
+  Test `tests/g69_inside_precedence_test.sv`.
 
 ### G11 `solve…before` partially works, but `a -> b == K` implication is dropped
 - **UPDATE 2026-07-12**: signed comparisons and negative constraint bounds now supported (checkpoint 6): unary minus folds to two's complement; signed properties marked `p:N:W:s`; bvslt-family predicates and sign extension applied per IEEE 1800-2017 11.8.1. Test `tests/m3_constraint_signed_test.sv`.

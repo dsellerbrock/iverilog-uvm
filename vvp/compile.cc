@@ -364,6 +364,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%process/await",of_PROCESS_AWAIT,0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%process/kill", of_PROCESS_KILL, 0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%process/self", of_PROCESS_SELF, 0,{OA_NONE, OA_NONE, OA_NONE} },
+      { "%process/status",of_PROCESS_STATUS,0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%prop/obj",of_PROP_OBJ,2,  {OA_NUMBER,   OA_BIT1,     OA_NONE} },
       { "%prop/r",  of_PROP_R,  1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },
       { "%prop/str",of_PROP_STR,1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },

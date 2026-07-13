@@ -630,6 +630,15 @@ extern void stream_elem_type_text(ivl_type_t element_type,
                                   char*buf, size_t bufsz);
 
 /*
+ * Array reduction methods (IEEE 1800-2017 7.12.3): lower the internal
+ * system function "$ivl_darray_method$reduce|<kind>" to an inline
+ * loop over the array receiver, leaving the accumulated value on the
+ * vec4 stack.  Defined in eval_object.c (it shares the array-receiver
+ * helpers with the locator loops), called from draw_sfunc_vec4.
+ */
+extern int draw_array_reduce_vec4(ivl_expr_t expr);
+
+/*
  * These are various statement code generators.
  */
 extern int show_statement(ivl_statement_t net, ivl_scope_t sscope);

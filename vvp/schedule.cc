@@ -81,6 +81,9 @@ struct event_time_s {
 	    active = 0;
 	    inactive = 0;
 	    nbassign = 0;
+	    reactive = 0;
+	    re_inactive = 0;
+	    re_nbassign = 0;
 	    rwsync = 0;
 	    rosync = 0;
 	    del_thr = 0;
@@ -92,6 +95,9 @@ struct event_time_s {
       struct event_s*active;
       struct event_s*inactive;
       struct event_s*nbassign;
+      struct event_s*reactive;
+      struct event_s*re_inactive;
+      struct event_s*re_nbassign;
       struct event_s*rwsync;
       struct event_s*rosync;
       struct event_s*del_thr;
@@ -696,6 +702,7 @@ static void schedule_final_event(struct event_s*cur)
  * queue.
  */
 typedef enum event_queue_e { SEQ_START, SEQ_ACTIVE, SEQ_INACTIVE, SEQ_NBASSIGN,
+			     SEQ_REACTIVE, SEQ_RE_INACTIVE, SEQ_RE_NBASSIGN,
 			     SEQ_RWSYNC, SEQ_ROSYNC, DEL_THREAD } event_queue_t;
 
 static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
@@ -778,6 +785,19 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 	    q = &ctim->nbassign;
 	    break;
 
+	  case SEQ_REACTIVE:
+	    q = &ctim->reactive;
+	    break;
+
+	  case SEQ_RE_INACTIVE:
+	    assert(delay == 0);
+	    q = &ctim->re_inactive;
+	    break;
+
+	  case SEQ_RE_NBASSIGN:
+	    q = &ctim->re_nbassign;
+	    break;
+
 	  case SEQ_RWSYNC:
 	    q = &ctim->rwsync;
 	    break;
@@ -835,7 +855,11 @@ void schedule_vthread(vthread_t thr, vvp_time64_t delay, bool push_flag)
 	    schedule_event_push_(cur);
 
       } else {
-	    schedule_event_(cur, delay, SEQ_ACTIVE);
+	      /* Program-block processes resume in the Reactive region
+		 of the target time slot (IEEE 1800-2017 4.4.2.5). */
+	    schedule_event_(cur, delay,
+			    vthread_is_reactive(thr) ? SEQ_REACTIVE
+						     : SEQ_ACTIVE);
       }
 }
 
@@ -853,7 +877,10 @@ void schedule_inactive(vthread_t thr)
 
       cur->thr = thr;
       vthread_mark_scheduled(thr);
-      schedule_event_(cur, 0, SEQ_INACTIVE);
+	/* #0 in a program-block process defers to the Re-Inactive
+	   region (IEEE 1800-2017 4.4.2.6). */
+      schedule_event_(cur, 0, vthread_is_reactive(thr) ? SEQ_RE_INACTIVE
+						       : SEQ_INACTIVE);
 }
 
 void schedule_init_vthread(vthread_t thr)
@@ -880,13 +907,16 @@ void schedule_final_vthread(vthread_t thr)
 void schedule_assign_vector(vvp_net_ptr_t ptr,
 			    unsigned base, unsigned vwid,
 			    const vvp_vector4_t&bit,
-			    vvp_time64_t delay)
+			    vvp_time64_t delay, bool reactive)
 {
       struct assign_vector4_event_s*cur = new struct assign_vector4_event_s(bit);
       cur->ptr = ptr;
       cur->base = base;
       cur->vwid = vwid;
-      schedule_event_(cur, delay, SEQ_NBASSIGN);
+	/* Nonblocking assignments from program-block processes
+	   schedule in the Re-NBA region (IEEE 1800-2017 4.4.2.7). */
+      schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
+					   : SEQ_NBASSIGN);
 }
 
 void schedule_force_vector(vvp_net_t*net,
@@ -928,26 +958,28 @@ void schedule_assign_array_word(vvp_array_t mem,
 				unsigned word_addr,
 				unsigned off,
 				const vvp_vector4_t&val,
-				vvp_time64_t delay)
+				vvp_time64_t delay, bool reactive)
 {
       struct assign_array_word_s*cur = new struct assign_array_word_s;
       cur->mem = mem;
       cur->adr = word_addr;
       cur->off = off;
       cur->val = val;
-      schedule_event_(cur, delay, SEQ_NBASSIGN);
+      schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
+					   : SEQ_NBASSIGN);
 }
 
 void schedule_assign_array_word(vvp_array_t mem,
 				unsigned word_addr,
 				double val,
-				vvp_time64_t delay)
+				vvp_time64_t delay, bool reactive)
 {
       struct assign_array_r_word_s*cur = new struct assign_array_r_word_s;
       cur->mem = mem;
       cur->adr = word_addr;
       cur->val = val;
-      schedule_event_(cur, delay, SEQ_NBASSIGN);
+      schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
+					   : SEQ_NBASSIGN);
 }
 
 void schedule_set_vector(vvp_net_ptr_t ptr, const vvp_vector4_t&bit)
@@ -1122,7 +1154,9 @@ static void run_rosync(struct event_time_s*ctim)
 	    delete cur;
       }
 
-      if (ctim->active || ctim->inactive || ctim->nbassign || ctim->rwsync) {
+      if (ctim->active || ctim->inactive || ctim->nbassign
+	  || ctim->reactive || ctim->re_inactive || ctim->re_nbassign
+	  || ctim->rwsync) {
 	    cerr << "SCHEDULER ERROR: read-only sync events "
 		 << "created RW events!" << endl;
       }
@@ -1272,6 +1306,24 @@ void schedule_simulate(void)
 		  if (ctim->active == 0) {
 			ctim->active = ctim->nbassign;
 			ctim->nbassign = 0;
+
+			  /* Reactive region set (IEEE 1800-2017
+			     4.4.2.5-4.4.2.7): program-block processes,
+			     their #0 continuations, and their
+			     nonblocking updates run after the design
+			     regions have settled. */
+			if (ctim->active == 0) {
+			      ctim->active = ctim->reactive;
+			      ctim->reactive = 0;
+			}
+			if (ctim->active == 0) {
+			      ctim->active = ctim->re_inactive;
+			      ctim->re_inactive = 0;
+			}
+			if (ctim->active == 0) {
+			      ctim->active = ctim->re_nbassign;
+			      ctim->re_nbassign = 0;
+			}
 
 			if (ctim->active == 0) {
 			      ctim->active = ctim->rwsync;
