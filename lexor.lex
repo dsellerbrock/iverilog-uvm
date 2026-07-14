@@ -537,6 +537,24 @@ TU [munpf]
       }
 }
 
+  /* IEEE 1800-2017 14.11: `##` introduces a cycle delay. Adjacent
+     `##` had no legal meaning before this rule (two '#' tokens never
+     parse), so reserving it for SystemVerilog changes no legacy
+     behavior. */
+"##" {
+      if (gn_system_verilog()) {
+	    return K_CYCLE_DELAY;
+      } else REJECT; }
+
+  /* IEEE 1800-2017 5.8: `1step` is a special delay value (clocking
+     skews, cycle delays). It cannot collide with identifiers (which
+     may not start with a digit) or plain numbers (longest match wins),
+     and `1step` was already a lexical error before this rule. */
+1step {
+      if (gn_system_verilog()) {
+	    return K_1step;
+      } else REJECT; }
+
   /* This rule handles scaled time values for SystemVerilog.
      Strip underscore separators (IEEE 1800-2012 §5.7.1) so atof() works. */
 [0-9][0-9_]*(\.[0-9][0-9_]*)?{TU}?s {

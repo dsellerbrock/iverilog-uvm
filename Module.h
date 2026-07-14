@@ -150,6 +150,13 @@ class Module : public PScopeExtra, public PNamedItem {
       std::map<perm_string,PModport*> modports;
       std::map<perm_string,PClocking*> clocking_blocks;
 
+	/* IEEE 1800-2017 14.12: at most one default clocking block per
+	   module, interface, or program. Nil when no default is declared.
+	   Anonymous default clocking blocks are registered in
+	   clocking_blocks under an internal name that no source
+	   identifier can collide with. */
+      perm_string default_clocking;
+
 	/* List for specify paths and timing checks */
       std::list<PSpecPath*> specify_paths;
       std::list<PTimingCheck*> timing_checks;

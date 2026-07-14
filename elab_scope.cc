@@ -3173,6 +3173,12 @@ void PDelayStatement::elaborate_scope(Design*des, NetScope*scope) const
 	    statement_ -> elaborate_scope(des, scope);
 }
 
+void PCycleDelay::elaborate_scope(Design*des, NetScope*scope) const
+{
+      if (statement_)
+	    statement_ -> elaborate_scope(des, scope);
+}
+
 /*
  * Statements that contain a further statement but do not
  * intrinsically add a scope need to elaborate_scope the contained

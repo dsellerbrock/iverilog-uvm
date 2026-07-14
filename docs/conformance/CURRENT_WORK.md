@@ -3,6 +3,49 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-14i (session: M8 entry — G01/G02 clocking blocks + ##N)
+
+- **Branch**: `claude/ieee1800-uvm-implementation-tt3pll` (fresh from
+  merged main at fb79080 after PR #72; new draft PR for this work).
+- **This checkpoint** opens M8 at the gap-audit entry point:
+  - **G01 FIXED**: `clocking ... endclocking` in a module no longer
+    crashes (was: error + pform.cc is_interface assertion + core dump);
+    it is registered and functional (14.3). **G02 FIXED**: same for
+    program blocks. Same-scope `@(cb)` and `cb.sig` (read + drive) now
+    resolve in modules/programs — new shared
+    `rewrite_enclosing_scope_clocking_member_path` in netmisc.cc; the
+    two previously-duplicated interface rewrite helpers were unified
+    into netmisc.cc and generalized past `is_interface` (debt
+    reduction; elab_expr.cc/elab_lval.cc statics deleted).
+  - **default clocking registered** (14.12): named + anonymous
+    declaration forms REGISTER the block (parse-and-drop fallback
+    removed); new `default clocking id;` reference form; at most one
+    default per scope enforced; existence validated at endmodule.
+    `Module::default_clocking` records it.
+  - **Clause 14.4 skew syntax complete**: `#1step` lexes (new K_1step),
+    edge skews and `default input/output skew` items parse per A.6.11;
+    `ref` no longer wrongly accepted as a clocking direction. Skews are
+    accepted and DISCARDED — the clocking model is still the alias
+    model (cb.sig = underlying signal, no sampling/drive scheduling).
+  - **Procedural ##N cycle delay (14.11)**: `##` lexes (K_CYCLE_DELAY),
+    new PCycleDelay statement lowers at elaboration to
+    `repeat (N) @(<default clocking>)` via the existing Phase 55 @(cb)
+    resolver; clause-referenced error when no default clocking is in
+    scope. Number/identifier/(expr) count forms.
+  - Latent crash fixed: duplicate clocking-block name + items no longer
+    dies on the pform_add_clocking_signal assertion.
+- **Regressions**: UVM 129/129 (+2 new tests); ivtest vvp_reg.pl
+  2961/3101 failure-name-identical to a fresh same-machine pristine
+  baseline (worktree at fb79080); vvp_reg.py 284/12 and vpi_reg.pl
+  76/76 baseline-identical; negative suite 9/9 (+3 new); region trace
+  PASS; bison conflicts DOWN 459→458 s/r, 1060→1053 r/r.
+  Details: `session_logs/2026-07-14_g01_clocking_blocks.md`.
+- **Next (M8 increment 2)**: real clocking semantics — input sampling
+  (#1step history / #0 Observed) and synchronous drives (Re-NBA),
+  replacing the alias rewrites for all scopes at once on the M6 region
+  entry points; then `cb.sig <= ##N v` drives. See the session log's
+  "Next engineering step". G05/G06 (SVA) remain the M9 entry.
+
 ## State as of 2026-07-14h (session: M6 COMPLETION — trampoline default + scheduled-path deletion)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (fresh from

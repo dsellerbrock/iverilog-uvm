@@ -22,6 +22,20 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Layer: parser/pform.
 - Complexity: small if just lifting the assertion to an error; larger to actually plumb through code-gen.
 - Blocks: any module-level clocking + program blocks.
+- **STATUS 2026-07-14: FIXED** (M8 entry;
+  `session_logs/2026-07-14_g01_clocking_blocks.md`). Clocking blocks
+  register and work in module/interface/program scope: same-scope
+  `@(cb)` + `cb.sig` read/drive, hierarchical `@(inst.cb)` +
+  `inst.cb.sig`. Also: `default clocking` declaration/reference forms
+  registered (were parsed-and-dropped), full 14.4 skew SYNTAX
+  (`#1step`, edge skews, default skew items — skews accepted and
+  discarded under the alias model), and procedural `##N` cycle delays
+  (14.11) lowering to `repeat (N) @(default clocking)`. REMAINING
+  (next M8 increment): actual sample/drive skew semantics — `cb.sig`
+  is still a direct alias of the underlying signal; `cb.sig <= ##N v`
+  intra-assignment cycle delays; `clocking_decl_assign`; `global
+  clocking` (14.14). Tests: `tests/g01_module_clocking_test.sv`,
+  `tests/g01_cycle_delay_test.sv`, `tests/negative/g01_*.sv`.
 
 ### G02 program blocks parse but reject clocking inside
 - Symptom: program block parses but clocking inside fails the same `is_interface` assertion as G01.
@@ -30,6 +44,9 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Layer: parser/pform.
 - Complexity: same fix as G01 widens the predicate.
 - Blocks: program blocks (24.2 testbench style).
+- **STATUS 2026-07-14: FIXED** with G01 (same root cause; program-scope
+  clocking verified end to end incl. output drives —
+  `tests/g01_module_clocking_test.sv` program section).
 
 ### G03 `let` declarations always rejected as `sorry:`
 - Symptom: `let MAX(a,b) = (a>b)?a:b;` produces `sorry: let declarations (MAX) are not currently supported.`
