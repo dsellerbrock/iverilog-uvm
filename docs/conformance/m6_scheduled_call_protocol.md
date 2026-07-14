@@ -120,16 +120,44 @@ with the thread, so the trace will show call/return staying in-region.
    flag; `vif_smoke` (a UVM test) also passes under the flag with zero
    errors — a promising parity signal.  Flag OFF is byte-identical to
    the synchronous model.
-3. Bring the scheduled path to parity on the full focused-M6 + a
-   representative UVM subset under the flag; characterize any divergence
-   (the `resume_joining_parent_` `i_am_in_function` branch still resumes
-   a nested caller synchronously — acceptable for correctness, to be
-   made fully async here).
-4. Flip the default to the scheduled path; run the full UVM + ivtest
-   battery; keep the synchronous path as a one-release fallback.
-5. Delete `do_callf_void`'s synchronous drain loops and all the
-   staging/limit/UVM-name heuristics once the scheduled path is
-   baseline-clean.
+3. **PARTIAL 2026-07-14 — init/final-phase guard landed; a FUNDAMENTAL
+   parity blocker found.**
+   - *Init/final guard (done)*: `schedule_defer_calls_ok()` is true only
+     while the main event loop drains (false during the pre-sim init
+     drain, the post-sim final drain, and the read-only rosync region).
+     The scheduled branch falls back to synchronous execution when it is
+     false — those phases have no active-queue loop to drive a deferred
+     call and are inherently sequential.  This fixed the sole UVM
+     divergence (`static_init_order_test`: static initializers run in the
+     init phase); the scheduled path then reaches **UVM 126/126** under
+     the flag.
+   - *Parity blocker (found)*: the full ivtest corpus under the flag has
+     **two divergences** — `pr2001162` and `pr2053944` — both root-caused
+     to a **function-call atomicity violation**.  IEEE 1800-2017 13.4.3:
+     a function executes as part of the calling process and does not
+     yield.  The naive protocol SUSPENDS the caller across the call, so a
+     concurrent active process can run in between — observing
+     intermediate state (pr2001162: a shared counter's read-modify-write
+     is no longer atomic) and cross-contaminating two concurrent calls of
+     the same STATIC function that shares one return storage (pr2053944:
+     `v1=1 v2=2` becomes `v1=1 v2=1`).  Pinned by
+     `tests/m6_call_atomicity_test.sv` (passes on the default synchronous
+     path, fails under the flag).
+4. **BLOCKED on step 3's finding.**  Flipping the default cannot proceed
+   while the scheduled path violates call atomicity — doing so would
+   introduce silent miscompiles (manifesto principle 4).  The revised
+   design requirement: the callee must run to completion WITHOUT yielding
+   the active region — i.e. an inline/coroutine-style scheduler-tracked
+   frame (the caller stays the running thread; the callee frame is pushed
+   and driven to completion before any sibling active event runs),
+   rather than a separate scheduled thread the caller joins on.  That is
+   a larger redesign than the suspend-caller approach and is the next
+   engineering target for M6 item 5.
+5. Delete `do_callf_void`'s synchronous drain loops and the
+   staging/limit/UVM-name heuristics — deferred until step 4's
+   atomicity-preserving path is the default and has soaked.
 
-Each step gates on UVM 125/125 + ivtest failure-name parity before the
-next; step 4 is the highest-risk flip and gets its own checkpoint.
+The scheduled path remains behind `IVL_SCHED_CALLF` (default OFF), so
+every default regression is unchanged.  Empirical parity testing did its
+job: it caught a fundamental flaw before the flip, exactly as the
+migration plan intended (each step gates on UVM + ivtest parity).

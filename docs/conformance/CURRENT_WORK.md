@@ -3,6 +3,35 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-14e (session: M6 item 5 step 3 — parity + fundamental blocker)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft).
+- **This checkpoint**: pursued scheduled-call parity (step 3) toward the
+  default flip (step 4).  (a) Added the init/final-phase guard
+  `schedule_defer_calls_ok()` — the scheduled branch falls back to
+  synchronous execution outside the main event loop (init/final/rosync
+  phases, which are sequential); this fixed the sole UVM divergence
+  (`static_init_order_test`) → **UVM 126/126 under the flag**.  (b) The
+  full ivtest corpus under the flag then exposed a FUNDAMENTAL blocker:
+  the suspend-caller design violates function-call atomicity (IEEE
+  13.4.3), so two concurrent calls interleave — `pr2001162` (shared
+  counter read-modify-write no longer atomic) and `pr2053944` (two
+  concurrent static-function calls cross-contaminate the shared return:
+  `v1=1 v2=2` → `1 1`).  **Steps 4-5 are BLOCKED**: flipping the default
+  would introduce silent miscompiles.  The scheduled path stays behind
+  `IVL_SCHED_CALLF` (default OFF), so all default behavior is unchanged.
+  Blocker pinned by `tests/m6_call_atomicity_test.sv` (PASS on default,
+  FAIL under flag).  Details:
+  `session_logs/2026-07-14_m6_scheduled_callf_step3.md`; protocol doc
+  steps 3-5 revised.
+- **Revised next target (M6 item 5)**: redesign the callee to run inline
+  as a scheduler-tracked frame WITHOUT yielding the active region (the
+  caller stays the running thread; the callee frame is driven to
+  completion before any sibling active event runs), which preserves
+  atomicity — then retry the flip.
+- **Regressions**: default (flag OFF) unchanged; recorded in the commit.
+
 ## State as of 2026-07-14d (session: M6 item 5 step 2 — scheduled-call path behind a flag)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,

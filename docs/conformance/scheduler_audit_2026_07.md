@@ -175,3 +175,16 @@ restructuring.
    special-casing in `do_callf_void` as the clearest remaining
    manifesto-principle-5 violation to delete once the scheduled path is
    clean.
+   **2026-07-14 (step 2)**: scheduled path landed behind
+   `IVL_SCHED_CALLF` (default OFF); characterization suite passes under
+   the flag.
+   **2026-07-14 (step 3)**: init/final-phase guard
+   (`schedule_defer_calls_ok`) fixed the sole UVM divergence →
+   **UVM 126/126 under the flag** — but the full ivtest corpus exposed a
+   FUNDAMENTAL blocker: the suspend-caller design violates function-call
+   atomicity (IEEE 13.4.3), so two concurrent calls interleave
+   (`pr2001162`, `pr2053944`, `v1=1 v2=2` → `1 1`).  The default flip
+   (step 4) is therefore BLOCKED; the scheduled path stays behind the
+   flag.  Revised design: the callee must run inline as a
+   scheduler-tracked frame without yielding the active region.  Blocker
+   pinned by `tests/m6_call_atomicity_test.sv`.
