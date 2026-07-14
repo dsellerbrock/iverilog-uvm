@@ -196,14 +196,6 @@ extern vvp_time64_t schedule_simtime(void);
 extern bool schedule_at_rosync(void);
 
 /*
- * True only while the main stratified event loop is draining events.
- * The scheduled-call protocol (M6 item 5) is valid only here; the
- * init/final/rosync phases are inherently sequential and must run
- * subroutine calls synchronously.
- */
-extern bool schedule_defer_calls_ok(void);
-
-/*
  * This function is the equivalent of the $finish system task. It
  * tells the simulator that simulation is done, the current thread
  * should be stopped, all remaining events abandoned and the

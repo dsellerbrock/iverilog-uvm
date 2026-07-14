@@ -3,6 +3,37 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-14h (session: M6 COMPLETION — trampoline default + scheduled-path deletion)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (fresh from
+  merged main after PR #71; new PR to open for this work).
+- **This checkpoint completes M6**:
+  - **Increment 3**: flipped the callf default to the trampoline
+    (`IVL_TRAMPOLINE_CALLF=0` = legacy synchronous fallback).  Full
+    default-config battery clean (UVM 127/127, ivtest baseline-identical,
+    vpi 85/85, py 284/12).  The default subroutine-call model now
+    preserves function-call atomicity (IEEE 13.4.3) and bounds C++ stack
+    depth by the `vthread_run` loop, not SV call depth.
+  - **Increment 4**: deleted the BROKEN scheduled-call path
+    (`IVL_SCHED_CALLF`, `sched_callf_enabled_`, `schedule_defer_calls_ok`,
+    `sched_main_loop_running`) — proven incorrect by the atomicity
+    finding, so dead/wrong code.  RETAINED (one-release fallback) the
+    synchronous drain loops + staging + limit maps behind
+    `IVL_TRAMPOLINE_CALLF=0`.
+  - Details: `session_logs/2026-07-14_m6_completion.md`; rearchitecture
+    doc increments 3-4 recorded.
+- **M6 STATUS: functionally complete.**  All five remediation items
+  delivered (region tagging/invariants; reactive regions; slot-persistent
+  event.triggered/G08; Preponed/Observed; atomicity-correct trampoline
+  call model as default).  Sole remaining item is code hygiene — deleting
+  the retained synchronous fallback + staging heuristics after a release
+  soak (no behavior/capability change).
+- **Next milestone**: M8 (clocking blocks) or M9 (core SVA engine) — both
+  now have their scheduler foundation (region tags/invariants,
+  Preponed/Observed entry points, atomicity-correct calls).  G01 (clocking
+  outside interface, hard crash) and G05/G06 (SVA sequence operators) are
+  the gap-audit entry points.
+
 ## State as of 2026-07-14g (session: M6 item 5 rearchitecture increment 2 — trampolined callf)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #71 open,
