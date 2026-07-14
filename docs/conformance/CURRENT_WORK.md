@@ -3,6 +3,45 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-14k (session: milestone close-out audit + G71 foreach/property-darray family)
+
+- **Branch**: `claude/ieee1800-uvm-implementation-qm5wad` (restarted
+  from merged main at 6d9bc72 per protocol; PR #74 merged the previous
+  M8-entry work — do not reopen).
+- **Plan directive**: close out earlier milestones (M1-M7 tails)
+  before finishing M8 increment 2 / opening M9. Re-probe audit results
+  and the per-milestone snapshot are in
+  `session_logs/2026-07-14_g71_foreach_prop_darray.md`. Highlights:
+  G38/G39 verified already fixed (audit stale); G35/G36/G40 (M4) and
+  G26-G29 (M5) re-confirmed open; M3 dynamic foreach constraints +
+  non-0-based ranges re-confirmed open (warned-and-ignored);
+  solve...before distribution OK for the common implication shape.
+- **This checkpoint — G71 FIXED** (new gap, found by the audit):
+  foreach over class-property PLAIN dynamic arrays silently iterated
+  zero times (queue/assoc properties were fine). Fixed the whole
+  read-side family: darray foreach now uses the 0<=i<size loop
+  (elaborate.cc); indexed darray properties are element-indexed in
+  object/vec4/string/real codegen (tgt-vvp; was arrayed-property
+  mis-indexing → crash on nested descent); `%load/qo/*` accepts any
+  vvp_darray receiver (vvp). Chained reads `c.dd[i][j]` in
+  assignment/operand context now work (was ivl assertion abort).
+  Test: `tests/g71_foreach_prop_darray_test.sv`.
+- **Known in-family tails deferred** (see session log): chained
+  element STORES through darray outers (`c.dd[i][j]=v` silent no-op —
+  extend the G09 `$ivl_assoc$store2` rewrite+lowering to darray and
+  property outers = next natural increment); display-context chained
+  reads; `$size/$high/$low` on property receivers fold to 'x';
+  indexed-element method calls (G70).
+- **Next engineering options** (milestone order for the close-out
+  plan): (a) M3 tail — dynamic-array foreach constraints (needs
+  runtime foreach expansion + staged size-then-elements solve, which
+  solve...before staging can share) and non-0-based foreach ranges
+  (small: canonical-index mapping at elaborate.cc:10594/10741 guards);
+  (b) M4 tail — G35/G36/G40 ordering/manipulation methods on unpacked
+  fixed-size arrays (queue machinery exists; extend receivers), plus
+  the store2 darray/property-outer extension; (c) M5 entry — G26
+  modport import ports (parser) then G27/G29 (elab port binding).
+
 ## State as of 2026-07-14j — PR #73 MERGED (5c05f93); branch restarted
 
 - **PR #73 is MERGED and FINAL** (merge commit 5c05f93 on main): the

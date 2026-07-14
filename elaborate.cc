@@ -9213,7 +9213,14 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
       NetExpr*init_expr = 0;
       NetExpr*limit_expr = 0;
       char cond_op = 'L';
-      if (dynamic_cast<const netqueue_t*>(array_expr->net_type())) {
+	// Queues and plain dynamic arrays are always 0-based with a
+	// runtime size (IEEE 1800-2017 7.5, 7.10), so iterate
+	// 0 <= idx < size. The size sfunc accepts signal AND non-signal
+	// (e.g. class-property) receivers, unlike the $low/$high VPI
+	// path below which requires a signal handle — a property
+	// receiver there used to constant-fold $high to 'x' and the
+	// loop silently ran zero times.
+      if (dynamic_cast<const netdarray_t*>(array_expr->net_type())) {
 	    init_expr = make_const_val(0);
 	    init_expr->set_line(*this);
 	    limit_expr = make_foreach_queue_size_expr_(*this, array_expr);

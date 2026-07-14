@@ -366,7 +366,12 @@ static int eval_object_property(ivl_expr_t expr)
 
       int idx = 0;
       ivl_expr_t idx_expr = 0;
-      int queue_indexed = property_is_indexed_queue_expr_(expr);
+	/* An index on a queue OR plain-darray property selects an
+	 * element WITHIN the container value (the property itself is
+	 * scalar), not a word of an arrayed property. %load/qo/obj
+	 * accepts either container kind. */
+      int queue_indexed = property_is_indexed_queue_expr_(expr)
+	    || property_is_indexed_darray_expr_(expr);
       int assoc_indexed = property_is_assoc_indexed_expr_(expr);
 
 	/* If there is an array index expression, then this is an
@@ -503,7 +508,7 @@ static int eval_object_select(ivl_expr_t expr)
 	    index = 0;
       }
 
-      if (expr_is_queue_container_(sube) &&
+      if (expr_is_dynarray_container_(sube) &&
           ivl_expr_type(sube) != IVL_EX_SIGNAL &&
           ivl_expr_type(sube) != IVL_EX_ARRAY &&
           ivl_expr_type(sube) != IVL_EX_PROPERTY) {
@@ -561,7 +566,12 @@ static int eval_object_select(ivl_expr_t expr)
 		  return 0;
 	    }
 
-	    if (expr_is_queue_container_(sube)) {
+	      /* Queue OR plain darray property: load the container
+	       * object and index within it. Without the darray arm this
+	       * fell through to the arrayed-property path below, which
+	       * consumed the element index as a property-ARRAY index
+	       * (assertion idx < array_size_ at runtime). */
+	    if (expr_is_dynarray_container_(sube)) {
 		  draw_eval_object(sube);
 		  if (index)
 			draw_eval_expr_into_integer(index, 3);

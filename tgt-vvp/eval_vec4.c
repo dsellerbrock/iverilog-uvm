@@ -1057,7 +1057,13 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    return;
       }
 
-      if (expr_is_queue_container_(subexpr) &&
+	/* Queue OR plain-darray container that is not a bare signal
+	 * (class property, chained select, ...): load the container
+	 * object and index within it. Plain darrays used to fall into
+	 * the signal-only branch below, where ivl_expr_signal() of a
+	 * property select yields the CLASS-typed handle signal and the
+	 * data-type assertion aborts. */
+      if (expr_is_dynarray_container_(subexpr) &&
           ivl_expr_type(subexpr) != IVL_EX_SIGNAL) {
 	    assert(base);
 	      /* Phase 50f: when the queue container is actually an

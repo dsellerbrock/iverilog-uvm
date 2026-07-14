@@ -174,7 +174,10 @@ static void draw_property_real(ivl_expr_t expr)
       unsigned lab_null = local_count++;
       unsigned lab_out = local_count++;
       ivl_expr_t idx_expr = ivl_expr_oper1(expr);
-      int queue_indexed = property_is_indexed_queue_expr_(expr);
+	/* Indexed queue or plain-darray property: element access
+	 * within the container value (%load/qo/r serves both). */
+      int queue_indexed = property_is_indexed_queue_expr_(expr)
+	    || property_is_indexed_darray_expr_(expr);
       int assoc_indexed = property_is_assoc_indexed_expr_(expr);
 
       if (sig) {

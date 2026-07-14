@@ -10334,13 +10334,19 @@ static bool load_qo(vthread_t thr, unsigned wid=0)
       ELEM word;
       dq_default(word, wid);
 
+	// Accept any vvp_darray receiver (queue OR plain dynamic
+	// array): the typed get_word overloads are virtual on the
+	// base, so element access dispatches correctly for both, and
+	// a receiver of the wrong element kind leaves the default
+	// value (same out-of-bounds semantics as before).
       vvp_object_t recv;
-      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv);
-      if (queue &&
+      thr->pop_object(recv);
+      vvp_darray*arr = recv.peek<vvp_darray>();
+      if (arr &&
           (adr >= 0) &&
           (thr->flags[4] == BIT4_0) &&
-          (static_cast<size_t>(adr) < queue->get_size()))
-	    queue->get_word(adr, word);
+          (static_cast<size_t>(adr) < arr->get_size()))
+	    arr->get_word(adr, word);
 
       push_loaded_qo_value_(thr, word, wid);
       return true;

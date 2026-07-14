@@ -783,6 +783,41 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   (likely the inferred element type of `get_adjacent_successor_nodes`'s
   output queue).  Layer: elaboration.  Complexity: medium.
 
+### G71 (NEW 2026-07-14, FIXED same day) foreach over class-property plain dynamic array silently iterated ZERO times
+- **STATUS 2026-07-14: FIXED** (IEEE 1800-2017 12.7.3, 7.5).
+  `foreach (c.da[i])` and `foreach (da[i])` with `da` a plain darray
+  class property compiled WITHOUT DIAGNOSTIC and iterated zero times —
+  a fully silent miscompile (queue and assoc properties were fine).
+  Three layered root causes: (1) darray foreach bounds lowered via
+  `$low/$high`, and `get_array_info()` constant-folded
+  `$high(<property>)` to `'x'` (no NetEProperty case) — darray foreach
+  now uses the queue-style `0 <= i < size` loop (darrays are 0-based
+  per 7.5); (2) object-context codegen routed indexed darray
+  properties down the arrayed-property path (element index consumed as
+  property-array index → `property_object::get_object` assertion on
+  nested `dd[i,j]` descent) — now element-indexed via `%load/qo/obj`,
+  and `%load/qo/*` accepts any `vvp_darray` receiver; (3)
+  `draw_select_vec4` asserted on chained selects rooted at darray
+  properties, and the string/real property drawers lacked the
+  darray-indexed arm (string-element reads silently ""). Test:
+  `tests/g71_foreach_prop_darray_test.sv`. Session log:
+  `2026-07-14_g71_foreach_prop_darray.md`.
+- **Remaining in-family tails** (recorded there): chained element
+  stores through darray outers (`c.dd[i][j]=v` no-ops — G09 store2
+  rewrite covers queue outers only); display-context chained reads;
+  `$size/$high/$low` on property-darray receivers still fold to 'x';
+  `c.sda[i].len()` (G70 indexed-element method family); foreach over
+  string properties elaborates the body loop-less.
+
+### Audit reverification note (2026-07-14 milestone close-out probe)
+- **G38 `string.putc` and G39 `new[N](old)` resize-copy now PASS** —
+  fixed by prior container-runtime work; those entries are stale.
+- **G35/G36/G40 (reverse/sort/min/max/unique on unpacked fixed-size
+  arrays) re-confirmed FAILING** (compile-progress warnings + wrong
+  data). Still the M4 close-out entry point.
+- **G26 re-confirmed FAILING** (`sorry: modport task/function ports`).
+  M5 remains fully open (G26-G29).
+
 # Confirmed-working baselines (not gaps; recorded for diff against future regressions)
 
 These were probed and pass cleanly. Keep this list so a regression can be detected easily.
