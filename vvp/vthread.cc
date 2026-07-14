@@ -4701,7 +4701,21 @@ bool of_BREAKPOINT(vthread_t, vvp_code_t)
  * Combine the %fork and %join steps for invoking a function.
  */
 static int callf_depth = 0;
-static bool warned_callf_self_recursion_fallback = false;
+
+/*
+ * Name-agnostic backstops against zero-time runaway recursion in the
+ * synchronous call model (M6 item 5 rearchitecture — see
+ * docs/conformance/m6_callf_rearchitecture.md).  These are pure safety
+ * limits on the C++ call-stack depth the synchronous model consumes,
+ * NOT per-scope correctness knobs.  Each is set to the maximum any
+ * former per-UVM-identifier branch granted, so no legitimate recursion
+ * is truncated earlier than before, and the value applies uniformly to
+ * every scope (retiring the strstr("uvm_...") special-casing).
+ */
+static const unsigned long CALLF_SITE_LIMIT  = 16384; // self-recursion at one callsite
+static const unsigned      CALLF_SCOPE_LIMIT = 16384; // one scope's cycles on the callf stack
+static const int           CALLF_MAX_DEPTH   = 4096;  // absolute callf nesting depth
+
 static bool warned_callf_depth_fallback = false;
 static bool warned_callf_scope_cycle_fallback = false;
 static bool warned_callf_child_reaped = false;
@@ -5668,24 +5682,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
             } else {
                   site_hits = ++callf_self_name_site_invocations[callsite_pc];
             }
-            unsigned long site_limit = 256;
-            if ((caller_name && strstr(caller_name, "uvm_object.new"))
-                || (child_name && strstr(child_name, "uvm_object.new")))
-                  site_limit = 64;
-            if ((caller_name && strstr(caller_name, "uvm_cmdline_processor.get_arg_value"))
-                || (child_name && strstr(child_name, "uvm_cmdline_processor.get_arg_value")))
-                  site_limit = 2048;
-            if ((caller_name && strstr(caller_name, "uvm_root.m_uvm_get_root"))
-                || (child_name && strstr(child_name, "uvm_root.m_uvm_get_root")))
-                  site_limit = 16384;
-            if ((caller_name && strstr(caller_name, "uvm_report_object.uvm_report_info"))
-                || (child_name && strstr(child_name, "uvm_report_object.uvm_report_info")))
-                  site_limit = 8192;
-            if ((caller_name && strstr(caller_name, "uvm_coreservice_t.get"))
-                || (child_name && strstr(child_name, "uvm_coreservice_t.get"))
-                || (caller_name && strstr(caller_name, "uvm_coreservice_t.get_root"))
-                || (child_name && strstr(child_name, "uvm_coreservice_t.get_root")))
-                  site_limit = 16384;
+            const unsigned long site_limit = CALLF_SITE_LIMIT;
 	            if (site_hits > site_limit) {
 	                  if (!warned_callf_self_callsite_fallback) {
 	                        fprintf(stderr,
@@ -5734,9 +5731,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 		    if (callf_scope_stack[idx] == child_scope)
 			  scope_hits += 1;
 	      }
-	      unsigned scope_limit = 4096;
-	      if (child_name && strstr(child_name, "uvm_root.m_uvm_get_root"))
-	            scope_limit = 16384;
+	      const unsigned scope_limit = CALLF_SCOPE_LIMIT;
 	      if (scope_hits >= scope_limit) {
 		    if (!warned_callf_scope_cycle_fallback) {
 			  const char*scope_name = "<unknown>";
@@ -5756,28 +5751,12 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       }
 
       callf_scope_stack.push_back(child_scope);
-      unsigned depth_limit = 2048;
-      if (child_name && strstr(child_name, "uvm_report_object.uvm_report_info"))
-            depth_limit = 16384;
-      if (child_name && strstr(child_name, "uvm_root.m_uvm_get_root"))
-            depth_limit = 32768;
-      if (child->parent_scope && thr->parent_scope
-          && child->parent_scope == thr->parent_scope
-          && callf_depth > depth_limit) {
-	    if (!warned_callf_self_recursion_fallback) {
-		  const char*scope_name = vpi_get_str(vpiFullName, child->parent_scope);
-		  if (!scope_name) scope_name = "<unknown>";
-		  fprintf(stderr, "Warning: callf recursion on %s exceeded %u frames;"
-		          " using compile-progress return fallback (further similar warnings suppressed)\n",
-		          scope_name, depth_limit);
-		  warned_callf_self_recursion_fallback = true;
-	    }
-	    vthread_delete(child);
-	    callf_scope_stack.pop_back();
-	    callf_depth--;
-	    return true;
-      }
-      if (callf_depth > 4096) {
+	/* The former same-scope `depth_limit` fallback (raised by name to
+	 * 16384/32768 for specific UVM scopes) was dead code: any value
+	 * above CALLF_MAX_DEPTH was pre-empted by the absolute depth cap
+	 * below, which fires first.  The absolute cap is the single depth
+	 * backstop; the same-scope check is retired. */
+      if (callf_depth > CALLF_MAX_DEPTH) {
 	    if (!warned_callf_depth_fallback) {
 		  const char*scope_name = "<unknown>";
 		  if (child->parent_scope) {
