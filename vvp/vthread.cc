@@ -5845,7 +5845,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
          * %callf, so it resumes at the next opcode with the filled
          * return value.  schedule_vthread owns is_scheduled, so it is
          * not pre-set here. */
-      if (sched_callf_enabled_()) {
+      if (sched_callf_enabled_() && schedule_defer_calls_ok()) {
             child->i_am_in_function = 1;
             child->delay_delete = 1;
             thr->i_am_joining = 1;
