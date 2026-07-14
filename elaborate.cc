@@ -319,25 +319,25 @@ static NetEvent* resolve_named_event_member_from_search_(const symbol_search_res
       return nullptr;
 }
 
-/* Resolve `<iface_instance_scope>` (no NetNet, but path consumed) to the
+/* Resolve `<instance_scope>` (no NetNet, but path consumed) to the
    clocking block named by the LAST component of the original path. This
    handles the @(bif.cb) case where symbol_search resolves `bif` as a
    sub-scope of the current module and absorbs `cb` as part of the scope
-   path. */
+   path. The instance may be an interface, module, or program
+   (IEEE 1800-2017 14.3). */
 static const PEventStatement*
-resolve_interface_pform_clocking_event_(const PEIdent*id,
-					const symbol_search_results&sr,
-					perm_string&cb_name_out,
-					size_t&base_path_components)
+resolve_scope_pform_clocking_event_(const PEIdent*id,
+				    const symbol_search_results&sr,
+				    perm_string&cb_name_out,
+				    size_t&base_path_components)
 {
       if (sr.net || !sr.scope) return nullptr;
-      if (!sr.scope->is_interface()) return nullptr;
       if (id->path().size() < 2) return nullptr;
 
-      perm_string iface_module = sr.scope->module_name();
-      if (iface_module.nil()) return nullptr;
-      auto cur = pform_modules.find(iface_module);
-      if (cur == pform_modules.end() || !cur->second->is_interface)
+      perm_string scope_module = sr.scope->module_name();
+      if (scope_module.nil()) return nullptr;
+      auto cur = pform_modules.find(scope_module);
+      if (cur == pform_modules.end())
 	    return nullptr;
       perm_string cb_name = id->path().name.back().name;
       auto cb_it = cur->second->clocking_blocks.find(cb_name);
@@ -7289,6 +7289,72 @@ NetDeassign* PDeassign::elaborate(Design*des, NetScope*scope) const
  * expression to the constructor of NetPDelay so that the code
  * generator knows to evaluate the expression at run time.
  */
+/* IEEE 1800-2017 14.11: `## count [statement]` waits `count` events of
+   the default clocking block (14.12) visible in the nearest enclosing
+   module/interface/program scope. Lower it to
+
+       repeat (count) @(<default clocking name>) ; <statement>
+
+   The synthesized @(name) event control resolves through the same
+   clocking-block machinery as source-level `@(cb)` references, so the
+   underlying event expression (e.g. posedge clk) is picked up from the
+   block's declaration. */
+NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
+{
+      ivl_assert(*this, scope);
+
+      perm_string cb_name;
+      for (const NetScope*walker = scope ; walker ; walker = walker->parent()) {
+	    if (walker->type() != NetScope::MODULE)
+		  continue;
+	    perm_string mn = walker->module_name();
+	    if (mn.nil()) continue;
+	    auto pmod_it = pform_modules.find(mn);
+	    if (pmod_it == pform_modules.end()) continue;
+	    if (!pmod_it->second->default_clocking.nil()) {
+		  cb_name = pmod_it->second->default_clocking;
+		  break;
+	    }
+      }
+
+      if (cb_name.nil()) {
+	    cerr << get_fileline() << ": error: ## cycle delay requires a "
+		 << "default clocking block in scope (IEEE 1800-2017 14.11)."
+		 << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+	/* Heap-allocate the synthesized pform fragment: PRepeat's
+	   destructor deletes its children, and pform objects normally
+	   live for the whole compilation anyway. UINT_MAX as the
+	   lexical position marks the reference as following all
+	   declarations, so no declared-after-use diagnostics fire. */
+      PEIdent*cb_id = new PEIdent(cb_name, UINT_MAX);
+      cb_id->set_line(*this);
+      PEEvent*cb_ev = new PEEvent(PEEvent::ANYEDGE, cb_id);
+      PEventStatement*wait_stmt = new PEventStatement(cb_ev);
+      wait_stmt->set_line(*this);
+      PRepeat*rep_stmt = new PRepeat(count_, wait_stmt);
+      rep_stmt->set_line(*this);
+
+      NetProc*rep = rep_stmt->elaborate(des, scope);
+      if (rep == 0)
+	    return 0;
+      if (statement_ == 0)
+	    return rep;
+
+      NetProc*sub = statement_->elaborate(des, scope);
+      if (sub == 0)
+	    return 0;
+
+      NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+      blk->set_line(*this);
+      blk->append(rep);
+      blk->append(sub);
+      return blk;
+}
+
 NetProc* PDelayStatement::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -7571,7 +7637,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  perm_string scope_cb_name;
 		  const PEventStatement*pform_event = clocking
 			? clocking->event
-			: resolve_interface_pform_clocking_event_(id, sr, scope_cb_name,
+			: resolve_scope_pform_clocking_event_(id, sr, scope_cb_name,
 							      base_path_components);
 		  /* Phase 55: pform-side clocking-block lookup for the simple
 		   * `@cb` form within the same interface body or task. */

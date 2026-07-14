@@ -1138,7 +1138,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
  /* The new tokens from 1364-2005. */
 %token K_wone K_uwire
 
- /* The new tokens from 1800-2005. */
+ /* The new tokens from 1800-2005. K_1step is the 5.8 `1step` delay
+    value; K_CYCLE_DELAY is `##` (cycle delays, clause 14). */
+%token K_1step K_CYCLE_DELAY
 %token K_alias K_always_comb K_always_ff K_always_latch K_assert
 %token K_assume K_before K_bind K_bins K_binsof K_bit K_break K_byte
 %token K_chandle K_class K_clocking K_const K_constraint K_context
@@ -4334,22 +4336,26 @@ modport_tf_port
   | K_function data_type_or_implicit_or_void IDENTIFIER tf_port_list_parens_opt
   ;
 
-clocking_declaration
+clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
+                        program, and checker scope. */
   : K_clocking IDENTIFIER event_control ';'
-      { if (!pform_in_interface())
-	      yyerror(@1, "error: clocking declarations are only allowed "
-			  "in interfaces.");
-	pform_start_clocking_block(@2, $2, $3);
-      }
+      { pform_start_clocking_block(@2, $2, $3); }
     clocking_items_opt K_endclocking
       { pform_end_clocking_block(@7); }
-  /* SV `default clocking [name] event_control; ... endclocking` — silently
-     accepted at module/interface scope. We don't yet model clocking-block
-     sample/drive semantics; the declaration is parsed and dropped. */
-  | K_default K_clocking IDENTIFIER event_control ';' clocking_items_opt K_endclocking
-      { delete[] $3; }
-  | K_default K_clocking event_control ';' clocking_items_opt K_endclocking
-      { /* anonymous default clocking */ }
+  /* 14.12: named default clocking declaration. */
+  | K_default K_clocking IDENTIFIER event_control ';'
+      { pform_start_clocking_block(@3, $3, $4, true); }
+    clocking_items_opt K_endclocking
+      { pform_end_clocking_block(@8); }
+  /* 14.12: anonymous default clocking declaration. */
+  | K_default K_clocking event_control ';'
+      { pform_start_clocking_block(@2, 0, $3, true); }
+    clocking_items_opt K_endclocking
+      { pform_end_clocking_block(@7); }
+  /* A.1.4 module_or_generate_item_declaration: `default clocking id;`
+     selects a clocking block declared elsewhere in this scope. */
+  | K_default K_clocking IDENTIFIER ';'
+      { pform_set_default_clocking_ref(@3, $3); }
   /* SV `default disable iff (expr);` — silently accepted. */
   | K_default K_disable K_iff '(' expression ')' ';'
       { delete $5; }
@@ -4373,23 +4379,68 @@ clocking_declaration
         yyerrok;
       }
 
+  /* IEEE 1800-2017 A.6.11. Skews (14.4) are accepted and discarded:
+     the current clocking model aliases cb.sig to the underlying
+     signal, which does not model sample/drive skew times. */
 clocking_item
-  : port_direction list_of_identifiers ';'
+  : K_input clocking_skew_opt list_of_identifiers ';'
+      {
+	    for (std::list<pform_ident_t>::iterator cur = $3->begin()
+		       ; cur != $3->end() ; ++cur)
+		  pform_add_clocking_signal(@3, cur->first);
+	    delete $3;
+      }
+  | K_output clocking_skew_opt list_of_identifiers ';'
+      {
+	    for (std::list<pform_ident_t>::iterator cur = $3->begin()
+		       ; cur != $3->end() ; ++cur)
+		  pform_add_clocking_signal(@3, cur->first);
+	    delete $3;
+      }
+  /* clocking_direction: `input [skew] output [skew] ids;` — the same
+     signals are sampled on read and driven on write. */
+  | K_input clocking_skew_opt K_output clocking_skew_opt list_of_identifiers ';'
+      {
+	    for (std::list<pform_ident_t>::iterator cur = $5->begin()
+		       ; cur != $5->end() ; ++cur)
+		  pform_add_clocking_signal(@5, cur->first);
+	    delete $5;
+      }
+  | K_inout list_of_identifiers ';'
       {
 	    for (std::list<pform_ident_t>::iterator cur = $2->begin()
 		       ; cur != $2->end() ; ++cur)
 		  pform_add_clocking_signal(@2, cur->first);
 	    delete $2;
       }
-  /* clocking skew: input/output #delay id_list; — parse and ignore skew */
-  | port_direction '#' expression list_of_identifiers ';'
-      {
-	    delete $3;
-	    for (std::list<pform_ident_t>::iterator cur = $4->begin()
-		       ; cur != $4->end() ; ++cur)
-		  pform_add_clocking_signal(@4, cur->first);
-	    delete $4;
-      }
+  /* default_skew items: set the block's default skews (discarded). */
+  | K_default K_input clocking_skew ';'
+  | K_default K_output clocking_skew ';'
+  | K_default K_input clocking_skew K_output clocking_skew ';'
+  ;
+
+  /* IEEE 1800-2017 A.6.11:
+     clocking_skew ::= edge_identifier [delay_control] | delay_control
+     The parsed skew has no semantic carrier yet (see clocking_item). */
+clocking_skew
+  : '#' delay_value_simple { delete $2; }
+  | '#' '(' delay_value ')' { delete $3; }
+  | '#' K_1step
+  | K_posedge clocking_skew_delay_opt
+  | K_negedge clocking_skew_delay_opt
+  | K_edge clocking_skew_delay_opt
+  ;
+
+clocking_skew_delay_opt
+  : '#' delay_value_simple { delete $2; }
+  | '#' '(' delay_value ')' { delete $3; }
+  | '#' K_1step
+  |
+  ;
+
+clocking_skew_opt
+  : clocking_skew
+  |
   ;
 
 clocking_items
@@ -12065,6 +12116,21 @@ statement_item /* This is roughly statement_item in the LRM */
 	assert($1->size() == 1);
 	delete $1;
 	PDelayStatement*tmp = new PDelayStatement(del, $2);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+
+  /* IEEE 1800-2017 14.11 procedural cycle delay: `## cycle_delay_value
+     [statement]` waits that many default-clocking events. A.6.11:
+     cycle_delay ::= ## integral_number | ## identifier | ## ( expression ) */
+
+  | K_CYCLE_DELAY delay_value_simple statement_or_null
+      { PCycleDelay*tmp = new PCycleDelay($2, $3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_CYCLE_DELAY '(' expression ')' statement_or_null
+      { PCycleDelay*tmp = new PCycleDelay($3, $5);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }

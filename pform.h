@@ -243,11 +243,22 @@ extern void pform_end_modport_item(const struct vlltype&loc);
 extern void pform_add_modport_port(const struct vlltype&loc,
 				   NetNet::PortType port_type,
 				   perm_string name, PExpr*expr);
+/* Open a clocking block declaration in the current module, interface,
+   or program scope (IEEE 1800-2017 14.3). A null name declares an
+   anonymous default clocking block (14.12), registered under an
+   internal name. is_default records the block as the scope's default
+   clocking. */
 extern void pform_start_clocking_block(const struct vlltype&loc,
 				       const char*name,
-				       PEventStatement*event);
+				       PEventStatement*event,
+				       bool is_default = false);
 extern void pform_add_clocking_signal(const struct vlltype&loc, perm_string name);
 extern void pform_end_clocking_block(const struct vlltype&loc);
+/* `default clocking <id>;` — select an existing clocking block as the
+   scope default (IEEE 1800-2017 14.12). Existence is checked at
+   endmodule so declaration order doesn't matter. */
+extern void pform_set_default_clocking_ref(const struct vlltype&loc,
+					   const char*name);
 
 /*
  * This creates an identifier aware of names that may have been

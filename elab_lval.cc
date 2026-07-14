@@ -46,110 +46,8 @@ using namespace std;
 
 static bool warned_darray_multi_index_fallback = false;
 
-/* When the interface instance is a plain Verilog scope (sr.net is null
-   but sr.scope is an interface scope), rewrite `iface.cb.sig` to
-   `iface.sig` by looking up the clocking block in pform_modules. */
-static bool rewrite_interface_clocking_member_path_via_scope_(const PEIdent*ident,
-							      const symbol_search_results&sr,
-							      pform_name_t&rewritten)
-{
-      if (sr.net || !sr.scope) return false;
-      if (!sr.scope->is_interface()) return false;
-      if (ident->path().size() < 3) return false;
-      perm_string iface_module = sr.scope->module_name();
-      if (iface_module.nil()) return false;
-      auto cur = pform_modules.find(iface_module);
-      if (cur == pform_modules.end() || !cur->second->is_interface)
-	    return false;
-      const Module*iface_mod = cur->second;
-
-      /* Walk the path: [iface, cb, sig, ...]. Find a component that
-         names a clocking block and the next component must be a signal
-         in that block. */
-      pform_name_t newpath = ident->path().name;
-      auto it = newpath.begin();
-      ++it; /* skip the iface name */
-      while (it != newpath.end()) {
-	    auto nx = it; ++nx;
-	    if (nx == newpath.end()) break;
-	    auto cb_it = iface_mod->clocking_blocks.find(it->name);
-	    if (cb_it != iface_mod->clocking_blocks.end()) {
-		  const auto&signals = cb_it->second->signals;
-		  if (std::find(signals.begin(), signals.end(), nx->name)
-			    != signals.end()) {
-			newpath.erase(it);
-			rewritten = newpath;
-			return true;
-		  }
-	    }
-	    ++it;
-      }
-      return false;
-}
-
-static bool rewrite_interface_clocking_member_path_(const PEIdent*ident,
-						    const symbol_search_results&sr,
-						    pform_name_t&rewritten)
-{
-      const netclass_t*class_type = dynamic_cast<const netclass_t*>(sr.type);
-      if (!class_type || sr.path_tail.size() < 2)
-	    return false;
-
-      size_t offset = 0;
-      for (pform_name_t::const_iterator it = sr.path_tail.begin()
-		 ; it != sr.path_tail.end() ; ++it, ++offset) {
-	    pform_name_t::const_iterator next = it;
-	    ++next;
-
-	    if (class_type->is_interface()) {
-		  const name_component_t&clocking_comp = *it;
-		  if (!clocking_comp.index.empty())
-			return false;
-
-		  const netclass_t::clocking_block_t*clocking =
-			class_type->find_clocking_block(clocking_comp.name);
-		  if (clocking && next != sr.path_tail.end()) {
-			if (std::find(clocking->signals.begin(), clocking->signals.end(),
-				      next->name) == clocking->signals.end())
-			      return false;
-
-			rewritten = ident->path().name;
-			size_t resolved_count = ident->path().name.size() - sr.path_tail.size();
-			pform_name_t::iterator erase_it = rewritten.begin();
-			advance(erase_it, resolved_count + offset);
-			if (erase_it == rewritten.end() || erase_it->name != clocking_comp.name)
-			      return false;
-
-			rewritten.erase(erase_it);
-			return true;
-		  }
-	    }
-
-	    int pidx = const_cast<netclass_t*>(class_type)->ensure_property_decl(0, it->name);
-	    if (pidx < 0)
-		  return false;
-
-	    ivl_type_t ptype = class_type->get_prop_type(pidx);
-	    if (!it->index.empty()) {
-		  if (const netdarray_t*darr = dynamic_cast<const netdarray_t*>(ptype))
-			ptype = darr->element_type();
-		  else if (const netuarray_t*uarr = dynamic_cast<const netuarray_t*>(ptype))
-			ptype = uarr->element_type();
-		  else if (const netarray_t*arr = dynamic_cast<const netarray_t*>(ptype))
-			ptype = arr->element_type();
-		  else if (const netqueue_t*que = dynamic_cast<const netqueue_t*>(ptype))
-			ptype = que->element_type();
-		  else
-			return false;
-	    }
-
-	    class_type = dynamic_cast<const netclass_t*>(ptype);
-	    if (!class_type)
-		  return false;
-      }
-
-      return false;
-}
+/* Clocking-block member path rewrites are shared with expression
+   elaboration — see rewrite_*_clocking_member_path* in netmisc.cc. */
 
 /*
  * These methods generate a NetAssign_ object for the l-value of the
@@ -293,8 +191,9 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       const pform_name_t &member_path = sr.path_tail;
 
       pform_name_t rewritten_path;
-      if ((reg && rewrite_interface_clocking_member_path_(this, sr, rewritten_path))
-	  || rewrite_interface_clocking_member_path_via_scope_(this, sr, rewritten_path)) {
+      if ((reg && rewrite_class_clocking_member_path(this, sr, rewritten_path))
+	  || rewrite_clocking_member_path_via_scope(this, sr, rewritten_path)
+	  || (!reg && rewrite_enclosing_scope_clocking_member_path(this, scope, rewritten_path))) {
 	    if (path_.package) {
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
 		  return mapped_ident.elaborate_lval(des, scope, is_cassign,

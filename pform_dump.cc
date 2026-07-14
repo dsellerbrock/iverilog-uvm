@@ -1070,6 +1070,18 @@ void PDelayStatement::dump(ostream&out, unsigned ind) const
       }
 }
 
+void PCycleDelay::dump(ostream&out, unsigned ind) const
+{
+      out << setw(ind) << "" << "##" << *count_ << " /* " <<
+	    get_fileline() << " */";
+      if (statement_) {
+	    out << endl;
+	    statement_->dump(out, ind+2);
+      } else {
+	    out << " /* noop */;" << endl;
+      }
+}
+
 void PDisable::dump(ostream&out, unsigned ind) const
 {
       out << setw(ind) << "" << "disable ";

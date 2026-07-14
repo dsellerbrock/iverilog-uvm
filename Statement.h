@@ -476,6 +476,29 @@ class PDelayStatement  : public Statement {
       Statement*statement_;
 };
 
+/*
+ * IEEE 1800-2017 14.11: procedural cycle delay `## count [statement]`.
+ * Waits `count` events of the default clocking block visible in the
+ * enclosing module/interface/program scope, then runs the optional
+ * sub-statement. Elaboration lowers this to
+ *   repeat (count) @(<default clocking>) ; <statement>
+ */
+class PCycleDelay : public Statement {
+
+    public:
+      PCycleDelay(PExpr*count, Statement*st);
+      ~PCycleDelay() override;
+
+      virtual void dump(std::ostream&out, unsigned ind) const override;
+      virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
+      virtual void elaborate_scope(Design*des, NetScope*scope) const override;
+      virtual void elaborate_sig(Design*des, NetScope*scope) const override;
+
+    private:
+      PExpr*count_;
+      Statement*statement_;
+};
+
 
 /*
  * This represents the parsing of a disable <scope> statement.

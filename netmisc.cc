@@ -22,13 +22,19 @@
 # include  <cstdlib>
 # include  <climits>
 # include  <map>
+# include  <algorithm>
 # include  "netlist.h"
 # include  "netparray.h"
 # include  "netvector.h"
 # include  "netmisc.h"
+# include  "netclass.h"
+# include  "netdarray.h"
+# include  "netqueue.h"
 # include  "PExpr.h"
 # include  "PTask.h"
 # include  "pform_types.h"
+# include  "Module.h"
+# include  "parse_api.h"
 # include  "compiler.h"
 # include  "ivl_assert.h"
 
@@ -2187,4 +2193,155 @@ bool calculate_param_range(const LineInfo&line, ivl_type_t par_type,
       par_lsv = use_range.get_lsb();
 
       return true;
+}
+
+/* IEEE 1800-2017 clause 14 — clocking-block member path rewrites.
+   See netmisc.h for the model description. These were previously
+   duplicated as statics in elab_expr.cc and elab_lval.cc; they are
+   shared here so expression and l-value elaboration cannot drift. */
+
+bool rewrite_class_clocking_member_path(const PEIdent*ident,
+					const symbol_search_results&sr,
+					pform_name_t&rewritten)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(sr.type);
+      if (!class_type || sr.path_tail.size() < 2)
+	    return false;
+
+      size_t offset = 0;
+      for (pform_name_t::const_iterator it = sr.path_tail.begin()
+		 ; it != sr.path_tail.end() ; ++it, ++offset) {
+	    pform_name_t::const_iterator next = it;
+	    ++next;
+
+	    if (class_type->is_interface()) {
+		  const name_component_t&clocking_comp = *it;
+		  if (!clocking_comp.index.empty())
+			return false;
+
+		  const netclass_t::clocking_block_t*clocking =
+			class_type->find_clocking_block(clocking_comp.name);
+		  if (clocking && next != sr.path_tail.end()) {
+			if (std::find(clocking->signals.begin(), clocking->signals.end(),
+				      next->name) == clocking->signals.end())
+			      return false;
+
+			rewritten = ident->path().name;
+			size_t resolved_count = ident->path().name.size() - sr.path_tail.size();
+			pform_name_t::iterator erase_it = rewritten.begin();
+			advance(erase_it, resolved_count + offset);
+			if (erase_it == rewritten.end() || erase_it->name != clocking_comp.name)
+			      return false;
+
+			rewritten.erase(erase_it);
+			return true;
+		  }
+	    }
+
+	    int pidx = class_type->property_idx_from_name(it->name);
+	    if (pidx < 0)
+		  pidx = const_cast<netclass_t*>(class_type)->ensure_property_decl(0, it->name);
+	    if (pidx < 0)
+		  return false;
+
+	    ivl_type_t ptype = class_type->get_prop_type(pidx);
+	    if (!it->index.empty()) {
+		  if (const netdarray_t*darr = dynamic_cast<const netdarray_t*>(ptype))
+			ptype = darr->element_type();
+		  else if (const netuarray_t*uarr = dynamic_cast<const netuarray_t*>(ptype))
+			ptype = uarr->element_type();
+		  else if (const netarray_t*arr = dynamic_cast<const netarray_t*>(ptype))
+			ptype = arr->element_type();
+		  else if (const netqueue_t*que = dynamic_cast<const netqueue_t*>(ptype))
+			ptype = que->element_type();
+		  else
+			return false;
+	    }
+
+	    class_type = dynamic_cast<const netclass_t*>(ptype);
+	    if (!class_type)
+		  return false;
+      }
+
+      return false;
+}
+
+/* When the receiver resolved to a plain instance scope (sr.net is null
+   but sr.scope is an interface, module, or program instance), rewrite
+   `inst.cb.sig` to `inst.sig` by looking up the clocking block in the
+   instance's pform Module. */
+bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
+					    const symbol_search_results&sr,
+					    pform_name_t&rewritten)
+{
+      if (sr.net || !sr.scope) return false;
+      if (ident->path().size() < 3) return false;
+      perm_string scope_module = sr.scope->module_name();
+      if (scope_module.nil()) return false;
+      auto cur = pform_modules.find(scope_module);
+      if (cur == pform_modules.end())
+	    return false;
+      const Module*mod = cur->second;
+      if (mod->clocking_blocks.empty()) return false;
+
+	/* Walk the path: [inst, cb, sig, ...]. Find a component that
+	   names a clocking block where the next component is a signal
+	   in that block. */
+      pform_name_t newpath = ident->path().name;
+      auto it = newpath.begin();
+      ++it; /* skip the instance name */
+      while (it != newpath.end()) {
+	    auto nx = it; ++nx;
+	    if (nx == newpath.end()) break;
+	    auto cb_it = mod->clocking_blocks.find(it->name);
+	    if (cb_it != mod->clocking_blocks.end()) {
+		  const auto&signals = cb_it->second->signals;
+		  if (std::find(signals.begin(), signals.end(), nx->name)
+			    != signals.end()) {
+			newpath.erase(it);
+			rewritten = newpath;
+			return true;
+		  }
+	    }
+	    ++it;
+      }
+      return false;
+}
+
+/* Same-scope `cb.sig` reference (IEEE 1800-2017 14.3: the clocking
+   block is a named scope member of its enclosing module, interface,
+   or program). The leading path component names a clocking block of
+   an enclosing scope and the next component is one of its signals:
+   erase the clocking component so the underlying signal resolves in
+   the ordinary way. */
+bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
+						  const NetScope*scope,
+						  pform_name_t&rewritten)
+{
+      if (ident->path().size() < 2) return false;
+      const name_component_t&cb_comp = ident->path().name.front();
+      if (!cb_comp.index.empty()) return false;
+
+      for (const NetScope*walker = scope ; walker ; walker = walker->parent()) {
+	    if (walker->type() != NetScope::MODULE)
+		  continue;
+	    perm_string mn = walker->module_name();
+	    if (mn.nil()) continue;
+	    auto pmod_it = pform_modules.find(mn);
+	    if (pmod_it == pform_modules.end()) continue;
+	    auto cb_it = pmod_it->second->clocking_blocks.find(cb_comp.name);
+	    if (cb_it == pmod_it->second->clocking_blocks.end())
+		  continue;
+
+	    pform_name_t::const_iterator nx = ident->path().name.begin();
+	    ++nx;
+	    const auto&signals = cb_it->second->signals;
+	    if (std::find(signals.begin(), signals.end(), nx->name)
+		      == signals.end())
+		  return false;
+	    rewritten = ident->path().name;
+	    rewritten.erase(rewritten.begin());
+	    return true;
+      }
+      return false;
 }

@@ -304,6 +304,15 @@ PDelayStatement::~PDelayStatement()
 {
 }
 
+PCycleDelay::PCycleDelay(PExpr*count, Statement*st)
+: count_(count), statement_(st)
+{
+}
+
+PCycleDelay::~PCycleDelay()
+{
+}
+
 PDisable::PDisable(const pform_name_t&sc)
 : scope_(sc)
 {

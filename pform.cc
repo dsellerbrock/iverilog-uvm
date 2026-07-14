@@ -1798,6 +1798,21 @@ void pform_endmodule(const char*name, bool inside_celldefine,
       pform_cur_module.pop_front();
       perm_string mod_name = cur_module->mod_name();
 
+	/* IEEE 1800-2017 14.12: a `default clocking <id>;` item must name
+	   a clocking block declared in this scope. (Declaration forms
+	   register the block themselves, so only the reference form can
+	   leave a dangling name.) */
+      if (!cur_module->default_clocking.nil()
+	  && (cur_module->clocking_blocks.find(cur_module->default_clocking)
+	      == cur_module->clocking_blocks.end())) {
+	    ostringstream msg;
+	    msg << "error: default clocking block `"
+		<< cur_module->default_clocking
+		<< "' is not declared in `" << mod_name << "'.";
+	    VLerror(msg.str().c_str());
+	    cur_module->default_clocking = perm_string();
+      }
+
 	// Oops, there may be some sort of nesting problem. If
 	// SystemVerilog is activated, it is possible for modules to
 	// be nested. But if the nested module is broken, the parser
@@ -3868,14 +3883,33 @@ void pform_add_modport_port(const struct vlltype&loc,
 
 void pform_start_clocking_block(const struct vlltype&loc,
 				const char*name,
-				PEventStatement*event)
+				PEventStatement*event,
+				bool is_default)
 {
       Module*scope = pform_cur_module.front();
-      ivl_assert(loc, scope && scope->is_interface);
+	/* IEEE 1800-2017 14.3: clocking blocks may be declared in a
+	   module, interface, program, or checker. */
+      ivl_assert(loc, scope);
       /* On parse error, a previous clocking block may not have been ended. Reset it. */
       if (pform_cur_clocking) pform_cur_clocking = 0;
 
-      perm_string use_name = lex_strings.make(name);
+      if (is_default && !scope->default_clocking.nil()) {
+	    cerr << loc << ": error: multiple default clocking declarations "
+		 << "in `" << scope->mod_name() << "' (IEEE 1800-2017 14.12 "
+		 << "allows at most one per module, interface, or program)."
+		 << endl;
+	    error_count += 1;
+	    delete[] name;
+	    delete event;
+	    return;
+      }
+
+	/* An anonymous `default clocking @(event); ... endclocking`
+	   (14.12) is registered under an internal name that no source
+	   identifier can collide with. */
+      perm_string use_name = name
+	    ? lex_strings.make(name)
+	    : perm_string::literal("$default_clocking");
       if (scope->clocking_blocks.find(use_name) != scope->clocking_blocks.end()) {
 	    cerr << loc << ": error: duplicate declaration of clocking block `"
 		 << use_name << "'." << endl;
@@ -3888,13 +3922,40 @@ void pform_start_clocking_block(const struct vlltype&loc,
       pform_cur_clocking = new Module::PClocking(use_name, event);
       FILE_NAME(pform_cur_clocking, loc);
       scope->clocking_blocks[use_name] = pform_cur_clocking;
+      if (is_default)
+	    scope->default_clocking = use_name;
 
+      delete[] name;
+}
+
+void pform_set_default_clocking_ref(const struct vlltype&loc,
+				    const char*name)
+{
+      Module*scope = pform_cur_module.front();
+      ivl_assert(loc, scope);
+
+      if (!scope->default_clocking.nil()) {
+	    cerr << loc << ": error: multiple default clocking declarations "
+		 << "in `" << scope->mod_name() << "' (IEEE 1800-2017 14.12 "
+		 << "allows at most one per module, interface, or program)."
+		 << endl;
+	    error_count += 1;
+	    delete[] name;
+	    return;
+      }
+
+	/* Existence is validated in pform_endmodule so the referenced
+	   block may be declared before or after this item. */
+      scope->default_clocking = lex_strings.make(name);
       delete[] name;
 }
 
 void pform_add_clocking_signal(const struct vlltype&loc, perm_string name)
 {
-      ivl_assert(loc, pform_cur_clocking);
+	/* The enclosing block open may have failed (duplicate name) or
+	   been skipped on a parse error; drop the signal quietly — an
+	   error has already been reported. */
+      if (pform_cur_clocking == 0) return;
 
       if (!pform_cur_clocking->add_signal(name)) {
 	    cerr << loc << ": error: duplicate signal `" << name

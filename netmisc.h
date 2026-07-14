@@ -129,6 +129,37 @@ extern bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 			  struct symbol_search_results*res);
 
 /*
+ * IEEE 1800-2017 clause 14 — clocking-block member path rewrites.
+ * The current clocking-block model aliases cb.sig to the underlying
+ * signal (sample/drive skew semantics are not implemented yet): these
+ * helpers detect a clocking-block component in an identifier path and
+ * erase it, so `inst.cb.sig` resolves as `inst.sig` and a same-scope
+ * `cb.sig` resolves as `sig`. All return true and fill `rewritten`
+ * only when a clocking block and one of its signals were positively
+ * identified.
+ *
+ * - rewrite_class_clocking_member_path: virtual-interface receivers
+ *   (the interface is modeled as a netclass_t carrying clocking
+ *   blocks).
+ * - rewrite_clocking_member_path_via_scope: the receiver resolved to
+ *   an instance scope (interface, module, or program instance) and the
+ *   clocking block is found in its pform Module.
+ * - rewrite_enclosing_scope_clocking_member_path: same-scope
+ *   references — the leading path component names a clocking block of
+ *   an enclosing module/interface/program scope.
+ */
+class PEIdent;
+extern bool rewrite_class_clocking_member_path(const PEIdent*ident,
+					       const symbol_search_results&sr,
+					       pform_name_t&rewritten);
+extern bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
+						   const symbol_search_results&sr,
+						   pform_name_t&rewritten);
+extern bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
+							 const NetScope*scope,
+							 pform_name_t&rewritten);
+
+/*
  * This function transforms an expression by either zero or sign extending
  * the high bits until the expression has the desired width. This may mean
  * not transforming the expression at all, if it is already wide enough.

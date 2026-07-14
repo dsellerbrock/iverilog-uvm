@@ -1443,6 +1443,12 @@ void PDelayStatement::elaborate_sig(Design*des, NetScope*scope) const
 	    statement_->elaborate_sig(des, scope);
 }
 
+void PCycleDelay::elaborate_sig(Design*des, NetScope*scope) const
+{
+      if (statement_)
+	    statement_->elaborate_sig(des, scope);
+}
+
 void PDoWhile::elaborate_sig(Design*des, NetScope*scope) const
 {
       if (statement_)
