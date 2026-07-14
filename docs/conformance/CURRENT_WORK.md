@@ -3,6 +3,30 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-14b (session: M6 item 4 — Preponed + Observed regions)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — stacks onto item 1's checkpoint).
+- **This checkpoint**: added the Preponed and Observed regions
+  (`vvp/schedule.cc`, `vvp/schedule.h`).  `SEQ_PREPONED` drains at slot
+  entry before Active (IEEE 4.4.2.1 sampling); `SEQ_OBSERVED` is
+  promoted into active after NBA, before the reactive set (4.4.2.4
+  concurrent-assertion evaluation).  New `event_time_s` queues, switch
+  cases, region names, run_rosync leftover check, and header-exported
+  entry points `schedule_at_preponed` / `schedule_at_observed` for the
+  future SVA/clocking engines.  No consumers yet — this is the
+  foundation.  Ordering proven by the `IVL_REGION_SELFTEST` injection
+  (reverse insert drains Preponed→Active→NBA→Observed→Reactive→Re-NBA→
+  RWSync→ROSync).  Details:
+  `session_logs/2026-07-14_m6_preponed_observed.md`; audit region table
+  + remediation item 4 marked DONE.
+- **Tests**: `tests/m6_region_trace/run_region_trace.sh` extended
+  (part 2 asserts the full self-test region order).
+- **Regressions**: recorded in the checkpoint commit message.
+- **Remaining M6 tail**: item 5 only — replace the `%callf`
+  synchronous-drain assumption with an explicit scheduled-call protocol
+  (largest/riskiest; characterization tests first).
+
 ## State as of 2026-07-14 (session: M6 item 1 — event region tagging)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,

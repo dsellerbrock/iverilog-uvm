@@ -33,13 +33,13 @@ Slot sequencing (main loop, `schedule_simulate`): on time advance →
 
 | IEEE region (4.4.2) | vvp | Status |
 |---|---|---|
-| Preponed | — | **ABSENT** (no sampled-value region; blocks SVA/clocking sampling) |
+| Preponed | `preponed` | **PRESENT** (2026-07-14, item 4): drains at slot entry before Active; `schedule_at_preponed` entry point; no consumer yet (SVA/clocking sampling arrives M8/M9) |
 | Active | `active` | present |
 | Inactive | `inactive` | present (#0) |
 | Pre-NBA (cbNBASynch) | — | not distinct from NBA |
 | NBA | `nbassign` | present |
 | Post-NBA | — | absent |
-| Observed | — | **ABSENT** (no SVA evaluation region) |
+| Observed | `observed` | **PRESENT** (2026-07-14, item 4): promoted into active after NBA, before the reactive set; `schedule_at_observed` entry point; no consumer yet (SVA evaluation arrives M9) |
 | Reactive / Re-Inactive / Re-NBA | `reactive` / `re_inactive` / `re_nbassign` | **PRESENT** (2026-07-12, remediation item 2): program-block processes carry a per-thread reactive flag (scope-chain `vpiProgram` + inheritance to spawned children); event wake chains are partitioned by region; program #0 → Re-Inactive; program NBAs → Re-NBA. Promotion order: active ← inactive ← nbassign ← reactive ← re-inactive ← re-nba ← rwsync. Test: `tests/m6_reactive_region_test.sv` |
 | Pre-Postponed (cbReadWriteSynch) | `rwsync` | present; correctly re-promotes into active so writes re-trigger evaluation |
 | Postponed (cbReadOnlySynch) | `rosync` | present with rosync write guard |
@@ -147,8 +147,19 @@ restructuring.
    work.  Test: `tests/m6_reactive_region_test.sv`.
 3. Add slot-persistent `event.triggered` state (fixes G08) — 15.5.3.
    **DONE 2026-07-12** (see gap audit G08).
-4. Add Preponed sampling + Observed evaluation stubs as the SVA/clocking
-   foundation (M8/M9 prerequisite).
+4. **DONE 2026-07-14**: Preponed + Observed regions added.
+   `SEQ_PREPONED` drains at slot entry (as a sibling of the Start
+   queue, before Active — IEEE 4.4.2.1 sampling); `SEQ_OBSERVED` is
+   promoted into `active` after NBA and before the reactive set (IEEE
+   4.4.2.4 concurrent-assertion evaluation).  Scheduling entry points
+   `schedule_at_preponed` / `schedule_at_observed` exist for the future
+   SVA/clocking engines (no consumers yet — this is the foundation).
+   Region enum/tag/trace/leftover-check all extended.  Ordering proven
+   by the `IVL_REGION_SELFTEST` injection (reverse-order insert drains
+   Preponed→Active→NBA→Observed→Reactive→Re-NBA→RWSync→ROSync) in
+   `tests/m6_region_trace/run_region_trace.sh`.  Known limitation:
+   Preponed fires only on a time advance (like the Start queue), which
+   matches the intended consumer (clock edges are always at delay>0).
 5. Replace callf synchronous-drain assumptions with an explicit
    scheduled-call protocol (retiring the staged-context heuristics) —
    the largest, riskiest item; requires characterization tests first.

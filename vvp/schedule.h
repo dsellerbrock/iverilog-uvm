@@ -159,6 +159,12 @@ extern void schedule_functor(vvp_gen_event_t obj);
 extern void schedule_at_start_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay);
 extern void schedule_at_end_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay);
 
+/* Schedule an event into the Preponed (sampling, slot entry) or
+ * Observed (concurrent-assertion evaluation, after NBA) region — the
+ * IEEE 1800-2017 4.4.2 foundation for the SVA and clocking engines. */
+extern void schedule_at_preponed(vvp_gen_event_t obj, vvp_time64_t delay);
+extern void schedule_at_observed(vvp_gen_event_t obj, vvp_time64_t delay);
+
 /* Use this is schedule thread deletion (after rosync). */
 extern void schedule_del_thr(vthread_t thr);
 

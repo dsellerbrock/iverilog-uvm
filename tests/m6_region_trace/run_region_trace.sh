@@ -67,9 +67,32 @@ if [ -n "$p_nba" ] && [ -n "$p_ro" ] && [ "$p_nba" -gt "$p_ro" ]; then
     echo "  FAIL: NBA ($p_nba) after ROSync ($p_ro)"; fail=1
 fi
 
+# --- Part 2: Preponed / Observed region ordering (M6 item 4) ------------
+# The self-test injects one no-op into each delay-permitting region in
+# REVERSE order; a correct pipeline drains them in forward IEEE order,
+# proving Preponed runs before Active and Observed after NBA / before
+# Reactive.
+cat > "$WORK/tick.sv" <<'EOF'
+module top; initial #2 $finish; endmodule
+EOF
+if ! "$BIN" -g2012 -o "$WORK/tick.vvp" "$WORK/tick.sv" 2>"$WORK/cerr2"; then
+    echo "FAIL: compile error (part 2)"; cat "$WORK/cerr2"; exit 1
+fi
+IVL_REGION_TRACE=1 IVL_REGION_SELFTEST=1 "$VVP" "$WORK/tick.vvp" \
+    2>"$WORK/trace2" >/dev/null
+seq2=$(grep -E 'REGION.*selftest' "$WORK/trace2" \
+        | sed -E 's/.* ps ([A-Za-z-]+): selftest.*/\1/' | tr '\n' ' ')
+echo "  selftest region order: $seq2"
+
+expected="Preponed Active NBA Observed Reactive Re-NBA RWSync ROSync "
+if [ "$seq2" != "$expected" ]; then
+    echo "  FAIL: expected '$expected' got '$seq2'"; fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo "PASS"
     exit 0
 fi
 echo "--- trace ---"; cat "$WORK/trace"
+echo "--- trace2 ---"; cat "$WORK/trace2"
 exit 1
