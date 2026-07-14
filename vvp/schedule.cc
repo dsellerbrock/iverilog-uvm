@@ -28,6 +28,7 @@
 # include  <typeinfo>
 # include  <csignal>
 # include  <cstdlib>
+# include  <cstring>
 # include  <cassert>
 # include  <iostream>
 #ifdef CHECK_WITH_VALGRIND
@@ -43,7 +44,26 @@ unsigned long count_thread_events = 0;
   // Count the time events (A time cell created)
 unsigned long count_time_events = 0;
 
+  // Current simulation time (defined early so the region-tagging
+  // helpers below can report it).
+static vvp_time64_t schedule_time;
 
+
+
+/*
+ * Scheduler event regions (IEEE 1800-2017 clause 4.4.2 stratified
+ * event queue).  The enum order is the drain/promotion order within a
+ * time slot: Start, then the design region loop (Active, Inactive,
+ * NBA), then the reactive region loop (Reactive, Re-Inactive, Re-NBA),
+ * then Pre-Postponed (RWSync) and Postponed (ROSync), with thread
+ * reaping last.  schedule_event_ stamps each event with its region so
+ * the run loop can trace region sequencing and enforce region-transition
+ * invariants (M6 remediation item 1).
+ */
+typedef enum event_queue_e { SEQ_START, SEQ_PREPONED, SEQ_ACTIVE, SEQ_INACTIVE,
+			     SEQ_NBASSIGN, SEQ_OBSERVED,
+			     SEQ_REACTIVE, SEQ_RE_INACTIVE, SEQ_RE_NBASSIGN,
+			     SEQ_RWSYNC, SEQ_ROSYNC, DEL_THREAD } event_queue_t;
 
 /*
  * The event_s and event_time_s structures implement the Verilog
@@ -57,6 +77,10 @@ unsigned long count_time_events = 0;
  */
 struct event_s {
       struct event_s*next;
+	// IEEE 1800-2017 4.4.2 region this event was scheduled into.
+	// Stamped by schedule_event_ / schedule_event_push_; used by
+	// the run loop for region tracing and transition invariants.
+      event_queue_t region = SEQ_ACTIVE;
       virtual ~event_s() { }
       virtual void run_run(void) =0;
 
@@ -78,9 +102,11 @@ struct event_time_s {
 	    count_time_events += 1;
 	    delay = 0;
 	    start = 0;
+	    preponed = 0;
 	    active = 0;
 	    inactive = 0;
 	    nbassign = 0;
+	    observed = 0;
 	    reactive = 0;
 	    re_inactive = 0;
 	    re_nbassign = 0;
@@ -92,9 +118,11 @@ struct event_time_s {
       vvp_time64_t delay;
 
       struct event_s*start;
+      struct event_s*preponed;
       struct event_s*active;
       struct event_s*inactive;
       struct event_s*nbassign;
+      struct event_s*observed;
       struct event_s*reactive;
       struct event_s*re_inactive;
       struct event_s*re_nbassign;
@@ -696,18 +724,120 @@ static void schedule_final_event(struct event_s*cur)
 }
 
 /*
+ * Region tagging / tracing support (M6 remediation item 1).  All three
+ * are env-gated so there is no overhead in normal runs.
+ *
+ *   IVL_REGION_TRACE=1  print "REGION @ <time> ps <region>: <event>" as
+ *                       each event runs, making the stratified drain
+ *                       order (and the wholesale-promotion approximation
+ *                       noted for the reactive regions) directly
+ *                       observable.
+ *   IVL_REGION_ASSERT=1 abort on an illegal region transition instead of
+ *                       only warning (audit point 9: invariants/debug
+ *                       assertions for illegal transitions).
+ */
+static const char* region_name_(event_queue_t r)
+{
+      switch (r) {
+	  case SEQ_START:       return "Start";
+	  case SEQ_PREPONED:    return "Preponed";
+	  case SEQ_ACTIVE:      return "Active";
+	  case SEQ_INACTIVE:    return "Inactive";
+	  case SEQ_NBASSIGN:    return "NBA";
+	  case SEQ_OBSERVED:    return "Observed";
+	  case SEQ_REACTIVE:    return "Reactive";
+	  case SEQ_RE_INACTIVE: return "Re-Inactive";
+	  case SEQ_RE_NBASSIGN: return "Re-NBA";
+	  case SEQ_RWSYNC:      return "RWSync";
+	  case SEQ_ROSYNC:      return "ROSync";
+	  case DEL_THREAD:      return "DelThread";
+      }
+      return "?";
+}
+
+static int region_trace_enabled_(void)
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+	    const char*env = getenv("IVL_REGION_TRACE");
+	    enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled;
+}
+
+static int region_assert_enabled_(void)
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+	    const char*env = getenv("IVL_REGION_ASSERT");
+	    enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled;
+}
+
+/*
+ * The region currently being drained by the run loop (SEQ_START before
+ * simulation and between time slots).  Used to detect illegal
+ * region-transition scheduling — specifically a Postponed (read-only
+ * ROSync) event that tries to create a write/thread event, which the
+ * LRM forbids (4.4.2.10).
+ */
+static event_queue_t sched_current_region = SEQ_START;
+
+static void region_check_schedule_(event_queue_t target, vvp_time64_t delay)
+{
+	// Only same-slot (delay==0) transitions are region-ordered; a
+	// delayed event belongs to a future slot's regions.
+      if (delay != 0)
+	    return;
+      if (sched_current_region != SEQ_ROSYNC)
+	    return;
+	// A Postponed-region callback may only create more Postponed
+	// work or thread reaping; anything else is an illegal write from
+	// the read-only region.
+      if (target == SEQ_ROSYNC || target == DEL_THREAD)
+	    return;
+
+      cerr << "SCHEDULER ERROR: Postponed (ROSync) region event created a "
+	   << region_name_(target) << " event at time " << schedule_time
+	   << " (IEEE 1800-2017 4.4.2.10 forbids writes in the read-only "
+	      "region)." << endl;
+      if (region_assert_enabled_())
+	    assert(0 && "illegal region transition from ROSync");
+}
+
+/*
+ * Called immediately before an event runs: records the region now
+ * being drained (so region_check_schedule_ can validate events the
+ * running event creates) and, when tracing is enabled, prints the
+ * event's true region.  The tag travels with the event, so an event
+ * promoted wholesale into the active queue (e.g. from Inactive or a
+ * reactive region) still reports the region it was scheduled into —
+ * which is exactly the visibility M6 item 1 provides into the
+ * wholesale-promotion approximation.
+ */
+static inline void region_enter_(struct event_s*cur)
+{
+      sched_current_region = cur->region;
+      if (region_trace_enabled_()) {
+	    cerr << "REGION @ " << schedule_time << " ps "
+		 << region_name_(cur->region) << ": ";
+	    cur->single_step_display();
+      }
+}
+
+/*
  * This function does all the hard work of putting an event into the
  * event queue. The event delay is taken from the event structure
  * itself, and the structure is placed in the right place in the
  * queue.
  */
-typedef enum event_queue_e { SEQ_START, SEQ_ACTIVE, SEQ_INACTIVE, SEQ_NBASSIGN,
-			     SEQ_REACTIVE, SEQ_RE_INACTIVE, SEQ_RE_NBASSIGN,
-			     SEQ_RWSYNC, SEQ_ROSYNC, DEL_THREAD } event_queue_t;
-
 static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 			    event_queue_t select_queue)
 {
+      cur->region = select_queue;
+      region_check_schedule_(select_queue, delay);
+
       cur->next = cur;
       struct event_time_s*ctim = sched_list;
 
@@ -772,6 +902,10 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 	    q = &ctim->start;
 	    break;
 
+	  case SEQ_PREPONED:
+	    q = &ctim->preponed;
+	    break;
+
 	  case SEQ_ACTIVE:
 	    q = &ctim->active;
 	    break;
@@ -783,6 +917,10 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 
 	  case SEQ_NBASSIGN:
 	    q = &ctim->nbassign;
+	    break;
+
+	  case SEQ_OBSERVED:
+	    q = &ctim->observed;
 	    break;
 
 	  case SEQ_REACTIVE:
@@ -823,6 +961,8 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 
 static void schedule_event_push_(struct event_s*cur)
 {
+      cur->region = SEQ_ACTIVE;
+
       if ((sched_list == 0) || (sched_list->delay > 0)) {
 	    schedule_event_(cur, 0, SEQ_ACTIVE);
 	    return;
@@ -1095,6 +1235,35 @@ void schedule_at_start_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay)
 }
 
 /*
+ * Preponed region (IEEE 1800-2017 4.4.2.1): schedule a sampling event
+ * to run at slot entry, before the Active region.  The SVA/clocking
+ * engines (M8/M9) use this to snapshot signal values for concurrent
+ * assertions and clocking-block inputs.
+ */
+void schedule_at_preponed(vvp_gen_event_t obj, vvp_time64_t delay)
+{
+      struct generic_event_s*cur = new generic_event_s;
+
+      cur->obj = obj;
+      cur->delete_obj_when_done = false;
+      schedule_event_(cur, delay, SEQ_PREPONED);
+}
+
+/*
+ * Observed region (IEEE 1800-2017 4.4.2.4): schedule a concurrent
+ * assertion evaluation event to run after the design NBA updates settle
+ * and before the reactive region.  The SVA engine (M9) uses this.
+ */
+void schedule_at_observed(vvp_gen_event_t obj, vvp_time64_t delay)
+{
+      struct generic_event_s*cur = new generic_event_s;
+
+      cur->obj = obj;
+      cur->delete_obj_when_done = false;
+      schedule_event_(cur, delay, SEQ_OBSERVED);
+}
+
+/*
  * In the vvp runtime of Icarus Verilog, the SEQ_RWSYNC time step is
  * after all of the non-blocking assignments, so is effectively the
  * same as the ReadWriteSync time.
@@ -1108,13 +1277,25 @@ void schedule_at_end_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay)
       schedule_event_(cur, delay, SEQ_RWSYNC);
 }
 
-static vvp_time64_t schedule_time;
 vvp_time64_t schedule_simtime(void)
 { return schedule_time; }
 
 static bool sim_at_rosync = false;
 bool schedule_at_rosync(void)
 { return sim_at_rosync; }
+
+/*
+ * True only while the main stratified event loop is draining events.
+ * The scheduled-call protocol (M6 item 5) suspends the caller and lets
+ * the scheduler drive the callee, so it is only valid here: the
+ * pre-simulation init phase, the post-simulation final phase, and the
+ * read-only Postponed (rosync) region have no active-queue loop to
+ * drive a deferred call and are inherently sequential, so calls there
+ * must execute synchronously.
+ */
+static bool sched_main_loop_running = false;
+bool schedule_defer_calls_ok(void)
+{ return sched_main_loop_running && !sim_at_rosync; }
 
 /*
  * The scheduler uses this function to drain the rosync events of the
@@ -1137,11 +1318,13 @@ static void run_rosync(struct event_time_s*ctim)
 		  ctim->rosync->next = cur->next;
 	    }
 
+	    region_enter_(cur);
 	    cur->run_run();
 	    delete cur;
       }
       sim_at_rosync = false;
 
+      sched_current_region = DEL_THREAD;
       while (ctim->del_thr) {
 	    struct event_s*cur = ctim->del_thr->next;
 	    if (cur->next == cur) {
@@ -1150,15 +1333,57 @@ static void run_rosync(struct event_time_s*ctim)
 		  ctim->del_thr->next = cur->next;
 	    }
 
+	    region_enter_(cur);
 	    cur->run_run();
 	    delete cur;
       }
+      sched_current_region = SEQ_START;
 
-      if (ctim->active || ctim->inactive || ctim->nbassign
-	  || ctim->reactive || ctim->re_inactive || ctim->re_nbassign
-	  || ctim->rwsync) {
+      if (ctim->preponed || ctim->active || ctim->inactive || ctim->nbassign
+	  || ctim->observed || ctim->reactive || ctim->re_inactive
+	  || ctim->re_nbassign || ctim->rwsync) {
 	    cerr << "SCHEDULER ERROR: read-only sync events "
 		 << "created RW events!" << endl;
+      }
+}
+
+/*
+ * Region-pipeline self-test (IVL_REGION_SELFTEST=1): inject one labeled
+ * no-op event into each delay-permitting stratified region at time +1,
+ * in REVERSE region order, so a IVL_REGION_TRACE run proves the
+ * scheduler drains them in forward IEEE 1800-2017 4.4.2 order regardless
+ * of insertion order.  Env-gated and one-shot: zero effect on normal
+ * runs.  (Inactive / Re-Inactive are omitted here because they are #0
+ * regions that assert delay==0; their ordering is covered behaviorally
+ * by tests/m6_sched_litmus_test.sv.)
+ */
+struct selftest_event_s : public event_s {
+      const char*label;
+      void run_run(void) override { }
+      void single_step_display(void) override
+      { cerr << "selftest: " << label << endl; }
+};
+
+static void region_selftest_(void)
+{
+      const char*env = getenv("IVL_REGION_SELFTEST");
+      if (!(env && *env && strcmp(env, "0") != 0))
+	    return;
+
+      static const struct { event_queue_t r; const char*l; } regs[] = {
+	    { SEQ_ROSYNC,      "ROSync"   },
+	    { SEQ_RWSYNC,      "RWSync"   },
+	    { SEQ_RE_NBASSIGN, "Re-NBA"   },
+	    { SEQ_REACTIVE,    "Reactive" },
+	    { SEQ_OBSERVED,    "Observed" },
+	    { SEQ_NBASSIGN,    "NBA"      },
+	    { SEQ_ACTIVE,      "Active"   },
+	    { SEQ_PREPONED,    "Preponed" },
+      };
+      for (unsigned i = 0 ; i < sizeof(regs)/sizeof(regs[0]) ; i += 1) {
+	    struct selftest_event_s*cur = new selftest_event_s;
+	    cur->label = regs[i].l;
+	    schedule_event_(cur, 1, regs[i].r);
       }
 }
 
@@ -1193,6 +1418,8 @@ void schedule_simulate(void)
       }
 
       sim_started = true;
+
+      region_selftest_();
 
       if (verbose_flag) {
 	    vpi_mcd_printf(1, " ...execute StartOfSim callbacks\n");
@@ -1230,6 +1457,7 @@ void schedule_simulate(void)
       vvp_time64_t last_trace_time = 0;
       vvp_time64_t last_sim_time = schedule_time;
 
+      sched_main_loop_running = true;
       if (schedule_runnable) while (sched_list) {
 
 	    if (schedule_stopped_flag) {
@@ -1290,6 +1518,29 @@ void schedule_simulate(void)
 			} else {
 			      ctim->start->next = cur->next;
 			}
+			region_enter_(cur);
+			cur->run_run();
+			delete (cur);
+		  }
+
+		    /* Preponed region (IEEE 1800-2017 4.4.2.1): sampling
+		       for concurrent assertions and clocking blocks runs
+		       at slot entry, BEFORE any Active-region change this
+		       slot, so sampled values reflect the state left by the
+		       previous slot.  Drained here as a sibling of the Start
+		       queue (both are slot-entry regions that fire only on a
+		       time advance — the intended consumers are future clock
+		       edges, always at delay>0).  Consumers arrive with the
+		       SVA/clocking engines (M8/M9); the region and its
+		       scheduling entry point exist now as their foundation. */
+		  while (ctim->preponed) {
+			struct event_s*cur = ctim->preponed->next;
+			if (cur->next == cur) {
+			      ctim->preponed = 0;
+			} else {
+			      ctim->preponed->next = cur->next;
+			}
+			region_enter_(cur);
 			cur->run_run();
 			delete (cur);
 		  }
@@ -1306,6 +1557,17 @@ void schedule_simulate(void)
 		  if (ctim->active == 0) {
 			ctim->active = ctim->nbassign;
 			ctim->nbassign = 0;
+
+			  /* Observed region (IEEE 1800-2017 4.4.2.4):
+			     concurrent assertions are evaluated after the
+			     design NBA updates have settled and before the
+			     reactive region runs their pass/fail action
+			     blocks.  Consumers arrive with the SVA engine
+			     (M9); the region exists now as its foundation. */
+			if (ctim->active == 0) {
+			      ctim->active = ctim->observed;
+			      ctim->observed = 0;
+			}
 
 			  /* Reactive region set (IEEE 1800-2017
 			     4.4.2.5-4.4.2.7): program-block processes,
@@ -1358,10 +1620,13 @@ void schedule_simulate(void)
 		  schedule_single_step_flag = false;
 	    }
 
+	    region_enter_(cur);
 	    cur->run_run();
 
 	    delete (cur);
       }
+      sched_current_region = SEQ_START;
+      sched_main_loop_running = false;
 
       if (schedule_runnable && !sched_list)
             vthread_dump_live_threads("scheduler-quiesce");

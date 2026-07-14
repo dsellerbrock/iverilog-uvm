@@ -4993,6 +4993,25 @@ static bool callf_trace_enabled_()
       return enabled != 0;
 }
 
+/*
+ * M6 remediation item 5, migration step 2: gate the scheduled-call
+ * protocol.  When IVL_SCHED_CALLF is set, a %callf schedules the callee
+ * as a normal Active-region thread and suspends the caller instead of
+ * running the callee synchronously inside the caller's opcode dispatch.
+ * Default OFF: the synchronous do_callf_void path is unchanged, so
+ * production behavior and every regression are byte-identical.  See
+ * docs/conformance/m6_scheduled_call_protocol.md.
+ */
+static bool sched_callf_enabled_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_SCHED_CALLF");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled != 0;
+}
+
 static bool virtual_dispatch_trace_enabled_()
 {
       static int enabled = -1;
@@ -5810,12 +5829,41 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
         // This should be the only child
       assert(thr->children.size()==1);
 
-        // Execute the function. This SHOULD run the function to completion,
-        // but there are some exceptional situations where it won't.
       assert(child->parent_scope->get_type_code() == vpiFunction);
+
+        /* Scheduled-call protocol (M6 item 5, step 2, IVL_SCHED_CALLF):
+         * hand the callee to the scheduler as an Active-region thread
+         * (pushed to the front so it runs next, matching the
+         * synchronous model's zero-time semantics) and SUSPEND the
+         * caller.  The caller's return placeholder is already on its
+         * stack and %ret targets child->parent (the caller), so the
+         * value lands while the caller is frozen.  On %end, of_END sees
+         * the caller's i_am_joining flag and resumes it via the
+         * existing join machinery (resume_joining_parent_ -> do_join),
+         * which mirrors output/ref args and reaps the callee.  Returning
+         * false pauses the caller; its PC already points past the
+         * %callf, so it resumes at the next opcode with the filled
+         * return value.  schedule_vthread owns is_scheduled, so it is
+         * not pre-set here. */
+      if (sched_callf_enabled_() && schedule_defer_calls_ok()) {
+            child->i_am_in_function = 1;
+            child->delay_delete = 1;
+            thr->i_am_joining = 1;
+              /* The scheduled callee unwinds through the scheduler, not
+               * this C++ frame, so drop the synchronous-recursion
+               * bookkeeping taken on entry. */
+            callf_scope_stack.pop_back();
+            callf_depth--;
+            schedule_vthread(child, 0, true);
+            return false;
+      }
+
       child->is_scheduled = 1;
       child->i_am_in_function = 1;
       child->delay_delete = 1;
+
+        // Execute the function. This SHOULD run the function to completion,
+        // but there are some exceptional situations where it won't.
       vthread_run(child);
       running_thread = thr;
       {
@@ -9815,11 +9863,29 @@ static bool aa_load_keep_vec(vthread_t thr, unsigned wid=0)
       return true;
 }
 
+/* IEEE 1800-2017 7.6/7.9.9: assigning an array into a container
+ * element copies the array value (a class handle aliases).  Element
+ * stores carry object-typed values as handles on the object stack,
+ * so container-typed values (darray/queue/assoc) must be duplicated
+ * at the store.  The non-object overloads keep the store templates
+ * generic. */
+static inline void container_value_copy_(vvp_object_t&val)
+{
+      vvp_object*raw = val.peek<vvp_object>();
+      if (raw && (dynamic_cast<vvp_darray*>(raw)
+                  || dynamic_cast<vvp_assoc_base*>(raw)))
+	    val = val.duplicate();
+}
+static inline void container_value_copy_(vvp_vector4_t&) { }
+static inline void container_value_copy_(double&) { }
+static inline void container_value_copy_(std::string&) { }
+
 template <typename ELEM, class ASSOC>
 static bool aa_store_str(vthread_t thr, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       string key = thr->pop_str();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
@@ -9834,6 +9900,7 @@ static bool aa_store_obj(vthread_t thr, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       vvp_object_t key;
       thr->pop_object(key);
@@ -9861,6 +9928,7 @@ static bool aa_store_vec(vthread_t thr, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       vvp_vector4_t key = thr->pop_vec4();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
@@ -9906,7 +9974,11 @@ static bool aa_exists_str(vthread_t thr, unsigned wid)
 {
       string key = thr->pop_str();
       ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+	/* IEEE 1800-2017 7.9.3: exists() returns 1 or 0 (an int), not an
+	   all-ones vector -- only the LSB carries the truth bit. */
+      vvp_vector4_t val(wid, BIT4_0);
+      if (assoc && assoc->exists_key(key))
+	    val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
@@ -9916,7 +9988,11 @@ static bool aa_exists_vec(vthread_t thr, unsigned wid)
 {
       vvp_vector4_t key = thr->pop_vec4();
       ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+	/* IEEE 1800-2017 7.9.3: exists() returns 1 or 0 (an int), not an
+	   all-ones vector -- only the LSB carries the truth bit. */
+      vvp_vector4_t val(wid, BIT4_0);
+      if (assoc && assoc->exists_key(key))
+	    val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
@@ -9937,7 +10013,11 @@ static bool aa_exists_obj(vthread_t thr, unsigned wid)
                     object_trace_class_(key),
                     (assoc && assoc->exists_key(key)) ? 1 : 0);
       }
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+	/* IEEE 1800-2017 7.9.3: exists() returns 1 or 0 (an int), not an
+	   all-ones vector -- only the LSB carries the truth bit. */
+      vvp_vector4_t val(wid, BIT4_0);
+      if (assoc && assoc->exists_key(key))
+	    val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
@@ -9947,7 +10027,11 @@ static bool aa_exists_signal(vthread_t thr, vvp_net_t*net, unsigned wid)
 {
       KEY key = pop_assoc_key_<KEY>(thr);
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(net);
-      vvp_vector4_t val(wid, (assoc && assoc->exists_key(key)) ? BIT4_1 : BIT4_0);
+	/* IEEE 1800-2017 7.9.3: exists() returns 1 or 0 (an int), not an
+	   all-ones vector -- only the LSB carries the truth bit. */
+      vvp_vector4_t val(wid, BIT4_0);
+      if (assoc && assoc->exists_key(key))
+	    val.set_bit(0, BIT4_1);
       thr->push_vec4(val);
       return true;
 }
@@ -10102,6 +10186,7 @@ static bool aa_store_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       KEY key = pop_assoc_key_<KEY>(thr);
       ASSOC*assoc = ensure_signal_assoc_<ASSOC>(thr, net, "aa-store-sig");
@@ -10111,6 +10196,93 @@ static bool aa_store_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
       assoc_trace_signal_store_(thr, net, assoc, key, value);
 
       return true;
+}
+
+/* Container spec codes for %aa/viv/*: which empty inner container to
+ * create when auto-vivifying an absent element of a nested
+ * associative array.  Matches the tgt-vvp encoding. */
+enum aa_viv_spec_code {
+      AA_VIV_QUEUE_VEC4   = 0,
+      AA_VIV_QUEUE_REAL   = 1,
+      AA_VIV_QUEUE_STRING = 2,
+      AA_VIV_QUEUE_OBJECT = 3,
+      AA_VIV_ASSOC_VEC4   = 4,
+      AA_VIV_ASSOC_REAL   = 5,
+      AA_VIV_ASSOC_STRING = 6,
+      AA_VIV_ASSOC_OBJECT = 7
+};
+
+static vvp_object_t make_dynamic_container_from_code_(unsigned code)
+{
+      switch (code) {
+	  case AA_VIV_QUEUE_VEC4:   return vvp_object_t(new vvp_queue_vec4);
+	  case AA_VIV_QUEUE_REAL:   return vvp_object_t(new vvp_queue_real);
+	  case AA_VIV_QUEUE_STRING: return vvp_object_t(new vvp_queue_string);
+	  case AA_VIV_QUEUE_OBJECT: return vvp_object_t(new vvp_queue_object);
+	  case AA_VIV_ASSOC_VEC4:   return vvp_object_t(new vvp_assoc_vec4);
+	  case AA_VIV_ASSOC_REAL:   return vvp_object_t(new vvp_assoc_real);
+	  case AA_VIV_ASSOC_STRING: return vvp_object_t(new vvp_assoc_string);
+	  case AA_VIV_ASSOC_OBJECT: return vvp_object_t(new vvp_assoc_object);
+	  default:                  return vvp_object_t();
+      }
+}
+
+/* %aa/viv/sig/{v,str} <asig>, <spec>
+ * %aa/viv/o/{v,str} <spec>
+ *   Element access with auto-vivification for chained writes and
+ *   method calls on nested dynamic containers (assoc-of-queue,
+ *   assoc-of-assoc): pop the key, load the element handle from the
+ *   object-valued associative array (the signal's object, or an
+ *   assoc handle popped from the object stack), creating and
+ *   inserting an empty inner container per the spec code when the
+ *   key is absent.  Pushes the element handle — mutations through
+ *   the handle reach the stored element. */
+template <typename KEY>
+static bool aa_viv_common_(vthread_t thr, vvp_assoc_object*assoc,
+			   unsigned spec)
+{
+      KEY key = pop_assoc_key_<KEY>(thr);
+      vvp_object_t value;
+      if (assoc) {
+	    if (!assoc->get(key, value) || value.test_nil()) {
+		  value = make_dynamic_container_from_code_(spec);
+		  assoc->set(key, value);
+	    }
+      }
+      thr->push_object(value);
+      return true;
+}
+
+bool of_AA_VIV_SIG_V(vthread_t thr, vvp_code_t cp)
+{
+      vvp_assoc_object*assoc =
+	    ensure_signal_assoc_<vvp_assoc_object>(thr, cp->net, "aa-viv-sig");
+      return aa_viv_common_<vvp_vector4_t>(thr, assoc, cp->bit_idx[0]);
+}
+
+bool of_AA_VIV_SIG_STR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_assoc_object*assoc =
+	    ensure_signal_assoc_<vvp_assoc_object>(thr, cp->net, "aa-viv-sig");
+      return aa_viv_common_<std::string>(thr, assoc, cp->bit_idx[0]);
+}
+
+bool of_AA_VIV_O_V(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_assoc_object*assoc =
+	    dynamic_cast<vvp_assoc_object*>(recv.peek<vvp_assoc_base>());
+      return aa_viv_common_<vvp_vector4_t>(thr, assoc, cp->number);
+}
+
+bool of_AA_VIV_O_STR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_assoc_object*assoc =
+	    dynamic_cast<vvp_assoc_object*>(recv.peek<vvp_assoc_base>());
+      return aa_viv_common_<std::string>(thr, assoc, cp->number);
 }
 
 template <typename ELEM, class QTYPE>
@@ -13615,6 +13787,7 @@ bool of_STORE_DAR_OBJ(vthread_t thr, vvp_code_t cp)
       int64_t adr = thr->words[3].w_int;
       vvp_object_t value;
       thr->pop_object(value);
+      container_value_copy_(value);
 
       vvp_net_t*net = cp->net;
       assert(net);
@@ -14048,6 +14221,7 @@ static bool store_qb(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       vvp_net_t*net = cp->net;
       unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
       pop_value(thr, value, wid); // Pop the value to store.
+      container_value_copy_(value);
 
       vvp_queue*queue = get_queue_object<QTYPE>(thr, net);
       assert(queue);
@@ -14093,6 +14267,7 @@ static bool store_qo_b(vthread_t thr, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       vvp_object_t recv, root_obj;
       vvp_net_t*root_net = 0;
@@ -14103,6 +14278,65 @@ static bool store_qo_b(vthread_t thr, unsigned wid=0)
       queue->push_back(value, 0);
       notify_mutated_object_root_(thr, recv, root_net, root_obj, "store-qo-b");
       return true;
+}
+
+/*
+ * %store/qo/i/<type>
+ * Indexed element store through a queue receiver on the object
+ * stack: pop the value, pop the receiver, and set the element at
+ * the index in word 3.  set_word_max appends when the index equals
+ * the current size and warns on any other out-of-range index, the
+ * same as the signal-based %store/qdar forms.
+ */
+template <typename ELEM, class QTYPE>
+static bool store_qo_i(vthread_t thr, unsigned wid=0)
+{
+      int64_t idx = thr->words[3].w_int;
+      ELEM value;
+      pop_value(thr, value, wid);
+      container_value_copy_(value);
+
+      vvp_object_t recv, root_obj;
+      vvp_net_t*root_net = 0;
+      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv, root_net, root_obj);
+      if (!queue)
+	    return true;
+
+      if (idx < 0) {
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot assign to a negative queue"
+	         << " index (" << idx << "); element was not stored." << endl;
+	    return true;
+      }
+      if (thr->flags[4] != BIT4_0) {
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot assign to an undefined queue"
+	         << " index; element was not stored." << endl;
+	    return true;
+      }
+      queue->set_word_max(idx, value, 0);
+      notify_mutated_object_root_(thr, recv, root_net, root_obj, "store-qo-i");
+      return true;
+}
+
+bool of_STORE_QO_I_R(vthread_t thr, vvp_code_t)
+{
+      return store_qo_i<double, vvp_queue_real>(thr);
+}
+
+bool of_STORE_QO_I_OBJ(vthread_t thr, vvp_code_t)
+{
+      return store_qo_i<vvp_object_t, vvp_queue_object>(thr);
+}
+
+bool of_STORE_QO_I_STR(vthread_t thr, vvp_code_t)
+{
+      return store_qo_i<string, vvp_queue_string>(thr);
+}
+
+bool of_STORE_QO_I_V(vthread_t thr, vvp_code_t cp)
+{
+      return store_qo_i<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
 }
 
 bool of_STORE_QO_B_R(vthread_t thr, vvp_code_t)
@@ -14189,6 +14423,7 @@ bool of_STORE_QDAR_OBJ(vthread_t thr, vvp_code_t cp)
       int64_t idx = thr->words[3].w_int;
       vvp_object_t value;
       thr->pop_object(value);
+      container_value_copy_(value);
 
       vvp_net_t*net = cp->net;
       vvp_queue*queue = get_queue_object<vvp_queue_object>(thr, net);
@@ -14218,6 +14453,7 @@ static bool store_qf(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       vvp_net_t*net = cp->net;
       unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
       pop_value(thr, value, wid); // Pop the value to store.
+      container_value_copy_(value);
 
       vvp_queue*queue = get_queue_object<QTYPE>(thr, net);
       assert(queue);

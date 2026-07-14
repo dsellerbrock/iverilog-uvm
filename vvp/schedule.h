@@ -159,6 +159,12 @@ extern void schedule_functor(vvp_gen_event_t obj);
 extern void schedule_at_start_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay);
 extern void schedule_at_end_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay);
 
+/* Schedule an event into the Preponed (sampling, slot entry) or
+ * Observed (concurrent-assertion evaluation, after NBA) region — the
+ * IEEE 1800-2017 4.4.2 foundation for the SVA and clocking engines. */
+extern void schedule_at_preponed(vvp_gen_event_t obj, vvp_time64_t delay);
+extern void schedule_at_observed(vvp_gen_event_t obj, vvp_time64_t delay);
+
 /* Use this is schedule thread deletion (after rosync). */
 extern void schedule_del_thr(vthread_t thr);
 
@@ -188,6 +194,14 @@ extern vvp_time64_t schedule_simtime(void);
  * in the current simulation time slot.
  */
 extern bool schedule_at_rosync(void);
+
+/*
+ * True only while the main stratified event loop is draining events.
+ * The scheduled-call protocol (M6 item 5) is valid only here; the
+ * init/final/rosync phases are inherently sequential and must run
+ * subroutine calls synchronously.
+ */
+extern bool schedule_defer_calls_ok(void);
 
 /*
  * This function is the equivalent of the $finish system task. It

@@ -33,13 +33,13 @@ Slot sequencing (main loop, `schedule_simulate`): on time advance →
 
 | IEEE region (4.4.2) | vvp | Status |
 |---|---|---|
-| Preponed | — | **ABSENT** (no sampled-value region; blocks SVA/clocking sampling) |
+| Preponed | `preponed` | **PRESENT** (2026-07-14, item 4): drains at slot entry before Active; `schedule_at_preponed` entry point; no consumer yet (SVA/clocking sampling arrives M8/M9) |
 | Active | `active` | present |
 | Inactive | `inactive` | present (#0) |
 | Pre-NBA (cbNBASynch) | — | not distinct from NBA |
 | NBA | `nbassign` | present |
 | Post-NBA | — | absent |
-| Observed | — | **ABSENT** (no SVA evaluation region) |
+| Observed | `observed` | **PRESENT** (2026-07-14, item 4): promoted into active after NBA, before the reactive set; `schedule_at_observed` entry point; no consumer yet (SVA evaluation arrives M9) |
 | Reactive / Re-Inactive / Re-NBA | `reactive` / `re_inactive` / `re_nbassign` | **PRESENT** (2026-07-12, remediation item 2): program-block processes carry a per-thread reactive flag (scope-chain `vpiProgram` + inheritance to spawned children); event wake chains are partitioned by region; program #0 → Re-Inactive; program NBAs → Re-NBA. Promotion order: active ← inactive ← nbassign ← reactive ← re-inactive ← re-nba ← rwsync. Test: `tests/m6_reactive_region_test.sv` |
 | Pre-Postponed (cbReadWriteSynch) | `rwsync` | present; correctly re-promotes into active so writes re-trigger evaluation |
 | Postponed (cbReadOnlySynch) | `rosync` | present with rosync write guard |
@@ -117,8 +117,23 @@ restructuring.
 
 ## Remediation priorities (for M6 implementation, in order)
 
-1. Introduce region tagging on events (enum already exists:
-   `event_queue_e`) + optional trace hook (time, delta, region, event).
+1. **DONE 2026-07-14**: region tagging on events + trace hook +
+   transition invariant.  Every `event_s` now carries an
+   `event_queue_t region` stamped by `schedule_event_` /
+   `schedule_event_push_`; `region_enter_` records the region being
+   drained and (under `IVL_REGION_TRACE=1`) prints
+   `REGION @ <time> ps <region>: <event>` as each event runs.  Because
+   the tag travels with the event, an event promoted wholesale into the
+   `active` queue (from Inactive or a reactive region) still reports its
+   TRUE region — making the wholesale-promotion approximation from item
+   2 directly observable.  `region_check_schedule_` enforces the one
+   unambiguous LRM region-transition invariant (4.4.2.10: a Postponed /
+   read-only ROSync event may only create ROSync or thread-reap work);
+   it warns by default and aborts under `IVL_REGION_ASSERT=1` (audit
+   point 9: illegal-transition assertions, previously ABSENT).  Verified
+   trace order Active→Inactive→NBA→ROSync with `$display` observing
+   pre-NBA and `$strobe` post-NBA.  Test:
+   `tests/m6_region_trace/run_region_trace.sh`.
 2. **DONE 2026-07-12**: Reactive/Re-Inactive/Re-NBA queues added and
    program-block processes routed there (per-thread reactive flag from
    the vpiProgram scope chain, inherited by spawned children; wake
@@ -132,8 +147,44 @@ restructuring.
    work.  Test: `tests/m6_reactive_region_test.sv`.
 3. Add slot-persistent `event.triggered` state (fixes G08) — 15.5.3.
    **DONE 2026-07-12** (see gap audit G08).
-4. Add Preponed sampling + Observed evaluation stubs as the SVA/clocking
-   foundation (M8/M9 prerequisite).
+4. **DONE 2026-07-14**: Preponed + Observed regions added.
+   `SEQ_PREPONED` drains at slot entry (as a sibling of the Start
+   queue, before Active — IEEE 4.4.2.1 sampling); `SEQ_OBSERVED` is
+   promoted into `active` after NBA and before the reactive set (IEEE
+   4.4.2.4 concurrent-assertion evaluation).  Scheduling entry points
+   `schedule_at_preponed` / `schedule_at_observed` exist for the future
+   SVA/clocking engines (no consumers yet — this is the foundation).
+   Region enum/tag/trace/leftover-check all extended.  Ordering proven
+   by the `IVL_REGION_SELFTEST` injection (reverse-order insert drains
+   Preponed→Active→NBA→Observed→Reactive→Re-NBA→RWSync→ROSync) in
+   `tests/m6_region_trace/run_region_trace.sh`.  Known limitation:
+   Preponed fires only on a time advance (like the Start queue), which
+   matches the intended consumer (clock edges are always at delay>0).
 5. Replace callf synchronous-drain assumptions with an explicit
    scheduled-call protocol (retiring the staged-context heuristics) —
    the largest, riskiest item; requires characterization tests first.
+   **2026-07-14 (started)**: characterization suite landed
+   (`tests/m6_sync_call_characterization_test.sv`, 15 checks pinning
+   return values, recursion, chained/nested calls, output/ref args,
+   class-method builder chains, expression context, fork interaction,
+   zero-time completion) and the full protocol design +
+   incremental-migration plan recorded in
+   `m6_scheduled_call_protocol.md`.  The protocol swap itself is the
+   scoped follow-up (5 gated steps, the default-flip getting its own
+   checkpoint).  The design also calls out the UVM-identifier limit
+   special-casing in `do_callf_void` as the clearest remaining
+   manifesto-principle-5 violation to delete once the scheduled path is
+   clean.
+   **2026-07-14 (step 2)**: scheduled path landed behind
+   `IVL_SCHED_CALLF` (default OFF); characterization suite passes under
+   the flag.
+   **2026-07-14 (step 3)**: init/final-phase guard
+   (`schedule_defer_calls_ok`) fixed the sole UVM divergence →
+   **UVM 126/126 under the flag** — but the full ivtest corpus exposed a
+   FUNDAMENTAL blocker: the suspend-caller design violates function-call
+   atomicity (IEEE 13.4.3), so two concurrent calls interleave
+   (`pr2001162`, `pr2053944`, `v1=1 v2=2` → `1 1`).  The default flip
+   (step 4) is therefore BLOCKED; the scheduled path stays behind the
+   flag.  Revised design: the callee must run inline as a
+   scheduler-tracked frame without yielding the active region.  Blocker
+   pinned by `tests/m6_call_atomicity_test.sv`.

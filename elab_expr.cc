@@ -194,7 +194,9 @@ static NetExpr* make_queue_locator_with_expr_(
       if (!pred_pe)
             return nullptr;
       NetNet*prev_bind = scope->set_signal_alias(iter_name, iter_net);
+      push_array_method_iter_ctx(iter_net, idx_net);
       NetExpr*pred_expr = elab_and_eval(des, scope, pred_pe, -1, false);
+      pop_array_method_iter_ctx();
       scope->restore_signal_alias(iter_name, prev_bind);
       if (!pred_expr)
             return nullptr;
@@ -288,15 +290,49 @@ static NetNet* make_array_method_recv_net_(
       return recv_net;
 }
 
+/* IEEE 1800-2017 7.12.4 iterator index querying: while an array
+ * method's with expression elaborates, the iterator net is bound to
+ * the loop-counter net so that `item.index` (and `item.index()`)
+ * resolves to the element index.  A stack, because with expressions
+ * nest (m.sum with (item.sum with (item.index))). */
+struct array_method_iter_ctx_t {
+      const NetNet*iter_net;
+      NetNet*idx_net;
+};
+static std::vector<array_method_iter_ctx_t> array_method_iter_stack_;
+
+void push_array_method_iter_ctx(const NetNet*iter_net, NetNet*idx_net)
+{
+      array_method_iter_stack_.push_back({iter_net, idx_net});
+}
+
+void pop_array_method_iter_ctx(void)
+{
+      array_method_iter_stack_.pop_back();
+}
+
+NetNet* find_array_method_iter_index(const NetNet*iter_net)
+{
+      for (auto it = array_method_iter_stack_.rbegin()
+		 ; it != array_method_iter_stack_.rend() ; ++it) {
+	    if (it->iter_net == iter_net)
+		  return it->idx_net;
+      }
+      return 0;
+}
+
 /* Elaborate a with expression with the iterator name bound to the
  * hidden iterator net (self-determined width, as for the locator
- * predicates). */
+ * predicates), and the iterator registered for 7.12.4 index
+ * queries. */
 static NetExpr* elab_array_method_with_expr_(
       Design*des, NetScope*scope, PExpr*wpe,
-      perm_string iter_name, NetNet*iter_net)
+      perm_string iter_name, NetNet*iter_net, NetNet*idx_net)
 {
       NetNet*prev = scope->set_signal_alias(iter_name, iter_net);
+      push_array_method_iter_ctx(iter_net, idx_net);
       NetExpr*val_expr = elab_and_eval(des, scope, wpe, -1, false);
+      pop_array_method_iter_ctx();
       scope->restore_signal_alias(iter_name, prev);
       return val_expr;
 }
@@ -362,7 +398,8 @@ static NetExpr* make_array_reduction_expr_(
       if (!with_exprs.empty() && with_exprs.front()) {
 	    val_expr = elab_array_method_with_expr_(des, scope,
 						    with_exprs.front(),
-						    iter_name, iter_net);
+						    iter_name, iter_net,
+						    idx_net);
 	    if (!val_expr) {
 		  delete array_expr;
 		  return 0;
@@ -472,7 +509,8 @@ static NetExpr* make_array_minmax_expr_(
       if (!with_exprs.empty() && with_exprs.front()) {
 	    val_expr = elab_array_method_with_expr_(des, scope,
 						    with_exprs.front(),
-						    iter_name, iter_net);
+						    iter_name, iter_net,
+						    idx_net);
 	    if (!val_expr) {
 		  delete array_expr;
 		  return 0;
@@ -3835,6 +3873,53 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	    target_indexed = true;
       }
 
+	// IEEE 1800-2017 7.12.4: iterator index() call form is an int.
+      if (search_results.net && method_path.size() == 1
+	  && method_path.back().name == perm_string::literal("index")
+	  && !target_indexed
+	  && find_array_method_iter_index(search_results.net)) {
+	    expr_type_   = IVL_VT_BOOL;
+	    expr_width_  = 32;
+	    min_width_   = 32;
+	    signed_flag_ = true;
+	    return expr_width_;
+      }
+
+	// IEEE 1800-2017 7.12.3 reduction methods used as operands:
+	// report the element type's width, or a 32-bit signed
+	// approximation when a with clause supplies the values (the
+	// exact width is the with expression's, computed at
+	// elaboration; reporting int here only ever widens the
+	// context, never truncates it to zero).
+      if (!target_indexed && method_path.size() == 1
+	  && method_path.back().index.empty()
+	  && is_array_reduction_name_(method_path.back().name)) {
+	    ivl_type_t elem = 0;
+	    if (const netdarray_t*da =
+		      dynamic_cast<const netdarray_t*>(target_type))
+		  elem = da->element_type();
+	    else if (search_results.net
+		     && search_results.net->unpacked_dimensions() == 1
+		     && dynamic_cast<const netuarray_t*>(
+			     search_results.net->array_type()))
+		  elem = search_results.net->array_type()->element_type();
+	    if (elem && (elem->base_type() == IVL_VT_BOOL
+			 || elem->base_type() == IVL_VT_LOGIC)) {
+		  if (with_constraints().empty()) {
+			expr_type_   = elem->base_type();
+			expr_width_  = elem->packed_width();
+			min_width_   = expr_width_;
+			signed_flag_ = elem->get_signed();
+		  } else {
+			expr_type_   = IVL_VT_BOOL;
+			expr_width_  = 32;
+			min_width_   = 32;
+			signed_flag_ = true;
+		  }
+		  return expr_width_;
+	    }
+      }
+
       while (method_path.size() > 1) {
 	    const netclass_t*class_type = dynamic_cast<const netclass_t*>(target_type);
 	    if (!class_type) {
@@ -4053,6 +4138,58 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  min_width_  = 32;
 		  signed_flag_= true;
 		  return expr_width_;
+	    }
+
+	      /* The element is itself a dynamic container
+	       * (aq[k].size(), qa[i].num(), aq[k].pop_back()...):
+	       * report the same result types as for an unindexed
+	       * container receiver.  Without this the methods fall
+	       * through to the class-null compile-progress stub type
+	       * and elab_and_eval substitutes a constant zero before
+	       * the call is ever elaborated. */
+	    if (const netdarray_t*edar =
+		      dynamic_cast<const netdarray_t*>(darray->element_type())) {
+		  if (method_name == "size" || method_name == "num") {
+			expr_type_  = IVL_VT_BOOL;
+			expr_width_ = 32;
+			min_width_  = expr_width_;
+			signed_flag_= true;
+			return expr_width_;
+		  }
+		  if (method_name == "exists"
+		      || method_name == "first"
+		      || method_name == "last"
+		      || method_name == "next"
+		      || method_name == "prev") {
+			expr_type_  = IVL_VT_BOOL;
+			expr_width_ = 1;
+			min_width_  = 1;
+			signed_flag_= false;
+			return expr_width_;
+		  }
+		  if (method_name == "pop_back" || method_name == "pop_front") {
+			expr_type_  = edar->element_base_type();
+			expr_width_ = edar->element_width();
+			min_width_  = expr_width_;
+			signed_flag_= edar->get_signed();
+			return expr_width_;
+		  }
+		  if (method_name == "find"
+		      || method_name == "find_index"
+		      || method_name == "find_first"
+		      || method_name == "find_first_index"
+		      || method_name == "find_last"
+		      || method_name == "find_last_index"
+		      || method_name == "min"
+		      || method_name == "max"
+		      || method_name == "unique"
+		      || method_name == "unique_index") {
+			expr_type_  = IVL_VT_QUEUE;
+			expr_width_ = 1;
+			min_width_  = 1;
+			signed_flag_= false;
+			return expr_width_;
+		  }
 	    }
       }
 
@@ -7046,6 +7183,32 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 			  && !search_results.path_head.empty()
 			  && !search_results.path_head.back().index.empty();
 
+	// IEEE 1800-2017 7.12.4: the call form of the iterator index
+	// query (`item.index()`, optional dimension defaulting to 1).
+      if (search_results.net && method_path.size() == 1
+	  && method_path.back().name == perm_string::literal("index")
+	  && !target_indexed) {
+	    if (NetNet*idxn = find_array_method_iter_index(search_results.net)) {
+		  bool dim_ok = parms_.empty();
+		  if (parms_.size() == 1 && parms_[0].parm) {
+			const PENumber*np =
+			      dynamic_cast<const PENumber*>(parms_[0].parm);
+			dim_ok = np && np->value().as_ulong() == 1;
+		  }
+		  if (!dim_ok) {
+			cerr << get_fileline() << ": sorry: iterator "
+				"index() with a dimension other than 1 "
+				"is not yet implemented "
+				"(IEEE 1800-2017 7.12.4)." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  NetESignal*tmp = new NetESignal(idxn);
+		  tmp->set_line(*this);
+		  return tmp;
+	    }
+      }
+
       NetExpr* sub_expr = 0;
       ivl_type_t target_type = search_results.type;
       if (search_results.net) {
@@ -7221,6 +7384,18 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 						    const pform_name_t&use_path,
 						    bool explicit_super) const
 {
+	// An indexed-element receiver whose element type is itself a
+	// dynamic container (aq[k].size(), qa[i].num(), aa[k].sum(),
+	// aq[k].pop_back()...): the element expression IS the container
+	// receiver, so dispatch on the element type exactly as for an
+	// unindexed receiver.  The lowering paths evaluate non-signal
+	// receivers through the object stack (IEEE 1800-2017 7.12 array
+	// methods apply to any unpacked array expression; 7.9/7.10 for
+	// the assoc/queue query methods).
+      if (target_indexed && target_type
+	  && dynamic_cast<const netdarray_t*>(target_type))
+	    target_indexed = false;
+
       // Dynamic array methods. This handles the case that the located signal
       // is a dynamic array, and there is no index.
       if (target_type && dynamic_cast<const netdarray_t*>(target_type)
@@ -8850,6 +9025,20 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       symbol_search_results sr;
       bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
+	// IEEE 1800-2017 7.12.4: `item.index` inside an array-method
+	// with expression is an int query of the loop counter.
+      if (found_symbol && sr.net
+	  && sr.path_tail.size() == 1
+	  && sr.path_tail.front().index.empty()
+	  && sr.path_tail.front().name == perm_string::literal("index")
+	  && find_array_method_iter_index(sr.net)) {
+	    expr_type_   = IVL_VT_BOOL;
+	    expr_width_  = 32;
+	    min_width_   = 32;
+	    signed_flag_ = true;
+	    return expr_width_;
+      }
+
 	// If there is a part/bit select expression, then process it
 	// here. This constrains the results no matter what kind the
 	// name is.
@@ -10091,6 +10280,20 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	    }
 
 	    if (! sr.path_tail.empty()) {
+		    // IEEE 1800-2017 7.12.4: iterator index querying —
+		    // `item.index` inside an array-method with
+		    // expression reads the loop counter of the
+		    // enclosing method's iteration.
+		  if (gn_system_verilog()
+		      && sr.path_tail.size() == 1
+		      && sr.path_tail.front().index.empty()
+		      && sr.path_tail.front().name == perm_string::literal("index")) {
+			if (NetNet*idxn = find_array_method_iter_index(sr.net)) {
+			      NetESignal*tmp = new NetESignal(idxn);
+			      tmp->set_line(*this);
+			      return tmp;
+			}
+		  }
 		  if (gn_system_verilog()
 		      && sr.path_tail.size() == 1
 		      && sr.path_tail.front().index.empty()) {

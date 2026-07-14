@@ -3,6 +3,242 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-14e (session: M6 item 5 step 3 — parity + fundamental blocker)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft).
+- **This checkpoint**: pursued scheduled-call parity (step 3) toward the
+  default flip (step 4).  (a) Added the init/final-phase guard
+  `schedule_defer_calls_ok()` — the scheduled branch falls back to
+  synchronous execution outside the main event loop (init/final/rosync
+  phases, which are sequential); this fixed the sole UVM divergence
+  (`static_init_order_test`) → **UVM 126/126 under the flag**.  (b) The
+  full ivtest corpus under the flag then exposed a FUNDAMENTAL blocker:
+  the suspend-caller design violates function-call atomicity (IEEE
+  13.4.3), so two concurrent calls interleave — `pr2001162` (shared
+  counter read-modify-write no longer atomic) and `pr2053944` (two
+  concurrent static-function calls cross-contaminate the shared return:
+  `v1=1 v2=2` → `1 1`).  **Steps 4-5 are BLOCKED**: flipping the default
+  would introduce silent miscompiles.  The scheduled path stays behind
+  `IVL_SCHED_CALLF` (default OFF), so all default behavior is unchanged.
+  Blocker pinned by `tests/m6_call_atomicity_test.sv` (PASS on default,
+  FAIL under flag).  Details:
+  `session_logs/2026-07-14_m6_scheduled_callf_step3.md`; protocol doc
+  steps 3-5 revised.
+- **Revised next target (M6 item 5)**: redesign the callee to run inline
+  as a scheduler-tracked frame WITHOUT yielding the active region (the
+  caller stays the running thread; the callee frame is driven to
+  completion before any sibling active event runs), which preserves
+  atomicity — then retry the flip.
+- **Regressions**: default (flag OFF) unchanged; recorded in the commit.
+
+## State as of 2026-07-14d (session: M6 item 5 step 2 — scheduled-call path behind a flag)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — stacks onto the item-5 characterization checkpoint).
+- **This checkpoint**: implemented the scheduled-call protocol behind
+  `IVL_SCHED_CALLF` (default OFF).  In `do_callf_void`
+  (`vvp/vthread.cc`), once the callee frame + automatic context are set
+  up, the scheduled branch schedules the callee to the front of the
+  Active region and returns false to suspend the caller; the callee's
+  `%ret` fills the caller's frozen return slot and its `%end` resumes
+  the caller through the existing `of_END` ->
+  `resume_joining_parent_` -> `do_join` join machinery (output/ref
+  mirroring + reap reused unchanged).  `sched_callf_enabled_()` gates
+  it; flag OFF is byte-identical to the synchronous model.  The full
+  characterization suite passes under the flag, and `vif_smoke` (a UVM
+  test) also passes under the flag with zero errors.  Details:
+  `session_logs/2026-07-14_m6_scheduled_callf_step2.md`; protocol doc
+  migration plan step 2 marked DONE.
+- **Regressions**: flag-OFF battery recorded in the checkpoint commit.
+- **Remaining item-5 steps**: 3 (full focused-M6 + UVM-subset parity
+  under the flag; make the nested-caller resume fully async), 4 (flip
+  the default — its own checkpoint), 5 (delete the synchronous drain
+  loops + per-callsite/edge/scope/depth limits + UVM-identifier
+  special-casing).  That completes M6.
+
+## State as of 2026-07-14b (session: M6 item 4 — Preponed + Observed regions)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — stacks onto item 1's checkpoint).
+- **This checkpoint**: added the Preponed and Observed regions
+  (`vvp/schedule.cc`, `vvp/schedule.h`).  `SEQ_PREPONED` drains at slot
+  entry before Active (IEEE 4.4.2.1 sampling); `SEQ_OBSERVED` is
+  promoted into active after NBA, before the reactive set (4.4.2.4
+  concurrent-assertion evaluation).  New `event_time_s` queues, switch
+  cases, region names, run_rosync leftover check, and header-exported
+  entry points `schedule_at_preponed` / `schedule_at_observed` for the
+  future SVA/clocking engines.  No consumers yet — this is the
+  foundation.  Ordering proven by the `IVL_REGION_SELFTEST` injection
+  (reverse insert drains Preponed→Active→NBA→Observed→Reactive→Re-NBA→
+  RWSync→ROSync).  Details:
+  `session_logs/2026-07-14_m6_preponed_observed.md`; audit region table
+  + remediation item 4 marked DONE.
+- **Tests**: `tests/m6_region_trace/run_region_trace.sh` extended
+  (part 2 asserts the full self-test region order).
+- **Regressions**: recorded in the checkpoint commit message.
+- **Remaining M6 tail**: item 5 only — replace the `%callf`
+  synchronous-drain assumption with an explicit scheduled-call protocol
+  (largest/riskiest; characterization tests first).
+
+## State as of 2026-07-14 (session: M6 item 1 — event region tagging)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — this checkpoint stacks onto it).
+- **This checkpoint**: first scheduler-remediation priority done.
+  Every `event_s` now carries an IEEE 1800-2017 clause-4 region tag
+  (`event_queue_t region`, stamped by `schedule_event_` /
+  `schedule_event_push_`).  `region_enter_` (env `IVL_REGION_TRACE=1`)
+  prints `REGION @ <time> ps <region>: <event>` at each run site (main
+  active loop, Start drain, ROSync/DelThread drains) — the tag rides on
+  the event so wholesale-promoted events report their TRUE region,
+  making item 2's promotion approximation observable.
+  `region_check_schedule_` asserts the one hard LRM invariant (4.4.2.10:
+  read-only ROSync region may only create ROSync/thread work), warning
+  by default and aborting under `IVL_REGION_ASSERT=1` (audit point 9,
+  previously absent).  All env-gated: no behavior change or overhead in
+  normal runs.  Details:
+  `session_logs/2026-07-14_m6_region_tagging.md`; audit doc remediation
+  item 1 marked DONE.
+- **Tests**: `tests/m6_region_trace/run_region_trace.sh` (new; asserts
+  the trace emits all four regions in stratified order).
+- **Regressions**: recorded in the checkpoint commit message.
+- **Remaining M6 tail**: item 4 (Preponed/Observed regions — SVA/
+  clocking prerequisite; the enum/tag/trace now give it a landing spot
+  and an invariant harness); item 5 (scheduled-call protocol to retire
+  the `%callf` synchronous-drain heuristics — largest/riskiest).
+
+## State as of 2026-07-13h (session: indexed-element container methods)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — this checkpoint stacks onto it).
+- **This checkpoint**: container method calls on INDEXED-ELEMENT
+  receivers (`aq[k].size()`, `qa[i].num()`, `aa[k].exists(x)`,
+  `aq[k].pop_back()`, `qa[i].delete(key)`) were compile-progress
+  stubs (constant 0 / null / silent positional mis-delete).  Three
+  fixes: (1) `elaborate_method_dispatch_` now dispatches on the
+  element type when an indexed receiver's element is itself a
+  container (7.12 applies to any unpacked array expression; the
+  lowering already handles object-stack receivers); (2) the
+  `PECallFunction::test_width` indexed branch mirrors the container
+  method table — previously pop_back/find fell to the class-null stub
+  type and `elab_and_eval` constant-folded the call to 0 in scalar
+  ASSIGNMENT contexts before elaborating (display contexts worked,
+  which hid the bug); (3) keyed delete on assoc elements emits
+  `%aa/delete/<kind>` through the element handle (was positional
+  `%delete/o/elem` — silent no-op).  BONUS general fix: exists()
+  built its result as an all-ones vector on every receiver shape —
+  `aa.exists(k) + 1` evaluated to 0; 7.9.3 requires 1/0 (all four
+  runtime helpers now LSB-only).
+- **Tests**: `tests/g09_elem_methods_test.sv` (32 checks).
+- **Regressions**: recorded in the checkpoint commit message.
+- **Remaining G09 tail**: 3-deep chains; object-valued chained reads
+  in object context; darray (`new[]`) outers in the store2 rewrite.
+
+## State as of 2026-07-13g (session: G09 completion)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — this checkpoint stacks onto it).
+- **This checkpoint** closes the G09 tail:
+  (1) inner ASSOCIATIVE foreach dimensions (12.7.3) — the first/next
+  key descent now works at any dimension depth
+  (`elaborate_assoc_array_` gained `index_var_start`; the counting
+  loop descends into it), so `foreach (aa[k1,k2])` and
+  `foreach (qa[i,k])` iterate;
+  (2) chained keyed reads through POSITIONAL outers
+  (`qa[0]["a"]`) — the eval_vec4/eval_string root-derivation guards
+  accepted only assoc-compat roots; now any queue/darray root
+  supplies the element type (the keyed branch still requires the
+  ELEMENT to be assoc-compat);
+  (3) chained element stores for ALL four outer/inner combinations —
+  `aq[k][i]=v` was a SILENT NO-OP and `qa[i][k]=v` / `qq[i][j]=v`
+  CLOBBERED the row; the `$ivl_assoc$store2` rewrite now fires for
+  any queue-typed outer with container elements (static-array
+  signals excluded) and the lowering picks keyed-viv vs positional
+  outer access and keyed vs positional inner store; NEW opcodes
+  `%store/qo/i/{v,r,str,obj}` (indexed store through an object-stack
+  queue receiver, set_word_max semantics);
+  (4) value semantics (7.6/7.9.9): element stores of container
+  values used to alias the source handle — `container_value_copy_`
+  duplicates darray/queue/assoc values at every object-valued
+  element-store site (class handles still alias; %aa/viv untouched).
+  Details: `session_logs/2026-07-13_g09_completion.md`.
+- **Tests**: `tests/g09_nested_container_test.sv` extended to 34
+  checks (inner-assoc foreach, queue-of-assoc reads/stores, all four
+  store shapes with neighbor preservation, copy semantics).
+- **Regressions**: recorded in the checkpoint commit message.
+- **Remaining G09 tail**: `aq[k].size()` expression-context method
+  stubs; 3-deep chains; object-valued chained reads in object
+  context; darray (`new[]`) outers in the store2 rewrite.
+
+## State as of 2026-07-13f (session: G09 nested dynamic containers)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — this checkpoint stacks onto it).
+- **This checkpoint**: G09 root-caused to THREE layered defects and
+  fixed: (1) unpacked dimension lists composed left-to-right, so
+  `int aq[int][$]` was a queue-of-assoc (7.4.5/20.7 require
+  right-to-left; every mixed nested declaration was silently wrong);
+  (2) `aa[k1][k2] = v` dropped the inner key — now the internal
+  `$ivl_assoc$store2` task + new auto-vivifying `%aa/viv/{sig,o}/{v,str}`
+  opcodes (spec codes 0-7) + keyed stores through the element handle;
+  (3) chained reads lowered positionally — now keyed loads (vec4 +
+  string contexts; net_type derived from the root signal for chained
+  selects).  assoc-of-queue mutation + 2D foreach (uvm_resource_pool
+  shape) and assoc-of-assoc chained stores/reads (report_server/
+  printer/recorder shape) verified.  Inner-assoc foreach dimension:
+  explicit sorry (was silent-0, briefly a hang mid-fix).
+  Details: `session_logs/2026-07-13_g09_nested_containers.md`.
+- **Tests**: `tests/g09_nested_container_test.sv` (15 checks).
+- **Regressions (final, quiet machine)**: UVM **124/124**; ivtest
+  vvp_reg.pl 2961/3101 with failure names byte-identical to baseline;
+  negative 6/6; all focused suites (g10 ×3, g68, g69, m6, g12, m3)
+  PASS.  The WIP commit 55b31fe is hereby promoted — the global
+  dimension-composition change is regression-clean.
+- **Remaining G09 tail**: inner-assoc foreach dimension (first/next
+  descent, key-typed loop vars); `aq[k].size()` expression-context
+  method stubs; 3-deep chains; object-valued chained reads.
+
+## State as of 2026-07-13e (session: 7.12.4 iterator index querying)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — this checkpoint stacks onto it).
+- **This checkpoint**: IEEE 1800-2017 7.12.4 — `item.index` (and the
+  index()/index(1) call forms) now resolves to the enclosing array
+  method's loop counter in all with-expression contexts
+  (find*/reductions/min-max/sort/rsort; custom iterator names;
+  class-property receivers; nested with expressions including outer
+  index from inside inner).  Mechanism: nesting-safe iterator context
+  stack (elab_expr.cc, API in netmisc.h) pushed around predicate
+  elaboration in all four loop builders; PEIdent + PECallFunction
+  interceptions.  dimension != 1 → sorry.  Bonus general fix exposed
+  en route: test_width reported width 0 for reductions used as
+  operands (`q.sum() + 1` evaluated to 0 — operands padded to zero
+  bits); now element width (no with) / int approximation (with).
+  Details: `session_logs/2026-07-13_g10_iter_index.md`.
+- **Tests**: `tests/g10_iter_index_test.sv` (19 checks incl. the
+  7.12.4 LRM literal example `arr.find with (item == item.index)`).
+- **Remaining 7.12 tail**: unique on non-queue receivers;
+  assoc/multidim receivers; fixed-array class properties; ordering on
+  fixed arrays; index on non-zero-based fixed ranges / dimension > 1.
+
+## State as of 2026-07-13d — PR #69 MERGED (424a6bc); branch restarted
+
+- **PR #69 is MERGED and FINAL** (merge commit 424a6bc on main): all
+  five checkpoints (M6 Reactive regions, G10 reductions/min-max, G10
+  property receivers, G68 process.status + G69 inside precedence,
+  7.12.2 ordering methods).  Do not reopen; follow-up work gets a NEW
+  draft PR.
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` restarted
+  from origin/main at 424a6bc (force-with-lease over the
+  already-merged history per protocol).
+- **Next options**: M6 item 1 (region tagging + trace — unlocks exact
+  region-priority popping) or 4 (Preponed/Observed stubs) or 5
+  (scheduled-call protocol); `item.index` (last gap-audit-cited 7.12
+  breakage); G12 tail (with[range], continuous-assign lvalues,
+  struct/class operand flattening); unique on non-queue receivers;
+  G09 (2D assoc foreach); G66.
+
 ## State as of 2026-07-13c (session: 7.12.2 ordering methods)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #69 open,

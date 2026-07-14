@@ -3552,6 +3552,77 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
       if (op_ != 0)
 	    return elaborate_compressed_(des, scope);
 
+	// Chained dynamic-container element store:
+	//   container_of_container[k1][k2] = value
+	// (assoc/queue outer x assoc/queue inner).  The NetAssign_
+	// l-value machinery carries only one word index — the inner
+	// key was previously DROPPED silently (the store degenerated
+	// to `outer[k1] = <null>`, or a silent no-op).  Rewrite as an
+	// internal system task that the code generator lowers to an
+	// element access (auto-vivifying for keyed outers) plus a
+	// store through the element handle.  UVM depends on the
+	// assoc-of-assoc shape (uvm_report_server m_streams,
+	// uvm_printer/recorder m_recur_states).
+      if (gn_system_verilog() && delay_ == 0 && event_ == 0 && count_ == 0) {
+	    const PEIdent*id_lval = dynamic_cast<const PEIdent*>(lval());
+	    if (id_lval && id_lval->path().size() >= 1
+		&& id_lval->path().back().index.size() == 2) {
+		  symbol_search_results sr;
+		  if (symbol_search(this, des, scope, id_lval->path(),
+				    id_lval->lexical_pos(), &sr)
+		      && sr.net && sr.path_tail.empty()) {
+			const netqueue_t*outer =
+			      dynamic_cast<const netqueue_t*>(sr.net->net_type());
+			const netdarray_t*inner = outer
+			      ? dynamic_cast<const netdarray_t*>(outer->element_type())
+			      : 0;
+			const name_component_t&tail = id_lval->path().back();
+			const index_component_t&i1 = tail.index.front();
+			const index_component_t&i2 = tail.index.back();
+			  // A static-array-of-container signal also shows
+			  // two tail indices, but the first selects the
+			  // array word — leave that to the l-value path.
+			if (outer && inner
+			    && sr.net->unpacked_dimensions() == 0
+			    && i1.sel == index_component_t::SEL_BIT
+			    && i1.msb && !i1.lsb
+			    && i2.sel == index_component_t::SEL_BIT
+			    && i2.msb && !i2.lsb) {
+			      NetExpr*k1 = elab_and_eval(des, scope, i1.msb, -1, false);
+			      NetExpr*k2 = elab_and_eval(des, scope, i2.msb, -1, false);
+			      ivl_type_t val_type = inner->element_type();
+			      unsigned val_wid = 0;
+			      if (val_type) {
+				    long pw = val_type->packed_width();
+				    val_wid = (pw > 0) ? (unsigned)pw : 1;
+			      }
+			      NetExpr*val = val_type
+				    ? elaborate_rval_expr(des, scope, val_type,
+							  val_type->base_type(),
+							  val_wid, rval())
+				    : 0;
+			      if (k1 && k2 && val) {
+				    NetESignal*outer_e = new NetESignal(sr.net);
+				    outer_e->set_line(*this);
+				    vector<NetExpr*> argv(4);
+				    argv[0] = outer_e;
+				    argv[1] = k1;
+				    argv[2] = k2;
+				    argv[3] = val;
+				    NetSTask*sys = new NetSTask(
+					  "$ivl_assoc$store2",
+					  IVL_SFUNC_AS_TASK_IGNORE, argv);
+				    sys->set_line(*this);
+				    return sys;
+			      }
+			      delete k1;
+			      delete k2;
+			      delete val;
+			}
+		  }
+	    }
+      }
+
         // SV/UVM compile-progress fallback: class members declared as named
         // events ("event m_event;") resolve as NetEvent objects, but there is
         // no procedural event-handle l-value assignment path yet. Ignore plain
@@ -5931,7 +6002,9 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						    if (pred_pe) {
 							  NetNet*prev_bind =
 								scope->set_signal_alias(iter_name, iter_net);
+							  push_array_method_iter_ctx(iter_net, idx_net);
 							  pred_expr = elab_and_eval(des, scope, pred_pe, -1, false);
+							  pop_array_method_iter_ctx();
 							  scope->restore_signal_alias(iter_name, prev_bind);
 						    }
 						    if (pred_expr) {
@@ -9042,6 +9115,17 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
 	    return 0;
       }
 
+	// An INNER associative dimension iterates by key (first/next),
+	// not by a counting loop: route it to the associative
+	// elaborator (the traversal sfuncs handle non-signal
+	// receivers by evaluating the element handle).
+      if (const netqueue_t*aq =
+		dynamic_cast<const netqueue_t*>(array_expr->net_type())) {
+	    if (aq->assoc_compat())
+		  return elaborate_assoc_array_(des, scope, array_expr,
+						index_var_start);
+      }
+
       if (index_vars_.size() != index_var_start + 1) {
 	    if (gn_system_verilog()) {
 	    } else {
@@ -9116,9 +9200,17 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
 NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 					  NetExpr*array_expr) const
 {
+      return elaborate_assoc_array_(des, scope, array_expr, 0);
+}
+
+NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
+					  NetExpr*array_expr,
+					  size_t index_var_start) const
+{
       ivl_assert(*this, array_expr);
 
-      if (index_vars_.empty() || index_vars_[0].nil()) {
+      if (index_vars_.size() <= index_var_start
+	  || index_vars_[index_var_start].nil()) {
 	    delete array_expr;
 	    cerr << get_fileline() << ": sorry: associative-array foreach"
 	         << " requires a named associative index variable." << endl;
@@ -9127,12 +9219,13 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
       }
 
       pform_name_t index_name;
-      index_name.push_back(name_component_t(index_vars_[0]));
-      NetNet*idx_sig = find_assoc_foreach_index_signal_(des, scope, index_vars_[0]);
+      index_name.push_back(name_component_t(index_vars_[index_var_start]));
+      NetNet*idx_sig = find_assoc_foreach_index_signal_(des, scope,
+							index_vars_[index_var_start]);
       ivl_assert(*this, idx_sig);
 
       NetProc*sub;
-      if (index_vars_.size() > 1) {
+      if (index_vars_.size() > index_var_start + 1) {
 	    NetExpr*elem_expr = make_foreach_array_element_expr_(*this,
 								 array_expr->dup_expr(),
 								 idx_sig);
@@ -9143,7 +9236,8 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
 		       << " (compile-progress: loop body dropped)." << endl;
 		  return 0;
 	    }
-	    sub = elaborate_runtime_array_(des, scope, elem_expr, 1);
+	    sub = elaborate_runtime_array_(des, scope, elem_expr,
+					   index_var_start + 1);
 	    if (!sub) {
 		  delete array_expr;
 		  return 0;

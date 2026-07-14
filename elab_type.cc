@@ -1114,8 +1114,15 @@ ivl_type_t elaborate_array_type(Design *des, NetScope *scope,
 
       ivl_type_t type = base_type;
 
-      for (list<pform_range_t>::const_iterator cur = dims.begin();
-	   cur != dims.end() ; ++cur) {
+	// IEEE 1800-2017 7.4.5 / 20.7: the rightmost unpacked dimension
+	// varies most rapidly, so it is the INNERMOST constructed type.
+	// Compose right-to-left so mixed dimension lists nest correctly
+	// (`int aq[int][$]` is an associative array of int queues, not
+	// a queue of associative arrays).  Runs of contiguous static
+	// dimensions collapse into one unpacked-array type, preserving
+	// their source order.
+      for (list<pform_range_t>::const_reverse_iterator cur = dims.rbegin();
+	   cur != dims.rend() ; ++cur) {
 	    PExpr *lidx = cur->first;
 	    PExpr *ridx = cur->second;
 
@@ -1150,7 +1157,10 @@ ivl_type_t elaborate_array_type(Design *des, NetScope *scope,
 		       << endl;
 	    }
 
-	    dimensions.push_back(netrange_t(index_l, index_r));
+	      // Reverse iteration delivers static dims innermost-first;
+	      // re-insert at the front to keep the source order inside
+	      // the collapsed unpacked-array type.
+	    dimensions.insert(dimensions.begin(), netrange_t(index_l, index_r));
       }
 
       return elaborate_static_array_type(des, li, type, dimensions);

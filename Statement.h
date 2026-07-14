@@ -595,6 +595,9 @@ class PForeach : public Statement {
 
     private:
       NetProc* elaborate_assoc_array_(Design*des, NetScope*scope,
+				      NetExpr*array_expr,
+				      size_t index_var_start) const;
+      NetProc* elaborate_assoc_array_(Design*des, NetScope*scope,
 				      NetExpr*array_expr) const;
       NetProc* elaborate_runtime_array_(Design*des, NetScope*scope,
 					NetExpr*array_expr) const;

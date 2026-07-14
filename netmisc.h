@@ -341,6 +341,14 @@ extern unsigned count_lval_width(const class NetAssign_*first);
  */
 class PExpr;
 
+/* IEEE 1800-2017 7.12.4 iterator index querying: while an array
+ * method's with expression elaborates, register the iterator net and
+ * the loop-counter net so `item.index` resolves to the element index.
+ * Nesting-safe (a stack).  Defined in elab_expr.cc. */
+extern void push_array_method_iter_ctx(const NetNet*iter_net, NetNet*idx_net);
+extern void pop_array_method_iter_ctx(void);
+extern NetNet* find_array_method_iter_index(const NetNet*iter_net);
+
 extern NetExpr* elab_and_eval(Design*des, NetScope*scope,
 			      PExpr*pe, int context_width,
                               bool need_const =false,

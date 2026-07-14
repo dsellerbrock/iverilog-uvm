@@ -92,6 +92,45 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: synchronization patterns.
 
 ### G09 `foreach (aa[k1, k2])` over assoc-of-assoc body never executes
+- **STATUS 2026-07-13 (2nd checkpoint): FIXED** — the completion
+  checkpoint (`session_logs/2026-07-13_g09_completion.md`) closed the
+  recorded tail: inner ASSOCIATIVE foreach dimensions now use the
+  first/next key descent at any depth (`foreach (aa[k1,k2])` and
+  `foreach (qa[i,k])` iterate); chained keyed reads work through
+  POSITIONAL outers (`qa[0]["a"]`, string and vec4 contexts);
+  chained element stores work for all four outer/inner shape
+  combinations (`aq[k][i]=v` was a silent no-op, `qa[i][k]=v` /
+  `qq[i][j]=v` clobbered the row — new `%store/qo/i/*` opcodes);
+  element stores of container values now COPY per 7.6/7.9.9
+  (previously aliased the source handle; class handles still alias).
+  Test extended to 34 checks.  Still-open sub-items tracked below.
+- **STATUS 2026-07-13: LARGELY FIXED** (three layered root causes; see
+  `session_logs/2026-07-13_g09_nested_containers.md`):
+  (1) mixed unpacked dimension lists composed left-to-right —
+  `int aq[int][$]` built a queue-of-assoc instead of an assoc-of-queues
+  (IEEE 1800-2017 7.4.5/20.7); now composed right-to-left;
+  (2) chained element stores `aa[k1][k2] = v` silently dropped the
+  inner key (UVM report_server/printer/recorder shape) — now rewritten
+  to the internal `$ivl_assoc$store2` task lowered via the new
+  auto-vivifying `%aa/viv/*` opcodes + keyed stores through the element
+  handle; (3) chained reads mis-lowered positionally — now keyed
+  `%aa/load/{v,str}` through the handle.  assoc-of-queue 2D foreach
+  (the uvm_resource_pool::sort_by_precedence shape) and queue-of-queue
+  2D foreach now work; `aq[k].push_back/push_front` auto-vivify.
+  Test `tests/g09_nested_container_test.sv` (15 checks).
+- **STATUS 2026-07-13 (3rd checkpoint)**: indexed-element method
+  calls FIXED (`session_logs/2026-07-13_g09_elem_methods.md`) —
+  size/num/sum/exists/traversal/pop/find/min/max/sort/delete on
+  `aq[k]` / `qa[i]` receivers dispatch through the element type in
+  both expression and statement contexts (the assignment-context
+  divergence was a test_width class-null bailout that constant-folded
+  the call before elaboration); keyed delete on assoc elements
+  erases the key instead of positionally mis-deleting.  Bonus general
+  fix: exists() returned an all-ones vector instead of 1 (7.9.3) on
+  ALL receiver shapes.  Test `tests/g09_elem_methods_test.sv` (32).
+- Remaining tail: 3-deep chains (%aa/viv/o/* runtime exists, codegen
+  unreferenced); object-valued chained reads in object context;
+  darray (`new[]`) outers in the store2 rewrite.
 - Symptom: comma-form foreach iterates 0 times even when both inner assocs have entries (`total=0` instead of 33). Bracket form gets a syntax error.
 - Probe: p15_foreach_assoc_2d (VERIFIED-FAILS), p15b_foreach_assoc_brack (VERIFIED-FAILS, syntax error).
 - Location: parse.y foreach loop handler + elaborate.cc:8753 has a `sorry: associative-array foreach` that may be hit on multi-dim shapes.
@@ -144,12 +183,29 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   iterator-net scheme — now fresh per-call nets bound via
   NetScope::set_signal_alias.  Test
   `tests/g10_ordering_methods_test.sv` (28 checks).
+- **UPDATE 2026-07-13c: 7.12.4 iterator index querying FIXED** —
+  `item.index` / `item.index()` / `item.index(1)` inside any array
+  method's with expression (find*/reductions/min-max/sort/rsort)
+  resolves to the loop counter via a nesting-safe iterator context
+  stack pushed around predicate elaboration
+  (push/pop/find_array_method_iter_ctx in elab_expr.cc, declared in
+  netmisc.h); works with custom iterator names, class-property
+  receivers, and outer-iterator index references from inside nested
+  with expressions.  dimension != 1 is an explicit sorry.  The fix
+  also required (and pins) a broader test_width repair: array
+  reduction methods used as OPERANDS previously computed context
+  width 0 — `q.sum() + 1` padded its operands to zero bits and the
+  whole expression evaluated to 0; test_width now reports the element
+  type (no with) or a widening int approximation (with present).
+  Test `tests/g10_iter_index_test.sv` (19 checks incl. the 7.12.4 LRM
+  literal example).
 - Remaining tail (explicit diagnostics, no silent fallbacks):
   `unique`/`unique_index` on non-queue arrays; reductions/min/max on
   associative arrays (sorry) and multidimensional arrays (sorry);
-  `min`/`max` on string/real elements (sorry); `item.index` iterator
-  method; fixed-size-array class properties (sorry); ordering methods
-  on fixed-size arrays.
+  `min`/`max` on string/real elements (sorry); fixed-size-array class
+  properties (sorry); ordering methods on fixed-size arrays;
+  `item.index` on fixed arrays with non-zero-based declared ranges
+  (loop counters are canonical 0-based) and dimension > 1.
 - Symptom: `q.sum()` reports `error: Method sum is not a queue method.` Same for product. Probe got `Variable item does not have a field named: index.` for `with (item.index)`. The Phase-63b B-series only added some shapes.
 - Probe: p16_queue_with (VERIFIED-FAILS), p30_array_methods (VERIFIED-FAILS for .min/.max/.sort on non-queue), p87_unique_index (PASS for queue).
 - Location: elab_expr.cc:8857-8911 (sorry: cluster for non-queue array methods); also `with (item.index)` codepath separately broken in elab_expr.cc.
@@ -690,6 +746,25 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks (pre-fix): any process::self()/kill() pattern — UVM phasing,
   sequencer arbitration watchers, process guards — failing
   nondeterministically across otherwise-unrelated compiler changes.
+
+### G70 (NEW 2026-07-14) `succ[iter].get_parent()` — indexed-element class-method call on a queue emits "not a dynamic array method"
+- **STATUS: latent, non-fatal (compile-progress continues).** Observed
+  while running the M6 item-5 characterization suite under the UVM
+  harness: `uvm_component.svh:2490`
+  (`m_get_adjacent...`, `succ[iter].get_parent() != domain`) emits
+  `error: Method get_parent is not a dynamic array method.`  The
+  indexed-element method dispatch mis-routes a class-method call on a
+  queue element into the darray-method path.  NOT a regression — appears
+  identically (2×) for every UVM test that elaborates this method
+  (verified against the known-passing `vif_smoke`), present at every
+  125/125 checkpoint; compile-progress emits the diagnostic and
+  continues, and the affected method is not executed on these tests'
+  paths so they still PASS.  Distinct from the (fixed) indexed-element
+  CONTAINER method work (checkpoint 4): here the element is a class
+  handle, so the dispatch should route to class-method lookup, not
+  container methods.  Candidate for a focused elaboration session
+  (likely the inferred element type of `get_adjacent_successor_nodes`'s
+  output queue).  Layer: elaboration.  Complexity: medium.
 
 # Confirmed-working baselines (not gaps; recorded for diff against future regressions)
 
