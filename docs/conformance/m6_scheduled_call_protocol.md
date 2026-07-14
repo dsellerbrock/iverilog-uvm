@@ -105,16 +105,31 @@ with the thread, so the trace will show call/return staying in-region.
 
 ## 5. Migration plan (incremental, each a regression-clean checkpoint)
 
-1. **(this checkpoint)** characterization suite + this design — done.
-2. Introduce the scheduled-call path behind an env flag
-   (`IVL_SCHED_CALLF`), defaulting OFF, exercised only by the
-   characterization suite; keep `do_callf_void` as the default.
-3. Bring the scheduled path to parity on the characterization suite,
-   then on the focused M6 suites.
+1. **DONE** — characterization suite + this design.
+2. **DONE 2026-07-14** — scheduled-call path landed behind
+   `IVL_SCHED_CALLF` (default OFF).  In `do_callf_void`, once the callee
+   frame and its automatic context are set up, the scheduled branch
+   schedules the callee to the front of the Active region and returns
+   false to suspend the caller; the callee's `%ret` fills the caller's
+   return slot (the caller is frozen, so its stack is stable) and its
+   `%end` resumes the caller through the existing
+   `of_END` -> `resume_joining_parent_` -> `do_join` join machinery
+   (which already mirrors output/ref args and reaps callf children).
+   The whole characterization suite (all 15 checks incl. recursion,
+   chained methods, output/ref args, fork interaction) passes under the
+   flag; `vif_smoke` (a UVM test) also passes under the flag with zero
+   errors — a promising parity signal.  Flag OFF is byte-identical to
+   the synchronous model.
+3. Bring the scheduled path to parity on the full focused-M6 + a
+   representative UVM subset under the flag; characterize any divergence
+   (the `resume_joining_parent_` `i_am_in_function` branch still resumes
+   a nested caller synchronously — acceptable for correctness, to be
+   made fully async here).
 4. Flip the default to the scheduled path; run the full UVM + ivtest
    battery; keep the synchronous path as a one-release fallback.
-5. Delete `do_callf_void` and all the staging/limit/UVM-name heuristics
-   once the scheduled path is baseline-clean.
+5. Delete `do_callf_void`'s synchronous drain loops and all the
+   staging/limit/UVM-name heuristics once the scheduled path is
+   baseline-clean.
 
 Each step gates on UVM 125/125 + ivtest failure-name parity before the
 next; step 4 is the highest-risk flip and gets its own checkpoint.

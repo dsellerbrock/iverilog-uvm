@@ -4993,6 +4993,25 @@ static bool callf_trace_enabled_()
       return enabled != 0;
 }
 
+/*
+ * M6 remediation item 5, migration step 2: gate the scheduled-call
+ * protocol.  When IVL_SCHED_CALLF is set, a %callf schedules the callee
+ * as a normal Active-region thread and suspends the caller instead of
+ * running the callee synchronously inside the caller's opcode dispatch.
+ * Default OFF: the synchronous do_callf_void path is unchanged, so
+ * production behavior and every regression are byte-identical.  See
+ * docs/conformance/m6_scheduled_call_protocol.md.
+ */
+static bool sched_callf_enabled_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_SCHED_CALLF");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled != 0;
+}
+
 static bool virtual_dispatch_trace_enabled_()
 {
       static int enabled = -1;
@@ -5810,12 +5829,41 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
         // This should be the only child
       assert(thr->children.size()==1);
 
-        // Execute the function. This SHOULD run the function to completion,
-        // but there are some exceptional situations where it won't.
       assert(child->parent_scope->get_type_code() == vpiFunction);
+
+        /* Scheduled-call protocol (M6 item 5, step 2, IVL_SCHED_CALLF):
+         * hand the callee to the scheduler as an Active-region thread
+         * (pushed to the front so it runs next, matching the
+         * synchronous model's zero-time semantics) and SUSPEND the
+         * caller.  The caller's return placeholder is already on its
+         * stack and %ret targets child->parent (the caller), so the
+         * value lands while the caller is frozen.  On %end, of_END sees
+         * the caller's i_am_joining flag and resumes it via the
+         * existing join machinery (resume_joining_parent_ -> do_join),
+         * which mirrors output/ref args and reaps the callee.  Returning
+         * false pauses the caller; its PC already points past the
+         * %callf, so it resumes at the next opcode with the filled
+         * return value.  schedule_vthread owns is_scheduled, so it is
+         * not pre-set here. */
+      if (sched_callf_enabled_()) {
+            child->i_am_in_function = 1;
+            child->delay_delete = 1;
+            thr->i_am_joining = 1;
+              /* The scheduled callee unwinds through the scheduler, not
+               * this C++ frame, so drop the synchronous-recursion
+               * bookkeeping taken on entry. */
+            callf_scope_stack.pop_back();
+            callf_depth--;
+            schedule_vthread(child, 0, true);
+            return false;
+      }
+
       child->is_scheduled = 1;
       child->i_am_in_function = 1;
       child->delay_delete = 1;
+
+        // Execute the function. This SHOULD run the function to completion,
+        // but there are some exceptional situations where it won't.
       vthread_run(child);
       running_thread = thr;
       {

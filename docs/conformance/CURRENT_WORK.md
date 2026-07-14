@@ -3,6 +3,31 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-14d (session: M6 item 5 step 2 — scheduled-call path behind a flag)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — stacks onto the item-5 characterization checkpoint).
+- **This checkpoint**: implemented the scheduled-call protocol behind
+  `IVL_SCHED_CALLF` (default OFF).  In `do_callf_void`
+  (`vvp/vthread.cc`), once the callee frame + automatic context are set
+  up, the scheduled branch schedules the callee to the front of the
+  Active region and returns false to suspend the caller; the callee's
+  `%ret` fills the caller's frozen return slot and its `%end` resumes
+  the caller through the existing `of_END` ->
+  `resume_joining_parent_` -> `do_join` join machinery (output/ref
+  mirroring + reap reused unchanged).  `sched_callf_enabled_()` gates
+  it; flag OFF is byte-identical to the synchronous model.  The full
+  characterization suite passes under the flag, and `vif_smoke` (a UVM
+  test) also passes under the flag with zero errors.  Details:
+  `session_logs/2026-07-14_m6_scheduled_callf_step2.md`; protocol doc
+  migration plan step 2 marked DONE.
+- **Regressions**: flag-OFF battery recorded in the checkpoint commit.
+- **Remaining item-5 steps**: 3 (full focused-M6 + UVM-subset parity
+  under the flag; make the nested-caller resume fully async), 4 (flip
+  the default — its own checkpoint), 5 (delete the synchronous drain
+  loops + per-callsite/edge/scope/depth limits + UVM-identifier
+  special-casing).  That completes M6.
+
 ## State as of 2026-07-14b (session: M6 item 4 — Preponed + Observed regions)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
