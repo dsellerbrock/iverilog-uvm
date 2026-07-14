@@ -92,14 +92,31 @@ general watchdog.  This is the full realization of step 5.
 
 ## 4. Increment sequence (each regression-clean)
 
-1. **(this checkpoint)** Remove UVM-identifier special-casing: unify
-   site/scope/depth limits to name-agnostic constants; retire dead
-   mechanism (c).  Gated on UVM 127/127 + ivtest baseline-identical.
-2. Trampoline the call (3b) behind a flag; bring to parity on the
-   characterization + atomicity suites, then the full battery.
-3. Flip to the trampoline; delete the drain loops + staging.
-4. Delete the now-unused limit maps and the depth backstops (kept only
-   as the single watchdog).
+1. **DONE** — Remove UVM-identifier special-casing: unified
+   site/scope/depth limits to name-agnostic constants; retired dead
+   mechanism (c).  UVM 127/127 + ivtest baseline-identical.
+2. **DONE 2026-07-14** — Trampoline the call (3b) behind
+   `IVL_TRAMPOLINE_CALLF` (default OFF).  `%callf` switches the
+   `vthread_run` inner loop to the callee frame and back on the callee's
+   end (any end opcode — detected by `rc==false && is_trampoline_child
+   && i_have_ended`), reaping via `do_join` (output/ref mirroring +
+   context reconciliation).  No recursive `vthread_run`, so C++ stack
+   depth is bounded by the loop, not the SV call depth.
+   **Result**: under the flag, the WHOLE battery reaches parity — UVM
+   **127/127** and ivtest failure names **byte-identical** to baseline
+   (incl. `pr2001162`/`pr2053944`, which the scheduled path FAILED) —
+   and the atomicity suite PASSES (which the scheduled path failed).
+   The trampoline is therefore the viable replacement: it preserves
+   function-call atomicity AND removes the C++-stack constraint.  Known
+   limitation: `do_join`'s automatic-context reconciliation is O(depth),
+   so recursion beyond a few thousand frames is slow (O(depth²)) — still
+   deeper than the synchronous model's 4096 cap; a perf follow-up.
+3. **NEXT** — Flip the default to the trampoline (its own checkpoint,
+   the highest-risk change); then delete the three synchronous drain
+   loops + the automatic-context staging in `do_callf_void`.
+4. Delete the now-unused limit maps and the depth backstops (the
+   trampoline needs only the single `TRAMPOLINE_MAX_DEPTH` runaway
+   guard, or the scheduler's zero-time watchdog).
 
 Each step preserves the atomicity invariant
 (`tests/m6_call_atomicity_test.sv`) and the call semantics
