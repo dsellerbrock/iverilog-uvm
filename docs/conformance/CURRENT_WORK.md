@@ -3,10 +3,30 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-14j — PR #73 MERGED (5c05f93); branch restarted
+
+- **PR #73 is MERGED and FINAL** (merge commit 5c05f93 on main): the
+  entire M8-entry checkpoint below (G01/G02 clocking blocks in
+  module/program scope, default-clocking registration, 14.4 skew
+  syntax, procedural ##N cycle delays, netmisc.cc helper unification).
+  Do not reopen; follow-up work gets a NEW draft PR.
+- **Branch**: `claude/ieee1800-uvm-implementation-tt3pll` restarted
+  from origin/main at 5c05f93 (force-with-lease over the
+  already-merged history per protocol; this docs note rides on it).
+- **Next engineering target (M8 increment 2)**: real clocking
+  semantics — input sampling (#1step via 1-deep value/timestamp
+  history = Preponed value; #0 via schedule_at_observed) and
+  synchronous output drives (Re-NBA), replacing the alias rewrites in
+  netmisc.cc for all scopes at once; then `cb.sig <= ##N v` drives.
+  Characterization anchor: tests/g01_module_clocking_test.sv pins the
+  alias behavior. Alternatives: G05/G06 (SVA, M9 entry);
+  clocking_decl_assign; global clocking (14.14).
+
 ## State as of 2026-07-14i (session: M8 entry — G01/G02 clocking blocks + ##N)
 
 - **Branch**: `claude/ieee1800-uvm-implementation-tt3pll` (fresh from
-  merged main at fb79080 after PR #72; new draft PR for this work).
+  merged main at fb79080 after PR #72; new draft PR for this work —
+  became PR #73, MERGED, see 2026-07-14j above).
 - **This checkpoint** opens M8 at the gap-audit entry point:
   - **G01 FIXED**: `clocking ... endclocking` in a module no longer
     crashes (was: error + pform.cc is_interface assertion + core dump);
