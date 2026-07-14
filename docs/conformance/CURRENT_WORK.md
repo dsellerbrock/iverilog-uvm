@@ -3,6 +3,33 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-14 (session: M6 item 1 — event region tagging)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
+  draft — this checkpoint stacks onto it).
+- **This checkpoint**: first scheduler-remediation priority done.
+  Every `event_s` now carries an IEEE 1800-2017 clause-4 region tag
+  (`event_queue_t region`, stamped by `schedule_event_` /
+  `schedule_event_push_`).  `region_enter_` (env `IVL_REGION_TRACE=1`)
+  prints `REGION @ <time> ps <region>: <event>` at each run site (main
+  active loop, Start drain, ROSync/DelThread drains) — the tag rides on
+  the event so wholesale-promoted events report their TRUE region,
+  making item 2's promotion approximation observable.
+  `region_check_schedule_` asserts the one hard LRM invariant (4.4.2.10:
+  read-only ROSync region may only create ROSync/thread work), warning
+  by default and aborting under `IVL_REGION_ASSERT=1` (audit point 9,
+  previously absent).  All env-gated: no behavior change or overhead in
+  normal runs.  Details:
+  `session_logs/2026-07-14_m6_region_tagging.md`; audit doc remediation
+  item 1 marked DONE.
+- **Tests**: `tests/m6_region_trace/run_region_trace.sh` (new; asserts
+  the trace emits all four regions in stratified order).
+- **Regressions**: recorded in the checkpoint commit message.
+- **Remaining M6 tail**: item 4 (Preponed/Observed regions — SVA/
+  clocking prerequisite; the enum/tag/trace now give it a landing spot
+  and an invariant harness); item 5 (scheduled-call protocol to retire
+  the `%callf` synchronous-drain heuristics — largest/riskiest).
+
 ## State as of 2026-07-13h (session: indexed-element container methods)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,

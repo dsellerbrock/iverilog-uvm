@@ -28,6 +28,7 @@
 # include  <typeinfo>
 # include  <csignal>
 # include  <cstdlib>
+# include  <cstring>
 # include  <cassert>
 # include  <iostream>
 #ifdef CHECK_WITH_VALGRIND
@@ -43,7 +44,25 @@ unsigned long count_thread_events = 0;
   // Count the time events (A time cell created)
 unsigned long count_time_events = 0;
 
+  // Current simulation time (defined early so the region-tagging
+  // helpers below can report it).
+static vvp_time64_t schedule_time;
 
+
+
+/*
+ * Scheduler event regions (IEEE 1800-2017 clause 4.4.2 stratified
+ * event queue).  The enum order is the drain/promotion order within a
+ * time slot: Start, then the design region loop (Active, Inactive,
+ * NBA), then the reactive region loop (Reactive, Re-Inactive, Re-NBA),
+ * then Pre-Postponed (RWSync) and Postponed (ROSync), with thread
+ * reaping last.  schedule_event_ stamps each event with its region so
+ * the run loop can trace region sequencing and enforce region-transition
+ * invariants (M6 remediation item 1).
+ */
+typedef enum event_queue_e { SEQ_START, SEQ_ACTIVE, SEQ_INACTIVE, SEQ_NBASSIGN,
+			     SEQ_REACTIVE, SEQ_RE_INACTIVE, SEQ_RE_NBASSIGN,
+			     SEQ_RWSYNC, SEQ_ROSYNC, DEL_THREAD } event_queue_t;
 
 /*
  * The event_s and event_time_s structures implement the Verilog
@@ -57,6 +76,10 @@ unsigned long count_time_events = 0;
  */
 struct event_s {
       struct event_s*next;
+	// IEEE 1800-2017 4.4.2 region this event was scheduled into.
+	// Stamped by schedule_event_ / schedule_event_push_; used by
+	// the run loop for region tracing and transition invariants.
+      event_queue_t region = SEQ_ACTIVE;
       virtual ~event_s() { }
       virtual void run_run(void) =0;
 
@@ -696,18 +719,118 @@ static void schedule_final_event(struct event_s*cur)
 }
 
 /*
+ * Region tagging / tracing support (M6 remediation item 1).  All three
+ * are env-gated so there is no overhead in normal runs.
+ *
+ *   IVL_REGION_TRACE=1  print "REGION @ <time> ps <region>: <event>" as
+ *                       each event runs, making the stratified drain
+ *                       order (and the wholesale-promotion approximation
+ *                       noted for the reactive regions) directly
+ *                       observable.
+ *   IVL_REGION_ASSERT=1 abort on an illegal region transition instead of
+ *                       only warning (audit point 9: invariants/debug
+ *                       assertions for illegal transitions).
+ */
+static const char* region_name_(event_queue_t r)
+{
+      switch (r) {
+	  case SEQ_START:       return "Start";
+	  case SEQ_ACTIVE:      return "Active";
+	  case SEQ_INACTIVE:    return "Inactive";
+	  case SEQ_NBASSIGN:    return "NBA";
+	  case SEQ_REACTIVE:    return "Reactive";
+	  case SEQ_RE_INACTIVE: return "Re-Inactive";
+	  case SEQ_RE_NBASSIGN: return "Re-NBA";
+	  case SEQ_RWSYNC:      return "RWSync";
+	  case SEQ_ROSYNC:      return "ROSync";
+	  case DEL_THREAD:      return "DelThread";
+      }
+      return "?";
+}
+
+static int region_trace_enabled_(void)
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+	    const char*env = getenv("IVL_REGION_TRACE");
+	    enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled;
+}
+
+static int region_assert_enabled_(void)
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+	    const char*env = getenv("IVL_REGION_ASSERT");
+	    enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled;
+}
+
+/*
+ * The region currently being drained by the run loop (SEQ_START before
+ * simulation and between time slots).  Used to detect illegal
+ * region-transition scheduling — specifically a Postponed (read-only
+ * ROSync) event that tries to create a write/thread event, which the
+ * LRM forbids (4.4.2.10).
+ */
+static event_queue_t sched_current_region = SEQ_START;
+
+static void region_check_schedule_(event_queue_t target, vvp_time64_t delay)
+{
+	// Only same-slot (delay==0) transitions are region-ordered; a
+	// delayed event belongs to a future slot's regions.
+      if (delay != 0)
+	    return;
+      if (sched_current_region != SEQ_ROSYNC)
+	    return;
+	// A Postponed-region callback may only create more Postponed
+	// work or thread reaping; anything else is an illegal write from
+	// the read-only region.
+      if (target == SEQ_ROSYNC || target == DEL_THREAD)
+	    return;
+
+      cerr << "SCHEDULER ERROR: Postponed (ROSync) region event created a "
+	   << region_name_(target) << " event at time " << schedule_time
+	   << " (IEEE 1800-2017 4.4.2.10 forbids writes in the read-only "
+	      "region)." << endl;
+      if (region_assert_enabled_())
+	    assert(0 && "illegal region transition from ROSync");
+}
+
+/*
+ * Called immediately before an event runs: records the region now
+ * being drained (so region_check_schedule_ can validate events the
+ * running event creates) and, when tracing is enabled, prints the
+ * event's true region.  The tag travels with the event, so an event
+ * promoted wholesale into the active queue (e.g. from Inactive or a
+ * reactive region) still reports the region it was scheduled into —
+ * which is exactly the visibility M6 item 1 provides into the
+ * wholesale-promotion approximation.
+ */
+static inline void region_enter_(struct event_s*cur)
+{
+      sched_current_region = cur->region;
+      if (region_trace_enabled_()) {
+	    cerr << "REGION @ " << schedule_time << " ps "
+		 << region_name_(cur->region) << ": ";
+	    cur->single_step_display();
+      }
+}
+
+/*
  * This function does all the hard work of putting an event into the
  * event queue. The event delay is taken from the event structure
  * itself, and the structure is placed in the right place in the
  * queue.
  */
-typedef enum event_queue_e { SEQ_START, SEQ_ACTIVE, SEQ_INACTIVE, SEQ_NBASSIGN,
-			     SEQ_REACTIVE, SEQ_RE_INACTIVE, SEQ_RE_NBASSIGN,
-			     SEQ_RWSYNC, SEQ_ROSYNC, DEL_THREAD } event_queue_t;
-
 static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 			    event_queue_t select_queue)
 {
+      cur->region = select_queue;
+      region_check_schedule_(select_queue, delay);
+
       cur->next = cur;
       struct event_time_s*ctim = sched_list;
 
@@ -823,6 +946,8 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 
 static void schedule_event_push_(struct event_s*cur)
 {
+      cur->region = SEQ_ACTIVE;
+
       if ((sched_list == 0) || (sched_list->delay > 0)) {
 	    schedule_event_(cur, 0, SEQ_ACTIVE);
 	    return;
@@ -1108,7 +1233,6 @@ void schedule_at_end_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay)
       schedule_event_(cur, delay, SEQ_RWSYNC);
 }
 
-static vvp_time64_t schedule_time;
 vvp_time64_t schedule_simtime(void)
 { return schedule_time; }
 
@@ -1137,11 +1261,13 @@ static void run_rosync(struct event_time_s*ctim)
 		  ctim->rosync->next = cur->next;
 	    }
 
+	    region_enter_(cur);
 	    cur->run_run();
 	    delete cur;
       }
       sim_at_rosync = false;
 
+      sched_current_region = DEL_THREAD;
       while (ctim->del_thr) {
 	    struct event_s*cur = ctim->del_thr->next;
 	    if (cur->next == cur) {
@@ -1150,9 +1276,11 @@ static void run_rosync(struct event_time_s*ctim)
 		  ctim->del_thr->next = cur->next;
 	    }
 
+	    region_enter_(cur);
 	    cur->run_run();
 	    delete cur;
       }
+      sched_current_region = SEQ_START;
 
       if (ctim->active || ctim->inactive || ctim->nbassign
 	  || ctim->reactive || ctim->re_inactive || ctim->re_nbassign
@@ -1290,6 +1418,7 @@ void schedule_simulate(void)
 			} else {
 			      ctim->start->next = cur->next;
 			}
+			region_enter_(cur);
 			cur->run_run();
 			delete (cur);
 		  }
@@ -1358,10 +1487,12 @@ void schedule_simulate(void)
 		  schedule_single_step_flag = false;
 	    }
 
+	    region_enter_(cur);
 	    cur->run_run();
 
 	    delete (cur);
       }
+      sched_current_region = SEQ_START;
 
       if (schedule_runnable && !sched_list)
             vthread_dump_live_threads("scheduler-quiesce");

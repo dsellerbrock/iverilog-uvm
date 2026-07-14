@@ -117,8 +117,23 @@ restructuring.
 
 ## Remediation priorities (for M6 implementation, in order)
 
-1. Introduce region tagging on events (enum already exists:
-   `event_queue_e`) + optional trace hook (time, delta, region, event).
+1. **DONE 2026-07-14**: region tagging on events + trace hook +
+   transition invariant.  Every `event_s` now carries an
+   `event_queue_t region` stamped by `schedule_event_` /
+   `schedule_event_push_`; `region_enter_` records the region being
+   drained and (under `IVL_REGION_TRACE=1`) prints
+   `REGION @ <time> ps <region>: <event>` as each event runs.  Because
+   the tag travels with the event, an event promoted wholesale into the
+   `active` queue (from Inactive or a reactive region) still reports its
+   TRUE region — making the wholesale-promotion approximation from item
+   2 directly observable.  `region_check_schedule_` enforces the one
+   unambiguous LRM region-transition invariant (4.4.2.10: a Postponed /
+   read-only ROSync event may only create ROSync or thread-reap work);
+   it warns by default and aborts under `IVL_REGION_ASSERT=1` (audit
+   point 9: illegal-transition assertions, previously ABSENT).  Verified
+   trace order Active→Inactive→NBA→ROSync with `$display` observing
+   pre-NBA and `$strobe` post-NBA.  Test:
+   `tests/m6_region_trace/run_region_trace.sh`.
 2. **DONE 2026-07-12**: Reactive/Re-Inactive/Re-NBA queues added and
    program-block processes routed there (per-thread reactive flag from
    the vpiProgram scope chain, inherited by spawned children; wake
