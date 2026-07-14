@@ -5067,20 +5067,26 @@ static bool sched_callf_enabled_()
 }
 
 /*
- * M6 item 5 rearchitecture, increment 2: trampolined synchronous call.
- * Under IVL_TRAMPOLINE_CALLF, a %callf does not recurse into
- * vthread_run(child); instead the caller's vthread_run loop switches to
- * the callee frame and back, so the call runs synchronously (atomicity
- * preserved) WITHOUT consuming C++ stack per SV call depth.  Default
- * OFF: the synchronous do_callf_void path is unchanged.  See
- * docs/conformance/m6_callf_rearchitecture.md.
+ * M6 item 5 rearchitecture: trampolined synchronous call.  A %callf does
+ * not recurse into vthread_run(child); instead the caller's vthread_run
+ * loop switches to the callee frame and back, so the call runs
+ * synchronously (function-call atomicity preserved, IEEE 1800-2017
+ * 13.4.3) WITHOUT consuming C++ stack per SV call depth.
+ *
+ * Increment 3 (2026-07-14): this is now the DEFAULT.  It reached full
+ * parity behind the flag (UVM 127/127 + ivtest failure names
+ * byte-identical to baseline, atomicity suite passing).  Set
+ * IVL_TRAMPOLINE_CALLF=0 to fall back to the synchronous do_callf_void
+ * path for one release.  See docs/conformance/m6_callf_rearchitecture.md.
  */
 static bool trampoline_callf_enabled_()
 {
       static int enabled = -1;
       if (enabled < 0) {
             const char*env = getenv("IVL_TRAMPOLINE_CALLF");
-            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+              // Default ON; only an explicit "0" selects the legacy
+              // synchronous fallback.
+            enabled = (env && strcmp(env, "0") == 0) ? 0 : 1;
       }
       return enabled != 0;
 }
