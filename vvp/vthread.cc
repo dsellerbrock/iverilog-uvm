@@ -489,6 +489,10 @@ struct vthread_s {
       unsigned pending_nonlocal_jmp :1;
       unsigned is_callf_child    :1;
       unsigned is_fork_v_child   :1;
+	/* M6 item 5 trampoline: this callf callee is driven by the
+	   vthread_run trampoline (no recursive vthread_run), not the
+	   synchronous do_callf_void loop.  Set under IVL_TRAMPOLINE_CALLF. */
+      unsigned is_trampoline_child :1;
 	/* Program-block process (IEEE 1800-2017 clause 24): scheduled
 	   in the Reactive region set.  Set at creation from the scope
 	   chain and inherited by spawned children. */
@@ -811,6 +815,14 @@ static string filter_string(const char*text)
 
 static bool do_disable(vthread_t thr, vthread_t match);
 static void do_join(vthread_t thr, vthread_t child);
+
+/* Trampolined-call state (M6 item 5, increment 2).  Declared here so the
+ * vthread_run inner loop and do_callf_void/of_END all see it.  Only ever
+ * set when IVL_TRAMPOLINE_CALLF is on, so the loop's null-check is a
+ * no-op by default. */
+static std::vector<vthread_t> trampoline_call_stack;   // callers to return to
+static vthread_t trampoline_switch_to = 0;             // next frame for the loop
+static const size_t TRAMPOLINE_MAX_DEPTH = 1u << 20;   // zero-time runaway backstop
 
 __vpiScope* vthread_scope(struct vthread_s*thr)
 {
@@ -2870,6 +2882,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->pending_nonlocal_jmp = 0;
       thr->is_callf_child = 0;
       thr->is_fork_v_child = 0;
+      thr->is_trampoline_child = 0;
       thr->is_reactive_process = 0;
       for (__vpiScope*sc = scope ; sc ; sc = sc->scope) {
 	    if (sc->get_type_code() == vpiProgram) {
@@ -3391,6 +3404,33 @@ void vthread_run(vthread_t thr)
                               step_trace_count += 1;
                         }
                   }
+		    /* Trampolined CALL (M6 item 5, increment 2): %callf
+		       requested a switch to the callee frame.  Handle it
+		       before the pause path and run the callee in this same
+		       loop (no recursive vthread_run). */
+		  if (trampoline_switch_to) {
+			thr = trampoline_switch_to;
+			trampoline_switch_to = 0;
+			running_thread = thr;
+			continue;
+		  }
+		    /* Trampolined RETURN: the callee frame ended (via any
+		       end opcode — %end, %disable/flow, ...).  Switch back
+		       to the caller and reap the callee through do_join
+		       (which mirrors output/ref args and reconciles the
+		       automatic context).  The return value was already
+		       poked into the caller's stack by %ret. */
+		  if (rc == false && thr->is_trampoline_child
+		      && thr->i_have_ended) {
+			thr->is_trampoline_child = 0;
+			vthread_t reap = thr;
+			vthread_t caller = trampoline_call_stack.back();
+			trampoline_call_stack.pop_back();
+			thr = caller;
+			running_thread = thr;
+			do_join(thr, reap);
+			continue;
+		  }
 		  if (rc == false) {
                         thr->last_pause_pc = cp;
                         if (thr->i_am_in_function
@@ -4701,7 +4741,21 @@ bool of_BREAKPOINT(vthread_t, vvp_code_t)
  * Combine the %fork and %join steps for invoking a function.
  */
 static int callf_depth = 0;
-static bool warned_callf_self_recursion_fallback = false;
+
+/*
+ * Name-agnostic backstops against zero-time runaway recursion in the
+ * synchronous call model (M6 item 5 rearchitecture — see
+ * docs/conformance/m6_callf_rearchitecture.md).  These are pure safety
+ * limits on the C++ call-stack depth the synchronous model consumes,
+ * NOT per-scope correctness knobs.  Each is set to the maximum any
+ * former per-UVM-identifier branch granted, so no legitimate recursion
+ * is truncated earlier than before, and the value applies uniformly to
+ * every scope (retiring the strstr("uvm_...") special-casing).
+ */
+static const unsigned long CALLF_SITE_LIMIT  = 16384; // self-recursion at one callsite
+static const unsigned      CALLF_SCOPE_LIMIT = 16384; // one scope's cycles on the callf stack
+static const int           CALLF_MAX_DEPTH   = 4096;  // absolute callf nesting depth
+
 static bool warned_callf_depth_fallback = false;
 static bool warned_callf_scope_cycle_fallback = false;
 static bool warned_callf_child_reaped = false;
@@ -5011,6 +5065,26 @@ static bool sched_callf_enabled_()
       }
       return enabled != 0;
 }
+
+/*
+ * M6 item 5 rearchitecture, increment 2: trampolined synchronous call.
+ * Under IVL_TRAMPOLINE_CALLF, a %callf does not recurse into
+ * vthread_run(child); instead the caller's vthread_run loop switches to
+ * the callee frame and back, so the call runs synchronously (atomicity
+ * preserved) WITHOUT consuming C++ stack per SV call depth.  Default
+ * OFF: the synchronous do_callf_void path is unchanged.  See
+ * docs/conformance/m6_callf_rearchitecture.md.
+ */
+static bool trampoline_callf_enabled_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_TRAMPOLINE_CALLF");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled != 0;
+}
+
 
 static bool virtual_dispatch_trace_enabled_()
 {
@@ -5668,24 +5742,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
             } else {
                   site_hits = ++callf_self_name_site_invocations[callsite_pc];
             }
-            unsigned long site_limit = 256;
-            if ((caller_name && strstr(caller_name, "uvm_object.new"))
-                || (child_name && strstr(child_name, "uvm_object.new")))
-                  site_limit = 64;
-            if ((caller_name && strstr(caller_name, "uvm_cmdline_processor.get_arg_value"))
-                || (child_name && strstr(child_name, "uvm_cmdline_processor.get_arg_value")))
-                  site_limit = 2048;
-            if ((caller_name && strstr(caller_name, "uvm_root.m_uvm_get_root"))
-                || (child_name && strstr(child_name, "uvm_root.m_uvm_get_root")))
-                  site_limit = 16384;
-            if ((caller_name && strstr(caller_name, "uvm_report_object.uvm_report_info"))
-                || (child_name && strstr(child_name, "uvm_report_object.uvm_report_info")))
-                  site_limit = 8192;
-            if ((caller_name && strstr(caller_name, "uvm_coreservice_t.get"))
-                || (child_name && strstr(child_name, "uvm_coreservice_t.get"))
-                || (caller_name && strstr(caller_name, "uvm_coreservice_t.get_root"))
-                || (child_name && strstr(child_name, "uvm_coreservice_t.get_root")))
-                  site_limit = 16384;
+            const unsigned long site_limit = CALLF_SITE_LIMIT;
 	            if (site_hits > site_limit) {
 	                  if (!warned_callf_self_callsite_fallback) {
 	                        fprintf(stderr,
@@ -5734,9 +5791,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 		    if (callf_scope_stack[idx] == child_scope)
 			  scope_hits += 1;
 	      }
-	      unsigned scope_limit = 4096;
-	      if (child_name && strstr(child_name, "uvm_root.m_uvm_get_root"))
-	            scope_limit = 16384;
+	      const unsigned scope_limit = CALLF_SCOPE_LIMIT;
 	      if (scope_hits >= scope_limit) {
 		    if (!warned_callf_scope_cycle_fallback) {
 			  const char*scope_name = "<unknown>";
@@ -5756,28 +5811,12 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       }
 
       callf_scope_stack.push_back(child_scope);
-      unsigned depth_limit = 2048;
-      if (child_name && strstr(child_name, "uvm_report_object.uvm_report_info"))
-            depth_limit = 16384;
-      if (child_name && strstr(child_name, "uvm_root.m_uvm_get_root"))
-            depth_limit = 32768;
-      if (child->parent_scope && thr->parent_scope
-          && child->parent_scope == thr->parent_scope
-          && callf_depth > depth_limit) {
-	    if (!warned_callf_self_recursion_fallback) {
-		  const char*scope_name = vpi_get_str(vpiFullName, child->parent_scope);
-		  if (!scope_name) scope_name = "<unknown>";
-		  fprintf(stderr, "Warning: callf recursion on %s exceeded %u frames;"
-		          " using compile-progress return fallback (further similar warnings suppressed)\n",
-		          scope_name, depth_limit);
-		  warned_callf_self_recursion_fallback = true;
-	    }
-	    vthread_delete(child);
-	    callf_scope_stack.pop_back();
-	    callf_depth--;
-	    return true;
-      }
-      if (callf_depth > 4096) {
+	/* The former same-scope `depth_limit` fallback (raised by name to
+	 * 16384/32768 for specific UVM scopes) was dead code: any value
+	 * above CALLF_MAX_DEPTH was pre-empted by the absolute depth cap
+	 * below, which fires first.  The absolute cap is the single depth
+	 * backstop; the same-scope check is retired. */
+      if (callf_depth > CALLF_MAX_DEPTH) {
 	    if (!warned_callf_depth_fallback) {
 		  const char*scope_name = "<unknown>";
 		  if (child->parent_scope) {
@@ -5830,6 +5869,40 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       assert(thr->children.size()==1);
 
       assert(child->parent_scope->get_type_code() == vpiFunction);
+
+        /* Trampolined synchronous call (M6 item 5, increment 2,
+         * IVL_TRAMPOLINE_CALLF): do NOT recurse into vthread_run(child).
+         * Push the caller and hand the callee to the vthread_run inner
+         * loop, which switches to it and — on its %end — switches back
+         * (reaping via do_join, which mirrors output/ref args).  The
+         * call runs entirely within the caller's execution before any
+         * sibling active event, so atomicity is preserved (unlike the
+         * scheduled path), while C++ stack depth is bounded by the loop
+         * rather than the SV call depth.  The callf_depth/scope_stack
+         * bookkeeping belongs to the synchronous path's C++ recursion,
+         * so drop it here; the trampoline tracks its own depth. */
+      if (trampoline_callf_enabled_()) {
+            child->is_trampoline_child = 1;
+            child->i_am_in_function = 1;
+            child->delay_delete = 1;
+            callf_scope_stack.pop_back();
+            callf_depth--;
+            if (trampoline_call_stack.size() >= TRAMPOLINE_MAX_DEPTH) {
+                  if (!warned_callf_depth_fallback) {
+                        fprintf(stderr, "%sWarning: trampoline callf depth exceeded"
+                                " %zu; using compile-progress return fallback"
+                                " (further similar warnings suppressed)\n",
+                                thr->get_fileline().c_str(), TRAMPOLINE_MAX_DEPTH);
+                        warned_callf_depth_fallback = true;
+                  }
+                  thr->children.erase(child);
+                  vthread_delete(child);
+                  return true;
+            }
+            trampoline_call_stack.push_back(thr);
+            trampoline_switch_to = child;
+            return true;
+      }
 
         /* Scheduled-call protocol (M6 item 5, step 2, IVL_SCHED_CALLF):
          * hand the callee to the scheduler as an Active-region thread
@@ -8192,6 +8265,14 @@ bool of_END(vthread_t thr, vvp_code_t)
 	    proc->mark_finished();
       thr->i_have_ended = 1;
       thr->pc = codespace_null();
+
+	/* Trampolined callf callee (M6 item 5, increment 2): its return
+	 * value/output args have already been poked into the caller's
+	 * stack via %ret.  Hand control back to the vthread_run loop,
+	 * which switches to the caller and reaps this callee through
+	 * do_join (output/ref mirroring + context reconciliation).  Must
+	 * be intercepted before the normal detached/joining-parent logic,
+	 * which does not apply to a trampoline frame. */
 
       if (flow_trace_enabled_()) {
             static unsigned end_trace_count = 0;

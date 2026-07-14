@@ -3,6 +3,36 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-14g (session: M6 item 5 rearchitecture increment 2 — trampolined callf)
+
+- **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #71 open,
+  draft — new PR after #70 merged; stacks the rearchitecture on it).
+- **This checkpoint**: implemented the **trampolined synchronous call**
+  behind `IVL_TRAMPOLINE_CALLF` (default OFF).  `%callf` switches the
+  `vthread_run` inner loop to the callee frame (push caller +
+  `trampoline_switch_to`) and back when the callee ends (keyed on
+  `rc==false && is_trampoline_child && i_have_ended`, since functions
+  end via `%disable/flow` not `%end`), reaping via `do_join`.  No
+  recursive `vthread_run` → C++ stack depth bounded by the loop, not SV
+  call depth.
+- **KEY RESULT**: under the flag the trampoline reaches FULL parity —
+  UVM **127/127**, ivtest failure names **byte-identical** to baseline
+  (incl. `pr2001162`/`pr2053944` which the scheduled path FAILED) — AND
+  the atomicity suite PASSES (the scheduled path failed it).  So the
+  trampoline, unlike the scheduled path, is a viable replacement: it
+  preserves function-call atomicity AND removes the C++-stack
+  constraint.  Default (flag OFF) unchanged (validated by the default
+  battery).  Details:
+  `session_logs/2026-07-14_m6_trampoline_callf.md`; rearchitecture doc
+  increment 2 marked DONE.
+- **Known limitation**: `do_join`'s automatic-context reconciliation is
+  O(depth); recursion beyond a few thousand frames is O(depth²) slow
+  (still deeper than the sync model's 4096 cap) — a perf follow-up.
+- **Next (increment 3)**: flip the default to the trampoline (its own
+  checkpoint, highest-risk), then delete the three synchronous drain
+  loops + the automatic-context staging in `do_callf_void`; increment 4
+  deletes the now-unused limit maps.  That completes step 5 and M6.
+
 ## State as of 2026-07-14e (session: M6 item 5 step 3 — parity + fundamental blocker)
 
 - **Branch**: `claude/ieee1800-systemverilog-uvm-tqk5qy` (PR #70 open,
