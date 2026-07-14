@@ -5047,40 +5047,28 @@ static bool callf_trace_enabled_()
       return enabled != 0;
 }
 
-/*
- * M6 remediation item 5, migration step 2: gate the scheduled-call
- * protocol.  When IVL_SCHED_CALLF is set, a %callf schedules the callee
- * as a normal Active-region thread and suspends the caller instead of
- * running the callee synchronously inside the caller's opcode dispatch.
- * Default OFF: the synchronous do_callf_void path is unchanged, so
- * production behavior and every regression are byte-identical.  See
- * docs/conformance/m6_scheduled_call_protocol.md.
- */
-static bool sched_callf_enabled_()
-{
-      static int enabled = -1;
-      if (enabled < 0) {
-            const char*env = getenv("IVL_SCHED_CALLF");
-            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
-      }
-      return enabled != 0;
-}
 
 /*
- * M6 item 5 rearchitecture, increment 2: trampolined synchronous call.
- * Under IVL_TRAMPOLINE_CALLF, a %callf does not recurse into
- * vthread_run(child); instead the caller's vthread_run loop switches to
- * the callee frame and back, so the call runs synchronously (atomicity
- * preserved) WITHOUT consuming C++ stack per SV call depth.  Default
- * OFF: the synchronous do_callf_void path is unchanged.  See
- * docs/conformance/m6_callf_rearchitecture.md.
+ * M6 item 5 rearchitecture: trampolined synchronous call.  A %callf does
+ * not recurse into vthread_run(child); instead the caller's vthread_run
+ * loop switches to the callee frame and back, so the call runs
+ * synchronously (function-call atomicity preserved, IEEE 1800-2017
+ * 13.4.3) WITHOUT consuming C++ stack per SV call depth.
+ *
+ * Increment 3 (2026-07-14): this is now the DEFAULT.  It reached full
+ * parity behind the flag (UVM 127/127 + ivtest failure names
+ * byte-identical to baseline, atomicity suite passing).  Set
+ * IVL_TRAMPOLINE_CALLF=0 to fall back to the synchronous do_callf_void
+ * path for one release.  See docs/conformance/m6_callf_rearchitecture.md.
  */
 static bool trampoline_callf_enabled_()
 {
       static int enabled = -1;
       if (enabled < 0) {
             const char*env = getenv("IVL_TRAMPOLINE_CALLF");
-            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+              // Default ON; only an explicit "0" selects the legacy
+              // synchronous fallback.
+            enabled = (env && strcmp(env, "0") == 0) ? 0 : 1;
       }
       return enabled != 0;
 }
@@ -5902,33 +5890,6 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
             trampoline_call_stack.push_back(thr);
             trampoline_switch_to = child;
             return true;
-      }
-
-        /* Scheduled-call protocol (M6 item 5, step 2, IVL_SCHED_CALLF):
-         * hand the callee to the scheduler as an Active-region thread
-         * (pushed to the front so it runs next, matching the
-         * synchronous model's zero-time semantics) and SUSPEND the
-         * caller.  The caller's return placeholder is already on its
-         * stack and %ret targets child->parent (the caller), so the
-         * value lands while the caller is frozen.  On %end, of_END sees
-         * the caller's i_am_joining flag and resumes it via the
-         * existing join machinery (resume_joining_parent_ -> do_join),
-         * which mirrors output/ref args and reaps the callee.  Returning
-         * false pauses the caller; its PC already points past the
-         * %callf, so it resumes at the next opcode with the filled
-         * return value.  schedule_vthread owns is_scheduled, so it is
-         * not pre-set here. */
-      if (sched_callf_enabled_() && schedule_defer_calls_ok()) {
-            child->i_am_in_function = 1;
-            child->delay_delete = 1;
-            thr->i_am_joining = 1;
-              /* The scheduled callee unwinds through the scheduler, not
-               * this C++ frame, so drop the synchronous-recursion
-               * bookkeeping taken on entry. */
-            callf_scope_stack.pop_back();
-            callf_depth--;
-            schedule_vthread(child, 0, true);
-            return false;
       }
 
       child->is_scheduled = 1;

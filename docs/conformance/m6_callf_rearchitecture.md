@@ -111,12 +111,20 @@ general watchdog.  This is the full realization of step 5.
    limitation: `do_join`'s automatic-context reconciliation is O(depth),
    so recursion beyond a few thousand frames is slow (O(depth²)) — still
    deeper than the synchronous model's 4096 cap; a perf follow-up.
-3. **NEXT** — Flip the default to the trampoline (its own checkpoint,
-   the highest-risk change); then delete the three synchronous drain
-   loops + the automatic-context staging in `do_callf_void`.
-4. Delete the now-unused limit maps and the depth backstops (the
-   trampoline needs only the single `TRAMPOLINE_MAX_DEPTH` runaway
-   guard, or the scheduler's zero-time watchdog).
+3. **DONE 2026-07-14** — Flipped the default to the trampoline
+   (`IVL_TRAMPOLINE_CALLF=0` selects the legacy synchronous fallback).
+   Full default-config battery clean: UVM 127/127, ivtest failure names
+   byte-identical to baseline, vpi 85/85, py 284/12.
+4. **PARTIAL 2026-07-14** — Deleted the BROKEN scheduled-call path
+   (`IVL_SCHED_CALLF` and `schedule_defer_calls_ok`/`sched_main_loop_running`):
+   the atomicity finding proved it wrong, so it was dead, incorrect
+   code — an unconditional removal.  **Retained** (for one release, per
+   the manifesto's fallback rule) the synchronous `do_callf_void` drain
+   loops + automatic-context staging + limit maps as the
+   `IVL_TRAMPOLINE_CALLF=0` fallback: ~450 lines of battle-tested
+   edge-case handling (reaped-child recovery, dynamic-dispatch mirroring)
+   that deserve a soak before removal.  Their deletion is the final
+   follow-up once the trampoline default has soaked a release.
 
 Each step preserves the atomicity invariant
 (`tests/m6_call_atomicity_test.sv`) and the call semantics

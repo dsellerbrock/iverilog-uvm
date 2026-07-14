@@ -1284,18 +1284,6 @@ static bool sim_at_rosync = false;
 bool schedule_at_rosync(void)
 { return sim_at_rosync; }
 
-/*
- * True only while the main stratified event loop is draining events.
- * The scheduled-call protocol (M6 item 5) suspends the caller and lets
- * the scheduler drive the callee, so it is only valid here: the
- * pre-simulation init phase, the post-simulation final phase, and the
- * read-only Postponed (rosync) region have no active-queue loop to
- * drive a deferred call and are inherently sequential, so calls there
- * must execute synchronously.
- */
-static bool sched_main_loop_running = false;
-bool schedule_defer_calls_ok(void)
-{ return sched_main_loop_running && !sim_at_rosync; }
 
 /*
  * The scheduler uses this function to drain the rosync events of the
@@ -1457,7 +1445,6 @@ void schedule_simulate(void)
       vvp_time64_t last_trace_time = 0;
       vvp_time64_t last_sim_time = schedule_time;
 
-      sched_main_loop_running = true;
       if (schedule_runnable) while (sched_list) {
 
 	    if (schedule_stopped_flag) {
@@ -1626,7 +1613,6 @@ void schedule_simulate(void)
 	    delete (cur);
       }
       sched_current_region = SEQ_START;
-      sched_main_loop_running = false;
 
       if (schedule_runnable && !sched_list)
             vthread_dump_live_threads("scheduler-quiesce");
