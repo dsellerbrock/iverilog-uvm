@@ -747,6 +747,25 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   sequencer arbitration watchers, process guards — failing
   nondeterministically across otherwise-unrelated compiler changes.
 
+### G70 (NEW 2026-07-14) `succ[iter].get_parent()` — indexed-element class-method call on a queue emits "not a dynamic array method"
+- **STATUS: latent, non-fatal (compile-progress continues).** Observed
+  while running the M6 item-5 characterization suite under the UVM
+  harness: `uvm_component.svh:2490`
+  (`m_get_adjacent...`, `succ[iter].get_parent() != domain`) emits
+  `error: Method get_parent is not a dynamic array method.`  The
+  indexed-element method dispatch mis-routes a class-method call on a
+  queue element into the darray-method path.  NOT a regression — appears
+  identically (2×) for every UVM test that elaborates this method
+  (verified against the known-passing `vif_smoke`), present at every
+  125/125 checkpoint; compile-progress emits the diagnostic and
+  continues, and the affected method is not executed on these tests'
+  paths so they still PASS.  Distinct from the (fixed) indexed-element
+  CONTAINER method work (checkpoint 4): here the element is a class
+  handle, so the dispatch should route to class-method lookup, not
+  container methods.  Candidate for a focused elaboration session
+  (likely the inferred element type of `get_adjacent_successor_nodes`'s
+  output queue).  Layer: elaboration.  Complexity: medium.
+
 # Confirmed-working baselines (not gaps; recorded for diff against future regressions)
 
 These were probed and pass cleanly. Keep this list so a regression can be detected easily.

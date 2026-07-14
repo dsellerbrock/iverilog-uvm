@@ -163,3 +163,15 @@ restructuring.
 5. Replace callf synchronous-drain assumptions with an explicit
    scheduled-call protocol (retiring the staged-context heuristics) —
    the largest, riskiest item; requires characterization tests first.
+   **2026-07-14 (started)**: characterization suite landed
+   (`tests/m6_sync_call_characterization_test.sv`, 15 checks pinning
+   return values, recursion, chained/nested calls, output/ref args,
+   class-method builder chains, expression context, fork interaction,
+   zero-time completion) and the full protocol design +
+   incremental-migration plan recorded in
+   `m6_scheduled_call_protocol.md`.  The protocol swap itself is the
+   scoped follow-up (5 gated steps, the default-flip getting its own
+   checkpoint).  The design also calls out the UVM-identifier limit
+   special-casing in `do_callf_void` as the clearest remaining
+   manifesto-principle-5 violation to delete once the scheduled path is
+   clean.
