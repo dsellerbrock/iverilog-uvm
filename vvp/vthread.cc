@@ -489,6 +489,10 @@ struct vthread_s {
       unsigned pending_nonlocal_jmp :1;
       unsigned is_callf_child    :1;
       unsigned is_fork_v_child   :1;
+	/* M6 item 5 trampoline: this callf callee is driven by the
+	   vthread_run trampoline (no recursive vthread_run), not the
+	   synchronous do_callf_void loop.  Set under IVL_TRAMPOLINE_CALLF. */
+      unsigned is_trampoline_child :1;
 	/* Program-block process (IEEE 1800-2017 clause 24): scheduled
 	   in the Reactive region set.  Set at creation from the scope
 	   chain and inherited by spawned children. */
@@ -811,6 +815,14 @@ static string filter_string(const char*text)
 
 static bool do_disable(vthread_t thr, vthread_t match);
 static void do_join(vthread_t thr, vthread_t child);
+
+/* Trampolined-call state (M6 item 5, increment 2).  Declared here so the
+ * vthread_run inner loop and do_callf_void/of_END all see it.  Only ever
+ * set when IVL_TRAMPOLINE_CALLF is on, so the loop's null-check is a
+ * no-op by default. */
+static std::vector<vthread_t> trampoline_call_stack;   // callers to return to
+static vthread_t trampoline_switch_to = 0;             // next frame for the loop
+static const size_t TRAMPOLINE_MAX_DEPTH = 1u << 20;   // zero-time runaway backstop
 
 __vpiScope* vthread_scope(struct vthread_s*thr)
 {
@@ -2870,6 +2882,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->pending_nonlocal_jmp = 0;
       thr->is_callf_child = 0;
       thr->is_fork_v_child = 0;
+      thr->is_trampoline_child = 0;
       thr->is_reactive_process = 0;
       for (__vpiScope*sc = scope ; sc ; sc = sc->scope) {
 	    if (sc->get_type_code() == vpiProgram) {
@@ -3391,6 +3404,33 @@ void vthread_run(vthread_t thr)
                               step_trace_count += 1;
                         }
                   }
+		    /* Trampolined CALL (M6 item 5, increment 2): %callf
+		       requested a switch to the callee frame.  Handle it
+		       before the pause path and run the callee in this same
+		       loop (no recursive vthread_run). */
+		  if (trampoline_switch_to) {
+			thr = trampoline_switch_to;
+			trampoline_switch_to = 0;
+			running_thread = thr;
+			continue;
+		  }
+		    /* Trampolined RETURN: the callee frame ended (via any
+		       end opcode — %end, %disable/flow, ...).  Switch back
+		       to the caller and reap the callee through do_join
+		       (which mirrors output/ref args and reconciles the
+		       automatic context).  The return value was already
+		       poked into the caller's stack by %ret. */
+		  if (rc == false && thr->is_trampoline_child
+		      && thr->i_have_ended) {
+			thr->is_trampoline_child = 0;
+			vthread_t reap = thr;
+			vthread_t caller = trampoline_call_stack.back();
+			trampoline_call_stack.pop_back();
+			thr = caller;
+			running_thread = thr;
+			do_join(thr, reap);
+			continue;
+		  }
 		  if (rc == false) {
                         thr->last_pause_pc = cp;
                         if (thr->i_am_in_function
@@ -5026,6 +5066,26 @@ static bool sched_callf_enabled_()
       return enabled != 0;
 }
 
+/*
+ * M6 item 5 rearchitecture, increment 2: trampolined synchronous call.
+ * Under IVL_TRAMPOLINE_CALLF, a %callf does not recurse into
+ * vthread_run(child); instead the caller's vthread_run loop switches to
+ * the callee frame and back, so the call runs synchronously (atomicity
+ * preserved) WITHOUT consuming C++ stack per SV call depth.  Default
+ * OFF: the synchronous do_callf_void path is unchanged.  See
+ * docs/conformance/m6_callf_rearchitecture.md.
+ */
+static bool trampoline_callf_enabled_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_TRAMPOLINE_CALLF");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled != 0;
+}
+
+
 static bool virtual_dispatch_trace_enabled_()
 {
       static int enabled = -1;
@@ -5809,6 +5869,40 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       assert(thr->children.size()==1);
 
       assert(child->parent_scope->get_type_code() == vpiFunction);
+
+        /* Trampolined synchronous call (M6 item 5, increment 2,
+         * IVL_TRAMPOLINE_CALLF): do NOT recurse into vthread_run(child).
+         * Push the caller and hand the callee to the vthread_run inner
+         * loop, which switches to it and — on its %end — switches back
+         * (reaping via do_join, which mirrors output/ref args).  The
+         * call runs entirely within the caller's execution before any
+         * sibling active event, so atomicity is preserved (unlike the
+         * scheduled path), while C++ stack depth is bounded by the loop
+         * rather than the SV call depth.  The callf_depth/scope_stack
+         * bookkeeping belongs to the synchronous path's C++ recursion,
+         * so drop it here; the trampoline tracks its own depth. */
+      if (trampoline_callf_enabled_()) {
+            child->is_trampoline_child = 1;
+            child->i_am_in_function = 1;
+            child->delay_delete = 1;
+            callf_scope_stack.pop_back();
+            callf_depth--;
+            if (trampoline_call_stack.size() >= TRAMPOLINE_MAX_DEPTH) {
+                  if (!warned_callf_depth_fallback) {
+                        fprintf(stderr, "%sWarning: trampoline callf depth exceeded"
+                                " %zu; using compile-progress return fallback"
+                                " (further similar warnings suppressed)\n",
+                                thr->get_fileline().c_str(), TRAMPOLINE_MAX_DEPTH);
+                        warned_callf_depth_fallback = true;
+                  }
+                  thr->children.erase(child);
+                  vthread_delete(child);
+                  return true;
+            }
+            trampoline_call_stack.push_back(thr);
+            trampoline_switch_to = child;
+            return true;
+      }
 
         /* Scheduled-call protocol (M6 item 5, step 2, IVL_SCHED_CALLF):
          * hand the callee to the scheduler as an Active-region thread
@@ -8171,6 +8265,14 @@ bool of_END(vthread_t thr, vvp_code_t)
 	    proc->mark_finished();
       thr->i_have_ended = 1;
       thr->pc = codespace_null();
+
+	/* Trampolined callf callee (M6 item 5, increment 2): its return
+	 * value/output args have already been poked into the caller's
+	 * stack via %ret.  Hand control back to the vthread_run loop,
+	 * which switches to the caller and reaps this callee through
+	 * do_join (output/ref mirroring + context reconciliation).  Must
+	 * be intercepted before the normal detached/joining-parent logic,
+	 * which does not apply to a trampoline frame. */
 
       if (flow_trace_enabled_()) {
             static unsigned end_trace_count = 0;
