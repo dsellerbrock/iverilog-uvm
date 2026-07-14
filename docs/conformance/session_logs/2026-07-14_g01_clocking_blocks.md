@@ -119,8 +119,10 @@ scope-complete and consistent, not deeper.
 
 ## Regressions (final build, quiet machine)
 
-- UVM `.github/uvm_test.sh`: **129/129** (127 baseline + 2 new tests) —
-  see commit message for the exact tail.
+- UVM `.github/uvm_test.sh`: **129 passed, 0 failed, 0 skipped**
+  (127 baseline + 2 new tests) — CONFIRMED on the final build after the
+  full battery (this run included the ##N implementation and both new
+  tests).
 - ivtest `vvp_reg.pl`: **2961/3101 passed, 132 failed** with failure names
   **identical to the same-machine pristine-main baseline** (fresh baseline
   built from fb79080 in a worktree, diffed by name).
