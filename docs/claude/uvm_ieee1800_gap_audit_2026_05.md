@@ -558,7 +558,12 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: array-grow patterns.
 
 ### G40 unique() / unique_index() — works for queue, fails (sorry) for unpacked array
-- Symptom: queue `q.unique_index()` works (probe p87 PASS). Unpacked-array form not directly probed but elab_expr.cc:8869,8875 show sorry.
+- **STATUS 2026-07-15: FIXED** (M4 close-out, 928440d). unique() and
+  unique_index() on fixed-size unpacked arrays (1-D, integral
+  elements, no with-clause) lower to `%uarr/unique` returning a queue
+  of values / canonical first-occurrence indexes (7.12.1).
+  Test: `tests/m4_closeout_test.sv`.
+- Symptom (pre-fix): queue `q.unique_index()` works (probe p87 PASS). Unpacked-array form not directly probed but elab_expr.cc:8869,8875 show sorry.
 - Probe: p87_unique_index (PASS for queue); REVERIFY for non-queue.
 - Location: elab_expr.cc:8869,8875.
 - Layer: elab.
@@ -765,7 +770,15 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   nondeterministically across otherwise-unrelated compiler changes.
 
 ### G70 (NEW 2026-07-14) `succ[iter].get_parent()` — indexed-element class-method call on a queue emits "not a dynamic array method"
-- **STATUS: latent, non-fatal (compile-progress continues).** Observed
+- **STATUS 2026-07-15: FIXED** (M4 close-out, 928440d). The
+  element-select method routing accepted only QUEUE-typed receivers;
+  plain dynamic arrays of class handles fell through to the
+  darray-method error. Routing now covers both container types, so
+  `succ[iter].get_parent()` dispatches as a class-method call on the
+  element (works in foreach bodies and direct indexed calls). The two
+  per-compile diagnostics in every UVM elaboration are gone.
+  Test: `tests/m4_closeout_test.sv`.
+- Pre-fix record: **latent, non-fatal (compile-progress continues).** Observed
   while running the M6 item-5 characterization suite under the UVM
   harness: `uvm_component.svh:2490`
   (`m_get_adjacent...`, `succ[iter].get_parent() != domain`) emits
@@ -802,12 +815,16 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   darray-indexed arm (string-element reads silently ""). Test:
   `tests/g71_foreach_prop_darray_test.sv`. Session log:
   `2026-07-14_g71_foreach_prop_darray.md`.
-- **Remaining in-family tails** (recorded there): chained element
-  stores through darray outers (`c.dd[i][j]=v` no-ops — G09 store2
-  rewrite covers queue outers only); display-context chained reads;
-  `$size/$high/$low` on property-darray receivers still fold to 'x';
-  `c.sda[i].len()` (G70 indexed-element method family); foreach over
-  string properties elaborates the body loop-less.
+- **In-family tails — all but one CLOSED 2026-07-15**: chained element
+  stores through darray outers FIXED (M4b, aeee8f9); display-context
+  chained reads FIXED (928440d — vpi arg classifier no longer falls
+  back to the class-typed root for BOOL/LOGIC/REAL/STRING values);
+  `$size/$high/$low/$left/$right/$increment/$unpacked_dimensions` on
+  dynamic-container property receivers FIXED (928440d — rewritten to
+  the size sfunc per 20.7 before the constant-folding path);
+  `c.sda[i].len()`/G70 indexed-element methods FIXED (928440d).
+  STILL OPEN: foreach over string properties elaborates the body
+  loop-less (string is iterable per 12.7.3 — small, recorded).
 
 ### G72 (NEW 2026-07-14, FIXED same day) container sort ignored element signedness
 - **STATUS: FIXED.** sort/rsort/unique on vec4-backed queues and
@@ -818,7 +835,14 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   C++ type. Test: `tests/g35_uarray_ordering_test.sv`.
 
 ### G73 (NEW 2026-07-15) `q.push_back({})` pushes a nil handle, not an empty queue
-- **STATUS: OPEN (latent).** Pushing an empty queue LITERAL onto a
+- **STATUS 2026-07-15: FIXED** (M4 close-out, 928440d). The empty
+  aggregate literal `{}` with a queue/darray target type now
+  elaborates to `$ivl_queue$new_empty` (lowered to `%new/queue` or
+  `%new/darray` with the element-type encoding) instead of NetENull,
+  so `q_of_q.push_back({})` stores a real empty queue and element
+  stores through it work (7.10.4). Clearing assignments `q = {}`
+  unchanged. Test: `tests/m4_closeout_test.sv`.
+- Pre-fix record: **OPEN (latent).** Pushing an empty queue LITERAL onto a
   queue-of-queues stores nil; subsequent element stores through the
   nil inner handle are skipped (positional outers do not vivify).
   Workaround: push a populated local queue. Found while pinning the

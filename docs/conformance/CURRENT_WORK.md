@@ -3,6 +3,40 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-15b (M4 FULLY CLOSED; starting M8 increment 2)
+
+- **M4 close-out commit 928440d** fixed all five recorded residuals in
+  one increment: G70 (class-method calls on plain-darray elements —
+  element-select routing extended from queue-only to darrays), the
+  $size family on dynamic-container property receivers
+  ($size/$high/$low/$left/$right/$increment/$unpacked_dimensions now
+  rewrite to the queue-size sfunc per 20.7, darrays 0-based),
+  display-context chained property reads (vpi arg classifier no longer
+  falls back to the class-typed root signal for BOOL/LOGIC/REAL/STRING
+  value types), G40 unique/unique_index on fixed-size unpacked arrays
+  (new `%uarr/unique` opcode, 7.12.1), and G73 empty-queue literal
+  `{}` producing a real empty queue instead of a nil handle
+  (`$ivl_queue$new_empty` sfunc → `%new/queue`/`%new/darray`, 7.10.4).
+- **Promotion evidence (this entry)**: UVM sweep 137/137 PASS
+  (includes new tests/m4_closeout_test.sv; zero FAIL, zero
+  "(no-check)" audit entries); ivtest sweep
+  Total=2559 Passed=2457 Failed=99 — failure NAMES byte-identical to
+  the pristine-baseline fails_baseline.txt (empty diff); negative
+  suite 10/10. **M4 is CLOSED with no recorded residuals.**
+- **Now starting**: M8 increment 2a — sampled clocking-block inputs
+  (#1step Preponed semantics) replacing the alias model. Plan of
+  record: (2a-1) direction plumbing parse.y→PClocking/clocking_block_t;
+  (2a-2) vvp 1-deep value/time history (.sample_hist directive on
+  signal functors) + `%load/preponed` opcode + `$ivl_clocking_sample`
+  sfunc lowering; (2a-3) elaboration-time hidden sample vars +
+  `always @(cb-event) smp = $ivl_clocking_sample(sig)` synthesis, with
+  the three netmisc.cc rewrite helpers routing READS of input
+  clockvars to sample vars and writes to inputs made errors (14.3);
+  g01 characterization checks 2/3 updated to sampled semantics;
+  (2a-4) interface clocking blocks (vif.cb.sig path). Then 2b Re-NBA
+  output drives, 2c `cb.sig <= ##N v`, 2d skew application +
+  clocking_decl_assign + global clocking (14.14/G59).
+
 ## State as of 2026-07-15 (session: M3/M4/M5 close-out)
 
 - **Branch**: `claude/ieee1800-uvm-implementation-qm5wad` (PR #75,
