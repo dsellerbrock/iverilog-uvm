@@ -21,19 +21,27 @@ the investigation. Update at every meaningful checkpoint.
     unique-on-unpacked (expression form, rare); display-context
     chained reads; $size family on property receivers; G70
     indexed-element methods; G73 (NEW) `q.push_back({})` pushes nil.
-  - **M5 G26-G29 CLOSED** (interface ports functional end to end;
-    modport tf ports accepted; b.mst binds; instance + vif arrays).
-    Remaining recorded: modport direction enforcement;
-    SINGLE-INSTANCE interface task dispatch (elaborate_interface_
-    type_ attaches one class_scope per interface type — dynamic
-    per-handle dispatch is the natural next M5 increment);
-    parameterized-interface ports.
+  - **M5 CLOSED** (620c3a8/0eef20a on top of c399625): interface
+    ports end to end; modport tf ports; b.mst binds; instance + vif
+    arrays; DYNAMIC per-handle task dispatch (25.10, %jmp/vif);
+    modport input-write enforcement (25.5); parameterized-interface
+    port width tolerance. Recorded follow-ups: dynamic-dispatch
+    copy-back for output/inout task ports (static fallback + warning
+    today); full modport access restriction (unlisted members stay
+    accessible); per-specialization interface class types (boundary
+    resize is the interim); VIF_DISPATCH_MAX=64 instances per
+    interface type.
+- **M1→M8 audit (post-M5)**: recorded in the session log. M2's last
+  unverified residual (dynamic uvm_field_array_int clone) PASSES.
+  M4 follow-up priority: G70 indexed-element method calls (two
+  visible errors in every UVM compile), then $size-family on
+  property receivers (silent 'x'), display-context chained reads,
+  G40, G73. M8 increment 2 itemized: #1step/#0 input sampling,
+  Re-NBA synchronous drives, `cb.sig <= ##N v`, skew application,
+  clocking_decl_assign, global clocking (14.14/G59).
 - **Details**: `session_logs/2026-07-15_m3_m4_m5_closeout.md`.
-- **Next milestone work**: M8 increment 2 (real clocking semantics —
-  input sampling #1step/#0, synchronous Re-NBA drives, replacing the
-  alias model; see the 2026-07-14j entry) and then M9 entry (G05/G06
-  core SVA). The M5 dynamic task-dispatch increment is the main
-  carried-over debt if interface-heavy DV code is prioritized.
+- **Next milestone work**: M8 increment 2 (real clocking semantics,
+  alias model confirmed by probe), then M9 entry (G05/G06 core SVA).
 
 ## State as of 2026-07-14k (session: milestone close-out audit + G71 foreach/property-darray family)
 
