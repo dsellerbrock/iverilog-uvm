@@ -160,6 +160,28 @@ integration question, not a language gap.)
 - Legacy non-libffi fallback builds: uniform-type signatures only,
   mixed/real-output/9+-arg calls are loud runtime diagnostics.
 
-## Promotion evidence
+## Promotion evidence — M10 CLOSED
 
-Recorded below after the full sweeps.
+- UVM harness: **152 passed / 0 failed / 0 skipped, zero "(no-check)"
+  entries** (148 prior + m10_dpi_mixed_test + m10_dpi_task_alias_test
+  + m10_dpi_output_test + m10_dpi_openarray_test).
+- ivtest (shim PATH): Total=2559 Passed=2457 Failed=99 — failure
+  names BYTE-IDENTICAL to fails_baseline.txt (empty diff, no flakes).
+- Negative suite 14/14 (13 prior + m10_dpi_pure_task).
+- Focused battery 10/10 (all dpi/m10/m9/m8 anchors).
+- Real-UVM check: uvm_pkg.sv compiles rc=0 without UVM_NO_DPI (see
+  above).
+
+The four WIP commits (M10-1 marshaling core, M10-2 grammar, M10-3
+output/inout, M10-4 open arrays) are hereby promoted —
+regression-clean.
+
+**M10 (DPI and open arrays) is CLOSED.** The DPI layer covers what
+verification code actually calls — exact mixed-signature marshaling
+via libffi, imports of functions and tasks with alias binding,
+output/inout copy-back, chandle round trips, svBit/svLogic scalar
+encodings, and one-dimensional open arrays with the svdpi accessor
+subset over shared storage — with every unimplemented shape a loud
+compile- or run-time diagnostic, never silent. The recorded-corners
+list above is the M10 follow-up ledger (same closure pattern as
+M4/M8/M9).

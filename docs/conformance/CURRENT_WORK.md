@@ -3,6 +3,45 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-15f (M10 CLOSED)
+
+- **M10 (DPI and open arrays) is CLOSED** on PR #76, four increments:
+  1. **libffi marshaling core** — exact per-argument ABI from a
+     compiler-emitted signature string (`[+][u]<letter>` tokens:
+     b/h/i/l ints by width, g svLogic scalar, r real, s string,
+     o open array); fixed the mixed int/real/string ABI break, the
+     8-arg cap, silent >32-bit truncation, AND a silent elision of
+     void DPI call statements (empty-pform-body optimization —
+     elaborate.cc now exempts DPI imports). Legacy non-libffi
+     fallback kept (uniform signatures, loud otherwise). `-lffi` +
+     `-DUSE_LIBFFI` wired like z3; libffi added to apt/brew/MSYS2 CI.
+  2. **Grammar** — import "DPI-C" task (pure task = hard error,
+     35.4), `c_name = function/task` alias binding, all export forms
+     loud sorries. Zero new bison conflicts (458/1103). DPI flag
+     moved PFunction→PTaskFunc; TASK scope plumbing in t-dll;
+     draw_task_definition synthesizes DPI task bodies.
+  3. **Output/inout args** — pointer marshaling with copy-back via
+     port-var stores + the standard call machinery; output ints
+     restricted to atom widths (8/16/32/64) or 1-bit; string outputs
+     const char**; svBit/svLogic 1-bit both directions w/ 4-state
+     encoding (sv_z=2, sv_x=3).
+  4. **Open arrays** — 1-D dynamic arrays of atoms/real as
+     svOpenArrayHandle sharing simulation storage (writes visible,
+     no copy-back); svdpi accessor subset exported from vvp
+     (rdynamic + vvp.def); new installed svdpi.h.
+- **Promotion evidence**: UVM **152/152** (zero no-check), ivtest
+  BYTE-IDENTICAL to baseline (2559/2457/99, empty name-diff),
+  negative 14/14, battery 10/10. Real-UVM check: uvm_pkg.sv compiles
+  rc=0 WITHOUT UVM_NO_DPI — regex/cmdline/polling imports genuinely
+  marshaled; only recorded sorries remain (4× uvm_hdl 1024-bit
+  svLogicVecVal, 2× export). Session log:
+  session_logs/2026-07-15_m10_dpi_open_arrays.md (recorded-corners
+  ledger: svLogicVecVal/svBitVecVal vectors, exports, non-atom open
+  arrays, chandle-as-longint, context no-op, fallback limits).
+- **NEXT FRONTIER: M11 (functional coverage)** per the milestone
+  sequence (M12 VPI object model after; M14 clause matrix becomes
+  tractable once those land).
+
 ## State as of 2026-07-15e (M9 CLOSED)
 
 - **M9 (core SVA engine) is CLOSED** on PR #76. On top of increment 1
