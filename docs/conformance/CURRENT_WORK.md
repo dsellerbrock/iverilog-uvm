@@ -3,6 +3,34 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-15e (M9 CLOSED)
+
+- **M9 (core SVA engine) is CLOSED** on PR #76. On top of increment 1
+  (token-pipeline checkers, sampled |->/real |=>, ##N chains,
+  trailing ##[m:n] windows, sampled-value functions, named no-arg
+  declarations, defaults, cover), M9-2 added: consecutive repetition
+  e[*N] / final e[*m:n] (new K_LBSTAR lexer token — '[*' vs
+  bit-selects needs lexing, both pinned); FIXED-delay sequence
+  antecedents via history-AND match detection (overlap-correct, to
+  128 cycles); not(seq); first_match transparency + parenthesized
+  sub-sequence atoms; unbounded ##[m:$] weak-eventually windows with
+  end-of-simulation pending reports (synthesized final process);
+  pass actions at all match sites; loud compile-progress sorries for
+  until/nexttime/eventually/intersect/within/throughout.
+- **Promotion evidence**: UVM **148/148** (zero no-check), ivtest
+  identical to baseline modulo the documented pow_ca_signed flake
+  (verified standalone PASS), negative 13/13, battery 16/16.
+  Tests: m9_sva_engine_test.sv, m9_sva_algebra_test.sv,
+  m9_sva_unbounded_test.sv. Session log:
+  session_logs/2026-07-15_m9_core_sva.md (includes the
+  recorded-corners ledger: parameterized declarations, sequence
+  and/or, goto/nonconsecutive repetition, local sequence variables,
+  .triggered/.matched, expect, checkers 17.x, exact-Preponed
+  blocking-race sampling).
+- **NEXT FRONTIER: M10 (DPI and open arrays) or M11 (functional
+  coverage)** per the milestone sequence; M14's clause matrix
+  becomes tractable once those land.
+
 ## State as of 2026-07-15d (M9 increment 1 LANDED AND PROMOTED)
 
 - **PR #76** now carries the full M8 tail (promoted, M8 CLOSED) AND
