@@ -63,10 +63,24 @@ the investigation. Update at every meaningful checkpoint.
     clocking_test.sv updated to strict 14.13 (@(cb) to observe the
     new sample; raw-edge readers see the previous one); g01 header
     updated.
-- **M8-2a remaining (next)**: 2a-4 vif.cb.sig class-path routing to
-  the bound instance's sample vars + @(vif.cb) trig redirect; then 2b
-  synchronous output drives (Re-NBA), 2c `cb.sig <= ##N v`, 2d skew
-  application + clocking_decl_assign + global clocking (14.14/G59).
+- **M8-2a-4 LANDED (WIP, sweeps pending)**: vif.cb.sig sampled
+  through class handles — sample vars + tick bit registered as
+  interface-class PROPERTIES (runtime resolves by name in the bound
+  scope); @(vif.cb) → anyedge wait on the tick property (%wait/vif
+  machinery); writes to inputs via vif are 14.3 errors. SECOND
+  general ->> fix: NetEvent::nnb_trig() added to nodangle's event
+  liveness test — events referenced only by ->> were deleted and
+  codegen segfaulted on the dangling pointer. Tests:
+  m8_vif_clocking_sample_test.sv, negative
+  m8_vif_clocking_input_write.sv (suite 12/12).
+- **M8-2 remaining (next)**: 2b synchronous output drives (Re-NBA;
+  output clockvars currently alias), 2c `cb.sig <= ##N v`
+  cycle-delayed drives, 2d skew application + clocking_decl_assign +
+  global clocking (14.14/G59). Recorded 2a limitations: explicit
+  input skew values ignored (default #1step applied); real/string/
+  array clocking inputs keep alias (sorry at elab); force tracks
+  driven value; @(cb) from a scope elaborated BEFORE the defining
+  instance falls back to the raw event (alias-era behavior).
   Sweep procedure reminder: UVM harness and ivtest MUST run with
   PATH=/home/user/iverilog-install/bin (or ivtest shim) prefixed;
   `which iverilog` otherwise finds nothing and everything

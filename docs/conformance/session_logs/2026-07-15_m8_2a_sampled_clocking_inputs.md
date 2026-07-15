@@ -149,3 +149,71 @@ generally.
 
 The WIP commit (M8-2a sampled inputs + ->> fix) is hereby promoted —
 regression-clean.
+
+## 2a-4: the virtual-interface (class) path
+
+`vif.cb.sig` reaches the clocking block through a class-typed handle;
+the bound interface instance is only known at run time. Mechanism:
+
+- The interface CLASS type registers the hidden sample variables as
+  properties (`_ivl_smp$cb$sig`, plus a `_ivl_smptick$cb` bit). The
+  vvp runtime resolves interface properties BY NAME in the bound
+  instance scope (vvp_vinterface::find_named_item_), where
+  elaborate_sig created exactly those signals — so a property read
+  lands on the per-instance sample variable with no new runtime
+  machinery. Only sampleable inputs (vec4, non-container) get
+  properties; unsampleable ones keep the alias rewrite on both the
+  elaboration and class sides, consistent by construction.
+- rewrite_class_clocking_member_path gained the same read/write mode
+  as the scope helpers: reads rename the signal component to the
+  sample-var property; writes to inputs are 14.3 errors.
+- `@(vif.cb)`: a named event cannot be reached through a class
+  handle, so the sampler toggles the tick bit via NBA AFTER its
+  sample stores (initialized to 0 in the prologue — ~x is x and an
+  x->x toggle would never fire an anyedge). The event elaboration
+  maps @(vif.cb) to an ANYEDGE wait on the tick PROPERTY, riding the
+  existing %wait/vif edge-functor machinery from the M5 work. NBA
+  FIFO ordering (stores, then toggle) gives @(vif.cb) waiters the
+  same fresh-sample contract as the module path.
+
+### Second general `->>` bug found: nodangle deleted ->>-only events
+
+NetEvent::ntrig() counts only BLOCKING triggers (the trig_ list);
+nonblocking triggers live on the separate nb_trig_ list. nodangle's
+event-liveness test (nwait + ntrig + nexpr == 0) therefore DELETED
+any event whose only reference is a `->>` statement, and code
+generation segfaulted on the dangling pointer
+(dll_target::proc_nb_trigger -> lookup_scope_ on freed memory). This
+fired the moment a sampler's trig event had no @(cb) waiters (the
+vif test waits via the tick property instead). Fix: new
+NetEvent::nnb_trig() joins the liveness sum. Together with the
+port-0 delivery fix, `->>` is now usable end to end for the first
+time: it previously compiled with a sorry, never woke waiters, and
+crashed codegen if nothing else referenced the event.
+
+### Tests
+
+- tests/m8_vif_clocking_sample_test.sv — sampling through a virtual
+  interface in a class: hold between edges, #1step same-step-write
+  race, @(vif.cb) fresh-sample contract, instance-path/vif-path
+  agreement.
+- tests/negative/m8_vif_clocking_input_write.sv — vif.cb.din <= v
+  rejected (14.3); negative suite now 12.
+
+## Promotion evidence (2a-4 + nodangle ->> liveness fix)
+
+- UVM harness: **139 passed / 0 failed / 0 skipped, zero "(no-check)"
+  entries** (138 prior + tests/m8_vif_clocking_sample_test.sv).
+- ivtest (shim PATH): Total=2559 Passed=2457 Failed=99 — failure
+  names BYTE-IDENTICAL to fails_baseline.txt (empty diff; no flakes
+  this round).
+- Negative suite 12/12; focused battery 10/10.
+- PR #75 CI on the 2a-4 head: MINGW64 failed in MSYS2 pacman setup
+  (mirror flake, exit 8 before compiling — the documented recurring
+  infra failure); all other platforms in progress/green at check
+  time. The promotion push retriggers CI.
+
+The WIP commit (M8-2a-4) is hereby promoted — regression-clean.
+**M8 increment 2a is COMPLETE across all three clocking-block access
+paths (same-scope, instance, virtual interface).** Next: 2b
+synchronous output drives.
