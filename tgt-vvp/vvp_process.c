@@ -4106,6 +4106,19 @@ int draw_task_definition(ivl_scope_t scope)
       return rc;
 }
 
+/*
+ * M10: emit the synthesized body of a DPI import function: load each
+ * argument onto its stack, then a %dpi/call opcode carrying the
+ * per-argument signature string the runtime marshaler consumes. Each
+ * signature token is [+][u]<letter>: '+' output direction (reserved),
+ * 'u' unsigned, letter 'b'/'h'/'i'/'l' by width for 2-state integers
+ * (byte/shortint/int/longint/chandle), 'g' 4-state scalar (svLogic),
+ * 'r' real, 's' string.
+ *
+ * Unsupported argument shapes are diagnosed loudly (never silent) and
+ * the call is not emitted — the body pushes a zero/empty result so
+ * simulation can proceed deterministically.
+ */
 static void draw_dpi_func_body(ivl_scope_t scope)
 {
       const char*c_name = ivl_scope_dpi_c_name(scope);
@@ -4114,36 +4127,111 @@ static void draw_dpi_func_body(ivl_scope_t scope)
       ivl_variable_type_t rtype = ivl_scope_func_type(scope);
       unsigned rwid = (rtype == IVL_VT_LOGIC || rtype == IVL_VT_BOOL)
                     ? ivl_scope_func_width(scope) : 0;
+      int unsupported = 0;
 
-      // C4 (Phase 62k): build per-arg type signature so the runtime
-      // %dpi/call/* opcode can pop each argument from the right stack.
-      // 'i' = int (vec4), 's' = string, 'r' = real.  Cap at 16 to keep
-      // the buffer small and match runtime expectations.
-      char arg_types[17] = {0};
-      unsigned types_n = (ncp <= 16) ? ncp : 16;
+      char arg_types[256];
+      unsigned types_pos = 0;
 
-      for (unsigned ii = 1; ii <= ncp; ii += 1) {
-	    ivl_signal_t port = ivl_scope_port(scope, ii);
-	    ivl_variable_type_t ptype = ivl_signal_data_type(port);
-	    if (ptype == IVL_VT_REAL) {
-		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
-		  if (ii <= types_n) arg_types[ii-1] = 'r';
-	    } else if (ptype == IVL_VT_STRING) {
-		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
-		  if (ii <= types_n) arg_types[ii-1] = 's';
-	    } else {
-		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
-		  if (ii <= types_n) arg_types[ii-1] = 'i';
-	    }
+      if (ncp > 64) {
+	    fprintf(stderr, "%s:%u: sorry: DPI import '%s' has %u "
+		    "arguments; more than 64 are not supported.\n",
+		    ivl_scope_def_file(scope), ivl_scope_def_lineno(scope),
+		    c_name, ncp);
+	    unsupported = 1;
+      }
+      if (rwid > 64) {
+	    fprintf(stderr, "%s:%u: sorry: DPI import '%s' returns a "
+		    "%u-bit vector; by-value DPI returns are limited to "
+		    "64 bits.\n",
+		    ivl_scope_def_file(scope), ivl_scope_def_lineno(scope),
+		    c_name, rwid);
+	    unsupported = 1;
       }
 
-      // C4 (Phase 62k): pack the per-arg type signature into the
-      // function-name string using a SOH (\x01) separator, since the
-      // opcode struct only allows 3 operands.  The runtime splits on
-      // \x01 to recover (name, types).  Always emit the suffix (even
-      // for all-int signatures) so the runtime can rely on it.
-      int emit_types = 1;
-      (void)emit_types;
+      for (unsigned ii = 1; !unsupported && ii <= ncp; ii += 1) {
+	    ivl_signal_t port = ivl_scope_port(scope, ii);
+	    ivl_variable_type_t ptype = ivl_signal_data_type(port);
+	    unsigned pwid = ivl_signal_width(port);
+
+	    if (ivl_signal_port(port) != IVL_SIP_INPUT) {
+		  fprintf(stderr, "%s:%u: sorry: DPI import '%s': output/"
+			  "inout argument '%s' is not yet marshaled; the "
+			  "call is skipped.\n",
+			  ivl_scope_def_file(scope),
+			  ivl_scope_def_lineno(scope),
+			  c_name, ivl_signal_basename(port));
+		  unsupported = 1;
+		  break;
+	    }
+
+	    if (ptype == IVL_VT_REAL) {
+		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
+		  arg_types[types_pos++] = 'r';
+	    } else if (ptype == IVL_VT_STRING) {
+		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
+		  arg_types[types_pos++] = 's';
+	    } else if (ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL) {
+		  if (pwid > 64) {
+			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
+				"argument '%s' is %u bits wide; by-value "
+				"DPI arguments are limited to 64 bits "
+				"(svLogicVecVal/svBitVecVal marshaling is "
+				"not yet implemented).\n",
+				ivl_scope_def_file(scope),
+				ivl_scope_def_lineno(scope),
+				c_name, ivl_signal_basename(port), pwid);
+			unsupported = 1;
+			break;
+		  }
+		  if (ptype == IVL_VT_LOGIC && pwid > 1) {
+			fprintf(stderr, "%s:%u: warning: DPI import '%s': "
+				"4-state vector argument '%s' is passed as "
+				"a 2-state integer (X/Z bits coerce to 0); "
+				"declare the C parameter as a plain "
+				"integer type.\n",
+				ivl_scope_def_file(scope),
+				ivl_scope_def_lineno(scope),
+				c_name, ivl_signal_basename(port));
+		  }
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
+		  if (ptype == IVL_VT_LOGIC && pwid == 1) {
+			arg_types[types_pos++] = 'g';
+		  } else {
+			if (! ivl_signal_signed(port))
+			      arg_types[types_pos++] = 'u';
+			if (pwid <= 8)       arg_types[types_pos++] = 'b';
+			else if (pwid <= 16) arg_types[types_pos++] = 'h';
+			else if (pwid <= 32) arg_types[types_pos++] = 'i';
+			else                 arg_types[types_pos++] = 'l';
+		  }
+	    } else {
+		  fprintf(stderr, "%s:%u: sorry: DPI import '%s': argument "
+			  "'%s' has a type not yet marshaled for DPI; the "
+			  "call is skipped.\n",
+			  ivl_scope_def_file(scope),
+			  ivl_scope_def_lineno(scope),
+			  c_name, ivl_signal_basename(port));
+		  unsupported = 1;
+		  break;
+	    }
+      }
+      arg_types[types_pos] = 0;
+
+      if (unsupported) {
+	      // Loudly diagnosed above: push a deterministic default
+	      // result instead of a broken call.
+	    if (rtype == IVL_VT_REAL) {
+		  fprintf(vvp_out, "    %%pushi/real 0, 0;\n");
+		  fprintf(vvp_out, "    %%ret/real 0;\n");
+	    } else if (rtype == IVL_VT_STRING) {
+		  fprintf(vvp_out, "    %%pushi/str \"\";\n");
+		  fprintf(vvp_out, "    %%ret/str 0;\n");
+	    } else if (rtype != IVL_VT_VOID) {
+		  fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", rwid);
+		  fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", rwid);
+	    }
+	    return;
+      }
 
       // Use '|' as the name/types separator: it's not legal in C function
       // names, and the vvp lexer's strdup_and_demangle passes it through

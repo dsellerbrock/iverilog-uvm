@@ -7390,6 +7390,13 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
       if (const NetBlock*tp = dynamic_cast<const NetBlock*>(def->proc())) {
 	    if (tp->proc_first() == 0) {
 		  bool keep_for_dynamic_dispatch = false;
+		    /* M10: a DPI import has an empty pform body, but the
+		       code generator synthesizes the real body (the
+		       %dpi/call). Never elide calls to DPI imports. */
+		  if (task->type() == NetScope::FUNC && task->func_pform()
+		      && task->func_pform()->is_dpi_import()) {
+			keep_for_dynamic_dispatch = true;
+		  }
 		  if (!super_call && use_this && task->parent()
 		      && task->parent()->type() == NetScope::CLASS) {
 			/* Preserve empty base-method calls for dynamic dispatch.

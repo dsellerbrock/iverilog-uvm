@@ -7369,23 +7369,41 @@ bool of_DEBUG_THR(vthread_t thr, vvp_code_t cp)
 }
 
 /*
- * DPI helper: extract a signed 32-bit int from the top of the vec4 stack
+ * DPI stack helpers (M10): pop/push integer payloads for the DPI
+ * marshaler. X/Z bits coerce to 0 (DPI integer arguments are 2-state;
+ * recorded corner), except the dedicated 4-state scalar pop which
+ * preserves the svLogic encoding.
  */
-static int32_t dpi_pop_int32(vthread_t thr)
+static int64_t dpi_pop_int64(vthread_t thr)
 {
       const vvp_vector4_t& v = thr->peek_vec4(0);
-      unsigned nbits = v.size() < 32 ? v.size() : 32;
-      int32_t val = 0;
+      unsigned nbits = v.size() < 64 ? v.size() : 64;
+      uint64_t val = 0;
       for (unsigned i = 0; i < nbits; ++i)
-	    if (v.value(i) == BIT4_1) val |= (int32_t)(1 << i);
+	    if (v.value(i) == BIT4_1) val |= ((uint64_t)1 << i);
+      thr->pop_vec4(1);
+      return (int64_t)val;
+}
+
+// svLogic scalar: sv_0=0, sv_1=1, sv_z=2, sv_x=3 (LRM Annex H svdpi.h).
+static int64_t dpi_pop_logic_(vthread_t thr)
+{
+      const vvp_vector4_t& v = thr->peek_vec4(0);
+      int64_t val = 3;
+      if (v.size() > 0) switch (v.value(0)) {
+	  case BIT4_0: val = 0; break;
+	  case BIT4_1: val = 1; break;
+	  case BIT4_Z: val = 2; break;
+	  case BIT4_X: val = 3; break;
+      }
       thr->pop_vec4(1);
       return val;
 }
 
-static void dpi_push_int32(vthread_t thr, int32_t val, unsigned wid)
+static void dpi_push_int64(vthread_t thr, int64_t val, unsigned wid)
 {
       vvp_vector4_t res(wid, BIT4_0);
-      unsigned nbits = wid < 32 ? wid : 32;
+      unsigned nbits = wid < 64 ? wid : 64;
       for (unsigned i = 0; i < nbits; ++i)
 	    res.set_bit(i, (val >> i) & 1 ? BIT4_1 : BIT4_0);
       thr->push_vec4(res);
@@ -7394,8 +7412,8 @@ static void dpi_push_int32(vthread_t thr, int32_t val, unsigned wid)
 // C4 (Phase 62k): split "name|types" packed in cp->text.  Returns pointer
 // to types string ("" if no types embedded) and writes the bare name
 // into name_buf.  When types is empty/missing, callers default to the
-// legacy "all int" behavior — i.e. all-int parameters with same return
-// type, since '|' is not legal in C function names.
+// legacy per-opcode uniform letters, since '|' is not legal in C
+// function names.
 static const char* split_dpi_name_types_(const char*text, char*name_buf,
                                           size_t name_buf_sz)
 {
@@ -7412,210 +7430,164 @@ static const char* split_dpi_name_types_(const char*text, char*name_buf,
 }
 
 /*
- * %dpi/call/vec4 "c_name\001types" nargs wid
+ * M10: parsed form of one token from the compiler-emitted types
+ * string. Tokens are parsed greedily per argument: optional '+'
+ * (output direction — reserved, not yet marshaled), optional 'u'
+ * (unsigned), then a base letter:
+ *   'b' int8, 'h' int16, 'i' int32, 'l' int64 (longint/chandle),
+ *   'g' svLogic scalar, 'r' double, 's' string.
+ */
+struct dpi_sig_tok_t {
+      char base;
+      bool is_unsigned;
+      bool is_output;
+};
+
+static void dpi_parse_types_(const char*types, char dflt, unsigned nargs,
+			     vector<dpi_sig_tok_t>&sig)
+{
+      const char*cp = types ? types : "";
+      sig.resize(nargs);
+      for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
+	    dpi_sig_tok_t tok;
+	    tok.base = dflt;
+	    tok.is_unsigned = false;
+	    tok.is_output = false;
+	    if (*cp == '+') { tok.is_output = true; cp += 1; }
+	    if (*cp == 'u') { tok.is_unsigned = true; cp += 1; }
+	    if (*cp) tok.base = *cp++;
+	    sig[idx] = tok;
+      }
+}
+
+/*
+ * Shared worker for the %dpi/call opcodes. Pops the arguments from
+ * their proper stacks per the signature string (in reverse push
+ * order), dispatches through vvp_dpi_call() (libffi when available),
+ * and pushes the result for the opcode's return kind. The stacks are
+ * always balanced, even when the symbol is missing or the signature
+ * cannot be marshaled — a default result is pushed instead.
+ */
+static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
+			     unsigned wid, char dflt_letter)
+{
+      char name_buf[256];
+      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
+      const char*c_name = name_buf;
+      unsigned nargs = cp->bit_idx[0];
+
+      vector<dpi_sig_tok_t> sig;
+      dpi_parse_types_(types, dflt_letter, nargs, sig);
+
+      vector<vvp_dpi_arg_t> args (nargs);
+      vector<string> str_store (nargs);
+      for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
+	    unsigned slot = nargs - 1 - ii;
+	    vvp_dpi_arg_t&arg = args[slot];
+	    arg.type = sig[slot].base;
+	    arg.is_unsigned = sig[slot].is_unsigned;
+	    arg.ival = 0;
+	    arg.rval = 0.0;
+	    arg.sval = 0;
+	    switch (sig[slot].base) {
+		case 'r':
+		  arg.rval = thr->pop_real();
+		  break;
+		case 's':
+		  str_store[slot] = thr->pop_str();
+		  arg.sval = str_store[slot].c_str();
+		  break;
+		case 'g':
+		  arg.ival = dpi_pop_logic_(thr);
+		  break;
+		default:
+		  arg.ival = dpi_pop_int64(thr);
+		  break;
+	    }
+      }
+
+      int64_t ret_i = 0;
+      double ret_r = 0.0;
+      const char*ret_s = "";
+
+      void*sym = vvp_dpi_find_symbol(c_name);
+      if (!sym) {
+	    fprintf(stderr, "DPI error: symbol '%s' not found in any "
+		    "loaded DPI library\n", c_name);
+      } else {
+	      // On marshaling failure vvp_dpi_call() has already
+	      // printed a diagnostic; fall through to push a default
+	      // result so the thread keeps a consistent stack.
+	    vvp_dpi_call(sym, c_name, ret_type,
+			 nargs? &args[0] : 0, nargs,
+			 &ret_i, &ret_r, &ret_s);
+      }
+
+      switch (ret_type) {
+	  case 'i':
+	  case 'l':
+	    dpi_push_int64(thr, ret_i, wid);
+	    break;
+	  case 'r':
+	    thr->push_real(ret_r);
+	    break;
+	  case 's':
+	    thr->push_str(ret_s ? ret_s : "");
+	    break;
+	  default:
+	    break;
+      }
+      return true;
+}
+
+/*
+ * %dpi/call/vec4 "c_name|types" nargs wid
  *
- * Pops nargs int32 args from vec4 stack (in reverse param order),
- * calls the named C function, pushes the int32 result as wid-bit vec4.
+ * Pops nargs args (per the types signature) from their stacks, calls
+ * the named C function, pushes the integer result as a wid-bit vec4.
+ * Returns wider than 32 bits (longint/chandle) use the int64 ABI.
  */
 bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
 {
-      char name_buf[256];
-      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
-      (void)types;
-      const char*c_name = name_buf;
-      unsigned nargs = cp->bit_idx[0];
-      unsigned wid   = cp->bit_idx[1];
-
-      void*sym = vvp_dpi_find_symbol(c_name);
-      if (!sym) {
-	    fprintf(stderr, "DPI error: symbol '%s' not found in any loaded DPI library\n",
-		    c_name);
-	    thr->pop_vec4(nargs);
-	    dpi_push_int32(thr, 0, wid);
-	    return true;
-      }
-
-      int32_t args[8];
-      if (nargs > 8) nargs = 8;
-      for (unsigned ii = 0; ii < nargs; ++ii)
-	    args[nargs-1-ii] = dpi_pop_int32(thr);
-
-      typedef int32_t(*fn0_t)(void);
-      typedef int32_t(*fn1_t)(int32_t);
-      typedef int32_t(*fn2_t)(int32_t,int32_t);
-      typedef int32_t(*fn3_t)(int32_t,int32_t,int32_t);
-      typedef int32_t(*fn4_t)(int32_t,int32_t,int32_t,int32_t);
-      typedef int32_t(*fn5_t)(int32_t,int32_t,int32_t,int32_t,int32_t);
-      typedef int32_t(*fn6_t)(int32_t,int32_t,int32_t,int32_t,int32_t,int32_t);
-      typedef int32_t(*fn7_t)(int32_t,int32_t,int32_t,int32_t,int32_t,int32_t,int32_t);
-      typedef int32_t(*fn8_t)(int32_t,int32_t,int32_t,int32_t,int32_t,int32_t,int32_t,int32_t);
-
-      int32_t result = 0;
-      switch (nargs) {
-	    case 0: result = ((fn0_t)sym)(); break;
-	    case 1: result = ((fn1_t)sym)(args[0]); break;
-	    case 2: result = ((fn2_t)sym)(args[0],args[1]); break;
-	    case 3: result = ((fn3_t)sym)(args[0],args[1],args[2]); break;
-	    case 4: result = ((fn4_t)sym)(args[0],args[1],args[2],args[3]); break;
-	    case 5: result = ((fn5_t)sym)(args[0],args[1],args[2],args[3],args[4]); break;
-	    case 6: result = ((fn6_t)sym)(args[0],args[1],args[2],args[3],args[4],args[5]); break;
-	    case 7: result = ((fn7_t)sym)(args[0],args[1],args[2],args[3],args[4],args[5],args[6]); break;
-	    default: result = ((fn8_t)sym)(args[0],args[1],args[2],args[3],args[4],args[5],args[6],args[7]); break;
-      }
-      dpi_push_int32(thr, result, wid);
-      return true;
+      unsigned wid = cp->bit_idx[1];
+      return dpi_call_common_(thr, cp, (wid > 32)? 'l' : 'i', wid, 'i');
 }
 
 /*
- * %dpi/call/real "c_name\001types" nargs
+ * %dpi/call/real "c_name|types" nargs
  *
- * Pops nargs double args from real stack, calls C function, pushes double result.
+ * Calls C function returning double, pushes the result on the real
+ * stack. Arguments marshal per the types signature.
  */
 bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t cp)
 {
-      char name_buf[256];
-      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
-      (void)types;
-      const char*c_name = name_buf;
-      unsigned nargs = cp->bit_idx[0];
-
-      void*sym = vvp_dpi_find_symbol(c_name);
-      if (!sym) {
-	    fprintf(stderr, "DPI error: symbol '%s' not found\n", c_name);
-	    thr->pop_real(nargs);
-	    thr->push_real(0.0);
-	    return true;
-      }
-
-      double dargs[8];
-      if (nargs > 8) nargs = 8;
-      for (unsigned ii = 0; ii < nargs; ++ii)
-	    dargs[nargs-1-ii] = thr->pop_real();
-
-      typedef double(*dfn0_t)(void);
-      typedef double(*dfn1_t)(double);
-      typedef double(*dfn2_t)(double,double);
-      typedef double(*dfn4_t)(double,double,double,double);
-
-      double result = 0.0;
-      switch (nargs) {
-	    case 0: result = ((dfn0_t)sym)(); break;
-	    case 1: result = ((dfn1_t)sym)(dargs[0]); break;
-	    case 2: result = ((dfn2_t)sym)(dargs[0],dargs[1]); break;
-	    default: result = ((dfn4_t)sym)(dargs[0],dargs[1],dargs[2],dargs[3]); break;
-      }
-      thr->push_real(result);
-      return true;
+      return dpi_call_common_(thr, cp, 'r', 0, 'r');
 }
 
 /*
- * %dpi/call/str "c_name\001types" nargs
+ * %dpi/call/str "c_name|types" nargs
  *
  * Calls C function that returns const char*. Pushes result as string.
- * The type signature in `types` (one char per arg: 'i' int / 's' string /
- * 'r' real) tells us which stack each arg lives on.  C4 (Phase 62k):
- * before the type-signature suffix, this opcode assumed all args were
- * strings, so calling a string-return DPI with an int arg (e.g.
- * `string uvm_dpi_get_next_arg_c(int init)`) underflowed pop_str and
- * leaked the int on stack_vec4.
+ * C4 (Phase 62k): before the type-signature suffix, this opcode
+ * assumed all args were strings, so calling a string-return DPI with
+ * an int arg (e.g. `string uvm_dpi_get_next_arg_c(int init)`)
+ * underflowed pop_str and leaked the int on stack_vec4.
  */
 bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t cp)
 {
-      char name_buf[256];
-      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
-      const char*c_name = name_buf;
-      unsigned nargs = cp->bit_idx[0];
-
-      // Pop args off the right stack first (regardless of symbol lookup
-      // result) so the stacks stay consistent on lookup failure.
-      if (nargs > 8) nargs = 8;
-      int32_t   iargs[8] = {0};
-      string    sargs[8];
-      double    rargs[8] = {0};
-      // Pop in reverse stack order (last-pushed is on top of its stack).
-      for (unsigned ii = 0; ii < nargs; ++ii) {
-	    unsigned slot = nargs - 1 - ii;
-	    char tc = (types && types[slot]) ? types[slot] : 's';
-	    switch (tc) {
-		case 'r': rargs[slot] = thr->pop_real(); break;
-		case 'i': iargs[slot] = dpi_pop_int32(thr); break;
-		case 's':
-		default:  sargs[slot] = thr->pop_str(); break;
-	    }
-      }
-
-      void*sym = vvp_dpi_find_symbol(c_name);
-      if (!sym) {
-	    fprintf(stderr, "DPI error: symbol '%s' not found\n", c_name);
-	    thr->push_str("");
-	    return true;
-      }
-
-      typedef const char*(*sfn0_t)(void);
-      typedef const char*(*sfn1i_t)(int32_t);
-      typedef const char*(*sfn1s_t)(const char*);
-      typedef const char*(*sfn1r_t)(double);
-
-      const char*result = "";
-      if (nargs == 0) {
-	    result = ((sfn0_t)sym)();
-      } else if (nargs == 1) {
-	    char tc = (types && types[0]) ? types[0] : 's';
-	    switch (tc) {
-		case 'i': result = ((sfn1i_t)sym)(iargs[0]); break;
-		case 'r': result = ((sfn1r_t)sym)(rargs[0]); break;
-		case 's':
-		default:  result = ((sfn1s_t)sym)(sargs[0].c_str()); break;
-	    }
-      } else {
-	    // Mixed-arg cases beyond 1 arg fall back to all-string ABI
-	    // for compatibility with prior behavior.
-	    typedef const char*(*sfn2s_t)(const char*,const char*);
-	    if (nargs == 2)
-		  result = ((sfn2s_t)sym)(sargs[0].c_str(), sargs[1].c_str());
-      }
-      thr->push_str(result ? result : "");
-      return true;
+      return dpi_call_common_(thr, cp, 's', 0, 's');
 }
 
 /*
- * %dpi/call/void "c_name\001types" nargs
+ * %dpi/call/void "c_name|types" nargs
  *
- * Calls C void function with int32 args from vec4 stack.
+ * Calls C void function; arguments marshal per the types signature.
  */
 bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
 {
-      char name_buf[256];
-      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
-      (void)types;
-      const char*c_name = name_buf;
-      unsigned nargs = cp->bit_idx[0];
-
-      void*sym = vvp_dpi_find_symbol(c_name);
-      if (!sym) {
-	    fprintf(stderr, "DPI error: symbol '%s' not found\n", c_name);
-	    thr->pop_vec4(nargs);
-	    return true;
-      }
-
-      int32_t args[8];
-      if (nargs > 8) nargs = 8;
-      for (unsigned ii = 0; ii < nargs; ++ii)
-	    args[nargs-1-ii] = dpi_pop_int32(thr);
-
-      typedef void(*vfn0_t)(void);
-      typedef void(*vfn1_t)(int32_t);
-      typedef void(*vfn2_t)(int32_t,int32_t);
-      typedef void(*vfn4_t)(int32_t,int32_t,int32_t,int32_t);
-
-      switch (nargs) {
-	    case 0: ((vfn0_t)sym)(); break;
-	    case 1: ((vfn1_t)sym)(args[0]); break;
-	    case 2: ((vfn2_t)sym)(args[0],args[1]); break;
-	    default: ((vfn4_t)sym)(args[0],args[1],args[2],args[3]); break;
-      }
-      return true;
+      return dpi_call_common_(thr, cp, 'v', 0, 'i');
 }
+
 
 /*
  * The delay takes two 32bit numbers to make up a 64bit time.
