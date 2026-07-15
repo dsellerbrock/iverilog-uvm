@@ -8172,6 +8172,58 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
       }
 
       if (expr_.size() == 1) {
+	    /* IEEE 1800-2017 14.14: @($global_clock) — substitute the
+	       event of the global clocking block visible from this
+	       scope. The defining module is an enclosing scope, so the
+	       underlying event names resolve upward from here. */
+	    if (const PECallFunction*gcf =
+			dynamic_cast<const PECallFunction*>(expr_[0]->expr())) {
+		  if (gn_system_verilog()
+		      && gcf->path().name.size() == 1
+		      && strcmp(peek_tail_name(gcf->path().name).str(),
+				"$global_clock") == 0) {
+			if (expr_[0]->type() != PEEvent::ANYEDGE) {
+			      cerr << get_fileline() << ": error: edge qualifiers "
+				   << "may not be applied to $global_clock event "
+				   << "controls." << endl;
+			      des->errors += 1;
+			      return 0;
+			}
+			const Module::PClocking*gcb = nullptr;
+			NetScope*gdef_scope = nullptr;
+			for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
+			      if (walker->type() != NetScope::MODULE)
+				    continue;
+			      perm_string mn = walker->module_name();
+			      if (mn.nil()) continue;
+			      auto pmod_it = pform_modules.find(mn);
+			      if (pmod_it == pform_modules.end()) continue;
+			      if (pmod_it->second->global_clocking.nil()) continue;
+			      auto cb_it = pmod_it->second->clocking_blocks.find(
+					pmod_it->second->global_clocking);
+			      if (cb_it != pmod_it->second->clocking_blocks.end()) {
+				    gcb = cb_it->second;
+				    gdef_scope = walker;
+				    break;
+			      }
+			}
+			if (!gcb || !gdef_scope || !gcb->event
+			    || gcb->event->event_expressions().empty()) {
+			      cerr << get_fileline() << ": error: $global_clock: "
+				   << "no global clocking block is visible from "
+				   << "this scope (IEEE 1800-2017 14.14)." << endl;
+			      des->errors += 1;
+			      return 0;
+			}
+			  /* Elaborate the wait in the DEFINING module's
+			     scope, so the event signals resolve there
+			     (plain names do not cross module-instance
+			     boundaries). The sub-statement still runs in
+			     the referencing thread. */
+			return gcb->event->elaborate_st(des, gdef_scope, enet);
+		  }
+	    }
+
 	    const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr());
 	    if (id) {
 		  symbol_search_results sr;

@@ -4376,6 +4376,16 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
      selects a clocking block declared elsewhere in this scope. */
   | K_default K_clocking IDENTIFIER ';'
       { pform_set_default_clocking_ref(@3, $3); }
+  /* IEEE 1800-2017 14.14: global clocking. Declares only the clocking
+     event (no items); referenced as $global_clock. */
+  | K_global K_clocking IDENTIFIER event_control ';'
+      { pform_start_clocking_block(@3, $3, $4, false, true); }
+    clocking_items_opt K_endclocking
+      { pform_end_clocking_block(@8); }
+  | K_global K_clocking event_control ';'
+      { pform_start_clocking_block(@2, 0, $3, false, true); }
+    clocking_items_opt K_endclocking
+      { pform_end_clocking_block(@7); }
   /* SV `default disable iff (expr);` — silently accepted. */
   | K_default K_disable K_iff '(' expression ')' ';'
       { delete $5; }

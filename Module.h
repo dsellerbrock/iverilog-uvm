@@ -180,6 +180,12 @@ class Module : public PScopeExtra, public PNamedItem {
 	   identifier can collide with. */
       perm_string default_clocking;
 
+	/* IEEE 1800-2017 14.14: at most one global clocking block per
+	   module/program (design-wide resolution happens at
+	   $global_clock elaboration by walking the enclosing scopes).
+	   Nil when none is declared. */
+      perm_string global_clocking;
+
 	/* List for specify paths and timing checks */
       std::list<PSpecPath*> specify_paths;
       std::list<PTimingCheck*> timing_checks;

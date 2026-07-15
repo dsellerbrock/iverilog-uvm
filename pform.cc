@@ -366,6 +366,7 @@ static list<set<perm_string> > conditional_block_names;
      always within an interface. */
 static PModport*pform_cur_modport = 0;
 static Module::PClocking*pform_cur_clocking = 0;
+static bool pform_cur_clocking_is_global = false;
 
 static NetNet::Type pform_default_nettype = NetNet::WIRE;
 
@@ -3894,7 +3895,8 @@ void pform_add_modport_port(const struct vlltype&loc,
 void pform_start_clocking_block(const struct vlltype&loc,
 				const char*name,
 				PEventStatement*event,
-				bool is_default)
+				bool is_default,
+				bool is_global)
 {
       Module*scope = pform_cur_module.front();
 	/* IEEE 1800-2017 14.3: clocking blocks may be declared in a
@@ -3914,12 +3916,24 @@ void pform_start_clocking_block(const struct vlltype&loc,
 	    return;
       }
 
+      if (is_global && !scope->global_clocking.nil()) {
+	    cerr << loc << ": error: multiple global clocking declarations "
+		 << "in `" << scope->mod_name() << "' (IEEE 1800-2017 14.14 "
+		 << "allows at most one per module or program)." << endl;
+	    error_count += 1;
+	    delete[] name;
+	    delete event;
+	    return;
+      }
+
 	/* An anonymous `default clocking @(event); ... endclocking`
 	   (14.12) is registered under an internal name that no source
-	   identifier can collide with. */
+	   identifier can collide with. Same for an anonymous global
+	   clocking (14.14). */
       perm_string use_name = name
 	    ? lex_strings.make(name)
-	    : perm_string::literal("$default_clocking");
+	    : (is_global ? perm_string::literal("$global_clocking")
+			 : perm_string::literal("$default_clocking"));
       if (scope->clocking_blocks.find(use_name) != scope->clocking_blocks.end()) {
 	    cerr << loc << ": error: duplicate declaration of clocking block `"
 		 << use_name << "'." << endl;
@@ -3930,10 +3944,13 @@ void pform_start_clocking_block(const struct vlltype&loc,
       }
 
       pform_cur_clocking = new Module::PClocking(use_name, event);
+      pform_cur_clocking_is_global = is_global;
       FILE_NAME(pform_cur_clocking, loc);
       scope->clocking_blocks[use_name] = pform_cur_clocking;
       if (is_default)
 	    scope->default_clocking = use_name;
+      if (is_global)
+	    scope->global_clocking = use_name;
 
       delete[] name;
 }
@@ -3970,6 +3987,17 @@ void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
 	   error has already been reported. */
       if (pform_cur_clocking == 0) return;
 
+	/* IEEE 1800-2017 14.14: a global clocking declaration only
+	   specifies the clocking event; it shall not contain clocking
+	   items. */
+      if (pform_cur_clocking_is_global) {
+	    cerr << loc << ": error: global clocking blocks cannot "
+		 << "declare clocking signals (IEEE 1800-2017 14.14)."
+		 << endl;
+	    error_count += 1;
+	    return;
+      }
+
       if (!pform_cur_clocking->add_signal(name, dir, in_skew, out_skew)) {
 	    cerr << loc << ": error: duplicate signal `" << name
 		 << "' in clocking block `" << pform_cur_clocking->name << "'." << endl;
@@ -3989,6 +4017,7 @@ void pform_end_clocking_block(const struct vlltype&loc)
 {
       /* May be 0 if the block body had a parse error and was skipped */
       pform_cur_clocking = 0;
+      pform_cur_clocking_is_global = false;
 }
 
 /* IEEE 1800-2017 14.16: `cb.out <= ##N v`. Lower the cycle-delayed

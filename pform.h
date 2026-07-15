@@ -253,7 +253,8 @@ extern void pform_add_modport_port(const struct vlltype&loc,
 extern void pform_start_clocking_block(const struct vlltype&loc,
 				       const char*name,
 				       PEventStatement*event,
-				       bool is_default = false);
+				       bool is_default = false,
+				       bool is_global = false);
 extern void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
 				      NetNet::PortType dir,
 				      const pform_clocking_skew_t*in_skew,
