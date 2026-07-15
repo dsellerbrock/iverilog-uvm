@@ -1638,6 +1638,22 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
 	    return;
       }
+	/* Clocking drive through a virtual interface (14.16): 1-bit
+	 * "did the M-th property signal (the sampler tick) of the
+	 * bound instance change during this time step". */
+      if (strcmp(ivl_expr_name(expr), "$ivl_vif_tick_changed")==0) {
+	    ivl_expr_t obj = (ivl_expr_parms(expr) > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    ivl_expr_t midx = (ivl_expr_parms(expr) > 1) ? ivl_expr_parm(expr, 1) : 0;
+	    if (obj && midx && ivl_expr_type(midx) == IVL_EX_NUMBER) {
+		  draw_eval_object(obj);
+		  fprintf(vvp_out, "    %%vif/tickchg %lu;\n",
+			  ivl_expr_uvalue(midx));
+		  return;
+	    }
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
+	    return;
+      }
+
 	/* Clocking input sample read (14.13): the Preponed-region value
 	 * of the raw signal. Requires a $ivl_clocking_hist_on prologue;
 	 * degrades to the current value without one. */

@@ -59,6 +59,13 @@ class vvp_vinterface : public vvp_object {
 	// candidate instance scopes.
       __vpiScope* vif_scope(void) const { return scope_; }
 
+	// True if the pid-th property signal changed during the
+	// current time step (its Preponed value differs from its
+	// current value; requires an enabled 1-deep history). Used by
+	// %vif/tickchg for the clocking-drive "did the clocking event
+	// already occur in this step" test (IEEE 1800-2017 14.16).
+      bool sig_changed_this_step(size_t pid) const;
+
     private:
       enum slot_kind_t {
 	    SLOT_NONE,

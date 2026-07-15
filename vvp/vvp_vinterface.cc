@@ -192,6 +192,26 @@ void vvp_vinterface::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
       vvp_send_vec4(dest, val, vthread_get_wt_context());
 }
 
+bool vvp_vinterface::sig_changed_this_step(size_t pid) const
+{
+      slot_t slot = get_slot_(pid);
+      if (slot.kind != SLOT_SIGNAL)
+	    return false;
+
+      __vpiSignal*sig = resolve_signal_index_(dynamic_cast<__vpiSignal*>(slot.handle), 0);
+      if (!sig || !sig->node)
+	    return false;
+
+      vvp_wire_vec4*wire = dynamic_cast<vvp_wire_vec4*>(sig->node->fil);
+      if (!wire)
+	    return false;
+
+      vvp_vector4_t pre, cur;
+      wire->vec4_preponed_value(pre);
+      wire->vec4_value(cur);
+      return ! pre.eeq(cur);
+}
+
 void vvp_vinterface::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx) const
 {
       slot_t slot = get_slot_(pid);

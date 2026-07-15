@@ -15628,6 +15628,29 @@ bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t)
 }
 
 /*
+ * %vif/tickchg <M>
+ *
+ * Pop a vvp_vinterface handle and push a 1-bit flag: 1 if the M-th
+ * property signal of the bound instance changed during the current
+ * time step (Preponed value != current value). The clocking-drive
+ * transform uses this on the sampler tick bit to decide whether the
+ * clocking event already occurred in this step (drive now) or not
+ * (buffer for the next event) -- IEEE 1800-2017 14.16 through a
+ * virtual interface. A nil/non-vif handle yields 0 (buffer), the
+ * safe answer.
+ */
+bool of_VIF_TICKCHG(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool chg = vif ? vif->sig_changed_this_step(cp->number) : false;
+      vvp_vector4_t res (1, chg ? BIT4_1 : BIT4_0);
+      thr->push_vec4(res);
+      return true;
+}
+
+/*
  * %xnor
  */
 bool of_XNOR(vthread_t thr, vvp_code_t)

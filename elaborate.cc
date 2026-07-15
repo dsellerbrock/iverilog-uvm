@@ -4147,6 +4147,138 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 	    }
       }
 
+	/* Shape (c): the prefix resolves to a CLASS-typed handle whose
+	   interface class carries the clocking block (vif.cb.out, or
+	   deeper chains like cfg.vif.cb.out). The drive buffers
+	   against the BOUND instance's obuf/opend variables, reached
+	   as interface properties by name; that instance's apply
+	   process lands buffered drives at its clocking events. The
+	   did-the-event-occur test is %vif/tickchg on the instance's
+	   sampler tick property. Output skews through a vif are not
+	   applied (the class side carries no skew info; recorded). */
+      if (path.size() >= 3) {
+	    symbol_search_results csr;
+	    symbol_search(&loc, des, scope, lid->path(), lid->lexical_pos(), &csr);
+	    const netclass_t*class_type = dynamic_cast<const netclass_t*>(csr.type);
+	    if (csr.net && class_type && csr.path_tail.size() >= 2) {
+		  pform_name_t::const_iterator sig_c = csr.path_tail.end();
+		  --sig_c;
+		  pform_name_t::const_iterator cb_c = sig_c;
+		  --cb_c;
+
+		    /* Walk any leading tail components as class
+		       properties to find the interface class that owns
+		       the clocking block (plain chains only). */
+		  const netclass_t*walk = class_type;
+		  bool chain_ok = true;
+		  for (pform_name_t::const_iterator it = csr.path_tail.begin()
+			     ; it != cb_c && chain_ok ; ++it) {
+			if (!it->index.empty()) { chain_ok = false; break; }
+			int pidx = walk->property_idx_from_name(it->name);
+			if (pidx < 0) { chain_ok = false; break; }
+			walk = dynamic_cast<const netclass_t*>(walk->get_prop_type(pidx));
+			if (!walk) chain_ok = false;
+		  }
+
+		  const netclass_t::clocking_block_t*cbk =
+			(chain_ok && walk->is_interface()
+			 && cb_c->index.empty() && sig_c->index.empty())
+			? walk->find_clocking_block(cb_c->name) : nullptr;
+		  if (cbk && std::find(cbk->signals.begin(), cbk->signals.end(),
+				       sig_c->name) != cbk->signals.end()) {
+			int cdir = static_cast<int>(NetNet::PINOUT);
+			std::map<perm_string,int>::const_iterator dit =
+			      cbk->directions.find(sig_c->name);
+			if (dit != cbk->directions.end())
+			      cdir = dit->second;
+
+			if (cdir == static_cast<int>(NetNet::POUTPUT)
+			    || cdir == static_cast<int>(NetNet::PINOUT)) {
+			      string vbname = string("_ivl_obuf$") + cb_c->name.str()
+				    + "$" + sig_c->name.str();
+			      string vpname = string("_ivl_opend$") + cb_c->name.str()
+				    + "$" + sig_c->name.str();
+			      string vkname = string("_ivl_smptick$") + cb_c->name.str();
+			      perm_string obuf_p = lex_strings.make(vbname.c_str());
+			      perm_string opend_p = lex_strings.make(vpname.c_str());
+			      perm_string tick_p = lex_strings.make(vkname.c_str());
+			      int obuf_idx = walk->property_idx_from_name(obuf_p);
+			      int opend_idx = walk->property_idx_from_name(opend_p);
+			      int tick_idx = walk->property_idx_from_name(tick_p);
+			      if (obuf_idx >= 0 && opend_idx >= 0 && tick_idx >= 0) {
+				    pform_name_t prefix = path;
+				    prefix.pop_back();   // sig
+				    prefix.pop_back();   // cb
+
+				    pform_name_t obuf_path = prefix;
+				    obuf_path.push_back(name_component_t(obuf_p));
+				    pform_name_t opend_path = prefix;
+				    opend_path.push_back(name_component_t(opend_p));
+				    pform_name_t raw_path = prefix;
+				    raw_path.push_back(*sig_c);
+
+				    NetExpr*rv = elaborate_rval_expr(des, scope,
+							walk->get_prop_type(obuf_idx),
+							rexpr);
+				    if (rv == 0) return 0;
+
+				    PEIdent obuf_id (obuf_path, lid->lexical_pos());
+				    obuf_id.set_line(loc);
+				    NetAssign_*obuf_lv = obuf_id.elaborate_lval(des, scope,
+									false, false, false);
+				    if (obuf_lv == 0) return 0;
+				    NetAssign*store = new NetAssign(obuf_lv, rv);
+				    store->set_line(loc);
+
+				    PEIdent pfx_id (prefix, lid->lexical_pos());
+				    pfx_id.set_line(loc);
+				    NetExpr*vif_ex = pfx_id.elaborate_expr(des, scope, 0u, 0u);
+				    if (vif_ex == 0) return 0;
+				    NetESFunc*chg = new NetESFunc("$ivl_vif_tick_changed",
+							walk->get_prop_type(tick_idx), 2);
+				    chg->parm(0, vif_ex);
+				    verinum tick_v ((uint64_t)tick_idx, 32);
+				    NetEConst*tick_c = new NetEConst(tick_v);
+				    tick_c->set_line(loc);
+				    chg->parm(1, tick_c);
+				    chg->set_line(loc);
+
+				    PEIdent raw_id (raw_path, lid->lexical_pos());
+				    raw_id.set_line(loc);
+				    NetAssign_*raw_lv = raw_id.elaborate_lval(des, scope,
+								      false, false, false);
+				    if (raw_lv == 0) return 0;
+				    PEIdent obuf_rd_id (obuf_path, lid->lexical_pos());
+				    obuf_rd_id.set_line(loc);
+				    NetExpr*obuf_rd = obuf_rd_id.elaborate_expr(des, scope, 0u, 0u);
+				    if (obuf_rd == 0) return 0;
+				    NetAssignNB*now = new NetAssignNB(raw_lv, obuf_rd, 0, 0);
+				    now->set_line(loc);
+
+				    PEIdent opend_id (opend_path, lid->lexical_pos());
+				    opend_id.set_line(loc);
+				    NetAssign_*opend_lv = opend_id.elaborate_lval(des, scope,
+									  false, false, false);
+				    if (opend_lv == 0) return 0;
+				    verinum one_v (verinum::V1, 1);
+				    NetEConst*one = new NetEConst(one_v);
+				    one->set_line(loc);
+				    NetAssign*mark = new NetAssign(opend_lv, one);
+				    mark->set_line(loc);
+
+				    NetCondit*cond = new NetCondit(chg, now, mark);
+				    cond->set_line(loc);
+				    NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+				    blk->set_line(loc);
+				    blk->append(store);
+				    blk->append(cond);
+				    return blk;
+			      }
+			}
+		  }
+	    }
+      }
+
 	/* Shape (b): `inst.cb.sig` — the prefix resolves to an
 	   instance scope (interface, module, or program). */
       if (!def_scope && path.size() >= 3) {
