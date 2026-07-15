@@ -25,7 +25,10 @@ vpiHandle __vpiArrayBase::vpi_array_base_iterate(int code)
 {
     switch (code) {
         case vpiReg:
-        case vpiMemoryWord: {
+        case vpiMemoryWord:
+	  // M12: SystemVerilog container elements iterate under
+	  // vpiMember as well.
+        case vpiMember: {
                 struct __vpiArrayIterator*res;
                 res = new __vpiArrayIterator;
                 res->array = this;

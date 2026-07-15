@@ -868,19 +868,22 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
 
     protected:
       vvp_darray*get_vvp_darray() const;
+      const class vvp_assoc_base*get_vvp_assoc() const;
       __vpiDecConst left_range_, right_range_;
+	// M12: reported when the live object cannot decide (null
+	// handle): vpiDynamicArray for darrays, vpiQueueArray for
+	// queue-declared variables.
+      int default_array_type_ = vpiDynamicArray;
 };
 
 extern vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net);
 
-class __vpiQueueVar : public __vpiBaseVar {
+/* M12: queues (and associative arrays declared through the queue
+ * path) share the full darray element-access machinery. */
+class __vpiQueueVar : public __vpiDarrayVar {
 
     public:
       __vpiQueueVar(__vpiScope*scope, const char*name, vvp_net_t*net);
-
-      int get_type_code(void) const override;
-      int vpi_get(int code) override;
-      void vpi_get_value(p_vpi_value val) override;
 };
 
 extern vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net);
@@ -895,6 +898,17 @@ class __vpiCobjectVar : public __vpiBaseVar {
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+	// M12: iterate the live object's members (vpiMember).
+      vpiHandle vpi_iterate(int code) override;
+	// M12: find one member handle by property name (used by
+	// vpi_handle_by_name dotted-path descent). Returns nil when
+	// the object is null or has no such property.
+      vpiHandle member_by_name(const char*name);
+
+    private:
+      std::vector<vpiHandle> members_;
+      const class class_type* members_defn_ = nullptr;
+      void refresh_members_();
 };
 
 extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net);

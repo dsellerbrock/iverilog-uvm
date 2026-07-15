@@ -295,7 +295,11 @@ static int compare_types(int code, int type)
 	      type == vpiIntVar      ||
 	      type == vpiLongIntVar  ||
 	      type == vpiTimeVar     ||
-	      type == vpiRealVar))
+	      type == vpiRealVar     ||
+	      // M12: SystemVerilog variable objects are variables too.
+	      type == vpiStringVar   ||
+	      type == vpiClassVar    ||
+	      type == vpiArrayVar))
 	    return 1;
 
       return 0;

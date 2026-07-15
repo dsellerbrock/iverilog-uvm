@@ -55,10 +55,13 @@ int __vpiStringVar::vpi_get(int code)
 	    return 0;
 	  case vpiRightRange:
             return str.size() - 1;
-	  default:
-	    fprintf(stderr, "vpi sorry: property is not implemented");
-	    assert(false);
+	  case vpiAutomatic:
+	  case vpiSigned:
 	    return 0;
+	  default:
+	    fprintf(stderr, "vpi sorry: string property %d is not "
+		    "implemented.\n", code);
+	    return vpiUndefined;
       }
 }
 

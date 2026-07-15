@@ -1491,6 +1491,28 @@ static char * find_next(char *name)
       return next;
 }
 
+/*
+ * M12: dotted-path descent into class objects — resolve "….obj.prop"
+ * by finding the class variable then its member. One level of member
+ * descent (nested object members are a recorded corner).
+ */
+static vpiHandle class_member_descent_(const char*name, vpiHandle scope)
+{
+      const char*last_dot = strrchr(name, '.');
+      if (!last_dot || last_dot == name)
+	    return 0;
+      std::string prefix(name, last_dot - name);
+      vpiHandle base = vpi_handle_by_name(prefix.c_str(), scope);
+      if (!base)
+	    return 0;
+      if (base->get_type_code() != vpiClassVar)
+	    return 0;
+      __vpiCobjectVar*cv = dynamic_cast<__vpiCobjectVar*>(base);
+      if (!cv)
+	    return 0;
+      return cv->member_by_name(last_dot + 1);
+}
+
 vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
 {
       vpiHandle hand;
@@ -1572,6 +1594,10 @@ vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
       }
 
       if (hand == 0) {
+	      // M12: the prefix may be a class variable, not a scope.
+	    if (vpiHandle member = class_member_descent_(name, scope))
+		  return member;
+
 	    if (vpi_trace) {
 		  fprintf(vpi_trace, "vpi_handle_by_name: "
 			  "Scope does not exist. Giving up.\n");
@@ -1607,6 +1633,11 @@ vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
 
 	// Now we have the correct scope, look for the item.
       vpiHandle out = find_name(nm_base, hand);
+
+	// M12: fall back to class-member descent for dotted paths
+	// whose prefix is a class variable in this scope.
+      if (out == 0)
+	    out = class_member_descent_(name, scope);
 
       if (vpi_trace) {
 	    fprintf(vpi_trace, "vpi_handle_by_name: DONE\n");
