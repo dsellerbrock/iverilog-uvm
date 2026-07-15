@@ -95,6 +95,10 @@ class Module : public PScopeExtra, public PNamedItem {
 	    std::map<perm_string,NetNet::PortType>directions;
 	    std::map<perm_string,pform_clocking_skew_t>in_skews;
 	    std::map<perm_string,pform_clocking_skew_t>out_skews;
+	      /* clocking_decl_assign (A.6.11): clockvars sampling an
+		 arbitrary expression. The signal-path form is
+		 supported; other shapes are diagnosed. */
+	    std::map<perm_string,PExpr*>decl_assigns;
 	    pform_clocking_skew_t default_in, default_out;
 	    bool default_in_set = false, default_out_set = false;
       };
@@ -229,5 +233,14 @@ class Module : public PScopeExtra, public PNamedItem {
       Module(const Module&);
       Module& operator= (const Module&);
 };
+
+/* Resolve the raw signal a clocking-block item samples or drives:
+   the local signal of the same name, or the clocking_decl_assign
+   target when the item declared one (signal-path form only;
+   other expression shapes return nil). Implemented in netmisc.cc. */
+class Design;
+extern NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
+					   const Module::PClocking*cb,
+					   perm_string sig_name);
 
 #endif /* IVL_Module_H */

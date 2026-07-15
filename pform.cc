@@ -3980,7 +3980,8 @@ void pform_set_default_clocking_ref(const struct vlltype&loc,
 void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
 			       NetNet::PortType dir,
 			       const pform_clocking_skew_t*in_skew,
-			       const pform_clocking_skew_t*out_skew)
+			       const pform_clocking_skew_t*out_skew,
+			       PExpr*decl_assign)
 {
 	/* The enclosing block open may have failed (duplicate name) or
 	   been skipped on a parse error; drop the signal quietly — an
@@ -4002,7 +4003,10 @@ void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
 	    cerr << loc << ": error: duplicate signal `" << name
 		 << "' in clocking block `" << pform_cur_clocking->name << "'." << endl;
 	    error_count += 1;
+	    return;
       }
+      if (decl_assign)
+	    pform_cur_clocking->decl_assigns[name] = decl_assign;
 }
 
 void pform_set_clocking_default_skews(const struct vlltype&loc,
@@ -4031,23 +4035,35 @@ Statement* pform_make_clocking_drive(const struct vlltype&loc,
 				     PExpr*lval, PExpr*cycles, PExpr*rval)
 {
       PEIdent*lid = dynamic_cast<PEIdent*>(lval);
-      if (!lid || lid->path().size() < 2) {
-	    cerr << loc << ": sorry: `<= ##N` cycle-delay drives are only "
-		 << "supported with a clocking-block l-value prefix "
-		 << "(cb.sig <= ##N v)." << endl;
+      if (!lid) {
+	    cerr << loc << ": sorry: `<= ##N` cycle-delay drives require "
+		 << "a simple l-value." << endl;
 	    error_count += 1;
 	    PAssignNB*deg = new PAssignNB(lval, rval);
 	    FILE_NAME(deg, loc);
 	    return deg;
       }
 
-      pform_name_t cb_path = lid->path().name;
-      cb_path.pop_back();
-      PEIdent*cb_ident = lid->path().package
-	    ? new PEIdent(lid->path().package, cb_path, lid->lexical_pos())
-	    : new PEIdent(cb_path, lid->lexical_pos());
-      FILE_NAME(cb_ident, loc);
-      PEEvent*ev = new PEEvent(PEEvent::ANYEDGE, cb_ident);
+	/* Scalar form `x <= ##N v` (14.16): cycles count the DEFAULT
+	   clocking block of the enclosing scope, resolved at
+	   elaboration via the $ivl_default_clock marker. */
+      PExpr*ev_expr;
+      if (lid->path().size() < 2) {
+	    std::list<named_pexpr_t> no_parms;
+	    PECallFunction*mark = new PECallFunction(
+		  perm_string::literal("$ivl_default_clock"), no_parms);
+	    FILE_NAME(mark, loc);
+	    ev_expr = mark;
+      } else {
+	    pform_name_t cb_path = lid->path().name;
+	    cb_path.pop_back();
+	    PEIdent*cb_ident = lid->path().package
+		  ? new PEIdent(lid->path().package, cb_path, lid->lexical_pos())
+		  : new PEIdent(cb_path, lid->lexical_pos());
+	    FILE_NAME(cb_ident, loc);
+	    ev_expr = cb_ident;
+      }
+      PEEvent*ev = new PEEvent(PEEvent::ANYEDGE, ev_expr);
       std::vector<PEEvent*> evs;
       evs.push_back(ev);
       PEventStatement*ectl = new PEventStatement(evs);

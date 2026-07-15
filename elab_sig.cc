@@ -537,7 +537,7 @@ bool PPackage::elaborate_sig(Design*des, NetScope*scope) const
    Inputs that cannot be sampled (non-vector types, arrays) keep the
    pre-existing alias behavior; the read-rewrite helpers key off the
    presence of the sample variable, so the two stay consistent. */
-static void elaborate_sig_clocking_samples_(NetScope*scope, const Module*mod)
+static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Module*mod)
 {
       typedef std::map<perm_string,Module::PClocking*>::const_iterator cb_it_t;
       for (cb_it_t cur = mod->clocking_blocks.begin()
@@ -553,9 +553,15 @@ static void elaborate_sig_clocking_samples_(NetScope*scope, const Module*mod)
 		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
 		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
 
-		  NetNet*raw = scope->find_signal(*sig_it);
-		  if (!raw)
-			continue;   // reported when the clockvar is used
+		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
+		  if (!raw) {
+			if (cb->decl_assigns.count(*sig_it))
+			      cerr << cb->get_fileline() << ": sorry: "
+				   << "clocking_decl_assign for `" << *sig_it
+				   << "' is not a resolvable signal path; "
+				   << "the clockvar is not sampled." << endl;
+			continue;   // otherwise reported when used
+		  }
 		  if (raw->data_type() != IVL_VT_LOGIC
 		      && raw->data_type() != IVL_VT_BOOL) {
 			cerr << cb->get_fileline() << ": sorry: clocking "
@@ -730,7 +736,7 @@ bool Module::elaborate_sig(Design*des, NetScope*scope) const
 	// Clocking-block input sample variables and trigger events
 	// (IEEE 1800-2017 14.13) -- after the wires so the underlying
 	// signals exist to copy types from.
-      elaborate_sig_clocking_samples_(scope, this);
+      elaborate_sig_clocking_samples_(des, scope, this);
 
 	// Run through all the generate schemes to elaborate the
 	// signals that they hold. Note that the generate schemes hold

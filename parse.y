@@ -4453,6 +4453,26 @@ clocking_item
 					    0, 0);
 	    delete $2;
       }
+  /* IEEE 1800-2017 A.6.11 clocking_decl_assign: `input a = expr;`
+     declares a clockvar sampling an arbitrary (typically
+     hierarchical) signal. Single-name form; the signal-path shape is
+     supported, other expressions are diagnosed at elaboration. */
+  | K_input clocking_skew_opt IDENTIFIER '=' expression ';'
+      {
+	    pform_add_clocking_signal(@3, lex_strings.make($3),
+				      NetNet::PINPUT, $2, 0, $5);
+	    delete $2;
+	    delete[] $3;
+      }
+  | K_output clocking_skew_opt IDENTIFIER '=' expression ';'
+      {
+	    cerr << @3 << ": sorry: output clocking_decl_assign is not "
+		 << "yet supported; the clockvar is ignored." << endl;
+	    pform_add_clocking_signal(@3, lex_strings.make($3),
+				      NetNet::POUTPUT, 0, $2, $5);
+	    delete $2;
+	    delete[] $3;
+      }
   /* default_skew items: set the block's default skews (14.4.2). */
   | K_default K_input clocking_skew ';'
       { pform_set_clocking_default_skews(@2, $3, 0);

@@ -8178,14 +8178,23 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	       underlying event names resolve upward from here. */
 	    if (const PECallFunction*gcf =
 			dynamic_cast<const PECallFunction*>(expr_[0]->expr())) {
-		  if (gn_system_verilog()
-		      && gcf->path().name.size() == 1
-		      && strcmp(peek_tail_name(gcf->path().name).str(),
-				"$global_clock") == 0) {
+		  bool is_gclk = gn_system_verilog()
+			&& gcf->path().name.size() == 1
+			&& strcmp(peek_tail_name(gcf->path().name).str(),
+				  "$global_clock") == 0;
+		    /* Internal marker: `x <= ##N v` (14.16) lowers at
+		       parse time to a repeat-event drive on the DEFAULT
+		       clocking block, which is only resolvable here. */
+		  bool is_dclk = gn_system_verilog() && !is_gclk
+			&& gcf->path().name.size() == 1
+			&& strcmp(peek_tail_name(gcf->path().name).str(),
+				  "$ivl_default_clock") == 0;
+		  if (is_gclk || is_dclk) {
 			if (expr_[0]->type() != PEEvent::ANYEDGE) {
 			      cerr << get_fileline() << ": error: edge qualifiers "
-				   << "may not be applied to $global_clock event "
-				   << "controls." << endl;
+				   << "may not be applied to "
+				   << (is_gclk ? "$global_clock" : "default-clocking")
+				   << " event controls." << endl;
 			      des->errors += 1;
 			      return 0;
 			}
@@ -8198,9 +8207,11 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			      if (mn.nil()) continue;
 			      auto pmod_it = pform_modules.find(mn);
 			      if (pmod_it == pform_modules.end()) continue;
-			      if (pmod_it->second->global_clocking.nil()) continue;
-			      auto cb_it = pmod_it->second->clocking_blocks.find(
-					pmod_it->second->global_clocking);
+			      perm_string cbn = is_gclk
+				    ? pmod_it->second->global_clocking
+				    : pmod_it->second->default_clocking;
+			      if (cbn.nil()) continue;
+			      auto cb_it = pmod_it->second->clocking_blocks.find(cbn);
 			      if (cb_it != pmod_it->second->clocking_blocks.end()) {
 				    gcb = cb_it->second;
 				    gdef_scope = walker;
@@ -8209,11 +8220,27 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			}
 			if (!gcb || !gdef_scope || !gcb->event
 			    || gcb->event->event_expressions().empty()) {
-			      cerr << get_fileline() << ": error: $global_clock: "
-				   << "no global clocking block is visible from "
-				   << "this scope (IEEE 1800-2017 14.14)." << endl;
+			      cerr << get_fileline() << ": error: "
+				   << (is_gclk ? "$global_clock: no global"
+					       : "`<= ##N`: no default")
+				   << " clocking block is visible from this "
+				   << "scope (IEEE 1800-2017 "
+				   << (is_gclk ? "14.14" : "14.12") << ")." << endl;
 			      des->errors += 1;
 			      return 0;
+			}
+			  /* Prefer the sampler trigger, so waiters observe
+			     the block's samples for that edge (global
+			     clocking blocks have no items, hence no
+			     trigger, and fall through). */
+			string trig_name = string("_ivl_smptrig$")
+			      + gcb->name.str();
+			if (NetEvent*trig = gdef_scope->find_event(
+				  lex_strings.make(trig_name.c_str()))) {
+			      NetEvWait*we = new NetEvWait(enet);
+			      we->set_line(*this);
+			      we->add_event(trig);
+			      return we;
 			}
 			  /* Elaborate the wait in the DEFINING module's
 			     scope, so the event signals resolve there
@@ -11239,7 +11266,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetNet*smp = scope->find_signal(lex_strings.make(sname.c_str()));
 		  if (!smp)
 			continue;   // not sampleable; alias behavior
-		  NetNet*raw = scope->find_signal(*sig_it);
+		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!raw)
 			continue;
 
@@ -11329,7 +11356,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			+ "$" + sig_it->str();
 		  NetNet*obuf = scope->find_signal(lex_strings.make(bname.c_str()));
 		  NetNet*opend = scope->find_signal(lex_strings.make(pname.c_str()));
-		  NetNet*raw = scope->find_signal(*sig_it);
+		  NetNet*raw = resolve_clocking_raw_signal(des, scope, cb, *sig_it);
 		  if (!obuf || !opend || !raw)
 			continue;
 		  out_raws.push_back(raw);
