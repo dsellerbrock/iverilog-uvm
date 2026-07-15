@@ -4083,6 +4083,159 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
  *
  *    <lval> <= #<delay> <rval> ;
  */
+/* M8-2b (IEEE 1800-2017 14.16): recognize `cb.out <= v` and
+   `inst.cb.out <= v` drives to OUTPUT/INOUT clockvars and transform
+   them into the buffered-drive shape:
+
+       begin
+	     _ivl_obuf$cb$out = v;
+	     if ($ivl_clocking_sample(_ivl_smptick$cb) !== _ivl_smptick$cb)
+		   out <= _ivl_obuf$cb$out;     // event occurred this
+						// step: drive now
+	     else
+		   _ivl_opend$cb$out = 1'b0+1;  // buffer: the apply
+						// process lands it at
+						// the next event
+       end
+
+   The tick comparison asks "did the clocking event already occur in
+   this time step" via the same 1-deep history the input sampling
+   uses (the tick toggles in the NBA region of each event step). A
+   drive executed after an @(cb) wake therefore lands in the same
+   step (the LRM's drive-at-current-event case); a drive between
+   events is buffered for the next one.
+
+   Returns nullptr to fall through to the ordinary (alias) NBA:
+   virtual-interface drives, part-selects of clockvars, intra-assign
+   delays, and unsampleable signals keep the old behavior. */
+static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
+						 const PEIdent*lid,
+						 PExpr*rexpr,
+						 const LineInfo&loc)
+{
+      if (!gn_system_verilog()) return nullptr;
+      if (lid->path().package) return nullptr;
+      const pform_name_t&path = lid->path().name;
+      if (path.size() < 2) return nullptr;
+      if (!path.back().index.empty()) return nullptr;
+
+      NetScope*def_scope = nullptr;
+      const Module::PClocking*cbp = nullptr;
+      perm_string cb_name, sig_name;
+
+	/* Shape (a): same-scope `cb.sig`. */
+      if (path.size() == 2 && path.front().index.empty()) {
+	    for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
+		  if (walker->type() != NetScope::MODULE)
+			continue;
+		  perm_string mn = walker->module_name();
+		  if (mn.nil()) continue;
+		  auto pmod_it = pform_modules.find(mn);
+		  if (pmod_it == pform_modules.end()) continue;
+		  auto cb_it = pmod_it->second->clocking_blocks.find(path.front().name);
+		  if (cb_it == pmod_it->second->clocking_blocks.end())
+			continue;
+		  const auto&signals = cb_it->second->signals;
+		  if (std::find(signals.begin(), signals.end(), path.back().name)
+			    == signals.end())
+			break;
+		  def_scope = walker;
+		  cbp = cb_it->second;
+		  cb_name = path.front().name;
+		  sig_name = path.back().name;
+		  break;
+	    }
+      }
+
+	/* Shape (b): `inst.cb.sig` — the prefix resolves to an
+	   instance scope (interface, module, or program). */
+      if (!def_scope && path.size() >= 3) {
+	    symbol_search_results sr;
+	    symbol_search(&loc, des, scope, lid->path(), lid->lexical_pos(), &sr);
+	    if (!sr.net && sr.scope) {
+		  perm_string mn = sr.scope->module_name();
+		  auto pmod_it = mn.nil() ? pform_modules.end()
+					  : pform_modules.find(mn);
+		  if (pmod_it != pform_modules.end()) {
+			pform_name_t::const_iterator sig_c = path.end();
+			--sig_c;
+			pform_name_t::const_iterator cb_c = sig_c;
+			--cb_c;
+			if (cb_c->index.empty()) {
+			      auto cb_it = pmod_it->second->clocking_blocks.find(cb_c->name);
+			      if (cb_it != pmod_it->second->clocking_blocks.end()) {
+				    const auto&signals = cb_it->second->signals;
+				    if (std::find(signals.begin(), signals.end(),
+						  sig_c->name) != signals.end()) {
+					  def_scope = sr.scope;
+					  cbp = cb_it->second;
+					  cb_name = cb_c->name;
+					  sig_name = sig_c->name;
+				    }
+			      }
+			}
+		  }
+	    }
+      }
+
+      if (!def_scope || !cbp)
+	    return nullptr;
+
+      NetNet::PortType dir = cbp->signal_direction(sig_name);
+      if (dir != NetNet::POUTPUT && dir != NetNet::PINOUT)
+	    return nullptr;
+
+      string bname = string("_ivl_obuf$") + cb_name.str() + "$" + sig_name.str();
+      string pname = string("_ivl_opend$") + cb_name.str() + "$" + sig_name.str();
+      string kname = string("_ivl_smptick$") + cb_name.str();
+      string tname = string("_ivl_smptrig$") + cb_name.str();
+      NetNet*raw  = def_scope->find_signal(sig_name);
+      NetNet*obuf = def_scope->find_signal(lex_strings.make(bname.c_str()));
+      NetNet*opend = def_scope->find_signal(lex_strings.make(pname.c_str()));
+      NetNet*tick = def_scope->find_signal(lex_strings.make(kname.c_str()));
+      NetEvent*trig = def_scope->find_event(lex_strings.make(tname.c_str()));
+      if (!raw || !obuf || !opend || !tick || !trig)
+	    return nullptr;
+
+      NetExpr*rv = elaborate_rval_expr(des, scope, obuf->net_type(), rexpr);
+      if (rv == 0) return 0;
+
+      NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+      blk->set_line(loc);
+
+      NetAssign*store = new NetAssign(new NetAssign_(obuf), rv);
+      store->set_line(loc);
+      blk->append(store);
+
+      NetESFunc*pre = new NetESFunc("$ivl_clocking_sample",
+				    tick->net_type(), 1);
+      NetESignal*tick_arg = new NetESignal(tick);
+      tick_arg->set_line(loc);
+      pre->parm(0, tick_arg);
+      pre->set_line(loc);
+      NetESignal*tick_now = new NetESignal(tick);
+      tick_now->set_line(loc);
+      NetEBComp*cmp = new NetEBComp('N', pre, tick_now);
+      cmp->set_line(loc);
+
+      NetESignal*buf_rd = new NetESignal(obuf);
+      buf_rd->set_line(loc);
+      NetAssignNB*direct = new NetAssignNB(new NetAssign_(raw), buf_rd, 0, 0);
+      direct->set_line(loc);
+
+      verinum one_v (verinum::V1, 1);
+      NetEConst*one = new NetEConst(one_v);
+      one->set_line(loc);
+      NetAssign*mark = new NetAssign(new NetAssign_(opend), one);
+      mark->set_line(loc);
+
+      NetCondit*cond = new NetCondit(cmp, direct, mark);
+      cond->set_line(loc);
+      blk->append(cond);
+
+      return blk;
+}
+
 NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -4124,6 +4277,17 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	            "assignments." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+	/* M8-2b: plain drives to output clockvars get the buffered
+	   14.16 semantics. Intra-assignment controls fall through
+	   (`<= ##N` cycle delays are the 2c increment). */
+      if (delay_ == 0 && count_ == 0 && event_ == 0) {
+	    if (const PEIdent*lid = dynamic_cast<const PEIdent*>(lval())) {
+		  if (NetProc*drive = elaborate_clocking_output_drive_(
+			    des, scope, lid, rval(), *this))
+			return drive;
+	    }
       }
 
 	/* Elaborate the l-value. */
@@ -10906,7 +11070,30 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  sample_count += 1;
 	    }
 
-	    if (sample_count == 0) {
+	      /* Collect the output clockvars with drive buffers
+		 (IEEE 1800-2017 14.16, M8-2b). The apply process below
+		 lands buffered drives at each clocking event. */
+	    std::vector<NetNet*> out_raws, out_bufs, out_pends;
+	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
+		       ; sig_it != cb->signals.end() ; ++sig_it) {
+		  NetNet::PortType dir = cb->signal_direction(*sig_it);
+		  if (dir != NetNet::POUTPUT && dir != NetNet::PINOUT)
+			continue;
+		  string bname = string("_ivl_obuf$") + cb->name.str()
+			+ "$" + sig_it->str();
+		  string pname = string("_ivl_opend$") + cb->name.str()
+			+ "$" + sig_it->str();
+		  NetNet*obuf = scope->find_signal(lex_strings.make(bname.c_str()));
+		  NetNet*opend = scope->find_signal(lex_strings.make(pname.c_str()));
+		  NetNet*raw = scope->find_signal(*sig_it);
+		  if (!obuf || !opend || !raw)
+			continue;
+		  out_raws.push_back(raw);
+		  out_bufs.push_back(obuf);
+		  out_pends.push_back(opend);
+	    }
+
+	    if (sample_count == 0 && out_raws.empty()) {
 		  delete prologue;
 		  delete body;
 		  continue;
@@ -10916,10 +11103,23 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		 ordering as the named-event trigger below). @(vif.cb)
 		 waits anyedge on this bit through the class handle;
 		 initialize it to 0 in the prologue because ~x is x and
-		 an x->x "toggle" never fires an anyedge. */
+		 an x->x "toggle" never fires an anyedge. The tick also
+		 gets the 1-deep history: output drives test
+		 "$ivl_clocking_sample(tick) !== tick" to decide whether
+		 the clocking event already occurred in this time step
+		 (drive now) or not (buffer for the next event). */
 	    string kname = string("_ivl_smptick$") + cb->name.str();
 	    NetNet*tick = scope->find_signal(lex_strings.make(kname.c_str()));
 	    if (tick) {
+		  NetESignal*hist_arg = new NetESignal(tick);
+		  hist_arg->set_line(*cb);
+		  vector<NetExpr*> hist_parms (1);
+		  hist_parms[0] = hist_arg;
+		  NetSTask*hist_on = new NetSTask("$ivl_clocking_hist_on",
+						  IVL_SFUNC_AS_TASK_IGNORE,
+						  hist_parms);
+		  hist_on->set_line(*cb);
+		  prologue->append(hist_on);
 		  NetAssign_*ilv = new NetAssign_(tick);
 		  verinum zero_v (verinum::V0, 1);
 		  NetEConst*zero = new NetEConst(zero_v);
@@ -10962,6 +11162,50 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 	    NetProcTop*top = new NetProcTop(scope, IVL_PR_INITIAL, prologue);
 	    top->set_line(*cb);
 	    des->add_process(top);
+
+	      /* M8-2b: the drive-apply process (14.16). Buffered output
+		 drives land at each clocking event. The trig event fires
+		 from the NBA region, so the apply runs after the Active
+		 region of the edge step (Re-NBA-like timing) and catches
+		 both between-edge drives and same-step drives that raced
+		 the edge:
+		     initial forever @(trig)
+			   if (opend) begin raw <= obuf; opend = 0; end */
+	    if (!out_raws.empty()) {
+		  NetBlock*apply_blk = new NetBlock(NetBlock::SEQU, 0);
+		  apply_blk->set_line(*cb);
+		  for (size_t idx = 0 ; idx < out_raws.size() ; idx += 1) {
+			NetESignal*pend_rd = new NetESignal(out_pends[idx]);
+			pend_rd->set_line(*cb);
+			NetESignal*buf_rd = new NetESignal(out_bufs[idx]);
+			buf_rd->set_line(*cb);
+			NetAssignNB*drv = new NetAssignNB(new NetAssign_(out_raws[idx]),
+							  buf_rd, 0, 0);
+			drv->set_line(*cb);
+			verinum zero_v (verinum::V0, 1);
+			NetEConst*zero = new NetEConst(zero_v);
+			zero->set_line(*cb);
+			NetAssign*clr = new NetAssign(new NetAssign_(out_pends[idx]),
+						      zero);
+			clr->set_line(*cb);
+			NetBlock*hit = new NetBlock(NetBlock::SEQU, 0);
+			hit->set_line(*cb);
+			hit->append(drv);
+			hit->append(clr);
+			NetCondit*cond = new NetCondit(pend_rd, hit, 0);
+			cond->set_line(*cb);
+			apply_blk->append(cond);
+		  }
+		  NetEvWait*await = new NetEvWait(apply_blk);
+		  await->set_line(*cb);
+		  await->add_event(trig);
+		  NetForever*apply_loop = new NetForever(await);
+		  apply_loop->set_line(*cb);
+		  NetProcTop*apply_top = new NetProcTop(scope, IVL_PR_INITIAL,
+							apply_loop);
+		  apply_top->set_line(*cb);
+		  des->add_process(apply_top);
+	    }
       }
 }
 

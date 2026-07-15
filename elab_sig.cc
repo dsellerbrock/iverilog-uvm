@@ -550,8 +550,8 @@ static void elaborate_sig_clocking_samples_(NetScope*scope, const Module*mod)
 	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
 		       ; sig_it != cb->signals.end() ; ++sig_it) {
 		  NetNet::PortType dir = cb->signal_direction(*sig_it);
-		  if (dir != NetNet::PINPUT && dir != NetNet::PINOUT)
-			continue;
+		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
+		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
 
 		  NetNet*raw = scope->find_signal(*sig_it);
 		  if (!raw)
@@ -559,39 +559,70 @@ static void elaborate_sig_clocking_samples_(NetScope*scope, const Module*mod)
 		  if (raw->data_type() != IVL_VT_LOGIC
 		      && raw->data_type() != IVL_VT_BOOL) {
 			cerr << cb->get_fileline() << ": sorry: clocking "
-			     << "input `" << *sig_it << "' of block `"
+			     << "signal `" << *sig_it << "' of block `"
 			     << cb->name << "' has a non-vector type; "
-			     << "it keeps the unsampled (alias) behavior."
-			     << endl;
+			     << "it keeps the alias behavior." << endl;
 			continue;
 		  }
 		  if (raw->pin_count() != 1 || raw->unpacked_dimensions() > 0) {
 			cerr << cb->get_fileline() << ": sorry: clocking "
-			     << "input `" << *sig_it << "' of block `"
+			     << "signal `" << *sig_it << "' of block `"
 			     << cb->name << "' is an array; it keeps the "
-			     << "unsampled (alias) behavior." << endl;
+			     << "alias behavior." << endl;
 			continue;
 		  }
 
-		  string sname = string("_ivl_smp$") + cb->name.str()
-			+ "$" + sig_it->str();
-		  perm_string smp_name = lex_strings.make(sname.c_str());
-		  if (scope->find_signal(smp_name)) {
+		  ivl_type_t vt = raw->net_type();
+
+		  if (is_in) {
+			string sname = string("_ivl_smp$") + cb->name.str()
+			      + "$" + sig_it->str();
+			perm_string smp_name = lex_strings.make(sname.c_str());
+			if (!scope->find_signal(smp_name)) {
+			      NetNet*smp;
+			      if (vt) {
+				    smp = new NetNet(scope, smp_name, NetNet::REG, vt);
+			      } else {
+				    netvector_t*vec = new netvector_t(raw->data_type(),
+								      raw->vector_width()-1,
+								      0, raw->get_signed());
+				    smp = new NetNet(scope, smp_name, NetNet::REG, vec);
+			      }
+			      smp->set_line(*cb);
+			}
 			any = true;
-			continue;
 		  }
 
-		  NetNet*smp;
-		  if (ivl_type_t vt = raw->net_type()) {
-			smp = new NetNet(scope, smp_name, NetNet::REG, vt);
-		  } else {
-			netvector_t*vec = new netvector_t(raw->data_type(),
-							  raw->vector_width()-1,
-							  0, raw->get_signed());
-			smp = new NetNet(scope, smp_name, NetNet::REG, vec);
+		    /* Output clockvars get a drive buffer + pending flag
+		       (IEEE 1800-2017 14.16, M8-2b): drives issued between
+		       clocking events are buffered and applied at the next
+		       event by the synthesized apply process. */
+		  if (is_out) {
+			string bname = string("_ivl_obuf$") + cb->name.str()
+			      + "$" + sig_it->str();
+			perm_string obuf_name = lex_strings.make(bname.c_str());
+			if (!scope->find_signal(obuf_name)) {
+			      NetNet*obuf;
+			      if (vt) {
+				    obuf = new NetNet(scope, obuf_name, NetNet::REG, vt);
+			      } else {
+				    netvector_t*vec = new netvector_t(raw->data_type(),
+								      raw->vector_width()-1,
+								      0, raw->get_signed());
+				    obuf = new NetNet(scope, obuf_name, NetNet::REG, vec);
+			      }
+			      obuf->set_line(*cb);
+			}
+			string pname = string("_ivl_opend$") + cb->name.str()
+			      + "$" + sig_it->str();
+			perm_string opend_name = lex_strings.make(pname.c_str());
+			if (!scope->find_signal(opend_name)) {
+			      netvector_t*pvec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
+			      NetNet*opend = new NetNet(scope, opend_name, NetNet::REG, pvec);
+			      opend->set_line(*cb);
+			}
+			any = true;
 		  }
-		  smp->set_line(*cb);
-		  any = true;
 	    }
 
 	    if (!any)
