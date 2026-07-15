@@ -7494,6 +7494,10 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 
       vector<vvp_dpi_arg_t> args (nargs);
       vector<string> str_store (nargs);
+	// Open-array handles and their referenced objects must stay
+	// alive for the duration of the C call.
+      vector<vvp_dpi_open_array_t> arr_store (nargs);
+      vector<vvp_object_t> obj_store (nargs);
       for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
 	    unsigned slot = nargs - 1 - ii;
 	    vvp_dpi_arg_t&arg = args[slot];
@@ -7503,6 +7507,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    arg.ival = 0;
 	    arg.rval = 0.0;
 	    arg.sval = 0;
+	    arg.aval = 0;
 	    switch (sig[slot].base) {
 		case 'r':
 		  arg.rval = thr->pop_real();
@@ -7514,6 +7519,37 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		case 'g':
 		  arg.ival = dpi_pop_logic_(thr);
 		  break;
+		case 'o': {
+		      thr->pop_object(obj_store[slot]);
+		      vvp_dpi_open_array_t&arr = arr_store[slot];
+		      arr.data = 0;
+		      arr.length = 0;
+		      arr.elem_bytes = 0;
+		      arr.elem_is_real = false;
+		      vvp_darray*da = obj_store[slot].peek<vvp_darray>();
+		      if (da) {
+			    unsigned eb = da->dpi_elem_bytes();
+			    if (eb > 0) {
+				  arr.data = da->dpi_raw_data();
+				  arr.length = (unsigned)da->get_size();
+				  arr.elem_bytes = eb;
+				  arr.elem_is_real = da->dpi_elem_is_real();
+			    } else {
+				  fprintf(stderr, "DPI error: '%s': open "
+					  "array argument %u does not have "
+					  "atom-typed contiguous storage; "
+					  "passing an empty handle.\n",
+					  c_name, slot+1);
+			    }
+		      } else if (! obj_store[slot].test_nil()) {
+			    fprintf(stderr, "DPI error: '%s': open array "
+				    "argument %u is not a dynamic array; "
+				    "passing an empty handle.\n",
+				    c_name, slot+1);
+		      }
+		      arg.aval = &arr;
+		      break;
+		}
 		default:
 		  arg.ival = dpi_pop_int64(thr);
 		  break;

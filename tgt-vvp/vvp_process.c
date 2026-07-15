@@ -4186,6 +4186,34 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  letter = 'r';
 	    } else if (ptype == IVL_VT_STRING) {
 		  letter = 's';
+	    } else if (ptype == IVL_VT_DARRAY) {
+		    /* Open array (35.5.6.1): pass an svOpenArrayHandle
+		       that shares the dynamic array's storage. Only
+		       atom-typed elements have contiguous raw storage;
+		       validate here so anything else is a loud sorry
+		       instead of a runtime surprise. */
+		  ivl_type_t nt = ivl_signal_net_type(port);
+		  ivl_type_t et = nt ? ivl_type_element(nt) : 0;
+		  ivl_variable_type_t ebase = et ? ivl_type_base(et)
+			                         : IVL_VT_NO_TYPE;
+		  unsigned ewid = et ? ivl_type_packed_width(et) : 0;
+		  int atom_ok = (ebase == IVL_VT_REAL)
+			|| ((ebase == IVL_VT_BOOL || ebase == IVL_VT_LOGIC)
+			    && (ewid == 8 || ewid == 16
+				|| ewid == 32 || ewid == 64));
+		  if (! atom_ok) {
+			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
+				"open array argument '%s' must have "
+				"2-state atom elements (byte/shortint/"
+				"int/longint) or real elements; the "
+				"call is skipped.\n",
+				ivl_scope_def_file(scope),
+				ivl_scope_def_lineno(scope),
+				c_name, ivl_signal_basename(port));
+			unsupported = 1;
+			break;
+		  }
+		  letter = 'o';
 	    } else if (ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL) {
 		  if (pwid > 64) {
 			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
@@ -4249,17 +4277,21 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
 	    else if (letter == 's')
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
+	    else if (letter == 'o')
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", (void*)port);
 	    else
 		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
 
-	    if (is_out)
+	      /* Open arrays share storage through the handle in both
+		 directions — no output prefix, no copy-back store. */
+	    if (is_out && letter != 'o')
 		  arg_types[types_pos++] = '+';
 	    if ((letter == 'b' || letter == 'h' || letter == 'i'
 		 || letter == 'l') && ! ivl_signal_signed(port))
 		  arg_types[types_pos++] = 'u';
 	    arg_types[types_pos++] = letter;
 
-	    if (is_out) {
+	    if (is_out && letter != 'o') {
 		  out_ports[nout] = port;
 		  out_kinds[nout] = letter;
 		  out_wids[nout] = pwid;

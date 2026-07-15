@@ -21,6 +21,19 @@ extern void* vvp_dpi_find_symbol(const char*name);
  * outputs the returned pointer is callee-owned — copy it before the
  * next DPI call).
  */
+/*
+ * The concrete object behind an svOpenArrayHandle ('o' arguments):
+ * a one-dimensional, zero-based view of contiguous element storage
+ * shared with the simulator's dynamic array. C-side writes through
+ * svGetArrElemPtr land directly in simulation storage.
+ */
+struct vvp_dpi_open_array_t {
+      void* data;
+      unsigned length;
+      unsigned elem_bytes;
+      bool elem_is_real;
+};
+
 struct vvp_dpi_arg_t {
       char type;
       bool is_unsigned;
@@ -28,6 +41,7 @@ struct vvp_dpi_arg_t {
       int64_t ival;
       double rval;
       const char* sval;
+      vvp_dpi_open_array_t* aval; // 'o' only: the open-array handle
 };
 
 /*

@@ -115,6 +115,10 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  atypes[idx] = &ffi_type_pointer;
 		  vals[idx].ptr = arg.sval;
 		  break;
+		case 'o': // svOpenArrayHandle: opaque pointer by value
+		  atypes[idx] = &ffi_type_pointer;
+		  vals[idx].ptr = (const char*)arg.aval;
+		  break;
 		default:
 		  fprintf(stderr, "DPI error: '%s': unsupported argument "
 			  "type letter '%c' at position %u\n",
@@ -124,7 +128,9 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 
 	      // Output/inout: the C parameter is a pointer to the
 	      // (seeded) typed slot; the callee writes through it.
-	    if (arg.is_output) {
+	      // Open arrays are already handles that share storage,
+	      // so direction changes nothing about their marshaling.
+	    if (arg.is_output && arg.type != 'o') {
 		  optrs[idx] = &vals[idx];
 		  atypes[idx] = &ffi_type_pointer;
 		  avalues[idx] = &optrs[idx];
@@ -164,7 +170,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       ffi_call(&cif, FFI_FN(sym), &rbuf, nargs? &avalues[0] : 0);
 
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
-	    if (! args[idx].is_output)
+	    if (! args[idx].is_output || args[idx].type == 'o')
 		  continue;
 	    switch (args[idx].type) {
 		case 'b':
@@ -294,7 +300,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       memset(oval, 0, sizeof oval);
       intptr_t a[8] = {0};
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
-	    if (args[idx].is_output) {
+	    if (args[idx].is_output && args[idx].type != 'o') {
 		  switch (args[idx].type) {
 		      case 'b': oval[idx].i8  = (int8_t)args[idx].ival;  break;
 		      case 'h': oval[idx].i16 = (int16_t)args[idx].ival; break;
@@ -306,6 +312,8 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  a[idx] = (intptr_t)&oval[idx];
 	    } else if (args[idx].type == 's')
 		  a[idx] = (intptr_t)args[idx].sval;
+	    else if (args[idx].type == 'o')
+		  a[idx] = (intptr_t)args[idx].aval;
 	    else
 		  a[idx] = (intptr_t)args[idx].ival;
       }
@@ -346,7 +354,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       }
 
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
-	    if (! args[idx].is_output)
+	    if (! args[idx].is_output || args[idx].type == 'o')
 		  continue;
 	    switch (args[idx].type) {
 		case 'b':
@@ -377,3 +385,80 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 }
 
 #endif /* USE_LIBFFI */
+
+/*
+ * Minimal svdpi.h open-array accessors (IEEE1800-2017 Annex H.12.2),
+ * exported from the vvp executable so dlopen'ed DPI libraries can
+ * resolve them. One-dimensional, zero-based arrays only (the shape
+ * the compiler marshals for 'o' arguments).
+ */
+extern "C" {
+
+int svDimensions(const void*h)
+{
+      return h ? 1 : 0;
+}
+
+int svSize(const void*h, int dim)
+{
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (!arr || dim != 1) return 0;
+      return (int)arr->length;
+}
+
+int svLow(const void*h, int dim)
+{
+      (void)h; (void)dim;
+      return 0;
+}
+
+int svHigh(const void*h, int dim)
+{
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (!arr || dim != 1) return -1;
+      return (int)arr->length - 1;
+}
+
+int svLeft(const void*h, int dim)
+{
+      return svLow(h, dim);
+}
+
+int svRight(const void*h, int dim)
+{
+      return svHigh(h, dim);
+}
+
+int svIncrement(const void*h, int dim)
+{
+      (void)h; (void)dim;
+      return -1;
+}
+
+int svSizeOfArray(const void*h)
+{
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (!arr) return 0;
+      return (int)(arr->length * arr->elem_bytes);
+}
+
+void* svGetArrElemPtr1(const void*h, int indx1)
+{
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (!arr || !arr->data) return 0;
+      if (indx1 < 0 || (unsigned)indx1 >= arr->length) return 0;
+      return (char*)arr->data + (size_t)indx1 * arr->elem_bytes;
+}
+
+void* svGetArrElemPtr(const void*h, int indx1, ...)
+{
+      return svGetArrElemPtr1(h, indx1);
+}
+
+void* svGetArrayPtr(const void*h)
+{
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      return arr ? arr->data : 0;
+}
+
+} /* extern "C" */
