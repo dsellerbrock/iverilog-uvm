@@ -580,6 +580,33 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 
 		  ivl_type_t vt = raw->net_type();
 
+		    /* Edge-qualified skews (14.4 `input negedge [#d]`):
+		       the delay/#1step part is honored; the edge
+		       qualifier itself is not applied. Diagnose rather
+		       than silently ignore. */
+		  {
+			const pform_clocking_skew_t*esk = nullptr;
+			std::map<perm_string,pform_clocking_skew_t>::const_iterator eit;
+			if (is_in) {
+			      eit = cb->in_skews.find(*sig_it);
+			      if (eit != cb->in_skews.end()) esk = &eit->second;
+			      else if (cb->default_in_set) esk = &cb->default_in;
+			}
+			if ((!esk || !esk->edge) && is_out) {
+			      eit = cb->out_skews.find(*sig_it);
+			      if (eit != cb->out_skews.end()) esk = &eit->second;
+			      else if (cb->default_out_set) esk = &cb->default_out;
+			}
+			if (esk && esk->edge) {
+			      cerr << cb->get_fileline() << ": sorry: the "
+				   << "edge qualifier on the skew of clocking "
+				   << "signal `" << *sig_it << "' (block `"
+				   << cb->name << "') is not applied; the "
+				   << "delay part is honored (IEEE 1800-2017 "
+				   << "14.4)." << endl;
+			}
+		  }
+
 		  if (is_in) {
 			string sname = string("_ivl_smp$") + cb->name.str()
 			      + "$" + sig_it->str();

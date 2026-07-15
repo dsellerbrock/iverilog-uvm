@@ -697,7 +697,15 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Already noted.
 
 ### G59 `global clocking` block syntax error
-- Symptom: `global clocking cb @(posedge clk); endclocking` rejected as `Invalid module item / syntax error`.
+- **STATUS 2026-07-15: FIXED** (M8 tail, PR #76). `global clocking
+  [id] @(event); endclocking` parses and registers per module (14.14:
+  one per scope, items illegal — both diagnosed);
+  `@($global_clock)` resolves the nearest enclosing module's global
+  clocking by scope walk and elaborates the wait in the DEFINING
+  module's scope, so it works from any scope below the declaration.
+  Test: `tests/m8_global_clocking_test.sv`; negative:
+  `tests/negative/m8_global_clocking_items.sv`.
+- Pre-fix symptom: `global clocking cb @(posedge clk); endclocking` rejected as `Invalid module item / syntax error`.
 - Probe: p68_global_clocking (VERIFIED-FAILS).
 - Location: parse.y — `global clocking` keyword combo not in grammar.
 - Layer: parser.
