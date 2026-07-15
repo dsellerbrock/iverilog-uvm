@@ -809,6 +809,48 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   `c.sda[i].len()` (G70 indexed-element method family); foreach over
   string properties elaborates the body loop-less.
 
+### G72 (NEW 2026-07-14, FIXED same day) container sort ignored element signedness
+- **STATUS: FIXED.** sort/rsort/unique on vec4-backed queues and
+  dynamic arrays used the unsigned word order (`int q[$]` holding
+  {3,-1,0} sorted to {0,3,-1}); pre-existing on baseline, found while
+  implementing G35/G36. %qsort/%qsort/r/%qunique now carry the
+  declared element signedness; atom-backed darrays self-identify by
+  C++ type. Test: `tests/g35_uarray_ordering_test.sv`.
+
+### G73 (NEW 2026-07-15) `q.push_back({})` pushes a nil handle, not an empty queue
+- **STATUS: OPEN (latent).** Pushing an empty queue LITERAL onto a
+  queue-of-queues stores nil; subsequent element stores through the
+  nil inner handle are skipped (positional outers do not vivify).
+  Workaround: push a populated local queue. Found while pinning the
+  M4 store2 work (`tests/g09_darray_store2_test.sv` documents it).
+  Layer: elaboration/codegen of empty aggregate literals.
+  Complexity: small-medium.
+
+### 2026-07-15 close-out status changes (M3/M4/M5)
+- **G16/G21 completion**: dynamic-array/queue foreach constraints now
+  ENFORCED (18.5.8.2 two-pass staged solve);
+  `tests/m3_constraint_dynforeach_test.sv`.
+- **G11/G57 CLOSED**: solve...before implements ranked staged solving
+  (distribution-correct for the implication shape);
+  `tests/m3_constraint_solve_before_test.sv`.
+- **G35/G36 FIXED**: reverse/sort/rsort/shuffle on static unpacked
+  arrays via %uarr/order; `tests/g35_uarray_ordering_test.sv`.
+  G40 (unique on unpacked, expression form) remains open (rare).
+- **G09 store tail FIXED**: chained element stores through darray and
+  property outers; `tests/g09_darray_store2_test.sv`.
+- **G26 FIXED**: modport task/function ports accepted and recorded.
+- **G27 FIXED**: plain instance actuals bind modport-qualified
+  formals.
+- **G28 FIXED**: interface instance arrays + virtual-interface
+  arrays work; `tests/g26_interface_ports_test.sv`.
+- **G29 FIXED**: `b.mst` instance-modport actuals bind (whole-
+  instance handle; direction enforcement recorded as follow-up).
+- **Foundation fix behind G26-G29**: interface-typed module ports were
+  degrading to 32-bit wires; they are now class-handle variables
+  bound at instantiation (see session log 2026-07-15). KNOWN
+  LIMITATION: interface task dispatch through handles attaches to one
+  instance per interface type.
+
 ### Audit reverification note (2026-07-14 milestone close-out probe)
 - **G38 `string.putc` and G39 `new[N](old)` resize-copy now PASS** —
   fixed by prior container-runtime work; those entries are stale.

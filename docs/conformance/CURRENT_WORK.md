@@ -3,6 +3,38 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-15 (session: M3/M4/M5 close-out)
+
+- **Branch**: `claude/ieee1800-uvm-implementation-qm5wad` (PR #75,
+  draft). Six checkpoints stacked on the G71/M3-ranges work:
+  M3A dynforeach (a48718a), M3B solve...before (5654a78),
+  M4a uarray ordering + G72 signed sort (254d1db),
+  M4b darray/property store2 outers (aeee8f9),
+  M5 interface ports/modports G26-G29 (c399625), plus the promotion
+  commit with the group regression evidence.
+- **Milestone status after this session**:
+  - **M3 CLOSED** (dynamic foreach, non-0-based ranges,
+    solve...before all implemented).
+  - **M4 main tail CLOSED** (G35/G36 ordering methods on unpacked
+    arrays; G72 signed container sort; chained element stores through
+    darray/property outers). Remaining recorded: G40
+    unique-on-unpacked (expression form, rare); display-context
+    chained reads; $size family on property receivers; G70
+    indexed-element methods; G73 (NEW) `q.push_back({})` pushes nil.
+  - **M5 G26-G29 CLOSED** (interface ports functional end to end;
+    modport tf ports accepted; b.mst binds; instance + vif arrays).
+    Remaining recorded: modport direction enforcement;
+    SINGLE-INSTANCE interface task dispatch (elaborate_interface_
+    type_ attaches one class_scope per interface type — dynamic
+    per-handle dispatch is the natural next M5 increment);
+    parameterized-interface ports.
+- **Details**: `session_logs/2026-07-15_m3_m4_m5_closeout.md`.
+- **Next milestone work**: M8 increment 2 (real clocking semantics —
+  input sampling #1step/#0, synchronous Re-NBA drives, replacing the
+  alias model; see the 2026-07-14j entry) and then M9 entry (G05/G06
+  core SVA). The M5 dynamic task-dispatch increment is the main
+  carried-over debt if interface-heavy DV code is prioritized.
+
 ## State as of 2026-07-14k (session: milestone close-out audit + G71 foreach/property-darray family)
 
 - **Branch**: `claude/ieee1800-uvm-implementation-qm5wad` (restarted
