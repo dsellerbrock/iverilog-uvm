@@ -1656,9 +1656,10 @@ static int show_stmt_nb_trigger(ivl_statement_t net)
 
       fprintf(vvp_out, "    %%event/nb E_%p, %d;\n", ev, use_idx);
       clr_word(use_idx);
-	// FIXME: VVP needs to be updated to correctly support %event/nb
-      fprintf(stderr, "%s:%u: vvp.tgt sorry: ->> is not currently supported.\n",
-                      ivl_stmt_file(net), ivl_stmt_lineno(net));
+	/* %event/nb schedules the trigger through
+	 * schedule_propagate_event() in the SEQ_NBASSIGN region
+	 * (IEEE 1800-2017 15.5.1: the nonblocking trigger takes
+	 * effect in the NBA region of the target time step). */
       return 0;
 }
 
@@ -2771,6 +2772,20 @@ static int show_system_task_call(ivl_statement_t net)
 
       if (strncmp(stmt_name, "$ivl_vif_call$", 14) == 0)
 	    return show_vif_dyn_call(net);
+
+	/* Clocking input sampling prologue (14.13): enable the 1-deep
+	 * driven-value history on the raw signal so %load/preponed
+	 * (from $ivl_clocking_sample) returns the Preponed value. */
+      if (strcmp(stmt_name,"$ivl_clocking_hist_on") == 0) {
+	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
+		  ? ivl_stmt_parm(net, 0) : 0;
+	    if (parm0 && ivl_expr_type(parm0) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(parm0)) {
+		  fprintf(vvp_out, "    %%hist/on v%p_0;\n",
+			  ivl_expr_signal(parm0));
+	    }
+	    return 0;
+      }
 
       if (strcmp(stmt_name,"$ivl_darray_method$delete") == 0)
 	    return show_delete_method(net);

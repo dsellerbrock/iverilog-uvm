@@ -6,12 +6,18 @@
 // declarations (named, anonymous, and the reference form) were parsed
 // and silently dropped; they are now registered like any other clocking
 // block. 14.4: skew syntax (#1step, #0, #(n), edge [#d], default
-// input/output skews) parses; skew *semantics* remain the alias model
-// (cb.sig accesses the underlying signal directly).
+// input/output skews) parses. 14.13 (M8-2a): INPUT clockvars now have
+// real sampled semantics -- cb.in reads the value sampled at the most
+// recent clocking event with the default #1step skew (see
+// m8_clocking_sample_test.sv for the distinguishing behaviors);
+// explicit skew VALUES are still not applied, and output clockvars
+// keep the alias model (drive lands on the raw signal) until M8-2b.
 //
 // Checks:
 //   1. module-scope clocking: @(cb) waits for the clocking event
-//   2. module-scope clocking: cb.in reads the underlying signal
+//   2. module-scope clocking: cb.in reads the value sampled at the
+//      clocking event (identical to the raw signal here because the
+//      inputs are stable across each sampled edge)
 //   3. module-scope clocking: cb.out <= drives the underlying signal
 //   4. named default clocking is registered and usable by name
 //   5. `default clocking cb;` reference form accepted

@@ -496,13 +496,30 @@ class vvp_wire_vec4 : public vvp_wire_base {
       vvp_bit4_t driven_value(unsigned idx) const override;
       bool is_forced(unsigned idx) const override;
 
+	// Clocking-block input sampling (IEEE 1800-2017 14.13): a
+	// 1-deep driven-value history so `%load/preponed` can return
+	// the value the signal held when the current time step
+	// started (the Preponed-region value, i.e. the default #1step
+	// sample). Off unless a `%hist/on` enables it, so unrelated
+	// signals pay nothing. Note: tracks the DRIVEN value; a signal
+	// under an active force samples its driven (pre-force) value.
+      void enable_sample_hist() { hist_enabled_ = true; }
+      void vec4_preponed_value(vvp_vector4_t&val) const;
+
     private:
       vvp_bit4_t filtered_value_(unsigned idx) const;
+      void hist_snapshot_();
 
     private:
       bool needs_init_;
       vvp_vector4_t bits4_; // The tracked driven value
       vvp_vector4_t force4_; // the value being forced
+
+      bool hist_enabled_;
+      bool hist_valid_;
+      vvp_time64_t hist_time_;
+      vvp_vector4_t hist_prev_; // bits4_ as of the end of the time
+				// step BEFORE hist_time_
 };
 
 class vvp_wire_vec8 : public vvp_wire_base {

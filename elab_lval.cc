@@ -192,9 +192,14 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       const pform_name_t &member_path = sr.path_tail;
 
       pform_name_t rewritten_path;
+      bool clk_input_write = false;
       if ((reg && rewrite_class_clocking_member_path(this, sr, rewritten_path))
-	  || rewrite_clocking_member_path_via_scope(this, sr, rewritten_path)
-	  || (!reg && rewrite_enclosing_scope_clocking_member_path(this, scope, rewritten_path))) {
+	  || rewrite_clocking_member_path_via_scope(this, sr, rewritten_path,
+						    true, &clk_input_write)
+	  || (!reg && rewrite_enclosing_scope_clocking_member_path(this, scope, rewritten_path,
+								   true, &clk_input_write))) {
+	    if (clk_input_write)
+		  des->errors += 1;
 	    if (path_.package) {
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
 		  return mapped_ident.elaborate_lval(des, scope, is_cassign,

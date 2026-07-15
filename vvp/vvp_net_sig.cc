@@ -21,6 +21,7 @@
 # include  "vvp_net.h"
 # include  "vvp_net_sig.h"
 # include  "statistics.h"
+# include  "schedule.h"
 # include  "vthread.h"
 # include  "vpi_priv.h"
 # include  "vvp_assoc.h"
@@ -1288,6 +1289,36 @@ vvp_wire_vec4::vvp_wire_vec4(unsigned wid, vvp_bit4_t init)
 : bits4_(wid, init)
 {
       needs_init_ = true;
+      hist_enabled_ = false;
+      hist_valid_ = false;
+      hist_time_ = 0;
+}
+
+/* Record the pre-change value the first time the signal changes in a
+   given time step. Later changes in the same step keep the original
+   snapshot, so hist_prev_ is always the value from the end of the
+   previous time step. */
+void vvp_wire_vec4::hist_snapshot_()
+{
+      if (!hist_enabled_) return;
+      vvp_time64_t now = schedule_simtime();
+      if (hist_valid_ && hist_time_ == now) return;
+      hist_prev_ = bits4_;
+      hist_time_ = now;
+      hist_valid_ = true;
+}
+
+/* The Preponed-region value: if the signal has changed during the
+   current time step, the value it had when the step started;
+   otherwise the current value. */
+void vvp_wire_vec4::vec4_preponed_value(vvp_vector4_t&val) const
+{
+      if (hist_enabled_ && hist_valid_
+	  && hist_time_ == schedule_simtime()) {
+	    val = hist_prev_;
+	    return;
+      }
+      vec4_value(val);
 }
 
 vvp_net_fil_t::prop_t vvp_wire_vec4::filter_vec4(const vvp_vector4_t&bit, vvp_vector4_t&rep,
@@ -1300,6 +1331,7 @@ vvp_net_fil_t::prop_t vvp_wire_vec4::filter_vec4(const vvp_vector4_t&bit, vvp_ve
       if (base==0 && vwid==0) {
 	    vvp_vector4_t tmp (bits4_.size(), BIT4_X);
 	    if (bits4_ .eeq(tmp) && !needs_init_) return STOP;
+	    hist_snapshot_();
 	    bits4_ = tmp;
 	    needs_init_ = false;
 	    return filter_mask_(tmp, force4_, rep, 0);
@@ -1317,8 +1349,10 @@ vvp_net_fil_t::prop_t vvp_wire_vec4::filter_vec4(const vvp_vector4_t&bit, vvp_ve
 	// it is not ultimately what survives the force filter.
       if (base==0 && bit.size()==vwid) {
 	    if (bits4_ .eeq( bit ) && !needs_init_) return STOP;
+	    hist_snapshot_();
 	    bits4_ = bit;
       } else {
+	    hist_snapshot_();
 	    bool rc = bits4_.set_vec(base, bit);
 	    if (rc == false && !needs_init_) return STOP;
       }
@@ -1339,8 +1373,10 @@ vvp_net_fil_t::prop_t vvp_wire_vec4::filter_vec8(const vvp_vector8_t&bit,
       vvp_vector4_t bit4 (reduce4(bit));
       if (base==0 && bit4.size()==vwid) {
 	    if (bits4_ .eeq( bit4 ) && !needs_init_) return STOP;
+	    hist_snapshot_();
 	    bits4_ = bit4;
       } else {
+	    hist_snapshot_();
 	    bool rc = bits4_.set_vec(base, bit4);
 	    if (rc == false && !needs_init_) return STOP;
       }

@@ -8485,13 +8485,27 @@ bool of_EVENT(vthread_t thr, vvp_code_t cp)
 
 /*
  * %event/nb <var-label>, <delay>
+ *
+ * The nonblocking event trigger (IEEE 1800-2017 15.5.1): deliver the
+ * trigger to the event functor in the NBA region of the target time
+ * step. This must be DELIVERED to the functor's port 0 (like %event
+ * does with vvp_send_vec4) so the waitable hooks run;
+ * schedule_propagate_event() would instead send the value out of the
+ * net's output to its fanout, which never wakes the waiting threads.
+ * schedule_assign_vector with vwid==0 performs exactly the port-0
+ * delivery, scheduled like a non-blocking assignment.
  */
 bool of_EVENT_NB(vthread_t thr, vvp_code_t cp)
 {
       vvp_time64_t delay;
 
       delay = thr->words[cp->bit_idx[0]].w_uint;
-      schedule_propagate_event(cp->net, delay);
+      vvp_vector4_t tmp (1, BIT4_X);
+	/* Match the region of NBA stores issued by the same thread
+	   (Re-NBA for reactive/program threads), so a trigger issued
+	   after nonblocking assignments observes them. */
+      schedule_assign_vector(vvp_net_ptr_t(cp->net, 0), 0, 0, tmp, delay,
+			     thr->is_reactive_process);
       return true;
 }
 
@@ -11082,6 +11096,61 @@ bool of_LOAD_VEC4(vthread_t thr, vvp_code_t cp)
 	// target stack position.
       sig->vec4_value(sig_value);
 
+      return true;
+}
+
+/*
+ * %hist/on <var-label>
+ *
+ * Enable the 1-deep driven-value history on a vec4 signal, so that
+ * later %load/preponed reads can recover the value the signal held
+ * when the current time step started (IEEE 1800-2017 14.13 clocking
+ * input sampling, default #1step skew). Idempotent; emitted in the
+ * prologue of synthesized clocking sample processes, which start
+ * executing at time 0 before any clocking event can trigger. Signals
+ * whose filter is not a vec4 wire (e.g. real) quietly keep the
+ * current-value (alias) behavior — %load/preponed falls back too.
+ */
+bool of_HIST_ON(vthread_t, vvp_code_t cp)
+{
+      vvp_net_t*net = cp->net;
+      if (vvp_wire_vec4*sig = dynamic_cast<vvp_wire_vec4*>(net->fil))
+	    sig->enable_sample_hist();
+      return true;
+}
+
+/*
+ * %load/preponed <var-label>
+ *
+ * Push the signal's Preponed-region value: the value it held when the
+ * current time step started if it changed during this step, otherwise
+ * the current value. Requires a %hist/on for exact semantics; without
+ * one (or on non-vec4 filters) this degrades to the current value.
+ */
+bool of_LOAD_PREPONED(vthread_t thr, vvp_code_t cp)
+{
+      thr->push_vec4(vvp_vector4_t());
+      vvp_vector4_t&sig_value = thr->peek_vec4();
+
+      vvp_net_t*net = cp->net;
+
+      if (vvp_wire_vec4*sig = dynamic_cast<vvp_wire_vec4*>(net->fil)) {
+	    sig->vec4_preponed_value(sig_value);
+	    return true;
+      }
+
+      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (net->fil);
+      if (sig == 0) {
+	    cerr << thr->get_fileline()
+	         << "%load/preponed error: Net arg not a signal? "
+		 << (net->fil ? typeid(*net->fil).name() :
+	                        typeid(*net->fun).name())
+	         << endl;
+	    assert(sig);
+	    return true;
+      }
+
+      sig->vec4_value(sig_value);
       return true;
 }
 

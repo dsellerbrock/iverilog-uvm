@@ -527,6 +527,86 @@ bool PPackage::elaborate_sig(Design*des, NetScope*scope) const
       return flag;
 }
 
+/* M8 increment 2a (IEEE 1800-2017 14.13): for each clocking block that
+   has sampleable input signals, create per-instance hidden sample
+   variables (`_ivl_smp$<cb>$<sig>`) and the sampler trigger event
+   (`_ivl_smptrig$<cb>`). The sampler process itself is synthesized
+   later, in Module::elaborate; the names are created here in the
+   signal-elaboration pass so that expressions anywhere in the design
+   (including other scopes referencing `inst.cb.sig`) can resolve them.
+   Inputs that cannot be sampled (non-vector types, arrays) keep the
+   pre-existing alias behavior; the read-rewrite helpers key off the
+   presence of the sample variable, so the two stay consistent. */
+static void elaborate_sig_clocking_samples_(NetScope*scope, const Module*mod)
+{
+      typedef std::map<perm_string,Module::PClocking*>::const_iterator cb_it_t;
+      for (cb_it_t cur = mod->clocking_blocks.begin()
+		 ; cur != mod->clocking_blocks.end() ; ++cur) {
+	    const Module::PClocking*cb = cur->second;
+	    if (!cb->event || cb->event->event_expressions().empty())
+		  continue;
+
+	    bool any = false;
+	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
+		       ; sig_it != cb->signals.end() ; ++sig_it) {
+		  NetNet::PortType dir = cb->signal_direction(*sig_it);
+		  if (dir != NetNet::PINPUT && dir != NetNet::PINOUT)
+			continue;
+
+		  NetNet*raw = scope->find_signal(*sig_it);
+		  if (!raw)
+			continue;   // reported when the clockvar is used
+		  if (raw->data_type() != IVL_VT_LOGIC
+		      && raw->data_type() != IVL_VT_BOOL) {
+			cerr << cb->get_fileline() << ": sorry: clocking "
+			     << "input `" << *sig_it << "' of block `"
+			     << cb->name << "' has a non-vector type; "
+			     << "it keeps the unsampled (alias) behavior."
+			     << endl;
+			continue;
+		  }
+		  if (raw->pin_count() != 1 || raw->unpacked_dimensions() > 0) {
+			cerr << cb->get_fileline() << ": sorry: clocking "
+			     << "input `" << *sig_it << "' of block `"
+			     << cb->name << "' is an array; it keeps the "
+			     << "unsampled (alias) behavior." << endl;
+			continue;
+		  }
+
+		  string sname = string("_ivl_smp$") + cb->name.str()
+			+ "$" + sig_it->str();
+		  perm_string smp_name = lex_strings.make(sname.c_str());
+		  if (scope->find_signal(smp_name)) {
+			any = true;
+			continue;
+		  }
+
+		  NetNet*smp;
+		  if (ivl_type_t vt = raw->net_type()) {
+			smp = new NetNet(scope, smp_name, NetNet::REG, vt);
+		  } else {
+			netvector_t*vec = new netvector_t(raw->data_type(),
+							  raw->vector_width()-1,
+							  0, raw->get_signed());
+			smp = new NetNet(scope, smp_name, NetNet::REG, vec);
+		  }
+		  smp->set_line(*cb);
+		  any = true;
+	    }
+
+	    if (!any)
+		  continue;
+
+	    string tname = string("_ivl_smptrig$") + cb->name.str();
+	    perm_string trig_name = lex_strings.make(tname.c_str());
+	    if (scope->find_event(trig_name))
+		  continue;
+	    NetEvent*trig = new NetEvent(trig_name);
+	    trig->set_line(*cb);
+	    scope->add_event(trig);
+      }
+}
+
 bool Module::elaborate_sig(Design*des, NetScope*scope) const
 {
       bool flag = true;
@@ -576,6 +656,11 @@ bool Module::elaborate_sig(Design*des, NetScope*scope) const
       }
 
       flag = elaborate_sig_wires_(des, scope) && flag;
+
+	// Clocking-block input sample variables and trigger events
+	// (IEEE 1800-2017 14.13) -- after the wires so the underlying
+	// signals exist to copy types from.
+      elaborate_sig_clocking_samples_(scope, this);
 
 	// Run through all the generate schemes to elaborate the
 	// signals that they hold. Note that the generate schemes hold

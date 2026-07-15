@@ -7891,6 +7891,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		   * scopes -- used by the rewrite path below to substitute
 		   * the underlying event expression. */
 		  const Module::PClocking*pform_clocking_inner = nullptr;
+		  NetScope*pform_clocking_scope = nullptr;
 		  if (id->path().size() == 1 && gn_system_verilog()) {
 			perm_string cb_name = id->path().back().name;
 			for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
@@ -7908,6 +7909,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			      auto cb_it = pmod_it->second->clocking_blocks.find(cb_name);
 			      if (cb_it != pmod_it->second->clocking_blocks.end()) {
 				    pform_clocking_inner = cb_it->second;
+				    pform_clocking_scope = walker;
 				    break;
 			      }
 			}
@@ -7927,11 +7929,17 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			? clocking->event
 			: resolve_scope_pform_clocking_event_(id, sr, scope_cb_name,
 							      base_path_components);
+		  /* Scope that DEFINES the clocking block, for looking up
+		   * the synthesized sampler trigger event (M8-2a). */
+		  NetScope*cb_def_scope = nullptr;
+		  if (!clocking && pform_event)
+			cb_def_scope = sr.scope;
 		  /* Phase 55: pform-side clocking-block lookup for the simple
 		   * `@cb` form within the same interface body or task. */
 		  if (!pform_event && pform_clocking_inner) {
 			pform_event = pform_clocking_inner->event;
 			scope_cb_name = pform_clocking_inner->name;
+			cb_def_scope = pform_clocking_scope;
 			/* Same-scope clocking block: the underlying event
 			 * identifier (e.g. `clk`) resolves in the caller's
 			 * scope without any prefix.  base_path_components=0
@@ -7952,6 +7960,26 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				   << " has no event expression." << endl;
 			      des->errors += 1;
 			      return 0;
+			}
+
+			/* M8-2a: a clocking block with sampled inputs has a
+			 * synthesized sampler process that triggers a named
+			 * event AFTER updating the sample variables (14.13).
+			 * Wait on that event instead of the raw clocking
+			 * event, so processes woken by @(cb) observe this
+			 * edge's samples deterministically. Blocks with no
+			 * sampled inputs have no such event and keep the
+			 * underlying-event substitution below. */
+			if (cb_def_scope && !scope_cb_name.nil()) {
+			      string trig_name = string("_ivl_smptrig$")
+				    + scope_cb_name.str();
+			      if (NetEvent*trig = cb_def_scope->find_event(
+					lex_strings.make(trig_name.c_str()))) {
+				    NetEvWait*we = new NetEvWait(enet);
+				    we->set_line(*this);
+				    we->add_event(trig);
+				    return we;
+			      }
 			}
 
 			std::vector<PEEvent*> mapped_events;
@@ -10753,6 +10781,125 @@ bool PPackage::elaborate(Design*des, NetScope*scope) const
  * method to elaborate the contents of the module.
  */
 
+/* M8 increment 2a (IEEE 1800-2017 14.13): synthesize the input sampler
+   process for each clocking block whose sample variables were created
+   in the signal pass (elaborate_sig_clocking_samples_). The process is
+
+       initial begin
+	     $ivl_clocking_hist_on(raw1); ...   // enable 1-deep history
+	     forever @(<clocking event>) begin
+		   _ivl_smp$cb$sig1 <= $ivl_clocking_sample(raw1); ...
+		   ->> _ivl_smptrig$cb;
+	     end
+       end
+
+   $ivl_clocking_sample lowers to %load/preponed, which returns the
+   value the raw signal held when the time step of the clocking event
+   started -- the Preponed-region value, i.e. the default #1step input
+   skew sample. It is time-step-stable, so it does not matter when in
+   the step the sampler thread actually runs.
+
+   The stores and the trigger are NONBLOCKING so the visibility order
+   is deterministic (IEEE 1800-2017 14.13 puts clockvar updates after
+   the Active region; we use the NBA region):
+   - processes woken by the raw edge in the Active region read the
+     PREVIOUS sample;
+   - the sample variables update in the NBA region, in scheduling
+     order BEFORE the trigger fires;
+   - processes waiting on @(cb) are woken by the trigger (see
+     PEventStatement elaboration) and read THIS edge's samples. */
+static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
+					 const Module*mod)
+{
+      typedef map<perm_string,Module::PClocking*>::const_iterator cb_it_t;
+      for (cb_it_t cur = mod->clocking_blocks.begin()
+		 ; cur != mod->clocking_blocks.end() ; ++cur) {
+	    const Module::PClocking*cb = cur->second;
+	    if (!cb->event || cb->event->event_expressions().empty())
+		  continue;
+
+	    string tname = string("_ivl_smptrig$") + cb->name.str();
+	    NetEvent*trig = scope->find_event(lex_strings.make(tname.c_str()));
+	    if (!trig)
+		  continue;   // no sampleable inputs in this block
+
+	    NetBlock*prologue = new NetBlock(NetBlock::SEQU, 0);
+	    prologue->set_line(*cb);
+	    NetBlock*body = new NetBlock(NetBlock::SEQU, 0);
+	    body->set_line(*cb);
+	    unsigned sample_count = 0;
+
+	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
+		       ; sig_it != cb->signals.end() ; ++sig_it) {
+		  NetNet::PortType dir = cb->signal_direction(*sig_it);
+		  if (dir != NetNet::PINPUT && dir != NetNet::PINOUT)
+			continue;
+
+		  string sname = string("_ivl_smp$") + cb->name.str()
+			+ "$" + sig_it->str();
+		  NetNet*smp = scope->find_signal(lex_strings.make(sname.c_str()));
+		  if (!smp)
+			continue;   // not sampleable; alias behavior
+		  NetNet*raw = scope->find_signal(*sig_it);
+		  if (!raw)
+			continue;
+
+		  NetESignal*hist_arg = new NetESignal(raw);
+		  hist_arg->set_line(*cb);
+		  vector<NetExpr*> hist_parms (1);
+		  hist_parms[0] = hist_arg;
+		  NetSTask*hist_on = new NetSTask("$ivl_clocking_hist_on",
+						  IVL_SFUNC_AS_TASK_IGNORE,
+						  hist_parms);
+		  hist_on->set_line(*cb);
+		  prologue->append(hist_on);
+
+		  NetESFunc*samp = new NetESFunc("$ivl_clocking_sample",
+						 smp->net_type(), 1);
+		  NetESignal*samp_arg = new NetESignal(raw);
+		  samp_arg->set_line(*cb);
+		  samp->parm(0, samp_arg);
+		  samp->set_line(*cb);
+		  NetAssign_*lv = new NetAssign_(smp);
+		  NetAssignNB*asn = new NetAssignNB(lv, samp, 0, 0);
+		  asn->set_line(*cb);
+		  body->append(asn);
+		  sample_count += 1;
+	    }
+
+	    if (sample_count == 0) {
+		  delete prologue;
+		  delete body;
+		  continue;
+	    }
+
+	    NetEvNBTrig*fire = new NetEvNBTrig(trig, 0);
+	    fire->set_line(*cb);
+	    body->append(fire);
+
+	      /* Wrap the per-edge body in the clocking event wait. The
+		 event expression elaborates in the defining scope, the
+		 same resolution source-level @(posedge clk) would get. */
+	    NetProc*wait = cb->event->elaborate_st(des, scope, body);
+	    if (!wait) {
+		  cerr << cb->get_fileline() << ": sorry: cannot elaborate "
+		       << "the clocking event of block `" << cb->name
+		       << "' for input sampling; its inputs keep the "
+		       << "unsampled (alias) behavior." << endl;
+		  delete prologue;
+		  continue;
+	    }
+
+	    NetForever*loop = new NetForever(wait);
+	    loop->set_line(*cb);
+	    prologue->append(loop);
+
+	    NetProcTop*top = new NetProcTop(scope, IVL_PR_INITIAL, prologue);
+	    top->set_line(*cb);
+	    des->add_process(top);
+      }
+}
+
 bool Module::elaborate(Design*des, NetScope*scope) const
 {
       bool result_flag = true;
@@ -10791,6 +10938,10 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // Elaborate the variable initialization statements, making a
 	      // single initial process out of them.
 	    result_flag &= elaborate_var_inits_(des, scope);
+
+	      // Synthesize clocking-block input sampler processes
+	      // (IEEE 1800-2017 14.13) before the user behaviors.
+	    elaborate_clocking_samplers_(des, scope, this);
 
 	      // Elaborate the behaviors, making processes out of them. This
 	      // involves scanning the PProcess* list, creating a NetProcTop
