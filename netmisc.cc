@@ -2202,7 +2202,9 @@ bool calculate_param_range(const LineInfo&line, ivl_type_t par_type,
 
 bool rewrite_class_clocking_member_path(const PEIdent*ident,
 					const symbol_search_results&sr,
-					pform_name_t&rewritten)
+					pform_name_t&rewritten,
+					bool as_lvalue,
+					bool*input_write)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(sr.type);
       if (!class_type || sr.path_tail.size() < 2)
@@ -2232,6 +2234,46 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
 			advance(erase_it, resolved_count + offset);
 			if (erase_it == rewritten.end() || erase_it->name != clocking_comp.name)
 			      return false;
+
+			  /* M8-2a-4: sampled input semantics through a
+			     virtual interface (IEEE 1800-2017 14.3/14.13),
+			     mirroring apply_clocking_member_rewrite_. The
+			     directions map holds int(NetNet::PortType);
+			     missing entries behave as inout. Reads route
+			     to the sample-variable PROPERTY when the
+			     interface class registered one (only for
+			     sampleable signals — alias otherwise). */
+			int dir = static_cast<int>(NetNet::PINOUT);
+			std::map<perm_string,int>::const_iterator dir_it =
+			      clocking->directions.find(next->name);
+			if (dir_it != clocking->directions.end())
+			      dir = dir_it->second;
+
+			if (as_lvalue && dir == static_cast<int>(NetNet::PINPUT)) {
+			      cerr << ident->get_fileline() << ": error: "
+				   << "clocking-block input `"
+				   << clocking_comp.name << "." << next->name
+				   << "' cannot be written (IEEE 1800-2017 "
+				   << "14.3: input clockvars are sampled, "
+				   << "not driven)." << endl;
+			      if (input_write) *input_write = true;
+			}
+
+			if (!as_lvalue
+			    && (dir == static_cast<int>(NetNet::PINPUT)
+				|| dir == static_cast<int>(NetNet::PINOUT))) {
+			      string sname = string("_ivl_smp$")
+				    + clocking_comp.name.str()
+				    + "$" + next->name.str();
+			      perm_string smp_name = lex_strings.make(sname.c_str());
+			      if (class_type->property_idx_from_name(smp_name) >= 0) {
+				    pform_name_t::iterator sig_it = erase_it;
+				    ++sig_it;
+				    if (sig_it != rewritten.end()
+					&& sig_it->name == next->name)
+					  sig_it->name = smp_name;
+			      }
+			}
 
 			rewritten.erase(erase_it);
 			return true;
@@ -2266,13 +2308,65 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
       return false;
 }
 
+/* Shared tail for the scope-based clocking rewrites (M8-2a). Given
+   that `cb_comp` names clocking block `cb` of the module whose
+   elaborated instance scope is `def_scope`, and the following
+   component names one of its signals, decide how the reference
+   resolves (IEEE 1800-2017 14.3/14.13):
+
+   - Reads of input/inout clockvars route to the hidden sample
+     variable `_ivl_smp$<cb>$<sig>` when the signal pass created one
+     (sampled #1step semantics). The signal component is RENAMED and
+     the clocking component erased.
+   - Writes to input clockvars are errors (14.3: inputs are sampled,
+     not driven); *input_write is set so the caller can count the
+     error, and the alias rewrite proceeds so elaboration continues.
+   - Everything else (outputs, unsampled inputs) keeps the alias
+     rewrite: erase the clocking component so the raw signal
+     resolves. */
+static void apply_clocking_member_rewrite_(const PEIdent*ident,
+					   const Module::PClocking*cb,
+					   const NetScope*def_scope,
+					   pform_name_t&newpath,
+					   pform_name_t::iterator cb_comp,
+					   bool as_lvalue,
+					   bool*input_write)
+{
+      pform_name_t::iterator sig_comp = cb_comp;
+      ++sig_comp;
+      NetNet::PortType dir = cb->signal_direction(sig_comp->name);
+
+      if (as_lvalue && dir == NetNet::PINPUT) {
+	    cerr << ident->get_fileline() << ": error: clocking-block "
+		 << "input `" << cb->name << "." << sig_comp->name
+		 << "' cannot be written (IEEE 1800-2017 14.3: input "
+		 << "clockvars are sampled, not driven)." << endl;
+	    if (input_write) *input_write = true;
+      }
+
+      if (!as_lvalue
+	  && (dir == NetNet::PINPUT || dir == NetNet::PINOUT)
+	  && def_scope) {
+	    string sname = string("_ivl_smp$") + cb->name.str()
+		  + "$" + sig_comp->name.str();
+	    perm_string smp_name = lex_strings.make(sname.c_str());
+	    if (const_cast<NetScope*>(def_scope)->find_signal(smp_name))
+		  sig_comp->name = smp_name;
+      }
+
+      newpath.erase(cb_comp);
+}
+
 /* When the receiver resolved to a plain instance scope (sr.net is null
    but sr.scope is an interface, module, or program instance), rewrite
-   `inst.cb.sig` to `inst.sig` by looking up the clocking block in the
+   `inst.cb.sig` to `inst.sig` (alias) or `inst._ivl_smp$cb$sig`
+   (sampled input read) by looking up the clocking block in the
    instance's pform Module. */
 bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 					    const symbol_search_results&sr,
-					    pform_name_t&rewritten)
+					    pform_name_t&rewritten,
+					    bool as_lvalue,
+					    bool*input_write)
 {
       if (sr.net || !sr.scope) return false;
       if (ident->path().size() < 3) return false;
@@ -2298,7 +2392,9 @@ bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 		  const auto&signals = cb_it->second->signals;
 		  if (std::find(signals.begin(), signals.end(), nx->name)
 			    != signals.end()) {
-			newpath.erase(it);
+			apply_clocking_member_rewrite_(ident, cb_it->second,
+						       sr.scope, newpath, it,
+						       as_lvalue, input_write);
 			rewritten = newpath;
 			return true;
 		  }
@@ -2316,7 +2412,9 @@ bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
    the ordinary way. */
 bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 						  const NetScope*scope,
-						  pform_name_t&rewritten)
+						  pform_name_t&rewritten,
+						  bool as_lvalue,
+						  bool*input_write)
 {
       if (ident->path().size() < 2) return false;
       const name_component_t&cb_comp = ident->path().name.front();
@@ -2340,7 +2438,9 @@ bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 		      == signals.end())
 		  return false;
 	    rewritten = ident->path().name;
-	    rewritten.erase(rewritten.begin());
+	    apply_clocking_member_rewrite_(ident, cb_it->second, walker,
+					   rewritten, rewritten.begin(),
+					   as_lvalue, input_write);
 	    return true;
       }
       return false;

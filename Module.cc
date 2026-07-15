@@ -58,13 +58,80 @@ Module::PClocking::~PClocking()
       delete event;
 }
 
-bool Module::PClocking::add_signal(perm_string sig_name)
+bool Module::PClocking::add_signal(perm_string sig_name, NetNet::PortType dir,
+				   const pform_clocking_skew_t*in_skew,
+				   const pform_clocking_skew_t*out_skew)
 {
       if (find(signals.begin(), signals.end(), sig_name) != signals.end())
 	    return false;
 
       signals.push_back(sig_name);
+      directions[sig_name] = dir;
+      if (in_skew)  in_skews[sig_name]  = *in_skew;
+      if (out_skew) out_skews[sig_name] = *out_skew;
       return true;
+}
+
+void Module::PClocking::set_default_skews(const pform_clocking_skew_t*in_skew,
+					  const pform_clocking_skew_t*out_skew)
+{
+      if (in_skew) {
+	    default_in = *in_skew;
+	    default_in_set = true;
+      }
+      if (out_skew) {
+	    default_out = *out_skew;
+	    default_out_set = true;
+      }
+}
+
+/* Classify the effective input skew of a signal: an explicit numeric
+   delay (including #0) means "sample a delayed shadow after the NBA
+   region" and returns the delay expression; everything else (#1step,
+   no skew, edge-only skews) is the default Preponed sample. */
+Module::PClocking::skew_kind_t
+Module::PClocking::input_skew(perm_string sig_name, PExpr*&delay) const
+{
+      const pform_clocking_skew_t*sk = nullptr;
+      std::map<perm_string,pform_clocking_skew_t>::const_iterator cur =
+	    in_skews.find(sig_name);
+      if (cur != in_skews.end())
+	    sk = &cur->second;
+      else if (default_in_set)
+	    sk = &default_in;
+
+      if (!sk || sk->one_step || !sk->delay)
+	    return SKEW_1STEP;
+      delay = sk->delay;
+      return SKEW_DELAY;
+}
+
+/* The effective output skew delay expression, or nullptr for the
+   default #0 (land at the clocking event). */
+PExpr* Module::PClocking::output_skew_delay(perm_string sig_name) const
+{
+      const pform_clocking_skew_t*sk = nullptr;
+      std::map<perm_string,pform_clocking_skew_t>::const_iterator cur =
+	    out_skews.find(sig_name);
+      if (cur != out_skews.end())
+	    sk = &cur->second;
+      else if (default_out_set)
+	    sk = &default_out;
+
+      if (!sk || sk->one_step)
+	    return nullptr;
+      return sk->delay;
+}
+
+/* Unknown signals report PINOUT: readable and writable, matching the
+   permissive pre-direction behavior. */
+NetNet::PortType Module::PClocking::signal_direction(perm_string sig_name) const
+{
+      std::map<perm_string,NetNet::PortType>::const_iterator cur =
+	    directions.find(sig_name);
+      if (cur == directions.end())
+	    return NetNet::PINOUT;
+      return cur->second;
 }
 
 void Module::add_gate(PGate*gate)

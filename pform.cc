@@ -3865,6 +3865,16 @@ void pform_end_modport_item(const struct vlltype&loc)
       pform_cur_modport = 0;
 }
 
+void pform_add_modport_tf_port(const struct vlltype&loc,
+                               bool is_import, perm_string name)
+{
+      ivl_assert(loc, pform_cur_modport);
+      if (is_import)
+	    pform_cur_modport->import_ports.insert(name);
+      else
+	    pform_cur_modport->export_ports.insert(name);
+}
+
 void pform_add_modport_port(const struct vlltype&loc,
                             NetNet::PortType port_type,
                             perm_string name, PExpr*expr)
@@ -3950,24 +3960,73 @@ void pform_set_default_clocking_ref(const struct vlltype&loc,
       delete[] name;
 }
 
-void pform_add_clocking_signal(const struct vlltype&loc, perm_string name)
+void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
+			       NetNet::PortType dir,
+			       const pform_clocking_skew_t*in_skew,
+			       const pform_clocking_skew_t*out_skew)
 {
 	/* The enclosing block open may have failed (duplicate name) or
 	   been skipped on a parse error; drop the signal quietly — an
 	   error has already been reported. */
       if (pform_cur_clocking == 0) return;
 
-      if (!pform_cur_clocking->add_signal(name)) {
+      if (!pform_cur_clocking->add_signal(name, dir, in_skew, out_skew)) {
 	    cerr << loc << ": error: duplicate signal `" << name
 		 << "' in clocking block `" << pform_cur_clocking->name << "'." << endl;
 	    error_count += 1;
       }
 }
 
+void pform_set_clocking_default_skews(const struct vlltype&loc,
+				      const pform_clocking_skew_t*in_skew,
+				      const pform_clocking_skew_t*out_skew)
+{
+      if (pform_cur_clocking == 0) return;
+      pform_cur_clocking->set_default_skews(in_skew, out_skew);
+}
+
 void pform_end_clocking_block(const struct vlltype&loc)
 {
       /* May be 0 if the block body had a parse error and was skipped */
       pform_cur_clocking = 0;
+}
+
+/* IEEE 1800-2017 14.16: `cb.out <= ##N v`. Lower the cycle-delayed
+   clocking drive to the intra-assignment repeat-event form
+   `lval <= repeat (N) @(<clocking prefix of lval>) v` — the value is
+   captured now, the drive lands at the Nth clocking event (the @(cb)
+   wait resolves through the clocking machinery, including the
+   sampler-trigger redirect). Only the clockvar-prefix form is
+   supported; the scalar default-clocking form is a sorry. */
+Statement* pform_make_clocking_drive(const struct vlltype&loc,
+				     PExpr*lval, PExpr*cycles, PExpr*rval)
+{
+      PEIdent*lid = dynamic_cast<PEIdent*>(lval);
+      if (!lid || lid->path().size() < 2) {
+	    cerr << loc << ": sorry: `<= ##N` cycle-delay drives are only "
+		 << "supported with a clocking-block l-value prefix "
+		 << "(cb.sig <= ##N v)." << endl;
+	    error_count += 1;
+	    PAssignNB*deg = new PAssignNB(lval, rval);
+	    FILE_NAME(deg, loc);
+	    return deg;
+      }
+
+      pform_name_t cb_path = lid->path().name;
+      cb_path.pop_back();
+      PEIdent*cb_ident = lid->path().package
+	    ? new PEIdent(lid->path().package, cb_path, lid->lexical_pos())
+	    : new PEIdent(cb_path, lid->lexical_pos());
+      FILE_NAME(cb_ident, loc);
+      PEEvent*ev = new PEEvent(PEEvent::ANYEDGE, cb_ident);
+      std::vector<PEEvent*> evs;
+      evs.push_back(ev);
+      PEventStatement*ectl = new PEventStatement(evs);
+      FILE_NAME(ectl, loc);
+
+      PAssignNB*tmp = new PAssignNB(lval, cycles, ectl, rval);
+      FILE_NAME(tmp, loc);
+      return tmp;
 }
 
 bool pform_requires_sv(const struct vlltype&loc, const char *feature)

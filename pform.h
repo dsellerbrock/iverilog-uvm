@@ -240,6 +240,8 @@ extern PExpr* pform_package_ident(const struct vlltype&loc,
  */
 extern void pform_start_modport_item(const struct vlltype&loc, const char*name);
 extern void pform_end_modport_item(const struct vlltype&loc);
+extern void pform_add_modport_tf_port(const struct vlltype&loc,
+                                      bool is_import, perm_string name);
 extern void pform_add_modport_port(const struct vlltype&loc,
 				   NetNet::PortType port_type,
 				   perm_string name, PExpr*expr);
@@ -252,7 +254,16 @@ extern void pform_start_clocking_block(const struct vlltype&loc,
 				       const char*name,
 				       PEventStatement*event,
 				       bool is_default = false);
-extern void pform_add_clocking_signal(const struct vlltype&loc, perm_string name);
+extern void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
+				      NetNet::PortType dir,
+				      const pform_clocking_skew_t*in_skew,
+				      const pform_clocking_skew_t*out_skew);
+extern void pform_set_clocking_default_skews(const struct vlltype&loc,
+					     const pform_clocking_skew_t*in_skew,
+					     const pform_clocking_skew_t*out_skew);
+extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
+					    PExpr*lval, PExpr*cycles,
+					    PExpr*rval);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at

@@ -300,8 +300,55 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 
       for (map<perm_string,Module::PClocking*>::const_iterator cur = mod->clocking_blocks.begin()
 		 ; cur != mod->clocking_blocks.end() ; ++cur) {
+	    map<perm_string,int> dirs;
+	    for (map<perm_string,NetNet::PortType>::const_iterator dir = cur->second->directions.begin()
+		       ; dir != cur->second->directions.end() ; ++dir)
+		  dirs[dir->first] = static_cast<int>(dir->second);
 	    iface_type->add_clocking_block(cur->first, cur->second->event,
-					   cur->second->signals);
+					   cur->second->signals, dirs);
+
+	      /* M8-2a-4: register the hidden clocking sample variables
+		 (and the sampler tick bit) as interface properties, so
+		 `vif.cb.sig` reads rewritten to `vif._ivl_smp$cb$sig`
+		 elaborate as property accesses. The runtime resolves
+		 properties BY NAME in the bound instance scope, where
+		 elaborate_sig created the matching signals. Mirror the
+		 sampleable predicate (vec4, not a dynamic container);
+		 unsampleable signals get no property and their reads
+		 keep the alias rewrite — consistent by construction. */
+	    const Module::PClocking*cb = cur->second;
+	    bool any_sampled = false;
+	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
+		       ; sig_it != cb->signals.end() ; ++sig_it) {
+		  NetNet::PortType dir = cb->signal_direction(*sig_it);
+		  if (dir != NetNet::PINPUT && dir != NetNet::PINOUT)
+			continue;
+		  map<perm_string,PWire*>::const_iterator wt = mod->wires.find(*sig_it);
+		  if (wt == mod->wires.end())
+			continue;
+		  ivl_type_t rt = wt->second->elaborate_sig_type(des, iface_scope);
+		  if (!rt)
+			continue;
+		  if (rt->base_type() != IVL_VT_LOGIC
+		      && rt->base_type() != IVL_VT_BOOL)
+			continue;
+		  if (dynamic_cast<const netdarray_t*>(rt)
+		      || dynamic_cast<const netuarray_t*>(rt)
+		      || dynamic_cast<const netqueue_t*>(rt))
+			continue;
+		  string sname = string("_ivl_smp$") + cur->first.str()
+			+ "$" + sig_it->str();
+		  iface_type->set_property(lex_strings.make(sname.c_str()),
+					   property_qualifier_t::make_none(), rt);
+		  any_sampled = true;
+	    }
+	    if (any_sampled) {
+		  string tname = string("_ivl_smptick$") + cur->first.str();
+		  netvector_t*tick_vec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
+		  iface_type->set_property(lex_strings.make(tname.c_str()),
+					   property_qualifier_t::make_none(),
+					   tick_vec);
+	    }
       }
 
       // If a real interface instance scope exists somewhere in the design,
@@ -1247,6 +1294,23 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
         // Search upwards from where the type was referenced
       scope = scope->find_typedef_scope(des, this);
       if (!scope) {
+	      // An unresolved type name that names an INTERFACE module
+	      // is an interface type reference — e.g. an interface
+	      // port formal `bus_if m` (IEEE 1800-2017 25.3). In this
+	      // implementation interfaces are modeled as classes, so
+	      // resolve to the interface class type (the same type
+	      // `virtual bus_if` produces) instead of degrading the
+	      // port to a 32-bit vector.
+	    {
+		  map<perm_string,Module*>::const_iterator im =
+			pform_modules.find(name);
+		  if (im != pform_modules.end() && im->second->is_interface) {
+			ivl_type_t itype = elaborate_interface_type_(
+			      des, nullptr, im->second);
+			if (itype)
+			      return itype;
+		  }
+	    }
 	      // Phase 63a/A5: UVM macros declare compiler-synthesized
 	      // typedefs like `__tmp_int_t__` (uvm_resource_defines.svh)
 	      // inside a begin/end block, then reference them as a

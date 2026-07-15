@@ -463,11 +463,22 @@ void PEIdent::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
                   if (find_enum_constant(ss, name))
                         return;
                   /* Strictly speaking, we should also check for name clashes
-                     with tasks, functions, named blocks, module instances,
-                     and generate blocks. However, this information is not
-                     readily available. As these names would not be legal in
-                     this context, we can declare implicit nets here and rely
+                     with tasks, functions, named blocks, and generate
+                     blocks. However, this information is not readily
+                     available. As these names would not be legal in this
+                     context, we can declare implicit nets here and rely
                      on later checks for name clashes to report the error. */
+
+                  /* Module/interface INSTANCE names are available and
+                     matter: an interface instance used as a port actual
+                     (`producer p (b);`) must not spawn a phantom
+                     implicit wire `b` — it would shadow the instance
+                     scope for hierarchical references like `b.data`. */
+                  if (const Module*mod = dynamic_cast<const Module*>(ss)) {
+                        for (const PGate*g : mod->get_gates())
+                              if (g->get_name() == name)
+                                    return;
+                  }
 
                   ss = ss->parent_scope();
             }
@@ -735,6 +746,50 @@ NetExpr* PEConstraintForeach::elaborate_expr(Design*des, NetScope*, unsigned,
 					     unsigned) const
 {
       cerr << get_fileline() << ": error: Iterative constraints are only "
+	   << "valid inside constraint blocks." << endl;
+      des->errors += 1;
+      return 0;
+}
+
+PEConstraintOrder::PEConstraintOrder(std::list<PExpr*>*before_list,
+				     std::list<PExpr*>*after_list)
+{
+      if (before_list) {
+	    before_.assign(before_list->begin(), before_list->end());
+	    delete before_list;
+      }
+      if (after_list) {
+	    after_.assign(after_list->begin(), after_list->end());
+	    delete after_list;
+      }
+}
+
+PEConstraintOrder::~PEConstraintOrder()
+{
+      for (PExpr*item : before_)
+	    delete item;
+      for (PExpr*item : after_)
+	    delete item;
+}
+
+void PEConstraintOrder::dump(std::ostream&out) const
+{
+      out << "solve ... before ...;";
+}
+
+unsigned PEConstraintOrder::test_width(Design*, NetScope*, width_mode_t&)
+{
+      expr_type_ = IVL_VT_BOOL;
+      expr_width_ = 1;
+      min_width_ = 1;
+      signed_flag_ = false;
+      return expr_width_;
+}
+
+NetExpr* PEConstraintOrder::elaborate_expr(Design*des, NetScope*, unsigned,
+					   unsigned) const
+{
+      cerr << get_fileline() << ": error: solve...before is only "
 	   << "valid inside constraint blocks." << endl;
       des->errors += 1;
       return 0;

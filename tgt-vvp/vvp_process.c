@@ -1656,9 +1656,10 @@ static int show_stmt_nb_trigger(ivl_statement_t net)
 
       fprintf(vvp_out, "    %%event/nb E_%p, %d;\n", ev, use_idx);
       clr_word(use_idx);
-	// FIXME: VVP needs to be updated to correctly support %event/nb
-      fprintf(stderr, "%s:%u: vvp.tgt sorry: ->> is not currently supported.\n",
-                      ivl_stmt_file(net), ivl_stmt_lineno(net));
+	/* %event/nb schedules the trigger through
+	 * schedule_propagate_event() in the SEQ_NBASSIGN region
+	 * (IEEE 1800-2017 15.5.1: the nonblocking trigger takes
+	 * effect in the NBA region of the target time step). */
       return 0;
 }
 
@@ -2467,6 +2468,184 @@ static void find_module_scope_recurse_(ivl_scope_t node, const char*target,
                                        best, first);
 }
 
+/* Collect ALL module-scope instances of a given definition name. */
+#define VIF_DISPATCH_MAX 64
+static void collect_module_scopes_(ivl_scope_t node, const char*target,
+                                   ivl_scope_t*list, unsigned*count)
+{
+      if (!node) return;
+      if (ivl_scope_type(node) == IVL_SCT_MODULE
+          && strcmp(ivl_scope_tname(node), target) == 0
+          && *count < VIF_DISPATCH_MAX) {
+            list[*count] = node;
+            *count += 1;
+      }
+      for (size_t i = 0 ; i < ivl_scope_childs(node) ; i += 1)
+            collect_module_scopes_(ivl_scope_child(node, i), target, list, count);
+}
+
+/* Emit the argument stores + fork/join for ONE resolved interface
+ * method instance. parm_base is the index of the first user argument
+ * in the statement's parm list. Shared by the late (static) call and
+ * the dynamic per-handle dispatch. */
+static void emit_iface_method_call_(ivl_statement_t net, ivl_scope_t method,
+                                    unsigned parm_base)
+{
+      const char*mangled = vvp_mangle_id(ivl_scope_name(method));
+      if (!mangled) return;
+      note_td_reference(mangled);
+
+      int is_auto = ivl_scope_is_auto(method);
+      if (is_auto)
+            fprintf(vvp_out, "    %%alloc S_%p;\n", method);
+
+      unsigned nparms = ivl_stmt_parm_count(net);
+      unsigned nports = ivl_scope_ports(method);
+      for (unsigned i = parm_base ; i < nparms && (i - parm_base) < nports ; i += 1) {
+            ivl_expr_t pe = ivl_stmt_parm(net, i);
+            if (!pe) continue;
+            ivl_signal_t port = ivl_scope_port(method, i - parm_base);
+            if (!port) continue;
+            ivl_variable_type_t pt = ivl_signal_data_type(port);
+            switch (pt) {
+                case IVL_VT_BOOL:
+                case IVL_VT_LOGIC:
+                  draw_eval_vec4(pe);
+                  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+                          port, ivl_signal_width(port));
+                  break;
+                case IVL_VT_REAL:
+                  draw_eval_real(pe);
+                  fprintf(vvp_out, "    %%store/real v%p_0;\n", port);
+                  break;
+                case IVL_VT_STRING:
+                  draw_eval_string(pe);
+                  fprintf(vvp_out, "    %%store/str v%p_0;\n", port);
+                  break;
+                case IVL_VT_CLASS:
+                case IVL_VT_DARRAY:
+                case IVL_VT_QUEUE:
+                  draw_eval_object(pe);
+                  fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
+                  break;
+                default:
+                  break;
+            }
+      }
+
+      if (ivl_scope_type(method) == IVL_SCT_FUNCTION) {
+            fprintf(vvp_out, "    %%callf/void TD_%s, S_%p;\n", mangled, method);
+      } else {
+            fprintf(vvp_out, "    %%fork TD_%s, S_%p;\n", mangled, method);
+            fprintf(vvp_out, "    %%join;\n");
+      }
+
+      if (is_auto)
+            fprintf(vvp_out, "    %%free S_%p;\n", method);
+}
+
+/* Find the named task/function child of an instance scope. */
+static ivl_scope_t find_iface_method_child_(ivl_scope_t found,
+                                            const char*method_name)
+{
+      for (size_t i = 0 ; i < ivl_scope_childs(found) ; i += 1) {
+            ivl_scope_t ch = ivl_scope_child(found, i);
+            if (ch && (ivl_scope_type(ch) == IVL_SCT_TASK
+                       || ivl_scope_type(ch) == IVL_SCT_FUNCTION)
+                && strcmp(ivl_scope_basename(ch), method_name) == 0)
+                  return ch;
+      }
+      return 0;
+}
+
+/* Dynamic virtual-interface method dispatch:
+ *   $ivl_vif_call$<iface>$<method>(receiver, args...)
+ * The receiver handle is evaluated once; a %jmp/vif compare chain
+ * branches to the per-instance argument stores + fork for whichever
+ * interface INSTANCE the handle is bound to (IEEE 1800-2017 25.10 —
+ * a method call through a virtual interface applies to the instance
+ * the handle designates, not to a statically chosen one). */
+static int show_vif_dyn_call(ivl_statement_t net)
+{
+      const char*stmt_name = ivl_stmt_name(net);
+      const char*p = stmt_name + 14; /* skip "$ivl_vif_call$" */
+      const char*sep = strchr(p, '$');
+      if (!sep) {
+            fprintf(stderr, "Warning: malformed $ivl_vif_call name '%s'; skipping\n",
+                    stmt_name);
+            return 0;
+      }
+      char iface_name[256];
+      size_t ifn_len = sep - p;
+      if (ifn_len >= sizeof(iface_name)) ifn_len = sizeof(iface_name) - 1;
+      memcpy(iface_name, p, ifn_len);
+      iface_name[ifn_len] = '\0';
+      const char*method_name = sep + 1;
+
+      ivl_expr_t recv = (ivl_stmt_parm_count(net) > 0)
+            ? ivl_stmt_parm(net, 0) : 0;
+
+      ivl_design_t des = vvp_get_saved_design();
+      if (!des || !recv) return 0;
+      ivl_scope_t*roots = 0;
+      unsigned nroots = 0;
+      ivl_design_roots(des, &roots, &nroots);
+      ivl_scope_t insts[VIF_DISPATCH_MAX];
+      unsigned ninst = 0;
+      for (unsigned i = 0 ; i < nroots ; i += 1)
+            collect_module_scopes_(roots[i], iface_name, insts, &ninst);
+
+      if (ninst == 0) {
+            static int warned_noinst = 0;
+            if (!warned_noinst) {
+                  fprintf(stderr, "Warning: interface call %s.%s -- no"
+                          " instance found; skipping (further similar"
+                          " warnings suppressed)\n",
+                          iface_name, method_name);
+                  warned_noinst = 1;
+            }
+            return 0;
+      }
+
+      if (ninst == 1) {
+            /* Single instance: no runtime compare needed. */
+            ivl_scope_t method = find_iface_method_child_(insts[0], method_name);
+            if (method)
+                  emit_iface_method_call_(net, method, 1);
+            return 0;
+      }
+
+      unsigned lab_end = local_count++;
+      unsigned lab_inst[VIF_DISPATCH_MAX];
+
+      draw_eval_object(recv);
+      unsigned emitted = 0;
+      for (unsigned i = 0 ; i < ninst ; i += 1) {
+            if (!find_iface_method_child_(insts[i], method_name))
+                  continue;
+            lab_inst[i] = local_count++;
+            fprintf(vvp_out, "    %%jmp/vif T_%u.%u, S_%p;\n",
+                    thread_count, lab_inst[i], insts[i]);
+            emitted += 1;
+      }
+        /* No branch taken: unknown/null handle. Drop it and skip. */
+      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
+
+      for (unsigned i = 0 ; i < ninst ; i += 1) {
+            ivl_scope_t method = find_iface_method_child_(insts[i], method_name);
+            if (!method)
+                  continue;
+            fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_inst[i]);
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            emit_iface_method_call_(net, method, 1);
+            fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
+      }
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_end);
+      (void)emitted;
+      return 0;
+}
+
 static int show_iface_late_call(ivl_statement_t net)
 {
       const char*stmt_name = ivl_stmt_name(net);
@@ -2591,6 +2770,30 @@ static int show_system_task_call(ivl_statement_t net)
       if (strncmp(stmt_name, "$ivl_iface_late$", 16) == 0)
 	    return show_iface_late_call(net);
 
+      if (strncmp(stmt_name, "$ivl_vif_call$", 14) == 0)
+	    return show_vif_dyn_call(net);
+
+	/* Suspend until the Observed region of the current time step
+	 * (14.4 numeric input skews: sample the settled value). */
+      if (strcmp(stmt_name,"$ivl_observed_wait") == 0) {
+	    fprintf(vvp_out, "    %%wait/observed;\n");
+	    return 0;
+      }
+
+	/* Clocking input sampling prologue (14.13): enable the 1-deep
+	 * driven-value history on the raw signal so %load/preponed
+	 * (from $ivl_clocking_sample) returns the Preponed value. */
+      if (strcmp(stmt_name,"$ivl_clocking_hist_on") == 0) {
+	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
+		  ? ivl_stmt_parm(net, 0) : 0;
+	    if (parm0 && ivl_expr_type(parm0) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(parm0)) {
+		  fprintf(vvp_out, "    %%hist/on v%p_0;\n",
+			  ivl_expr_signal(parm0));
+	    }
+	    return 0;
+      }
+
       if (strcmp(stmt_name,"$ivl_darray_method$delete") == 0)
 	    return show_delete_method(net);
 
@@ -2602,6 +2805,34 @@ static int show_system_task_call(ivl_statement_t net)
 
       if (strcmp(stmt_name,"$ivl_queue_method$push_back") == 0)
 	    return show_push_frontback_method(net, false);
+
+	/* Ordering methods on STATIC unpacked arrays (7.12.2):
+	 * $ivl_uarray_method$order(array_signal, mode) -> %uarr/order.
+	 * mode&3: 0 sort, 1 rsort, 2 reverse, 3 shuffle; mode&4 signed. */
+      if (strcmp(stmt_name,"$ivl_uarray_method$order") == 0) {
+	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
+		  ? ivl_stmt_parm(net, 0) : 0;
+	    ivl_expr_t parm1 = (ivl_stmt_parm_count(net) > 1)
+		  ? ivl_stmt_parm(net, 1) : 0;
+	    ivl_signal_t sig = 0;
+	    if (parm0 && (ivl_expr_type(parm0) == IVL_EX_SIGNAL
+			  || ivl_expr_type(parm0) == IVL_EX_ARRAY))
+		  sig = ivl_expr_signal(parm0);
+	    if (!sig || !parm1 || ivl_expr_type(parm1) != IVL_EX_NUMBER) {
+		  static int warned_uarr = 0;
+		  if (!warned_uarr) {
+			fprintf(stderr, "Warning: %s on an unsupported"
+				" receiver shape; skipping (further similar"
+				" warnings suppressed)\n", stmt_name);
+			warned_uarr = 1;
+		  }
+		  return 0;
+	    }
+	    note_array_signal_use(sig);
+	    fprintf(vvp_out, "    %%uarr/order v%p, %lu;\n",
+		    sig, ivl_expr_uvalue(parm1));
+	    return 0;
+      }
 
       if (strcmp(stmt_name,"$ivl_queue_method$sort") == 0
 	  || strcmp(stmt_name,"$ivl_queue_method$rsort") == 0
@@ -2643,7 +2874,25 @@ static int show_system_task_call(ivl_statement_t net)
 		  (strcmp(stmt_name,"$ivl_queue_method$reverse")==0) ? "%qreverse" :
 		  (strcmp(stmt_name,"$ivl_queue_method$shuffle")==0) ? "%qshuffle" :
 		                                                       "%qunique";
-	    fprintf(vvp_out, "    %s v%p_0;\n", opcode, sig);
+	    if (strcmp(opcode, "%qreverse") == 0
+		|| strcmp(opcode, "%qshuffle") == 0) {
+		  fprintf(vvp_out, "    %s v%p_0;\n", opcode, sig);
+	    } else {
+		    /* Sorting compares element VALUES: pass the declared
+		     * element signedness (G72 — vec4-backed queues do not
+		     * carry it, so negative ints sorted in unsigned word
+		     * order without this flag). */
+		  int sflag = 0;
+		  ivl_type_t cont_type = ivl_signal_net_type(sig);
+		  ivl_type_t elem_type = 0;
+		  if (cont_type
+		      && (ivl_type_base(cont_type) == IVL_VT_QUEUE
+			  || ivl_type_base(cont_type) == IVL_VT_DARRAY))
+			elem_type = ivl_type_element(cont_type);
+		  if (elem_type && ivl_type_signed(elem_type))
+			sflag = 1;
+		  fprintf(vvp_out, "    %s v%p_0, %d;\n", opcode, sig, sflag);
+	    }
 	    return 0;
       }
 
@@ -2848,7 +3097,11 @@ static int show_system_task_call(ivl_statement_t net)
 	    ivl_signal_t outer_sig =
 		  (outer_arg && (ivl_expr_type(outer_arg) == IVL_EX_SIGNAL))
 			? ivl_expr_signal(outer_arg) : 0;
-	    if (!outer_sig || !k1 || !k2 || !val) {
+	      /* Non-signal outer (class property): the receiver object
+	       * is evaluated onto the stack instead. */
+	    int outer_is_obj = !outer_sig && outer_arg
+		  && ivl_expr_type(outer_arg) == IVL_EX_PROPERTY;
+	    if ((!outer_sig && !outer_is_obj) || !k1 || !k2 || !val) {
 		  fprintf(stderr, "Warning: $ivl_assoc$store2 with"
 			  " unsupported argument shape at %s:%u; skipping\n",
 			  ivl_stmt_file(net), ivl_stmt_lineno(net));
@@ -2859,7 +3112,9 @@ static int show_system_task_call(ivl_statement_t net)
 	       * 0-3 queue of vec4/real/string/object, 4-7 the assoc
 	       * equivalents. */
 	    unsigned spec = 7;
-	    ivl_type_t outer_type = ivl_signal_net_type(outer_sig);
+	    ivl_type_t outer_type = outer_sig
+		  ? ivl_signal_net_type(outer_sig)
+		  : ivl_expr_net_type(outer_arg);
 	    ivl_type_t inner_type = outer_type ? ivl_type_element(outer_type) : 0;
 	    if (inner_type) {
 		  int is_assoc = ivl_type_base(inner_type) == IVL_VT_QUEUE
@@ -2891,15 +3146,28 @@ static int show_system_task_call(ivl_statement_t net)
 	      /* Element handle for outer[k1]. */
 	    if (outer_keyed) {
 		    /* inner = viv(outer, k1) */
-		  const char*k1_kind = draw_eval_assoc_key_(k1, 0);
-		  fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
-			  k1_kind, outer_sig, spec);
+		  if (outer_sig) {
+			const char*k1_kind = draw_eval_assoc_key_(k1, 0);
+			fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
+				k1_kind, outer_sig, spec);
+		  } else {
+			const char*k1_kind = draw_eval_assoc_key_(k1, 0);
+			draw_eval_object(outer_arg);
+			fprintf(vvp_out, "    %%aa/viv/o/%s %u;\n",
+				k1_kind, spec);
+		  }
 	    } else {
 		    /* Positional outer: load the existing element handle
 		     * (no vivification — an out-of-range index yields a
 		     * nil handle and the inner store is skipped). */
-		  draw_eval_expr_into_integer(k1, 3);
-		  fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", outer_sig);
+		  if (outer_sig) {
+			draw_eval_expr_into_integer(k1, 3);
+			fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", outer_sig);
+		  } else {
+			draw_eval_object(outer_arg);
+			draw_eval_expr_into_integer(k1, 3);
+			fprintf(vvp_out, "    %%load/qo/obj;\n");
+		  }
 	    }
 
 	    unsigned vkind = spec & 3;

@@ -3,6 +3,200 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-15b (M4 FULLY CLOSED; starting M8 increment 2)
+
+- **M4 close-out commit 928440d** fixed all five recorded residuals in
+  one increment: G70 (class-method calls on plain-darray elements —
+  element-select routing extended from queue-only to darrays), the
+  $size family on dynamic-container property receivers
+  ($size/$high/$low/$left/$right/$increment/$unpacked_dimensions now
+  rewrite to the queue-size sfunc per 20.7, darrays 0-based),
+  display-context chained property reads (vpi arg classifier no longer
+  falls back to the class-typed root signal for BOOL/LOGIC/REAL/STRING
+  value types), G40 unique/unique_index on fixed-size unpacked arrays
+  (new `%uarr/unique` opcode, 7.12.1), and G73 empty-queue literal
+  `{}` producing a real empty queue instead of a nil handle
+  (`$ivl_queue$new_empty` sfunc → `%new/queue`/`%new/darray`, 7.10.4).
+- **Promotion evidence (this entry)**: UVM sweep 137/137 PASS
+  (includes new tests/m4_closeout_test.sv; zero FAIL, zero
+  "(no-check)" audit entries); ivtest sweep
+  Total=2559 Passed=2457 Failed=99 — failure NAMES byte-identical to
+  the pristine-baseline fails_baseline.txt (empty diff); negative
+  suite 10/10. **M4 is CLOSED with no recorded residuals.**
+- **M8 increment 2a LANDED (WIP commit, sweeps pending)**: sampled
+  clocking-block inputs (IEEE 1800-2017 14.13) replacing the alias
+  model for module, program, and interface-INSTANCE-path clocking
+  blocks:
+  - 2a-1 direction plumbing: parse.y records input/output/inout per
+    clocking signal into Module::PClocking (directions map +
+    signal_direction; unknown → PINOUT) and
+    netclass_t::clocking_block_t (as int).
+  - 2a-2 vvp machinery: vvp_wire_vec4 opt-in 1-deep driven-value
+    history (hist_snapshot_ on first change per time step);
+    `%hist/on` enables it; `%load/preponed` returns the value at the
+    START of the current step (= Preponed value = default #1step
+    sample), degrading to the current value on non-vec4 filters.
+    Known limitation: history tracks the DRIVEN value (force corner).
+  - 2a-3 synthesis + routing: elab_sig creates `_ivl_smp$<cb>$<sig>`
+    sample vars + `_ivl_smptrig$<cb>` trigger event per instance;
+    elaborate synthesizes `initial { $ivl_clocking_hist_on(raw)...;
+    forever @(ev) { smp <= $ivl_clocking_sample(raw)...; ->> trig } }`.
+    NBA stores + NB trigger give deterministic visibility: raw-edge
+    Active readers see the PREVIOUS sample; @(cb) waiters (redirected
+    to the trig event in PEventStatement elaboration, same for ##N
+    default-clocking waits) see THIS edge's samples. Reads of input
+    clockvars rewrite to smp vars in the shared netmisc helpers
+    (same-scope + inst.cb.sig paths, read/write mode parameter);
+    writes to inputs are errors (14.3, negative test); outputs keep
+    the alias model until 2b. Pre-first-edge clockvar reads are X.
+  - **General `->>` fix (15.5.1)**: vvp of_EVENT_NB delivered the
+    trigger to the event functor's FANOUT (schedule_propagate_event)
+    instead of its port 0, so ->> never woke waiters and tgt-vvp
+    carried a stale sorry. Now schedules a port-0 delivery in the
+    NBA region (Re-NBA from reactive/program threads to order after
+    the same thread's NBA stores). The sorry is removed — ivtest may
+    show newly-passing ->> tests (diff-only-removals = improvement).
+  - Tests: tests/m8_clocking_sample_test.sv (13 checks: between-edge
+    hold, same-step-blocking-write race closed, deterministic @(cb)
+    freshness, inout sampling, pre-edge X);
+    tests/negative/m8_clocking_input_write.sv (negative now 11);
+    clocking_test.sv updated to strict 14.13 (@(cb) to observe the
+    new sample; raw-edge readers see the previous one); g01 header
+    updated.
+- **M8-2a-4 LANDED (WIP, sweeps pending)**: vif.cb.sig sampled
+  through class handles — sample vars + tick bit registered as
+  interface-class PROPERTIES (runtime resolves by name in the bound
+  scope); @(vif.cb) → anyedge wait on the tick property (%wait/vif
+  machinery); writes to inputs via vif are 14.3 errors. SECOND
+  general ->> fix: NetEvent::nnb_trig() added to nodangle's event
+  liveness test — events referenced only by ->> were deleted and
+  codegen segfaulted on the dangling pointer. Tests:
+  m8_vif_clocking_sample_test.sv, negative
+  m8_vif_clocking_input_write.sv (suite 12/12).
+- **M8-2b LANDED AND PROMOTED** (UVM 140/140 zero no-check, ivtest
+  empty diff): buffered output clockvar drives per 14.16 —
+  `_ivl_obuf$`/`_ivl_opend$` vars per output, PAssignNB transform
+  with the tick-history "did the event occur this step" test (drive
+  now after @(cb), buffer between events), synthesized apply process
+  at the trigger (Re-NBA-like timing), last-drive-wins. Fall-throughs
+  to alias (recorded): vif.cb.out drives, part-select drives,
+  unsampleable signals.
+- **M8-2c LANDED (sweeps running)**: `cb.out <= ##N v` parses and
+  lowers at parse time (pform_make_clocking_drive) to
+  `lval <= repeat(N) @(cb-prefix) v` — value captured at issue,
+  landing at the Nth clocking event via the trigger redirect,
+  independent overlapping drives. Sorry (recorded): scalar
+  default-clocking form `x <= ##N v`.
+- **M8-2c LANDED AND PROMOTED** (UVM 141/141, ivtest empty diff):
+  `cb.out <= ##N v` lowers at parse to `<= repeat(N) @(cb) v` —
+  value captured at issue, independent overlapping drives.
+- **M8-2d (skew application) LANDED AND PROMOTED** (UVM 142/142,
+  ivtest empty diff): numeric input skews sample transport shadows
+  read at the OBSERVED region (new `%wait/observed` opcode — first
+  real consumer of the M6 region foundation; #0 = settled post-NBA
+  value, #d = value d before the edge); output skews delay the drive
+  landing (both apply-process and direct paths); block default skews
+  apply. Tests: m8_clocking_cycle_drive_test.sv,
+  m8_clocking_skew_test.sv.
+- **M8 INCREMENT 2 CORE COMPLETE.** Remaining tail (recorded in the
+  session log, priority order): clocking_decl_assign; global
+  clocking + $global_clock (14.14/G59); vif.cb.out buffered drives
+  (preponed-through-property); scalar default-clocking `x <= ##N v`
+  (diagnosed sorry); edge-qualified skew application; real/string/
+  array clocking signals (alias + sorry). Other recorded 2a
+  limitations: force tracks driven value; @(cb) from a scope
+  elaborated BEFORE the defining instance falls back to the raw
+  event.
+  Sweep procedure reminder: UVM harness and ivtest MUST run with
+  PATH=/home/user/iverilog-install/bin (or ivtest shim) prefixed;
+  `which iverilog` otherwise finds nothing and everything
+  COMPILE_FAILs.
+
+## State as of 2026-07-15 (session: M3/M4/M5 close-out)
+
+- **Branch**: `claude/ieee1800-uvm-implementation-qm5wad` (PR #75,
+  draft). Six checkpoints stacked on the G71/M3-ranges work:
+  M3A dynforeach (a48718a), M3B solve...before (5654a78),
+  M4a uarray ordering + G72 signed sort (254d1db),
+  M4b darray/property store2 outers (aeee8f9),
+  M5 interface ports/modports G26-G29 (c399625), plus the promotion
+  commit with the group regression evidence.
+- **Milestone status after this session**:
+  - **M3 CLOSED** (dynamic foreach, non-0-based ranges,
+    solve...before all implemented).
+  - **M4 main tail CLOSED** (G35/G36 ordering methods on unpacked
+    arrays; G72 signed container sort; chained element stores through
+    darray/property outers). Remaining recorded: G40
+    unique-on-unpacked (expression form, rare); display-context
+    chained reads; $size family on property receivers; G70
+    indexed-element methods; G73 (NEW) `q.push_back({})` pushes nil.
+  - **M5 CLOSED** (620c3a8/0eef20a on top of c399625): interface
+    ports end to end; modport tf ports; b.mst binds; instance + vif
+    arrays; DYNAMIC per-handle task dispatch (25.10, %jmp/vif);
+    modport input-write enforcement (25.5); parameterized-interface
+    port width tolerance. Recorded follow-ups: dynamic-dispatch
+    copy-back for output/inout task ports (static fallback + warning
+    today); full modport access restriction (unlisted members stay
+    accessible); per-specialization interface class types (boundary
+    resize is the interim); VIF_DISPATCH_MAX=64 instances per
+    interface type.
+- **M1→M8 audit (post-M5)**: recorded in the session log. M2's last
+  unverified residual (dynamic uvm_field_array_int clone) PASSES.
+  M4 follow-up priority: G70 indexed-element method calls (two
+  visible errors in every UVM compile), then $size-family on
+  property receivers (silent 'x'), display-context chained reads,
+  G40, G73. M8 increment 2 itemized: #1step/#0 input sampling,
+  Re-NBA synchronous drives, `cb.sig <= ##N v`, skew application,
+  clocking_decl_assign, global clocking (14.14/G59).
+- **Details**: `session_logs/2026-07-15_m3_m4_m5_closeout.md`.
+- **Next milestone work**: M8 increment 2 (real clocking semantics,
+  alias model confirmed by probe), then M9 entry (G05/G06 core SVA).
+
+## State as of 2026-07-14k (session: milestone close-out audit + G71 foreach/property-darray family)
+
+- **Branch**: `claude/ieee1800-uvm-implementation-qm5wad` (restarted
+  from merged main at 6d9bc72 per protocol; PR #74 merged the previous
+  M8-entry work — do not reopen).
+- **Plan directive**: close out earlier milestones (M1-M7 tails)
+  before finishing M8 increment 2 / opening M9. Re-probe audit results
+  and the per-milestone snapshot are in
+  `session_logs/2026-07-14_g71_foreach_prop_darray.md`. Highlights:
+  G38/G39 verified already fixed (audit stale); G35/G36/G40 (M4) and
+  G26-G29 (M5) re-confirmed open; M3 dynamic foreach constraints +
+  non-0-based ranges re-confirmed open (warned-and-ignored);
+  solve...before distribution OK for the common implication shape.
+- **This checkpoint — G71 FIXED** (new gap, found by the audit):
+  foreach over class-property PLAIN dynamic arrays silently iterated
+  zero times (queue/assoc properties were fine). Fixed the whole
+  read-side family: darray foreach now uses the 0<=i<size loop
+  (elaborate.cc); indexed darray properties are element-indexed in
+  object/vec4/string/real codegen (tgt-vvp; was arrayed-property
+  mis-indexing → crash on nested descent); `%load/qo/*` accepts any
+  vvp_darray receiver (vvp). Chained reads `c.dd[i][j]` in
+  assignment/operand context now work (was ivl assertion abort).
+  Test: `tests/g71_foreach_prop_darray_test.sv`.
+- **Known in-family tails deferred** (see session log): chained
+  element STORES through darray outers (`c.dd[i][j]=v` silent no-op —
+  extend the G09 `$ivl_assoc$store2` rewrite+lowering to darray and
+  property outers = next natural increment); display-context chained
+  reads; `$size/$high/$low` on property receivers fold to 'x';
+  indexed-element method calls (G70).
+- **Checkpoint 2 (same session) — M3 non-0-based foreach constraint
+  ranges FIXED** (18.5.8.1): the unroller now binds the loop variable
+  to DECLARED index values and maps element solver slots
+  declared->canonical; `[3:1]`/`[5:2]`-style rand arrays are now
+  constrained instead of warned-and-ignored. Test:
+  `tests/m3_constraint_nonzero_range_test.sv`; m3 focused suites PASS.
+- **Next engineering options** (milestone order for the close-out
+  plan): (a) M3 tail — dynamic-array foreach constraints (needs
+  runtime foreach expansion + staged size-then-elements solve, which
+  solve...before staging can share); (b) M4 tail — G35/G36/G40
+  ordering/manipulation methods on unpacked fixed-size arrays (queue
+  machinery exists; extend receivers), plus the store2
+  darray/property-outer extension (chained element stores
+  `c.dd[i][j]=v` still silently no-op); (c) M5 entry — G26 modport
+  import ports (parser) then G27/G29 (elab port binding).
+
 ## State as of 2026-07-14j — PR #73 MERGED (5c05f93); branch restarted
 
 - **PR #73 is MERGED and FINAL** (merge commit 5c05f93 on main): the

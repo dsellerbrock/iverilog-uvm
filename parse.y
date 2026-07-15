@@ -971,6 +971,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
       pform_name_t*pform_name;
 
+      pform_clocking_skew_t*clocking_skew;
+
       ivl_discipline_t discipline;
 
       hname_t*hier;
@@ -1226,6 +1228,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <expr> value_range_expression
 %type <expr> property_spec_disable_iff_opt
 %type <event_statement> clocking_event_opt
+%type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec
 %type <perm_strings> cross_item_list
 
@@ -2621,9 +2624,12 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 constraint_block_item /* IEEE1800-2005 A.1.9 */
   : constraint_expression
       { $$ = $1; }
-  /* solve X, Y before Z; — constraint ordering directive, silently accept */
+  /* solve X, Y before Z; — variable ordering (IEEE 1800-2017 18.5.10) */
   | K_solve expression_list_proper K_before expression_list_proper ';'
-      { delete $2; delete $4; $$ = nullptr; }
+      { PEConstraintOrder*tmp = new PEConstraintOrder($2, $4);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | error ';'
       { yyerrok; $$ = nullptr; }
   ;
@@ -4285,7 +4291,10 @@ modport_ports_list
       { if (last_modport_port.type == MP_SIMPLE) {
 	      pform_add_modport_port(@3, last_modport_port.direction,
 				     lex_strings.make($3), 0);
-	} else if (last_modport_port.type != MP_TF) {
+	} else if (last_modport_port.type == MP_TF) {
+	      pform_add_modport_tf_port(@3, last_modport_port.is_import,
+					lex_strings.make($3));
+	} else {
 	      yyerror(@3, "error: List of identifiers not allowed here.");
 	}
 	delete[] $3;
@@ -4309,17 +4318,20 @@ modport_ports_declaration
 	delete $3;
 	delete $1;
       }
+  /* Task/function modport ports (IEEE 1800-2017 25.5.4). Modports in
+     this implementation do not restrict member access, so recording
+     the imported/exported subroutine name is sufficient: the
+     task/function is reached through the interface handle. */
   | attribute_list_opt import_export IDENTIFIER
       { last_modport_port.type = MP_TF;
 	last_modport_port.is_import = $2;
-	yyerror(@3, "sorry: modport task/function ports are not yet supported.");
+	pform_add_modport_tf_port(@3, $2, lex_strings.make($3));
 	delete[] $3;
 	delete $1;
       }
   | attribute_list_opt import_export modport_tf_port
       { last_modport_port.type = MP_TF;
 	last_modport_port.is_import = $2;
-	yyerror(@3, "sorry: modport task/function ports are not yet supported.");
 	delete $1;
       }
   | attribute_list_opt K_clocking IDENTIFIER
@@ -4333,7 +4345,15 @@ modport_ports_declaration
 
 modport_tf_port
   : K_task IDENTIFIER tf_port_list_parens_opt
+      { /* Prototype form: record the name (import/export are not
+	   access-enforced in this implementation). */
+	pform_add_modport_tf_port(@2, true, lex_strings.make($2));
+	delete[] $2;
+      }
   | K_function data_type_or_implicit_or_void IDENTIFIER tf_port_list_parens_opt
+      { pform_add_modport_tf_port(@3, true, lex_strings.make($3));
+	delete[] $3;
+      }
   ;
 
 clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
@@ -4379,22 +4399,28 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
         yyerrok;
       }
 
-  /* IEEE 1800-2017 A.6.11. Skews (14.4) are accepted and discarded:
-     the current clocking model aliases cb.sig to the underlying
-     signal, which does not model sample/drive skew times. */
+  /* IEEE 1800-2017 A.6.11. Directions and skews (14.4) are recorded
+     per signal; input #1step samples the Preponed value, numeric
+     input skews sample a delayed shadow, output skews delay the
+     drive landing. Edge qualifiers on skews are recorded but not
+     applied. */
 clocking_item
   : K_input clocking_skew_opt list_of_identifiers ';'
       {
 	    for (std::list<pform_ident_t>::iterator cur = $3->begin()
 		       ; cur != $3->end() ; ++cur)
-		  pform_add_clocking_signal(@3, cur->first);
+		  pform_add_clocking_signal(@3, cur->first, NetNet::PINPUT,
+					    $2, 0);
+	    delete $2;
 	    delete $3;
       }
   | K_output clocking_skew_opt list_of_identifiers ';'
       {
 	    for (std::list<pform_ident_t>::iterator cur = $3->begin()
 		       ; cur != $3->end() ; ++cur)
-		  pform_add_clocking_signal(@3, cur->first);
+		  pform_add_clocking_signal(@3, cur->first, NetNet::POUTPUT,
+					    0, $2);
+	    delete $2;
 	    delete $3;
       }
   /* clocking_direction: `input [skew] output [skew] ids;` — the same
@@ -4403,44 +4429,85 @@ clocking_item
       {
 	    for (std::list<pform_ident_t>::iterator cur = $5->begin()
 		       ; cur != $5->end() ; ++cur)
-		  pform_add_clocking_signal(@5, cur->first);
+		  pform_add_clocking_signal(@5, cur->first, NetNet::PINOUT,
+					    $2, $4);
+	    delete $2;
+	    delete $4;
 	    delete $5;
       }
   | K_inout list_of_identifiers ';'
       {
 	    for (std::list<pform_ident_t>::iterator cur = $2->begin()
 		       ; cur != $2->end() ; ++cur)
-		  pform_add_clocking_signal(@2, cur->first);
+		  pform_add_clocking_signal(@2, cur->first, NetNet::PINOUT,
+					    0, 0);
 	    delete $2;
       }
-  /* default_skew items: set the block's default skews (discarded). */
+  /* default_skew items: set the block's default skews (14.4.2). */
   | K_default K_input clocking_skew ';'
+      { pform_set_clocking_default_skews(@2, $3, 0);
+	delete $3;
+      }
   | K_default K_output clocking_skew ';'
+      { pform_set_clocking_default_skews(@2, 0, $3);
+	delete $3;
+      }
   | K_default K_input clocking_skew K_output clocking_skew ';'
+      { pform_set_clocking_default_skews(@2, $3, $5);
+	delete $3;
+	delete $5;
+      }
   ;
 
   /* IEEE 1800-2017 A.6.11:
-     clocking_skew ::= edge_identifier [delay_control] | delay_control
-     The parsed skew has no semantic carrier yet (see clocking_item). */
+     clocking_skew ::= edge_identifier [delay_control] | delay_control */
 clocking_skew
-  : '#' delay_value_simple { delete $2; }
-  | '#' '(' delay_value ')' { delete $3; }
+  : '#' delay_value_simple
+      { $$ = new pform_clocking_skew_t;
+	$$->delay = $2;
+      }
+  | '#' '(' delay_value ')'
+      { $$ = new pform_clocking_skew_t;
+	$$->delay = $3;
+      }
   | '#' K_1step
+      { $$ = new pform_clocking_skew_t;
+	$$->one_step = true;
+      }
   | K_posedge clocking_skew_delay_opt
+      { $$ = $2 ? $2 : new pform_clocking_skew_t;
+	$$->edge = 'p';
+      }
   | K_negedge clocking_skew_delay_opt
+      { $$ = $2 ? $2 : new pform_clocking_skew_t;
+	$$->edge = 'n';
+      }
   | K_edge clocking_skew_delay_opt
+      { $$ = $2 ? $2 : new pform_clocking_skew_t;
+	$$->edge = 'e';
+      }
   ;
 
 clocking_skew_delay_opt
-  : '#' delay_value_simple { delete $2; }
-  | '#' '(' delay_value ')' { delete $3; }
+  : '#' delay_value_simple
+      { $$ = new pform_clocking_skew_t;
+	$$->delay = $2;
+      }
+  | '#' '(' delay_value ')'
+      { $$ = new pform_clocking_skew_t;
+	$$->delay = $3;
+      }
   | '#' K_1step
+      { $$ = new pform_clocking_skew_t;
+	$$->one_step = true;
+      }
   |
+      { $$ = 0; }
   ;
 
 clocking_skew_opt
-  : clocking_skew
-  |
+  : clocking_skew { $$ = $1; }
+  |               { $$ = 0; }
   ;
 
 clocking_items
@@ -12256,6 +12323,22 @@ statement_item /* This is roughly statement_item in the LRM */
       { PAssignNB*tmp = new PAssignNB($1,$5,$7,$8);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
+      }
+
+  /* IEEE 1800-2017 14.16: cycle-delayed clocking drive
+     `cb.out <= ##N v`. Lower to the intra-assignment repeat-event
+     form `lval <= repeat (N) @(<clocking block of lval>) v`: the
+     value is captured now and the drive lands at the Nth clocking
+     event. The @(cb) wait resolves through the same machinery as a
+     source-level @(cb), including the sampler-trigger redirect, so
+     the landing is ordered after that event's input sampling. Only
+     the clockvar-prefix form is supported: the scalar
+     `x <= ##N v` (default clocking) is still a sorry. */
+  | lpvalue K_LE K_CYCLE_DELAY delay_value_simple expression ';'
+      { $$ = pform_make_clocking_drive(@3, $1, $4, $5);
+      }
+  | lpvalue K_LE K_CYCLE_DELAY '(' expression ')' expression ';'
+      { $$ = pform_make_clocking_drive(@3, $1, $5, $7);
       }
 
   /* The IEEE1800 standard defines dynamic_array_new assignment as a

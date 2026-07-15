@@ -25,6 +25,7 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <sstream>
+# include  <map>
 # include  <set>
 # include  <string>
 # include  <vector>
@@ -156,6 +157,29 @@ struct Z3Builder {
       bool is_signed(Z3_ast a) const
 	    { return signed_vars.find(a) != signed_vars.end(); }
 
+	// Dynamic-array foreach templates "(dynforeach P:W[:s] <body>)"
+	// (IEEE 1800-2017 18.5.8.2). In the size pass (dyn_sizes null)
+	// the body is captured raw and the form contributes `true`; in
+	// the element pass (dyn_sizes set to the solved sizes) the body
+	// is expanded once per element with the loop token L bound to
+	// the element index, and "(delem P:W[:s] <idx>)" references
+	// resolve to e:P:W:I element variables.
+      struct DynForeach {
+	    unsigned pidx;
+	    unsigned ewid;
+	    bool esigned;
+	    std::string body;
+      };
+      std::vector<DynForeach> dyn_foreach;
+      const std::map<unsigned,uint64_t>*dyn_sizes = nullptr;
+
+	// solve...before ordering pairs (IEEE 1800-2017 18.5.10):
+	// (first, second) means property `first` is solved in an
+	// earlier stage than property `second`. Collected from
+	// "(order (vars ...) (vars ...))" IR forms; drives the staged
+	// solve in z3_solve_pass_.
+      std::vector<std::pair<unsigned,unsigned> > order_pairs;
+
       Z3Builder(Z3_context c, const class_type* d, vvp_cobject* o)
       : ctx(c), defn(d), cobj(o), opt(0) {}
 
@@ -193,6 +217,81 @@ static Z3_ast parse_prop(IRParser&, Z3Builder& b, const string& tok)
       Z3_ast var = b.get_prop_var(idx, width);
       if (sflag) b.signed_vars.insert(var);
       return var;
+}
+
+/* Capture the raw text of the remainder of the current form: the
+ * parser is positioned after the form's operator/header tokens, and
+ * this consumes characters through the MATCHING close paren (which is
+ * consumed but not included in the returned text). */
+static string capture_balanced_form(IRParser& par)
+{
+      string text;
+      int depth = 0;
+      while (*par.p) {
+	    char c = *par.p;
+	    if (c == '(') depth++;
+	    else if (c == ')') {
+		  if (depth == 0) { par.p++; break; }
+		  depth--;
+	    }
+	    text += c;
+	    par.p++;
+      }
+      return text;
+}
+
+/* Substitute the standalone loop token `L` with "c:<i>" (token
+ * boundaries only — L may not appear inside other tokens, but guard
+ * anyway). */
+static string subst_loop_token(const string& body, uint64_t i)
+{
+      string out;
+      const char* p = body.c_str();
+      auto is_delim = [](char c) {
+	    return c == ' ' || c == '\t' || c == '\n' || c == '('
+		|| c == ')' || c == '[' || c == ']' || c == ',' || c == 0;
+      };
+      char prev = ' ';
+      while (*p) {
+	    if (*p == 'L' && is_delim(prev) && is_delim(p[1])) {
+		  out += "c:" + to_string(i);
+		  prev = 'L';
+		  p++;
+		  continue;
+	    }
+	    prev = *p;
+	    out += *p++;
+      }
+      return out;
+}
+
+/* Constant-fold an index sub-expression of a (delem ...) form:
+ * "c:V" tokens and (add|sub|mul|div|mod a b) forms, uint64
+ * two's-complement arithmetic (matching the elaboration-side
+ * folding). Returns false when anything else appears. */
+static bool eval_const_ir(IRParser& par, uint64_t& out)
+{
+      par.skip_ws();
+      if (par.peek() == '(') {
+	    par.consume();
+	    string op = par.read_token();
+	    uint64_t a = 0, b = 0;
+	    if (!eval_const_ir(par, a)) return false;
+	    if (!eval_const_ir(par, b)) return false;
+	    par.skip_ws();
+	    if (!par.expect(')')) return false;
+	    if (op == "add") out = a + b;
+	    else if (op == "sub") out = a - b;
+	    else if (op == "mul") out = a * b;
+	    else if (op == "div") out = b ? a / b : 0;
+	    else if (op == "mod") out = b ? a % b : 0;
+	    else return false;
+	    return true;
+      }
+      string tok = par.read_token();
+      if (tok.compare(0, 2, "c:") != 0) return false;
+      out = (uint64_t)strtoull(tok.c_str() + 2, nullptr, 10);
+      return true;
 }
 
 // Get width from a Z3 bitvector AST
@@ -265,11 +364,140 @@ static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
       return b.mk_true();
 }
 
+/* Parse a "P:W[:s]" header token into property index / width / signed. */
+static void parse_pws_header(const string& tok, unsigned& pidx,
+			     unsigned& wid, bool& sflag)
+{
+      const char* s = tok.c_str();
+      pidx = (unsigned)atoi(s);
+      while (*s && *s != ':') ++s;
+      wid = 32;
+      if (*s == ':') { wid = (unsigned)atoi(s + 1); ++s; }
+      while (*s && *s != ':') ++s;
+      sflag = (*s == ':' && s[1] == 's');
+      if (wid == 0) wid = 32;
+}
+
+/* A fresh unconstrained bitvector: fallback for element references
+ * the expansion cannot resolve (non-constant index after loop-token
+ * substitution, or an index outside the solved size). Nothing is
+ * written back for these, so they only keep the AST well-sorted. */
+static Z3_ast mk_free_bv(Z3Builder& b, unsigned wid)
+{
+      static unsigned counter = 0;
+      char name[32];
+      snprintf(name, sizeof(name), "dynfree%u", counter++);
+      return Z3_mk_const(b.ctx, Z3_mk_string_symbol(b.ctx, name),
+			 Z3_mk_bv_sort(b.ctx, wid));
+}
+
 static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 {
       par.skip_ws();
       string op = par.read_token();
       if (op.empty()) return b.mk_true();
+
+	/* Dynamic-array foreach template (IEEE 1800-2017 18.5.8.2).
+	 * Size pass: capture the body and contribute `true` (the size
+	 * variables elsewhere in the IR still participate). Element
+	 * pass: expand the body once per element with the loop token
+	 * bound to each index and conjoin the instances. */
+      if (op == "dynforeach") {
+	    string hdr = par.read_token();
+	    unsigned pidx, ewid; bool esig;
+	    parse_pws_header(hdr, pidx, ewid, esig);
+	    string body = capture_balanced_form(par);
+	    if (!b.dyn_sizes) {
+		  bool seen = false;
+		  for (const auto& d : b.dyn_foreach)
+			if (d.pidx == pidx && d.body == body) { seen = true; break; }
+		  if (!seen) {
+			Z3Builder::DynForeach rec;
+			rec.pidx = pidx; rec.ewid = ewid;
+			rec.esigned = esig; rec.body = body;
+			b.dyn_foreach.push_back(rec);
+		  }
+		  return b.mk_true();
+	    }
+	    uint64_t count = 0;
+	    {
+		  auto it = b.dyn_sizes->find(pidx);
+		  if (it != b.dyn_sizes->end()) count = it->second;
+	    }
+	    Z3_ast conj = b.mk_true();
+	    for (uint64_t i = 0 ; i < count ; i += 1) {
+		  string inst_text = subst_loop_token(body, i);
+		  IRParser sub(inst_text);
+		  Z3_ast inst = bv_to_bool(b.ctx, build_z3_atom(sub, b));
+		  Z3_ast args[2] = { conj, inst };
+		  conj = Z3_mk_and(b.ctx, 2, args);
+	    }
+	    return conj;
+      }
+
+	/* Element reference within an expanded dynforeach body:
+	 * (delem P:W[:s] <const-index-ir>) -> element variable. */
+      if (op == "delem") {
+	    string hdr = par.read_token();
+	    unsigned pidx, ewid; bool esig;
+	    parse_pws_header(hdr, pidx, ewid, esig);
+	    uint64_t idx64 = 0;
+	    bool ok = eval_const_ir(par, idx64);
+	    par.skip_ws(); par.expect(')');
+	    uint64_t count = 0;
+	    if (b.dyn_sizes) {
+		  auto it = b.dyn_sizes->find(pidx);
+		  if (it != b.dyn_sizes->end()) count = it->second;
+	    }
+	    if (!ok || idx64 >= count) {
+		  static bool warned = false;
+		  if (!warned) {
+			fprintf(stderr, "Warning: dynamic foreach element"
+				" index %s (prop %u); constraint on that"
+				" element is unenforced (further similar"
+				" warnings suppressed)\n",
+				ok ? "out of the solved array bounds"
+				   : "is not constant after expansion",
+				pidx);
+			warned = true;
+		  }
+		  return mk_free_bv(b, ewid);
+	    }
+	    Z3_ast var = b.get_elem_var(pidx, ewid, (unsigned)idx64);
+	    if (esig) b.signed_vars.insert(var);
+	    return var;
+      }
+
+	/* Variable-ordering directive: (order (vars p:..) (vars p:..)).
+	 * Registers the properties (so they become solver variables
+	 * even if otherwise unconstrained) and records every
+	 * before-var x after-var pair. Contributes `true` — ordering
+	 * affects distribution, not satisfiability (18.5.10). */
+      if (op == "order") {
+	    std::vector<unsigned> groups[2];
+	    for (int g = 0 ; g < 2 ; g += 1) {
+		  par.skip_ws();
+		  if (!par.expect('(')) break;
+		  string kw = par.read_token(); // "vars"
+		  (void)kw;
+		  for (;;) {
+			par.skip_ws();
+			if (par.peek() == ')') { par.consume(); break; }
+			string tok = par.read_token();
+			if (tok.empty()) break;
+			if (tok.compare(0, 2, "p:") == 0) {
+			      parse_prop(par, b, tok);
+			      groups[g].push_back(
+				    (unsigned)atoi(tok.c_str() + 2));
+			}
+		  }
+	    }
+	    par.skip_ws(); par.expect(')');
+	    for (unsigned a : groups[0])
+		  for (unsigned c : groups[1])
+			b.order_pairs.push_back(std::make_pair(a, c));
+	    return b.mk_true();
+      }
 
       if (op == "and" || op == "or") {
 	    Z3_ast left  = bv_to_bool(b.ctx, build_z3_atom(par, b));
@@ -696,18 +924,25 @@ static string substitute_slots(const string& ir,
       return result;
 }
 
-bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
+/* One solve pass. dyn_sizes null: dynamic-foreach templates are
+ * collected (returned via dyn_out) and contribute `true`; sizes are
+ * free subject to their constraints. dyn_sizes set: templates expand
+ * to the given element counts and every size variable is pinned to
+ * the array's current (pass-1-written) size, implementing the
+ * IEEE 1800-2017 18.5.8.2 size-before-iterative-constraints order. */
+static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       const vector<string>& extra_ir,
-                      const vector<uint64_t>& slot_vals)
+                      const vector<uint64_t>& slot_vals,
+                      const std::map<unsigned,uint64_t>* dyn_sizes,
+                      std::vector<Z3Builder::DynForeach>* dyn_out)
 {
-      if (defn->constraint_count() == 0 && extra_ir.empty()) return false;
-
       Z3_config cfg = Z3_mk_config();
       Z3_set_param_value(cfg, "model", "true");
       Z3_context ctx = Z3_mk_context(cfg);
       Z3_del_config(cfg);
 
       Z3Builder builder(ctx, defn, cobj);
+      builder.dyn_sizes = dyn_sizes;
 
       // Use Z3 optimize so we can add soft "match random target" constraints
       // to guide solutions toward varied values.
@@ -730,6 +965,8 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	    Z3_ast assertion = parse_constraint_ir(sub, builder);
 	    Z3_optimize_assert(ctx, opt, assertion);
       }
+      if (dyn_out)
+	    *dyn_out = builder.dyn_foreach;
       // Dynamic-array size variables are bounded by a pragmatic hard cap
       // so an under-constrained `arr.size() > k` cannot demand a huge
       // allocation. (IEEE places no bound; this is an implementation
@@ -738,6 +975,16 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	    Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
 	    Z3_ast cap = Z3_mk_unsigned_int64(ctx, 65536, s32);
 	    Z3_optimize_assert(ctx, opt, Z3_mk_bvule(ctx, sv.var, cap));
+      }
+      // Element pass: sizes were solved (and written back) in the size
+      // pass — pin them so the re-solve cannot move them.
+      if (dyn_sizes) {
+	    for (auto& sv : builder.size_vars) {
+		  Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
+		  Z3_ast cur = Z3_mk_unsigned_int64(ctx,
+			cobj_darray_size(cobj, sv.idx), s32);
+		  Z3_optimize_assert(ctx, opt, Z3_mk_eq(ctx, sv.var, cur));
+	    }
       }
 
       // C7: apply queued soft asserts from dist branches.  Each carries a
@@ -790,6 +1037,13 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	    Z3_lbool precheck = Z3_solver_check(ctx, chk);
 	    Z3_solver_dec_ref(ctx, chk);
 
+	      // solve...before present: always run the staged solve so
+	      // the ordered variables get their stage-local diversity
+	      // distribution (18.5.10 is about distribution; the
+	      // accept-current fast path would sample differently).
+	    if (!builder.order_pairs.empty())
+		  precheck = Z3_L_FALSE;
+
 	    if (precheck == Z3_L_TRUE && !builder.any_soft_kw_assert()) {
 		  // C7/I4: only fast-path early-out when there are no
 		  // `soft`-keyword assertions queued.  Dist branches use the
@@ -801,6 +1055,91 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 		  Z3_optimize_dec_ref(ctx, opt);
 		  Z3_del_context(ctx);
 		  return false;
+	    }
+      }
+
+	// solve...before staged solving (IEEE 1800-2017 18.5.10): rank
+	// the ordered properties by longest path in the before-graph,
+	// then for each non-final rank solve the FULL hard-constraint
+	// set with the diversity objective applied to that rank's
+	// variables alone, and pin their solved values before the next
+	// stage. The final rank (and all unordered variables) solve in
+	// the normal combined pass below. Pins come from a complete
+	// satisfying model, so they can never make later stages UNSAT.
+      if (!builder.order_pairs.empty()) {
+	    std::map<unsigned,unsigned> rank;
+	    for (const auto& pr : builder.order_pairs) {
+		  rank[pr.first];
+		  rank[pr.second];
+	    }
+	    bool changed = true;
+	    size_t iter = 0;
+	    const size_t iter_cap = rank.size() + 1;
+	    while (changed && iter <= iter_cap) {
+		  changed = false;
+		  iter += 1;
+		  for (const auto& pr : builder.order_pairs) {
+			unsigned want = rank[pr.first] + 1;
+			if (rank[pr.second] < want) {
+			      rank[pr.second] = want;
+			      changed = true;
+			}
+		  }
+	    }
+	    if (changed) {
+		  static bool warned_cycle = false;
+		  if (!warned_cycle) {
+			fprintf(stderr, "Warning: cyclic solve...before"
+				" ordering; directive ignored (further"
+				" similar warnings suppressed)\n");
+			warned_cycle = true;
+		  }
+	    } else {
+		  unsigned max_rank = 0;
+		  for (const auto& rv : rank)
+			if (rv.second > max_rank) max_rank = rv.second;
+		  for (unsigned r = 0 ; r < max_rank ; r += 1) {
+			Z3_optimize_push(ctx, opt);
+			for (auto& pv : builder.prop_vars) {
+			      auto it = rank.find(pv.idx);
+			      if (it == rank.end() || it->second != r)
+				    continue;
+			      uint64_t rand_bits = cobj_prop_bits(cobj, pv.idx);
+			      Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
+			      Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
+			      Z3_optimize_minimize(ctx, opt,
+				    Z3_mk_bvxor(ctx, pv.var, rv));
+			}
+			Z3_lbool st = Z3_optimize_check(ctx, opt, 0, nullptr);
+			if (st != Z3_L_TRUE) {
+			      Z3_optimize_pop(ctx, opt);
+			      break;
+			}
+			Z3_model stage_model = Z3_optimize_get_model(ctx, opt);
+			Z3_model_inc_ref(ctx, stage_model);
+			std::vector<std::pair<Z3_ast,uint64_t> > pins;
+			for (auto& pv : builder.prop_vars) {
+			      auto it = rank.find(pv.idx);
+			      if (it == rank.end() || it->second != r)
+				    continue;
+			      Z3_ast interp = nullptr;
+			      uint64_t bits = 0;
+			      if (Z3_model_eval(ctx, stage_model, pv.var, 1,
+						&interp)
+				  && interp
+				  && Z3_get_numeral_uint64(ctx, interp, &bits))
+				    pins.push_back(std::make_pair(pv.var, bits));
+			}
+			Z3_model_dec_ref(ctx, stage_model);
+			Z3_optimize_pop(ctx, opt);
+			for (const auto& pin : pins) {
+			      Z3_sort sort = Z3_get_sort(ctx, pin.first);
+			      Z3_ast cv = Z3_mk_unsigned_int64(ctx, pin.second,
+							       sort);
+			      Z3_optimize_assert(ctx, opt,
+				    Z3_mk_eq(ctx, pin.first, cv));
+			}
+		  }
 	    }
       }
 
@@ -891,4 +1230,31 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       Z3_optimize_dec_ref(ctx, opt);
       Z3_del_context(ctx);
       return true;
+}
+
+bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
+                      const vector<string>& extra_ir,
+                      const vector<uint64_t>& slot_vals)
+{
+      if (defn->constraint_count() == 0 && extra_ir.empty()) return false;
+
+	// Size pass: dynamic-foreach bodies deferred; sizes solved and
+	// written back.
+      std::vector<Z3Builder::DynForeach> dyn;
+      bool r1 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
+			       nullptr, &dyn);
+      if (dyn.empty())
+	    return r1;
+
+	// Element pass (IEEE 1800-2017 18.5.8.2): expand each foreach
+	// to the now-current element count of its array and re-solve
+	// everything with the sizes pinned. Scalar properties are
+	// re-solved together with the elements (only the SIZE is
+	// ordered before the iterative constraints).
+      std::map<unsigned,uint64_t> sizes;
+      for (const auto& d : dyn)
+	    sizes[d.pidx] = cobj_darray_size(cobj, d.pidx);
+      bool r2 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
+			       &sizes, nullptr);
+      return r1 || r2;
 }

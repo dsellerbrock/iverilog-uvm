@@ -69,11 +69,34 @@ class Module : public PScopeExtra, public PNamedItem {
 	    explicit PClocking(perm_string n, PEventStatement*evt);
 	    ~PClocking();
 
-	    bool add_signal(perm_string sig_name);
+	      /* IEEE 1800-2017 14.3: each clocking signal has a direction.
+		 Inputs are sampled, outputs are driven, inouts (and the
+		 `input ... output ...` combined form) are both. */
+	    bool add_signal(perm_string sig_name, NetNet::PortType dir,
+			    const pform_clocking_skew_t*in_skew = nullptr,
+			    const pform_clocking_skew_t*out_skew = nullptr);
+	    NetNet::PortType signal_direction(perm_string sig_name) const;
+
+	      /* 14.4 skew application. Input skew classification:
+		 #1step (or none/edge-only) samples the Preponed value;
+		 an explicit numeric delay (including #0) samples a
+		 #d-delayed shadow after the NBA region. Output skews
+		 delay the drive landing. Item skews win over the
+		 block `default input/output` skews. */
+	    enum skew_kind_t { SKEW_1STEP, SKEW_DELAY };
+	    skew_kind_t input_skew(perm_string sig_name, PExpr*&delay) const;
+	    PExpr* output_skew_delay(perm_string sig_name) const;
+	    void set_default_skews(const pform_clocking_skew_t*in_skew,
+				   const pform_clocking_skew_t*out_skew);
 
 	    perm_string name;
 	    PEventStatement*event;
 	    std::vector<perm_string>signals;
+	    std::map<perm_string,NetNet::PortType>directions;
+	    std::map<perm_string,pform_clocking_skew_t>in_skews;
+	    std::map<perm_string,pform_clocking_skew_t>out_skews;
+	    pform_clocking_skew_t default_in, default_out;
+	    bool default_in_set = false, default_out_set = false;
       };
 
       struct port_t {

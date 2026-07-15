@@ -366,7 +366,12 @@ static int eval_object_property(ivl_expr_t expr)
 
       int idx = 0;
       ivl_expr_t idx_expr = 0;
-      int queue_indexed = property_is_indexed_queue_expr_(expr);
+	/* An index on a queue OR plain-darray property selects an
+	 * element WITHIN the container value (the property itself is
+	 * scalar), not a word of an arrayed property. %load/qo/obj
+	 * accepts either container kind. */
+      int queue_indexed = property_is_indexed_queue_expr_(expr)
+	    || property_is_indexed_darray_expr_(expr);
       int assoc_indexed = property_is_assoc_indexed_expr_(expr);
 
 	/* If there is an array index expression, then this is an
@@ -503,7 +508,7 @@ static int eval_object_select(ivl_expr_t expr)
 	    index = 0;
       }
 
-      if (expr_is_queue_container_(sube) &&
+      if (expr_is_dynarray_container_(sube) &&
           ivl_expr_type(sube) != IVL_EX_SIGNAL &&
           ivl_expr_type(sube) != IVL_EX_ARRAY &&
           ivl_expr_type(sube) != IVL_EX_PROPERTY) {
@@ -561,7 +566,12 @@ static int eval_object_select(ivl_expr_t expr)
 		  return 0;
 	    }
 
-	    if (expr_is_queue_container_(sube)) {
+	      /* Queue OR plain darray property: load the container
+	       * object and index within it. Without the darray arm this
+	       * fell through to the arrayed-property path below, which
+	       * consumed the element index as a property-ARRAY index
+	       * (assertion idx < array_size_ at runtime). */
+	    if (expr_is_dynarray_container_(sube)) {
 		  draw_eval_object(sube);
 		  if (index)
 			draw_eval_expr_into_integer(index, 3);
@@ -978,6 +988,68 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
 	    fprintf(vvp_out, "    %s v%p_0;\n",
 		    is_index ? "%qunique_idx" : "%qunique_copy", q_sig);
+	    return 0;
+      }
+
+      /* The empty queue literal `{}` (IEEE 1800-2017 7.10.4): push a
+       * fresh EMPTY container of the context type. A null handle here
+       * made q_of_q.push_back({}) store nil (G73). */
+      if (strcmp(name, "$ivl_queue$new_empty") == 0) {
+	    ivl_type_t qtype = ivl_expr_net_type(expr);
+	    ivl_type_t etype = qtype ? ivl_type_element(qtype) : 0;
+	    char enc[32];
+	    if (!etype) {
+		  snprintf(enc, sizeof enc, "v32");
+	    } else switch (ivl_type_base(etype)) {
+		case IVL_VT_REAL:
+		  snprintf(enc, sizeof enc, "r");
+		  break;
+		case IVL_VT_STRING:
+		  snprintf(enc, sizeof enc, "S");
+		  break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		  snprintf(enc, sizeof enc, "o");
+		  break;
+		default: {
+		  unsigned w = ivl_type_packed_width(etype);
+		  if (w == 0) w = 32;
+		  snprintf(enc, sizeof enc, "%s%s%u",
+			   ivl_type_signed(etype) ? "s" : "",
+			   (ivl_type_base(etype) == IVL_VT_BOOL) ? "b" : "v",
+			   w);
+		  break;
+		}
+	    }
+	    if (qtype && ivl_type_base(qtype) == IVL_VT_DARRAY) {
+		  fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
+		  fprintf(vvp_out, "    %%new/darray 3, \"%s\";\n", enc);
+	    } else {
+		  fprintf(vvp_out, "    %%new/queue \"%s\";\n", enc);
+	    }
+	    return 0;
+      }
+
+      /* G40: unique()/unique_index() on a fixed-size unpacked ARRAY
+       * (IEEE 1800-2017 7.12.1). %uarr/unique reads the array's words
+       * and pushes a fresh queue of the first-occurrence values (mode
+       * 0) or canonical word indexes (mode 1). */
+      if (strncmp(name, "$ivl_uarray_method$unique|", 26) == 0) {
+	    const char*kind = name + 26;
+	    int is_index = (strstr(kind, "index") != NULL);
+	    ivl_expr_t a_arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    ivl_signal_t a_sig = 0;
+	    if (a_arg && (ivl_expr_type(a_arg) == IVL_EX_SIGNAL
+			  || ivl_expr_type(a_arg) == IVL_EX_ARRAY))
+		  a_sig = ivl_expr_signal(a_arg);
+	    if (!a_sig) {
+		  fprintf(vvp_out, "    %%null; ; uarr unique: bad arg shape\n");
+		  return 0;
+	    }
+	    note_array_signal_use(a_sig);
+	    fprintf(vvp_out, "    %%uarr/unique v%p, %d;\n",
+		    a_sig, is_index ? 1 : 0);
 	    return 0;
       }
 

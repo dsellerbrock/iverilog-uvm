@@ -403,11 +403,18 @@ static void sig_check_port_type(Design*des, const NetScope*scope,
 
       if (sig->port_type() == NetNet::PINOUT &&
 	  sig->type() == NetNet::REG) {
-	    cerr << wire->get_fileline() << ": error: Port `"
-		 << wire->basename() << "` of module `"
-		 << scope->module_name()
-		 << "` is declared as inout and as a reg type." << endl;
-	    des->errors += 1;
+	      // Interface-typed ports (IEEE 1800-2017 25.3) are class
+	      // handles held in variables; the inout-vs-reg wire rule
+	      // does not apply to them.
+	    const netclass_t*ifc =
+		  dynamic_cast<const netclass_t*>(sig->net_type());
+	    if (!ifc || !ifc->is_interface()) {
+		  cerr << wire->get_fileline() << ": error: Port `"
+		       << wire->basename() << "` of module `"
+		       << scope->module_name()
+		       << "` is declared as inout and as a reg type." << endl;
+		  des->errors += 1;
+	    }
       }
 
       if (sig->port_type() == NetNet::PINOUT &&
@@ -520,6 +527,156 @@ bool PPackage::elaborate_sig(Design*des, NetScope*scope) const
       return flag;
 }
 
+/* M8 increment 2a (IEEE 1800-2017 14.13): for each clocking block that
+   has sampleable input signals, create per-instance hidden sample
+   variables (`_ivl_smp$<cb>$<sig>`) and the sampler trigger event
+   (`_ivl_smptrig$<cb>`). The sampler process itself is synthesized
+   later, in Module::elaborate; the names are created here in the
+   signal-elaboration pass so that expressions anywhere in the design
+   (including other scopes referencing `inst.cb.sig`) can resolve them.
+   Inputs that cannot be sampled (non-vector types, arrays) keep the
+   pre-existing alias behavior; the read-rewrite helpers key off the
+   presence of the sample variable, so the two stay consistent. */
+static void elaborate_sig_clocking_samples_(NetScope*scope, const Module*mod)
+{
+      typedef std::map<perm_string,Module::PClocking*>::const_iterator cb_it_t;
+      for (cb_it_t cur = mod->clocking_blocks.begin()
+		 ; cur != mod->clocking_blocks.end() ; ++cur) {
+	    const Module::PClocking*cb = cur->second;
+	    if (!cb->event || cb->event->event_expressions().empty())
+		  continue;
+
+	    bool any = false;
+	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
+		       ; sig_it != cb->signals.end() ; ++sig_it) {
+		  NetNet::PortType dir = cb->signal_direction(*sig_it);
+		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
+		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
+
+		  NetNet*raw = scope->find_signal(*sig_it);
+		  if (!raw)
+			continue;   // reported when the clockvar is used
+		  if (raw->data_type() != IVL_VT_LOGIC
+		      && raw->data_type() != IVL_VT_BOOL) {
+			cerr << cb->get_fileline() << ": sorry: clocking "
+			     << "signal `" << *sig_it << "' of block `"
+			     << cb->name << "' has a non-vector type; "
+			     << "it keeps the alias behavior." << endl;
+			continue;
+		  }
+		  if (raw->pin_count() != 1 || raw->unpacked_dimensions() > 0) {
+			cerr << cb->get_fileline() << ": sorry: clocking "
+			     << "signal `" << *sig_it << "' of block `"
+			     << cb->name << "' is an array; it keeps the "
+			     << "alias behavior." << endl;
+			continue;
+		  }
+
+		  ivl_type_t vt = raw->net_type();
+
+		  if (is_in) {
+			string sname = string("_ivl_smp$") + cb->name.str()
+			      + "$" + sig_it->str();
+			perm_string smp_name = lex_strings.make(sname.c_str());
+			if (!scope->find_signal(smp_name)) {
+			      NetNet*smp;
+			      if (vt) {
+				    smp = new NetNet(scope, smp_name, NetNet::REG, vt);
+			      } else {
+				    netvector_t*vec = new netvector_t(raw->data_type(),
+								      raw->vector_width()-1,
+								      0, raw->get_signed());
+				    smp = new NetNet(scope, smp_name, NetNet::REG, vec);
+			      }
+			      smp->set_line(*cb);
+			}
+
+			  /* Numeric input skew (14.4, M8-2d): the sample
+			     source is a #d-delayed shadow of the raw
+			     signal, read after the NBA region of the
+			     event step (so #0 sees this step's NBA
+			     updates -- the Observed value). */
+			PExpr*skew_delay = nullptr;
+			if (cb->input_skew(*sig_it, skew_delay)
+			    == Module::PClocking::SKEW_DELAY) {
+			      string wname = string("_ivl_sshw$") + cb->name.str()
+				    + "$" + sig_it->str();
+			      perm_string shw_name = lex_strings.make(wname.c_str());
+			      if (!scope->find_signal(shw_name)) {
+				    NetNet*shw;
+				    if (vt) {
+					  shw = new NetNet(scope, shw_name, NetNet::REG, vt);
+				    } else {
+					  netvector_t*vec = new netvector_t(raw->data_type(),
+									    raw->vector_width()-1,
+									    0, raw->get_signed());
+					  shw = new NetNet(scope, shw_name, NetNet::REG, vec);
+				    }
+				    shw->set_line(*cb);
+			      }
+			}
+			any = true;
+		  }
+
+		    /* Output clockvars get a drive buffer + pending flag
+		       (IEEE 1800-2017 14.16, M8-2b): drives issued between
+		       clocking events are buffered and applied at the next
+		       event by the synthesized apply process. */
+		  if (is_out) {
+			string bname = string("_ivl_obuf$") + cb->name.str()
+			      + "$" + sig_it->str();
+			perm_string obuf_name = lex_strings.make(bname.c_str());
+			if (!scope->find_signal(obuf_name)) {
+			      NetNet*obuf;
+			      if (vt) {
+				    obuf = new NetNet(scope, obuf_name, NetNet::REG, vt);
+			      } else {
+				    netvector_t*vec = new netvector_t(raw->data_type(),
+								      raw->vector_width()-1,
+								      0, raw->get_signed());
+				    obuf = new NetNet(scope, obuf_name, NetNet::REG, vec);
+			      }
+			      obuf->set_line(*cb);
+			}
+			string pname = string("_ivl_opend$") + cb->name.str()
+			      + "$" + sig_it->str();
+			perm_string opend_name = lex_strings.make(pname.c_str());
+			if (!scope->find_signal(opend_name)) {
+			      netvector_t*pvec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
+			      NetNet*opend = new NetNet(scope, opend_name, NetNet::REG, pvec);
+			      opend->set_line(*cb);
+			}
+			any = true;
+		  }
+	    }
+
+	    if (!any)
+		  continue;
+
+	    string tname = string("_ivl_smptrig$") + cb->name.str();
+	    perm_string trig_name = lex_strings.make(tname.c_str());
+	    if (!scope->find_event(trig_name)) {
+		  NetEvent*trig = new NetEvent(trig_name);
+		  trig->set_line(*cb);
+		  scope->add_event(trig);
+	    }
+
+	      /* The sampler also toggles a tick bit after the sample
+		 stores. @(vif.cb) through a virtual interface maps to
+		 an anyedge wait on this bit (registered as an
+		 interface-class property), riding the existing
+		 %wait/vif edge machinery — named events cannot be
+		 reached through a class handle. */
+	    string kname = string("_ivl_smptick$") + cb->name.str();
+	    perm_string tick_name = lex_strings.make(kname.c_str());
+	    if (!scope->find_signal(tick_name)) {
+		  netvector_t*tvec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
+		  NetNet*tick = new NetNet(scope, tick_name, NetNet::REG, tvec);
+		  tick->set_line(*cb);
+	    }
+      }
+}
+
 bool Module::elaborate_sig(Design*des, NetScope*scope) const
 {
       bool flag = true;
@@ -569,6 +726,11 @@ bool Module::elaborate_sig(Design*des, NetScope*scope) const
       }
 
       flag = elaborate_sig_wires_(des, scope) && flag;
+
+	// Clocking-block input sample variables and trigger events
+	// (IEEE 1800-2017 14.13) -- after the wires so the underlying
+	// signals exist to copy types from.
+      elaborate_sig_clocking_samples_(scope, this);
 
 	// Run through all the generate schemes to elaborate the
 	// signals that they hold. Note that the generate schemes hold
@@ -1822,6 +1984,20 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 		 << scope_path(scope) << endl;
       }
 
+	// An interface-typed PORT (IEEE 1800-2017 25.3) is a handle to
+	// an interface instance, not a wire: in this implementation it
+	// is a class-typed variable (the virtual-interface model), so
+	// force variable kind — the net default would reject property
+	// writes (`m.data = ...` errored as "declared as a uwire").
+      bool is_iface_typed = false;
+      if (const netclass_t*ifc = dynamic_cast<const netclass_t*>(type)) {
+	    if (ifc->is_interface()) {
+		  is_iface_typed = true;
+		  if (wtype != NetNet::REG)
+			wtype = NetNet::REG;
+	    }
+      }
+
       if (sig_predeclared) {
 	    sig->set_net_type(type);
       } else {
@@ -1831,6 +2007,18 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    sig->set_line(*this);
 	    sig->port_type(port_type_);
 	    sig->lexical_pos(lexical_pos_);
+      }
+
+	// A modport-qualified interface port (`bus_if.mst m`) records
+	// its modport name so l-value elaboration can enforce the
+	// modport member directions (IEEE 1800-2017 25.5).
+      if (is_iface_typed) {
+	    if (const interface_type_t*itype =
+		  dynamic_cast<const interface_type_t*>(set_data_type_.get())) {
+		  if (!itype->modport.nil())
+			sig->attribute(perm_string::literal("ivl_modport"),
+				       verinum(std::string(itype->modport.str())));
+	    }
       }
 
       if (ivl_discipline_t dis = get_discipline()) {

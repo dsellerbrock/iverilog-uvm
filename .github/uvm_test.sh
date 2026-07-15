@@ -71,9 +71,13 @@ for sv in $TESTS/*.sv; do
     if echo "$out" | grep -qE "PASS|data=ab|data=42|data=0xab|factorial.*120|sqrt.*2\.0|pow.*1024|negedge.*cd|anyedge.*ef|drive.*count"; then
         echo "PASS"
         PASS=$((PASS+1))
-    elif echo "$out" | grep -qE "FAIL|UVM_ERROR|UVM_FATAL"; then
+    elif echo "$out" | grep -qE "FAIL|UVM_ERROR|UVM_FATAL|Invalid opcode|Program not runnable"; then
+        # "Invalid opcode" / "Program not runnable" mean vvp rejected
+        # the compiled image — the test never ran, which must not
+        # score as a no-check pass (this masked a real codegen
+        # regression once; see session log 2026-07-15).
         echo "FAIL"
-        echo "$out" | grep -E "FAIL|UVM_ERROR|UVM_FATAL" | head -3
+        echo "$out" | grep -E "FAIL|UVM_ERROR|UVM_FATAL|Invalid opcode|Program not runnable" | head -3
         FAIL=$((FAIL+1))
     else
         echo "PASS (no-check)"

@@ -349,7 +349,8 @@ resolve_scope_pform_clocking_event_(const PEIdent*id,
 
 static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from_search_(
 					      const symbol_search_results&sr,
-					      size_t&base_path_components)
+					      size_t&base_path_components,
+					      const netclass_t**found_class = nullptr)
 {
       if (!sr.net || sr.path_tail.empty())
 	    return nullptr;
@@ -369,6 +370,7 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
 			if (const netclass_t::clocking_block_t*clocking =
 				    class_type->find_clocking_block(it->name)) {
                               base_path_components = offset;
+                              if (found_class) *found_class = class_type;
                               return clocking;
 			}
 		  }
@@ -2268,6 +2270,105 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  inst_scope->add_module_port_info(idx, port_name, ptype, prt_vector_width );
 	    }
 
+	      // Interface-typed port (IEEE 1800-2017 25.3): the formal
+	      // is a class-typed handle variable (the virtual-interface
+	      // model), not a wire, so the nexus machinery below cannot
+	      // connect it. Bind it instead with an init-scheduled
+	      // object assignment `formal = <vif of actual>` in each
+	      // instance scope; the actual elaborates with the
+	      // interface class as its type context, which resolves an
+	      // interface instance (or instance.modport) to the
+	      // %new/vif scope reference.
+	    if (mport.size() == 1 && !prts.empty() && prts[0]) {
+		  const netclass_t*ifc =
+			dynamic_cast<const netclass_t*>(prts[0]->net_type());
+		  if (ifc && ifc->is_interface()) {
+			if (!pins[idx]) {
+			      cerr << get_fileline() << ": error: "
+				   << "Interface port `" << port_name
+				   << "' of module `" << rmod->mod_name()
+				   << "' cannot be left unconnected." << endl;
+			      des->errors += 1;
+			      continue;
+			}
+			for (unsigned inst = 0; inst < instance.size(); inst += 1) {
+			      NetNet*port_var = prts[inst];
+			      if (!port_var) continue;
+			      NetExpr*vif = 0;
+				// Resolve `<iface_instance>` or
+				// `<iface_instance>.<modport>` actuals
+				// directly to the instance scope: the
+				// implicit-net rule for port actuals
+				// may have declared a phantom wire
+				// with the instance's name, which
+				// derails the general expression
+				// elaboration. A modport select binds
+				// the whole instance (modports are
+				// access restriction, not new state;
+				// direction enforcement is a recorded
+				// follow-up).
+			      if (const PEIdent*aid =
+				    dynamic_cast<const PEIdent*>(pins[idx])) {
+				    const pform_name_t&ap = aid->path().name;
+				    if (ap.size() >= 1 && ap.size() <= 2
+					&& ap.front().index.empty()
+					&& ap.back().index.empty()) {
+					  NetScope*iscope = scope->child(
+						hname_t(ap.front().name));
+					  if (iscope
+					      && iscope->type() == NetScope::MODULE
+					      && iscope->module_name() == ifc->get_name()) {
+						bool sel_ok = ap.size() == 1;
+						if (!sel_ok) {
+						      auto pm = pform_modules.find(
+							    iscope->module_name());
+						      if (pm != pform_modules.end()
+							  && pm->second->modports.count(
+								ap.back().name))
+							    sel_ok = true;
+						}
+						if (sel_ok) {
+						      NetEScope*se = new NetEScope(
+							    iscope,
+							    static_cast<ivl_type_t>(ifc));
+						      se->set_line(*aid);
+						      vif = se;
+						}
+					  }
+				    }
+			      }
+			      if (!vif)
+				    vif = pins[idx]->elaborate_expr(
+					  des, scope,
+					  static_cast<ivl_type_t>(ifc), 0u);
+			      if (!vif) {
+				    cerr << pins[idx]->get_fileline()
+					 << ": error: Cannot bind interface"
+					 << " port `" << port_name
+					 << "' of module `" << rmod->mod_name()
+					 << "': the actual is not an"
+					 << " instance of interface `"
+					 << ifc->get_name() << "'." << endl;
+				    des->errors += 1;
+				    continue;
+			      }
+			      NetAssign_*lv = new NetAssign_(port_var);
+			      NetAssign*as = new NetAssign(lv, vif);
+			      as->set_line(*this);
+			      NetScope*inst_scope =
+				    instance[instance.size()-inst-1];
+			      NetProcTop*top = new NetProcTop(
+				    inst_scope, IVL_PR_INITIAL, as);
+			      top->set_line(*this);
+			      if (gn_system_verilog())
+				    top->attribute(perm_string::literal(
+					  "_ivl_schedule_init"), verinum(1));
+			      des->add_process(top);
+			}
+			continue;
+		  }
+	    }
+
 	      // If I find that the port is unconnected inside the
 	      // module, then there is nothing to connect. Skip the
 	      // argument.
@@ -3568,58 +3669,114 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    if (id_lval && id_lval->path().size() >= 1
 		&& id_lval->path().back().index.size() == 2) {
 		  symbol_search_results sr;
-		  if (symbol_search(this, des, scope, id_lval->path(),
-				    id_lval->lexical_pos(), &sr)
-		      && sr.net && sr.path_tail.empty()) {
-			const netqueue_t*outer =
-			      dynamic_cast<const netqueue_t*>(sr.net->net_type());
-			const netdarray_t*inner = outer
-			      ? dynamic_cast<const netdarray_t*>(outer->element_type())
-			      : 0;
-			const name_component_t&tail = id_lval->path().back();
-			const index_component_t&i1 = tail.index.front();
-			const index_component_t&i2 = tail.index.back();
-			  // A static-array-of-container signal also shows
-			  // two tail indices, but the first selects the
-			  // array word — leave that to the l-value path.
-			if (outer && inner
-			    && sr.net->unpacked_dimensions() == 0
-			    && i1.sel == index_component_t::SEL_BIT
-			    && i1.msb && !i1.lsb
-			    && i2.sel == index_component_t::SEL_BIT
-			    && i2.msb && !i2.lsb) {
-			      NetExpr*k1 = elab_and_eval(des, scope, i1.msb, -1, false);
-			      NetExpr*k2 = elab_and_eval(des, scope, i2.msb, -1, false);
-			      ivl_type_t val_type = inner->element_type();
-			      unsigned val_wid = 0;
-			      if (val_type) {
-				    long pw = val_type->packed_width();
-				    val_wid = (pw > 0) ? (unsigned)pw : 1;
+		  bool found = symbol_search(this, des, scope, id_lval->path(),
+					     id_lval->lexical_pos(), &sr);
+
+		    // Resolve the OUTER container: a queue/darray
+		    // SIGNAL (found && path_tail empty), a class
+		    // PROPERTY through an explicit handle
+		    // (c.dd[k1][k2]: path_tail is one property
+		    // component), or a property through the implicit
+		    // this (dd[k1][k2] in a method: the search finds
+		    // nothing and the enclosing scope is a class).
+		  NetExpr*outer_e = 0;
+		  const netdarray_t*outer = 0;
+		  if (found && sr.net && sr.path_tail.empty()
+		      && sr.net->unpacked_dimensions() == 0) {
+			  // A static-array-of-container signal also
+			  // shows two tail indices, but the first
+			  // selects the array word — leave that to
+			  // the l-value path.
+			outer = dynamic_cast<const netdarray_t*>(sr.net->net_type());
+			if (outer) {
+			      NetESignal*se = new NetESignal(sr.net);
+			      se->set_line(*this);
+			      outer_e = se;
+			}
+		  } else if (found && sr.net && sr.path_tail.size() == 1
+			     && !sr.path_head.empty()
+			     && sr.path_head.back().index.empty()) {
+			const netclass_t*cls =
+			      dynamic_cast<const netclass_t*>(sr.net->net_type());
+			const name_component_t&pc = sr.path_tail.front();
+			if (cls && pc.index.size() == 2) {
+			      int pidx = cls->property_idx_from_name(pc.name);
+			      if (pidx >= 0) {
+				    outer = dynamic_cast<const netdarray_t*>(
+					  cls->get_prop_type((size_t)pidx));
+				    if (outer) {
+					  NetESignal*se = new NetESignal(sr.net);
+					  se->set_line(*this);
+					  NetEProperty*pe =
+						new NetEProperty(se, pidx, nullptr);
+					  pe->set_line(*this);
+					  outer_e = pe;
+				    }
 			      }
-			      NetExpr*val = val_type
-				    ? elaborate_rval_expr(des, scope, val_type,
-							  val_type->base_type(),
-							  val_wid, rval())
-				    : 0;
-			      if (k1 && k2 && val) {
-				    NetESignal*outer_e = new NetESignal(sr.net);
-				    outer_e->set_line(*this);
-				    vector<NetExpr*> argv(4);
-				    argv[0] = outer_e;
-				    argv[1] = k1;
-				    argv[2] = k2;
-				    argv[3] = val;
-				    NetSTask*sys = new NetSTask(
-					  "$ivl_assoc$store2",
-					  IVL_SFUNC_AS_TASK_IGNORE, argv);
-				    sys->set_line(*this);
-				    return sys;
+			}
+		  } else if (!found && id_lval->path().size() == 1) {
+			if (const netclass_t*cls = find_class_containing_scope(*this, scope)) {
+			      int pidx = cls->property_idx_from_name(
+				    id_lval->path().name.front().name);
+			      NetNet*this_net = pidx >= 0
+				    ? find_implicit_this_handle(des, scope) : 0;
+			      if (pidx >= 0 && this_net) {
+				    outer = dynamic_cast<const netdarray_t*>(
+					  cls->get_prop_type((size_t)pidx));
+				    if (outer) {
+					  NetESignal*te = new NetESignal(this_net);
+					  te->set_line(*this);
+					  NetEProperty*pe =
+						new NetEProperty(te, pidx, nullptr);
+					  pe->set_line(*this);
+					  outer_e = pe;
+				    }
 			      }
-			      delete k1;
-			      delete k2;
-			      delete val;
 			}
 		  }
+
+		  const netdarray_t*inner = outer
+			? dynamic_cast<const netdarray_t*>(outer->element_type())
+			: 0;
+		  const name_component_t&tail = id_lval->path().back();
+		  const index_component_t&i1 = tail.index.front();
+		  const index_component_t&i2 = tail.index.back();
+		  if (outer_e && inner
+		      && i1.sel == index_component_t::SEL_BIT
+		      && i1.msb && !i1.lsb
+		      && i2.sel == index_component_t::SEL_BIT
+		      && i2.msb && !i2.lsb) {
+			NetExpr*k1 = elab_and_eval(des, scope, i1.msb, -1, false);
+			NetExpr*k2 = elab_and_eval(des, scope, i2.msb, -1, false);
+			ivl_type_t val_type = inner->element_type();
+			unsigned val_wid = 0;
+			if (val_type) {
+			      long pw = val_type->packed_width();
+			      val_wid = (pw > 0) ? (unsigned)pw : 1;
+			}
+			NetExpr*val = val_type
+			      ? elaborate_rval_expr(des, scope, val_type,
+						    val_type->base_type(),
+						    val_wid, rval())
+			      : 0;
+			if (k1 && k2 && val) {
+			      vector<NetExpr*> argv(4);
+			      argv[0] = outer_e;
+			      argv[1] = k1;
+			      argv[2] = k2;
+			      argv[3] = val;
+			      NetSTask*sys = new NetSTask(
+				    "$ivl_assoc$store2",
+				    IVL_SFUNC_AS_TASK_IGNORE, argv);
+			      sys->set_line(*this);
+			      return sys;
+			}
+			delete k1;
+			delete k2;
+			delete val;
+		  }
+		  if (outer_e && !inner)
+			delete outer_e;
 	    }
       }
 
@@ -3926,6 +4083,165 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
  *
  *    <lval> <= #<delay> <rval> ;
  */
+/* M8-2b (IEEE 1800-2017 14.16): recognize `cb.out <= v` and
+   `inst.cb.out <= v` drives to OUTPUT/INOUT clockvars and transform
+   them into the buffered-drive shape:
+
+       begin
+	     _ivl_obuf$cb$out = v;
+	     if ($ivl_clocking_sample(_ivl_smptick$cb) !== _ivl_smptick$cb)
+		   out <= _ivl_obuf$cb$out;     // event occurred this
+						// step: drive now
+	     else
+		   _ivl_opend$cb$out = 1'b0+1;  // buffer: the apply
+						// process lands it at
+						// the next event
+       end
+
+   The tick comparison asks "did the clocking event already occur in
+   this time step" via the same 1-deep history the input sampling
+   uses (the tick toggles in the NBA region of each event step). A
+   drive executed after an @(cb) wake therefore lands in the same
+   step (the LRM's drive-at-current-event case); a drive between
+   events is buffered for the next one.
+
+   Returns nullptr to fall through to the ordinary (alias) NBA:
+   virtual-interface drives, part-selects of clockvars, intra-assign
+   delays, and unsampleable signals keep the old behavior. */
+static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
+						 const PEIdent*lid,
+						 PExpr*rexpr,
+						 const LineInfo&loc)
+{
+      if (!gn_system_verilog()) return nullptr;
+      if (lid->path().package) return nullptr;
+      const pform_name_t&path = lid->path().name;
+      if (path.size() < 2) return nullptr;
+      if (!path.back().index.empty()) return nullptr;
+
+      NetScope*def_scope = nullptr;
+      const Module::PClocking*cbp = nullptr;
+      perm_string cb_name, sig_name;
+
+	/* Shape (a): same-scope `cb.sig`. */
+      if (path.size() == 2 && path.front().index.empty()) {
+	    for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
+		  if (walker->type() != NetScope::MODULE)
+			continue;
+		  perm_string mn = walker->module_name();
+		  if (mn.nil()) continue;
+		  auto pmod_it = pform_modules.find(mn);
+		  if (pmod_it == pform_modules.end()) continue;
+		  auto cb_it = pmod_it->second->clocking_blocks.find(path.front().name);
+		  if (cb_it == pmod_it->second->clocking_blocks.end())
+			continue;
+		  const auto&signals = cb_it->second->signals;
+		  if (std::find(signals.begin(), signals.end(), path.back().name)
+			    == signals.end())
+			break;
+		  def_scope = walker;
+		  cbp = cb_it->second;
+		  cb_name = path.front().name;
+		  sig_name = path.back().name;
+		  break;
+	    }
+      }
+
+	/* Shape (b): `inst.cb.sig` — the prefix resolves to an
+	   instance scope (interface, module, or program). */
+      if (!def_scope && path.size() >= 3) {
+	    symbol_search_results sr;
+	    symbol_search(&loc, des, scope, lid->path(), lid->lexical_pos(), &sr);
+	    if (!sr.net && sr.scope) {
+		  perm_string mn = sr.scope->module_name();
+		  auto pmod_it = mn.nil() ? pform_modules.end()
+					  : pform_modules.find(mn);
+		  if (pmod_it != pform_modules.end()) {
+			pform_name_t::const_iterator sig_c = path.end();
+			--sig_c;
+			pform_name_t::const_iterator cb_c = sig_c;
+			--cb_c;
+			if (cb_c->index.empty()) {
+			      auto cb_it = pmod_it->second->clocking_blocks.find(cb_c->name);
+			      if (cb_it != pmod_it->second->clocking_blocks.end()) {
+				    const auto&signals = cb_it->second->signals;
+				    if (std::find(signals.begin(), signals.end(),
+						  sig_c->name) != signals.end()) {
+					  def_scope = sr.scope;
+					  cbp = cb_it->second;
+					  cb_name = cb_c->name;
+					  sig_name = sig_c->name;
+				    }
+			      }
+			}
+		  }
+	    }
+      }
+
+      if (!def_scope || !cbp)
+	    return nullptr;
+
+      NetNet::PortType dir = cbp->signal_direction(sig_name);
+      if (dir != NetNet::POUTPUT && dir != NetNet::PINOUT)
+	    return nullptr;
+
+      string bname = string("_ivl_obuf$") + cb_name.str() + "$" + sig_name.str();
+      string pname = string("_ivl_opend$") + cb_name.str() + "$" + sig_name.str();
+      string kname = string("_ivl_smptick$") + cb_name.str();
+      string tname = string("_ivl_smptrig$") + cb_name.str();
+      NetNet*raw  = def_scope->find_signal(sig_name);
+      NetNet*obuf = def_scope->find_signal(lex_strings.make(bname.c_str()));
+      NetNet*opend = def_scope->find_signal(lex_strings.make(pname.c_str()));
+      NetNet*tick = def_scope->find_signal(lex_strings.make(kname.c_str()));
+      NetEvent*trig = def_scope->find_event(lex_strings.make(tname.c_str()));
+      if (!raw || !obuf || !opend || !tick || !trig)
+	    return nullptr;
+
+      NetExpr*rv = elaborate_rval_expr(des, scope, obuf->net_type(), rexpr);
+      if (rv == 0) return 0;
+
+      NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+      blk->set_line(loc);
+
+      NetAssign*store = new NetAssign(new NetAssign_(obuf), rv);
+      store->set_line(loc);
+      blk->append(store);
+
+      NetESFunc*pre = new NetESFunc("$ivl_clocking_sample",
+				    tick->net_type(), 1);
+      NetESignal*tick_arg = new NetESignal(tick);
+      tick_arg->set_line(loc);
+      pre->parm(0, tick_arg);
+      pre->set_line(loc);
+      NetESignal*tick_now = new NetESignal(tick);
+      tick_now->set_line(loc);
+      NetEBComp*cmp = new NetEBComp('N', pre, tick_now);
+      cmp->set_line(loc);
+
+      NetESignal*buf_rd = new NetESignal(obuf);
+      buf_rd->set_line(loc);
+      NetAssignNB*direct = new NetAssignNB(new NetAssign_(raw), buf_rd, 0, 0);
+      direct->set_line(loc);
+	/* Output skew (14.4): the drive-at-current-event case also
+	   lands #d after the event. */
+      if (PExpr*od = cbp->output_skew_delay(sig_name)) {
+	    if (NetExpr*dly = elaborate_delay_expr(od, des, scope))
+		  direct->set_delay(dly);
+      }
+
+      verinum one_v (verinum::V1, 1);
+      NetEConst*one = new NetEConst(one_v);
+      one->set_line(loc);
+      NetAssign*mark = new NetAssign(new NetAssign_(opend), one);
+      mark->set_line(loc);
+
+      NetCondit*cond = new NetCondit(cmp, direct, mark);
+      cond->set_line(loc);
+      blk->append(cond);
+
+      return blk;
+}
+
 NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -3967,6 +4283,17 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	            "assignments." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+	/* M8-2b: plain drives to output clockvars get the buffered
+	   14.16 semantics. Intra-assignment controls fall through
+	   (`<= ##N` cycle delays are the 2c increment). */
+      if (delay_ == 0 && count_ == 0 && event_ == 0) {
+	    if (const PEIdent*lid = dynamic_cast<const PEIdent*>(lval())) {
+		  if (NetProc*drive = elaborate_clocking_output_drive_(
+			    des, scope, lid, rval(), *this))
+			return drive;
+	    }
       }
 
 	/* Elaborate the l-value. */
@@ -6116,6 +6443,64 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					      parm_names);
       }
 
+	// Ordering methods on STATIC unpacked arrays (IEEE 1800-2017
+	// 7.12.2 applies to any unpacked array): lower to the in-place
+	// %uarr/order runtime op. Previously these fell through to the
+	// unknown-task compile-progress warning and silently did
+	// nothing (G35/G36). NOTE a plain static-array SIGNAL carries
+	// its ELEMENT type as net_type() (the array shape lives in
+	// unpacked_dimensions()), so netuarray_t receivers (class
+	// properties / typedefs) and array signals are both handled.
+      if (method_name == "sort" || method_name == "rsort"
+	  || method_name == "reverse" || method_name == "shuffle") {
+	    const netranges_t*ur_dims = nullptr;
+	    ivl_type_t ur_elem = nullptr;
+	    if (obj_uarray) {
+		  ur_dims = &obj_uarray->static_dimensions();
+		  ur_elem = obj_uarray->element_type();
+	    } else if (!obj_darray && net && net->unpacked_dimensions() > 0
+		       && dynamic_cast<NetESignal*>(obj_expr)) {
+		  ur_dims = &net->unpacked_dims();
+		  ur_elem = net->net_type();
+	    }
+	    if (ur_dims) {
+		  if (!with_constraints().empty()) {
+			cerr << get_fileline() << ": sorry: '" << method_name
+			     << "() with (...)' on a fixed-size array is not"
+			     << " yet supported." << endl;
+			des->errors += 1;
+			delete obj_expr;
+			return 0;
+		  }
+		  const netvector_t*uvec =
+			dynamic_cast<const netvector_t*>(ur_elem);
+		  const netenum_t*uenum =
+			dynamic_cast<const netenum_t*>(ur_elem);
+		  if (ur_dims->size() != 1 || (!uvec && !uenum)) {
+			cerr << get_fileline() << ": sorry: '" << method_name
+			     << "()' is only supported on one-dimensional"
+			     << " fixed-size arrays of integral elements."
+			     << endl;
+			des->errors += 1;
+			delete obj_expr;
+			return 0;
+		  }
+		  unsigned long mode = 0;
+		  if (method_name == "rsort") mode = 1;
+		  else if (method_name == "reverse") mode = 2;
+		  else if (method_name == "shuffle") mode = 3;
+		  if (ur_elem->get_signed())
+			mode |= 4;
+		  vector<NetExpr*> argv(2);
+		  argv[0] = obj_expr;
+		  argv[1] = make_const_val(mode);
+		  NetSTask*sys = new NetSTask("$ivl_uarray_method$order",
+					      IVL_SFUNC_AS_TASK_IGNORE, argv);
+		  sys->set_line(*this);
+		  return sys;
+	    }
+      }
+
       if (const netqueue_t*obj_queue = dynamic_cast<const netqueue_t*>(obj_type)) {
 	    const netdarray_t*use_darray = obj_queue;
 	    if (!use_darray) {
@@ -6531,8 +6916,83 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 
 	    // Virtual-interface task dispatch: the resolved task lives in an
 	    // interface scope and is NOT a class method, so there is no `this`
-	    // first port. Drop the receiver expression and call as a free task.
+	    // first port (IEEE 1800-2017 25.10). The call must apply to the
+	    // instance the HANDLE designates, so emit the dynamic-dispatch
+	    // form $ivl_vif_call$<iface>$<method>(receiver, args...) — the
+	    // code generator compares the handle's bound scope against every
+	    // instance of the interface and calls that instance's method.
+	    // Tasks with output/inout/ref ports keep the legacy static call
+	    // (single attached instance): the dynamic form has no
+	    // copy-back path yet (recorded approximation).
 	    if (class_type->is_interface()) {
+		  bool inputs_only = true;
+		  auto pmod_it = pform_modules.find(class_type->get_name());
+		  const std::vector<pform_tf_port_t>*pports = nullptr;
+		  if (pmod_it != pform_modules.end()) {
+			auto task_it = pmod_it->second->tasks.find(method_name);
+			if (task_it != pmod_it->second->tasks.end())
+			      pports = task_it->second->peek_ports();
+		  }
+		  if (pports) {
+			for (const pform_tf_port_t&pp : *pports) {
+			      if (pp.port
+				  && pp.port->get_port_type() != NetNet::PINPUT) {
+				    inputs_only = false;
+				    break;
+			      }
+			}
+		  }
+		  if (inputs_only) {
+			std::string call_name = "$ivl_vif_call$";
+			call_name += class_type->get_name().str();
+			call_name += "$";
+			call_name += method_name.str();
+			std::vector<NetExpr*> argv;
+			argv.push_back(obj_expr);
+			for (size_t pi = 0 ; pi < parms_.size() ; pi += 1) {
+			      if (!parms_[pi].parm) {
+				    argv.push_back(0);
+				    continue;
+			      }
+			      NetExpr*ev = elab_sys_task_arg(des, scope,
+							     method_name, pi,
+							     parms_[pi].parm);
+			      argv.push_back(ev);
+			}
+			  // Pad unsupplied trailing args with the declared
+			  // pform defaults (evaluated in the caller scope).
+			if (pports) {
+			      for (size_t pi = parms_.size() ;
+				   pi < pports->size() ; pi += 1) {
+				    const pform_tf_port_t&pp = (*pports)[pi];
+				    if (pp.defe) {
+					  NetExpr*ev = elab_sys_task_arg(
+						des, scope, method_name,
+						pi, pp.defe);
+					  argv.push_back(ev);
+				    } else {
+					  argv.push_back(0);
+				    }
+			      }
+			}
+			perm_string cn = lex_strings.make(call_name.c_str());
+			NetSTask*sys = new NetSTask(cn.str(),
+						    IVL_SFUNC_AS_TASK_IGNORE,
+						    argv);
+			sys->set_line(*this);
+			return sys;
+		  }
+		  static bool warned_vif_static_call = false;
+		  if (!warned_vif_static_call) {
+			cerr << get_fileline() << ": warning: interface task "
+			     << method_name << " has output/inout/ref ports;"
+			     << " the call binds to a single attached instance"
+			     << " of " << class_type->get_name()
+			     << " (dynamic-dispatch copy-back not yet"
+			     << " implemented; further similar warnings"
+			     << " suppressed)." << endl;
+			warned_vif_static_call = true;
+		  }
 		  delete obj_expr;
 		  return elaborate_build_call_(des, scope, task, nullptr);
 	    }
@@ -7603,6 +8063,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		   * scopes -- used by the rewrite path below to substitute
 		   * the underlying event expression. */
 		  const Module::PClocking*pform_clocking_inner = nullptr;
+		  NetScope*pform_clocking_scope = nullptr;
 		  if (id->path().size() == 1 && gn_system_verilog()) {
 			perm_string cb_name = id->path().back().name;
 			for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
@@ -7620,13 +8081,16 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			      auto cb_it = pmod_it->second->clocking_blocks.find(cb_name);
 			      if (cb_it != pmod_it->second->clocking_blocks.end()) {
 				    pform_clocking_inner = cb_it->second;
+				    pform_clocking_scope = walker;
 				    break;
 			      }
 			}
 		  }
 
+		  const netclass_t*clocking_class = nullptr;
 		  const netclass_t::clocking_block_t*clocking =
-			resolve_interface_clocking_block_from_search_(sr, base_path_components);
+			resolve_interface_clocking_block_from_search_(sr, base_path_components,
+								      &clocking_class);
 		  /* resolve_interface_clocking_block_from_search_ sets
 		     base_path_components = offset (0-based index into
 		     sr.path_tail where the clocking block was found).
@@ -7639,11 +8103,17 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			? clocking->event
 			: resolve_scope_pform_clocking_event_(id, sr, scope_cb_name,
 							      base_path_components);
+		  /* Scope that DEFINES the clocking block, for looking up
+		   * the synthesized sampler trigger event (M8-2a). */
+		  NetScope*cb_def_scope = nullptr;
+		  if (!clocking && pform_event)
+			cb_def_scope = sr.scope;
 		  /* Phase 55: pform-side clocking-block lookup for the simple
 		   * `@cb` form within the same interface body or task. */
 		  if (!pform_event && pform_clocking_inner) {
 			pform_event = pform_clocking_inner->event;
 			scope_cb_name = pform_clocking_inner->name;
+			cb_def_scope = pform_clocking_scope;
 			/* Same-scope clocking block: the underlying event
 			 * identifier (e.g. `clk`) resolves in the caller's
 			 * scope without any prefix.  base_path_components=0
@@ -7664,6 +8134,61 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				   << " has no event expression." << endl;
 			      des->errors += 1;
 			      return 0;
+			}
+
+			/* M8-2a: a clocking block with sampled inputs has a
+			 * synthesized sampler process that triggers a named
+			 * event AFTER updating the sample variables (14.13).
+			 * Wait on that event instead of the raw clocking
+			 * event, so processes woken by @(cb) observe this
+			 * edge's samples deterministically. Blocks with no
+			 * sampled inputs have no such event and keep the
+			 * underlying-event substitution below. */
+			if (cb_def_scope && !scope_cb_name.nil()) {
+			      string trig_name = string("_ivl_smptrig$")
+				    + scope_cb_name.str();
+			      if (NetEvent*trig = cb_def_scope->find_event(
+					lex_strings.make(trig_name.c_str()))) {
+				    NetEvWait*we = new NetEvWait(enet);
+				    we->set_line(*this);
+				    we->add_event(trig);
+				    return we;
+			      }
+			}
+
+			/* M8-2a-4: the class (virtual-interface) path.
+			 * Named events cannot be reached through a class
+			 * handle, so the sampler toggles a tick bit
+			 * (registered as an interface property) after its
+			 * sample stores; wait ANYEDGE on that property so
+			 * @(vif.cb) resumes with this edge's samples
+			 * visible. Falls through to the underlying-event
+			 * mapping for blocks with no sampled inputs. */
+			if (clocking && clocking_class) {
+			      string kname = string("_ivl_smptick$")
+				    + clocking->name.str();
+			      perm_string tick_name =
+				    lex_strings.make(kname.c_str());
+			      if (clocking_class->property_idx_from_name(tick_name) >= 0) {
+				    pform_name_t tick_path;
+				    size_t count = 0;
+				    for (pform_name_t::const_iterator it = id->path().name.begin()
+					       ; it != id->path().name.end()
+						     && count < base_path_components
+					       ; ++it, ++count)
+					  tick_path.push_back(*it);
+				    tick_path.push_back(name_component_t(tick_name));
+
+				    PEIdent*tick_ident = id->path().package
+					  ? new PEIdent(id->path().package, tick_path, id->lexical_pos())
+					  : new PEIdent(tick_path, id->lexical_pos());
+				    std::vector<PEEvent*> tick_events;
+				    tick_events.push_back(new PEEvent(PEEvent::ANYEDGE, tick_ident));
+				    PEventStatement tick_stmt(tick_events);
+				    tick_stmt.set_line(*this);
+				    tick_stmt.set_statement(statement_);
+				    return tick_stmt.elaborate_st(des, scope, enet);
+			      }
 			}
 
 			std::vector<PEEvent*> mapped_events;
@@ -9213,7 +9738,14 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
       NetExpr*init_expr = 0;
       NetExpr*limit_expr = 0;
       char cond_op = 'L';
-      if (dynamic_cast<const netqueue_t*>(array_expr->net_type())) {
+	// Queues and plain dynamic arrays are always 0-based with a
+	// runtime size (IEEE 1800-2017 7.5, 7.10), so iterate
+	// 0 <= idx < size. The size sfunc accepts signal AND non-signal
+	// (e.g. class-property) receivers, unlike the $low/$high VPI
+	// path below which requires a signal handle — a property
+	// receiver there used to constant-fold $high to 'x' and the
+	// loop silently ran zero times.
+      if (dynamic_cast<const netdarray_t*>(array_expr->net_type())) {
 	    init_expr = make_const_val(0);
 	    init_expr->set_line(*this);
 	    limit_expr = make_foreach_queue_size_expr_(*this, array_expr);
@@ -10458,6 +10990,315 @@ bool PPackage::elaborate(Design*des, NetScope*scope) const
  * method to elaborate the contents of the module.
  */
 
+/* M8 increment 2a (IEEE 1800-2017 14.13): synthesize the input sampler
+   process for each clocking block whose sample variables were created
+   in the signal pass (elaborate_sig_clocking_samples_). The process is
+
+       initial begin
+	     $ivl_clocking_hist_on(raw1); ...   // enable 1-deep history
+	     forever @(<clocking event>) begin
+		   _ivl_smp$cb$sig1 <= $ivl_clocking_sample(raw1); ...
+		   ->> _ivl_smptrig$cb;
+	     end
+       end
+
+   $ivl_clocking_sample lowers to %load/preponed, which returns the
+   value the raw signal held when the time step of the clocking event
+   started -- the Preponed-region value, i.e. the default #1step input
+   skew sample. It is time-step-stable, so it does not matter when in
+   the step the sampler thread actually runs.
+
+   The stores and the trigger are NONBLOCKING so the visibility order
+   is deterministic (IEEE 1800-2017 14.13 puts clockvar updates after
+   the Active region; we use the NBA region):
+   - processes woken by the raw edge in the Active region read the
+     PREVIOUS sample;
+   - the sample variables update in the NBA region, in scheduling
+     order BEFORE the trigger fires;
+   - processes waiting on @(cb) are woken by the trigger (see
+     PEventStatement elaboration) and read THIS edge's samples. */
+static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
+					 const Module*mod)
+{
+      typedef map<perm_string,Module::PClocking*>::const_iterator cb_it_t;
+      for (cb_it_t cur = mod->clocking_blocks.begin()
+		 ; cur != mod->clocking_blocks.end() ; ++cur) {
+	    const Module::PClocking*cb = cur->second;
+	    if (!cb->event || cb->event->event_expressions().empty())
+		  continue;
+
+	    string tname = string("_ivl_smptrig$") + cb->name.str();
+	    NetEvent*trig = scope->find_event(lex_strings.make(tname.c_str()));
+	    if (!trig)
+		  continue;   // no sampleable inputs in this block
+
+	    NetBlock*prologue = new NetBlock(NetBlock::SEQU, 0);
+	    prologue->set_line(*cb);
+	    NetBlock*body = new NetBlock(NetBlock::SEQU, 0);
+	    body->set_line(*cb);
+	      /* Phase-2 stores (numeric input skews, 14.4): executed
+		 after the NBA region of the event step, reading the
+		 #d-delayed shadow signals. */
+	    NetBlock*phase2 = new NetBlock(NetBlock::SEQU, 0);
+	    phase2->set_line(*cb);
+	    unsigned sample_count = 0;
+	    unsigned phase2_count = 0;
+
+	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
+		       ; sig_it != cb->signals.end() ; ++sig_it) {
+		  NetNet::PortType dir = cb->signal_direction(*sig_it);
+		  if (dir != NetNet::PINPUT && dir != NetNet::PINOUT)
+			continue;
+
+		  string sname = string("_ivl_smp$") + cb->name.str()
+			+ "$" + sig_it->str();
+		  NetNet*smp = scope->find_signal(lex_strings.make(sname.c_str()));
+		  if (!smp)
+			continue;   // not sampleable; alias behavior
+		  NetNet*raw = scope->find_signal(*sig_it);
+		  if (!raw)
+			continue;
+
+		    /* Numeric skew: drive a transport-delayed shadow
+		       (always @(raw) shadow <= #d raw) and sample it in
+		       phase 2. #0 degenerates correctly: the shadow
+		       carries this step's NBA updates by the time the
+		       phase-2 read runs (the Observed value). */
+		  PExpr*skew_delay = nullptr;
+		  if (cb->input_skew(*sig_it, skew_delay)
+		      == Module::PClocking::SKEW_DELAY) {
+			string wname = string("_ivl_sshw$") + cb->name.str()
+			      + "$" + sig_it->str();
+			NetNet*shadow = scope->find_signal(lex_strings.make(wname.c_str()));
+			if (shadow) {
+			      NetExpr*dly = skew_delay
+				    ? elaborate_delay_expr(skew_delay, des, scope)
+				    : nullptr;
+			      NetESignal*rv = new NetESignal(raw);
+			      rv->set_line(*cb);
+			      NetAssignNB*sasn = new NetAssignNB(new NetAssign_(shadow),
+								 rv, 0, 0);
+			      sasn->set_line(*cb);
+			      if (dly) sasn->set_delay(dly);
+			      NetEvent*sev = new NetEvent(scope->local_symbol());
+			      sev->local_flag(true);
+			      sev->set_line(*cb);
+			      scope->add_event(sev);
+			      NetEvWait*swa = new NetEvWait(sasn);
+			      swa->set_line(*cb);
+			      swa->add_event(sev);
+			      NetEvProbe*spr = new NetEvProbe(scope, scope->local_symbol(),
+							      sev, NetEvProbe::ANYEDGE, 1);
+			      connect(spr->pin(0), raw->pin(0));
+			      des->add_node(spr);
+			      NetProcTop*sdrv = new NetProcTop(scope, IVL_PR_ALWAYS, swa);
+			      sdrv->set_line(*cb);
+			      des->add_process(sdrv);
+
+			      NetESignal*shrd = new NetESignal(shadow);
+			      shrd->set_line(*cb);
+			      NetAssign*st2 = new NetAssign(new NetAssign_(smp), shrd);
+			      st2->set_line(*cb);
+			      phase2->append(st2);
+			      sample_count += 1;
+			      phase2_count += 1;
+			      continue;
+			}
+		  }
+
+		  NetESignal*hist_arg = new NetESignal(raw);
+		  hist_arg->set_line(*cb);
+		  vector<NetExpr*> hist_parms (1);
+		  hist_parms[0] = hist_arg;
+		  NetSTask*hist_on = new NetSTask("$ivl_clocking_hist_on",
+						  IVL_SFUNC_AS_TASK_IGNORE,
+						  hist_parms);
+		  hist_on->set_line(*cb);
+		  prologue->append(hist_on);
+
+		  NetESFunc*samp = new NetESFunc("$ivl_clocking_sample",
+						 smp->net_type(), 1);
+		  NetESignal*samp_arg = new NetESignal(raw);
+		  samp_arg->set_line(*cb);
+		  samp->parm(0, samp_arg);
+		  samp->set_line(*cb);
+		  NetAssign_*lv = new NetAssign_(smp);
+		  NetAssignNB*asn = new NetAssignNB(lv, samp, 0, 0);
+		  asn->set_line(*cb);
+		  body->append(asn);
+		  sample_count += 1;
+	    }
+
+	      /* Collect the output clockvars with drive buffers
+		 (IEEE 1800-2017 14.16, M8-2b). The apply process below
+		 lands buffered drives at each clocking event. */
+	    std::vector<NetNet*> out_raws, out_bufs, out_pends;
+	    std::vector<perm_string> out_names;
+	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
+		       ; sig_it != cb->signals.end() ; ++sig_it) {
+		  NetNet::PortType dir = cb->signal_direction(*sig_it);
+		  if (dir != NetNet::POUTPUT && dir != NetNet::PINOUT)
+			continue;
+		  string bname = string("_ivl_obuf$") + cb->name.str()
+			+ "$" + sig_it->str();
+		  string pname = string("_ivl_opend$") + cb->name.str()
+			+ "$" + sig_it->str();
+		  NetNet*obuf = scope->find_signal(lex_strings.make(bname.c_str()));
+		  NetNet*opend = scope->find_signal(lex_strings.make(pname.c_str()));
+		  NetNet*raw = scope->find_signal(*sig_it);
+		  if (!obuf || !opend || !raw)
+			continue;
+		  out_raws.push_back(raw);
+		  out_bufs.push_back(obuf);
+		  out_pends.push_back(opend);
+		  out_names.push_back(*sig_it);
+	    }
+
+	    if (sample_count == 0 && out_raws.empty()) {
+		  delete prologue;
+		  delete body;
+		  continue;
+	    }
+
+	      /* Toggle the tick bit after the sample stores (same NBA
+		 ordering as the named-event trigger below). @(vif.cb)
+		 waits anyedge on this bit through the class handle;
+		 initialize it to 0 in the prologue because ~x is x and
+		 an x->x "toggle" never fires an anyedge. The tick also
+		 gets the 1-deep history: output drives test
+		 "$ivl_clocking_sample(tick) !== tick" to decide whether
+		 the clocking event already occurred in this time step
+		 (drive now) or not (buffer for the next event). */
+	    string kname = string("_ivl_smptick$") + cb->name.str();
+	    NetNet*tick = scope->find_signal(lex_strings.make(kname.c_str()));
+	    if (tick) {
+		  NetESignal*hist_arg = new NetESignal(tick);
+		  hist_arg->set_line(*cb);
+		  vector<NetExpr*> hist_parms (1);
+		  hist_parms[0] = hist_arg;
+		  NetSTask*hist_on = new NetSTask("$ivl_clocking_hist_on",
+						  IVL_SFUNC_AS_TASK_IGNORE,
+						  hist_parms);
+		  hist_on->set_line(*cb);
+		  prologue->append(hist_on);
+		  NetAssign_*ilv = new NetAssign_(tick);
+		  verinum zero_v (verinum::V0, 1);
+		  NetEConst*zero = new NetEConst(zero_v);
+		  zero->set_line(*cb);
+		  NetAssign*init = new NetAssign(ilv, zero);
+		  init->set_line(*cb);
+		  prologue->append(init);
+
+		  NetESignal*tsig = new NetESignal(tick);
+		  tsig->set_line(*cb);
+		  NetEUnary*inv = new NetEUnary('~', tsig, 1, false);
+		  inv->set_line(*cb);
+		  NetAssign_*tlv = new NetAssign_(tick);
+		  NetAssignNB*toggle = new NetAssignNB(tlv, inv, 0, 0);
+		  toggle->set_line(*cb);
+		  body->append(toggle);
+	    }
+
+	      /* Trigger sequencing. Without numeric-skew inputs the
+		 trigger is nonblocking: it fires in the NBA region
+		 after the sample stores. With them, the sampler
+		 suspends until the OBSERVED region of the edge step
+		 ($ivl_observed_wait -> %wait/observed), performs the
+		 phase-2 shadow reads against fully settled values
+		 (all NBA cascades applied), and only then fires the
+		 trigger (blocking), so @(cb) waiters still observe
+		 every sample of this edge. */
+	    if (phase2_count > 0) {
+		  vector<NetExpr*> no_parms;
+		  NetSTask*owait = new NetSTask("$ivl_observed_wait",
+						IVL_SFUNC_AS_TASK_IGNORE,
+						no_parms);
+		  owait->set_line(*cb);
+		  body->append(owait);
+
+		  NetEvTrig*tfire = new NetEvTrig(trig);
+		  tfire->set_line(*cb);
+		  phase2->append(tfire);
+		  body->append(phase2);
+	    } else {
+		  delete phase2;
+		  NetEvNBTrig*fire = new NetEvNBTrig(trig, 0);
+		  fire->set_line(*cb);
+		  body->append(fire);
+	    }
+
+	      /* Wrap the per-edge body in the clocking event wait. The
+		 event expression elaborates in the defining scope, the
+		 same resolution source-level @(posedge clk) would get. */
+	    NetProc*wait = cb->event->elaborate_st(des, scope, body);
+	    if (!wait) {
+		  cerr << cb->get_fileline() << ": sorry: cannot elaborate "
+		       << "the clocking event of block `" << cb->name
+		       << "' for input sampling; its inputs keep the "
+		       << "unsampled (alias) behavior." << endl;
+		  delete prologue;
+		  continue;
+	    }
+
+	    NetForever*loop = new NetForever(wait);
+	    loop->set_line(*cb);
+	    prologue->append(loop);
+
+	    NetProcTop*top = new NetProcTop(scope, IVL_PR_INITIAL, prologue);
+	    top->set_line(*cb);
+	    des->add_process(top);
+
+	      /* M8-2b: the drive-apply process (14.16). Buffered output
+		 drives land at each clocking event. The trig event fires
+		 from the NBA region, so the apply runs after the Active
+		 region of the edge step (Re-NBA-like timing) and catches
+		 both between-edge drives and same-step drives that raced
+		 the edge:
+		     initial forever @(trig)
+			   if (opend) begin raw <= obuf; opend = 0; end */
+	    if (!out_raws.empty()) {
+		  NetBlock*apply_blk = new NetBlock(NetBlock::SEQU, 0);
+		  apply_blk->set_line(*cb);
+		  for (size_t idx = 0 ; idx < out_raws.size() ; idx += 1) {
+			NetESignal*pend_rd = new NetESignal(out_pends[idx]);
+			pend_rd->set_line(*cb);
+			NetESignal*buf_rd = new NetESignal(out_bufs[idx]);
+			buf_rd->set_line(*cb);
+			NetAssignNB*drv = new NetAssignNB(new NetAssign_(out_raws[idx]),
+							  buf_rd, 0, 0);
+			drv->set_line(*cb);
+			  /* Output skew (14.4): land #d after the event. */
+			if (PExpr*od = cb->output_skew_delay(out_names[idx])) {
+			      if (NetExpr*dly = elaborate_delay_expr(od, des, scope))
+				    drv->set_delay(dly);
+			}
+			verinum zero_v (verinum::V0, 1);
+			NetEConst*zero = new NetEConst(zero_v);
+			zero->set_line(*cb);
+			NetAssign*clr = new NetAssign(new NetAssign_(out_pends[idx]),
+						      zero);
+			clr->set_line(*cb);
+			NetBlock*hit = new NetBlock(NetBlock::SEQU, 0);
+			hit->set_line(*cb);
+			hit->append(drv);
+			hit->append(clr);
+			NetCondit*cond = new NetCondit(pend_rd, hit, 0);
+			cond->set_line(*cb);
+			apply_blk->append(cond);
+		  }
+		  NetEvWait*await = new NetEvWait(apply_blk);
+		  await->set_line(*cb);
+		  await->add_event(trig);
+		  NetForever*apply_loop = new NetForever(await);
+		  apply_loop->set_line(*cb);
+		  NetProcTop*apply_top = new NetProcTop(scope, IVL_PR_INITIAL,
+							apply_loop);
+		  apply_top->set_line(*cb);
+		  des->add_process(apply_top);
+	    }
+      }
+}
+
 bool Module::elaborate(Design*des, NetScope*scope) const
 {
       bool result_flag = true;
@@ -10497,6 +11338,10 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // single initial process out of them.
 	    result_flag &= elaborate_var_inits_(des, scope);
 
+	      // Synthesize clocking-block input sampler processes
+	      // (IEEE 1800-2017 14.13) before the user behaviors.
+	    elaborate_clocking_samplers_(des, scope, this);
+
 	      // Elaborate the behaviors, making processes out of them. This
 	      // involves scanning the PProcess* list, creating a NetProcTop
 	      // for each process.
@@ -10529,6 +11374,26 @@ bool Module::elaborate(Design*des, NetScope*scope) const
  *               emitted as constants (IEEE 1800-2017 18.5.3).
  * loop_env:     if non-null, maps foreach loop-variable names to their
  *               unrolled constant values (IEEE 1800-2017 18.5.8). */
+
+/* Dynamic-array foreach emission context (IEEE 1800-2017 18.5.8.2).
+ * A foreach over a rand dynamic-array/queue property cannot unroll at
+ * elaboration (the element count is a runtime value, itself possibly
+ * randomized), so the body is emitted as a TEMPLATE the runtime
+ * expands after the size is solved:
+ *   (dynforeach <pidx>:<ewid>[:s] <body>)
+ * with the loop variable emitted as the token `L` and element
+ * references as `(delem <pidx>:<ewid>[:s] <index-ir>)`. This context
+ * is only live while the body of one such foreach is being emitted
+ * (pexpr_to_constraint_ir is elaboration-time single-threaded); it is
+ * scoped rather than threaded through the ~30 recursive call sites. */
+struct dynforeach_emit_ctx_t {
+      perm_string loop_var;
+      int prop_idx;
+      unsigned elem_wid;
+      bool elem_signed;
+};
+static const dynforeach_emit_ctx_t*dynforeach_emit_ctx_ = nullptr;
+
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots,
@@ -10561,6 +11426,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (lit != loop_env->end())
 			return "c:" + to_string(lit->second);
 	    }
+	      // Dynamic foreach loop variable: symbolic token for the
+	      // runtime expansion (18.5.8.2).
+	    if (dynforeach_emit_ctx_ && id->path().size() == 1
+		&& id->path().back().index.empty()
+		&& name == dynforeach_emit_ctx_->loop_var)
+		  return "L";
 
 	    int idx = cls->property_idx_from_name(name);
 	    if (idx >= 0) {
@@ -10573,6 +11444,28 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		    // e:N:W:I. The index must fold to a constant under the
 		    // loop environment.
 		  if (!id->path().back().index.empty()) {
+			  // Element of the dynamic array being iterated by
+			  // an enclosing dynamic foreach: emit the runtime
+			  // element-reference template form. The index sub-IR
+			  // may contain the symbolic loop token L.
+			if (dynforeach_emit_ctx_
+			    && idx == dynforeach_emit_ctx_->prop_idx
+			    && id->path().back().index.size() == 1) {
+			      const index_component_t&dic =
+				    id->path().back().index.front();
+			      if (!dic.msb || dic.lsb
+				  || dic.sel != index_component_t::SEL_BIT)
+				    return "";
+			      string idx_ir = pexpr_to_constraint_ir(dic.msb,
+					    cls, value_slots, scope, loop_env);
+			      if (idx_ir.empty())
+				    return "";
+			      const dynforeach_emit_ctx_t*c = dynforeach_emit_ctx_;
+			      return "(delem " + to_string(c->prop_idx)
+				    + ":" + to_string(c->elem_wid)
+				    + (c->elem_signed ? ":s" : "")
+				    + " " + idx_ir + ")";
+			}
 			const netuarray_t*ua =
 			      dynamic_cast<const netuarray_t*>(ptype);
 			if (!ua || id->path().back().index.size() != 1)
@@ -10589,10 +11482,23 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			const netranges_t&dims = ua->static_dimensions();
 			if (dims.size() != 1)
 			      return "";
-			  // Element addressing assumes a 0-based canonical
-			  // range; other declared ranges not yet supported.
-			if (dims[0].get_msb() != 0 && dims[0].get_lsb() != 0)
-			      return "";
+			  // The source index is a DECLARED index (18.5.8.1
+			  // loop variables range over the declared indices);
+			  // the element solver variable e:N:W:I addresses
+			  // the canonical (0-based) slot used by the
+			  // write-back, so map declared -> canonical here.
+			  // uint64 two's-complement arithmetic keeps
+			  // negative declared bounds consistent with the
+			  // solver's constant folding.
+			{
+			      long range_lo =
+				    dims[0].get_msb() < dims[0].get_lsb()
+					  ? dims[0].get_msb()
+					  : dims[0].get_lsb();
+			      elem -= (uint64_t)range_lo;
+			      if (elem >= dims[0].width())
+				    return "";
+			}
 			ivl_type_t etype = ua->element_type();
 			unsigned ewid = etype ? etype->packed_width() : 32;
 			if (ewid == 0) ewid = 32;
@@ -10721,6 +11627,36 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    return "";
       }
 
+	// Variable-ordering directive (IEEE 1800-2017 18.5.10):
+	// solve a, b before c, d;  ->  (order (vars p:..) (vars p:..)).
+	// The runtime solves the `before` variables in an earlier
+	// stage (with the value-diversity objective applied to them
+	// alone) and pins them for the later stage. Ordering affects
+	// only distribution, never satisfiability (18.5.10).
+      if (const PEConstraintOrder*co =
+	  dynamic_cast<const PEConstraintOrder*>(expr)) {
+	    auto vars_to_ir = [&](const std::list<PExpr*>&items) -> string {
+		  string acc;
+		  for (const PExpr*item : items) {
+			if (!item) continue;
+			string s = pexpr_to_constraint_ir(item, cls,
+						value_slots, scope, loop_env);
+			  // Only scalar rand properties participate;
+			  // anything else makes the directive
+			  // unrepresentable (warned by the caller).
+			if (s.compare(0, 2, "p:") != 0)
+			      return "";
+			acc += acc.empty() ? s : (" " + s);
+		  }
+		  return acc;
+	    };
+	    string bef = vars_to_ir(co->before_items());
+	    string aft = vars_to_ir(co->after_items());
+	    if (bef.empty() || aft.empty())
+		  return "";
+	    return "(order (vars " + bef + ") (vars " + aft + "))";
+      }
+
 	// Iterative constraint over a one-dimensional static-array rand
 	// property (IEEE 1800-2017 18.5.8): unroll at elaboration time,
 	// binding the loop variable to each canonical index.
@@ -10733,20 +11669,66 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  return "";
 	    const netuarray_t*ua =
 		  dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)idx));
-	    if (!ua)
-		  return "";  // dynamic-array foreach: not yet supported
+	      // Dynamic array or queue property: the element count is a
+	      // runtime value (18.5.8.2: the size is solved before the
+	      // iterative constraints), so emit a template the runtime
+	      // expands after the size is known. One level only.
+	    if (!ua) {
+		  const netdarray_t*da = dynamic_cast<const netdarray_t*>(
+			cls->get_prop_type((size_t)idx));
+		  if (!da || dynforeach_emit_ctx_)
+			return "";
+		  ivl_type_t etype = da->element_type();
+		  unsigned ewid = etype ? etype->packed_width() : 32;
+		  if (ewid == 0) ewid = 32;
+		  bool esig = etype && etype->get_signed();
+		    // Only integral elements are expressible.
+		  if (etype && (etype->base_type() == IVL_VT_REAL
+				|| etype->base_type() == IVL_VT_STRING
+				|| etype->base_type() == IVL_VT_CLASS
+				|| etype->base_type() == IVL_VT_DARRAY
+				|| etype->base_type() == IVL_VT_QUEUE))
+			return "";
+		  dynforeach_emit_ctx_t dctx;
+		  dctx.loop_var = cfe->loop_vars()[0];
+		  dctx.prop_idx = idx;
+		  dctx.elem_wid = ewid;
+		  dctx.elem_signed = esig;
+		  dynforeach_emit_ctx_ = &dctx;
+		  string body;
+		  for (const PExpr*item : cfe->items()) {
+			if (!item) continue;
+			string s = pexpr_to_constraint_ir(item, cls,
+						value_slots, scope, loop_env);
+			if (s.empty()) {
+			      dynforeach_emit_ctx_ = nullptr;
+			      return "";
+			}
+			body = body.empty() ? s : "(and " + body + " " + s + ")";
+		  }
+		  dynforeach_emit_ctx_ = nullptr;
+		  if (body.empty())
+			return "";
+		  return "(dynforeach " + to_string(idx)
+			+ ":" + to_string(ewid) + (esig ? ":s" : "")
+			+ " " + body + ")";
+	    }
 	    const netranges_t&dims = ua->static_dimensions();
 	    if (dims.size() != 1)
 		  return "";
-	    if (dims[0].get_msb() != 0 && dims[0].get_lsb() != 0)
-		  return "";
 	    unsigned long count = dims[0].width();
+	      // The loop variable takes the DECLARED index values
+	      // (IEEE 1800-2017 18.5.8.1), so index arithmetic in the
+	      // constraint body sees the source-level indices; the
+	      // element-variable emitter maps declared -> canonical.
+	    long range_lo = dims[0].get_msb() < dims[0].get_lsb()
+		  ? dims[0].get_msb() : dims[0].get_lsb();
 
 	    string acc;
 	    for (unsigned long i = 0 ; i < count ; i += 1) {
 		  map<perm_string,uint64_t> env2;
 		  if (loop_env) env2 = *loop_env;
-		  env2[cfe->loop_vars()[0]] = i;
+		  env2[cfe->loop_vars()[0]] = (uint64_t)(range_lo + (long)i);
 		  for (const PExpr*item : cfe->items()) {
 			if (!item) continue;
 			string s = pexpr_to_constraint_ir(item, cls,

@@ -49,7 +49,7 @@ void nodangle_f::event(Design*, NetEvent*ev)
 	/* If there are no references to this event, then go right
 	   ahead and delete it. There is no use looking further at
 	   it. */
-      if ((ev->nwait() + ev->ntrig() + ev->nexpr()) == 0) {
+      if ((ev->nwait() + ev->ntrig() + ev->nnb_trig() + ev->nexpr()) == 0) {
 	    delete ev;
 	    etotal += 1;
 	    return;
@@ -203,6 +203,15 @@ void nodangle_f::signal(Design*, NetNet*sig)
 	   ivl_do_not_elide property. */
       if (!sig->local_flag()
 	  && (sig->attribute(perm_string::literal("ivl_do_not_elide")) != verinum()))
+	    return;
+
+	/* Signals in an INTERFACE instance scope are reachable by
+	   name at runtime through virtual-interface handles and
+	   interface ports (%new/vif binds the scope; property
+	   reads/writes resolve members by name), so an interface
+	   member with no static references must still be emitted. */
+      if (!sig->local_flag() && sig->scope()
+	  && sig->scope()->is_interface())
 	    return;
 
 	/* Check to see if the signal is completely unconnected. If

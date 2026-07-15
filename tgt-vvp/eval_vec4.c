@@ -1057,7 +1057,13 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    return;
       }
 
-      if (expr_is_queue_container_(subexpr) &&
+	/* Queue OR plain-darray container that is not a bare signal
+	 * (class property, chained select, ...): load the container
+	 * object and index within it. Plain darrays used to fall into
+	 * the signal-only branch below, where ivl_expr_signal() of a
+	 * property select yields the CLASS-typed handle signal and the
+	 * data-type assertion aborts. */
+      if (expr_is_dynarray_container_(subexpr) &&
           ivl_expr_type(subexpr) != IVL_EX_SIGNAL) {
 	    assert(base);
 	      /* Phase 50f: when the queue container is actually an
@@ -1630,6 +1636,25 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    }
 	    /* Fallback: push 0 (no match) */
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
+	    return;
+      }
+	/* Clocking input sample read (14.13): the Preponed-region value
+	 * of the raw signal. Requires a $ivl_clocking_hist_on prologue;
+	 * degrades to the current value without one. */
+      if (strcmp(ivl_expr_name(expr), "$ivl_clocking_sample")==0) {
+	    ivl_expr_t arg = (ivl_expr_parms(expr) > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL && ivl_expr_signal(arg)) {
+		  fprintf(vvp_out, "    %%load/preponed v%p_0;\n",
+			  ivl_expr_signal(arg));
+		  return;
+	    }
+	    /* Unexpected shape: fall back to the plain (alias) read. */
+	    if (arg) {
+		  draw_eval_vec4(arg);
+		  return;
+	    }
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n",
+		    ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
 	    return;
       }
       if (strcmp(ivl_expr_name(expr),"$ivl_queue_method$size")==0) {

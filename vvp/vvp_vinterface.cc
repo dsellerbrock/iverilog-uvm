@@ -171,7 +171,24 @@ void vvp_vinterface::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
       if (!sig || !sig->node)
 	    return;
 
+	// The interface CLASS type is elaborated once per interface
+	// definition with DEFAULT parameter values, so the property
+	// width can differ from this instance's actual signal width
+	// (parameterized interfaces). Resize at the boundary — the
+	// signal functor asserts on width mismatch. Zero-extend on
+	// widen; truncate on narrow. The proper fix (recorded) is a
+	// per-specialization interface class type.
+      vvp_signal_value*vsig = get_signal_value_(sig);
+      unsigned sig_wid = vsig ? vsig->value_size() : val.size();
       vvp_net_ptr_t dest(sig->node, 0);
+      if (sig_wid != val.size()) {
+	    vvp_vector4_t tmp(sig_wid, BIT4_0);
+	    unsigned n = val.size() < sig_wid ? val.size() : sig_wid;
+	    for (unsigned b = 0 ; b < n ; b += 1)
+		  tmp.set_bit(b, val.value(b));
+	    vvp_send_vec4(dest, tmp, vthread_get_wt_context());
+	    return;
+      }
       vvp_send_vec4(dest, val, vthread_get_wt_context());
 }
 

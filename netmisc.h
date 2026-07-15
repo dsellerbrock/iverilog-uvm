@@ -133,14 +133,22 @@ extern bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
  * The current clocking-block model aliases cb.sig to the underlying
  * signal (sample/drive skew semantics are not implemented yet): these
  * helpers detect a clocking-block component in an identifier path and
- * erase it, so `inst.cb.sig` resolves as `inst.sig` and a same-scope
- * `cb.sig` resolves as `sig`. All return true and fill `rewritten`
- * only when a clocking block and one of its signals were positively
- * identified.
+ * rewrite it. All return true and fill `rewritten` only when a
+ * clocking block and one of its signals were positively identified.
+ *
+ * The scope-based helpers implement sampled input semantics
+ * (IEEE 1800-2017 14.13, M8-2a): READS of input/inout clockvars route
+ * to the hidden per-instance sample variable `_ivl_smp$<cb>$<sig>`
+ * when it exists; WRITES to input clockvars are reported as errors
+ * (14.3) with *input_write set so the caller can count them; all
+ * other references keep the alias rewrite (erase the clocking
+ * component so the raw signal resolves).
  *
  * - rewrite_class_clocking_member_path: virtual-interface receivers
  *   (the interface is modeled as a netclass_t carrying clocking
- *   blocks).
+ *   blocks). Sampled reads route to the sample-variable PROPERTY the
+ *   interface class registered (resolved by name in the bound
+ *   instance scope at run time).
  * - rewrite_clocking_member_path_via_scope: the receiver resolved to
  *   an instance scope (interface, module, or program instance) and the
  *   clocking block is found in its pform Module.
@@ -151,13 +159,19 @@ extern bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 class PEIdent;
 extern bool rewrite_class_clocking_member_path(const PEIdent*ident,
 					       const symbol_search_results&sr,
-					       pform_name_t&rewritten);
+					       pform_name_t&rewritten,
+					       bool as_lvalue = false,
+					       bool*input_write = nullptr);
 extern bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 						   const symbol_search_results&sr,
-						   pform_name_t&rewritten);
+						   pform_name_t&rewritten,
+						   bool as_lvalue = false,
+						   bool*input_write = nullptr);
 extern bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 							 const NetScope*scope,
-							 pform_name_t&rewritten);
+							 pform_name_t&rewritten,
+							 bool as_lvalue = false,
+							 bool*input_write = nullptr);
 
 /*
  * This function transforms an expression by either zero or sign extending

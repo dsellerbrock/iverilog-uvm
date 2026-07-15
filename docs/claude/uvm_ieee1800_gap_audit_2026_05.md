@@ -558,7 +558,12 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: array-grow patterns.
 
 ### G40 unique() / unique_index() — works for queue, fails (sorry) for unpacked array
-- Symptom: queue `q.unique_index()` works (probe p87 PASS). Unpacked-array form not directly probed but elab_expr.cc:8869,8875 show sorry.
+- **STATUS 2026-07-15: FIXED** (M4 close-out, 928440d). unique() and
+  unique_index() on fixed-size unpacked arrays (1-D, integral
+  elements, no with-clause) lower to `%uarr/unique` returning a queue
+  of values / canonical first-occurrence indexes (7.12.1).
+  Test: `tests/m4_closeout_test.sv`.
+- Symptom (pre-fix): queue `q.unique_index()` works (probe p87 PASS). Unpacked-array form not directly probed but elab_expr.cc:8869,8875 show sorry.
 - Probe: p87_unique_index (PASS for queue); REVERIFY for non-queue.
 - Location: elab_expr.cc:8869,8875.
 - Layer: elab.
@@ -765,7 +770,15 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   nondeterministically across otherwise-unrelated compiler changes.
 
 ### G70 (NEW 2026-07-14) `succ[iter].get_parent()` — indexed-element class-method call on a queue emits "not a dynamic array method"
-- **STATUS: latent, non-fatal (compile-progress continues).** Observed
+- **STATUS 2026-07-15: FIXED** (M4 close-out, 928440d). The
+  element-select method routing accepted only QUEUE-typed receivers;
+  plain dynamic arrays of class handles fell through to the
+  darray-method error. Routing now covers both container types, so
+  `succ[iter].get_parent()` dispatches as a class-method call on the
+  element (works in foreach bodies and direct indexed calls). The two
+  per-compile diagnostics in every UVM elaboration are gone.
+  Test: `tests/m4_closeout_test.sv`.
+- Pre-fix record: **latent, non-fatal (compile-progress continues).** Observed
   while running the M6 item-5 characterization suite under the UVM
   harness: `uvm_component.svh:2490`
   (`m_get_adjacent...`, `succ[iter].get_parent() != domain`) emits
@@ -782,6 +795,94 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
   container methods.  Candidate for a focused elaboration session
   (likely the inferred element type of `get_adjacent_successor_nodes`'s
   output queue).  Layer: elaboration.  Complexity: medium.
+
+### G71 (NEW 2026-07-14, FIXED same day) foreach over class-property plain dynamic array silently iterated ZERO times
+- **STATUS 2026-07-14: FIXED** (IEEE 1800-2017 12.7.3, 7.5).
+  `foreach (c.da[i])` and `foreach (da[i])` with `da` a plain darray
+  class property compiled WITHOUT DIAGNOSTIC and iterated zero times —
+  a fully silent miscompile (queue and assoc properties were fine).
+  Three layered root causes: (1) darray foreach bounds lowered via
+  `$low/$high`, and `get_array_info()` constant-folded
+  `$high(<property>)` to `'x'` (no NetEProperty case) — darray foreach
+  now uses the queue-style `0 <= i < size` loop (darrays are 0-based
+  per 7.5); (2) object-context codegen routed indexed darray
+  properties down the arrayed-property path (element index consumed as
+  property-array index → `property_object::get_object` assertion on
+  nested `dd[i,j]` descent) — now element-indexed via `%load/qo/obj`,
+  and `%load/qo/*` accepts any `vvp_darray` receiver; (3)
+  `draw_select_vec4` asserted on chained selects rooted at darray
+  properties, and the string/real property drawers lacked the
+  darray-indexed arm (string-element reads silently ""). Test:
+  `tests/g71_foreach_prop_darray_test.sv`. Session log:
+  `2026-07-14_g71_foreach_prop_darray.md`.
+- **In-family tails — all but one CLOSED 2026-07-15**: chained element
+  stores through darray outers FIXED (M4b, aeee8f9); display-context
+  chained reads FIXED (928440d — vpi arg classifier no longer falls
+  back to the class-typed root for BOOL/LOGIC/REAL/STRING values);
+  `$size/$high/$low/$left/$right/$increment/$unpacked_dimensions` on
+  dynamic-container property receivers FIXED (928440d — rewritten to
+  the size sfunc per 20.7 before the constant-folding path);
+  `c.sda[i].len()`/G70 indexed-element methods FIXED (928440d).
+  STILL OPEN: foreach over string properties elaborates the body
+  loop-less (string is iterable per 12.7.3 — small, recorded).
+
+### G72 (NEW 2026-07-14, FIXED same day) container sort ignored element signedness
+- **STATUS: FIXED.** sort/rsort/unique on vec4-backed queues and
+  dynamic arrays used the unsigned word order (`int q[$]` holding
+  {3,-1,0} sorted to {0,3,-1}); pre-existing on baseline, found while
+  implementing G35/G36. %qsort/%qsort/r/%qunique now carry the
+  declared element signedness; atom-backed darrays self-identify by
+  C++ type. Test: `tests/g35_uarray_ordering_test.sv`.
+
+### G73 (NEW 2026-07-15) `q.push_back({})` pushes a nil handle, not an empty queue
+- **STATUS 2026-07-15: FIXED** (M4 close-out, 928440d). The empty
+  aggregate literal `{}` with a queue/darray target type now
+  elaborates to `$ivl_queue$new_empty` (lowered to `%new/queue` or
+  `%new/darray` with the element-type encoding) instead of NetENull,
+  so `q_of_q.push_back({})` stores a real empty queue and element
+  stores through it work (7.10.4). Clearing assignments `q = {}`
+  unchanged. Test: `tests/m4_closeout_test.sv`.
+- Pre-fix record: **OPEN (latent).** Pushing an empty queue LITERAL onto a
+  queue-of-queues stores nil; subsequent element stores through the
+  nil inner handle are skipped (positional outers do not vivify).
+  Workaround: push a populated local queue. Found while pinning the
+  M4 store2 work (`tests/g09_darray_store2_test.sv` documents it).
+  Layer: elaboration/codegen of empty aggregate literals.
+  Complexity: small-medium.
+
+### 2026-07-15 close-out status changes (M3/M4/M5)
+- **G16/G21 completion**: dynamic-array/queue foreach constraints now
+  ENFORCED (18.5.8.2 two-pass staged solve);
+  `tests/m3_constraint_dynforeach_test.sv`.
+- **G11/G57 CLOSED**: solve...before implements ranked staged solving
+  (distribution-correct for the implication shape);
+  `tests/m3_constraint_solve_before_test.sv`.
+- **G35/G36 FIXED**: reverse/sort/rsort/shuffle on static unpacked
+  arrays via %uarr/order; `tests/g35_uarray_ordering_test.sv`.
+  G40 (unique on unpacked, expression form) remains open (rare).
+- **G09 store tail FIXED**: chained element stores through darray and
+  property outers; `tests/g09_darray_store2_test.sv`.
+- **G26 FIXED**: modport task/function ports accepted and recorded.
+- **G27 FIXED**: plain instance actuals bind modport-qualified
+  formals.
+- **G28 FIXED**: interface instance arrays + virtual-interface
+  arrays work; `tests/g26_interface_ports_test.sv`.
+- **G29 FIXED**: `b.mst` instance-modport actuals bind (whole-
+  instance handle; direction enforcement recorded as follow-up).
+- **Foundation fix behind G26-G29**: interface-typed module ports were
+  degrading to 32-bit wires; they are now class-handle variables
+  bound at instantiation (see session log 2026-07-15). KNOWN
+  LIMITATION: interface task dispatch through handles attaches to one
+  instance per interface type.
+
+### Audit reverification note (2026-07-14 milestone close-out probe)
+- **G38 `string.putc` and G39 `new[N](old)` resize-copy now PASS** —
+  fixed by prior container-runtime work; those entries are stale.
+- **G35/G36/G40 (reverse/sort/min/max/unique on unpacked fixed-size
+  arrays) re-confirmed FAILING** (compile-progress warnings + wrong
+  data). Still the M4 close-out entry point.
+- **G26 re-confirmed FAILING** (`sorry: modport task/function ports`).
+  M5 remains fully open (G26-G29).
 
 # Confirmed-working baselines (not gaps; recorded for diff against future regressions)
 

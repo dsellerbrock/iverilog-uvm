@@ -1391,6 +1391,31 @@ class PEConstraintForeach : public PExpr {
 };
 
 /*
+ * Represents a constraint ordering directive (IEEE 1800-2017 18.5.10):
+ *   solve a, b before c, d;
+ * Only meaningful in constraint IR generation.
+ */
+class PEConstraintOrder : public PExpr {
+    public:
+      PEConstraintOrder(std::list<PExpr*>*before_list,
+			std::list<PExpr*>*after_list);
+      ~PEConstraintOrder() override;
+
+      const std::list<PExpr*>& before_items() const { return before_; }
+      const std::list<PExpr*>& after_items() const { return after_; }
+
+      void dump(std::ostream&out) const override;
+      unsigned test_width(Design*des, NetScope*scope,
+			  width_mode_t&mode) override;
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+			      unsigned w, unsigned flags) const override;
+
+    private:
+      std::list<PExpr*> before_;
+      std::list<PExpr*> after_;
+};
+
+/*
  * Represents the SystemVerilog "inside" expression:
  *   expr inside {[lo:hi], val, ...}
  */

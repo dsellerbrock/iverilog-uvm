@@ -1640,6 +1640,20 @@ static bool vec4_eq_(const vvp_vector4_t&a, const vvp_vector4_t&b)
       return !vec4_lt_(a, b) && !vec4_lt_(b, a);
 }
 
+/* Signed vec4 numeric less-than (two's complement, X/Z as 0): a
+ * negative value is less than any non-negative one; within one sign
+ * the unsigned magnitude order applies. Operands are same-width
+ * words of one container. */
+static bool vec4_slt_(const vvp_vector4_t&a, const vvp_vector4_t&b)
+{
+      size_t n = a.size() > b.size() ? a.size() : b.size();
+      if (n == 0) return false;
+      bool a_neg = a.size() == n && a.value(n-1) == BIT4_1;
+      bool b_neg = b.size() == n && b.value(n-1) == BIT4_1;
+      if (a_neg != b_neg) return a_neg;
+      return vec4_lt_(a, b);
+}
+
 template<typename ELEM>
 static void qsort_helper_(vvp_darray*arr, bool reverse, bool unique_only,
                           bool (*lt)(const ELEM&, const ELEM&),
@@ -1703,12 +1717,24 @@ static bool obj_eq_(const vvp_object_t&a, const vvp_object_t&b)
       return a.peek<vvp_object>() == b.peek<vvp_object>();
 }
 
-static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_only)
+static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_only,
+                                   bool signed_cmp = false)
 {
       if (!arr) return true;
 
       size_t sz = arr->get_size();
       if (sz == 0) return true;
+
+	// The signed flag normally arrives from codegen (element type
+	// signedness), but atom-backed darrays carry it in their C++
+	// type as well — honor that when the flag is absent (G72:
+	// sorting negative ints used the unsigned word order).
+      if (!signed_cmp
+	  && (dynamic_cast<vvp_darray_atom<int8_t>*>(arr)
+	      || dynamic_cast<vvp_darray_atom<int16_t>*>(arr)
+	      || dynamic_cast<vvp_darray_atom<int32_t>*>(arr)
+	      || dynamic_cast<vvp_darray_atom<int64_t>*>(arr)))
+	    signed_cmp = true;
 
       if (dynamic_cast<vvp_queue_real*>(arr) ||
           dynamic_cast<vvp_darray_real*>(arr)) {
@@ -1738,7 +1764,8 @@ static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_onl
 
       /* Default: vec4 */
       qsort_helper_<vvp_vector4_t>(arr, reverse, unique_only,
-                                   vec4_lt_, vec4_eq_);
+                                   signed_cmp ? vec4_slt_ : vec4_lt_,
+                                   vec4_eq_);
       return true;
 }
 
@@ -1835,6 +1862,113 @@ bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
       return qshuffle_dispatch_(arr);
+}
+
+/*
+ * %uarr/unique <array-label>, <mode>
+ *
+ * Expression-form unique()/unique_index() on a STATIC unpacked array
+ * (IEEE 1800-2017 7.12.1): push a fresh queue holding the
+ * first-occurrence element values (mode 0) or their canonical word
+ * indexes (mode 1). Vec4 word arrays only (the elaborator gates on
+ * integral element types).
+ */
+bool of_UARR_UNIQUE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_array_t arr = resolve_runtime_array_(cp, "%uarr/unique");
+      unsigned mode = cp->bit_idx[0];
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      if (arr) {
+	    unsigned sz = arr->get_size();
+	    std::vector<vvp_vector4_t> seen;
+	    for (unsigned i = 0 ; i < sz ; i += 1) {
+		  vvp_vector4_t v = arr->get_word(i);
+		  bool dup = false;
+		  for (size_t k = 0 ; k < seen.size() && !dup ; k += 1)
+			if (vec4_eq_(seen[k], v))
+			      dup = true;
+		  if (dup)
+			continue;
+		  seen.push_back(v);
+		  if (mode & 1) {
+			vvp_vector4_t iv(32, BIT4_0);
+			for (unsigned b = 0 ; b < 32 ; b += 1)
+			      if ((i >> b) & 1)
+				    iv.set_bit(b, BIT4_1);
+			dst->push_back(iv, 0);
+		  } else {
+			dst->push_back(v, 0);
+		  }
+	    }
+      }
+      vvp_object_t obj(dst);
+      thr->push_object(obj);
+      return true;
+}
+
+/*
+ * %uarr/order <array-label>, <mode>
+ *
+ * In-place ordering method on a STATIC unpacked array
+ * (IEEE 1800-2017 7.12.2 on fixed-size arrays): mode&3 selects
+ * 0=sort, 1=rsort, 2=reverse, 3=shuffle; mode&4 means the element
+ * type is signed (sort/rsort use signed comparison). Arrays whose
+ * words are darray-backed (string/real element variable arrays) reuse
+ * the queue helpers; everything else moves vec4 words.
+ */
+bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_array_t arr = resolve_runtime_array_(cp, "%uarr/order");
+      if (!arr) return true;
+	// Mode rides in bit_idx[0]: cp->number shares the first union
+	// with cp->array (the OA_ARR_PTR operand).
+      unsigned mode = cp->bit_idx[0];
+      unsigned op = mode & 3;
+      bool signed_cmp = (mode & 4) != 0;
+
+      if (arr->vals && !arr->vals4) {
+	      // darray-backed word storage: string/real element kinds
+	      // dispatch by element type inside the queue helpers.
+	    switch (op) {
+		case 0: qsort_unique_dispatch_(arr->vals, false, false,
+					       signed_cmp); break;
+		case 1: qsort_unique_dispatch_(arr->vals, true, false,
+					       signed_cmp); break;
+		case 2: qreverse_dispatch_(arr->vals); break;
+		default: qshuffle_dispatch_(arr->vals); break;
+	    }
+	    return true;
+      }
+
+      unsigned sz = arr->get_size();
+      if (sz < 2) return true;
+      std::vector<vvp_vector4_t> words(sz);
+      for (unsigned i = 0 ; i < sz ; i += 1)
+	    words[i] = arr->get_word(i);
+      switch (op) {
+	  case 0:
+	    std::stable_sort(words.begin(), words.end(),
+			     signed_cmp ? vec4_slt_ : vec4_lt_);
+	    break;
+	  case 1:
+	    std::stable_sort(words.begin(), words.end(),
+			     signed_cmp ? vec4_slt_ : vec4_lt_);
+	    std::reverse(words.begin(), words.end());
+	    break;
+	  case 2:
+	    std::reverse(words.begin(), words.end());
+	    break;
+	  default:
+	    for (unsigned i = sz - 1 ; i > 0 ; i -= 1) {
+		  unsigned j = (unsigned)(rand() % (i + 1));
+		  std::swap(words[i], words[j]);
+	    }
+	    break;
+      }
+      for (unsigned i = 0 ; i < sz ; i += 1)
+	    arr->set_word(i, 0, words[i]);
+      return true;
 }
 
 /* Phase 63b/Q-methods: expression-form q.unique() — return a new
@@ -2086,13 +2220,17 @@ bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %qsort <sig>, <signed-flag> (and /r, %qunique): the flag carries
+ * the declared element signedness — vec4-backed queues do not encode
+ * it in their C++ type (G72: negative ints sorted in unsigned word
+ * order without it). */
 bool of_QSORT(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
-      return qsort_unique_dispatch_(arr, false, false);
+      return qsort_unique_dispatch_(arr, false, false, cp->bit_idx[0] != 0);
 }
 
 bool of_QSORT_R(vthread_t thr, vvp_code_t cp)
@@ -2101,7 +2239,7 @@ bool of_QSORT_R(vthread_t thr, vvp_code_t cp)
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
-      return qsort_unique_dispatch_(arr, true, false);
+      return qsort_unique_dispatch_(arr, true, false, cp->bit_idx[0] != 0);
 }
 
 bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
@@ -2110,7 +2248,7 @@ bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
-      return qsort_unique_dispatch_(arr, false, true);
+      return qsort_unique_dispatch_(arr, false, true, cp->bit_idx[0] != 0);
 }
 
 /*
@@ -8347,13 +8485,27 @@ bool of_EVENT(vthread_t thr, vvp_code_t cp)
 
 /*
  * %event/nb <var-label>, <delay>
+ *
+ * The nonblocking event trigger (IEEE 1800-2017 15.5.1): deliver the
+ * trigger to the event functor in the NBA region of the target time
+ * step. This must be DELIVERED to the functor's port 0 (like %event
+ * does with vvp_send_vec4) so the waitable hooks run;
+ * schedule_propagate_event() would instead send the value out of the
+ * net's output to its fanout, which never wakes the waiting threads.
+ * schedule_assign_vector with vwid==0 performs exactly the port-0
+ * delivery, scheduled like a non-blocking assignment.
  */
 bool of_EVENT_NB(vthread_t thr, vvp_code_t cp)
 {
       vvp_time64_t delay;
 
       delay = thr->words[cp->bit_idx[0]].w_uint;
-      schedule_propagate_event(cp->net, delay);
+      vvp_vector4_t tmp (1, BIT4_X);
+	/* Match the region of NBA stores issued by the same thread
+	   (Re-NBA for reactive/program threads), so a trigger issued
+	   after nonblocking assignments observes them. */
+      schedule_assign_vector(vvp_net_ptr_t(cp->net, 0), 0, 0, tmp, delay,
+			     thr->is_reactive_process);
       return true;
 }
 
@@ -9024,6 +9176,24 @@ bool of_IX_VEC4_S(vthread_t thr, vvp_code_t cp)
  * counter from the instruction and resuming. If the jump is
  * conditional, then test the bit for the expected value first.
  */
+/*
+ * %jmp/vif <dest>, <scope>
+ *
+ * Dynamic virtual-interface method dispatch: peek the object on top
+ * of the object stack; if it is a vinterface handle bound to exactly
+ * <scope>, branch to <dest>. The object is NOT popped (each dispatch
+ * branch pops it itself). Non-vinterface or other-scope handles fall
+ * through to the next compare.
+ */
+bool of_JMP_VIF(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t&top = thr->peek_object();
+      vvp_vinterface*vif = top.peek<vvp_vinterface>();
+      if (vif && vif->vif_scope() == cp->scope)
+	    thr->pc = cp->cptr2;
+      return true;
+}
+
 bool of_JMP(vthread_t thr, vvp_code_t cp)
 {
       thr->pc = cp->cptr;
@@ -10302,6 +10472,25 @@ bool of_AA_VIV_SIG_V(vthread_t thr, vvp_code_t cp)
       return aa_viv_common_<vvp_vector4_t>(thr, assoc, cp->bit_idx[0]);
 }
 
+/* Object-KEYED vivification (class-typed assoc keys, e.g. the
+ * uvm_pool#(uvm_object, ...) chained-store shape): same protocol as
+ * the v/str forms with the key popped from the object stack. */
+bool of_AA_VIV_SIG_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_assoc_object*assoc =
+	    ensure_signal_assoc_<vvp_assoc_object>(thr, cp->net, "aa-viv-sig");
+      return aa_viv_common_<vvp_object_t>(thr, assoc, cp->bit_idx[0]);
+}
+
+bool of_AA_VIV_O_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_assoc_object*assoc =
+	    dynamic_cast<vvp_assoc_object*>(recv.peek<vvp_assoc_base>());
+      return aa_viv_common_<vvp_object_t>(thr, assoc, cp->number);
+}
+
 bool of_AA_VIV_SIG_STR(vthread_t thr, vvp_code_t cp)
 {
       vvp_assoc_object*assoc =
@@ -10334,13 +10523,19 @@ static bool load_qo(vthread_t thr, unsigned wid=0)
       ELEM word;
       dq_default(word, wid);
 
+	// Accept any vvp_darray receiver (queue OR plain dynamic
+	// array): the typed get_word overloads are virtual on the
+	// base, so element access dispatches correctly for both, and
+	// a receiver of the wrong element kind leaves the default
+	// value (same out-of-bounds semantics as before).
       vvp_object_t recv;
-      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv);
-      if (queue &&
+      thr->pop_object(recv);
+      vvp_darray*arr = recv.peek<vvp_darray>();
+      if (arr &&
           (adr >= 0) &&
           (thr->flags[4] == BIT4_0) &&
-          (static_cast<size_t>(adr) < queue->get_size()))
-	    queue->get_word(adr, word);
+          (static_cast<size_t>(adr) < arr->get_size()))
+	    arr->get_word(adr, word);
 
       push_loaded_qo_value_(thr, word, wid);
       return true;
@@ -10901,6 +11096,61 @@ bool of_LOAD_VEC4(vthread_t thr, vvp_code_t cp)
 	// target stack position.
       sig->vec4_value(sig_value);
 
+      return true;
+}
+
+/*
+ * %hist/on <var-label>
+ *
+ * Enable the 1-deep driven-value history on a vec4 signal, so that
+ * later %load/preponed reads can recover the value the signal held
+ * when the current time step started (IEEE 1800-2017 14.13 clocking
+ * input sampling, default #1step skew). Idempotent; emitted in the
+ * prologue of synthesized clocking sample processes, which start
+ * executing at time 0 before any clocking event can trigger. Signals
+ * whose filter is not a vec4 wire (e.g. real) quietly keep the
+ * current-value (alias) behavior — %load/preponed falls back too.
+ */
+bool of_HIST_ON(vthread_t, vvp_code_t cp)
+{
+      vvp_net_t*net = cp->net;
+      if (vvp_wire_vec4*sig = dynamic_cast<vvp_wire_vec4*>(net->fil))
+	    sig->enable_sample_hist();
+      return true;
+}
+
+/*
+ * %load/preponed <var-label>
+ *
+ * Push the signal's Preponed-region value: the value it held when the
+ * current time step started if it changed during this step, otherwise
+ * the current value. Requires a %hist/on for exact semantics; without
+ * one (or on non-vec4 filters) this degrades to the current value.
+ */
+bool of_LOAD_PREPONED(vthread_t thr, vvp_code_t cp)
+{
+      thr->push_vec4(vvp_vector4_t());
+      vvp_vector4_t&sig_value = thr->peek_vec4();
+
+      vvp_net_t*net = cp->net;
+
+      if (vvp_wire_vec4*sig = dynamic_cast<vvp_wire_vec4*>(net->fil)) {
+	    sig->vec4_preponed_value(sig_value);
+	    return true;
+      }
+
+      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (net->fil);
+      if (sig == 0) {
+	    cerr << thr->get_fileline()
+	         << "%load/preponed error: Net arg not a signal? "
+		 << (net->fil ? typeid(*net->fil).name() :
+	                        typeid(*net->fun).name())
+	         << endl;
+	    assert(sig);
+	    return true;
+      }
+
+      sig->vec4_value(sig_value);
       return true;
 }
 
@@ -14338,10 +14588,17 @@ static bool store_qo_i(vthread_t thr, unsigned wid=0)
       pop_value(thr, value, wid);
       container_value_copy_(value);
 
+	// Accept any vvp_darray receiver: queues keep the append-at-
+	// size set_word_max semantics; plain dynamic arrays are
+	// fixed-size, so out-of-range indexes warn and skip (matching
+	// the signal-based store forms). Previously a plain-darray
+	// receiver silently dropped the store.
       vvp_object_t recv, root_obj;
-      vvp_net_t*root_net = 0;
-      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv, root_net, root_obj);
-      if (!queue)
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      root_obj = thr->peek_object_root(0);
+      thr->pop_object(recv);
+      vvp_darray*dar = recv.peek<vvp_darray>();
+      if (!dar)
 	    return true;
 
       if (idx < 0) {
@@ -14356,7 +14613,18 @@ static bool store_qo_i(vthread_t thr, unsigned wid=0)
 	         << " index; element was not stored." << endl;
 	    return true;
       }
-      queue->set_word_max(idx, value, 0);
+      if (vvp_queue*queue = dynamic_cast<vvp_queue*>(dar)) {
+	    queue->set_word_max(idx, value, 0);
+      } else {
+	    if ((uint64_t)idx >= dar->get_size()) {
+		  cerr << thr->get_fileline()
+		       << "Warning: dynamic-array element index " << idx
+		       << " is out of range (size " << dar->get_size()
+		       << "); element was not stored." << endl;
+		  return true;
+	    }
+	    dar->set_word((unsigned)idx, value);
+      }
       notify_mutated_object_root_(thr, recv, root_net, root_obj, "store-qo-i");
       return true;
 }
@@ -15329,6 +15597,33 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
 
       thr->waiting_for_event = 1;
       thr->wait_next = edge->add_waiting_thread(thr);
+      return false;
+}
+
+/*
+ * %wait/observed
+ *
+ * Suspend this thread and resume it in the Observed region of the
+ * current time step -- after ALL nonblocking assignments (including
+ * NBA-scheduled-from-NBA cascades) have been applied. Synthesized
+ * clocking samplers use this for #0 / #d numeric input skews
+ * (IEEE 1800-2017 14.4): their sample must be the settled (Observed)
+ * value of the edge time step.
+ */
+struct observed_resume_event_s : public vvp_gen_event_s {
+      vthread_t thr;
+      void run_run() override
+      {
+	    schedule_vthread(thr, 0, true);
+	    delete this;
+      }
+};
+
+bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t)
+{
+      observed_resume_event_s*ev = new observed_resume_event_s;
+      ev->thr = thr;
+      schedule_at_observed(ev, 0);
       return false;
 }
 
