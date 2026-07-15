@@ -173,6 +173,13 @@ struct Z3Builder {
       std::vector<DynForeach> dyn_foreach;
       const std::map<unsigned,uint64_t>*dyn_sizes = nullptr;
 
+	// solve...before ordering pairs (IEEE 1800-2017 18.5.10):
+	// (first, second) means property `first` is solved in an
+	// earlier stage than property `second`. Collected from
+	// "(order (vars ...) (vars ...))" IR forms; drives the staged
+	// solve in z3_solve_pass_.
+      std::vector<std::pair<unsigned,unsigned> > order_pairs;
+
       Z3Builder(Z3_context c, const class_type* d, vvp_cobject* o)
       : ctx(c), defn(d), cobj(o), opt(0) {}
 
@@ -459,6 +466,37 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    Z3_ast var = b.get_elem_var(pidx, ewid, (unsigned)idx64);
 	    if (esig) b.signed_vars.insert(var);
 	    return var;
+      }
+
+	/* Variable-ordering directive: (order (vars p:..) (vars p:..)).
+	 * Registers the properties (so they become solver variables
+	 * even if otherwise unconstrained) and records every
+	 * before-var x after-var pair. Contributes `true` — ordering
+	 * affects distribution, not satisfiability (18.5.10). */
+      if (op == "order") {
+	    std::vector<unsigned> groups[2];
+	    for (int g = 0 ; g < 2 ; g += 1) {
+		  par.skip_ws();
+		  if (!par.expect('(')) break;
+		  string kw = par.read_token(); // "vars"
+		  (void)kw;
+		  for (;;) {
+			par.skip_ws();
+			if (par.peek() == ')') { par.consume(); break; }
+			string tok = par.read_token();
+			if (tok.empty()) break;
+			if (tok.compare(0, 2, "p:") == 0) {
+			      parse_prop(par, b, tok);
+			      groups[g].push_back(
+				    (unsigned)atoi(tok.c_str() + 2));
+			}
+		  }
+	    }
+	    par.skip_ws(); par.expect(')');
+	    for (unsigned a : groups[0])
+		  for (unsigned c : groups[1])
+			b.order_pairs.push_back(std::make_pair(a, c));
+	    return b.mk_true();
       }
 
       if (op == "and" || op == "or") {
@@ -999,6 +1037,13 @@ static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_lbool precheck = Z3_solver_check(ctx, chk);
 	    Z3_solver_dec_ref(ctx, chk);
 
+	      // solve...before present: always run the staged solve so
+	      // the ordered variables get their stage-local diversity
+	      // distribution (18.5.10 is about distribution; the
+	      // accept-current fast path would sample differently).
+	    if (!builder.order_pairs.empty())
+		  precheck = Z3_L_FALSE;
+
 	    if (precheck == Z3_L_TRUE && !builder.any_soft_kw_assert()) {
 		  // C7/I4: only fast-path early-out when there are no
 		  // `soft`-keyword assertions queued.  Dist branches use the
@@ -1010,6 +1055,91 @@ static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  Z3_optimize_dec_ref(ctx, opt);
 		  Z3_del_context(ctx);
 		  return false;
+	    }
+      }
+
+	// solve...before staged solving (IEEE 1800-2017 18.5.10): rank
+	// the ordered properties by longest path in the before-graph,
+	// then for each non-final rank solve the FULL hard-constraint
+	// set with the diversity objective applied to that rank's
+	// variables alone, and pin their solved values before the next
+	// stage. The final rank (and all unordered variables) solve in
+	// the normal combined pass below. Pins come from a complete
+	// satisfying model, so they can never make later stages UNSAT.
+      if (!builder.order_pairs.empty()) {
+	    std::map<unsigned,unsigned> rank;
+	    for (const auto& pr : builder.order_pairs) {
+		  rank[pr.first];
+		  rank[pr.second];
+	    }
+	    bool changed = true;
+	    size_t iter = 0;
+	    const size_t iter_cap = rank.size() + 1;
+	    while (changed && iter <= iter_cap) {
+		  changed = false;
+		  iter += 1;
+		  for (const auto& pr : builder.order_pairs) {
+			unsigned want = rank[pr.first] + 1;
+			if (rank[pr.second] < want) {
+			      rank[pr.second] = want;
+			      changed = true;
+			}
+		  }
+	    }
+	    if (changed) {
+		  static bool warned_cycle = false;
+		  if (!warned_cycle) {
+			fprintf(stderr, "Warning: cyclic solve...before"
+				" ordering; directive ignored (further"
+				" similar warnings suppressed)\n");
+			warned_cycle = true;
+		  }
+	    } else {
+		  unsigned max_rank = 0;
+		  for (const auto& rv : rank)
+			if (rv.second > max_rank) max_rank = rv.second;
+		  for (unsigned r = 0 ; r < max_rank ; r += 1) {
+			Z3_optimize_push(ctx, opt);
+			for (auto& pv : builder.prop_vars) {
+			      auto it = rank.find(pv.idx);
+			      if (it == rank.end() || it->second != r)
+				    continue;
+			      uint64_t rand_bits = cobj_prop_bits(cobj, pv.idx);
+			      Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
+			      Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
+			      Z3_optimize_minimize(ctx, opt,
+				    Z3_mk_bvxor(ctx, pv.var, rv));
+			}
+			Z3_lbool st = Z3_optimize_check(ctx, opt, 0, nullptr);
+			if (st != Z3_L_TRUE) {
+			      Z3_optimize_pop(ctx, opt);
+			      break;
+			}
+			Z3_model stage_model = Z3_optimize_get_model(ctx, opt);
+			Z3_model_inc_ref(ctx, stage_model);
+			std::vector<std::pair<Z3_ast,uint64_t> > pins;
+			for (auto& pv : builder.prop_vars) {
+			      auto it = rank.find(pv.idx);
+			      if (it == rank.end() || it->second != r)
+				    continue;
+			      Z3_ast interp = nullptr;
+			      uint64_t bits = 0;
+			      if (Z3_model_eval(ctx, stage_model, pv.var, 1,
+						&interp)
+				  && interp
+				  && Z3_get_numeral_uint64(ctx, interp, &bits))
+				    pins.push_back(std::make_pair(pv.var, bits));
+			}
+			Z3_model_dec_ref(ctx, stage_model);
+			Z3_optimize_pop(ctx, opt);
+			for (const auto& pin : pins) {
+			      Z3_sort sort = Z3_get_sort(ctx, pin.first);
+			      Z3_ast cv = Z3_mk_unsigned_int64(ctx, pin.second,
+							       sort);
+			      Z3_optimize_assert(ctx, opt,
+				    Z3_mk_eq(ctx, pin.first, cv));
+			}
+		  }
 	    }
       }
 

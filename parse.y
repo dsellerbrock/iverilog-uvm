@@ -2621,9 +2621,12 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
 constraint_block_item /* IEEE1800-2005 A.1.9 */
   : constraint_expression
       { $$ = $1; }
-  /* solve X, Y before Z; — constraint ordering directive, silently accept */
+  /* solve X, Y before Z; — variable ordering (IEEE 1800-2017 18.5.10) */
   | K_solve expression_list_proper K_before expression_list_proper ';'
-      { delete $2; delete $4; $$ = nullptr; }
+      { PEConstraintOrder*tmp = new PEConstraintOrder($2, $4);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | error ';'
       { yyerrok; $$ = nullptr; }
   ;

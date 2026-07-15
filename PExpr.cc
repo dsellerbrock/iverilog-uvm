@@ -740,6 +740,50 @@ NetExpr* PEConstraintForeach::elaborate_expr(Design*des, NetScope*, unsigned,
       return 0;
 }
 
+PEConstraintOrder::PEConstraintOrder(std::list<PExpr*>*before_list,
+				     std::list<PExpr*>*after_list)
+{
+      if (before_list) {
+	    before_.assign(before_list->begin(), before_list->end());
+	    delete before_list;
+      }
+      if (after_list) {
+	    after_.assign(after_list->begin(), after_list->end());
+	    delete after_list;
+      }
+}
+
+PEConstraintOrder::~PEConstraintOrder()
+{
+      for (PExpr*item : before_)
+	    delete item;
+      for (PExpr*item : after_)
+	    delete item;
+}
+
+void PEConstraintOrder::dump(std::ostream&out) const
+{
+      out << "solve ... before ...;";
+}
+
+unsigned PEConstraintOrder::test_width(Design*, NetScope*, width_mode_t&)
+{
+      expr_type_ = IVL_VT_BOOL;
+      expr_width_ = 1;
+      min_width_ = 1;
+      signed_flag_ = false;
+      return expr_width_;
+}
+
+NetExpr* PEConstraintOrder::elaborate_expr(Design*des, NetScope*, unsigned,
+					   unsigned) const
+{
+      cerr << get_fileline() << ": error: solve...before is only "
+	   << "valid inside constraint blocks." << endl;
+      des->errors += 1;
+      return 0;
+}
+
 PEInside::PEInside(PExpr* expr, std::list<inside_range_t>* ranges)
 : expr_(expr)
 {

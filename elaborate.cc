@@ -10789,6 +10789,36 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    return "";
       }
 
+	// Variable-ordering directive (IEEE 1800-2017 18.5.10):
+	// solve a, b before c, d;  ->  (order (vars p:..) (vars p:..)).
+	// The runtime solves the `before` variables in an earlier
+	// stage (with the value-diversity objective applied to them
+	// alone) and pins them for the later stage. Ordering affects
+	// only distribution, never satisfiability (18.5.10).
+      if (const PEConstraintOrder*co =
+	  dynamic_cast<const PEConstraintOrder*>(expr)) {
+	    auto vars_to_ir = [&](const std::list<PExpr*>&items) -> string {
+		  string acc;
+		  for (const PExpr*item : items) {
+			if (!item) continue;
+			string s = pexpr_to_constraint_ir(item, cls,
+						value_slots, scope, loop_env);
+			  // Only scalar rand properties participate;
+			  // anything else makes the directive
+			  // unrepresentable (warned by the caller).
+			if (s.compare(0, 2, "p:") != 0)
+			      return "";
+			acc += acc.empty() ? s : (" " + s);
+		  }
+		  return acc;
+	    };
+	    string bef = vars_to_ir(co->before_items());
+	    string aft = vars_to_ir(co->after_items());
+	    if (bef.empty() || aft.empty())
+		  return "";
+	    return "(order (vars " + bef + ") (vars " + aft + "))";
+      }
+
 	// Iterative constraint over a one-dimensional static-array rand
 	// property (IEEE 1800-2017 18.5.8): unroll at elaboration time,
 	// binding the loop variable to each canonical index.
