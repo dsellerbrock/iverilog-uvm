@@ -14440,10 +14440,17 @@ static bool store_qo_i(vthread_t thr, unsigned wid=0)
       pop_value(thr, value, wid);
       container_value_copy_(value);
 
+	// Accept any vvp_darray receiver: queues keep the append-at-
+	// size set_word_max semantics; plain dynamic arrays are
+	// fixed-size, so out-of-range indexes warn and skip (matching
+	// the signal-based store forms). Previously a plain-darray
+	// receiver silently dropped the store.
       vvp_object_t recv, root_obj;
-      vvp_net_t*root_net = 0;
-      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv, root_net, root_obj);
-      if (!queue)
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      root_obj = thr->peek_object_root(0);
+      thr->pop_object(recv);
+      vvp_darray*dar = recv.peek<vvp_darray>();
+      if (!dar)
 	    return true;
 
       if (idx < 0) {
@@ -14458,7 +14465,18 @@ static bool store_qo_i(vthread_t thr, unsigned wid=0)
 	         << " index; element was not stored." << endl;
 	    return true;
       }
-      queue->set_word_max(idx, value, 0);
+      if (vvp_queue*queue = dynamic_cast<vvp_queue*>(dar)) {
+	    queue->set_word_max(idx, value, 0);
+      } else {
+	    if ((uint64_t)idx >= dar->get_size()) {
+		  cerr << thr->get_fileline()
+		       << "Warning: dynamic-array element index " << idx
+		       << " is out of range (size " << dar->get_size()
+		       << "); element was not stored." << endl;
+		  return true;
+	    }
+	    dar->set_word((unsigned)idx, value);
+      }
       notify_mutated_object_root_(thr, recv, root_net, root_obj, "store-qo-i");
       return true;
 }

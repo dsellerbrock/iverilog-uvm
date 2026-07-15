@@ -3568,58 +3568,114 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    if (id_lval && id_lval->path().size() >= 1
 		&& id_lval->path().back().index.size() == 2) {
 		  symbol_search_results sr;
-		  if (symbol_search(this, des, scope, id_lval->path(),
-				    id_lval->lexical_pos(), &sr)
-		      && sr.net && sr.path_tail.empty()) {
-			const netqueue_t*outer =
-			      dynamic_cast<const netqueue_t*>(sr.net->net_type());
-			const netdarray_t*inner = outer
-			      ? dynamic_cast<const netdarray_t*>(outer->element_type())
-			      : 0;
-			const name_component_t&tail = id_lval->path().back();
-			const index_component_t&i1 = tail.index.front();
-			const index_component_t&i2 = tail.index.back();
-			  // A static-array-of-container signal also shows
-			  // two tail indices, but the first selects the
-			  // array word — leave that to the l-value path.
-			if (outer && inner
-			    && sr.net->unpacked_dimensions() == 0
-			    && i1.sel == index_component_t::SEL_BIT
-			    && i1.msb && !i1.lsb
-			    && i2.sel == index_component_t::SEL_BIT
-			    && i2.msb && !i2.lsb) {
-			      NetExpr*k1 = elab_and_eval(des, scope, i1.msb, -1, false);
-			      NetExpr*k2 = elab_and_eval(des, scope, i2.msb, -1, false);
-			      ivl_type_t val_type = inner->element_type();
-			      unsigned val_wid = 0;
-			      if (val_type) {
-				    long pw = val_type->packed_width();
-				    val_wid = (pw > 0) ? (unsigned)pw : 1;
+		  bool found = symbol_search(this, des, scope, id_lval->path(),
+					     id_lval->lexical_pos(), &sr);
+
+		    // Resolve the OUTER container: a queue/darray
+		    // SIGNAL (found && path_tail empty), a class
+		    // PROPERTY through an explicit handle
+		    // (c.dd[k1][k2]: path_tail is one property
+		    // component), or a property through the implicit
+		    // this (dd[k1][k2] in a method: the search finds
+		    // nothing and the enclosing scope is a class).
+		  NetExpr*outer_e = 0;
+		  const netdarray_t*outer = 0;
+		  if (found && sr.net && sr.path_tail.empty()
+		      && sr.net->unpacked_dimensions() == 0) {
+			  // A static-array-of-container signal also
+			  // shows two tail indices, but the first
+			  // selects the array word — leave that to
+			  // the l-value path.
+			outer = dynamic_cast<const netdarray_t*>(sr.net->net_type());
+			if (outer) {
+			      NetESignal*se = new NetESignal(sr.net);
+			      se->set_line(*this);
+			      outer_e = se;
+			}
+		  } else if (found && sr.net && sr.path_tail.size() == 1
+			     && !sr.path_head.empty()
+			     && sr.path_head.back().index.empty()) {
+			const netclass_t*cls =
+			      dynamic_cast<const netclass_t*>(sr.net->net_type());
+			const name_component_t&pc = sr.path_tail.front();
+			if (cls && pc.index.size() == 2) {
+			      int pidx = cls->property_idx_from_name(pc.name);
+			      if (pidx >= 0) {
+				    outer = dynamic_cast<const netdarray_t*>(
+					  cls->get_prop_type((size_t)pidx));
+				    if (outer) {
+					  NetESignal*se = new NetESignal(sr.net);
+					  se->set_line(*this);
+					  NetEProperty*pe =
+						new NetEProperty(se, pidx, nullptr);
+					  pe->set_line(*this);
+					  outer_e = pe;
+				    }
 			      }
-			      NetExpr*val = val_type
-				    ? elaborate_rval_expr(des, scope, val_type,
-							  val_type->base_type(),
-							  val_wid, rval())
-				    : 0;
-			      if (k1 && k2 && val) {
-				    NetESignal*outer_e = new NetESignal(sr.net);
-				    outer_e->set_line(*this);
-				    vector<NetExpr*> argv(4);
-				    argv[0] = outer_e;
-				    argv[1] = k1;
-				    argv[2] = k2;
-				    argv[3] = val;
-				    NetSTask*sys = new NetSTask(
-					  "$ivl_assoc$store2",
-					  IVL_SFUNC_AS_TASK_IGNORE, argv);
-				    sys->set_line(*this);
-				    return sys;
+			}
+		  } else if (!found && id_lval->path().size() == 1) {
+			if (const netclass_t*cls = find_class_containing_scope(*this, scope)) {
+			      int pidx = cls->property_idx_from_name(
+				    id_lval->path().name.front().name);
+			      NetNet*this_net = pidx >= 0
+				    ? find_implicit_this_handle(des, scope) : 0;
+			      if (pidx >= 0 && this_net) {
+				    outer = dynamic_cast<const netdarray_t*>(
+					  cls->get_prop_type((size_t)pidx));
+				    if (outer) {
+					  NetESignal*te = new NetESignal(this_net);
+					  te->set_line(*this);
+					  NetEProperty*pe =
+						new NetEProperty(te, pidx, nullptr);
+					  pe->set_line(*this);
+					  outer_e = pe;
+				    }
 			      }
-			      delete k1;
-			      delete k2;
-			      delete val;
 			}
 		  }
+
+		  const netdarray_t*inner = outer
+			? dynamic_cast<const netdarray_t*>(outer->element_type())
+			: 0;
+		  const name_component_t&tail = id_lval->path().back();
+		  const index_component_t&i1 = tail.index.front();
+		  const index_component_t&i2 = tail.index.back();
+		  if (outer_e && inner
+		      && i1.sel == index_component_t::SEL_BIT
+		      && i1.msb && !i1.lsb
+		      && i2.sel == index_component_t::SEL_BIT
+		      && i2.msb && !i2.lsb) {
+			NetExpr*k1 = elab_and_eval(des, scope, i1.msb, -1, false);
+			NetExpr*k2 = elab_and_eval(des, scope, i2.msb, -1, false);
+			ivl_type_t val_type = inner->element_type();
+			unsigned val_wid = 0;
+			if (val_type) {
+			      long pw = val_type->packed_width();
+			      val_wid = (pw > 0) ? (unsigned)pw : 1;
+			}
+			NetExpr*val = val_type
+			      ? elaborate_rval_expr(des, scope, val_type,
+						    val_type->base_type(),
+						    val_wid, rval())
+			      : 0;
+			if (k1 && k2 && val) {
+			      vector<NetExpr*> argv(4);
+			      argv[0] = outer_e;
+			      argv[1] = k1;
+			      argv[2] = k2;
+			      argv[3] = val;
+			      NetSTask*sys = new NetSTask(
+				    "$ivl_assoc$store2",
+				    IVL_SFUNC_AS_TASK_IGNORE, argv);
+			      sys->set_line(*this);
+			      return sys;
+			}
+			delete k1;
+			delete k2;
+			delete val;
+		  }
+		  if (outer_e && !inner)
+			delete outer_e;
 	    }
       }
 

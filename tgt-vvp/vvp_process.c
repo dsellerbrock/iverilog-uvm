@@ -2894,7 +2894,11 @@ static int show_system_task_call(ivl_statement_t net)
 	    ivl_signal_t outer_sig =
 		  (outer_arg && (ivl_expr_type(outer_arg) == IVL_EX_SIGNAL))
 			? ivl_expr_signal(outer_arg) : 0;
-	    if (!outer_sig || !k1 || !k2 || !val) {
+	      /* Non-signal outer (class property): the receiver object
+	       * is evaluated onto the stack instead. */
+	    int outer_is_obj = !outer_sig && outer_arg
+		  && ivl_expr_type(outer_arg) == IVL_EX_PROPERTY;
+	    if ((!outer_sig && !outer_is_obj) || !k1 || !k2 || !val) {
 		  fprintf(stderr, "Warning: $ivl_assoc$store2 with"
 			  " unsupported argument shape at %s:%u; skipping\n",
 			  ivl_stmt_file(net), ivl_stmt_lineno(net));
@@ -2905,7 +2909,9 @@ static int show_system_task_call(ivl_statement_t net)
 	       * 0-3 queue of vec4/real/string/object, 4-7 the assoc
 	       * equivalents. */
 	    unsigned spec = 7;
-	    ivl_type_t outer_type = ivl_signal_net_type(outer_sig);
+	    ivl_type_t outer_type = outer_sig
+		  ? ivl_signal_net_type(outer_sig)
+		  : ivl_expr_net_type(outer_arg);
 	    ivl_type_t inner_type = outer_type ? ivl_type_element(outer_type) : 0;
 	    if (inner_type) {
 		  int is_assoc = ivl_type_base(inner_type) == IVL_VT_QUEUE
@@ -2937,15 +2943,28 @@ static int show_system_task_call(ivl_statement_t net)
 	      /* Element handle for outer[k1]. */
 	    if (outer_keyed) {
 		    /* inner = viv(outer, k1) */
-		  const char*k1_kind = draw_eval_assoc_key_(k1, 0);
-		  fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
-			  k1_kind, outer_sig, spec);
+		  if (outer_sig) {
+			const char*k1_kind = draw_eval_assoc_key_(k1, 0);
+			fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
+				k1_kind, outer_sig, spec);
+		  } else {
+			const char*k1_kind = draw_eval_assoc_key_(k1, 0);
+			draw_eval_object(outer_arg);
+			fprintf(vvp_out, "    %%aa/viv/o/%s %u;\n",
+				k1_kind, spec);
+		  }
 	    } else {
 		    /* Positional outer: load the existing element handle
 		     * (no vivification — an out-of-range index yields a
 		     * nil handle and the inner store is skipped). */
-		  draw_eval_expr_into_integer(k1, 3);
-		  fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", outer_sig);
+		  if (outer_sig) {
+			draw_eval_expr_into_integer(k1, 3);
+			fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", outer_sig);
+		  } else {
+			draw_eval_object(outer_arg);
+			draw_eval_expr_into_integer(k1, 3);
+			fprintf(vvp_out, "    %%load/qo/obj;\n");
+		  }
 	    }
 
 	    unsigned vkind = spec & 3;
