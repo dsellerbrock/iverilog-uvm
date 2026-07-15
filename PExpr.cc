@@ -463,11 +463,22 @@ void PEIdent::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
                   if (find_enum_constant(ss, name))
                         return;
                   /* Strictly speaking, we should also check for name clashes
-                     with tasks, functions, named blocks, module instances,
-                     and generate blocks. However, this information is not
-                     readily available. As these names would not be legal in
-                     this context, we can declare implicit nets here and rely
+                     with tasks, functions, named blocks, and generate
+                     blocks. However, this information is not readily
+                     available. As these names would not be legal in this
+                     context, we can declare implicit nets here and rely
                      on later checks for name clashes to report the error. */
+
+                  /* Module/interface INSTANCE names are available and
+                     matter: an interface instance used as a port actual
+                     (`producer p (b);`) must not spawn a phantom
+                     implicit wire `b` — it would shadow the instance
+                     scope for hierarchical references like `b.data`. */
+                  if (const Module*mod = dynamic_cast<const Module*>(ss)) {
+                        for (const PGate*g : mod->get_gates())
+                              if (g->get_name() == name)
+                                    return;
+                  }
 
                   ss = ss->parent_scope();
             }

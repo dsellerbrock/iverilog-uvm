@@ -23,6 +23,7 @@
 # include  "PScope.h"
 # include  "StringHeap.h"
 # include  "netlist.h"
+# include  <set>
 # include  <vector>
 
 /*
@@ -40,6 +41,14 @@ class PModport : public PNamedItem {
 
       typedef std::pair <NetNet::PortType,PExpr*> simple_port_t;
       std::map<perm_string,simple_port_t> simple_ports;
+
+	// Task/function ports (IEEE 1800-2017 25.5.4): `import`ed and
+	// `export`ed subroutine names. In this implementation modports
+	// do not restrict access, so recording the names makes the
+	// declarations legal; the referenced task/function is reached
+	// through the interface handle as usual.
+      std::set<perm_string> import_ports;
+      std::set<perm_string> export_ports;
 
       SymbolType symbol_type() const override;
 

@@ -1247,6 +1247,23 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
         // Search upwards from where the type was referenced
       scope = scope->find_typedef_scope(des, this);
       if (!scope) {
+	      // An unresolved type name that names an INTERFACE module
+	      // is an interface type reference — e.g. an interface
+	      // port formal `bus_if m` (IEEE 1800-2017 25.3). In this
+	      // implementation interfaces are modeled as classes, so
+	      // resolve to the interface class type (the same type
+	      // `virtual bus_if` produces) instead of degrading the
+	      // port to a 32-bit vector.
+	    {
+		  map<perm_string,Module*>::const_iterator im =
+			pform_modules.find(name);
+		  if (im != pform_modules.end() && im->second->is_interface) {
+			ivl_type_t itype = elaborate_interface_type_(
+			      des, nullptr, im->second);
+			if (itype)
+			      return itype;
+		  }
+	    }
 	      // Phase 63a/A5: UVM macros declare compiler-synthesized
 	      // typedefs like `__tmp_int_t__` (uvm_resource_defines.svh)
 	      // inside a begin/end block, then reference them as a

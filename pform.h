@@ -240,6 +240,8 @@ extern PExpr* pform_package_ident(const struct vlltype&loc,
  */
 extern void pform_start_modport_item(const struct vlltype&loc, const char*name);
 extern void pform_end_modport_item(const struct vlltype&loc);
+extern void pform_add_modport_tf_port(const struct vlltype&loc,
+                                      bool is_import, perm_string name);
 extern void pform_add_modport_port(const struct vlltype&loc,
 				   NetNet::PortType port_type,
 				   perm_string name, PExpr*expr);

@@ -205,6 +205,15 @@ void nodangle_f::signal(Design*, NetNet*sig)
 	  && (sig->attribute(perm_string::literal("ivl_do_not_elide")) != verinum()))
 	    return;
 
+	/* Signals in an INTERFACE instance scope are reachable by
+	   name at runtime through virtual-interface handles and
+	   interface ports (%new/vif binds the scope; property
+	   reads/writes resolve members by name), so an interface
+	   member with no static references must still be emitted. */
+      if (!sig->local_flag() && sig->scope()
+	  && sig->scope()->is_interface())
+	    return;
+
 	/* Check to see if the signal is completely unconnected. If
 	   all the bits are unlinked, then delete it. */
       if (! sig->is_linked()) {

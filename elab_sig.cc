@@ -403,11 +403,18 @@ static void sig_check_port_type(Design*des, const NetScope*scope,
 
       if (sig->port_type() == NetNet::PINOUT &&
 	  sig->type() == NetNet::REG) {
-	    cerr << wire->get_fileline() << ": error: Port `"
-		 << wire->basename() << "` of module `"
-		 << scope->module_name()
-		 << "` is declared as inout and as a reg type." << endl;
-	    des->errors += 1;
+	      // Interface-typed ports (IEEE 1800-2017 25.3) are class
+	      // handles held in variables; the inout-vs-reg wire rule
+	      // does not apply to them.
+	    const netclass_t*ifc =
+		  dynamic_cast<const netclass_t*>(sig->net_type());
+	    if (!ifc || !ifc->is_interface()) {
+		  cerr << wire->get_fileline() << ": error: Port `"
+		       << wire->basename() << "` of module `"
+		       << scope->module_name()
+		       << "` is declared as inout and as a reg type." << endl;
+		  des->errors += 1;
+	    }
       }
 
       if (sig->port_type() == NetNet::PINOUT &&
@@ -1820,6 +1827,16 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 		  cout << " " << *set_data_type_;
 	    cout << " " << name_ << unpacked_dimensions << " in scope "
 		 << scope_path(scope) << endl;
+      }
+
+	// An interface-typed PORT (IEEE 1800-2017 25.3) is a handle to
+	// an interface instance, not a wire: in this implementation it
+	// is a class-typed variable (the virtual-interface model), so
+	// force variable kind — the net default would reject property
+	// writes (`m.data = ...` errored as "declared as a uwire").
+      if (const netclass_t*ifc = dynamic_cast<const netclass_t*>(type)) {
+	    if (ifc->is_interface() && wtype != NetNet::REG)
+		  wtype = NetNet::REG;
       }
 
       if (sig_predeclared) {

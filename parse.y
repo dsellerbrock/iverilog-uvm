@@ -4288,7 +4288,10 @@ modport_ports_list
       { if (last_modport_port.type == MP_SIMPLE) {
 	      pform_add_modport_port(@3, last_modport_port.direction,
 				     lex_strings.make($3), 0);
-	} else if (last_modport_port.type != MP_TF) {
+	} else if (last_modport_port.type == MP_TF) {
+	      pform_add_modport_tf_port(@3, last_modport_port.is_import,
+					lex_strings.make($3));
+	} else {
 	      yyerror(@3, "error: List of identifiers not allowed here.");
 	}
 	delete[] $3;
@@ -4312,17 +4315,20 @@ modport_ports_declaration
 	delete $3;
 	delete $1;
       }
+  /* Task/function modport ports (IEEE 1800-2017 25.5.4). Modports in
+     this implementation do not restrict member access, so recording
+     the imported/exported subroutine name is sufficient: the
+     task/function is reached through the interface handle. */
   | attribute_list_opt import_export IDENTIFIER
       { last_modport_port.type = MP_TF;
 	last_modport_port.is_import = $2;
-	yyerror(@3, "sorry: modport task/function ports are not yet supported.");
+	pform_add_modport_tf_port(@3, $2, lex_strings.make($3));
 	delete[] $3;
 	delete $1;
       }
   | attribute_list_opt import_export modport_tf_port
       { last_modport_port.type = MP_TF;
 	last_modport_port.is_import = $2;
-	yyerror(@3, "sorry: modport task/function ports are not yet supported.");
 	delete $1;
       }
   | attribute_list_opt K_clocking IDENTIFIER
@@ -4336,7 +4342,15 @@ modport_ports_declaration
 
 modport_tf_port
   : K_task IDENTIFIER tf_port_list_parens_opt
+      { /* Prototype form: record the name (import/export are not
+	   access-enforced in this implementation). */
+	pform_add_modport_tf_port(@2, true, lex_strings.make($2));
+	delete[] $2;
+      }
   | K_function data_type_or_implicit_or_void IDENTIFIER tf_port_list_parens_opt
+      { pform_add_modport_tf_port(@3, true, lex_strings.make($3));
+	delete[] $3;
+      }
   ;
 
 clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,

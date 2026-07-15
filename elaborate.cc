@@ -2268,6 +2268,105 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  inst_scope->add_module_port_info(idx, port_name, ptype, prt_vector_width );
 	    }
 
+	      // Interface-typed port (IEEE 1800-2017 25.3): the formal
+	      // is a class-typed handle variable (the virtual-interface
+	      // model), not a wire, so the nexus machinery below cannot
+	      // connect it. Bind it instead with an init-scheduled
+	      // object assignment `formal = <vif of actual>` in each
+	      // instance scope; the actual elaborates with the
+	      // interface class as its type context, which resolves an
+	      // interface instance (or instance.modport) to the
+	      // %new/vif scope reference.
+	    if (mport.size() == 1 && !prts.empty() && prts[0]) {
+		  const netclass_t*ifc =
+			dynamic_cast<const netclass_t*>(prts[0]->net_type());
+		  if (ifc && ifc->is_interface()) {
+			if (!pins[idx]) {
+			      cerr << get_fileline() << ": error: "
+				   << "Interface port `" << port_name
+				   << "' of module `" << rmod->mod_name()
+				   << "' cannot be left unconnected." << endl;
+			      des->errors += 1;
+			      continue;
+			}
+			for (unsigned inst = 0; inst < instance.size(); inst += 1) {
+			      NetNet*port_var = prts[inst];
+			      if (!port_var) continue;
+			      NetExpr*vif = 0;
+				// Resolve `<iface_instance>` or
+				// `<iface_instance>.<modport>` actuals
+				// directly to the instance scope: the
+				// implicit-net rule for port actuals
+				// may have declared a phantom wire
+				// with the instance's name, which
+				// derails the general expression
+				// elaboration. A modport select binds
+				// the whole instance (modports are
+				// access restriction, not new state;
+				// direction enforcement is a recorded
+				// follow-up).
+			      if (const PEIdent*aid =
+				    dynamic_cast<const PEIdent*>(pins[idx])) {
+				    const pform_name_t&ap = aid->path().name;
+				    if (ap.size() >= 1 && ap.size() <= 2
+					&& ap.front().index.empty()
+					&& ap.back().index.empty()) {
+					  NetScope*iscope = scope->child(
+						hname_t(ap.front().name));
+					  if (iscope
+					      && iscope->type() == NetScope::MODULE
+					      && iscope->module_name() == ifc->get_name()) {
+						bool sel_ok = ap.size() == 1;
+						if (!sel_ok) {
+						      auto pm = pform_modules.find(
+							    iscope->module_name());
+						      if (pm != pform_modules.end()
+							  && pm->second->modports.count(
+								ap.back().name))
+							    sel_ok = true;
+						}
+						if (sel_ok) {
+						      NetEScope*se = new NetEScope(
+							    iscope,
+							    static_cast<ivl_type_t>(ifc));
+						      se->set_line(*aid);
+						      vif = se;
+						}
+					  }
+				    }
+			      }
+			      if (!vif)
+				    vif = pins[idx]->elaborate_expr(
+					  des, scope,
+					  static_cast<ivl_type_t>(ifc), 0u);
+			      if (!vif) {
+				    cerr << pins[idx]->get_fileline()
+					 << ": error: Cannot bind interface"
+					 << " port `" << port_name
+					 << "' of module `" << rmod->mod_name()
+					 << "': the actual is not an"
+					 << " instance of interface `"
+					 << ifc->get_name() << "'." << endl;
+				    des->errors += 1;
+				    continue;
+			      }
+			      NetAssign_*lv = new NetAssign_(port_var);
+			      NetAssign*as = new NetAssign(lv, vif);
+			      as->set_line(*this);
+			      NetScope*inst_scope =
+				    instance[instance.size()-inst-1];
+			      NetProcTop*top = new NetProcTop(
+				    inst_scope, IVL_PR_INITIAL, as);
+			      top->set_line(*this);
+			      if (gn_system_verilog())
+				    top->attribute(perm_string::literal(
+					  "_ivl_schedule_init"), verinum(1));
+			      des->add_process(top);
+			}
+			continue;
+		  }
+	    }
+
 	      // If I find that the port is unconnected inside the
 	      // module, then there is nothing to connect. Skip the
 	      // argument.
