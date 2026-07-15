@@ -3,6 +3,34 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-15c (M8 CLOSED; M9 is next)
+
+- **PR #75 MERGED** (M4 close-out + M8 increment 2 core). **PR #76**
+  (draft, branch restarted from merged main) carries the M8 tail:
+  T1 vif.cb.out buffered drives (%vif/tickchg, obuf/opend as
+  interface properties); T2 global clocking + $global_clock
+  (14.14, G59 FIXED); T3 clocking_decl_assign (signal-path form);
+  T4 scalar `x <= ##N v` via the $ivl_default_clock marker;
+  T5 diagnosed edge-qualified skews.
+- **Promotion evidence**: UVM **145/145** (zero no-check), ivtest
+  failure names identical to baseline modulo the documented
+  pow_ca_signed flake (verified standalone PASS), negative 13/13.
+  **M8 is CLOSED** — remaining corners all explicitly diagnosed,
+  never silent (edge-qualified skew application, real/string/array
+  clockvars, output decl_assign, vif output skew values,
+  force-vs-history).
+- **NEXT: M9 core SVA engine (G05/G06).** Recon done (see
+  session_logs/2026-07-15_m8_tail_closeout.md): current assert
+  property is a parse-time always-block lowering with LIVE
+  (unsampled) evaluation, |=> approximated as |->, no sequences,
+  $past stubbed. Increment-1 plan: (1) sampled evaluation via
+  %hist/on+%load/preponed with checking at %wait/observed; (2) real
+  |=> (1-cycle sampled antecedent pipeline); (3) ##N/##[m:n]
+  consequent delays; (4) $rose/$fell/$stable/$past on sampled
+  history; (5) named property/sequence declarations; (6) honest
+  sorries for the remaining sequence algebra.
+
+
 ## State as of 2026-07-15b (M4 FULLY CLOSED; starting M8 increment 2)
 
 - **M4 close-out commit 928440d** fixed all five recorded residuals in

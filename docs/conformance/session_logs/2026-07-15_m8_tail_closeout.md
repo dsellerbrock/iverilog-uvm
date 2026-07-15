@@ -97,3 +97,36 @@ Next: M9 (core SVA engine, G05/G06).
 ## Evidence
 
 Recorded in the promotion note below after the full sweeps.
+
+## Promotion evidence (T1–T5)
+
+- UVM harness: **145 passed / 0 failed / 0 skipped, zero "(no-check)"
+  entries** (142 at PR #75 merge + m8_vif_clocking_drive_test,
+  m8_global_clocking_test, m8_decl_assign_test).
+- ivtest (shim PATH): Total=2559 Passed=2456 Failed=100 — failure
+  names identical to fails_baseline.txt except `pow_ca_signed`, the
+  documented load-timeout flake (verified standalone: PASSED).
+- Negative suite 13/13; focused clocking battery 12/12.
+
+The M8-tail WIP commits are hereby promoted — regression-clean.
+**M8 (clocking blocks and program scheduling) is CLOSED.**
+
+## M9 entry reconnaissance (done this session, read-only)
+
+Today's `assert property` support is a parse-time lowering (parse.y
+~2416): `[@(clk)] [disable iff (e)] A [|-> / |=>] B` becomes an
+always block with LIVE (unsampled) expression evaluation, `|=>`
+APPROXIMATED as `|->`, no sequence operators, and `$past` stubbed.
+property_expr admits only plain expressions around the implication.
+
+M9 increment 1 plan (G05/G06):
+1. Sampled evaluation: assertion expressions read Preponed values —
+   the M8 `%hist/on`/`%load/preponed` machinery, with checking moved
+   past the NBA region (`%wait/observed`).
+2. Correct `|=>`: 1-cycle antecedent pipeline (sampled).
+3. `##N` / `##[m:n]` sequence delays in consequents via bounded
+   cycle counters (per-attempt threads).
+4. `$rose/$fell/$stable/$past` on the sampled-value history.
+5. Named `property`/`sequence` declarations (parse + instantiate).
+6. Honest sorries for the remaining sequence algebra (repetition,
+   throughout, intersect, first_match) instead of silent acceptance.
