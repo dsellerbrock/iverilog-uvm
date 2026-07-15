@@ -309,3 +309,73 @@ regression-clean. M8 increment 2 status: 2a (input sampling, all
 paths), 2b (output drives), 2c (##N drives) COMPLETE; 2d (skew
 application, clocking_decl_assign, global clocking 14.14/G59) is the
 remaining tail, plus the recorded fall-through corners.
+
+## 2d (part 1): skew application (14.4)
+
+Skews now have a semantic carrier end to end: the clocking_skew
+grammar rules build pform_clocking_skew_t (edge / delay / #1step),
+clocking_item passes per-signal input+output skews into
+Module::PClocking (in_skews/out_skews maps + `default input/output`
+block defaults, item skews winning), and elaboration applies them:
+
+- **input #d (numeric, including #0)**: the sample source is a
+  transport-delayed shadow `_ivl_sshw$cb$sig`, driven by a
+  synthesized `always @(raw) shadow <= #d raw`, and read in a PHASE-2
+  section of the sampler that first suspends until the OBSERVED
+  region of the edge step. New vvp opcode `%wait/observed`
+  (schedule_at_observed, the M6 region foundation's first real
+  consumer), lowered from the magic task $ivl_observed_wait. This is
+  what makes #0 exact: the initial attempt resumed after a
+  nonblocking helper event (NBA region), and an NBA-scheduled-from-
+  NBA cascade (raw's own update landing at the edge) could still be
+  pending — the Observed region is by definition after all of them.
+  #d samples the value from d units before the edge via the shadow
+  (boundary-exact: a change AT edge-d lands in the shadow's NBA of
+  the edge step, which the Observed-time read sees). The trigger
+  fires blocking after phase 2, so @(cb) waiters see every sample.
+- **input #1step / unskewed / edge-only**: Preponed path unchanged.
+- **output #d**: set_delay on both the apply-process NBA and the
+  drive-at-current-event NBA — the drive lands d after the event.
+- Edge qualifiers on skews recorded, not applied (rare; recorded).
+
+Test: tests/m8_clocking_skew_test.sv — the #1step-vs-#0 distinction
+(an NBA landing at the edge is missed by #1step, seen by #0), #2
+window sampling, default input #0, output #3 for both same-step and
+buffered drives. g01's skew-form block (previously syntax-only) now
+runs with APPLIED skews and still passes.
+
+## Promotion evidence (2d part 1: skew application)
+
+- UVM harness: **142 passed / 0 failed / 0 skipped, zero "(no-check)"
+  entries** (141 prior + tests/m8_clocking_skew_test.sv).
+- ivtest (shim PATH): Total=2559 Passed=2457 Failed=99 — failure
+  names BYTE-IDENTICAL to fails_baseline.txt (empty diff).
+- Negative suite 12/12; focused battery 14/14.
+
+The WIP commit (M8-2d skew application) is hereby promoted —
+regression-clean.
+
+## M8 increment 2 — closing status
+
+All four itemized areas implemented and promoted this session:
+1. **Input sampling** (2a): #1step Preponed semantics via 1-deep
+   driven-value history, all three access paths (same-scope,
+   instance, virtual interface), deterministic @(cb) freshness.
+2. **Output drives** (2b): buffered per 14.16, drive-at-current-event
+   after @(cb), apply process at the trigger, last-drive-wins.
+3. **Cycle-delayed drives** (2c): `cb.out <= ##N v` via the
+   repeat-event lowering, value captured at issue.
+4. **Skew application** (2d): numeric input skews (#0 = Observed
+   value via new %wait/observed; #d via transport shadows), output
+   skew delays, block default skews.
+
+Plus two general `->>` fixes (port-0 NBA delivery; nodangle liveness)
+that make the nonblocking event trigger work for the first time.
+
+Remaining M8-2 tail (recorded, in priority order):
+- clocking_decl_assign (`input a = expr;` clockvars) — parse+elab.
+- global clocking + $global_clock (14.14, G59).
+- vif.cb.out buffered drives (needs preponed-through-property).
+- scalar default-clocking `x <= ##N v` (diagnosed sorry today).
+- edge-qualified skew application (edge recorded, unapplied).
+- real/string/array clocking signals (alias + sorry today).
