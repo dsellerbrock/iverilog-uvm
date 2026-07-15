@@ -23,19 +23,54 @@ the investigation. Update at every meaningful checkpoint.
   Total=2559 Passed=2457 Failed=99 — failure NAMES byte-identical to
   the pristine-baseline fails_baseline.txt (empty diff); negative
   suite 10/10. **M4 is CLOSED with no recorded residuals.**
-- **Now starting**: M8 increment 2a — sampled clocking-block inputs
-  (#1step Preponed semantics) replacing the alias model. Plan of
-  record: (2a-1) direction plumbing parse.y→PClocking/clocking_block_t;
-  (2a-2) vvp 1-deep value/time history (.sample_hist directive on
-  signal functors) + `%load/preponed` opcode + `$ivl_clocking_sample`
-  sfunc lowering; (2a-3) elaboration-time hidden sample vars +
-  `always @(cb-event) smp = $ivl_clocking_sample(sig)` synthesis, with
-  the three netmisc.cc rewrite helpers routing READS of input
-  clockvars to sample vars and writes to inputs made errors (14.3);
-  g01 characterization checks 2/3 updated to sampled semantics;
-  (2a-4) interface clocking blocks (vif.cb.sig path). Then 2b Re-NBA
-  output drives, 2c `cb.sig <= ##N v`, 2d skew application +
-  clocking_decl_assign + global clocking (14.14/G59).
+- **M8 increment 2a LANDED (WIP commit, sweeps pending)**: sampled
+  clocking-block inputs (IEEE 1800-2017 14.13) replacing the alias
+  model for module, program, and interface-INSTANCE-path clocking
+  blocks:
+  - 2a-1 direction plumbing: parse.y records input/output/inout per
+    clocking signal into Module::PClocking (directions map +
+    signal_direction; unknown → PINOUT) and
+    netclass_t::clocking_block_t (as int).
+  - 2a-2 vvp machinery: vvp_wire_vec4 opt-in 1-deep driven-value
+    history (hist_snapshot_ on first change per time step);
+    `%hist/on` enables it; `%load/preponed` returns the value at the
+    START of the current step (= Preponed value = default #1step
+    sample), degrading to the current value on non-vec4 filters.
+    Known limitation: history tracks the DRIVEN value (force corner).
+  - 2a-3 synthesis + routing: elab_sig creates `_ivl_smp$<cb>$<sig>`
+    sample vars + `_ivl_smptrig$<cb>` trigger event per instance;
+    elaborate synthesizes `initial { $ivl_clocking_hist_on(raw)...;
+    forever @(ev) { smp <= $ivl_clocking_sample(raw)...; ->> trig } }`.
+    NBA stores + NB trigger give deterministic visibility: raw-edge
+    Active readers see the PREVIOUS sample; @(cb) waiters (redirected
+    to the trig event in PEventStatement elaboration, same for ##N
+    default-clocking waits) see THIS edge's samples. Reads of input
+    clockvars rewrite to smp vars in the shared netmisc helpers
+    (same-scope + inst.cb.sig paths, read/write mode parameter);
+    writes to inputs are errors (14.3, negative test); outputs keep
+    the alias model until 2b. Pre-first-edge clockvar reads are X.
+  - **General `->>` fix (15.5.1)**: vvp of_EVENT_NB delivered the
+    trigger to the event functor's FANOUT (schedule_propagate_event)
+    instead of its port 0, so ->> never woke waiters and tgt-vvp
+    carried a stale sorry. Now schedules a port-0 delivery in the
+    NBA region (Re-NBA from reactive/program threads to order after
+    the same thread's NBA stores). The sorry is removed — ivtest may
+    show newly-passing ->> tests (diff-only-removals = improvement).
+  - Tests: tests/m8_clocking_sample_test.sv (13 checks: between-edge
+    hold, same-step-blocking-write race closed, deterministic @(cb)
+    freshness, inout sampling, pre-edge X);
+    tests/negative/m8_clocking_input_write.sv (negative now 11);
+    clocking_test.sv updated to strict 14.13 (@(cb) to observe the
+    new sample; raw-edge readers see the previous one); g01 header
+    updated.
+- **M8-2a remaining (next)**: 2a-4 vif.cb.sig class-path routing to
+  the bound instance's sample vars + @(vif.cb) trig redirect; then 2b
+  synchronous output drives (Re-NBA), 2c `cb.sig <= ##N v`, 2d skew
+  application + clocking_decl_assign + global clocking (14.14/G59).
+  Sweep procedure reminder: UVM harness and ivtest MUST run with
+  PATH=/home/user/iverilog-install/bin (or ivtest shim) prefixed;
+  `which iverilog` otherwise finds nothing and everything
+  COMPILE_FAILs.
 
 ## State as of 2026-07-15 (session: M3/M4/M5 close-out)
 
