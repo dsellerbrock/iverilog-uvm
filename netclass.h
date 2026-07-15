@@ -171,9 +171,14 @@ class netclass_t : public ivl_type_s {
 	    perm_string name;
 	    const PEventStatement* event;
 	    std::vector<perm_string> signals;
+	      /* Per-signal direction, copied from Module::PClocking as
+		 int(NetNet::PortType) — this header cannot see NetNet.
+		 Signals missing from the map behave as inout. */
+	    std::map<perm_string,int> directions;
       };
       bool add_clocking_block(perm_string name, const PEventStatement*event,
-			      const std::vector<perm_string>&signals);
+			      const std::vector<perm_string>&signals,
+			      const std::map<perm_string,int>&directions);
       const clocking_block_t* find_clocking_block(perm_string name) const;
 
     protected:

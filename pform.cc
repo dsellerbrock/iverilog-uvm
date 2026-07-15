@@ -3960,14 +3960,15 @@ void pform_set_default_clocking_ref(const struct vlltype&loc,
       delete[] name;
 }
 
-void pform_add_clocking_signal(const struct vlltype&loc, perm_string name)
+void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
+			       NetNet::PortType dir)
 {
 	/* The enclosing block open may have failed (duplicate name) or
 	   been skipped on a parse error; drop the signal quietly — an
 	   error has already been reported. */
       if (pform_cur_clocking == 0) return;
 
-      if (!pform_cur_clocking->add_signal(name)) {
+      if (!pform_cur_clocking->add_signal(name, dir)) {
 	    cerr << loc << ": error: duplicate signal `" << name
 		 << "' in clocking block `" << pform_cur_clocking->name << "'." << endl;
 	    error_count += 1;

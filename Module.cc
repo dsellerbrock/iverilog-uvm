@@ -58,13 +58,25 @@ Module::PClocking::~PClocking()
       delete event;
 }
 
-bool Module::PClocking::add_signal(perm_string sig_name)
+bool Module::PClocking::add_signal(perm_string sig_name, NetNet::PortType dir)
 {
       if (find(signals.begin(), signals.end(), sig_name) != signals.end())
 	    return false;
 
       signals.push_back(sig_name);
+      directions[sig_name] = dir;
       return true;
+}
+
+/* Unknown signals report PINOUT: readable and writable, matching the
+   permissive pre-direction behavior. */
+NetNet::PortType Module::PClocking::signal_direction(perm_string sig_name) const
+{
+      std::map<perm_string,NetNet::PortType>::const_iterator cur =
+	    directions.find(sig_name);
+      if (cur == directions.end())
+	    return NetNet::PINOUT;
+      return cur->second;
 }
 
 void Module::add_gate(PGate*gate)

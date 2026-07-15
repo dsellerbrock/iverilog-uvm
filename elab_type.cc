@@ -300,8 +300,12 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 
       for (map<perm_string,Module::PClocking*>::const_iterator cur = mod->clocking_blocks.begin()
 		 ; cur != mod->clocking_blocks.end() ; ++cur) {
+	    map<perm_string,int> dirs;
+	    for (map<perm_string,NetNet::PortType>::const_iterator dir = cur->second->directions.begin()
+		       ; dir != cur->second->directions.end() ; ++dir)
+		  dirs[dir->first] = static_cast<int>(dir->second);
 	    iface_type->add_clocking_block(cur->first, cur->second->event,
-					   cur->second->signals);
+					   cur->second->signals, dirs);
       }
 
       // If a real interface instance scope exists somewhere in the design,

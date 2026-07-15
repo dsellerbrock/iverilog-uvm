@@ -162,7 +162,8 @@ void netclass_t::repair_property_type(perm_string pname, ivl_type_t new_type)
 
 bool netclass_t::add_clocking_block(perm_string name,
 				    const PEventStatement*event,
-				    const vector<perm_string>&signals)
+				    const vector<perm_string>&signals,
+				    const map<perm_string,int>&directions)
 {
       if (clocking_blocks_.find(name) != clocking_blocks_.end())
 	    return false;
@@ -171,6 +172,7 @@ bool netclass_t::add_clocking_block(perm_string name,
       tmp.name = name;
       tmp.event = event;
       tmp.signals = signals;
+      tmp.directions = directions;
       clocking_table_.push_back(tmp);
       clocking_blocks_[name] = clocking_table_.size() - 1;
       return true;

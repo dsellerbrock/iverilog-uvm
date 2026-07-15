@@ -69,11 +69,16 @@ class Module : public PScopeExtra, public PNamedItem {
 	    explicit PClocking(perm_string n, PEventStatement*evt);
 	    ~PClocking();
 
-	    bool add_signal(perm_string sig_name);
+	      /* IEEE 1800-2017 14.3: each clocking signal has a direction.
+		 Inputs are sampled, outputs are driven, inouts (and the
+		 `input ... output ...` combined form) are both. */
+	    bool add_signal(perm_string sig_name, NetNet::PortType dir);
+	    NetNet::PortType signal_direction(perm_string sig_name) const;
 
 	    perm_string name;
 	    PEventStatement*event;
 	    std::vector<perm_string>signals;
+	    std::map<perm_string,NetNet::PortType>directions;
       };
 
       struct port_t {

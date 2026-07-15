@@ -4396,22 +4396,22 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
         yyerrok;
       }
 
-  /* IEEE 1800-2017 A.6.11. Skews (14.4) are accepted and discarded:
-     the current clocking model aliases cb.sig to the underlying
-     signal, which does not model sample/drive skew times. */
+  /* IEEE 1800-2017 A.6.11. Explicit skews (14.4) are accepted and
+     discarded — inputs use the default #1step sample (14.13), outputs
+     the alias model. Directions are recorded per signal. */
 clocking_item
   : K_input clocking_skew_opt list_of_identifiers ';'
       {
 	    for (std::list<pform_ident_t>::iterator cur = $3->begin()
 		       ; cur != $3->end() ; ++cur)
-		  pform_add_clocking_signal(@3, cur->first);
+		  pform_add_clocking_signal(@3, cur->first, NetNet::PINPUT);
 	    delete $3;
       }
   | K_output clocking_skew_opt list_of_identifiers ';'
       {
 	    for (std::list<pform_ident_t>::iterator cur = $3->begin()
 		       ; cur != $3->end() ; ++cur)
-		  pform_add_clocking_signal(@3, cur->first);
+		  pform_add_clocking_signal(@3, cur->first, NetNet::POUTPUT);
 	    delete $3;
       }
   /* clocking_direction: `input [skew] output [skew] ids;` — the same
@@ -4420,14 +4420,14 @@ clocking_item
       {
 	    for (std::list<pform_ident_t>::iterator cur = $5->begin()
 		       ; cur != $5->end() ; ++cur)
-		  pform_add_clocking_signal(@5, cur->first);
+		  pform_add_clocking_signal(@5, cur->first, NetNet::PINOUT);
 	    delete $5;
       }
   | K_inout list_of_identifiers ';'
       {
 	    for (std::list<pform_ident_t>::iterator cur = $2->begin()
 		       ; cur != $2->end() ; ++cur)
-		  pform_add_clocking_signal(@2, cur->first);
+		  pform_add_clocking_signal(@2, cur->first, NetNet::PINOUT);
 	    delete $2;
       }
   /* default_skew items: set the block's default skews (discarded). */
