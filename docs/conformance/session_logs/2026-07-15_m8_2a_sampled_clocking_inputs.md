@@ -133,3 +133,19 @@ generally.
   m3 solve...before, g71 — ALL PASS. Negative suite 11/11.
 - Full UVM harness + ivtest sweeps: PENDING at WIP-commit time;
   results recorded in the promotion note below when complete.
+
+## Promotion evidence (2a-1..2a-3 + the ->> fix)
+
+- UVM harness (PATH-corrected rerun): **138 passed / 0 failed /
+  0 skipped, zero "(no-check)" entries** (137 prior +
+  tests/m8_clocking_sample_test.sv).
+- ivtest (shim PATH, same checkout/list as baseline):
+  Total=2559 Passed=2456 Failed=100 — failure names identical to
+  fails_baseline.txt except `pow_ca_signed`, the documented
+  load-timeout flake (verified standalone: PASSED, 24.3s wall against
+  the 25s shim; fails under sweep load). No ->>-related ivtest
+  deltas in either direction.
+- Negative suite 11/11.
+
+The WIP commit (M8-2a sampled inputs + ->> fix) is hereby promoted —
+regression-clean.
