@@ -349,7 +349,8 @@ resolve_scope_pform_clocking_event_(const PEIdent*id,
 
 static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from_search_(
 					      const symbol_search_results&sr,
-					      size_t&base_path_components)
+					      size_t&base_path_components,
+					      const netclass_t**found_class = nullptr)
 {
       if (!sr.net || sr.path_tail.empty())
 	    return nullptr;
@@ -369,6 +370,7 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
 			if (const netclass_t::clocking_block_t*clocking =
 				    class_type->find_clocking_block(it->name)) {
                               base_path_components = offset;
+                              if (found_class) *found_class = class_type;
                               return clocking;
 			}
 		  }
@@ -7915,8 +7917,10 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			}
 		  }
 
+		  const netclass_t*clocking_class = nullptr;
 		  const netclass_t::clocking_block_t*clocking =
-			resolve_interface_clocking_block_from_search_(sr, base_path_components);
+			resolve_interface_clocking_block_from_search_(sr, base_path_components,
+								      &clocking_class);
 		  /* resolve_interface_clocking_block_from_search_ sets
 		     base_path_components = offset (0-based index into
 		     sr.path_tail where the clocking block was found).
@@ -7979,6 +7983,41 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				    we->set_line(*this);
 				    we->add_event(trig);
 				    return we;
+			      }
+			}
+
+			/* M8-2a-4: the class (virtual-interface) path.
+			 * Named events cannot be reached through a class
+			 * handle, so the sampler toggles a tick bit
+			 * (registered as an interface property) after its
+			 * sample stores; wait ANYEDGE on that property so
+			 * @(vif.cb) resumes with this edge's samples
+			 * visible. Falls through to the underlying-event
+			 * mapping for blocks with no sampled inputs. */
+			if (clocking && clocking_class) {
+			      string kname = string("_ivl_smptick$")
+				    + clocking->name.str();
+			      perm_string tick_name =
+				    lex_strings.make(kname.c_str());
+			      if (clocking_class->property_idx_from_name(tick_name) >= 0) {
+				    pform_name_t tick_path;
+				    size_t count = 0;
+				    for (pform_name_t::const_iterator it = id->path().name.begin()
+					       ; it != id->path().name.end()
+						     && count < base_path_components
+					       ; ++it, ++count)
+					  tick_path.push_back(*it);
+				    tick_path.push_back(name_component_t(tick_name));
+
+				    PEIdent*tick_ident = id->path().package
+					  ? new PEIdent(id->path().package, tick_path, id->lexical_pos())
+					  : new PEIdent(tick_path, id->lexical_pos());
+				    std::vector<PEEvent*> tick_events;
+				    tick_events.push_back(new PEEvent(PEEvent::ANYEDGE, tick_ident));
+				    PEventStatement tick_stmt(tick_events);
+				    tick_stmt.set_line(*this);
+				    tick_stmt.set_statement(statement_);
+				    return tick_stmt.elaborate_st(des, scope, enet);
 			      }
 			}
 
@@ -10871,6 +10910,32 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  delete prologue;
 		  delete body;
 		  continue;
+	    }
+
+	      /* Toggle the tick bit after the sample stores (same NBA
+		 ordering as the named-event trigger below). @(vif.cb)
+		 waits anyedge on this bit through the class handle;
+		 initialize it to 0 in the prologue because ~x is x and
+		 an x->x "toggle" never fires an anyedge. */
+	    string kname = string("_ivl_smptick$") + cb->name.str();
+	    NetNet*tick = scope->find_signal(lex_strings.make(kname.c_str()));
+	    if (tick) {
+		  NetAssign_*ilv = new NetAssign_(tick);
+		  verinum zero_v (verinum::V0, 1);
+		  NetEConst*zero = new NetEConst(zero_v);
+		  zero->set_line(*cb);
+		  NetAssign*init = new NetAssign(ilv, zero);
+		  init->set_line(*cb);
+		  prologue->append(init);
+
+		  NetESignal*tsig = new NetESignal(tick);
+		  tsig->set_line(*cb);
+		  NetEUnary*inv = new NetEUnary('~', tsig, 1, false);
+		  inv->set_line(*cb);
+		  NetAssign_*tlv = new NetAssign_(tick);
+		  NetAssignNB*toggle = new NetAssignNB(tlv, inv, 0, 0);
+		  toggle->set_line(*cb);
+		  body->append(toggle);
 	    }
 
 	    NetEvNBTrig*fire = new NetEvNBTrig(trig, 0);

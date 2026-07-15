@@ -146,7 +146,9 @@ extern bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
  *
  * - rewrite_class_clocking_member_path: virtual-interface receivers
  *   (the interface is modeled as a netclass_t carrying clocking
- *   blocks). Still alias-only; sampled routing is the 2a-4 follow-up.
+ *   blocks). Sampled reads route to the sample-variable PROPERTY the
+ *   interface class registered (resolved by name in the bound
+ *   instance scope at run time).
  * - rewrite_clocking_member_path_via_scope: the receiver resolved to
  *   an instance scope (interface, module, or program instance) and the
  *   clocking block is found in its pform Module.
@@ -157,7 +159,9 @@ extern bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 class PEIdent;
 extern bool rewrite_class_clocking_member_path(const PEIdent*ident,
 					       const symbol_search_results&sr,
-					       pform_name_t&rewritten);
+					       pform_name_t&rewritten,
+					       bool as_lvalue = false,
+					       bool*input_write = nullptr);
 extern bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 						   const symbol_search_results&sr,
 						   pform_name_t&rewritten,

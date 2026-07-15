@@ -115,6 +115,23 @@ unsigned NetEvent::ntrig() const
       return cnt;
 }
 
+/* Count the NONBLOCKING triggers (->>) referencing this event. They
+   live on a separate list from the blocking triggers, so a liveness
+   test that only asks ntrig() would delete an event whose only
+   reference is a ->> statement (dangling pointer at code
+   generation). */
+unsigned NetEvent::nnb_trig() const
+{
+      unsigned cnt = 0;
+      const NetEvNBTrig*cur = nb_trig_;
+      while (cur) {
+	    cnt += 1;
+	    cur = cur->enext_;
+      }
+
+      return cnt;
+}
+
 unsigned NetEvent::nwait() const
 {
       return waitref_;

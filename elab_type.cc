@@ -306,6 +306,49 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 		  dirs[dir->first] = static_cast<int>(dir->second);
 	    iface_type->add_clocking_block(cur->first, cur->second->event,
 					   cur->second->signals, dirs);
+
+	      /* M8-2a-4: register the hidden clocking sample variables
+		 (and the sampler tick bit) as interface properties, so
+		 `vif.cb.sig` reads rewritten to `vif._ivl_smp$cb$sig`
+		 elaborate as property accesses. The runtime resolves
+		 properties BY NAME in the bound instance scope, where
+		 elaborate_sig created the matching signals. Mirror the
+		 sampleable predicate (vec4, not a dynamic container);
+		 unsampleable signals get no property and their reads
+		 keep the alias rewrite — consistent by construction. */
+	    const Module::PClocking*cb = cur->second;
+	    bool any_sampled = false;
+	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
+		       ; sig_it != cb->signals.end() ; ++sig_it) {
+		  NetNet::PortType dir = cb->signal_direction(*sig_it);
+		  if (dir != NetNet::PINPUT && dir != NetNet::PINOUT)
+			continue;
+		  map<perm_string,PWire*>::const_iterator wt = mod->wires.find(*sig_it);
+		  if (wt == mod->wires.end())
+			continue;
+		  ivl_type_t rt = wt->second->elaborate_sig_type(des, iface_scope);
+		  if (!rt)
+			continue;
+		  if (rt->base_type() != IVL_VT_LOGIC
+		      && rt->base_type() != IVL_VT_BOOL)
+			continue;
+		  if (dynamic_cast<const netdarray_t*>(rt)
+		      || dynamic_cast<const netuarray_t*>(rt)
+		      || dynamic_cast<const netqueue_t*>(rt))
+			continue;
+		  string sname = string("_ivl_smp$") + cur->first.str()
+			+ "$" + sig_it->str();
+		  iface_type->set_property(lex_strings.make(sname.c_str()),
+					   property_qualifier_t::make_none(), rt);
+		  any_sampled = true;
+	    }
+	    if (any_sampled) {
+		  string tname = string("_ivl_smptick$") + cur->first.str();
+		  netvector_t*tick_vec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
+		  iface_type->set_property(lex_strings.make(tname.c_str()),
+					   property_qualifier_t::make_none(),
+					   tick_vec);
+	    }
       }
 
       // If a real interface instance scope exists somewhere in the design,

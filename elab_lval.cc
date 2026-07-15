@@ -193,7 +193,8 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 
       pform_name_t rewritten_path;
       bool clk_input_write = false;
-      if ((reg && rewrite_class_clocking_member_path(this, sr, rewritten_path))
+      if ((reg && rewrite_class_clocking_member_path(this, sr, rewritten_path,
+						     true, &clk_input_write))
 	  || rewrite_clocking_member_path_via_scope(this, sr, rewritten_path,
 						    true, &clk_input_write)
 	  || (!reg && rewrite_enclosing_scope_clocking_member_path(this, scope, rewritten_path,

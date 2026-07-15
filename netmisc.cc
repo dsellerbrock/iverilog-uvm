@@ -2202,7 +2202,9 @@ bool calculate_param_range(const LineInfo&line, ivl_type_t par_type,
 
 bool rewrite_class_clocking_member_path(const PEIdent*ident,
 					const symbol_search_results&sr,
-					pform_name_t&rewritten)
+					pform_name_t&rewritten,
+					bool as_lvalue,
+					bool*input_write)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(sr.type);
       if (!class_type || sr.path_tail.size() < 2)
@@ -2232,6 +2234,46 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
 			advance(erase_it, resolved_count + offset);
 			if (erase_it == rewritten.end() || erase_it->name != clocking_comp.name)
 			      return false;
+
+			  /* M8-2a-4: sampled input semantics through a
+			     virtual interface (IEEE 1800-2017 14.3/14.13),
+			     mirroring apply_clocking_member_rewrite_. The
+			     directions map holds int(NetNet::PortType);
+			     missing entries behave as inout. Reads route
+			     to the sample-variable PROPERTY when the
+			     interface class registered one (only for
+			     sampleable signals — alias otherwise). */
+			int dir = static_cast<int>(NetNet::PINOUT);
+			std::map<perm_string,int>::const_iterator dir_it =
+			      clocking->directions.find(next->name);
+			if (dir_it != clocking->directions.end())
+			      dir = dir_it->second;
+
+			if (as_lvalue && dir == static_cast<int>(NetNet::PINPUT)) {
+			      cerr << ident->get_fileline() << ": error: "
+				   << "clocking-block input `"
+				   << clocking_comp.name << "." << next->name
+				   << "' cannot be written (IEEE 1800-2017 "
+				   << "14.3: input clockvars are sampled, "
+				   << "not driven)." << endl;
+			      if (input_write) *input_write = true;
+			}
+
+			if (!as_lvalue
+			    && (dir == static_cast<int>(NetNet::PINPUT)
+				|| dir == static_cast<int>(NetNet::PINOUT))) {
+			      string sname = string("_ivl_smp$")
+				    + clocking_comp.name.str()
+				    + "$" + next->name.str();
+			      perm_string smp_name = lex_strings.make(sname.c_str());
+			      if (class_type->property_idx_from_name(smp_name) >= 0) {
+				    pform_name_t::iterator sig_it = erase_it;
+				    ++sig_it;
+				    if (sig_it != rewritten.end()
+					&& sig_it->name == next->name)
+					  sig_it->name = smp_name;
+			      }
+			}
 
 			rewritten.erase(erase_it);
 			return true;

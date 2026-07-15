@@ -599,11 +599,25 @@ static void elaborate_sig_clocking_samples_(NetScope*scope, const Module*mod)
 
 	    string tname = string("_ivl_smptrig$") + cb->name.str();
 	    perm_string trig_name = lex_strings.make(tname.c_str());
-	    if (scope->find_event(trig_name))
-		  continue;
-	    NetEvent*trig = new NetEvent(trig_name);
-	    trig->set_line(*cb);
-	    scope->add_event(trig);
+	    if (!scope->find_event(trig_name)) {
+		  NetEvent*trig = new NetEvent(trig_name);
+		  trig->set_line(*cb);
+		  scope->add_event(trig);
+	    }
+
+	      /* The sampler also toggles a tick bit after the sample
+		 stores. @(vif.cb) through a virtual interface maps to
+		 an anyedge wait on this bit (registered as an
+		 interface-class property), riding the existing
+		 %wait/vif edge machinery — named events cannot be
+		 reached through a class handle. */
+	    string kname = string("_ivl_smptick$") + cb->name.str();
+	    perm_string tick_name = lex_strings.make(kname.c_str());
+	    if (!scope->find_signal(tick_name)) {
+		  netvector_t*tvec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
+		  NetNet*tick = new NetNet(scope, tick_name, NetNet::REG, tvec);
+		  tick->set_line(*cb);
+	    }
       }
 }
 
