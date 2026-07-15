@@ -143,6 +143,33 @@ Three permanent gold-file regressions in the repo-bundled ivtest
 - struct/union/enum-var specific VPI type codes (enum vars report
   their base vector type).
 
-## Promotion evidence
+## Promotion evidence — M12 CLOSED
 
-Recorded below after the full sweeps.
+- Bundled VPI suite (CI-run): **79/79** (76 baseline + m12_sv_objects
+  + m12_sv_scopes + m12_sv_coverage gold-file regressions).
+- External ivtest VPI suite: Total=69 Passed=58 Failed=11 — failure
+  names IDENTICAL to the pre-M12 baseline (the 11 legacy PLI/TF
+  failures, untouched).
+- UVM harness: **155 passed / 0 failed / 0 skipped, zero
+  "(no-check)" entries**.
+- ivtest (shim PATH): Total=2559 Passed=2457 Failed=99 — failure
+  names BYTE-IDENTICAL to fails_baseline.txt (empty diff, no
+  flakes).
+- Negative suite 14/14. The vif/modport/clocking battery is
+  unaffected by the interface scope-type change.
+
+The M12 WIP commits (SV variables/containers/class members,
+interface/modport/package scopes, covergroup handles) are hereby
+promoted — regression-clean.
+
+**M12 (VPI SystemVerilog object model) is CLOSED.** The VPI layer
+now models what SystemVerilog testbench tooling actually touches —
+typed SV variables with read/write and value-change callbacks,
+dynamic arrays/queues with element access (and the element-write
+crash fixed), associative arrays with key-ordered iteration, class
+objects with member navigation by iteration and by dotted name,
+interfaces/modports/packages as first-class scopes with
+package-qualified lookup, and live covergroup coverage handles —
+with every unimplemented shape a loud diagnostic or a NULL/none
+answer, never a crash. The recorded-corners list above is the M12
+follow-up ledger (same closure pattern as M4/M8-M11).

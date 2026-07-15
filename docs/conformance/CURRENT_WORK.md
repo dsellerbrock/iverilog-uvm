@@ -3,6 +3,45 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-15h (M12 CLOSED)
+
+- **M12 (VPI SystemVerilog object model) is CLOSED** on PR #76, four
+  increments in three commits:
+  1. **SV variables/containers/class members** — FIXED the
+     vpi_put_value crash on darray elements (unsized vector into
+     setarray); queues got full element access (__vpiQueueVar :
+     __vpiDarrayVar; vpiArrayType detected from the live object);
+     assoc arrays got vpiSize/vpiArrayType/key-ordered positional
+     iteration (vvp_assoc_base::peek_entry; element writes = loud
+     sorry); class variables got vpiMember iteration with stable
+     typed member handles (read AND write via the live object) and
+     dotted-path by-name descent (one level); vpiVariables includes
+     SV var types; value-change callbacks on string (every change)
+     and class/container vars (handle assignment) via a functor-
+     carried callback list; assert-happy defaults de-crashed.
+  2. **Scopes** — interface instances report vpiInterface (NetScope
+     is_interface → ivl_scope_is_interface → '.scope interface' →
+     vpiScopeInterface; vpip_module treats interface/program as
+     module-like); modports are vpiModport (603) objects iterable
+     from the interface scope; package-qualified
+     vpi_handle_by_name("pkg::item"); new ivl_target APIs in ivl.def.
+  3/4. **Covergroups** — vpi_iterate(vpiCovergroup(605), NULL) yields
+     per-type handles with live type-coverage reads (M11 registry).
+     Assertion VPI = recorded corner (no runtime assertion
+     identities in the synthesized-checker design).
+- **Promotion evidence**: bundled VPI suite **79/79** (3 new
+  gold-file regressions m12_sv_{objects,scopes,coverage} — CI runs
+  these via .github/test.sh); external ivtest VPI baseline-identical
+  (11 legacy PLI/TF fails unchanged); UVM **155/155** (zero
+  no-check); ivtest byte-identical (empty diff); negative 14/14.
+  Session log: session_logs/2026-07-15_m12_vpi_sv_object_model.md
+  (ledger: nested member descent, in-place mutation callbacks,
+  assoc element writes, modport directions, bit-select force,
+  cbForce/cbRelease, assertion VPI, covergroup drill-down,
+  free_object no-op).
+- **NEXT FRONTIER: M13 (bind, let, configs, specify, timing, rare
+  constructs)**; then M14 clause matrix, M15 1800-2023 delta.
+
 ## State as of 2026-07-15g (M11 CLOSED)
 
 - **M11 (functional coverage) is CLOSED** on PR #76, four increments
