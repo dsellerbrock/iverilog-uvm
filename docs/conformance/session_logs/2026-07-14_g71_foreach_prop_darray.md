@@ -120,11 +120,32 @@ paths.
   without a loop (pre-existing compile-progress path, now one of the
   few remaining silent shapes in this family).
 
-## Regressions
+## Regressions (final, both checkpoints installed)
 
-(Recorded in the checkpoint commit message: UVM canonical suite,
-ivtest vvp_reg.pl patched-vs-pristine failure-name diff, negative
-suite 9/9, m6 region trace PASS, focused g09/g10/m3/m6 suites PASS.)
+- UVM `.github/uvm_test.sh`: **131 passed, 0 failed, 0 skipped**
+  (129 baseline + the two new tests). An intermediate sweep at
+  checkpoint 1 alone was 130/130.
+- ivtest `vvp_reg.pl` (fresh upstream ivtest checkout; regress-v13
+  aliased to regress-v12; 20 s per-tool timeout shims because this
+  fork hangs on `automatic_events3` — verified hanging IDENTICALLY on
+  the pristine baseline, so pre-existing): patched
+  2456/2559 vs pristine-main-worktree 2457/2559, failure names
+  identical except `pow_ca_signed`, a 65535x127 brute-force loop that
+  runs ~12.5 s and TIMED OUT under concurrent build load during the
+  patched sweep; it passes in 3/3 standalone reruns on the patched
+  build with timing equal to baseline (~12.5 s). Verdict:
+  failure-name-identical modulo one machine-load timeout flake.
+  (Note: earlier sessions' "2961/3101" figures came from a different
+  ivtest checkout; the patched-vs-pristine diff on ONE checkout is the
+  controlled comparison.)
+- Negative suite 9/9; `tests/m6_region_trace` PASS.
+- Focused suites on the final install: g71, m3-nonzero-range,
+  m3-array, m3-signed, m3-semantics, g09-nested, g10-array-methods
+  all PASS.
+- Checkpoint 2's ivtest rationale: the M3 change is confined to
+  `pexpr_to_constraint_ir` (reached only from class constraint
+  blocks); ivtest has no class-constraint tests (grep over ivltests),
+  and 0-based shapes emit byte-identical IR (range_lo == 0).
 
 ## Checkpoint 2 — M3 tail: non-0-based foreach constraint ranges
 
