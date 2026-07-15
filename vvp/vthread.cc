@@ -1640,6 +1640,20 @@ static bool vec4_eq_(const vvp_vector4_t&a, const vvp_vector4_t&b)
       return !vec4_lt_(a, b) && !vec4_lt_(b, a);
 }
 
+/* Signed vec4 numeric less-than (two's complement, X/Z as 0): a
+ * negative value is less than any non-negative one; within one sign
+ * the unsigned magnitude order applies. Operands are same-width
+ * words of one container. */
+static bool vec4_slt_(const vvp_vector4_t&a, const vvp_vector4_t&b)
+{
+      size_t n = a.size() > b.size() ? a.size() : b.size();
+      if (n == 0) return false;
+      bool a_neg = a.size() == n && a.value(n-1) == BIT4_1;
+      bool b_neg = b.size() == n && b.value(n-1) == BIT4_1;
+      if (a_neg != b_neg) return a_neg;
+      return vec4_lt_(a, b);
+}
+
 template<typename ELEM>
 static void qsort_helper_(vvp_darray*arr, bool reverse, bool unique_only,
                           bool (*lt)(const ELEM&, const ELEM&),
@@ -1703,12 +1717,24 @@ static bool obj_eq_(const vvp_object_t&a, const vvp_object_t&b)
       return a.peek<vvp_object>() == b.peek<vvp_object>();
 }
 
-static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_only)
+static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_only,
+                                   bool signed_cmp = false)
 {
       if (!arr) return true;
 
       size_t sz = arr->get_size();
       if (sz == 0) return true;
+
+	// The signed flag normally arrives from codegen (element type
+	// signedness), but atom-backed darrays carry it in their C++
+	// type as well — honor that when the flag is absent (G72:
+	// sorting negative ints used the unsigned word order).
+      if (!signed_cmp
+	  && (dynamic_cast<vvp_darray_atom<int8_t>*>(arr)
+	      || dynamic_cast<vvp_darray_atom<int16_t>*>(arr)
+	      || dynamic_cast<vvp_darray_atom<int32_t>*>(arr)
+	      || dynamic_cast<vvp_darray_atom<int64_t>*>(arr)))
+	    signed_cmp = true;
 
       if (dynamic_cast<vvp_queue_real*>(arr) ||
           dynamic_cast<vvp_darray_real*>(arr)) {
@@ -1738,7 +1764,8 @@ static bool qsort_unique_dispatch_(vvp_darray*arr, bool reverse, bool unique_onl
 
       /* Default: vec4 */
       qsort_helper_<vvp_vector4_t>(arr, reverse, unique_only,
-                                   vec4_lt_, vec4_eq_);
+                                   signed_cmp ? vec4_slt_ : vec4_lt_,
+                                   vec4_eq_);
       return true;
 }
 
@@ -1835,6 +1862,71 @@ bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
       return qshuffle_dispatch_(arr);
+}
+
+/*
+ * %uarr/order <array-label>, <mode>
+ *
+ * In-place ordering method on a STATIC unpacked array
+ * (IEEE 1800-2017 7.12.2 on fixed-size arrays): mode&3 selects
+ * 0=sort, 1=rsort, 2=reverse, 3=shuffle; mode&4 means the element
+ * type is signed (sort/rsort use signed comparison). Arrays whose
+ * words are darray-backed (string/real element variable arrays) reuse
+ * the queue helpers; everything else moves vec4 words.
+ */
+bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_array_t arr = resolve_runtime_array_(cp, "%uarr/order");
+      if (!arr) return true;
+	// Mode rides in bit_idx[0]: cp->number shares the first union
+	// with cp->array (the OA_ARR_PTR operand).
+      unsigned mode = cp->bit_idx[0];
+      unsigned op = mode & 3;
+      bool signed_cmp = (mode & 4) != 0;
+
+      if (arr->vals && !arr->vals4) {
+	      // darray-backed word storage: string/real element kinds
+	      // dispatch by element type inside the queue helpers.
+	    switch (op) {
+		case 0: qsort_unique_dispatch_(arr->vals, false, false,
+					       signed_cmp); break;
+		case 1: qsort_unique_dispatch_(arr->vals, true, false,
+					       signed_cmp); break;
+		case 2: qreverse_dispatch_(arr->vals); break;
+		default: qshuffle_dispatch_(arr->vals); break;
+	    }
+	    return true;
+      }
+
+      unsigned sz = arr->get_size();
+      if (sz < 2) return true;
+      std::vector<vvp_vector4_t> words(sz);
+      for (unsigned i = 0 ; i < sz ; i += 1)
+	    words[i] = arr->get_word(i);
+      switch (op) {
+	  case 0:
+	    std::stable_sort(words.begin(), words.end(),
+			     signed_cmp ? vec4_slt_ : vec4_lt_);
+	    break;
+	  case 1:
+	    std::stable_sort(words.begin(), words.end(),
+			     signed_cmp ? vec4_slt_ : vec4_lt_);
+	    std::reverse(words.begin(), words.end());
+	    break;
+	  case 2:
+	    std::reverse(words.begin(), words.end());
+	    break;
+	  default:
+	    for (unsigned i = sz - 1 ; i > 0 ; i -= 1) {
+		  unsigned j = (unsigned)(rand() % (i + 1));
+		  std::swap(words[i], words[j]);
+	    }
+	    break;
+      }
+      for (unsigned i = 0 ; i < sz ; i += 1)
+	    arr->set_word(i, 0, words[i]);
+      return true;
 }
 
 /* Phase 63b/Q-methods: expression-form q.unique() — return a new
@@ -2086,13 +2178,17 @@ bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %qsort <sig>, <signed-flag> (and /r, %qunique): the flag carries
+ * the declared element signedness — vec4-backed queues do not encode
+ * it in their C++ type (G72: negative ints sorted in unsigned word
+ * order without it). */
 bool of_QSORT(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
-      return qsort_unique_dispatch_(arr, false, false);
+      return qsort_unique_dispatch_(arr, false, false, cp->bit_idx[0] != 0);
 }
 
 bool of_QSORT_R(vthread_t thr, vvp_code_t cp)
@@ -2101,7 +2197,7 @@ bool of_QSORT_R(vthread_t thr, vvp_code_t cp)
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
-      return qsort_unique_dispatch_(arr, true, false);
+      return qsort_unique_dispatch_(arr, true, false, cp->bit_idx[0] != 0);
 }
 
 bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
@@ -2110,7 +2206,7 @@ bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
       if (!fun) return true;
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
-      return qsort_unique_dispatch_(arr, false, true);
+      return qsort_unique_dispatch_(arr, false, true, cp->bit_idx[0] != 0);
 }
 
 /*

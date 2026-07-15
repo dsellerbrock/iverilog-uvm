@@ -2603,6 +2603,34 @@ static int show_system_task_call(ivl_statement_t net)
       if (strcmp(stmt_name,"$ivl_queue_method$push_back") == 0)
 	    return show_push_frontback_method(net, false);
 
+	/* Ordering methods on STATIC unpacked arrays (7.12.2):
+	 * $ivl_uarray_method$order(array_signal, mode) -> %uarr/order.
+	 * mode&3: 0 sort, 1 rsort, 2 reverse, 3 shuffle; mode&4 signed. */
+      if (strcmp(stmt_name,"$ivl_uarray_method$order") == 0) {
+	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
+		  ? ivl_stmt_parm(net, 0) : 0;
+	    ivl_expr_t parm1 = (ivl_stmt_parm_count(net) > 1)
+		  ? ivl_stmt_parm(net, 1) : 0;
+	    ivl_signal_t sig = 0;
+	    if (parm0 && (ivl_expr_type(parm0) == IVL_EX_SIGNAL
+			  || ivl_expr_type(parm0) == IVL_EX_ARRAY))
+		  sig = ivl_expr_signal(parm0);
+	    if (!sig || !parm1 || ivl_expr_type(parm1) != IVL_EX_NUMBER) {
+		  static int warned_uarr = 0;
+		  if (!warned_uarr) {
+			fprintf(stderr, "Warning: %s on an unsupported"
+				" receiver shape; skipping (further similar"
+				" warnings suppressed)\n", stmt_name);
+			warned_uarr = 1;
+		  }
+		  return 0;
+	    }
+	    note_array_signal_use(sig);
+	    fprintf(vvp_out, "    %%uarr/order v%p, %lu;\n",
+		    sig, ivl_expr_uvalue(parm1));
+	    return 0;
+      }
+
       if (strcmp(stmt_name,"$ivl_queue_method$sort") == 0
 	  || strcmp(stmt_name,"$ivl_queue_method$rsort") == 0
 	  || strcmp(stmt_name,"$ivl_queue_method$unique") == 0
@@ -2643,7 +2671,25 @@ static int show_system_task_call(ivl_statement_t net)
 		  (strcmp(stmt_name,"$ivl_queue_method$reverse")==0) ? "%qreverse" :
 		  (strcmp(stmt_name,"$ivl_queue_method$shuffle")==0) ? "%qshuffle" :
 		                                                       "%qunique";
-	    fprintf(vvp_out, "    %s v%p_0;\n", opcode, sig);
+	    if (strcmp(opcode, "%qreverse") == 0
+		|| strcmp(opcode, "%qshuffle") == 0) {
+		  fprintf(vvp_out, "    %s v%p_0;\n", opcode, sig);
+	    } else {
+		    /* Sorting compares element VALUES: pass the declared
+		     * element signedness (G72 — vec4-backed queues do not
+		     * carry it, so negative ints sorted in unsigned word
+		     * order without this flag). */
+		  int sflag = 0;
+		  ivl_type_t cont_type = ivl_signal_net_type(sig);
+		  ivl_type_t elem_type = 0;
+		  if (cont_type
+		      && (ivl_type_base(cont_type) == IVL_VT_QUEUE
+			  || ivl_type_base(cont_type) == IVL_VT_DARRAY))
+			elem_type = ivl_type_element(cont_type);
+		  if (elem_type && ivl_type_signed(elem_type))
+			sflag = 1;
+		  fprintf(vvp_out, "    %s v%p_0, %d;\n", opcode, sig, sflag);
+	    }
 	    return 0;
       }
 

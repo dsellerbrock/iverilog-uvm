@@ -6116,6 +6116,64 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					      parm_names);
       }
 
+	// Ordering methods on STATIC unpacked arrays (IEEE 1800-2017
+	// 7.12.2 applies to any unpacked array): lower to the in-place
+	// %uarr/order runtime op. Previously these fell through to the
+	// unknown-task compile-progress warning and silently did
+	// nothing (G35/G36). NOTE a plain static-array SIGNAL carries
+	// its ELEMENT type as net_type() (the array shape lives in
+	// unpacked_dimensions()), so netuarray_t receivers (class
+	// properties / typedefs) and array signals are both handled.
+      if (method_name == "sort" || method_name == "rsort"
+	  || method_name == "reverse" || method_name == "shuffle") {
+	    const netranges_t*ur_dims = nullptr;
+	    ivl_type_t ur_elem = nullptr;
+	    if (obj_uarray) {
+		  ur_dims = &obj_uarray->static_dimensions();
+		  ur_elem = obj_uarray->element_type();
+	    } else if (!obj_darray && net && net->unpacked_dimensions() > 0
+		       && dynamic_cast<NetESignal*>(obj_expr)) {
+		  ur_dims = &net->unpacked_dims();
+		  ur_elem = net->net_type();
+	    }
+	    if (ur_dims) {
+		  if (!with_constraints().empty()) {
+			cerr << get_fileline() << ": sorry: '" << method_name
+			     << "() with (...)' on a fixed-size array is not"
+			     << " yet supported." << endl;
+			des->errors += 1;
+			delete obj_expr;
+			return 0;
+		  }
+		  const netvector_t*uvec =
+			dynamic_cast<const netvector_t*>(ur_elem);
+		  const netenum_t*uenum =
+			dynamic_cast<const netenum_t*>(ur_elem);
+		  if (ur_dims->size() != 1 || (!uvec && !uenum)) {
+			cerr << get_fileline() << ": sorry: '" << method_name
+			     << "()' is only supported on one-dimensional"
+			     << " fixed-size arrays of integral elements."
+			     << endl;
+			des->errors += 1;
+			delete obj_expr;
+			return 0;
+		  }
+		  unsigned long mode = 0;
+		  if (method_name == "rsort") mode = 1;
+		  else if (method_name == "reverse") mode = 2;
+		  else if (method_name == "shuffle") mode = 3;
+		  if (ur_elem->get_signed())
+			mode |= 4;
+		  vector<NetExpr*> argv(2);
+		  argv[0] = obj_expr;
+		  argv[1] = make_const_val(mode);
+		  NetSTask*sys = new NetSTask("$ivl_uarray_method$order",
+					      IVL_SFUNC_AS_TASK_IGNORE, argv);
+		  sys->set_line(*this);
+		  return sys;
+	    }
+      }
+
       if (const netqueue_t*obj_queue = dynamic_cast<const netqueue_t*>(obj_type)) {
 	    const netdarray_t*use_darray = obj_queue;
 	    if (!use_darray) {
