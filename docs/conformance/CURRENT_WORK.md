@@ -32,15 +32,21 @@ the investigation. Update at every meaningful checkpoint.
   property outers = next natural increment); display-context chained
   reads; `$size/$high/$low` on property receivers fold to 'x';
   indexed-element method calls (G70).
+- **Checkpoint 2 (same session) — M3 non-0-based foreach constraint
+  ranges FIXED** (18.5.8.1): the unroller now binds the loop variable
+  to DECLARED index values and maps element solver slots
+  declared->canonical; `[3:1]`/`[5:2]`-style rand arrays are now
+  constrained instead of warned-and-ignored. Test:
+  `tests/m3_constraint_nonzero_range_test.sv`; m3 focused suites PASS.
 - **Next engineering options** (milestone order for the close-out
   plan): (a) M3 tail — dynamic-array foreach constraints (needs
   runtime foreach expansion + staged size-then-elements solve, which
-  solve...before staging can share) and non-0-based foreach ranges
-  (small: canonical-index mapping at elaborate.cc:10594/10741 guards);
-  (b) M4 tail — G35/G36/G40 ordering/manipulation methods on unpacked
-  fixed-size arrays (queue machinery exists; extend receivers), plus
-  the store2 darray/property-outer extension; (c) M5 entry — G26
-  modport import ports (parser) then G27/G29 (elab port binding).
+  solve...before staging can share); (b) M4 tail — G35/G36/G40
+  ordering/manipulation methods on unpacked fixed-size arrays (queue
+  machinery exists; extend receivers), plus the store2
+  darray/property-outer extension (chained element stores
+  `c.dd[i][j]=v` still silently no-op); (c) M5 entry — G26 modport
+  import ports (parser) then G27/G29 (elab port binding).
 
 ## State as of 2026-07-14j — PR #73 MERGED (5c05f93); branch restarted
 

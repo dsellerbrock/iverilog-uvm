@@ -10596,10 +10596,23 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			const netranges_t&dims = ua->static_dimensions();
 			if (dims.size() != 1)
 			      return "";
-			  // Element addressing assumes a 0-based canonical
-			  // range; other declared ranges not yet supported.
-			if (dims[0].get_msb() != 0 && dims[0].get_lsb() != 0)
-			      return "";
+			  // The source index is a DECLARED index (18.5.8.1
+			  // loop variables range over the declared indices);
+			  // the element solver variable e:N:W:I addresses
+			  // the canonical (0-based) slot used by the
+			  // write-back, so map declared -> canonical here.
+			  // uint64 two's-complement arithmetic keeps
+			  // negative declared bounds consistent with the
+			  // solver's constant folding.
+			{
+			      long range_lo =
+				    dims[0].get_msb() < dims[0].get_lsb()
+					  ? dims[0].get_msb()
+					  : dims[0].get_lsb();
+			      elem -= (uint64_t)range_lo;
+			      if (elem >= dims[0].width())
+				    return "";
+			}
 			ivl_type_t etype = ua->element_type();
 			unsigned ewid = etype ? etype->packed_width() : 32;
 			if (ewid == 0) ewid = 32;
@@ -10745,15 +10758,19 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    const netranges_t&dims = ua->static_dimensions();
 	    if (dims.size() != 1)
 		  return "";
-	    if (dims[0].get_msb() != 0 && dims[0].get_lsb() != 0)
-		  return "";
 	    unsigned long count = dims[0].width();
+	      // The loop variable takes the DECLARED index values
+	      // (IEEE 1800-2017 18.5.8.1), so index arithmetic in the
+	      // constraint body sees the source-level indices; the
+	      // element-variable emitter maps declared -> canonical.
+	    long range_lo = dims[0].get_msb() < dims[0].get_lsb()
+		  ? dims[0].get_msb() : dims[0].get_lsb();
 
 	    string acc;
 	    for (unsigned long i = 0 ; i < count ; i += 1) {
 		  map<perm_string,uint64_t> env2;
 		  if (loop_env) env2 = *loop_env;
-		  env2[cfe->loop_vars()[0]] = i;
+		  env2[cfe->loop_vars()[0]] = (uint64_t)(range_lo + (long)i);
 		  for (const PExpr*item : cfe->items()) {
 			if (!item) continue;
 			string s = pexpr_to_constraint_ir(item, cls,

@@ -126,6 +126,33 @@ paths.
 ivtest vvp_reg.pl patched-vs-pristine failure-name diff, negative
 suite 9/9, m6 region trace PASS, focused g09/g10/m3/m6 suites PASS.)
 
+## Checkpoint 2 — M3 tail: non-0-based foreach constraint ranges
+
+IEEE 1800-2017 18.5.8.1: the foreach loop variable ranges over the
+array's DECLARED indices. The constraint unroller
+(`pexpr_to_constraint_ir`, elaborate.cc) rejected any static rand
+array whose declared range had two nonzero bounds (`arr[3:1]`,
+`arr[5:2]`) — the whole item was warned-and-ignored and the elements
+were left unconstrained — and bound the loop variable to the CANONICAL
+0-based position (correct only for the previously-supported 0-based
+shapes).
+
+Fix (elaborate.cc, both sites):
+- the foreach unroll binds the loop variable to the declared index
+  values (`range_lo + i`, uint64 two's-complement so negative bounds
+  stay consistent with the solver's constant folding);
+- the element-variable emitter maps declared -> canonical
+  (`elem -= range_lo`, bounds-checked) since the solver/write-back
+  element slots (`e:N:W:I`) are canonical property-array positions.
+
+Test: `tests/m3_constraint_nonzero_range_test.sv` ([3:1] equality,
+[5:2] inside-ranges with index arithmetic, 0-based characterization).
+Focused m3 suites (array/signed/semantics) re-run PASS under the fix.
+
+Remaining M3 tail after this: dynamic-array foreach constraints
+(runtime expansion + staged size-then-elements solve) and
+solve...before staged ordering.
+
 ## M-audit snapshot for the milestone close-out plan
 
 - M1: minor recorded tails only (multi-hop statement chains).
