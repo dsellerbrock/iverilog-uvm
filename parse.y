@@ -12275,6 +12275,22 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
 
+  /* IEEE 1800-2017 14.16: cycle-delayed clocking drive
+     `cb.out <= ##N v`. Lower to the intra-assignment repeat-event
+     form `lval <= repeat (N) @(<clocking block of lval>) v`: the
+     value is captured now and the drive lands at the Nth clocking
+     event. The @(cb) wait resolves through the same machinery as a
+     source-level @(cb), including the sampler-trigger redirect, so
+     the landing is ordered after that event's input sampling. Only
+     the clockvar-prefix form is supported: the scalar
+     `x <= ##N v` (default clocking) is still a sorry. */
+  | lpvalue K_LE K_CYCLE_DELAY delay_value_simple expression ';'
+      { $$ = pform_make_clocking_drive(@3, $1, $4, $5);
+      }
+  | lpvalue K_LE K_CYCLE_DELAY '(' expression ')' expression ';'
+      { $$ = pform_make_clocking_drive(@3, $1, $5, $7);
+      }
+
   /* The IEEE1800 standard defines dynamic_array_new assignment as a
      different rule from regular assignment. That implies that the
      dynamic_array_new is not an expression in general, which makes

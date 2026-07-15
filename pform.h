@@ -256,6 +256,9 @@ extern void pform_start_clocking_block(const struct vlltype&loc,
 				       bool is_default = false);
 extern void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
 				      NetNet::PortType dir);
+extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
+					    PExpr*lval, PExpr*cycles,
+					    PExpr*rval);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at

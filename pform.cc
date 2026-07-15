@@ -3981,6 +3981,44 @@ void pform_end_clocking_block(const struct vlltype&loc)
       pform_cur_clocking = 0;
 }
 
+/* IEEE 1800-2017 14.16: `cb.out <= ##N v`. Lower the cycle-delayed
+   clocking drive to the intra-assignment repeat-event form
+   `lval <= repeat (N) @(<clocking prefix of lval>) v` — the value is
+   captured now, the drive lands at the Nth clocking event (the @(cb)
+   wait resolves through the clocking machinery, including the
+   sampler-trigger redirect). Only the clockvar-prefix form is
+   supported; the scalar default-clocking form is a sorry. */
+Statement* pform_make_clocking_drive(const struct vlltype&loc,
+				     PExpr*lval, PExpr*cycles, PExpr*rval)
+{
+      PEIdent*lid = dynamic_cast<PEIdent*>(lval);
+      if (!lid || lid->path().size() < 2) {
+	    cerr << loc << ": sorry: `<= ##N` cycle-delay drives are only "
+		 << "supported with a clocking-block l-value prefix "
+		 << "(cb.sig <= ##N v)." << endl;
+	    error_count += 1;
+	    PAssignNB*deg = new PAssignNB(lval, rval);
+	    FILE_NAME(deg, loc);
+	    return deg;
+      }
+
+      pform_name_t cb_path = lid->path().name;
+      cb_path.pop_back();
+      PEIdent*cb_ident = lid->path().package
+	    ? new PEIdent(lid->path().package, cb_path, lid->lexical_pos())
+	    : new PEIdent(cb_path, lid->lexical_pos());
+      FILE_NAME(cb_ident, loc);
+      PEEvent*ev = new PEEvent(PEEvent::ANYEDGE, cb_ident);
+      std::vector<PEEvent*> evs;
+      evs.push_back(ev);
+      PEventStatement*ectl = new PEventStatement(evs);
+      FILE_NAME(ectl, loc);
+
+      PAssignNB*tmp = new PAssignNB(lval, cycles, ectl, rval);
+      FILE_NAME(tmp, loc);
+      return tmp;
+}
+
 bool pform_requires_sv(const struct vlltype&loc, const char *feature)
 {
       if (gn_system_verilog())
