@@ -4861,6 +4861,10 @@ package_cg_port_prefix
 package_covergroup_declaration
   : K_covergroup IDENTIFIER ';' covergroup_item_list_opt K_endgroup label_opt
       { /* Register as a real class stub so "cg_t m_cg" elaborates without errors */
+        cerr << @1 << ": sorry: package/module-scope covergroup '" << $2
+             << "' is a stub type only — its body is ignored and no "
+             << "coverage is collected (class-embedded covergroups are "
+             << "fully supported)." << endl;
         perm_string cg_name__ = lex_strings.make($2);
         class_type_t*cg_type__ = new class_type_t(cg_name__);
         FILE_NAME(cg_type__, @2);
@@ -4871,13 +4875,21 @@ package_covergroup_declaration
         pform_pop_scope();
         delete[] $2; if ($6) delete[] $6; }
   | package_cg_port_prefix ';' covergroup_item_list_opt K_endgroup label_opt
-      { pform_pop_scope(); current_function = 0;
+      { cerr << @2 << ": sorry: package/module-scope covergroup '" << $1
+             << "' is a stub type only — its body is ignored and no "
+             << "coverage is collected (class-embedded covergroups are "
+             << "fully supported)." << endl;
+        pform_pop_scope(); current_function = 0;
         delete[] $1; if ($5) delete[] $5; }
   | package_cg_port_prefix K_with K_function IDENTIFIER
       { pform_pop_scope();
         current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { if ($6) current_function->set_ports($6);
+      { cerr << @2 << ": sorry: package/module-scope covergroup '" << $1
+             << "' is a stub type only — its body is ignored and no "
+             << "coverage is collected (class-embedded covergroups are "
+             << "fully supported)." << endl;
+        if ($6) current_function->set_ports($6);
         pform_pop_scope(); current_function = 0;
         delete[] $1; delete[] $4; if ($10) delete[] $10; }
   | package_cg_port_prefix ';' error K_endgroup label_opt
