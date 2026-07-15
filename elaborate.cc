@@ -7397,6 +7397,10 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		      && task->func_pform()->is_dpi_import()) {
 			keep_for_dynamic_dispatch = true;
 		  }
+		  if (task->type() == NetScope::TASK && task->task_pform()
+		      && task->task_pform()->is_dpi_import()) {
+			keep_for_dynamic_dispatch = true;
+		  }
 		  if (!super_call && use_this && task->parent()
 		      && task->parent()->type() == NetScope::CLASS) {
 			/* Preserve empty base-method calls for dynamic dispatch.

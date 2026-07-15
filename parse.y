@@ -1195,6 +1195,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <number>  number pos_neg_number
 %type <flag>    signing unsigned_signed_opt signed_unsigned_opt
 %type <flag>    import_export
+%type <flag>    dpi_function_import_property_opt
 %type <flag>    K_genvar_opt K_static_opt K_virtual_opt K_const_opt
 %type <flag>    udp_reg_opt edge_operator
 %type <drive>   drive_strength drive_strength_opt dr_strength0 dr_strength1
@@ -4533,14 +4534,18 @@ package_import_declaration /* IEEE1800-2005 A.2.1.3 */
       { }
   ;
 
-/* IEEE1800 DPI declarations. We currently parse these declarations so
- * packages/modules can be accepted, but do not elaborate DPI linkage. */
+/* IEEE1800 DPI declarations (35.4, A.2.6). Imported functions and
+ * tasks get real linkage: the code generator synthesizes a marshaling
+ * body that dispatches to the named C symbol. The optional
+ * c_identifier alias form binds a C name different from the SV name.
+ * Exports are diagnosed as unsupported (loud sorry), never silently
+ * dropped. */
 dpi_function_import_property_opt
-  :
-  | K_context
-  | K_pure
-  | K_context K_pure
-  | K_pure K_context
+  :                     { $$ = false; }
+  | K_context           { $$ = false; }
+  | K_pure              { $$ = true; }
+  | K_context K_pure    { $$ = true; }
+  | K_pure K_context    { $$ = true; }
   ;
 
 dpi_import_export_declaration
@@ -4558,9 +4563,79 @@ dpi_import_export_declaration
 	if ($2) delete[] $2;
 	delete[] $6;
       }
-  | K_export STRING K_function IDENTIFIER ';'
-      { if ($2) delete[] $2;
+  | K_import STRING dpi_function_import_property_opt IDENTIFIER '=' K_function
+    data_type_or_implicit_or_void IDENTIFIER
+      { assert(current_function == 0);
+	current_function = pform_push_function_scope(@6, $8, LexicalScope::INHERITED);
+      }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($10);
+	current_function->set_return($7);
+	current_function->set_dpi_import($4);
+	pform_pop_scope();
+	current_function = 0;
+	if ($2) delete[] $2;
 	delete[] $4;
+	delete[] $8;
+      }
+  | K_import STRING dpi_function_import_property_opt K_task IDENTIFIER
+      { assert(current_task == 0);
+	if ($3) yyerror(@4, "error: A DPI import task cannot be declared "
+			    "pure (IEEE1800-2017 35.4).");
+	current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+      }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	current_task->set_dpi_import($5);
+	pform_pop_scope();
+	current_task = 0;
+	if ($2) delete[] $2;
+	delete[] $5;
+      }
+  | K_import STRING dpi_function_import_property_opt IDENTIFIER '=' K_task IDENTIFIER
+      { assert(current_task == 0);
+	if ($3) yyerror(@6, "error: A DPI import task cannot be declared "
+			    "pure (IEEE1800-2017 35.4).");
+	current_task = pform_push_task_scope(@6, $7, LexicalScope::INHERITED);
+      }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($9);
+	current_task->set_dpi_import($4);
+	pform_pop_scope();
+	current_task = 0;
+	if ($2) delete[] $2;
+	delete[] $4;
+	delete[] $7;
+      }
+  | K_export STRING K_function IDENTIFIER ';'
+      { cerr << @1 << ": sorry: export \"DPI-C\" function is not yet "
+	     << "supported; calls from C to '" << $4
+	     << "' will not link." << endl;
+	if ($2) delete[] $2;
+	delete[] $4;
+      }
+  | K_export STRING IDENTIFIER '=' K_function IDENTIFIER ';'
+      { cerr << @1 << ": sorry: export \"DPI-C\" function is not yet "
+	     << "supported; calls from C to '" << $6
+	     << "' will not link." << endl;
+	if ($2) delete[] $2;
+	delete[] $3;
+	delete[] $6;
+      }
+  | K_export STRING K_task IDENTIFIER ';'
+      { cerr << @1 << ": sorry: export \"DPI-C\" task is not yet "
+	     << "supported; calls from C to '" << $4
+	     << "' will not link." << endl;
+	if ($2) delete[] $2;
+	delete[] $4;
+      }
+  | K_export STRING IDENTIFIER '=' K_task IDENTIFIER ';'
+      { cerr << @1 << ": sorry: export \"DPI-C\" task is not yet "
+	     << "supported; calls from C to '" << $6
+	     << "' will not link." << endl;
+	if ($2) delete[] $2;
+	delete[] $3;
+	delete[] $6;
       }
   ;
 

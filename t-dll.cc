@@ -2603,6 +2603,12 @@ void dll_target::scope(const NetScope*net)
 		      const NetTaskDef*def = net->task_def();
 		      scop->type_ = IVL_SCT_TASK;
 		      scop->tname_ = def ? def->scope()->basename() : net->basename();
+		      if (const PTask*ptask = net->task_pform()) {
+			    if (ptask->is_dpi_import()) {
+				  scop->is_dpi_import = true;
+				  scop->dpi_c_name = ptask->dpi_c_name().c_str();
+			    }
+		      }
 		      break;
 		}
 		case NetScope::FUNC:

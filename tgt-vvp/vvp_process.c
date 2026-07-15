@@ -4086,11 +4086,24 @@ int draw_process(ivl_process_t net, void*x)
       return rc;
 }
 
+static void draw_dpi_func_body(ivl_scope_t scope, int is_task);
+
 int draw_task_definition(ivl_scope_t scope)
 {
       int rc = 0;
       ivl_statement_t def = ivl_scope_def(scope);
       const char*label = vvp_mangle_id(ivl_scope_name(scope));
+
+	/* A DPI import task has no pform body; synthesize the
+	   marshaling body instead. */
+      if (ivl_scope_is_dpi_import(scope)) {
+	    fprintf(vvp_out, "TD_%s ;\n", label);
+	    note_td_definition(label);
+	    draw_dpi_func_body(scope, 1);
+	    fprintf(vvp_out, "    %%end;\n");
+	    thread_count += 1;
+	    return 0;
+      }
 
       if (def == 0)
 	    return 0;
@@ -4119,12 +4132,16 @@ int draw_task_definition(ivl_scope_t scope)
  * the call is not emitted — the body pushes a zero/empty result so
  * simulation can proceed deterministically.
  */
-static void draw_dpi_func_body(ivl_scope_t scope)
+static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 {
       const char*c_name = ivl_scope_dpi_c_name(scope);
       unsigned nports = ivl_scope_ports(scope);
-      unsigned ncp = (nports > 0) ? (nports - 1) : 0;
-      ivl_variable_type_t rtype = ivl_scope_func_type(scope);
+	/* Function port 0 is the return value; task ports are all
+	   arguments. */
+      unsigned first_port = is_task ? 0 : 1;
+      unsigned ncp = (nports >= first_port) ? (nports - first_port) : 0;
+      ivl_variable_type_t rtype = is_task ? IVL_VT_VOID
+                                          : ivl_scope_func_type(scope);
       unsigned rwid = (rtype == IVL_VT_LOGIC || rtype == IVL_VT_BOOL)
                     ? ivl_scope_func_width(scope) : 0;
       int unsupported = 0;
@@ -4148,7 +4165,7 @@ static void draw_dpi_func_body(ivl_scope_t scope)
 	    unsupported = 1;
       }
 
-      for (unsigned ii = 1; !unsupported && ii <= ncp; ii += 1) {
+      for (unsigned ii = first_port; !unsupported && ii < nports; ii += 1) {
 	    ivl_signal_t port = ivl_scope_port(scope, ii);
 	    ivl_variable_type_t ptype = ivl_signal_data_type(port);
 	    unsigned pwid = ivl_signal_width(port);
@@ -4267,7 +4284,7 @@ int draw_func_definition(ivl_scope_t scope)
       note_td_definition(label);
 
       if (ivl_scope_is_dpi_import(scope)) {
-	    draw_dpi_func_body(scope);
+	    draw_dpi_func_body(scope, 0);
       } else {
 	    rc += show_statement(def, scope);
       }
