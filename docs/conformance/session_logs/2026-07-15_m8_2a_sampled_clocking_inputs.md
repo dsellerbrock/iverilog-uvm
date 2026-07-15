@@ -265,3 +265,47 @@ semantics.
 
 The WIP commit (M8-2b buffered output drives) is hereby promoted —
 regression-clean.
+
+## 2c: cycle-delayed clocking drives `cb.out <= ##N v` (14.16)
+
+Previously a syntax error. New grammar rules
+(`lpvalue K_LE K_CYCLE_DELAY delay_value_simple expression` and the
+`##(expr)` form; bison conflict counts unchanged at 458 s/r,
+1053 r/r) lower the drive at parse time via
+pform_make_clocking_drive to the EXISTING intra-assignment
+repeat-event shape:
+
+    lval <= repeat (N) @(<clocking prefix of lval>) v;
+
+which has exactly the right semantics for free: the value is
+captured when the statement executes; the update fires after N
+occurrences of the clocking event; overlapping in-flight drives are
+independent (each NBA event carries its own captured value;
+last-wins only when landing at the same event); and the @(cb) event
+control goes through the clocking machinery — including the
+sampler-trigger redirect — so the landing is ordered after that
+event's input sampling (post-NBA, Re-NBA-like timing), consistent
+with 2b's plain drives.
+
+Limitation (diagnosed sorry, recorded): the scalar default-clocking
+form `x <= ##N v` needs default-clocking resolution at elaboration
+time; only the clockvar-prefix form is lowered.
+
+Test: tests/m8_clocking_cycle_drive_test.sv — ##1 lands at the next
+edge (not immediately), ##2 two edges out, RHS captured at issue
+time (later RHS changes don't affect the in-flight drive), two
+overlapping ##2 drives land independently at their own edges.
+
+## Promotion evidence (2c)
+
+- UVM harness: **141 passed / 0 failed / 0 skipped, zero "(no-check)"
+  entries** (140 prior + tests/m8_clocking_cycle_drive_test.sv).
+- ivtest (shim PATH): Total=2559 Passed=2457 Failed=99 — failure
+  names BYTE-IDENTICAL to fails_baseline.txt (empty diff).
+- Negative suite 12/12; focused battery 13/13.
+
+The WIP commit (M8-2c cycle-delayed drives) is hereby promoted —
+regression-clean. M8 increment 2 status: 2a (input sampling, all
+paths), 2b (output drives), 2c (##N drives) COMPLETE; 2d (skew
+application, clocking_decl_assign, global clocking 14.14/G59) is the
+remaining tail, plus the recorded fall-through corners.

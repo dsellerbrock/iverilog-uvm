@@ -73,14 +73,29 @@ the investigation. Update at every meaningful checkpoint.
   codegen segfaulted on the dangling pointer. Tests:
   m8_vif_clocking_sample_test.sv, negative
   m8_vif_clocking_input_write.sv (suite 12/12).
-- **M8-2 remaining (next)**: 2b synchronous output drives (Re-NBA;
-  output clockvars currently alias), 2c `cb.sig <= ##N v`
-  cycle-delayed drives, 2d skew application + clocking_decl_assign +
-  global clocking (14.14/G59). Recorded 2a limitations: explicit
-  input skew values ignored (default #1step applied); real/string/
-  array clocking inputs keep alias (sorry at elab); force tracks
-  driven value; @(cb) from a scope elaborated BEFORE the defining
-  instance falls back to the raw event (alias-era behavior).
+- **M8-2b LANDED AND PROMOTED** (UVM 140/140 zero no-check, ivtest
+  empty diff): buffered output clockvar drives per 14.16 —
+  `_ivl_obuf$`/`_ivl_opend$` vars per output, PAssignNB transform
+  with the tick-history "did the event occur this step" test (drive
+  now after @(cb), buffer between events), synthesized apply process
+  at the trigger (Re-NBA-like timing), last-drive-wins. Fall-throughs
+  to alias (recorded): vif.cb.out drives, part-select drives,
+  unsampleable signals.
+- **M8-2c LANDED (sweeps running)**: `cb.out <= ##N v` parses and
+  lowers at parse time (pform_make_clocking_drive) to
+  `lval <= repeat(N) @(cb-prefix) v` — value captured at issue,
+  landing at the Nth clocking event via the trigger redirect,
+  independent overlapping drives. Sorry (recorded): scalar
+  default-clocking form `x <= ##N v`.
+- **M8-2 remaining (next)**: 2d skew application (explicit input
+  skew values e.g. #2 sample windows, output skew delays; default
+  #1step/#0 are what 2a/2b implement), clocking_decl_assign, global
+  clocking (14.14/G59), vif.cb.out buffered drives
+  (preponed-through-property mechanism), default-clocking scalar
+  `x <= ##N v`. Recorded 2a limitations: real/string/array clocking
+  signals keep alias (sorry at elab); force tracks driven value;
+  @(cb) from a scope elaborated BEFORE the defining instance falls
+  back to the raw event (alias-era behavior).
   Sweep procedure reminder: UVM harness and ivtest MUST run with
   PATH=/home/user/iverilog-install/bin (or ivtest shim) prefixed;
   `which iverilog` otherwise finds nothing and everything
