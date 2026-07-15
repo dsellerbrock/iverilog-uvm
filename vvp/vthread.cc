@@ -2569,6 +2569,9 @@ static void covgrp_bump_count_(vvp_cobject*cobj, unsigned prop)
 	    if (count & (1u << b))
 		  newval.set_bit(b, BIT4_1);
       cobj->set_vec4(prop, newval);
+	// M11: type-level (merged across instances) counter, feeding
+	// get_coverage()/$get_coverage and the coverage report.
+      cobj->get_defn()->type_bump(prop);
 }
 
 // One record's value predicate ('kind & 8' = wildcard).
@@ -2809,6 +2812,52 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 	    covgrp_bump_count_(cobj, dp.first);
       }
 
+      return true;
+}
+
+/* %covgrp/start and %covgrp/stop (19.8.1): per-instance sampling
+ * enable.  Stack on entry: obj-stack top = cg_obj. */
+bool of_COVGRP_START(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+	    cobj->set_cov_enabled(true);
+      return true;
+}
+
+bool of_COVGRP_STOP(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+	    cobj->set_cov_enabled(false);
+      return true;
+}
+
+/* %covgrp/get_coverage — TYPE coverage: the per-item weighted model
+ * computed over the counters merged across all instances of this
+ * covergroup type. */
+bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      double result = 0.0;
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+	    result = cobj->get_defn()->type_coverage();
+      thr->push_real(result);
+      return true;
+}
+
+/* %covgrp/get_all — $get_coverage (19.9): the mean of the type
+ * coverage over all covergroup types in the design. */
+bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
+{
+      const std::vector<const class_type*>&reg = class_type::covgrp_registry();
+      double sum = 0.0;
+      for (const class_type*ct : reg)
+	    sum += ct->type_coverage();
+      thr->push_real(reg.empty() ? 100.0 : sum / (double)reg.size());
       return true;
 }
 

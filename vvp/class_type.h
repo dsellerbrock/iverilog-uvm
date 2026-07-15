@@ -161,9 +161,24 @@ class class_type : public __vpiHandle {
       const cov_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
       bool is_covergroup() const { return !covgrp_bins_.empty(); }
 
+	// M11: TYPE-level (merged across all instances) hit counters
+	// indexed by counter property, and the type coverage computed
+	// from them with the same per-item weighted model as instance
+	// coverage.
+      void type_bump(unsigned prop) const;
+      uint32_t type_count(unsigned prop) const;
+      double type_coverage() const;
+
+	// M11: registry of covergroup types for $get_coverage and the
+	// end-of-simulation report.
+      static const std::vector<const class_type*>& covgrp_registry();
+      static void covgrp_register(const class_type*ct);
+      static void covgrp_report(FILE*fd);
+
     private:
       std::vector<cov_bin_t> covgrp_bins_;
       std::vector<cov_item_t> covgrp_items_;
+      mutable std::vector<uint32_t> type_counts_;
 };
 
 const class_type* class_type_from_dispatch_prefix(const std::string&prefix);

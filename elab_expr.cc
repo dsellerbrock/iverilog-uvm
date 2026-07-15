@@ -7748,6 +7748,19 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			  }
 		    }
 
+		    // M11: covergroup get_coverage(): TYPE coverage — the
+		    // cumulative merge across all instances (19.8/19.11).
+		    if (method_name == perm_string::literal("get_coverage")) {
+			  if (class_type && class_type->is_covergroup()) {
+				NetESFunc*sys = new NetESFunc(
+					"$ivl_class_method$covgrp_get_coverage",
+					&netreal_t::type_real, 1);
+				sys->set_line(*this);
+				sys->parm(0, sub_expr);
+				return sys;
+			  }
+		    }
+
 		    NetScope*method = class_type->resolve_method_call_scope(des, method_name);
 		    if (method == 0) {
 			  // Handle randomize() as a real built-in: emit %randomize opcode

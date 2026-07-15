@@ -41,6 +41,7 @@ const char COPYRIGHT[] =
 #endif
 
 #include "libvvp.h"
+#include "class_type.h"
 
 using namespace std;
 
@@ -403,6 +404,23 @@ int vvp_run(const char *design_path)
 
 
       schedule_simulate();
+
+	// M11: end-of-simulation functional coverage report. Write to
+	// the file named by IVL_COVERAGE_REPORT ("-" for stderr) when
+	// any covergroup types exist.
+      if (const char*cov_path = getenv("IVL_COVERAGE_REPORT")) {
+	    if (! class_type::covgrp_registry().empty()) {
+		  FILE*fd = (strcmp(cov_path, "-") == 0)
+			? stderr : fopen(cov_path, "w");
+		  if (fd) {
+			class_type::covgrp_report(fd);
+			if (fd != stderr) fclose(fd);
+		  } else {
+			fprintf(stderr, "Warning: cannot open coverage "
+				"report file '%s'\n", cov_path);
+		  }
+	    }
+      }
 
       if (verbose_flag) {
 	    my_getrusage(cycles+2);

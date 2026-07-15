@@ -369,6 +369,25 @@ static void draw_sfunc_real(ivl_expr_t expr)
 	    return;
       }
 
+      /* M11: covergroup TYPE coverage (merge across instances). */
+      if (ivl_expr_value(expr) == IVL_VT_REAL &&
+          strcmp(ivl_expr_name(expr),
+                 "$ivl_class_method$covgrp_get_coverage") == 0) {
+	    ivl_expr_t obj_arg = (ivl_expr_parms(expr) > 0)
+				  ? ivl_expr_parm(expr, 0) : 0;
+	    if (obj_arg) draw_eval_object(obj_arg);
+	    fprintf(vvp_out, "    %%covgrp/get_coverage;\n");
+	    return;
+      }
+
+      /* M11: $get_coverage — overall coverage over all covergroup
+       * types (19.9). */
+      if (ivl_expr_value(expr) == IVL_VT_REAL &&
+          strcmp(ivl_expr_name(expr), "$get_coverage") == 0) {
+	    fprintf(vvp_out, "    %%covgrp/get_all;\n");
+	    return;
+      }
+
       switch (ivl_expr_value(expr)) {
 
 	  case IVL_VT_REAL:

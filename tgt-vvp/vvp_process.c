@@ -3452,6 +3452,17 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+      /* M11: covergroup start()/stop() — per-instance sampling enable. */
+      if (strcmp(stmt_name, "$ivl_class_method$covgrp_start") == 0
+	  || strcmp(stmt_name, "$ivl_class_method$covgrp_stop") == 0) {
+	    ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
+	    if (obj_arg) draw_eval_object(obj_arg);
+	    fprintf(vvp_out, "    %%covgrp/%s;\n",
+		    strcmp(stmt_name, "$ivl_class_method$covgrp_start") == 0
+			  ? "start" : "stop");
+	    return 0;
+      }
+
       show_stmt_file_line(net, "System task call.");
 
       draw_vpi_task_call(net);

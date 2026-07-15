@@ -6967,15 +6967,34 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			}
 		  }
 
-		  // Covergroup get_inst_coverage(): handled in elab_expr.cc.
-		  // For task context (e.g. void'(cg.get_inst_coverage())), emit noop.
-		  if (method_name == perm_string::literal("get_inst_coverage")) {
+		  // Covergroup get_inst_coverage()/get_coverage(): handled in
+		  // elab_expr.cc. For task context, emit noop.
+		  if (method_name == perm_string::literal("get_inst_coverage")
+		      || method_name == perm_string::literal("get_coverage")) {
 			const netclass_t*cgtype = dynamic_cast<const netclass_t*>(obj_type);
 			if (cgtype && cgtype->is_covergroup()) {
 			      delete obj_expr;
 			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			      noop->set_line(*this);
 			      return noop;
+			}
+		  }
+
+		  // M11: covergroup start()/stop() — per-instance sampling
+		  // enable (19.8.1).
+		  if (method_name == perm_string::literal("start")
+		      || method_name == perm_string::literal("stop")) {
+			const netclass_t*cgtype = dynamic_cast<const netclass_t*>(obj_type);
+			if (cgtype && cgtype->is_covergroup()) {
+			      vector<NetExpr*> argv;
+			      argv.push_back(obj_expr);
+			      NetSTask* sys = new NetSTask(
+				    method_name == perm_string::literal("start")
+					  ? "$ivl_class_method$covgrp_start"
+					  : "$ivl_class_method$covgrp_stop",
+				    IVL_SFUNC_AS_TASK_IGNORE, argv);
+			      sys->set_line(*this);
+			      return sys;
 			}
 		  }
 
@@ -12794,14 +12813,96 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  unsigned item_idx = cp_idx + cross_no;
 			  cg_class->add_covgrp_item(x_at_least, x_weight, true);
 
-			  if (!cross.bins.empty()) {
-				cerr << "sorry: named cross bins (binsof) on cross '"
-				     << (cross.label.nil() ? "(unnamed)"
-							   : cross.label.str())
-				     << "' are not yet implemented; only the "
-				     << "automatic cartesian bins are collected."
-				     << endl;
+			    // M11-3: named cross bins — per product
+			    // tuple, evaluate each user bin's binsof
+			    // select.  ignore bins carve tuples out;
+			    // illegal bins collect tuples under an
+			    // error-firing counter; normal bins collect
+			    // them under one counter; unselected tuples
+			    // fall back to automatic per-tuple bins.
+			  typedef class_type_t::pform_cross_t::cross_bin_t xbin_t;
+			  typedef class_type_t::pform_cross_t::select_t sel_t;
+			  std::vector<unsigned> ubin_props(cross.bins.size(),
+							   netclass_t::COVGRP_NO_PROP);
+			  std::vector<unsigned> ubin_tuples(cross.bins.size(), 0);
+			  std::vector<bool> ubin_sorried(cross.bins.size(), false);
+			  for (size_t ub = 0; ub < cross.bins.size(); ub++) {
+				xbin_t&cb = cross.bins[ub];
+				if (cb.kind == xbin_t::BIN_IGNORE)
+				      continue;
+				std::string pn = std::string("__xbin_")
+					+ (cross.label.nil() ? std::string("auto")
+							     : std::string(cross.label.str()))
+					+ "_" + std::string(cb.name.str());
+				perm_string bpp = lex_strings.make(pn.c_str());
+				cg_class->set_property(bpp,
+					property_qualifier_t::make_none(),
+					&netvector_t::atom2s32);
+				ubin_props[ub] = prop_idx++;
 			  }
+
+			  std::function<int(sel_t*, const std::vector<unsigned>&)> eval_sel =
+			      [&](sel_t*s, const std::vector<unsigned>&tup) -> int {
+				if (!s) return -1;
+				switch (s->op) {
+				    case sel_t::SEL_AND: {
+					  int sa = eval_sel(s->a, tup);
+					  int sb = eval_sel(s->b, tup);
+					  if (sa < 0 || sb < 0) return -1;
+					  return (sa && sb) ? 1 : 0;
+				    }
+				    case sel_t::SEL_OR: {
+					  int sa = eval_sel(s->a, tup);
+					  int sb = eval_sel(s->b, tup);
+					  if (sa < 0 || sb < 0) return -1;
+					  return (sa || sb) ? 1 : 0;
+				    }
+				    case sel_t::SEL_NOT: {
+					  int sa = eval_sel(s->a, tup);
+					  if (sa < 0) return -1;
+					  return sa ? 0 : 1;
+				    }
+				    case sel_t::SEL_BINSOF: {
+					  int k = -1;
+					  for (size_t i = 0; i < cross.cp_labels.size(); i++)
+						if (cross.cp_labels[i] == s->cp_name) {
+						      k = (int)i;
+						      break;
+						}
+					  if (k < 0) return -1;
+					  const xbin_desc_t&d =
+						cp_value_bins[cp_indexes[k]][tup[k]];
+					  if (!s->bin_name.nil()) {
+						std::string dn = d.name.str();
+						std::string bn = s->bin_name.str();
+						bool nm = (dn == bn)
+						    || (dn.size() > bn.size()
+							&& dn.compare(0, bn.size(), bn) == 0
+							&& dn[bn.size()] == '[');
+						if (!nm) return 0;
+					  }
+					  if (!s->intersect_ranges.empty()) {
+						std::vector<std::pair<uint64_t,uint64_t>> irr;
+						if (!eval_ranges(s->intersect_ranges, irr))
+						      return -1;
+						bool overlap = false;
+						for (auto&ra : d.ranges) {
+						      for (auto&rb : irr) {
+							    if (ra.first <= rb.second
+								&& rb.first <= ra.second) {
+								  overlap = true;
+								  break;
+							    }
+						      }
+						      if (overlap) break;
+						}
+						if (!overlap) return 0;
+					  }
+					  return 1;
+				    }
+				}
+				return -1;
+			  };
 
 			    // Product count check.
 			  uint64_t nprod = 1;
@@ -12820,63 +12921,111 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				continue;
 			  }
 
+			  std::map<unsigned, unsigned> prop_tuple_next;
 			  std::vector<unsigned> idx(cp_indexes.size(), 0);
 			  bool done = false;
 			  while (!done) {
-				std::string bpname = std::string("__xbin_");
-				bpname += cross.label.nil()
-					    ? std::string("auto")
-					    : std::string(cross.label.str());
-				for (size_t k = 0; k < idx.size(); k++) {
-				      bpname += "_";
-				      bpname += std::to_string(idx[k]);
+				  // Route this product tuple: ignore user
+				  // bins carve it out; a matching illegal
+				  // user bin takes precedence; matching
+				  // normal user bins each collect it; and
+				  // with no user match it gets its own
+				  // automatic bin.
+				bool skip_tuple = false;
+				std::vector<std::pair<unsigned,unsigned>> targets;
+				bool got_illegal = false;
+				for (size_t ub = 0; ub < cross.bins.size(); ub++) {
+				      xbin_t&cb = cross.bins[ub];
+				      int m = eval_sel(cb.select, idx);
+				      if (m < 0) {
+					    if (!ubin_sorried[ub]) {
+						  cerr << "sorry: cross bin '" << cb.name
+						       << "' uses a binsof select form "
+						       << "that could not be evaluated; "
+						       << "the bin selects nothing."
+						       << endl;
+						  ubin_sorried[ub] = true;
+					    }
+					    continue;
+				      }
+				      if (!m) continue;
+				      if (cb.kind == xbin_t::BIN_IGNORE) {
+					    skip_tuple = true;
+					    break;
+				      }
+				      if (cb.kind == xbin_t::BIN_ILLEGAL) {
+					    targets.clear();
+					    targets.push_back(std::make_pair(ubin_props[ub], 2u));
+					    got_illegal = true;
+					    break;
+				      }
+				      targets.push_back(std::make_pair(ubin_props[ub], 0u));
 				}
-				perm_string bpp = lex_strings.make(bpname.c_str());
-				cg_class->set_property(bpp,
-				      property_qualifier_t::make_none(),
-				      &netvector_t::atom2s32);
+				(void)got_illegal;
 
-				  // Tuples: cartesian product of the
-				  // contributing bins' RANGES, so multi-
-				  // range bins OR correctly inside the
-				  // AND across coverpoints.
-				std::vector<size_t> rsizes(idx.size());
-				uint64_t nrt = 1;
-				for (size_t k = 0; k < idx.size(); k++) {
-				      const xbin_desc_t&d =
-					    cp_value_bins[cp_indexes[k]][idx[k]];
-				      rsizes[k] = d.ranges.size() ? d.ranges.size() : 1;
-				      nrt *= rsizes[k];
-				}
-				if (nrt > 256) {
-				      cerr << "sorry: a cross product bin of '"
-					   << (cross.label.nil() ? "(unnamed)"
-								 : cross.label.str())
-					   << "' spans " << nrt << " range tuples "
-					   << "(limit 256); the product bin never "
-					   << "matches." << endl;
-				      nrt = 0;
-				}
-				std::vector<size_t> ridx(idx.size(), 0);
-				for (uint64_t t = 0; t < nrt; t++) {
+				if (!skip_tuple) {
+				      if (targets.empty()) {
+					    std::string bpname = std::string("__xbin_");
+					    bpname += cross.label.nil()
+							? std::string("auto")
+							: std::string(cross.label.str());
+					    for (size_t k = 0; k < idx.size(); k++) {
+						  bpname += "_";
+						  bpname += std::to_string(idx[k]);
+					    }
+					    perm_string bpp = lex_strings.make(bpname.c_str());
+					    cg_class->set_property(bpp,
+						  property_qualifier_t::make_none(),
+						  &netvector_t::atom2s32);
+					    targets.push_back(std::make_pair(prop_idx, 0u));
+					    prop_idx++;
+				      }
+
+					// Tuples: cartesian product of the
+					// contributing bins' RANGES, so
+					// multi-range bins OR correctly
+					// inside the AND across coverpoints.
+				      std::vector<size_t> rsizes(idx.size());
+				      uint64_t nrt = 1;
 				      for (size_t k = 0; k < idx.size(); k++) {
 					    const xbin_desc_t&d =
 						  cp_value_bins[cp_indexes[k]][idx[k]];
-					    if (d.ranges.empty()) continue;
-					    auto&r = d.ranges[ridx[k]];
-					    unsigned kv = d.wildcard ? 8u : 0u;
-					    cg_class->add_covgrp_bin(cp_indexes[k],
-						  prop_idx, r.first, r.second,
-						  kv, (unsigned)t, item_idx);
+					    rsizes[k] = d.ranges.size() ? d.ranges.size() : 1;
+					    nrt *= rsizes[k];
 				      }
-					// advance mixed-radix ridx
-				      for (size_t k = 0; k < ridx.size(); k++) {
-					    ridx[k]++;
-					    if (ridx[k] < rsizes[k]) break;
-					    ridx[k] = 0;
+				      if (nrt > 256) {
+					    cerr << "sorry: a cross product bin of '"
+						 << (cross.label.nil() ? "(unnamed)"
+								       : cross.label.str())
+						 << "' spans " << nrt << " range tuples "
+						 << "(limit 256); the product bin never "
+						 << "matches." << endl;
+					    nrt = 0;
+				      }
+				      for (auto&tgt : targets) {
+					    std::vector<size_t> ridx(idx.size(), 0);
+					    for (uint64_t t = 0; t < nrt; t++) {
+						  unsigned tup = prop_tuple_next[tgt.first]++;
+						  for (size_t k = 0; k < idx.size(); k++) {
+							const xbin_desc_t&d =
+							      cp_value_bins[cp_indexes[k]][idx[k]];
+							if (d.ranges.empty()) continue;
+							auto&r = d.ranges[ridx[k]];
+							unsigned kv = tgt.second
+							    | (d.wildcard ? 8u : 0u);
+							cg_class->add_covgrp_bin(cp_indexes[k],
+							      tgt.first, r.first, r.second,
+							      kv, tup, item_idx);
+						  }
+						    // advance mixed-radix ridx
+						  for (size_t k = 0; k < ridx.size(); k++) {
+							ridx[k]++;
+							if (ridx[k] < rsizes[k]) break;
+							ridx[k] = 0;
+						  }
+					    }
 				      }
 				}
-				prop_idx++;
 
 				size_t k = 0;
 				while (k < idx.size()) {

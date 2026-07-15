@@ -197,6 +197,12 @@ class data_type_t : public PNamedItem {
 
 struct typedef_t : public PNamedItem {
       explicit typedef_t(perm_string n) : basic_type(ANY), name(n) { };
+	// M11: the pform is process-lifetime and data_type_t objects
+	// are freely shared (comma declarations, typedef aliases, base
+	// types), so exit-time teardown must NOT delete through this
+	// handle — double ownership was corrupting the heap during
+	// Module destruction. Release instead (deliberate exit leak).
+      ~typedef_t() override { data_type.release(); }
 
       ivl_type_t elaborate_type(Design*des, NetScope*scope);
 
@@ -438,6 +444,12 @@ struct class_type_t : public data_type_t {
 	    inline prop_info_t(property_qualifier_t q, data_type_t*t) : qual(q), type(t) { }
 	    prop_info_t(prop_info_t&&) = default;
 	    prop_info_t& operator=(prop_info_t&&) = default;
+	      // M11: one data_type_t is shared by every declarator of
+	      // a comma property list (`int a, b;`) and may also be
+	      // owned by a typedef — exit-time deletion through this
+	      // handle double-freed. Release instead (deliberate exit
+	      // leak; the pform lives for the whole process anyway).
+	    ~prop_info_t() { type.release(); }
 	    property_qualifier_t qual;
 	    std::unique_ptr<data_type_t> type;
       };
