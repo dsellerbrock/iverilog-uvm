@@ -7409,6 +7409,19 @@ static void dpi_push_int64(vthread_t thr, int64_t val, unsigned wid)
       thr->push_vec4(res);
 }
 
+// Inverse of dpi_pop_logic_: decode an svLogic byte to a 1-bit vec4.
+static void dpi_push_logic_(vthread_t thr, int64_t val)
+{
+      vvp_bit4_t bit = BIT4_X;
+      switch (val & 3) {
+	  case 0: bit = BIT4_0; break;
+	  case 1: bit = BIT4_1; break;
+	  case 2: bit = BIT4_Z; break;
+	  case 3: bit = BIT4_X; break;
+      }
+      thr->push_vec4(vvp_vector4_t(1, bit));
+}
+
 // C4 (Phase 62k): split "name|types" packed in cp->text.  Returns pointer
 // to types string ("" if no types embedded) and writes the bare name
 // into name_buf.  When types is empty/missing, callers default to the
@@ -7486,6 +7499,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    vvp_dpi_arg_t&arg = args[slot];
 	    arg.type = sig[slot].base;
 	    arg.is_unsigned = sig[slot].is_unsigned;
+	    arg.is_output = sig[slot].is_output;
 	    arg.ival = 0;
 	    arg.rval = 0.0;
 	    arg.sval = 0;
@@ -7523,6 +7537,9 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			 &ret_i, &ret_r, &ret_s);
       }
 
+	// Push the return value FIRST: the synthesized body pops the
+	// output-arg values (pushed above it) with %store opcodes,
+	// leaving the return value on top for %ret (which peeks).
       switch (ret_type) {
 	  case 'i':
 	  case 'l':
@@ -7536,6 +7553,25 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    break;
 	  default:
 	    break;
+      }
+
+	// Push output/inout values back (in argument order) so the
+	// synthesized body can store them into the port variables in
+	// reverse order (the standard call machinery then copies them
+	// out to the caller's actual lvalues).
+      for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
+	    if (! args[ii].is_output)
+		  continue;
+	    switch (args[ii].type) {
+		case 'b': dpi_push_int64(thr, args[ii].ival, 8);  break;
+		case 'h': dpi_push_int64(thr, args[ii].ival, 16); break;
+		case 'i': dpi_push_int64(thr, args[ii].ival, 32); break;
+		case 'l': dpi_push_int64(thr, args[ii].ival, 64); break;
+		case 'g': dpi_push_logic_(thr, args[ii].ival);    break;
+		case 'r': thr->push_real(args[ii].rval);          break;
+		case 's': thr->push_str(args[ii].sval ? args[ii].sval : "");
+			  break;
+	    }
       }
       return true;
 }

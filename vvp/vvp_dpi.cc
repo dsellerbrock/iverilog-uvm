@@ -56,11 +56,15 @@ void* vvp_dpi_find_symbol(const char*name)
  * sub-word extensions).
  */
 bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
-		  const vvp_dpi_arg_t*args, unsigned nargs,
+		  vvp_dpi_arg_t*args, unsigned nargs,
 		  int64_t*ret_i, double*ret_r, const char**ret_s)
 {
       vector<ffi_type*> atypes (nargs);
       vector<void*>     avalues(nargs);
+	// For output arguments the ffi argument is a POINTER to the
+	// typed scratch slot, so the pointer itself needs stable
+	// storage too.
+      vector<void*>     optrs  (nargs);
 
 	// Stable, properly-typed storage for the by-value payloads that
 	// ffi_call reads through avalues[]. Typed union members keep the
@@ -117,6 +121,14 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 			  c_name, arg.type, idx+1);
 		  return false;
 	    }
+
+	      // Output/inout: the C parameter is a pointer to the
+	      // (seeded) typed slot; the callee writes through it.
+	    if (arg.is_output) {
+		  optrs[idx] = &vals[idx];
+		  atypes[idx] = &ffi_type_pointer;
+		  avalues[idx] = &optrs[idx];
+	    }
       }
 
       ffi_type*rtype = 0;
@@ -151,6 +163,37 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 
       ffi_call(&cif, FFI_FN(sym), &rbuf, nargs? &avalues[0] : 0);
 
+      for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
+	    if (! args[idx].is_output)
+		  continue;
+	    switch (args[idx].type) {
+		case 'b':
+		  args[idx].ival = args[idx].is_unsigned
+			? (int64_t)vals[idx].u8 : (int64_t)vals[idx].i8;
+		  break;
+		case 'h':
+		  args[idx].ival = args[idx].is_unsigned
+			? (int64_t)vals[idx].u16 : (int64_t)vals[idx].i16;
+		  break;
+		case 'i':
+		  args[idx].ival = args[idx].is_unsigned
+			? (int64_t)vals[idx].u32 : (int64_t)vals[idx].i32;
+		  break;
+		case 'l':
+		  args[idx].ival = vals[idx].i64;
+		  break;
+		case 'g':
+		  args[idx].ival = (int64_t)vals[idx].u8;
+		  break;
+		case 'r':
+		  args[idx].rval = vals[idx].dbl;
+		  break;
+		case 's':
+		  args[idx].sval = vals[idx].ptr;
+		  break;
+	    }
+      }
+
       switch (ret_type) {
 	  case 'i': *ret_i = (int32_t)rbuf.as_arg; break;
 	  case 'l': *ret_i = rbuf.as_i64;          break;
@@ -173,13 +216,23 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
  * behavior this fallback preserves for the UVM command-line helpers.)
  */
 bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
-		  const vvp_dpi_arg_t*args, unsigned nargs,
+		  vvp_dpi_arg_t*args, unsigned nargs,
 		  int64_t*ret_i, double*ret_r, const char**ret_s)
 {
       bool any_real = false, all_real = true;
+      bool any_real_output = false;
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
-	    if (args[idx].type == 'r') any_real = true;
+	    if (args[idx].type == 'r') {
+		  any_real = true;
+		  if (args[idx].is_output) any_real_output = true;
+	    }
 	    else                       all_real = false;
+      }
+      if (any_real_output) {
+	    fprintf(stderr, "DPI error: '%s': real output arguments need "
+		    "a libffi-enabled vvp build; skipping the call.\n",
+		    c_name);
+	    return false;
       }
 
       if (any_real && !all_real) {
@@ -228,10 +281,30 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 
 	// Non-real arguments: integers, logic scalars and strings all
 	// travel in pointer-width integer registers on the supported
-	// ABIs, so pass them uniformly as intptr_t.
+	// ABIs, so pass them uniformly as intptr_t. Output arguments
+	// pass a pointer to a typed scratch slot instead.
+      union scratch_t {
+	    int8_t  i8;  uint8_t  u8;
+	    int16_t i16; uint16_t u16;
+	    int32_t i32; uint32_t u32;
+	    int64_t i64;
+	    const char* ptr;
+      };
+      scratch_t oval[8];
+      memset(oval, 0, sizeof oval);
       intptr_t a[8] = {0};
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
-	    if (args[idx].type == 's')
+	    if (args[idx].is_output) {
+		  switch (args[idx].type) {
+		      case 'b': oval[idx].i8  = (int8_t)args[idx].ival;  break;
+		      case 'h': oval[idx].i16 = (int16_t)args[idx].ival; break;
+		      case 'i': oval[idx].i32 = (int32_t)args[idx].ival; break;
+		      case 'l': oval[idx].i64 = args[idx].ival;          break;
+		      case 'g': oval[idx].u8  = (uint8_t)args[idx].ival; break;
+		      case 's': oval[idx].ptr = args[idx].sval;          break;
+		  }
+		  a[idx] = (intptr_t)&oval[idx];
+	    } else if (args[idx].type == 's')
 		  a[idx] = (intptr_t)args[idx].sval;
 	    else
 		  a[idx] = (intptr_t)args[idx].ival;
@@ -270,6 +343,28 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 	  case 6: result = ((fn6_t)sym)(a[0],a[1],a[2],a[3],a[4],a[5]); break;
 	  case 7: result = ((fn7_t)sym)(a[0],a[1],a[2],a[3],a[4],a[5],a[6]); break;
 	  default: result = ((fn8_t)sym)(a[0],a[1],a[2],a[3],a[4],a[5],a[6],a[7]); break;
+      }
+
+      for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
+	    if (! args[idx].is_output)
+		  continue;
+	    switch (args[idx].type) {
+		case 'b':
+		  args[idx].ival = args[idx].is_unsigned
+			? (int64_t)oval[idx].u8 : (int64_t)oval[idx].i8;
+		  break;
+		case 'h':
+		  args[idx].ival = args[idx].is_unsigned
+			? (int64_t)oval[idx].u16 : (int64_t)oval[idx].i16;
+		  break;
+		case 'i':
+		  args[idx].ival = args[idx].is_unsigned
+			? (int64_t)oval[idx].u32 : (int64_t)oval[idx].i32;
+		  break;
+		case 'l': args[idx].ival = oval[idx].i64;          break;
+		case 'g': args[idx].ival = (int64_t)oval[idx].u8;  break;
+		case 's': args[idx].sval = oval[idx].ptr;          break;
+	    }
       }
 
       switch (ret_type) {
