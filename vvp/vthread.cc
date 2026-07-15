@@ -10398,6 +10398,25 @@ bool of_AA_VIV_SIG_V(vthread_t thr, vvp_code_t cp)
       return aa_viv_common_<vvp_vector4_t>(thr, assoc, cp->bit_idx[0]);
 }
 
+/* Object-KEYED vivification (class-typed assoc keys, e.g. the
+ * uvm_pool#(uvm_object, ...) chained-store shape): same protocol as
+ * the v/str forms with the key popped from the object stack. */
+bool of_AA_VIV_SIG_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_assoc_object*assoc =
+	    ensure_signal_assoc_<vvp_assoc_object>(thr, cp->net, "aa-viv-sig");
+      return aa_viv_common_<vvp_object_t>(thr, assoc, cp->bit_idx[0]);
+}
+
+bool of_AA_VIV_O_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_assoc_object*assoc =
+	    dynamic_cast<vvp_assoc_object*>(recv.peek<vvp_assoc_base>());
+      return aa_viv_common_<vvp_object_t>(thr, assoc, cp->number);
+}
+
 bool of_AA_VIV_SIG_STR(vthread_t thr, vvp_code_t cp)
 {
       vvp_assoc_object*assoc =
