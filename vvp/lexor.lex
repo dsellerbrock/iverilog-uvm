@@ -160,6 +160,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".class"        { return K_CLASS; }
 ".constraint"   { return K_CONSTRAINT_DEF; }
 ".covgrp_bin"   { return K_COVGRP_BIN; }
+".covgrp_item"  { return K_COVGRP_ITEM; }
 ".cmp/eeq"      { return K_CMP_EEQ; }
 ".cmp/eqx"      { return K_CMP_EQX; }
 ".cmp/eqz"      { return K_CMP_EQZ; }

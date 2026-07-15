@@ -62,6 +62,19 @@ class vvp_cobject : public vvp_object {
       void randc_mark(size_t pid, uint64_t val);
       uint64_t randc_period(size_t pid) const;
 
+	// M11: covergroup transition-bin progress state — active-
+	// position masks keyed by (prop_idx << 8) | seq_id.
+      uint64_t cov_trans_mask(uint64_t key) const {
+	    auto it = cov_trans_.find(key);
+	    return (it == cov_trans_.end()) ? 0 : it->second;
+      }
+      void set_cov_trans_mask(uint64_t key, uint64_t mask) {
+	    cov_trans_[key] = mask;
+      }
+	// M11: covergroup start()/stop() sampling enable.
+      bool cov_enabled() const { return cov_enabled_; }
+      void set_cov_enabled(bool f) { cov_enabled_ = f; }
+
     private:
       const class_type* defn_;
 	// For now, only support 32bit bool signed properties.
@@ -69,6 +82,8 @@ class vvp_cobject : public vvp_object {
       std::vector<bool> rand_mode_;
       std::vector<bool> constraint_mode_;
       std::map<size_t, std::vector<bool> > randc_history_;
+      std::map<uint64_t, uint64_t> cov_trans_;
+      bool cov_enabled_ = true;
 };
 
 #endif /* IVL_vvp_cobject_H */

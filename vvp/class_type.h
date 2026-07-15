@@ -124,22 +124,46 @@ class class_type : public __vpiHandle {
       std::vector<constraint_t> constraints_;
 
     public:
+	// M11: one predicate record of a coverage bin.  Records with
+	// the same (prop_idx, tuple) AND together; distinct tuples of
+	// one prop OR together.  item_idx groups props into coverage
+	// items (coverpoints, then crosses).
       struct cov_bin_t {
 	    unsigned cp_idx;
-	    unsigned prop_idx;
-	    uint64_t lo;
-	    uint64_t hi;
-	    // I1 (Phase 62o): 0=normal, 1=ignore, 2=illegal.
+	    unsigned prop_idx;   // 0xFFFFFFFF: no counter (ignore bins)
+	    uint64_t lo;         // wildcard: value
+	    uint64_t hi;         // wildcard: care mask
+	    // kind & 7: 0=normal, 1=ignore, 2=illegal, 3=default,
+	    //           4=transition step (tuple = (seq<<8)|step)
+	    // kind & 8: wildcard match ((v ^ lo) & hi == 0)
 	    unsigned kind = 0;
+	    unsigned tuple = 0;
+	    unsigned item_idx = 0;
       };
+      struct cov_item_t {
+	    unsigned at_least = 1;
+	    unsigned weight = 1;
+	    bool is_cross = false;
+      };
+      static const unsigned COV_NO_PROP = 0xFFFFFFFFu;
       void add_covgrp_bin(unsigned cp_idx, unsigned prop_idx, uint64_t lo, uint64_t hi,
-			  unsigned kind = 0);
+			  unsigned kind = 0, unsigned tuple = 0,
+			  unsigned item_idx = 0);
+      void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross)
+      { cov_item_t it;
+	it.at_least = at_least;
+	it.weight = weight;
+	it.is_cross = is_cross;
+	covgrp_items_.push_back(it); }
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
+      size_t covgrp_item_count() const { return covgrp_items_.size(); }
+      const cov_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
       bool is_covergroup() const { return !covgrp_bins_.empty(); }
 
     private:
       std::vector<cov_bin_t> covgrp_bins_;
+      std::vector<cov_item_t> covgrp_items_;
 };
 
 const class_type* class_type_from_dispatch_prefix(const std::string&prefix);

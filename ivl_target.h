@@ -2457,6 +2457,15 @@ extern uint64_t ivl_type_covgrp_bin_lo(ivl_type_t net, int idx);
 extern uint64_t ivl_type_covgrp_bin_hi(ivl_type_t net, int idx);
 /* I1 (Phase 62o): 0=normal counted bin, 1=ignore_bin (excluded), 2=illegal_bin (errors). */
 extern unsigned ivl_type_covgrp_bin_kind(ivl_type_t net, int idx);
+/* M11: tuple (AND-group id within a prop; tuples OR) and coverage
+ * item id (coverpoint or cross) of a bin record, plus the per-item
+ * option table (at_least/weight, cross flag). */
+extern unsigned ivl_type_covgrp_bin_tuple(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_bin_item(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_items(ivl_type_t net);
+extern unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx);
 
 
 #if defined(__MINGW32__) || defined (__CYGWIN__)

@@ -77,6 +77,48 @@ static PFunction* current_function = 0;
    covergroup action moves them to the pform_covergroup_t.  Non-static
    so pform_pclass.cc can drain it. */
 std::vector<class_type_t::pform_cross_t> pending_crosses_;
+/* M11: accumulators for covergroup-level and coverpoint-level option
+   assignments (option.name = expr / type_option.name = expr) and for
+   named cross-body bins.  Drained by the enclosing grammar actions. */
+std::map<perm_string, PExpr*> pending_cg_options_;
+static std::map<perm_string, PExpr*> pending_cp_options_;
+static std::vector<class_type_t::pform_cross_t::cross_bin_t> pending_cross_bins_;
+
+/* M11: convert an inside_range_list into cov-bin [lo,hi] PExpr pairs. */
+static void cov_bins_set_ranges_(class_type_t::pform_cov_bins_t*b,
+                                 std::list<inside_range_t>*lst)
+{
+      if (!lst) return;
+      for (auto& r : *lst) {
+	    if (r.is_range && r.lo && r.hi) {
+		  b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	    } else if (!r.is_range && r.hi) {
+		  b->ranges.push_back(std::make_pair(r.hi, r.hi));
+		  r.hi = nullptr;
+	    }
+      }
+      delete lst;
+}
+
+/* M11: record an option.name / type_option.name assignment. */
+static void cov_option_set_(std::map<perm_string, PExpr*>&dst,
+                            const struct vlltype&loc,
+                            char*obj, char*field, PExpr*val)
+{
+      if (strcmp(obj, "option") == 0) {
+	    dst[lex_strings.make(field)] = val;
+      } else if (strcmp(obj, "type_option") == 0) {
+	    std::string k = std::string("type_option.") + field;
+	    dst[lex_strings.make(k.c_str())] = val;
+      } else {
+	    cerr << loc.get_fileline() << ": sorry: covergroup item '"
+	         << obj << "." << field << " = ...' is not an option "
+	         << "assignment; ignored." << endl;
+	    delete val;
+      }
+      delete[] obj;
+      delete[] field;
+}
 /* Set by the last completed class task/function declaration so that the
    outer class_item rule can mark it virtual when K_virtual is present. */
 static PTaskFunc* recently_completed_class_method_ = 0;
@@ -1081,6 +1123,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       inside_range_t* irange;
       std::list<inside_range_t>* irange_list;
       class_type_t::pform_coverpoint_t* coverpoint;
+      std::pair<PExpr*,PExpr*>* cov_step;
+      std::vector<std::pair<PExpr*,PExpr*>>* cov_steps;
+      std::vector<std::vector<std::pair<PExpr*,PExpr*>>>* cov_seqs;
+      class_type_t::pform_cross_t::select_t* cross_sel;
       std::list<class_type_t::pform_coverpoint_t*>* coverpoints;
       class_type_t::pform_cov_bins_t* cov_bins;
       std::list<class_type_t::pform_cov_bins_t*>* cov_bins_list;
@@ -1300,6 +1346,12 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <coverpoints> covergroup_item_list covergroup_item_list_opt
 %type <cov_bins>    bins_item
 %type <cov_bins_list> bins_item_list bins_item_list_opt
+%type <int_val>     bins_keyword
+%type <expr>        coverpoint_iff_opt bins_with_opt
+%type <cov_step>    trans_step
+%type <cov_steps>   transition_list
+%type <cov_seqs>    transition_seq_list
+%type <cross_sel>   cross_bins_expr
 
 %type <expr>  constraint_expression constraint_block_item
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
@@ -2746,67 +2798,75 @@ covergroup_item_list
 
 /* Labeled coverpoint: "cp: coverpoint expr { ... }" */
 covergroup_item
-  : IDENTIFIER ':' K_coverpoint expression '{' bins_item_list_opt '}'
+  : IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = lex_strings.make($1);
 	cp->expr  = $4;
-	if ($6) {
-	      for (auto* b : *$6) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
-	      delete $6;
+	cp->iff_expr = $5;
+	if ($7) {
+	      for (auto* b : *$7) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $7;
 	}
+	cp->options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	delete[] $1;
 	$$ = cp;
       }
   /* Labeled coverpoint without bins block: "cp: coverpoint expr;" (auto-bins) */
-  | IDENTIFIER ':' K_coverpoint expression ';'
+  | IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt ';'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = lex_strings.make($1);
 	cp->expr  = $4;
+	cp->iff_expr = $5;
 	delete[] $1;
 	$$ = cp;
       }
   /* Unlabeled coverpoint: "coverpoint expr { ... }" */
-  | K_coverpoint expression '{' bins_item_list_opt '}'
+  | K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = perm_string::literal("cp");
 	cp->expr  = $2;
-	if ($4) {
-	      for (auto* b : *$4) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
-	      delete $4;
+	cp->iff_expr = $3;
+	if ($5) {
+	      for (auto* b : *$5) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $5;
 	}
+	cp->options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	$$ = cp;
       }
   /* Unlabeled coverpoint without bins block: "coverpoint expr;" (auto-bins) */
-  | K_coverpoint expression ';'
+  | K_coverpoint expression coverpoint_iff_opt ';'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = perm_string::literal("cp");
 	cp->expr  = $2;
+	cp->iff_expr = $3;
 	$$ = cp;
       }
-  /* option.foo = expr; and type_option.foo = expr; — silently accept */
+  /* option.foo = expr; and type_option.foo = expr; (covergroup level) */
   | IDENTIFIER '.' IDENTIFIER '=' expression ';'
-      { delete[] $1; delete[] $3; delete $5; $$ = nullptr; }
+      { cov_option_set_(pending_cg_options_, @1, $1, $3, $5); $$ = nullptr; }
   /* cross declaration.  I1 (Phase 62g): captures the contributing coverpoint
      names into pending_crosses_ for the surrounding covergroup to pick up.
-     Body items (illegal_bins / ignore_bins / bins) are still dropped — the
-     auto-bin generation in elaboration only handles the simple cartesian
-     product case for now. */
+     M11-3: named cross-body bins (binsof selects) are captured too. */
   | K_cross cross_item_list ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = perm_string();
 	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete $2;
 	$$ = nullptr; }
-  | K_cross cross_item_list '{' cross_body_opt '}'
+  | K_cross cross_item_list '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
 	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
-	pending_crosses_.push_back(std::move(cx));
-	delete $2;
-	$$ = nullptr; }
-  | K_cross cross_item_list '{' cross_body_opt '}' ';'
-      { class_type_t::pform_cross_t cx;
-	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete $2;
 	$$ = nullptr; }
@@ -2814,6 +2874,10 @@ covergroup_item
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1; delete $4;
 	$$ = nullptr; }
@@ -2821,40 +2885,52 @@ covergroup_item
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1.text);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1.text; delete $4;
 	$$ = nullptr; }
-  | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}'
+  | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1; delete $4;
 	$$ = nullptr; }
-  | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' ';'
-      { class_type_t::pform_cross_t cx;
-	cx.label = lex_strings.make($1);
-	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
-	pending_crosses_.push_back(std::move(cx));
-	delete[] $1; delete $4;
-	$$ = nullptr; }
-  | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}'
+  | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1.text);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1.text; delete $4;
 	$$ = nullptr; }
-  | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' ';'
-      { class_type_t::pform_cross_t cx;
-	cx.label = lex_strings.make($1.text);
-	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
-	pending_crosses_.push_back(std::move(cx));
-	delete[] $1.text; delete $4;
-	$$ = nullptr; }
-  /* Error recovery: skip unrecognized covergroup items */
+  /* Error recovery: skip unrecognized covergroup items LOUDLY (M11) */
   | error ';'
-      { yyerrok; $$ = nullptr; }
+      { cerr << @1 << ": sorry: unsupported covergroup item was "
+	     << "ignored (functional coverage for it is not collected)."
+	     << endl;
+	yyerrok; $$ = nullptr; }
+  ;
+
+semicolon_opt
+  :
+  | ';'
+  ;
+
+/* M11: optional iff (guard) on a coverpoint — gates sampling. */
+coverpoint_iff_opt
+  :                            { $$ = nullptr; }
+  | K_iff '(' expression ')'   { $$ = $3; }
   ;
 
 bins_item_list_opt
@@ -2881,142 +2957,110 @@ bins_name
   | K_default    { $$ = dup_cstr("default"); }
   ;
 
-/* "bins name = { [lo:hi], ... };" — also handles indexed [N] and with() forms */
+/* M11: one factored bins_item covering explicit/arrayed/wildcard/
+   default/transition bins with optional with() filters. Everything
+   unrecognized is a LOUD sorry, never a silent drop. */
+bins_keyword
+  : K_bins           { $$ = 0; }
+  | K_ignore_bins    { $$ = 1; }
+  | K_illegal_bins   { $$ = 2; }
+  ;
+
+bins_with_opt
+  :                                { $$ = nullptr; }
+  | K_with '(' expression ')'     { $$ = $3; }
+  ;
+
 bins_item
-  : K_bins bins_name '=' '{' inside_range_list '}' ';'
+  : bins_keyword bins_name '=' '{' inside_range_list '}' bins_with_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
-	for (auto& r : *$5) {
-	      if (r.is_range && r.lo && r.hi)
-		    b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	      else if (!r.is_range && r.hi) {
-		    PExpr* dup = r.hi;
-		    b->ranges.push_back(std::make_pair(dup, r.hi));
-		    r.hi = nullptr;
-	      }
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	cov_bins_set_ranges_(b, $5);
+	b->with_expr = $7;
+	delete[] $2;
+	$$ = b;
+      }
+  | K_wildcard bins_keyword bins_name '=' '{' inside_range_list '}' ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($3);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$2;
+	b->wildcard = true;
+	cov_bins_set_ranges_(b, $6);
+	delete[] $3;
+	$$ = b;
+      }
+  /* arrayed bins: name[] (one bin per value) and name[N] (N bins) */
+  | bins_keyword bins_name '[' ']' '=' '{' inside_range_list '}' bins_with_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	cov_bins_set_ranges_(b, $7);
+	b->with_expr = $9;
+	delete[] $2;
+	$$ = b;
+      }
+  | bins_keyword bins_name '[' expression ']' '=' '{' inside_range_list '}' bins_with_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->array_size = $4;
+	cov_bins_set_ranges_(b, $8);
+	b->with_expr = $10;
+	delete[] $2;
+	$$ = b;
+      }
+  /* Transition bins: bins b = (v => v), (v => v => v), ...; */
+  | bins_keyword bins_name '=' transition_seq_list ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->trans_seqs = std::move(*$4);
+	delete $4;
+	delete[] $2;
+	$$ = b;
+      }
+  | bins_keyword bins_name '[' ']' '=' transition_seq_list ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->trans_seqs = std::move(*$6);
+	delete $6;
+	delete[] $2;
+	$$ = b;
+      }
+  /* Default bins: bins b = default; — catch-all, excluded from coverage */
+  | bins_keyword bins_name '=' K_default ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	if ($1 == 0) {
+	      b->kind = class_type_t::pform_cov_bins_t::BIN_DEFAULT;
+	} else {
+	      cerr << @4 << ": sorry: ignore/illegal 'default' bins are "
+		   << "not supported; the bin is ignored." << endl;
+	      b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
 	}
 	delete[] $2;
-	delete $5;
 	$$ = b;
       }
-  /* bins name[] = { ... }; — auto bins (one per value), treat like basic bins */
-  | K_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	for (auto& r : *$7) {
-	      if (r.is_range && r.lo && r.hi)
-		    b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	      else if (!r.is_range && r.hi) {
-		    PExpr* dup = r.hi;
-		    b->ranges.push_back(std::make_pair(dup, r.hi));
-		    r.hi = nullptr;
-	      }
-	}
+  | bins_keyword bins_name '=' K_default K_sequence ';'
+      { cerr << @4 << ": sorry: 'default sequence' bins are not "
+	     << "supported; the bin is ignored." << endl;
 	delete[] $2;
-	delete $7;
-	$$ = b;
+	$$ = nullptr;
       }
-  | K_bins bins_name '[' ']' '=' '{' inside_range_list '}' K_with '(' expression ')' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	delete[] $2; delete $11;
-	for (auto& r : *$7) { delete r.lo; delete r.hi; }
-	delete $7;
-	$$ = b;
-      }
-  | K_ignore_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	b->kind = class_type_t::pform_cov_bins_t::BIN_IGNORE;
-	delete[] $2;
-	for (auto& r : *$7) {
-	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	}
-	delete $7;
-	$$ = b;
-      }
-  | K_illegal_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	b->kind = class_type_t::pform_cov_bins_t::BIN_ILLEGAL;
-	delete[] $2;
-	for (auto& r : *$7) {
-	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	}
-	delete $7;
-	$$ = b;
-      }
-  /* bins name[count] = { ... } with (cond); — indexed bins, ignore count+cond */
-  | K_bins bins_name '[' expression ']' '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	delete[] $2; delete $4;
-	for (auto& r : *$8) { delete r.lo; delete r.hi; }
-	delete $8;
-	$$ = b;
-      }
-  | K_bins bins_name '[' expression ']' '=' '{' inside_range_list '}' K_with '(' expression ')' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	delete[] $2; delete $4; delete $12;
-	for (auto& r : *$8) { delete r.lo; delete r.hi; }
-	delete $8;
-	$$ = b;
-      }
-  /* bins name = { ... } with (cond); */
-  | K_bins bins_name '=' '{' inside_range_list '}' K_with '(' expression ')' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	delete[] $2; delete $9;
-	for (auto& r : *$5) { delete r.lo; delete r.hi; }
-	delete $5;
-	$$ = b;
-      }
-  | K_ignore_bins bins_name '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	b->kind = class_type_t::pform_cov_bins_t::BIN_IGNORE;
-	delete[] $2;
-	for (auto& r : *$5) {
-	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	}
-	delete $5;
-	$$ = b;
-      }
-  | K_illegal_bins bins_name '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	b->kind = class_type_t::pform_cov_bins_t::BIN_ILLEGAL;
-	delete[] $2;
-	for (auto& r : *$5) {
-	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	}
-	delete $5;
-	$$ = b;
-      }
-  /* Transition bins: bins b = (val => val), ...; — one or more sequences */
-  | K_bins bins_name '=' transition_seq_list ';'
-      { delete[] $2; $$ = nullptr; }
-  | K_bins bins_name '[' ']' '=' transition_seq_list ';'
-      { delete[] $2; $$ = nullptr; }
-  | K_ignore_bins bins_name '=' transition_seq_list ';'
-      { delete[] $2; $$ = nullptr; }
-  | K_illegal_bins bins_name '=' transition_seq_list ';'
-      { delete[] $2; $$ = nullptr; }
-  /* Default bins: bins b = default; */
-  | K_bins bins_name '=' K_default ';'
-      { delete[] $2; $$ = nullptr; }
-  | K_ignore_bins bins_name '=' K_default ';'
-      { delete[] $2; $$ = nullptr; }
-  /* Coverpoint option: option.field = expr; — silently accepted */
+  /* Coverpoint option: option.field = expr; */
   | IDENTIFIER '.' IDENTIFIER '=' expression ';'
-      { delete[] $1; delete[] $3; delete $5; $$ = nullptr; }
-  /* type_option.field = expr; and similar */
-  | IDENTIFIER '.' IDENTIFIER '.' IDENTIFIER '=' expression ';'
-      { delete[] $1; delete[] $3; delete[] $5; delete $7; $$ = nullptr; }
-  /* Error recovery for unrecognized bins forms */
+      { cov_option_set_(pending_cp_options_, @1, $1, $3, $5); $$ = nullptr; }
+  /* Error recovery for unrecognized bins forms — LOUD (M11) */
   | error ';'
-      { yyerrok; $$ = nullptr; }
+      { cerr << @1 << ": sorry: unsupported bins declaration was "
+	     << "ignored (functional coverage for it is not collected)."
+	     << endl;
+	yyerrok; $$ = nullptr; }
   ;
 
 /* cross_item_list: comma-separated list of coverpoint names for 'cross'.
@@ -3037,46 +3081,139 @@ cross_item_list
       { $1->push_back(lex_strings.make($3.text)); delete[] $3.text; $$ = $1; }
   ;
 
-/* cross_body_opt: optional body of illegal_bins/bins items inside cross { } */
+/* cross_body_opt: body of bins/ignore_bins/illegal_bins items inside
+   cross { }.  M11-3: captured as select trees for elaboration. */
 cross_body_opt
   : /* empty */
   | cross_body_opt K_illegal_bins bins_name '=' cross_bins_expr ';'
-      { delete[] $3; }
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_ILLEGAL;
+	cb.select = $5;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
   | cross_body_opt K_ignore_bins bins_name '=' cross_bins_expr ';'
-      { delete[] $3; }
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_IGNORE;
+	cb.select = $5;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
   | cross_body_opt K_bins bins_name '=' cross_bins_expr ';'
-      { delete[] $3; }
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
+	cb.select = $5;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
+  | cross_body_opt IDENTIFIER '.' IDENTIFIER '=' expression ';'
+      { cov_option_set_(pending_cp_options_, @2, $2, $4, $6); }
   | cross_body_opt error ';'
-      { yyerrok; }
+      { cerr << @2 << ": sorry: unsupported cross body item was "
+	     << "ignored." << endl;
+	yyerrok; }
   ;
 
-/* cross_bins_expr: binsof-based set expression for cross body items */
+/* cross_bins_expr: binsof-based set expression for cross body items.
+   M11-3: builds a select tree.  binsof(cp) or binsof(cp.bin), with
+   optional intersect value filters, combined with && / || / !. */
 cross_bins_expr
   : K_binsof '(' IDENTIFIER ')'
-      { delete[] $3; }
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_BINSOF;
+	s->cp_name = lex_strings.make($3);
+	delete[] $3;
+	$$ = s; }
+  | K_binsof '(' IDENTIFIER '.' IDENTIFIER ')'
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_BINSOF;
+	s->cp_name = lex_strings.make($3);
+	s->bin_name = lex_strings.make($5);
+	delete[] $3; delete[] $5;
+	$$ = s; }
   | K_binsof '(' IDENTIFIER ')' K_intersect '{' inside_range_list '}'
-      { delete[] $3; delete $7; }
-  | '!' K_binsof '(' IDENTIFIER ')'
-      { delete[] $4; }
-  | '!' K_binsof '(' IDENTIFIER ')' K_intersect '{' inside_range_list '}'
-      { delete[] $4; delete $8; }
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_BINSOF;
+	s->cp_name = lex_strings.make($3);
+	if ($7) {
+	      for (auto& r : *$7) {
+		    if (r.is_range && r.lo && r.hi)
+			  s->intersect_ranges.push_back(std::make_pair(r.lo, r.hi));
+		    else if (!r.is_range && r.hi) {
+			  s->intersect_ranges.push_back(std::make_pair(r.hi, r.hi));
+			  r.hi = nullptr;
+		    }
+	      }
+	      delete $7;
+	}
+	delete[] $3;
+	$$ = s; }
+  | K_binsof '(' IDENTIFIER '.' IDENTIFIER ')' K_intersect '{' inside_range_list '}'
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_BINSOF;
+	s->cp_name = lex_strings.make($3);
+	s->bin_name = lex_strings.make($5);
+	if ($9) {
+	      for (auto& r : *$9) {
+		    if (r.is_range && r.lo && r.hi)
+			  s->intersect_ranges.push_back(std::make_pair(r.lo, r.hi));
+		    else if (!r.is_range && r.hi) {
+			  s->intersect_ranges.push_back(std::make_pair(r.hi, r.hi));
+			  r.hi = nullptr;
+		    }
+	      }
+	      delete $9;
+	}
+	delete[] $3; delete[] $5;
+	$$ = s; }
+  | '!' cross_bins_expr %prec UNARY_PREC
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_NOT;
+	s->a = $2;
+	$$ = s; }
   | cross_bins_expr K_LAND cross_bins_expr
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_AND;
+	s->a = $1; s->b = $3;
+	$$ = s; }
   | cross_bins_expr K_LOR cross_bins_expr
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_OR;
+	s->a = $1; s->b = $3;
+	$$ = s; }
   | '(' cross_bins_expr ')'
+      { $$ = $2; }
   ;
 
-/* transition_seq_list: one or more transition sequences (val=>val), ... */
+/* transition_seq_list: one or more transition sequences (v=>v), ...
+   M11-2: captured as ordered [lo:hi] step lists. */
 transition_seq_list
   : '(' transition_list ')'
+      { $$ = new std::vector<std::vector<std::pair<PExpr*,PExpr*>>>();
+	$$->push_back(std::move(*$2));
+	delete $2; }
   | transition_seq_list ',' '(' transition_list ')'
+      { $1->push_back(std::move(*$4));
+	delete $4;
+	$$ = $1; }
   ;
 
-/* transition_list: list of values separated by => for transition bins */
+/* transition_list: values/ranges separated by => for transition bins */
 transition_list
-  : expression K_EG expression
-      { delete $1; delete $3; }
-  | transition_list K_EG expression
-      { delete $3; }
+  : trans_step K_EG trans_step
+      { $$ = new std::vector<std::pair<PExpr*,PExpr*>>();
+	$$->push_back(*$1); delete $1;
+	$$->push_back(*$3); delete $3; }
+  | transition_list K_EG trans_step
+      { $1->push_back(*$3); delete $3;
+	$$ = $1; }
+  ;
+
+trans_step
+  : expression
+      { $$ = new std::pair<PExpr*,PExpr*>($1, $1); }
+  | '[' expression ':' expression ']'
+      { $$ = new std::pair<PExpr*,PExpr*>($2, $4); }
   ;
 
 /* ========= End covergroup grammar ========= */

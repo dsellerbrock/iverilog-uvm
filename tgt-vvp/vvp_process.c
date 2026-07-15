@@ -3432,13 +3432,15 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
-      /* $ivl_class_method$covgrp_sample(cg_obj, cp0_val, cp1_val, ...)
-       * argv[0] = cg object, argv[1..N] = coverpoint values.
-       * Emit: push cp values onto vec4 stack, push cg obj, %covgrp/sample N */
+      /* $ivl_class_method$covgrp_sample(cg_obj, cp values..., guards...)
+       * argv[0] = cg object, argv[1..N] = coverpoint values,
+       * argv[N+1..2N] = iff guard values (M11).
+       * Emit: push values then guards onto vec4 stack, push cg obj,
+       * %covgrp/sample N, 1 */
       if (strcmp(stmt_name, "$ivl_class_method$covgrp_sample") == 0) {
 	    unsigned nparms = ivl_stmt_parm_count(net);
-	    /* nparms = 1 + ncoverpoints; argv[0] is cg object */
-	    unsigned ncp = (nparms > 0) ? (nparms - 1) : 0;
+	    unsigned ncp = (nparms > 0) ? (nparms - 1) / 2 : 0;
+	    unsigned has_guards = (nparms == 1 + 2*ncp) && (nparms > 1);
 	    for (unsigned ii = 1 ; ii < nparms ; ii += 1) {
 		  ivl_expr_t cp_arg = ivl_stmt_parm(net, ii);
 		  if (cp_arg) draw_eval_vec4(cp_arg);
@@ -3446,7 +3448,7 @@ static int show_system_task_call(ivl_statement_t net)
 	    }
 	    ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
 	    if (obj_arg) draw_eval_object(obj_arg);
-	    fprintf(vvp_out, "    %%covgrp/sample %u;\n", ncp);
+	    fprintf(vvp_out, "    %%covgrp/sample %u, %u;\n", ncp, has_guards);
 	    return 0;
       }
 

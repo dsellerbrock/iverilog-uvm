@@ -244,22 +244,51 @@ class netclass_t : public ivl_type_s {
 	// on the vec4 stack at the sample() call site), prop_idx is the
 	// property index in THIS class that holds the bin hit count,
 	// and lo/hi define the inclusive range.
+	// M11: each entry is one predicate RECORD of a coverage bin.
+	// Records sharing (prop_idx, tuple) are ANDed (cross product
+	// tuples); different tuples of the same prop are ORed (multi-
+	// range bins).  item_idx groups props into coverage items
+	// (coverpoints 0..ncp-1, then crosses) for per-item coverage.
       struct covgrp_bin_t {
 	    unsigned cp_idx;
-	    unsigned prop_idx;
-	    uint64_t lo;
-	    uint64_t hi;
-	    // I1 (Phase 62o): kind tag for illegal_bins/ignore_bins.
-	    // 0 = normal counted bin
-	    // 1 = ignore_bin (excluded from coverage; not emitted as prop)
-	    // 2 = illegal_bin (counted; runtime fires error on increment)
+	    unsigned prop_idx;   // 0xFFFFFFFF: no counter (ignore bins)
+	    uint64_t lo;         // wildcard: match value
+	    uint64_t hi;         // wildcard: care mask
+	    // kind & 7: 0 = normal counted bin
+	    //           1 = ignore_bin (carves values out of the item)
+	    //           2 = illegal_bin (runtime error on match)
+	    //           3 = default bin (counts only when no normal
+	    //               bin of the item matched; excluded from %)
+	    //           4 = transition step (M11-2; tuple encodes
+	    //               (seq_id << 8) | step_pos, lo/hi the step)
+	    // kind & 8: wildcard match ((v ^ lo) & hi == 0)
 	    unsigned kind = 0;
+	    unsigned tuple = 0;
+	    unsigned item_idx = 0;
       };
 
+	// M11: per-item (coverpoint or cross) coverage options.
+      struct covgrp_item_t {
+	    unsigned at_least = 1;
+	    unsigned weight = 1;
+	    bool is_cross = false;
+      };
+
+      static const unsigned COVGRP_NO_PROP = 0xFFFFFFFF;
+
       void add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi,
-			  unsigned kind = 0);
+			  unsigned kind = 0, unsigned tuple = 0,
+			  unsigned item_idx = 0);
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const covgrp_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
+      void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross)
+      { covgrp_item_t it;
+	it.at_least = at_least;
+	it.weight = weight;
+	it.is_cross = is_cross;
+	covgrp_items_.push_back(it); }
+      size_t covgrp_item_count() const { return covgrp_items_.size(); }
+      const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
       bool is_covergroup() const { return is_covergroup_; }
       void set_is_covergroup(bool f) { is_covergroup_ = f; }
       bool has_embedded_covergroups() const { return has_embedded_cgs_; }
@@ -275,9 +304,19 @@ class netclass_t : public ivl_type_s {
 	    return -1;
       }
 
+	// M11: per-coverpoint iff guard expressions (pform, evaluated
+	// at each sample() call site; null = unguarded).
+      void add_covgrp_cp_guard(PExpr*g) { covgrp_cp_guards_.push_back(g); }
+      PExpr* covgrp_cp_guard(unsigned cp_idx) const {
+	    if (cp_idx < covgrp_cp_guards_.size()) return covgrp_cp_guards_[cp_idx];
+	    return nullptr;
+      }
+
     private:
       std::vector<covgrp_bin_t> covgrp_bins_;
+      std::vector<covgrp_item_t> covgrp_items_;
       std::vector<int> covgrp_cp_parent_props_;
+      std::vector<PExpr*> covgrp_cp_guards_;
       bool is_covergroup_ = false;
       bool has_embedded_cgs_ = false;
       unsigned covgrp_ncoverpoints_ = 0;

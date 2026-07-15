@@ -34,12 +34,14 @@ module top;
 
     cov = c.get_cov();
 
-    // 8 unique bins total (4 single + 4 cross).  Hits: 4 single + 2 cross = 6.
-    // Coverage = 6/8 = 75.0%.  Tolerate small rounding.
-    if (cov > 70.0 && cov < 80.0)
-      $display("PASS: cross-coverage = %0.1f%% (expected ~75%%)", cov);
+    // M11: get_inst_coverage is the weighted mean over coverage ITEMS
+    // (19.11), not flat bin counting.  Items: cp_x 2/2 = 100%, cp_y
+    // 2/2 = 100%, cross 2/4 = 50%.  Mean = 83.33%.  (The pre-M11
+    // expectation of 6/8 = 75% encoded the flat-bin model.)
+    if (cov > 83.0 && cov < 84.0)
+      $display("PASS: cross-coverage = %0.1f%% (expected ~83.3%%)", cov);
     else begin
-      $display("FAIL: cross-coverage = %0.1f%% (expected ~75%%)", cov);
+      $display("FAIL: cross-coverage = %0.1f%% (expected ~83.3%%)", cov);
       $fatal(1, "cross coverage broken");
     end
     $finish;

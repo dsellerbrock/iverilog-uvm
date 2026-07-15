@@ -360,6 +360,7 @@ void pform_class_constraint(const struct vlltype& /*loc*/,
 
 // I1 (Phase 62g): forward-declared accumulator from parse.y.
 extern std::vector<class_type_t::pform_cross_t> pending_crosses_;
+extern std::map<perm_string, PExpr*> pending_cg_options_;
 
 void pform_class_covergroup(const struct vlltype& /*loc*/,
 			     const char*name,
@@ -367,6 +368,7 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
 {
       if (!pform_cur_class || !name) {
 	    pending_crosses_.clear();  // discard if we can't attach
+	    pending_cg_options_.clear();
 	    return;
       }
 
@@ -380,5 +382,8 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
       // I1: move accumulated cross declarations onto the covergroup.
       cg->crosses = std::move(pending_crosses_);
       pending_crosses_.clear();
+      // M11: move accumulated covergroup-level options.
+      cg->options = std::move(pending_cg_options_);
+      pending_cg_options_.clear();
       pform_cur_class->type->covergroups.push_back(cg);
 }

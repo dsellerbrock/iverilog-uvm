@@ -1362,7 +1362,8 @@ void compile_class_constraint(char*name, char*ir)
 }
 
 void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,
-				uint64_t lo, uint64_t hi, unsigned kind)
+				uint64_t lo, uint64_t hi, unsigned kind,
+				unsigned tuple, unsigned item_idx)
 {
       cov_bin_t b;
       b.cp_idx   = cp_idx;
@@ -1370,15 +1371,27 @@ void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,
       b.lo       = lo;
       b.hi       = hi;
       b.kind     = kind;
+      b.tuple    = tuple;
+      b.item_idx = item_idx;
       covgrp_bins_.push_back(b);
 }
 
 void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
-			      uint64_t lo, uint64_t hi, uint64_t kind)
+			      uint64_t lo, uint64_t hi, uint64_t kind,
+			      uint64_t tuple, uint64_t item_idx)
 {
       assert(compile_class);
       compile_class->add_covgrp_bin((unsigned)cp_idx, (unsigned)prop_idx,
-				    lo, hi, (unsigned)kind);
+				    lo, hi, (unsigned)kind,
+				    (unsigned)tuple, (unsigned)item_idx);
+}
+
+void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
+			       uint64_t is_cross)
+{
+      assert(compile_class);
+      compile_class->add_covgrp_item((unsigned)at_least, (unsigned)weight,
+				     is_cross != 0);
 }
 
 void compile_class_done(void)

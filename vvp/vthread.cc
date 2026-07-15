@@ -2547,97 +2547,278 @@ bool of_RAND_MODE(vthread_t thr, vvp_code_t)
       return true;
 }
 
-/* %covgrp/sample N
- * Stack on entry: obj-stack top = cg_obj; vec4-stack top N items = cp values
- * Single-coverpoint bins increment when val matches.  Cross bins (multiple
- * records sharing the same prop_idx) increment only when ALL records match
- * — the runtime AND of all (cp_idx, lo, hi) tuples mapped to the same
- * counter property.  See I1 (Phase 62l) elaborate.cc cross emission. */
+/* M11 covergroup sampling helpers. */
+
+// Read a 32-bit counter property.
+static uint32_t covgrp_get_count_(vvp_cobject*cobj, unsigned prop)
+{
+      vvp_vector4_t cur(32, BIT4_0);
+      cobj->get_vec4(prop, cur);
+      uint32_t count = 0;
+      for (unsigned b = 0 ; b < 32 ; b += 1)
+	    if (cur.value(b) == BIT4_1)
+		  count |= (1u << b);
+      return count;
+}
+
+static void covgrp_bump_count_(vvp_cobject*cobj, unsigned prop)
+{
+      uint32_t count = covgrp_get_count_(cobj, prop) + 1;
+      vvp_vector4_t newval(32, BIT4_0);
+      for (unsigned b = 0 ; b < 32 ; b += 1)
+	    if (count & (1u << b))
+		  newval.set_bit(b, BIT4_1);
+      cobj->set_vec4(prop, newval);
+}
+
+// One record's value predicate ('kind & 8' = wildcard).
+static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
+				     uint64_t val)
+{
+      if (bin.kind & 8)
+	    return ((val ^ bin.lo) & bin.hi) == 0;
+      return val >= bin.lo && val <= bin.hi;
+}
+
+/* %covgrp/sample ncp, has_guards
+ *
+ * Stack on entry: obj-stack top = cg_obj; vec4 stack holds ncp
+ * coverpoint values then (when has_guards) ncp guard values on top.
+ *
+ * Record semantics (M11): records sharing (prop, tuple) AND together
+ * (cross product tuples); distinct tuples of one prop OR together
+ * (multi-range bins).  Per coverpoint and sample:
+ *   - guard false/x  -> coverpoint not sampled at all;
+ *   - illegal match  -> runtime error, illegal counter bumps, and the
+ *                       coverpoint's other bins are suppressed;
+ *   - ignore match   -> the value is carved out: nothing involving
+ *                       this coverpoint counts (crosses included);
+ *   - default bins   -> count only when no normal bin of the same
+ *                       item matched;
+ *   - transition records (kind 4) -> NFA over the per-instance
+ *                       active-position masks; a completed sequence
+ *                       bumps the bin counter.
+ */
 bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 {
       unsigned ncp = cp->number;
+      unsigned has_guards = cp->bit_idx[0];
 
-      /* Pop coverpoint values (last pushed = top of stack = cp[ncp-1]) */
-      vector<vvp_vector4_t> cp_vals(ncp);
-      for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1)
-	    cp_vals[ii] = thr->pop_vec4();
+      vector<uint64_t> guards(ncp, 1);
+      if (has_guards) {
+	    for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1) {
+		  vvp_vector4_t g = thr->pop_vec4();
+		    // Guard is true only when it evaluates to exactly 1
+		    // in the low bit with no x/z (iff gate, 19.4).
+		  guards[ii] = (g.size() > 0 && g.value(0) == BIT4_1) ? 1 : 0;
+	    }
+      }
+
+      vector<uint64_t> cp_vals(ncp, 0);
+      vector<bool> cp_has_xz(ncp, false);
+      for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1) {
+	    vvp_vector4_t v = thr->pop_vec4();
+	    uint64_t val = 0;
+	    bool xz = false;
+	    for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1) {
+		  switch (v.value(b)) {
+		      case BIT4_1: val |= ((uint64_t)1 << b); break;
+		      case BIT4_0: break;
+		      default: xz = true; break;
+		  }
+	    }
+	    cp_vals[ii] = val;
+	    cp_has_xz[ii] = xz;
+      }
 
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
       if (!cobj) return true;
+      if (!cobj->cov_enabled()) return true;
 
       const class_type*defn = cobj->get_defn();
       size_t nbins = defn->covgrp_bin_count();
 
-      // Group bins by prop_idx so that cross records (multiple bins on
-      // the same prop_idx) are AND'd together.  The first occurrence of a
-      // prop_idx determines the increment site; subsequent records refine
-      // the predicate.
-      std::map<unsigned, std::vector<size_t>> by_prop;
-      for (size_t bi = 0 ; bi < nbins ; bi += 1)
-	    by_prop[defn->covgrp_bin(bi).prop_idx].push_back(bi);
+	// Pass 1: per-coverpoint sampled/suppressed state.
+	//   sampled: guard true.  X/Z values coerce to 0-bits (2-state
+	//   coverage values; recorded).
+      vector<bool> cp_sampled(ncp, false);
+      for (unsigned ci = 0 ; ci < ncp ; ci += 1)
+	    cp_sampled[ci] = (guards[ci] != 0);
 
-      auto val_of = [&](unsigned cp_idx) -> uint64_t {
-	    if (cp_idx >= ncp) return 0;
-	    const vvp_vector4_t&v = cp_vals[cp_idx];
-	    uint64_t val = 0;
-	    for (unsigned bi2 = 0 ; bi2 < v.size() && bi2 < 64 ; bi2 += 1) {
-		  if (v.value(bi2) == BIT4_1)
-			val |= ((uint64_t)1 << bi2);
+	// Illegal precedence: any illegal record group matching fires
+	// an error and suppresses the coverpoint.
+	// Group records by (prop, tuple) lazily below; first collect
+	// per-prop lists.
+      std::map<unsigned, std::vector<size_t>> by_prop;
+      std::vector<size_t> ignore_recs;
+      for (size_t bi = 0 ; bi < nbins ; bi += 1) {
+	    const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+	    if ((bin.kind & 7) == 1) {
+		  ignore_recs.push_back(bi);
+		  continue;
 	    }
-	    return val;
-      };
+	    by_prop[bin.prop_idx].push_back(bi);
+      }
+
+      vector<bool> cp_suppressed(ncp, false);
+
+	// Illegal check (kind 2), before ignore per 19.5.5.
+      for (auto& kv : by_prop) {
+	    const std::vector<size_t>&recs = kv.second;
+	    if (recs.empty()) continue;
+	    unsigned k = defn->covgrp_bin(recs[0]).kind & 7;
+	    if (k != 2) continue;
+	      // tuples OR; records in one tuple AND.
+	    std::map<unsigned, bool> tuple_ok;
+	    for (size_t bi : recs) {
+		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+		  if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx]) {
+			tuple_ok[bin.tuple] = false;
+			continue;
+		  }
+		  bool m = covgrp_rec_match_(bin, cp_vals[bin.cp_idx]);
+		  auto it = tuple_ok.find(bin.tuple);
+		  if (it == tuple_ok.end()) tuple_ok[bin.tuple] = m;
+		  else it->second = it->second && m;
+	    }
+	    bool hit = false;
+	    for (auto&t : tuple_ok) if (t.second) { hit = true; break; }
+	    if (hit) {
+		  std::cerr << "ERROR: covergroup illegal_bin matched"
+			    << " (prop_idx=" << kv.first << ")" << std::endl;
+		  covgrp_bump_count_(cobj, kv.first);
+		  for (size_t bi : recs) {
+			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+			if (bin.cp_idx < ncp)
+			      cp_suppressed[bin.cp_idx] = true;
+		  }
+	    }
+      }
+
+	// Ignore carve-out (kind 1): a matching ignore record makes
+	// the whole coverpoint inert for this sample.
+      for (size_t bi : ignore_recs) {
+	    const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+	    if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx])
+		  continue;
+	    if (covgrp_rec_match_(bin, cp_vals[bin.cp_idx]))
+		  cp_suppressed[bin.cp_idx] = true;
+      }
+
+	// Pass 2: normal/wildcard value bins and cross products;
+	// track per-item "any normal bin matched" for default bins.
+      std::map<unsigned, bool> item_matched;
+      std::vector<std::pair<unsigned, unsigned>> default_props; // (prop,item)
 
       for (auto& kv : by_prop) {
-	    unsigned prop_idx = kv.first;
-	    bool all_match = true;
-	    bool is_illegal = false;
-	    for (size_t bi : kv.second) {
-		  const class_type::cov_bin_t& bin = defn->covgrp_bin(bi);
-		  if (bin.cp_idx >= ncp) { all_match = false; break; }
-		  uint64_t val = val_of(bin.cp_idx);
-		  if (val < bin.lo || val > bin.hi) {
-			all_match = false;
-			break;
+	    const std::vector<size_t>&recs = kv.second;
+	    if (recs.empty()) continue;
+	    const class_type::cov_bin_t&first = defn->covgrp_bin(recs[0]);
+	    unsigned k = first.kind & 7;
+	    if (k == 2) continue; // illegal handled above
+	    if (k == 3) {
+		  default_props.push_back(std::make_pair(kv.first,
+							 first.item_idx));
+		  continue;
+	    }
+	    if (k == 4) {
+		    // Transition sequences: per-seq NFA masks.
+		    // Records of one seq share tuple>>8; step = tuple&255.
+		  std::map<unsigned, std::vector<size_t>> by_seq;
+		  for (size_t bi : recs)
+			by_seq[defn->covgrp_bin(bi).tuple >> 8].push_back(bi);
+		  for (auto&sq : by_seq) {
+			  // order steps
+			std::vector<const class_type::cov_bin_t*> steps;
+			steps.resize(sq.second.size(), 0);
+			bool okseq = true;
+			unsigned cpi = ncp;
+			for (size_t bi : sq.second) {
+			      const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+			      unsigned st = bin.tuple & 255;
+			      if (st >= steps.size()) { okseq = false; break; }
+			      steps[st] = &bin;
+			      cpi = bin.cp_idx;
+			}
+			if (!okseq || cpi >= ncp) continue;
+			if (!cp_sampled[cpi] || cp_suppressed[cpi])
+			      continue; // frozen while unsampled/carved
+			uint64_t key = ((uint64_t)kv.first << 8) | sq.first;
+			uint64_t mask = cobj->cov_trans_mask(key);
+			uint64_t newmask = 0;
+			uint64_t val = cp_vals[cpi];
+			unsigned len = steps.size();
+			if (len == 0 || len > 63) continue;
+			  // fresh attempt from step 0
+			if (steps[0] && covgrp_rec_match_(*steps[0], val)) {
+			      if (len == 1)
+				    covgrp_bump_count_(cobj, kv.first);
+			      else
+				    newmask |= ((uint64_t)1 << 1);
+			}
+			  // in-flight attempts
+			for (unsigned pos = 1 ; pos < len ; pos += 1) {
+			      if (!((mask >> pos) & 1)) continue;
+			      if (steps[pos] && covgrp_rec_match_(*steps[pos], val)) {
+				    if (pos + 1 == len)
+					  covgrp_bump_count_(cobj, kv.first);
+				    else
+					  newmask |= ((uint64_t)1 << (pos+1));
+			      }
+			}
+			cobj->set_cov_trans_mask(key, newmask);
 		  }
-		  if (bin.kind == 2)
-			is_illegal = true;
-	    }
-	    if (!all_match) continue;
-
-	    // I1 (Phase 62o): illegal_bins fire an error on match
-	    // before incrementing the counter.  We use a plain stderr
-	    // message so the test infra can detect via grep — UVM's
-	    // uvm_report_error is unavailable from runtime context here.
-	    if (is_illegal) {
-		  std::cerr << "ERROR: covergroup illegal_bin matched"
-			    << " (prop_idx=" << prop_idx << ")" << std::endl;
+		  continue;
 	    }
 
-	    vvp_vector4_t cur(32, BIT4_0);
-	    cobj->get_vec4(prop_idx, cur);
-	    uint32_t count = 0;
-	    for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
-		  if (cur.value(bi3) == BIT4_1)
-			count |= (1u << bi3);
+	      // Normal/wildcard: tuples OR; records within a tuple AND
+	      // (a tuple spanning several coverpoints is a cross
+	      // product bin; every referenced cp must be sampled and
+	      // not suppressed).
+	    std::map<unsigned, bool> tuple_ok;
+	    for (size_t bi : recs) {
+		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+		  bool m;
+		  if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx]
+		      || cp_suppressed[bin.cp_idx])
+			m = false;
+		  else
+			m = covgrp_rec_match_(bin, cp_vals[bin.cp_idx]);
+		  auto it = tuple_ok.find(bin.tuple);
+		  if (it == tuple_ok.end()) tuple_ok[bin.tuple] = m;
+		  else it->second = it->second && m;
 	    }
-	    count += 1;
-	    vvp_vector4_t newval(32, BIT4_0);
-	    for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
-		  if (count & (1u << bi3))
-			newval.set_bit(bi3, BIT4_1);
+	    bool hit = false;
+	    for (auto&t : tuple_ok) if (t.second) { hit = true; break; }
+	    if (hit) {
+		  covgrp_bump_count_(cobj, kv.first);
+		  item_matched[first.item_idx] = true;
 	    }
-	    cobj->set_vec4(prop_idx, newval);
       }
+
+	// Default bins: count when the item saw no normal-bin match
+	// and its coverpoint was sampled and not carved out.
+      for (auto&dp : default_props) {
+	    unsigned item = dp.second;
+	    if (item_matched.count(item) && item_matched[item])
+		  continue;
+	    if (item < ncp && (!cp_sampled[item] || cp_suppressed[item]))
+		  continue;
+	    covgrp_bump_count_(cobj, dp.first);
+      }
+
       return true;
 }
 
 /* %covgrp/get_inst_coverage
  * Stack on entry: obj-stack top = cg_obj
- * Pushes real value = (unique-bins-hit / unique-bins-total) * 100.0
- * I1 (Phase 62l): cross bins emit multiple cov_bin_t records sharing one
- * prop_idx — count each unique prop_idx once. */
+ * Pushes real = weighted mean over coverage items (coverpoints and
+ * crosses) of (bins hit >= at_least) / countable bins * 100.0.
+ * Ignore records have no counter; illegal and default bins are
+ * excluded from both numerator and denominator (19.11 option model).
+ */
 bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 {
       vvp_object_t obj;
@@ -2648,37 +2829,41 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
 	    size_t nbins = defn->covgrp_bin_count();
-	    if (nbins > 0) {
-		  std::set<unsigned> unique_props;
-		  std::set<unsigned> hit_props;
-		  for (size_t bi = 0 ; bi < nbins ; bi += 1) {
-			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
-			// I1 (Phase 62o): exclude illegal_bins from
-			// coverage denominator — they shouldn't be hit
-			// and counting them just skews the percentage.
-			// (ignore_bins are stripped at elaborate time.)
-			if (bin.kind == 2) continue;
-			unsigned prop_idx = bin.prop_idx;
-			unique_props.insert(prop_idx);
-			if (hit_props.count(prop_idx)) continue;
-			vvp_vector4_t cur(32, BIT4_0);
-			cobj->get_vec4(prop_idx, cur);
-			for (unsigned bi2 = 0 ; bi2 < 32 ; bi2 += 1) {
-			      if (cur.value(bi2) == BIT4_1) {
-				    hit_props.insert(prop_idx);
-				    break;
-			      }
-			}
-		  }
-		  if (unique_props.size() > 0) {
-			result = (double)hit_props.size() /
-				 (double)unique_props.size() * 100.0;
-		  }
+
+	      // item -> set of countable props
+	    std::map<unsigned, std::set<unsigned>> item_props;
+	    for (size_t bi = 0 ; bi < nbins ; bi += 1) {
+		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+		  unsigned k = bin.kind & 7;
+		  if (k == 1 || k == 2 || k == 3) continue;
+		  if (bin.prop_idx == class_type::COV_NO_PROP) continue;
+		  item_props[bin.item_idx].insert(bin.prop_idx);
 	    }
+
+	    double wsum = 0.0, wcov = 0.0;
+	    for (auto&ip : item_props) {
+		  unsigned at_least = 1, weight = 1;
+		  if (ip.first < defn->covgrp_item_count()) {
+			at_least = defn->covgrp_item(ip.first).at_least;
+			weight = defn->covgrp_item(ip.first).weight;
+		  }
+		  if (ip.second.empty()) continue;
+		  unsigned hits = 0;
+		  for (unsigned prop : ip.second) {
+			if (covgrp_get_count_(cobj, prop) >= at_least)
+			      hits += 1;
+		  }
+		  double icov = 100.0 * (double)hits / (double)ip.second.size();
+		  wsum += (double)weight;
+		  wcov += (double)weight * icov;
+	    }
+	    if (wsum > 0.0)
+		  result = wcov / wsum;
       }
       thr->push_real(result);
       return true;
 }
+
 
 /*
  * The following are used to allow a common template to be written for
