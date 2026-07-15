@@ -242,6 +242,7 @@ extern bool of_JMP(vthread_t thr, vvp_code_t code);
 extern bool of_JMP0(vthread_t thr, vvp_code_t code);
 extern bool of_JMP0XZ(vthread_t thr, vvp_code_t code);
 extern bool of_JMP1(vthread_t thr, vvp_code_t code);
+extern bool of_JMP_VIF(vthread_t thr, vvp_code_t code);
 extern bool of_JMP1XZ(vthread_t thr, vvp_code_t code);
 extern bool of_JOIN(vthread_t thr, vvp_code_t code);
 extern bool of_JOIN_DETACH(vthread_t thr, vvp_code_t code);

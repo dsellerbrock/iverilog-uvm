@@ -6744,8 +6744,83 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 
 	    // Virtual-interface task dispatch: the resolved task lives in an
 	    // interface scope and is NOT a class method, so there is no `this`
-	    // first port. Drop the receiver expression and call as a free task.
+	    // first port (IEEE 1800-2017 25.10). The call must apply to the
+	    // instance the HANDLE designates, so emit the dynamic-dispatch
+	    // form $ivl_vif_call$<iface>$<method>(receiver, args...) — the
+	    // code generator compares the handle's bound scope against every
+	    // instance of the interface and calls that instance's method.
+	    // Tasks with output/inout/ref ports keep the legacy static call
+	    // (single attached instance): the dynamic form has no
+	    // copy-back path yet (recorded approximation).
 	    if (class_type->is_interface()) {
+		  bool inputs_only = true;
+		  auto pmod_it = pform_modules.find(class_type->get_name());
+		  const std::vector<pform_tf_port_t>*pports = nullptr;
+		  if (pmod_it != pform_modules.end()) {
+			auto task_it = pmod_it->second->tasks.find(method_name);
+			if (task_it != pmod_it->second->tasks.end())
+			      pports = task_it->second->peek_ports();
+		  }
+		  if (pports) {
+			for (const pform_tf_port_t&pp : *pports) {
+			      if (pp.port
+				  && pp.port->get_port_type() != NetNet::PINPUT) {
+				    inputs_only = false;
+				    break;
+			      }
+			}
+		  }
+		  if (inputs_only) {
+			std::string call_name = "$ivl_vif_call$";
+			call_name += class_type->get_name().str();
+			call_name += "$";
+			call_name += method_name.str();
+			std::vector<NetExpr*> argv;
+			argv.push_back(obj_expr);
+			for (size_t pi = 0 ; pi < parms_.size() ; pi += 1) {
+			      if (!parms_[pi].parm) {
+				    argv.push_back(0);
+				    continue;
+			      }
+			      NetExpr*ev = elab_sys_task_arg(des, scope,
+							     method_name, pi,
+							     parms_[pi].parm);
+			      argv.push_back(ev);
+			}
+			  // Pad unsupplied trailing args with the declared
+			  // pform defaults (evaluated in the caller scope).
+			if (pports) {
+			      for (size_t pi = parms_.size() ;
+				   pi < pports->size() ; pi += 1) {
+				    const pform_tf_port_t&pp = (*pports)[pi];
+				    if (pp.defe) {
+					  NetExpr*ev = elab_sys_task_arg(
+						des, scope, method_name,
+						pi, pp.defe);
+					  argv.push_back(ev);
+				    } else {
+					  argv.push_back(0);
+				    }
+			      }
+			}
+			perm_string cn = lex_strings.make(call_name.c_str());
+			NetSTask*sys = new NetSTask(cn.str(),
+						    IVL_SFUNC_AS_TASK_IGNORE,
+						    argv);
+			sys->set_line(*this);
+			return sys;
+		  }
+		  static bool warned_vif_static_call = false;
+		  if (!warned_vif_static_call) {
+			cerr << get_fileline() << ": warning: interface task "
+			     << method_name << " has output/inout/ref ports;"
+			     << " the call binds to a single attached instance"
+			     << " of " << class_type->get_name()
+			     << " (dynamic-dispatch copy-back not yet"
+			     << " implemented; further similar warnings"
+			     << " suppressed)." << endl;
+			warned_vif_static_call = true;
+		  }
 		  delete obj_expr;
 		  return elaborate_build_call_(des, scope, task, nullptr);
 	    }

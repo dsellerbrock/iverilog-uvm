@@ -9120,6 +9120,24 @@ bool of_IX_VEC4_S(vthread_t thr, vvp_code_t cp)
  * counter from the instruction and resuming. If the jump is
  * conditional, then test the bit for the expected value first.
  */
+/*
+ * %jmp/vif <dest>, <scope>
+ *
+ * Dynamic virtual-interface method dispatch: peek the object on top
+ * of the object stack; if it is a vinterface handle bound to exactly
+ * <scope>, branch to <dest>. The object is NOT popped (each dispatch
+ * branch pops it itself). Non-vinterface or other-scope handles fall
+ * through to the next compare.
+ */
+bool of_JMP_VIF(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t&top = thr->peek_object();
+      vvp_vinterface*vif = top.peek<vvp_vinterface>();
+      if (vif && vif->vif_scope() == cp->scope)
+	    thr->pc = cp->cptr2;
+      return true;
+}
+
 bool of_JMP(vthread_t thr, vvp_code_t cp)
 {
       thr->pc = cp->cptr;

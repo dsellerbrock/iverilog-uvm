@@ -1834,9 +1834,13 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	// is a class-typed variable (the virtual-interface model), so
 	// force variable kind — the net default would reject property
 	// writes (`m.data = ...` errored as "declared as a uwire").
+      bool is_iface_typed = false;
       if (const netclass_t*ifc = dynamic_cast<const netclass_t*>(type)) {
-	    if (ifc->is_interface() && wtype != NetNet::REG)
-		  wtype = NetNet::REG;
+	    if (ifc->is_interface()) {
+		  is_iface_typed = true;
+		  if (wtype != NetNet::REG)
+			wtype = NetNet::REG;
+	    }
       }
 
       if (sig_predeclared) {
@@ -1848,6 +1852,18 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    sig->set_line(*this);
 	    sig->port_type(port_type_);
 	    sig->lexical_pos(lexical_pos_);
+      }
+
+	// A modport-qualified interface port (`bus_if.mst m`) records
+	// its modport name so l-value elaboration can enforce the
+	// modport member directions (IEEE 1800-2017 25.5).
+      if (is_iface_typed) {
+	    if (const interface_type_t*itype =
+		  dynamic_cast<const interface_type_t*>(set_data_type_.get())) {
+		  if (!itype->modport.nil())
+			sig->attribute(perm_string::literal("ivl_modport"),
+				       verinum(std::string(itype->modport.str())));
+	    }
       }
 
       if (ivl_discipline_t dis = get_discipline()) {

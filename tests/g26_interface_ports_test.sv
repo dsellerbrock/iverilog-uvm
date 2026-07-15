@@ -20,12 +20,17 @@
 //   interface used to be deleted as unlinked signals, breaking the
 //   runtime by-name resolution that virtual-interface handles use.
 //
-// KNOWN LIMITATION (pre-existing, recorded): interface TASK dispatch
-// through handles attaches to a single instance per interface type
-// (the elaborated interface class binds one class_scope), so a task
-// called through a vif/port handle always runs against that instance.
-// The array section below therefore uses a separate interface type;
-// dynamic per-handle task dispatch is a recorded follow-up.
+// Dynamic dispatch (IEEE 1800-2017 25.10): interface TASK calls
+// through port/vif handles now dispatch on the instance the handle
+// designates ($ivl_vif_call + %jmp/vif compare chain over the
+// interface's instances), so multiple instances of ONE interface
+// type each receive their own calls — previously all calls bound to
+// a single statically attached instance. Tasks with output/inout/ref
+// ports still use the static single-instance path (no copy-back in
+// the dynamic form yet; warned).
+//
+// Modport member DIRECTIONS are now enforced on writes: see
+// tests/negative/g26_modport_input_write.sv.
 
 interface g26_bus;
   logic [7:0] data;
@@ -61,14 +66,22 @@ class g26_holder;
   virtual g28_lane vifs[2];
 endclass
 
+module g26_dyn_driver (g26_bus.mst m, input logic [7:0] val);
+  initial begin
+    #1 m.do_write(val);
+  end
+endmodule
+
 module g26_interface_ports_test;
-  g26_bus b();          // single instance
+  g26_bus b();          // primary instance
+  g26_bus b2();         // second instance of the SAME type (25.10)
   g28_lane arr[2]();    // G28: instance array
   g26_holder h;
   int errors = 0;
 
-  g26_producer p (b.mst);   // G29: instance.modport actual
-  g26_consumer c (b);       // G27: implicit modport
+  g26_producer p (b.mst);        // G29: instance.modport actual
+  g26_consumer c (b);            // G27: implicit modport
+  g26_dyn_driver d2 (b2.mst, 8'h5C);   // dynamic dispatch target
 
   task check(input bit ok, input string what);
     if (!ok) begin
@@ -82,6 +95,10 @@ module g26_interface_ports_test;
     // producer wrote through the modport port; visible on the instance
     check(b.data == 8'hA5 && b.valid === 1'b1,
           "modport port write reached the instance");
+    // dynamic dispatch: the second instance's driver task call landed
+    // on ITS instance, not the first (25.10)
+    check(b2.data == 8'h5C && b2.valid === 1'b1,
+          "interface task dispatched to the handle's own instance");
     // consumer sampled through its port
     check(c.seen_data == 8'hA5 && c.seen_valid === 1'b1,
           "modport port read saw the instance state");

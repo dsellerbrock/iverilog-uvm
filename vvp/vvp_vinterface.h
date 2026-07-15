@@ -54,6 +54,11 @@ class vvp_vinterface : public vvp_object {
       void shallow_copy(const vvp_object*that) override;
       vvp_object* duplicate(void) const override;
 
+	// The interface INSTANCE scope this handle is bound to.
+	// Dynamic method dispatch (%jmp/vif) compares it against
+	// candidate instance scopes.
+      __vpiScope* vif_scope(void) const { return scope_; }
+
     private:
       enum slot_kind_t {
 	    SLOT_NONE,

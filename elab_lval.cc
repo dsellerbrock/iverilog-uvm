@@ -30,6 +30,7 @@
 # include  "netstruct.h"
 # include  "netclass.h"
 # include  "Module.h"
+# include  "PModport.h"
 # include  "parse_api.h"
 # include  "netdarray.h"
 # include  "netparray.h"
@@ -1161,6 +1162,41 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
       }
 
 	      ivl_assert(*this, root_type);
+
+	// Modport direction enforcement (IEEE 1800-2017 25.5): an
+	// interface port declared with a modport may not WRITE a
+	// member the modport lists as input. The port variable
+	// carries its modport name in the ivl_modport attribute.
+      if (!member_path.empty()) {
+	    verinum mp_attr = sig->attribute(perm_string::literal("ivl_modport"));
+	    const netclass_t*ifc =
+		  dynamic_cast<const netclass_t*>(sig->net_type());
+	    if (mp_attr != verinum() && ifc && ifc->is_interface()) {
+		  std::string mp_name = mp_attr.as_string();
+		  auto im = pform_modules.find(ifc->get_name());
+		  if (im != pform_modules.end()) {
+			auto mit = im->second->modports.find(
+			      lex_strings.make(mp_name.c_str()));
+			if (mit != im->second->modports.end()) {
+			      perm_string member = member_path.front().name;
+			      auto sp = mit->second->simple_ports.find(member);
+			      if (sp != mit->second->simple_ports.end()
+				  && sp->second.first == NetNet::PINPUT) {
+				    cerr << get_fileline() << ": error: "
+					 << "cannot write to '" << member
+					 << "' through modport '" << mp_name
+					 << "' of interface '"
+					 << ifc->get_name()
+					 << "' — it is an input in that"
+					 << " modport (IEEE 1800-2017 25.5)."
+					 << endl;
+				    des->errors += 1;
+				    return 0;
+			      }
+			}
+		  }
+	    }
+      }
 
 	      NetAssign_*lv = 0;
 	      if (!base_index.empty() && sig->darray_type()) {
