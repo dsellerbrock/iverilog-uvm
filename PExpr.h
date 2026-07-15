@@ -975,6 +975,10 @@ class PETernary : public PExpr {
       explicit PETernary(PExpr*e, PExpr*t, PExpr*f);
       ~PETernary() override;
 
+      inline PExpr* get_cond()  const { return expr_; }
+      inline PExpr* get_true()  const { return tru_; }
+      inline PExpr* get_false() const { return fal_; }
+
       virtual void dump(std::ostream&out) const override;
 
       virtual void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
@@ -1036,6 +1040,7 @@ class PECallFunction : public PExpr {
             { return leading_type_args_; }
 
       const pform_scoped_name_t& path() const { return path_; }
+      const std::vector<named_pexpr_t>& get_parms() const { return parms_; }
 
       virtual void dump(std::ostream &) const override;
 

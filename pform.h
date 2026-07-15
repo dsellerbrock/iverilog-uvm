@@ -266,6 +266,23 @@ extern void pform_set_clocking_default_skews(const struct vlltype&loc,
 extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
 					    PExpr*lval, PExpr*cycles,
 					    PExpr*rval);
+
+/* M9 core SVA (IEEE 1800-2017 clause 16): lower one concurrent
+   assertion to a synthesized clocked token-pipeline checker.
+   kind: 0=assert, 1=assume, 2=cover. */
+struct sva_property_t;
+struct sva_seq_step_t;
+extern void pform_make_assertion(const struct vlltype&loc,
+				 sva_property_t*prop,
+				 Statement*fail_stmt, Statement*pass_stmt,
+				 int kind);
+extern void pform_sva_declare_property(const struct vlltype&loc,
+				       const char*name, sva_property_t*prop);
+extern void pform_sva_declare_sequence(const struct vlltype&loc,
+				       const char*name,
+				       std::vector<sva_seq_step_t>*steps);
+extern void pform_sva_set_default_disable(PExpr*expr);
+extern void pform_sva_module_done(void);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at

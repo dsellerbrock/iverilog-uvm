@@ -1026,6 +1026,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       // C2 (Phase 62f): pointer to file-scope sva_property_t (defined above).
       sva_property_t* sva_prop;
 
+      // M9: sequence step chains for property/sequence expressions.
+      std::vector<sva_seq_step_t>* sva_seq;
+
       decl_assignment_t*decl_assignment;
       std::list<decl_assignment_t*>*decl_assignments;
 
@@ -1230,6 +1233,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec
+%type <sva_seq>  sva_seq_expr
 %type <perm_strings> cross_item_list
 
 %type <named_pexprs> enum_name_list enum_name
@@ -2420,173 +2424,78 @@ concurrent_assertion_item /* IEEE1800-2012 A.2.10 */
       }
   ;
 
-concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
+concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
   : assert_or_assume K_property '(' property_spec ')' statement_or_null %prec less_than_K_else
-      { /* C2 (Phase 62f): build always-block-equivalent of the assert.
-	   Lowering for `assert property (@(clk) [disable iff (rst)] A |-> B)
-	   else <fail>;` is:
-	     always @(clk) begin
-	       if (!disable_iff && A && !B) <fail>;
-	     end
-	   For `|=>` (next-cycle implication) we synthesize a sticky reg
-	   that captures the antecedent at this clock and is checked at
-	   the next clock against the consequent — this is approximated
-	   here by also using $past, which iverilog has as a stub; users
-	   needing strict |=> semantics should follow up.  When no
-	   else-clause is provided, default action is $error.
-
-	   Only when supported-assertions flag is on; with the older
-	   "unsupported" flag, behave as before (silent drop). */
-	if (gn_supported_assertions_flag && $4) {
-	      // Default fail action: $error("...")
-	      std::list<named_pexpr_t> arg_list;
-	      PCallTask*fail = new PCallTask(lex_strings.make("$error"), arg_list);
-	      FILE_NAME(fail, @1);
-	      // Compose: !consequent ? fail : nothing
-	      Statement*body = nullptr;
-	      if ($4->op_type == 0) {
-		    // Plain: assert(antecedent); fail when antecedent false
-		    PCondit*c = new PCondit($4->antecedent, nullptr, fail);
-		    FILE_NAME(c, @1);
-		    body = c;
-	      } else {
-		    // |-> or |=>: when antecedent true, check consequent
-		    // For |=> approximate as |-> for now (sticky reg
-		    // future enhancement).
-		    PExpr*not_c = new PEUnary('!', $4->consequent);
-		    FILE_NAME(not_c, @1);
-		    PCondit*chk = new PCondit(not_c, fail, nullptr);
-		    FILE_NAME(chk, @1);
-		    PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
-		    FILE_NAME(ifa, @1);
-		    body = ifa;
-	      }
-	      // disable iff guard
-	      if ($4->disable_iff_expr) {
-		    PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
-		    FILE_NAME(ndis, @1);
-		    PCondit*gd = new PCondit(ndis, body, nullptr);
-		    FILE_NAME(gd, @1);
-		    body = gd;
-	      }
-	      // wrap in clocking event, if any
-	      if ($4->clk_evt) {
-		    $4->clk_evt->set_statement(body);
-		    body = $4->clk_evt;
-	      }
-	      // Append as an always block at module scope.
-	      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, body, nullptr);
-	      FILE_NAME(pp, @1);
-	      // The user-provided pass-clause (statement_or_null) is dropped
-	      // — concurrent assertions don't typically have a "pass" action.
-	      delete $6;
-	      delete $4;
+      { /* M9: pass action only. */
+	if (gn_supported_assertions_flag) {
+	      pform_make_assertion(@1, $4, 0, $6, ($1==4) ? 1 : 0);
 	} else {
-	      if (gn_unsupported_assertions_flag) {
+	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      }
-	      if ($4) { delete $4->antecedent; delete $4->consequent;
-			delete $4->disable_iff_expr; delete $4->clk_evt;
-			delete $4; }
-	      delete $6;
+	      delete $4; delete $6;
 	}
-        $$ = 0;
+	$$ = 0;
       }
   | assert_or_assume K_property '(' property_spec ')' K_else statement_or_null
-      { /* assert property (...) else <fail-action>; */
-	if (gn_supported_assertions_flag && $4) {
-	      Statement*fail = $7 ? $7 : new PNoop;
-	      Statement*body = nullptr;
-	      if ($4->op_type == 0) {
-		    PCondit*c = new PCondit($4->antecedent, nullptr, fail);
-		    FILE_NAME(c, @1);
-		    body = c;
-	      } else {
-		    PExpr*not_c = new PEUnary('!', $4->consequent);
-		    FILE_NAME(not_c, @1);
-		    PCondit*chk = new PCondit(not_c, fail, nullptr);
-		    FILE_NAME(chk, @1);
-		    PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
-		    FILE_NAME(ifa, @1);
-		    body = ifa;
-	      }
-	      if ($4->disable_iff_expr) {
-		    PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
-		    FILE_NAME(ndis, @1);
-		    PCondit*gd = new PCondit(ndis, body, nullptr);
-		    FILE_NAME(gd, @1);
-		    body = gd;
-	      }
-	      if ($4->clk_evt) {
-		    $4->clk_evt->set_statement(body);
-		    body = $4->clk_evt;
-	      }
-	      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, body, nullptr);
-	      FILE_NAME(pp, @1);
-	      delete $4;
+      { /* M9: fail action only. */
+	if (gn_supported_assertions_flag) {
+	      pform_make_assertion(@1, $4, $7, 0, ($1==4) ? 1 : 0);
 	} else {
-	      if (gn_unsupported_assertions_flag) {
+	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      }
-	      if ($4) { delete $4->antecedent; delete $4->consequent;
-			delete $4->disable_iff_expr; delete $4->clk_evt;
-			delete $4; }
-	      delete $7;
+	      delete $4; delete $7;
 	}
-        $$ = 0;
+	$$ = 0;
       }
   | assert_or_assume K_property '(' property_spec ')' statement_or_null K_else statement_or_null
-      { /* */
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: concurrent_assertion_item not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+      { /* M9: pass and fail actions. */
+	if (gn_supported_assertions_flag) {
+	      pform_make_assertion(@1, $4, $8, $6, ($1==4) ? 1 : 0);
+	} else {
+	      if (gn_unsupported_assertions_flag)
+		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      delete $4; delete $6; delete $8;
 	}
-	if ($4) { delete $4->antecedent; delete $4->consequent;
-		  delete $4->disable_iff_expr; delete $4->clk_evt;
-		  delete $4; }
-	delete $6; delete $8;
-        $$ = 0;
+	$$ = 0;
       }
   | K_cover K_property '(' property_spec ')' statement_or_null
-      { /* cover property: not synthesized; just free captured data. */
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: concurrent_assertion_item not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+      { /* M9: cover property counts matches. */
+	if (gn_supported_assertions_flag) {
+	      pform_make_assertion(@1, $4, 0, $6, 2);
+	} else {
+	      if (gn_unsupported_assertions_flag)
+		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      delete $4; delete $6;
 	}
-	if ($4) { delete $4->antecedent; delete $4->consequent;
-		  delete $4->disable_iff_expr; delete $4->clk_evt; delete $4; }
-	delete $6;
-        $$ = 0;
+	$$ = 0;
       }
       /* For now, cheat, and use property_spec for the sequence specification.
          They are syntactically identical. */
   | K_cover K_sequence '(' property_spec ')' statement_or_null
-      { /* cover sequence: not synthesized; free captured data. */
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: concurrent_assertion_item not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+      { /* M9: cover sequence — same machinery as cover property. */
+	if (gn_supported_assertions_flag) {
+	      pform_make_assertion(@1, $4, 0, $6, 2);
+	} else {
+	      if (gn_unsupported_assertions_flag)
+		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      delete $4; delete $6;
 	}
-	if ($4) { delete $4->antecedent; delete $4->consequent;
-		  delete $4->disable_iff_expr; delete $4->clk_evt; delete $4; }
-	delete $6;
-        $$ = 0;
+	$$ = 0;
       }
   | K_restrict K_property '(' property_spec ')' ';'
-      { /* restrict property: not synthesized; free captured data. */
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@2, "sorry: concurrent_assertion_item not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
-	}
-	if ($4) { delete $4->antecedent; delete $4->consequent;
-		  delete $4->disable_iff_expr; delete $4->clk_evt; delete $4; }
+      { /* IEEE 1800-2017 16.8: restrict is a formal-tools directive;
+	   simulation ignores it. */
+	if ($4) { delete $4->antecedent; delete $4->seq; delete $4; }
         $$ = 0;
       }
   | assert_or_assume K_property '(' error ')' statement_or_null %prec less_than_K_else
@@ -4386,15 +4295,35 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
       { pform_start_clocking_block(@2, 0, $3, false, true); }
     clocking_items_opt K_endclocking
       { pform_end_clocking_block(@7); }
-  /* SV `default disable iff (expr);` — silently accepted. */
+  /* M9 (IEEE 1800-2017 16.15): `default disable iff (expr);` applies
+     to every concurrent assertion in this module that lacks its own
+     disable clause. */
   | K_default K_disable K_iff '(' expression ')' ';'
-      { delete $5; }
+      { pform_sva_set_default_disable($5); }
+  /* M9: named no-argument property/sequence declarations, usable by
+     assertions later in the SAME module. Parameterized forms still
+     fall to the error-recovery rules below (parsed and dropped). */
+  | K_property IDENTIFIER ';' property_spec ';' K_endproperty
+      { pform_sva_declare_property(@2, $2, $4);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER ';' property_spec ';' K_endproperty ':' IDENTIFIER
+      { pform_sva_declare_property(@2, $2, $4);
+	delete[] $2;
+	delete[] $8;
+      }
+  | K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence
+      { pform_sva_declare_sequence(@2, $2, $4);
+	delete[] $2;
+      }
+  | K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
+      { pform_sva_declare_sequence(@2, $2, $4);
+	delete[] $2;
+	delete[] $8;
+      }
   /* SV `sequence ... endsequence` and `property ... endproperty` —
-     parsed and dropped. The temporal semantics are TODO; this lets
-     SVA-rich modules compile when they aren't gated behind SYNTHESIS.
-     We use bison error recovery to swallow the body as a black box.
-     The `yyerror` machinery does emit one message per block, but we
-     route through an inline note that's shown only with -gassertions. */
+     parameterized/complex forms are parsed and dropped via bison
+     error recovery so SVA-rich modules still compile. */
   | K_sequence error K_endsequence
       { if (gn_supported_assertions_flag) {
               /* silently recover */
@@ -5131,22 +5060,88 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
       { $$ = $2; }
   ;
 
-property_expr /* IEEE1800-2012 A.2.10 */
+property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
+  : sva_seq_expr
+      { sva_property_t*p = new sva_property_t;
+	p->seq = $1; p->op_type = 0;
+	$$ = p; }
+  | sva_seq_expr K_PIPE_IMPL_OV sva_seq_expr
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $3; p->op_type = 1;
+	$$ = p; }
+  | sva_seq_expr K_PIPE_IMPL_NOV sva_seq_expr
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $3; p->op_type = 2;
+	$$ = p; }
+  ;
+
+  /* M9: a sequence expression as a linear chain of cycle-delayed
+     booleans: e0 ##d1 e1 ##[m:n] e2 ... Delay bounds must be literal
+     constants (checked at lowering; -2 marks non-constant, -1 marks
+     the unbounded $ bound). */
+sva_seq_expr
   : expression
-      { sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = nullptr; p->op_type = 0;
-	$$ = p; }
-  | expression K_PIPE_IMPL_OV expression
-      { sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = $3; p->op_type = 1;
-	$$ = p; }
-  | expression K_PIPE_IMPL_NOV expression
-      { sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = $3; p->op_type = 2;
-	$$ = p; }
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.delay_lo = 0; st.delay_hi = 0; st.expr = $1;
+	steps->push_back(st);
+	$$ = steps; }
+  /* Leading cycle delay: `|-> ##2 b`, `|-> ##[1:3] b`. */
+  | K_CYCLE_DELAY delay_value_simple expression
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	if (PENumber*num = dynamic_cast<PENumber*>($2)) {
+	      st.delay_lo = num->value().as_long();
+	      st.delay_hi = st.delay_lo;
+	} else {
+	      st.delay_lo = -2; st.delay_hi = -2;
+	}
+	delete $2;
+	st.expr = $3;
+	steps->push_back(st);
+	$$ = steps; }
+  | K_CYCLE_DELAY '[' expression ':' expression ']' expression
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	PENumber*lo = dynamic_cast<PENumber*>($3);
+	PENumber*hi = dynamic_cast<PENumber*>($5);
+	if (lo && hi) {
+	      st.delay_lo = lo->value().as_long();
+	      st.delay_hi = hi->value().as_long();
+	} else {
+	      st.delay_lo = -2; st.delay_hi = -2;
+	}
+	delete $3; delete $5;
+	st.expr = $7;
+	steps->push_back(st);
+	$$ = steps; }
+  | sva_seq_expr K_CYCLE_DELAY delay_value_simple expression
+      { sva_seq_step_t st;
+	if (PENumber*num = dynamic_cast<PENumber*>($3)) {
+	      st.delay_lo = num->value().as_long();
+	      st.delay_hi = st.delay_lo;
+	      delete $3;
+	} else {
+	      st.delay_lo = -2; st.delay_hi = -2;
+	      delete $3;
+	}
+	st.expr = $4;
+	$1->push_back(st);
+	$$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' expression
+      { sva_seq_step_t st;
+	PENumber*lo = dynamic_cast<PENumber*>($4);
+	PENumber*hi = dynamic_cast<PENumber*>($6);
+	if (lo && hi) {
+	      st.delay_lo = lo->value().as_long();
+	      st.delay_hi = hi->value().as_long();
+	} else {
+	      st.delay_lo = -2; st.delay_hi = -2;
+	}
+	delete $4; delete $6;
+	st.expr = $8;
+	$1->push_back(st);
+	$$ = $1; }
   ;
 
   /* The property_qualifier rule is as literally described in the LRM,
