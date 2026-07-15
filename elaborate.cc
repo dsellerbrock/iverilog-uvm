@@ -10536,6 +10536,26 @@ bool Module::elaborate(Design*des, NetScope*scope) const
  *               emitted as constants (IEEE 1800-2017 18.5.3).
  * loop_env:     if non-null, maps foreach loop-variable names to their
  *               unrolled constant values (IEEE 1800-2017 18.5.8). */
+
+/* Dynamic-array foreach emission context (IEEE 1800-2017 18.5.8.2).
+ * A foreach over a rand dynamic-array/queue property cannot unroll at
+ * elaboration (the element count is a runtime value, itself possibly
+ * randomized), so the body is emitted as a TEMPLATE the runtime
+ * expands after the size is solved:
+ *   (dynforeach <pidx>:<ewid>[:s] <body>)
+ * with the loop variable emitted as the token `L` and element
+ * references as `(delem <pidx>:<ewid>[:s] <index-ir>)`. This context
+ * is only live while the body of one such foreach is being emitted
+ * (pexpr_to_constraint_ir is elaboration-time single-threaded); it is
+ * scoped rather than threaded through the ~30 recursive call sites. */
+struct dynforeach_emit_ctx_t {
+      perm_string loop_var;
+      int prop_idx;
+      unsigned elem_wid;
+      bool elem_signed;
+};
+static const dynforeach_emit_ctx_t*dynforeach_emit_ctx_ = nullptr;
+
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots,
@@ -10568,6 +10588,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (lit != loop_env->end())
 			return "c:" + to_string(lit->second);
 	    }
+	      // Dynamic foreach loop variable: symbolic token for the
+	      // runtime expansion (18.5.8.2).
+	    if (dynforeach_emit_ctx_ && id->path().size() == 1
+		&& id->path().back().index.empty()
+		&& name == dynforeach_emit_ctx_->loop_var)
+		  return "L";
 
 	    int idx = cls->property_idx_from_name(name);
 	    if (idx >= 0) {
@@ -10580,6 +10606,28 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		    // e:N:W:I. The index must fold to a constant under the
 		    // loop environment.
 		  if (!id->path().back().index.empty()) {
+			  // Element of the dynamic array being iterated by
+			  // an enclosing dynamic foreach: emit the runtime
+			  // element-reference template form. The index sub-IR
+			  // may contain the symbolic loop token L.
+			if (dynforeach_emit_ctx_
+			    && idx == dynforeach_emit_ctx_->prop_idx
+			    && id->path().back().index.size() == 1) {
+			      const index_component_t&dic =
+				    id->path().back().index.front();
+			      if (!dic.msb || dic.lsb
+				  || dic.sel != index_component_t::SEL_BIT)
+				    return "";
+			      string idx_ir = pexpr_to_constraint_ir(dic.msb,
+					    cls, value_slots, scope, loop_env);
+			      if (idx_ir.empty())
+				    return "";
+			      const dynforeach_emit_ctx_t*c = dynforeach_emit_ctx_;
+			      return "(delem " + to_string(c->prop_idx)
+				    + ":" + to_string(c->elem_wid)
+				    + (c->elem_signed ? ":s" : "")
+				    + " " + idx_ir + ")";
+			}
 			const netuarray_t*ua =
 			      dynamic_cast<const netuarray_t*>(ptype);
 			if (!ua || id->path().back().index.size() != 1)
@@ -10753,8 +10801,50 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  return "";
 	    const netuarray_t*ua =
 		  dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)idx));
-	    if (!ua)
-		  return "";  // dynamic-array foreach: not yet supported
+	      // Dynamic array or queue property: the element count is a
+	      // runtime value (18.5.8.2: the size is solved before the
+	      // iterative constraints), so emit a template the runtime
+	      // expands after the size is known. One level only.
+	    if (!ua) {
+		  const netdarray_t*da = dynamic_cast<const netdarray_t*>(
+			cls->get_prop_type((size_t)idx));
+		  if (!da || dynforeach_emit_ctx_)
+			return "";
+		  ivl_type_t etype = da->element_type();
+		  unsigned ewid = etype ? etype->packed_width() : 32;
+		  if (ewid == 0) ewid = 32;
+		  bool esig = etype && etype->get_signed();
+		    // Only integral elements are expressible.
+		  if (etype && (etype->base_type() == IVL_VT_REAL
+				|| etype->base_type() == IVL_VT_STRING
+				|| etype->base_type() == IVL_VT_CLASS
+				|| etype->base_type() == IVL_VT_DARRAY
+				|| etype->base_type() == IVL_VT_QUEUE))
+			return "";
+		  dynforeach_emit_ctx_t dctx;
+		  dctx.loop_var = cfe->loop_vars()[0];
+		  dctx.prop_idx = idx;
+		  dctx.elem_wid = ewid;
+		  dctx.elem_signed = esig;
+		  dynforeach_emit_ctx_ = &dctx;
+		  string body;
+		  for (const PExpr*item : cfe->items()) {
+			if (!item) continue;
+			string s = pexpr_to_constraint_ir(item, cls,
+						value_slots, scope, loop_env);
+			if (s.empty()) {
+			      dynforeach_emit_ctx_ = nullptr;
+			      return "";
+			}
+			body = body.empty() ? s : "(and " + body + " " + s + ")";
+		  }
+		  dynforeach_emit_ctx_ = nullptr;
+		  if (body.empty())
+			return "";
+		  return "(dynforeach " + to_string(idx)
+			+ ":" + to_string(ewid) + (esig ? ":s" : "")
+			+ " " + body + ")";
+	    }
 	    const netranges_t&dims = ua->static_dimensions();
 	    if (dims.size() != 1)
 		  return "";
