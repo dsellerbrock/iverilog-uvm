@@ -217,3 +217,51 @@ The WIP commit (M8-2a-4) is hereby promoted — regression-clean.
 **M8 increment 2a is COMPLETE across all three clocking-block access
 paths (same-scope, instance, virtual interface).** Next: 2b
 synchronous output drives.
+
+## 2b: synchronous output clockvar drives (14.16)
+
+`cb.out <= v` previously wrote the raw signal immediately (alias).
+Now:
+
+- elab_sig creates `_ivl_obuf$cb$sig` (drive buffer, raw's type) and
+  `_ivl_opend$cb$sig` (pending bit) per OUTPUT/INOUT clockvar, and
+  the tick/trigger machinery is synthesized for outputs-only blocks
+  too (previously only blocks with sampled inputs got a sampler).
+- PAssignNB::elaborate intercepts plain NB drives whose l-value is a
+  same-scope `cb.sig` or instance `inst.cb.sig` OUTPUT/INOUT
+  clockvar and emits: buffer store, then
+  `if ($ivl_clocking_sample(tick) !== tick) raw <= obuf; else
+  opend = 1;` — the tick comparison (1-deep history, tick toggles in
+  the NBA of each event step) answers "did the clocking event already
+  occur in this step". Drives after an @(cb) wake land in the same
+  step (the LRM's drive-at-current-event case); drives between events
+  buffer.
+- A synthesized apply process per block lands buffered drives at each
+  clocking event, woken by the sampler's trigger (NBA region → the
+  apply runs after Active, Re-NBA-like timing; it also catches
+  same-step drives that raced the edge in Active):
+  `initial forever @(trig) if (opend) begin raw <= obuf; opend=0; end`
+- 14.16.2 last-drive-wins falls out of the buffer (later stores
+  overwrite).
+- Fall-through to the alias NBA (recorded): vif.cb.out drives (needs
+  a preponed-through-property mechanism), part-selects of clockvars
+  (14.16.2 partial drives), intra-assignment controls (`<= ##N` is
+  2c), unsampleable signals.
+
+Test: tests/m8_clocking_drive_test.sv (between-edge buffering,
+same-step drive after @(cb), last-drive-wins, inout drive/sample
+interaction incl. the pre-drive #1step sample at the landing edge,
+instance paths). g01 (module + program output drives) and
+clocking_test (instance-path drive) pass unchanged on the new
+semantics.
+
+## Promotion evidence (2b)
+
+- UVM harness: **140 passed / 0 failed / 0 skipped, zero "(no-check)"
+  entries** (139 prior + tests/m8_clocking_drive_test.sv).
+- ivtest (shim PATH): Total=2559 Passed=2457 Failed=99 — failure
+  names BYTE-IDENTICAL to fails_baseline.txt (empty diff).
+- Negative suite 12/12; focused battery 12/12.
+
+The WIP commit (M8-2b buffered output drives) is hereby promoted —
+regression-clean.
