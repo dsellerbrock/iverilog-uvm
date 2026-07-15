@@ -3,6 +3,30 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-15d (M9 increment 1 LANDED AND PROMOTED)
+
+- **PR #76** now carries the full M8 tail (promoted, M8 CLOSED) AND
+  M9 increment 1: the core SVA engine (G05/G06). Concurrent
+  assertions lower to synthesized token-pipeline checkers
+  (pform_make_assertion, pform.cc): sampled |->, REAL |=> (was
+  approximated as |->), ##N chains, trailing ##[m:n] windows,
+  overlap-correct attempts, disable iff + `default disable iff`
+  (now applied), default-clocking assertions, sampled-value
+  functions ($rose/$fell/$stable/$changed/$past[,N]) with true
+  clocked histories, named no-arg property/sequence declarations,
+  assume==assert, cover counting, restrict ignored per 16.8.
+  Honest sorries for the unsupported algebra.
+- **Promotion evidence**: UVM **146/146** (zero no-check), ivtest
+  BYTE-IDENTICAL to baseline (empty diff), negative 13/13.
+  Test: tests/m9_sva_engine_test.sv (24 checks, pass+fail
+  directions). Session log:
+  session_logs/2026-07-15_m9_core_sva.md.
+- **M9-2 frontier (next)**: repetition operators ([*N]/[->]/[=]),
+  sequence antecedents, non-final ranges, unbounded ##[m:$],
+  property operators (not/until/nexttime), throughout/intersect/
+  first_match, parameterized declarations, pass actions, exact
+  Preponed sampling for blocking-race corners.
+
 ## State as of 2026-07-15c (M8 CLOSED; M9 is next)
 
 - **PR #75 MERGED** (M4 close-out + M8 increment 2 core). **PR #76**
