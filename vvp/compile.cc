@@ -511,6 +511,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%test_nul/obj", of_TEST_NUL_OBJ, 0,{OA_NONE,    OA_NONE,    OA_NONE} },
       { "%test_nul/prop",of_TEST_NUL_PROP,2,{OA_NUMBER,  OA_BIT1,    OA_NONE} },
       { "%uarr/order", of_UARR_ORDER,2,{OA_ARR_PTR, OA_BIT1,    OA_NONE} },
+      { "%uarr/unique",of_UARR_UNIQUE,2,{OA_ARR_PTR,OA_BIT1,    OA_NONE} },
       { "%unbox/vec4", of_UNBOX_VEC4,1,{OA_NUMBER,  OA_NONE,    OA_NONE} },
       { "%wait",   of_WAIT,   1,  {OA_FUNC_PTR, OA_NONE,     OA_NONE} },
       { "%wait/fork",of_WAIT_FORK,0,{OA_NONE,   OA_NONE,     OA_NONE} },

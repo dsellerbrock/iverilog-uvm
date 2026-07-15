@@ -991,6 +991,68 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    return 0;
       }
 
+      /* The empty queue literal `{}` (IEEE 1800-2017 7.10.4): push a
+       * fresh EMPTY container of the context type. A null handle here
+       * made q_of_q.push_back({}) store nil (G73). */
+      if (strcmp(name, "$ivl_queue$new_empty") == 0) {
+	    ivl_type_t qtype = ivl_expr_net_type(expr);
+	    ivl_type_t etype = qtype ? ivl_type_element(qtype) : 0;
+	    char enc[32];
+	    if (!etype) {
+		  snprintf(enc, sizeof enc, "v32");
+	    } else switch (ivl_type_base(etype)) {
+		case IVL_VT_REAL:
+		  snprintf(enc, sizeof enc, "r");
+		  break;
+		case IVL_VT_STRING:
+		  snprintf(enc, sizeof enc, "S");
+		  break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		  snprintf(enc, sizeof enc, "o");
+		  break;
+		default: {
+		  unsigned w = ivl_type_packed_width(etype);
+		  if (w == 0) w = 32;
+		  snprintf(enc, sizeof enc, "%s%s%u",
+			   ivl_type_signed(etype) ? "s" : "",
+			   (ivl_type_base(etype) == IVL_VT_BOOL) ? "b" : "v",
+			   w);
+		  break;
+		}
+	    }
+	    if (qtype && ivl_type_base(qtype) == IVL_VT_DARRAY) {
+		  fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
+		  fprintf(vvp_out, "    %%new/darray 3, \"%s\";\n", enc);
+	    } else {
+		  fprintf(vvp_out, "    %%new/queue \"%s\";\n", enc);
+	    }
+	    return 0;
+      }
+
+      /* G40: unique()/unique_index() on a fixed-size unpacked ARRAY
+       * (IEEE 1800-2017 7.12.1). %uarr/unique reads the array's words
+       * and pushes a fresh queue of the first-occurrence values (mode
+       * 0) or canonical word indexes (mode 1). */
+      if (strncmp(name, "$ivl_uarray_method$unique|", 26) == 0) {
+	    const char*kind = name + 26;
+	    int is_index = (strstr(kind, "index") != NULL);
+	    ivl_expr_t a_arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    ivl_signal_t a_sig = 0;
+	    if (a_arg && (ivl_expr_type(a_arg) == IVL_EX_SIGNAL
+			  || ivl_expr_type(a_arg) == IVL_EX_ARRAY))
+		  a_sig = ivl_expr_signal(a_arg);
+	    if (!a_sig) {
+		  fprintf(vvp_out, "    %%null; ; uarr unique: bad arg shape\n");
+		  return 0;
+	    }
+	    note_array_signal_use(a_sig);
+	    fprintf(vvp_out, "    %%uarr/unique v%p, %d;\n",
+		    a_sig, is_index ? 1 : 0);
+	    return 0;
+      }
+
       /* IEEE 1800-2017 7.12.1 min()/max():
        *   $ivl_darray_method$minmax|<kind>(array, iter, result, idx,
        *                                    best, bestitem, val)

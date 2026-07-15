@@ -4628,6 +4628,57 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 
       unsigned nparms = parms_.size();
 
+	// Array query functions over DYNAMIC arrays/queues
+	// (IEEE 1800-2017 20.7): dynamic arrays are always 0-based
+	// with a runtime size, so rewrite to the size sfunc (which
+	// accepts signal AND class-property receivers) instead of the
+	// $high/$low VPI path — a property receiver there used to
+	// constant-fold to 'x' (get_array_info has no NetEProperty
+	// case). Strings keep the VPI path ($high(str) = len-1).
+      if (nparms == 1 && parms_[0].parm
+	  && dynamic_cast<PEIdent*>(parms_[0].parm)
+	  && (strcmp(name, "$size") == 0
+	      || strcmp(name, "$high") == 0
+	      || strcmp(name, "$low") == 0
+	      || strcmp(name, "$left") == 0
+	      || strcmp(name, "$right") == 0
+	      || strcmp(name, "$increment") == 0
+	      || strcmp(name, "$unpacked_dimensions") == 0)) {
+	    perm_string pname = lex_strings.make(name);
+	    NetExpr*sub = elab_sys_task_arg(des, scope, pname, 0,
+					    parms_[0].parm, false);
+	    if (sub && dynamic_cast<const netdarray_t*>(sub->net_type())) {
+		  NetExpr*res = 0;
+		  if (strcmp(name, "$low") == 0
+		      || strcmp(name, "$left") == 0) {
+			delete sub;
+			res = make_const_val(0);
+		  } else if (strcmp(name, "$increment") == 0) {
+			delete sub;
+			res = make_const_val_s(-1);
+		  } else if (strcmp(name, "$unpacked_dimensions") == 0) {
+			delete sub;
+			res = make_const_val(1);
+		  } else {
+			NetESFunc*szf = new NetESFunc(
+			      "$ivl_queue_method$size",
+			      &netvector_t::atom2u32, 1);
+			szf->set_line(*this);
+			szf->parm(0, sub);
+			if (strcmp(name, "$size") == 0) {
+			      res = szf;
+			} else {
+			        // $high / $right = size - 1
+			      NetEConst*one = make_const_val(1);
+			      res = new NetEBAdd('-', szf, one, 32, false);
+			}
+		  }
+		  res->set_line(*this);
+		  return cast_to_width_(res, expr_wid);
+	    }
+	    delete sub;
+      }
+
       NetESFunc*fun = new NetESFunc(name, expr_type_, expr_width_, nparms, is_overridden_);
       fun->set_line(*this);
 
@@ -7214,14 +7265,21 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    method_path.pop_front();
       }
 
-      // Queue variable with a select expression. The type of this expression
-      // is the type of the object that will interpret the method. For
-      // example:
+      // Queue or dynamic-array variable with a select expression. The
+      // type of this expression is the type of the object that will
+      // interpret the method. For example:
       //    <scope>.x[e].len()
-      // If x is a queue of strings, then x[e] is a string. Elaborate the x[e]
-      // expression and pass that to the len() method.
+      // If x is a queue of strings, then x[e] is a string. Elaborate
+      // the x[e] expression and pass that to the len() method. Plain
+      // dynamic arrays take the same element route (G70: a class-
+      // method call on a DARRAY element used to fall into the
+      // container-method dispatch and error "not a dynamic array
+      // method" — the uvm_phase succ[] successor-walk shape).
       if (!applied_root_queue_select
-	  && search_results.net && search_results.net->data_type()==IVL_VT_QUEUE
+	  && search_results.net
+	  && (search_results.net->data_type()==IVL_VT_QUEUE
+	      || search_results.net->data_type()==IVL_VT_DARRAY)
+	  && search_results.net->darray_type()
 	  && method_path.size()==1
 	  && search_results.path_head.back().index.size()==1) {
 
@@ -7429,6 +7487,26 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			element_type,
 			method_name.str(), parms_);
 		  if (loc) return loc;
+	    }
+
+	      // G40: unique()/unique_index() on fixed-size unpacked
+	      // arrays (IEEE 1800-2017 7.12.1 applies to any unpacked
+	      // array). Lowered to %uarr/unique, which builds a fresh
+	      // queue of the first-occurrence values (or canonical
+	      // indexes) on the object stack.
+	    if ((method_name == "unique" || method_name == "unique_index")
+		&& with_constraints().empty()
+		&& uarray->static_dimensions().size() == 1
+		&& element_type
+		&& (element_type->base_type() == IVL_VT_BOOL
+		    || element_type->base_type() == IVL_VT_LOGIC)) {
+		  string sfname = string("$ivl_uarray_method$unique|")
+			+ method_name.str();
+		  NetESFunc*fn = new NetESFunc(sfname.c_str(),
+					       IVL_VT_QUEUE, 1, 1);
+		  fn->parm(0, sub_expr);
+		  fn->set_line(*this);
+		  return fn;
 	    }
       }
 
@@ -8382,7 +8460,14 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 // FIXME: Does a DARRAY support a zero size?
 	  case IVL_VT_DARRAY:
 	    if (parms_.size() == 0) {
-		  NetENull*tmp = new NetENull;
+		    // The empty queue literal `{}` is an EMPTY QUEUE
+		    // value, not a null handle (IEEE 1800-2017 7.10.4).
+		    // Returning null here made
+		    // `q_of_q.push_back({})` store nil — subsequent
+		    // element stores through the inner handle silently
+		    // skipped (G73).
+		  NetESFunc*tmp = new NetESFunc("$ivl_queue$new_empty",
+						ntype, 0);
 		  tmp->set_line(*this);
 		  return tmp;
 	    } else {

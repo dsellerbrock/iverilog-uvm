@@ -97,6 +97,24 @@ static int expr_is_class_like_(ivl_expr_t expr)
       ivl_type_t net_type = ivl_expr_net_type(expr);
       ivl_signal_t sig;
 
+	/* The expression's own VALUE type is authoritative when it is
+	 * a definite non-class kind: a chained element select like
+	 * c.dd[0][1] evaluates to an int even though its ROOT signal
+	 * is class-typed. Falling back to the root signal's type here
+	 * used to classify such reads as objects — $display printed
+	 * "null" for perfectly scalar values. */
+      if (!net_type) {
+            switch (ivl_expr_value(expr)) {
+                case IVL_VT_BOOL:
+                case IVL_VT_LOGIC:
+                case IVL_VT_REAL:
+                case IVL_VT_STRING:
+                  return 0;
+                default:
+                  break;
+            }
+      }
+
       if (!net_type) {
             sig = expr_signal_base_(expr);
             if (sig)

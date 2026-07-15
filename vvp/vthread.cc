@@ -1865,6 +1865,48 @@ bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %uarr/unique <array-label>, <mode>
+ *
+ * Expression-form unique()/unique_index() on a STATIC unpacked array
+ * (IEEE 1800-2017 7.12.1): push a fresh queue holding the
+ * first-occurrence element values (mode 0) or their canonical word
+ * indexes (mode 1). Vec4 word arrays only (the elaborator gates on
+ * integral element types).
+ */
+bool of_UARR_UNIQUE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_array_t arr = resolve_runtime_array_(cp, "%uarr/unique");
+      unsigned mode = cp->bit_idx[0];
+      vvp_queue_vec4*dst = new vvp_queue_vec4;
+      if (arr) {
+	    unsigned sz = arr->get_size();
+	    std::vector<vvp_vector4_t> seen;
+	    for (unsigned i = 0 ; i < sz ; i += 1) {
+		  vvp_vector4_t v = arr->get_word(i);
+		  bool dup = false;
+		  for (size_t k = 0 ; k < seen.size() && !dup ; k += 1)
+			if (vec4_eq_(seen[k], v))
+			      dup = true;
+		  if (dup)
+			continue;
+		  seen.push_back(v);
+		  if (mode & 1) {
+			vvp_vector4_t iv(32, BIT4_0);
+			for (unsigned b = 0 ; b < 32 ; b += 1)
+			      if ((i >> b) & 1)
+				    iv.set_bit(b, BIT4_1);
+			dst->push_back(iv, 0);
+		  } else {
+			dst->push_back(v, 0);
+		  }
+	    }
+      }
+      vvp_object_t obj(dst);
+      thr->push_object(obj);
+      return true;
+}
+
+/*
  * %uarr/order <array-label>, <mode>
  *
  * In-place ordering method on a STATIC unpacked array
