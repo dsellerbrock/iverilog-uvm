@@ -3,6 +3,52 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-15g (M11 CLOSED)
+
+- **M11 (functional coverage) is CLOSED** on PR #76, four increments
+  in three commits:
+  1/2. **Bin semantics core + transitions** — metadata records became
+     (cp, prop, lo, hi, kind, tuple, item): same-(prop,tuple) records
+     AND (cross tuples), tuples OR (fixing the live silent miscompile
+     where multi-range bins {1,5} could NEVER hit). Arrayed bins
+     ([]/[N]), with-filters (item-substitution constant evaluator),
+     wildcard bins (x/z/? masks), default bins (counted, excluded
+     from %), ignore CARVE-OUT (values suppress the whole coverpoint
+     incl. crosses), illegal precedence + runtime error, iff guards
+     (%covgrp/sample gained has_guards), automatic bins
+     (auto_bin_max), transition bins (multi-step/multi-seq/range
+     steps, per-instance NFA masks on vvp_cobject), options captured
+     and applied (at_least/auto_bin_max/weight), get_inst_coverage =
+     weighted per-ITEM model (19.11; coverage_cross_test expectation
+     updated 75%→83.3% with pinned reasoning), ALL silent grammar
+     drops now loud sorries. +7 r/r conflicts in pre-existing benign
+     families (sweep-validated).
+  3/4. **binsof crosses + queries + report** — named cross bins with
+     binsof(cp[.bin])/intersect/&&/||/! evaluated per product tuple
+     (normal collect, ignore carve out, illegal error+precedence,
+     rest auto); type coverage (per-class merged counters,
+     get_coverage()), $get_coverage (registry mean; registered
+     real-returning sysfunc), start()/stop(), durable text report
+     via IVL_COVERAGE_REPORT=<file|->.
+  Fixed en route: LATENT pform teardown double-free (comma property
+  lists / typedef aliases share one data_type_t under owning
+  unique_ptrs; module-scope classes w/ covergroups crashed AFTER
+  writing output — verified pre-existing on the M10 compiler; fix:
+  release-not-delete at exit). Windows CI: new ivl_type_covgrp_*
+  APIs added to ivl.def (all three MSYS2 jobs failed the tgt-vvp
+  link — caught from PR webhook, fix pushed).
+- **Promotion evidence**: UVM **155/155** (zero no-check), ivtest
+  2559/2456/100 identical to baseline modulo the documented
+  pow_ca_signed flake (verified standalone PASS 24.1s), negative
+  14/14, battery 16/16. Session log:
+  session_logs/2026-07-15_m11_functional_coverage.md (ledger:
+  package/module-scope cg stubs loud, sampling events, with-function-
+  sample formals, non-property coverpoint exprs, guard forms, 2-state
+  sampling, UCDB, caps).
+- **NEXT FRONTIER: M12 (VPI SystemVerilog object model)** per the
+  milestone sequence; then M13 (bind/let/configs/specify), M14
+  clause matrix.
+
 ## State as of 2026-07-15f (M10 CLOSED)
 
 - **M10 (DPI and open arrays) is CLOSED** on PR #76, four increments:

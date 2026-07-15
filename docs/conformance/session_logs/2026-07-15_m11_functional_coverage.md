@@ -196,6 +196,32 @@ ivtest sweep (byte-identical failures).
   bins, 4096 cross products, 256 range-tuples per product bin, 63
   transition steps.
 
-## Promotion evidence
+## Promotion evidence — M11 CLOSED
 
-Recorded below after the full sweeps.
+- UVM harness: **155 passed / 0 failed / 0 skipped, zero "(no-check)"
+  entries** (152 prior + m11_coverage_bins_test +
+  m11_coverage_trans_test + m11_coverage_cross_query_test; the four
+  legacy coverage tests pass, one with the documented item-model
+  expectation update).
+- ivtest (shim PATH): Total=2559 Passed=2456 Failed=100 — failure
+  names identical to fails_baseline.txt except `pow_ca_signed`, the
+  documented load-timeout flake (verified standalone: PASSED in
+  24.1s vs the 25s shim cutoff).
+- Negative suite 14/14; focused battery 16/16 (m11/m10/m9/m8/dpi/
+  legacy-coverage anchors).
+
+The M11 WIP commits (bin semantics core + transitions, binsof
+crosses + type coverage + queries + report, package-stub loudness)
+are hereby promoted — regression-clean.
+
+**M11 (functional coverage) is CLOSED.** The coverage service covers
+what verification code actually uses — explicit/arrayed/wildcard/
+default bins with with-filters, real ignore carve-out and illegal
+precedence, iff guards, automatic bins, transition sequences,
+crosses with binsof/intersect select expressions, at_least/
+auto_bin_max/weight options, instance and type coverage queries,
+$get_coverage, start/stop, and a durable end-of-simulation report —
+with the per-item weighted coverage model of 19.11 and every
+unimplemented shape a loud diagnostic, never silent. The
+recorded-corners list above is the M11 follow-up ledger (same
+closure pattern as M4/M8/M9/M10).
