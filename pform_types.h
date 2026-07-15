@@ -128,6 +128,17 @@ struct index_component_t {
       class PExpr*lsb;
 };
 
+/* IEEE 1800-2017 14.4: a clocking skew — an optional edge qualifier
+   and/or a delay. one_step marks the #1step form. Built by the
+   parser's clocking_skew rules; the delay PExpr ownership transfers
+   to Module::PClocking. */
+class PExpr;
+struct pform_clocking_skew_t {
+      char edge = 0;          // 0 (none), 'p'osedge, 'n'egedge, 'e'dge
+      PExpr*delay = nullptr;
+      bool one_step = false;
+};
+
 struct name_component_t {
       inline name_component_t() { }
       inline explicit name_component_t(perm_string n) : name(n) { }

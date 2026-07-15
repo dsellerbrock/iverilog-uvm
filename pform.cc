@@ -3961,18 +3961,28 @@ void pform_set_default_clocking_ref(const struct vlltype&loc,
 }
 
 void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
-			       NetNet::PortType dir)
+			       NetNet::PortType dir,
+			       const pform_clocking_skew_t*in_skew,
+			       const pform_clocking_skew_t*out_skew)
 {
 	/* The enclosing block open may have failed (duplicate name) or
 	   been skipped on a parse error; drop the signal quietly — an
 	   error has already been reported. */
       if (pform_cur_clocking == 0) return;
 
-      if (!pform_cur_clocking->add_signal(name, dir)) {
+      if (!pform_cur_clocking->add_signal(name, dir, in_skew, out_skew)) {
 	    cerr << loc << ": error: duplicate signal `" << name
 		 << "' in clocking block `" << pform_cur_clocking->name << "'." << endl;
 	    error_count += 1;
       }
+}
+
+void pform_set_clocking_default_skews(const struct vlltype&loc,
+				      const pform_clocking_skew_t*in_skew,
+				      const pform_clocking_skew_t*out_skew)
+{
+      if (pform_cur_clocking == 0) return;
+      pform_cur_clocking->set_default_skews(in_skew, out_skew);
 }
 
 void pform_end_clocking_block(const struct vlltype&loc)

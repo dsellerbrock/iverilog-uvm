@@ -15601,6 +15601,33 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %wait/observed
+ *
+ * Suspend this thread and resume it in the Observed region of the
+ * current time step -- after ALL nonblocking assignments (including
+ * NBA-scheduled-from-NBA cascades) have been applied. Synthesized
+ * clocking samplers use this for #0 / #d numeric input skews
+ * (IEEE 1800-2017 14.4): their sample must be the settled (Observed)
+ * value of the edge time step.
+ */
+struct observed_resume_event_s : public vvp_gen_event_s {
+      vthread_t thr;
+      void run_run() override
+      {
+	    schedule_vthread(thr, 0, true);
+	    delete this;
+      }
+};
+
+bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t)
+{
+      observed_resume_event_s*ev = new observed_resume_event_s;
+      ev->thr = thr;
+      schedule_at_observed(ev, 0);
+      return false;
+}
+
+/*
  * %xnor
  */
 bool of_XNOR(vthread_t thr, vvp_code_t)

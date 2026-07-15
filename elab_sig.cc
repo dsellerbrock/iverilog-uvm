@@ -590,6 +590,31 @@ static void elaborate_sig_clocking_samples_(NetScope*scope, const Module*mod)
 			      }
 			      smp->set_line(*cb);
 			}
+
+			  /* Numeric input skew (14.4, M8-2d): the sample
+			     source is a #d-delayed shadow of the raw
+			     signal, read after the NBA region of the
+			     event step (so #0 sees this step's NBA
+			     updates -- the Observed value). */
+			PExpr*skew_delay = nullptr;
+			if (cb->input_skew(*sig_it, skew_delay)
+			    == Module::PClocking::SKEW_DELAY) {
+			      string wname = string("_ivl_sshw$") + cb->name.str()
+				    + "$" + sig_it->str();
+			      perm_string shw_name = lex_strings.make(wname.c_str());
+			      if (!scope->find_signal(shw_name)) {
+				    NetNet*shw;
+				    if (vt) {
+					  shw = new NetNet(scope, shw_name, NetNet::REG, vt);
+				    } else {
+					  netvector_t*vec = new netvector_t(raw->data_type(),
+									    raw->vector_width()-1,
+									    0, raw->get_signed());
+					  shw = new NetNet(scope, shw_name, NetNet::REG, vec);
+				    }
+				    shw->set_line(*cb);
+			      }
+			}
 			any = true;
 		  }
 

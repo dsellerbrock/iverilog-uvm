@@ -459,6 +459,7 @@ extern bool of_TEST_NUL_PROP(vthread_t thr, vvp_code_t code);
 extern bool of_VPI_CALL(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_FORK(vthread_t thr, vvp_code_t code);
+extern bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_POSEDGE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_NEGEDGE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t code);

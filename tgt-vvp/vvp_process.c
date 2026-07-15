@@ -2773,6 +2773,13 @@ static int show_system_task_call(ivl_statement_t net)
       if (strncmp(stmt_name, "$ivl_vif_call$", 14) == 0)
 	    return show_vif_dyn_call(net);
 
+	/* Suspend until the Observed region of the current time step
+	 * (14.4 numeric input skews: sample the settled value). */
+      if (strcmp(stmt_name,"$ivl_observed_wait") == 0) {
+	    fprintf(vvp_out, "    %%wait/observed;\n");
+	    return 0;
+      }
+
 	/* Clocking input sampling prologue (14.13): enable the 1-deep
 	 * driven-value history on the raw signal so %load/preponed
 	 * (from $ivl_clocking_sample) returns the Preponed value. */

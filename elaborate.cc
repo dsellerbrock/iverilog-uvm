@@ -4222,6 +4222,12 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
       buf_rd->set_line(loc);
       NetAssignNB*direct = new NetAssignNB(new NetAssign_(raw), buf_rd, 0, 0);
       direct->set_line(loc);
+	/* Output skew (14.4): the drive-at-current-event case also
+	   lands #d after the event. */
+      if (PExpr*od = cbp->output_skew_delay(sig_name)) {
+	    if (NetExpr*dly = elaborate_delay_expr(od, des, scope))
+		  direct->set_delay(dly);
+      }
 
       verinum one_v (verinum::V1, 1);
       NetEConst*one = new NetEConst(one_v);
@@ -11030,7 +11036,13 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 	    prologue->set_line(*cb);
 	    NetBlock*body = new NetBlock(NetBlock::SEQU, 0);
 	    body->set_line(*cb);
+	      /* Phase-2 stores (numeric input skews, 14.4): executed
+		 after the NBA region of the event step, reading the
+		 #d-delayed shadow signals. */
+	    NetBlock*phase2 = new NetBlock(NetBlock::SEQU, 0);
+	    phase2->set_line(*cb);
 	    unsigned sample_count = 0;
+	    unsigned phase2_count = 0;
 
 	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
 		       ; sig_it != cb->signals.end() ; ++sig_it) {
@@ -11046,6 +11058,53 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetNet*raw = scope->find_signal(*sig_it);
 		  if (!raw)
 			continue;
+
+		    /* Numeric skew: drive a transport-delayed shadow
+		       (always @(raw) shadow <= #d raw) and sample it in
+		       phase 2. #0 degenerates correctly: the shadow
+		       carries this step's NBA updates by the time the
+		       phase-2 read runs (the Observed value). */
+		  PExpr*skew_delay = nullptr;
+		  if (cb->input_skew(*sig_it, skew_delay)
+		      == Module::PClocking::SKEW_DELAY) {
+			string wname = string("_ivl_sshw$") + cb->name.str()
+			      + "$" + sig_it->str();
+			NetNet*shadow = scope->find_signal(lex_strings.make(wname.c_str()));
+			if (shadow) {
+			      NetExpr*dly = skew_delay
+				    ? elaborate_delay_expr(skew_delay, des, scope)
+				    : nullptr;
+			      NetESignal*rv = new NetESignal(raw);
+			      rv->set_line(*cb);
+			      NetAssignNB*sasn = new NetAssignNB(new NetAssign_(shadow),
+								 rv, 0, 0);
+			      sasn->set_line(*cb);
+			      if (dly) sasn->set_delay(dly);
+			      NetEvent*sev = new NetEvent(scope->local_symbol());
+			      sev->local_flag(true);
+			      sev->set_line(*cb);
+			      scope->add_event(sev);
+			      NetEvWait*swa = new NetEvWait(sasn);
+			      swa->set_line(*cb);
+			      swa->add_event(sev);
+			      NetEvProbe*spr = new NetEvProbe(scope, scope->local_symbol(),
+							      sev, NetEvProbe::ANYEDGE, 1);
+			      connect(spr->pin(0), raw->pin(0));
+			      des->add_node(spr);
+			      NetProcTop*sdrv = new NetProcTop(scope, IVL_PR_ALWAYS, swa);
+			      sdrv->set_line(*cb);
+			      des->add_process(sdrv);
+
+			      NetESignal*shrd = new NetESignal(shadow);
+			      shrd->set_line(*cb);
+			      NetAssign*st2 = new NetAssign(new NetAssign_(smp), shrd);
+			      st2->set_line(*cb);
+			      phase2->append(st2);
+			      sample_count += 1;
+			      phase2_count += 1;
+			      continue;
+			}
+		  }
 
 		  NetESignal*hist_arg = new NetESignal(raw);
 		  hist_arg->set_line(*cb);
@@ -11074,6 +11133,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		 (IEEE 1800-2017 14.16, M8-2b). The apply process below
 		 lands buffered drives at each clocking event. */
 	    std::vector<NetNet*> out_raws, out_bufs, out_pends;
+	    std::vector<perm_string> out_names;
 	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
 		       ; sig_it != cb->signals.end() ; ++sig_it) {
 		  NetNet::PortType dir = cb->signal_direction(*sig_it);
@@ -11091,6 +11151,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  out_raws.push_back(raw);
 		  out_bufs.push_back(obuf);
 		  out_pends.push_back(opend);
+		  out_names.push_back(*sig_it);
 	    }
 
 	    if (sample_count == 0 && out_raws.empty()) {
@@ -11138,9 +11199,33 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  body->append(toggle);
 	    }
 
-	    NetEvNBTrig*fire = new NetEvNBTrig(trig, 0);
-	    fire->set_line(*cb);
-	    body->append(fire);
+	      /* Trigger sequencing. Without numeric-skew inputs the
+		 trigger is nonblocking: it fires in the NBA region
+		 after the sample stores. With them, the sampler
+		 suspends until the OBSERVED region of the edge step
+		 ($ivl_observed_wait -> %wait/observed), performs the
+		 phase-2 shadow reads against fully settled values
+		 (all NBA cascades applied), and only then fires the
+		 trigger (blocking), so @(cb) waiters still observe
+		 every sample of this edge. */
+	    if (phase2_count > 0) {
+		  vector<NetExpr*> no_parms;
+		  NetSTask*owait = new NetSTask("$ivl_observed_wait",
+						IVL_SFUNC_AS_TASK_IGNORE,
+						no_parms);
+		  owait->set_line(*cb);
+		  body->append(owait);
+
+		  NetEvTrig*tfire = new NetEvTrig(trig);
+		  tfire->set_line(*cb);
+		  phase2->append(tfire);
+		  body->append(phase2);
+	    } else {
+		  delete phase2;
+		  NetEvNBTrig*fire = new NetEvNBTrig(trig, 0);
+		  fire->set_line(*cb);
+		  body->append(fire);
+	    }
 
 	      /* Wrap the per-edge body in the clocking event wait. The
 		 event expression elaborates in the defining scope, the
@@ -11182,6 +11267,11 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			NetAssignNB*drv = new NetAssignNB(new NetAssign_(out_raws[idx]),
 							  buf_rd, 0, 0);
 			drv->set_line(*cb);
+			  /* Output skew (14.4): land #d after the event. */
+			if (PExpr*od = cb->output_skew_delay(out_names[idx])) {
+			      if (NetExpr*dly = elaborate_delay_expr(od, des, scope))
+				    drv->set_delay(dly);
+			}
 			verinum zero_v (verinum::V0, 1);
 			NetEConst*zero = new NetEConst(zero_v);
 			zero->set_line(*cb);

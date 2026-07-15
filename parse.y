@@ -971,6 +971,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
       pform_name_t*pform_name;
 
+      pform_clocking_skew_t*clocking_skew;
+
       ivl_discipline_t discipline;
 
       hname_t*hier;
@@ -1226,6 +1228,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <expr> value_range_expression
 %type <expr> property_spec_disable_iff_opt
 %type <event_statement> clocking_event_opt
+%type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec
 %type <perm_strings> cross_item_list
 
@@ -4396,22 +4399,28 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
         yyerrok;
       }
 
-  /* IEEE 1800-2017 A.6.11. Explicit skews (14.4) are accepted and
-     discarded — inputs use the default #1step sample (14.13), outputs
-     the alias model. Directions are recorded per signal. */
+  /* IEEE 1800-2017 A.6.11. Directions and skews (14.4) are recorded
+     per signal; input #1step samples the Preponed value, numeric
+     input skews sample a delayed shadow, output skews delay the
+     drive landing. Edge qualifiers on skews are recorded but not
+     applied. */
 clocking_item
   : K_input clocking_skew_opt list_of_identifiers ';'
       {
 	    for (std::list<pform_ident_t>::iterator cur = $3->begin()
 		       ; cur != $3->end() ; ++cur)
-		  pform_add_clocking_signal(@3, cur->first, NetNet::PINPUT);
+		  pform_add_clocking_signal(@3, cur->first, NetNet::PINPUT,
+					    $2, 0);
+	    delete $2;
 	    delete $3;
       }
   | K_output clocking_skew_opt list_of_identifiers ';'
       {
 	    for (std::list<pform_ident_t>::iterator cur = $3->begin()
 		       ; cur != $3->end() ; ++cur)
-		  pform_add_clocking_signal(@3, cur->first, NetNet::POUTPUT);
+		  pform_add_clocking_signal(@3, cur->first, NetNet::POUTPUT,
+					    0, $2);
+	    delete $2;
 	    delete $3;
       }
   /* clocking_direction: `input [skew] output [skew] ids;` — the same
@@ -4420,44 +4429,85 @@ clocking_item
       {
 	    for (std::list<pform_ident_t>::iterator cur = $5->begin()
 		       ; cur != $5->end() ; ++cur)
-		  pform_add_clocking_signal(@5, cur->first, NetNet::PINOUT);
+		  pform_add_clocking_signal(@5, cur->first, NetNet::PINOUT,
+					    $2, $4);
+	    delete $2;
+	    delete $4;
 	    delete $5;
       }
   | K_inout list_of_identifiers ';'
       {
 	    for (std::list<pform_ident_t>::iterator cur = $2->begin()
 		       ; cur != $2->end() ; ++cur)
-		  pform_add_clocking_signal(@2, cur->first, NetNet::PINOUT);
+		  pform_add_clocking_signal(@2, cur->first, NetNet::PINOUT,
+					    0, 0);
 	    delete $2;
       }
-  /* default_skew items: set the block's default skews (discarded). */
+  /* default_skew items: set the block's default skews (14.4.2). */
   | K_default K_input clocking_skew ';'
+      { pform_set_clocking_default_skews(@2, $3, 0);
+	delete $3;
+      }
   | K_default K_output clocking_skew ';'
+      { pform_set_clocking_default_skews(@2, 0, $3);
+	delete $3;
+      }
   | K_default K_input clocking_skew K_output clocking_skew ';'
+      { pform_set_clocking_default_skews(@2, $3, $5);
+	delete $3;
+	delete $5;
+      }
   ;
 
   /* IEEE 1800-2017 A.6.11:
-     clocking_skew ::= edge_identifier [delay_control] | delay_control
-     The parsed skew has no semantic carrier yet (see clocking_item). */
+     clocking_skew ::= edge_identifier [delay_control] | delay_control */
 clocking_skew
-  : '#' delay_value_simple { delete $2; }
-  | '#' '(' delay_value ')' { delete $3; }
+  : '#' delay_value_simple
+      { $$ = new pform_clocking_skew_t;
+	$$->delay = $2;
+      }
+  | '#' '(' delay_value ')'
+      { $$ = new pform_clocking_skew_t;
+	$$->delay = $3;
+      }
   | '#' K_1step
+      { $$ = new pform_clocking_skew_t;
+	$$->one_step = true;
+      }
   | K_posedge clocking_skew_delay_opt
+      { $$ = $2 ? $2 : new pform_clocking_skew_t;
+	$$->edge = 'p';
+      }
   | K_negedge clocking_skew_delay_opt
+      { $$ = $2 ? $2 : new pform_clocking_skew_t;
+	$$->edge = 'n';
+      }
   | K_edge clocking_skew_delay_opt
+      { $$ = $2 ? $2 : new pform_clocking_skew_t;
+	$$->edge = 'e';
+      }
   ;
 
 clocking_skew_delay_opt
-  : '#' delay_value_simple { delete $2; }
-  | '#' '(' delay_value ')' { delete $3; }
+  : '#' delay_value_simple
+      { $$ = new pform_clocking_skew_t;
+	$$->delay = $2;
+      }
+  | '#' '(' delay_value ')'
+      { $$ = new pform_clocking_skew_t;
+	$$->delay = $3;
+      }
   | '#' K_1step
+      { $$ = new pform_clocking_skew_t;
+	$$->one_step = true;
+      }
   |
+      { $$ = 0; }
   ;
 
 clocking_skew_opt
-  : clocking_skew
-  |
+  : clocking_skew { $$ = $1; }
+  |               { $$ = 0; }
   ;
 
 clocking_items
