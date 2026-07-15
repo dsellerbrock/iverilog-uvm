@@ -87,15 +87,26 @@ the investigation. Update at every meaningful checkpoint.
   landing at the Nth clocking event via the trigger redirect,
   independent overlapping drives. Sorry (recorded): scalar
   default-clocking form `x <= ##N v`.
-- **M8-2 remaining (next)**: 2d skew application (explicit input
-  skew values e.g. #2 sample windows, output skew delays; default
-  #1step/#0 are what 2a/2b implement), clocking_decl_assign, global
-  clocking (14.14/G59), vif.cb.out buffered drives
-  (preponed-through-property mechanism), default-clocking scalar
-  `x <= ##N v`. Recorded 2a limitations: real/string/array clocking
-  signals keep alias (sorry at elab); force tracks driven value;
-  @(cb) from a scope elaborated BEFORE the defining instance falls
-  back to the raw event (alias-era behavior).
+- **M8-2c LANDED AND PROMOTED** (UVM 141/141, ivtest empty diff):
+  `cb.out <= ##N v` lowers at parse to `<= repeat(N) @(cb) v` —
+  value captured at issue, independent overlapping drives.
+- **M8-2d (skew application) LANDED AND PROMOTED** (UVM 142/142,
+  ivtest empty diff): numeric input skews sample transport shadows
+  read at the OBSERVED region (new `%wait/observed` opcode — first
+  real consumer of the M6 region foundation; #0 = settled post-NBA
+  value, #d = value d before the edge); output skews delay the drive
+  landing (both apply-process and direct paths); block default skews
+  apply. Tests: m8_clocking_cycle_drive_test.sv,
+  m8_clocking_skew_test.sv.
+- **M8 INCREMENT 2 CORE COMPLETE.** Remaining tail (recorded in the
+  session log, priority order): clocking_decl_assign; global
+  clocking + $global_clock (14.14/G59); vif.cb.out buffered drives
+  (preponed-through-property); scalar default-clocking `x <= ##N v`
+  (diagnosed sorry); edge-qualified skew application; real/string/
+  array clocking signals (alias + sorry). Other recorded 2a
+  limitations: force tracks driven value; @(cb) from a scope
+  elaborated BEFORE the defining instance falls back to the raw
+  event.
   Sweep procedure reminder: UVM harness and ivtest MUST run with
   PATH=/home/user/iverilog-install/bin (or ivtest shim) prefixed;
   `which iverilog` otherwise finds nothing and everything
