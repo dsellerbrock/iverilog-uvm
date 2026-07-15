@@ -19,6 +19,7 @@
 
 # include  "compile.h"
 # include  "vpi_priv.h"
+# include  "class_type.h"
 # include  "symbols.h"
 # include  "statistics.h"
 # include  "config.h"
@@ -509,6 +510,68 @@ class __vpiModport : public __vpiHandle {
  * scope. The ".scope" directives select the scope that is current.
  */
 static __vpiScope*current_scope = 0;
+
+/* M12: a covergroup TYPE handle for VPI introspection. Wraps the
+   registered class_type; vpi_get_value returns the type coverage
+   (the merged per-item weighted percentage, as a real). */
+class __vpiCovergroup : public __vpiHandle {
+    public:
+      explicit __vpiCovergroup(const class_type*defn) : defn_(defn) { }
+
+      int get_type_code(void) const override { return vpiCovergroup; }
+
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiSize:
+		  return (int)defn_->covgrp_bin_count();
+		default:
+		  return vpiUndefined;
+	    }
+      }
+
+      char* vpi_get_str(int code) override
+      {
+	    std::string full = defn_->scope_path() + "." + defn_->class_name();
+	    const std::string&use = (code == vpiFullName) ? full
+				  : defn_->class_name();
+	    if (code != vpiName && code != vpiFullName)
+		  return 0;
+	    char*rbuf = (char*)need_result_buf(use.size()+1, RBUF_STR);
+	    strcpy(rbuf, use.c_str());
+	    return rbuf;
+      }
+
+      void vpi_get_value(p_vpi_value val) override
+      {
+	    if (val->format == vpiObjTypeVal)
+		  val->format = vpiRealVal;
+	    if (val->format == vpiRealVal) {
+		  val->value.real = defn_->type_coverage();
+		  return;
+	    }
+	    if (val->format == vpiIntVal) {
+		  val->value.integer = (PLI_INT32)defn_->type_coverage();
+		  return;
+	    }
+	    val->format = vpiSuppressVal;
+      }
+
+    private:
+      const class_type*defn_;
+};
+
+/* M12: root iterator over all covergroup types in the design. */
+vpiHandle vpip_make_covergroup_iterator(void)
+{
+      const std::vector<const class_type*>&reg = class_type::covgrp_registry();
+      if (reg.empty())
+	    return 0;
+      vpiHandle*args = (vpiHandle*)malloc(reg.size() * sizeof(vpiHandle));
+      for (size_t idx = 0 ; idx < reg.size() ; idx += 1)
+	    args[idx] = new __vpiCovergroup(reg[idx]);
+      return vpip_make_iterator(reg.size(), args, true);
+}
 
 /* M12: attach a modport declaration to the current (interface)
    scope. */
