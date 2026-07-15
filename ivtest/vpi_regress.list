@@ -152,3 +152,4 @@ vpi_control		normal			vpi_control.c		vpi_control.log
 
 # M12: VPI SystemVerilog object model
 m12_sv_objects   normal,-g2012   m12_sv_objects.c  m12_sv_objects.log
+m12_sv_scopes    normal,-g2012   m12_sv_scopes.c   m12_sv_scopes.log

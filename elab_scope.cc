@@ -2136,6 +2136,12 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
 bool Module::elaborate_scope(Design*des, NetScope*scope,
 			     const replace_t&replacements)
 {
+	// M12: record modport names on interface scopes for VPI.
+      if (is_interface) {
+	    for (std::map<perm_string,PModport*>::const_iterator mp = modports.begin()
+		       ; mp != modports.end() ; ++ mp)
+		  scope->add_modport_name(mp->first);
+      }
       if (debug_scopes) {
 	    cerr << get_fileline() << ": Module::elaborate_scope: "
 		 << "Elaborate " << scope_path(scope) << "." << endl;

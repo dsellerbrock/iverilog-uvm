@@ -655,6 +655,8 @@ void dll_target::add_root(const NetScope *s)
       root_->attr  = fill_in_attributes(s);
       root_->is_auto = 0;
       root_->is_program = s->program_block();
+      root_->is_interface = s->is_interface();
+      root_->modport_names = s->modport_names();
       root_->is_cell = s->is_cell();
       switch (s->type()) {
 	  case NetScope::PACKAGE:
@@ -2578,6 +2580,8 @@ void dll_target::scope(const NetScope*net)
 	    scop->attr = fill_in_attributes(net);
 	    scop->is_auto = net->is_auto();
 	    scop->is_program = net->program_block();
+	    scop->is_interface = net->is_interface();
+	    scop->modport_names = net->modport_names();
 	    scop->is_cell = net->is_cell();
 	    scop->is_virtual_method = net->is_virtual_method();
 

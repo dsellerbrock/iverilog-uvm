@@ -1522,6 +1522,26 @@ vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
 		    name, scope);
       }
 
+	// M12: package-qualified names ("pkg::item"). Find the
+	// package among the root instances, then the item inside it
+	// (nested "pkg::a.b" resolves the tail within the package).
+      if (const char*sep = strstr(name, "::")) {
+	    std::string pkgname(name, sep - name);
+	    const char*item = sep + 2;
+	    vpiHandle iter = vpip_make_root_iterator(vpiPackage);
+	    vpiHandle pkg;
+	    while (iter && (pkg = vpi_scan(iter))) {
+		  char*pn = vpi_get_str(vpiName, pkg);
+		  if (pn && pkgname == pn) {
+			vpi_free_object(iter);
+			if (strchr(item, '.'))
+			      return vpi_handle_by_name(item, pkg);
+			return find_name(const_cast<char*>(item), pkg);
+		  }
+	    }
+	    return 0;
+      }
+
 	// Chop the name into path and base. For example, if the name
 	// is "a.b.c", then nm_path becomes "a.b" and nm_base becomes
 	// "c". If the name is "c" then nm_path is nil and nm_base is "c".

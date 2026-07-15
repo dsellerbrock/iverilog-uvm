@@ -1907,6 +1907,10 @@ extern unsigned ivl_scope_is_auto(ivl_scope_t net);
      (IEEE 1800-2017 clause 24); program processes schedule in the
      Reactive region set. */
 extern unsigned ivl_scope_program(ivl_scope_t net);
+/* M12: interface scopes and their modport names (VPI object model). */
+extern unsigned ivl_scope_is_interface(ivl_scope_t net);
+extern unsigned ivl_scope_modports(ivl_scope_t net);
+extern const char* ivl_scope_modport_name(ivl_scope_t net, unsigned idx);
 extern unsigned ivl_scope_is_cell(ivl_scope_t net);
 extern unsigned ivl_scope_lineno(ivl_scope_t net);
 extern unsigned     ivl_scope_logs(ivl_scope_t net);

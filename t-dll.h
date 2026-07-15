@@ -715,6 +715,8 @@ struct ivl_scope_s {
       ivl_statement_t def;
       unsigned is_auto;
       unsigned is_program;
+      unsigned is_interface;
+      std::vector<perm_string> modport_names;
       ivl_variable_type_t func_type;
       bool func_signed;
       unsigned func_width;

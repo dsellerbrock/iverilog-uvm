@@ -2547,8 +2547,12 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       case IVL_SCT_MODULE:
 	    /* Program blocks elaborate as module scopes with the
 	       program flag; the runtime schedules their processes in
-	       the Reactive region set (IEEE 1800-2017 4.4.2.5, 24.3). */
-	    type = ivl_scope_program(net) ? "program" : "module";
+	       the Reactive region set (IEEE 1800-2017 4.4.2.5, 24.3).
+	       M12: interface instances get their own scope type so
+	       VPI reports vpiInterface. */
+	    type = ivl_scope_program(net) ? "program"
+		 : ivl_scope_is_interface(net) ? "interface"
+		 : "module";
 	    break;
       case IVL_SCT_FUNCTION: type = "function"; break;
       case IVL_SCT_TASK:     type = "task";     break;
@@ -2614,6 +2618,13 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
+
+	/* M12: modport declarations of an interface, for VPI. */
+      if (ivl_scope_is_interface(net)) {
+	    for (idx = 0; idx < ivl_scope_modports(net); idx += 1)
+		  fprintf(vvp_out, " .modport \"%s\";\n",
+			  vvp_mangle_name(ivl_scope_modport_name(net, idx)));
+      }
 
       if( ivl_scope_type(net) == IVL_SCT_MODULE ) {
 

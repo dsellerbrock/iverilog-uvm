@@ -1088,6 +1088,11 @@ class NetScope : public Definitions, public Attrib {
       inline bool program_block() const { return program_block_; }
       inline bool is_interface() const { return is_interface_; }
       inline bool is_unit() const { return is_unit_; }
+	// M12: modport names declared by an interface, for VPI
+	// introspection (directions stay pform-side).
+      void add_modport_name(perm_string nm) { modport_names_.push_back(nm); }
+      const std::vector<perm_string>& modport_names() const
+      { return modport_names_; }
       inline TYPE type() const { return type_; }
       void print_type(std::ostream&) const;
 
@@ -1351,6 +1356,7 @@ class NetScope : public Definitions, public Attrib {
       bool program_block_;
 	// True if the scope is an interface
       bool is_interface_;
+      std::vector<perm_string> modport_names_;
 	// True if the scope is a compilation unit
       bool is_unit_;
 

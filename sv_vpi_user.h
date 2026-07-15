@@ -46,6 +46,7 @@ EXTERN_C_START
 #define vpiPackage          600
 #define vpiInterface        601
 #define vpiProgram          602
+#define vpiModport          603
 #define vpiArrayType        606
 #define   vpiStaticArray      1
 #define   vpiDynamicArray     2

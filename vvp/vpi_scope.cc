@@ -277,7 +277,9 @@ static int compare_types(int code, int type)
 	     type == vpiFunction ||
 	     type == vpiTask ||
 	     type == vpiNamedBegin ||
-	     type == vpiNamedFork) )
+	     type == vpiNamedFork ||
+	     // M12: interface instances are traversable scopes.
+	     type == vpiInterface) )
 	    return 1;
 
       if ( code == vpiInstance &&
@@ -461,12 +463,63 @@ struct vpiScopeClass  : public __vpiScope {
       int get_type_code(void) const override { return vpiClassTypespec; }
 };
 
+/* M12: interface instance scope (IEEE 1800-2017 clause 25). */
+struct vpiScopeInterface  : public __vpiScope {
+      inline vpiScopeInterface(const char*nam, const char*tnam)
+      : __vpiScope(nam,tnam,false) { }
+      int get_type_code(void) const override { return vpiInterface; }
+};
+
+/* M12: a modport declaration of an interface — name-level VPI
+   introspection (per-signal directions stay compile-time). */
+class __vpiModport : public __vpiHandle {
+    public:
+      __vpiModport(__vpiScope*scope, const char*name)
+      : scope_(scope), name_(name) { }
+
+      int get_type_code(void) const override { return vpiModport; }
+
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiLineNo: return 0;
+		default: return vpiUndefined;
+	    }
+      }
+
+      char* vpi_get_str(int code) override
+      { return generic_get_str(code, scope_, name_, NULL); }
+
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiScope || code == vpiParent
+		|| code == vpiInterface || code == vpiModule)
+		  return scope_;
+	    return 0;
+      }
+
+    private:
+      __vpiScope*scope_;
+      const char*name_;
+};
+
 /*
  * The current_scope is a compile time concept. As the vvp source is
  * compiled, items that have scope are placed in the current
  * scope. The ".scope" directives select the scope that is current.
  */
 static __vpiScope*current_scope = 0;
+
+/* M12: attach a modport declaration to the current (interface)
+   scope. */
+void compile_modport_decl(char*name)
+{
+      assert(current_scope);
+      const char*use_name = vpip_name_string(name);
+      __vpiModport*obj = new __vpiModport(current_scope, use_name);
+      vpip_attach_to_current_scope(obj);
+      delete[] name;
+}
 
 void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj)
 {
@@ -561,6 +614,8 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    scope = new vpiScopeClass(name, tname);
       } else if (strcmp(type,"program") == 0) {
 	    scope = new vpiScopeProgram(name, tname);
+      } else if (strcmp(type,"interface") == 0) {
+	    scope = new vpiScopeInterface(name, tname);
       } else {
 	    scope = new vpiScopeModule(name, tname);
 	    assert(0);
