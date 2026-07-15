@@ -4113,6 +4113,17 @@ void pform_sva_set_default_disable(PExpr*expr)
       sva_default_disable = expr;
 }
 
+void pform_sva_sorry(const struct vlltype&loc, const char*what)
+{
+	/* Compile-progress: the assertion is dropped LOUDLY but the
+	   compile continues, so SVA-heavy code (checkers, tlul_assert
+	   shapes) still elaborates and runs its non-assertion logic.
+	   This mirrors the fork-wide sorry convention. */
+      cerr << loc << ": sorry: the SVA `" << what << "' operator is "
+	   << "not supported by the assertion engine; the assertion "
+	   << "is dropped (IEEE 1800-2017 clause 16)." << endl;
+}
+
 void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 				sva_property_t*prop)
 {
@@ -4439,6 +4450,54 @@ static void sva_splice_sequences_(const struct vlltype&loc,
       }
 }
 
+/* M9-2: consecutive repetition (IEEE 1800-2017 16.9.2). e[*N]
+   desugars to e ##1 e ... (N times); e[*m:n] expands to [*m] with a
+   rep_tail marker — in the FINAL chain position a length-k match
+   (m<=k<=n) exists iff the first m cycles match, so [*m] is
+   match-equivalent there; any other position is diagnosed at
+   lowering. Unsupported shapes (non-literal bounds, zero repetition,
+   uncopyable operands) mark the chain with delay_lo=-3 for a single
+   clear sorry. */
+std::vector<sva_seq_step_t>*
+pform_sva_repeat(const struct vlltype&loc,
+		 std::vector<sva_seq_step_t>*steps, PExpr*lo, PExpr*hi)
+{
+      PENumber*lon = dynamic_cast<PENumber*>(lo);
+      PENumber*hin = dynamic_cast<PENumber*>(hi);
+      long lov = lon ? lon->value().as_long() : -1;
+      long hiv = hi ? (hin ? hin->value().as_long() : -1) : lov;
+      delete lo;
+      delete hi;
+
+      if (!steps || steps->empty())
+	    return steps;
+      if (lov < 1 || hiv < lov || !lon || (hi && !hin)) {
+	    (*steps)[0].delay_lo = -3;
+	    return steps;
+      }
+
+	/* Clone the base list lov-1 times, concatenated with ##1. */
+      std::vector<sva_seq_step_t> base = *steps;
+      for (long r = 1 ; r < lov ; r += 1) {
+	    for (size_t k = 0 ; k < base.size() ; k += 1) {
+		  sva_seq_step_t st = base[k];
+		  st.expr = sva_clone_expr_(base[k].expr);
+		  if (!st.expr) {
+			(*steps)[0].delay_lo = -3;
+			return steps;
+		  }
+		  if (k == 0) {
+			st.delay_lo = 1;
+			st.delay_hi = 1;
+		  }
+		  st.rep_tail = 0;
+		  steps->push_back(st);
+	    }
+      }
+      steps->back().rep_tail = hiv - lov;
+      return steps;
+}
+
 /* Lower one concurrent assertion (assert/assume/cover property) to a
    synthesized clocked checker. kind: 0=assert, 1=assume, 2=cover. */
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
@@ -4477,25 +4536,54 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (prop->antecedent)
 	    sva_splice_sequences_(loc, *prop->antecedent);
 
-	/* Antecedent: op 0 checks the sequence every cycle (constant
-	   true); op 1/2 need a single boolean step with no delay. */
+	/* Negated properties (op 3) and plain sequences (op 0) attempt
+	   every cycle. */
+      bool negated = (prop->op_type == 3);
+      if (kind == 2 && negated) {
+	    cerr << loc << ": sorry: `cover property (not ...)` is not "
+		 << "supported; the cover is dropped." << endl;
+	    error_count += 1;
+	    delete fail_stmt; delete pass_stmt;
+	    return;
+      }
+
+	/* Antecedent: op 0/3 check the sequence every cycle (constant
+	   true); op 1/2 accept a boolean or a FIXED-delay sequence
+	   antecedent (16.9.2): a chain match at offset P_a is the AND
+	   of each step boolean delayed by (P_a - D_j) cycles, built on
+	   the same history machinery as $past. Ranged or repetition-
+	   marked antecedent steps are diagnosed. */
       PExpr*ante = nullptr;
-      if (prop->op_type == 0) {
+      long ante_span = 0;
+      if (prop->op_type == 0 || negated) {
 	    ante = sva_bit_(loc, 1);
+      } else if (prop->antecedent && prop->antecedent->size() == 1
+		 && (*prop->antecedent)[0].delay_lo == 0
+		 && (*prop->antecedent)[0].delay_hi == 0
+		 && (*prop->antecedent)[0].rep_tail == 0) {
+	    ante = (*prop->antecedent)[0].expr;
       } else {
-	    if (!prop->antecedent || prop->antecedent->size() != 1
-		|| (*prop->antecedent)[0].delay_lo != 0
-		|| (*prop->antecedent)[0].delay_hi != 0) {
-		  cerr << loc << ": sorry: assertion antecedents must be "
-		       << "a single boolean expression (sequence "
-		       << "antecedents are not yet supported); the "
-		       << "assertion is dropped." << endl;
+	    bool ok = (prop->antecedent != nullptr);
+	    long pa = 0;
+	    if (ok) for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1) {
+		  const sva_seq_step_t&st = (*prop->antecedent)[j];
+		  if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
+		      || st.rep_tail != 0) {
+			ok = false;
+			break;
+		  }
+		  pa += st.delay_lo;
+	    }
+	    if (!ok || pa > 128) {
+		  cerr << loc << ": sorry: this assertion antecedent "
+		       << "shape is not supported (fixed-delay sequence "
+		       << "chains up to 128 cycles only); the assertion "
+		       << "is dropped." << endl;
 		  error_count += 1;
-		  delete fail_stmt;
-		  delete pass_stmt;
+		  delete fail_stmt; delete pass_stmt;
 		  return;
 	    }
-	    ante = (*prop->antecedent)[0].expr;
+	    ante_span = pa;
       }
 
 	/* |=> is |-> with one extra leading cycle. */
@@ -4509,10 +4597,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   one range, and only on the LAST step. */
       long total = 0;
       for (size_t j = 0 ; j < seq.size() ; j += 1) {
-	    if (seq[j].delay_lo == -1) {
-		  cerr << loc << ": sorry: unbounded ##[m:$] sequence "
-		       << "delays are not supported; the assertion is "
-		       << "dropped." << endl;
+	    if (seq[j].delay_hi == -1 && j + 1 != seq.size()) {
+		  cerr << loc << ": sorry: an unbounded ##[m:$] delay is "
+		       << "only supported as the final step of a "
+		       << "sequence; the assertion is dropped." << endl;
 		  error_count += 1;
 		  delete fail_stmt; delete pass_stmt;
 		  return;
@@ -4525,6 +4613,23 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  delete fail_stmt; delete pass_stmt;
 		  return;
 	    }
+	    if (seq[j].delay_lo == -3) {
+		  cerr << loc << ": sorry: this repetition shape is not "
+		       << "supported (literal bounds >= 1 on copyable "
+		       << "operands only); the assertion is dropped."
+		       << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete pass_stmt;
+		  return;
+	    }
+	    if (seq[j].rep_tail != 0 && j + 1 != seq.size()) {
+		  cerr << loc << ": sorry: a [*m:n] range repetition is "
+		       << "only supported as the final element of a "
+		       << "sequence; the assertion is dropped." << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete pass_stmt;
+		  return;
+	    }
 	    if (seq[j].delay_lo != seq[j].delay_hi && j + 1 != seq.size()) {
 		  cerr << loc << ": sorry: a ##[m:n] range is only "
 		       << "supported as the final step of a sequence; "
@@ -4533,7 +4638,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  delete fail_stmt; delete pass_stmt;
 		  return;
 	    }
-	    total += seq[j].delay_hi;
+	    if (seq[j].delay_hi >= 0)
+		  total += seq[j].delay_hi;
+	    else
+		  total += seq[j].delay_lo;
       }
       if (total > 512) {
 	    cerr << loc << ": sorry: sequence spans more than 512 cycles; "
@@ -4543,8 +4651,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    return;
       }
 
-      bool has_window = seq.back().delay_lo != seq.back().delay_hi;
-      size_t nfixed = seq.size() - (has_window ? 1 : 0);
+      bool unbounded = seq.back().delay_hi == -1;
+      bool has_window = !unbounded
+	    && seq.back().delay_lo != seq.back().delay_hi;
+      size_t nfixed = seq.size() - ((has_window || unbounded) ? 1 : 0);
 	/* P = pipeline depth: cycle offset of the last FIXED step
 	   (or of the window entry point). */
       long P = 0;
@@ -4553,7 +4663,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    P += seq[j].delay_lo;
 	    offs[j] = P;
       }
-      long win_m = has_window ? seq.back().delay_lo : 0;
+      long win_m = (has_window || unbounded) ? seq.back().delay_lo : 0;
       long win_n = has_window ? seq.back().delay_hi : 0;
 
       unsigned inst = sva_gensym_counter++;
@@ -4599,7 +4709,51 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* Rewrite sampled-value functions, then capture every step
 	   boolean (and the antecedent) into 1-bit sample registers at
 	   the top of the checker. */
-      ante = sva_rewrite_sampled_(loc, ante, inst, hist_idx, pre, post, init_zero);
+      if (ante) {
+	    ante = sva_rewrite_sampled_(loc, ante, inst, hist_idx, pre, post, init_zero);
+      } else {
+	      /* Fixed-delay sequence antecedent: match(now) is the AND
+		 of each step boolean delayed by (span - offset) cycles,
+		 via per-step capture + history chains. Zero-initialized
+		 histories keep startup quiet (AND of 0 terms is 0). */
+	    PExpr*conj = nullptr;
+	    long doff = 0;
+	    for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1) {
+		  sva_seq_step_t&ast = (*prop->antecedent)[j];
+		  doff += ast.delay_lo;
+		  long depth = ante_span - doff;
+		  PExpr*abe = sva_rewrite_sampled_(loc, ast.expr, inst,
+						   hist_idx, pre, post,
+						   init_zero);
+		  perm_string cap = sva_make_reg_(loc, inst, "ac", (unsigned)j);
+		  pre.push_back(sva_assign_(loc, cap, abe));
+		  init_zero.push_back(sva_assign_(loc, cap, sva_bit_(loc, 0)));
+		  PExpr*term;
+		  if (depth == 0) {
+			term = sva_id_(loc, cap);
+		  } else {
+			std::vector<perm_string> ahist (depth);
+			for (long k = 0 ; k < depth ; k += 1) {
+			      ahist[k] = sva_make_reg_(loc, inst, "ah", hist_idx++);
+			      init_zero.push_back(sva_assign_(loc, ahist[k],
+							      sva_bit_(loc, 0)));
+			}
+			for (long k = depth-1 ; k >= 1 ; k -= 1)
+			      post.push_back(sva_assign_(loc, ahist[k],
+							 sva_id_(loc, ahist[k-1])));
+			post.push_back(sva_assign_(loc, ahist[0], sva_id_(loc, cap)));
+			term = sva_id_(loc, ahist[depth-1]);
+		  }
+		  if (conj) {
+			PEBLogic*n2 = new PEBLogic('a', conj, term);
+			FILE_NAME(n2, loc);
+			conj = n2;
+		  } else {
+			conj = term;
+		  }
+	    }
+	    ante = conj;
+      }
       perm_string r_ante = sva_make_reg_(loc, inst, "b", 999);
       pre.push_back(sva_assign_(loc, r_ante, ante));
       std::vector<perm_string> r_b (seq.size());
@@ -4616,10 +4770,16 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    t_regs[p] = sva_make_reg_(loc, inst, "t", (unsigned)(p+1));
 	    init_zero.push_back(sva_assign_(loc, t_regs[p], sva_bit_(loc, 0)));
       }
-      std::vector<perm_string> w_regs (has_window ? win_n + 1 : 0);
-      for (long q = 0 ; q <= (has_window ? win_n : -1) ; q += 1) {
+      long wregs_n = has_window ? win_n + 1 : (unbounded ? win_m : 0);
+      std::vector<perm_string> w_regs (wregs_n);
+      for (long q = 0 ; q < wregs_n ; q += 1) {
 	    w_regs[q] = sva_make_reg_(loc, inst, "w", (unsigned)q);
 	    init_zero.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
+      }
+      perm_string r_pend;
+      if (unbounded) {
+	    r_pend = sva_make_reg_(loc, inst, "pend", 0);
+	    init_zero.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
       }
       perm_string r_g = sva_make_reg_(loc, inst, "g", 0);
       init_zero.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
@@ -4647,7 +4807,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    PEBLogic*cond = new PEBLogic('a', sva_id_(loc, r_g), nb);
 	    FILE_NAME(cond, loc);
 	    std::vector<Statement*> hit;
-	    if (kind != 2)
+	    if (kind != 2 && !negated)
 		  hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
 	    hit.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
 	    PCondit*c = new PCondit(cond, sva_block_(loc, hit), nullptr);
@@ -4666,7 +4826,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    PEBLogic*cond = new PEBLogic('a', sva_id_(loc, treg), nb);
 	    FILE_NAME(cond, loc);
 	    std::vector<Statement*> hit;
-	    if (kind != 2)
+	    if (kind != 2 && !negated)
 		  hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
 	    hit.push_back(sva_assign_(loc, treg, sva_bit_(loc, 0)));
 	    PCondit*c = new PCondit(cond, sva_block_(loc, hit), nullptr);
@@ -4689,7 +4849,33 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		 attempt (positions m..n); for cover, count them.
 		 Otherwise an attempt at position n has failed. */
 	    perm_string bw = r_b[seq.size()-1];
+	      /* anyW: is any attempt in the eligible window? */
+	    PExpr*anyw = nullptr;
+	    for (long q = win_m ; q <= win_n ; q += 1) {
+		  if (anyw) {
+			PEBLogic*n2 = new PEBLogic('o', anyw,
+						   sva_id_(loc, w_regs[q]));
+			FILE_NAME(n2, loc);
+			anyw = n2;
+		  } else {
+			anyw = sva_id_(loc, w_regs[q]);
+		  }
+	    }
 	    std::vector<Statement*> sat;
+	    if (negated) {
+		    /* A match under `not` is the failure. */
+		  PCondit*nm = new PCondit(anyw,
+			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+		  FILE_NAME(nm, loc);
+		  sat.push_back(nm);
+		  anyw = nullptr;
+	    } else if (pass_stmt && kind != 2) {
+		  PCondit*pm = new PCondit(anyw, pass_stmt, nullptr);
+		  FILE_NAME(pm, loc);
+		  sat.push_back(pm);
+		  pass_stmt = nullptr;
+		  anyw = nullptr;
+	    }
 	    for (long q = win_m ; q <= win_n ; q += 1) {
 		  if (kind == 2) {
 			PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt),
@@ -4700,7 +4886,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  sat.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
 	    }
 	    std::vector<Statement*> miss;
-	    if (kind != 2) {
+	    if (kind != 2 && !negated) {
 		  std::vector<Statement*> mhit;
 		  mhit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
 		  mhit.push_back(sva_assign_(loc, w_regs[win_n], sva_bit_(loc, 0)));
@@ -4714,16 +4900,106 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 						  : sva_block_(loc, miss));
 	    FILE_NAME(wc, loc);
 	    body.push_back(wc);
-      } else if (kind == 2) {
-	      /* Cover match: the token that survived the final fixed
+      } else if (unbounded) {
+	      /* Unbounded final window ##[m:$] — weak eventually
+		 (16.9.2): an obligation can never fail in finite
+		 time; it matures after m cycles and then waits. The
+		 awaited boolean satisfies every mature obligation.
+		 A final process reports obligations still pending at
+		 end of simulation. */
+	    perm_string bw = r_b[seq.size()-1];
+	    PExpr*enter = (P == 0) ? (PExpr*)sva_id_(loc, r_g)
+				   : (PExpr*)sva_id_(loc, t_regs[P-1]);
+	      /* mature = the oldest immature slot (pre-shift), or the
+		 entering token itself when m == 0. */
+	    PExpr*mature = (win_m == 0) ? enter
+			 : (PExpr*)sva_id_(loc, w_regs[win_m-1]);
+	    perm_string r_mat = sva_make_reg_(loc, inst, "mat", 0);
+	    init_zero.push_back(sva_assign_(loc, r_mat, sva_bit_(loc, 0)));
+	    body.push_back(sva_assign_(loc, r_mat, mature));
+	      /* maturity shift + entry */
+	    for (long q = win_m-1 ; q >= 1 ; q -= 1)
+		  body.push_back(sva_assign_(loc, w_regs[q],
+					     sva_id_(loc, w_regs[q-1])));
+	    if (win_m >= 1)
+		  body.push_back(sva_assign_(loc, w_regs[0],
+			(P == 0) ? (PExpr*)sva_id_(loc, r_g)
+				 : (PExpr*)sva_id_(loc, t_regs[P-1])));
+	      /* eligible = pend || mature */
+	    PEBLogic*elig = new PEBLogic('o', sva_id_(loc, r_pend),
+					 sva_id_(loc, r_mat));
+	    FILE_NAME(elig, loc);
+	    std::vector<Statement*> sat;
+	    if (negated) {
+		  PCondit*nm = new PCondit(elig,
+			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+		  FILE_NAME(nm, loc);
+		  sat.push_back(nm);
+	    } else if (kind == 2) {
+		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt), elig);
+		  FILE_NAME(add, loc);
+		  sat.push_back(sva_assign_(loc, r_cnt, add));
+	    } else if (pass_stmt) {
+		  PCondit*pm = new PCondit(elig, pass_stmt, nullptr);
+		  FILE_NAME(pm, loc);
+		  sat.push_back(pm);
+		  pass_stmt = nullptr;
+	    }
+	    sat.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
+	    std::vector<Statement*> miss;
+	    PEBLogic*acc = new PEBLogic('o', sva_id_(loc, r_pend),
+					sva_id_(loc, r_mat));
+	    FILE_NAME(acc, loc);
+	    miss.push_back(sva_assign_(loc, r_pend, acc));
+	    PCondit*wc = new PCondit(sva_id_(loc, bw),
+				     sva_block_(loc, sat),
+				     sva_block_(loc, miss));
+	    FILE_NAME(wc, loc);
+	    body.push_back(wc);
+
+	      /* End-of-simulation pending report. */
+	    if (kind != 2 && !negated) {
+		  PExpr*outst = sva_id_(loc, r_pend);
+		  for (long q = 0 ; q < win_m ; q += 1) {
+			PEBLogic*n2 = new PEBLogic('o', outst,
+						   sva_id_(loc, w_regs[q]));
+			FILE_NAME(n2, loc);
+			outst = n2;
+		  }
+		  std::list<named_pexpr_t> dargs;
+		  named_pexpr_t darg;
+		  darg.parm = new PEString(strdup(
+			"SVA: unbounded ##[m:$] obligation still pending "
+			"at end of simulation"));
+		  dargs.push_back(darg);
+		  PCallTask*warn = new PCallTask(
+			lex_strings.make("$display"), dargs);
+		  FILE_NAME(warn, loc);
+		  PCondit*fc = new PCondit(outst, warn, nullptr);
+		  FILE_NAME(fc, loc);
+		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
+		  FILE_NAME(fp, loc);
+	    }
+      } else if (kind == 2 || negated || pass_stmt) {
+	      /* Fixed-final match: the token that survived the final
 		 step (pre-shift age P, checks already applied). */
 	    PExpr*match = (P == 0) ? (PExpr*)sva_id_(loc, r_g)
 				   : (PExpr*)sva_id_(loc, t_regs[P-1]);
-	    PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt), match);
-	    FILE_NAME(add, loc);
-	    std::vector<Statement*> inc;
-	    inc.push_back(sva_assign_(loc, r_cnt, add));
-	    body.push_back(sva_block_(loc, inc));
+	    if (kind == 2) {
+		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt), match);
+		  FILE_NAME(add, loc);
+		  body.push_back(sva_assign_(loc, r_cnt, add));
+	    } else if (negated) {
+		  PCondit*nm = new PCondit(match,
+			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+		  FILE_NAME(nm, loc);
+		  body.push_back(nm);
+	    } else {
+		  PCondit*pm = new PCondit(match, pass_stmt, nullptr);
+		  FILE_NAME(pm, loc);
+		  body.push_back(pm);
+		  pass_stmt = nullptr;
+	    }
       }
 
 	/* Shift the token pipeline (descending) and inject this
@@ -4754,7 +5030,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       } else {
 	    delete fail_stmt;
       }
-	/* Pass actions are not executed (recorded). */
+	/* Any pass action not consumed by a match site above (cover,
+	   negated) is dropped. */
       delete pass_stmt;
 
 	/* Assemble: pre-captures; disable guard around the token
@@ -4765,8 +5042,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    std::vector<Statement*> clr;
 	    for (long p = 0 ; p < P ; p += 1)
 		  clr.push_back(sva_assign_(loc, t_regs[p], sva_bit_(loc, 0)));
-	    for (long q = 0 ; q <= (has_window ? win_n : -1) ; q += 1)
+	    for (long q = 0 ; q < wregs_n ; q += 1)
 		  clr.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
+	    if (unbounded)
+		  clr.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
 	    clr.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
 	    if (kind != 2)
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));

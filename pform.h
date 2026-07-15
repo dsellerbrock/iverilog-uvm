@@ -282,7 +282,16 @@ extern void pform_sva_declare_sequence(const struct vlltype&loc,
 				       const char*name,
 				       std::vector<sva_seq_step_t>*steps);
 extern void pform_sva_set_default_disable(PExpr*expr);
+extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
 extern void pform_sva_module_done(void);
+
+/* M9-2: consecutive repetition e[*lo] / e[*lo:hi] — expands the step
+   list in place (clones for lo>1; [*lo:hi] expands to [*lo] with a
+   rep_tail marker validated at lowering). hi may be null. */
+extern std::vector<sva_seq_step_t>*
+pform_sva_repeat(const struct vlltype&loc,
+		 std::vector<sva_seq_step_t>*steps,
+		 PExpr*lo, PExpr*hi);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at

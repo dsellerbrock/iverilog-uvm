@@ -39,8 +39,13 @@ class PExpr;
  * start (0 for a plain leading boolean).
  */
 struct sva_seq_step_t {
-      long delay_lo = 0;
+      long delay_lo = 0;    // -1: ##[m:$]; -2: non-constant; -3: an
+			    // unsupported repetition shape (diagnosed)
       long delay_hi = 0;
+      long rep_tail = 0;    // e[*m:n] expands to [*m]; the final
+			    // expanded step carries n-m here. Valid
+			    // only in the last chain position
+			    // (match-existence equivalence).
       PExpr* expr = nullptr;
 };
 

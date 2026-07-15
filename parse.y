@@ -1100,7 +1100,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %token K_PO_POS K_PO_NEG K_POW
 %token K_PSTAR K_STARP K_DOTSTAR
 %token K_LOR K_LAND K_NAND K_NOR K_NXOR K_TRIGGER K_NB_TRIGGER K_LEQUIV
-%token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV
+%token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV K_LBSTAR
 %token K_SCOPE_RES
 %token K_edge_descriptor
 
@@ -1233,7 +1233,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec
-%type <sva_seq>  sva_seq_expr
+%type <sva_seq>  sva_seq_expr sva_seq_atom
 %type <perm_strings> cross_item_list
 
 %type <named_pexprs> enum_name_list enum_name
@@ -5073,74 +5073,143 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { sva_property_t*p = new sva_property_t;
 	p->antecedent = $1; p->seq = $3; p->op_type = 2;
 	$$ = p; }
+  /* IEEE 1800-2017 16.12.9: negation — the property holds iff the
+     sequence has NO match starting at any attempt point. */
+  | K_not '(' sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->seq = $3; p->op_type = 3;
+	$$ = p; }
+  /* Diagnosed sorries: liveness/product operators the token-pipeline
+     engine does not implement. The assertion is dropped with a clear
+     message instead of a raw syntax error. */
+  | sva_seq_expr K_until sva_seq_expr
+      { pform_sva_sorry(@2, "until"); $$ = 0; }
+  | sva_seq_expr K_until_with sva_seq_expr
+      { pform_sva_sorry(@2, "until_with"); $$ = 0; }
+  | K_nexttime property_expr
+      { pform_sva_sorry(@1, "nexttime"); delete $2; $$ = 0; }
+  | K_eventually property_expr
+      { pform_sva_sorry(@1, "eventually"); delete $2; $$ = 0; }
+  | K_s_eventually property_expr
+      { pform_sva_sorry(@1, "s_eventually"); delete $2; $$ = 0; }
+  | sva_seq_expr K_intersect sva_seq_expr
+      { pform_sva_sorry(@2, "intersect"); $$ = 0; }
+  | sva_seq_expr K_within sva_seq_expr
+      { pform_sva_sorry(@2, "within"); $$ = 0; }
+  | expression K_throughout sva_seq_expr
+      { pform_sva_sorry(@2, "throughout"); delete $1; $$ = 0; }
   ;
 
   /* M9: a sequence expression as a linear chain of cycle-delayed
      booleans: e0 ##d1 e1 ##[m:n] e2 ... Delay bounds must be literal
      constants (checked at lowering; -2 marks non-constant, -1 marks
      the unbounded $ bound). */
-sva_seq_expr
+  /* A sequence atom: a boolean expression, a transparent
+     first_match(...), or an atom with a consecutive-repetition
+     suffix. Returns a step LIST (first_match/repetition yield
+     sub-chains). */
+sva_seq_atom
   : expression
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
-	st.delay_lo = 0; st.delay_hi = 0; st.expr = $1;
+	st.expr = $1;
 	steps->push_back(st);
 	$$ = steps; }
+  /* 16.9.9: in match-existence positions first_match(s) has a match
+     iff s does — transparent for the supported property forms. */
+  | K_first_match '(' sva_seq_expr ')'
+      { $$ = $3; }
+  | sva_seq_atom K_LBSTAR expression ']'
+      { $$ = pform_sva_repeat(@2, $1, $3, 0); }
+  | sva_seq_atom K_LBSTAR expression ':' expression ']'
+      { $$ = pform_sva_repeat(@2, $1, $3, $5); }
+  /* Parenthesized sub-sequence: `(a ##1 b) |-> c`. Plain
+     parenthesized booleans keep the ordinary expression path (the
+     reduce/reduce conflict resolves to the earlier expression
+     rules); this production engages when the parens contain
+     sequence structure. */
+  | '(' sva_seq_expr ')'
+      { $$ = $2; }
+  ;
+
+sva_seq_expr
+  : sva_seq_atom
+      { $$ = $1; }
   /* Leading cycle delay: `|-> ##2 b`, `|-> ##[1:3] b`. */
-  | K_CYCLE_DELAY delay_value_simple expression
-      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
-	sva_seq_step_t st;
-	if (PENumber*num = dynamic_cast<PENumber*>($2)) {
-	      st.delay_lo = num->value().as_long();
-	      st.delay_hi = st.delay_lo;
-	} else {
-	      st.delay_lo = -2; st.delay_hi = -2;
+  | K_CYCLE_DELAY delay_value_simple sva_seq_atom
+      { PENumber*num = dynamic_cast<PENumber*>($2);
+	sva_seq_step_t&f0 = (*$3)[0];
+	if (num && f0.delay_lo >= 0) {
+	      f0.delay_lo += num->value().as_long();
+	      f0.delay_hi += num->value().as_long();
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	delete $2;
-	st.expr = $3;
-	steps->push_back(st);
-	$$ = steps; }
-  | K_CYCLE_DELAY '[' expression ':' expression ']' expression
-      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
-	sva_seq_step_t st;
-	PENumber*lo = dynamic_cast<PENumber*>($3);
+	$$ = $3; }
+  | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
+      { PENumber*lo = dynamic_cast<PENumber*>($3);
 	PENumber*hi = dynamic_cast<PENumber*>($5);
-	if (lo && hi) {
-	      st.delay_lo = lo->value().as_long();
-	      st.delay_hi = hi->value().as_long();
-	} else {
-	      st.delay_lo = -2; st.delay_hi = -2;
+	sva_seq_step_t&f0 = (*$7)[0];
+	if (lo && hi && f0.delay_lo >= 0) {
+	      f0.delay_lo += lo->value().as_long();
+	      f0.delay_hi += hi->value().as_long();
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	delete $3; delete $5;
-	st.expr = $7;
-	steps->push_back(st);
-	$$ = steps; }
-  | sva_seq_expr K_CYCLE_DELAY delay_value_simple expression
-      { sva_seq_step_t st;
-	if (PENumber*num = dynamic_cast<PENumber*>($3)) {
-	      st.delay_lo = num->value().as_long();
-	      st.delay_hi = st.delay_lo;
-	      delete $3;
-	} else {
-	      st.delay_lo = -2; st.delay_hi = -2;
-	      delete $3;
+	$$ = $7; }
+  /* Unbounded window ##[m:$] — weak eventually (16.9.2). */
+  | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
+      { PENumber*lo = dynamic_cast<PENumber*>($3);
+	sva_seq_step_t&f0 = (*$7)[0];
+	if (lo && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = lo->value().as_long();
+	      f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
-	st.expr = $4;
-	$1->push_back(st);
+	delete $3;
+	$$ = $7; }
+  | sva_seq_expr K_CYCLE_DELAY delay_value_simple sva_seq_atom
+      { PENumber*num = dynamic_cast<PENumber*>($3);
+	sva_seq_step_t&f0 = (*$4)[0];
+	if (num && f0.delay_lo >= 0) {
+	      f0.delay_lo += num->value().as_long();
+	      f0.delay_hi += num->value().as_long();
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	delete $3;
+	$1->insert($1->end(), $4->begin(), $4->end());
+	delete $4;
 	$$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' expression
-      { sva_seq_step_t st;
-	PENumber*lo = dynamic_cast<PENumber*>($4);
+  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
+      { PENumber*lo = dynamic_cast<PENumber*>($4);
 	PENumber*hi = dynamic_cast<PENumber*>($6);
-	if (lo && hi) {
-	      st.delay_lo = lo->value().as_long();
-	      st.delay_hi = hi->value().as_long();
-	} else {
-	      st.delay_lo = -2; st.delay_hi = -2;
+	sva_seq_step_t&f0 = (*$8)[0];
+	if (lo && hi && f0.delay_lo >= 0) {
+	      f0.delay_lo += lo->value().as_long();
+	      f0.delay_hi += hi->value().as_long();
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	delete $4; delete $6;
-	st.expr = $8;
-	$1->push_back(st);
+	$1->insert($1->end(), $8->begin(), $8->end());
+	delete $8;
+	$$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
+      { PENumber*lo = dynamic_cast<PENumber*>($4);
+	sva_seq_step_t&f0 = (*$8)[0];
+	if (lo && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = lo->value().as_long();
+	      f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	delete $4;
+	$1->insert($1->end(), $8->begin(), $8->end());
+	delete $8;
 	$$ = $1; }
   ;
 
