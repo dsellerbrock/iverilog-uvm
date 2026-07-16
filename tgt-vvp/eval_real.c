@@ -319,6 +319,28 @@ static void draw_select_real(ivl_expr_t expr)
             return;
       }
 
+      /* M4-av: real-VALUED associative array with a string or integral
+         key. Previously only object keys were handled; string and integer
+         keys fell through to the POSITIONAL %load/dar/r below and read
+         0.0 (a silent value loss on a module-static `real r[int]` /
+         `real r[string]`; class-member assoc read was unaffected). Push
+         the key, push the assoc object, load, then pop the object. */
+      if (net_type && ivl_type_queue_assoc_compat(net_type)
+          && expr_is_string_assoc_key_(shift)) {
+            draw_eval_string(shift);
+            fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+            fprintf(vvp_out, "    %%aa/load/r/str;\n");
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            return;
+      }
+      if (net_type && ivl_type_queue_assoc_compat(net_type)) {
+            draw_eval_vec4(shift);
+            fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+            fprintf(vvp_out, "    %%aa/load/r/v;\n");
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            return;
+      }
+
       draw_eval_expr_into_integer(shift, 3);
       fprintf(vvp_out, "    %%load/dar/r v%p_0;\n", sig);
 }
