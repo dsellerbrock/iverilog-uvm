@@ -1241,6 +1241,128 @@ PECallFunction* pform_make_call_function(const struct vlltype&loc,
       return tmp;
 }
 
+/*
+ * M14: structural deep-copy of the common expression shapes that a
+ * `case (X) inside` selector takes. Returns nullptr for shapes it
+ * cannot copy so the caller can diagnose loudly rather than share a
+ * node (which would double-free) or silently miscompile.
+ */
+static PExpr* pform_dup_case_expr_(const PExpr*e)
+{
+      if (e == 0) return 0;
+
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(e)) {
+	    PEIdent*cp = id->path().package
+		  ? new PEIdent(id->path().package, id->path().name,
+				id->lexical_pos())
+		  : new PEIdent(id->path().name, id->lexical_pos());
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (const PENumber*num = dynamic_cast<const PENumber*>(e)) {
+	    PENumber*cp = new PENumber(new verinum(num->value()));
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(e)) {
+	    PExpr*sub = pform_dup_case_expr_(un->get_expr());
+	    if (!sub) return 0;
+	    PEUnary*cp = new PEUnary(un->get_op(), sub);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (const PEBinary*bin = dynamic_cast<const PEBinary*>(e)) {
+	    PExpr*l = pform_dup_case_expr_(bin->get_left());
+	    PExpr*r = pform_dup_case_expr_(bin->get_right());
+	    if (!l || !r) { delete l; delete r; return 0; }
+	    PEBinary*cp;
+	    if (dynamic_cast<const PEBComp*>(e))
+		  cp = new PEBComp(bin->get_op(), l, r);
+	    else if (dynamic_cast<const PEBLogic*>(e))
+		  cp = new PEBLogic(bin->get_op(), l, r);
+	    else if (dynamic_cast<const PEBShift*>(e))
+		  cp = new PEBShift(bin->get_op(), l, r);
+	    else if (typeid(*e) == typeid(PEBinary))
+		  cp = new PEBinary(bin->get_op(), l, r);
+	    else { delete l; delete r; return 0; }
+	    cp->set_line(*e);
+	    return cp;
+      }
+      return 0;
+}
+
+/*
+ * M14: lower `case (X) inside { items }` (IEEE 1800-2017 12.5.4) to a
+ * `case (1'b1)` whose item expressions are `X inside { ranges_i }`
+ * membership tests (PEInside), which already implement full set/range
+ * membership. Previously the parser collapsed range items to their
+ * lower bound and treated the whole thing as an ordinary case — a
+ * silent miscompile where interior range values never matched.
+ *
+ * The selector X is duplicated into each item's membership test. For
+ * the common case of a variable selector this re-reference is exact;
+ * a selector with side effects would be evaluated per item, which is
+ * diagnosed (a non-duplicable selector shape produces a loud sorry).
+ */
+Statement* pform_make_case_inside(const struct vlltype&loc,
+				  ivl_case_quality_t qual,
+				  PExpr*sel,
+				  std::vector<PCase::Item*>*items)
+{
+      bool ok = true;
+      for (unsigned idx = 0 ; idx < items->size() ; idx += 1) {
+	    PCase::Item*cur = (*items)[idx];
+
+	      // The default item has neither values nor ranges.
+	    if (cur->expr.empty() && cur->inside_ranges.empty())
+		  continue;
+
+	    std::list<inside_range_t> ranges;
+	      // Single (or comma-separated) values become is_range=false
+	      // membership entries (held in inside_range_t::hi).
+	    for (std::list<PExpr*>::iterator it = cur->expr.begin()
+		       ; it != cur->expr.end() ; ++it) {
+		  inside_range_t r;
+		  r.lo = 0;
+		  r.hi = *it;
+		  r.is_range = false;
+		  ranges.push_back(r);
+	    }
+	    cur->expr.clear();
+	      // [lo:hi] range items.
+	    for (std::list<inside_range_t>::iterator it = cur->inside_ranges.begin()
+		       ; it != cur->inside_ranges.end() ; ++it)
+		  ranges.push_back(*it);
+	    cur->inside_ranges.clear();
+
+	    PExpr*sel_dup = pform_dup_case_expr_(sel);
+	    if (sel_dup == 0) {
+		  cerr << loc.get_fileline() << ": sorry: the selector "
+		       << "expression of this `case ... inside` has a shape "
+		       << "the compiler cannot duplicate; use a variable "
+		       << "selector." << endl;
+		  error_count += 1;
+		  ok = false;
+		  sel_dup = new PENumber(new verinum(verinum::V0, 1));
+		  FILE_NAME(sel_dup, loc);
+	    }
+
+	    std::list<inside_range_t>*ranges_heap =
+		  new std::list<inside_range_t>(ranges);
+	    PEInside*ins = new PEInside(sel_dup, ranges_heap);
+	    FILE_NAME(ins, loc);
+	    cur->expr.push_back(ins);
+      }
+      (void)ok;
+
+      PENumber*one = new PENumber(new verinum(verinum::V1, 1));
+      FILE_NAME(one, loc);
+      PCase*tmp = new PCase(qual, NetCase::EQ, one, items);
+      FILE_NAME(tmp, loc);
+      delete sel;
+      return tmp;
+}
+
 PCallTask* pform_make_call_task(const struct vlltype&loc,
 				const pform_name_t&name,
 				const list<named_pexpr_t> &parms,

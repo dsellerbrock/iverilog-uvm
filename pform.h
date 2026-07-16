@@ -496,6 +496,12 @@ extern void pform_set_specparam(const struct vlltype&loc,
 				 PExpr*expr);
 extern void pform_set_defparam(const pform_name_t&name, PExpr*expr);
 
+/* M14: lower `case (X) inside {items}` to membership tests. */
+extern Statement* pform_make_case_inside(const struct vlltype&loc,
+					 ivl_case_quality_t qual,
+					 PExpr*sel,
+					 std::vector<PCase::Item*>*items);
+
 extern void pform_make_let(const struct vlltype&loc,
                            perm_string name,
                            std::list<PLet::let_port_t*>*ports,

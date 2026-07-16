@@ -1158,6 +1158,24 @@ static void draw_select_vec4(ivl_expr_t expr)
                   fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
                   return;
             }
+            /* M14: integer(vec4)-keyed associative array read. This bare-
+               signal branch previously handled only string and object
+               keys and fell through to the POSITIONAL darray load below
+               for integral keys, so a module-static `int m[int]` (which
+               is a bare signal, unlike a class-member assoc) stored its
+               values via %aa/store but read them via %load/dar/vec4 and
+               always read the default — a silent value loss. An
+               assoc-compat container whose key is neither string nor
+               object is keyed by an integral value: load it as such. */
+            if (net_type && ivl_type_queue_assoc_compat(net_type)) {
+                  draw_eval_vec4(base);
+                  fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+                  fprintf(vvp_out, "    %%aa/load/v/v %u;\n", wid);
+                  if (ivl_expr_value(expr) == IVL_VT_BOOL)
+                        fprintf(vvp_out, "    %%cast2;\n");
+                  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+                  return;
+            }
 	    draw_eval_expr_into_integer(base, 3);
 	    fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", sig);
 	    if (ivl_expr_value(expr) == IVL_VT_BOOL)

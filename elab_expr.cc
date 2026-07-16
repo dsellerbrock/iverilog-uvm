@@ -3593,8 +3593,23 @@ classify_compile_progress_unresolved_func_stub_(const pform_scoped_name_t&path)
       if (func_name == perm_string::literal("randomize")) {
 	    if (path.name.size() >= 2) {
 		  pform_name_t::const_iterator head = path.name.begin();
-		  if (head->name == perm_string::literal("std"))
+		  if (head->name == perm_string::literal("std")) {
+			/* M14: the scope form std::randomize(var) is not
+			   implemented — it returns success but leaves the
+			   variable unchanged. Warn loudly (once) rather
+			   than silently reporting a randomization that did
+			   not happen (manifesto principle 4). */
+			static bool warned_std_randomize = false;
+			if (!warned_std_randomize) {
+			      cerr << "warning: the scope form "
+				      "std::randomize(var) is not implemented; "
+				      "it returns success but does NOT "
+				      "randomize the variable (further such "
+				      "warnings suppressed)." << endl;
+			      warned_std_randomize = true;
+			}
 			return CP_EXPR_METHOD_STUB_BOOL1;
+		  }
 	    }
 	    return CP_EXPR_METHOD_STUB_BOOL0;
       }

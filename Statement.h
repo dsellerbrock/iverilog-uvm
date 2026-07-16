@@ -320,6 +320,9 @@ class PCase  : public Statement {
     public:
       struct Item {
 	    std::list<PExpr*>expr;
+	    // M14: for `case (x) inside`, range items [lo:hi] are held
+	    // here (single values stay in expr). Empty for ordinary case.
+	    std::list<inside_range_t> inside_ranges;
 	    Statement*stat;
       };
 

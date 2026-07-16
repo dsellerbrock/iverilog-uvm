@@ -3506,6 +3506,7 @@ description /* IEEE1800-2005: A.1.2 */
   : module
   | udp_primitive
   | config_declaration
+  | checker_declaration
   | nature_declaration
   | package_declaration
   | discipline_declaration
@@ -6609,14 +6610,17 @@ case_item
 	$$ = tmp;
       }
   /* SV `case (x) inside` allows range case items: [lo:hi]: stmt.
-     Iverilog doesn't yet model membership matching, so we collapse the
-     range to its lower bound, which is enough for parse-success on
-     designs that only conditionally exercise these arms (e.g. pulp
-     riscv-dbg, used as a transitive dep but not at simulation time). */
+     Preserve the full range; `case ... inside` lowering
+     (pform_make_case_inside) turns it into a real membership test.
+     For an ordinary `case` a range item is illegal and this range
+     simply never participates (the item matches nothing). */
   | '[' expression ':' expression ']' ':' statement_or_null
       { PCase::Item*tmp = new PCase::Item;
-	tmp->expr.push_back($2);
-	if ($4) delete $4;
+	inside_range_t r;
+	r.lo = $2;
+	r.hi = $4;
+	r.is_range = true;
+	tmp->inside_ranges.push_back(r);
 	tmp->stat = $7;
 	$$ = tmp;
       }
@@ -6891,6 +6895,22 @@ nature_item
       { delete[] $3; }
   | K_ddt_nature '=' IDENTIFIER ';'
       { delete[] $3; }
+  ;
+
+  /* SystemVerilog checkers (IEEE 1800-2017 clause 17) are not
+     implemented. Rather than aborting the whole parse with a bare
+     "syntax error", consume the checker body via error recovery and
+     emit an explicit unsupported-feature diagnostic, so the rest of
+     the source still compiles (manifesto principle 4). */
+checker_declaration
+  : K_checker IDENTIFIER error K_endchecker
+      { cerr << @1 << ": sorry: checker declarations (IEEE 1800-2017 "
+               "clause 17) are not supported; the checker is skipped."
+             << endl;
+        error_count += 1;
+        delete[] $2;
+        yyerrok;
+      }
   ;
 
 config_declaration
@@ -9716,6 +9736,10 @@ module_item
   /* SystemVerilog permits package imports as module items. */
   | package_import_declaration
 
+  /* SystemVerilog checkers as module items (IEEE 1800-2017 17) —
+     unsupported, diagnosed and skipped (see checker_declaration). */
+  | checker_declaration
+
   | attribute_list_opt net_type data_type_or_implicit delay3_opt net_variable_list ';'
 
       { data_type_t*data_type = $3;
@@ -12437,15 +12461,11 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
-  /* SV: `case (x) inside ...` — iverilog does not yet model the
-     membership-matching semantics, so we treat it as a plain case for
-     parse purposes. Actual range case items collapse to their lower
-     bound (see `case_item` rule above). */
+  /* SV: `case (x) inside ...` (IEEE 1800-2017 12.5.4) — lower to
+     membership tests so range items match their whole interval, not
+     just the lower bound (see pform_make_case_inside). */
   | unique_priority K_case '(' expression ')' K_inside case_items K_endcase
-      { PCase*tmp = new PCase($1, NetCase::EQ, $4, $7);
-	FILE_NAME(tmp, @2);
-	$$ = tmp;
-      }
+      { $$ = pform_make_case_inside(@2, $1, $4, $7); }
   /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches` for
      tagged unions (IEEE 1800-2017 §12.6).  Lowered at elab to an
      if-else cascade testing the companion-tag NetNet of X. */
@@ -12473,7 +12493,10 @@ statement_item /* This is roughly statement_item in the LRM */
   | unique_priority K_casez '(' expression ')' error K_endcase
       { yyerrok; }
 
-  /* randcase: randomly select from weighted items — parse and discard */
+  /* randcase (IEEE 1800-2017 18.16): weighted random branch select.
+     Not implemented; diagnose loudly rather than silently discarding
+     it (a silent empty block executes NO branch — manifesto
+     principle 4). */
   | K_randcase case_items K_endcase
       { for (auto* it : *$2) {
 	    for (auto* e : it->expr) delete e;
@@ -12481,6 +12504,10 @@ statement_item /* This is roughly statement_item in the LRM */
 	    delete it;
 	}
 	delete $2;
+	cerr << @1 << ": sorry: randcase (IEEE 1800-2017 18.16) is not "
+	        "supported; use a $urandom_range-based weighted select "
+	        "instead." << endl;
+	error_count += 1;
 	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;

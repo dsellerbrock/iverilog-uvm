@@ -203,6 +203,17 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
 		  && ivl_expr_value(expr) == IVL_VT_STRING)
 		    return 0;
+	      /* M14: A class data property has no standalone VPI signal
+	         handle — its value lives inside the containing object, and
+	         `sig` here is that object. The signal-handle fast path
+	         below is only valid for real signals, so always fall back
+	         to evaluating the property into a temp. Previously a
+	         property whose width happened to equal the object-handle
+	         width (notably ANY 1-bit bit/logic property) slipped past
+	         the width-mismatch guard below and passed the OBJECT handle
+	         to the system task, which printed garbage. */
+	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY)
+		    return 0;
 	      /* If the signal node is narrower than the signal itself,
 	         then this is a part select so I'm going to need to
 	         evaluate the expression.
