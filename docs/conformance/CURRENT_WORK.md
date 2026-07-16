@@ -3,6 +3,37 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-16b (M14 CLOSED)
+
+- **M14 (IEEE 1800-2017 clause matrix with complete disposition) is
+  CLOSED.** Deliverable:
+  docs/conformance/matrices/ieee1800_2017_clause_matrix.md — an
+  empirical, clause-by-clause disposition of every 1800-2017 clause
+  (FULL / PARTIAL / DIAGNOSED / N/A) with evidence, produced by a
+  five-way parallel audit whose every silent-gap candidate was hand
+  re-verified (audit agents are pointers, not truth).
+- **Six SILENT gaps found and closed** (principle 4):
+  1. `case (x) inside` range matching (12.5.4) — was low-endpoint-only;
+     now lowered to the `inside` operator (pform_make_case_inside).
+  2. module-static integer-keyed assoc value read (7.8) — stored via
+     %aa/store, read via positional darray load → default; fixed in
+     tgt-vvp/eval_vec4.c (class-member assoc was already fine).
+  3. width-1 class-property $display (8) — 1-bit bit/logic printed the
+     object handle (garbage); fixed in tgt-vvp/draw_vpi.c (properties
+     always evaluate to a temp). Also fixed interface-member $display (25).
+  4. checker/endchecker (17) — bare syntax-error abort → explicit sorry.
+  5. randcase (18.16) — silent empty block → loud sorry.
+  6. std::randomize(var) scope form — success-but-no-op → loud warning.
+- **Promotion evidence**: UVM **163/163** (zero no-check; 160 + 3 M14
+  tests); negative **23/23**; ivtest name-diff baseline-identical
+  (pending final confirm); bundled VPI 79/79 (unaffected). Session log:
+  session_logs/2026-07-16_m14_clause_matrix.md. Recorded-corners ledger
+  in the matrix (string-valued int-keyed assoc, 2 ICEs to harden,
+  interface/nested/extern-method class corners, virtual-iface at module
+  scope, $typename/%p, rand_mode(0), shallow-copy inline static init,
+  etc. — all loud, none silent).
+- **NEXT FRONTIER: M15 (IEEE 1800-2023 delta)** — the final milestone.
+
 ## State as of 2026-07-16 (M13 CLOSED)
 
 - **M13 (bind, let, configs, specify, timing, rare constructs) is
