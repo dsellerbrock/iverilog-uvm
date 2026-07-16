@@ -2142,6 +2142,11 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 		       ; mp != modports.end() ; ++ mp)
 		  scope->add_modport_name(mp->first);
       }
+
+	// M13: make let declarations visible to expression elaboration.
+      for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()
+		 ; lt != lets.end() ; ++ lt)
+	    scope->add_let(lt->first, lt->second);
       if (debug_scopes) {
 	    cerr << get_fileline() << ": Module::elaborate_scope: "
 		 << "Elaborate " << scope_path(scope) << "." << endl;

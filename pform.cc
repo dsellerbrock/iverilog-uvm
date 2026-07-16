@@ -3706,22 +3706,39 @@ void pform_make_let(const struct vlltype&loc,
                     PExpr*expr)
 {
       LexicalScope*scope =  pform_peek_scope();
+      Module*mod = pform_cur_module.empty()? 0 : pform_cur_module.front();
 
-      cerr << loc.get_fileline() << ": sorry: let declarations ("
-           << name << ") are not currently supported." << endl;
-      error_count += 1;
+	// let declarations are supported directly in module/interface
+	// scope (the overwhelmingly common placement). Lets nested in
+	// generate blocks or other scopes are a recorded corner.
+      if (mod == 0 || pform_cur_generate != 0
+	  || scope != static_cast<LexicalScope*>(mod)) {
+	    cerr << loc.get_fileline() << ": sorry: let declaration `"
+		 << name << "' outside direct module/interface scope is "
+		 << "not supported yet; the let is dropped." << endl;
+	    error_count += 1;
+	    if (ports) {
+		  for (list<PLet::let_port_t*>::iterator cur = ports->begin()
+			     ; cur != ports->end() ; ++cur)
+			delete *cur;
+		  delete ports;
+	    }
+	    delete expr;
+	    return;
+      }
+
+      if (mod->lets.count(name)) {
+	    cerr << loc.get_fileline() << ": error: duplicate let "
+		 << "declaration `" << name << "' in module `"
+		 << mod->mod_name() << "'." << endl;
+	    error_count += 1;
+	    delete expr;
+	    return;
+      }
 
       PLet*res = new PLet(name, scope, ports, expr);
       FILE_NAME(res, loc);
-
-/*
-      cerr << "Found: ";
-      res->dump(cerr, 0);
-*/
-
-      delete res;
-      delete ports;
-      delete expr;
+      mod->lets[name] = res;
 }
 
 PLet::let_port_t* pform_make_let_port(data_type_t*data_type,

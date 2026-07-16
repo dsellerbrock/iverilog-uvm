@@ -33,6 +33,7 @@ class Design;
 class Module;
 class LexicalScope;
 class NetNet;
+class PLet;
 class NetExpr;
 class NetScope;
 class PPackage;
@@ -270,6 +271,7 @@ class PEConcat : public PExpr {
       // lowering (a multi-operand stream is parsed as a PEConcat).
       const std::vector<PExpr*>& stream_parms() const { return parms_; }
       bool has_repeat() const { return repeat_ != 0; }
+      PExpr* repeat_expr() const { return repeat_; }
 
       virtual void dump(std::ostream&) const override;
 
@@ -442,6 +444,11 @@ class PEIdent : public PExpr {
     private:
       pform_scoped_name_t path_;
       unsigned lexical_pos_;
+
+	// M13: cached let-expansion for a bare let reference.
+      mutable PExpr*let_subst_ = nullptr;
+      mutable bool let_subst_tried_ = false;
+      PExpr* let_substitution_(Design*des, NetScope*scope) const;
       bool no_implicit_sig_;
       struct parmvalue_t* leading_type_args_ = 0;
 
@@ -1060,6 +1067,7 @@ class PECallFunction : public PExpr {
 
       const pform_scoped_name_t& path() const { return path_; }
       const std::vector<named_pexpr_t>& get_parms() const { return parms_; }
+      PExpr* receiver_expr() const { return receiver_; }
 
       virtual void dump(std::ostream &) const override;
 
@@ -1088,6 +1096,13 @@ class PECallFunction : public PExpr {
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;
       std::vector<PExpr*> with_constraints_;
+
+	// M13: cached let-expansion (IEEE 1800-2017 11.13). When the
+	// call name resolves to a let in scope, the substituted body is
+	// built once and test_width/elaborate_expr delegate to it.
+      mutable PExpr*let_subst_ = nullptr;
+      mutable bool let_subst_tried_ = false;
+      PExpr* let_substitution_(Design*des, NetScope*scope) const;
       struct parmvalue_t*leading_type_args_ = 0;
 	// Non-null for method calls on arbitrary receiver expressions.
 	// In that case path_ holds only the method name.

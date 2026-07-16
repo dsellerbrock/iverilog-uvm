@@ -38,6 +38,7 @@ class PGenerate;
 class PModport;
 class PSpecPath;
 class PTimingCheck;
+class PLet;
 class PTask;
 class PFunction;
 class PWire;
@@ -193,6 +194,10 @@ class Module : public PScopeExtra, public PNamedItem {
 	/* List for specify paths and timing checks */
       std::list<PSpecPath*> specify_paths;
       std::list<PTimingCheck*> timing_checks;
+
+	/* let declarations (IEEE 1800-2017 11.13), expanded by
+	   substitution at elaboration. */
+      std::map<perm_string,PLet*> lets;
 
 	// The mod_name() is the name of the module type.
       perm_string mod_name() const { return pscope_name(); }

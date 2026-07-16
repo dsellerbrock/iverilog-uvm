@@ -32,6 +32,7 @@
 # include  "pform.h"
 # include  "parse_api.h"
 # include  "Module.h"
+# include  "PTask.h"
 # include  "netlist.h"
 # include  "netclass.h"
 # include  "netenum.h"
@@ -4192,6 +4193,381 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
       return 0;
 }
 
+/*
+ * M13: let declarations (IEEE 1800-2017 11.13) are compile-time
+ * expression macros. A use of a let (a call `name(args)` or a bare
+ * reference `name`) is expanded by structurally cloning the let body
+ * with formal names replaced by (clones of) the actual argument
+ * expressions, then elaborating the substituted expression in the
+ * scope of the use. The expansion is cached on the use node; nested
+ * let calls expand recursively as the clone elaborates, with a depth
+ * guard against runaway recursion. Shapes the cloner cannot copy get
+ * a LOUD sorry, never a silent drop.
+ */
+static int let_expand_depth_ = 0;
+static const int LET_EXPAND_DEPTH_MAX = 64;
+
+static PExpr* let_clone_expr_(const PExpr*e,
+			      const std::map<perm_string,PExpr*>&subst);
+
+static bool let_clone_index_list_(const std::list<index_component_t>&src,
+				  std::list<index_component_t>&dst,
+				  const std::map<perm_string,PExpr*>&subst)
+{
+      static const std::map<perm_string,PExpr*> no_subst;
+      (void)no_subst;
+      for (std::list<index_component_t>::const_iterator cur = src.begin()
+		 ; cur != src.end() ; ++cur) {
+	    index_component_t ic;
+	    ic.sel = cur->sel;
+	    ic.msb = 0;
+	    ic.lsb = 0;
+	    if (cur->msb) {
+		  ic.msb = let_clone_expr_(cur->msb, subst);
+		  if (ic.msb == 0) return false;
+	    }
+	    if (cur->lsb) {
+		  ic.lsb = let_clone_expr_(cur->lsb, subst);
+		  if (ic.lsb == 0) return false;
+	    }
+	    dst.push_back(ic);
+      }
+      return true;
+}
+
+static PExpr* let_clone_expr_(const PExpr*e,
+			      const std::map<perm_string,PExpr*>&subst)
+{
+      static const std::map<perm_string,PExpr*> empty_subst;
+
+      if (e == 0) return 0;
+
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(e)) {
+	    const pform_scoped_name_t&path = id->path();
+	    perm_string head = path.name.front().name;
+
+	      // A formal reference. The bound actual is cloned WITHOUT
+	      // substitution (it is a caller-scope expression; formal
+	      // names inside it must not be captured).
+	    if (path.package == 0 && subst.count(head)) {
+		  std::map<perm_string,PExpr*>::const_iterator bound
+			= subst.find(head);
+		  if (path.name.size() == 1
+		      && path.name.front().index.empty()) {
+			return let_clone_expr_(bound->second, empty_subst);
+		  }
+		    // Formal with select or member tail: graft the
+		    // tail onto the actual, which must itself be a
+		    // simple identifier for this to be expressible.
+		  const PEIdent*act = dynamic_cast<const PEIdent*>(bound->second);
+		  if (act == 0) return 0;
+		  pform_name_t new_name;
+		  for (pform_name_t::const_iterator cur = act->path().name.begin()
+			     ; cur != act->path().name.end() ; ++cur) {
+			name_component_t comp(cur->name);
+			if (!let_clone_index_list_(cur->index, comp.index,
+						   empty_subst))
+			      return 0;
+			new_name.push_back(comp);
+		  }
+		    // Head component of the body reference carries the
+		    // select; append its (substituted) indices to the
+		    // tail of the actual, then any further components.
+		  pform_name_t::const_iterator bcur = path.name.begin();
+		  if (!let_clone_index_list_(bcur->index,
+					     new_name.back().index, subst))
+			return 0;
+		  for (++bcur ; bcur != path.name.end() ; ++bcur) {
+			name_component_t comp(bcur->name);
+			if (!let_clone_index_list_(bcur->index, comp.index,
+						   subst))
+			      return 0;
+			new_name.push_back(comp);
+		  }
+		  PEIdent*cp = act->path().package
+			? new PEIdent(act->path().package, new_name, UINT_MAX)
+			: new PEIdent(new_name, UINT_MAX);
+		  cp->set_line(*e);
+		  return cp;
+	    }
+
+	      // Ordinary identifier: deep clone, substituting inside
+	      // index expressions (they are body-side expressions).
+	    pform_name_t new_name;
+	    for (pform_name_t::const_iterator cur = path.name.begin()
+		       ; cur != path.name.end() ; ++cur) {
+		  name_component_t comp(cur->name);
+		  if (!let_clone_index_list_(cur->index, comp.index, subst))
+			return 0;
+		  new_name.push_back(comp);
+	    }
+	    PEIdent*cp = path.package
+		  ? new PEIdent(path.package, new_name, id->lexical_pos())
+		  : new PEIdent(new_name, id->lexical_pos());
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PENumber*num = dynamic_cast<const PENumber*>(e)) {
+	    PENumber*cp = new PENumber(new verinum(num->value()));
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PEFNumber*fn = dynamic_cast<const PEFNumber*>(e)) {
+	    PEFNumber*cp = new PEFNumber(new verireal(fn->value().as_double()));
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PEString*str = dynamic_cast<const PEString*>(e)) {
+	    const std::string&val = str->value();
+	    char*txt = new char[val.size()+1];
+	    strcpy(txt, val.c_str());
+	    PEString*cp = new PEString(txt);
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(e)) {
+	    PExpr*sub = let_clone_expr_(un->get_expr(), subst);
+	    if (sub == 0) return 0;
+	    PEUnary*cp = new PEUnary(un->get_op(), sub);
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PEBinary*bin = dynamic_cast<const PEBinary*>(e)) {
+	    PExpr*l = let_clone_expr_(bin->get_left(), subst);
+	    PExpr*r = let_clone_expr_(bin->get_right(), subst);
+	    if (l == 0 || r == 0) { delete l; delete r; return 0; }
+	    PEBinary*cp;
+	    if (dynamic_cast<const PEBComp*>(e))
+		  cp = new PEBComp(bin->get_op(), l, r);
+	    else if (dynamic_cast<const PEBLogic*>(e))
+		  cp = new PEBLogic(bin->get_op(), l, r);
+	    else if (dynamic_cast<const PEBShift*>(e))
+		  cp = new PEBShift(bin->get_op(), l, r);
+	    else if (typeid(*e) == typeid(PEBinary))
+		  cp = new PEBinary(bin->get_op(), l, r);
+	    else { delete l; delete r; return 0; }
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PETernary*ter = dynamic_cast<const PETernary*>(e)) {
+	    PExpr*co = let_clone_expr_(ter->get_cond(), subst);
+	    PExpr*tr = let_clone_expr_(ter->get_true(), subst);
+	    PExpr*fa = let_clone_expr_(ter->get_false(), subst);
+	    if (co == 0 || tr == 0 || fa == 0) {
+		  delete co; delete tr; delete fa;
+		  return 0;
+	    }
+	    PETernary*cp = new PETernary(co, tr, fa);
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PEConcat*cat = dynamic_cast<const PEConcat*>(e)) {
+	    std::list<PExpr*> parms;
+	    for (std::vector<PExpr*>::const_iterator cur = cat->stream_parms().begin()
+		       ; cur != cat->stream_parms().end() ; ++cur) {
+		  PExpr*sub = let_clone_expr_(*cur, subst);
+		  if (sub == 0) return 0;
+		  parms.push_back(sub);
+	    }
+	    PExpr*rep = 0;
+	    if (cat->has_repeat()) {
+		  rep = let_clone_expr_(cat->repeat_expr(), subst);
+		  if (rep == 0) return 0;
+	    }
+	    PEConcat*cp = new PEConcat(parms, rep);
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(e)) {
+	    if (call->receiver_expr() || call->leading_type_args()
+		|| !call->with_constraints().empty())
+		  return 0;
+	    const pform_scoped_name_t&path = call->path();
+	      // A formal used as a call name is not expressible.
+	    if (path.package == 0 && subst.count(path.name.front().name))
+		  return 0;
+	    pform_name_t new_name;
+	    for (pform_name_t::const_iterator cur = path.name.begin()
+		       ; cur != path.name.end() ; ++cur) {
+		  name_component_t comp(cur->name);
+		  if (!let_clone_index_list_(cur->index, comp.index, subst))
+			return 0;
+		  new_name.push_back(comp);
+	    }
+	    std::vector<named_pexpr_t> new_parms (call->get_parms().size());
+	    for (unsigned idx = 0 ; idx < call->get_parms().size() ; idx += 1) {
+		  const named_pexpr_t&src = call->get_parms()[idx];
+		  new_parms[idx].name = src.name;
+		  new_parms[idx].parm = 0;
+		  if (src.parm) {
+			new_parms[idx].parm = let_clone_expr_(src.parm, subst);
+			if (new_parms[idx].parm == 0) return 0;
+		  }
+	    }
+	    PECallFunction*cp;
+	    if (path.package) {
+		  std::list<named_pexpr_t> parms_list (new_parms.begin(),
+						       new_parms.end());
+		  cp = new PECallFunction(path.package, new_name, parms_list);
+	    } else {
+		  cp = new PECallFunction(new_name, new_parms);
+	    }
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      return 0;
+}
+
+/* Bind call arguments to let formals and clone the body with the
+   resulting substitution. Diagnoses arity/name errors loudly. */
+static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
+			  const std::vector<named_pexpr_t>&parms)
+{
+      const std::list<PLet::let_port_t*>*ports = let->let_ports();
+      std::vector<PLet::let_port_t*> plist;
+      if (ports) plist.assign(ports->begin(), ports->end());
+
+      for (unsigned idx = 0 ; idx < plist.size() ; idx += 1) {
+	    if (plist[idx]->type_ != 0
+		|| (plist[idx]->range_ && !plist[idx]->range_->empty())) {
+		  cerr << use.get_fileline() << ": sorry: typed/ranged "
+		       << "let ports are not supported yet (let `"
+		       << let->pscope_name() << "', port `"
+		       << plist[idx]->name_ << "')." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+      }
+
+	// Empty argument list parses as a single nil entry.
+      std::vector<const named_pexpr_t*> args;
+      for (unsigned idx = 0 ; idx < parms.size() ; idx += 1)
+	    args.push_back(&parms[idx]);
+      if (args.size() == 1 && args[0]->parm == 0 && args[0]->name.nil())
+	    args.clear();
+
+      if (args.size() > plist.size()) {
+	    cerr << use.get_fileline() << ": error: let `"
+		 << let->pscope_name() << "' expects " << plist.size()
+		 << " argument(s), got " << args.size() << "." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+      std::map<perm_string,PExpr*> binding;
+      bool seen_named = false;
+      for (unsigned idx = 0 ; idx < args.size() ; idx += 1) {
+	    if (args[idx]->name.nil()) {
+		  if (seen_named) {
+			cerr << use.get_fileline() << ": error: positional "
+			     << "let argument after named argument." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  if (args[idx]->parm)
+			binding[plist[idx]->name_] = args[idx]->parm;
+	    } else {
+		  seen_named = true;
+		  bool matched = false;
+		  for (unsigned pdx = 0 ; pdx < plist.size() ; pdx += 1) {
+			if (plist[pdx]->name_ == args[idx]->name) {
+			      matched = true;
+			      if (args[idx]->parm)
+				    binding[args[idx]->name] = args[idx]->parm;
+			      break;
+			}
+		  }
+		  if (!matched) {
+			cerr << use.get_fileline() << ": error: let `"
+			     << let->pscope_name() << "' has no port `"
+			     << args[idx]->name << "'." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+	    }
+      }
+
+	// Defaults for unbound ports. A default is a body-side
+	// expression, so formals already bound substitute inside it.
+      for (unsigned idx = 0 ; idx < plist.size() ; idx += 1) {
+	    if (binding.count(plist[idx]->name_)) continue;
+	    if (plist[idx]->def_ == 0) {
+		  cerr << use.get_fileline() << ": error: let `"
+		       << let->pscope_name() << "' port `"
+		       << plist[idx]->name_ << "' has no argument and no "
+		       << "default value." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    PExpr*defv = let_clone_expr_(plist[idx]->def_, binding);
+	    if (defv == 0) {
+		  cerr << use.get_fileline() << ": sorry: the default "
+		       << "value expression for let port `"
+		       << plist[idx]->name_ << "' has a shape the let "
+		       << "expander cannot copy." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    binding[plist[idx]->name_] = defv;
+      }
+
+      PExpr*body = let_clone_expr_(let->let_expr(), binding);
+      if (body == 0) {
+	    cerr << use.get_fileline() << ": sorry: the body of let `"
+		 << let->pscope_name() << "' (or an actual argument) has "
+		 << "an expression shape the let expander cannot copy; "
+		 << "the let call cannot be elaborated." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+      return body;
+}
+
+PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
+{
+      if (let_subst_tried_) return let_subst_;
+
+      if (receiver_ || leading_type_args_) return 0;
+      if (!with_constraints_.empty()) return 0;
+      if (path_.package) return 0;
+      if (path_.name.size() != 1) return 0;
+      const name_component_t&comp = path_.name.front();
+      if (!comp.index.empty()) return 0;
+      if (comp.name[0] == '$') return 0;
+      PLet*let = scope? scope->find_let(comp.name) : 0;
+      if (let == 0) return 0;
+
+      let_subst_tried_ = true;
+      let_subst_ = let_expand_(des, *this, let, parms_);
+      return let_subst_;
+}
+
+PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
+{
+      if (let_subst_tried_) return let_subst_;
+
+      if (path_.package) return 0;
+      if (path_.name.size() != 1) return 0;
+      const name_component_t&comp = path_.name.front();
+      if (!comp.index.empty()) return 0;
+      PLet*let = scope? scope->find_let(comp.name) : 0;
+      if (let == 0) return 0;
+
+      let_subst_tried_ = true;
+      static const std::vector<named_pexpr_t> no_args;
+      let_subst_ = let_expand_(des, *this, let, no_args);
+      return let_subst_;
+}
+
 unsigned PECallFunction::test_width(Design*des, NetScope*scope,
                                     width_mode_t&mode)
 {
@@ -4215,6 +4591,25 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 	    signed_flag_ = tmp->has_sign();
 	    delete tmp;
 	    return expr_width_;
+      }
+
+	// M13: a call that names a let in scope is a macro expansion.
+      if (PExpr*sub = let_substitution_(des, scope)) {
+	    if (let_expand_depth_ >= LET_EXPAND_DEPTH_MAX) {
+		  cerr << get_fileline() << ": error: let expansion is "
+		       << "too deep (recursive let?)." << endl;
+		  des->errors += 1;
+		  expr_width_ = 1;
+		  return expr_width_;
+	    }
+	    let_expand_depth_ += 1;
+	    unsigned wid = sub->test_width(des, scope, mode);
+	    let_expand_depth_ -= 1;
+	    expr_type_ = sub->expr_type();
+	    expr_width_ = sub->expr_width();
+	    min_width_ = sub->min_width();
+	    signed_flag_ = sub->has_sign();
+	    return wid;
       }
 
       if (peek_tail_name(path_)[0] == '$')
@@ -6334,6 +6729,20 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 		 << "path_: " << path_ << endl;
 	    cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 		 << "expr_wid: " << expr_wid << endl;
+      }
+
+	// M13: expand let uses by substitution.
+      if (PExpr*sub = let_substitution_(des, scope)) {
+	    if (let_expand_depth_ >= LET_EXPAND_DEPTH_MAX) {
+		  cerr << get_fileline() << ": error: let expansion is "
+		       << "too deep (recursive let?)." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    let_expand_depth_ += 1;
+	    NetExpr*res = sub->elaborate_expr(des, scope, expr_wid, flags);
+	    let_expand_depth_ -= 1;
+	    return res;
       }
 
       if (peek_tail_name(path_)[0] == '$')
@@ -9020,6 +9429,26 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 
 unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
+	// M13: a bare reference to a let in scope expands by
+	// substitution before any symbol search.
+      if (PExpr*sub = let_substitution_(des, scope)) {
+	    if (let_expand_depth_ >= LET_EXPAND_DEPTH_MAX) {
+		  cerr << get_fileline() << ": error: let expansion is "
+		       << "too deep (recursive let?)." << endl;
+		  des->errors += 1;
+		  expr_width_ = 1;
+		  return expr_width_;
+	    }
+	    let_expand_depth_ += 1;
+	    unsigned wid = sub->test_width(des, scope, mode);
+	    let_expand_depth_ -= 1;
+	    expr_type_ = sub->expr_type();
+	    expr_width_ = sub->expr_width();
+	    min_width_ = sub->min_width();
+	    signed_flag_ = sub->has_sign();
+	    return wid;
+      }
+
       symbol_search_results sr;
       bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
@@ -9192,6 +9621,20 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 ivl_type_t ntype, unsigned flags) const
 {
       bool need_const = NEED_CONST & flags;
+
+	// M13: expand let uses by substitution.
+      if (PExpr*sub = let_substitution_(des, scope)) {
+	    if (let_expand_depth_ >= LET_EXPAND_DEPTH_MAX) {
+		  cerr << get_fileline() << ": error: let expansion is "
+		       << "too deep (recursive let?)." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    let_expand_depth_ += 1;
+	    NetExpr*res = sub->elaborate_expr(des, scope, ntype, flags);
+	    let_expand_depth_ -= 1;
+	    return res;
+      }
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
@@ -9681,6 +10124,20 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
+	// M13: expand let uses by substitution.
+      if (PExpr*sub = let_substitution_(des, scope)) {
+	    if (let_expand_depth_ >= LET_EXPAND_DEPTH_MAX) {
+		  cerr << get_fileline() << ": error: let expansion is "
+		       << "too deep (recursive let?)." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    let_expand_depth_ += 1;
+	    NetExpr*res = sub->elaborate_expr(des, scope, expr_wid, flags);
+	    let_expand_depth_ -= 1;
+	    return res;
+      }
+
       NetExpr *result;
 
       result = elaborate_expr_(des, scope, expr_wid, flags);

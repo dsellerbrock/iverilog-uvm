@@ -205,6 +205,9 @@ class PLet : public PTaskFunc {
 
       void dump(std::ostream&, unsigned) const override;
 
+      const std::list<let_port_t*>* let_ports() const { return ports_; }
+      PExpr* let_expr() const { return expr_; }
+
     private:
       std::list<let_port_t*>*ports_;
       PExpr*expr_;
