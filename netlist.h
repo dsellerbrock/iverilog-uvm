@@ -78,6 +78,7 @@ class NetEvNBTrig;
 class NetEvWait;
 class PClass;
 class PExpr;
+class PLet;
 class PTask;
 class PFunction;
 class PPackage;
@@ -1088,6 +1089,16 @@ class NetScope : public Definitions, public Attrib {
       inline bool program_block() const { return program_block_; }
       inline bool is_interface() const { return is_interface_; }
       inline bool is_unit() const { return is_unit_; }
+	// M12: modport names declared by an interface, for VPI
+	// introspection (directions stay pform-side).
+      void add_modport_name(perm_string nm) { modport_names_.push_back(nm); }
+      const std::vector<perm_string>& modport_names() const
+      { return modport_names_; }
+	// M13: let declarations (IEEE 1800-2017 11.13) visible in this
+	// scope, copied from the pform Module at scope elaboration.
+	// find_let walks up lexically but stops at the module boundary.
+      void add_let(perm_string nm, PLet*let) { lets_[nm] = let; }
+      PLet* find_let(perm_string nm) const;
       inline TYPE type() const { return type_; }
       void print_type(std::ostream&) const;
 
@@ -1351,6 +1362,8 @@ class NetScope : public Definitions, public Attrib {
       bool program_block_;
 	// True if the scope is an interface
       bool is_interface_;
+      std::vector<perm_string> modport_names_;
+      std::map<perm_string,PLet*> lets_;
 	// True if the scope is a compilation unit
       bool is_unit_;
 

@@ -28,6 +28,8 @@
 # include  "vvp_cleanup.h"
 #endif
 # include  <cstring>
+# include  <string>
+# include  <cstdlib>
 
 namespace {
 
@@ -98,8 +100,7 @@ int __vpiCobjectVar::vpi_get(int code)
 	default:
 	    fprintf(stderr, "vvp error: get %d not supported "
 	                    "by vpiClassVar\n", code);
-	    assert(0);
-	    return 0;
+	    return vpiUndefined;
       }
 }
 
@@ -215,12 +216,311 @@ vpiHandle __vpiCobjectVar::vpi_put_value(p_vpi_value val, int)
           default:
             fprintf(stderr, "vvp error: format %d not supported "
                             "for vpiClassVar put\n", (int)val->format);
-            assert(0);
-            break;
+            return 0;
       }
 
       vvp_net_ptr_t dest(get_net(), 0);
       vvp_send_object(dest, obj, vthread_get_wt_context());
+      return 0;
+}
+
+
+/*
+ * M12: a VPI handle for one member (property) of a live class object.
+ * The handle binds the OWNING class variable and a property index; the
+ * live object is re-fetched on every access, so the handle stays valid
+ * across object re-assignment (and reports nil values when the
+ * variable holds null).
+ */
+class __vpiClassMember : public __vpiHandle {
+    public:
+      __vpiClassMember(__vpiCobjectVar*parent, const class_type*defn,
+		       unsigned idx)
+      : parent_(parent), defn_(defn), idx_(idx)
+      {
+	    decode_type_();
+      }
+
+      int get_type_code(void) const override { return type_code_; }
+
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiSize:      return (int)width_;
+		case vpiSigned:    return signed_ ? 1 : 0;
+		case vpiAutomatic: return 0;
+		case vpiArrayType:
+		  return (kind_ == 'q') ? vpiQueueArray : vpiUndefined;
+		default:
+		  return vpiUndefined;
+	    }
+      }
+
+      char* vpi_get_str(int code) override
+      {
+	    const std::string&nm = defn_->property_name(idx_);
+	    switch (code) {
+		case vpiName: {
+		      char*rbuf = (char*)need_result_buf(nm.size()+1, RBUF_STR);
+		      strcpy(rbuf, nm.c_str());
+		      return rbuf;
+		}
+		case vpiFullName: {
+		      char*pn = parent_->vpi_get_str(vpiFullName);
+		      std::string full = std::string(pn ? pn : "?") + "." + nm;
+		      char*rbuf = (char*)need_result_buf(full.size()+1, RBUF_STR);
+		      strcpy(rbuf, full.c_str());
+		      return rbuf;
+		}
+		default:
+		  return 0;
+	    }
+      }
+
+      void vpi_get_value(p_vpi_value val) override
+      {
+	    vvp_cobject*cobj = live_object_();
+	    if (!cobj) {
+		  val->format = vpiSuppressVal;
+		  return;
+	    }
+	    switch (kind_) {
+		case 'v': {
+		      vvp_vector4_t vec;
+		      cobj->get_vec4(idx_, vec);
+		      if (val->format == vpiObjTypeVal)
+			    val->format = (width_ <= 32) ? vpiIntVal
+							 : vpiVectorVal;
+		      vpip_vec4_get_value(vec, vec.size() ? vec.size() : width_,
+					  signed_, val);
+		      return;
+		}
+		case 'r': {
+		      if (val->format == vpiObjTypeVal)
+			    val->format = vpiRealVal;
+		      if (val->format == vpiRealVal) {
+			    val->value.real = cobj->get_real(idx_);
+			    return;
+		      }
+		      vpip_real_get_value(cobj->get_real(idx_), val);
+		      return;
+		}
+		case 'S': {
+		      std::string s = cobj->get_string(idx_);
+		      val->format = vpiStringVal;
+		      char*rbuf = (char*)need_result_buf(s.size()+1, RBUF_VAL);
+		      memcpy(rbuf, s.c_str(), s.size()+1);
+		      val->value.str = rbuf;
+		      return;
+		}
+		case 'o': {
+		      vvp_object_t obj;
+		      cobj->get_object(idx_, obj, 0);
+		      val->format = vpiStringVal;
+		      const char*desc = describe_class_object_(obj);
+		      char*rbuf = (char*)need_result_buf(strlen(desc)+1, RBUF_VAL);
+		      strcpy(rbuf, desc);
+		      val->value.str = rbuf;
+		      return;
+		}
+		default:
+		  fprintf(stderr, "vpi sorry: reading class member '%s' "
+			  "(type '%s') through VPI is not supported.\n",
+			  defn_->property_name(idx_).c_str(),
+			  defn_->property_base_type(idx_).c_str());
+		  val->format = vpiSuppressVal;
+		  return;
+	    }
+      }
+
+      vpiHandle vpi_put_value(p_vpi_value val, int) override
+      {
+	    vvp_cobject*cobj = live_object_();
+	    if (!cobj)
+		  return 0;
+	    switch (kind_) {
+		case 'v': {
+		      vvp_vector4_t vec(width_, BIT4_0);
+		      if (val->format == vpiIntVal) {
+			    unsigned long raw =
+				  (unsigned long)(PLI_UINT32)val->value.integer;
+			    unsigned w32 = width_ < 32 ? width_ : 32;
+			    vec.setarray(0, w32, &raw);
+			      // sign-extend negative ints into wider members
+			    if (width_ > 32 && val->value.integer < 0)
+				  for (unsigned b = 32 ; b < width_ ; b += 1)
+					vec.set_bit(b, BIT4_1);
+		      } else if (val->format == vpiScalarVal) {
+			    vec.set_bit(0, (val->value.scalar == vpi1)
+					   ? BIT4_1 : BIT4_0);
+		      } else if (val->format == vpiVectorVal) {
+			    p_vpi_vecval vp = val->value.vector;
+			    for (unsigned b = 0 ; b < width_ ; b += 1) {
+				  int word = b / 32, bit = b % 32;
+				  int a = (vp[word].aval >> bit) & 1;
+				  int bb = (vp[word].bval >> bit) & 1;
+				  vec.set_bit(b, (vvp_bit4_t)((bb << 2) | a));
+			    }
+		      } else {
+			    fprintf(stderr, "vpi sorry: format %d not "
+				    "supported for class member writes.\n",
+				    (int)val->format);
+			    return 0;
+		      }
+		      cobj->set_vec4(idx_, vec);
+		      return 0;
+		}
+		case 'r':
+		  if (val->format == vpiRealVal) {
+			cobj->set_real(idx_, val->value.real);
+		  } else if (val->format == vpiIntVal) {
+			cobj->set_real(idx_, (double)val->value.integer);
+		  } else {
+			fprintf(stderr, "vpi sorry: format %d not supported "
+				"for real class member writes.\n",
+				(int)val->format);
+		  }
+		  return 0;
+		case 'S':
+		  if (val->format == vpiStringVal && val->value.str) {
+			cobj->set_string(idx_, std::string(val->value.str));
+		  } else {
+			fprintf(stderr, "vpi sorry: format %d not supported "
+				"for string class member writes.\n",
+				(int)val->format);
+		  }
+		  return 0;
+		default:
+		  fprintf(stderr, "vpi sorry: writing class member '%s' "
+			  "(type '%s') through VPI is not supported.\n",
+			  defn_->property_name(idx_).c_str(),
+			  defn_->property_base_type(idx_).c_str());
+		  return 0;
+	    }
+      }
+
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiParent || code == vpiScope)
+		  return parent_;
+	    return 0;
+      }
+
+    private:
+      vvp_cobject* live_object_()
+      {
+	    vvp_fun_signal_object*fun = get_object_fun_(parent_);
+	    if (!fun) return 0;
+	    vvp_object_t obj = fun->peek_object();
+	    return obj.peek<vvp_cobject>();
+      }
+
+	// Decode the property base-type string into (vpi type code,
+	// width, signedness, access kind). kinds: 'v' vec4, 'r' real,
+	// 'S' string, 'o' object, 'q' container, '?' unknown.
+      void decode_type_()
+      {
+	    const std::string&bt = defn_->property_base_type(idx_);
+	    signed_ = false;
+	    width_ = 32;
+	    kind_ = '?';
+	    type_code_ = vpiClassVar;
+	    const char*t = bt.c_str();
+	    if (bt == "r") {
+		  kind_ = 'r'; type_code_ = vpiRealVar; width_ = 1;
+		  return;
+	    }
+	    if (bt == "S") {
+		  kind_ = 'S'; type_code_ = vpiStringVar; width_ = 8;
+		  return;
+	    }
+	    if (bt == "o" || bt.compare(0, 3, "oc:") == 0) {
+		  kind_ = 'o'; type_code_ = vpiClassVar; width_ = 64;
+		  return;
+	    }
+	    if (bt.size() >= 1 && (t[0] == 'Q' || t[0] == 'M')) {
+		  kind_ = 'q'; type_code_ = vpiArrayVar; width_ = 0;
+		  return;
+	    }
+	    bool sgn = (t[0] == 's');
+	    const char*base = sgn ? t+1 : t;
+	    if (base[0] == 'b' || base[0] == 'L') {
+		  bool logic = (base[0] == 'L');
+		  unsigned w = (unsigned)strtoul(base+1, 0, 0);
+		  if (w == 0) w = 1;
+		  signed_ = sgn;
+		  width_ = w;
+		  kind_ = 'v';
+		  if (logic) {
+			type_code_ = vpiLogicVar;
+		  } else switch (w) {
+		      case 8:  type_code_ = vpiByteVar; break;
+		      case 16: type_code_ = vpiShortIntVar; break;
+		      case 32: type_code_ = vpiIntVar; break;
+		      case 64: type_code_ = vpiLongIntVar; break;
+		      default: type_code_ = vpiBitVar; break;
+		  }
+		  return;
+	    }
+      }
+
+      __vpiCobjectVar*parent_;
+      const class_type*defn_;
+      unsigned idx_;
+      int type_code_;
+      unsigned width_;
+      bool signed_;
+      char kind_;
+};
+
+void __vpiCobjectVar::refresh_members_()
+{
+      vvp_fun_signal_object*fun = get_object_fun_(this);
+      const class_type*defn = 0;
+      if (fun) {
+	    vvp_object_t obj = fun->peek_object();
+	    if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+		  defn = cobj->get_defn();
+      }
+	// Fall back to the declared type for null handles so member
+	// introspection works before construction.
+      if (!defn && fun)
+	    defn = get_declared_class_type_(fun);
+      if (defn == members_defn_)
+	    return;
+      members_.clear();
+      members_defn_ = defn;
+      if (!defn)
+	    return;
+      for (size_t idx = 0 ; idx < defn->property_count() ; idx += 1)
+	    members_.push_back(new __vpiClassMember(this, defn, idx));
+}
+
+vpiHandle __vpiCobjectVar::vpi_iterate(int code)
+{
+      if (code != vpiMember && code != vpiVariables)
+	    return 0;
+      refresh_members_();
+      if (members_.empty())
+	    return 0;
+	// Hand the iterator its own malloc'd copy of the handle array
+	// (freed with the iterator); the member handles themselves are
+	// owned by this variable and stay stable.
+      vpiHandle*args = (vpiHandle*)malloc(members_.size() * sizeof(vpiHandle));
+      for (size_t idx = 0 ; idx < members_.size() ; idx += 1)
+	    args[idx] = members_[idx];
+      return vpip_make_iterator(members_.size(), args, true);
+}
+
+vpiHandle __vpiCobjectVar::member_by_name(const char*name)
+{
+      refresh_members_();
+      if (!members_defn_)
+	    return 0;
+      for (size_t idx = 0 ; idx < members_.size() ; idx += 1) {
+	    if (members_defn_->property_name(idx) == name)
+		  return members_[idx];
+      }
       return 0;
 }
 

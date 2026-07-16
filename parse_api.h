@@ -58,7 +58,7 @@ extern void pform_dump(std::ostream&out, const PTaskFunc*tf);
  */
 extern int pform_parse(const char*path);
 
-extern void pform_finish();
+extern int pform_finish();
 
 extern std::string vl_file;
 

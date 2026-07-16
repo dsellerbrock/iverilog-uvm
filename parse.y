@@ -77,6 +77,48 @@ static PFunction* current_function = 0;
    covergroup action moves them to the pform_covergroup_t.  Non-static
    so pform_pclass.cc can drain it. */
 std::vector<class_type_t::pform_cross_t> pending_crosses_;
+/* M11: accumulators for covergroup-level and coverpoint-level option
+   assignments (option.name = expr / type_option.name = expr) and for
+   named cross-body bins.  Drained by the enclosing grammar actions. */
+std::map<perm_string, PExpr*> pending_cg_options_;
+static std::map<perm_string, PExpr*> pending_cp_options_;
+static std::vector<class_type_t::pform_cross_t::cross_bin_t> pending_cross_bins_;
+
+/* M11: convert an inside_range_list into cov-bin [lo,hi] PExpr pairs. */
+static void cov_bins_set_ranges_(class_type_t::pform_cov_bins_t*b,
+                                 std::list<inside_range_t>*lst)
+{
+      if (!lst) return;
+      for (auto& r : *lst) {
+	    if (r.is_range && r.lo && r.hi) {
+		  b->ranges.push_back(std::make_pair(r.lo, r.hi));
+	    } else if (!r.is_range && r.hi) {
+		  b->ranges.push_back(std::make_pair(r.hi, r.hi));
+		  r.hi = nullptr;
+	    }
+      }
+      delete lst;
+}
+
+/* M11: record an option.name / type_option.name assignment. */
+static void cov_option_set_(std::map<perm_string, PExpr*>&dst,
+                            const struct vlltype&loc,
+                            char*obj, char*field, PExpr*val)
+{
+      if (strcmp(obj, "option") == 0) {
+	    dst[lex_strings.make(field)] = val;
+      } else if (strcmp(obj, "type_option") == 0) {
+	    std::string k = std::string("type_option.") + field;
+	    dst[lex_strings.make(k.c_str())] = val;
+      } else {
+	    cerr << loc.get_fileline() << ": sorry: covergroup item '"
+	         << obj << "." << field << " = ...' is not an option "
+	         << "assignment; ignored." << endl;
+	    delete val;
+      }
+      delete[] obj;
+      delete[] field;
+}
 /* Set by the last completed class task/function declaration so that the
    outer class_item rule can mark it virtual when K_virtual is present. */
 static PTaskFunc* recently_completed_class_method_ = 0;
@@ -1026,6 +1068,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       // C2 (Phase 62f): pointer to file-scope sva_property_t (defined above).
       sva_property_t* sva_prop;
 
+      // M9: sequence step chains for property/sequence expressions.
+      std::vector<sva_seq_step_t>* sva_seq;
+
       decl_assignment_t*decl_assignment;
       std::list<decl_assignment_t*>*decl_assignments;
 
@@ -1078,6 +1123,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       inside_range_t* irange;
       std::list<inside_range_t>* irange_list;
       class_type_t::pform_coverpoint_t* coverpoint;
+      std::pair<PExpr*,PExpr*>* cov_step;
+      std::vector<std::pair<PExpr*,PExpr*>>* cov_steps;
+      std::vector<std::vector<std::pair<PExpr*,PExpr*>>>* cov_seqs;
+      class_type_t::pform_cross_t::select_t* cross_sel;
       std::list<class_type_t::pform_coverpoint_t*>* coverpoints;
       class_type_t::pform_cov_bins_t* cov_bins;
       std::list<class_type_t::pform_cov_bins_t*>* cov_bins_list;
@@ -1097,7 +1146,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %token K_PO_POS K_PO_NEG K_POW
 %token K_PSTAR K_STARP K_DOTSTAR
 %token K_LOR K_LAND K_NAND K_NOR K_NXOR K_TRIGGER K_NB_TRIGGER K_LEQUIV
-%token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV
+%token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV K_LBSTAR
 %token K_SCOPE_RES
 %token K_edge_descriptor
 
@@ -1192,6 +1241,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <number>  number pos_neg_number
 %type <flag>    signing unsigned_signed_opt signed_unsigned_opt
 %type <flag>    import_export
+%type <flag>    dpi_function_import_property_opt
 %type <flag>    K_genvar_opt K_static_opt K_virtual_opt K_const_opt
 %type <flag>    udp_reg_opt edge_operator
 %type <drive>   drive_strength drive_strength_opt dr_strength0 dr_strength1
@@ -1230,6 +1280,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec
+%type <sva_seq>  sva_seq_expr sva_seq_atom
 %type <perm_strings> cross_item_list
 
 %type <named_pexprs> enum_name_list enum_name
@@ -1295,6 +1346,12 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <coverpoints> covergroup_item_list covergroup_item_list_opt
 %type <cov_bins>    bins_item
 %type <cov_bins_list> bins_item_list bins_item_list_opt
+%type <int_val>     bins_keyword
+%type <expr>        coverpoint_iff_opt bins_with_opt
+%type <cov_step>    trans_step
+%type <cov_steps>   transition_list
+%type <cov_seqs>    transition_seq_list
+%type <cross_sel>   cross_bins_expr
 
 %type <expr>  constraint_expression constraint_block_item
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
@@ -2420,173 +2477,78 @@ concurrent_assertion_item /* IEEE1800-2012 A.2.10 */
       }
   ;
 
-concurrent_assertion_statement /* IEEE1800-2012 A.2.10 */
+concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
   : assert_or_assume K_property '(' property_spec ')' statement_or_null %prec less_than_K_else
-      { /* C2 (Phase 62f): build always-block-equivalent of the assert.
-	   Lowering for `assert property (@(clk) [disable iff (rst)] A |-> B)
-	   else <fail>;` is:
-	     always @(clk) begin
-	       if (!disable_iff && A && !B) <fail>;
-	     end
-	   For `|=>` (next-cycle implication) we synthesize a sticky reg
-	   that captures the antecedent at this clock and is checked at
-	   the next clock against the consequent — this is approximated
-	   here by also using $past, which iverilog has as a stub; users
-	   needing strict |=> semantics should follow up.  When no
-	   else-clause is provided, default action is $error.
-
-	   Only when supported-assertions flag is on; with the older
-	   "unsupported" flag, behave as before (silent drop). */
-	if (gn_supported_assertions_flag && $4) {
-	      // Default fail action: $error("...")
-	      std::list<named_pexpr_t> arg_list;
-	      PCallTask*fail = new PCallTask(lex_strings.make("$error"), arg_list);
-	      FILE_NAME(fail, @1);
-	      // Compose: !consequent ? fail : nothing
-	      Statement*body = nullptr;
-	      if ($4->op_type == 0) {
-		    // Plain: assert(antecedent); fail when antecedent false
-		    PCondit*c = new PCondit($4->antecedent, nullptr, fail);
-		    FILE_NAME(c, @1);
-		    body = c;
-	      } else {
-		    // |-> or |=>: when antecedent true, check consequent
-		    // For |=> approximate as |-> for now (sticky reg
-		    // future enhancement).
-		    PExpr*not_c = new PEUnary('!', $4->consequent);
-		    FILE_NAME(not_c, @1);
-		    PCondit*chk = new PCondit(not_c, fail, nullptr);
-		    FILE_NAME(chk, @1);
-		    PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
-		    FILE_NAME(ifa, @1);
-		    body = ifa;
-	      }
-	      // disable iff guard
-	      if ($4->disable_iff_expr) {
-		    PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
-		    FILE_NAME(ndis, @1);
-		    PCondit*gd = new PCondit(ndis, body, nullptr);
-		    FILE_NAME(gd, @1);
-		    body = gd;
-	      }
-	      // wrap in clocking event, if any
-	      if ($4->clk_evt) {
-		    $4->clk_evt->set_statement(body);
-		    body = $4->clk_evt;
-	      }
-	      // Append as an always block at module scope.
-	      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, body, nullptr);
-	      FILE_NAME(pp, @1);
-	      // The user-provided pass-clause (statement_or_null) is dropped
-	      // — concurrent assertions don't typically have a "pass" action.
-	      delete $6;
-	      delete $4;
+      { /* M9: pass action only. */
+	if (gn_supported_assertions_flag) {
+	      pform_make_assertion(@1, $4, 0, $6, ($1==4) ? 1 : 0);
 	} else {
-	      if (gn_unsupported_assertions_flag) {
+	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      }
-	      if ($4) { delete $4->antecedent; delete $4->consequent;
-			delete $4->disable_iff_expr; delete $4->clk_evt;
-			delete $4; }
-	      delete $6;
+	      delete $4; delete $6;
 	}
-        $$ = 0;
+	$$ = 0;
       }
   | assert_or_assume K_property '(' property_spec ')' K_else statement_or_null
-      { /* assert property (...) else <fail-action>; */
-	if (gn_supported_assertions_flag && $4) {
-	      Statement*fail = $7 ? $7 : new PNoop;
-	      Statement*body = nullptr;
-	      if ($4->op_type == 0) {
-		    PCondit*c = new PCondit($4->antecedent, nullptr, fail);
-		    FILE_NAME(c, @1);
-		    body = c;
-	      } else {
-		    PExpr*not_c = new PEUnary('!', $4->consequent);
-		    FILE_NAME(not_c, @1);
-		    PCondit*chk = new PCondit(not_c, fail, nullptr);
-		    FILE_NAME(chk, @1);
-		    PCondit*ifa = new PCondit($4->antecedent, chk, nullptr);
-		    FILE_NAME(ifa, @1);
-		    body = ifa;
-	      }
-	      if ($4->disable_iff_expr) {
-		    PExpr*ndis = new PEUnary('!', $4->disable_iff_expr);
-		    FILE_NAME(ndis, @1);
-		    PCondit*gd = new PCondit(ndis, body, nullptr);
-		    FILE_NAME(gd, @1);
-		    body = gd;
-	      }
-	      if ($4->clk_evt) {
-		    $4->clk_evt->set_statement(body);
-		    body = $4->clk_evt;
-	      }
-	      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, body, nullptr);
-	      FILE_NAME(pp, @1);
-	      delete $4;
+      { /* M9: fail action only. */
+	if (gn_supported_assertions_flag) {
+	      pform_make_assertion(@1, $4, $7, 0, ($1==4) ? 1 : 0);
 	} else {
-	      if (gn_unsupported_assertions_flag) {
+	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      }
-	      if ($4) { delete $4->antecedent; delete $4->consequent;
-			delete $4->disable_iff_expr; delete $4->clk_evt;
-			delete $4; }
-	      delete $7;
+	      delete $4; delete $7;
 	}
-        $$ = 0;
+	$$ = 0;
       }
   | assert_or_assume K_property '(' property_spec ')' statement_or_null K_else statement_or_null
-      { /* */
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: concurrent_assertion_item not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+      { /* M9: pass and fail actions. */
+	if (gn_supported_assertions_flag) {
+	      pform_make_assertion(@1, $4, $8, $6, ($1==4) ? 1 : 0);
+	} else {
+	      if (gn_unsupported_assertions_flag)
+		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      delete $4; delete $6; delete $8;
 	}
-	if ($4) { delete $4->antecedent; delete $4->consequent;
-		  delete $4->disable_iff_expr; delete $4->clk_evt;
-		  delete $4; }
-	delete $6; delete $8;
-        $$ = 0;
+	$$ = 0;
       }
   | K_cover K_property '(' property_spec ')' statement_or_null
-      { /* cover property: not synthesized; just free captured data. */
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: concurrent_assertion_item not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+      { /* M9: cover property counts matches. */
+	if (gn_supported_assertions_flag) {
+	      pform_make_assertion(@1, $4, 0, $6, 2);
+	} else {
+	      if (gn_unsupported_assertions_flag)
+		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      delete $4; delete $6;
 	}
-	if ($4) { delete $4->antecedent; delete $4->consequent;
-		  delete $4->disable_iff_expr; delete $4->clk_evt; delete $4; }
-	delete $6;
-        $$ = 0;
+	$$ = 0;
       }
       /* For now, cheat, and use property_spec for the sequence specification.
          They are syntactically identical. */
   | K_cover K_sequence '(' property_spec ')' statement_or_null
-      { /* cover sequence: not synthesized; free captured data. */
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: concurrent_assertion_item not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+      { /* M9: cover sequence — same machinery as cover property. */
+	if (gn_supported_assertions_flag) {
+	      pform_make_assertion(@1, $4, 0, $6, 2);
+	} else {
+	      if (gn_unsupported_assertions_flag)
+		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      delete $4; delete $6;
 	}
-	if ($4) { delete $4->antecedent; delete $4->consequent;
-		  delete $4->disable_iff_expr; delete $4->clk_evt; delete $4; }
-	delete $6;
-        $$ = 0;
+	$$ = 0;
       }
   | K_restrict K_property '(' property_spec ')' ';'
-      { /* restrict property: not synthesized; free captured data. */
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@2, "sorry: concurrent_assertion_item not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
-	}
-	if ($4) { delete $4->antecedent; delete $4->consequent;
-		  delete $4->disable_iff_expr; delete $4->clk_evt; delete $4; }
+      { /* IEEE 1800-2017 16.8: restrict is a formal-tools directive;
+	   simulation ignores it. */
+	if ($4) { delete $4->antecedent; delete $4->seq; delete $4; }
         $$ = 0;
       }
   | assert_or_assume K_property '(' error ')' statement_or_null %prec less_than_K_else
@@ -2836,67 +2798,75 @@ covergroup_item_list
 
 /* Labeled coverpoint: "cp: coverpoint expr { ... }" */
 covergroup_item
-  : IDENTIFIER ':' K_coverpoint expression '{' bins_item_list_opt '}'
+  : IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = lex_strings.make($1);
 	cp->expr  = $4;
-	if ($6) {
-	      for (auto* b : *$6) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
-	      delete $6;
+	cp->iff_expr = $5;
+	if ($7) {
+	      for (auto* b : *$7) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $7;
 	}
+	cp->options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	delete[] $1;
 	$$ = cp;
       }
   /* Labeled coverpoint without bins block: "cp: coverpoint expr;" (auto-bins) */
-  | IDENTIFIER ':' K_coverpoint expression ';'
+  | IDENTIFIER ':' K_coverpoint expression coverpoint_iff_opt ';'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = lex_strings.make($1);
 	cp->expr  = $4;
+	cp->iff_expr = $5;
 	delete[] $1;
 	$$ = cp;
       }
   /* Unlabeled coverpoint: "coverpoint expr { ... }" */
-  | K_coverpoint expression '{' bins_item_list_opt '}'
+  | K_coverpoint expression coverpoint_iff_opt '{' bins_item_list_opt '}'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = perm_string::literal("cp");
 	cp->expr  = $2;
-	if ($4) {
-	      for (auto* b : *$4) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
-	      delete $4;
+	cp->iff_expr = $3;
+	if ($5) {
+	      for (auto* b : *$5) if (b) { cp->bins.push_back(std::move(*b)); delete b; }
+	      delete $5;
 	}
+	cp->options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	$$ = cp;
       }
   /* Unlabeled coverpoint without bins block: "coverpoint expr;" (auto-bins) */
-  | K_coverpoint expression ';'
+  | K_coverpoint expression coverpoint_iff_opt ';'
       { class_type_t::pform_coverpoint_t* cp = new class_type_t::pform_coverpoint_t();
 	cp->label = perm_string::literal("cp");
 	cp->expr  = $2;
+	cp->iff_expr = $3;
 	$$ = cp;
       }
-  /* option.foo = expr; and type_option.foo = expr; — silently accept */
+  /* option.foo = expr; and type_option.foo = expr; (covergroup level) */
   | IDENTIFIER '.' IDENTIFIER '=' expression ';'
-      { delete[] $1; delete[] $3; delete $5; $$ = nullptr; }
+      { cov_option_set_(pending_cg_options_, @1, $1, $3, $5); $$ = nullptr; }
   /* cross declaration.  I1 (Phase 62g): captures the contributing coverpoint
      names into pending_crosses_ for the surrounding covergroup to pick up.
-     Body items (illegal_bins / ignore_bins / bins) are still dropped — the
-     auto-bin generation in elaboration only handles the simple cartesian
-     product case for now. */
+     M11-3: named cross-body bins (binsof selects) are captured too. */
   | K_cross cross_item_list ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = perm_string();
 	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete $2;
 	$$ = nullptr; }
-  | K_cross cross_item_list '{' cross_body_opt '}'
+  | K_cross cross_item_list '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
 	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
-	pending_crosses_.push_back(std::move(cx));
-	delete $2;
-	$$ = nullptr; }
-  | K_cross cross_item_list '{' cross_body_opt '}' ';'
-      { class_type_t::pform_cross_t cx;
-	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete $2;
 	$$ = nullptr; }
@@ -2904,6 +2874,10 @@ covergroup_item
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1; delete $4;
 	$$ = nullptr; }
@@ -2911,40 +2885,52 @@ covergroup_item
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1.text);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1.text; delete $4;
 	$$ = nullptr; }
-  | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}'
+  | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1; delete $4;
 	$$ = nullptr; }
-  | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' ';'
-      { class_type_t::pform_cross_t cx;
-	cx.label = lex_strings.make($1);
-	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
-	pending_crosses_.push_back(std::move(cx));
-	delete[] $1; delete $4;
-	$$ = nullptr; }
-  | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}'
+  | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1.text);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.bins = std::move(pending_cross_bins_);
+	pending_cross_bins_.clear();
+	cx.options = std::move(pending_cp_options_);
+	pending_cp_options_.clear();
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1.text; delete $4;
 	$$ = nullptr; }
-  | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' ';'
-      { class_type_t::pform_cross_t cx;
-	cx.label = lex_strings.make($1.text);
-	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
-	pending_crosses_.push_back(std::move(cx));
-	delete[] $1.text; delete $4;
-	$$ = nullptr; }
-  /* Error recovery: skip unrecognized covergroup items */
+  /* Error recovery: skip unrecognized covergroup items LOUDLY (M11) */
   | error ';'
-      { yyerrok; $$ = nullptr; }
+      { cerr << @1 << ": sorry: unsupported covergroup item was "
+	     << "ignored (functional coverage for it is not collected)."
+	     << endl;
+	yyerrok; $$ = nullptr; }
+  ;
+
+semicolon_opt
+  :
+  | ';'
+  ;
+
+/* M11: optional iff (guard) on a coverpoint — gates sampling. */
+coverpoint_iff_opt
+  :                            { $$ = nullptr; }
+  | K_iff '(' expression ')'   { $$ = $3; }
   ;
 
 bins_item_list_opt
@@ -2971,142 +2957,110 @@ bins_name
   | K_default    { $$ = dup_cstr("default"); }
   ;
 
-/* "bins name = { [lo:hi], ... };" — also handles indexed [N] and with() forms */
+/* M11: one factored bins_item covering explicit/arrayed/wildcard/
+   default/transition bins with optional with() filters. Everything
+   unrecognized is a LOUD sorry, never a silent drop. */
+bins_keyword
+  : K_bins           { $$ = 0; }
+  | K_ignore_bins    { $$ = 1; }
+  | K_illegal_bins   { $$ = 2; }
+  ;
+
+bins_with_opt
+  :                                { $$ = nullptr; }
+  | K_with '(' expression ')'     { $$ = $3; }
+  ;
+
 bins_item
-  : K_bins bins_name '=' '{' inside_range_list '}' ';'
+  : bins_keyword bins_name '=' '{' inside_range_list '}' bins_with_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
-	for (auto& r : *$5) {
-	      if (r.is_range && r.lo && r.hi)
-		    b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	      else if (!r.is_range && r.hi) {
-		    PExpr* dup = r.hi;
-		    b->ranges.push_back(std::make_pair(dup, r.hi));
-		    r.hi = nullptr;
-	      }
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	cov_bins_set_ranges_(b, $5);
+	b->with_expr = $7;
+	delete[] $2;
+	$$ = b;
+      }
+  | K_wildcard bins_keyword bins_name '=' '{' inside_range_list '}' ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($3);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$2;
+	b->wildcard = true;
+	cov_bins_set_ranges_(b, $6);
+	delete[] $3;
+	$$ = b;
+      }
+  /* arrayed bins: name[] (one bin per value) and name[N] (N bins) */
+  | bins_keyword bins_name '[' ']' '=' '{' inside_range_list '}' bins_with_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	cov_bins_set_ranges_(b, $7);
+	b->with_expr = $9;
+	delete[] $2;
+	$$ = b;
+      }
+  | bins_keyword bins_name '[' expression ']' '=' '{' inside_range_list '}' bins_with_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->array_size = $4;
+	cov_bins_set_ranges_(b, $8);
+	b->with_expr = $10;
+	delete[] $2;
+	$$ = b;
+      }
+  /* Transition bins: bins b = (v => v), (v => v => v), ...; */
+  | bins_keyword bins_name '=' transition_seq_list ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->trans_seqs = std::move(*$4);
+	delete $4;
+	delete[] $2;
+	$$ = b;
+      }
+  | bins_keyword bins_name '[' ']' '=' transition_seq_list ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->trans_seqs = std::move(*$6);
+	delete $6;
+	delete[] $2;
+	$$ = b;
+      }
+  /* Default bins: bins b = default; — catch-all, excluded from coverage */
+  | bins_keyword bins_name '=' K_default ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	if ($1 == 0) {
+	      b->kind = class_type_t::pform_cov_bins_t::BIN_DEFAULT;
+	} else {
+	      cerr << @4 << ": sorry: ignore/illegal 'default' bins are "
+		   << "not supported; the bin is ignored." << endl;
+	      b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
 	}
 	delete[] $2;
-	delete $5;
 	$$ = b;
       }
-  /* bins name[] = { ... }; — auto bins (one per value), treat like basic bins */
-  | K_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	for (auto& r : *$7) {
-	      if (r.is_range && r.lo && r.hi)
-		    b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	      else if (!r.is_range && r.hi) {
-		    PExpr* dup = r.hi;
-		    b->ranges.push_back(std::make_pair(dup, r.hi));
-		    r.hi = nullptr;
-	      }
-	}
+  | bins_keyword bins_name '=' K_default K_sequence ';'
+      { cerr << @4 << ": sorry: 'default sequence' bins are not "
+	     << "supported; the bin is ignored." << endl;
 	delete[] $2;
-	delete $7;
-	$$ = b;
+	$$ = nullptr;
       }
-  | K_bins bins_name '[' ']' '=' '{' inside_range_list '}' K_with '(' expression ')' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	delete[] $2; delete $11;
-	for (auto& r : *$7) { delete r.lo; delete r.hi; }
-	delete $7;
-	$$ = b;
-      }
-  | K_ignore_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	b->kind = class_type_t::pform_cov_bins_t::BIN_IGNORE;
-	delete[] $2;
-	for (auto& r : *$7) {
-	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	}
-	delete $7;
-	$$ = b;
-      }
-  | K_illegal_bins bins_name '[' ']' '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	b->kind = class_type_t::pform_cov_bins_t::BIN_ILLEGAL;
-	delete[] $2;
-	for (auto& r : *$7) {
-	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	}
-	delete $7;
-	$$ = b;
-      }
-  /* bins name[count] = { ... } with (cond); — indexed bins, ignore count+cond */
-  | K_bins bins_name '[' expression ']' '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	delete[] $2; delete $4;
-	for (auto& r : *$8) { delete r.lo; delete r.hi; }
-	delete $8;
-	$$ = b;
-      }
-  | K_bins bins_name '[' expression ']' '=' '{' inside_range_list '}' K_with '(' expression ')' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	delete[] $2; delete $4; delete $12;
-	for (auto& r : *$8) { delete r.lo; delete r.hi; }
-	delete $8;
-	$$ = b;
-      }
-  /* bins name = { ... } with (cond); */
-  | K_bins bins_name '=' '{' inside_range_list '}' K_with '(' expression ')' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	delete[] $2; delete $9;
-	for (auto& r : *$5) { delete r.lo; delete r.hi; }
-	delete $5;
-	$$ = b;
-      }
-  | K_ignore_bins bins_name '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	b->kind = class_type_t::pform_cov_bins_t::BIN_IGNORE;
-	delete[] $2;
-	for (auto& r : *$5) {
-	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	}
-	delete $5;
-	$$ = b;
-      }
-  | K_illegal_bins bins_name '=' '{' inside_range_list '}' ';'
-      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
-	b->name = lex_strings.make($2);
-	b->kind = class_type_t::pform_cov_bins_t::BIN_ILLEGAL;
-	delete[] $2;
-	for (auto& r : *$5) {
-	      b->ranges.push_back(std::make_pair(r.lo, r.hi));
-	}
-	delete $5;
-	$$ = b;
-      }
-  /* Transition bins: bins b = (val => val), ...; — one or more sequences */
-  | K_bins bins_name '=' transition_seq_list ';'
-      { delete[] $2; $$ = nullptr; }
-  | K_bins bins_name '[' ']' '=' transition_seq_list ';'
-      { delete[] $2; $$ = nullptr; }
-  | K_ignore_bins bins_name '=' transition_seq_list ';'
-      { delete[] $2; $$ = nullptr; }
-  | K_illegal_bins bins_name '=' transition_seq_list ';'
-      { delete[] $2; $$ = nullptr; }
-  /* Default bins: bins b = default; */
-  | K_bins bins_name '=' K_default ';'
-      { delete[] $2; $$ = nullptr; }
-  | K_ignore_bins bins_name '=' K_default ';'
-      { delete[] $2; $$ = nullptr; }
-  /* Coverpoint option: option.field = expr; — silently accepted */
+  /* Coverpoint option: option.field = expr; */
   | IDENTIFIER '.' IDENTIFIER '=' expression ';'
-      { delete[] $1; delete[] $3; delete $5; $$ = nullptr; }
-  /* type_option.field = expr; and similar */
-  | IDENTIFIER '.' IDENTIFIER '.' IDENTIFIER '=' expression ';'
-      { delete[] $1; delete[] $3; delete[] $5; delete $7; $$ = nullptr; }
-  /* Error recovery for unrecognized bins forms */
+      { cov_option_set_(pending_cp_options_, @1, $1, $3, $5); $$ = nullptr; }
+  /* Error recovery for unrecognized bins forms — LOUD (M11) */
   | error ';'
-      { yyerrok; $$ = nullptr; }
+      { cerr << @1 << ": sorry: unsupported bins declaration was "
+	     << "ignored (functional coverage for it is not collected)."
+	     << endl;
+	yyerrok; $$ = nullptr; }
   ;
 
 /* cross_item_list: comma-separated list of coverpoint names for 'cross'.
@@ -3127,46 +3081,139 @@ cross_item_list
       { $1->push_back(lex_strings.make($3.text)); delete[] $3.text; $$ = $1; }
   ;
 
-/* cross_body_opt: optional body of illegal_bins/bins items inside cross { } */
+/* cross_body_opt: body of bins/ignore_bins/illegal_bins items inside
+   cross { }.  M11-3: captured as select trees for elaboration. */
 cross_body_opt
   : /* empty */
   | cross_body_opt K_illegal_bins bins_name '=' cross_bins_expr ';'
-      { delete[] $3; }
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_ILLEGAL;
+	cb.select = $5;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
   | cross_body_opt K_ignore_bins bins_name '=' cross_bins_expr ';'
-      { delete[] $3; }
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_IGNORE;
+	cb.select = $5;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
   | cross_body_opt K_bins bins_name '=' cross_bins_expr ';'
-      { delete[] $3; }
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
+	cb.select = $5;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
+  | cross_body_opt IDENTIFIER '.' IDENTIFIER '=' expression ';'
+      { cov_option_set_(pending_cp_options_, @2, $2, $4, $6); }
   | cross_body_opt error ';'
-      { yyerrok; }
+      { cerr << @2 << ": sorry: unsupported cross body item was "
+	     << "ignored." << endl;
+	yyerrok; }
   ;
 
-/* cross_bins_expr: binsof-based set expression for cross body items */
+/* cross_bins_expr: binsof-based set expression for cross body items.
+   M11-3: builds a select tree.  binsof(cp) or binsof(cp.bin), with
+   optional intersect value filters, combined with && / || / !. */
 cross_bins_expr
   : K_binsof '(' IDENTIFIER ')'
-      { delete[] $3; }
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_BINSOF;
+	s->cp_name = lex_strings.make($3);
+	delete[] $3;
+	$$ = s; }
+  | K_binsof '(' IDENTIFIER '.' IDENTIFIER ')'
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_BINSOF;
+	s->cp_name = lex_strings.make($3);
+	s->bin_name = lex_strings.make($5);
+	delete[] $3; delete[] $5;
+	$$ = s; }
   | K_binsof '(' IDENTIFIER ')' K_intersect '{' inside_range_list '}'
-      { delete[] $3; delete $7; }
-  | '!' K_binsof '(' IDENTIFIER ')'
-      { delete[] $4; }
-  | '!' K_binsof '(' IDENTIFIER ')' K_intersect '{' inside_range_list '}'
-      { delete[] $4; delete $8; }
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_BINSOF;
+	s->cp_name = lex_strings.make($3);
+	if ($7) {
+	      for (auto& r : *$7) {
+		    if (r.is_range && r.lo && r.hi)
+			  s->intersect_ranges.push_back(std::make_pair(r.lo, r.hi));
+		    else if (!r.is_range && r.hi) {
+			  s->intersect_ranges.push_back(std::make_pair(r.hi, r.hi));
+			  r.hi = nullptr;
+		    }
+	      }
+	      delete $7;
+	}
+	delete[] $3;
+	$$ = s; }
+  | K_binsof '(' IDENTIFIER '.' IDENTIFIER ')' K_intersect '{' inside_range_list '}'
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_BINSOF;
+	s->cp_name = lex_strings.make($3);
+	s->bin_name = lex_strings.make($5);
+	if ($9) {
+	      for (auto& r : *$9) {
+		    if (r.is_range && r.lo && r.hi)
+			  s->intersect_ranges.push_back(std::make_pair(r.lo, r.hi));
+		    else if (!r.is_range && r.hi) {
+			  s->intersect_ranges.push_back(std::make_pair(r.hi, r.hi));
+			  r.hi = nullptr;
+		    }
+	      }
+	      delete $9;
+	}
+	delete[] $3; delete[] $5;
+	$$ = s; }
+  | '!' cross_bins_expr %prec UNARY_PREC
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_NOT;
+	s->a = $2;
+	$$ = s; }
   | cross_bins_expr K_LAND cross_bins_expr
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_AND;
+	s->a = $1; s->b = $3;
+	$$ = s; }
   | cross_bins_expr K_LOR cross_bins_expr
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_OR;
+	s->a = $1; s->b = $3;
+	$$ = s; }
   | '(' cross_bins_expr ')'
+      { $$ = $2; }
   ;
 
-/* transition_seq_list: one or more transition sequences (val=>val), ... */
+/* transition_seq_list: one or more transition sequences (v=>v), ...
+   M11-2: captured as ordered [lo:hi] step lists. */
 transition_seq_list
   : '(' transition_list ')'
+      { $$ = new std::vector<std::vector<std::pair<PExpr*,PExpr*>>>();
+	$$->push_back(std::move(*$2));
+	delete $2; }
   | transition_seq_list ',' '(' transition_list ')'
+      { $1->push_back(std::move(*$4));
+	delete $4;
+	$$ = $1; }
   ;
 
-/* transition_list: list of values separated by => for transition bins */
+/* transition_list: values/ranges separated by => for transition bins */
 transition_list
-  : expression K_EG expression
-      { delete $1; delete $3; }
-  | transition_list K_EG expression
-      { delete $3; }
+  : trans_step K_EG trans_step
+      { $$ = new std::vector<std::pair<PExpr*,PExpr*>>();
+	$$->push_back(*$1); delete $1;
+	$$->push_back(*$3); delete $3; }
+  | transition_list K_EG trans_step
+      { $1->push_back(*$3); delete $3;
+	$$ = $1; }
+  ;
+
+trans_step
+  : expression
+      { $$ = new std::pair<PExpr*,PExpr*>($1, $1); }
+  | '[' expression ':' expression ']'
+      { $$ = new std::pair<PExpr*,PExpr*>($2, $4); }
   ;
 
 /* ========= End covergroup grammar ========= */
@@ -3463,6 +3510,7 @@ description /* IEEE1800-2005: A.1.2 */
   | package_declaration
   | discipline_declaration
   | package_item
+  | bind_directive
   | KK_attribute '(' IDENTIFIER ',' STRING ',' STRING ')'
       { perm_string tmp3 = lex_strings.make($3);
 	pform_set_type_attrib(tmp3, $5, $7);
@@ -3476,6 +3524,57 @@ description /* IEEE1800-2005: A.1.2 */
 description_list
   : description
   | description_list description
+  ;
+
+  /* SystemVerilog bind directive (IEEE1800-2017: A.1.4 / 23.11). The
+     supported form targets a module (or interface) DEFINITION, so the
+     bound instance appears inside every instance of the target:
+       bind <target_module> <bound_module> [#(...)] <inst> (...);
+     The directive is legal both at the description level and as a
+     module item; both feed the same pending-bind list, applied after
+     all files are parsed (pform_apply_binds). The bind-to-specific-
+     instance and instance-list forms are not implemented and get a
+     loud diagnostic rather than a silent drop. */
+bind_directive
+  : K_bind IDENTIFIER IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { perm_string target = lex_strings.make($2);
+	perm_string type = lex_strings.make($3);
+	pform_bind_directive(@1, target, type, $4, $5);
+	delete[]$2;
+	delete[]$3;
+      }
+  | K_bind IDENTIFIER TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { perm_string target = lex_strings.make($2);
+	perm_string type = lex_strings.make($3.text);
+	pform_bind_directive(@1, target, type, $4, $5);
+	delete[]$2;
+	delete[]$3.text;
+      }
+  | K_bind TYPE_IDENTIFIER IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { perm_string target = lex_strings.make($2.text);
+	perm_string type = lex_strings.make($3);
+	pform_bind_directive(@1, target, type, $4, $5);
+	delete[]$2.text;
+	delete[]$3;
+      }
+  | K_bind IDENTIFIER '.' error ';'
+      { yyerror(@1, "sorry: bind to a specific hierarchical instance "
+	        "(bind top.inst ...) is not supported yet; bind to the "
+	        "module definition instead (bind <module> ...).");
+	delete[]$2;
+      }
+  | K_bind IDENTIFIER ':' error ';'
+      { yyerror(@1, "sorry: bind with a target instance list "
+	        "(bind <module> : <instances> ...) is not supported yet; "
+	        "bind to the module definition instead.");
+	delete[]$2;
+      }
+  | K_bind IDENTIFIER error ';'
+      { yyerror(@1, "sorry: this bind directive form is not supported "
+	        "yet. Supported: bind <target_module> <module> [#(...)] "
+	        "<instance> (...);");
+	delete[]$2;
+      }
   ;
 
 
@@ -4376,15 +4475,45 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
      selects a clocking block declared elsewhere in this scope. */
   | K_default K_clocking IDENTIFIER ';'
       { pform_set_default_clocking_ref(@3, $3); }
-  /* SV `default disable iff (expr);` — silently accepted. */
+  /* IEEE 1800-2017 14.14: global clocking. Declares only the clocking
+     event (no items); referenced as $global_clock. */
+  | K_global K_clocking IDENTIFIER event_control ';'
+      { pform_start_clocking_block(@3, $3, $4, false, true); }
+    clocking_items_opt K_endclocking
+      { pform_end_clocking_block(@8); }
+  | K_global K_clocking event_control ';'
+      { pform_start_clocking_block(@2, 0, $3, false, true); }
+    clocking_items_opt K_endclocking
+      { pform_end_clocking_block(@7); }
+  /* M9 (IEEE 1800-2017 16.15): `default disable iff (expr);` applies
+     to every concurrent assertion in this module that lacks its own
+     disable clause. */
   | K_default K_disable K_iff '(' expression ')' ';'
-      { delete $5; }
+      { pform_sva_set_default_disable($5); }
+  /* M9: named no-argument property/sequence declarations, usable by
+     assertions later in the SAME module. Parameterized forms still
+     fall to the error-recovery rules below (parsed and dropped). */
+  | K_property IDENTIFIER ';' property_spec ';' K_endproperty
+      { pform_sva_declare_property(@2, $2, $4);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER ';' property_spec ';' K_endproperty ':' IDENTIFIER
+      { pform_sva_declare_property(@2, $2, $4);
+	delete[] $2;
+	delete[] $8;
+      }
+  | K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence
+      { pform_sva_declare_sequence(@2, $2, $4);
+	delete[] $2;
+      }
+  | K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
+      { pform_sva_declare_sequence(@2, $2, $4);
+	delete[] $2;
+	delete[] $8;
+      }
   /* SV `sequence ... endsequence` and `property ... endproperty` —
-     parsed and dropped. The temporal semantics are TODO; this lets
-     SVA-rich modules compile when they aren't gated behind SYNTHESIS.
-     We use bison error recovery to swallow the body as a black box.
-     The `yyerror` machinery does emit one message per block, but we
-     route through an inline note that's shown only with -gassertions. */
+     parameterized/complex forms are parsed and dropped via bison
+     error recovery so SVA-rich modules still compile. */
   | K_sequence error K_endsequence
       { if (gn_supported_assertions_flag) {
               /* silently recover */
@@ -4442,6 +4571,26 @@ clocking_item
 		  pform_add_clocking_signal(@2, cur->first, NetNet::PINOUT,
 					    0, 0);
 	    delete $2;
+      }
+  /* IEEE 1800-2017 A.6.11 clocking_decl_assign: `input a = expr;`
+     declares a clockvar sampling an arbitrary (typically
+     hierarchical) signal. Single-name form; the signal-path shape is
+     supported, other expressions are diagnosed at elaboration. */
+  | K_input clocking_skew_opt IDENTIFIER '=' expression ';'
+      {
+	    pform_add_clocking_signal(@3, lex_strings.make($3),
+				      NetNet::PINPUT, $2, 0, $5);
+	    delete $2;
+	    delete[] $3;
+      }
+  | K_output clocking_skew_opt IDENTIFIER '=' expression ';'
+      {
+	    cerr << @3 << ": sorry: output clocking_decl_assign is not "
+		 << "yet supported; the clockvar is ignored." << endl;
+	    pform_add_clocking_signal(@3, lex_strings.make($3),
+				      NetNet::POUTPUT, 0, $2, $5);
+	    delete $2;
+	    delete[] $3;
       }
   /* default_skew items: set the block's default skews (14.4.2). */
   | K_default K_input clocking_skew ';'
@@ -4574,14 +4723,18 @@ package_import_declaration /* IEEE1800-2005 A.2.1.3 */
       { }
   ;
 
-/* IEEE1800 DPI declarations. We currently parse these declarations so
- * packages/modules can be accepted, but do not elaborate DPI linkage. */
+/* IEEE1800 DPI declarations (35.4, A.2.6). Imported functions and
+ * tasks get real linkage: the code generator synthesizes a marshaling
+ * body that dispatches to the named C symbol. The optional
+ * c_identifier alias form binds a C name different from the SV name.
+ * Exports are diagnosed as unsupported (loud sorry), never silently
+ * dropped. */
 dpi_function_import_property_opt
-  :
-  | K_context
-  | K_pure
-  | K_context K_pure
-  | K_pure K_context
+  :                     { $$ = false; }
+  | K_context           { $$ = false; }
+  | K_pure              { $$ = true; }
+  | K_context K_pure    { $$ = true; }
+  | K_pure K_context    { $$ = true; }
   ;
 
 dpi_import_export_declaration
@@ -4599,9 +4752,79 @@ dpi_import_export_declaration
 	if ($2) delete[] $2;
 	delete[] $6;
       }
-  | K_export STRING K_function IDENTIFIER ';'
-      { if ($2) delete[] $2;
+  | K_import STRING dpi_function_import_property_opt IDENTIFIER '=' K_function
+    data_type_or_implicit_or_void IDENTIFIER
+      { assert(current_function == 0);
+	current_function = pform_push_function_scope(@6, $8, LexicalScope::INHERITED);
+      }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($10);
+	current_function->set_return($7);
+	current_function->set_dpi_import($4);
+	pform_pop_scope();
+	current_function = 0;
+	if ($2) delete[] $2;
 	delete[] $4;
+	delete[] $8;
+      }
+  | K_import STRING dpi_function_import_property_opt K_task IDENTIFIER
+      { assert(current_task == 0);
+	if ($3) yyerror(@4, "error: A DPI import task cannot be declared "
+			    "pure (IEEE1800-2017 35.4).");
+	current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+      }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($7);
+	current_task->set_dpi_import($5);
+	pform_pop_scope();
+	current_task = 0;
+	if ($2) delete[] $2;
+	delete[] $5;
+      }
+  | K_import STRING dpi_function_import_property_opt IDENTIFIER '=' K_task IDENTIFIER
+      { assert(current_task == 0);
+	if ($3) yyerror(@6, "error: A DPI import task cannot be declared "
+			    "pure (IEEE1800-2017 35.4).");
+	current_task = pform_push_task_scope(@6, $7, LexicalScope::INHERITED);
+      }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($9);
+	current_task->set_dpi_import($4);
+	pform_pop_scope();
+	current_task = 0;
+	if ($2) delete[] $2;
+	delete[] $4;
+	delete[] $7;
+      }
+  | K_export STRING K_function IDENTIFIER ';'
+      { cerr << @1 << ": sorry: export \"DPI-C\" function is not yet "
+	     << "supported; calls from C to '" << $4
+	     << "' will not link." << endl;
+	if ($2) delete[] $2;
+	delete[] $4;
+      }
+  | K_export STRING IDENTIFIER '=' K_function IDENTIFIER ';'
+      { cerr << @1 << ": sorry: export \"DPI-C\" function is not yet "
+	     << "supported; calls from C to '" << $6
+	     << "' will not link." << endl;
+	if ($2) delete[] $2;
+	delete[] $3;
+	delete[] $6;
+      }
+  | K_export STRING K_task IDENTIFIER ';'
+      { cerr << @1 << ": sorry: export \"DPI-C\" task is not yet "
+	     << "supported; calls from C to '" << $4
+	     << "' will not link." << endl;
+	if ($2) delete[] $2;
+	delete[] $4;
+      }
+  | K_export STRING IDENTIFIER '=' K_task IDENTIFIER ';'
+      { cerr << @1 << ": sorry: export \"DPI-C\" task is not yet "
+	     << "supported; calls from C to '" << $6
+	     << "' will not link." << endl;
+	if ($2) delete[] $2;
+	delete[] $3;
+	delete[] $6;
       }
   ;
 
@@ -4690,6 +4913,10 @@ package_cg_port_prefix
 package_covergroup_declaration
   : K_covergroup IDENTIFIER ';' covergroup_item_list_opt K_endgroup label_opt
       { /* Register as a real class stub so "cg_t m_cg" elaborates without errors */
+        cerr << @1 << ": sorry: package/module-scope covergroup '" << $2
+             << "' is a stub type only — its body is ignored and no "
+             << "coverage is collected (class-embedded covergroups are "
+             << "fully supported)." << endl;
         perm_string cg_name__ = lex_strings.make($2);
         class_type_t*cg_type__ = new class_type_t(cg_name__);
         FILE_NAME(cg_type__, @2);
@@ -4700,13 +4927,21 @@ package_covergroup_declaration
         pform_pop_scope();
         delete[] $2; if ($6) delete[] $6; }
   | package_cg_port_prefix ';' covergroup_item_list_opt K_endgroup label_opt
-      { pform_pop_scope(); current_function = 0;
+      { cerr << @2 << ": sorry: package/module-scope covergroup '" << $1
+             << "' is a stub type only — its body is ignored and no "
+             << "coverage is collected (class-embedded covergroups are "
+             << "fully supported)." << endl;
+        pform_pop_scope(); current_function = 0;
         delete[] $1; if ($5) delete[] $5; }
   | package_cg_port_prefix K_with K_function IDENTIFIER
       { pform_pop_scope();
         current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { if ($6) current_function->set_ports($6);
+      { cerr << @2 << ": sorry: package/module-scope covergroup '" << $1
+             << "' is a stub type only — its body is ignored and no "
+             << "coverage is collected (class-embedded covergroups are "
+             << "fully supported)." << endl;
+        if ($6) current_function->set_ports($6);
         pform_pop_scope(); current_function = 0;
         delete[] $1; delete[] $4; if ($10) delete[] $10; }
   | package_cg_port_prefix ';' error K_endgroup label_opt
@@ -5101,22 +5336,157 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
       { $$ = $2; }
   ;
 
-property_expr /* IEEE1800-2012 A.2.10 */
+property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
+  : sva_seq_expr
+      { sva_property_t*p = new sva_property_t;
+	p->seq = $1; p->op_type = 0;
+	$$ = p; }
+  | sva_seq_expr K_PIPE_IMPL_OV sva_seq_expr
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $3; p->op_type = 1;
+	$$ = p; }
+  | sva_seq_expr K_PIPE_IMPL_NOV sva_seq_expr
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $3; p->op_type = 2;
+	$$ = p; }
+  /* IEEE 1800-2017 16.12.9: negation — the property holds iff the
+     sequence has NO match starting at any attempt point. */
+  | K_not '(' sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->seq = $3; p->op_type = 3;
+	$$ = p; }
+  /* Diagnosed sorries: liveness/product operators the token-pipeline
+     engine does not implement. The assertion is dropped with a clear
+     message instead of a raw syntax error. */
+  | sva_seq_expr K_until sva_seq_expr
+      { pform_sva_sorry(@2, "until"); $$ = 0; }
+  | sva_seq_expr K_until_with sva_seq_expr
+      { pform_sva_sorry(@2, "until_with"); $$ = 0; }
+  | K_nexttime property_expr
+      { pform_sva_sorry(@1, "nexttime"); delete $2; $$ = 0; }
+  | K_eventually property_expr
+      { pform_sva_sorry(@1, "eventually"); delete $2; $$ = 0; }
+  | K_s_eventually property_expr
+      { pform_sva_sorry(@1, "s_eventually"); delete $2; $$ = 0; }
+  | sva_seq_expr K_intersect sva_seq_expr
+      { pform_sva_sorry(@2, "intersect"); $$ = 0; }
+  | sva_seq_expr K_within sva_seq_expr
+      { pform_sva_sorry(@2, "within"); $$ = 0; }
+  | expression K_throughout sva_seq_expr
+      { pform_sva_sorry(@2, "throughout"); delete $1; $$ = 0; }
+  ;
+
+  /* M9: a sequence expression as a linear chain of cycle-delayed
+     booleans: e0 ##d1 e1 ##[m:n] e2 ... Delay bounds must be literal
+     constants (checked at lowering; -2 marks non-constant, -1 marks
+     the unbounded $ bound). */
+  /* A sequence atom: a boolean expression, a transparent
+     first_match(...), or an atom with a consecutive-repetition
+     suffix. Returns a step LIST (first_match/repetition yield
+     sub-chains). */
+sva_seq_atom
   : expression
-      { sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = nullptr; p->op_type = 0;
-	$$ = p; }
-  | expression K_PIPE_IMPL_OV expression
-      { sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = $3; p->op_type = 1;
-	$$ = p; }
-  | expression K_PIPE_IMPL_NOV expression
-      { sva_property_t*p = new sva_property_t;
-	p->clk_evt = nullptr; p->disable_iff_expr = nullptr;
-	p->antecedent = $1; p->consequent = $3; p->op_type = 2;
-	$$ = p; }
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $1;
+	steps->push_back(st);
+	$$ = steps; }
+  /* 16.9.9: in match-existence positions first_match(s) has a match
+     iff s does — transparent for the supported property forms. */
+  | K_first_match '(' sva_seq_expr ')'
+      { $$ = $3; }
+  | sva_seq_atom K_LBSTAR expression ']'
+      { $$ = pform_sva_repeat(@2, $1, $3, 0); }
+  | sva_seq_atom K_LBSTAR expression ':' expression ']'
+      { $$ = pform_sva_repeat(@2, $1, $3, $5); }
+  /* Parenthesized sub-sequence: `(a ##1 b) |-> c`. Plain
+     parenthesized booleans keep the ordinary expression path (the
+     reduce/reduce conflict resolves to the earlier expression
+     rules); this production engages when the parens contain
+     sequence structure. */
+  | '(' sva_seq_expr ')'
+      { $$ = $2; }
+  ;
+
+sva_seq_expr
+  : sva_seq_atom
+      { $$ = $1; }
+  /* Leading cycle delay: `|-> ##2 b`, `|-> ##[1:3] b`. */
+  | K_CYCLE_DELAY delay_value_simple sva_seq_atom
+      { PENumber*num = dynamic_cast<PENumber*>($2);
+	sva_seq_step_t&f0 = (*$3)[0];
+	if (num && f0.delay_lo >= 0) {
+	      f0.delay_lo += num->value().as_long();
+	      f0.delay_hi += num->value().as_long();
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	delete $2;
+	$$ = $3; }
+  | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
+      { PENumber*lo = dynamic_cast<PENumber*>($3);
+	PENumber*hi = dynamic_cast<PENumber*>($5);
+	sva_seq_step_t&f0 = (*$7)[0];
+	if (lo && hi && f0.delay_lo >= 0) {
+	      f0.delay_lo += lo->value().as_long();
+	      f0.delay_hi += hi->value().as_long();
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	delete $3; delete $5;
+	$$ = $7; }
+  /* Unbounded window ##[m:$] — weak eventually (16.9.2). */
+  | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
+      { PENumber*lo = dynamic_cast<PENumber*>($3);
+	sva_seq_step_t&f0 = (*$7)[0];
+	if (lo && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = lo->value().as_long();
+	      f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	delete $3;
+	$$ = $7; }
+  | sva_seq_expr K_CYCLE_DELAY delay_value_simple sva_seq_atom
+      { PENumber*num = dynamic_cast<PENumber*>($3);
+	sva_seq_step_t&f0 = (*$4)[0];
+	if (num && f0.delay_lo >= 0) {
+	      f0.delay_lo += num->value().as_long();
+	      f0.delay_hi += num->value().as_long();
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	delete $3;
+	$1->insert($1->end(), $4->begin(), $4->end());
+	delete $4;
+	$$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
+      { PENumber*lo = dynamic_cast<PENumber*>($4);
+	PENumber*hi = dynamic_cast<PENumber*>($6);
+	sva_seq_step_t&f0 = (*$8)[0];
+	if (lo && hi && f0.delay_lo >= 0) {
+	      f0.delay_lo += lo->value().as_long();
+	      f0.delay_hi += hi->value().as_long();
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	delete $4; delete $6;
+	$1->insert($1->end(), $8->begin(), $8->end());
+	delete $8;
+	$$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
+      { PENumber*lo = dynamic_cast<PENumber*>($4);
+	sva_seq_step_t&f0 = (*$8)[0];
+	if (lo && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = lo->value().as_long();
+	      f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	delete $4;
+	$1->insert($1->end(), $8->begin(), $8->end());
+	delete $8;
+	$$ = $1; }
   ;
 
   /* The property_qualifier rule is as literally described in the LRM,
@@ -9618,27 +9988,9 @@ module_item
 		  if ($1) delete $1;
       }
 
-  /* SystemVerilog `bind` directive — parsed and silently dropped.
-     Iverilog does not yet implement bind semantics, but binds are typically
-     used for SVA assertion modules; for UVM-driven DV the testbench's
-     pass/fail is determined by class-side checks rather than concurrent
-     assertions, so consuming the directive is sufficient for compile.
-     Two common forms:
-       bind <target> <module> [#(...)] <inst> (...);
-       bind <target> <module> <inst> (...);
-     Match both via gate_instance_list. */
-  | K_bind IDENTIFIER IDENTIFIER parameter_value_opt gate_instance_list ';'
-      { delete[]$2;
-        delete[]$3;
-      }
-  | K_bind IDENTIFIER TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
-      { delete[]$2;
-        delete[]$3.text;
-      }
-  | K_bind IDENTIFIER error ';'
-      { yywarn(@1, "warning: ignoring unsupported bind directive form");
-        delete[]$2;
-      }
+  /* SystemVerilog `bind` directive (IEEE 1800-2017 23.11). Allowed as
+     a module item as well as at the description level. */
+  | bind_directive
 
   /* Packed array of typedef: e.g. "my_t [N-1:0] arr;" in module scope.
      The TYPE_IDENTIFIER followed by '[' is ambiguous with module instantiation,
@@ -10606,9 +10958,7 @@ specify_item
   | K_Sfullskew '(' spec_reference_event ',' spec_reference_event
     ',' delay_value ',' delay_value fullskew_opt_args ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
+	pform_timing_check_sorry(@1, "$fullskew");
 	delete $3; // spec_reference_event
 	delete $5; // spec_reference_event
 	delete $7; // delay_value
@@ -10623,20 +10973,16 @@ specify_item
   | K_Shold '(' spec_reference_event ',' spec_reference_event
     ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $8; // spec_notifier_opt
+	// $hold(ref, data, limit): timestamp=ref, timecheck=data.
+	pform_timing_check_pair(@1, "$hold", *$3, *$5, $7, false, $8);
+	delete $3;
+	delete $5;
+	delete $8;
       }
   | K_Snochange '(' spec_reference_event ',' spec_reference_event
 	  ',' delay_value ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
+	pform_timing_check_sorry(@1, "$nochange");
 	delete $3; // spec_reference_event
 	delete $5; // spec_reference_event
 	delete $7; // delay_value
@@ -10646,34 +10992,35 @@ specify_item
   | K_Speriod '(' spec_reference_event ',' delay_value
     spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // delay_value
-	delete $6; // spec_notifier_opt
+	pform_timing_check_period(@1, *$3, $5, $6);
+	delete $3;
+	delete $6;
       }
   | K_Srecovery '(' spec_reference_event ',' spec_reference_event
     ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $8; // spec_notifier_opt
+	// $recovery(ref, data, limit): timestamp=ref, timecheck=data.
+	pform_timing_check_pair(@1, "$recovery", *$3, *$5, $7, false, $8);
+	delete $3;
+	delete $5;
+	delete $8;
       }
   | K_Srecrem '(' spec_reference_event ',' spec_reference_event
     ',' expr_mintypmax ',' expr_mintypmax recrem_opt_args ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      cerr << @3 << ": warning: Timing checks are not supported. ";
-	      if ($10->delayed_reference != nullptr || $10->delayed_data != nullptr) {
-		    cerr << "Delayed reference and data signals become copies of the"
-			 << " original reference and data signals.";
+	// $recrem(ref, data, rec, rem) = $recovery(ref, data, rec) +
+	// $removal(ref, data, rem).
+	if ($10->timestamp_cond != nullptr || $10->timecheck_cond != nullptr) {
+	      if (gn_specify_blocks_flag) {
+		    cerr << @1 << ": sorry: $recrem timestamp/timecheck "
+			 << "condition arguments are not supported; the "
+			 << "violation checks are dropped." << endl;
+		    error_count += 1;
 	      }
-	      cerr << endl;
+	} else {
+	      pform_timing_check_setuphold_recrem(@1, "$recrem",
+						  *$3, *$5, $7, $9,
+						  $10->notifier);
 	}
 
 	PRecRem*recrem = pform_make_recrem(@1, $3, $5, $7, $9, $10);
@@ -10684,35 +11031,41 @@ specify_item
   | K_Sremoval '(' spec_reference_event ',' spec_reference_event
     ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $8; // spec_notifier_opt
+	// $removal(ref, data, limit): the check fires at the async
+	// control (reference) event, measured since the clock (data).
+	pform_timing_check_pair(@1, "$removal", *$5, *$3, $7, false, $8);
+	delete $3;
+	delete $5;
+	delete $8;
       }
   | K_Ssetup '(' spec_reference_event ',' spec_reference_event
     ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $8; // spec_notifier_opt
+	// $setup(data, ref, limit): timestamp=data, timecheck=ref.
+	pform_timing_check_pair(@1, "$setup", *$3, *$5, $7, false, $8);
+	delete $3;
+	delete $5;
+	delete $8;
       }
   | K_Ssetuphold '(' spec_reference_event ',' spec_reference_event
     ',' expr_mintypmax ',' expr_mintypmax setuphold_opt_args ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      cerr << @3 << ": warning: Timing checks are not supported. ";
-	      if ($10->delayed_reference != nullptr || $10->delayed_data != nullptr) {
-		    cerr << "Delayed reference and data signals become copies of the"
-			 << " original reference and data signals.";
+	// $setuphold(ref, data, s, h) = $setup(data, ref, s) +
+	// $hold(ref, data, h). The synthesized checkers use CLONES of
+	// the limit expressions; the originals go to PSetupHold below
+	// for delayed-signal aliasing. Timestamp/timecheck condition
+	// arguments modify check semantics we do not model: loud sorry.
+	if ($10->timestamp_cond != nullptr || $10->timecheck_cond != nullptr) {
+	      if (gn_specify_blocks_flag) {
+		    cerr << @1 << ": sorry: $setuphold timestamp/timecheck "
+			 << "condition arguments are not supported; the "
+			 << "violation checks are dropped." << endl;
+		    error_count += 1;
 	      }
-	      cerr << endl;
+	} else {
+	      pform_timing_check_setuphold_recrem(@1, "$setuphold",
+						  *$3, *$5, $7, $9,
+						  $10->notifier);
 	}
 
 	PSetupHold*setuphold = pform_make_setuphold(@1, $3, $5, $7, $9, $10);
@@ -10723,20 +11076,17 @@ specify_item
   | K_Sskew '(' spec_reference_event ',' spec_reference_event
     ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $8; // spec_notifier_opt
+	// $skew(ref, data, limit): violation if data lags ref by MORE
+	// than the limit.
+	pform_timing_check_pair(@1, "$skew", *$3, *$5, $7, true, $8);
+	delete $3;
+	delete $5;
+	delete $8;
       }
   | K_Stimeskew '(' spec_reference_event ',' spec_reference_event
     ',' delay_value timeskew_opt_args ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
+	pform_timing_check_sorry(@1, "$timeskew");
 	delete $3; // spec_reference_event
 	delete $5; // spec_reference_event
 	delete $7; // delay_value
@@ -10750,21 +11100,14 @@ specify_item
   | K_Swidth '(' spec_reference_event ',' delay_value ',' expression
     spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // delay_value
-	delete $7; // expression
+	pform_timing_check_width(@1, *$3, $5, $7, $8);
+	delete $3;
 	delete $8;
       }
   | K_Swidth '(' spec_reference_event ',' delay_value ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // delay_value
+	pform_timing_check_width(@1, *$3, $5, nullptr, nullptr);
+	delete $3;
       }
   | K_pulsestyle_onevent specify_path_identifiers ';'
       {
@@ -11032,7 +11375,9 @@ spec_reference_event
 	event->name = *$5;
 	event->posedge = false;
 	event->negedge = false;
-	// TODO add edge descriptors
+	// Descriptors are not modeled; mark the event so the
+	// timing-check synthesizer diagnoses it loudly.
+	event->edges.push_back(PTimingCheck::EDGE_01);
 	event->condition = nullptr;
 	delete $5;
 	$$ = event;
@@ -11042,7 +11387,7 @@ spec_reference_event
 	event->name = *$5;
 	event->posedge = false;
 	event->negedge = false;
-	// TODO add edge descriptors
+	event->edges.push_back(PTimingCheck::EDGE_01);
 	event->condition = std::unique_ptr<PExpr>($7);
 	delete $5;
 	$$ = event;

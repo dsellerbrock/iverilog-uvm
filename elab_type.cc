@@ -321,7 +321,9 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
 		       ; sig_it != cb->signals.end() ; ++sig_it) {
 		  NetNet::PortType dir = cb->signal_direction(*sig_it);
-		  if (dir != NetNet::PINPUT && dir != NetNet::PINOUT)
+		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
+		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
+		  if (!is_in && !is_out)
 			continue;
 		  map<perm_string,PWire*>::const_iterator wt = mod->wires.find(*sig_it);
 		  if (wt == mod->wires.end())
@@ -336,10 +338,29 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 		      || dynamic_cast<const netuarray_t*>(rt)
 		      || dynamic_cast<const netqueue_t*>(rt))
 			continue;
-		  string sname = string("_ivl_smp$") + cur->first.str()
-			+ "$" + sig_it->str();
-		  iface_type->set_property(lex_strings.make(sname.c_str()),
-					   property_qualifier_t::make_none(), rt);
+		  if (is_in) {
+			string sname = string("_ivl_smp$") + cur->first.str()
+			      + "$" + sig_it->str();
+			iface_type->set_property(lex_strings.make(sname.c_str()),
+						 property_qualifier_t::make_none(), rt);
+		  }
+		    /* M8-tail: output drive buffer + pending flag as
+		       properties, so vif.cb.out <= v drives resolve
+		       against the bound instance's buffered-drive vars
+		       (created by elaborate_sig; the instance's apply
+		       process lands buffered drives at each event). */
+		  if (is_out) {
+			string bname = string("_ivl_obuf$") + cur->first.str()
+			      + "$" + sig_it->str();
+			iface_type->set_property(lex_strings.make(bname.c_str()),
+						 property_qualifier_t::make_none(), rt);
+			string pname = string("_ivl_opend$") + cur->first.str()
+			      + "$" + sig_it->str();
+			netvector_t*pvec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
+			iface_type->set_property(lex_strings.make(pname.c_str()),
+						 property_qualifier_t::make_none(),
+						 pvec);
+		  }
 		  any_sampled = true;
 	    }
 	    if (any_sampled) {

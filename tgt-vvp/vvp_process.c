@@ -3432,13 +3432,15 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
-      /* $ivl_class_method$covgrp_sample(cg_obj, cp0_val, cp1_val, ...)
-       * argv[0] = cg object, argv[1..N] = coverpoint values.
-       * Emit: push cp values onto vec4 stack, push cg obj, %covgrp/sample N */
+      /* $ivl_class_method$covgrp_sample(cg_obj, cp values..., guards...)
+       * argv[0] = cg object, argv[1..N] = coverpoint values,
+       * argv[N+1..2N] = iff guard values (M11).
+       * Emit: push values then guards onto vec4 stack, push cg obj,
+       * %covgrp/sample N, 1 */
       if (strcmp(stmt_name, "$ivl_class_method$covgrp_sample") == 0) {
 	    unsigned nparms = ivl_stmt_parm_count(net);
-	    /* nparms = 1 + ncoverpoints; argv[0] is cg object */
-	    unsigned ncp = (nparms > 0) ? (nparms - 1) : 0;
+	    unsigned ncp = (nparms > 0) ? (nparms - 1) / 2 : 0;
+	    unsigned has_guards = (nparms == 1 + 2*ncp) && (nparms > 1);
 	    for (unsigned ii = 1 ; ii < nparms ; ii += 1) {
 		  ivl_expr_t cp_arg = ivl_stmt_parm(net, ii);
 		  if (cp_arg) draw_eval_vec4(cp_arg);
@@ -3446,7 +3448,18 @@ static int show_system_task_call(ivl_statement_t net)
 	    }
 	    ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
 	    if (obj_arg) draw_eval_object(obj_arg);
-	    fprintf(vvp_out, "    %%covgrp/sample %u;\n", ncp);
+	    fprintf(vvp_out, "    %%covgrp/sample %u, %u;\n", ncp, has_guards);
+	    return 0;
+      }
+
+      /* M11: covergroup start()/stop() — per-instance sampling enable. */
+      if (strcmp(stmt_name, "$ivl_class_method$covgrp_start") == 0
+	  || strcmp(stmt_name, "$ivl_class_method$covgrp_stop") == 0) {
+	    ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
+	    if (obj_arg) draw_eval_object(obj_arg);
+	    fprintf(vvp_out, "    %%covgrp/%s;\n",
+		    strcmp(stmt_name, "$ivl_class_method$covgrp_start") == 0
+			  ? "start" : "stop");
 	    return 0;
       }
 
@@ -4086,11 +4099,24 @@ int draw_process(ivl_process_t net, void*x)
       return rc;
 }
 
+static void draw_dpi_func_body(ivl_scope_t scope, int is_task);
+
 int draw_task_definition(ivl_scope_t scope)
 {
       int rc = 0;
       ivl_statement_t def = ivl_scope_def(scope);
       const char*label = vvp_mangle_id(ivl_scope_name(scope));
+
+	/* A DPI import task has no pform body; synthesize the
+	   marshaling body instead. */
+      if (ivl_scope_is_dpi_import(scope)) {
+	    fprintf(vvp_out, "TD_%s ;\n", label);
+	    note_td_definition(label);
+	    draw_dpi_func_body(scope, 1);
+	    fprintf(vvp_out, "    %%end;\n");
+	    thread_count += 1;
+	    return 0;
+      }
 
       if (def == 0)
 	    return 0;
@@ -4106,44 +4132,202 @@ int draw_task_definition(ivl_scope_t scope)
       return rc;
 }
 
-static void draw_dpi_func_body(ivl_scope_t scope)
+/*
+ * M10: emit the synthesized body of a DPI import function: load each
+ * argument onto its stack, then a %dpi/call opcode carrying the
+ * per-argument signature string the runtime marshaler consumes. Each
+ * signature token is [+][u]<letter>: '+' output direction (reserved),
+ * 'u' unsigned, letter 'b'/'h'/'i'/'l' by width for 2-state integers
+ * (byte/shortint/int/longint/chandle), 'g' 4-state scalar (svLogic),
+ * 'r' real, 's' string.
+ *
+ * Unsupported argument shapes are diagnosed loudly (never silent) and
+ * the call is not emitted — the body pushes a zero/empty result so
+ * simulation can proceed deterministically.
+ */
+static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 {
       const char*c_name = ivl_scope_dpi_c_name(scope);
       unsigned nports = ivl_scope_ports(scope);
-      unsigned ncp = (nports > 0) ? (nports - 1) : 0;
-      ivl_variable_type_t rtype = ivl_scope_func_type(scope);
+	/* Function port 0 is the return value; task ports are all
+	   arguments. */
+      unsigned first_port = is_task ? 0 : 1;
+      unsigned ncp = (nports >= first_port) ? (nports - first_port) : 0;
+      ivl_variable_type_t rtype = is_task ? IVL_VT_VOID
+                                          : ivl_scope_func_type(scope);
       unsigned rwid = (rtype == IVL_VT_LOGIC || rtype == IVL_VT_BOOL)
                     ? ivl_scope_func_width(scope) : 0;
+      int unsupported = 0;
 
-      // C4 (Phase 62k): build per-arg type signature so the runtime
-      // %dpi/call/* opcode can pop each argument from the right stack.
-      // 'i' = int (vec4), 's' = string, 'r' = real.  Cap at 16 to keep
-      // the buffer small and match runtime expectations.
-      char arg_types[17] = {0};
-      unsigned types_n = (ncp <= 16) ? ncp : 16;
+      char arg_types[256];
+      unsigned types_pos = 0;
 
-      for (unsigned ii = 1; ii <= ncp; ii += 1) {
-	    ivl_signal_t port = ivl_scope_port(scope, ii);
-	    ivl_variable_type_t ptype = ivl_signal_data_type(port);
-	    if (ptype == IVL_VT_REAL) {
-		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
-		  if (ii <= types_n) arg_types[ii-1] = 'r';
-	    } else if (ptype == IVL_VT_STRING) {
-		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
-		  if (ii <= types_n) arg_types[ii-1] = 's';
-	    } else {
-		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
-		  if (ii <= types_n) arg_types[ii-1] = 'i';
-	    }
+      if (ncp > 64) {
+	    fprintf(stderr, "%s:%u: sorry: DPI import '%s' has %u "
+		    "arguments; more than 64 are not supported.\n",
+		    ivl_scope_def_file(scope), ivl_scope_def_lineno(scope),
+		    c_name, ncp);
+	    unsupported = 1;
+      }
+      if (rwid > 64) {
+	    fprintf(stderr, "%s:%u: sorry: DPI import '%s' returns a "
+		    "%u-bit vector; by-value DPI returns are limited to "
+		    "64 bits.\n",
+		    ivl_scope_def_file(scope), ivl_scope_def_lineno(scope),
+		    c_name, rwid);
+	    unsupported = 1;
       }
 
-      // C4 (Phase 62k): pack the per-arg type signature into the
-      // function-name string using a SOH (\x01) separator, since the
-      // opcode struct only allows 3 operands.  The runtime splits on
-      // \x01 to recover (name, types).  Always emit the suffix (even
-      // for all-int signatures) so the runtime can rely on it.
-      int emit_types = 1;
-      (void)emit_types;
+	/* Output/inout arguments collected for the post-call stores:
+	   the runtime pushes their callee-written values (above the
+	   return value), and the body stores them into the port
+	   variables in reverse order. The standard call machinery
+	   then copies them out to the caller's actual lvalues. */
+      ivl_signal_t out_ports[64];
+      char out_kinds[64];
+      unsigned out_wids[64];
+      unsigned nout = 0;
+
+      for (unsigned ii = first_port; !unsupported && ii < nports; ii += 1) {
+	    ivl_signal_t port = ivl_scope_port(scope, ii);
+	    ivl_variable_type_t ptype = ivl_signal_data_type(port);
+	    unsigned pwid = ivl_signal_width(port);
+	    int is_out = (ivl_signal_port(port) != IVL_SIP_INPUT);
+	    char letter = 0;
+
+	    if (ptype == IVL_VT_REAL) {
+		  letter = 'r';
+	    } else if (ptype == IVL_VT_STRING) {
+		  letter = 's';
+	    } else if (ptype == IVL_VT_DARRAY) {
+		    /* Open array (35.5.6.1): pass an svOpenArrayHandle
+		       that shares the dynamic array's storage. Only
+		       atom-typed elements have contiguous raw storage;
+		       validate here so anything else is a loud sorry
+		       instead of a runtime surprise. */
+		  ivl_type_t nt = ivl_signal_net_type(port);
+		  ivl_type_t et = nt ? ivl_type_element(nt) : 0;
+		  ivl_variable_type_t ebase = et ? ivl_type_base(et)
+			                         : IVL_VT_NO_TYPE;
+		  unsigned ewid = et ? ivl_type_packed_width(et) : 0;
+		  int atom_ok = (ebase == IVL_VT_REAL)
+			|| ((ebase == IVL_VT_BOOL || ebase == IVL_VT_LOGIC)
+			    && (ewid == 8 || ewid == 16
+				|| ewid == 32 || ewid == 64));
+		  if (! atom_ok) {
+			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
+				"open array argument '%s' must have "
+				"2-state atom elements (byte/shortint/"
+				"int/longint) or real elements; the "
+				"call is skipped.\n",
+				ivl_scope_def_file(scope),
+				ivl_scope_def_lineno(scope),
+				c_name, ivl_signal_basename(port));
+			unsupported = 1;
+			break;
+		  }
+		  letter = 'o';
+	    } else if (ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL) {
+		  if (pwid > 64) {
+			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
+				"argument '%s' is %u bits wide; by-value "
+				"DPI arguments are limited to 64 bits "
+				"(svLogicVecVal/svBitVecVal marshaling is "
+				"not yet implemented).\n",
+				ivl_scope_def_file(scope),
+				ivl_scope_def_lineno(scope),
+				c_name, ivl_signal_basename(port), pwid);
+			unsupported = 1;
+			break;
+		  }
+		  if (pwid == 1) {
+			  /* svBit/svLogic scalar: unsigned char both
+			     ways, 4-state encoding for logic. */
+			letter = 'g';
+		  } else if (is_out
+			     && pwid != 8 && pwid != 16
+			     && pwid != 32 && pwid != 64) {
+			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
+				"output argument '%s' is %u bits wide; "
+				"output integers must be an atom width "
+				"(8/16/32/64 bits or a 1-bit scalar).\n",
+				ivl_scope_def_file(scope),
+				ivl_scope_def_lineno(scope),
+				c_name, ivl_signal_basename(port), pwid);
+			unsupported = 1;
+			break;
+		  } else {
+			if (ptype == IVL_VT_LOGIC && pwid > 1) {
+			      fprintf(stderr, "%s:%u: warning: DPI import "
+				      "'%s': 4-state vector argument '%s' is "
+				      "passed as a 2-state integer (X/Z bits "
+				      "coerce to 0); declare the C parameter "
+				      "as a plain integer type.\n",
+				      ivl_scope_def_file(scope),
+				      ivl_scope_def_lineno(scope),
+				      c_name, ivl_signal_basename(port));
+			}
+			if (pwid <= 8)       letter = 'b';
+			else if (pwid <= 16) letter = 'h';
+			else if (pwid <= 32) letter = 'i';
+			else                 letter = 'l';
+		  }
+	    } else {
+		  fprintf(stderr, "%s:%u: sorry: DPI import '%s': argument "
+			  "'%s' has a type not yet marshaled for DPI; the "
+			  "call is skipped.\n",
+			  ivl_scope_def_file(scope),
+			  ivl_scope_def_lineno(scope),
+			  c_name, ivl_signal_basename(port));
+		  unsupported = 1;
+		  break;
+	    }
+
+	      /* Load the incoming value (for outputs this seeds the
+		 pointer buffer — exact for inout, harmless for pure
+		 output whose entry value is undefined per 35.5.6.1). */
+	    if (letter == 'r')
+		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
+	    else if (letter == 's')
+		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
+	    else if (letter == 'o')
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", (void*)port);
+	    else
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
+
+	      /* Open arrays share storage through the handle in both
+		 directions — no output prefix, no copy-back store. */
+	    if (is_out && letter != 'o')
+		  arg_types[types_pos++] = '+';
+	    if ((letter == 'b' || letter == 'h' || letter == 'i'
+		 || letter == 'l') && ! ivl_signal_signed(port))
+		  arg_types[types_pos++] = 'u';
+	    arg_types[types_pos++] = letter;
+
+	    if (is_out && letter != 'o') {
+		  out_ports[nout] = port;
+		  out_kinds[nout] = letter;
+		  out_wids[nout] = pwid;
+		  nout += 1;
+	    }
+      }
+      arg_types[types_pos] = 0;
+
+      if (unsupported) {
+	      // Loudly diagnosed above: push a deterministic default
+	      // result instead of a broken call.
+	    if (rtype == IVL_VT_REAL) {
+		  fprintf(vvp_out, "    %%pushi/real 0, 0;\n");
+		  fprintf(vvp_out, "    %%ret/real 0;\n");
+	    } else if (rtype == IVL_VT_STRING) {
+		  fprintf(vvp_out, "    %%pushi/str \"\";\n");
+		  fprintf(vvp_out, "    %%ret/str 0;\n");
+	    } else if (rtype != IVL_VT_VOID) {
+		  fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", rwid);
+		  fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", rwid);
+	    }
+	    return;
+      }
 
       // Use '|' as the name/types separator: it's not legal in C function
       // names, and the vvp lexer's strdup_and_demangle passes it through
@@ -4151,17 +4335,46 @@ static void draw_dpi_func_body(ivl_scope_t scope)
       if (rtype == IVL_VT_REAL) {
 	    fprintf(vvp_out, "    %%dpi/call/real \"%s|%s\", %u;\n",
 		    c_name, arg_types, ncp);
-	    fprintf(vvp_out, "    %%ret/real 0;\n");
       } else if (rtype == IVL_VT_STRING) {
 	    fprintf(vvp_out, "    %%dpi/call/str \"%s|%s\", %u;\n",
 		    c_name, arg_types, ncp);
-	    fprintf(vvp_out, "    %%ret/str 0;\n");
       } else if (rtype == IVL_VT_VOID) {
 	    fprintf(vvp_out, "    %%dpi/call/void \"%s|%s\", %u;\n",
 		    c_name, arg_types, ncp);
       } else {
 	    fprintf(vvp_out, "    %%dpi/call/vec4 \"%s|%s\", %u, %u;\n",
 		    c_name, arg_types, ncp, rwid);
+      }
+
+	/* Store the callee-written output values (pushed above the
+	   return value, in argument order) back into the port
+	   variables — reverse order pops them correctly and leaves
+	   the return value on top for %ret. */
+      for (unsigned ii = nout; ii > 0; ii -= 1) {
+	    ivl_signal_t port = out_ports[ii-1];
+	    switch (out_kinds[ii-1]) {
+		case 'r':
+		  fprintf(vvp_out, "    %%store/real v%p_0;\n", (void*)port);
+		  break;
+		case 's':
+		  fprintf(vvp_out, "    %%store/str v%p_0;\n", (void*)port);
+		  break;
+		case 'g':
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 1;\n",
+			  (void*)port);
+		  break;
+		default:
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+			  (void*)port, out_wids[ii-1]);
+		  break;
+	    }
+      }
+
+      if (rtype == IVL_VT_REAL) {
+	    fprintf(vvp_out, "    %%ret/real 0;\n");
+      } else if (rtype == IVL_VT_STRING) {
+	    fprintf(vvp_out, "    %%ret/str 0;\n");
+      } else if (rtype != IVL_VT_VOID) {
 	    fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", rwid);
       }
 }
@@ -4179,7 +4392,7 @@ int draw_func_definition(ivl_scope_t scope)
       note_td_definition(label);
 
       if (ivl_scope_is_dpi_import(scope)) {
-	    draw_dpi_func_body(scope);
+	    draw_dpi_func_body(scope, 0);
       } else {
 	    rc += show_statement(def, scope);
       }

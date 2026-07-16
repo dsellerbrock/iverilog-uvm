@@ -22,6 +22,7 @@
 # include  "vpi_priv.h"
 # include  "vvp_net_sig.h"
 # include  "vvp_darray.h"
+# include  "vvp_assoc.h"
 # include  "array_common.h"
 # include  "schedule.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -47,12 +48,12 @@ unsigned __vpiDarrayVar::get_size() const
         return 0;
 
       vvp_object_t val = fun->get_object();
-      const vvp_darray*aval = val.peek<vvp_darray>();
-
-      if(!aval)
-        return 0;
-
-      return aval->get_size();
+      if (const vvp_darray*aval = val.peek<vvp_darray>())
+	    return aval->get_size();
+	// M12: associative arrays flow through this handle class too.
+      if (const vvp_assoc_base*mval = val.peek<vvp_assoc_base>())
+	    return mval->size();
+      return 0;
 }
 
 vpiHandle __vpiDarrayVar::get_left_range()
@@ -71,6 +72,8 @@ int __vpiDarrayVar::get_word_size() const
 {
       vvp_vector4_t new_vec;
       vvp_darray*aobj = get_vvp_darray();
+      if (!aobj || aobj->get_size() == 0)
+	    return 32;
       aobj->get_word(0, new_vec);
       return new_vec.size();
 }
@@ -92,6 +95,41 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 {
       unsigned index = word->get_index();
       vvp_darray*aobj = get_vvp_darray();
+
+	// M12: associative array elements — positional access in key
+	// order.
+      if (!aobj) {
+	    if (const vvp_assoc_base*mobj = get_vvp_assoc()) {
+		  std::string key, sval;
+		  vvp_vector4_t vval;
+		  double rval = 0.0;
+		  int kind = -1;
+		  if (! mobj->peek_entry(index, key, vval, rval, sval, kind)) {
+			vp->format = vpiSuppressVal;
+			return;
+		  }
+		  switch (kind) {
+		      case 0:
+			if (vp->format == vpiObjTypeVal)
+			      vp->format = vpiVectorVal;
+			vpip_vec4_get_value(vval, vval.size(), false, vp);
+			return;
+		      case 1:
+			vp->format = vpiRealVal;
+			vpip_real_get_value(rval, vp);
+			return;
+		      case 2:
+			vp->format = vpiStringVal;
+			vpip_string_get_value(sval, vp);
+			return;
+		      default:
+			vp->format = vpiSuppressVal;
+			return;
+		  }
+	    }
+	    vp->format = vpiSuppressVal;
+	    return;
+      }
 
       if(vp->format == vpiObjTypeVal) {
           if(dynamic_cast<vvp_darray_real*>(aobj))
@@ -134,8 +172,9 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
       break;
 
       default:
-          fprintf(stderr, "vpi sorry: format is not implemented\n");
-          assert(false);
+          fprintf(stderr, "vpi sorry: value format %d is not implemented "
+		  "for array elements.\n", (int)vp->format);
+	  vp->format = vpiSuppressVal;
       }
 }
 
@@ -143,6 +182,14 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
 {
       unsigned index = word->get_index();
       vvp_darray*aobj = get_vvp_darray();
+
+      if (!aobj) {
+	      // M12: associative array elements are keyed, not
+	      // positional — VPI writes are diagnosed, not guessed.
+	    fprintf(stderr, "vpi sorry: writing associative array "
+		    "elements through VPI is not supported.\n");
+	    return;
+      }
 
       switch(vp->format) {
       case vpiScalarVal:
@@ -154,9 +201,12 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
 
       case vpiIntVal:
       {
-          vvp_vector4_t vec;
-	  unsigned long val = vp->value.integer;
-          vec.setarray(0, 8 * sizeof(vp->value.integer), &val);
+	    // M12: the vector must be SIZED before setarray (this
+	    // path used to assert on any VPI element write).
+	  unsigned wid = 8 * sizeof(PLI_INT32);
+	  vvp_vector4_t vec(wid, BIT4_0);
+	  unsigned long val = (unsigned long)(PLI_UINT32)vp->value.integer;
+          vec.setarray(0, wid, &val);
           aobj->set_word(index, vec);
       }
       break;
@@ -197,8 +247,8 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
         break;
 
       default:
-          fprintf(stderr, "vpi sorry: format is not implemented");
-          assert(false);
+          fprintf(stderr, "vpi sorry: value format %d is not implemented "
+		  "for array element writes.\n", (int)vp->format);
       }
 }
 
@@ -212,19 +262,34 @@ vpiHandle __vpiDarrayVar::get_iter_index(struct __vpiArrayIterator*, int idx)
 int __vpiDarrayVar::vpi_get(int code)
 {
       switch (code) {
-	  case vpiArrayType:
-	    return vpiDynamicArray;
+	  case vpiArrayType: {
+	      // M12: one handle class serves dynamic arrays, queues
+	      // and associative arrays — report the LIVE kind.
+	    vvp_fun_signal_object*fun =
+		  dynamic_cast<vvp_fun_signal_object*> (get_net()->fun);
+	    if (fun) {
+		  vvp_object_t val = fun->get_object();
+		  if (val.peek<vvp_queue>())
+			return vpiQueueArray;
+		  if (val.peek<vvp_assoc_base>())
+			return vpiAssocArray;
+	    }
+	    return default_array_type_;
+	  }
 	  case vpiLeftRange:
 	    return 0;
 	  case vpiRightRange:
 	    return get_size() - 1;
 	  case vpiSize:
             return get_size();
+	  case vpiAutomatic:
+	  case vpiSigned:
+	    return 0;
 
 	  default:
-	    fprintf(stderr, "vpi sorry: property is not implemented");
-	    assert(false);
-	    return 0;
+	    fprintf(stderr, "vpi sorry: array property %d is not "
+		    "implemented.\n", code);
+	    return vpiUndefined;
       }
 }
 
@@ -283,6 +348,14 @@ vvp_darray*__vpiDarrayVar::get_vvp_darray() const
       return obj.peek<vvp_darray>();
 }
 
+const vvp_assoc_base*__vpiDarrayVar::get_vvp_assoc() const
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*> (get_net()->fun);
+      if (!fun) return 0;
+      vvp_object_t obj = fun->get_object();
+      return obj.peek<vvp_assoc_base>();
+}
+
 vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net)
 {
       __vpiScope*scope = vpip_peek_current_scope();
@@ -293,40 +366,15 @@ vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net)
       return obj;
 }
 
+/* M12: queues (and associative arrays, which are declared through
+ * the queue path with 'M*' kinds) now share the full __vpiDarrayVar
+ * element-access machinery; the array kind is detected from the live
+ * object. */
 __vpiQueueVar::__vpiQueueVar(__vpiScope*sc, const char*na, vvp_net_t*ne)
-: __vpiBaseVar(sc, na, ne)
+: __vpiDarrayVar(sc, na, ne)
 {
+      default_array_type_ = vpiQueueArray;
 }
-
-int __vpiQueueVar::get_type_code(void) const
-{ return vpiArrayVar; }
-
-
-int __vpiQueueVar::vpi_get(int code)
-{
-      switch (code) {
-	  case vpiArrayType:
-	    return vpiQueueArray;
-	  case vpiSize: {
-	    vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*> (get_net()->fun);
-	    assert(fun);
-	    vvp_object_t val = fun->get_object();
-	    const vvp_queue*aval = val.peek<vvp_queue>();
-	    if (aval == 0)
-		  return 0;
-	    else
-		  return aval->get_size();
-	  }
-	  default:
-	    return 0;
-      }
-}
-
-void __vpiQueueVar::vpi_get_value(p_vpi_value val)
-{
-      val->format = vpiSuppressVal;
-}
-
 
 vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net)
 {

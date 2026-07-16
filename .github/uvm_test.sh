@@ -30,10 +30,19 @@ declare -A PLUSARGS=(
     [plusargs_class_string_test]="+MY_TESTNAME=hello +MY_SEED=42"
 )
 
+# Per-test extra iverilog compile flags.  Tests that need a compile
+# option beyond the default (e.g. -gspecify to activate specify-block
+# timing checks) list it here.  Format: "<name>=<flags>".
+declare -A IVFLAGS=(
+    [m13_timing_test]="-gspecify"
+    [m13_specify_paths_test]="-gspecify"
+)
+
 compile_test() {
     local name="$1"
     local sv="$TESTS/${name}.sv"
-    $BIN -g2012 -I "$UVM" -DUVM_NO_DPI -o "/tmp/uvm_test_${name}.vvp" \
+    local xf="${IVFLAGS[$name]}"
+    $BIN -g2012 $xf -I "$UVM" -DUVM_NO_DPI -o "/tmp/uvm_test_${name}.vvp" \
          "$UVM/uvm_pkg.sv" "$sv" 2>/dev/null
 }
 

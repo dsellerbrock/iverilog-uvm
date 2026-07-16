@@ -3,6 +3,257 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-16 (M13 CLOSED)
+
+- **M13 (bind, let, configs, specify, timing, rare constructs) is
+  CLOSED** on PR #76, four increments in four commits:
+  1. **bind** (23.11) — was silent-drop (module-item) / syntax error
+     (description-level); now real semantics. Directives collected
+     during parse, applied by `pform_apply_binds()` from
+     `pform_finish()` after all files parsed: the bound PGModule is
+     appended to the TARGET module's gates so every instance
+     elaborates it in target scope. New PExpr virtual
+     `reloc_lexical_pos_bind()` relocates identifier lexical positions
+     to end-of-scope so bind-before-target / cross-file binds resolve
+     target internals. `pform_finish()` now returns its error count to
+     main. Loud errors: unknown target, self-bind, program-block
+     target; loud sorries: bind-to-instance-path, target-instance-list.
+  2. **let** (11.13) — was sorry; now real expression-macro
+     substitution. Lets stored on the pform Module, copied to a
+     NetScope table (`find_let` stops at the module boundary); a use
+     clones the body with formals→actual-clones and elaborates in the
+     use scope (cached per node, depth-guarded for recursion). Hooks in
+     PECallFunction/PEIdent test_width+elaborate_expr. Supports
+     default/named args, lets-calling-lets, selects on formals.
+  3. **timing checks** (clause 31) — were warn-and-drop (violations
+     never reported); now synthesized checker processes (parse-time,
+     like M8/M9). $setup/$hold/$recovery/$removal/$skew/$period/$width
+     and $setuphold/$recrem (paired, cloned limits) report violations
+     via $display + notifier toggle, ACTIVE with -gspecify (silent
+     without, matching path-delay opt-in). Loud sorries: $nochange,
+     $timeskew, $fullskew, edge-descriptor lists, timestamp/timecheck
+     conds.
+  4. **rare constructs pinned** — strengths/rare-nets, preprocessor
+     stringize/paste/nesting, const user functions, specify paths all
+     locked with permanent tests; trireg stays a loud sorry; config a
+     loud skip. Negative runner now accepts `sorry:` as a loud
+     rejection.
+- **Promotion evidence**: UVM **160/160** (zero no-check; 155 + 5 M13
+  tests); ivtest failure names byte-identical to baseline (the two
+  pow_ca_* under concurrent-sweep load are the documented ~24s load
+  flakes, PASS standalone); negative **21/21**; bundled VPI **79/79**
+  (unaffected). Session log:
+  session_logs/2026-07-16_m13_bind_let_specify_timing.md (ledger:
+  bind-to-instance/list, typed let ports + non-module-scope lets,
+  $nochange/$timeskew/$fullskew + edge-descriptors + tstamp conds,
+  config skip, trireg).
+- **NEXT FRONTIER: M14 (clause conformance matrix)**; then M15
+  (1800-2023 delta).
+
+## State as of 2026-07-15h (M12 CLOSED)
+
+- **M12 (VPI SystemVerilog object model) is CLOSED** on PR #76, four
+  increments in three commits:
+  1. **SV variables/containers/class members** — FIXED the
+     vpi_put_value crash on darray elements (unsized vector into
+     setarray); queues got full element access (__vpiQueueVar :
+     __vpiDarrayVar; vpiArrayType detected from the live object);
+     assoc arrays got vpiSize/vpiArrayType/key-ordered positional
+     iteration (vvp_assoc_base::peek_entry; element writes = loud
+     sorry); class variables got vpiMember iteration with stable
+     typed member handles (read AND write via the live object) and
+     dotted-path by-name descent (one level); vpiVariables includes
+     SV var types; value-change callbacks on string (every change)
+     and class/container vars (handle assignment) via a functor-
+     carried callback list; assert-happy defaults de-crashed.
+  2. **Scopes** — interface instances report vpiInterface (NetScope
+     is_interface → ivl_scope_is_interface → '.scope interface' →
+     vpiScopeInterface; vpip_module treats interface/program as
+     module-like); modports are vpiModport (603) objects iterable
+     from the interface scope; package-qualified
+     vpi_handle_by_name("pkg::item"); new ivl_target APIs in ivl.def.
+  3/4. **Covergroups** — vpi_iterate(vpiCovergroup(605), NULL) yields
+     per-type handles with live type-coverage reads (M11 registry).
+     Assertion VPI = recorded corner (no runtime assertion
+     identities in the synthesized-checker design).
+- **Promotion evidence**: bundled VPI suite **79/79** (3 new
+  gold-file regressions m12_sv_{objects,scopes,coverage} — CI runs
+  these via .github/test.sh); external ivtest VPI baseline-identical
+  (11 legacy PLI/TF fails unchanged); UVM **155/155** (zero
+  no-check); ivtest byte-identical (empty diff); negative 14/14.
+  Session log: session_logs/2026-07-15_m12_vpi_sv_object_model.md
+  (ledger: nested member descent, in-place mutation callbacks,
+  assoc element writes, modport directions, bit-select force,
+  cbForce/cbRelease, assertion VPI, covergroup drill-down,
+  free_object no-op).
+- **NEXT FRONTIER: M13 (bind, let, configs, specify, timing, rare
+  constructs)**; then M14 clause matrix, M15 1800-2023 delta.
+
+## State as of 2026-07-15g (M11 CLOSED)
+
+- **M11 (functional coverage) is CLOSED** on PR #76, four increments
+  in three commits:
+  1/2. **Bin semantics core + transitions** — metadata records became
+     (cp, prop, lo, hi, kind, tuple, item): same-(prop,tuple) records
+     AND (cross tuples), tuples OR (fixing the live silent miscompile
+     where multi-range bins {1,5} could NEVER hit). Arrayed bins
+     ([]/[N]), with-filters (item-substitution constant evaluator),
+     wildcard bins (x/z/? masks), default bins (counted, excluded
+     from %), ignore CARVE-OUT (values suppress the whole coverpoint
+     incl. crosses), illegal precedence + runtime error, iff guards
+     (%covgrp/sample gained has_guards), automatic bins
+     (auto_bin_max), transition bins (multi-step/multi-seq/range
+     steps, per-instance NFA masks on vvp_cobject), options captured
+     and applied (at_least/auto_bin_max/weight), get_inst_coverage =
+     weighted per-ITEM model (19.11; coverage_cross_test expectation
+     updated 75%→83.3% with pinned reasoning), ALL silent grammar
+     drops now loud sorries. +7 r/r conflicts in pre-existing benign
+     families (sweep-validated).
+  3/4. **binsof crosses + queries + report** — named cross bins with
+     binsof(cp[.bin])/intersect/&&/||/! evaluated per product tuple
+     (normal collect, ignore carve out, illegal error+precedence,
+     rest auto); type coverage (per-class merged counters,
+     get_coverage()), $get_coverage (registry mean; registered
+     real-returning sysfunc), start()/stop(), durable text report
+     via IVL_COVERAGE_REPORT=<file|->.
+  Fixed en route: LATENT pform teardown double-free (comma property
+  lists / typedef aliases share one data_type_t under owning
+  unique_ptrs; module-scope classes w/ covergroups crashed AFTER
+  writing output — verified pre-existing on the M10 compiler; fix:
+  release-not-delete at exit). Windows CI: new ivl_type_covgrp_*
+  APIs added to ivl.def (all three MSYS2 jobs failed the tgt-vvp
+  link — caught from PR webhook, fix pushed).
+- **Promotion evidence**: UVM **155/155** (zero no-check), ivtest
+  2559/2456/100 identical to baseline modulo the documented
+  pow_ca_signed flake (verified standalone PASS 24.1s), negative
+  14/14, battery 16/16. Session log:
+  session_logs/2026-07-15_m11_functional_coverage.md (ledger:
+  package/module-scope cg stubs loud, sampling events, with-function-
+  sample formals, non-property coverpoint exprs, guard forms, 2-state
+  sampling, UCDB, caps).
+- **NEXT FRONTIER: M12 (VPI SystemVerilog object model)** per the
+  milestone sequence; then M13 (bind/let/configs/specify), M14
+  clause matrix.
+
+## State as of 2026-07-15f (M10 CLOSED)
+
+- **M10 (DPI and open arrays) is CLOSED** on PR #76, four increments:
+  1. **libffi marshaling core** — exact per-argument ABI from a
+     compiler-emitted signature string (`[+][u]<letter>` tokens:
+     b/h/i/l ints by width, g svLogic scalar, r real, s string,
+     o open array); fixed the mixed int/real/string ABI break, the
+     8-arg cap, silent >32-bit truncation, AND a silent elision of
+     void DPI call statements (empty-pform-body optimization —
+     elaborate.cc now exempts DPI imports). Legacy non-libffi
+     fallback kept (uniform signatures, loud otherwise). `-lffi` +
+     `-DUSE_LIBFFI` wired like z3; libffi added to apt/brew/MSYS2 CI.
+  2. **Grammar** — import "DPI-C" task (pure task = hard error,
+     35.4), `c_name = function/task` alias binding, all export forms
+     loud sorries. Zero new bison conflicts (458/1103). DPI flag
+     moved PFunction→PTaskFunc; TASK scope plumbing in t-dll;
+     draw_task_definition synthesizes DPI task bodies.
+  3. **Output/inout args** — pointer marshaling with copy-back via
+     port-var stores + the standard call machinery; output ints
+     restricted to atom widths (8/16/32/64) or 1-bit; string outputs
+     const char**; svBit/svLogic 1-bit both directions w/ 4-state
+     encoding (sv_z=2, sv_x=3).
+  4. **Open arrays** — 1-D dynamic arrays of atoms/real as
+     svOpenArrayHandle sharing simulation storage (writes visible,
+     no copy-back); svdpi accessor subset exported from vvp
+     (rdynamic + vvp.def); new installed svdpi.h.
+- **Promotion evidence**: UVM **152/152** (zero no-check), ivtest
+  BYTE-IDENTICAL to baseline (2559/2457/99, empty name-diff),
+  negative 14/14, battery 10/10. Real-UVM check: uvm_pkg.sv compiles
+  rc=0 WITHOUT UVM_NO_DPI — regex/cmdline/polling imports genuinely
+  marshaled; only recorded sorries remain (4× uvm_hdl 1024-bit
+  svLogicVecVal, 2× export). Session log:
+  session_logs/2026-07-15_m10_dpi_open_arrays.md (recorded-corners
+  ledger: svLogicVecVal/svBitVecVal vectors, exports, non-atom open
+  arrays, chandle-as-longint, context no-op, fallback limits).
+- **NEXT FRONTIER: M11 (functional coverage)** per the milestone
+  sequence (M12 VPI object model after; M14 clause matrix becomes
+  tractable once those land).
+
+## State as of 2026-07-15e (M9 CLOSED)
+
+- **M9 (core SVA engine) is CLOSED** on PR #76. On top of increment 1
+  (token-pipeline checkers, sampled |->/real |=>, ##N chains,
+  trailing ##[m:n] windows, sampled-value functions, named no-arg
+  declarations, defaults, cover), M9-2 added: consecutive repetition
+  e[*N] / final e[*m:n] (new K_LBSTAR lexer token — '[*' vs
+  bit-selects needs lexing, both pinned); FIXED-delay sequence
+  antecedents via history-AND match detection (overlap-correct, to
+  128 cycles); not(seq); first_match transparency + parenthesized
+  sub-sequence atoms; unbounded ##[m:$] weak-eventually windows with
+  end-of-simulation pending reports (synthesized final process);
+  pass actions at all match sites; loud compile-progress sorries for
+  until/nexttime/eventually/intersect/within/throughout.
+- **Promotion evidence**: UVM **148/148** (zero no-check), ivtest
+  identical to baseline modulo the documented pow_ca_signed flake
+  (verified standalone PASS), negative 13/13, battery 16/16.
+  Tests: m9_sva_engine_test.sv, m9_sva_algebra_test.sv,
+  m9_sva_unbounded_test.sv. Session log:
+  session_logs/2026-07-15_m9_core_sva.md (includes the
+  recorded-corners ledger: parameterized declarations, sequence
+  and/or, goto/nonconsecutive repetition, local sequence variables,
+  .triggered/.matched, expect, checkers 17.x, exact-Preponed
+  blocking-race sampling).
+- **NEXT FRONTIER: M10 (DPI and open arrays) or M11 (functional
+  coverage)** per the milestone sequence; M14's clause matrix
+  becomes tractable once those land.
+
+## State as of 2026-07-15d (M9 increment 1 LANDED AND PROMOTED)
+
+- **PR #76** now carries the full M8 tail (promoted, M8 CLOSED) AND
+  M9 increment 1: the core SVA engine (G05/G06). Concurrent
+  assertions lower to synthesized token-pipeline checkers
+  (pform_make_assertion, pform.cc): sampled |->, REAL |=> (was
+  approximated as |->), ##N chains, trailing ##[m:n] windows,
+  overlap-correct attempts, disable iff + `default disable iff`
+  (now applied), default-clocking assertions, sampled-value
+  functions ($rose/$fell/$stable/$changed/$past[,N]) with true
+  clocked histories, named no-arg property/sequence declarations,
+  assume==assert, cover counting, restrict ignored per 16.8.
+  Honest sorries for the unsupported algebra.
+- **Promotion evidence**: UVM **146/146** (zero no-check), ivtest
+  BYTE-IDENTICAL to baseline (empty diff), negative 13/13.
+  Test: tests/m9_sva_engine_test.sv (24 checks, pass+fail
+  directions). Session log:
+  session_logs/2026-07-15_m9_core_sva.md.
+- **M9-2 frontier (next)**: repetition operators ([*N]/[->]/[=]),
+  sequence antecedents, non-final ranges, unbounded ##[m:$],
+  property operators (not/until/nexttime), throughout/intersect/
+  first_match, parameterized declarations, pass actions, exact
+  Preponed sampling for blocking-race corners.
+
+## State as of 2026-07-15c (M8 CLOSED; M9 is next)
+
+- **PR #75 MERGED** (M4 close-out + M8 increment 2 core). **PR #76**
+  (draft, branch restarted from merged main) carries the M8 tail:
+  T1 vif.cb.out buffered drives (%vif/tickchg, obuf/opend as
+  interface properties); T2 global clocking + $global_clock
+  (14.14, G59 FIXED); T3 clocking_decl_assign (signal-path form);
+  T4 scalar `x <= ##N v` via the $ivl_default_clock marker;
+  T5 diagnosed edge-qualified skews.
+- **Promotion evidence**: UVM **145/145** (zero no-check), ivtest
+  failure names identical to baseline modulo the documented
+  pow_ca_signed flake (verified standalone PASS), negative 13/13.
+  **M8 is CLOSED** — remaining corners all explicitly diagnosed,
+  never silent (edge-qualified skew application, real/string/array
+  clockvars, output decl_assign, vif output skew values,
+  force-vs-history).
+- **NEXT: M9 core SVA engine (G05/G06).** Recon done (see
+  session_logs/2026-07-15_m8_tail_closeout.md): current assert
+  property is a parse-time always-block lowering with LIVE
+  (unsampled) evaluation, |=> approximated as |->, no sequences,
+  $past stubbed. Increment-1 plan: (1) sampled evaluation via
+  %hist/on+%load/preponed with checking at %wait/observed; (2) real
+  |=> (1-cycle sampled antecedent pipeline); (3) ##N/##[m:n]
+  consequent delays; (4) $rose/$fell/$stable/$past on sampled
+  history; (5) named property/sequence declarations; (6) honest
+  sorries for the remaining sequence algebra.
+
+
 ## State as of 2026-07-15b (M4 FULLY CLOSED; starting M8 increment 2)
 
 - **M4 close-out commit 928440d** fixed all five recorded residuals in

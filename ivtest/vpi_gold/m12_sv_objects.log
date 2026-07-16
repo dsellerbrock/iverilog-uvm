@@ -1,0 +1,27 @@
+Compiling vpi/m12_sv_objects.c...
+Making m12_sv_objects.vpi from  m12_sv_objects.o...
+cb-string: ok
+i: type=612 size=32
+s: type=616 'hello'
+CB s -> 'rewritten'
+da: arraytype=2 size=3
+da[1]=33
+q: arraytype=4 size=2
+q[0]=10
+aa: arraytype=3 size=2
+aa elem 4
+aa elem 5
+obj: type=615
+member count type=612 size=32
+member name type=616 size=8
+member ratio type=47 size=1
+obj.count=7
+obj.ratio=2.50
+var aa type=116
+var da type=116
+var i type=612
+var obj type=615
+var q type=116
+var s type=616
+CB s -> 'changed'
+final: s='changed' da[1]=99 obj.count=-5 obj.name='from-vpi'

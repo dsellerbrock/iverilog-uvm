@@ -1,0 +1,9 @@
+Compiling vpi/m12_sv_scopes.c...
+Making m12_sv_scopes.vpi from  m12_sv_scopes.o...
+bus0: type=601 name=bus0
+modport: drv (type=603)
+modport: mon (type=603)
+bus0.data=42
+p1::pv=77 type=612
+package: $unit
+package: p1

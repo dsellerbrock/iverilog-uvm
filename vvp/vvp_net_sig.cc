@@ -765,6 +765,7 @@ void vvp_fun_signal_string_sa::recv_string(vvp_net_ptr_t ptr, const std::string&
 	    needs_init_ = false;
 
 	    ptr.ptr()->send_string(bit, 0);
+	    run_sv_vpi_callbacks();
       }
 }
 
@@ -1015,6 +1016,7 @@ void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 	    needs_init_ = false;
 
 	    ptr.ptr()->send_object(bit, 0);
+	    run_sv_vpi_callbacks();
       }
 }
 

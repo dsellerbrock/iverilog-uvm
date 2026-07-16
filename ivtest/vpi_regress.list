@@ -149,3 +149,8 @@ vpi_control		normal			vpi_control.c		vpi_control.log
 # version or if it uses something not implemented (NI) by other
 # versions of the program it will also need a version specific
 # line above.
+
+# M12: VPI SystemVerilog object model
+m12_sv_objects   normal,-g2012   m12_sv_objects.c  m12_sv_objects.log
+m12_sv_scopes    normal,-g2012   m12_sv_scopes.c   m12_sv_scopes.log
+m12_sv_coverage  normal,-g2012   m12_sv_coverage.c m12_sv_coverage.log

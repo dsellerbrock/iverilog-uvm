@@ -74,12 +74,19 @@ static struct sfunc_return_type* find_in_sys_func_list(const char*name)
       return 0;
 }
 
+/* M11: $get_coverage returns real (IEEE1800-2017 19.9/40.3). */
+static const struct sfunc_return_type get_coverage_return_type =
+    { "$get_coverage", IVL_VT_REAL, 1, false, false };
+
 const struct sfunc_return_type* lookup_sys_func(const char*name)
 {
 	/* First, try to find the name in the function list. */
       struct sfunc_return_type*def = find_in_sys_func_list(name);
       if (def)
 	    return def;
+
+      if (strcmp(name, "$get_coverage") == 0)
+	    return &get_coverage_return_type;
 
 	/* No luck finding, so return the default description. */
       return &default_return_type;

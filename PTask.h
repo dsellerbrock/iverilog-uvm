@@ -60,6 +60,15 @@ class PTaskFunc : public PScope, public PNamedItem {
       inline bool is_virtual_method() const { return is_virtual_; }
       inline void set_virtual_method(bool v) { is_virtual_ = v; }
 
+	// DPI import linkage (35.x): both functions and tasks can be
+	// DPI imports; the code generator synthesizes the marshaling
+	// body from the C name.
+      void set_dpi_import(const char*c_name) {
+	    is_dpi_import_ = true;
+	    dpi_c_name_ = c_name;
+      }
+      bool is_dpi_import() const { return is_dpi_import_; }
+      const std::string& dpi_c_name() const { return dpi_c_name_; }
 
       virtual void elaborate_sig(Design*des, NetScope*scope) const =0;
       virtual void elaborate(Design*des, NetScope*scope) const =0;
@@ -80,6 +89,8 @@ class PTaskFunc : public PScope, public PNamedItem {
     private:
       class_type_t*this_type_;
       bool is_virtual_ = false;
+      bool is_dpi_import_ = false;
+      std::string dpi_c_name_;
       std::vector<pform_tf_port_t>*ports_;
 };
 
@@ -166,19 +177,10 @@ class PFunction : public PTaskFunc {
 
       SymbolType symbol_type() const override;
 
-      void set_dpi_import(const char*c_name) {
-            is_dpi_import_ = true;
-            dpi_c_name_ = c_name;
-      }
-      bool is_dpi_import() const { return is_dpi_import_; }
-      const std::string& dpi_c_name() const { return dpi_c_name_; }
-
     private:
       data_type_t* return_type_;
       Statement *statement_;
       bool is_auto_;
-      bool is_dpi_import_ = false;
-      std::string dpi_c_name_;
 };
 
 // A let is like a simple function that is expanded in the compiler
@@ -202,6 +204,9 @@ class PLet : public PTaskFunc {
       void elaborate(Design*des, NetScope*scope) const override { (void)des; (void)scope; }
 
       void dump(std::ostream&, unsigned) const override;
+
+      const std::list<let_port_t*>* let_ports() const { return ports_; }
+      PExpr* let_expr() const { return expr_; }
 
     private:
       std::list<let_port_t*>*ports_;

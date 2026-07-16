@@ -28,15 +28,33 @@ class PEventStatement;
 class PExpr;
 
 /*
- * C2 (Phase 62f): captured concurrent-assertion property data so the
- * assert-property action can build an always-block check.
+ * M9: concurrent-assertion property capture (IEEE 1800-2017 clause 16).
+ *
+ * A sequence is represented as a linear chain of steps: each step is
+ * a boolean expression preceded by a cycle-delay range. delay_lo ==
+ * delay_hi encodes a fixed ##N; delay_lo < delay_hi encodes ##[m:n].
+ * delay_lo == -1 marks an unbounded ##[m:$] (diagnosed sorry at
+ * lowering); delay_lo == -2 marks a non-constant delay expression
+ * (also a sorry). The first step's delay is relative to the sequence
+ * start (0 for a plain leading boolean).
  */
+struct sva_seq_step_t {
+      long delay_lo = 0;    // -1: ##[m:$]; -2: non-constant; -3: an
+			    // unsupported repetition shape (diagnosed)
+      long delay_hi = 0;
+      long rep_tail = 0;    // e[*m:n] expands to [*m]; the final
+			    // expanded step carries n-m here. Valid
+			    // only in the last chain position
+			    // (match-existence equivalence).
+      PExpr* expr = nullptr;
+};
+
 struct sva_property_t {
-      PEventStatement* clk_evt;       // clocking event (may be null)
-      PExpr* disable_iff_expr;        // disable iff expr (may be null)
-      PExpr* antecedent;
-      PExpr* consequent;              // null => no implication
-      int op_type;                    // 0=plain, 1=|->, 2=|=>
+      PEventStatement* clk_evt = nullptr;   // clocking event (may be null)
+      PExpr* disable_iff_expr = nullptr;    // disable iff expr (may be null)
+      std::vector<sva_seq_step_t>* antecedent = nullptr;  // null for op 0
+      std::vector<sva_seq_step_t>* seq = nullptr;         // consequent / plain sequence
+      int op_type = 0;                      // 0=plain sequence, 1=|->, 2=|=>
 };
 
 /*

@@ -317,6 +317,50 @@ static value_callback*make_value_change_part(p_cb_data data)
  * does not already have them, create some callback functors to do the
  * actual value change detection.
  */
+/*
+ * M12: value-change callback storage for SystemVerilog variables
+ * (string/class/container vars), carried on the signal functor since
+ * those nets have no vvp_net_fil_t filter. The value payload is
+ * fetched through the callback's own object handle.
+ */
+void vvp_fun_signal_base::add_vpi_callback(value_callback*cb)
+{
+      cb->next = sv_vpi_callbacks_;
+      sv_vpi_callbacks_ = cb;
+}
+
+void vvp_fun_signal_base::run_sv_vpi_callbacks()
+{
+      value_callback*next = sv_vpi_callbacks_;
+      value_callback*prev = 0;
+
+      while (next) {
+	    value_callback*cur = next;
+	    next = dynamic_cast<value_callback*>(cur->next);
+
+	    if (cur->cb_data.cb_rtn != 0) {
+		  if (cur->test_value_callback_ready()) {
+			if (cur->cb_data.value
+			    && cur->cb_data.value->format != vpiSuppressVal
+			    && cur->cb_data.obj)
+			      cur->cb_data.obj->vpi_get_value(cur->cb_data.value);
+			callback_execute(cur);
+		  }
+		  prev = cur;
+
+	    } else if (prev == 0) {
+		  sv_vpi_callbacks_ = dynamic_cast<value_callback*>(cur->next);
+		  cur->next = 0;
+		  delete cur;
+
+	    } else {
+		  prev->next = next;
+		  cur->next = 0;
+		  delete cur;
+	    }
+      }
+}
+
 static value_callback* make_value_change(p_cb_data data)
 {
       if (!check_callback_time(data, true))
@@ -386,6 +430,29 @@ static value_callback* make_value_change(p_cb_data data)
 	      /* These are constant, so there are no value change
 		 lists to put them in. */
 	    break;
+
+	      /* M12: SystemVerilog variables — the callback list lives
+		 on the signal functor (no filter node exists). String
+		 writes fire on every value change; class/container
+		 vars fire on handle assignment (element/property
+		 mutation in place is a recorded corner). */
+	  case vpiStringVar:
+	  case vpiClassVar:
+	  case vpiArrayVar: {
+		__vpiBaseVar*var = dynamic_cast<__vpiBaseVar*>(data->obj);
+		vvp_fun_signal_base*fun = var
+		      ? dynamic_cast<vvp_fun_signal_base*>(var->get_net()->fun)
+		      : 0;
+		if (!fun) {
+		      fprintf(stderr, "make_value_change: sorry: cannot "
+			      "attach a value-change callback to '%s'.\n",
+			      vpi_get_str(vpiName, data->obj));
+		      delete obj;
+		      return 0;
+		}
+		fun->add_vpi_callback(obj);
+		break;
+	  }
 
 	  default:
 	    fprintf(stderr, "make_value_change: sorry: I cannot callback "

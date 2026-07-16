@@ -285,6 +285,8 @@ extern void compile_shiftr(char*label, long width, bool signed_flag,
 			   unsigned argc, struct symb_s*argv);
 
 extern void compile_timescale(long units, long precision);
+/* M12: modport declaration inside an interface scope. */
+extern void compile_modport_decl(char*name);
 
 extern void compile_vpi_symbol(const char*label, vpiHandle obj);
 extern void compile_vpi_lookup(vpiHandle *objref, char*label);
@@ -584,7 +586,10 @@ extern void compile_class_property(unsigned idx, char*nam, char*typ, uint64_t ar
 extern void compile_class_constraint(char*name, char*ir);
 extern void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 				     uint64_t lo, uint64_t hi,
-				     uint64_t kind = 0);
+				     uint64_t kind = 0, uint64_t tuple = 0,
+				     uint64_t item_idx = 0);
+extern void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
+				      uint64_t is_cross);
 extern void compile_class_done(void);
 
 #endif /* IVL_compile_H */

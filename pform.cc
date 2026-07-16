@@ -366,6 +366,7 @@ static list<set<perm_string> > conditional_block_names;
      always within an interface. */
 static PModport*pform_cur_modport = 0;
 static Module::PClocking*pform_cur_clocking = 0;
+static bool pform_cur_clocking_is_global = false;
 
 static NetNet::Type pform_default_nettype = NetNet::WIRE;
 
@@ -1798,6 +1799,10 @@ void pform_endmodule(const char*name, bool inside_celldefine,
       pform_cur_module.pop_front();
       perm_string mod_name = cur_module->mod_name();
 
+	/* M9: named property/sequence declarations and the default
+	   disable are module-scoped. */
+      pform_sva_module_done();
+
 	/* IEEE 1800-2017 14.12: a `default clocking <id>;` item must name
 	   a clocking block declared in this scope. (Declaration forms
 	   register the block themselves, so only the reference form can
@@ -2869,6 +2874,153 @@ void pform_make_modgates(const struct vlltype&loc,
       delete gates;
 }
 
+/*
+ * SystemVerilog bind directives (IEEE 1800-2017 23.11). A bind
+ * directive adds a module instantiation into a TARGET module (or
+ * interface) definition, so that every instance of the target
+ * elaborates the bound instance exactly as if it were written inside
+ * the target's body. Port connection expressions therefore resolve
+ * against the target's internal names, which is the point of bind:
+ * attaching checkers/monitors to a design without editing it.
+ *
+ * A bind may be parsed before its target module is defined (even in
+ * a different source file), so directives are collected in a pending
+ * list and applied by pform_apply_binds() once all files are parsed.
+ */
+struct pending_bind_t {
+      LineInfo li;
+      perm_string target;
+      perm_string type;
+      struct parmvalue_t*overrides;
+      std::vector<lgate>*gates;
+};
+static vector<pending_bind_t> pending_binds;
+
+void pform_bind_directive(const struct vlltype&loc,
+			  perm_string target,
+			  perm_string type,
+			  struct parmvalue_t*overrides,
+			  std::vector<lgate>*gates)
+{
+      pending_bind_t cur;
+      FILE_NAME(&cur.li, loc);
+      cur.target = target;
+      cur.type = type;
+      cur.overrides = overrides;
+      cur.gates = gates;
+      pending_binds.push_back(cur);
+}
+
+static void bind_apply_one(Module*scope, pending_bind_t&bind)
+{
+      for (unsigned idx = 0 ; idx < bind.gates->size() ; idx += 1) {
+	    lgate&cur = (*bind.gates)[idx];
+	    perm_string cur_name = lex_strings.make(cur.name);
+
+	      // Unlike an in-body instantiation, bind port expressions
+	      // must reference names that already exist inside the
+	      // target, so no implicit nets are declared here. The
+	      // expressions resolve as if written at the END of the
+	      // target body (the bind may even be in another file), so
+	      // relocate identifier lexical positions past the
+	      // declaration-before-use check.
+	    PGModule*gate;
+	    if (cur.parms_by_name) {
+		  unsigned npins = cur.parms_by_name->size();
+		  named_pexpr_t*pins = new named_pexpr_t[npins];
+		  std::copy(cur.parms_by_name->begin(),
+			    cur.parms_by_name->end(), pins);
+		  for (unsigned pdx = 0 ; pdx < npins ; pdx += 1) {
+			if (pins[pdx].parm)
+			      pins[pdx].parm->reloc_lexical_pos_bind();
+		  }
+		  gate = new PGModule(bind.type, cur_name, pins, npins);
+	    } else {
+		  list<PExpr*>*wires = cur.parms;
+		  if (wires && wires->size() == 1 && wires->front() == 0) {
+			  /* The parser reports an empty port list as one
+			     null parameter. Fix that. */
+			delete wires;
+			wires = new list<PExpr*>;
+		  }
+		  if (wires == 0)
+			wires = new list<PExpr*>;
+		  for (list<PExpr*>::iterator wdx = wires->begin()
+			     ; wdx != wires->end() ; ++wdx) {
+			if (*wdx) (*wdx)->reloc_lexical_pos_bind();
+		  }
+		  gate = new PGModule(bind.type, cur_name, wires);
+	    }
+	    gate->set_line(bind.li);
+	    gate->set_ranges(cur.ranges);
+
+	    if (cur.ranges) {
+		  for (list<pform_range_t>::iterator rdx = cur.ranges->begin()
+			     ; rdx != cur.ranges->end() ; ++rdx) {
+			if (rdx->first) rdx->first->reloc_lexical_pos_bind();
+			if (rdx->second) rdx->second->reloc_lexical_pos_bind();
+		  }
+	    }
+
+	    if (bind.overrides && bind.overrides->by_name) {
+		  unsigned cnt = bind.overrides->by_name->size();
+		  named_pexpr_t*byname = new named_pexpr_t[cnt];
+		  std::copy(bind.overrides->by_name->begin(),
+			    bind.overrides->by_name->end(), byname);
+		  for (unsigned pdx = 0 ; pdx < cnt ; pdx += 1) {
+			if (byname[pdx].parm)
+			      byname[pdx].parm->reloc_lexical_pos_bind();
+		  }
+		  gate->set_parameters(byname, cnt);
+	    } else if (bind.overrides && bind.overrides->by_order) {
+		  for (list<PExpr*>::iterator odx = bind.overrides->by_order->begin()
+			     ; odx != bind.overrides->by_order->end() ; ++odx) {
+			if (*odx) (*odx)->reloc_lexical_pos_bind();
+		  }
+		  gate->set_parameters(bind.overrides->by_order);
+	    }
+
+	    if (cur_name != "")
+		  add_local_symbol(scope, cur_name, gate);
+	    scope->add_gate(gate);
+      }
+}
+
+void pform_apply_binds(void)
+{
+      for (vector<pending_bind_t>::iterator cur = pending_binds.begin()
+		 ; cur != pending_binds.end() ; ++cur) {
+
+	    map<perm_string,Module*>::iterator match
+		  = pform_modules.find(cur->target);
+	    if (match == pform_modules.end()) {
+		  cerr << cur->li.get_fileline() << ": error: "
+		       << "bind target module/interface '" << cur->target
+		       << "' is not defined in this compilation." << endl;
+		  error_count += 1;
+		  continue;
+	    }
+	    if (cur->type == cur->target) {
+		  cerr << cur->li.get_fileline() << ": error: "
+		       << "bind of module '" << cur->type
+		       << "' into itself would recurse forever." << endl;
+		  error_count += 1;
+		  continue;
+	    }
+	    if (match->second->program_block) {
+		  cerr << cur->li.get_fileline() << ": error: "
+		       << "bind target '" << cur->target
+		       << "' is a program block; module instantiations "
+		       << "are not allowed in program blocks." << endl;
+		  error_count += 1;
+		  continue;
+	    }
+
+	    bind_apply_one(match->second, *cur);
+      }
+      pending_binds.clear();
+}
+
 static PGAssign* pform_make_pgassign(PExpr*lval, PExpr*rval,
 			      list<PExpr*>*del,
 			      struct str_pair_t str)
@@ -3554,22 +3706,39 @@ void pform_make_let(const struct vlltype&loc,
                     PExpr*expr)
 {
       LexicalScope*scope =  pform_peek_scope();
+      Module*mod = pform_cur_module.empty()? 0 : pform_cur_module.front();
 
-      cerr << loc.get_fileline() << ": sorry: let declarations ("
-           << name << ") are not currently supported." << endl;
-      error_count += 1;
+	// let declarations are supported directly in module/interface
+	// scope (the overwhelmingly common placement). Lets nested in
+	// generate blocks or other scopes are a recorded corner.
+      if (mod == 0 || pform_cur_generate != 0
+	  || scope != static_cast<LexicalScope*>(mod)) {
+	    cerr << loc.get_fileline() << ": sorry: let declaration `"
+		 << name << "' outside direct module/interface scope is "
+		 << "not supported yet; the let is dropped." << endl;
+	    error_count += 1;
+	    if (ports) {
+		  for (list<PLet::let_port_t*>::iterator cur = ports->begin()
+			     ; cur != ports->end() ; ++cur)
+			delete *cur;
+		  delete ports;
+	    }
+	    delete expr;
+	    return;
+      }
+
+      if (mod->lets.count(name)) {
+	    cerr << loc.get_fileline() << ": error: duplicate let "
+		 << "declaration `" << name << "' in module `"
+		 << mod->mod_name() << "'." << endl;
+	    error_count += 1;
+	    delete expr;
+	    return;
+      }
 
       PLet*res = new PLet(name, scope, ports, expr);
       FILE_NAME(res, loc);
-
-/*
-      cerr << "Found: ";
-      res->dump(cerr, 0);
-*/
-
-      delete res;
-      delete ports;
-      delete expr;
+      mod->lets[name] = res;
 }
 
 PLet::let_port_t* pform_make_let_port(data_type_t*data_type,
@@ -3894,7 +4063,8 @@ void pform_add_modport_port(const struct vlltype&loc,
 void pform_start_clocking_block(const struct vlltype&loc,
 				const char*name,
 				PEventStatement*event,
-				bool is_default)
+				bool is_default,
+				bool is_global)
 {
       Module*scope = pform_cur_module.front();
 	/* IEEE 1800-2017 14.3: clocking blocks may be declared in a
@@ -3914,12 +4084,24 @@ void pform_start_clocking_block(const struct vlltype&loc,
 	    return;
       }
 
+      if (is_global && !scope->global_clocking.nil()) {
+	    cerr << loc << ": error: multiple global clocking declarations "
+		 << "in `" << scope->mod_name() << "' (IEEE 1800-2017 14.14 "
+		 << "allows at most one per module or program)." << endl;
+	    error_count += 1;
+	    delete[] name;
+	    delete event;
+	    return;
+      }
+
 	/* An anonymous `default clocking @(event); ... endclocking`
 	   (14.12) is registered under an internal name that no source
-	   identifier can collide with. */
+	   identifier can collide with. Same for an anonymous global
+	   clocking (14.14). */
       perm_string use_name = name
 	    ? lex_strings.make(name)
-	    : perm_string::literal("$default_clocking");
+	    : (is_global ? perm_string::literal("$global_clocking")
+			 : perm_string::literal("$default_clocking"));
       if (scope->clocking_blocks.find(use_name) != scope->clocking_blocks.end()) {
 	    cerr << loc << ": error: duplicate declaration of clocking block `"
 		 << use_name << "'." << endl;
@@ -3930,10 +4112,13 @@ void pform_start_clocking_block(const struct vlltype&loc,
       }
 
       pform_cur_clocking = new Module::PClocking(use_name, event);
+      pform_cur_clocking_is_global = is_global;
       FILE_NAME(pform_cur_clocking, loc);
       scope->clocking_blocks[use_name] = pform_cur_clocking;
       if (is_default)
 	    scope->default_clocking = use_name;
+      if (is_global)
+	    scope->global_clocking = use_name;
 
       delete[] name;
 }
@@ -3963,18 +4148,33 @@ void pform_set_default_clocking_ref(const struct vlltype&loc,
 void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
 			       NetNet::PortType dir,
 			       const pform_clocking_skew_t*in_skew,
-			       const pform_clocking_skew_t*out_skew)
+			       const pform_clocking_skew_t*out_skew,
+			       PExpr*decl_assign)
 {
 	/* The enclosing block open may have failed (duplicate name) or
 	   been skipped on a parse error; drop the signal quietly — an
 	   error has already been reported. */
       if (pform_cur_clocking == 0) return;
 
+	/* IEEE 1800-2017 14.14: a global clocking declaration only
+	   specifies the clocking event; it shall not contain clocking
+	   items. */
+      if (pform_cur_clocking_is_global) {
+	    cerr << loc << ": error: global clocking blocks cannot "
+		 << "declare clocking signals (IEEE 1800-2017 14.14)."
+		 << endl;
+	    error_count += 1;
+	    return;
+      }
+
       if (!pform_cur_clocking->add_signal(name, dir, in_skew, out_skew)) {
 	    cerr << loc << ": error: duplicate signal `" << name
 		 << "' in clocking block `" << pform_cur_clocking->name << "'." << endl;
 	    error_count += 1;
+	    return;
       }
+      if (decl_assign)
+	    pform_cur_clocking->decl_assigns[name] = decl_assign;
 }
 
 void pform_set_clocking_default_skews(const struct vlltype&loc,
@@ -3989,6 +4189,7 @@ void pform_end_clocking_block(const struct vlltype&loc)
 {
       /* May be 0 if the block body had a parse error and was skipped */
       pform_cur_clocking = 0;
+      pform_cur_clocking_is_global = false;
 }
 
 /* IEEE 1800-2017 14.16: `cb.out <= ##N v`. Lower the cycle-delayed
@@ -4002,23 +4203,35 @@ Statement* pform_make_clocking_drive(const struct vlltype&loc,
 				     PExpr*lval, PExpr*cycles, PExpr*rval)
 {
       PEIdent*lid = dynamic_cast<PEIdent*>(lval);
-      if (!lid || lid->path().size() < 2) {
-	    cerr << loc << ": sorry: `<= ##N` cycle-delay drives are only "
-		 << "supported with a clocking-block l-value prefix "
-		 << "(cb.sig <= ##N v)." << endl;
+      if (!lid) {
+	    cerr << loc << ": sorry: `<= ##N` cycle-delay drives require "
+		 << "a simple l-value." << endl;
 	    error_count += 1;
 	    PAssignNB*deg = new PAssignNB(lval, rval);
 	    FILE_NAME(deg, loc);
 	    return deg;
       }
 
-      pform_name_t cb_path = lid->path().name;
-      cb_path.pop_back();
-      PEIdent*cb_ident = lid->path().package
-	    ? new PEIdent(lid->path().package, cb_path, lid->lexical_pos())
-	    : new PEIdent(cb_path, lid->lexical_pos());
-      FILE_NAME(cb_ident, loc);
-      PEEvent*ev = new PEEvent(PEEvent::ANYEDGE, cb_ident);
+	/* Scalar form `x <= ##N v` (14.16): cycles count the DEFAULT
+	   clocking block of the enclosing scope, resolved at
+	   elaboration via the $ivl_default_clock marker. */
+      PExpr*ev_expr;
+      if (lid->path().size() < 2) {
+	    std::list<named_pexpr_t> no_parms;
+	    PECallFunction*mark = new PECallFunction(
+		  perm_string::literal("$ivl_default_clock"), no_parms);
+	    FILE_NAME(mark, loc);
+	    ev_expr = mark;
+      } else {
+	    pform_name_t cb_path = lid->path().name;
+	    cb_path.pop_back();
+	    PEIdent*cb_ident = lid->path().package
+		  ? new PEIdent(lid->path().package, cb_path, lid->lexical_pos())
+		  : new PEIdent(cb_path, lid->lexical_pos());
+	    FILE_NAME(cb_ident, loc);
+	    ev_expr = cb_ident;
+      }
+      PEEvent*ev = new PEEvent(PEEvent::ANYEDGE, ev_expr);
       std::vector<PEEvent*> evs;
       evs.push_back(ev);
       PEventStatement*ectl = new PEventStatement(evs);
@@ -4027,6 +4240,1353 @@ Statement* pform_make_clocking_drive(const struct vlltype&loc,
       PAssignNB*tmp = new PAssignNB(lval, cycles, ectl, rval);
       FILE_NAME(tmp, loc);
       return tmp;
+}
+
+/*
+ * M9: core SVA engine (IEEE 1800-2017 clause 16, gaps G05/G06).
+ *
+ * Concurrent assertions lower at parse time to a synthesized clocked
+ * checker built on the token-pipeline construction: an attempt token
+ * is injected when the antecedent samples true and shifts through
+ * 1-bit pipeline registers, checked against each consequent step at
+ * its cycle offset. A single trailing ##[m:n] range is a parallel
+ * window register bank: the awaited boolean satisfies every attempt
+ * whose eligible window covers the current cycle; a token shifting
+ * past the window end fails. This is deterministic, handles
+ * overlapping attempts, and needs no runtime threads.
+ *
+ * Sampling model: step booleans are captured at the clocking event in
+ * the Active region, before the NBA updates of that edge land — equal
+ * to the Preponed (sampled) value for NBA-driven logic, which is the
+ * norm in RTL. Blocking-assignment races against the clock edge are
+ * outside this equivalence (they are races in event semantics too).
+ *
+ * Sampled-value functions ($rose/$fell/$stable/$changed/$past) inside
+ * property expressions get real clocked-history semantics via
+ * synthesized history registers (outside assertions they keep the
+ * legacy VPI stubs).
+ */
+
+static std::map<perm_string, sva_property_t*> sva_module_properties;
+static std::map<perm_string, std::vector<sva_seq_step_t>*> sva_module_sequences;
+static PExpr* sva_default_disable = nullptr;
+static unsigned sva_gensym_counter = 0;
+
+void pform_sva_set_default_disable(PExpr*expr)
+{
+      sva_default_disable = expr;
+}
+
+void pform_sva_sorry(const struct vlltype&loc, const char*what)
+{
+	/* Compile-progress: the assertion is dropped LOUDLY but the
+	   compile continues, so SVA-heavy code (checkers, tlul_assert
+	   shapes) still elaborates and runs its non-assertion logic.
+	   This mirrors the fork-wide sorry convention. */
+      cerr << loc << ": sorry: the SVA `" << what << "' operator is "
+	   << "not supported by the assertion engine; the assertion "
+	   << "is dropped (IEEE 1800-2017 clause 16)." << endl;
+}
+
+void pform_sva_declare_property(const struct vlltype&loc, const char*name,
+				sva_property_t*prop)
+{
+      perm_string use_name = lex_strings.make(name);
+      if (sva_module_properties.count(use_name)) {
+	    cerr << loc << ": error: duplicate property declaration `"
+		 << use_name << "'." << endl;
+	    error_count += 1;
+	    return;
+      }
+      sva_module_properties[use_name] = prop;
+}
+
+void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
+				std::vector<sva_seq_step_t>*steps)
+{
+      perm_string use_name = lex_strings.make(name);
+      if (sva_module_sequences.count(use_name)) {
+	    cerr << loc << ": error: duplicate sequence declaration `"
+		 << use_name << "'." << endl;
+	    error_count += 1;
+	    return;
+      }
+      sva_module_sequences[use_name] = steps;
+}
+
+void pform_sva_module_done(void)
+{
+      sva_module_properties.clear();
+      sva_module_sequences.clear();
+      sva_default_disable = nullptr;
+}
+
+/* Structural clone for the expression shapes that appear in disable
+   iff conditions and reusable named-property bodies. Returns nil for
+   shapes it cannot copy; callers fall back to consume-once. */
+static PExpr* sva_clone_expr_(PExpr*e)
+{
+      if (!e) return nullptr;
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    PEIdent*cp = id->path().package
+		  ? new PEIdent(id->path().package, id->path().name, id->lexical_pos())
+		  : new PEIdent(id->path().name, id->lexical_pos());
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PENumber*num = dynamic_cast<PENumber*>(e)) {
+	    PENumber*cp = new PENumber(new verinum(num->value()));
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
+	    PExpr*sub = sva_clone_expr_(un->get_expr());
+	    if (!sub) return nullptr;
+	    PEUnary*cp = new PEUnary(un->get_op(), sub);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
+	    PExpr*l = sva_clone_expr_(bin->get_left());
+	    PExpr*r = sva_clone_expr_(bin->get_right());
+	    if (!l || !r) { delete l; delete r; return nullptr; }
+	    PEBinary*cp;
+	    if (dynamic_cast<PEBComp*>(e))
+		  cp = new PEBComp(bin->get_op(), l, r);
+	    else if (dynamic_cast<PEBLogic*>(e))
+		  cp = new PEBLogic(bin->get_op(), l, r);
+	    else if (dynamic_cast<PEBShift*>(e))
+		  cp = new PEBShift(bin->get_op(), l, r);
+	    else if (typeid(*e) == typeid(PEBinary))
+		  cp = new PEBinary(bin->get_op(), l, r);
+	    else { delete l; delete r; return nullptr; }
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
+	    PExpr*c = sva_clone_expr_(ter->get_cond());
+	    PExpr*t = sva_clone_expr_(ter->get_true());
+	    PExpr*f = sva_clone_expr_(ter->get_false());
+	    if (!c || !t || !f) { delete c; delete t; delete f; return nullptr; }
+	    PETernary*cp = new PETernary(c, t, f);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      return nullptr;
+}
+
+static PEIdent* sva_id_(const struct vlltype&loc, perm_string name)
+{
+      PEIdent*id = new PEIdent(name, loc.lexical_pos);
+      FILE_NAME(id, loc);
+      return id;
+}
+
+static PExpr* sva_bit_(const struct vlltype&loc, int v)
+{
+      verinum*n = new verinum(v ? verinum::V1 : verinum::V0, 1);
+      PENumber*num = new PENumber(n);
+      FILE_NAME(num, loc);
+      return num;
+}
+
+static perm_string sva_make_reg_(const struct vlltype&loc, unsigned inst,
+				 const char*what, unsigned idx,
+				 bool wide32 = false)
+{
+      char buf[64];
+      snprintf(buf, sizeof buf, "_ivl_sva%u_%s%u", inst, what, idx);
+      perm_string name = lex_strings.make(buf);
+      PWire*w = pform_makewire(loc, pform_ident_t(name, loc.lexical_pos),
+			       NetNet::REG, nullptr);
+      if (wide32 && w) {
+	    std::list<pform_range_t> range;
+	    pform_range_t r;
+	    r.first = new PENumber(new verinum((uint64_t)31, 32));
+	    r.second = new PENumber(new verinum((uint64_t)0, 32));
+	    range.push_back(r);
+	    w->set_range(range, SR_NET);
+      }
+      return name;
+}
+
+static Statement* sva_assign_(const struct vlltype&loc, perm_string lv, PExpr*rv)
+{
+      PAssign*a = new PAssign(sva_id_(loc, lv), rv);
+      FILE_NAME(a, loc);
+      return a;
+}
+
+static Statement* sva_block_(const struct vlltype&loc,
+			     const std::vector<Statement*>&stmts)
+{
+      if (stmts.size() == 1) return stmts[0];
+      PBlock*blk = new PBlock(PBlock::BL_SEQ);
+      FILE_NAME(blk, loc);
+      std::vector<Statement*>copy = stmts;
+      blk->set_statement(copy);
+      return blk;
+}
+
+/*
+ * M13: timing checks (IEEE 1800-2017 clause 31) synthesize to plain
+ * checker processes at parse time, the same construction strategy as
+ * the M8 clocking and M9 SVA engines. Each check records the last
+ * occurrence time of its timestamp event in a synthesized realtime
+ * variable and, at the timecheck event, compares the elapsed time
+ * against the limit, reporting a violation with $display and toggling
+ * the notifier register when one is given. Checks are ACTIVE when
+ * specify blocks are enabled (-gspecify), consistent with path
+ * delays; without -gspecify every check gets a loud "ignored"
+ * warning instead of today's silence.
+ *
+ * Simultaneity fine points (31.4.1) and edge-descriptor event lists
+ * (edge [01, 10]) are recorded corners: the former is a scheduling
+ * race by construction, the latter gets a loud sorry.
+ */
+static unsigned tc_gensym_counter = 0;
+
+static perm_string tc_make_real_(const struct vlltype&loc, unsigned inst,
+				 const char*what)
+{
+      char buf[64];
+      snprintf(buf, sizeof buf, "_ivl_tc%u_%s", inst, what);
+      perm_string name = lex_strings.make(buf);
+
+      list<decl_assignment_t*>*decls = new list<decl_assignment_t*>;
+      decl_assignment_t*decl = new decl_assignment_t;
+      decl->name = pform_ident_t(name, loc.lexical_pos);
+      decl->expr.reset(new PEFNumber(new verireal(-1.0)));
+      decls->push_back(decl);
+
+      real_type_t*rtype = new real_type_t(real_type_t::REAL);
+      FILE_NAME(rtype, loc);
+      pform_make_var(loc, decls, rtype, nullptr, false);
+      return name;
+}
+
+static PExpr* tc_realtime_(const struct vlltype&loc)
+{
+      PECallFunction*rt
+	    = new PECallFunction(perm_string::literal("$realtime"));
+      FILE_NAME(rt, loc);
+      return rt;
+}
+
+static PExpr* tc_real_(const struct vlltype&loc, double v)
+{
+      PEFNumber*num = new PEFNumber(new verireal(v));
+      FILE_NAME(num, loc);
+      return num;
+}
+
+static PEIdent* tc_name_id_(const struct vlltype&loc, const pform_name_t&name)
+{
+      PEIdent*id = new PEIdent(name, loc.lexical_pos);
+      FILE_NAME(id, loc);
+      return id;
+}
+
+/* Build "@(edge sig) if (cond) <body>" as an always process. */
+static void tc_always_at_(const struct vlltype&loc,
+			  const PTimingCheck::event_t&ev,
+			  Statement*body)
+{
+      PEEvent::edge_t edge = PEEvent::ANYEDGE;
+      if (ev.posedge) edge = PEEvent::POSEDGE;
+      if (ev.negedge) edge = PEEvent::NEGEDGE;
+
+      if (ev.condition.get()) {
+	    PExpr*cond = sva_clone_expr_(ev.condition.get());
+	    if (cond == 0) {
+		  cerr << loc.get_fileline() << ": sorry: this timing check "
+		       << "&&& condition shape is not supported; the check "
+		       << "is dropped." << endl;
+		  error_count += 1;
+		  return;
+	    }
+	    PCondit*c = new PCondit(cond, body, nullptr);
+	    FILE_NAME(c, loc);
+	    body = c;
+      }
+
+      PEEvent*pe = new PEEvent(edge, tc_name_id_(loc, ev.name));
+      PEventStatement*es = new PEventStatement(pe);
+      FILE_NAME(es, loc);
+      es->set_statement(body);
+      pform_make_behavior(IVL_PR_ALWAYS, es, nullptr);
+}
+
+/* The violation action: $display diagnostic + optional notifier toggle. */
+static Statement* tc_violation_(const struct vlltype&loc,
+				const char*check_name,
+				const pform_name_t*notifier)
+{
+      char msg[256];
+      snprintf(msg, sizeof msg,
+	       "%s:%u: Timing violation: %s check in %%m at time %%0t",
+	       loc.text? loc.text : "", loc.first_line, check_name);
+      char*txt = new char[strlen(msg)+1];
+      strcpy(txt, msg);
+      PEString*fmt = new PEString(txt);
+      FILE_NAME(fmt, loc);
+
+      list<named_pexpr_t> parms;
+      named_pexpr_t p1;
+      p1.name = perm_string();
+      p1.parm = fmt;
+      parms.push_back(p1);
+      named_pexpr_t p2;
+      p2.name = perm_string();
+      p2.parm = tc_realtime_(loc);
+      parms.push_back(p2);
+
+      PCallTask*disp
+	    = new PCallTask(perm_string::literal("$display"), parms);
+      FILE_NAME(disp, loc);
+
+      if (notifier == 0)
+	    return disp;
+
+      PAssign*tog = new PAssign(tc_name_id_(loc, *notifier),
+				new PEUnary('~', tc_name_id_(loc, *notifier)));
+      FILE_NAME(tog, loc);
+
+      std::vector<Statement*> stmts;
+      stmts.push_back(disp);
+      stmts.push_back(tog);
+      return sva_block_(loc, stmts);
+}
+
+/* Common validity checks; false means the check was dropped loudly. */
+static bool tc_check_supported_(const struct vlltype&loc,
+				const char*check_name,
+				const PTimingCheck::event_t&ev)
+{
+      if (!ev.edges.empty()) {
+	    cerr << loc.get_fileline() << ": sorry: edge-descriptor event "
+		 << "lists (edge [...]) in " << check_name << " are not "
+		 << "supported; the check is dropped." << endl;
+	    error_count += 1;
+	    return false;
+      }
+      return true;
+}
+
+static bool tc_active_(const struct vlltype&loc, const char*check_name)
+{
+      (void)loc; (void)check_name;
+      if (pform_cur_module.empty()) return false;
+	// The specify block as a whole (path delays and timing checks
+	// alike) is inert without -gspecify; that is the established
+	// opt-in contract, so ignoring the check is silent here.
+      if (!gn_specify_blocks_flag) return false;
+      return true;
+}
+
+static void tc_pair_synth_(const struct vlltype&loc,
+			   const char*check_name,
+			   const PTimingCheck::event_t&stamp_ev,
+			   const PTimingCheck::event_t&check_ev,
+			   PExpr*limit,
+			   bool violation_if_greater,
+			   const pform_name_t*notifier)
+{
+      if (!tc_check_supported_(loc, check_name, stamp_ev)) return;
+      if (!tc_check_supported_(loc, check_name, check_ev)) return;
+
+      unsigned inst = tc_gensym_counter++;
+      perm_string stamp_var = tc_make_real_(loc, inst, "stamp");
+
+	// Timestamp process: stamp = $realtime.
+      PAssign*rec = new PAssign(sva_id_(loc, stamp_var), tc_realtime_(loc));
+      FILE_NAME(rec, loc);
+      tc_always_at_(loc, stamp_ev, rec);
+
+	// Timecheck process:
+	//   if (stamp >= 0 && (($realtime - stamp) <op> limit)) violation;
+      PExpr*guard = new PEBComp('G', sva_id_(loc, stamp_var),
+				tc_real_(loc, 0.0));
+      PExpr*delta = new PEBinary('-', tc_realtime_(loc),
+				 sva_id_(loc, stamp_var));
+      PExpr*cmp = new PEBComp(violation_if_greater? '>' : '<',
+			      delta, limit);
+      PExpr*cond = new PEBLogic('a', guard, cmp);
+      PCondit*chk = new PCondit(cond,
+				tc_violation_(loc, check_name, notifier),
+				nullptr);
+      FILE_NAME(chk, loc);
+      tc_always_at_(loc, check_ev, chk);
+}
+
+void pform_timing_check_pair(const struct vlltype&loc,
+			     const char*check_name,
+			     const PTimingCheck::event_t&stamp_ev,
+			     const PTimingCheck::event_t&check_ev,
+			     PExpr*limit,
+			     bool violation_if_greater,
+			     const pform_name_t*notifier)
+{
+      if (!tc_active_(loc, check_name)) return;
+      tc_pair_synth_(loc, check_name, stamp_ev, check_ev, limit,
+		     violation_if_greater, notifier);
+}
+
+/* $setuphold and $recrem are two paired checks in one directive. The
+   limit expressions are BORROWED (the caller passes the originals on
+   to PSetupHold/PRecRem for delayed-signal aliasing), so the
+   synthesized checkers use structural clones. */
+void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
+					 const char*base_name,
+					 const PTimingCheck::event_t&ref_ev,
+					 const PTimingCheck::event_t&data_ev,
+					 PExpr*lim1,
+					 PExpr*lim2,
+					 const pform_name_t*notifier)
+{
+      if (!tc_active_(loc, base_name)) return;
+
+      PExpr*lim1c = sva_clone_expr_(lim1);
+      PExpr*lim2c = sva_clone_expr_(lim2);
+      if (lim1c == 0 || lim2c == 0) {
+	    cerr << loc.get_fileline() << ": sorry: " << base_name
+		 << " limit expression shape is not supported by the "
+		 << "timing-check synthesizer; the violation checks are "
+		 << "dropped." << endl;
+	    error_count += 1;
+	    delete lim1c;
+	    delete lim2c;
+	    return;
+      }
+
+      char nam1[48], nam2[48];
+      if (strcmp(base_name, "$recrem") == 0) {
+	    snprintf(nam1, sizeof nam1, "%s(recovery)", base_name);
+	    snprintf(nam2, sizeof nam2, "%s(removal)", base_name);
+	      // recovery: stamp=async ref, check=clock data
+	    tc_pair_synth_(loc, nam1, ref_ev, data_ev, lim1c, false, notifier);
+	      // removal: stamp=clock data, check=async ref
+	    tc_pair_synth_(loc, nam2, data_ev, ref_ev, lim2c, false, notifier);
+      } else {
+	    snprintf(nam1, sizeof nam1, "%s(setup)", base_name);
+	    snprintf(nam2, sizeof nam2, "%s(hold)", base_name);
+	      // setup: stamp=data, check=clock ref
+	    tc_pair_synth_(loc, nam1, data_ev, ref_ev, lim1c, false, notifier);
+	      // hold: stamp=clock ref, check=data
+	    tc_pair_synth_(loc, nam2, ref_ev, data_ev, lim2c, false, notifier);
+      }
+}
+
+void pform_timing_check_period(const struct vlltype&loc,
+			       const PTimingCheck::event_t&ev,
+			       PExpr*limit,
+			       const pform_name_t*notifier)
+{
+      if (!tc_active_(loc, "$period")) return;
+      if (!tc_check_supported_(loc, "$period", ev)) return;
+
+      unsigned inst = tc_gensym_counter++;
+      perm_string last_var = tc_make_real_(loc, inst, "last");
+
+	// One process: check against the previous edge, then record.
+      PExpr*guard = new PEBComp('G', sva_id_(loc, last_var),
+				tc_real_(loc, 0.0));
+      PExpr*delta = new PEBinary('-', tc_realtime_(loc),
+				 sva_id_(loc, last_var));
+      PExpr*cmp = new PEBComp('<', delta, limit);
+      PExpr*cond = new PEBLogic('a', guard, cmp);
+      PCondit*chk = new PCondit(cond,
+				tc_violation_(loc, "$period", notifier),
+				nullptr);
+      FILE_NAME(chk, loc);
+      PAssign*rec = new PAssign(sva_id_(loc, last_var), tc_realtime_(loc));
+      FILE_NAME(rec, loc);
+
+      std::vector<Statement*> stmts;
+      stmts.push_back(chk);
+      stmts.push_back(rec);
+      tc_always_at_(loc, ev, sva_block_(loc, stmts));
+}
+
+void pform_timing_check_width(const struct vlltype&loc,
+			      const PTimingCheck::event_t&ev,
+			      PExpr*limit,
+			      PExpr*threshold,
+			      const pform_name_t*notifier)
+{
+      if (!tc_active_(loc, "$width")) return;
+      if (!tc_check_supported_(loc, "$width", ev)) return;
+      if (!ev.posedge && !ev.negedge) {
+	    cerr << loc.get_fileline() << ": error: $width requires an "
+		 << "edge-qualified reference event (posedge/negedge)."
+		 << endl;
+	    error_count += 1;
+	    return;
+      }
+
+      unsigned inst = tc_gensym_counter++;
+      perm_string stamp_var = tc_make_real_(loc, inst, "stamp");
+
+	// Record at the qualified edge.
+      PAssign*rec = new PAssign(sva_id_(loc, stamp_var), tc_realtime_(loc));
+      FILE_NAME(rec, loc);
+      tc_always_at_(loc, ev, rec);
+
+	// Check at the opposite edge: threshold < delta < limit.
+      PTimingCheck::event_t opp;
+      opp.name = ev.name;
+      opp.posedge = ev.negedge;
+      opp.negedge = ev.posedge;
+      if (ev.condition.get()) {
+	    PExpr*ccl = sva_clone_expr_(ev.condition.get());
+	    if (ccl == 0) {
+		  cerr << loc.get_fileline() << ": sorry: this timing check "
+		       << "&&& condition shape is not supported; the check "
+		       << "is dropped." << endl;
+		  error_count += 1;
+		  return;
+	    }
+	    opp.condition.reset(ccl);
+      }
+
+      PExpr*guard = new PEBComp('G', sva_id_(loc, stamp_var),
+				tc_real_(loc, 0.0));
+      PExpr*delta = new PEBinary('-', tc_realtime_(loc),
+				 sva_id_(loc, stamp_var));
+      PExpr*cmp = new PEBComp('<', delta, limit);
+      PExpr*cond = new PEBLogic('a', guard, cmp);
+      if (threshold) {
+	    PExpr*delta2 = new PEBinary('-', tc_realtime_(loc),
+					sva_id_(loc, stamp_var));
+	    PExpr*thr = new PEBComp('>', delta2, threshold);
+	    cond = new PEBLogic('a', cond, thr);
+      }
+      PCondit*chk = new PCondit(cond,
+				tc_violation_(loc, "$width", notifier),
+				nullptr);
+      FILE_NAME(chk, loc);
+      tc_always_at_(loc, opp, chk);
+}
+
+void pform_timing_check_sorry(const struct vlltype&loc,
+			      const char*check_name)
+{
+	// Silent when specify is disabled (see tc_active_); loud when
+	// the user asked for specify semantics but the check shape is
+	// not modeled.
+      if (!gn_specify_blocks_flag) return;
+      cerr << loc.get_fileline() << ": sorry: the " << check_name
+	   << " timing check is not supported yet; the check is dropped."
+	   << endl;
+      error_count += 1;
+}
+
+/* Rewrite sampled-value functions inside a property expression:
+   $rose/$fell/$stable/$changed/$past calls become references to
+   synthesized 1-cycle (or N-cycle) history registers. The argument
+   is captured once at the top of the checker (pre) and shifted into
+   the history at the bottom (post), so no subtree is shared. */
+static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
+				   unsigned inst, unsigned&hist_idx,
+				   std::vector<Statement*>&pre,
+				   std::vector<Statement*>&post,
+				   std::vector<Statement*>&init)
+{
+      if (!e) return e;
+
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    if (cf->path().name.size() == 1 && !cf->path().package) {
+		  const char*nm = peek_tail_name(cf->path().name).str();
+		  bool is_rose = !strcmp(nm, "$rose");
+		  bool is_fell = !strcmp(nm, "$fell");
+		  bool is_stbl = !strcmp(nm, "$stable");
+		  bool is_chgd = !strcmp(nm, "$changed");
+		  bool is_past = !strcmp(nm, "$past");
+		  if (is_rose || is_fell || is_stbl || is_chgd || is_past) {
+			const std::vector<named_pexpr_t>&parms = cf->get_parms();
+			if (parms.empty() || !parms[0].parm) {
+			      cerr << loc << ": error: " << nm
+				   << " requires an argument." << endl;
+			      error_count += 1;
+			      return e;
+			}
+			PExpr*arg = sva_rewrite_sampled_(loc, parms[0].parm,
+							 inst, hist_idx, pre, post, init);
+			long depth = 1;
+			if (is_past && parms.size() > 1 && parms[1].parm) {
+			      PENumber*dn = dynamic_cast<PENumber*>(parms[1].parm);
+			      if (!dn) {
+				    cerr << loc << ": sorry: $past depth must "
+					 << "be a literal constant here." << endl;
+				    error_count += 1;
+				    return e;
+			      }
+			      depth = dn->value().as_long();
+			      if (depth < 1) depth = 1;
+			}
+			  /* Capture the argument now... */
+			perm_string cur = sva_make_reg_(loc, inst, "smp", hist_idx++);
+			pre.push_back(sva_assign_(loc, cur, arg));
+			  /* ...and build the history chain, updated
+			     bottom-of-block in shift order. */
+			std::vector<perm_string> hist (depth);
+			for (long k = 0 ; k < depth ; k += 1) {
+			      hist[k] = sva_make_reg_(loc, inst, "hist", hist_idx++);
+				/* Deterministic first-cycle behavior:
+				   histories start at 0, so $stable
+				   compares against 0 rather than the
+				   strict-LRM x default (recorded). */
+			      init.push_back(sva_assign_(loc, hist[k],
+							 sva_bit_(loc, 0)));
+			}
+			for (long k = depth-1 ; k >= 1 ; k -= 1)
+			      post.push_back(sva_assign_(loc, hist[k],
+							 sva_id_(loc, hist[k-1])));
+			post.push_back(sva_assign_(loc, hist[0], sva_id_(loc, cur)));
+			perm_string old_reg = hist[depth-1];
+
+			if (is_past)
+			      return sva_id_(loc, old_reg);
+			if (is_rose) {
+			      PEUnary*np = new PEUnary('!', sva_id_(loc, old_reg));
+			      FILE_NAME(np, loc);
+			      PEBLogic*r = new PEBLogic('a', sva_id_(loc, cur), np);
+			      FILE_NAME(r, loc);
+			      return r;
+			}
+			if (is_fell) {
+			      PEUnary*nc = new PEUnary('!', sva_id_(loc, cur));
+			      FILE_NAME(nc, loc);
+			      PEBLogic*r = new PEBLogic('a', nc, sva_id_(loc, old_reg));
+			      FILE_NAME(r, loc);
+			      return r;
+			}
+			  /* $stable / $changed: case (in)equality on the
+			     sampled pair. */
+			PEBComp*r = new PEBComp(is_stbl ? 'E' : 'N',
+						sva_id_(loc, cur),
+						sva_id_(loc, old_reg));
+			FILE_NAME(r, loc);
+			return r;
+		  }
+	    }
+	    return e;
+      }
+
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
+	    PExpr*sub = sva_rewrite_sampled_(loc, un->get_expr(),
+					     inst, hist_idx, pre, post, init);
+	    if (sub == un->get_expr()) return e;
+	    PEUnary*cp = new PEUnary(un->get_op(), sub);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
+	    PExpr*l = sva_rewrite_sampled_(loc, bin->get_left(),
+					   inst, hist_idx, pre, post, init);
+	    PExpr*r = sva_rewrite_sampled_(loc, bin->get_right(),
+					   inst, hist_idx, pre, post, init);
+	    if (l == bin->get_left() && r == bin->get_right()) return e;
+	    PEBinary*cp;
+	    if (dynamic_cast<PEBComp*>(e))
+		  cp = new PEBComp(bin->get_op(), l, r);
+	    else if (dynamic_cast<PEBLogic*>(e))
+		  cp = new PEBLogic(bin->get_op(), l, r);
+	    else if (dynamic_cast<PEBShift*>(e))
+		  cp = new PEBShift(bin->get_op(), l, r);
+	    else
+		  cp = new PEBinary(bin->get_op(), l, r);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
+	    PExpr*c = sva_rewrite_sampled_(loc, ter->get_cond(),
+					   inst, hist_idx, pre, post, init);
+	    PExpr*t = sva_rewrite_sampled_(loc, ter->get_true(),
+					   inst, hist_idx, pre, post, init);
+	    PExpr*f = sva_rewrite_sampled_(loc, ter->get_false(),
+					   inst, hist_idx, pre, post, init);
+	    if (c == ter->get_cond() && t == ter->get_true()
+		&& f == ter->get_false()) return e;
+	    PETernary*cp = new PETernary(c, t, f);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      return e;
+}
+
+/* Substitute named sequence references: a step whose expression is a
+   bare identifier naming a declared sequence splices that sequence's
+   steps (first spliced delay adds the step's own delay). */
+static void sva_splice_sequences_(const struct vlltype&loc,
+				  std::vector<sva_seq_step_t>&steps)
+{
+      for (size_t i = 0 ; i < steps.size() ; ) {
+	    PEIdent*id = dynamic_cast<PEIdent*>(steps[i].expr);
+	    if (!id || id->path().package || id->path().name.size() != 1
+		|| !id->path().name.front().index.empty()) {
+		  i += 1;
+		  continue;
+	    }
+	    std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator seq_it =
+		  sva_module_sequences.find(id->path().name.front().name);
+	    if (seq_it == sva_module_sequences.end() || !seq_it->second) {
+		  i += 1;
+		  continue;
+	    }
+	    std::vector<sva_seq_step_t> body;
+	    for (size_t k = 0 ; k < seq_it->second->size() ; k += 1) {
+		  sva_seq_step_t st = (*seq_it->second)[k];
+		  PExpr*cp = sva_clone_expr_(st.expr);
+		  if (!cp) {
+			  /* consume-once: move the tree and drop the
+			     declaration so a second use is diagnosed */
+			cp = st.expr;
+			(*seq_it->second)[k].expr = nullptr;
+		  }
+		  if (!cp) {
+			cerr << loc << ": error: sequence `"
+			     << seq_it->first << "' was already "
+			     << "instantiated and its body cannot be "
+			     << "copied; declare it separately for each "
+			     << "use." << endl;
+			error_count += 1;
+			i += 1;
+			cp = sva_bit_(loc, 1);
+		  }
+		  st.expr = cp;
+		  if (k == 0) {
+			st.delay_lo += steps[i].delay_lo;
+			st.delay_hi += steps[i].delay_hi;
+		  }
+		  body.push_back(st);
+	    }
+	    steps.erase(steps.begin() + i);
+	    steps.insert(steps.begin() + i, body.begin(), body.end());
+	    i += body.size();
+      }
+}
+
+/* M9-2: consecutive repetition (IEEE 1800-2017 16.9.2). e[*N]
+   desugars to e ##1 e ... (N times); e[*m:n] expands to [*m] with a
+   rep_tail marker — in the FINAL chain position a length-k match
+   (m<=k<=n) exists iff the first m cycles match, so [*m] is
+   match-equivalent there; any other position is diagnosed at
+   lowering. Unsupported shapes (non-literal bounds, zero repetition,
+   uncopyable operands) mark the chain with delay_lo=-3 for a single
+   clear sorry. */
+std::vector<sva_seq_step_t>*
+pform_sva_repeat(const struct vlltype&loc,
+		 std::vector<sva_seq_step_t>*steps, PExpr*lo, PExpr*hi)
+{
+      PENumber*lon = dynamic_cast<PENumber*>(lo);
+      PENumber*hin = dynamic_cast<PENumber*>(hi);
+      long lov = lon ? lon->value().as_long() : -1;
+      long hiv = hi ? (hin ? hin->value().as_long() : -1) : lov;
+      delete lo;
+      delete hi;
+
+      if (!steps || steps->empty())
+	    return steps;
+      if (lov < 1 || hiv < lov || !lon || (hi && !hin)) {
+	    (*steps)[0].delay_lo = -3;
+	    return steps;
+      }
+
+	/* Clone the base list lov-1 times, concatenated with ##1. */
+      std::vector<sva_seq_step_t> base = *steps;
+      for (long r = 1 ; r < lov ; r += 1) {
+	    for (size_t k = 0 ; k < base.size() ; k += 1) {
+		  sva_seq_step_t st = base[k];
+		  st.expr = sva_clone_expr_(base[k].expr);
+		  if (!st.expr) {
+			(*steps)[0].delay_lo = -3;
+			return steps;
+		  }
+		  if (k == 0) {
+			st.delay_lo = 1;
+			st.delay_hi = 1;
+		  }
+		  st.rep_tail = 0;
+		  steps->push_back(st);
+	    }
+      }
+      steps->back().rep_tail = hiv - lov;
+      return steps;
+}
+
+/* Lower one concurrent assertion (assert/assume/cover property) to a
+   synthesized clocked checker. kind: 0=assert, 1=assume, 2=cover. */
+void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
+			  Statement*fail_stmt, Statement*pass_stmt, int kind)
+{
+      if (!prop || !prop->seq || prop->seq->empty()) {
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    return;
+      }
+
+	/* Named property instantiation: `assert property (p);` where p
+	   is a declared no-argument property of this module. */
+      if (prop->op_type == 0 && prop->seq->size() == 1
+	  && !prop->clk_evt && !prop->disable_iff_expr) {
+	    if (PEIdent*id = dynamic_cast<PEIdent*>((*prop->seq)[0].expr)) {
+		  if (!id->path().package && id->path().name.size() == 1
+		      && id->path().name.front().index.empty()) {
+			std::map<perm_string, sva_property_t*>::iterator pit =
+			      sva_module_properties.find(id->path().name.front().name);
+			if (pit != sva_module_properties.end() && pit->second) {
+			      sva_property_t*named = pit->second;
+			      pit->second = nullptr;  /* consume once */
+			      delete id;
+			      delete prop->seq;
+			      delete prop;
+			      pform_make_assertion(loc, named, fail_stmt,
+						   pass_stmt, kind);
+			      return;
+			}
+		  }
+	    }
+      }
+
+      sva_splice_sequences_(loc, *prop->seq);
+      if (prop->antecedent)
+	    sva_splice_sequences_(loc, *prop->antecedent);
+
+	/* Negated properties (op 3) and plain sequences (op 0) attempt
+	   every cycle. */
+      bool negated = (prop->op_type == 3);
+      if (kind == 2 && negated) {
+	    cerr << loc << ": sorry: `cover property (not ...)` is not "
+		 << "supported; the cover is dropped." << endl;
+	    error_count += 1;
+	    delete fail_stmt; delete pass_stmt;
+	    return;
+      }
+
+	/* Antecedent: op 0/3 check the sequence every cycle (constant
+	   true); op 1/2 accept a boolean or a FIXED-delay sequence
+	   antecedent (16.9.2): a chain match at offset P_a is the AND
+	   of each step boolean delayed by (P_a - D_j) cycles, built on
+	   the same history machinery as $past. Ranged or repetition-
+	   marked antecedent steps are diagnosed. */
+      PExpr*ante = nullptr;
+      long ante_span = 0;
+      if (prop->op_type == 0 || negated) {
+	    ante = sva_bit_(loc, 1);
+      } else if (prop->antecedent && prop->antecedent->size() == 1
+		 && (*prop->antecedent)[0].delay_lo == 0
+		 && (*prop->antecedent)[0].delay_hi == 0
+		 && (*prop->antecedent)[0].rep_tail == 0) {
+	    ante = (*prop->antecedent)[0].expr;
+      } else {
+	    bool ok = (prop->antecedent != nullptr);
+	    long pa = 0;
+	    if (ok) for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1) {
+		  const sva_seq_step_t&st = (*prop->antecedent)[j];
+		  if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
+		      || st.rep_tail != 0) {
+			ok = false;
+			break;
+		  }
+		  pa += st.delay_lo;
+	    }
+	    if (!ok || pa > 128) {
+		  cerr << loc << ": sorry: this assertion antecedent "
+		       << "shape is not supported (fixed-delay sequence "
+		       << "chains up to 128 cycles only); the assertion "
+		       << "is dropped." << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete pass_stmt;
+		  return;
+	    }
+	    ante_span = pa;
+      }
+
+	/* |=> is |-> with one extra leading cycle. */
+      std::vector<sva_seq_step_t>&seq = *prop->seq;
+      if (prop->op_type == 2) {
+	    seq[0].delay_lo += 1;
+	    seq[0].delay_hi += 1;
+      }
+
+	/* Validate the chain shape: constant bounded delays, at most
+	   one range, and only on the LAST step. */
+      long total = 0;
+      for (size_t j = 0 ; j < seq.size() ; j += 1) {
+	    if (seq[j].delay_hi == -1 && j + 1 != seq.size()) {
+		  cerr << loc << ": sorry: an unbounded ##[m:$] delay is "
+		       << "only supported as the final step of a "
+		       << "sequence; the assertion is dropped." << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete pass_stmt;
+		  return;
+	    }
+	    if (seq[j].delay_lo == -2) {
+		  cerr << loc << ": sorry: sequence cycle delays must be "
+		       << "literal constants; the assertion is dropped."
+		       << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete pass_stmt;
+		  return;
+	    }
+	    if (seq[j].delay_lo == -3) {
+		  cerr << loc << ": sorry: this repetition shape is not "
+		       << "supported (literal bounds >= 1 on copyable "
+		       << "operands only); the assertion is dropped."
+		       << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete pass_stmt;
+		  return;
+	    }
+	    if (seq[j].rep_tail != 0 && j + 1 != seq.size()) {
+		  cerr << loc << ": sorry: a [*m:n] range repetition is "
+		       << "only supported as the final element of a "
+		       << "sequence; the assertion is dropped." << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete pass_stmt;
+		  return;
+	    }
+	    if (seq[j].delay_lo != seq[j].delay_hi && j + 1 != seq.size()) {
+		  cerr << loc << ": sorry: a ##[m:n] range is only "
+		       << "supported as the final step of a sequence; "
+		       << "the assertion is dropped." << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete pass_stmt;
+		  return;
+	    }
+	    if (seq[j].delay_hi >= 0)
+		  total += seq[j].delay_hi;
+	    else
+		  total += seq[j].delay_lo;
+      }
+      if (total > 512) {
+	    cerr << loc << ": sorry: sequence spans more than 512 cycles; "
+		 << "the assertion is dropped." << endl;
+	    error_count += 1;
+	    delete fail_stmt; delete pass_stmt;
+	    return;
+      }
+
+      bool unbounded = seq.back().delay_hi == -1;
+      bool has_window = !unbounded
+	    && seq.back().delay_lo != seq.back().delay_hi;
+      size_t nfixed = seq.size() - ((has_window || unbounded) ? 1 : 0);
+	/* P = pipeline depth: cycle offset of the last FIXED step
+	   (or of the window entry point). */
+      long P = 0;
+      std::vector<long> offs (nfixed);
+      for (size_t j = 0 ; j < nfixed ; j += 1) {
+	    P += seq[j].delay_lo;
+	    offs[j] = P;
+      }
+      long win_m = (has_window || unbounded) ? seq.back().delay_lo : 0;
+      long win_n = has_window ? seq.back().delay_hi : 0;
+
+      unsigned inst = sva_gensym_counter++;
+      unsigned hist_idx = 0;
+      std::vector<Statement*> pre, post, init_zero;
+
+	/* Clock: explicit, else the module's default clocking. */
+      PEventStatement*clk = prop->clk_evt;
+      if (!clk) {
+	    Module*mod = pform_cur_module.empty() ? nullptr
+			 : pform_cur_module.front();
+	    if (!mod || mod->default_clocking.nil()) {
+		  cerr << loc << ": error: concurrent assertion has no "
+		       << "clocking event and no default clocking block "
+		       << "is declared (IEEE 1800-2017 16.14.6)." << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete pass_stmt;
+		  return;
+	    }
+	    std::list<named_pexpr_t> no_parms;
+	    PECallFunction*mark = new PECallFunction(
+		  perm_string::literal("$ivl_default_clock"), no_parms);
+	    FILE_NAME(mark, loc);
+	    PEEvent*ev = new PEEvent(PEEvent::ANYEDGE, mark);
+	    std::vector<PEEvent*> evs;
+	    evs.push_back(ev);
+	    clk = new PEventStatement(evs);
+	    FILE_NAME(clk, loc);
+      }
+
+	/* disable iff: own, else the module `default disable iff`
+	   (cloned so every assertion can use it). */
+      PExpr*disable = prop->disable_iff_expr;
+      if (!disable && sva_default_disable) {
+	    disable = sva_clone_expr_(sva_default_disable);
+	    if (!disable) {
+		  cerr << loc << ": sorry: the `default disable iff` "
+		       << "expression is too complex to copy; this "
+		       << "assertion runs without it." << endl;
+	    }
+      }
+
+	/* Rewrite sampled-value functions, then capture every step
+	   boolean (and the antecedent) into 1-bit sample registers at
+	   the top of the checker. */
+      if (ante) {
+	    ante = sva_rewrite_sampled_(loc, ante, inst, hist_idx, pre, post, init_zero);
+      } else {
+	      /* Fixed-delay sequence antecedent: match(now) is the AND
+		 of each step boolean delayed by (span - offset) cycles,
+		 via per-step capture + history chains. Zero-initialized
+		 histories keep startup quiet (AND of 0 terms is 0). */
+	    PExpr*conj = nullptr;
+	    long doff = 0;
+	    for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1) {
+		  sva_seq_step_t&ast = (*prop->antecedent)[j];
+		  doff += ast.delay_lo;
+		  long depth = ante_span - doff;
+		  PExpr*abe = sva_rewrite_sampled_(loc, ast.expr, inst,
+						   hist_idx, pre, post,
+						   init_zero);
+		  perm_string cap = sva_make_reg_(loc, inst, "ac", (unsigned)j);
+		  pre.push_back(sva_assign_(loc, cap, abe));
+		  init_zero.push_back(sva_assign_(loc, cap, sva_bit_(loc, 0)));
+		  PExpr*term;
+		  if (depth == 0) {
+			term = sva_id_(loc, cap);
+		  } else {
+			std::vector<perm_string> ahist (depth);
+			for (long k = 0 ; k < depth ; k += 1) {
+			      ahist[k] = sva_make_reg_(loc, inst, "ah", hist_idx++);
+			      init_zero.push_back(sva_assign_(loc, ahist[k],
+							      sva_bit_(loc, 0)));
+			}
+			for (long k = depth-1 ; k >= 1 ; k -= 1)
+			      post.push_back(sva_assign_(loc, ahist[k],
+							 sva_id_(loc, ahist[k-1])));
+			post.push_back(sva_assign_(loc, ahist[0], sva_id_(loc, cap)));
+			term = sva_id_(loc, ahist[depth-1]);
+		  }
+		  if (conj) {
+			PEBLogic*n2 = new PEBLogic('a', conj, term);
+			FILE_NAME(n2, loc);
+			conj = n2;
+		  } else {
+			conj = term;
+		  }
+	    }
+	    ante = conj;
+      }
+      perm_string r_ante = sva_make_reg_(loc, inst, "b", 999);
+      pre.push_back(sva_assign_(loc, r_ante, ante));
+      std::vector<perm_string> r_b (seq.size());
+      for (size_t j = 0 ; j < seq.size() ; j += 1) {
+	    PExpr*be = sva_rewrite_sampled_(loc, seq[j].expr, inst,
+					    hist_idx, pre, post, init_zero);
+	    r_b[j] = sva_make_reg_(loc, inst, "b", (unsigned)j);
+	    pre.push_back(sva_assign_(loc, r_b[j], be));
+      }
+
+	/* Pipeline, window, and bookkeeping registers. */
+      std::vector<perm_string> t_regs (P > 0 ? P : 0);
+      for (long p = 0 ; p < P ; p += 1) {
+	    t_regs[p] = sva_make_reg_(loc, inst, "t", (unsigned)(p+1));
+	    init_zero.push_back(sva_assign_(loc, t_regs[p], sva_bit_(loc, 0)));
+      }
+      long wregs_n = has_window ? win_n + 1 : (unbounded ? win_m : 0);
+      std::vector<perm_string> w_regs (wregs_n);
+      for (long q = 0 ; q < wregs_n ; q += 1) {
+	    w_regs[q] = sva_make_reg_(loc, inst, "w", (unsigned)q);
+	    init_zero.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
+      }
+      perm_string r_pend;
+      if (unbounded) {
+	    r_pend = sva_make_reg_(loc, inst, "pend", 0);
+	    init_zero.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
+      }
+      perm_string r_g = sva_make_reg_(loc, inst, "g", 0);
+      init_zero.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
+      perm_string r_f;
+      perm_string r_cnt;
+      if (kind == 2) {
+	    r_cnt = sva_make_reg_(loc, inst, "cnt", 0, true);
+	    init_zero.push_back(sva_assign_(loc, r_cnt,
+			new PENumber(new verinum((uint64_t)0, 32))));
+      } else {
+	    r_f = sva_make_reg_(loc, inst, "f", 0);
+	    init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+      }
+
+	/* The per-clock checker body. */
+      std::vector<Statement*> body;
+
+	/* g = antecedent sample; gate through the offset-0 steps. */
+      body.push_back(sva_assign_(loc, r_g, sva_id_(loc, r_ante)));
+      for (size_t j = 0 ; j < nfixed ; j += 1) {
+	    if (offs[j] != 0) continue;
+	      /* if (g && !b_j) begin [f=1;] g=0; end */
+	    PEUnary*nb = new PEUnary('!', sva_id_(loc, r_b[j]));
+	    FILE_NAME(nb, loc);
+	    PEBLogic*cond = new PEBLogic('a', sva_id_(loc, r_g), nb);
+	    FILE_NAME(cond, loc);
+	    std::vector<Statement*> hit;
+	    if (kind != 2 && !negated)
+		  hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
+	    hit.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
+	    PCondit*c = new PCondit(cond, sva_block_(loc, hit), nullptr);
+	    FILE_NAME(c, loc);
+	    body.push_back(c);
+      }
+
+	/* Checks at offsets >= 1 run against the PRE-shift pipeline:
+	   a token in t_p before this cycle's shift was injected p
+	   cycles ago, exactly the age offset-p steps test. */
+      for (size_t j = 0 ; j < nfixed ; j += 1) {
+	    if (offs[j] == 0) continue;
+	    perm_string treg = t_regs[offs[j]-1];
+	    PEUnary*nb = new PEUnary('!', sva_id_(loc, r_b[j]));
+	    FILE_NAME(nb, loc);
+	    PEBLogic*cond = new PEBLogic('a', sva_id_(loc, treg), nb);
+	    FILE_NAME(cond, loc);
+	    std::vector<Statement*> hit;
+	    if (kind != 2 && !negated)
+		  hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
+	    hit.push_back(sva_assign_(loc, treg, sva_bit_(loc, 0)));
+	    PCondit*c = new PCondit(cond, sva_block_(loc, hit), nullptr);
+	    FILE_NAME(c, loc);
+	    body.push_back(c);
+      }
+
+      if (has_window) {
+	      /* Window updates also use the pre-shift t_P: a token
+		 completing the fixed prefix (age P, checks passed)
+		 enters the window at age 0 THIS cycle. */
+	    for (long q = win_n ; q >= 1 ; q -= 1)
+		  body.push_back(sva_assign_(loc, w_regs[q],
+					     sva_id_(loc, w_regs[q-1])));
+	    PExpr*enter = (P == 0) ? (PExpr*)sva_id_(loc, r_g)
+				   : (PExpr*)sva_id_(loc, t_regs[P-1]);
+	    body.push_back(sva_assign_(loc, w_regs[0], enter));
+
+	      /* On the awaited boolean: satisfy every eligible
+		 attempt (positions m..n); for cover, count them.
+		 Otherwise an attempt at position n has failed. */
+	    perm_string bw = r_b[seq.size()-1];
+	      /* anyW: is any attempt in the eligible window? */
+	    PExpr*anyw = nullptr;
+	    for (long q = win_m ; q <= win_n ; q += 1) {
+		  if (anyw) {
+			PEBLogic*n2 = new PEBLogic('o', anyw,
+						   sva_id_(loc, w_regs[q]));
+			FILE_NAME(n2, loc);
+			anyw = n2;
+		  } else {
+			anyw = sva_id_(loc, w_regs[q]);
+		  }
+	    }
+	    std::vector<Statement*> sat;
+	    if (negated) {
+		    /* A match under `not` is the failure. */
+		  PCondit*nm = new PCondit(anyw,
+			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+		  FILE_NAME(nm, loc);
+		  sat.push_back(nm);
+		  anyw = nullptr;
+	    } else if (pass_stmt && kind != 2) {
+		  PCondit*pm = new PCondit(anyw, pass_stmt, nullptr);
+		  FILE_NAME(pm, loc);
+		  sat.push_back(pm);
+		  pass_stmt = nullptr;
+		  anyw = nullptr;
+	    }
+	    for (long q = win_m ; q <= win_n ; q += 1) {
+		  if (kind == 2) {
+			PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt),
+						    sva_id_(loc, w_regs[q]));
+			FILE_NAME(add, loc);
+			sat.push_back(sva_assign_(loc, r_cnt, add));
+		  }
+		  sat.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
+	    }
+	    std::vector<Statement*> miss;
+	    if (kind != 2 && !negated) {
+		  std::vector<Statement*> mhit;
+		  mhit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
+		  mhit.push_back(sva_assign_(loc, w_regs[win_n], sva_bit_(loc, 0)));
+		  PCondit*mc = new PCondit(sva_id_(loc, w_regs[win_n]),
+					   sva_block_(loc, mhit), nullptr);
+		  FILE_NAME(mc, loc);
+		  miss.push_back(mc);
+	    }
+	    PCondit*wc = new PCondit(sva_id_(loc, bw), sva_block_(loc, sat),
+				     miss.empty() ? nullptr
+						  : sva_block_(loc, miss));
+	    FILE_NAME(wc, loc);
+	    body.push_back(wc);
+      } else if (unbounded) {
+	      /* Unbounded final window ##[m:$] — weak eventually
+		 (16.9.2): an obligation can never fail in finite
+		 time; it matures after m cycles and then waits. The
+		 awaited boolean satisfies every mature obligation.
+		 A final process reports obligations still pending at
+		 end of simulation. */
+	    perm_string bw = r_b[seq.size()-1];
+	    PExpr*enter = (P == 0) ? (PExpr*)sva_id_(loc, r_g)
+				   : (PExpr*)sva_id_(loc, t_regs[P-1]);
+	      /* mature = the oldest immature slot (pre-shift), or the
+		 entering token itself when m == 0. */
+	    PExpr*mature = (win_m == 0) ? enter
+			 : (PExpr*)sva_id_(loc, w_regs[win_m-1]);
+	    perm_string r_mat = sva_make_reg_(loc, inst, "mat", 0);
+	    init_zero.push_back(sva_assign_(loc, r_mat, sva_bit_(loc, 0)));
+	    body.push_back(sva_assign_(loc, r_mat, mature));
+	      /* maturity shift + entry */
+	    for (long q = win_m-1 ; q >= 1 ; q -= 1)
+		  body.push_back(sva_assign_(loc, w_regs[q],
+					     sva_id_(loc, w_regs[q-1])));
+	    if (win_m >= 1)
+		  body.push_back(sva_assign_(loc, w_regs[0],
+			(P == 0) ? (PExpr*)sva_id_(loc, r_g)
+				 : (PExpr*)sva_id_(loc, t_regs[P-1])));
+	      /* eligible = pend || mature */
+	    PEBLogic*elig = new PEBLogic('o', sva_id_(loc, r_pend),
+					 sva_id_(loc, r_mat));
+	    FILE_NAME(elig, loc);
+	    std::vector<Statement*> sat;
+	    if (negated) {
+		  PCondit*nm = new PCondit(elig,
+			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+		  FILE_NAME(nm, loc);
+		  sat.push_back(nm);
+	    } else if (kind == 2) {
+		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt), elig);
+		  FILE_NAME(add, loc);
+		  sat.push_back(sva_assign_(loc, r_cnt, add));
+	    } else if (pass_stmt) {
+		  PCondit*pm = new PCondit(elig, pass_stmt, nullptr);
+		  FILE_NAME(pm, loc);
+		  sat.push_back(pm);
+		  pass_stmt = nullptr;
+	    }
+	    sat.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
+	    std::vector<Statement*> miss;
+	    PEBLogic*acc = new PEBLogic('o', sva_id_(loc, r_pend),
+					sva_id_(loc, r_mat));
+	    FILE_NAME(acc, loc);
+	    miss.push_back(sva_assign_(loc, r_pend, acc));
+	    PCondit*wc = new PCondit(sva_id_(loc, bw),
+				     sva_block_(loc, sat),
+				     sva_block_(loc, miss));
+	    FILE_NAME(wc, loc);
+	    body.push_back(wc);
+
+	      /* End-of-simulation pending report. */
+	    if (kind != 2 && !negated) {
+		  PExpr*outst = sva_id_(loc, r_pend);
+		  for (long q = 0 ; q < win_m ; q += 1) {
+			PEBLogic*n2 = new PEBLogic('o', outst,
+						   sva_id_(loc, w_regs[q]));
+			FILE_NAME(n2, loc);
+			outst = n2;
+		  }
+		  std::list<named_pexpr_t> dargs;
+		  named_pexpr_t darg;
+		  darg.parm = new PEString(strdup(
+			"SVA: unbounded ##[m:$] obligation still pending "
+			"at end of simulation"));
+		  dargs.push_back(darg);
+		  PCallTask*warn = new PCallTask(
+			lex_strings.make("$display"), dargs);
+		  FILE_NAME(warn, loc);
+		  PCondit*fc = new PCondit(outst, warn, nullptr);
+		  FILE_NAME(fc, loc);
+		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
+		  FILE_NAME(fp, loc);
+	    }
+      } else if (kind == 2 || negated || pass_stmt) {
+	      /* Fixed-final match: the token that survived the final
+		 step (pre-shift age P, checks already applied). */
+	    PExpr*match = (P == 0) ? (PExpr*)sva_id_(loc, r_g)
+				   : (PExpr*)sva_id_(loc, t_regs[P-1]);
+	    if (kind == 2) {
+		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt), match);
+		  FILE_NAME(add, loc);
+		  body.push_back(sva_assign_(loc, r_cnt, add));
+	    } else if (negated) {
+		  PCondit*nm = new PCondit(match,
+			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+		  FILE_NAME(nm, loc);
+		  body.push_back(nm);
+	    } else {
+		  PCondit*pm = new PCondit(match, pass_stmt, nullptr);
+		  FILE_NAME(pm, loc);
+		  body.push_back(pm);
+		  pass_stmt = nullptr;
+	    }
+      }
+
+	/* Shift the token pipeline (descending) and inject this
+	   cycle's attempt — after all age-based checks. */
+      for (long p = P ; p >= 2 ; p -= 1)
+	    body.push_back(sva_assign_(loc, t_regs[p-1],
+				       sva_id_(loc, t_regs[p-2])));
+      if (P >= 1)
+	    body.push_back(sva_assign_(loc, t_regs[0], sva_id_(loc, r_g)));
+
+	/* Fail dispatch (assert/assume). */
+      if (kind != 2) {
+	    Statement*action = fail_stmt;
+	    if (!action) {
+		  std::list<named_pexpr_t> no_args;
+		  PCallTask*err = new PCallTask(
+			lex_strings.make("$error"), no_args);
+		  FILE_NAME(err, loc);
+		  action = err;
+	    }
+	    std::vector<Statement*> hit;
+	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+	    hit.push_back(action);
+	    PCondit*fc = new PCondit(sva_id_(loc, r_f),
+				     sva_block_(loc, hit), nullptr);
+	    FILE_NAME(fc, loc);
+	    body.push_back(fc);
+      } else {
+	    delete fail_stmt;
+      }
+	/* Any pass action not consumed by a match site above (cover,
+	   negated) is dropped. */
+      delete pass_stmt;
+
+	/* Assemble: pre-captures; disable guard around the token
+	   machinery; history updates. */
+      std::vector<Statement*> full = pre;
+      Statement*core = sva_block_(loc, body);
+      if (disable) {
+	    std::vector<Statement*> clr;
+	    for (long p = 0 ; p < P ; p += 1)
+		  clr.push_back(sva_assign_(loc, t_regs[p], sva_bit_(loc, 0)));
+	    for (long q = 0 ; q < wregs_n ; q += 1)
+		  clr.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
+	    if (unbounded)
+		  clr.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
+	    clr.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
+	    if (kind != 2)
+		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+	    PCondit*dc = new PCondit(disable, sva_block_(loc, clr), core);
+	    FILE_NAME(dc, loc);
+	    full.push_back(dc);
+      } else {
+	    full.push_back(core);
+      }
+      for (size_t k = 0 ; k < post.size() ; k += 1)
+	    full.push_back(post[k]);
+
+      clk->set_statement(sva_block_(loc, full));
+      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
+      FILE_NAME(pp, loc);
+
+	/* Zero-initialize the synthesized state. */
+      PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
+					sva_block_(loc, init_zero), nullptr);
+      FILE_NAME(ip, loc);
+
+      delete prop->antecedent;
+      delete prop->seq;
+      delete prop;
 }
 
 bool pform_requires_sv(const struct vlltype&loc, const char *feature)
@@ -4179,10 +5739,20 @@ int pform_parse(const char*path)
       return error_count;
 }
 
-void pform_finish()
+int pform_finish()
 {
+	// Any errors counted here were already reported by pform_parse
+	// for their own file; count only what the finish steps add.
+      error_count = 0;
+
       // Wait until all parsing is done and all symbols in the unit scope are
       // known before importing possible imports.
       for (auto unit : pform_units)
 	    pform_check_possible_imports(unit);
+
+      // Apply collected SystemVerilog bind directives now that every
+      // target module has been parsed.
+      pform_apply_binds();
+
+      return error_count;
 }

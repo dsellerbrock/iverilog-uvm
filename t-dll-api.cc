@@ -2255,6 +2255,26 @@ extern "C" unsigned ivl_scope_program(ivl_scope_t net)
       return net->is_program;
 }
 
+extern "C" unsigned ivl_scope_is_interface(ivl_scope_t net)
+{
+      assert(net);
+      return net->is_interface;
+}
+
+extern "C" unsigned ivl_scope_modports(ivl_scope_t net)
+{
+      assert(net);
+      return net->modport_names.size();
+}
+
+extern "C" const char* ivl_scope_modport_name(ivl_scope_t net, unsigned idx)
+{
+      assert(net);
+      if (idx >= net->modport_names.size())
+	    return 0;
+      return net->modport_names[idx].str();
+}
+
 extern "C" int ivl_scope_is_dpi_import(ivl_scope_t net)
 {
       assert(net);
@@ -3575,6 +3595,54 @@ extern "C" unsigned ivl_type_covgrp_bin_kind(ivl_type_t net, int idx)
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
       if (class_type && idx >= 0)
 	    return class_type->covgrp_bin((size_t)idx).kind;
+      return 0;
+}
+
+extern "C" unsigned ivl_type_covgrp_bin_tuple(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_bin((size_t)idx).tuple;
+      return 0;
+}
+
+extern "C" unsigned ivl_type_covgrp_bin_item(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_bin((size_t)idx).item_idx;
+      return 0;
+}
+
+extern "C" int ivl_type_covgrp_items(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type)
+	    return (int)class_type->covgrp_item_count();
+      return 0;
+}
+
+extern "C" unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_item((size_t)idx).at_least;
+      return 1;
+}
+
+extern "C" unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_item((size_t)idx).weight;
+      return 1;
+}
+
+extern "C" int ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_item((size_t)idx).is_cross ? 1 : 0;
       return 0;
 }
 

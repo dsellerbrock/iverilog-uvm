@@ -1907,6 +1907,10 @@ extern unsigned ivl_scope_is_auto(ivl_scope_t net);
      (IEEE 1800-2017 clause 24); program processes schedule in the
      Reactive region set. */
 extern unsigned ivl_scope_program(ivl_scope_t net);
+/* M12: interface scopes and their modport names (VPI object model). */
+extern unsigned ivl_scope_is_interface(ivl_scope_t net);
+extern unsigned ivl_scope_modports(ivl_scope_t net);
+extern const char* ivl_scope_modport_name(ivl_scope_t net, unsigned idx);
 extern unsigned ivl_scope_is_cell(ivl_scope_t net);
 extern unsigned ivl_scope_lineno(ivl_scope_t net);
 extern unsigned     ivl_scope_logs(ivl_scope_t net);
@@ -2457,6 +2461,15 @@ extern uint64_t ivl_type_covgrp_bin_lo(ivl_type_t net, int idx);
 extern uint64_t ivl_type_covgrp_bin_hi(ivl_type_t net, int idx);
 /* I1 (Phase 62o): 0=normal counted bin, 1=ignore_bin (excluded), 2=illegal_bin (errors). */
 extern unsigned ivl_type_covgrp_bin_kind(ivl_type_t net, int idx);
+/* M11: tuple (AND-group id within a prop; tuples OR) and coverage
+ * item id (coverpoint or cross) of a bin record, plus the per-item
+ * option table (at_least/weight, cross flag). */
+extern unsigned ivl_type_covgrp_bin_tuple(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_bin_item(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_items(ivl_type_t net);
+extern unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx);
 
 
 #if defined(__MINGW32__) || defined (__CYGWIN__)

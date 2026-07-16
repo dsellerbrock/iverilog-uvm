@@ -33,6 +33,7 @@ class Design;
 class Module;
 class LexicalScope;
 class NetNet;
+class PLet;
 class NetExpr;
 class NetScope;
 class PPackage;
@@ -77,6 +78,15 @@ class PExpr : public LineInfo {
         // This method tests whether the expression contains any
         // references to automatically allocated variables.
       virtual bool has_aa_term(Design*des, NetScope*scope) const;
+
+	// SystemVerilog bind directives (IEEE 1800-2017 23.11) insert
+	// their port/parameter expressions into the TARGET module, where
+	// they must resolve as if written at the end of the target's
+	// body. This method recursively resets identifier lexical
+	// positions to end-of-scope so the declaration-before-use check
+	// does not reject target names declared "after" the directive's
+	// own parse position (e.g. binds in a different source file).
+      virtual void reloc_lexical_pos_bind();
 
 	// This method tests the type and width that the expression wants
 	// to be. It should be called before elaborating an expression to
@@ -253,12 +263,15 @@ class PEConcat : public PExpr {
       explicit PEConcat(const std::list<PExpr*>&p, PExpr*r =0);
       ~PEConcat() override;
 
+      virtual void reloc_lexical_pos_bind() override;
+
       bool is_empty_concat() const { return parms_.empty() && repeat_ == 0; }
 
       // Read-only operand access for the streaming-concatenation
       // lowering (a multi-operand stream is parsed as a PEConcat).
       const std::vector<PExpr*>& stream_parms() const { return parms_; }
       bool has_repeat() const { return repeat_ != 0; }
+      PExpr* repeat_expr() const { return repeat_; }
 
       virtual void dump(std::ostream&) const override;
 
@@ -416,6 +429,8 @@ class PEIdent : public PExpr {
 
       unsigned lexical_pos() const { return lexical_pos_; }
 
+      virtual void reloc_lexical_pos_bind() override;
+
       // I5 (Phase 62m): when path was parsed from `Class#(args)::var`,
       // these are the leading type arguments needed to identify the
       // parameterized-class specialization.  Without this, the
@@ -429,6 +444,11 @@ class PEIdent : public PExpr {
     private:
       pform_scoped_name_t path_;
       unsigned lexical_pos_;
+
+	// M13: cached let-expansion for a bare let reference.
+      mutable PExpr*let_subst_ = nullptr;
+      mutable bool let_subst_tried_ = false;
+      PExpr* let_substitution_(Design*des, NetScope*scope) const;
       bool no_implicit_sig_;
       struct parmvalue_t* leading_type_args_ = 0;
 
@@ -822,6 +842,8 @@ class PEUnary : public PExpr {
 
       virtual bool has_aa_term(Design*des, NetScope*scope) const override;
 
+      virtual void reloc_lexical_pos_bind() override;
+
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
 
@@ -852,6 +874,8 @@ class PEBinary : public PExpr {
       virtual void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
 
       virtual bool has_aa_term(Design*des, NetScope*scope) const override;
+
+      virtual void reloc_lexical_pos_bind() override;
 
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
@@ -975,11 +999,17 @@ class PETernary : public PExpr {
       explicit PETernary(PExpr*e, PExpr*t, PExpr*f);
       ~PETernary() override;
 
+      inline PExpr* get_cond()  const { return expr_; }
+      inline PExpr* get_true()  const { return tru_; }
+      inline PExpr* get_false() const { return fal_; }
+
       virtual void dump(std::ostream&out) const override;
 
       virtual void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
 
       virtual bool has_aa_term(Design*des, NetScope*scope) const override;
+
+      virtual void reloc_lexical_pos_bind() override;
 
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
@@ -1036,12 +1066,16 @@ class PECallFunction : public PExpr {
             { return leading_type_args_; }
 
       const pform_scoped_name_t& path() const { return path_; }
+      const std::vector<named_pexpr_t>& get_parms() const { return parms_; }
+      PExpr* receiver_expr() const { return receiver_; }
 
       virtual void dump(std::ostream &) const override;
 
       virtual void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
 
       virtual bool has_aa_term(Design*des, NetScope*scope) const override;
+
+      virtual void reloc_lexical_pos_bind() override;
 
       virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
 				     ivl_type_t type, unsigned flags) const override;
@@ -1062,6 +1096,13 @@ class PECallFunction : public PExpr {
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;
       std::vector<PExpr*> with_constraints_;
+
+	// M13: cached let-expansion (IEEE 1800-2017 11.13). When the
+	// call name resolves to a let in scope, the substituted body is
+	// built once and test_width/elaborate_expr delegate to it.
+      mutable PExpr*let_subst_ = nullptr;
+      mutable bool let_subst_tried_ = false;
+      PExpr* let_substitution_(Design*des, NetScope*scope) const;
       struct parmvalue_t*leading_type_args_ = 0;
 	// Non-null for method calls on arbitrary receiver expressions.
 	// In that case path_ holds only the method name.

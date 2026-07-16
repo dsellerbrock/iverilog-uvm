@@ -16,7 +16,11 @@ for sv in "$DIR"/*.sv; do
     printf "  %-40s " "$name"
     out=$("$BIN" -g2012 -o /dev/null "$sv" 2>&1)
     status=$?
-    if [ $status -ne 0 ] && echo "$out" | grep -qiE "error"; then
+    # A rejection is valid if the compile fails (non-zero exit) with a
+    # loud diagnostic. The fork uses both "error:" (illegal input) and
+    # "sorry:" (deliberately-unsupported construct) as loud diagnostics
+    # per the manifesto; either counts as a proper rejection.
+    if [ $status -ne 0 ] && echo "$out" | grep -qiE "error|sorry"; then
         echo "PASS (rejected with diagnostic)"
         PASS=$((PASS+1))
     else

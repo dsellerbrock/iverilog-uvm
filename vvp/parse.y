@@ -82,7 +82,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_ARITH_SUM K_ARITH_SUM_R K_ARITH_POW K_ARITH_POW_R K_ARITH_POW_S
 %token K_ARRAY K_ARRAY_2U K_ARRAY_2S K_ARRAY_I K_ARRAY_OBJ K_ARRAY_R K_ARRAY_S K_ARRAY_STR K_ARRAY_PORT
 %token K_CAST_INT K_CAST_REAL K_CAST_REAL_S K_CAST_2
-%token K_CLASS K_CONSTRAINT_DEF K_COVGRP_BIN
+%token K_CLASS K_CONSTRAINT_DEF K_COVGRP_BIN K_COVGRP_ITEM K_MODPORT
 %token K_CMP_EEQ K_CMP_EQ K_CMP_EQX K_CMP_EQZ K_CMP_WEQ K_CMP_WNE
 %token K_CMP_EQ_R K_CMP_NEE K_CMP_NE K_CMP_NE_R
 %token K_CMP_GE K_CMP_GE_R K_CMP_GE_S K_CMP_GT K_CMP_GT_R K_CMP_GT_S
@@ -726,6 +726,9 @@ statement
 		{ compile_port_info( $2 /* port_index */, $3, $4 /* width */,
 		                     $5 /*&name */, nullptr /* buffer */ ); }
 
+	|         K_MODPORT T_STRING ';'
+		{ compile_modport_decl($2); }
+
 	|         K_TIMESCALE T_NUMBER T_NUMBER';'
 		{ compile_timescale($2, $3); }
 	|         K_TIMESCALE '-' T_NUMBER T_NUMBER';'
@@ -977,6 +980,10 @@ class_property
       { compile_class_covgrp_bin($2, $3, $4, $5); }
   | K_COVGRP_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_bin($2, $3, $4, $5, $6); }
+  | K_COVGRP_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER
+      { compile_class_covgrp_bin($2, $3, $4, $5, $6, $7, $8); }
+  | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER
+      { compile_class_covgrp_item($2, $3, $4); }
   ;
 
 /*

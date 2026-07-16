@@ -1201,3 +1201,19 @@ void NetScope::add_tie_lo(Design*des)
 	    connect(sig->pin(0), tie_lo_->pin(0));
       }
 }
+
+/* M13: let lookup — search this scope then walk up lexical parents,
+   stopping at (and including) the enclosing module scope so lets do
+   not leak across module instance boundaries. */
+PLet* NetScope::find_let(perm_string name) const
+{
+      const NetScope*cur = this;
+      for (;;) {
+	    std::map<perm_string,PLet*>::const_iterator it
+		  = cur->lets_.find(name);
+	    if (it != cur->lets_.end()) return it->second;
+	    if (cur->type() == MODULE) return 0;
+	    cur = cur->parent();
+	    if (cur == 0) return 0;
+      }
+}

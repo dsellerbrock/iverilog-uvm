@@ -27,6 +27,7 @@
 # include  <cinttypes>
 # include  <cstring>
 # include  <map>
+# include  <set>
 # include  <iostream>
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
@@ -1362,7 +1363,8 @@ void compile_class_constraint(char*name, char*ir)
 }
 
 void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,
-				uint64_t lo, uint64_t hi, unsigned kind)
+				uint64_t lo, uint64_t hi, unsigned kind,
+				unsigned tuple, unsigned item_idx)
 {
       cov_bin_t b;
       b.cp_idx   = cp_idx;
@@ -1370,15 +1372,133 @@ void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,
       b.lo       = lo;
       b.hi       = hi;
       b.kind     = kind;
+      b.tuple    = tuple;
+      b.item_idx = item_idx;
       covgrp_bins_.push_back(b);
 }
 
 void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
-			      uint64_t lo, uint64_t hi, uint64_t kind)
+			      uint64_t lo, uint64_t hi, uint64_t kind,
+			      uint64_t tuple, uint64_t item_idx)
 {
       assert(compile_class);
       compile_class->add_covgrp_bin((unsigned)cp_idx, (unsigned)prop_idx,
-				    lo, hi, (unsigned)kind);
+				    lo, hi, (unsigned)kind,
+				    (unsigned)tuple, (unsigned)item_idx);
+}
+
+void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
+			       uint64_t is_cross)
+{
+      assert(compile_class);
+      compile_class->add_covgrp_item((unsigned)at_least, (unsigned)weight,
+				     is_cross != 0);
+}
+
+/* M11: type-level (merged) coverage counters and registry. */
+
+void class_type::type_bump(unsigned prop) const
+{
+      if (prop >= type_counts_.size())
+	    type_counts_.resize(prop + 1, 0);
+      type_counts_[prop] += 1;
+}
+
+uint32_t class_type::type_count(unsigned prop) const
+{
+      if (prop >= type_counts_.size())
+	    return 0;
+      return type_counts_[prop];
+}
+
+double class_type::type_coverage() const
+{
+	// Same per-item weighted model as instance coverage, computed
+	// over the type-level counters.
+      std::map<unsigned, std::set<unsigned>> item_props;
+      for (size_t bi = 0 ; bi < covgrp_bins_.size() ; bi += 1) {
+	    const cov_bin_t&bin = covgrp_bins_[bi];
+	    unsigned k = bin.kind & 7;
+	    if (k == 1 || k == 2 || k == 3) continue;
+	    if (bin.prop_idx == COV_NO_PROP) continue;
+	    item_props[bin.item_idx].insert(bin.prop_idx);
+      }
+      double wsum = 0.0, wcov = 0.0;
+      for (auto&ip : item_props) {
+	    unsigned at_least = 1, weight = 1;
+	    if (ip.first < covgrp_items_.size()) {
+		  at_least = covgrp_items_[ip.first].at_least;
+		  weight = covgrp_items_[ip.first].weight;
+	    }
+	    if (ip.second.empty()) continue;
+	    unsigned hits = 0;
+	    for (unsigned prop : ip.second)
+		  if (type_count(prop) >= at_least)
+			hits += 1;
+	    wsum += (double)weight;
+	    wcov += (double)weight
+		  * (100.0 * (double)hits / (double)ip.second.size());
+      }
+      return (wsum > 0.0) ? (wcov / wsum) : 0.0;
+}
+
+static std::vector<const class_type*> covgrp_registry_;
+
+const std::vector<const class_type*>& class_type::covgrp_registry()
+{
+      return covgrp_registry_;
+}
+
+void class_type::covgrp_register(const class_type*ct)
+{
+      covgrp_registry_.push_back(ct);
+}
+
+/* M11: end-of-simulation coverage report (durable text form).  One
+ * section per covergroup TYPE: the merged (type-level) counters per
+ * bin, per-item coverage, and the type coverage. */
+void class_type::covgrp_report(FILE*fd)
+{
+      fprintf(fd, "# Icarus Verilog functional coverage report\n");
+      for (const class_type*ct : covgrp_registry_) {
+	    fprintf(fd, "covergroup %s.%s type_coverage %.2f\n",
+		    ct->scope_path().c_str(), ct->class_name().c_str(),
+		    ct->type_coverage());
+
+	      // group props per item
+	    std::map<unsigned, std::set<unsigned>> item_props;
+	    std::map<unsigned, unsigned> prop_kind;
+	    for (size_t bi = 0 ; bi < ct->covgrp_bins_.size() ; bi += 1) {
+		  const cov_bin_t&bin = ct->covgrp_bins_[bi];
+		  if (bin.prop_idx == COV_NO_PROP) continue;
+		  item_props[bin.item_idx].insert(bin.prop_idx);
+		  prop_kind[bin.prop_idx] = bin.kind & 7;
+	    }
+	    for (auto&ip : item_props) {
+		  unsigned at_least = 1, weight = 1;
+		  bool is_cross = false;
+		  if (ip.first < ct->covgrp_items_.size()) {
+			at_least = ct->covgrp_items_[ip.first].at_least;
+			weight = ct->covgrp_items_[ip.first].weight;
+			is_cross = ct->covgrp_items_[ip.first].is_cross;
+		  }
+		  fprintf(fd, "  item %u kind %s at_least %u weight %u\n",
+			  ip.first, is_cross ? "cross" : "coverpoint",
+			  at_least, weight);
+		  for (unsigned prop : ip.second) {
+			unsigned k = prop_kind[prop];
+			const char*tag = (k == 2) ? "illegal"
+				       : (k == 3) ? "default"
+				       : "bin";
+			uint32_t cnt = ct->type_count(prop);
+			fprintf(fd, "    %s %s count %u %s\n", tag,
+				ct->property_name(prop).c_str(), cnt,
+				(k == 0 || k == 4)
+				      ? (cnt >= at_least ? "hit" : "MISS")
+				      : "-");
+		  }
+	    }
+      }
 }
 
 void compile_class_done(void)
@@ -1397,6 +1517,8 @@ void compile_class_done(void)
       class_types_by_dispatch_prefix_[compile_class->dispatch_prefix()] = compile_class;
       compile_class->finish_setup();
       scope->classes[compile_class->class_name()] = compile_class;
+      if (compile_class->is_covergroup())
+	    class_type::covgrp_register(compile_class);
       compile_class = 0;
 }
 

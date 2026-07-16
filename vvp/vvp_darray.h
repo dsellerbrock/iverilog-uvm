@@ -46,6 +46,13 @@ class vvp_darray : public vvp_object {
       virtual void get_word(unsigned adr, vvp_object_t&value);
 
       virtual vvp_vector4_t get_bitstream(bool as_vec4);
+
+	// M10 DPI open arrays: contiguous raw element storage for
+	// atom-typed arrays (svOpenArrayHandle element access).
+	// dpi_elem_bytes() is 0 when raw access is not available.
+      virtual void* dpi_raw_data() { return 0; }
+      virtual unsigned dpi_elem_bytes() const { return 0; }
+      virtual bool dpi_elem_is_real() const { return false; }
 };
 
 template <class TYPE> class vvp_darray_atom : public vvp_darray {
@@ -60,6 +67,10 @@ template <class TYPE> class vvp_darray_atom : public vvp_darray {
       void shallow_copy(const vvp_object*obj) override;
       vvp_object* duplicate(void) const override;
       vvp_vector4_t get_bitstream(bool as_vec4) override;
+
+      void* dpi_raw_data() override
+      { return array_.empty() ? (void*)0 : (void*)&array_[0]; }
+      unsigned dpi_elem_bytes() const override { return sizeof(TYPE); }
 
     private:
       std::vector<TYPE> array_;
@@ -114,6 +125,11 @@ class vvp_darray_real : public vvp_darray {
       void shallow_copy(const vvp_object*obj) override;
       vvp_object* duplicate(void) const override;
       vvp_vector4_t get_bitstream(bool as_vec4) override;
+
+      void* dpi_raw_data() override
+      { return array_.empty() ? (void*)0 : (void*)&array_[0]; }
+      unsigned dpi_elem_bytes() const override { return sizeof(double); }
+      bool dpi_elem_is_real() const override { return true; }
 
     private:
       std::vector<double> array_;

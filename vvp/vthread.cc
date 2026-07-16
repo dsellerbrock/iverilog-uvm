@@ -2547,97 +2547,327 @@ bool of_RAND_MODE(vthread_t thr, vvp_code_t)
       return true;
 }
 
-/* %covgrp/sample N
- * Stack on entry: obj-stack top = cg_obj; vec4-stack top N items = cp values
- * Single-coverpoint bins increment when val matches.  Cross bins (multiple
- * records sharing the same prop_idx) increment only when ALL records match
- * — the runtime AND of all (cp_idx, lo, hi) tuples mapped to the same
- * counter property.  See I1 (Phase 62l) elaborate.cc cross emission. */
+/* M11 covergroup sampling helpers. */
+
+// Read a 32-bit counter property.
+static uint32_t covgrp_get_count_(vvp_cobject*cobj, unsigned prop)
+{
+      vvp_vector4_t cur(32, BIT4_0);
+      cobj->get_vec4(prop, cur);
+      uint32_t count = 0;
+      for (unsigned b = 0 ; b < 32 ; b += 1)
+	    if (cur.value(b) == BIT4_1)
+		  count |= (1u << b);
+      return count;
+}
+
+static void covgrp_bump_count_(vvp_cobject*cobj, unsigned prop)
+{
+      uint32_t count = covgrp_get_count_(cobj, prop) + 1;
+      vvp_vector4_t newval(32, BIT4_0);
+      for (unsigned b = 0 ; b < 32 ; b += 1)
+	    if (count & (1u << b))
+		  newval.set_bit(b, BIT4_1);
+      cobj->set_vec4(prop, newval);
+	// M11: type-level (merged across instances) counter, feeding
+	// get_coverage()/$get_coverage and the coverage report.
+      cobj->get_defn()->type_bump(prop);
+}
+
+// One record's value predicate ('kind & 8' = wildcard).
+static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
+				     uint64_t val)
+{
+      if (bin.kind & 8)
+	    return ((val ^ bin.lo) & bin.hi) == 0;
+      return val >= bin.lo && val <= bin.hi;
+}
+
+/* %covgrp/sample ncp, has_guards
+ *
+ * Stack on entry: obj-stack top = cg_obj; vec4 stack holds ncp
+ * coverpoint values then (when has_guards) ncp guard values on top.
+ *
+ * Record semantics (M11): records sharing (prop, tuple) AND together
+ * (cross product tuples); distinct tuples of one prop OR together
+ * (multi-range bins).  Per coverpoint and sample:
+ *   - guard false/x  -> coverpoint not sampled at all;
+ *   - illegal match  -> runtime error, illegal counter bumps, and the
+ *                       coverpoint's other bins are suppressed;
+ *   - ignore match   -> the value is carved out: nothing involving
+ *                       this coverpoint counts (crosses included);
+ *   - default bins   -> count only when no normal bin of the same
+ *                       item matched;
+ *   - transition records (kind 4) -> NFA over the per-instance
+ *                       active-position masks; a completed sequence
+ *                       bumps the bin counter.
+ */
 bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 {
       unsigned ncp = cp->number;
+      unsigned has_guards = cp->bit_idx[0];
 
-      /* Pop coverpoint values (last pushed = top of stack = cp[ncp-1]) */
-      vector<vvp_vector4_t> cp_vals(ncp);
-      for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1)
-	    cp_vals[ii] = thr->pop_vec4();
+      vector<uint64_t> guards(ncp, 1);
+      if (has_guards) {
+	    for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1) {
+		  vvp_vector4_t g = thr->pop_vec4();
+		    // Guard is true only when it evaluates to exactly 1
+		    // in the low bit with no x/z (iff gate, 19.4).
+		  guards[ii] = (g.size() > 0 && g.value(0) == BIT4_1) ? 1 : 0;
+	    }
+      }
+
+      vector<uint64_t> cp_vals(ncp, 0);
+      vector<bool> cp_has_xz(ncp, false);
+      for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1) {
+	    vvp_vector4_t v = thr->pop_vec4();
+	    uint64_t val = 0;
+	    bool xz = false;
+	    for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1) {
+		  switch (v.value(b)) {
+		      case BIT4_1: val |= ((uint64_t)1 << b); break;
+		      case BIT4_0: break;
+		      default: xz = true; break;
+		  }
+	    }
+	    cp_vals[ii] = val;
+	    cp_has_xz[ii] = xz;
+      }
 
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
       if (!cobj) return true;
+      if (!cobj->cov_enabled()) return true;
 
       const class_type*defn = cobj->get_defn();
       size_t nbins = defn->covgrp_bin_count();
 
-      // Group bins by prop_idx so that cross records (multiple bins on
-      // the same prop_idx) are AND'd together.  The first occurrence of a
-      // prop_idx determines the increment site; subsequent records refine
-      // the predicate.
-      std::map<unsigned, std::vector<size_t>> by_prop;
-      for (size_t bi = 0 ; bi < nbins ; bi += 1)
-	    by_prop[defn->covgrp_bin(bi).prop_idx].push_back(bi);
+	// Pass 1: per-coverpoint sampled/suppressed state.
+	//   sampled: guard true.  X/Z values coerce to 0-bits (2-state
+	//   coverage values; recorded).
+      vector<bool> cp_sampled(ncp, false);
+      for (unsigned ci = 0 ; ci < ncp ; ci += 1)
+	    cp_sampled[ci] = (guards[ci] != 0);
 
-      auto val_of = [&](unsigned cp_idx) -> uint64_t {
-	    if (cp_idx >= ncp) return 0;
-	    const vvp_vector4_t&v = cp_vals[cp_idx];
-	    uint64_t val = 0;
-	    for (unsigned bi2 = 0 ; bi2 < v.size() && bi2 < 64 ; bi2 += 1) {
-		  if (v.value(bi2) == BIT4_1)
-			val |= ((uint64_t)1 << bi2);
+	// Illegal precedence: any illegal record group matching fires
+	// an error and suppresses the coverpoint.
+	// Group records by (prop, tuple) lazily below; first collect
+	// per-prop lists.
+      std::map<unsigned, std::vector<size_t>> by_prop;
+      std::vector<size_t> ignore_recs;
+      for (size_t bi = 0 ; bi < nbins ; bi += 1) {
+	    const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+	    if ((bin.kind & 7) == 1) {
+		  ignore_recs.push_back(bi);
+		  continue;
 	    }
-	    return val;
-      };
+	    by_prop[bin.prop_idx].push_back(bi);
+      }
+
+      vector<bool> cp_suppressed(ncp, false);
+
+	// Illegal check (kind 2), before ignore per 19.5.5.
+      for (auto& kv : by_prop) {
+	    const std::vector<size_t>&recs = kv.second;
+	    if (recs.empty()) continue;
+	    unsigned k = defn->covgrp_bin(recs[0]).kind & 7;
+	    if (k != 2) continue;
+	      // tuples OR; records in one tuple AND.
+	    std::map<unsigned, bool> tuple_ok;
+	    for (size_t bi : recs) {
+		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+		  if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx]) {
+			tuple_ok[bin.tuple] = false;
+			continue;
+		  }
+		  bool m = covgrp_rec_match_(bin, cp_vals[bin.cp_idx]);
+		  auto it = tuple_ok.find(bin.tuple);
+		  if (it == tuple_ok.end()) tuple_ok[bin.tuple] = m;
+		  else it->second = it->second && m;
+	    }
+	    bool hit = false;
+	    for (auto&t : tuple_ok) if (t.second) { hit = true; break; }
+	    if (hit) {
+		  std::cerr << "ERROR: covergroup illegal_bin matched"
+			    << " (prop_idx=" << kv.first << ")" << std::endl;
+		  covgrp_bump_count_(cobj, kv.first);
+		  for (size_t bi : recs) {
+			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+			if (bin.cp_idx < ncp)
+			      cp_suppressed[bin.cp_idx] = true;
+		  }
+	    }
+      }
+
+	// Ignore carve-out (kind 1): a matching ignore record makes
+	// the whole coverpoint inert for this sample.
+      for (size_t bi : ignore_recs) {
+	    const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+	    if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx])
+		  continue;
+	    if (covgrp_rec_match_(bin, cp_vals[bin.cp_idx]))
+		  cp_suppressed[bin.cp_idx] = true;
+      }
+
+	// Pass 2: normal/wildcard value bins and cross products;
+	// track per-item "any normal bin matched" for default bins.
+      std::map<unsigned, bool> item_matched;
+      std::vector<std::pair<unsigned, unsigned>> default_props; // (prop,item)
 
       for (auto& kv : by_prop) {
-	    unsigned prop_idx = kv.first;
-	    bool all_match = true;
-	    bool is_illegal = false;
-	    for (size_t bi : kv.second) {
-		  const class_type::cov_bin_t& bin = defn->covgrp_bin(bi);
-		  if (bin.cp_idx >= ncp) { all_match = false; break; }
-		  uint64_t val = val_of(bin.cp_idx);
-		  if (val < bin.lo || val > bin.hi) {
-			all_match = false;
-			break;
+	    const std::vector<size_t>&recs = kv.second;
+	    if (recs.empty()) continue;
+	    const class_type::cov_bin_t&first = defn->covgrp_bin(recs[0]);
+	    unsigned k = first.kind & 7;
+	    if (k == 2) continue; // illegal handled above
+	    if (k == 3) {
+		  default_props.push_back(std::make_pair(kv.first,
+							 first.item_idx));
+		  continue;
+	    }
+	    if (k == 4) {
+		    // Transition sequences: per-seq NFA masks.
+		    // Records of one seq share tuple>>8; step = tuple&255.
+		  std::map<unsigned, std::vector<size_t>> by_seq;
+		  for (size_t bi : recs)
+			by_seq[defn->covgrp_bin(bi).tuple >> 8].push_back(bi);
+		  for (auto&sq : by_seq) {
+			  // order steps
+			std::vector<const class_type::cov_bin_t*> steps;
+			steps.resize(sq.second.size(), 0);
+			bool okseq = true;
+			unsigned cpi = ncp;
+			for (size_t bi : sq.second) {
+			      const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+			      unsigned st = bin.tuple & 255;
+			      if (st >= steps.size()) { okseq = false; break; }
+			      steps[st] = &bin;
+			      cpi = bin.cp_idx;
+			}
+			if (!okseq || cpi >= ncp) continue;
+			if (!cp_sampled[cpi] || cp_suppressed[cpi])
+			      continue; // frozen while unsampled/carved
+			uint64_t key = ((uint64_t)kv.first << 8) | sq.first;
+			uint64_t mask = cobj->cov_trans_mask(key);
+			uint64_t newmask = 0;
+			uint64_t val = cp_vals[cpi];
+			unsigned len = steps.size();
+			if (len == 0 || len > 63) continue;
+			  // fresh attempt from step 0
+			if (steps[0] && covgrp_rec_match_(*steps[0], val)) {
+			      if (len == 1)
+				    covgrp_bump_count_(cobj, kv.first);
+			      else
+				    newmask |= ((uint64_t)1 << 1);
+			}
+			  // in-flight attempts
+			for (unsigned pos = 1 ; pos < len ; pos += 1) {
+			      if (!((mask >> pos) & 1)) continue;
+			      if (steps[pos] && covgrp_rec_match_(*steps[pos], val)) {
+				    if (pos + 1 == len)
+					  covgrp_bump_count_(cobj, kv.first);
+				    else
+					  newmask |= ((uint64_t)1 << (pos+1));
+			      }
+			}
+			cobj->set_cov_trans_mask(key, newmask);
 		  }
-		  if (bin.kind == 2)
-			is_illegal = true;
-	    }
-	    if (!all_match) continue;
-
-	    // I1 (Phase 62o): illegal_bins fire an error on match
-	    // before incrementing the counter.  We use a plain stderr
-	    // message so the test infra can detect via grep — UVM's
-	    // uvm_report_error is unavailable from runtime context here.
-	    if (is_illegal) {
-		  std::cerr << "ERROR: covergroup illegal_bin matched"
-			    << " (prop_idx=" << prop_idx << ")" << std::endl;
+		  continue;
 	    }
 
-	    vvp_vector4_t cur(32, BIT4_0);
-	    cobj->get_vec4(prop_idx, cur);
-	    uint32_t count = 0;
-	    for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
-		  if (cur.value(bi3) == BIT4_1)
-			count |= (1u << bi3);
+	      // Normal/wildcard: tuples OR; records within a tuple AND
+	      // (a tuple spanning several coverpoints is a cross
+	      // product bin; every referenced cp must be sampled and
+	      // not suppressed).
+	    std::map<unsigned, bool> tuple_ok;
+	    for (size_t bi : recs) {
+		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+		  bool m;
+		  if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx]
+		      || cp_suppressed[bin.cp_idx])
+			m = false;
+		  else
+			m = covgrp_rec_match_(bin, cp_vals[bin.cp_idx]);
+		  auto it = tuple_ok.find(bin.tuple);
+		  if (it == tuple_ok.end()) tuple_ok[bin.tuple] = m;
+		  else it->second = it->second && m;
 	    }
-	    count += 1;
-	    vvp_vector4_t newval(32, BIT4_0);
-	    for (unsigned bi3 = 0 ; bi3 < 32 ; bi3 += 1) {
-		  if (count & (1u << bi3))
-			newval.set_bit(bi3, BIT4_1);
+	    bool hit = false;
+	    for (auto&t : tuple_ok) if (t.second) { hit = true; break; }
+	    if (hit) {
+		  covgrp_bump_count_(cobj, kv.first);
+		  item_matched[first.item_idx] = true;
 	    }
-	    cobj->set_vec4(prop_idx, newval);
       }
+
+	// Default bins: count when the item saw no normal-bin match
+	// and its coverpoint was sampled and not carved out.
+      for (auto&dp : default_props) {
+	    unsigned item = dp.second;
+	    if (item_matched.count(item) && item_matched[item])
+		  continue;
+	    if (item < ncp && (!cp_sampled[item] || cp_suppressed[item]))
+		  continue;
+	    covgrp_bump_count_(cobj, dp.first);
+      }
+
+      return true;
+}
+
+/* %covgrp/start and %covgrp/stop (19.8.1): per-instance sampling
+ * enable.  Stack on entry: obj-stack top = cg_obj. */
+bool of_COVGRP_START(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+	    cobj->set_cov_enabled(true);
+      return true;
+}
+
+bool of_COVGRP_STOP(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+	    cobj->set_cov_enabled(false);
+      return true;
+}
+
+/* %covgrp/get_coverage — TYPE coverage: the per-item weighted model
+ * computed over the counters merged across all instances of this
+ * covergroup type. */
+bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      double result = 0.0;
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+	    result = cobj->get_defn()->type_coverage();
+      thr->push_real(result);
+      return true;
+}
+
+/* %covgrp/get_all — $get_coverage (19.9): the mean of the type
+ * coverage over all covergroup types in the design. */
+bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
+{
+      const std::vector<const class_type*>&reg = class_type::covgrp_registry();
+      double sum = 0.0;
+      for (const class_type*ct : reg)
+	    sum += ct->type_coverage();
+      thr->push_real(reg.empty() ? 100.0 : sum / (double)reg.size());
       return true;
 }
 
 /* %covgrp/get_inst_coverage
  * Stack on entry: obj-stack top = cg_obj
- * Pushes real value = (unique-bins-hit / unique-bins-total) * 100.0
- * I1 (Phase 62l): cross bins emit multiple cov_bin_t records sharing one
- * prop_idx — count each unique prop_idx once. */
+ * Pushes real = weighted mean over coverage items (coverpoints and
+ * crosses) of (bins hit >= at_least) / countable bins * 100.0.
+ * Ignore records have no counter; illegal and default bins are
+ * excluded from both numerator and denominator (19.11 option model).
+ */
 bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 {
       vvp_object_t obj;
@@ -2648,37 +2878,41 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
 	    size_t nbins = defn->covgrp_bin_count();
-	    if (nbins > 0) {
-		  std::set<unsigned> unique_props;
-		  std::set<unsigned> hit_props;
-		  for (size_t bi = 0 ; bi < nbins ; bi += 1) {
-			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
-			// I1 (Phase 62o): exclude illegal_bins from
-			// coverage denominator — they shouldn't be hit
-			// and counting them just skews the percentage.
-			// (ignore_bins are stripped at elaborate time.)
-			if (bin.kind == 2) continue;
-			unsigned prop_idx = bin.prop_idx;
-			unique_props.insert(prop_idx);
-			if (hit_props.count(prop_idx)) continue;
-			vvp_vector4_t cur(32, BIT4_0);
-			cobj->get_vec4(prop_idx, cur);
-			for (unsigned bi2 = 0 ; bi2 < 32 ; bi2 += 1) {
-			      if (cur.value(bi2) == BIT4_1) {
-				    hit_props.insert(prop_idx);
-				    break;
-			      }
-			}
-		  }
-		  if (unique_props.size() > 0) {
-			result = (double)hit_props.size() /
-				 (double)unique_props.size() * 100.0;
-		  }
+
+	      // item -> set of countable props
+	    std::map<unsigned, std::set<unsigned>> item_props;
+	    for (size_t bi = 0 ; bi < nbins ; bi += 1) {
+		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+		  unsigned k = bin.kind & 7;
+		  if (k == 1 || k == 2 || k == 3) continue;
+		  if (bin.prop_idx == class_type::COV_NO_PROP) continue;
+		  item_props[bin.item_idx].insert(bin.prop_idx);
 	    }
+
+	    double wsum = 0.0, wcov = 0.0;
+	    for (auto&ip : item_props) {
+		  unsigned at_least = 1, weight = 1;
+		  if (ip.first < defn->covgrp_item_count()) {
+			at_least = defn->covgrp_item(ip.first).at_least;
+			weight = defn->covgrp_item(ip.first).weight;
+		  }
+		  if (ip.second.empty()) continue;
+		  unsigned hits = 0;
+		  for (unsigned prop : ip.second) {
+			if (covgrp_get_count_(cobj, prop) >= at_least)
+			      hits += 1;
+		  }
+		  double icov = 100.0 * (double)hits / (double)ip.second.size();
+		  wsum += (double)weight;
+		  wcov += (double)weight * icov;
+	    }
+	    if (wsum > 0.0)
+		  result = wcov / wsum;
       }
       thr->push_real(result);
       return true;
 }
+
 
 /*
  * The following are used to allow a common template to be written for
@@ -7369,33 +7603,64 @@ bool of_DEBUG_THR(vthread_t thr, vvp_code_t cp)
 }
 
 /*
- * DPI helper: extract a signed 32-bit int from the top of the vec4 stack
+ * DPI stack helpers (M10): pop/push integer payloads for the DPI
+ * marshaler. X/Z bits coerce to 0 (DPI integer arguments are 2-state;
+ * recorded corner), except the dedicated 4-state scalar pop which
+ * preserves the svLogic encoding.
  */
-static int32_t dpi_pop_int32(vthread_t thr)
+static int64_t dpi_pop_int64(vthread_t thr)
 {
       const vvp_vector4_t& v = thr->peek_vec4(0);
-      unsigned nbits = v.size() < 32 ? v.size() : 32;
-      int32_t val = 0;
+      unsigned nbits = v.size() < 64 ? v.size() : 64;
+      uint64_t val = 0;
       for (unsigned i = 0; i < nbits; ++i)
-	    if (v.value(i) == BIT4_1) val |= (int32_t)(1 << i);
+	    if (v.value(i) == BIT4_1) val |= ((uint64_t)1 << i);
+      thr->pop_vec4(1);
+      return (int64_t)val;
+}
+
+// svLogic scalar: sv_0=0, sv_1=1, sv_z=2, sv_x=3 (LRM Annex H svdpi.h).
+static int64_t dpi_pop_logic_(vthread_t thr)
+{
+      const vvp_vector4_t& v = thr->peek_vec4(0);
+      int64_t val = 3;
+      if (v.size() > 0) switch (v.value(0)) {
+	  case BIT4_0: val = 0; break;
+	  case BIT4_1: val = 1; break;
+	  case BIT4_Z: val = 2; break;
+	  case BIT4_X: val = 3; break;
+      }
       thr->pop_vec4(1);
       return val;
 }
 
-static void dpi_push_int32(vthread_t thr, int32_t val, unsigned wid)
+static void dpi_push_int64(vthread_t thr, int64_t val, unsigned wid)
 {
       vvp_vector4_t res(wid, BIT4_0);
-      unsigned nbits = wid < 32 ? wid : 32;
+      unsigned nbits = wid < 64 ? wid : 64;
       for (unsigned i = 0; i < nbits; ++i)
 	    res.set_bit(i, (val >> i) & 1 ? BIT4_1 : BIT4_0);
       thr->push_vec4(res);
 }
 
+// Inverse of dpi_pop_logic_: decode an svLogic byte to a 1-bit vec4.
+static void dpi_push_logic_(vthread_t thr, int64_t val)
+{
+      vvp_bit4_t bit = BIT4_X;
+      switch (val & 3) {
+	  case 0: bit = BIT4_0; break;
+	  case 1: bit = BIT4_1; break;
+	  case 2: bit = BIT4_Z; break;
+	  case 3: bit = BIT4_X; break;
+      }
+      thr->push_vec4(vvp_vector4_t(1, bit));
+}
+
 // C4 (Phase 62k): split "name|types" packed in cp->text.  Returns pointer
 // to types string ("" if no types embedded) and writes the bare name
 // into name_buf.  When types is empty/missing, callers default to the
-// legacy "all int" behavior — i.e. all-int parameters with same return
-// type, since '|' is not legal in C function names.
+// legacy per-opcode uniform letters, since '|' is not legal in C
+// function names.
 static const char* split_dpi_name_types_(const char*text, char*name_buf,
                                           size_t name_buf_sz)
 {
@@ -7412,210 +7677,223 @@ static const char* split_dpi_name_types_(const char*text, char*name_buf,
 }
 
 /*
- * %dpi/call/vec4 "c_name\001types" nargs wid
+ * M10: parsed form of one token from the compiler-emitted types
+ * string. Tokens are parsed greedily per argument: optional '+'
+ * (output direction — reserved, not yet marshaled), optional 'u'
+ * (unsigned), then a base letter:
+ *   'b' int8, 'h' int16, 'i' int32, 'l' int64 (longint/chandle),
+ *   'g' svLogic scalar, 'r' double, 's' string.
+ */
+struct dpi_sig_tok_t {
+      char base;
+      bool is_unsigned;
+      bool is_output;
+};
+
+static void dpi_parse_types_(const char*types, char dflt, unsigned nargs,
+			     vector<dpi_sig_tok_t>&sig)
+{
+      const char*cp = types ? types : "";
+      sig.resize(nargs);
+      for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
+	    dpi_sig_tok_t tok;
+	    tok.base = dflt;
+	    tok.is_unsigned = false;
+	    tok.is_output = false;
+	    if (*cp == '+') { tok.is_output = true; cp += 1; }
+	    if (*cp == 'u') { tok.is_unsigned = true; cp += 1; }
+	    if (*cp) tok.base = *cp++;
+	    sig[idx] = tok;
+      }
+}
+
+/*
+ * Shared worker for the %dpi/call opcodes. Pops the arguments from
+ * their proper stacks per the signature string (in reverse push
+ * order), dispatches through vvp_dpi_call() (libffi when available),
+ * and pushes the result for the opcode's return kind. The stacks are
+ * always balanced, even when the symbol is missing or the signature
+ * cannot be marshaled — a default result is pushed instead.
+ */
+static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
+			     unsigned wid, char dflt_letter)
+{
+      char name_buf[256];
+      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
+      const char*c_name = name_buf;
+      unsigned nargs = cp->bit_idx[0];
+
+      vector<dpi_sig_tok_t> sig;
+      dpi_parse_types_(types, dflt_letter, nargs, sig);
+
+      vector<vvp_dpi_arg_t> args (nargs);
+      vector<string> str_store (nargs);
+	// Open-array handles and their referenced objects must stay
+	// alive for the duration of the C call.
+      vector<vvp_dpi_open_array_t> arr_store (nargs);
+      vector<vvp_object_t> obj_store (nargs);
+      for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
+	    unsigned slot = nargs - 1 - ii;
+	    vvp_dpi_arg_t&arg = args[slot];
+	    arg.type = sig[slot].base;
+	    arg.is_unsigned = sig[slot].is_unsigned;
+	    arg.is_output = sig[slot].is_output;
+	    arg.ival = 0;
+	    arg.rval = 0.0;
+	    arg.sval = 0;
+	    arg.aval = 0;
+	    switch (sig[slot].base) {
+		case 'r':
+		  arg.rval = thr->pop_real();
+		  break;
+		case 's':
+		  str_store[slot] = thr->pop_str();
+		  arg.sval = str_store[slot].c_str();
+		  break;
+		case 'g':
+		  arg.ival = dpi_pop_logic_(thr);
+		  break;
+		case 'o': {
+		      thr->pop_object(obj_store[slot]);
+		      vvp_dpi_open_array_t&arr = arr_store[slot];
+		      arr.data = 0;
+		      arr.length = 0;
+		      arr.elem_bytes = 0;
+		      arr.elem_is_real = false;
+		      vvp_darray*da = obj_store[slot].peek<vvp_darray>();
+		      if (da) {
+			    unsigned eb = da->dpi_elem_bytes();
+			    if (eb > 0) {
+				  arr.data = da->dpi_raw_data();
+				  arr.length = (unsigned)da->get_size();
+				  arr.elem_bytes = eb;
+				  arr.elem_is_real = da->dpi_elem_is_real();
+			    } else {
+				  fprintf(stderr, "DPI error: '%s': open "
+					  "array argument %u does not have "
+					  "atom-typed contiguous storage; "
+					  "passing an empty handle.\n",
+					  c_name, slot+1);
+			    }
+		      } else if (! obj_store[slot].test_nil()) {
+			    fprintf(stderr, "DPI error: '%s': open array "
+				    "argument %u is not a dynamic array; "
+				    "passing an empty handle.\n",
+				    c_name, slot+1);
+		      }
+		      arg.aval = &arr;
+		      break;
+		}
+		default:
+		  arg.ival = dpi_pop_int64(thr);
+		  break;
+	    }
+      }
+
+      int64_t ret_i = 0;
+      double ret_r = 0.0;
+      const char*ret_s = "";
+
+      void*sym = vvp_dpi_find_symbol(c_name);
+      if (!sym) {
+	    fprintf(stderr, "DPI error: symbol '%s' not found in any "
+		    "loaded DPI library\n", c_name);
+      } else {
+	      // On marshaling failure vvp_dpi_call() has already
+	      // printed a diagnostic; fall through to push a default
+	      // result so the thread keeps a consistent stack.
+	    vvp_dpi_call(sym, c_name, ret_type,
+			 nargs? &args[0] : 0, nargs,
+			 &ret_i, &ret_r, &ret_s);
+      }
+
+	// Push the return value FIRST: the synthesized body pops the
+	// output-arg values (pushed above it) with %store opcodes,
+	// leaving the return value on top for %ret (which peeks).
+      switch (ret_type) {
+	  case 'i':
+	  case 'l':
+	    dpi_push_int64(thr, ret_i, wid);
+	    break;
+	  case 'r':
+	    thr->push_real(ret_r);
+	    break;
+	  case 's':
+	    thr->push_str(ret_s ? ret_s : "");
+	    break;
+	  default:
+	    break;
+      }
+
+	// Push output/inout values back (in argument order) so the
+	// synthesized body can store them into the port variables in
+	// reverse order (the standard call machinery then copies them
+	// out to the caller's actual lvalues).
+      for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
+	    if (! args[ii].is_output)
+		  continue;
+	    switch (args[ii].type) {
+		case 'b': dpi_push_int64(thr, args[ii].ival, 8);  break;
+		case 'h': dpi_push_int64(thr, args[ii].ival, 16); break;
+		case 'i': dpi_push_int64(thr, args[ii].ival, 32); break;
+		case 'l': dpi_push_int64(thr, args[ii].ival, 64); break;
+		case 'g': dpi_push_logic_(thr, args[ii].ival);    break;
+		case 'r': thr->push_real(args[ii].rval);          break;
+		case 's': thr->push_str(args[ii].sval ? args[ii].sval : "");
+			  break;
+	    }
+      }
+      return true;
+}
+
+/*
+ * %dpi/call/vec4 "c_name|types" nargs wid
  *
- * Pops nargs int32 args from vec4 stack (in reverse param order),
- * calls the named C function, pushes the int32 result as wid-bit vec4.
+ * Pops nargs args (per the types signature) from their stacks, calls
+ * the named C function, pushes the integer result as a wid-bit vec4.
+ * Returns wider than 32 bits (longint/chandle) use the int64 ABI.
  */
 bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
 {
-      char name_buf[256];
-      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
-      (void)types;
-      const char*c_name = name_buf;
-      unsigned nargs = cp->bit_idx[0];
-      unsigned wid   = cp->bit_idx[1];
-
-      void*sym = vvp_dpi_find_symbol(c_name);
-      if (!sym) {
-	    fprintf(stderr, "DPI error: symbol '%s' not found in any loaded DPI library\n",
-		    c_name);
-	    thr->pop_vec4(nargs);
-	    dpi_push_int32(thr, 0, wid);
-	    return true;
-      }
-
-      int32_t args[8];
-      if (nargs > 8) nargs = 8;
-      for (unsigned ii = 0; ii < nargs; ++ii)
-	    args[nargs-1-ii] = dpi_pop_int32(thr);
-
-      typedef int32_t(*fn0_t)(void);
-      typedef int32_t(*fn1_t)(int32_t);
-      typedef int32_t(*fn2_t)(int32_t,int32_t);
-      typedef int32_t(*fn3_t)(int32_t,int32_t,int32_t);
-      typedef int32_t(*fn4_t)(int32_t,int32_t,int32_t,int32_t);
-      typedef int32_t(*fn5_t)(int32_t,int32_t,int32_t,int32_t,int32_t);
-      typedef int32_t(*fn6_t)(int32_t,int32_t,int32_t,int32_t,int32_t,int32_t);
-      typedef int32_t(*fn7_t)(int32_t,int32_t,int32_t,int32_t,int32_t,int32_t,int32_t);
-      typedef int32_t(*fn8_t)(int32_t,int32_t,int32_t,int32_t,int32_t,int32_t,int32_t,int32_t);
-
-      int32_t result = 0;
-      switch (nargs) {
-	    case 0: result = ((fn0_t)sym)(); break;
-	    case 1: result = ((fn1_t)sym)(args[0]); break;
-	    case 2: result = ((fn2_t)sym)(args[0],args[1]); break;
-	    case 3: result = ((fn3_t)sym)(args[0],args[1],args[2]); break;
-	    case 4: result = ((fn4_t)sym)(args[0],args[1],args[2],args[3]); break;
-	    case 5: result = ((fn5_t)sym)(args[0],args[1],args[2],args[3],args[4]); break;
-	    case 6: result = ((fn6_t)sym)(args[0],args[1],args[2],args[3],args[4],args[5]); break;
-	    case 7: result = ((fn7_t)sym)(args[0],args[1],args[2],args[3],args[4],args[5],args[6]); break;
-	    default: result = ((fn8_t)sym)(args[0],args[1],args[2],args[3],args[4],args[5],args[6],args[7]); break;
-      }
-      dpi_push_int32(thr, result, wid);
-      return true;
+      unsigned wid = cp->bit_idx[1];
+      return dpi_call_common_(thr, cp, (wid > 32)? 'l' : 'i', wid, 'i');
 }
 
 /*
- * %dpi/call/real "c_name\001types" nargs
+ * %dpi/call/real "c_name|types" nargs
  *
- * Pops nargs double args from real stack, calls C function, pushes double result.
+ * Calls C function returning double, pushes the result on the real
+ * stack. Arguments marshal per the types signature.
  */
 bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t cp)
 {
-      char name_buf[256];
-      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
-      (void)types;
-      const char*c_name = name_buf;
-      unsigned nargs = cp->bit_idx[0];
-
-      void*sym = vvp_dpi_find_symbol(c_name);
-      if (!sym) {
-	    fprintf(stderr, "DPI error: symbol '%s' not found\n", c_name);
-	    thr->pop_real(nargs);
-	    thr->push_real(0.0);
-	    return true;
-      }
-
-      double dargs[8];
-      if (nargs > 8) nargs = 8;
-      for (unsigned ii = 0; ii < nargs; ++ii)
-	    dargs[nargs-1-ii] = thr->pop_real();
-
-      typedef double(*dfn0_t)(void);
-      typedef double(*dfn1_t)(double);
-      typedef double(*dfn2_t)(double,double);
-      typedef double(*dfn4_t)(double,double,double,double);
-
-      double result = 0.0;
-      switch (nargs) {
-	    case 0: result = ((dfn0_t)sym)(); break;
-	    case 1: result = ((dfn1_t)sym)(dargs[0]); break;
-	    case 2: result = ((dfn2_t)sym)(dargs[0],dargs[1]); break;
-	    default: result = ((dfn4_t)sym)(dargs[0],dargs[1],dargs[2],dargs[3]); break;
-      }
-      thr->push_real(result);
-      return true;
+      return dpi_call_common_(thr, cp, 'r', 0, 'r');
 }
 
 /*
- * %dpi/call/str "c_name\001types" nargs
+ * %dpi/call/str "c_name|types" nargs
  *
  * Calls C function that returns const char*. Pushes result as string.
- * The type signature in `types` (one char per arg: 'i' int / 's' string /
- * 'r' real) tells us which stack each arg lives on.  C4 (Phase 62k):
- * before the type-signature suffix, this opcode assumed all args were
- * strings, so calling a string-return DPI with an int arg (e.g.
- * `string uvm_dpi_get_next_arg_c(int init)`) underflowed pop_str and
- * leaked the int on stack_vec4.
+ * C4 (Phase 62k): before the type-signature suffix, this opcode
+ * assumed all args were strings, so calling a string-return DPI with
+ * an int arg (e.g. `string uvm_dpi_get_next_arg_c(int init)`)
+ * underflowed pop_str and leaked the int on stack_vec4.
  */
 bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t cp)
 {
-      char name_buf[256];
-      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
-      const char*c_name = name_buf;
-      unsigned nargs = cp->bit_idx[0];
-
-      // Pop args off the right stack first (regardless of symbol lookup
-      // result) so the stacks stay consistent on lookup failure.
-      if (nargs > 8) nargs = 8;
-      int32_t   iargs[8] = {0};
-      string    sargs[8];
-      double    rargs[8] = {0};
-      // Pop in reverse stack order (last-pushed is on top of its stack).
-      for (unsigned ii = 0; ii < nargs; ++ii) {
-	    unsigned slot = nargs - 1 - ii;
-	    char tc = (types && types[slot]) ? types[slot] : 's';
-	    switch (tc) {
-		case 'r': rargs[slot] = thr->pop_real(); break;
-		case 'i': iargs[slot] = dpi_pop_int32(thr); break;
-		case 's':
-		default:  sargs[slot] = thr->pop_str(); break;
-	    }
-      }
-
-      void*sym = vvp_dpi_find_symbol(c_name);
-      if (!sym) {
-	    fprintf(stderr, "DPI error: symbol '%s' not found\n", c_name);
-	    thr->push_str("");
-	    return true;
-      }
-
-      typedef const char*(*sfn0_t)(void);
-      typedef const char*(*sfn1i_t)(int32_t);
-      typedef const char*(*sfn1s_t)(const char*);
-      typedef const char*(*sfn1r_t)(double);
-
-      const char*result = "";
-      if (nargs == 0) {
-	    result = ((sfn0_t)sym)();
-      } else if (nargs == 1) {
-	    char tc = (types && types[0]) ? types[0] : 's';
-	    switch (tc) {
-		case 'i': result = ((sfn1i_t)sym)(iargs[0]); break;
-		case 'r': result = ((sfn1r_t)sym)(rargs[0]); break;
-		case 's':
-		default:  result = ((sfn1s_t)sym)(sargs[0].c_str()); break;
-	    }
-      } else {
-	    // Mixed-arg cases beyond 1 arg fall back to all-string ABI
-	    // for compatibility with prior behavior.
-	    typedef const char*(*sfn2s_t)(const char*,const char*);
-	    if (nargs == 2)
-		  result = ((sfn2s_t)sym)(sargs[0].c_str(), sargs[1].c_str());
-      }
-      thr->push_str(result ? result : "");
-      return true;
+      return dpi_call_common_(thr, cp, 's', 0, 's');
 }
 
 /*
- * %dpi/call/void "c_name\001types" nargs
+ * %dpi/call/void "c_name|types" nargs
  *
- * Calls C void function with int32 args from vec4 stack.
+ * Calls C void function; arguments marshal per the types signature.
  */
 bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
 {
-      char name_buf[256];
-      const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
-      (void)types;
-      const char*c_name = name_buf;
-      unsigned nargs = cp->bit_idx[0];
-
-      void*sym = vvp_dpi_find_symbol(c_name);
-      if (!sym) {
-	    fprintf(stderr, "DPI error: symbol '%s' not found\n", c_name);
-	    thr->pop_vec4(nargs);
-	    return true;
-      }
-
-      int32_t args[8];
-      if (nargs > 8) nargs = 8;
-      for (unsigned ii = 0; ii < nargs; ++ii)
-	    args[nargs-1-ii] = dpi_pop_int32(thr);
-
-      typedef void(*vfn0_t)(void);
-      typedef void(*vfn1_t)(int32_t);
-      typedef void(*vfn2_t)(int32_t,int32_t);
-      typedef void(*vfn4_t)(int32_t,int32_t,int32_t,int32_t);
-
-      switch (nargs) {
-	    case 0: ((vfn0_t)sym)(); break;
-	    case 1: ((vfn1_t)sym)(args[0]); break;
-	    case 2: ((vfn2_t)sym)(args[0],args[1]); break;
-	    default: ((vfn4_t)sym)(args[0],args[1],args[2],args[3]); break;
-      }
-      return true;
+      return dpi_call_common_(thr, cp, 'v', 0, 'i');
 }
+
 
 /*
  * The delay takes two 32bit numbers to make up a 64bit time.
@@ -15625,6 +15903,29 @@ bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t)
       ev->thr = thr;
       schedule_at_observed(ev, 0);
       return false;
+}
+
+/*
+ * %vif/tickchg <M>
+ *
+ * Pop a vvp_vinterface handle and push a 1-bit flag: 1 if the M-th
+ * property signal of the bound instance changed during the current
+ * time step (Preponed value != current value). The clocking-drive
+ * transform uses this on the sampler tick bit to decide whether the
+ * clocking event already occurred in this step (drive now) or not
+ * (buffer for the next event) -- IEEE 1800-2017 14.16 through a
+ * virtual interface. A nil/non-vif handle yields 0 (buffer), the
+ * safe answer.
+ */
+bool of_VIF_TICKCHG(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool chg = vif ? vif->sig_changed_this_step(cp->number) : false;
+      vvp_vector4_t res (1, chg ? BIT4_1 : BIT4_0);
+      thr->push_vec4(res);
+      return true;
 }
 
 /*

@@ -46,3 +46,14 @@ vpip_format_strength
 vpip_make_systf_system_defined
 vpip_mcd_rawwrite
 vpip_set_return_value
+svDimensions
+svSize
+svLow
+svHigh
+svLeft
+svRight
+svIncrement
+svSizeOfArray
+svGetArrElemPtr
+svGetArrElemPtr1
+svGetArrayPtr

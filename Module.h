@@ -38,6 +38,7 @@ class PGenerate;
 class PModport;
 class PSpecPath;
 class PTimingCheck;
+class PLet;
 class PTask;
 class PFunction;
 class PWire;
@@ -95,6 +96,10 @@ class Module : public PScopeExtra, public PNamedItem {
 	    std::map<perm_string,NetNet::PortType>directions;
 	    std::map<perm_string,pform_clocking_skew_t>in_skews;
 	    std::map<perm_string,pform_clocking_skew_t>out_skews;
+	      /* clocking_decl_assign (A.6.11): clockvars sampling an
+		 arbitrary expression. The signal-path form is
+		 supported; other shapes are diagnosed. */
+	    std::map<perm_string,PExpr*>decl_assigns;
 	    pform_clocking_skew_t default_in, default_out;
 	    bool default_in_set = false, default_out_set = false;
       };
@@ -180,9 +185,19 @@ class Module : public PScopeExtra, public PNamedItem {
 	   identifier can collide with. */
       perm_string default_clocking;
 
+	/* IEEE 1800-2017 14.14: at most one global clocking block per
+	   module/program (design-wide resolution happens at
+	   $global_clock elaboration by walking the enclosing scopes).
+	   Nil when none is declared. */
+      perm_string global_clocking;
+
 	/* List for specify paths and timing checks */
       std::list<PSpecPath*> specify_paths;
       std::list<PTimingCheck*> timing_checks;
+
+	/* let declarations (IEEE 1800-2017 11.13), expanded by
+	   substitution at elaboration. */
+      std::map<perm_string,PLet*> lets;
 
 	// The mod_name() is the name of the module type.
       perm_string mod_name() const { return pscope_name(); }
@@ -223,5 +238,14 @@ class Module : public PScopeExtra, public PNamedItem {
       Module(const Module&);
       Module& operator= (const Module&);
 };
+
+/* Resolve the raw signal a clocking-block item samples or drives:
+   the local signal of the same name, or the clocking_decl_assign
+   target when the item declared one (signal-path form only;
+   other expression shapes return nil). Implemented in netmisc.cc. */
+class Design;
+extern NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
+					   const Module::PClocking*cb,
+					   perm_string sig_name);
 
 #endif /* IVL_Module_H */

@@ -223,6 +223,9 @@ ivl_scope_func_width
 ivl_scope_is_auto
 ivl_scope_is_cell
 ivl_scope_program
+ivl_scope_is_interface
+ivl_scope_modports
+ivl_scope_modport_name
 ivl_scope_lineno
 ivl_scope_logs
 ivl_scope_log
@@ -357,6 +360,12 @@ ivl_type_covgrp_bin_lo
 ivl_type_covgrp_bin_hi
 ivl_type_covgrp_bin_cp
 ivl_type_covgrp_bin_kind
+ivl_type_covgrp_bin_tuple
+ivl_type_covgrp_bin_item
+ivl_type_covgrp_items
+ivl_type_covgrp_item_at_least
+ivl_type_covgrp_item_weight
+ivl_type_covgrp_item_is_cross
 
 ivl_event_is_vif_posedge
 ivl_event_is_vif_negedge

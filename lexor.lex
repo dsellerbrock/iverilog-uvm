@@ -246,6 +246,10 @@ TU [munpf]
 "->" { return K_TRIGGER; }
 "->>" { return K_NB_TRIGGER; }
 "|->" { return K_PIPE_IMPL_OV; }
+  /* M9: SVA consecutive repetition opener. `[*` is not valid in any
+     other context (no prefix `*` operator), so lexing it as one token
+     lets the parser keep bit/part selects unambiguous. */
+"[*" { return K_LBSTAR; }
 "|=>" { return K_PIPE_IMPL_NOV; }
 "+:" { return K_PO_POS; }
 "-:" { return K_PO_NEG; }

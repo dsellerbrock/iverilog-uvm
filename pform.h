@@ -253,17 +253,45 @@ extern void pform_add_modport_port(const struct vlltype&loc,
 extern void pform_start_clocking_block(const struct vlltype&loc,
 				       const char*name,
 				       PEventStatement*event,
-				       bool is_default = false);
+				       bool is_default = false,
+				       bool is_global = false);
 extern void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
 				      NetNet::PortType dir,
 				      const pform_clocking_skew_t*in_skew,
-				      const pform_clocking_skew_t*out_skew);
+				      const pform_clocking_skew_t*out_skew,
+				      PExpr*decl_assign = nullptr);
 extern void pform_set_clocking_default_skews(const struct vlltype&loc,
 					     const pform_clocking_skew_t*in_skew,
 					     const pform_clocking_skew_t*out_skew);
 extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
 					    PExpr*lval, PExpr*cycles,
 					    PExpr*rval);
+
+/* M9 core SVA (IEEE 1800-2017 clause 16): lower one concurrent
+   assertion to a synthesized clocked token-pipeline checker.
+   kind: 0=assert, 1=assume, 2=cover. */
+struct sva_property_t;
+struct sva_seq_step_t;
+extern void pform_make_assertion(const struct vlltype&loc,
+				 sva_property_t*prop,
+				 Statement*fail_stmt, Statement*pass_stmt,
+				 int kind);
+extern void pform_sva_declare_property(const struct vlltype&loc,
+				       const char*name, sva_property_t*prop);
+extern void pform_sva_declare_sequence(const struct vlltype&loc,
+				       const char*name,
+				       std::vector<sva_seq_step_t>*steps);
+extern void pform_sva_set_default_disable(PExpr*expr);
+extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
+extern void pform_sva_module_done(void);
+
+/* M9-2: consecutive repetition e[*lo] / e[*lo:hi] — expands the step
+   list in place (clones for lo>1; [*lo:hi] expands to [*lo] with a
+   rep_tail marker validated at lowering). hi may be null. */
+extern std::vector<sva_seq_step_t>*
+pform_sva_repeat(const struct vlltype&loc,
+		 std::vector<sva_seq_step_t>*steps,
+		 PExpr*lo, PExpr*hi);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at
@@ -512,6 +540,35 @@ extern PSetupHold* pform_make_setuphold(const struct vlltype&li,
 			    );
 extern void pform_module_timing_check(PTimingCheck*obj);
 
+/* M13: synthesize real timing-check checker processes (clause 31).
+   Active with -gspecify; loud ignored-warning otherwise. The event
+   arguments are borrowed (caller keeps ownership). */
+extern void pform_timing_check_pair(const struct vlltype&loc,
+				    const char*check_name,
+				    const PTimingCheck::event_t&stamp_ev,
+				    const PTimingCheck::event_t&check_ev,
+				    PExpr*limit,
+				    bool violation_if_greater,
+				    const pform_name_t*notifier);
+extern void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
+						const char*base_name,
+						const PTimingCheck::event_t&ref_ev,
+						const PTimingCheck::event_t&data_ev,
+						PExpr*lim1,
+						PExpr*lim2,
+						const pform_name_t*notifier);
+extern void pform_timing_check_period(const struct vlltype&loc,
+				      const PTimingCheck::event_t&ev,
+				      PExpr*limit,
+				      const pform_name_t*notifier);
+extern void pform_timing_check_width(const struct vlltype&loc,
+				     const PTimingCheck::event_t&ev,
+				     PExpr*limit,
+				     PExpr*threshold,
+				     const pform_name_t*notifier);
+extern void pform_timing_check_sorry(const struct vlltype&loc,
+				     const char*check_name);
+
 /*
  * pform_make_behavior creates processes that are declared with always
  * or initial items.
@@ -540,6 +597,18 @@ extern void pform_make_modgates(const struct vlltype&loc,
 				struct parmvalue_t*overrides,
 				std::vector<lgate>*gates,
 				std::list<named_pexpr_t>*attr);
+
+/* SystemVerilog bind directive (IEEE 1800-2017 23.11): record a bind
+   of a module instantiation into a named target module/interface.
+   Binds are collected during parse and applied by pform_apply_binds()
+   after all source files have been parsed, because the target module
+   may be defined in a later file than the bind directive. */
+extern void pform_bind_directive(const struct vlltype&loc,
+				 perm_string target,
+				 perm_string type,
+				 struct parmvalue_t*overrides,
+				 std::vector<lgate>*gates);
+extern void pform_apply_binds(void);
 
 /* Make a continuous assignment node, with optional bit- or part- select. */
 extern void pform_make_pgassign_list(const struct vlltype&loc,

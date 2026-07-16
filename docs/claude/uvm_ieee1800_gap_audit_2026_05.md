@@ -65,6 +65,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: testbench monitors that DV teams traditionally inject into RTL via `bind`.
 
 ### G05 `assert property` without explicit clocking → "always without delay" elab error
+- **STATUS 2026-07-15: CORE FIXED** (M9 increment 1, PR #76). Real token-pipeline assertion engine: sampled |->/|=>, ##N and trailing ##[m:n] chains, disable iff + defaults, sampled-value functions with true histories, named no-arg property/sequence declarations, cover counting. Remaining sequence algebra recorded as M9-2 (repetition, sequence antecedents, unbounded ranges, property operators). Test: tests/m9_sva_engine_test.sv.
 - Symptom: a property without `@(posedge clk)` produces `error: always process does not have any delay.` (because parse.y:2375 lowers concurrent assert to a bare always block).
 - Probe: p05_property_seq (VERIFIED-FAILS), p65_sequence_op (VERIFIED-FAILS).
 - Location: parse.y:2375 (lowering wraps in always; without clocking event nothing creates the wait).
@@ -73,6 +74,7 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Blocks: SVA assertions written without an explicit `@(posedge clk)` (very common idiom in DV teams that rely on default clocking).
 
 ### G06 SVA sequence operators `and`/`or`/`intersect`/`throughout`/`within` not synthesized
+- **STATUS 2026-07-15: CORE FIXED** (M9 increment 1, PR #76). Real token-pipeline assertion engine: sampled |->/|=>, ##N and trailing ##[m:n] chains, disable iff + defaults, sampled-value functions with true histories, named no-arg property/sequence declarations, cover counting. Remaining sequence algebra recorded as M9-2 (repetition, sequence antecedents, unbounded ranges, property operators). Test: tests/m9_sva_engine_test.sv.
 - Symptom: same "always without delay" elab error or silent miss; sequence operators are not lowered.
 - Probe: p65_sequence_op (VERIFIED-FAILS), p60_concurrent_arg (VERIFIED-FAILS — concurrent assertion in always block syntax error).
 - Location: parse.y:2388,2433,2447 (`sorry: concurrent_assertion_item not supported` for procedural form); SVA runtime is largely stubbed.
@@ -697,7 +699,15 @@ Iverilog under test: `Icarus Verilog version 13.0 (devel) (s20251012-102-g9b44d5
 - Already noted.
 
 ### G59 `global clocking` block syntax error
-- Symptom: `global clocking cb @(posedge clk); endclocking` rejected as `Invalid module item / syntax error`.
+- **STATUS 2026-07-15: FIXED** (M8 tail, PR #76). `global clocking
+  [id] @(event); endclocking` parses and registers per module (14.14:
+  one per scope, items illegal — both diagnosed);
+  `@($global_clock)` resolves the nearest enclosing module's global
+  clocking by scope walk and elaborates the wait in the DEFINING
+  module's scope, so it works from any scope below the declaration.
+  Test: `tests/m8_global_clocking_test.sv`; negative:
+  `tests/negative/m8_global_clocking_items.sv`.
+- Pre-fix symptom: `global clocking cb @(posedge clk); endclocking` rejected as `Invalid module item / syntax error`.
 - Probe: p68_global_clocking (VERIFIED-FAILS).
 - Location: parse.y — `global clocking` keyword combo not in grammar.
 - Layer: parser.

@@ -77,6 +77,13 @@ class vvp_fun_signal_base : public vvp_net_fun_t {
       void deassign();
       void deassign_pv(unsigned base, unsigned wid);
 
+	// M12: VPI value-change callbacks on SystemVerilog variables.
+	// String/class/darray/queue variables have no vvp_net_fil_t
+	// filter node, so the functor itself carries the callback
+	// list. Implemented in vpi_callback.cc.
+      void add_vpi_callback(class value_callback*cb);
+      void run_sv_vpi_callbacks();
+
     public:
 
 	/* The %cassign/link instruction needs a place to write the
@@ -91,6 +98,9 @@ class vvp_fun_signal_base : public vvp_net_fun_t {
     protected:
 	// This is true until at least one propagation happens.
       bool needs_init_;
+
+    private:
+      class value_callback*sv_vpi_callbacks_ = 0;
 };
 
 /*

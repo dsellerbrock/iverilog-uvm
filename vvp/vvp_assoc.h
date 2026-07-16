@@ -20,6 +20,7 @@
  */
 
 # include  <map>
+# include  <iterator>
 # include  <cassert>
 # include  <string>
 # include  "vvp_net.h"
@@ -48,6 +49,15 @@ class vvp_assoc_base : public vvp_object {
       virtual void erase_key(const std::string&key) =0;
       virtual void erase_key(const vvp_object_t&key) =0;
       virtual void erase_key(const vvp_vector4_t&key) =0;
+
+	// M12 VPI: positional element peek in key order (string keys
+	// first, then object keys, then vector keys — the same order
+	// size() sums them).  key_text receives a printable form of
+	// the key; val_kind receives 0=vec4, 1=real, 2=string,
+	// 3=object.  Returns false when pos is out of range.
+      virtual bool peek_entry(size_t pos, std::string&key_text,
+			      vvp_vector4_t&val_vec, double&val_real,
+			      std::string&val_str, int&val_kind) const =0;
 
     protected:
       static const vvp_object* object_key_(const vvp_object_t&key);
@@ -273,6 +283,59 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             return true;
       }
 
+      bool peek_entry(size_t pos, std::string&key_text,
+		      vvp_vector4_t&val_vec, double&val_real,
+		      std::string&val_str, int&val_kind) const override
+      {
+	    if (pos < str_map_.size()) {
+		  typename std::map<std::string, TYPE>::const_iterator cur
+			= str_map_.begin();
+		  std::advance(cur, pos);
+		  key_text = cur->first;
+		  val_kind = assign_entry_val_(cur->second, val_vec,
+					       val_real, val_str);
+		  return true;
+	    }
+	    pos -= str_map_.size();
+	    if (pos < obj_map_.size()) {
+		  typename std::map<const vvp_object*, TYPE>::const_iterator cur
+			= obj_map_.begin();
+		  std::advance(cur, pos);
+		  key_text = "<object>";
+		  val_kind = assign_entry_val_(cur->second, val_vec,
+					       val_real, val_str);
+		  return true;
+	    }
+	    pos -= obj_map_.size();
+	    if (pos < vec_map_.size()) {
+		  typename std::map<std::string, vec_entry_t>::const_iterator cur
+			= vec_map_.begin();
+		  std::advance(cur, pos);
+		  key_text = cur->first;
+		  val_kind = assign_entry_val_(cur->second.value, val_vec,
+					       val_real, val_str);
+		  return true;
+	    }
+	    return false;
+      }
+
+    private:
+	// Overload set routing the stored value into the right VPI
+	// payload slot; returns the val_kind tag.
+      static int assign_entry_val_(const vvp_vector4_t&src2, vvp_vector4_t&vv,
+				   double&, std::string&)
+      { vv = src2; return 0; }
+      static int assign_entry_val_(const double&src2, vvp_vector4_t&,
+				   double&rv, std::string&)
+      { rv = src2; return 1; }
+      static int assign_entry_val_(const std::string&src2, vvp_vector4_t&,
+				   double&, std::string&sv)
+      { sv = src2; return 2; }
+      static int assign_entry_val_(const vvp_object_t&, vvp_vector4_t&,
+				   double&, std::string&)
+      { return 3; }
+
+    protected:
       std::map<std::string, TYPE> str_map_;
       std::map<const vvp_object*, TYPE> obj_map_;
       std::map<std::string, vec_entry_t> vec_map_;
