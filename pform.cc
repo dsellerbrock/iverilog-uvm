@@ -2874,6 +2874,153 @@ void pform_make_modgates(const struct vlltype&loc,
       delete gates;
 }
 
+/*
+ * SystemVerilog bind directives (IEEE 1800-2017 23.11). A bind
+ * directive adds a module instantiation into a TARGET module (or
+ * interface) definition, so that every instance of the target
+ * elaborates the bound instance exactly as if it were written inside
+ * the target's body. Port connection expressions therefore resolve
+ * against the target's internal names, which is the point of bind:
+ * attaching checkers/monitors to a design without editing it.
+ *
+ * A bind may be parsed before its target module is defined (even in
+ * a different source file), so directives are collected in a pending
+ * list and applied by pform_apply_binds() once all files are parsed.
+ */
+struct pending_bind_t {
+      LineInfo li;
+      perm_string target;
+      perm_string type;
+      struct parmvalue_t*overrides;
+      std::vector<lgate>*gates;
+};
+static vector<pending_bind_t> pending_binds;
+
+void pform_bind_directive(const struct vlltype&loc,
+			  perm_string target,
+			  perm_string type,
+			  struct parmvalue_t*overrides,
+			  std::vector<lgate>*gates)
+{
+      pending_bind_t cur;
+      FILE_NAME(&cur.li, loc);
+      cur.target = target;
+      cur.type = type;
+      cur.overrides = overrides;
+      cur.gates = gates;
+      pending_binds.push_back(cur);
+}
+
+static void bind_apply_one(Module*scope, pending_bind_t&bind)
+{
+      for (unsigned idx = 0 ; idx < bind.gates->size() ; idx += 1) {
+	    lgate&cur = (*bind.gates)[idx];
+	    perm_string cur_name = lex_strings.make(cur.name);
+
+	      // Unlike an in-body instantiation, bind port expressions
+	      // must reference names that already exist inside the
+	      // target, so no implicit nets are declared here. The
+	      // expressions resolve as if written at the END of the
+	      // target body (the bind may even be in another file), so
+	      // relocate identifier lexical positions past the
+	      // declaration-before-use check.
+	    PGModule*gate;
+	    if (cur.parms_by_name) {
+		  unsigned npins = cur.parms_by_name->size();
+		  named_pexpr_t*pins = new named_pexpr_t[npins];
+		  std::copy(cur.parms_by_name->begin(),
+			    cur.parms_by_name->end(), pins);
+		  for (unsigned pdx = 0 ; pdx < npins ; pdx += 1) {
+			if (pins[pdx].parm)
+			      pins[pdx].parm->reloc_lexical_pos_bind();
+		  }
+		  gate = new PGModule(bind.type, cur_name, pins, npins);
+	    } else {
+		  list<PExpr*>*wires = cur.parms;
+		  if (wires && wires->size() == 1 && wires->front() == 0) {
+			  /* The parser reports an empty port list as one
+			     null parameter. Fix that. */
+			delete wires;
+			wires = new list<PExpr*>;
+		  }
+		  if (wires == 0)
+			wires = new list<PExpr*>;
+		  for (list<PExpr*>::iterator wdx = wires->begin()
+			     ; wdx != wires->end() ; ++wdx) {
+			if (*wdx) (*wdx)->reloc_lexical_pos_bind();
+		  }
+		  gate = new PGModule(bind.type, cur_name, wires);
+	    }
+	    gate->set_line(bind.li);
+	    gate->set_ranges(cur.ranges);
+
+	    if (cur.ranges) {
+		  for (list<pform_range_t>::iterator rdx = cur.ranges->begin()
+			     ; rdx != cur.ranges->end() ; ++rdx) {
+			if (rdx->first) rdx->first->reloc_lexical_pos_bind();
+			if (rdx->second) rdx->second->reloc_lexical_pos_bind();
+		  }
+	    }
+
+	    if (bind.overrides && bind.overrides->by_name) {
+		  unsigned cnt = bind.overrides->by_name->size();
+		  named_pexpr_t*byname = new named_pexpr_t[cnt];
+		  std::copy(bind.overrides->by_name->begin(),
+			    bind.overrides->by_name->end(), byname);
+		  for (unsigned pdx = 0 ; pdx < cnt ; pdx += 1) {
+			if (byname[pdx].parm)
+			      byname[pdx].parm->reloc_lexical_pos_bind();
+		  }
+		  gate->set_parameters(byname, cnt);
+	    } else if (bind.overrides && bind.overrides->by_order) {
+		  for (list<PExpr*>::iterator odx = bind.overrides->by_order->begin()
+			     ; odx != bind.overrides->by_order->end() ; ++odx) {
+			if (*odx) (*odx)->reloc_lexical_pos_bind();
+		  }
+		  gate->set_parameters(bind.overrides->by_order);
+	    }
+
+	    if (cur_name != "")
+		  add_local_symbol(scope, cur_name, gate);
+	    scope->add_gate(gate);
+      }
+}
+
+void pform_apply_binds(void)
+{
+      for (vector<pending_bind_t>::iterator cur = pending_binds.begin()
+		 ; cur != pending_binds.end() ; ++cur) {
+
+	    map<perm_string,Module*>::iterator match
+		  = pform_modules.find(cur->target);
+	    if (match == pform_modules.end()) {
+		  cerr << cur->li.get_fileline() << ": error: "
+		       << "bind target module/interface '" << cur->target
+		       << "' is not defined in this compilation." << endl;
+		  error_count += 1;
+		  continue;
+	    }
+	    if (cur->type == cur->target) {
+		  cerr << cur->li.get_fileline() << ": error: "
+		       << "bind of module '" << cur->type
+		       << "' into itself would recurse forever." << endl;
+		  error_count += 1;
+		  continue;
+	    }
+	    if (match->second->program_block) {
+		  cerr << cur->li.get_fileline() << ": error: "
+		       << "bind target '" << cur->target
+		       << "' is a program block; module instantiations "
+		       << "are not allowed in program blocks." << endl;
+		  error_count += 1;
+		  continue;
+	    }
+
+	    bind_apply_one(match->second, *cur);
+      }
+      pending_binds.clear();
+}
+
 static PGAssign* pform_make_pgassign(PExpr*lval, PExpr*rval,
 			      list<PExpr*>*del,
 			      struct str_pair_t str)
@@ -5222,10 +5369,20 @@ int pform_parse(const char*path)
       return error_count;
 }
 
-void pform_finish()
+int pform_finish()
 {
+	// Any errors counted here were already reported by pform_parse
+	// for their own file; count only what the finish steps add.
+      error_count = 0;
+
       // Wait until all parsing is done and all symbols in the unit scope are
       // known before importing possible imports.
       for (auto unit : pform_units)
 	    pform_check_possible_imports(unit);
+
+      // Apply collected SystemVerilog bind directives now that every
+      // target module has been parsed.
+      pform_apply_binds();
+
+      return error_count;
 }

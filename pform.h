@@ -569,6 +569,18 @@ extern void pform_make_modgates(const struct vlltype&loc,
 				std::vector<lgate>*gates,
 				std::list<named_pexpr_t>*attr);
 
+/* SystemVerilog bind directive (IEEE 1800-2017 23.11): record a bind
+   of a module instantiation into a named target module/interface.
+   Binds are collected during parse and applied by pform_apply_binds()
+   after all source files have been parsed, because the target module
+   may be defined in a later file than the bind directive. */
+extern void pform_bind_directive(const struct vlltype&loc,
+				 perm_string target,
+				 perm_string type,
+				 struct parmvalue_t*overrides,
+				 std::vector<lgate>*gates);
+extern void pform_apply_binds(void);
+
 /* Make a continuous assignment node, with optional bit- or part- select. */
 extern void pform_make_pgassign_list(const struct vlltype&loc,
 				     std::list<PExpr*>*alist,

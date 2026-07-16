@@ -56,6 +56,10 @@ bool PExpr::has_aa_term(Design*, NetScope*) const
       return false;
 }
 
+void PExpr::reloc_lexical_pos_bind()
+{
+}
+
 NetNet* PExpr::elaborate_lnet(Design*, NetScope*, bool) const
 {
       cerr << get_fileline() << ": error: "
@@ -125,6 +129,12 @@ PEAssignPattern::~PEAssignPattern()
 PEBinary::PEBinary(char op, PExpr*l, PExpr*r)
 : op_(op), left_(l), right_(r)
 {
+}
+
+void PEBinary::reloc_lexical_pos_bind()
+{
+      if (left_) left_->reloc_lexical_pos_bind();
+      if (right_) right_->reloc_lexical_pos_bind();
 }
 
 PEBinary::~PEBinary()
@@ -288,6 +298,17 @@ PECallFunction::~PECallFunction()
       delete receiver_;
 }
 
+void PECallFunction::reloc_lexical_pos_bind()
+{
+      if (receiver_) receiver_->reloc_lexical_pos_bind();
+      for (unsigned idx = 0 ; idx < parms_.size() ; idx += 1) {
+	    if (parms_[idx].parm) parms_[idx].parm->reloc_lexical_pos_bind();
+      }
+      for (unsigned idx = 0 ; idx < with_constraints_.size() ; idx += 1) {
+	    if (with_constraints_[idx]) with_constraints_[idx]->reloc_lexical_pos_bind();
+      }
+}
+
 void PECallFunction::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
 {
       if (receiver_)
@@ -315,6 +336,14 @@ PEConcat::PEConcat(const list<PExpr*>&p, PExpr*r)
 {
       tested_scope_ = 0;
       repeat_count_ = 1;
+}
+
+void PEConcat::reloc_lexical_pos_bind()
+{
+      if (repeat_) repeat_->reloc_lexical_pos_bind();
+      for (unsigned idx = 0 ; idx < parms_.size() ; idx += 1) {
+	    if (parms_[idx]) parms_[idx]->reloc_lexical_pos_bind();
+      }
 }
 
 PEConcat::~PEConcat()
@@ -435,6 +464,19 @@ static bool find_enum_constant(LexicalScope*scope, perm_string name)
 	    return std::any_of(cur->names->cbegin(), cur->names->cend(),
 	                       [name](const named_pexpr_t&idx){return idx.name == name;});
       });
+}
+
+void PEIdent::reloc_lexical_pos_bind()
+{
+      lexical_pos_ = UINT_MAX;
+      for (pform_name_t::iterator name = path_.name.begin()
+		 ; name != path_.name.end() ; ++name) {
+	    for (std::list<index_component_t>::iterator idx = name->index.begin()
+		       ; idx != name->index.end() ; ++idx) {
+		  if (idx->msb) idx->msb->reloc_lexical_pos_bind();
+		  if (idx->lsb) idx->lsb->reloc_lexical_pos_bind();
+	    }
+      }
 }
 
 void PEIdent::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
@@ -599,6 +641,13 @@ PETernary::PETernary(PExpr*e, PExpr*t, PExpr*f)
 {
 }
 
+void PETernary::reloc_lexical_pos_bind()
+{
+      if (expr_) expr_->reloc_lexical_pos_bind();
+      if (tru_) tru_->reloc_lexical_pos_bind();
+      if (fal_) fal_->reloc_lexical_pos_bind();
+}
+
 PETernary::~PETernary()
 {
 }
@@ -631,6 +680,11 @@ PETypename::~PETypename()
 PEUnary::PEUnary(char op, PExpr*ex)
 : op_(op), expr_(ex)
 {
+}
+
+void PEUnary::reloc_lexical_pos_bind()
+{
+      if (expr_) expr_->reloc_lexical_pos_bind();
 }
 
 PEUnary::~PEUnary()

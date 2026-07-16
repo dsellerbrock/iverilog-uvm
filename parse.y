@@ -3510,6 +3510,7 @@ description /* IEEE1800-2005: A.1.2 */
   | package_declaration
   | discipline_declaration
   | package_item
+  | bind_directive
   | KK_attribute '(' IDENTIFIER ',' STRING ',' STRING ')'
       { perm_string tmp3 = lex_strings.make($3);
 	pform_set_type_attrib(tmp3, $5, $7);
@@ -3523,6 +3524,57 @@ description /* IEEE1800-2005: A.1.2 */
 description_list
   : description
   | description_list description
+  ;
+
+  /* SystemVerilog bind directive (IEEE1800-2017: A.1.4 / 23.11). The
+     supported form targets a module (or interface) DEFINITION, so the
+     bound instance appears inside every instance of the target:
+       bind <target_module> <bound_module> [#(...)] <inst> (...);
+     The directive is legal both at the description level and as a
+     module item; both feed the same pending-bind list, applied after
+     all files are parsed (pform_apply_binds). The bind-to-specific-
+     instance and instance-list forms are not implemented and get a
+     loud diagnostic rather than a silent drop. */
+bind_directive
+  : K_bind IDENTIFIER IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { perm_string target = lex_strings.make($2);
+	perm_string type = lex_strings.make($3);
+	pform_bind_directive(@1, target, type, $4, $5);
+	delete[]$2;
+	delete[]$3;
+      }
+  | K_bind IDENTIFIER TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { perm_string target = lex_strings.make($2);
+	perm_string type = lex_strings.make($3.text);
+	pform_bind_directive(@1, target, type, $4, $5);
+	delete[]$2;
+	delete[]$3.text;
+      }
+  | K_bind TYPE_IDENTIFIER IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { perm_string target = lex_strings.make($2.text);
+	perm_string type = lex_strings.make($3);
+	pform_bind_directive(@1, target, type, $4, $5);
+	delete[]$2.text;
+	delete[]$3;
+      }
+  | K_bind IDENTIFIER '.' error ';'
+      { yyerror(@1, "sorry: bind to a specific hierarchical instance "
+	        "(bind top.inst ...) is not supported yet; bind to the "
+	        "module definition instead (bind <module> ...).");
+	delete[]$2;
+      }
+  | K_bind IDENTIFIER ':' error ';'
+      { yyerror(@1, "sorry: bind with a target instance list "
+	        "(bind <module> : <instances> ...) is not supported yet; "
+	        "bind to the module definition instead.");
+	delete[]$2;
+      }
+  | K_bind IDENTIFIER error ';'
+      { yyerror(@1, "sorry: this bind directive form is not supported "
+	        "yet. Supported: bind <target_module> <module> [#(...)] "
+	        "<instance> (...);");
+	delete[]$2;
+      }
   ;
 
 
@@ -9936,27 +9988,9 @@ module_item
 		  if ($1) delete $1;
       }
 
-  /* SystemVerilog `bind` directive — parsed and silently dropped.
-     Iverilog does not yet implement bind semantics, but binds are typically
-     used for SVA assertion modules; for UVM-driven DV the testbench's
-     pass/fail is determined by class-side checks rather than concurrent
-     assertions, so consuming the directive is sufficient for compile.
-     Two common forms:
-       bind <target> <module> [#(...)] <inst> (...);
-       bind <target> <module> <inst> (...);
-     Match both via gate_instance_list. */
-  | K_bind IDENTIFIER IDENTIFIER parameter_value_opt gate_instance_list ';'
-      { delete[]$2;
-        delete[]$3;
-      }
-  | K_bind IDENTIFIER TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
-      { delete[]$2;
-        delete[]$3.text;
-      }
-  | K_bind IDENTIFIER error ';'
-      { yywarn(@1, "warning: ignoring unsupported bind directive form");
-        delete[]$2;
-      }
+  /* SystemVerilog `bind` directive (IEEE 1800-2017 23.11). Allowed as
+     a module item as well as at the description level. */
+  | bind_directive
 
   /* Packed array of typedef: e.g. "my_t [N-1:0] arr;" in module scope.
      The TYPE_IDENTIFIER followed by '[' is ambiguous with module instantiation,
