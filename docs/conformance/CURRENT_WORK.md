@@ -3,6 +3,53 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-16 (M13 CLOSED)
+
+- **M13 (bind, let, configs, specify, timing, rare constructs) is
+  CLOSED** on PR #76, four increments in four commits:
+  1. **bind** (23.11) — was silent-drop (module-item) / syntax error
+     (description-level); now real semantics. Directives collected
+     during parse, applied by `pform_apply_binds()` from
+     `pform_finish()` after all files parsed: the bound PGModule is
+     appended to the TARGET module's gates so every instance
+     elaborates it in target scope. New PExpr virtual
+     `reloc_lexical_pos_bind()` relocates identifier lexical positions
+     to end-of-scope so bind-before-target / cross-file binds resolve
+     target internals. `pform_finish()` now returns its error count to
+     main. Loud errors: unknown target, self-bind, program-block
+     target; loud sorries: bind-to-instance-path, target-instance-list.
+  2. **let** (11.13) — was sorry; now real expression-macro
+     substitution. Lets stored on the pform Module, copied to a
+     NetScope table (`find_let` stops at the module boundary); a use
+     clones the body with formals→actual-clones and elaborates in the
+     use scope (cached per node, depth-guarded for recursion). Hooks in
+     PECallFunction/PEIdent test_width+elaborate_expr. Supports
+     default/named args, lets-calling-lets, selects on formals.
+  3. **timing checks** (clause 31) — were warn-and-drop (violations
+     never reported); now synthesized checker processes (parse-time,
+     like M8/M9). $setup/$hold/$recovery/$removal/$skew/$period/$width
+     and $setuphold/$recrem (paired, cloned limits) report violations
+     via $display + notifier toggle, ACTIVE with -gspecify (silent
+     without, matching path-delay opt-in). Loud sorries: $nochange,
+     $timeskew, $fullskew, edge-descriptor lists, timestamp/timecheck
+     conds.
+  4. **rare constructs pinned** — strengths/rare-nets, preprocessor
+     stringize/paste/nesting, const user functions, specify paths all
+     locked with permanent tests; trireg stays a loud sorry; config a
+     loud skip. Negative runner now accepts `sorry:` as a loud
+     rejection.
+- **Promotion evidence**: UVM **160/160** (zero no-check; 155 + 5 M13
+  tests); ivtest failure names byte-identical to baseline (the two
+  pow_ca_* under concurrent-sweep load are the documented ~24s load
+  flakes, PASS standalone); negative **21/21**; bundled VPI **79/79**
+  (unaffected). Session log:
+  session_logs/2026-07-16_m13_bind_let_specify_timing.md (ledger:
+  bind-to-instance/list, typed let ports + non-module-scope lets,
+  $nochange/$timeskew/$fullskew + edge-descriptors + tstamp conds,
+  config skip, trireg).
+- **NEXT FRONTIER: M14 (clause conformance matrix)**; then M15
+  (1800-2023 delta).
+
 ## State as of 2026-07-15h (M12 CLOSED)
 
 - **M12 (VPI SystemVerilog object model) is CLOSED** on PR #76, four
