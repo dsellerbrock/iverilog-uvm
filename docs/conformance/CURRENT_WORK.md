@@ -3,6 +3,26 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-16d (M6B scheduler conformance + $exit)
+
+- **M6B delivered**: construct-level scheduler conformance inventory
+  (`docs/conformance/scheduler_conformance_inventory.md`) — 20 scheduling
+  constructs mapped to runtime path + IEEE 1800-2017 clause-4 region +
+  observed behaviour + permanent test, backed by 18 event-region litmus
+  probes (all green: NBA swap, blocking/#0 pre-NBA reads, `->>`,
+  `e.triggered`, continuous-assign-after-NBA, inertial cancel, `$strobe`
+  post-NBA, `wait fork`, `disable fork`, program/reactive ordering).
+- **`$exit` implemented** (IEEE 1800-2017 24.7): was an undefined-systask
+  load error; now ends the calling program (quiet finish). `vpi/sys_finish.c`.
+  Multi-program early-exit and program-completion-ends-sim are recorded
+  M6B follow-up gaps (the latter deliberately not implemented — would
+  risk the 57 ivtest + 3 harness program-block tests).
+- **Tests**: m6b_scheduler_litmus_test.sv, m6b_exit_test.sv. Evidence:
+  negative 24/24; existing m6_sched/reactive/program tests pass; UVM +
+  ivtest sweeps (pending final confirm).
+- **Next**: M4-av (string/real-valued int-keyed assoc reads — remaining
+  silent miscompile), then M9B/M9C (`within`/`until`/`intersect`).
+
 ## State as of 2026-07-16c (MILESTONE TRUTH AUDIT + 2 reopened fixes)
 
 **Milestone status corrected** — see

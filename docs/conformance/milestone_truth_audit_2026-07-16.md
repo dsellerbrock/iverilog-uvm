@@ -73,12 +73,12 @@ restores, and object-level freeze still holds all fields.
 Both landed with regression-clean checkpoints; see
 `session_logs/2026-07-16_truth_audit_throughout_randmode.md`.
 
-## Reopened work items (priority order; two closed this session)
+## Reopened work items (priority order; three advanced/closed)
 
-1. ~~**M3-rm** — per-field `rand_mode(0)`~~ **DONE this session.**
+1. ~~**M3-rm** — per-field `rand_mode(0)`~~ **DONE.**
 2. **M4-av** — string/real-valued integer-keyed assoc reads (silent). **Highest remaining priority.**
 3. **M9C/M9B** — `within`/`until`/`intersect` (loud today; `throughout` done).
-4. **M6B** — scheduler event-region inventory + invariant checks.
+4. ~~**M6B** — scheduler conformance inventory~~ **DELIVERED** (construct-level inventory + `$exit` + litmus regressions; `scheduler_conformance_inventory.md`). Remaining true M6B gaps (program-completion-ends-sim, cbNBASynch region, DPI time-consuming tasks, callf scheduled-call protocol) recorded in its ledger.
 5. **M10B** — multidim open arrays / packed vector marshaling / export.
 6. **M12B** — assertion VPI object model.
 7. **M1B** — semantic-IR remediation.
