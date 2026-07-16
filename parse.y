@@ -5373,8 +5373,20 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { pform_sva_sorry(@2, "intersect"); $$ = 0; }
   | sva_seq_expr K_within sva_seq_expr
       { pform_sva_sorry(@2, "within"); $$ = 0; }
+  /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
+     every cycle of the sequence. Lowered to a unit-delay sequence with
+     guard AND-ed into each cycle (pform_sva_throughout). */
   | expression K_throughout sva_seq_expr
-      { pform_sva_sorry(@2, "throughout"); delete $1; $$ = 0; }
+      { std::vector<sva_seq_step_t>*tr = pform_sva_throughout(@2, $1, $3);
+	if (tr == 0) {
+	      $$ = 0;
+	} else {
+	      sva_property_t*p = new sva_property_t;
+	      p->seq = tr;
+	      p->op_type = 0;
+	      $$ = p;
+	}
+      }
   ;
 
   /* M9: a sequence expression as a linear chain of cycle-delayed

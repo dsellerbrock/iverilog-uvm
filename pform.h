@@ -292,6 +292,14 @@ extern std::vector<sva_seq_step_t>*
 pform_sva_repeat(const struct vlltype&loc,
 		 std::vector<sva_seq_step_t>*steps,
 		 PExpr*lo, PExpr*hi);
+
+/* M9C: `guard throughout seq` (IEEE 1800-2017 16.9.9) — lowered to an
+   ordinary unit-delay sequence with `guard` AND-ed into every cycle.
+   Returns the transformed step list, or nullptr (diagnosed) for the
+   variable-window shapes it does not support. Consumes guard and seq. */
+extern std::vector<sva_seq_step_t>*
+pform_sva_throughout(const struct vlltype&loc, PExpr*guard,
+		     std::vector<sva_seq_step_t>*seq);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at

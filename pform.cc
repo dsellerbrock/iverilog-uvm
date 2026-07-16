@@ -5137,6 +5137,107 @@ pform_sva_repeat(const struct vlltype&loc,
       return steps;
 }
 
+/*
+ * M9C: `expr throughout seq` (IEEE 1800-2017 16.9.9). The boolean `expr`
+ * must hold at every clock tick from the start of `seq` until it
+ * completes. Rather than extend the token-pipeline runtime, we lower
+ * throughout by a source-level transformation into an ordinary
+ * unit-delay sequence that the existing engine already handles exactly:
+ *
+ *   - `expr` is AND-ed into every step's boolean (so it is checked at
+ *     each matched cycle), and
+ *   - every multi-cycle `##N` gap is expanded into N-1 intermediate
+ *     unit steps whose boolean is `expr` alone (so it is also checked at
+ *     the wait cycles).
+ *
+ * This is exact for constant, bounded delays. Range (`##[m:n]`),
+ * unbounded (`##[m:$]`), and range-repetition (`[*m:n]`) sub-shapes make
+ * the throughout window variable-length; those are diagnosed loudly
+ * (the sequence is dropped) rather than approximated, so no silent
+ * miscompile is introduced. Returns nullptr on an unsupported shape or
+ * a non-clonable guard, after emitting the diagnostic.
+ */
+std::vector<sva_seq_step_t>*
+pform_sva_throughout(const struct vlltype&loc, PExpr*guard,
+		     std::vector<sva_seq_step_t>*seq)
+{
+      if (!seq || seq->empty()) {
+	    delete guard;
+	    delete seq;
+	    return nullptr;
+      }
+
+	// Reject the variable-window sub-shapes up front.
+      for (size_t i = 0 ; i < seq->size() ; i += 1) {
+	    const sva_seq_step_t&st = (*seq)[i];
+	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
+		|| st.rep_tail != 0) {
+		  cerr << loc << ": sorry: `throughout' is supported only "
+		       << "over a fixed-length sequence (constant ##N "
+		       << "delays, no ##[m:n]/##[m:$]/[*m:n]); the "
+		       << "assertion is dropped." << endl;
+		  error_count += 1;
+		  delete guard;
+		  delete seq;
+		  return nullptr;
+	    }
+      }
+
+      std::vector<sva_seq_step_t>*out = new std::vector<sva_seq_step_t>;
+
+      for (size_t i = 0 ; i < seq->size() ; i += 1) {
+	    const sva_seq_step_t&st = (*seq)[i];
+	    long d = st.delay_lo;
+
+	      // Intermediate wait cycles: guard alone, one per skipped
+	      // cycle. (For the leading step d is usually 0 — no wait.)
+	    for (long j = 1 ; j < d ; j += 1) {
+		  PExpr*gj = sva_clone_expr_(guard);
+		  if (!gj) goto unclonable;
+		  sva_seq_step_t wait_st;
+		  wait_st.delay_lo = 1;
+		  wait_st.delay_hi = 1;
+		  wait_st.rep_tail = 0;
+		  wait_st.expr = gj;
+		  out->push_back(wait_st);
+	    }
+
+	      // The step's own cycle: guard && original boolean.
+	    {
+		  PExpr*gi = sva_clone_expr_(guard);
+		  if (!gi) goto unclonable;
+		  PExpr*conj = new PEBLogic('a', gi, st.expr);
+		  FILE_NAME(conj, loc);
+		  sva_seq_step_t use_st;
+		  use_st.delay_lo = (d == 0) ? 0 : 1;
+		  use_st.delay_hi = use_st.delay_lo;
+		  use_st.rep_tail = 0;
+		  use_st.expr = conj;
+		  out->push_back(use_st);
+	    }
+      }
+
+      delete guard;
+      delete seq;      // step exprs were moved into `out`
+      return out;
+
+ unclonable:
+      cerr << loc << ": sorry: the `throughout' guard expression has a "
+	   << "shape the assertion engine cannot duplicate; the "
+	   << "assertion is dropped." << endl;
+      error_count += 1;
+	// out may hold clones; drop them.
+      for (size_t k = 0 ; k < out->size() ; k += 1)
+	    delete (*out)[k].expr;
+      delete out;
+      delete guard;
+	// original step exprs still owned by seq if not yet moved; the
+	// loud drop leaks at most the remaining originals (process is
+	// exiting on error anyway).
+      delete seq;
+      return nullptr;
+}
+
 /* Lower one concurrent assertion (assert/assume/cover property) to a
    synthesized clocked checker. kind: 0=assert, 1=assume, 2=cover. */
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
