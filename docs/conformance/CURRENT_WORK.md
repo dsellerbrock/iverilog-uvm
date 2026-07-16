@@ -3,6 +3,26 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-16e (M6B: program-completion ends simulation)
+
+- **Program-completion-ends-simulation implemented** (IEEE 1800-2017
+  24.7/3.9): a program that completes naturally now ends the simulation
+  (was: ran to the testbench watchdog). Program `initial` procedures are
+  marked `.thread $prog` (tgt-vvp, `ivl_scope_program`); the runtime
+  counts them and calls `schedule_finish(0)` when the last completes
+  (vvp/vthread.cc). Only run-once initials are counted, so program
+  assertions/clocking (always-type) never keep the sim alive.
+- Verified: single program ends at completion; two programs end only
+  after the LAST; fork..join completes after join; no-program designs
+  unaffected. **Regression-clean**: UVM 168/168 (zero no-check), ivtest
+  name-diff baseline-identical (57 program-block cases unaffected),
+  negative 24/24. Test: `tests/m6b_program_finish_test.sv`.
+- With `$exit`, both program-control gaps of clause 24.7 are now closed.
+  Remaining M6B ledger: cbNBASynch/post-NBA VPI regions, DPI
+  time-consuming tasks, callf scheduled-call protocol.
+- **Next**: M4-av (string/real-valued int-keyed assoc reads — remaining
+  silent miscompile), then M9B/M9C (`within`/`until`/`intersect`).
+
 ## State as of 2026-07-16d (M6B scheduler conformance + $exit)
 
 - **M6B delivered**: construct-level scheduler conformance inventory

@@ -78,7 +78,7 @@ Both landed with regression-clean checkpoints; see
 1. ~~**M3-rm** — per-field `rand_mode(0)`~~ **DONE.**
 2. **M4-av** — string/real-valued integer-keyed assoc reads (silent). **Highest remaining priority.**
 3. **M9C/M9B** — `within`/`until`/`intersect` (loud today; `throughout` done).
-4. ~~**M6B** — scheduler conformance inventory~~ **DELIVERED** (construct-level inventory + `$exit` + litmus regressions; `scheduler_conformance_inventory.md`). Remaining true M6B gaps (program-completion-ends-sim, cbNBASynch region, DPI time-consuming tasks, callf scheduled-call protocol) recorded in its ledger.
+4. ~~**M6B** — scheduler conformance inventory~~ **DELIVERED + ADVANCED**: construct-level inventory + `$exit` + **program-completion-ends-simulation (24.7/3.9)** + litmus regressions (`scheduler_conformance_inventory.md`). The two program-control gaps (24.7) are now closed; remaining true M6B gaps (cbNBASynch region, DPI time-consuming tasks, callf scheduled-call protocol) recorded in its ledger.
 5. **M10B** — multidim open arrays / packed vector marshaling / export.
 6. **M12B** — assertion VPI object model.
 7. **M1B** — semantic-IR remediation.
