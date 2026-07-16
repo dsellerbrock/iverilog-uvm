@@ -58,6 +58,8 @@ extern void vthread_mark_scheduled(vthread_t thr);
  * 4.4.2.5, clause 24).
  */
 extern int vthread_is_reactive(vthread_t thr);
+/* M6B: mark a thread as a program initial procedure (24.7). */
+extern void vthread_mark_program_init(vthread_t thr);
 
 /*
  * This function marks the thread as being a final procedure.

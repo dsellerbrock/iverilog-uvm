@@ -4095,6 +4095,14 @@ int draw_process(ivl_process_t net, void*x)
 		  fprintf(vvp_out, "    .thread T_%u, $init;\n", thread_count);
 	    } else if (push_flag) {
 		  fprintf(vvp_out, "    .thread T_%u, $push;\n", thread_count);
+	    } else if (ivl_process_type(net) == IVL_PR_INITIAL
+		       && ivl_scope_program(scope)) {
+		    /* M6B: a program-block INITIAL procedure. Mark it so the
+		       runtime can end the simulation when the last program
+		       initial completes (IEEE 1800-2017 24.7). Concurrent
+		       assertions/clocking in the program are ALWAYS-type and
+		       are not marked, so they do not keep the sim alive. */
+		  fprintf(vvp_out, "    .thread T_%u, $prog;\n", thread_count);
 	    } else {
 		  fprintf(vvp_out, "    .thread T_%u;\n", thread_count);
 	    }

@@ -2596,7 +2596,12 @@ void compile_thread(char*start_sym, char*flag)
 	    schedule_init_vthread(thr);
       else if (flag && (strcmp(flag,"$final") == 0))
 	    schedule_final_vthread(thr);
-      else
+      else if (flag && (strcmp(flag,"$prog") == 0)) {
+	      /* M6B: a program INITIAL procedure — schedule normally and
+	         register it for program-completion tracking (24.7). */
+	    schedule_vthread(thr, 0, false);
+	    vthread_mark_program_init(thr);
+      } else
 	    schedule_vthread(thr, 0, push_flag);
 
       free(start_sym);

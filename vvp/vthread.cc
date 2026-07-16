@@ -497,6 +497,10 @@ struct vthread_s {
 	   in the Reactive region set.  Set at creation from the scope
 	   chain and inherited by spawned children. */
       unsigned is_reactive_process :1;
+	/* M6B: a program-block INITIAL procedure (IEEE 1800-2017 24.7).
+	   Counted at creation; when the last one completes, simulation
+	   implicitly finishes. */
+      unsigned is_program_init :1;
       unsigned owns_automatic_context :1;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
@@ -3288,6 +3292,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
 		  break;
 	    }
       }
+      thr->is_program_init = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context = 0;
       thr->transferred_context = 0;
@@ -3611,6 +3616,37 @@ void vthread_mark_scheduled(vthread_t thr)
 int vthread_is_reactive(vthread_t thr)
 {
       return (thr && thr->is_reactive_process) ? 1 : 0;
+}
+
+/*
+ * M6B: program-completion tracking (IEEE 1800-2017 24.7 / 3.9). A
+ * program completes when all of its INITIAL procedures complete; when
+ * all programs in the design have completed, $finish is implicitly
+ * invoked. We count program-initial threads (marked $prog at compile
+ * time — only run-once initial blocks, NOT the program's concurrent
+ * assertions or clocking, which never end and must not keep the sim
+ * alive). When the count returns to zero after having been non-zero,
+ * the simulation finishes.
+ */
+static unsigned program_init_active = 0;
+static bool     program_init_seen   = false;
+
+void vthread_mark_program_init(vthread_t thr)
+{
+      if (!thr) return;
+      thr->is_program_init = 1;
+      program_init_active += 1;
+      program_init_seen = true;
+}
+
+static void program_init_completed_(void)
+{
+      if (program_init_active > 0)
+	    program_init_active -= 1;
+      if (program_init_active == 0 && program_init_seen
+	  && !schedule_finished()) {
+	    schedule_finish(0);
+      }
 }
 
 static inline bool schedule_assign_is_reactive_(vthread_t thr)
@@ -8668,6 +8704,13 @@ bool of_END(vthread_t thr, vvp_code_t)
 	    proc->mark_finished();
       thr->i_have_ended = 1;
       thr->pc = codespace_null();
+
+	/* M6B: a program initial procedure has completed; when the last
+	   one completes, the simulation finishes (IEEE 1800-2017 24.7). */
+      if (thr->is_program_init) {
+	    thr->is_program_init = 0;
+	    program_init_completed_();
+      }
 
 	/* Trampolined callf callee (M6 item 5, increment 2): its return
 	 * value/output args have already been poked into the caller's

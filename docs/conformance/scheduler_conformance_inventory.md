@@ -60,11 +60,32 @@ deliberately NOT implemented here — it would change end-of-simulation
 behaviour for the 57 ivtest cases + 3 harness tests that use program
 blocks and risk byte-diff regressions; it is a separate, larger item.
 
+## Program-completion-ends-simulation (24.7 / 3.9) — IMPLEMENTED
+
+A program completes when all of its INITIAL procedures complete; when
+all programs in the design have completed, `$finish` is implicitly
+invoked. This was previously absent (a program that completed naturally
+ran the simulation to its watchdog). Now implemented:
+
+- `tgt-vvp/vvp_process.c`: a program-block `IVL_PR_INITIAL` process
+  (`ivl_scope_program(scope)`) emits `.thread ... $prog`. Only run-once
+  initials are marked — the program's concurrent assertions / clocking
+  are ALWAYS-type and are NOT marked, so they never keep the sim alive.
+- `vvp` (`vthread.cc`/`compile.cc`): `$prog` threads increment a
+  program-initial counter at load; each completion (`of_END`) decrements
+  it; when it returns to zero after having been non-zero, `schedule_finish(0)`.
+
+Verified: a single program ends the sim at its completion; two programs
+of different lengths end the sim only after the LAST completes; a
+program `fork ... join` completes after the join; designs with no
+program blocks are unaffected. Recorded corner: a program whose only
+processes are `fork ... join_none` detached children (the top-level
+initial completes immediately) is treated as complete when the initial
+ends — a defensible reading of "initial procedures completed". Test:
+`tests/m6b_program_finish_test.sv`.
+
 ## Remaining true scheduler gaps (M6B follow-up ledger)
 
-- **Program-completion-ends-simulation** (24.7 / 3.9): a program that
-  completes naturally does NOT end the simulation (verified: a test
-  runs to its watchdog). `$exit` covers the explicit-exit case only.
 - **cbNBASynch / post-NBA VPI callback regions**: no distinct home
   (mapped onto NBA).
 - **DPI tasks that consume time**: run inline on the caller; no
