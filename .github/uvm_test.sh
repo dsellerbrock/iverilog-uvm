@@ -35,6 +35,7 @@ declare -A PLUSARGS=(
 # timing checks) list it here.  Format: "<name>=<flags>".
 declare -A IVFLAGS=(
     [m13_timing_test]="-gspecify"
+    [m13_specify_paths_test]="-gspecify"
 )
 
 compile_test() {
