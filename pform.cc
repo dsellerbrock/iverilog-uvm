@@ -4428,6 +4428,359 @@ static Statement* sva_block_(const struct vlltype&loc,
       return blk;
 }
 
+/*
+ * M13: timing checks (IEEE 1800-2017 clause 31) synthesize to plain
+ * checker processes at parse time, the same construction strategy as
+ * the M8 clocking and M9 SVA engines. Each check records the last
+ * occurrence time of its timestamp event in a synthesized realtime
+ * variable and, at the timecheck event, compares the elapsed time
+ * against the limit, reporting a violation with $display and toggling
+ * the notifier register when one is given. Checks are ACTIVE when
+ * specify blocks are enabled (-gspecify), consistent with path
+ * delays; without -gspecify every check gets a loud "ignored"
+ * warning instead of today's silence.
+ *
+ * Simultaneity fine points (31.4.1) and edge-descriptor event lists
+ * (edge [01, 10]) are recorded corners: the former is a scheduling
+ * race by construction, the latter gets a loud sorry.
+ */
+static unsigned tc_gensym_counter = 0;
+
+static perm_string tc_make_real_(const struct vlltype&loc, unsigned inst,
+				 const char*what)
+{
+      char buf[64];
+      snprintf(buf, sizeof buf, "_ivl_tc%u_%s", inst, what);
+      perm_string name = lex_strings.make(buf);
+
+      list<decl_assignment_t*>*decls = new list<decl_assignment_t*>;
+      decl_assignment_t*decl = new decl_assignment_t;
+      decl->name = pform_ident_t(name, loc.lexical_pos);
+      decl->expr.reset(new PEFNumber(new verireal(-1.0)));
+      decls->push_back(decl);
+
+      real_type_t*rtype = new real_type_t(real_type_t::REAL);
+      FILE_NAME(rtype, loc);
+      pform_make_var(loc, decls, rtype, nullptr, false);
+      return name;
+}
+
+static PExpr* tc_realtime_(const struct vlltype&loc)
+{
+      PECallFunction*rt
+	    = new PECallFunction(perm_string::literal("$realtime"));
+      FILE_NAME(rt, loc);
+      return rt;
+}
+
+static PExpr* tc_real_(const struct vlltype&loc, double v)
+{
+      PEFNumber*num = new PEFNumber(new verireal(v));
+      FILE_NAME(num, loc);
+      return num;
+}
+
+static PEIdent* tc_name_id_(const struct vlltype&loc, const pform_name_t&name)
+{
+      PEIdent*id = new PEIdent(name, loc.lexical_pos);
+      FILE_NAME(id, loc);
+      return id;
+}
+
+/* Build "@(edge sig) if (cond) <body>" as an always process. */
+static void tc_always_at_(const struct vlltype&loc,
+			  const PTimingCheck::event_t&ev,
+			  Statement*body)
+{
+      PEEvent::edge_t edge = PEEvent::ANYEDGE;
+      if (ev.posedge) edge = PEEvent::POSEDGE;
+      if (ev.negedge) edge = PEEvent::NEGEDGE;
+
+      if (ev.condition.get()) {
+	    PExpr*cond = sva_clone_expr_(ev.condition.get());
+	    if (cond == 0) {
+		  cerr << loc.get_fileline() << ": sorry: this timing check "
+		       << "&&& condition shape is not supported; the check "
+		       << "is dropped." << endl;
+		  error_count += 1;
+		  return;
+	    }
+	    PCondit*c = new PCondit(cond, body, nullptr);
+	    FILE_NAME(c, loc);
+	    body = c;
+      }
+
+      PEEvent*pe = new PEEvent(edge, tc_name_id_(loc, ev.name));
+      PEventStatement*es = new PEventStatement(pe);
+      FILE_NAME(es, loc);
+      es->set_statement(body);
+      pform_make_behavior(IVL_PR_ALWAYS, es, nullptr);
+}
+
+/* The violation action: $display diagnostic + optional notifier toggle. */
+static Statement* tc_violation_(const struct vlltype&loc,
+				const char*check_name,
+				const pform_name_t*notifier)
+{
+      char msg[256];
+      snprintf(msg, sizeof msg,
+	       "%s:%u: Timing violation: %s check in %%m at time %%0t",
+	       loc.text? loc.text : "", loc.first_line, check_name);
+      char*txt = new char[strlen(msg)+1];
+      strcpy(txt, msg);
+      PEString*fmt = new PEString(txt);
+      FILE_NAME(fmt, loc);
+
+      list<named_pexpr_t> parms;
+      named_pexpr_t p1;
+      p1.name = perm_string();
+      p1.parm = fmt;
+      parms.push_back(p1);
+      named_pexpr_t p2;
+      p2.name = perm_string();
+      p2.parm = tc_realtime_(loc);
+      parms.push_back(p2);
+
+      PCallTask*disp
+	    = new PCallTask(perm_string::literal("$display"), parms);
+      FILE_NAME(disp, loc);
+
+      if (notifier == 0)
+	    return disp;
+
+      PAssign*tog = new PAssign(tc_name_id_(loc, *notifier),
+				new PEUnary('~', tc_name_id_(loc, *notifier)));
+      FILE_NAME(tog, loc);
+
+      std::vector<Statement*> stmts;
+      stmts.push_back(disp);
+      stmts.push_back(tog);
+      return sva_block_(loc, stmts);
+}
+
+/* Common validity checks; false means the check was dropped loudly. */
+static bool tc_check_supported_(const struct vlltype&loc,
+				const char*check_name,
+				const PTimingCheck::event_t&ev)
+{
+      if (!ev.edges.empty()) {
+	    cerr << loc.get_fileline() << ": sorry: edge-descriptor event "
+		 << "lists (edge [...]) in " << check_name << " are not "
+		 << "supported; the check is dropped." << endl;
+	    error_count += 1;
+	    return false;
+      }
+      return true;
+}
+
+static bool tc_active_(const struct vlltype&loc, const char*check_name)
+{
+      (void)loc; (void)check_name;
+      if (pform_cur_module.empty()) return false;
+	// The specify block as a whole (path delays and timing checks
+	// alike) is inert without -gspecify; that is the established
+	// opt-in contract, so ignoring the check is silent here.
+      if (!gn_specify_blocks_flag) return false;
+      return true;
+}
+
+static void tc_pair_synth_(const struct vlltype&loc,
+			   const char*check_name,
+			   const PTimingCheck::event_t&stamp_ev,
+			   const PTimingCheck::event_t&check_ev,
+			   PExpr*limit,
+			   bool violation_if_greater,
+			   const pform_name_t*notifier)
+{
+      if (!tc_check_supported_(loc, check_name, stamp_ev)) return;
+      if (!tc_check_supported_(loc, check_name, check_ev)) return;
+
+      unsigned inst = tc_gensym_counter++;
+      perm_string stamp_var = tc_make_real_(loc, inst, "stamp");
+
+	// Timestamp process: stamp = $realtime.
+      PAssign*rec = new PAssign(sva_id_(loc, stamp_var), tc_realtime_(loc));
+      FILE_NAME(rec, loc);
+      tc_always_at_(loc, stamp_ev, rec);
+
+	// Timecheck process:
+	//   if (stamp >= 0 && (($realtime - stamp) <op> limit)) violation;
+      PExpr*guard = new PEBComp('G', sva_id_(loc, stamp_var),
+				tc_real_(loc, 0.0));
+      PExpr*delta = new PEBinary('-', tc_realtime_(loc),
+				 sva_id_(loc, stamp_var));
+      PExpr*cmp = new PEBComp(violation_if_greater? '>' : '<',
+			      delta, limit);
+      PExpr*cond = new PEBLogic('a', guard, cmp);
+      PCondit*chk = new PCondit(cond,
+				tc_violation_(loc, check_name, notifier),
+				nullptr);
+      FILE_NAME(chk, loc);
+      tc_always_at_(loc, check_ev, chk);
+}
+
+void pform_timing_check_pair(const struct vlltype&loc,
+			     const char*check_name,
+			     const PTimingCheck::event_t&stamp_ev,
+			     const PTimingCheck::event_t&check_ev,
+			     PExpr*limit,
+			     bool violation_if_greater,
+			     const pform_name_t*notifier)
+{
+      if (!tc_active_(loc, check_name)) return;
+      tc_pair_synth_(loc, check_name, stamp_ev, check_ev, limit,
+		     violation_if_greater, notifier);
+}
+
+/* $setuphold and $recrem are two paired checks in one directive. The
+   limit expressions are BORROWED (the caller passes the originals on
+   to PSetupHold/PRecRem for delayed-signal aliasing), so the
+   synthesized checkers use structural clones. */
+void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
+					 const char*base_name,
+					 const PTimingCheck::event_t&ref_ev,
+					 const PTimingCheck::event_t&data_ev,
+					 PExpr*lim1,
+					 PExpr*lim2,
+					 const pform_name_t*notifier)
+{
+      if (!tc_active_(loc, base_name)) return;
+
+      PExpr*lim1c = sva_clone_expr_(lim1);
+      PExpr*lim2c = sva_clone_expr_(lim2);
+      if (lim1c == 0 || lim2c == 0) {
+	    cerr << loc.get_fileline() << ": sorry: " << base_name
+		 << " limit expression shape is not supported by the "
+		 << "timing-check synthesizer; the violation checks are "
+		 << "dropped." << endl;
+	    error_count += 1;
+	    delete lim1c;
+	    delete lim2c;
+	    return;
+      }
+
+      char nam1[48], nam2[48];
+      if (strcmp(base_name, "$recrem") == 0) {
+	    snprintf(nam1, sizeof nam1, "%s(recovery)", base_name);
+	    snprintf(nam2, sizeof nam2, "%s(removal)", base_name);
+	      // recovery: stamp=async ref, check=clock data
+	    tc_pair_synth_(loc, nam1, ref_ev, data_ev, lim1c, false, notifier);
+	      // removal: stamp=clock data, check=async ref
+	    tc_pair_synth_(loc, nam2, data_ev, ref_ev, lim2c, false, notifier);
+      } else {
+	    snprintf(nam1, sizeof nam1, "%s(setup)", base_name);
+	    snprintf(nam2, sizeof nam2, "%s(hold)", base_name);
+	      // setup: stamp=data, check=clock ref
+	    tc_pair_synth_(loc, nam1, data_ev, ref_ev, lim1c, false, notifier);
+	      // hold: stamp=clock ref, check=data
+	    tc_pair_synth_(loc, nam2, ref_ev, data_ev, lim2c, false, notifier);
+      }
+}
+
+void pform_timing_check_period(const struct vlltype&loc,
+			       const PTimingCheck::event_t&ev,
+			       PExpr*limit,
+			       const pform_name_t*notifier)
+{
+      if (!tc_active_(loc, "$period")) return;
+      if (!tc_check_supported_(loc, "$period", ev)) return;
+
+      unsigned inst = tc_gensym_counter++;
+      perm_string last_var = tc_make_real_(loc, inst, "last");
+
+	// One process: check against the previous edge, then record.
+      PExpr*guard = new PEBComp('G', sva_id_(loc, last_var),
+				tc_real_(loc, 0.0));
+      PExpr*delta = new PEBinary('-', tc_realtime_(loc),
+				 sva_id_(loc, last_var));
+      PExpr*cmp = new PEBComp('<', delta, limit);
+      PExpr*cond = new PEBLogic('a', guard, cmp);
+      PCondit*chk = new PCondit(cond,
+				tc_violation_(loc, "$period", notifier),
+				nullptr);
+      FILE_NAME(chk, loc);
+      PAssign*rec = new PAssign(sva_id_(loc, last_var), tc_realtime_(loc));
+      FILE_NAME(rec, loc);
+
+      std::vector<Statement*> stmts;
+      stmts.push_back(chk);
+      stmts.push_back(rec);
+      tc_always_at_(loc, ev, sva_block_(loc, stmts));
+}
+
+void pform_timing_check_width(const struct vlltype&loc,
+			      const PTimingCheck::event_t&ev,
+			      PExpr*limit,
+			      PExpr*threshold,
+			      const pform_name_t*notifier)
+{
+      if (!tc_active_(loc, "$width")) return;
+      if (!tc_check_supported_(loc, "$width", ev)) return;
+      if (!ev.posedge && !ev.negedge) {
+	    cerr << loc.get_fileline() << ": error: $width requires an "
+		 << "edge-qualified reference event (posedge/negedge)."
+		 << endl;
+	    error_count += 1;
+	    return;
+      }
+
+      unsigned inst = tc_gensym_counter++;
+      perm_string stamp_var = tc_make_real_(loc, inst, "stamp");
+
+	// Record at the qualified edge.
+      PAssign*rec = new PAssign(sva_id_(loc, stamp_var), tc_realtime_(loc));
+      FILE_NAME(rec, loc);
+      tc_always_at_(loc, ev, rec);
+
+	// Check at the opposite edge: threshold < delta < limit.
+      PTimingCheck::event_t opp;
+      opp.name = ev.name;
+      opp.posedge = ev.negedge;
+      opp.negedge = ev.posedge;
+      if (ev.condition.get()) {
+	    PExpr*ccl = sva_clone_expr_(ev.condition.get());
+	    if (ccl == 0) {
+		  cerr << loc.get_fileline() << ": sorry: this timing check "
+		       << "&&& condition shape is not supported; the check "
+		       << "is dropped." << endl;
+		  error_count += 1;
+		  return;
+	    }
+	    opp.condition.reset(ccl);
+      }
+
+      PExpr*guard = new PEBComp('G', sva_id_(loc, stamp_var),
+				tc_real_(loc, 0.0));
+      PExpr*delta = new PEBinary('-', tc_realtime_(loc),
+				 sva_id_(loc, stamp_var));
+      PExpr*cmp = new PEBComp('<', delta, limit);
+      PExpr*cond = new PEBLogic('a', guard, cmp);
+      if (threshold) {
+	    PExpr*delta2 = new PEBinary('-', tc_realtime_(loc),
+					sva_id_(loc, stamp_var));
+	    PExpr*thr = new PEBComp('>', delta2, threshold);
+	    cond = new PEBLogic('a', cond, thr);
+      }
+      PCondit*chk = new PCondit(cond,
+				tc_violation_(loc, "$width", notifier),
+				nullptr);
+      FILE_NAME(chk, loc);
+      tc_always_at_(loc, opp, chk);
+}
+
+void pform_timing_check_sorry(const struct vlltype&loc,
+			      const char*check_name)
+{
+	// Silent when specify is disabled (see tc_active_); loud when
+	// the user asked for specify semantics but the check shape is
+	// not modeled.
+      if (!gn_specify_blocks_flag) return;
+      cerr << loc.get_fileline() << ": sorry: the " << check_name
+	   << " timing check is not supported yet; the check is dropped."
+	   << endl;
+      error_count += 1;
+}
+
 /* Rewrite sampled-value functions inside a property expression:
    $rose/$fell/$stable/$changed/$past calls become references to
    synthesized 1-cycle (or N-cycle) history registers. The argument

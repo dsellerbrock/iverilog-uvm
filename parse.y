@@ -10958,9 +10958,7 @@ specify_item
   | K_Sfullskew '(' spec_reference_event ',' spec_reference_event
     ',' delay_value ',' delay_value fullskew_opt_args ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
+	pform_timing_check_sorry(@1, "$fullskew");
 	delete $3; // spec_reference_event
 	delete $5; // spec_reference_event
 	delete $7; // delay_value
@@ -10975,20 +10973,16 @@ specify_item
   | K_Shold '(' spec_reference_event ',' spec_reference_event
     ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $8; // spec_notifier_opt
+	// $hold(ref, data, limit): timestamp=ref, timecheck=data.
+	pform_timing_check_pair(@1, "$hold", *$3, *$5, $7, false, $8);
+	delete $3;
+	delete $5;
+	delete $8;
       }
   | K_Snochange '(' spec_reference_event ',' spec_reference_event
 	  ',' delay_value ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
+	pform_timing_check_sorry(@1, "$nochange");
 	delete $3; // spec_reference_event
 	delete $5; // spec_reference_event
 	delete $7; // delay_value
@@ -10998,34 +10992,35 @@ specify_item
   | K_Speriod '(' spec_reference_event ',' delay_value
     spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // delay_value
-	delete $6; // spec_notifier_opt
+	pform_timing_check_period(@1, *$3, $5, $6);
+	delete $3;
+	delete $6;
       }
   | K_Srecovery '(' spec_reference_event ',' spec_reference_event
     ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $8; // spec_notifier_opt
+	// $recovery(ref, data, limit): timestamp=ref, timecheck=data.
+	pform_timing_check_pair(@1, "$recovery", *$3, *$5, $7, false, $8);
+	delete $3;
+	delete $5;
+	delete $8;
       }
   | K_Srecrem '(' spec_reference_event ',' spec_reference_event
     ',' expr_mintypmax ',' expr_mintypmax recrem_opt_args ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      cerr << @3 << ": warning: Timing checks are not supported. ";
-	      if ($10->delayed_reference != nullptr || $10->delayed_data != nullptr) {
-		    cerr << "Delayed reference and data signals become copies of the"
-			 << " original reference and data signals.";
+	// $recrem(ref, data, rec, rem) = $recovery(ref, data, rec) +
+	// $removal(ref, data, rem).
+	if ($10->timestamp_cond != nullptr || $10->timecheck_cond != nullptr) {
+	      if (gn_specify_blocks_flag) {
+		    cerr << @1 << ": sorry: $recrem timestamp/timecheck "
+			 << "condition arguments are not supported; the "
+			 << "violation checks are dropped." << endl;
+		    error_count += 1;
 	      }
-	      cerr << endl;
+	} else {
+	      pform_timing_check_setuphold_recrem(@1, "$recrem",
+						  *$3, *$5, $7, $9,
+						  $10->notifier);
 	}
 
 	PRecRem*recrem = pform_make_recrem(@1, $3, $5, $7, $9, $10);
@@ -11036,35 +11031,41 @@ specify_item
   | K_Sremoval '(' spec_reference_event ',' spec_reference_event
     ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $8; // spec_notifier_opt
+	// $removal(ref, data, limit): the check fires at the async
+	// control (reference) event, measured since the clock (data).
+	pform_timing_check_pair(@1, "$removal", *$5, *$3, $7, false, $8);
+	delete $3;
+	delete $5;
+	delete $8;
       }
   | K_Ssetup '(' spec_reference_event ',' spec_reference_event
     ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $8; // spec_notifier_opt
+	// $setup(data, ref, limit): timestamp=data, timecheck=ref.
+	pform_timing_check_pair(@1, "$setup", *$3, *$5, $7, false, $8);
+	delete $3;
+	delete $5;
+	delete $8;
       }
   | K_Ssetuphold '(' spec_reference_event ',' spec_reference_event
     ',' expr_mintypmax ',' expr_mintypmax setuphold_opt_args ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      cerr << @3 << ": warning: Timing checks are not supported. ";
-	      if ($10->delayed_reference != nullptr || $10->delayed_data != nullptr) {
-		    cerr << "Delayed reference and data signals become copies of the"
-			 << " original reference and data signals.";
+	// $setuphold(ref, data, s, h) = $setup(data, ref, s) +
+	// $hold(ref, data, h). The synthesized checkers use CLONES of
+	// the limit expressions; the originals go to PSetupHold below
+	// for delayed-signal aliasing. Timestamp/timecheck condition
+	// arguments modify check semantics we do not model: loud sorry.
+	if ($10->timestamp_cond != nullptr || $10->timecheck_cond != nullptr) {
+	      if (gn_specify_blocks_flag) {
+		    cerr << @1 << ": sorry: $setuphold timestamp/timecheck "
+			 << "condition arguments are not supported; the "
+			 << "violation checks are dropped." << endl;
+		    error_count += 1;
 	      }
-	      cerr << endl;
+	} else {
+	      pform_timing_check_setuphold_recrem(@1, "$setuphold",
+						  *$3, *$5, $7, $9,
+						  $10->notifier);
 	}
 
 	PSetupHold*setuphold = pform_make_setuphold(@1, $3, $5, $7, $9, $10);
@@ -11075,20 +11076,17 @@ specify_item
   | K_Sskew '(' spec_reference_event ',' spec_reference_event
     ',' delay_value spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $8; // spec_notifier_opt
+	// $skew(ref, data, limit): violation if data lags ref by MORE
+	// than the limit.
+	pform_timing_check_pair(@1, "$skew", *$3, *$5, $7, true, $8);
+	delete $3;
+	delete $5;
+	delete $8;
       }
   | K_Stimeskew '(' spec_reference_event ',' spec_reference_event
     ',' delay_value timeskew_opt_args ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
+	pform_timing_check_sorry(@1, "$timeskew");
 	delete $3; // spec_reference_event
 	delete $5; // spec_reference_event
 	delete $7; // delay_value
@@ -11102,21 +11100,14 @@ specify_item
   | K_Swidth '(' spec_reference_event ',' delay_value ',' expression
     spec_notifier_opt ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // delay_value
-	delete $7; // expression
+	pform_timing_check_width(@1, *$3, $5, $7, $8);
+	delete $3;
 	delete $8;
       }
   | K_Swidth '(' spec_reference_event ',' delay_value ')' ';'
       {
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
-	}
-	delete $3; // spec_reference_event
-	delete $5; // delay_value
+	pform_timing_check_width(@1, *$3, $5, nullptr, nullptr);
+	delete $3;
       }
   | K_pulsestyle_onevent specify_path_identifiers ';'
       {
@@ -11384,7 +11375,9 @@ spec_reference_event
 	event->name = *$5;
 	event->posedge = false;
 	event->negedge = false;
-	// TODO add edge descriptors
+	// Descriptors are not modeled; mark the event so the
+	// timing-check synthesizer diagnoses it loudly.
+	event->edges.push_back(PTimingCheck::EDGE_01);
 	event->condition = nullptr;
 	delete $5;
 	$$ = event;
@@ -11394,7 +11387,7 @@ spec_reference_event
 	event->name = *$5;
 	event->posedge = false;
 	event->negedge = false;
-	// TODO add edge descriptors
+	event->edges.push_back(PTimingCheck::EDGE_01);
 	event->condition = std::unique_ptr<PExpr>($7);
 	delete $5;
 	$$ = event;

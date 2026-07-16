@@ -540,6 +540,35 @@ extern PSetupHold* pform_make_setuphold(const struct vlltype&li,
 			    );
 extern void pform_module_timing_check(PTimingCheck*obj);
 
+/* M13: synthesize real timing-check checker processes (clause 31).
+   Active with -gspecify; loud ignored-warning otherwise. The event
+   arguments are borrowed (caller keeps ownership). */
+extern void pform_timing_check_pair(const struct vlltype&loc,
+				    const char*check_name,
+				    const PTimingCheck::event_t&stamp_ev,
+				    const PTimingCheck::event_t&check_ev,
+				    PExpr*limit,
+				    bool violation_if_greater,
+				    const pform_name_t*notifier);
+extern void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
+						const char*base_name,
+						const PTimingCheck::event_t&ref_ev,
+						const PTimingCheck::event_t&data_ev,
+						PExpr*lim1,
+						PExpr*lim2,
+						const pform_name_t*notifier);
+extern void pform_timing_check_period(const struct vlltype&loc,
+				      const PTimingCheck::event_t&ev,
+				      PExpr*limit,
+				      const pform_name_t*notifier);
+extern void pform_timing_check_width(const struct vlltype&loc,
+				     const PTimingCheck::event_t&ev,
+				     PExpr*limit,
+				     PExpr*threshold,
+				     const pform_name_t*notifier);
+extern void pform_timing_check_sorry(const struct vlltype&loc,
+				     const char*check_name);
+
 /*
  * pform_make_behavior creates processes that are declared with always
  * or initial items.
