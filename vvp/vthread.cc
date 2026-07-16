@@ -2547,6 +2547,32 @@ bool of_RAND_MODE(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/*
+ * %rand_mode/p <pid>
+ *
+ * M3-rm: set rand_mode for the SINGLE property <pid> of the cobject on
+ * the object stack (obj.field.rand_mode(en)). Pops mode from the vec4
+ * stack, pops object. The randomize opcodes already skip a property
+ * whose rand_mode is false (see cobj->rand_mode(pid) checks).
+ */
+bool of_RAND_MODE_P(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      bool mode = (mode_vec.value(0) == BIT4_1);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      if (cobj) {
+	    const class_type*defn = cobj->get_defn();
+	    size_t pid = (size_t) cp->number;
+	    if (pid < defn->property_count() && defn->property_is_rand(pid))
+		  cobj->set_rand_mode(pid, mode);
+      }
+      return true;
+}
+
 /* M11 covergroup sampling helpers. */
 
 // Read a 32-bit counter property.

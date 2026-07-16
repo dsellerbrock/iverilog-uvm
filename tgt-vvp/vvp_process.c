@@ -3420,15 +3420,25 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
-      /* $ivl_class_method$rand_mode(object, en)
-       * Set rand_mode for all rand properties: en=1 enable, en=0 disable. */
+      /* $ivl_class_method$rand_mode(object, en [, pid])
+       * 2 args: set rand_mode for ALL rand properties (obj.rand_mode(en)).
+       * 3 args: set rand_mode for the single property `pid` only
+       *         (obj.field.rand_mode(en)) — M3-rm. */
       if (strcmp(stmt_name, "$ivl_class_method$rand_mode") == 0) {
 	    ivl_expr_t obj_arg  = ivl_stmt_parm(net, 0);
 	    ivl_expr_t mode_arg = ivl_stmt_parm(net, 1);
+	    ivl_expr_t pid_arg  = (ivl_stmt_parm_count(net) >= 3)
+		  ? ivl_stmt_parm(net, 2) : 0;
 	    if (mode_arg) draw_eval_vec4(mode_arg);
 	    else fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
 	    if (obj_arg) draw_eval_object(obj_arg);
-	    fprintf(vvp_out, "    %%rand_mode;\n");
+	    if (pid_arg && number_is_immediate(pid_arg, 32, 0)
+		&& !number_is_unknown(pid_arg)) {
+		  fprintf(vvp_out, "    %%rand_mode/p %ld;\n",
+			  get_number_immediate(pid_arg));
+	    } else {
+		  fprintf(vvp_out, "    %%rand_mode;\n");
+	    }
 	    return 0;
       }
 

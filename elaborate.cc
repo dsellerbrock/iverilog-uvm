@@ -5481,6 +5481,60 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    return blk;
       }
 
+	/* M3-rm: obj.field.rand_mode(mode) — freeze/unfreeze a SPECIFIC
+	   rand field (IEEE 1800-2017 18.8). This must run BEFORE the
+	   general method dispatch below, which resolves `obj.field` as a
+	   receiver and silently drops `.rand_mode()` on it (so a field
+	   frozen with rand_mode(0) was still randomized). We disambiguate
+	   from the object-level obj.rand_mode(mode) by resolving the
+	   second-to-last path component as a rand PROPERTY of a class
+	   object; if it is not one, we fall through to the normal path. */
+      if (gn_system_verilog()
+	  && peek_tail_name(path_) == perm_string::literal("rand_mode")
+	  && path_.size() >= 2 && parms_.size() == 1) {
+	    perm_string fname = std::next(path_.end(), -2)->name;
+	    NetNet *obj_net = nullptr;
+	    if (path_.size() == 2) {
+		  for (NetScope *s = scope; s && !obj_net; s = s->parent())
+			obj_net = s->find_signal(perm_string::literal(THIS_TOKEN));
+	    } else {
+		  pform_name_t obj_path;
+		  auto it = path_.begin();
+		  auto end_it = std::next(path_.end(), -2);
+		  for (; it != end_it; ++it)
+			obj_path.push_back(*it);
+		  symbol_search_results sr;
+		  symbol_search(this, des, scope, obj_path, UINT_MAX, &sr);
+		  obj_net = sr.net;
+	    }
+	    if (obj_net) {
+		  const netclass_t *ctype =
+			dynamic_cast<const netclass_t*>(obj_net->net_type());
+		  if (ctype) {
+			int pid = ctype->property_idx_from_name(fname);
+			if (pid >= 0) {
+			      NetExpr *obj_expr = new NetESignal(obj_net);
+			      obj_expr->set_line(*this);
+			      NetExpr *mode_expr = elab_sys_task_arg(des, scope,
+				    peek_tail_name(path_), 0, parms_[0].parm);
+			      NetExpr *pid_expr = new NetEConst(
+				    verinum((uint64_t)pid, 32));
+			      pid_expr->set_line(*this);
+			      vector<NetExpr*> argv(3);
+			      argv[0] = obj_expr;
+			      argv[1] = mode_expr;
+			      argv[2] = pid_expr;
+			      NetSTask *sys = new NetSTask(
+				    "$ivl_class_method$rand_mode",
+				    IVL_SFUNC_AS_TASK_IGNORE, argv);
+			      sys->set_line(*this);
+			      return sys;
+			}
+		  }
+	    }
+	      // Not a resolvable field: fall through to normal dispatch.
+      }
+
       bool has_indexed_path_component = false;
       for (const auto& comp : path_) {
 	    if (!comp.index.empty()) {
