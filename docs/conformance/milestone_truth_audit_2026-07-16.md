@@ -53,23 +53,31 @@ dated correction layer.
 
 None of the corrected gaps except **M3-rm** and **M4-av** is a *silent* miscompile; the rest are loud diagnostics (honest but incomplete). The two silent ones are the highest-priority reopened technical items.
 
-## This session's technical work
+## This session's technical work (two real implementations)
 
 **M9C `throughout` implemented** (real functionality, not a diagnostic):
 `guard throughout seq` lowered to a unit-delay sequence with the guard
 AND-ed into every cycle including intermediate ##N wait cycles; exact
 for constant delays, loud sorry for variable-window shapes. Adversarial
-test verifies a guard-drop at a wait cycle fails. See
-`session_logs/2026-07-16_m9c_throughout.md`.
+test verifies a guard-drop at a wait cycle fails.
 
-## Reopened work items (priority order)
+**M3-rm per-field `rand_mode(0)` implemented** (SILENT wrong-behaviour
+fix — the directive's priority #1): `obj.field.rand_mode(0)` now freezes
+only that field; it was a silent no-op that still randomized a frozen
+field. Intercepted at the top of `elaborate_usr` (before the method
+dispatch that dropped it), resolving the field's property index and
+emitting the new per-property `%rand_mode/p` opcode. Adversarial test
+verifies the frozen field never changes while siblings do, re-enable
+restores, and object-level freeze still holds all fields.
 
-1. **M3-rm** — per-field `rand_mode(0)` (silent wrong-behaviour). Runtime
-   already checks `cobj->rand_mode(pid)` per property; the elaborate path
-   for `obj.field.rand_mode(n)` must emit a per-property set opcode
-   instead of a no-op. **Highest priority (silent).**
-2. **M4-av** — string/real-valued integer-keyed assoc reads (silent).
-3. **M9C/M9B** — `within`/`until`/`intersect` (loud today).
+Both landed with regression-clean checkpoints; see
+`session_logs/2026-07-16_truth_audit_throughout_randmode.md`.
+
+## Reopened work items (priority order; two closed this session)
+
+1. ~~**M3-rm** — per-field `rand_mode(0)`~~ **DONE this session.**
+2. **M4-av** — string/real-valued integer-keyed assoc reads (silent). **Highest remaining priority.**
+3. **M9C/M9B** — `within`/`until`/`intersect` (loud today; `throughout` done).
 4. **M6B** — scheduler event-region inventory + invariant checks.
 5. **M10B** — multidim open arrays / packed vector marshaling / export.
 6. **M12B** — assertion VPI object model.
@@ -77,6 +85,7 @@ test verifies a guard-drop at a wait cycle fails. See
 
 ## Next engineering action
 
-Implement **M3-rm** (per-field `rand_mode(0)`) next — it is the
-remaining *silent* wrong-behaviour gap of highest impact, and the
-runtime support already exists.
+Implement **M4-av** (string/real-valued integer-keyed associative-array
+reads) — the remaining *silent* wrong-behaviour gap. It needs the
+`sig`-form string/vec4-keyed assoc-load opcodes that today exist only
+for the `obj`-key case (see M14 matrix, clause 7 corner).

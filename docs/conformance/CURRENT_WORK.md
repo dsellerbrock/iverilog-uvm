@@ -3,6 +3,40 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-16c (MILESTONE TRUTH AUDIT + 2 reopened fixes)
+
+**Milestone status corrected** — see
+`docs/conformance/milestone_truth_audit_2026-07-16.md`. Prior "CLOSED"
+labels overstated reality: in-scope functionality was sitting in
+recorded-corners ledgers. Honest labels now:
+- M1 → **SUBSET COMPLETE (M1A)**; M3 → **PARTIAL** (rand_mode gap now
+  fixed); M4 → **SUBSET COMPLETE** (M4-av assoc-value corner);
+  M6 → **PARTIAL (M6B reopened)**; M9 → **SUBSET COMPLETE**
+  (M9A done / M9B-D open); M10 → **SUBSET COMPLETE (M10B)**;
+  M12 → **SUBSET COMPLETE (M12B)**; M13 → **SUBSET COMPLETE (M13B)**.
+  M0/M2/M8/M11/M14 stand as COMPLETE within their scope.
+
+**Two real technical fixes this session** (implementation, not just
+relabeling):
+1. **M9C SVA `throughout`** (16.9.9) — was a loud sorry, now implemented
+   by lowering to a unit-delay sequence with the guard AND-ed into every
+   cycle (incl. intermediate ##N wait cycles); loud sorry only for
+   variable-window shapes. `pform_sva_throughout` in pform.cc.
+   Adversarial + negative tests.
+2. **M3-rm per-field `rand_mode(0)`** (18.8) — was a SILENT no-op
+   (frozen field still randomized). Fixed generally: intercept
+   `obj.field.rand_mode()` in elaborate_usr, resolve the property index,
+   emit the new `%rand_mode/p` opcode. Adversarial test.
+
+**Evidence**: UVM **165/165** (zero no-check; 163 + 2 new tests);
+negative **24/24**; SVA + randomization suites pass; ivtest name-diff
+(pending final confirm). Session log:
+`session_logs/2026-07-16_truth_audit_throughout_randmode.md`.
+
+**Next engineering action**: M4-av (string/real-valued integer-keyed
+assoc reads — remaining silent miscompile), then M9B/M9C (`within`/
+`until`/`intersect`), M6B scheduler inventory.
+
 ## State as of 2026-07-16b (M14 CLOSED)
 
 - **M14 (IEEE 1800-2017 clause matrix with complete disposition) is
