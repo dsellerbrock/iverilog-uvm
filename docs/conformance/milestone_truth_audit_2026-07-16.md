@@ -30,7 +30,7 @@ dated correction layer.
 | M1 Semantic IR foundation | CLOSED | **SUBSET COMPLETE (M1A)** | Typed receiver/method dispatch, return-type preservation, method/property lookup on expressions, enum/param identity, virtual dispatch metadata are done. The manifesto ALSO defines a canonical semantic type descriptor, typed lvalue + aggregate-layout interfaces, converting silent type-recovery fallbacks into tracked diagnostics, and documenting bypass paths — that broader migration is **not** done. Split: **M1A COMPLETE** (dispatch/type-preservation), **M1B NOT STARTED** (semantic-IR remediation: typed lvalue/aggregate interfaces, fallback-to-diagnostic conversion, bypass inventory). |
 | M2 Factory/config/callbacks/fields | CLOSED | **COMPLETE (application-scoped)** | Defined by concrete UVM fixes, all satisfied and evidenced by the UVM suite. |
 | M3 Constraint solver | CLOSED | **PARTIAL** | Broad constraint semantics work, but `rand_mode(0)` on a **specific field** (`obj.field.rand_mode(0)`) is a **silent no-op** (elaborate.cc:5680) — a frozen field is still randomized. That is in-scope randomization behaviour and silently wrong. **Reopened as M3-rm.** |
-| M4 Container runtime | CLOSED | **SUBSET COMPLETE** | Arrays/queues/assoc/string unified and broadly correct, BUT string/real-**valued** integer-keyed associative reads (`string s[int]`) are still wrong (only the `obj`-key runtime load opcode exists). The vec4-valued integer-key read was fixed in M14. **Corner in scope → M4-av.** |
+| M4 Container runtime | CLOSED | **SUBSET COMPLETE** | Arrays/queues/assoc/string unified and broadly correct. String/real-**valued** integer- and string-keyed associative reads (`string s[int]`, `real r[string]`, …) for a **module-static (bare-signal)** container previously read the empty string / 0.0 (store used `%aa/store/{str,r}/*`, read used a positional `%load/dar/*`); **fixed this session (M4-av)** — the bare-signal read now emits the keyed `%aa/load/{str,r}/{v,str}` form. Class-member assoc reads (via `%prop/obj`) were always correct. The vec4-valued integer-key read was fixed in M14. **M4-av DONE.** |
 | M5 Interfaces and modports | CLOSED | **SUBSET COMPLETE** | Connection/array/modport/vif behaviour works (UVM vif pattern passes). Bare module-scope `virtual <iface> v;`, generic `interface` ports, and continuous-assign through a modport (ICE) remain. **M5-if.** |
 | M6 Scheduler architecture | CLOSED | **PARTIAL** | Significant call-execution/scheduler work landed (m6 logs), but the manifesto requires a scheduling-queue inventory, IEEE event-region mapping, scheduler trace + invariant checking, and race litmus tests. The event-region mapping and invariant tooling are **incomplete**. **Reopened as M6B** (scheduler conformance audit + remediation); see the new inventory in `scheduler_conformance_inventory.md` (to author). |
 | M7 UVM core qualification | CLOSED | **SUBSET COMPLETE** | The UVM harness (163 tests) exercises factory/config/callbacks/reporting/phasing/sequences/TLM/fields/resource-db. Full register-model and objections stress remain lightly covered. |
@@ -51,9 +51,26 @@ dated correction layer.
 5. **M12 CLOSED** while the assertion VPI object model does not exist — SUBSET COMPLETE.
 6. **M1 CLOSED** while the broader semantic-IR migration (typed lvalue/aggregate interfaces, fallback-to-diagnostic conversion) is not started — SUBSET COMPLETE (M1A).
 
-None of the corrected gaps except **M3-rm** and **M4-av** is a *silent* miscompile; the rest are loud diagnostics (honest but incomplete). The two silent ones are the highest-priority reopened technical items.
+Neither of the two *silent* miscompiles remains: **M3-rm** (per-field
+`rand_mode(0)`) and **M4-av** (string/real-valued assoc reads) are both
+**fixed this session**. The rest are loud diagnostics (honest but
+incomplete).
 
-## This session's technical work (two real implementations)
+**M4-av string/real-valued assoc reads implemented** (SILENT
+wrong-behaviour fix — the directive's remaining priority-1 silent gap):
+a module-static `string s[int] / string s[string] / real r[int] /
+real r[string]` was stored via `%aa/store/{str,r}/*` but read back via a
+positional `%load/dar/{str,r}`, silently yielding the empty string / 0.0.
+`tgt-vvp/eval_string.c` and `tgt-vvp/eval_real.c` now detect the
+assoc-compat bare-signal container and emit the keyed
+`%aa/load/{str,r}/{v,str}` load (push key, `%load/obj`, keyed load,
+`%pop/obj 1`) — opcodes that already existed for the class-member
+(`%prop/obj`) path. Adversarial test covers int/string keys, updates,
+`foreach`, `exists`/`delete`, missing-key defaults, and positional
+queues (which must stay on `%load/dar`). Test:
+`tests/m4av_assoc_value_types_test.sv`.
+
+## This session's technical work (three real implementations)
 
 **M9C `throughout` implemented** (real functionality, not a diagnostic):
 `guard throughout seq` lowered to a unit-delay sequence with the guard
@@ -76,8 +93,8 @@ Both landed with regression-clean checkpoints; see
 ## Reopened work items (priority order; three advanced/closed)
 
 1. ~~**M3-rm** — per-field `rand_mode(0)`~~ **DONE.**
-2. **M4-av** — string/real-valued integer-keyed assoc reads (silent). **Highest remaining priority.**
-3. **M9C/M9B** — `within`/`until`/`intersect` (loud today; `throughout` done).
+2. ~~**M4-av** — string/real-valued int/string-keyed assoc reads (silent)~~ **DONE.**
+3. **M9C/M9B** — `within`/`until`/`intersect` (loud today; `throughout` done). **Highest remaining priority.**
 4. ~~**M6B** — scheduler conformance inventory~~ **DELIVERED + ADVANCED**: construct-level inventory + `$exit` + **program-completion-ends-simulation (24.7/3.9)** + litmus regressions (`scheduler_conformance_inventory.md`). The two program-control gaps (24.7) are now closed; remaining true M6B gaps (cbNBASynch region, DPI time-consuming tasks, callf scheduled-call protocol) recorded in its ledger.
 5. **M10B** — multidim open arrays / packed vector marshaling / export.
 6. **M12B** — assertion VPI object model.
@@ -85,7 +102,9 @@ Both landed with regression-clean checkpoints; see
 
 ## Next engineering action
 
-Implement **M4-av** (string/real-valued integer-keyed associative-array
-reads) — the remaining *silent* wrong-behaviour gap. It needs the
-`sig`-form string/vec4-keyed assoc-load opcodes that today exist only
-for the `obj`-key case (see M14 matrix, clause 7 corner).
+Both silent miscompiles (M3-rm, M4-av) are now closed. The highest
+remaining priority is **M9C/M9B** — implement the loud-sorry temporal
+and sequence operators `within` / `until` / `until_with` / `intersect`
+(the SVA token-pipeline engine already carries `throughout` as a model).
+These are loud diagnostics today, not silent miscompiles, so they are a
+completeness gap rather than a correctness gap.

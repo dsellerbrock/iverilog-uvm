@@ -3,6 +3,35 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-16f (M4-av: string/real-valued assoc reads)
+
+- **M4-av implemented** — the last *silent* miscompile from the truth
+  audit is closed. A module-static (bare-signal) `string s[int]`,
+  `string s[string]`, `real r[int]`, or `real r[string]` stored a value
+  via `%aa/store/{str,r}/*` but read it back via a *positional*
+  `%load/dar/{str,r}`, silently returning the empty string / 0.0. The
+  vec4-valued int-key case was fixed in M14; the string/real value cases
+  remained wrong. Class-member assoc reads (via `%prop/obj`) were always
+  correct — only the bare-signal path was broken.
+- **Fix** (codegen only): `tgt-vvp/eval_string.c` and
+  `tgt-vvp/eval_real.c` now detect an assoc-compat bare-signal container
+  (`ivl_type_queue_assoc_compat`) and emit the keyed
+  `%aa/load/{str,r}/{v,str}` sequence (draw key, `%load/obj v%p_0`,
+  keyed load, `%pop/obj 1`) instead of the positional load — string-key
+  and vec4(int)-key branches added after the existing obj-key branch.
+  Opcodes already existed (used by the `%prop/obj` class-member path);
+  no runtime change.
+- **Regression-clean**: UVM **169/169** (168 baseline + new m4av test),
+  **zero no-check**, zero fail; ivtest name-diff **baseline-identical**
+  (99 real fails; `pow_ca_signed` is the documented concurrent-load
+  flake — passes standalone); negative **24/24**. Test:
+  `tests/m4av_assoc_value_types_test.sv` (int/string keys, updates,
+  `foreach`, `exists`/`delete`, missing-key defaults, positional queues
+  kept on `%load/dar`).
+- **Both silent miscompiles from the truth audit (M3-rm, M4-av) are now
+  closed.** Next priority (loud, not silent): M9C/M9B temporal/sequence
+  operators `within` / `until` / `until_with` / `intersect`.
+
 ## State as of 2026-07-16e (M6B: program-completion ends simulation)
 
 - **Program-completion-ends-simulation implemented** (IEEE 1800-2017
