@@ -5359,20 +5359,41 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   /* Diagnosed sorries: liveness/product operators the token-pipeline
      engine does not implement. The assertion is dropped with a clear
      message instead of a raw syntax error. */
+  /* IEEE 1800-2017 16.12.10: the `until' family (weak and strong).
+     Boolean operands are lowered to a per-cycle monitor; strong forms
+     add an end-of-simulation liveness obligation. */
   | sva_seq_expr K_until sva_seq_expr
-      { pform_sva_sorry(@2, "until"); $$ = 0; }
+      { $$ = pform_sva_binprop(@2, 4, $1, $3); }
   | sva_seq_expr K_until_with sva_seq_expr
-      { pform_sva_sorry(@2, "until_with"); $$ = 0; }
+      { $$ = pform_sva_binprop(@2, 5, $1, $3); }
+  | sva_seq_expr K_s_until sva_seq_expr
+      { $$ = pform_sva_binprop(@2, 6, $1, $3); }
+  | sva_seq_expr K_s_until_with sva_seq_expr
+      { $$ = pform_sva_binprop(@2, 7, $1, $3); }
   | K_nexttime property_expr
       { pform_sva_sorry(@1, "nexttime"); delete $2; $$ = 0; }
   | K_eventually property_expr
       { pform_sva_sorry(@1, "eventually"); delete $2; $$ = 0; }
   | K_s_eventually property_expr
       { pform_sva_sorry(@1, "s_eventually"); delete $2; $$ = 0; }
+  /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
+     same interval. For equal-length fixed operands this lowers to a
+     per-cycle AND chain the linear engine handles directly. */
   | sva_seq_expr K_intersect sva_seq_expr
-      { pform_sva_sorry(@2, "intersect"); $$ = 0; }
+      { std::vector<sva_seq_step_t>*tr = pform_sva_intersect(@2, $1, $3);
+	if (tr == 0) {
+	      $$ = 0;
+	} else {
+	      sva_property_t*p = new sva_property_t;
+	      p->seq = tr;
+	      p->op_type = 0;
+	      $$ = p;
+	}
+      }
+  /* IEEE 1800-2017 16.9.6: `within' — s1 occurs inside s2's interval.
+     Lowered to a $past-sampled combinational match indicator. */
   | sva_seq_expr K_within sva_seq_expr
-      { pform_sva_sorry(@2, "within"); $$ = 0; }
+      { $$ = pform_sva_binprop(@2, 8, $1, $3); }
   /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
      every cycle of the sequence. Lowered to a unit-delay sequence with
      guard AND-ed into each cycle (pform_sva_throughout). */

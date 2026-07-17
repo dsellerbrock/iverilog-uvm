@@ -4550,6 +4550,48 @@ static Statement* sva_block_(const struct vlltype&loc,
       return blk;
 }
 
+/* Small expression/statement constructors used by the temporal-operator
+   lowering (until family, within) below. */
+static Statement* sva_if_(const struct vlltype&loc, PExpr*c,
+			  Statement*t, Statement*e)
+{
+      PCondit*p = new PCondit(c, t, e);
+      FILE_NAME(p, loc);
+      return p;
+}
+
+static PExpr* sva_not_(const struct vlltype&loc, PExpr*e)
+{
+      PEUnary*u = new PEUnary('!', e);
+      FILE_NAME(u, loc);
+      return u;
+}
+
+static PExpr* sva_logic_(const struct vlltype&loc, char op,
+			 PExpr*l, PExpr*r)
+{
+      PEBLogic*b = new PEBLogic(op, l, r);
+      FILE_NAME(b, loc);
+      return b;
+}
+
+/* $past(e, d) as a sampled-value function call the SVA rewrite pass
+   (sva_rewrite_sampled_) expands into an explicit history chain. d<=0
+   returns e unchanged (the current sample). */
+static PExpr* sva_past_(const struct vlltype&loc, PExpr*e, long d)
+{
+      if (d <= 0) return e;
+      std::list<named_pexpr_t> parms;
+      named_pexpr_t a0; a0.parm = e; parms.push_back(a0);
+      named_pexpr_t a1;
+      a1.parm = new PENumber(new verinum((uint64_t)d, 32));
+      parms.push_back(a1);
+      PECallFunction*cf = new PECallFunction(
+	    perm_string::literal("$past"), parms);
+      FILE_NAME(cf, loc);
+      return cf;
+}
+
 /*
  * M13: timing checks (IEEE 1800-2017 clause 31) synthesize to plain
  * checker processes at parse time, the same construction strategy as
@@ -5238,6 +5280,430 @@ pform_sva_throughout(const struct vlltype&loc, PExpr*guard,
       return nullptr;
 }
 
+/*
+ * Expand a fixed-length sequence into a per-cycle boolean array. cyc[k]
+ * holds the boolean required at cycle k (0..L, where L is the total
+ * span), or nullptr for an unconstrained gap cycle. Ownership of each
+ * step's expression is MOVED into cyc (the step's expr is cleared).
+ * Returns false — after a loud diagnostic — for any non-fixed-length
+ * shape (ranged/unbounded/non-constant delay, or a range repetition).
+ */
+static bool sva_expand_fixed_(const struct vlltype&loc, const char*what,
+			      std::vector<sva_seq_step_t>&seq,
+			      std::vector<PExpr*>&cyc)
+{
+      cyc.clear();
+      for (size_t j = 0 ; j < seq.size() ; j += 1) {
+	    sva_seq_step_t&st = seq[j];
+	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
+		|| st.rep_tail != 0) {
+		  cerr << loc << ": sorry: `" << what << "' is supported "
+		       << "only over fixed-length sequences (constant ##N "
+		       << "delays, no ##[m:n]/##[m:$]/[*m:n]); the assertion "
+		       << "is dropped." << endl;
+		  error_count += 1;
+		  return false;
+	    }
+	    long d = st.delay_lo;
+	    if (j == 0) {
+		  for (long i = 0 ; i < d ; i += 1) cyc.push_back(nullptr);
+		  cyc.push_back(st.expr);
+	    } else if (d == 0) {
+		    /* `##0`: same cycle as the previous step — AND in. */
+		  PExpr*prev = cyc.back();
+		  if (!prev) {
+			cyc.back() = st.expr;
+		  } else {
+			PEBLogic*c = new PEBLogic('a', prev, st.expr);
+			FILE_NAME(c, loc);
+			cyc.back() = c;
+		  }
+	    } else {
+		  for (long i = 1 ; i < d ; i += 1) cyc.push_back(nullptr);
+		  cyc.push_back(st.expr);
+	    }
+	    st.expr = nullptr;
+      }
+      return true;
+}
+
+/*
+ * M9B: `s1 intersect s2` (IEEE 1800-2017 16.9.6). Both operands must
+ * match over the SAME interval — same start and same end — so a match
+ * requires them to have equal length. For fixed-length operands we
+ * expand each to a per-cycle boolean array and build a single unit-delay
+ * chain whose cycle-k boolean is `a[k] && b[k]`. Unequal fixed lengths
+ * can never match; rather than synthesize an always-false checker we
+ * diagnose that loudly. Variable-length operands are a loud sorry.
+ */
+std::vector<sva_seq_step_t>*
+pform_sva_intersect(const struct vlltype&loc,
+		    std::vector<sva_seq_step_t>*s1,
+		    std::vector<sva_seq_step_t>*s2)
+{
+      if (!s1 || !s2 || s1->empty() || s2->empty()) {
+	    delete s1; delete s2;
+	    return nullptr;
+      }
+
+      std::vector<PExpr*> A, B;
+      bool ok = sva_expand_fixed_(loc, "intersect", *s1, A);
+      if (ok) ok = sva_expand_fixed_(loc, "intersect", *s2, B);
+      if (ok && A.size() != B.size()) {
+	    cerr << loc << ": sorry: `intersect' requires both operands to "
+		 << "have the same length (IEEE 1800-2017 16.9.6); the "
+		 << "assertion is dropped." << endl;
+	    error_count += 1;
+	    ok = false;
+      }
+      if (!ok) {
+	    for (size_t k = 0 ; k < A.size() ; k += 1) delete A[k];
+	    for (size_t k = 0 ; k < B.size() ; k += 1) delete B[k];
+	    delete s1; delete s2;
+	    return nullptr;
+      }
+
+      std::vector<sva_seq_step_t>*out = new std::vector<sva_seq_step_t>;
+      for (size_t k = 0 ; k < A.size() ; k += 1) {
+	    PExpr*ex;
+	    if (A[k] && B[k]) {
+		  PEBLogic*c = new PEBLogic('a', A[k], B[k]);
+		  FILE_NAME(c, loc);
+		  ex = c;
+	    } else if (A[k]) {
+		  ex = A[k];
+	    } else if (B[k]) {
+		  ex = B[k];
+	    } else {
+		  ex = sva_bit_(loc, 1);
+	    }
+	    sva_seq_step_t st;
+	    st.delay_lo = (k == 0) ? 0 : 1;
+	    st.delay_hi = st.delay_lo;
+	    st.rep_tail = 0;
+	    st.expr = ex;
+	    out->push_back(st);
+      }
+      delete s1; delete s2;
+      return out;
+}
+
+/*
+ * M9C: package a binary temporal/sequence property operator whose
+ * semantics do not fit the linear token pipeline (`within` and the
+ * `until` family). The operands are carried on the sva_property_t and
+ * lowered by pform_make_assertion once `kind` is known. op_type:
+ *   4 = until, 5 = until_with, 6 = s_until, 7 = s_until_with, 8 = within.
+ */
+sva_property_t*
+pform_sva_binprop(const struct vlltype&loc, int op_type,
+		  std::vector<sva_seq_step_t>*sub,
+		  std::vector<sva_seq_step_t>*obj)
+{
+      if (!sub || !obj || sub->empty() || obj->empty()) {
+	    delete sub; delete obj;
+	    return nullptr;
+      }
+      sva_property_t*p = new sva_property_t;
+      p->antecedent = sub;
+      p->seq = obj;
+      p->op_type = op_type;
+      (void)loc;
+      return p;
+}
+
+/*
+ * M9C: lower the temporal/sequence property operators that do not fit
+ * the linear token pipeline.
+ *
+ *   until family (booleans; op 4/5/6/7): `p until q` holds iff, at every
+ *   attempt, p holds at each cycle before q first holds (until_with:
+ *   through the q cycle too). Under the overlapping-attempt semantics a
+ *   fresh attempt starts every clock, and the aggregate obligation
+ *   collapses to a per-cycle boolean check:
+ *       until       — fail at any cycle with !p && !q
+ *       until_with  — fail at any cycle with !p
+ *   The strong forms (s_until/s_until_with) add a liveness obligation:
+ *   q must eventually hold. A `pend` flag tracks an outstanding attempt
+ *   still waiting for q; if it survives to end-of-simulation, that is a
+ *   strong-until failure.
+ *
+ *   within (fixed-length sequences; op 8): `s1 within s2` matches over
+ *   s2's interval iff s2 matches and s1 matches at some embedded offset.
+ *   Both operands are expanded to per-cycle boolean arrays and the match
+ *   at the window end (now) is written as one combinational indicator
+ *   over $past samples: AND of s2's cycles, AND'd with the OR (over
+ *   embedding offsets) of s1's cycles. A `$past(1, L2)` warm-up guard
+ *   suppresses obligations for windows that predate time 0. Requires
+ *   len(s1) <= len(s2).
+ *
+ * Operands: prop->antecedent = left (p / s1), prop->seq = right (q / s2).
+ */
+static void pform_make_temporal_assertion_(const struct vlltype&loc,
+					   sva_property_t*prop,
+					   Statement*fail_stmt,
+					   Statement*pass_stmt, int kind)
+{
+      int op = prop->op_type;
+      bool is_within = (op == 8);
+      bool with   = (op == 5 || op == 7);
+      bool strong = (op == 6 || op == 7);
+
+	/* A pass action is not meaningful for these forms. */
+      delete pass_stmt;
+      pass_stmt = nullptr;
+
+	/* Clock: explicit, else the module's default clocking. */
+      PEventStatement*clk = prop->clk_evt;
+      if (!clk) {
+	    Module*mod = pform_cur_module.empty() ? nullptr
+			 : pform_cur_module.front();
+	    if (!mod || mod->default_clocking.nil()) {
+		  cerr << loc << ": error: concurrent assertion has no "
+		       << "clocking event and no default clocking block "
+		       << "is declared (IEEE 1800-2017 16.14.6)." << endl;
+		  error_count += 1;
+		  delete fail_stmt;
+		  return;
+	    }
+	    std::list<named_pexpr_t> no_parms;
+	    PECallFunction*mark = new PECallFunction(
+		  perm_string::literal("$ivl_default_clock"), no_parms);
+	    FILE_NAME(mark, loc);
+	    PEEvent*ev = new PEEvent(PEEvent::ANYEDGE, mark);
+	    std::vector<PEEvent*> evs;
+	    evs.push_back(ev);
+	    clk = new PEventStatement(evs);
+	    FILE_NAME(clk, loc);
+      }
+
+	/* disable iff: own, else the module default. */
+      PExpr*disable = prop->disable_iff_expr;
+      if (!disable && sva_default_disable)
+	    disable = sva_clone_expr_(sva_default_disable);
+
+      unsigned inst = sva_gensym_counter++;
+      unsigned hist_idx = 0;
+      std::vector<Statement*> pre, post, init_zero, body;
+
+	/* The fail flag / dispatch is shared by both forms. */
+      perm_string r_f = sva_make_reg_(loc, inst, "f", 0);
+      init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+      bool bad = false;
+
+      if (!is_within) {
+	      /* ---- until family (boolean operands only). ---- */
+	    if (kind == 2) {
+		  cerr << loc << ": sorry: `cover property' of an `until' "
+		       << "operator is not supported; the cover is dropped."
+		       << endl;
+		  error_count += 1;
+		  bad = true;
+	    }
+	    std::vector<sva_seq_step_t>&Pp = *prop->antecedent;
+	    std::vector<sva_seq_step_t>&Qq = *prop->seq;
+	    if (!bad && (Pp.size() != 1 || Qq.size() != 1
+		|| Pp[0].delay_lo != 0 || Pp[0].delay_hi != 0 || Pp[0].rep_tail != 0
+		|| Qq[0].delay_lo != 0 || Qq[0].delay_hi != 0 || Qq[0].rep_tail != 0)) {
+		  cerr << loc << ": sorry: the `until' family is supported "
+		       << "only with boolean operands (no sequence operands); "
+		       << "the assertion is dropped." << endl;
+		  error_count += 1;
+		  bad = true;
+	    }
+	    if (bad) { delete fail_stmt; delete clk; delete disable; return; }
+
+	    PExpr*pe = sva_rewrite_sampled_(loc, Pp[0].expr, inst, hist_idx,
+					   pre, post, init_zero);
+	    PExpr*qe = sva_rewrite_sampled_(loc, Qq[0].expr, inst, hist_idx,
+					   pre, post, init_zero);
+	    perm_string r_p = sva_make_reg_(loc, inst, "p", 0);
+	    perm_string r_q = sva_make_reg_(loc, inst, "q", 0);
+	    pre.push_back(sva_assign_(loc, r_p, pe));
+	    pre.push_back(sva_assign_(loc, r_q, qe));
+
+	    perm_string r_pend;
+	    if (strong) {
+		  r_pend = sva_make_reg_(loc, inst, "pend", 0);
+		  init_zero.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
+	    }
+
+	      /* Per-cycle weak check. */
+	    PExpr*fcond;
+	    if (with) {
+		  fcond = sva_not_(loc, sva_id_(loc, r_p));
+	    } else {
+		  fcond = sva_logic_(loc, 'a', sva_not_(loc, sva_id_(loc, r_q)),
+				     sva_not_(loc, sva_id_(loc, r_p)));
+	    }
+	    body.push_back(sva_if_(loc, fcond,
+				   sva_assign_(loc, r_f, sva_bit_(loc, 1)),
+				   nullptr));
+
+	      /* Strong liveness bookkeeping: q releases the pending
+		 obligation; otherwise a true p opens a new one. */
+	    if (strong) {
+		  Statement*open = sva_if_(loc, sva_id_(loc, r_p),
+			sva_assign_(loc, r_pend, sva_bit_(loc, 1)), nullptr);
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_q),
+			sva_assign_(loc, r_pend, sva_bit_(loc, 0)), open));
+	    }
+
+	      /* Fail dispatch (assert/assume). */
+	    Statement*action = fail_stmt;
+	    if (!action) {
+		  std::list<named_pexpr_t> no_args;
+		  PCallTask*err = new PCallTask(lex_strings.make("$error"), no_args);
+		  FILE_NAME(err, loc);
+		  action = err;
+	    }
+	    std::vector<Statement*> hit;
+	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+	    hit.push_back(action);
+	    body.push_back(sva_if_(loc, sva_id_(loc, r_f),
+				   sva_block_(loc, hit), nullptr));
+
+	      /* End-of-simulation strong check. */
+	    if (strong) {
+		  std::list<named_pexpr_t> dargs;
+		  named_pexpr_t darg;
+		  darg.parm = new PEString(strdup(
+			"SVA: strong until obligation not met — the awaited "
+			"condition never asserted"));
+		  dargs.push_back(darg);
+		  PCallTask*warn = new PCallTask(lex_strings.make("$error"), dargs);
+		  FILE_NAME(warn, loc);
+		  Statement*fc = sva_if_(loc, sva_id_(loc, r_pend), warn, nullptr);
+		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
+		  FILE_NAME(fp, loc);
+	    }
+      } else {
+	      /* ---- within (fixed-length sequences). ---- */
+	    std::vector<PExpr*> A, B;
+	    bool ok = sva_expand_fixed_(loc, "within", *prop->antecedent, A);
+	    if (ok) ok = sva_expand_fixed_(loc, "within", *prop->seq, B);
+	    long L1 = (long)A.size() - 1;
+	    long L2 = (long)B.size() - 1;
+	    if (ok && L1 > L2) {
+		  cerr << loc << ": sorry: `within' requires the left operand "
+		       << "to be no longer than the right (IEEE 1800-2017 "
+		       << "16.9.6); the assertion is dropped." << endl;
+		  error_count += 1;
+		  ok = false;
+	    }
+	    if (!ok) {
+		  for (size_t k = 0 ; k < A.size() ; k += 1) delete A[k];
+		  for (size_t k = 0 ; k < B.size() ; k += 1) delete B[k];
+		  delete fail_stmt; delete clk; delete disable;
+		  return;
+	    }
+
+	      /* s2 term: every constrained cycle of s2 must hold. Cycle p
+		 (0..L2) is now sampled at $past depth (L2 - p). */
+	    PExpr*s2term = nullptr;
+	    for (long p = 0 ; p <= L2 ; p += 1) {
+		  if (!B[p]) continue;
+		  PExpr*c = sva_clone_expr_(B[p]);
+		  if (!c) { ok = false; break; }
+		  PExpr*t = sva_past_(loc, c, L2 - p);
+		  s2term = s2term ? sva_logic_(loc, 'a', s2term, t) : t;
+	    }
+	      /* s1 embed: s1 matches at some offset j in [0, L2-L1]. For a
+		 given j, cycle i of s1 lands at window position j+i, now
+		 sampled at $past depth L2 - (j+i). */
+	    PExpr*s1embed = nullptr;
+	    if (ok) for (long j = 0 ; j <= L2 - L1 ; j += 1) {
+		  PExpr*conj = nullptr;
+		  for (long i = 0 ; i <= L1 ; i += 1) {
+			if (!A[i]) continue;
+			PExpr*c = sva_clone_expr_(A[i]);
+			if (!c) { ok = false; break; }
+			PExpr*t = sva_past_(loc, c, L2 - (j + i));
+			conj = conj ? sva_logic_(loc, 'a', conj, t) : t;
+		  }
+		  if (!ok) break;
+		  if (!conj) conj = sva_bit_(loc, 1);
+		  s1embed = s1embed ? sva_logic_(loc, 'o', s1embed, conj) : conj;
+	    }
+
+	    for (size_t k = 0 ; k < A.size() ; k += 1) delete A[k];
+	    for (size_t k = 0 ; k < B.size() ; k += 1) delete B[k];
+
+	    if (!ok) {
+		  cerr << loc << ": sorry: a `within' operand has a shape the "
+		       << "assertion engine cannot duplicate; the assertion "
+		       << "is dropped." << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete clk; delete disable;
+		  return;
+	    }
+
+	    if (!s2term) s2term = sva_bit_(loc, 1);
+	    if (!s1embed) s1embed = sva_bit_(loc, 1);
+	    PExpr*wmatch = sva_logic_(loc, 'a', s2term, s1embed);
+
+	    if (kind == 2) {
+		    /* cover: count each window that matches. Warm-up
+		       cycles read $past as 0, so they never miscount. */
+		  PExpr*ms = sva_rewrite_sampled_(loc, wmatch, inst, hist_idx,
+						  pre, post, init_zero);
+		  perm_string r_c = sva_make_reg_(loc, inst, "m", 0);
+		  pre.push_back(sva_assign_(loc, r_c, ms));
+		  perm_string r_cnt = sva_make_reg_(loc, inst, "cnt", 0, true);
+		  init_zero.push_back(sva_assign_(loc, r_cnt,
+			new PENumber(new verinum((uint64_t)0, 32))));
+		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt),
+					      sva_id_(loc, r_c));
+		  FILE_NAME(add, loc);
+		  body.push_back(sva_assign_(loc, r_cnt, add));
+		  delete fail_stmt;
+	    } else {
+		    /* assert/assume: every mature window must match. A
+		       `$past(1, L2)` guard is 0 until L2 cycles elapse, so
+		       obligations that predate time 0 never fire. */
+		  PExpr*valid = sva_past_(loc, sva_bit_(loc, 1), L2);
+		  PExpr*failexpr = sva_logic_(loc, 'a', valid, sva_not_(loc, wmatch));
+		  PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
+						  pre, post, init_zero);
+		  perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
+		  pre.push_back(sva_assign_(loc, r_ff, fs));
+		  Statement*action = fail_stmt;
+		  if (!action) {
+			std::list<named_pexpr_t> no_args;
+			PCallTask*err = new PCallTask(lex_strings.make("$error"),
+						      no_args);
+			FILE_NAME(err, loc);
+			action = err;
+		  }
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff), action, nullptr));
+	    }
+      }
+
+	/* Assemble: pre-captures; disable guard around the checker body;
+	   history updates. */
+      std::vector<Statement*> full = pre;
+      Statement*core = sva_block_(loc, body);
+      if (disable) {
+	    core = sva_if_(loc, disable, sva_assign_(loc, r_f, sva_bit_(loc, 0)),
+			   core);
+      }
+      full.push_back(core);
+      for (size_t k = 0 ; k < post.size() ; k += 1)
+	    full.push_back(post[k]);
+
+      clk->set_statement(sva_block_(loc, full));
+      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
+      FILE_NAME(pp, loc);
+
+      PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
+					sva_block_(loc, init_zero), nullptr);
+      FILE_NAME(ip, loc);
+
+      delete prop->antecedent;
+      delete prop->seq;
+      delete prop;
+}
+
 /* Lower one concurrent assertion (assert/assume/cover property) to a
    synthesized clocked checker. kind: 0=assert, 1=assume, 2=cover. */
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
@@ -5270,6 +5736,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			}
 		  }
 	    }
+      }
+
+	/* M9C: temporal/sequence property operators (until family,
+	   within) do not fit the linear token pipeline; dispatch them to
+	   a dedicated lowering now that `kind` is known. */
+      if (prop->op_type >= 4) {
+	    pform_make_temporal_assertion_(loc, prop, fail_stmt, pass_stmt, kind);
+	    return;
       }
 
       sva_splice_sequences_(loc, *prop->seq);

@@ -300,6 +300,30 @@ pform_sva_repeat(const struct vlltype&loc,
 extern std::vector<sva_seq_step_t>*
 pform_sva_throughout(const struct vlltype&loc, PExpr*guard,
 		     std::vector<sva_seq_step_t>*seq);
+
+/* M9B: `s1 intersect s2` (IEEE 1800-2017 16.9.6) — both operands must
+   match over the same interval. Lowered, for fixed-length operands of
+   equal length, to a single unit-delay chain whose per-cycle boolean is
+   the AND of the two operands' per-cycle booleans. Returns the merged
+   step list, or nullptr (diagnosed) for variable-length or unequal-
+   length operands. Consumes s1 and s2. */
+extern std::vector<sva_seq_step_t>*
+pform_sva_intersect(const struct vlltype&loc,
+		    std::vector<sva_seq_step_t>*s1,
+		    std::vector<sva_seq_step_t>*s2);
+
+/* M9C temporal property operators (IEEE 1800-2017 16.12.10 `until` /
+   `until_with` / `s_until` / `s_until_with`, 16.9.6 `within`). These do
+   not fit the linear token pipeline, so they are stashed on an
+   sva_property_t with a dedicated op_type and lowered by
+   pform_make_assertion once the assertion `kind` is known. The builders
+   below just package the operands; sub is the left operand, obj the
+   right. within takes two sequences (sub within obj); the until family
+   takes two booleans (sub until obj). */
+extern sva_property_t*
+pform_sva_binprop(const struct vlltype&loc, int op_type,
+		  std::vector<sva_seq_step_t>*sub,
+		  std::vector<sva_seq_step_t>*obj);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at
