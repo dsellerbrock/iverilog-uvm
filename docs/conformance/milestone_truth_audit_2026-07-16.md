@@ -107,9 +107,16 @@ covers M9B (`intersect`), M9C (`throughout`/`within`/`until` family), and
 M9C-live (`nexttime`/`s_nexttime`/`s_eventually`); M9D added
 parameterized properties/sequences. DPI (M10) added packed
 `svBitVecVal`/`svLogicVecVal` marshaling for wide vector arguments.
-Remaining loud (non-silent) completeness gaps, in priority order:
-**M10B-rest** (multi-dimensional open arrays, DPI **export** — C-calls-SV,
-the largest remaining DPI item); **M9D-rest** (local sequence variables,
-`.matched`, `expect`, goto/nonconsecutive repetition — these need an
-automaton-based sequence engine); **M12B** (assertion VPI object model);
-**M1B** (semantic-IR remediation). None is a silent miscompile.
+Assertion control (`$asserton`/`$assertoff`/`$assertkill`, §20.12) is
+now implemented (global scope). Remaining loud (non-silent) gaps —
+several are large rearchitectures, not next-increment work (see
+`session_logs/2026-07-17_frontier_assert_control_dpi_findings.md`):
+**DPI export** is architecturally blocked (vvp cannot synthesize a
+C-linkable symbol, and it needs the disabled `IVL_SCHED_CALLF`
+synchronous-call protocol); **multi-dimensional open arrays** need a
+non-contiguous access path (a 2-D unpacked darray is non-contiguous);
+**M9D-rest** (local sequence variables, `.matched`, `expect`,
+goto/nonconsecutive repetition) needs an automaton-based sequence
+engine. The next genuinely bounded items are **M12B** (assertion VPI
+object identity — enumeration first) and pieces of **M1B** (semantic-IR
+remediation). None is a silent miscompile.

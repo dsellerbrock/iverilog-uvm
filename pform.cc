@@ -4748,6 +4748,23 @@ static PExpr* sva_logic_(const struct vlltype&loc, char op,
       return b;
 }
 
+/* M12/20.12: wrap a fail action so it only fires while assertions are
+   enabled. `$assertoff`/`$assertkill` clear the global enable flag that
+   `$ivl_sva_enabled()` returns; `$asserton` sets it. Gating the action
+   (rather than the whole checker) keeps token/pipeline state advancing so
+   re-enabling resumes cleanly. */
+static Statement* sva_gate_(const struct vlltype&loc, Statement*action)
+{
+      if (!action) return action;
+      std::list<named_pexpr_t> no_parms;
+      PECallFunction*en = new PECallFunction(
+	    perm_string::literal("$ivl_sva_enabled"), no_parms);
+      FILE_NAME(en, loc);
+      PCondit*c = new PCondit(en, action, nullptr);
+      FILE_NAME(c, loc);
+      return c;
+}
+
 /* $past(e, d) as a sampled-value function call the SVA rewrite pass
    (sva_rewrite_sampled_) expands into an explicit history chain. d<=0
    returns e unchanged (the current sample). */
@@ -5807,7 +5824,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    }
 	    std::vector<Statement*> hit;
 	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
-	    hit.push_back(action);
+	    hit.push_back(sva_gate_(loc, action));
 	    body.push_back(sva_if_(loc, sva_id_(loc, r_f),
 				   sva_block_(loc, hit), nullptr));
 
@@ -5821,7 +5838,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  dargs.push_back(darg);
 		  PCallTask*warn = new PCallTask(lex_strings.make("$error"), dargs);
 		  FILE_NAME(warn, loc);
-		  Statement*fc = sva_if_(loc, sva_id_(loc, r_pend), warn, nullptr);
+		  Statement*fc = sva_if_(loc, sva_id_(loc, r_pend),
+					 sva_gate_(loc, warn), nullptr);
 		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 		  FILE_NAME(fp, loc);
 	    }
@@ -5861,7 +5879,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  body.push_back(sva_if_(loc, sva_id_(loc, r_p),
 			sva_assign_(loc, r_seen, sva_bit_(loc, 1)), nullptr));
 		  Statement*fc = sva_if_(loc, sva_not_(loc, sva_id_(loc, r_seen)),
-					 action, nullptr);
+					 sva_gate_(loc, action), nullptr);
 		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 		  FILE_NAME(fp, loc);
 	    } else {
@@ -5876,7 +5894,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 						  pre, post, init_zero);
 		  perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
 		  pre.push_back(sva_assign_(loc, r_ff, fs));
-		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff), action, nullptr));
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
+					 sva_gate_(loc, action), nullptr));
 
 		  if (op == 10) {
 			  /* Strong: the attempt at the final cycle has no
@@ -5895,7 +5914,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 			PCallTask*warn = new PCallTask(lex_strings.make("$error"),
 						       dargs);
 			FILE_NAME(warn, loc);
-			Statement*fc = sva_if_(loc, sva_id_(loc, r_ran), warn, nullptr);
+			Statement*fc = sva_if_(loc, sva_id_(loc, r_ran),
+					       sva_gate_(loc, warn), nullptr);
 			PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 			FILE_NAME(fp, loc);
 		  }
@@ -5998,7 +6018,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 			FILE_NAME(err, loc);
 			action = err;
 		  }
-		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff), action, nullptr));
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
+					 sva_gate_(loc, action), nullptr));
 	    }
       }
 
@@ -6626,7 +6647,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    }
 	    std::vector<Statement*> hit;
 	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
-	    hit.push_back(action);
+	    hit.push_back(sva_gate_(loc, action));
 	    PCondit*fc = new PCondit(sva_id_(loc, r_f),
 				     sva_block_(loc, hit), nullptr);
 	    FILE_NAME(fc, loc);

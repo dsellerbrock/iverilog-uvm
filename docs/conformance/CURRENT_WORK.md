@@ -3,6 +3,24 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-17c (assertion control + frontier findings)
+
+- **Assertion control** (§20.12): `$asserton`/`$assertoff`/`$assertkill`
+  implemented (global scope). `vpi/sys_sva.c` holds a global enable flag
+  + the `$ivl_sva_enabled()` query + the three control tasks; `pform.cc`
+  `sva_gate_()` wraps every synthesized-checker fail action in
+  `if ($ivl_sva_enabled())`. Flag defaults on → existing assertions
+  unchanged. Test `m9e_assert_control_test`. UVM 177/177 (zero no-check),
+  negative 32/32.
+- **Frontier findings** (roadmap correction, see
+  `session_logs/2026-07-17_frontier_assert_control_dpi_findings.md`): DPI
+  **export** is architecturally blocked (no C-symbol synthesis in an
+  interpreter + the disabled `IVL_SCHED_CALLF` synchronous-call
+  protocol); **multi-dimensional open arrays** need non-contiguous access
+  (a 2-D unpacked darray is a `vvp_darray_object`, non-contiguous); the
+  remaining **M9D** features need an automaton engine. Next genuinely
+  bounded items: M12B (assertion VPI identity) and pieces of M1B.
+
 ## State as of 2026-07-17b (M9C-live, M9D, M10 packed vectors)
 
 - **M9C-live** — SVA liveness operators `nexttime`/`s_nexttime`/

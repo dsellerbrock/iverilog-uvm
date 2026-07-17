@@ -66,6 +66,40 @@ static PLI_INT32 sva_sizetf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       return 32;
 }
 
+/*
+ * Assertion control (IEEE 1800-2017 20.12). A single global enable flag
+ * gates the failure reporting of every synthesized concurrent-assertion
+ * checker (each emits `if ($ivl_sva_enabled()) <fail action>`). This
+ * implements the common global use ($assertoff during reset, $asserton
+ * after); the optional [levels, list] arguments select a scope subset in
+ * the LRM and are accepted but ignored here (global-only).
+ *
+ *   $assertoff  — stop reporting assertion failures
+ *   $asserton   — resume reporting
+ *   $assertkill — stop reporting (in-flight attempt reset is not modeled)
+ */
+static int sva_assert_enabled = 1;
+
+static PLI_INT32 sva_enabled_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      s_vpi_value rv;
+      (void)name;
+      rv.format = vpiIntVal;
+      rv.value.integer = sva_assert_enabled;
+      vpi_put_value(callh, &rv, 0, vpiNoDelay);
+      return 0;
+}
+
+static PLI_INT32 sva_control_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      if (name && strcmp(name, "$asserton") == 0)
+	    sva_assert_enabled = 1;
+      else                       /* $assertoff / $assertkill */
+	    sva_assert_enabled = 0;
+      return 0;
+}
+
 static void register_one_(const char*tfname,
                           PLI_INT32 (*calltf)(ICARUS_VPI_CONST PLI_BYTE8*))
 {
@@ -82,6 +116,20 @@ static void register_one_(const char*tfname,
       vpip_make_systf_system_defined(h);
 }
 
+static void register_task_(const char*tfname,
+			   PLI_INT32 (*calltf)(ICARUS_VPI_CONST PLI_BYTE8*))
+{
+      s_vpi_systf_data tf_data;
+      memset(&tf_data, 0, sizeof tf_data);
+      tf_data.type      = vpiSysTask;
+      tf_data.tfname    = (PLI_BYTE8*)tfname;
+      tf_data.calltf    = calltf;
+      tf_data.compiletf = sva_compiletf;
+      tf_data.user_data = (PLI_BYTE8*)tfname;
+      vpiHandle h = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(h);
+}
+
 void sys_sva_register(void)
 {
       register_one_("$rose",   sva_const_calltf);
@@ -92,4 +140,11 @@ void sys_sva_register(void)
       register_one_("$rose_gclk",   sva_const_calltf);
       register_one_("$fell_gclk",   sva_const_calltf);
       register_one_("$stable_gclk", sva_const_calltf);
+
+	/* Assertion control (20.12): the enable-query function used by
+	   synthesized checkers, and the control tasks. */
+      register_one_("$ivl_sva_enabled", sva_enabled_calltf);
+      register_task_("$asserton",   sva_control_calltf);
+      register_task_("$assertoff",  sva_control_calltf);
+      register_task_("$assertkill", sva_control_calltf);
 }
