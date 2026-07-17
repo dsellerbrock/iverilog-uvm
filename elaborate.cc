@@ -3452,6 +3452,61 @@ static NetExpr*elaborate_delay_expr(PExpr*expr, Design*des, NetScope*scope)
       return dex;
 }
 
+/*
+ * Build the binary expression for an expanded compound assignment
+ * (a = a <op> rv). Returns 0 for an operator we don't expand, so the
+ * caller can fall back to the normal compressed-assign path.
+ */
+/* True when the l-value is an element of an associative array, whether a
+ * local/module signal (c[k]) or a class property accessed as a member
+ * (m[k]). Used to route compressed assignments around the assoc-blind
+ * compressed-store code generator. */
+static bool lv_is_assoc_element_(const NetAssign_*lv)
+{
+	// Local/module associative-array signal: c[k].
+      if (lv->sig() && lv->sig()->darray_type()) {
+	    const netqueue_t*aq =
+		  dynamic_cast<const netqueue_t*>(lv->sig()->darray_type());
+	    if (aq && aq->assoc_compat()) return true;
+      }
+	// Class-property associative array accessed as a member: m[k].
+      if (lv->get_property_idx() >= 0 && lv->sig()) {
+	    const netclass_t*cl =
+		  dynamic_cast<const netclass_t*>(lv->sig()->net_type());
+	    if (cl) {
+		  ivl_type_t pt = cl->get_prop_type(lv->get_property_idx());
+		  const netqueue_t*aq = dynamic_cast<const netqueue_t*>(pt);
+		  if (aq && aq->assoc_compat()) return true;
+	    }
+      }
+      return false;
+}
+
+static NetExpr* build_compound_binary_(char op, NetExpr*l, NetExpr*r,
+                                       unsigned wid, bool sign)
+{
+      switch (op) {
+	  case '+':
+	  case '-':
+	    return new NetEBAdd(op, l, r, wid, sign);
+	  case '*':
+	    return new NetEBMult(op, l, r, wid, sign);
+	  case '/':
+	  case '%':
+	    return new NetEBDiv(op, l, r, wid, sign);
+	  case '&':
+	  case '|':
+	  case '^':
+	    return new NetEBBits(op, l, r, wid, sign);
+	  case 'l':
+	  case 'r':
+	  case 'R':
+	    return new NetEBShift(op, l, r, wid, sign);
+	  default:
+	    return 0;
+      }
+}
+
 NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, ! delay_);
@@ -3488,6 +3543,33 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
       char op = op_;
       if ((op == 'R') && !lv->get_signed())
 	    op = 'r';
+
+	// Associative-array element compound assignment (a[k]++, a[k]+=x).
+	// The compressed-store code generator has no l-value *read* path
+	// for an associative element (get_vec_from_lval handles only fixed
+	// arrays), so the read-modify-write was mis-generated: a local
+	// assoc corrupted the runtime object stack (crash) and a
+	// class-member assoc silently dropped the store (value unchanged).
+	// UVM's uvm_report_server severity counters are exactly this shape
+	// (int m_severity_count[uvm_severity]; incr_severity_count does
+	// m_severity_count[sev]++), so UVM_ERROR/UVM_WARNING counts stayed
+	// 0. Expand to the equivalent plain store a[k] = a[k] <op> rv,
+	// which uses the working associative read and store paths.
+      if (lv->word() && lv_is_assoc_element_(lv)) {
+	    {
+		  unsigned wid = count_lval_width(lv);
+		  bool sign = lv->get_signed();
+		  NetExpr*rd = lval()->elaborate_expr(des, scope, wid,
+						      PExpr::NO_FLAGS);
+		  NetExpr*comb = rd ? build_compound_binary_(op, rd, rv,
+							     wid, sign) : 0;
+		  if (comb) {
+			NetAssign*asn = new NetAssign(lv, comb);
+			asn->set_line(*this);
+			return asn;
+		  }
+	    }
+      }
 
       NetAssign*cur = new NetAssign(lv, op, rv);
       cur->set_line(*this);
