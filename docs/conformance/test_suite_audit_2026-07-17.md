@@ -24,11 +24,17 @@ Headline conclusions:
 3. **The UVM sweep masks one real failure** (`reg_basic_test`) and rests on
    a broken UVM error counter. True pass rate is 176/177. See Part 4. This
    is the most material finding.
-4. Of the 99 ivtest fails, the large majority are **cosmetic diagnostic
-   drift** (gold files predate the fork's message rewording) or
-   **intentional feature additions** (a rejection-test now compiles because
-   the fork implemented the feature). A short list are genuine functional
-   defects the suite is correctly catching (Part 5).
+4. Of the 99 ivtest fails, an **upstream diff (Part 7)** shows **62 are
+   pre-existing** (fail on upstream iverilog 13.0 too), **37 are
+   fork-introduced regressions**, and 1 is a fork *fix*. Many are cosmetic
+   diagnostic drift or intentional feature additions, but the 37 include
+   genuine functional regressions (automatic-scope codegen, a class/null
+   compile crash, an `event`-declaration parser bug, reg-array reads).
+5. **Two fixes were implemented, not just recommended (Part 8):** the
+   associative-array compound-assignment silent miscompile behind the
+   broken UVM error counter is fixed in the compiler (`UVM_ERROR : 0` →
+   real counts), and the UVM sweep is hardened so a failing test can no
+   longer be masked by a stray "PASS".
 
 ---
 
@@ -288,17 +294,19 @@ its queue is `int q_tst[$]`, and `int` is **2-state**, so per IEEE 1800
 correctly returns `x`); the gold's `'X` is stale. Recorded here because it
 shows why gold-diff alone cannot classify a "regression."
 
-### Attribution caveat (fork vs. upstream)
+### Attribution — now settled against upstream (see Part 7)
 
-The gold files are *reference-simulator* output, not upstream-iverilog
-output, so a gold mismatch does **not** by itself prove a fork regression —
-many of these are almost certainly upstream-iverilog failures too (that is
-why they are long-standing known-fails). `git blame` is unreliable for
-attribution here because `parse.y` and other core files trace wholesale to
-a fork reformat commit. **A definitive fork-vs-upstream split requires
-building a pristine upstream iverilog and diffing the fail set** — not done
-in this audit. The behaviors above are verified as *real*; their
-*attribution* is the open follow-up.
+The initial version of this audit could not cleanly separate
+fork-introduced from pre-existing failures (gold files are
+*reference-simulator* output, and `git blame` is unreliable because core
+files trace to a fork reformat commit). That gap is now closed: a pristine
+**upstream Icarus Verilog 13.0** (fork base commit `9b44d55`) was built and
+run over the same suite. The definitive three-way split is in **Part 7**.
+Headline: **37 of the 99 are fork-introduced regressions**, 62 are
+pre-existing (fail upstream too), and 1 test the fork *fixed*. Several
+earlier hypotheses were corrected by this (the `automatic_*` cluster, the
+reg-array `z`/`x` bug, and `br_gh440` are all fork-caused, not
+pre-existing).
 
 ---
 
@@ -329,6 +337,96 @@ in this audit. The behaviors above are verified as *real*; their
    diff the ivtest fail set to split fork-introduced from pre-existing.
 
 ---
+
+## Part 7 — Upstream attribution (definitive)
+
+A pristine **upstream Icarus Verilog 13.0** was built from the fork's base
+commit `9b44d55` (Cary R, 2026-02-20; fork work begins 2026-04-01) into a
+separate prefix and run over the identical ivtest suite on a quiet host
+(all 7 `pow_*` passed — no OOM). Diffing the fail sets:
+
+| Class | Count | Meaning |
+|-------|-------|---------|
+| Pre-existing | **62** | Fail on upstream too — not the fork's doing |
+| **Fork-introduced regression** | **37** | Pass on upstream, fail on the fork |
+| Fork-fixed | 1 | Fails on upstream, passes on the fork (`unp_array_typedef`) |
+
+So the "baseline-identical / no regressions" statement (true against the
+mid-fork m4av baseline) does **not** hold against upstream: the fork's
+SV/UVM work regressed **37** tests upstream passes. The 37, grouped by
+nature (mechanism from the root-cause passes; attribution from the diff):
+
+- **Automatic task/function variables (8)** — `automatic_events`,
+  `automatic_events2`, `automatic_events3`, `automatic_task`,
+  `automatic_task2`, `automatic_task3`, `recursive_task`, `func_init_var2`.
+  Upstream runs these; the fork emits `unresolved vvp_net reference`,
+  segfaults, or mis-evaluates the automatic-var initializer. **This
+  corrects the earlier audit**, which guessed these were a "known iverilog
+  limitation" — they are fork regressions.
+- **Feature now accepted, CE-gold stale (7, intentional direction)** —
+  `br1005` (queue-in-class), `br_ml20150315b` (unpacked struct),
+  `br_ml20180227` (string→vector), `sv_deferred_assert1/2`,
+  `sv_deferred_assume1/2`. Upstream emits the `sorry` the gold expects; the
+  fork lifted the gate. Intended, but the deferred-assertion runtime is
+  incomplete and the golds need regenerating.
+- **Wildcard-import / scope rework (4)** — `sv_wildcard_import2/3`
+  (wrongly rejects a local typedef shadowing an import), `sv_wildcard_import4`
+  (compile-progress fallback masks the duplicate-import diagnostics),
+  `sv_wildcard_import5` (message wording).
+- **Enum leniency (2)** — `br_gh130a`, `br_gh386c` (int→enum accepted).
+- **Queue diagnostic drift (2)** — `sv_queue_real`, `sv_queue_string`
+  (data correct; dropped/reworded warnings).
+- **Class/null (2)** — `br_gh440` (fork feeds the upstream
+  `eval_tree.cc:367` width assert a zero-width `null` expression → abort;
+  **the earlier blame-based "upstream" call was wrong** — the trigger is
+  fork-introduced), `br_gh265` (fork object-codegen null fallback bypasses
+  the elaboration cast check).
+- **Reg-array-word continuous assign (2)** — `pr1648365`, `pr2974294`
+  (`wire = reg_array[idx]` reads `z` not `x`). **Corrects the earlier
+  "likely upstream" guess** — fork-introduced.
+- **Dropped diagnostics / ordering (3)** — `pr987` (wait-constant warning),
+  `pr1862744b` (for-loop-constant warnings), `pr243` (`$monitor`/`$finish`
+  same-time ordering).
+- **Parser / misc (7)** — `array_lval_select3a`, `case_unique`,
+  `constfunc8`, `mod_inst_pkg`, `pr2792883`, `task_iotypes`, and the
+  `event`-declaration-ordering parser regression (verified: upstream
+  compiles `event` after another decl in a task, the fork rejects it —
+  this also breaks `always_comb/ff/latch_warn`, which were already failing
+  upstream for an unrelated warning-diff).
+
+The remaining **62** pre-existing failures (analog/Verilog-AMS, VHDL,
+legacy split ports, VCD parameter-dump formatting, upstream known-open
+`br_gh*`/`pr*` bugs, diagnostic wording) fail identically on upstream and
+are genuinely not the fork's responsibility.
+
+## Part 8 — Remediation delivered in this pass
+
+Two fixes were implemented and validated (not just recommended):
+
+1. **Compiler: associative-array element compound assignment.**
+   `a[k]++`, `a[k]+=x`, etc. were silently miscompiled — a local assoc
+   corrupted the vvp object stack (crash), a class-member assoc silently
+   dropped the store (value unchanged). This is the root cause of the
+   broken UVM error counter (`int m_severity_count[uvm_severity];
+   m_severity_count[sev]++` never incremented → `UVM_ERROR : 0`).
+   `PAssign::elaborate_compressed_` (`elaborate.cc`) now detects an
+   associative element l-value (local via `sig()->darray_type()`, class
+   property via `get_prop_type(member_idx)`) and expands `a[k] op= rv` into
+   the known-good plain store `a[k] = a[k] op rv`. Fixed-array, dynamic-array
+   and scalar compound assigns are untouched. After the fix a minimal UVM
+   test firing two `` `uvm_error ``s reports `UVM_ERROR : 2`. Note upstream
+   iverilog does not implement `int a[int]` at all, so this completes a
+   fork-added feature rather than restoring upstream behavior. Regression
+   test: `tests/assoc_compound_assign_test.sv`. Validated: ivtest
+   baseline-identical (99, no new fails), bundled VPI 81/81, negative 32/32.
+2. **UVM sweep hardening** (`.github/uvm_test.sh`). Failure evidence is now
+   checked **before** any PASS marker: a real `UVM_(ERROR|FATAL) … @` report
+   line, a non-zero UVM summary count, an explicit `FAIL`, or a vvp image
+   rejection scores the test FAIL regardless of any "PASS" substring. A run
+   with no PASS marker and no error is now a FAIL (was a silent
+   `PASS (no-check)`). `reg_basic_test` is documented in `KNOWN_FAIL` with
+   its reason (UVM_BACKDOOR needs DPI HDL access, disabled under
+   `-DUVM_NO_DPI`) instead of being silently masked.
 
 ## Appendix — full per-test reason table
 
