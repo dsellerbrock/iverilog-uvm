@@ -917,9 +917,17 @@ static bool scope_has_own_automatic_context_(__vpiScope*scope)
       switch (scope->get_type_code()) {
           case vpiTask:
           case vpiFunction:
-          case vpiNamedBegin:
           case vpiNamedFork:
             return true;
+          case vpiNamedBegin:
+              /* A named begin block inside an automatic scope is collapsed
+                 into the enclosing frame: its statement runs to completion
+                 before the parent resumes, so its locals ride the enclosing
+                 task/function (or fork) frame and no %alloc is emitted for
+                 it. Only a begin block with a static parent (block-local
+                 automatic variables in a static process) owns a frame,
+                 because there is no enclosing frame to ride. */
+            return !(scope->scope && scope->scope->is_automatic());
           default:
             return false;
       }

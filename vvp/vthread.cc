@@ -9731,12 +9731,6 @@ static void do_join(vthread_t thr, vthread_t child)
                      ? child->parent_scope->get_type_code() : 0;
       __vpiScope*thr_ctx_scope = resolve_context_scope(thr ? thr->parent_scope : 0);
       __vpiScope*child_ctx_scope = resolve_context_scope(child ? child->parent_scope : 0);
-      bool shared_auto_scope = child_ctx_scope && thr_ctx_scope
-                            && (child_ctx_scope == thr_ctx_scope
-                                || scope_is_within_or_equal_(thr ? thr->parent_scope : 0,
-                                                             child_ctx_scope)
-                                || scope_is_within_or_equal_(child ? child->parent_scope : 0,
-                                                             thr_ctx_scope));
 
       if (child->transferred_context) {
             vvp_context_t child_context = child->transferred_context;
@@ -9759,17 +9753,18 @@ static void do_join(vthread_t thr, vthread_t child)
                   child_context = first_live_context_for_scope(thr->wt_context,
                                                                child_ctx_scope);
 
-            if (child_context && shared_auto_scope) {
-                    /* Same-scope recursive automatic calls must keep the child
-                       frame on the write stack for the matching %free, but the
-                       caller's immediate post-call loads still need to read the
-                       child frame. Point rd_context at the shared child head
-                       until %free removes it from both chains. */
-                  thr->rd_context = child_context;
-                  trace_context_event_("join-rd-share", thr,
-                                       child ? child->parent_scope : 0,
-                                       child_context);
-	            } else if (child_context) {
+              /* Same-scope recursive calls take the generic pop-push
+                 below as well: with nested begin blocks collapsed into
+                 the task frame, caller and callee frames share one owner
+                 scope, so the callee frame must come OFF the write stack
+                 at join — otherwise the post-join output copy-back, which
+                 stores through the write chain by owner scope, hits the
+                 callee frame instead of the caller's. The subsequent
+                 %free finds the callee frame at the head of the read
+                 chain. (The retired "join-rd-share" variant, which kept
+                 the callee frame on both stacks, was only viable when a
+                 per-block frame disambiguated the store target.) */
+	            if (child_context) {
 	                    /* Pop the child context from the write stack, then move that
 	                       same context to the top of the read stack without leaving a
 	                       duplicate stacked link behind. */
