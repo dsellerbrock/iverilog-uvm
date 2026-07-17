@@ -3,6 +3,29 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-17d (M12B: assertion VPI object model)
+
+- **`vpi_iterate(vpiAssertion, ...)` now works** — concurrent assertions
+  have VPI identity. Because the SVA engine lowers each assertion to a
+  synthesized always-block, identity is restored by **runtime
+  registration**: each checker's init block calls
+  `$ivl_register_assertion("name","file",line)` at time 0 (`pform.cc`);
+  the systf (`vpi/sys_sva.c`) forwards to `vpip_register_assertion`
+  (`vvp/vpi_scope.cc`), which builds a `__vpiAssertion` handle
+  (vpiName/vpiFullName/vpiFile/vpiLineNo/vpiScope), adds it to a global
+  registry, and attaches it to the scope's `intern` list. So global
+  `vpi_iterate(vpiAssertion, 0)` (new case in `vpi_priv.cc`) and
+  scope-scoped `vpi_iterate(vpiAssertion, scope)` (served free by the
+  existing subset iterator) both enumerate every assertion.
+  `vpiAssertion` = 686 (`sv_vpi_user.h`); `vpip_register_assertion`
+  declared in `vpi_user.h` following the portable
+  `vpip_make_systf_system_defined` cross-module pattern.
+- Bundled VPI test `ivtest/vpi/m12b_assert_vpi` (three assertions,
+  global + scope-scoped, attribute checks). **Bundled VPI 80/80**, UVM
+  177/177 (zero no-check), negative 32/32.
+- Remaining M12B: assertion **callbacks** (cbAssertionStart/Success/
+  Failure) and VPI force/release on bit-selects.
+
 ## State as of 2026-07-17c (assertion control + frontier findings)
 
 - **Assertion control** (§20.12): `$asserton`/`$assertoff`/`$assertkill`
