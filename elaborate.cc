@@ -3452,6 +3452,61 @@ static NetExpr*elaborate_delay_expr(PExpr*expr, Design*des, NetScope*scope)
       return dex;
 }
 
+/*
+ * Build the binary expression for an expanded compound assignment
+ * (a = a <op> rv). Returns 0 for an operator we don't expand, so the
+ * caller can fall back to the normal compressed-assign path.
+ */
+/* True when the l-value is an element of an associative array, whether a
+ * local/module signal (c[k]) or a class property accessed as a member
+ * (m[k]). Used to route compressed assignments around the assoc-blind
+ * compressed-store code generator. */
+static bool lv_is_assoc_element_(const NetAssign_*lv)
+{
+	// Local/module associative-array signal: c[k].
+      if (lv->sig() && lv->sig()->darray_type()) {
+	    const netqueue_t*aq =
+		  dynamic_cast<const netqueue_t*>(lv->sig()->darray_type());
+	    if (aq && aq->assoc_compat()) return true;
+      }
+	// Class-property associative array accessed as a member: m[k].
+      if (lv->get_property_idx() >= 0 && lv->sig()) {
+	    const netclass_t*cl =
+		  dynamic_cast<const netclass_t*>(lv->sig()->net_type());
+	    if (cl) {
+		  ivl_type_t pt = cl->get_prop_type(lv->get_property_idx());
+		  const netqueue_t*aq = dynamic_cast<const netqueue_t*>(pt);
+		  if (aq && aq->assoc_compat()) return true;
+	    }
+      }
+      return false;
+}
+
+static NetExpr* build_compound_binary_(char op, NetExpr*l, NetExpr*r,
+                                       unsigned wid, bool sign)
+{
+      switch (op) {
+	  case '+':
+	  case '-':
+	    return new NetEBAdd(op, l, r, wid, sign);
+	  case '*':
+	    return new NetEBMult(op, l, r, wid, sign);
+	  case '/':
+	  case '%':
+	    return new NetEBDiv(op, l, r, wid, sign);
+	  case '&':
+	  case '|':
+	  case '^':
+	    return new NetEBBits(op, l, r, wid, sign);
+	  case 'l':
+	  case 'r':
+	  case 'R':
+	    return new NetEBShift(op, l, r, wid, sign);
+	  default:
+	    return 0;
+      }
+}
+
 NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, ! delay_);
@@ -3488,6 +3543,33 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
       char op = op_;
       if ((op == 'R') && !lv->get_signed())
 	    op = 'r';
+
+	// Associative-array element compound assignment (a[k]++, a[k]+=x).
+	// The compressed-store code generator has no l-value *read* path
+	// for an associative element (get_vec_from_lval handles only fixed
+	// arrays), so the read-modify-write was mis-generated: a local
+	// assoc corrupted the runtime object stack (crash) and a
+	// class-member assoc silently dropped the store (value unchanged).
+	// UVM's uvm_report_server severity counters are exactly this shape
+	// (int m_severity_count[uvm_severity]; incr_severity_count does
+	// m_severity_count[sev]++), so UVM_ERROR/UVM_WARNING counts stayed
+	// 0. Expand to the equivalent plain store a[k] = a[k] <op> rv,
+	// which uses the working associative read and store paths.
+      if (lv->word() && lv_is_assoc_element_(lv)) {
+	    {
+		  unsigned wid = count_lval_width(lv);
+		  bool sign = lv->get_signed();
+		  NetExpr*rd = lval()->elaborate_expr(des, scope, wid,
+						      PExpr::NO_FLAGS);
+		  NetExpr*comb = rd ? build_compound_binary_(op, rd, rv,
+							     wid, sign) : 0;
+		  if (comb) {
+			NetAssign*asn = new NetAssign(lv, comb);
+			asn->set_line(*this);
+			return asn;
+		  }
+	    }
+      }
 
       NetAssign*cur = new NetAssign(lv, op, rv);
       cur->set_line(*this);
@@ -4575,6 +4657,26 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 			NetProc*tmp = var_inits[idx]->elaborate(des, nscope);
 			if (tmp) init_block->append(tmp);
 		  }
+
+		    // The runtime initializers above live in the scope-0
+		    // activation-frame prefix, where constant-function
+		    // evaluation (which walks each block's statements in the
+		    // block's own scope context) cannot resolve the
+		    // block-local assignment targets, so the initializer was
+		    // silently dropped and the automatic local kept its
+		    // default. Record a second, block-scoped copy as the
+		    // scope's var_init purely for the evaluator: var_init() is
+		    // read only by the constant-function evaluator, never by
+		    // code generation, so this has no runtime effect (the
+		    // prefix remains the sole runtime initialization path).
+		  if (var_inits.size() > 0) {
+			NetBlock*ceval = new NetBlock(NetBlock::SEQU, 0);
+			for (unsigned idx = 0; idx < var_inits.size(); idx += 1) {
+			      NetProc*tmp = var_inits[idx]->elaborate(des, nscope);
+			      if (tmp) ceval->append(tmp);
+			}
+			nscope->set_var_init(ceval);
+		  }
 	    } else {
 		  elaborate_var_inits_(des, nscope);
 	    }
@@ -5479,6 +5581,60 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  blk->append(as);
 	    }
 	    return blk;
+      }
+
+	/* M3-rm: obj.field.rand_mode(mode) — freeze/unfreeze a SPECIFIC
+	   rand field (IEEE 1800-2017 18.8). This must run BEFORE the
+	   general method dispatch below, which resolves `obj.field` as a
+	   receiver and silently drops `.rand_mode()` on it (so a field
+	   frozen with rand_mode(0) was still randomized). We disambiguate
+	   from the object-level obj.rand_mode(mode) by resolving the
+	   second-to-last path component as a rand PROPERTY of a class
+	   object; if it is not one, we fall through to the normal path. */
+      if (gn_system_verilog()
+	  && peek_tail_name(path_) == perm_string::literal("rand_mode")
+	  && path_.size() >= 2 && parms_.size() == 1) {
+	    perm_string fname = std::next(path_.end(), -2)->name;
+	    NetNet *obj_net = nullptr;
+	    if (path_.size() == 2) {
+		  for (NetScope *s = scope; s && !obj_net; s = s->parent())
+			obj_net = s->find_signal(perm_string::literal(THIS_TOKEN));
+	    } else {
+		  pform_name_t obj_path;
+		  auto it = path_.begin();
+		  auto end_it = std::next(path_.end(), -2);
+		  for (; it != end_it; ++it)
+			obj_path.push_back(*it);
+		  symbol_search_results sr;
+		  symbol_search(this, des, scope, obj_path, UINT_MAX, &sr);
+		  obj_net = sr.net;
+	    }
+	    if (obj_net) {
+		  const netclass_t *ctype =
+			dynamic_cast<const netclass_t*>(obj_net->net_type());
+		  if (ctype) {
+			int pid = ctype->property_idx_from_name(fname);
+			if (pid >= 0) {
+			      NetExpr *obj_expr = new NetESignal(obj_net);
+			      obj_expr->set_line(*this);
+			      NetExpr *mode_expr = elab_sys_task_arg(des, scope,
+				    peek_tail_name(path_), 0, parms_[0].parm);
+			      NetExpr *pid_expr = new NetEConst(
+				    verinum((uint64_t)pid, 32));
+			      pid_expr->set_line(*this);
+			      vector<NetExpr*> argv(3);
+			      argv[0] = obj_expr;
+			      argv[1] = mode_expr;
+			      argv[2] = pid_expr;
+			      NetSTask *sys = new NetSTask(
+				    "$ivl_class_method$rand_mode",
+				    IVL_SFUNC_AS_TASK_IGNORE, argv);
+			      sys->set_line(*this);
+			      return sys;
+			}
+		  }
+	    }
+	      // Not a resolvable field: fall through to normal dispatch.
       }
 
       bool has_indexed_path_component = false;

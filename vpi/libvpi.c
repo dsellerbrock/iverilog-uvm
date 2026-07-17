@@ -291,6 +291,34 @@ void vpip_make_systf_system_defined(vpiHandle ref)
       assert(vpip_routines);
       vpip_routines->make_systf_system_defined(ref);
 }
+
+void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
+                             PLI_INT32 line, vpiHandle scope)
+{
+      assert(vpip_routines);
+      vpip_routines->register_assertion(idx, name, file, line, scope);
+}
+
+void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason, vpiHandle scope)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_report(idx, reason, scope);
+}
+
+PLI_INT32 vpip_assertion_cb_active(void)
+{
+      assert(vpip_routines);
+      return vpip_routines->assertion_cb_active();
+}
+
+vpiHandle vpi_register_assertion_cb(vpiHandle assertion, PLI_INT32 reason,
+                                    vpi_assertion_cb_func cb_rtn,
+                                    PLI_BYTE8*user_data)
+{
+      assert(vpip_routines);
+      return vpip_routines->register_assertion_cb(assertion, reason,
+                                                  cb_rtn, user_data);
+}
 void vpip_mcd_rawwrite(PLI_UINT32 mcd, const char*buf, size_t count)
 {
       assert(vpip_routines);

@@ -3,6 +3,278 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-17e (M12B-cb: assertion VPI callbacks)
+
+- **`vpi_register_assertion_cb` now works** for
+  `cbAssertionSuccess`/`cbAssertionFailure`. Each synthesized checker,
+  when any assertion callback is registered (`$ivl_assert_cb_active()`),
+  emits `$ivl_assert_report(idx, reason)` at every fail-dispatch site
+  (via `sva_fail_action_`, all 7) and on the pass path for
+  `assert`/`assume` (`pform.cc`). The systf (`vpi/sys_sva.c`) forwards to
+  `vpip_assertion_report(idx, reason, scope)` which looks up the
+  `__vpiAssertion` by `(scope, compile-time idx)` — so a module
+  instantiated N times keeps N distinct assertion identities — and fires
+  each matching registered callback with an `s_vpi_time` built from
+  `schedule_simtime()` (`vvp/vpi_scope.cc`). `vpi_register_assertion_cb`
+  appends to the handle's callback vector and bumps a global count backing
+  `vpip_assertion_cb_active()`.
+- **Windows portability**: the four new module→core calls
+  (`vpip_register_assertion` [M12B], `vpip_assertion_report`,
+  `vpip_assertion_cb_active`, `vpi_register_assertion_cb`) route through
+  the `vpip_routines_s` table (field + `libvpi.c` forwarder +
+  `vpi_priv.cc` population); `vpip_routines_version` = 3.
+- **Honesty**: `s_vpi_attempt_info.detail` (failing-expr / step handles)
+  is passed as a valid pointer but not populated — the interpreter
+  lowering does not retain the sub-expression object model, so step-level
+  introspection would be fabricated. `attemptStartTime`/callback time = the
+  report time. cbAssertionStart/Step/disable reasons are header-defined but
+  not yet emitted (need per-attempt lifecycle tracking; follow-up).
+- Bundled VPI test `ivtest/vpi/m12bcb_assert_cb` (clocked boolean
+  assertion, pattern 1 1 0 1 0 → 3 success / 2 failure, verified via
+  `$check_assert_cb`). **Bundled VPI 81/81**, UVM 177/177 (zero no-check —
+  report gated by `$ivl_assert_cb_active()`), negative 32/32,
+  ivtest baseline-identical.
+
+## State as of 2026-07-17d (M12B: assertion VPI object model)
+
+- **`vpi_iterate(vpiAssertion, ...)` now works** — concurrent assertions
+  have VPI identity. Because the SVA engine lowers each assertion to a
+  synthesized always-block, identity is restored by **runtime
+  registration**: each checker's init block calls
+  `$ivl_register_assertion("name","file",line)` at time 0 (`pform.cc`);
+  the systf (`vpi/sys_sva.c`) forwards to `vpip_register_assertion`
+  (`vvp/vpi_scope.cc`), which builds a `__vpiAssertion` handle
+  (vpiName/vpiFullName/vpiFile/vpiLineNo/vpiScope), adds it to a global
+  registry, and attaches it to the scope's `intern` list. So global
+  `vpi_iterate(vpiAssertion, 0)` (new case in `vpi_priv.cc`) and
+  scope-scoped `vpi_iterate(vpiAssertion, scope)` (served free by the
+  existing subset iterator) both enumerate every assertion.
+  `vpiAssertion` = 686 (`sv_vpi_user.h`); `vpip_register_assertion`
+  declared in `vpi_user.h` following the portable
+  `vpip_make_systf_system_defined` cross-module pattern.
+- Bundled VPI test `ivtest/vpi/m12b_assert_vpi` (three assertions,
+  global + scope-scoped, attribute checks). **Bundled VPI 80/80**, UVM
+  177/177 (zero no-check), negative 32/32.
+- Remaining M12B: assertion **callbacks** (cbAssertionStart/Success/
+  Failure) and VPI force/release on bit-selects.
+
+## State as of 2026-07-17c (assertion control + frontier findings)
+
+- **Assertion control** (§20.12): `$asserton`/`$assertoff`/`$assertkill`
+  implemented (global scope). `vpi/sys_sva.c` holds a global enable flag
+  + the `$ivl_sva_enabled()` query + the three control tasks; `pform.cc`
+  `sva_gate_()` wraps every synthesized-checker fail action in
+  `if ($ivl_sva_enabled())`. Flag defaults on → existing assertions
+  unchanged. Test `m9e_assert_control_test`. UVM 177/177 (zero no-check),
+  negative 32/32.
+- **Frontier findings** (roadmap correction, see
+  `session_logs/2026-07-17_frontier_assert_control_dpi_findings.md`): DPI
+  **export** is architecturally blocked (no C-symbol synthesis in an
+  interpreter + the disabled `IVL_SCHED_CALLF` synchronous-call
+  protocol); **multi-dimensional open arrays** need non-contiguous access
+  (a 2-D unpacked darray is a `vvp_darray_object`, non-contiguous); the
+  remaining **M9D** features need an automaton engine. Next genuinely
+  bounded items: M12B (assertion VPI identity) and pieces of M1B.
+
+## State as of 2026-07-17b (M9C-live, M9D, M10 packed vectors)
+
+- **M9C-live** — SVA liveness operators `nexttime`/`s_nexttime`/
+  `s_eventually` (boolean operands), reusing the per-cycle + `pend`/FINAL
+  machinery. `nexttime` fails at T≥1 on `!p` (a `$past(1,1)` guard skips
+  the first cycle); the strong forms add an end-of-sim obligation.
+  Unbounded `eventually` is now a proper LRM error. op_types 9/10/11.
+  Test `m9c_live_test`; negatives `m9c_eventually_unbounded`,
+  `m9c_nexttime_sequence_operand`.
+- **M9D** — parameterized named properties/sequences: `sequence
+  name(formals); …` / `property name(formals); …`, with the formals
+  substituted (`sva_clone_subst_`) at each instantiation. Sequences
+  expand in the splice pass (arity check + recursion guard, nesting
+  supported); properties expand in `pform_make_assertion` with the clock
+  taken from the assertion site (a clock in the body is a loud sorry).
+  Signal/boolean formals only. Test `m9d_param_test` (swapped-arg
+  discriminator); negatives `m9d_param_arity_mismatch`,
+  `m9d_param_clocked_body`. Zero new bison conflicts. (M9D's local vars /
+  `.matched` / `expect` / goto-rep remain — they need an automaton engine.)
+- **M10** — DPI packed vector marshaling for wide (>64-bit) arguments:
+  2-state `bit[W]` → `svBitVecVal[]` ('V'), 4-state `logic[W]` →
+  `svLogicVecVal[]` ('W'), passed as a pointer, input/output/inout, any
+  width, X/Z preserved for 4-state. tgt-vvp emits the letter + the usual
+  `%load/vec4`/`%store/vec4`; vvp packs/unpacks the vec4 to/from a heap
+  buffer and passes it via libffi like an open-array handle. Test
+  `m10_dpi_wide_vector_test` (72-bit xor / copy / read-write invert).
+  (M10B remaining: multidim open arrays, DPI export.)
+- **Regression-clean throughout**: UVM 176/176 (zero no-check) after M10;
+  ivtest baseline-identical each increment (the `pow_ca_signed` load
+  flake aside); negative 32/32. Commits: `39e4af7` (M9C-live), `dedd110`
+  (M9D), `5f09e4d` (M10).
+- **Next**: DPI export (C-calls-SV), then multidim open arrays; M9D
+  automaton features; M12B; M1B.
+
+## State as of 2026-07-17a (M9B/M9C: intersect, until family, within)
+
+- **Four SVA operators implemented**, replacing loud sorries. All in
+  `pform.cc` (lowering) + `parse.y` (grammar); no runtime opcode change.
+- **M9B `intersect`** (16.9.6): equal-length fixed operands lowered to a
+  per-cycle AND unit-delay chain that the existing linear token engine
+  handles. Helper `sva_expand_fixed_` turns a fixed sequence into a
+  per-cycle boolean array (gap cycles = null). Unequal/variable lengths
+  are loud, spec-cited sorries. **M9B COMPLETE.**
+- **M9C `until` family** (16.12.10): `until`/`until_with` and strong
+  `s_until`/`s_until_with`, boolean operands. Under overlapping-attempt
+  semantics the aggregate collapses to a per-cycle check (`until`: fail
+  on `!p&&!q`; `until_with`: fail on `!p`); strong adds an end-of-sim
+  liveness obligation via a `pend` flag → FINAL `$error`. New op_types
+  4–7 on `sva_property_t`, dispatched inside `pform_make_assertion` (new
+  `pform_make_temporal_assertion_`) where `kind` is known. Sequence
+  operands are a loud sorry.
+- **M9C `within`** (16.9.6): fixed-length operands (len s1 ≤ len s2).
+  Lowered to a `$past`-sampled combinational match indicator — AND of
+  s2's cycles AND'd with the OR over embedding offsets of s1's cycles —
+  with a `$past(1,L2)` warm-up guard. Reuses `sva_rewrite_sampled_`,
+  which already expands `$past(x,k)` into history chains. op_type 8.
+- **Regression-clean**: UVM **173/173** (169 baseline + 4 new SVA tests,
+  zero no-check), ivtest name-diff **baseline-identical** (99 fails),
+  negative **28/28** (+4 new: unequal-len/variable-len intersect,
+  until-sequence-operand, within-left-longer). Tests:
+  `m9b_intersect_test`, `m9c_until_test`, `m9c_until_live_test`,
+  `m9c_within_test`.
+- **Next** (loud, not silent): M9C-live (`nexttime`/`eventually`/
+  `s_eventually`), then M10B / M12B / M1B.
+
+## State as of 2026-07-16f (M4-av: string/real-valued assoc reads)
+
+- **M4-av implemented** — the last *silent* miscompile from the truth
+  audit is closed. A module-static (bare-signal) `string s[int]`,
+  `string s[string]`, `real r[int]`, or `real r[string]` stored a value
+  via `%aa/store/{str,r}/*` but read it back via a *positional*
+  `%load/dar/{str,r}`, silently returning the empty string / 0.0. The
+  vec4-valued int-key case was fixed in M14; the string/real value cases
+  remained wrong. Class-member assoc reads (via `%prop/obj`) were always
+  correct — only the bare-signal path was broken.
+- **Fix** (codegen only): `tgt-vvp/eval_string.c` and
+  `tgt-vvp/eval_real.c` now detect an assoc-compat bare-signal container
+  (`ivl_type_queue_assoc_compat`) and emit the keyed
+  `%aa/load/{str,r}/{v,str}` sequence (draw key, `%load/obj v%p_0`,
+  keyed load, `%pop/obj 1`) instead of the positional load — string-key
+  and vec4(int)-key branches added after the existing obj-key branch.
+  Opcodes already existed (used by the `%prop/obj` class-member path);
+  no runtime change.
+- **Regression-clean**: UVM **169/169** (168 baseline + new m4av test),
+  **zero no-check**, zero fail; ivtest name-diff **baseline-identical**
+  (99 real fails; `pow_ca_signed` is the documented concurrent-load
+  flake — passes standalone); negative **24/24**. Test:
+  `tests/m4av_assoc_value_types_test.sv` (int/string keys, updates,
+  `foreach`, `exists`/`delete`, missing-key defaults, positional queues
+  kept on `%load/dar`).
+- **Both silent miscompiles from the truth audit (M3-rm, M4-av) are now
+  closed.** Next priority (loud, not silent): M9C/M9B temporal/sequence
+  operators `within` / `until` / `until_with` / `intersect`.
+
+## State as of 2026-07-16e (M6B: program-completion ends simulation)
+
+- **Program-completion-ends-simulation implemented** (IEEE 1800-2017
+  24.7/3.9): a program that completes naturally now ends the simulation
+  (was: ran to the testbench watchdog). Program `initial` procedures are
+  marked `.thread $prog` (tgt-vvp, `ivl_scope_program`); the runtime
+  counts them and calls `schedule_finish(0)` when the last completes
+  (vvp/vthread.cc). Only run-once initials are counted, so program
+  assertions/clocking (always-type) never keep the sim alive.
+- Verified: single program ends at completion; two programs end only
+  after the LAST; fork..join completes after join; no-program designs
+  unaffected. **Regression-clean**: UVM 168/168 (zero no-check), ivtest
+  name-diff baseline-identical (57 program-block cases unaffected),
+  negative 24/24. Test: `tests/m6b_program_finish_test.sv`.
+- With `$exit`, both program-control gaps of clause 24.7 are now closed.
+  Remaining M6B ledger: cbNBASynch/post-NBA VPI regions, DPI
+  time-consuming tasks, callf scheduled-call protocol.
+- **Next**: M4-av (string/real-valued int-keyed assoc reads — remaining
+  silent miscompile), then M9B/M9C (`within`/`until`/`intersect`).
+
+## State as of 2026-07-16d (M6B scheduler conformance + $exit)
+
+- **M6B delivered**: construct-level scheduler conformance inventory
+  (`docs/conformance/scheduler_conformance_inventory.md`) — 20 scheduling
+  constructs mapped to runtime path + IEEE 1800-2017 clause-4 region +
+  observed behaviour + permanent test, backed by 18 event-region litmus
+  probes (all green: NBA swap, blocking/#0 pre-NBA reads, `->>`,
+  `e.triggered`, continuous-assign-after-NBA, inertial cancel, `$strobe`
+  post-NBA, `wait fork`, `disable fork`, program/reactive ordering).
+- **`$exit` implemented** (IEEE 1800-2017 24.7): was an undefined-systask
+  load error; now ends the calling program (quiet finish). `vpi/sys_finish.c`.
+  Multi-program early-exit and program-completion-ends-sim are recorded
+  M6B follow-up gaps (the latter deliberately not implemented — would
+  risk the 57 ivtest + 3 harness program-block tests).
+- **Tests**: m6b_scheduler_litmus_test.sv, m6b_exit_test.sv. Evidence:
+  negative 24/24; existing m6_sched/reactive/program tests pass; UVM +
+  ivtest sweeps (pending final confirm).
+- **Next**: M4-av (string/real-valued int-keyed assoc reads — remaining
+  silent miscompile), then M9B/M9C (`within`/`until`/`intersect`).
+
+## State as of 2026-07-16c (MILESTONE TRUTH AUDIT + 2 reopened fixes)
+
+**Milestone status corrected** — see
+`docs/conformance/milestone_truth_audit_2026-07-16.md`. Prior "CLOSED"
+labels overstated reality: in-scope functionality was sitting in
+recorded-corners ledgers. Honest labels now:
+- M1 → **SUBSET COMPLETE (M1A)**; M3 → **PARTIAL** (rand_mode gap now
+  fixed); M4 → **SUBSET COMPLETE** (M4-av assoc-value corner);
+  M6 → **PARTIAL (M6B reopened)**; M9 → **SUBSET COMPLETE**
+  (M9A done / M9B-D open); M10 → **SUBSET COMPLETE (M10B)**;
+  M12 → **SUBSET COMPLETE (M12B)**; M13 → **SUBSET COMPLETE (M13B)**.
+  M0/M2/M8/M11/M14 stand as COMPLETE within their scope.
+
+**Two real technical fixes this session** (implementation, not just
+relabeling):
+1. **M9C SVA `throughout`** (16.9.9) — was a loud sorry, now implemented
+   by lowering to a unit-delay sequence with the guard AND-ed into every
+   cycle (incl. intermediate ##N wait cycles); loud sorry only for
+   variable-window shapes. `pform_sva_throughout` in pform.cc.
+   Adversarial + negative tests.
+2. **M3-rm per-field `rand_mode(0)`** (18.8) — was a SILENT no-op
+   (frozen field still randomized). Fixed generally: intercept
+   `obj.field.rand_mode()` in elaborate_usr, resolve the property index,
+   emit the new `%rand_mode/p` opcode. Adversarial test.
+
+**Evidence**: UVM **165/165** (zero no-check; 163 + 2 new tests);
+negative **24/24**; SVA + randomization suites pass; ivtest name-diff
+(pending final confirm). Session log:
+`session_logs/2026-07-16_truth_audit_throughout_randmode.md`.
+
+**Next engineering action**: M4-av (string/real-valued integer-keyed
+assoc reads — remaining silent miscompile), then M9B/M9C (`within`/
+`until`/`intersect`), M6B scheduler inventory.
+
+## State as of 2026-07-16b (M14 CLOSED)
+
+- **M14 (IEEE 1800-2017 clause matrix with complete disposition) is
+  CLOSED.** Deliverable:
+  docs/conformance/matrices/ieee1800_2017_clause_matrix.md — an
+  empirical, clause-by-clause disposition of every 1800-2017 clause
+  (FULL / PARTIAL / DIAGNOSED / N/A) with evidence, produced by a
+  five-way parallel audit whose every silent-gap candidate was hand
+  re-verified (audit agents are pointers, not truth).
+- **Six SILENT gaps found and closed** (principle 4):
+  1. `case (x) inside` range matching (12.5.4) — was low-endpoint-only;
+     now lowered to the `inside` operator (pform_make_case_inside).
+  2. module-static integer-keyed assoc value read (7.8) — stored via
+     %aa/store, read via positional darray load → default; fixed in
+     tgt-vvp/eval_vec4.c (class-member assoc was already fine).
+  3. width-1 class-property $display (8) — 1-bit bit/logic printed the
+     object handle (garbage); fixed in tgt-vvp/draw_vpi.c (properties
+     always evaluate to a temp). Also fixed interface-member $display (25).
+  4. checker/endchecker (17) — bare syntax-error abort → explicit sorry.
+  5. randcase (18.16) — silent empty block → loud sorry.
+  6. std::randomize(var) scope form — success-but-no-op → loud warning.
+- **Promotion evidence**: UVM **163/163** (zero no-check; 160 + 3 M14
+  tests); negative **23/23**; ivtest name-diff baseline-identical
+  (pending final confirm); bundled VPI 79/79 (unaffected). Session log:
+  session_logs/2026-07-16_m14_clause_matrix.md. Recorded-corners ledger
+  in the matrix (string-valued int-keyed assoc, 2 ICEs to harden,
+  interface/nested/extern-method class corners, virtual-iface at module
+  scope, $typename/%p, rand_mode(0), shallow-copy inline static init,
+  etc. — all loud, none silent).
+- **NEXT FRONTIER: M15 (IEEE 1800-2023 delta)** — the final milestone.
+
 ## State as of 2026-07-16 (M13 CLOSED)
 
 - **M13 (bind, let, configs, specify, timing, rare constructs) is

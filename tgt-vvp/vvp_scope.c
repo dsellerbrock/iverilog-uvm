@@ -521,6 +521,19 @@ const char*draw_input_from_net(ivl_nexus_t nex, ivl_scope_t scope)
       if (ivl_signal_type(sig)==IVL_SIT_REG && ivl_signal_dimensions(sig)>0)
 	    return draw_net_input(nex);
 
+	/* A local/automatic net is elided when the scope is drawn (see the
+	   "Elide local/automatic net" case in draw_scope's net emission),
+	   so nothing defines its "v%p_%u" label. An event that senses such a
+	   net (e.g. a bit-select of an automatic vector, @(posedge x[i]),
+	   which lowers to a synthesized local .part net) must therefore
+	   reference the nexus driver (the .part functor) instead of the
+	   absent net, matching the reference behaviour. Class/object signals
+	   are exempt: value-change and virtual-interface events load them as
+	   objects by their net name. */
+      if (ivl_signal_local(sig) && ivl_scope_is_auto(ivl_signal_scope(sig))
+	  && ivl_signal_data_type(sig) != IVL_VT_CLASS)
+	    return draw_net_input(nex);
+
       snprintf(result, sizeof result, "v%p_%u", sig, word);
       return result;
 }

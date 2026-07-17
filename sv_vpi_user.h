@@ -79,6 +79,40 @@ EXTERN_C_START
 /********* One-to-One and One-to-Many ***********/
 #define vpiInstance         745
 
+/********* Assertion object (IEEE 1800-2017 clause 40) ***********/
+#define vpiAssertion        686
+
+/* Assertion callback reasons (IEEE 1800-2017 40.x). cbAssertionSuccess
+   and cbAssertionFailure are delivered; the others are accepted by
+   vpi_register_assertion_cb but not yet delivered. */
+#define cbAssertionStart        606
+#define cbAssertionSuccess      607
+#define cbAssertionFailure      608
+#define cbAssertionStepSuccess  609
+#define cbAssertionStepFailure  610
+#define cbAssertionDisable      611
+#define cbAssertionEnable       612
+#define cbAssertionReset        613
+#define cbAssertionKill         614
+
+/* Attempt information passed to an assertion callback. The step detail
+   is not modeled; failExpr is 0 and attemptStartTime carries the
+   current simulation time. */
+typedef struct t_vpi_assertion_step_info {
+      PLI_INT32 matched_expression_count;
+      vpiHandle *matched_exprs;
+      PLI_INT32 stateFrom;
+      PLI_INT32 stateTo;
+} s_vpi_assertion_step_info, *p_vpi_assertion_step_info;
+
+typedef struct t_vpi_attempt_info {
+      union {
+            vpiHandle failExpr;
+            p_vpi_assertion_step_info step;
+      } detail;
+      s_vpi_time attemptStartTime;
+} s_vpi_attempt_info, *p_vpi_attempt_info;
+
 /********* generic object properties ***********/
 #define vpiNullConst         11
 

@@ -22,7 +22,10 @@
 # include  "class_type.h"
 # include  "symbols.h"
 # include  "statistics.h"
+# include  "schedule.h"
 # include  "config.h"
+# include  <map>
+# include  <utility>
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
@@ -571,6 +574,153 @@ vpiHandle vpip_make_covergroup_iterator(void)
       for (size_t idx = 0 ; idx < reg.size() ; idx += 1)
 	    args[idx] = new __vpiCovergroup(reg[idx]);
       return vpip_make_iterator(reg.size(), args, true);
+}
+
+/* M12B: a concurrent-assertion object handle (IEEE 1800-2017 clause 40).
+   The synthesized checkers register themselves at time 0 through
+   $ivl_register_assertion, so vpi_iterate(vpiAssertion, scope) and
+   vpi_iterate(vpiAssertion, 0) return real identities carrying the
+   assertion's name, file, line, and scope. */
+struct assert_cb_t {
+      int reason;
+      vpi_assertion_cb_func cb;
+      char* user_data;
+};
+
+class __vpiAssertion : public __vpiHandle {
+    public:
+      __vpiAssertion(int idx, const char*nam, const char*file, int line,
+		     __vpiScope*scope)
+      : idx_(idx), name_(nam?nam:""), file_(file?file:""), line_(line),
+	scope_(scope) { }
+
+      int get_type_code(void) const override { return vpiAssertion; }
+
+      int vpi_get(int code) override
+      {
+	    if (code == vpiLineNo) return line_;
+	    return vpiUndefined;
+      }
+
+      char* vpi_get_str(int code) override
+      {
+	    const std::string*use = 0;
+	    std::string full;
+	    if (code == vpiName || code == vpiDefName) {
+		  use = &name_;
+	    } else if (code == vpiFullName) {
+		  full = (scope_ ? std::string(scope_->scope_name()) + "." : "")
+			 + name_;
+		  use = &full;
+	    } else if (code == vpiFile) {
+		  use = &file_;
+	    } else {
+		  return 0;
+	    }
+	    char*rbuf = (char*)need_result_buf(use->size()+1, RBUF_STR);
+	    strcpy(rbuf, use->c_str());
+	    return rbuf;
+      }
+
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiScope || code == vpiInstance)
+		  return scope_;
+	    return 0;
+      }
+
+      void add_cb(int reason, vpi_assertion_cb_func cb, char*data)
+      {
+	    assert_cb_t c;
+	    c.reason = reason;
+	    c.cb = cb;
+	    c.user_data = data;
+	    cbs_.push_back(c);
+      }
+
+	/* Fire every registered callback whose reason matches. */
+      void fire(int reason)
+      {
+	    if (cbs_.empty()) return;
+	    s_vpi_time t;
+	    t.type = vpiSimTime;
+	    vpip_time_to_timestruct(&t, schedule_simtime());
+	    t.real = 0.0;
+	    s_vpi_attempt_info info;
+	    info.detail.failExpr = 0;
+	    info.attemptStartTime = t;
+	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
+		  if (cbs_[i].reason == reason && cbs_[i].cb)
+			cbs_[i].cb(reason, &t, this, &info,
+				   (PLI_BYTE8*)cbs_[i].user_data);
+	    }
+      }
+
+    private:
+      int idx_;
+      std::string name_;
+      std::string file_;
+      int line_;
+      __vpiScope*scope_;
+      std::vector<assert_cb_t> cbs_;
+};
+
+static std::vector<__vpiAssertion*> assertion_registry;
+static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*> assertion_by_key;
+static int assertion_cb_total = 0;
+
+void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
+			     PLI_INT32 line, vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line, sc);
+      assertion_registry.push_back(obj);
+      if (sc) {
+	    vpip_attach_to_scope(sc, obj);
+	    assertion_by_key[std::make_pair(sc, (int)idx)] = obj;
+      }
+}
+
+/* M12B-cb: fire success/failure callbacks for the (scope, idx) assertion. */
+void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason, vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>::iterator it =
+	    assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end())
+	    it->second->fire((int)reason);
+}
+
+PLI_INT32 vpip_assertion_cb_active(void)
+{
+      return assertion_cb_total > 0 ? 1 : 0;
+}
+
+vpiHandle vpi_register_assertion_cb(vpiHandle assertion, PLI_INT32 reason,
+				    vpi_assertion_cb_func cb_rtn,
+				    PLI_BYTE8*user_data)
+{
+      if (!assertion || !cb_rtn) return 0;
+      __vpiAssertion*a = dynamic_cast<__vpiAssertion*>(assertion);
+      if (!a) return 0;
+      a->add_cb((int)reason, cb_rtn, (char*)user_data);
+      assertion_cb_total += 1;
+      return assertion;
+}
+
+/* M12B: root iterator over all registered assertions
+   (vpi_iterate(vpiAssertion, 0)). Scope-scoped iteration is served
+   directly from the scope's intern list by module_iter. */
+vpiHandle vpip_make_assertion_iterator(void)
+{
+      if (assertion_registry.empty())
+	    return 0;
+      vpiHandle*args =
+	    (vpiHandle*)malloc(assertion_registry.size() * sizeof(vpiHandle));
+      for (size_t idx = 0 ; idx < assertion_registry.size() ; idx += 1)
+	    args[idx] = assertion_registry[idx];
+      return vpip_make_iterator(assertion_registry.size(), args, true);
 }
 
 /* M12: attach a modport declaration to the current (interface)

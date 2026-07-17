@@ -1343,6 +1343,10 @@ static vpiHandle vpi_iterate_global(int type)
 	    // M12: all covergroup types in the design.
 	    return vpip_make_covergroup_iterator();
 
+	  case vpiAssertion:
+	    // M12B: all concurrent assertions in the design.
+	    return vpip_make_assertion_iterator();
+
 	  case vpiUserSystf:
 	    return vpip_make_systf_iterator();
       }
@@ -2178,5 +2182,9 @@ vpip_routines_s vpi_routines = {
     .make_systf_system_defined  = vpip_make_systf_system_defined,
     .mcd_rawwrite               = vpip_mcd_rawwrite,
     .set_return_value           = vpip_set_return_value,
+    .register_assertion         = vpip_register_assertion,
+    .assertion_report           = vpip_assertion_report,
+    .assertion_cb_active        = vpip_assertion_cb_active,
+    .register_assertion_cb      = vpi_register_assertion_cb,
 };
 #endif

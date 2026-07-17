@@ -1265,6 +1265,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <identifiers> class_type_parameter_port_item
 %type <identifiers> list_of_identifiers
 %type <perm_strings> loop_variables
+%type <perm_strings> sva_formal_list
 %type <port_list> list_of_port_identifiers list_of_variable_port_identifiers
 
 %type <decl_assignments> net_decl_assigns
@@ -3506,6 +3507,7 @@ description /* IEEE1800-2005: A.1.2 */
   : module
   | udp_primitive
   | config_declaration
+  | checker_declaration
   | nature_declaration
   | package_declaration
   | discipline_declaration
@@ -4511,6 +4513,27 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
 	delete[] $8;
       }
+  /* M9D: parameterized named property/sequence declarations. Formal
+     arguments (plain identifiers) are substituted with the actual
+     argument expressions at each instantiation. */
+  | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty
+      { pform_sva_declare_property_p(@2, $2, $4, $7);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty ':' IDENTIFIER
+      { pform_sva_declare_property_p(@2, $2, $4, $7);
+	delete[] $2;
+	delete[] $11;
+      }
+  | K_sequence IDENTIFIER '(' sva_formal_list ')' ';' sva_seq_expr ';' K_endsequence
+      { pform_sva_declare_sequence_p(@2, $2, $4, $7);
+	delete[] $2;
+      }
+  | K_sequence IDENTIFIER '(' sva_formal_list ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
+      { pform_sva_declare_sequence_p(@2, $2, $4, $7);
+	delete[] $2;
+	delete[] $11;
+      }
   /* SV `sequence ... endsequence` and `property ... endproperty` —
      parameterized/complex forms are parsed and dropped via bison
      error recovery so SVA-rich modules still compile. */
@@ -5336,6 +5359,17 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
       { $$ = $2; }
   ;
 
+  /* M9D: formal-argument name list for a parameterized property or
+     sequence declaration (plain identifiers only — typed formals fall
+     to the error-recovery declaration rule). */
+sva_formal_list
+  : sva_formal_list ',' IDENTIFIER
+      { $1->push_back(lex_strings.make($3)); delete[]$3; $$ = $1; }
+  | IDENTIFIER
+      { std::list<perm_string>*l = new std::list<perm_string>;
+	l->push_back(lex_strings.make($1)); delete[]$1; $$ = l; }
+  ;
+
 property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   : sva_seq_expr
       { sva_property_t*p = new sva_property_t;
@@ -5358,22 +5392,64 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   /* Diagnosed sorries: liveness/product operators the token-pipeline
      engine does not implement. The assertion is dropped with a clear
      message instead of a raw syntax error. */
+  /* IEEE 1800-2017 16.12.10: the `until' family (weak and strong).
+     Boolean operands are lowered to a per-cycle monitor; strong forms
+     add an end-of-simulation liveness obligation. */
   | sva_seq_expr K_until sva_seq_expr
-      { pform_sva_sorry(@2, "until"); $$ = 0; }
+      { $$ = pform_sva_binprop(@2, 4, $1, $3); }
   | sva_seq_expr K_until_with sva_seq_expr
-      { pform_sva_sorry(@2, "until_with"); $$ = 0; }
+      { $$ = pform_sva_binprop(@2, 5, $1, $3); }
+  | sva_seq_expr K_s_until sva_seq_expr
+      { $$ = pform_sva_binprop(@2, 6, $1, $3); }
+  | sva_seq_expr K_s_until_with sva_seq_expr
+      { $$ = pform_sva_binprop(@2, 7, $1, $3); }
+  /* IEEE 1800-2017 16.12.2 / 16.12.5: unary liveness operators over a
+     boolean operand. `nexttime`/`s_nexttime` require p at the next
+     cycle; `s_eventually` requires p to hold at some later cycle. */
   | K_nexttime property_expr
-      { pform_sva_sorry(@1, "nexttime"); delete $2; $$ = 0; }
-  | K_eventually property_expr
-      { pform_sva_sorry(@1, "eventually"); delete $2; $$ = 0; }
+      { $$ = pform_sva_unprop(@1, 9, $2); }
+  | K_s_nexttime property_expr
+      { $$ = pform_sva_unprop(@1, 10, $2); }
   | K_s_eventually property_expr
-      { pform_sva_sorry(@1, "s_eventually"); delete $2; $$ = 0; }
+      { $$ = pform_sva_unprop(@1, 11, $2); }
+  /* Unbounded `eventually' is not legal (IEEE 1800-2017 Table 16-1 —
+     `eventually' must carry a cycle range); use `s_eventually'. */
+  | K_eventually property_expr
+      { yyerror(@1, "error: unbounded `eventually' is not legal; use "
+		    "`s_eventually' (or a bounded `eventually [m:n]').");
+	delete $2; $$ = 0; }
+  /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
+     same interval. For equal-length fixed operands this lowers to a
+     per-cycle AND chain the linear engine handles directly. */
   | sva_seq_expr K_intersect sva_seq_expr
-      { pform_sva_sorry(@2, "intersect"); $$ = 0; }
+      { std::vector<sva_seq_step_t>*tr = pform_sva_intersect(@2, $1, $3);
+	if (tr == 0) {
+	      $$ = 0;
+	} else {
+	      sva_property_t*p = new sva_property_t;
+	      p->seq = tr;
+	      p->op_type = 0;
+	      $$ = p;
+	}
+      }
+  /* IEEE 1800-2017 16.9.6: `within' — s1 occurs inside s2's interval.
+     Lowered to a $past-sampled combinational match indicator. */
   | sva_seq_expr K_within sva_seq_expr
-      { pform_sva_sorry(@2, "within"); $$ = 0; }
+      { $$ = pform_sva_binprop(@2, 8, $1, $3); }
+  /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
+     every cycle of the sequence. Lowered to a unit-delay sequence with
+     guard AND-ed into each cycle (pform_sva_throughout). */
   | expression K_throughout sva_seq_expr
-      { pform_sva_sorry(@2, "throughout"); delete $1; $$ = 0; }
+      { std::vector<sva_seq_step_t>*tr = pform_sva_throughout(@2, $1, $3);
+	if (tr == 0) {
+	      $$ = 0;
+	} else {
+	      sva_property_t*p = new sva_property_t;
+	      p->seq = tr;
+	      p->op_type = 0;
+	      $$ = p;
+	}
+      }
   ;
 
   /* M9: a sequence expression as a linear chain of cycle-delayed
@@ -6609,14 +6685,17 @@ case_item
 	$$ = tmp;
       }
   /* SV `case (x) inside` allows range case items: [lo:hi]: stmt.
-     Iverilog doesn't yet model membership matching, so we collapse the
-     range to its lower bound, which is enough for parse-success on
-     designs that only conditionally exercise these arms (e.g. pulp
-     riscv-dbg, used as a transitive dep but not at simulation time). */
+     Preserve the full range; `case ... inside` lowering
+     (pform_make_case_inside) turns it into a real membership test.
+     For an ordinary `case` a range item is illegal and this range
+     simply never participates (the item matches nothing). */
   | '[' expression ':' expression ']' ':' statement_or_null
       { PCase::Item*tmp = new PCase::Item;
-	tmp->expr.push_back($2);
-	if ($4) delete $4;
+	inside_range_t r;
+	r.lo = $2;
+	r.hi = $4;
+	r.is_range = true;
+	tmp->inside_ranges.push_back(r);
 	tmp->stat = $7;
 	$$ = tmp;
       }
@@ -6891,6 +6970,22 @@ nature_item
       { delete[] $3; }
   | K_ddt_nature '=' IDENTIFIER ';'
       { delete[] $3; }
+  ;
+
+  /* SystemVerilog checkers (IEEE 1800-2017 clause 17) are not
+     implemented. Rather than aborting the whole parse with a bare
+     "syntax error", consume the checker body via error recovery and
+     emit an explicit unsupported-feature diagnostic, so the rest of
+     the source still compiles (manifesto principle 4). */
+checker_declaration
+  : K_checker IDENTIFIER error K_endchecker
+      { cerr << @1 << ": sorry: checker declarations (IEEE 1800-2017 "
+               "clause 17) are not supported; the checker is skipped."
+             << endl;
+        error_count += 1;
+        delete[] $2;
+        yyerrok;
+      }
   ;
 
 config_declaration
@@ -9716,6 +9811,10 @@ module_item
   /* SystemVerilog permits package imports as module items. */
   | package_import_declaration
 
+  /* SystemVerilog checkers as module items (IEEE 1800-2017 17) —
+     unsupported, diagnosed and skipped (see checker_declaration). */
+  | checker_declaration
+
   | attribute_list_opt net_type data_type_or_implicit delay3_opt net_variable_list ';'
 
       { data_type_t*data_type = $3;
@@ -12437,15 +12536,11 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
-  /* SV: `case (x) inside ...` — iverilog does not yet model the
-     membership-matching semantics, so we treat it as a plain case for
-     parse purposes. Actual range case items collapse to their lower
-     bound (see `case_item` rule above). */
+  /* SV: `case (x) inside ...` (IEEE 1800-2017 12.5.4) — lower to
+     membership tests so range items match their whole interval, not
+     just the lower bound (see pform_make_case_inside). */
   | unique_priority K_case '(' expression ')' K_inside case_items K_endcase
-      { PCase*tmp = new PCase($1, NetCase::EQ, $4, $7);
-	FILE_NAME(tmp, @2);
-	$$ = tmp;
-      }
+      { $$ = pform_make_case_inside(@2, $1, $4, $7); }
   /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches` for
      tagged unions (IEEE 1800-2017 §12.6).  Lowered at elab to an
      if-else cascade testing the companion-tag NetNet of X. */
@@ -12473,7 +12568,10 @@ statement_item /* This is roughly statement_item in the LRM */
   | unique_priority K_casez '(' expression ')' error K_endcase
       { yyerrok; }
 
-  /* randcase: randomly select from weighted items — parse and discard */
+  /* randcase (IEEE 1800-2017 18.16): weighted random branch select.
+     Not implemented; diagnose loudly rather than silently discarding
+     it (a silent empty block executes NO branch — manifesto
+     principle 4). */
   | K_randcase case_items K_endcase
       { for (auto* it : *$2) {
 	    for (auto* e : it->expr) delete e;
@@ -12481,6 +12579,10 @@ statement_item /* This is roughly statement_item in the LRM */
 	    delete it;
 	}
 	delete $2;
+	cerr << @1 << ": sorry: randcase (IEEE 1800-2017 18.16) is not "
+	        "supported; use a $urandom_range-based weighted select "
+	        "instead." << endl;
+	error_count += 1;
 	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;

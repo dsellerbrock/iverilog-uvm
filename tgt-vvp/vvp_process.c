@@ -3420,15 +3420,25 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
-      /* $ivl_class_method$rand_mode(object, en)
-       * Set rand_mode for all rand properties: en=1 enable, en=0 disable. */
+      /* $ivl_class_method$rand_mode(object, en [, pid])
+       * 2 args: set rand_mode for ALL rand properties (obj.rand_mode(en)).
+       * 3 args: set rand_mode for the single property `pid` only
+       *         (obj.field.rand_mode(en)) — M3-rm. */
       if (strcmp(stmt_name, "$ivl_class_method$rand_mode") == 0) {
 	    ivl_expr_t obj_arg  = ivl_stmt_parm(net, 0);
 	    ivl_expr_t mode_arg = ivl_stmt_parm(net, 1);
+	    ivl_expr_t pid_arg  = (ivl_stmt_parm_count(net) >= 3)
+		  ? ivl_stmt_parm(net, 2) : 0;
 	    if (mode_arg) draw_eval_vec4(mode_arg);
 	    else fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
 	    if (obj_arg) draw_eval_object(obj_arg);
-	    fprintf(vvp_out, "    %%rand_mode;\n");
+	    if (pid_arg && number_is_immediate(pid_arg, 32, 0)
+		&& !number_is_unknown(pid_arg)) {
+		  fprintf(vvp_out, "    %%rand_mode/p %ld;\n",
+			  get_number_immediate(pid_arg));
+	    } else {
+		  fprintf(vvp_out, "    %%rand_mode;\n");
+	    }
 	    return 0;
       }
 
@@ -4085,6 +4095,14 @@ int draw_process(ivl_process_t net, void*x)
 		  fprintf(vvp_out, "    .thread T_%u, $init;\n", thread_count);
 	    } else if (push_flag) {
 		  fprintf(vvp_out, "    .thread T_%u, $push;\n", thread_count);
+	    } else if (ivl_process_type(net) == IVL_PR_INITIAL
+		       && ivl_scope_program(scope)) {
+		    /* M6B: a program-block INITIAL procedure. Mark it so the
+		       runtime can end the simulation when the last program
+		       initial completes (IEEE 1800-2017 24.7). Concurrent
+		       assertions/clocking in the program are ALWAYS-type and
+		       are not marked, so they do not keep the sim alive. */
+		  fprintf(vvp_out, "    .thread T_%u, $prog;\n", thread_count);
 	    } else {
 		  fprintf(vvp_out, "    .thread T_%u;\n", thread_count);
 	    }
@@ -4228,22 +4246,16 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  }
 		  letter = 'o';
 	    } else if (ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL) {
-		  if (pwid > 64) {
-			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
-				"argument '%s' is %u bits wide; by-value "
-				"DPI arguments are limited to 64 bits "
-				"(svLogicVecVal/svBitVecVal marshaling is "
-				"not yet implemented).\n",
-				ivl_scope_def_file(scope),
-				ivl_scope_def_lineno(scope),
-				c_name, ivl_signal_basename(port), pwid);
-			unsupported = 1;
-			break;
-		  }
 		  if (pwid == 1) {
 			  /* svBit/svLogic scalar: unsigned char both
 			     ways, 4-state encoding for logic. */
 			letter = 'g';
+		  } else if (pwid > 64) {
+			  /* M10: wide (>64-bit) packed vector — marshal to
+			     svLogicVecVal (4-state logic) or svBitVecVal
+			     (2-state bit), passed as a pointer; supports
+			     input, output and inout of any width. */
+			letter = (ptype == IVL_VT_LOGIC) ? 'W' : 'V';
 		  } else if (is_out
 			     && pwid != 8 && pwid != 16
 			     && pwid != 32 && pwid != 64) {

@@ -425,6 +425,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qunique_copy",of_QUNIQUE_COPY,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qunique_idx",of_QUNIQUE_IDX, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%rand_mode",      of_RAND_MODE,       0,{OA_NONE,   OA_NONE,OA_NONE} },
+      { "%rand_mode/p",    of_RAND_MODE_P,     1,{OA_NUMBER, OA_NONE,OA_NONE} },
       { "%randomize",      of_RANDOMIZE,      0,{OA_NONE,   OA_NONE,OA_NONE} },
       { "%randomize/with", of_RANDOMIZE_WITH,  2,{OA_STRING, OA_BIT1,OA_NONE} },
       { "%release/net",of_RELEASE_NET,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
@@ -2595,7 +2596,12 @@ void compile_thread(char*start_sym, char*flag)
 	    schedule_init_vthread(thr);
       else if (flag && (strcmp(flag,"$final") == 0))
 	    schedule_final_vthread(thr);
-      else
+      else if (flag && (strcmp(flag,"$prog") == 0)) {
+	      /* M6B: a program INITIAL procedure — schedule normally and
+	         register it for program-completion tracking (24.7). */
+	    schedule_vthread(thr, 0, false);
+	    vthread_mark_program_init(thr);
+      } else
 	    schedule_vthread(thr, 0, push_flag);
 
       free(start_sym);

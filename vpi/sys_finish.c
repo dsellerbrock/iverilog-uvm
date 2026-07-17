@@ -98,6 +98,24 @@ static PLI_INT32 sys_finish_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       return 0;
 }
 
+/*
+ * M6B: $exit (IEEE 1800-2017 24.7). Terminate the calling program block;
+ * when all program blocks have completed, simulation implicitly ends.
+ * Icarus does not track per-program completion, and the overwhelmingly
+ * common use is a single program testbench calling $exit to end the
+ * test — for which "all programs complete" IS "this program completes".
+ * So $exit ends the simulation quietly (no $finish banner). Multi-program
+ * designs where one program should exit while others keep running are a
+ * recorded corner (this ends the whole simulation at the first $exit).
+ */
+static PLI_INT32 sys_exit_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
+{
+      (void) name;
+      vpip_set_return_value(0);
+      vpi_control(vpiFinish, 0);
+      return 0;
+}
+
 void sys_finish_register(void)
 {
       s_vpi_systf_data tf_data;
@@ -118,6 +136,16 @@ void sys_finish_register(void)
       tf_data.compiletf = sys_one_opt_numeric_arg_compiletf;
       tf_data.sizetf    = 0;
       tf_data.user_data = "$stop";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+	/* M6B: $exit — program control task (IEEE 1800-2017 24.7). */
+      tf_data.type      = vpiSysTask;
+      tf_data.tfname    = "$exit";
+      tf_data.calltf    = sys_exit_calltf;
+      tf_data.compiletf = sys_no_arg_compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = "$exit";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 }

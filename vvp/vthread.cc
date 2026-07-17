@@ -497,6 +497,10 @@ struct vthread_s {
 	   in the Reactive region set.  Set at creation from the scope
 	   chain and inherited by spawned children. */
       unsigned is_reactive_process :1;
+	/* M6B: a program-block INITIAL procedure (IEEE 1800-2017 24.7).
+	   Counted at creation; when the last one completes, simulation
+	   implicitly finishes. */
+      unsigned is_program_init :1;
       unsigned owns_automatic_context :1;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
@@ -2547,6 +2551,32 @@ bool of_RAND_MODE(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/*
+ * %rand_mode/p <pid>
+ *
+ * M3-rm: set rand_mode for the SINGLE property <pid> of the cobject on
+ * the object stack (obj.field.rand_mode(en)). Pops mode from the vec4
+ * stack, pops object. The randomize opcodes already skip a property
+ * whose rand_mode is false (see cobj->rand_mode(pid) checks).
+ */
+bool of_RAND_MODE_P(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      bool mode = (mode_vec.value(0) == BIT4_1);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      if (cobj) {
+	    const class_type*defn = cobj->get_defn();
+	    size_t pid = (size_t) cp->number;
+	    if (pid < defn->property_count() && defn->property_is_rand(pid))
+		  cobj->set_rand_mode(pid, mode);
+      }
+      return true;
+}
+
 /* M11 covergroup sampling helpers. */
 
 // Read a 32-bit counter property.
@@ -3262,6 +3292,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
 		  break;
 	    }
       }
+      thr->is_program_init = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context = 0;
       thr->transferred_context = 0;
@@ -3585,6 +3616,37 @@ void vthread_mark_scheduled(vthread_t thr)
 int vthread_is_reactive(vthread_t thr)
 {
       return (thr && thr->is_reactive_process) ? 1 : 0;
+}
+
+/*
+ * M6B: program-completion tracking (IEEE 1800-2017 24.7 / 3.9). A
+ * program completes when all of its INITIAL procedures complete; when
+ * all programs in the design have completed, $finish is implicitly
+ * invoked. We count program-initial threads (marked $prog at compile
+ * time — only run-once initial blocks, NOT the program's concurrent
+ * assertions or clocking, which never end and must not keep the sim
+ * alive). When the count returns to zero after having been non-zero,
+ * the simulation finishes.
+ */
+static unsigned program_init_active = 0;
+static bool     program_init_seen   = false;
+
+void vthread_mark_program_init(vthread_t thr)
+{
+      if (!thr) return;
+      thr->is_program_init = 1;
+      program_init_active += 1;
+      program_init_seen = true;
+}
+
+static void program_init_completed_(void)
+{
+      if (program_init_active > 0)
+	    program_init_active -= 1;
+      if (program_init_active == 0 && program_init_seen
+	  && !schedule_finished()) {
+	    schedule_finish(0);
+      }
 }
 
 static inline bool schedule_assign_is_reactive_(vthread_t thr)
@@ -7742,6 +7804,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    arg.rval = 0.0;
 	    arg.sval = 0;
 	    arg.aval = 0;
+	    arg.vbuf = 0;
+	    arg.vwid = 0;
 	    switch (sig[slot].base) {
 		case 'r':
 		  arg.rval = thr->pop_real();
@@ -7782,6 +7846,35 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 				    c_name, slot+1);
 		      }
 		      arg.aval = &arr;
+		      break;
+		}
+		case 'V':
+		case 'W': {
+			/* Wide (>64-bit) packed vector: marshal to an
+			   svBitVecVal[] ('V', 2-state) or svLogicVecVal[]
+			   ('W', 4-state) buffer and pass a pointer. */
+		      const vvp_vector4_t&v = thr->peek_vec4(0);
+		      unsigned w = v.size();
+		      bool four = (sig[slot].base == 'W');
+		      unsigned words = (w + 31) / 32;
+		      unsigned nwords = words * (four ? 2 : 1);
+		      uint32_t*buf = (uint32_t*)calloc(nwords ? nwords : 1,
+						       sizeof(uint32_t));
+		      for (unsigned i = 0 ; i < w ; i += 1) {
+			    vvp_bit4_t b = v.value(i);
+			    unsigned wd = i / 32, ps = i % 32;
+			    if (four) {
+				  unsigned av = (b == BIT4_1 || b == BIT4_X) ? 1 : 0;
+				  unsigned bv = (b == BIT4_Z || b == BIT4_X) ? 1 : 0;
+				  buf[2*wd+0] |= (av << ps);
+				  buf[2*wd+1] |= (bv << ps);
+			    } else if (b == BIT4_1) {
+				  buf[wd] |= (1u << ps);
+			    }
+		      }
+		      thr->pop_vec4(1);
+		      arg.vbuf = buf;
+		      arg.vwid = w;
 		      break;
 		}
 		default:
@@ -7841,7 +7934,36 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		case 'r': thr->push_real(args[ii].rval);          break;
 		case 's': thr->push_str(args[ii].sval ? args[ii].sval : "");
 			  break;
+		case 'V':
+		case 'W': {
+			/* Unpack the (callee-updated) packed buffer back into
+			   a vec4 for the copy-back store. */
+		      unsigned w = args[ii].vwid;
+		      bool four = (args[ii].type == 'W');
+		      vvp_vector4_t res(w ? w : 1, BIT4_0);
+		      const uint32_t*buf = args[ii].vbuf;
+		      for (unsigned i = 0 ; i < w ; i += 1) {
+			    unsigned wd = i / 32, ps = i % 32;
+			    vvp_bit4_t b;
+			    if (four) {
+				  unsigned av = (buf[2*wd+0] >> ps) & 1;
+				  unsigned bv = (buf[2*wd+1] >> ps) & 1;
+				  b = bv ? (av ? BIT4_X : BIT4_Z)
+					 : (av ? BIT4_1 : BIT4_0);
+			    } else {
+				  b = ((buf[wd] >> ps) & 1) ? BIT4_1 : BIT4_0;
+			    }
+			    res.set_bit(i, b);
+		      }
+		      thr->push_vec4(res);
+		      break;
+		}
 	    }
+      }
+
+	// Free the packed-vector marshaling buffers (input and output).
+      for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
+	    if (args[ii].vbuf) { free(args[ii].vbuf); args[ii].vbuf = 0; }
       }
       return true;
 }
@@ -8642,6 +8764,13 @@ bool of_END(vthread_t thr, vvp_code_t)
 	    proc->mark_finished();
       thr->i_have_ended = 1;
       thr->pc = codespace_null();
+
+	/* M6B: a program initial procedure has completed; when the last
+	   one completes, the simulation finishes (IEEE 1800-2017 24.7). */
+      if (thr->is_program_init) {
+	    thr->is_program_init = 0;
+	    program_init_completed_();
+      }
 
 	/* Trampolined callf callee (M6 item 5, increment 2): its return
 	 * value/output args have already been poked into the caller's

@@ -208,6 +208,29 @@ static void string_ex_select(ivl_expr_t expr)
                         fprintf(vvp_out, "    %%aa/load/sig/str/obj v%p_0;\n", sig);
                         return;
                   }
+                  /* M4-av: string-VALUED associative array with a string or
+                     integral key. Previously only object keys were handled
+                     here; string and integer keys fell through to the
+                     POSITIONAL %load/dar/str below and read the empty
+                     default (a silent value loss on a module-static
+                     `string s[int]` / `string s[string]`; class-member
+                     assoc read via %prop/obj was unaffected). Push the key,
+                     push the assoc object, load, then pop the object. */
+                  if (net_type && ivl_type_queue_assoc_compat(net_type)
+                      && expr_is_string_assoc_key_(shift)) {
+                        draw_eval_string(shift);
+                        fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+                        fprintf(vvp_out, "    %%aa/load/str/str;\n");
+                        fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+                        return;
+                  }
+                  if (net_type && ivl_type_queue_assoc_compat(net_type)) {
+                        draw_eval_vec4(shift);
+                        fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+                        fprintf(vvp_out, "    %%aa/load/str/v;\n");
+                        fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+                        return;
+                  }
 		  draw_eval_expr_into_integer(shift, 3);
 		  fprintf(vvp_out, "    %%load/dar/str v%p_0;\n", sig);
 		  return;

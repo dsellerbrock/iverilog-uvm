@@ -335,6 +335,7 @@ extern bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_START(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_STOP(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_MODE(vthread_t thr, vvp_code_t code);
+extern bool of_RAND_MODE_P(vthread_t thr, vvp_code_t code);
 extern bool of_RANDOMIZE(vthread_t thr, vvp_code_t code);
 extern bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code);
 extern bool of_PROP_OBJ(vthread_t thr, vvp_code_t code);
