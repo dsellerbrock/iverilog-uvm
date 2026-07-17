@@ -651,6 +651,10 @@ extern void vpip_set_return_value(int value);
 
 extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
 extern void vpip_make_systf_system_defined(vpiHandle ref);
+/* M12B: register a concurrent assertion for VPI enumeration
+   (vpi_iterate(vpiAssertion, ...)). name/file are copied. */
+extern void vpip_register_assertion(const char*name, const char*file,
+                                    PLI_INT32 line, vpiHandle scope);
 
   /* Perform fwrite to mcd files. This is used to write raw data,
      which may include nulls. */

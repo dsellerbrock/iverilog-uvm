@@ -100,6 +100,53 @@ static PLI_INT32 sva_control_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+/*
+ * M12B: $ivl_register_assertion("name", "file", line) — a synthesized
+ * concurrent-assertion checker calls this once (at time 0) to register a
+ * VPI identity, so vpi_iterate(vpiAssertion, ...) enumerates it.
+ */
+static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv  = vpi_iterate(vpiArgument, callh);
+      char nbuf[1024], fbuf[1024];
+      const char*nm = "";
+      const char*fl = "";
+      PLI_INT32 ln = 0;
+      (void)name;
+      nbuf[0] = 0; fbuf[0] = 0;
+      if (argv) {
+	    vpiHandle a;
+	    s_vpi_value v;
+	    if ((a = vpi_scan(argv))) {           /* name */
+		  v.format = vpiStringVal;
+		  vpi_get_value(a, &v);
+		  if (v.value.str) {
+			strncpy(nbuf, v.value.str, sizeof nbuf - 1);
+			nbuf[sizeof nbuf - 1] = 0;
+			nm = nbuf;
+		  }
+	    }
+	    if ((a = vpi_scan(argv))) {           /* file */
+		  v.format = vpiStringVal;
+		  vpi_get_value(a, &v);
+		  if (v.value.str) {
+			strncpy(fbuf, v.value.str, sizeof fbuf - 1);
+			fbuf[sizeof fbuf - 1] = 0;
+			fl = fbuf;
+		  }
+	    }
+	    if ((a = vpi_scan(argv))) {           /* line */
+		  v.format = vpiIntVal;
+		  vpi_get_value(a, &v);
+		  ln = v.value.integer;
+		  vpi_free_object(argv);
+	    }
+      }
+      vpip_register_assertion(nm, fl, ln, vpi_handle(vpiScope, callh));
+      return 0;
+}
+
 static void register_one_(const char*tfname,
                           PLI_INT32 (*calltf)(ICARUS_VPI_CONST PLI_BYTE8*))
 {
@@ -147,4 +194,8 @@ void sys_sva_register(void)
       register_task_("$asserton",   sva_control_calltf);
       register_task_("$assertoff",  sva_control_calltf);
       register_task_("$assertkill", sva_control_calltf);
+
+	/* Assertion VPI identity registration (used by synthesized
+	   checkers; see pform_make_assertion). */
+      register_task_("$ivl_register_assertion", sva_reg_assert_calltf);
 }

@@ -573,6 +573,85 @@ vpiHandle vpip_make_covergroup_iterator(void)
       return vpip_make_iterator(reg.size(), args, true);
 }
 
+/* M12B: a concurrent-assertion object handle (IEEE 1800-2017 clause 40).
+   The synthesized checkers register themselves at time 0 through
+   $ivl_register_assertion, so vpi_iterate(vpiAssertion, scope) and
+   vpi_iterate(vpiAssertion, 0) return real identities carrying the
+   assertion's name, file, line, and scope. */
+class __vpiAssertion : public __vpiHandle {
+    public:
+      __vpiAssertion(const char*nam, const char*file, int line,
+		     __vpiScope*scope)
+      : name_(nam?nam:""), file_(file?file:""), line_(line), scope_(scope) { }
+
+      int get_type_code(void) const override { return vpiAssertion; }
+
+      int vpi_get(int code) override
+      {
+	    if (code == vpiLineNo) return line_;
+	    return vpiUndefined;
+      }
+
+      char* vpi_get_str(int code) override
+      {
+	    const std::string*use = 0;
+	    std::string full;
+	    if (code == vpiName || code == vpiDefName) {
+		  use = &name_;
+	    } else if (code == vpiFullName) {
+		  full = (scope_ ? std::string(scope_->scope_name()) + "." : "")
+			 + name_;
+		  use = &full;
+	    } else if (code == vpiFile) {
+		  use = &file_;
+	    } else {
+		  return 0;
+	    }
+	    char*rbuf = (char*)need_result_buf(use->size()+1, RBUF_STR);
+	    strcpy(rbuf, use->c_str());
+	    return rbuf;
+      }
+
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiScope || code == vpiInstance)
+		  return scope_;
+	    return 0;
+      }
+
+    private:
+      std::string name_;
+      std::string file_;
+      int line_;
+      __vpiScope*scope_;
+};
+
+static std::vector<__vpiAssertion*> assertion_registry;
+
+void vpip_register_assertion(const char*name, const char*file,
+			     PLI_INT32 line, vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      __vpiAssertion*obj = new __vpiAssertion(name, file, (int)line, sc);
+      assertion_registry.push_back(obj);
+      if (sc)
+	    vpip_attach_to_scope(sc, obj);
+}
+
+/* M12B: root iterator over all registered assertions
+   (vpi_iterate(vpiAssertion, 0)). Scope-scoped iteration is served
+   directly from the scope's intern list by module_iter. */
+vpiHandle vpip_make_assertion_iterator(void)
+{
+      if (assertion_registry.empty())
+	    return 0;
+      vpiHandle*args =
+	    (vpiHandle*)malloc(assertion_registry.size() * sizeof(vpiHandle));
+      for (size_t idx = 0 ; idx < assertion_registry.size() ; idx += 1)
+	    args[idx] = assertion_registry[idx];
+      return vpip_make_iterator(assertion_registry.size(), args, true);
+}
+
 /* M12: attach a modport declaration to the current (interface)
    scope. */
 void compile_modport_decl(char*name)

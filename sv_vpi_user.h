@@ -79,6 +79,9 @@ EXTERN_C_START
 /********* One-to-One and One-to-Many ***********/
 #define vpiInstance         745
 
+/********* Assertion object (IEEE 1800-2017 clause 40) ***********/
+#define vpiAssertion        686
+
 /********* generic object properties ***********/
 #define vpiNullConst         11
 

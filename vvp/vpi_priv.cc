@@ -1343,6 +1343,10 @@ static vpiHandle vpi_iterate_global(int type)
 	    // M12: all covergroup types in the design.
 	    return vpip_make_covergroup_iterator();
 
+	  case vpiAssertion:
+	    // M12B: all concurrent assertions in the design.
+	    return vpip_make_assertion_iterator();
+
 	  case vpiUserSystf:
 	    return vpip_make_systf_iterator();
       }

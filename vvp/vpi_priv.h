@@ -346,6 +346,8 @@ extern unsigned vpip_add_item_to_context(automatic_hooks_s*item,
 extern vpiHandle vpip_make_root_iterator(int type_code);
 /* M12: iterator over all covergroup types (vpi_iterate(vpiCovergroup, 0)). */
 extern vpiHandle vpip_make_covergroup_iterator(void);
+/* M12B: iterator over all registered assertions (vpi_iterate(vpiAssertion, 0)). */
+extern vpiHandle vpip_make_assertion_iterator(void);
 extern void vpip_make_root_iterator(class __vpiHandle**&table,
 				    unsigned&ntable);
 

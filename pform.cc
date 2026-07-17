@@ -4765,6 +4765,28 @@ static Statement* sva_gate_(const struct vlltype&loc, Statement*action)
       return c;
 }
 
+/* M12B: build the one-time `$ivl_register_assertion("name","file",line)`
+   call that gives a synthesized concurrent-assertion checker a VPI
+   identity (vpi_iterate(vpiAssertion, ...)). Placed in the checker's
+   zero-init initial block. */
+static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst)
+{
+      char nbuf[64];
+      snprintf(nbuf, sizeof nbuf, "assert_L%d_%u", loc.first_line, inst);
+      std::list<named_pexpr_t> args;
+      named_pexpr_t a1; a1.parm = new PEString(strdup(nbuf));
+      args.push_back(a1);
+      named_pexpr_t a2; a2.parm = new PEString(strdup(loc.text ? loc.text : ""));
+      args.push_back(a2);
+      named_pexpr_t a3;
+      a3.parm = new PENumber(new verinum((uint64_t)loc.first_line, 32));
+      args.push_back(a3);
+      PCallTask*t = new PCallTask(
+	    lex_strings.make("$ivl_register_assertion"), args);
+      FILE_NAME(t, loc);
+      return t;
+}
+
 /* $past(e, d) as a sampled-value function call the SVA rewrite pass
    (sva_rewrite_sampled_) expands into an explicit history chain. d<=0
    returns e unchanged (the current sample). */
@@ -6039,6 +6061,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
       FILE_NAME(pp, loc);
 
+	/* M12B: VPI identity. */
+      init_zero.push_back(sva_register_stmt_(loc, inst));
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
 					sva_block_(loc, init_zero), nullptr);
       FILE_NAME(ip, loc);
@@ -6687,7 +6711,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
       FILE_NAME(pp, loc);
 
-	/* Zero-initialize the synthesized state. */
+	/* Zero-initialize the synthesized state, and register a VPI
+	   identity for the assertion (M12B). */
+      init_zero.push_back(sva_register_stmt_(loc, inst));
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
 					sva_block_(loc, init_zero), nullptr);
       FILE_NAME(ip, loc);
