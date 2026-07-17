@@ -2182,5 +2182,6 @@ vpip_routines_s vpi_routines = {
     .make_systf_system_defined  = vpip_make_systf_system_defined,
     .mcd_rawwrite               = vpip_mcd_rawwrite,
     .set_return_value           = vpip_set_return_value,
+    .register_assertion         = vpip_register_assertion,
 };
 #endif
