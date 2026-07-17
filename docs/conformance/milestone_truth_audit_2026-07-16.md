@@ -35,7 +35,7 @@ dated correction layer.
 | M6 Scheduler architecture | CLOSED | **PARTIAL** | Significant call-execution/scheduler work landed (m6 logs), but the manifesto requires a scheduling-queue inventory, IEEE event-region mapping, scheduler trace + invariant checking, and race litmus tests. The event-region mapping and invariant tooling are **incomplete**. **Reopened as M6B** (scheduler conformance audit + remediation); see the new inventory in `scheduler_conformance_inventory.md` (to author). |
 | M7 UVM core qualification | CLOSED | **SUBSET COMPLETE** | The UVM harness (163 tests) exercises factory/config/callbacks/reporting/phasing/sequences/TLM/fields/resource-db. Full register-model and objections stress remain lightly covered. |
 | M8 Clocking blocks | CLOSED | **COMPLETE (within stated scope)** | Input skew, output drives, ##N, global clocking, vif clocking all correct; remaining corners are genuinely advanced (recorded). |
-| M9 Core SVA engine | CLOSED | **SUBSET COMPLETE** | The manifesto title is "**Core** SVA engine" and the core (implication, ##N/##[m:n]/##[m:$], repetition, not/first_match, sampled functions, named decls, cover) is solid. But major sequence/property operators are unimplemented. Split: **M9A COMPLETE** (core); **M9B PARTIAL** (sequence algebra: `and`/`or` work, `intersect` NOT); **M9C IN PROGRESS** (temporal operators: **`throughout` now implemented** this session; `within`, `until`, `until_with`, `nexttime`, `eventually`, `s_eventually` remain loud sorries); **M9D NOT STARTED** (local sequence vars, parameterized property/sequence bodies, `.matched`, `expect`, strong operators, goto/nonconsecutive repetition). |
+| M9 Core SVA engine | CLOSED | **SUBSET COMPLETE** | The manifesto title is "**Core** SVA engine" and the core (implication, ##N/##[m:n]/##[m:$], repetition, not/first_match, sampled functions, named decls, cover) is solid. Split: **M9A COMPLETE** (core); **M9B COMPLETE** (sequence algebra: `and`/`or` and now **`intersect`** — equal-length fixed operands, this session); **M9C** (temporal operators: **`throughout`**, **`within`**, and the **`until` family (`until`/`until_with`/`s_until`/`s_until_with`)** now implemented this session; `nexttime`/`eventually`/`s_eventually` remain loud liveness sorries); **M9D NOT STARTED** (local sequence vars, parameterized property/sequence bodies, `.matched`, `expect`, strong sequence operators, goto/nonconsecutive repetition). Implemented operators are scoped to fixed-length / boolean operands with loud, spec-cited sorries for the variable-length and sequence-operand shapes. |
 | M10 DPI and open arrays | CLOSED | **SUBSET COMPLETE** | libffi marshaling, import task/func, output/inout copy-back, **one-dimensional** open arrays are done. Multi-dimensional open arrays, packed `svLogicVecVal`/`svBitVecVal` vector marshaling, and **exported** tasks/functions (still a sorry) are in scope and unfinished. **M10B.** |
 | M11 Functional coverage | CLOSED | **COMPLETE (within stated scope)** | Clause-19 bin semantics, transitions, crosses/binsof/intersect, ignore/illegal/default, iff, options, instance+type coverage, queries, report all work and are tested. Remaining items (VPI drill-down below the covergroup handle) belong to M12/VPI, not M11. |
 | M12 VPI SV object model | CLOSED | **SUBSET COMPLETE** | Classes/members/containers/interfaces/modports/packages/covergroup-handles/value-change-callbacks are modeled. **Assertions have NO runtime identities** (`vpi_iterate(vpiAssertion)`→NULL) and force/release on bit-selects + cbForce/cbRelease are unimplemented — all in the clause-36 scope. **M12B** (assertion VPI object model). |
@@ -44,7 +44,7 @@ dated correction layer.
 
 ## False-completion claims found (headline)
 
-1. **M9 "Core SVA engine" CLOSED** while `intersect`/`throughout`/`within`/`until`/`nexttime`/`eventually` were loud sorries. Corrected to SUBSET COMPLETE with the M9A–M9D split; **`throughout` implemented this session** (M9C in progress).
+1. **M9 "Core SVA engine" CLOSED** while `intersect`/`throughout`/`within`/`until`/`nexttime`/`eventually` were loud sorries. Corrected to SUBSET COMPLETE with the M9A–M9D split; **`throughout`, `intersect`, `within`, and the `until` family implemented this session** (M9B complete; M9C now covers everything except the `nexttime`/`eventually`/`s_eventually` liveness operators).
 2. **M3 CLOSED** while per-field `rand_mode(0)` silently no-ops (randomizes a frozen field). Reopened M3-rm — this is a **silent wrong-behaviour** gap.
 3. **M13 CLOSED** while bind-to-instance, `$nochange`/`$timeskew`/`$fullskew`, and config are unsupported (all loud) — SUBSET COMPLETE.
 4. **M10 CLOSED** while multidim open arrays / packed vector marshaling / DPI export are unfinished — SUBSET COMPLETE.
@@ -94,7 +94,7 @@ Both landed with regression-clean checkpoints; see
 
 1. ~~**M3-rm** — per-field `rand_mode(0)`~~ **DONE.**
 2. ~~**M4-av** — string/real-valued int/string-keyed assoc reads (silent)~~ **DONE.**
-3. **M9C/M9B** — `within`/`until`/`intersect` (loud today; `throughout` done). **Highest remaining priority.**
+3. ~~**M9B/M9C** — `intersect`/`within`/`until` family~~ **DONE** (fixed-length / boolean scope; `nexttime`/`eventually`/`s_eventually` liveness operators still loud sorries → M9C-live).
 4. ~~**M6B** — scheduler conformance inventory~~ **DELIVERED + ADVANCED**: construct-level inventory + `$exit` + **program-completion-ends-simulation (24.7/3.9)** + litmus regressions (`scheduler_conformance_inventory.md`). The two program-control gaps (24.7) are now closed; remaining true M6B gaps (cbNBASynch region, DPI time-consuming tasks, callf scheduled-call protocol) recorded in its ledger.
 5. **M10B** — multidim open arrays / packed vector marshaling / export.
 6. **M12B** — assertion VPI object model.
@@ -102,9 +102,12 @@ Both landed with regression-clean checkpoints; see
 
 ## Next engineering action
 
-Both silent miscompiles (M3-rm, M4-av) are now closed. The highest
-remaining priority is **M9C/M9B** — implement the loud-sorry temporal
-and sequence operators `within` / `until` / `until_with` / `intersect`
-(the SVA token-pipeline engine already carries `throughout` as a model).
-These are loud diagnostics today, not silent miscompiles, so they are a
-completeness gap rather than a correctness gap.
+Both silent miscompiles (M3-rm, M4-av) are closed, and the M9B/M9C
+sequence and temporal operators (`intersect`, `within`, `until` family)
+are implemented for their fixed-length / boolean scope. Remaining loud
+(non-silent) completeness gaps, in priority order: **M9C-live**
+(`nexttime` / `eventually` / `s_eventually` liveness operators — need an
+unbounded-obligation model like the existing `##[m:$]` weak-eventually
+path); then **M10B** (multidim open arrays / packed vector marshaling /
+DPI export), **M12B** (assertion VPI object model), **M1B** (semantic-IR
+remediation). None is a silent miscompile.

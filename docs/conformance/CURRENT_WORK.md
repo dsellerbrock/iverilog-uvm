@@ -3,6 +3,37 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-17a (M9B/M9C: intersect, until family, within)
+
+- **Four SVA operators implemented**, replacing loud sorries. All in
+  `pform.cc` (lowering) + `parse.y` (grammar); no runtime opcode change.
+- **M9B `intersect`** (16.9.6): equal-length fixed operands lowered to a
+  per-cycle AND unit-delay chain that the existing linear token engine
+  handles. Helper `sva_expand_fixed_` turns a fixed sequence into a
+  per-cycle boolean array (gap cycles = null). Unequal/variable lengths
+  are loud, spec-cited sorries. **M9B COMPLETE.**
+- **M9C `until` family** (16.12.10): `until`/`until_with` and strong
+  `s_until`/`s_until_with`, boolean operands. Under overlapping-attempt
+  semantics the aggregate collapses to a per-cycle check (`until`: fail
+  on `!p&&!q`; `until_with`: fail on `!p`); strong adds an end-of-sim
+  liveness obligation via a `pend` flag → FINAL `$error`. New op_types
+  4–7 on `sva_property_t`, dispatched inside `pform_make_assertion` (new
+  `pform_make_temporal_assertion_`) where `kind` is known. Sequence
+  operands are a loud sorry.
+- **M9C `within`** (16.9.6): fixed-length operands (len s1 ≤ len s2).
+  Lowered to a `$past`-sampled combinational match indicator — AND of
+  s2's cycles AND'd with the OR over embedding offsets of s1's cycles —
+  with a `$past(1,L2)` warm-up guard. Reuses `sva_rewrite_sampled_`,
+  which already expands `$past(x,k)` into history chains. op_type 8.
+- **Regression-clean**: UVM **173/173** (169 baseline + 4 new SVA tests,
+  zero no-check), ivtest name-diff **baseline-identical** (99 fails),
+  negative **28/28** (+4 new: unequal-len/variable-len intersect,
+  until-sequence-operand, within-left-longer). Tests:
+  `m9b_intersect_test`, `m9c_until_test`, `m9c_until_live_test`,
+  `m9c_within_test`.
+- **Next** (loud, not silent): M9C-live (`nexttime`/`eventually`/
+  `s_eventually`), then M10B / M12B / M1B.
+
 ## State as of 2026-07-16f (M4-av: string/real-valued assoc reads)
 
 - **M4-av implemented** — the last *silent* miscompile from the truth
