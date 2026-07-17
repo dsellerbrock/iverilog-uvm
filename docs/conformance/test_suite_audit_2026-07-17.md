@@ -455,16 +455,30 @@ mechanisms (from this pass), so the remaining work is well-scoped:
 
 - **`func_init_var2`** — automatic named-block var initializer dropped in
   constant-function eval. **FIXED** (item 3 above).
-- **`automatic_events`, `automatic_events3`, `automatic_task2`,
-  `automatic_task3`** — an event control that senses a **bit-select of an
-  automatic vector local** (`@(posedge pos[1])`) emits `.event posedge,
-  <v-net>, …` referencing the automatic local net, which is then elided
-  (`; Elide local/automatic net`), giving a runtime `unresolved vvp_net
-  reference` (or, for `automatic_task2`, the event never fires). Upstream
-  emits the edge sources as functor labels (`L_…`), not the elided nets, so
-  the divergence is in how the event probe's nexus is elaborated for a
-  bit-select of an automatic variable (elaboration/nexus level, not the
-  identical `vvp_scope.c` elision).
+- **`automatic_events3`** — an event sensing a **bit-select** inside an
+  automatic task (`@(posedge Source[0])`) lowered the bit-select to a
+  synthesized local `.part` net, which is elided when the scope is drawn,
+  yet `draw_input_from_net` (`tgt-vvp/vvp_scope.c`) still emitted the elided
+  net's `v…` label as the event operand → runtime `unresolved vvp_net
+  reference`. **FIXED**: `draw_input_from_net` now returns the nexus driver
+  (the `.part` functor `L_…`, as upstream does) when the resolved signal is
+  a local/automatic net (matching the elision condition), exempting
+  class/object signals so value-change and virtual-interface events are
+  unaffected. Regression test `tests/auto_task_bitselect_event_test.sv`.
+  ivtest 98→97, UVM 178/0/1, VPI 81/81, negative 32/32 — zero regressions.
+- **`automatic_events`, `automatic_events2`** — same bit-select event
+  lowering, but here the sensed vector is an **automatic local** and the
+  task is invoked **concurrently** twice. The link error is now gone (the
+  fix above applies), but a *separate* residual bug remains: the fork wraps
+  the concurrent automatic-task activations in an extra `fork` scope with a
+  different `%alloc`/`%fork` frame pattern than upstream (which allocates a
+  fresh frame per invocation), so the per-frame `pos`/`neg` locals read `x`.
+  This is a concurrent-automatic-task frame-allocation issue, distinct from
+  the event probe.
+- **`automatic_task2`, `automatic_task3`** — `@(array[i])` on an automatic
+  (or dynamically-indexed) **array word**, a different event mechanism from
+  the bit-select `.part` path; `task2` never fires, `task3` segfaults
+  (pre-existing). Not addressed by the event-probe fix.
 - **`automatic_task`** — a plain `event` declaration placed *after* another
   declaration in a task is rejected (`syntax error / Malformed statement`);
   upstream accepts it. This is the same fork parser regression that breaks
