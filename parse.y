@@ -12463,10 +12463,28 @@ statement_item /* This is roughly statement_item in the LRM */
 		/* Inline SV-style var decls in statements also need the SV check. */
 		if (!$2 && !$4 && !pform_block_scope_is_empty())
 		      pform_block_decls_requires_sv();
+		/* An unnamed blocking fork/join with no declarations of its
+		   own needs no scope: keeping the synthesized $unm_blk scope
+		   makes the backend allocate a spurious per-block activation
+		   frame that breaks resolution of the enclosing (automatic)
+		   task's locals when it runs concurrently. Drop the empty
+		   scope, as the begin/end path does. This is restricted to a
+		   *blocking* join: a join_none/join_any fork spawns background
+		   processes that outlive the statement, and its scope provides
+		   their process context (and, inside a function, distinguishes
+		   a deferred task call in the forked process from an illegal
+		   direct one), so that scope must be kept even when empty. */
+		bool scope_empty = !$2 && !$4 && pform_block_scope_is_empty()
+		      && $7 == PBlock::BL_PAR;
 		pform_pop_scope();
 		assert(! current_block_stack.empty());
 		tmp = current_block_stack.top();
 		current_block_stack.pop();
+		if (scope_empty) {
+		      delete tmp;
+		      tmp = new PBlock(PBlock::BL_PAR);
+		      FILE_NAME(tmp, @1);
+		}
 		tmp->set_join_type($7);
 	if ($6) tmp->set_statement(*$6);
 	delete $6;

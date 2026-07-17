@@ -466,19 +466,33 @@ mechanisms (from this pass), so the remaining work is well-scoped:
   class/object signals so value-change and virtual-interface events are
   unaffected. Regression test `tests/auto_task_bitselect_event_test.sv`.
   ivtest 98→97, UVM 178/0/1, VPI 81/81, negative 32/32 — zero regressions.
-- **`automatic_events`, `automatic_events2`** — same bit-select event
-  lowering, but here the sensed vector is an **automatic local** and the
-  task is invoked **concurrently** twice. The link error is now gone (the
-  fix above applies), but a *separate* residual bug remains: the fork wraps
-  the concurrent automatic-task activations in an extra `fork` scope with a
-  different `%alloc`/`%fork` frame pattern than upstream (which allocates a
-  fresh frame per invocation), so the per-frame `pos`/`neg` locals read `x`.
-  This is a concurrent-automatic-task frame-allocation issue, distinct from
-  the event probe.
-- **`automatic_task2`, `automatic_task3`** — `@(array[i])` on an automatic
-  (or dynamically-indexed) **array word**, a different event mechanism from
-  the bit-select `.part` path; `task2` never fires, `task3` segfaults
-  (pre-existing). Not addressed by the event-probe fix.
+- **`automatic_events`, `automatic_task2`, `automatic_task3`,
+  `fork_join_dis`** — **FIXED** by an unrelated-looking but shared root
+  cause: the fork's `K_fork` grammar action (`parse.y`) lacked the
+  empty-scope elision the `K_begin` action already had, so an **unnamed
+  `fork…join` with no declarations of its own** (the inner fork of a task,
+  whose loop/IO variables belong to the enclosing task) kept a synthesized
+  `$unm_blk` scope. Because the task is automatic, the backend then
+  allocated a **spurious per-block activation frame** for that empty scope,
+  which became the current activation context and broke resolution of the
+  enclosing task's per-invocation locals — under concurrent invocation the
+  locals read `x` (`automatic_events`), and the same stray scope corrupted
+  the array-word event path (`automatic_task2` no output / `automatic_task3`
+  segfault) and `disable`-of-detached-`join_any` (`fork_join_dis`).
+  Dropping the empty unnamed-fork scope (matching the begin/end path, and
+  the reference compiler, which keeps such locals in the single task frame)
+  fixes all four. ivtest 97→93, UVM 178/0/1, VPI 81/81, negative 32/32,
+  bison conflicts unchanged. Regression test
+  `tests/auto_task_concurrent_frame_test.sv`.
+- **`automatic_events2`** — the *deeper* remaining case: here the inner
+  fork is **named** (`fork:task_threads`) and **declares** its own locals
+  (`integer i, j;`), and `pos`/`neg` sit in a named `begin:task_body`
+  block, so those scopes legitimately need per-block frames. Under two
+  concurrent activations the per-block frame's parent linkage still resolves
+  to the wrong task activation → `x`. This is the genuine
+  concurrent-automatic-task per-block-frame parent-linkage bug, not the
+  spurious empty scope; it needs work in the frame model (or a move toward
+  the reference compiler's single-task-frame approach) and is left scoped.
 - **`automatic_task`** — a plain `event` declaration placed *after* another
   declaration in a task is rejected (`syntax error / Malformed statement`);
   upstream accepts it. This is the same fork parser regression that breaks
@@ -490,7 +504,8 @@ mechanisms (from this pass), so the remaining work is well-scoped:
   yields `x`; combines the automatic-var event-sensing issue above with
   recursion.
 
-Items 2–4 are genuine but deeper (event-probe elaboration, parser-conflict
+Remaining (`automatic_events2`, `automatic_task`, `recursive_task`) are
+genuine but deeper (per-block-frame parent linkage, parser-conflict
 isolation) and are left scoped rather than rushed.
 
 ## Appendix — full per-test reason table
