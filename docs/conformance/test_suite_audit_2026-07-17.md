@@ -266,10 +266,20 @@ upstream diff (see caveat).
   event e; real x; ...` passes. Root cause behind `always_comb_warn`,
   `always_ff_warn`, `always_latch_warn`, and `automatic_task`.
 - **`reg`-array word read via continuous assign returns `z` not `x` —
-  VERIFIED.** `wire [7:0] w = mem[0]` on an uninitialized reg array reads
-  `zz`. (`pr1648365`, `pr2974294`.) Core cont-assign/array codegen.
-- **`part_sel_port`** — multidim packed-array port part-select connection
-  yields a wrong value (self-check prints FAILED).
+  VERIFIED, now FIXED** (`pr1648365`, `pr2974294`; see Part 8 item 4): the
+  vvp `.array/port` label was resolved eagerly inside `vpip_make_array`,
+  before the caller allocated the word storage, so `array_attach_port`
+  silently skipped scheduling the initial-value propagation.
+- **`part_sel_port`** — RE-ATTRIBUTED on direct verification: upstream
+  13.0 fails it identically (it is in the 62 pre-existing, not the 37).
+  With **one** part-select port connection the value is visible at time 0;
+  with **two** part-select drivers on the same net, the time-0 initial
+  propagation has not resolved when the (delay-less) `initial` check
+  reads — an inherited upstream propagation-ordering characteristic, and
+  arguably an LRM time-0 race in the test itself. After any delay the
+  value is exactly correct on both compilers. Not a fork miscompile; not
+  fixed here (an upstream scheduler-semantics change with broad gold
+  churn).
 - **`fork_join_dis`** — `disable` fails to terminate detached `join_any`
   children.
 - **`sv_wildcard_import2` / `import3`** — valid code wrongly *rejected*: a
@@ -531,6 +541,58 @@ Remaining (`automatic_events2`, `automatic_task`, `recursive_task`) are
 genuine but deeper (per-block-frame parent linkage, parser-conflict
 isolation) and are left scoped rather than rushed.
 
+### Silent-miscompile pass (wrong-value / crash cluster)
+
+4. **vvp: array-word initial value never propagated through a continuous
+   assign** (`pr1648365`, `pr2974294` — the audit's verified reg-array
+   `z`-instead-of-`x` bug). The fork had added an eager
+   `compile_resolve_pending_label(label)` inside `vpip_make_array`
+   (`vvp/array.cc`); a `.array/port` compiled before its `.array` resolved
+   at that moment — **before the caller allocated the word storage** — so
+   `array_attach_port`'s `vals4 || vals` guard failed and the
+   initial-value propagation was silently never scheduled. The driven net
+   kept its `z` default forever (unless the word was later written). The
+   resolve now runs at the end of each `compile_*_array` variant, after
+   storage exists. Both tests now pass (`pr1648365` matches gold,
+   `pr2974294` prints PASSED). Regression test
+   `tests/array_word_init_prop_test.sv`.
+5. **elaborator: literal `null` in illegal operator/r-value contexts was
+   silently accepted or crashed** (`br_gh440`). The fork's compile-progress
+   class-type leniencies (PEBinary / PEBComp / PEBLeftWidth / PEUnary
+   `test_width`, and the `elab_and_eval` class-r-value fallback in
+   `netmisc.cc`) treated *any* class-typed operand as a stubbed method
+   return: `val = null` silently compiled to `val = 0`, `1|null`,
+   `null<<1`, `!null` were silently accepted, and `null <= 1` let a
+   width-0 null reach `eval_tree.cc`'s `must_be_leeq_` assertion →
+   compiler abort. The leniencies are now gated with surgical precision —
+   the first attempt was too coarse and broke UVM compilation (181
+   COMPILE_FAIL), which pinned exactly which shapes the leniency
+   legitimately serves:
+   - **operator operands** (PEBinary/PEBLeftWidth/PEUnary): a literal
+     `null` operand always errors; class-typed *expressions* keep the
+     leniency (stubbed method returns).
+   - **relational comparison**: class/null operands are a hard error in
+     every language mode (never legal SV), and `PEBComp::elaborate_expr`
+     bails out before building a `NetEBComp` with a class/null operand so
+     the constant folder cannot abort.
+   - **equality comparison**: `null` vs a **literal constant**
+     (`0 == null`) errors; `null` vs an identifier stays lenient — the
+     identifier's scalar type may come from a class type parameter
+     instantiated with a scalar (`uvm_pair`'s `T1 f = null; if (f ==
+     null)`), and `unresolved == null` is the canonical stubbed-handle
+     comparison.
+   - **r-value fallback** (`netmisc.cc`): a literal `null` with a 4-state
+     LOGIC target errors (`logic v = null`, implicit-logic `return
+     null`); a 2-state BOOL target keeps the fallback because `chandle`
+     lowers to a 2-state atom and `return null` from a `chandle` function
+     is legal SV (`uvm_svcmd_dpi`). Operator nodes typed class are always
+     excluded from the fallback.
+   `br_gh440` now matches its gold byte-for-byte AND the full UVM sweep
+   stays green. Negative test `tests/negative/null_illegal_contexts.sv`.
+6. **`part_sel_port` re-attributed** — verified pre-existing upstream
+   time-0 propagation ordering (see the corrected Part 5 entry), not a
+   fork miscompile; left unfixed deliberately.
+
 ## Appendix — full per-test reason table
 
 Legend: **UNIMPL** = construct not implemented; **LENIENT** = expects a
@@ -578,7 +640,7 @@ deterministically on a quiet host.
 | 33 | br_gh315 | UNIMPL/config | `.A` implicit named-port needs SV; normal mode rejects (CE variant OK) |
 | 34 | br_gh386c | LENIENT | continuous int→enum assign accepted (known-open gh#386) |
 | 35 | br_gh386d | LENIENT (intentional?) | `assign = enum'(1)` cast accepted; CE variant no longer errors |
-| 36 | br_gh440 | CRASH | `eval_tree.cc:367` assert abort on `null<=1` (blame→**upstream**; known-open gh#440) |
+| 36 | br_gh440 | CRASH → **FIXED** | was: assert abort on `null<=1` (fork leniency leaked width-0 null; Part 8 item 5); now matches gold |
 | 37 | br_gh497a | RUNTIME-BUG | packed 2-D `wire[3:0][3:0]` part-select assign → all-`z`, self-check FAILED (known-open gh#497) |
 | 38 | br_ml20150315b | LENIENT (intentional) | unpacked struct now accepted; test expects compile error |
 | 39 | br_ml20150606 | OUTPUT-DIFF (functional) | port + separate net redecl (`input[3:0] X; wire[3:0] X;`) now "already declared" |
@@ -592,9 +654,9 @@ deterministically on a quiet host.
 | 47 | func_init_var2 | OUTPUT-DIFF (functional) | automatic-fn `automatic int acc=1` initializer ignored in const-fn eval → wrong value |
 | 48 | macro_with_args | OUTPUT-DIFF (cosmetic) | macro-arg stringification adds trailing spaces `(a )` vs `(a)` |
 | 49 | mod_inst_pkg | UNIMPL | package import in ANSI module header not implemented |
-| 50 | part_sel_port | OUTPUT-DIFF (functional) | multidim packed-array port part-select → wrong value, FAILED |
+| 50 | part_sel_port | OUTPUT-DIFF (pre-existing) | t0 read races multi-driver part-select init propagation; upstream fails identically (re-attributed, Part 8 item 6) |
 | 51 | pr1002 | OUTPUT-DIFF (functional) | comb cont-assign lags one delta → stale compare → spurious CHECK FAILED |
-| 52 | pr1648365 | OUTPUT-DIFF (functional) | `wire=reg_array[idx]` uninit word reads `z` not `x` (VERIFIED) |
+| 52 | pr1648365 | OUTPUT-DIFF → **FIXED** | uninit array word read `z` not `x`: eager .array/port resolve skipped init propagation (Part 8 item 4) |
 | 53 | pr1723367 | OUTPUT-DIFF (cosmetic) | warning line numbers off (stale gold; sim output matches) |
 | 54 | pr1792152 | DIAG-DIFF | `choosing typ expression`→`Choosing` (result matches) |
 | 55 | pr1833024 | DIAG-DIFF | reworded elaboration errors, added scope/detail |
@@ -609,7 +671,7 @@ deterministically on a quiet host.
 | 64 | pr2792883 | LENIENT | accepts `parameter W=dut.W;` hierarchical param ref that CE test expects rejected |
 | 65 | pr2800985b | DIAG-DIFF | `$ferror` `(register)`→`(variable)` SV terminology (still rejects) |
 | 66 | pr2859628 | OUTPUT-DIFF (cosmetic) | VCD parameter-dump block absent from 2009-era gold |
-| 67 | pr2974294 | OUTPUT-DIFF (functional) | same reg-array-word-reads-`z` bug as pr1648365 → FAILED |
+| 67 | pr2974294 | OUTPUT-DIFF → **FIXED** | same array-word init-propagation bug as pr1648365 (Part 8 item 4) |
 | 68 | pr2976242c | DIAG-DIFF | identifiers backtick-quoted vs bare in gold |
 | 69 | pr243 | OUTPUT-DIFF (functional) | same-time `$monitor` vs `$finish(0)` ordering → missing final line |
 | 70 | pr3190941 | DIAG-DIFF | reworded "…support a continuous assignment" + scope prefix |
