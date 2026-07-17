@@ -484,15 +484,38 @@ mechanisms (from this pass), so the remaining work is well-scoped:
   fixes all four. ivtest 97→93, UVM 178/0/1, VPI 81/81, negative 32/32,
   bison conflicts unchanged. Regression test
   `tests/auto_task_concurrent_frame_test.sv`.
-- **`automatic_events2`** — the *deeper* remaining case: here the inner
-  fork is **named** (`fork:task_threads`) and **declares** its own locals
-  (`integer i, j;`), and `pos`/`neg` sit in a named `begin:task_body`
-  block, so those scopes legitimately need per-block frames. Under two
-  concurrent activations the per-block frame's parent linkage still resolves
-  to the wrong task activation → `x`. This is the genuine
-  concurrent-automatic-task per-block-frame parent-linkage bug, not the
-  spurious empty scope; it needs work in the frame model (or a move toward
-  the reference compiler's single-task-frame approach) and is left scoped.
+- **`automatic_events2`** — the *deeper* remaining case, now root-caused to
+  a precise, minimal trigger: **a blocking `fork … join` inside an automatic
+  task where one branch ends before a sibling branch reads a parent-scope
+  automatic local**. The sibling's read then returns the element default
+  instead of the live value (in `automatic_events2` this is why only the
+  events fired by the module signal `any`, *after* the driver branch has
+  finished, print `x` — the earlier `pos`/`neg`-driven events are correct).
+  Minimal repro (not concurrency-dependent; single invocation reproduces):
+
+  ```
+  task automatic w(input byte id, output byte r);
+    begin: body
+      reg [7:0] acc; acc = id;
+      fork
+        begin #10 ; end          // branch A ends early
+        begin #30 r = acc; end   // branch B reads parent local after A ended
+      join
+    end
+  endtask                        // r reads 0, expected id
+  ```
+
+  `IVL_CTX_TRACE` shows `body` is `alloc-shared` with the task frame, and
+  when branch A is reaped the shared parent context is dropped from the
+  chain the still-live sibling reads through. The fix lives in the vvp
+  runtime context lifecycle (`of_ALLOC`/`of_FREE`/`do_join`/`vthread_reap`
+  and the `automatic_context_refcount` bookkeeping) — a large, intricate,
+  fork-specific subsystem that underlies **every** automatic task/function
+  (hence all of UVM), so the blast radius of a wrong change is severe. This
+  is left scoped for a dedicated, heavily-validated pass (or the
+  architectural move to the reference compiler's single-task-frame model,
+  where nested block/fork locals live in the one task frame and this class
+  of bug cannot arise).
 - **`automatic_task`** — a plain `event` declaration placed *after* another
   declaration in a task is rejected (`syntax error / Malformed statement`);
   upstream accepts it. This is the same fork parser regression that breaks
