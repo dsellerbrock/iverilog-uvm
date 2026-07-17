@@ -281,6 +281,16 @@ extern void pform_sva_declare_property(const struct vlltype&loc,
 extern void pform_sva_declare_sequence(const struct vlltype&loc,
 				       const char*name,
 				       std::vector<sva_seq_step_t>*steps);
+/* M9D: parameterized named property/sequence declarations. `formals` is
+   the ordered list of formal-argument names (may be null/empty). */
+extern void pform_sva_declare_property_p(const struct vlltype&loc,
+					 const char*name,
+					 std::list<perm_string>*formals,
+					 sva_property_t*prop);
+extern void pform_sva_declare_sequence_p(const struct vlltype&loc,
+					 const char*name,
+					 std::list<perm_string>*formals,
+					 std::vector<sva_seq_step_t>*steps);
 extern void pform_sva_set_default_disable(PExpr*expr);
 extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
 extern void pform_sva_module_done(void);

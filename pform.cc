@@ -4394,6 +4394,21 @@ static std::map<perm_string, std::vector<sva_seq_step_t>*> sva_module_sequences;
 static PExpr* sva_default_disable = nullptr;
 static unsigned sva_gensym_counter = 0;
 
+/* M9D: parameterized named property/sequence declarations. The formal
+   argument names are substituted with the actual argument expressions at
+   each instantiation (signal/boolean formals only — a formal used as a
+   delay bound is already a non-constant `##` and diagnosed at lowering). */
+struct sva_param_seq_t {
+      std::vector<perm_string> formals;
+      std::vector<sva_seq_step_t>* body = nullptr;
+};
+struct sva_param_prop_t {
+      std::vector<perm_string> formals;
+      sva_property_t* body = nullptr;
+};
+static std::map<perm_string, sva_param_seq_t> sva_param_sequences;
+static std::map<perm_string, sva_param_prop_t> sva_param_properties;
+
 void pform_sva_set_default_disable(PExpr*expr)
 {
       sva_default_disable = expr;
@@ -4436,20 +4451,73 @@ void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
       sva_module_sequences[use_name] = steps;
 }
 
+/* M9D: parameterized named property/sequence declarations. */
+void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
+				  std::list<perm_string>*formals,
+				  sva_property_t*prop)
+{
+      perm_string use_name = lex_strings.make(name);
+      if (sva_param_properties.count(use_name) || sva_module_properties.count(use_name)) {
+	    cerr << loc << ": error: duplicate property declaration `"
+		 << use_name << "'." << endl;
+	    error_count += 1;
+	    delete formals;
+	    return;
+      }
+      sva_param_prop_t rec;
+      if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
+      rec.body = prop;
+      sva_param_properties[use_name] = rec;
+      delete formals;
+}
+
+void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
+				  std::list<perm_string>*formals,
+				  std::vector<sva_seq_step_t>*steps)
+{
+      perm_string use_name = lex_strings.make(name);
+      if (sva_param_sequences.count(use_name) || sva_module_sequences.count(use_name)) {
+	    cerr << loc << ": error: duplicate sequence declaration `"
+		 << use_name << "'." << endl;
+	    error_count += 1;
+	    delete formals;
+	    return;
+      }
+      sva_param_seq_t rec;
+      if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
+      rec.body = steps;
+      sva_param_sequences[use_name] = rec;
+      delete formals;
+}
+
 void pform_sva_module_done(void)
 {
       sva_module_properties.clear();
       sva_module_sequences.clear();
+      sva_param_sequences.clear();
+      sva_param_properties.clear();
       sva_default_disable = nullptr;
 }
 
 /* Structural clone for the expression shapes that appear in disable
    iff conditions and reusable named-property bodies. Returns nil for
-   shapes it cannot copy; callers fall back to consume-once. */
-static PExpr* sva_clone_expr_(PExpr*e)
+   shapes it cannot copy; callers fall back to consume-once.
+
+   When `subst` is non-null (M9D parameterized property/sequence
+   instantiation), a bare single-name identifier that matches a formal
+   is replaced with a fresh clone of the actual argument expression. */
+static PExpr* sva_clone_subst_(PExpr*e,
+			       const std::map<perm_string,PExpr*>*subst)
 {
       if (!e) return nullptr;
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    if (subst && !id->path().package && id->path().name.size() == 1
+		&& id->path().name.front().index.empty()) {
+		  std::map<perm_string,PExpr*>::const_iterator it =
+			subst->find(id->path().name.front().name);
+		  if (it != subst->end())
+			return sva_clone_subst_(it->second, nullptr);
+	    }
 	    PEIdent*cp = id->path().package
 		  ? new PEIdent(id->path().package, id->path().name, id->lexical_pos())
 		  : new PEIdent(id->path().name, id->lexical_pos());
@@ -4462,15 +4530,15 @@ static PExpr* sva_clone_expr_(PExpr*e)
 	    return cp;
       }
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
-	    PExpr*sub = sva_clone_expr_(un->get_expr());
+	    PExpr*sub = sva_clone_subst_(un->get_expr(), subst);
 	    if (!sub) return nullptr;
 	    PEUnary*cp = new PEUnary(un->get_op(), sub);
 	    cp->set_line(*e);
 	    return cp;
       }
       if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
-	    PExpr*l = sva_clone_expr_(bin->get_left());
-	    PExpr*r = sva_clone_expr_(bin->get_right());
+	    PExpr*l = sva_clone_subst_(bin->get_left(), subst);
+	    PExpr*r = sva_clone_subst_(bin->get_right(), subst);
 	    if (!l || !r) { delete l; delete r; return nullptr; }
 	    PEBinary*cp;
 	    if (dynamic_cast<PEBComp*>(e))
@@ -4486,15 +4554,120 @@ static PExpr* sva_clone_expr_(PExpr*e)
 	    return cp;
       }
       if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
-	    PExpr*c = sva_clone_expr_(ter->get_cond());
-	    PExpr*t = sva_clone_expr_(ter->get_true());
-	    PExpr*f = sva_clone_expr_(ter->get_false());
+	    PExpr*c = sva_clone_subst_(ter->get_cond(), subst);
+	    PExpr*t = sva_clone_subst_(ter->get_true(), subst);
+	    PExpr*f = sva_clone_subst_(ter->get_false(), subst);
 	    if (!c || !t || !f) { delete c; delete t; delete f; return nullptr; }
 	    PETernary*cp = new PETernary(c, t, f);
 	    cp->set_line(*e);
 	    return cp;
       }
+	/* System/sampled function calls ($rose/$past/…) with copyable
+	   argument expressions — needed so a formal can appear inside a
+	   sampled-value function of a parameterized body. */
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    if (cf->path().package || cf->path().name.size() != 1)
+		  return nullptr;
+	    const std::vector<named_pexpr_t>&parms = cf->get_parms();
+	    std::list<named_pexpr_t> np;
+	    for (size_t k = 0 ; k < parms.size() ; k += 1) {
+		  named_pexpr_t a;
+		  a.name = parms[k].name;
+		  if (parms[k].parm) {
+			a.parm = sva_clone_subst_(parms[k].parm, subst);
+			if (!a.parm) return nullptr;
+		  }
+		  np.push_back(a);
+	    }
+	    PECallFunction*cp = new PECallFunction(
+		  peek_tail_name(cf->path().name), np);
+	    cp->set_line(*e);
+	    return cp;
+      }
       return nullptr;
+}
+
+static PExpr* sva_clone_expr_(PExpr*e)
+{
+      return sva_clone_subst_(e, nullptr);
+}
+
+/* M9D: build a formal->actual substitution map from a call's arguments,
+   checking arity. Returns false (diagnosed) on a mismatch or empty arg. */
+static bool sva_build_subst_(const struct vlltype&loc, const char*what,
+			     perm_string nm,
+			     const std::vector<perm_string>&formals,
+			     const std::vector<named_pexpr_t>&parms,
+			     std::map<perm_string,PExpr*>&subst)
+{
+      if (parms.size() != formals.size()) {
+	    cerr << loc << ": error: " << what << " `" << nm << "' expects "
+		 << formals.size() << " argument(s), got " << parms.size()
+		 << "." << endl;
+	    error_count += 1;
+	    return false;
+      }
+      for (size_t k = 0 ; k < formals.size() ; k += 1) {
+	    if (!parms[k].parm) {
+		  cerr << loc << ": error: " << what << " `" << nm
+		       << "' argument " << (k+1) << " is empty." << endl;
+		  error_count += 1;
+		  return false;
+	    }
+	    subst[formals[k]] = parms[k].parm;
+      }
+      return true;
+}
+
+/* M9D: instantiate a parameterized sequence — clone its body with the
+   formals substituted. Returns nullptr (diagnosed) on failure. */
+static std::vector<sva_seq_step_t>*
+sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
+		     const sva_param_seq_t&decl,
+		     const std::vector<named_pexpr_t>&parms)
+{
+      std::map<perm_string,PExpr*> subst;
+      if (!sva_build_subst_(loc, "sequence", nm, decl.formals, parms, subst))
+	    return nullptr;
+      std::vector<sva_seq_step_t>*out = new std::vector<sva_seq_step_t>;
+      for (size_t k = 0 ; k < decl.body->size() ; k += 1) {
+	    sva_seq_step_t st = (*decl.body)[k];   /* copies delays */
+	    st.expr = sva_clone_subst_((*decl.body)[k].expr, &subst);
+	    if (!st.expr) {
+		  cerr << loc << ": sorry: sequence `" << nm << "' has a body "
+		       << "expression that cannot be instantiated with "
+		       << "arguments; the assertion is dropped." << endl;
+		  error_count += 1;
+		  for (size_t j = 0 ; j < out->size() ; j += 1) delete (*out)[j].expr;
+		  delete out;
+		  return nullptr;
+	    }
+	    out->push_back(st);
+      }
+      return out;
+}
+
+/* M9D: clone a step list with a substitution applied (for property
+   antecedent/consequent instantiation). Returns nullptr on failure. */
+static std::vector<sva_seq_step_t>*
+sva_clone_steps_subst_(const struct vlltype&loc,
+		       const std::vector<sva_seq_step_t>*in,
+		       const std::map<perm_string,PExpr*>&subst)
+{
+      if (!in) return nullptr;
+      std::vector<sva_seq_step_t>*out = new std::vector<sva_seq_step_t>;
+      for (size_t k = 0 ; k < in->size() ; k += 1) {
+	    sva_seq_step_t st = (*in)[k];
+	    st.expr = sva_clone_subst_((*in)[k].expr, &subst);
+	    if (!st.expr) {
+		  for (size_t j = 0 ; j < out->size() ; j += 1) delete (*out)[j].expr;
+		  delete out;
+		  (void)loc;
+		  return nullptr;
+	    }
+	    out->push_back(st);
+      }
+      return out;
 }
 
 static PEIdent* sva_id_(const struct vlltype&loc, perm_string name)
@@ -5085,7 +5258,47 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 static void sva_splice_sequences_(const struct vlltype&loc,
 				  std::vector<sva_seq_step_t>&steps)
 {
+      static int splice_depth = 0;
+      if (++splice_depth > 64) {
+	    cerr << loc << ": error: SVA sequence instantiation nested too "
+		 << "deeply (a recursive sequence?)." << endl;
+	    error_count += 1;
+	    --splice_depth;
+	    return;
+      }
       for (size_t i = 0 ; i < steps.size() ; ) {
+	      /* M9D: parameterized sequence instantiation `name(args)`. */
+	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>(steps[i].expr)) {
+		  if (!cf->path().package && cf->path().name.size() == 1) {
+			perm_string nm = peek_tail_name(cf->path().name);
+			std::map<perm_string, sva_param_seq_t>::iterator pit =
+			      sva_param_sequences.find(nm);
+			if (pit != sva_param_sequences.end() && pit->second.body) {
+			      std::vector<sva_seq_step_t>*inst =
+				    sva_instantiate_seq_(loc, nm, pit->second,
+							 cf->get_parms());
+			      if (inst) {
+				    if (!inst->empty()) {
+					  (*inst)[0].delay_lo += steps[i].delay_lo;
+					  (*inst)[0].delay_hi += steps[i].delay_hi;
+				    }
+				    sva_splice_sequences_(loc, *inst);
+				    delete steps[i].expr;
+				    steps.erase(steps.begin() + i);
+				    steps.insert(steps.begin() + i,
+						 inst->begin(), inst->end());
+				    size_t n = inst->size();
+				    delete inst;
+				    i += n;
+				    continue;
+			      }
+			      delete steps[i].expr;
+			      steps[i].expr = sva_bit_(loc, 1);
+			      i += 1;
+			      continue;
+			}
+		  }
+	    }
 	    PEIdent*id = dynamic_cast<PEIdent*>(steps[i].expr);
 	    if (!id || id->path().package || id->path().name.size() != 1
 		|| !id->path().name.front().index.empty()) {
@@ -5129,6 +5342,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    steps.insert(steps.begin() + i, body.begin(), body.end());
 	    i += body.size();
       }
+      --splice_depth;
 }
 
 /* M9-2: consecutive repetition (IEEE 1800-2017 16.9.2). e[*N]
@@ -5841,6 +6055,73 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      delete prop;
 			      pform_make_assertion(loc, named, fail_stmt,
 						   pass_stmt, kind);
+			      return;
+			}
+		  }
+	    }
+      }
+
+	/* M9D: parameterized property instantiation `p(a,b)`. The clock
+	   comes from the assertion site (`assert property (@(clk) p(...))`);
+	   a clock in the property body is unsupported (would need per-
+	   instantiation cloning of the event). */
+      if (prop->op_type == 0 && prop->seq->size() == 1
+	  && (*prop->seq)[0].delay_lo == 0 && (*prop->seq)[0].delay_hi == 0
+	  && (*prop->seq)[0].rep_tail == 0) {
+	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>((*prop->seq)[0].expr)) {
+		  if (!cf->path().package && cf->path().name.size() == 1) {
+			perm_string nm = peek_tail_name(cf->path().name);
+			std::map<perm_string, sva_param_prop_t>::iterator pit =
+			      sva_param_properties.find(nm);
+			if (pit != sva_param_properties.end() && pit->second.body) {
+			      sva_property_t*decl = pit->second.body;
+			      bool fatal = false;
+			      if (decl->clk_evt) {
+				    cerr << loc << ": sorry: a parameterized "
+					 << "property with a clock in its body is "
+					 << "not supported; put the clock at the "
+					 << "assertion (`@(clk) " << nm << "(...)`)."
+					 << endl;
+				    error_count += 1;
+				    fatal = true;
+			      }
+			      std::map<perm_string,PExpr*> subst;
+			      if (!fatal && !sva_build_subst_(loc, "property", nm,
+					pit->second.formals, cf->get_parms(), subst))
+				    fatal = true;
+			      sva_property_t*inst = nullptr;
+			      if (!fatal) {
+				    inst = new sva_property_t;
+				    inst->op_type = decl->op_type;
+				    inst->clk_evt = prop->clk_evt;
+				    prop->clk_evt = nullptr;
+				    inst->disable_iff_expr = prop->disable_iff_expr;
+				    prop->disable_iff_expr = nullptr;
+				    bool ok = true;
+				    if (decl->seq) {
+					  inst->seq = sva_clone_steps_subst_(loc, decl->seq, subst);
+					  if (!inst->seq) ok = false;
+				    }
+				    if (ok && decl->antecedent) {
+					  inst->antecedent = sva_clone_steps_subst_(loc, decl->antecedent, subst);
+					  if (!inst->antecedent) ok = false;
+				    }
+				    if (!ok) {
+					  cerr << loc << ": sorry: property `" << nm
+					       << "' has a body expression that cannot "
+					       << "be instantiated with arguments; the "
+					       << "assertion is dropped." << endl;
+					  error_count += 1;
+					  delete inst->seq; delete inst->antecedent;
+					  delete inst; inst = nullptr;
+					  fatal = true;
+				    }
+			      }
+			      delete (*prop->seq)[0].expr;
+			      delete prop->seq;
+			      delete prop;
+			      if (fatal) { delete fail_stmt; delete pass_stmt; return; }
+			      pform_make_assertion(loc, inst, fail_stmt, pass_stmt, kind);
 			      return;
 			}
 		  }

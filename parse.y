@@ -1265,6 +1265,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <identifiers> class_type_parameter_port_item
 %type <identifiers> list_of_identifiers
 %type <perm_strings> loop_variables
+%type <perm_strings> sva_formal_list
 %type <port_list> list_of_port_identifiers list_of_variable_port_identifiers
 
 %type <decl_assignments> net_decl_assigns
@@ -4512,6 +4513,27 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
 	delete[] $8;
       }
+  /* M9D: parameterized named property/sequence declarations. Formal
+     arguments (plain identifiers) are substituted with the actual
+     argument expressions at each instantiation. */
+  | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty
+      { pform_sva_declare_property_p(@2, $2, $4, $7);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER '(' sva_formal_list ')' ';' property_spec ';' K_endproperty ':' IDENTIFIER
+      { pform_sva_declare_property_p(@2, $2, $4, $7);
+	delete[] $2;
+	delete[] $11;
+      }
+  | K_sequence IDENTIFIER '(' sva_formal_list ')' ';' sva_seq_expr ';' K_endsequence
+      { pform_sva_declare_sequence_p(@2, $2, $4, $7);
+	delete[] $2;
+      }
+  | K_sequence IDENTIFIER '(' sva_formal_list ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
+      { pform_sva_declare_sequence_p(@2, $2, $4, $7);
+	delete[] $2;
+	delete[] $11;
+      }
   /* SV `sequence ... endsequence` and `property ... endproperty` —
      parameterized/complex forms are parsed and dropped via bison
      error recovery so SVA-rich modules still compile. */
@@ -5335,6 +5357,17 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
       { $$ = $2; }
   | block_identifier_opt deferred_immediate_assertion_statement
       { $$ = $2; }
+  ;
+
+  /* M9D: formal-argument name list for a parameterized property or
+     sequence declaration (plain identifiers only — typed formals fall
+     to the error-recovery declaration rule). */
+sva_formal_list
+  : sva_formal_list ',' IDENTIFIER
+      { $1->push_back(lex_strings.make($3)); delete[]$3; $$ = $1; }
+  | IDENTIFIER
+      { std::list<perm_string>*l = new std::list<perm_string>;
+	l->push_back(lex_strings.make($1)); delete[]$1; $$ = l; }
   ;
 
 property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
