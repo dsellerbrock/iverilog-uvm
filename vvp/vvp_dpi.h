@@ -42,6 +42,10 @@ struct vvp_dpi_arg_t {
       double rval;
       const char* sval;
       vvp_dpi_open_array_t* aval; // 'o' only: the open-array handle
+      uint32_t* vbuf;             // 'V'/'W': packed vector buffer
+				  //   'V' svBitVecVal[]  (2-state, one word/32 bits)
+				  //   'W' svLogicVecVal[] (4-state, aval,bval pairs)
+      unsigned  vwid;             // 'V'/'W': vector width in bits
 };
 
 /*

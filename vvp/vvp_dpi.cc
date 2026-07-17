@@ -119,6 +119,11 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  atypes[idx] = &ffi_type_pointer;
 		  vals[idx].ptr = (const char*)arg.aval;
 		  break;
+		case 'V': // svBitVecVal*  (wide 2-state packed vector)
+		case 'W': // svLogicVecVal* (wide 4-state packed vector)
+		  atypes[idx] = &ffi_type_pointer;
+		  vals[idx].ptr = (const char*)arg.vbuf;
+		  break;
 		default:
 		  fprintf(stderr, "DPI error: '%s': unsupported argument "
 			  "type letter '%c' at position %u\n",
@@ -130,7 +135,8 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 	      // (seeded) typed slot; the callee writes through it.
 	      // Open arrays are already handles that share storage,
 	      // so direction changes nothing about their marshaling.
-	    if (arg.is_output && arg.type != 'o') {
+	    if (arg.is_output && arg.type != 'o'
+		&& arg.type != 'V' && arg.type != 'W') {
 		  optrs[idx] = &vals[idx];
 		  atypes[idx] = &ffi_type_pointer;
 		  avalues[idx] = &optrs[idx];
@@ -170,8 +176,9 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       ffi_call(&cif, FFI_FN(sym), &rbuf, nargs? &avalues[0] : 0);
 
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
-	    if (! args[idx].is_output || args[idx].type == 'o')
-		  continue;
+	    if (! args[idx].is_output || args[idx].type == 'o'
+		|| args[idx].type == 'V' || args[idx].type == 'W')
+		  continue;   // 'V'/'W' write in place through the buffer
 	    switch (args[idx].type) {
 		case 'b':
 		  args[idx].ival = args[idx].is_unsigned
@@ -300,7 +307,8 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       memset(oval, 0, sizeof oval);
       intptr_t a[8] = {0};
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
-	    if (args[idx].is_output && args[idx].type != 'o') {
+	    if (args[idx].is_output && args[idx].type != 'o'
+		&& args[idx].type != 'V' && args[idx].type != 'W') {
 		  switch (args[idx].type) {
 		      case 'b': oval[idx].i8  = (int8_t)args[idx].ival;  break;
 		      case 'h': oval[idx].i16 = (int16_t)args[idx].ival; break;
@@ -314,6 +322,8 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  a[idx] = (intptr_t)args[idx].sval;
 	    else if (args[idx].type == 'o')
 		  a[idx] = (intptr_t)args[idx].aval;
+	    else if (args[idx].type == 'V' || args[idx].type == 'W')
+		  a[idx] = (intptr_t)args[idx].vbuf;
 	    else
 		  a[idx] = (intptr_t)args[idx].ival;
       }
@@ -354,8 +364,9 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       }
 
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
-	    if (! args[idx].is_output || args[idx].type == 'o')
-		  continue;
+	    if (! args[idx].is_output || args[idx].type == 'o'
+		|| args[idx].type == 'V' || args[idx].type == 'W')
+		  continue;   // 'V'/'W' write in place through the buffer
 	    switch (args[idx].type) {
 		case 'b':
 		  args[idx].ival = args[idx].is_unsigned

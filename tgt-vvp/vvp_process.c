@@ -4246,22 +4246,16 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  }
 		  letter = 'o';
 	    } else if (ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL) {
-		  if (pwid > 64) {
-			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
-				"argument '%s' is %u bits wide; by-value "
-				"DPI arguments are limited to 64 bits "
-				"(svLogicVecVal/svBitVecVal marshaling is "
-				"not yet implemented).\n",
-				ivl_scope_def_file(scope),
-				ivl_scope_def_lineno(scope),
-				c_name, ivl_signal_basename(port), pwid);
-			unsupported = 1;
-			break;
-		  }
 		  if (pwid == 1) {
 			  /* svBit/svLogic scalar: unsigned char both
 			     ways, 4-state encoding for logic. */
 			letter = 'g';
+		  } else if (pwid > 64) {
+			  /* M10: wide (>64-bit) packed vector — marshal to
+			     svLogicVecVal (4-state logic) or svBitVecVal
+			     (2-state bit), passed as a pointer; supports
+			     input, output and inout of any width. */
+			letter = (ptype == IVL_VT_LOGIC) ? 'W' : 'V';
 		  } else if (is_out
 			     && pwid != 8 && pwid != 16
 			     && pwid != 32 && pwid != 64) {

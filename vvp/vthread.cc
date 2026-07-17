@@ -7804,6 +7804,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    arg.rval = 0.0;
 	    arg.sval = 0;
 	    arg.aval = 0;
+	    arg.vbuf = 0;
+	    arg.vwid = 0;
 	    switch (sig[slot].base) {
 		case 'r':
 		  arg.rval = thr->pop_real();
@@ -7844,6 +7846,35 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 				    c_name, slot+1);
 		      }
 		      arg.aval = &arr;
+		      break;
+		}
+		case 'V':
+		case 'W': {
+			/* Wide (>64-bit) packed vector: marshal to an
+			   svBitVecVal[] ('V', 2-state) or svLogicVecVal[]
+			   ('W', 4-state) buffer and pass a pointer. */
+		      const vvp_vector4_t&v = thr->peek_vec4(0);
+		      unsigned w = v.size();
+		      bool four = (sig[slot].base == 'W');
+		      unsigned words = (w + 31) / 32;
+		      unsigned nwords = words * (four ? 2 : 1);
+		      uint32_t*buf = (uint32_t*)calloc(nwords ? nwords : 1,
+						       sizeof(uint32_t));
+		      for (unsigned i = 0 ; i < w ; i += 1) {
+			    vvp_bit4_t b = v.value(i);
+			    unsigned wd = i / 32, ps = i % 32;
+			    if (four) {
+				  unsigned av = (b == BIT4_1 || b == BIT4_X) ? 1 : 0;
+				  unsigned bv = (b == BIT4_Z || b == BIT4_X) ? 1 : 0;
+				  buf[2*wd+0] |= (av << ps);
+				  buf[2*wd+1] |= (bv << ps);
+			    } else if (b == BIT4_1) {
+				  buf[wd] |= (1u << ps);
+			    }
+		      }
+		      thr->pop_vec4(1);
+		      arg.vbuf = buf;
+		      arg.vwid = w;
 		      break;
 		}
 		default:
@@ -7903,7 +7934,36 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		case 'r': thr->push_real(args[ii].rval);          break;
 		case 's': thr->push_str(args[ii].sval ? args[ii].sval : "");
 			  break;
+		case 'V':
+		case 'W': {
+			/* Unpack the (callee-updated) packed buffer back into
+			   a vec4 for the copy-back store. */
+		      unsigned w = args[ii].vwid;
+		      bool four = (args[ii].type == 'W');
+		      vvp_vector4_t res(w ? w : 1, BIT4_0);
+		      const uint32_t*buf = args[ii].vbuf;
+		      for (unsigned i = 0 ; i < w ; i += 1) {
+			    unsigned wd = i / 32, ps = i % 32;
+			    vvp_bit4_t b;
+			    if (four) {
+				  unsigned av = (buf[2*wd+0] >> ps) & 1;
+				  unsigned bv = (buf[2*wd+1] >> ps) & 1;
+				  b = bv ? (av ? BIT4_X : BIT4_Z)
+					 : (av ? BIT4_1 : BIT4_0);
+			    } else {
+				  b = ((buf[wd] >> ps) & 1) ? BIT4_1 : BIT4_0;
+			    }
+			    res.set_bit(i, b);
+		      }
+		      thr->push_vec4(res);
+		      break;
+		}
 	    }
+      }
+
+	// Free the packed-vector marshaling buffers (input and output).
+      for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
+	    if (args[ii].vbuf) { free(args[ii].vbuf); args[ii].vbuf = 0; }
       }
       return true;
 }
