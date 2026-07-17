@@ -22,7 +22,10 @@
 # include  "class_type.h"
 # include  "symbols.h"
 # include  "statistics.h"
+# include  "schedule.h"
 # include  "config.h"
+# include  <map>
+# include  <utility>
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
@@ -578,11 +581,18 @@ vpiHandle vpip_make_covergroup_iterator(void)
    $ivl_register_assertion, so vpi_iterate(vpiAssertion, scope) and
    vpi_iterate(vpiAssertion, 0) return real identities carrying the
    assertion's name, file, line, and scope. */
+struct assert_cb_t {
+      int reason;
+      vpi_assertion_cb_func cb;
+      char* user_data;
+};
+
 class __vpiAssertion : public __vpiHandle {
     public:
-      __vpiAssertion(const char*nam, const char*file, int line,
+      __vpiAssertion(int idx, const char*nam, const char*file, int line,
 		     __vpiScope*scope)
-      : name_(nam?nam:""), file_(file?file:""), line_(line), scope_(scope) { }
+      : idx_(idx), name_(nam?nam:""), file_(file?file:""), line_(line),
+	scope_(scope) { }
 
       int get_type_code(void) const override { return vpiAssertion; }
 
@@ -619,23 +629,84 @@ class __vpiAssertion : public __vpiHandle {
 	    return 0;
       }
 
+      void add_cb(int reason, vpi_assertion_cb_func cb, char*data)
+      {
+	    assert_cb_t c;
+	    c.reason = reason;
+	    c.cb = cb;
+	    c.user_data = data;
+	    cbs_.push_back(c);
+      }
+
+	/* Fire every registered callback whose reason matches. */
+      void fire(int reason)
+      {
+	    if (cbs_.empty()) return;
+	    s_vpi_time t;
+	    t.type = vpiSimTime;
+	    vpip_time_to_timestruct(&t, schedule_simtime());
+	    t.real = 0.0;
+	    s_vpi_attempt_info info;
+	    info.detail.failExpr = 0;
+	    info.attemptStartTime = t;
+	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
+		  if (cbs_[i].reason == reason && cbs_[i].cb)
+			cbs_[i].cb(reason, &t, this, &info,
+				   (PLI_BYTE8*)cbs_[i].user_data);
+	    }
+      }
+
     private:
+      int idx_;
       std::string name_;
       std::string file_;
       int line_;
       __vpiScope*scope_;
+      std::vector<assert_cb_t> cbs_;
 };
 
 static std::vector<__vpiAssertion*> assertion_registry;
+static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*> assertion_by_key;
+static int assertion_cb_total = 0;
 
-void vpip_register_assertion(const char*name, const char*file,
+void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 			     PLI_INT32 line, vpiHandle scope)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
-      __vpiAssertion*obj = new __vpiAssertion(name, file, (int)line, sc);
+      __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line, sc);
       assertion_registry.push_back(obj);
-      if (sc)
+      if (sc) {
 	    vpip_attach_to_scope(sc, obj);
+	    assertion_by_key[std::make_pair(sc, (int)idx)] = obj;
+      }
+}
+
+/* M12B-cb: fire success/failure callbacks for the (scope, idx) assertion. */
+void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason, vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>::iterator it =
+	    assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end())
+	    it->second->fire((int)reason);
+}
+
+PLI_INT32 vpip_assertion_cb_active(void)
+{
+      return assertion_cb_total > 0 ? 1 : 0;
+}
+
+vpiHandle vpi_register_assertion_cb(vpiHandle assertion, PLI_INT32 reason,
+				    vpi_assertion_cb_func cb_rtn,
+				    PLI_BYTE8*user_data)
+{
+      if (!assertion || !cb_rtn) return 0;
+      __vpiAssertion*a = dynamic_cast<__vpiAssertion*>(assertion);
+      if (!a) return 0;
+      a->add_cb((int)reason, cb_rtn, (char*)user_data);
+      assertion_cb_total += 1;
+      return assertion;
 }
 
 /* M12B: root iterator over all registered assertions

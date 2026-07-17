@@ -3,6 +3,38 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-17e (M12B-cb: assertion VPI callbacks)
+
+- **`vpi_register_assertion_cb` now works** for
+  `cbAssertionSuccess`/`cbAssertionFailure`. Each synthesized checker,
+  when any assertion callback is registered (`$ivl_assert_cb_active()`),
+  emits `$ivl_assert_report(idx, reason)` at every fail-dispatch site
+  (via `sva_fail_action_`, all 7) and on the pass path for
+  `assert`/`assume` (`pform.cc`). The systf (`vpi/sys_sva.c`) forwards to
+  `vpip_assertion_report(idx, reason, scope)` which looks up the
+  `__vpiAssertion` by `(scope, compile-time idx)` — so a module
+  instantiated N times keeps N distinct assertion identities — and fires
+  each matching registered callback with an `s_vpi_time` built from
+  `schedule_simtime()` (`vvp/vpi_scope.cc`). `vpi_register_assertion_cb`
+  appends to the handle's callback vector and bumps a global count backing
+  `vpip_assertion_cb_active()`.
+- **Windows portability**: the four new module→core calls
+  (`vpip_register_assertion` [M12B], `vpip_assertion_report`,
+  `vpip_assertion_cb_active`, `vpi_register_assertion_cb`) route through
+  the `vpip_routines_s` table (field + `libvpi.c` forwarder +
+  `vpi_priv.cc` population); `vpip_routines_version` = 3.
+- **Honesty**: `s_vpi_attempt_info.detail` (failing-expr / step handles)
+  is passed as a valid pointer but not populated — the interpreter
+  lowering does not retain the sub-expression object model, so step-level
+  introspection would be fabricated. `attemptStartTime`/callback time = the
+  report time. cbAssertionStart/Step/disable reasons are header-defined but
+  not yet emitted (need per-attempt lifecycle tracking; follow-up).
+- Bundled VPI test `ivtest/vpi/m12bcb_assert_cb` (clocked boolean
+  assertion, pattern 1 1 0 1 0 → 3 success / 2 failure, verified via
+  `$check_assert_cb`). **Bundled VPI 81/81**, UVM 177/177 (zero no-check —
+  report gated by `$ivl_assert_cb_active()`), negative 32/32,
+  ivtest baseline-identical.
+
 ## State as of 2026-07-17d (M12B: assertion VPI object model)
 
 - **`vpi_iterate(vpiAssertion, ...)` now works** — concurrent assertions

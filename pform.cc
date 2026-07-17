@@ -4765,15 +4765,21 @@ static Statement* sva_gate_(const struct vlltype&loc, Statement*action)
       return c;
 }
 
-/* M12B: build the one-time `$ivl_register_assertion("name","file",line)`
-   call that gives a synthesized concurrent-assertion checker a VPI
-   identity (vpi_iterate(vpiAssertion, ...)). Placed in the checker's
-   zero-init initial block. */
+/* M12B: build the one-time
+   `$ivl_register_assertion(idx, "name", "file", line)` call that gives a
+   synthesized concurrent-assertion checker a VPI identity
+   (vpi_iterate(vpiAssertion, ...)). idx is the compile-time instance
+   number, which together with the runtime scope identifies the
+   assertion for callback reporting. Placed in the checker's zero-init
+   initial block. */
 static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst)
 {
       char nbuf[64];
       snprintf(nbuf, sizeof nbuf, "assert_L%d_%u", loc.first_line, inst);
       std::list<named_pexpr_t> args;
+      named_pexpr_t a0;
+      a0.parm = new PENumber(new verinum((uint64_t)inst, 32));
+      args.push_back(a0);
       named_pexpr_t a1; a1.parm = new PEString(strdup(nbuf));
       args.push_back(a1);
       named_pexpr_t a2; a2.parm = new PEString(strdup(loc.text ? loc.text : ""));
@@ -4785,6 +4791,48 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst)
 	    lex_strings.make("$ivl_register_assertion"), args);
       FILE_NAME(t, loc);
       return t;
+}
+
+/* Assertion callback reasons (IEEE 1800-2017 40.x; must match the
+   cbAssertion* values in sv_vpi_user.h). */
+static const int SVA_CB_SUCCESS = 607;   /* cbAssertionSuccess */
+static const int SVA_CB_FAILURE = 608;   /* cbAssertionFailure */
+
+/* M12B-cb: build `if ($ivl_assert_cb_active()) $ivl_assert_report(inst,
+   reason);` — a synthesized checker reports a success or failure event,
+   gated so nothing runs when no callback is registered. */
+static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
+				   int reason)
+{
+      std::list<named_pexpr_t> args;
+      named_pexpr_t a0;
+      a0.parm = new PENumber(new verinum((uint64_t)inst, 32));
+      args.push_back(a0);
+      named_pexpr_t a1;
+      a1.parm = new PENumber(new verinum((uint64_t)reason, 32));
+      args.push_back(a1);
+      PCallTask*rep = new PCallTask(
+	    lex_strings.make("$ivl_assert_report"), args);
+      FILE_NAME(rep, loc);
+
+      std::list<named_pexpr_t> no_parms;
+      PECallFunction*active = new PECallFunction(
+	    perm_string::literal("$ivl_assert_cb_active"), no_parms);
+      FILE_NAME(active, loc);
+      PCondit*c = new PCondit(active, rep, nullptr);
+      FILE_NAME(c, loc);
+      return c;
+}
+
+/* M12B/M12B-cb: the effect of an assertion failure — the (enable-gated)
+   user/default fail action, plus a cbAssertionFailure report. */
+static Statement* sva_fail_action_(const struct vlltype&loc, unsigned inst,
+				   Statement*action)
+{
+      std::vector<Statement*> v;
+      v.push_back(sva_gate_(loc, action));
+      v.push_back(sva_report_stmt_(loc, inst, SVA_CB_FAILURE));
+      return sva_block_(loc, v);
 }
 
 /* $past(e, d) as a sampled-value function call the SVA rewrite pass
@@ -5846,7 +5894,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    }
 	    std::vector<Statement*> hit;
 	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
-	    hit.push_back(sva_gate_(loc, action));
+	    hit.push_back(sva_fail_action_(loc, inst, action));
 	    body.push_back(sva_if_(loc, sva_id_(loc, r_f),
 				   sva_block_(loc, hit), nullptr));
 
@@ -5861,7 +5909,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  PCallTask*warn = new PCallTask(lex_strings.make("$error"), dargs);
 		  FILE_NAME(warn, loc);
 		  Statement*fc = sva_if_(loc, sva_id_(loc, r_pend),
-					 sva_gate_(loc, warn), nullptr);
+					 sva_fail_action_(loc, inst, warn), nullptr);
 		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 		  FILE_NAME(fp, loc);
 	    }
@@ -5901,7 +5949,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  body.push_back(sva_if_(loc, sva_id_(loc, r_p),
 			sva_assign_(loc, r_seen, sva_bit_(loc, 1)), nullptr));
 		  Statement*fc = sva_if_(loc, sva_not_(loc, sva_id_(loc, r_seen)),
-					 sva_gate_(loc, action), nullptr);
+					 sva_fail_action_(loc, inst, action), nullptr);
 		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 		  FILE_NAME(fp, loc);
 	    } else {
@@ -5917,7 +5965,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
 		  pre.push_back(sva_assign_(loc, r_ff, fs));
 		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
-					 sva_gate_(loc, action), nullptr));
+					 sva_fail_action_(loc, inst, action), nullptr));
 
 		  if (op == 10) {
 			  /* Strong: the attempt at the final cycle has no
@@ -5937,7 +5985,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 						       dargs);
 			FILE_NAME(warn, loc);
 			Statement*fc = sva_if_(loc, sva_id_(loc, r_ran),
-					       sva_gate_(loc, warn), nullptr);
+					       sva_fail_action_(loc, inst, warn), nullptr);
 			PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 			FILE_NAME(fp, loc);
 		  }
@@ -6041,7 +6089,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 			action = err;
 		  }
 		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
-					 sva_gate_(loc, action), nullptr));
+					 sva_fail_action_(loc, inst, action), nullptr));
 	    }
       }
 
@@ -6318,6 +6366,22 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init_zero;
+
+	/* M12B-cb: for assert/assume, report cbAssertionSuccess at each
+	   match by folding the report into the pass action (which the
+	   match machinery below fires). This also makes the match block
+	   run when the user gave no pass statement. */
+      if (kind != 2 && !negated) {
+	    Statement*succ = sva_report_stmt_(loc, inst, SVA_CB_SUCCESS);
+	    if (pass_stmt) {
+		  std::vector<Statement*> v;
+		  v.push_back(succ);
+		  v.push_back(pass_stmt);
+		  pass_stmt = sva_block_(loc, v);
+	    } else {
+		  pass_stmt = succ;
+	    }
+      }
 
 	/* Clock: explicit, else the module's default clocking. */
       PEventStatement*clk = prop->clk_evt;
@@ -6671,7 +6735,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    }
 	    std::vector<Statement*> hit;
 	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
-	    hit.push_back(sva_gate_(loc, action));
+	    hit.push_back(sva_fail_action_(loc, inst, action));
 	    PCondit*fc = new PCondit(sva_id_(loc, r_f),
 				     sva_block_(loc, hit), nullptr);
 	    FILE_NAME(fc, loc);

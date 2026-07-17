@@ -652,9 +652,33 @@ extern void vpip_set_return_value(int value);
 extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
 extern void vpip_make_systf_system_defined(vpiHandle ref);
 /* M12B: register a concurrent assertion for VPI enumeration
-   (vpi_iterate(vpiAssertion, ...)). name/file are copied. */
-extern void vpip_register_assertion(const char*name, const char*file,
-                                    PLI_INT32 line, vpiHandle scope);
+   (vpi_iterate(vpiAssertion, ...)). name/file are copied. idx is the
+   compile-time index that identifies this assertion within its scope. */
+extern void vpip_register_assertion(PLI_INT32 idx, const char*name,
+                                    const char*file, PLI_INT32 line,
+                                    vpiHandle scope);
+/* M12B-cb: report a success/failure event for the assertion identified
+   by (scope, idx); fires any matching registered callbacks. */
+extern void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason,
+                                  vpiHandle scope);
+/* M12B-cb: non-zero iff any assertion callback is registered (lets the
+   synthesized checkers skip reporting when nothing is watching). */
+extern PLI_INT32 vpip_assertion_cb_active(void);
+
+/* M12B-cb: assertion callback (IEEE 1800-2017 40.x). Register cb_rtn to
+   be called with (reason, time, assertion, attempt_info, user_data) when
+   the assertion succeeds or fails. t_vpi_attempt_info is completed in
+   sv_vpi_user.h; forward-declared here so plain vpi_user.h consumers
+   still parse. */
+struct t_vpi_attempt_info;
+typedef PLI_INT32 (*vpi_assertion_cb_func)(PLI_INT32 reason, p_vpi_time,
+                                           vpiHandle assertion,
+                                           struct t_vpi_attempt_info*,
+                                           PLI_BYTE8*);
+extern vpiHandle vpi_register_assertion_cb(vpiHandle assertion,
+                                           PLI_INT32 reason,
+                                           vpi_assertion_cb_func cb_rtn,
+                                           PLI_BYTE8*user_data);
 
   /* Perform fwrite to mcd files. This is used to write raw data,
      which may include nulls. */
@@ -700,7 +724,7 @@ extern void vpip_count_drivers(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 2;
+static const PLI_UINT32 vpip_routines_version = 3;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -744,7 +768,10 @@ typedef struct {
     void        (*make_systf_system_defined)(vpiHandle);
     void        (*mcd_rawwrite)(PLI_UINT32, const char*, size_t);
     void        (*set_return_value)(int);
-    void        (*register_assertion)(const char*, const char*, PLI_INT32, vpiHandle);
+    void        (*register_assertion)(PLI_INT32, const char*, const char*, PLI_INT32, vpiHandle);
+    void        (*assertion_report)(PLI_INT32, PLI_INT32, vpiHandle);
+    PLI_INT32   (*assertion_cb_active)(void);
+    vpiHandle   (*register_assertion_cb)(vpiHandle, PLI_INT32, vpi_assertion_cb_func, PLI_BYTE8*);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);
