@@ -3,6 +3,40 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-17b (M9C-live, M9D, M10 packed vectors)
+
+- **M9C-live** — SVA liveness operators `nexttime`/`s_nexttime`/
+  `s_eventually` (boolean operands), reusing the per-cycle + `pend`/FINAL
+  machinery. `nexttime` fails at T≥1 on `!p` (a `$past(1,1)` guard skips
+  the first cycle); the strong forms add an end-of-sim obligation.
+  Unbounded `eventually` is now a proper LRM error. op_types 9/10/11.
+  Test `m9c_live_test`; negatives `m9c_eventually_unbounded`,
+  `m9c_nexttime_sequence_operand`.
+- **M9D** — parameterized named properties/sequences: `sequence
+  name(formals); …` / `property name(formals); …`, with the formals
+  substituted (`sva_clone_subst_`) at each instantiation. Sequences
+  expand in the splice pass (arity check + recursion guard, nesting
+  supported); properties expand in `pform_make_assertion` with the clock
+  taken from the assertion site (a clock in the body is a loud sorry).
+  Signal/boolean formals only. Test `m9d_param_test` (swapped-arg
+  discriminator); negatives `m9d_param_arity_mismatch`,
+  `m9d_param_clocked_body`. Zero new bison conflicts. (M9D's local vars /
+  `.matched` / `expect` / goto-rep remain — they need an automaton engine.)
+- **M10** — DPI packed vector marshaling for wide (>64-bit) arguments:
+  2-state `bit[W]` → `svBitVecVal[]` ('V'), 4-state `logic[W]` →
+  `svLogicVecVal[]` ('W'), passed as a pointer, input/output/inout, any
+  width, X/Z preserved for 4-state. tgt-vvp emits the letter + the usual
+  `%load/vec4`/`%store/vec4`; vvp packs/unpacks the vec4 to/from a heap
+  buffer and passes it via libffi like an open-array handle. Test
+  `m10_dpi_wide_vector_test` (72-bit xor / copy / read-write invert).
+  (M10B remaining: multidim open arrays, DPI export.)
+- **Regression-clean throughout**: UVM 176/176 (zero no-check) after M10;
+  ivtest baseline-identical each increment (the `pow_ca_signed` load
+  flake aside); negative 32/32. Commits: `39e4af7` (M9C-live), `dedd110`
+  (M9D), `5f09e4d` (M10).
+- **Next**: DPI export (C-calls-SV), then multidim open arrays; M9D
+  automaton features; M12B; M1B.
+
 ## State as of 2026-07-17a (M9B/M9C: intersect, until family, within)
 
 - **Four SVA operators implemented**, replacing loud sorries. All in

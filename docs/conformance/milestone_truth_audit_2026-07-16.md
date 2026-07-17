@@ -36,7 +36,7 @@ dated correction layer.
 | M7 UVM core qualification | CLOSED | **SUBSET COMPLETE** | The UVM harness (163 tests) exercises factory/config/callbacks/reporting/phasing/sequences/TLM/fields/resource-db. Full register-model and objections stress remain lightly covered. |
 | M8 Clocking blocks | CLOSED | **COMPLETE (within stated scope)** | Input skew, output drives, ##N, global clocking, vif clocking all correct; remaining corners are genuinely advanced (recorded). |
 | M9 Core SVA engine | CLOSED | **SUBSET COMPLETE** | The manifesto title is "**Core** SVA engine" and the core (implication, ##N/##[m:n]/##[m:$], repetition, not/first_match, sampled functions, named decls, cover) is solid. Split: **M9A COMPLETE** (core); **M9B COMPLETE** (sequence algebra: `and`/`or` and now **`intersect`** — equal-length fixed operands, this session); **M9C** (temporal operators: **`throughout`**, **`within`**, and the **`until` family (`until`/`until_with`/`s_until`/`s_until_with`)** now implemented this session; `nexttime`/`eventually`/`s_eventually` remain loud liveness sorries); **M9D NOT STARTED** (local sequence vars, parameterized property/sequence bodies, `.matched`, `expect`, strong sequence operators, goto/nonconsecutive repetition). Implemented operators are scoped to fixed-length / boolean operands with loud, spec-cited sorries for the variable-length and sequence-operand shapes. |
-| M10 DPI and open arrays | CLOSED | **SUBSET COMPLETE** | libffi marshaling, import task/func, output/inout copy-back, **one-dimensional** open arrays are done. Multi-dimensional open arrays, packed `svLogicVecVal`/`svBitVecVal` vector marshaling, and **exported** tasks/functions (still a sorry) are in scope and unfinished. **M10B.** |
+| M10 DPI and open arrays | CLOSED | **SUBSET COMPLETE** | libffi marshaling, import task/func, output/inout copy-back, **one-dimensional** open arrays, and now **packed `svLogicVecVal`/`svBitVecVal` marshaling** for wide (>64-bit) 2-state/4-state vector arguments (input/output/inout, this session) are done. Still in scope and unfinished: **multi-dimensional** open arrays and **exported** tasks/functions (still a sorry). **M10B (narrowed).** |
 | M11 Functional coverage | CLOSED | **COMPLETE (within stated scope)** | Clause-19 bin semantics, transitions, crosses/binsof/intersect, ignore/illegal/default, iff, options, instance+type coverage, queries, report all work and are tested. Remaining items (VPI drill-down below the covergroup handle) belong to M12/VPI, not M11. |
 | M12 VPI SV object model | CLOSED | **SUBSET COMPLETE** | Classes/members/containers/interfaces/modports/packages/covergroup-handles/value-change-callbacks are modeled. **Assertions have NO runtime identities** (`vpi_iterate(vpiAssertion)`→NULL) and force/release on bit-selects + cbForce/cbRelease are unimplemented — all in the clause-36 scope. **M12B** (assertion VPI object model). |
 | M13 Bind/let/config/specify/timing | CLOSED | **SUBSET COMPLETE** | bind-by-module/type, let, specify paths, and $setup/$hold/$setuphold/$recovery/$removal/$recrem/$skew/$period/$width are implemented and tested. Explicitly in-scope and NOT done: bind to a specific instance path, bind target instance lists, `$nochange`/`$timeskew`/`$fullskew`, edge-descriptor event lists, timestamp/timecheck conditions, trireg, config (skipped). **M13B.** |
@@ -96,18 +96,20 @@ Both landed with regression-clean checkpoints; see
 2. ~~**M4-av** — string/real-valued int/string-keyed assoc reads (silent)~~ **DONE.**
 3. ~~**M9B/M9C** — `intersect`/`within`/`until` family~~ **DONE** (fixed-length / boolean scope; `nexttime`/`eventually`/`s_eventually` liveness operators still loud sorries → M9C-live).
 4. ~~**M6B** — scheduler conformance inventory~~ **DELIVERED + ADVANCED**: construct-level inventory + `$exit` + **program-completion-ends-simulation (24.7/3.9)** + litmus regressions (`scheduler_conformance_inventory.md`). The two program-control gaps (24.7) are now closed; remaining true M6B gaps (cbNBASynch region, DPI time-consuming tasks, callf scheduled-call protocol) recorded in its ledger.
-5. **M10B** — multidim open arrays / packed vector marshaling / export.
+5. **M10B** — ~~packed vector marshaling~~ **DONE**; multidim open arrays / DPI export remain.
 6. **M12B** — assertion VPI object model.
 7. **M1B** — semantic-IR remediation.
 
 ## Next engineering action
 
-Both silent miscompiles (M3-rm, M4-av) are closed, and the M9B/M9C
-sequence and temporal operators (`intersect`, `within`, `until` family)
-are implemented for their fixed-length / boolean scope. Remaining loud
-(non-silent) completeness gaps, in priority order: **M9C-live**
-(`nexttime` / `eventually` / `s_eventually` liveness operators — need an
-unbounded-obligation model like the existing `##[m:$]` weak-eventually
-path); then **M10B** (multidim open arrays / packed vector marshaling /
-DPI export), **M12B** (assertion VPI object model), **M1B** (semantic-IR
-remediation). None is a silent miscompile.
+Both silent miscompiles (M3-rm, M4-av) are closed. The SVA engine now
+covers M9B (`intersect`), M9C (`throughout`/`within`/`until` family), and
+M9C-live (`nexttime`/`s_nexttime`/`s_eventually`); M9D added
+parameterized properties/sequences. DPI (M10) added packed
+`svBitVecVal`/`svLogicVecVal` marshaling for wide vector arguments.
+Remaining loud (non-silent) completeness gaps, in priority order:
+**M10B-rest** (multi-dimensional open arrays, DPI **export** — C-calls-SV,
+the largest remaining DPI item); **M9D-rest** (local sequence variables,
+`.matched`, `expect`, goto/nonconsecutive repetition — these need an
+automaton-based sequence engine); **M12B** (assertion VPI object model);
+**M1B** (semantic-IR remediation). None is a silent miscompile.
