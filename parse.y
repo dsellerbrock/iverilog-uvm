@@ -5370,12 +5370,21 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_binprop(@2, 6, $1, $3); }
   | sva_seq_expr K_s_until_with sva_seq_expr
       { $$ = pform_sva_binprop(@2, 7, $1, $3); }
+  /* IEEE 1800-2017 16.12.2 / 16.12.5: unary liveness operators over a
+     boolean operand. `nexttime`/`s_nexttime` require p at the next
+     cycle; `s_eventually` requires p to hold at some later cycle. */
   | K_nexttime property_expr
-      { pform_sva_sorry(@1, "nexttime"); delete $2; $$ = 0; }
-  | K_eventually property_expr
-      { pform_sva_sorry(@1, "eventually"); delete $2; $$ = 0; }
+      { $$ = pform_sva_unprop(@1, 9, $2); }
+  | K_s_nexttime property_expr
+      { $$ = pform_sva_unprop(@1, 10, $2); }
   | K_s_eventually property_expr
-      { pform_sva_sorry(@1, "s_eventually"); delete $2; $$ = 0; }
+      { $$ = pform_sva_unprop(@1, 11, $2); }
+  /* Unbounded `eventually' is not legal (IEEE 1800-2017 Table 16-1 —
+     `eventually' must carry a cycle range); use `s_eventually'. */
+  | K_eventually property_expr
+      { yyerror(@1, "error: unbounded `eventually' is not legal; use "
+		    "`s_eventually' (or a bounded `eventually [m:n]').");
+	delete $2; $$ = 0; }
   /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
      same interval. For equal-length fixed operands this lowers to a
      per-cycle AND chain the linear engine handles directly. */

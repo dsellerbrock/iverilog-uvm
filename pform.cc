@@ -5413,6 +5413,39 @@ pform_sva_binprop(const struct vlltype&loc, int op_type,
 }
 
 /*
+ * M9C-live: package a unary liveness operator (nexttime / s_nexttime /
+ * s_eventually). The operand must be a plain boolean property; the
+ * boolean is moved onto a fresh sva_property_t with the dedicated
+ * op_type and lowered by pform_make_assertion. op_type: 9 nexttime,
+ * 10 s_nexttime, 11 s_eventually.
+ */
+sva_property_t*
+pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub)
+{
+      const char*w = (op_type == 9) ? "nexttime"
+		   : (op_type == 10) ? "s_nexttime" : "s_eventually";
+      if (!sub) return nullptr;
+      if (sub->op_type != 0 || sub->antecedent || !sub->seq
+	  || sub->seq->size() != 1
+	  || (*sub->seq)[0].delay_lo != 0 || (*sub->seq)[0].delay_hi != 0
+	  || (*sub->seq)[0].rep_tail != 0
+	  || sub->clk_evt || sub->disable_iff_expr) {
+	    cerr << loc << ": sorry: `" << w << "' is supported only with a "
+		 << "boolean operand (no nested or sequence property); the "
+		 << "assertion is dropped." << endl;
+	    error_count += 1;
+	    if (sub) { delete sub->antecedent; delete sub->seq; delete sub; }
+	    return nullptr;
+      }
+      sva_property_t*p = new sva_property_t;
+      p->op_type = op_type;
+      p->seq = sub->seq;   /* move the boolean step list */
+      sub->seq = nullptr;
+      delete sub;
+      return p;
+}
+
+/*
  * M9C: lower the temporal/sequence property operators that do not fit
  * the linear token pipeline.
  *
@@ -5445,7 +5478,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 					   Statement*pass_stmt, int kind)
 {
       int op = prop->op_type;
-      bool is_within = (op == 8);
+      bool is_within   = (op == 8);
+      bool is_liveness = (op >= 9);
       bool with   = (op == 5 || op == 7);
       bool strong = (op == 6 || op == 7);
 
@@ -5491,7 +5525,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
       bool bad = false;
 
-      if (!is_within) {
+      if (!is_within && !is_liveness) {
 	      /* ---- until family (boolean operands only). ---- */
 	    if (kind == 2) {
 		  cerr << loc << ": sorry: `cover property' of an `until' "
@@ -5576,6 +5610,81 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  Statement*fc = sva_if_(loc, sva_id_(loc, r_pend), warn, nullptr);
 		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 		  FILE_NAME(fp, loc);
+	    }
+      } else if (is_liveness) {
+	      /* ---- liveness: nexttime / s_nexttime / s_eventually. ----
+		 The boolean operand p is in prop->seq[0]. */
+	    if (kind == 2) {
+		  const char*w = (op == 9) ? "nexttime"
+			       : (op == 10) ? "s_nexttime" : "s_eventually";
+		  cerr << loc << ": sorry: `cover property' of a `" << w
+		       << "' operator is not supported; the cover is dropped."
+		       << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete clk; delete disable;
+		  return;
+	    }
+	    PExpr*pe = sva_rewrite_sampled_(loc, (*prop->seq)[0].expr, inst,
+					    hist_idx, pre, post, init_zero);
+	    perm_string r_p = sva_make_reg_(loc, inst, "p", 0);
+	    pre.push_back(sva_assign_(loc, r_p, pe));
+
+	    Statement*action = fail_stmt;
+	    if (!action) {
+		  std::list<named_pexpr_t> no_args;
+		  PCallTask*err = new PCallTask(lex_strings.make("$error"), no_args);
+		  FILE_NAME(err, loc);
+		  action = err;
+	    }
+
+	    if (op == 11) {
+		    /* s_eventually p (16.12.5): p must hold at least once.
+		       Track whether p was ever seen; report at end of
+		       simulation if it never was. (Standalone liveness: the
+		       cycle-0 attempt is the canonical obligation.) */
+		  perm_string r_seen = sva_make_reg_(loc, inst, "seen", 0);
+		  init_zero.push_back(sva_assign_(loc, r_seen, sva_bit_(loc, 0)));
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_p),
+			sva_assign_(loc, r_seen, sva_bit_(loc, 1)), nullptr));
+		  Statement*fc = sva_if_(loc, sva_not_(loc, sva_id_(loc, r_seen)),
+					 action, nullptr);
+		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
+		  FILE_NAME(fp, loc);
+	    } else {
+		    /* nexttime / s_nexttime (16.12.2): p must hold at the
+		       NEXT cycle. Per attempt at cycle S that is p@(S+1);
+		       aggregated, every cycle T>=1 requires p@T. A
+		       $past(1,1) guard suppresses the first cycle. */
+		  PExpr*valid = sva_past_(loc, sva_bit_(loc, 1), 1);
+		  PExpr*failexpr = sva_logic_(loc, 'a', valid,
+					      sva_not_(loc, sva_id_(loc, r_p)));
+		  PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
+						  pre, post, init_zero);
+		  perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
+		  pre.push_back(sva_assign_(loc, r_ff, fs));
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff), action, nullptr));
+
+		  if (op == 10) {
+			  /* Strong: the attempt at the final cycle has no
+			     next cycle and can never be satisfied. Report
+			     once at end of simulation, guarded by a "ran"
+			     flag so a zero-clock run stays quiet. */
+			perm_string r_ran = sva_make_reg_(loc, inst, "ran", 0);
+			init_zero.push_back(sva_assign_(loc, r_ran, sva_bit_(loc, 0)));
+			body.push_back(sva_assign_(loc, r_ran, sva_bit_(loc, 1)));
+			std::list<named_pexpr_t> dargs;
+			named_pexpr_t darg;
+			darg.parm = new PEString(strdup(
+			      "SVA: strong nexttime obligation not met — no "
+			      "next cycle for the final attempt"));
+			dargs.push_back(darg);
+			PCallTask*warn = new PCallTask(lex_strings.make("$error"),
+						       dargs);
+			FILE_NAME(warn, loc);
+			Statement*fc = sva_if_(loc, sva_id_(loc, r_ran), warn, nullptr);
+			PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
+			FILE_NAME(fp, loc);
+		  }
 	    }
       } else {
 	      /* ---- within (fixed-length sequences). ---- */
