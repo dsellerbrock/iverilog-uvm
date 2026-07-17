@@ -427,6 +427,57 @@ Two fixes were implemented and validated (not just recommended):
    `PASS (no-check)`). `reg_basic_test` is documented in `KNOWN_FAIL` with
    its reason (UVM_BACKDOOR needs DPI HDL access, disabled under
    `-DUVM_NO_DPI`) instead of being silently masked.
+3. **Compiler: automatic named-block variable initializer in constant
+   functions** (`elaborate.cc`, `PBlock::elaborate`). An automatic local
+   declared with an initializer inside a *named* begin/end block
+   (`begin:blk automatic int acc = 1; …`) had its initializer elaborated
+   only into the block's activation-frame prefix (scope 0). At runtime the
+   frame resolves it, but constant-function evaluation walks the block
+   statements in the block's own scope context and could not resolve the
+   scope-0 assignment target, so the initializer was silently dropped and
+   the automatic local kept its default. The fix records a second,
+   block-scoped copy of the initializers as the scope's `var_init` purely
+   for the evaluator — `var_init()` is read *only* by the constant-function
+   evaluator (`net_func_eval.cc`), never by code generation, so the runtime
+   path is byte-for-byte unchanged. (A first attempt that instead appended
+   the initializers to the block body like upstream regressed a passing
+   UVM test — `configdb_assoc_test` hung — because the fork wraps the block
+   in a `NetAlloc`/`NetFree` activation frame that upstream does not; the
+   const-eval-only approach sidesteps that interaction entirely.) Fixes
+   `func_init_var2` (ivtest 99→98, zero new regressions; reentrancy and the
+   `configdb_assoc_test` no-hang both verified). Regression test
+   `tests/auto_block_var_init_test.sv`.
+
+### Automatic task/function variable cluster — root causes (partial fix)
+
+The upstream diff flagged 8 automatic-variable regressions. Their precise
+mechanisms (from this pass), so the remaining work is well-scoped:
+
+- **`func_init_var2`** — automatic named-block var initializer dropped in
+  constant-function eval. **FIXED** (item 3 above).
+- **`automatic_events`, `automatic_events3`, `automatic_task2`,
+  `automatic_task3`** — an event control that senses a **bit-select of an
+  automatic vector local** (`@(posedge pos[1])`) emits `.event posedge,
+  <v-net>, …` referencing the automatic local net, which is then elided
+  (`; Elide local/automatic net`), giving a runtime `unresolved vvp_net
+  reference` (or, for `automatic_task2`, the event never fires). Upstream
+  emits the edge sources as functor labels (`L_…`), not the elided nets, so
+  the divergence is in how the event probe's nexus is elaborated for a
+  bit-select of an automatic variable (elaboration/nexus level, not the
+  identical `vvp_scope.c` elision).
+- **`automatic_task`** — a plain `event` declaration placed *after* another
+  declaration in a task is rejected (`syntax error / Malformed statement`);
+  upstream accepts it. This is the same fork parser regression that breaks
+  `always_comb/ff/latch_warn`, rooted in the fork's grammar additions
+  (~1584 LALR conflicts vs upstream's handful); a safe fix requires
+  isolating the specific conflicting rule.
+- **`recursive_task`** — a recursive automatic task returning through an
+  automatic output var, with an `@f` wait on that var inside a fork/join,
+  yields `x`; combines the automatic-var event-sensing issue above with
+  recursion.
+
+Items 2–4 are genuine but deeper (event-probe elaboration, parser-conflict
+isolation) and are left scoped rather than rushed.
 
 ## Appendix — full per-test reason table
 

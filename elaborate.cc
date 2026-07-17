@@ -4657,6 +4657,26 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 			NetProc*tmp = var_inits[idx]->elaborate(des, nscope);
 			if (tmp) init_block->append(tmp);
 		  }
+
+		    // The runtime initializers above live in the scope-0
+		    // activation-frame prefix, where constant-function
+		    // evaluation (which walks each block's statements in the
+		    // block's own scope context) cannot resolve the
+		    // block-local assignment targets, so the initializer was
+		    // silently dropped and the automatic local kept its
+		    // default. Record a second, block-scoped copy as the
+		    // scope's var_init purely for the evaluator: var_init() is
+		    // read only by the constant-function evaluator, never by
+		    // code generation, so this has no runtime effect (the
+		    // prefix remains the sole runtime initialization path).
+		  if (var_inits.size() > 0) {
+			NetBlock*ceval = new NetBlock(NetBlock::SEQU, 0);
+			for (unsigned idx = 0; idx < var_inits.size(); idx += 1) {
+			      NetProc*tmp = var_inits[idx]->elaborate(des, nscope);
+			      if (tmp) ceval->append(tmp);
+			}
+			nscope->set_var_init(ceval);
+		  }
 	    } else {
 		  elaborate_var_inits_(des, nscope);
 	    }
