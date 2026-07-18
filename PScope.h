@@ -82,6 +82,17 @@ class LexicalScope {
 	// explicit imports (IEEE 1800-2012 26.3).
       std::list<PPackage*>potential_imports;
 
+	// Names pinned from a wildcard import that were GENUINELY
+	// referenced in this scope (a value use via
+	// check_potential_imports, or a type use via
+	// pform_set_type_referenced). The lexer's is-this-a-type probe
+	// pins names into explicit_imports purely as a resolution cache
+	// and does NOT mark them here. A local declaration of a pinned
+	// but unused name silently shadows the wildcard candidate
+	// (IEEE 1800-2017 26.3); a local declaration of a USED name is
+	// the "already imported into this scope" error.
+      std::set<perm_string>wildcard_pin_used;
+
 	// A task or function call may reference a task or function defined
 	// later in the scope. So here we stash the potential imports for
 	// task and function calls. They will be added to the explicit

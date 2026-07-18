@@ -589,7 +589,43 @@ isolation) and are left scoped rather than rushed.
      excluded from the fallback.
    `br_gh440` now matches its gold byte-for-byte AND the full UVM sweep
    stays green. Negative test `tests/negative/null_illegal_contexts.sv`.
-6. **`part_sel_port` re-attributed** — verified pre-existing upstream
+7. **parser/scope: wildcard-import cluster** (`sv_wildcard_import2/3/4/5`)
+   — two distinct fork defects, neither actually import *semantics*:
+   - **Module-level `typedef_type v = init;` failed to parse** ("Invalid
+     module instantiation"). The fork parses `TYPE_IDENTIFIER name;`
+     through a no-port instantiation shape it added (upstream has no bare
+     `IDENTIFIER` gate_instance at all) and reinterprets it as a variable
+     declaration in `pform_make_modgates` — but `gate_instance` had no
+     `= expr` alternative, so ANY module-level typedef'd declaration with
+     an initializer was a syntax error (this, not shadowing, is what broke
+     `sv_wildcard_import2/3`). `gate_instance` now carries the declarator
+     initializer through `lgate::decl_init` into the reinterpretation
+     (bison conflict counts unchanged), and a real instantiation with an
+     initializer is a loud error.
+   - **The lexer's is-this-a-type probe pinned wildcard imports as if
+     referenced.** `pform_test_type_identifier` fires for every
+     identifier, so the fork had to drop wildcard pins unconditionally in
+     `add_local_symbol` — which destroyed the required declare-after-use
+     error (IEEE 1800-2017 26.3, `sv_wildcard_import4`) and
+     double-reported ambiguity. A first fix (probe fully read-only) broke
+     UVM elaboration (class-property types stopped resolving), proving
+     the pins are a load-bearing *resolution cache* for later phases. The
+     final design separates the two concerns: the probe still pins
+     **unambiguous** hits as a cache but is silent and never reports
+     ambiguity; a new `LexicalScope::wildcard_pin_used` set records
+     *genuine* references (value uses via `check_potential_imports`, type
+     uses via `pform_set_type_referenced` — including the
+     modgate-reinterpretation declaration path, which now records the
+     type reference); and `add_local_symbol` shadows an **un-used**
+     wildcard pin but hard-errors on a **used** one (or any explicit
+     import).
+   Result: `sv_wildcard_import2/3` run and print PASSED,
+   `sv_wildcard_import4` matches its gold byte-for-byte, and
+   `sv_wildcard_import5`'s ambiguity diagnostics now match gold exactly
+   too (the duplicated "type" wording came from the probe). Regression
+   test `tests/typedef_init_shadow_test.sv`.
+
+8. **`part_sel_port` re-attributed** — verified pre-existing upstream
    time-0 propagation ordering (see the corrected Part 5 entry), not a
    fork miscompile; left unfixed deliberately.
 
@@ -653,7 +689,7 @@ deterministically on a quiet host.
 | 46 | fread-error | OUTPUT-DIFF (dropped diag) | `$fread` "first argument must be a reg or memory" error no longer emitted |
 | 47 | func_init_var2 | OUTPUT-DIFF (functional) | automatic-fn `automatic int acc=1` initializer ignored in const-fn eval → wrong value |
 | 48 | macro_with_args | OUTPUT-DIFF (cosmetic) | macro-arg stringification adds trailing spaces `(a )` vs `(a)` |
-| 49 | mod_inst_pkg | UNIMPL | package import in ANSI module header not implemented |
+| 49 | mod_inst_pkg | → **FIXED** | ANSI-header package import now resolves (bonus from the wildcard-import type-resolution rework, Part 8 item 7) |
 | 50 | part_sel_port | OUTPUT-DIFF (pre-existing) | t0 read races multi-driver part-select init propagation; upstream fails identically (re-attributed, Part 8 item 6) |
 | 51 | pr1002 | OUTPUT-DIFF (functional) | comb cont-assign lags one delta → stale compare → spurious CHECK FAILED |
 | 52 | pr1648365 | OUTPUT-DIFF → **FIXED** | uninit array word read `z` not `x`: eager .array/port resolve skipped init propagation (Part 8 item 4) |
@@ -694,10 +730,10 @@ deterministically on a quiet host.
 | 87 | sv_queue_vec_fail | DIAG-DIFF | correct reject; wording only |
 | 88 | sv_timeunit_prec_fail1 | DIAG-DIFF | correct reject; casing/prefix + `_`-separator now accepted |
 | 89 | sv_timeunit_prec_fail2 | DIAG-DIFF | same |
-| 90 | sv_wildcard_import2 | UNIMPL/wrong-reject | local `typedef word` shadowing wildcard import wrongly rejected |
-| 91 | sv_wildcard_import3 | UNIMPL/wrong-reject | same wildcard-import shadowing reject |
-| 92 | sv_wildcard_import4 | DIAG-DIFF (behavioral) | fork "compile-progress fallback" masks expected duplicate-import errors |
-| 93 | sv_wildcard_import5 | DIAG-DIFF | correct reject; `Ambiguous use of type 'word'` vs gold `Ambiguous use of 'word'` |
+| 90 | sv_wildcard_import2 | → **FIXED** | real cause: module-level `typedef_type v = init;` could not parse (Part 8 item 7) |
+| 91 | sv_wildcard_import3 | → **FIXED** | same typedef-initializer parse defect (Part 8 item 7) |
+| 92 | sv_wildcard_import4 | → **FIXED** | probe-pinning removed; declare-after-use error restored, matches gold (Part 8 item 7) |
+| 93 | sv_wildcard_import5 | → **FIXED** | probe silenced; ambiguity reported once via the reference path, matches gold (Part 8 item 7) |
 | 94 | task_iotypes | UNIMPL | legacy split task-port typing rejected |
 | 95 | uwire_fail | DIAG-DIFF | correct reject; `Unresolved wire 'two'` vs gold `Unresolved net/uwire two` |
 | 96 | vcd-dup | OUTPUT-DIFF (cosmetic) | same extra VCD parameter-dump block |

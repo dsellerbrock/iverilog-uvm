@@ -84,13 +84,20 @@ typedef std::pair<PExpr*,PExpr*> pform_range_t;
 
 /* The lgate is gate instantiation information. */
 struct lgate : public LineInfo {
-      explicit lgate() : parms(0), parms_by_name(0), ranges(0) { }
+      explicit lgate() : parms(0), parms_by_name(0), ranges(0), decl_init(0) { }
 
       std::string name;
       std::list<PExpr*>*parms;
       std::list<named_pexpr_t>*parms_by_name;
 
       std::list<pform_range_t>*ranges;
+
+	/* A declaration initializer (`type_t v = expr;`). The no-port
+	   instantiation shape doubles as a user-type variable declaration
+	   (resolved in pform_make_modgates); this carries the declarator's
+	   `= expr` so such declarations can be initialized. A real module
+	   instantiation can never have one. */
+      PExpr*decl_init;
 };
 
 /*

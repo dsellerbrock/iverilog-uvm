@@ -8963,6 +8963,33 @@ gate_instance
 	$$ = tmp;
       }
 
+  /* A user-type variable declaration parsed through the no-port
+     instantiation shape can carry a declaration initializer
+     (`type_t v = expr;`). pform_make_modgates reinterprets it; a real
+     module instantiation with an initializer is rejected there. */
+  | IDENTIFIER '=' expression
+      { lgate*tmp = new lgate;
+	tmp->name = $1;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	tmp->decl_init = $3;
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+
+  | IDENTIFIER dimensions '=' expression
+      { lgate*tmp = new lgate;
+	tmp->name = $1;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	tmp->ranges = $2;
+	tmp->decl_init = $4;
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+
   /* Modules can also take ports by port-name expressions. */
 
   | IDENTIFIER '(' port_name_list ')'
