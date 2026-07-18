@@ -1132,6 +1132,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       std::list<class_type_t::pform_cov_bins_t*>* cov_bins_list;
 };
 
+%define parse.trace
 %token <text>      IDENTIFIER SYSTEM_IDENTIFIER STRING TIME_LITERAL
 %token <type_identifier> TYPE_IDENTIFIER
 %token <package>   PACKAGE_IDENTIFIER
@@ -12148,6 +12149,22 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   | data_type list_of_variable_decl_assignments ';'
       { if ($1) pform_make_var(@1, $2, $1, nullptr, false);
+	$$ = nullptr;
+      }
+
+  /* An event declaration intermixed with statements. Leading variable
+     declarations in a task/function/block body reduce out of the
+     declaration section (the empty-K_const_opt vs empty-list conflict
+     resolves toward the statement path) and are handled by the inline
+     data_type declaration rule above — but `event e;` AFTER such a
+     declaration then arrives in statement context, which had no event
+     rule, so it exploded as "Malformed statement" (automatic_task,
+     always_comb/ff/latch_warn). SystemVerilog allows declarations,
+     including named events, intermixed with statements in procedural
+     blocks (IEEE 1800-2017 6.18); register them exactly like the
+     block_item_decl event rule does. */
+  | K_event event_variable_list ';'
+      { if ($2) pform_make_events(@1, $2);
 	$$ = nullptr;
       }
   | variable_lifetime_opt TYPE_IDENTIFIER list_of_variable_decl_assignments ';'

@@ -625,7 +625,29 @@ isolation) and are left scoped rather than rushed.
    too (the duplicated "type" wording came from the probe). Regression
    test `tests/typedef_init_shadow_test.sv`.
 
-8. **`part_sel_port` re-attributed** — verified pre-existing upstream
+8. **parser: event declarations after other declarations** (`automatic_task`
+   + the fork-specific half of `always_comb/ff/latch_warn`). Root cause
+   found by tracing the LALR machine (env-gated `IVL_PARSE_TRACE` yydebug
+   plumbing added for this): a leading *variable* declaration in a
+   task/function/block body reduces OUT of the declaration section — the
+   r/r conflict between empty `K_const_opt` (stay) and the empty
+   declaration-list (exit) resolves by rule order toward exit — and the
+   declaration parses via the fork's inline *statement* declaration rule.
+   That worked for variables, but statement context had no event rule, so
+   `event e;` after any variable declaration exploded as "Malformed
+   statement" (while `event` FIRST worked, since `K_event` shifts directly
+   in the declaration states — the exact observed asymmetry).
+   `statement_item` now accepts `K_event event_variable_list ';'`
+   (IEEE 1800-2017 6.18 permits declarations intermixed with statements),
+   registered identically to the block_item_decl path. The +20 s/r
+   conflicts this adds are all `K_event` shift-vs-exit-reduce pairs where
+   both resolutions parse the same construct through `pform_make_events`.
+   `automatic_task` now matches its gold; the `always_*_warn` trio reaches
+   exact upstream parity — the only remaining diff (6 lines, identical on
+   upstream 13.0) is a typo in the gold file itself ("Assinging"), i.e.
+   pre-existing stale gold, not the fork. Regression test
+   `tests/event_decl_order_test.sv`.
+9. **`part_sel_port` re-attributed** — verified pre-existing upstream
    time-0 propagation ordering (see the corrected Part 5 entry), not a
    fork miscompile; left unfixed deliberately.
 
@@ -641,9 +663,9 @@ deterministically on a quiet host.
 
 | # | Test | Category | Definitive reason |
 |---|------|----------|-------------------|
-| 1 | always_comb_warn | OUTPUT-DIFF (functional) | `event` decl after another decl in a task → "Malformed statement" (VERIFIED parser bug) |
-| 2 | always_ff_warn | OUTPUT-DIFF (functional) | same event-ordering parser bug |
-| 3 | always_latch_warn | OUTPUT-DIFF (functional) | same event-ordering parser bug |
+| 1 | always_comb_warn | → upstream parity | parse bug FIXED (Part 8 item 8); remaining 6-line diff is a gold-file typo ("Assinging"), identical on upstream |
+| 2 | always_ff_warn | → upstream parity | parse bug FIXED; remaining diff is the same gold typo |
+| 3 | always_latch_warn | → upstream parity | parse bug FIXED; remaining diff is the same gold typo |
 | 4 | analog1 | UNIMPL | Verilog-AMS `V(out)` probe unsupported ("No function named `V`") |
 | 5 | analog2 | UNIMPL | Verilog-AMS `<+` contribution → syntax error |
 | 6 | array_dump | OUTPUT-DIFF (cosmetic) | VCD writer emits extra `$comment Show the parameter values.`/`$dumpall` block |
@@ -651,7 +673,7 @@ deterministically on a quiet host.
 | 8 | automatic_events | RUNTIME-BUG | automatic-task locals in edge events → 15× `unresolved vvp_net reference` |
 | 9 | automatic_events2 | RUNTIME-BUG | same automatic-var edge-event codegen bug |
 | 10 | automatic_events3 | RUNTIME-BUG | same (6× unresolved vvp_net reference) |
-| 11 | automatic_task | UNIMPL/parser | `event` decl after a memory decl in a task rejected (event-ordering bug) |
+| 11 | automatic_task | → **FIXED** | event-after-declaration parser bug fixed (Part 8 item 8); matches gold |
 | 12 | automatic_task2 | OUTPUT-DIFF (functional) | `@(array[i])` on automatic-task local never fires → zero output |
 | 13 | automatic_task3 | RUNTIME-BUG | automatic-task local in `@(array[j])` → unresolved vvp_net + **segfault** |
 | 14 | br1003a | OUTPUT-DIFF (cosmetic) | $printtimescale prints `$unit::` vs gold `$unit` |

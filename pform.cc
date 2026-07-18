@@ -334,6 +334,7 @@ void parm_to_defparam_list(const string&param)
 string vl_file = "";
 
 extern int VLparse();
+extern int VLdebug;
 
   /* This tracks the current module being processed. There can only be
      exactly one module currently being parsed, since Verilog does not
@@ -6976,6 +6977,7 @@ int pform_parse(const char*path)
       reset_lexor();
       error_count = 0;
       warn_count = 0;
+      if (getenv("IVL_PARSE_TRACE")) VLdebug = 1;
       int rc = VLparse();
 
       if (vl_input != stdin) {
