@@ -8,9 +8,18 @@ unmodified [Accellera UVM Core library](https://github.com/accellera-official/uv
 
 - **Upstream:** [steveicarus/iverilog](https://github.com/steveicarus/iverilog) — the original project
 - **This fork:** [dsellerbrock/iverilog-uvm](https://github.com/dsellerbrock/iverilog-uvm)
-- **Status:** experimental, AI-assisted, under active development. Not reviewed
-  by upstream; do **not** use it for production or tapeout work. For anything
+- **Status:** experimental, under active development. Not reviewed by
+  upstream; do **not** use it for production or tapeout work. For anything
   where correctness matters, use official Icarus Verilog.
+
+> **This project is largely AI-written.** The bulk of the SystemVerilog/UVM
+> work in this fork was developed by AI (Anthropic's Claude) working against
+> the IEEE 1800 standard and the regression suites, with human direction and
+> review. The suites are extensive and honesty-focused (loud failures, no
+> silent-pass scoring, adversarial audits), but AI-generated compiler code
+> carries real risk of plausible-looking-but-wrong behavior. Treat every
+> result as guilty until proven innocent, and verify independently before
+> relying on it.
 
 The project has two goals, in this order: run real UVM testbenches without
 patching the UVM library, and implement IEEE 1800 semantics systematically
@@ -360,6 +369,11 @@ version; the PR template walks you through them):
 7. **Document honestly**: partial support is fine, undocumented partial
    support is not. Update the clause matrix / CURRENT_WORK when status
    changes.
+8. **AI assistance is welcome** — much of this fork was built that way. It
+   changes nothing about the bar: all code is vetted the same regardless of
+   origin (reduced reproducer, clause citation, positive and negative
+   regressions, suite runs, honest status). You are responsible for
+   understanding and standing behind what you submit.
 
 **Bug reports:** file a [GitHub issue](https://github.com/dsellerbrock/iverilog-uvm/issues)
 with the minimal `.sv` reproducer, the exact command line, and
@@ -400,10 +414,23 @@ reviewable patches is a long-term goal (see
 [CHANGES.md §11](CHANGES.md)), but **no assumption should be made that any
 of it has been accepted upstream**. Nothing here implies upstream endorsement.
 
+Please don't burden the upstream project with this fork:
+
+- **Report bugs in this fork [here](https://github.com/dsellerbrock/iverilog-uvm/issues),
+  never on the upstream tracker**, unless you have reproduced them on
+  official Icarus Verilog.
+- Anything proposed for mainline must first be decomposed into small,
+  single-purpose patches and pass a **thorough, independent correctness
+  review** — the largely AI-written history here means upstream maintainers
+  would be right to demand a higher, not lower, standard of evidence. That
+  review has not happened yet, and **some or all of this work may never be
+  accepted upstream**. That is upstream's call to make, at their pace.
+
 ## Credits and license
 
 Icarus Verilog is Copyright © Stephen Williams (2000–2026), GPL-2.0+ — see
-[COPYING](COPYING). SystemVerilog/UVM fork work by Daniel Ellerbrock, with
-AI-assisted development (Claude, Anthropic).
+[COPYING](COPYING). SystemVerilog/UVM fork maintained by Daniel Ellerbrock;
+the fork's code is largely AI-written (Claude, Anthropic) under human
+direction and review.
 [Accellera UVM Core](https://github.com/accellera-official/uvm-core) is
 Copyright Accellera Systems Initiative, Apache-2.0.
