@@ -702,6 +702,79 @@ isolation) and are left scoped rather than rushed.
    `tests/fork_disable_detached_test.sv` (covers both disable shapes plus
    the function/join_none exception).
 
+## Part 9 — Re-baseline onto the vendored (live) ivtest suite (2026-07-18)
+
+While chasing the "diagnostic-drift long tail" (br1027a/c/e, br_gh79,
+br_gh127a–f, br1003a–d, array_dump, dump_memword — 16 tests), attribution
+turned up something bigger than any single fix: **all 16 print
+byte-identical output on the fork and on pristine upstream 13.0.** The
+"drift" was never in either compiler — it was in the *gold files* of the
+external ivtest checkout the gates had been running
+(`/home/user/ivtest`), which is the **archived, obsolete ivtest
+repository** (HEAD: "Note that this project is obsolete"). Upstream moved
+the test suite into the iverilog tree; the fork's vendored `ivtest/`
+directory is that live suite, its golds are current (293 gold files
+differ from the archived checkout), and **all 16 tests pass against it
+unmodified.** They were never fork regressions and never upstream
+regressions — they were stale-gold artifacts of gating against a dead
+suite. The archived checkout is retired as a gate.
+
+Both compilers were then run over the full vendored suite (3101 tests vs
+the archived suite's 2559). Definitive numbers, recorded in
+`docs/conformance/ivtest_vendored_baseline_2026-07-18.txt` (full name
+lists in that file):
+
+| Run | Failed | Passed | NI | EF |
+|-----|--------|--------|----|----|
+| fork | **110** | 2983 | 5 | 3 |
+| upstream 13.0 @ 9b44d55 | **83** | 3010 | 5 | 3 |
+
+- **31 common failures** — genuinely pre-existing upstream.
+- **52 upstream-only failures** — tests the **fork fixes** (the
+  `sv_assoc_*`/`sv_class_*`/`sv_queue_*`/`sv_virtual_*` runtime tests for
+  features the fork implemented, plus the two `sv_mailbox_*` tests below).
+- **79 fork-only failures** — the corrected fork-regression frontier.
+  Initial triage splits them into: (a) a large block of `*_fail*` **CE
+  tests silently accepted** — `sv_darray_assign_fail1–6`,
+  `sv_queue_assign_fail1–6`, `enum_compatibility_fail2–8`,
+  `task_nonansi_*2`, `sv_import_hier_fail*`, `sv_ps_hier_fail*`,
+  `sv_timeunit_prec_fail*`, `sv_deferred_assert/assume*`, etc. — the
+  manifesto's core "loud rejection" obligation, now measurably violated
+  on the live suite; (b) **parser regressions** on newer test shapes:
+  module-level `C c = new;` (`sv_class_constructor1` and much of the
+  `sv_class_*` block — the fork's gate-instantiation reinterpretation
+  errors with "Invalid module instantiation") and non-ANSI directions
+  after variable declarations (`task_nonansi_int2`: `int x; input x;` →
+  "Malformed statement", the same declaration-section-exit family as
+  Part 8 item 8); (c) known carryovers already root-caused on the old
+  suite (`recursive_task`, `case_unique`, `constfunc8`,
+  `array_lval_select3a`, `pr243`, `pr987`, `pr1862744b`, `pr2792883`,
+  br1005/br_ml/br_gh leniencies).
+
+Suite-integrity repair found along the way: the fork-authored
+`sv_mailbox_blocking_peek1`/`sv_mailbox_try_int1` had **malformed
+`regress-sv.list` entries** (missing flags/directory columns), reporting
+"missing source file" on every compiler, and printed `PASS` instead of
+the harness-required `PASSED`. Both repaired; both now pass on the fork
+(and fail on upstream — no mailbox support — so they count to the
+fork-fixes column).
+
+Some cross-suite categories shift with current golds: e.g. `sv_queue_vec`
+now fails for a different, verified reason — the fork **reworded the
+queue runtime warnings** ("skipping out of range delete(0) on queue of
+size 0" vs gold "skipping delete(0) on empty queue", and one
+undefined-index warning is missing entirely), genuine fork diagnostic
+drift where the archived suite's complaint had been a stale-gold `'X`
+expectation. The archived-suite appendix below is retained as history;
+per-test re-verification against the vendored suite happens as each
+cluster is worked.
+
+**Gate change (standing):** the ivtest gate is now
+`cd ivtest && perl vvp_reg.pl` inside the repo (vendored suite), with
+`docs/conformance/ivtest_vendored_baseline_2026-07-18.txt` as the
+committed name-diff baseline. UVM sweep, bundled VPI, and negative-suite
+gates are unchanged.
+
 ## Appendix — full per-test reason table
 
 Legend: **UNIMPL** = construct not implemented; **LENIENT** = expects a
@@ -719,7 +792,7 @@ deterministically on a quiet host.
 | 3 | always_latch_warn | → upstream parity | parse bug FIXED; remaining diff is the same gold typo |
 | 4 | analog1 | UNIMPL | Verilog-AMS `V(out)` probe unsupported ("No function named `V`") |
 | 5 | analog2 | UNIMPL | Verilog-AMS `<+` contribution → syntax error |
-| 6 | array_dump | OUTPUT-DIFF (cosmetic) | VCD writer emits extra `$comment Show the parameter values.`/`$dumpall` block |
+| 6 | array_dump | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
 | 7 | array_lval_select3a | UNIMPL | "sorry: cannot %cassign to word of a variable array" (procedural assign/force to array word) |
 | 8 | automatic_events | RUNTIME-BUG | automatic-task locals in edge events → 15× `unresolved vvp_net reference` |
 | 9 | automatic_events2 | RUNTIME-BUG | same automatic-var edge-event codegen bug |
@@ -727,21 +800,21 @@ deterministically on a quiet host.
 | 11 | automatic_task | → **FIXED** | event-after-declaration parser bug fixed (Part 8 item 8); matches gold |
 | 12 | automatic_task2 | OUTPUT-DIFF (functional) | `@(array[i])` on automatic-task local never fires → zero output |
 | 13 | automatic_task3 | RUNTIME-BUG | automatic-task local in `@(array[j])` → unresolved vvp_net + **segfault** |
-| 14 | br1003a | OUTPUT-DIFF (cosmetic) | $printtimescale prints `$unit::` vs gold `$unit` |
-| 15 | br1003b | OUTPUT-DIFF (cosmetic) | same `$unit::` scope-name formatting |
-| 16 | br1003c | OUTPUT-DIFF (cosmetic) | same `$unit::` scope-name formatting |
-| 17 | br1003d | OUTPUT-DIFF (cosmetic) | package scope `testpackage::` vs gold `testpackage` |
+| 14 | br1003a | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 15 | br1003b | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 16 | br1003c | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 17 | br1003d | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
 | 18 | br1005 | LENIENT (intentional) | SV queue-in-class now compiles+runs; gold expects `sorry` |
-| 19 | br1027a | DIAG-DIFF | "Missing" vs gold "missing" task/function port direction |
-| 20 | br1027c | DIAG-DIFF | same capitalization diff |
-| 21 | br1027e | DIAG-DIFF | same capitalization diff |
-| 22 | br_gh79 | DIAG-DIFF | "Malformed statement" vs gold "malformed statement" |
-| 23 | br_gh127a | OUTPUT-DIFF (cosmetic) | port-width warning reworded (`of module copy expects 2 bit(s), given N`) |
-| 24 | br_gh127b | OUTPUT-DIFF (cosmetic) | same warning rewording |
-| 25 | br_gh127c | OUTPUT-DIFF (cosmetic) | same warning rewording |
-| 26 | br_gh127d | OUTPUT-DIFF (cosmetic) | same warning rewording |
-| 27 | br_gh127e | OUTPUT-DIFF (cosmetic) | same warning rewording |
-| 28 | br_gh127f | OUTPUT-DIFF (cosmetic) | same warning rewording |
+| 19 | br1027a | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 20 | br1027c | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 21 | br1027e | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 22 | br_gh79 | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 23 | br_gh127a | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 24 | br_gh127b | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 25 | br_gh127c | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 26 | br_gh127d | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 27 | br_gh127e | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 28 | br_gh127f | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
 | 29 | br_gh130a | LENIENT | bare int→enum assign accepted (known-open gh#130) |
 | 30 | br_gh130b | LENIENT (intentional?) | `enum'(1)` cast accepted; CE variant no longer errors |
 | 31 | br_gh157 | DIAG-DIFF/strictness | defparam on localparam now hard-errors vs gold warn+run |
@@ -757,7 +830,7 @@ deterministically on a quiet host.
 | 41 | br_ml20190814 | OUTPUT-DIFF | extra "SDF WARNING: …TIMINGCHECK not supported" line (specify/SDF, not SV) |
 | 42 | case_unique | OUTPUT-DIFF (dropped diag) | "sorry: Case unique/unique0 qualities are ignored" no longer emitted; still PASSED |
 | 43 | constfunc8 | UNIMPL | `reg bool [5:0] value;` malformed 2-word type decl rejected |
-| 44 | dump_memword | OUTPUT-DIFF (cosmetic) | same extra VCD parameter-dump block |
+| 44 | dump_memword | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
 | 45 | fork_join_dis | → **FIXED** | was: `$unm_blk` fork scope hid detached children from `%disable` (Part 8 item 11); passes |
 | 46 | fread-error | OUTPUT-DIFF (dropped diag) | `$fread` "first argument must be a reg or memory" error no longer emitted |
 | 47 | func_init_var2 | OUTPUT-DIFF (functional) | automatic-fn `automatic int acc=1` initializer ignored in const-fn eval → wrong value |
