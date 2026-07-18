@@ -10244,6 +10244,35 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       return pad_to_width(result, expr_wid, signed_flag_, *this);
 }
 
+/*
+ * The SV-mode "Unable to bind ... (compile-progress: unresolved
+ * reference)" WARNING exists for constructs whose typing/binding the
+ * fork genuinely loses (clocking members, macro-collapsed names). A
+ * reference that is package-scoped (`P::x`) or whose hierarchical
+ * prefix names a REAL design scope (`m.x` where m is an instance) is
+ * not such a case: the scope exists and the leaf name is genuinely
+ * absent there -- e.g. imported names, which IEEE 1800-2017 26.3 says
+ * are NOT visible through hierarchical or package-scoped paths
+ * (ivtest sv_import_hier_fail1-3, sv_ps_hier_fail1/2). Those must
+ * take the hard error.
+ */
+static bool unresolved_prefix_is_real_scope(Design*des, NetScope*scope,
+					    const pform_scoped_name_t&path)
+{
+      if (path.package != nullptr)
+	    return true;
+      if (path.name.size() < 2)
+	    return false;
+      std::list<hname_t> prefix;
+      for (pform_name_t::const_iterator cur = path.name.begin()
+		 ; std::next(cur) != path.name.end() ; ++cur) {
+	    if (! cur->index.empty())
+		  return false;
+	    prefix.push_back(hname_t(cur->name));
+      }
+      return des->find_scope(scope, prefix) != nullptr;
+}
+
 NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
@@ -11075,7 +11104,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		    }
 
 		      // I cannot interpret this identifier. Error message.
-	    if (gn_system_verilog() && !(NEED_CONST & flags)) {
+	    if (gn_system_verilog() && !(NEED_CONST & flags)
+		&& !unresolved_prefix_is_real_scope(des, scope, path_)) {
 		  // Compile-progress: clocking blocks, interface constructs.
 		  cerr << get_fileline() << ": warning: Unable to bind "
 		       << "wire/reg/memory `" << path_ << "' in `"
@@ -11230,8 +11260,11 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 
 	// I cannot interpret this identifier. Error message.
 	// In SV mode, clocking blocks and other interface constructs may
-	// not be bound (e.g. @cb, @monitor_cb). Emit warning in SV mode.
-      if (gn_system_verilog()) {
+	// not be bound (e.g. @cb, @monitor_cb). Emit warning in SV mode --
+	// unless the reference is package-scoped or its prefix names a
+	// real scope (see unresolved_prefix_is_real_scope above).
+      if (gn_system_verilog()
+	  && !unresolved_prefix_is_real_scope(des, scope, path_)) {
 	    cerr << get_fileline() << ": warning: Unable to bind wire/reg/memory "
 		    "`" << path_ << "' in `" << scope_path(scope) << "'"
 		    " (compile-progress: unresolved reference)." << endl;

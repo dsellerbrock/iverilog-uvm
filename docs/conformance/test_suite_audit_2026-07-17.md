@@ -866,6 +866,40 @@ are not retried naively):**
   `array_lval_select3a`, `recursive_task` (blocked on the other
   session's frame refactor), `sv_timeunit_prec_fail1/2`.
 
+## Part 11 — Scope-resolution cluster: 6 more fixed (2026-07-18)
+
+Vendored ivtest 56 → 50; UVM 187/0/1; VPI 81/81; negative 40/40 (two
+new tests). The "6-test scope-resolution cluster" turned out to be two
+distinct defects, neither of them actually in name RESOLUTION:
+
+1. `sv_import_hier_fail1–3`, `sv_ps_hier_fail1/2`: binding already
+   failed correctly — the fork's unresolved-reference-as-warning
+   policy then downgraded the error to a compile-progress warning
+   (exit 0). Both warning sites in PEIdent elaboration are now gated
+   by `unresolved_prefix_is_real_scope()`: a reference that is
+   package-scoped (`P::x`) or whose hierarchical prefix names a REAL
+   design scope (`m.x`, `inner.x`) takes the hard error — the scope
+   exists and the leaf name is genuinely absent (imports are not
+   visible through hierarchical or package-scoped paths, IEEE
+   1800-2017 26.3); there is no typing-loss excuse. Simple unresolved
+   identifiers (UVM's clocking members and macro-collapsed names) keep
+   the warning, and the UVM sweep confirms the line holds.
+
+2. `sv_export_fail5`: `export P1::x` validated the wildcard import but
+   never PINNED it, so a later local `x` declaration in the same
+   package coexisted silently. The export now records the pin in
+   explicit_imports and marks it in wildcard_pin_used (an export is a
+   genuine use), so the existing add_local_symbol conflict check fires
+   the "already imported into this scope" error (26.6).
+
+This also shrinks the func_empty_arg_fail4 policy question: what
+remains of the unresolved-reference leniency is only the
+simple-identifier case.
+
+Remaining 19 fork-only failures: the 11 policy/documentation items and
+8 individual investigations from Part 10, minus nothing — the 6 fixed
+here came from the scope-resolution category, which is now closed.
+
 ## Appendix — full per-test reason table
 
 Legend: **UNIMPL** = construct not implemented; **LENIENT** = expects a

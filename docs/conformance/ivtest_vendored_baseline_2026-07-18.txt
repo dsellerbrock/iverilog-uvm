@@ -1,13 +1,14 @@
-# ivtest baseline — vendored (in-tree) suite, updated 2026-07-18 (rev 2)
+# ivtest baseline — vendored (in-tree) suite, updated 2026-07-18 (rev 3)
 #
 # Suite: ivtest/ (vendored, live upstream suite; 3101 tests).
 # Reference: pristine upstream Icarus 13.0 devel @ fork base 9b44d55
 #   (83 failed / 3010 passed / 5 NI / 3 EF — unchanged).
-# Fork now: 56 failed / 3037 passed / 5 NI / 3 EF.
-# History: 110 at first re-baseline -> 86 (parser fixes: class
-#   initializers/scoped new, non-ANSI directions) -> 56 (strictness
-#   restorations + queue-warning fidelity + crash fix; see audit
-#   Part 10). 54 of the original 79 fork-only failures fixed.
+# Fork now: 50 failed / 3043 passed / 5 NI / 3 EF.
+# History: 110 at first re-baseline -> 86 (parser fixes) -> 56
+#   (strictness + queue fidelity + crash fix) -> 50 (scope-resolution
+#   cluster: hierarchical/package-prefix binding errors restored,
+#   export pins its wildcard import; audit Parts 10-11).
+#   60 of the original 79 fork-only failures fixed.
 
 ## Common failures (31) — pre-existing upstream, fail on both compilers
 sv_assoc_obj_key_bit_copy1
@@ -42,7 +43,7 @@ sv_uarray_locator1
 sv_virtual_if_specialized_dispatch1
 sv_virtual_task_output_copy1
 
-## Fork-only failures (25) — remaining frontier, categorized in audit Part 10
+## Fork-only failures (19) — remaining frontier, categorized in audit Part 10
 array_lval_select3a
 br1005
 br_ml20150315b
@@ -60,16 +61,10 @@ sv_deferred_assert1
 sv_deferred_assert2
 sv_deferred_assume1
 sv_deferred_assume2
-sv_export_fail5
-sv_import_hier_fail1
-sv_import_hier_fail2
-sv_import_hier_fail3
-sv_ps_hier_fail1
-sv_ps_hier_fail2
 sv_timeunit_prec_fail1
 sv_timeunit_prec_fail2
 
-## Upstream-only failures (52 + the 54 fixed above) — fixed by the fork
+## Upstream-only failures (50 + the 60 fixed above) — fixed by the fork
 # (sv_assoc/sv_class/sv_queue/sv_virtual runtime features, sv_mailbox,
 #  and every test named in the History line above)
 sv_assoc_nested_member_foreach1
