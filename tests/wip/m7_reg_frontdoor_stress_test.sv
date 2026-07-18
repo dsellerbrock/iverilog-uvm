@@ -1,11 +1,12 @@
 // M7 stress: register-model FRONT-DOOR access. QUARANTINED in
-// tests/wip/ (outside the sweep glob) — blocked on the ref-dyn-array
-// copy-out miscompile documented in
-// docs/conformance/m7_stress_findings_2026-07-18.md (finding 2):
-// uvm_reg_map::do_bus_access loses the address array, so front-door
-// operations complete UVM_IS_OK with zero bus accesses. Move this file
-// up to tests/ once that fix lands; it must then pass with
-//   checks=4 writes=4 reads=4.
+// tests/wip/ (outside the sweep glob). Finding 2 (ref-dyn-array
+// copy-out) is FIXED, so the address path now works: bus transactions
+// reach the driver with correct kind/addr/data. Still blocked on
+// finding 4 in docs/conformance/m7_stress_findings_2026-07-18.md:
+// parameterized-class virtual dispatch resolves get_next_item into the
+// wrong specialization and the port-level output copy-back drops the
+// item, so the driver receives null. Move this file up to tests/ once
+// that lands; it must then pass with checks=4 writes=4 reads=4.
 `timescale 1ns/1ns
 `include "uvm_macros.svh"
 import uvm_pkg::*;
