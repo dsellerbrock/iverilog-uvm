@@ -833,8 +833,24 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 	    if (cast_type != IVL_VT_CLASS && cast_type != IVL_VT_NO_TYPE) {
 		  // Compile-progress fallback for UVM-heavy code paths that route
 		  // class handles through scalar/string/real contexts before full
-		  // type information is available.
-		  if (!need_const) {
+		  // type information is available. That only ever applies to
+		  // nodes that can legitimately carry a class value (an
+		  // identifier, method call, ternary, ...):
+		  //  - a binary/unary OPERATOR node typed class is not such a
+		  //    stub (operators never produce class values);
+		  //  - a literal `null` r-value with a 4-state LOGIC target is
+		  //    the always-illegal `logic v = null` / implicit-logic
+		  //    `return null` (silently substituting a default value
+		  //    miscompiled them, br_gh440). A BOOL (2-state atom)
+		  //    target keeps the fallback: `chandle` lowers to a
+		  //    2-state atom, and `return null` from a chandle
+		  //    function is legal SystemVerilog.
+		  // Those exceptions take the hard error below.
+		  bool null_to_logic = dynamic_cast<const PENull*>(pe)
+			&& cast_type == IVL_VT_LOGIC;
+		  if (!need_const && !null_to_logic
+		      && !dynamic_cast<const PEBinary*>(pe)
+		      && !dynamic_cast<const PEUnary*>(pe)) {
 			if (cast_type == IVL_VT_BOOL || cast_type == IVL_VT_LOGIC) {
 			      NetEConst*tmp = make_const_0(1);
 			      tmp->set_line(*pe);

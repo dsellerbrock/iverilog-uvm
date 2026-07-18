@@ -334,6 +334,7 @@ void parm_to_defparam_list(const string&param)
 string vl_file = "";
 
 extern int VLparse();
+extern int VLdebug;
 
   /* This tracks the current module being processed. There can only be
      exactly one module currently being parsed, since Verilog does not
@@ -499,17 +500,19 @@ static void add_local_symbol(LexicalScope*scope, perm_string name, PNamedItem*it
       map<perm_string,PPackage*>::const_iterator cur_pkg
 	    = scope->explicit_imports.find(name);
       if (cur_pkg != scope->explicit_imports.end()) {
-	    // IEEE 1800-2012 26.3: a wildcard import is a "tentative" import
-	    // that gets pinned to explicit_imports the first time the name is
-	    // referenced. A subsequent local declaration of the same name
-	    // shadows the pinned import. Detect this case by checking whether
-	    // the pinned package is in the scope's potential_imports list — if
-	    // so, drop the pin and let the local declaration take precedence.
+	    // IEEE 1800-2017 26.3: a wildcard-imported name may be pinned
+	    // into explicit_imports either by a GENUINE reference (tracked
+	    // in wildcard_pin_used) or merely by the lexer's
+	    // is-this-a-type probe (a resolution cache, not a use). A
+	    // local declaration shadows an un-used wildcard pin; declaring
+	    // a name whose imported meaning was already used is an error.
+	    // A pin from an explicit `import P::name;` is always an error.
 	    bool from_wildcard = false;
 	    for (PPackage*wp : scope->potential_imports) {
 		  if (wp == cur_pkg->second) { from_wildcard = true; break; }
 	    }
-	    if (from_wildcard) {
+	    if (from_wildcard
+		&& scope->wildcard_pin_used.find(name) == scope->wildcard_pin_used.end()) {
 		  scope->explicit_imports.erase(cur_pkg);
 		  scope->explicit_imports_from.erase(name);
 	    } else {
@@ -531,10 +534,16 @@ static void check_potential_imports(const struct vlltype&loc, perm_string name, 
       while (scope) {
 	    if (scope->local_symbols.find(name) != scope->local_symbols.end())
 		  return;
-	    if (scope->explicit_imports.find(name) != scope->explicit_imports.end())
+	    if (scope->explicit_imports.find(name) != scope->explicit_imports.end()) {
+		    // A genuine reference to a pinned name: record the use so
+		    // a later local declaration of it is correctly rejected.
+		  scope->wildcard_pin_used.insert(name);
 		  return;
-	    if (pform_find_potential_import(loc, scope, name, tf_call, true))
+	    }
+	    if (pform_find_potential_import(loc, scope, name, tf_call, true)) {
+		  scope->wildcard_pin_used.insert(name);
 		  return;
+	    }
 
 	    scope = scope->parent_scope();
       }
@@ -1095,6 +1104,7 @@ static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
 {
       typedef_t*found_type = nullptr;
       PPackage*found_decl_pkg = nullptr;
+      bool ambiguous = false;
 
       for (PPackage*search_pkg : scope->potential_imports) {
 	    PPackage*decl_pkg = pform_package_importable(search_pkg, name);
@@ -1106,21 +1116,38 @@ static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
 		  continue;
 
 	    if (found_type && found_type != cur->second) {
-		  cerr << loc.get_fileline() << ": error: "
-		       << "Ambiguous use of type '" << name << "'. "
-		       << "It is exported by both '"
-		       << found_decl_pkg->pscope_name()
-		       << "' and by '"
-		       << decl_pkg->pscope_name()
-		       << "'." << endl;
-		  error_count++;
+		    // Ambiguous: do not pin and do not report from the probe
+		    // (it fires for every identifier and would duplicate the
+		    // message). A genuine reference reports the ambiguity via
+		    // check_potential_imports / pform_find_potential_import.
+		  ambiguous = true;
 		  continue;
 	    }
 
 	    found_type = cur->second;
 	    found_decl_pkg = decl_pkg;
-	    scope->explicit_imports[name] = decl_pkg;
-	    scope->explicit_imports_from[name].insert(search_pkg);
+	      // Do NOT pin the name into explicit_imports here. This
+	      // function backs the lexer's is-this-a-type probe
+	      // (pform_test_type_identifier), which fires for every
+	      // identifier -- including the declarator of a local
+	      // `typedef ... word;` that legitimately shadows a
+	      // wildcard-imported name (IEEE 1800-2017 26.3). Pinning on a
+	      // mere probe made every probed name look "referenced", which
+	      // forced add_local_symbol to drop wildcard pins
+	      // unconditionally and so lost the required error for
+	      // declare-after-use (sv_wildcard_import4). Genuine type USES
+	      // pin via pform_set_type_referenced ->
+	      // check_potential_imports when a type reference reduces.
+      }
+
+	// Pin an UNAMBIGUOUS hit into explicit_imports as a resolution
+	// cache: later phases (and elaboration) resolve the name through
+	// the pin. This does NOT mark the name as used —
+	// wildcard_pin_used tracks genuine references, so a local
+	// declaration can still shadow a merely-probed name.
+      if (found_type && !ambiguous) {
+	    scope->explicit_imports[name] = found_decl_pkg;
+	    scope->explicit_imports_from[name].insert(found_decl_pkg);
       }
 
       return found_type;
@@ -2919,10 +2946,21 @@ void pform_make_modgates(const struct vlltype&loc,
 			      delete cur.ranges;
 			      cur.ranges = 0;
 			}
+			if (cur.decl_init) {
+			      decl->expr.reset(cur.decl_init);
+			      cur.decl_init = 0;
+			}
 			decls->push_back(decl);
 		  }
 
 		  if (declaration_like) {
+			  // This is a genuine use of the type name (a
+			  // variable declaration through the no-port
+			  // instantiation shape), so record the type
+			  // reference — this pins a wildcard-imported type
+			  // so a later local redeclaration of the name is
+			  // correctly rejected (sv_wildcard_import4).
+			pform_set_type_referenced(loc, type);
 			typeref_t*dtype = new typeref_t(decl_type);
 			FILE_NAME(dtype, loc);
 			pform_make_var(loc, decls, dtype, attr, false);
@@ -2935,6 +2973,26 @@ void pform_make_modgates(const struct vlltype&loc,
 			delete *cur;
 		  delete decls;
 	    }
+      }
+
+	// A declaration initializer only makes sense when the construct is
+	// reinterpreted as a user-type variable declaration above. Reaching
+	// here with one means either the left name did not resolve to a
+	// type (`unknown_t v = 0;`) or the shape really is a module
+	// instantiation (`mod inst = 0;`) — both are hard errors, never a
+	// silent drop of the initializer.
+      for (unsigned idx = 0 ; idx < gates->size() ; idx += 1) {
+	    lgate&cur = (*gates)[idx];
+	    if (cur.decl_init == 0)
+		  continue;
+	    cerr << loc << ": error: "
+		 << "Invalid declaration `" << type << " " << cur.name
+		 << " = ...;`: `" << type
+		 << "' is not a visible data type, and a module "
+		 << "instantiation cannot have an initializer." << endl;
+	    error_count += 1;
+	    delete gates;
+	    return;
       }
 
 	// The grammer should not allow module gates to happen outside
@@ -6919,6 +6977,7 @@ int pform_parse(const char*path)
       reset_lexor();
       error_count = 0;
       warn_count = 0;
+      if (getenv("IVL_PARSE_TRACE")) VLdebug = 1;
       int rc = VLparse();
 
       if (vl_input != stdin) {

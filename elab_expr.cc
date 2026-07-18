@@ -1614,10 +1614,15 @@ unsigned PEBinary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       ivl_variable_type_t r_type = right_->expr_type();
 
       if (l_type == IVL_VT_CLASS || r_type == IVL_VT_CLASS) {
-	    if (gn_system_verilog()) {
-		  // Compile-progress fallback: sub-expression resolved as
-		  // class type (common for unresolved method returns).
-		  // Treat as integer and continue.
+	      // Compile-progress fallback: sub-expression resolved as
+	      // class type (common for unresolved method returns).
+	      // Treat as integer and continue. A literal `null` operand
+	      // is never a stubbed method return, so it gets the hard
+	      // error in every mode — silently continuing let width-0
+	      // null expressions deep into elaboration (br_gh440 abort).
+	    if (gn_system_verilog()
+		&& !dynamic_cast<const PENull*>(left_)
+		&& !dynamic_cast<const PENull*>(right_)) {
 		  expr_type_ = IVL_VT_LOGIC;
 		  expr_width_ = 32;
 		  min_width_ = 32;
@@ -2025,8 +2030,28 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
 		  // Compile-progress mode: UVM often compares handles against
 		  // placeholder scalar values when earlier unresolved calls are
 		  // stubbed. Let elaboration continue instead of reporting the
-		  // class/null-only restriction here.
-          if ((l_type == IVL_VT_CLASS
+		  // class/null-only restriction here. Exception: a literal
+		  // `null` compared against an operand whose type IS resolved
+		  // and is not class (0 == null, "s" == null) is never such a
+		  // stub — that keeps the hard error (br_gh440). When the
+		  // other operand is NO_TYPE (unresolved), the leniency must
+		  // still apply: `unresolved_expr == null` is the canonical
+		  // stubbed-handle comparison in UVM.
+	  {
+		    // "Known non-class" must mean a literal constant: an
+		    // identifier's scalar type may come from a class type
+		    // parameter instantiated with a scalar (uvm_pair's
+		    // `T1 f = null; if (f == null)`), which legitimately
+		    // keeps the leniency.
+		  bool null_vs_known_nonclass =
+			(dynamic_cast<const PENull*>(left_)
+			 && (dynamic_cast<const PENumber*>(right_)
+			     || dynamic_cast<const PEString*>(right_)))
+		      ||(dynamic_cast<const PENull*>(right_)
+			 && (dynamic_cast<const PENumber*>(left_)
+			     || dynamic_cast<const PEString*>(left_)));
+          if (!null_vs_known_nonclass
+		      && ((l_type == IVL_VT_CLASS
 		       && (r_type == IVL_VT_BOOL || r_type == IVL_VT_LOGIC
 			   || r_type == IVL_VT_NO_TYPE))
 		      || (r_type == IVL_VT_CLASS
@@ -2034,8 +2059,9 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
 			      || l_type == IVL_VT_NO_TYPE))
 		      || (l_type == IVL_VT_CLASS && r_type == IVL_VT_STRING)
 		      || (r_type == IVL_VT_CLASS && l_type == IVL_VT_STRING)
-		      || (l_type == IVL_VT_NO_TYPE || r_type == IVL_VT_NO_TYPE))
+		      || (l_type == IVL_VT_NO_TYPE || r_type == IVL_VT_NO_TYPE)))
 			break;
+	  }
 		  cerr << get_fileline() << ": error: "
 		       << "Both arguments ("<< l_type << ", " << r_type
 		       << ") must be class/null for '"
@@ -2044,13 +2070,17 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
 	    }
 	    break;
 	default:
+	      // Relational comparison (<, <=, >, >=) with a class/null
+	      // operand is never legal SystemVerilog (only ==/!=/===/!==
+	      // accept class operands). This must be a hard error in every
+	      // language mode: silently continuing let a width-0 null
+	      // expression reach the eval_tree must_be_leeq_ optimization,
+	      // which aborted on its expr_width()>0 assertion (br_gh440).
 	    if (l_type == IVL_VT_CLASS || r_type == IVL_VT_CLASS) {
-		  if (!gn_system_verilog()) {
-			cerr << get_fileline() << ": error: "
-			     << "Class/null is not allowed with the '"
-			     << human_readable_op(op_) << "' operator." << endl;
-			des->errors += 1;
-		  }
+		  cerr << get_fileline() << ": error: "
+		       << "Class/null is not allowed with the '"
+		       << human_readable_op(op_) << "' operator." << endl;
+		  des->errors += 1;
 	    }
       }
 
@@ -2129,6 +2159,24 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 		       << " operator may only have INTEGRAL operands."
 		       << endl;
 		  des->errors += 1;
+		  return 0;
+	    }
+	    break;
+	  case '<':
+	  case '>':
+	  case 'L': /* <= */
+	  case 'G': /* >= */
+	      // A class/null operand in a relational comparison was
+	      // already reported as an error by test_width. Do not build
+	      // the NetEBComp: a width-0 null operand would abort the
+	      // constant-folding optimization (eval_tree must_be_leeq_
+	      // asserts expr_width() > 0). Bail out like the other
+	      // operand-type errors above.
+	    if (lp->expr_type() == IVL_VT_CLASS ||
+		rp->expr_type() == IVL_VT_CLASS ||
+		dynamic_cast<NetENull*>(lp) || dynamic_cast<NetENull*>(rp)) {
+		  delete lp;
+		  delete rp;
 		  return 0;
 	    }
 	    break;
@@ -2817,7 +2865,12 @@ unsigned PEBLeftWidth::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       signed_flag_ = left_->has_sign();
 
       if (expr_type_ == IVL_VT_CLASS || right_->expr_type() == IVL_VT_CLASS) {
-	    if (gn_system_verilog()) {
+	      // Compile-progress leniency for stubbed class-typed
+	      // sub-expressions, but a literal `null` operand is always a
+	      // hard error (see PEBinary::test_width).
+	    if (gn_system_verilog()
+		&& !dynamic_cast<const PENull*>(left_)
+		&& !dynamic_cast<const PENull*>(right_)) {
 		  expr_type_ = IVL_VT_LOGIC;
 		  expr_width_ = 32;
 		  min_width_ = 32;
@@ -13676,10 +13729,13 @@ unsigned PEUnary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       expr_width_  = expr_->test_width(des, scope, mode);
 
       if (expr_->expr_type() == IVL_VT_CLASS) {
-	    if (gn_system_verilog()) {
-		  // Compile-progress fallback: the sub-expression resolved
-		  // as class type (common when method return types aren't
-		  // tracked). Treat as integer and continue.
+	      // Compile-progress fallback: the sub-expression resolved
+	      // as class type (common when method return types aren't
+	      // tracked). Treat as integer and continue. A literal
+	      // `null` operand is always a hard error (see
+	      // PEBinary::test_width).
+	    if (gn_system_verilog()
+		&& !dynamic_cast<const PENull*>(expr_)) {
 		  expr_type_ = IVL_VT_LOGIC;
 		  expr_width_ = 32;
 		  min_width_ = 32;

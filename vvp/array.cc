@@ -833,7 +833,14 @@ vpiHandle vpip_make_array(const char*label, const char*name,
 
       assert(!array_find(label));
       array_table->sym_set_value(label, obj);
-      compile_resolve_pending_label(label);
+	/* NOTE: pending references to this label (e.g. a .array/port
+	   compiled before the array) must NOT be resolved here: the word
+	   storage (vals4/vals) is allocated by the caller after this
+	   function returns, and array_attach_port only schedules the
+	   initial-value propagation when storage is present. Resolving
+	   early made a never-written word read as z instead of x through
+	   a continuous assign. Each compile_*_array caller resolves the
+	   label after construction completes. */
 
 	/* Add this into the table of VPI objects. This is used for
 	   contexts that try to look up VPI objects in
@@ -913,6 +920,10 @@ void compile_var_array(char*label, char*name, int last, int first,
       count_var_arrays += 1;
       count_var_array_words += arr->get_size();
 
+	/* Storage is complete: resolve any references (e.g. .array/port)
+	   that were compiled before this array was defined. */
+      compile_resolve_pending_label(label);
+
       free(label);
       delete[] name;
 }
@@ -952,6 +963,10 @@ void compile_var2_array(char*label, char*name, int last, int first,
       count_var_arrays += 1;
       count_var_array_words += arr->get_size();
 
+	/* Storage is complete: resolve any references (e.g. .array/port)
+	   that were compiled before this array was defined. */
+      compile_resolve_pending_label(label);
+
       free(label);
       delete[] name;
 }
@@ -968,6 +983,10 @@ void compile_real_array(char*label, char*name, int last, int first)
 
       count_real_arrays += 1;
       count_real_array_words += arr->get_size();
+
+	/* Storage is complete: resolve any references (e.g. .array/port)
+	   that were compiled before this array was defined. */
+      compile_resolve_pending_label(label);
 
       free(label);
       delete[] name;
@@ -986,6 +1005,10 @@ void compile_string_array(char*label, char*name, int last, int first)
       count_real_arrays += 1;
       count_real_array_words += arr->get_size();
 
+	/* Storage is complete: resolve any references (e.g. .array/port)
+	   that were compiled before this array was defined. */
+      compile_resolve_pending_label(label);
+
       free(label);
       delete[] name;
 }
@@ -1003,6 +1026,10 @@ void compile_object_array(char*label, char*name, int last, int first)
       count_real_arrays += 1;
       count_real_array_words += arr->get_size();
 
+	/* Storage is complete: resolve any references (e.g. .array/port)
+	   that were compiled before this array was defined. */
+      compile_resolve_pending_label(label);
+
       free(label);
       delete[] name;
 }
@@ -1019,6 +1046,10 @@ void compile_net_array(char*label, char*name, int last, int first)
 
       count_net_arrays += 1;
       count_net_array_words += arr->get_size();
+
+	/* Storage is complete: resolve any references (e.g. .array/port)
+	   that were compiled before this array was defined. */
+      compile_resolve_pending_label(label);
 
       free(label);
       delete[] name;

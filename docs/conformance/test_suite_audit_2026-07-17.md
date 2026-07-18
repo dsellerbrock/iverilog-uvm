@@ -266,10 +266,20 @@ upstream diff (see caveat).
   event e; real x; ...` passes. Root cause behind `always_comb_warn`,
   `always_ff_warn`, `always_latch_warn`, and `automatic_task`.
 - **`reg`-array word read via continuous assign returns `z` not `x` —
-  VERIFIED.** `wire [7:0] w = mem[0]` on an uninitialized reg array reads
-  `zz`. (`pr1648365`, `pr2974294`.) Core cont-assign/array codegen.
-- **`part_sel_port`** — multidim packed-array port part-select connection
-  yields a wrong value (self-check prints FAILED).
+  VERIFIED, now FIXED** (`pr1648365`, `pr2974294`; see Part 8 item 4): the
+  vvp `.array/port` label was resolved eagerly inside `vpip_make_array`,
+  before the caller allocated the word storage, so `array_attach_port`
+  silently skipped scheduling the initial-value propagation.
+- **`part_sel_port`** — RE-ATTRIBUTED on direct verification: upstream
+  13.0 fails it identically (it is in the 62 pre-existing, not the 37).
+  With **one** part-select port connection the value is visible at time 0;
+  with **two** part-select drivers on the same net, the time-0 initial
+  propagation has not resolved when the (delay-less) `initial` check
+  reads — an inherited upstream propagation-ordering characteristic, and
+  arguably an LRM time-0 race in the test itself. After any delay the
+  value is exactly correct on both compilers. Not a fork miscompile; not
+  fixed here (an upstream scheduler-semantics change with broad gold
+  churn).
 - **`fork_join_dis`** — `disable` fails to terminate detached `join_any`
   children.
 - **`sv_wildcard_import2` / `import3`** — valid code wrongly *rejected*: a
@@ -466,19 +476,56 @@ mechanisms (from this pass), so the remaining work is well-scoped:
   class/object signals so value-change and virtual-interface events are
   unaffected. Regression test `tests/auto_task_bitselect_event_test.sv`.
   ivtest 98→97, UVM 178/0/1, VPI 81/81, negative 32/32 — zero regressions.
-- **`automatic_events`, `automatic_events2`** — same bit-select event
-  lowering, but here the sensed vector is an **automatic local** and the
-  task is invoked **concurrently** twice. The link error is now gone (the
-  fix above applies), but a *separate* residual bug remains: the fork wraps
-  the concurrent automatic-task activations in an extra `fork` scope with a
-  different `%alloc`/`%fork` frame pattern than upstream (which allocates a
-  fresh frame per invocation), so the per-frame `pos`/`neg` locals read `x`.
-  This is a concurrent-automatic-task frame-allocation issue, distinct from
-  the event probe.
-- **`automatic_task2`, `automatic_task3`** — `@(array[i])` on an automatic
-  (or dynamically-indexed) **array word**, a different event mechanism from
-  the bit-select `.part` path; `task2` never fires, `task3` segfaults
-  (pre-existing). Not addressed by the event-probe fix.
+- **`automatic_events`, `automatic_task2`, `automatic_task3`,
+  `fork_join_dis`** — **FIXED** by an unrelated-looking but shared root
+  cause: the fork's `K_fork` grammar action (`parse.y`) lacked the
+  empty-scope elision the `K_begin` action already had, so an **unnamed
+  `fork…join` with no declarations of its own** (the inner fork of a task,
+  whose loop/IO variables belong to the enclosing task) kept a synthesized
+  `$unm_blk` scope. Because the task is automatic, the backend then
+  allocated a **spurious per-block activation frame** for that empty scope,
+  which became the current activation context and broke resolution of the
+  enclosing task's per-invocation locals — under concurrent invocation the
+  locals read `x` (`automatic_events`), and the same stray scope corrupted
+  the array-word event path (`automatic_task2` no output / `automatic_task3`
+  segfault) and `disable`-of-detached-`join_any` (`fork_join_dis`).
+  Dropping the empty unnamed-fork scope (matching the begin/end path, and
+  the reference compiler, which keeps such locals in the single task frame)
+  fixes all four. ivtest 97→93, UVM 178/0/1, VPI 81/81, negative 32/32,
+  bison conflicts unchanged. Regression test
+  `tests/auto_task_concurrent_frame_test.sv`.
+- **`automatic_events2`** — the *deeper* remaining case, now root-caused to
+  a precise, minimal trigger: **a blocking `fork … join` inside an automatic
+  task where one branch ends before a sibling branch reads a parent-scope
+  automatic local**. The sibling's read then returns the element default
+  instead of the live value (in `automatic_events2` this is why only the
+  events fired by the module signal `any`, *after* the driver branch has
+  finished, print `x` — the earlier `pos`/`neg`-driven events are correct).
+  Minimal repro (not concurrency-dependent; single invocation reproduces):
+
+  ```
+  task automatic w(input byte id, output byte r);
+    begin: body
+      reg [7:0] acc; acc = id;
+      fork
+        begin #10 ; end          // branch A ends early
+        begin #30 r = acc; end   // branch B reads parent local after A ended
+      join
+    end
+  endtask                        // r reads 0, expected id
+  ```
+
+  `IVL_CTX_TRACE` shows `body` is `alloc-shared` with the task frame, and
+  when branch A is reaped the shared parent context is dropped from the
+  chain the still-live sibling reads through. The fix lives in the vvp
+  runtime context lifecycle (`of_ALLOC`/`of_FREE`/`do_join`/`vthread_reap`
+  and the `automatic_context_refcount` bookkeeping) — a large, intricate,
+  fork-specific subsystem that underlies **every** automatic task/function
+  (hence all of UVM), so the blast radius of a wrong change is severe. This
+  is left scoped for a dedicated, heavily-validated pass (or the
+  architectural move to the reference compiler's single-task-frame model,
+  where nested block/fork locals live in the one task frame and this class
+  of bug cannot arise).
 - **`automatic_task`** — a plain `event` declaration placed *after* another
   declaration in a task is rejected (`syntax error / Malformed statement`);
   upstream accepts it. This is the same fork parser regression that breaks
@@ -490,8 +537,119 @@ mechanisms (from this pass), so the remaining work is well-scoped:
   yields `x`; combines the automatic-var event-sensing issue above with
   recursion.
 
-Items 2–4 are genuine but deeper (event-probe elaboration, parser-conflict
+Remaining (`automatic_events2`, `automatic_task`, `recursive_task`) are
+genuine but deeper (per-block-frame parent linkage, parser-conflict
 isolation) and are left scoped rather than rushed.
+
+### Silent-miscompile pass (wrong-value / crash cluster)
+
+4. **vvp: array-word initial value never propagated through a continuous
+   assign** (`pr1648365`, `pr2974294` — the audit's verified reg-array
+   `z`-instead-of-`x` bug). The fork had added an eager
+   `compile_resolve_pending_label(label)` inside `vpip_make_array`
+   (`vvp/array.cc`); a `.array/port` compiled before its `.array` resolved
+   at that moment — **before the caller allocated the word storage** — so
+   `array_attach_port`'s `vals4 || vals` guard failed and the
+   initial-value propagation was silently never scheduled. The driven net
+   kept its `z` default forever (unless the word was later written). The
+   resolve now runs at the end of each `compile_*_array` variant, after
+   storage exists. Both tests now pass (`pr1648365` matches gold,
+   `pr2974294` prints PASSED). Regression test
+   `tests/array_word_init_prop_test.sv`.
+5. **elaborator: literal `null` in illegal operator/r-value contexts was
+   silently accepted or crashed** (`br_gh440`). The fork's compile-progress
+   class-type leniencies (PEBinary / PEBComp / PEBLeftWidth / PEUnary
+   `test_width`, and the `elab_and_eval` class-r-value fallback in
+   `netmisc.cc`) treated *any* class-typed operand as a stubbed method
+   return: `val = null` silently compiled to `val = 0`, `1|null`,
+   `null<<1`, `!null` were silently accepted, and `null <= 1` let a
+   width-0 null reach `eval_tree.cc`'s `must_be_leeq_` assertion →
+   compiler abort. The leniencies are now gated with surgical precision —
+   the first attempt was too coarse and broke UVM compilation (181
+   COMPILE_FAIL), which pinned exactly which shapes the leniency
+   legitimately serves:
+   - **operator operands** (PEBinary/PEBLeftWidth/PEUnary): a literal
+     `null` operand always errors; class-typed *expressions* keep the
+     leniency (stubbed method returns).
+   - **relational comparison**: class/null operands are a hard error in
+     every language mode (never legal SV), and `PEBComp::elaborate_expr`
+     bails out before building a `NetEBComp` with a class/null operand so
+     the constant folder cannot abort.
+   - **equality comparison**: `null` vs a **literal constant**
+     (`0 == null`) errors; `null` vs an identifier stays lenient — the
+     identifier's scalar type may come from a class type parameter
+     instantiated with a scalar (`uvm_pair`'s `T1 f = null; if (f ==
+     null)`), and `unresolved == null` is the canonical stubbed-handle
+     comparison.
+   - **r-value fallback** (`netmisc.cc`): a literal `null` with a 4-state
+     LOGIC target errors (`logic v = null`, implicit-logic `return
+     null`); a 2-state BOOL target keeps the fallback because `chandle`
+     lowers to a 2-state atom and `return null` from a `chandle` function
+     is legal SV (`uvm_svcmd_dpi`). Operator nodes typed class are always
+     excluded from the fallback.
+   `br_gh440` now matches its gold byte-for-byte AND the full UVM sweep
+   stays green. Negative test `tests/negative/null_illegal_contexts.sv`.
+7. **parser/scope: wildcard-import cluster** (`sv_wildcard_import2/3/4/5`)
+   — two distinct fork defects, neither actually import *semantics*:
+   - **Module-level `typedef_type v = init;` failed to parse** ("Invalid
+     module instantiation"). The fork parses `TYPE_IDENTIFIER name;`
+     through a no-port instantiation shape it added (upstream has no bare
+     `IDENTIFIER` gate_instance at all) and reinterprets it as a variable
+     declaration in `pform_make_modgates` — but `gate_instance` had no
+     `= expr` alternative, so ANY module-level typedef'd declaration with
+     an initializer was a syntax error (this, not shadowing, is what broke
+     `sv_wildcard_import2/3`). `gate_instance` now carries the declarator
+     initializer through `lgate::decl_init` into the reinterpretation
+     (bison conflict counts unchanged), and a real instantiation with an
+     initializer is a loud error.
+   - **The lexer's is-this-a-type probe pinned wildcard imports as if
+     referenced.** `pform_test_type_identifier` fires for every
+     identifier, so the fork had to drop wildcard pins unconditionally in
+     `add_local_symbol` — which destroyed the required declare-after-use
+     error (IEEE 1800-2017 26.3, `sv_wildcard_import4`) and
+     double-reported ambiguity. A first fix (probe fully read-only) broke
+     UVM elaboration (class-property types stopped resolving), proving
+     the pins are a load-bearing *resolution cache* for later phases. The
+     final design separates the two concerns: the probe still pins
+     **unambiguous** hits as a cache but is silent and never reports
+     ambiguity; a new `LexicalScope::wildcard_pin_used` set records
+     *genuine* references (value uses via `check_potential_imports`, type
+     uses via `pform_set_type_referenced` — including the
+     modgate-reinterpretation declaration path, which now records the
+     type reference); and `add_local_symbol` shadows an **un-used**
+     wildcard pin but hard-errors on a **used** one (or any explicit
+     import).
+   Result: `sv_wildcard_import2/3` run and print PASSED,
+   `sv_wildcard_import4` matches its gold byte-for-byte, and
+   `sv_wildcard_import5`'s ambiguity diagnostics now match gold exactly
+   too (the duplicated "type" wording came from the probe). Regression
+   test `tests/typedef_init_shadow_test.sv`.
+
+8. **parser: event declarations after other declarations** (`automatic_task`
+   + the fork-specific half of `always_comb/ff/latch_warn`). Root cause
+   found by tracing the LALR machine (env-gated `IVL_PARSE_TRACE` yydebug
+   plumbing added for this): a leading *variable* declaration in a
+   task/function/block body reduces OUT of the declaration section — the
+   r/r conflict between empty `K_const_opt` (stay) and the empty
+   declaration-list (exit) resolves by rule order toward exit — and the
+   declaration parses via the fork's inline *statement* declaration rule.
+   That worked for variables, but statement context had no event rule, so
+   `event e;` after any variable declaration exploded as "Malformed
+   statement" (while `event` FIRST worked, since `K_event` shifts directly
+   in the declaration states — the exact observed asymmetry).
+   `statement_item` now accepts `K_event event_variable_list ';'`
+   (IEEE 1800-2017 6.18 permits declarations intermixed with statements),
+   registered identically to the block_item_decl path. The +20 s/r
+   conflicts this adds are all `K_event` shift-vs-exit-reduce pairs where
+   both resolutions parse the same construct through `pform_make_events`.
+   `automatic_task` now matches its gold; the `always_*_warn` trio reaches
+   exact upstream parity — the only remaining diff (6 lines, identical on
+   upstream 13.0) is a typo in the gold file itself ("Assinging"), i.e.
+   pre-existing stale gold, not the fork. Regression test
+   `tests/event_decl_order_test.sv`.
+9. **`part_sel_port` re-attributed** — verified pre-existing upstream
+   time-0 propagation ordering (see the corrected Part 5 entry), not a
+   fork miscompile; left unfixed deliberately.
 
 ## Appendix — full per-test reason table
 
@@ -505,9 +663,9 @@ deterministically on a quiet host.
 
 | # | Test | Category | Definitive reason |
 |---|------|----------|-------------------|
-| 1 | always_comb_warn | OUTPUT-DIFF (functional) | `event` decl after another decl in a task → "Malformed statement" (VERIFIED parser bug) |
-| 2 | always_ff_warn | OUTPUT-DIFF (functional) | same event-ordering parser bug |
-| 3 | always_latch_warn | OUTPUT-DIFF (functional) | same event-ordering parser bug |
+| 1 | always_comb_warn | → upstream parity | parse bug FIXED (Part 8 item 8); remaining 6-line diff is a gold-file typo ("Assinging"), identical on upstream |
+| 2 | always_ff_warn | → upstream parity | parse bug FIXED; remaining diff is the same gold typo |
+| 3 | always_latch_warn | → upstream parity | parse bug FIXED; remaining diff is the same gold typo |
 | 4 | analog1 | UNIMPL | Verilog-AMS `V(out)` probe unsupported ("No function named `V`") |
 | 5 | analog2 | UNIMPL | Verilog-AMS `<+` contribution → syntax error |
 | 6 | array_dump | OUTPUT-DIFF (cosmetic) | VCD writer emits extra `$comment Show the parameter values.`/`$dumpall` block |
@@ -515,7 +673,7 @@ deterministically on a quiet host.
 | 8 | automatic_events | RUNTIME-BUG | automatic-task locals in edge events → 15× `unresolved vvp_net reference` |
 | 9 | automatic_events2 | RUNTIME-BUG | same automatic-var edge-event codegen bug |
 | 10 | automatic_events3 | RUNTIME-BUG | same (6× unresolved vvp_net reference) |
-| 11 | automatic_task | UNIMPL/parser | `event` decl after a memory decl in a task rejected (event-ordering bug) |
+| 11 | automatic_task | → **FIXED** | event-after-declaration parser bug fixed (Part 8 item 8); matches gold |
 | 12 | automatic_task2 | OUTPUT-DIFF (functional) | `@(array[i])` on automatic-task local never fires → zero output |
 | 13 | automatic_task3 | RUNTIME-BUG | automatic-task local in `@(array[j])` → unresolved vvp_net + **segfault** |
 | 14 | br1003a | OUTPUT-DIFF (cosmetic) | $printtimescale prints `$unit::` vs gold `$unit` |
@@ -540,7 +698,7 @@ deterministically on a quiet host.
 | 33 | br_gh315 | UNIMPL/config | `.A` implicit named-port needs SV; normal mode rejects (CE variant OK) |
 | 34 | br_gh386c | LENIENT | continuous int→enum assign accepted (known-open gh#386) |
 | 35 | br_gh386d | LENIENT (intentional?) | `assign = enum'(1)` cast accepted; CE variant no longer errors |
-| 36 | br_gh440 | CRASH | `eval_tree.cc:367` assert abort on `null<=1` (blame→**upstream**; known-open gh#440) |
+| 36 | br_gh440 | CRASH → **FIXED** | was: assert abort on `null<=1` (fork leniency leaked width-0 null; Part 8 item 5); now matches gold |
 | 37 | br_gh497a | RUNTIME-BUG | packed 2-D `wire[3:0][3:0]` part-select assign → all-`z`, self-check FAILED (known-open gh#497) |
 | 38 | br_ml20150315b | LENIENT (intentional) | unpacked struct now accepted; test expects compile error |
 | 39 | br_ml20150606 | OUTPUT-DIFF (functional) | port + separate net redecl (`input[3:0] X; wire[3:0] X;`) now "already declared" |
@@ -553,10 +711,10 @@ deterministically on a quiet host.
 | 46 | fread-error | OUTPUT-DIFF (dropped diag) | `$fread` "first argument must be a reg or memory" error no longer emitted |
 | 47 | func_init_var2 | OUTPUT-DIFF (functional) | automatic-fn `automatic int acc=1` initializer ignored in const-fn eval → wrong value |
 | 48 | macro_with_args | OUTPUT-DIFF (cosmetic) | macro-arg stringification adds trailing spaces `(a )` vs `(a)` |
-| 49 | mod_inst_pkg | UNIMPL | package import in ANSI module header not implemented |
-| 50 | part_sel_port | OUTPUT-DIFF (functional) | multidim packed-array port part-select → wrong value, FAILED |
+| 49 | mod_inst_pkg | → **FIXED** | ANSI-header package import now resolves (bonus from the wildcard-import type-resolution rework, Part 8 item 7) |
+| 50 | part_sel_port | OUTPUT-DIFF (pre-existing) | t0 read races multi-driver part-select init propagation; upstream fails identically (re-attributed, Part 8 item 6) |
 | 51 | pr1002 | OUTPUT-DIFF (functional) | comb cont-assign lags one delta → stale compare → spurious CHECK FAILED |
-| 52 | pr1648365 | OUTPUT-DIFF (functional) | `wire=reg_array[idx]` uninit word reads `z` not `x` (VERIFIED) |
+| 52 | pr1648365 | OUTPUT-DIFF → **FIXED** | uninit array word read `z` not `x`: eager .array/port resolve skipped init propagation (Part 8 item 4) |
 | 53 | pr1723367 | OUTPUT-DIFF (cosmetic) | warning line numbers off (stale gold; sim output matches) |
 | 54 | pr1792152 | DIAG-DIFF | `choosing typ expression`→`Choosing` (result matches) |
 | 55 | pr1833024 | DIAG-DIFF | reworded elaboration errors, added scope/detail |
@@ -571,7 +729,7 @@ deterministically on a quiet host.
 | 64 | pr2792883 | LENIENT | accepts `parameter W=dut.W;` hierarchical param ref that CE test expects rejected |
 | 65 | pr2800985b | DIAG-DIFF | `$ferror` `(register)`→`(variable)` SV terminology (still rejects) |
 | 66 | pr2859628 | OUTPUT-DIFF (cosmetic) | VCD parameter-dump block absent from 2009-era gold |
-| 67 | pr2974294 | OUTPUT-DIFF (functional) | same reg-array-word-reads-`z` bug as pr1648365 → FAILED |
+| 67 | pr2974294 | OUTPUT-DIFF → **FIXED** | same array-word init-propagation bug as pr1648365 (Part 8 item 4) |
 | 68 | pr2976242c | DIAG-DIFF | identifiers backtick-quoted vs bare in gold |
 | 69 | pr243 | OUTPUT-DIFF (functional) | same-time `$monitor` vs `$finish(0)` ordering → missing final line |
 | 70 | pr3190941 | DIAG-DIFF | reworded "…support a continuous assignment" + scope prefix |
@@ -594,10 +752,10 @@ deterministically on a quiet host.
 | 87 | sv_queue_vec_fail | DIAG-DIFF | correct reject; wording only |
 | 88 | sv_timeunit_prec_fail1 | DIAG-DIFF | correct reject; casing/prefix + `_`-separator now accepted |
 | 89 | sv_timeunit_prec_fail2 | DIAG-DIFF | same |
-| 90 | sv_wildcard_import2 | UNIMPL/wrong-reject | local `typedef word` shadowing wildcard import wrongly rejected |
-| 91 | sv_wildcard_import3 | UNIMPL/wrong-reject | same wildcard-import shadowing reject |
-| 92 | sv_wildcard_import4 | DIAG-DIFF (behavioral) | fork "compile-progress fallback" masks expected duplicate-import errors |
-| 93 | sv_wildcard_import5 | DIAG-DIFF | correct reject; `Ambiguous use of type 'word'` vs gold `Ambiguous use of 'word'` |
+| 90 | sv_wildcard_import2 | → **FIXED** | real cause: module-level `typedef_type v = init;` could not parse (Part 8 item 7) |
+| 91 | sv_wildcard_import3 | → **FIXED** | same typedef-initializer parse defect (Part 8 item 7) |
+| 92 | sv_wildcard_import4 | → **FIXED** | probe-pinning removed; declare-after-use error restored, matches gold (Part 8 item 7) |
+| 93 | sv_wildcard_import5 | → **FIXED** | probe silenced; ambiguity reported once via the reference path, matches gold (Part 8 item 7) |
 | 94 | task_iotypes | UNIMPL | legacy split task-port typing rejected |
 | 95 | uwire_fail | DIAG-DIFF | correct reject; `Unresolved wire 'two'` vs gold `Unresolved net/uwire two` |
 | 96 | vcd-dup | OUTPUT-DIFF (cosmetic) | same extra VCD parameter-dump block |

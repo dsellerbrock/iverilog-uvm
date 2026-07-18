@@ -1132,6 +1132,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       std::list<class_type_t::pform_cov_bins_t*>* cov_bins_list;
 };
 
+%define parse.trace
 %token <text>      IDENTIFIER SYSTEM_IDENTIFIER STRING TIME_LITERAL
 %token <type_identifier> TYPE_IDENTIFIER
 %token <package>   PACKAGE_IDENTIFIER
@@ -8963,6 +8964,33 @@ gate_instance
 	$$ = tmp;
       }
 
+  /* A user-type variable declaration parsed through the no-port
+     instantiation shape can carry a declaration initializer
+     (`type_t v = expr;`). pform_make_modgates reinterprets it; a real
+     module instantiation with an initializer is rejected there. */
+  | IDENTIFIER '=' expression
+      { lgate*tmp = new lgate;
+	tmp->name = $1;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	tmp->decl_init = $3;
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+
+  | IDENTIFIER dimensions '=' expression
+      { lgate*tmp = new lgate;
+	tmp->name = $1;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	tmp->ranges = $2;
+	tmp->decl_init = $4;
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+
   /* Modules can also take ports by port-name expressions. */
 
   | IDENTIFIER '(' port_name_list ')'
@@ -12123,6 +12151,22 @@ statement_item /* This is roughly statement_item in the LRM */
       { if ($1) pform_make_var(@1, $2, $1, nullptr, false);
 	$$ = nullptr;
       }
+
+  /* An event declaration intermixed with statements. Leading variable
+     declarations in a task/function/block body reduce out of the
+     declaration section (the empty-K_const_opt vs empty-list conflict
+     resolves toward the statement path) and are handled by the inline
+     data_type declaration rule above — but `event e;` AFTER such a
+     declaration then arrives in statement context, which had no event
+     rule, so it exploded as "Malformed statement" (automatic_task,
+     always_comb/ff/latch_warn). SystemVerilog allows declarations,
+     including named events, intermixed with statements in procedural
+     blocks (IEEE 1800-2017 6.18); register them exactly like the
+     block_item_decl event rule does. */
+  | K_event event_variable_list ';'
+      { if ($2) pform_make_events(@1, $2);
+	$$ = nullptr;
+      }
   | variable_lifetime_opt TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($2.type);
 	FILE_NAME(dtype, @2);
@@ -12463,10 +12507,28 @@ statement_item /* This is roughly statement_item in the LRM */
 		/* Inline SV-style var decls in statements also need the SV check. */
 		if (!$2 && !$4 && !pform_block_scope_is_empty())
 		      pform_block_decls_requires_sv();
+		/* An unnamed blocking fork/join with no declarations of its
+		   own needs no scope: keeping the synthesized $unm_blk scope
+		   makes the backend allocate a spurious per-block activation
+		   frame that breaks resolution of the enclosing (automatic)
+		   task's locals when it runs concurrently. Drop the empty
+		   scope, as the begin/end path does. This is restricted to a
+		   *blocking* join: a join_none/join_any fork spawns background
+		   processes that outlive the statement, and its scope provides
+		   their process context (and, inside a function, distinguishes
+		   a deferred task call in the forked process from an illegal
+		   direct one), so that scope must be kept even when empty. */
+		bool scope_empty = !$2 && !$4 && pform_block_scope_is_empty()
+		      && $7 == PBlock::BL_PAR;
 		pform_pop_scope();
 		assert(! current_block_stack.empty());
 		tmp = current_block_stack.top();
 		current_block_stack.pop();
+		if (scope_empty) {
+		      delete tmp;
+		      tmp = new PBlock(PBlock::BL_PAR);
+		      FILE_NAME(tmp, @1);
+		}
 		tmp->set_join_type($7);
 	if ($6) tmp->set_statement(*$6);
 	delete $6;
