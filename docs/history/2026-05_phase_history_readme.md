@@ -120,7 +120,7 @@ results — and upstream each fix as a minimal, reviewable patch.
 | Coverage `cross` / `illegal_bins` | ⚠ Stub | I1 deferred — parser drops cross items at parse.y:2433; needs covergroup runtime + tgt-vvp metadata. |
 | `uvm_object.print()` printer dispatch | ⚠ Stub | I2 deferred — virtual dispatch on uvm_table_printer::emit falls through to uvm_printer base. Same family as Phase 61c suffix-index work. |
 | `uvm_resource_db#(T)::set/read_by_name` | ⚠ Stub | C3 deferred — runtime warnings on parameterized class typed pool ("signal assoc on unexpected container type"). |
-| `uvm_cmdline_processor.get_args()` | ⚠ DPI | C4 deferred — needs DPI lib (script: scripts/build_uvm_dpi_iverilog.sh) plus downstream vthread::pop_str robustness fix. |
+| `uvm_cmdline_processor.get_args()` | ⚠ DPI | C4 deferred — needs DPI lib (script: scripts/build_uvm_dpi_iverilog.sh — *editor's note: this script is no longer in the tree; see [docs/uvm.md](../uvm.md) for the current DPI story*) plus downstream vthread::pop_str robustness fix. |
 | `wait()`-loop sensitivity through virtual-interface chain | ⚠ Open | iverilog's nex_input on a `NetEProperty` chain returns the root `this` nexus, not the iface signal — see Issue #28 |
 | UVM port-imp virtual dispatch (`seq_item_port.try_next_item`) | ⚠ Open | Falls through to `uvm_sqr_if_base` error stub — see Issue #29 |
 | Class property handle preservation across method-internal control flow | ⚠ Open | `cfg` reads non-null at `a_channel_thread` entry, null 20 ns later in callee — see Issue #30 |
