@@ -168,9 +168,37 @@ negative 32/32); the census after the fix: recover.miss 83k -> 277,
 recover.mismatch-repair 62k -> 60, recv-sig.mismatch-repaired 61k -> 60,
 recv-ev.* -> 0, replaced by honest counters: notify-unheld 111k (correct
 drops), foreign-fanout 33k (correct multi-frame wakes), notify-fanout 84
-(identity-matched deliveries). The residue (277 miss / 60 repair) is the
-nil-context `uvm_hdl_concat2string` reads plus a small vec4/string recv
-population — the next attribution targets.
+(identity-matched deliveries).
+
+**Step 5 (residue attribution, 2026-07-18).** The 277 remaining misses
+fully attributed (scope-keyed census + gdb):
+
+1. ~97 (ivtest `automatic_events*`, `automatic_task*` etc.): nil-context
+   `vvp_send_vec4` from STATIC sources into automatic edge/anyedge event
+   probes — by design, these take the per-context fanout where each
+   frame's own edge state decides. The recover call before the fanout was
+   pure noise (and its "repair" outcome — deliver to one arbitrary frame
+   — never fired per census, which would have been a missed-wakeup bug if
+   it had). The five fanout-shaped event recv sites (edge vec4, anyedge
+   vec4/real/string, event-or) now use the explicit native-context check
+   (`vthread_context_live_matches_scope`) and route everything non-native
+   to the fanout; `vvp_named_event_aa` keeps its assert-native contract.
+2. 180 (UVM, one per test): a VACUOUS static `$init` process that
+   initializes `uvm_hdl_concat2string`'s struct-typed block-local
+   (`uvm_hdl_path_slice slice = concat.slices[i]`, lowered to an
+   anonymous cobj class) at t0 with no live frame — it loads the nil
+   function argument, takes the null branch, and stores nil into a frame
+   that does not exist (correctly dropped). The real per-call initializer
+   is also present inline in the function body, so this is a duplicate,
+   dead emission — an elaboration wart, not a runtime defect. Minimal
+   struct-local and class-local reproductions do NOT trigger the
+   duplicate, so the emitting path needs isolation within the full
+   uvm_pkg elaboration; left as a documented follow-up.
+
+After the event-side conversion the recover machinery has exactly three
+remaining users: the vec4/real/string aa SIGNAL recv paths (near-zero
+engagement), `set_root_provenance`, and `vvp_named_event_aa`'s
+assert-native delivery.
 
 **Retirement evidence so far (2026-07-18, post step 2).** With
 `IVL_AUTO_CTX_WARN=1`: the local battery (frame-sharing, recursion x100

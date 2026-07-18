@@ -386,8 +386,15 @@ void vvp_fun_edge_aa::recv_object(vvp_net_ptr_t, vvp_object_t, vvp_context_t)
 void vvp_fun_edge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                 vvp_context_t context)
 {
-      context = recover_automatic_event_context_(context, context_scope_,
-                                                 "recv-edge-aa");
+	/* Only accept a context that is a live frame of this probe's
+	   scope (a native delivery). Nil or foreign contexts (static
+	   sources, cross-scope notifications) take the per-context
+	   fanout below, where each frame's state decides
+	   independently. (The former recover step never repaired
+	   anything here per the 2026-07 engagement census; misses
+	   always fell through to the fanout.) */
+      if (!(context && vthread_context_live_matches_scope(context, context_scope_)))
+	    context = 0;
       if (context) {
             vvp_fun_edge_state_s*state = static_cast<vvp_fun_edge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
@@ -760,8 +767,15 @@ void vvp_fun_anyedge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
             fprintf(stderr, "trace anyedge-aa recv_vec4 net=%p ctx=%p wid=%u\n",
                     (void*)port.ptr(), context, bit.size());
       }
-      context = recover_automatic_event_context_(context, context_scope_,
-                                                 "recv-anyedge-vec4-aa");
+	/* Only accept a context that is a live frame of this probe's
+	   scope (a native delivery). Nil or foreign contexts (static
+	   sources, cross-scope notifications) take the per-context
+	   fanout below, where each frame's state decides
+	   independently. (The former recover step never repaired
+	   anything here per the 2026-07 engagement census; misses
+	   always fell through to the fanout.) */
+      if (!(context && vthread_context_live_matches_scope(context, context_scope_)))
+	    context = 0;
       if (context) {
             vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
@@ -792,8 +806,15 @@ void vvp_fun_anyedge_aa::recv_real(vvp_net_ptr_t port, double bit,
             fprintf(stderr, "trace anyedge-aa recv_real net=%p ctx=%p val=%g\n",
                     (void*)port.ptr(), context, bit);
       }
-      context = recover_automatic_event_context_(context, context_scope_,
-                                                 "recv-anyedge-real-aa");
+	/* Only accept a context that is a live frame of this probe's
+	   scope (a native delivery). Nil or foreign contexts (static
+	   sources, cross-scope notifications) take the per-context
+	   fanout below, where each frame's state decides
+	   independently. (The former recover step never repaired
+	   anything here per the 2026-07 engagement census; misses
+	   always fell through to the fanout.) */
+      if (!(context && vthread_context_live_matches_scope(context, context_scope_)))
+	    context = 0;
       if (context) {
             vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
@@ -824,8 +845,15 @@ void vvp_fun_anyedge_aa::recv_string(vvp_net_ptr_t port, const std::string&bit,
             fprintf(stderr, "trace anyedge-aa recv_string net=%p ctx=%p val=%s\n",
                     (void*)port.ptr(), context, bit.c_str());
       }
-      context = recover_automatic_event_context_(context, context_scope_,
-                                                 "recv-anyedge-string-aa");
+	/* Only accept a context that is a live frame of this probe's
+	   scope (a native delivery). Nil or foreign contexts (static
+	   sources, cross-scope notifications) take the per-context
+	   fanout below, where each frame's state decides
+	   independently. (The former recover step never repaired
+	   anything here per the 2026-07 engagement census; misses
+	   always fell through to the fanout.) */
+      if (!(context && vthread_context_live_matches_scope(context, context_scope_)))
+	    context = 0;
       if (context) {
             vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
@@ -1013,8 +1041,15 @@ vthread_t vvp_fun_event_or_aa::add_waiting_thread(vthread_t thread)
 void vvp_fun_event_or_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                     vvp_context_t context)
 {
-      context = recover_automatic_event_context_(context, context_scope_,
-                                                 "recv-event-or-aa");
+	/* Only accept a context that is a live frame of this probe's
+	   scope (a native delivery). Nil or foreign contexts (static
+	   sources, cross-scope notifications) take the per-context
+	   fanout below, where each frame's state decides
+	   independently. (The former recover step never repaired
+	   anything here per the 2026-07 engagement census; misses
+	   always fell through to the fanout.) */
+      if (!(context && vthread_context_live_matches_scope(context, context_scope_)))
+	    context = 0;
       if (context) {
             waitable_state_s*state = static_cast<waitable_state_s*>
                   (vvp_get_context_item(context, context_idx_));
