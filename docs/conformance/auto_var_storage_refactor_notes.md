@@ -106,11 +106,23 @@ task frame instead of the block frame.
 
 ## Later steps
 
-2. Collapse blocking `fork…join` scopes: requires the vvp `.scope` directive
-   (or a flag on it) to distinguish detached-capable fork scopes so item
-   placement can climb; co-evolve tgt-vvp `draw_scope` + vvp `compile_scope`.
-3. With per-block frames gone from the common paths, begin retiring the
-   heuristic layer in vvp/vthread.cc (owner/refcount maps, scoped chain
-   search, sanitize/recovery) in favor of the upstream invariants, keeping
-   only the retain-on-detach mechanism that supports detached forks in
-   automatic scopes (the fork's genuine extension over upstream).
+With per-block frames gone from the common paths, the eventual goal is to
+retire the heuristic layer in vvp/vthread.cc (owner/refcount maps, scoped
+chain search, sanitize/recovery) in favor of the upstream invariants,
+keeping only the retain-on-detach mechanism that supports detached forks in
+automatic scopes (the fork's genuine extension over upstream).
+
+**Retirement evidence so far (2026-07-18, post step 2).** With
+`IVL_AUTO_CTX_WARN=1`: the local battery (frame-sharing, recursion x100
+depth-500 with frame reuse, join_none churn with 400 detached branches,
+disable, static-parent blocks, const funcs) triggers ZERO recovery paths on
+the refactored build. UVM (`configdb_assoc_test`) still triggers five —
+recv-object-aa / recv-anyedge-object-aa repairs, an owned-context %free
+fallback in `uvm_topdown_phase.traverse`, and a nil-context scoped read in
+`uvm_hdl_concat2string` — but the IDENTICAL five fire on the unmodified
+main build (114cdbc), so they are pre-existing engagements of the
+object/event propagation paths, not artifacts of the collapse. Conclusion:
+the thread-context recovery machinery is no longer exercised by
+block/fork/recursion control flow, but the object/event-callback paths
+(recv-*-aa) still lean on it; those need their own root-cause pass before
+any wholesale retirement.
