@@ -1100,7 +1100,13 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  // Queue/darray slice with variable-bounds (q[lo:hi] where lo/hi
 		  // are runtime) elaborates as LOGIC in the bit-select fallback
 		  // path. Allow it through for queue targets as compile-progress.
-		  if (gn_system_verilog() && type_is_vectorable(expr_type))
+		  // Only identifier-rooted expressions can be such a slice; any
+		  // other vectorable expression (e.g. `8'd1 << 4`) cannot form a
+		  // dynamic array and must take the loud cast error below --
+		  // letting it through makes the code generator silently store
+		  // null (br_gh265).
+		  if (gn_system_verilog() && type_is_vectorable(expr_type)
+		      && dynamic_cast<PEIdent*>(pe))
 			return tmp;
 		  // fall through
 		case IVL_VT_STRING:

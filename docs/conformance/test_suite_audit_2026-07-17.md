@@ -281,7 +281,8 @@ upstream diff (see caveat).
   fixed here (an upstream scheduler-semantics change with broad gold
   churn).
 - **`fork_join_dis`** — `disable` fails to terminate detached `join_any`
-  children.
+  children. **FIXED** (Part 8 item 11): the unnamed-fork `$unm_blk` scope
+  hid the children from `%disable` of the enclosing named block.
 - **`sv_wildcard_import2` / `import3`** — valid code wrongly *rejected*: a
   local `typedef … word` that legitimately shadows a wildcard-imported
   `word` triggers `syntax error / Invalid module instantiation`.
@@ -290,7 +291,8 @@ upstream diff (see caveat).
 - **`br_gh265`** — fork object-codegen (`draw_eval_object … emitting null
   fallback`, `git blame` → fork) reaches codegen instead of producing the
   elaboration-time implicit-cast rejection. Loud (a Warning), not a silent
-  miscompile.
+  miscompile. **FIXED** (Part 8 item 10): the elaboration-time cast error
+  is restored; output matches gold byte-for-byte.
 - **`reg_basic_test`** (Part 4) — UVM backdoor register access returns
   failure status.
 
@@ -494,6 +496,14 @@ mechanisms (from this pass), so the remaining work is well-scoped:
   fixes all four. ivtest 97→93, UVM 178/0/1, VPI 81/81, negative 32/32,
   bison conflicts unchanged. Regression test
   `tests/auto_task_concurrent_frame_test.sv`.
+  *Correction:* the elision initially covered every join type, but the
+  join_none case broke UVM (`uvm_objection::m_init_objections` has a
+  `fork…join_none` task call inside a *function*; without the fork scope
+  the checker saw an illegal direct task call), so it was restricted to
+  blocking `join` — which re-broke `fork_join_dis`. Part 8 item 11 settles
+  this properly: elide for all join types *except lexically inside a task
+  or function*, keeping the UVM deferred-call and process-identity
+  behavior while restoring `disable` reachability of detached children.
 - **`automatic_events2`** — the *deeper* remaining case, now root-caused to
   a precise, minimal trigger: **a blocking `fork … join` inside an automatic
   task where one branch ends before a sibling branch reads a parent-scope
@@ -650,6 +660,47 @@ isolation) and are left scoped rather than rushed.
 9. **`part_sel_port` re-attributed** — verified pre-existing upstream
    time-0 propagation ordering (see the corrected Part 5 entry), not a
    fork miscompile; left unfixed deliberately.
+10. **elaborator: darray/queue targets accepted arbitrary vectorable
+   r-values** (`br_gh265`). The Phase-11 compile-progress leniency in the
+   typed `elab_and_eval` (`netmisc.cc`) — added so a runtime-bounds queue
+   slice `q[lo:hi]` (which lowers as LOGIC through the bit-select fallback)
+   could reach a queue target — let *any* vectorable expression through to
+   a darray/queue l-value. `array = 8'd1 << 4;` then reached the object
+   code generator, which warned (`draw_eval_object … emitting null
+   fallback`) and silently stored null. The leniency is now gated on the
+   expression being identifier-rooted (`PEIdent`), the only shape a queue
+   slice can take; every other vectorable r-value takes the upstream
+   elaboration error ("cannot be implicitly cast to the target type").
+   `br_gh265` now matches its gold byte-for-byte. Negative regression
+   test `tests/negative/darray_scalar_assign.sv`.
+11. **parser/runtime: `disable` of a named block did not kill detached
+   join_any/join_none children of an unnamed fork beneath it**
+   (`fork_join_dis`). The fork synthesizes a `$unm_blk` scope for every
+   unnamed fork; children `%fork` into that child scope, and vvp's
+   `%disable` of the enclosing block's scope never reaches threads in the
+   child scope (upstream never creates the scope — children run directly
+   in the enclosing scope, so `disable` finds them). The empty unnamed-fork
+   scope elision (item above) is now extended from blocking `join` to
+   join_any/join_none, with one exception: lexically inside a *task or
+   function* the scope is kept. In a function it is what distinguishes a
+   deferred task call in a forked process from an illegal direct task call
+   (UVM `uvm_objection::m_init_objections` relies on this — the exact
+   breakage that forced the earlier restriction). In a task the runtime
+   marks a `%fork` child whose target scope is a task scope as a compiled
+   task call sharing the caller's logical process (`vvp/vthread.cc`
+   `of_FORK`), so eliding there aliased `process::self()` in the forked
+   process with the caller — verified live as 4 UVM sweep failures
+   (`m6_process_identity_test` "watcher process aliases caller process",
+   plus the `vif_smoke`/`vif_smoke_v2`/`seq_trace_test` sequencer-handshake
+   deadlocks) before the exception was widened to routines. New pform
+   helper `pform_scope_in_routine()` walks the lexical scope chain.
+   `fork_join_dis` passes; UVM sweep fully restored. Known residual: a
+   `disable` of a named block *inside a task* still cannot reach detached
+   children of an unnamed fork there (the scope is deliberately kept);
+   fixing that requires the runtime to identify compiled task-call forks
+   without inferring from the target scope type. Regression test
+   `tests/fork_disable_detached_test.sv` (covers both disable shapes plus
+   the function/join_none exception).
 
 ## Appendix — full per-test reason table
 
@@ -694,7 +745,7 @@ deterministically on a quiet host.
 | 29 | br_gh130a | LENIENT | bare int→enum assign accepted (known-open gh#130) |
 | 30 | br_gh130b | LENIENT (intentional?) | `enum'(1)` cast accepted; CE variant no longer errors |
 | 31 | br_gh157 | DIAG-DIFF/strictness | defparam on localparam now hard-errors vs gold warn+run |
-| 32 | br_gh265 | LENIENT/codegen | fork `draw_eval_object … null fallback` replaces elab cast-reject (blame→fork; loud) |
+| 32 | br_gh265 | → **FIXED** | was: fork null-fallback codegen replaced elab cast-reject (Part 8 item 10); now matches gold |
 | 33 | br_gh315 | UNIMPL/config | `.A` implicit named-port needs SV; normal mode rejects (CE variant OK) |
 | 34 | br_gh386c | LENIENT | continuous int→enum assign accepted (known-open gh#386) |
 | 35 | br_gh386d | LENIENT (intentional?) | `assign = enum'(1)` cast accepted; CE variant no longer errors |
@@ -707,7 +758,7 @@ deterministically on a quiet host.
 | 42 | case_unique | OUTPUT-DIFF (dropped diag) | "sorry: Case unique/unique0 qualities are ignored" no longer emitted; still PASSED |
 | 43 | constfunc8 | UNIMPL | `reg bool [5:0] value;` malformed 2-word type decl rejected |
 | 44 | dump_memword | OUTPUT-DIFF (cosmetic) | same extra VCD parameter-dump block |
-| 45 | fork_join_dis | OUTPUT-DIFF (functional) | `disable` fails to kill detached `join_any` children |
+| 45 | fork_join_dis | → **FIXED** | was: `$unm_blk` fork scope hid detached children from `%disable` (Part 8 item 11); passes |
 | 46 | fread-error | OUTPUT-DIFF (dropped diag) | `$fread` "first argument must be a reg or memory" error no longer emitted |
 | 47 | func_init_var2 | OUTPUT-DIFF (functional) | automatic-fn `automatic int acc=1` initializer ignored in const-fn eval → wrong value |
 | 48 | macro_with_args | OUTPUT-DIFF (cosmetic) | macro-arg stringification adds trailing spaces `(a )` vs `(a)` |

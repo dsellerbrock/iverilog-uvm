@@ -12507,19 +12507,28 @@ statement_item /* This is roughly statement_item in the LRM */
 		/* Inline SV-style var decls in statements also need the SV check. */
 		if (!$2 && !$4 && !pform_block_scope_is_empty())
 		      pform_block_decls_requires_sv();
-		/* An unnamed blocking fork/join with no declarations of its
-		   own needs no scope: keeping the synthesized $unm_blk scope
-		   makes the backend allocate a spurious per-block activation
-		   frame that breaks resolution of the enclosing (automatic)
-		   task's locals when it runs concurrently. Drop the empty
-		   scope, as the begin/end path does. This is restricted to a
-		   *blocking* join: a join_none/join_any fork spawns background
-		   processes that outlive the statement, and its scope provides
-		   their process context (and, inside a function, distinguishes
-		   a deferred task call in the forked process from an illegal
-		   direct one), so that scope must be kept even when empty. */
+		/* An unnamed fork with no declarations of its own needs no
+		   scope: keeping the synthesized $unm_blk scope makes the
+		   backend allocate a spurious per-block activation frame that
+		   breaks resolution of the enclosing (automatic) task's
+		   locals when it runs concurrently, and it hides join_any/
+		   join_none children from a `disable` of the enclosing named
+		   block (children fork into $unm_blk, so %disable of the
+		   parent scope never reaches them -- ivtest fork_join_dis).
+		   Upstream never creates this scope, so drop it, as the
+		   begin/end path does. The one exception is a join_any/
+		   join_none fork lexically inside a TASK or FUNCTION: in a
+		   function the scope distinguishes a deferred task call in
+		   the forked process from an illegal direct task call (UVM
+		   uvm_objection::m_init_objections relies on this), and in
+		   a task the runtime treats a %fork child targeting a task
+		   scope as a compiled task call that shares the caller's
+		   logical process, which would alias process::self() in the
+		   forked process with the caller (breaks the UVM sequencer
+		   handshake). So inside a routine the scope is kept even
+		   when empty. */
 		bool scope_empty = !$2 && !$4 && pform_block_scope_is_empty()
-		      && $7 == PBlock::BL_PAR;
+		      && ($7 == PBlock::BL_PAR || !pform_scope_in_routine());
 		pform_pop_scope();
 		assert(! current_block_stack.empty());
 		tmp = current_block_stack.top();

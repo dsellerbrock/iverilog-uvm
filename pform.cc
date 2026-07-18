@@ -6874,6 +6874,25 @@ bool pform_block_scope_is_empty(void)
 	  && lexical_scope->events.empty();
 }
 
+/* Returns true if the current lexical scope is (or is nested inside) a
+ * task or function body. The unnamed-fork scope elision uses this:
+ * inside a routine the fork scope must be kept, because (a) in a
+ * function it is what distinguishes a deferred task call in a
+ * join_any/join_none forked process from an illegal direct call, and
+ * (b) the runtime marks a %fork child whose target scope is a task
+ * scope as a compiled task call sharing the caller's logical process
+ * (vvp/vthread.cc of_FORK), so a real forked process elided into its
+ * enclosing task scope would alias process::self() with the caller
+ * (breaks the UVM sequencer handshake). */
+bool pform_scope_in_routine(void)
+{
+      for (LexicalScope*cur = lexical_scope; cur; cur = cur->parent_scope()) {
+	    if (dynamic_cast<PTaskFunc*>(cur))
+		  return true;
+      }
+      return false;
+}
+
 void pform_check_net_data_type(const struct vlltype&loc, NetNet::Type net_type,
 			       const data_type_t *data_type)
 {
