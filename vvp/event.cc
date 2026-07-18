@@ -858,13 +858,24 @@ void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t,
                     (void*)port.ptr(), context);
       }
       vvp_context_t input_context = context;
-      context = recover_automatic_event_context_(context, context_scope_,
-                                                 "recv-anyedge-object-aa");
+	/* Only accept the supplied context when it is a live frame of
+	   THIS probe's scope (a native delivery). A foreign context is an
+	   object-mutation notification relayed from another scope's
+	   thread; recovering it to the first live frame of this scope
+	   (the old behavior) woke only that one frame and silently missed
+	   waiters in every other frame. Foreign deliveries take the
+	   per-context fanout below, which wakes every frame that has
+	   waiting threads. */
+      if (!(context && vthread_context_live_matches_scope(context, context_scope_))) {
+            if (context)
+                  ctx_stats_bump("recv-anyedge-obj.foreign-fanout");
+            context = 0;
+      }
       if (seq_trace) {
             const char*sn = context_scope_ ? vpi_get_str(vpiFullName, context_scope_) : 0;
             fprintf(stderr,
                     "[SEQ_TRACE anyedge recv_object] net=%p scope=%s"
-                    " in_ctx=%p recovered_ctx=%p\n",
+                    " in_ctx=%p native_ctx=%p\n",
                     (void*)port.ptr(), sn ? sn : "<null>",
                     input_context, context);
       }

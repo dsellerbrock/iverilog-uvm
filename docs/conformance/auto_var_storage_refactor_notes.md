@@ -136,9 +136,41 @@ this profile (aggregate hits):
 
 A second full-suite run after the retirements shows the identical profile
 (and identical ivtest/UVM/VPI/negative results), with every retired-path
-tripwire at zero. The `recover.miss`=83k and `rd-scoped.miss`=540 rows are
-reads/receives that find NO live frame and silently drop or default —
-worth root-causing next, together with the recv-*-aa repair engagements.
+tripwire at zero.
+
+**Step 4 (object-notification delivery, 2026-07-18).** Root cause of the
+`recover.miss` (83k) / `recover.mismatch-repair` (62k) /
+`recv-sig.mismatch-repaired` (61k) engagements, found by gdb backtraces at
+the miss bump: `notify_mutated_object_root_` (fired by `%store/prop`,
+`%store/qo*`, etc.) re-sends the mutated root object through the recorded
+root net so object-valued waits re-evaluate — but it necessarily carries
+the MUTATING thread's context, which is foreign to the receiving functor's
+scope. The old recv path then "recovered" that context to the FIRST live
+frame of the target scope (waking one arbitrary frame, silently missing
+waiters in every other frame, and — worse — overwriting that frame's slot
+with the notifying object even when it held a DIFFERENT object) or dropped
+the delivery entirely on miss. Fixes:
+
+- `vvp_fun_signal_object_aa::recv_object`: a context that is a live frame
+  of the functor's own scope (checked via the exported
+  `vthread_context_live_matches_scope`) takes the normal single-frame
+  store path. Anything else is a notification: it now fans out to every
+  live frame of the scope whose slot holds the SAME object (pointer
+  identity), bumping only the mutation epoch — sibling frames holding
+  other objects are untouched, and "no holder" is a legitimate no-op.
+- `vvp_fun_anyedge_aa::recv_object`: foreign contexts skip the recover
+  step entirely and take the existing per-context waiting-threads fanout
+  (previously that fanout only ran on a recover MISS; a recover "repair"
+  woke one arbitrary frame and missed the rest).
+
+Full-suite results identical (ivtest set, UVM 180/0/1, VPI 81/81,
+negative 32/32); the census after the fix: recover.miss 83k -> 277,
+recover.mismatch-repair 62k -> 60, recv-sig.mismatch-repaired 61k -> 60,
+recv-ev.* -> 0, replaced by honest counters: notify-unheld 111k (correct
+drops), foreign-fanout 33k (correct multi-frame wakes), notify-fanout 84
+(identity-matched deliveries). The residue (277 miss / 60 repair) is the
+nil-context `uvm_hdl_concat2string` reads plus a small vec4/string recv
+population — the next attribution targets.
 
 **Retirement evidence so far (2026-07-18, post step 2).** With
 `IVL_AUTO_CTX_WARN=1`: the local battery (frame-sharing, recursion x100

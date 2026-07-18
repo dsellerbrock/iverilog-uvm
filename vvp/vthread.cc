@@ -4483,6 +4483,12 @@ void ctx_stats_bump(const char* site)
       (*ctx_stats_counts_)[site] += 1;
 }
 
+bool vthread_context_live_matches_scope(vvp_context_t context,
+                                        __vpiScope*scope)
+{
+      return context_live_matches_scope_(context, scope);
+}
+
 vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
                                                 __vpiScope*ctx_scope)
 {
@@ -4512,8 +4518,16 @@ vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
       }
       if (use_context && use_context != candidate)
 	    ctx_stats_bump(candidate ? "recover.mismatch-repair" : "recover.nil-to-ctx");
-      else if (!use_context)
+      else if (!use_context) {
 	    ctx_stats_bump("recover.miss");
+	      /* Attribute misses by scope so the census names the code
+	         paths that deliver values with no live target frame. */
+	    if (ctx_stats_path_()) {
+		  const char*sn = vpi_get_str(vpiFullName, ctx_scope);
+		  string key = string("recover.miss[") + (sn ? sn : "<unknown>") + "]";
+		  ctx_stats_bump(key.c_str());
+	    }
+      }
       return use_context;
 }
 

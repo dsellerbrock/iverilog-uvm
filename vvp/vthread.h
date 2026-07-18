@@ -138,6 +138,13 @@ extern bool auto_ctx_warn_enabled();
    (active only when IVL_CTX_STATS names an output file; see vthread.cc). */
 extern void ctx_stats_bump(const char* site);
 
+/* True when the given context is a live activation frame of the given
+   automatic scope. Used by recv paths to distinguish a native store
+   (context belongs to the functor's own scope) from a cross-scope
+   notification delivery. */
+extern bool vthread_context_live_matches_scope(vvp_context_t context,
+                                               __vpiScope*scope);
+
 /*
  * Access value stacks from thread space.
  */
