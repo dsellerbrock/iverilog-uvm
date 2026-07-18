@@ -138,6 +138,7 @@ static vpiHandle real_var_put_value(vpiHandle ref, p_vpi_value vp, int flags)
 	    assert(rfp->net->fil);
 	    rfp->net->fil->force_unlink();
 	    rfp->net->fil->release(destination, rfp->is_wire);
+	    rfp->net->fil->run_force_callbacks(cbRelease);
 	    real_var_get_value(ref, vp);
 	    return ref;
       }

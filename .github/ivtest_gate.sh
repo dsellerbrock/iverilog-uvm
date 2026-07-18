@@ -56,8 +56,9 @@ echo ""
 echo "=== bundled VPI suite ==="
 perl vpi_reg.pl > "$WORK/vpi.log" 2>&1
 tail -1 "$WORK/vpi.log"
-if ! grep -qE "Total=81, Passed=81, Failed=0" "$WORK/vpi.log"; then
-    echo "GATE FAIL: bundled VPI suite is not 81/81."
+if ! grep -qE "Total=[0-9]+, Passed=[0-9]+, Failed=0, Not Implemented=0" "$WORK/vpi.log" \
+   || ! awk -F'[=,]' '/Test results/ { exit !($2 == $4) }' "$WORK/vpi.log"; then
+    echo "GATE FAIL: bundled VPI suite has failures (Total must equal Passed, Failed must be 0)."
     status=1
 fi
 

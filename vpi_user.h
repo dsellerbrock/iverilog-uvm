@@ -664,6 +664,10 @@ extern void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason,
 /* M12B-cb: non-zero iff any assertion callback is registered (lets the
    synthesized checkers skip reporting when nothing is watching). */
 extern PLI_INT32 vpip_assertion_cb_active(void);
+/* M12B-rest: report an event on EVERY registered assertion (global
+   assertion control: cbAssertionDisable/Enable/Reset from
+   $assertoff/$asserton/$assertkill). */
+extern void vpip_assertion_report_all(PLI_INT32 reason);
 
 /* M12B-cb: assertion callback (IEEE 1800-2017 40.x). Register cb_rtn to
    be called with (reason, time, assertion, attempt_info, user_data) when
@@ -724,7 +728,7 @@ extern void vpip_count_drivers(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 3;
+static const PLI_UINT32 vpip_routines_version = 4;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -772,6 +776,7 @@ typedef struct {
     void        (*assertion_report)(PLI_INT32, PLI_INT32, vpiHandle);
     PLI_INT32   (*assertion_cb_active)(void);
     vpiHandle   (*register_assertion_cb)(vpiHandle, PLI_INT32, vpi_assertion_cb_func, PLI_BYTE8*);
+    void        (*assertion_report_all)(PLI_INT32);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

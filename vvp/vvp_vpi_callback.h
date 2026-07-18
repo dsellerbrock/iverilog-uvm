@@ -50,6 +50,13 @@ class vvp_vpi_callback {
 	// vpi to get at the vvp value of the object.
       virtual void get_value(struct t_vpi_value*value) =0;
 
+	// M12B-fr: fire force/release callbacks (cbForce/cbRelease)
+	// attached to this object. Called from the force/release
+	// execution paths; fires every attached callback whose
+	// cb_data.reason matches, unconditionally (no value-change
+	// test -- a re-force of the same value still reports).
+      void run_force_callbacks(int reason);
+
     protected:
 	// Derived classes call this method to indicate that it is
 	// time to call the callback.

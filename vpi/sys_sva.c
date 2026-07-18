@@ -93,10 +93,25 @@ static PLI_INT32 sva_enabled_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 
 static PLI_INT32 sva_control_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
-      if (name && strcmp(name, "$asserton") == 0)
+      int was = sva_assert_enabled;
+      if (name && strcmp(name, "$asserton") == 0) {
 	    sva_assert_enabled = 1;
-      else                       /* $assertoff / $assertkill */
+	      /* M12B-rest: report the control change to assertion
+	         callbacks (40.5.2). Enable reports only on a transition;
+	         $assertkill additionally resets in-flight attempts, so it
+	         reports cbAssertionReset each time it runs. */
+	    if (!was)
+		  vpip_assertion_report_all(cbAssertionEnable);
+      } else if (name && strcmp(name, "$assertkill") == 0) {
 	    sva_assert_enabled = 0;
+	    if (was)
+		  vpip_assertion_report_all(cbAssertionDisable);
+	    vpip_assertion_report_all(cbAssertionReset);
+      } else {                   /* $assertoff */
+	    sva_assert_enabled = 0;
+	    if (was)
+		  vpip_assertion_report_all(cbAssertionDisable);
+      }
       return 0;
 }
 

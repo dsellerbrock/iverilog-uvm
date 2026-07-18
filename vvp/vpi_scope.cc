@@ -697,6 +697,16 @@ PLI_INT32 vpip_assertion_cb_active(void)
       return assertion_cb_total > 0 ? 1 : 0;
 }
 
+/* M12B-rest: fire a reason on every registered assertion. Used by the
+   global assertion-control tasks: $assertoff -> cbAssertionDisable,
+   $asserton -> cbAssertionEnable, $assertkill -> cbAssertionReset
+   (IEEE 1800-2017 40.5.2). */
+void vpip_assertion_report_all(PLI_INT32 reason)
+{
+      for (size_t i = 0 ; i < assertion_registry.size() ; i += 1)
+	    assertion_registry[i]->fire((int)reason);
+}
+
 vpiHandle vpi_register_assertion_cb(vpiHandle assertion, PLI_INT32 reason,
 				    vpi_assertion_cb_func cb_rtn,
 				    PLI_BYTE8*user_data)

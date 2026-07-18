@@ -13853,6 +13853,8 @@ static bool do_release_vec(vvp_code_t cp, bool net_flag)
 	    net->fil->release_pv(ptr, base, width, net_flag);
       }
       net->fun->force_flag(false);
+	// M12B-fr: report the release to any cbRelease callbacks.
+      net->fil->run_force_callbacks(cbRelease);
 
       return true;
 }
@@ -13880,6 +13882,8 @@ bool of_RELEASE_WR(vthread_t, vvp_code_t cp)
 	// Send a command to this signal to unforce itself.
       vvp_net_ptr_t ptr (net, 0);
       net->fil->release(ptr, type==0);
+	// M12B-fr: report the release to any cbRelease callbacks.
+      net->fil->run_force_callbacks(cbRelease);
       return true;
 }
 

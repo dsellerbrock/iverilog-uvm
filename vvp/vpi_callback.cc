@@ -361,6 +361,69 @@ void vvp_fun_signal_base::run_sv_vpi_callbacks()
       }
 }
 
+/*
+ * M12B-fr: register a cbForce/cbRelease callback (IEEE 1800-2017
+ * 38.36.1). The callback attaches to the target signal's filter (the
+ * same list value-change callbacks use; the walkers discriminate by
+ * reason) and fires whenever a force or release lands on that signal
+ * -- from the compiled %force/%release opcodes or from
+ * vpi_put_value(vpiForceFlag/vpiReleaseFlag), whole-signal or
+ * part/bit-select. A callback registered on a vpiPartSelect handle
+ * attaches to the parent signal and reports any force on it.
+ */
+static value_callback* make_force_release(p_cb_data data)
+{
+      value_callback*obj = new value_callback(data);
+
+      assert(data->obj);
+
+      vvp_net_t*use_net = 0;
+      switch (data->obj->get_type_code()) {
+	  case vpiPartSelect: {
+		struct __vpiPV*pobj = dynamic_cast<__vpiPV*>(data->obj);
+		assert(pobj);
+		use_net = pobj->net;
+		break;
+	  }
+	  case vpiReg:
+	  case vpiNet:
+	  case vpiIntegerVar:
+	  case vpiBitVar:
+	  case vpiByteVar:
+	  case vpiShortIntVar:
+	  case vpiIntVar:
+	  case vpiLongIntVar:
+	  case vpiRealVar: {
+		struct __vpiSignal*sig = dynamic_cast<__vpiSignal*>(data->obj);
+		if (sig) {
+		      use_net = sig->node;
+		      break;
+		}
+		  // vpiRealVar objects are __vpiRealVar, not __vpiSignal.
+		if (struct __vpiRealVar*rv = dynamic_cast<__vpiRealVar*>(data->obj)) {
+		      use_net = rv->net;
+		      break;
+		}
+		break;
+	  }
+	  default:
+	    break;
+      }
+
+      if (use_net == 0 || use_net->fil == 0) {
+	    fprintf(stderr, "vpi error: cbForce/cbRelease callback on an "
+		    "object that cannot carry a force (type=%d)\n",
+		    data->obj->get_type_code());
+	    delete obj;
+	    return 0;
+      }
+
+      vvp_vpi_callback*sig_fil = dynamic_cast<vvp_vpi_callback*>(use_net->fil);
+      assert(sig_fil);
+      sig_fil->add_vpi_callback(obj);
+      return obj;
+}
+
 static value_callback* make_value_change(p_cb_data data)
 {
       if (!check_callback_time(data, true))
@@ -821,6 +884,11 @@ vpiHandle vpi_register_cb(p_cb_data data)
 	    obj = make_value_change(data);
 	    break;
 
+	  case cbForce:
+	  case cbRelease:
+	    obj = make_force_release(data);
+	    break;
+
 	  case cbReadOnlySynch:
 	    obj = make_sync(data, true);
 	    break;
@@ -962,6 +1030,14 @@ void vvp_vpi_callback::run_vpi_callbacks()
 	    next = dynamic_cast<value_callback*>(cur->next);
 
 	    if (cur->cb_data.cb_rtn != 0) {
+		    // M12B-fr: force/release callbacks share this
+		    // attachment list but fire only from
+		    // run_force_callbacks(), never on value changes.
+		  if (cur->cb_data.reason == cbForce
+		      || cur->cb_data.reason == cbRelease) {
+			prev = cur;
+			continue;
+		  }
 		  if (cur->test_value_callback_ready()) {
 			if (cur->cb_data.value)
 			      get_value(cur->cb_data.value);
@@ -972,6 +1048,46 @@ void vvp_vpi_callback::run_vpi_callbacks()
 
 	    } else if (prev == 0) {
 
+		  vpi_callbacks_ = next;
+		  cur->next = 0;
+		  delete cur;
+
+	    } else {
+		  assert(prev->next == cur);
+		  prev->next = next;
+		  cur->next = 0;
+		  delete cur;
+	    }
+      }
+}
+
+/*
+ * M12B-fr: fire cbForce/cbRelease callbacks attached to this object.
+ * Walks the same list as run_vpi_callbacks() but selects only entries
+ * registered with the matching reason, and fires them unconditionally
+ * (IEEE 1800-2017 38.36.1: the callback occurs at the time the force
+ * or release is applied; a re-force of an identical value still
+ * reports). Cancelled entries (nil cb_rtn) are reaped exactly like
+ * the value-change walker does.
+ */
+void vvp_vpi_callback::run_force_callbacks(int reason)
+{
+      value_callback *next = vpi_callbacks_;
+      value_callback *prev = 0;
+
+      while (next) {
+	    value_callback*cur = next;
+	    next = dynamic_cast<value_callback*>(cur->next);
+
+	    if (cur->cb_data.cb_rtn != 0) {
+		  if (cur->cb_data.reason == reason) {
+			if (cur->cb_data.value)
+			      get_value(cur->cb_data.value);
+			callback_execute(cur);
+		  }
+		  prev = cur;
+
+	    } else if (prev == 0) {
 		  vpi_callbacks_ = next;
 		  cur->next = 0;
 		  delete cur;
