@@ -39,8 +39,27 @@ bool PTaskFunc::var_init_needs_explicit_lifetime() const
 
 void PTaskFunc::set_ports(vector<pform_tf_port_t>*p)
 {
-      ivl_assert(*this, ports_ == 0);
-      ports_ = p;
+	// ports_ may already hold ports appended by
+	// append_stmt_port_decls() (statement-context direction
+	// declarations parsed during the body). The tf_item_list ports
+	// in p appeared earlier in the source, so they go first.
+      if (ports_ == 0) {
+	    ports_ = p;
+	    return;
+      }
+      if (p) {
+	    ports_->insert(ports_->begin(), p->begin(), p->end());
+	    delete p;
+      }
+}
+
+void PTaskFunc::append_stmt_port_decls(vector<pform_tf_port_t>*p)
+{
+      if (p == 0) return;
+      if (ports_ == 0)
+	    ports_ = new vector<pform_tf_port_t>;
+      ports_->insert(ports_->end(), p->begin(), p->end());
+      delete p;
 }
 
 void PTaskFunc::set_this(class_type_t*type, PWire*this_wire)

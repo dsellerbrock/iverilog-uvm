@@ -8026,6 +8026,23 @@ expr_primary
 	delete $6;
 	$$ = tmp;
       }
+  /* A scoped (typed) constructor call `C::new(...)`. The generic
+     class_new path (class_scope K_new) is unreachable from expression
+     position: these direct TYPE_IDENTIFIER K_SCOPE_RES rules win the
+     LALR shift, so ps_type_identifier never reduces and the class_scope
+     item dies before K_new is seen (ivtest sv_class_new_typed*). Provide
+     the K_new continuation on the direct prefix instead; misuse outside
+     an assignment r-value is rejected at elaboration. */
+  | TYPE_IDENTIFIER K_SCOPE_RES K_new argument_list_parens_opt
+      { pform_set_type_referenced(@1, $1.text);
+	typeref_t*type = new typeref_t($1.type);
+	FILE_NAME(type, @1);
+	PENewClass*tmp = new PENewClass(*$4, type);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete $4;
+	$$ = tmp;
+      }
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
@@ -8980,6 +8997,33 @@ gate_instance
       }
 
   | IDENTIFIER dimensions '=' expression
+      { lgate*tmp = new lgate;
+	tmp->name = $1;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	tmp->ranges = $2;
+	tmp->decl_init = $4;
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+
+  /* `new` is not derivable from `expression` (class_new/dynamic_array_new
+     live only in var_decl_initializer_opt), so a module-level
+     `C c = new;` / `T d = new[n];` committed to this instantiation shape
+     needs its own alternatives (ivtest sv_class_* cluster). */
+  | IDENTIFIER '=' class_new
+      { lgate*tmp = new lgate;
+	tmp->name = $1;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	tmp->decl_init = $3;
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+
+  | IDENTIFIER dimensions '=' dynamic_array_new
       { lgate*tmp = new lgate;
 	tmp->name = $1;
 	tmp->parms = 0;
@@ -12165,6 +12209,29 @@ statement_item /* This is roughly statement_item in the LRM */
      block_item_decl event rule does. */
   | K_event event_variable_list ';'
       { if ($2) pform_make_events(@1, $2);
+	$$ = nullptr;
+      }
+
+  /* A non-ANSI task/function port direction declaration that arrives
+     after the body has left the tf_item declaration section (same
+     early-exit mechanism as the event rule above): `int x; input x;`
+     or `input B; integer B; output C; ...` (ivtest task_nonansi_*2,
+     task_iotypes). Route it back into the task-port machinery; the
+     ports are appended now and set_ports() prepends the tf_item ports
+     at end so declaration order is preserved. Only legal at the top
+     level of a task/function body. */
+  | port_direction K_var_opt data_type_or_implicit list_of_port_identifiers ';'
+      { PTaskFunc*routine = current_task
+	      ? static_cast<PTaskFunc*>(current_task)
+	      : static_cast<PTaskFunc*>(current_function);
+	if (routine && pform_peek_scope() == routine) {
+	      std::vector<pform_tf_port_t>*ports =
+		    pform_make_task_ports(@1, $1, $3, $4, true);
+	      routine->append_stmt_port_decls(ports);
+	} else {
+	      yyerror(@1, "error: Task/function port direction declarations "
+			  "are only allowed in a task or function body.");
+	}
 	$$ = nullptr;
       }
   | variable_lifetime_opt TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
