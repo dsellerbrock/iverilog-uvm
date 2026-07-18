@@ -1903,6 +1903,10 @@ extern unsigned     ivl_scope_events(ivl_scope_t net);
 extern ivl_event_t  ivl_scope_event(ivl_scope_t net, unsigned idx);
 extern const char* ivl_scope_file(ivl_scope_t net);
 extern unsigned ivl_scope_is_auto(ivl_scope_t net);
+  /* Does this automatic scope own an activation frame, or is it
+     collapsed into the enclosing frame? (Meaningful only when
+     ivl_scope_is_auto is true.) */
+extern unsigned ivl_scope_auto_frame(ivl_scope_t net);
   /* Return true if the scope is (or is inside) a program block
      (IEEE 1800-2017 clause 24); program processes schedule in the
      Reactive region set. */

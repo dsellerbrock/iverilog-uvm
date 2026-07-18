@@ -4639,14 +4639,31 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
       NetBlock*cur = new NetBlock(type, nscope);
       NetBlock*prefix = 0;
 
+	// Decide whether this automatic scope needs its own activation
+	// frame. Begin blocks and blocking fork/join scopes whose parent
+	// scope is also automatic do not: their statement runs to
+	// completion before the parent resumes, so their locals ride the
+	// enclosing task/function frame (matching the upstream
+	// single-task-frame model; the scope was marked in elab_scope and
+	// the vvp side assigns such locals context indices in the
+	// frame-owning ancestor scope). A frame is still required when
+	// there is no enclosing automatic frame to ride (block-local
+	// automatic variables in a static process) and for
+	// join_any/join_none forks, which detach branches that outlive
+	// the statement.
+      bool needs_own_frame = nscope && nscope->is_auto()
+	    && nscope->auto_frame();
+
       if (nscope) {
 	      // Handle any variable initialization statements in this scope.
-	      // For automatic scopes, stage a fresh activation frame before
-	      // any block-entry initializers run, then free it after the
-	      // block finishes. This covers automatic named begin/fork blocks
-	      // in the same way automatic task calls use %alloc/%free around
-	      // input setup and execution.
-	    if (nscope->is_auto()) {
+	      // For automatic scopes with their own frame, stage the fresh
+	      // activation frame before any block-entry initializers run,
+	      // then free it after the block finishes. This covers automatic
+	      // named fork blocks in the same way automatic task calls use
+	      // %alloc/%free around input setup and execution. Collapsed
+	      // automatic scopes (and static scopes) handle initializers
+	      // without a frame prefix.
+	    if (needs_own_frame) {
 		  prefix = new NetBlock(NetBlock::SEQU, 0);
 		  NetAlloc*ap = new NetAlloc(nscope);
 		  ap->set_line(*this);
@@ -4676,6 +4693,16 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 			      if (tmp) ceval->append(tmp);
 			}
 			nscope->set_var_init(ceval);
+		  }
+	    } else if (nscope->is_auto()) {
+		    // Collapsed automatic scope: no frame prefix. The
+		    // initializers are ordinary statements executed each
+		    // time the block is entered, targeting storage in the
+		    // enclosing frame. This is also the form the constant
+		    // function evaluator walks directly.
+		  for (unsigned idx = 0; idx < var_inits.size(); idx += 1) {
+			NetProc*tmp = var_inits[idx]->elaborate(des, nscope);
+			if (tmp) cur->append(tmp);
 		  }
 	    } else {
 		  elaborate_var_inits_(des, nscope);

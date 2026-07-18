@@ -134,6 +134,17 @@ extern vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
    Set IVL_AUTO_CTX_WARN=1 to enable. */
 extern bool auto_ctx_warn_enabled();
 
+/* Bump a named counter in the context-recovery engagement census
+   (active only when IVL_CTX_STATS names an output file; see vthread.cc). */
+extern void ctx_stats_bump(const char* site);
+
+/* True when the given context is a live activation frame of the given
+   automatic scope. Used by recv paths to distinguish a native store
+   (context belongs to the functor's own scope) from a cross-scope
+   notification delivery. */
+extern bool vthread_context_live_matches_scope(vvp_context_t context,
+                                               __vpiScope*scope);
+
 /*
  * Access value stacks from thread space.
  */

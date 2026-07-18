@@ -815,10 +815,19 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    scope = new vpiScopeFork(name, tname);
       } else if (strcmp(type,"autofork") == 0) {
 	    scope = new vpiScopeForkAuto(name, tname);
+      } else if (strcmp(type,"autofork.shared") == 0) {
+	      /* Automatic fork scope collapsed into the enclosing
+	         activation frame: locals ride the frame-owning ancestor
+	         scope; no %alloc/%free is emitted for it. */
+	    scope = new vpiScopeForkAuto(name, tname);
+	    scope->set_shares_parent_frame();
       } else if (strcmp(type,"begin") == 0) {
 	    scope = new vpiScopeBegin(name, tname);
       } else if (strcmp(type,"autobegin") == 0) {
 	    scope = new vpiScopeBeginAuto(name, tname);
+      } else if (strcmp(type,"autobegin.shared") == 0) {
+	    scope = new vpiScopeBeginAuto(name, tname);
+	    scope->set_shares_parent_frame();
       } else if (strcmp(type,"generate") == 0) {
 	    scope = new vpiScopeGenerate(name, tname);
       } else if (strcmp(type,"package") == 0) {
@@ -917,9 +926,19 @@ static bool scope_has_own_automatic_context_(__vpiScope*scope)
       switch (scope->get_type_code()) {
           case vpiTask:
           case vpiFunction:
+            return true;
           case vpiNamedBegin:
           case vpiNamedFork:
-            return true;
+              /* The compiler marks automatic begin/fork scopes that are
+                 collapsed into the enclosing frame with ".shared" scope
+                 types: their statement runs to completion before the
+                 parent resumes, so their locals ride the enclosing
+                 task/function (or frame-owning fork) frame and no %alloc
+                 is emitted for them. Unmarked automatic block scopes own
+                 a frame: join_any/join_none forks (detached branches
+                 outlive the statement) and blocks with a static parent
+                 (no enclosing frame exists to ride). */
+            return !scope->shares_parent_frame();
           default:
             return false;
       }

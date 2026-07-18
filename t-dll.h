@@ -714,6 +714,7 @@ struct ivl_scope_s {
 	/* Scopes that are tasks/functions have a definition. */
       ivl_statement_t def;
       unsigned is_auto;
+      unsigned auto_frame;
       unsigned is_program;
       unsigned is_interface;
       std::vector<perm_string> modport_names;

@@ -71,6 +71,10 @@ static vvp_context_t recover_automatic_recv_context_(vvp_context_t context,
       static bool warned_scoped = false;
 
       vvp_context_t resolved = vthread_recover_context_for_scope(context, scope);
+      if (!context && resolved)
+            ctx_stats_bump("recv-sig.missing-recovered");
+      else if (context && resolved && context != resolved)
+            ctx_stats_bump("recv-sig.mismatch-repaired");
       if (auto_ctx_warn_enabled()) {
             if (!warned_missing && !context && resolved) {
                   fprintf(stderr,
@@ -1164,38 +1168,70 @@ void vvp_fun_signal_object_aa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 {
       assert(ptr.port() == 0);
       attached_net_ = ptr.ptr();
-      vvp_context_t input_context = context;
-      vvp_context_t recovered_context =
-            recover_automatic_recv_context_(context, context_scope_, "recv-object-aa");
-      context = recovered_context;
       if (recv_object_trace_scope_match_(context_scope_
                                          ? vpi_get_str(vpiFullName, context_scope_) : 0)) {
             const char*scope_name = context_scope_
                                   ? vpi_get_str(vpiFullName, context_scope_) : 0;
             fprintf(stderr,
-                    "trace recv-object-aa scope=%s net=%p input_ctx=%p recovered_ctx=%p final_ctx=%p val_nil=%d val=%p\n",
+                    "trace recv-object-aa scope=%s net=%p ctx=%p native=%d val_nil=%d val=%p\n",
                     scope_name ? scope_name : "<unknown>",
-                    (void*)ptr.ptr(),
-                    input_context, recovered_context, context,
+                    (void*)ptr.ptr(), context,
+                    context && vthread_context_live_matches_scope(context, context_scope_) ? 1 : 0,
                     bit.test_nil() ? 1 : 0,
                     bit.peek<vvp_object>());
       }
-      if (!context) {
-            return;
+
+	/* A store executed by a thread in this functor's scope carries a
+	   context that is a live frame of this scope: update that frame's
+	   slot and propagate in that context. */
+      if (context && vthread_context_live_matches_scope(context, context_scope_)) {
+	    signal_object_aa_slot*slot =
+		  signal_object_aa_get_or_make_slot(context, context_idx_);
+	    uint64_t bit_epoch = bit.mutation_epoch();
+
+	    if (slot->value != bit || slot->epoch != bit_epoch) {
+		  if (attached_net_ && !slot->value.test_nil())
+			slot->value.unregister_signal_alias(attached_net_, context);
+		  slot->value = bit;
+		  slot->epoch = bit_epoch;
+		  if (attached_net_ && !slot->value.test_nil())
+			slot->value.register_signal_alias(attached_net_, context);
+		  ptr.ptr()->send_object(bit, context);
+	    }
+	    return;
       }
 
-      signal_object_aa_slot*slot = signal_object_aa_get_or_make_slot(context, context_idx_);
+	/* Any other delivery is an object-mutation notification re-sent
+	   through the recorded root net (notify_mutated_object_root_): the
+	   sender's context belongs to the MUTATING thread's scope, not to
+	   this one. Deliver the wake to every live frame of this scope
+	   whose slot currently holds the same object. Frames whose slot
+	   holds a different object are sibling invocations with unrelated
+	   locals and must not be touched; if no live frame holds the
+	   object there is nothing to wake. (This replaces the former
+	   recover-to-first-live-frame repair, which delivered to one
+	   arbitrary frame of the scope and could overwrite a sibling
+	   invocation's local with the notifying object.) */
+      if (bit.test_nil() || !context_scope_)
+	    return;
       uint64_t bit_epoch = bit.mutation_epoch();
-
-      if (slot->value != bit || slot->epoch != bit_epoch) {
-            if (attached_net_ && !slot->value.test_nil())
-                  slot->value.unregister_signal_alias(attached_net_, context);
-	    slot->value = bit;
-            slot->epoch = bit_epoch;
-            if (attached_net_ && !slot->value.test_nil())
-                  slot->value.register_signal_alias(attached_net_, context);
-	    ptr.ptr()->send_object(bit, context);
+      unsigned delivered = 0;
+      for (vvp_context_t scan = context_scope_->live_contexts ; scan ;
+	   scan = vvp_get_next_context(scan)) {
+	    signal_object_aa_slot*slot =
+		  signal_object_aa_slot_from_raw(vvp_get_context_item(scan, context_idx_));
+	    if (!slot)
+		  continue;
+	    if (slot->value != bit)
+		  continue;
+	    if (slot->epoch == bit_epoch)
+		  continue;
+	    slot->epoch = bit_epoch;
+	    ptr.ptr()->send_object(bit, scan);
+	    delivered += 1;
       }
+      ctx_stats_bump(delivered ? "recv-obj-aa.notify-fanout"
+			       : "recv-obj-aa.notify-unheld");
 }
 
 void vvp_fun_signal_object_aa::clear_current_alias(vvp_context_t context)

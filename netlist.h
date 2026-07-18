@@ -1166,6 +1166,17 @@ class NetScope : public Definitions, public Attrib {
       void is_auto(bool is_auto__) { is_auto_ = is_auto__; };
       bool is_auto() const { return is_auto_; };
 
+	/* Does this automatic scope own an activation frame? True for
+	   automatic task/function scopes (frame per call) and for
+	   automatic block scopes that cannot ride an enclosing frame:
+	   blocks with a static parent scope, and fork scopes whose
+	   join_any/join_none branches may outlive the fork statement.
+	   False for begin/fork scopes collapsed into the enclosing
+	   frame (the upstream single-task-frame model). Only
+	   meaningful when is_auto() is true. */
+      void auto_frame(bool auto_frame__) { auto_frame_ = auto_frame__; };
+      bool auto_frame() const { return auto_frame_; };
+
 	/* Is the module a cell (is in a `celldefine) */
       void is_cell(bool is_cell__) { is_cell_ = is_cell__; };
       bool is_cell() const { return is_cell_; };
@@ -1413,7 +1424,7 @@ class NetScope : public Definitions, public Attrib {
       std::map<hname_t,NetScope*> children_;
 
       unsigned lcounter_;
-      bool need_const_func_, is_const_func_, is_auto_, is_cell_, calls_stask_;
+      bool need_const_func_, is_const_func_, is_auto_, auto_frame_, is_cell_, calls_stask_;
       bool is_virtual_method_ = false;
 
       /* Final procedures sets this to notify statements that
