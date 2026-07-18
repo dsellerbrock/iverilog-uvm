@@ -329,16 +329,16 @@ TU [munpf]
 <UDPTABLE>[pP]     { return 'p'; }
 <UDPTABLE>[01\?\*\-:;] { return yytext[0]; }
 
-<EDGES>"01" { return K_edge_descriptor; }
-<EDGES>"0x" { return K_edge_descriptor; }
-<EDGES>"0z" { return K_edge_descriptor; }
-<EDGES>"10" { return K_edge_descriptor; }
-<EDGES>"1x" { return K_edge_descriptor; }
-<EDGES>"1z" { return K_edge_descriptor; }
-<EDGES>"x0" { return K_edge_descriptor; }
-<EDGES>"x1" { return K_edge_descriptor; }
-<EDGES>"z0" { return K_edge_descriptor; }
-<EDGES>"z1" { return K_edge_descriptor; }
+<EDGES>"01" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
+<EDGES>"0x" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
+<EDGES>"0z" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
+<EDGES>"10" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
+<EDGES>"1x" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
+<EDGES>"1z" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
+<EDGES>"x0" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
+<EDGES>"x1" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
+<EDGES>"z0" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
+<EDGES>"z1" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
 
 [a-zA-Z_][a-zA-Z0-9$_]* {
       int rc = lexor_keyword_code(yytext, yyleng);

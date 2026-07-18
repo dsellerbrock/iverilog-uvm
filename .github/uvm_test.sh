@@ -42,6 +42,7 @@ declare -A PLUSARGS=(
 declare -A IVFLAGS=(
     [m13_timing_test]="-gspecify"
     [m13_specify_paths_test]="-gspecify"
+    [m13b_timing_checks_test]="-gspecify"
 )
 
 compile_test() {

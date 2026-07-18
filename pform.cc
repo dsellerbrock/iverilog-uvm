@@ -3073,6 +3073,9 @@ struct pending_bind_t {
       perm_string type;
       struct parmvalue_t*overrides;
       std::vector<lgate>*gates;
+	// Bind-to-instance forms: entries are plain instance names or
+	// dot-joined hierarchical paths. Null for bind-to-definition.
+      std::list<std::string>*inst_paths;
 };
 static vector<pending_bind_t> pending_binds;
 
@@ -3080,7 +3083,8 @@ void pform_bind_directive(const struct vlltype&loc,
 			  perm_string target,
 			  perm_string type,
 			  struct parmvalue_t*overrides,
-			  std::vector<lgate>*gates)
+			  std::vector<lgate>*gates,
+			  std::list<std::string>*inst_paths)
 {
       pending_bind_t cur;
       FILE_NAME(&cur.li, loc);
@@ -3088,10 +3092,81 @@ void pform_bind_directive(const struct vlltype&loc,
       cur.type = type;
       cur.overrides = overrides;
       cur.gates = gates;
+      cur.inst_paths = inst_paths;
       pending_binds.push_back(cur);
 }
 
-static void bind_apply_one(Module*scope, pending_bind_t&bind)
+/*
+ * Resolve a dot-joined hierarchical instance path against the parsed
+ * module tree and return the module DEFINITION instantiated at that
+ * path. The first component must name a root module (root scopes take
+ * their module's name); each later component must be a module instance
+ * inside the previous module's definition. This is a purely syntactic
+ * walk over pform, so paths that thread through generate blocks or
+ * instance arrays cannot be resolved here and get a loud diagnostic.
+ */
+static Module* bind_resolve_instance_path_(const LineInfo&li,
+					   const std::string&path)
+{
+      vector<string> comps;
+      string::size_type pos = 0;
+      while (pos <= path.size()) {
+	    string::size_type dot = path.find('.', pos);
+	    if (dot == string::npos) {
+		  comps.push_back(path.substr(pos));
+		  break;
+	    }
+	    comps.push_back(path.substr(pos, dot-pos));
+	    pos = dot + 1;
+      }
+
+      map<perm_string,Module*>::iterator match
+	    = pform_modules.find(lex_strings.make(comps[0].c_str()));
+      if (match == pform_modules.end()) {
+	    cerr << li.get_fileline() << ": error: "
+		 << "bind target instance path '" << path
+		 << "': '" << comps[0] << "' does not name a module; "
+		 << "the path must start at a root (top-level) module."
+		 << endl;
+	    error_count += 1;
+	    return 0;
+      }
+      Module*cur = match->second;
+
+      for (size_t idx = 1 ; idx < comps.size() ; idx += 1) {
+	    perm_string iname = lex_strings.make(comps[idx].c_str());
+	    PGate*gate = cur->get_gate(iname);
+	    PGModule*modgate = dynamic_cast<PGModule*>(gate);
+	    if (modgate == 0) {
+		  cerr << li.get_fileline() << ": error: "
+		       << "bind target instance path '" << path
+		       << "': no module instance '" << comps[idx]
+		       << "' inside module '" << cur->mod_name()
+		       << "'. Note: bind instance paths cannot reach "
+		       << "through generate blocks or instance arrays."
+		       << endl;
+		  error_count += 1;
+		  return 0;
+	    }
+	    map<perm_string,Module*>::iterator next
+		  = pform_modules.find(modgate->get_type());
+	    if (next == pform_modules.end()) {
+		  cerr << li.get_fileline() << ": error: "
+		       << "bind target instance path '" << path
+		       << "': instance '" << comps[idx]
+		       << "' is of type '" << modgate->get_type()
+		       << "', which is not a module defined in this "
+		       << "compilation." << endl;
+		  error_count += 1;
+		  return 0;
+	    }
+	    cur = next->second;
+      }
+      return cur;
+}
+
+static void bind_apply_one(Module*scope, pending_bind_t&bind,
+			   const std::vector<std::string>&inst_filter)
 {
       for (unsigned idx = 0 ; idx < bind.gates->size() ; idx += 1) {
 	    lgate&cur = (*bind.gates)[idx];
@@ -3160,10 +3235,33 @@ static void bind_apply_one(Module*scope, pending_bind_t&bind)
 		  gate->set_parameters(bind.overrides->by_order);
 	    }
 
+	    if (!inst_filter.empty())
+		  gate->set_bind_instance_filter(inst_filter);
+
 	    if (cur_name != "")
 		  add_local_symbol(scope, cur_name, gate);
 	    scope->add_gate(gate);
       }
+}
+
+/*
+ * Existence check for the plain-name entries of a bind instance list
+ * (bind <mod> : u1, ...). A plain name matches any instance of the
+ * target module with that instance name, wherever it occurs, so scan
+ * every parsed module definition for at least one such instantiation
+ * and complain loudly if there is none (a typo would otherwise make
+ * the bind a silent no-op).
+ */
+static bool bind_instance_name_exists_(perm_string iname, perm_string type)
+{
+      for (map<perm_string,Module*>::iterator mod = pform_modules.begin()
+		 ; mod != pform_modules.end() ; ++mod) {
+	    PGModule*modgate
+		  = dynamic_cast<PGModule*>(mod->second->get_gate(iname));
+	    if (modgate && modgate->get_type() == type)
+		  return true;
+      }
+      return false;
 }
 
 void pform_apply_binds(void)
@@ -3171,32 +3269,96 @@ void pform_apply_binds(void)
       for (vector<pending_bind_t>::iterator cur = pending_binds.begin()
 		 ; cur != pending_binds.end() ; ++cur) {
 
-	    map<perm_string,Module*>::iterator match
-		  = pform_modules.find(cur->target);
-	    if (match == pform_modules.end()) {
-		  cerr << cur->li.get_fileline() << ": error: "
-		       << "bind target module/interface '" << cur->target
-		       << "' is not defined in this compilation." << endl;
-		  error_count += 1;
-		  continue;
+	    Module*target_mod = 0;
+	    std::vector<std::string> inst_filter;
+
+	    if (cur->target == "") {
+		    // bind <hier.path> <type> <inst> (...): the target
+		    // module is whatever the path instantiates.
+		  ivl_assert(cur->li, cur->inst_paths
+			     && cur->inst_paths->size() == 1);
+		  const string&path = cur->inst_paths->front();
+		  target_mod = bind_resolve_instance_path_(cur->li, path);
+		  if (target_mod == 0)
+			continue;
+		  inst_filter.push_back(path);
+
+	    } else {
+		  map<perm_string,Module*>::iterator match
+			= pform_modules.find(cur->target);
+		  if (match == pform_modules.end()) {
+			cerr << cur->li.get_fileline() << ": error: "
+			     << "bind target module/interface '" << cur->target
+			     << "' is not defined in this compilation." << endl;
+			error_count += 1;
+			continue;
+		  }
+		  target_mod = match->second;
+
+		  if (cur->inst_paths) {
+			  // bind <mod> : <inst list> ...: validate every
+			  // entry now so a typo cannot silently bind
+			  // nothing.
+			bool bad = false;
+			for (list<string>::iterator pp = cur->inst_paths->begin()
+				   ; pp != cur->inst_paths->end() ; ++pp) {
+			      if (pp->find('.') == string::npos) {
+				    perm_string iname
+					  = lex_strings.make(pp->c_str());
+				    if (!bind_instance_name_exists_(iname, target_mod->mod_name())) {
+					  cerr << cur->li.get_fileline()
+					       << ": error: bind instance "
+					       << "list entry '" << *pp
+					       << "': no instance of module '"
+					       << cur->target << "' with that "
+					       << "instance name exists." << endl;
+					  error_count += 1;
+					  bad = true;
+					  continue;
+				    }
+			      } else {
+				    Module*at = bind_resolve_instance_path_(cur->li, *pp);
+				    if (at == 0) {
+					  bad = true;
+					  continue;
+				    }
+				    if (at != target_mod) {
+					  cerr << cur->li.get_fileline()
+					       << ": error: bind instance "
+					       << "list entry '" << *pp
+					       << "' is an instance of module '"
+					       << at->mod_name() << "', not of "
+					       << "the bind target '"
+					       << cur->target << "'." << endl;
+					  error_count += 1;
+					  bad = true;
+					  continue;
+				    }
+			      }
+			      inst_filter.push_back(*pp);
+			}
+			if (bad)
+			      continue;
+		  }
 	    }
-	    if (cur->type == cur->target) {
+
+	    if (cur->type == target_mod->mod_name()) {
 		  cerr << cur->li.get_fileline() << ": error: "
 		       << "bind of module '" << cur->type
 		       << "' into itself would recurse forever." << endl;
 		  error_count += 1;
 		  continue;
 	    }
-	    if (match->second->program_block) {
+	    if (target_mod->program_block) {
 		  cerr << cur->li.get_fileline() << ": error: "
-		       << "bind target '" << cur->target
+		       << "bind target '" << target_mod->mod_name()
 		       << "' is a program block; module instantiations "
 		       << "are not allowed in program blocks." << endl;
 		  error_count += 1;
 		  continue;
 	    }
 
-	    bind_apply_one(match->second, *cur);
+	    bind_apply_one(target_mod, *cur, inst_filter);
       }
       pending_binds.clear();
 }
@@ -4923,14 +5085,15 @@ static PExpr* sva_past_(const struct vlltype&loc, PExpr*e, long d)
  * delays; without -gspecify every check gets a loud "ignored"
  * warning instead of today's silence.
  *
- * Simultaneity fine points (31.4.1) and edge-descriptor event lists
- * (edge [01, 10]) are recorded corners: the former is a scheduling
- * race by construction, the latter gets a loud sorry.
+ * Simultaneity fine points (31.4.1) are a recorded corner: a
+ * scheduling race by construction. Edge-descriptor event lists
+ * (edge [01, 10]) are implemented in tc_always_at_ (M13B) with a
+ * synthesized previous-value tracker.
  */
 static unsigned tc_gensym_counter = 0;
 
 static perm_string tc_make_real_(const struct vlltype&loc, unsigned inst,
-				 const char*what)
+				 const char*what, double init_val = -1.0)
 {
       char buf[64];
       snprintf(buf, sizeof buf, "_ivl_tc%u_%s", inst, what);
@@ -4939,7 +5102,7 @@ static perm_string tc_make_real_(const struct vlltype&loc, unsigned inst,
       list<decl_assignment_t*>*decls = new list<decl_assignment_t*>;
       decl_assignment_t*decl = new decl_assignment_t;
       decl->name = pform_ident_t(name, loc.lexical_pos);
-      decl->expr.reset(new PEFNumber(new verireal(-1.0)));
+      decl->expr.reset(new PEFNumber(new verireal(init_val)));
       decls->push_back(decl);
 
       real_type_t*rtype = new real_type_t(real_type_t::REAL);
@@ -4970,11 +5133,95 @@ static PEIdent* tc_name_id_(const struct vlltype&loc, const pform_name_t&name)
       return id;
 }
 
-/* Build "@(edge sig) if (cond) <body>" as an always process. */
+/* 3-value encoding of a scalar signal for edge-descriptor matching:
+   (sig === 1'b1) ? 1.0 : (sig === 1'b0) ? 0.0 : 2.0  (x and z -> 2). */
+static PExpr* tc_edge_encode_(const struct vlltype&loc,
+			      const pform_name_t&sig)
+{
+      PExpr*is1 = new PEBComp('E', tc_name_id_(loc, sig),
+			      new PENumber(new verinum(verinum::V1, 1)));
+      PExpr*is0 = new PEBComp('E', tc_name_id_(loc, sig),
+			      new PENumber(new verinum(verinum::V0, 1)));
+      PETernary*inner = new PETernary(is0, tc_real_(loc, 0.0),
+				      tc_real_(loc, 2.0));
+      FILE_NAME(inner, loc);
+      PETernary*outer = new PETernary(is1, tc_real_(loc, 1.0), inner);
+      FILE_NAME(outer, loc);
+      return outer;
+}
+
+static void tc_edge_vals_(PTimingCheck::EdgeType e, double&a, double&b)
+{
+      switch (e) {
+	  case PTimingCheck::EDGE_01: a = 0.0; b = 1.0; break;
+	  case PTimingCheck::EDGE_0X: a = 0.0; b = 2.0; break;
+	  case PTimingCheck::EDGE_10: a = 1.0; b = 0.0; break;
+	  case PTimingCheck::EDGE_1X: a = 1.0; b = 2.0; break;
+	  case PTimingCheck::EDGE_X0: a = 2.0; b = 0.0; break;
+	  case PTimingCheck::EDGE_X1: a = 2.0; b = 1.0; break;
+      }
+}
+
+/* Build "@(edge sig) if (cond) <body>" as an always process. For an
+   edge-descriptor event list (edge [01, 10] sig) the process triggers
+   on ANY change of the signal, remembers the previous 3-value-encoded
+   value in a synthesized real (initialized to 2 = x, the value of any
+   variable before its first assignment), and runs the body only when
+   the (previous, current) transition matches one of the descriptors.
+   The &&& condition, when present, gates the body but never the
+   previous-value bookkeeping. */
 static void tc_always_at_(const struct vlltype&loc,
 			  const PTimingCheck::event_t&ev,
 			  Statement*body)
 {
+      if (!ev.edges.empty()) {
+	    unsigned inst = tc_gensym_counter++;
+	    perm_string prev_var = tc_make_real_(loc, inst, "prev", 2.0);
+
+	    PExpr*match = 0;
+	    for (std::vector<PTimingCheck::EdgeType>::const_iterator ep
+		       = ev.edges.begin() ; ep != ev.edges.end() ; ++ep) {
+		  double a = 0.0, b = 0.0;
+		  tc_edge_vals_(*ep, a, b);
+		  PExpr*pa = new PEBComp('e', sva_id_(loc, prev_var),
+					 tc_real_(loc, a));
+		  PExpr*cb = new PEBComp('e', tc_edge_encode_(loc, ev.name),
+					 tc_real_(loc, b));
+		  PExpr*both = new PEBLogic('a', pa, cb);
+		  match = match? new PEBLogic('o', match, both) : both;
+	    }
+
+	    if (ev.condition.get()) {
+		  PExpr*cond = sva_clone_expr_(ev.condition.get());
+		  if (cond == 0) {
+			cerr << loc.get_fileline() << ": sorry: this timing "
+			     << "check &&& condition shape is not supported; "
+			     << "the check is dropped." << endl;
+			error_count += 1;
+			return;
+		  }
+		  match = new PEBLogic('a', match, cond);
+	    }
+
+	    PCondit*gated = new PCondit(match, body, nullptr);
+	    FILE_NAME(gated, loc);
+	    PAssign*rec = new PAssign(sva_id_(loc, prev_var),
+				      tc_edge_encode_(loc, ev.name));
+	    FILE_NAME(rec, loc);
+
+	    std::vector<Statement*> stmts;
+	    stmts.push_back(gated);
+	    stmts.push_back(rec);
+
+	    PEEvent*pe = new PEEvent(PEEvent::ANYEDGE,
+				     tc_name_id_(loc, ev.name));
+	    PEventStatement*es = new PEventStatement(pe);
+	    FILE_NAME(es, loc);
+	    es->set_statement(sva_block_(loc, stmts));
+	    pform_make_behavior(IVL_PR_ALWAYS, es, nullptr);
+	    return;
+      }
+
       PEEvent::edge_t edge = PEEvent::ANYEDGE;
       if (ev.posedge) edge = PEEvent::POSEDGE;
       if (ev.negedge) edge = PEEvent::NEGEDGE;
@@ -5041,18 +5288,15 @@ static Statement* tc_violation_(const struct vlltype&loc,
       return sva_block_(loc, stmts);
 }
 
-/* Common validity checks; false means the check was dropped loudly. */
+/* Common validity checks; false means the check was dropped loudly.
+   (Edge-descriptor event lists are handled by tc_always_at_ now, so
+   nothing is rejected here at present; this remains the hook for
+   future per-event validity checks.) */
 static bool tc_check_supported_(const struct vlltype&loc,
 				const char*check_name,
 				const PTimingCheck::event_t&ev)
 {
-      if (!ev.edges.empty()) {
-	    cerr << loc.get_fileline() << ": sorry: edge-descriptor event "
-		 << "lists (edge [...]) in " << check_name << " are not "
-		 << "supported; the check is dropped." << endl;
-	    error_count += 1;
-	    return false;
-      }
+      (void)loc; (void)check_name; (void)ev;
       return true;
 }
 
@@ -5249,6 +5493,131 @@ void pform_timing_check_width(const struct vlltype&loc,
 				nullptr);
       FILE_NAME(chk, loc);
       tc_always_at_(loc, opp, chk);
+}
+
+/* Loud drop for the event_based/remain_active flag arguments of
+   $timeskew/$fullskew: they change violation-report granularity in
+   ways this synthesizer does not model. */
+static bool tc_skew_flags_ok_(const struct vlltype&loc,
+			      const char*check_name, bool have_flags)
+{
+      if (!have_flags) return true;
+      cerr << loc.get_fileline() << ": sorry: " << check_name
+	   << " event_based/remain_active flag arguments are not "
+	   << "supported; the check is dropped." << endl;
+      error_count += 1;
+      return false;
+}
+
+void pform_timing_check_timeskew(const struct vlltype&loc,
+				 const PTimingCheck::event_t&ref_ev,
+				 const PTimingCheck::event_t&data_ev,
+				 PExpr*limit,
+				 const pform_name_t*notifier,
+				 bool have_flags)
+{
+      if (!tc_active_(loc, "$timeskew")) return;
+      if (!tc_skew_flags_ok_(loc, "$timeskew", have_flags)) return;
+	// Default-flavor $timeskew uses the same delta test as $skew:
+	// violation when data lags the reference by MORE than the
+	// limit. (The flag arguments, rejected above, are what change
+	// the report granularity relative to $skew.)
+      tc_pair_synth_(loc, "$timeskew", ref_ev, data_ev, limit, true, notifier);
+}
+
+void pform_timing_check_fullskew(const struct vlltype&loc,
+				 const PTimingCheck::event_t&ref_ev,
+				 const PTimingCheck::event_t&data_ev,
+				 PExpr*lim1,
+				 PExpr*lim2,
+				 const pform_name_t*notifier,
+				 bool have_flags)
+{
+      if (!tc_active_(loc, "$fullskew")) return;
+      if (!tc_skew_flags_ok_(loc, "$fullskew", have_flags)) return;
+	// $fullskew(ref, data, l1, l2) is a skew check in both
+	// directions: data may lag ref by at most l1, and ref may lag
+	// data by at most l2.
+      tc_pair_synth_(loc, "$fullskew", ref_ev, data_ev, lim1, true, notifier);
+      tc_pair_synth_(loc, "$fullskew", data_ev, ref_ev, lim2, true, notifier);
+}
+
+static bool tc_expr_is_zero_(PExpr*e)
+{
+      if (PENumber*n = dynamic_cast<PENumber*>(e))
+	    return n->value().is_defined() && n->value().as_ulong() == 0;
+      if (PEFNumber*f = dynamic_cast<PEFNumber*>(e))
+	    return f->value().as_double() == 0.0;
+      return false;
+}
+
+void pform_timing_check_nochange(const struct vlltype&loc,
+				 const PTimingCheck::event_t&ref_ev,
+				 const PTimingCheck::event_t&data_ev,
+				 PExpr*start_off,
+				 PExpr*end_off,
+				 const pform_name_t*notifier)
+{
+      if (!tc_active_(loc, "$nochange")) return;
+      if (!tc_check_supported_(loc, "$nochange", ref_ev)) return;
+      if (!tc_check_supported_(loc, "$nochange", data_ev)) return;
+
+      if (!ref_ev.posedge && !ref_ev.negedge) {
+	    cerr << loc.get_fileline() << ": error: $nochange requires an "
+		 << "edge-qualified reference event (posedge/negedge)."
+		 << endl;
+	    error_count += 1;
+	    return;
+      }
+      if (!tc_expr_is_zero_(start_off) || !tc_expr_is_zero_(end_off)) {
+	    cerr << loc.get_fileline() << ": sorry: $nochange with "
+		 << "non-zero start/end edge offsets is not supported; "
+		 << "the check is dropped." << endl;
+	    error_count += 1;
+	    return;
+      }
+
+	// With zero offsets the forbidden window is exactly the level
+	// of the reference signal that FOLLOWS the given edge (posedge
+	// ref: while ref is high). Track it with a window flag set at
+	// the reference edge and cleared at the opposite edge, and
+	// report a violation when the data event fires with the window
+	// open. (Data changing in the same simulation step as the
+	// window edge is the 31.4.1 simultaneity race, a recorded
+	// corner shared with the other checks.)
+      unsigned inst = tc_gensym_counter++;
+      perm_string win_var = tc_make_real_(loc, inst, "window");
+
+      PAssign*w1 = new PAssign(sva_id_(loc, win_var), tc_real_(loc, 1.0));
+      FILE_NAME(w1, loc);
+      tc_always_at_(loc, ref_ev, w1);
+
+      PTimingCheck::event_t opp;
+      opp.name = ref_ev.name;
+      opp.posedge = ref_ev.negedge;
+      opp.negedge = ref_ev.posedge;
+      if (ref_ev.condition.get()) {
+	    PExpr*ccl = sva_clone_expr_(ref_ev.condition.get());
+	    if (ccl == 0) {
+		  cerr << loc.get_fileline() << ": sorry: this timing check "
+		       << "&&& condition shape is not supported; the check "
+		       << "is dropped." << endl;
+		  error_count += 1;
+		  return;
+	    }
+	    opp.condition.reset(ccl);
+      }
+      PAssign*w0 = new PAssign(sva_id_(loc, win_var), tc_real_(loc, 0.0));
+      FILE_NAME(w0, loc);
+      tc_always_at_(loc, opp, w0);
+
+      PExpr*cond = new PEBComp('>', sva_id_(loc, win_var),
+			       tc_real_(loc, 0.0));
+      PCondit*chk = new PCondit(cond,
+				tc_violation_(loc, "$nochange", notifier),
+				nullptr);
+      FILE_NAME(chk, loc);
+      tc_always_at_(loc, data_ev, chk);
 }
 
 void pform_timing_check_sorry(const struct vlltype&loc,

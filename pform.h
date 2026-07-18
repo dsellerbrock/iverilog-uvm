@@ -622,6 +622,32 @@ extern void pform_timing_check_width(const struct vlltype&loc,
 				     PExpr*limit,
 				     PExpr*threshold,
 				     const pform_name_t*notifier);
+/* M13B: $timeskew/$fullskew are skew checks (violation when the delta
+   exceeds the limit). have_flags is true when the source gave the
+   event_based/remain_active flag arguments, whose report-granularity
+   semantics are not modeled: loud sorry, check dropped. */
+extern void pform_timing_check_timeskew(const struct vlltype&loc,
+					const PTimingCheck::event_t&ref_ev,
+					const PTimingCheck::event_t&data_ev,
+					PExpr*limit,
+					const pform_name_t*notifier,
+					bool have_flags);
+extern void pform_timing_check_fullskew(const struct vlltype&loc,
+					const PTimingCheck::event_t&ref_ev,
+					const PTimingCheck::event_t&data_ev,
+					PExpr*lim1,
+					PExpr*lim2,
+					const pform_name_t*notifier,
+					bool have_flags);
+/* M13B: $nochange(edge ref, data, start_off, end_off): data must not
+   change during the reference level following the edge. Exact for
+   zero offsets; non-zero offsets get a loud sorry. */
+extern void pform_timing_check_nochange(const struct vlltype&loc,
+					const PTimingCheck::event_t&ref_ev,
+					const PTimingCheck::event_t&data_ev,
+					PExpr*start_off,
+					PExpr*end_off,
+					const pform_name_t*notifier);
 extern void pform_timing_check_sorry(const struct vlltype&loc,
 				     const char*check_name);
 
@@ -658,12 +684,23 @@ extern void pform_make_modgates(const struct vlltype&loc,
    of a module instantiation into a named target module/interface.
    Binds are collected during parse and applied by pform_apply_binds()
    after all source files have been parsed, because the target module
-   may be defined in a later file than the bind directive. */
+   may be defined in a later file than the bind directive.
+
+   inst_paths selects the bind-to-instance forms: for
+     bind <mod> : <inst_list> ...   target is the module name and
+                                    inst_paths lists the instances;
+     bind <hier.path> ...           target is empty ("") and inst_paths
+                                    holds the single dot-joined path.
+   Each entry is either a plain instance name (matches any instance of
+   the target module with that name) or a dot-joined hierarchical path
+   starting at a root module. nullptr means bind to the definition
+   (every instance), the pre-existing behavior. */
 extern void pform_bind_directive(const struct vlltype&loc,
 				 perm_string target,
 				 perm_string type,
 				 struct parmvalue_t*overrides,
-				 std::vector<lgate>*gates);
+				 std::vector<lgate>*gates,
+				 std::list<std::string>*inst_paths = nullptr);
 extern void pform_apply_binds(void);
 
 /* Make a continuous assignment node, with optional bit- or part- select. */

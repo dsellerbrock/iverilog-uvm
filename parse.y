@@ -84,6 +84,20 @@ std::map<perm_string, PExpr*> pending_cg_options_;
 static std::map<perm_string, PExpr*> pending_cp_options_;
 static std::vector<class_type_t::pform_cross_t::cross_bin_t> pending_cross_bins_;
 
+/* M13B: map a lexer edge-descriptor ("01", "0x", "z1", ...) to the
+   PTimingCheck edge type. z transitions share the x codes (both are
+   "unknown" to the 3-value checker encoding). */
+static PTimingCheck::EdgeType edge_descriptor_type_(const char*text)
+{
+      char a = text[0];
+      char b = text[1];
+      if (a == '0') return (b == '1')? PTimingCheck::EDGE_01
+	                             : PTimingCheck::EDGE_0X;
+      if (a == '1') return (b == '0')? PTimingCheck::EDGE_10
+	                             : PTimingCheck::EDGE_1X;
+      return (b == '0')? PTimingCheck::EDGE_X0 : PTimingCheck::EDGE_X1;
+}
+
 /* M11: convert an inside_range_list into cov-bin [lo,hi] PExpr pairs. */
 static void cov_bins_set_ranges_(class_type_t::pform_cov_bins_t*b,
                                  std::list<inside_range_t>*lst)
@@ -1114,6 +1128,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       std::list<index_component_t> *dimensions;
 
       PTimingCheck::event_t* timing_check_event;
+      std::vector<PTimingCheck::EdgeType>* edge_types;
       PTimingCheck::optional_args_t* spec_optional_args;
 
       LexicalScope::lifetime_t lifetime;
@@ -1149,7 +1164,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %token K_LOR K_LAND K_NAND K_NOR K_NXOR K_TRIGGER K_NB_TRIGGER K_LEQUIV
 %token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV K_LBSTAR
 %token K_SCOPE_RES
-%token K_edge_descriptor
+%token <text> K_edge_descriptor
 
 %token K_CONSTRAINT_IMPL
 
@@ -1261,6 +1276,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <text> event_variable label_opt class_declaration_endlabel_opt
 %type <text> block_identifier_opt
 %type <text> identifier_name bins_name package_cg_port_prefix
+%type <text> bind_instance_path
+%type <strings> bind_instance_path_list
 %type <identifiers> event_variable_list
 %type <identifiers> class_type_parameter_port_list class_type_parameter_port_list_opt
 %type <identifiers> class_type_parameter_port_item
@@ -1320,6 +1337,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <pform_name> foreach_array_identifier
 %type <pform_name> spec_notifier_opt spec_notifier
 %type <timing_check_event> spec_reference_event
+%type <edge_types> edge_descriptor_list
 %type <spec_optional_args> setuphold_opt_args recrem_opt_args setuphold_recrem_opt_notifier
 %type <spec_optional_args> setuphold_recrem_opt_timestamp_cond setuphold_recrem_opt_timecheck_cond
 %type <spec_optional_args> setuphold_recrem_opt_delayed_reference setuphold_recrem_opt_delayed_data
@@ -3560,16 +3578,58 @@ bind_directive
 	delete[]$2.text;
 	delete[]$3;
       }
+  /* Bind to a specific hierarchical instance (IEEE 1800-2017 23.11):
+       bind top.u1[.u2...] <bound_module> [#(...)] <inst> (...);
+     The path must start at a root module and name plain (non-arrayed,
+     non-generate) instances; pform_apply_binds resolves it and the
+     bound instance elaborates only inside that one target instance. */
+  | K_bind IDENTIFIER '.' bind_instance_path IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { std::list<std::string>*paths = new std::list<std::string>;
+	paths->push_back(std::string($2) + "." + $4);
+	pform_bind_directive(@1, lex_strings.make(""),
+			     lex_strings.make($5), $6, $7, paths);
+	delete[]$2;
+	delete[]$4;
+	delete[]$5;
+      }
+  | K_bind IDENTIFIER '.' bind_instance_path TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { std::list<std::string>*paths = new std::list<std::string>;
+	paths->push_back(std::string($2) + "." + $4);
+	pform_bind_directive(@1, lex_strings.make(""),
+			     lex_strings.make($5.text), $6, $7, paths);
+	delete[]$2;
+	delete[]$4;
+	delete[]$5.text;
+      }
+  /* Bind with a target instance list:
+       bind <target_module> : <inst>[, <inst>...] <bound_module> ...;
+     A plain name matches any instance of the target module with that
+     instance name; a dotted path must be the full hierarchical path of
+     one instance of the target module. */
+  | K_bind IDENTIFIER ':' bind_instance_path_list IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { pform_bind_directive(@1, lex_strings.make($2),
+			     lex_strings.make($5), $6, $7, $4);
+	delete[]$2;
+	delete[]$5;
+      }
+  | K_bind IDENTIFIER ':' bind_instance_path_list TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { pform_bind_directive(@1, lex_strings.make($2),
+			     lex_strings.make($5.text), $6, $7, $4);
+	delete[]$2;
+	delete[]$5.text;
+      }
   | K_bind IDENTIFIER '.' error ';'
-      { yyerror(@1, "sorry: bind to a specific hierarchical instance "
-	        "(bind top.inst ...) is not supported yet; bind to the "
-	        "module definition instead (bind <module> ...).");
+      { yyerror(@1, "error: malformed bind target instance path. "
+	        "Supported: bind <root>.<inst>[.<inst>...] <module> "
+	        "<instance> (...); (instance-array selects in bind "
+	        "paths are not supported yet).");
 	delete[]$2;
       }
   | K_bind IDENTIFIER ':' error ';'
-      { yyerror(@1, "sorry: bind with a target instance list "
-	        "(bind <module> : <instances> ...) is not supported yet; "
-	        "bind to the module definition instead.");
+      { yyerror(@1, "error: malformed bind target instance list. "
+	        "Supported: bind <module> : <inst>[, <inst>...] "
+	        "<module> <instance> (...); (instance-array selects "
+	        "are not supported yet).");
 	delete[]$2;
       }
   | K_bind IDENTIFIER error ';'
@@ -3577,6 +3637,39 @@ bind_directive
 	        "yet. Supported: bind <target_module> <module> [#(...)] "
 	        "<instance> (...);");
 	delete[]$2;
+      }
+  ;
+
+  /* Dot-joined hierarchical instance path for bind directives. Plain
+     identifiers only -- instance-array selects are rejected by the
+     error recovery above with a loud message. */
+bind_instance_path
+  : IDENTIFIER
+      { $$ = $1; }
+  | bind_instance_path '.' IDENTIFIER
+      { size_t len = strlen($1) + strlen($3) + 2;
+	char*tmp = new char[len];
+	strcpy(tmp, $1);
+	strcat(tmp, ".");
+	strcat(tmp, $3);
+	delete[]$1;
+	delete[]$3;
+	$$ = tmp;
+      }
+  ;
+
+bind_instance_path_list
+  : bind_instance_path
+      { std::list<std::string>*tmp = new std::list<std::string>;
+	tmp->push_back($1);
+	delete[]$1;
+	$$ = tmp;
+      }
+  | bind_instance_path_list ',' bind_instance_path
+      { std::list<std::string>*tmp = $1;
+	tmp->push_back($3);
+	delete[]$3;
+	$$ = tmp;
       }
   ;
 
@@ -6994,8 +7087,15 @@ config_declaration
     K_design lib_cell_identifiers ';'
     list_of_config_rule_statements
     K_endconfig
-      { cerr << @1 << ": sorry: config declarations are not supported and "
-                "will be skipped." << endl;
+      { /* M13B disposition: a config alters which cells elaborate
+	   (design/instance/cell use clauses), so skipping one changes
+	   the meaning of the design. Library-based cell binding is not
+	   implemented, so this is a hard error rather than a skip. */
+	cerr << @1 << ": sorry: config declarations (library-based cell "
+	        "binding) are not supported; remove the config block or "
+	        "select the implementation with plain module names."
+	     << endl;
+	error_count += 1;
 	delete[] $2;
       }
   ;
@@ -11181,16 +11281,16 @@ specify_item
   | K_Sfullskew '(' spec_reference_event ',' spec_reference_event
     ',' delay_value ',' delay_value fullskew_opt_args ')' ';'
       {
-	pform_timing_check_sorry(@1, "$fullskew");
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $9; // delay_value
-
+	// $fullskew(ref, data, l1, l2): skew check in both directions.
+	bool have_flags = $10->event_based_flag != nullptr
+	               || $10->remain_active_flag != nullptr;
+	pform_timing_check_fullskew(@1, *$3, *$5, $7, $9,
+				    $10->notifier, have_flags);
+	delete $3;
+	delete $5;
 	delete $10->notifier;
 	delete $10->event_based_flag;
 	delete $10->remain_active_flag;
-
 	delete $10; // fullskew_opt_args
       }
   | K_Shold '(' spec_reference_event ',' spec_reference_event
@@ -11205,11 +11305,11 @@ specify_item
   | K_Snochange '(' spec_reference_event ',' spec_reference_event
 	  ',' delay_value ',' delay_value spec_notifier_opt ')' ';'
       {
-	pform_timing_check_sorry(@1, "$nochange");
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-	delete $9; // delay_value
+	// $nochange(edge ref, data, start_off, end_off): data must not
+	// change during the reference level following the edge.
+	pform_timing_check_nochange(@1, *$3, *$5, $7, $9, $10);
+	delete $3;
+	delete $5;
 	delete $10; // spec_notifier_opt
       }
   | K_Speriod '(' spec_reference_event ',' delay_value
@@ -11309,15 +11409,17 @@ specify_item
   | K_Stimeskew '(' spec_reference_event ',' spec_reference_event
     ',' delay_value timeskew_opt_args ')' ';'
       {
-	pform_timing_check_sorry(@1, "$timeskew");
-	delete $3; // spec_reference_event
-	delete $5; // spec_reference_event
-	delete $7; // delay_value
-
+	// $timeskew(ref, data, limit): like $skew; the flag arguments
+	// (rejected loudly inside) are what change report granularity.
+	bool have_flags = $8->event_based_flag != nullptr
+	               || $8->remain_active_flag != nullptr;
+	pform_timing_check_timeskew(@1, *$3, *$5, $7,
+				    $8->notifier, have_flags);
+	delete $3;
+	delete $5;
 	delete $8->notifier;
 	delete $8->event_based_flag;
 	delete $8->remain_active_flag;
-
 	delete $8; // timeskew_opt_args
       }
   | K_Swidth '(' spec_reference_event ',' delay_value ',' expression
@@ -11598,10 +11700,9 @@ spec_reference_event
 	event->name = *$5;
 	event->posedge = false;
 	event->negedge = false;
-	// Descriptors are not modeled; mark the event so the
-	// timing-check synthesizer diagnoses it loudly.
-	event->edges.push_back(PTimingCheck::EDGE_01);
+	event->edges = *$3;
 	event->condition = nullptr;
+	delete $3;
 	delete $5;
 	$$ = event;
       }
@@ -11610,20 +11711,29 @@ spec_reference_event
 	event->name = *$5;
 	event->posedge = false;
 	event->negedge = false;
-	event->edges.push_back(PTimingCheck::EDGE_01);
+	event->edges = *$3;
 	event->condition = std::unique_ptr<PExpr>($7);
+	delete $3;
 	delete $5;
 	$$ = event;
       }
   ;
 
   /* The edge_descriptor is detected by the lexor as the various
-     2-letter edge sequences that are supported here. For now, we
-     don't care what they are, because we do not yet support specify
-     edge events. */
+     2-letter edge sequences (01, 0x, 0z, 10, 1x, 1z, x0, x1, z0, z1);
+     the lexer passes the text through so the transition set reaches
+     the timing-check synthesizer. */
 edge_descriptor_list
   : edge_descriptor_list ',' K_edge_descriptor
+      { $$ = $1;
+	$$->push_back(edge_descriptor_type_($3));
+	delete[]$3;
+      }
   | K_edge_descriptor
+      { $$ = new std::vector<PTimingCheck::EdgeType>;
+	$$->push_back(edge_descriptor_type_($1));
+	delete[]$1;
+      }
   ;
 
 setuphold_opt_args
