@@ -141,8 +141,28 @@ template <class TYPE> void vvp_darray_atom<TYPE>::get_word(unsigned adr, vvp_vec
 
 template <class TYPE> void vvp_darray_atom<TYPE>::shallow_copy(const vvp_object*obj)
 {
+      if (obj == 0) return;
       const vvp_darray_atom<TYPE>*that = dynamic_cast<const vvp_darray_atom<TYPE>*>(obj);
-      assert(that);
+      if (that == 0) {
+	      // Cross-flavor copy: `new [n](src)` may initialize this
+	      // array from a queue (or another darray flavor). The fork
+	      // allocates queue objects eagerly, so even an EMPTY queue
+	      // arrives here as a real object rather than nil (upstream
+	      // relies on the nil guard in of_SCOPY), and a non-empty
+	      // queue is a vvp_queue, never this exact class. Copy
+	      // element-wise through the virtual get/set interface
+	      // instead of asserting (ivtest sv_darray_copy_empty4).
+	    const vvp_darray*src = dynamic_cast<const vvp_darray*>(obj);
+	    assert(src);
+	    size_t num_items = min(array_.size(), src->get_size());
+	    vvp_vector4_t tmp;
+	    for (unsigned idx = 0 ; idx < num_items ; idx += 1) {
+		  const_cast<vvp_darray*>(src)->get_word(idx, tmp);
+		  this->set_word(idx, tmp);
+	    }
+	    touch();
+	    return;
+      }
 
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
@@ -222,8 +242,28 @@ void vvp_darray_vec4::get_word(unsigned adr, vvp_vector4_t&value)
 
 void vvp_darray_vec4::shallow_copy(const vvp_object*obj)
 {
+      if (obj == 0) return;
       const vvp_darray_vec4*that = dynamic_cast<const vvp_darray_vec4*>(obj);
-      assert(that);
+      if (that == 0) {
+	      // Cross-flavor copy: `new [n](src)` may initialize this
+	      // array from a queue (or another darray flavor). The fork
+	      // allocates queue objects eagerly, so even an EMPTY queue
+	      // arrives here as a real object rather than nil (upstream
+	      // relies on the nil guard in of_SCOPY), and a non-empty
+	      // queue is a vvp_queue, never this exact class. Copy
+	      // element-wise through the virtual get/set interface
+	      // instead of asserting (ivtest sv_darray_copy_empty4).
+	    const vvp_darray*src = dynamic_cast<const vvp_darray*>(obj);
+	    assert(src);
+	    size_t num_items = min(array_.size(), src->get_size());
+	    vvp_vector4_t tmp;
+	    for (unsigned idx = 0 ; idx < num_items ; idx += 1) {
+		  const_cast<vvp_darray*>(src)->get_word(idx, tmp);
+		  this->set_word(idx, tmp);
+	    }
+	    touch();
+	    return;
+      }
 
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
@@ -296,8 +336,28 @@ void vvp_darray_vec2::get_word(unsigned adr, vvp_vector4_t&value)
 
 void vvp_darray_vec2::shallow_copy(const vvp_object*obj)
 {
+      if (obj == 0) return;
       const vvp_darray_vec2*that = dynamic_cast<const vvp_darray_vec2*>(obj);
-      assert(that);
+      if (that == 0) {
+	      // Cross-flavor copy: `new [n](src)` may initialize this
+	      // array from a queue (or another darray flavor). The fork
+	      // allocates queue objects eagerly, so even an EMPTY queue
+	      // arrives here as a real object rather than nil (upstream
+	      // relies on the nil guard in of_SCOPY), and a non-empty
+	      // queue is a vvp_queue, never this exact class. Copy
+	      // element-wise through the virtual get/set interface
+	      // instead of asserting (ivtest sv_darray_copy_empty4).
+	    const vvp_darray*src = dynamic_cast<const vvp_darray*>(obj);
+	    assert(src);
+	    size_t num_items = min(array_.size(), src->get_size());
+	    vvp_vector4_t tmp;
+	    for (unsigned idx = 0 ; idx < num_items ; idx += 1) {
+		  const_cast<vvp_darray*>(src)->get_word(idx, tmp);
+		  this->set_word(idx, tmp);
+	    }
+	    touch();
+	    return;
+      }
 
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
@@ -352,8 +412,28 @@ void vvp_darray_object::get_word(unsigned adr, vvp_object_t&value)
 
 void vvp_darray_object::shallow_copy(const vvp_object*obj)
 {
+      if (obj == 0) return;
       const vvp_darray_object*that = dynamic_cast<const vvp_darray_object*>(obj);
-      assert(that);
+      if (that == 0) {
+	      // Cross-flavor copy: `new [n](src)` may initialize this
+	      // array from a queue (or another darray flavor). The fork
+	      // allocates queue objects eagerly, so even an EMPTY queue
+	      // arrives here as a real object rather than nil (upstream
+	      // relies on the nil guard in of_SCOPY), and a non-empty
+	      // queue is a vvp_queue, never this exact class. Copy
+	      // element-wise through the virtual get/set interface
+	      // instead of asserting (ivtest sv_darray_copy_empty4).
+	    const vvp_darray*src = dynamic_cast<const vvp_darray*>(obj);
+	    assert(src);
+	    size_t num_items = min(array_.size(), src->get_size());
+	    vvp_object_t tmp;
+	    for (unsigned idx = 0 ; idx < num_items ; idx += 1) {
+		  const_cast<vvp_darray*>(src)->get_word(idx, tmp);
+		  this->set_word(idx, tmp);
+	    }
+	    touch();
+	    return;
+      }
 
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
@@ -400,8 +480,28 @@ void vvp_darray_real::get_word(unsigned adr, double&value)
 
 void vvp_darray_real::shallow_copy(const vvp_object*obj)
 {
+      if (obj == 0) return;
       const vvp_darray_real*that = dynamic_cast<const vvp_darray_real*>(obj);
-      assert(that);
+      if (that == 0) {
+	      // Cross-flavor copy: `new [n](src)` may initialize this
+	      // array from a queue (or another darray flavor). The fork
+	      // allocates queue objects eagerly, so even an EMPTY queue
+	      // arrives here as a real object rather than nil (upstream
+	      // relies on the nil guard in of_SCOPY), and a non-empty
+	      // queue is a vvp_queue, never this exact class. Copy
+	      // element-wise through the virtual get/set interface
+	      // instead of asserting (ivtest sv_darray_copy_empty4).
+	    const vvp_darray*src = dynamic_cast<const vvp_darray*>(obj);
+	    assert(src);
+	    size_t num_items = min(array_.size(), src->get_size());
+	    double tmp = 0.0;
+	    for (unsigned idx = 0 ; idx < num_items ; idx += 1) {
+		  const_cast<vvp_darray*>(src)->get_word(idx, tmp);
+		  this->set_word(idx, tmp);
+	    }
+	    touch();
+	    return;
+      }
 
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
@@ -474,8 +574,28 @@ void vvp_darray_string::get_word(unsigned adr, string&value)
 
 void vvp_darray_string::shallow_copy(const vvp_object*obj)
 {
+      if (obj == 0) return;
       const vvp_darray_string*that = dynamic_cast<const vvp_darray_string*>(obj);
-      assert(that);
+      if (that == 0) {
+	      // Cross-flavor copy: `new [n](src)` may initialize this
+	      // array from a queue (or another darray flavor). The fork
+	      // allocates queue objects eagerly, so even an EMPTY queue
+	      // arrives here as a real object rather than nil (upstream
+	      // relies on the nil guard in of_SCOPY), and a non-empty
+	      // queue is a vvp_queue, never this exact class. Copy
+	      // element-wise through the virtual get/set interface
+	      // instead of asserting (ivtest sv_darray_copy_empty4).
+	    const vvp_darray*src = dynamic_cast<const vvp_darray*>(obj);
+	    assert(src);
+	    size_t num_items = min(array_.size(), src->get_size());
+	    std::string tmp;
+	    for (unsigned idx = 0 ; idx < num_items ; idx += 1) {
+		  const_cast<vvp_darray*>(src)->get_word(idx, tmp);
+		  this->set_word(idx, tmp);
+	    }
+	    touch();
+	    return;
+      }
 
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)

@@ -12212,6 +12212,15 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
 
+  /* The iverilog extension `reg <data_type> name;` (e.g.
+     `reg bool [5:0] v;`) in statement context -- the same early-exit
+     leaves it without a rule because data_type does not derive K_reg
+     (ivtest constfunc8). Mirror the block_item_decl extension rule. */
+  | K_reg data_type list_of_variable_decl_assignments ';'
+      { if ($2) pform_make_var(@2, $3, $2, nullptr, false);
+	$$ = nullptr;
+      }
+
   /* A non-ANSI task/function port direction declaration that arrives
      after the body has left the tf_item declaration section (same
      early-exit mechanism as the event rule above): `int x; input x;`
@@ -12867,6 +12876,28 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(lhs, @1);
 	delete $2;
 	PAssignNB*tmp = new PAssignNB(lhs, $5);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  /* The delayed/event-controlled intra-assignment forms need the same
+     dedicated concat-lvalue treatment -- only the plain form above had
+     it, so `{a,b} <= @e v;` died as a syntax error (ivtest
+     nb_ec_concat). */
+  | '{' expression_list_proper '}' K_LE delay1 expression ';'
+      { PEConcat*lhs = new PEConcat(*$2);
+	FILE_NAME(lhs, @1);
+	delete $2;
+	PExpr*del = $5->front(); $5->pop_front();
+	assert($5->empty());
+	PAssignNB*tmp = new PAssignNB(lhs, del, $6);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | '{' expression_list_proper '}' K_LE event_control expression ';'
+      { PEConcat*lhs = new PEConcat(*$2);
+	FILE_NAME(lhs, @1);
+	delete $2;
+	PAssignNB*tmp = new PAssignNB(lhs, 0, $5, $6);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }

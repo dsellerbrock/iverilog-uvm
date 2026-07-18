@@ -1,15 +1,13 @@
-# ivtest baseline — vendored (in-tree) suite, 2026-07-18
+# ivtest baseline — vendored (in-tree) suite, updated 2026-07-18 (rev 2)
 #
 # Suite: ivtest/ (vendored, live upstream suite; 3101 tests).
-# Fork build: branch claude/ieee1800-uvm-implementation-qm5wad.
-# Reference: pristine upstream Icarus 13.0 devel @ fork base 9b44d55.
-# Fork: 110 failed / 2983 passed / 5 NI / 3 EF (after repairing two
-#   malformed regress-sv.list entries and PASS->PASSED strings in the
-#   fork-authored sv_mailbox tests, which hid them as 'missing source
-#   file' failures on every compiler).
-# Upstream reference: 83 failed / 3010 passed / 5 NI / 3 EF.
-# The obsolete external ivtest checkout (archived repo, stale golds)
-# is retired as a gate; see test_suite_audit_2026-07-17.md Part 9.
+# Reference: pristine upstream Icarus 13.0 devel @ fork base 9b44d55
+#   (83 failed / 3010 passed / 5 NI / 3 EF — unchanged).
+# Fork now: 56 failed / 3037 passed / 5 NI / 3 EF.
+# History: 110 at first re-baseline -> 86 (parser fixes: class
+#   initializers/scoped new, non-ANSI directions) -> 56 (strictness
+#   restorations + queue-warning fidelity + crash fix; see audit
+#   Part 10). 54 of the original 79 fork-only failures fixed.
 
 ## Common failures (31) — pre-existing upstream, fail on both compilers
 sv_assoc_obj_key_bit_copy1
@@ -44,56 +42,20 @@ sv_uarray_locator1
 sv_virtual_if_specialized_dispatch1
 sv_virtual_task_output_copy1
 
-## Fork-only failures (79) — fork-introduced, triage frontier
+## Fork-only failures (25) — remaining frontier, categorized in audit Part 10
 array_lval_select3a
 br1005
-br_gh130a
-br_gh386c
 br_ml20150315b
 br_ml20180227
 case_unique
-constfunc8
-enum_compatibility_fail2
-enum_compatibility_fail3
-enum_compatibility_fail4
-enum_compatibility_fail5
-enum_compatibility_fail6
-enum_compatibility_fail7
-enum_compatibility_fail8
 func_empty_arg_fail4
-nb_ec_concat
 pr1862744b
 pr243
 pr2792883
-pr987
 recursive_task
 string14
 struct_invalid_member
-sv_class_constructor1
-sv_class_in_module_decl
-sv_class_method_call_void
-sv_class_method_default1
-sv_class_method_default2
 sv_class_new_fail1
-sv_class_new_init
-sv_class_new_typed1
-sv_class_new_typed2
-sv_class_new_typed3
-sv_class_static_prop1
-sv_class_static_prop2
-sv_class_static_prop3
-sv_class_static_prop4
-sv_class_super1
-sv_class_super2
-sv_class_task1
-sv_class_virt_new_fail
-sv_darray_assign_fail1
-sv_darray_assign_fail2
-sv_darray_assign_fail3
-sv_darray_assign_fail4
-sv_darray_assign_fail5
-sv_darray_assign_fail6
-sv_darray_copy_empty4
 sv_deferred_assert1
 sv_deferred_assert2
 sv_deferred_assume1
@@ -104,28 +66,12 @@ sv_import_hier_fail2
 sv_import_hier_fail3
 sv_ps_hier_fail1
 sv_ps_hier_fail2
-sv_queue_assign_fail1
-sv_queue_assign_fail2
-sv_queue_assign_fail3
-sv_queue_assign_fail4
-sv_queue_assign_fail5
-sv_queue_assign_fail6
-sv_queue_parray
-sv_queue_real
-sv_queue_string
-sv_queue_vec
 sv_timeunit_prec_fail1
 sv_timeunit_prec_fail2
-task_iotypes
-task_nonansi_enum2
-task_nonansi_int2
-task_nonansi_integer2
-task_nonansi_parray2
-task_nonansi_real2
-task_nonansi_time2
-task_nonansi_vec2
 
-## Upstream-only failures (52) — fixed by the fork
+## Upstream-only failures (52 + the 54 fixed above) — fixed by the fork
+# (sv_assoc/sv_class/sv_queue/sv_virtual runtime features, sv_mailbox,
+#  and every test named in the History line above)
 sv_assoc_nested_member_foreach1
 sv_assoc_obj_foreach1
 sv_assoc_obj_foreach_key1
@@ -176,5 +122,3 @@ sv_unpacked_struct_member_func_assign1
 sv_virtual_formal_receiver_dispatch1
 sv_virtual_inherit_dispatch1
 sv_virtual_prop_return_dispatch1
-sv_mailbox_blocking_peek1
-sv_mailbox_try_int1

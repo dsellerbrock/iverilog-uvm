@@ -775,6 +775,97 @@ cluster is worked.
 committed name-diff baseline. UVM sweep, bundled VPI, and negative-suite
 gates are unchanged.
 
+## Part 10 — The 79 fork-only vendored failures: 54 fixed (2026-07-18)
+
+Working through the corrected frontier from Part 9, in three gated
+batches. Vendored ivtest went 110 → 86 → 56; UVM sweep 187/0/1
+(new regression tests included); VPI 81/81; negative 38/38.
+
+**Batch 1 — parser regressions (24 tests).** (a) Module-level
+`C c = new;` died in the no-port instantiation shape because
+class_new/dynamic_array_new are not derivable from `expression`;
+gate_instance gained those initializer alternatives. (b) `c = C::new;`
+was unreachable in every expression position — the fork's direct
+`TYPE_IDENTIFIER K_SCOPE_RES` expr/lpvalue rules win the LALR shift, so
+the class_scope-based class_new path died before `K_new`; expr_primary
+now supplies the K_new continuation on the direct prefix. Fixed all 17
+`sv_class_*` parse failures. (c) Non-ANSI direction declarations after
+the tf_item declaration-section early exit (`int x; input x;`) had no
+statement rule; statement_item now routes them into
+pform_make_task_ports (top-of-body only, loud error elsewhere) and
+PTaskFunc::set_ports merges preserving declaration order — the 8
+`task_nonansi_*2`/`task_iotypes` tests.
+
+**Batches 2+3 — strictness restorations and runtime fixes (30 tests).**
+- darray/queue assignment compatibility: the parameterized-container
+  leniency waved through ANY container-to-container element mismatch;
+  now gated to OPAQUE (class/unresolved) element typing, so
+  `logic[31:0][] = bit[31:0][]` errors again
+  (sv_darray_assign_fail1–6, sv_queue_assign_fail1–6).
+- enum implicit cast (6.19.3): literals and RESOLVED integrals
+  (array elements, function returns) hard-error again; the
+  placeholder-constant leniency survives only for unresolved-call
+  NetEConst stubs (enum_compatibility_fail2–8 + br_gh130a, br_gh386c).
+- virtual-class `new` (8.21): the silent SV-mode null degrade is gone.
+  Hard error outside class scopes (sv_class_virt_new_fail); inside a
+  class method the fork's type-parameter collapse can falsely present
+  the virtual base (uvm_component_registry#(T)'s `T obj = new`), so
+  there it degrades to null WITH a loud warning.
+- vvp shallow_copy assert on `d = new [n](q)`: the fork's eager queue
+  allocation hands even an empty queue to shallow_copy as a real
+  object, and a queue is never the target's concrete class; all six
+  shallow_copy flavors now fall back to element-wise copy through the
+  virtual get/set interface (sv_darray_copy_empty4).
+- queue runtime warning fidelity: empty-queue delete reports
+  "skipping delete(N) on empty queue" again (eager allocation had
+  routed it to "out of range ... size 0"), and assigning at an
+  undefined ('x) index warns loudly instead of the deliberate silent
+  skip ("avoid warning spam") the fork had added
+  (sv_queue_vec/real/string/parray).
+- `{a,b} <= @e v;` and `{a,b} <= #d v;`: the dedicated concat-lvalue
+  statement rules only covered the plain `<=` form (nb_ec_concat).
+- `reg bool [5:0] v;` in statement context: block_item_decl's
+  iverilog-extension rule mirrored into statement_item (constfunc8).
+- `wait(0)`: restored upstream's "wait expression is constant false /
+  will block permanently" warning, which the fork had deleted (pr987).
+  UVM itself contains three `wait(0)`s that now warn — matching what
+  upstream prints on the same code.
+
+**Failed attempts, caught by the gates and reverted (recorded so they
+are not retried naively):**
+1. Excluding literal `new` from the netmisc scalar-stub fallbacks (to
+   fix sv_class_new_fail1's `int i = new;`) broke ALL 187 UVM tests:
+   UVM's `uvm_default_*_printer = new()` globals lose their class
+   typing and arrive at the same fallback statically indistinguishable
+   from the test's genuine error. Reverted; sv_class_new_fail1 stays
+   failing, blocked on class-typing fidelity, not on a missing check.
+2. An unconditional virtual-class-new hard error passed every ivtest
+   target but also broke all of UVM (the registry pattern above) —
+   replaced with the scope-gated version. A verification lesson is
+   recorded with it: the first "clean" compile check measured a
+   pipeline's exit status, not the compiler's; gate checks now use the
+   compiler's own exit code.
+
+**Remaining 25 fork-only failures, categorized:**
+- Policy/feature divergences to document rather than "fix" (11):
+  `sv_deferred_assert1/2`, `sv_deferred_assume1/2` (fork implements
+  deferred assertions; golds expect the upstream "sorry"), `br1005`,
+  `br_ml20150315b`, `br_ml20180227` (intentional SV feature
+  leniencies), `case_unique` (fork implements unique-case runtime
+  checking, so upstream's "sorry: qualities ignored" is gone),
+  `struct_invalid_member` (fork's "`logc` doesn't name a type" is a
+  better diagnostic than gold's generic syntax error),
+  `sv_class_new_fail1` (see failed attempt 1), `func_empty_arg_fail4`
+  (gated on the fork-wide unresolved-reference-as-warning policy).
+- Scope-resolution semantics (6): `sv_import_hier_fail1–3`,
+  `sv_ps_hier_fail1/2`, `sv_export_fail5` — imported names visible
+  through hierarchical/package paths that the LRM says must not be.
+- Individual investigations (8): `pr243` (simulation ends one $monitor
+  sample early), `string14` (empty-string %s runtime), `pr1862744b`,
+  `pr2792883` (hierarchical ref in parameter accepted),
+  `array_lval_select3a`, `recursive_task` (blocked on the other
+  session's frame refactor), `sv_timeunit_prec_fail1/2`.
+
 ## Appendix — full per-test reason table
 
 Legend: **UNIMPL** = construct not implemented; **LENIENT** = expects a
