@@ -4229,6 +4229,13 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		       instead of a runtime surprise. */
 		  ivl_type_t nt = ivl_signal_net_type(port);
 		  ivl_type_t et = nt ? ivl_type_element(nt) : 0;
+		    /* M10B-md: a MULTI-dimensional open array is a
+		       darray of darrays. Walk to the leaf element
+		       type; the runtime walks the same object tree
+		       (svGetArrElemPtr2/3), only the innermost
+		       storage must be contiguous atoms. */
+		  while (et && ivl_type_base(et) == IVL_VT_DARRAY)
+			et = ivl_type_element(et);
 		  ivl_variable_type_t ebase = et ? ivl_type_base(et)
 			                         : IVL_VT_NO_TYPE;
 		  unsigned ewid = et ? ivl_type_packed_width(et) : 0;

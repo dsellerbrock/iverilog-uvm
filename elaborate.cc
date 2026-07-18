@@ -859,6 +859,57 @@ unsigned PGate::calculate_array_size_(Design*des, NetScope*scope,
  * Elaborate the continuous assign. (This is *not* the procedural
  * assign.) Elaborate the lvalue and rvalue, and do the assignment.
  */
+/* M5-if: lower `assign <handle>.<member> = expr;` to its behavioral
+ * equivalent. An initial process applies the value at T0 (a plain @*
+ * never triggers for a constant r-value); for a non-constant r-value an
+ * `always @*` process re-applies it on operand changes. The always_comb
+ * form is deliberately NOT used -- its synthesis pass cannot handle the
+ * class-typed handle and mis-lowers the store. The synthesized PAssigns
+ * borrow the gate's pin expressions; pform objects live for the whole
+ * compilation, so sharing is safe. */
+static void elaborate_vif_member_assign_(Design*des, NetScope*scope,
+					 const PGAssign*ga)
+{
+      const PEIdent*lid = dynamic_cast<const PEIdent*>(ga->pin(0));
+      PAssign*ast0 = new PAssign(const_cast<PExpr*>(ga->pin(0)),
+				 const_cast<PExpr*>(ga->pin(1)));
+      ast0->set_line(*ga);
+      NetProc*cur0 = ast0->elaborate(des, scope);
+      if (cur0 == 0) {
+	    cerr << ga->get_fileline() << ": error: Unable to elaborate "
+		 << "continuous assignment to interface member `"
+		 << lid->path() << "`." << endl;
+	    des->errors += 1;
+	    return;
+      }
+      NetProcTop*t0 = new NetProcTop(scope, IVL_PR_INITIAL, cur0);
+      t0->set_line(*ga);
+      des->add_process(t0);
+
+      bool const_rhs = dynamic_cast<const PENumber*>(ga->pin(1)) != 0
+	    || dynamic_cast<const PEString*>(ga->pin(1)) != 0;
+      if (const_rhs)
+	    return;
+
+      PAssign*ast1 = new PAssign(const_cast<PExpr*>(ga->pin(0)),
+				 const_cast<PExpr*>(ga->pin(1)));
+      ast1->set_line(*ga);
+      PEventStatement*wait = new PEventStatement();
+      wait->set_line(*ga);
+      wait->set_statement(ast1);
+      NetProc*cur1 = wait->elaborate(des, scope);
+      if (cur1 == 0) {
+	    cerr << ga->get_fileline() << ": error: Unable to elaborate "
+		 << "continuous assignment to interface member `"
+		 << lid->path() << "`." << endl;
+	    des->errors += 1;
+	    return;
+      }
+      NetProcTop*t1 = new NetProcTop(scope, IVL_PR_ALWAYS, cur1);
+      t1->set_line(*ga);
+      des->add_process(t1);
+}
+
 void PGAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -871,6 +922,30 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 
       ivl_assert(*this, pin(0));
       ivl_assert(*this, pin(1));
+
+	/* M5-if: a continuous assign whose l-value is a MEMBER of an
+	   interface port / virtual interface (`assign b.req = expr;`).
+	   There is no static member net to drive -- the member resolves
+	   through the class-typed handle at run time -- and even
+	   CALLING elaborate_lnet on the path coerces the handle
+	   variable into an object net (which then crashes the vif
+	   handle initialization with recv_object on a bufz). Detect
+	   the shape FIRST via symbol_search and lower to the
+	   behavioral equivalent, which reuses the procedural
+	   vif-member store machinery. Previously this died with
+	   "cannot synthesize expression: <null>". */
+      if (const PEIdent*lid = dynamic_cast<const PEIdent*>(pin(0))) {
+	    if (lid->path().name.size() >= 2 && !lid->path().package) {
+		  symbol_search_results sr;
+		  symbol_search(this, des, scope, lid->path(), UINT_MAX, &sr);
+		  if (sr.net && sr.net->net_type()
+		      && ivl_type_base(sr.net->net_type()) == IVL_VT_CLASS
+		      && !sr.path_tail.empty()) {
+			elaborate_vif_member_assign_(des, scope, this);
+			return;
+		  }
+	    }
+      }
 
 	/* Elaborate the l-value. */
         // A continuous assignment can drive a variable if the default strength is used.

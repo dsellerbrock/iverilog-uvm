@@ -7679,6 +7679,15 @@ bool of_DEASSIGN_WR(vthread_t, vvp_code_t cp)
 /*
  * %debug/thr
  */
+static bool dpi_open_array_is_multidim_(vvp_darray*da)
+{
+      vvp_darray_object*obj = dynamic_cast<vvp_darray_object*>(da);
+      if (obj == 0 || obj->get_size() == 0) return false;
+      vvp_object_t w;
+      obj->get_word(0, w);
+      return w.peek<vvp_darray>() != 0;
+}
+
 bool of_DEBUG_THR(vthread_t thr, vvp_code_t cp)
 {
       const char*text = cp->text;
@@ -7846,6 +7855,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.length = 0;
 		      arr.elem_bytes = 0;
 		      arr.elem_is_real = false;
+		      arr.outer = 0;
 		      vvp_darray*da = obj_store[slot].peek<vvp_darray>();
 		      if (da) {
 			    unsigned eb = da->dpi_elem_bytes();
@@ -7854,6 +7864,15 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 				  arr.length = (unsigned)da->get_size();
 				  arr.elem_bytes = eb;
 				  arr.elem_is_real = da->dpi_elem_is_real();
+			    } else if (dpi_open_array_is_multidim_(da)) {
+				    /* M10B-md: an outer object array whose
+				       words are inner dynamic arrays. The
+				       accessors (svDimensions, svSize,
+				       svGetArrElemPtr2/3) walk the object
+				       tree; the outer is non-contiguous by
+				       construction. */
+				  arr.length = (unsigned)da->get_size();
+				  arr.outer = da;
 			    } else {
 				  fprintf(stderr, "DPI error: '%s': open "
 					  "array argument %u does not have "
