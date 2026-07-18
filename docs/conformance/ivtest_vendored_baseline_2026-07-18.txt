@@ -1,0 +1,119 @@
+# ivtest baseline — vendored (in-tree) suite, updated 2026-07-18 (rev 3)
+#
+# Suite: ivtest/ (vendored, live upstream suite; 3101 tests).
+# Reference: pristine upstream Icarus 13.0 devel @ fork base 9b44d55
+#   (83 failed / 3010 passed / 5 NI / 3 EF — unchanged).
+# Fork now: 50 failed / 3043 passed / 5 NI / 3 EF.
+# History: 110 at first re-baseline -> 86 (parser fixes) -> 56
+#   (strictness + queue fidelity + crash fix) -> 50 (scope-resolution
+#   cluster: hierarchical/package-prefix binding errors restored,
+#   export pins its wildcard import; audit Parts 10-11).
+#   60 of the original 79 fork-only failures fixed.
+
+## Common failures (31) — pre-existing upstream, fail on both compilers
+sv_assoc_obj_key_bit_copy1
+sv_assoc_obj_key_delete1
+sv_assoc_obj_key_size1
+sv_callf_nonlocal_break1
+sv_callf_nonlocal_continue1
+sv_class_assoc_recursive_find1
+sv_class_auto_recursive_raise1
+sv_class_case_wait_wakeup1
+sv_class_extern_ctor_const_init1
+sv_class_extern_task1
+sv_class_forward_typeparam_cb1
+sv_class_function_fork_task1
+sv_class_getter_handle_wait1
+sv_class_method_auto_return1
+sv_class_method_prop_wait_wakeup1
+sv_class_method_receiver_copy1
+sv_class_packed_prop2d1
+sv_class_prop_wait_wakeup1
+sv_class_queue_insert_wait_wakeup1
+sv_class_queue_wait_wakeup1
+sv_class_recursive_ctor_add1
+sv_class_recursive_find_wrapper1
+sv_class_static_assoc_method1
+sv_class_static_queue_pop_back
+sv_class_static_queue_wait_wakeup1
+sv_darray_obj_duplicate1
+sv_fork_auto_init1
+sv_string_cmp_empty1
+sv_uarray_locator1
+sv_virtual_if_specialized_dispatch1
+sv_virtual_task_output_copy1
+
+## Fork-only failures (19) — remaining frontier, categorized in audit Part 10
+array_lval_select3a
+br1005
+br_ml20150315b
+br_ml20180227
+case_unique
+func_empty_arg_fail4
+pr1862744b
+pr243
+pr2792883
+recursive_task
+string14
+struct_invalid_member
+sv_class_new_fail1
+sv_deferred_assert1
+sv_deferred_assert2
+sv_deferred_assume1
+sv_deferred_assume2
+sv_timeunit_prec_fail1
+sv_timeunit_prec_fail2
+
+## Upstream-only failures (50 + the 60 fixed above) — fixed by the fork
+# (sv_assoc/sv_class/sv_queue/sv_virtual runtime features, sv_mailbox,
+#  and every test named in the History line above)
+sv_assoc_nested_member_foreach1
+sv_assoc_obj_foreach1
+sv_assoc_obj_foreach_key1
+sv_assoc_obj_graph_mutation1
+sv_assoc_obj_methods1
+sv_assoc_queue_class_select1
+sv_assoc_queue_foreach1
+sv_assoc_static_class_foreach1
+sv_assoc_string_foreach1
+sv_assoc_string_foreach_key1
+sv_assoc_string_methods1
+sv_assoc_typedef_foreach_key1
+sv_auto_func_static_local1
+sv_class_assoc_edges_copy1
+sv_class_assoc_prop_copy_isolation1
+sv_class_assoc_ref_string_traversal1
+sv_class_assoc_ternary_null1
+sv_class_auto_recursive_state1
+sv_class_call_result_prop1
+sv_class_cast_return1
+sv_class_cast_runtime1
+sv_class_ctor_state_fidelity1
+sv_class_derived_ctor_state1
+sv_class_event_member1
+sv_class_fork_capture1
+sv_class_prop_assoc_find1
+sv_class_prop_assoc_obj_member1
+sv_class_prop_assoc_struct_lit1
+sv_class_prop_darray_assign1
+sv_class_prop_queue_size1
+sv_class_queue_last_prop1
+sv_class_queue_output_copy1
+sv_class_recursive_new_prop1
+sv_class_static_assoc_string_literal1
+sv_class_static_assoc_string_store1
+sv_class_static_param_create1
+sv_class_super_recursive_assoc1
+sv_param_static_local_singleton1
+sv_queue_class_concat_member1
+sv_queue_class_member_lval1
+sv_queue_struct_member_slice_push1
+sv_queue_virtual_method_dispatch1
+sv_scoped_class_static_member1
+sv_struct_string_arg_push1
+sv_uarray_struct_pattern1
+sv_unpacked_struct_local_member_assign1
+sv_unpacked_struct_member_func_assign1
+sv_virtual_formal_receiver_dispatch1
+sv_virtual_inherit_dispatch1
+sv_virtual_prop_return_dispatch1

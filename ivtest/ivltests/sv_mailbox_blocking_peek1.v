@@ -9,15 +9,15 @@ module test;
     begin
       mbx.peek(peeked);
       if (peeked !== 42) begin
-        $display("FAIL: peeked=%0d", peeked);
+        $display("FAILED: peeked=%0d", peeked);
         $finish;
       end
       mbx.get(got);
       if (got !== 42) begin
-        $display("FAIL: got=%0d", got);
+        $display("FAILED: got=%0d", got);
         $finish;
       end
-      $display("PASS");
+      $display("PASSED");
       $finish;
     end
     begin

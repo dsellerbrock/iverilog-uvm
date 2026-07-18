@@ -8026,6 +8026,23 @@ expr_primary
 	delete $6;
 	$$ = tmp;
       }
+  /* A scoped (typed) constructor call `C::new(...)`. The generic
+     class_new path (class_scope K_new) is unreachable from expression
+     position: these direct TYPE_IDENTIFIER K_SCOPE_RES rules win the
+     LALR shift, so ps_type_identifier never reduces and the class_scope
+     item dies before K_new is seen (ivtest sv_class_new_typed*). Provide
+     the K_new continuation on the direct prefix instead; misuse outside
+     an assignment r-value is rejected at elaboration. */
+  | TYPE_IDENTIFIER K_SCOPE_RES K_new argument_list_parens_opt
+      { pform_set_type_referenced(@1, $1.text);
+	typeref_t*type = new typeref_t($1.type);
+	FILE_NAME(type, @1);
+	PENewClass*tmp = new PENewClass(*$4, type);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete $4;
+	$$ = tmp;
+      }
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
@@ -8980,6 +8997,33 @@ gate_instance
       }
 
   | IDENTIFIER dimensions '=' expression
+      { lgate*tmp = new lgate;
+	tmp->name = $1;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	tmp->ranges = $2;
+	tmp->decl_init = $4;
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+
+  /* `new` is not derivable from `expression` (class_new/dynamic_array_new
+     live only in var_decl_initializer_opt), so a module-level
+     `C c = new;` / `T d = new[n];` committed to this instantiation shape
+     needs its own alternatives (ivtest sv_class_* cluster). */
+  | IDENTIFIER '=' class_new
+      { lgate*tmp = new lgate;
+	tmp->name = $1;
+	tmp->parms = 0;
+	tmp->parms_by_name = 0;
+	tmp->decl_init = $3;
+	FILE_NAME(tmp, @1);
+	delete[]$1;
+	$$ = tmp;
+      }
+
+  | IDENTIFIER dimensions '=' dynamic_array_new
       { lgate*tmp = new lgate;
 	tmp->name = $1;
 	tmp->parms = 0;
@@ -12167,6 +12211,38 @@ statement_item /* This is roughly statement_item in the LRM */
       { if ($2) pform_make_events(@1, $2);
 	$$ = nullptr;
       }
+
+  /* The iverilog extension `reg <data_type> name;` (e.g.
+     `reg bool [5:0] v;`) in statement context -- the same early-exit
+     leaves it without a rule because data_type does not derive K_reg
+     (ivtest constfunc8). Mirror the block_item_decl extension rule. */
+  | K_reg data_type list_of_variable_decl_assignments ';'
+      { if ($2) pform_make_var(@2, $3, $2, nullptr, false);
+	$$ = nullptr;
+      }
+
+  /* A non-ANSI task/function port direction declaration that arrives
+     after the body has left the tf_item declaration section (same
+     early-exit mechanism as the event rule above): `int x; input x;`
+     or `input B; integer B; output C; ...` (ivtest task_nonansi_*2,
+     task_iotypes). Route it back into the task-port machinery; the
+     ports are appended now and set_ports() prepends the tf_item ports
+     at end so declaration order is preserved. Only legal at the top
+     level of a task/function body. */
+  | port_direction K_var_opt data_type_or_implicit list_of_port_identifiers ';'
+      { PTaskFunc*routine = current_task
+	      ? static_cast<PTaskFunc*>(current_task)
+	      : static_cast<PTaskFunc*>(current_function);
+	if (routine && pform_peek_scope() == routine) {
+	      std::vector<pform_tf_port_t>*ports =
+		    pform_make_task_ports(@1, $1, $3, $4, true);
+	      routine->append_stmt_port_decls(ports);
+	} else {
+	      yyerror(@1, "error: Task/function port direction declarations "
+			  "are only allowed in a task or function body.");
+	}
+	$$ = nullptr;
+      }
   | variable_lifetime_opt TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { typeref_t*dtype = new typeref_t($2.type);
 	FILE_NAME(dtype, @2);
@@ -12507,19 +12583,28 @@ statement_item /* This is roughly statement_item in the LRM */
 		/* Inline SV-style var decls in statements also need the SV check. */
 		if (!$2 && !$4 && !pform_block_scope_is_empty())
 		      pform_block_decls_requires_sv();
-		/* An unnamed blocking fork/join with no declarations of its
-		   own needs no scope: keeping the synthesized $unm_blk scope
-		   makes the backend allocate a spurious per-block activation
-		   frame that breaks resolution of the enclosing (automatic)
-		   task's locals when it runs concurrently. Drop the empty
-		   scope, as the begin/end path does. This is restricted to a
-		   *blocking* join: a join_none/join_any fork spawns background
-		   processes that outlive the statement, and its scope provides
-		   their process context (and, inside a function, distinguishes
-		   a deferred task call in the forked process from an illegal
-		   direct one), so that scope must be kept even when empty. */
+		/* An unnamed fork with no declarations of its own needs no
+		   scope: keeping the synthesized $unm_blk scope makes the
+		   backend allocate a spurious per-block activation frame that
+		   breaks resolution of the enclosing (automatic) task's
+		   locals when it runs concurrently, and it hides join_any/
+		   join_none children from a `disable` of the enclosing named
+		   block (children fork into $unm_blk, so %disable of the
+		   parent scope never reaches them -- ivtest fork_join_dis).
+		   Upstream never creates this scope, so drop it, as the
+		   begin/end path does. The one exception is a join_any/
+		   join_none fork lexically inside a TASK or FUNCTION: in a
+		   function the scope distinguishes a deferred task call in
+		   the forked process from an illegal direct task call (UVM
+		   uvm_objection::m_init_objections relies on this), and in
+		   a task the runtime treats a %fork child targeting a task
+		   scope as a compiled task call that shares the caller's
+		   logical process, which would alias process::self() in the
+		   forked process with the caller (breaks the UVM sequencer
+		   handshake). So inside a routine the scope is kept even
+		   when empty. */
 		bool scope_empty = !$2 && !$4 && pform_block_scope_is_empty()
-		      && $7 == PBlock::BL_PAR;
+		      && ($7 == PBlock::BL_PAR || !pform_scope_in_routine());
 		pform_pop_scope();
 		assert(! current_block_stack.empty());
 		tmp = current_block_stack.top();
@@ -12791,6 +12876,28 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(lhs, @1);
 	delete $2;
 	PAssignNB*tmp = new PAssignNB(lhs, $5);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  /* The delayed/event-controlled intra-assignment forms need the same
+     dedicated concat-lvalue treatment -- only the plain form above had
+     it, so `{a,b} <= @e v;` died as a syntax error (ivtest
+     nb_ec_concat). */
+  | '{' expression_list_proper '}' K_LE delay1 expression ';'
+      { PEConcat*lhs = new PEConcat(*$2);
+	FILE_NAME(lhs, @1);
+	delete $2;
+	PExpr*del = $5->front(); $5->pop_front();
+	assert($5->empty());
+	PAssignNB*tmp = new PAssignNB(lhs, del, $6);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | '{' expression_list_proper '}' K_LE event_control expression ';'
+      { PEConcat*lhs = new PEConcat(*$2);
+	FILE_NAME(lhs, @1);
+	delete $2;
+	PAssignNB*tmp = new PAssignNB(lhs, 0, $5, $6);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }

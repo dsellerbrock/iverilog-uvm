@@ -8101,7 +8101,16 @@ bool of_DELETE_ELEM(vthread_t thr, vvp_code_t cp)
 	         << ") on empty queue." << endl;
       } else {
 	    size_t size = queue->get_size();
-	    if (idx >= size) {
+	    if (size == 0) {
+		    // The fork allocates queue objects eagerly, so an
+		    // empty queue arrives here as a real object; report
+		    // it with the empty-queue wording (matching the
+		    // nil-object branch above), not as out-of-range on
+		    // "size 0" (ivtest sv_queue_vec/real/string/parray).
+		  cerr << thr->get_fileline()
+		       << "Warning: skipping delete(" << idx
+		       << ") on empty queue." << endl;
+	    } else if (idx >= size) {
 		  cerr << thr->get_fileline()
 		       << "Warning: skipping out of range delete(" << idx
 		       << ") on queue of size " << size << "." << endl;
@@ -15098,12 +15107,18 @@ static bool store_qdar(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 	         << " index (" << idx << "). ";
 	    print_queue_value(value);
 	    cerr << " was not added." << endl;
+      } else if (thr->flags[4] != BIT4_0) {
+	      // An undefined ('x) index never stores -- and must say so
+	      // loudly, like the negative-index and insert paths do.
+	      // This used to skip silently "to avoid warning spam",
+	      // which is exactly the silent-drop the manifesto forbids
+	      // (ivtest sv_queue_vec/real/string/parray gold lines).
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot assign to an undefined "
+	         << get_queue_type(value) << " index. ";
+	    print_queue_value(value);
+	    cerr << " was not added." << endl;
       } else {
-	    if (thr->flags[4] != BIT4_0) {
-		    /* Compile-progress fallback: undefined queue index.
-		     * Skip the write silently to avoid runtime warning spam. */
-		  return true;
-	    }
 	    unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
 	    queue->set_word_max(idx, value, max_size);
             notify_mutated_object_signal_(thr, net, "store-qdar");

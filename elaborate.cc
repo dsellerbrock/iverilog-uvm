@@ -9255,6 +9255,11 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 
 	      /* Otherwise, false. wait(0) blocks permanently. */
 
+	    cerr << get_fileline() << ": warning: wait expression is "
+		 << "constant false." << endl;
+	    cerr << get_fileline() << ":        : The statement will "
+		 << "block permanently." << endl;
+
 	      /* Create an event wait and an otherwise unreferenced
 		 event variable to force a perpetual wait. */
 	    NetEvent*wait_event = new NetEvent(scope->local_symbol());

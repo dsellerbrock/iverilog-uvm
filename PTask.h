@@ -44,6 +44,12 @@ class PTaskFunc : public PScope, public PNamedItem {
       bool var_init_needs_explicit_lifetime() const override;
 
       void set_ports(std::vector<pform_tf_port_t>*p);
+      // Append ports declared through the statement-context direction
+      // rule (a non-ANSI direction declaration that arrives after the
+      // body has left the tf_item declaration section, e.g.
+      // `int x; input x;`). set_ports() later prepends the tf_item
+      // ports so declaration order is preserved.
+      void append_stmt_port_decls(std::vector<pform_tf_port_t>*p);
       // Public accessor for the pform port list, used by deferred
       // interface task dispatch (Phase 54) to evaluate default-arg
       // expressions in the caller's scope when the task body cannot

@@ -1160,21 +1160,23 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
       if (lval_enum) {
 	    const netenum_t *rval_enum = rval->enumeration();
 	    if (!rval_enum) {
-	      if (gn_system_verilog() && dynamic_cast<const NetEConst*>(rval)) {
+		// A LITERAL number in the source can never be a victim of
+		// macro/call typing loss -- assigning it to an enum without
+		// a cast is the plain IEEE 1800-2017 6.19.3 violation the
+		// enum_compatibility_fail* tests demand be rejected. The
+		// compile-progress fallbacks below stay available for
+		// calls/identifiers whose enum typing genuinely collapses
+		// through UVM macro expansions.
+	      bool literal_src = dynamic_cast<PENumber*>(expr) != nullptr;
+	      if (gn_system_verilog() && !literal_src
+		  && dynamic_cast<const NetEConst*>(rval)) {
 		    // Compile-progress fallback: unresolved UVM enum-producing
-		    // calls/macros often collapse to integral placeholder constants.
-		    // Allow elaboration to continue and surface later semantic issues.
-	      } else if (gn_system_verilog()) {
-		    // Compile-progress fallback: enum assignments in complex macro
-		    // expansions (e.g. UVM resource macros) may lose type information
-		    // through intermediate casts. Allow if vectorable.
-		    if (type_is_vectorable(rval->expr_type())) {
-			  // Type-compatible integral value, allow assignment
-		    } else {
-		      cerr << expr->get_fileline() << ": error: "
-				"This assignment requires an explicit cast." << endl;
-		      des->errors += 1;
-		    }
+		    // calls/macros often collapse to integral placeholder
+		    // constants (NetEConst stubs). A RESOLVED non-constant
+		    // integral (array element, function return, variable) is
+		    // the plain 6.19.3 cast violation and errors below
+		    // (enum_compatibility_fail3/4) -- the former vectorable
+		    // blanket fallback swallowed those too.
 	      } else {
 	      cerr << expr->get_fileline() << ": error: "
 			      "This assignment requires an explicit cast." << endl;
@@ -9995,10 +9997,33 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 			      && (have_vt == IVL_VT_QUEUE || have_vt == IVL_VT_DARRAY)) {
 				// Compile-progress fallback for parameterized queue/darray
 				// wrappers that collapse element widths/types (e.g. UVM
-				// optional_data / chandle queue bridges).
-				NetESignal*tmp = new NetESignal(net);
-				tmp->set_line(*this);
-				return tmp;
+				// optional_data / chandle queue bridges). Restricted to
+				// containers whose ELEMENT typing is opaque (class or
+				// unresolved): a mismatch between two fully-known simple
+				// element types (bit[] vs logic[], real vs int, width
+				// mismatch) is the honest IEEE 1800 7.5/7.10 strict-type
+				// error (ivtest sv_darray_assign_fail*,
+				// sv_queue_assign_fail*), not a typing-loss casualty.
+				auto elem_is_opaque = [](ivl_type_t t) -> bool {
+				      const netdarray_t*da =
+					    dynamic_cast<const netdarray_t*>(t);
+				      if (da == 0) return true;
+				      ivl_type_t et = da->element_type();
+				      if (et == 0) return true;
+				      switch (ivl_type_base(et)) {
+					  case IVL_VT_CLASS:
+					  case IVL_VT_VOID:
+					  case IVL_VT_NO_TYPE:
+					    return true;
+					  default:
+					    return false;
+				      }
+				};
+				if (elem_is_opaque(ntype) || elem_is_opaque(have_type)) {
+				      NetESignal*tmp = new NetESignal(net);
+				      tmp->set_line(*this);
+				      return tmp;
+				}
 			  }
 		    }
 		    if (ivl_type_base(ntype) == IVL_VT_CLASS
@@ -10217,6 +10242,35 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 	    return result;
 
       return pad_to_width(result, expr_wid, signed_flag_, *this);
+}
+
+/*
+ * The SV-mode "Unable to bind ... (compile-progress: unresolved
+ * reference)" WARNING exists for constructs whose typing/binding the
+ * fork genuinely loses (clocking members, macro-collapsed names). A
+ * reference that is package-scoped (`P::x`) or whose hierarchical
+ * prefix names a REAL design scope (`m.x` where m is an instance) is
+ * not such a case: the scope exists and the leaf name is genuinely
+ * absent there -- e.g. imported names, which IEEE 1800-2017 26.3 says
+ * are NOT visible through hierarchical or package-scoped paths
+ * (ivtest sv_import_hier_fail1-3, sv_ps_hier_fail1/2). Those must
+ * take the hard error.
+ */
+static bool unresolved_prefix_is_real_scope(Design*des, NetScope*scope,
+					    const pform_scoped_name_t&path)
+{
+      if (path.package != nullptr)
+	    return true;
+      if (path.name.size() < 2)
+	    return false;
+      std::list<hname_t> prefix;
+      for (pform_name_t::const_iterator cur = path.name.begin()
+		 ; std::next(cur) != path.name.end() ; ++cur) {
+	    if (! cur->index.empty())
+		  return false;
+	    prefix.push_back(hname_t(cur->name));
+      }
+      return des->find_scope(scope, prefix) != nullptr;
 }
 
 NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
@@ -11050,7 +11104,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		    }
 
 		      // I cannot interpret this identifier. Error message.
-	    if (gn_system_verilog() && !(NEED_CONST & flags)) {
+	    if (gn_system_verilog() && !(NEED_CONST & flags)
+		&& !unresolved_prefix_is_real_scope(des, scope, path_)) {
 		  // Compile-progress: clocking blocks, interface constructs.
 		  cerr << get_fileline() << ": warning: Unable to bind "
 		       << "wire/reg/memory `" << path_ << "' in `"
@@ -11205,8 +11260,11 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 
 	// I cannot interpret this identifier. Error message.
 	// In SV mode, clocking blocks and other interface constructs may
-	// not be bound (e.g. @cb, @monitor_cb). Emit warning in SV mode.
-      if (gn_system_verilog()) {
+	// not be bound (e.g. @cb, @monitor_cb). Emit warning in SV mode --
+	// unless the reference is package-scoped or its prefix names a
+	// real scope (see unresolved_prefix_is_real_scope above).
+      if (gn_system_verilog()
+	  && !unresolved_prefix_is_real_scope(des, scope, path_)) {
 	    cerr << get_fileline() << ": warning: Unable to bind wire/reg/memory "
 		    "`" << path_ << "' in `" << scope_path(scope) << "'"
 		    " (compile-progress: unresolved reference)." << endl;
@@ -13135,17 +13193,39 @@ NetExpr* PENewClass::elaborate_expr(Design*des, NetScope*scope,
 	    }
       }
 
-	      if (ctype->is_virtual()) {
-	            if (gn_system_verilog()) {
-	                  NetENull*tmp = new NetENull();
-	                  tmp->set_line(*this);
-	                  return tmp;
-            }
-            cerr << get_fileline() << ": error: "
-                 << "Can not create object of virtual class `"
-                 << ctype->get_name() << "`." << endl;
-            des->errors++;
-            return 0;
+	      // IEEE 1800-2017 8.21: an abstract (virtual) class can never
+	      // be instantiated. This used to degrade to a SILENT null in
+	      // SV mode, which let `c = new` on a virtual class through
+	      // without a peep (sv_class_virt_new_fail). Outside any class
+	      // scope the type is exactly what the source wrote, so
+	      // hard-error. Inside a class method the fork's type-PARAMETER
+	      // handling can collapse a concrete T (e.g.
+	      // uvm_component_registry#(T)'s `T obj = new`) to its virtual
+	      // BASE class, so a hard error there breaks all of UVM; keep
+	      // the null degrade but make it loud.
+      if (ctype->is_virtual()) {
+	    bool in_class_method = false;
+	    for (NetScope*sc = scope ; sc ; sc = sc->parent()) {
+		  if (sc->type() == NetScope::CLASS || sc->class_def()) {
+			in_class_method = true;
+			break;
+		  }
+	    }
+	    if (!in_class_method) {
+		  cerr << get_fileline() << ": error: "
+		       << "Can not create object of virtual class `"
+		       << ctype->get_name() << "`." << endl;
+		  des->errors++;
+		  return 0;
+	    }
+	    cerr << get_fileline() << ": warning: "
+		 << "new of virtual class `" << ctype->get_name()
+		 << "` degraded to null (type-parameter typing may have "
+		 << "collapsed to the virtual base; compile-progress)."
+		 << endl;
+	    NetENull*tmp = new NetENull();
+	    tmp->set_line(*this);
+	    return tmp;
       }
 
       NetExpr*obj = new NetENew(ctype);

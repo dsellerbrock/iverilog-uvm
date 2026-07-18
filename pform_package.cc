@@ -202,9 +202,19 @@ static bool pform_package_exportable(const struct vlltype &loc, PPackage *pkg,
       }
 
       if (pform_cur_package->local_symbols.find(ident) == pform_cur_package->local_symbols.end()) {
-	    if (pform_find_potential_import(loc, pform_cur_package,
-					    ident, false, true))
+	    if (PPackage*src = pform_find_potential_import(loc, pform_cur_package,
+							   ident, false, true)) {
+		    // An export is a genuine USE of the wildcard import:
+		    // pin it and mark it used, so a LATER local
+		    // declaration of the same name takes the
+		    // "already imported into this scope" hard error in
+		    // add_local_symbol instead of silently coexisting
+		    // (IEEE 1800-2017 26.6, ivtest sv_export_fail5).
+		  pform_cur_package->explicit_imports[ident] = src;
+		  pform_cur_package->explicit_imports_from[ident].insert(pkg);
+		  pform_cur_package->wildcard_pin_used.insert(ident);
 		  return true;
+	    }
       }
 
       cerr << loc.get_fileline() << ": error: "

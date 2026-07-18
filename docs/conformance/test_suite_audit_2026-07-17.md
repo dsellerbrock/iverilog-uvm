@@ -281,7 +281,8 @@ upstream diff (see caveat).
   fixed here (an upstream scheduler-semantics change with broad gold
   churn).
 - **`fork_join_dis`** — `disable` fails to terminate detached `join_any`
-  children.
+  children. **FIXED** (Part 8 item 11): the unnamed-fork `$unm_blk` scope
+  hid the children from `%disable` of the enclosing named block.
 - **`sv_wildcard_import2` / `import3`** — valid code wrongly *rejected*: a
   local `typedef … word` that legitimately shadows a wildcard-imported
   `word` triggers `syntax error / Invalid module instantiation`.
@@ -290,7 +291,8 @@ upstream diff (see caveat).
 - **`br_gh265`** — fork object-codegen (`draw_eval_object … emitting null
   fallback`, `git blame` → fork) reaches codegen instead of producing the
   elaboration-time implicit-cast rejection. Loud (a Warning), not a silent
-  miscompile.
+  miscompile. **FIXED** (Part 8 item 10): the elaboration-time cast error
+  is restored; output matches gold byte-for-byte.
 - **`reg_basic_test`** (Part 4) — UVM backdoor register access returns
   failure status.
 
@@ -494,6 +496,14 @@ mechanisms (from this pass), so the remaining work is well-scoped:
   fixes all four. ivtest 97→93, UVM 178/0/1, VPI 81/81, negative 32/32,
   bison conflicts unchanged. Regression test
   `tests/auto_task_concurrent_frame_test.sv`.
+  *Correction:* the elision initially covered every join type, but the
+  join_none case broke UVM (`uvm_objection::m_init_objections` has a
+  `fork…join_none` task call inside a *function*; without the fork scope
+  the checker saw an illegal direct task call), so it was restricted to
+  blocking `join` — which re-broke `fork_join_dis`. Part 8 item 11 settles
+  this properly: elide for all join types *except lexically inside a task
+  or function*, keeping the UVM deferred-call and process-identity
+  behavior while restoring `disable` reachability of detached children.
 - **`automatic_events2`** — the *deeper* remaining case, now root-caused to
   a precise, minimal trigger: **a blocking `fork … join` inside an automatic
   task where one branch ends before a sibling branch reads a parent-scope
@@ -650,6 +660,245 @@ isolation) and are left scoped rather than rushed.
 9. **`part_sel_port` re-attributed** — verified pre-existing upstream
    time-0 propagation ordering (see the corrected Part 5 entry), not a
    fork miscompile; left unfixed deliberately.
+10. **elaborator: darray/queue targets accepted arbitrary vectorable
+   r-values** (`br_gh265`). The Phase-11 compile-progress leniency in the
+   typed `elab_and_eval` (`netmisc.cc`) — added so a runtime-bounds queue
+   slice `q[lo:hi]` (which lowers as LOGIC through the bit-select fallback)
+   could reach a queue target — let *any* vectorable expression through to
+   a darray/queue l-value. `array = 8'd1 << 4;` then reached the object
+   code generator, which warned (`draw_eval_object … emitting null
+   fallback`) and silently stored null. The leniency is now gated on the
+   expression being identifier-rooted (`PEIdent`), the only shape a queue
+   slice can take; every other vectorable r-value takes the upstream
+   elaboration error ("cannot be implicitly cast to the target type").
+   `br_gh265` now matches its gold byte-for-byte. Negative regression
+   test `tests/negative/darray_scalar_assign.sv`.
+11. **parser/runtime: `disable` of a named block did not kill detached
+   join_any/join_none children of an unnamed fork beneath it**
+   (`fork_join_dis`). The fork synthesizes a `$unm_blk` scope for every
+   unnamed fork; children `%fork` into that child scope, and vvp's
+   `%disable` of the enclosing block's scope never reaches threads in the
+   child scope (upstream never creates the scope — children run directly
+   in the enclosing scope, so `disable` finds them). The empty unnamed-fork
+   scope elision (item above) is now extended from blocking `join` to
+   join_any/join_none, with one exception: lexically inside a *task or
+   function* the scope is kept. In a function it is what distinguishes a
+   deferred task call in a forked process from an illegal direct task call
+   (UVM `uvm_objection::m_init_objections` relies on this — the exact
+   breakage that forced the earlier restriction). In a task the runtime
+   marks a `%fork` child whose target scope is a task scope as a compiled
+   task call sharing the caller's logical process (`vvp/vthread.cc`
+   `of_FORK`), so eliding there aliased `process::self()` in the forked
+   process with the caller — verified live as 4 UVM sweep failures
+   (`m6_process_identity_test` "watcher process aliases caller process",
+   plus the `vif_smoke`/`vif_smoke_v2`/`seq_trace_test` sequencer-handshake
+   deadlocks) before the exception was widened to routines. New pform
+   helper `pform_scope_in_routine()` walks the lexical scope chain.
+   `fork_join_dis` passes; UVM sweep fully restored. Known residual: a
+   `disable` of a named block *inside a task* still cannot reach detached
+   children of an unnamed fork there (the scope is deliberately kept);
+   fixing that requires the runtime to identify compiled task-call forks
+   without inferring from the target scope type. Regression test
+   `tests/fork_disable_detached_test.sv` (covers both disable shapes plus
+   the function/join_none exception).
+
+## Part 9 — Re-baseline onto the vendored (live) ivtest suite (2026-07-18)
+
+While chasing the "diagnostic-drift long tail" (br1027a/c/e, br_gh79,
+br_gh127a–f, br1003a–d, array_dump, dump_memword — 16 tests), attribution
+turned up something bigger than any single fix: **all 16 print
+byte-identical output on the fork and on pristine upstream 13.0.** The
+"drift" was never in either compiler — it was in the *gold files* of the
+external ivtest checkout the gates had been running
+(`/home/user/ivtest`), which is the **archived, obsolete ivtest
+repository** (HEAD: "Note that this project is obsolete"). Upstream moved
+the test suite into the iverilog tree; the fork's vendored `ivtest/`
+directory is that live suite, its golds are current (293 gold files
+differ from the archived checkout), and **all 16 tests pass against it
+unmodified.** They were never fork regressions and never upstream
+regressions — they were stale-gold artifacts of gating against a dead
+suite. The archived checkout is retired as a gate.
+
+Both compilers were then run over the full vendored suite (3101 tests vs
+the archived suite's 2559). Definitive numbers, recorded in
+`docs/conformance/ivtest_vendored_baseline_2026-07-18.txt` (full name
+lists in that file):
+
+| Run | Failed | Passed | NI | EF |
+|-----|--------|--------|----|----|
+| fork | **110** | 2983 | 5 | 3 |
+| upstream 13.0 @ 9b44d55 | **83** | 3010 | 5 | 3 |
+
+- **31 common failures** — genuinely pre-existing upstream.
+- **52 upstream-only failures** — tests the **fork fixes** (the
+  `sv_assoc_*`/`sv_class_*`/`sv_queue_*`/`sv_virtual_*` runtime tests for
+  features the fork implemented, plus the two `sv_mailbox_*` tests below).
+- **79 fork-only failures** — the corrected fork-regression frontier.
+  Initial triage splits them into: (a) a large block of `*_fail*` **CE
+  tests silently accepted** — `sv_darray_assign_fail1–6`,
+  `sv_queue_assign_fail1–6`, `enum_compatibility_fail2–8`,
+  `task_nonansi_*2`, `sv_import_hier_fail*`, `sv_ps_hier_fail*`,
+  `sv_timeunit_prec_fail*`, `sv_deferred_assert/assume*`, etc. — the
+  manifesto's core "loud rejection" obligation, now measurably violated
+  on the live suite; (b) **parser regressions** on newer test shapes:
+  module-level `C c = new;` (`sv_class_constructor1` and much of the
+  `sv_class_*` block — the fork's gate-instantiation reinterpretation
+  errors with "Invalid module instantiation") and non-ANSI directions
+  after variable declarations (`task_nonansi_int2`: `int x; input x;` →
+  "Malformed statement", the same declaration-section-exit family as
+  Part 8 item 8); (c) known carryovers already root-caused on the old
+  suite (`recursive_task`, `case_unique`, `constfunc8`,
+  `array_lval_select3a`, `pr243`, `pr987`, `pr1862744b`, `pr2792883`,
+  br1005/br_ml/br_gh leniencies).
+
+Suite-integrity repair found along the way: the fork-authored
+`sv_mailbox_blocking_peek1`/`sv_mailbox_try_int1` had **malformed
+`regress-sv.list` entries** (missing flags/directory columns), reporting
+"missing source file" on every compiler, and printed `PASS` instead of
+the harness-required `PASSED`. Both repaired; both now pass on the fork
+(and fail on upstream — no mailbox support — so they count to the
+fork-fixes column).
+
+Some cross-suite categories shift with current golds: e.g. `sv_queue_vec`
+now fails for a different, verified reason — the fork **reworded the
+queue runtime warnings** ("skipping out of range delete(0) on queue of
+size 0" vs gold "skipping delete(0) on empty queue", and one
+undefined-index warning is missing entirely), genuine fork diagnostic
+drift where the archived suite's complaint had been a stale-gold `'X`
+expectation. The archived-suite appendix below is retained as history;
+per-test re-verification against the vendored suite happens as each
+cluster is worked.
+
+**Gate change (standing):** the ivtest gate is now
+`cd ivtest && perl vvp_reg.pl` inside the repo (vendored suite), with
+`docs/conformance/ivtest_vendored_baseline_2026-07-18.txt` as the
+committed name-diff baseline. UVM sweep, bundled VPI, and negative-suite
+gates are unchanged.
+
+## Part 10 — The 79 fork-only vendored failures: 54 fixed (2026-07-18)
+
+Working through the corrected frontier from Part 9, in three gated
+batches. Vendored ivtest went 110 → 86 → 56; UVM sweep 187/0/1
+(new regression tests included); VPI 81/81; negative 38/38.
+
+**Batch 1 — parser regressions (24 tests).** (a) Module-level
+`C c = new;` died in the no-port instantiation shape because
+class_new/dynamic_array_new are not derivable from `expression`;
+gate_instance gained those initializer alternatives. (b) `c = C::new;`
+was unreachable in every expression position — the fork's direct
+`TYPE_IDENTIFIER K_SCOPE_RES` expr/lpvalue rules win the LALR shift, so
+the class_scope-based class_new path died before `K_new`; expr_primary
+now supplies the K_new continuation on the direct prefix. Fixed all 17
+`sv_class_*` parse failures. (c) Non-ANSI direction declarations after
+the tf_item declaration-section early exit (`int x; input x;`) had no
+statement rule; statement_item now routes them into
+pform_make_task_ports (top-of-body only, loud error elsewhere) and
+PTaskFunc::set_ports merges preserving declaration order — the 8
+`task_nonansi_*2`/`task_iotypes` tests.
+
+**Batches 2+3 — strictness restorations and runtime fixes (30 tests).**
+- darray/queue assignment compatibility: the parameterized-container
+  leniency waved through ANY container-to-container element mismatch;
+  now gated to OPAQUE (class/unresolved) element typing, so
+  `logic[31:0][] = bit[31:0][]` errors again
+  (sv_darray_assign_fail1–6, sv_queue_assign_fail1–6).
+- enum implicit cast (6.19.3): literals and RESOLVED integrals
+  (array elements, function returns) hard-error again; the
+  placeholder-constant leniency survives only for unresolved-call
+  NetEConst stubs (enum_compatibility_fail2–8 + br_gh130a, br_gh386c).
+- virtual-class `new` (8.21): the silent SV-mode null degrade is gone.
+  Hard error outside class scopes (sv_class_virt_new_fail); inside a
+  class method the fork's type-parameter collapse can falsely present
+  the virtual base (uvm_component_registry#(T)'s `T obj = new`), so
+  there it degrades to null WITH a loud warning.
+- vvp shallow_copy assert on `d = new [n](q)`: the fork's eager queue
+  allocation hands even an empty queue to shallow_copy as a real
+  object, and a queue is never the target's concrete class; all six
+  shallow_copy flavors now fall back to element-wise copy through the
+  virtual get/set interface (sv_darray_copy_empty4).
+- queue runtime warning fidelity: empty-queue delete reports
+  "skipping delete(N) on empty queue" again (eager allocation had
+  routed it to "out of range ... size 0"), and assigning at an
+  undefined ('x) index warns loudly instead of the deliberate silent
+  skip ("avoid warning spam") the fork had added
+  (sv_queue_vec/real/string/parray).
+- `{a,b} <= @e v;` and `{a,b} <= #d v;`: the dedicated concat-lvalue
+  statement rules only covered the plain `<=` form (nb_ec_concat).
+- `reg bool [5:0] v;` in statement context: block_item_decl's
+  iverilog-extension rule mirrored into statement_item (constfunc8).
+- `wait(0)`: restored upstream's "wait expression is constant false /
+  will block permanently" warning, which the fork had deleted (pr987).
+  UVM itself contains three `wait(0)`s that now warn — matching what
+  upstream prints on the same code.
+
+**Failed attempts, caught by the gates and reverted (recorded so they
+are not retried naively):**
+1. Excluding literal `new` from the netmisc scalar-stub fallbacks (to
+   fix sv_class_new_fail1's `int i = new;`) broke ALL 187 UVM tests:
+   UVM's `uvm_default_*_printer = new()` globals lose their class
+   typing and arrive at the same fallback statically indistinguishable
+   from the test's genuine error. Reverted; sv_class_new_fail1 stays
+   failing, blocked on class-typing fidelity, not on a missing check.
+2. An unconditional virtual-class-new hard error passed every ivtest
+   target but also broke all of UVM (the registry pattern above) —
+   replaced with the scope-gated version. A verification lesson is
+   recorded with it: the first "clean" compile check measured a
+   pipeline's exit status, not the compiler's; gate checks now use the
+   compiler's own exit code.
+
+**Remaining 25 fork-only failures, categorized:**
+- Policy/feature divergences to document rather than "fix" (11):
+  `sv_deferred_assert1/2`, `sv_deferred_assume1/2` (fork implements
+  deferred assertions; golds expect the upstream "sorry"), `br1005`,
+  `br_ml20150315b`, `br_ml20180227` (intentional SV feature
+  leniencies), `case_unique` (fork implements unique-case runtime
+  checking, so upstream's "sorry: qualities ignored" is gone),
+  `struct_invalid_member` (fork's "`logc` doesn't name a type" is a
+  better diagnostic than gold's generic syntax error),
+  `sv_class_new_fail1` (see failed attempt 1), `func_empty_arg_fail4`
+  (gated on the fork-wide unresolved-reference-as-warning policy).
+- Scope-resolution semantics (6): `sv_import_hier_fail1–3`,
+  `sv_ps_hier_fail1/2`, `sv_export_fail5` — imported names visible
+  through hierarchical/package paths that the LRM says must not be.
+- Individual investigations (8): `pr243` (simulation ends one $monitor
+  sample early), `string14` (empty-string %s runtime), `pr1862744b`,
+  `pr2792883` (hierarchical ref in parameter accepted),
+  `array_lval_select3a`, `recursive_task` (blocked on the other
+  session's frame refactor), `sv_timeunit_prec_fail1/2`.
+
+## Part 11 — Scope-resolution cluster: 6 more fixed (2026-07-18)
+
+Vendored ivtest 56 → 50; UVM 187/0/1; VPI 81/81; negative 40/40 (two
+new tests). The "6-test scope-resolution cluster" turned out to be two
+distinct defects, neither of them actually in name RESOLUTION:
+
+1. `sv_import_hier_fail1–3`, `sv_ps_hier_fail1/2`: binding already
+   failed correctly — the fork's unresolved-reference-as-warning
+   policy then downgraded the error to a compile-progress warning
+   (exit 0). Both warning sites in PEIdent elaboration are now gated
+   by `unresolved_prefix_is_real_scope()`: a reference that is
+   package-scoped (`P::x`) or whose hierarchical prefix names a REAL
+   design scope (`m.x`, `inner.x`) takes the hard error — the scope
+   exists and the leaf name is genuinely absent (imports are not
+   visible through hierarchical or package-scoped paths, IEEE
+   1800-2017 26.3); there is no typing-loss excuse. Simple unresolved
+   identifiers (UVM's clocking members and macro-collapsed names) keep
+   the warning, and the UVM sweep confirms the line holds.
+
+2. `sv_export_fail5`: `export P1::x` validated the wildcard import but
+   never PINNED it, so a later local `x` declaration in the same
+   package coexisted silently. The export now records the pin in
+   explicit_imports and marks it in wildcard_pin_used (an export is a
+   genuine use), so the existing add_local_symbol conflict check fires
+   the "already imported into this scope" error (26.6).
+
+This also shrinks the func_empty_arg_fail4 policy question: what
+remains of the unresolved-reference leniency is only the
+simple-identifier case.
+
+Remaining 19 fork-only failures: the 11 policy/documentation items and
+8 individual investigations from Part 10, minus nothing — the 6 fixed
+here came from the scope-resolution category, which is now closed.
 
 ## Appendix — full per-test reason table
 
@@ -668,7 +917,7 @@ deterministically on a quiet host.
 | 3 | always_latch_warn | → upstream parity | parse bug FIXED; remaining diff is the same gold typo |
 | 4 | analog1 | UNIMPL | Verilog-AMS `V(out)` probe unsupported ("No function named `V`") |
 | 5 | analog2 | UNIMPL | Verilog-AMS `<+` contribution → syntax error |
-| 6 | array_dump | OUTPUT-DIFF (cosmetic) | VCD writer emits extra `$comment Show the parameter values.`/`$dumpall` block |
+| 6 | array_dump | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
 | 7 | array_lval_select3a | UNIMPL | "sorry: cannot %cassign to word of a variable array" (procedural assign/force to array word) |
 | 8 | automatic_events | RUNTIME-BUG | automatic-task locals in edge events → 15× `unresolved vvp_net reference` |
 | 9 | automatic_events2 | RUNTIME-BUG | same automatic-var edge-event codegen bug |
@@ -676,25 +925,25 @@ deterministically on a quiet host.
 | 11 | automatic_task | → **FIXED** | event-after-declaration parser bug fixed (Part 8 item 8); matches gold |
 | 12 | automatic_task2 | OUTPUT-DIFF (functional) | `@(array[i])` on automatic-task local never fires → zero output |
 | 13 | automatic_task3 | RUNTIME-BUG | automatic-task local in `@(array[j])` → unresolved vvp_net + **segfault** |
-| 14 | br1003a | OUTPUT-DIFF (cosmetic) | $printtimescale prints `$unit::` vs gold `$unit` |
-| 15 | br1003b | OUTPUT-DIFF (cosmetic) | same `$unit::` scope-name formatting |
-| 16 | br1003c | OUTPUT-DIFF (cosmetic) | same `$unit::` scope-name formatting |
-| 17 | br1003d | OUTPUT-DIFF (cosmetic) | package scope `testpackage::` vs gold `testpackage` |
+| 14 | br1003a | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 15 | br1003b | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 16 | br1003c | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 17 | br1003d | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
 | 18 | br1005 | LENIENT (intentional) | SV queue-in-class now compiles+runs; gold expects `sorry` |
-| 19 | br1027a | DIAG-DIFF | "Missing" vs gold "missing" task/function port direction |
-| 20 | br1027c | DIAG-DIFF | same capitalization diff |
-| 21 | br1027e | DIAG-DIFF | same capitalization diff |
-| 22 | br_gh79 | DIAG-DIFF | "Malformed statement" vs gold "malformed statement" |
-| 23 | br_gh127a | OUTPUT-DIFF (cosmetic) | port-width warning reworded (`of module copy expects 2 bit(s), given N`) |
-| 24 | br_gh127b | OUTPUT-DIFF (cosmetic) | same warning rewording |
-| 25 | br_gh127c | OUTPUT-DIFF (cosmetic) | same warning rewording |
-| 26 | br_gh127d | OUTPUT-DIFF (cosmetic) | same warning rewording |
-| 27 | br_gh127e | OUTPUT-DIFF (cosmetic) | same warning rewording |
-| 28 | br_gh127f | OUTPUT-DIFF (cosmetic) | same warning rewording |
+| 19 | br1027a | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 20 | br1027c | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 21 | br1027e | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 22 | br_gh79 | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 23 | br_gh127a | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 24 | br_gh127b | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 25 | br_gh127c | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 26 | br_gh127d | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 27 | br_gh127e | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 28 | br_gh127f | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
 | 29 | br_gh130a | LENIENT | bare int→enum assign accepted (known-open gh#130) |
 | 30 | br_gh130b | LENIENT (intentional?) | `enum'(1)` cast accepted; CE variant no longer errors |
 | 31 | br_gh157 | DIAG-DIFF/strictness | defparam on localparam now hard-errors vs gold warn+run |
-| 32 | br_gh265 | LENIENT/codegen | fork `draw_eval_object … null fallback` replaces elab cast-reject (blame→fork; loud) |
+| 32 | br_gh265 | → **FIXED** | was: fork null-fallback codegen replaced elab cast-reject (Part 8 item 10); now matches gold |
 | 33 | br_gh315 | UNIMPL/config | `.A` implicit named-port needs SV; normal mode rejects (CE variant OK) |
 | 34 | br_gh386c | LENIENT | continuous int→enum assign accepted (known-open gh#386) |
 | 35 | br_gh386d | LENIENT (intentional?) | `assign = enum'(1)` cast accepted; CE variant no longer errors |
@@ -706,8 +955,8 @@ deterministically on a quiet host.
 | 41 | br_ml20190814 | OUTPUT-DIFF | extra "SDF WARNING: …TIMINGCHECK not supported" line (specify/SDF, not SV) |
 | 42 | case_unique | OUTPUT-DIFF (dropped diag) | "sorry: Case unique/unique0 qualities are ignored" no longer emitted; still PASSED |
 | 43 | constfunc8 | UNIMPL | `reg bool [5:0] value;` malformed 2-word type decl rejected |
-| 44 | dump_memword | OUTPUT-DIFF (cosmetic) | same extra VCD parameter-dump block |
-| 45 | fork_join_dis | OUTPUT-DIFF (functional) | `disable` fails to kill detached `join_any` children |
+| 44 | dump_memword | STALE GOLD (archived suite) | fork output identical to upstream; passes the vendored live suite unmodified (Part 9) |
+| 45 | fork_join_dis | → **FIXED** | was: `$unm_blk` fork scope hid detached children from `%disable` (Part 8 item 11); passes |
 | 46 | fread-error | OUTPUT-DIFF (dropped diag) | `$fread` "first argument must be a reg or memory" error no longer emitted |
 | 47 | func_init_var2 | OUTPUT-DIFF (functional) | automatic-fn `automatic int acc=1` initializer ignored in const-fn eval → wrong value |
 | 48 | macro_with_args | OUTPUT-DIFF (cosmetic) | macro-arg stringification adds trailing spaces `(a )` vs `(a)` |
