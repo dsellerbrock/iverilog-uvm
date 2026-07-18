@@ -900,6 +900,72 @@ Remaining 19 fork-only failures: the 11 policy/documentation items and
 8 individual investigations from Part 10, minus nothing — the 6 fixed
 here came from the scope-resolution category, which is now closed.
 
+## Part 12 — Individual investigations: 5 fixed, the rest classified (2026-07-18)
+
+The eight "individual investigation" failures from Part 10, worked one
+at a time. Five are code fixes; the remainder joined the documented
+list with verified reasons.
+
+**Fixed:**
+
+1. **pr243 — `$finish` truncated the final time step.** The fork's
+   hung-loop watchdog had added `schedule_finished()` bail-outs to all
+   five `%jmp` opcode variants, killing a thread MID-BODY if it resumed
+   in the same time step after another thread's `$finish` — its stores
+   never propagated and `$monitor`'s ReadOnly flush never saw the final
+   sample. Upstream honors `$finish` only at the time-advance boundary.
+   The `%jmp` bail-outs are removed; the `%delay`/`%delayx` bail-outs
+   remain and are what actually prevent the post-finish zero-delay
+   respawn spin the watchdog was after. (A thread that loops forever
+   with NO delay after `$finish` would hang — exactly as it does
+   upstream.) New test: tests/finish_completes_timestep_test.sv.
+2. **string14 — `$bits("") == 0`.** PEString::test_width short-circuited
+   the empty string to width 0; verinum's string constructor already
+   special-cases "" to 8 bits (IEEE 1800-2017 11.10.3: "" ≡ "\0").
+   The short-circuit is gone.
+3. **pr1862744b — missing "condition expression of for-loop is
+   constant" warnings.** The fork deliberately stopped constant-folding
+   for-loop conditions (so `queue.size()` stays runtime-evaluated) and
+   lost the warning as a side effect. A LITERAL condition still arrives
+   as a NetEConst without folding, so the warning is re-added for that
+   case. (A folded-only constant like `1+1` is not detected — the
+   recorded price of the no-fold policy.)
+4. **pr2792883 — hierarchical reference accepted in a parameter.** The
+   fork's package-parameter exception (pkg::Y parsed as a hierarchical
+   path) let ANY parameter through the 11.2.1 constant-expression
+   check, including `parameter W = dut.WIDTH;`. The exception is now
+   limited to parameters found in PACKAGE scopes. New negative test:
+   tests/negative/param_hier_ref.sv.
+5. **array_lval_select3a — fatal "sorry" made non-fatal, then crashed.**
+   The fork kept the four vvp.tgt "cannot %cassign/%force/... the word
+   of a variable array" messages but removed their `vvp_errors += 1`,
+   so codegen "succeeded" and the image crashed at runtime
+   (`cassign_unlink: Assertion 'sig' failed`) — silent acceptance of an
+   unimplemented construct, the exact failure mode the manifesto
+   forbids. The error counting is restored at all four sites; the test
+   is a loud CE again.
+
+**Classified (documented divergences, no code change):**
+
+- **sv_timeunit_prec_fail1/2** — two components: (a) the fork's lexer
+  strips digit separators from time literals (IEEE 1800-2017 5.7.1
+  makes `1_0s` a LEGAL literal of a legal value, 10s; upstream's
+  "'_' is not supported" is its own admitted limitation that the gold
+  enshrines), after which the fork reports the genuine semantic
+  mismatch errors; (b) a one-line error-anchor drift in fail1c from
+  parser lookahead timing. Both intentional/cosmetic; both tests still
+  reject the code loudly.
+- **recursive_task** — blocked on the other session's single-task-frame
+  refactor (unchanged).
+
+With Part 11's scope cluster this closes the individual-investigation
+category. The remaining fork-only failures are the policy/documentation
+set: implemented-feature divergences (sv_deferred_assert/assume,
+case_unique, br1005/br_ml leniencies, timeunit digit separators),
+better-diagnostic divergences (struct_invalid_member), and the two
+class-typing-fidelity blockers (sv_class_new_fail1,
+func_empty_arg_fail4).
+
 ## Appendix — full per-test reason table
 
 Legend: **UNIMPL** = construct not implemented; **LENIENT** = expects a

@@ -2186,5 +2186,6 @@ vpip_routines_s vpi_routines = {
     .assertion_report           = vpip_assertion_report,
     .assertion_cb_active        = vpip_assertion_cb_active,
     .register_assertion_cb      = vpi_register_assertion_cb,
+    .assertion_report_all       = vpip_assertion_report_all,
 };
 #endif

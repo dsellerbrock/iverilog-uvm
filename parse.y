@@ -9491,6 +9491,31 @@ port_declaration
 	$$ = module_declare_port(@4, $4, $2, NetNet::WIRE,
 				 real_type, nullptr, nullptr, $1);
       }
+  /* M5-if: GENERIC interface ports (IEEE 1800-2017 A.2.2.3,
+     `interface b` / `interface.mp b`). The port's actual interface
+     type comes from the connected instance, which needs
+     per-instantiation port typing the elaborator does not do yet.
+     Give the previously-bare syntax error a loud, actionable sorry
+     and recover with a scalar port so parsing continues. */
+  | attribute_list_opt K_interface IDENTIFIER dimensions_opt initializer_opt
+      { yyerror(@2, "sorry: Generic `interface` ports are not yet "
+		    "supported; declare the port with its interface "
+		    "type (e.g. `bus_if b`).");
+	vector_type_t*errt = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	FILE_NAME(errt, @2);
+	$$ = module_declare_port(@3, $3, port_declaration_context.port_type,
+				 NetNet::IMPLICIT, errt, $4, $5, $1);
+      }
+  | attribute_list_opt K_interface '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { yyerror(@2, "sorry: Generic `interface` ports are not yet "
+		    "supported; declare the port with its interface "
+		    "type (e.g. `bus_if.mp b`).");
+	delete[] $4;
+	vector_type_t*errt = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	FILE_NAME(errt, @2);
+	$$ = module_declare_port(@5, $5, port_declaration_context.port_type,
+				 NetNet::IMPLICIT, errt, $6, $7, $1);
+      }
   ;
 
   /*
@@ -10267,6 +10292,33 @@ module_item
       { pform_error_in_generate(@1, "timeunit declaration"); }
 
   | class_declaration
+
+  /* M5-if: a bare module-scope virtual-interface variable
+     (`virtual bus_if v;`). The generic route (block_item_decl ->
+     data_type -> K_virtual TYPE_IDENTIFIER) is unreachable here: the
+     mid-rule attributes action forces the parser to commit before
+     shifting K_virtual, and the post-K_virtual module state only
+     expects K_class (class_declaration). These dedicated alternatives
+     give that state the TYPE_IDENTIFIER/IDENTIFIER shifts; the reduce
+     to K_virtual_opt stays confined to the K_class lookahead. */
+  | K_virtual TYPE_IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'
+      { interface_type_t*itype;
+	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
+	      yyerror(@2, "error: virtual may only be used with interface types.");
+	itype = new interface_type_t(lex_strings.make($2.text));
+	FILE_NAME(itype, @1);
+	pform_make_var(@2, $4, itype, nullptr, false);
+	delete[] $2.text;
+	if ($3) delete $3;
+      }
+  | K_virtual IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'
+      { /* Forward-referenced or not-yet-registered interface name. */
+	interface_type_t*itype = new interface_type_t(lex_strings.make($2));
+	FILE_NAME(itype, @1);
+	pform_make_var(@2, $4, itype, nullptr, false);
+	delete[] $2;
+	if ($3) delete $3;
+      }
 
   | task_declaration
 

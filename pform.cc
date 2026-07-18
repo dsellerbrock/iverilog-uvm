@@ -4853,6 +4853,7 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst)
 
 /* Assertion callback reasons (IEEE 1800-2017 40.x; must match the
    cbAssertion* values in sv_vpi_user.h). */
+static const int SVA_CB_START   = 606;   /* cbAssertionStart */
 static const int SVA_CB_SUCCESS = 607;   /* cbAssertionSuccess */
 static const int SVA_CB_FAILURE = 608;   /* cbAssertionFailure */
 
@@ -6804,6 +6805,15 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* Any pass action not consumed by a match site above (cover,
 	   negated) is dropped. */
       delete pass_stmt;
+
+	/* M12B-rest: cbAssertionStart -- an attempt starts at every
+	   sampled clock tick the checker evaluates (IEEE 1800-2017
+	   40.5.2; concurrent assertions launch an attempt each clock).
+	   Placed inside the disable guard: a disabled tick aborts
+	   attempts rather than starting one. Gated on
+	   $ivl_assert_cb_active like every report, so it costs nothing
+	   when no callback is registered. */
+      body.insert(body.begin(), sva_report_stmt_(loc, inst, SVA_CB_START));
 
 	/* Assemble: pre-captures; disable guard around the token
 	   machinery; history updates. */

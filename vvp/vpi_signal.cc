@@ -977,6 +977,7 @@ static vpiHandle signal_put_value(vpiHandle ref, s_vpi_value*vp, int flags)
 	    assert(rfp->node->fil);
 	    rfp->node->fil->force_unlink();
 	    rfp->node->fil->release(dest, net_flag);
+	    rfp->node->fil->run_force_callbacks(cbRelease);
 	    rfp->node->fun->force_flag(true);
 	    signal_get_value(ref, vp);
 	    return ref;
@@ -1531,6 +1532,7 @@ static vpiHandle PV_put_value(vpiHandle ref, p_vpi_value vp, int flags)
 	    } else {
 		  rfp->net->fil->release_pv(dest, base, width, net_flag);
 	    }
+	    rfp->net->fil->run_force_callbacks(cbRelease);
 	    rfp->net->fun->force_flag(true);
 	    PV_get_value(ref, vp);
 	    return ref;

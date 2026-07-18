@@ -156,3 +156,5 @@ m12_sv_scopes    normal,-g2012   m12_sv_scopes.c   m12_sv_scopes.log
 m12_sv_coverage  normal,-g2012   m12_sv_coverage.c m12_sv_coverage.log
 m12b_assert_vpi  normal,-g2012   m12b_assert_vpi.c m12b_assert_vpi.log
 m12bcb_assert_cb normal,-g2012   m12bcb_assert_cb.c m12bcb_assert_cb.log
+force_cb		normal			force_cb.c		force_cb.log
+m12br_assert_cb2 normal,-g2012   m12br_assert_cb2.c m12br_assert_cb2.log

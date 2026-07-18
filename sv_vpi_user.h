@@ -82,8 +82,11 @@ EXTERN_C_START
 /********* Assertion object (IEEE 1800-2017 clause 40) ***********/
 #define vpiAssertion        686
 
-/* Assertion callback reasons (IEEE 1800-2017 40.x). cbAssertionSuccess
-   and cbAssertionFailure are delivered; the others are accepted by
+/* Assertion callback reasons (IEEE 1800-2017 40.x). Delivered:
+   cbAssertionStart (each attempt tick), cbAssertionSuccess,
+   cbAssertionFailure, and -- from the global control tasks --
+   cbAssertionDisable/Enable ($assertoff/$asserton transitions) and
+   cbAssertionReset ($assertkill). Step callbacks are accepted by
    vpi_register_assertion_cb but not yet delivered. */
 #define cbAssertionStart        606
 #define cbAssertionSuccess      607

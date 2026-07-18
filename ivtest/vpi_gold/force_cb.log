@@ -1,0 +1,11 @@
+Compiling vpi/force_cb.c...
+Making force_cb.vpi from  force_cb.o...
+cbForce: r = 1010
+cbRelease: r = 1010
+cbForce: w = 1111
+cbRelease: w = 0101
+cbForce: r = 0110
+cbRelease: r = 0110
+cbForce: r = 0110
+cbRelease: r = 0110
+done r=0110 w=0101

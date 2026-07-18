@@ -949,6 +949,7 @@ static void force_real_to_lval(ivl_statement_t net)
 			  ivl_stmt_file(net), ivl_stmt_lineno(net),
 			  command_name, ivl_signal_basename(lsig),
 			  ivl_signal_array_base(lsig) + (long)use_word);
+	          vvp_errors += 1;
 	    }
       }
 
@@ -1004,6 +1005,7 @@ static void force_vector_to_lval(ivl_statement_t net)
 					ivl_stmt_file(net), ivl_stmt_lineno(net),
 					command_name, ivl_signal_basename(lsig),
 					ivl_signal_array_base(lsig) + (long)use_word);
+		        vvp_errors += 1;
 		  }
 	    }
 
@@ -1133,6 +1135,7 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
 		          "word of a variable array (%s[%ld]).\n",
 		          ivl_stmt_file(net), ivl_stmt_lineno(net),
 		          command_name, ivl_signal_basename(lsig), real_word);
+	          vvp_errors += 1;
 	    }
       }
 
@@ -1162,6 +1165,7 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
 		          "word of a variable array (%s[%ld]).\n",
 		          ivl_expr_file(rval), ivl_expr_lineno(rval),
 		          command_name, ivl_signal_basename(rsig), real_word);
+	          vvp_errors += 1;
 	    }
       } else {
 	    assert(ivl_signal_dimensions(rsig) == 0);
@@ -4225,6 +4229,13 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		       instead of a runtime surprise. */
 		  ivl_type_t nt = ivl_signal_net_type(port);
 		  ivl_type_t et = nt ? ivl_type_element(nt) : 0;
+		    /* M10B-md: a MULTI-dimensional open array is a
+		       darray of darrays. Walk to the leaf element
+		       type; the runtime walks the same object tree
+		       (svGetArrElemPtr2/3), only the innermost
+		       storage must be contiguous atoms. */
+		  while (et && ivl_type_base(et) == IVL_VT_DARRAY)
+			et = ivl_type_element(et);
 		  ivl_variable_type_t ebase = et ? ivl_type_base(et)
 			                         : IVL_VT_NO_TYPE;
 		  unsigned ewid = et ? ivl_type_packed_width(et) : 0;

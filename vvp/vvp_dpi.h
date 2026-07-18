@@ -27,11 +27,18 @@ extern void* vvp_dpi_find_symbol(const char*name);
  * shared with the simulator's dynamic array. C-side writes through
  * svGetArrElemPtr land directly in simulation storage.
  */
+class vvp_darray;
+
 struct vvp_dpi_open_array_t {
       void* data;
       unsigned length;
       unsigned elem_bytes;
       bool elem_is_real;
+	// M10B-md: for a MULTI-dimensional open array (an object array
+	// whose words are inner dynamic arrays), the accessors walk the
+	// live object tree from here instead of using data/elem_bytes
+	// (the outer array is non-contiguous). Null for 1-D arrays.
+      vvp_darray* outer;
 };
 
 struct vvp_dpi_arg_t {

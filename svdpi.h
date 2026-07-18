@@ -52,6 +52,8 @@ extern int  svSizeOfArray(const void*h);        /* total bytes */
  * SystemVerilog side. */
 extern void* svGetArrElemPtr(const void*h, int indx1, ...);
 extern void* svGetArrElemPtr1(const void*h, int indx1);
+extern void* svGetArrElemPtr2(const void*h, int indx1, int indx2);
+extern void* svGetArrElemPtr3(const void*h, int indx1, int indx2, int indx3);
 extern void* svGetArrayPtr(const void*h);
 
 #ifdef __cplusplus

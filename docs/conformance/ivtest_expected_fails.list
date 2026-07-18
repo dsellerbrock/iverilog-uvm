@@ -1,0 +1,55 @@
+# ivtest expected-failures list — consumed by .github/ivtest_gate.sh
+# One test name per line; everything after the name is commentary.
+# RULES (manifesto Phase 0): a test may only appear here with a
+# written reason, and the gate fails BOTH on unexplained new failures
+# and on stale entries. Full attribution: ivtest_vendored_baseline_*.txt
+# and test_suite_audit_2026-07-17.md.
+#
+# --- Pre-existing upstream failures (31): fail identically on
+# --- pristine upstream Icarus 13.0 @ fork base 9b44d55.
+sv_assoc_obj_key_bit_copy1		# pre-existing upstream
+sv_assoc_obj_key_delete1		# pre-existing upstream
+sv_assoc_obj_key_size1		# pre-existing upstream
+sv_callf_nonlocal_break1		# pre-existing upstream
+sv_callf_nonlocal_continue1		# pre-existing upstream
+sv_class_assoc_recursive_find1		# pre-existing upstream
+sv_class_auto_recursive_raise1		# pre-existing upstream
+sv_class_case_wait_wakeup1		# pre-existing upstream
+sv_class_extern_ctor_const_init1		# pre-existing upstream
+sv_class_extern_task1		# pre-existing upstream
+sv_class_forward_typeparam_cb1		# pre-existing upstream
+sv_class_function_fork_task1		# pre-existing upstream
+sv_class_getter_handle_wait1		# pre-existing upstream
+sv_class_method_auto_return1		# pre-existing upstream
+sv_class_method_prop_wait_wakeup1		# pre-existing upstream
+sv_class_method_receiver_copy1		# pre-existing upstream
+sv_class_packed_prop2d1		# pre-existing upstream
+sv_class_prop_wait_wakeup1		# pre-existing upstream
+sv_class_queue_insert_wait_wakeup1		# pre-existing upstream
+sv_class_queue_wait_wakeup1		# pre-existing upstream
+sv_class_recursive_ctor_add1		# pre-existing upstream
+sv_class_recursive_find_wrapper1		# pre-existing upstream
+sv_class_static_assoc_method1		# pre-existing upstream
+sv_class_static_queue_pop_back		# pre-existing upstream
+sv_class_static_queue_wait_wakeup1		# pre-existing upstream
+sv_darray_obj_duplicate1		# pre-existing upstream
+sv_fork_auto_init1		# pre-existing upstream
+sv_string_cmp_empty1		# pre-existing upstream
+sv_uarray_locator1		# pre-existing upstream
+sv_virtual_if_specialized_dispatch1		# pre-existing upstream
+sv_virtual_task_output_copy1		# pre-existing upstream
+#
+# --- Documented fork divergences (13):
+br1005		# implemented-feature divergence: fork legalizes queue-in-class (gold expects rejection)
+br_ml20150315b		# implemented-feature divergence: fork legalizes the declaration form (gold expects rejection)
+br_ml20180227		# implemented-feature divergence: fork legalizes the assignment form (gold expects rejection)
+case_unique		# implemented-feature divergence: fork implements unique-case runtime checks; gold requires upstream's codegen sorry
+func_empty_arg_fail4		# blocked on M1B typing fidelity: unresolved-simple-name leniency (audit Part 10)
+struct_invalid_member		# better-diagnostic divergence: fork names the unknown type; gold expects generic syntax error
+sv_class_new_fail1		# blocked on M1B typing fidelity: literal-new stub indistinguishable from UVM printer globals (audit Part 10, failed-attempt 1)
+sv_deferred_assert1		# implemented-feature divergence: fork implements deferred assertions; gold expects sorry
+sv_deferred_assert2		# implemented-feature divergence: fork implements deferred assertions; gold expects sorry
+sv_deferred_assume1		# implemented-feature divergence: fork implements deferred assumes; gold expects sorry
+sv_deferred_assume2		# implemented-feature divergence: fork implements deferred assumes; gold expects sorry
+sv_timeunit_prec_fail1		# implemented-feature divergence: LRM 5.7.1 digit separators in time literals + 1-line anchor drift (audit Part 12)
+sv_timeunit_prec_fail2		# implemented-feature divergence: LRM 5.7.1 digit separators in time literals (audit Part 12)

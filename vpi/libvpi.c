@@ -299,6 +299,12 @@ void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
       vpip_routines->register_assertion(idx, name, file, line, scope);
 }
 
+void vpip_assertion_report_all(PLI_INT32 reason)
+{
+      if (vpip_routines->assertion_report_all)
+	    vpip_routines->assertion_report_all(reason);
+}
+
 void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason, vpiHandle scope)
 {
       assert(vpip_routines);

@@ -1,14 +1,17 @@
-# ivtest baseline — vendored (in-tree) suite, updated 2026-07-18 (rev 3)
+# ivtest baseline — vendored (in-tree) suite, updated 2026-07-18 (rev 4)
 #
 # Suite: ivtest/ (vendored, live upstream suite; 3101 tests).
+# Tree: post-merge main (auto-var-storage refactor PR #79 + conformance
+#   campaign PRs #77/#78/#80) + the individual-investigation batch.
 # Reference: pristine upstream Icarus 13.0 devel @ fork base 9b44d55
-#   (83 failed / 3010 passed / 5 NI / 3 EF — unchanged).
-# Fork now: 50 failed / 3043 passed / 5 NI / 3 EF.
-# History: 110 at first re-baseline -> 86 (parser fixes) -> 56
-#   (strictness + queue fidelity + crash fix) -> 50 (scope-resolution
-#   cluster: hierarchical/package-prefix binding errors restored,
-#   export pins its wildcard import; audit Parts 10-11).
-#   60 of the original 79 fork-only failures fixed.
+#   (83 failed / 3010 passed — unchanged).
+# Fork now: 44 failed / 3052 passed / 2 NI / 3 EF.
+# History: 110 -> 86 -> 56 -> 50 -> 44 (parser fixes; strictness +
+#   queue fidelity + crash fix; scope-resolution; individual
+#   investigations + $finish end-of-step + auto-var refactor).
+# 66 of the original 79 fork-only failures fixed; the 13 that remain
+#   are all documented divergences (see ivtest_expected_fails.list,
+#   which the CI gate consumes).
 
 ## Common failures (31) — pre-existing upstream, fail on both compilers
 sv_assoc_obj_key_bit_copy1
@@ -43,18 +46,12 @@ sv_uarray_locator1
 sv_virtual_if_specialized_dispatch1
 sv_virtual_task_output_copy1
 
-## Fork-only failures (19) — remaining frontier, categorized in audit Part 10
-array_lval_select3a
+## Fork-only failures (13) — all documented divergences (audit Parts 10-12)
 br1005
 br_ml20150315b
 br_ml20180227
 case_unique
 func_empty_arg_fail4
-pr1862744b
-pr243
-pr2792883
-recursive_task
-string14
 struct_invalid_member
 sv_class_new_fail1
 sv_deferred_assert1
@@ -64,9 +61,7 @@ sv_deferred_assume2
 sv_timeunit_prec_fail1
 sv_timeunit_prec_fail2
 
-## Upstream-only failures (50 + the 60 fixed above) — fixed by the fork
-# (sv_assoc/sv_class/sv_queue/sv_virtual runtime features, sv_mailbox,
-#  and every test named in the History line above)
+## Upstream-only failures (50 + the 66 fixed) — fixed by the fork
 sv_assoc_nested_member_foreach1
 sv_assoc_obj_foreach1
 sv_assoc_obj_foreach_key1

@@ -7679,6 +7679,15 @@ bool of_DEASSIGN_WR(vthread_t, vvp_code_t cp)
 /*
  * %debug/thr
  */
+static bool dpi_open_array_is_multidim_(vvp_darray*da)
+{
+      vvp_darray_object*obj = dynamic_cast<vvp_darray_object*>(da);
+      if (obj == 0 || obj->get_size() == 0) return false;
+      vvp_object_t w;
+      obj->get_word(0, w);
+      return w.peek<vvp_darray>() != 0;
+}
+
 bool of_DEBUG_THR(vthread_t thr, vvp_code_t cp)
 {
       const char*text = cp->text;
@@ -7846,6 +7855,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.length = 0;
 		      arr.elem_bytes = 0;
 		      arr.elem_is_real = false;
+		      arr.outer = 0;
 		      vvp_darray*da = obj_store[slot].peek<vvp_darray>();
 		      if (da) {
 			    unsigned eb = da->dpi_elem_bytes();
@@ -7854,6 +7864,15 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 				  arr.length = (unsigned)da->get_size();
 				  arr.elem_bytes = eb;
 				  arr.elem_is_real = da->dpi_elem_is_real();
+			    } else if (dpi_open_array_is_multidim_(da)) {
+				    /* M10B-md: an outer object array whose
+				       words are inner dynamic arrays. The
+				       accessors (svDimensions, svSize,
+				       svGetArrElemPtr2/3) walk the object
+				       tree; the outer is non-contiguous by
+				       construction. */
+				  arr.length = (unsigned)da->get_size();
+				  arr.outer = da;
 			    } else {
 				  fprintf(stderr, "DPI error: '%s': open "
 					  "array argument %u does not have "
@@ -9631,11 +9650,14 @@ bool of_JMP(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or $finish/vpiFinish, returning false here can break the
-	   simulation out of a hung loop. */
-      if (schedule_finished())
-            return false;
-
+	   a $stop or vpiStop, returning false here can break the
+	   simulation out of a hung loop. NOTE: do NOT also bail on
+	   schedule_finished() here -- $finish must let already-scheduled
+	   threads complete the CURRENT time step (their stores propagate
+	   and $monitor's ReadOnly flush still runs, upstream semantics,
+	   ivtest pr243). The post-finish respawn spin is prevented at the
+	   %delay/%delayx opcodes instead, which stop rescheduling once
+	   the simulation is finished. */
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -9654,11 +9676,14 @@ bool of_JMP0(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or $finish/vpiFinish, returning false here can break the
-	   simulation out of a hung loop. */
-      if (schedule_finished())
-            return false;
-
+	   a $stop or vpiStop, returning false here can break the
+	   simulation out of a hung loop. NOTE: do NOT also bail on
+	   schedule_finished() here -- $finish must let already-scheduled
+	   threads complete the CURRENT time step (their stores propagate
+	   and $monitor's ReadOnly flush still runs, upstream semantics,
+	   ivtest pr243). The post-finish respawn spin is prevented at the
+	   %delay/%delayx opcodes instead, which stop rescheduling once
+	   the simulation is finished. */
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -9677,11 +9702,14 @@ bool of_JMP0XZ(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or $finish/vpiFinish, returning false here can break the
-	   simulation out of a hung loop. */
-      if (schedule_finished())
-            return false;
-
+	   a $stop or vpiStop, returning false here can break the
+	   simulation out of a hung loop. NOTE: do NOT also bail on
+	   schedule_finished() here -- $finish must let already-scheduled
+	   threads complete the CURRENT time step (their stores propagate
+	   and $monitor's ReadOnly flush still runs, upstream semantics,
+	   ivtest pr243). The post-finish respawn spin is prevented at the
+	   %delay/%delayx opcodes instead, which stop rescheduling once
+	   the simulation is finished. */
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -9700,11 +9728,14 @@ bool of_JMP1(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or $finish/vpiFinish, returning false here can break the
-	   simulation out of a hung loop. */
-      if (schedule_finished())
-            return false;
-
+	   a $stop or vpiStop, returning false here can break the
+	   simulation out of a hung loop. NOTE: do NOT also bail on
+	   schedule_finished() here -- $finish must let already-scheduled
+	   threads complete the CURRENT time step (their stores propagate
+	   and $monitor's ReadOnly flush still runs, upstream semantics,
+	   ivtest pr243). The post-finish respawn spin is prevented at the
+	   %delay/%delayx opcodes instead, which stop rescheduling once
+	   the simulation is finished. */
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -9723,11 +9754,14 @@ bool of_JMP1XZ(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or $finish/vpiFinish, returning false here can break the
-	   simulation out of a hung loop. */
-      if (schedule_finished())
-            return false;
-
+	   a $stop or vpiStop, returning false here can break the
+	   simulation out of a hung loop. NOTE: do NOT also bail on
+	   schedule_finished() here -- $finish must let already-scheduled
+	   threads complete the CURRENT time step (their stores propagate
+	   and $monitor's ReadOnly flush still runs, upstream semantics,
+	   ivtest pr243). The post-finish respawn spin is prevented at the
+	   %delay/%delayx opcodes instead, which stop rescheduling once
+	   the simulation is finished. */
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -13838,6 +13872,8 @@ static bool do_release_vec(vvp_code_t cp, bool net_flag)
 	    net->fil->release_pv(ptr, base, width, net_flag);
       }
       net->fun->force_flag(false);
+	// M12B-fr: report the release to any cbRelease callbacks.
+      net->fil->run_force_callbacks(cbRelease);
 
       return true;
 }
@@ -13865,6 +13901,8 @@ bool of_RELEASE_WR(vthread_t, vvp_code_t cp)
 	// Send a command to this signal to unforce itself.
       vvp_net_ptr_t ptr (net, 0);
       net->fil->release(ptr, type==0);
+	// M12B-fr: report the release to any cbRelease callbacks.
+      net->fil->run_force_callbacks(cbRelease);
       return true;
 }
 

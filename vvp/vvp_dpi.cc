@@ -13,6 +13,8 @@
 
 #ifdef USE_LIBFFI
 # include  <ffi.h>
+# include  "vvp_darray.h"
+# include  <stdarg.h>
 #endif
 
 using namespace std;
@@ -405,16 +407,54 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
  */
 extern "C" {
 
+/* M10B-md: walk one level of a multidim open array: the outer word at
+   idx is itself a dynamic array. Returns null when out of range or not
+   multidim. */
+static vvp_darray* md_inner_(const vvp_dpi_open_array_t*arr, int idx)
+{
+      if (!arr || !arr->outer) return 0;
+      if (idx < 0 || (unsigned)idx >= arr->length) return 0;
+      vvp_object_t w;
+      arr->outer->get_word((unsigned)idx, w);
+      return w.peek<vvp_darray>();
+}
+
 int svDimensions(const void*h)
 {
-      return h ? 1 : 0;
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (!arr) return 0;
+      if (!arr->outer) return 1;
+	// Count nesting depth through the first words.
+      int dims = 1;
+      vvp_darray*cur = md_inner_(arr, 0);
+      while (cur) {
+	    dims += 1;
+	      // An atom-typed array is the contiguous leaf; probing it
+	      // with the object-flavored get_word would just warn.
+	    if (cur->dpi_elem_bytes() > 0 || cur->get_size() == 0) break;
+	    vvp_object_t w;
+	    cur->get_word(0, w);
+	    cur = w.peek<vvp_darray>();
+      }
+      return dims;
 }
 
 int svSize(const void*h, int dim)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      if (!arr || dim != 1) return 0;
-      return (int)arr->length;
+      if (!arr) return 0;
+      if (dim == 1) return (int)arr->length;
+	// M10B-md: inner dimensions are queried from the first row
+	// (SV unpacked arrays marshaled here are rectangular; a jagged
+	// dynamic-of-dynamic reports its first row's length).
+      vvp_darray*cur = md_inner_(arr, 0);
+      for (int d = 2 ; cur && d < dim ; d += 1) {
+	    vvp_object_t w;
+	    if (cur->get_size() == 0) return 0;
+	    cur->get_word(0, w);
+	    cur = w.peek<vvp_darray>();
+      }
+      return cur ? (int)cur->get_size() : 0;
 }
 
 int svLow(const void*h, int dim)
@@ -425,9 +465,7 @@ int svLow(const void*h, int dim)
 
 int svHigh(const void*h, int dim)
 {
-      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      if (!arr || dim != 1) return -1;
-      return (int)arr->length - 1;
+      return svSize(h, dim) - 1;
 }
 
 int svLeft(const void*h, int dim)
@@ -461,8 +499,57 @@ void* svGetArrElemPtr1(const void*h, int indx1)
       return (char*)arr->data + (size_t)indx1 * arr->elem_bytes;
 }
 
+/* M10B-md: 2-D element access — outer word indx1 is an inner dynamic
+   array with contiguous atom storage; index indx2 within it. */
+void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
+{
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      vvp_darray*inner = md_inner_(arr, indx1);
+      if (!inner) return 0;
+      unsigned eb = inner->dpi_elem_bytes();
+      void*base = inner->dpi_raw_data();
+      if (eb == 0 || base == 0) return 0;
+      if (indx2 < 0 || (size_t)indx2 >= inner->get_size()) return 0;
+      return (char*)base + (size_t)indx2 * eb;
+}
+
+/* M10B-md: 3-D element access — two object-walk levels then the
+   contiguous innermost array. */
+void* svGetArrElemPtr3(const void*h, int indx1, int indx2, int indx3)
+{
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      vvp_darray*mid = md_inner_(arr, indx1);
+      if (!mid) return 0;
+      if (indx2 < 0 || (size_t)indx2 >= mid->get_size()) return 0;
+      vvp_object_t w;
+      mid->get_word((unsigned)indx2, w);
+      vvp_darray*inner = w.peek<vvp_darray>();
+      if (!inner) return 0;
+      unsigned eb = inner->dpi_elem_bytes();
+      void*base = inner->dpi_raw_data();
+      if (eb == 0 || base == 0) return 0;
+      if (indx3 < 0 || (size_t)indx3 >= inner->get_size()) return 0;
+      return (char*)base + (size_t)indx3 * eb;
+}
+
 void* svGetArrElemPtr(const void*h, int indx1, ...)
 {
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (arr && arr->outer) {
+	    va_list ap;
+	    va_start(ap, indx1);
+	    int indx2 = va_arg(ap, int);
+	    int dims = svDimensions(h);
+	    void*r;
+	    if (dims >= 3) {
+		  int indx3 = va_arg(ap, int);
+		  r = svGetArrElemPtr3(h, indx1, indx2, indx3);
+	    } else {
+		  r = svGetArrElemPtr2(h, indx1, indx2);
+	    }
+	    va_end(ap);
+	    return r;
+      }
       return svGetArrElemPtr1(h, indx1);
 }
 
