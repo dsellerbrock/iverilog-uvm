@@ -91,12 +91,10 @@ jobs:
     - name: Install binary
       run: sudo make install
 
-    - name: Regression tests
-      continue-on-error: true
-      run: ./.github/test.sh
+    - name: ivtest gate (name-diff, hard)
+      run: ./.github/ivtest_gate.sh
 
-    - name: UVM regression tests
-      continue-on-error: true
+    - name: UVM regression tests (hard)
       run: ./.github/uvm_test.sh
 
     - name: Documentation

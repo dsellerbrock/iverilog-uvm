@@ -10435,6 +10435,15 @@ NetProc* PForStatement::elaborate(Design*des, NetScope*scope) const
 				       PExpr::NO_FLAGS);
 	    if (!ce)
 		  error_flag = true;
+	      // A LITERAL condition still arrives as a NetEConst even
+	      // without folding; keep upstream's warning for it
+	      // (`for (...; 0; ...)`, ivtest pr1862744b). A folded-only
+	      // constant (e.g. `1+1`) is not detected here -- the price
+	      // of keeping method-based conditions runtime-evaluated.
+	    if (dynamic_cast<NetEConst*>(ce)) {
+		  cerr << get_fileline() << ": warning: condition expression "
+			"of for-loop is constant." << endl;
+	    }
       }
 
       // Error recovery - if we failed to elaborate any of the loop

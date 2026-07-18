@@ -949,6 +949,7 @@ static void force_real_to_lval(ivl_statement_t net)
 			  ivl_stmt_file(net), ivl_stmt_lineno(net),
 			  command_name, ivl_signal_basename(lsig),
 			  ivl_signal_array_base(lsig) + (long)use_word);
+	          vvp_errors += 1;
 	    }
       }
 
@@ -1004,6 +1005,7 @@ static void force_vector_to_lval(ivl_statement_t net)
 					ivl_stmt_file(net), ivl_stmt_lineno(net),
 					command_name, ivl_signal_basename(lsig),
 					ivl_signal_array_base(lsig) + (long)use_word);
+		        vvp_errors += 1;
 		  }
 	    }
 
@@ -1133,6 +1135,7 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
 		          "word of a variable array (%s[%ld]).\n",
 		          ivl_stmt_file(net), ivl_stmt_lineno(net),
 		          command_name, ivl_signal_basename(lsig), real_word);
+	          vvp_errors += 1;
 	    }
       }
 
@@ -1162,6 +1165,7 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
 		          "word of a variable array (%s[%ld]).\n",
 		          ivl_expr_file(rval), ivl_expr_lineno(rval),
 		          command_name, ivl_signal_basename(rsig), real_word);
+	          vvp_errors += 1;
 	    }
       } else {
 	    assert(ivl_signal_dimensions(rsig) == 0);

@@ -9631,11 +9631,14 @@ bool of_JMP(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or $finish/vpiFinish, returning false here can break the
-	   simulation out of a hung loop. */
-      if (schedule_finished())
-            return false;
-
+	   a $stop or vpiStop, returning false here can break the
+	   simulation out of a hung loop. NOTE: do NOT also bail on
+	   schedule_finished() here -- $finish must let already-scheduled
+	   threads complete the CURRENT time step (their stores propagate
+	   and $monitor's ReadOnly flush still runs, upstream semantics,
+	   ivtest pr243). The post-finish respawn spin is prevented at the
+	   %delay/%delayx opcodes instead, which stop rescheduling once
+	   the simulation is finished. */
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -9654,11 +9657,14 @@ bool of_JMP0(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or $finish/vpiFinish, returning false here can break the
-	   simulation out of a hung loop. */
-      if (schedule_finished())
-            return false;
-
+	   a $stop or vpiStop, returning false here can break the
+	   simulation out of a hung loop. NOTE: do NOT also bail on
+	   schedule_finished() here -- $finish must let already-scheduled
+	   threads complete the CURRENT time step (their stores propagate
+	   and $monitor's ReadOnly flush still runs, upstream semantics,
+	   ivtest pr243). The post-finish respawn spin is prevented at the
+	   %delay/%delayx opcodes instead, which stop rescheduling once
+	   the simulation is finished. */
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -9677,11 +9683,14 @@ bool of_JMP0XZ(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or $finish/vpiFinish, returning false here can break the
-	   simulation out of a hung loop. */
-      if (schedule_finished())
-            return false;
-
+	   a $stop or vpiStop, returning false here can break the
+	   simulation out of a hung loop. NOTE: do NOT also bail on
+	   schedule_finished() here -- $finish must let already-scheduled
+	   threads complete the CURRENT time step (their stores propagate
+	   and $monitor's ReadOnly flush still runs, upstream semantics,
+	   ivtest pr243). The post-finish respawn spin is prevented at the
+	   %delay/%delayx opcodes instead, which stop rescheduling once
+	   the simulation is finished. */
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -9700,11 +9709,14 @@ bool of_JMP1(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or $finish/vpiFinish, returning false here can break the
-	   simulation out of a hung loop. */
-      if (schedule_finished())
-            return false;
-
+	   a $stop or vpiStop, returning false here can break the
+	   simulation out of a hung loop. NOTE: do NOT also bail on
+	   schedule_finished() here -- $finish must let already-scheduled
+	   threads complete the CURRENT time step (their stores propagate
+	   and $monitor's ReadOnly flush still runs, upstream semantics,
+	   ivtest pr243). The post-finish respawn spin is prevented at the
+	   %delay/%delayx opcodes instead, which stop rescheduling once
+	   the simulation is finished. */
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -9723,11 +9735,14 @@ bool of_JMP1XZ(vthread_t thr, vvp_code_t cp)
 
 	/* Normally, this returns true so that the processor just
 	   keeps going to the next instruction. However, if there was
-	   a $stop or $finish/vpiFinish, returning false here can break the
-	   simulation out of a hung loop. */
-      if (schedule_finished())
-            return false;
-
+	   a $stop or vpiStop, returning false here can break the
+	   simulation out of a hung loop. NOTE: do NOT also bail on
+	   schedule_finished() here -- $finish must let already-scheduled
+	   threads complete the CURRENT time step (their stores propagate
+	   and $monitor's ReadOnly flush still runs, upstream semantics,
+	   ivtest pr243). The post-finish respawn spin is prevented at the
+	   %delay/%delayx opcodes instead, which stop rescheduling once
+	   the simulation is finished. */
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;

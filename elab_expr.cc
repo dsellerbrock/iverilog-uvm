@@ -10296,8 +10296,15 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	      // Package parameters accessed via a self-package-scope reference
 	      // (pkg_b::Y inside pkg_b) may parse as a hierarchical path if the
 	      // package was not yet registered at lex time. Still allow them as
-	      // constants when symbol_search resolves them to a parameter value.
-            if (sr.par_val == 0) {
+	      // constants when symbol_search resolves them to a parameter value
+	      // found in a PACKAGE scope. A parameter found through a genuine
+	      // instance path (`dut.WIDTH`) stays a hierarchical reference and
+	      // is illegal in a constant expression (IEEE 1800-2017 11.2.1,
+	      // ivtest pr2792883) -- the old blanket parameter exception let
+	      // it through silently.
+            bool pkg_param = sr.par_val != 0 && sr.scope != 0
+                  && sr.scope->type() == NetScope::PACKAGE;
+            if (!pkg_param) {
                   // Allow local struct/class member paths in constant functions.
                   // sr.net found in the current scope (e.g., struct variable
                   // declared in the same function) is not a hierarchical reference.
@@ -13424,7 +13431,11 @@ unsigned PEString::test_width(Design*, NetScope*, width_mode_t&)
 {
       expr_type_   = IVL_VT_STRING;
       if (!text_width_valid_) {
-            text_width_ = text_.empty()? 0 : parsed_value().len();
+	      // Do NOT short-circuit the empty string to width 0:
+	      // IEEE 1800-2017 11.10.3 makes "" equivalent to "\0",
+	      // and verinum's string constructor already special-cases
+	      // it to 8 bits ($bits("") == 8, ivtest string14).
+            text_width_ = parsed_value().len();
             text_width_valid_ = true;
       }
       expr_width_  = text_width_;
