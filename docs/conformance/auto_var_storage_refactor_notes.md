@@ -188,12 +188,20 @@ fully attributed (scope-keyed census + gdb):
    (`uvm_hdl_path_slice slice = concat.slices[i]`, lowered to an
    anonymous cobj class) at t0 with no live frame — it loads the nil
    function argument, takes the null branch, and stores nil into a frame
-   that does not exist (correctly dropped). The real per-call initializer
-   is also present inline in the function body, so this is a duplicate,
-   dead emission — an elaboration wart, not a runtime defect. Minimal
-   struct-local and class-local reproductions do NOT trigger the
-   duplicate, so the emitting path needs isolation within the full
-   uvm_pkg elaboration; left as a documented follow-up.
+   that does not exist (correctly dropped). ROOT CAUSE (found by
+   pointer-tracing scope creation vs. the static-init decision):
+   `elaborate_missing_package_function_scope_` in net_design.cc — the
+   lazy materialization of a package function referenced (from
+   already-elaborating class methods) before the package's function
+   scope pass — created the FUNC scope without carrying the declared
+   lifetime (`is_auto`), unlike its task-variant sibling. The
+   materialized scope elaborated as static, so its nested blocks took
+   the static var-init path and emitted the bogus `$init`; the later
+   proper `elaborate_scope_func` pass created a second (correct) scope
+   whose inline initializers are the ones the calls actually use. Fixed
+   by setting `is_auto` on the materialized scope. After the fix,
+   `recover.miss` and `rd-scoped.miss` are ZERO across the entire
+   four-suite run.
 
 After the event-side conversion the recover machinery has exactly three
 remaining users: the vec4/real/string aa SIGNAL recv paths (near-zero

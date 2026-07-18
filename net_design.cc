@@ -145,6 +145,14 @@ static NetFuncDef* elaborate_missing_package_function_scope_(Design*des,
 		  continue;
 
 	    NetScope*func_scope = new NetScope(cur, hname_t(fname), NetScope::FUNC);
+		      /* Carry the declared lifetime onto the materialized
+		         scope (as the task variant below does). Without
+		         this, an automatic package function materialized
+		         on demand elaborates as static: its nested-block
+		         variable initializers are emitted as a vacuous
+		         one-shot $init process against a frame that never
+		         exists, instead of inline per-call statements. */
+		    func_scope->is_auto(it->second->is_auto());
 		    func_scope->set_line(it->second);
 		    func_scope->add_imports(&it->second->explicit_imports);
 		    it->second->elaborate_scope(des, func_scope);
