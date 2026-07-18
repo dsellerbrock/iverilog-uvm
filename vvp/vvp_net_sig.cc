@@ -71,6 +71,10 @@ static vvp_context_t recover_automatic_recv_context_(vvp_context_t context,
       static bool warned_scoped = false;
 
       vvp_context_t resolved = vthread_recover_context_for_scope(context, scope);
+      if (!context && resolved)
+            ctx_stats_bump("recv-sig.missing-recovered");
+      else if (context && resolved && context != resolved)
+            ctx_stats_bump("recv-sig.mismatch-repaired");
       if (auto_ctx_warn_enabled()) {
             if (!warned_missing && !context && resolved) {
                   fprintf(stderr,

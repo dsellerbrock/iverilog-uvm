@@ -134,6 +134,10 @@ extern vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
    Set IVL_AUTO_CTX_WARN=1 to enable. */
 extern bool auto_ctx_warn_enabled();
 
+/* Bump a named counter in the context-recovery engagement census
+   (active only when IVL_CTX_STATS names an output file; see vthread.cc). */
+extern void ctx_stats_bump(const char* site);
+
 /*
  * Access value stacks from thread space.
  */

@@ -73,6 +73,7 @@ static bool copy_call_inputs_to_allocated_context_(__vpiScope*scope, vthread_t t
 static bool virtual_dispatch_trace_enabled_();
 static bool vpi_call_trace_enabled_();
 static const char*scope_name_or_unknown_(__vpiScope*scope);
+extern void ctx_stats_bump(const char* site);
 static __vpiScope* resolve_context_scope(__vpiScope*scope);
 static bool assoc_trace_scope_match_(vthread_t thr);
 static bool load_str_trace_scope_match_(__vpiScope*scope);
@@ -516,12 +517,10 @@ struct vthread_s {
 	/* These are used to access automatically allocated items. */
       vvp_context_t wt_context, rd_context;
       vvp_context_t owned_context;
-      vvp_context_t transferred_context;
       vvp_context_t skip_free_context;
       vvp_context_t staged_alloc_rd_context;
       vvp_code_t nonlocal_target;
       __vpiScope*nonlocal_origin_scope;
-      __vpiScope*transferred_context_scope;
       __vpiScope*skip_free_scope;
       __vpiScope*staged_alloc_rd_scope;
       __vpiScope*return_object_mirror_scope;
@@ -609,10 +608,8 @@ inline vthread_s::vthread_s()
       lineno_ = 0;
       owns_automatic_context = 0;
       owned_context = 0;
-      transferred_context = 0;
       skip_free_context = 0;
       staged_alloc_rd_context = 0;
-      transferred_context_scope = 0;
       skip_free_scope = 0;
       staged_alloc_rd_scope = 0;
       return_object_mirror_scope = 0;
@@ -3295,12 +3292,10 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->is_program_init = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context = 0;
-      thr->transferred_context = 0;
       thr->skip_free_context = 0;
       thr->staged_alloc_rd_context = 0;
       thr->nonlocal_target = 0;
       thr->nonlocal_origin_scope = 0;
-      thr->transferred_context_scope = 0;
       thr->skip_free_scope = 0;
       thr->staged_alloc_rd_scope = 0;
       thr->return_object_mirror_scope = 0;
@@ -4061,6 +4056,18 @@ static bool context_on_stacked_chain_(vvp_context_t head, vvp_context_t needle,
                   [needle](vvp_context_t cur) { return cur == needle; }) != 0;
 }
 
+static bool context_in_stacked_chain_(vvp_context_t head, vvp_context_t needle)
+{
+      std::set<vvp_context_t> seen;
+      for (vvp_context_t cur = head ; cur ; cur = vvp_get_stacked_context(cur)) {
+            if (cur == needle)
+                  return true;
+            if (!seen.insert(cur).second)
+                  return false;
+      }
+      return false;
+}
+
 static vvp_context_t remove_context_from_stacked_chain_(vvp_context_t head,
                                                         vvp_context_t needle)
 {
@@ -4296,6 +4303,7 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
                           running_thread->owned_context,
                           running_thread->staged_alloc_rd_context, context_idx);
             }
+            ctx_stats_bump("rd-scoped.staged");
             running_thread->rd_context = running_thread->staged_alloc_rd_context;
             return vvp_get_context_item(running_thread->staged_alloc_rd_context,
                                         context_idx);
@@ -4364,21 +4372,19 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
             use_context = running_thread->rd_context;
             source = "rd-head";
       } else {
+              /* (Deep rd-chain and owned-context searches also lived here;
+                 the 2026-07 engagement census never saw either find
+                 anything — every deep hit came from the wt chain — so
+                 they were retired.) */
             wt_context = first_live_context_for_scope(running_thread->wt_context, ctx_scope);
-            rd_context = first_live_context_for_scope(running_thread->rd_context, ctx_scope);
-            owned_context = first_live_context_for_scope(running_thread->owned_context, ctx_scope);
             if (wt_context) {
                   use_context = wt_context;
                   source = "wt";
-            } else if (rd_context) {
-                  use_context = rd_context;
-                  source = "rd";
-            } else if (owned_context) {
-                  use_context = owned_context;
-                  source = "owned";
+                  ctx_stats_bump("rd-scoped.wt-deep");
             }
       }
       if (!use_context) {
+            ctx_stats_bump("rd-scoped.miss");
             if (trace_this) {
                   fprintf(stderr,
                           "trace rd_scoped scope=%s source=miss rd=%p wt=%p owned=%p idx=%u\n",
@@ -4430,6 +4436,53 @@ bool auto_ctx_warn_enabled()
       return enabled != 0;
 }
 
+/* Engagement census for the legacy context-recovery machinery. When
+   IVL_CTX_STATS names a file, every recovery/repair/fallback site that
+   actually engages bumps a named counter, and the nonzero counters are
+   appended to that file at process exit ("ctx-stats: <site>=<count>").
+   This decides which recovery paths the single-task-frame model has made
+   dead (candidates for retirement) versus which remain load-bearing for
+   the detached-fork extension. Zero overhead when the variable is unset
+   beyond one branch per engagement. */
+static const char* ctx_stats_path_()
+{
+      static int checked = 0;
+      static const char* path = 0;
+      if (!checked) {
+            checked = 1;
+            const char* env = getenv("IVL_CTX_STATS");
+            if (env && *env)
+                  path = env;
+      }
+      return path;
+}
+
+static map<string, unsigned long>* ctx_stats_counts_ = 0;
+
+static void ctx_stats_dump_()
+{
+      if (!(ctx_stats_counts_ && ctx_stats_path_()))
+            return;
+      FILE* fp = fopen(ctx_stats_path_(), "a");
+      if (!fp)
+            return;
+      for (map<string, unsigned long>::const_iterator it = ctx_stats_counts_->begin()
+                 ; it != ctx_stats_counts_->end() ; ++it)
+            fprintf(fp, "ctx-stats: %s=%lu\n", it->first.c_str(), it->second);
+      fclose(fp);
+}
+
+void ctx_stats_bump(const char* site)
+{
+      if (!ctx_stats_path_())
+            return;
+      if (!ctx_stats_counts_) {
+            ctx_stats_counts_ = new map<string, unsigned long>();
+            atexit(ctx_stats_dump_);
+      }
+      (*ctx_stats_counts_)[site] += 1;
+}
+
 vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
                                                 __vpiScope*ctx_scope)
 {
@@ -4437,17 +4490,10 @@ vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
       if (!(ctx_scope && ctx_scope->is_automatic())) {
             if (candidate && context_live_in_owner(candidate))
                   return candidate;
-            if (!running_thread)
-                  return 0;
-            if (running_thread->wt_context
-                && context_live_in_owner(running_thread->wt_context))
-                  return running_thread->wt_context;
-            if (running_thread->rd_context
-                && context_live_in_owner(running_thread->rd_context))
-                  return running_thread->rd_context;
-            if (running_thread->owned_context
-                && context_live_in_owner(running_thread->owned_context))
-                  return running_thread->owned_context;
+              /* (Thread-context fallback searches lived here for the
+                 non-automatic-scope case; the 2026-07 engagement census
+                 never saw this branch reached, so they were retired.) */
+            ctx_stats_bump("recover.static-fallback");
             return 0;
       }
 
@@ -4456,70 +4502,30 @@ vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
             use_context = candidate;
       if (!use_context)
             use_context = first_live_context_for_scope(candidate, ctx_scope);
-      if (!running_thread)
-            return use_context;
-      if (!use_context)
-            use_context = first_live_context_for_scope(running_thread->wt_context, ctx_scope);
-      if (!use_context)
-            use_context = first_live_context_for_scope(running_thread->rd_context, ctx_scope);
-      if (!use_context)
-            use_context = first_live_context_for_scope(running_thread->owned_context, ctx_scope);
+      if (running_thread) {
+	    if (!use_context)
+		  use_context = first_live_context_for_scope(running_thread->wt_context, ctx_scope);
+	    if (!use_context)
+		  use_context = first_live_context_for_scope(running_thread->rd_context, ctx_scope);
+	    if (!use_context)
+		  use_context = first_live_context_for_scope(running_thread->owned_context, ctx_scope);
+      }
+      if (use_context && use_context != candidate)
+	    ctx_stats_bump(candidate ? "recover.mismatch-repair" : "recover.nil-to-ctx");
+      else if (!use_context)
+	    ctx_stats_bump("recover.miss");
       return use_context;
 }
 
 static __vpiScope* resolve_context_scope(__vpiScope*scope);
 
-static void sanitize_thread_contexts_(vthread_t thr, const char*reason)
-{
-      static bool warned = false;
-
-      if (!thr)
-            return;
-
-      __vpiScope*ctx_scope = resolve_context_scope(thr->parent_scope);
-      vvp_context_t clean_wt = 0;
-      vvp_context_t clean_rd = 0;
-
-      /* The write-context stack may legitimately carry staged automatic
-         frames for upcoming calls in scopes other than the currently
-         executing thread scope. Keep the top live write frame, regardless
-         of owner scope, and only scope-filter the read side.
-
-         Similarly, the read-context head may legitimately hold a child
-         task/function context for post-join copy-out (the VVP %load/%store
-         pairs that follow %join read from this foreign-scope context).
-         Preserve the head of rd_context if it is still live in its owner,
-         just like wt_context, so those copy-out loads are not silently broken
-         by a sanitize triggered by an intervening %store. */
-      if (thr->wt_context && context_live_in_owner(thr->wt_context))
-            clean_wt = thr->wt_context;
-      else
-            clean_wt = first_live_stacked_context(thr->wt_context, 0);
-
-      if (thr->rd_context && (context_live_matches_scope_(thr->rd_context, ctx_scope)
-                              || context_live_in_owner(thr->rd_context)))
-            clean_rd = thr->rd_context;
-      else
-            clean_rd = first_live_stacked_context(thr->rd_context, ctx_scope);
-
-      if (!clean_rd && clean_wt && context_live_matches_scope_(clean_wt, ctx_scope))
-            clean_rd = clean_wt;
-
-      if (!warned && (clean_wt != thr->wt_context) && auto_ctx_warn_enabled()) {
-            const char*scope_name = ctx_scope ? vpi_get_str(vpiFullName, ctx_scope) : 0;
-            fprintf(stderr,
-                    "Warning: sanitized thread automatic contexts after %s"
-                    " (scope=%s wt=%p->%p rd=%p->%p; further similar warnings suppressed)\n",
-                    reason ? reason : "<unknown>",
-                    scope_name ? scope_name : "<unknown>",
-                    thr->wt_context, clean_wt,
-                    thr->rd_context, clean_rd);
-            warned = true;
-      }
-
-      thr->wt_context = clean_wt;
-      thr->rd_context = clean_rd;
-}
+/* (A sanitize_thread_contexts_ pass lived here: it re-derived live wt/rd
+   heads by scope-filtered chain walks before every ensure_write_context_
+   and after callf child reaps. Under the single-task-frame model the
+   2026-07 engagement census showed it never changed either chain across
+   the full ivtest + UVM + VPI + negative suites, so it was retired. The
+   remaining recovery counters (ensure-write.*, rd-scoped.*, free.*) act
+   as tripwires if a stale-chain condition ever reappears. */
 
 static void release_owned_context_(vthread_t thr)
 {
@@ -4555,18 +4561,17 @@ static vvp_context_t ensure_write_context_(vthread_t thr, const char*where)
       if (!thr)
             return 0;
 
-      sanitize_thread_contexts_(thr, where ? where : "ensure-write-context");
-
       __vpiScope*ctx_scope = resolve_context_scope(thr->parent_scope);
       vvp_context_t use_context = 0;
       if (thr->wt_context && context_live_in_owner(thr->wt_context))
             use_context = thr->wt_context;
-      if (!use_context)
-            use_context = first_live_stacked_context(thr->wt_context, 0);
-      if (!use_context)
-            use_context = first_live_stacked_context(thr->rd_context, ctx_scope);
+        /* (Deep wt-chain and rd-chain fallback searches lived here; the
+           2026-07 engagement census never saw them find anything, so they
+           were retired. The owned-context fallback below remains — it is
+           genuinely engaged by detached forks.) */
       if (!use_context && thr->owned_context
           && context_live_matches_scope_(thr->owned_context, ctx_scope)) {
+            ctx_stats_bump("ensure-write.owned-fallback");
             if (!warned_owned_fallback && auto_ctx_warn_enabled()) {
                   const char*scope_name = thr->parent_scope
                                         ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
@@ -4628,6 +4633,10 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
         /* If this context is being reused from the free list, scrub any
            stale references to the same storage out of the current thread's
            stacked chains before pushing it again. */
+      if (context_in_stacked_chain_(thr->wt_context, child_context))
+            ctx_stats_bump("alloc.scrub-wt");
+      if (context_in_stacked_chain_(thr->rd_context, child_context))
+            ctx_stats_bump("alloc.scrub-rd");
       thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context,
                                                            child_context);
       thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context,
@@ -4647,6 +4656,7 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
             vvp_context_t caller_rd =
                   first_live_context_for_scope(thr->rd_context, ctx_scope);
             if (caller_rd && caller_rd != child_context) {
+                  ctx_stats_bump("alloc.staged-rd");
                   thr->staged_alloc_rd_context = caller_rd;
                   thr->staged_alloc_rd_scope = ctx_scope;
             }
@@ -5411,7 +5421,7 @@ static void trace_context_event_(const char*where, vthread_t thr,
       }
 
       fprintf(stderr,
-              "trace ctx: %s scope=%s wt=%p(%s) wt_next=%p rd=%p(%s) rd_next=%p owned=%p xfer=%p skip=%p extra_scope=%s extra_ctx=%p\n",
+              "trace ctx: %s scope=%s wt=%p(%s) wt_next=%p rd=%p(%s) rd_next=%p owned=%p skip=%p extra_scope=%s extra_ctx=%p\n",
               where ? where : "<unknown>",
               scope_name,
               thr ? thr->wt_context : 0,
@@ -5421,7 +5431,6 @@ static void trace_context_event_(const char*where, vthread_t thr,
               rd_owner_name,
               (thr && thr->rd_context) ? vvp_get_stacked_context(thr->rd_context) : 0,
               thr ? thr->owned_context : 0,
-              thr ? thr->transferred_context : 0,
               thr ? thr->skip_free_context : 0,
               extra_name,
               extra_context);
@@ -6470,7 +6479,6 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       }
 
 	      if (child->parent != thr) {
-		    sanitize_thread_contexts_(thr, "callf child reap");
                     ensure_write_context_(thr, "callf-child-reap");
 		    if (!warned_callf_child_reaped) {
 			  fprintf(stderr, "Warning: callf child thread was reaped during execution;"
@@ -9296,6 +9304,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
       }
       if (thr->skip_free_context
           && (!ctx_scope || thr->skip_free_scope == ctx_scope)) {
+            ctx_stats_bump("free.skip");
             vvp_context_t skip_context = thr->skip_free_context;
             __vpiScope*skip_scope = thr->skip_free_scope
                                   ? thr->skip_free_scope : ctx_scope;
@@ -9329,14 +9338,18 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
             if (thr->rd_context
                 && context_live_matches_scope_(thr->rd_context, ctx_scope))
                   child_context = thr->rd_context;
-            if (!child_context)
+            if (!child_context) {
                   child_context = first_live_context_for_scope(thr->wt_context, ctx_scope);
-            if (!child_context)
-                  child_context = first_live_context_for_scope(thr->rd_context, ctx_scope);
+                  if (child_context)
+                        ctx_stats_bump("free.wt-search");
+            }
+              /* (A deeper rd-chain search lived here; the 2026-07
+                 engagement census never saw it find anything.) */
       } else {
             child_context = thr->wt_context ? thr->wt_context : thr->rd_context;
       }
       if (!child_context) {
+            ctx_stats_bump("free.null");
             trace_context_event_("free-null", thr, ctx_scope, 0);
             return true;
       }
@@ -9344,28 +9357,16 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
       thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context, child_context);
 
       /* If the current scope has no remaining live read frame after this
-         free, hand reads back to the next live caller frame before the
-         generic sanitizer runs. Otherwise sanitize_thread_contexts_ can
-         incorrectly drop the caller read chain while returning across
-         automatic class-call scopes. */
+         free, hand reads back to the caller frame at the write head.
+         (Deeper next-rd chain searches lived here; the 2026-07 engagement
+         census never saw them find anything, so they were retired.) */
       if (ctx_scope && ctx_scope->is_automatic()) {
-            vvp_context_t next_rd = 0;
-
             /* Same-scope recursion keeps the immediate caller frame at the
                head of wt_context after the callee frame is removed. Prefer
                that live write-head over deeper same-scope entries that may
                still sit on the old rd_context chain. */
             if (thr->wt_context && context_live_in_owner(thr->wt_context))
-                  next_rd = thr->wt_context;
-
-            if (!next_rd)
-                  next_rd = first_live_context_for_scope(thr->rd_context, ctx_scope);
-            if (!next_rd)
-                  next_rd = first_live_stacked_context(thr->wt_context, 0);
-            if (!next_rd)
-                  next_rd = first_live_stacked_context(thr->rd_context, 0);
-            if (next_rd)
-                  thr->rd_context = next_rd;
+                  thr->rd_context = thr->wt_context;
       }
 
       /* Free the context. */
@@ -9732,20 +9733,11 @@ static void do_join(vthread_t thr, vthread_t child)
       __vpiScope*thr_ctx_scope = resolve_context_scope(thr ? thr->parent_scope : 0);
       __vpiScope*child_ctx_scope = resolve_context_scope(child ? child->parent_scope : 0);
 
-      if (child->transferred_context) {
-            vvp_context_t child_context = child->transferred_context;
-            thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context,
-                                                                 child_context);
-            thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context,
-                                                                 child_context);
-            thr->skip_free_context = child_context;
-            thr->skip_free_scope = child->transferred_context_scope;
-            child->transferred_context = 0;
-            child->transferred_context_scope = 0;
-            trace_context_event_("join-transfer", thr, child ? child->parent_scope : 0,
-                                 child_context);
-
-      } else if (child->wt_context
+	/* (A "transferred_context" hand-off branch lived here for the
+	   per-block-frame model; the field had no remaining setter and the
+	   2026-07 engagement census never saw it fire, so it was retired
+	   with the rest of the dead recovery paths.) */
+      if (child->wt_context
                  && (child_type == vpiTask || child_type == vpiFunction)
                  && thr->wt_context != thr->rd_context) {
             vvp_context_t child_context = 0;
@@ -9769,6 +9761,8 @@ static void do_join(vthread_t thr, vthread_t child)
 	                       same context to the top of the read stack without leaving a
 	                       duplicate stacked link behind. */
 	                  vvp_context_t caller_rd = 0;
+	                  if (child_context != thr->wt_context)
+	                        ctx_stats_bump("join.pop-not-head");
 	                  thr->wt_context = vvp_get_stacked_context(child_context);
 	                  caller_rd = remove_context_from_stacked_chain_(thr->rd_context,
 	                                                                 child_context);
@@ -9779,6 +9773,7 @@ static void do_join(vthread_t thr, vthread_t child)
 	                      && caller_rd
 	                      && context_live_matches_scope_(caller_rd, thr_ctx_scope)) {
 	                        thr->wt_context = caller_rd;
+	                        ctx_stats_bump("join.wt-caller-restore");
 	                        trace_context_event_("join-wt-caller-restore", thr,
 	                                             child ? child->parent_scope : 0,
 	                                             caller_rd);
@@ -9888,6 +9883,7 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
                              activation frame as the parent task. Retain the
                              frame for the child and let the parent drop its
                              reference at the matching %free. */
+                          ctx_stats_bump("detach.retain-shared");
                           retain_automatic_context_(child_context);
                           vvp_context_t parent_context = thr->rd_context;
                           if (!parent_context || parent_context == child_context)

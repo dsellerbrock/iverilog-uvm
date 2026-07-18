@@ -112,6 +112,34 @@ chain search, sanitize/recovery) in favor of the upstream invariants,
 keeping only the retain-on-detach mechanism that supports detached forks in
 automatic scopes (the fork's genuine extension over upstream).
 
+**Step 3 (first retirement pass, 2026-07-18).** A permanent engagement
+census was added: `IVL_CTX_STATS=<file>` makes every recovery/repair/
+fallback site append per-site counters at process exit (`ctx_stats_bump`
+in vvp/vthread.cc). One full four-suite run on the collapsed model gave
+this profile (aggregate hits):
+
+| engaged (kept) | hits | | zero (retired) |
+|---|---|---|---|
+| rd-scoped.staged | 180k | | sanitize.wt/rd-changed (whole pass removed) |
+| rd-scoped.wt-deep | 84k | | do_join transferred_context branch (no setter existed) |
+| recover.miss | 83k | | ensure-write wt-deep / rd-fallback searches |
+| recover.mismatch-repair | 62k | | of_FREE rd-deep + all next-rd searches |
+| recv-sig.mismatch-repaired | 61k | | rd-scoped rd-deep / owned searches |
+| free.wt-search | 34k | | recover static-scope thread fallbacks |
+| alloc.staged-rd | 22k | | recv-sig.missing-recovered (never; recv-ev variant IS hit) |
+| join.wt-caller-restore / pop-not-head | 7k/4k | | |
+| free.null / free.skip / detach.retain-shared | 4k each | | |
+| ensure-write.owned-fallback | 2.4k | | |
+| recv-ev repairs, recover.nil-to-ctx | ~2k | | |
+| rd-scoped.miss | 540 | | |
+| alloc.scrub-wt/rd (context reuse while still chained) | 429 | | |
+
+A second full-suite run after the retirements shows the identical profile
+(and identical ivtest/UVM/VPI/negative results), with every retired-path
+tripwire at zero. The `recover.miss`=83k and `rd-scoped.miss`=540 rows are
+reads/receives that find NO live frame and silently drop or default —
+worth root-causing next, together with the recv-*-aa repair engagements.
+
 **Retirement evidence so far (2026-07-18, post step 2).** With
 `IVL_AUTO_CTX_WARN=1`: the local battery (frame-sharing, recursion x100
 depth-500 with frame reuse, join_none churn with 400 detached branches,
