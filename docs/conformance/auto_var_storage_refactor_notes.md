@@ -62,8 +62,23 @@ upstream prints `r=a1`).
 | automatic task/function (call site) | YES — keep | recursion; per-call locals |
 | named `begin` w/ automatic parent scope | NO — **collapsed (step 1)** | statement completes before parent resumes; locals ride enclosing frame (upstream semantics) |
 | named `begin` w/ *static* parent (block-local `automatic` vars in a static process) | YES — keep | no enclosing frame exists to ride |
-| `fork…join` (blocking) scopes | keep for now — collapse later (step 2) | safe in principle (all branches complete first) but vvp compile time cannot yet distinguish join type; needs a `.scope` annotation co-evolution |
+| `fork…join` (blocking) scopes w/ automatic parent | NO — **collapsed (step 2)** | all branches complete before the parent resumes; locals ride enclosing frame |
 | `fork…join_any`/`join_none` scopes | YES — keep | detached branches outlive the statement; frame lifetime managed by retain-on-detach refcounting |
+
+## Step 2: collapse blocking fork/join scopes with automatic parents
+
+The join type is known only to the front end (`PBlock::bl_type_`), so the
+collapse decision is made once in `elab_scope.cc` (a new
+`NetScope::auto_frame` flag: false for BL_SEQ/BL_PAR scopes with automatic
+parents) and communicated end to end: `PBlock::elaborate` consults the flag
+instead of recomputing; t-dll exposes it as `ivl_scope_auto_frame()`;
+tgt-vvp emits collapsed scopes as `.scope autobegin.shared` /
+`autofork.shared`; vvp's `compile_scope` parses the marker into
+`__vpiScope::shares_parent_frame`, which `scope_has_own_automatic_context_`
+consults for item placement. The runtime's `resolve_context_scope`
+continues to self-adapt via its `nitem > 0` guard. This moved ivtest
+`automatic_events`, `automatic_events2`, `automatic_events3` (formerly NI)
+and `recursive_task` to gold.
 
 ## Step 1 (this change): collapse named begin blocks with automatic parents
 

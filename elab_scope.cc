@@ -3118,6 +3118,19 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 	      // fork blocks as "autofork" and allocate block-entry storage.
             my_scope->is_auto(scope->is_auto()
 			      || scope_has_automatic_signal_locals_(wires));
+	      // Automatic block scopes that run to completion before the
+	      // parent resumes — named begin blocks and blocking fork/join
+	      // — are collapsed into the enclosing activation frame when
+	      // the parent scope is automatic: their locals get context
+	      // indices in the frame-owning ancestor scope and no
+	      // %alloc/%free is emitted for them (upstream
+	      // single-task-frame model). A frame of its own remains for
+	      // join_any/join_none forks (detached branches outlive the
+	      // statement) and for automatic blocks with a static parent
+	      // (no enclosing frame exists).
+	    if (my_scope->is_auto() && scope->is_auto()
+		&& (bl_type_ == BL_SEQ || bl_type_ == BL_PAR))
+		  my_scope->auto_frame(false);
 	    my_scope->add_imports(&explicit_imports);
 	    my_scope->add_typedefs(&typedefs);
 

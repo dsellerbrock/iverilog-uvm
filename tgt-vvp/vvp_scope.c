@@ -2569,8 +2569,20 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    break;
       case IVL_SCT_FUNCTION: type = "function"; break;
       case IVL_SCT_TASK:     type = "task";     break;
-      case IVL_SCT_BEGIN:    type = "begin";    break;
-      case IVL_SCT_FORK:     type = "fork";     break;
+	/* An automatic begin/fork scope that is collapsed into the
+	   enclosing activation frame is marked ".shared": the runtime
+	   places its automatic locals in the frame-owning ancestor
+	   scope and expects no %alloc/%free for it. */
+      case IVL_SCT_BEGIN:
+	    type = "begin";
+	    if (ivl_scope_is_auto(net) && !ivl_scope_auto_frame(net))
+		  snprintf(suffix, sizeof suffix, ".shared");
+	    break;
+      case IVL_SCT_FORK:
+	    type = "fork";
+	    if (ivl_scope_is_auto(net) && !ivl_scope_auto_frame(net))
+		  snprintf(suffix, sizeof suffix, ".shared");
+	    break;
       case IVL_SCT_GENERATE: type = "generate"; break;
       case IVL_SCT_PACKAGE:  type = "package";  break;
       case IVL_SCT_CLASS:    type = "class";    break;

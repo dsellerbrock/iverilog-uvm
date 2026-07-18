@@ -270,6 +270,12 @@ class __vpiScope : public __vpiHandle {
       inline const char*scope_def_name() const { return tname_; }
 	// TRUE if this is an automatic func/task/block
       inline bool is_automatic() const { return is_automatic_; }
+	// TRUE if this automatic begin/fork scope is collapsed into the
+	// enclosing activation frame (".shared" scope types): its
+	// automatic locals get context indices in the frame-owning
+	// ancestor scope and no %alloc/%free is emitted for it.
+      inline bool shares_parent_frame() const { return shares_parent_frame_; }
+      inline void set_shares_parent_frame() { shares_parent_frame_ = true; }
 
     public:
       __vpiScope *scope;
@@ -307,6 +313,9 @@ class __vpiScope : public __vpiHandle {
       const char*tname_;
 	/* the scope may be "automatic" */
       bool is_automatic_;
+	/* automatic begin/fork scopes collapsed into the enclosing
+	   frame (see shares_parent_frame()) */
+      bool shares_parent_frame_ = false;
 };
 
 class vpiScopeFunction  : public __vpiScope {

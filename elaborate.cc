@@ -4640,17 +4640,19 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
       NetBlock*prefix = 0;
 
 	// Decide whether this automatic scope needs its own activation
-	// frame. A named begin block whose parent scope is also automatic
-	// does not: its statement runs to completion before the parent
-	// resumes, so its locals ride the enclosing task/function frame
-	// (matching the upstream single-task-frame model; the vvp side
-	// assigns such locals context indices in the frame-owning ancestor
-	// scope). A frame is still required when there is no enclosing
-	// automatic frame to ride (block-local automatic variables in a
-	// static process) and for fork scopes, whose join_any/join_none
-	// forms detach branches that outlive the statement.
+	// frame. Begin blocks and blocking fork/join scopes whose parent
+	// scope is also automatic do not: their statement runs to
+	// completion before the parent resumes, so their locals ride the
+	// enclosing task/function frame (matching the upstream
+	// single-task-frame model; the scope was marked in elab_scope and
+	// the vvp side assigns such locals context indices in the
+	// frame-owning ancestor scope). A frame is still required when
+	// there is no enclosing automatic frame to ride (block-local
+	// automatic variables in a static process) and for
+	// join_any/join_none forks, which detach branches that outlive
+	// the statement.
       bool needs_own_frame = nscope && nscope->is_auto()
-	    && !(type == NetBlock::SEQU && scope->is_auto());
+	    && nscope->auto_frame();
 
       if (nscope) {
 	      // Handle any variable initialization statements in this scope.

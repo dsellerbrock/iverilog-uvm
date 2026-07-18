@@ -40,9 +40,43 @@ module top;
     end
   endtask
 
+  // Named blocking fork with its own declarations (the ivtest
+  // automatic_events2 shape): the fork scope is collapsed too, so its
+  // locals and the parent block's locals all ride the task frame, and a
+  // branch ending early must not disturb what the sibling branches read.
+  task automatic w3(input byte id, output byte r);
+    begin: body3
+      reg [7:0] acc;
+      acc = id;
+      fork: threads
+        reg [7:0] tmp;
+        begin #5 tmp = acc; end        // branch A ends early
+        begin #15 r = tmp ^ 8'hff; end // branch B reads fork-scope local later
+      join
+    end
+  endtask
+
+  // Recursive call whose recursion site sits inside the named block, with
+  // a sibling fork branch reading the block local before and after the
+  // nested call completes (the ivtest recursive_task shape).
+  task automatic fact(input int n, output int f);
+    begin: fb
+      int t;
+      fork
+        begin
+          if (n > 1) fact(n - 1, t);
+          else t = 1;
+          #1 f = n * t;
+        end
+        begin @f ; end   // sibling observes completion via the frame var
+      join
+    end
+  endtask
+
   // Overlapping calls: each invocation's frame must stay independent while
   // both are suspended inside their forks.
-  byte r1, r2, r3, r4;
+  byte r1, r2, r3, r4, r5;
+  int f4;
 
   initial begin
     automatic bit ok = 1;
@@ -59,6 +93,12 @@ module top;
 
     w2(8'h0f, r4);
     if (r4 !== 8'hff) begin ok = 0; $display("FAIL nested r4=%0h exp ff", r4); end
+
+    w3(8'h3c, r5);
+    if (r5 !== 8'hc3) begin ok = 0; $display("FAIL named-fork r5=%0h exp c3", r5); end
+
+    fact(4, f4);
+    if (f4 !== 24) begin ok = 0; $display("FAIL recursive fork f4=%0d exp 24", f4); end
 
     if (ok) $display("PASS: automatic task frame sharing (fork sibling reads)");
     $finish;
