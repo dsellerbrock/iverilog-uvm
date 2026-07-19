@@ -6657,6 +6657,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    return;
       }
 
+	/* M9-NFA (Phase 2, staged): when IVL_SVA_NFA=1, offer the
+	   assertion to the automaton engine first. It returns true
+	   only when it fully lowered the assertion; false means fall
+	   through to the legacy linear engine below. */
+      if (pform_sva_nfa_enabled()
+	  && pform_sva_nfa_try_assertion(loc, prop, fail_stmt, pass_stmt, kind))
+	    return;
+
       sva_splice_sequences_(loc, *prop->seq);
       if (prop->antecedent)
 	    sva_splice_sequences_(loc, *prop->antecedent);

@@ -596,6 +596,19 @@ extern PSetupHold* pform_make_setuphold(const struct vlltype&li,
 			    );
 extern void pform_module_timing_check(PTimingCheck*obj);
 
+/* M9-NFA (Phase 2): automaton-based SVA engine, staged behind the
+   IVL_SVA_NFA env flag. try_assertion builds the automaton and, once
+   the stage-A synthesizer lands, lowers supported assertions and
+   returns true; returning false means the caller must fall back to
+   the legacy linear engine. See
+   docs/conformance/m9_nfa_design_2026-07-19.md. */
+extern bool pform_sva_nfa_enabled();
+extern bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
+					struct sva_property_t*prop,
+					Statement*fail_stmt,
+					Statement*pass_stmt,
+					int kind);
+
 /* M13: synthesize real timing-check checker processes (clause 31).
    Active with -gspecify; loud ignored-warning otherwise. The event
    arguments are borrowed (caller keeps ownership). */
