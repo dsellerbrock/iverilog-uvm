@@ -132,3 +132,56 @@ rearchitectures (Phases 2–3); (d) M1B criterion met (Phase 4) — at
 which point no compile-progress fallback can silently accept wrong
 code, which is the manifesto's core promise held everywhere, not just
 where tests look.
+
+
+---
+
+## Phase 1 completion ledger (2026-07-18, post-hoc)
+
+Phase 1 is COMPLETE. Per-item honest status:
+
+1. **M12B-fr** (cbForce/cbRelease): done, merged (PR #81). VPI suite
+   81 -> 83.
+2. **M12B-rest** (cbAssertionStart/Disable/Enable/Reset via
+   vpip_routines v4): done, merged (PR #81). cbAssertionStep remains a
+   recorded corner.
+3. **M5-if** (bare virtual iface decls, iface-member continuous
+   assigns, generic-port sorry): done, merged (PR #81).
+4. **M10B-md** (2-D/3-D DPI open arrays): done, merged (PR #81).
+   DPI export remains future work (M10C with back-door DPI RAL).
+5. **M13B** (bind-to-instance + instance lists, $timeskew/$fullskew/
+   $nochange, edge-descriptor event lists, config hard error): done
+   (PR #83).
+6. **M7 stress** (register-model + objections suites): done — the
+   suites exist, run in the sweep, and did their job by exposing six
+   documented findings (m7_stress_findings_2026-07-18.md):
+   - In the sweep and PASSING: m7_objection_stress_test (concurrent
+     raise/drop, counted objections, phase held to t=80),
+     m7_reg_model_semantics_test (structure/reset/desired-mirrored/
+     predict/field-packing/map offsets), m7_ref_arg_copyout_test,
+     inside_string_func_test, and reg_basic_test (user-backdoor RAL,
+     UN-SKIPPED: its old "needs DPI" skip reason was wrong — finding 5).
+   - FIXED during the campaign: finding 2 (ref/output copy-back lost
+     with method-call sibling args — was silently no-opping the whole
+     RAL front-door) and finding 5 (dup_expr type loss — was failing
+     every backdoor access check).
+   - Quarantined with loud pointers: tests/wip/
+     m7_reg_frontdoor_stress_test.sv, blocked ONLY by finding 4
+     (parameterized-class dispatch, M1B). Its address path is verified
+     working end-to-end.
+   - Recorded, with repros, for the next phases: finding 1
+     (per-instance class events; blocks UVM post-run phases), finding 3
+     ($unit-class timescale), finding 4 (parameterized dispatch),
+     finding 6 (property access through indexed aggregate elements;
+     blocks uvm_reg::get_address / by-offset predictor lookups).
+
+Sweep at Phase-1 close: 198 passed / 0 failed / 0 skipped (no
+KNOWN_FAIL entries remain). ivtest 44 expected failures, name-diff
+clean; VPI 83/83; negative 43/43.
+
+The honest bottom line: every Phase-1 construct tail is implemented
+and verified; the M7 stress suites converted "register/objection
+support is thin" from a vague label into six precisely-diagnosed,
+reproducible defects, two of which are already fixed. UVM register
+verification via user-defined backdoor works today; front-door needs
+finding 4 (Phase 4 / M1B); uvm_hdl_* DPI backdoor is the planned M10C.

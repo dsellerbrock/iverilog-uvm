@@ -202,3 +202,70 @@ This is M1B typing-fidelity territory (specialization-aware method
 tables), one of the closure plan's two big rocks — not a bounded
 runtime fix. tests/wip/m7_reg_frontdoor_stress_test.sv stays
 quarantined until it lands.
+
+
+## Finding 5: dup_expr of a function call loses its upgraded type — FIXED
+
+Lowerings that DUPLICATE a function-call expression (`inside`, dist,
+range compares) rebuilt the call through its constructor, which
+derives the type from the result signal and loses elaboration's type
+upgrade. A string-returning call in `f() inside {"a","b"}` compiled
+to a vec4 compare against a string-stack result: vec4-stack
+underflow, garbage comparison, always false.
+
+Fix: NetEUFunc::dup_expr copies the original expression's current
+net type onto the clone (dup_expr.cc). Regression:
+tests/inside_string_func_test.sv.
+
+Consequence repaired: `uvm_reg`'s access check
+(`get_rights(...) inside {"RW","WO"}`) always failed, so EVERY
+backdoor register operation returned UVM_NOT_OK. This is what had
+been mis-diagnosed as "reg_basic_test needs DPI HDL access" — a
+USER-DEFINED uvm_reg_backdoor never needed DPI. reg_basic_test is
+now un-skipped and passes; the skip-reason correction is recorded in
+.github/uvm_test.sh. (The uvm_hdl_* DPI backdoor is separate future
+work: DPI exports + UVM's DPI C library, the planned M10C.)
+
+## Finding 6: property access through an indexed aggregate element mis-compiles (3 shapes)
+
+Found by the register-model semantics stress: `uvm_reg::get_address`
+returns 0 because Xinit_address_mapX's cache store
+`m_regs_info[rg].addr = addrs` silently vanishes. Reduced, three
+distinct defects:
+
+```systemverilog
+class keyc; endclass
+class info_t;  int unsigned n;  bit [63:0] addr[]; endclass
+
+info_t by_key [keyc];   keyc k = new;   by_key[k] = new;
+info_t da[] = new[1];   da[0] = new;
+bit [63:0] a[] = new[1];
+
+// (a) ASSOC-indexed base, ANY property: the elaboration binds the
+//     WRONG OBJECT — `by_key[k].n = 42` compiles to a property store
+//     into `k` itself (the key variable), and the read side does the
+//     same, so both directions silently target garbage.
+by_key[k].n = 42;          // reads back 0
+by_key[k].addr = a;        // reads back empty
+
+// (b) darray/queue-indexed base, OBJECT-typed property store: the
+//     assignment compiles to a property LOAD opcode (%prop/obj
+//     instead of %store/prop/obj) — a silent no-op.
+da[0].addr = a;            // reads back empty
+
+// (c) darray/queue-indexed base, scalar property: works.
+da[0].n = 42;              // OK
+```
+
+UVM survives in most places because its code copies the element
+handle to a local first (`info = m_regs_info[rg]; info.addr = ...`),
+which works — but Xinit_address_mapX assigns through the indexed
+handle directly, so the register address cache is never written and
+`get_address`/`m_regs_by_offset` (and therefore uvm_reg_predictor
+lookups) see nothing. tests/m7_reg_model_semantics_test.sv documents
+the trimmed get_address checks to restore when this lands. Fix scope:
+elab_lval/elab_expr must fetch the aggregate ELEMENT as the object
+expression before applying property access (shape a), and the
+assignment codegen must emit the store-property opcode for
+object-typed properties through indexed bases (shape b). This joins
+the M1B/M4-family typing work.
