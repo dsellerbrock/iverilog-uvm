@@ -35,6 +35,7 @@
 # include  "PTask.h"
 # include  "Statement.h"
 # include  "PTimingCheck.h"
+# include  "pform_sva_nfa.h"
 # include  "discipline.h"
 # include  <list>
 # include  <map>
@@ -6546,6 +6547,517 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       delete prop->antecedent;
       delete prop->seq;
       delete prop;
+}
+
+/* M9-NFA stage A: IVL_SVA_NFA_SLOTS override for the cyclic-automaton
+   attempt pool (0 = unset). */
+static long sva_nfa_slots_env_()
+{
+      static long v = -2;
+      if (v == -2) {
+	    const char*env = getenv("IVL_SVA_NFA_SLOTS");
+	    v = 0;
+	    if (env && *env) {
+		  long n = strtol(env, nullptr, 10);
+		  if (n > 0) v = n;
+	    }
+      }
+      return v;
+}
+
+/* All steps fixed literal delays (the |->/|=> antecedent EXACTNESS
+   guard: a unique match length means one obligation per attempt, so
+   slot emptiness is per-obligation exact). Outputs the tick-edge span
+   (anchor counted) and the raw delay sum (the legacy engine's
+   fixed-antecedent span measure). */
+static bool sva_nfa_chain_fixed_(const std::vector<sva_seq_step_t>&steps,
+				 long&edge_span, long&delay_sum)
+{
+      edge_span = 0;
+      delay_sum = 0;
+      for (size_t j = 0 ; j < steps.size() ; j += 1) {
+	    const sva_seq_step_t&st = steps[j];
+	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
+		|| st.rep_tail != 0)
+		  return false;
+	    edge_span += (j == 0 && st.delay_lo == 0) ? 1 : st.delay_lo;
+	    delay_sum += st.delay_lo;
+      }
+      return true;
+}
+
+/* Would the legacy linear engine lower this chain without a sorry?
+   (Mirrors the validation in pform_make_assertion below.) Consulted
+   only for cyclic automata: shapes legacy handles exactly (unbounded
+   final step via the pend-collapse, which cannot overflow) stay
+   legacy; the NFA slot pool takes only what legacy rejects. */
+static bool sva_nfa_legacy_supports_(const std::vector<sva_seq_step_t>&seq,
+				     long ante_delay_sum, bool have_ante)
+{
+      long total = 0;
+      for (size_t j = 0 ; j < seq.size() ; j += 1) {
+	    bool last = (j + 1 == seq.size());
+	    long lo = seq[j].delay_lo;
+	    long hi = seq[j].delay_hi;
+	    if (lo < 0) return false;
+	    if (hi == -1 && !last) return false;
+	    if (seq[j].rep_tail != 0 && !last) return false;
+	    if (hi >= 0 && lo != hi && !last) return false;
+	    total += (hi >= 0) ? hi : lo;
+      }
+      if (total > 512) return false;
+      if (have_ante && ante_delay_sum > 128) return false;
+      return true;
+}
+
+/*
+ * M9-NFA stage A synthesizer (design: docs/conformance/
+ * m9_nfa_design_2026-07-19.md). Lower a concurrent assertion through
+ * the automaton engine when IVL_SVA_NFA=1 and the shape is one the
+ * slot-pool model handles EXACTLY; return false to fall back to the
+ * legacy linear engine. The user-visible win is mid-chain
+ * window/repetition/unbounded shapes (legacy sorries); fixed chains
+ * are also synthesized so the dual-run harness can prove verdict
+ * parity on the shared shapes.
+ *
+ * Runtime model per assertion: K attempt slots, each an N-bit state
+ * set over the folded tick-edge automaton. Every clock tick, the
+ * first free slot is injected with the start state BEFORE the advance
+ * (the anchor tick is consumed immediately, matching the legacy
+ * every-cycle attempt semantics); then each slot advances:
+ * nx_j = OR over edges(from->j) of (s_from && guard-sample).
+ *   op 0 (plain): nx[accept] -> pass (CB-folded) once, clear slot;
+ *     all-nx-dead && was-busy -> fail, clear slot; else copy.
+ *   op 3 (not): accept -> fail; all-dead -> silent clear (parity: the
+ *     legacy engine fires no pass action for `not`).
+ *   op 1/2 (|->/|=>): composite automaton (antecedent chain ++
+ *     consequent chain, |=> as +1 on the consequent's first delay);
+ *     a slot-sticky `obligated` bit is set when the attempt reaches
+ *     the consequent region (BFS depth >= antecedent span — the
+ *     antecedent is a linear fixed chain, so the region boundary is
+ *     exact); accept -> pass; all-dead -> obligated ? fail : silent
+ *     (vacuous).
+ * Pass and fail each report at most once per tick through flag bits
+ * (parity with the legacy single-flag machinery). Loop-free automata
+ * get K = longest path: an attempt lives at most that many ticks, so
+ * the pool provably cannot overflow. Cyclic automata (mid-chain
+ * ##[m:$]) get a capped pool with a LOUD once-per-run overflow
+ * warning, plus an end-of-simulation pending note matching the legacy
+ * unbounded-final behavior.
+ */
+bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
+				 sva_property_t*prop,
+				 Statement*fail_stmt, Statement*pass_stmt,
+				 int kind)
+{
+      if (!prop || !prop->seq || prop->seq->empty()) return false;
+
+	/* Stage A scope: assert/assume only. Cover keeps its
+	   match-counting semantics in the legacy engine. */
+      if (kind == 2) return false;
+      if (prop->op_type < 0 || prop->op_type > 3) return false;
+
+	/* Expand named sequence references (idempotent; the legacy
+	   path re-runs it harmlessly on fallback). */
+      sva_splice_sequences_(loc, *prop->seq);
+      if (prop->antecedent)
+	    sva_splice_sequences_(loc, *prop->antecedent);
+
+      bool negated = (prop->op_type == 3);
+      bool implication = (prop->op_type == 1 || prop->op_type == 2);
+
+      std::vector<sva_seq_step_t> chain;
+      long ante_edges = 0;
+      long ante_delay_sum = 0;
+      if (implication) {
+	    if (!prop->antecedent || prop->antecedent->empty()) return false;
+	    if (!sva_nfa_chain_fixed_(*prop->antecedent,
+				      ante_edges, ante_delay_sum))
+		  return false;
+	    std::vector<sva_seq_step_t> conseq = *prop->seq;
+	    if (prop->op_type == 2) {
+		  conseq[0].delay_lo += 1;
+		  if (conseq[0].delay_hi >= 0) conseq[0].delay_hi += 1;
+	    }
+	      /* An overlapped (##0) consequent start needs guard
+		 fusion onto the antecedent's final tick edge — a later
+		 increment. The legacy engine handles it exactly. */
+	    if (conseq[0].delay_lo == 0) return false;
+	    chain = *prop->antecedent;
+	    chain.insert(chain.end(), conseq.begin(), conseq.end());
+      } else {
+	    chain = *prop->seq;
+      }
+
+      sva_nfa_t nfa;
+      if (!pform_sva_nfa_build_from_chain(nfa, chain))
+	    return false;
+      if (pform_sva_nfa_dump_enabled())
+	    pform_sva_nfa_dump(loc, implication ? "composite" : "sequence",
+			       nfa);
+
+      bool cyclic = pform_sva_nfa_has_cycle(nfa);
+      long depth = pform_sva_nfa_depth(nfa);
+      long K;
+      if (!cyclic) {
+	    K = depth > 0 ? depth : 1;
+      } else {
+	    if (sva_nfa_legacy_supports_(*prop->seq, ante_delay_sum,
+					 implication))
+		  return false;
+	    if (negated) return false;
+	    K = depth > 8 ? depth : 8;
+	    if (K > 16) K = 16;
+	    if (sva_nfa_slots_env_() > 0) K = sva_nfa_slots_env_();
+      }
+
+      unsigned N = nfa.nstates;
+      if ((long)N * K > 1024) return false;
+
+	/* Clock: explicit, else the module's default clocking. On a
+	   missing clock fall back — the legacy engine emits the
+	   identical diagnostic. */
+      PEventStatement*clk = prop->clk_evt;
+      if (!clk) {
+	    Module*mod = pform_cur_module.empty() ? nullptr
+			 : pform_cur_module.front();
+	    if (!mod || mod->default_clocking.nil())
+		  return false;
+	    std::list<named_pexpr_t> no_parms;
+	    PECallFunction*mark = new PECallFunction(
+		  perm_string::literal("$ivl_default_clock"), no_parms);
+	    FILE_NAME(mark, loc);
+	    PEEvent*ev = new PEEvent(PEEvent::ANYEDGE, mark);
+	    std::vector<PEEvent*> evs;
+	    evs.push_back(ev);
+	    clk = new PEventStatement(evs);
+	    FILE_NAME(clk, loc);
+      }
+
+	/* ---- Committed: everything below consumes the property. ---- */
+
+      unsigned inst = sva_gensym_counter++;
+      unsigned hist_idx = 0;
+      std::vector<Statement*> pre, post, init_zero;
+
+	/* M12B-cb SUCCESS fold (the NFA hook runs before the legacy
+	   fold, so replicate it): every match reports
+	   cbAssertionSuccess; negated properties have no pass path. */
+      if (!negated) {
+	    Statement*succ = sva_report_stmt_(loc, inst, SVA_CB_SUCCESS);
+	    if (pass_stmt) {
+		  std::vector<Statement*> v;
+		  v.push_back(succ);
+		  v.push_back(pass_stmt);
+		  pass_stmt = sva_block_(loc, v);
+	    } else {
+		  pass_stmt = succ;
+	    }
+      }
+
+	/* disable iff: own, else the module default (cloned). */
+      PExpr*disable = prop->disable_iff_expr;
+      if (!disable && sva_default_disable) {
+	    disable = sva_clone_expr_(sva_default_disable);
+	    if (!disable) {
+		  cerr << loc << ": sorry: the `default disable iff` "
+		       << "expression is too complex to copy; this "
+		       << "assertion runs without it." << endl;
+	    }
+      }
+
+	/* Capture each step boolean once into a 1-bit sample register
+	   (sampled-value functions rewritten to history chains); the
+	   automaton's borrowed guard pointers map to the samples by
+	   pointer identity. */
+      std::map<PExpr*, perm_string> guard_reg;
+      for (size_t j = 0 ; j < chain.size() ; j += 1) {
+	    PExpr*key = chain[j].expr;
+	    if (!key || guard_reg.count(key)) continue;
+	    PExpr*be = sva_rewrite_sampled_(loc, key, inst, hist_idx,
+					    pre, post, init_zero);
+	    perm_string r = sva_make_reg_(loc, inst, "b", (unsigned)j);
+	    pre.push_back(sva_assign_(loc, r, be));
+	    guard_reg[key] = r;
+      }
+
+	/* State storage: s[k][j] slot-state bits; nx[j] shared
+	   next-state temps (slots advance sequentially in one always
+	   body, so sharing is safe). */
+      std::vector< std::vector<perm_string> > s (K);
+      for (long k = 0 ; k < K ; k += 1) {
+	    char what[24];
+	    snprintf(what, sizeof what, "k%lds", k);
+	    s[k].resize(N);
+	    for (unsigned j = 0 ; j < N ; j += 1) {
+		  s[k][j] = sva_make_reg_(loc, inst, what, j);
+		  init_zero.push_back(sva_assign_(loc, s[k][j],
+						  sva_bit_(loc, 0)));
+	    }
+      }
+      std::vector<perm_string> nx (N);
+      for (unsigned j = 0 ; j < N ; j += 1) {
+	    nx[j] = sva_make_reg_(loc, inst, "nx", j);
+	    init_zero.push_back(sva_assign_(loc, nx[j], sva_bit_(loc, 0)));
+      }
+      std::vector<perm_string> ob;
+      if (implication) {
+	    ob.resize(K);
+	    for (long k = 0 ; k < K ; k += 1) {
+		  ob[k] = sva_make_reg_(loc, inst, "ob", (unsigned)k);
+		  init_zero.push_back(sva_assign_(loc, ob[k],
+						  sva_bit_(loc, 0)));
+	    }
+      }
+      perm_string r_f = sva_make_reg_(loc, inst, "f", 0);
+      init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+      perm_string r_p;
+      if (!negated) {
+	    r_p = sva_make_reg_(loc, inst, "p", 0);
+	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
+      }
+      perm_string r_ovf = sva_make_reg_(loc, inst, "ovf", 0);
+      init_zero.push_back(sva_assign_(loc, r_ovf, sva_bit_(loc, 0)));
+
+	/* Consequent-region mask for the obligation bit: BFS distance
+	   from the start; the fixed antecedent is a single linear path
+	   of ante_edges ticks, so distance >= ante_edges (excluding
+	   the start) is exactly the consequent region including the
+	   boundary state (antecedent matched). */
+      std::vector<bool> conseq_mask;
+      if (implication) {
+	    std::vector<long> dist (N, -1);
+	    std::vector<unsigned> q;
+	    dist[nfa.start] = 0;
+	    q.push_back(nfa.start);
+	    for (size_t h = 0 ; h < q.size() ; h += 1) {
+		  unsigned u = q[h];
+		  for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
+			if (nfa.edges[i].from != u) continue;
+			unsigned t = nfa.edges[i].to;
+			if (dist[t] >= 0) continue;
+			dist[t] = dist[u] + 1;
+			q.push_back(t);
+		  }
+	    }
+	    conseq_mask.assign(N, false);
+	    for (unsigned j = 0 ; j < N ; j += 1)
+		  if (j != nfa.start && dist[j] >= ante_edges)
+			conseq_mask[j] = true;
+      }
+
+      auto busy_expr = [&](long k) -> PExpr* {
+	    PExpr*e = sva_id_(loc, s[k][0]);
+	    for (unsigned j = 1 ; j < N ; j += 1)
+		  e = sva_logic_(loc, 'o', e, sva_id_(loc, s[k][j]));
+	    return e;
+      };
+      auto clear_slot = [&](long k, std::vector<Statement*>&out) {
+	    for (unsigned j = 0 ; j < N ; j += 1)
+		  out.push_back(sva_assign_(loc, s[k][j], sva_bit_(loc, 0)));
+      };
+
+      std::vector<Statement*> body;
+	/* cbAssertionStart: an attempt launches every evaluated tick
+	   (inside the disable guard, like the legacy engine). */
+      body.push_back(sva_report_stmt_(loc, inst, SVA_CB_START));
+
+	/* Injection into the first free slot. The terminal else is a
+	   LOUD once-per-run overflow warning — provably unreachable
+	   for loop-free automata (K = longest path), kept as a
+	   no-silent-drop backstop regardless. */
+      {
+	    char msg[192];
+	    snprintf(msg, sizeof msg,
+		     "SVA NFA: attempt pool overflow (%ld slots) -- "
+		     "attempts are being dropped%s", K,
+		     cyclic ? "; raise IVL_SVA_NFA_SLOTS" : " (internal bug)");
+	    std::list<named_pexpr_t> dargs;
+	    named_pexpr_t darg;
+	    darg.parm = new PEString(strdup(msg));
+	    dargs.push_back(darg);
+	    PCallTask*warn = new PCallTask(lex_strings.make("$display"), dargs);
+	    FILE_NAME(warn, loc);
+	    std::vector<Statement*> once;
+	    once.push_back(sva_assign_(loc, r_ovf, sva_bit_(loc, 1)));
+	    once.push_back(warn);
+	    Statement*inj = sva_if_(loc, sva_not_(loc, sva_id_(loc, r_ovf)),
+				    sva_block_(loc, once), nullptr);
+	    for (long k = K-1 ; k >= 0 ; k -= 1)
+		  inj = sva_if_(loc, sva_not_(loc, busy_expr(k)),
+				sva_assign_(loc, s[k][nfa.start],
+					    sva_bit_(loc, 1)),
+				inj);
+	    body.push_back(inj);
+      }
+
+	/* Per-slot advance. */
+      for (long k = 0 ; k < K ; k += 1) {
+	    for (unsigned j = 0 ; j < N ; j += 1) {
+		  PExpr*e = nullptr;
+		  for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
+			const sva_nfa_edge_t&ed = nfa.edges[i];
+			if (ed.to != j) continue;
+			PExpr*term = sva_id_(loc, s[k][ed.from]);
+			if (ed.guard) {
+			      std::map<PExpr*,perm_string>::iterator it =
+				    guard_reg.find(ed.guard);
+			      assert(it != guard_reg.end());
+			      term = sva_logic_(loc, 'a', term,
+						sva_id_(loc, it->second));
+			}
+			e = e ? sva_logic_(loc, 'o', e, term) : term;
+		  }
+		  if (!e) e = sva_bit_(loc, 0);
+		  body.push_back(sva_assign_(loc, nx[j], e));
+	    }
+	    PExpr*alive = sva_id_(loc, nx[0]);
+	    for (unsigned j = 1 ; j < N ; j += 1)
+		  alive = sva_logic_(loc, 'o', alive, sva_id_(loc, nx[j]));
+	    PExpr*dead_busy = sva_logic_(loc, 'a', busy_expr(k),
+					 sva_not_(loc, alive));
+
+	    std::vector<Statement*> acc_v, die_v, cont_v;
+	    acc_v.push_back(sva_assign_(loc, negated ? r_f : r_p,
+					sva_bit_(loc, 1)));
+	    clear_slot(k, acc_v);
+	    if (implication)
+		  acc_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
+
+	    if (implication) {
+		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
+					  sva_assign_(loc, r_f,
+						      sva_bit_(loc, 1)),
+					  nullptr));
+		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
+	    } else if (!negated) {
+		  die_v.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
+	    }
+	    clear_slot(k, die_v);
+
+	    for (unsigned j = 0 ; j < N ; j += 1)
+		  cont_v.push_back(sva_assign_(loc, s[k][j],
+					       sva_id_(loc, nx[j])));
+	    if (implication) {
+		  PExpr*inm = nullptr;
+		  for (unsigned j = 0 ; j < N ; j += 1) {
+			if (!conseq_mask[j]) continue;
+			PExpr*t = sva_id_(loc, nx[j]);
+			inm = inm ? sva_logic_(loc, 'o', inm, t) : t;
+		  }
+		  if (inm)
+			cont_v.push_back(sva_if_(loc, inm,
+			      sva_assign_(loc, ob[k], sva_bit_(loc, 1)),
+			      nullptr));
+	    }
+
+	    Statement*st = sva_if_(loc, sva_id_(loc, nx[nfa.accept]),
+				   sva_block_(loc, acc_v),
+				   sva_if_(loc, dead_busy,
+					   sva_block_(loc, die_v),
+					   sva_block_(loc, cont_v)));
+	    body.push_back(st);
+      }
+
+	/* Pass then fail dispatch: one report site each per tick, in
+	   the legacy engine's output order (pass before fail). */
+      if (!negated) {
+	    std::vector<Statement*> hit;
+	    hit.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
+	    hit.push_back(pass_stmt);
+	    body.push_back(sva_if_(loc, sva_id_(loc, r_p),
+				   sva_block_(loc, hit), nullptr));
+	    pass_stmt = nullptr;
+      } else {
+	    delete pass_stmt;
+	    pass_stmt = nullptr;
+      }
+      {
+	    Statement*action = fail_stmt;
+	    if (!action) {
+		  std::list<named_pexpr_t> no_args;
+		  PCallTask*err = new PCallTask(
+			lex_strings.make("$error"), no_args);
+		  FILE_NAME(err, loc);
+		  action = err;
+	    }
+	    std::vector<Statement*> hit;
+	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+	    hit.push_back(sva_fail_action_(loc, inst, action));
+	    body.push_back(sva_if_(loc, sva_id_(loc, r_f),
+				   sva_block_(loc, hit), nullptr));
+	    fail_stmt = nullptr;
+      }
+
+	/* Assemble: pre-captures; disable guard clears all slot state
+	   with no reports; history updates outside the guard. */
+      std::vector<Statement*> full = pre;
+      Statement*core = sva_block_(loc, body);
+      if (disable) {
+	    std::vector<Statement*> clr;
+	    for (long k = 0 ; k < K ; k += 1) {
+		  clear_slot(k, clr);
+		  if (implication)
+			clr.push_back(sva_assign_(loc, ob[k],
+						  sva_bit_(loc, 0)));
+	    }
+	    clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+	    if (!negated)
+		  clr.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
+	    PCondit*dc = new PCondit(disable, sva_block_(loc, clr), core);
+	    FILE_NAME(dc, loc);
+	    full.push_back(dc);
+      } else {
+	    full.push_back(core);
+      }
+      for (size_t i = 0 ; i < post.size() ; i += 1)
+	    full.push_back(post[i]);
+
+      clk->set_statement(sva_block_(loc, full));
+      PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
+      FILE_NAME(pp, loc);
+
+      init_zero.push_back(sva_register_stmt_(loc, inst));
+      PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
+					sva_block_(loc, init_zero), nullptr);
+      FILE_NAME(ip, loc);
+
+	/* End-of-simulation pending note for looping obligations (weak
+	   semantics: they cannot fail in finite time). Loop states are
+	   self-loop wait states by construction. */
+      if (cyclic) {
+	    std::vector<bool> loop_state (N, false);
+	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1)
+		  if (nfa.edges[i].from == nfa.edges[i].to)
+			loop_state[nfa.edges[i].from] = true;
+	    PExpr*pend = nullptr;
+	    for (long k = 0 ; k < K ; k += 1)
+		  for (unsigned j = 0 ; j < N ; j += 1) {
+			if (!loop_state[j]) continue;
+			PExpr*t = sva_id_(loc, s[k][j]);
+			pend = pend ? sva_logic_(loc, 'o', pend, t) : t;
+		  }
+	    if (pend) {
+		  std::list<named_pexpr_t> dargs;
+		  named_pexpr_t darg;
+		  darg.parm = new PEString(strdup(
+			"SVA: unbounded ##[m:$] obligation still pending "
+			"at end of simulation"));
+		  dargs.push_back(darg);
+		  PCallTask*warn = new PCallTask(
+			lex_strings.make("$display"), dargs);
+		  FILE_NAME(warn, loc);
+		  PCondit*fc = new PCondit(pend, warn, nullptr);
+		  FILE_NAME(fc, loc);
+		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
+		  FILE_NAME(fp, loc);
+	    }
+      }
+
+      delete prop->antecedent;
+      delete prop->seq;
+      delete prop;
+      return true;
 }
 
 /* Lower one concurrent assertion (assert/assume/cover property) to a

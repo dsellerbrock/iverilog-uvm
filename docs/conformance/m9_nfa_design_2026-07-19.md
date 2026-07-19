@@ -192,3 +192,49 @@ non-final positions (legacy sorries there). Stage A's user-visible
 win is exactly those mid-chain shapes; its architectural win is the
 dual-run-proven engine that stages B-D build on (parser IR arrives
 with stage B for or/and/intersect/first_match).
+
+## Stage A synthesizer: LANDED (implementation notes + spec deviations)
+
+The synthesizer is in pform.cc (`pform_sva_nfa_try_assertion`, directly
+above `pform_make_assertion`); construction/analysis exports moved to
+pform_sva_nfa.h. The dual-run gate is `tests/sva_nfa/run.sh`: every
+test runs flag-off and flag-on with exact verdict-stream diffs, plus an
+ENGAGEMENT check (the flag-on vvp must contain the slot state
+registers, so a synthesizer that silently regresses to always-falling-
+back fails the gate rather than passing vacuously); `*_nfa_only.sv`
+tests (mid-chain window, mid-chain unbounded) require the legacy sorry
+flag-off and hand-computed gold traces flag-on.
+
+Synthesized slice: op 0 (plain assert/assume), op 3 (`not`,
+loop-free), op 1/2 (`|->`/`|=>`) with fixed antecedents and
+non-overlapped consequent starts. Guard mapping is by pointer
+identity: each chain step's boolean is captured ONCE into a 1-bit
+sample register (through `sva_rewrite_sampled_`, so `$rose`-family
+history chains work unchanged) and automaton edges reference the
+sample by the original expression pointer — no expression cloning at
+all. Loop-free automata get K = longest-path slots (an attempt lives
+at most that many ticks, so overflow is provably impossible; a loud
+`$display` backstop remains against construction bugs). Cyclic
+automata are synthesized only where legacy sorries (mid-chain
+`##[m:$]`): capped pool (max(depth,8), cap 16, `IVL_SVA_NFA_SLOTS`
+override), loud once-per-run overflow warning, and an
+end-of-simulation pending note; final-step-unbounded chains stay
+legacy, whose pend-collapse cannot overflow. Budget guard: N states x
+K slots &gt; 1024 bits falls back.
+
+Two DOCUMENTED deviations from the spec text above, both in favor of
+dual-run parity (the gate outranks the spec prose):
+
+1. op 3 all-dead is SILENT, not pass': the legacy engine never fires
+   a pass action for `not` properties (it deletes pass_stmt), so
+   firing pass' on all-dead would diverge the verdict streams.
+2. State storage is the SVA engine's own 1-bit `sva_make_reg_`
+   registers, not `tc_make_real_` reals — the same proven declaration
+   plumbing the legacy checkers use, cheaper, and directly usable in
+   logical expressions.
+
+Also deferred within stage A (fall back to legacy, which handles all
+of them exactly): overlapped `##0` consequent starts (need guard
+fusion onto the antecedent's final tick edge — with the composite-
+chain design this means conjunction guards, a small stage-B item),
+`cover property` (match counting), and cyclic `not`.

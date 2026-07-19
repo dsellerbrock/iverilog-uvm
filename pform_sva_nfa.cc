@@ -1,14 +1,11 @@
 /*
- * M9-NFA (Phase 2, stage A scaffold): automaton-based SVA engine.
- * Design: docs/conformance/m9_nfa_design_2026-07-19.md
+ * M9-NFA (Phase 2, stage A): automaton-based SVA engine — the
+ * construction half. Design: docs/conformance/m9_nfa_design_2026-07-19.md
  *
- * This file builds the sequence NFA. In the current increment the
- * engine is construction + dump only: pform_make_assertion calls
- * pform_sva_nfa_try_assertion() when IVL_SVA_NFA=1, which builds the
- * automaton (verifiable with IVL_SVA_NFA_DUMP=1) and then returns
- * false so the legacy linear engine still lowers the assertion.
- * Behavior is therefore identical with the flag on or off; the
- * synthesizer lands in the next increment and flips the return.
+ * This file builds and analyzes sequence NFAs from the legacy chain
+ * IR. The stage-A synthesizer that lowers an automaton to a checker
+ * process lives in pform.cc (pform_sva_nfa_try_assertion), where the
+ * shared sva_* statement builders are.
  *
  *    This source code is free software; you can redistribute it
  *    and/or modify it in source code form under the terms of the GNU
@@ -20,6 +17,7 @@
 # include  "config.h"
 # include  "parse_misc.h"
 # include  "pform.h"
+# include  "pform_sva_nfa.h"
 # include  "PExpr.h"
 # include  <cstdlib>
 # include  <cstring>
@@ -38,7 +36,7 @@ bool pform_sva_nfa_enabled()
       return flag != 0;
 }
 
-static bool nfa_dump_enabled_()
+bool pform_sva_nfa_dump_enabled()
 {
       static int flag = -1;
       if (flag < 0) {
@@ -47,35 +45,6 @@ static bool nfa_dump_enabled_()
       }
       return flag != 0;
 }
-
-/*
- * The automaton. States are dense indices. Edges are TICK edges only:
- * epsilon structure from the construction is folded before the
- * automaton is handed on (fold_epsilons_), so every surviving edge
- * consumes exactly one clock tick, guarded by a sampled boolean.
- * guard == nullptr encodes the constant-true guard (a pure delay
- * tick). Guards are BORROWED PExpr pointers into the property (the
- * synthesizer clones per use, exactly like the legacy engine).
- */
-struct sva_nfa_edge_t {
-      unsigned from = 0;
-      unsigned to = 0;
-      PExpr*guard = nullptr;      // null = always true
-      bool epsilon = false;       // construction-time only
-};
-
-struct sva_nfa_t {
-      unsigned nstates = 0;
-      unsigned start = 0;
-      unsigned accept = 0;
-      std::vector<sva_nfa_edge_t> edges;
-
-      unsigned new_state() { return nstates++; }
-      void tick(unsigned f, unsigned t, PExpr*g)
-      { sva_nfa_edge_t e; e.from=f; e.to=t; e.guard=g; edges.push_back(e); }
-      void eps(unsigned f, unsigned t)
-      { sva_nfa_edge_t e; e.from=f; e.to=t; e.epsilon=true; edges.push_back(e); }
-};
 
 /*
  * Build the automaton fragment for one legacy chain step:
@@ -259,8 +228,8 @@ static void prune_dead_states_(sva_nfa_t&nfa)
       nfa.nstates = next;
 }
 
-static bool nfa_from_chain_(sva_nfa_t&nfa,
-			    const std::vector<sva_seq_step_t>&steps)
+bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
+				    const std::vector<sva_seq_step_t>&steps)
 {
       nfa.start = nfa.new_state();
       unsigned cur = nfa.start;
@@ -274,8 +243,8 @@ static bool nfa_from_chain_(sva_nfa_t&nfa,
       return true;
 }
 
-static void nfa_dump_(const struct vlltype&loc, const char*what,
-		      const sva_nfa_t&nfa)
+void pform_sva_nfa_dump(const struct vlltype&loc, const char*what,
+			const sva_nfa_t&nfa)
 {
       cerr << loc.get_fileline() << ": IVL_SVA_NFA_DUMP: " << what
 	   << " states=" << nfa.nstates
@@ -294,43 +263,73 @@ static void nfa_dump_(const struct vlltype&loc, const char*what,
 }
 
 /*
- * Entry point from pform_make_assertion. Build automata for the
- * property's sequences; in this scaffold increment ALWAYS return
- * false afterwards so the legacy engine lowers the assertion — the
- * flag is observable only through IVL_SVA_NFA_DUMP.
+ * Cycle detection (iterative DFS with colors). The construction only
+ * creates self-loops (##[m:$] wait states), but folding can move
+ * them, so detect generally.
  */
-bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
-				 sva_property_t*prop,
-				 Statement*fail_stmt, Statement*pass_stmt,
-				 int kind)
+bool pform_sva_nfa_has_cycle(const sva_nfa_t&nfa)
 {
-      (void)fail_stmt; (void)pass_stmt; (void)kind;
-      if (!prop || !prop->seq) return false;
+      enum { WHITE, GREY, BLACK };
+      std::vector<int> color (nfa.nstates, WHITE);
+	// Adjacency once, to keep the DFS linear-ish.
+      std::vector< std::vector<unsigned> > adj (nfa.nstates);
+      for (size_t i = 0; i < nfa.edges.size(); i += 1)
+	    adj[nfa.edges[i].from].push_back(nfa.edges[i].to);
 
-      sva_nfa_t seq_nfa;
-      bool ok = nfa_from_chain_(seq_nfa, *prop->seq);
-      if (nfa_dump_enabled_()) {
-	    if (ok)
-		  nfa_dump_(loc, prop->antecedent ? "consequent" : "sequence",
-			    seq_nfa);
-	    else
-		  cerr << loc.get_fileline() << ": IVL_SVA_NFA_DUMP: "
-		       << "sequence not NFA-buildable (falls back)" << endl;
-      }
-
-      if (prop->antecedent) {
-	    sva_nfa_t ante_nfa;
-	    bool aok = nfa_from_chain_(ante_nfa, *prop->antecedent);
-	    if (nfa_dump_enabled_()) {
-		  if (aok) nfa_dump_(loc, "antecedent", ante_nfa);
-		  else cerr << loc.get_fileline() << ": IVL_SVA_NFA_DUMP: "
-			    << "antecedent not NFA-buildable (falls back)"
-			    << endl;
+      for (unsigned root = 0; root < nfa.nstates; root += 1) {
+	    if (color[root] != WHITE) continue;
+	    std::vector< std::pair<unsigned,size_t> > stack;
+	    stack.push_back(std::make_pair(root, (size_t)0));
+	    color[root] = GREY;
+	    while (!stack.empty()) {
+		  unsigned s = stack.back().first;
+		  size_t&idx = stack.back().second;
+		  if (idx < adj[s].size()) {
+			unsigned t = adj[s][idx++];
+			if (color[t] == GREY) return true;
+			if (color[t] == WHITE) {
+			      color[t] = GREY;
+			      stack.push_back(std::make_pair(t, (size_t)0));
+			}
+		  } else {
+			color[s] = BLACK;
+			stack.pop_back();
+		  }
 	    }
       }
-
-	// Scaffold: construction only. The synthesizer (design doc
-	// stage A) will take over and return true for supported
-	// shapes in the next increment.
       return false;
+}
+
+/*
+ * Longest path from the start state, skipping edges that close a
+ * cycle (memoized DFS; on-stack targets are ignored). For loop-free
+ * automata this is the exact maximum attempt lifetime in ticks.
+ */
+static long nfa_depth_rec_(const std::vector< std::vector<unsigned> >&adj,
+			   std::vector<long>&memo, std::vector<bool>&onstack,
+			   unsigned s)
+{
+      if (memo[s] >= 0) return memo[s];
+      onstack[s] = true;
+      long best = 0;
+      for (size_t i = 0; i < adj[s].size(); i += 1) {
+	    unsigned t = adj[s][i];
+	    if (onstack[t]) continue;   // cycle edge: skip
+	    long d = 1 + nfa_depth_rec_(adj, memo, onstack, t);
+	    if (d > best) best = d;
+      }
+      onstack[s] = false;
+      memo[s] = best;
+      return best;
+}
+
+long pform_sva_nfa_depth(const sva_nfa_t&nfa)
+{
+      if (nfa.nstates == 0) return 0;
+      std::vector< std::vector<unsigned> > adj (nfa.nstates);
+      for (size_t i = 0; i < nfa.edges.size(); i += 1)
+	    adj[nfa.edges[i].from].push_back(nfa.edges[i].to);
+      std::vector<long> memo (nfa.nstates, -1);
+      std::vector<bool> onstack (nfa.nstates, false);
+      return nfa_depth_rec_(adj, memo, onstack, nfa.start);
 }
