@@ -6734,6 +6734,112 @@ sva_property_t* pform_sva_seq_intersect(const struct vlltype&loc,
       return p;
 }
 
+/* M9-NFA stage B.3: recursive combinator nesting. The grammar's
+   `sva_comb_*' layer produces sva_property_t operands that already
+   carry a tree (or a chain, from the legacy fixed-intersect path);
+   these helpers combine them. */
+
+/* Wrap a bare chain as a leaf-tree property (grammar `sva_comb_atom :
+   sva_seq_expr'). */
+sva_property_t* pform_sva_leaf_prop(std::vector<sva_seq_step_t>*chain)
+{
+      if (!chain || chain->empty()) {
+	    if (chain) {
+		  for (size_t k = 0 ; k < chain->size() ; k += 1)
+			delete (*chain)[k].expr;
+		  delete chain;
+	    }
+	    return nullptr;
+      }
+      sva_stree_t*t = new sva_stree_t;
+      t->chain = chain;
+      sva_property_t*p = new sva_property_t;
+      p->tree = t;
+      p->op_type = 0;
+      return p;
+}
+
+/* Take the tree out of a combinator-operand property, normalizing a
+   chain-bearing property (legacy fixed-intersect result) to a leaf.
+   Consumes the property shell (clk/disable/antecedent are always null
+   on a combinator operand). */
+static sva_stree_t* sva_prop_take_tree_(sva_property_t*p)
+{
+      if (!p) return nullptr;
+      sva_stree_t*t = nullptr;
+      if (p->tree) {
+	    t = p->tree;
+	    p->tree = nullptr;
+      } else if (p->seq) {
+	    t = new sva_stree_t;
+	    t->chain = p->seq;
+	    p->seq = nullptr;
+      }
+      delete p;
+      return t;
+}
+
+static bool sva_prop_is_leaf_chain_(sva_property_t*p)
+{
+      return p && p->tree && p->tree->kind == sva_stree_t::LEAF
+	     && p->tree->chain && !p->seq;
+}
+
+sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
+				    sva_property_t*a, sva_property_t*b)
+{
+      (void)loc;
+      sva_stree_t*ta = sva_prop_take_tree_(a);
+      sva_stree_t*tb = sva_prop_take_tree_(b);
+      if (!ta || !tb) {
+	    sva_tree_delete_(ta, true);
+	    sva_tree_delete_(tb, true);
+	    return nullptr;
+      }
+      sva_stree_t*t = new sva_stree_t;
+      t->kind = (op == 'o') ? sva_stree_t::SEQ_OR : sva_stree_t::SEQ_AND;
+      t->a = ta;
+      t->b = tb;
+      sva_property_t*p = new sva_property_t;
+      p->tree = t;
+      p->op_type = 0;
+      return p;
+}
+
+sva_property_t* pform_sva_tree_intersect(const struct vlltype&loc,
+					 sva_property_t*a, sva_property_t*b)
+{
+	/* Both bare leaf chains: the legacy 3-way split (equal-fixed ->
+	   legacy AND-chain parity, unequal-fixed -> sorry, non-fixed ->
+	   product tree). This keeps a top-level `seq intersect seq'
+	   identical to B.2. */
+      if (sva_prop_is_leaf_chain_(a) && sva_prop_is_leaf_chain_(b)) {
+	    std::vector<sva_seq_step_t>*c1 = a->tree->chain;
+	    a->tree->chain = nullptr;
+	    std::vector<sva_seq_step_t>*c2 = b->tree->chain;
+	    b->tree->chain = nullptr;
+	    sva_tree_delete_(sva_prop_take_tree_(a), false);
+	    sva_tree_delete_(sva_prop_take_tree_(b), false);
+	    return pform_sva_seq_intersect(loc, c1, c2);
+      }
+      sva_stree_t*ta = sva_prop_take_tree_(a);
+      sva_stree_t*tb = sva_prop_take_tree_(b);
+      if (!ta || !tb) {
+	    sva_tree_delete_(ta, true);
+	    sva_tree_delete_(tb, true);
+	    return nullptr;
+      }
+      sva_stree_t*t = new sva_stree_t;
+      t->kind = sva_stree_t::SEQ_INTERSECT;
+      t->a = ta;
+      t->b = tb;
+      sva_property_t*p = new sva_property_t;
+      p->tree = t;
+      p->tree_sorry = 1;
+      p->op_type = 0;
+      return p;
+}
+
 /*
  * M9-NFA stage A synthesizer (design: docs/conformance/
  * m9_nfa_design_2026-07-19.md). Lower a concurrent assertion through

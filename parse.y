@@ -1299,6 +1299,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec
+%type <sva_prop> sva_seq_comb sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
 %type <sva_seq>  sva_seq_expr sva_seq_atom
 %type <perm_strings> cross_item_list
 
@@ -5515,21 +5516,21 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
      same interval. For equal-length fixed operands this lowers to a
      per-cycle AND chain the linear engine handles directly. */
-  | sva_seq_expr K_intersect sva_seq_expr
-      { $$ = pform_sva_seq_intersect(@2, $1, $3); }
   /* IEEE 1800-2017 16.9.6: `within' — s1 occurs inside s2's interval.
      Lowered to a $past-sampled combinational match indicator. */
   | sva_seq_expr K_within sva_seq_expr
       { $$ = pform_sva_binprop(@2, 8, $1, $3); }
-  /* IEEE 1800-2017 16.9.7 / 16.9.5: sequence `or' / `and'. Regular-
+  /* IEEE 1800-2017 16.9.5-.7: sequence `and'/`or'/`intersect'. Regular-
      language combinators the linear engine cannot express: they build
-     a stage-B combinator tree for the automaton engine
-     (IVL_SVA_NFA=1); without it the assertion is a loud sorry at
-     lowering (previously these were raw syntax errors). */
-  | sva_seq_expr K_or sva_seq_expr
-      { $$ = pform_sva_seq_comb(@2, 'o', $1, $3); }
-  | sva_seq_expr K_and sva_seq_expr
-      { $$ = pform_sva_seq_comb(@2, 'a', $1, $3); }
+     a stage-B combinator tree (`sva_seq_comb', below) for the
+     automaton engine (IVL_SVA_NFA=1); without it the assertion is a
+     loud sorry at lowering (previously these were raw syntax errors).
+     The combinator layer nests arbitrarily with `and'/`intersect'
+     binding tighter than `or' (16.9-1). A bare `sva_seq_expr' stays
+     op 0 (above); `sva_seq_comb' requires >=1 operator, so there is no
+     ambiguity with the op-0 rule. */
+  | sva_seq_comb
+      { $$ = $1; }
   /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
      every cycle of the sequence. Lowered to a unit-delay sequence with
      guard AND-ed into each cycle (pform_sva_throughout). */
@@ -5554,6 +5555,54 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      first_match(...), or an atom with a consecutive-repetition
      suffix. Returns a step LIST (first_match/repetition yield
      sub-chains). */
+  /* M9-NFA stage B.3: the sequence-combinator precedence layer. Each
+     nonterminal REQUIRES at least one combinator operator (the
+     "has-op" invariant), so a bare chain reduces only to
+     `property_expr : sva_seq_expr' (op 0) and never through here — no
+     reduce/reduce with the op-0 rule. `sva_comb_atom' is a chain leaf
+     or a parenthesized sub-combinator; `sva_and_has_op' folds `and'/
+     `intersect' (tighter, left-assoc); `sva_or_has_op' folds `or'
+     (looser). Each yields an sva_property_t carrying a combinator tree
+     (or a chain, from the legacy fixed-intersect path). */
+sva_comb_atom
+  : sva_seq_expr
+      { $$ = pform_sva_leaf_prop($1); }
+  | '(' sva_seq_comb ')'
+      { $$ = $2; }
+  ;
+
+sva_and_has_op
+  : sva_comb_atom K_and sva_comb_atom
+      { $$ = pform_sva_tree_comb(@2, 'a', $1, $3); }
+  | sva_comb_atom K_intersect sva_comb_atom
+      { $$ = pform_sva_tree_intersect(@2, $1, $3); }
+  | sva_and_has_op K_and sva_comb_atom
+      { $$ = pform_sva_tree_comb(@2, 'a', $1, $3); }
+  | sva_and_has_op K_intersect sva_comb_atom
+      { $$ = pform_sva_tree_intersect(@2, $1, $3); }
+  ;
+
+sva_or_operand
+  : sva_comb_atom
+      { $$ = $1; }
+  | sva_and_has_op
+      { $$ = $1; }
+  ;
+
+sva_or_has_op
+  : sva_or_operand K_or sva_or_operand
+      { $$ = pform_sva_tree_comb(@2, 'o', $1, $3); }
+  | sva_or_has_op K_or sva_or_operand
+      { $$ = pform_sva_tree_comb(@2, 'o', $1, $3); }
+  ;
+
+sva_seq_comb
+  : sva_and_has_op
+      { $$ = $1; }
+  | sva_or_has_op
+      { $$ = $1; }
+  ;
+
 sva_seq_atom
   : expression
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;

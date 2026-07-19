@@ -340,6 +340,20 @@ pform_sva_seq_intersect(const struct vlltype&loc,
 			std::vector<sva_seq_step_t>*s1,
 			std::vector<sva_seq_step_t>*s2);
 
+/* M9-NFA stage B.3: recursive combinator nesting. pform_sva_leaf_prop
+   wraps a chain as a leaf-tree operand; pform_sva_tree_comb (op 'o'/'a')
+   and pform_sva_tree_intersect combine two operand properties (each
+   carrying a tree, or a chain from the legacy fixed-intersect path).
+   All consume their operands. */
+extern sva_property_t*
+pform_sva_leaf_prop(std::vector<sva_seq_step_t>*chain);
+extern sva_property_t*
+pform_sva_tree_comb(const struct vlltype&loc, char op,
+		    sva_property_t*a, sva_property_t*b);
+extern sva_property_t*
+pform_sva_tree_intersect(const struct vlltype&loc,
+			 sva_property_t*a, sva_property_t*b);
+
 /* M9C temporal property operators (IEEE 1800-2017 16.12.10 `until` /
    `until_with` / `s_until` / `s_until_with`, 16.9.6 `within`). These do
    not fit the linear token pipeline, so they are stashed on an

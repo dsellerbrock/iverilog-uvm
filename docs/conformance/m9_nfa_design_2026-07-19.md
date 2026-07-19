@@ -375,35 +375,53 @@ tested. Remaining stage B: recursive combinator NESTING (B.3, see
 below), `first_match`, `within`, general `throughout`, and per-attempt
 local variables.
 
-### Increment B.3: recursive combinator nesting — ATTEMPTED, DEFERRED
+### Increment B.3: recursive combinator nesting — LANDED
 
-Goal: arbitrary nesting of `or`/`and`/`intersect` (flat N-way
-`a or b or c`, mixed precedence `a or b and c`, and parenthesized
-regrouping `(a or b) and c`) instead of the single top-level operator
-B.1/B.2 allow. A `sva_comb_or`/`sva_comb_and`/`sva_comb_atom`
-precedence layer plus `pform_sva_leaf_prop`/`pform_sva_tree_comb`/
-`pform_sva_tree_intersect` tree-combining helpers were prototyped.
+Arbitrary nesting of `or`/`and`/`intersect`: flat N-way (`a or b or c`),
+mixed precedence (`a or b and c`, with `and`/`intersect` binding
+tighter than `or` per 16.9-1), and parenthesized regrouping
+(`(a or b) and c`). A first attempt was reverted for two real defects;
+both are now fixed and the two fixes are what make nesting correct:
 
-Result on a scratch measure the grammar was cheap (+5 s/r, r/r and
-useless-rule set unchanged), and flat 3-way `or` and precedence
-(`a or (b and c)`) parsed and built structurally-correct automata. But
-the full attempt hit TWO real defects, so it was reverted rather than
-shipped (no regression left on the branch):
+**Fix 1 — the epsilon fold (its own commit).** The original
+`fold_epsilons_` eliminated epsilons by duplicating each edge's
+PREDECESSORS forward, which orphaned any state with two outgoing
+epsilons — the `or` fresh start with `eps` to each branch. Processing
+the first branch's eps moved the start onto it and erased the other,
+so `(a ##1 b) or (c ##1 d)` matched ONLY its first operand (a stimulus
+firing only the second branch matched nothing). This was latent since
+B.1; the NFA-only golds masked it because their stimulus started both
+branches together. Replaced with textbook closure-based elimination
+(epsilon-closure, lift each state's reachable tick moves, one fresh
+accept sink with a parallel edge from every tick whose target
+eps-reaches the old accept — so a window state that both accepts and
+continues fires both on one tick). Regression:
+`or_branches_nfa_only.sv` drives each branch alone.
 
-1. **Grammar double-rule conflict.** Placing the operators at BOTH the
-   `property_expr` level (`sva_comb_or K_and sva_comb_and`) and the
-   recursive `sva_comb_and` level makes `and`/`intersect` ambiguous;
-   bison resolved it so that a plain top-level `seq and seq` became a
-   SYNTAX ERROR — a regression against B.1/B.2. The correct fix is a
-   "has-operator" nonterminal split (a bare chain must reduce ONLY to
-   `property_expr : sva_seq_expr`, never through the combinator layer),
-   which is a larger grammar redesign.
-2. **Nested-OR epsilon fold.** `OR(OR(a,b),c)` folded to an automaton
-   whose start state had NO outgoing tick edge (accept unreachable);
-   the B.2 accept-reachability guard then correctly rejected it. The
-   single-level OR of B.1 folds fine, so `fold_epsilons_` has a bug on
-   chained fresh-start/accept epsilon layers that needs isolating.
+**Fix 2 — the grammar (has-operator split).** The first attempt put
+the operators at BOTH the `property_expr` level and the recursive
+level, making `and`/`intersect` reduce/reduce-ambiguous; bison
+resolved it so a plain top-level `seq and seq` became a SYNTAX ERROR
+(a regression). The fix is a precedence layer where every nonterminal
+REQUIRES at least one operator: `sva_comb_atom` (chain leaf or
+`( sva_seq_comb )`), `sva_and_has_op` (folds `and`/`intersect`,
+tighter), `sva_or_has_op` (folds `or`), and `sva_seq_comb` = either.
+A bare chain reduces ONLY to `property_expr : sva_seq_expr` (op 0) and
+never through the combinator layer, so there is no reduce/reduce with
+the op-0 rule. Net grammar cost is ZERO versus B.2 (491 s/r, 1133 r/r
+unchanged; no new useless-in-parser rules). Parenthesised nesting
+works because the paren body disambiguates: `( sva_seq_comb )` fires
+only when the body has an operator, else `( sva_seq_expr )`
+(sva_seq_atom) keeps it a chain.
 
-Both are tractable but need careful work; deferred to a dedicated
-increment. B.1/B.2 (single top-level `or`/`and`/`intersect`) remain
-the shipped, tested surface.
+The C++ layer (`pform_sva_leaf_prop`, `pform_sva_tree_comb`,
+`pform_sva_tree_intersect`) combines operand properties, each carrying
+a tree (or a chain from the legacy fixed-intersect path). Top-level
+`seq intersect seq` over two bare fixed chains still delegates to the
+legacy 3-way split (equal-fixed parity / unequal-fixed sorry), so B.2
+behaviour is unchanged; any nested or non-fixed shape builds a product
+tree. Verified by `nesting_nfa_only.sv` with hand-computed counts that
+discriminate branch, precedence, and regrouping (n1=3, n2=2, n3=1).
+
+Remaining stage B: `first_match`, `within`, general `throughout`, and
+per-attempt local variables.
