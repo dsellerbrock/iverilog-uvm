@@ -24,16 +24,17 @@ struct sva_seq_step_t;
  * The automaton. States are dense indices. Delivered edges are TICK
  * edges only: epsilon structure from the construction is folded before
  * the automaton is handed out, so every surviving edge consumes exactly
- * one clock tick, guarded by a sampled boolean. guard == nullptr
- * encodes the constant-true guard (a pure delay tick). Guards are
- * BORROWED PExpr pointers into the property chain — the synthesizer
- * maps them to sample registers by pointer identity and never
- * dereferences them.
+ * one clock tick, guarded by a CONJUNCTION of sampled booleans (an
+ * empty guard list is the constant-true guard — a pure delay tick;
+ * multiple entries arise from ##0 fusion, where two chain steps share
+ * one tick). Guards are BORROWED PExpr pointers into the property
+ * chain — the synthesizer maps them to sample registers by pointer
+ * identity and never dereferences them.
  */
 struct sva_nfa_edge_t {
       unsigned from = 0;
       unsigned to = 0;
-      PExpr*guard = nullptr;      // null = always true
+      std::vector<PExpr*> guards; // empty = always true; AND otherwise
       bool epsilon = false;       // construction-time only
 };
 
@@ -45,7 +46,8 @@ struct sva_nfa_t {
 
       unsigned new_state() { return nstates++; }
       void tick(unsigned f, unsigned t, PExpr*g)
-      { sva_nfa_edge_t e; e.from=f; e.to=t; e.guard=g; edges.push_back(e); }
+      { sva_nfa_edge_t e; e.from=f; e.to=t;
+	if (g) e.guards.push_back(g); edges.push_back(e); }
       void eps(unsigned f, unsigned t)
       { sva_nfa_edge_t e; e.from=f; e.to=t; e.epsilon=true; edges.push_back(e); }
 };

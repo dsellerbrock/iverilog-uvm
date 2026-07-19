@@ -85,14 +85,64 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
       }
 
       unsigned before_expr = cur;
-      if (fixed == 0) {
-	    if (!first) {
-		    // ##0 continuation: same-tick conjunction is not
-		    // representable as a separate tick edge; stage A
-		    // does not synthesize it (legacy handles ##0 by
-		    // expression fusion). Signal fallback.
-		  return ~0u;
+      if (fixed == 0 && !first) {
+	      // ##0 fusion: the step's boolean shares the arrival
+	      // tick of the previous step. Duplicate every tick edge
+	      // arriving in cur's backward epsilon closure (window
+	      // join states reach cur via eps) with this boolean
+	      // added to the guard conjunction, targeting a fresh
+	      // join state. The original arrival states keep their
+	      // edges (delayed-arrival branches below still need
+	      // them); if nothing else uses them they die in
+	      // accept-reachability pruning.
+	    std::vector<bool> incl (nfa.nstates, false);
+	    incl[cur] = true;
+	    bool chg = true;
+	    while (chg) {
+		  chg = false;
+		  for (size_t i = 0; i < nfa.edges.size(); i += 1) {
+			const sva_nfa_edge_t&e = nfa.edges[i];
+			if (e.epsilon && incl[e.to] && !incl[e.from]) {
+			      incl[e.from] = true;
+			      chg = true;
+			}
+		  }
 	    }
+	    unsigned join = nfa.new_state();
+	    size_t nedges = nfa.edges.size();
+	    bool any = false;
+	    for (size_t i = 0; i < nedges; i += 1) {
+		  sva_nfa_edge_t e = nfa.edges[i];
+		  if (e.epsilon || !incl[e.to]) continue;
+		  e.to = join;
+		  e.guards.push_back(st.expr);
+		  nfa.edges.push_back(e);
+		  any = true;
+	    }
+	    if (!any) return ~0u;
+
+	      // ##[0:n] / ##[0:$]: arrivals >= 1 are an ordinary
+	      // ##[1:n]/##[1:$] fragment from the pre-fusion state,
+	      // eps-joined with the fused arrival-0 state.
+	    if (unbounded || hi > 0) {
+		  sva_seq_step_t rest = st;
+		  rest.delay_lo = 1;
+		  rest.delay_hi = unbounded ? -1 : hi;
+		  rest.rep_tail = 0;
+		  unsigned sub = nfa_add_step_(nfa, before_expr, rest, false);
+		  if (sub == ~0u) return ~0u;
+		  unsigned j2 = nfa.new_state();
+		  nfa.eps(join, j2);
+		  nfa.eps(sub, j2);
+		  cur = j2;
+	    } else {
+		  cur = join;
+	    }
+
+	      // Tail repetition still applies (shared code below);
+	      // the delayed-arrival window is already handled.
+	    goto rep_tail_only;
+      } else if (fixed == 0) {
 	      // Anchor tick: one guarded edge out of the start.
 	    unsigned nxt = nfa.new_state();
 	    nfa.tick(cur, nxt, st.expr);
@@ -123,6 +173,7 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 	    nfa.tick(before_expr, before_expr, nullptr);
       }
 
+rep_tail_only:
 	// Tail repetition expr[*1:1+rep_tail] (legacy last-step
 	// encoding): optional extra guarded ticks.
       if (st.rep_tail > 0) {
@@ -168,7 +219,7 @@ static void fold_epsilons_(sva_nfa_t&nfa)
 				    if (o.epsilon == dup.epsilon
 					&& o.from == dup.from
 					&& o.to == dup.to
-					&& o.guard == dup.guard) {
+					&& o.guards == dup.guards) {
 					  have = true;
 					  break;
 				    }
@@ -253,9 +304,13 @@ void pform_sva_nfa_dump(const struct vlltype&loc, const char*what,
       for (size_t i = 0; i < nfa.edges.size(); i += 1) {
 	    const sva_nfa_edge_t&e = nfa.edges[i];
 	    cerr << "    S" << e.from
-		 << (e.epsilon ? " ..eps.. S" : " --tick(")
-		 << (e.epsilon ? "" : (e.guard ? "expr" : "1"))
-		 << (e.epsilon ? "" : ")--> S");
+		 << (e.epsilon ? " ..eps.. S" : " --tick(");
+	    if (!e.epsilon) {
+		  if (e.guards.empty()) cerr << "1";
+		  for (size_t g = 0; g < e.guards.size(); g += 1)
+			cerr << (g ? "&expr" : "expr");
+	    }
+	    cerr << (e.epsilon ? "" : ")--> S");
 	    if (!e.epsilon) cerr << e.to;
 	    else cerr << e.to;
 	    cerr << endl;

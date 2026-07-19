@@ -6580,6 +6580,12 @@ static bool sva_nfa_chain_fixed_(const std::vector<sva_seq_step_t>&steps,
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
 		|| st.rep_tail != 0)
 		  return false;
+	      /* Mid-chain ##0 would fuse INSIDE the antecedent, making
+		 the completion condition a conjunction; the obligation
+		 trigger below assumes a single final-step boolean, so
+		 leave those to the legacy engine. */
+	    if (j > 0 && st.delay_lo == 0)
+		  return false;
 	    edge_span += (j == 0 && st.delay_lo == 0) ? 1 : st.delay_lo;
 	    delay_sum += st.delay_lo;
       }
@@ -6679,10 +6685,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  conseq[0].delay_lo += 1;
 		  if (conseq[0].delay_hi >= 0) conseq[0].delay_hi += 1;
 	    }
-	      /* An overlapped (##0) consequent start needs guard
-		 fusion onto the antecedent's final tick edge — a later
-		 increment. The legacy engine handles it exactly. */
-	    if (conseq[0].delay_lo == 0) return false;
+	      /* An overlapped (##0) consequent start fuses onto the
+		 antecedent's final tick edge in the construction
+		 (conjunction guards). */
 	    chain = *prop->antecedent;
 	    chain.insert(chain.end(), conseq.begin(), conseq.end());
       } else {
@@ -6705,7 +6710,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (sva_nfa_legacy_supports_(*prop->seq, ante_delay_sum,
 					 implication))
 		  return false;
-	    if (negated) return false;
 	    K = depth > 8 ? depth : 8;
 	    if (K > 16) K = 16;
 	    if (sva_nfa_slots_env_() > 0) K = sva_nfa_slots_env_();
@@ -6713,6 +6717,36 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
       unsigned N = nfa.nstates;
       if ((long)N * K > 1024) return false;
+
+	/* Obligation trigger for |->/|=>: the antecedent completes the
+	   tick its final boolean fires while the attempt sits in the
+	   pre-boundary state. The fixed antecedent is a single linear
+	   path, so exactly one state sits at BFS depth ante_edges-1;
+	   anything else is a construction surprise — fall back. */
+      unsigned pre_boundary = 0;
+      if (implication) {
+	    std::vector<long> dist (N, -1);
+	    std::vector<unsigned> q;
+	    dist[nfa.start] = 0;
+	    q.push_back(nfa.start);
+	    for (size_t h = 0 ; h < q.size() ; h += 1) {
+		  unsigned u = q[h];
+		  for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
+			if (nfa.edges[i].from != u) continue;
+			unsigned t = nfa.edges[i].to;
+			if (dist[t] >= 0) continue;
+			dist[t] = dist[u] + 1;
+			q.push_back(t);
+		  }
+	    }
+	    unsigned found = 0;
+	    for (unsigned j = 0 ; j < N ; j += 1)
+		  if (dist[j] == ante_edges - 1) {
+			pre_boundary = j;
+			found += 1;
+		  }
+	    if (found != 1) return false;
+      }
 
 	/* Clock: explicit, else the module's default clocking. On a
 	   missing clock fall back — the legacy engine emits the
@@ -6819,33 +6853,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       perm_string r_ovf = sva_make_reg_(loc, inst, "ovf", 0);
       init_zero.push_back(sva_assign_(loc, r_ovf, sva_bit_(loc, 0)));
 
-	/* Consequent-region mask for the obligation bit: BFS distance
-	   from the start; the fixed antecedent is a single linear path
-	   of ante_edges ticks, so distance >= ante_edges (excluding
-	   the start) is exactly the consequent region including the
-	   boundary state (antecedent matched). */
-      std::vector<bool> conseq_mask;
-      if (implication) {
-	    std::vector<long> dist (N, -1);
-	    std::vector<unsigned> q;
-	    dist[nfa.start] = 0;
-	    q.push_back(nfa.start);
-	    for (size_t h = 0 ; h < q.size() ; h += 1) {
-		  unsigned u = q[h];
-		  for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
-			if (nfa.edges[i].from != u) continue;
-			unsigned t = nfa.edges[i].to;
-			if (dist[t] >= 0) continue;
-			dist[t] = dist[u] + 1;
-			q.push_back(t);
-		  }
-	    }
-	    conseq_mask.assign(N, false);
-	    for (unsigned j = 0 ; j < N ; j += 1)
-		  if (j != nfa.start && dist[j] >= ante_edges)
-			conseq_mask[j] = true;
-      }
-
       auto busy_expr = [&](long k) -> PExpr* {
 	    PExpr*e = sva_id_(loc, s[k][0]);
 	    for (unsigned j = 1 ; j < N ; j += 1)
@@ -6893,15 +6900,30 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	/* Per-slot advance. */
       for (long k = 0 ; k < K ; k += 1) {
+	      /* Obligation: set the sticky bit the tick the antecedent
+		 completes — the attempt sits in the pre-boundary state
+		 and the antecedent's final boolean fires — regardless
+		 of whether the (possibly fused) consequent edge also
+		 fires. Evaluated on the PRE-advance state bits. */
+	    if (implication) {
+		  std::map<PExpr*,perm_string>::iterator it =
+			guard_reg.find(prop->antecedent->back().expr);
+		  assert(it != guard_reg.end());
+		  PExpr*done = sva_logic_(loc, 'a',
+					  sva_id_(loc, s[k][pre_boundary]),
+					  sva_id_(loc, it->second));
+		  body.push_back(sva_if_(loc, done,
+			sva_assign_(loc, ob[k], sva_bit_(loc, 1)), nullptr));
+	    }
 	    for (unsigned j = 0 ; j < N ; j += 1) {
 		  PExpr*e = nullptr;
 		  for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
 			const sva_nfa_edge_t&ed = nfa.edges[i];
 			if (ed.to != j) continue;
 			PExpr*term = sva_id_(loc, s[k][ed.from]);
-			if (ed.guard) {
+			for (size_t g = 0 ; g < ed.guards.size() ; g += 1) {
 			      std::map<PExpr*,perm_string>::iterator it =
-				    guard_reg.find(ed.guard);
+				    guard_reg.find(ed.guards[g]);
 			      assert(it != guard_reg.end());
 			      term = sva_logic_(loc, 'a', term,
 						sva_id_(loc, it->second));
@@ -6938,18 +6960,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (unsigned j = 0 ; j < N ; j += 1)
 		  cont_v.push_back(sva_assign_(loc, s[k][j],
 					       sva_id_(loc, nx[j])));
-	    if (implication) {
-		  PExpr*inm = nullptr;
-		  for (unsigned j = 0 ; j < N ; j += 1) {
-			if (!conseq_mask[j]) continue;
-			PExpr*t = sva_id_(loc, nx[j]);
-			inm = inm ? sva_logic_(loc, 'o', inm, t) : t;
-		  }
-		  if (inm)
-			cont_v.push_back(sva_if_(loc, inm,
-			      sva_assign_(loc, ob[k], sva_bit_(loc, 1)),
-			      nullptr));
-	    }
 
 	    Statement*st = sva_if_(loc, sva_id_(loc, nx[nfa.accept]),
 				   sva_block_(loc, acc_v),
@@ -7024,8 +7034,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	/* End-of-simulation pending note for looping obligations (weak
 	   semantics: they cannot fail in finite time). Loop states are
-	   self-loop wait states by construction. */
-      if (cyclic) {
+	   self-loop wait states by construction. A pending `not`
+	   attempt means the negated property held — silent. */
+      if (cyclic && !negated) {
 	    std::vector<bool> loop_state (N, false);
 	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1)
 		  if (nfa.edges[i].from == nfa.edges[i].to)

@@ -238,3 +238,37 @@ of them exactly): overlapped `##0` consequent starts (need guard
 fusion onto the antecedent's final tick edge — with the composite-
 chain design this means conjunction guards, a small stage-B item),
 `cover property` (match counting), and cyclic `not`.
+
+### Increment A.2: ##0 fusion (conjunction guards) — LANDED
+
+Edges now carry a guard CONJUNCTION (`std::vector<PExpr*> guards`;
+empty = pure delay). A non-first `##0` step fuses: every tick edge
+arriving in the previous exit's backward-eps closure is duplicated
+with the step's boolean appended, targeting a fresh join; `##[0:n]` /
+`##[0:$]` build the delayed arrivals as an ordinary `##[1:n]`/`##[1:$]`
+fragment eps-joined with the fused arrival-0 state. The pre-fusion
+arrival states keep their original edges (accept-reachability pruning
+removes them when orphaned).
+
+This lifts the overlapped-consequent deferral: `a |-> b` (the most
+common SVA shape) and windowed overlap starts (`a |-> ##[0:2] b`) now
+engage the NFA with verdict parity, and a NEW NFA-only capability
+appears — overlapped implications with mid-chain windows
+(`a |-> b ##[1:2] c ##1 d`), which legacy sorries on. Cyclic `not`
+(mid-chain `##[m:$]` under negation) is also synthesized now: accept
+fires the fail, all-dead and end-of-simulation pending are both
+silent (the negated property held).
+
+The obligation bit moved from a BFS region mask to an edge-exact
+trigger: ob[k] is set the tick the attempt sits in the unique
+pre-boundary state (BFS depth ante_edges-1; the fixed antecedent is a
+linear path) AND the antecedent's final boolean sample fires —
+regardless of whether the fused consequent edge also fires. This is
+what makes overlap failures (`a && !b`) fail on the a-tick instead of
+appearing vacuous, and it is exactly the legacy timing. Antecedents
+with mid-chain `##0` (fusion inside the antecedent would make the
+completion condition a conjunction) stay legacy.
+
+Still deferred after A.2: `cover property` (match-counting parity
+needs its own analysis), and `or`/`and`/`intersect`/`first_match`/
+local variables (stage B parser IR).
