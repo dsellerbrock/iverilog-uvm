@@ -19,6 +19,7 @@
 class PExpr;
 struct vlltype;
 struct sva_seq_step_t;
+struct sva_stree_t;
 
 /*
  * The automaton. States are dense indices. Delivered edges are TICK
@@ -61,6 +62,11 @@ extern bool pform_sva_nfa_dump_enabled();
    does not cover (caller falls back to the legacy engine). */
 extern bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
 					   const std::vector<sva_seq_step_t>&steps);
+
+/* Stage B: build from a sequence-combinator tree (or / and /
+   intersect over chains). */
+extern bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa,
+					  const sva_stree_t*tree);
 
 extern void pform_sva_nfa_dump(const struct vlltype&loc, const char*what,
 			       const sva_nfa_t&nfa);

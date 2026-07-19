@@ -322,6 +322,15 @@ pform_sva_intersect(const struct vlltype&loc,
 		    std::vector<sva_seq_step_t>*s1,
 		    std::vector<sva_seq_step_t>*s2);
 
+/* M9-NFA stage B: package a sequence `or'/`and' (op 'o'/'a') as a
+   combinator tree on an sva_property_t. Consumes both chains. Only the
+   automaton engine lowers these; without IVL_SVA_NFA=1 the assertion
+   is a loud sorry at lowering. */
+extern sva_property_t*
+pform_sva_seq_comb(const struct vlltype&loc, char op,
+		   std::vector<sva_seq_step_t>*s1,
+		   std::vector<sva_seq_step_t>*s2);
+
 /* M9C temporal property operators (IEEE 1800-2017 16.12.10 `until` /
    `until_with` / `s_until` / `s_until_with`, 16.9.6 `within`). These do
    not fit the linear token pipeline, so they are stashed on an

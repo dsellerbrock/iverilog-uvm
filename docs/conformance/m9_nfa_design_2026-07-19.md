@@ -308,3 +308,40 @@ synthesized or intentionally-legacy with a loud path: stage A is
 COMPLETE. Next: stage B (parser sequence-expression IR —
 `or`/`and`/`intersect`/`first_match`, local variables, `within`,
 `throughout` beyond the linear rewrite).
+
+### Increment B.1: sequence `or` / `and` (combinator tree) — LANDED
+
+The parser now accepts `seq or seq` and `seq and seq` (previously raw
+SYNTAX ERRORS) via a minimal combinator tree over chains
+(`sva_stree_t` in parse_misc.h: LEAF/SEQ_OR/SEQ_AND/SEQ_INTERSECT,
+carried on `sva_property_t::tree`). Only the automaton engine lowers
+trees; without `IVL_SVA_NFA=1` the assertion is a LOUD sorry naming
+the flag. Construction (pform_sva_nfa.cc):
+
+- `or` = union (fresh start/accept epsilons around both fragments).
+- `and` = product with DONE-IDLING: each side is normalized to its
+  own folded automaton, extended with an absorbing `done` state
+  (accept --true--> done --true--> done); the product accepts at
+  (accept,accept), (done,accept), (accept,done) — the match ends with
+  the LATER side (16.9.5). Loop-free sides give a loop-free product
+  after pruning ((done,done) cannot reach accept and dies), so the
+  exact-K guarantee survives.
+- `intersect` product (same-tick lockstep, accept only at
+  (accept,accept)) is implemented in the construction but NOT yet
+  reachable from the grammar — `intersect` still routes through the
+  legacy equal-length-fixed lowering, so the product code is
+  UNTESTED until B.2 defers that path's parse-time diagnostics and
+  routes general shapes to it.
+
+Grammar cost: +7 reduce/reduce conflicts (1126 → 1133; shift/reduce
+unchanged at 491; the useless-rule set is unchanged against a
+baseline bison run). Gate evidence that nothing was stolen from the
+other `or`/`and` uses (event lists, gate primitives): full ivtest
+name-diff clean.
+
+Stage-B.1 scope notes: trees ride op 0 only (`assert`/`assume`/
+`cover` of a top-level or/and; `not(...)` and implication operands
+containing trees do not parse into trees yet — the grammar builds
+them at the property level only, non-nesting). Guard capture, slot
+machinery, cover counting, cyclic pool/overflow, and EOS pending
+notes are all shared with the chain path unchanged.

@@ -5530,6 +5530,15 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      Lowered to a $past-sampled combinational match indicator. */
   | sva_seq_expr K_within sva_seq_expr
       { $$ = pform_sva_binprop(@2, 8, $1, $3); }
+  /* IEEE 1800-2017 16.9.7 / 16.9.5: sequence `or' / `and'. Regular-
+     language combinators the linear engine cannot express: they build
+     a stage-B combinator tree for the automaton engine
+     (IVL_SVA_NFA=1); without it the assertion is a loud sorry at
+     lowering (previously these were raw syntax errors). */
+  | sva_seq_expr K_or sva_seq_expr
+      { $$ = pform_sva_seq_comb(@2, 'o', $1, $3); }
+  | sva_seq_expr K_and sva_seq_expr
+      { $$ = pform_sva_seq_comb(@2, 'a', $1, $3); }
   /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
      every cycle of the sequence. Lowered to a unit-delay sequence with
      guard AND-ed into each cycle (pform_sva_throughout). */

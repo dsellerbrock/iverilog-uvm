@@ -279,16 +279,128 @@ static void prune_dead_states_(sva_nfa_t&nfa)
       nfa.nstates = next;
 }
 
-bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
-				    const std::vector<sva_seq_step_t>&steps)
+static bool nfa_chain_fragment_(sva_nfa_t&nfa,
+				const std::vector<sva_seq_step_t>&steps,
+				unsigned&start, unsigned&exit)
 {
-      nfa.start = nfa.new_state();
-      unsigned cur = nfa.start;
+      start = nfa.new_state();
+      unsigned cur = start;
       for (size_t k = 0; k < steps.size(); k += 1) {
 	    cur = nfa_add_step_(nfa, cur, steps[k], k == 0);
 	    if (cur == ~0u) return false;
       }
-      nfa.accept = cur;
+      exit = cur;
+      return true;
+}
+
+bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
+				    const std::vector<sva_seq_step_t>&steps)
+{
+      unsigned s = 0, e = 0;
+      if (!nfa_chain_fragment_(nfa, steps, s, e))
+	    return false;
+      nfa.start = s;
+      nfa.accept = e;
+      fold_epsilons_(nfa);
+      prune_dead_states_(nfa);
+      return true;
+}
+
+/*
+ * Stage B: product construction for `intersect` (both sides advance
+ * in lockstep, accept together — same-interval semantics, 16.9.6)
+ * and `and` (both match, the match ends with the LATER side; the
+ * earlier side idles in an absorbing `done` state). Sides arrive
+ * fully folded+pruned (tick edges only); the product's epsilon exits
+ * are folded by the caller's top-level pass.
+ */
+static bool nfa_product_fragment_(sva_nfa_t&nfa,
+				  const sva_nfa_t&A, const sva_nfa_t&B,
+				  bool and_mode,
+				  unsigned&start, unsigned&exit)
+{
+      sva_nfa_t A2 = A, B2 = B;
+      unsigned doneA = 0, doneB = 0;
+      if (and_mode) {
+	    doneA = A2.new_state();
+	    A2.tick(A2.accept, doneA, nullptr);
+	    A2.tick(doneA, doneA, nullptr);
+	    doneB = B2.new_state();
+	    B2.tick(B2.accept, doneB, nullptr);
+	    B2.tick(doneB, doneB, nullptr);
+      }
+      unsigned n2 = B2.nstates;
+      unsigned base = nfa.nstates;
+      for (unsigned i = 0; i < A2.nstates * B2.nstates; i += 1)
+	    nfa.new_state();
+      for (size_t i1 = 0; i1 < A2.edges.size(); i1 += 1) {
+	    const sva_nfa_edge_t&e1 = A2.edges[i1];
+	    if (e1.epsilon) return false;   // sides must be folded
+	    for (size_t i2 = 0; i2 < B2.edges.size(); i2 += 1) {
+		  const sva_nfa_edge_t&e2 = B2.edges[i2];
+		  if (e2.epsilon) return false;
+		  sva_nfa_edge_t e;
+		  e.from = base + e1.from * n2 + e2.from;
+		  e.to   = base + e1.to   * n2 + e2.to;
+		  e.guards = e1.guards;
+		  e.guards.insert(e.guards.end(),
+				  e2.guards.begin(), e2.guards.end());
+		  nfa.edges.push_back(e);
+	    }
+      }
+      start = base + A2.start * n2 + B2.start;
+      exit = nfa.new_state();
+      nfa.eps(base + A2.accept * n2 + B2.accept, exit);
+      if (and_mode) {
+	    nfa.eps(base + doneA * n2 + B2.accept, exit);
+	    nfa.eps(base + A2.accept * n2 + doneB, exit);
+      }
+      return true;
+}
+
+static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
+			       unsigned&start, unsigned&exit)
+{
+      if (!t) return false;
+      switch (t->kind) {
+	  case sva_stree_t::LEAF:
+	    if (!t->chain) return false;
+	    return nfa_chain_fragment_(nfa, *t->chain, start, exit);
+	  case sva_stree_t::SEQ_OR: {
+		unsigned sa = 0, ea = 0, sb = 0, eb = 0;
+		if (!nfa_tree_fragment_(nfa, t->a, sa, ea)) return false;
+		if (!nfa_tree_fragment_(nfa, t->b, sb, eb)) return false;
+		start = nfa.new_state();
+		nfa.eps(start, sa);
+		nfa.eps(start, sb);
+		exit = nfa.new_state();
+		nfa.eps(ea, exit);
+		nfa.eps(eb, exit);
+		return true;
+	  }
+	  case sva_stree_t::SEQ_AND:
+	  case sva_stree_t::SEQ_INTERSECT: {
+		  /* Each side normalizes to its own folded automaton
+		     (recursion composes nested combinators), then the
+		     product embeds in the parent. */
+		sva_nfa_t A, B;
+		if (!pform_sva_nfa_build_from_tree(A, t->a)) return false;
+		if (!pform_sva_nfa_build_from_tree(B, t->b)) return false;
+		return nfa_product_fragment_(nfa, A, B,
+					     t->kind == sva_stree_t::SEQ_AND,
+					     start, exit);
+	  }
+      }
+      return false;
+}
+
+bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa, const sva_stree_t*tree)
+{
+      unsigned s = 0, e = 0;
+      if (!nfa_tree_fragment_(nfa, tree, s, e))
+	    return false;
+      nfa.start = s;
+      nfa.accept = e;
       fold_epsilons_(nfa);
       prune_dead_states_(nfa);
       return true;

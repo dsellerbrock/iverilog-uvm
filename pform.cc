@@ -6610,6 +6610,67 @@ static bool sva_nfa_legacy_supports_(const std::vector<sva_seq_step_t>&seq,
       return true;
 }
 
+/* Stage B tree helpers: collect leaf chains; delete a tree with its
+   chains (with_exprs also deletes the step expressions — used on the
+   diagnostic path, where nothing consumed them). */
+static void sva_tree_leaves_(sva_stree_t*t,
+			     std::vector< std::vector<sva_seq_step_t>* >&out)
+{
+      if (!t) return;
+      if (t->kind == sva_stree_t::LEAF) {
+	    if (t->chain) out.push_back(t->chain);
+	    return;
+      }
+      sva_tree_leaves_(t->a, out);
+      sva_tree_leaves_(t->b, out);
+}
+
+static void sva_tree_delete_(sva_stree_t*t, bool with_exprs)
+{
+      if (!t) return;
+      sva_tree_delete_(t->a, with_exprs);
+      sva_tree_delete_(t->b, with_exprs);
+      if (t->chain) {
+	    if (with_exprs)
+		  for (size_t k = 0 ; k < t->chain->size() ; k += 1)
+			delete (*t->chain)[k].expr;
+	    delete t->chain;
+      }
+      delete t;
+}
+
+sva_property_t* pform_sva_seq_comb(const struct vlltype&loc, char op,
+				   std::vector<sva_seq_step_t>*s1,
+				   std::vector<sva_seq_step_t>*s2)
+{
+      (void)loc;
+      if (!s1 || !s2 || s1->empty() || s2->empty()) {
+	    if (s1) {
+		  for (size_t k = 0 ; k < s1->size() ; k += 1)
+			delete (*s1)[k].expr;
+		  delete s1;
+	    }
+	    if (s2) {
+		  for (size_t k = 0 ; k < s2->size() ; k += 1)
+			delete (*s2)[k].expr;
+		  delete s2;
+	    }
+	    return nullptr;
+      }
+      sva_stree_t*la = new sva_stree_t;
+      la->chain = s1;
+      sva_stree_t*lb = new sva_stree_t;
+      lb->chain = s2;
+      sva_stree_t*t = new sva_stree_t;
+      t->kind = (op == 'o') ? sva_stree_t::SEQ_OR : sva_stree_t::SEQ_AND;
+      t->a = la;
+      t->b = lb;
+      sva_property_t*p = new sva_property_t;
+      p->tree = t;
+      p->op_type = 0;
+      return p;
+}
+
 /*
  * M9-NFA stage A synthesizer (design: docs/conformance/
  * m9_nfa_design_2026-07-19.md). Lower a concurrent assertion through
@@ -6650,18 +6711,30 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 				 Statement*fail_stmt, Statement*pass_stmt,
 				 int kind)
 {
-      if (!prop || !prop->seq || prop->seq->empty()) return false;
+      if (!prop) return false;
+      bool have_tree = (prop->tree != nullptr);
+      if (!have_tree && (!prop->seq || prop->seq->empty())) return false;
 
       if (prop->op_type < 0 || prop->op_type > 3) return false;
 	/* `cover property (not ...)` is a legacy sorry; fall back for
 	   the diagnostic. */
       if (kind == 2 && prop->op_type == 3) return false;
+	/* Stage B trees ride op 0 only (the grammar builds them
+	   there). */
+      if (have_tree && prop->op_type != 0) return false;
 
 	/* Expand named sequence references (idempotent; the legacy
 	   path re-runs it harmlessly on fallback). */
-      sva_splice_sequences_(loc, *prop->seq);
-      if (prop->antecedent)
-	    sva_splice_sequences_(loc, *prop->antecedent);
+      std::vector< std::vector<sva_seq_step_t>* > tree_leaves;
+      if (have_tree) {
+	    sva_tree_leaves_(prop->tree, tree_leaves);
+	    for (size_t i = 0 ; i < tree_leaves.size() ; i += 1)
+		  sva_splice_sequences_(loc, *tree_leaves[i]);
+      } else {
+	    sva_splice_sequences_(loc, *prop->seq);
+	    if (prop->antecedent)
+		  sva_splice_sequences_(loc, *prop->antecedent);
+      }
 
       bool negated = (prop->op_type == 3);
       bool cover = (kind == 2);
@@ -6670,7 +6743,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       std::vector<sva_seq_step_t> chain;
       long ante_edges = 0;
       long ante_delay_sum = 0;
-      if (implication) {
+      if (have_tree) {
+	      /* no chain: the tree is the source */
+      } else if (implication) {
 	    if (!prop->antecedent || prop->antecedent->empty()) return false;
 	    if (!sva_nfa_chain_fixed_(*prop->antecedent,
 				      ante_edges, ante_delay_sum))
@@ -6690,10 +6765,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
 
       sva_nfa_t nfa;
-      if (!pform_sva_nfa_build_from_chain(nfa, chain))
+      bool built = have_tree
+	    ? pform_sva_nfa_build_from_tree(nfa, prop->tree)
+	    : pform_sva_nfa_build_from_chain(nfa, chain);
+      if (!built)
 	    return false;
       if (pform_sva_nfa_dump_enabled())
-	    pform_sva_nfa_dump(loc, implication ? "composite" : "sequence",
+	    pform_sva_nfa_dump(loc, have_tree ? "tree"
+				   : implication ? "composite" : "sequence",
 			       nfa);
 
       bool cyclic = pform_sva_nfa_has_cycle(nfa);
@@ -6702,8 +6781,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       if (!cyclic) {
 	    K = depth > 0 ? depth : 1;
       } else {
-	    if (sva_nfa_legacy_supports_(*prop->seq, ante_delay_sum,
-					 implication))
+	      /* Shapes the legacy engine lowers exactly stay legacy —
+		 except trees, which have NO legacy lowering at all. */
+	    if (!have_tree
+		&& sva_nfa_legacy_supports_(*prop->seq, ante_delay_sum,
+					    implication))
 		  return false;
 	    K = depth > 8 ? depth : 8;
 	    if (K > 16) K = 16;
@@ -6801,14 +6883,27 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   automaton's borrowed guard pointers map to the samples by
 	   pointer identity. */
       std::map<PExpr*, perm_string> guard_reg;
-      for (size_t j = 0 ; j < chain.size() ; j += 1) {
-	    PExpr*key = chain[j].expr;
-	    if (!key || guard_reg.count(key)) continue;
-	    PExpr*be = sva_rewrite_sampled_(loc, key, inst, hist_idx,
-					    pre, post, init_zero);
-	    perm_string r = sva_make_reg_(loc, inst, "b", (unsigned)j);
-	    pre.push_back(sva_assign_(loc, r, be));
-	    guard_reg[key] = r;
+      {
+	    unsigned bidx = 0;
+	    std::vector< const std::vector<sva_seq_step_t>* > srcs;
+	    if (have_tree)
+		  for (size_t i = 0 ; i < tree_leaves.size() ; i += 1)
+			srcs.push_back(tree_leaves[i]);
+	    else
+		  srcs.push_back(&chain);
+	    for (size_t si = 0 ; si < srcs.size() ; si += 1) {
+		  const std::vector<sva_seq_step_t>&steps = *srcs[si];
+		  for (size_t j = 0 ; j < steps.size() ; j += 1) {
+			PExpr*key = steps[j].expr;
+			if (!key || guard_reg.count(key)) continue;
+			PExpr*be = sva_rewrite_sampled_(loc, key, inst,
+							hist_idx, pre, post,
+							init_zero);
+			perm_string r = sva_make_reg_(loc, inst, "b", bidx++);
+			pre.push_back(sva_assign_(loc, r, be));
+			guard_reg[key] = r;
+		  }
+	    }
       }
 
 	/* State storage: s[k][j] slot-state bits; nx[j] shared
@@ -7097,6 +7192,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
       }
 
+      if (have_tree) {
+	    sva_tree_delete_(prop->tree, false);
+	    prop->tree = nullptr;
+      }
       delete prop->antecedent;
       delete prop->seq;
       delete prop;
@@ -7108,6 +7207,35 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			  Statement*fail_stmt, Statement*pass_stmt, int kind)
 {
+	/* Stage B combinator trees (sequence or/and): only the
+	   automaton engine lowers these — everything below assumes
+	   the chain members. */
+      if (prop && prop->tree) {
+	    if (kind == 2 && pass_stmt) {
+		  cerr << loc << ": warning: the pass statement of this "
+		       << "`cover property' is not executed (recorded "
+		       << "corner); it is dropped. The match counter "
+		       << "still counts." << endl;
+		  delete pass_stmt;
+		  pass_stmt = nullptr;
+	    }
+	    if (pform_sva_nfa_enabled()
+		&& pform_sva_nfa_try_assertion(loc, prop, fail_stmt,
+					       pass_stmt, kind))
+		  return;
+	    cerr << loc << ": sorry: sequence `or'/`and' requires the "
+		 << "automaton engine (compile with IVL_SVA_NFA=1 in "
+		 << "the environment); the assertion is dropped." << endl;
+	    error_count += 1;
+	    sva_tree_delete_(prop->tree, true);
+	    prop->tree = nullptr;
+	    delete prop->clk_evt;
+	    delete prop->disable_iff_expr;
+	    delete prop;
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    return;
+      }
       if (!prop || !prop->seq || prop->seq->empty()) {
 	    delete fail_stmt;
 	    delete pass_stmt;

@@ -49,11 +49,28 @@ struct sva_seq_step_t {
       PExpr* expr = nullptr;
 };
 
+/*
+ * M9-NFA stage B: sequence-combinator tree over linear chains. A leaf
+ * wraps a chain; interior nodes are the regular-language combinators
+ * the linear IR cannot express. Only the automaton engine
+ * (IVL_SVA_NFA=1) lowers trees; without it the assertion is a loud
+ * sorry. Chains and expressions inside are OWNED by the tree.
+ */
+struct sva_stree_t {
+      enum kind_t { LEAF = 0, SEQ_OR = 1, SEQ_AND = 2, SEQ_INTERSECT = 3 };
+      int kind = LEAF;
+      std::vector<sva_seq_step_t>* chain = nullptr;  // LEAF only
+      sva_stree_t* a = nullptr;
+      sva_stree_t* b = nullptr;
+};
+
 struct sva_property_t {
       PEventStatement* clk_evt = nullptr;   // clocking event (may be null)
       PExpr* disable_iff_expr = nullptr;    // disable iff expr (may be null)
       std::vector<sva_seq_step_t>* antecedent = nullptr;  // null for op 0
       std::vector<sva_seq_step_t>* seq = nullptr;         // consequent / plain sequence
+      sva_stree_t* tree = nullptr;          // stage B combinator tree
+					    // (seq/antecedent null when set)
       int op_type = 0;                      // 0=plain sequence, 1=|->, 2=|=>
 };
 
