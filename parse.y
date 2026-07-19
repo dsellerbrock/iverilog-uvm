@@ -5602,6 +5602,19 @@ sva_seq_atom
 	st.expr = $1;
 	steps->push_back(st);
 	$$ = steps; }
+  /* M9-NFA LV-1: sequence-match local-variable assignment
+     `(bool, v = rhs)' (IEEE 1800-2017 16.10). The boolean gates the
+     step; when it matches, v takes rhs. Reads of v later in the
+     sequence are lowered against the assignment (pform). */
+  | '(' expression ',' IDENTIFIER '=' expression ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.lv_name = lex_strings.make($4);
+	st.lv_rhs = $6;
+	delete[] $4;
+	steps->push_back(st);
+	$$ = steps; }
   /* 16.9.9: in match-existence positions first_match(s) has a match
      iff s does — transparent for the supported property forms. */
   | K_first_match '(' sva_seq_expr ')'

@@ -517,7 +517,85 @@ operator like a composed `first_match` or goto/nonconsec repetition
 (stage C). Migrating the sequence IR is its own arc; until then
 composed `first_match` stays transparent (a recorded corner).
 
-### The one remaining stage-B item: per-attempt local variables
+### Per-attempt local variables — design (implementable; scoped as its own arc)
+
+This is the remaining stage-B feature. The design below is concrete and
+ready to implement; it is scoped as its own arc rather than folded into
+a combinator increment because it touches the grammar (declarations +
+assignment atoms), the IR, and — for the variable-delay case — the slot
+data model, and a rushed version would risk exactly the silent-wrong
+behaviour the project forbids.
+
+**Two regimes, split by whether the assign→read delay is constant.**
+
+*Fixed-delay (the common case) reduces to `$past`, exactly, in BOTH
+engines — no per-slot storage.* In `(a, v = d) ##N (b && f(v))` the
+sequence already pins the assignment exactly N cycles before the read,
+so a read of `v` is exactly `$past(d, N)`, gated by the (already
+required) match of `a` N cycles back. Lowering is a source transform:
+carry the assignment `(step, v, rhs)` on the chain step; at lowering,
+for each read of `v` at step j, compute the cycle distance `Δ` from
+v's assigning step to step j (a constant when every intervening delay
+is fixed) and substitute `v → $past(rhs, Δ)`. This rides the existing
+`sva_rewrite_sampled_` history machinery and works in the legacy engine
+too — local variables become engine-independent for fixed delays.
+
+*Variable-delay needs per-slot storage.* When an intervening delay is a
+window/`$`/range-rep, Δ is not constant per attempt, so `$past` cannot
+express the read; each slot must carry its own `v_k` register, written
+`v_k := rhs` on the assigning edge and read (per-slot) on the reading
+edge. This is the one place a guard stops being slot-independent: a
+guard that reads `v` must be cloned per slot with `v → v_k`, and the
+global guard-capture must skip such guards. This is the genuinely novel
+synthesizer work (per-slot data registers + per-slot guard eval) and is
+NFA-only.
+
+**Grammar (both regimes).** Local var declarations in `property`/
+`sequence` blocks (`property p; logic [7:0] v; <spec>; endproperty`),
+and the assignment atom `( expression , identifier = expression )` as a
+`sva_seq_atom` with a match-item list. The comma inside the parens
+distinguishes it from `( sva_seq_expr )`; the conflict impact must be
+measured (as every combinator increment did) before landing.
+
+**Staging.** (LV-1) grammar + IR + the fixed-delay `$past` transform
+(engine-independent, exact, low-risk — the bulk of real usage); (LV-2)
+per-slot registers for variable-delay reads (NFA-only, the novel part).
+Each with hand-computed dual-run golds like the rest of stage B.
+
+### Increment LV-1 — LANDED (fixed-delay local variables, both engines)
+
+Grammar: the sequence-match assignment atom
+`( expression , identifier = expression )` (zero grammar-conflict cost;
+the name and rhs ride on `sva_seq_step_t::lv_name`/`lv_rhs`). No
+declaration is needed — the read is a compile-time substitution, so the
+local var never reaches elaboration. Lowering
+(`sva_lower_local_vars_`, run after splice and before EITHER engine so
+both benefit): require the chain be fixed-delay; compute each step's
+cumulative cycle offset; for every step, substitute a read identifier
+matching a local var assigned at an earlier step `i` with
+`$past(rhs_i, offset[j]-offset[i])`. Variable-delay reads
+(`##[m:n]`/`$`/range-rep between assign and read) are a LOUD sorry
+(negative test `tests/negative/sva_local_var_window.sv`) — that is
+LV-2's per-slot-register work.
+
+Fixing this exposed and repaired a genuine pre-existing bug: the SVA
+sampled-value history registers (`sva_rewrite_sampled_`) were 1-bit, so
+ANY multi-bit `$past` (not just local-var capture) truncated to bit 0.
+`$past` history is now 32-bit; the boolean sampled functions
+(`$rose`/`$fell`/…) stay 1-bit. No regression (sva_funcs_test and the
+dual-run gate unchanged).
+
+Verified: `(a, v = d) ##2 (b && (c == v))` captures the 8-bit `d` and,
+two cycles later, requires `c` to equal the CAPTURED value —
+`tests/sva_nfa/local_var.sv`, cover=2 hand-computed (two value-matches,
+one value-mismatch), verdict parity in both engines. LV-1 covers the
+bulk of real local-variable usage; LV-2 (windowed capture) remains the
+NFA-only per-slot-storage arc.
+
+---
+
+Older note (kept for context): the one remaining stage-B item is
+per-attempt local variables.
 
 Sequence local variables (`int v; (a, v = d) ##1 (b == v)`, 16.10) are
 the remaining stage-B feature and are deliberately NOT yet implemented,

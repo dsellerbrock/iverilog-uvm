@@ -47,6 +47,8 @@ struct sva_seq_step_t {
 			    // only in the last chain position
 			    // (match-existence equivalence).
       PExpr* expr = nullptr;
+      perm_string lv_name;  // M9-NFA LV-1: local-var assignment on this
+      PExpr* lv_rhs = nullptr; //   step ((expr, lv_name = lv_rhs)); nil = none
 };
 
 /*

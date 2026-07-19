@@ -5677,14 +5677,20 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			      depth = dn->value().as_long();
 			      if (depth < 1) depth = 1;
 			}
+			  /* $past must preserve the FULL value of its
+			     argument (a local-variable capture stores a
+			     data word, not a bit), so its sample/history
+			     registers are 32-bit; the boolean sampled
+			     functions ($rose/$fell/... ) stay 1-bit. */
+			bool wide = is_past;
 			  /* Capture the argument now... */
-			perm_string cur = sva_make_reg_(loc, inst, "smp", hist_idx++);
+			perm_string cur = sva_make_reg_(loc, inst, "smp", hist_idx++, wide);
 			pre.push_back(sva_assign_(loc, cur, arg));
 			  /* ...and build the history chain, updated
 			     bottom-of-block in shift order. */
 			std::vector<perm_string> hist (depth);
 			for (long k = 0 ; k < depth ; k += 1) {
-			      hist[k] = sva_make_reg_(loc, inst, "hist", hist_idx++);
+			      hist[k] = sva_make_reg_(loc, inst, "hist", hist_idx++, wide);
 				/* Deterministic first-cycle behavior:
 				   histories start at 0, so $stable
 				   compares against 0 rather than the
@@ -7465,6 +7471,78 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       return true;
 }
 
+/* M9-NFA LV-1: lower sequence local variables (IEEE 1800-2017 16.10)
+   for FIXED-delay sequences by a source transform, exact in both
+   engines and needing no per-slot storage. `(a, v = rhs) ##N (read v)`:
+   the sequence pins the assignment exactly N cycles before the read, so
+   a read of v at cycle offset D past its assignment is exactly
+   $past(rhs, D). Collect each assignment's (rhs, offset), then for every
+   step substitute a read identifier matching a local var with
+   $past(rhs, D). Variable-delay reads (a window/$/range-rep between
+   assign and read) make D non-constant per attempt — those need
+   per-slot registers (LV-2) and are a loud sorry here. Returns false
+   (diagnosed) on an unsupported shape. */
+static bool sva_lower_local_vars_(const struct vlltype&loc,
+				  std::vector<sva_seq_step_t>&steps)
+{
+      bool has_lv = false;
+      for (size_t k = 0 ; k < steps.size() ; k += 1)
+	    if (steps[k].lv_rhs) { has_lv = true; break; }
+      if (!has_lv) return true;
+
+      long len = 0;
+      if (!sva_chain_fixed_len_(steps, len)) {
+	    cerr << loc << ": sorry: a local variable in a variable-length "
+		 << "sequence (##[m:n]/##[m:$]/[*m:n]) needs per-slot storage, "
+		 << "which is not yet implemented; the assertion is dropped."
+		 << endl;
+	    error_count += 1;
+	    return false;
+      }
+
+	/* Cumulative cycle offset of each step from the sequence start. */
+      std::vector<long> offs (steps.size(), 0);
+      long acc = 0;
+      for (size_t k = 0 ; k < steps.size() ; k += 1) {
+	    acc += steps[k].delay_lo;
+	    offs[k] = acc;
+      }
+
+	/* Substitute reads. For step j, a local var assigned at an
+	   EARLIER step i (i < j) is visible as $past(rhs_i, offs[j]-offs[i]);
+	   a later assignment of the same name overrides an earlier one. */
+      for (size_t j = 0 ; j < steps.size() ; j += 1) {
+	    if (!steps[j].expr) continue;
+	    std::map<perm_string,PExpr*> subst;
+	    for (size_t i = 0 ; i < j ; i += 1) {
+		  if (!steps[i].lv_rhs) continue;
+		  long d = offs[j] - offs[i];
+		  std::map<perm_string,PExpr*>::iterator it =
+			subst.find(steps[i].lv_name);
+		  if (it != subst.end()) { delete it->second; }
+		  subst[steps[i].lv_name] =
+			sva_past_(loc, sva_clone_expr_(steps[i].lv_rhs), d);
+	    }
+	    if (!subst.empty()) {
+		  PExpr*ne = sva_clone_subst_(steps[j].expr, &subst);
+		  if (ne) { delete steps[j].expr; steps[j].expr = ne; }
+		  for (std::map<perm_string,PExpr*>::iterator it = subst.begin();
+		       it != subst.end() ; ++it)
+			delete it->second;
+	    }
+      }
+
+	/* The assignments are consumed; free the rhs and clear them. */
+      for (size_t k = 0 ; k < steps.size() ; k += 1) {
+	    if (steps[k].lv_rhs) {
+		  delete steps[k].lv_rhs;
+		  steps[k].lv_rhs = nullptr;
+		  steps[k].lv_name = perm_string();
+	    }
+      }
+      return true;
+}
+
 /* Lower one concurrent assertion (assert/assume/cover property) to a
    synthesized clocked checker. kind: 0=assert, 1=assume, 2=cover. */
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
@@ -7636,6 +7714,25 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		 << endl;
 	    delete pass_stmt;
 	    pass_stmt = nullptr;
+      }
+
+	/* M9-NFA LV-1: lower sequence local variables now (a source
+	   transform to $past), before EITHER engine, so both benefit and
+	   the automaton hook below sees no local-var reads. */
+      sva_splice_sequences_(loc, *prop->seq);
+      if (prop->antecedent)
+	    sva_splice_sequences_(loc, *prop->antecedent);
+      if (!sva_lower_local_vars_(loc, *prop->seq)
+	  || (prop->antecedent
+	      && !sva_lower_local_vars_(loc, *prop->antecedent))) {
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    delete prop->antecedent;
+	    delete prop->seq;
+	    delete prop->clk_evt;
+	    delete prop->disable_iff_expr;
+	    delete prop;
+	    return;
       }
 
       if (pform_sva_nfa_enabled()
