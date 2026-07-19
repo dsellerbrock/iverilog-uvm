@@ -452,6 +452,74 @@ MIDDLE, and END of the window and does NOT match when b is absent
 holds verdict parity (`within_fixed.sv`, and the existing
 `tests/m9c_within_test.sv` passes unchanged in both modes).
 
-Remaining stage B: `first_match` (already effectively correct — the
-slot-clear-on-accept gives shortest-match/existence semantics),
-general `throughout`, and per-attempt local variables.
+### Increment B.5: general `throughout` — LANDED
+
+`throughout` (16.9.9) is now a two-way split at the grammar
+(`pform_sva_seq_throughout`): a fixed-length sequence keeps the legacy
+source-level lowering (`pform_sva_throughout` ANDs the invariant into
+every step and expands `##N` gaps — exact and identical under both
+engines); a variable-length sequence (`##[m:n]`/`##[m:$]`/`[*m:n]`),
+which the legacy path diagnoses, builds a `SEQ_THROUGHOUT` tree for
+the automaton engine, with the legacy sorry deferred to lowering when
+`IVL_SVA_NFA` is off.
+
+Construction: build seq's folded automaton and AND the invariant onto
+EVERY tick edge — crucially including the pure-delay window ticks
+(empty guard becomes the invariant alone), so the invariant is checked
+at the variable wait cycles, which is exactly what the linear engine
+could not do. This needed one supporting change to the synthesizer:
+the guard capture now walks the built automaton's EDGES (collecting
+each distinct guard pointer) instead of the source chains, so a
+`throughout` invariant — which is not a chain step — and `##0`-fusion
+conjuncts are captured uniformly. The refactor is verdict-neutral for
+every existing shape (same guard set; dual-run gate unchanged).
+
+Verified: `g throughout (x ##[1:2] y)` counts a window only when the
+invariant held for its entire variable span, dropping the case where
+`g` falls at a mid-window WAIT cycle (`throughout_nfa_only.sv`,
+cover=2 hand-computed); fixed `throughout` holds verdict parity
+(`throughout_fixed.sv`; `tests/m9c_throughout_test.sv` unchanged in
+both modes). Dual-run gate 23/23.
+
+## Stage B combinator operators: COMPLETE
+
+Every regular-language sequence COMBINATOR from the stage-B list is now
+lowered by the automaton engine, each with fixed-shape legacy parity
+where one existed and a loud deferred sorry when the flag is off:
+
+| Operator | Increment | Legacy (flag off) |
+|---|---|---|
+| `and` / `or` | B.1 | raw syntax error → now loud sorry |
+| `intersect` (general) | B.2 | fixed = parity; else sorry |
+| nesting / precedence | B.3 | (same, arbitrary trees) |
+| `within` (general) | B.4 | fixed = parity; else sorry |
+| `throughout` (general) | B.5 | fixed = parity; else sorry |
+
+`first_match` remains TRANSPARENT (the grammar returns the inner
+sequence). That is exact for the standalone/existence positions the
+current tests use — a cover/assert of `first_match(seq)` counts once
+per attempt via the slot-clear-on-accept, which is the first (shortest)
+match. The composed cut (`first_match(seq) ##1 c` continuing ONLY the
+shortest match of `seq`) is NOT modeled — it needs a slot-local
+sibling-thread prune on first acceptance. This is pre-existing behavior
+(unchanged by this arc) and is noted as a recorded corner, not claimed
+as done.
+
+### The one remaining stage-B item: per-attempt local variables
+
+Sequence local variables (`int v; (a, v = d) ##1 (b == v)`, 16.10) are
+the remaining stage-B feature and are deliberately NOT yet implemented,
+because they break an assumption the whole slot pool rests on: today a
+guard is a slot-INDEPENDENT sampled boolean, captured once globally and
+referenced by every slot. A local variable is per-ATTEMPT — each slot
+needs its own copy, written on the assigning edge and read (compared)
+on a later edge — so the guard model must gain per-slot DATA registers,
+not just per-slot state bits. Concretely it needs: (1) grammar for
+`(expr, var = expr)` assignments and inline `var` declarations inside a
+sequence; (2) IR carrying per-step assignments/reads; (3) a synthesizer
+extension where each slot k holds `v_k` registers, an assigning edge
+does `v_k := d` when it fires, and a reading edge's guard references
+`v_k`. That is a self-contained arc of its own (call it B-LV), not a
+bounded tail of B.5, and is scoped here rather than rushed. The
+combinator surface above is what stage B set out to make the automaton
+engine express, and it is complete.

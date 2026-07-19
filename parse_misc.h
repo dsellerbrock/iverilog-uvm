@@ -58,11 +58,12 @@ struct sva_seq_step_t {
  */
 struct sva_stree_t {
       enum kind_t { LEAF = 0, SEQ_OR = 1, SEQ_AND = 2, SEQ_INTERSECT = 3,
-		    SEQ_WITHIN = 4 };
+		    SEQ_WITHIN = 4, SEQ_THROUGHOUT = 5 };
       int kind = LEAF;
       std::vector<sva_seq_step_t>* chain = nullptr;  // LEAF only
       sva_stree_t* a = nullptr;
       sva_stree_t* b = nullptr;
+      PExpr* gexpr = nullptr;    // SEQ_THROUGHOUT invariant (a = the seq)
 };
 
 struct sva_property_t {

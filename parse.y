@@ -5532,19 +5532,11 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | sva_seq_comb
       { $$ = $1; }
   /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
-     every cycle of the sequence. Lowered to a unit-delay sequence with
-     guard AND-ed into each cycle (pform_sva_throughout). */
+     every cycle of the sequence. Fixed-length seq keeps the legacy
+     source-level lowering; a variable-length seq (##[m:n]/##[m:$]/
+     [*m:n]) builds a SEQ_THROUGHOUT tree for the automaton engine. */
   | expression K_throughout sva_seq_expr
-      { std::vector<sva_seq_step_t>*tr = pform_sva_throughout(@2, $1, $3);
-	if (tr == 0) {
-	      $$ = 0;
-	} else {
-	      sva_property_t*p = new sva_property_t;
-	      p->seq = tr;
-	      p->op_type = 0;
-	      $$ = p;
-	}
-      }
+      { $$ = pform_sva_seq_throughout(@2, $1, $3); }
   ;
 
   /* M9: a sequence expression as a linear chain of cycle-delayed

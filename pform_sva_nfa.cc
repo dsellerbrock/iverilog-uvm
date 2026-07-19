@@ -438,6 +438,29 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		nfa_pad_(M, Araw);
 		return nfa_product_fragment_(nfa, M, B, false, start, exit);
 	  }
+	  case sva_stree_t::SEQ_THROUGHOUT: {
+		  /* exp throughout seq (16.9.9): the invariant must hold at
+		     EVERY cycle of seq. Build seq's folded automaton and
+		     AND the invariant onto every tick edge — a pure-delay
+		     window tick (empty guard) thus becomes the invariant
+		     alone, checking it at the wait cycles too. */
+		if (!t->gexpr) return false;
+		sva_nfa_t A;
+		if (!pform_sva_nfa_build_from_tree(A, t->a)) return false;
+		for (size_t i = 0; i < A.edges.size(); i += 1)
+		      A.edges[i].guards.push_back(t->gexpr);
+		unsigned base = nfa.nstates;
+		for (unsigned i = 0; i < A.nstates; i += 1) nfa.new_state();
+		for (size_t i = 0; i < A.edges.size(); i += 1) {
+		      sva_nfa_edge_t ne = A.edges[i];
+		      ne.from = base + A.edges[i].from;
+		      ne.to = base + A.edges[i].to;
+		      nfa.edges.push_back(ne);
+		}
+		start = base + A.start;
+		exit = base + A.accept;
+		return true;
+	  }
 	  case sva_stree_t::SEQ_OR: {
 		unsigned sa = 0, ea = 0, sb = 0, eb = 0;
 		if (!nfa_tree_fragment_(nfa, t->a, sa, ea)) return false;

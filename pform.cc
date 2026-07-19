@@ -6636,6 +6636,7 @@ static void sva_tree_delete_(sva_stree_t*t, bool with_exprs)
 			delete (*t->chain)[k].expr;
 	    delete t->chain;
       }
+      if (with_exprs && t->gexpr) delete t->gexpr;
       delete t;
 }
 
@@ -6873,6 +6874,50 @@ sva_property_t* pform_sva_seq_within(const struct vlltype&loc,
       return p;
 }
 
+/* M9-NFA stage B.5: `throughout` (16.9.9). A fixed-length sequence
+   keeps the legacy source-level lowering (`pform_sva_throughout` ANDs
+   the invariant into every step and expands ##N gaps — exact, and
+   identical under both engines). A variable-length sequence
+   (##[m:n]/##[m:$]/[*m:n]), which the legacy path diagnoses, builds a
+   SEQ_THROUGHOUT tree for the automaton engine (the invariant is
+   AND-ed onto every tick edge, including the pure-delay window ticks),
+   with the legacy sorry deferred to lowering when IVL_SVA_NFA is off.
+   Consumes guard and seq. */
+sva_property_t* pform_sva_seq_throughout(const struct vlltype&loc,
+					 PExpr*guard,
+					 std::vector<sva_seq_step_t>*seq)
+{
+      if (!guard || !seq || seq->empty()) {
+	    delete guard;
+	    if (seq) {
+		  for (size_t k = 0 ; k < seq->size() ; k += 1)
+			delete (*seq)[k].expr;
+		  delete seq;
+	    }
+	    return nullptr;
+      }
+      long len = 0;
+      if (sva_chain_fixed_len_(*seq, len)) {
+	    std::vector<sva_seq_step_t>*tr = pform_sva_throughout(loc, guard, seq);
+	    if (!tr) return nullptr;
+	    sva_property_t*p = new sva_property_t;
+	    p->seq = tr;
+	    p->op_type = 0;
+	    return p;
+      }
+      sva_stree_t*la = new sva_stree_t;
+      la->chain = seq;
+      sva_stree_t*t = new sva_stree_t;
+      t->kind = sva_stree_t::SEQ_THROUGHOUT;
+      t->a = la;
+      t->gexpr = guard;
+      sva_property_t*p = new sva_property_t;
+      p->tree = t;
+      p->tree_sorry = 3;
+      p->op_type = 0;
+      return p;
+}
+
 /*
  * M9-NFA stage A synthesizer (design: docs/conformance/
  * m9_nfa_design_2026-07-19.md). Lower a concurrent assertion through
@@ -7098,23 +7143,21 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
       }
 
-	/* Capture each step boolean once into a 1-bit sample register
-	   (sampled-value functions rewritten to history chains); the
-	   automaton's borrowed guard pointers map to the samples by
-	   pointer identity. */
+	/* Capture each DISTINCT edge guard once into a 1-bit sample
+	   register (sampled-value functions rewritten to history
+	   chains); the automaton's borrowed guard pointers map to the
+	   samples by pointer identity. Walking the built automaton's
+	   edges (rather than the source chains) captures exactly the
+	   booleans actually used — chain-step exprs, ##0-fusion
+	   conjuncts, and a `throughout' invariant AND-ed onto every
+	   edge (which is not a chain step). */
       std::map<PExpr*, perm_string> guard_reg;
       {
 	    unsigned bidx = 0;
-	    std::vector< const std::vector<sva_seq_step_t>* > srcs;
-	    if (have_tree)
-		  for (size_t i = 0 ; i < tree_leaves.size() ; i += 1)
-			srcs.push_back(tree_leaves[i]);
-	    else
-		  srcs.push_back(&chain);
-	    for (size_t si = 0 ; si < srcs.size() ; si += 1) {
-		  const std::vector<sva_seq_step_t>&steps = *srcs[si];
-		  for (size_t j = 0 ; j < steps.size() ; j += 1) {
-			PExpr*key = steps[j].expr;
+	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
+		  const std::vector<PExpr*>&gs = nfa.edges[i].guards;
+		  for (size_t g = 0 ; g < gs.size() ; g += 1) {
+			PExpr*key = gs[g];
 			if (!key || guard_reg.count(key)) continue;
 			PExpr*be = sva_rewrite_sampled_(loc, key, inst,
 							hist_idx, pre, post,
@@ -7453,6 +7496,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		       << "fixed-length sequences (constant ##N delays, no "
 		       << "##[m:n]/##[m:$]/[*m:n]); the assertion is dropped."
 		       << endl;
+	    else if (prop->tree_sorry == 3)
+		  cerr << loc << ": sorry: `throughout' over a variable-"
+		       << "length sequence requires the automaton engine "
+		       << "(compile with IVL_SVA_NFA=1 in the environment); "
+		       << "the assertion is dropped." << endl;
 	    else
 		  cerr << loc << ": sorry: sequence `or'/`and' requires "
 		       << "the automaton engine (compile with IVL_SVA_NFA=1 "

@@ -362,6 +362,14 @@ pform_sva_seq_within(const struct vlltype&loc,
 		     std::vector<sva_seq_step_t>*s1,
 		     std::vector<sva_seq_step_t>*s2);
 
+/* M9-NFA stage B.5: `throughout`. A fixed-length sequence keeps the
+   legacy source-level lowering; a variable-length sequence builds a
+   SEQ_THROUGHOUT tree for the automaton engine. Consumes guard and
+   seq. */
+extern sva_property_t*
+pform_sva_seq_throughout(const struct vlltype&loc, PExpr*guard,
+			 std::vector<sva_seq_step_t>*seq);
+
 /* M9C temporal property operators (IEEE 1800-2017 16.12.10 `until` /
    `until_with` / `s_until` / `s_until_with`, 16.9.6 `within`). These do
    not fit the linear token pipeline, so they are stashed on an
