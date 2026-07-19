@@ -6580,12 +6580,6 @@ static bool sva_nfa_chain_fixed_(const std::vector<sva_seq_step_t>&steps,
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
 		|| st.rep_tail != 0)
 		  return false;
-	      /* Mid-chain ##0 would fuse INSIDE the antecedent, making
-		 the completion condition a conjunction; the obligation
-		 trigger below assumes a single final-step boolean, so
-		 leave those to the legacy engine. */
-	    if (j > 0 && st.delay_lo == 0)
-		  return false;
 	    edge_span += (j == 0 && st.delay_lo == 0) ? 1 : st.delay_lo;
 	    delay_sum += st.delay_lo;
       }
@@ -6658,10 +6652,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 {
       if (!prop || !prop->seq || prop->seq->empty()) return false;
 
-	/* Stage A scope: assert/assume only. Cover keeps its
-	   match-counting semantics in the legacy engine. */
-      if (kind == 2) return false;
       if (prop->op_type < 0 || prop->op_type > 3) return false;
+	/* `cover property (not ...)` is a legacy sorry; fall back for
+	   the diagnostic. */
+      if (kind == 2 && prop->op_type == 3) return false;
 
 	/* Expand named sequence references (idempotent; the legacy
 	   path re-runs it harmlessly on fallback). */
@@ -6670,6 +6664,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    sva_splice_sequences_(loc, *prop->antecedent);
 
       bool negated = (prop->op_type == 3);
+      bool cover = (kind == 2);
       bool implication = (prop->op_type == 1 || prop->op_type == 2);
 
       std::vector<sva_seq_step_t> chain;
@@ -6776,8 +6771,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	/* M12B-cb SUCCESS fold (the NFA hook runs before the legacy
 	   fold, so replicate it): every match reports
-	   cbAssertionSuccess; negated properties have no pass path. */
-      if (!negated) {
+	   cbAssertionSuccess; negated properties have no pass path and
+	   cover keeps only its counter (matching the legacy engine). */
+      if (!negated && !cover) {
 	    Statement*succ = sva_report_stmt_(loc, inst, SVA_CB_SUCCESS);
 	    if (pass_stmt) {
 		  std::vector<Statement*> v;
@@ -6835,7 +6831,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    init_zero.push_back(sva_assign_(loc, nx[j], sva_bit_(loc, 0)));
       }
       std::vector<perm_string> ob;
-      if (implication) {
+      bool track_ob = implication && !cover;
+      if (track_ob) {
 	    ob.resize(K);
 	    for (long k = 0 ; k < K ; k += 1) {
 		  ob[k] = sva_make_reg_(loc, inst, "ob", (unsigned)k);
@@ -6843,12 +6840,23 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 						  sva_bit_(loc, 0)));
 	    }
       }
-      perm_string r_f = sva_make_reg_(loc, inst, "f", 0);
-      init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+      perm_string r_f;
+      if (!cover) {
+	    r_f = sva_make_reg_(loc, inst, "f", 0);
+	    init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+      }
       perm_string r_p;
-      if (!negated) {
+      if (!negated && !cover) {
 	    r_p = sva_make_reg_(loc, inst, "p", 0);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
+      }
+      perm_string r_cnt;
+      if (cover) {
+	      /* Same name as the legacy engine's counter, so tests can
+		 read the count identically under either engine. */
+	    r_cnt = sva_make_reg_(loc, inst, "cnt", 0, true);
+	    init_zero.push_back(sva_assign_(loc, r_cnt,
+			new PENumber(new verinum((uint64_t)0, 32))));
       }
       perm_string r_ovf = sva_make_reg_(loc, inst, "ovf", 0);
       init_zero.push_back(sva_assign_(loc, r_ovf, sva_bit_(loc, 0)));
@@ -6902,16 +6910,24 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       for (long k = 0 ; k < K ; k += 1) {
 	      /* Obligation: set the sticky bit the tick the antecedent
 		 completes — the attempt sits in the pre-boundary state
-		 and the antecedent's final boolean fires — regardless
-		 of whether the (possibly fused) consequent edge also
-		 fires. Evaluated on the PRE-advance state bits. */
-	    if (implication) {
-		  std::map<PExpr*,perm_string>::iterator it =
-			guard_reg.find(prop->antecedent->back().expr);
-		  assert(it != guard_reg.end());
-		  PExpr*done = sva_logic_(loc, 'a',
-					  sva_id_(loc, s[k][pre_boundary]),
+		 and the antecedent's final tick booleans fire (a
+		 trailing ##0-fused run shares that tick, so ALL its
+		 booleans are conjoined) — regardless of whether the
+		 (possibly fused) consequent edge also fires. Evaluated
+		 on the PRE-advance state bits. */
+	    if (track_ob) {
+		  size_t tail0 = prop->antecedent->size() - 1;
+		  while (tail0 > 0
+			 && (*prop->antecedent)[tail0].delay_lo == 0)
+			tail0 -= 1;
+		  PExpr*done = sva_id_(loc, s[k][pre_boundary]);
+		  for (size_t j = tail0 ; j < prop->antecedent->size() ; j += 1) {
+			std::map<PExpr*,perm_string>::iterator it =
+			      guard_reg.find((*prop->antecedent)[j].expr);
+			assert(it != guard_reg.end());
+			done = sva_logic_(loc, 'a', done,
 					  sva_id_(loc, it->second));
+		  }
 		  body.push_back(sva_if_(loc, done,
 			sva_assign_(loc, ob[k], sva_bit_(loc, 1)), nullptr));
 	    }
@@ -6940,19 +6956,29 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					 sva_not_(loc, alive));
 
 	    std::vector<Statement*> acc_v, die_v, cont_v;
-	    acc_v.push_back(sva_assign_(loc, negated ? r_f : r_p,
-					sva_bit_(loc, 1)));
+	    if (cover) {
+		    /* Count each accepting attempt (one per slot; a
+		       tick can accept several — same totals as the
+		       legacy per-eligible-position adds). */
+		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt),
+					      sva_bit_(loc, 1));
+		  FILE_NAME(add, loc);
+		  acc_v.push_back(sva_assign_(loc, r_cnt, add));
+	    } else {
+		  acc_v.push_back(sva_assign_(loc, negated ? r_f : r_p,
+					      sva_bit_(loc, 1)));
+	    }
 	    clear_slot(k, acc_v);
-	    if (implication)
+	    if (track_ob)
 		  acc_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
 
-	    if (implication) {
+	    if (track_ob) {
 		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
 					  sva_assign_(loc, r_f,
 						      sva_bit_(loc, 1)),
 					  nullptr));
 		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
-	    } else if (!negated) {
+	    } else if (!negated && !cover) {
 		  die_v.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
 	    }
 	    clear_slot(k, die_v);
@@ -6970,8 +6996,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
 
 	/* Pass then fail dispatch: one report site each per tick, in
-	   the legacy engine's output order (pass before fail). */
-      if (!negated) {
+	   the legacy engine's output order (pass before fail). Cover
+	   has neither — the counter is the record. */
+      if (!negated && !cover) {
 	    std::vector<Statement*> hit;
 	    hit.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
 	    hit.push_back(pass_stmt);
@@ -6982,7 +7009,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    delete pass_stmt;
 	    pass_stmt = nullptr;
       }
-      {
+      if (cover) {
+	    delete fail_stmt;
+	    fail_stmt = nullptr;
+      } else {
 	    Statement*action = fail_stmt;
 	    if (!action) {
 		  std::list<named_pexpr_t> no_args;
@@ -7007,12 +7037,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    std::vector<Statement*> clr;
 	    for (long k = 0 ; k < K ; k += 1) {
 		  clear_slot(k, clr);
-		  if (implication)
+		  if (track_ob)
 			clr.push_back(sva_assign_(loc, ob[k],
 						  sva_bit_(loc, 0)));
 	    }
-	    clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
-	    if (!negated)
+	    if (!cover)
+		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+	    if (!negated && !cover)
 		  clr.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
 	    PCondit*dc = new PCondit(disable, sva_block_(loc, clr), core);
 	    FILE_NAME(dc, loc);
@@ -7035,8 +7066,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	/* End-of-simulation pending note for looping obligations (weak
 	   semantics: they cannot fail in finite time). Loop states are
 	   self-loop wait states by construction. A pending `not`
-	   attempt means the negated property held — silent. */
-      if (cyclic && !negated) {
+	   attempt means the negated property held — silent; a pending
+	   cover attempt simply never matched — also silent. */
+      if (cyclic && !negated && !cover) {
 	    std::vector<bool> loop_state (N, false);
 	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1)
 		  if (nfa.edges[i].from == nfa.edges[i].to)
@@ -7184,6 +7216,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   assertion to the automaton engine first. It returns true
 	   only when it fully lowered the assertion; false means fall
 	   through to the legacy linear engine below. */
+	/* Neither engine executes a `cover property' pass statement
+	   (the legacy engine keeps only the match counter; the NFA
+	   engine matches it for parity). Dropping one SILENTLY would
+	   hide that — warn loudly. Shared here so both engines behave
+	   identically. */
+      if (kind == 2 && pass_stmt && prop->op_type != 3) {
+	    cerr << loc << ": warning: the pass statement of this "
+		 << "`cover property' is not executed (recorded corner); "
+		 << "it is dropped. The match counter still counts."
+		 << endl;
+	    delete pass_stmt;
+	    pass_stmt = nullptr;
+      }
+
       if (pform_sva_nfa_enabled()
 	  && pform_sva_nfa_try_assertion(loc, prop, fail_stmt, pass_stmt, kind))
 	    return;

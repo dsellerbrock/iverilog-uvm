@@ -272,3 +272,39 @@ completion condition a conjunction) stay legacy.
 Still deferred after A.2: `cover property` (match-counting parity
 needs its own analysis), and `or`/`and`/`intersect`/`first_match`/
 local variables (stage B parser IR).
+
+### Increment A.3: cover + mid-##0 antecedents — LANDED (stage A complete)
+
+`cover property` now synthesizes through the NFA (kind 2, non-negated;
+`cover (not ...)` stays legacy for its sorry). Counting is
+per-accepting-slot with first-match-per-attempt clearing — the same
+totals as the legacy per-eligible-position adds (verified by putting
+the COUNT itself into the dual-run verdict stream: both engines name
+the counter identically, `_ivl_sva<inst>_cnt0`, so a test can display
+it and parity proves count equality, not just silence). Cover slots
+have no fail/pass machinery; the disable guard clears slots but never
+the counter (legacy behavior). Cyclic covers where legacy is exact
+(final `##[m:$]`, whose pend-collapse cannot overflow) stay legacy;
+mid-chain-window covers are NFA-only capability with a gold test.
+
+Cover PASS STATEMENTS: neither engine executes them (a legacy
+recorded corner the NFA matches for parity). The legacy engine used
+to drop them SILENTLY — that drop is now a loud shared warning
+emitted before the engine split, so both engines behave identically
+and the manifesto's no-silent-drop rule holds. Executing cover pass
+statements per match is future work (both engines at once, to keep
+the dual-run gate clean).
+
+Mid-##0 ANTECEDENTS (`p ##0 q |=> r`) are synthesized now: the
+exactness guard still requires fixed delays, and the obligation
+trigger conjoins ALL booleans of the antecedent's trailing ##0-fused
+run (the completion tick's full guard set) — arming on `p && q`, not
+`q` alone, so a lone `q` stays vacuous. Found the hard way: an
+earlier draft consulted only the final step's boolean; the dual-run
+gate's ante_zero_delay seed pins the conjunction.
+
+With A.3, every stage-A shape from the staging list is either
+synthesized or intentionally-legacy with a loud path: stage A is
+COMPLETE. Next: stage B (parser sequence-expression IR —
+`or`/`and`/`intersect`/`first_match`, local variables, `within`,
+`throughout` beyond the linear rewrite).
