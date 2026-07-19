@@ -6671,6 +6671,69 @@ sva_property_t* pform_sva_seq_comb(const struct vlltype&loc, char op,
       return p;
 }
 
+/* Structural fixed-length check WITHOUT consuming anything (unlike
+   sva_expand_fixed_, which moves expressions as it goes): true when
+   every step is a constant ##N with no repetition, with the per-cycle
+   expansion length in len. */
+static bool sva_chain_fixed_len_(const std::vector<sva_seq_step_t>&seq,
+				 long&len)
+{
+      len = 0;
+      for (size_t j = 0 ; j < seq.size() ; j += 1) {
+	    const sva_seq_step_t&st = seq[j];
+	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
+		|| st.rep_tail != 0)
+		  return false;
+	    if (j == 0)
+		  len = st.delay_lo + 1;
+	    else if (st.delay_lo > 0)
+		  len += st.delay_lo;
+      }
+      return true;
+}
+
+/* M9-NFA stage B.2: `intersect` entry. Equal-length fixed operands
+   keep the proven legacy AND-chain lowering (identical under both
+   engines); unequal FIXED lengths keep the legacy parse-time sorry
+   (they can never match — both engines diagnose rather than
+   synthesize an always-false checker). Only non-fixed shapes build a
+   SEQ_INTERSECT product tree for the automaton engine, with the
+   legacy fixed-length sorry text deferred to lowering when
+   IVL_SVA_NFA is off. */
+sva_property_t* pform_sva_seq_intersect(const struct vlltype&loc,
+					std::vector<sva_seq_step_t>*s1,
+					std::vector<sva_seq_step_t>*s2)
+{
+      if (!s1 || !s2 || s1->empty() || s2->empty()) {
+	    delete s1; delete s2;
+	    return nullptr;
+      }
+      long l1 = 0, l2 = 0;
+      bool f1 = sva_chain_fixed_len_(*s1, l1);
+      bool f2 = sva_chain_fixed_len_(*s2, l2);
+      if (f1 && f2) {
+	    std::vector<sva_seq_step_t>*tr = pform_sva_intersect(loc, s1, s2);
+	    if (!tr) return nullptr;
+	    sva_property_t*p = new sva_property_t;
+	    p->seq = tr;
+	    p->op_type = 0;
+	    return p;
+      }
+      sva_stree_t*la = new sva_stree_t;
+      la->chain = s1;
+      sva_stree_t*lb = new sva_stree_t;
+      lb->chain = s2;
+      sva_stree_t*t = new sva_stree_t;
+      t->kind = sva_stree_t::SEQ_INTERSECT;
+      t->a = la;
+      t->b = lb;
+      sva_property_t*p = new sva_property_t;
+      p->tree = t;
+      p->tree_sorry = 1;
+      p->op_type = 0;
+      return p;
+}
+
 /*
  * M9-NFA stage A synthesizer (design: docs/conformance/
  * m9_nfa_design_2026-07-19.md). Lower a concurrent assertion through
@@ -6774,6 +6837,24 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    pform_sva_nfa_dump(loc, have_tree ? "tree"
 				   : implication ? "composite" : "sequence",
 			       nfa);
+
+	/* An accept state unreachable from the start (an intersect of
+	   incompatible lengths) would synthesize an always-false
+	   checker; diagnose via the fallback path instead. */
+      {
+	    std::vector<bool> seen (nfa.nstates, false);
+	    std::vector<unsigned> q;
+	    seen[nfa.start] = true;
+	    q.push_back(nfa.start);
+	    for (size_t h = 0 ; h < q.size() ; h += 1)
+		  for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
+			const sva_nfa_edge_t&ed = nfa.edges[i];
+			if (ed.from != q[h] || seen[ed.to]) continue;
+			seen[ed.to] = true;
+			q.push_back(ed.to);
+		  }
+	    if (!seen[nfa.accept]) return false;
+      }
 
       bool cyclic = pform_sva_nfa_has_cycle(nfa);
       long depth = pform_sva_nfa_depth(nfa);
@@ -7223,9 +7304,16 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		&& pform_sva_nfa_try_assertion(loc, prop, fail_stmt,
 					       pass_stmt, kind))
 		  return;
-	    cerr << loc << ": sorry: sequence `or'/`and' requires the "
-		 << "automaton engine (compile with IVL_SVA_NFA=1 in "
-		 << "the environment); the assertion is dropped." << endl;
+	    if (prop->tree_sorry == 1)
+		  cerr << loc << ": sorry: `intersect' is supported "
+		       << "only over fixed-length sequences (constant ##N "
+		       << "delays, no ##[m:n]/##[m:$]/[*m:n]); the assertion "
+		       << "is dropped." << endl;
+	    else
+		  cerr << loc << ": sorry: sequence `or'/`and' requires "
+		       << "the automaton engine (compile with IVL_SVA_NFA=1 "
+		       << "in the environment); the assertion is dropped."
+		       << endl;
 	    error_count += 1;
 	    sva_tree_delete_(prop->tree, true);
 	    prop->tree = nullptr;

@@ -327,11 +327,8 @@ the flag. Construction (pform_sva_nfa.cc):
   after pruning ((done,done) cannot reach accept and dies), so the
   exact-K guarantee survives.
 - `intersect` product (same-tick lockstep, accept only at
-  (accept,accept)) is implemented in the construction but NOT yet
-  reachable from the grammar — `intersect` still routes through the
-  legacy equal-length-fixed lowering, so the product code is
-  UNTESTED until B.2 defers that path's parse-time diagnostics and
-  routes general shapes to it.
+  (accept,accept)) is built in the construction; the grammar routes
+  it in B.2 below.
 
 Grammar cost: +7 reduce/reduce conflicts (1126 → 1133; shift/reduce
 unchanged at 491; the useless-rule set is unchanged against a
@@ -345,3 +342,34 @@ containing trees do not parse into trees yet — the grammar builds
 them at the property level only, non-nesting). Guard capture, slot
 machinery, cover counting, cyclic pool/overflow, and EOS pending
 notes are all shared with the chain path unchanged.
+
+### Increment B.2: general `intersect` — LANDED
+
+`intersect` is now a three-way split at the grammar
+(`pform_sva_seq_intersect`):
+- EQUAL-length fixed operands keep the proven legacy AND-chain
+  lowering (a plain `p->seq`, so both engines lower it identically —
+  dual-run parity, not an NFA-only path).
+- UNEQUAL FIXED lengths keep the legacy "same length" parse-time
+  sorry — they can never match over one interval, and BOTH engines
+  diagnose rather than synthesize an always-false checker.
+- Any NON-fixed shape (a windowed/repeated/unbounded operand) builds
+  a `SEQ_INTERSECT` product tree for the automaton engine, with the
+  legacy "fixed-length only" sorry text DEFERRED to lowering (carried
+  on `sva_property_t::tree_sorry`) so that without `IVL_SVA_NFA=1` the
+  exact legacy diagnostic still fires.
+
+The product is the same-tick lockstep automaton (edge guards are the
+conjunction of both sides' guards, accept only at the joint
+accept state). A windowed operand whose length can never coincide
+with the other side yields an automaton whose accept is UNREACHABLE
+from the start; the synthesizer now checks accept-reachability up
+front and, when the accept is dead, falls back so the deferred sorry
+fires instead of an always-false checker (no silent always-false, no
+crash). Verified: `(a ##1 b) intersect (c ##[1:2] d)` matches only
+when the windowed side ends at length 2 (gold test); unequal-fixed
+and never-coincident-window shapes both sorry under both engines.
+
+This makes SEQ_INTERSECT (built but unreachable in B.1) live and
+tested. Remaining stage B: `first_match`, `within`, general
+`throughout`, and per-attempt local variables.

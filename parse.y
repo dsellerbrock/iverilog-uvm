@@ -5516,16 +5516,7 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      same interval. For equal-length fixed operands this lowers to a
      per-cycle AND chain the linear engine handles directly. */
   | sva_seq_expr K_intersect sva_seq_expr
-      { std::vector<sva_seq_step_t>*tr = pform_sva_intersect(@2, $1, $3);
-	if (tr == 0) {
-	      $$ = 0;
-	} else {
-	      sva_property_t*p = new sva_property_t;
-	      p->seq = tr;
-	      p->op_type = 0;
-	      $$ = p;
-	}
-      }
+      { $$ = pform_sva_seq_intersect(@2, $1, $3); }
   /* IEEE 1800-2017 16.9.6: `within' — s1 occurs inside s2's interval.
      Lowered to a $past-sampled combinational match indicator. */
   | sva_seq_expr K_within sva_seq_expr

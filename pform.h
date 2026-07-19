@@ -331,6 +331,15 @@ pform_sva_seq_comb(const struct vlltype&loc, char op,
 		   std::vector<sva_seq_step_t>*s1,
 		   std::vector<sva_seq_step_t>*s2);
 
+/* M9-NFA stage B.2: `intersect` — equal-length fixed operands keep the
+   legacy AND-chain lowering; unequal fixed lengths keep the parse-time
+   sorry; non-fixed shapes build a SEQ_INTERSECT product tree for the
+   automaton engine. Consumes both chains. */
+extern sva_property_t*
+pform_sva_seq_intersect(const struct vlltype&loc,
+			std::vector<sva_seq_step_t>*s1,
+			std::vector<sva_seq_step_t>*s2);
+
 /* M9C temporal property operators (IEEE 1800-2017 16.12.10 `until` /
    `until_with` / `s_until` / `s_until_with`, 16.9.6 `within`). These do
    not fit the linear token pipeline, so they are stashed on an

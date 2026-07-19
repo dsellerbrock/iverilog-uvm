@@ -71,6 +71,8 @@ struct sva_property_t {
       std::vector<sva_seq_step_t>* seq = nullptr;         // consequent / plain sequence
       sva_stree_t* tree = nullptr;          // stage B combinator tree
 					    // (seq/antecedent null when set)
+      int tree_sorry = 0;                   // deferred no-NFA sorry text:
+					    // 0 = or/and, 1 = intersect
       int op_type = 0;                      // 0=plain sequence, 1=|->, 2=|=>
 };
 
