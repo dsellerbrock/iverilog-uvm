@@ -193,44 +193,82 @@ rep_tail_only:
 }
 
 /*
- * Fold epsilon edges: for every epsilon a->b, every tick edge into a
- * is duplicated into b (and start/accept adjusted), until no epsilon
- * remains reachable. Small automata; the quadratic pass is fine.
+ * Eliminate epsilon edges by epsilon-closure (the textbook NFA
+ * construction; the earlier predecessor-duplication pass silently
+ * orphaned a state with two outgoing epsilons — e.g. an `or` fresh
+ * start with eps to each branch — dropping every branch but the
+ * first).
+ *
+ * Algorithm:
+ *  1. E[s] = epsilon-closure of s (all states eps-reachable from s,
+ *     including s), by transitive closure over the epsilon edges.
+ *  2. For every state s and every tick edge t->u with t in E[s], emit
+ *     a tick edge s->u (deduplicated). This lifts each state's
+ *     reachable tick moves to the state itself.
+ *  3. Accept: any state whose closure contains the old accept is an
+ *     accepting state. To keep the synthesizer's single-accept model,
+ *     add ONE fresh accept sink A and, for every emitted tick edge
+ *     s->u whose target u eps-reaches the old accept, add a PARALLEL
+ *     s->A with the same guards. A state that both accepts and
+ *     continues (a window join) thus fires A (match) and u (continue)
+ *     on the same tick.
+ *  4. Drop all epsilon edges; accept := A. (If the start itself
+ *     eps-reaches the old accept — a zero-length match, not produced
+ *     by the current constructions — A stays unreachable and the
+ *     caller's accept-reachability guard makes the assertion fall
+ *     back, which is safe.)
  */
 static void fold_epsilons_(sva_nfa_t&nfa)
 {
-      bool changed = true;
-      while (changed) {
-	    changed = false;
-	    for (size_t i = 0; i < nfa.edges.size(); i += 1) {
-		  if (!nfa.edges[i].epsilon) continue;
-		  unsigned a = nfa.edges[i].from;
-		  unsigned b = nfa.edges[i].to;
-		  nfa.edges.erase(nfa.edges.begin() + i);
-		  if (nfa.start == a) nfa.start = b;
-		  if (nfa.accept == a) nfa.accept = b;
-		  for (size_t j = 0; j < nfa.edges.size(); j += 1) {
-			if (nfa.edges[j].to == a) {
-			      sva_nfa_edge_t dup = nfa.edges[j];
-			      dup.to = b;
-			      bool have = false;
-			      for (size_t k = 0; k < nfa.edges.size(); k += 1) {
-				    const sva_nfa_edge_t&o = nfa.edges[k];
-				    if (o.epsilon == dup.epsilon
-					&& o.from == dup.from
-					&& o.to == dup.to
-					&& o.guards == dup.guards) {
-					  have = true;
-					  break;
-				    }
-			      }
-			      if (!have) nfa.edges.push_back(dup);
-			}
+      unsigned N = nfa.nstates;
+      std::vector< std::vector<bool> > eps (N, std::vector<bool>(N, false));
+      for (unsigned s = 0; s < N; s += 1) eps[s][s] = true;
+      for (size_t i = 0; i < nfa.edges.size(); i += 1)
+	    if (nfa.edges[i].epsilon)
+		  eps[nfa.edges[i].from][nfa.edges[i].to] = true;
+      for (unsigned k = 0; k < N; k += 1)
+	    for (unsigned i = 0; i < N; i += 1)
+		  if (eps[i][k])
+			for (unsigned j = 0; j < N; j += 1)
+			      if (eps[k][j]) eps[i][j] = true;
+
+      std::vector<sva_nfa_edge_t> ticks;
+      for (size_t i = 0; i < nfa.edges.size(); i += 1)
+	    if (!nfa.edges[i].epsilon) ticks.push_back(nfa.edges[i]);
+
+      unsigned old_accept = nfa.accept;
+      unsigned A = nfa.new_state();
+      N = nfa.nstates;
+
+      std::vector<sva_nfa_edge_t> out;
+      auto push_uniq = [&](const sva_nfa_edge_t&ne) {
+	    for (size_t k = 0; k < out.size(); k += 1) {
+		  const sva_nfa_edge_t&o = out[k];
+		  if (o.from == ne.from && o.to == ne.to
+		      && o.guards == ne.guards)
+			return;
+	    }
+	    out.push_back(ne);
+      };
+      for (unsigned s = 0; s < N; s += 1) {
+	    if (s == A) continue;
+	    for (size_t i = 0; i < ticks.size(); i += 1) {
+		  const sva_nfa_edge_t&te = ticks[i];
+		  if (!eps[s][te.from]) continue;
+		  sva_nfa_edge_t ne = te;
+		  ne.from = s;
+		  push_uniq(ne);
+		  if (te.to < eps.size() && eps[te.to][old_accept]) {
+			sva_nfa_edge_t ae = te;
+			ae.from = s;
+			ae.to = A;
+			push_uniq(ae);
 		  }
-		  changed = true;
-		  break;
 	    }
       }
+
+      nfa.edges.swap(out);
+      nfa.accept = A;
 }
 
 /*
