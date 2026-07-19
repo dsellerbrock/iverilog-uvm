@@ -495,15 +495,27 @@ where one existed and a loud deferred sorry when the flag is off:
 | `within` (general) | B.4 | fixed = parity; else sorry |
 | `throughout` (general) | B.5 | fixed = parity; else sorry |
 
-`first_match` remains TRANSPARENT (the grammar returns the inner
-sequence). That is exact for the standalone/existence positions the
-current tests use — a cover/assert of `first_match(seq)` counts once
-per attempt via the slot-clear-on-accept, which is the first (shortest)
-match. The composed cut (`first_match(seq) ##1 c` continuing ONLY the
-shortest match of `seq`) is NOT modeled — it needs a slot-local
-sibling-thread prune on first acceptance. This is pre-existing behavior
-(unchanged by this arc) and is noted as a recorded corner, not claimed
-as done.
+`first_match` is TRANSPARENT (the grammar returns the inner sequence)
+and this is EXACT for standalone/existence positions: a cover/assert of
+`first_match(seq)` counts once per attempt via slot-clear-on-accept,
+which is precisely the first (shortest) match. Pinned by the parity
+test `tests/sva_nfa/first_match.sv` (`first_match(a ##[1:3] b)` counts
+identically to the bare window under both engines).
+
+The COMPOSED cut — `first_match(seq) ##1 c` continuing ONLY the
+shortest match of `seq` — is NOT modeled, and it is blocked on IR, not
+on the synthesizer. The linear-chain IR dissolves `first_match` into
+its inner steps (`first_match(a ##[1:2] b) ##1 c` lowers as the plain
+chain `a ##[1:2] b ##1 c`), so there is nowhere to carry the cut. A
+correct composed cut needs a `first_match` node that survives into
+construction, i.e. the **sequence-expression tree IR** (the design's
+`SATOM`/`SDELAY`/`SCONCAT`/`SREP` tree that replaces the linear chain as
+the source of truth). Stage B was deliberately built as property-level
+combinator trees OVER linear chains, which covers every whole-sequence
+combinator (and/or/intersect/within/throughout) but not a sub-sequence
+operator like a composed `first_match` or goto/nonconsec repetition
+(stage C). Migrating the sequence IR is its own arc; until then
+composed `first_match` stays transparent (a recorded corner).
 
 ### The one remaining stage-B item: per-attempt local variables
 
