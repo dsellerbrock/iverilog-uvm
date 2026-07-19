@@ -423,5 +423,35 @@ behaviour is unchanged; any nested or non-fixed shape builds a product
 tree. Verified by `nesting_nfa_only.sv` with hand-computed counts that
 discriminate branch, precedence, and regrouping (n1=3, n2=2, n3=1).
 
-Remaining stage B: `first_match`, `within`, general `throughout`, and
-per-attempt local variables.
+### Increment B.4: general `within` — LANDED
+
+`within` (16.9.6) is now a two-way split at the grammar
+(`pform_sva_seq_within`): both-fixed operands keep the legacy
+`$past`-sampled combinational lowering (op 8, `pform_make_temporal_
+assertion_`), identical under both engines; any non-fixed operand
+builds a `SEQ_WITHIN` tree for the automaton engine, with the legacy
+fixed-length sorry deferred to lowering when `IVL_SVA_NFA` is off.
+
+Construction follows the LRM identity `s1 within s2 ==
+(1[*0:$] ##1 s1 ##1 1[*0:$]) intersect s2`. `nfa_pad_` wraps s1's
+folded automaton with a fresh true-self-loop PRE (enters s1 at any
+tick) and a fresh accepting true-self-loop POST (entered once s1
+accepts), then the padded automaton is intersected (product,
+same-tick lockstep, joint accept) with s2 — tying s1's match to lie
+inside s2's exact interval. The padded automaton is cyclic, but every
+product tick advances s2, so for an acyclic s2 the product is acyclic
+and the exact-K slot bound applies (no overflow); a cyclic s2 falls to
+the capped pool. An s1 that cannot fit (e.g. longer than every s2
+match) yields an unreachable product accept and the B.2
+reachability guard makes it fall back to the deferred sorry rather
+than an always-false checker.
+
+Verified: `b within (x ##[1:2] y)` matches with b at the START,
+MIDDLE, and END of the window and does NOT match when b is absent
+(`within_nfa_only.sv`, cover=3 hand-computed); fixed-length within
+holds verdict parity (`within_fixed.sv`, and the existing
+`tests/m9c_within_test.sv` passes unchanged in both modes).
+
+Remaining stage B: `first_match` (already effectively correct — the
+slot-clear-on-accept gives shortest-match/existence semantics),
+general `throughout`, and per-attempt local variables.

@@ -354,6 +354,14 @@ extern sva_property_t*
 pform_sva_tree_intersect(const struct vlltype&loc,
 			 sva_property_t*a, sva_property_t*b);
 
+/* M9-NFA stage B.4: `within`. Both-fixed operands keep the legacy op-8
+   lowering; a non-fixed operand builds a SEQ_WITHIN tree for the
+   automaton engine. Consumes both chains. */
+extern sva_property_t*
+pform_sva_seq_within(const struct vlltype&loc,
+		     std::vector<sva_seq_step_t>*s1,
+		     std::vector<sva_seq_step_t>*s2);
+
 /* M9C temporal property operators (IEEE 1800-2017 16.12.10 `until` /
    `until_with` / `s_until` / `s_until_with`, 16.9.6 `within`). These do
    not fit the linear token pipeline, so they are stashed on an

@@ -5519,7 +5519,7 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   /* IEEE 1800-2017 16.9.6: `within' — s1 occurs inside s2's interval.
      Lowered to a $past-sampled combinational match indicator. */
   | sva_seq_expr K_within sva_seq_expr
-      { $$ = pform_sva_binprop(@2, 8, $1, $3); }
+      { $$ = pform_sva_seq_within(@2, $1, $3); }
   /* IEEE 1800-2017 16.9.5-.7: sequence `and'/`or'/`intersect'. Regular-
      language combinators the linear engine cannot express: they build
      a stage-B combinator tree (`sva_seq_comb', below) for the

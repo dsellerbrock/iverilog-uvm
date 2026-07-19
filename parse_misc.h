@@ -57,7 +57,8 @@ struct sva_seq_step_t {
  * sorry. Chains and expressions inside are OWNED by the tree.
  */
 struct sva_stree_t {
-      enum kind_t { LEAF = 0, SEQ_OR = 1, SEQ_AND = 2, SEQ_INTERSECT = 3 };
+      enum kind_t { LEAF = 0, SEQ_OR = 1, SEQ_AND = 2, SEQ_INTERSECT = 3,
+		    SEQ_WITHIN = 4 };
       int kind = LEAF;
       std::vector<sva_seq_step_t>* chain = nullptr;  // LEAF only
       sva_stree_t* a = nullptr;

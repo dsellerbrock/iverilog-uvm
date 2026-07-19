@@ -396,6 +396,32 @@ static bool nfa_product_fragment_(sva_nfa_t&nfa,
       return true;
 }
 
+/*
+ * `within` padding (IEEE 1800-2017 16.9.6): s1 within s2 ==
+ * (1[*0:$] ##1 s1 ##1 1[*0:$]) intersect s2. Wrap a folded automaton
+ * Araw with an arbitrary true-tick prefix and suffix so it matches
+ * "s1 occurs somewhere in the window": a fresh PRE with a true
+ * self-loop that can enter Araw at any tick, and a fresh accepting
+ * POST with a true self-loop entered once Araw accepts. The product
+ * with s2 (intersect semantics) then ties the padded match to s2's
+ * exact interval. Result is re-folded/pruned so the product sees only
+ * tick edges.
+ */
+static void nfa_pad_(sva_nfa_t&M, const sva_nfa_t&Araw)
+{
+      M = Araw;
+      unsigned PRE = M.new_state();
+      unsigned POST = M.new_state();
+      M.tick(PRE, PRE, nullptr);
+      M.eps(PRE, Araw.start);
+      M.eps(Araw.accept, POST);
+      M.tick(POST, POST, nullptr);
+      M.start = PRE;
+      M.accept = POST;
+      fold_epsilons_(M);
+      prune_dead_states_(M);
+}
+
 static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 			       unsigned&start, unsigned&exit)
 {
@@ -404,6 +430,14 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 	  case sva_stree_t::LEAF:
 	    if (!t->chain) return false;
 	    return nfa_chain_fragment_(nfa, *t->chain, start, exit);
+	  case sva_stree_t::SEQ_WITHIN: {
+		  /* s1 within s2: pad s1, then intersect with s2. */
+		sva_nfa_t Araw, B, M;
+		if (!pform_sva_nfa_build_from_tree(Araw, t->a)) return false;
+		if (!pform_sva_nfa_build_from_tree(B, t->b)) return false;
+		nfa_pad_(M, Araw);
+		return nfa_product_fragment_(nfa, M, B, false, start, exit);
+	  }
 	  case sva_stree_t::SEQ_OR: {
 		unsigned sa = 0, ea = 0, sb = 0, eb = 0;
 		if (!nfa_tree_fragment_(nfa, t->a, sa, ea)) return false;

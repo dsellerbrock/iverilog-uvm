@@ -6840,6 +6840,39 @@ sva_property_t* pform_sva_tree_intersect(const struct vlltype&loc,
       return p;
 }
 
+/* M9-NFA stage B.4: `within` (16.9.6). Both-fixed operands keep the
+   legacy $past-sampled combinational lowering (op 8), identical under
+   both engines. Any non-fixed operand builds a SEQ_WITHIN tree for the
+   automaton engine (s1 padded with arbitrary prefix/suffix, then
+   intersected with s2), with the legacy fixed-length sorry deferred to
+   lowering when IVL_SVA_NFA is off. Consumes both chains. */
+sva_property_t* pform_sva_seq_within(const struct vlltype&loc,
+				     std::vector<sva_seq_step_t>*s1,
+				     std::vector<sva_seq_step_t>*s2)
+{
+      if (!s1 || !s2 || s1->empty() || s2->empty()) {
+	    delete s1; delete s2;
+	    return nullptr;
+      }
+      long l1 = 0, l2 = 0;
+      if (sva_chain_fixed_len_(*s1, l1) && sva_chain_fixed_len_(*s2, l2))
+	    return pform_sva_binprop(loc, 8, s1, s2);
+
+      sva_stree_t*la = new sva_stree_t;
+      la->chain = s1;
+      sva_stree_t*lb = new sva_stree_t;
+      lb->chain = s2;
+      sva_stree_t*t = new sva_stree_t;
+      t->kind = sva_stree_t::SEQ_WITHIN;
+      t->a = la;
+      t->b = lb;
+      sva_property_t*p = new sva_property_t;
+      p->tree = t;
+      p->tree_sorry = 2;
+      p->op_type = 0;
+      return p;
+}
+
 /*
  * M9-NFA stage A synthesizer (design: docs/conformance/
  * m9_nfa_design_2026-07-19.md). Lower a concurrent assertion through
@@ -7415,6 +7448,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		       << "only over fixed-length sequences (constant ##N "
 		       << "delays, no ##[m:n]/##[m:$]/[*m:n]); the assertion "
 		       << "is dropped." << endl;
+	    else if (prop->tree_sorry == 2)
+		  cerr << loc << ": sorry: `within' is supported only over "
+		       << "fixed-length sequences (constant ##N delays, no "
+		       << "##[m:n]/##[m:$]/[*m:n]); the assertion is dropped."
+		       << endl;
 	    else
 		  cerr << loc << ": sorry: sequence `or'/`and' requires "
 		       << "the automaton engine (compile with IVL_SVA_NFA=1 "
