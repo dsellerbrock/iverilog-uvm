@@ -127,3 +127,68 @@ flip, so the default toolchain never regresses mid-arc.
 - Assertion threads observing data across clock domains beyond the
   stage-D sampling rules.
 - Recorded corner: `cbAssertionStep` VPI callbacks per NFA step.
+
+
+## Stage A synthesizer: implementation spec (from legacy-assembly recon)
+
+Placement: `pform_sva_nfa_try_assertion` moves into pform.cc (it needs
+the static helpers); pform_sva_nfa.cc exports only construction+dump
+via a new pform_sva_nfa.h (`sva_nfa_t`, `pform_sva_nfa_build_from_chain`,
+`pform_sva_nfa_dump`).
+
+Reuse points in the legacy assembly (pform.cc pform_make_assertion,
+after the NFA hook):
+- Clock: explicit `prop->clk_evt`, else the `$ivl_default_clock`
+  marker event built from the module's `default_clocking` (copy the
+  block at "Clock: explicit, else the module's default clocking").
+- Callbacks: `sva_report_stmt_(loc, inst, SVA_CB_SUCCESS/FAILURE)`;
+  legacy folds SUCCESS into pass_stmt for kind!=2 && !negated — the
+  NFA path must do the same fold itself (the hook sits BEFORE that
+  fold). `inst` comes from `sva_gensym_counter++`.
+- disable iff: outermost if(disable) -> clear all slot state, no
+  reports (match legacy's guard placement).
+- State storage: synthesized REAL variables via the tc_make_real_
+  pattern (0.0/1.0, >0 tests) — proven decl plumbing, no new var
+  machinery. One real per (slot k, state j): `_ivl_nfa<I>_k<k>_s<j>`,
+  plus shared next-state temps `_ivl_nfa<I>_nx<j>` (slots advance
+  sequentially in one always body, so temps are shared safely).
+
+Per-tick body (single always @(clk)):
+1. injection: first slot with busy_k==0 (busy = OR of its state
+   reals) gets start-state bit := 1 BEFORE the advance loop, so the
+   anchor tick is consumed this tick. No free slot -> loud overflow
+   ($display warning + dropped counter; once-flag real).
+2. advance per slot: nx_j = OR over edges(from->j) of
+   (s_k_from>0 && clone(guard)); then
+   - accept semantics by op:
+     op 0 (plain): nx_accept -> pass'(=CB fold) once, clear slot;
+       all-nx-zero && was-busy -> fail' (fail_stmt + FAILURE cb),
+       clear slot; else copy nx into slot.
+     op 3 (not): accept -> fail'; all-dead -> pass'.
+     op 1/2 (|->/|=>): composite automaton (antecedent accept state
+       epsilon-joined to consequent start; |=> adds one true tick),
+       slot-sticky `obligated` real set when any CONSEQ-mask state
+       becomes live; accept -> pass'; all-dead -> obligated ? fail'
+       : (vacuous, silent). EXACTNESS GUARD: only return true when
+       the antecedent has a unique match length (all fixed delays, no
+       window/rep/unbounded in the antecedent) — one obligation per
+       attempt, so slot-emptiness is per-obligation exact. Windowed
+       antecedents stay legacy until stage B's obligation slots.
+3. K (slot count): longest acyclic path when the automaton is loop
+   free (exact, no overflow possible); else max(depth,8), cap 16,
+   IVL_SVA_NFA_SLOTS override.
+
+Dual-run harness (lands with the synthesizer): tests/sva_nfa/run.sh
+compiles each listed test twice (flag off/on), runs both, diffs
+stdout+stderr verdict streams exactly; any diff fails. Seed list: the
+ivtest sva_* tests that use only stage-A shapes plus new
+mid-chain-window/unbounded tests that ONLY the NFA path accepts
+(legacy sorries -> those run flag-on only and check verdicts against
+hand-computed traces).
+
+Chain-only note: the legacy chain IR cannot express anything the
+legacy engine does not already lower EXCEPT window/unbounded/rep in
+non-final positions (legacy sorries there). Stage A's user-visible
+win is exactly those mid-chain shapes; its architectural win is the
+dual-run-proven engine that stages B-D build on (parser IR arrives
+with stage B for or/and/intersect/first_match).
