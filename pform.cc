@@ -6924,6 +6924,44 @@ sva_property_t* pform_sva_seq_throughout(const struct vlltype&loc,
       return p;
 }
 
+/* M9-NFA LV-2: does an expression read any local variable (a bare
+   single-name identifier in the set)? Such guards cannot be captured
+   into a shared sample register — the value is per-attempt, so they are
+   evaluated per slot with the name replaced by the slot's copy. Unknown
+   expression shapes conservatively return true (treated per-slot),
+   which is always correct — worst case a redundant per-slot clone of a
+   value-independent guard. */
+static bool sva_expr_reads_lv_(PExpr*e,
+			       const std::map<perm_string,unsigned>&lv)
+{
+      if (!e) return false;
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    if (!id->path().package && id->path().name.size() == 1
+		&& id->path().name.front().index.empty())
+		  return lv.count(id->path().name.front().name) != 0;
+	    return false;
+      }
+      if (dynamic_cast<PENumber*>(e)) return false;
+      if (dynamic_cast<PEString*>(e)) return false;
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e))
+	    return sva_expr_reads_lv_(un->get_expr(), lv);
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e))
+	    return sva_expr_reads_lv_(bin->get_left(), lv)
+		|| sva_expr_reads_lv_(bin->get_right(), lv);
+      if (PEBComp*cm = dynamic_cast<PEBComp*>(e))
+	    return sva_expr_reads_lv_(cm->get_left(), lv)
+		|| sva_expr_reads_lv_(cm->get_right(), lv);
+      if (PEBLogic*lg = dynamic_cast<PEBLogic*>(e))
+	    return sva_expr_reads_lv_(lg->get_left(), lv)
+		|| sva_expr_reads_lv_(lg->get_right(), lv);
+      if (PETernary*t = dynamic_cast<PETernary*>(e))
+	    return sva_expr_reads_lv_(t->get_cond(), lv)
+		|| sva_expr_reads_lv_(t->get_true(), lv)
+		|| sva_expr_reads_lv_(t->get_false(), lv);
+	/* Unknown shape: be conservative (per-slot). */
+      return true;
+}
+
 /*
  * M9-NFA stage A synthesizer (design: docs/conformance/
  * m9_nfa_design_2026-07-19.md). Lower a concurrent assertion through
@@ -7017,6 +7055,49 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    chain = *prop->seq;
       }
 
+	/* LV-2: collect sequence local-variable assignments left on the
+	   chain by sva_lower_local_vars_ (variable-delay reads that $past
+	   cannot express). Each gets a per-slot register; the assigning
+	   step's gate expression identifies its automaton edges (and thus
+	   the states after which the value is captured). Local variables
+	   inside a combinator tree are not supported — fall back. */
+      std::map<perm_string,unsigned> lv_index;
+      std::vector<perm_string> lv_list;
+      std::vector<PExpr*> lv_rhs_expr;     // per lv: rhs (borrowed)
+      std::vector<PExpr*> lv_gate_expr;    // per lv: assigning-step gate (borrowed)
+      {
+	    bool tree_has_lv = false;
+	    if (have_tree) {
+		  for (size_t i = 0 ; i < tree_leaves.size() ; i += 1)
+			for (size_t s = 0 ; s < tree_leaves[i]->size() ; s += 1)
+			      if ((*tree_leaves[i])[s].lv_rhs) tree_has_lv = true;
+	    } else {
+		  for (size_t si = 0 ; si < chain.size() ; si += 1) {
+			if (!chain[si].lv_rhs) continue;
+			perm_string nm = chain[si].lv_name;
+			if (!lv_index.count(nm)) {
+			      lv_index[nm] = (unsigned)lv_list.size();
+			      lv_list.push_back(nm);
+			      lv_rhs_expr.push_back(chain[si].lv_rhs);
+			      lv_gate_expr.push_back(chain[si].expr);
+			}
+		  }
+	    }
+	    if (tree_has_lv) return false;
+      }
+      bool has_lv = !lv_list.empty();
+
+	/* LV-2: a local-variable READ inside the antecedent of an
+	   implication would collide with the obligation machinery (which
+	   reads antecedent booleans from the shared sample map). The
+	   common shape assigns in the antecedent and reads in the
+	   consequent; anything else falls back. */
+      if (has_lv && implication && prop->antecedent) {
+	    for (size_t si = 0 ; si < prop->antecedent->size() ; si += 1)
+		  if (sva_expr_reads_lv_((*prop->antecedent)[si].expr, lv_index))
+			return false;
+      }
+
       sva_nfa_t nfa;
       bool built = have_tree
 	    ? pform_sva_nfa_build_from_tree(nfa, prop->tree)
@@ -7046,6 +7127,28 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (!seen[nfa.accept]) return false;
       }
 
+	/* LV-2: the automaton states after which each local variable is
+	   captured — destinations of edges whose guard set contains the
+	   assigning step's gate expression. (A ##0-fused or windowed
+	   assigning step could scatter the gate across several edges;
+	   require a single capture state per variable so the write is
+	   unambiguous, else fall back.) */
+      std::vector< std::vector<bool> > lv_capture (lv_list.size());
+      for (unsigned li = 0 ; li < lv_list.size() ; li += 1) {
+	    lv_capture[li].assign(nfa.nstates, false);
+	    unsigned cnt = 0;
+	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
+		  bool hit = false;
+		  for (size_t g = 0 ; g < nfa.edges[i].guards.size() ; g += 1)
+			if (nfa.edges[i].guards[g] == lv_gate_expr[li]) hit = true;
+		  if (hit && !lv_capture[li][nfa.edges[i].to]) {
+			lv_capture[li][nfa.edges[i].to] = true;
+			cnt += 1;
+		  }
+	    }
+	    if (cnt != 1) return false;
+      }
+
       bool cyclic = pform_sva_nfa_has_cycle(nfa);
       long depth = pform_sva_nfa_depth(nfa);
       long K;
@@ -7053,8 +7156,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    K = depth > 0 ? depth : 1;
       } else {
 	      /* Shapes the legacy engine lowers exactly stay legacy —
-		 except trees, which have NO legacy lowering at all. */
-	    if (!have_tree
+		 except trees (NO legacy lowering) and local-variable
+		 sequences (the legacy engine cannot store per-attempt
+		 values), which MUST use the automaton's cyclic pool. */
+	    if (!have_tree && !has_lv
 		&& sva_nfa_legacy_supports_(*prop->seq, ante_delay_sum,
 					    implication))
 		  return false;
@@ -7165,6 +7270,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  for (size_t g = 0 ; g < gs.size() ; g += 1) {
 			PExpr*key = gs[g];
 			if (!key || guard_reg.count(key)) continue;
+			  /* A guard that reads a local variable is
+			     per-attempt; it is cloned per slot (below) with
+			     the name replaced by the slot's copy, so it is
+			     NOT captured into a shared sample register. */
+			if (has_lv && sva_expr_reads_lv_(key, lv_index))
+			      continue;
 			PExpr*be = sva_rewrite_sampled_(loc, key, inst,
 							hist_idx, pre, post,
 							init_zero);
@@ -7172,6 +7283,30 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			pre.push_back(sva_assign_(loc, r, be));
 			guard_reg[key] = r;
 		  }
+	    }
+      }
+
+	/* LV-2: sample each local variable's rhs once per tick into a
+	   32-bit register; when a slot enters that variable's capture
+	   state, its per-slot copy takes this sample. */
+      std::vector<perm_string> lv_rhs_reg (lv_list.size());
+      for (unsigned li = 0 ; li < lv_list.size() ; li += 1) {
+	    char what[24];
+	    snprintf(what, sizeof what, "lvr%u", li);
+	    lv_rhs_reg[li] = sva_make_reg_(loc, inst, what, 0, true);
+	    pre.push_back(sva_assign_(loc, lv_rhs_reg[li],
+				      sva_clone_expr_(lv_rhs_expr[li])));
+      }
+	/* Per-slot local-variable copies (32-bit). */
+      std::vector< std::vector<perm_string> > vk (K);
+      for (long k = 0 ; k < K ; k += 1) {
+	    vk[k].resize(lv_list.size());
+	    for (unsigned li = 0 ; li < lv_list.size() ; li += 1) {
+		  char what[24];
+		  snprintf(what, sizeof what, "k%ldv%u", k, li);
+		  vk[k][li] = sva_make_reg_(loc, inst, what, 0, true);
+		  init_zero.push_back(sva_assign_(loc, vk[k][li],
+			new PENumber(new verinum((uint64_t)0, 32))));
 	    }
       }
 
@@ -7295,6 +7430,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  body.push_back(sva_if_(loc, done,
 			sva_assign_(loc, ob[k], sva_bit_(loc, 1)), nullptr));
 	    }
+	      /* LV-2: per-slot substitution map (local var -> this slot's
+		 copy) for guards that read a local variable. */
+	    std::map<perm_string,PExpr*> lvmap;
+	    for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
+		  lvmap[lv_list[li]] = sva_id_(loc, vk[k][li]);
 	    for (unsigned j = 0 ; j < N ; j += 1) {
 		  PExpr*e = nullptr;
 		  for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
@@ -7302,17 +7442,63 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			if (ed.to != j) continue;
 			PExpr*term = sva_id_(loc, s[k][ed.from]);
 			for (size_t g = 0 ; g < ed.guards.size() ; g += 1) {
-			      std::map<PExpr*,perm_string>::iterator it =
-				    guard_reg.find(ed.guards[g]);
-			      assert(it != guard_reg.end());
-			      term = sva_logic_(loc, 'a', term,
-						sva_id_(loc, it->second));
+			      PExpr*gk = ed.guards[g];
+			      if (has_lv && sva_expr_reads_lv_(gk, lv_index)) {
+				      /* per-attempt: clone with lv -> vk */
+				    PExpr*pc = sva_clone_subst_(gk, &lvmap);
+				    term = sva_logic_(loc, 'a', term, pc);
+			      } else {
+				    std::map<PExpr*,perm_string>::iterator it =
+					  guard_reg.find(gk);
+				    assert(it != guard_reg.end());
+				    term = sva_logic_(loc, 'a', term,
+						      sva_id_(loc, it->second));
+			      }
 			}
 			e = e ? sva_logic_(loc, 'o', e, term) : term;
 		  }
 		  if (!e) e = sva_bit_(loc, 0);
 		  body.push_back(sva_assign_(loc, nx[j], e));
 	    }
+	      /* LV-2: capture — a slot takes a local variable's rhs sample
+		 exactly when the ASSIGNING EDGE fires (the gate matched
+		 from the pre-advance state), NOT merely when it sits in the
+		 assign state: a ##[m:$] wait self-loop re-enters that state
+		 every tick and would otherwise re-capture stale data. */
+	    for (unsigned li = 0 ; li < lv_list.size() ; li += 1) {
+		  PExpr*cap = nullptr;
+		  for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
+			const sva_nfa_edge_t&ed = nfa.edges[i];
+			bool is_assign = false;
+			for (size_t g = 0 ; g < ed.guards.size() ; g += 1)
+			      if (ed.guards[g] == lv_gate_expr[li]) is_assign = true;
+			if (!is_assign) continue;
+			PExpr*t = sva_id_(loc, s[k][ed.from]);
+			for (size_t g = 0 ; g < ed.guards.size() ; g += 1) {
+			      PExpr*gk = ed.guards[g];
+			      if (has_lv && sva_expr_reads_lv_(gk, lv_index))
+				    t = sva_logic_(loc, 'a', t,
+						   sva_clone_subst_(gk, &lvmap));
+			      else {
+				    std::map<PExpr*,perm_string>::iterator it =
+					  guard_reg.find(gk);
+				    assert(it != guard_reg.end());
+				    t = sva_logic_(loc, 'a', t,
+						   sva_id_(loc, it->second));
+			      }
+			}
+			cap = cap ? sva_logic_(loc, 'o', cap, t) : t;
+		  }
+		  if (cap)
+			body.push_back(sva_if_(loc, cap,
+			      sva_assign_(loc, vk[k][li],
+					  sva_id_(loc, lv_rhs_reg[li])),
+			      nullptr));
+	    }
+	    for (std::map<perm_string,PExpr*>::iterator it = lvmap.begin();
+		 it != lvmap.end() ; ++it)
+		  delete it->second;
+
 	    PExpr*alive = sva_id_(loc, nx[0]);
 	    for (unsigned j = 1 ; j < N ; j += 1)
 		  alive = sva_logic_(loc, 'o', alive, sva_id_(loc, nx[j]));
@@ -7471,33 +7657,32 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       return true;
 }
 
-/* M9-NFA LV-1: lower sequence local variables (IEEE 1800-2017 16.10)
-   for FIXED-delay sequences by a source transform, exact in both
-   engines and needing no per-slot storage. `(a, v = rhs) ##N (read v)`:
-   the sequence pins the assignment exactly N cycles before the read, so
-   a read of v at cycle offset D past its assignment is exactly
-   $past(rhs, D). Collect each assignment's (rhs, offset), then for every
-   step substitute a read identifier matching a local var with
-   $past(rhs, D). Variable-delay reads (a window/$/range-rep between
-   assign and read) make D non-constant per attempt — those need
-   per-slot registers (LV-2) and are a loud sorry here. Returns false
-   (diagnosed) on an unsupported shape. */
-static bool sva_lower_local_vars_(const struct vlltype&loc,
-				  std::vector<sva_seq_step_t>&steps)
+/* M9-NFA LV-1/LV-2: lower sequence local variables (IEEE 1800-2017
+   16.10). Return codes: 0 = no local variables or all lowered here;
+   1 = diagnosed error; 2 = variable-length local variables left on the
+   steps for the automaton engine's per-slot storage (LV-2).
+
+   LV-1 (fixed-delay) is a source transform, exact in both engines and
+   needing no per-slot storage: `(a, v = rhs) ##N (read v)` pins the
+   assignment exactly N cycles before the read, so a read of v at cycle
+   offset D past its assignment is exactly $past(rhs, D). LV-2
+   (variable-delay: a window/$/range-rep makes D non-constant per
+   attempt) cannot use $past; the assignments are LEFT on the steps and
+   the NFA engine gives each slot its own copy (returns 2 here). */
+static int sva_lower_local_vars_(const struct vlltype&loc,
+				 std::vector<sva_seq_step_t>&steps)
 {
       bool has_lv = false;
       for (size_t k = 0 ; k < steps.size() ; k += 1)
 	    if (steps[k].lv_rhs) { has_lv = true; break; }
-      if (!has_lv) return true;
+      if (!has_lv) return 0;
 
       long len = 0;
       if (!sva_chain_fixed_len_(steps, len)) {
-	    cerr << loc << ": sorry: a local variable in a variable-length "
-		 << "sequence (##[m:n]/##[m:$]/[*m:n]) needs per-slot storage, "
-		 << "which is not yet implemented; the assertion is dropped."
-		 << endl;
-	    error_count += 1;
-	    return false;
+	      /* Variable delay: leave the assignments for LV-2 per-slot
+		 storage in the automaton engine. */
+	    (void)loc;
+	    return 2;
       }
 
 	/* Cumulative cycle offset of each step from the sequence start. */
@@ -7540,7 +7725,7 @@ static bool sva_lower_local_vars_(const struct vlltype&loc,
 		  steps[k].lv_name = perm_string();
 	    }
       }
-      return true;
+      return 0;
 }
 
 /* Lower one concurrent assertion (assert/assume/cover property) to a
@@ -7716,21 +7901,45 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    pass_stmt = nullptr;
       }
 
-	/* M9-NFA LV-1: lower sequence local variables now (a source
-	   transform to $past), before EITHER engine, so both benefit and
-	   the automaton hook below sees no local-var reads. */
+	/* M9-NFA LV-1/LV-2: lower sequence local variables now, before
+	   EITHER engine. Fixed-delay reads become $past (both engines);
+	   variable-delay reads are left on the steps for the automaton
+	   engine's per-slot storage (code 2). */
       sva_splice_sequences_(loc, *prop->seq);
       if (prop->antecedent)
 	    sva_splice_sequences_(loc, *prop->antecedent);
-      if (!sva_lower_local_vars_(loc, *prop->seq)
-	  || (prop->antecedent
-	      && !sva_lower_local_vars_(loc, *prop->antecedent))) {
-	    delete fail_stmt;
-	    delete pass_stmt;
-	    delete prop->antecedent;
-	    delete prop->seq;
-	    delete prop->clk_evt;
-	    delete prop->disable_iff_expr;
+	/* A local variable in an IMPLICATION is typically assigned in the
+	   antecedent and read in the consequent — two separate chains
+	   here, so the $past transform cannot connect them. Route the
+	   whole property to the automaton engine, which combines
+	   antecedent++consequent into one chain and gives each attempt a
+	   per-slot copy. Plain sequences are self-contained: the transform
+	   handles fixed delays ($past) and leaves variable delays for the
+	   slot path (code 2). */
+      bool prop_has_lv = false;
+      for (size_t si = 0 ; si < prop->seq->size() ; si += 1)
+	    if ((*prop->seq)[si].lv_rhs) prop_has_lv = true;
+      if (prop->antecedent)
+	    for (size_t si = 0 ; si < prop->antecedent->size() ; si += 1)
+		  if ((*prop->antecedent)[si].lv_rhs) prop_has_lv = true;
+      bool impl_lv = prop_has_lv
+		     && (prop->op_type == 1 || prop->op_type == 2);
+      bool slot_lv = impl_lv;
+      if (!impl_lv) {
+	    int lv_s = sva_lower_local_vars_(loc, *prop->seq);
+	    int lv_a = prop->antecedent
+		       ? sva_lower_local_vars_(loc, *prop->antecedent) : 0;
+	    slot_lv = (lv_s == 2 || lv_a == 2);
+      }
+      if (slot_lv && !pform_sva_nfa_enabled()) {
+	    cerr << loc << ": sorry: a local variable across a variable-"
+		 << "length delay (##[m:n]/##[m:$]/[*m:n]) requires the "
+		 << "automaton engine (compile with IVL_SVA_NFA=1 in the "
+		 << "environment); the assertion is dropped." << endl;
+	    error_count += 1;
+	    delete fail_stmt; delete pass_stmt;
+	    delete prop->antecedent; delete prop->seq;
+	    delete prop->clk_evt; delete prop->disable_iff_expr;
 	    delete prop;
 	    return;
       }
@@ -7738,6 +7947,21 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (pform_sva_nfa_enabled()
 	  && pform_sva_nfa_try_assertion(loc, prop, fail_stmt, pass_stmt, kind))
 	    return;
+
+	/* If the automaton engine declined a slot-local-variable
+	   assertion, the legacy engine cannot lower it (the reads are
+	   unresolved identifiers) — diagnose rather than emit garbage. */
+      if (slot_lv) {
+	    cerr << loc << ": sorry: this local-variable assertion shape is "
+		 << "not supported by the automaton engine yet; the "
+		 << "assertion is dropped." << endl;
+	    error_count += 1;
+	    delete fail_stmt; delete pass_stmt;
+	    delete prop->antecedent; delete prop->seq;
+	    delete prop->clk_evt; delete prop->disable_iff_expr;
+	    delete prop;
+	    return;
+      }
 
       sva_splice_sequences_(loc, *prop->seq);
       if (prop->antecedent)

@@ -588,9 +588,49 @@ dual-run gate unchanged).
 Verified: `(a, v = d) ##2 (b && (c == v))` captures the 8-bit `d` and,
 two cycles later, requires `c` to equal the CAPTURED value —
 `tests/sva_nfa/local_var.sv`, cover=2 hand-computed (two value-matches,
-one value-mismatch), verdict parity in both engines. LV-1 covers the
-bulk of real local-variable usage; LV-2 (windowed capture) remains the
-NFA-only per-slot-storage arc.
+one value-mismatch), verdict parity in both engines.
+
+### Increment LV-2 — LANDED (variable-delay local variables, per-slot storage)
+
+The design's "local variables (slot storage)": a local variable across
+a VARIABLE-length delay (`##[m:n]`/`##[m:$]`/rep) cannot reduce to
+`$past` (the read offset varies per attempt), so each slot gets its own
+copy. NFA-only (the legacy engine cannot store per-attempt values;
+`IVL_SVA_NFA` off is a loud sorry — negative test).
+
+- `sva_lower_local_vars_` returns code 2 for a variable-delay chain and
+  LEAVES the assignments on the steps; an implication with any local
+  variable routes straight to the slot path (the antecedent-assign /
+  consequent-read spans two chains that `try_assertion` reunites).
+- `try_assertion` collects the assignments, identifies each variable's
+  CAPTURE state (the destination of edges carrying the assigning gate),
+  and allocates a 32-bit per-slot register `vk[k][li]` plus a shared
+  once-per-tick rhs sample.
+- Guards that READ a local variable are detected (`sva_expr_reads_lv_`)
+  and, instead of a shared sample register, are cloned per slot with the
+  name replaced by that slot's copy (correct in this engine because
+  every guard is a blocking read at the same posedge).
+- The capture fires when the assigning EDGE fires (the gate matched from
+  the pre-advance state), NOT merely when the attempt sits in the assign
+  state — a `##[m:$]` wait self-loop re-enters that state every tick and
+  would otherwise clobber the stored value with stale data. This was the
+  key bug; keying on the edge fixed it.
+- Local-variable chains force the automaton's cyclic pool even for
+  final-`##[m:$]` shapes the legacy engine would otherwise claim, since
+  the legacy engine cannot carry the value.
+
+Verified (`tests/sva_nfa/local_var_window_nfa_only.sv`, hand-computed):
+a bounded window matching at offsets 1 and 3 with the captured value
+(cover 2), an UNBOUNDED wait (cover 2), and the canonical
+outstanding-transaction implication `(req, t = tag) |-> ##[1:$] (ack &&
+(id == t))` (matches on the tick `ack` carries the matching id). Fixed
+(LV-1), bounded, unbounded, plain, and implication all confirmed; the
+one intersection that still falls back is unbounded IMPLICATION without
+a local variable already being legacy-only — documented, loud.
+
+With LV-1 + LV-2 the stage-B "local variables (slot storage)" item is
+complete. The only stage-B item still open is COMPOSED `first_match`
+(the sequence-tree IR arc); standalone `first_match` is exact.
 
 ---
 
