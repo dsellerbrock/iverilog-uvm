@@ -5478,11 +5478,44 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { sva_property_t*p = new sva_property_t;
 	p->antecedent = $1; p->seq = $3; p->op_type = 2;
 	$$ = p; }
+  /* IEEE 1800-2017 16.12.2: strong/weak consequent — `req |-> strong(s)'
+     is the canonical form (attempts are gated by the antecedent, so the
+     end-of-sim strong obligation is clean). */
+  | sva_seq_expr K_PIPE_IMPL_OV K_strong '(' sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $5; p->op_type = 1; p->strength = 1;
+	$$ = p; }
+  | sva_seq_expr K_PIPE_IMPL_OV K_weak '(' sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $5; p->op_type = 1; p->strength = 0;
+	$$ = p; }
+  | sva_seq_expr K_PIPE_IMPL_NOV K_strong '(' sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $5; p->op_type = 2; p->strength = 1;
+	$$ = p; }
+  | sva_seq_expr K_PIPE_IMPL_NOV K_weak '(' sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $5; p->op_type = 2; p->strength = 0;
+	$$ = p; }
   /* IEEE 1800-2017 16.12.9: negation — the property holds iff the
      sequence has NO match starting at any attempt point. */
   | K_not '(' sva_seq_expr ')'
       { sva_property_t*p = new sva_property_t;
 	p->seq = $3; p->op_type = 3;
+	$$ = p; }
+  /* IEEE 1800-2017 16.12.2: sequence property strength. `strong(seq)'
+     requires every attempt to complete — an attempt still pending at end
+     of simulation is a failure. `weak(seq)' is the explicit form of the
+     default (a pending attempt neither fails nor succeeds). Both are
+     lowered by the automaton engine; the legacy engine rejects `strong'
+     loudly (it cannot carry the end-of-sim obligation). */
+  | K_strong '(' sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->seq = $3; p->op_type = 0; p->strength = 1;
+	$$ = p; }
+  | K_weak '(' sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->seq = $3; p->op_type = 0; p->strength = 0;
 	$$ = p; }
   /* Diagnosed sorries: liveness/product operators the token-pipeline
      engine does not implement. The assertion is dropped with a clear

@@ -741,7 +741,43 @@ nonconsec=1 on a trace whose tail sits one cycle past the occurrence);
 `goto_range_nfa_only.sv` pins ranged/unbounded/exact counts;
 `tests/negative/sva_goto_nonconsec.sv` pins the flag-off rejection.
 
-Still open in stage C: `.matched`, strong/weak.
+### Increment C.2: strong/weak sequence properties — LANDED
+
+`strong(seq)` / `weak(seq)` sequence property strength (16.12.2). A
+sequence property is WEAK by default: an attempt still pending at end of
+simulation neither fails nor succeeds. STRONG demands completion — a
+pending attempt at end of simulation is a FAILURE.
+
+The automaton engine already emitted an end-of-simulation FINAL block
+detecting slots still in a self-loop wait state (the weak informational
+"still pending" note). C.2 reuses exactly that pending expression: for a
+strong property it emits an assertion FAILURE (`$error` via
+`sva_fail_action_`) instead of the note; weak keeps the note. So the
+whole feature is: (1) grammar for `strong(...)`/`weak(...)` standalone
+and as a `|->`/`|=>` consequent (`sva_property_t::strength`); (2) the
+FINAL block chooses failure vs note on `strength`; (3) a strong property
+is forced into the NFA cyclic pool rather than deferred to the legacy
+engine (which has no end-of-sim obligation for a bare sequence), and a
+strong property reaching the legacy path (flag off / NFA declined) is a
+loud sorry. `weak`/bare is the pre-existing default on either engine.
+
+The canonical, cleanly-testable form is `req |-> strong(seq)`: the
+antecedent gates attempts, so the end-of-sim obligation is exactly the
+outstanding requests. (A standalone `strong(seq)` starts an attempt every
+cycle, so the last few attempts before end-of-sim are inherently pending
+— correct, but noisy.)
+
+Known limitation: a custom else-clause action block does not run at the
+end-of-sim strong failure — it is consumed by the per-cycle fail dispatch
+(which never fires for a bare unbounded sequence), so the strong failure
+reports via `$error`. The failure is loudly reported and counted; only
+the user's custom action is not invoked at that one site.
+
+Tests: `tests/sva_nfa/strong_weak_nfa_only.sv` (a fulfilled request and an
+unanswered one — strong fails at end of sim, weak only notes);
+`tests/negative/sva_strong_seq.sv` pins the flag-off rejection.
+
+Still open in stage C: `.matched`/`.triggered`.
 
 ---
 

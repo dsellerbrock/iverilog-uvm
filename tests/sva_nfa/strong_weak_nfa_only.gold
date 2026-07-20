@@ -1,0 +1,4 @@
+strong_weak_done
+ERROR: tests/sva_nfa/strong_weak_nfa_only.sv:17: 
+       Time: 90  Scope: strong_weak_t
+SVA: unbounded ##[m:$] obligation still pending at end of simulation
