@@ -879,6 +879,15 @@ static __vpiScope*dpi_active_scope_ = 0;
 #if defined(__MINGW32__)
 # define IVL_DPI_CORO_FIBER 1
 # define IVL_HAVE_DPI_CORO  1
+	// Keep <windows.h> from polluting the translation unit: NOMINMAX
+	// drops its min/max macros (which would break std::min/std::max used
+	// elsewhere in this file); WIN32_LEAN_AND_MEAN trims the header set.
+# ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN 1
+# endif
+# ifndef NOMINMAX
+#  define NOMINMAX 1
+# endif
 # include  <windows.h>
 #else
 # define IVL_DPI_CORO_UCONTEXT 1
