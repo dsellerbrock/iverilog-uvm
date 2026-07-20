@@ -27,7 +27,19 @@ SKIP=0
 UVM_DPI_SO="/tmp/uvm_dpi_iv.so"
 IVL_INC="$(dirname "$(dirname "$(command -v iverilog)")")/include/iverilog"
 NO_DPI_FLAG=""
-if g++ -shared -fPIC -I"$IVL_INC" -I "$UVM/dpi" \
+
+# macOS has no top-level <malloc.h>; the vendored uvm_dpi.h includes it.
+# Provide a shim that forwards to <stdlib.h> (which declares malloc/free/
+# realloc) so the DPI umbrella compiles. Guarded to Darwin so Linux keeps
+# using its real <malloc.h>.
+DPI_COMPAT_INC=""
+if [ "$(uname)" = "Darwin" ]; then
+    mkdir -p /tmp/uvm_compat
+    printf '#include <stdlib.h>\n' > /tmp/uvm_compat/malloc.h
+    DPI_COMPAT_INC="-I/tmp/uvm_compat"
+fi
+
+if g++ -shared -fPIC -I"$IVL_INC" -I "$UVM/dpi" $DPI_COMPAT_INC \
        -o "$UVM_DPI_SO" uvm_dpi/uvm_dpi_iverilog.cc 2>/tmp/uvm_dpi_build.log ; then
     echo "UVM DPI library built ($UVM_DPI_SO): running WITHOUT UVM_NO_DPI"
 else
@@ -49,25 +61,27 @@ fi
 # the test now runs. The uvm_hdl_* DPI backdoor remains future work (M10C).
 KNOWN_FAIL=""
 
-# Per-test plusargs.  Tests that need runtime args list them here so the
-# vvp invocation can supply them.  Format: "<name>:+arg1+arg2 ...".
-declare -A PLUSARGS=(
-    [plusargs_class_string_test]="+MY_TESTNAME=hello +MY_SEED=42"
-)
+# Per-test plusargs and extra iverilog compile flags. Kept as plain case
+# functions rather than `declare -A` associative arrays so the harness runs
+# under the bash 3.2 that ships on macOS (associative arrays need bash 4+).
+plusargs_for() {
+    case "$1" in
+        plusargs_class_string_test) echo "+MY_TESTNAME=hello +MY_SEED=42" ;;
+        *) echo "" ;;
+    esac
+}
 
-# Per-test extra iverilog compile flags.  Tests that need a compile
-# option beyond the default (e.g. -gspecify to activate specify-block
-# timing checks) list it here.  Format: "<name>=<flags>".
-declare -A IVFLAGS=(
-    [m13_timing_test]="-gspecify"
-    [m13_specify_paths_test]="-gspecify"
-    [m13b_timing_checks_test]="-gspecify"
-)
+ivflags_for() {
+    case "$1" in
+        m13_timing_test|m13_specify_paths_test|m13b_timing_checks_test) echo "-gspecify" ;;
+        *) echo "" ;;
+    esac
+}
 
 compile_test() {
     local name="$1"
     local sv="$TESTS/${name}.sv"
-    local xf="${IVFLAGS[$name]}"
+    local xf; xf="$(ivflags_for "$name")"
     $BIN -g2012 $xf -I "$UVM" $NO_DPI_FLAG -o "/tmp/uvm_test_${name}.vvp" \
          "$UVM/uvm_pkg.sv" "$sv" 2>/dev/null
 }
@@ -75,7 +89,7 @@ compile_test() {
 run_test() {
     local name="$1"
     local cfile="$TESTS/${name}.c"
-    local extra="${PLUSARGS[$name]}"
+    local extra; extra="$(plusargs_for "$name")"
     # DPI export (35.5): iverilog emits a companion C stub next to the .vvp
     # output providing the exported C symbols. Compile it into the DPI object
     # alongside the user's C so the exports link.
