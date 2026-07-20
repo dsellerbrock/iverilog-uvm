@@ -7661,8 +7661,18 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
       }
 
       bool applied_root_queue_select = false;
+	// Apply the root container index (x[i]) to the receiver before
+	// walking any property/method chain. This covers QUEUE and assoc
+	// arrays (IVL_VT_QUEUE) AND plain dynamic arrays (IVL_VT_DARRAY):
+	// without the darray case, `da[i].prop.method()` never built the
+	// element receiver, so a method on a darray-element property (e.g.
+	// da[0].addr.size()) fell through to the compile-progress 0-stub.
+	// The size()==1 direct-method branch below already handled
+	// da[i].method(); this handles the property-chain case too.
       if (search_results.net
-	  && search_results.net->data_type()==IVL_VT_QUEUE
+	  && (search_results.net->data_type()==IVL_VT_QUEUE
+	      || search_results.net->data_type()==IVL_VT_DARRAY)
+	  && search_results.net->darray_type()
 	  && search_results.path_head.back().index.size()==1) {
 
 	    const NetNet*net = search_results.net;

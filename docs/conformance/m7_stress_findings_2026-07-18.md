@@ -224,13 +224,71 @@ endtask endclass` with `box #(plain) b`. Probing
   same root: dispatch through a base handle whose element/type-param
   members were typed against the generic (default) body.
 
-So the fix is not "method tables" per se but **making a parameterized-
-class type reference in a variable/handle/property declaration specialize
-the class** (as `extends` already does) whenever a type argument differs
-from its default, so the specialized body re-elaborates type-parameter
+The fix is not "method tables" per se but **making a parameterized-class
+type reference in a variable/handle/property declaration specialize the
+class** (as `extends` already does) whenever a type argument differs from
+its default, so the specialized body re-elaborates type-parameter
 members/locals against the bound arguments. High blast radius (every UVM
 parameterized handle; specialization-count/perf; the 8000-spec cap), so it
-lands staged behind the four-gate protocol, not as a one-shot.
+landed staged behind the four-gate protocol, not as a one-shot.
+
+### Update (2026-07-20): BOTH halves FIXED — test un-quarantined
+
+Finding 4 was really two independent defects; both are now fixed and
+`m7_reg_frontdoor_stress_test.sv` has moved out of `tests/wip/` into the
+standard sweep, passing checks=4 writes=4 reads=4.
+
+The first — a parameterized-class VARIABLE/HANDLE/PROPERTY declaration
+not specializing — is fixed:
+
+  * `pform.cc` (`pform_make_modgates`): a `Class #(args) name;`
+    declaration reaches the no-port module-instantiation shape and is
+    reinterpreted as a variable declaration. The `#(args)` overrides
+    were dropped there, so the GENERIC netclass (every type parameter
+    at its default) was bound and a type-parameter-typed member kept
+    its default type (int), landing a method call in the "Enable of
+    unknown task" no-op / a `pop_prop_val` assertion. The overrides are
+    now threaded onto the reinterpreted typeref, so the handle
+    specializes exactly as `extends Class#(args)` already did.
+  * `elab_scope.cc` (`seed_specialized_method_bodies_`): handle/variable
+    specialization uses `fully_elaborate=false` (seed only), which
+    seeded only a whitelist of housekeeping methods. A user VIRTUAL
+    override was therefore never elaborated, so its `TD_` label was
+    never emitted and runtime virtual dispatch through a parameterized
+    base handle fell through to the base stub. Every virtual method is
+    now seeded (a virtual override is always a dispatch target).
+
+Regression: `tests/m1b_typeparam_member_call_test.sv` (specialized member
+call + parameterized virtual dispatch through a base handle + a member
+typed by a type-parameter inside an extending subclass). All four gates
+stay green (UVM 200/0).
+
+The SECOND defect — a distinct, PRE-EXISTING RUNTIME bug that is not
+parameterized-specific — is also fixed:
+
+  * `vvp/vthread.cc` (`do_join`): a virtual task with an `output`
+    argument dispatched via `%fork/v` runs its override in a separate
+    dispatch context that is NOT on the caller's write stack. The only
+    frame stacked there is the `%alloc`'d call-site (base-scope) frame.
+    do_join's pop-push looked for the OVERRIDE scope's frame to pop,
+    found nothing, and left the base frame at the write head — so the
+    enclosing task's own `output` store landed in the base frame instead
+    of its own, silently dropping the returned handle (caller saw null).
+    The pop-push now targets the base (call-site) scope for a
+    dynamically dispatched child, exactly as the non-virtual call path
+    does. This reproduced with plain (non-templated) classes too.
+
+Regression: `tests/m1b_virtual_output_copyback_test.sv` (plain and
+parameterized shapes) plus the un-quarantined
+`tests/m7_reg_frontdoor_stress_test.sv`. All four gates green (UVM 200/0,
+ivtest clean, SVA 32/0, build).
+
+(One adjacent limitation is still open and independent of the above:
+member access on an `output` formal typed by a type-parameter —
+"Variable t does not have a field named ..." — fails even on the
+fully-elaborated path. It does not block the RAL front door, which passes
+the returned handle through without dereferencing an output-typed
+type-parameter formal.)
 
 
 ## Finding 5: dup_expr of a function call loses its upgraded type — FIXED
@@ -298,3 +356,39 @@ expression before applying property access (shape a), and the
 assignment codegen must emit the store-property opcode for
 object-typed properties through indexed bases (shape b). This joins
 the M1B/M4-family typing work.
+
+### Update (2026-07-20): the WRITE shapes are FIXED — register cache lands
+
+The store shapes (a) and (b) are fixed in `tgt-vvp/stmt_assign.c`, so
+the uvm_reg address cache is written correctly and
+`uvm_reg::get_address` returns the right addresses. The get_address
+checks in `tests/m7_reg_model_semantics_test.sv` are restored and pass;
+new regression `tests/m7_indexed_property_store_test.sv` covers the
+shapes directly. All four gates green (UVM 203/0).
+
+  * Shape (a) — assoc keyed by a class handle: `draw_lval_expr` coerced
+    the class key to an integer and loaded the element with
+    `%load/dar/obj` (a darray word index built from the key's null-test
+    flag). It now detects the assoc-compat queue and loads the element
+    with `%aa/load/sig/obj/<keykind>` using the real key.
+  * Shape (b) — whole-darray-property store through an indexed base:
+    `show_stmt_assign_sig_prop_darray_index` used `prop_lval_index_expr_`,
+    which merged the base-container index into the property index, so a
+    whole-property store (`da[0].addr = a`) was misread as an element
+    store (`%prop/obj` load + `%set/dar`). It now uses the property's own
+    index only, falling through to `%store/prop/obj` for a whole store.
+
+The register front door (assoc base, and read-back via a local handle)
+is fully correct.
+
+The one remaining READ shape is now also fixed: a method call on a
+darray/object property reached through a *darray*-indexed base
+(`da[0].addr.size()`) used to elaborate to a constant 0 because the
+element receiver was never built. `elaborate_expr_method_` applied the
+root container index to the receiver only for QUEUE/assoc bases (and, in
+a separate branch, only for a *direct* method on a darray element,
+`da[i].method()`); a darray base followed by a property-then-method chain
+matched neither. It now applies the root index for IVL_VT_DARRAY bases in
+the property-chain branch too, so `da[i].prop.method()` builds
+`da[i].prop` and dispatches correctly. Covered by check (d) of
+tests/m7_indexed_property_store_test.sv.

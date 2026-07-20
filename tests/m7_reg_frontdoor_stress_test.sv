@@ -1,12 +1,22 @@
-// M7 stress: register-model FRONT-DOOR access. QUARANTINED in
-// tests/wip/ (outside the sweep glob). Finding 2 (ref-dyn-array
-// copy-out) is FIXED, so the address path now works: bus transactions
-// reach the driver with correct kind/addr/data. Still blocked on
-// finding 4 in docs/conformance/m7_stress_findings_2026-07-18.md:
-// parameterized-class virtual dispatch resolves get_next_item into the
-// wrong specialization and the port-level output copy-back drops the
-// item, so the driver receives null. Move this file up to tests/ once
-// that lands; it must then pass with checks=4 writes=4 reads=4.
+// M7 stress: register-model FRONT-DOOR access. Now part of the standard
+// sweep (was quarantined in tests/wip/). Exercises the full RAL front
+// door: sequence -> sequencer -> driver over a real bus, then reads back
+// through the register model. Passes with checks=4 writes=4 reads=4.
+//
+// This test pinned down "Finding 4"
+// (docs/conformance/m7_stress_findings_2026-07-18.md), which was two
+// independent defects, both now fixed:
+//   1. Parameterized-class SPECIALIZATION: a `Class#(args) handle`
+//      declaration now specializes, and virtual overrides of a
+//      specialized class are emitted so dispatch through a parameterized
+//      base handle reaches the override (pform.cc + elab_scope.cc; see
+//      tests/m1b_typeparam_member_call_test.sv).
+//   2. Virtual-dispatch OUTPUT copy-back: a virtual task with an
+//      `output` argument dispatched via `%fork/v`, whose caller is itself
+//      an output-argument task (the `get_next_item(req)` port shape),
+//      dropped the returned handle because do_join left the base
+//      call-site frame at the write head (vvp/vthread.cc; see
+//      tests/m1b_virtual_output_copyback_test.sv).
 `timescale 1ns/1ns
 `include "uvm_macros.svh"
 import uvm_pkg::*;

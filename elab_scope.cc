@@ -1358,9 +1358,19 @@ static void seed_specialized_method_bodies_(Design*des, netclass_t*cls,
 
       cls->set_body_elaborating(true);
 
+	// Seed the always-needed housekeeping methods (new/get_type/...)
+	// AND every VIRTUAL method. A virtual override is a runtime
+	// dispatch target: when a base handle to this specialization is
+	// dispatched, the object's actual class must carry an elaborated
+	// (and therefore emitted) override body, or dispatch silently
+	// falls through to the base method. Handle/variable declarations
+	// specialize with fully_elaborate=false (seed only), so without
+	// this the override for e.g. `sequencer#(item)::get_next` was
+	// never elaborated and virtual dispatch resolved to the base stub.
       for (map<perm_string,PFunction*>::iterator cur = pclass->funcs.begin()
 		 ; cur != pclass->funcs.end() ; ++cur) {
-	    if (!should_seed_specialized_method_body_(cur->first))
+	    if (!should_seed_specialized_method_body_(cur->first)
+		&& !cur->second->is_virtual_method())
 		  continue;
 	    if (cur->second->get_statement() == 0)
 		  continue;
@@ -1373,7 +1383,8 @@ static void seed_specialized_method_bodies_(Design*des, netclass_t*cls,
 
       for (map<perm_string,PTask*>::iterator cur = pclass->tasks.begin()
 		 ; cur != pclass->tasks.end() ; ++cur) {
-	    if (!should_seed_specialized_method_body_(cur->first))
+	    if (!should_seed_specialized_method_body_(cur->first)
+		&& !cur->second->is_virtual_method())
 		  continue;
 	    if (cur->second->get_statement() == 0)
 		  continue;
