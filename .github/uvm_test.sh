@@ -8,6 +8,22 @@ VVP=$(which vvp)
 UVM="uvm-core/src"
 TESTS="tests"
 
+# Per-test run timeout wrapper. GNU coreutils `timeout` is present on Linux
+# CI but NOT on the base macOS runner (it ships neither `timeout` nor
+# `gtimeout`, and the brew step installs only bison/z3/libffi). Without this
+# resolution, `timeout 60 vvp ...` failed with "command not found" for EVERY
+# test on macOS, so every vvp run produced no output and scored as a no-check
+# failure — the whole macOS UVM suite read as 0 passed while looking green
+# under continue-on-error. Fall back to running vvp directly (no wrapper) when
+# no timeout tool exists.
+if command -v timeout >/dev/null 2>&1 ; then
+    TIMEOUT="timeout 60"
+elif command -v gtimeout >/dev/null 2>&1 ; then
+    TIMEOUT="gtimeout 60"
+else
+    TIMEOUT=""
+fi
+
 # Verify UVM sources are available
 if [ ! -f "$UVM/uvm_pkg.sv" ]; then
     echo "ERROR: UVM sources not found at $UVM/uvm_pkg.sv"
@@ -32,14 +48,23 @@ NO_DPI_FLAG=""
 # Provide a shim that forwards to <stdlib.h> (which declares malloc/free/
 # realloc) so the DPI umbrella compiles. Guarded to Darwin so Linux keeps
 # using its real <malloc.h>.
+#
+# macOS also uses a two-level namespace by default: symbols a bundle
+# references (the sv*/DPI-export dispatchers this umbrella calls) must be
+# resolvable at LINK time or the .dylib is rejected, but those live in the
+# vvp executable, not any library we can name here. -undefined dynamic_lookup
+# defers them to load time so vvp satisfies them. Linux resolves lazily by
+# default, so this flag is Darwin-only.
 DPI_COMPAT_INC=""
+DPI_LDFLAGS=""
 if [ "$(uname)" = "Darwin" ]; then
     mkdir -p /tmp/uvm_compat
     printf '#include <stdlib.h>\n' > /tmp/uvm_compat/malloc.h
     DPI_COMPAT_INC="-I/tmp/uvm_compat"
+    DPI_LDFLAGS="-undefined dynamic_lookup"
 fi
 
-if g++ -shared -fPIC -I"$IVL_INC" -I "$UVM/dpi" $DPI_COMPAT_INC \
+if g++ -shared -fPIC -I"$IVL_INC" -I "$UVM/dpi" $DPI_COMPAT_INC $DPI_LDFLAGS \
        -o "$UVM_DPI_SO" uvm_dpi/uvm_dpi_iverilog.cc 2>/tmp/uvm_dpi_build.log ; then
     echo "UVM DPI library built ($UVM_DPI_SO): running WITHOUT UVM_NO_DPI"
 else
@@ -83,7 +108,7 @@ compile_test() {
     local sv="$TESTS/${name}.sv"
     local xf; xf="$(ivflags_for "$name")"
     $BIN -g2012 $xf -I "$UVM" $NO_DPI_FLAG -o "/tmp/uvm_test_${name}.vvp" \
-         "$UVM/uvm_pkg.sv" "$sv" 2>/dev/null
+         "$UVM/uvm_pkg.sv" "$sv"
 }
 
 run_test() {
@@ -102,10 +127,11 @@ run_test() {
     [ -f "$cfile" ] && srcs="$srcs $cfile"
     [ -f "$stub" ]  && srcs="$srcs $stub"
     if [ -n "$srcs" ]; then
-        gcc -shared -fPIC -o "/tmp/uvm_dpi_${name}.so" $srcs 2>/dev/null
+        gcc -shared -fPIC $DPI_LDFLAGS -o "/tmp/uvm_dpi_${name}.so" $srcs \
+            2>"/tmp/uvm_dpi_${name}.buildlog"
         dflags="$dflags -d /tmp/uvm_dpi_${name}.so"
     fi
-    timeout 60 $VVP $dflags "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
+    $TIMEOUT $VVP $dflags "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
 }
 
 for sv in $TESTS/*.sv; do
@@ -119,8 +145,9 @@ for sv in $TESTS/*.sv; do
         continue
     fi
 
-    if ! compile_test "$name" 2>/dev/null; then
+    if ! compile_test "$name" 2>"/tmp/uvm_compile_${name}.log"; then
         echo "COMPILE_FAIL"
+        sed 's/^/      | /' "/tmp/uvm_compile_${name}.log" | head -6
         FAIL=$((FAIL+1))
         continue
     fi
@@ -148,7 +175,23 @@ for sv in $TESTS/*.sv; do
         # No PASS marker AND no error: the test produced nothing we can
         # verify. A silent no-output run must NOT score as a pass — that
         # is exactly how a broken test hides. Count it as a failure.
+        #
+        # Surface whatever vvp actually emitted (stderr is folded into $out
+        # via run_test's 2>&1) plus any per-test DPI-companion build errors,
+        # so a platform where vvp silently produces nothing (e.g. a DPI
+        # library that fails to load) shows its real cause instead of the
+        # opaque "no error evidence". Bounded so a runaway test can't flood
+        # the log.
         echo "FAIL (no-check: no PASS marker and no error evidence)"
+        if [ -n "$out" ]; then
+            printf '%s\n' "$out" | sed 's/^/      > /' | head -8
+        else
+            echo "      > (vvp produced no output at all)"
+        fi
+        if [ -s "/tmp/uvm_dpi_${name}.buildlog" ]; then
+            echo "      > per-test DPI build:"
+            sed 's/^/      | /' "/tmp/uvm_dpi_${name}.buildlog" | head -4
+        fi
         FAIL=$((FAIL+1))
     fi
 done
