@@ -11,3 +11,6 @@ module sva_strong_seq;
   s: assert property (@(posedge clk) req |-> strong(##[1:$] ack));
   initial begin repeat(3) @(negedge clk); $finish(0); end
 endmodule
+
+// NEG-LEGACY-ONLY: the automaton engine (now default) lowers this
+// construct; this file verifies the legacy engine still rejects it loudly.

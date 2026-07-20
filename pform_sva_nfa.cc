@@ -30,8 +30,28 @@ bool pform_sva_nfa_enabled()
 {
       static int flag = -1;
       if (flag < 0) {
-	    const char*env = getenv("IVL_SVA_NFA");
-	    flag = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+	      // M9-NFA flip (Phase 2 close): the automaton engine is now the
+	      // DEFAULT SVA engine. It was validated at parity with (and a
+	      // strict superset of) the legacy linear engine across the
+	      // dual-run suite, the vendored ivtest sweep, the bundled VPI
+	      // suite, and the UVM regression. The legacy engine stays
+	      // available for one release as an escape hatch: set
+	      // IVL_SVA_LEGACY=1 (or the historical IVL_SVA_NFA=0) to use it.
+	    const char*legacy = getenv("IVL_SVA_LEGACY");
+	    const char*nfa = getenv("IVL_SVA_NFA");
+	      // Precedence: an explicit IVL_SVA_NFA=1 forces the automaton
+	      // engine on (so a diagnostic pointing at it always works, even
+	      // alongside IVL_SVA_LEGACY); IVL_SVA_LEGACY=1 (or IVL_SVA_NFA=0)
+	      // forces the legacy engine; otherwise the automaton engine is
+	      // the default.
+	    if (nfa && *nfa && strcmp(nfa, "0") != 0)
+		  flag = 1;                  // explicit automaton opt-in (wins)
+	    else if (legacy && *legacy && strcmp(legacy, "0") != 0)
+		  flag = 0;                  // explicit legacy opt-out
+	    else if (nfa && strcmp(nfa, "0") == 0)
+		  flag = 0;                  // historical IVL_SVA_NFA=0 opt-out
+	    else
+		  flag = 1;                  // default: automaton engine
       }
       return flag != 0;
 }

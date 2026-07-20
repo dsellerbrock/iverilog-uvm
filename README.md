@@ -201,22 +201,27 @@ assert property (@(posedge clk) disable iff (rst) req |-> ##[1:3] ack)
 ```
 
 Concurrent assertions lower to synthesized checkers with correct overlap and
-`|=>` next-cycle semantics — not parse-and-drop. Supported: implication,
-`##N`/`##[m:n]`/`##[m:$]`, `[*n]`/`[*m:n]`, `not`/`first_match`,
-`and`/`or`/`intersect`, `throughout`/`within`/`until` family, sampled-value
-functions with real histories, named/parameterized properties and sequences,
-`cover property`, `$asserton/$assertoff/$assertkill`. Unsupported operators
-(local sequence variables, `.matched`, `expect`, goto repetition, unbounded
-liveness) are **loud sorries**, never silent.
+`|=>` next-cycle semantics — not parse-and-drop. The **automaton engine**
+(M9-NFA) is the default SVA engine. Supported: implication,
+`##N`/`##[m:n]`/`##[m:$]` (including *mid-chain* windows/unbounded),
+`[*n]`/`[*m:n]`, goto/nonconsecutive repetition `[->m:n]`/`[=m:n]`,
+`not`/`first_match` (including the composed multi-length cut),
+`and`/`or`/`intersect`, `throughout`/`within`/`until` family, per-attempt
+local sequence variables, `strong`/`weak` sequence properties,
+`seq.triggered`/`seq.matched` endpoint methods, multiclocked `@(c1) a |=>
+@(c2) b`, sampled-value functions with real histories,
+named/parameterized properties and sequences, `cover property`,
+`$asserton/$assertoff/$assertkill`. The automaton-class features not yet
+lowered (broader multiclock concatenation, overlapping `|->` across clocks,
+`expect`) are **loud sorries**, never silent.
 
-An experimental **automaton engine** (M9-NFA) can be opted into with
-`IVL_SVA_NFA=1` in the environment at compile time: shapes it covers lower
-to NFA slot-pool checkers instead, which adds *mid-chain*
-`##[m:n]`/`##[m:$]` support (the default engine sorries there); everything
-else falls back to the default engine unchanged. A dual-run gate
-([tests/sva_nfa/run.sh](tests/sva_nfa/run.sh)) compiles each seed test with
-the flag off and on and diffs the verdict streams exactly. Design and
-status: [docs/conformance/m9_nfa_design_2026-07-19.md](docs/conformance/m9_nfa_design_2026-07-19.md).
+The legacy linear engine remains available for one release as an escape
+hatch — set `IVL_SVA_LEGACY=1` in the environment at compile time to select
+it (it covers the single-clock non-mid-chain subset and loudly sorries the
+rest). A dual-run gate ([tests/sva_nfa/run.sh](tests/sva_nfa/run.sh))
+compiles each seed test with both engines and diffs the verdict streams
+exactly, so the two stay in lockstep where they overlap. Design and status:
+[docs/conformance/m9_nfa_design_2026-07-19.md](docs/conformance/m9_nfa_design_2026-07-19.md).
 Example:
 [tests/m9_sva_engine_test.sv](tests/m9_sva_engine_test.sv); status detail in
 the [clause matrix](docs/conformance/matrices/ieee1800_2017_clause_matrix.md) (clause 16).
@@ -316,7 +321,7 @@ read it for the per-clause evidence and the complete corner ledger.
 | Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; bare module-scope `virtual` var missing |
 | Clocking blocks (cl. 14) | Supported | Sampled inputs, output drives, `##N`, global clocking |
 | Scheduler / event regions (cl. 4) | Partial | Regions modeled; formal region trace still open ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
-| SVA (cl. 16) | Partial | Real core engine; opt-in NFA engine (`IVL_SVA_NFA=1`) adds mid-chain window/unbounded shapes; remaining automaton-class features are loud sorries |
+| SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; remaining automaton-class features (broader multiclock, `expect`) are loud sorries |
 | Functional coverage (cl. 19) | Supported | Full clause-19 bin semantics |
 | DPI-C (cl. 35) | Substantial | Open arrays incl. multi-dim; no `export "DPI-C"` |
 | VPI SV object model (cl. 36) | Substantial | Classes, containers, covergroups, assertions; force/release corners open |

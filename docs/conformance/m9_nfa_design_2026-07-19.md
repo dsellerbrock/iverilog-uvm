@@ -857,6 +857,44 @@ Tests: `tests/sva_nfa/multiclock_impl.sv` (dual-run parity — a fulfilled
 and an unfulfilled request across two interleaved clocks);
 `tests/negative/sva_multiclock_ov.sv` pins the `|->` rejection.
 
+Stage D's substantive lowering (the CDC `|=>` handshake) is complete. The
+residual multiclock forms — mid-sequence clock flow (`@(c1) a ##1 @(c2)
+b`), overlapping `|->` across clocks, multi-cycle operands on either side,
+operators across differing clocks — are each loudly rejected (a syntax
+error or a precise sorry), so there is no silent-miscompile gap. They are
+harder, lower-value future work, not stage-D omissions left silent.
+
+## FLIP: LANDED — the automaton engine is the default
+
+The automaton engine is now the DEFAULT SVA engine
+(`pform_sva_nfa_enabled()` returns true unless the legacy engine is
+explicitly selected). It was validated at parity with — and a strict
+superset of — the legacy linear engine before the flip:
+
+- Dual-run suite: 32/32 verdict-parity (or gold) — every seed compiled
+  with both engines, streams diffed exactly.
+- Vendored ivtest sweep in automaton mode: name-diff clean (44 expected
+  failures, 0 unexplained) — identical to legacy mode.
+- Bundled VPI suite in automaton mode: 83/83.
+- UVM regression in automaton mode: 198/0/0.
+- Negative suite: the only automaton-mode "failures" were five tests
+  whose constructs the automaton engine LOWERS but the legacy engine
+  rejects (general intersect, general throughout, composed first_match,
+  local-variable-across-window, strong sequences). Each has a positive
+  gold test; those five negatives are marked `NEG-LEGACY-ONLY` and now run
+  against the legacy engine to keep pinning the legacy rejection.
+
+Escape hatch: the legacy linear engine remains available for one release.
+Select it with `IVL_SVA_LEGACY=1` (or the historical `IVL_SVA_NFA=0`) in
+the environment at compile time. The dual-run gate now compiles the
+legacy side with `IVL_SVA_LEGACY=1` and the automaton side with the
+default (and `IVL_SVA_NFA=1` for the engagement check), so the two engines
+stay in lockstep where they overlap until the linear path is deleted.
+
+After the flip the standing four gates run in automaton mode by default.
+Remaining M9-NFA arc: retire the legacy linear engine (a later release),
+and the residual multiclock forms above.
+
 ---
 
 Older note (kept for context): the one remaining stage-B item is
