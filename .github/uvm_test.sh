@@ -38,41 +38,48 @@ SKIP=0
 # (regex + command-line + HDL backdoor) instead of the UVM_NO_DPI native
 # fallbacks. The fork-owned umbrella (uvm_dpi/uvm_dpi_iverilog.cc) combines
 # the vendored UVM DPI sources with an Icarus HDL backend and resolves the
-# sv*/DPI-export dispatchers against vvp. If the build fails (e.g. no g++ or
-# headers), fall back to UVM_NO_DPI so the rest of the suite still runs.
-UVM_DPI_SO="/tmp/uvm_dpi_iv.so"
-IVL_INC="$(dirname "$(dirname "$(command -v iverilog)")")/include/iverilog"
+# sv*/DPI-export dispatchers against vvp.
+#
+# The umbrella is built with `iverilog-vpi` — the tree's own loadable-module
+# driver — NOT a hand-rolled `g++ -shared -fPIC`. iverilog-vpi links with the
+# platform-correct shared-library flag (configure's @shared@: -shared on Linux,
+# `-shared -Wl,--enable-auto-image-base` on MinGW, `-bundle -undefined
+# dynamic_lookup -flat_namespace` on macOS) AND against -lvpi/-lveriuser. The
+# previous hand-rolled build had neither: with no -lvpi and no per-platform
+# flag it happened to link on Linux (lazy binding of the undefined sv*/vpi_*
+# symbols against vvp at load) but FAILED on Windows — a DLL must resolve all
+# imports at link time — and on macOS, whose two-level namespace rejects the
+# undefined imports. Both platforms therefore silently fell back to
+# UVM_NO_DPI and never exercised the real DPI layer. If iverilog-vpi is
+# missing or the build fails, fall back to UVM_NO_DPI so the suite still runs.
+UVM_DPI_SO="/tmp/uvm_dpi_iv.vpi"
+IVPI="$(dirname "$BIN")/iverilog-vpi"
 NO_DPI_FLAG=""
 
 # macOS has no top-level <malloc.h>; the vendored uvm_dpi.h includes it.
 # Provide a shim that forwards to <stdlib.h> (which declares malloc/free/
 # realloc) so the DPI umbrella compiles. Guarded to Darwin so Linux keeps
-# using its real <malloc.h>.
-#
-# macOS also uses a two-level namespace by default: symbols a bundle
-# references (the sv*/DPI-export dispatchers this umbrella calls) must be
-# resolvable at LINK time or the .dylib is rejected, but those live in the
-# vvp executable, not any library we can name here. -undefined dynamic_lookup
-# defers them to load time so vvp satisfies them. Linux resolves lazily by
-# default, so this flag is Darwin-only.
+# using its real <malloc.h>. (iverilog-vpi handles the macOS namespace/link
+# flags itself, so no -undefined/-flat_namespace is needed here anymore.)
 DPI_COMPAT_INC=""
-DPI_LDFLAGS=""
 if [ "$(uname)" = "Darwin" ]; then
     mkdir -p /tmp/uvm_compat
     printf '#include <stdlib.h>\n' > /tmp/uvm_compat/malloc.h
     DPI_COMPAT_INC="-I/tmp/uvm_compat"
-    DPI_LDFLAGS="-undefined dynamic_lookup"
 fi
 
-if g++ -shared -fPIC -I"$IVL_INC" -I "$UVM/dpi" $DPI_COMPAT_INC $DPI_LDFLAGS \
-       -o "$UVM_DPI_SO" uvm_dpi/uvm_dpi_iverilog.cc 2>/tmp/uvm_dpi_build.log ; then
-    echo "UVM DPI library built ($UVM_DPI_SO): running WITHOUT UVM_NO_DPI"
+# iverilog-vpi wants attached -I<path>; it appends .vpi to --name, compiles the
+# umbrella object in the CWD (cleaned up below), and links per-platform.
+if [ -x "$IVPI" ] && "$IVPI" --name=/tmp/uvm_dpi_iv -I"$UVM/dpi" $DPI_COMPAT_INC \
+       uvm_dpi/uvm_dpi_iverilog.cc >/tmp/uvm_dpi_build.log 2>&1 ; then
+    echo "UVM DPI library built ($UVM_DPI_SO via iverilog-vpi): running WITHOUT UVM_NO_DPI"
 else
     echo "WARNING: UVM DPI library build failed; falling back to UVM_NO_DPI"
     sed 's/^/  /' /tmp/uvm_dpi_build.log
     NO_DPI_FLAG="-DUVM_NO_DPI"
     UVM_DPI_SO=""
 fi
+rm -f uvm_dpi_iverilog.o
 
 # Tests with known pre-existing issues (not regressions introduced by this fork).
 # Phase 63b/skipped-tests cleanup (2026-05-02) — vif_smoke and vif_smoke_v2
@@ -124,12 +131,16 @@ run_test() {
     local dflags=""
     [ -n "$UVM_DPI_SO" ] && dflags="-d $UVM_DPI_SO"
     local srcs=""
-    [ -f "$cfile" ] && srcs="$srcs $cfile"
+    [ -f "$cfile" ] && srcs="$srcs $PWD/$cfile"
     [ -f "$stub" ]  && srcs="$srcs $stub"
     if [ -n "$srcs" ]; then
-        gcc -shared -fPIC $DPI_LDFLAGS -o "/tmp/uvm_dpi_${name}.so" $srcs \
-            2>"/tmp/uvm_dpi_${name}.buildlog"
-        dflags="$dflags -d /tmp/uvm_dpi_${name}.so"
+        # Build the per-test companion the same way as the umbrella — via
+        # iverilog-vpi, so it links per-platform and resolves sv*/vpi_* against
+        # vvp on macOS/Windows too. Run in /tmp (absolute source paths) so the
+        # intermediate objects don't litter the repo checkout.
+        ( cd /tmp && "$IVPI" --name="/tmp/uvm_dpi_${name}" $srcs ) \
+            >"/tmp/uvm_dpi_${name}.buildlog" 2>&1
+        dflags="$dflags -d /tmp/uvm_dpi_${name}.vpi"
     fi
     $TIMEOUT $VVP $dflags "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
 }
@@ -197,5 +208,14 @@ for sv in $TESTS/*.sv; do
 done
 
 echo ""
+# Restate the DPI mode next to the summary so it is always visible in a
+# truncated CI log tail (the "UVM DPI library built ..." banner prints at the
+# top of the step, thousands of lines up). On the secondary platforms this is
+# the at-a-glance answer to "did we exercise real DPI or silently fall back?".
+if [ -n "$UVM_DPI_SO" ]; then
+    echo "DPI mode: REAL DPI umbrella loaded ($UVM_DPI_SO)"
+else
+    echo "DPI mode: UVM_NO_DPI FALLBACK — umbrella build failed (see build log above)"
+fi
 echo "UVM regression: $PASS passed, $FAIL failed, $SKIP skipped"
 [ $FAIL -eq 0 ]
