@@ -84,6 +84,70 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 	    cur = nxt;
       }
 
+	// M9-NFA stage C.1: goto `b[->m:n]` (rep_kind 1) / nonconsecutive
+	// `b[=m:n]` (rep_kind 2) repetition of a boolean (16.9.2). After the
+	// leading delay, `cur` is positioned so the first occurrence-check
+	// is the (fixed)-th tick out of it. Build a counting wait-loop.
+      if (st.rep_kind != 0) {
+	      // ##0-fused rep starts (a rep step sharing a prior arrival
+	      // tick) are out of scope; unbounded/window leading delays too.
+	    if ((fixed == 0 && !first) || unbounded || hi != lo)
+		  return ~0u;
+	    long m = st.rep_lo;
+	    long n = st.rep_hi;                 // -1 == unbounded upper
+	    bool ub = (n < 0);
+	    if (m < 1 || (!ub && n < m)) return ~0u;
+	    PExpr*nose = new PEUnary('!', st.expr);   // shared !e guard
+	    nose->set_lineno(st.expr->get_lineno());
+	    nose->set_file(st.expr->get_file());
+	    unsigned exit = nfa.new_state();
+
+	    if (st.rep_kind == 1) {
+		    // GOTO: split each count level into a wait state w[i-1]
+		    // and an arrival state a[i], so exit happens ON the
+		    // occurrence (a[i] has no self-loop; on the next tick the
+		    // slot is already in w[i]). eps a[i]->exit for i in [m,n].
+		  unsigned w = cur;
+		  long K = ub ? m : n;
+		  for (long i = 1; i <= K; i += 1) {
+			nfa.tick(w, w, nose);              // stay on !e
+			unsigned a = nfa.new_state();
+			nfa.tick(w, a, st.expr);           // advance on e
+			if (i >= m) nfa.eps(a, exit);      // exit ON the i-th e
+			if (i < K) {
+			      unsigned wn = nfa.new_state();
+			      nfa.eps(a, wn);
+			      w = wn;
+			} else if (ub) {
+				// [->m:$]: perpetual +1 loop from a[m].
+			      unsigned wm = nfa.new_state();
+			      nfa.eps(a, wm);
+			      nfa.tick(wm, wm, nose);
+			      unsigned amore = nfa.new_state();
+			      nfa.tick(wm, amore, st.expr);
+			      nfa.eps(amore, exit);
+			      nfa.eps(amore, wm);
+			}
+		  }
+	    } else {
+		    // NONCONSECUTIVE: single state per count level with a
+		    // trailing !e self-loop (the match may extend past the
+		    // last occurrence). eps s[i]->exit for i in [m,n].
+		  long K = ub ? m : n;
+		  std::vector<unsigned> s(K + 1);
+		  s[0] = cur;
+		  for (long i = 1; i <= K; i += 1) s[i] = nfa.new_state();
+		  for (long i = 0; i < K; i += 1) {
+			nfa.tick(s[i], s[i], nose);        // stay on !e
+			nfa.tick(s[i], s[i+1], st.expr);   // advance on e
+		  }
+		  nfa.tick(s[K], s[K], nose);              // trailing !e
+		  if (ub) nfa.tick(s[K], s[K], st.expr);  // [=m:$]: absorb more
+		  for (long i = m; i <= K; i += 1) nfa.eps(s[i], exit);
+	    }
+	    return exit;
+      }
+
       unsigned before_expr = cur;
       if (fixed == 0 && !first) {
 	      // ##0 fusion: the step's boolean shares the arrival

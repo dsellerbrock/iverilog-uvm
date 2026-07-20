@@ -696,6 +696,53 @@ sequence-expression-tree IR migration with stage C (goto/nonconsec
 repetition, `.matched`), so they are naturally that arc's opening items,
 not stage-B gaps left silent.
 
+## Stage C (in progress)
+
+Stage C scope: `[->m:n]`/`[=m:n]` goto & nonconsecutive repetition,
+`.matched`, and strong/weak end-of-sim semantics. Before this stage all
+four were plain syntax errors (a loud rejection — no silent miscompile).
+
+### Increment C.1: goto `[->m:n]` / nonconsecutive `[=m:n]` — LANDED
+
+Goto and nonconsecutive repetition apply to a **boolean** operand
+(16.9.2), so they need no sub-sequence IR: the count lives on the chain
+step (`sva_seq_step_t::rep_kind` 1=goto / 2=nonconsec, `rep_lo`/`rep_hi`,
+`rep_hi = -1` for `[->m:$]`), and `b[->2] ##1 c` composes as ordinary
+chain steps. The lexer gains `[->` (`K_LBGOTO`) and `[=` (`K_LBEQ`)
+openers (mirroring `[*`); `pform_sva_goto_repeat` records the counts on a
+single boolean atom (a multi-step operand, a local-var step, or a nested
+repetition is out of scope and marked `delay_lo=-3`, the existing loud
+diagnostic).
+
+The automaton fragment (`nfa_add_step_`) is a counting wait-loop. The
+end-of-match rule is the whole point and is encoded structurally:
+
+- **goto** `b[->m:n]`: each count level is SPLIT into a wait state
+  `w[i-1]` and an arrival state `a[i]`. `w` self-loops on `!b` (waiting)
+  and ticks to `a[i]` on `b` (advance); `a[i]` has NO self-loop and
+  eps-exits for `i in [m,n]`, so acceptance fires exactly on the tick of
+  the i-th `b` — the match ends ON the occurrence. `[->m:$]` adds a
+  perpetual +1 loop from `a[m]`.
+- **nonconsec** `b[=m:n]`: a single state per level with a trailing `!b`
+  self-loop on the top state, eps-exit for `i in [m,n]` — the match may
+  extend past the last `b`. `[=m:$]` also self-loops on `b`.
+
+These self-loops make the automaton cyclic, so it routes to the slot
+pool exactly like `##[m:$]`. Cover counts the shortest match once per
+attempt (the established rule `a ##[1:n] b` and first_match already
+follow; the dual-run gate enforces it). The legacy engine has no such
+construct: `sva_nfa_legacy_supports_` rejects any `rep_kind` step, and a
+`rep_kind` step reaching the legacy path (flag off, or the NFA engine
+declined) is a loud sorry — never a silent drop.
+
+Tests (automaton-only; legacy sorries): `goto_nonconsec_nfa_only.sv`
+pins the goto-vs-nonconsec end-of-match discriminator (goto=0,
+nonconsec=1 on a trace whose tail sits one cycle past the occurrence);
+`goto_range_nfa_only.sv` pins ranged/unbounded/exact counts;
+`tests/negative/sva_goto_nonconsec.sv` pins the flag-off rejection.
+
+Still open in stage C: `.matched`, strong/weak.
+
 ---
 
 Older note (kept for context): the one remaining stage-B item is

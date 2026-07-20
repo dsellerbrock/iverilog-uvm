@@ -50,6 +50,15 @@ struct sva_seq_step_t {
       perm_string lv_name;  // M9-NFA LV-1: local-var assignment on this
       PExpr* lv_rhs = nullptr; //   step ((expr, lv_name = lv_rhs)); nil = none
       bool fm = false;      // step is inside a first_match(...) wrapper
+      // M9-NFA stage C.1: goto/nonconsecutive repetition of the boolean
+      // `expr' (IEEE 1800-2017 16.9.2). rep_kind 0 = none; 1 = goto
+      // `[->m:n]' (match ends ON the n-th occurrence); 2 = nonconsecutive
+      // `[=m:n]' (match may extend past the last occurrence). rep_hi ==
+      // -1 encodes an unbounded upper `[->m:$]'/`[=m:$]'. delay_lo/hi is
+      // the leading cycle gap before the repetition begins.
+      int rep_kind = 0;
+      long rep_lo = 0;
+      long rep_hi = 0;
 };
 
 /*

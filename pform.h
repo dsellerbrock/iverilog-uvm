@@ -303,6 +303,17 @@ pform_sva_repeat(const struct vlltype&loc,
 		 std::vector<sva_seq_step_t>*steps,
 		 PExpr*lo, PExpr*hi);
 
+/* M9-NFA stage C.1: goto `b[->m:n]' (kind 1) / nonconsecutive `b[=m:n]'
+   (kind 2) repetition of a boolean (IEEE 1800-2017 16.9.2). `steps' must
+   be a single boolean atom; the repetition is recorded on that step for
+   the automaton engine (the legacy engine loudly rejects it). `hi' may
+   be null for the single-count `[->n]' form (hi := lo); `unbounded'
+   marks the `[->m:$]' upper. Consumes lo and hi. */
+extern std::vector<sva_seq_step_t>*
+pform_sva_goto_repeat(const struct vlltype&loc,
+		      std::vector<sva_seq_step_t>*steps,
+		      int kind, PExpr*lo, PExpr*hi, bool unbounded);
+
 /* M9C: `guard throughout seq` (IEEE 1800-2017 16.9.9) — lowered to an
    ordinary unit-delay sequence with `guard` AND-ed into every cycle.
    Returns the transformed step list, or nullptr (diagnosed) for the

@@ -1162,7 +1162,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %token K_PO_POS K_PO_NEG K_POW
 %token K_PSTAR K_STARP K_DOTSTAR
 %token K_LOR K_LAND K_NAND K_NOR K_NXOR K_TRIGGER K_NB_TRIGGER K_LEQUIV
-%token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV K_LBSTAR
+%token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV K_LBSTAR K_LBGOTO K_LBEQ
 %token K_SCOPE_RES
 %token <text> K_edge_descriptor
 
@@ -5627,6 +5627,22 @@ sva_seq_atom
       { $$ = pform_sva_repeat(@2, $1, $3, 0); }
   | sva_seq_atom K_LBSTAR expression ':' expression ']'
       { $$ = pform_sva_repeat(@2, $1, $3, $5); }
+  /* M9-NFA stage C.1: goto `b[->n]'/`b[->m:n]' and nonconsecutive
+     `b[=n]'/`b[=m:n]' repetition of a boolean (16.9.2). kind 1 = goto,
+     2 = nonconsecutive; the trailing bool marks an unbounded `:$' upper.
+     For the single-count form the low expression IS the high one. */
+  | sva_seq_atom K_LBGOTO expression ']'
+      { $$ = pform_sva_goto_repeat(@2, $1, 1, $3, nullptr, false); }
+  | sva_seq_atom K_LBGOTO expression ':' expression ']'
+      { $$ = pform_sva_goto_repeat(@2, $1, 1, $3, $5, false); }
+  | sva_seq_atom K_LBGOTO expression ':' '$' ']'
+      { $$ = pform_sva_goto_repeat(@2, $1, 1, $3, nullptr, true); }
+  | sva_seq_atom K_LBEQ expression ']'
+      { $$ = pform_sva_goto_repeat(@2, $1, 2, $3, nullptr, false); }
+  | sva_seq_atom K_LBEQ expression ':' expression ']'
+      { $$ = pform_sva_goto_repeat(@2, $1, 2, $3, $5, false); }
+  | sva_seq_atom K_LBEQ expression ':' '$' ']'
+      { $$ = pform_sva_goto_repeat(@2, $1, 2, $3, nullptr, true); }
   /* Parenthesized sub-sequence: `(a ##1 b) |-> c`. Plain
      parenthesized booleans keep the ordinary expression path (the
      reduce/reduce conflict resolves to the earlier expression

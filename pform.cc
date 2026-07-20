@@ -5916,6 +5916,60 @@ pform_sva_repeat(const struct vlltype&loc,
 }
 
 /*
+ * M9-NFA stage C.1: goto `b[->m:n]` (kind 1) and nonconsecutive
+ * `b[=m:n]` (kind 2) repetition of a boolean (IEEE 1800-2017 16.9.2).
+ * The operand must be a single boolean step; the repetition counts are
+ * recorded on that step (rep_kind/rep_lo/rep_hi) for the automaton
+ * engine, which builds a counting wait-loop fragment. The legacy engine
+ * has no such construct and loudly rejects a rep_kind step at lowering.
+ *
+ * A goto/nonconsec operand that is a multi-step sequence, carries a
+ * local-variable assignment, or is already a repetition is out of scope
+ * (16.9.2 restricts these operators to a Boolean); such shapes are
+ * marked as an unsupported repetition (delay_lo = -3), which the
+ * existing lowering already diagnoses loudly. Consumes lo and hi.
+ */
+std::vector<sva_seq_step_t>*
+pform_sva_goto_repeat(const struct vlltype&loc,
+		      std::vector<sva_seq_step_t>*steps,
+		      int kind, PExpr*lo, PExpr*hi, bool unbounded)
+{
+      (void)loc;
+      PENumber*lon = dynamic_cast<PENumber*>(lo);
+      PENumber*hin = dynamic_cast<PENumber*>(hi);
+      long lov = lon ? lon->value().as_long() : -1;
+      long hiv = unbounded ? -1 : (hi ? (hin ? hin->value().as_long() : -1) : lov);
+      delete lo;
+      delete hi;
+
+      if (!steps || steps->empty())
+	    return steps;
+
+	/* Boolean-operand restriction: exactly one plain step, no local
+	   variable, no existing repetition/delay shape. */
+      bool ok = (steps->size() == 1)
+		&& !(*steps)[0].lv_rhs
+		&& (*steps)[0].rep_kind == 0
+		&& (*steps)[0].rep_tail == 0
+		&& (*steps)[0].delay_lo >= 0
+		&& (*steps)[0].delay_lo == (*steps)[0].delay_hi;
+	/* Count validity: m >= 1, and (bounded) n >= m. */
+      if (ok && (!lon || lov < 1)) ok = false;
+      if (ok && !unbounded && (hiv < lov || (hi && !hin))) ok = false;
+
+      if (!ok) {
+	    (*steps)[0].delay_lo = -3;
+	    (*steps)[0].delay_hi = -3;
+	    return steps;
+      }
+
+      (*steps)[0].rep_kind = kind;
+      (*steps)[0].rep_lo = lov;
+      (*steps)[0].rep_hi = hiv;   // -1 when unbounded
+      return steps;
+}
+
+/*
  * M9C: `expr throughout seq` (IEEE 1800-2017 16.9.9). The boolean `expr`
  * must hold at every clock tick from the start of `seq` until it
  * completes. Rather than extend the token-pipeline runtime, we lower
@@ -6605,6 +6659,9 @@ static bool sva_nfa_legacy_supports_(const std::vector<sva_seq_step_t>&seq,
 	    bool last = (j + 1 == seq.size());
 	    long lo = seq[j].delay_lo;
 	    long hi = seq[j].delay_hi;
+	      /* goto/nonconsecutive repetition (C.1) is automaton-only —
+		 the legacy engine has no counting wait-loop for it. */
+	    if (seq[j].rep_kind != 0) return false;
 	    if (lo < 0) return false;
 	    if (hi == -1 && !last) return false;
 	    if (seq[j].rep_tail != 0 && !last) return false;
@@ -8128,6 +8185,30 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (pform_sva_nfa_enabled()
 	  && pform_sva_nfa_try_assertion(loc, prop, fail_stmt, pass_stmt, kind))
 	    return;
+
+	/* M9-NFA stage C.1: goto/nonconsecutive repetition (`b[->m:n]',
+	   `b[=m:n]') is an automaton-only construct. If we reach here with a
+	   rep_kind step — the NFA engine is off, or it declined the shape —
+	   the legacy engine has no such counting loop and would silently
+	   drop it; diagnose loudly instead. */
+      bool has_rep_kind = false;
+      for (size_t si = 0 ; si < prop->seq->size() ; si += 1)
+	    if ((*prop->seq)[si].rep_kind != 0) has_rep_kind = true;
+      if (prop->antecedent)
+	    for (size_t si = 0 ; si < prop->antecedent->size() ; si += 1)
+		  if ((*prop->antecedent)[si].rep_kind != 0) has_rep_kind = true;
+      if (has_rep_kind) {
+	    cerr << loc << ": sorry: SVA goto (`[->m:n]') / nonconsecutive "
+		 << "(`[=m:n]') repetition requires the automaton engine "
+		 << "(compile with IVL_SVA_NFA=1 in the environment); the "
+		 << "assertion is dropped." << endl;
+	    error_count += 1;
+	    delete fail_stmt; delete pass_stmt;
+	    delete prop->antecedent; delete prop->seq;
+	    delete prop->clk_evt; delete prop->disable_iff_expr;
+	    delete prop;
+	    return;
+      }
 
 	/* If the automaton engine declined a slot-local-variable
 	   assertion, the legacy engine cannot lower it (the reads are
