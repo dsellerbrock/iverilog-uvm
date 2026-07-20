@@ -17,6 +17,23 @@
  *    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+/*
+ * The DPI-export coroutine (time-consuming exported task, 35.5) uses the
+ * POSIX <ucontext.h> routines on macOS/Linux. On macOS those routines are
+ * gated behind _XOPEN_SOURCE and must have it defined BEFORE the first
+ * system header is pulled in — hence here, ahead of every #include.
+ * _DARWIN_C_SOURCE keeps the rest of the BSD/Darwin API visible alongside
+ * it. Apple-only, so glibc's feature-test macro selection is untouched.
+ */
+#if defined(__APPLE__)
+# ifndef _XOPEN_SOURCE
+#  define _XOPEN_SOURCE 700
+# endif
+# ifndef _DARWIN_C_SOURCE
+#  define _DARWIN_C_SOURCE 1
+# endif
+#endif
+
 # include  "config.h"
 # include  "vthread.h"
 # include  "codes.h"
@@ -846,29 +863,44 @@ static __vpiScope*dpi_active_scope_ = 0;
  * DPI import-task coroutine (IEEE 1800-2017 35.5 time-consuming export).
  *
  * When an imported DPI *task* (%dpi/call/task) is executed, its C body is
- * run on a private ucontext stack (a "coroutine") so that if the C calls
- * an exported SV task that blocks on #delay/@event, the whole C stack can
- * be parked while simulation time advances, then resumed when the SV task
+ * run on a private stack (a "coroutine") so that if the C calls an
+ * exported SV task that blocks on #delay/@event, the whole C stack can be
+ * parked while simulation time advances, then resumed when the SV task
  * completes. Functions and void-returning functions are zero-time and keep
- * the fast synchronous path (%dpi/call/void). Coroutines are POSIX-only;
- * on MinGW/Windows (no <ucontext.h>) and macOS (whose SDK marks the
- * ucontext routines deprecated unless _XOPEN_SOURCE is defined before the
- * first system header — too late here) a time-consuming exported task is a
- * loud sorry.
+ * the fast synchronous path (%dpi/call/void).
+ *
+ * Two backends provide the stack switch, selected at compile time:
+ *   - POSIX <ucontext.h> (Linux, macOS) — swapcontext();
+ *   - Win32 Fibers (MinGW/Windows) — SwitchToFiber().
+ * Both are wrapped behind the same dpi_coro_* helpers; the rest of the
+ * runtime (dpi_export_run_, resume_joining_parent_, of_DPI_CALL_TASK) is
+ * backend-agnostic. IVL_HAVE_DPI_CORO is defined whenever a backend exists.
  */
-#if defined(__MINGW32__) || defined(__APPLE__)
-# define IVL_NO_DPI_CORO 1
-#endif
-
-#ifndef IVL_NO_DPI_CORO
+#if defined(__MINGW32__)
+# define IVL_DPI_CORO_FIBER 1
+# define IVL_HAVE_DPI_CORO  1
+# include  <windows.h>
+#else
+# define IVL_DPI_CORO_UCONTEXT 1
+# define IVL_HAVE_DPI_CORO     1
 # include  <ucontext.h>
 #endif
 
+// macOS marks the ucontext routines deprecated; the calls are correct and
+// intentional here, so silence just that warning around this section.
+#if defined(__APPLE__)
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 struct dpi_coro_s {
-#ifndef IVL_NO_DPI_CORO
+#if defined(IVL_DPI_CORO_UCONTEXT)
       ucontext_t ctx;         // the coroutine's own context (its C stack)
       ucontext_t caller_ctx;  // where a park/finish returns (set per switch-in)
       char*stack;
+#elif defined(IVL_DPI_CORO_FIBER)
+      void*fiber;             // the coroutine's own fiber (its C stack)
+      void*caller_fiber;      // the fiber a park/finish returns to (per switch-in)
 #endif
       bool finished;          // the import C call has returned
       vthread_t sv_caller;    // the SV thread that issued the %dpi/call
@@ -887,8 +919,11 @@ static dpi_coro_s*dpi_coro_current = 0;
 
 static bool dpi_call_common_(vthread_t, vvp_code_t, char, unsigned, char);
 
-#ifndef IVL_NO_DPI_CORO
+#if defined(IVL_DPI_CORO_UCONTEXT)
 static void dpi_coro_trampoline_(void);
+#elif defined(IVL_DPI_CORO_FIBER)
+static void WINAPI dpi_coro_trampoline_(void*);
+#endif
 
 static dpi_coro_s*dpi_coro_create_(vthread_t thr, vvp_code_t cp)
 {
@@ -900,18 +935,27 @@ static dpi_coro_s*dpi_coro_create_(vthread_t thr, vvp_code_t cp)
 	// works from C) and the caller's scope as the active svScope.
       coro->saved_mode = VPI_MODE_RWSYNC;
       coro->saved_scope = thr->parent_scope;
+#if defined(IVL_DPI_CORO_UCONTEXT)
       coro->stack = (char*) malloc(DPI_CORO_STACK);
       getcontext(&coro->ctx);
       coro->ctx.uc_stack.ss_sp = coro->stack;
       coro->ctx.uc_stack.ss_size = DPI_CORO_STACK;
       coro->ctx.uc_link = 0;
       makecontext(&coro->ctx, dpi_coro_trampoline_, 0);
+#elif defined(IVL_DPI_CORO_FIBER)
+      coro->caller_fiber = 0;
+      coro->fiber = CreateFiber(DPI_CORO_STACK, dpi_coro_trampoline_, coro);
+#endif
       return coro;
 }
 
 static void dpi_coro_destroy_(dpi_coro_s*coro)
 {
+#if defined(IVL_DPI_CORO_UCONTEXT)
       free(coro->stack);
+#elif defined(IVL_DPI_CORO_FIBER)
+      DeleteFiber(coro->fiber);
+#endif
       delete coro;
 }
 
@@ -928,7 +972,16 @@ static void dpi_coro_switch_into_(dpi_coro_s*coro)
       vpi_mode_flag = coro->saved_mode;
       dpi_active_scope_ = coro->saved_scope;
 
+#if defined(IVL_DPI_CORO_UCONTEXT)
       swapcontext(&coro->caller_ctx, &coro->ctx);
+#elif defined(IVL_DPI_CORO_FIBER)
+	// The scheduler thread must itself be a fiber before it can switch
+	// to another. Convert lazily and remember which fiber to return to.
+      if (! IsThreadAFiber())
+	    ConvertThreadToFiber(0);
+      coro->caller_fiber = GetCurrentFiber();
+      SwitchToFiber(coro->fiber);
+#endif
 
       dpi_active_scope_ = sched_scope;
       vpi_mode_flag = sched_mode;
@@ -941,9 +994,14 @@ static void dpi_coro_yield_(dpi_coro_s*coro)
 {
       coro->saved_mode = vpi_mode_flag;
       coro->saved_scope = dpi_active_scope_;
+#if defined(IVL_DPI_CORO_UCONTEXT)
       swapcontext(&coro->ctx, &coro->caller_ctx);
+#elif defined(IVL_DPI_CORO_FIBER)
+      SwitchToFiber(coro->caller_fiber);
+#endif
 }
 
+#if defined(IVL_DPI_CORO_UCONTEXT)
 static void dpi_coro_trampoline_(void)
 {
       dpi_coro_s*coro = dpi_coro_current;
@@ -951,7 +1009,21 @@ static void dpi_coro_trampoline_(void)
       coro->finished = true;
       swapcontext(&coro->ctx, &coro->caller_ctx);
 }
-#endif // !IVL_NO_DPI_CORO
+#elif defined(IVL_DPI_CORO_FIBER)
+static void WINAPI dpi_coro_trampoline_(void*arg)
+{
+      dpi_coro_s*coro = (dpi_coro_s*) arg;
+      dpi_call_common_(coro->sv_caller, coro->cp, 'v', 0, 'i');
+      coro->finished = true;
+	// A fiber proc must never return (that would end the thread); yield
+	// back to whoever last switched in. dpi_coro_current is this coro.
+      SwitchToFiber(coro->caller_fiber);
+}
+#endif
+
+#if defined(__APPLE__)
+# pragma clang diagnostic pop
+#endif
 
 static vpiHandle lookup_scope_item_(__vpiScope*scope, const char*name)
 {
@@ -5519,7 +5591,7 @@ static void resume_joining_parent_(vthread_t parent, vthread_t child)
       assert(parent);
       assert(child);
 
-#ifndef IVL_NO_DPI_CORO
+#ifdef IVL_HAVE_DPI_CORO
 	/* DPI export (35.5): this child is an exported SV task that ran
 	   time-consuming under a DPI import coroutine. Resume the coroutine
 	   (its C call continues, possibly parking again on another exported
@@ -5540,7 +5612,7 @@ static void resume_joining_parent_(vthread_t parent, vthread_t child)
 		 here when that child ends. */
 	    return;
       }
-#endif // !IVL_NO_DPI_CORO
+#endif // IVL_HAVE_DPI_CORO
 
       parent->i_am_joining = 0;
       do_join(parent, child);
@@ -8224,7 +8296,7 @@ bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_TASK(vthread_t thr, vvp_code_t cp)
 {
-#ifdef IVL_NO_DPI_CORO
+#ifndef IVL_HAVE_DPI_CORO
 	// No coroutines on Windows: run synchronously. A time-consuming
 	// exported task then hits the loud sorry in dpi_export_run_.
       return dpi_call_common_(thr, cp, 'v', 0, 'i');
@@ -10221,7 +10293,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    }
       }
 
-#ifndef IVL_NO_DPI_CORO
+#ifdef IVL_HAVE_DPI_CORO
 	/* Time-consuming exported TASK path: a void export reached from an
 	   imported DPI *task* (running on a coroutine). Let the scheduler run
 	   the child across simulation time and park the coroutine until it
@@ -10319,15 +10391,14 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
       } else {
 	      /* Reached only when a suspending export could not be run
 		 time-consuming: a value-returning function that blocked
-		 (illegal — functions are zero-time), a void export reached
-		 from something other than an imported DPI task, or (on
-		 MinGW/Windows) any time-consuming export, since coroutines
-		 need <ucontext.h>. A time-consuming task reached from an
-		 imported DPI task takes the coroutine path above. */
+		 (illegal — functions are zero-time), or a void export reached
+		 from something other than an imported DPI task. A
+		 time-consuming task reached from an imported DPI task takes
+		 the coroutine path above (available on all platforms). */
 	    fprintf(stderr, "vvp: sorry: exported DPI subroutine '%s' did not "
 		    "complete in zero time; a time-consuming export is "
 		    "supported only for a task reached from an imported DPI "
-		    "task, and not on this platform (no <ucontext.h>).\n",
+		    "task.\n",
 		    cname);
       }
 

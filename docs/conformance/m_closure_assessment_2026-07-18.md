@@ -164,11 +164,14 @@ class property) — entangled with the elab_expr class-typing collapse
 (finding 4, M1B parameterized dispatch), so sequenced after that per the
 plan above.
 
-Also on PR #90: the time-consuming DPI-export coroutine (ucontext) was
-made POSIX-only via a single `IVL_NO_DPI_CORO` guard (`__MINGW32__ ||
-__APPLE__`), fixing the macOS build (its SDK gates the ucontext routines
-behind `_XOPEN_SOURCE`, unsatisfiable that late in the include order);
-macOS now takes the same loud-sorry fallback as Windows.
+Also on PR #90: the time-consuming DPI-export coroutine now works on **all
+platforms**. It was briefly made POSIX-only (to unbreak the macOS build,
+whose SDK gates the ucontext routines behind `_XOPEN_SOURCE`), then done
+properly: a two-backend abstraction behind the same `dpi_coro_*` helpers —
+POSIX `<ucontext.h>` on Linux/macOS (macOS enabled with an Apple-only
+`_XOPEN_SOURCE` ahead of all includes) and Win32 Fibers on MinGW/Windows.
+`IVL_HAVE_DPI_CORO` marks a backend present; only the illegal
+value-returning-function-that-blocks case stays a loud sorry everywhere.
 
 
 ---

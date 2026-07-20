@@ -7,8 +7,8 @@
 // stack is parked rather than blocking the scheduler), and a self-check on
 // the final time and accumulated value.
 //
-// POSIX-only: on MinGW/Windows (no <ucontext.h>) a time-consuming export is
-// a loud sorry, so this test is expected only on the Linux/macOS runners.
+// Supported on all platforms: the C stack is parked on a coroutine backend
+// (POSIX <ucontext.h> on Linux/macOS, Win32 Fibers on MinGW/Windows).
 module m10f_dpi_export_timeconsuming_test;
   import "DPI-C" context task c_run(int reps);
 
