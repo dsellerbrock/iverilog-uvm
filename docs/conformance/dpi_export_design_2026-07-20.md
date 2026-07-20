@@ -159,10 +159,34 @@ marshaled. Together with a fork-owned Icarus UVM DPI backend
 regression run WITHOUT `UVM_NO_DPI` (200/200 green). The four standing
 gates stay clean.
 
-Still open (steps 4–5): `svScope` MULTI-instance and `context`-relative
-export (the single-static-scope and package-scope cases work);
-time-consuming task export (C-stack suspension across simulation time) — a
-time-consuming exported subroutine is a loud runtime sorry. Object /
+Follow-up (2026-07-20, multi-instance + context): the export registry now
+holds one record per instance and the dispatcher selects the instance
+matching the active `svScope` — `svSetScope(svGetScopeFromName("top.u1"))`
+picks that instance, and a `context` import that calls an export with no
+`svSetScope` runs it in the import's own instance (35.5.2). A `%dpi/call`
+now runs in `VPI_MODE_RWSYNC` so DPI C may call `svGetScopeFromName`.
+
+Follow-up (2026-07-20, time-consuming task export): **implemented on all
+platforms.** An imported DPI *task* (`%dpi/call/task`) runs its C body on a
+coroutine; when the C calls an exported SV *task* that blocks on
+`#delay`/`@event`, the coroutine (and the issuing SV thread) park while
+simulation time advances, resuming when the SV task completes. The child
+runs as a normal scheduler-driven join-child of the caller;
+`resume_joining_parent_` resumes the coroutine on its end. Verified: a
+concurrent SV process runs during the export's delays, multiple blocking
+exported calls in one import call, and exported-task arguments.
+
+The coroutine has two interchangeable backends behind the same
+`dpi_coro_*` helpers, selected at compile time (`IVL_HAVE_DPI_CORO`):
+POSIX `<ucontext.h>` `swapcontext()` on Linux/macOS, and Win32 Fibers
+(`CreateFiber`/`SwitchToFiber`) on MinGW/Windows. macOS needs
+`_XOPEN_SOURCE` defined ahead of every system include (done at the top of
+`vthread.cc`, Apple-only) to expose the ucontext routines. Only the
+degenerate illegal case — a value-returning exported *function* that
+blocks — remains a loud sorry, on every platform.
+
+Still open: `svScope` selection beyond the immediate enclosing instance
+(deep generate/begin nesting falls back to instance 0 + warning); object /
 open-array / wide-vector and output/inout arguments in exports remain loud
 sorries pending further marshaling work.
 

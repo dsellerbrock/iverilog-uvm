@@ -6291,7 +6291,8 @@ pform_sva_binprop(const struct vlltype&loc, int op_type,
  * 10 s_nexttime, 11 s_eventually.
  */
 sva_property_t*
-pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub)
+pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
+		 long win_lo, long win_hi)
 {
       const char*w = (op_type == 9) ? "nexttime"
 		   : (op_type == 10) ? "s_nexttime" : "s_eventually";
@@ -6310,6 +6311,8 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub)
       }
       sva_property_t*p = new sva_property_t;
       p->op_type = op_type;
+      p->win_lo = win_lo;
+      p->win_hi = win_hi;
       p->seq = sub->seq;   /* move the boolean step list */
       sub->seq = nullptr;
       delete sub;
@@ -6527,7 +6530,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		       NEXT cycle. Per attempt at cycle S that is p@(S+1);
 		       aggregated, every cycle T>=1 requires p@T. A
 		       $past(1,1) guard suppresses the first cycle. */
-		  PExpr*valid = sva_past_(loc, sva_bit_(loc, 1), 1);
+		long nt_off = (prop->win_lo >= 0) ? prop->win_lo : 1;
+		PExpr*valid = sva_past_(loc, sva_bit_(loc, 1), nt_off);
 		  PExpr*failexpr = sva_logic_(loc, 'a', valid,
 					      sva_not_(loc, sva_id_(loc, r_p)));
 		  PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,

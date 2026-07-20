@@ -405,6 +405,18 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    if (word_ex && sig_type) {
 		  ivl_type_t element_type = ivl_type_element(sig_type);
 		  if (element_type && ivl_type_base(element_type) == IVL_VT_CLASS) {
+			  /* Associative array of objects, `amap[key].prop = v`. Load the
+			     element by KEY (matching the read path in eval_object_select),
+			     not positionally: a positional %load/dar/obj indexes the
+			     underlying queue by the key value and loads the wrong/null
+			     element, silently dropping the store. */
+			if (ivl_type_base(sig_type) == IVL_VT_QUEUE
+			    && ivl_type_queue_assoc_compat(sig_type)) {
+			      const char*key_kind = draw_eval_assoc_key_(word_ex, 0);
+			      fprintf(vvp_out, "    %%aa/load/sig/obj/%s v%p_0;\n",
+			              key_kind, lval_sig);
+			      return element_type;
+			}
 			draw_eval_expr_into_integer(word_ex, 3);
 			if (ivl_type_base(sig_type) == IVL_VT_DARRAY ||
 			    ivl_type_base(sig_type) == IVL_VT_QUEUE) {
@@ -1275,7 +1287,53 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
       ivl_type_t element_type = ivl_type_element(var_type);
 
       assert(ivl_stmt_lvals(net) == 1);
-      assert(part == 0);
+
+	/* Part/bit-select store into a dynamic-array (or queue) element
+	   whose base type is a packed vector: d[i][off +: wid] = rhs. Lower
+	   as a read-modify-write with %store/dar/vec4/off. The element-
+	   relative offset expression (already normalized during elaboration)
+	   is evaluated into an integer register, so a run-time-variable bit
+	   index works. Non-vector elements or compound assignments fall to
+	   the loud sorry below. */
+      if (part != 0 && ivl_lval_idx(lval) && ivl_stmt_opcode(net) == 0
+	  && (ivl_type_base(element_type) == IVL_VT_BOOL
+	      || ivl_type_base(element_type) == IVL_VT_LOGIC)) {
+	    ivl_expr_t mux = ivl_lval_idx(lval);
+	    unsigned lwid = ivl_lval_width(lval);
+	    int mux_word = allocate_word();
+	    int off_word = allocate_word();
+	    int flag = allocate_flag();
+
+	      /* Evaluate the element address into reg 3, then stash it (and
+		 the address-undefined flag 4) across the offset and r-value
+		 evaluations, which may clobber both. */
+	    draw_eval_expr_into_integer(mux, 3);
+	    fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
+	    draw_eval_expr_into_integer(part, off_word);
+	    draw_eval_vec4(rval);
+	    resize_vec4_wid(rval, lwid);
+	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
+	    fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
+	    fprintf(vvp_out, "    %%store/dar/vec4/off v%p_0, %d, %u;\n",
+		    var, off_word, lwid);
+	    clr_flag(flag);
+	    clr_word(off_word);
+	    clr_word(mux_word);
+	    return errors;
+      }
+
+      if (part != 0) {
+	      /* A darray/queue element part-select we cannot lower yet
+		 (non-vector element or a compound assignment). Loud sorry —
+		 never a silent wrong store. */
+	    fprintf(stderr, "%s:%u: sorry: assignment to this dynamic-array "
+		    "element part-select form is not yet supported.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    fprintf(vvp_out, "; ERROR: unsupported darray element part-select "
+		    "l-value.\n");
+	    return errors + 1;
+      }
 
       if (ivl_lval_idx(lval)) {
 	    show_stmt_assign_sig_darray_queue_mux(net);
@@ -1469,7 +1527,44 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
       ivl_type_t element_type = ivl_type_element(var_type);
 
       assert(ivl_stmt_lvals(net) == 1);
-      assert(part == 0);
+
+	/* Part/bit-select store into a queue element that is a packed
+	   vector: q[i][off +: wid] = rhs. Same read-modify-write lowering as
+	   for dynamic arrays (%store/dar/vec4/off operates on the shared
+	   vvp_darray base, which queues subclass). */
+      if (part != 0 && ivl_lval_idx(lval) && ivl_stmt_opcode(net) == 0
+	  && (ivl_type_base(element_type) == IVL_VT_BOOL
+	      || ivl_type_base(element_type) == IVL_VT_LOGIC)) {
+	    ivl_expr_t mux = ivl_lval_idx(lval);
+	    unsigned lwid = ivl_lval_width(lval);
+	    int mux_word = allocate_word();
+	    int off_word = allocate_word();
+	    int flag = allocate_flag();
+
+	    draw_eval_expr_into_integer(mux, 3);
+	    fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
+	    draw_eval_expr_into_integer(part, off_word);
+	    draw_eval_vec4(rval);
+	    resize_vec4_wid(rval, lwid);
+	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
+	    fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
+	    fprintf(vvp_out, "    %%store/dar/vec4/off v%p_0, %d, %u;\n",
+		    var, off_word, lwid);
+	    clr_flag(flag);
+	    clr_word(off_word);
+	    clr_word(mux_word);
+	    return errors;
+      }
+
+      if (part != 0) {
+	    fprintf(stderr, "%s:%u: sorry: assignment to this queue element "
+		    "part-select form is not yet supported.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    fprintf(vvp_out, "; ERROR: unsupported queue element part-select "
+		    "l-value.\n");
+	    return errors + 1;
+      }
 
       assert(ivl_type_base(var_type) == IVL_VT_QUEUE);
 
