@@ -631,7 +631,7 @@ a local variable already being legacy-only — documented, loud.
 With LV-1 + LV-2 the stage-B "local variables (slot storage)" item is
 complete.
 
-### first_match: exact where transparent, LOUD where not
+### first_match: exact standalone, exact composed (expansion), LOUD otherwise
 
 `first_match` is transparent (its inner sequence flows into the chain).
 This is EXACT for standalone/existence positions — a cover/assert of
@@ -645,15 +645,34 @@ multi-length first_match antecedent of an implication): the cut would
 change which match continues, and transparent lowering would silently
 OVER-match.
 
-That case is now a LOUD sorry (`sva_check_first_match_`; negative test
-`tests/negative/sva_first_match_composed.sv`) instead of a silent
-miscompile — the correct fix needs a sub-sequence node in the IR (the
-sequence-expression tree) to carry the cut, which is the same migration
-composed-`first_match` and stage-C goto/nonconsec repetition both want.
-The wrapped steps are flagged in the grammar; the check fires only for
-the genuinely-affected shape (variable length inside the wrapper + a
-continuation), so standalone and single-length composed first_match
-stay exact and compile.
+The COMPOSED case is now LOWERED exactly (`sva_expand_first_match_`),
+not sorried. The insight: the earliest-match cut of a single bounded
+window `##[m:n]` is a disjoint union of fixed-length branches, where
+branch `k` demands the awaited boolean is FALSE at every earlier window
+offset `m..k-1` and TRUE at `k`:
+
+    first_match(a ##[1:2] b) ##1 c
+      = (a ##1  b ##1 c)                     // earliest = offset 1
+        or
+        (a ##1 !b ##1 b ##1 c)              // earliest = offset 2
+
+The `!awaited` guards make the branches mutually exclusive, so exactly
+the earliest match survives and the tail continues from it — precisely
+first_match semantics, with no double-counting. The synthesizer builds
+this as a `SEQ_OR` combinator tree and re-dispatches through the stage-B
+tree path, so the automaton engine lowers it directly. Because the
+result is a tree (automaton-only), the rewrite is attempted only when
+`IVL_SVA_NFA=1`; the legacy engine still emits a loud sorry
+(`sva_check_first_match_` gates the rewrite; negative test
+`tests/negative/sva_first_match_composed.sv` pins the flag-off
+rejection; gold test `tests/sva_nfa/first_match_composed_nfa_only.sv`
+pins the flag-on count of 2 vs a transparent engine's wrong 3).
+
+Shapes the expansion does not yet cover (local var inside the window,
+range repetition, a second variable window, `##[m:$]` unbounded, or a
+composed first_match antecedent of an implication) fall through to a
+loud sorry rather than a silent miscompile — they want the general
+sequence-expression-tree migration that stage C also needs.
 
 ## Stage B: HONESTLY COMPLETE
 
@@ -668,12 +687,14 @@ with a loud sorry — no silent miscompiles:
 | `within` (general) | lowered (B.4) |
 | `throughout` (general) | lowered (B.5) |
 | local variables (slot storage) | lowered — fixed (LV-1, both engines), variable/unbounded (LV-2, per-slot) |
-| `first_match` | exact standalone; composed-multi-length is a loud sorry |
+| `first_match` | exact standalone; composed single-window lowered by earliest-match OR-expansion; residual shapes are a loud sorry |
 
-The single construct that reduces to a loud sorry (composed
-multi-length `first_match`) shares the sequence-expression-tree IR
-migration with stage C (goto/nonconsec repetition, `.matched`), so it
-is naturally that arc's opening item, not a stage-B gap left silent.
+The residual first_match shapes still reduced to a loud sorry (local var
+or repetition inside the window, multiple variable windows, `##[m:$]`
+unbounded, composed antecedent of an implication) share the general
+sequence-expression-tree IR migration with stage C (goto/nonconsec
+repetition, `.matched`), so they are naturally that arc's opening items,
+not stage-B gaps left silent.
 
 ---
 
