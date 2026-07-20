@@ -322,6 +322,54 @@ pform_sva_intersect(const struct vlltype&loc,
 		    std::vector<sva_seq_step_t>*s1,
 		    std::vector<sva_seq_step_t>*s2);
 
+/* M9-NFA stage B: package a sequence `or'/`and' (op 'o'/'a') as a
+   combinator tree on an sva_property_t. Consumes both chains. Only the
+   automaton engine lowers these; without IVL_SVA_NFA=1 the assertion
+   is a loud sorry at lowering. */
+extern sva_property_t*
+pform_sva_seq_comb(const struct vlltype&loc, char op,
+		   std::vector<sva_seq_step_t>*s1,
+		   std::vector<sva_seq_step_t>*s2);
+
+/* M9-NFA stage B.2: `intersect` — equal-length fixed operands keep the
+   legacy AND-chain lowering; unequal fixed lengths keep the parse-time
+   sorry; non-fixed shapes build a SEQ_INTERSECT product tree for the
+   automaton engine. Consumes both chains. */
+extern sva_property_t*
+pform_sva_seq_intersect(const struct vlltype&loc,
+			std::vector<sva_seq_step_t>*s1,
+			std::vector<sva_seq_step_t>*s2);
+
+/* M9-NFA stage B.3: recursive combinator nesting. pform_sva_leaf_prop
+   wraps a chain as a leaf-tree operand; pform_sva_tree_comb (op 'o'/'a')
+   and pform_sva_tree_intersect combine two operand properties (each
+   carrying a tree, or a chain from the legacy fixed-intersect path).
+   All consume their operands. */
+extern sva_property_t*
+pform_sva_leaf_prop(std::vector<sva_seq_step_t>*chain);
+extern sva_property_t*
+pform_sva_tree_comb(const struct vlltype&loc, char op,
+		    sva_property_t*a, sva_property_t*b);
+extern sva_property_t*
+pform_sva_tree_intersect(const struct vlltype&loc,
+			 sva_property_t*a, sva_property_t*b);
+
+/* M9-NFA stage B.4: `within`. Both-fixed operands keep the legacy op-8
+   lowering; a non-fixed operand builds a SEQ_WITHIN tree for the
+   automaton engine. Consumes both chains. */
+extern sva_property_t*
+pform_sva_seq_within(const struct vlltype&loc,
+		     std::vector<sva_seq_step_t>*s1,
+		     std::vector<sva_seq_step_t>*s2);
+
+/* M9-NFA stage B.5: `throughout`. A fixed-length sequence keeps the
+   legacy source-level lowering; a variable-length sequence builds a
+   SEQ_THROUGHOUT tree for the automaton engine. Consumes guard and
+   seq. */
+extern sva_property_t*
+pform_sva_seq_throughout(const struct vlltype&loc, PExpr*guard,
+			 std::vector<sva_seq_step_t>*seq);
+
 /* M9C temporal property operators (IEEE 1800-2017 16.12.10 `until` /
    `until_with` / `s_until` / `s_until_with`, 16.9.6 `within`). These do
    not fit the linear token pipeline, so they are stashed on an
@@ -596,6 +644,19 @@ extern PSetupHold* pform_make_setuphold(const struct vlltype&li,
 			    );
 extern void pform_module_timing_check(PTimingCheck*obj);
 
+/* M9-NFA (Phase 2): automaton-based SVA engine, staged behind the
+   IVL_SVA_NFA env flag. try_assertion builds the automaton and, once
+   the stage-A synthesizer lands, lowers supported assertions and
+   returns true; returning false means the caller must fall back to
+   the legacy linear engine. See
+   docs/conformance/m9_nfa_design_2026-07-19.md. */
+extern bool pform_sva_nfa_enabled();
+extern bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
+					struct sva_property_t*prop,
+					Statement*fail_stmt,
+					Statement*pass_stmt,
+					int kind);
+
 /* M13: synthesize real timing-check checker processes (clause 31).
    Active with -gspecify; loud ignored-warning otherwise. The event
    arguments are borrowed (caller keeps ownership). */
@@ -622,6 +683,32 @@ extern void pform_timing_check_width(const struct vlltype&loc,
 				     PExpr*limit,
 				     PExpr*threshold,
 				     const pform_name_t*notifier);
+/* M13B: $timeskew/$fullskew are skew checks (violation when the delta
+   exceeds the limit). have_flags is true when the source gave the
+   event_based/remain_active flag arguments, whose report-granularity
+   semantics are not modeled: loud sorry, check dropped. */
+extern void pform_timing_check_timeskew(const struct vlltype&loc,
+					const PTimingCheck::event_t&ref_ev,
+					const PTimingCheck::event_t&data_ev,
+					PExpr*limit,
+					const pform_name_t*notifier,
+					bool have_flags);
+extern void pform_timing_check_fullskew(const struct vlltype&loc,
+					const PTimingCheck::event_t&ref_ev,
+					const PTimingCheck::event_t&data_ev,
+					PExpr*lim1,
+					PExpr*lim2,
+					const pform_name_t*notifier,
+					bool have_flags);
+/* M13B: $nochange(edge ref, data, start_off, end_off): data must not
+   change during the reference level following the edge. Exact for
+   zero offsets; non-zero offsets get a loud sorry. */
+extern void pform_timing_check_nochange(const struct vlltype&loc,
+					const PTimingCheck::event_t&ref_ev,
+					const PTimingCheck::event_t&data_ev,
+					PExpr*start_off,
+					PExpr*end_off,
+					const pform_name_t*notifier);
 extern void pform_timing_check_sorry(const struct vlltype&loc,
 				     const char*check_name);
 
@@ -658,12 +745,23 @@ extern void pform_make_modgates(const struct vlltype&loc,
    of a module instantiation into a named target module/interface.
    Binds are collected during parse and applied by pform_apply_binds()
    after all source files have been parsed, because the target module
-   may be defined in a later file than the bind directive. */
+   may be defined in a later file than the bind directive.
+
+   inst_paths selects the bind-to-instance forms: for
+     bind <mod> : <inst_list> ...   target is the module name and
+                                    inst_paths lists the instances;
+     bind <hier.path> ...           target is empty ("") and inst_paths
+                                    holds the single dot-joined path.
+   Each entry is either a plain instance name (matches any instance of
+   the target module with that name) or a dot-joined hierarchical path
+   starting at a root module. nullptr means bind to the definition
+   (every instance), the pre-existing behavior. */
 extern void pform_bind_directive(const struct vlltype&loc,
 				 perm_string target,
 				 perm_string type,
 				 struct parmvalue_t*overrides,
-				 std::vector<lgate>*gates);
+				 std::vector<lgate>*gates,
+				 std::list<std::string>*inst_paths = nullptr);
 extern void pform_apply_binds(void);
 
 /* Make a continuous assignment node, with optional bit- or part- select. */

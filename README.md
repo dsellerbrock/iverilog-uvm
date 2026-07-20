@@ -121,9 +121,10 @@ vvp sim.vvp +UVM_TESTNAME=my_test
 ```
 
 `uvm_pkg.sv` must precede your sources; `-DUVM_NO_DPI` selects UVM's
-pure-SystemVerilog fallbacks and is the supported configuration (register
-*backdoor* access is the main thing it disables; your own DPI-C code still
-works). `+UVM_TESTNAME` selects the test when the testbench calls
+pure-SystemVerilog fallbacks and is the supported configuration (the
+`uvm_hdl_*` DPI register-*backdoor* path is the main thing it disables;
+user-defined `uvm_reg_backdoor` classes and your own DPI-C code still
+work). `+UVM_TESTNAME` selects the test when the testbench calls
 `run_test()` with no argument.
 
 **Smoke test:** any test in [`tests/`](tests) is a ready-made example, e.g.
@@ -206,7 +207,17 @@ Concurrent assertions lower to synthesized checkers with correct overlap and
 functions with real histories, named/parameterized properties and sequences,
 `cover property`, `$asserton/$assertoff/$assertkill`. Unsupported operators
 (local sequence variables, `.matched`, `expect`, goto repetition, unbounded
-liveness) are **loud sorries**, never silent. Example:
+liveness) are **loud sorries**, never silent.
+
+An experimental **automaton engine** (M9-NFA) can be opted into with
+`IVL_SVA_NFA=1` in the environment at compile time: shapes it covers lower
+to NFA slot-pool checkers instead, which adds *mid-chain*
+`##[m:n]`/`##[m:$]` support (the default engine sorries there); everything
+else falls back to the default engine unchanged. A dual-run gate
+([tests/sva_nfa/run.sh](tests/sva_nfa/run.sh)) compiles each seed test with
+the flag off and on and diffs the verdict streams exactly. Design and
+status: [docs/conformance/m9_nfa_design_2026-07-19.md](docs/conformance/m9_nfa_design_2026-07-19.md).
+Example:
 [tests/m9_sva_engine_test.sv](tests/m9_sva_engine_test.sv); status detail in
 the [clause matrix](docs/conformance/matrices/ieee1800_2017_clause_matrix.md) (clause 16).
 
@@ -219,10 +230,11 @@ vvp -d ./mylib.so sim.vvp          # ./ needed: the path goes to dlopen(3)
 ```
 
 `import "DPI-C"` functions and tasks with exact libffi marshaling: int/real/
-string/chandle scalars, output/inout copy-back, 1-D open arrays,
+string/chandle scalars, output/inout copy-back, open arrays (1-D and
+multi-dimensional, `svGetArrElemPtr` and friends),
 `svBitVecVal`/`svLogicVecVal` wide vectors, `c_name=` aliasing. Requires
-libffi. Not supported: `export "DPI-C"` (C calling SV) and multi-dimensional
-open arrays — both loud diagnostics. Example pair:
+libffi. Not supported: `export "DPI-C"` (C calling SV) — a loud diagnostic;
+this is also what keeps UVM's `uvm_hdl_*` backdoor unavailable. Example pair:
 [tests/dpi_basic_test.sv](tests/dpi_basic_test.sv) /
 [tests/dpi_basic_test.c](tests/dpi_basic_test.c).
 
@@ -258,8 +270,10 @@ bind dut_module checker_module #(.GAIN(2)) chk (.clk(clk), .v(internal_sig));
 
 Bind by module/type name works, including parameter overrides, connections
 to target-internal signals, bind into interfaces, and bound SVA checkers.
-Bind to a *specific instance path* and instance-list targets are not
-supported. Example: [tests/m13_bind_test.sv](tests/m13_bind_test.sv).
+Bind to a *specific instance path* (`bind top.u1.u2 chk c (...)`) and
+comma-separated instance lists also work; a nonexistent instance path is a
+loud elaboration error. Examples: [tests/m13_bind_test.sv](tests/m13_bind_test.sv),
+[tests/m13b_bind_instance_test.sv](tests/m13b_bind_instance_test.sv).
 
 ### let — supported
 
@@ -278,7 +292,9 @@ Compile with **`-gspecify`** to activate specify blocks (otherwise they are
 parsed and ignored, matching upstream). Module path delays (`=>`/`*>`),
 edge-sensitive and state-dependent paths, `specparam`, and real violation
 checkers for `$setup/$hold/$setuphold/$recovery/$removal/$recrem/$skew/
-$period/$width`. `$sdf_annotate` applies IOPATH delays. Examples:
+$timeskew/$fullskew/$period/$width/$nochange` (including edge-descriptor
+event specs like `posedge clk [01, 0x]`). `$sdf_annotate` applies IOPATH
+delays. Examples:
 [tests/m13_timing_test.sv](tests/m13_timing_test.sv),
 [tests/m13_specify_paths_test.sv](tests/m13_specify_paths_test.sv)
 (both compiled with `-gspecify`).
@@ -294,31 +310,34 @@ read it for the per-clause evidence and the complete corner ledger.
 | Area | Status | Notes |
 |---|---|---|
 | Core classes / OOP (cl. 8) | Substantial | No interface classes, nested classes, out-of-body `extern` methods |
-| UVM (Accellera core, unmodified) | Substantial | ~190-test regression green with `UVM_NO_DPI`; register backdoor needs DPI |
+| UVM (Accellera core, unmodified) | Substantial | 198-test regression green with `UVM_NO_DPI` (zero skips); register frontdoor + user-defined backdoor work, `uvm_hdl_*` DPI backdoor needs DPI export |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed; `randcase`, scope `std::randomize` diagnosed |
 | Containers (queues/darrays/assoc, cl. 7) | Substantial | Full method set; narrow recorded corners |
 | Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; bare module-scope `virtual` var missing |
 | Clocking blocks (cl. 14) | Supported | Sampled inputs, output drives, `##N`, global clocking |
 | Scheduler / event regions (cl. 4) | Partial | Regions modeled; formal region trace still open ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
-| SVA (cl. 16) | Partial | Real core engine; automaton-class features are loud sorries |
+| SVA (cl. 16) | Partial | Real core engine; opt-in NFA engine (`IVL_SVA_NFA=1`) adds mid-chain window/unbounded shapes; remaining automaton-class features are loud sorries |
 | Functional coverage (cl. 19) | Supported | Full clause-19 bin semantics |
-| DPI-C (cl. 35) | Substantial | No `export "DPI-C"`, no multi-dim open arrays |
+| DPI-C (cl. 35) | Substantial | Open arrays incl. multi-dim; no `export "DPI-C"` |
 | VPI SV object model (cl. 36) | Substantial | Classes, containers, covergroups, assertions; force/release corners open |
-| `bind` (cl. 23.11) | Partial | Module/type targets only |
+| `bind` (cl. 23.11) | Substantial | Module/type, instance-path, and instance-list targets |
 | `let` (cl. 11.13) | Supported | Expression-macro semantics |
-| Specify / timing checks (cl. 30–31) | Substantial | With `-gspecify`; `$nochange`/`$timeskew`/`$fullskew` are sorries |
+| Specify / timing checks (cl. 30–31) | Substantial | With `-gspecify`; full checker set incl. `$timeskew`/`$fullskew`/`$nochange` |
 
 ## Known limitations
 
 - **Experimental.** AI-assisted development, not upstream-reviewed. Verify
   results independently before relying on them.
-- No `export "DPI-C"` → UVM register **backdoor** access is unavailable
-  (frontdoor works); use `-DUVM_NO_DPI`.
+- No `export "DPI-C"` → UVM's `uvm_hdl_*` register **backdoor** path is
+  unavailable (frontdoor and user-defined `uvm_reg_backdoor` classes work);
+  use `-DUVM_NO_DPI`.
 - `randcase`, `randsequence`, `wait_order`, interface classes, `checker`
   blocks: rejected with explicit diagnostics.
-- Of the 3101-test upstream `ivtest` suite, 50 tests currently fail (vs. 83
-  on pristine upstream at the fork base) — the deltas, both directions, are
-  itemized in the [ivtest baseline](docs/conformance/ivtest_vendored_baseline_2026-07-18.txt).
+- Of the 3101-test upstream `ivtest` suite, 44 tests currently fail (vs. 83
+  on pristine upstream at the fork base) — the live expected set is
+  [ivtest_expected_fails.list](docs/conformance/ivtest_expected_fails.list);
+  the fork-vs-upstream deltas, both directions, are itemized in the
+  [ivtest baseline](docs/conformance/ivtest_vendored_baseline_2026-07-18.txt).
 - The project's standing rule: unsupported constructs must fail **loudly**
   (error/sorry/warning), never silently miscompile. Suspected silent
   miscompiles are the highest-priority bug class — please report them.
@@ -333,9 +352,10 @@ Deeper status: [clause matrix](docs/conformance/matrices/ieee1800_2017_clause_ma
 With `install/bin` on `PATH`, from the repository root:
 
 ```bash
-./.github/uvm_test.sh                    # UVM sweep: all tests/*.sv (~190)
+./.github/uvm_test.sh                    # UVM sweep: all tests/*.sv (198)
 bash tests/negative/run_negative.sh      # negative tests: must FAIL loudly
 ./.github/test.sh                        # full ivtest + VPI regression
+bash tests/sva_nfa/run.sh                # SVA dual-run gate (legacy vs NFA engine)
 ```
 
 `./.github/test.sh` is what CI runs; it expands to

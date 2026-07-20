@@ -108,8 +108,9 @@ However, *running* with the real DPI layer requires building UVM's
   regression suite runs this way. UVM falls back to SystemVerilog
   implementations of regex matching and the command-line processor.
 - Consequences of `UVM_NO_DPI`:
-  - `uvm_hdl_deposit`/`uvm_hdl_read` (register **backdoor** access) return
-    failure — use frontdoor register access.
+  - `uvm_hdl_deposit`/`uvm_hdl_read` (the DPI register **backdoor** path)
+    return failure — use frontdoor register access, or a user-defined
+    `uvm_reg_backdoor` subclass (pure SystemVerilog), which works.
   - Component-name checks and glob-style regex use the simpler
     non-DPI code paths (UVM reports this with `NO_DPI_*` info messages).
 - **Your own DPI code does not need `UVM_NO_DPI` to be off.** User
@@ -138,13 +139,18 @@ and no error counts as a **failure** — silent no-output runs are not scored
 green). Per-test plusargs and extra compile flags (e.g. `-gspecify` for the
 timing-check tests) are declared in tables at the top of the script.
 
-Known limitation entries (currently `reg_basic_test`, which needs DPI
-backdoor access) are skipped with an explicit reason, not silently passed.
+The known-limitation skip list is currently **empty** — every test runs.
+(`reg_basic_test` was once skipped as "needs DPI backdoor access"; that
+diagnosis was wrong — the real cause was a compiler bug in duplicated
+function-call expressions, fixed 2026-07-18, and a user-defined
+`uvm_reg_backdoor` never needed DPI. The correction is recorded in
+`.github/uvm_test.sh`.)
 
 ## Known UVM-visible limitations
 
-- Register **backdoor** access needs DPI HDL access — unavailable
-  (use frontdoor).
+- The `uvm_hdl_*` DPI register **backdoor** path is unavailable (needs
+  `export "DPI-C"`); frontdoor access and user-defined `uvm_reg_backdoor`
+  classes work.
 - `export "DPI-C"` is a loud sorry; C-to-SV calls will not link.
 - `std::randomize(var)` (scope form) returns success without randomizing —
   loud one-time warning.

@@ -311,6 +311,15 @@ NetEUFunc* NetEUFunc::dup_expr() const
                           need_const_, super_call_);
 
       ivl_assert(*this, tmp);
+	// The constructor derives the type from the result signal, but
+	// elaboration may have upgraded the original expression's type
+	// (e.g. string-returning functions). Copy the CURRENT type so
+	// lowerings that duplicate calls (inside, dist, range compares)
+	// keep the same typing as the original — otherwise a string
+	// call in `f() inside {"a","b"}` compiles to a vec4 compare
+	// against a string-stack result and reads garbage.
+      if (net_type() && net_type() != tmp->net_type())
+	    tmp->set_net_type(net_type());
       tmp->set_line(*this);
       return tmp;
 }

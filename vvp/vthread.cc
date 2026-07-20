@@ -9401,8 +9401,21 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
       /* If the current scope has no remaining live read frame after this
          free, hand reads back to the caller frame at the write head.
          (Deeper next-rd chain searches lived here; the 2026-07 engagement
-         census never saw them find anything, so they were retired.) */
-      if (ctx_scope && ctx_scope->is_automatic()) {
+         census never saw them find anything, so they were retired.)
+
+         The handoff must ONLY fire when the post-removal read head is
+         dead: removing the freed frame from the rd chain already
+         restores the caller frame naturally. Overriding a still-live
+         read head is actively harmful when the write head is a STAGED
+         not-yet-called frame of another scope (%alloc f; ...nested
+         call+%free...; args; %callf f): reads move onto the staged
+         frame, do_join's wt!=rd staging test then sees equal contexts
+         and skips the pop-push, and the post-call ref/output copy-back
+         stores through the callee frame instead of the caller frame —
+         the ref-dyn-array silent-loss bug (m7_stress_findings finding
+         2). */
+      if (ctx_scope && ctx_scope->is_automatic()
+          && !(thr->rd_context && context_live_in_owner(thr->rd_context))) {
             /* Same-scope recursion keeps the immediate caller frame at the
                head of wt_context after the callee frame is removed. Prefer
                that live write-head over deeper same-scope entries that may

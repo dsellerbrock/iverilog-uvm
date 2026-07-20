@@ -47,6 +47,26 @@ struct sva_seq_step_t {
 			    // only in the last chain position
 			    // (match-existence equivalence).
       PExpr* expr = nullptr;
+      perm_string lv_name;  // M9-NFA LV-1: local-var assignment on this
+      PExpr* lv_rhs = nullptr; //   step ((expr, lv_name = lv_rhs)); nil = none
+      bool fm = false;      // step is inside a first_match(...) wrapper
+};
+
+/*
+ * M9-NFA stage B: sequence-combinator tree over linear chains. A leaf
+ * wraps a chain; interior nodes are the regular-language combinators
+ * the linear IR cannot express. Only the automaton engine
+ * (IVL_SVA_NFA=1) lowers trees; without it the assertion is a loud
+ * sorry. Chains and expressions inside are OWNED by the tree.
+ */
+struct sva_stree_t {
+      enum kind_t { LEAF = 0, SEQ_OR = 1, SEQ_AND = 2, SEQ_INTERSECT = 3,
+		    SEQ_WITHIN = 4, SEQ_THROUGHOUT = 5 };
+      int kind = LEAF;
+      std::vector<sva_seq_step_t>* chain = nullptr;  // LEAF only
+      sva_stree_t* a = nullptr;
+      sva_stree_t* b = nullptr;
+      PExpr* gexpr = nullptr;    // SEQ_THROUGHOUT invariant (a = the seq)
 };
 
 struct sva_property_t {
@@ -54,6 +74,10 @@ struct sva_property_t {
       PExpr* disable_iff_expr = nullptr;    // disable iff expr (may be null)
       std::vector<sva_seq_step_t>* antecedent = nullptr;  // null for op 0
       std::vector<sva_seq_step_t>* seq = nullptr;         // consequent / plain sequence
+      sva_stree_t* tree = nullptr;          // stage B combinator tree
+					    // (seq/antecedent null when set)
+      int tree_sorry = 0;                   // deferred no-NFA sorry text:
+					    // 0 = or/and, 1 = intersect
       int op_type = 0;                      // 0=plain sequence, 1=|->, 2=|=>
 };
 

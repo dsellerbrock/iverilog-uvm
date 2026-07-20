@@ -22,13 +22,13 @@ SKIP=0
 # Phase 63b/skipped-tests cleanup (2026-05-02) — vif_smoke and vif_smoke_v2
 # rewritten to use proper UVM sequence/sequencer API; plusargs test now
 # receives required +args via PLUSARGS table below.
-# reg_basic_test exercises UVM_BACKDOOR register access, which requires the
-# DPI HDL-access functions (uvm_hdl_deposit / uvm_hdl_read). Those are
-# disabled by the -DUVM_NO_DPI build used here, so the backdoor write/read
-# return a failure status and the test correctly fires UVM_ERRORs. This is a
-# genuine known limitation of the no-DPI build, not a masked pass — it is
-# listed here (skipped, with this reason) rather than silently scored green.
-KNOWN_FAIL="reg_basic_test"
+# reg_basic_test was previously skipped as "needs DPI HDL access"; that
+# diagnosis was WRONG. The real failure was the NetEUFunc::dup_expr typing
+# bug (string-returning get_rights() inside {"RW","WO"} compiled to a vec4
+# compare and always failed, so the backdoor branch returned UVM_NOT_OK).
+# Fixed 2026-07-18; a USER-DEFINED uvm_reg_backdoor works without DPI, so
+# the test now runs. The uvm_hdl_* DPI backdoor remains future work (M10C).
+KNOWN_FAIL=""
 
 # Per-test plusargs.  Tests that need runtime args list them here so the
 # vvp invocation can supply them.  Format: "<name>:+arg1+arg2 ...".
@@ -42,6 +42,7 @@ declare -A PLUSARGS=(
 declare -A IVFLAGS=(
     [m13_timing_test]="-gspecify"
     [m13_specify_paths_test]="-gspecify"
+    [m13b_timing_checks_test]="-gspecify"
 )
 
 compile_test() {

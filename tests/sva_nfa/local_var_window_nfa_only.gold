@@ -1,0 +1,2 @@
+W3 MATCH id=aa
+w1=2 w2=2 (each expect 2)

@@ -3215,8 +3215,48 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 }
 
 
+// M13B: instance filter for bind-to-instance directives. The gate is
+// stored in the target module DEFINITION (like any other gate), so
+// every instance of the target runs the elaboration passes over it;
+// this predicate makes the passes no-ops in instances the bind does
+// not name. All three passes (scope/sig/statement) consult it, so a
+// filtered-out instance never creates the child scope and the later
+// passes' instance_arrays lookups simply find nothing.
+bool PGModule::bind_filter_ok_(NetScope*sc) const
+{
+      if (bind_filter_.empty()) return true;
+
+      std::ostringstream base_os;
+      base_os << sc->basename();
+      std::string base = base_os.str();
+
+      std::vector<const NetScope*> chain;
+      for (const NetScope*cur = sc ; cur ; cur = cur->parent())
+	    chain.push_back(cur);
+      std::ostringstream full_os;
+      for (std::vector<const NetScope*>::reverse_iterator it = chain.rbegin()
+		 ; it != chain.rend() ; ++it) {
+	    if (it != chain.rbegin()) full_os << ".";
+	    full_os << (*it)->basename();
+      }
+      std::string full = full_os.str();
+
+      for (std::vector<std::string>::const_iterator cur = bind_filter_.begin()
+		 ; cur != bind_filter_.end() ; ++cur) {
+	    if (cur->find('.') == std::string::npos) {
+		  if (*cur == base) return true;
+	    } else {
+		  if (*cur == full) return true;
+	    }
+      }
+      return false;
+}
+
 bool PGModule::elaborate_sig(Design*des, NetScope*scope) const
 {
+      if (!bind_filter_ok_(scope))
+	    return true;
+
       if (bound_type_) {
 	    return elaborate_sig_mod_(des, scope, bound_type_);
       }
@@ -3240,6 +3280,9 @@ bool PGModule::elaborate_sig(Design*des, NetScope*scope) const
 
 void PGModule::elaborate(Design*des, NetScope*scope) const
 {
+      if (!bind_filter_ok_(scope))
+	    return;
+
       if (bound_type_) {
 	    elaborate_mod_(des, bound_type_, scope);
 	    return;
@@ -3268,6 +3311,9 @@ void PGModule::elaborate(Design*des, NetScope*scope) const
 
 void PGModule::elaborate_scope(Design*des, NetScope*sc) const
 {
+      if (!bind_filter_ok_(sc))
+	    return;
+
 	// If the module type is known by design, then go right to it.
       if (bound_type_) {
 	    elaborate_scope_mod_(des, bound_type_, sc);

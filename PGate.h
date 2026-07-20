@@ -224,8 +224,21 @@ class PGModule  : public PGate {
 	// permallocated string.
       perm_string get_type() const;
 
+	// M13B: when this instantiation was created by a bind directive
+	// that targets specific instances (bind top.u1 ... / bind mod :
+	// u1, u2 ...), this filter restricts which instances of the
+	// containing module actually elaborate the bound instance. An
+	// entry without a '.' matches any containing instance with that
+	// basename; an entry with dots must equal the full hierarchical
+	// path of the containing instance. An empty filter (the normal
+	// case) applies everywhere.
+      void set_bind_instance_filter(const std::vector<std::string>&filter)
+      { bind_filter_ = filter; }
+
     private:
       Module*bound_type_;
+      std::vector<std::string> bind_filter_;
+      bool bind_filter_ok_(NetScope*sc) const;
       perm_string type_;
       std::list<PExpr*>*overrides_;
       named_pexpr_t *pins_;
