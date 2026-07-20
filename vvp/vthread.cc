@@ -851,15 +851,21 @@ static __vpiScope*dpi_active_scope_ = 0;
  * be parked while simulation time advances, then resumed when the SV task
  * completes. Functions and void-returning functions are zero-time and keep
  * the fast synchronous path (%dpi/call/void). Coroutines are POSIX-only;
- * on MinGW/Windows (no <ucontext.h>) a time-consuming exported task is a
+ * on MinGW/Windows (no <ucontext.h>) and macOS (whose SDK marks the
+ * ucontext routines deprecated unless _XOPEN_SOURCE is defined before the
+ * first system header — too late here) a time-consuming exported task is a
  * loud sorry.
  */
-#ifndef __MINGW32__
+#if defined(__MINGW32__) || defined(__APPLE__)
+# define IVL_NO_DPI_CORO 1
+#endif
+
+#ifndef IVL_NO_DPI_CORO
 # include  <ucontext.h>
 #endif
 
 struct dpi_coro_s {
-#ifndef __MINGW32__
+#ifndef IVL_NO_DPI_CORO
       ucontext_t ctx;         // the coroutine's own context (its C stack)
       ucontext_t caller_ctx;  // where a park/finish returns (set per switch-in)
       char*stack;
@@ -881,7 +887,7 @@ static dpi_coro_s*dpi_coro_current = 0;
 
 static bool dpi_call_common_(vthread_t, vvp_code_t, char, unsigned, char);
 
-#ifndef __MINGW32__
+#ifndef IVL_NO_DPI_CORO
 static void dpi_coro_trampoline_(void);
 
 static dpi_coro_s*dpi_coro_create_(vthread_t thr, vvp_code_t cp)
@@ -945,7 +951,7 @@ static void dpi_coro_trampoline_(void)
       coro->finished = true;
       swapcontext(&coro->ctx, &coro->caller_ctx);
 }
-#endif // !__MINGW32__
+#endif // !IVL_NO_DPI_CORO
 
 static vpiHandle lookup_scope_item_(__vpiScope*scope, const char*name)
 {
@@ -5513,7 +5519,7 @@ static void resume_joining_parent_(vthread_t parent, vthread_t child)
       assert(parent);
       assert(child);
 
-#ifndef __MINGW32__
+#ifndef IVL_NO_DPI_CORO
 	/* DPI export (35.5): this child is an exported SV task that ran
 	   time-consuming under a DPI import coroutine. Resume the coroutine
 	   (its C call continues, possibly parking again on another exported
@@ -5534,7 +5540,7 @@ static void resume_joining_parent_(vthread_t parent, vthread_t child)
 		 here when that child ends. */
 	    return;
       }
-#endif
+#endif // !IVL_NO_DPI_CORO
 
       parent->i_am_joining = 0;
       do_join(parent, child);
@@ -8218,7 +8224,7 @@ bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_TASK(vthread_t thr, vvp_code_t cp)
 {
-#ifdef __MINGW32__
+#ifdef IVL_NO_DPI_CORO
 	// No coroutines on Windows: run synchronously. A time-consuming
 	// exported task then hits the loud sorry in dpi_export_run_.
       return dpi_call_common_(thr, cp, 'v', 0, 'i');
@@ -10215,7 +10221,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    }
       }
 
-#ifndef __MINGW32__
+#ifndef IVL_NO_DPI_CORO
 	/* Time-consuming exported TASK path: a void export reached from an
 	   imported DPI *task* (running on a coroutine). Let the scheduler run
 	   the child across simulation time and park the coroutine until it
