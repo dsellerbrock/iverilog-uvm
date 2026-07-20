@@ -9935,12 +9935,17 @@ typedef union ivl_dpi_arg_u {
       const char*s;
 } ivl_dpi_arg_t;
 
-// Multi-instance export selection (H.9): among the N records registered
-// for a C name (one per instance of a multiply-instantiated module), pick
-// the one whose function scope matches the active svScope — either the
-// scope itself or its enclosing instance scope. With no active scope or no
-// match, fall back to instance 0 (warning once); a single-instance export
-// always uses index 0 with no svScope needed.
+// Multi-instance export selection (H.9 / 35.5.2). Among the N records
+// registered for a C name (one per instance of a multiply-instantiated
+// module), pick the one whose enclosing instance matches the active
+// svScope. The active scope is either an explicit svSetScope target (the
+// instance scope itself) or — when a `context' import calls the export
+// with no svSetScope — the import's own function scope, whose parent is
+// the instance ("context-relative" default, 35.5.2). We therefore match
+// the export's parent-instance scope (fs->scope) against the active scope
+// AND against the active scope's parent, so both forms resolve. With no
+// active scope or no match, fall back to instance 0 (warning once); a
+// single-instance export always uses index 0 with no svScope needed.
 static unsigned dpi_export_pick_instance_(const char*cname, unsigned n)
 {
       __vpiScope*active = dpi_active_scope_;
@@ -9948,6 +9953,8 @@ static unsigned dpi_export_pick_instance_(const char*cname, unsigned n)
 	    active = running_thread->parent_scope;
 
       if (active) {
+	    __vpiScope*active_inst = active->scope; // enclosing instance of a
+						    // context import's fn scope
 	    for (unsigned i = 0 ; i < n ; i += 1) {
 		  struct dpi_export_info_s info;
 		  if (! dpi_export_lookup(cname, i, &info))
@@ -9957,7 +9964,10 @@ static unsigned dpi_export_pick_instance_(const char*cname, unsigned n)
 		  if (! compile_lookup_code_scope(info.td_label, &c, &fs)
 		      || fs == 0)
 			continue;
-		  if (fs == active || fs->scope == active)
+		    // fs        = the exported function's scope (inst.sub.f)
+		    // fs->scope = its enclosing instance (inst.sub)
+		  if (fs == active || fs->scope == active
+		      || (active_inst && fs->scope == active_inst))
 			return i;
 	    }
       }
