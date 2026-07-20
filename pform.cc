@@ -7944,6 +7944,80 @@ static bool sva_check_first_match_(const struct vlltype&loc,
       return !composed;   // false => composed multi-length: expand or diagnose
 }
 
+/* M9-NFA stage C.3: sequence endpoint methods `seq.triggered' /
+   `seq.matched' (IEEE 1800-2017 16.13.6). For a FIXED-LENGTH named
+   sequence the endpoint boolean — "seq completed a match ending at this
+   cycle" — is the $past-sampled conjunction of the sequence's step
+   booleans, each delayed by its distance from the match end (`a ##1 b'
+   -> `$past(a,1) && b'). This is the same fixed-length match indicator
+   the legacy engine already builds for a fixed antecedent, so both
+   engines lower it identically. Variable-length, unbounded, repetition,
+   goto/nonconsec, or local-variable sequence bodies need the automaton
+   endpoint signal and are a loud sorry; a base that is not a declared
+   sequence is left untouched for the ordinary unresolved-reference
+   diagnostic. Under a single clock `.triggered' and `.matched' coincide
+   (the observed-region distinction is a stage-D multiclock concern).
+   Returns false (diagnosed) on an unsupported endpoint. */
+static bool sva_lower_endpoint_methods_(const struct vlltype&loc,
+					std::vector<sva_seq_step_t>&steps)
+{
+      for (size_t i = 0 ; i < steps.size() ; i += 1) {
+	    PEIdent*id = dynamic_cast<PEIdent*>(steps[i].expr);
+	    if (!id || id->path().package) continue;
+	    const pform_name_t&nm = id->path().name;
+	    if (nm.size() != 2) continue;
+	    if (!nm.front().index.empty() || !nm.back().index.empty()) continue;
+	    perm_string method = nm.back().name;
+	    if (strcmp(method, "triggered") && strcmp(method, "matched"))
+		  continue;
+	    perm_string seqname = nm.front().name;
+	    std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator it =
+		  sva_module_sequences.find(seqname);
+	    if (it == sva_module_sequences.end() || !it->second)
+		  continue;   /* not a declared sequence: leave it for the
+				 ordinary unresolved-reference diagnostic */
+
+	    std::vector<sva_seq_step_t>&body = *it->second;
+	    bool ok = !body.empty();
+	    long L = 0;
+	    std::vector<long> off (body.size(), 0);
+	    for (size_t j = 0 ; j < body.size() && ok ; j += 1) {
+		  const sva_seq_step_t&st = body[j];
+		  if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
+		      || st.rep_tail != 0 || st.rep_kind != 0 || st.lv_rhs)
+			ok = false;
+		  else { L += st.delay_lo; off[j] = L; }
+	    }
+	    if (!ok) {
+		  cerr << loc << ": sorry: `" << seqname << "." << method
+		       << "' is supported only for a fixed-length sequence "
+		       << "(constant ##N delays, no ##[m:n]/##[m:$]/[*]/goto/"
+		       << "local variables); the assertion is dropped." << endl;
+		  error_count += 1;
+		  return false;
+	    }
+	      /* AND over j of $past(clone(e_j), L - off[j]). */
+	    PExpr*conj = nullptr;
+	    for (size_t j = 0 ; j < body.size() ; j += 1) {
+		  PExpr*ej = sva_clone_expr_(body[j].expr);
+		  if (!ej) { ok = false; break; }
+		  PExpr*term = sva_past_(loc, ej, L - off[j]);
+		  conj = conj ? sva_logic_(loc, 'a', conj, term) : term;
+	    }
+	    if (!ok || !conj) {
+		  cerr << loc << ": sorry: `" << seqname << "." << method
+		       << "' has a step expression that cannot be lowered; "
+		       << "the assertion is dropped." << endl;
+		  error_count += 1;
+		  delete conj;
+		  return false;
+	    }
+	    delete steps[i].expr;
+	    steps[i].expr = conj;
+      }
+      return true;
+}
+
 /* Lower one concurrent assertion (assert/assume/cover property) to a
    synthesized clocked checker. kind: 0=assert, 1=assume, 2=cover. */
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
@@ -8128,6 +8202,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       sva_splice_sequences_(loc, *prop->seq);
       if (prop->antecedent)
 	    sva_splice_sequences_(loc, *prop->antecedent);
+
+	/* M9-NFA stage C.3: lower `seq.triggered'/`seq.matched' endpoint
+	   methods to their fixed-length $past match indicator (both engines
+	   handle the resulting boolean). Unsupported endpoints are a loud
+	   sorry with full cleanup. */
+      if (!sva_lower_endpoint_methods_(loc, *prop->seq)
+	  || (prop->antecedent
+	      && !sva_lower_endpoint_methods_(loc, *prop->antecedent))) {
+	    delete fail_stmt; delete pass_stmt;
+	    delete prop->antecedent; delete prop->seq;
+	    delete prop->clk_evt; delete prop->disable_iff_expr;
+	    delete prop;
+	    return;
+      }
 
 	/* first_match: the composed multi-length case (a first_match whose
 	   variable-length match feeds a continuation) cannot ride the

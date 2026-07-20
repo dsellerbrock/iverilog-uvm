@@ -777,7 +777,36 @@ Tests: `tests/sva_nfa/strong_weak_nfa_only.sv` (a fulfilled request and an
 unanswered one — strong fails at end of sim, weak only notes);
 `tests/negative/sva_strong_seq.sv` pins the flag-off rejection.
 
-Still open in stage C: `.matched`/`.triggered`.
+### Increment C.3: `.triggered` / `.matched` endpoint methods — LANDED
+
+Sequence endpoint methods `seq.triggered` / `seq.matched` (16.13.6). For
+a FIXED-LENGTH named sequence the endpoint boolean — "seq completed a
+match ending at this cycle" — is exactly the `$past`-sampled conjunction
+of the sequence's step booleans, each delayed by its distance from the
+match end: `a ##1 b` → `$past(a,1) && b`, `a ##2 b` → `$past(a,2) && b`.
+This is the same fixed-length match indicator the legacy engine already
+builds for a fixed antecedent, so it is a pure source transform
+(`sva_lower_endpoint_methods_`) that BOTH engines lower identically — an
+ordinary dual-run parity test, not nfa_only.
+
+`.triggered` and `.matched` parse as a two-component hierarchical
+identifier (`seq.triggered`); the transform fires only when the base is a
+declared sequence, so an unrelated `.triggered`/`.matched` member access
+(or an undeclared base) is left for the ordinary unresolved-reference
+diagnostic. A variable-length / unbounded / repetition / goto /
+local-variable sequence body needs a synthesized standalone endpoint
+signal (the automaton's accept exposed as a boolean), which is not built
+yet — that is a loud sorry. Under a single clock `.triggered` and
+`.matched` coincide; the observed-region distinction is a stage-D
+multiclock concern.
+
+Tests: `tests/sva_nfa/endpoint_triggered.sv` (dual-run parity — the
+endpoint drives an implication and a cover, verified identical off/on);
+`tests/negative/sva_endpoint_var.sv` pins the variable-length rejection.
+
+Stage C is now complete: goto/nonconsec (C.1), strong/weak (C.2), and
+endpoint methods (C.3) all lower or loudly diagnose. Remaining M9-NFA
+arc: stage D (multiclock) and the flip.
 
 ---
 
