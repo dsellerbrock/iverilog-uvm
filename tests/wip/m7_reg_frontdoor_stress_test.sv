@@ -1,12 +1,34 @@
 // M7 stress: register-model FRONT-DOOR access. QUARANTINED in
 // tests/wip/ (outside the sweep glob). Finding 2 (ref-dyn-array
 // copy-out) is FIXED, so the address path now works: bus transactions
-// reach the driver with correct kind/addr/data. Still blocked on
-// finding 4 in docs/conformance/m7_stress_findings_2026-07-18.md:
-// parameterized-class virtual dispatch resolves get_next_item into the
-// wrong specialization and the port-level output copy-back drops the
-// item, so the driver receives null. Move this file up to tests/ once
-// that lands; it must then pass with checks=4 writes=4 reads=4.
+// reach the driver with correct kind/addr/data.
+//
+// Finding 4 (docs/conformance/m7_stress_findings_2026-07-18.md) turned
+// out to be TWO independent defects. The parameterized-class
+// SPECIALIZATION half is now FIXED (a `Class#(args) handle` declaration
+// specializes, and virtual overrides of a specialized class are emitted
+// so dispatch through a parameterized base handle resolves to the
+// override — see tests/m1b_typeparam_member_call_test.sv). With that,
+// this test advances from a hard vthread assertion to a clean run, but
+// still fails checks=0 writes=0 reads=8 (register reads return 0).
+//
+// The remaining blocker is a SEPARATE, pre-existing RUNTIME defect that
+// is NOT specific to parameterized classes: when a virtual task with an
+// `output` argument is dispatched via `%fork/v` and the caller's output
+// is itself the enclosing task's `output` formal, the fork/join
+// automatic-context output copy-back drops the value. Minimal
+// non-parameterized repro (returns null on the stock runtime too):
+//   class base; virtual task g(output item t); endtask endclass
+//   class deriv extends base; item s; virtual task g(output item t); t=s; endtask endclass
+//   class port; base h; task g(output item t); h.g(t); endtask endclass  // t stays null
+// A related pre-existing limitation also blocks the RAL shape: member
+// access on an `output` formal typed by a type-parameter ("Variable t
+// does not have a field named ...") fails even on the fully-elaborated
+// path. Both are the M1B "specialization-aware method tables" big rock
+// the finding flagged as not a bounded runtime fix.
+//
+// Move this file up to tests/ once that runtime work lands; it must then
+// pass with checks=4 writes=4 reads=4.
 `timescale 1ns/1ns
 `include "uvm_macros.svh"
 import uvm_pkg::*;

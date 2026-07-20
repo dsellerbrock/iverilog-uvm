@@ -203,6 +203,46 @@ tables), one of the closure plan's two big rocks — not a bounded
 runtime fix. tests/wip/m7_reg_frontdoor_stress_test.sv stays
 quarantined until it lands.
 
+### Update (2026-07-20): the SPECIALIZATION half is FIXED
+
+Finding 4 was really two independent defects. The first — a
+parameterized-class VARIABLE/HANDLE/PROPERTY declaration not
+specializing — is now fixed:
+
+  * `pform.cc` (`pform_make_modgates`): a `Class #(args) name;`
+    declaration reaches the no-port module-instantiation shape and is
+    reinterpreted as a variable declaration. The `#(args)` overrides
+    were dropped there, so the GENERIC netclass (every type parameter
+    at its default) was bound and a type-parameter-typed member kept
+    its default type (int), landing a method call in the "Enable of
+    unknown task" no-op / a `pop_prop_val` assertion. The overrides are
+    now threaded onto the reinterpreted typeref, so the handle
+    specializes exactly as `extends Class#(args)` already did.
+  * `elab_scope.cc` (`seed_specialized_method_bodies_`): handle/variable
+    specialization uses `fully_elaborate=false` (seed only), which
+    seeded only a whitelist of housekeeping methods. A user VIRTUAL
+    override was therefore never elaborated, so its `TD_` label was
+    never emitted and runtime virtual dispatch through a parameterized
+    base handle fell through to the base stub. Every virtual method is
+    now seeded (a virtual override is always a dispatch target).
+
+Regression: `tests/m1b_typeparam_member_call_test.sv` (specialized member
+call + parameterized virtual dispatch through a base handle + a member
+typed by a type-parameter inside an extending subclass). All four gates
+stay green (UVM 200/0).
+
+The SECOND defect — the RAL shape — is a distinct, PRE-EXISTING RUNTIME
+bug that is not parameterized-specific: a virtual task with an `output`
+argument dispatched via `%fork/v` drops its output copy-back when the
+caller's output is itself the enclosing task's `output` formal (fork/join
+automatic-context mirroring). It reproduces with plain (non-templated)
+classes on the stock runtime, and a related pre-existing limitation —
+member access on an `output` formal typed by a type-parameter — also
+blocks the RAL shape. Those remain the big rock;
+m7_reg_frontdoor_stress_test now advances from a hard assertion to a
+clean run that still drops the register items (checks=0 writes=0
+reads=8), and stays quarantined until that runtime work lands.
+
 
 ## Finding 5: dup_expr of a function call loses its upgraded type — FIXED
 
