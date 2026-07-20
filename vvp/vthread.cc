@@ -9894,6 +9894,170 @@ static void do_join(vthread_t thr, vthread_t child)
       vthread_reap(child);
 }
 
+/*
+ * DPI export runtime dispatcher (IEEE 1800-2017 35.5).
+ *
+ * The generated C stub for an exported SV subroutine calls one of
+ * __ivl_dpi_export_call_{i,r,v} with the exported C name and a packed
+ * argument buffer. These entry points are called from C that is itself
+ * executing inside a %dpi/call opcode of an imported (context) DPI
+ * function, so `running_thread' is the SV thread that invoked C. We run
+ * the exported subroutine synchronously to completion in zero time —
+ * reusing the same inline child-thread execution the M6-CALLF path uses
+ * for SV->SV calls — then marshal the result back to C.
+ *
+ * Supported: zero-time functions/tasks in a single static instance whose
+ * arguments and return are integer atoms or real. A time-consuming export
+ * (one that blocks on an event/#delay) is a loud sorry — never a silent
+ * wrong answer.
+ */
+typedef union ivl_dpi_arg_u {
+      int64_t i;
+      double  r;
+} ivl_dpi_arg_t;
+
+static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
+			    int64_t*ret_i, double*ret_r)
+{
+      struct dpi_export_info_s info;
+      if (! dpi_export_lookup(cname, &info)) {
+	    fprintf(stderr, "vvp: internal error: DPI export '%s' is not "
+		    "registered.\n", cname);
+	    return false;
+      }
+
+      vvp_code_t code = 0;
+      __vpiScope*scope = 0;
+      if (! compile_lookup_code_scope(info.td_label, &code, &scope)
+	  || code == 0) {
+	    fprintf(stderr, "vvp: error: DPI export '%s': thread definition "
+		    "'%s' not found.\n", cname, info.td_label);
+	    return false;
+      }
+
+      vthread_t thr = running_thread;
+      if (thr == 0) {
+	    fprintf(stderr, "vvp: error: exported DPI subroutine '%s' called "
+		    "with no active simulation thread.\n", cname);
+	    return false;
+      }
+
+      vthread_t child = vthread_new(code, scope);
+      child->parent = thr;
+      child->is_callf_child = 1;
+      child->i_am_in_function = 1;
+      thr->children.insert(child);
+
+	/* Marshal the C arguments into the subroutine's argument nets. */
+      for (unsigned idx = 0 ; idx < info.nargs && (int)idx < nargs ; idx += 1) {
+	    vvp_net_t*net = info.arg_nets[idx];
+	    if (net == 0)
+		  continue;
+	    char letter = info.arg_sig[idx];
+	    if (letter == 'r') {
+		  vvp_send_real(vvp_net_ptr_t(net, 0), args[idx].r, 0);
+	    } else {
+		  vvp_signal_value*sv = dynamic_cast<vvp_signal_value*>(net->fil);
+		  unsigned wid = sv ? sv->value_size() : 64;
+		  vvp_vector4_t val (wid, BIT4_0);
+		  uint64_t u = (uint64_t) args[idx].i;
+		  for (unsigned b = 0 ; b < wid ; b += 1)
+			val.set_bit(b, ((u >> (b < 64 ? b : 63)) & 1)
+				    ? BIT4_1 : BIT4_0);
+		  vvp_send_vec4(vvp_net_ptr_t(net, 0), val, 0);
+	    }
+      }
+
+	/* A function returns through the caller's value stack: push a
+	   placeholder onto this (parent) thread and register the return slot
+	   on the child, exactly as %callf/<type> does. The subroutine's
+	   %ret/<type> pokes the result into that slot; we read it back off
+	   our stack after the child ends. */
+      unsigned ret_wid = 0;
+      if (info.ret_sig == 'r') {
+	    thr->push_real(0.0);
+	    child->args_real.push_back(0);
+      } else if (info.ret_sig != 'v') {
+	    vpiScopeFunction*sfun = dynamic_cast<vpiScopeFunction*>(scope);
+	    ret_wid = sfun ? sfun->get_func_width() : 32;
+	    vvp_bit4_t init = sfun ? sfun->get_func_init_val() : BIT4_X;
+	    thr->push_vec4(vvp_vector4_t(ret_wid, init));
+	    child->args_vec4.push_back(0);
+      }
+
+	/* Run the subroutine synchronously (M6-CALLF inline model). */
+      child->is_scheduled = 1;
+      vthread_run(child);
+      running_thread = thr;
+      unsigned guard = 0;
+      while (! child->i_have_ended
+	     && child->parent == thr
+	     && child->is_callf_child
+	     && child->is_scheduled
+	     && ! child->waiting_for_event) {
+	    if (++guard > 1000000u)
+		  break;
+	    vthread_run(child);
+	    running_thread = thr;
+      }
+
+      bool ok = child->i_have_ended && child->parent == thr
+		&& ! child->waiting_for_event;
+
+	/* Read the return value off this thread's stack (the slot the child
+	   poked) and pop the placeholder. */
+      if (info.ret_sig == 'r') {
+	    double rv = thr->peek_real(0);
+	    if (ok && ret_r) *ret_r = rv;
+	    thr->pop_real(1);
+      } else if (info.ret_sig != 'v') {
+	    vvp_vector4_t out = thr->peek_vec4();
+	    unsigned wid = out.size();
+	    uint64_t u = 0;
+	    for (unsigned b = 0 ; b < wid && b < 64 ; b += 1)
+		  if (out.value(b) == BIT4_1)
+			u |= (uint64_t)1 << b;
+	    int64_t s = (int64_t) u;
+	    if (info.ret_sig == 'I' && wid > 0 && wid < 64
+		&& ((u >> (wid - 1)) & 1))
+		  s |= ~(((int64_t)1 << wid) - 1);
+	    if (ok && ret_i) *ret_i = s;
+	    thr->pop_vec4(1);
+      }
+
+      if (child->i_have_ended && child->parent == thr) {
+	    do_join(thr, child);
+      } else {
+	    fprintf(stderr, "vvp: sorry: exported DPI subroutine '%s' did not "
+		    "complete in zero time; time-consuming export (blocking "
+		    "on events or #delay) is not yet supported.\n", cname);
+      }
+
+      return ok;
+}
+
+extern "C" int64_t __ivl_dpi_export_call_i(const char*cname, int nargs,
+					   ivl_dpi_arg_t*args)
+{
+      int64_t rv = 0;
+      dpi_export_run_(cname, nargs, args, &rv, 0);
+      return rv;
+}
+
+extern "C" double __ivl_dpi_export_call_r(const char*cname, int nargs,
+					  ivl_dpi_arg_t*args)
+{
+      double rv = 0.0;
+      dpi_export_run_(cname, nargs, args, 0, &rv);
+      return rv;
+}
+
+extern "C" void __ivl_dpi_export_call_v(const char*cname, int nargs,
+					ivl_dpi_arg_t*args)
+{
+      dpi_export_run_(cname, nargs, args, 0, 0);
+}
+
 static bool do_join_opcode(vthread_t thr)
 {
       assert( !thr->i_am_joining );

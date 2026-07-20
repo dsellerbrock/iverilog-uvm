@@ -790,6 +790,56 @@ PFunction* pform_push_function_scope_unbound(const struct vlltype&loc, const cha
       return func;
 }
 
+void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
+			  const char*sv_name, bool is_task)
+{
+      PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
+      if (scopex == 0) {
+	    cerr << loc << ": error: export \"DPI-C\" must appear inside a "
+		    "module, package, or compilation unit." << endl;
+	    error_count += 1;
+	    return;
+      }
+
+      perm_string nm = lex_strings.make(sv_name);
+      perm_string cn = lex_strings.make(c_name);
+
+	// The exported subroutine must already be defined in this scope:
+	// IEEE 1800-2017 35.5 lets the export precede or follow the body,
+	// but forward references across scopes are not yet supported, so we
+	// require the definition to be visible here. This is a loud sorry
+	// (not a silent drop): an unresolved export would otherwise fail to
+	// link with no explanation.
+      PTaskFunc*sub = 0;
+      if (is_task) {
+	    map<perm_string,PTask*>::iterator cur = scopex->tasks.find(nm);
+	    if (cur != scopex->tasks.end()) sub = cur->second;
+      } else {
+	    map<perm_string,PFunction*>::iterator cur = scopex->funcs.find(nm);
+	    if (cur != scopex->funcs.end()) sub = cur->second;
+      }
+
+      if (sub == 0) {
+	    cerr << loc << ": sorry: export \"DPI-C\" "
+		 << (is_task? "task" : "function") << " '" << sv_name
+		 << "' must follow its definition in the same scope; "
+		    "forward or out-of-scope export is not yet supported. "
+		    "Calls from C to '" << c_name << "' will not link."
+		 << endl;
+	    return;
+      }
+
+      if (sub->is_dpi_import()) {
+	    cerr << loc << ": error: '" << sv_name << "' is a DPI import; "
+		    "it cannot also be exported (IEEE 1800-2017 35.5)."
+		 << endl;
+	    error_count += 1;
+	    return;
+      }
+
+      sub->set_dpi_export(cn.str());
+}
+
 PBlock* pform_push_block_scope(const struct vlltype&loc, const char*name,
 			       PBlock::BL_TYPE bt)
 {

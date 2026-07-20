@@ -4915,31 +4915,23 @@ dpi_import_export_declaration
 	delete[] $7;
       }
   | K_export STRING K_function IDENTIFIER ';'
-      { cerr << @1 << ": sorry: export \"DPI-C\" function is not yet "
-	     << "supported; calls from C to '" << $4
-	     << "' will not link." << endl;
+      { pform_set_dpi_export(@1, $4, $4, false);
 	if ($2) delete[] $2;
 	delete[] $4;
       }
   | K_export STRING IDENTIFIER '=' K_function IDENTIFIER ';'
-      { cerr << @1 << ": sorry: export \"DPI-C\" function is not yet "
-	     << "supported; calls from C to '" << $6
-	     << "' will not link." << endl;
+      { pform_set_dpi_export(@1, $3, $6, false);
 	if ($2) delete[] $2;
 	delete[] $3;
 	delete[] $6;
       }
   | K_export STRING K_task IDENTIFIER ';'
-      { cerr << @1 << ": sorry: export \"DPI-C\" task is not yet "
-	     << "supported; calls from C to '" << $4
-	     << "' will not link." << endl;
+      { pform_set_dpi_export(@1, $4, $4, true);
 	if ($2) delete[] $2;
 	delete[] $4;
       }
   | K_export STRING IDENTIFIER '=' K_task IDENTIFIER ';'
-      { cerr << @1 << ": sorry: export \"DPI-C\" task is not yet "
-	     << "supported; calls from C to '" << $6
-	     << "' will not link." << endl;
+      { pform_set_dpi_export(@1, $3, $6, true);
 	if ($2) delete[] $2;
 	delete[] $3;
 	delete[] $6;

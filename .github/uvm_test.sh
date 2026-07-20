@@ -57,8 +57,15 @@ run_test() {
     local name="$1"
     local cfile="$TESTS/${name}.c"
     local extra="${PLUSARGS[$name]}"
-    if [ -f "$cfile" ]; then
-        gcc -shared -fPIC -o "/tmp/uvm_dpi_${name}.so" "$cfile" 2>/dev/null
+    # DPI export (35.5): iverilog emits a companion C stub next to the .vvp
+    # output providing the exported C symbols. Compile it into the DPI object
+    # alongside the user's C so the exports link.
+    local stub="/tmp/uvm_test_${name}.dpiexport.c"
+    local srcs=""
+    [ -f "$cfile" ] && srcs="$srcs $cfile"
+    [ -f "$stub" ]  && srcs="$srcs $stub"
+    if [ -n "$srcs" ]; then
+        gcc -shared -fPIC -o "/tmp/uvm_dpi_${name}.so" $srcs 2>/dev/null
         timeout 60 $VVP -d "/tmp/uvm_dpi_${name}.so" "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
     else
         timeout 60 $VVP "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true

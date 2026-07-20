@@ -115,6 +115,47 @@ Invariants at every step: the four standing gates stay clean; a
 declared-but-unused export still compiles; anything not yet lowered is a
 loud sorry, never a silent miscompile.
 
+## 5a. Implementation status (2026-07-20)
+
+Steps 1–3 are **implemented and end-to-end verified**: C can call an
+exported SV function/task and get the correct result.
+
+- **Frontend.** `export "DPI-C" [c=]{function|task} name;` no longer
+  sorries at the grammar; `pform_set_dpi_export` (pform.cc) looks the
+  subroutine up in the enclosing scope and marks it. The export must
+  *follow* its definition in the same scope (forward/out-of-scope export
+  is a loud sorry — not yet supported).
+- **ABI.** `PTaskFunc::is_dpi_export()/dpi_export_c_name()` flow through
+  `t-dll.cc` to `ivl_scope_is_dpi_export()/ivl_scope_dpi_export_c_name()`.
+- **Codegen.** `tgt-vvp` collects exported scopes and emits, after all
+  scopes, a `:export_dpi "cname" "TD_label" "retsig" "argsig" "" "argnets"`
+  runtime directive plus a companion `<out>.dpiexport.c` C stub. The stub
+  packs its C arguments into an `ivl_dpi_arg_t[]` and calls the vvp
+  dispatcher `__ivl_dpi_export_call_{i,r,v}`. The user compiles the stub
+  into their DPI object.
+- **Runtime.** `compile_export_dpi` (compile.cc) registers each export,
+  resolving the argument nets to `vvp_net_t*` at link time (the VPI symbol
+  table is freed afterwards). The dispatcher (`dpi_export_run_` in
+  vthread.cc) — entered from C during a `%dpi/call` — resolves the `TD_`
+  entry via the persistent `runtime_code_scope_map`, marshals the C args
+  into the argument nets, runs the subroutine synchronously as an
+  M6-CALLF-style inline child of `running_thread`, and reads the return
+  off the caller stack (the `%ret` protocol) — never a return net, since a
+  function has none.
+
+Supported: zero-time functions and tasks, single static instance,
+arguments and return being integer atoms (byte/shortint/int/longint,
+signed or unsigned) or real, and void. Everything else is a **loud sorry**
+that drops the export (the C symbol is not generated, so a call from C
+fails to link with a diagnostic) — never a silent miscompile. A
+declared-but-unused export still compiles cleanly.
+
+Still open (steps 4–5): `svScope`/multi-instance and `context`-relative
+export; time-consuming task export (C-stack suspension across simulation
+time) — a time-consuming exported subroutine is a loud runtime sorry.
+String/object/open-array/wide-vector and output/inout arguments in exports
+are loud sorries pending further marshaling work.
+
 ## 6. Test strategy
 
 - Positive: a `tests/` DPI pair (`*.sv` + `*.c`) exercising an exported

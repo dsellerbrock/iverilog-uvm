@@ -2782,6 +2782,310 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       if (ivl_scope_type(net) == IVL_SCT_FUNCTION)
 	    vvp_errors += draw_func_definition(net);
 
+	/* DPI export (35.5): record any subroutine marked exported so the
+	   runtime :export_dpi directives and the C stub file can be emitted
+	   once every scope (hence every TD_ label and port net) exists. */
+      if ((ivl_scope_type(net) == IVL_SCT_FUNCTION
+	   || ivl_scope_type(net) == IVL_SCT_TASK)
+	  && ivl_scope_is_dpi_export(net))
+	    note_dpi_export(net);
+
       ivl_scope_children(net, (ivl_scope_f*) draw_scope, net);
       return 0;
+}
+
+/*
+ * DPI export (IEEE 1800-2017 35.5) support.
+ *
+ * Collect every SV subroutine that carried an `export "DPI-C"'
+ * declaration (marked on the scope via ivl_scope_is_dpi_export), then at
+ * end of code generation emit:
+ *
+ *   1. a `:export_dpi' runtime directive per export, giving the exported
+ *      C name, the function's TD_ thread-definition label, its return and
+ *      argument type signatures, and the vvp net labels of its return and
+ *      argument port signals; and
+ *
+ *   2. a companion C stub file `<out>.dpiexport.c' containing, for each
+ *      export, the C entry point the user's DPI object links against. The
+ *      stub packs its C arguments into a generic argument buffer and calls
+ *      the vvp-exported dispatcher __ivl_dpi_export_call_*.
+ *
+ * The current runtime supports zero-time functions (and void functions)
+ * whose arguments and return are integer atoms (byte/shortint/int/longint,
+ * signed or unsigned) or real. Anything else is a loud sorry: the export
+ * is dropped (its C symbol is not generated) so a call from C fails to
+ * link with a diagnostic, never a silent miscompile.
+ */
+
+struct dpi_export_entry_s {
+      ivl_scope_t scope;
+      struct dpi_export_entry_s*next;
+};
+
+static struct dpi_export_entry_s*dpi_exports = 0;
+static struct dpi_export_entry_s*dpi_exports_tail = 0;
+
+void note_dpi_export(ivl_scope_t scope)
+{
+      struct dpi_export_entry_s*ent = calloc(1, sizeof *ent);
+      ent->scope = scope;
+      ent->next = 0;
+      if (dpi_exports_tail)
+	    dpi_exports_tail->next = ent;
+      else
+	    dpi_exports = ent;
+      dpi_exports_tail = ent;
+}
+
+/* Classify a port (or the return signal) for DPI export. Returns 1 if the
+   shape is supported. On success writes the runtime signature letter
+   (*sig_letter) and the C type spelling (*c_type). Signature letters:
+     'i' unsigned integer atom, 'I' signed integer atom,
+     'r' real (double), 'v' void (return only). */
+static int dpi_export_classify(ivl_scope_t scope, ivl_signal_t port,
+			       const char*c_name, char*sig_letter,
+			       const char**c_type, int quiet)
+{
+      ivl_variable_type_t ptype = ivl_signal_data_type(port);
+      unsigned pwid = ivl_signal_width(port);
+      int is_signed = ivl_signal_signed(port);
+
+      if (ptype == IVL_VT_REAL) {
+	    *sig_letter = 'r';
+	    *c_type = "double";
+	    return 1;
+      }
+      if ((ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL)
+	  && (pwid == 8 || pwid == 16 || pwid == 32 || pwid == 64)) {
+	    *sig_letter = is_signed ? 'I' : 'i';
+	    switch (pwid) {
+		case 8:  *c_type = is_signed ? "char"          : "unsigned char";      break;
+		case 16: *c_type = is_signed ? "short int"     : "unsigned short int"; break;
+		case 32: *c_type = is_signed ? "int"           : "unsigned int";       break;
+		default: *c_type = is_signed ? "long long int" : "unsigned long long int"; break;
+	    }
+	    return 1;
+      }
+
+      if (!quiet)
+	    fprintf(stderr, "%s:%u: sorry: export \"DPI-C\" '%s': %s '%s' has a "
+		    "type not yet supported for export (only byte/shortint/int/"
+		    "longint and real are). The export is dropped; calls from C "
+		    "will not link.\n",
+		    ivl_scope_def_file(scope), ivl_scope_def_lineno(scope), c_name,
+		    (port == ivl_scope_port(scope, 0)
+		     && ivl_scope_type(scope) == IVL_SCT_FUNCTION)
+		    ? "return" : "argument",
+		    ivl_signal_basename(port));
+      return 0;
+}
+
+/* Build the return/arg signatures and validate. Returns 1 if the whole
+   export is supported. Fills ret_sig (single letter, 'v' for a task),
+   arg_sig (one letter per argument), and c-type spellings for the stub. */
+static int dpi_export_build_sig(ivl_scope_t scope, const char*c_name,
+				int is_task, char*ret_sig,
+				const char**ret_ctype, char*arg_sig,
+				const char**arg_ctypes, unsigned max_args,
+				unsigned*nargs_out, int quiet)
+{
+      unsigned nports = ivl_scope_ports(scope);
+      unsigned first = is_task ? 0 : 1;
+      unsigned nargs = (nports >= first) ? (nports - first) : 0;
+      unsigned idx;
+
+      if (nargs > max_args) {
+	    if (!quiet)
+		  fprintf(stderr, "%s:%u: sorry: export \"DPI-C\" '%s' has %u "
+			  "arguments; more than %u are not supported.\n",
+			  ivl_scope_def_file(scope), ivl_scope_def_lineno(scope),
+			  c_name, nargs, max_args);
+	    return 0;
+      }
+
+      if (is_task) {
+	    *ret_sig = 'v';
+	    *ret_ctype = "void";
+      } else {
+	    ivl_signal_t rport = ivl_scope_port(scope, 0);
+	    if (ivl_scope_func_type(scope) == IVL_VT_VOID) {
+		  *ret_sig = 'v';
+		  *ret_ctype = "void";
+	    } else if (!dpi_export_classify(scope, rport, c_name,
+					    ret_sig, ret_ctype, quiet)) {
+		  return 0;
+	    }
+      }
+
+      for (idx = 0 ; idx < nargs ; idx += 1) {
+	    ivl_signal_t port = ivl_scope_port(scope, first + idx);
+	    if (ivl_signal_port(port) != IVL_SIP_INPUT) {
+		  if (!quiet)
+			fprintf(stderr, "%s:%u: sorry: export \"DPI-C\" '%s': "
+				"output/inout argument '%s' is not yet supported "
+				"for export. The export is dropped.\n",
+				ivl_scope_def_file(scope),
+				ivl_scope_def_lineno(scope), c_name,
+				ivl_signal_basename(port));
+		  return 0;
+	    }
+	    if (!dpi_export_classify(scope, port, c_name,
+				     &arg_sig[idx], &arg_ctypes[idx], quiet))
+		  return 0;
+      }
+      arg_sig[nargs] = 0;
+      *nargs_out = nargs;
+      return 1;
+}
+
+void emit_dpi_export_directives(void)
+{
+      struct dpi_export_entry_s*ent;
+      for (ent = dpi_exports ; ent ; ent = ent->next) {
+	    ivl_scope_t scope = ent->scope;
+	    int is_task = ivl_scope_type(scope) == IVL_SCT_TASK;
+	    const char*c_name = ivl_scope_dpi_export_c_name(scope);
+	    char ret_sig = 'v';
+	    const char*ret_ctype = "void";
+	    char arg_sig[65];
+	    const char*arg_ctypes[64];
+	    unsigned nargs = 0;
+	    unsigned idx;
+
+	    if (!dpi_export_build_sig(scope, c_name, is_task, &ret_sig,
+				      &ret_ctype, arg_sig, arg_ctypes,
+				      64, &nargs, 0))
+		  continue;
+
+	    const char*td = vvp_mangle_id(ivl_scope_name(scope));
+
+	      /* :export_dpi "cname" "TD_label" "retsig" "argsig"
+			     "retnet" "argnet0 argnet1 ..." ;
+	       A function's return value is delivered through the caller's
+	       stack (the %ret protocol), not a persistent net, so the return
+	       operand is always empty; it is retained for directive-format
+	       stability. */
+	    fprintf(vvp_out, ":export_dpi \"%s\" \"TD_%s\" \"%c\" \"%s\" \"\" ",
+		    c_name, td, ret_sig, arg_sig);
+
+	      /* Space-separated argument net labels. */
+	    fprintf(vvp_out, "\"");
+	    unsigned first = is_task ? 0 : 1;
+	    for (idx = 0 ; idx < nargs ; idx += 1) {
+		  ivl_signal_t port = ivl_scope_port(scope, first + idx);
+		  fprintf(vvp_out, "%sv%p_0", idx ? " " : "", (void*)port);
+	    }
+	    fprintf(vvp_out, "\";\n");
+      }
+}
+
+void emit_dpi_export_stub_file(const char*vvp_path)
+{
+      if (dpi_exports == 0)
+	    return;
+
+	/* Derive <out>.dpiexport.c next to the vvp output. */
+      size_t plen = strlen(vvp_path);
+      char*cpath = malloc(plen + 16);
+      strcpy(cpath, vvp_path);
+	/* Drop a trailing .vvp if present, else just append. */
+      if (plen > 4 && strcmp(cpath + plen - 4, ".vvp") == 0)
+	    cpath[plen - 4] = 0;
+      strcat(cpath, ".dpiexport.c");
+
+      FILE*out = fopen(cpath, "w");
+      if (out == 0) {
+	    fprintf(stderr, "error: cannot open DPI export stub file %s: ",
+		    cpath);
+	    perror(0);
+	    free(cpath);
+	    vvp_errors += 1;
+	    return;
+      }
+
+      fprintf(out,
+	      "/* Automatically generated by iverilog for DPI export\n"
+	      " * (IEEE 1800-2017 35.5). Compile this file into your DPI\n"
+	      " * shared object so calls from C resolve to the exported SV\n"
+	      " * subroutines, e.g.:\n"
+	      " *   gcc -shared -fPIC -o my_dpi.so my_dpi.c %s\n"
+	      " * The dispatcher __ivl_dpi_export_call_* is provided by vvp\n"
+	      " * and resolved via RTLD_GLOBAL at run time. */\n\n",
+	      cpath);
+      fprintf(out,
+	      "#include <stdint.h>\n\n"
+	      "typedef union ivl_dpi_arg_u {\n"
+	      "      int64_t i;\n"
+	      "      double  r;\n"
+	      "} ivl_dpi_arg_t;\n\n"
+	      "extern int64_t __ivl_dpi_export_call_i(const char*cname, int nargs, ivl_dpi_arg_t*args);\n"
+	      "extern double  __ivl_dpi_export_call_r(const char*cname, int nargs, ivl_dpi_arg_t*args);\n"
+	      "extern void    __ivl_dpi_export_call_v(const char*cname, int nargs, ivl_dpi_arg_t*args);\n\n");
+
+      struct dpi_export_entry_s*ent;
+      for (ent = dpi_exports ; ent ; ent = ent->next) {
+	    ivl_scope_t scope = ent->scope;
+	    int is_task = ivl_scope_type(scope) == IVL_SCT_TASK;
+	    const char*c_name = ivl_scope_dpi_export_c_name(scope);
+	    char ret_sig = 'v';
+	    const char*ret_ctype = "void";
+	    char arg_sig[65];
+	    const char*arg_ctypes[64];
+	    unsigned nargs = 0;
+	    unsigned idx;
+	    unsigned first = is_task ? 0 : 1;
+
+	    if (!dpi_export_build_sig(scope, c_name, is_task, &ret_sig,
+				      &ret_ctype, arg_sig, arg_ctypes,
+				      64, &nargs, 1))
+		  continue;
+
+	      /* Prototype line. */
+	    fprintf(out, "%s %s(", ret_ctype, c_name);
+	    if (nargs == 0) {
+		  fprintf(out, "void");
+	    } else {
+		  for (idx = 0 ; idx < nargs ; idx += 1) {
+			ivl_signal_t port = ivl_scope_port(scope, first + idx);
+			fprintf(out, "%s%s a%u", idx ? ", " : "",
+				arg_ctypes[idx], idx);
+			(void)port;
+		  }
+	    }
+	    fprintf(out, ")\n{\n");
+
+	      /* Pack the arguments. */
+	    if (nargs > 0)
+		  fprintf(out, "      ivl_dpi_arg_t _a[%u];\n", nargs);
+	    for (idx = 0 ; idx < nargs ; idx += 1) {
+		  if (arg_sig[idx] == 'r')
+			fprintf(out, "      _a[%u].r = a%u;\n", idx, idx);
+		  else
+			fprintf(out, "      _a[%u].i = (int64_t)a%u;\n",
+				idx, idx);
+	    }
+
+	    const char*argptr = nargs ? "_a" : "0";
+	    switch (ret_sig) {
+		case 'v':
+		  fprintf(out, "      __ivl_dpi_export_call_v(\"%s\", %u, %s);\n",
+			  c_name, nargs, argptr);
+		  break;
+		case 'r':
+		  fprintf(out, "      return (%s)__ivl_dpi_export_call_r(\"%s\", %u, %s);\n",
+			  ret_ctype, c_name, nargs, argptr);
+		  break;
+		default: /* 'i' or 'I' */
+		  fprintf(out, "      return (%s)__ivl_dpi_export_call_i(\"%s\", %u, %s);\n",
+			  ret_ctype, c_name, nargs, argptr);
+		  break;
+	    }
+	    fprintf(out, "}\n\n");
+      }
+
+      fclose(out);
+      fprintf(stderr, "iverilog: note: wrote DPI export C stubs to %s "
+	      "(compile it into your DPI object).\n", cpath);
+      free(cpath);
 }

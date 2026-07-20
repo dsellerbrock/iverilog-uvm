@@ -461,6 +461,14 @@ extern PFunction*pform_push_function_scope(const struct vlltype&loc, const char*
 extern PFunction*pform_push_function_scope_unbound(const struct vlltype&loc, const char*name,
 						   LexicalScope::lifetime_t lifetime);
 
+// DPI export (IEEE 1800-2017 35.5): mark an already-defined SV
+// function/task in the current scope as callable from C under c_name.
+// The export declaration must follow the subroutine definition in the
+// same scope; sv_name names the SV subroutine, c_name is the exported C
+// symbol (== sv_name for the plain form). is_task selects the tasks map.
+extern void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
+				 const char*sv_name, bool is_task);
+
 extern PBlock*pform_push_block_scope(const struct vlltype&loc, const char*name,
 				     PBlock::BL_TYPE tt);
 

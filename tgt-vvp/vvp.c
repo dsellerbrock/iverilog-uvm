@@ -270,6 +270,12 @@ int target_design(ivl_design_t des)
            materialized as function/task definitions. */
       emit_td_stub_definitions();
 
+        /* DPI export (35.5): emit the runtime :export_dpi directives now
+           that every TD_ label and port net has been drawn, and write the
+           companion C stub file the DPI object links against. */
+      emit_dpi_export_directives();
+      emit_dpi_export_stub_file(path);
+
         /* Dump the file name table. */
       size = ivl_file_table_size();
       fprintf(vvp_out, "# The file index is used to find the file name in "

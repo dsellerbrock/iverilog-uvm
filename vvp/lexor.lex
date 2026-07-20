@@ -79,6 +79,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ^":ivl_delay_selection" { return K_ivl_delay_selection; }
 ^":vpi_module" { return K_vpi_module; }
 ^":vpi_time_precision" { return K_vpi_time_precision; }
+^":export_dpi" { return K_export_dpi; }
 ^":file_names" { return K_file_names; }
 
 
