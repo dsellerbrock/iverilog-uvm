@@ -2856,6 +2856,11 @@ static int dpi_export_classify(ivl_scope_t scope, ivl_signal_t port,
 	    *c_type = "double";
 	    return 1;
       }
+      if (ptype == IVL_VT_STRING) {
+	    *sig_letter = 's';
+	    *c_type = "const char*";
+	    return 1;
+      }
       if ((ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL)
 	  && (pwid == 8 || pwid == 16 || pwid == 32 || pwid == 64)) {
 	    *sig_letter = is_signed ? 'I' : 'i';
@@ -3016,12 +3021,14 @@ void emit_dpi_export_stub_file(const char*vvp_path)
       fprintf(out,
 	      "#include <stdint.h>\n\n"
 	      "typedef union ivl_dpi_arg_u {\n"
-	      "      int64_t i;\n"
-	      "      double  r;\n"
+	      "      int64_t     i;\n"
+	      "      double      r;\n"
+	      "      const char* s;\n"
 	      "} ivl_dpi_arg_t;\n\n"
-	      "extern int64_t __ivl_dpi_export_call_i(const char*cname, int nargs, ivl_dpi_arg_t*args);\n"
-	      "extern double  __ivl_dpi_export_call_r(const char*cname, int nargs, ivl_dpi_arg_t*args);\n"
-	      "extern void    __ivl_dpi_export_call_v(const char*cname, int nargs, ivl_dpi_arg_t*args);\n\n");
+	      "extern int64_t     __ivl_dpi_export_call_i(const char*cname, int nargs, ivl_dpi_arg_t*args);\n"
+	      "extern double      __ivl_dpi_export_call_r(const char*cname, int nargs, ivl_dpi_arg_t*args);\n"
+	      "extern const char* __ivl_dpi_export_call_s(const char*cname, int nargs, ivl_dpi_arg_t*args);\n"
+	      "extern void        __ivl_dpi_export_call_v(const char*cname, int nargs, ivl_dpi_arg_t*args);\n\n");
 
       struct dpi_export_entry_s*ent;
       for (ent = dpi_exports ; ent ; ent = ent->next) {
@@ -3061,6 +3068,8 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 	    for (idx = 0 ; idx < nargs ; idx += 1) {
 		  if (arg_sig[idx] == 'r')
 			fprintf(out, "      _a[%u].r = a%u;\n", idx, idx);
+		  else if (arg_sig[idx] == 's')
+			fprintf(out, "      _a[%u].s = a%u;\n", idx, idx);
 		  else
 			fprintf(out, "      _a[%u].i = (int64_t)a%u;\n",
 				idx, idx);
@@ -3075,6 +3084,10 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 		case 'r':
 		  fprintf(out, "      return (%s)__ivl_dpi_export_call_r(\"%s\", %u, %s);\n",
 			  ret_ctype, c_name, nargs, argptr);
+		  break;
+		case 's':
+		  fprintf(out, "      return __ivl_dpi_export_call_s(\"%s\", %u, %s);\n",
+			  c_name, nargs, argptr);
 		  break;
 		default: /* 'i' or 'I' */
 		  fprintf(out, "      return (%s)__ivl_dpi_export_call_i(\"%s\", %u, %s);\n",

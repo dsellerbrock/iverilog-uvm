@@ -9925,10 +9925,11 @@ static void do_join(vthread_t thr, vthread_t child)
 typedef union ivl_dpi_arg_u {
       int64_t i;
       double  r;
+      const char*s;
 } ivl_dpi_arg_t;
 
 static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
-			    int64_t*ret_i, double*ret_r)
+			    int64_t*ret_i, double*ret_r, std::string*ret_s)
 {
       struct dpi_export_info_s info;
       if (! dpi_export_lookup(cname, &info)) {
@@ -9967,6 +9968,10 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    char letter = info.arg_sig[idx];
 	    if (letter == 'r') {
 		  vvp_send_real(vvp_net_ptr_t(net, 0), args[idx].r, 0);
+	    } else if (letter == 's') {
+		  vvp_send_string(vvp_net_ptr_t(net, 0),
+				  std::string(args[idx].s ? args[idx].s : ""),
+				  0);
 	    } else {
 		  vvp_signal_value*sv = dynamic_cast<vvp_signal_value*>(net->fil);
 		  unsigned wid = sv ? sv->value_size() : 64;
@@ -9988,6 +9993,9 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
       if (info.ret_sig == 'r') {
 	    thr->push_real(0.0);
 	    child->args_real.push_back(0);
+      } else if (info.ret_sig == 's') {
+	    thr->push_str(std::string());
+	    child->args_str.push_back(0);
       } else if (info.ret_sig != 'v') {
 	    vpiScopeFunction*sfun = dynamic_cast<vpiScopeFunction*>(scope);
 	    ret_wid = sfun ? sfun->get_func_width() : 32;
@@ -10021,6 +10029,10 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    double rv = thr->peek_real(0);
 	    if (ok && ret_r) *ret_r = rv;
 	    thr->pop_real(1);
+      } else if (info.ret_sig == 's') {
+	    string rv = thr->peek_str(0);
+	    if (ok && ret_s) *ret_s = rv;
+	    thr->pop_str(1);
       } else if (info.ret_sig != 'v') {
 	    vvp_vector4_t out = thr->peek_vec4();
 	    unsigned wid = out.size();
@@ -10051,7 +10063,7 @@ extern "C" int64_t __ivl_dpi_export_call_i(const char*cname, int nargs,
 					   ivl_dpi_arg_t*args)
 {
       int64_t rv = 0;
-      dpi_export_run_(cname, nargs, args, &rv, 0);
+      dpi_export_run_(cname, nargs, args, &rv, 0, 0);
       return rv;
 }
 
@@ -10059,14 +10071,26 @@ extern "C" double __ivl_dpi_export_call_r(const char*cname, int nargs,
 					  ivl_dpi_arg_t*args)
 {
       double rv = 0.0;
-      dpi_export_run_(cname, nargs, args, 0, &rv);
+      dpi_export_run_(cname, nargs, args, 0, &rv, 0);
       return rv;
+}
+
+extern "C" const char* __ivl_dpi_export_call_s(const char*cname, int nargs,
+					       ivl_dpi_arg_t*args)
+{
+	// The returned pointer must outlive this call for the C caller to
+	// read it (DPI string-return convention: valid until the next DPI
+	// call). Hold it in a static buffer.
+      static std::string ret_hold;
+      ret_hold.clear();
+      dpi_export_run_(cname, nargs, args, 0, 0, &ret_hold);
+      return ret_hold.c_str();
 }
 
 extern "C" void __ivl_dpi_export_call_v(const char*cname, int nargs,
 					ivl_dpi_arg_t*args)
 {
-      dpi_export_run_(cname, nargs, args, 0, 0);
+      dpi_export_run_(cname, nargs, args, 0, 0, 0);
 }
 
 /*
