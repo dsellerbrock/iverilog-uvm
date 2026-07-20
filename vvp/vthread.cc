@@ -7943,12 +7943,19 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	      // result so the thread keeps a consistent stack.
 	      // Publish the calling scope as the active DPI scope for the
 	      // duration of the C call (svGetScope, H.9); restore after so
-	      // nested/sibling calls see the right context.
+	      // nested/sibling calls see the right context. Also enter a
+	      // valid VPI mode so DPI C may legitimately call VPI/svScope
+	      // routines (svGetScopeFromName -> vpi_handle_by_name), which
+	      // otherwise assert on VPI_MODE_NONE.
 	    __vpiScope*saved_dpi_scope = dpi_active_scope_;
+	    vpi_mode_t saved_vpi_mode = vpi_mode_flag;
 	    dpi_active_scope_ = thr->parent_scope;
+	    if (vpi_mode_flag == VPI_MODE_NONE)
+		  vpi_mode_flag = VPI_MODE_RWSYNC;
 	    vvp_dpi_call(sym, c_name, ret_type,
 			 nargs? &args[0] : 0, nargs,
 			 &ret_i, &ret_r, &ret_s);
+	    vpi_mode_flag = saved_vpi_mode;
 	    dpi_active_scope_ = saved_dpi_scope;
       }
 
@@ -9928,13 +9935,60 @@ typedef union ivl_dpi_arg_u {
       const char*s;
 } ivl_dpi_arg_t;
 
+// Multi-instance export selection (H.9): among the N records registered
+// for a C name (one per instance of a multiply-instantiated module), pick
+// the one whose function scope matches the active svScope — either the
+// scope itself or its enclosing instance scope. With no active scope or no
+// match, fall back to instance 0 (warning once); a single-instance export
+// always uses index 0 with no svScope needed.
+static unsigned dpi_export_pick_instance_(const char*cname, unsigned n)
+{
+      __vpiScope*active = dpi_active_scope_;
+      if (active == 0 && running_thread)
+	    active = running_thread->parent_scope;
+
+      if (active) {
+	    for (unsigned i = 0 ; i < n ; i += 1) {
+		  struct dpi_export_info_s info;
+		  if (! dpi_export_lookup(cname, i, &info))
+			continue;
+		  vvp_code_t c = 0;
+		  __vpiScope*fs = 0;
+		  if (! compile_lookup_code_scope(info.td_label, &c, &fs)
+		      || fs == 0)
+			continue;
+		  if (fs == active || fs->scope == active)
+			return i;
+	    }
+      }
+
+      static bool warned = false;
+      if (!warned) {
+	    fprintf(stderr, "vvp: warning: exported DPI subroutine '%s' has %u "
+		    "instances but no svScope selects one; using the first. "
+		    "Call svSetScope(svGetScopeFromName(\"<instance>\")) before "
+		    "the call to choose (further similar warnings suppressed).\n",
+		    cname, n);
+	    warned = true;
+      }
+      return 0;
+}
+
 static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 			    int64_t*ret_i, double*ret_r, std::string*ret_s)
 {
-      struct dpi_export_info_s info;
-      if (! dpi_export_lookup(cname, &info)) {
+      unsigned ninst = dpi_export_count(cname);
+      if (ninst == 0) {
 	    fprintf(stderr, "vvp: internal error: DPI export '%s' is not "
 		    "registered.\n", cname);
+	    return false;
+      }
+      unsigned pick = (ninst > 1) ? dpi_export_pick_instance_(cname, ninst) : 0;
+
+      struct dpi_export_info_s info;
+      if (! dpi_export_lookup(cname, pick, &info)) {
+	    fprintf(stderr, "vvp: internal error: DPI export '%s' instance %u "
+		    "not found.\n", cname, pick);
 	    return false;
       }
 
@@ -9983,6 +10037,15 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 		  vvp_send_vec4(vvp_net_ptr_t(net, 0), val, 0);
 	    }
       }
+
+	/* The exported subroutine is ordinary SystemVerilog that may make
+	   VPI system-task calls ($display etc.), which require
+	   VPI_MODE_NONE. The enclosing %dpi/call raised the mode to
+	   VPI_MODE_RWSYNC (so C could call svGetScopeFromName); drop it back
+	   to NONE while the SV body runs, and restore it before returning to
+	   the C caller. */
+      vpi_mode_t saved_vpi_mode = vpi_mode_flag;
+      vpi_mode_flag = VPI_MODE_NONE;
 
 	/* A function returns through the caller's value stack: push a
 	   placeholder onto this (parent) thread and register the return slot
@@ -10056,6 +10119,8 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 		    "on events or #delay) is not yet supported.\n", cname);
       }
 
+	/* Restore the VPI mode the enclosing %dpi/call established. */
+      vpi_mode_flag = saved_vpi_mode;
       return ok;
 }
 

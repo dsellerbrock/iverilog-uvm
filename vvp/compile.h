@@ -90,8 +90,13 @@ extern bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
  * resolved to vvp_net_t* immediately (the VPI symbol table is discarded
  * after link); the TD_ entry is resolved lazily at first call.
  *
- * dpi_export_lookup fills *out for a registered C name (used by the
- * runtime dispatcher in vthread.cc). Returns false if the name is unknown.
+ * A given C name may be registered more than once: a module that exports a
+ * subroutine and is instantiated N times yields N records, one per instance
+ * (distinct TD_ label and per-instance argument nets). dpi_export_count
+ * returns how many, and dpi_export_lookup fills *out for the index-th
+ * record; the runtime dispatcher (vthread.cc) picks the instance whose
+ * scope matches the active svScope (H.9). Returns false if the name is
+ * unknown or the index is out of range.
  */
 struct dpi_export_info_s {
       const char*td_label;
@@ -103,7 +108,9 @@ struct dpi_export_info_s {
 };
 extern void compile_export_dpi(char*c_name, char*td_label, char*ret_sig,
 			       char*arg_sig, char*ret_net, char*arg_nets);
-extern bool dpi_export_lookup(const char*c_name, struct dpi_export_info_s*out);
+extern unsigned dpi_export_count(const char*c_name);
+extern bool dpi_export_lookup(const char*c_name, unsigned index,
+			      struct dpi_export_info_s*out);
 
 /*
  *  Add a functor to the symbol table
