@@ -53,8 +53,10 @@ jobs:
       continue-on-error: true
       run: ./.github/test.sh
 
+    # macOS UVM now builds and loads the real DPI umbrella and passes 205/0
+    # (verified in CI), so this step gates for real — a regression here fails
+    # the job instead of hiding under continue-on-error.
     - name: UVM regression tests
-      continue-on-error: true
       run: ./.github/uvm_test.sh
 
 

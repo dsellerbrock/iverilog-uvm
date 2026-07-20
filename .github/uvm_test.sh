@@ -62,16 +62,44 @@ NO_DPI_FLAG=""
 # using its real <malloc.h>. (iverilog-vpi handles the macOS namespace/link
 # flags itself, so no -undefined/-flat_namespace is needed here anymore.)
 DPI_COMPAT_INC=""
-if [ "$(uname)" = "Darwin" ]; then
-    mkdir -p /tmp/uvm_compat
-    printf '#include <stdlib.h>\n' > /tmp/uvm_compat/malloc.h
-    DPI_COMPAT_INC="-I/tmp/uvm_compat"
-fi
+# Extra -L/-l passed through iverilog-vpi for platforms that must resolve every
+# import at link time (Windows). Empty on Linux/macOS, which bind lazily.
+DPI_EXTRA_LIB=""
+case "$(uname -s)" in
+    Darwin)
+        # macOS has no top-level <malloc.h>; shim it to <stdlib.h>.
+        mkdir -p /tmp/uvm_compat
+        printf '#include <stdlib.h>\n' > /tmp/uvm_compat/malloc.h
+        DPI_COMPAT_INC="-I/tmp/uvm_compat"
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        # A Windows loadable module must resolve every external at link time,
+        # unlike the lazy load-time binding on Linux/macOS. The umbrella pulls
+        # in two symbol classes that no static lib provides:
+        #   1. the sv* DPI-context API (svGetScopeFromName/svSetScope/...),
+        #      which vvp.exe exports via vvp/vvp.def but ships in no archive;
+        #   2. POSIX regex (regcomp/regexec/regfree/regerror).
+        # Build a dedicated import library for ONLY the sv* exports (so it does
+        # not collide with libvpi's own vpi_* definitions) and link it plus the
+        # regex provider. DPI-export dispatchers generated per-design (e.g.
+        # m__uvm_report_dpi) still resolve from the loaded image, which Windows
+        # cannot bind here — that residue is reported by the build log below.
+        if command -v dlltool >/dev/null 2>&1 && [ -f vvp/vvp.def ] ; then
+            { printf 'EXPORTS\n'; grep -E '^sv[A-Za-z]' vvp/vvp.def; } > /tmp/uvm_sv.def
+            if dlltool -d /tmp/uvm_sv.def -D vvp.exe -l /tmp/libuvmsv.a \
+                       2>/tmp/uvm_dpi_implib.log ; then
+                DPI_EXTRA_LIB="-L/tmp -luvmsv"
+            fi
+        fi
+        DPI_EXTRA_LIB="$DPI_EXTRA_LIB -lregex"
+        ;;
+esac
 
 # iverilog-vpi wants attached -I<path>; it appends .vpi to --name, compiles the
-# umbrella object in the CWD (cleaned up below), and links per-platform.
+# umbrella object in the CWD (cleaned up below), and links per-platform. Any
+# $DPI_EXTRA_LIB (-L/-l) is appended to the link for Windows symbol resolution.
 if [ -x "$IVPI" ] && "$IVPI" --name=/tmp/uvm_dpi_iv -I"$UVM/dpi" $DPI_COMPAT_INC \
-       uvm_dpi/uvm_dpi_iverilog.cc >/tmp/uvm_dpi_build.log 2>&1 ; then
+       uvm_dpi/uvm_dpi_iverilog.cc $DPI_EXTRA_LIB >/tmp/uvm_dpi_build.log 2>&1 ; then
     echo "UVM DPI library built ($UVM_DPI_SO via iverilog-vpi): running WITHOUT UVM_NO_DPI"
 else
     echo "WARNING: UVM DPI library build failed; falling back to UVM_NO_DPI"
@@ -215,7 +243,14 @@ echo ""
 if [ -n "$UVM_DPI_SO" ]; then
     echo "DPI mode: REAL DPI umbrella loaded ($UVM_DPI_SO)"
 else
-    echo "DPI mode: UVM_NO_DPI FALLBACK — umbrella build failed (see build log above)"
+    echo "DPI mode: UVM_NO_DPI FALLBACK — umbrella build failed"
+    # Repeat the umbrella build error next to the summary so the exact link
+    # residue (e.g. the DPI-export dispatchers Windows cannot bind) is visible
+    # in a truncated CI log tail, not only at the top of the step.
+    if [ -s /tmp/uvm_dpi_build.log ]; then
+        echo "  --- umbrella build log (tail) ---"
+        tail -12 /tmp/uvm_dpi_build.log | sed 's/^/  | /'
+    fi
 fi
 echo "UVM regression: $PASS passed, $FAIL failed, $SKIP skipped"
 [ $FAIL -eq 0 ]
