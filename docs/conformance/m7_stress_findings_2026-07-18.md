@@ -327,3 +327,35 @@ expression before applying property access (shape a), and the
 assignment codegen must emit the store-property opcode for
 object-typed properties through indexed bases (shape b). This joins
 the M1B/M4-family typing work.
+
+### Update (2026-07-20): the WRITE shapes are FIXED — register cache lands
+
+The store shapes (a) and (b) are fixed in `tgt-vvp/stmt_assign.c`, so
+the uvm_reg address cache is written correctly and
+`uvm_reg::get_address` returns the right addresses. The get_address
+checks in `tests/m7_reg_model_semantics_test.sv` are restored and pass;
+new regression `tests/m7_indexed_property_store_test.sv` covers the
+shapes directly. All four gates green (UVM 203/0).
+
+  * Shape (a) — assoc keyed by a class handle: `draw_lval_expr` coerced
+    the class key to an integer and loaded the element with
+    `%load/dar/obj` (a darray word index built from the key's null-test
+    flag). It now detects the assoc-compat queue and loads the element
+    with `%aa/load/sig/obj/<keykind>` using the real key.
+  * Shape (b) — whole-darray-property store through an indexed base:
+    `show_stmt_assign_sig_prop_darray_index` used `prop_lval_index_expr_`,
+    which merged the base-container index into the property index, so a
+    whole-property store (`da[0].addr = a`) was misread as an element
+    store (`%prop/obj` load + `%set/dar`). It now uses the property's own
+    index only, falling through to `%store/prop/obj` for a whole store.
+
+The register front door (assoc base, and read-back via a local handle)
+is fully correct. One narrower READ shape remains, distinct from the
+register defect and NOT exercised by uvm_reg: reading a darray/object
+property through a *darray*-indexed base and calling a method on it —
+`da[0].addr.size()` — is elaborated to a constant 0 (the receiver is not
+built), a read-side elaboration bug in the expression path rather than
+the assignment codegen fixed here. The assoc-base read
+(`by_key[k].addr...`) and the darray-base scalar read (`da[0].n`) are
+correct; only the darray-base object/darray-property *method-call read*
+is affected. Recorded for a separate fix.

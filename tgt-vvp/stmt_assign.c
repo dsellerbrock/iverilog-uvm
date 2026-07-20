@@ -405,6 +405,21 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    if (word_ex && sig_type) {
 		  ivl_type_t element_type = ivl_type_element(sig_type);
 		  if (element_type && ivl_type_base(element_type) == IVL_VT_CLASS) {
+			  /* An associative array keyed by a class handle (or any
+			     assoc key) is an IVL_VT_QUEUE with assoc-compat. Its
+			     element is fetched with %aa/load using the real key —
+			     NOT %load/dar/obj with the key coerced to an integer,
+			     which turned `assoc[classkey].prop = v` into a store
+			     against a garbage darray word (the key's null-test
+			     flag), so uvm_reg's `m_regs_info[rg].addr = addrs`
+			     register-address cache silently vanished. */
+			if (ivl_type_base(sig_type) == IVL_VT_QUEUE &&
+			    ivl_type_queue_assoc_compat(sig_type)) {
+			      const char*key_kind = draw_eval_assoc_key_(word_ex, 0);
+			      fprintf(vvp_out, "    %%aa/load/sig/obj/%s v%p_0;\n",
+				      key_kind, lval_sig);
+			      return element_type;
+			}
 			draw_eval_expr_into_integer(word_ex, 3);
 			if (ivl_type_base(sig_type) == IVL_VT_DARRAY ||
 			    ivl_type_base(sig_type) == IVL_VT_QUEUE) {
@@ -1852,7 +1867,14 @@ static int show_stmt_assign_sig_prop_darray_index(ivl_statement_t net,
       int errors = 0;
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
       ivl_expr_t rval = ivl_stmt_rval(net);
-      ivl_expr_t idx_expr = prop_lval_index_expr_(lval);
+	/* Use the property's OWN index (obj.addr[i]), never the base
+	   container index inherited from a nest. A whole-darray-property
+	   store through an indexed base (da[0].addr = a, or the register
+	   model's m_regs_info[rg].addr = addrs) has no property index and
+	   must fall through to the whole-object %store/prop/obj path — the
+	   nest-index fallback misread it as an element store (%prop/obj load
+	   + %set/dar), silently dropping the assignment. */
+      ivl_expr_t idx_expr = ivl_lval_idx(lval);
       ivl_type_t element_type;
 
       if (!idx_expr || !prop_type || ivl_type_base(prop_type) != IVL_VT_DARRAY)

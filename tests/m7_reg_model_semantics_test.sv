@@ -112,14 +112,12 @@ class m7_reg_model_semantics extends uvm_test;
     // Address-map arithmetic: base 'h100, unit 4 bytes.
     chk(model.r0.get_offset(model.default_map) === 'h0, "r0 offset");
     chk(model.r1.get_offset(model.default_map) === 'h4, "r1 offset");
-    // get_address() is NOT checked here: it reads the map_info.addr
-    // cache that Xinit_address_mapX fills via
-    // `m_regs_info[rg].addr = addrs`, and property stores through an
-    // assoc-indexed class handle are silently mis-bound (finding 6 in
-    // m7_stress_findings_2026-07-18.md). Restore these checks when
-    // that lands:
-    //   chk(model.r0.get_address(model.default_map) === 'h100, "r0 address");
-    //   chk(model.r1.get_address(model.default_map) === 'h104, "r1 address");
+    // get_address() reads the map_info.addr cache that Xinit_address_mapX
+    // fills via `m_regs_info[rg].addr = addrs` (a property store through an
+    // assoc-indexed class handle). That store was silently mis-bound
+    // (finding 6 in m7_stress_findings_2026-07-18.md); now fixed.
+    chk(model.r0.get_address(model.default_map) === 'h100, "r0 address");
+    chk(model.r1.get_address(model.default_map) === 'h104, "r1 address");
 
     if (bad == 0)
       $display("PASS: register-model semantics (structure, reset, desired/mirrored, predict, map math)");
