@@ -35,6 +35,33 @@ typedef svScalar svLogic;
  * implementation. */
 typedef void* svOpenArrayHandle;
 
+/* Canonical vector representations (H.7.5/H.7.6). A packed array of
+ * svBitVecVal is 2-state (one word per 32 bits); svLogicVecVal adds a
+ * b (control) word for the Z/X state. */
+typedef uint32_t svBitVecVal;
+typedef struct t_vpi_vecval svLogicVecVal;
+
+/* Scope handle (H.9). A svScope is an opaque handle to a SystemVerilog
+ * instance scope; in this implementation it is a vpiHandle for the
+ * scope object. */
+typedef void* svScope;
+
+/* Return the active scope: the scope of the imported "context" DPI task
+ * or function currently on the C call stack, or the last scope set with
+ * svSetScope. */
+extern svScope svGetScope(void);
+
+/* Set the active scope, returning the previous one. */
+extern svScope svSetScope(svScope scope);
+
+/* Look up a scope by its full hierarchical name (e.g. "top.u1"), or a
+ * package scope by name. Returns 0 if not found. */
+extern svScope svGetScopeFromName(const char* scopeName);
+
+/* The local (leaf) and full hierarchical names of a scope. */
+extern const char* svGetNameFromScope(svScope scope);
+extern const char* svGetFullNameFromScope(const svScope scope);
+
 /* Open-array queries (H.12.2). This implementation marshals
  * one-dimensional, zero-based open arrays of 2-state atom types
  * (byte/shortint/int/longint, signed or unsigned) and real. */

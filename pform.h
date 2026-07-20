@@ -468,6 +468,9 @@ extern PFunction*pform_push_function_scope_unbound(const struct vlltype&loc, con
 // symbol (== sv_name for the plain form). is_task selects the tasks map.
 extern void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
 				 const char*sv_name, bool is_task);
+// Resolve all deferred `export "DPI-C"' declarations once every source
+// file has been parsed (an export may precede its subroutine definition).
+extern void pform_resolve_dpi_exports(void);
 
 extern PBlock*pform_push_block_scope(const struct vlltype&loc, const char*name,
 				     PBlock::BL_TYPE tt);

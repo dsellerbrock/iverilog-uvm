@@ -1146,6 +1146,10 @@ int main(int argc, char*argv[])
 	    rc += pform_parse(source_files[idx]);
       }
 
+	// Resolve deferred `export "DPI-C"' declarations now that every
+	// source file (hence every subroutine definition) has been parsed.
+      pform_resolve_dpi_exports();
+
       rc += pform_finish();
 
       if (pf_path) {

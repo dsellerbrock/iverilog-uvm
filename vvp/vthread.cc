@@ -832,6 +832,11 @@ __vpiScope* vthread_scope(struct vthread_s*thr)
 
 struct vthread_s*running_thread = 0;
 
+/* DPI active scope (IEEE 1800-2017 H.9 svGetScope/svSetScope). Set to the
+ * calling scope while a %dpi/call runs into C; svSetScope may override it
+ * for the duration of a C call chain. */
+static __vpiScope*dpi_active_scope_ = 0;
+
 static vpiHandle lookup_scope_item_(__vpiScope*scope, const char*name)
 {
       if (!(scope && name))
@@ -7936,9 +7941,15 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	      // On marshaling failure vvp_dpi_call() has already
 	      // printed a diagnostic; fall through to push a default
 	      // result so the thread keeps a consistent stack.
+	      // Publish the calling scope as the active DPI scope for the
+	      // duration of the C call (svGetScope, H.9); restore after so
+	      // nested/sibling calls see the right context.
+	    __vpiScope*saved_dpi_scope = dpi_active_scope_;
+	    dpi_active_scope_ = thr->parent_scope;
 	    vvp_dpi_call(sym, c_name, ret_type,
 			 nargs? &args[0] : 0, nargs,
 			 &ret_i, &ret_r, &ret_s);
+	    dpi_active_scope_ = saved_dpi_scope;
       }
 
 	// Push the return value FIRST: the synthesized body pops the
@@ -10056,6 +10067,47 @@ extern "C" void __ivl_dpi_export_call_v(const char*cname, int nargs,
 					ivl_dpi_arg_t*args)
 {
       dpi_export_run_(cname, nargs, args, 0, 0);
+}
+
+/*
+ * svScope API (IEEE 1800-2017 H.9). A svScope is a vpiHandle to an
+ * instance/package scope. svGetScope returns the scope currently active
+ * for DPI — the caller of the DPI import on the C stack, or the last
+ * value set with svSetScope.
+ */
+extern "C" void*svGetScope(void)
+{
+      if (dpi_active_scope_)
+	    return dpi_active_scope_;
+      return running_thread ? running_thread->parent_scope : 0;
+}
+
+extern "C" void*svSetScope(void*scope)
+{
+      void*prev = svGetScope();
+      dpi_active_scope_ = reinterpret_cast<__vpiScope*>(scope);
+      return prev;
+}
+
+extern "C" void*svGetScopeFromName(const char*scopeName)
+{
+      if (scopeName == 0)
+	    return 0;
+      return vpi_handle_by_name(scopeName, 0);
+}
+
+extern "C" const char*svGetNameFromScope(void*scope)
+{
+      if (scope == 0)
+	    return 0;
+      return vpi_get_str(vpiName, reinterpret_cast<vpiHandle>(scope));
+}
+
+extern "C" const char*svGetFullNameFromScope(void*scope)
+{
+      if (scope == 0)
+	    return 0;
+      return vpi_get_str(vpiFullName, reinterpret_cast<vpiHandle>(scope));
 }
 
 static bool do_join_opcode(vthread_t thr)

@@ -790,6 +790,19 @@ PFunction* pform_push_function_scope_unbound(const struct vlltype&loc, const cha
       return func;
 }
 
+// Pending DPI export declarations (IEEE 1800-2017 35.5). An export may
+// legally precede the subroutine definition in the same scope, so we
+// record each one and resolve them all at end of parse
+// (pform_resolve_dpi_exports), once every definition exists.
+struct pending_dpi_export_s {
+      PScopeExtra*scopex;
+      perm_string sv_name;
+      perm_string c_name;
+      bool is_task;
+      std::string loc_str;
+};
+static std::vector<pending_dpi_export_s> pending_dpi_exports_;
+
 void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
 			  const char*sv_name, bool is_task)
 {
@@ -801,43 +814,61 @@ void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
 	    return;
       }
 
-      perm_string nm = lex_strings.make(sv_name);
-      perm_string cn = lex_strings.make(c_name);
+      std::ostringstream tmp;
+      tmp << loc;
 
-	// The exported subroutine must already be defined in this scope:
-	// IEEE 1800-2017 35.5 lets the export precede or follow the body,
-	// but forward references across scopes are not yet supported, so we
-	// require the definition to be visible here. This is a loud sorry
-	// (not a silent drop): an unresolved export would otherwise fail to
-	// link with no explanation.
-      PTaskFunc*sub = 0;
-      if (is_task) {
-	    map<perm_string,PTask*>::iterator cur = scopex->tasks.find(nm);
-	    if (cur != scopex->tasks.end()) sub = cur->second;
-      } else {
-	    map<perm_string,PFunction*>::iterator cur = scopex->funcs.find(nm);
-	    if (cur != scopex->funcs.end()) sub = cur->second;
+      pending_dpi_export_s pend;
+      pend.scopex  = scopex;
+      pend.sv_name = lex_strings.make(sv_name);
+      pend.c_name  = lex_strings.make(c_name);
+      pend.is_task = is_task;
+      pend.loc_str = tmp.str();
+      pending_dpi_exports_.push_back(pend);
+}
+
+void pform_resolve_dpi_exports(void)
+{
+      for (std::vector<pending_dpi_export_s>::iterator cur
+		 = pending_dpi_exports_.begin()
+		 ; cur != pending_dpi_exports_.end() ; ++cur) {
+	    PScopeExtra*scopex = cur->scopex;
+
+	    PTaskFunc*sub = 0;
+	    if (cur->is_task) {
+		  map<perm_string,PTask*>::iterator it
+			= scopex->tasks.find(cur->sv_name);
+		  if (it != scopex->tasks.end()) sub = it->second;
+	    } else {
+		  map<perm_string,PFunction*>::iterator it
+			= scopex->funcs.find(cur->sv_name);
+		  if (it != scopex->funcs.end()) sub = it->second;
+	    }
+
+	    if (sub == 0) {
+		    // The subroutine is not visible in the export's scope.
+		    // This is a loud sorry (never a silent drop): an
+		    // unresolved export would otherwise fail to link from C
+		    // with no explanation.
+		  cerr << cur->loc_str << ": sorry: export \"DPI-C\" "
+		       << (cur->is_task ? "task" : "function") << " '"
+		       << cur->sv_name << "' has no matching definition in "
+			  "its scope; out-of-scope export is not yet "
+			  "supported. Calls from C to '" << cur->c_name
+		       << "' will not link." << endl;
+		  continue;
+	    }
+
+	    if (sub->is_dpi_import()) {
+		  cerr << cur->loc_str << ": error: '" << cur->sv_name
+		       << "' is a DPI import; it cannot also be exported "
+			  "(IEEE 1800-2017 35.5)." << endl;
+		  error_count += 1;
+		  continue;
+	    }
+
+	    sub->set_dpi_export(cur->c_name.str());
       }
-
-      if (sub == 0) {
-	    cerr << loc << ": sorry: export \"DPI-C\" "
-		 << (is_task? "task" : "function") << " '" << sv_name
-		 << "' must follow its definition in the same scope; "
-		    "forward or out-of-scope export is not yet supported. "
-		    "Calls from C to '" << c_name << "' will not link."
-		 << endl;
-	    return;
-      }
-
-      if (sub->is_dpi_import()) {
-	    cerr << loc << ": error: '" << sv_name << "' is a DPI import; "
-		    "it cannot also be exported (IEEE 1800-2017 35.5)."
-		 << endl;
-	    error_count += 1;
-	    return;
-      }
-
-      sub->set_dpi_export(cn.str());
+      pending_dpi_exports_.clear();
 }
 
 PBlock* pform_push_block_scope(const struct vlltype&loc, const char*name,
