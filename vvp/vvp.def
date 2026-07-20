@@ -57,3 +57,6 @@ svSizeOfArray
 svGetArrElemPtr
 svGetArrElemPtr1
 svGetArrayPtr
+__ivl_dpi_export_call_i
+__ivl_dpi_export_call_r
+__ivl_dpi_export_call_v
