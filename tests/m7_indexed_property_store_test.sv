@@ -75,6 +75,14 @@ module m7_indexed_property_store_test;
       errors++; $display("FAIL (c): darray-base scalar property store");
     end
 
+    // (d) READ: a method call on a darray/object property reached through a
+    //     darray[idx] base (da[0].addr.size()) must build the element
+    //     receiver — it used to fall through to a compile-progress 0-stub.
+    if (da[0].addr.size() != 2
+        || da[0].addr[0] !== 64'h100 || da[0].addr[1] !== 64'h104) begin
+      errors++; $display("FAIL (d): darray-base darray-property method-call read");
+    end
+
     if (errors == 0) $display("PASS");
     else             $display("FAIL: %0d sub-check(s) failed", errors);
   end

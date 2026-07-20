@@ -350,12 +350,16 @@ shapes directly. All four gates green (UVM 203/0).
     index only, falling through to `%store/prop/obj` for a whole store.
 
 The register front door (assoc base, and read-back via a local handle)
-is fully correct. One narrower READ shape remains, distinct from the
-register defect and NOT exercised by uvm_reg: reading a darray/object
-property through a *darray*-indexed base and calling a method on it —
-`da[0].addr.size()` — is elaborated to a constant 0 (the receiver is not
-built), a read-side elaboration bug in the expression path rather than
-the assignment codegen fixed here. The assoc-base read
-(`by_key[k].addr...`) and the darray-base scalar read (`da[0].n`) are
-correct; only the darray-base object/darray-property *method-call read*
-is affected. Recorded for a separate fix.
+is fully correct.
+
+The one remaining READ shape is now also fixed: a method call on a
+darray/object property reached through a *darray*-indexed base
+(`da[0].addr.size()`) used to elaborate to a constant 0 because the
+element receiver was never built. `elaborate_expr_method_` applied the
+root container index to the receiver only for QUEUE/assoc bases (and, in
+a separate branch, only for a *direct* method on a darray element,
+`da[i].method()`); a darray base followed by a property-then-method chain
+matched neither. It now applies the root index for IVL_VT_DARRAY bases in
+the property-chain branch too, so `da[i].prop.method()` builds
+`da[i].prop` and dispatches correctly. Covered by check (d) of
+tests/m7_indexed_property_store_test.sv.
