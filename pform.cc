@@ -3043,7 +3043,17 @@ void pform_make_modgates(const struct vlltype&loc,
 			  // so a later local redeclaration of the name is
 			  // correctly rejected (sv_wildcard_import4).
 			pform_set_type_referenced(loc, type);
-			typeref_t*dtype = new typeref_t(decl_type);
+			  // Preserve a parameterized-class specialization:
+			  // `box #(plain) b;` reaches here as a no-port
+			  // instantiation shape whose `#(...)` module-parameter
+			  // overrides are the class's type/value arguments.
+			  // Thread them onto the typeref so the handle
+			  // declaration specializes the class exactly as an
+			  // `extends box#(plain)` clause would. Without this the
+			  // generic netclass (all type parameters at their
+			  // defaults) was bound, and type-parameter members kept
+			  // their default types.
+			typeref_t*dtype = new typeref_t(decl_type, 0, overrides);
 			FILE_NAME(dtype, loc);
 			pform_make_var(loc, decls, dtype, attr, false);
 			delete gates;
