@@ -808,6 +808,55 @@ Stage C is now complete: goto/nonconsec (C.1), strong/weak (C.2), and
 endpoint methods (C.3) all lower or loudly diagnose. Remaining M9-NFA
 arc: stage D (multiclock) and the flip.
 
+## Stage D (in progress)
+
+Stage D scope: multiclock concatenation and sampling alignment
+(16.13.3). Before this stage a mid-sequence / consequent clocking event
+was a plain syntax error.
+
+### Increment D.1: multiclocked `|=>` implication — LANDED
+
+The canonical clock-domain-crossing assertion `@(c1) a |=> @(c2) b`: the
+antecedent boolean is clocked by c1, the consequent boolean by c2, and
+the consequent is checked at the FIRST c2 tick STRICTLY AFTER the c1 tick
+where the antecedent held. The grammar gains a consequent clocking event
+(`sva_property_t::seq_clk_evt`); `pform_make_multiclock_assertion_` lowers
+it.
+
+The lowering is a **race-free request/acknowledge counter handoff**. The
+naive single pending flag races (set in the c1 domain, cleared in the c2
+domain — a coincident edge is a nondeterministic set/clear conflict).
+Instead each counter is written by exactly ONE domain, so there is no
+cross-domain write race, and the c2 block's read of `req` sees the value
+latched before the c2 edge (NBA update semantics) — which is exactly the
+"strictly after" sampling `|=>` requires:
+
+    reg [31:0] req=0, ack=0;
+    always @(c1) if (a) req <= req + 1;      // outstanding++
+    always @(c2) if (req != ack) begin       // an obligation is due now
+        ack <= req;                          // discharge all outstanding
+        if (b) <pass> else <fail>;
+    end
+
+A coincident c1/c2 edge is handled correctly: the c2 block reads the
+pre-edge `req`, so an obligation created at that same edge is not
+discharged until the next c2 edge (strictly after). Verified: with c1 ==
+c2 the handoff fails at exactly the same tick as ordinary single-clock
+`a |=> b`. Because the lowering is a dedicated two-domain construction
+(not the NFA slot pool), it runs identically regardless of `IVL_SVA_NFA`
+— a dual-run parity test that does not engage the slot pool
+(`NFA-EXPECT-FALLBACK`).
+
+Scoped out (loud sorry): overlapping `|->` cross-clock (at-or-after
+timing the strictly-after handoff does not model), multiclocked cover, a
+non-boolean antecedent/consequent, `disable iff`, a missing antecedent
+clock, and mid-sequence clock changes inside a longer sequence
+(`@(c1) a ##1 @(c2) b ##1 ...`). Those are later stage-D increments.
+
+Tests: `tests/sva_nfa/multiclock_impl.sv` (dual-run parity — a fulfilled
+and an unfulfilled request across two interleaved clocks);
+`tests/negative/sva_multiclock_ov.sv` pins the `|->` rejection.
+
 ---
 
 Older note (kept for context): the one remaining stage-B item is
