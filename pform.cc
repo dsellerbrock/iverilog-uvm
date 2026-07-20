@@ -7213,10 +7213,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    K = depth > 0 ? depth : 1;
       } else {
 	      /* Shapes the legacy engine lowers exactly stay legacy —
-		 except trees (NO legacy lowering) and local-variable
+		 except trees (NO legacy lowering), local-variable
 		 sequences (the legacy engine cannot store per-attempt
-		 values), which MUST use the automaton's cyclic pool. */
-	    if (!have_tree && !has_lv
+		 values), and STRONG sequence properties (C.2: the legacy
+		 engine has no end-of-sim obligation for a bare sequence),
+		 which MUST use the automaton's cyclic pool. */
+	    if (!have_tree && !has_lv && prop->strength == 0
 		&& sva_nfa_legacy_supports_(*prop->seq, ante_delay_sum,
 					    implication))
 		  return false;
@@ -7670,11 +7672,15 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					sva_block_(loc, init_zero), nullptr);
       FILE_NAME(ip, loc);
 
-	/* End-of-simulation pending note for looping obligations (weak
-	   semantics: they cannot fail in finite time). Loop states are
-	   self-loop wait states by construction. A pending `not`
-	   attempt means the negated property held — silent; a pending
-	   cover attempt simply never matched — also silent. */
+	/* End-of-simulation handling for looping obligations. Loop states
+	   are self-loop wait states by construction; a slot still in one at
+	   end of simulation is an attempt whose sequence never completed.
+	   For a WEAK sequence property (the default) that is not a failure
+	   — emit an informational note. For a STRONG sequence property
+	   (`strong(seq)', 16.12.2) it IS a failure. A pending `not' attempt
+	   means the negated property held (silent); a pending cover attempt
+	   simply never matched (silent). */
+      bool strong_seq = (prop->strength == 1);
       if (cyclic && !negated && !cover) {
 	    std::vector<bool> loop_state (N, false);
 	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1)
@@ -7687,7 +7693,22 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			PExpr*t = sva_id_(loc, s[k][j]);
 			pend = pend ? sva_logic_(loc, 'o', pend, t) : t;
 		  }
-	    if (pend) {
+	    if (pend && strong_seq) {
+		    /* strong: pending at end of simulation is a failure.
+		       (The per-cycle fail action / else-clause was already
+		       consumed by the main dispatch above and never fires for
+		       a bare unbounded sequence, so report via $error.) */
+		  std::list<named_pexpr_t> no_args;
+		  PCallTask*err = new PCallTask(
+			lex_strings.make("$error"), no_args);
+		  FILE_NAME(err, loc);
+		  Statement*fa = sva_fail_action_(loc, inst, err);
+		  PCondit*fc = new PCondit(pend, fa, nullptr);
+		  FILE_NAME(fc, loc);
+		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
+		  FILE_NAME(fp, loc);
+	    } else if (pend) {
+		    /* weak (default): informational note only. */
 		  std::list<named_pexpr_t> dargs;
 		  named_pexpr_t darg;
 		  darg.parm = new PEString(strdup(
@@ -8202,6 +8223,24 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		 << "(`[=m:n]') repetition requires the automaton engine "
 		 << "(compile with IVL_SVA_NFA=1 in the environment); the "
 		 << "assertion is dropped." << endl;
+	    error_count += 1;
+	    delete fail_stmt; delete pass_stmt;
+	    delete prop->antecedent; delete prop->seq;
+	    delete prop->clk_evt; delete prop->disable_iff_expr;
+	    delete prop;
+	    return;
+      }
+
+	/* M9-NFA stage C.2: a `strong(seq)' sequence property carries an
+	   end-of-simulation obligation the legacy engine cannot express —
+	   it would silently lower `strong(seq)' as a plain (weak) sequence,
+	   dropping the obligation. If we reach here with strength==1 (NFA
+	   off, or it declined the shape), diagnose loudly. (`weak(seq)' is
+	   the default and lowers on either engine identically.) */
+      if (prop->strength == 1) {
+	    cerr << loc << ": sorry: `strong(...)' sequence properties "
+		 << "require the automaton engine (compile with IVL_SVA_NFA=1 "
+		 << "in the environment); the assertion is dropped." << endl;
 	    error_count += 1;
 	    delete fail_stmt; delete pass_stmt;
 	    delete prop->antecedent; delete prop->seq;

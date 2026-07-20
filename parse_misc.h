@@ -87,6 +87,12 @@ struct sva_property_t {
 					    // (seq/antecedent null when set)
       int tree_sorry = 0;                   // deferred no-NFA sorry text:
 					    // 0 = or/and, 1 = intersect
+      // M9-NFA stage C.2: sequence property strength (IEEE 1800-2017
+      // 16.12.2). 0 = weak (the default for a sequence property: an
+      // attempt still pending at end of simulation neither fails nor
+      // succeeds); 1 = strong (`strong(seq)': a pending attempt at end of
+      // simulation is a FAILURE). Automaton-engine-only.
+      int strength = 0;
       int op_type = 0;                      // 0=plain sequence, 1=|->, 2=|=>
 };
 
