@@ -250,6 +250,13 @@ TU [munpf]
      other context (no prefix `*` operator), so lexing it as one token
      lets the parser keep bit/part selects unambiguous. */
 "[*" { return K_LBSTAR; }
+  /* M9-NFA stage C.1: SVA goto `[->' and nonconsecutive `[=' repetition
+     openers (16.9.2). Like `[*', these two-/three-character sequences do
+     not begin any other construct (an empty `[' is never immediately
+     followed by `=' or `->'), so lexing them as single tokens keeps
+     bit/part selects unambiguous. */
+"[->" { return K_LBGOTO; }
+"[=" { return K_LBEQ; }
 "|=>" { return K_PIPE_IMPL_NOV; }
 "+:" { return K_PO_POS; }
 "-:" { return K_PO_NEG; }

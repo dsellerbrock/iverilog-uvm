@@ -5916,6 +5916,60 @@ pform_sva_repeat(const struct vlltype&loc,
 }
 
 /*
+ * M9-NFA stage C.1: goto `b[->m:n]` (kind 1) and nonconsecutive
+ * `b[=m:n]` (kind 2) repetition of a boolean (IEEE 1800-2017 16.9.2).
+ * The operand must be a single boolean step; the repetition counts are
+ * recorded on that step (rep_kind/rep_lo/rep_hi) for the automaton
+ * engine, which builds a counting wait-loop fragment. The legacy engine
+ * has no such construct and loudly rejects a rep_kind step at lowering.
+ *
+ * A goto/nonconsec operand that is a multi-step sequence, carries a
+ * local-variable assignment, or is already a repetition is out of scope
+ * (16.9.2 restricts these operators to a Boolean); such shapes are
+ * marked as an unsupported repetition (delay_lo = -3), which the
+ * existing lowering already diagnoses loudly. Consumes lo and hi.
+ */
+std::vector<sva_seq_step_t>*
+pform_sva_goto_repeat(const struct vlltype&loc,
+		      std::vector<sva_seq_step_t>*steps,
+		      int kind, PExpr*lo, PExpr*hi, bool unbounded)
+{
+      (void)loc;
+      PENumber*lon = dynamic_cast<PENumber*>(lo);
+      PENumber*hin = dynamic_cast<PENumber*>(hi);
+      long lov = lon ? lon->value().as_long() : -1;
+      long hiv = unbounded ? -1 : (hi ? (hin ? hin->value().as_long() : -1) : lov);
+      delete lo;
+      delete hi;
+
+      if (!steps || steps->empty())
+	    return steps;
+
+	/* Boolean-operand restriction: exactly one plain step, no local
+	   variable, no existing repetition/delay shape. */
+      bool ok = (steps->size() == 1)
+		&& !(*steps)[0].lv_rhs
+		&& (*steps)[0].rep_kind == 0
+		&& (*steps)[0].rep_tail == 0
+		&& (*steps)[0].delay_lo >= 0
+		&& (*steps)[0].delay_lo == (*steps)[0].delay_hi;
+	/* Count validity: m >= 1, and (bounded) n >= m. */
+      if (ok && (!lon || lov < 1)) ok = false;
+      if (ok && !unbounded && (hiv < lov || (hi && !hin))) ok = false;
+
+      if (!ok) {
+	    (*steps)[0].delay_lo = -3;
+	    (*steps)[0].delay_hi = -3;
+	    return steps;
+      }
+
+      (*steps)[0].rep_kind = kind;
+      (*steps)[0].rep_lo = lov;
+      (*steps)[0].rep_hi = hiv;   // -1 when unbounded
+      return steps;
+}
+
+/*
  * M9C: `expr throughout seq` (IEEE 1800-2017 16.9.9). The boolean `expr`
  * must hold at every clock tick from the start of `seq` until it
  * completes. Rather than extend the token-pipeline runtime, we lower
@@ -6605,6 +6659,9 @@ static bool sva_nfa_legacy_supports_(const std::vector<sva_seq_step_t>&seq,
 	    bool last = (j + 1 == seq.size());
 	    long lo = seq[j].delay_lo;
 	    long hi = seq[j].delay_hi;
+	      /* goto/nonconsecutive repetition (C.1) is automaton-only —
+		 the legacy engine has no counting wait-loop for it. */
+	    if (seq[j].rep_kind != 0) return false;
 	    if (lo < 0) return false;
 	    if (hi == -1 && !last) return false;
 	    if (seq[j].rep_tail != 0 && !last) return false;
@@ -7728,6 +7785,106 @@ static int sva_lower_local_vars_(const struct vlltype&loc,
       return 0;
 }
 
+/* M9-NFA: expand a COMPOSED multi-length `first_match` (16.9.9) into a
+   disjoint OR of fixed chains, so the automaton engine lowers it
+   exactly. `first_match(a ##[m:n] b) ...` keeps only the EARLIEST b:
+   branch k (m<=k<=n) requires b at offset k AND !b at offsets m..k-1,
+   so the branches are mutually exclusive and their continuations are
+   independent — if the committed (shortest) match's tail fails, the
+   whole attempt fails, it does NOT fall back to a longer match, which
+   is exactly first_match. Supported shape: the wrapped region contains
+   exactly ONE bounded window and no local variable; returns a SEQ_OR
+   tree, or nullptr if the shape is outside this (caller diagnoses).
+   The chain `steps' is consumed on success (moved into the tree). */
+static sva_stree_t* sva_expand_first_match_(const struct vlltype&loc,
+					    std::vector<sva_seq_step_t>&steps)
+{
+      (void)loc;
+      int lo = -1, hi = -1;
+      for (size_t i = 0 ; i < steps.size() ; i += 1)
+	    if (steps[i].fm) { if (lo < 0) lo = (int)i; hi = (int)i; }
+      if (lo < 0) return nullptr;
+	/* Find the single window inside the wrapper; reject lv, rep, or
+	   a second variable step. */
+      int w = -1;
+      for (int i = lo ; i <= hi ; i += 1) {
+	    if (steps[i].lv_rhs) return nullptr;
+	    bool var = (i > lo)
+		       && (steps[i].delay_lo != steps[i].delay_hi);
+	    if (steps[i].rep_tail != 0) return nullptr;
+	    if (steps[i].delay_lo < 0) return nullptr;   // unbounded: not here
+	    if (var) { if (w >= 0) return nullptr; w = i; }
+      }
+      if (w < 0) return nullptr;
+      long m = steps[w].delay_lo, n = steps[w].delay_hi;
+      if (n < m || n - m > 64) return nullptr;       // keep the fan-out sane
+      PExpr*awaited = steps[w].expr;
+      if (!awaited) return nullptr;
+
+	/* Build one branch chain per earliest-offset k. */
+      sva_stree_t*tree = nullptr;
+      for (long k = m ; k <= n ; k += 1) {
+	    std::vector<sva_seq_step_t>*br = new std::vector<sva_seq_step_t>;
+	    bool ok = true;
+	      /* steps before the window: clone verbatim. */
+	    for (int i = 0 ; i < w && ok ; i += 1) {
+		  sva_seq_step_t st = steps[i];
+		  st.fm = false; st.lv_rhs = nullptr; st.lv_name = perm_string();
+		  st.expr = sva_clone_expr_(steps[i].expr);
+		  if (!st.expr && steps[i].expr) ok = false;
+		  br->push_back(st);
+	    }
+	      /* window expansion: !awaited at offsets m..k-1, awaited at k. */
+	    for (long off = m ; off <= k && ok ; off += 1) {
+		  sva_seq_step_t st;
+		  st.delay_lo = st.delay_hi = (off == m) ? m : 1;
+		  PExpr*aw = sva_clone_expr_(awaited);
+		  if (!aw) { ok = false; break; }
+		  if (off < k) {
+			PEUnary*nb = new PEUnary('!', aw);
+			FILE_NAME(nb, loc);
+			st.expr = nb;
+		  } else {
+			st.expr = aw;
+		  }
+		  br->push_back(st);
+	    }
+	      /* steps after the window: clone verbatim (delays are relative
+		 to the awaited match, which the offset-k b reproduces). */
+	    for (int i = w + 1 ; i < (int)steps.size() && ok ; i += 1) {
+		  sva_seq_step_t st = steps[i];
+		  st.fm = false; st.lv_rhs = nullptr; st.lv_name = perm_string();
+		  st.expr = sva_clone_expr_(steps[i].expr);
+		  if (!st.expr && steps[i].expr) ok = false;
+		  br->push_back(st);
+	    }
+	    if (!ok) {
+		  for (size_t i = 0 ; i < br->size() ; i += 1) delete (*br)[i].expr;
+		  delete br;
+		  if (tree) sva_tree_delete_(tree, true);
+		  return nullptr;
+	    }
+	    sva_stree_t*leaf = new sva_stree_t;
+	    leaf->chain = br;
+	    if (!tree) {
+		  tree = leaf;
+	    } else {
+		  sva_stree_t*t = new sva_stree_t;
+		  t->kind = sva_stree_t::SEQ_OR;
+		  t->a = tree;
+		  t->b = leaf;
+		  tree = t;
+	    }
+      }
+	/* Consume the source chain. */
+      for (size_t i = 0 ; i < steps.size() ; i += 1) {
+	    delete steps[i].expr;
+	    delete steps[i].lv_rhs;
+      }
+      steps.clear();
+      return tree;
+}
+
 /* M9-NFA: `first_match` (IEEE 1800-2017 16.9.9) is transparent (its
    inner sequence flows straight into the chain) — which is EXACT for a
    standalone/existence position (a cover/assert of first_match(s)
@@ -7761,14 +7918,9 @@ static bool sva_check_first_match_(const struct vlltype&loc,
 	    if (steps[i].rep_tail != 0) fm_var = true;
       }
       if (!fm_var) return true;
+      (void)loc;
       bool composed = (last_fm + 1 < (int)steps.size()) || tail_continues;
-      if (!composed) return true;
-      cerr << loc << ": sorry: a `first_match' over a variable-length "
-	   << "sequence whose match feeds a continuation is not supported "
-	   << "(the shortest-match cut needs a sub-sequence node); the "
-	   << "assertion is dropped." << endl;
-      error_count += 1;
-      return false;
+      return !composed;   // false => composed multi-length: expand or diagnose
 }
 
 /* Lower one concurrent assertion (assert/assume/cover property) to a
@@ -7807,6 +7959,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		       << "length sequence requires the automaton engine "
 		       << "(compile with IVL_SVA_NFA=1 in the environment); "
 		       << "the assertion is dropped." << endl;
+	    else if (prop->tree_sorry == 4)
+		  cerr << loc << ": sorry: this `first_match' shape is not "
+		       << "supported by the automaton engine yet; the "
+		       << "assertion is dropped." << endl;
 	    else
 		  cerr << loc << ": sorry: sequence `or'/`and' requires "
 		       << "the automaton engine (compile with IVL_SVA_NFA=1 "
@@ -7952,16 +8108,42 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (prop->antecedent)
 	    sva_splice_sequences_(loc, *prop->antecedent);
 
-	/* first_match: diagnose the composed multi-length case (would
-	   otherwise silently over-match) before lowering. */
-      if (!sva_check_first_match_(loc, *prop->seq, false)
-	  || (prop->antecedent
-	      && !sva_check_first_match_(loc, *prop->antecedent, true))) {
-	    delete fail_stmt; delete pass_stmt;
-	    delete prop->antecedent; delete prop->seq;
-	    delete prop->clk_evt; delete prop->disable_iff_expr;
-	    delete prop;
-	    return;
+	/* first_match: the composed multi-length case (a first_match whose
+	   variable-length match feeds a continuation) cannot ride the
+	   transparent lowering without silently over-matching. Expand it
+	   into a disjoint `or' of fixed-length branches whose earliest-
+	   match cut is encoded by `!awaited' guards (exact first_match
+	   semantics), then re-dispatch as a combinator tree. That tree is
+	   automaton-only, so only attempt the rewrite when the NFA engine
+	   is available; otherwise it stays a loud sorry. */
+      {
+	    bool seq_bad = !sva_check_first_match_(loc, *prop->seq, false);
+	    bool ante_bad = prop->antecedent
+			    && !sva_check_first_match_(loc, *prop->antecedent, true);
+	    if (seq_bad || ante_bad) {
+		  sva_stree_t*fm_tree = nullptr;
+		  if (pform_sva_nfa_enabled() && !ante_bad
+		      && prop->op_type == 0 && !prop->antecedent)
+			fm_tree = sva_expand_first_match_(loc, *prop->seq);
+		  if (fm_tree) {
+			delete prop->seq;
+			prop->seq = nullptr;
+			prop->tree = fm_tree;
+			prop->tree_sorry = 4;
+			pform_make_assertion(loc, prop, fail_stmt, pass_stmt, kind);
+			return;
+		  }
+		  cerr << loc << ": sorry: `first_match' of a variable-length "
+		       << "sequence that feeds a continuation requires the "
+		       << "automaton engine (compile with IVL_SVA_NFA=1 in the "
+		       << "environment); the assertion is dropped." << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete pass_stmt;
+		  delete prop->antecedent; delete prop->seq;
+		  delete prop->clk_evt; delete prop->disable_iff_expr;
+		  delete prop;
+		  return;
+	    }
       }
 
 	/* A local variable in an IMPLICATION is typically assigned in the
@@ -8003,6 +8185,30 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (pform_sva_nfa_enabled()
 	  && pform_sva_nfa_try_assertion(loc, prop, fail_stmt, pass_stmt, kind))
 	    return;
+
+	/* M9-NFA stage C.1: goto/nonconsecutive repetition (`b[->m:n]',
+	   `b[=m:n]') is an automaton-only construct. If we reach here with a
+	   rep_kind step — the NFA engine is off, or it declined the shape —
+	   the legacy engine has no such counting loop and would silently
+	   drop it; diagnose loudly instead. */
+      bool has_rep_kind = false;
+      for (size_t si = 0 ; si < prop->seq->size() ; si += 1)
+	    if ((*prop->seq)[si].rep_kind != 0) has_rep_kind = true;
+      if (prop->antecedent)
+	    for (size_t si = 0 ; si < prop->antecedent->size() ; si += 1)
+		  if ((*prop->antecedent)[si].rep_kind != 0) has_rep_kind = true;
+      if (has_rep_kind) {
+	    cerr << loc << ": sorry: SVA goto (`[->m:n]') / nonconsecutive "
+		 << "(`[=m:n]') repetition requires the automaton engine "
+		 << "(compile with IVL_SVA_NFA=1 in the environment); the "
+		 << "assertion is dropped." << endl;
+	    error_count += 1;
+	    delete fail_stmt; delete pass_stmt;
+	    delete prop->antecedent; delete prop->seq;
+	    delete prop->clk_evt; delete prop->disable_iff_expr;
+	    delete prop;
+	    return;
+      }
 
 	/* If the automaton engine declined a slot-local-variable
 	   assertion, the legacy engine cannot lower it (the reads are
