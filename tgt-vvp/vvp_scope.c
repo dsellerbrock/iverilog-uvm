@@ -3043,6 +3043,22 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 	    unsigned idx;
 	    unsigned first = is_task ? 0 : 1;
 
+	      /* One C stub per exported C name: a multiply-instantiated
+		 module registers one export entry per instance, but the C
+		 entry point is instance-agnostic (the runtime selects the
+		 instance by svScope). Skip a name already emitted. */
+	    int already = 0;
+	    struct dpi_export_entry_s*prev;
+	    for (prev = dpi_exports ; prev != ent ; prev = prev->next) {
+		  if (strcmp(ivl_scope_dpi_export_c_name(prev->scope),
+			     c_name) == 0) {
+			already = 1;
+			break;
+		  }
+	    }
+	    if (already)
+		  continue;
+
 	    if (!dpi_export_build_sig(scope, c_name, is_task, &ret_sig,
 				      &ret_ctype, arg_sig, arg_ctypes,
 				      64, &nargs, 1))

@@ -203,6 +203,35 @@ tables), one of the closure plan's two big rocks — not a bounded
 runtime fix. tests/wip/m7_reg_frontdoor_stress_test.sv stays
 quarantined until it lands.
 
+### Root cause (2026-07-20, sharpened)
+
+Reduced further to `class box #(type IMP=int); IMP m; task run(); m.g();
+endtask endclass` with `box #(plain) b`. Probing
+`type_parameter_t::elaborate_type_raw` and the specialization trace
+(`IVL_SPEC_KEY_TRACE`) shows the mechanism precisely:
+
+- A parameterized-class **variable/handle type reference** — `box#(plain)
+  b`, `imp_c#(int, sequencer#(int)) h` — does **not** trigger
+  `elaborate_specialized_class_type`. Only an `extends base#(REQ)`
+  inheritance clause does. So the variable reuses the **generic** class
+  netclass_t, whose body was elaborated with every type parameter at its
+  **default** (`IMP = int`).
+- Consequently a member or local typed by a type-parameter (`IMP m`,
+  `IMP local_h`) has type `netvector_t` (int), not the actual argument's
+  class. `elaborate_method_` sees a non-class `obj_type`, never reaches
+  `class_type->resolve_method_call_scope`, and drops the call into the
+  "Enable of unknown task" compile-progress noop — bug (a). Bug (b) is the
+  same root: dispatch through a base handle whose element/type-param
+  members were typed against the generic (default) body.
+
+The fix is not "method tables" per se but **making a parameterized-class
+type reference in a variable/handle/property declaration specialize the
+class** (as `extends` already does) whenever a type argument differs from
+its default, so the specialized body re-elaborates type-parameter
+members/locals against the bound arguments. High blast radius (every UVM
+parameterized handle; specialization-count/perf; the 8000-spec cap), so it
+landed staged behind the four-gate protocol, not as a one-shot.
+
 ### Update (2026-07-20): BOTH halves FIXED — test un-quarantined
 
 Finding 4 was really two independent defects; both are now fixed and

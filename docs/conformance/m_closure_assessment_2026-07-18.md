@@ -136,6 +136,57 @@ where tests look.
 
 ---
 
+## Phase 4 progress ledger (2026-07-20)
+
+Started, on branch `claude/ieee1800-uvm-implementation-qm5wad` (stacked on
+PR #90). Working the elab_lval.cc lvalue-typing sites first (highest
+silent-risk), bottom-up.
+
+1. **darray/queue element bit/part-select stores** — DONE (PR #90). Two
+   elab_lval.cc fallbacks retired: `d[i][b] = v` silently dropped the bit
+   index and wrote the whole element (a live silent miscompile —
+   `uvm_packer::unpack_bytes` does `value[i/8][i%8] = ...`), and
+   `q[i][m:l] = v` aborted the compiler on an assertion in
+   `elaborate_lval_net_part_`. Both now lower to a correct
+   read-modify-write: the element-relative offset is normalized during
+   elaboration (`normalize_variable_base`, so a run-time-variable index
+   and non-zero-based element ranges both work) and carried as the lval
+   part offset; tgt-vvp evaluates the word index and offset into integer
+   registers and emits a new `%store/dar/vec4/off` vvp opcode that loads
+   the element, splices the value, and stores it back — for dynamic
+   arrays and queues (shared `vvp_darray` get_word/set_word base). Not-yet
+   -lowered forms (compound assignment, indexed `+:`/`-:`, non-vector
+   element) are loud sorries. Test: `tests/m1b_darray_elem_partsel_test.sv`.
+
+2. **assoc-element object-property store** (finding 6 store half) — DONE
+   (PR #90). `amap[key].prop = v` (amap an associative array of class
+   handles) silently no-op'd: the l-value base object was loaded
+   positionally (`%load/dar/obj` with the key as an index into the assoc's
+   underlying queue), so for any key != position it loaded null and the
+   null-guard skipped the store. `draw_lval_expr` (tgt-vvp) now loads the
+   base by key (`%aa/load/sig/obj`, matching the read path) when the signal
+   is an assoc-compat queue of objects. Queue/darray element stores were
+   already correct. This is the "obj-prop store no-op" that blocks
+   `uvm_reg::get_address`. Test: `tests/m1b_assoc_obj_prop_store_test.sv`.
+
+Remaining elab_lval sites are the harder class-typing / aggregate cluster
+(unpacked-struct member lvalue, deeper nested-assoc/indexed property paths,
+unresolved class property) — entangled with the elab_expr class-typing
+collapse (finding 4, M1B parameterized dispatch), so sequenced after that
+per the plan above.
+
+Also on PR #90: the time-consuming DPI-export coroutine now works on **all
+platforms**. It was briefly made POSIX-only (to unbreak the macOS build,
+whose SDK gates the ucontext routines behind `_XOPEN_SOURCE`), then done
+properly: a two-backend abstraction behind the same `dpi_coro_*` helpers —
+POSIX `<ucontext.h>` on Linux/macOS (macOS enabled with an Apple-only
+`_XOPEN_SOURCE` ahead of all includes) and Win32 Fibers on MinGW/Windows.
+`IVL_HAVE_DPI_CORO` marks a backend present; only the illegal
+value-returning-function-that-blocks case stays a loud sorry everywhere.
+
+
+---
+
 ## Phase 1 completion ledger (2026-07-18, post-hoc)
 
 Phase 1 is COMPLETE. Per-item honest status:

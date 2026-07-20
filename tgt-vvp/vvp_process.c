@@ -4362,8 +4362,12 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    fprintf(vvp_out, "    %%dpi/call/str \"%s|%s\", %u;\n",
 		    c_name, arg_types, ncp);
       } else if (rtype == IVL_VT_VOID) {
-	    fprintf(vvp_out, "    %%dpi/call/void \"%s|%s\", %u;\n",
-		    c_name, arg_types, ncp);
+	      /* A DPI import *task* (35.5) may be time-consuming — its C
+		 body may call an exported SV task that blocks — so it uses a
+		 distinct opcode that runs the C on a coroutine. A void
+		 *function* stays on the fast synchronous %dpi/call/void. */
+	    fprintf(vvp_out, "    %%dpi/call/%s \"%s|%s\", %u;\n",
+		    is_task ? "task" : "void", c_name, arg_types, ncp);
       } else {
 	    fprintf(vvp_out, "    %%dpi/call/vec4 \"%s|%s\", %u, %u;\n",
 		    c_name, arg_types, ncp, rwid);

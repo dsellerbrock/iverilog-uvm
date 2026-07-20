@@ -266,6 +266,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%div/wr",   of_DIV_WR,  0, {OA_NONE,   OA_NONE,     OA_NONE} },
       { "%dpi/call/real", of_DPI_CALL_REAL, 2,{OA_STRING, OA_BIT1,   OA_NONE} },
       { "%dpi/call/str",  of_DPI_CALL_STR,  2,{OA_STRING, OA_BIT1,   OA_NONE} },
+      { "%dpi/call/task", of_DPI_CALL_TASK, 2,{OA_STRING, OA_BIT1,   OA_NONE} },
       { "%dpi/call/vec4", of_DPI_CALL_VEC4, 3,{OA_STRING, OA_BIT1,   OA_BIT2} },
       { "%dpi/call/void", of_DPI_CALL_VOID, 2,{OA_STRING, OA_BIT1,   OA_NONE} },
       { "%dup/obj",  of_DUP_OBJ, 0, {OA_NONE,   OA_NONE,     OA_NONE} },
@@ -459,6 +460,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%store/dar/r",   of_STORE_DAR_R,   1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%store/dar/str", of_STORE_DAR_STR, 1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%store/dar/vec4",of_STORE_DAR_VEC4,1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
+      { "%store/dar/vec4/off",of_STORE_DAR_VEC4_OFF,3,{OA_FUNC_PTR, OA_BIT1, OA_BIT2} },
       { "%store/obj",   of_STORE_OBJ,   1, {OA_FUNC_PTR,OA_NONE, OA_NONE} },
       { "%store/obja",  of_STORE_OBJA,  2, {OA_ARR_PTR, OA_BIT1, OA_NONE} },
       { "%store/prop/obj",of_STORE_PROP_OBJ,2, {OA_NUMBER,  OA_BIT1, OA_NONE} },
@@ -1188,7 +1190,9 @@ struct dpi_export_rec_s {
       vvp_net_t*ret_net;
       std::vector<vvp_net_t*> arg_nets;
 };
-static std::map<std::string, dpi_export_rec_s> dpi_export_map;
+// A C name maps to one record per exported instance (a module exporting a
+// subroutine and instantiated N times registers N records).
+static std::map<std::string, std::vector<dpi_export_rec_s> > dpi_export_map;
 
 void compile_export_dpi(char*c_name, char*td_label, char*ret_sig,
 			char*arg_sig, char*ret_net, char*arg_nets)
@@ -1226,7 +1230,7 @@ void compile_export_dpi(char*c_name, char*td_label, char*ret_sig,
 	    cur = end;
       }
 
-      dpi_export_map[c_name] = rec;
+      dpi_export_map[c_name].push_back(rec);
 
       free(c_name);
       free(td_label);
@@ -1236,14 +1240,26 @@ void compile_export_dpi(char*c_name, char*td_label, char*ret_sig,
       free(arg_nets);
 }
 
-bool dpi_export_lookup(const char*c_name, struct dpi_export_info_s*out)
+unsigned dpi_export_count(const char*c_name)
 {
-      std::map<std::string, dpi_export_rec_s>::const_iterator cur
+      std::map<std::string, std::vector<dpi_export_rec_s> >::const_iterator cur
+	    = dpi_export_map.find(c_name);
+      if (cur == dpi_export_map.end())
+	    return 0;
+      return (unsigned) cur->second.size();
+}
+
+bool dpi_export_lookup(const char*c_name, unsigned index,
+		       struct dpi_export_info_s*out)
+{
+      std::map<std::string, std::vector<dpi_export_rec_s> >::const_iterator cur
 	    = dpi_export_map.find(c_name);
       if (cur == dpi_export_map.end())
 	    return false;
+      if (index >= cur->second.size())
+	    return false;
 
-      const dpi_export_rec_s&rec = cur->second;
+      const dpi_export_rec_s&rec = cur->second[index];
       out->td_label = rec.td_label.c_str();
       out->ret_sig  = rec.ret_sig;
       out->arg_sig  = rec.arg_sig.c_str();

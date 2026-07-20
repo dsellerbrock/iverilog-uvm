@@ -100,6 +100,13 @@ struct sva_property_t {
       // simulation is a FAILURE). Automaton-engine-only.
       int strength = 0;
       int op_type = 0;                      // 0=plain sequence, 1=|->, 2=|=>
+      // IEEE 1800-2017 16.12.2/16.12.5: bounded liveness window for the
+      // unary liveness ops (nexttime[n]/s_nexttime[n]: win_lo==win_hi==n;
+      // s_eventually[m:n]/eventually[m:n]: win_lo==m, win_hi==n). -1 on
+      // both means "no explicit window" (the plain unbounded/next-cycle
+      // form the existing lowering already handles).
+      long win_lo = -1;
+      long win_hi = -1;
 };
 
 /*

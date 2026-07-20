@@ -513,6 +513,8 @@ class PEIdent : public PExpr {
 					     pform_name_t member_path, bool is_force) const;
       bool elaborate_lval_darray_bit_(Design*, NetScope*,
 				      NetAssign_*, bool is_force) const;
+      bool elaborate_lval_darray_part_(Design*, NetScope*,
+				       NetAssign_*, bool is_force) const;
 
     private:
       NetExpr* elaborate_expr_(Design *des, NetScope *scope,
