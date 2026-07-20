@@ -9822,9 +9822,26 @@ static void do_join(vthread_t thr, vthread_t child)
                  && (child_type == vpiTask || child_type == vpiFunction)
                  && thr->wt_context != thr->rd_context) {
             vvp_context_t child_context = 0;
-            if (child_ctx_scope && child_ctx_scope->is_automatic())
+              /* For a dynamically dispatched virtual call, the override ran in
+                 a separate dispatch context that is NOT on this thread's write
+                 stack; the frame that IS stacked here is the %alloc'd
+                 call-site (base-scope) frame. Pop THAT frame — looking for the
+                 override scope's frame finds nothing, leaving the base-scope
+                 frame stuck at the write head, so the enclosing task's own
+                 output store lands in the base-scope frame instead of its own.
+                 That silently drops the returned value of a virtual task with
+                 an `output' argument whose caller is itself an output-argument
+                 task/method (the RAL get_next_item / port copy-back shape). */
+            __vpiScope*pop_ctx_scope = child_ctx_scope;
+            if (child->dynamic_dispatch_base_scope) {
+                  __vpiScope*base_ctx_scope =
+                        resolve_context_scope(child->dynamic_dispatch_base_scope);
+                  if (base_ctx_scope)
+                        pop_ctx_scope = base_ctx_scope;
+            }
+            if (pop_ctx_scope && pop_ctx_scope->is_automatic())
                   child_context = first_live_context_for_scope(thr->wt_context,
-                                                               child_ctx_scope);
+                                                               pop_ctx_scope);
 
               /* Same-scope recursive calls take the generic pop-push
                  below as well: with nested begin blocks collapsed into

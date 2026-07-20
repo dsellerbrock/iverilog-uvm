@@ -203,11 +203,14 @@ tables), one of the closure plan's two big rocks — not a bounded
 runtime fix. tests/wip/m7_reg_frontdoor_stress_test.sv stays
 quarantined until it lands.
 
-### Update (2026-07-20): the SPECIALIZATION half is FIXED
+### Update (2026-07-20): BOTH halves FIXED — test un-quarantined
 
-Finding 4 was really two independent defects. The first — a
-parameterized-class VARIABLE/HANDLE/PROPERTY declaration not
-specializing — is now fixed:
+Finding 4 was really two independent defects; both are now fixed and
+`m7_reg_frontdoor_stress_test.sv` has moved out of `tests/wip/` into the
+standard sweep, passing checks=4 writes=4 reads=4.
+
+The first — a parameterized-class VARIABLE/HANDLE/PROPERTY declaration
+not specializing — is fixed:
 
   * `pform.cc` (`pform_make_modgates`): a `Class #(args) name;`
     declaration reaches the no-port module-instantiation shape and is
@@ -231,17 +234,32 @@ call + parameterized virtual dispatch through a base handle + a member
 typed by a type-parameter inside an extending subclass). All four gates
 stay green (UVM 200/0).
 
-The SECOND defect — the RAL shape — is a distinct, PRE-EXISTING RUNTIME
-bug that is not parameterized-specific: a virtual task with an `output`
-argument dispatched via `%fork/v` drops its output copy-back when the
-caller's output is itself the enclosing task's `output` formal (fork/join
-automatic-context mirroring). It reproduces with plain (non-templated)
-classes on the stock runtime, and a related pre-existing limitation —
-member access on an `output` formal typed by a type-parameter — also
-blocks the RAL shape. Those remain the big rock;
-m7_reg_frontdoor_stress_test now advances from a hard assertion to a
-clean run that still drops the register items (checks=0 writes=0
-reads=8), and stays quarantined until that runtime work lands.
+The SECOND defect — a distinct, PRE-EXISTING RUNTIME bug that is not
+parameterized-specific — is also fixed:
+
+  * `vvp/vthread.cc` (`do_join`): a virtual task with an `output`
+    argument dispatched via `%fork/v` runs its override in a separate
+    dispatch context that is NOT on the caller's write stack. The only
+    frame stacked there is the `%alloc`'d call-site (base-scope) frame.
+    do_join's pop-push looked for the OVERRIDE scope's frame to pop,
+    found nothing, and left the base frame at the write head — so the
+    enclosing task's own `output` store landed in the base frame instead
+    of its own, silently dropping the returned handle (caller saw null).
+    The pop-push now targets the base (call-site) scope for a
+    dynamically dispatched child, exactly as the non-virtual call path
+    does. This reproduced with plain (non-templated) classes too.
+
+Regression: `tests/m1b_virtual_output_copyback_test.sv` (plain and
+parameterized shapes) plus the un-quarantined
+`tests/m7_reg_frontdoor_stress_test.sv`. All four gates green (UVM 200/0,
+ivtest clean, SVA 32/0, build).
+
+(One adjacent limitation is still open and independent of the above:
+member access on an `output` formal typed by a type-parameter —
+"Variable t does not have a field named ..." — fails even on the
+fully-elaborated path. It does not block the RAL front door, which passes
+the returned handle through without dereferencing an output-typed
+type-parameter formal.)
 
 
 ## Finding 5: dup_expr of a function call loses its upgraded type — FIXED
