@@ -136,6 +136,43 @@ where tests look.
 
 ---
 
+## Phase 4 progress ledger (2026-07-20)
+
+Started, on branch `claude/ieee1800-uvm-implementation-qm5wad` (stacked on
+PR #90). Working the elab_lval.cc lvalue-typing sites first (highest
+silent-risk), bottom-up.
+
+1. **darray/queue element bit/part-select stores** — DONE (PR #90). Two
+   elab_lval.cc fallbacks retired: `d[i][b] = v` silently dropped the bit
+   index and wrote the whole element (a live silent miscompile —
+   `uvm_packer::unpack_bytes` does `value[i/8][i%8] = ...`), and
+   `q[i][m:l] = v` aborted the compiler on an assertion in
+   `elaborate_lval_net_part_`. Both now lower to a correct
+   read-modify-write: the element-relative offset is normalized during
+   elaboration (`normalize_variable_base`, so a run-time-variable index
+   and non-zero-based element ranges both work) and carried as the lval
+   part offset; tgt-vvp evaluates the word index and offset into integer
+   registers and emits a new `%store/dar/vec4/off` vvp opcode that loads
+   the element, splices the value, and stores it back — for dynamic
+   arrays and queues (shared `vvp_darray` get_word/set_word base). Not-yet
+   -lowered forms (compound assignment, indexed `+:`/`-:`, non-vector
+   element) are loud sorries. Test: `tests/m1b_darray_elem_partsel_test.sv`.
+
+Remaining elab_lval sites are the harder class-typing / aggregate cluster
+(unpacked-struct member lvalue, assoc-array element property, unresolved
+class property) — entangled with the elab_expr class-typing collapse
+(finding 4, M1B parameterized dispatch), so sequenced after that per the
+plan above.
+
+Also on PR #90: the time-consuming DPI-export coroutine (ucontext) was
+made POSIX-only via a single `IVL_NO_DPI_CORO` guard (`__MINGW32__ ||
+__APPLE__`), fixing the macOS build (its SDK gates the ucontext routines
+behind `_XOPEN_SOURCE`, unsatisfiable that late in the include order);
+macOS now takes the same loud-sorry fallback as Windows.
+
+
+---
+
 ## Phase 1 completion ledger (2026-07-18, post-hoc)
 
 Phase 1 is COMPLETE. Per-item honest status:
