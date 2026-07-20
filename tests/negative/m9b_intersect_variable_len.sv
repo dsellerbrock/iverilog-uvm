@@ -3,3 +3,6 @@
 module top; logic clk=0,a,b,c,d;
   assert property (@(posedge clk) (a ##[1:2] b) intersect (c ##1 d));
 endmodule
+
+// NEG-LEGACY-ONLY: the automaton engine (now default) lowers this
+// construct; this file verifies the legacy engine still rejects it loudly.

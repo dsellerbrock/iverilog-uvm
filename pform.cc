@@ -7944,6 +7944,225 @@ static bool sva_check_first_match_(const struct vlltype&loc,
       return !composed;   // false => composed multi-length: expand or diagnose
 }
 
+/* M9-NFA stage C.3: sequence endpoint methods `seq.triggered' /
+   `seq.matched' (IEEE 1800-2017 16.13.6). For a FIXED-LENGTH named
+   sequence the endpoint boolean — "seq completed a match ending at this
+   cycle" — is the $past-sampled conjunction of the sequence's step
+   booleans, each delayed by its distance from the match end (`a ##1 b'
+   -> `$past(a,1) && b'). This is the same fixed-length match indicator
+   the legacy engine already builds for a fixed antecedent, so both
+   engines lower it identically. Variable-length, unbounded, repetition,
+   goto/nonconsec, or local-variable sequence bodies need the automaton
+   endpoint signal and are a loud sorry; a base that is not a declared
+   sequence is left untouched for the ordinary unresolved-reference
+   diagnostic. Under a single clock `.triggered' and `.matched' coincide
+   (the observed-region distinction is a stage-D multiclock concern).
+   Returns false (diagnosed) on an unsupported endpoint. */
+static bool sva_lower_endpoint_methods_(const struct vlltype&loc,
+					std::vector<sva_seq_step_t>&steps)
+{
+      for (size_t i = 0 ; i < steps.size() ; i += 1) {
+	    PEIdent*id = dynamic_cast<PEIdent*>(steps[i].expr);
+	    if (!id || id->path().package) continue;
+	    const pform_name_t&nm = id->path().name;
+	    if (nm.size() != 2) continue;
+	    if (!nm.front().index.empty() || !nm.back().index.empty()) continue;
+	    perm_string method = nm.back().name;
+	    if (strcmp(method, "triggered") && strcmp(method, "matched"))
+		  continue;
+	    perm_string seqname = nm.front().name;
+	    std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator it =
+		  sva_module_sequences.find(seqname);
+	    if (it == sva_module_sequences.end() || !it->second)
+		  continue;   /* not a declared sequence: leave it for the
+				 ordinary unresolved-reference diagnostic */
+
+	    std::vector<sva_seq_step_t>&body = *it->second;
+	    bool ok = !body.empty();
+	    long L = 0;
+	    std::vector<long> off (body.size(), 0);
+	    for (size_t j = 0 ; j < body.size() && ok ; j += 1) {
+		  const sva_seq_step_t&st = body[j];
+		  if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
+		      || st.rep_tail != 0 || st.rep_kind != 0 || st.lv_rhs)
+			ok = false;
+		  else { L += st.delay_lo; off[j] = L; }
+	    }
+	    if (!ok) {
+		  cerr << loc << ": sorry: `" << seqname << "." << method
+		       << "' is supported only for a fixed-length sequence "
+		       << "(constant ##N delays, no ##[m:n]/##[m:$]/[*]/goto/"
+		       << "local variables); the assertion is dropped." << endl;
+		  error_count += 1;
+		  return false;
+	    }
+	      /* AND over j of $past(clone(e_j), L - off[j]). */
+	    PExpr*conj = nullptr;
+	    for (size_t j = 0 ; j < body.size() ; j += 1) {
+		  PExpr*ej = sva_clone_expr_(body[j].expr);
+		  if (!ej) { ok = false; break; }
+		  PExpr*term = sva_past_(loc, ej, L - off[j]);
+		  conj = conj ? sva_logic_(loc, 'a', conj, term) : term;
+	    }
+	    if (!ok || !conj) {
+		  cerr << loc << ": sorry: `" << seqname << "." << method
+		       << "' has a step expression that cannot be lowered; "
+		       << "the assertion is dropped." << endl;
+		  error_count += 1;
+		  delete conj;
+		  return false;
+	    }
+	    delete steps[i].expr;
+	    steps[i].expr = conj;
+      }
+      return true;
+}
+
+/* Nonblocking assignment `lv <= rv' — the multiclock handoff counters
+   are written NBA so a coincident cross-domain read sees the pre-edge
+   (sampled) value. */
+static Statement* sva_assign_nb_(const struct vlltype&loc, perm_string lv,
+				 PExpr*rv)
+{
+      PAssignNB*a = new PAssignNB(sva_id_(loc, lv), rv);
+      FILE_NAME(a, loc);
+      return a;
+}
+
+static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v)
+{
+      PENumber*n = new PENumber(new verinum(v, 32));
+      FILE_NAME(n, loc);
+      return n;
+}
+
+/* M9-NFA stage D.1: multiclocked non-overlapping implication
+   `@(c1) a |=> @(c2) b' (IEEE 1800-2017 16.13.3): the antecedent boolean
+   is clocked by c1, the consequent boolean by c2, and the consequent is
+   evaluated at the FIRST c2 tick STRICTLY AFTER the c1 tick where the
+   antecedent held.
+
+   Lowered by a race-free request/acknowledge counter handoff. Each
+   counter is written by exactly one clock domain (req by c1, ack by c2),
+   so there is no cross-domain write race; the c2 block's read of `req'
+   sees the value latched before the c2 edge (NBA update semantics),
+   which is exactly the "strictly after" sampling `|=>' requires:
+
+     reg [31:0] req=0, ack=0;
+     always @(c1) if (a) req <= req + 1;               // outstanding++
+     always @(c2) if (req != ack) begin                // due now
+         ack <= req;                                    // discharge all
+         if (b) <pass> else <fail>;
+     end
+
+   Only the simple two-clock boolean `|=>' is handled; overlapping `|->',
+   cover, `disable iff', a missing antecedent clock, or a non-boolean
+   operand is a loud sorry (broader multiclock is later stage-D work). */
+static void pform_make_multiclock_assertion_(const struct vlltype&loc,
+					     sva_property_t*prop,
+					     Statement*fail_stmt,
+					     Statement*pass_stmt, int kind)
+{
+      PEventStatement*c1 = prop->clk_evt;
+      PEventStatement*c2 = prop->seq_clk_evt;
+      const char*why = nullptr;
+
+      if (kind == 2)
+	    why = "a multiclocked `cover property'";
+      else if (prop->op_type != 2)
+	    why = "multiclocked overlapping implication (`@(c1) a |-> "
+		  "@(c2) b'); use non-overlapping `|=>'";
+      else if (!c1)
+	    why = "a multiclocked property with no explicit antecedent clock";
+      else if (prop->disable_iff_expr)
+	    why = "`disable iff' on a multiclocked property";
+      else if (!prop->antecedent || prop->antecedent->size() != 1
+	       || !prop->seq || prop->seq->size() != 1)
+	    why = "a multiclocked implication whose antecedent or consequent "
+		  "is not a single boolean";
+      if (!why) {
+	    const sva_seq_step_t&A = (*prop->antecedent)[0];
+	    const sva_seq_step_t&B = (*prop->seq)[0];
+	    if (A.delay_lo || A.delay_hi || A.rep_tail || A.rep_kind
+		|| A.lv_rhs || A.fm || B.delay_lo || B.delay_hi || B.rep_tail
+		|| B.rep_kind || B.lv_rhs || B.fm)
+		  why = "a multiclocked implication whose antecedent or "
+			"consequent is not a simple boolean";
+      }
+      if (why) {
+	    cerr << loc << ": sorry: " << why << " is not supported "
+		 << "(IEEE 1800-2017 16.13.3); the assertion is dropped."
+		 << endl;
+	    error_count += 1;
+	    delete fail_stmt; delete pass_stmt;
+	    delete prop->antecedent; delete prop->seq;
+	    delete c1; delete c2; delete prop->disable_iff_expr; delete prop;
+	    return;
+      }
+
+      unsigned inst = sva_gensym_counter++;
+      perm_string req = sva_make_reg_(loc, inst, "mcreq", 0, true);
+      perm_string ack = sva_make_reg_(loc, inst, "mcack", 0, true);
+
+	/* Steal the operand booleans from their steps. */
+      PExpr*a_expr = (*prop->antecedent)[0].expr;
+      (*prop->antecedent)[0].expr = nullptr;
+      PExpr*b_expr = (*prop->seq)[0].expr;
+      (*prop->seq)[0].expr = nullptr;
+
+	/* initial: zero the counters + register the assertion for VPI. */
+      std::vector<Statement*> initv;
+      initv.push_back(sva_assign_(loc, req, sva_num32_(loc, 0)));
+      initv.push_back(sva_assign_(loc, ack, sva_num32_(loc, 0)));
+      initv.push_back(sva_register_stmt_(loc, inst));
+      PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
+					sva_block_(loc, initv), nullptr);
+      FILE_NAME(ip, loc);
+
+	/* c1: if (a) req <= req + 1; */
+      PExpr*inc = new PEBinary('+', sva_id_(loc, req), sva_num32_(loc, 1));
+      FILE_NAME(inc, loc);
+      c1->set_statement(sva_if_(loc, a_expr, sva_assign_nb_(loc, req, inc),
+				nullptr));
+      PProcess*p1 = pform_make_behavior(IVL_PR_ALWAYS, c1, nullptr);
+      FILE_NAME(p1, loc);
+      prop->clk_evt = nullptr;    /* consumed by the always block */
+
+	/* c2: if (req != ack) begin ack <= req; if (b) <pass> else <fail>; end */
+      PExpr*outstanding = new PEBComp('n', sva_id_(loc, req), sva_id_(loc, ack));
+      FILE_NAME(outstanding, loc);
+
+      Statement*action = fail_stmt;
+      if (!action) {
+	    std::list<named_pexpr_t> no_args;
+	    PCallTask*err = new PCallTask(lex_strings.make("$error"), no_args);
+	    FILE_NAME(err, loc);
+	    action = err;
+      }
+      fail_stmt = nullptr;
+      Statement*failstmt = sva_fail_action_(loc, inst, action);
+
+      std::vector<Statement*> passv;
+      if (pass_stmt) { passv.push_back(pass_stmt); pass_stmt = nullptr; }
+      passv.push_back(sva_report_stmt_(loc, inst, SVA_CB_SUCCESS));
+      Statement*passstmt = sva_block_(loc, passv);
+
+      std::vector<Statement*> body2;
+      body2.push_back(sva_assign_nb_(loc, ack, sva_id_(loc, req)));
+      body2.push_back(sva_if_(loc, b_expr, passstmt, failstmt));
+      c2->set_statement(sva_if_(loc, outstanding, sva_block_(loc, body2),
+				nullptr));
+      PProcess*p2 = pform_make_behavior(IVL_PR_ALWAYS, c2, nullptr);
+      FILE_NAME(p2, loc);
+      prop->seq_clk_evt = nullptr;
+
+      delete pass_stmt;
+      delete prop->antecedent;
+      delete prop->seq;
+      delete prop->disable_iff_expr;
+      delete prop;
+}
+
 /* Lower one concurrent assertion (assert/assume/cover property) to a
    synthesized clocked checker. kind: 0=assert, 1=assume, 2=cover. */
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
@@ -8103,6 +8322,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    return;
       }
 
+	/* M9-NFA stage D.1: a multiclocked implication (consequent carries
+	   its own clocking event) is lowered by a dedicated two-domain
+	   request/ack handoff. */
+      if (prop->seq_clk_evt) {
+	    pform_make_multiclock_assertion_(loc, prop, fail_stmt, pass_stmt, kind);
+	    return;
+      }
+
 	/* M9-NFA (Phase 2, staged): when IVL_SVA_NFA=1, offer the
 	   assertion to the automaton engine first. It returns true
 	   only when it fully lowered the assertion; false means fall
@@ -8128,6 +8355,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       sva_splice_sequences_(loc, *prop->seq);
       if (prop->antecedent)
 	    sva_splice_sequences_(loc, *prop->antecedent);
+
+	/* M9-NFA stage C.3: lower `seq.triggered'/`seq.matched' endpoint
+	   methods to their fixed-length $past match indicator (both engines
+	   handle the resulting boolean). Unsupported endpoints are a loud
+	   sorry with full cleanup. */
+      if (!sva_lower_endpoint_methods_(loc, *prop->seq)
+	  || (prop->antecedent
+	      && !sva_lower_endpoint_methods_(loc, *prop->antecedent))) {
+	    delete fail_stmt; delete pass_stmt;
+	    delete prop->antecedent; delete prop->seq;
+	    delete prop->clk_evt; delete prop->disable_iff_expr;
+	    delete prop;
+	    return;
+      }
 
 	/* first_match: the composed multi-length case (a first_match whose
 	   variable-length match feeds a continuation) cannot ride the

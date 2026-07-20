@@ -80,6 +80,12 @@ struct sva_stree_t {
 
 struct sva_property_t {
       PEventStatement* clk_evt = nullptr;   // clocking event (may be null)
+      // M9-NFA stage D.1: consequent clocking event for a multiclocked
+      // implication `@(c1) a |=> @(c2) b' (IEEE 1800-2017 16.13.3). When
+      // set, clk_evt clocks the antecedent and seq_clk_evt clocks the
+      // consequent; the assertion is lowered by a race-free request/ack
+      // counter handoff between the two clock domains.
+      PEventStatement* seq_clk_evt = nullptr;
       PExpr* disable_iff_expr = nullptr;    // disable iff expr (may be null)
       std::vector<sva_seq_step_t>* antecedent = nullptr;  // null for op 0
       std::vector<sva_seq_step_t>* seq = nullptr;         // consequent / plain sequence

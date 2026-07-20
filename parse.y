@@ -5478,6 +5478,21 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { sva_property_t*p = new sva_property_t;
 	p->antecedent = $1; p->seq = $3; p->op_type = 2;
 	$$ = p; }
+  /* IEEE 1800-2017 16.13.3: multiclocked implication `@(c1) a |=> @(c2) b'
+     — the consequent carries its own clocking event. The leading `@(c1)'
+     is the property's clocking_event_opt; this event_control clocks the
+     consequent. Lowered by a race-free request/ack counter handoff
+     (automaton engine); other multiclock shapes are a loud sorry. */
+  | sva_seq_expr K_PIPE_IMPL_NOV event_control sva_seq_expr
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $4; p->op_type = 2;
+	p->seq_clk_evt = $3;
+	$$ = p; }
+  | sva_seq_expr K_PIPE_IMPL_OV event_control sva_seq_expr
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $4; p->op_type = 1;
+	p->seq_clk_evt = $3;
+	$$ = p; }
   /* IEEE 1800-2017 16.12.2: strong/weak consequent — `req |-> strong(s)'
      is the canonical form (attempts are gated by the antecedent, so the
      end-of-sim strong obligation is clean). */

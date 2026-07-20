@@ -14,7 +14,13 @@ FAIL=0
 for sv in "$DIR"/*.sv; do
     name=$(basename "$sv" .sv)
     printf "  %-40s " "$name"
-    out=$("$BIN" -g2012 -o /dev/null "$sv" 2>&1)
+    # Tests marked NEG-LEGACY-ONLY exercise a construct the (now default)
+    # automaton engine LOWERS but the legacy linear engine rejects; run
+    # them against the legacy engine so they still verify the loud legacy
+    # rejection (the automaton path is covered by a positive gold test).
+    env_pfx=""
+    if grep -q "NEG-LEGACY-ONLY" "$sv"; then env_pfx="IVL_SVA_LEGACY=1"; fi
+    out=$(env $env_pfx "$BIN" -g2012 -o /dev/null "$sv" 2>&1)
     status=$?
     # A rejection is valid if the compile fails (non-zero exit) with a
     # loud diagnostic. The fork uses both "error:" (illegal input) and

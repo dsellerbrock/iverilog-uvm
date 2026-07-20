@@ -10,3 +10,6 @@ module sva_first_match_composed;
   s: assert property (@(posedge clk) first_match(a ##[1:2] b) ##1 c);
   initial begin repeat(3) @(negedge clk); $finish(0); end
 endmodule
+
+// NEG-LEGACY-ONLY: the automaton engine (now default) lowers this
+// construct; this file verifies the legacy engine still rejects it loudly.

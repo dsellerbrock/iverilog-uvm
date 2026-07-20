@@ -2,8 +2,8 @@
 # M9-NFA dual-run compatibility gate (the honesty mechanism from
 # docs/conformance/m9_nfa_design_2026-07-19.md).
 #
-# Every tests/sva_nfa/*.sv is compiled and run TWICE — IVL_SVA_NFA off
-# (legacy linear engine) and on (automaton engine) — and the complete
+# Every tests/sva_nfa/*.sv is compiled and run TWICE — IVL_SVA_LEGACY=1
+# (legacy linear engine) and the default (automaton engine) — and the complete
 # stdout+stderr verdict streams are diffed exactly (heap-address labels
 # normalized). Any divergence fails the gate.
 #
@@ -28,8 +28,9 @@ for sv in "$DIR"/*.sv; do
     printf "  %-40s " "$name"
     case "$name" in
     *_nfa_only)
-        # Legacy must reject loudly...
-        loff=$("$BIN" -g2012 -o "$TMP/$name.off.vvp" "$sv" 2>&1)
+        # Legacy must reject loudly (the automaton engine is the default
+        # now, so legacy is selected explicitly with IVL_SVA_LEGACY=1)...
+        loff=$(IVL_SVA_LEGACY=1 "$BIN" -g2012 -o "$TMP/$name.off.vvp" "$sv" 2>&1)
         if ! echo "$loff" | grep -q "sorry"; then
             echo "FAIL (legacy no longer sorries -- promote to dual-run)"
             FAIL=$((FAIL+1)); continue
@@ -51,7 +52,7 @@ for sv in "$DIR"/*.sv; do
         ;;
     *)
         ok=1
-        "$BIN" -g2012 -o "$TMP/$name.off.vvp" "$sv" 2>&1 | norm > "$TMP/$name.off.cc" || ok=0
+        IVL_SVA_LEGACY=1 "$BIN" -g2012 -o "$TMP/$name.off.vvp" "$sv" 2>&1 | norm > "$TMP/$name.off.cc" || ok=0
         IVL_SVA_NFA=1 "$BIN" -g2012 -o "$TMP/$name.on.vvp" "$sv" 2>&1 | norm > "$TMP/$name.on.cc" || ok=0
         if [ $ok -ne 1 ]; then
             echo "FAIL (compile failed)"; FAIL=$((FAIL+1)); continue

@@ -777,7 +777,123 @@ Tests: `tests/sva_nfa/strong_weak_nfa_only.sv` (a fulfilled request and an
 unanswered one — strong fails at end of sim, weak only notes);
 `tests/negative/sva_strong_seq.sv` pins the flag-off rejection.
 
-Still open in stage C: `.matched`/`.triggered`.
+### Increment C.3: `.triggered` / `.matched` endpoint methods — LANDED
+
+Sequence endpoint methods `seq.triggered` / `seq.matched` (16.13.6). For
+a FIXED-LENGTH named sequence the endpoint boolean — "seq completed a
+match ending at this cycle" — is exactly the `$past`-sampled conjunction
+of the sequence's step booleans, each delayed by its distance from the
+match end: `a ##1 b` → `$past(a,1) && b`, `a ##2 b` → `$past(a,2) && b`.
+This is the same fixed-length match indicator the legacy engine already
+builds for a fixed antecedent, so it is a pure source transform
+(`sva_lower_endpoint_methods_`) that BOTH engines lower identically — an
+ordinary dual-run parity test, not nfa_only.
+
+`.triggered` and `.matched` parse as a two-component hierarchical
+identifier (`seq.triggered`); the transform fires only when the base is a
+declared sequence, so an unrelated `.triggered`/`.matched` member access
+(or an undeclared base) is left for the ordinary unresolved-reference
+diagnostic. A variable-length / unbounded / repetition / goto /
+local-variable sequence body needs a synthesized standalone endpoint
+signal (the automaton's accept exposed as a boolean), which is not built
+yet — that is a loud sorry. Under a single clock `.triggered` and
+`.matched` coincide; the observed-region distinction is a stage-D
+multiclock concern.
+
+Tests: `tests/sva_nfa/endpoint_triggered.sv` (dual-run parity — the
+endpoint drives an implication and a cover, verified identical off/on);
+`tests/negative/sva_endpoint_var.sv` pins the variable-length rejection.
+
+Stage C is now complete: goto/nonconsec (C.1), strong/weak (C.2), and
+endpoint methods (C.3) all lower or loudly diagnose. Remaining M9-NFA
+arc: stage D (multiclock) and the flip.
+
+## Stage D (in progress)
+
+Stage D scope: multiclock concatenation and sampling alignment
+(16.13.3). Before this stage a mid-sequence / consequent clocking event
+was a plain syntax error.
+
+### Increment D.1: multiclocked `|=>` implication — LANDED
+
+The canonical clock-domain-crossing assertion `@(c1) a |=> @(c2) b`: the
+antecedent boolean is clocked by c1, the consequent boolean by c2, and
+the consequent is checked at the FIRST c2 tick STRICTLY AFTER the c1 tick
+where the antecedent held. The grammar gains a consequent clocking event
+(`sva_property_t::seq_clk_evt`); `pform_make_multiclock_assertion_` lowers
+it.
+
+The lowering is a **race-free request/acknowledge counter handoff**. The
+naive single pending flag races (set in the c1 domain, cleared in the c2
+domain — a coincident edge is a nondeterministic set/clear conflict).
+Instead each counter is written by exactly ONE domain, so there is no
+cross-domain write race, and the c2 block's read of `req` sees the value
+latched before the c2 edge (NBA update semantics) — which is exactly the
+"strictly after" sampling `|=>` requires:
+
+    reg [31:0] req=0, ack=0;
+    always @(c1) if (a) req <= req + 1;      // outstanding++
+    always @(c2) if (req != ack) begin       // an obligation is due now
+        ack <= req;                          // discharge all outstanding
+        if (b) <pass> else <fail>;
+    end
+
+A coincident c1/c2 edge is handled correctly: the c2 block reads the
+pre-edge `req`, so an obligation created at that same edge is not
+discharged until the next c2 edge (strictly after). Verified: with c1 ==
+c2 the handoff fails at exactly the same tick as ordinary single-clock
+`a |=> b`. Because the lowering is a dedicated two-domain construction
+(not the NFA slot pool), it runs identically regardless of `IVL_SVA_NFA`
+— a dual-run parity test that does not engage the slot pool
+(`NFA-EXPECT-FALLBACK`).
+
+Scoped out (loud sorry): overlapping `|->` cross-clock (at-or-after
+timing the strictly-after handoff does not model), multiclocked cover, a
+non-boolean antecedent/consequent, `disable iff`, a missing antecedent
+clock, and mid-sequence clock changes inside a longer sequence
+(`@(c1) a ##1 @(c2) b ##1 ...`). Those are later stage-D increments.
+
+Tests: `tests/sva_nfa/multiclock_impl.sv` (dual-run parity — a fulfilled
+and an unfulfilled request across two interleaved clocks);
+`tests/negative/sva_multiclock_ov.sv` pins the `|->` rejection.
+
+Stage D's substantive lowering (the CDC `|=>` handshake) is complete. The
+residual multiclock forms — mid-sequence clock flow (`@(c1) a ##1 @(c2)
+b`), overlapping `|->` across clocks, multi-cycle operands on either side,
+operators across differing clocks — are each loudly rejected (a syntax
+error or a precise sorry), so there is no silent-miscompile gap. They are
+harder, lower-value future work, not stage-D omissions left silent.
+
+## FLIP: LANDED — the automaton engine is the default
+
+The automaton engine is now the DEFAULT SVA engine
+(`pform_sva_nfa_enabled()` returns true unless the legacy engine is
+explicitly selected). It was validated at parity with — and a strict
+superset of — the legacy linear engine before the flip:
+
+- Dual-run suite: 32/32 verdict-parity (or gold) — every seed compiled
+  with both engines, streams diffed exactly.
+- Vendored ivtest sweep in automaton mode: name-diff clean (44 expected
+  failures, 0 unexplained) — identical to legacy mode.
+- Bundled VPI suite in automaton mode: 83/83.
+- UVM regression in automaton mode: 198/0/0.
+- Negative suite: the only automaton-mode "failures" were five tests
+  whose constructs the automaton engine LOWERS but the legacy engine
+  rejects (general intersect, general throughout, composed first_match,
+  local-variable-across-window, strong sequences). Each has a positive
+  gold test; those five negatives are marked `NEG-LEGACY-ONLY` and now run
+  against the legacy engine to keep pinning the legacy rejection.
+
+Escape hatch: the legacy linear engine remains available for one release.
+Select it with `IVL_SVA_LEGACY=1` (or the historical `IVL_SVA_NFA=0`) in
+the environment at compile time. The dual-run gate now compiles the
+legacy side with `IVL_SVA_LEGACY=1` and the automaton side with the
+default (and `IVL_SVA_NFA=1` for the engagement check), so the two engines
+stay in lockstep where they overlap until the linear path is deleted.
+
+After the flip the standing four gates run in automaton mode by default.
+Remaining M9-NFA arc: retire the legacy linear engine (a later release),
+and the residual multiclock forms above.
 
 ---
 

@@ -1,5 +1,17 @@
 # M6 item 5 — Scheduled-call protocol design
 
+> **SUPERSEDED (2026-07-14).** The scheduled-call approach in this document
+> (suspend the caller, schedule the callee as a separate thread) was proven
+> to violate function-call atomicity (IEEE 1800-2017 13.4.3) and was
+> **deleted**. The atomicity-preserving replacement — an inline *trampoline*
+> that keeps the caller as the running thread and drives the callee frame to
+> completion without a scheduler yield — is implemented and is now the
+> DEFAULT (`IVL_TRAMPOLINE_CALLF`, off selects the legacy synchronous
+> fallback). See **docs/conformance/m6_callf_rearchitecture.md** for the
+> current design and status; this file is retained as the historical record
+> of the scheduled-call experiment and the atomicity finding that redirected
+> it.
+
 Scheduler-remediation item 5 (the last M6 item): replace the `%callf`
 synchronous-drain model with an explicit scheduled-call protocol.  This
 document records the current model, its defects, the invariants that
