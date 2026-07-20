@@ -5559,6 +5559,18 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_unprop(@1, 10, $2); }
   | K_s_eventually property_expr
       { $$ = pform_sva_unprop(@1, 11, $2); }
+  /* Bounded `nexttime[n]' / `s_nexttime[n]' (16.12.2): p must hold n
+     cycles from the attempt. n must be a literal constant. */
+  | K_nexttime '[' expression ']' property_expr
+      { PENumber*n = dynamic_cast<PENumber*>($3);
+	long nn = n ? n->value().as_long() : 1;
+	delete $3;
+	$$ = pform_sva_unprop(@1, 9, $5, nn, nn); }
+  | K_s_nexttime '[' expression ']' property_expr
+      { PENumber*n = dynamic_cast<PENumber*>($3);
+	long nn = n ? n->value().as_long() : 1;
+	delete $3;
+	$$ = pform_sva_unprop(@1, 10, $5, nn, nn); }
   /* Unbounded `eventually' is not legal (IEEE 1800-2017 Table 16-1 —
      `eventually' must carry a cycle range); use `s_eventually'. */
   | K_eventually property_expr

@@ -410,7 +410,8 @@ pform_sva_binprop(const struct vlltype&loc, int op_type,
    dedicated op_type (9 nexttime, 10 s_nexttime, 11 s_eventually) and
    lowered by pform_make_assertion. Consumes sub. */
 extern sva_property_t*
-pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub);
+pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
+		 long win_lo = -1, long win_hi = -1);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at
