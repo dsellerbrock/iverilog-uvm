@@ -509,6 +509,11 @@ struct vthread_s {
       set<struct vthread_s*>detached_children;
 	/* This points to my parent, if I have one. */
       struct vthread_s*parent;
+	/* DPI export (35.5): non-null on an exported SV *task* thread that is
+	   running time-consuming under a DPI import coroutine. When it ends,
+	   resume_joining_parent_ resumes the coroutine instead of the normal
+	   parent wake. */
+      struct dpi_coro_s*dpi_coro;
 	/* This points to the containing scope. */
       __vpiScope*parent_scope;
       vvp_code_t last_pause_pc;
@@ -836,6 +841,111 @@ struct vthread_s*running_thread = 0;
  * calling scope while a %dpi/call runs into C; svSetScope may override it
  * for the duration of a C call chain. */
 static __vpiScope*dpi_active_scope_ = 0;
+
+/*
+ * DPI import-task coroutine (IEEE 1800-2017 35.5 time-consuming export).
+ *
+ * When an imported DPI *task* (%dpi/call/task) is executed, its C body is
+ * run on a private ucontext stack (a "coroutine") so that if the C calls
+ * an exported SV task that blocks on #delay/@event, the whole C stack can
+ * be parked while simulation time advances, then resumed when the SV task
+ * completes. Functions and void-returning functions are zero-time and keep
+ * the fast synchronous path (%dpi/call/void). Coroutines are POSIX-only;
+ * on MinGW/Windows (no <ucontext.h>) a time-consuming exported task is a
+ * loud sorry.
+ */
+#ifndef __MINGW32__
+# include  <ucontext.h>
+#endif
+
+struct dpi_coro_s {
+#ifndef __MINGW32__
+      ucontext_t ctx;         // the coroutine's own context (its C stack)
+      ucontext_t caller_ctx;  // where a park/finish returns (set per switch-in)
+      char*stack;
+#endif
+      bool finished;          // the import C call has returned
+      vthread_t sv_caller;    // the SV thread that issued the %dpi/call
+      vvp_code_t cp;          // the %dpi/call opcode
+      __vpiScope*saved_scope; // DPI globals to reinstate on each resume
+      vpi_mode_t saved_mode;
+};
+
+// The coroutine whose C body is currently executing (non-null only between
+// a switch-into and the matching park/finish). dpi_export_run_ tests it to
+// decide whether it may park; resume_joining_parent_ uses it via the
+// ending child's thr->dpi_coro.
+static dpi_coro_s*dpi_coro_current = 0;
+
+#define DPI_CORO_STACK (512*1024)
+
+static bool dpi_call_common_(vthread_t, vvp_code_t, char, unsigned, char);
+
+#ifndef __MINGW32__
+static void dpi_coro_trampoline_(void);
+
+static dpi_coro_s*dpi_coro_create_(vthread_t thr, vvp_code_t cp)
+{
+      dpi_coro_s*coro = new dpi_coro_s;
+      coro->finished = false;
+      coro->sv_caller = thr;
+      coro->cp = cp;
+	// Initial DPI context for the C body: RWSYNC (so svGetScopeFromName
+	// works from C) and the caller's scope as the active svScope.
+      coro->saved_mode = VPI_MODE_RWSYNC;
+      coro->saved_scope = thr->parent_scope;
+      coro->stack = (char*) malloc(DPI_CORO_STACK);
+      getcontext(&coro->ctx);
+      coro->ctx.uc_stack.ss_sp = coro->stack;
+      coro->ctx.uc_stack.ss_size = DPI_CORO_STACK;
+      coro->ctx.uc_link = 0;
+      makecontext(&coro->ctx, dpi_coro_trampoline_, 0);
+      return coro;
+}
+
+static void dpi_coro_destroy_(dpi_coro_s*coro)
+{
+      free(coro->stack);
+      delete coro;
+}
+
+// Switch INTO the coroutine from the scheduler side. Installs the
+// coroutine's saved DPI globals, runs it until it parks or finishes, then
+// restores the scheduler-side globals.
+static void dpi_coro_switch_into_(dpi_coro_s*coro)
+{
+      dpi_coro_s*prev = dpi_coro_current;
+      __vpiScope*sched_scope = dpi_active_scope_;
+      vpi_mode_t sched_mode = vpi_mode_flag;
+
+      dpi_coro_current = coro;
+      vpi_mode_flag = coro->saved_mode;
+      dpi_active_scope_ = coro->saved_scope;
+
+      swapcontext(&coro->caller_ctx, &coro->ctx);
+
+      dpi_active_scope_ = sched_scope;
+      vpi_mode_flag = sched_mode;
+      dpi_coro_current = prev;
+}
+
+// Park the running coroutine: save its DPI globals and yield back to the
+// scheduler side (the last switch-into). Returns when switched into again.
+static void dpi_coro_yield_(dpi_coro_s*coro)
+{
+      coro->saved_mode = vpi_mode_flag;
+      coro->saved_scope = dpi_active_scope_;
+      swapcontext(&coro->ctx, &coro->caller_ctx);
+}
+
+static void dpi_coro_trampoline_(void)
+{
+      dpi_coro_s*coro = dpi_coro_current;
+      dpi_call_common_(coro->sv_caller, coro->cp, 'v', 0, 'i');
+      coro->finished = true;
+      swapcontext(&coro->ctx, &coro->caller_ctx);
+}
+#endif // !__MINGW32__
 
 static vpiHandle lookup_scope_item_(__vpiScope*scope, const char*name)
 {
@@ -3269,6 +3379,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->pc     = pc;
 	//thr->bits4  = vvp_vector4_t(32);
       thr->parent = 0;
+      thr->dpi_coro = 0;
       thr->parent_scope = scope;
       thr->wait_next = 0;
       thr->wt_context = 0;
@@ -5401,6 +5512,29 @@ static void resume_joining_parent_(vthread_t parent, vthread_t child)
 {
       assert(parent);
       assert(child);
+
+#ifndef __MINGW32__
+	/* DPI export (35.5): this child is an exported SV task that ran
+	   time-consuming under a DPI import coroutine. Resume the coroutine
+	   (its C call continues, possibly parking again on another exported
+	   task) rather than doing the normal parent wake. */
+      if (child->dpi_coro) {
+	    dpi_coro_s*coro = child->dpi_coro;
+	    child->dpi_coro = 0;
+	    dpi_coro_switch_into_(coro);
+	    vthread_reap(child);
+	    if (coro->finished) {
+		  parent->i_am_joining = 0;
+		  if (! parent->i_have_ended)
+			schedule_vthread(parent, 0, true);
+		  dpi_coro_destroy_(coro);
+	    }
+	      /* else: the coroutine parked on a new exported task, whose
+		 dpi_export_run_ re-set parent->i_am_joining; it will re-enter
+		 here when that child ends. */
+	    return;
+      }
+#endif
 
       parent->i_am_joining = 0;
       do_join(parent, child);
@@ -8075,6 +8209,33 @@ bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
       return dpi_call_common_(thr, cp, 'v', 0, 'i');
 }
 
+/*
+ * %dpi/call/task is emitted for imported DPI *tasks* (35.5). A task may be
+ * time-consuming — its C body may call an exported SV task that blocks —
+ * so it runs on a coroutine (its own stack). If the C completes without
+ * blocking, the caller continues immediately; if an exported SV task
+ * suspends, the coroutine (and this SV thread) park until it completes.
+ */
+bool of_DPI_CALL_TASK(vthread_t thr, vvp_code_t cp)
+{
+#ifdef __MINGW32__
+	// No coroutines on Windows: run synchronously. A time-consuming
+	// exported task then hits the loud sorry in dpi_export_run_.
+      return dpi_call_common_(thr, cp, 'v', 0, 'i');
+#else
+      dpi_coro_s*coro = dpi_coro_create_(thr, cp);
+      dpi_coro_switch_into_(coro);
+      if (coro->finished) {
+	    dpi_coro_destroy_(coro);
+	    return true;               // C completed in zero time; continue
+      }
+	// The coroutine parked: an exported SV task suspended. This thread
+	// is now a joining zombie (thr->i_am_joining set by dpi_export_run_);
+	// it resumes when the coroutine finishes. Suspend by returning false.
+      return false;
+#endif
+}
+
 
 /*
  * The delay takes two 32bit numbers to make up a 64bit time.
@@ -10011,7 +10172,13 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    return false;
       }
 
-      vthread_t thr = running_thread;
+	// The SV caller is the thread that issued the enclosing %dpi/call.
+	// On a coroutine it is coro->sv_caller — NOT running_thread, which
+	// on a resume is the just-ended child thread (we are inside its
+	// of_END). Using running_thread there would misparent the next
+	// exported task's child to the ending thread.
+      vthread_t thr = dpi_coro_current ? dpi_coro_current->sv_caller
+				       : running_thread;
       if (thr == 0) {
 	    fprintf(stderr, "vvp: error: exported DPI subroutine '%s' called "
 		    "with no active simulation thread.\n", cname);
@@ -10047,6 +10214,26 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 		  vvp_send_vec4(vvp_net_ptr_t(net, 0), val, 0);
 	    }
       }
+
+#ifndef __MINGW32__
+	/* Time-consuming exported TASK path: a void export reached from an
+	   imported DPI *task* (running on a coroutine). Let the scheduler run
+	   the child across simulation time and park the coroutine until it
+	   ends. The child is a normal join-child of thr (the SV thread that
+	   issued the %dpi/call); resume_joining_parent_ resumes this coroutine
+	   when the child ends. A void export that finishes in zero time also
+	   works here (it completes in the same time step). */
+      if (info.ret_sig == 'v' && dpi_coro_current) {
+	    dpi_coro_s*coro = dpi_coro_current;
+	    child->is_callf_child = 0;
+	    child->i_am_in_function = 0;
+	    child->dpi_coro = coro;
+	    thr->i_am_joining = 1;
+	    schedule_vthread(child, 0);   // marks the child scheduled
+	    dpi_coro_yield_(coro);   // park; resumed after the child ends
+	    return true;             // void task: no return value to read
+      }
+#endif
 
 	/* The exported subroutine is ordinary SystemVerilog that may make
 	   VPI system-task calls ($display etc.), which require
@@ -10124,9 +10311,18 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
       if (child->i_have_ended && child->parent == thr) {
 	    do_join(thr, child);
       } else {
+	      /* Reached only when a suspending export could not be run
+		 time-consuming: a value-returning function that blocked
+		 (illegal — functions are zero-time), a void export reached
+		 from something other than an imported DPI task, or (on
+		 MinGW/Windows) any time-consuming export, since coroutines
+		 need <ucontext.h>. A time-consuming task reached from an
+		 imported DPI task takes the coroutine path above. */
 	    fprintf(stderr, "vvp: sorry: exported DPI subroutine '%s' did not "
-		    "complete in zero time; time-consuming export (blocking "
-		    "on events or #delay) is not yet supported.\n", cname);
+		    "complete in zero time; a time-consuming export is "
+		    "supported only for a task reached from an imported DPI "
+		    "task, and not on this platform (no <ucontext.h>).\n",
+		    cname);
       }
 
 	/* Restore the VPI mode the enclosing %dpi/call established. */
