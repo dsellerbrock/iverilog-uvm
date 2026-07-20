@@ -110,22 +110,31 @@ to pick the top module when there is more than one candidate.
 ### Running a UVM testbench
 
 ```bash
+# Build the UVM DPI library once (regex + command-line + HDL backdoor).
+# The include dir holds Icarus' svdpi.h/vpi_user.h (usually
+# <prefix>/include/iverilog, e.g. /usr/local/include/iverilog).
+g++ -shared -fPIC -I<prefix>/include/iverilog \
+    -I uvm-core/src/dpi -o uvm_dpi.so uvm_dpi/uvm_dpi_iverilog.cc
+
 iverilog -g2012 \
   -I uvm-core/src \
-  -DUVM_NO_DPI \
   -o sim.vvp \
   uvm-core/src/uvm_pkg.sv \
   my_testbench.sv
 
-vvp sim.vvp +UVM_TESTNAME=my_test
+vvp -d ./uvm_dpi.so sim.vvp +UVM_TESTNAME=my_test
 ```
 
-`uvm_pkg.sv` must precede your sources; `-DUVM_NO_DPI` selects UVM's
-pure-SystemVerilog fallbacks and is the supported configuration (the
-`uvm_hdl_*` DPI register-*backdoor* path is the main thing it disables;
-user-defined `uvm_reg_backdoor` classes and your own DPI-C code still
-work). `+UVM_TESTNAME` selects the test when the testbench calls
-`run_test()` with no argument.
+`uvm_pkg.sv` must precede your sources. The fork now ships an Icarus UVM
+DPI backend ([`uvm_dpi/uvm_dpi_iverilog.cc`](uvm_dpi/uvm_dpi_iverilog.cc)):
+build it into `uvm_dpi.so` and load it with `vvp -d` to run UVM with its
+real DPI layer — regex name matching, command-line/plusarg access, and the
+`uvm_hdl_*` register **backdoor** (`vpi_handle_by_name`-based). Building the
+DPI object requires the Icarus DPI headers, whose directory
+`iverilog -V` prints. Alternatively, compile with `-DUVM_NO_DPI` to select
+UVM's pure-SystemVerilog fallbacks and skip the DPI object entirely — still
+a supported configuration. `+UVM_TESTNAME` selects the test when the
+testbench calls `run_test()` with no argument.
 
 **Smoke test:** any test in [`tests/`](tests) is a ready-made example, e.g.
 
@@ -242,17 +251,20 @@ multi-dimensional, `svGetArrElemPtr` and friends),
 `svBitVecVal`/`svLogicVecVal` wide vectors, `c_name=` aliasing. Requires
 libffi.
 
-`export "DPI-C"` (C calling SV) now works for the core case: zero-time
+`export "DPI-C"` (C calling SV) works for the core case: zero-time
 functions and tasks in a single static instance whose arguments and return
-are integer atoms (byte/shortint/int/longint, signed/unsigned) or real, and
-void. iverilog emits a companion `<out>.dpiexport.c` stub — compile it into
-your DPI object (`gcc -shared -fPIC -o mylib.so mylib.c sim.dpiexport.c`) so
-the exported C symbols resolve. The export declaration must follow the
-subroutine definition in the same scope. Still a loud sorry (never a silent
-miscompile): forward/out-of-scope export, `svScope`/multi-instance and
+are integer atoms (byte/shortint/int/longint, signed/unsigned), real,
+string, or void. iverilog emits a companion `<out>.dpiexport.c` stub —
+compile it into your DPI object
+(`gcc -shared -fPIC -o mylib.so mylib.c sim.dpiexport.c`) so the exported C
+symbols resolve. An export declaration may precede or follow the subroutine
+definition (resolved at end of parse). Still a loud sorry (never a silent
+miscompile): out-of-scope export, `svScope` multi-instance /
 `context`-relative export, time-consuming task export, and
-string/object/open-array/wide-vector or output/inout export arguments.
-Example pairs: [tests/dpi_basic_test.sv](tests/dpi_basic_test.sv) (import) and
+object/open-array/wide-vector or output/inout export arguments. This is
+what lets the UVM suite run without `UVM_NO_DPI` (see
+[uvm_dpi/](uvm_dpi)). Example pairs:
+[tests/dpi_basic_test.sv](tests/dpi_basic_test.sv) (import) and
 [tests/m10c_dpi_export_test.sv](tests/m10c_dpi_export_test.sv) /
 [tests/m10c_dpi_export_test.c](tests/m10c_dpi_export_test.c) (export).
 
@@ -328,7 +340,7 @@ read it for the per-clause evidence and the complete corner ledger.
 | Area | Status | Notes |
 |---|---|---|
 | Core classes / OOP (cl. 8) | Substantial | No interface classes, nested classes, out-of-body `extern` methods |
-| UVM (Accellera core, unmodified) | Substantial | 198-test regression green with `UVM_NO_DPI` (zero skips); register frontdoor + user-defined backdoor work, `uvm_hdl_*` DPI backdoor needs DPI export |
+| UVM (Accellera core, unmodified) | Substantial | 200-test regression green (zero skips), run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed; `randcase`, scope `std::randomize` diagnosed |
 | Containers (queues/darrays/assoc, cl. 7) | Substantial | Full method set; narrow recorded corners |
 | Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; bare module-scope `virtual` var missing |
@@ -336,7 +348,7 @@ read it for the per-clause evidence and the complete corner ledger.
 | Scheduler / event regions (cl. 4) | Partial | Regions modeled; formal region trace still open ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
 | SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; remaining automaton-class features (broader multiclock, `expect`) are loud sorries |
 | Functional coverage (cl. 19) | Supported | Full clause-19 bin semantics |
-| DPI-C (cl. 35) | Substantial | Import: open arrays incl. multi-dim. Export: zero-time static functions/tasks with integer/real/void signatures (generated C stub); `svScope`/time-consuming export are loud sorries |
+| DPI-C (cl. 35) | Substantial | Import: open arrays incl. multi-dim. Export: zero-time static functions/tasks with integer/real/string/void signatures (generated C stub); `svScope` multi-instance + time-consuming export are loud sorries |
 | VPI SV object model (cl. 36) | Substantial | Classes, containers, covergroups, assertions; force/release corners open |
 | `bind` (cl. 23.11) | Substantial | Module/type, instance-path, and instance-list targets |
 | `let` (cl. 11.13) | Supported | Expression-macro semantics |
@@ -346,9 +358,12 @@ read it for the per-clause evidence and the complete corner ledger.
 
 - **Experimental.** AI-assisted development, not upstream-reviewed. Verify
   results independently before relying on them.
-- No `export "DPI-C"` → UVM's `uvm_hdl_*` register **backdoor** path is
-  unavailable (frontdoor and user-defined `uvm_reg_backdoor` classes work);
-  use `-DUVM_NO_DPI`.
+- `export "DPI-C"` supports zero-time static functions/tasks with
+  integer/real/string/void signatures (generated C stub); `svScope`
+  multi-instance and time-consuming export are loud sorries. UVM's
+  `uvm_hdl_*` register **backdoor** now works via the Icarus UVM DPI
+  backend ([`uvm_dpi/`](uvm_dpi)) loaded with `vvp -d`; `-DUVM_NO_DPI`
+  remains available to skip DPI entirely.
 - `randcase`, `randsequence`, `wait_order`, interface classes, `checker`
   blocks: rejected with explicit diagnostics.
 - Of the 3101-test upstream `ivtest` suite, 44 tests currently fail (vs. 83

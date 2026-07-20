@@ -150,11 +150,21 @@ that drops the export (the C symbol is not generated, so a call from C
 fails to link with a diagnostic) — never a silent miscompile. A
 declared-but-unused export still compiles cleanly.
 
-Still open (steps 4–5): `svScope`/multi-instance and `context`-relative
-export; time-consuming task export (C-stack suspension across simulation
-time) — a time-consuming exported subroutine is a loud runtime sorry.
-String/object/open-array/wide-vector and output/inout arguments in exports
-are loud sorries pending further marshaling work.
+Follow-up (2026-07-20, UVM DPI enablement): export resolution was made
+order-independent (an export may precede its definition — UVM's
+`m__uvm_report_dpi` does), and **string** arguments/return are now
+marshaled. Together with a fork-owned Icarus UVM DPI backend
+(`uvm_dpi/uvm_dpi_iverilog.cc`: vendored regex/command-line/common + an
+`uvm_hdl_*` VPI backdoor) and the `svScope` API (H.9), this lets the UVM
+regression run WITHOUT `UVM_NO_DPI` (200/200 green). The four standing
+gates stay clean.
+
+Still open (steps 4–5): `svScope` MULTI-instance and `context`-relative
+export (the single-static-scope and package-scope cases work);
+time-consuming task export (C-stack suspension across simulation time) — a
+time-consuming exported subroutine is a loud runtime sorry. Object /
+open-array / wide-vector and output/inout arguments in exports remain loud
+sorries pending further marshaling work.
 
 ## 6. Test strategy
 

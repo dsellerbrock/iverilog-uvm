@@ -18,6 +18,25 @@ PASS=0
 FAIL=0
 SKIP=0
 
+# Build the UVM DPI library so the suite exercises the real DPI layer
+# (regex + command-line + HDL backdoor) instead of the UVM_NO_DPI native
+# fallbacks. The fork-owned umbrella (uvm_dpi/uvm_dpi_iverilog.cc) combines
+# the vendored UVM DPI sources with an Icarus HDL backend and resolves the
+# sv*/DPI-export dispatchers against vvp. If the build fails (e.g. no g++ or
+# headers), fall back to UVM_NO_DPI so the rest of the suite still runs.
+UVM_DPI_SO="/tmp/uvm_dpi_iv.so"
+IVL_INC="$(dirname "$(dirname "$(command -v iverilog)")")/include/iverilog"
+NO_DPI_FLAG=""
+if g++ -shared -fPIC -I"$IVL_INC" -I "$UVM/dpi" \
+       -o "$UVM_DPI_SO" uvm_dpi/uvm_dpi_iverilog.cc 2>/tmp/uvm_dpi_build.log ; then
+    echo "UVM DPI library built ($UVM_DPI_SO): running WITHOUT UVM_NO_DPI"
+else
+    echo "WARNING: UVM DPI library build failed; falling back to UVM_NO_DPI"
+    sed 's/^/  /' /tmp/uvm_dpi_build.log
+    NO_DPI_FLAG="-DUVM_NO_DPI"
+    UVM_DPI_SO=""
+fi
+
 # Tests with known pre-existing issues (not regressions introduced by this fork).
 # Phase 63b/skipped-tests cleanup (2026-05-02) — vif_smoke and vif_smoke_v2
 # rewritten to use proper UVM sequence/sequencer API; plusargs test now
@@ -49,7 +68,7 @@ compile_test() {
     local name="$1"
     local sv="$TESTS/${name}.sv"
     local xf="${IVFLAGS[$name]}"
-    $BIN -g2012 $xf -I "$UVM" -DUVM_NO_DPI -o "/tmp/uvm_test_${name}.vvp" \
+    $BIN -g2012 $xf -I "$UVM" $NO_DPI_FLAG -o "/tmp/uvm_test_${name}.vvp" \
          "$UVM/uvm_pkg.sv" "$sv" 2>/dev/null
 }
 
@@ -61,15 +80,18 @@ run_test() {
     # output providing the exported C symbols. Compile it into the DPI object
     # alongside the user's C so the exports link.
     local stub="/tmp/uvm_test_${name}.dpiexport.c"
+    # Always load the UVM DPI library when present; a per-test C companion
+    # and/or the generated DPI-export stub go into a second DPI object.
+    local dflags=""
+    [ -n "$UVM_DPI_SO" ] && dflags="-d $UVM_DPI_SO"
     local srcs=""
     [ -f "$cfile" ] && srcs="$srcs $cfile"
     [ -f "$stub" ]  && srcs="$srcs $stub"
     if [ -n "$srcs" ]; then
         gcc -shared -fPIC -o "/tmp/uvm_dpi_${name}.so" $srcs 2>/dev/null
-        timeout 60 $VVP -d "/tmp/uvm_dpi_${name}.so" "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
-    else
-        timeout 60 $VVP "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
+        dflags="$dflags -d /tmp/uvm_dpi_${name}.so"
     fi
+    timeout 60 $VVP $dflags "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
 }
 
 for sv in $TESTS/*.sv; do
