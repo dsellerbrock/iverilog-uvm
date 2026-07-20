@@ -405,6 +405,18 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    if (word_ex && sig_type) {
 		  ivl_type_t element_type = ivl_type_element(sig_type);
 		  if (element_type && ivl_type_base(element_type) == IVL_VT_CLASS) {
+			  /* Associative array of objects, `amap[key].prop = v`. Load the
+			     element by KEY (matching the read path in eval_object_select),
+			     not positionally: a positional %load/dar/obj indexes the
+			     underlying queue by the key value and loads the wrong/null
+			     element, silently dropping the store. */
+			if (ivl_type_base(sig_type) == IVL_VT_QUEUE
+			    && ivl_type_queue_assoc_compat(sig_type)) {
+			      const char*key_kind = draw_eval_assoc_key_(word_ex, 0);
+			      fprintf(vvp_out, "    %%aa/load/sig/obj/%s v%p_0;\n",
+			              key_kind, lval_sig);
+			      return element_type;
+			}
 			draw_eval_expr_into_integer(word_ex, 3);
 			if (ivl_type_base(sig_type) == IVL_VT_DARRAY ||
 			    ivl_type_base(sig_type) == IVL_VT_QUEUE) {
