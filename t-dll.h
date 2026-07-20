@@ -723,6 +723,8 @@ struct ivl_scope_s {
       unsigned func_width;
       bool is_dpi_import;
       const char*dpi_c_name;
+      bool is_dpi_export;
+      const char*dpi_export_c_name;
       bool is_virtual_method;
 
       unsigned is_cell;

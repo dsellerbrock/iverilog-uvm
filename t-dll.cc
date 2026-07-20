@@ -114,6 +114,8 @@ ivl_scope_s::ivl_scope_s()
       func_width = 0;
       is_dpi_import = false;
       dpi_c_name = 0;
+      is_dpi_export = false;
+      dpi_export_c_name = 0;
       is_virtual_method = false;
 }
 
@@ -629,6 +631,10 @@ static void fill_in_scope_function(ivl_scope_t scope, const NetScope*net)
             if (pfunc->is_dpi_import()) {
                   scope->is_dpi_import = true;
                   scope->dpi_c_name = pfunc->dpi_c_name().c_str();
+            }
+            if (pfunc->is_dpi_export()) {
+                  scope->is_dpi_export = true;
+                  scope->dpi_export_c_name = pfunc->dpi_export_c_name().c_str();
             }
       }
 }
@@ -2613,6 +2619,10 @@ void dll_target::scope(const NetScope*net)
 			    if (ptask->is_dpi_import()) {
 				  scop->is_dpi_import = true;
 				  scop->dpi_c_name = ptask->dpi_c_name().c_str();
+			    }
+			    if (ptask->is_dpi_export()) {
+				  scop->is_dpi_export = true;
+				  scop->dpi_export_c_name = ptask->dpi_export_c_name().c_str();
 			    }
 		      }
 		      break;

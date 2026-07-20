@@ -1175,6 +1175,84 @@ bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
       return true;
 }
 
+/*
+ * DPI export registry (IEEE 1800-2017 35.5). Keyed by exported C name.
+ * Populated from :export_dpi directives during link; the map persists past
+ * compile_cleanup (like runtime_code_scope_map) so the runtime dispatcher
+ * can find its entries.
+ */
+struct dpi_export_rec_s {
+      std::string td_label;
+      char ret_sig;
+      std::string arg_sig;
+      vvp_net_t*ret_net;
+      std::vector<vvp_net_t*> arg_nets;
+};
+static std::map<std::string, dpi_export_rec_s> dpi_export_map;
+
+void compile_export_dpi(char*c_name, char*td_label, char*ret_sig,
+			char*arg_sig, char*ret_net, char*arg_nets)
+{
+      dpi_export_rec_s rec;
+      rec.td_label = td_label;
+      rec.ret_sig = ret_sig[0] ? ret_sig[0] : 'v';
+      rec.arg_sig = arg_sig;
+
+	/* Resolve the return net now (the VPI symbol table is freed after
+	   link). Empty label means a void function or a task. */
+      rec.ret_net = (ret_net && ret_net[0]) ? vvp_net_lookup(ret_net) : 0;
+      if (ret_net && ret_net[0] && rec.ret_net == 0) {
+	    fprintf(stderr, "error: DPI export '%s' return net '%s' "
+		    "not found.\n", c_name, ret_net);
+	    compile_errors += 1;
+      }
+
+	/* Split the space-separated argument-net label list and resolve. */
+      for (char*cur = arg_nets ; cur && *cur ; ) {
+	    while (*cur == ' ') cur += 1;
+	    if (*cur == 0) break;
+	    char*end = cur;
+	    while (*end && *end != ' ') end += 1;
+	    char save = *end;
+	    *end = 0;
+	    vvp_net_t*net = vvp_net_lookup(cur);
+	    if (net == 0) {
+		  fprintf(stderr, "error: DPI export '%s' argument net '%s' "
+			  "not found.\n", c_name, cur);
+		  compile_errors += 1;
+	    }
+	    rec.arg_nets.push_back(net);
+	    *end = save;
+	    cur = end;
+      }
+
+      dpi_export_map[c_name] = rec;
+
+      free(c_name);
+      free(td_label);
+      free(ret_sig);
+      free(arg_sig);
+      free(ret_net);
+      free(arg_nets);
+}
+
+bool dpi_export_lookup(const char*c_name, struct dpi_export_info_s*out)
+{
+      std::map<std::string, dpi_export_rec_s>::const_iterator cur
+	    = dpi_export_map.find(c_name);
+      if (cur == dpi_export_map.end())
+	    return false;
+
+      const dpi_export_rec_s&rec = cur->second;
+      out->td_label = rec.td_label.c_str();
+      out->ret_sig  = rec.ret_sig;
+      out->arg_sig  = rec.arg_sig.c_str();
+      out->ret_net  = rec.ret_net;
+      out->arg_nets = rec.arg_nets.empty() ? 0 : &rec.arg_nets[0];
+      out->nargs    = rec.arg_nets.size();
+      return true;
+}
+
 struct code_array_resolv_list_s: public resolv_list_s {
       explicit code_array_resolv_list_s(char*lab) : resolv_list_s(lab) {
 	    code = NULL;

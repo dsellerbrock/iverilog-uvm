@@ -107,6 +107,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_vpi_func K_vpi_func_r K_vpi_func_s
 %token K_ivl_version K_ivl_delay_selection
 %token K_vpi_module K_vpi_time_precision K_file_names K_file_line
+%token K_export_dpi
 %token K_PORT_INPUT K_PORT_OUTPUT K_PORT_INOUT K_PORT_MIXED K_PORT_NODIR
 
 %token <text> T_INSTR
@@ -192,7 +193,15 @@ statement
      label and a type name, and may have operands. The functor may
      also have a delay specification and output strengths. */
 
-	: T_LABEL K_FUNCTOR T_SYMBOL T_NUMBER ',' symbols ';'
+	/* DPI export (IEEE 1800-2017 35.5): register an exported SV
+	   subroutine. Operands: exported C name, TD_ thread-definition
+	   label, return signature letter, argument signature string,
+	   return-net label ("" for void/task), and a space-separated list
+	   of argument-net labels. */
+	: K_export_dpi T_STRING T_STRING T_STRING T_STRING T_STRING T_STRING ';'
+		{ compile_export_dpi($2, $3, $4, $5, $6, $7); }
+
+	| T_LABEL K_FUNCTOR T_SYMBOL T_NUMBER ',' symbols ';'
 		{ compile_functor($1, $3, $4, 6, 6, $6.cnt, $6.vect); }
 
 	| T_LABEL K_FUNCTOR T_SYMBOL T_NUMBER

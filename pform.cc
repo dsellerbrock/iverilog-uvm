@@ -790,6 +790,87 @@ PFunction* pform_push_function_scope_unbound(const struct vlltype&loc, const cha
       return func;
 }
 
+// Pending DPI export declarations (IEEE 1800-2017 35.5). An export may
+// legally precede the subroutine definition in the same scope, so we
+// record each one and resolve them all at end of parse
+// (pform_resolve_dpi_exports), once every definition exists.
+struct pending_dpi_export_s {
+      PScopeExtra*scopex;
+      perm_string sv_name;
+      perm_string c_name;
+      bool is_task;
+      std::string loc_str;
+};
+static std::vector<pending_dpi_export_s> pending_dpi_exports_;
+
+void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
+			  const char*sv_name, bool is_task)
+{
+      PScopeExtra*scopex = find_nearest_scopex(lexical_scope);
+      if (scopex == 0) {
+	    cerr << loc << ": error: export \"DPI-C\" must appear inside a "
+		    "module, package, or compilation unit." << endl;
+	    error_count += 1;
+	    return;
+      }
+
+      std::ostringstream tmp;
+      tmp << loc;
+
+      pending_dpi_export_s pend;
+      pend.scopex  = scopex;
+      pend.sv_name = lex_strings.make(sv_name);
+      pend.c_name  = lex_strings.make(c_name);
+      pend.is_task = is_task;
+      pend.loc_str = tmp.str();
+      pending_dpi_exports_.push_back(pend);
+}
+
+void pform_resolve_dpi_exports(void)
+{
+      for (std::vector<pending_dpi_export_s>::iterator cur
+		 = pending_dpi_exports_.begin()
+		 ; cur != pending_dpi_exports_.end() ; ++cur) {
+	    PScopeExtra*scopex = cur->scopex;
+
+	    PTaskFunc*sub = 0;
+	    if (cur->is_task) {
+		  map<perm_string,PTask*>::iterator it
+			= scopex->tasks.find(cur->sv_name);
+		  if (it != scopex->tasks.end()) sub = it->second;
+	    } else {
+		  map<perm_string,PFunction*>::iterator it
+			= scopex->funcs.find(cur->sv_name);
+		  if (it != scopex->funcs.end()) sub = it->second;
+	    }
+
+	    if (sub == 0) {
+		    // The subroutine is not visible in the export's scope.
+		    // This is a loud sorry (never a silent drop): an
+		    // unresolved export would otherwise fail to link from C
+		    // with no explanation.
+		  cerr << cur->loc_str << ": sorry: export \"DPI-C\" "
+		       << (cur->is_task ? "task" : "function") << " '"
+		       << cur->sv_name << "' has no matching definition in "
+			  "its scope; out-of-scope export is not yet "
+			  "supported. Calls from C to '" << cur->c_name
+		       << "' will not link." << endl;
+		  continue;
+	    }
+
+	    if (sub->is_dpi_import()) {
+		  cerr << cur->loc_str << ": error: '" << cur->sv_name
+		       << "' is a DPI import; it cannot also be exported "
+			  "(IEEE 1800-2017 35.5)." << endl;
+		  error_count += 1;
+		  continue;
+	    }
+
+	    sub->set_dpi_export(cur->c_name.str());
+      }
+      pending_dpi_exports_.clear();
+}
+
 PBlock* pform_push_block_scope(const struct vlltype&loc, const char*name,
 			       PBlock::BL_TYPE bt)
 {
@@ -8161,6 +8242,155 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       delete prop->seq;
       delete prop->disable_iff_expr;
       delete prop;
+}
+
+/* Build a fresh procedural wait `@(<clk events>)' cloning the clocking
+   event of an `expect'/property so it can be reused at each tick. */
+static PEventStatement* sva_clone_wait_(const struct vlltype&loc,
+					PEventStatement*clk)
+{
+      const std::vector<PEEvent*>&evs = clk->event_expressions();
+      std::vector<PEEvent*> ne;
+      for (size_t i = 0 ; i < evs.size() ; i += 1) {
+	    PExpr*ce = sva_clone_expr_(evs[i]->expr());
+	    PEEvent*pe = new PEEvent(evs[i]->type(), ce);
+	    ne.push_back(pe);
+      }
+      PEventStatement*w = new PEventStatement(ne);
+      FILE_NAME(w, loc);
+      return w;
+}
+
+/* M9-frontier (Phase 3): `expect (property) pass; else fail;' (IEEE
+   1800-2017 16.17). Unlike `assert property' (a standing concurrent
+   checker), `expect' is a PROCEDURAL statement: the executing process
+   blocks at the expect until a SINGLE attempt of the property, starting
+   now, completes — then the pass action runs on a match and the else
+   action on a failure, and the process continues.
+ *
+ * For a fixed-length boolean sequence `@(clk) e0 ##d1 e1 ##d2 e2 ...' the
+ * single attempt is exactly a run of procedural clock-waits and boolean
+ * checks, so it lowers with no new runtime (the process blocks on the
+ * ordinary `@(clk)' event controls):
+ *
+ *     begin
+ *       m = 1'b1;
+ *       @(clk);            if (!e0) m = 1'b0;         // first tick
+ *       if (m) begin repeat(d1) @(clk); if (!e1) m = 1'b0; end
+ *       if (m) begin repeat(d2) @(clk); if (!e2) m = 1'b0; end
+ *       ...
+ *       if (m) <pass> else <else>;
+ *     end
+ *
+ * The `if (m)' guards stop waiting once a term has failed, so the else
+ * runs at the failing tick (not after further waits). Variable-length,
+ * unbounded, repetition, goto, local-variable, first_match, implication,
+ * multiclock, or a missing clock is a loud sorry (they need the standing
+ * checker plus a process-resume hook — a later increment). A `##0'-fused
+ * mid-chain term is also deferred. Reentrancy caveat: the match flag is a
+ * module-scope reg, so an `expect' re-entered concurrently (the same
+ * statement in two live invocations of an automatic scope) shares it;
+ * the common non-reentrant use (a test sequence) is unaffected.
+ */
+Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
+			     Statement*pass_stmt, Statement*else_stmt)
+{
+      const char*why = nullptr;
+      if (!prop || !prop->seq || prop->seq->empty())
+	    why = "an empty `expect' property";
+      else if (prop->op_type != 0 || prop->antecedent || prop->tree
+	       || prop->seq_clk_evt || prop->strength != 0)
+	    why = "an `expect' that is not a plain sequence property "
+		  "(implication, strong/weak, combinator, or multiclock)";
+      else if (!prop->clk_evt)
+	    why = "an `expect' with no explicit clocking event";
+      else if (prop->disable_iff_expr)
+	    why = "`disable iff' on an `expect'";
+      if (!why) {
+	    std::vector<sva_seq_step_t>&s = *prop->seq;
+	    for (size_t j = 0 ; j < s.size() ; j += 1) {
+		  if (s[j].delay_lo != s[j].delay_hi || s[j].delay_lo < 0
+		      || s[j].rep_tail || s[j].rep_kind || s[j].lv_rhs
+		      || s[j].fm) {
+			why = "an `expect' with a variable-length, "
+			      "repetition, goto, local-variable, or "
+			      "first_match sequence (only fixed `##N' boolean "
+			      "chains are supported)";
+			break;
+		  }
+		  if (j == 0 && s[j].delay_lo != 0) {
+			why = "an `expect' whose first term carries a leading "
+			      "cycle delay";
+			break;
+		  }
+		  if (j > 0 && s[j].delay_lo < 1) {
+			why = "an `expect' with a `##0'-fused term";
+			break;
+		  }
+	    }
+      }
+      if (why) {
+	    cerr << loc << ": sorry: " << why << " is not supported "
+		 << "(IEEE 1800-2017 16.17); the expect is dropped." << endl;
+	    error_count += 1;
+	    delete pass_stmt;
+	    delete else_stmt;
+	    if (prop) {
+		  delete prop->antecedent;
+		  delete prop->seq;
+		  delete prop->clk_evt;
+		  delete prop->seq_clk_evt;
+		  delete prop->disable_iff_expr;
+		  delete prop;
+	    }
+	    std::vector<Statement*> empty;
+	    return sva_block_(loc, empty);
+      }
+
+      PEventStatement*clk = prop->clk_evt;
+      std::vector<sva_seq_step_t>&s = *prop->seq;
+      unsigned inst = sva_gensym_counter++;
+      perm_string m = sva_make_reg_(loc, inst, "em", 0);   // 1-bit match flag
+
+      std::vector<Statement*> body;
+      body.push_back(sva_assign_(loc, m, sva_bit_(loc, 1)));
+
+	/* First term: wait the first tick, then check e0. */
+      body.push_back(sva_clone_wait_(loc, clk));
+      PExpr*e0 = s[0].expr; s[0].expr = nullptr;
+      body.push_back(sva_if_(loc, sva_not_(loc, e0),
+			     sva_assign_(loc, m, sva_bit_(loc, 0)), nullptr));
+
+	/* Subsequent terms, each guarded by the running match flag. */
+      for (size_t j = 1 ; j < s.size() ; j += 1) {
+	    long dj = s[j].delay_lo;
+	    PExpr*ej = s[j].expr; s[j].expr = nullptr;
+	    std::vector<Statement*> inner;
+	    if (dj == 1) {
+		  inner.push_back(sva_clone_wait_(loc, clk));
+	    } else {
+		  PENumber*cnt = new PENumber(new verinum((uint64_t)dj, 32));
+		  FILE_NAME(cnt, loc);
+		  PRepeat*rep = new PRepeat(cnt, sva_clone_wait_(loc, clk));
+		  FILE_NAME(rep, loc);
+		  inner.push_back(rep);
+	    }
+	    inner.push_back(sva_if_(loc, sva_not_(loc, ej),
+				    sva_assign_(loc, m, sva_bit_(loc, 0)),
+				    nullptr));
+	    body.push_back(sva_if_(loc, sva_id_(loc, m),
+				   sva_block_(loc, inner), nullptr));
+      }
+
+	/* Terminal dispatch: pass on a match, else on a failure. */
+      body.push_back(sva_if_(loc, sva_id_(loc, m), pass_stmt, else_stmt));
+
+	/* The clock was cloned per wait; the original is now free. */
+      delete prop->clk_evt;
+      delete prop->seq;      // step exprs stolen (nulled) above
+      delete prop;
+
+      return sva_block_(loc, body);
 }
 
 /* Lower one concurrent assertion (assert/assume/cover property) to a

@@ -76,6 +76,16 @@ class PTaskFunc : public PScope, public PNamedItem {
       bool is_dpi_import() const { return is_dpi_import_; }
       const std::string& dpi_c_name() const { return dpi_c_name_; }
 
+	// DPI export linkage (35.5): a normal SV function/task (with a
+	// body) that is additionally made callable from C under a C name.
+	// Marked by a separate `export "DPI-C"' declaration that names it.
+      void set_dpi_export(const char*c_name) {
+	    is_dpi_export_ = true;
+	    dpi_export_c_name_ = c_name;
+      }
+      bool is_dpi_export() const { return is_dpi_export_; }
+      const std::string& dpi_export_c_name() const { return dpi_export_c_name_; }
+
       virtual void elaborate_sig(Design*des, NetScope*scope) const =0;
       virtual void elaborate(Design*des, NetScope*scope) const =0;
 
@@ -97,6 +107,8 @@ class PTaskFunc : public PScope, public PNamedItem {
       bool is_virtual_ = false;
       bool is_dpi_import_ = false;
       std::string dpi_c_name_;
+      bool is_dpi_export_ = false;
+      std::string dpi_export_c_name_;
       std::vector<pform_tf_port_t>*ports_;
 };
 

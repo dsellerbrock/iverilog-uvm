@@ -211,9 +211,11 @@ local sequence variables, `strong`/`weak` sequence properties,
 `seq.triggered`/`seq.matched` endpoint methods, multiclocked `@(c1) a |=>
 @(c2) b`, sampled-value functions with real histories,
 named/parameterized properties and sequences, `cover property`,
-`$asserton/$assertoff/$assertkill`. The automaton-class features not yet
-lowered (broader multiclock concatenation, overlapping `|->` across clocks,
-`expect`) are **loud sorries**, never silent.
+`$asserton/$assertoff/$assertkill`, and the procedural `expect` statement
+(fixed-length boolean sequences — the process blocks on a single attempt).
+The features not yet lowered (broader multiclock concatenation, overlapping
+`|->` across clocks, and `expect` of a variable-length/combinator property)
+are **loud sorries**, never silent.
 
 The legacy linear engine remains available for one release as an escape
 hatch — set `IVL_SVA_LEGACY=1` in the environment at compile time to select
@@ -238,10 +240,21 @@ vvp -d ./mylib.so sim.vvp          # ./ needed: the path goes to dlopen(3)
 string/chandle scalars, output/inout copy-back, open arrays (1-D and
 multi-dimensional, `svGetArrElemPtr` and friends),
 `svBitVecVal`/`svLogicVecVal` wide vectors, `c_name=` aliasing. Requires
-libffi. Not supported: `export "DPI-C"` (C calling SV) — a loud diagnostic;
-this is also what keeps UVM's `uvm_hdl_*` backdoor unavailable. Example pair:
-[tests/dpi_basic_test.sv](tests/dpi_basic_test.sv) /
-[tests/dpi_basic_test.c](tests/dpi_basic_test.c).
+libffi.
+
+`export "DPI-C"` (C calling SV) now works for the core case: zero-time
+functions and tasks in a single static instance whose arguments and return
+are integer atoms (byte/shortint/int/longint, signed/unsigned) or real, and
+void. iverilog emits a companion `<out>.dpiexport.c` stub — compile it into
+your DPI object (`gcc -shared -fPIC -o mylib.so mylib.c sim.dpiexport.c`) so
+the exported C symbols resolve. The export declaration must follow the
+subroutine definition in the same scope. Still a loud sorry (never a silent
+miscompile): forward/out-of-scope export, `svScope`/multi-instance and
+`context`-relative export, time-consuming task export, and
+string/object/open-array/wide-vector or output/inout export arguments.
+Example pairs: [tests/dpi_basic_test.sv](tests/dpi_basic_test.sv) (import) and
+[tests/m10c_dpi_export_test.sv](tests/m10c_dpi_export_test.sv) /
+[tests/m10c_dpi_export_test.c](tests/m10c_dpi_export_test.c) (export).
 
 ### Functional coverage — supported
 
@@ -323,7 +336,7 @@ read it for the per-clause evidence and the complete corner ledger.
 | Scheduler / event regions (cl. 4) | Partial | Regions modeled; formal region trace still open ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
 | SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; remaining automaton-class features (broader multiclock, `expect`) are loud sorries |
 | Functional coverage (cl. 19) | Supported | Full clause-19 bin semantics |
-| DPI-C (cl. 35) | Substantial | Open arrays incl. multi-dim; no `export "DPI-C"` |
+| DPI-C (cl. 35) | Substantial | Import: open arrays incl. multi-dim. Export: zero-time static functions/tasks with integer/real/void signatures (generated C stub); `svScope`/time-consuming export are loud sorries |
 | VPI SV object model (cl. 36) | Substantial | Classes, containers, covergroups, assertions; force/release corners open |
 | `bind` (cl. 23.11) | Substantial | Module/type, instance-path, and instance-list targets |
 | `let` (cl. 11.13) | Supported | Expression-macro semantics |

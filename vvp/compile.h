@@ -81,6 +81,31 @@ extern bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
                                       __vpiScope**scope);
 
 /*
+ * DPI export (IEEE 1800-2017 35.5). compile_export_dpi registers one
+ * exported SV subroutine from a :export_dpi directive: the exported C
+ * name, the TD_ thread-definition label, the return signature letter
+ * ('v' void, 'i'/'I' unsigned/signed integer, 'r' real), the per-argument
+ * signature string, the return-net label ("" for void/task) and a
+ * space-separated list of argument-net labels. The net labels are
+ * resolved to vvp_net_t* immediately (the VPI symbol table is discarded
+ * after link); the TD_ entry is resolved lazily at first call.
+ *
+ * dpi_export_lookup fills *out for a registered C name (used by the
+ * runtime dispatcher in vthread.cc). Returns false if the name is unknown.
+ */
+struct dpi_export_info_s {
+      const char*td_label;
+      char ret_sig;
+      const char*arg_sig;
+      class vvp_net_t*ret_net;
+      class vvp_net_t*const*arg_nets;
+      unsigned nargs;
+};
+extern void compile_export_dpi(char*c_name, char*td_label, char*ret_sig,
+			       char*arg_sig, char*ret_net, char*arg_nets);
+extern bool dpi_export_lookup(const char*c_name, struct dpi_export_info_s*out);
+
+/*
  *  Add a functor to the symbol table
  */
 extern void define_functor_symbol(const char*label, vvp_net_t*ipt);
