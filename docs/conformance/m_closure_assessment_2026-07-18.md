@@ -158,11 +158,22 @@ silent-risk), bottom-up.
    -lowered forms (compound assignment, indexed `+:`/`-:`, non-vector
    element) are loud sorries. Test: `tests/m1b_darray_elem_partsel_test.sv`.
 
+2. **assoc-element object-property store** (finding 6 store half) — DONE
+   (PR #90). `amap[key].prop = v` (amap an associative array of class
+   handles) silently no-op'd: the l-value base object was loaded
+   positionally (`%load/dar/obj` with the key as an index into the assoc's
+   underlying queue), so for any key != position it loaded null and the
+   null-guard skipped the store. `draw_lval_expr` (tgt-vvp) now loads the
+   base by key (`%aa/load/sig/obj`, matching the read path) when the signal
+   is an assoc-compat queue of objects. Queue/darray element stores were
+   already correct. This is the "obj-prop store no-op" that blocks
+   `uvm_reg::get_address`. Test: `tests/m1b_assoc_obj_prop_store_test.sv`.
+
 Remaining elab_lval sites are the harder class-typing / aggregate cluster
-(unpacked-struct member lvalue, assoc-array element property, unresolved
-class property) — entangled with the elab_expr class-typing collapse
-(finding 4, M1B parameterized dispatch), so sequenced after that per the
-plan above.
+(unpacked-struct member lvalue, deeper nested-assoc/indexed property paths,
+unresolved class property) — entangled with the elab_expr class-typing
+collapse (finding 4, M1B parameterized dispatch), so sequenced after that
+per the plan above.
 
 Also on PR #90: the time-consuming DPI-export coroutine now works on **all
 platforms**. It was briefly made POSIX-only (to unbreak the macOS build,
