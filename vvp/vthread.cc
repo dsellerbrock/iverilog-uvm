@@ -15060,6 +15060,72 @@ bool of_STORE_DAR_VEC4(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %store/dar/vec4/off <var>, <off_reg>, <wid>
+ *
+ * Read-modify-write a part/bit-select into a dynamic-array (or queue)
+ * element whose base type is a packed vector: load element[reg3], splice
+ * the width-<wid> value on the vec4 stack into it at the (already
+ * element-normalized) bit offset held in integer register <off_reg>, and
+ * store the element back. Implements `d[i][b] = v` and `q[i][m:l] = v`,
+ * including a run-time-variable bit index. The element address is in
+ * integer register 3 (as for %store/dar/vec4); flag 4 marks an undefined
+ * address. <wid> is the value width.
+ */
+bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
+{
+      int64_t adr = thr->words[3].w_int;
+      int64_t soff = thr->words[cp->bit_idx[0]].w_int;
+      unsigned wid = cp->bit_idx[1];
+      vvp_vector4_t value = thr->pop_vec4();
+
+      if (soff < 0) {
+	    cerr << thr->get_fileline()
+	         << "Warning: negative bit offset into a darray element "
+	            "part-select is ignored." << endl;
+	    return true;
+      }
+      unsigned off = (unsigned) soff;
+
+      vvp_net_t*net = cp->net;
+      assert(net);
+
+      vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
+      assert(obj);
+
+      vvp_darray*darray = obj->get_object().peek<vvp_darray>();
+
+      if (adr < 0)
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot write to a negative darray index ("
+	         << adr << ")." << endl;
+      else if (thr->flags[4] != BIT4_0)
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot write to an undefined darray index." << endl;
+      else if (darray) {
+	    vvp_vector4_t elem;
+	    darray->get_word(adr, elem);
+	      // Safety net: a never-written element may come back narrower
+	      // than the splice needs; widen it to all-x so set_vec lands.
+	    if (elem.size() < off + wid) {
+		  vvp_vector4_t wider (off + wid, BIT4_X);
+		  if (elem.size() > 0)
+			wider.set_vec(0, elem);
+		  elem = wider;
+	    }
+	    elem.set_vec(off, value.size()==wid ? value
+					        : value.subvalue(0, wid));
+	    darray->set_word(adr, elem);
+      } else
+	    cerr << thr->get_fileline()
+	         << "Warning: cannot write to an undefined darray." << endl;
+
+      if (darray)
+	    notify_mutated_object_signal_(thr, net, "store-dar-off");
+
+      return true;
+}
+
+/*
  * %store/dar/obj <var>
  * Store an object into a dynamic array element
  */

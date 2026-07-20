@@ -45,8 +45,6 @@
 
 using namespace std;
 
-static bool warned_darray_multi_index_fallback = false;
-
 /* Clocking-block member path rewrites are shared with expression
    elaboration — see rewrite_*_clocking_member_path* in netmisc.cc. */
 
@@ -385,12 +383,24 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       if (use_sel == index_component_t::SEL_PART ||
           use_sel == index_component_t::SEL_PART_LAST) {
 	    NetAssign_*lv = new NetAssign_(reg);
-	    elaborate_lval_net_part_(des, scope, lv, is_force);
+	    if (reg->darray_type())
+		  elaborate_lval_darray_part_(des, scope, lv, is_force);
+	    else
+		  elaborate_lval_net_part_(des, scope, lv, is_force);
 	    return lv;
       }
 
       if (use_sel == index_component_t::SEL_IDX_UP ||
           use_sel == index_component_t::SEL_IDX_DO) {
+	    if (reg->darray_type()) {
+		    // `d[i][base+:w]`/`[base-:w]` into a darray element is not
+		    // yet lowered; a loud sorry beats the backend assert.
+		  cerr << get_fileline() << ": sorry: assignment to an indexed "
+		          "part-select of a dynamic-array element is not yet "
+		          "supported." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    NetAssign_*lv = new NetAssign_(reg);
 	    elaborate_lval_net_idx_(des, scope, lv, use_sel, need_const_idx, is_force);
 	    return lv;
@@ -779,6 +789,50 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
       return true;
 }
 
+/*
+ * Compute the element-relative bit offset for a constant index into a
+ * dynamic-array (or queue) element that is a simple (single packed
+ * dimension) vector, e.g. `d[i][idx]` where the element is `bit[msb:lsb]`.
+ * Returns true and sets `off` (normalized, 0 == the lsb bit) on success;
+ * false if the element is not a single-dimension vector, in which case the
+ * caller emits a loud sorry rather than a silent wrong store.
+ */
+static bool darray_elem_bit_offset(const netdarray_t*da, long index, long&off)
+{
+      ivl_type_t et = da->element_type();
+      const netvector_t*ev = dynamic_cast<const netvector_t*>(et);
+      if (ev == 0)
+	    return false;
+      const netranges_t&dims = ev->packed_dims();
+      if (dims.size() != 1)
+	    return false;
+      long msb = dims[0].get_msb();
+      long lsb = dims[0].get_lsb();
+      if (msb >= lsb)
+	    off = index - lsb;
+      else
+	    off = lsb - index;
+      return true;
+}
+
+/*
+ * Fetch the single packed-dimension range [msb:lsb] of a dynamic-array
+ * element that is a simple vector. Returns false (caller emits a loud
+ * sorry) if the element is not a single-dimension vector.
+ */
+static bool darray_elem_vector_range(const netdarray_t*da, long&msb, long&lsb)
+{
+      const netvector_t*ev = dynamic_cast<const netvector_t*>(da->element_type());
+      if (ev == 0)
+	    return false;
+      const netranges_t&dims = ev->packed_dims();
+      if (dims.size() != 1)
+	    return false;
+      msb = dims[0].get_msb();
+      lsb = dims[0].get_lsb();
+      return true;
+}
+
 bool PEIdent::elaborate_lval_darray_bit_(Design*des,
 					 NetScope*scope,
 					 NetAssign_*lv,
@@ -803,38 +857,104 @@ bool PEIdent::elaborate_lval_darray_bit_(Design*des,
 
       lv->set_word(mux);
 
-	// Compile-progress semantic support: accept common nested darray
-	// element bit-select form `darray[word_idx][bit_idx] = ...` by
-	// preserving the word select and ignoring the trailing bit index.
-	// Backends currently assert on combined darray-word + part-select
-	// l-values.
+	// A trailing bit-select on the darray element, `d[i][bit] = v`.
+	// Lower it as an element part-select: keep the word select and add a
+	// constant part offset of width 1, which the vvp backend turns into a
+	// read-modify-write (%store/dar/vec4/off). Previously the bit index
+	// was silently dropped, writing the whole element.
       if (name_tail.index.size() == 2) {
 	    const index_component_t&elem_index = name_tail.index.back();
-	    if (elem_index.sel == index_component_t::SEL_BIT && elem_index.lsb == 0) {
-		  return true;
-	    }
-      }
-
-      if (name_tail.index.size() != 1) {
-	    if (gn_system_verilog()) {
-		  if (!warned_darray_multi_index_fallback) {
-			cerr << get_fileline() << ": warning: "
-			        "Only single-dimension darray index selects fully supported"
-			        " (compile-progress fallback, using first index, "
-			        "further similar warnings suppressed)."
-			     << endl;
-			warned_darray_multi_index_fallback = true;
+	    if (elem_index.sel == index_component_t::SEL_BIT) {
+		    // The bit index may be a run-time expression (UVM's
+		    // uvm_packer does `value[i/8][i%8] = ...`). Normalize it
+		    // to an element-relative offset; the backend evaluates it
+		    // into a register for the read-modify-write.
+		  NetExpr*bexpr = elab_and_eval(des, scope, elem_index.msb, -1);
+		  long emsb = 0, elsb = 0;
+		  const netdarray_t*da = lv->sig()->darray_type();
+		  if (bexpr && da && darray_elem_vector_range(da, emsb, elsb)) {
+			NetExpr*off = normalize_variable_base(bexpr, emsb, elsb,
+							      1, true, 0);
+			lv->set_part(off, 1);
+			return true;
 		  }
-	    } else {
-		  cerr << get_fileline() << ": sorry: "
-		          "Only single-dimension darray index selects are supported."
-		       << endl;
+		  delete bexpr;
+		  cerr << get_fileline() << ": sorry: assignment to a "
+		          "dynamic-array element bit-select requires a simple "
+		          "vector element." << endl;
 		  des->errors += 1;
 		  return false;
 	    }
       }
 
+      if (name_tail.index.size() != 1) {
+	    cerr << get_fileline() << ": sorry: Only single-dimension darray "
+	            "index selects are supported in this l-value form." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
       return true;
+}
+
+/*
+ * Assignment to a part-select of a dynamic-array (or queue) element:
+ * `d[i][msb:lsb] = v`. Keep the word select and add a constant,
+ * element-relative part offset; the vvp backend does a read-modify-write.
+ */
+bool PEIdent::elaborate_lval_darray_part_(Design*des,
+					  NetScope*scope,
+					  NetAssign_*lv,
+					  bool is_force) const
+{
+      const name_component_t&name_tail = path_.back();
+      ivl_assert(*this, !name_tail.index.empty());
+
+      const index_component_t&word_index = name_tail.index.front();
+      ivl_assert(*this, word_index.msb != 0);
+
+      if ((lv->sig()->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
+	    ivl_assert(*this, lv->sig()->coerced_to_uwire());
+	    report_mixed_assignment_conflict_("darray word");
+	    des->errors += 1;
+	    return false;
+      }
+
+	// First index selects the darray word.
+      NetExpr*mux = elab_and_eval(des, scope, word_index.msb, -1);
+      lv->set_word(mux);
+
+      if (name_tail.index.size() != 2) {
+	    cerr << get_fileline() << ": sorry: only a single word index "
+	            "with a part-select is supported for a dynamic-array "
+	            "element l-value." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      const index_component_t&pindex = name_tail.index.back();
+      NetExpr*me = elab_and_eval(des, scope, pindex.msb, -1, true);
+      NetExpr*le = elab_and_eval(des, scope, pindex.lsb, -1, true);
+      long msb = 0, lsb = 0;
+      long moff = 0, loff = 0;
+      const netdarray_t*da = lv->sig()->darray_type();
+      if (me && le && eval_as_long(msb, me) && eval_as_long(lsb, le) && da
+	  && darray_elem_bit_offset(da, msb, moff)
+	  && darray_elem_bit_offset(da, lsb, loff)) {
+	    delete me;
+	    delete le;
+	    long base = moff < loff ? moff : loff;
+	    long span = moff < loff ? (loff - moff) : (moff - loff);
+	    lv->set_part(new NetEConst(verinum(base)), (unsigned long)(span + 1));
+	    return true;
+      }
+      delete me;
+      delete le;
+      cerr << get_fileline() << ": sorry: assignment to a dynamic-array "
+              "element part-select requires constant bounds into a simple "
+              "vector element." << endl;
+      des->errors += 1;
+      return false;
 }
 
 bool PEIdent::elaborate_lval_net_part_(Design*des,

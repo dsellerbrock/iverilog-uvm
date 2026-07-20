@@ -460,6 +460,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%store/dar/r",   of_STORE_DAR_R,   1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%store/dar/str", of_STORE_DAR_STR, 1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%store/dar/vec4",of_STORE_DAR_VEC4,1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
+      { "%store/dar/vec4/off",of_STORE_DAR_VEC4_OFF,3,{OA_FUNC_PTR, OA_BIT1, OA_BIT2} },
       { "%store/obj",   of_STORE_OBJ,   1, {OA_FUNC_PTR,OA_NONE, OA_NONE} },
       { "%store/obja",  of_STORE_OBJA,  2, {OA_ARR_PTR, OA_BIT1, OA_NONE} },
       { "%store/prop/obj",of_STORE_PROP_OBJ,2, {OA_NUMBER,  OA_BIT1, OA_NONE} },
