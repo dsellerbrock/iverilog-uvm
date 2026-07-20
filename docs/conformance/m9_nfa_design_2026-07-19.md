@@ -629,8 +629,51 @@ one intersection that still falls back is unbounded IMPLICATION without
 a local variable already being legacy-only — documented, loud.
 
 With LV-1 + LV-2 the stage-B "local variables (slot storage)" item is
-complete. The only stage-B item still open is COMPOSED `first_match`
-(the sequence-tree IR arc); standalone `first_match` is exact.
+complete.
+
+### first_match: exact where transparent, LOUD where not
+
+`first_match` is transparent (its inner sequence flows into the chain).
+This is EXACT for standalone/existence positions — a cover/assert of
+`first_match(s)` matches iff `s` does, and slot-clear-on-accept already
+counts the first (shortest) match once per attempt (this also makes
+`first_match` over a local-variable sequence correct: the value is
+captured at the assign and the attempt completes at the first match).
+It is WRONG only when the wrapped sequence has MULTIPLE match lengths
+AND its end feeds a continuation (`first_match(a ##[1:2] b) ##1 c`, or a
+multi-length first_match antecedent of an implication): the cut would
+change which match continues, and transparent lowering would silently
+OVER-match.
+
+That case is now a LOUD sorry (`sva_check_first_match_`; negative test
+`tests/negative/sva_first_match_composed.sv`) instead of a silent
+miscompile — the correct fix needs a sub-sequence node in the IR (the
+sequence-expression tree) to carry the cut, which is the same migration
+composed-`first_match` and stage-C goto/nonconsec repetition both want.
+The wrapped steps are flagged in the grammar; the check fires only for
+the genuinely-affected shape (variable length inside the wrapper + a
+continuation), so standalone and single-length composed first_match
+stay exact and compile.
+
+## Stage B: HONESTLY COMPLETE
+
+Every stage-B construct is now either lowered correctly or diagnosed
+with a loud sorry — no silent miscompiles:
+
+| Stage-B item | Status |
+|---|---|
+| `and` / `or` | lowered (B.1) |
+| `intersect` (general) | lowered (B.2) |
+| nesting / precedence | lowered (B.3) |
+| `within` (general) | lowered (B.4) |
+| `throughout` (general) | lowered (B.5) |
+| local variables (slot storage) | lowered — fixed (LV-1, both engines), variable/unbounded (LV-2, per-slot) |
+| `first_match` | exact standalone; composed-multi-length is a loud sorry |
+
+The single construct that reduces to a loud sorry (composed
+multi-length `first_match`) shares the sequence-expression-tree IR
+migration with stage C (goto/nonconsec repetition, `.matched`), so it
+is naturally that arc's opening item, not a stage-B gap left silent.
 
 ---
 

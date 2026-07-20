@@ -5616,9 +5616,13 @@ sva_seq_atom
 	steps->push_back(st);
 	$$ = steps; }
   /* 16.9.9: in match-existence positions first_match(s) has a match
-     iff s does — transparent for the supported property forms. */
+     iff s does — transparent for standalone/single-length forms. The
+     wrapped steps are flagged so a COMPOSED multi-length first_match
+     (where the cut would change which match continues) is caught and
+     diagnosed at lowering rather than silently over-matching. */
   | K_first_match '(' sva_seq_expr ')'
-      { $$ = $3; }
+      { for (size_t i = 0 ; i < $3->size() ; i += 1) (*$3)[i].fm = true;
+	$$ = $3; }
   | sva_seq_atom K_LBSTAR expression ']'
       { $$ = pform_sva_repeat(@2, $1, $3, 0); }
   | sva_seq_atom K_LBSTAR expression ':' expression ']'

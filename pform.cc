@@ -7728,6 +7728,49 @@ static int sva_lower_local_vars_(const struct vlltype&loc,
       return 0;
 }
 
+/* M9-NFA: `first_match` (IEEE 1800-2017 16.9.9) is transparent (its
+   inner sequence flows straight into the chain) — which is EXACT for a
+   standalone/existence position (a cover/assert of first_match(s)
+   matches iff s does, and slot-clear-on-accept already counts the first
+   match once per attempt). It is WRONG only when the wrapped sequence
+   has multiple match lengths AND its end feeds a continuation: then the
+   cut (keep only the shortest match) changes which match continues, and
+   the transparent lowering would silently OVER-match. That case needs a
+   sub-sequence node in the IR (the sequence-expression tree) to carry
+   the cut; until then it is a LOUD sorry rather than a silent
+   miscompile. Returns false (diagnosed) for the composed multi-length
+   case, true otherwise. tail_continues = something after this chain
+   depends on its match end (an implication antecedent). */
+static bool sva_check_first_match_(const struct vlltype&loc,
+				   const std::vector<sva_seq_step_t>&steps,
+				   bool tail_continues)
+{
+      int first_fm = -1, last_fm = -1;
+      for (size_t i = 0 ; i < steps.size() ; i += 1)
+	    if (steps[i].fm) { if (first_fm < 0) first_fm = (int)i; last_fm = (int)i; }
+      if (first_fm < 0) return true;
+	/* Variable length WITHIN the wrapper: a window/unbounded delay on
+	   a non-first wrapped step, or any range repetition. (The first
+	   wrapped step's incoming delay is the external gap to the
+	   first_match, not internal length variability.) */
+      bool fm_var = false;
+      for (int i = first_fm ; i <= last_fm ; i += 1) {
+	    if (i > first_fm && (steps[i].delay_lo != steps[i].delay_hi
+				 || steps[i].delay_lo < 0))
+		  fm_var = true;
+	    if (steps[i].rep_tail != 0) fm_var = true;
+      }
+      if (!fm_var) return true;
+      bool composed = (last_fm + 1 < (int)steps.size()) || tail_continues;
+      if (!composed) return true;
+      cerr << loc << ": sorry: a `first_match' over a variable-length "
+	   << "sequence whose match feeds a continuation is not supported "
+	   << "(the shortest-match cut needs a sub-sequence node); the "
+	   << "assertion is dropped." << endl;
+      error_count += 1;
+      return false;
+}
+
 /* Lower one concurrent assertion (assert/assume/cover property) to a
    synthesized clocked checker. kind: 0=assert, 1=assume, 2=cover. */
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
@@ -7908,6 +7951,19 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       sva_splice_sequences_(loc, *prop->seq);
       if (prop->antecedent)
 	    sva_splice_sequences_(loc, *prop->antecedent);
+
+	/* first_match: diagnose the composed multi-length case (would
+	   otherwise silently over-match) before lowering. */
+      if (!sva_check_first_match_(loc, *prop->seq, false)
+	  || (prop->antecedent
+	      && !sva_check_first_match_(loc, *prop->antecedent, true))) {
+	    delete fail_stmt; delete pass_stmt;
+	    delete prop->antecedent; delete prop->seq;
+	    delete prop->clk_evt; delete prop->disable_iff_expr;
+	    delete prop;
+	    return;
+      }
+
 	/* A local variable in an IMPLICATION is typically assigned in the
 	   antecedent and read in the consequent — two separate chains
 	   here, so the $past transform cannot connect them. Route the
