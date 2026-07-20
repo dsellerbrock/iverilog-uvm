@@ -5452,6 +5452,18 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
       { $$ = $2; }
   | block_identifier_opt deferred_immediate_assertion_statement
       { $$ = $2; }
+  /* IEEE 1800-2017 16.17: the `expect' statement blocks the process on a
+     single property attempt, then runs the pass or the else action. */
+  | K_expect '(' property_spec ')' statement_or_null %prec less_than_K_else
+      { if (gn_supported_assertions_flag)
+	      $$ = pform_make_expect(@1, $3, $5, nullptr);
+	else { delete $3; delete $5; $$ = 0; }
+      }
+  | K_expect '(' property_spec ')' statement_or_null K_else statement_or_null
+      { if (gn_supported_assertions_flag)
+	      $$ = pform_make_expect(@1, $3, $5, $7);
+	else { delete $3; delete $5; delete $7; $$ = 0; }
+      }
   ;
 
   /* M9D: formal-argument name list for a parameterized property or

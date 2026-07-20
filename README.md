@@ -211,9 +211,11 @@ local sequence variables, `strong`/`weak` sequence properties,
 `seq.triggered`/`seq.matched` endpoint methods, multiclocked `@(c1) a |=>
 @(c2) b`, sampled-value functions with real histories,
 named/parameterized properties and sequences, `cover property`,
-`$asserton/$assertoff/$assertkill`. The automaton-class features not yet
-lowered (broader multiclock concatenation, overlapping `|->` across clocks,
-`expect`) are **loud sorries**, never silent.
+`$asserton/$assertoff/$assertkill`, and the procedural `expect` statement
+(fixed-length boolean sequences — the process blocks on a single attempt).
+The features not yet lowered (broader multiclock concatenation, overlapping
+`|->` across clocks, and `expect` of a variable-length/combinator property)
+are **loud sorries**, never silent.
 
 The legacy linear engine remains available for one release as an escape
 hatch — set `IVL_SVA_LEGACY=1` in the environment at compile time to select
