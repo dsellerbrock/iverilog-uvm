@@ -147,6 +147,8 @@ struct target_t {
       virtual void proc_repeat(const NetRepeat*);
       virtual bool proc_trigger(const NetEvTrig*);
       virtual bool proc_nb_trigger(const NetEvNBTrig*);
+      virtual bool proc_trigger_obj(const NetEvTrigObj*);
+      virtual bool proc_wait_obj(const NetEvWaitObj*);
       virtual void proc_stask(const NetSTask*);
       virtual void proc_utask(const NetUTask*);
       virtual bool proc_wait(const NetEvWait*);

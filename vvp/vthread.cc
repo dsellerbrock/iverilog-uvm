@@ -9213,6 +9213,78 @@ bool of_EVENT(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %evt/obj <slot>
+ * Per-instance class event trigger (IEEE 1800-2017 15.5.1: `->obj.ev`).
+ * The object handle has already been pushed on the object stack (via
+ * draw_eval_object). Pop it, fetch its own event net for <slot>, and
+ * deliver the trigger to port 0 -- exactly as %event does for a static
+ * named event, but on the object's private vvp_named_event_dyn functor so
+ * only that object's waiters wake.
+ */
+bool of_EVT_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj) {
+	    fprintf(stderr, "%%evt/obj: trigger on null object handle\n");
+	    return true;
+      }
+
+      vvp_net_t*net = cobj->get_inst_event(cp->number);
+      vvp_net_ptr_t ptr (net, 0);
+      vvp_vector4_t tmp (1, BIT4_X);
+      vvp_send_vec4(ptr, tmp, ensure_write_context_(thr, "evt-obj"));
+      return true;
+}
+
+/*
+ * %evt/obj/nb <slot>, <delay-word>
+ * Nonblocking per-instance class event trigger (IEEE 1800-2017 15.5.1:
+ * `->>obj.ev`). Like %event/nb, deliver to the object's event functor in
+ * the NBA region of the target time step.
+ */
+bool of_EVT_OBJ_NB(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj) {
+	    fprintf(stderr, "%%evt/obj/nb: trigger on null object handle\n");
+	    return true;
+      }
+
+      vvp_net_t*net = cobj->get_inst_event(cp->number);
+      vvp_time64_t delay = thr->words[cp->bit_idx[0]].w_uint;
+      vvp_vector4_t tmp (1, BIT4_X);
+      schedule_assign_vector(vvp_net_ptr_t(net, 0), 0, 0, tmp, delay,
+			     thr->is_reactive_process);
+      return true;
+}
+
+/*
+ * %evtest/obj <slot>
+ * Push a 1-bit vec4: 1 if the object's per-instance event for <slot> was
+ * triggered in the current time step (IEEE 1800-2017 15.5.3 triggered
+ * property), else 0. Pops the object handle.
+ */
+bool of_EVTEST_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      bool trig = false;
+      if (cobj) {
+	    vvp_net_t*net = cobj->get_inst_event(cp->number);
+	    vvp_named_event*fun = dynamic_cast<vvp_named_event*>(net->fun);
+	    trig = fun && fun->triggered_now();
+      }
+      vvp_vector4_t val(1, trig ? BIT4_1 : BIT4_0);
+      thr->push_vec4(val);
+      return true;
+}
+
+/*
  * %event/nb <var-label>, <delay>
  *
  * The nonblocking event trigger (IEEE 1800-2017 15.5.1): deliver the
@@ -16659,6 +16731,39 @@ bool of_WAIT(vthread_t thr, vvp_code_t cp)
 
 	/* Add this thread to the list in the event. */
       waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (cp->net->fun);
+      assert(ep);
+      thr->wait_next = ep->add_waiting_thread(thr);
+
+	/* Return false to suspend this thread. */
+      return false;
+}
+
+/*
+ * %wait/obj <slot>
+ * Wait on a per-instance class event (IEEE 1800-2017 15.5: `@(obj.ev)`).
+ * The object handle has already been pushed on the object stack. Pop it,
+ * fetch its own event net for <slot>, add this thread to that event's
+ * private wait list, and suspend. Only a trigger on THIS object's event
+ * (%evt/obj) will resume the thread.
+ */
+bool of_WAIT_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj) {
+	    fprintf(stderr, "%%wait/obj: wait on null object handle\n");
+	    return true;
+      }
+
+      if (thr->i_am_in_function)
+	    thr->i_am_in_function = 0;
+
+      assert(! thr->waiting_for_event);
+      thr->waiting_for_event = 1;
+
+      vvp_net_t*net = cobj->get_inst_event(cp->number);
+      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (net->fun);
       assert(ep);
       thr->wait_next = ep->add_waiting_thread(thr);
 

@@ -319,6 +319,95 @@ static NetEvent* resolve_named_event_member_from_search_(const symbol_search_res
       return nullptr;
 }
 
+/*
+ * A non-static class `event` property is per-instance (IEEE 1800-2017
+ * 15.5): each object owns its own runtime event. For an event reference
+ * of the form PREFIX.evname where PREFIX evaluates to a class handle,
+ * elaborate PREFIX as an object-valued expression and locate the
+ * class-scope event, returning the object expression (caller owns) and
+ * the event's design-global slot. Returns nullptr when this is not a
+ * per-instance class event reference (in which case the caller falls back
+ * to the shared-scope NetEvent path).
+ *
+ * PREFIX is elaborated with the full expression machinery, so arbitrary
+ * object-handle forms work: a plain handle (obj.ev), a property chain
+ * (a.b.ev), an array element (arr[i].ev), or an associative lookup
+ * (m_events[key].ev) as used by uvm_objection.
+ */
+static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
+					      const LineInfo&loc,
+					      const pform_name_t&full_path,
+					      unsigned lexical_pos,
+					      unsigned&slot_out)
+{
+      if (full_path.empty())
+	    return nullptr;
+
+      pform_name_t prefix = full_path;
+      name_component_t last = prefix.back();
+      prefix.pop_back();
+
+	// The event component itself carries no index.
+      if (!last.index.empty())
+	    return nullptr;
+
+      NetExpr*obj = nullptr;
+      const netclass_t*cls = nullptr;
+
+      if (prefix.empty()) {
+	      // A bare member reference (`->ev` / `@ev` inside a method)
+	      // denotes this.ev. Resolve against the enclosing class and
+	      // use the implicit `this` handle as the object.
+	    cls = find_class_containing_scope(loc, scope);
+	    if (!cls)
+		  return nullptr;
+	    NetNet*this_net = find_implicit_this_handle(des, scope);
+	    if (!this_net)
+		  return nullptr;
+	    obj = new NetESignal(this_net);
+	    obj->set_line(loc);
+      } else {
+	      // Resolve the prefix by name first. A scope / hierarchical
+	      // reference (`->inst.ev`, `@(sub.genblk[i].ev)`) does NOT
+	      // resolve to a net, and must not be speculatively elaborated
+	      // as an expression -- doing so leaves unbindable netlist
+	      // artifacts. Only a prefix that names a real variable (a class
+	      // handle, or an array/assoc element of class handles) is a
+	      // candidate for a per-instance class event; everything else
+	      // falls through to the normal (scope/hierarchical) event path.
+	    symbol_search_results psr;
+	    if (!symbol_search(&loc, des, scope,
+			       pform_scoped_name_t(prefix), lexical_pos, &psr))
+		  return nullptr;
+	    if (!psr.net)
+		  return nullptr;
+
+	    PEIdent*pfx = new PEIdent(prefix, lexical_pos);
+	    obj = elab_and_eval(des, scope, pfx, -1);
+	    delete pfx;
+	    if (!obj)
+		  return nullptr;
+	    cls = dynamic_cast<const netclass_t*>(obj->net_type());
+	    if (!cls) {
+		  delete obj;
+		  return nullptr;
+	    }
+      }
+
+      NetEvent*eve = nullptr;
+      for (const netclass_t*cur = cls ; cur && !eve ; cur = cur->get_super()) {
+	    NetScope*cs = const_cast<NetScope*>(cur->class_scope());
+	    if (cs) eve = cs->find_event(last.name);
+      }
+      if (!eve || !eve->is_class_event()) {
+	    delete obj;
+	    return nullptr;
+      }
+
+      slot_out = eve->obj_slot();
+      return obj;
+}
+
 /* Resolve `<instance_scope>` (no NetNet, but path consumed) to the
    clocking block named by the LAST component of the original path. This
    handles the @(bif.cb) case where symbol_search resolves `bif` as a
@@ -9656,6 +9745,30 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
       if ((expr_.size() == 1) && (expr_[0] == 0))
 		  return elaborate_wait_fork(des, scope);
 
+	/* A wait on a single non-static class event property
+	   (`@(obj.ev)`) is per-instance: wait on that object's own event
+	   (IEEE 1800-2017 15.5). */
+      if (expr_.size() == 1 && expr_[0]
+	  && (expr_[0]->type() == PEEvent::POSITIVE
+	      || expr_[0]->type() == PEEvent::ANYEDGE)
+	  && expr_[0]->expr()) {
+	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
+		  unsigned slot = 0;
+		  if (NetExpr*obj = elaborate_class_event_target_(des, scope,
+				*this, id->path().name, id->lexical_pos(), slot)) {
+			NetProc*body = 0;
+			if (statement_) {
+			      body = statement_->elaborate(des, scope);
+			      if (body == 0) { delete obj; return 0; }
+			}
+			NetEvWaitObj*wa = new NetEvWaitObj(obj, slot);
+			wa->set_line(*this);
+			wa->set_statement(body);
+			return wa;
+		  }
+	    }
+      }
+
       NetProc*enet = 0;
       if (statement_) {
 	    enet = statement_->elaborate(des, scope);
@@ -11000,6 +11113,19 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
+	// A trigger on a non-static class event property (`->obj.ev`) is
+	// per-instance: evaluate the object handle and trigger only that
+	// object's event.
+      {
+	    unsigned slot = 0;
+	    if (NetExpr*obj = elaborate_class_event_target_(des, scope,
+					*this, event_.name, lexical_pos_, slot)) {
+		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, false, 0);
+		  trig->set_line(*this);
+		  return trig;
+	    }
+      }
+
       symbol_search_results sr;
       if (!symbol_search(this, des, scope, event_, lexical_pos_, &sr)) {
 	    cerr << get_fileline() << ": error: event <" << event_ << ">"
@@ -11029,6 +11155,19 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
+
+	// Nonblocking trigger on a per-instance class event (`->>obj.ev`).
+      {
+	    unsigned slot = 0;
+	    if (NetExpr*obj = elaborate_class_event_target_(des, scope,
+					*this, event_, lexical_pos_, slot)) {
+		  NetExpr*dly = 0;
+		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
+		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, true, dly);
+		  trig->set_line(*this);
+		  return trig;
+	    }
+      }
 
       symbol_search_results sr;
       if (!symbol_search(this, des, scope, event_, lexical_pos_, &sr)) {

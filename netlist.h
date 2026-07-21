@@ -3527,6 +3527,14 @@ class NetEvent : public LineInfo {
       bool local_flag() const { return local_flag_; }
       void local_flag(bool f) { local_flag_ = f; }
 
+	// A non-static class `event` property is per-instance: each object
+	// owns its own runtime event. Such events are flagged here and
+	// carry a design-global unique slot used by the runtime object to
+	// key its per-instance event storage (IEEE 1800-2017 15.5).
+      bool is_class_event() const { return is_class_event_; }
+      void set_class_event() { is_class_event_ = true; }
+      unsigned obj_slot();
+
 	// Get information about probes connected to me.
       unsigned nprobe() const;
       NetEvProbe* probe(unsigned);
@@ -3561,6 +3569,11 @@ class NetEvent : public LineInfo {
       perm_string name_;
       unsigned lexical_pos_;
       bool local_flag_;
+
+	// Per-instance class event support (see is_class_event()).
+      bool is_class_event_ = false;
+      unsigned obj_slot_ = 0;
+      bool obj_slot_set_ = false;
 
 	// The NetScope class uses these to list the events.
       NetScope*scope_;
@@ -3637,6 +3650,63 @@ class NetEvNBTrig  : public NetProc {
       NetExpr*dly_;
 	// This is used to place me in the NetEvents lists of triggers.
       NetEvNBTrig*enext_;
+};
+
+/*
+ * Trigger a per-instance class event (IEEE 1800-2017 15.5.1):
+ * `->obj.ev` or the nonblocking `->>obj.ev`. Unlike NetEvTrig this does
+ * not reference a static NetEvent; it evaluates an object-handle
+ * expression at run time and triggers that object's private event
+ * identified by a design-global slot.
+ */
+class NetEvTrigObj : public NetProc {
+
+    public:
+      explicit NetEvTrigObj(NetExpr*obj, unsigned slot, bool nb, NetExpr*dly);
+      ~NetEvTrigObj() override;
+
+      const NetExpr*obj() const { return obj_; }
+      unsigned slot() const { return slot_; }
+      bool is_nb() const { return nb_; }
+      const NetExpr*delay() const { return dly_; }
+
+      bool emit_proc(struct target_t*) const override;
+      void dump(std::ostream&, unsigned ind) const override;
+
+    private:
+      NetExpr*obj_;
+      unsigned slot_;
+      bool nb_;
+      NetExpr*dly_;
+};
+
+/*
+ * Wait on a per-instance class event (IEEE 1800-2017 15.5): `@(obj.ev)`.
+ * Evaluates an object-handle expression at run time and waits on that
+ * object's private event identified by a design-global slot.
+ */
+class NetEvWaitObj : public NetProc {
+
+    public:
+      explicit NetEvWaitObj(NetExpr*obj, unsigned slot);
+      ~NetEvWaitObj() override;
+
+      const NetExpr*obj() const { return obj_; }
+      unsigned slot() const { return slot_; }
+
+      NetProc*statement() { return statement_; }
+      const NetProc*statement() const { return statement_; }
+      void set_statement(NetProc*s) { statement_ = s; }
+
+      bool emit_proc(struct target_t*) const override;
+      bool emit_recurse(struct target_t*) const;
+      void dump(std::ostream&, unsigned ind) const override;
+      DelayType delay_type(bool print_delay=false) const override;
+
+    private:
+      NetExpr*obj_;
+      unsigned slot_;
+      NetProc*statement_ = nullptr;
 };
 
 class NetEvWait  : public NetProc {

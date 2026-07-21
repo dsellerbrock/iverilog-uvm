@@ -1345,6 +1345,25 @@ void NetEvNBTrig::dump(ostream&o, unsigned ind) const
       o << event_->name() << "; " << "// " << get_fileline() << endl;
 }
 
+void NetEvTrigObj::dump(ostream&o, unsigned ind) const
+{
+      o << setw(ind) << "" << (nb_ ? "->> " : "-> ");
+      if (nb_ && dly_) o << "#" << *dly_ << " ";
+      if (obj_) o << *obj_;
+      o << ".<event slot " << slot_ << ">; // " << get_fileline() << endl;
+}
+
+void NetEvWaitObj::dump(ostream&o, unsigned ind) const
+{
+      o << setw(ind) << "" << "@(";
+      if (obj_) o << *obj_;
+      o << ".<event slot " << slot_ << ">)  // " << get_fileline() << endl;
+      if (statement_)
+	    statement_->dump(o, ind+2);
+      else
+	    o << setw(ind+2) << "" << "/* noop */ ;" << endl;
+}
+
 void NetEvWait::dump(ostream&o, unsigned ind) const
 {
       o << setw(ind) << "";

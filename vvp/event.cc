@@ -1159,6 +1159,33 @@ vthread_t vvp_named_event_aa::add_waiting_thread(vthread_t thread)
       return tmp;
 }
 
+vvp_named_event_dyn::vvp_named_event_dyn()
+: vvp_named_event(0), threads_(0)
+{
+}
+
+vvp_named_event_dyn::~vvp_named_event_dyn()
+{
+}
+
+vthread_t vvp_named_event_dyn::add_waiting_thread(vthread_t thread)
+{
+      vthread_t tmp = threads_;
+      threads_ = thread;
+
+      return tmp;
+}
+
+void vvp_named_event_dyn::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&,
+                                    vvp_context_t)
+{
+      note_triggered();
+      run_waiting_threads_(threads_);
+	/* A per-instance dynamic event has no fanout net graph and no
+	   VPI __vpiNamedEvent handle, so unlike vvp_named_event_sa there
+	   is nothing to propagate to and no VPI callbacks to run. */
+}
+
 void vvp_named_event_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t context)
 {

@@ -1626,15 +1626,15 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       use_class->set_super(use_base_class);
 
       collect_scope_signals(class_scope, pclass->wires);
-      if (!pclass->events.empty()) {
-	    cerr << pclass->get_fileline() << ": warning: event properties "
-		 << "of class '" << pclass->pscope_name() << "' are shared "
-		 << "by ALL instances of the class (per-instance class "
-		 << "events are not implemented yet); a trigger on one "
-		 << "instance's event wakes waiters on every instance."
-		 << endl;
-      }
       elaborate_scope_events_(des, class_scope, pclass->events);
+	// Non-static class `event` properties are per-instance: flag each
+	// so trigger/wait elaboration routes them through per-object
+	// runtime storage (IEEE 1800-2017 15.5).
+      for (std::map<perm_string,PEvent*>::const_iterator et = pclass->events.begin()
+		 ; et != pclass->events.end() ; ++et) {
+	    if (NetEvent*ev = class_scope->find_event(et->first))
+		  ev->set_class_event();
+      }
       elaborate_scope_enumerations(des, class_scope, pclass->enum_sets);
 
       for (std::map<perm_string,PTask*>::const_iterator cur = pclass->tasks.begin()
@@ -1799,15 +1799,15 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
         // pform class scope event table, but need to be emitted into the
         // elaborated class NetScope so method symbol lookup can resolve
         // @m_event / ->m_event / m_event references.
-      if (!pclass->events.empty()) {
-	    cerr << pclass->get_fileline() << ": warning: event properties "
-		 << "of class '" << pclass->pscope_name() << "' are shared "
-		 << "by ALL instances of the class (per-instance class "
-		 << "events are not implemented yet); a trigger on one "
-		 << "instance's event wakes waiters on every instance."
-		 << endl;
-      }
       elaborate_scope_events_(des, class_scope, pclass->events);
+	// Non-static class `event` properties are per-instance: flag each
+	// so trigger/wait elaboration routes them through per-object
+	// runtime storage (IEEE 1800-2017 15.5).
+      for (std::map<perm_string,PEvent*>::const_iterator et = pclass->events.begin()
+		 ; et != pclass->events.end() ; ++et) {
+	    if (NetEvent*ev = class_scope->find_event(et->first))
+		  ev->set_class_event();
+      }
 
 	// Elaborate enum types declared in the class. We need these
 	// now because enumeration constants can be used during scope

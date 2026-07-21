@@ -1023,6 +1023,7 @@ sv_assoc_obj_key_delete1 normal,-g2012 ivltests
 sv_assoc_obj_graph_mutation1 normal,-g2012 ivltests
 sv_assoc_nested_member_foreach1 normal,-g2012 ivltests
 sv_class_event_member1 normal,-g2012 ivltests
+sv_class_event_per_instance normal,-g2012 ivltests
 sv_class_prop_assoc_find1 normal,-g2012 ivltests
 sv_assoc_queue_class_select1 normal,-g2012 ivltests
 sv_assoc_queue_foreach1 normal,-g2012 ivltests

@@ -3022,6 +3022,37 @@ extern "C" ivl_expr_t ivl_stmt_delay_expr(ivl_statement_t net)
 	  case IVL_ST_NB_TRIGGER:
 	    return net->u_.wait_.delay;
 
+	  case IVL_ST_NB_TRIGGER_OBJ:
+	    return net->u_.evobj_.delay;
+
+	  default:
+	    assert(0);
+	    return 0;
+      }
+}
+
+extern "C" ivl_expr_t ivl_stmt_evobj_expr(ivl_statement_t net)
+{
+      assert(net);
+      switch (net->type_) {
+	  case IVL_ST_TRIGGER_OBJ:
+	  case IVL_ST_NB_TRIGGER_OBJ:
+	  case IVL_ST_WAIT_OBJ:
+	    return net->u_.evobj_.obj;
+	  default:
+	    assert(0);
+	    return 0;
+      }
+}
+
+extern "C" unsigned ivl_stmt_evobj_slot(ivl_statement_t net)
+{
+      assert(net);
+      switch (net->type_) {
+	  case IVL_ST_TRIGGER_OBJ:
+	  case IVL_ST_NB_TRIGGER_OBJ:
+	  case IVL_ST_WAIT_OBJ:
+	    return net->u_.evobj_.ev_slot;
 	  default:
 	    assert(0);
 	    return 0;
@@ -3303,6 +3334,8 @@ extern "C" ivl_statement_t ivl_stmt_sub_stmt(ivl_statement_t net)
 	    return net->u_.forloop_.stmt;
 	  case IVL_ST_WAIT:
 	    return net->u_.wait_.stmt_;
+	  case IVL_ST_WAIT_OBJ:
+	    return net->u_.evobj_.stmt_;
 	  case IVL_ST_DO_WHILE:
 	  case IVL_ST_REPEAT:
 	  case IVL_ST_WHILE:

@@ -436,6 +436,22 @@ bool NetEvWait::emit_proc(struct target_t*tgt) const
       return tgt->proc_wait(this);
 }
 
+bool NetEvTrigObj::emit_proc(struct target_t*tgt) const
+{
+      return tgt->proc_trigger_obj(this);
+}
+
+bool NetEvWaitObj::emit_proc(struct target_t*tgt) const
+{
+      return tgt->proc_wait_obj(this);
+}
+
+bool NetEvWaitObj::emit_recurse(struct target_t*tgt) const
+{
+      if (!statement_) return true;
+      return statement_->emit_proc(tgt);
+}
+
 bool NetEvWait::emit_recurse(struct target_t*tgt) const
 {
       if (!statement_) return true;

@@ -944,6 +944,60 @@ bool dll_target::proc_nb_trigger(const NetEvNBTrig*net)
       return true;
 }
 
+bool dll_target::proc_trigger_obj(const NetEvTrigObj*net)
+{
+      assert(stmt_cur_);
+      assert(stmt_cur_->type_ == IVL_ST_NONE);
+      FILE_NAME(stmt_cur_, net);
+
+      stmt_cur_->type_ = net->is_nb() ? IVL_ST_NB_TRIGGER_OBJ
+	                              : IVL_ST_TRIGGER_OBJ;
+      stmt_cur_->u_.evobj_.ev_slot = net->slot();
+      stmt_cur_->u_.evobj_.delay = 0;
+      stmt_cur_->u_.evobj_.stmt_ = 0;
+
+      assert(expr_ == 0);
+      net->obj()->expr_scan(this);
+      stmt_cur_->u_.evobj_.obj = expr_;
+      expr_ = 0;
+
+      if (const NetExpr*dly = net->delay()) {
+	    dly->expr_scan(this);
+	    stmt_cur_->u_.evobj_.delay = expr_;
+	    expr_ = 0;
+      }
+
+      return true;
+}
+
+bool dll_target::proc_wait_obj(const NetEvWaitObj*net)
+{
+      assert(stmt_cur_);
+      assert(stmt_cur_->type_ == IVL_ST_NONE);
+      FILE_NAME(stmt_cur_, net);
+
+      stmt_cur_->type_ = IVL_ST_WAIT_OBJ;
+      stmt_cur_->u_.evobj_.ev_slot = net->slot();
+      stmt_cur_->u_.evobj_.delay = 0;
+      stmt_cur_->u_.evobj_.stmt_ = static_cast<struct ivl_statement_s*>
+	                           (calloc(1, sizeof(struct ivl_statement_s)));
+
+      assert(expr_ == 0);
+      net->obj()->expr_scan(this);
+      stmt_cur_->u_.evobj_.obj = expr_;
+      expr_ = 0;
+
+	/* Generate the sub-statement guarded by the wait. */
+      ivl_statement_t save_cur_ = stmt_cur_;
+      stmt_cur_ = stmt_cur_->u_.evobj_.stmt_;
+      bool flag = net->emit_recurse(this);
+      if (flag && (stmt_cur_->type_ == IVL_ST_NONE))
+	    stmt_cur_->type_ = IVL_ST_NOOP;
+      stmt_cur_ = save_cur_;
+
+      return flag;
+}
+
 void dll_target::proc_utask(const NetUTask*net)
 {
       assert(stmt_cur_);

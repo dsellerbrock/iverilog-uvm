@@ -46,6 +46,14 @@ class vvp_cobject : public vvp_object {
       void set_object(size_t pid, const vvp_object_t&val, size_t idx);
       void get_object(size_t pid, vvp_object_t&val, size_t idx);
 
+	// Per-instance dynamic named event storage (IEEE 1800-2017 15.5).
+	// A non-static class `event` property is backed by its own
+	// vvp_net_t (a vvp_named_event_dyn functor), allocated lazily and
+	// keyed by the compiler-assigned global event slot, so a trigger on
+	// one object's event wakes only that object's waiters. Returns the
+	// per-instance event net, creating it on first use.
+      class vvp_net_t* get_inst_event(uint32_t slot);
+
       void shallow_copy(const vvp_object*that) override;
 
       const class_type* get_defn() const { return defn_; }
@@ -84,6 +92,8 @@ class vvp_cobject : public vvp_object {
       std::map<size_t, std::vector<bool> > randc_history_;
       std::map<uint64_t, uint64_t> cov_trans_;
       bool cov_enabled_ = true;
+	// Lazily-allocated per-instance event nets, keyed by event slot.
+      std::map<uint32_t, class vvp_net_t*> inst_events_;
 };
 
 #endif /* IVL_vvp_cobject_H */

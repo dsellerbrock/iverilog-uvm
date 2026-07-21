@@ -1667,6 +1667,54 @@ static int show_stmt_nb_trigger(ivl_statement_t net)
       return 0;
 }
 
+/*
+ * Per-instance class event trigger (IEEE 1800-2017 15.5.1):
+ * `->obj.ev` (IVL_ST_TRIGGER_OBJ) or `->>obj.ev` (IVL_ST_NB_TRIGGER_OBJ).
+ * Push the object handle with draw_eval_object, then emit the object
+ * trigger opcode carrying the per-class event slot; the runtime resolves
+ * the object's private event and triggers only its waiters.
+ */
+static int show_stmt_trigger_obj(ivl_statement_t net)
+{
+      unsigned slot = ivl_stmt_evobj_slot(net);
+      int is_nb = (ivl_statement_type(net) == IVL_ST_NB_TRIGGER_OBJ);
+
+      show_stmt_file_line(net, "Per-instance class event trigger.");
+
+      draw_eval_object(ivl_stmt_evobj_expr(net));
+
+      if (is_nb) {
+	    ivl_expr_t expr = ivl_stmt_delay_expr(net);
+	    int use_idx = allocate_word();
+	    if (expr)
+		  draw_expr_into_idx(expr, use_idx);
+	    else
+		  fprintf(vvp_out, "    %%ix/load %d, 0, 0;\n", use_idx);
+	    fprintf(vvp_out, "    %%evt/obj/nb %u, %d;\n", slot, use_idx);
+	    clr_word(use_idx);
+      } else {
+	    fprintf(vvp_out, "    %%evt/obj %u;\n", slot);
+      }
+      return 0;
+}
+
+/*
+ * Per-instance class event wait (IEEE 1800-2017 15.5): `@(obj.ev)`.
+ * Push the object handle, emit the object wait opcode with the event
+ * slot, then draw the guarded sub-statement.
+ */
+static int show_stmt_wait_obj(ivl_statement_t net, ivl_scope_t sscope)
+{
+      unsigned slot = ivl_stmt_evobj_slot(net);
+
+      show_stmt_file_line(net, "Per-instance class event wait (@).");
+
+      draw_eval_object(ivl_stmt_evobj_expr(net));
+      fprintf(vvp_out, "    %%wait/obj %u;\n", slot);
+
+      return show_statement(ivl_stmt_sub_stmt(net), sscope);
+}
+
 static int show_stmt_utask(ivl_statement_t net)
 {
       ivl_scope_t task = ivl_stmt_call(net);
@@ -3993,6 +4041,15 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
 
 	  case IVL_ST_NB_TRIGGER:
 	    rc += show_stmt_nb_trigger(net);
+	    break;
+
+	  case IVL_ST_TRIGGER_OBJ:
+	  case IVL_ST_NB_TRIGGER_OBJ:
+	    rc += show_stmt_trigger_obj(net);
+	    break;
+
+	  case IVL_ST_WAIT_OBJ:
+	    rc += show_stmt_wait_obj(net, sscope);
 	    break;
 
 	  case IVL_ST_UTASK:

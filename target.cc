@@ -454,6 +454,20 @@ bool target_t::proc_nb_trigger(const NetEvNBTrig*tr)
       return false;
 }
 
+bool target_t::proc_trigger_obj(const NetEvTrigObj*tr)
+{
+      cerr << tr->get_fileline() << ": error: target (" << typeid(*this).name()
+	   <<  "): Unhandled per-instance class event trigger." << endl;
+      return false;
+}
+
+bool target_t::proc_wait_obj(const NetEvWaitObj*tr)
+{
+      cerr << tr->get_fileline() << ": error: target (" << typeid(*this).name()
+	   <<  "): Unhandled per-instance class event wait." << endl;
+      return false;
+}
+
 void target_t::proc_stask(const NetSTask*)
 {
       cerr << "target (" << typeid(*this).name() <<  "): "

@@ -19,6 +19,8 @@
 
 # include  "vvp_cobject.h"
 # include  "class_type.h"
+# include  "vvp_net.h"
+# include  "event.h"
 # include  <iostream>
 # include  <cassert>
 
@@ -102,6 +104,25 @@ vvp_cobject::~vvp_cobject()
 {
       defn_->instance_delete(properties_);
       properties_ = 0;
+
+	// The per-instance event vvp_net_t objects are allocated from the
+	// net heap pool, which (like every other net in the design) is
+	// never individually freed -- vvp_net_t::operator delete is
+	// intentionally unimplemented. Dropping the map is enough; the
+	// nets themselves persist for the remainder of the simulation.
+      inst_events_.clear();
+}
+
+vvp_net_t* vvp_cobject::get_inst_event(uint32_t slot)
+{
+      std::map<uint32_t, vvp_net_t*>::iterator it = inst_events_.find(slot);
+      if (it != inst_events_.end())
+	    return it->second;
+
+      vvp_net_t*net = new vvp_net_t;
+      net->fun = new vvp_named_event_dyn;
+      inst_events_[slot] = net;
+      return net;
 }
 
 void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
