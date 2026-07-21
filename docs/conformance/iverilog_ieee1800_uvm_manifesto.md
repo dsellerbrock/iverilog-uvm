@@ -153,7 +153,9 @@ Maintain clean builds, canonical regressions, UVM, negative tests, VPI, cross-pl
 
 **Status: PARTIAL**
 
-- [ ] Fix member access on type-parameter-typed output/ref formals.
+- [x] Fix member access on type-parameter-typed output/ref formals.
+      *(Verified resolved 2026-07-21 — see the P1 entry; pinned by
+      `sv_typeparam_formal_member`.)*
 - [ ] Audit specialization through variables, properties, locals, arrays, returns, and formals.
 - [ ] Reprobe specialization inside nested aggregates.
 - [ ] Remove remaining compile-progress fallbacks caused by lost specialization.
