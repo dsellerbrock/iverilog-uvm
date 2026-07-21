@@ -219,7 +219,7 @@ Future failures belong to the underlying language/runtime subsystem unless the U
 
 **Status: PARTIAL**
 
-- [ ] Support wildcard associative-array index declarations where required.
+- [x] Support wildcard associative-array index declarations where required. *(Done 2026-07-21: `type name[*];` (IEEE 1800-2017 7.8.1) now parses. The lexer folds `[*` into one token (`K_LBSTAR`, shared with the SVA consecutive-repetition opener) whose comment wrongly assumed `[*` had no other use, so `variable_dimension` gained a `K_LBSTAR ']'` rule that builds an associative array with a placeholder integral index type (assoc arrays share one queue-compat runtime form regardless of declared index type). Integral keys, exists/delete/size/foreach all work. Test `sv_assoc_wildcard_index`.)*
 - [x] Correct `%p` formatting for integral aggregates. *(Done 2026-07-21:
       rewrote the `%p` handler as a recursive assignment-pattern formatter
       (`format_p_value` in `vpi/sys_display.c`). Queues, dynamic arrays,
@@ -232,10 +232,21 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       fixed assoc key rendering (vector keys were the raw byte encoding —
       now decimal, `vvp_assoc.h peek_entry`) and queue element type
       detection for real/string queues (`vpi_darray.cc get_word_value`).
-      Test `sv_display_p_aggregates`. Remaining refinements: signed integral
-      darray/queue elements still render unsigned (element signedness is not
-      carried through the container VPI path), and a packed struct prints as
-      one decimal rather than a `'{member:val}` pattern.)*
+      Test `sv_display_p_aggregates`. Remaining refinements (audited
+      2026-07-21, deferred as disproportionate to a display-only payoff —
+      fixed unpacked arrays and scalars already print correctly, so these
+      affect only dynamic containers): (1) signed integral **dynamic-array
+      / queue** elements render unsigned — the runtime `vvp_darray_vec4` /
+      `vvp_queue_vec4` discard the `sv` vs `v` element-signedness the
+      codegen emits, and neither the 10+ lazy queue-construction sites nor
+      the `.var/darray` declaration carry a signedness field to the VPI
+      object; (2) a multi-dimensional unpacked array prints flat
+      (`'{1,2,3,4,5,6}`) rather than nested (`'{'{1,2,3},'{4,5,6}}`)
+      because iverilog flattens unpacked dims and VPI exposes no per-dim
+      geometry for the element iterator; (3) a packed struct prints as one
+      decimal rather than a `'{member:val}` pattern. All three need
+      type-descriptor plumbing (codegen → vvp assembler → VPI handle) out
+      of proportion to the cosmetic gain.)*
 - [x] Fix nested packed-struct array literal compiler crash. *(Done
       2026-07-21: module-scope nested literals work on all probed shapes;
       the remaining defect was a class-property whole-array pattern store

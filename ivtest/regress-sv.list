@@ -1094,3 +1094,4 @@ sv_typeparam_formal_member normal,-g2012 ivltests
 sv_randcase normal,-g2012 ivltests
 sv_std_randomize_scope normal,-g2012 ivltests
 sv_constraint_unique normal,-g2012 ivltests
+sv_assoc_wildcard_index normal,-g2012 ivltests

@@ -6345,6 +6345,22 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	tmp->push_back(index);
 	$$ = tmp;
       }
+  | K_LBSTAR ']'
+      { // SystemVerilog wildcard-index associative array (IEEE 1800-2017
+	// 7.8.1): `type name[*];`. The lexer folds `[*` into one token
+	// (K_LBSTAR, shared with the SVA consecutive-repetition opener), so
+	// the wildcard dimension is `K_LBSTAR ']'`. The index type is
+	// unspecified — any integral value may be a key. Associative arrays
+	// share one queue-compat runtime representation regardless of
+	// declared index type (the actual key type comes from each index
+	// expression), so the wildcard uses a placeholder integral index.
+	list<pform_range_t> *tmp = new std::list<pform_range_t>;
+	data_type_t*wild_index = new atom_type_t(atom_type_t::INT, true);
+	pform_range_t index (new PEAssocType(wild_index),0);
+	pform_requires_sv(@$, "Associative array declaration");
+	tmp->push_back(index);
+	$$ = tmp;
+      }
   ;
 
 variable_lifetime_opt
