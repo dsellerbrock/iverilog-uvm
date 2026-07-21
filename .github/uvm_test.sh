@@ -84,23 +84,21 @@ case "$(uname -s)" in
         ;;
     MINGW*|MSYS*|CYGWIN*)
         # A Windows loadable module must resolve every external at link time,
-        # unlike the lazy load-time binding on Linux/macOS. The umbrella (and
-        # the per-test DPI-export stub it is merged with, see below) reference
-        # three symbol classes no static lib provides:
-        #   1. the sv* DPI-context API (svGetScopeFromName/svSetScope/...) and
-        #      the __ivl_dpi_export_call_* dispatch trampolines — both exported
-        #      by vvp.exe via vvp/vvp.def but shipped in no archive;
-        #   2. POSIX regex (regcomp/regexec/regfree/regerror).
-        # Build a dedicated import library for those vvp exports (only the
-        # non-vpi_ ones, so it does not collide with libvpi's own vpi_*) and
-        # link it plus the regex provider.
+        # and — unlike Linux dlopen(RTLD_GLOBAL) — it does NOT interpose the
+        # host's symbols. So the umbrella must import ALL the vvp-provided
+        # symbols it uses directly from vvp.exe, and must NOT link libvpi.a.
+        # Why not libvpi.a: its vpi_* wrappers dispatch through a static
+        # vpip_routines pointer set by vpip_set_callback, but vvp only calls
+        # that for -m VPI modules, never for a -d DPI library (vvp_dpi.cc). On
+        # Linux the umbrella's vpi_* calls bind to vvp's real routines via
+        # RTLD_GLOBAL; on Windows they would hit libvpi.a's dead shim and
+        # assert (vpip_routines NULL). Importing the whole vvp.def (vpi_* AND
+        # sv* AND __ivl_dpi_export_call_*) from vvp.exe routes every vpi_*/sv*
+        # call to vvp's real implementation. Regex still comes from libsystre.
         if command -v dlltool >/dev/null 2>&1 && [ -f vvp/vvp.def ] ; then
-            { printf 'EXPORTS\n'
-              grep -E '^(sv[A-Za-z]|__ivl_dpi_export_call_)' vvp/vvp.def
-            } > /tmp/uvm_sv.def
-            if dlltool -d /tmp/uvm_sv.def -D vvp.exe -l /tmp/libuvmsv.a \
+            if dlltool -d vvp/vvp.def -D vvp.exe -l /tmp/libvvpimp.a \
                        2>/tmp/uvm_dpi_implib.log ; then
-                DPI_EXTRA_LIB="-L/tmp -luvmsv"
+                DPI_EXTRA_LIB="-L/tmp -lvvpimp"
             fi
         fi
         # POSIX regex: link libsystre (TRE-based) rather than a bare -lregex.
@@ -212,8 +210,11 @@ run_test() {
             gcc -c $IVPI_CC "$UMBRELLA_INC" "$s" -o "$o" >>"$blog" 2>&1
             objs="$objs $o"
         done
+        # NOTE: no $IVPI_LDL here (it carries -lvpi -lveriuser). libvpi.a must
+        # NOT be linked on Windows — see the import-lib comment above. All
+        # vvp symbols come from -lvvpimp; regex from -lsystre -ltre.
         g++ $IVPI_LDF -Wl,--export-all-symbols -o "/tmp/uvm_dpi_${name}.vpi" \
-            $objs $DPI_EXTRA_LIB $IVPI_LDL >>"$blog" 2>&1
+            $objs $DPI_EXTRA_LIB >>"$blog" 2>&1
         dflags="-d /tmp/uvm_dpi_${name}.vpi"
     elif [ -n "$srcs" ]; then
         # Linux/macOS: the umbrella is loaded globally; here just build the
