@@ -341,8 +341,14 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       NOT enforced — writing a member the modport does not list compiled
       silently; now a clean error (`elab_lval.cc`, alongside the direction
       check; import/export-listed subroutines stay accessible). CE test
-      `sv_modport_visibility_fail`. Remaining refinement: visibility on
-      the READ side (expression path) is not yet enforced.)*
+      `sv_modport_visibility_fail`. READ-side visibility now enforced too
+      (2026-07-21n): reading an interface member not listed in the modport
+      through the expression path (`x = p.hidden;`) used to compile
+      silently and then ICE in synthesis ("Failed to synthesize
+      expression"); it is now the same clean error, added in
+      `PEIdent::elaborate_expr_class_member_` (`elab_expr.cc`), visibility
+      only — reading a listed input OR output member stays legal. CE test
+      `sv_modport_read_visibility_fail`.)*
 - [x] Revalidate output/inout imported task copy-back. *(2026-07-21:
       works — single-attached-instance binding with an explicit warning
       that dynamic multi-instance copy-back is not implemented; verified
