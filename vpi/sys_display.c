@@ -291,6 +291,97 @@ static void get_time_real(char *rtn, double value, int prec,
   sprintf(rtn, "%0.*f%s", prec, value, timeformat_info.suff);
 }
 
+/*
+ * SV %p (IEEE 1800-2017 21.2.1.3): pretty-print a value using assignment-
+ * pattern notation. Returns a malloc'd NUL-terminated string; the caller
+ * frees it. Recurses into arrays/queues/dynamic/associative arrays so
+ * nested aggregates format element-by-element. Leaf values format by their
+ * natural element type: integral in decimal, real via %g, string quoted.
+ *
+ * This replaced an earlier hand-rolled handler that asked every element
+ * for vpiStringVal, which rendered integral elements as raw ASCII bytes
+ * (e.g. the value 99 came out as the character 'c') and hit an
+ * unimplemented get_word(string) path for queue/dynamic-array elements,
+ * so integral aggregates printed empty or garbage.
+ */
+static char* format_p_value(vpiHandle item)
+{
+  s_vpi_value value;
+  PLI_INT32 itype = vpi_get(vpiType, item);
+
+  /* vpiArrayVar (queues, dynamic and associative arrays) is an alias of
+     vpiRegArray, so this one test covers packed-reg fixed arrays (vpiMemory)
+     and all SV dynamic containers. */
+  if (itype == vpiRegArray || itype == vpiNetArray || itype == vpiMemory) {
+    PLI_INT32 atype = vpi_get(vpiArrayType, item);
+    int is_assoc = (atype == vpiAssocArray);
+    char *acc = strdup("'{");
+    size_t used = strlen(acc);
+    int first = 1;
+    vpiHandle iter = vpi_iterate(vpiMemoryWord, item);
+    if (iter) {
+      vpiHandle word;
+      while ((word = vpi_scan(iter)) != 0) {
+        char *key = 0;
+        if (is_assoc) {
+          /* The element's vpiName is its associative key text. */
+          char *kn = vpi_get_str(vpiName, word);
+          if (kn) key = strdup(kn);
+        }
+        char *ev = format_p_value(word);
+        size_t klen = key ? strlen(key) + 1 /* ':' */ : 0;
+        size_t elen = strlen(ev);
+        acc = realloc(acc, used + (first ? 0 : 2) + klen + elen + 2);
+        if (!first) { strcpy(acc + used, ", "); used += 2; }
+        if (key) { used += (size_t)sprintf(acc + used, "%s:", key); }
+        strcpy(acc + used, ev); used += elen;
+        free(ev);
+        free(key);
+        first = 0;
+      }
+    }
+    /* Ensure room for the closing brace and NUL — for an empty container no
+       in-loop realloc ran, so acc is still just the "'{" from strdup. */
+    acc = realloc(acc, used + 2);
+    strcpy(acc + used, "}");
+    return acc;
+  }
+
+  /* Leaf value. Discover the natural element format, then render it the way
+     SV %p does for that kind. */
+  value.format = vpiObjTypeVal;
+  vpi_get_value(item, &value);
+
+  if (value.format == vpiRealVal) {
+    char buf[64];
+    snprintf(buf, sizeof buf, "%g", value.value.real);
+    return strdup(buf);
+  }
+
+  if (value.format == vpiStringVal) {
+    const char *sv = value.value.str ? value.value.str : "";
+    size_t n = strlen(sv);
+    char *out = malloc(n + 3);
+    out[0] = '"';
+    memcpy(out + 1, sv, n);
+    out[n + 1] = '"';
+    out[n + 2] = '\0';
+    return out;
+  }
+
+  /* Integral (or anything else): print in decimal. */
+  value.format = vpiDecStrVal;
+  vpi_get_value(item, &value);
+  {
+    const char *sv = (value.format != vpiSuppressVal && value.value.str)
+                     ? value.value.str : "?";
+    /* vpiDecStrVal is right-justified with leading spaces to the field
+       width; %p uses the bare number, so skip any leading blanks. */
+    while (*sv == ' ') sv += 1;
+    return strdup(sv);
+  }
+}
+
 static unsigned int get_format_char(char **rtn, int ljust, int plus,
                                     int ld_zero, int width, int prec,
                                     char fmt, const struct strobe_cb_info *info,
@@ -876,48 +967,12 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
         vpi_printf("WARNING: %s:%d: missing argument for %s%s.\n",
                    info->filename, info->lineno, info->name, fmtb);
       } else {
-        vpiHandle item = info->items[*idx];
-        PLI_INT32 itype = vpi_get(vpiType, item);
-        if (itype == vpiRegArray || itype == vpiNetArray || itype == vpiMemory) {
-          /* Iterate elements and format as '{el0, el1, ...}' */
-          vpiHandle iter = vpi_iterate(vpiMemoryWord, item);
-          char *acc = strdup("'{");
-          unsigned acc_sz = 3;
-          int first = 1;
-          if (iter) {
-            vpiHandle word;
-            while ((word = vpi_scan(iter)) != 0) {
-              value.format = vpiStringVal;
-              vpi_get_value(word, &value);
-              const char *ws = (value.format != vpiSuppressVal && value.value.str)
-                               ? value.value.str : "?";
-              size_t wl = strlen(ws);
-              acc = realloc(acc, acc_sz + (first ? 0 : 2) + wl + 1);
-              if (!first) { strcat(acc, ", "); acc_sz += 2; }
-              strcat(acc, ws);
-              acc_sz += (unsigned)wl;
-              first = 0;
-            }
-          }
-          acc = realloc(acc, acc_sz + 2);
-          strcat(acc, "}");
-          acc_sz += 1;
-          size = acc_sz + 1;
-          if (size > ini_size) result = realloc(result, size * sizeof(char));
-          strcpy(result, acc);
-          free(acc);
-          size = strlen(result) + 1;
-        } else {
-          /* Scalar: use string representation */
-          value.format = vpiStringVal;
-          vpi_get_value(item, &value);
-          const char *sv = (value.format != vpiSuppressVal && value.value.str)
-                           ? value.value.str : "?";
-          size = strlen(sv) + 1;
-          if (size > ini_size) result = realloc(result, size * sizeof(char));
-          strcpy(result, sv);
-          size = strlen(result) + 1;
-        }
+        char *pv = format_p_value(info->items[*idx]);
+        size = strlen(pv) + 1;
+        if (size > ini_size) result = realloc(result, size * sizeof(char));
+        strcpy(result, pv);
+        free(pv);
+        size = strlen(result) + 1;
       }
       break;
 

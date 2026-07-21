@@ -26,6 +26,14 @@
 # include  "vvp_net.h"
 # include  "vvp_object.h"
 
+// Render a vector value as a decimal string (defined in vpip_to_dec.cc,
+// declared in vpi_priv.h). Forward-declared here so peek_entry can produce
+// a printable key_text for vector-keyed associative arrays without pulling
+// in the whole VPI-private header.
+extern unsigned vpip_vec4_to_dec_str(const vvp_vector4_t&vec4,
+				     char *buf, unsigned int nbuf,
+				     int signed_flag);
+
 class vvp_assoc_base : public vvp_object {
     public:
       ~vvp_assoc_base() override;
@@ -311,7 +319,12 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 		  typename std::map<std::string, vec_entry_t>::const_iterator cur
 			= vec_map_.begin();
 		  std::advance(cur, pos);
-		  key_text = cur->first;
+		    // cur->first is the internal raw-byte lookup key; the
+		    // caller wants a printable form, so render the stored key
+		    // vector as decimal.
+		  char kbuf[128];
+		  vpip_vec4_to_dec_str(cur->second.key, kbuf, sizeof kbuf, 0);
+		  key_text = kbuf;
 		  val_kind = assign_entry_val_(cur->second.value, val_vec,
 					       val_real, val_str);
 		  return true;

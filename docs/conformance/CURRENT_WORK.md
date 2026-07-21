@@ -3,6 +3,310 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21k (P1 type-param formal member access — VERIFIED RESOLVED)
+
+- **P1 "member access on output/ref formals typed by type parameters"
+  verified RESOLVED** — the original "Variable t does not have a field
+  named ..." failure (m7 stress findings 2026-07-18) no longer reproduces
+  on any probed shape; it was fixed by the intervening M1B typing and
+  virtual-output copy-back work. Six shapes probed and pinned in new test
+  `sv_typeparam_formal_member` (output-T/ref-T deref, inherited-T from a
+  specialized base, deref after nested parameterized call, virtual
+  dispatch through parameterized base with subclass-member deref, nested
+  t.sub.inner deref). No compiler changes needed — test-only increment;
+  sv-list gate green (965/44, diffs vs full-run baseline are only the two
+  known list-subset artifacts).
+
+## State as of 2026-07-21j (M5 interfaces/modports audit + fixes)
+
+- **M5 truth audit completed; three fixes landed:**
+  1. **Static-array method receiver index drop (silent miscompile, the
+     big one):** `arr[i].method()` on a static unpacked array of class
+     handles OR virtual interfaces dropped the receiver index in BOTH the
+     task-method path (`elaborate_root_indexed_method_target_expr_`,
+     elaborate.cc — note base_type arrives as the ELEMENT type, so the
+     fix keys off the signal's unpacked dimensions) and the
+     function-method path (`PECallFunction::elaborate_expr_method_`,
+     elab_expr.cc — new static-array root-index application beside the
+     existing queue/darray one). Every call dispatched through element 0.
+     Test `sv_class_array_method_dispatch`.
+  2. **VIF_DISPATCH_MAX removed:** the 64-instance dispatch cap silently
+     dropped instances 65+. Dynamic collection now. Test
+     `sv_vif_dispatch_many` (72 instances).
+  3. **Modport member visibility enforced (write side):** writing an
+     interface member the modport does not list compiled silently; now a
+     clean error next to the existing direction check. CE test
+     `sv_modport_visibility_fail`.
+- **Audit results (manifesto M5 updated):** direction enforcement OK;
+  imported-task copy-back OK (single-instance, warned); per-
+  specialization param-interface typing OK. Remaining gaps recorded:
+  read-side modport visibility; runtime-index vif-array BINDING
+  (`vp[i] = pins[i]` in a loop → "Scope index expression is not
+  constant"); bare $unit-scope `virtual iface v;` declarations parse
+  error.
+- **Validation:** ivtest + UVM runs pending at checkpoint.
+
+## State as of 2026-07-21i (unpacked-array slice + function return — IMPLEMENTED)
+
+- **Unpacked-array SLICE assignment (`m[0] = '{1,2,3}` for int[2][3]) —
+  IMPLEMENTED** (commit `a1c5e39`; was a "sorry"). The l-value carries the
+  slice's flat base word + the sub-array type (`NetAssign_::
+  set_array_slice`); the pattern elaborates against the sub-array type and
+  codegen starts the element store at the base (`array_pattern_base_` at
+  the vec4/real/string pattern sites). Constant indices only; variable
+  index and non-pattern r-values diagnose cleanly. Test
+  `sv_uarray_slice_pattern_assign` (2-D/3-D, real, string, sibling-row
+  isolation, whole-array regression guard).
+- **Unpacked-array FUNCTION RETURN (issue #99) — IMPLEMENTED** (was a
+  graceful sorry, before that an ICE). Root cause chain: (1) the return
+  NetNet was built from the raw `netuarray_t` without splitting unpacked
+  dims → degenerated to a 1-bit scalar and the body's element stores
+  targeted a never-emitted array (`elab_sig.cc` now uses the
+  unpacked-dims NetNet ctor); (2) `vvp_scope.c` skipped emitting
+  return-value variables — now only for dims==0, so the return array is a
+  real `.array`; (3) call sites invoke the function like a void function
+  (`draw_ufunc_preamble` forces VOID for dims>0 returns) and
+  `draw_ufunc_uarray` copies the words out into the target array/slice
+  before the callee frame is freed; (4) `elab_and_eval`'s strict uarray
+  compat check learns to shape-check a NetEUFunc against the return
+  signal's array type; (5) `PAssign::elaborate` validates count/element
+  compatibility (clean error on mismatch). Covers automatic/static,
+  int/real/string elements, multi-dim returns, slice targets.
+  Tests: `sv_uarray_func_return` (positive), `sv_uarray_func_return_fail`
+  (CE, repurposed to shape mismatch — the old sorry no longer fires).
+  Limitation (pre-existing vvp property): arrays in automatic scopes are
+  static storage, so recursive activations returning arrays share it.
+- **Validation:** ivtest + UVM runs pending at checkpoint (slice already
+  validated byte-identical / 209-0-0 standalone).
+
+## State as of 2026-07-21h (process::suspend()/resume() — IMPLEMENTED, M6B)
+
+- **`process::suspend()` / `process::resume()` implemented; `status()` now
+  reports SUSPENDED.** Commit `a916815`. Elaboration lowers the methods to
+  internal system tasks (same pattern as kill/await), codegen emits new
+  `%process/suspend` / `%process/resume` opcodes, and the runtime marks the
+  owning thread `suspended` so `vthread_run` skips it, recording any
+  attempted wake in `suspend_resched`. resume() reschedules if a run was
+  pending — an event that fires while suspended is deferred, not lost.
+  Self-suspend parks immediately (opcode returns false). Both idempotent.
+  Test `sv_process_suspend_resume` (freeze/unfreeze, SUSPENDED status,
+  deferred event, idempotency, kill-after-resume).
+  Known refinement (recorded in manifesto M6B): a `#delay`-parked process
+  reports RUNNING not WAITING (the delay queue marks it `is_scheduled`; a
+  dedicated flag would be needed to distinguish).
+- **Validation:** ivtest full default run byte-identical to baseline
+  (3065/44, 0 new / 0 stale; +1 test); UVM 209/0/0.
+- **In progress at checkpoint:** unpacked-array SLICE assignment
+  (`m[0] = '{1,2,3}` for int[2][3] — was "sorry") via slice l-values
+  (NetAssign_::set_array_slice: flat base word + sub-array type) and
+  offset-aware pattern codegen. All shapes (2D/3D int, real, string) pass
+  locally; full validation running.
+
+## State as of 2026-07-21g (`%p` aggregate formatting — FIXED, M4B)
+
+- **`%p` (assignment-pattern format) on integral aggregates now correct.**
+  Was a silent miscompile: the old handler asked every element for
+  `vpiStringVal`, so integral elements rendered as raw ASCII bytes (`99`
+  came out as `'c'`) and queue/dynamic-array elements hit an unimplemented
+  `get_word(string)` path and printed empty. Observed before:
+  `queue='{, }`, `assoc='{c, *}`, `dyn='{, , }`, `scalar=<garbage byte>`.
+  Fix: rewrote the handler as a recursive assignment-pattern formatter
+  `format_p_value` (`vpi/sys_display.c`) that dispatches on the element's
+  natural type — integral → decimal, real → `%g`, string → quoted — and
+  recurses into arrays/queues/dynamic/associative arrays. Two supporting
+  runtime fixes: (1) associative vector keys were the raw internal byte
+  encoding; `peek_entry` now renders them as decimal (`vvp_assoc.h`,
+  `vpiName` on an assoc element exposes the key via
+  `vpi_darray.cc get_word_str`); (2) real/string **queue** elements were
+  mis-detected as vec4 (queue subclasses differ from darray subclasses),
+  fixed in `get_word_value`. Also fixed an empty-container buffer overflow
+  in the formatter (`'{}` case).
+  Now: `queue='{10, 20}`, `assoc='{3:99, 7:42}`, `dyn='{1, 2, 3}`,
+  `fix='{5, 6, 7, 8}`, string queue `'{"foo", "bar"}`, real queue
+  `'{1.5, 2.25}`, `scalar=195`, empty `'{}`.
+  Test `sv_display_p_aggregates`.
+  **Known remaining refinements (not silent miscompiles — noted in the
+  manifesto M4B item):** signed integral darray/queue elements render
+  unsigned (element signedness isn't carried through the container VPI
+  path); a packed struct prints as one decimal rather than a
+  `'{member:val}` pattern.
+- **Validation:** ivtest full default run **byte-identical to baseline**
+  (3064 passed / 44 failed, 0 new / 0 stale by name; +2 new tests); UVM
+  suite 209/0/0.
+
+## State as of 2026-07-21f (loop-local capture by inline detached fork — FIXED)
+
+- **A loop-body `automatic` captured by an inline detached (join_none/
+  join_any) fork now gets the correct per-iteration value inside a class
+  method (previously it read the loop's final value).** This closes the
+  "Known residual" noted in the 2026-07-21e entry below.
+  Root cause: `PBlock::elaborate_scope` (`elab_scope.cc`) collapses an
+  automatic begin/fork block into the enclosing task activation frame
+  (upstream single-task-frame model), so the loop-body block that declared
+  `automatic int idx = i;` shared ONE storage slot across all iterations.
+  A detached branch reading `idx` after the iteration completed therefore
+  saw only the final value. At module scope the identical block already
+  kept a per-entry frame (its static parent is never collapsed), so the two
+  contexts disagreed — module gave `4 3 2 1 0`, the class method gave
+  `4 4 4 4 4`.
+  Fix (IEEE 1800-2017 9.3.2): decline the frame-collapse for a block that
+  BOTH declares its own automatic locals AND lexically contains a detached
+  fork. Such a block keeps a per-entry `%alloc`/`%free` frame, so each loop
+  iteration allocates a fresh copy that the spawned branch retains —
+  matching module-scope behaviour. New predicate
+  `Statement::contains_detached_fork()` (virtual, overridden in the pform
+  container statements) drives the decision; the collapse gate in
+  `elab_scope.cc` adds `&& !keeps_frame_for_capture`.
+  The outer-automatic / `this` access from the now-own-frame block resolves
+  through the same single-live-activation fallback that fixed m7 (#103), so
+  the fix composes cleanly with it.
+  Test: `sv_loop_local_detached_fork` (class flat loop, class nested
+  detached fork, module-scope loop — all in one run).
+- **Validation:** ivtest full default run **byte-identical to baseline**
+  (3062 passed / 44 failed, 0 new / 0 stale by name); UVM suite **209/0/0**
+  (0 skips); the `this`-in-detached-fork and fork-arg-capture ivtests still
+  pass.
+
+## State as of 2026-07-21e (M7 GREEN — `this`-in-nested-detached-fork fix)
+
+- **m7_objection_stress_test — FIXED; full UVM suite 209/0/0 (zero skips).**
+  Root cause (issue #103, closed): a reference to `this` (or an enclosing
+  automatic) from a detached (join_none) fork body nested inside another
+  detached fork resolved to **null** for later loop iterations — the forked
+  thread's inherited automatic-context chain stopped linking back to the
+  owning activation frame across frame reuse. In UVM's phase hopper the
+  per-phase `drop_objection` runs in exactly this fork shape, so for
+  common.run/common.check `this` went null, `get_objection()` returned null,
+  and `drop_objection()` silently no-op'd on the null handle → two
+  phase-hopper objections never dropped → run never completed.
+  Fix: strictly-additive single-live-activation fallback in
+  `vthread_get_rd_context_item_scoped` (`vvp/vthread.cc`) — only on the
+  otherwise-null path. Commit `9f3666d`. Tests
+  `sv_this_nested_detached_fork` + `m7_objection_stress_test` (un-skipped).
+- **Earlier misdiagnoses corrected on the way:** it was NOT objection count
+  propagation (traced to uvm_top=0 correctly) and NOT the #102 forked-arg
+  capture (real bug, fixed in `9f1909b`, but orthogonal — the hopper uses an
+  inline `automatic phase = ph` capture that already worked). #102 handles a
+  single-branch `fork task(args); join_none`; this fix handles the implicit
+  `this` from a general inline detached fork body.
+- **Known residual (RESOLVED 2026-07-21f, see entry above):** a loop-local
+  captured by a general inline detached fork body resolved to its last
+  value, not the per-iteration value. Now fixed by declining the
+  frame-collapse for automatic-local blocks that contain a detached fork.
+  `this` was always unaffected (single live activation for a non-recursive
+  method).
+
+## State as of 2026-07-21d (P0 silent miscompile: real/string class-property arrays)
+
+- **Class-property unpacked arrays of `real`/`string` — FIXED (was a
+  silent miscompile, #100).** The real/string cobject property store/load
+  opcodes carried no element index, so every element resolved to one slot:
+  element-wise writes clobbered each other and whole-array patterns
+  aborted (real) or emptied (string). Now array-capable:
+  `property_real`/`property_string` carry an array size (mirroring
+  `property_object`/`property_atom`); new opcodes
+  `%store/prop/{r,str}/i` and `%prop/{r,str}/i` select the element;
+  codegen updated in `stmt_assign.c` (element-wise + whole-array pattern
+  via `draw_prop_{real,str}_array_pattern`), `eval_real.c`, and
+  `eval_string.c`. Verified: element-wise, pattern, variable-index
+  read/write, scalar-property regression, and shallow copy (array-aware
+  `property::copy`). Test `sv_class_prop_real_string_array`.
+- **#101 investigated and closed as not-a-bug.** `C d = new src;` for a
+  *static* variable is a static initializer that runs before time 0
+  (IEEE 1800-2017 §6.21), so it copies `src`'s pre-write state — correct
+  ordering, not a copy failure (iverilog warns about the static lifetime).
+  The procedural forms (`d = new src;`, or an `automatic` variable) copy
+  the post-write value correctly. The #100 test uses the statement form.
+
+## State as of 2026-07-21c (M4B known crashes: member access, array pattern, uarray func return)
+
+- **Member access on an element of an unpacked array of a packed struct
+  (`pair_t arr[N]; arr[i].m`) — FIXED (crash, read + write).** The
+  unpacked index was mistaken for a packed dimension. Read path
+  `elab_expr.cc` (check_for_struct_members), write path `elab_lval.cc`
+  (elaborate_lval_net_packed_member_). Commit `a3cc376`. Test
+  `sv_unpacked_array_packed_struct_member`.
+- **Whole-array assignment pattern into a class-property unpacked array of
+  a packed type (`obj.arr = '{...}`) — FIXED (was a zero-fallback
+  miscompile).** The logic-property store fed the array pattern to
+  `draw_eval_vec4`, which cannot evaluate an array pattern and emitted a
+  "zero fallback" (arr left 0/x). New `draw_prop_array_pattern` stores
+  each element via `%store/prop/v/i`. Handles packed-struct arrays, int
+  arrays, and nested (multi-dim) patterns. Commit `658dd8b`. Test
+  `sv_class_prop_array_pattern`.
+- **Function returning an unpacked array assigned as a whole array
+  (`r = make()`) — NO LONGER CRASHES; now a graceful diagnostic.** The
+  vvp calling convention has no unpacked-array return path, so codegen
+  aborted (`store_vec4_to_lval` assertion). `elaborate.cc`
+  (PAssign::elaborate netuarray branch) now detects a uarray-returning
+  `NetEUFunc` r-value and emits a clean `sorry`. Full support (a real
+  unpacked-array return path) remains open — issue #99. CE test
+  `sv_uarray_func_return_fail`.
+- **Filed #100:** class-property unpacked arrays of `real`/`string` store
+  every element to the same slot (broken even element-wise; no indexed
+  real/string property store opcode). Distinct, deeper defect; not
+  touched by the array-pattern fix (which only covers logic/packed
+  elements).
+- Module-scope nested literal into an unpacked array of packed struct
+  (`arr = '{'{..},'{..}}`) works on all probed shapes (positional, named,
+  struct-of-struct, 2-D). Each increment ivtest name-diff clean (44
+  expected, 0 new, 0 stale).
+
+## State as of 2026-07-21b (P0 $unit timescale + array-of-object property crash)
+
+- **`$unit` class timescale (P0) — FIXED.** `$time`/`$realtime` in a
+  `$unit`-scope class method scaled to `$unit` (1 s) -> stored `$time` gave
+  0. `vpi/sys_time.c` `sys_time_scope()` now stops the scope walk before a
+  package/`$unit`. Commit `8e60735`. Test `sv_unit_class_timescale`.
+- **`arr[i].prop` for a static array of class handles (#97) — FIXED
+  (crash + store + read).** Was an ivl crash; the l-value elaboration
+  dropped the array index + property, and the read base dropped the index
+  too. Fixes in `elab_lval.cc`, `tgt-vvp/stmt_assign.c`, `elab_expr.cc`.
+  Commits `e370bdf`, `40e0f26`. Test `sv_array_obj_prop_store`.
+- All on PR #96; each increment ivtest name-diff clean (44 expected, 0
+  new). Next manifesto item: M4B known crashes (nested packed-struct array
+  literal; unpacked-array typedef return + assignment pattern).
+
+## State as of 2026-07-21 (P0 per-instance class events + fork double-reap fix)
+
+- **Per-instance class events (P0) — IMPLEMENTED.** Non-static class
+  `event` properties are now per-instance (IEEE 1800-2017 15.5): `->obj.ev`
+  triggers only that object's event, `@(obj.ev)` waits on the correct
+  object. Runtime = a lazily-allocated `vvp_net_t` + `vvp_named_event_dyn`
+  per (object, global slot) on `vvp_cobject`; new opcodes `%evt/obj`,
+  `%evt/obj/nb`, `%wait/obj`, `%evtest/obj`. Compiler = `NetEvTrigObj` /
+  `NetEvWaitObj` + IR types `IVL_ST_{TRIGGER,NB_TRIGGER,WAIT}_OBJ`;
+  `elaborate_class_event_target_` (elaborate.cc) resolves the object
+  handle (this-handle for bare members; prefix elaborated only after
+  symbol_search confirms a real net, so hierarchical `inst.ev` refs are
+  never speculatively elaborated). Handles obj.ev / a.b.ev / arr[i].ev /
+  assoc `m_events[k].ev`. Commit `aa42c4d`. Test
+  `ivtest/ivltests/sv_class_event_per_instance.v`.
+- **Fork double-reap crash — FIXED (pre-existing, independent).**
+  `vthread_reap` didn't empty its child sets, so of_DISABLE_FORK's second
+  reap of an already-reaped detached child tripped `child->parent == thr`.
+  Made reap idempotent (pop-erase). Commit `a3b591b`. Test
+  `ivtest/ivltests/fork_disable_detached_grandchild.v` (no class events).
+- **Validation:** full vendored ivtest name-diff CLEAN (44 expected
+  failures, 0 new, 0 stale). UVM front-door stress passes. Both new tests
+  pass.
+- **REMAINING M7 blocker (layer-3, separate):** the UVM
+  `phase_hopper_objection` never all-drops to the top (uvm_root) under
+  concurrent objection traffic -- its integer count for uvm_root never
+  returns to 0 (all_dropped is called for every component key but never
+  uvm_root). This is objection COUNT propagation, independent of events;
+  the shared-event cross-wake previously masked it. Blocks clean run-phase
+  completion in `m7_objection_stress_test` (counters pass; end-of-sim time
+  check fails -> on harness KNOWN_FAIL). **Next:** trace m_propagate /
+  m_drop for a `uvm_phase`-keyed objection climbing to m_top; see
+  session log 2026-07-21 for the instrumented evidence.
+- **Also found (unrelated P1 crash, filed):** `arr[i].prop = expr` where
+  `arr` is an unpacked array of class handles crashes ivl in
+  `show_stmt_assign_sig_cobject` -> `ivl_expr_value(NULL)`. No events.
+- **Known limitation:** `obj.ev.triggered` still uses the shared-event
+  path (%evtest/obj opcode exists but isn't wired into expression
+  elaboration yet); pre-existing, not a new regression.
+
 ## State as of 2026-07-17e (M12B-cb: assertion VPI callbacks)
 
 - **`vpi_register_assertion_cb` now works** for

@@ -88,6 +88,16 @@ class Statement : virtual public LineInfo {
       virtual void elaborate_scope(Design*des, NetScope*scope) const;
       virtual void elaborate_sig(Design*des, NetScope*scope) const;
 
+	// True if this statement (or a sub-statement within the same
+	// activation frame) is a detached fork — a fork/join_none or
+	// fork/join_any whose spawned branches outlive the statement.
+	// Used by elaborate_scope to decide whether an automatic block
+	// that declares its own locals may be collapsed into the
+	// enclosing task frame: a block whose locals are captured by a
+	// detached branch must keep a per-entry frame so each loop
+	// iteration produces a distinct copy (IEEE 1800-2017 9.3.2).
+      virtual bool contains_detached_fork() const { return false; }
+
       std::map<perm_string,PExpr*> attributes;
 };
 
@@ -221,6 +231,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
+      bool contains_detached_fork() const override;
 
       SymbolType symbol_type() const override;
 
@@ -333,6 +344,7 @@ class PCase  : public Statement {
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
+      bool contains_detached_fork() const override;
 
     private:
       ivl_case_quality_t quality_;
@@ -429,6 +441,7 @@ class PCondit  : public Statement {
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
+      bool contains_detached_fork() const override;
 
     private:
       PExpr*expr_;
@@ -473,6 +486,7 @@ class PDelayStatement  : public Statement {
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
+      bool contains_detached_fork() const override;
 
     private:
       PExpr*delay_;
@@ -496,6 +510,7 @@ class PCycleDelay : public Statement {
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
+      bool contains_detached_fork() const override;
 
     private:
       PExpr*count_;
@@ -532,6 +547,7 @@ class PDoWhile  : public Statement {
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
+      bool contains_detached_fork() const override;
 
     private:
       PExpr*cond_;
@@ -578,6 +594,8 @@ class PEventStatement  : public Statement {
       NetProc* elaborate_wait(Design*des, NetScope*scope, NetProc*st) const;
       NetProc* elaborate_wait_fork(Design*des, const NetScope*scope) const;
 
+      bool contains_detached_fork() const override;
+
     private:
       std::vector<PEEvent*>expr_;
       Statement*statement_;
@@ -618,6 +636,7 @@ class PForeach : public Statement {
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
+      bool contains_detached_fork() const override;
 
     private:
       NetProc* elaborate_assoc_array_(Design*des, NetScope*scope,
@@ -652,6 +671,7 @@ class PForever : public Statement {
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
+      bool contains_detached_fork() const override;
 
     private:
       Statement*statement_;
@@ -668,6 +688,7 @@ class PForStatement  : public Statement {
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
+      bool contains_detached_fork() const override;
 
     private:
       PExpr* name1_;
@@ -699,6 +720,7 @@ class PRepeat : public Statement {
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
+      bool contains_detached_fork() const override;
 
     private:
       PExpr*expr_;
@@ -782,6 +804,7 @@ class PWhile  : public Statement {
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
+      bool contains_detached_fork() const override;
 
     private:
       PExpr*cond_;

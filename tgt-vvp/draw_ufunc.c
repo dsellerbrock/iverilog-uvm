@@ -585,6 +585,17 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
 	    call_type = scope_type;
       }
 
+	/* A function whose return type is an unpacked array delivers its
+	   result through the emitted return-array signal, not through the
+	   %ret machinery (which has no array representation). Call it like a
+	   void function; the caller copies the words out of the return array
+	   after the call, before the callee frame is freed. */
+      {
+	    ivl_signal_t retsig = ivl_scope_port(def, 0);
+	    if (retsig && ivl_signal_dimensions(retsig) > 0)
+		  call_type = IVL_VT_VOID;
+      }
+
       switch (call_type) {
 	  case IVL_VT_VOID:
 	    fprintf(vvp_out, "    %%callf/void%s TD_%s",
@@ -736,6 +747,68 @@ void draw_ufunc_object(ivl_expr_t expr)
 		    ivl_scope_name(def), ret_type);
 	    fprintf(vvp_out, "    %%null; ; non-object ufunc fallback\n");
       }
+
+      draw_ufunc_epilogue(expr);
+}
+
+/*
+ * Call a function whose return type is an unpacked array and copy the
+ * result into dst_sig starting at flat word dst_base (0 for a whole-array
+ * target; a slice target's flat base word otherwise). The preamble calls
+ * the function like a void function (see draw_ufunc_preamble); the function
+ * body has stored the result words into its emitted return-array signal,
+ * which remains readable here because the callee frame is not freed until
+ * the epilogue below.
+ */
+void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
+		       unsigned dst_base)
+{
+      ivl_scope_t def = ivl_expr_def(expr);
+      ivl_signal_t retval = ivl_scope_port(def, 0);
+      unsigned word_count = ivl_signal_array_count(retval);
+      unsigned idx;
+
+      draw_ufunc_preamble(expr);
+
+      int ix = allocate_word();
+      for (idx = 0 ; idx < word_count ; idx += 1) {
+	    switch (ivl_signal_data_type(retval)) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", ix, idx);
+		  fprintf(vvp_out, "    %%load/vec4a v%p, %d;\n", retval, ix);
+		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n",
+			  ix, dst_base + idx);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  fprintf(vvp_out, "    %%store/vec4a v%p, %d, 0;\n",
+			  dst_sig, ix);
+		  break;
+		case IVL_VT_REAL:
+		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", ix, idx);
+		  fprintf(vvp_out, "    %%load/ar v%p, %d;\n", retval, ix);
+		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n",
+			  ix, dst_base + idx);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  fprintf(vvp_out, "    %%store/reala v%p, %d;\n",
+			  dst_sig, ix);
+		  break;
+		case IVL_VT_STRING:
+		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", ix, idx);
+		  fprintf(vvp_out, "    %%load/stra v%p, %d;\n", retval, ix);
+		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n",
+			  ix, dst_base + idx);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  fprintf(vvp_out, "    %%store/stra v%p, %d;\n",
+			  dst_sig, ix);
+		  break;
+		default:
+		  fprintf(stderr, "draw_ufunc_uarray: sorry: unsupported "
+			  "element type %d for unpacked-array return of %s\n",
+			  ivl_signal_data_type(retval), ivl_scope_name(def));
+		  break;
+	    }
+      }
+      clr_word(ix);
 
       draw_ufunc_epilogue(expr);
 }

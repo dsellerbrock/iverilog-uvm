@@ -5524,6 +5524,35 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 	    struct_type = dynamic_cast<const netstruct_t*>(net->array_type()->element_type());
       ivl_assert(*li, struct_type);
 
+	// An UNPACKED array of a PACKED struct (`pair_t arr[N]; arr[i].m`)
+	// reaches the packed member handling below with a struct that
+	// reports packed()==true, but base_index here indexes the UNPACKED
+	// array -- not packed dimensions -- so the packed-dimension
+	// assertion and array-collapse do not apply. Detect it, index the
+	// element, and part-select the member off the element vector.
+      NetExpr*ua_canon_index = 0;
+      bool ua_of_packed = false;
+      if (struct_type->packed() && net->array_type()
+	  && net->unpacked_dimensions() > 0
+	  && !base_index.empty()
+	  && base_index.size() == net->unpacked_dimensions()) {
+	    std::list<NetExpr*> ua_idx;
+	    std::list<long> ua_idx_const;
+	    indices_flags ua_flags;
+	    indices_to_expressions(des, scope, li, base_index,
+				   net->unpacked_dimensions(), false, ua_flags,
+				   ua_idx, ua_idx_const);
+	    if (!ua_flags.invalid && !ua_flags.undefined) {
+		  ua_canon_index = ua_flags.variable
+			? normalize_variable_unpacked(net, ua_idx)
+			: normalize_variable_unpacked(net, ua_idx_const);
+	    }
+	    if (ua_canon_index) {
+		  ua_canon_index->set_line(*li);
+		  ua_of_packed = true;
+	    }
+      }
+
       if (! struct_type->packed()) {
 	    NetExpr*base_expr = nullptr;
 
@@ -5871,10 +5900,11 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 	// match the declaration of "b".
 	// Note that one of the packed dimensions is the packed struct
 	// itself.
-      ivl_assert(*li, base_index.size()+1 == net->packed_dimensions());
+      if (!ua_of_packed)
+	    ivl_assert(*li, base_index.size()+1 == net->packed_dimensions());
 
       NetExpr*packed_base = 0;
-      if (net->packed_dimensions() > 1) {
+      if (!ua_of_packed && net->packed_dimensions() > 1) {
 	    list<index_component_t>tmp_index = base_index;
 	    index_component_t member_select;
 	    member_select.sel = index_component_t::SEL_BIT;
@@ -5895,7 +5925,8 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 	    packed_base = 0;
       }
 
-      NetESignal*sig = new NetESignal(net);
+      NetESignal*sig = ua_of_packed ? new NetESignal(net, ua_canon_index)
+	                            : new NetESignal(net);
       NetExpr   *base = packed_base? packed_base : make_const_val(off);
       NetESelect*sel = new NetESelect(sig, base, use_width, member_type);
 
@@ -6136,8 +6167,40 @@ static NetExpr* elaborate_root_indexed_class_base_expr_(const LineInfo*li,
 		    return base_expr;
 
 	      const netdarray_t*darray = net->darray_type();
-	      if (!darray)
+	      if (!darray) {
+		      // Static unpacked array of class handles (`c arr[N];
+		      // arr[i].prop`). The dynamic-array-only handling below
+		      // dropped the element index, leaving a whole-array base
+		      // that read element 0. Build an indexed element access
+		      // (a NetESignal word select, exactly like a plain
+		      // `arr[i]` object read) so the property read addresses
+		      // the correct element.
+		    if (net->unpacked_dimensions() > 0 && !base_index.empty()) {
+			  std::list<NetExpr*> idx_exprs;
+			  std::list<long> idx_consts;
+			  indices_flags flags;
+			  indices_to_expressions(des, scope, li, base_index,
+						 net->unpacked_dimensions(),
+						 false, flags,
+						 idx_exprs, idx_consts);
+			  NetExpr*canon = 0;
+			  if (flags.invalid || flags.undefined)
+				canon = 0;
+			  else if (flags.variable)
+				canon = normalize_variable_unpacked(net, idx_exprs);
+			  else
+				canon = normalize_variable_unpacked(net, idx_consts);
+
+			  if (canon) {
+				NetESignal*elem = new NetESignal(net, canon);
+				elem->set_line(*li);
+				out_type = elem->net_type();
+				delete base_expr;
+				return elem;
+			  }
+		    }
 		    return base_expr;
+	      }
 
 	      if (base_index.size() != 1) {
 		    cerr << li->get_fileline() << ": sorry: "
@@ -7693,6 +7756,45 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    target_type = darray->element_type();
 	    target_indexed = true;
 	    applied_root_queue_select = true;
+      }
+
+	// Apply the root index for a STATIC unpacked array of class handles
+	// or virtual interfaces (`arr[i].method()`). Without this the index
+	// was silently dropped: the receiver stayed the bare array signal,
+	// which evaluates as word 0, so every function-method call
+	// dispatched through the first element. (The task-method path had
+	// the same defect, fixed in elaborate_root_indexed_method_target_
+	// expr_.)
+      if (search_results.net
+	  && !applied_root_queue_select
+	  && search_results.net->darray_type() == 0
+	  && search_results.net->unpacked_dimensions() == 1
+	  && !search_results.path_head.empty()
+	  && search_results.path_head.back().index.size() == 1
+	  && search_results.path_head.back().index.back().sel
+		== index_component_t::SEL_BIT
+	  && search_results.path_head.back().index.back().msb != 0
+	  && search_results.path_head.back().index.back().lsb == 0) {
+	    NetNet*net = search_results.net;
+	    const index_component_t&use_index =
+		  search_results.path_head.back().index.back();
+	    NetExpr*mux = elab_and_eval(des, scope, use_index.msb, -1, false);
+	    if (mux) {
+		  std::list<NetExpr*> idx1;
+		  idx1.push_back(mux);
+		  if (NetExpr*canon = normalize_variable_unpacked(net, idx1)) {
+			canon->set_line(*this);
+			NetESignal*elem = new NetESignal(net, canon);
+			elem->set_line(*this);
+			delete sub_expr;
+			sub_expr = elem;
+			if (const netuarray_t*uarray =
+				  dynamic_cast<const netuarray_t*>(
+					net->array_type()))
+			      target_type = uarray->element_type();
+			target_indexed = true;
+		  }
+	    }
       }
 
 	      while (method_path.size() > 1) {

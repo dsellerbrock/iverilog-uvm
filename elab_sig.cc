@@ -1358,7 +1358,23 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 			if (return_type_)
 			      return_type_->pform_dump(cerr, 8);
 		  }
-		  ret_sig = new NetNet(scope, fname, NetNet::REG, ret_type);
+		  if (const netuarray_t*ret_ua =
+			dynamic_cast<const netuarray_t*>(ret_type)) {
+			  // A function returning an unpacked array (issue
+			  // #99): the return signal must be a real array --
+			  // the NetNet needs its unpacked dimensions split
+			  // out, else it degenerates to a scalar of array
+			  // type, the body's element stores target an array
+			  // that is never emitted, and callers see a 1-bit
+			  // return. The function body stores the result into
+			  // this array and the caller copies the words out
+			  // after the call.
+			ret_sig = new NetNet(scope, fname, NetNet::REG,
+					     ret_ua->static_dimensions(),
+					     ret_ua->element_type());
+		  } else {
+			ret_sig = new NetNet(scope, fname, NetNet::REG, ret_type);
+		  }
 
 		  ret_sig->set_line(*this);
 		  ret_sig->port_type(NetNet::POUTPUT);

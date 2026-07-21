@@ -318,6 +318,49 @@ const NetEvent* NetEvNBTrig::event() const
       return event_;
 }
 
+/*
+ * Assign a design-global unique slot to a class-member event on first
+ * use. A globally unique id (rather than a per-class index) guarantees
+ * that base-class and derived-class events never collide within one
+ * runtime object's per-instance event table.
+ */
+unsigned NetEvent::obj_slot()
+{
+      static unsigned next_obj_slot = 0;
+      if (!obj_slot_set_) {
+	    obj_slot_ = next_obj_slot++;
+	    obj_slot_set_ = true;
+      }
+      return obj_slot_;
+}
+
+NetEvTrigObj::NetEvTrigObj(NetExpr*obj, unsigned slot, bool nb, NetExpr*dly)
+: obj_(obj), slot_(slot), nb_(nb), dly_(dly)
+{
+}
+
+NetEvTrigObj::~NetEvTrigObj()
+{
+      delete obj_;
+      delete dly_;
+}
+
+NetEvWaitObj::NetEvWaitObj(NetExpr*obj, unsigned slot)
+: obj_(obj), slot_(slot)
+{
+}
+
+NetEvWaitObj::~NetEvWaitObj()
+{
+      delete obj_;
+      delete statement_;
+}
+
+DelayType NetEvWaitObj::delay_type(bool) const
+{
+      return POSSIBLE_DELAY;
+}
+
 NetEvProbe::NetEvProbe(NetScope*s, perm_string n, NetEvent*tgt,
 		       edge_t t, unsigned p)
 : NetNode(s, n, p), event_(tgt), edge_(t)

@@ -519,6 +519,14 @@ struct vthread_s {
 	   Counted at creation; when the last one completes, simulation
 	   implicitly finishes. */
       unsigned is_program_init :1;
+	// process::suspend()/resume() (IEEE 1800-2017 9.7.2). `suspended`
+	// marks the process as suspended; a suspended thread is skipped by
+	// vthread_run and reports PROCESS_STATE_SUSPENDED. `suspend_resched`
+	// records that resume() must reschedule the thread (either it
+	// self-suspended mid-run, or an event tried to wake it while it was
+	// suspended) so the process continues where it left off.
+      unsigned suspended :1;
+      unsigned suspend_resched :1;
       unsigned owns_automatic_context :1;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
@@ -730,6 +738,9 @@ unsigned vvp_process::status() const
 
       if (owner_->i_have_ended)
 	    return PROCESS_STATE_FINISHED;
+
+      if (owner_->suspended)
+	    return PROCESS_STATE_SUSPENDED;
 
       if (owner_->i_am_waiting || owner_->waiting_for_event || owner_->i_am_joining)
 	    return PROCESS_STATE_WAITING;
@@ -3493,6 +3504,8 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
 	    }
       }
       thr->is_program_init = 0;
+      thr->suspended = 0;
+      thr->suspend_resched = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context = 0;
       thr->skip_free_context = 0;
@@ -3564,46 +3577,52 @@ void vthreads_delete(class __vpiScope*scope)
  */
 static void vthread_reap(vthread_t thr)
 {
-      if (! thr->children.empty()) {
+	/* Reparent children to the grandparent, emptying our child sets as
+	 * we go. Emptying the sets (rather than leaving stale entries) makes
+	 * vthread_reap idempotent: a thread can be reaped more than once
+	 * (e.g. of_DISABLE_FORK reaps a detached child that do_disable has
+	 * already reaped) without re-processing children whose parent
+	 * pointers were rewritten by the first reap -- which previously
+	 * tripped the `child->parent == thr` assertion below. Mirror of_END's
+	 * while/pop erase discipline. */
+      while (! thr->children.empty()) {
 	      /* Non-detached children of a thread being reaped must be
 	       * reparented to the grandparent so they remain reachable;
 	       * also insert them into the grandparent's children set so
 	       * that their later cleanup can find them. */
-	    for (set<vthread_t>::iterator cur = thr->children.begin()
-		       ; cur != thr->children.end() ; ++cur) {
-		  vthread_t child = *cur;
-		  assert(child);
-		  assert(child->parent == thr);
-		  if (thr->parent) {
-			child->parent = thr->parent;
-			child->is_reactive_process |= thr->is_reactive_process;
-			thr->parent->children.insert(child);
-		  } else {
-			child->parent = 0;
-		  }
+	    set<vthread_t>::iterator cur = thr->children.begin();
+	    vthread_t child = *cur;
+	    assert(child);
+	    assert(child->parent == thr);
+	    if (thr->parent) {
+		  child->parent = thr->parent;
+		  child->is_reactive_process |= thr->is_reactive_process;
+		  thr->parent->children.insert(child);
+	    } else {
+		  child->parent = 0;
 	    }
+	    thr->children.erase(cur);
       }
-      if (! thr->detached_children.empty()) {
+      while (! thr->detached_children.empty()) {
 	      /* When a thread ends with detached children still alive,
 	       * SystemVerilog `wait fork` semantics require those grandchildren
 	       * to remain reachable from the still-living grandparent so that
 	       * an outer `wait fork` can wait for them.  Reparent them to
 	       * thr->parent and keep them in detached_children. */
-	    for (set<vthread_t>::iterator cur = thr->detached_children.begin()
-		       ; cur != thr->detached_children.end() ; ++cur) {
-		  vthread_t child = *cur;
-		  assert(child);
-		  assert(child->parent == thr);
-		  assert(child->i_am_detached);
-		  if (thr->parent) {
-			child->parent = thr->parent;
-			child->is_reactive_process |= thr->is_reactive_process;
-			thr->parent->detached_children.insert(child);
-		  } else {
-			child->parent = 0;
-			child->i_am_detached = 0;
-		  }
+	    set<vthread_t>::iterator cur = thr->detached_children.begin();
+	    vthread_t child = *cur;
+	    assert(child);
+	    assert(child->parent == thr);
+	    assert(child->i_am_detached);
+	    if (thr->parent) {
+		  child->parent = thr->parent;
+		  child->is_reactive_process |= thr->is_reactive_process;
+		  thr->parent->detached_children.insert(child);
+	    } else {
+		  child->parent = 0;
+		  child->i_am_detached = 0;
 	    }
+	    thr->detached_children.erase(cur);
       }
       if (thr->parent) {
 	      /* assert that the given element was removed. */
@@ -3918,6 +3937,16 @@ void vthread_run(vthread_t thr)
 
 	    assert(thr->is_scheduled);
 	    thr->is_scheduled = 0;
+
+	      // A suspended process (process::suspend()) does not run. What
+	      // tried to schedule it — an event wake, a %join, or its ready
+	      // state at suspend time — is remembered so resume() reschedules
+	      // it to continue where it left off.
+	    if (thr->suspended) {
+		  thr->suspend_resched = 1;
+		  thr = tmp;
+		  continue;
+	    }
 
             running_thread = thr;
             __vpiScope*run_ctx_scope = resolve_context_scope(thr->parent_scope);
@@ -4584,6 +4613,25 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
                   use_context = wt_context;
                   source = "wt";
                   ctx_stats_bump("rd-scoped.wt-deep");
+            }
+      }
+      if (!use_context) {
+            /* Additive last-resort fallback (only reached when every chain
+               walk above already failed, i.e. the reference would otherwise
+               resolve to null). This happens for a reference to `this` or an
+               enclosing automatic from a nested detached (join_none) fork
+               whose inherited context chain no longer links back to the
+               owning activation frame (issue #103). If the target automatic
+               scope has exactly ONE live activation there is no ambiguity
+               about which frame the reference belongs to, so use it.
+               Recursive scopes (more than one live context) stay on the
+               null path as before, since the correct activation cannot be
+               disambiguated here. */
+            if (ctx_scope->live_contexts
+                && vvp_get_next_context(ctx_scope->live_contexts) == 0) {
+                  use_context = ctx_scope->live_contexts;
+                  source = "single-live";
+                  ctx_stats_bump("rd-scoped.single-live");
             }
       }
       if (!use_context) {
@@ -9207,6 +9255,78 @@ bool of_EVENT(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %evt/obj <slot>
+ * Per-instance class event trigger (IEEE 1800-2017 15.5.1: `->obj.ev`).
+ * The object handle has already been pushed on the object stack (via
+ * draw_eval_object). Pop it, fetch its own event net for <slot>, and
+ * deliver the trigger to port 0 -- exactly as %event does for a static
+ * named event, but on the object's private vvp_named_event_dyn functor so
+ * only that object's waiters wake.
+ */
+bool of_EVT_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj) {
+	    fprintf(stderr, "%%evt/obj: trigger on null object handle\n");
+	    return true;
+      }
+
+      vvp_net_t*net = cobj->get_inst_event(cp->number);
+      vvp_net_ptr_t ptr (net, 0);
+      vvp_vector4_t tmp (1, BIT4_X);
+      vvp_send_vec4(ptr, tmp, ensure_write_context_(thr, "evt-obj"));
+      return true;
+}
+
+/*
+ * %evt/obj/nb <slot>, <delay-word>
+ * Nonblocking per-instance class event trigger (IEEE 1800-2017 15.5.1:
+ * `->>obj.ev`). Like %event/nb, deliver to the object's event functor in
+ * the NBA region of the target time step.
+ */
+bool of_EVT_OBJ_NB(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj) {
+	    fprintf(stderr, "%%evt/obj/nb: trigger on null object handle\n");
+	    return true;
+      }
+
+      vvp_net_t*net = cobj->get_inst_event(cp->number);
+      vvp_time64_t delay = thr->words[cp->bit_idx[0]].w_uint;
+      vvp_vector4_t tmp (1, BIT4_X);
+      schedule_assign_vector(vvp_net_ptr_t(net, 0), 0, 0, tmp, delay,
+			     thr->is_reactive_process);
+      return true;
+}
+
+/*
+ * %evtest/obj <slot>
+ * Push a 1-bit vec4: 1 if the object's per-instance event for <slot> was
+ * triggered in the current time step (IEEE 1800-2017 15.5.3 triggered
+ * property), else 0. Pops the object handle.
+ */
+bool of_EVTEST_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      bool trig = false;
+      if (cobj) {
+	    vvp_net_t*net = cobj->get_inst_event(cp->number);
+	    vvp_named_event*fun = dynamic_cast<vvp_named_event*>(net->fun);
+	    trig = fun && fun->triggered_now();
+      }
+      vvp_vector4_t val(1, trig ? BIT4_1 : BIT4_0);
+      thr->push_vec4(val);
+      return true;
+}
+
+/*
  * %event/nb <var-label>, <delay>
  *
  * The nonblocking event trigger (IEEE 1800-2017 15.5.1): deliver the
@@ -13174,6 +13294,90 @@ bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
       return !self_kill;
 }
 
+/*
+ * %process/suspend
+ *   Pop a process object and suspend its owning thread (IEEE 1800-2017
+ *   9.7.2). A suspended thread is skipped by vthread_run until resumed. If
+ *   a process suspends itself the suspension takes effect immediately: the
+ *   opcode parks the thread (returns false) after marking it so resume()
+ *   will reschedule it to continue. Suspending an already ready/running
+ *   thread likewise marks it for reschedule; suspending a thread that is
+ *   blocked (waiting on an event/join) leaves the block in place and lets
+ *   the eventual wake re-arm the reschedule.
+ */
+bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      vvp_process*proc = obj.peek<vvp_process>();
+      if (!proc)
+	    return true;
+
+      vthread_t target = proc->owner();
+      if (!target)
+	    return true;
+
+      unsigned status = proc->status();
+      if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
+	    return true;
+
+	// Idempotent: suspending an already-suspended process is a no-op.
+      if (target->suspended)
+	    return true;
+
+      target->suspended = 1;
+
+      vthread_t self_process = logical_process_thread_(thr);
+      bool self_suspend = (target == thr) || (target == self_process);
+
+	// A running/ready process must be rescheduled by resume() to make
+	// progress. A blocked process (waiting on an event or join) will have
+	// its reschedule armed by vthread_run when the wake is delivered.
+      if (self_suspend || target->is_scheduled)
+	    target->suspend_resched = 1;
+
+	// Self-suspension takes effect immediately: park this thread. It is
+	// not placed on any run queue, so only resume() will revive it.
+      if (self_suspend)
+	    return false;
+
+      return true;
+}
+
+/*
+ * %process/resume
+ *   Pop a process object and resume its owning thread (IEEE 1800-2017
+ *   9.7.2). Clearing the suspended flag lets vthread_run run it again; if a
+ *   run was pending (self-suspended, or an event tried to wake it while it
+ *   was suspended) it is rescheduled so it continues where it left off. A
+ *   process still blocked on an event with no pending wake simply resumes
+ *   waiting.
+ */
+bool of_PROCESS_RESUME(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      vvp_process*proc = obj.peek<vvp_process>();
+      if (!proc)
+	    return true;
+
+      vthread_t target = proc->owner();
+      if (!target || !target->suspended)
+	    return true;
+
+      target->suspended = 0;
+
+      if (target->suspend_resched) {
+	    target->suspend_resched = 0;
+	    if (!target->is_scheduled)
+		  schedule_vthread(target, 0, true);
+      }
+
+      return true;
+}
+
 bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
 {
       const char*text = cp->text;
@@ -13691,8 +13895,7 @@ static void get_from_obj(unsigned pid, vvp_vinterface*vif, vvp_vector4_t&val)
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, double&val)
 {
-      (void)idx;
-      val = cobj->get_real(pid);
+      val = cobj->get_real(pid, idx);
 }
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, double&val)
@@ -13703,8 +13906,7 @@ static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, double&
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, string&val)
 {
-      (void)idx;
-      val = cobj->get_string(pid);
+      val = cobj->get_string(pid, idx);
 }
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, string&val)
@@ -13930,6 +14132,66 @@ bool of_PROP_R(vthread_t thr, vvp_code_t cp)
 bool of_PROP_STR(vthread_t thr, vvp_code_t cp)
 {
       return prop<string>(thr, cp);
+}
+
+/*
+ * Indexed element load from a real/string class-property that is an
+ * unpacked array (`obj.arr[i]`). The array index is in the word register
+ * named by cp->bit_idx[0]; pid is the property. Mirrors prop<ELEM> but
+ * selects element idx of the property's array storage.
+ */
+template <typename ELEM>
+static bool prop_i(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid = cp->number;
+      unsigned idx_reg = cp->bit_idx[0];
+      assert(idx_reg < vthread_s::WORDS_COUNT);
+      unsigned idx = thr->words[idx_reg].w_uint;
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%prop/*/i", pid, idx, obj, has_propobj);
+      if (!has_propobj) {
+	    if (!warned_prop_fallback) {
+		  cerr << thr->get_fileline()
+		       << "Warning: %prop/*/i on null/unsupported object handle"
+		       << " (pid=" << pid << ", idx=" << idx
+		       << "); using default value fallback." << endl;
+		  warned_prop_fallback = true;
+	    }
+	    ELEM fallback = ELEM();
+	    vthread_push(thr, fallback);
+	    return true;
+      }
+
+      ELEM val;
+      if (cobj)
+	    get_from_obj(pid, idx, cobj, val);
+      else
+	    get_from_obj(pid, idx, vif, val);
+      vthread_push(thr, val);
+      return true;
+}
+
+/*
+ * %prop/r/i <pid>, <idxreg>
+ * Load element <idxreg> of real-array property <pid> onto the real stack.
+ */
+bool of_PROP_R_I(vthread_t thr, vvp_code_t cp)
+{
+      return prop_i<double>(thr, cp);
+}
+
+/*
+ * %prop/str/i <pid>, <idxreg>
+ * Load element <idxreg> of string-array property <pid> onto the string
+ * stack.
+ */
+bool of_PROP_STR_I(vthread_t thr, vvp_code_t cp)
+{
+      return prop_i<string>(thr, cp);
 }
 
 /*
@@ -15478,8 +15740,7 @@ static void set_val(vvp_vinterface*vif, size_t pid, const vvp_vector4_t&val)
 
 static void set_val(vvp_cobject*cobj, size_t pid, const double&val, size_t idx)
 {
-      (void)idx;
-      cobj->set_real(pid, val);
+      cobj->set_real(pid, val, idx);
 }
 
 static void set_val(vvp_vinterface*vif, size_t pid, const double&val, size_t idx)
@@ -15490,8 +15751,7 @@ static void set_val(vvp_vinterface*vif, size_t pid, const double&val, size_t idx
 
 static void set_val(vvp_cobject*cobj, size_t pid, const string&val, size_t idx)
 {
-      (void)idx;
-      cobj->set_string(pid, val);
+      cobj->set_string(pid, val, idx);
 }
 
 static void set_val(vvp_vinterface*vif, size_t pid, const string&val, size_t idx)
@@ -15568,6 +15828,69 @@ bool of_STORE_PROP_R(vthread_t thr, vvp_code_t cp)
 bool of_STORE_PROP_STR(vthread_t thr, vvp_code_t cp)
 {
       return store_prop<string>(thr, cp);
+}
+
+/*
+ * Indexed element store into a real/string class-property that is an
+ * unpacked array (`obj.arr[i] = ...`). The array index is in the word
+ * register named by cp->bit_idx[0]; pid is the property. The object is
+ * peeked (not popped), so a whole-array pattern can store every element
+ * with a single object on the stack. Mirrors store_prop<ELEM>.
+ */
+template <typename ELEM>
+static bool store_prop_i(vthread_t thr, vvp_code_t cp)
+{
+      size_t pid = cp->number;
+      unsigned idx_reg = cp->bit_idx[0];
+      ELEM val;
+      pop_prop_val(thr, val, 0); // Pop the value to store.
+
+      assert(idx_reg < vthread_s::WORDS_COUNT);
+      size_t idx = thr->words[idx_reg].w_uint;
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%store/prop/*/i", pid, idx, obj, has_propobj);
+      if (!has_propobj) {
+	    if (!warned_store_prop_fallback) {
+		  cerr << thr->get_fileline()
+		       << "Warning: cannot store into null/uninitialized class object"
+		       << " (property " << pid << ", idx=" << idx
+		       << "); skipping further similar stores." << endl;
+		  warned_store_prop_fallback = true;
+	    }
+	    return true;
+      }
+
+      if (cobj)
+	    set_val(cobj, pid, val, idx);
+      else
+	    set_val(vif, pid, val, idx);
+      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+                                  thr->peek_object_root(0), "store-prop-idx");
+      return true;
+}
+
+/*
+ * %store/prop/r/i <pid>, <idxreg>
+ * Pop a real value and store it into element <idxreg> of real-array
+ * property <pid>. Do NOT pop the object stack.
+ */
+bool of_STORE_PROP_R_I(vthread_t thr, vvp_code_t cp)
+{
+      return store_prop_i<double>(thr, cp);
+}
+
+/*
+ * %store/prop/str/i <pid>, <idxreg>
+ * Pop a string value and store it into element <idxreg> of string-array
+ * property <pid>. Do NOT pop the object stack.
+ */
+bool of_STORE_PROP_STR_I(vthread_t thr, vvp_code_t cp)
+{
+      return store_prop_i<string>(thr, cp);
 }
 
 /*
@@ -16653,6 +16976,39 @@ bool of_WAIT(vthread_t thr, vvp_code_t cp)
 
 	/* Add this thread to the list in the event. */
       waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (cp->net->fun);
+      assert(ep);
+      thr->wait_next = ep->add_waiting_thread(thr);
+
+	/* Return false to suspend this thread. */
+      return false;
+}
+
+/*
+ * %wait/obj <slot>
+ * Wait on a per-instance class event (IEEE 1800-2017 15.5: `@(obj.ev)`).
+ * The object handle has already been pushed on the object stack. Pop it,
+ * fetch its own event net for <slot>, add this thread to that event's
+ * private wait list, and suspend. Only a trigger on THIS object's event
+ * (%evt/obj) will resume the thread.
+ */
+bool of_WAIT_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj) {
+	    fprintf(stderr, "%%wait/obj: wait on null object handle\n");
+	    return true;
+      }
+
+      if (thr->i_am_in_function)
+	    thr->i_am_in_function = 0;
+
+      assert(! thr->waiting_for_event);
+      thr->waiting_for_event = 1;
+
+      vvp_net_t*net = cobj->get_inst_event(cp->number);
+      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (net->fun);
       assert(ep);
       thr->wait_next = ep->add_waiting_thread(thr);
 

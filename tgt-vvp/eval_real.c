@@ -205,6 +205,12 @@ static void draw_property_real(ivl_expr_t expr)
 		    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_queue_property\n", pidx);
 		    fprintf(vvp_out, "    %%load/qo/r;\n");
 		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	      } else if (idx_expr) {
+		    /* Element of a real-array property (`obj.arr[i]`): the
+		       index selects a word of the property's array storage. */
+		  draw_eval_expr_into_integer(idx_expr, 3);
+		  fprintf(vvp_out, "    %%prop/r/i %u, 3;\n", pidx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	      } else {
 	    fprintf(vvp_out, "    %%prop/r %u;\n", pidx);
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");

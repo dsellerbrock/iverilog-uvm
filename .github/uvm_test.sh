@@ -119,6 +119,21 @@ rm -f uvm_dpi_iverilog.o
 # compare and always failed, so the backdoor branch returned UVM_NOT_OK).
 # Fixed 2026-07-18; a USER-DEFINED uvm_reg_backdoor works without DPI, so
 # the test now runs. The uvm_hdl_* DPI backdoor remains future work (M10C).
+# m7_objection_stress_test: run_phase never completes cleanly under the
+# concurrent workload, so the run extends to the UVM 9200s watchdog instead
+# of ending at t=80. The run_phase objection counters pass; only the
+# FIXED (issue #103): the implicit `this` (and enclosing automatics) read
+# from a nested detached (join_none) fork body used to resolve to null for
+# later loop iterations, because the fork thread's inherited automatic-
+# context chain no longer linked back to the owning activation frame. In
+# uvm_phase_hopper::run_phases the per-phase drop runs in such a fork, so for
+# common.run/common.check `this` went null, get_objection() returned null,
+# and objection.drop_objection() silently no-op'd on the null handle -> two
+# phase-hopper objections never dropped -> run never completed. Fixed in
+# vvp/vthread.cc (vthread_get_rd_context_item_scoped): a strictly-additive
+# last-resort fallback resolves a scoped automatic read to the target
+# scope's single live activation when every chain walk fails. m7 now ends at
+# t=80. Reproducer: docs/conformance/repros/m7_this_null_nested_detached_fork.sv.
 KNOWN_FAIL=""
 
 # Per-test plusargs and extra iverilog compile flags. Kept as plain case

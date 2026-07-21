@@ -402,6 +402,21 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    ivl_expr_t word_ex = ivl_lval_idx(lval);
 	    ivl_type_t sig_type = ivl_signal_net_type(lval_sig);
 
+	      /* A static unpacked array of class handles (`c arr[N]`) reports
+		 its net_type as the ELEMENT class directly (no array wrapper),
+		 while still carrying array dimensions. Load the indexed
+		 element with %load/obja; the element type IS sig_type. Without
+		 this the class-index block below (which expects an array
+		 wrapper with a non-null ivl_type_element) fell through to the
+		 scalar %load/obj fallback, dropping the index. */
+	    if (word_ex && sig_type
+		&& ivl_type_base(sig_type) == IVL_VT_CLASS
+		&& ivl_signal_dimensions(lval_sig) > 0) {
+		  draw_eval_expr_into_integer(word_ex, 3);
+		  fprintf(vvp_out, "    %%load/obja v%p, 3;\n", lval_sig);
+		  return sig_type;
+	    }
+
 	    if (word_ex && sig_type) {
 		  ivl_type_t element_type = ivl_type_element(sig_type);
 		  if (element_type && ivl_type_base(element_type) == IVL_VT_CLASS) {
@@ -606,6 +621,19 @@ static void store_vec4_to_lval(ivl_statement_t net)
       }
 }
 
+/* Base word for an array-pattern store. A partial index on the l-value is
+ * an unpacked-array slice (m[i] = '{...}); elaboration put the slice's flat
+ * base word into the l-value index, so the pattern store starts there. A
+ * whole-array pattern has no l-value index and starts at word 0. */
+static unsigned int array_pattern_base_(ivl_lval_t lval)
+{
+      ivl_expr_t idx = ivl_lval_idx(lval);
+      if (idx == 0)
+	    return 0;
+      assert(ivl_expr_type(idx) == IVL_EX_NUMBER);
+      return (unsigned int) get_number_immediate(idx);
+}
+
 static unsigned int draw_array_pattern(ivl_signal_t var, ivl_expr_t rval,
 					   unsigned int array_idx)
 {
@@ -688,6 +716,82 @@ static unsigned int draw_array_pattern(ivl_signal_t var, ivl_expr_t rval,
       return array_idx;
 }
 
+/* Store an unpacked-array assignment pattern into a logic-array class
+ * property, element by element (`obj.arr = '{...}` where arr is an
+ * unpacked array of packed values).  The receiver object must already be
+ * on top of the object stack: %store/prop/v/i peeks it (does not pop), so
+ * one push serves every element and the caller pops once afterward.
+ * word_reg is a scratch integer register carrying each element's array
+ * index; array_idx is the running flat element counter.  A nested pattern
+ * (a multidimensional unpacked array) recurses with the same running
+ * index.  Returns the next flat element index. */
+static unsigned int draw_prop_array_pattern(int prop_idx, const char*prop_name,
+					    ivl_expr_t rval, int word_reg,
+					    unsigned int array_idx)
+{
+      for (unsigned int idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
+	    ivl_expr_t expr = ivl_expr_parm(rval, idx);
+	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
+		  array_idx = draw_prop_array_pattern(prop_idx, prop_name,
+						      expr, word_reg, array_idx);
+		  continue;
+	    }
+	    draw_eval_vec4(expr);
+	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", word_reg, array_idx);
+	    fprintf(vvp_out, "    %%store/prop/v/i %d, %d, %u;"
+		    " array-pattern element into logic property %s\n",
+		    prop_idx, word_reg, ivl_expr_width(expr), prop_name);
+	    array_idx += 1;
+      }
+      return array_idx;
+}
+
+/* As draw_prop_array_pattern, but for a real-valued class-property array
+ * (`obj.arr = '{...}` where arr is an unpacked array of real). */
+static unsigned int draw_prop_real_array_pattern(int prop_idx, const char*prop_name,
+						 ivl_expr_t rval, int word_reg,
+						 unsigned int array_idx)
+{
+      for (unsigned int idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
+	    ivl_expr_t expr = ivl_expr_parm(rval, idx);
+	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
+		  array_idx = draw_prop_real_array_pattern(prop_idx, prop_name,
+							   expr, word_reg, array_idx);
+		  continue;
+	    }
+	    draw_eval_real(expr);
+	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", word_reg, array_idx);
+	    fprintf(vvp_out, "    %%store/prop/r/i %d, %d;"
+		    " array-pattern element into real property %s\n",
+		    prop_idx, word_reg, prop_name);
+	    array_idx += 1;
+      }
+      return array_idx;
+}
+
+/* As draw_prop_array_pattern, but for a string-valued class-property
+ * array (`obj.arr = '{...}` where arr is an unpacked array of string). */
+static unsigned int draw_prop_str_array_pattern(int prop_idx, const char*prop_name,
+						ivl_expr_t rval, int word_reg,
+						unsigned int array_idx)
+{
+      for (unsigned int idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
+	    ivl_expr_t expr = ivl_expr_parm(rval, idx);
+	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
+		  array_idx = draw_prop_str_array_pattern(prop_idx, prop_name,
+							  expr, word_reg, array_idx);
+		  continue;
+	    }
+	    draw_eval_string(expr);
+	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", word_reg, array_idx);
+	    fprintf(vvp_out, "    %%store/prop/str/i %d, %d;"
+		    " array-pattern element into string property %s\n",
+		    prop_idx, word_reg, prop_name);
+	    array_idx += 1;
+      }
+      return array_idx;
+}
+
 static void draw_stmt_assign_vector_opcode(unsigned char opcode, bool is_signed)
 {
       int idx_reg;
@@ -763,7 +867,7 @@ static int show_stmt_assign_vector(ivl_statement_t net)
       if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
 	    ivl_lval_t lval = ivl_stmt_lval(net, 0);
 	    ivl_signal_t sig = ivl_lval_sig(lval);
-	    draw_array_pattern(sig, rval, 0);
+	    draw_array_pattern(sig, rval, array_pattern_base_(lval));
 	    return 0;
       }
 
@@ -1010,7 +1114,7 @@ static int show_stmt_assign_sig_real(ivl_statement_t net)
       ivl_expr_t rval = ivl_stmt_rval(net);
       if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
 	    ivl_signal_t sig = ivl_lval_sig(lval);
-	    draw_array_pattern(sig, rval, 0);
+	    draw_array_pattern(sig, rval, array_pattern_base_(lval));
 	    return 0;
       }
 
@@ -1052,7 +1156,7 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
       }
 
       if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
-	    draw_array_pattern(var, rval, 0);
+	    draw_array_pattern(var, rval, array_pattern_base_(lval));
 	    return 0;
       }
 
@@ -2249,6 +2353,28 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  ivl_expr_t idx_expr = ivl_lval_idx(lval);
 		  ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
 
+		  /* Whole-array assignment pattern into a logic-array
+		     property (`obj.arr = '{...}` where arr is an unpacked
+		     array of packed values).  draw_eval_vec4 cannot evaluate
+		     an array pattern (it is not a single vector) and used to
+		     fall through to a zero fallback, silently clobbering the
+		     array.  Store each element to its own word instead. */
+		  if (!idx_expr && !part_off_ex &&
+		      ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
+			int wreg = allocate_word();
+			draw_prop_array_pattern(prop_idx,
+						ivl_type_prop_name(sig_type, prop_idx),
+						rval, wreg, 0);
+			clr_word(wreg);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			/* Emit the null-guard epilogue inline and return. */
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			return errors;
+		  }
+
 		  /* Packed struct field write via bit-offset RMW.  This is
 		     generated when a VIF packed-struct property field is
 		     used as an l-value (e.g. cfg.vif.h2d_int.a_valid <= 1).
@@ -2304,29 +2430,91 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  if (prop_word_idx) clr_word(prop_word_idx);
 
 	    } else if (ivl_type_base(prop_type) == IVL_VT_REAL) {
+		  ivl_expr_t idx_expr = ivl_lval_idx(lval);
 
-		  if (ivl_stmt_opcode(net) != 0) {
-			fprintf(vvp_out, "    %%prop/r %d;\n", prop_idx);
+		    /* Whole-array pattern into a real-array property. */
+		  if (!idx_expr &&
+		      ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
+			int wreg = allocate_word();
+			draw_prop_real_array_pattern(prop_idx,
+						     ivl_type_prop_name(sig_type, prop_idx),
+						     rval, wreg, 0);
+			clr_word(wreg);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			return errors;
 		  }
 
-		    /* Calculate the real value into the real value
-		       stack. The %store/prop/r will pop the stack
-		       value. */
-		  draw_eval_real(rval);
+		  if (idx_expr) {
+			  /* Element of a real-array property (`obj.arr[i]`). */
+			int wreg = allocate_word();
+			draw_eval_expr_into_integer(idx_expr, wreg);
+			if (ivl_stmt_opcode(net) != 0)
+			      fprintf(vvp_out, "    %%prop/r/i %d, %d;\n", prop_idx, wreg);
+			draw_eval_real(rval);
+			draw_stmt_assign_real_opcode(ivl_stmt_opcode(net));
+			fprintf(vvp_out, "    %%store/prop/r/i %d, %d;"
+				" Store in real property %s\n",
+				prop_idx, wreg, ivl_type_prop_name(sig_type, prop_idx));
+			clr_word(wreg);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 
-		  draw_stmt_assign_real_opcode(ivl_stmt_opcode(net));
+		  } else {
+			if (ivl_stmt_opcode(net) != 0) {
+			      fprintf(vvp_out, "    %%prop/r %d;\n", prop_idx);
+			}
 
-		  fprintf(vvp_out, "    %%store/prop/r %d;\n", prop_idx);
-		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			  /* Calculate the real value into the real value
+			     stack. The %store/prop/r will pop the stack
+			     value. */
+			draw_eval_real(rval);
+
+			draw_stmt_assign_real_opcode(ivl_stmt_opcode(net));
+
+			fprintf(vvp_out, "    %%store/prop/r %d;\n", prop_idx);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  }
 
 	    } else if (ivl_type_base(prop_type) == IVL_VT_STRING) {
+		  ivl_expr_t idx_expr = ivl_lval_idx(lval);
 
-		    /* Calculate the string value into the string value
-		       stack. The %store/prop/r will pop the stack
-		       value. */
-		  draw_eval_string(rval);
-		  fprintf(vvp_out, "    %%store/prop/str %d;\n", prop_idx);
-		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		    /* Whole-array pattern into a string-array property. */
+		  if (!idx_expr &&
+		      ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
+			int wreg = allocate_word();
+			draw_prop_str_array_pattern(prop_idx,
+						    ivl_type_prop_name(sig_type, prop_idx),
+						    rval, wreg, 0);
+			clr_word(wreg);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			return errors;
+		  }
+
+		  if (idx_expr) {
+			  /* Element of a string-array property. */
+			int wreg = allocate_word();
+			draw_eval_expr_into_integer(idx_expr, wreg);
+			draw_eval_string(rval);
+			fprintf(vvp_out, "    %%store/prop/str/i %d, %d;"
+				" Store in string property %s\n",
+				prop_idx, wreg, ivl_type_prop_name(sig_type, prop_idx));
+			clr_word(wreg);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  } else {
+			  /* Calculate the string value into the string value
+			     stack. The %store/prop/str will pop the stack
+			     value. */
+			draw_eval_string(rval);
+			fprintf(vvp_out, "    %%store/prop/str %d;\n", prop_idx);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  }
 
 	    } else if (ivl_type_base(prop_type) == IVL_VT_DARRAY) {
 		  int handled_errors = show_stmt_assign_sig_prop_darray_index(net,
@@ -2492,6 +2680,25 @@ int show_stmt_assign(ivl_statement_t net)
       lval = ivl_stmt_lval(net, 0);
 
       sig = ivl_lval_sig(lval);
+
+	/* Assignment of a function returning an unpacked array into an
+	   unpacked-array (or array-slice) l-value. The function is called
+	   like a void function and the result words are copied out of its
+	   return-array signal; see draw_ufunc_uarray. */
+      {
+	    ivl_expr_t rv = ivl_stmt_rval(net);
+	    if (sig && ivl_signal_dimensions(sig) > 0
+		&& rv && ivl_expr_type(rv) == IVL_EX_UFUNC
+		&& ivl_stmt_opcode(net) == 0) {
+		  ivl_scope_t def = ivl_expr_def(rv);
+		  ivl_signal_t retsig = def ? ivl_scope_port(def, 0) : 0;
+		  if (retsig && ivl_signal_dimensions(retsig) > 0) {
+			draw_ufunc_uarray(rv, sig, array_pattern_base_(lval));
+			return 0;
+		  }
+	    }
+      }
+
       if (sig && (ivl_signal_data_type(sig) == IVL_VT_REAL)) {
 	    return show_stmt_assign_sig_real(net);
       }

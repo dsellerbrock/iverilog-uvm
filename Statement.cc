@@ -184,6 +184,91 @@ PNamedItem::SymbolType PBlock::symbol_type() const
       return BLOCK;
 }
 
+/*
+ * contains_detached_fork walks the pform statement tree, staying within
+ * the current activation frame (it does not descend into called tasks or
+ * functions — those are separate frames), looking for a fork/join_none or
+ * fork/join_any whose spawned branches outlive the enclosing statement.
+ * See the base-class comment in Statement.h for how elaborate_scope uses
+ * this to keep a per-entry frame for automatic-local blocks whose locals
+ * are captured by a detached branch.
+ */
+bool PBlock::contains_detached_fork() const
+{
+      if (bl_type_ == BL_JOIN_NONE || bl_type_ == BL_JOIN_ANY)
+	    return true;
+      for (unsigned idx = 0 ; idx < list_.size() ; idx += 1)
+	    if (list_[idx] && list_[idx]->contains_detached_fork())
+		  return true;
+      return false;
+}
+
+bool PCase::contains_detached_fork() const
+{
+      if (!items_)
+	    return false;
+      for (unsigned idx = 0 ; idx < items_->size() ; idx += 1) {
+	    Item*cur = (*items_)[idx];
+	    if (cur && cur->stat && cur->stat->contains_detached_fork())
+		  return true;
+      }
+      return false;
+}
+
+bool PCondit::contains_detached_fork() const
+{
+      if (if_ && if_->contains_detached_fork())
+	    return true;
+      if (else_ && else_->contains_detached_fork())
+	    return true;
+      return false;
+}
+
+bool PDelayStatement::contains_detached_fork() const
+{
+      return statement_ && statement_->contains_detached_fork();
+}
+
+bool PCycleDelay::contains_detached_fork() const
+{
+      return statement_ && statement_->contains_detached_fork();
+}
+
+bool PDoWhile::contains_detached_fork() const
+{
+      return statement_ && statement_->contains_detached_fork();
+}
+
+bool PEventStatement::contains_detached_fork() const
+{
+      return statement_ && statement_->contains_detached_fork();
+}
+
+bool PForeach::contains_detached_fork() const
+{
+      return statement_ && statement_->contains_detached_fork();
+}
+
+bool PForever::contains_detached_fork() const
+{
+      return statement_ && statement_->contains_detached_fork();
+}
+
+bool PForStatement::contains_detached_fork() const
+{
+      return statement_ && statement_->contains_detached_fork();
+}
+
+bool PRepeat::contains_detached_fork() const
+{
+      return statement_ && statement_->contains_detached_fork();
+}
+
+bool PWhile::contains_detached_fork() const
+{
+      return statement_ && statement_->contains_detached_fork();
+}
+
 PCallTask::PCallTask(const pform_name_t &n, const list<named_pexpr_t> &p)
 : package_(0), path_(n), parms_(p.begin(), p.end())
 {

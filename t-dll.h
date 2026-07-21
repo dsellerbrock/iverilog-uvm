@@ -132,6 +132,8 @@ struct dll_target  : public target_t, public expr_scan_t {
       void proc_stask(const NetSTask*) override;
       bool proc_trigger(const NetEvTrig*) override;
       bool proc_nb_trigger(const NetEvNBTrig*) override;
+      bool proc_trigger_obj(const NetEvTrigObj*) override;
+      bool proc_wait_obj(const NetEvWaitObj*) override;
       void proc_utask(const NetUTask*) override;
       bool proc_wait(const NetEvWait*) override;
       void proc_while(const NetWhile*) override;
@@ -906,6 +908,14 @@ struct ivl_statement_s {
 		  ivl_expr_t delay;
 		  ivl_statement_t stmt_;
 	    } wait_;
+
+	    struct { /* IVL_ST_TRIGGER_OBJ IVL_ST_NB_TRIGGER_OBJ
+			IVL_ST_WAIT_OBJ */
+		  ivl_expr_t obj;      /* object-handle expression */
+		  unsigned ev_slot;    /* per-class event slot */
+		  ivl_expr_t delay;    /* NB trigger delay, else 0 */
+		  ivl_statement_t stmt_; /* wait body, else 0 */
+	    } evobj_;
 
 	    struct { /* IVL_ST_WHILE IVL_ST_REPEAT */
 		  ivl_expr_t cond_;

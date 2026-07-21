@@ -36,7 +36,7 @@ diagnostics) — see **§ M14 gap closures** below.
 | 4 | Scheduling semantics | PARTIAL | Active/NBA/Observed/Reactive regions modeled; clocking (M8) and SVA (M9) rely on it. Formal region trace is a standing architectural item (scheduler_audit_2026_07.md). |
 | 5 | Lexical conventions | FULL | sized/based/underscored literals, real/time literals, unbased-unsized `'0/'1/'x/'z`, string escapes, `` `__FILE__ ``/`` `__LINE__ ``. |
 | 6 | Data types | PARTIAL | logic/bit/reg/byte/shortint/int/longint/integer/time, real/shortreal/realtime, chandle, string(+methods), event, enum(+methods), typedef, void, signed/unsigned casts, nettypes all FULL. Corner: `$typename` returns the canonical base representation (e.g. `int`→`logic`), dropping ranges — a diagnosed-by-behaviour introspection limitation, not a value miscompile. |
-| 7 | Aggregate data types | PARTIAL | packed/unpacked struct & union, tagged union, multidim packed/unpacked arrays, dynamic arrays, queues, assoc arrays (string/int/object keys), assignment patterns, locator/reduction/ordering methods, streaming, `$cast`, bitstream cast all FULL. **Fixed in M14:** module-static integer-keyed assoc value read (was a silent value-loss). Corners: string/real-VALUED integer-keyed assoc (`string s[int]`) — narrow; `int a[*]` wildcard-key decl is a syntax error; `%p` on integral aggregates renders empty (has a stderr warning); nested literal into an array of PACKED struct aborts (ICE — loud but ungraceful). |
+| 7 | Aggregate data types | PARTIAL | packed/unpacked struct & union, tagged union, multidim packed/unpacked arrays, dynamic arrays, queues, assoc arrays (string/int/object keys), assignment patterns, locator/reduction/ordering methods, streaming, `$cast`, bitstream cast all FULL. **Fixed in M14:** module-static integer-keyed assoc value read (was a silent value-loss). Corners: string/real-VALUED integer-keyed assoc (`string s[int]`) — narrow; `int a[*]` wildcard-key decl is a syntax error; `%p` on integral aggregates renders empty (has a stderr warning); member access on an element of an unpacked array of packed struct, and whole-array pattern assignment into such a class property, are fixed (were a crash and a silent zero-fill); class-property unpacked arrays of `real`/`string` still store every element to one slot (issue #100). |
 | 8 | Classes | PARTIAL | new/ctor/this/super, single inheritance, virtual & pure-virtual dispatch, abstract classes, static members, const props, parameterized `#(T)`, typedef fwd-ref, protected/local, `$cast`, chained `C#(T)::m()` all FULL. **Fixed in M14:** width-1 (`bit`/`logic`) class-property `$display` (was garbage; value was always correct). Corners: interface classes / `implements`, nested class declarations, out-of-body `extern` method bodies (all syntax errors); shallow-copy inline static initializer `C b = new a;` at module scope (works as `C b; b = new a;`, and in automatic/class scope). |
 | 9 | Processes | PARTIAL | initial/always/always_comb/ff/latch, final, fork/join(/any/none), disable, disable fork, wait fork, static/automatic, `process::self`/`kill`/`await` all FULL. Corner: `process.status()` reports a fixed value for a running process; `suspend`/`resume` are diagnosed no-ops. |
 | 10 | Assignment statements | PARTIAL | blocking/nonblocking, continuous assign, assignment patterns, compound (`+=` etc.), `++`/`--`, aggregate assign all FULL. Corner: net `alias` (syntax error). |
@@ -109,9 +109,14 @@ closed:
 - `$typename` canonical-form output; `%p` on integral aggregates.
 - string/real-VALUED integer-keyed assoc reads; `int a[*]` wildcard-key
   declaration.
-- Two internal-assertion aborts (loud but ungraceful): nested literal
-  into an array of packed struct; function returning an unpacked-array
-  typedef via `'{...}`. Should become graceful errors.
+- Function returning an unpacked-array typedef via `'{...}` assigned as a
+  whole array: no longer aborts — now a graceful `sorry` (the vvp calling
+  convention still lacks an unpacked-array return path; full support is
+  issue #99). The nested-literal-into-array-of-packed-struct abort is
+  resolved: module-scope literals work and the class-property whole-array
+  pattern store no longer silently zero-fills (issue #97 family). A
+  distinct, still-open defect: class-property unpacked arrays of
+  `real`/`string` store every element to one slot (issue #100).
 - interface classes / `implements`; nested class declarations; out-of-body
   `extern` method bodies; net `alias`; `wait_order`; `randsequence`;
   `unique{}` constraint; `disable soft`; `unique`/`priority` **if**;

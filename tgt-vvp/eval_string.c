@@ -95,6 +95,11 @@ static void string_ex_property(ivl_expr_t expr)
 		    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_queue_property\n", pidx);
 		    fprintf(vvp_out, "    %%load/qo/str;\n");
 		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	      } else if (idx_expr) {
+		    /* Element of a string-array property (`obj.arr[i]`). */
+		  draw_eval_expr_into_integer(idx_expr, 3);
+		  fprintf(vvp_out, "    %%prop/str/i %u, 3;\n", pidx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	      } else {
 	    fprintf(vvp_out, "    %%prop/str %u;\n", pidx);
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");

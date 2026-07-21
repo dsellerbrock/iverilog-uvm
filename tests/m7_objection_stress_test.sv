@@ -7,12 +7,15 @@
 //    for every worker and the child to finish, then verifies counts
 //    and that the last worker released at exactly t=80.
 //
-// NOTE: the verification runs at the END of run_phase, not in
-// report_phase: post-run function phases (extract/check/report/final)
-// currently never execute because class event properties are shared
-// per-class (see the class-event warning in elab_scope.cc) which
-// falsely wakes the phase hopper's ALL_DROPPED waiter. Recorded gap;
-// do not move these checks to report_phase until that is fixed.
+// NOTE: per-instance class events are now correct, so these objection
+// counter checks pass and the objection front door no longer cross-wakes.
+// A separate pre-existing gap remains: the phase_hopper_objection never
+// all-drops to the top (uvm_root) under this concurrent workload -- its
+// integer count for uvm_root never returns to 0 -- so run_phase does not
+// complete cleanly and the run extends to the UVM 9200s watchdog instead
+// of ending at t=80. The counter checks (run_phase) pass; the end-of-sim
+// time check in the final block fails until phase-objection count
+// propagation is fixed. On the harness KNOWN_FAIL list with that reason.
 `timescale 1ns/1ns
 `include "uvm_macros.svh"
 import uvm_pkg::*;

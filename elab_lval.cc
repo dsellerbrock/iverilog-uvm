@@ -314,7 +314,15 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	// Special case: The l-value is an entire memory, or array
 	// slice. Detect the situation by noting if the index count
 	// is less than the array dimensions (unpacked).
-      if (reg->unpacked_dimensions() > name_tail.index.size()) {
+	//
+	// This must not fire for a member access on an array element
+	// (`arr[i].prop = ...`): there the array index sits on the base
+	// component (base_index), while name_tail is the member and
+	// carries no index, so name_tail.index.size() is 0. Guard on an
+	// empty tail_path so such references fall through to the
+	// class/struct member l-value path below.
+      if (tail_path.empty()
+	  && reg->unpacked_dimensions() > name_tail.index.size()) {
 	    return elaborate_lval_array_(des, scope, is_force, reg);
       }
 
@@ -436,7 +444,7 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       return lv;
 }
 
-NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *,
+NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 				          bool is_force, NetNet *reg) const
 {
       if (!gn_system_verilog()) {
@@ -456,6 +464,54 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *,
 		  return 0;
 	    }
 	    NetAssign_*lv = new NetAssign_(reg);
+	    return lv;
+      }
+
+	// A partial index into a multi-dimensional unpacked array selects a
+	// sub-array — an array slice, e.g. `m[i]` where m is int[2][3] picks
+	// the int[3] row. Support this as the target of an assignment pattern
+	// (`m[i] = '{...}`, IEEE 1800-2017 7.6 / 10.9.1): build a slice
+	// l-value carrying the flat base word index and the sub-array type.
+	// The pattern's element count drives how many words are written, so
+	// no separate slice length has to be threaded to the code generator.
+      const netsarray_t*full_arr =
+	    dynamic_cast<const netsarray_t*>(reg->array_type());
+      unsigned nidx = name_tail.index.size();
+      if (full_arr && nidx < full_arr->static_dimensions().size()) {
+	    const netranges_t&dims = full_arr->static_dimensions();
+
+	    list<NetExpr*> idx_exprs;
+	    list<long> idx_consts;
+	    indices_flags flags;
+	    indices_to_expressions(des, scope, this, name_tail.index, nidx,
+				   false, flags, idx_exprs, idx_consts);
+
+	    if (flags.variable || flags.undefined || flags.invalid) {
+		  cerr << get_fileline() << ": sorry: assignment to an unpacked"
+			  " array slice with a non-constant index is not yet"
+			  " supported." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+
+	    NetExpr*base = normalize_variable_unpacked(reg, idx_consts);
+	    if (base == 0) {
+		  cerr << get_fileline() << ": warning: ignoring out of bounds"
+			  " l-value array slice access " << reg->name()
+			 << "." << endl;
+		  base = new NetEConst(verinum(verinum::Vx));
+	    }
+	    base->set_line(*this);
+
+	      // The slice presents the remaining dimensions as its type.
+	    netranges_t sub_dims;
+	    for (size_t d = nidx ; d < dims.size() ; d += 1)
+		  sub_dims.push_back(dims[d]);
+	    ivl_type_t slice_type =
+		  new netuarray_t(sub_dims, full_arr->element_type());
+
+	    NetAssign_*lv = new NetAssign_(reg);
+	    lv->set_array_slice(base, slice_type);
 	    return lv;
       }
 
@@ -1319,6 +1375,28 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    des->errors += 1;
 				    return 0;
 			      }
+				// Modport member visibility (IEEE
+				// 1800-2017 25.5): only members the
+				// modport lists (as ports or via
+				// import/export) are accessible
+				// through it. A write to any other
+				// interface member used to compile
+				// silently.
+			      if (sp == mit->second->simple_ports.end()
+				  && mit->second->import_ports.count(member) == 0
+				  && mit->second->export_ports.count(member) == 0
+				  && ifc->property_idx_from_name(member) >= 0) {
+				    cerr << get_fileline() << ": error: "
+					 << "cannot access '" << member
+					 << "' through modport '" << mp_name
+					 << "' of interface '"
+					 << ifc->get_name()
+					 << "' — it is not listed in that"
+					 << " modport (IEEE 1800-2017 25.5)."
+					 << endl;
+				    des->errors += 1;
+				    return 0;
+			      }
 			}
 		  }
 	    }
@@ -1357,6 +1435,38 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 		    lv = new NetAssign_(sig);
 		    lv->set_word(root_word_index);
+		    root_type = lv->net_type();
+	      } else if (!base_index.empty() && sig->unpacked_dimensions() > 0) {
+		      // Static unpacked array of class handles, e.g.
+		      // `c arr[N]; arr[i].prop = ...`. Convert the element
+		      // index to canonical form (accounting for the array's
+		      // declared range) exactly as elaborate_lval_net_word_
+		      // does, then address the element. Previously only the
+		      // dynamic-array case above was handled, so the index was
+		      // silently dropped and the l-value referenced the whole
+		      // array -- a null word index then crashed tgt-vvp.
+		    std::list<NetExpr*> unpacked_indices;
+		    std::list<long> unpacked_indices_const;
+		    indices_flags flags;
+		    indices_to_expressions(des, scope, this,
+					   base_index, sig->unpacked_dimensions(),
+					   false, flags,
+					   unpacked_indices, unpacked_indices_const);
+
+		    NetExpr*canon_index = 0;
+		    if (flags.invalid || flags.undefined) {
+			  // leave canon_index null -> ignored below
+		    } else if (flags.variable) {
+			  canon_index = normalize_variable_unpacked(sig, unpacked_indices);
+		    } else {
+			  canon_index = normalize_variable_unpacked(sig, unpacked_indices_const);
+		    }
+		    if (canon_index == 0)
+			  canon_index = new NetEConst(verinum(verinum::Vx));
+		    canon_index->set_line(*this);
+
+		    lv = new NetAssign_(sig);
+		    lv->set_word(canon_index);
 		    root_type = lv->net_type();
 	      }
 
@@ -1752,8 +1862,35 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
       ++ name_idx;
       const name_component_t&name_base = *name_idx;
 
-	// Shouldn't be seeing unpacked arrays of packed structs...
-      ivl_assert(*this, reg->unpacked_dimensions() == 0);
+	// An UNPACKED array of a PACKED struct (`pair_t arr[N]; arr[i].m =`)
+	// indexes the unpacked element with name_base.index and then
+	// part-selects the member off the element vector. Set the array
+	// word index on the l-value here; the member part-select (off /
+	// use_width computed below) is relative to the element.
+      bool ua_of_packed = reg->unpacked_dimensions() > 0
+	    && struct_type->packed()
+	    && !name_base.index.empty()
+	    && name_base.index.size() == reg->unpacked_dimensions();
+      if (ua_of_packed) {
+	    std::list<NetExpr*> ua_idx;
+	    std::list<long> ua_idx_const;
+	    indices_flags ua_flags;
+	    indices_to_expressions(des, scope, this, name_base.index,
+				   reg->unpacked_dimensions(), false, ua_flags,
+				   ua_idx, ua_idx_const);
+	    NetExpr*ua_canon = 0;
+	    if (!ua_flags.invalid && !ua_flags.undefined)
+		  ua_canon = ua_flags.variable
+			? normalize_variable_unpacked(reg, ua_idx)
+			: normalize_variable_unpacked(reg, ua_idx_const);
+	    if (!ua_canon)
+		  return false;
+	    ua_canon->set_line(*this);
+	    lv->set_word(ua_canon);
+      } else {
+	      // Shouldn't be seeing unpacked arrays of packed structs...
+	    ivl_assert(*this, reg->unpacked_dimensions() == 0);
+      }
 
 	// These make up the "part" select that is the equivilent of
 	// following the member path through the nested structs. To
@@ -2043,13 +2180,14 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	// match the declaration of "b".
 	// Note that one of the packed dimensions is the packed struct
 	// itself.
-      ivl_assert(*this, name_base.index.size()+1 == reg->packed_dimensions());
+      if (!ua_of_packed)
+	    ivl_assert(*this, name_base.index.size()+1 == reg->packed_dimensions());
 
 	// Generate an expression that takes the input array of
 	// expressions and generates a canonical offset into the
 	// packed array.
       NetExpr*packed_base = 0;
-      if (reg->packed_dimensions() > 1) {
+      if (!ua_of_packed && reg->packed_dimensions() > 1) {
 	    list<index_component_t>tmp_index = name_base.index;
 	    index_component_t member_select;
 	    member_select.sel = index_component_t::SEL_BIT;

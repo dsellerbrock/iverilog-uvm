@@ -22,6 +22,32 @@
 #include <math.h>
 #include <assert.h>
 
+/*
+ * Find the scope whose timescale governs a $time/$realtime call. Like
+ * sys_func_module this walks outward to the enclosing module, but it stops
+ * before crossing into a package/compilation unit ($unit): a class (or its
+ * method) declared at $unit scope has no enclosing module, and its own
+ * scope carries the governing timescale (inherited from the active
+ * `timescale). Without this stop the walk ran all the way to $unit
+ * (default time unit = 1 s), so a stored $time in a $unit-scope class
+ * method scaled to 0 (IEEE 1800-2017 3.14 / 20.3.1).
+ */
+static vpiHandle sys_time_scope(vpiHandle obj)
+{
+      assert(obj);
+
+      while (vpi_get(vpiType, obj) != vpiModule) {
+	    vpiHandle scope = vpi_handle(vpiScope, obj);
+	    if (scope == 0)
+		  break;
+	    if (vpi_get(vpiType, scope) == vpiPackage)
+		  break;
+	    obj = scope;
+      }
+
+      return obj;
+}
+
 static PLI_INT32 sys_time_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       s_vpi_value val;
@@ -34,7 +60,7 @@ static PLI_INT32 sys_time_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       call_handle = vpi_handle(vpiSysTfCall, 0);
       assert(call_handle);
 
-      mod = sys_func_module(call_handle);
+      mod = sys_time_scope(call_handle);
 
       now.type = vpiSimTime;
       vpi_get_time(0, &now);
@@ -88,7 +114,7 @@ static PLI_INT32 sys_realtime_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       callh = vpi_handle(vpiSysTfCall, 0);
       assert(callh);
 
-      mod = sys_func_module(callh);
+      mod = sys_time_scope(callh);
 
       now.type = vpiScaledRealTime;
       vpi_get_time(mod, &now);

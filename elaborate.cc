@@ -319,6 +319,95 @@ static NetEvent* resolve_named_event_member_from_search_(const symbol_search_res
       return nullptr;
 }
 
+/*
+ * A non-static class `event` property is per-instance (IEEE 1800-2017
+ * 15.5): each object owns its own runtime event. For an event reference
+ * of the form PREFIX.evname where PREFIX evaluates to a class handle,
+ * elaborate PREFIX as an object-valued expression and locate the
+ * class-scope event, returning the object expression (caller owns) and
+ * the event's design-global slot. Returns nullptr when this is not a
+ * per-instance class event reference (in which case the caller falls back
+ * to the shared-scope NetEvent path).
+ *
+ * PREFIX is elaborated with the full expression machinery, so arbitrary
+ * object-handle forms work: a plain handle (obj.ev), a property chain
+ * (a.b.ev), an array element (arr[i].ev), or an associative lookup
+ * (m_events[key].ev) as used by uvm_objection.
+ */
+static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
+					      const LineInfo&loc,
+					      const pform_name_t&full_path,
+					      unsigned lexical_pos,
+					      unsigned&slot_out)
+{
+      if (full_path.empty())
+	    return nullptr;
+
+      pform_name_t prefix = full_path;
+      name_component_t last = prefix.back();
+      prefix.pop_back();
+
+	// The event component itself carries no index.
+      if (!last.index.empty())
+	    return nullptr;
+
+      NetExpr*obj = nullptr;
+      const netclass_t*cls = nullptr;
+
+      if (prefix.empty()) {
+	      // A bare member reference (`->ev` / `@ev` inside a method)
+	      // denotes this.ev. Resolve against the enclosing class and
+	      // use the implicit `this` handle as the object.
+	    cls = find_class_containing_scope(loc, scope);
+	    if (!cls)
+		  return nullptr;
+	    NetNet*this_net = find_implicit_this_handle(des, scope);
+	    if (!this_net)
+		  return nullptr;
+	    obj = new NetESignal(this_net);
+	    obj->set_line(loc);
+      } else {
+	      // Resolve the prefix by name first. A scope / hierarchical
+	      // reference (`->inst.ev`, `@(sub.genblk[i].ev)`) does NOT
+	      // resolve to a net, and must not be speculatively elaborated
+	      // as an expression -- doing so leaves unbindable netlist
+	      // artifacts. Only a prefix that names a real variable (a class
+	      // handle, or an array/assoc element of class handles) is a
+	      // candidate for a per-instance class event; everything else
+	      // falls through to the normal (scope/hierarchical) event path.
+	    symbol_search_results psr;
+	    if (!symbol_search(&loc, des, scope,
+			       pform_scoped_name_t(prefix), lexical_pos, &psr))
+		  return nullptr;
+	    if (!psr.net)
+		  return nullptr;
+
+	    PEIdent*pfx = new PEIdent(prefix, lexical_pos);
+	    obj = elab_and_eval(des, scope, pfx, -1);
+	    delete pfx;
+	    if (!obj)
+		  return nullptr;
+	    cls = dynamic_cast<const netclass_t*>(obj->net_type());
+	    if (!cls) {
+		  delete obj;
+		  return nullptr;
+	    }
+      }
+
+      NetEvent*eve = nullptr;
+      for (const netclass_t*cur = cls ; cur && !eve ; cur = cur->get_super()) {
+	    NetScope*cs = const_cast<NetScope*>(cur->class_scope());
+	    if (cs) eve = cs->find_event(last.name);
+      }
+      if (!eve || !eve->is_class_event()) {
+	    delete obj;
+	    return nullptr;
+      }
+
+      slot_out = eve->obj_slot();
+      return obj;
+}
+
 /* Resolve `<instance_scope>` (no NetNet, but path consumed) to the
    clocking block named by the LAST component of the original path. This
    handles the @(bif.cb) case where symbol_search resolves `bif` as a
@@ -575,8 +664,44 @@ static NetExpr* elaborate_root_indexed_method_target_expr_(const LineInfo*li,
 	    return base_expr;
 
       const netdarray_t*darray = dynamic_cast<const netdarray_t*>(base_type);
-      if (!darray)
+      if (!darray) {
+	      // Static unpacked-array method target (an array of class
+	      // handles or virtual interfaces): resolve the element as an
+	      // array-word read. The index used to be silently DROPPED here,
+	      // so `arr[i].method()` evaluated the receiver as word 0 of the
+	      // array and every call dispatched through the first element.
+	      // Note base_type may already be the ELEMENT type (symbol
+	      // search resolves it), so key off the signal's dimensions.
+	    NetESignal*base_sig = dynamic_cast<NetESignal*>(base_expr);
+	    if (base_sig
+		&& base_sig->sig()->unpacked_dimensions() == 1
+		&& base_sig->word_index() == 0
+		&& base_index.size() == 1
+		&& base_index.back().sel == index_component_t::SEL_BIT
+		&& base_index.back().msb != 0
+		&& base_index.back().lsb == 0) {
+		  NetExpr*mux = elab_and_eval(des, scope,
+					      base_index.back().msb, -1, false);
+		  if (mux) {
+			list<NetExpr*> idx1;
+			idx1.push_back(mux);
+			NetExpr*canon =
+			      normalize_variable_unpacked(base_sig->sig(), idx1);
+			if (canon) {
+			      canon->set_line(*li);
+			      NetESignal*tmp =
+				    new NetESignal(base_sig->sig(), canon);
+			      tmp->set_line(*li);
+			      delete base_expr;
+			      if (const netuarray_t*uarray =
+					dynamic_cast<const netuarray_t*>(base_type))
+				    out_type = uarray->element_type();
+			      return tmp;
+			}
+		  }
+	    }
 	    return base_expr;
+      }
       if (!assoc_compat_supports_indexed_method_target_(base_type, method_name)) {
 	    delete base_expr;
 	    return nullptr;
@@ -4105,6 +4230,26 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    ivl_assert(*this, lv_net_type);
 	    rv = elaborate_rval_(des, scope, lv_net_type);
 
+	      // An unpacked-array slice l-value (a partial index such as
+	      // `m[i]` into int[2][3]) is currently supported only as the
+	      // target of an assignment pattern or of a call to a function
+	      // returning an unpacked array; the code generator writes those
+	      // element-by-element at the slice's base offset. Diagnose other
+	      // r-values (whole-array copy into a slice) cleanly rather than
+	      // miscompiling them into a single-word store.
+	    if (lv->is_array_slice() && rv
+		&& dynamic_cast<NetEArrayPattern*>(rv) == 0
+		&& dynamic_cast<NetEUFunc*>(rv) == 0) {
+		  cerr << get_fileline() << ": sorry: assignment to an unpacked"
+			  " array slice is currently supported only from an"
+			  " assignment pattern ('{...}) or an unpacked-array"
+			  " function call." << endl;
+		  des->errors += 1;
+		  delete lv;
+		  delete rv;
+		  return 0;
+	    }
+
 	      // Whole static-array copy from a class property source
 	      // (e.g. the UVM field-macro COPY path "arr = rhs.arr").
 	      // Without this, code generation degrades the property
@@ -4135,6 +4280,56 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 								    0, rprop);
 			      delete rv;
 			      return loop;
+			}
+		  }
+	    }
+
+	      // A call to a function returning an unpacked array (issue
+	      // #99): supported when the target array (or slice) has the
+	      // same total element count and a compatible element type.
+	      // The function stores its result into its emitted
+	      // return-array signal and the code generator copies the
+	      // words out after the call (draw_ufunc_uarray). Mismatched
+	      // shapes are a clean error, not a miscompile.
+	    if (rv) {
+		  if (NetEUFunc*ufn = dynamic_cast<NetEUFunc*>(rv)) {
+			const NetESignal*rsig = ufn->result_sig();
+			const netuarray_t*ret_ua = rsig
+			      ? dynamic_cast<const netuarray_t*>(rsig->net_type())
+			      : 0;
+			if (ret_ua) {
+			      unsigned long lv_count = 1, ret_count = 1;
+			      for (const netrange_t&r
+					 : lv_uarray->static_dimensions())
+				    lv_count *= r.width();
+			      for (const netrange_t&r
+					 : ret_ua->static_dimensions())
+				    ret_count *= r.width();
+
+			      ivl_type_t lv_el = lv_uarray->element_type();
+			      ivl_type_t ret_el = ret_ua->element_type();
+			      auto is_vec = [](ivl_variable_type_t vt) {
+				    return vt==IVL_VT_BOOL || vt==IVL_VT_LOGIC;
+			      };
+			      bool elem_ok = lv_el && ret_el
+				    && (lv_el->packed_width()
+					== ret_el->packed_width())
+				    && ((is_vec(lv_el->base_type())
+					 && is_vec(ret_el->base_type()))
+					|| (lv_el->base_type()
+					    == ret_el->base_type()));
+
+			      if (lv_count != ret_count || !elem_ok) {
+				    cerr << get_fileline() << ": error: "
+					 << "Unpacked-array function return "
+					 << "type is not assignment compatible "
+					 << "with '" << lv->name() << "'."
+					 << endl;
+				    des->errors += 1;
+				    delete lv;
+				    delete rv;
+				    return 0;
+			      }
 			}
 		  }
 	    }
@@ -6990,12 +7185,19 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    perm_string cname = class_type->get_name();
 	    if (cname == perm_string::literal("process")
 		&& (method_name == perm_string::literal("kill")
-		    || method_name == perm_string::literal("await"))) {
+		    || method_name == perm_string::literal("await")
+		    || method_name == perm_string::literal("suspend")
+		    || method_name == perm_string::literal("resume"))) {
 		  static const std::vector<perm_string> no_parm_names;
-		  const char*sys_task_name =
-			(method_name == perm_string::literal("kill"))
-			      ? "$ivl_process$kill"
-			      : "$ivl_process$await";
+		  const char*sys_task_name;
+		  if (method_name == perm_string::literal("kill"))
+			sys_task_name = "$ivl_process$kill";
+		  else if (method_name == perm_string::literal("await"))
+			sys_task_name = "$ivl_process$await";
+		  else if (method_name == perm_string::literal("suspend"))
+			sys_task_name = "$ivl_process$suspend";
+		  else
+			sys_task_name = "$ivl_process$resume";
 		  return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
 						    method_name, sys_task_name,
 						    no_parm_names);
@@ -9656,6 +9858,30 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
       if ((expr_.size() == 1) && (expr_[0] == 0))
 		  return elaborate_wait_fork(des, scope);
 
+	/* A wait on a single non-static class event property
+	   (`@(obj.ev)`) is per-instance: wait on that object's own event
+	   (IEEE 1800-2017 15.5). */
+      if (expr_.size() == 1 && expr_[0]
+	  && (expr_[0]->type() == PEEvent::POSITIVE
+	      || expr_[0]->type() == PEEvent::ANYEDGE)
+	  && expr_[0]->expr()) {
+	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
+		  unsigned slot = 0;
+		  if (NetExpr*obj = elaborate_class_event_target_(des, scope,
+				*this, id->path().name, id->lexical_pos(), slot)) {
+			NetProc*body = 0;
+			if (statement_) {
+			      body = statement_->elaborate(des, scope);
+			      if (body == 0) { delete obj; return 0; }
+			}
+			NetEvWaitObj*wa = new NetEvWaitObj(obj, slot);
+			wa->set_line(*this);
+			wa->set_statement(body);
+			return wa;
+		  }
+	    }
+      }
+
       NetProc*enet = 0;
       if (statement_) {
 	    enet = statement_->elaborate(des, scope);
@@ -11000,6 +11226,19 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
+	// A trigger on a non-static class event property (`->obj.ev`) is
+	// per-instance: evaluate the object handle and trigger only that
+	// object's event.
+      {
+	    unsigned slot = 0;
+	    if (NetExpr*obj = elaborate_class_event_target_(des, scope,
+					*this, event_.name, lexical_pos_, slot)) {
+		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, false, 0);
+		  trig->set_line(*this);
+		  return trig;
+	    }
+      }
+
       symbol_search_results sr;
       if (!symbol_search(this, des, scope, event_, lexical_pos_, &sr)) {
 	    cerr << get_fileline() << ": error: event <" << event_ << ">"
@@ -11029,6 +11268,19 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
+
+	// Nonblocking trigger on a per-instance class event (`->>obj.ev`).
+      {
+	    unsigned slot = 0;
+	    if (NetExpr*obj = elaborate_class_event_target_(des, scope,
+					*this, event_, lexical_pos_, slot)) {
+		  NetExpr*dly = 0;
+		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
+		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, true, dly);
+		  trig->set_line(*this);
+		  return trig;
+	    }
+      }
 
       symbol_search_results sr;
       if (!symbol_search(this, des, scope, event_, lexical_pos_, &sr)) {

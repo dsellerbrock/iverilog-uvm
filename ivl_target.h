@@ -437,7 +437,13 @@ typedef enum ivl_statement_type_e {
       IVL_ST_TRIGGER = 20,
       IVL_ST_UTASK   = 21,
       IVL_ST_WAIT    = 22,
-      IVL_ST_WHILE   = 23
+      IVL_ST_WHILE   = 23,
+	/* Per-instance class event operations (IEEE 1800-2017 15.5).
+	   These carry an object-handle expression plus a per-class event
+	   slot instead of a static ivl_event_t. */
+      IVL_ST_TRIGGER_OBJ    = 35,
+      IVL_ST_NB_TRIGGER_OBJ = 36,
+      IVL_ST_WAIT_OBJ       = 37
 } ivl_statement_type_t;
 
 /* Case statements can be tagged as unique/unique0/priority. */
@@ -2332,6 +2338,10 @@ extern uint64_t ivl_stmt_delay_val(ivl_statement_t net);
 extern unsigned    ivl_stmt_needs_t0_trigger(ivl_statement_t net);
 extern unsigned    ivl_stmt_nevent(ivl_statement_t net);
 extern ivl_event_t ivl_stmt_events(ivl_statement_t net, unsigned idx);
+  /* IVL_ST_TRIGGER_OBJ IVL_ST_NB_TRIGGER_OBJ IVL_ST_WAIT_OBJ:
+     the object-handle expression and the per-class event slot. */
+extern ivl_expr_t  ivl_stmt_evobj_expr(ivl_statement_t net);
+extern unsigned    ivl_stmt_evobj_slot(ivl_statement_t net);
   /* IVL_ST_DISABLE */
 extern bool ivl_stmt_flow_control(ivl_statement_t net);
   /* IVL_ST_CONTRIB */

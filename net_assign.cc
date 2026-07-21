@@ -93,6 +93,13 @@ void NetAssign_::set_word(NetExpr*r)
       word_ = r;
 }
 
+void NetAssign_::set_array_slice(NetExpr*base_word, ivl_type_t slice_type)
+{
+      ivl_assert(*this, word_ == 0);
+      word_ = base_word;
+      slice_type_ = slice_type;
+}
+
 NetExpr* NetAssign_::word()
 {
       return word_;
@@ -142,6 +149,12 @@ ivl_type_t NetAssign_::net_type() const
 	// This is a concatenation, it does not have a type
       if (more)
 	    return nullptr;
+
+	// An unpacked-array slice presents its sub-array type to the r-value
+	// (e.g. `m[i]` of int[2][3] presents int[3]); word_ is the flat base
+	// index, but the type must NOT be unwrapped to the scalar element.
+      if (slice_type_)
+	    return slice_type_;
 
        // Selected sub-vector can have its own data type
       if (base_)

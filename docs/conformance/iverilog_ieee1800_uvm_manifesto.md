@@ -1,899 +1,620 @@
-# Icarus Verilog IEEE 1800 and UVM Implementation Manifesto
+# Icarus Verilog IEEE 1800 / UVM Conformance Manifesto
 
 ## Purpose
 
-This document is the governing implementation plan for extending the `dsellerbrock/iverilog-uvm` fork toward robust Accellera UVM compatibility and broad IEEE 1800 SystemVerilog conformance.
+This document is the governing implementation and conformance plan for the `dsellerbrock/iverilog-uvm` fork.
 
-It must be treated as the project's implementation Bible.
+Its goals are:
 
-The project has two related but distinct goals:
+1. Run the unmodified Accellera UVM reference implementation with correct language and runtime semantics.
+2. Expand Icarus Verilog toward broad, measurable IEEE 1800-2017 conformance.
+3. Track IEEE 1800-2023 separately as a delta.
+4. Eliminate silent miscompiles.
+5. Make every support claim evidence-based and falsifiable.
 
-1. Run the Accellera UVM reference implementation reliably and without simulator-specific edits.
-2. Implement the IEEE 1800 language and simulation semantics systematically enough that support can be measured clause by clause.
+This document is the implementation Bible.
 
-Passing UVM is application-level evidence. It is not proof of full IEEE 1800 conformance.
+Passing UVM is valuable evidence. It is not proof of full IEEE 1800 conformance.
 
----
-
-## Current assessment
-
-The fork is substantially beyond stock Icarus Verilog in several UVM-critical areas, including:
-
-- Class and parameterized-class handling
-- Constraint and randomization work
-- String methods
-- Queue and array methods
-- Covergroup/bin APIs
-- Fork/join scheduling fixes
-- VVP runtime fixes
-- UVM-specific regressions and compatibility work
-
-The fork already contains a useful probe-driven audit and phased implementation plan. However, that audit is primarily UVM-driven and does not represent a complete clause-by-clause IEEE 1800 audit.
-
-The existing gap list must therefore be treated as:
-
-> A UVM-driven exploratory gap audit, not a complete inventory of every unsupported IEEE 1800 feature.
+A milestone is not complete because unsupported corners are documented. A milestone is complete only when its defined scope is implemented, tested, and free of known in-scope gaps.
 
 ---
 
-## Governing implementation principles
+## Strict honesty policy
 
-### 1. The IEEE standard is the normative source
+The project must distinguish exactly between:
 
-Every implementation must be grounded in the applicable IEEE 1800 clause.
+- **COMPLETE** — all defined milestone scope is implemented and validated.
+- **SUBSET COMPLETE** — a named subset is complete, while broader scope remains open.
+- **PARTIAL** — useful implementation exists, but meaningful in-scope functionality remains missing.
+- **DIAGNOSED** — unsupported behavior is rejected explicitly and safely.
+- **OPEN** — implementation work remains.
+- **PROVISIONAL** — evidence is strong but an adversarial truth audit is still required.
 
-Do not implement behavior from memory.
+Never use `CLOSED` or `FULL` merely because UVM passes, a representative test passes, unsupported forms emit `sorry`, a recorded-corners ledger exists, no silent miscompile is currently known, or the parser accepts the construct.
 
-For every feature:
+A loud diagnostic is better than a silent miscompile, but it is still unsupported functionality.
 
-- Identify the applicable clause and subclause.
-- Record required syntax.
-- Record semantic requirements.
-- Record scheduling implications.
-- Record type-system implications.
-- Record error conditions.
-- Add positive and negative tests.
+---
 
-Use IEEE 1800-2017 as the primary baseline unless the project explicitly changes the target. Track IEEE 1800-2023 as a separate delta.
+## Normative sources
 
-### 2. The Accellera UVM library is the application-level reference
+Use sources in this order:
 
-The UVM implementation must remain unmodified except where an upstream portability branch already exists.
+1. IEEE 1800-2017.
+2. IEEE 1800-2023 for explicitly tracked delta work.
+3. The unmodified Accellera UVM reference implementation.
+4. Reduced pure-SystemVerilog reproducers.
+5. Existing regression evidence.
+6. Differential simulator behavior as supporting evidence only.
+
+Never invent clause semantics from memory.
+
+For each feature, identify the relevant clause and subclause; record syntax, semantics, typing, scheduling, VPI/DPI implications; and add positive, negative, and interaction tests where applicable.
+
+---
+
+## Core engineering principles
+
+### 1. Fix the simulator, not UVM
 
 When UVM exposes a failure:
 
-1. Reduce it to the smallest pure-SystemVerilog reproducer possible.
-2. Identify the underlying language or runtime defect.
-3. Fix the simulator.
-4. Preserve the reduced reproducer as a permanent regression.
-5. Re-run the unmodified Accellera UVM code.
+1. preserve the original UVM failure;
+2. reduce it to pure SystemVerilog;
+3. identify the real compiler/runtime defect;
+4. implement the general language behavior;
+5. preserve the reduced test;
+6. rerun unmodified UVM.
 
-Do not patch UVM to hide simulator defects.
+Do not add identifier-based UVM special cases.
 
-### 3. Never claim support based only on parsing
+### 2. Eliminate silent miscompiles first
 
-A feature is not supported until all relevant layers work:
+Priority order:
 
-- Lexing and preprocessing
-- Parsing
-- Name resolution
-- Type checking
-- Elaboration
-- Code generation
-- Runtime behavior
-- Scheduling behavior
-- VPI visibility
-- DPI behavior where applicable
-- Positive tests
-- Negative tests
+1. silent wrong behavior;
+2. compiler crashes and assertions;
+3. runtime corruption;
+4. scheduler races;
+5. known UVM semantic blockers;
+6. loud unsupported features;
+7. rare syntax completeness.
 
-### 4. Eliminate silent miscompiles
+Unsupported behavior must be implemented correctly, rejected explicitly, or intentionally lowered with documented standards-justified semantics.
 
-Permissive compile-progress fallbacks must be converted into one of:
+### 3. Parsing is not support
 
-- Correct implementation
-- Explicit compile error
-- Explicit unsupported-feature diagnostic
-- Deliberately specified safe lowering
+A feature is supported only when all relevant layers work: preprocessing, parsing, name resolution, typing, elaboration, lowering, code generation, runtime, scheduling, VPI/DPI where applicable, and durable tests.
 
-Silent approximation is incompatible with a conformance project.
+### 4. Prefer architecture over patch accumulation
 
-### 5. Prefer architectural fixes over UVM special cases
+Repeated failures involving type reconstruction, parameterized classes, aggregate lvalues, method dispatch, event scheduling, assertion execution, or container access must trigger architectural fixes rather than local workarounds.
 
-Repeated failures in factory lookup, method chaining, config databases, callbacks, assignment patterns, and arrays often indicate missing compiler architecture.
+### 5. Preserve working behavior through characterization tests
 
-Fix shared foundations rather than adding one-off checks for specific UVM identifiers.
-
-### 6. Every stable implementation increment must be committed
-
-Work must be divided into small, reviewable, regression-clean checkpoints.
-
-At each stable point:
-
-1. Run the relevant focused tests.
-2. Run the canonical regression suite.
-3. Update implementation notes and conformance records.
-4. Commit with a descriptive message.
-5. Push the branch to the remote repository.
-
-Do not leave large amounts of validated work uncommitted.
-
-Do not commit known-broken partial work to the main integration branch. Use a topic branch and mark incomplete checkpoints clearly.
+Do not rewrite large subsystems blindly. Characterize, test, migrate incrementally, and remove legacy paths only when equivalent behavior exists.
 
 ---
 
-## Architectural direction
+## Architectural programs
 
-### Typed SystemVerilog semantic IR
+### Semantic type and IR remediation
 
-Every expression must preserve:
+The long-term goal is a consistent semantic type representation across name resolution, elaboration, and lowering.
 
-- Exact SystemVerilog type
-- Signedness
-- Packed width
-- Unpacked dimensions
-- Two-state or four-state nature
-- Class specialization
-- Enum identity
-- Lvalue or rvalue category
-- Constant-expression status
-- Source location
+It must preserve exact type, signedness, packed width, unpacked dimensions, two-state/four-state identity, class specialization, enum identity, lvalue/rvalue category, aggregate layout, constant-expression status, and source location.
 
-This is necessary for:
+Required work:
 
-- Chained method calls
-- Enum methods
-- Class-return expressions
-- Parameterized class lookup
-- Assignment patterns
-- Casts
-- Array behavior
-- UVM factory access
-- UVM config database casts
+- inventory AST, type, expression, netlist, and elaboration node families;
+- identify where type information is lost;
+- remove duplicate downstream type reconstruction;
+- define typed expression and typed lvalue interfaces;
+- define ownership/lifetime rules;
+- preserve specialization through variables, properties, locals, formals, returns, and containers;
+- make unsupported semantic shapes explicit.
 
-### Separate parsing, semantic analysis, and lowering
+Do not attempt an all-at-once rewrite.
 
-The intended flow is:
+### Scheduler remediation
 
-```text
-Parser AST
-    ↓
-Name and type resolution
-    ↓
-SystemVerilog semantic IR
-    ↓
-Feature-specific lowering
-    ↓
-Netlist/VVP IR
-    ↓
-VVP runtime
-```
+Maintain an inventory mapping every scheduling path to runtime API, queue, IEEE region, and permanent test.
 
-Do not lower advanced constructs directly in parser actions when they require semantic information.
+Cover Active, Inactive, NBA, Observed, Reactive, Re-Inactive, Re-NBA, Postponed, program scheduling, assertion sampling/evaluation, clocking sampling/driving, named events, nonblocking event triggers, VPI callbacks, DPI task suspension/resumption, end-of-step cleanup, and finalization.
 
-### Aggregate layout service
+Do not claim scheduler completion until region ownership is documented and race-sensitive litmus tests cover all major paths.
 
-Use one shared representation for:
+### Aggregate and container model
 
-- Packed structs
-- Packed unions
-- Unpacked structs
-- Static arrays
-- Dynamic arrays
-- Queues
-- Assignment patterns
-- Streaming operations
-- DPI descriptors
-- VPI traversal
+Unify behavior for static arrays, dynamic arrays, queues, associative arrays, packed/unpacked structs and unions, nested aggregates, and strings where appropriate.
 
-It must provide:
+Shared operations should cover indexing, slicing, iteration, resizing, copying, comparison, sorting, reduction, locator methods, assignment compatibility, aggregate layout, VPI, and DPI.
 
-- Width
-- Member offsets
-- Array strides
-- Flattening order
-- Streaming traversal order
-- Recursive assignment compatibility
-- Default propagation
+### Runtime class identity
 
-### Runtime type descriptors
-
-Every runtime class object should have a descriptor containing:
-
-- Concrete class type
-- Base class
-- Parameter specialization identity
-- Property descriptors
-- Virtual method table
-- Cast relationships
-- Factory-visible type name
-- VPI-visible metadata
-
-### Generic container model
-
-Static arrays, dynamic arrays, queues, associative arrays, and strings where appropriate should share reusable operations for:
-
-- Iteration
-- Indexing
-- Resizing
-- Copying
-- Comparison
-- Sorting
-- Reduction
-- Locator methods
-- VPI access
-- DPI access
-
-### Formalized scheduler
-
-The runtime scheduler must be treated as an explicit state machine covering the relevant SystemVerilog event regions.
-
-Every scheduling operation should declare its destination region.
-
-Add trace support recording:
-
-- Simulation time
-- Delta cycle
-- Event region
-- Process identity
-- Event identity
-- Source location
-
-### Scheduler remediation program
-
-The current scheduler must not be assumed correct merely because individual UVM tests pass. The existing runtime has accumulated behavior through local fixes, and failures involving fork/join, events, clocking, assertions, program blocks, task calls, and UVM phasing can share the same underlying scheduling defects.
-
-Before adding advanced SVA, program-block, or clocking semantics, perform a scheduler architecture audit.
-
-The audit must:
-
-1. Inventory every runtime queue and scheduling entry point.
-2. Map each queue and callback to an IEEE event region.
-3. Identify operations that currently rely on implicit ordering.
-4. Identify direct thread execution that bypasses normal scheduling.
-5. Identify places where child processes are expected to complete synchronously.
-6. Identify event-trigger lifetime and waiter-registration behavior.
-7. Identify VPI and DPI callbacks whose region is ambiguous.
-8. Identify end-of-time-slot and end-of-simulation behavior.
-9. Add invariants and debug assertions for illegal transitions.
-10. Produce scheduler litmus tests before restructuring code.
-
-The target scheduler model should make the following concepts explicit:
-
-- Time slot
-- Delta cycle
-- Event region
-- Runnable process
-- Suspended process
-- NBA update
-- Reactive/program process
-- Assertion sampling and evaluation
-- Clocking-block sampling and driving
-- VPI callback
-- DPI task suspension and resumption
-- End-of-step cleanup
-
-Do not perform a blind rewrite. Preserve working behavior through characterization tests, then replace implicit ordering incrementally.
-
-The scheduler remediation is complete only when:
-
-- Region ownership is documented for every scheduling API.
-- Race-sensitive litmus tests are durable regressions.
-- Process and event semantics no longer depend on incidental queue order.
-- Clocking blocks, program blocks, SVA, VPI, and DPI use the same documented region model.
-- Existing UVM regressions remain clean.
-
-### Semantic IR remediation program
-
-The current compiler architecture must not be assumed capable of full SystemVerilog merely because isolated syntax has been added successfully.
-
-Repeated failures involving method chaining, parameterized classes, enum identity, assignment patterns, arrays, constraints, and UVM factory paths indicate that semantic information is lost or reconstructed inconsistently across compiler stages.
-
-The typed semantic IR must therefore be introduced as a migration program, not only as a design preference.
-
-The migration must:
-
-1. Inventory existing AST, netlist, expression, type, and elaboration node families.
-2. Identify where type, width, signedness, dimensions, class specialization, and enum identity are discarded.
-3. Identify parser actions that perform premature lowering.
-4. Define one canonical semantic type descriptor.
-5. Define typed expression and typed lvalue interfaces.
-6. Define ownership and lifetime rules for semantic nodes.
-7. Add conversion boundaries between legacy nodes and the new semantic IR.
-8. Migrate one feature family at a time.
-9. Preserve existing behavior with characterization tests.
-10. Remove legacy fallback paths only after equivalent semantic coverage exists.
-
-The migration should begin with expression and member-access semantics because they unblock:
-
-- Function-return method chaining
-- Enum method chaining
-- UVM factory access
-- Parameterized class specialization
-- Class-valued config database operations
-- Assignment compatibility
-- Aggregate member access
-- Constraint expression typing
-
-Do not attempt an all-at-once compiler rewrite.
-
-Use adapters where necessary, but do not let adapters become permanent duplicate type systems.
-
-The semantic IR remediation is complete only when:
-
-- A single canonical type representation is used across name resolution, elaboration, and lowering.
-- Function-call results retain exact static type.
-- Lvalues and rvalues use consistent aggregate layout information.
-- Parameterized class specializations remain distinct.
-- Enum identity survives expression lowering.
-- Unsupported semantic forms fail explicitly rather than entering compile-progress fallbacks.
-- UVM-specific fixes no longer require identifier-based compiler branches.
+Runtime class objects should preserve concrete class type, base type, specialization identity, property descriptors, virtual method identity, cast relationships, factory-visible type names, and VPI-visible metadata.
 
 ---
 
-## Verified high-priority gap families
+# Current milestone truth status
 
-### Clocking blocks and program semantics
+## M0 — Reproducible baseline
 
-Implement and test:
+**Status: COMPLETE**
 
-- Module-level clocking blocks
-- Interface-level clocking blocks
-- Program-level clocking blocks
-- Global clocking
-- Default clocking
-- Input/output skew
-- Clocking signal directions
-- Clocking sampling and driving regions
-- Program reactive-region execution
+Maintain clean builds, canonical regressions, UVM, negative tests, VPI, cross-platform CI, and baseline comparison procedures.
 
-### SVA
+## M1A — Typed receiver expressions and chained dispatch
 
-Build a coherent property and sequence engine supporting:
+**Status: COMPLETE**
 
-- Clocked properties
-- Default clocking
-- Sequence delays
-- Repetition
-- Implication
-- Disable conditions
-- Strong and weak semantics
-- `and`
-- `or`
-- `intersect`
-- `throughout`
-- `within`
-- Local variables
-- Formal arguments
-- Multiclock semantics
-- Assertion action blocks
-- Assertion controls
-- Procedural concurrent assertion contexts
+## M1B — Specialization and aggregate typing fidelity
 
-### Constraint solving
+**Status: PARTIAL**
 
-Implement as a subsystem:
+- [ ] Fix member access on type-parameter-typed output/ref formals.
+- [ ] Audit specialization through variables, properties, locals, arrays, returns, and formals.
+- [ ] Reprobe specialization inside nested aggregates.
+- [ ] Remove remaining compile-progress fallbacks caused by lost specialization.
+- [ ] Add adversarial parameterized-UVM regressions.
 
-- Implication
-- `if`/`else`
-- `foreach`
-- `inside`
-- `dist` with `:=` and `:/`
-- `solve ... before`
-- Enum constraints
-- Inherited constraints
-- Parent/child random fields
-- Dynamic-array size constraints
-- Inline constraints
-- Soft constraints
-- `constraint_mode`
-- `rand_mode`
-- `randc`
-- `pre_randomize`
-- `post_randomize`
-- Failure-state preservation
-- Seed stability
+## M1C — Canonical semantic IR migration
 
-### Class and method semantics
+**Status: OPEN**
 
-Implement:
+- [ ] Inventory legacy semantic representations.
+- [ ] Define canonical type descriptor boundaries.
+- [ ] Define typed lvalue interfaces.
+- [ ] Document semantic ownership/lifetime rules.
+- [ ] Identify compiler paths bypassing canonical typing.
+- [ ] Migrate high-risk expression and aggregate families incrementally.
 
-- Method calls on arbitrary class-valued expressions
-- Property access on function-return class handles
-- Chained class methods
-- Chained enum methods
-- Static factory access
-- Parameterized class specialization through expressions
-- Virtual dispatch
-- `$cast`
-- Runtime type identity
+## M2 — UVM factory, config, callbacks, and field automation
 
-### UVM-critical language flows
+**Status: COMPLETE FOR DEFINED MILESTONE SCOPE**
 
-Prioritize:
+Future failures belong to the underlying language/runtime subsystem unless the UVM mechanism itself is incorrect.
 
-- Factory by-name creation
-- Config database class-object storage and retrieval
-- Callback registration
-- Static and dynamic array field automation
-- Deep and shallow copy behavior
-- Clone, compare, pack, unpack, print, and record paths
-- Phasing and objection correctness
+## M3A — Common class-based UVM constraint solving
 
-### Interfaces and modports
+**Status: COMPLETE FOR COMMON UVM FLOWS**
 
-Implement:
+## M3B — Full clause-18 randomization
 
-- Modport task/function imports and exports
-- Interface instance arrays
-- Virtual interface arrays
-- Implicit and explicit modport selection
-- Modport compatibility checks
-- Parameterized interfaces
-- Interface methods
-- Clocking blocks in interfaces
-- Unpacked-dimensional ports where legal
+**Status: PARTIAL**
 
-### Process and event semantics
+- [ ] Implement `std::randomize(var...)`.
+- [ ] Implement `randcase`.
+- [ ] Implement `randsequence`.
+- [ ] Implement `unique {}` constraints.
+- [ ] Implement `disable soft`.
+- [ ] Reaudit `rand_mode` and `constraint_mode` combinations.
+- [ ] Add seed-stability and failed-randomization state tests.
 
-Implement:
+## M4A — Core container runtime and known silent value-loss fixes
 
-- `process::self`
-- Status transitions
-- `await`
-- `suspend`
-- `resume`
-- `kill`
-- Randstate accessors
-- Parent/child process identity
-- Correct fork/join interaction
-- Event arrays
-- Event assignment
-- `event.triggered`
-- Multiple waiters
-- Nonblocking event triggers
-- Correct event-region lifetime
+**Status: COMPLETE FOR CURRENT CORE**
 
-### Arrays, queues, and containers
+## M4B — Aggregate/container completion
 
-Implement complete behavior for:
+**Status: PARTIAL**
 
-- Static arrays
-- Dynamic arrays
-- Queues
-- Associative arrays
-- Nested containers
-- Resize-with-copy
-- Reverse
-- Sort
-- Rsort
-- Shuffle
-- Min
-- Max
-- Unique
-- Unique index
-- Find
-- Find index
-- Reductions
-- Iterator and `with` semantics
+- [ ] Support wildcard associative-array index declarations where required.
+- [x] Correct `%p` formatting for integral aggregates. *(Done 2026-07-21:
+      rewrote the `%p` handler as a recursive assignment-pattern formatter
+      (`format_p_value` in `vpi/sys_display.c`). Queues, dynamic arrays,
+      fixed unpacked arrays and associative arrays now print
+      `'{v0, v1, ...}` (assoc as `'{key:val, ...}`) with integral elements
+      in decimal, reals via `%g`, strings quoted; empty containers print
+      `'{}`. The old handler asked every element for `vpiStringVal`, so
+      integral elements came out as raw ASCII bytes (99 → `'c'`) or empty
+      (unimplemented `get_word(string)` for queue/darray elements). Also
+      fixed assoc key rendering (vector keys were the raw byte encoding —
+      now decimal, `vvp_assoc.h peek_entry`) and queue element type
+      detection for real/string queues (`vpi_darray.cc get_word_value`).
+      Test `sv_display_p_aggregates`. Remaining refinements: signed integral
+      darray/queue elements still render unsigned (element signedness is not
+      carried through the container VPI path), and a packed struct prints as
+      one decimal rather than a `'{member:val}` pattern.)*
+- [x] Fix nested packed-struct array literal compiler crash. *(Done
+      2026-07-21: module-scope nested literals work on all probed shapes;
+      the remaining defect was a class-property whole-array pattern store
+      that silently zero-filled — fixed via `draw_prop_array_pattern`
+      (`%store/prop/v/i` per element). Test `sv_class_prop_array_pattern`.
+      Sibling real/string class-property array storage is a separate,
+      deeper defect: issue #100.)*
+- [x] Fix unpacked-array typedef return plus assignment-pattern compiler
+      crash. *(2026-07-21: IMPLEMENTED (issue #99). A function may return an
+      unpacked array; the return signal is emitted as a real array
+      (`elab_sig.cc` splits the unpacked dims; `vvp_scope.c` no longer
+      skips it), the body stores the result elements into it, and the call
+      site invokes the function like a void function then copies the words
+      out into the target array/slice (`draw_ufunc_uarray`). Automatic and
+      static functions; int/real/string elements; multi-dimensional
+      returns; slice targets. Shape mismatches are a clean elaboration
+      error. Tests `sv_uarray_func_return` (positive) and
+      `sv_uarray_func_return_fail` (CE, now a shape mismatch). Note:
+      unpacked arrays in automatic scopes use static storage in vvp, so a
+      recursive function returning an array through concurrent activations
+      shares that storage — a pre-existing vvp property, not introduced
+      here.)*
+- [x] Fix class-property unpacked arrays of `real`/`string` (were a silent
+      miscompile — every element stored to one slot). *(Done 2026-07-21:
+      array-capable real/string cobject property storage + indexed opcodes
+      `%store/prop/{r,str}/i` / `%prop/{r,str}/i`. Test
+      `sv_class_prop_real_string_array`. Issue #100.)*
+- [ ] Continue adversarial nested-container testing.
+- [ ] Reaudit nested property read/write/method shapes after future typing changes.
 
-### Assignment patterns, structs, unions, and streaming
+## M5 — Interfaces and modports
 
-Implement:
+**Status: PARTIAL — AUDITED 2026-07-21**
 
-- Typed assignment-pattern defaults
-- Recursive defaults
-- Packed aggregate defaults
-- Tagged unions
-- Pattern matching
-- Streaming RHS
-- Streaming LHS
-- Unpacked array slicing
-- Recursive aggregate assignment
+- [x] Audit full modport member access restrictions. *(2026-07-21:
+      direction enforcement (writing an input member through a modport)
+      was already implemented and errors cleanly. Member VISIBILITY was
+      NOT enforced — writing a member the modport does not list compiled
+      silently; now a clean error (`elab_lval.cc`, alongside the direction
+      check; import/export-listed subroutines stay accessible). CE test
+      `sv_modport_visibility_fail`. Remaining refinement: visibility on
+      the READ side (expression path) is not yet enforced.)*
+- [x] Revalidate output/inout imported task copy-back. *(2026-07-21:
+      works — single-attached-instance binding with an explicit warning
+      that dynamic multi-instance copy-back is not implemented; verified
+      accumulating state + output arg across two calls.)*
+- [x] Remove or justify hard dispatch limits such as `VIF_DISPATCH_MAX`.
+      *(2026-07-21: REMOVED. The fixed 64-instance cap silently dropped
+      instances beyond it, so virtual calls through handles bound to
+      instances 65+ quietly did nothing. Collection is now dynamically
+      sized. Test `sv_vif_dispatch_many` (72 instances). The same
+      investigation found and fixed a broader silent miscompile: the
+      receiver index of `arr[i].method()` on a STATIC array of class
+      handles or virtual interfaces was dropped in BOTH the task-method
+      and function-method elaboration paths — every call dispatched
+      through element 0. Test `sv_class_array_method_dispatch`.)*
+- [x] Verify per-specialization interface typing. *(2026-07-21: verified —
+      two specializations of a parameterized interface keep distinct
+      widths/parameter values, both data and methods.)*
+- [~] Stress parameterized virtual-interface arrays. *(2026-07-21:
+      constant-index vif-array binding (`vp[2] = pins[2]`) and
+      element-indexed method dispatch work; binding with a RUNTIME index
+      (`vp[i] = pins[i]` in a loop) fails at elaboration — "Scope index
+      expression is not constant" — because interface-instance selection
+      is a scope operation. Needs a runtime instance-dispatch table.)*
+- [~] Audit bare module-scope virtual-interface declarations. *(2026-07-21:
+      a `virtual pin_if vp;` declaration at compilation-unit ($unit) scope
+      is a parse error. Module-scope and class-property declarations
+      work.)*
 
-### DPI-C
+## M6A — Core scheduler/runtime repairs
 
-Implement:
+**Status: SUBSET COMPLETE**
 
-- Installed `svdpi.h`
-- Scalars
-- Two-state vectors
-- Four-state vectors
-- Strings
-- Chandle
-- Packed arrays
-- Unpacked arrays
-- Open arrays
-- Multidimensional arrays
-- `svOpenArrayHandle`
-- Bounds and dimensional queries
-- Element and slice accessors
-- Scope APIs
-- Pure imports
-- Context imports
-- Imported tasks
-- Exported tasks/functions
-- Re-entrant calls
-- Scheduler integration
-- Cross-platform ABI tests
+## M6B — Scheduler conformance
 
-### VPI
+**Status: PARTIAL**
 
-Systematically cover:
+Completed: construct-level region inventory, event-region litmus tests, program completion behavior, `$exit`, nonblocking event trigger fixes, and callf trampoline architecture.
 
-- Classes
-- Packages
-- Interfaces
-- Modports
-- Generate scopes
-- Dynamic arrays
-- Queues
-- Associative arrays
-- Strings
-- Assertions
-- Covergroups
-- Tasks and functions
-- Values
-- Delays
-- Callbacks
-- Force/release
-- Stable handle lifetime
+Remaining:
 
-### Functional coverage
+- [x] Implement per-instance class event storage and triggering. *(Done
+      2026-07-21: per-object `vvp_named_event_dyn` storage + `%evt/obj` /
+      `%wait/obj` opcodes; `->obj.ev` / `@(obj.ev)` are per-instance for
+      obj.ev, a.b.ev, arr[i].ev, and assoc `m_events[k].ev`. Also fixed a
+      pre-existing fork double-reap crash exposed by the change.)*
+- [~] Implement correct `process.status()` transitions. *(2026-07-21:
+      SUSPENDED now reported for suspended processes; FINISHED / KILLED /
+      WAITING(event/join) / RUNNING already worked. Remaining refinement: a
+      process parked on a `#delay` reports RUNNING, not WAITING — the delay
+      queue marks the thread `is_scheduled`, so distinguishing "ready now"
+      from "parked on a future delay" needs a dedicated flag.)*
+- [x] Implement `process::suspend()` and `process::resume()`. *(Done
+      2026-07-21: `%process/suspend` / `%process/resume` opcodes; a
+      suspended thread is skipped by vthread_run with the pending wake
+      recorded, so resume() continues exactly where it left off — including
+      an event that fired while suspended (deferred, not lost).
+      Self-suspend parks immediately. Test `sv_process_suspend_resume`.)*
+- [ ] Complete post-NBA VPI callback-region support.
+- [ ] Define scheduling for time-consuming DPI imports.
+- [ ] Complete assertion attempt lifecycle scheduling.
+- [ ] Keep the scheduler inventory synchronized with every scheduler change.
 
-Create an independent runtime coverage service supporting:
+## M7 — Accellera UVM qualification
 
-- Covergroups
-- Coverpoints
-- Explicit bins
-- Automatic bins
-- Wildcard bins
-- Ignore bins
-- Illegal bins
-- Transition bins
-- Repetition
-- Arrayed bins
-- With clauses
-- Crosses
-- `binsof`
-- `intersect`
-- Per-instance coverage
-- Type coverage
-- Options and type options
-- Sampling events
-- Explicit sampling
-- Query APIs
-- Coverage reporting
-- Durable serialization
+**Status: COMPLETE FOR THE HARNESS SUITE — full UVM regression 209/209, 0 skipped**
 
-### Long-tail language support
+The RAL front door and major UVM subsystems execute correctly, and the
+bundled UVM regression suite passes with zero skips.
 
-Eventually cover:
+- [x] Fix per-instance class events so UVM objection events do not cross-wake between instances. *(Done 2026-07-21; the shared-event cross-wake is gone.)*
+- [x] Fix the `m7_objection_stress` run-phase completion blocker. *(Done
+      2026-07-21. The real cause was NOT objection count propagation (that
+      is correct) but a runtime defect: a reference to `this` from a nested
+      detached (join_none) fork body resolved to null for later iterations,
+      so the phase hopper's per-phase `drop_objection` saw a null `this`,
+      `get_objection()` returned null, and the drop silently no-op'd on the
+      null handle. Fixed in `vvp/vthread.cc`
+      (`vthread_get_rd_context_item_scoped` single-live-activation fallback).
+      Issue #103. Tests `sv_this_nested_detached_fork` +
+      `m7_objection_stress_test` (un-skipped, now PASS).)*
+- [x] Re-enable and verify full extract/check/report/final phase execution.
+      *(m7 now ends at t=80 with all post-run phases executing.)*
+- [x] Run full RAL, sequence, objection, TLM, callback, and phasing stress
+      suites. *(UVM regression 209 passed / 0 failed / 0 skipped.)*
 
-- `bind`
-- `let`
-- Config declarations
-- `trireg`
-- Specify paths
-- Timing checks
-- Strength and charge semantics
-- Rare net forms
-- Compilation-unit rules
-- Preprocessor corner cases
-- Complete constant-expression semantics
+Note: the harness suite is green, but per the truth rules this is
+"COMPLETE for the probed suite," not a proof of standards-complete UVM.
+
+## M8 — Clocking blocks and program scheduling
+
+**Status: PROVISIONAL COMPLETE**
+
+- [ ] Reprobe edge-qualified skew forms.
+- [ ] Reprobe real/string/aggregate clockvars.
+- [ ] Stress parameterized virtual-interface clocking.
+- [ ] Stress clocking + program + assertion + VPI ordering.
+- [ ] Verify every clause-14 subfeature has a disposition.
+
+## M9A — Core SVA token-pipeline engine
+
+**Status: COMPLETE**
+
+## M9B — Fixed-shape sequence algebra
+
+**Status: SUBSTANTIAL / PARTIAL**
+
+## M9C — Temporal property operators
+
+**Status: PARTIAL**
+
+## M9D — Advanced SVA semantics and automaton engine
+
+**Status: OPEN**
+
+- [ ] Implement goto repetition.
+- [ ] Implement nonconsecutive repetition.
+- [ ] Implement local sequence variables.
+- [ ] Implement `.matched`.
+- [ ] Complete `.triggered`.
+- [ ] Implement `expect`.
+- [ ] Support richer sequence operands for temporal operators.
+- [ ] Generalize variable-length `intersect` and `within`.
+- [ ] Implement multiclock semantics.
+- [ ] Implement full assertion attempt lifecycle.
+- [ ] Implement procedural concurrent assertion forms.
+- [ ] Implement checker constructs or create a dedicated checker milestone.
+- [ ] Introduce an automaton/state-machine engine where linear lowering is semantically insufficient.
+
+## M10A — Core DPI imports and packed vectors
+
+**Status: COMPLETE FOR CURRENT SUBSET**
+
+## M10B/M10C — DPI completion
+
+**Status: PARTIAL**
+
+- [ ] Implement multidimensional open arrays.
+- [ ] Implement DPI exports / C-to-SystemVerilog calls.
+- [ ] Implement real context semantics.
+- [ ] Verify complete scope API behavior.
+- [ ] Verify `chandle` ABI representation.
+- [ ] Support time-consuming imported tasks.
+- [ ] Add C→SV→C reentrancy tests.
+- [ ] Run real DPI regressions on Linux, macOS, and Windows.
+
+## M11A — Class-embedded functional coverage core
+
+**Status: COMPLETE**
+
+## M11B — Full clause-19 declaration and sampling surface
+
+**Status: PARTIAL**
+
+- [ ] Implement package-scope covergroups.
+- [ ] Implement module/interface-scope covergroups.
+- [ ] Complete sampling-event forms.
+- [ ] Complete `with function sample` formal semantics.
+- [ ] Audit arbitrary coverpoint expressions.
+- [ ] Audit all `option` and `type_option` properties.
+- [ ] Define durable coverage serialization/interchange goals.
+- [ ] Build adversarial cross and transition coverage tests.
+
+## M12A — Core SystemVerilog VPI object model
+
+**Status: SUBSTANTIAL**
+
+## M12B/M12C — VPI completion
+
+**Status: PARTIAL**
+
+- [ ] Implement assertion start/step/disable lifecycle callbacks.
+- [ ] Populate meaningful `s_vpi_attempt_info`.
+- [ ] Complete bit-select force/release.
+- [ ] Complete associative-array element writes.
+- [ ] Complete nested class-member traversal.
+- [ ] Expose complete modport direction/access metadata.
+- [ ] Complete covergroup drill-down handles.
+- [ ] Define and test VPI object lifetime/free behavior.
+
+## M13A — Implemented long-tail core
+
+**Status: SUBSET COMPLETE**
+
+Includes substantial support for module/type bind, let, specify paths, common timing checks, rare net/strength constructs, and preprocessing corner cases.
+
+## M13B — Remaining long-tail support
+
+**Status: PARTIAL**
+
+- [ ] Implement bind to a specific instance path.
+- [ ] Implement bind target-instance lists.
+- [ ] Implement actual `config` semantics and library mapping.
+- [ ] Implement `trireg` charge semantics.
+- [ ] Implement `$nochange`.
+- [ ] Implement `$timeskew`.
+- [ ] Implement `$fullskew`.
+- [ ] Implement timing-check edge descriptor lists.
+- [ ] Implement timestamp/timecheck conditions.
+- [ ] Implement `pulsestyle`.
+- [ ] Implement `showcancelled`.
+
+## M14A — Initial IEEE 1800-2017 clause disposition
+
+**Status: COMPLETE**
+
+This means the matrix exists and every top-level clause has a disposition. It does not mean the language is fully conformant.
+
+## M14B — Exhaustive subclause conformance campaign
+
+**Status: OPEN**
+
+- [ ] Correct stale `FULL` labels where in-clause features remain unsupported.
+- [ ] Re-evaluate every `FULL` row containing a documented corner.
+- [ ] Downgrade clauses 19, 31, 35, and 36 until known missing features are implemented.
+- [ ] Add subclause-level evidence.
+- [ ] Link matrix rows directly to permanent tests.
+- [ ] Repeat silent-miscompile hunting with adversarial and generated tests.
+- [ ] Maintain a zero-known-silent-gap policy.
+
+## M15 — IEEE 1800-2023 delta
+
+**Status: OPEN**
+
+Do not begin broad M15 work until P0/P1 correctness blockers and the major reopened 2017 gaps are under control.
 
 ---
 
-## Conformance infrastructure
+# Highest-priority correctness backlog
 
-Create:
+## P0 — Per-instance class events
 
-```text
-docs/conformance/
-    ieee1800-2017-matrix.csv
-    ieee1800-2023-delta.csv
-    ieee1800.2-uvm-matrix.csv
-```
+**Status: IMPLEMENTED (2026-07-21).** Non-static class `event` properties
+now have per-instance runtime storage; the shared-event cross-wake is gone.
 
-Each feature row must include:
+- [x] Store event identity per runtime object instance.
+- [x] Add dynamic class-property event wait operations.
+- [x] Add dynamic class-property event trigger operations (blocking + NB).
+- [ ] Verify event assignment/alias semantics. *(Not implemented; UVM does not use it.)*
+- [x] Verify multiple waiters.
+- [~] Re-run UVM objection and phase-hopper stress tests. *(Objection
+      cross-wake fixed and front-door stress passes; the phase-hopper
+      stress still blocks on the separate `phase_hopper_objection` count-
+      propagation gap — see M7.)*
 
-- Clause
-- Subclause
-- Feature
-- Parser status
-- Semantic status
-- Elaboration status
-- Runtime status
-- Scheduler status
-- VPI status
-- DPI status
-- Positive test
-- Negative test
-- Differential test
-- Current result
-- Issue or gap identifier
-- Owning subsystem
+Known follow-up: `obj.ev.triggered` still lowers through the shared-event
+path (the `%evtest/obj` opcode exists but isn't wired into expression
+elaboration yet).
 
-### Test hierarchy
+## P0 — `$unit` class timescale semantics
 
-#### Tier A: Language microtests
+**Status: FIXED (2026-07-21).** `$time`/`$realtime` in a `$unit`-scope class
+method now scale to the active `` `timescale `` (they used to walk out to
+`$unit` = 1 s and give 0 for a stored `$time`). Fix: `sys_time_scope()` in
+`vpi/sys_time.c` stops the scope walk before crossing into a package/`$unit`.
 
-One feature per test.
+- [x] Apply active timescale/timeunit semantics to `$unit` class declarations.
+- [x] Verify `$time`.
+- [x] Verify `$realtime`.
+- [x] Verify delays inside class methods.
+- [x] Verify nested calls and package interaction. *(module / `$unit` / package
+      classes all covered; ivtest `sv_unit_class_timescale`.)*
 
-#### Tier B: Interaction tests
+## P1 — Remaining type-parameter formal member access
 
-Examples:
+- [x] Fix member access on output/ref formals typed by type parameters.
+      *(Verified RESOLVED 2026-07-21: the original "Variable t does not
+      have a field named ..." defect (m7 stress findings 2026-07-18) no
+      longer reproduces on any probed shape — it was fixed by the
+      intervening M1B typing and virtual-output copy-back work. Probed:
+      output-T and ref-T deref in parameterized methods; T inherited from
+      a specialized base; deref after a nested parameterized call; virtual
+      dispatch through a parameterized base handle with subclass-member
+      deref; nested t.sub.inner deref in output tasks and ref functions.)*
+- [x] Add pure-language and UVM-shaped tests. *(Test
+      `sv_typeparam_formal_member` pins all six shapes; UVM-shaped
+      coverage via `m1b_typeparam_member_call_test` and
+      `m1b_virtual_output_copyback_test` in the UVM suite.)*
 
-- Classes plus randomization plus dynamic arrays
-- Interfaces plus clocking plus virtual interfaces
-- Packages plus parameterized classes plus factory
-- Assertions plus default clocking plus program blocks
+## P1 — Known compiler crashes
 
-#### Tier C: Application tests
-
-Use the unmodified Accellera UVM library and representative examples.
-
----
-
-## Constructive assessment of the current implementation strategy
-
-The existing phase-based work has produced real progress, but the project must avoid interpreting a growing passing-test count as evidence that the architecture is ready for full IEEE 1800 support.
-
-The following risks must remain visible throughout implementation:
-
-### Risk 1: UVM success can conceal incomplete language semantics
-
-UVM exercises a large and valuable subset of SystemVerilog, but it does not exercise every legal language form, scheduling interaction, timing construct, assertion behavior, coverage rule, VPI object, or DPI shape.
-
-A UVM regression is therefore necessary but insufficient.
-
-### Risk 2: Parser acceptance can conceal semantic no-ops
-
-Several advanced constructs can be made to parse while still being ignored, incorrectly lowered, or scheduled in the wrong region.
-
-Every feature must be tested for observable semantics, not syntax alone.
-
-### Risk 3: Local VVP fixes can conceal scheduler inconsistency
-
-A runtime warning or UVM phase failure may be fixed locally while leaving the event-region model inconsistent.
-
-Fork/join, events, process handles, clocking, assertions, program blocks, DPI tasks, and VPI callbacks must ultimately share one scheduler model.
-
-### Risk 4: Repeated type reconstruction signals an inadequate IR
-
-When downstream code must infer class type, enum identity, packed width, array shape, or specialization from context, correctness becomes fragile.
-
-The semantic IR migration is a prerequisite for sustainable completion of the class, aggregate, constraint, and UVM feature sets.
-
-### Risk 5: The existing phase estimates understate some subsystems
-
-Full SVA, functional coverage, DPI open arrays, VPI SystemVerilog coverage, scheduler conformance, and constraint solving are not small parser patches.
-
-They must be planned as multi-stage subsystems with architecture, tests, diagnostics, and runtime support.
-
-### Risk 6: Permissive fallbacks create false progress
-
-A compile-progress path that emits plausible code can be more dangerous than a hard error.
-
-Unsupported semantics must be explicit until implemented correctly.
-
-### Risk 7: Differential testing is evidence, not specification
-
-Commercial and open-source simulators can disagree or contain bugs.
-
-The IEEE standard remains normative; differential results help expose ambiguity and implementation defects.
-
-### Risk 8: Full conformance requires negative testing
-
-Legal examples alone do not validate:
-
-- Illegal syntax rejection
-- Type errors
-- Lifetime restrictions
-- Scheduling restrictions
-- Context restrictions
-- Required diagnostics
-- Failed randomization behavior
-
-Every major feature family needs negative tests.
-
-### Risk 9: Compatibility must not freeze poor architecture
-
-Preserving current regressions is mandatory, but legacy implementation structure should not be treated as untouchable when it prevents correct semantics.
-
-Use characterization tests and incremental migration rather than indefinite accumulation of special cases.
+- [x] Fix nested literal into array of packed structs. *(2026-07-21:
+      module-scope works; class-property whole-array pattern store no
+      longer zero-fills. Test `sv_class_prop_array_pattern`.)*
+- [x] Fix function return of unpacked-array typedef with assignment
+      pattern. *(2026-07-21: fully implemented — see the M4B entry (issue
+      #99). Positive test `sv_uarray_func_return`; the CE test now pins the
+      shape-mismatch diagnostic.)*
+- [~] Search for adjacent assertion/abort paths and add negative hardening
+      tests. *(Ongoing: added CE hardening test for the uarray-return
+      abort; more assert/abort sweeps pending.)*
 
 ---
 
-## Milestone sequence
+# Conformance matrix truth rules
 
-### M0 — Reproducible baseline
+A clause may be marked `FULL` only if all in-scope subfeatures are implemented, no known in-clause unsupported feature remains, no known compiler crash remains, no known silent miscompile remains, positive and negative tests exist, and interaction behavior has been tested where applicable.
 
-- Import all temporary probes into the repository
-- Document build and regression commands
-- Record current upstream and fork commit IDs
-- Produce baseline regression results
+If a clause has known unsupported functionality, use `PARTIAL` or `DIAGNOSED`.
 
-### M1 — Semantic IR foundation and runtime class descriptors
-
-This milestone is an architectural migration gate, not a collection of isolated UVM fixes.
-
-- Inventory the current AST, elaboration, expression, type, and netlist representations
-- Define the canonical SystemVerilog semantic type descriptor
-- Preserve return types
-- Support method/property lookup on arbitrary expressions
-- Preserve enum identity
-- Preserve parameter specialization
-- Add virtual dispatch metadata
-- Introduce typed lvalue and aggregate-layout interfaces
-- Add adapters for legacy lowering paths
-- Convert silent type-recovery fallbacks into tracked diagnostics
-- Document which compiler paths still bypass the semantic IR
-
-### M2 — UVM factory, config, callbacks, and field automation
-
-- Fix by-name factory paths
-- Fix class-valued config database paths
-- Fix callback macro reductions
-- Fix array field copy/clone/print/pack behavior
-
-### M3 — Constraint solver
-
-- Implement common UVM constraint semantics as one subsystem
-
-### M4 — Container runtime
-
-- Unify array, queue, associative-array, and string container operations
-
-### M5 — Interfaces and modports
-
-- Complete connection, array, modport, and virtual interface behavior
-
-### M6 — Scheduler architecture, processes, and events
-
-This milestone must precede claims of complete clocking, program, SVA, DPI-task, or race-free UVM behavior.
-
-- Inventory all scheduling queues and entry points
-- Map runtime operations to IEEE event regions
-- Add scheduler trace and invariant checking
-- Add race-sensitive scheduler litmus tests
-- Formalize event-region behavior
-- Fix process state and event observation
-- Remove incidental queue-order dependencies
-- Document VPI, DPI, assertion, program, and clocking integration points
-
-### M7 — Accellera UVM core qualification
-
-Run the unmodified library through:
-
-- Factory
-- Config
-- Callbacks
-- Reporting
-- Phases
-- Objections
-- Sequences
-- TLM
-- Register model
-- Field automation
-- Resource database
-- Events and barriers
-
-### M8 — Clocking blocks and program scheduling
-
-### M9 — Core SVA engine
-
-### M10 — DPI and open arrays
-
-### M11 — Functional coverage
-
-### M12 — VPI SystemVerilog object model
-
-### M13 — Bind, let, configs, specify, timing, and rare constructs
-
-### M14 — IEEE 1800-2017 clause matrix with complete disposition
-
-### M15 — IEEE 1800-2023 delta
+`FULL on probed constructs` is not equivalent to standards-complete.
 
 ---
 
-## Definition of done for a feature
+# Definition of done
 
 A feature is complete only when:
 
-1. The governing IEEE clause is identified.
-2. Legal syntax parses.
-3. Illegal syntax produces a controlled diagnostic.
-4. Names resolve correctly.
-5. Types are preserved correctly.
-6. Elaboration is correct.
-7. Runtime behavior is correct.
-8. Scheduling behavior is correct where applicable.
-9. VPI behavior is defined where applicable.
-10. DPI behavior is defined where applicable.
-11. Positive tests pass.
-12. Negative tests pass.
-13. Interaction tests pass.
-14. Existing regressions pass.
-15. Documentation and conformance matrices are updated.
-16. The work is committed and pushed.
+1. governing clause identified;
+2. syntax implemented;
+3. illegal forms diagnosed;
+4. names resolve correctly;
+5. exact types preserved;
+6. elaboration correct;
+7. runtime correct;
+8. scheduling correct where applicable;
+9. VPI defined where applicable;
+10. DPI defined where applicable;
+11. positive tests pass;
+12. negative tests pass;
+13. interaction tests pass;
+14. UVM regression passes where applicable;
+15. broader regression remains baseline-clean;
+16. conformance documentation updated;
+17. no known in-scope corner remains hidden behind a completion label;
+18. work is committed and pushed.
 
 ---
 
-## Immediate recommended implementation sequence
+# Execution order
 
-Begin with the typed-expression and method-dispatch foundation.
+Unless new evidence changes priorities:
 
-Implement:
+1. Fix per-instance class events.
+2. Fix `$unit` class timescale semantics.
+3. Fix known compiler crashes.
+4. Finish M1B type-fidelity residuals.
+5. Reaudit M5.
+6. Continue M6 scheduler/process completion.
+7. Finish M9D SVA architecture.
+8. Finish M10 DPI.
+9. Finish M11 coverage declaration/sampling surface.
+10. Finish M12 VPI.
+11. Finish M13 long-tail support.
+12. Perform M14B subclause conformance campaign.
+13. Begin M15 IEEE 1800-2023 delta.
 
-1. Exact return-type preservation on function-call expression nodes.
-2. Member lookup against the returned type.
-3. Method calls on arbitrary class-valued expressions.
-4. Property access on arbitrary class-valued expressions.
-5. Chained method calls.
-6. Enum method calls on function returns.
-7. Parameterized class specialization preservation.
-8. Virtual dispatch metadata.
-9. Focused tests for:
-
-```systemverilog
-f().method();
-f().property;
-f().method().method();
-enum_f().name();
-C#(T)::get().method();
-```
-
-Then rerun the UVM factory, config database, process enum, and builder-chain probes.
-
-After that, implement the constraint solver as a coherent subsystem.
+Always prioritize newly discovered silent miscompiles or crashes above this order.
 
 ---
 
-## Commit and branch discipline
+# Final principle
 
-Use topic branches for each milestone or tightly scoped feature.
+The goal is not to produce the appearance of completeness.
 
-At stable checkpoints:
+The goal is measurable conformance.
 
-```bash
-git status
-git diff
-# run focused tests
-# run canonical regression
-git add <intentional files>
-git commit -m "<subsystem>: <precise completed behavior>"
-git push -u origin <branch>
-```
+Every support claim must be tied to a standard clause, real implementation, permanent tests, regression evidence, and honest remaining limitations.
 
-Commit messages must describe behavior, not merely phase numbers.
-
-For incomplete but valuable branch state, use a clear WIP commit only on a topic branch:
-
-```text
-WIP: <subsystem> <current state and remaining failure>
-```
-
-Never push known-broken work to the main integration branch.
-
-Maintain a session log containing:
-
-- Branch
-- Starting commit
-- Ending commit
-- Tests run
-- Results
-- Root cause
-- Files changed
-- Remaining work
-- Exact next action
-
----
-
-## Final project principle
-
-The project must not chase a vague claim of “full SystemVerilog support.”
-
-It must build measurable conformance:
-
-> Every supported behavior is tied to a standard clause, a durable test, a documented implementation path, and a regression-clean commit.
+When reality and milestone wording disagree, change the milestone wording.

@@ -302,6 +302,8 @@ ivl_stmt_cond_true
 ivl_stmt_delay_expr
 ivl_stmt_delay_val
 ivl_stmt_events
+ivl_stmt_evobj_expr
+ivl_stmt_evobj_slot
 ivl_stmt_file
 ivl_stmt_flow_control
 ivl_stmt_init_stmt
