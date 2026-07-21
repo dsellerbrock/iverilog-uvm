@@ -314,7 +314,15 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	// Special case: The l-value is an entire memory, or array
 	// slice. Detect the situation by noting if the index count
 	// is less than the array dimensions (unpacked).
-      if (reg->unpacked_dimensions() > name_tail.index.size()) {
+	//
+	// This must not fire for a member access on an array element
+	// (`arr[i].prop = ...`): there the array index sits on the base
+	// component (base_index), while name_tail is the member and
+	// carries no index, so name_tail.index.size() is 0. Guard on an
+	// empty tail_path so such references fall through to the
+	// class/struct member l-value path below.
+      if (tail_path.empty()
+	  && reg->unpacked_dimensions() > name_tail.index.size()) {
 	    return elaborate_lval_array_(des, scope, is_force, reg);
       }
 
@@ -1357,6 +1365,38 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 		    lv = new NetAssign_(sig);
 		    lv->set_word(root_word_index);
+		    root_type = lv->net_type();
+	      } else if (!base_index.empty() && sig->unpacked_dimensions() > 0) {
+		      // Static unpacked array of class handles, e.g.
+		      // `c arr[N]; arr[i].prop = ...`. Convert the element
+		      // index to canonical form (accounting for the array's
+		      // declared range) exactly as elaborate_lval_net_word_
+		      // does, then address the element. Previously only the
+		      // dynamic-array case above was handled, so the index was
+		      // silently dropped and the l-value referenced the whole
+		      // array -- a null word index then crashed tgt-vvp.
+		    std::list<NetExpr*> unpacked_indices;
+		    std::list<long> unpacked_indices_const;
+		    indices_flags flags;
+		    indices_to_expressions(des, scope, this,
+					   base_index, sig->unpacked_dimensions(),
+					   false, flags,
+					   unpacked_indices, unpacked_indices_const);
+
+		    NetExpr*canon_index = 0;
+		    if (flags.invalid || flags.undefined) {
+			  // leave canon_index null -> ignored below
+		    } else if (flags.variable) {
+			  canon_index = normalize_variable_unpacked(sig, unpacked_indices);
+		    } else {
+			  canon_index = normalize_variable_unpacked(sig, unpacked_indices_const);
+		    }
+		    if (canon_index == 0)
+			  canon_index = new NetEConst(verinum(verinum::Vx));
+		    canon_index->set_line(*this);
+
+		    lv = new NetAssign_(sig);
+		    lv->set_word(canon_index);
 		    root_type = lv->net_type();
 	      }
 

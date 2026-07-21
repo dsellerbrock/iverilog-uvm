@@ -402,6 +402,21 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    ivl_expr_t word_ex = ivl_lval_idx(lval);
 	    ivl_type_t sig_type = ivl_signal_net_type(lval_sig);
 
+	      /* A static unpacked array of class handles (`c arr[N]`) reports
+		 its net_type as the ELEMENT class directly (no array wrapper),
+		 while still carrying array dimensions. Load the indexed
+		 element with %load/obja; the element type IS sig_type. Without
+		 this the class-index block below (which expects an array
+		 wrapper with a non-null ivl_type_element) fell through to the
+		 scalar %load/obj fallback, dropping the index. */
+	    if (word_ex && sig_type
+		&& ivl_type_base(sig_type) == IVL_VT_CLASS
+		&& ivl_signal_dimensions(lval_sig) > 0) {
+		  draw_eval_expr_into_integer(word_ex, 3);
+		  fprintf(vvp_out, "    %%load/obja v%p, 3;\n", lval_sig);
+		  return sig_type;
+	    }
+
 	    if (word_ex && sig_type) {
 		  ivl_type_t element_type = ivl_type_element(sig_type);
 		  if (element_type && ivl_type_base(element_type) == IVL_VT_CLASS) {

@@ -1074,3 +1074,4 @@ sv_mailbox_try_int1 normal,-g2012 ivltests
 sv_class_static_assoc_method1 normal,-g2012 ivltests
 sv_class_function_fork_task1 normal,-g2012 ivltests
 fork_disable_detached_grandchild normal,-g2012 ivltests
+sv_array_obj_prop_store normal,-g2012 ivltests
