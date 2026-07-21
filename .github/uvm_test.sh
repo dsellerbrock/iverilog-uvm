@@ -94,16 +94,19 @@ rm -f uvm_dpi_iverilog.o
 # m7_objection_stress_test: run_phase never completes cleanly under the
 # concurrent workload, so the run extends to the UVM 9200s watchdog instead
 # of ending at t=80. The run_phase objection counters pass; only the
-# end-of-sim time check fails. ROOT CAUSE (issue #102, sharpened
-# 2026-07-21): an `automatic` local declared in a loop body and captured by
-# a join_none/join_any fork does NOT get per-iteration storage inside a
-# CLASS method (single-task-frame model) -- every branch reads the last
-# value. This mis-schedules UVM's own phase executor forks and leaves the
-# phase_hopper_objection off-by-two on uvm_top (2 raises never dropped).
-# NOTE: the earlier "objection count-propagation" diagnosis was wrong -- the
-# run-phase objection's propagation to uvm_top is correct (traced to 0). The
-# naive fix (give the block its own frame) regresses outer-automatic access,
-# so a proper capture-by-value / frame-chaining codegen fix is needed (#102).
+# end-of-sim time check fails. ROOT CAUSE (issue #103): after the run phase
+# completes, the phase_hopper_objection ends off-by-two on uvm_top (27
+# raises / 25 drops), so uvm_phase_hopper::run_phases never returns from
+# wait_for_objection(UVM_ALL_DROPPED). Two phase-hopper raises on uvm_top
+# are never balanced; which schedule/domain phase drops them is not yet
+# identified.
+#
+# Ruled out: (a) run-phase objection count propagation -- it reaches
+# uvm_top=0 correctly (traced); (b) forked-argument capture (#102, fixed in
+# 9f1909b) -- m7 fails identically with that fix, and the hopper's own
+# capture uses an inline `automatic phase = ph` initializer that always
+# worked. So m7 is isolated to the phase-hopper teardown, not the user
+# objection or fork capture.
 KNOWN_FAIL="m7_objection_stress_test"
 
 # Per-test plusargs and extra iverilog compile flags. Kept as plain case
