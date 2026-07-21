@@ -181,7 +181,18 @@ Maintain clean builds, canonical regressions, UVM, negative tests, VPI, cross-pl
       miscompile is now a loud `sorry` at both the l-value (`elab_lval.cc`)
       and r-value (`elab_expr.cc check_for_struct_members`) sites, gated on
       the container being `netuarray_t` / plain `netdarray_t` (not
-      `netqueue_t`). CE test `sv_ustruct_array_member_ce`. While reducing
+      `netqueue_t`). CE test `sv_ustruct_array_member_ce`. A sibling of
+      defect (a), the WHOLE-element write `arr[i] = <expr>` (no member
+      select), was found to crash the same way — the static-array element
+      write degrades the struct r-value to a null store, so the element ends
+      up null and later reads / `%p` abort at run time. The precise boundary
+      differs from the member case: only a STATIC unpacked array
+      (`netuarray_t`) whole-element write is broken; dynamic and associative
+      arrays and queues of unpacked structs, and whole-ARRAY pattern assigns
+      (`arr = '{...}`), all store elements correctly. It is now a loud
+      `sorry` in `elaborate_lval_net_word_` (`elab_lval.cc`) gated on
+      `netuarray_t` + non-packed `netstruct_t` element. CE test
+      `sv_ustruct_array_element_ce`. While reducing
       (a) a second real crash surfaced and was fixed: the TASK-method path
       (`arr[0].method();` as a statement — a void method with a constant
       index) hit the same `canonical_expr` assertion as the earlier
