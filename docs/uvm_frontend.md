@@ -20,9 +20,13 @@ vvp -d ./uvm_dpi.so sim.vvp +UVM_TESTNAME=my_test
 with
 
 ```bash
-iverilog -g2012 -uvm tb.sv -s top -o sim.vvp
+iverilog -g2012 -uvm -s top -o sim.vvp tb.sv
 vvp sim.vvp +UVM_TESTNAME=my_test
 ```
+
+(Options precede the source files, the ordering `iverilog` expects on every
+platform; `getopt` on macOS/BSD does not reorder arguments the way glibc
+does.)
 
 The user no longer needs to know where the UVM sources live, which include
 directory to add, where the DPI C/C++ sources are, how the DPI library is

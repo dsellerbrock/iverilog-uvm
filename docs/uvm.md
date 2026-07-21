@@ -22,11 +22,12 @@ With an installed toolchain, `-uvm` wires up UVM for you — sources, include
 path, compile order, and the standard UVM DPI runtime:
 
 ```bash
-iverilog -g2012 -uvm my_testbench.sv -s top -o sim.vvp
+iverilog -g2012 -uvm -s top -o sim.vvp my_testbench.sv
 vvp sim.vvp +UVM_TESTNAME=my_test
 ```
 
-This is the recommended flow; it needs no UVM paths and no `-M`/`-m`/`-d`
+Options precede the source files, as `iverilog` always expects. This is the
+recommended flow; it needs no UVM paths and no `-M`/`-m`/`-d`
 runtime arguments, and it enables the real UVM DPI layer automatically. See
 [docs/uvm_frontend.md](uvm_frontend.md) for how the front end resolves and
 loads these resources, and for the overrides (`--uvm-home`, `--uvm-no-dpi`,

@@ -114,12 +114,13 @@ sources, the correct include path and compile order, and the standard UVM
 DPI runtime — the way a commercial simulator does:
 
 ```bash
-iverilog -g2012 -uvm my_testbench.sv -s top -o sim.vvp
+iverilog -g2012 -uvm -s top -o sim.vvp my_testbench.sv
 vvp sim.vvp +UVM_TESTNAME=my_test
 ```
 
 No UVM source paths, no `uvm_pkg.sv` on the command line, no `-M`/`-m`/`-d`
-shared-library arguments. The DPI layer (regex name matching, command-line
+shared-library arguments. (Options precede the source files, as `iverilog`
+always expects.) The DPI layer (regex name matching, command-line
 / plusarg access, the `uvm_hdl_*` register **backdoor**) is loaded
 automatically, and `+UVM_TESTNAME` selects the test when `run_test()` is
 called with no argument. This works from any directory and from a relocated

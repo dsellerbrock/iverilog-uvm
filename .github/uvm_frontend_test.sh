@@ -113,7 +113,7 @@ cd "$WORK"
 
 # --------------------------------------------------------------------------
 say "S1: basic automatic UVM from an arbitrary directory (no manual paths)"
-if "$IVERILOG" -g2012 -uvm tb.sv -o sim.vvp >s1.log 2>&1 ; then
+if "$IVERILOG" -g2012 -uvm -o sim.vvp tb.sv >s1.log 2>&1 ; then
     if grep -q 'error:' s1.log ; then
         fail "compile emitted error: lines"; grep 'error:' s1.log | head -3
     else
@@ -157,7 +157,7 @@ fi
 
 # --------------------------------------------------------------------------
 say "S4: --uvm-no-dpi compiles the pure-SystemVerilog fallbacks"
-if "$IVERILOG" -g2012 --uvm-no-dpi tb.sv -o nodpi.vvp >s4.log 2>&1 ; then
+if "$IVERILOG" -g2012 --uvm-no-dpi -o nodpi.vvp tb.sv >s4.log 2>&1 ; then
     if grep -q ':vpi_module "[^"]*uvm_dpi' nodpi.vvp ; then
         fail "--uvm-no-dpi should not bake the UVM DPI module"
     else
@@ -171,7 +171,7 @@ fi
 
 # --------------------------------------------------------------------------
 say "S5: --uvm-home override selects an explicit UVM library"
-if "$IVERILOG" -g2012 --uvm-home="$UVMSRC" tb.sv -o home.vvp >s5.log 2>&1 \
+if "$IVERILOG" -g2012 --uvm-home="$UVMSRC" -o home.vvp tb.sv >s5.log 2>&1 \
        && ! grep -q 'error:' s5.log ; then
     out="$($TO "$VVP" home.vvp 2>&1)"
     echo "$out" | grep -q 'UVM_ERROR :    0' && pass "--uvm-home compiled and ran" \
@@ -183,7 +183,7 @@ fi
 # --------------------------------------------------------------------------
 say "S6: controlled diagnostic when the UVM DPI runtime is missing"
 if mv "$DPIVPI" "$DPIVPI.hidden" 2>/dev/null ; then
-    diag="$("$IVERILOG" -g2012 -uvm tb.sv -o miss.vvp 2>&1)"
+    diag="$("$IVERILOG" -g2012 -uvm -o miss.vvp tb.sv 2>&1)"
     mv "$DPIVPI.hidden" "$DPIVPI"
     if echo "$diag" | grep -qi 'UVM DPI runtime' && echo "$diag" | grep -qi 'UVM_NO_DPI'; then
         pass "missing DPI runtime produced a clear high-level diagnostic"
@@ -196,7 +196,7 @@ fi
 
 # --------------------------------------------------------------------------
 say "S7: controlled diagnostic when the UVM package is missing"
-"$IVERILOG" -g2012 --uvm-home=/nonexistent/uvm tb.sv -o never.vvp >s7.log 2>&1
+"$IVERILOG" -g2012 --uvm-home=/nonexistent/uvm -o never.vvp tb.sv >s7.log 2>&1
 rc=$?
 if [ $rc -ne 0 ] && grep -qi 'uvm_pkg.sv' s7.log ; then
     pass "missing UVM package failed with a clear message (exit $rc)"
