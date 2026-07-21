@@ -3,6 +3,46 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21 (P0 per-instance class events + fork double-reap fix)
+
+- **Per-instance class events (P0) — IMPLEMENTED.** Non-static class
+  `event` properties are now per-instance (IEEE 1800-2017 15.5): `->obj.ev`
+  triggers only that object's event, `@(obj.ev)` waits on the correct
+  object. Runtime = a lazily-allocated `vvp_net_t` + `vvp_named_event_dyn`
+  per (object, global slot) on `vvp_cobject`; new opcodes `%evt/obj`,
+  `%evt/obj/nb`, `%wait/obj`, `%evtest/obj`. Compiler = `NetEvTrigObj` /
+  `NetEvWaitObj` + IR types `IVL_ST_{TRIGGER,NB_TRIGGER,WAIT}_OBJ`;
+  `elaborate_class_event_target_` (elaborate.cc) resolves the object
+  handle (this-handle for bare members; prefix elaborated only after
+  symbol_search confirms a real net, so hierarchical `inst.ev` refs are
+  never speculatively elaborated). Handles obj.ev / a.b.ev / arr[i].ev /
+  assoc `m_events[k].ev`. Commit `aa42c4d`. Test
+  `ivtest/ivltests/sv_class_event_per_instance.v`.
+- **Fork double-reap crash — FIXED (pre-existing, independent).**
+  `vthread_reap` didn't empty its child sets, so of_DISABLE_FORK's second
+  reap of an already-reaped detached child tripped `child->parent == thr`.
+  Made reap idempotent (pop-erase). Commit `a3b591b`. Test
+  `ivtest/ivltests/fork_disable_detached_grandchild.v` (no class events).
+- **Validation:** full vendored ivtest name-diff CLEAN (44 expected
+  failures, 0 new, 0 stale). UVM front-door stress passes. Both new tests
+  pass.
+- **REMAINING M7 blocker (layer-3, separate):** the UVM
+  `phase_hopper_objection` never all-drops to the top (uvm_root) under
+  concurrent objection traffic -- its integer count for uvm_root never
+  returns to 0 (all_dropped is called for every component key but never
+  uvm_root). This is objection COUNT propagation, independent of events;
+  the shared-event cross-wake previously masked it. Blocks clean run-phase
+  completion in `m7_objection_stress_test` (counters pass; end-of-sim time
+  check fails -> on harness KNOWN_FAIL). **Next:** trace m_propagate /
+  m_drop for a `uvm_phase`-keyed objection climbing to m_top; see
+  session log 2026-07-21 for the instrumented evidence.
+- **Also found (unrelated P1 crash, filed):** `arr[i].prop = expr` where
+  `arr` is an unpacked array of class handles crashes ivl in
+  `show_stmt_assign_sig_cobject` -> `ivl_expr_value(NULL)`. No events.
+- **Known limitation:** `obj.ev.triggered` still uses the shared-event
+  path (%evtest/obj opcode exists but isn't wired into expression
+  elaboration yet); pre-existing, not a new regression.
+
 ## State as of 2026-07-17e (M12B-cb: assertion VPI callbacks)
 
 - **`vpi_register_assertion_cb` now works** for

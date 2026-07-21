@@ -230,7 +230,11 @@ Completed: construct-level region inventory, event-region litmus tests, program 
 
 Remaining:
 
-- [ ] Implement per-instance class event storage and triggering.
+- [x] Implement per-instance class event storage and triggering. *(Done
+      2026-07-21: per-object `vvp_named_event_dyn` storage + `%evt/obj` /
+      `%wait/obj` opcodes; `->obj.ev` / `@(obj.ev)` are per-instance for
+      obj.ev, a.b.ev, arr[i].ev, and assoc `m_events[k].ev`. Also fixed a
+      pre-existing fork double-reap crash exposed by the change.)*
 - [ ] Implement correct `process.status()` transitions.
 - [ ] Implement `process::suspend()` and `process::resume()`.
 - [ ] Complete post-NBA VPI callback-region support.
@@ -246,9 +250,10 @@ The RAL front door and major UVM subsystems now execute substantially correctly.
 
 Remaining blocker:
 
-- [ ] Fix per-instance class events so UVM objection events do not cross-wake between instances.
+- [x] Fix per-instance class events so UVM objection events do not cross-wake between instances. *(Done 2026-07-21; the shared-event cross-wake is gone.)*
+- [ ] Fix `phase_hopper_objection` count propagation to the top so run_phase completes cleanly (its uvm_root count never returns to 0 under concurrent objection traffic; previously masked by the cross-wake). This is the remaining blocker for full extract/check/report/final phase execution.
 - [ ] Re-enable and verify full extract/check/report/final phase execution.
-- [ ] Run full RAL, sequence, objection, TLM, callback, and phasing stress suites after the fix.
+- [ ] Run full RAL, sequence, objection, TLM, callback, and phasing stress suites after the phase-objection fix.
 
 M7 may be marked COMPLETE only after this blocker is closed.
 
@@ -395,16 +400,22 @@ Do not begin broad M15 work until P0/P1 correctness blockers and the major reope
 
 ## P0 — Per-instance class events
 
-Current defect: non-static class `event` properties share one class-level runtime event, so triggering one object's event can wake another object's waiter.
+**Status: IMPLEMENTED (2026-07-21).** Non-static class `event` properties
+now have per-instance runtime storage; the shared-event cross-wake is gone.
 
-Required work:
+- [x] Store event identity per runtime object instance.
+- [x] Add dynamic class-property event wait operations.
+- [x] Add dynamic class-property event trigger operations (blocking + NB).
+- [ ] Verify event assignment/alias semantics. *(Not implemented; UVM does not use it.)*
+- [x] Verify multiple waiters.
+- [~] Re-run UVM objection and phase-hopper stress tests. *(Objection
+      cross-wake fixed and front-door stress passes; the phase-hopper
+      stress still blocks on the separate `phase_hopper_objection` count-
+      propagation gap — see M7.)*
 
-- [ ] Store event identity per runtime object instance.
-- [ ] Add dynamic class-property event wait operations.
-- [ ] Add dynamic class-property event trigger operations.
-- [ ] Verify event assignment/alias semantics.
-- [ ] Verify multiple waiters.
-- [ ] Re-run UVM objection and phase-hopper stress tests.
+Known follow-up: `obj.ev.triggered` still lowers through the shared-event
+path (the `%evtest/obj` opcode exists but isn't wired into expression
+elaboration yet).
 
 ## P0 — `$unit` class timescale semantics
 
