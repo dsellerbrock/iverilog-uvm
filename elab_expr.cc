@@ -6136,8 +6136,40 @@ static NetExpr* elaborate_root_indexed_class_base_expr_(const LineInfo*li,
 		    return base_expr;
 
 	      const netdarray_t*darray = net->darray_type();
-	      if (!darray)
+	      if (!darray) {
+		      // Static unpacked array of class handles (`c arr[N];
+		      // arr[i].prop`). The dynamic-array-only handling below
+		      // dropped the element index, leaving a whole-array base
+		      // that read element 0. Build an indexed element access
+		      // (a NetESignal word select, exactly like a plain
+		      // `arr[i]` object read) so the property read addresses
+		      // the correct element.
+		    if (net->unpacked_dimensions() > 0 && !base_index.empty()) {
+			  std::list<NetExpr*> idx_exprs;
+			  std::list<long> idx_consts;
+			  indices_flags flags;
+			  indices_to_expressions(des, scope, li, base_index,
+						 net->unpacked_dimensions(),
+						 false, flags,
+						 idx_exprs, idx_consts);
+			  NetExpr*canon = 0;
+			  if (flags.invalid || flags.undefined)
+				canon = 0;
+			  else if (flags.variable)
+				canon = normalize_variable_unpacked(net, idx_exprs);
+			  else
+				canon = normalize_variable_unpacked(net, idx_consts);
+
+			  if (canon) {
+				NetESignal*elem = new NetESignal(net, canon);
+				elem->set_line(*li);
+				out_type = elem->net_type();
+				delete base_expr;
+				return elem;
+			  }
+		    }
 		    return base_expr;
+	      }
 
 	      if (base_index.size() != 1) {
 		    cerr << li->get_fileline() << ": sorry: "
