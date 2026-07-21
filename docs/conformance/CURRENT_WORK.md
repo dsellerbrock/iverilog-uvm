@@ -3,6 +3,39 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21f (loop-local capture by inline detached fork — FIXED)
+
+- **A loop-body `automatic` captured by an inline detached (join_none/
+  join_any) fork now gets the correct per-iteration value inside a class
+  method (previously it read the loop's final value).** This closes the
+  "Known residual" noted in the 2026-07-21e entry below.
+  Root cause: `PBlock::elaborate_scope` (`elab_scope.cc`) collapses an
+  automatic begin/fork block into the enclosing task activation frame
+  (upstream single-task-frame model), so the loop-body block that declared
+  `automatic int idx = i;` shared ONE storage slot across all iterations.
+  A detached branch reading `idx` after the iteration completed therefore
+  saw only the final value. At module scope the identical block already
+  kept a per-entry frame (its static parent is never collapsed), so the two
+  contexts disagreed — module gave `4 3 2 1 0`, the class method gave
+  `4 4 4 4 4`.
+  Fix (IEEE 1800-2017 9.3.2): decline the frame-collapse for a block that
+  BOTH declares its own automatic locals AND lexically contains a detached
+  fork. Such a block keeps a per-entry `%alloc`/`%free` frame, so each loop
+  iteration allocates a fresh copy that the spawned branch retains —
+  matching module-scope behaviour. New predicate
+  `Statement::contains_detached_fork()` (virtual, overridden in the pform
+  container statements) drives the decision; the collapse gate in
+  `elab_scope.cc` adds `&& !keeps_frame_for_capture`.
+  The outer-automatic / `this` access from the now-own-frame block resolves
+  through the same single-live-activation fallback that fixed m7 (#103), so
+  the fix composes cleanly with it.
+  Test: `sv_loop_local_detached_fork` (class flat loop, class nested
+  detached fork, module-scope loop — all in one run).
+- **Validation:** ivtest full default run **byte-identical to baseline**
+  (3062 passed / 44 failed, 0 new / 0 stale by name); UVM suite **209/0/0**
+  (0 skips); the `this`-in-detached-fork and fork-arg-capture ivtests still
+  pass.
+
 ## State as of 2026-07-21e (M7 GREEN — `this`-in-nested-detached-fork fix)
 
 - **m7_objection_stress_test — FIXED; full UVM suite 209/0/0 (zero skips).**
@@ -25,10 +58,12 @@ the investigation. Update at every meaningful checkpoint.
   inline `automatic phase = ph` capture that already worked). #102 handles a
   single-branch `fork task(args); join_none`; this fix handles the implicit
   `this` from a general inline detached fork body.
-- **Known residual (not a regression):** a loop-local captured by a general
-  inline detached fork body resolves to its last value, not the
-  per-iteration value (#102-class limitation; was null before). `this` is
-  unaffected (single live activation for a non-recursive method).
+- **Known residual (RESOLVED 2026-07-21f, see entry above):** a loop-local
+  captured by a general inline detached fork body resolved to its last
+  value, not the per-iteration value. Now fixed by declining the
+  frame-collapse for automatic-local blocks that contain a detached fork.
+  `this` was always unaffected (single live activation for a non-recursive
+  method).
 
 ## State as of 2026-07-21d (P0 silent miscompile: real/string class-property arrays)
 

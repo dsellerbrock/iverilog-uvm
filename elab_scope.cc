@@ -3155,8 +3155,23 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 	      // join_any/join_none forks (detached branches outlive the
 	      // statement) and for automatic blocks with a static parent
 	      // (no enclosing frame exists).
+	      //
+	      // Exception (IEEE 1800-2017 9.3.2): a block that declares
+	      // its own automatic locals AND lexically contains a detached
+	      // fork (join_none/join_any) must keep a per-entry frame.
+	      // Collapsing it into the shared task frame would give every
+	      // loop iteration the same storage slot, so a detached branch
+	      // that captures the local by reference — and reads it after
+	      // the iteration completes — would see only the final value
+	      // instead of that iteration's copy. Keeping the frame makes
+	      // each entry allocate a fresh copy that the spawned branch
+	      // retains, matching the module-scope behaviour.
+	    bool keeps_frame_for_capture =
+		  scope_has_automatic_signal_locals_(wires)
+		  && contains_detached_fork();
 	    if (my_scope->is_auto() && scope->is_auto()
-		&& (bl_type_ == BL_SEQ || bl_type_ == BL_PAR))
+		&& (bl_type_ == BL_SEQ || bl_type_ == BL_PAR)
+		&& !keeps_frame_for_capture)
 		  my_scope->auto_frame(false);
 	    my_scope->add_imports(&explicit_imports);
 	    my_scope->add_typedefs(&typedefs);
