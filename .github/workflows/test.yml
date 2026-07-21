@@ -158,7 +158,14 @@ jobs:
 
     - name: DPI/regex diagnostic probe
       continue-on-error: true
-      run: bash .github/win_dpi_probe.sh
+      run: bash .github/win_dpi_probe.sh 2>&1 | tee "win_probe_${{ matrix.msystem }}.txt"
+
+    - name: Upload probe output
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: probe-${{ matrix.msystem }}
+        path: win_probe_${{ matrix.msystem }}.txt
 
     - name: Regression tests
       continue-on-error: true
