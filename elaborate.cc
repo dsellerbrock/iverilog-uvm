@@ -4228,6 +4228,31 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		  }
 	    }
 
+	      // A function that yields a whole unpacked array as its
+	      // value has no array-copy lowering: the vvp calling
+	      // convention returns only scalars, packed vectors, reals,
+	      // strings, and object handles, so an unpacked-array result
+	      // cannot be delivered. Diagnose it cleanly here instead of
+	      // letting code generation abort on the whole-array store
+	      // (issue #99).
+	    if (rv) {
+		  if (NetEUFunc*ufn = dynamic_cast<NetEUFunc*>(rv)) {
+			const NetESignal*rsig = ufn->result_sig();
+			if (rsig && dynamic_cast<const netuarray_t*>
+					(rsig->net_type())) {
+			      cerr << get_fileline() << ": sorry: a function "
+				   << "that returns an unpacked array cannot yet "
+				   << "be assigned to an unpacked array; the vvp "
+				   << "calling convention has no unpacked-array "
+				   << "return path." << endl;
+			      des->errors += 1;
+			      delete lv;
+			      delete rv;
+			      return 0;
+			}
+		  }
+	    }
+
       } else {
 	      /* Elaborate the r-value expression, then try to evaluate it. */
 	    rv = elaborate_rval_(des, scope, lv_net_type, lv->expr_type(), count_lval_width(lv));

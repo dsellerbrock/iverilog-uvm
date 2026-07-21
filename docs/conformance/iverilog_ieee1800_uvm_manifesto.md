@@ -202,8 +202,20 @@ Future failures belong to the underlying language/runtime subsystem unless the U
 
 - [ ] Support wildcard associative-array index declarations where required.
 - [ ] Correct `%p` formatting for integral aggregates.
-- [ ] Fix nested packed-struct array literal compiler crash.
-- [ ] Fix unpacked-array typedef return plus assignment-pattern compiler crash.
+- [x] Fix nested packed-struct array literal compiler crash. *(Done
+      2026-07-21: module-scope nested literals work on all probed shapes;
+      the remaining defect was a class-property whole-array pattern store
+      that silently zero-filled — fixed via `draw_prop_array_pattern`
+      (`%store/prop/v/i` per element). Test `sv_class_prop_array_pattern`.
+      Sibling real/string class-property array storage is a separate,
+      deeper defect: issue #100.)*
+- [~] Fix unpacked-array typedef return plus assignment-pattern compiler
+      crash. *(2026-07-21: the compiler ICE is gone — an unpacked-array
+      function return assigned as a whole array now emits a graceful
+      `sorry` instead of aborting (`elaborate.cc`, CE test
+      `sv_uarray_func_return_fail`). Full support — an actual
+      unpacked-array return path in the vvp calling convention — is not
+      yet implemented; tracked in issue #99. DIAGNOSED, not FULL.)*
 - [ ] Continue adversarial nested-container testing.
 - [ ] Reaudit nested property read/write/method shapes after future typing changes.
 
@@ -438,9 +450,16 @@ method now scale to the active `` `timescale `` (they used to walk out to
 
 ## P1 — Known compiler crashes
 
-- [ ] Fix nested literal into array of packed structs.
-- [ ] Fix function return of unpacked-array typedef with assignment pattern.
-- [ ] Search for adjacent assertion/abort paths and add negative hardening tests.
+- [x] Fix nested literal into array of packed structs. *(2026-07-21:
+      module-scope works; class-property whole-array pattern store no
+      longer zero-fills. Test `sv_class_prop_array_pattern`.)*
+- [~] Fix function return of unpacked-array typedef with assignment
+      pattern. *(2026-07-21: ICE replaced by a graceful `sorry`; full
+      unpacked-array return path still unimplemented — issue #99. CE test
+      `sv_uarray_func_return_fail`.)*
+- [~] Search for adjacent assertion/abort paths and add negative hardening
+      tests. *(Ongoing: added CE hardening test for the uarray-return
+      abort; more assert/abort sweeps pending.)*
 
 ---
 

@@ -3,6 +3,40 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21c (M4B known crashes: member access, array pattern, uarray func return)
+
+- **Member access on an element of an unpacked array of a packed struct
+  (`pair_t arr[N]; arr[i].m`) — FIXED (crash, read + write).** The
+  unpacked index was mistaken for a packed dimension. Read path
+  `elab_expr.cc` (check_for_struct_members), write path `elab_lval.cc`
+  (elaborate_lval_net_packed_member_). Commit `a3cc376`. Test
+  `sv_unpacked_array_packed_struct_member`.
+- **Whole-array assignment pattern into a class-property unpacked array of
+  a packed type (`obj.arr = '{...}`) — FIXED (was a zero-fallback
+  miscompile).** The logic-property store fed the array pattern to
+  `draw_eval_vec4`, which cannot evaluate an array pattern and emitted a
+  "zero fallback" (arr left 0/x). New `draw_prop_array_pattern` stores
+  each element via `%store/prop/v/i`. Handles packed-struct arrays, int
+  arrays, and nested (multi-dim) patterns. Commit `658dd8b`. Test
+  `sv_class_prop_array_pattern`.
+- **Function returning an unpacked array assigned as a whole array
+  (`r = make()`) — NO LONGER CRASHES; now a graceful diagnostic.** The
+  vvp calling convention has no unpacked-array return path, so codegen
+  aborted (`store_vec4_to_lval` assertion). `elaborate.cc`
+  (PAssign::elaborate netuarray branch) now detects a uarray-returning
+  `NetEUFunc` r-value and emits a clean `sorry`. Full support (a real
+  unpacked-array return path) remains open — issue #99. CE test
+  `sv_uarray_func_return_fail`.
+- **Filed #100:** class-property unpacked arrays of `real`/`string` store
+  every element to the same slot (broken even element-wise; no indexed
+  real/string property store opcode). Distinct, deeper defect; not
+  touched by the array-pattern fix (which only covers logic/packed
+  elements).
+- Module-scope nested literal into an unpacked array of packed struct
+  (`arr = '{'{..},'{..}}`) works on all probed shapes (positional, named,
+  struct-of-struct, 2-D). Each increment ivtest name-diff clean (44
+  expected, 0 new, 0 stale).
+
 ## State as of 2026-07-21b (P0 $unit timescale + array-of-object property crash)
 
 - **`$unit` class timescale (P0) — FIXED.** `$time`/`$realtime` in a
