@@ -53,6 +53,13 @@ CPPFLAGS = $(INCLUDE_PATH) @CPPFLAGS@ @DEFS@
 CFLAGS = @WARNING_FLAGS@ @WARNING_FLAGS_CC@ @CFLAGS@
 LDFLAGS = @LDFLAGS@
 
+# Version string of the bundled/supported UVM library, extracted from the
+# uvm-core the fork tracks so `iverilog --uvm-version' / `-V' can report it
+# without a hand-maintained copy. Falls back to a sentinel when the submodule
+# is not checked out (a source-only build without UVM support).
+UVM_VERSION_STRING = $(shell sed -n 's/.*UVM_VERSION_STRING *= *"\(.*\)".*/\1/p' $(srcdir)/../uvm-core/src/base/uvm_version.svh 2>/dev/null || true)
+UVM_VERSION = $(if $(UVM_VERSION_STRING),$(UVM_VERSION_STRING),Accellera UVM (not installed))
+
 O = main.o substit.o cflexor.o cfparse.o
 
 all: dep iverilog@EXEEXT@ iverilog.man
@@ -97,7 +104,7 @@ cfparse%c cfparse%h: $(srcdir)/cfparse%y
 	mv $*.d dep
 
 main.o: main.c globals.h $(srcdir)/../version_base.h ../version_tag.h Makefile
-	$(CC) $(CPPFLAGS) $(CFLAGS) @DEPENDENCY_FLAG@ -c -DIVL_ROOT='"@libdir@/ivl$(suffix)"' -DIVL_SUFFIX='"$(suffix)"' -DIVL_INC='"@includedir@"' -DIVL_LIB='"@libdir@"' -DDLLIB='"@DLLIB@"' -DIVL_INCLUDE_INSTALL_DIR="\"$(realpath $(DESTDIR)/$(includedir))\"" $(srcdir)/main.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) @DEPENDENCY_FLAG@ -c -DIVL_ROOT='"@libdir@/ivl$(suffix)"' -DIVL_SUFFIX='"$(suffix)"' -DIVL_INC='"@includedir@"' -DIVL_LIB='"@libdir@"' -DDLLIB='"@DLLIB@"' -DIVL_UVM_VERSION='"$(UVM_VERSION)"' -DIVL_INCLUDE_INSTALL_DIR="\"$(realpath $(DESTDIR)/$(includedir))\"" $(srcdir)/main.c
 	mv $*.d dep
 
 cflexor.o: cflexor.c cfparse.h

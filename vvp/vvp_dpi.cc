@@ -32,6 +32,18 @@ void vvp_dpi_load_lib(const char*path)
       dpi_libs.push_back(dll);
 }
 
+void vvp_dpi_register_lib(ivl_dll_t dll)
+{
+      if (dll == 0)
+	    return;
+	// Avoid registering the same handle twice (e.g. a module that is
+	// also passed with -d): duplicate lookups are harmless but wasteful.
+      for (ivl_dll_t have : dpi_libs)
+	    if (have == dll)
+		  return;
+      dpi_libs.push_back(dll);
+}
+
 void* vvp_dpi_find_symbol(const char*name)
 {
       auto it = dpi_sym_cache.find(name);

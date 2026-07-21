@@ -2,8 +2,21 @@
 #define IVL_vvp_dpi_H
 
 # include  <cstdint>
+# include  "ivl_dlfcn.h"
 
 extern void vvp_dpi_load_lib(const char*path);
+
+/*
+ * Register an already-dlopen'ed shared object as a source of DPI import
+ * symbols. This lets a loadable VPI module (loaded through the normal
+ * `:vpi_module`/`-m` path) also provide the C functions that SystemVerilog
+ * `import "DPI-C"` declarations resolve against, so the standard UVM DPI
+ * umbrella needs neither a `-d` argument nor a separate load mechanism.
+ * The handle is borrowed, not owned: the module loader keeps ownership and
+ * closes it at shutdown.
+ */
+extern void vvp_dpi_register_lib(ivl_dll_t dll);
+
 extern void* vvp_dpi_find_symbol(const char*name);
 
 /*

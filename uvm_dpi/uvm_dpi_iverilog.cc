@@ -155,6 +155,19 @@ int uvm_hdl_release(char* path)
       return uvm_ivl_hdl_put(path, &value, vpiReleaseFlag);
 }
 
+//----------------------------------------------------------------------
+// VPI loadable-module entry point.
+//
+// vvp loads a module named by a `:vpi_module "uvm_dpi";' directive (which
+// `iverilog -uvm' bakes into the compiled program) through the same path as
+// a `-m' module, and that path requires a `vlog_startup_routines' table. The
+// umbrella registers no system tasks/functions of its own — it exists to
+// export the uvm_re_*/uvm_hdl_*/uvm_dpi_* C functions that the design
+// imports through DPI (vvp makes a loaded module's symbols available to DPI
+// import resolution). So the table is empty: its presence alone lets the
+// module load, and simply being loaded is what publishes the DPI symbols.
+void (*vlog_startup_routines[])(void) = { 0 };
+
 #ifdef __cplusplus
 }
 #endif

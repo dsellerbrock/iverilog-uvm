@@ -45,6 +45,13 @@ const char HELP[] =
 "                [-N file] [-o filename] [-p flag=value]\n"
 "                [-s topmodule] [-t target] [-T min|typ|max]\n"
 "                [-W class] [-y dir] [-Y suf] [-l file] source_file(s)\n"
+"                [-uvm] [--uvm-home=dir] [--uvm-no-dpi] [--uvm-version]\n"
+"\n"
+"  -uvm            Enable the supported UVM environment: add the installed\n"
+"                  UVM sources and DPI runtime automatically.\n"
+"  --uvm-home=dir  Use the UVM library at dir instead of the bundled one.\n"
+"  --uvm-no-dpi    Compile UVM's pure-SystemVerilog fallbacks (no DPI).\n"
+"  --uvm-version   Print the bundled UVM version and exit.\n"
 "\n"
 "See the man page for details.";
 
@@ -94,6 +101,13 @@ extern const char*optarg;
 
 #ifndef IVL_ROOT
 # define IVL_ROOT "."
+#endif
+
+/* Version string of the UVM library bundled/supported by this toolchain.
+   Normally provided by the build (driver/Makefile.in) from the Accellera
+   uvm-core the fork tracks; the fallback keeps a standalone compile sane. */
+#ifndef IVL_UVM_VERSION
+# define IVL_UVM_VERSION "Accellera UVM (version unknown)"
 #endif
 
 # include  "globals.h"
@@ -187,6 +201,17 @@ static unsigned env_vpi_path_list_size = 0;
 
 int synth_flag = 0;
 int verbose_flag = 0;
+
+/* --- Supported UVM front-end mode (-uvm). ---------------------------------
+   When enabled, the driver resolves the installed UVM sources, adds the UVM
+   include directory, injects uvm_pkg.sv ahead of the user's sources, and
+   (unless disabled) records the standard UVM DPI runtime as an auto-loaded
+   module so vvp needs no -M/-m/-d from the user. See configure_uvm_frontend. */
+static int uvm_flag = 0;           /* -uvm / --uvm given */
+static int uvm_no_dpi_flag = 0;    /* --uvm-no-dpi: use UVM's pure-SV fallbacks */
+static int uvm_version_flag = 0;   /* --uvm-version: print version and exit */
+static const char*uvm_home = 0;    /* --uvm-home=PATH / $IVERILOG_UVM_HOME */
+static int uvm_pkg_user_supplied = 0; /* user already listed uvm_pkg.sv */
 
 FILE *fp;
 
@@ -1107,11 +1132,198 @@ static void print_runtime_paths(void) {
 	printf("includedir: %s\n", IVL_INCLUDE_INSTALL_DIR);
 }
 
+/*
+ * Return non-zero if the base name of a path is "uvm_pkg.sv" (case
+ * insensitive on the extension), so the front end can avoid injecting the
+ * bundled package a second time when the user already listed it.
+ */
+static int is_uvm_pkg_name(const char*name)
+{
+      const char*b = strrchr(name, '/');
+#ifdef __MINGW32__
+      const char*bb = strrchr(name, '\\');
+      if (bb && (!b || bb > b)) b = bb;
+#endif
+      b = b ? b + 1 : name;
+      return strcasecmp(b, "uvm_pkg.sv") == 0;
+}
+
+/*
+ * Pre-scan the command line for the UVM front-end options before the main
+ * getopt() loop runs. These are spelled with a leading "-uvm"/"--uvm..."
+ * which the single-character getopt() cannot represent (and "-u" is already
+ * taken by separate compilation), so they are recognized and removed from
+ * argv here. Recognized:
+ *
+ *    -uvm, --uvm            enable the supported UVM environment
+ *    --uvm-home=PATH        use PATH instead of the bundled UVM (implies -uvm)
+ *    --uvm-home PATH        (two-argument form)
+ *    --uvm-no-dpi           compile UVM's pure-SystemVerilog fallbacks
+ *    --uvm-version          print the bundled UVM version and exit
+ *
+ * argv is compacted in place; *argc is updated. Any remaining tokens keep
+ * their original relative order for getopt() and the trailing file scan.
+ */
+static void preparse_uvm_args(int*argc, char**argv)
+{
+      int rd, wr = 1;               /* argv[0] stays in place */
+      for (rd = 1 ; rd < *argc ; rd += 1) {
+	    const char*a = argv[rd];
+	    if (strcmp(a, "-uvm") == 0 || strcmp(a, "--uvm") == 0) {
+		  uvm_flag = 1;
+	    } else if (strcmp(a, "--uvm-no-dpi") == 0) {
+		  uvm_flag = 1;
+		  uvm_no_dpi_flag = 1;
+	    } else if (strcmp(a, "--uvm-version") == 0) {
+		  uvm_version_flag = 1;
+	    } else if (strncmp(a, "--uvm-home=", 11) == 0) {
+		  uvm_flag = 1;
+		  uvm_home = a + 11;
+	    } else if (strcmp(a, "--uvm-home") == 0 && rd + 1 < *argc) {
+		  uvm_flag = 1;
+		  uvm_home = argv[rd + 1];
+		  rd += 1;              /* also consume the path argument */
+	    } else {
+		  if (is_uvm_pkg_name(a))
+			uvm_pkg_user_supplied = 1;
+		  argv[wr++] = argv[rd];
+	    }
+      }
+      *argc = wr;
+      argv[wr] = 0;
+}
+
+/*
+ * Resolve the installed UVM source directory (the one holding uvm_pkg.sv).
+ * Priority: --uvm-home, then $IVERILOG_UVM_HOME, then the bundled tree under
+ * the toolchain install root (<base>/uvm/src). A home may point either at a
+ * directory that directly contains uvm_pkg.sv or at a checkout whose src/
+ * subdirectory does. Returns a malloc'd path, or 0 if none was found; when
+ * a home was given but is unusable, a diagnostic is printed first.
+ */
+static char* resolve_uvm_src_dir(void)
+{
+      const char*home = uvm_home ? uvm_home : getenv("IVERILOG_UVM_HOME");
+      char path[MAXSIZE];
+
+      if (home && *home) {
+	    snprintf(path, sizeof path, "%s%cuvm_pkg.sv", home, sep);
+	    if (access(path, R_OK) == 0)
+		  return strdup(home);
+	    snprintf(path, sizeof path, "%s%csrc%cuvm_pkg.sv", home, sep, sep);
+	    if (access(path, R_OK) == 0) {
+		  snprintf(path, sizeof path, "%s%csrc", home, sep);
+		  return strdup(path);
+	    }
+	    fprintf(stderr, "iverilog: UVM home '%s' does not contain "
+		    "uvm_pkg.sv (looked in '%s' and '%s%csrc').\n",
+		    home, home, home, sep);
+	    return 0;
+      }
+
+      snprintf(path, sizeof path, "%s%cuvm%csrc", base, sep, sep);
+      return strdup(path);
+}
+
+/*
+ * Implement the -uvm front end. Writes the UVM include directory and the
+ * uvm_pkg.sv source ahead of the user's files, and records the standard UVM
+ * DPI runtime as an auto-loaded module (unless --uvm-no-dpi). All output
+ * goes through the same temp files the rest of the driver uses, so the
+ * downstream ivl -> tgt-vvp -> vvp chain needs no special knowledge. Must be
+ * called after the getopt loop (so vpi_dir is resolved) but before the
+ * trailing positional source files are processed. Exits with a clear
+ * diagnostic if the requested UVM support files are missing.
+ */
+static void configure_uvm_frontend(void)
+{
+      char*uvm_src = resolve_uvm_src_dir();
+      char path[MAXSIZE];
+
+      if (uvm_src == 0)
+	    exit(1);
+
+      snprintf(path, sizeof path, "%s%cuvm_pkg.sv", uvm_src, sep);
+      if (access(path, R_OK) != 0) {
+	    fprintf(stderr,
+		    "iverilog: UVM support requested (-uvm), but the UVM "
+		    "package was not found at\n"
+		    "          %s\n"
+		    "          Reinstall the toolchain with UVM support, or "
+		    "point --uvm-home / $IVERILOG_UVM_HOME at a UVM tree.\n",
+		    path);
+	    exit(1);
+      }
+
+	/* UVM strictly needs SystemVerilog; quietly raise the generation to
+	   2012 if the user left it at a non-SV default so `iverilog -uvm'
+	   works without also remembering -g2012. An explicit SV -g is kept. */
+      if (strcmp(generation, "2005-sv") != 0 &&
+	  strcmp(generation, "2009") != 0 &&
+	  strcmp(generation, "2012") != 0) {
+	    if (verbose_flag)
+		  fprintf(stderr, "iverilog: -uvm selects -g2012 "
+			  "(SystemVerilog required by UVM).\n");
+	    generation = "2012";
+      }
+
+	/* Add the UVM include directory. */
+      process_include_dir(uvm_src);
+
+	/* Inject uvm_pkg.sv ahead of the user's sources (unless the user
+	   already listed it explicitly). It must precede files that import
+	   the uvm_pkg package. */
+      if (!uvm_pkg_user_supplied) {
+	    fprintf(source_file, "%s\n", path);
+	    source_count += 1;
+      }
+
+	/* Record the standard UVM DPI runtime dependency. */
+      if (uvm_no_dpi_flag) {
+	    process_define("UVM_NO_DPI");
+      } else {
+	    const char*dir = vpi_dir ? vpi_dir : base;
+	    char mod[MAXSIZE];
+	    snprintf(mod, sizeof mod, "%s%cuvm_dpi.vpi", dir, sep);
+	    if (access(mod, R_OK) == 0) {
+		    /* Record the resolved module path, exactly as the driver
+		       does for system.vpi. Both the compiler (which loads
+		       modules to collect their system tasks) and vvp (which
+		       bakes it into the program as a :vpi_module directive and
+		       loads it at startup) then find it with no user -M/-m/-d.
+		       The path is re-resolved on every compile from the
+		       toolchain's own install root, so a relocated install
+		       stays correct after a rebuild. */
+		  fprintf(iconfig_file, "module:%s\n", mod);
+	    } else {
+		  fprintf(stderr,
+			  "iverilog: warning: -uvm requested the standard UVM "
+			  "DPI runtime, but\n"
+			  "          %s\n"
+			  "          was not found; compiling UVM's "
+			  "pure-SystemVerilog fallbacks (UVM_NO_DPI).\n"
+			  "          Reinstall with DPI support, or pass "
+			  "--uvm-no-dpi to silence this.\n", mod);
+		  process_define("UVM_NO_DPI");
+	    }
+      }
+
+      free(uvm_src);
+}
+
 int main(int argc, char **argv)
 {
       int e_flag = 0;
       int version_flag = 0;
       int opt;
+
+	/* Pull the UVM front-end options out of argv before getopt() runs
+	   (they use spellings getopt cannot parse). */
+      preparse_uvm_args(&argc, argv);
+      if (uvm_version_flag) {
+	    printf("%s\n", IVL_UVM_VERSION);
+	    return 0;
+      }
 
       find_ivl_root();
       base = ivl_root;
@@ -1339,10 +1551,18 @@ int main(int argc, char **argv)
       if (vhdlpp_dir == 0)
 	    vhdlpp_dir = base;
 
+	/* Configure the supported UVM environment. Done here so vpi_dir is
+	   resolved and any generation bump lands before generation is written
+	   to the iconfig file, and so uvm_pkg.sv is injected ahead of the
+	   user's positional/command-file sources below. */
+      if (uvm_flag)
+	    configure_uvm_frontend();
+
       if (version_flag || verbose_flag) {
 	    printf("Icarus Verilog version " VERSION " (" VERSION_TAG ")\n\n");
 	    printf("%s\n\n", COPYRIGHT);
 	    puts(NOTICE);
+	    printf("Bundled UVM: %s\n", IVL_UVM_VERSION);
       }
 
 	/* Make a common conf file path to reflect the target. */
