@@ -133,5 +133,44 @@ for lib in "-lsystre -ltre" "-lregex" "-lgnurx"; do
         echo "    build failed:"; tail -3 /tmp/re_vpi.log | sed 's/^/    /'
     fi
 done
+
+echo "--- FULL umbrella: dummy externals (A) vs real -luvmsv import lib (B) ---"
+# The isolated uvm_regex.cc works; the full umbrella content works too (Linux).
+# So bisect the suite build: does the -luvmsv dlltool import library (the most
+# novel part of the Windows umbrella link) break the regex that otherwise works?
+cat > /tmp/dummies_all.c <<'PROBEEOF'
+void* svGetScope(void){return 0;} void* svSetScope(void*s){return s;}
+void* svGetScopeFromName(const char*n){(void)n;return 0;}
+const char* svGetNameFromScope(void*s){(void)s;return "";}
+const char* svGetFullNameFromScope(void*s){(void)s;return "";}
+void m__uvm_report_dpi(int a,const char*b,const char*c,int d,const char*e,int f){(void)a;(void)b;(void)c;(void)d;(void)e;(void)f;}
+long long __ivl_dpi_export_call_i(const char*n,int a,void*p){(void)n;(void)a;(void)p;return 0;}
+double __ivl_dpi_export_call_r(const char*n,int a,void*p){(void)n;(void)a;(void)p;return 0;}
+const char* __ivl_dpi_export_call_s(const char*n,int a,void*p){(void)n;(void)a;(void)p;return "";}
+void __ivl_dpi_export_call_v(const char*n,int a,void*p){(void)n;(void)a;(void)p;}
+PROBEEOF
+cat > /tmp/dummies_report.c <<'PROBEEOF'
+void m__uvm_report_dpi(int a,const char*b,const char*c,int d,const char*e,int f){(void)a;(void)b;(void)c;(void)d;(void)e;(void)f;}
+PROBEEOF
+echo "  [A: full umbrella + all dummies + -lsystre -ltre]"
+if ( cd /tmp && "$IVPI" --name=/tmp/fa_lib -I"$REPO_DIR/uvm-core/src/dpi" \
+          "$REPO_DIR/uvm_dpi/uvm_dpi_iverilog.cc" /tmp/dummies_all.c -lsystre -ltre ) >/tmp/fa.log 2>&1 ; then
+    vvp -d /tmp/fa_lib.vpi /tmp/re_probe.vvp 2>&1 | grep -aE "RE_COMPEXECFREE|error|not found" | sed 's/^/    run: /'
+else
+    echo "    build failed:"; tail -3 /tmp/fa.log | sed 's/^/    /'
+fi
+echo "  [B: full umbrella + report dummy + dlltool -luvmsv + -lsystre -ltre]"
+if command -v dlltool >/dev/null 2>&1 && [ -f "$REPO_DIR/vvp/vvp.def" ] ; then
+    { printf 'EXPORTS\n'; grep -E '^(sv[A-Za-z]|__ivl_dpi_export_call_)' "$REPO_DIR/vvp/vvp.def"; } > /tmp/uvm_sv.def
+    dlltool -d /tmp/uvm_sv.def -D vvp.exe -l /tmp/libuvmsv.a 2>/tmp/dll.log && echo "    (import lib built)" || { echo "    dlltool failed:"; cat /tmp/dll.log | sed 's/^/    /'; }
+    if ( cd /tmp && "$IVPI" --name=/tmp/fb_lib -I"$REPO_DIR/uvm-core/src/dpi" \
+              "$REPO_DIR/uvm_dpi/uvm_dpi_iverilog.cc" /tmp/dummies_report.c -L/tmp -luvmsv -lsystre -ltre ) >/tmp/fb.log 2>&1 ; then
+        vvp -d /tmp/fb_lib.vpi /tmp/re_probe.vvp 2>&1 | grep -aE "RE_COMPEXECFREE|error|not found" | sed 's/^/    run: /'
+    else
+        echo "    build failed:"; tail -3 /tmp/fb.log | sed 's/^/    /'
+    fi
+else
+    echo "    (dlltool or vvp.def unavailable — skipping B)"
+fi
 echo "============================================================"
 exit 0
