@@ -172,5 +172,15 @@ if command -v dlltool >/dev/null 2>&1 && [ -f "$REPO_DIR/vvp/vvp.def" ] ; then
 else
     echo "    (dlltool or vvp.def unavailable — skipping B)"
 fi
+echo "  [C: full umbrella, HAND-ROLLED link with -Wl,--export-all-symbols (the fix)]"
+CC_F="$("$IVPI" --cflags 2>/dev/null)"; CXX_F="$("$IVPI" --ccflags 2>/dev/null)"
+LD_F="$("$IVPI" --ldflags 2>/dev/null)"; LD_L="$("$IVPI" --ldlibs 2>/dev/null)"
+if g++ -c $CXX_F -I"$REPO_DIR/uvm-core/src/dpi" "$REPO_DIR/uvm_dpi/uvm_dpi_iverilog.cc" -o /tmp/fc_umb.o 2>/tmp/fc.log \
+   && gcc -c $CC_F /tmp/dummies_all.c -o /tmp/fc_dum.o 2>>/tmp/fc.log \
+   && g++ $LD_F -Wl,--export-all-symbols -o /tmp/fc_lib.vpi /tmp/fc_umb.o /tmp/fc_dum.o -lsystre -ltre $LD_L 2>>/tmp/fc.log ; then
+    vvp -d /tmp/fc_lib.vpi /tmp/re_probe.vvp 2>&1 | grep -aE "RE_COMPEXECFREE|error|not found" | sed 's/^/    run: /'
+else
+    echo "    build failed:"; tail -4 /tmp/fc.log | sed 's/^/    /'
+fi
 echo "============================================================"
 exit 0

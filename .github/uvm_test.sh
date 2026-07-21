@@ -57,6 +57,13 @@ IVPI="$(dirname "$BIN")/iverilog-vpi"
 REPO="$PWD"
 UMBRELLA="$REPO/uvm_dpi/uvm_dpi_iverilog.cc"
 UMBRELLA_INC="-I$REPO/$UVM/dpi"
+# iverilog-vpi's own compile/link flags, reused for the hand-rolled Windows
+# merged-module build (which iverilog-vpi cannot do because it won't pass the
+# -Wl,--export-all-symbols that Windows needs — see run_test).
+IVPI_CC="$("$IVPI" --cflags 2>/dev/null)"
+IVPI_CXX="$("$IVPI" --ccflags 2>/dev/null)"
+IVPI_LDF="$("$IVPI" --ldflags 2>/dev/null)"
+IVPI_LDL="$("$IVPI" --ldlibs 2>/dev/null)"
 NO_DPI_FLAG=""
 UVM_DPI_REAL=1        # cleared only if we fall back to UVM_NO_DPI
 UVM_WIN_MERGE=0       # Windows: umbrella is merged into each per-test module
@@ -185,10 +192,25 @@ run_test() {
         # (+ any test C), so the per-design dispatcher (m__uvm_report_dpi)
         # defined in the stub resolves inside the same module the umbrella
         # calls it from. sv*/__ivl_dpi_export_call_*/regex come from
-        # $DPI_EXTRA_LIB. Built in /tmp (absolute paths) to avoid repo litter.
-        ( cd /tmp && "$IVPI" --name="/tmp/uvm_dpi_${name}" "$UMBRELLA_INC" \
-              "$UMBRELLA" $srcs $DPI_EXTRA_LIB ) \
-            >"/tmp/uvm_dpi_${name}.buildlog" 2>&1
+        # $DPI_EXTRA_LIB.
+        #
+        # Hand-rolled (not iverilog-vpi) because the FULL umbrella module does
+        # not auto-export its symbols on MinGW — so vvp's GetProcAddress could
+        # not find uvm_re_compexecfree / the DPI imports and they returned 0
+        # (both UVM/DPI/REGEX and the m10 "got 0" clusters). Forcing
+        # -Wl,--export-all-symbols restores the exports vvp resolves by name.
+        # iverilog-vpi cannot pass -Wl flags, hence the explicit g++/gcc below.
+        local blog="/tmp/uvm_dpi_${name}.buildlog"
+        local objs="/tmp/umb_${name}.o"
+        g++ -c $IVPI_CXX "$UMBRELLA_INC" "$UMBRELLA" -o "/tmp/umb_${name}.o" >"$blog" 2>&1
+        local s b o
+        for s in $srcs ; do
+            b="$(basename "$s")"; o="/tmp/${b%.*}_${name}.o"
+            gcc -c $IVPI_CC "$UMBRELLA_INC" "$s" -o "$o" >>"$blog" 2>&1
+            objs="$objs $o"
+        done
+        g++ $IVPI_LDF -Wl,--export-all-symbols -o "/tmp/uvm_dpi_${name}.vpi" \
+            $objs $DPI_EXTRA_LIB $IVPI_LDL >>"$blog" 2>&1
         dflags="-d /tmp/uvm_dpi_${name}.vpi"
     elif [ -n "$srcs" ]; then
         # Linux/macOS: the umbrella is loaded globally; here just build the
