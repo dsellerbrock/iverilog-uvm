@@ -527,6 +527,12 @@ struct vthread_s {
 	// suspended) so the process continues where it left off.
       unsigned suspended :1;
       unsigned suspend_resched :1;
+	// True while the thread is parked on a procedural delay (#d). Unlike
+	// i_am_waiting / waiting_for_event this is not otherwise tracked
+	// (a delay just reschedules the thread on the timing wheel, which
+	// leaves is_scheduled set), so process::status() needs this flag to
+	// report a delayed process as WAITING rather than RUNNING.
+      unsigned i_am_delaying :1;
       unsigned owns_automatic_context :1;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
@@ -742,7 +748,8 @@ unsigned vvp_process::status() const
       if (owner_->suspended)
 	    return PROCESS_STATE_SUSPENDED;
 
-      if (owner_->i_am_waiting || owner_->waiting_for_event || owner_->i_am_joining)
+      if (owner_->i_am_waiting || owner_->waiting_for_event
+	  || owner_->i_am_joining || owner_->i_am_delaying)
 	    return PROCESS_STATE_WAITING;
 
       return PROCESS_STATE_RUNNING;
@@ -3506,6 +3513,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->is_program_init = 0;
       thr->suspended = 0;
       thr->suspend_resched = 0;
+      thr->i_am_delaying = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context = 0;
       thr->skip_free_context = 0;
@@ -3947,6 +3955,10 @@ void vthread_run(vthread_t thr)
 		  thr = tmp;
 		  continue;
 	    }
+
+		      // Running again — no longer parked on a delay
+		      // (process::status() reads this flag).
+		    thr->i_am_delaying = 0;
 
             running_thread = thr;
             __vpiScope*run_ctx_scope = resolve_context_scope(thr->parent_scope);
@@ -8387,6 +8399,7 @@ bool of_DELAY(vthread_t thr, vvp_code_t cp)
       if (schedule_finished())
             return false;
 
+      thr->i_am_delaying = 1;
       if (delay == 0) schedule_inactive(thr);
       else schedule_vthread(thr, delay);
       return false;
@@ -8400,6 +8413,7 @@ bool of_DELAYX(vthread_t thr, vvp_code_t cp)
       delay = thr->words[cp->number].w_uint;
       if (schedule_finished())
             return false;
+      thr->i_am_delaying = 1;
       if (delay == 0) schedule_inactive(thr);
       else schedule_vthread(thr, delay);
       return false;

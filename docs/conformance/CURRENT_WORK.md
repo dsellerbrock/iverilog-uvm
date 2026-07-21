@@ -3,6 +3,66 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21m (Tier-1 frontier sweep COMPLETE — on draft PR #104)
+
+Post-#96-merge Tier-1 work, all on branch
+`claude/ieee1800-uvm-conformance-vp6ic2` (draft PR #104). Every increment:
+full ivtest default run byte-identical to baseline (44 fails, 0 new / 0
+stale by name) + UVM 209/0/0 + negative suite 49/0.
+
+1. **M3B randomization** (commit `00a6e3f`): `randcase` (PRandCase →
+   procedural weighted select), `std::randomize(vars)` scope expression
+   form (`$ivl_std_randomize` VPI — was a silent no-randomization), and
+   `unique {}` constraint (PEUnique → pairwise `(ne)` to Z3). CI fix
+   `9532d4b` removed the now-stale `m14_randcase_unsupported` negative test.
+2. **`%p` refinements** (audited, documented — see M4B manifesto entry):
+   the three residual gaps (signed dynamic-array/queue elements, nested
+   multi-dim, packed-struct member form) all need type-descriptor plumbing
+   through codegen → vvp assembler → VPI handle, disproportionate to a
+   display-only payoff. Fixed arrays and scalars already print correctly.
+   No code change; recorded as a justified limitation.
+3. **M4B wildcard assoc index** (commit `2356fbe`): `int aa[*]` now parses
+   — the lexer folds `[*` into `K_LBSTAR`, so a `variable_dimension:
+   K_LBSTAR ']'` rule handles it. Not used by UVM but a clean 7.8.1 gap.
+4. **M6B process.status()** (commit `3d4b5f3`): a `#delay`-parked process
+   now reports WAITING (new `i_am_delaying` vthread flag), completing the
+   status() transitions (RUNNING/WAITING/SUSPENDED/FINISHED/KILLED).
+
+## State as of 2026-07-21l (M3B: randcase + std::randomize + unique {})
+
+Three clause-18 randomization gaps closed (Tier-1 frontier work after the
+PR #96 merge):
+
+- **`randcase` (IEEE 1800-2017 18.16)** — was a `sorry`. New `PRandCase`
+  pform node (`Statement.h/.cc`, grammar in `parse.y`) lowers at elaboration
+  (`elaborate.cc`) to procedural code: each weight is evaluated exactly once
+  into a temp, the temps are summed, a single `$urandom_range(sum-1)` draw
+  selects a branch by cumulative-threshold compare, and a zero total weight
+  runs no branch. Test `sv_randcase` (distribution + once-evaluation +
+  zero-weight).
+- **`std::randomize(vars)` scope form (18.12)** — the expression form used
+  to return success WITHOUT assigning the variables (silent
+  no-randomization). It now lowers to a new `$ivl_std_randomize` system
+  function (`elab_expr.cc` → `vpi/sys_random.c sys_std_randomize_calltf`)
+  that writes an unconstrained random value into each integral variable
+  argument and returns 1. A with-clause in *expression* context randomizes
+  but does not enforce constraints (loud one-time warning); the *statement*
+  with-clause form keeps its existing range/enum/retry lowering. Test
+  `sv_std_randomize_scope`.
+- **`unique {}` constraint (18.5.5)** — was a syntax error. New `PEUnique`
+  pform node (`PExpr.h`, grammar in `parse.y`); the constraint-IR emitter
+  (`elaborate.cc pexpr_to_constraint_ir`) expands an un-indexed rand
+  unpacked-array operand to its element solver-variables and emits pairwise
+  `(ne ...)` terms, so the Z3 backend enforces distinctness. Handles scalar
+  lists and whole-array operands. Test `sv_constraint_unique`.
+
+Remaining M3B: `randsequence`, `disable soft`, rand_mode/constraint_mode
+reaudit, seed-stability tests.
+
+**Validation:** full ivtest default run byte-identical to baseline
+(3074 passed / 44 failed, 0 new / 0 stale by name; +3 new tests); UVM suite
+209/0/0.
+
 ## State as of 2026-07-21k (P1 type-param formal member access — VERIFIED RESOLVED)
 
 - **P1 "member access on output/ref formals typed by type parameters"

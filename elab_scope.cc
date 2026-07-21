@@ -3203,6 +3203,16 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
  * other statements that may be named blocks. So scan the case items
  * with the elaborate_scope method.
  */
+void PRandCase::elaborate_scope(Design*des, NetScope*scope) const
+{
+      if (!items_)
+	    return;
+      for (PCase::Item*cur : *items_) {
+	    if (cur && cur->stat)
+		  cur->stat->elaborate_scope(des, scope);
+      }
+}
+
 void PCase::elaborate_scope(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, items_);

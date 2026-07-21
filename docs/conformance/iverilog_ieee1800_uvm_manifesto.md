@@ -153,7 +153,9 @@ Maintain clean builds, canonical regressions, UVM, negative tests, VPI, cross-pl
 
 **Status: PARTIAL**
 
-- [ ] Fix member access on type-parameter-typed output/ref formals.
+- [x] Fix member access on type-parameter-typed output/ref formals.
+      *(Verified resolved 2026-07-21 — see the P1 entry; pinned by
+      `sv_typeparam_formal_member`.)*
 - [ ] Audit specialization through variables, properties, locals, arrays, returns, and formals.
 - [ ] Reprobe specialization inside nested aggregates.
 - [ ] Remove remaining compile-progress fallbacks caused by lost specialization.
@@ -184,10 +186,27 @@ Future failures belong to the underlying language/runtime subsystem unless the U
 
 **Status: PARTIAL**
 
-- [ ] Implement `std::randomize(var...)`.
-- [ ] Implement `randcase`.
+- [x] Implement `std::randomize(var...)`. *(Done 2026-07-21: the scope
+      (non-class) expression form now lowers to `$ivl_std_randomize`, whose
+      VPI implementation writes an unconstrained random value into each
+      integral variable argument and returns 1 — previously it returned
+      success without assigning anything (silent no-randomization). The
+      statement form with a with-clause keeps its range/enum/retry
+      constraint lowering; a with-clause in expression context randomizes
+      the variables but does not enforce the constraints (loud warning).
+      Test `sv_std_randomize_scope`.)*
+- [x] Implement `randcase`. *(Done 2026-07-21: `PRandCase` lowers to
+      procedural code — each weight evaluated once, summed, one
+      `$urandom_range(sum-1)` draw, cumulative-threshold branch select; a
+      zero total weight executes no branch. Was a `sorry`. Test
+      `sv_randcase`.)*
 - [ ] Implement `randsequence`.
-- [ ] Implement `unique {}` constraints.
+- [x] Implement `unique {}` constraints. *(Done 2026-07-21: `unique {vars,
+      arr, ...}` (IEEE 1800-2017 18.5.5) parses (`PEUnique`) and the
+      constraint-IR emitter expands un-indexed rand array operands to their
+      elements and emits pairwise `(ne ...)` terms to the Z3 backend.
+      Handles scalar-variable lists and whole-array operands. Was a syntax
+      error. Test `sv_constraint_unique`.)*
 - [ ] Implement `disable soft`.
 - [ ] Reaudit `rand_mode` and `constraint_mode` combinations.
 - [ ] Add seed-stability and failed-randomization state tests.
@@ -200,7 +219,7 @@ Future failures belong to the underlying language/runtime subsystem unless the U
 
 **Status: PARTIAL**
 
-- [ ] Support wildcard associative-array index declarations where required.
+- [x] Support wildcard associative-array index declarations where required. *(Done 2026-07-21: `type name[*];` (IEEE 1800-2017 7.8.1) now parses. The lexer folds `[*` into one token (`K_LBSTAR`, shared with the SVA consecutive-repetition opener) whose comment wrongly assumed `[*` had no other use, so `variable_dimension` gained a `K_LBSTAR ']'` rule that builds an associative array with a placeholder integral index type (assoc arrays share one queue-compat runtime form regardless of declared index type). Integral keys, exists/delete/size/foreach all work. Test `sv_assoc_wildcard_index`.)*
 - [x] Correct `%p` formatting for integral aggregates. *(Done 2026-07-21:
       rewrote the `%p` handler as a recursive assignment-pattern formatter
       (`format_p_value` in `vpi/sys_display.c`). Queues, dynamic arrays,
@@ -213,10 +232,21 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       fixed assoc key rendering (vector keys were the raw byte encoding —
       now decimal, `vvp_assoc.h peek_entry`) and queue element type
       detection for real/string queues (`vpi_darray.cc get_word_value`).
-      Test `sv_display_p_aggregates`. Remaining refinements: signed integral
-      darray/queue elements still render unsigned (element signedness is not
-      carried through the container VPI path), and a packed struct prints as
-      one decimal rather than a `'{member:val}` pattern.)*
+      Test `sv_display_p_aggregates`. Remaining refinements (audited
+      2026-07-21, deferred as disproportionate to a display-only payoff —
+      fixed unpacked arrays and scalars already print correctly, so these
+      affect only dynamic containers): (1) signed integral **dynamic-array
+      / queue** elements render unsigned — the runtime `vvp_darray_vec4` /
+      `vvp_queue_vec4` discard the `sv` vs `v` element-signedness the
+      codegen emits, and neither the 10+ lazy queue-construction sites nor
+      the `.var/darray` declaration carry a signedness field to the VPI
+      object; (2) a multi-dimensional unpacked array prints flat
+      (`'{1,2,3,4,5,6}`) rather than nested (`'{'{1,2,3},'{4,5,6}}`)
+      because iverilog flattens unpacked dims and VPI exposes no per-dim
+      geometry for the element iterator; (3) a packed struct prints as one
+      decimal rather than a `'{member:val}` pattern. All three need
+      type-descriptor plumbing (codegen → vvp assembler → VPI handle) out
+      of proportion to the cosmetic gain.)*
 - [x] Fix nested packed-struct array literal compiler crash. *(Done
       2026-07-21: module-scope nested literals work on all probed shapes;
       the remaining defect was a class-property whole-array pattern store
@@ -304,12 +334,16 @@ Remaining:
       `%wait/obj` opcodes; `->obj.ev` / `@(obj.ev)` are per-instance for
       obj.ev, a.b.ev, arr[i].ev, and assoc `m_events[k].ev`. Also fixed a
       pre-existing fork double-reap crash exposed by the change.)*
-- [~] Implement correct `process.status()` transitions. *(2026-07-21:
-      SUSPENDED now reported for suspended processes; FINISHED / KILLED /
-      WAITING(event/join) / RUNNING already worked. Remaining refinement: a
-      process parked on a `#delay` reports RUNNING, not WAITING — the delay
-      queue marks the thread `is_scheduled`, so distinguishing "ready now"
-      from "parked on a future delay" needs a dedicated flag.)*
+- [x] Implement correct `process.status()` transitions. *(2026-07-21:
+      SUSPENDED reported for suspended processes; FINISHED / KILLED /
+      WAITING(event/join) / RUNNING already worked. Final refinement done
+      2026-07-21: a process parked on a `#delay` reported RUNNING, not
+      WAITING — the delay reschedules the thread on the timing wheel
+      (`is_scheduled` stays set) with no distinguishing flag. New
+      `i_am_delaying` vthread flag (set in `of_DELAY`/`of_DELAYX`, cleared
+      when the thread resumes in `vthread_run`) drives the WAITING
+      transition. All six states verified in
+      `sv_process_status_transitions`.)*
 - [x] Implement `process::suspend()` and `process::resume()`. *(Done
       2026-07-21: `%process/suspend` / `%process/resume` opcodes; a
       suspended thread is skipped by vthread_run with the pending wake

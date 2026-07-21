@@ -358,6 +358,33 @@ class PCase  : public Statement {
       PCase& operator= (const PCase&);
 };
 
+/* randcase (IEEE 1800-2017 18.16): weighted random branch selection.
+ * Reuses PCase::Item for the parsed items (each carries one weight
+ * expression and a statement). Elaboration lowers it to: evaluate each
+ * weight once into a temp, sum them, draw $urandom_range(sum-1), and
+ * select the branch by cumulative-threshold compare. A zero total weight
+ * executes no branch. */
+class PRandCase : public Statement {
+
+    public:
+      explicit PRandCase(std::vector<PCase::Item*>*items)
+	    : items_(items) {}
+      ~PRandCase() override;
+
+      virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
+      virtual void elaborate_scope(Design*des, NetScope*scope) const override;
+      virtual void elaborate_sig(Design*des, NetScope*scope) const override;
+      virtual void dump(std::ostream&out, unsigned ind) const override;
+      bool contains_detached_fork() const override;
+
+    private:
+      std::vector<PCase::Item*>*items_;
+
+    private: // not implemented
+      PRandCase(const PRandCase&) = delete;
+      PRandCase& operator=(const PRandCase&) = delete;
+};
+
 /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches` pattern
  * matching for tagged unions (IEEE 1800-2017 §12.6).  Each item is
  * `tagged TAG [.var]: stmt` or `default: stmt`.  Lowered at elab to

@@ -923,6 +923,59 @@ static PLI_INT32 sys_rand_func_sizetf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       return 32;
 }
 
+/* $ivl_std_randomize(vars...): implementation of the expression form of
+ * std::randomize(vars) without a with-clause (IEEE 1800-2017 18.12).
+ * Every variable argument receives an unconstrained random value (drawn
+ * from the same generator as $urandom so seeding behaves consistently),
+ * and the call returns 1 (scope randomize of unconstrained integral
+ * variables cannot fail). Real-typed arguments are not integral and are
+ * skipped with a warning. */
+static PLI_INT32 sys_std_randomize_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
+{
+      vpiHandle callh, argv, arg;
+      s_vpi_value val;
+
+      (void)name; /* Parameter is not used. */
+
+      callh = vpi_handle(vpiSysTfCall, 0);
+      argv = vpi_iterate(vpiArgument, callh);
+
+      if (argv) for (arg = vpi_scan(argv) ; arg ; arg = vpi_scan(argv)) {
+            PLI_INT32 atype = vpi_get(vpiType, arg);
+            if (atype == vpiRealVar) {
+                  vpi_printf("WARNING: %s:%d: std::randomize() argument is "
+                             "real-typed; only integral variables are "
+                             "randomized -- skipped.\n",
+                             vpi_get_str(vpiFile, callh),
+                             (int)vpi_get(vpiLineNo, callh));
+                  continue;
+            }
+
+            PLI_INT32 wid = vpi_get(vpiSize, arg);
+            if (wid <= 0) wid = 32;
+            PLI_INT32 words = (wid + 31) / 32;
+
+            s_vpi_vecval*vec = calloc(words, sizeof(s_vpi_vecval));
+            for (PLI_INT32 w = 0 ; w < words ; w += 1) {
+                  vec[w].aval = urandom(0, UINT32_MAX, 0);
+                  vec[w].bval = 0;
+            }
+              /* Mask unused top bits of the last word. */
+            if (wid % 32)
+                  vec[words-1].aval &= (1U << (wid % 32)) - 1U;
+
+            val.format = vpiVectorVal;
+            val.value.vector = vec;
+            vpi_put_value(arg, &val, 0, vpiNoDelay);
+            free(vec);
+      }
+
+      val.format = vpiIntVal;
+      val.value.integer = 1;
+      vpi_put_value(callh, &val, 0, vpiNoDelay);
+      return 0;
+}
+
 void sys_random_register(void)
 {
       s_vpi_systf_data tf_data;
@@ -1027,6 +1080,16 @@ void sys_random_register(void)
       tf_data.compiletf = sys_rand_three_args_compiletf;
       tf_data.sizetf = sys_rand_func_sizetf;
       tf_data.user_data = "$dist_erlang";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.type = vpiSysFunc;
+      tf_data.sysfunctype = vpiSysFuncSized;
+      tf_data.tfname = "$ivl_std_randomize";
+      tf_data.calltf = sys_std_randomize_calltf;
+      tf_data.compiletf = 0;
+      tf_data.sizetf = sys_rand_func_sizetf;
+      tf_data.user_data = "$ivl_std_randomize";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 }

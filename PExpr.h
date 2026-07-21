@@ -1350,6 +1350,38 @@ class PEStreaming : public PExpr {
  * hard constraints conflict.  Plain elaboration just delegates to the
  * inner expression so non-constraint contexts ignore the soft flag.
  */
+/* unique {...} constraint (IEEE 1800-2017 18.5.5): the listed scalar
+ * variables and array elements must take pairwise distinct values. The
+ * constraint-IR emitter expands each unpacked-array operand to its
+ * elements and emits pairwise (ne ...) terms. Only meaningful inside a
+ * constraint block; ordinary expression elaboration folds it to 1. */
+class PEUnique : public PExpr {
+    public:
+      explicit PEUnique(std::list<PExpr*>*items) : items_(items) {}
+      ~PEUnique() override {
+	    if (items_) {
+		  for (PExpr*e : *items_) delete e;
+		  delete items_;
+	    }
+      }
+      const std::list<PExpr*>& items() const {
+	    static const std::list<PExpr*> empty;
+	    return items_ ? *items_ : empty;
+      }
+      void dump(std::ostream& out) const override {
+	    out << "unique {...}";
+      }
+      unsigned test_width(Design*, NetScope*, width_mode_t&) override {
+	    expr_type_ = IVL_VT_BOOL;
+	    expr_width_ = 1;
+	    min_width_ = 1;
+	    signed_flag_ = false;
+	    return 1;
+      }
+    private:
+      std::list<PExpr*>*items_;
+};
+
 class PESoft : public PExpr {
     public:
       explicit PESoft(PExpr* inner) : inner_(inner) {}
