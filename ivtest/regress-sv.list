@@ -1077,3 +1077,4 @@ fork_disable_detached_grandchild normal,-g2012 ivltests
 sv_array_obj_prop_store normal,-g2012 ivltests
 sv_unit_class_timescale normal,-g2012 ivltests
 sv_unpacked_array_packed_struct_member normal,-g2012 ivltests
+sv_class_prop_array_pattern normal,-g2012 ivltests

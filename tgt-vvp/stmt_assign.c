@@ -703,6 +703,36 @@ static unsigned int draw_array_pattern(ivl_signal_t var, ivl_expr_t rval,
       return array_idx;
 }
 
+/* Store an unpacked-array assignment pattern into a logic-array class
+ * property, element by element (`obj.arr = '{...}` where arr is an
+ * unpacked array of packed values).  The receiver object must already be
+ * on top of the object stack: %store/prop/v/i peeks it (does not pop), so
+ * one push serves every element and the caller pops once afterward.
+ * word_reg is a scratch integer register carrying each element's array
+ * index; array_idx is the running flat element counter.  A nested pattern
+ * (a multidimensional unpacked array) recurses with the same running
+ * index.  Returns the next flat element index. */
+static unsigned int draw_prop_array_pattern(int prop_idx, const char*prop_name,
+					    ivl_expr_t rval, int word_reg,
+					    unsigned int array_idx)
+{
+      for (unsigned int idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
+	    ivl_expr_t expr = ivl_expr_parm(rval, idx);
+	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
+		  array_idx = draw_prop_array_pattern(prop_idx, prop_name,
+						      expr, word_reg, array_idx);
+		  continue;
+	    }
+	    draw_eval_vec4(expr);
+	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", word_reg, array_idx);
+	    fprintf(vvp_out, "    %%store/prop/v/i %d, %d, %u;"
+		    " array-pattern element into logic property %s\n",
+		    prop_idx, word_reg, ivl_expr_width(expr), prop_name);
+	    array_idx += 1;
+      }
+      return array_idx;
+}
+
 static void draw_stmt_assign_vector_opcode(unsigned char opcode, bool is_signed)
 {
       int idx_reg;
@@ -2263,6 +2293,28 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  int prop_word_idx = 0;
 		  ivl_expr_t idx_expr = ivl_lval_idx(lval);
 		  ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
+
+		  /* Whole-array assignment pattern into a logic-array
+		     property (`obj.arr = '{...}` where arr is an unpacked
+		     array of packed values).  draw_eval_vec4 cannot evaluate
+		     an array pattern (it is not a single vector) and used to
+		     fall through to a zero fallback, silently clobbering the
+		     array.  Store each element to its own word instead. */
+		  if (!idx_expr && !part_off_ex &&
+		      ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
+			int wreg = allocate_word();
+			draw_prop_array_pattern(prop_idx,
+						ivl_type_prop_name(sig_type, prop_idx),
+						rval, wreg, 0);
+			clr_word(wreg);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			/* Emit the null-guard epilogue inline and return. */
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			return errors;
+		  }
 
 		  /* Packed struct field write via bit-offset RMW.  This is
 		     generated when a VIF packed-struct property field is
