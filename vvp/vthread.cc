@@ -3564,46 +3564,52 @@ void vthreads_delete(class __vpiScope*scope)
  */
 static void vthread_reap(vthread_t thr)
 {
-      if (! thr->children.empty()) {
+	/* Reparent children to the grandparent, emptying our child sets as
+	 * we go. Emptying the sets (rather than leaving stale entries) makes
+	 * vthread_reap idempotent: a thread can be reaped more than once
+	 * (e.g. of_DISABLE_FORK reaps a detached child that do_disable has
+	 * already reaped) without re-processing children whose parent
+	 * pointers were rewritten by the first reap -- which previously
+	 * tripped the `child->parent == thr` assertion below. Mirror of_END's
+	 * while/pop erase discipline. */
+      while (! thr->children.empty()) {
 	      /* Non-detached children of a thread being reaped must be
 	       * reparented to the grandparent so they remain reachable;
 	       * also insert them into the grandparent's children set so
 	       * that their later cleanup can find them. */
-	    for (set<vthread_t>::iterator cur = thr->children.begin()
-		       ; cur != thr->children.end() ; ++cur) {
-		  vthread_t child = *cur;
-		  assert(child);
-		  assert(child->parent == thr);
-		  if (thr->parent) {
-			child->parent = thr->parent;
-			child->is_reactive_process |= thr->is_reactive_process;
-			thr->parent->children.insert(child);
-		  } else {
-			child->parent = 0;
-		  }
+	    set<vthread_t>::iterator cur = thr->children.begin();
+	    vthread_t child = *cur;
+	    assert(child);
+	    assert(child->parent == thr);
+	    if (thr->parent) {
+		  child->parent = thr->parent;
+		  child->is_reactive_process |= thr->is_reactive_process;
+		  thr->parent->children.insert(child);
+	    } else {
+		  child->parent = 0;
 	    }
+	    thr->children.erase(cur);
       }
-      if (! thr->detached_children.empty()) {
+      while (! thr->detached_children.empty()) {
 	      /* When a thread ends with detached children still alive,
 	       * SystemVerilog `wait fork` semantics require those grandchildren
 	       * to remain reachable from the still-living grandparent so that
 	       * an outer `wait fork` can wait for them.  Reparent them to
 	       * thr->parent and keep them in detached_children. */
-	    for (set<vthread_t>::iterator cur = thr->detached_children.begin()
-		       ; cur != thr->detached_children.end() ; ++cur) {
-		  vthread_t child = *cur;
-		  assert(child);
-		  assert(child->parent == thr);
-		  assert(child->i_am_detached);
-		  if (thr->parent) {
-			child->parent = thr->parent;
-			child->is_reactive_process |= thr->is_reactive_process;
-			thr->parent->detached_children.insert(child);
-		  } else {
-			child->parent = 0;
-			child->i_am_detached = 0;
-		  }
+	    set<vthread_t>::iterator cur = thr->detached_children.begin();
+	    vthread_t child = *cur;
+	    assert(child);
+	    assert(child->parent == thr);
+	    assert(child->i_am_detached);
+	    if (thr->parent) {
+		  child->parent = thr->parent;
+		  child->is_reactive_process |= thr->is_reactive_process;
+		  thr->parent->detached_children.insert(child);
+	    } else {
+		  child->parent = 0;
+		  child->i_am_detached = 0;
 	    }
+	    thr->detached_children.erase(cur);
       }
       if (thr->parent) {
 	      /* assert that the given element was removed. */
