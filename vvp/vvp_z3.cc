@@ -67,6 +67,88 @@ static bool z3_dyndbg()
  * once `base`'s own value is substituted — and Z3_simplify between passes
  * to constant-fold. On well-behaved builds the first pass is already a
  * numeral and the loop exits immediately. */
+/* String-level ground evaluator: parse the SMT-LIB2 text of a term and
+ * fold it. Last-resort fallback for Z3 builds whose C-API inspection
+ * calls misbehave (the MSYS2/Windows probe showed z3_ground_uint64 below
+ * failing on `(bvneg #xffffff92)` even though the identical AST folds
+ * fine through the same code against the Linux Z3 — while
+ * Z3_ast_to_string demonstrably works there, since the trace printed the
+ * term). Handles numerals (#x/#b/decimal), bvneg/bvnot, and n-ary
+ * bvadd/bvsub/bvmul; the caller masks to the term's width. Anything else
+ * (symbols, unhandled ops) fails, so a non-ground term can never be
+ * silently misread. */
+static bool z3_str_fold_(const char*&p, uint64_t& out)
+{
+      while (*p == ' ' || *p == '\n' || *p == '\t') p++;
+      if (*p == '#') {
+	    p++;
+	    int base = 0;
+	    if (*p == 'x') base = 16;
+	    else if (*p == 'b') base = 2;
+	    else return false;
+	    p++;
+	    char*end = nullptr;
+	    out = strtoull(p, &end, base);
+	    if (end == p) return false;
+	    p = end;
+	    return true;
+      }
+      if (*p >= '0' && *p <= '9') {
+	    char*end = nullptr;
+	    out = strtoull(p, &end, 10);
+	    p = end;
+	    return true;
+      }
+      if (*p != '(') return false;
+      p++;
+      while (*p == ' ') p++;
+      char op[16];
+      size_t oi = 0;
+      while (*p && *p != ' ' && *p != '(' && *p != ')' && oi + 1 < sizeof op)
+	    op[oi++] = *p++;
+      op[oi] = 0;
+      bool is_neg = !strcmp(op, "bvneg"), is_not = !strcmp(op, "bvnot");
+      bool is_add = !strcmp(op, "bvadd"), is_sub = !strcmp(op, "bvsub");
+      bool is_mul = !strcmp(op, "bvmul");
+      if (!(is_neg || is_not || is_add || is_sub || is_mul)) return false;
+      uint64_t acc = 0;
+      bool first = true;
+      for (;;) {
+	    while (*p == ' ' || *p == '\n' || *p == '\t') p++;
+	    if (*p == ')') { p++; break; }
+	    if (!*p) return false;
+	    uint64_t v = 0;
+	    if (!z3_str_fold_(p, v)) return false;
+	    if (first) { acc = v; first = false; }
+	    else if (is_add) acc += v;
+	    else if (is_sub) acc -= v;
+	    else if (is_mul) acc *= v;
+	    else return false;   // unary op with >1 args
+      }
+      if (first) return false;   // no operands
+      if (is_neg) acc = 0 - acc;
+      if (is_not) acc = ~acc;
+      out = acc;
+      return true;
+}
+
+static bool z3_str_ground_uint64(Z3_context ctx, Z3_ast t, unsigned width,
+                                 uint64_t& out)
+{
+      if (width == 0 || width > 64) return false;
+      Z3_string s = Z3_ast_to_string(ctx, t);
+      if (!s) return false;
+      const char*p = s;
+      uint64_t v = 0;
+      if (!z3_str_fold_(p, v)) return false;
+      while (*p == ' ' || *p == '\n') p++;
+      if (*p) return false;   // trailing junk: not a fully parsed term
+      uint64_t mask = (width == 64) ? ~UINT64_C(0)
+                                    : ((UINT64_C(1) << width) - 1);
+      out = v & mask;
+      return true;
+}
+
 /* Structurally evaluate a GROUND bitvector term to uint64.
  *
  * The MSYS2/Windows Z3 build hands back model values like
@@ -154,6 +236,16 @@ static bool z3_ground_uint64(Z3_context ctx, Z3_ast t, uint64_t& out,
 static bool z3_eval_uint64(Z3_context ctx, Z3_model model, Z3_ast var,
                            uint64_t& out)
 {
+	// The variables we create are all bitvector consts of known width;
+	// take the width from the var itself for the string-fallback mask.
+      unsigned width = 64;
+      {
+	    Z3_sort vs = Z3_get_sort(ctx, var);
+	    if (Z3_get_sort_kind(ctx, vs) == Z3_BV_SORT) {
+		  unsigned w = Z3_get_bv_sort_size(ctx, vs);
+		  if (w >= 1 && w <= 64) width = w;
+	    }
+      }
       Z3_ast interp = var;
       for (int pass = 0 ; pass < 4 ; pass += 1) {
 	    Z3_ast next = nullptr;
@@ -161,6 +253,8 @@ static bool z3_eval_uint64(Z3_context ctx, Z3_model model, Z3_ast var,
 		  break;
 	    next = Z3_simplify(ctx, next);
 	    if (z3_ground_uint64(ctx, next, out))
+		  return true;
+	    if (z3_str_ground_uint64(ctx, next, width, out))
 		  return true;
 	    if (next == interp)   // no progress; further passes are futile
 		  break;
@@ -171,8 +265,28 @@ static bool z3_eval_uint64(Z3_context ctx, Z3_model model, Z3_ast var,
 	      // the two strings must be copied out before printing together.
 	    std::string vs = Z3_ast_to_string(ctx, var);
 	    std::string rs = interp ? Z3_ast_to_string(ctx, interp) : "(null)";
-	    fprintf(stderr, "[z3dyn] eval-fail var=<%s> residue=<%s>\n",
-		    vs.c_str(), rs.c_str());
+	      // Dump the raw C-API answers for the residue so a build whose
+	      // inspection calls misbehave reveals exactly which one.
+	    int akind = -1, skind = -1, dkind = -1, nargs = -1;
+	    unsigned rw = 0;
+	    if (interp) {
+		  akind = (int)Z3_get_ast_kind(ctx, interp);
+		  Z3_sort rs2 = Z3_get_sort(ctx, interp);
+		  skind = (int)Z3_get_sort_kind(ctx, rs2);
+		  if (skind == (int)Z3_BV_SORT)
+			rw = Z3_get_bv_sort_size(ctx, rs2);
+		  if (akind == (int)Z3_APP_AST) {
+			Z3_app app = Z3_to_app(ctx, interp);
+			dkind = (int)Z3_get_decl_kind(ctx,
+					Z3_get_app_decl(ctx, app));
+			nargs = (int)Z3_get_app_num_args(ctx, app);
+		  }
+	    }
+	    fprintf(stderr, "[z3dyn] eval-fail var=<%s> residue=<%s> "
+		    "astkind=%d sortkind=%d width=%u declkind=%d nargs=%d "
+		    "(BNEG=%d APP=%d BV=%d)\n",
+		    vs.c_str(), rs.c_str(), akind, skind, rw, dkind, nargs,
+		    (int)Z3_OP_BNEG, (int)Z3_APP_AST, (int)Z3_BV_SORT);
       }
       return false;
 }
