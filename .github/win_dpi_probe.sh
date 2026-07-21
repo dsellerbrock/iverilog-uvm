@@ -15,15 +15,18 @@
 #      and means the regex provider is a red herring.
 # Purely diagnostic: never fails the job.
 set +e
+# CLANG64 ships clang/clang++ only (no gcc/g++ alias); MINGW64/UCRT64 ship gcc.
+PCC="$(command -v gcc || command -v clang || command -v cc)"
+PCXX="$(command -v g++ || command -v clang++ || command -v c++)"
 echo "==================== WIN DPI/REGEX PROBE ===================="
 echo "--- uname / toolchain ---"
 uname -a
-gcc --version | head -1
-echo "MSYSTEM=$MSYSTEM  MINGW_PREFIX=$MINGW_PREFIX"
+"$PCC" --version | head -1
+echo "MSYSTEM=$MSYSTEM  MINGW_PREFIX=$MINGW_PREFIX  PCC=$PCC  PCXX=$PCXX"
 
 echo "--- which top-level <regex.h> resolves, and its provider ---"
 printf '#include <regex.h>\n' > /tmp/rxwhich.c
-gcc -E /tmp/rxwhich.c 2>/dev/null | grep -m1 -iE 'regex\.h' | sed 's/^/  /'
+"$PCC" -E /tmp/rxwhich.c 2>/dev/null | grep -m1 -iE 'regex\.h' | sed 's/^/  /'
 ls -l "$MINGW_PREFIX/include/regex.h" 2>/dev/null | sed 's/^/  /'
 # who owns it?
 if command -v pacman >/dev/null 2>&1 ; then
@@ -52,7 +55,7 @@ int main(void) {
 }
 PROBEEOF
 for lib in "" "-lsystre -ltre" "-lregex" "-lgnurx" "-ltre"; do
-    if gcc /tmp/rxsz.c -o /tmp/rxsz $lib 2>/tmp/rxsz.err ; then
+    if "$PCC" /tmp/rxsz.c -o /tmp/rxsz $lib 2>/tmp/rxsz.err ; then
         echo "  [link: '${lib:-<none>}'] ->"
         /tmp/rxsz
     else
@@ -176,9 +179,9 @@ echo "  [C: full umbrella, HAND-ROLLED link with -Wl,--export-all-symbols (the f
 IVL_INC_P="$(dirname "$(dirname "$(command -v iverilog)")")/include/iverilog"
 CC_F="$("$IVPI" --cflags 2>/dev/null) -I$IVL_INC_P"; CXX_F="$("$IVPI" --ccflags 2>/dev/null) -I$IVL_INC_P"
 LD_F="$("$IVPI" --ldflags 2>/dev/null)"; LD_L="$("$IVPI" --ldlibs 2>/dev/null)"
-if g++ -c $CXX_F -I"$REPO_DIR/uvm-core/src/dpi" "$REPO_DIR/uvm_dpi/uvm_dpi_iverilog.cc" -o /tmp/fc_umb.o 2>/tmp/fc.log \
-   && gcc -c $CC_F /tmp/dummies_all.c -o /tmp/fc_dum.o 2>>/tmp/fc.log \
-   && g++ $LD_F -Wl,--export-all-symbols -o /tmp/fc_lib.vpi /tmp/fc_umb.o /tmp/fc_dum.o -lsystre -ltre $LD_L 2>>/tmp/fc.log ; then
+if "$PCXX" -c $CXX_F -I"$REPO_DIR/uvm-core/src/dpi" "$REPO_DIR/uvm_dpi/uvm_dpi_iverilog.cc" -o /tmp/fc_umb.o 2>/tmp/fc.log \
+   && "$PCC" -c $CC_F /tmp/dummies_all.c -o /tmp/fc_dum.o 2>>/tmp/fc.log \
+   && "$PCXX" $LD_F -Wl,--export-all-symbols -o /tmp/fc_lib.vpi /tmp/fc_umb.o /tmp/fc_dum.o -lsystre -ltre $LD_L 2>>/tmp/fc.log ; then
     vvp -d /tmp/fc_lib.vpi /tmp/re_probe.vvp 2>&1 | grep -aE "RE_COMPEXECFREE|error|not found" | sed 's/^/    run: /'
 else
     echo "    build failed:"; tail -4 /tmp/fc.log | sed 's/^/    /'

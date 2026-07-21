@@ -109,6 +109,14 @@ case "$(uname -s)" in
         # wildcard match fails with UVM/DPI/REGEX. libsystre supplies both a
         # consistent <regex.h> and the implementation (via tre).
         DPI_EXTRA_LIB="$DPI_EXTRA_LIB -lsystre -ltre"
+        # The merged build is hand-rolled (see run_test), and the compiler
+        # differs per MSYS2 environment: MINGW64/UCRT64 ship gcc/g++, but
+        # CLANG64 ships only clang/clang++ (no gcc alias) — hardcoding g++
+        # made every CLANG64 merge fail (umbrella never built -> the whole
+        # UVM/DPI/REGEX cluster). clang's MinGW driver accepts the same
+        # flags including -Wl,--export-all-symbols (lld supports it).
+        DPI_MERGE_CC="$(command -v gcc || command -v clang || command -v cc)"
+        DPI_MERGE_CXX="$(command -v g++ || command -v clang++ || command -v c++)"
         UVM_WIN_MERGE=1
         ;;
 esac
@@ -215,20 +223,22 @@ run_test() {
         # not find uvm_re_compexecfree / the DPI imports and they returned 0
         # (both UVM/DPI/REGEX and the m10 "got 0" clusters). Forcing
         # -Wl,--export-all-symbols restores the exports vvp resolves by name.
-        # iverilog-vpi cannot pass -Wl flags, hence the explicit g++/gcc below.
+        # iverilog-vpi cannot pass -Wl flags, hence the explicit compilers
+        # below ($DPI_MERGE_CC/CXX: gcc/g++ on MINGW64/UCRT64, clang/clang++
+        # on CLANG64 which ships no gcc alias).
         local blog="/tmp/uvm_dpi_${name}.buildlog"
         local objs="/tmp/umb_${name}.o"
-        g++ -c $IVPI_CXX "$UMBRELLA_INC" "$UMBRELLA" -o "/tmp/umb_${name}.o" >"$blog" 2>&1
+        "$DPI_MERGE_CXX" -c $IVPI_CXX "$UMBRELLA_INC" "$UMBRELLA" -o "/tmp/umb_${name}.o" >"$blog" 2>&1
         local s b o
         for s in $srcs ; do
             b="$(basename "$s")"; o="/tmp/${b%.*}_${name}.o"
-            gcc -c $IVPI_CC "$UMBRELLA_INC" "$s" -o "$o" >>"$blog" 2>&1
+            "$DPI_MERGE_CC" -c $IVPI_CC "$UMBRELLA_INC" "$s" -o "$o" >>"$blog" 2>&1
             objs="$objs $o"
         done
         # NOTE: no $IVPI_LDL here (it carries -lvpi -lveriuser). libvpi.a must
         # NOT be linked on Windows — see the import-lib comment above. All
         # vvp symbols come from -lvvpimp; regex from -lsystre -ltre.
-        g++ $IVPI_LDF -Wl,--export-all-symbols -o "/tmp/uvm_dpi_${name}.vpi" \
+        "$DPI_MERGE_CXX" $IVPI_LDF -Wl,--export-all-symbols -o "/tmp/uvm_dpi_${name}.vpi" \
             $objs $DPI_EXTRA_LIB >>"$blog" 2>&1
         dflags="-d /tmp/uvm_dpi_${name}.vpi"
     elif [ -n "$srcs" ]; then
