@@ -4593,6 +4593,25 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
             }
       }
       if (!use_context) {
+            /* Additive last-resort fallback (only reached when every chain
+               walk above already failed, i.e. the reference would otherwise
+               resolve to null). This happens for a reference to `this` or an
+               enclosing automatic from a nested detached (join_none) fork
+               whose inherited context chain no longer links back to the
+               owning activation frame (issue #103). If the target automatic
+               scope has exactly ONE live activation there is no ambiguity
+               about which frame the reference belongs to, so use it.
+               Recursive scopes (more than one live context) stay on the
+               null path as before, since the correct activation cannot be
+               disambiguated here. */
+            if (ctx_scope->live_contexts
+                && vvp_get_next_context(ctx_scope->live_contexts) == 0) {
+                  use_context = ctx_scope->live_contexts;
+                  source = "single-live";
+                  ctx_stats_bump("rd-scoped.single-live");
+            }
+      }
+      if (!use_context) {
             ctx_stats_bump("rd-scoped.miss");
             if (trace_this) {
                   fprintf(stderr,

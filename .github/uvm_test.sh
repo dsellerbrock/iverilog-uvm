@@ -94,23 +94,19 @@ rm -f uvm_dpi_iverilog.o
 # m7_objection_stress_test: run_phase never completes cleanly under the
 # concurrent workload, so the run extends to the UVM 9200s watchdog instead
 # of ending at t=80. The run_phase objection counters pass; only the
-# end-of-sim time check fails. ROOT CAUSE fully traced (issue #103): the
-# implicit `this` in a nested detached (join_none) fork body is not captured
-# at spawn -- it is read deferred and goes null for later loop iterations.
-# In uvm_phase_hopper::run_phases the per-phase drop runs in such a fork, so
-# for the later phases common.run and common.check `this` is null,
-# get_objection() returns null, and objection.drop_objection() SILENTLY
-# no-ops on the null handle (iverilog does not fatal on a null-handle method
-# call). Those two phase-hopper objections never drop (27 raise / 25 drop on
-# uvm_top), so run_phases never returns from wait_for_objection. Minimal
-# reproducer: docs/conformance/repros/m7_this_null_nested_detached_fork.sv.
-#
-# Ruled out: (a) run-phase objection count propagation -- reaches uvm_top=0
-# correctly (traced); (b) forked-argument capture (#102, fixed in 9f1909b) --
-# that hoist only covers a single-branch `fork task(args); join_none`, not a
-# general inline detached fork body / implicit `this`. Fix needs spawn-time
-# capture of `this` + enclosing automatics for inline detached fork bodies.
-KNOWN_FAIL="m7_objection_stress_test"
+# FIXED (issue #103): the implicit `this` (and enclosing automatics) read
+# from a nested detached (join_none) fork body used to resolve to null for
+# later loop iterations, because the fork thread's inherited automatic-
+# context chain no longer linked back to the owning activation frame. In
+# uvm_phase_hopper::run_phases the per-phase drop runs in such a fork, so for
+# common.run/common.check `this` went null, get_objection() returned null,
+# and objection.drop_objection() silently no-op'd on the null handle -> two
+# phase-hopper objections never dropped -> run never completed. Fixed in
+# vvp/vthread.cc (vthread_get_rd_context_item_scoped): a strictly-additive
+# last-resort fallback resolves a scoped automatic read to the target
+# scope's single live activation when every chain walk fails. m7 now ends at
+# t=80. Reproducer: docs/conformance/repros/m7_this_null_nested_detached_fork.sv.
+KNOWN_FAIL=""
 
 # Per-test plusargs and extra iverilog compile flags. Kept as plain case
 # functions rather than `declare -A` associative arrays so the harness runs
