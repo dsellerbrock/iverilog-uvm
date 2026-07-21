@@ -183,16 +183,26 @@ Maintain clean builds, canonical regressions, UVM, negative tests, VPI, cross-pl
       the container being `netuarray_t` / plain `netdarray_t` (not
       `netqueue_t`). CE test `sv_ustruct_array_member_ce`. A sibling of
       defect (a), the WHOLE-element write `arr[i] = <expr>` (no member
-      select), was found to crash the same way — the static-array element
-      write degrades the struct r-value to a null store, so the element ends
-      up null and later reads / `%p` abort at run time. The precise boundary
-      differs from the member case: only a STATIC unpacked array
-      (`netuarray_t`) whole-element write is broken; dynamic and associative
-      arrays and queues of unpacked structs, and whole-ARRAY pattern assigns
-      (`arr = '{...}`), all store elements correctly. It is now a loud
-      `sorry` in `elaborate_lval_net_word_` (`elab_lval.cc`) gated on
-      `netuarray_t` + non-packed `netstruct_t` element. CE test
-      `sv_ustruct_array_element_ce`. While reducing
+      select), was first found to crash the same way and was briefly gated
+      with a `sorry` — then ROOT-CAUSED and FIXED (2026-07-21o). The bug was
+      pure codegen: `show_stmt_assign_object` (`tgt-vvp/stmt_assign.c`)
+      diverted ANY assignment-pattern r-value to `draw_array_pattern`, which
+      is the WHOLE-ARRAY distributor — it ignores the l-value word index and
+      read the struct's fields `'{a,b}` as successive array *elements*
+      (`arr[0]=a; arr[1]=b`), calling `draw_eval_object` on a plain integer
+      and emitting `%null`. The fix only calls `draw_array_pattern` when the
+      l-value has NO word index (a true whole-array assign); a per-element
+      pattern (`ivl_lval_idx != 0`) now falls through to the same
+      build-the-object + `%store/obja` path the scalar `s = '{...}` and the
+      element-copy/struct-var cases already use. So `arr[i] = '{...}`, a
+      struct-variable assign, and an element-to-element copy all work now,
+      and member READS of an assigned element read back correctly. Positive
+      test `sv_ustruct_array_element` (the earlier CE test was removed). Note
+      the sibling still open: a member WRITE `arr[i].field = x` to an element
+      that was never whole-assigned drops silently because static object-array
+      elements are not auto-constructed (each element starts null); that path
+      stays gated by the member-access `sorry` above until element
+      auto-construction lands. While reducing
       (a) a second real crash surfaced and was fixed: the TASK-method path
       (`arr[0].method();` as a statement — a void method with a constant
       index) hit the same `canonical_expr` assertion as the earlier

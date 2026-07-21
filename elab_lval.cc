@@ -655,37 +655,6 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
       if (name_tail.index.size() > reg->unpacked_dimensions())
 	    use_sel = name_tail.index.back().sel;
 
-	// Whole-element assignment to an element of a STATIC unpacked array
-	// (netuarray_t) of an unpacked struct is not correctly lowered: such
-	// arrays are stored as arrays of objects, but the element write
-	// degrades the struct r-value to a null/packed-vector store, so the
-	// element ends up null (later reads and %p abort in the runtime). A
-	// whole-ARRAY pattern assignment (`arr = '{...}`) works and is
-	// handled elsewhere, and dynamic arrays / queues / associative arrays
-	// of unpacked structs assign their elements correctly (they take a
-	// different, object-based store path); only the STATIC-array indexed
-	// per-element write is broken. This is the whole-element sibling of
-	// the member-access diagnostic above (member writes such as
-	// `arr[i].field = ...`); diagnose it loudly rather than miscompiling
-	// silently (IEEE 1800-2017 7.2.1). This path is reached only for a
-	// fixed-size unpacked array word (reg->unpacked_dimensions() > 0), so
-	// gating on netuarray_t is sufficient.
-      if (use_sel == index_component_t::SEL_NONE && gn_system_verilog()) {
-	    const netstruct_t*elem_struct =
-		  dynamic_cast<const netstruct_t*>(lv->net_type());
-	    if (elem_struct && !elem_struct->packed()
-		&& dynamic_cast<const netuarray_t*>(reg->array_type())) {
-		  cerr << get_fileline() << ": sorry: assignment to an element "
-		          "of a static (fixed-size) unpacked array of unpacked "
-		          "structs is not yet supported (use a queue, a dynamic "
-		          "or associative array, a packed struct, or assign the "
-		          "whole array at once)." << endl;
-		  des->errors += 1;
-		  delete lv;
-		  return 0;
-	    }
-      }
-
       if (reg->get_scalar() &&
           use_sel != index_component_t::SEL_NONE) {
 	    cerr << get_fileline() << ": error: can not select part of ";

@@ -2643,10 +2643,25 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 
 		    assert(!ivl_lval_nest(lval));
 
-		    if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
+		    if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN
+			&& ivl_lval_idx(lval) == 0) {
+			    /* Whole-array pattern assign (no element index):
+			       draw_array_pattern distributes the pattern's
+			       entries across the array's elements. */
 			  draw_array_pattern(sig, rval, 0);
 		  return 0;
 	    }
+
+	      /* A per-element assignment of an aggregate literal
+		 (`arr[i] = '{...}`) has a word index on the l-value; the
+		 pattern is a STRUCT literal for that one element, not a list
+		 of array elements. Fall through to build the whole aggregate
+		 object from the pattern (draw_eval_object handles the
+		 IVL_EX_ARRAY_PATTERN aggregate the same way the scalar
+		 `s = '{...}` case does) and store it into the indexed element
+		 with %store/obja below. Feeding it to draw_array_pattern here
+		 would mis-read the struct fields as successive array elements
+		 and null them out. */
 
 	      /* There is no property select, so evaluate the r-value
 		 as an object and assign the entire object to the
