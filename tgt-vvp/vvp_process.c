@@ -2621,20 +2621,28 @@ static void find_module_scope_recurse_(ivl_scope_t node, const char*target,
                                        best, first);
 }
 
-/* Collect ALL module-scope instances of a given definition name. */
-#define VIF_DISPATCH_MAX 64
+/* Collect ALL module-scope instances of a given definition name into a
+ * dynamically grown list. There is deliberately no fixed cap: an earlier
+ * VIF_DISPATCH_MAX=64 limit SILENTLY dropped instances beyond it, so a
+ * design with more than 64 instances of an interface dispatched virtual
+ * calls to only the first 64 handles and quietly skipped the rest. */
 static void collect_module_scopes_(ivl_scope_t node, const char*target,
-                                   ivl_scope_t*list, unsigned*count)
+                                   ivl_scope_t**list, unsigned*count,
+                                   unsigned*cap)
 {
       if (!node) return;
       if (ivl_scope_type(node) == IVL_SCT_MODULE
-          && strcmp(ivl_scope_tname(node), target) == 0
-          && *count < VIF_DISPATCH_MAX) {
-            list[*count] = node;
+          && strcmp(ivl_scope_tname(node), target) == 0) {
+            if (*count >= *cap) {
+                  *cap = (*cap == 0) ? 16 : (*cap * 2);
+                  *list = realloc(*list, *cap * sizeof(ivl_scope_t));
+                  assert(*list);
+            }
+            (*list)[*count] = node;
             *count += 1;
       }
       for (size_t i = 0 ; i < ivl_scope_childs(node) ; i += 1)
-            collect_module_scopes_(ivl_scope_child(node, i), target, list, count);
+            collect_module_scopes_(ivl_scope_child(node, i), target, list, count, cap);
 }
 
 /* Emit the argument stores + fork/join for ONE resolved interface
@@ -2743,10 +2751,11 @@ static int show_vif_dyn_call(ivl_statement_t net)
       ivl_scope_t*roots = 0;
       unsigned nroots = 0;
       ivl_design_roots(des, &roots, &nroots);
-      ivl_scope_t insts[VIF_DISPATCH_MAX];
-      unsigned ninst = 0;
+      ivl_scope_t*insts = 0;
+      unsigned ninst = 0, insts_cap = 0;
       for (unsigned i = 0 ; i < nroots ; i += 1)
-            collect_module_scopes_(roots[i], iface_name, insts, &ninst);
+            collect_module_scopes_(roots[i], iface_name, &insts, &ninst,
+                                   &insts_cap);
 
       if (ninst == 0) {
             static int warned_noinst = 0;
@@ -2765,11 +2774,13 @@ static int show_vif_dyn_call(ivl_statement_t net)
             ivl_scope_t method = find_iface_method_child_(insts[0], method_name);
             if (method)
                   emit_iface_method_call_(net, method, 1);
+            free(insts);
             return 0;
       }
 
       unsigned lab_end = local_count++;
-      unsigned lab_inst[VIF_DISPATCH_MAX];
+      unsigned*lab_inst = calloc(ninst, sizeof(unsigned));
+      assert(lab_inst);
 
       draw_eval_object(recv);
       unsigned emitted = 0;
@@ -2796,6 +2807,8 @@ static int show_vif_dyn_call(ivl_statement_t net)
       }
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_end);
       (void)emitted;
+      free(lab_inst);
+      free(insts);
       return 0;
 }
 

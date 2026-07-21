@@ -3,6 +3,35 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21j (M5 interfaces/modports audit + fixes)
+
+- **M5 truth audit completed; three fixes landed:**
+  1. **Static-array method receiver index drop (silent miscompile, the
+     big one):** `arr[i].method()` on a static unpacked array of class
+     handles OR virtual interfaces dropped the receiver index in BOTH the
+     task-method path (`elaborate_root_indexed_method_target_expr_`,
+     elaborate.cc — note base_type arrives as the ELEMENT type, so the
+     fix keys off the signal's unpacked dimensions) and the
+     function-method path (`PECallFunction::elaborate_expr_method_`,
+     elab_expr.cc — new static-array root-index application beside the
+     existing queue/darray one). Every call dispatched through element 0.
+     Test `sv_class_array_method_dispatch`.
+  2. **VIF_DISPATCH_MAX removed:** the 64-instance dispatch cap silently
+     dropped instances 65+. Dynamic collection now. Test
+     `sv_vif_dispatch_many` (72 instances).
+  3. **Modport member visibility enforced (write side):** writing an
+     interface member the modport does not list compiled silently; now a
+     clean error next to the existing direction check. CE test
+     `sv_modport_visibility_fail`.
+- **Audit results (manifesto M5 updated):** direction enforcement OK;
+  imported-task copy-back OK (single-instance, warned); per-
+  specialization param-interface typing OK. Remaining gaps recorded:
+  read-side modport visibility; runtime-index vif-array BINDING
+  (`vp[i] = pins[i]` in a loop → "Scope index expression is not
+  constant"); bare $unit-scope `virtual iface v;` declarations parse
+  error.
+- **Validation:** ivtest + UVM runs pending at checkpoint.
+
 ## State as of 2026-07-21i (unpacked-array slice + function return — IMPLEMENTED)
 
 - **Unpacked-array SLICE assignment (`m[0] = '{1,2,3}` for int[2][3]) —

@@ -249,14 +249,43 @@ Future failures belong to the underlying language/runtime subsystem unless the U
 
 ## M5 — Interfaces and modports
 
-**Status: PARTIAL / REQUIRES TRUTH AUDIT**
+**Status: PARTIAL — AUDITED 2026-07-21**
 
-- [ ] Audit full modport member access restrictions.
-- [ ] Revalidate output/inout imported task copy-back.
-- [ ] Remove or justify hard dispatch limits such as `VIF_DISPATCH_MAX`.
-- [ ] Verify per-specialization interface typing.
-- [ ] Stress parameterized virtual-interface arrays.
-- [ ] Audit bare module-scope virtual-interface declarations.
+- [x] Audit full modport member access restrictions. *(2026-07-21:
+      direction enforcement (writing an input member through a modport)
+      was already implemented and errors cleanly. Member VISIBILITY was
+      NOT enforced — writing a member the modport does not list compiled
+      silently; now a clean error (`elab_lval.cc`, alongside the direction
+      check; import/export-listed subroutines stay accessible). CE test
+      `sv_modport_visibility_fail`. Remaining refinement: visibility on
+      the READ side (expression path) is not yet enforced.)*
+- [x] Revalidate output/inout imported task copy-back. *(2026-07-21:
+      works — single-attached-instance binding with an explicit warning
+      that dynamic multi-instance copy-back is not implemented; verified
+      accumulating state + output arg across two calls.)*
+- [x] Remove or justify hard dispatch limits such as `VIF_DISPATCH_MAX`.
+      *(2026-07-21: REMOVED. The fixed 64-instance cap silently dropped
+      instances beyond it, so virtual calls through handles bound to
+      instances 65+ quietly did nothing. Collection is now dynamically
+      sized. Test `sv_vif_dispatch_many` (72 instances). The same
+      investigation found and fixed a broader silent miscompile: the
+      receiver index of `arr[i].method()` on a STATIC array of class
+      handles or virtual interfaces was dropped in BOTH the task-method
+      and function-method elaboration paths — every call dispatched
+      through element 0. Test `sv_class_array_method_dispatch`.)*
+- [x] Verify per-specialization interface typing. *(2026-07-21: verified —
+      two specializations of a parameterized interface keep distinct
+      widths/parameter values, both data and methods.)*
+- [~] Stress parameterized virtual-interface arrays. *(2026-07-21:
+      constant-index vif-array binding (`vp[2] = pins[2]`) and
+      element-indexed method dispatch work; binding with a RUNTIME index
+      (`vp[i] = pins[i]` in a loop) fails at elaboration — "Scope index
+      expression is not constant" — because interface-instance selection
+      is a scope operation. Needs a runtime instance-dispatch table.)*
+- [~] Audit bare module-scope virtual-interface declarations. *(2026-07-21:
+      a `virtual pin_if vp;` declaration at compilation-unit ($unit) scope
+      is a parse error. Module-scope and class-property declarations
+      work.)*
 
 ## M6A — Core scheduler/runtime repairs
 

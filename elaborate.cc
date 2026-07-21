@@ -664,8 +664,44 @@ static NetExpr* elaborate_root_indexed_method_target_expr_(const LineInfo*li,
 	    return base_expr;
 
       const netdarray_t*darray = dynamic_cast<const netdarray_t*>(base_type);
-      if (!darray)
+      if (!darray) {
+	      // Static unpacked-array method target (an array of class
+	      // handles or virtual interfaces): resolve the element as an
+	      // array-word read. The index used to be silently DROPPED here,
+	      // so `arr[i].method()` evaluated the receiver as word 0 of the
+	      // array and every call dispatched through the first element.
+	      // Note base_type may already be the ELEMENT type (symbol
+	      // search resolves it), so key off the signal's dimensions.
+	    NetESignal*base_sig = dynamic_cast<NetESignal*>(base_expr);
+	    if (base_sig
+		&& base_sig->sig()->unpacked_dimensions() == 1
+		&& base_sig->word_index() == 0
+		&& base_index.size() == 1
+		&& base_index.back().sel == index_component_t::SEL_BIT
+		&& base_index.back().msb != 0
+		&& base_index.back().lsb == 0) {
+		  NetExpr*mux = elab_and_eval(des, scope,
+					      base_index.back().msb, -1, false);
+		  if (mux) {
+			list<NetExpr*> idx1;
+			idx1.push_back(mux);
+			NetExpr*canon =
+			      normalize_variable_unpacked(base_sig->sig(), idx1);
+			if (canon) {
+			      canon->set_line(*li);
+			      NetESignal*tmp =
+				    new NetESignal(base_sig->sig(), canon);
+			      tmp->set_line(*li);
+			      delete base_expr;
+			      if (const netuarray_t*uarray =
+					dynamic_cast<const netuarray_t*>(base_type))
+				    out_type = uarray->element_type();
+			      return tmp;
+			}
+		  }
+	    }
 	    return base_expr;
+      }
       if (!assoc_compat_supports_indexed_method_target_(base_type, method_name)) {
 	    delete base_expr;
 	    return nullptr;

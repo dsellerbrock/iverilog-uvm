@@ -1375,6 +1375,28 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    des->errors += 1;
 				    return 0;
 			      }
+				// Modport member visibility (IEEE
+				// 1800-2017 25.5): only members the
+				// modport lists (as ports or via
+				// import/export) are accessible
+				// through it. A write to any other
+				// interface member used to compile
+				// silently.
+			      if (sp == mit->second->simple_ports.end()
+				  && mit->second->import_ports.count(member) == 0
+				  && mit->second->export_ports.count(member) == 0
+				  && ifc->property_idx_from_name(member) >= 0) {
+				    cerr << get_fileline() << ": error: "
+					 << "cannot access '" << member
+					 << "' through modport '" << mp_name
+					 << "' of interface '"
+					 << ifc->get_name()
+					 << "' — it is not listed in that"
+					 << " modport (IEEE 1800-2017 25.5)."
+					 << endl;
+				    des->errors += 1;
+				    return 0;
+			      }
 			}
 		  }
 	    }
