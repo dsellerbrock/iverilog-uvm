@@ -157,10 +157,54 @@ static bool z3_str_ground_uint64(Z3_context ctx, Z3_ast t, unsigned width,
  * Z3_simplify (verified via the CI probe residue trace; Linux/macOS Z3
  * folds the same term to a numeral). So do the constant folding here for
  * the ground bitvector operators, masking each step to the term's width. */
+/* Extract a (possibly NEGATIVE) numeral via its decimal string, reduced
+ * mod 2^width. ROOT CAUSE of the whole m3 Windows corner (proven by
+ * reproducing with a -DZ3_USE_LIB_GMP=ON build of Z3 4.16.0 on Linux —
+ * MSYS2 builds Z3 with GMP, official Linux builds do not): the
+ * GMP-backed Optimize model stores an equality-eliminated bitvector
+ * value as a NEGATIVE numeral. It prints as `(bvneg #xffffff92)`, the C
+ * API classifies it Z3_NUMERAL_AST, Z3_get_numeral_uint64 rejects the
+ * negative, the app-inspection view is meaningless for it (decl kind is
+ * not BNEG, nargs 0), and Z3_get_numeral_int64 even returns success
+ * with a WRONG value (0). The one API that tells the truth is
+ * Z3_get_numeral_string: "-4294967186" — i.e. -(0xffffff92), which is
+ * exactly the solved value mod 2^32 (= 110 = base+1). */
+static bool z3_numstr_uint64(Z3_context ctx, Z3_ast t, uint64_t& out)
+{
+      if (Z3_get_ast_kind(ctx, t) != Z3_NUMERAL_AST)
+	    return false;
+      Z3_sort s = Z3_get_sort(ctx, t);
+      if (Z3_get_sort_kind(ctx, s) != Z3_BV_SORT)
+	    return false;
+      unsigned w = Z3_get_bv_sort_size(ctx, s);
+      if (w == 0 || w > 64)
+	    return false;
+      Z3_string str = Z3_get_numeral_string(ctx, t);
+      if (!str || !*str)
+	    return false;
+      bool neg = (*str == '-');
+      const char*p = str + (neg ? 1 : 0);
+      if (!*p)
+	    return false;
+      uint64_t acc = 0;
+      for ( ; *p ; p += 1) {
+	    if (*p < '0' || *p > '9')
+		  return false;
+	    acc = acc * 10 + (uint64_t)(*p - '0');   // wraps mod 2^64; we
+      }						     // only need mod 2^w<=64
+      if (neg)
+	    acc = 0 - acc;
+      uint64_t mask = (w == 64) ? ~UINT64_C(0) : ((UINT64_C(1) << w) - 1);
+      out = acc & mask;
+      return true;
+}
+
 static bool z3_ground_uint64(Z3_context ctx, Z3_ast t, uint64_t& out,
                              int depth = 0)
 {
       if (Z3_get_numeral_uint64(ctx, t, &out))
+	    return true;
+      if (z3_numstr_uint64(ctx, t, out))
 	    return true;
       if (depth > 8)
 	    return false;
