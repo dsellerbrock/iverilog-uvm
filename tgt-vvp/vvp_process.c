@@ -1447,6 +1447,67 @@ static int show_stmt_force(ivl_statement_t net)
       return 0;
 }
 
+/* A detaching fork (join_none/join_any) of an automatic task/function call
+ * must evaluate the call arguments at SPAWN time, capturing the current
+ * value of any enclosing automatic locals (e.g. a per-iteration loop
+ * variable). iverilog otherwise emits the whole wrapped call — %alloc of
+ * the callee frame, the argument stores, the call, %free — inside the
+ * detached thread, so the argument stores run when the thread is later
+ * scheduled and read the LAST value the shared automatic held, not the
+ * value at the fork (IEEE 1800-2017 9.3.2).
+ *
+ * When a forked child has the exact wrapped-auto-call shape
+ * [ %alloc, <arg stores>, <call>, (%free) ] we hoist the prefix
+ * (%alloc + the argument stores, everything up to the call) out to run in
+ * the spawning thread before the %fork, and leave only the call and its
+ * %free in the detached thread. The callee frame is allocated before the
+ * detach exactly as the fork thread's own frame already is, so the binding
+ * survives. Returns the index of the call statement within the child
+ * block (the split point), or -1 if the child is not a hoistable wrapped
+ * call (in which case it is emitted whole, unchanged). */
+static int fork_child_hoist_split_(ivl_statement_t child)
+{
+      if (ivl_statement_type(child) != IVL_ST_BLOCK)
+	    return -1;
+	/* A named block introduces its own scope/frame; don't disturb it. */
+      if (ivl_stmt_block_scope(child) != 0)
+	    return -1;
+      unsigned n = ivl_stmt_block_count(child);
+      if (n < 2)
+	    return -1;
+      if (ivl_statement_type(ivl_stmt_block_stmt(child, 0)) != IVL_ST_ALLOC)
+	    return -1;
+
+      int call_idx = -1;
+      for (unsigned i = 0 ; i < n ; i += 1) {
+	    ivl_statement_type_t t =
+		  ivl_statement_type(ivl_stmt_block_stmt(child, i));
+	    if (t == IVL_ST_UTASK) {
+		  if (call_idx >= 0)
+			return -1; /* more than one call: not a simple wrap */
+		  call_idx = (int)i;
+	    }
+      }
+      if (call_idx <= 0)
+	    return -1;
+
+	/* Everything before the call must be only frame setup and argument
+	   stores (%alloc / blocking assigns). Anything else (control flow,
+	   waits, side effects) must stay in the detached thread. */
+      for (int i = 0 ; i < call_idx ; i += 1) {
+	    ivl_statement_type_t t =
+		  ivl_statement_type(ivl_stmt_block_stmt(child, i));
+	    if (t != IVL_ST_ALLOC && t != IVL_ST_ASSIGN)
+		  return -1;
+      }
+	/* After the call, only a %free of the callee frame is expected. */
+      for (unsigned i = (unsigned)call_idx + 1 ; i < n ; i += 1) {
+	    if (ivl_statement_type(ivl_stmt_block_stmt(child, i)) != IVL_ST_FREE)
+		  return -1;
+      }
+      return call_idx;
+}
+
 static int show_stmt_fork(ivl_statement_t net, ivl_scope_t sscope)
 {
       unsigned idx;
@@ -1483,10 +1544,40 @@ static int show_stmt_fork(ivl_statement_t net, ivl_scope_t sscope)
       if (scope==0)
 	    scope = sscope;
 
+	/* Detaching forks (join_none/join_any) capture automatic-call
+	   arguments at spawn: hoist each hoistable child's %alloc + argument
+	   stores to run in the spawning thread, with the current values of
+	   the enclosing automatics, immediately BEFORE that child's own
+	   %fork. The remaining call (+ %free) is emitted in the detached
+	   thread below.
+
+	   The prefix must be interleaved with its own %fork, not batched
+	   ahead of all forks: the callee frame binding is captured by the
+	   spawning thread's context at %fork time, so a second %alloc of the
+	   same callee scope (another child, or a later iteration) before the
+	   %fork would clobber it. */
+	/* Restrict the spawn-time argument capture to a SINGLE-branch
+	   join_none. That is the pattern with the real hazard — a
+	   `fork task(<loop automatic>); join_none` re-executed each loop
+	   iteration, where the detached branch outlives the iteration and
+	   must snapshot the automatic at spawn. A join_any/join blocks the
+	   parent on a %join; a multi-branch fork would %alloc the same callee
+	   scope more than once before its %fork consumes the binding, and the
+	   allocations collide. Those forms keep the original (whole-child)
+	   lowering. */
+      bool is_detaching = (ivl_statement_type(net) == IVL_ST_FORK_JOIN_NONE)
+	    && ((join_count + join_detach_count) == 1);
+      int *child_split = calloc(join_count + join_detach_count, sizeof(int));
+
 	/* Draw a fork statement for all but one of the threads of the
 	   fork/join. Send the threads off to a bit of code where they
 	   are implemented. */
       for (idx = 0 ;  idx < (join_count+join_detach_count) ;  idx += 1) {
+	    ivl_statement_t child = ivl_stmt_block_stmt(net, idx);
+	    int split = is_detaching ? fork_child_hoist_split_(child) : -1;
+	    child_split[idx] = split;
+	    for (int j = 0 ; j < split ; j += 1)
+		  rc += show_statement(ivl_stmt_block_stmt(child, j), scope);
 	    fprintf(vvp_out, "    %%fork t_%u, S_%p;\n",
 		    id_base+idx, scope);
       }
@@ -1502,12 +1593,22 @@ static int show_stmt_fork(ivl_statement_t net, ivl_scope_t sscope)
 
 	/* Change the compiling scope to be the named forks scope. */
       if (is_named) fprintf(vvp_out, "    .scope S_%p;\n", scope);
-	/* Generate the sub-threads themselves. */
+	/* Generate the sub-threads themselves. For a hoisted child, only
+	   the call and its %free remain here; its %alloc + argument stores
+	   were already emitted above, before the %fork. */
       for (idx = 0 ;  idx < (join_count + join_detach_count) ;  idx += 1) {
+	    ivl_statement_t child = ivl_stmt_block_stmt(net, idx);
 	    fprintf(vvp_out, "t_%u ;\n", id_base+idx);
-	    rc += show_statement(ivl_stmt_block_stmt(net, idx), scope);
+	    if (child_split[idx] >= 0) {
+		  unsigned n = ivl_stmt_block_count(child);
+		  for (unsigned j = (unsigned)child_split[idx] ; j < n ; j += 1)
+			rc += show_statement(ivl_stmt_block_stmt(child, j), scope);
+	    } else {
+		  rc += show_statement(child, scope);
+	    }
 	    fprintf(vvp_out, "    %%end;\n");
       }
+      free(child_split);
 	/* Return to the previous scope. */
       if (sscope) fprintf(vvp_out, "    .scope S_%p;\n", sscope);
 
