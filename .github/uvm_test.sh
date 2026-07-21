@@ -59,9 +59,12 @@ UMBRELLA="$REPO/uvm_dpi/uvm_dpi_iverilog.cc"
 UMBRELLA_INC="-I$REPO/$UVM/dpi"
 # iverilog-vpi's own compile/link flags, reused for the hand-rolled Windows
 # merged-module build (which iverilog-vpi cannot do because it won't pass the
-# -Wl,--export-all-symbols that Windows needs — see run_test).
-IVPI_CC="$("$IVPI" --cflags 2>/dev/null)"
-IVPI_CXX="$("$IVPI" --ccflags 2>/dev/null)"
+# -Wl,--export-all-symbols that Windows needs — see run_test). iverilog-vpi's
+# --ccflags does not reliably carry the install include dir on MinGW, so the
+# vpi_user.h include path is added explicitly via IVL_INC.
+IVL_INC="$(dirname "$(dirname "$BIN")")/include/iverilog"
+IVPI_CC="$("$IVPI" --cflags 2>/dev/null) -I$IVL_INC"
+IVPI_CXX="$("$IVPI" --ccflags 2>/dev/null) -I$IVL_INC"
 IVPI_LDF="$("$IVPI" --ldflags 2>/dev/null)"
 IVPI_LDL="$("$IVPI" --ldlibs 2>/dev/null)"
 NO_DPI_FLAG=""

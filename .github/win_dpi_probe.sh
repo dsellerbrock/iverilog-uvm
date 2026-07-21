@@ -173,7 +173,8 @@ else
     echo "    (dlltool or vvp.def unavailable — skipping B)"
 fi
 echo "  [C: full umbrella, HAND-ROLLED link with -Wl,--export-all-symbols (the fix)]"
-CC_F="$("$IVPI" --cflags 2>/dev/null)"; CXX_F="$("$IVPI" --ccflags 2>/dev/null)"
+IVL_INC_P="$(dirname "$(dirname "$(command -v iverilog)")")/include/iverilog"
+CC_F="$("$IVPI" --cflags 2>/dev/null) -I$IVL_INC_P"; CXX_F="$("$IVPI" --ccflags 2>/dev/null) -I$IVL_INC_P"
 LD_F="$("$IVPI" --ldflags 2>/dev/null)"; LD_L="$("$IVPI" --ldlibs 2>/dev/null)"
 if g++ -c $CXX_F -I"$REPO_DIR/uvm-core/src/dpi" "$REPO_DIR/uvm_dpi/uvm_dpi_iverilog.cc" -o /tmp/fc_umb.o 2>/tmp/fc.log \
    && gcc -c $CC_F /tmp/dummies_all.c -o /tmp/fc_dum.o 2>>/tmp/fc.log \
