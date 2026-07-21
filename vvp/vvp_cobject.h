@@ -37,11 +37,11 @@ class vvp_cobject : public vvp_object {
       void set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx = 0);
       void get_vec4(size_t pid, vvp_vector4_t&val, size_t idx = 0);
 
-      void set_real(size_t pid, double val);
-      double get_real(size_t pid);
+      void set_real(size_t pid, double val, size_t idx = 0);
+      double get_real(size_t pid, size_t idx = 0);
 
-      void set_string(size_t pid, const std::string&val);
-      std::string get_string(size_t pid);
+      void set_string(size_t pid, const std::string&val, size_t idx = 0);
+      std::string get_string(size_t pid, size_t idx = 0);
 
       void set_object(size_t pid, const vvp_object_t&val, size_t idx);
       void get_object(size_t pid, vvp_object_t&val, size_t idx);

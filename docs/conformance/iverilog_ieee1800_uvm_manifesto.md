@@ -216,8 +216,15 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       `sv_uarray_func_return_fail`). Full support — an actual
       unpacked-array return path in the vvp calling convention — is not
       yet implemented; tracked in issue #99. DIAGNOSED, not FULL.)*
+- [x] Fix class-property unpacked arrays of `real`/`string` (were a silent
+      miscompile — every element stored to one slot). *(Done 2026-07-21:
+      array-capable real/string cobject property storage + indexed opcodes
+      `%store/prop/{r,str}/i` / `%prop/{r,str}/i`. Test
+      `sv_class_prop_real_string_array`. Issue #100.)*
 - [ ] Continue adversarial nested-container testing.
 - [ ] Reaudit nested property read/write/method shapes after future typing changes.
+- [ ] Fix copy constructor as a declaration initializer (`C d = new src;`
+      copies nothing; statement form works). Issue #101.
 
 ## M5 — Interfaces and modports
 

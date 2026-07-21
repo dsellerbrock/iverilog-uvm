@@ -3,6 +3,26 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21d (P0 silent miscompile: real/string class-property arrays)
+
+- **Class-property unpacked arrays of `real`/`string` — FIXED (was a
+  silent miscompile, #100).** The real/string cobject property store/load
+  opcodes carried no element index, so every element resolved to one slot:
+  element-wise writes clobbered each other and whole-array patterns
+  aborted (real) or emptied (string). Now array-capable:
+  `property_real`/`property_string` carry an array size (mirroring
+  `property_object`/`property_atom`); new opcodes
+  `%store/prop/{r,str}/i` and `%prop/{r,str}/i` select the element;
+  codegen updated in `stmt_assign.c` (element-wise + whole-array pattern
+  via `draw_prop_{real,str}_array_pattern`), `eval_real.c`, and
+  `eval_string.c`. Verified: element-wise, pattern, variable-index
+  read/write, scalar-property regression, and shallow copy (array-aware
+  `property::copy`). Test `sv_class_prop_real_string_array`.
+- **Filed #101 (separate pre-existing bug):** the copy constructor as a
+  declaration initializer (`C d = new src;`) does not copy — produces a
+  default object. The statement form (`d = new src;`) works. Affects all
+  property types; the #100 test uses the statement form.
+
 ## State as of 2026-07-21c (M4B known crashes: member access, array pattern, uarray func return)
 
 - **Member access on an element of an unpacked array of a packed struct

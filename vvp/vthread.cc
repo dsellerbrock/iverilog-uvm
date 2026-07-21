@@ -13769,8 +13769,7 @@ static void get_from_obj(unsigned pid, vvp_vinterface*vif, vvp_vector4_t&val)
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, double&val)
 {
-      (void)idx;
-      val = cobj->get_real(pid);
+      val = cobj->get_real(pid, idx);
 }
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, double&val)
@@ -13781,8 +13780,7 @@ static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, double&
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, string&val)
 {
-      (void)idx;
-      val = cobj->get_string(pid);
+      val = cobj->get_string(pid, idx);
 }
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, string&val)
@@ -14008,6 +14006,66 @@ bool of_PROP_R(vthread_t thr, vvp_code_t cp)
 bool of_PROP_STR(vthread_t thr, vvp_code_t cp)
 {
       return prop<string>(thr, cp);
+}
+
+/*
+ * Indexed element load from a real/string class-property that is an
+ * unpacked array (`obj.arr[i]`). The array index is in the word register
+ * named by cp->bit_idx[0]; pid is the property. Mirrors prop<ELEM> but
+ * selects element idx of the property's array storage.
+ */
+template <typename ELEM>
+static bool prop_i(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid = cp->number;
+      unsigned idx_reg = cp->bit_idx[0];
+      assert(idx_reg < vthread_s::WORDS_COUNT);
+      unsigned idx = thr->words[idx_reg].w_uint;
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%prop/*/i", pid, idx, obj, has_propobj);
+      if (!has_propobj) {
+	    if (!warned_prop_fallback) {
+		  cerr << thr->get_fileline()
+		       << "Warning: %prop/*/i on null/unsupported object handle"
+		       << " (pid=" << pid << ", idx=" << idx
+		       << "); using default value fallback." << endl;
+		  warned_prop_fallback = true;
+	    }
+	    ELEM fallback = ELEM();
+	    vthread_push(thr, fallback);
+	    return true;
+      }
+
+      ELEM val;
+      if (cobj)
+	    get_from_obj(pid, idx, cobj, val);
+      else
+	    get_from_obj(pid, idx, vif, val);
+      vthread_push(thr, val);
+      return true;
+}
+
+/*
+ * %prop/r/i <pid>, <idxreg>
+ * Load element <idxreg> of real-array property <pid> onto the real stack.
+ */
+bool of_PROP_R_I(vthread_t thr, vvp_code_t cp)
+{
+      return prop_i<double>(thr, cp);
+}
+
+/*
+ * %prop/str/i <pid>, <idxreg>
+ * Load element <idxreg> of string-array property <pid> onto the string
+ * stack.
+ */
+bool of_PROP_STR_I(vthread_t thr, vvp_code_t cp)
+{
+      return prop_i<string>(thr, cp);
 }
 
 /*
@@ -15556,8 +15614,7 @@ static void set_val(vvp_vinterface*vif, size_t pid, const vvp_vector4_t&val)
 
 static void set_val(vvp_cobject*cobj, size_t pid, const double&val, size_t idx)
 {
-      (void)idx;
-      cobj->set_real(pid, val);
+      cobj->set_real(pid, val, idx);
 }
 
 static void set_val(vvp_vinterface*vif, size_t pid, const double&val, size_t idx)
@@ -15568,8 +15625,7 @@ static void set_val(vvp_vinterface*vif, size_t pid, const double&val, size_t idx
 
 static void set_val(vvp_cobject*cobj, size_t pid, const string&val, size_t idx)
 {
-      (void)idx;
-      cobj->set_string(pid, val);
+      cobj->set_string(pid, val, idx);
 }
 
 static void set_val(vvp_vinterface*vif, size_t pid, const string&val, size_t idx)
@@ -15646,6 +15702,69 @@ bool of_STORE_PROP_R(vthread_t thr, vvp_code_t cp)
 bool of_STORE_PROP_STR(vthread_t thr, vvp_code_t cp)
 {
       return store_prop<string>(thr, cp);
+}
+
+/*
+ * Indexed element store into a real/string class-property that is an
+ * unpacked array (`obj.arr[i] = ...`). The array index is in the word
+ * register named by cp->bit_idx[0]; pid is the property. The object is
+ * peeked (not popped), so a whole-array pattern can store every element
+ * with a single object on the stack. Mirrors store_prop<ELEM>.
+ */
+template <typename ELEM>
+static bool store_prop_i(vthread_t thr, vvp_code_t cp)
+{
+      size_t pid = cp->number;
+      unsigned idx_reg = cp->bit_idx[0];
+      ELEM val;
+      pop_prop_val(thr, val, 0); // Pop the value to store.
+
+      assert(idx_reg < vthread_s::WORDS_COUNT);
+      size_t idx = thr->words[idx_reg].w_uint;
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      bool has_propobj = cobj != 0 || vif != 0;
+      prop_trace_log_(thr, "%store/prop/*/i", pid, idx, obj, has_propobj);
+      if (!has_propobj) {
+	    if (!warned_store_prop_fallback) {
+		  cerr << thr->get_fileline()
+		       << "Warning: cannot store into null/uninitialized class object"
+		       << " (property " << pid << ", idx=" << idx
+		       << "); skipping further similar stores." << endl;
+		  warned_store_prop_fallback = true;
+	    }
+	    return true;
+      }
+
+      if (cobj)
+	    set_val(cobj, pid, val, idx);
+      else
+	    set_val(vif, pid, val, idx);
+      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+                                  thr->peek_object_root(0), "store-prop-idx");
+      return true;
+}
+
+/*
+ * %store/prop/r/i <pid>, <idxreg>
+ * Pop a real value and store it into element <idxreg> of real-array
+ * property <pid>. Do NOT pop the object stack.
+ */
+bool of_STORE_PROP_R_I(vthread_t thr, vvp_code_t cp)
+{
+      return store_prop_i<double>(thr, cp);
+}
+
+/*
+ * %store/prop/str/i <pid>, <idxreg>
+ * Pop a string value and store it into element <idxreg> of string-array
+ * property <pid>. Do NOT pop the object stack.
+ */
+bool of_STORE_PROP_STR_I(vthread_t thr, vvp_code_t cp)
+{
+      return store_prop_i<string>(thr, cp);
 }
 
 /*

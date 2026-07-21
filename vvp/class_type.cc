@@ -88,9 +88,13 @@ class class_property_t {
 
       virtual void set_real(char*buf, double val);
       virtual double get_real(char*buf);
+      virtual void set_real(char*buf, double val, uint64_t idx);
+      virtual double get_real(char*buf, uint64_t idx);
 
       virtual void set_string(char*buf, const std::string&val);
       virtual string get_string(char*buf);
+      virtual void set_string(char*buf, const std::string&val, uint64_t idx);
+      virtual string get_string(char*buf, uint64_t idx);
 
       virtual void set_object(char*buf, const vvp_object_t&val, uint64_t element);
       virtual void get_object(char*buf, vvp_object_t&val, uint64_t element);
@@ -165,6 +169,16 @@ double class_property_t::get_real(char*)
       return 0.0;
 }
 
+void class_property_t::set_real(char*buf, double val, uint64_t)
+{
+      set_real(buf, val);
+}
+
+double class_property_t::get_real(char*buf, uint64_t)
+{
+      return get_real(buf);
+}
+
 void class_property_t::set_string(char*, const string&)
 {
       static bool warned = false;
@@ -182,6 +196,16 @@ string class_property_t::get_string(char*)
 	    warned = true;
       }
       return string();
+}
+
+void class_property_t::set_string(char*buf, const string&val, uint64_t)
+{
+      set_string(buf, val);
+}
+
+string class_property_t::get_string(char*buf, uint64_t)
+{
+      return get_string(buf);
 }
 
 void class_property_t::set_object(char*, const vvp_object_t&, uint64_t)
@@ -319,43 +343,57 @@ class property_logic : public class_property_t {
 
 template <class T> class property_real : public class_property_t {
     public:
-      inline explicit property_real(void) { }
+      inline explicit property_real(size_t as=0) : array_size_(as==0? 1 : as) { }
       ~property_real() override { }
 
-      size_t instance_size() const override { return sizeof(T); }
+      size_t instance_size() const override { return array_size_ * sizeof(T); }
 
     public:
       void construct(char*buf) const override
       { T*tmp = reinterpret_cast<T*> (buf+offset_);
-	*tmp = 0.0;
+	for (size_t ii = 0 ; ii < array_size_ ; ii += 1)
+	      tmp[ii] = 0.0;
       }
 
       void set_real(char*buf, double val) override;
       double get_real(char*buf) override;
+      void set_real(char*buf, double val, uint64_t idx) override;
+      double get_real(char*buf, uint64_t idx) override;
 
       void copy(char*dst, char*src) override;
+
+    private:
+      size_t array_size_;
 };
 
 class property_string : public class_property_t {
     public:
-      inline explicit property_string(void) { }
+      inline explicit property_string(size_t as=0) : array_size_(as==0? 1 : as) { }
       ~property_string() override { }
 
-      size_t instance_size() const override { return sizeof(std::string); }
+      size_t instance_size() const override { return array_size_ * sizeof(std::string); }
 
     public:
       void construct(char*buf) const override
-      { /* string*tmp = */ new (buf+offset_) string; }
+      { for (size_t ii = 0 ; ii < array_size_ ; ii += 1)
+	      new (buf+offset_ + ii*sizeof(string)) string;
+      }
 
       void destruct(char*buf) const override
       { string*tmp = reinterpret_cast<string*> (buf+offset_);
-	tmp->~string();
+	for (size_t ii = 0 ; ii < array_size_ ; ii += 1)
+	      (tmp+ii)->~string();
       }
 
       void set_string(char*buf, const string&) override;
       string get_string(char*buf) override;
+      void set_string(char*buf, const string&, uint64_t idx) override;
+      string get_string(char*buf, uint64_t idx) override;
 
       void copy(char*dst, char*src) override;
+
+    private:
+      size_t array_size_;
 };
 
 class property_object : public class_property_t {
@@ -673,11 +711,26 @@ template <class T> double property_real<T>::get_real(char*buf)
       return *tmp;
 }
 
+template <class T> void property_real<T>::set_real(char*buf, double val, uint64_t idx)
+{
+      assert(idx < array_size_);
+      T*tmp = reinterpret_cast<T*>(buf+offset_);
+      tmp[idx] = val;
+}
+
+template <class T> double property_real<T>::get_real(char*buf, uint64_t idx)
+{
+      assert(idx < array_size_);
+      T*tmp = reinterpret_cast<T*>(buf+offset_);
+      return tmp[idx];
+}
+
 template <class T> void property_real<T>::copy(char*dst, char*src)
 {
       T*dst_obj = reinterpret_cast<T*> (dst+offset_);
       T*src_obj = reinterpret_cast<T*> (src+offset_);
-      *dst_obj = *src_obj;
+      for (size_t ii = 0 ; ii < array_size_ ; ii += 1)
+	    dst_obj[ii] = src_obj[ii];
 }
 
 void property_string::set_string(char*buf, const string&val)
@@ -692,11 +745,26 @@ string property_string::get_string(char*buf)
       return *tmp;
 }
 
+void property_string::set_string(char*buf, const string&val, uint64_t idx)
+{
+      assert(idx < array_size_);
+      string*tmp = reinterpret_cast<string*>(buf+offset_);
+      tmp[idx] = val;
+}
+
+string property_string::get_string(char*buf, uint64_t idx)
+{
+      assert(idx < array_size_);
+      const string*tmp = reinterpret_cast<string*>(buf+offset_);
+      return tmp[idx];
+}
+
 void property_string::copy(char*dst, char*src)
 {
       string*dst_obj = reinterpret_cast<string*> (dst+offset_);
       const string*src_obj = reinterpret_cast<string*> (src+offset_);
-      *dst_obj = *src_obj;
+      for (size_t ii = 0 ; ii < array_size_ ; ii += 1)
+	    dst_obj[ii] = src_obj[ii];
 }
 
 void property_object::construct(char*buf) const
@@ -979,9 +1047,9 @@ void class_type::set_property(size_t idx, const string&name, const string&type, 
       else if (t == "sb64")
 	    properties_[idx].type = new property_atom<int64_t>(array_size);
       else if (t == "r")
-	    properties_[idx].type = new property_real<double>;
+	    properties_[idx].type = new property_real<double>(array_size);
       else if (t == "S")
-	    properties_[idx].type = new property_string;
+	    properties_[idx].type = new property_string(array_size);
       else if (t == "o")
 	    properties_[idx].type = new property_object(array_size);
       else if (t.compare(0,3,"oc:") == 0) {
@@ -1126,7 +1194,7 @@ void class_type::get_vec4(class_type::inst_t obj, size_t pid,
 }
 
 void class_type::set_real(class_type::inst_t obj, size_t pid,
-			  double val) const
+			  double val, size_t idx) const
 {
       char*buf = reinterpret_cast<char*> (obj);
       if (pid >= properties_.size()) {
@@ -1138,10 +1206,10 @@ void class_type::set_real(class_type::inst_t obj, size_t pid,
 	    }
 	    return;
       }
-      properties_[pid].type->set_real(buf, val);
+      properties_[pid].type->set_real(buf, val, idx);
 }
 
-double class_type::get_real(class_type::inst_t obj, size_t pid) const
+double class_type::get_real(class_type::inst_t obj, size_t pid, size_t idx) const
 {
       char*buf = reinterpret_cast<char*> (obj);
       if (pid >= properties_.size()) {
@@ -1153,11 +1221,11 @@ double class_type::get_real(class_type::inst_t obj, size_t pid) const
 	    }
 	    return 0.0;
       }
-      return properties_[pid].type->get_real(buf);
+      return properties_[pid].type->get_real(buf, idx);
 }
 
 void class_type::set_string(class_type::inst_t obj, size_t pid,
-			    const string&val) const
+			    const string&val, size_t idx) const
 {
       char*buf = reinterpret_cast<char*> (obj);
       if (pid >= properties_.size()) {
@@ -1169,10 +1237,10 @@ void class_type::set_string(class_type::inst_t obj, size_t pid,
 	    }
 	    return;
       }
-      properties_[pid].type->set_string(buf, val);
+      properties_[pid].type->set_string(buf, val, idx);
 }
 
-string class_type::get_string(class_type::inst_t obj, size_t pid) const
+string class_type::get_string(class_type::inst_t obj, size_t pid, size_t idx) const
 {
       char*buf = reinterpret_cast<char*> (obj);
       if (pid >= properties_.size()) {
@@ -1184,7 +1252,7 @@ string class_type::get_string(class_type::inst_t obj, size_t pid) const
 	    }
 	    return string();
       }
-      return properties_[pid].type->get_string(buf);
+      return properties_[pid].type->get_string(buf, idx);
 }
 
 void class_type::set_object(class_type::inst_t obj, size_t pid,

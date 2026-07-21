@@ -136,26 +136,26 @@ void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
       defn_->get_vec4(properties_, pid, val, idx);
 }
 
-void vvp_cobject::set_real(size_t pid, double val)
+void vvp_cobject::set_real(size_t pid, double val, size_t idx)
 {
-      defn_->set_real(properties_, pid, val);
+      defn_->set_real(properties_, pid, val, idx);
       touch();
 }
 
-double vvp_cobject::get_real(size_t pid)
+double vvp_cobject::get_real(size_t pid, size_t idx)
 {
-      return defn_->get_real(properties_, pid);
+      return defn_->get_real(properties_, pid, idx);
 }
 
-void vvp_cobject::set_string(size_t pid, const string&val)
+void vvp_cobject::set_string(size_t pid, const string&val, size_t idx)
 {
-      defn_->set_string(properties_, pid, val);
+      defn_->set_string(properties_, pid, val, idx);
       touch();
 }
 
-string vvp_cobject::get_string(size_t pid)
+string vvp_cobject::get_string(size_t pid, size_t idx)
 {
-      return defn_->get_string(properties_, pid);
+      return defn_->get_string(properties_, pid, idx);
 }
 
 void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
