@@ -67,6 +67,90 @@ static bool z3_dyndbg()
  * once `base`'s own value is substituted — and Z3_simplify between passes
  * to constant-fold. On well-behaved builds the first pass is already a
  * numeral and the loop exits immediately. */
+/* Structurally evaluate a GROUND bitvector term to uint64.
+ *
+ * The MSYS2/Windows Z3 build hands back model values like
+ * `(bvneg #xffffff92)` — bvneg of a numeral, i.e. the correct value in an
+ * unreduced wrapper — and fails to fold it in BOTH Z3_model_eval and
+ * Z3_simplify (verified via the CI probe residue trace; Linux/macOS Z3
+ * folds the same term to a numeral). So do the constant folding here for
+ * the ground bitvector operators, masking each step to the term's width. */
+static bool z3_ground_uint64(Z3_context ctx, Z3_ast t, uint64_t& out,
+                             int depth = 0)
+{
+      if (Z3_get_numeral_uint64(ctx, t, &out))
+	    return true;
+      if (depth > 8)
+	    return false;
+      if (Z3_get_ast_kind(ctx, t) != Z3_APP_AST)
+	    return false;
+      Z3_sort s = Z3_get_sort(ctx, t);
+      if (Z3_get_sort_kind(ctx, s) != Z3_BV_SORT)
+	    return false;
+      unsigned w = Z3_get_bv_sort_size(ctx, s);
+      if (w == 0 || w > 64)
+	    return false;
+      uint64_t mask = (w == 64) ? ~UINT64_C(0) : ((UINT64_C(1) << w) - 1);
+      Z3_app app = Z3_to_app(ctx, t);
+      Z3_decl_kind k = Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app));
+      unsigned n = Z3_get_app_num_args(ctx, app);
+      uint64_t a = 0;
+      switch (k) {
+	  case Z3_OP_BNEG:
+	    if (n != 1) return false;
+	    if (!z3_ground_uint64(ctx, Z3_get_app_arg(ctx, app, 0), a, depth+1))
+		  return false;
+	    out = (0 - a) & mask;
+	    return true;
+	  case Z3_OP_BNOT:
+	    if (n != 1) return false;
+	    if (!z3_ground_uint64(ctx, Z3_get_app_arg(ctx, app, 0), a, depth+1))
+		  return false;
+	    out = ~a & mask;
+	    return true;
+	  case Z3_OP_BADD:
+	  case Z3_OP_BMUL: {
+		  // n-ary in Z3
+		uint64_t acc = (k == Z3_OP_BADD) ? 0 : 1;
+		for (unsigned i = 0 ; i < n ; i += 1) {
+		      if (!z3_ground_uint64(ctx, Z3_get_app_arg(ctx, app, i),
+					    a, depth+1))
+			    return false;
+		      acc = (k == Z3_OP_BADD) ? (acc + a) : (acc * a);
+		}
+		out = acc & mask;
+		return true;
+	  }
+	  case Z3_OP_BSUB: {
+		if (n != 2) return false;
+		uint64_t b = 0;
+		if (!z3_ground_uint64(ctx, Z3_get_app_arg(ctx, app, 0), a, depth+1))
+		      return false;
+		if (!z3_ground_uint64(ctx, Z3_get_app_arg(ctx, app, 1), b, depth+1))
+		      return false;
+		out = (a - b) & mask;
+		return true;
+	  }
+	  case Z3_OP_ZERO_EXT:
+	  case Z3_OP_SIGN_EXT: {
+		if (n != 1) return false;
+		Z3_ast arg = Z3_get_app_arg(ctx, app, 0);
+		Z3_sort as = Z3_get_sort(ctx, arg);
+		if (Z3_get_sort_kind(ctx, as) != Z3_BV_SORT) return false;
+		unsigned aw = Z3_get_bv_sort_size(ctx, as);
+		if (aw == 0 || aw > 64) return false;
+		if (!z3_ground_uint64(ctx, arg, a, depth+1))
+		      return false;
+		if (k == Z3_OP_SIGN_EXT && aw < 64 && (a >> (aw - 1)) & 1)
+		      a |= ~((UINT64_C(1) << aw) - 1);
+		out = a & mask;
+		return true;
+	  }
+	  default:
+	    return false;
+      }
+}
+
 static bool z3_eval_uint64(Z3_context ctx, Z3_model model, Z3_ast var,
                            uint64_t& out)
 {
@@ -76,7 +160,7 @@ static bool z3_eval_uint64(Z3_context ctx, Z3_model model, Z3_ast var,
 	    if (!(Z3_model_eval(ctx, model, interp, 1, &next) && next))
 		  break;
 	    next = Z3_simplify(ctx, next);
-	    if (Z3_get_numeral_uint64(ctx, next, &out))
+	    if (z3_ground_uint64(ctx, next, out))
 		  return true;
 	    if (next == interp)   // no progress; further passes are futile
 		  break;
