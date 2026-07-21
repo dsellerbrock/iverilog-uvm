@@ -79,7 +79,17 @@ static std::string class_cast_key_(vpiHandle ref)
       if (!ref)
             return "<null>";
 
-      name = vpi_get_str(vpiName, ref);
+      /* Use the dispatch prefix (exposed through vpiDefName) as the type
+         key.  It is a stable, one-per-definition name that gives each
+         specialization of a parameterized class a distinct value, so
+         $cast between different specializations of the same class -- for
+         example Box#(byte) versus Box#(shortint) -- is correctly rejected.
+         vpiName is only the bare class name ("Box"), which collides across
+         specializations, and vpiFullName varies with the referencing
+         scope; fall back to them only if the dispatch prefix is missing. */
+      name = vpi_get_str(vpiDefName, ref);
+      if (!(name && *name))
+            name = vpi_get_str(vpiName, ref);
       if (!(name && *name))
             name = vpi_get_str(vpiFullName, ref);
       return (name && *name) ? std::string(name) : std::string("<unnamed>");

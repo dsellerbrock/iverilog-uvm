@@ -189,9 +189,19 @@ Maintain clean builds, canonical regressions, UVM, negative tests, VPI, cross-pl
       now uses the constant normalize path too (test
       `sv_array_handle_const_index_method` extended to cover it).
       (b) `$cast` between two different specializations of the same
-      parameterized class (Box#(byte) vs Box#(shortint)) wrongly succeeds —
-      specialization identity is not checked in the dynamic cast; still
-      OPEN, not exercised by UVM.)*
+      parameterized class (Box#(byte) vs Box#(shortint)) wrongly succeeded —
+      RESOLVED 2026-07-21. The run-time cast check
+      (`vpi/sys_sv_class.cc class_cast_compatible_`) keyed types on the bare
+      class name (`vpiName`), which is `"Box"` for every specialization, so
+      distinct specializations aliased. Root cause: the compiler emits a
+      separate `.class` record for the same specialization in each
+      referencing scope, each with a different `scope_path`, so neither the
+      class-type pointer nor `vpiFullName` is invariant per specialization —
+      but the dispatch prefix (`m._ivl_0` vs `m._ivl_1`) is. The fix exposes
+      the dispatch prefix through `vpiDefName` (`vvp/class_type.cc`) and keys
+      the cast on it, so matching specializations still cast and mismatched
+      ones are rejected; ordinary inheritance up/down casts are unchanged.
+      Test `sv_cast_param_class_specialization`.)*
 - [ ] Remove remaining compile-progress fallbacks caused by lost specialization.
 - [ ] Add adversarial parameterized-UVM regressions.
 
