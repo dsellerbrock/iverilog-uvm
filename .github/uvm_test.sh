@@ -93,7 +93,14 @@ case "$(uname -s)" in
                 DPI_EXTRA_LIB="-L/tmp -luvmsv"
             fi
         fi
-        DPI_EXTRA_LIB="$DPI_EXTRA_LIB -lregex"
+        # POSIX regex: link libsystre (TRE-based) rather than a bare -lregex.
+        # uvm_re_comp() does malloc(sizeof(regex_t)) then regcomp(); if the
+        # compile-time <regex.h> and the linked regex library disagree on the
+        # regex_t layout (common on mingw, where several providers ship a
+        # regex.h), regcomp corrupts that struct and every UVM config_db
+        # wildcard match fails with UVM/DPI/REGEX. libsystre supplies both a
+        # consistent <regex.h> and the implementation (via tre).
+        DPI_EXTRA_LIB="$DPI_EXTRA_LIB -lsystre -ltre"
         UVM_WIN_MERGE=1
         ;;
 esac

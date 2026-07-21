@@ -140,6 +140,7 @@ jobs:
           mingw-w64-${{ matrix.env }}-perl
           mingw-w64-${{ matrix.env }}-z3
           mingw-w64-${{ matrix.env }}-libffi
+          mingw-w64-${{ matrix.env }}-libsystre
 
     - name: Install Python dependencies
       run: pip3 install docopt
