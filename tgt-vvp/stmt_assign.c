@@ -621,6 +621,19 @@ static void store_vec4_to_lval(ivl_statement_t net)
       }
 }
 
+/* Base word for an array-pattern store. A partial index on the l-value is
+ * an unpacked-array slice (m[i] = '{...}); elaboration put the slice's flat
+ * base word into the l-value index, so the pattern store starts there. A
+ * whole-array pattern has no l-value index and starts at word 0. */
+static unsigned int array_pattern_base_(ivl_lval_t lval)
+{
+      ivl_expr_t idx = ivl_lval_idx(lval);
+      if (idx == 0)
+	    return 0;
+      assert(ivl_expr_type(idx) == IVL_EX_NUMBER);
+      return (unsigned int) get_number_immediate(idx);
+}
+
 static unsigned int draw_array_pattern(ivl_signal_t var, ivl_expr_t rval,
 					   unsigned int array_idx)
 {
@@ -854,7 +867,7 @@ static int show_stmt_assign_vector(ivl_statement_t net)
       if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
 	    ivl_lval_t lval = ivl_stmt_lval(net, 0);
 	    ivl_signal_t sig = ivl_lval_sig(lval);
-	    draw_array_pattern(sig, rval, 0);
+	    draw_array_pattern(sig, rval, array_pattern_base_(lval));
 	    return 0;
       }
 
@@ -1101,7 +1114,7 @@ static int show_stmt_assign_sig_real(ivl_statement_t net)
       ivl_expr_t rval = ivl_stmt_rval(net);
       if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
 	    ivl_signal_t sig = ivl_lval_sig(lval);
-	    draw_array_pattern(sig, rval, 0);
+	    draw_array_pattern(sig, rval, array_pattern_base_(lval));
 	    return 0;
       }
 
@@ -1143,7 +1156,7 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
       }
 
       if (ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN) {
-	    draw_array_pattern(var, rval, 0);
+	    draw_array_pattern(var, rval, array_pattern_base_(lval));
 	    return 0;
       }
 

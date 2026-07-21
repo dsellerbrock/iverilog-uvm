@@ -2960,6 +2960,15 @@ class NetAssign_ {
       ivl_select_type_t select_type() const;
 
       void set_word(NetExpr*);
+	// Mark this l-value as an unpacked-array *slice*: a partial index
+	// into a multi-dimensional unpacked array (e.g. `m[i]` where m is
+	// int[2][3]) that selects a whole sub-array rather than a scalar
+	// element. base_word is the flat (canonical) word index of the first
+	// element of the slice; slice_type is the sub-array type the slice
+	// presents to the r-value (int[3] in the example). Used for
+	// assignment-pattern stores into a slice (IEEE 1800-2017 7.6/10.9).
+      void set_array_slice(NetExpr*base_word, ivl_type_t slice_type);
+      bool is_array_slice() const { return slice_type_ != nullptr; }
 	// Set a part select expression for the l-value vector. Note
 	// that the expression calculates a CANONICAL bit address.
       void set_part(NetExpr* loff, unsigned wid,
@@ -3035,6 +3044,10 @@ class NetAssign_ {
       unsigned lwid_;
       ivl_select_type_t sel_type_;
       ivl_type_t part_data_type_ = nullptr;
+	// Non-null when this l-value is an unpacked-array slice (partial
+	// index). Holds the sub-array type the slice presents; word_ holds
+	// the flat base word index. See set_array_slice().
+      ivl_type_t slice_type_ = nullptr;
 };
 
 class NetAssignBase : public NetProc {

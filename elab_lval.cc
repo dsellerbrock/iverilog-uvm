@@ -444,7 +444,7 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       return lv;
 }
 
-NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *,
+NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 				          bool is_force, NetNet *reg) const
 {
       if (!gn_system_verilog()) {
@@ -464,6 +464,54 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *,
 		  return 0;
 	    }
 	    NetAssign_*lv = new NetAssign_(reg);
+	    return lv;
+      }
+
+	// A partial index into a multi-dimensional unpacked array selects a
+	// sub-array — an array slice, e.g. `m[i]` where m is int[2][3] picks
+	// the int[3] row. Support this as the target of an assignment pattern
+	// (`m[i] = '{...}`, IEEE 1800-2017 7.6 / 10.9.1): build a slice
+	// l-value carrying the flat base word index and the sub-array type.
+	// The pattern's element count drives how many words are written, so
+	// no separate slice length has to be threaded to the code generator.
+      const netsarray_t*full_arr =
+	    dynamic_cast<const netsarray_t*>(reg->array_type());
+      unsigned nidx = name_tail.index.size();
+      if (full_arr && nidx < full_arr->static_dimensions().size()) {
+	    const netranges_t&dims = full_arr->static_dimensions();
+
+	    list<NetExpr*> idx_exprs;
+	    list<long> idx_consts;
+	    indices_flags flags;
+	    indices_to_expressions(des, scope, this, name_tail.index, nidx,
+				   false, flags, idx_exprs, idx_consts);
+
+	    if (flags.variable || flags.undefined || flags.invalid) {
+		  cerr << get_fileline() << ": sorry: assignment to an unpacked"
+			  " array slice with a non-constant index is not yet"
+			  " supported." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+
+	    NetExpr*base = normalize_variable_unpacked(reg, idx_consts);
+	    if (base == 0) {
+		  cerr << get_fileline() << ": warning: ignoring out of bounds"
+			  " l-value array slice access " << reg->name()
+			 << "." << endl;
+		  base = new NetEConst(verinum(verinum::Vx));
+	    }
+	    base->set_line(*this);
+
+	      // The slice presents the remaining dimensions as its type.
+	    netranges_t sub_dims;
+	    for (size_t d = nidx ; d < dims.size() ; d += 1)
+		  sub_dims.push_back(dims[d]);
+	    ivl_type_t slice_type =
+		  new netuarray_t(sub_dims, full_arr->element_type());
+
+	    NetAssign_*lv = new NetAssign_(reg);
+	    lv->set_array_slice(base, slice_type);
 	    return lv;
       }
 

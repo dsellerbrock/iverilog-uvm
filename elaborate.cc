@@ -4194,6 +4194,23 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    ivl_assert(*this, lv_net_type);
 	    rv = elaborate_rval_(des, scope, lv_net_type);
 
+	      // An unpacked-array slice l-value (a partial index such as
+	      // `m[i]` into int[2][3]) is currently supported only as the
+	      // target of an assignment pattern; the code generator writes it
+	      // element-by-element from the pattern. Diagnose other r-values
+	      // (whole-array copy into a slice) cleanly rather than
+	      // miscompiling them into a single-word store.
+	    if (lv->is_array_slice() && rv
+		&& dynamic_cast<NetEArrayPattern*>(rv) == 0) {
+		  cerr << get_fileline() << ": sorry: assignment to an unpacked"
+			  " array slice is currently supported only from an"
+			  " assignment pattern ('{...})." << endl;
+		  des->errors += 1;
+		  delete lv;
+		  delete rv;
+		  return 0;
+	    }
+
 	      // Whole static-array copy from a class property source
 	      // (e.g. the UVM field-macro COPY path "arr = rhs.arr").
 	      // Without this, code generation degrades the property
