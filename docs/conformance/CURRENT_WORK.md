@@ -3,6 +3,20 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21k (P1 type-param formal member access — VERIFIED RESOLVED)
+
+- **P1 "member access on output/ref formals typed by type parameters"
+  verified RESOLVED** — the original "Variable t does not have a field
+  named ..." failure (m7 stress findings 2026-07-18) no longer reproduces
+  on any probed shape; it was fixed by the intervening M1B typing and
+  virtual-output copy-back work. Six shapes probed and pinned in new test
+  `sv_typeparam_formal_member` (output-T/ref-T deref, inherited-T from a
+  specialized base, deref after nested parameterized call, virtual
+  dispatch through parameterized base with subclass-member deref, nested
+  t.sub.inner deref). No compiler changes needed — test-only increment;
+  sv-list gate green (965/44, diffs vs full-run baseline are only the two
+  known list-subset artifacts).
+
 ## State as of 2026-07-21j (M5 interfaces/modports audit + fixes)
 
 - **M5 truth audit completed; three fixes landed:**

@@ -523,8 +523,19 @@ method now scale to the active `` `timescale `` (they used to walk out to
 
 ## P1 — Remaining type-parameter formal member access
 
-- [ ] Fix member access on output/ref formals typed by type parameters.
-- [ ] Add pure-language and UVM-shaped tests.
+- [x] Fix member access on output/ref formals typed by type parameters.
+      *(Verified RESOLVED 2026-07-21: the original "Variable t does not
+      have a field named ..." defect (m7 stress findings 2026-07-18) no
+      longer reproduces on any probed shape — it was fixed by the
+      intervening M1B typing and virtual-output copy-back work. Probed:
+      output-T and ref-T deref in parameterized methods; T inherited from
+      a specialized base; deref after a nested parameterized call; virtual
+      dispatch through a parameterized base handle with subclass-member
+      deref; nested t.sub.inner deref in output tasks and ref functions.)*
+- [x] Add pure-language and UVM-shaped tests. *(Test
+      `sv_typeparam_formal_member` pins all six shapes; UVM-shaped
+      coverage via `m1b_typeparam_member_call_test` and
+      `m1b_virtual_output_copyback_test` in the UVM suite.)*
 
 ## P1 — Known compiler crashes
 
