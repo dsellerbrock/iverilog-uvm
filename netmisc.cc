@@ -1077,6 +1077,19 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  compatible = lv_net_type->type_compatible(tmp->net_type());
 	    else
 		  compatible = false;
+	      // A call to a function returning an unpacked array (issue
+	      // #99): the call expression carries only the element type, so
+	      // shape-check against the return signal's array type instead.
+	    if (!compatible) {
+		  if (NetEUFunc*ufn = dynamic_cast<NetEUFunc*>(tmp)) {
+			const NetESignal*rsig = ufn->result_sig();
+			ivl_type_t ret_arr = (rsig && rsig->sig())
+			      ? rsig->sig()->array_type() : 0;
+			if (ret_arr)
+			      compatible =
+				    lv_net_type->type_compatible(ret_arr);
+		  }
+	    }
       } else if (cast_type == IVL_VT_NO_TYPE) {
 	    compatible = true;
       } else {

@@ -4196,15 +4196,18 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 
 	      // An unpacked-array slice l-value (a partial index such as
 	      // `m[i]` into int[2][3]) is currently supported only as the
-	      // target of an assignment pattern; the code generator writes it
-	      // element-by-element from the pattern. Diagnose other r-values
-	      // (whole-array copy into a slice) cleanly rather than
+	      // target of an assignment pattern or of a call to a function
+	      // returning an unpacked array; the code generator writes those
+	      // element-by-element at the slice's base offset. Diagnose other
+	      // r-values (whole-array copy into a slice) cleanly rather than
 	      // miscompiling them into a single-word store.
 	    if (lv->is_array_slice() && rv
-		&& dynamic_cast<NetEArrayPattern*>(rv) == 0) {
+		&& dynamic_cast<NetEArrayPattern*>(rv) == 0
+		&& dynamic_cast<NetEUFunc*>(rv) == 0) {
 		  cerr << get_fileline() << ": sorry: assignment to an unpacked"
 			  " array slice is currently supported only from an"
-			  " assignment pattern ('{...})." << endl;
+			  " assignment pattern ('{...}) or an unpacked-array"
+			  " function call." << endl;
 		  des->errors += 1;
 		  delete lv;
 		  delete rv;
@@ -4245,27 +4248,52 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		  }
 	    }
 
-	      // A function that yields a whole unpacked array as its
-	      // value has no array-copy lowering: the vvp calling
-	      // convention returns only scalars, packed vectors, reals,
-	      // strings, and object handles, so an unpacked-array result
-	      // cannot be delivered. Diagnose it cleanly here instead of
-	      // letting code generation abort on the whole-array store
-	      // (issue #99).
+	      // A call to a function returning an unpacked array (issue
+	      // #99): supported when the target array (or slice) has the
+	      // same total element count and a compatible element type.
+	      // The function stores its result into its emitted
+	      // return-array signal and the code generator copies the
+	      // words out after the call (draw_ufunc_uarray). Mismatched
+	      // shapes are a clean error, not a miscompile.
 	    if (rv) {
 		  if (NetEUFunc*ufn = dynamic_cast<NetEUFunc*>(rv)) {
 			const NetESignal*rsig = ufn->result_sig();
-			if (rsig && dynamic_cast<const netuarray_t*>
-					(rsig->net_type())) {
-			      cerr << get_fileline() << ": sorry: a function "
-				   << "that returns an unpacked array cannot yet "
-				   << "be assigned to an unpacked array; the vvp "
-				   << "calling convention has no unpacked-array "
-				   << "return path." << endl;
-			      des->errors += 1;
-			      delete lv;
-			      delete rv;
-			      return 0;
+			const netuarray_t*ret_ua = rsig
+			      ? dynamic_cast<const netuarray_t*>(rsig->net_type())
+			      : 0;
+			if (ret_ua) {
+			      unsigned long lv_count = 1, ret_count = 1;
+			      for (const netrange_t&r
+					 : lv_uarray->static_dimensions())
+				    lv_count *= r.width();
+			      for (const netrange_t&r
+					 : ret_ua->static_dimensions())
+				    ret_count *= r.width();
+
+			      ivl_type_t lv_el = lv_uarray->element_type();
+			      ivl_type_t ret_el = ret_ua->element_type();
+			      auto is_vec = [](ivl_variable_type_t vt) {
+				    return vt==IVL_VT_BOOL || vt==IVL_VT_LOGIC;
+			      };
+			      bool elem_ok = lv_el && ret_el
+				    && (lv_el->packed_width()
+					== ret_el->packed_width())
+				    && ((is_vec(lv_el->base_type())
+					 && is_vec(ret_el->base_type()))
+					|| (lv_el->base_type()
+					    == ret_el->base_type()));
+
+			      if (lv_count != ret_count || !elem_ok) {
+				    cerr << get_fileline() << ": error: "
+					 << "Unpacked-array function return "
+					 << "type is not assignment compatible "
+					 << "with '" << lv->name() << "'."
+					 << endl;
+				    des->errors += 1;
+				    delete lv;
+				    delete rv;
+				    return 0;
+			      }
 			}
 		  }
 	    }

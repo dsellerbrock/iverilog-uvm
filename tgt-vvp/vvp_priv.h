@@ -105,6 +105,8 @@ extern void draw_ufunc_vec4(ivl_expr_t expr);
 extern void draw_ufunc_real(ivl_expr_t expr);
 extern void draw_ufunc_string(ivl_expr_t expr);
 extern void draw_ufunc_object(ivl_expr_t expr);
+extern void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
+			      unsigned dst_base);
 
 extern char* process_octal_codes(const char*txt, unsigned wid);
 

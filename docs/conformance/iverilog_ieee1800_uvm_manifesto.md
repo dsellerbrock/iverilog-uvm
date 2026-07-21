@@ -224,13 +224,21 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       (`%store/prop/v/i` per element). Test `sv_class_prop_array_pattern`.
       Sibling real/string class-property array storage is a separate,
       deeper defect: issue #100.)*
-- [~] Fix unpacked-array typedef return plus assignment-pattern compiler
-      crash. *(2026-07-21: the compiler ICE is gone — an unpacked-array
-      function return assigned as a whole array now emits a graceful
-      `sorry` instead of aborting (`elaborate.cc`, CE test
-      `sv_uarray_func_return_fail`). Full support — an actual
-      unpacked-array return path in the vvp calling convention — is not
-      yet implemented; tracked in issue #99. DIAGNOSED, not FULL.)*
+- [x] Fix unpacked-array typedef return plus assignment-pattern compiler
+      crash. *(2026-07-21: IMPLEMENTED (issue #99). A function may return an
+      unpacked array; the return signal is emitted as a real array
+      (`elab_sig.cc` splits the unpacked dims; `vvp_scope.c` no longer
+      skips it), the body stores the result elements into it, and the call
+      site invokes the function like a void function then copies the words
+      out into the target array/slice (`draw_ufunc_uarray`). Automatic and
+      static functions; int/real/string elements; multi-dimensional
+      returns; slice targets. Shape mismatches are a clean elaboration
+      error. Tests `sv_uarray_func_return` (positive) and
+      `sv_uarray_func_return_fail` (CE, now a shape mismatch). Note:
+      unpacked arrays in automatic scopes use static storage in vvp, so a
+      recursive function returning an array through concurrent activations
+      shares that storage — a pre-existing vvp property, not introduced
+      here.)*
 - [x] Fix class-property unpacked arrays of `real`/`string` (were a silent
       miscompile — every element stored to one slot). *(Done 2026-07-21:
       array-capable real/string cobject property storage + indexed opcodes
@@ -494,10 +502,10 @@ method now scale to the active `` `timescale `` (they used to walk out to
 - [x] Fix nested literal into array of packed structs. *(2026-07-21:
       module-scope works; class-property whole-array pattern store no
       longer zero-fills. Test `sv_class_prop_array_pattern`.)*
-- [~] Fix function return of unpacked-array typedef with assignment
-      pattern. *(2026-07-21: ICE replaced by a graceful `sorry`; full
-      unpacked-array return path still unimplemented — issue #99. CE test
-      `sv_uarray_func_return_fail`.)*
+- [x] Fix function return of unpacked-array typedef with assignment
+      pattern. *(2026-07-21: fully implemented — see the M4B entry (issue
+      #99). Positive test `sv_uarray_func_return`; the CE test now pins the
+      shape-mismatch diagnostic.)*
 - [~] Search for adjacent assertion/abort paths and add negative hardening
       tests. *(Ongoing: added CE hardening test for the uarray-return
       abort; more assert/abort sweeps pending.)*

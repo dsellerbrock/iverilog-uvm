@@ -3,6 +3,39 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21i (unpacked-array slice + function return — IMPLEMENTED)
+
+- **Unpacked-array SLICE assignment (`m[0] = '{1,2,3}` for int[2][3]) —
+  IMPLEMENTED** (commit `a1c5e39`; was a "sorry"). The l-value carries the
+  slice's flat base word + the sub-array type (`NetAssign_::
+  set_array_slice`); the pattern elaborates against the sub-array type and
+  codegen starts the element store at the base (`array_pattern_base_` at
+  the vec4/real/string pattern sites). Constant indices only; variable
+  index and non-pattern r-values diagnose cleanly. Test
+  `sv_uarray_slice_pattern_assign` (2-D/3-D, real, string, sibling-row
+  isolation, whole-array regression guard).
+- **Unpacked-array FUNCTION RETURN (issue #99) — IMPLEMENTED** (was a
+  graceful sorry, before that an ICE). Root cause chain: (1) the return
+  NetNet was built from the raw `netuarray_t` without splitting unpacked
+  dims → degenerated to a 1-bit scalar and the body's element stores
+  targeted a never-emitted array (`elab_sig.cc` now uses the
+  unpacked-dims NetNet ctor); (2) `vvp_scope.c` skipped emitting
+  return-value variables — now only for dims==0, so the return array is a
+  real `.array`; (3) call sites invoke the function like a void function
+  (`draw_ufunc_preamble` forces VOID for dims>0 returns) and
+  `draw_ufunc_uarray` copies the words out into the target array/slice
+  before the callee frame is freed; (4) `elab_and_eval`'s strict uarray
+  compat check learns to shape-check a NetEUFunc against the return
+  signal's array type; (5) `PAssign::elaborate` validates count/element
+  compatibility (clean error on mismatch). Covers automatic/static,
+  int/real/string elements, multi-dim returns, slice targets.
+  Tests: `sv_uarray_func_return` (positive), `sv_uarray_func_return_fail`
+  (CE, repurposed to shape mismatch — the old sorry no longer fires).
+  Limitation (pre-existing vvp property): arrays in automatic scopes are
+  static storage, so recursive activations returning arrays share it.
+- **Validation:** ivtest + UVM runs pending at checkpoint (slice already
+  validated byte-identical / 209-0-0 standalone).
+
 ## State as of 2026-07-21h (process::suspend()/resume() — IMPLEMENTED, M6B)
 
 - **`process::suspend()` / `process::resume()` implemented; `status()` now

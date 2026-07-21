@@ -2680,6 +2680,25 @@ int show_stmt_assign(ivl_statement_t net)
       lval = ivl_stmt_lval(net, 0);
 
       sig = ivl_lval_sig(lval);
+
+	/* Assignment of a function returning an unpacked array into an
+	   unpacked-array (or array-slice) l-value. The function is called
+	   like a void function and the result words are copied out of its
+	   return-array signal; see draw_ufunc_uarray. */
+      {
+	    ivl_expr_t rv = ivl_stmt_rval(net);
+	    if (sig && ivl_signal_dimensions(sig) > 0
+		&& rv && ivl_expr_type(rv) == IVL_EX_UFUNC
+		&& ivl_stmt_opcode(net) == 0) {
+		  ivl_scope_t def = ivl_expr_def(rv);
+		  ivl_signal_t retsig = def ? ivl_scope_port(def, 0) : 0;
+		  if (retsig && ivl_signal_dimensions(retsig) > 0) {
+			draw_ufunc_uarray(rv, sig, array_pattern_base_(lval));
+			return 0;
+		  }
+	    }
+      }
+
       if (sig && (ivl_signal_data_type(sig) == IVL_VT_REAL)) {
 	    return show_stmt_assign_sig_real(net);
       }
