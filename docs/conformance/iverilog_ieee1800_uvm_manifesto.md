@@ -261,18 +261,29 @@ Remaining:
 
 ## M7 — Accellera UVM qualification
 
-**Status: PARTIAL — ONE MAJOR KNOWN SEMANTIC BLOCKER**
+**Status: COMPLETE FOR THE HARNESS SUITE — full UVM regression 209/209, 0 skipped**
 
-The RAL front door and major UVM subsystems now execute substantially correctly.
-
-Remaining blocker:
+The RAL front door and major UVM subsystems execute correctly, and the
+bundled UVM regression suite passes with zero skips.
 
 - [x] Fix per-instance class events so UVM objection events do not cross-wake between instances. *(Done 2026-07-21; the shared-event cross-wake is gone.)*
-- [ ] Fix `phase_hopper_objection` count propagation to the top so run_phase completes cleanly (its uvm_root count never returns to 0 under concurrent objection traffic; previously masked by the cross-wake). This is the remaining blocker for full extract/check/report/final phase execution.
-- [ ] Re-enable and verify full extract/check/report/final phase execution.
-- [ ] Run full RAL, sequence, objection, TLM, callback, and phasing stress suites after the phase-objection fix.
+- [x] Fix the `m7_objection_stress` run-phase completion blocker. *(Done
+      2026-07-21. The real cause was NOT objection count propagation (that
+      is correct) but a runtime defect: a reference to `this` from a nested
+      detached (join_none) fork body resolved to null for later iterations,
+      so the phase hopper's per-phase `drop_objection` saw a null `this`,
+      `get_objection()` returned null, and the drop silently no-op'd on the
+      null handle. Fixed in `vvp/vthread.cc`
+      (`vthread_get_rd_context_item_scoped` single-live-activation fallback).
+      Issue #103. Tests `sv_this_nested_detached_fork` +
+      `m7_objection_stress_test` (un-skipped, now PASS).)*
+- [x] Re-enable and verify full extract/check/report/final phase execution.
+      *(m7 now ends at t=80 with all post-run phases executing.)*
+- [x] Run full RAL, sequence, objection, TLM, callback, and phasing stress
+      suites. *(UVM regression 209 passed / 0 failed / 0 skipped.)*
 
-M7 may be marked COMPLETE only after this blocker is closed.
+Note: the harness suite is green, but per the truth rules this is
+"COMPLETE for the probed suite," not a proof of standards-complete UVM.
 
 ## M8 — Clocking blocks and program scheduling
 

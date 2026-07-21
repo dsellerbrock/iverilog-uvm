@@ -3,6 +3,33 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21e (M7 GREEN — `this`-in-nested-detached-fork fix)
+
+- **m7_objection_stress_test — FIXED; full UVM suite 209/0/0 (zero skips).**
+  Root cause (issue #103, closed): a reference to `this` (or an enclosing
+  automatic) from a detached (join_none) fork body nested inside another
+  detached fork resolved to **null** for later loop iterations — the forked
+  thread's inherited automatic-context chain stopped linking back to the
+  owning activation frame across frame reuse. In UVM's phase hopper the
+  per-phase `drop_objection` runs in exactly this fork shape, so for
+  common.run/common.check `this` went null, `get_objection()` returned null,
+  and `drop_objection()` silently no-op'd on the null handle → two
+  phase-hopper objections never dropped → run never completed.
+  Fix: strictly-additive single-live-activation fallback in
+  `vthread_get_rd_context_item_scoped` (`vvp/vthread.cc`) — only on the
+  otherwise-null path. Commit `9f3666d`. Tests
+  `sv_this_nested_detached_fork` + `m7_objection_stress_test` (un-skipped).
+- **Earlier misdiagnoses corrected on the way:** it was NOT objection count
+  propagation (traced to uvm_top=0 correctly) and NOT the #102 forked-arg
+  capture (real bug, fixed in `9f1909b`, but orthogonal — the hopper uses an
+  inline `automatic phase = ph` capture that already worked). #102 handles a
+  single-branch `fork task(args); join_none`; this fix handles the implicit
+  `this` from a general inline detached fork body.
+- **Known residual (not a regression):** a loop-local captured by a general
+  inline detached fork body resolves to its last value, not the
+  per-iteration value (#102-class limitation; was null before). `this` is
+  unaffected (single live activation for a non-recursive method).
+
 ## State as of 2026-07-21d (P0 silent miscompile: real/string class-property arrays)
 
 - **Class-property unpacked arrays of `real`/`string` — FIXED (was a
