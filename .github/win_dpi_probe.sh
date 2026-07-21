@@ -211,8 +211,10 @@ if [ -f "$M3_SRC" ] && command -v iverilog >/dev/null 2>&1 ; then
         # expansion, its 4 inst lines, then (after the z3 solve) the 4 elem
         # write-back lines. -A16 captures the whole block; two blocks are plenty.
         grep -aA16 'add p:1:8 L)' /tmp/m3_trace.txt \
-            | grep -aE 'add p:1:8 L\)|inst i=|writeback prop=|\] prop ' \
+            | grep -aE 'add p:1:8 L\)|inst i=|writeback prop=|\] prop |eval-fail' \
             | head -28 | sed 's/^/    /'
+        echo "  eval-fail residues (if any — the exact term model_eval got stuck on):"
+        grep -a 'eval-fail' /tmp/m3_trace.txt | head -6 | sed 's/^/    /'
         echo "  FAILED element lines (if any):"
         grep -a "FAILED" /tmp/m3_trace.txt | sed 's/^/    /' | head -8
     else

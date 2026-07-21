@@ -51,25 +51,46 @@ static bool z3_dyndbg()
 
 /* Evaluate `var` under `model` and extract it as a uint64.
  *
- * Robustness note (Windows corner, m3_constraint_dynforeach_test): some Z3
- * builds — notably the MSYS2/MinGW packages used on Windows — return the
- * model value of an equality-eliminated variable as an *unfolded* term
- * rather than a numeral. A constraint like `elem == base + 1` lets the
- * solver substitute `elem := base + 1` and drop `elem` from the model;
- * Z3_model_eval then hands back `bvadd(<numeral base>, 1)` instead of the
- * folded numeral, and Z3_get_numeral_uint64 rejects it (element left at its
- * random fill -> garbage). The `+ 0` case (`elem == base + 0`) folds to just
- * `base` and evaluated fine, which is why only the i>=1 elements failed and
- * only on Windows. Simplifying the evaluated term forces the constant fold on
- * every Z3 build; on builds where model_eval already folds, it is a no-op. */
+ * Robustness note (Windows corner, m3_constraint_dynforeach_test): the
+ * MSYS2/MinGW Z3 build does not fully reduce equality-eliminated variables
+ * in Z3_model_eval. A constraint like `elem == base + 1` lets the solver
+ * substitute `elem := base + 1` and drop `elem` from the model; evaluating
+ * `elem` then returns a term still containing the `base` constant (not its
+ * value), which Z3_get_numeral_uint64 rejects — the element was never
+ * written back and kept its random fill. The `+ 0` equation orients the
+ * other way (base := e0), which is why elem 0 and base themselves evaluated
+ * fine and only the i>=1 elements failed, and only on Windows (the
+ * Linux/macOS Z3 reduces to a numeral in one pass).
+ *
+ * So: iterate model_eval — each pass substitutes the model's known
+ * interpretations into the term, so a residue like `bvadd(base, 1)` folds
+ * once `base`'s own value is substituted — and Z3_simplify between passes
+ * to constant-fold. On well-behaved builds the first pass is already a
+ * numeral and the loop exits immediately. */
 static bool z3_eval_uint64(Z3_context ctx, Z3_model model, Z3_ast var,
                            uint64_t& out)
 {
-      Z3_ast interp = nullptr;
-      if (!(Z3_model_eval(ctx, model, var, 1, &interp) && interp))
-            return false;
-      interp = Z3_simplify(ctx, interp);
-      return Z3_get_numeral_uint64(ctx, interp, &out) != 0;
+      Z3_ast interp = var;
+      for (int pass = 0 ; pass < 4 ; pass += 1) {
+	    Z3_ast next = nullptr;
+	    if (!(Z3_model_eval(ctx, model, interp, 1, &next) && next))
+		  break;
+	    next = Z3_simplify(ctx, next);
+	    if (Z3_get_numeral_uint64(ctx, next, &out))
+		  return true;
+	    if (next == interp)   // no progress; further passes are futile
+		  break;
+	    interp = next;
+      }
+      if (z3_dyndbg()) {
+	      // Z3_ast_to_string reuses one internal buffer per context, so
+	      // the two strings must be copied out before printing together.
+	    std::string vs = Z3_ast_to_string(ctx, var);
+	    std::string rs = interp ? Z3_ast_to_string(ctx, interp) : "(null)";
+	    fprintf(stderr, "[z3dyn] eval-fail var=<%s> residue=<%s>\n",
+		    vs.c_str(), rs.c_str());
+      }
+      return false;
 }
 
 /* ---------------------------------------------------------------
