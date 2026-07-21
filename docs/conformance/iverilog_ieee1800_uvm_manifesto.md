@@ -370,6 +370,36 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       a `virtual pin_if vp;` declaration at compilation-unit ($unit) scope
       is a parse error. Module-scope and class-property declarations
       work.)*
+- [ ] Fix change-sensitivity on interface-member (object-property) reads.
+      *(2026-07-21n: NEWLY FOUND silent miscompile, precisely
+      characterized, NOT yet fixed. An edge/`@*` sensitivity whose source
+      is an interface-member read does not fire when that member changes,
+      because interfaces are modeled as class objects and the member read
+      lowers to a property access whose value-change event is built on the
+      object HANDLE (which never changes after binding), not on the
+      underlying interface signal. Concretely: `assign p.b = p.a;` and even
+      the explicit `always @(p.a) p.b = p.a;` (p an interface port) leave
+      `b` stuck at its T0 value (`x`) — toggling `a` never re-evaluates.
+      The generated event is `anyedge <vif-handle-var>`, not `anyedge a`.
+      Boundary (verified): (i) an `assign` INSIDE the interface
+      (`assign b = a;`) works — real nets, real functor; (ii) a continuous
+      assign to an interface member whose R-VALUE reads only real module
+      nets works (e.g. `assign inf.req = rnd[0];` in
+      `ivltests/sv_interface.v`, which passes) — only the R-value's own
+      sensitivity is real; (iii) PROCEDURAL writes through the member
+      propagate both ways (storage is correctly aliased). So the defect is
+      specifically: sensitivity that must trigger on a change observed
+      THROUGH an interface-member/object-property read. The lowering lives
+      in `elaborate_vif_member_assign_` (`elaborate.cc`), but the root
+      cause is general event-control elaboration over `NetEProperty` reads,
+      which collects the handle net into the sensitivity `NexusSet` instead
+      of the aliased interface signal. A correct fix must resolve an
+      interface-member read to its underlying interface-instance net when
+      building event sensitivity; a targeted compile-time warning is not
+      cheap because it must distinguish case (ii) (real-net R-value, works)
+      from the broken case, i.e. analyze whether the sensitivity depends on
+      an interface-member read. Multi-turn architectural work; recorded
+      loudly here rather than left as a hidden miscompile.)*
 
 ## M6A — Core scheduler/runtime repairs
 

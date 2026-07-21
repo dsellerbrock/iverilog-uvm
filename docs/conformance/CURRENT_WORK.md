@@ -43,8 +43,30 @@ M1B "reprobe specialization inside nested aggregates" is now fully closed
 (both member and whole-element unpacked-struct-array corners diagnosed;
 specialization identity fixed in $cast). Remaining M1B checklist:
 compile-progress fallbacks from lost specialization; adversarial
-parameterized-UVM regressions. Next per execution order: reaudit M5, or
-hunt the next concrete type-fidelity crash/miscompile.
+parameterized-UVM regressions.
+
+**PR #105 MERGED** (all five fixes above are now in `main`, merge commit
+`5d04176`). Branch restarted from `main` per the merged-PR policy for the
+follow-up below.
+
+### Next item (in progress 2026-07-21n): interface-member change-sensitivity
+
+While reauditing M5, found a NEW silent miscompile (see M5 manifesto
+entry): an edge/`@*` sensitivity whose source is an interface-member read
+never fires, because interfaces are class objects and the member read
+sensitizes on the object HANDLE, not the underlying interface signal.
+`assign p.b = p.a;` and `always @(p.a) p.b = p.a;` (p an interface port)
+leave `b` stuck at its T0 value. Boundary verified: assign INSIDE the
+interface works; a member-target assign whose R-VALUE is a real module net
+works (`ivltests/sv_interface.v` `assign inf.req = rnd[0]` passes);
+procedural member writes propagate (storage aliased). Root cause is general
+event-control elaboration over `NetEProperty` reads (collects the handle
+net, not the aliased interface signal) — the M5-if lowering
+`elaborate_vif_member_assign_` is only the most visible caller. A correct
+fix resolves an interface-member read to its underlying interface-instance
+net when building sensitivity; multi-turn architectural work. Documented
+loudly this session (manifesto M5) as the honest interim state; NOT exercised
+by UVM (209/0/0).
 
 ## State as of 2026-07-21m (Tier-1 frontier sweep COMPLETE — on draft PR #104)
 
