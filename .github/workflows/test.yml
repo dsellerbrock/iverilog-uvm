@@ -156,6 +156,10 @@ jobs:
     - name: Install binary
       run: pacman -U --noconfirm msys2/*.zst
 
+    - name: DPI/regex diagnostic probe
+      continue-on-error: true
+      run: bash .github/win_dpi_probe.sh
+
     - name: Regression tests
       continue-on-error: true
       run: |
