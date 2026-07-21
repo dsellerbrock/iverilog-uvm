@@ -49,6 +49,29 @@ static bool z3_dyndbg()
       return on != 0;
 }
 
+/* Evaluate `var` under `model` and extract it as a uint64.
+ *
+ * Robustness note (Windows corner, m3_constraint_dynforeach_test): some Z3
+ * builds — notably the MSYS2/MinGW packages used on Windows — return the
+ * model value of an equality-eliminated variable as an *unfolded* term
+ * rather than a numeral. A constraint like `elem == base + 1` lets the
+ * solver substitute `elem := base + 1` and drop `elem` from the model;
+ * Z3_model_eval then hands back `bvadd(<numeral base>, 1)` instead of the
+ * folded numeral, and Z3_get_numeral_uint64 rejects it (element left at its
+ * random fill -> garbage). The `+ 0` case (`elem == base + 0`) folds to just
+ * `base` and evaluated fine, which is why only the i>=1 elements failed and
+ * only on Windows. Simplifying the evaluated term forces the constant fold on
+ * every Z3 build; on builds where model_eval already folds, it is a no-op. */
+static bool z3_eval_uint64(Z3_context ctx, Z3_model model, Z3_ast var,
+                           uint64_t& out)
+{
+      Z3_ast interp = nullptr;
+      if (!(Z3_model_eval(ctx, model, var, 1, &interp) && interp))
+            return false;
+      interp = Z3_simplify(ctx, interp);
+      return Z3_get_numeral_uint64(ctx, interp, &out) != 0;
+}
+
 /* ---------------------------------------------------------------
  * Simple recursive-descent tokenizer/parser for the IR format.
  * --------------------------------------------------------------- */
@@ -1204,16 +1227,13 @@ static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       Z3_model_inc_ref(ctx, model);
 
       for (auto& pv : builder.prop_vars) {
-	    Z3_ast interp = nullptr;
-	    if (Z3_model_eval(ctx, model, pv.var, 1, &interp) && interp) {
-		  uint64_t bits = 0;
-		  if (Z3_get_numeral_uint64(ctx, interp, &bits)) {
-			cobj_set_prop_bits(cobj, pv.idx, bits);
-			if (z3_dyndbg())
-			      fprintf(stderr, "[z3dyn] prop  prop=%u width=%u "
-				      "bits=%llu\n", pv.idx, pv.width,
-				      (unsigned long long)bits);
-		  }
+	    uint64_t bits = 0;
+	    if (z3_eval_uint64(ctx, model, pv.var, bits)) {
+		  cobj_set_prop_bits(cobj, pv.idx, bits);
+		  if (z3_dyndbg())
+			fprintf(stderr, "[z3dyn] prop  prop=%u width=%u "
+				"bits=%llu\n", pv.idx, pv.width,
+				(unsigned long long)bits);
 	    }
       }
 
@@ -1222,10 +1242,8 @@ static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	// elements with random bits. Element constraints, when present,
 	// overwrite specific entries below.
       for (auto& sv : builder.size_vars) {
-	    Z3_ast interp = nullptr;
 	    uint64_t new_size = 0;
-	    if (!(Z3_model_eval(ctx, model, sv.var, 1, &interp) && interp
-		  && Z3_get_numeral_uint64(ctx, interp, &new_size)))
+	    if (!z3_eval_uint64(ctx, model, sv.var, new_size))
 		  continue;
 	    if (new_size > 65536) new_size = 65536;
 
@@ -1247,10 +1265,8 @@ static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
 	// Apply solved array-element values.
       for (auto& ev : builder.elem_vars) {
-	    Z3_ast interp = nullptr;
 	    uint64_t bits = 0;
-	    bool ev_ok = Z3_model_eval(ctx, model, ev.var, 1, &interp) && interp
-		&& Z3_get_numeral_uint64(ctx, interp, &bits);
+	    bool ev_ok = z3_eval_uint64(ctx, model, ev.var, bits);
 	    if (ev_ok)
 		  cobj_set_elem_bits(cobj, ev.idx, ev.elem, ev.width, bits);
 	    if (z3_dyndbg())
