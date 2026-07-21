@@ -3,6 +3,38 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21g (`%p` aggregate formatting — FIXED, M4B)
+
+- **`%p` (assignment-pattern format) on integral aggregates now correct.**
+  Was a silent miscompile: the old handler asked every element for
+  `vpiStringVal`, so integral elements rendered as raw ASCII bytes (`99`
+  came out as `'c'`) and queue/dynamic-array elements hit an unimplemented
+  `get_word(string)` path and printed empty. Observed before:
+  `queue='{, }`, `assoc='{c, *}`, `dyn='{, , }`, `scalar=<garbage byte>`.
+  Fix: rewrote the handler as a recursive assignment-pattern formatter
+  `format_p_value` (`vpi/sys_display.c`) that dispatches on the element's
+  natural type — integral → decimal, real → `%g`, string → quoted — and
+  recurses into arrays/queues/dynamic/associative arrays. Two supporting
+  runtime fixes: (1) associative vector keys were the raw internal byte
+  encoding; `peek_entry` now renders them as decimal (`vvp_assoc.h`,
+  `vpiName` on an assoc element exposes the key via
+  `vpi_darray.cc get_word_str`); (2) real/string **queue** elements were
+  mis-detected as vec4 (queue subclasses differ from darray subclasses),
+  fixed in `get_word_value`. Also fixed an empty-container buffer overflow
+  in the formatter (`'{}` case).
+  Now: `queue='{10, 20}`, `assoc='{3:99, 7:42}`, `dyn='{1, 2, 3}`,
+  `fix='{5, 6, 7, 8}`, string queue `'{"foo", "bar"}`, real queue
+  `'{1.5, 2.25}`, `scalar=195`, empty `'{}`.
+  Test `sv_display_p_aggregates`.
+  **Known remaining refinements (not silent miscompiles — noted in the
+  manifesto M4B item):** signed integral darray/queue elements render
+  unsigned (element signedness isn't carried through the container VPI
+  path); a packed struct prints as one decimal rather than a
+  `'{member:val}` pattern.
+- **Validation:** ivtest full default run **byte-identical to baseline**
+  (3064 passed / 44 failed, 0 new / 0 stale by name; +2 new tests); UVM
+  suite 209/0/0.
+
 ## State as of 2026-07-21f (loop-local capture by inline detached fork — FIXED)
 
 - **A loop-body `automatic` captured by an inline detached (join_none/

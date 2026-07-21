@@ -201,7 +201,22 @@ Future failures belong to the underlying language/runtime subsystem unless the U
 **Status: PARTIAL**
 
 - [ ] Support wildcard associative-array index declarations where required.
-- [ ] Correct `%p` formatting for integral aggregates.
+- [x] Correct `%p` formatting for integral aggregates. *(Done 2026-07-21:
+      rewrote the `%p` handler as a recursive assignment-pattern formatter
+      (`format_p_value` in `vpi/sys_display.c`). Queues, dynamic arrays,
+      fixed unpacked arrays and associative arrays now print
+      `'{v0, v1, ...}` (assoc as `'{key:val, ...}`) with integral elements
+      in decimal, reals via `%g`, strings quoted; empty containers print
+      `'{}`. The old handler asked every element for `vpiStringVal`, so
+      integral elements came out as raw ASCII bytes (99 → `'c'`) or empty
+      (unimplemented `get_word(string)` for queue/darray elements). Also
+      fixed assoc key rendering (vector keys were the raw byte encoding —
+      now decimal, `vvp_assoc.h peek_entry`) and queue element type
+      detection for real/string queues (`vpi_darray.cc get_word_value`).
+      Test `sv_display_p_aggregates`. Remaining refinements: signed integral
+      darray/queue elements still render unsigned (element signedness is not
+      carried through the container VPI path), and a packed struct prints as
+      one decimal rather than a `'{member:val}` pattern.)*
 - [x] Fix nested packed-struct array literal compiler crash. *(Done
       2026-07-21: module-scope nested literals work on all probed shapes;
       the remaining defect was a class-property whole-array pattern store

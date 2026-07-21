@@ -86,6 +86,20 @@ char*__vpiDarrayVar::get_word_str(struct __vpiArrayWord*word, int code)
 	    return simple_set_rbuf_str(file_names[0]);
       }
 
+	// For an associative-array element the "name" is its key text (the
+	// positional index is meaningless to the user). %p uses this to
+	// print '{key:value, ...}'.
+      if (code == vpiName || code == vpiFullName) {
+	    if (const vvp_assoc_base*mobj = get_vvp_assoc()) {
+		  std::string key, sval;
+		  vvp_vector4_t vval;
+		  double rval = 0.0;
+		  int kind = -1;
+		  if (mobj->peek_entry(index, key, vval, rval, sval, kind))
+			return simple_set_rbuf_str(key.c_str());
+	    }
+      }
+
       char sidx [64];
       snprintf(sidx, 63, "%d", (int)index);
       return generic_get_str(code, scope_, name_, sidx);
@@ -132,9 +146,16 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
       }
 
       if(vp->format == vpiObjTypeVal) {
-          if(dynamic_cast<vvp_darray_real*>(aobj))
+	    // Resolve the natural element format. Queues carry the same
+	    // element kinds as dynamic arrays but through a separate class
+	    // hierarchy (vvp_queue_real / vvp_queue_string / ...), so both
+	    // families must be probed or a real/string queue would fall
+	    // through to the vec4 path and read back as x.
+          if(dynamic_cast<vvp_darray_real*>(aobj)
+	     || dynamic_cast<vvp_queue_real*>(aobj))
               vp->format = vpiRealVal;
-          else if(dynamic_cast<vvp_darray_string*>(aobj))
+          else if(dynamic_cast<vvp_darray_string*>(aobj)
+		  || dynamic_cast<vvp_queue_string*>(aobj))
               vp->format = vpiStringVal;
           else
               vp->format = vpiVectorVal;
