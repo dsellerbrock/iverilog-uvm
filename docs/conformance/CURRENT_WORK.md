@@ -18,10 +18,12 @@ the investigation. Update at every meaningful checkpoint.
   `eval_string.c`. Verified: element-wise, pattern, variable-index
   read/write, scalar-property regression, and shallow copy (array-aware
   `property::copy`). Test `sv_class_prop_real_string_array`.
-- **Filed #101 (separate pre-existing bug):** the copy constructor as a
-  declaration initializer (`C d = new src;`) does not copy — produces a
-  default object. The statement form (`d = new src;`) works. Affects all
-  property types; the #100 test uses the statement form.
+- **#101 investigated and closed as not-a-bug.** `C d = new src;` for a
+  *static* variable is a static initializer that runs before time 0
+  (IEEE 1800-2017 §6.21), so it copies `src`'s pre-write state — correct
+  ordering, not a copy failure (iverilog warns about the static lifetime).
+  The procedural forms (`d = new src;`, or an `automatic` variable) copy
+  the post-write value correctly. The #100 test uses the statement form.
 
 ## State as of 2026-07-21c (M4B known crashes: member access, array pattern, uarray func return)
 

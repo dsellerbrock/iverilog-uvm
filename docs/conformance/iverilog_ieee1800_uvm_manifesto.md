@@ -223,8 +223,6 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       `sv_class_prop_real_string_array`. Issue #100.)*
 - [ ] Continue adversarial nested-container testing.
 - [ ] Reaudit nested property read/write/method shapes after future typing changes.
-- [ ] Fix copy constructor as a declaration initializer (`C d = new src;`
-      copies nothing; statement form works). Issue #101.
 
 ## M5 — Interfaces and modports
 

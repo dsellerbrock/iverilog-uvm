@@ -62,8 +62,10 @@ module sv_class_prop_real_string_array;
     for (int i = 0; i < 3; i++) chk_r(c.ra[i], i * 10.0 + 0.25, "ra var");
 
     // shallow copy preserves per-element array contents. Use the
-    // statement form (`d = new c`); the declaration-initializer form
-    // `C d = new c;` has a separate, pre-existing copy-constructor bug.
+    // statement form (`d = new c`) so the copy runs procedurally, after
+    // the writes above. A `C d = new c;` declaration initializer would be
+    // a static initializer (runs before time 0), copying c's pre-write
+    // state — correct SV static-init ordering, not what this test checks.
     begin
       C d;
       d = new c;
