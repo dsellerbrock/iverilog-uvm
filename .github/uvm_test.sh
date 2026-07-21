@@ -54,13 +54,23 @@ SKIP=0
 # missing or the build fails, fall back to UVM_NO_DPI so the suite still runs.
 UVM_DPI_SO="/tmp/uvm_dpi_iv.vpi"
 IVPI="$(dirname "$BIN")/iverilog-vpi"
+REPO="$PWD"
+UMBRELLA="$REPO/uvm_dpi/uvm_dpi_iverilog.cc"
+UMBRELLA_INC="-I$REPO/$UVM/dpi"
+# iverilog-vpi's own compile/link flags, reused for the hand-rolled Windows
+# merged-module build (which iverilog-vpi cannot do because it won't pass the
+# -Wl,--export-all-symbols that Windows needs — see run_test). iverilog-vpi's
+# --ccflags does not reliably carry the install include dir on MinGW, so the
+# vpi_user.h include path is added explicitly via IVL_INC.
+IVL_INC="$(dirname "$(dirname "$BIN")")/include/iverilog"
+IVPI_CC="$("$IVPI" --cflags 2>/dev/null) -I$IVL_INC"
+IVPI_CXX="$("$IVPI" --ccflags 2>/dev/null) -I$IVL_INC"
+IVPI_LDF="$("$IVPI" --ldflags 2>/dev/null)"
+IVPI_LDL="$("$IVPI" --ldlibs 2>/dev/null)"
 NO_DPI_FLAG=""
+UVM_DPI_REAL=1        # cleared only if we fall back to UVM_NO_DPI
+UVM_WIN_MERGE=0       # Windows: umbrella is merged into each per-test module
 
-# macOS has no top-level <malloc.h>; the vendored uvm_dpi.h includes it.
-# Provide a shim that forwards to <stdlib.h> (which declares malloc/free/
-# realloc) so the DPI umbrella compiles. Guarded to Darwin so Linux keeps
-# using its real <malloc.h>. (iverilog-vpi handles the macOS namespace/link
-# flags itself, so no -undefined/-flat_namespace is needed here anymore.)
 DPI_COMPAT_INC=""
 # Extra -L/-l passed through iverilog-vpi for platforms that must resolve every
 # import at link time (Windows). Empty on Linux/macOS, which bind lazily.
@@ -74,38 +84,63 @@ case "$(uname -s)" in
         ;;
     MINGW*|MSYS*|CYGWIN*)
         # A Windows loadable module must resolve every external at link time,
-        # unlike the lazy load-time binding on Linux/macOS. The umbrella pulls
-        # in two symbol classes that no static lib provides:
-        #   1. the sv* DPI-context API (svGetScopeFromName/svSetScope/...),
-        #      which vvp.exe exports via vvp/vvp.def but ships in no archive;
-        #   2. POSIX regex (regcomp/regexec/regfree/regerror).
-        # Build a dedicated import library for ONLY the sv* exports (so it does
-        # not collide with libvpi's own vpi_* definitions) and link it plus the
-        # regex provider. DPI-export dispatchers generated per-design (e.g.
-        # m__uvm_report_dpi) still resolve from the loaded image, which Windows
-        # cannot bind here — that residue is reported by the build log below.
+        # and — unlike Linux dlopen(RTLD_GLOBAL) — it does NOT interpose the
+        # host's symbols. So the umbrella must import ALL the vvp-provided
+        # symbols it uses directly from vvp.exe, and must NOT link libvpi.a.
+        # Why not libvpi.a: its vpi_* wrappers dispatch through a static
+        # vpip_routines pointer set by vpip_set_callback, but vvp only calls
+        # that for -m VPI modules, never for a -d DPI library (vvp_dpi.cc). On
+        # Linux the umbrella's vpi_* calls bind to vvp's real routines via
+        # RTLD_GLOBAL; on Windows they would hit libvpi.a's dead shim and
+        # assert (vpip_routines NULL). Importing the whole vvp.def (vpi_* AND
+        # sv* AND __ivl_dpi_export_call_*) from vvp.exe routes every vpi_*/sv*
+        # call to vvp's real implementation. Regex still comes from libsystre.
         if command -v dlltool >/dev/null 2>&1 && [ -f vvp/vvp.def ] ; then
-            { printf 'EXPORTS\n'; grep -E '^sv[A-Za-z]' vvp/vvp.def; } > /tmp/uvm_sv.def
-            if dlltool -d /tmp/uvm_sv.def -D vvp.exe -l /tmp/libuvmsv.a \
+            if dlltool -d vvp/vvp.def -D vvp.exe -l /tmp/libvvpimp.a \
                        2>/tmp/uvm_dpi_implib.log ; then
-                DPI_EXTRA_LIB="-L/tmp -luvmsv"
+                DPI_EXTRA_LIB="-L/tmp -lvvpimp"
             fi
         fi
-        DPI_EXTRA_LIB="$DPI_EXTRA_LIB -lregex"
+        # POSIX regex: link libsystre (TRE-based) rather than a bare -lregex.
+        # uvm_re_comp() does malloc(sizeof(regex_t)) then regcomp(); if the
+        # compile-time <regex.h> and the linked regex library disagree on the
+        # regex_t layout (common on mingw, where several providers ship a
+        # regex.h), regcomp corrupts that struct and every UVM config_db
+        # wildcard match fails with UVM/DPI/REGEX. libsystre supplies both a
+        # consistent <regex.h> and the implementation (via tre).
+        DPI_EXTRA_LIB="$DPI_EXTRA_LIB -lsystre -ltre"
+        # The merged build is hand-rolled (see run_test), and the compiler
+        # differs per MSYS2 environment: MINGW64/UCRT64 ship gcc/g++, but
+        # CLANG64 ships only clang/clang++ (no gcc alias) — hardcoding g++
+        # made every CLANG64 merge fail (umbrella never built -> the whole
+        # UVM/DPI/REGEX cluster). clang's MinGW driver accepts the same
+        # flags including -Wl,--export-all-symbols (lld supports it).
+        DPI_MERGE_CC="$(command -v gcc || command -v clang || command -v cc)"
+        DPI_MERGE_CXX="$(command -v g++ || command -v clang++ || command -v c++)"
+        UVM_WIN_MERGE=1
         ;;
 esac
 
-# iverilog-vpi wants attached -I<path>; it appends .vpi to --name, compiles the
-# umbrella object in the CWD (cleaned up below), and links per-platform. Any
-# $DPI_EXTRA_LIB (-L/-l) is appended to the link for Windows symbol resolution.
-if [ -x "$IVPI" ] && "$IVPI" --name=/tmp/uvm_dpi_iv -I"$UVM/dpi" $DPI_COMPAT_INC \
-       uvm_dpi/uvm_dpi_iverilog.cc $DPI_EXTRA_LIB >/tmp/uvm_dpi_build.log 2>&1 ; then
+# iverilog-vpi wants attached -I<path>; it appends .vpi to --name and links
+# per-platform. Any $DPI_EXTRA_LIB (-L/-l) is appended for Windows resolution.
+if [ "$UVM_WIN_MERGE" = 1 ]; then
+    # The per-design DPI-export dispatcher (m__uvm_report_dpi) is defined ONLY
+    # in each test's generated .dpiexport.c stub, and Windows PE cannot bind it
+    # across separately-loaded modules the way Linux/macOS do at load. So do not
+    # build or load a standalone umbrella here: run_test compiles the umbrella
+    # TOGETHER with the test's stub into one module, where the dispatcher
+    # resolves internally. DPI is still REAL (regex/command-line/HDL backdoor).
+    echo "UVM DPI: real DPI via per-test merged umbrella (Windows link model)"
+    UVM_DPI_SO=""     # no global -d umbrella; each test loads its own merged module
+elif [ -x "$IVPI" ] && "$IVPI" --name=/tmp/uvm_dpi_iv "$UMBRELLA_INC" $DPI_COMPAT_INC \
+       "$UMBRELLA" $DPI_EXTRA_LIB >/tmp/uvm_dpi_build.log 2>&1 ; then
     echo "UVM DPI library built ($UVM_DPI_SO via iverilog-vpi): running WITHOUT UVM_NO_DPI"
 else
     echo "WARNING: UVM DPI library build failed; falling back to UVM_NO_DPI"
     sed 's/^/  /' /tmp/uvm_dpi_build.log
     NO_DPI_FLAG="-DUVM_NO_DPI"
     UVM_DPI_SO=""
+    UVM_DPI_REAL=0
 fi
 rm -f uvm_dpi_iverilog.o
 
@@ -135,6 +170,21 @@ rm -f uvm_dpi_iverilog.o
 # scope's single live activation when every chain walk fails. m7 now ends at
 # t=80. Reproducer: docs/conformance/repros/m7_this_null_nested_detached_fork.sv.
 KNOWN_FAIL=""
+
+# Both former Windows-only vvp corners are now fixed at the source, so there is
+# no platform-specific known-fail list. Kept here for the record:
+#   - m10bmd_open_array_2d_test: vvp.def omitted svGetArrElemPtr2/svGetArrElemPtr3
+#     from vvp.exe's Windows export table (svGetArrElemPtr1 and the varargs
+#     svGetArrElemPtr were exported, these two were not), so DPI libraries
+#     resolved them to null and every 2-D/3-D element pointer came back null
+#     -> sum 0. Fixed by exporting them.
+#   - m3_constraint_dynforeach_test: the MSYS2/Windows Z3 build returns the model
+#     value of an equality-eliminated element variable (`elem == base + N`) as an
+#     unfolded bvadd term instead of a numeral, so the write-back's
+#     Z3_get_numeral_uint64 rejected it and the element kept its random fill.
+#     Fixed by Z3_simplify'ing the model_eval result before extraction
+#     (vvp_z3.cc:z3_eval_uint64). Linux/macOS Z3 already folded, so this was
+#     Windows-only.
 
 # Per-test plusargs and extra iverilog compile flags. Kept as plain case
 # functions rather than `declare -A` associative arrays so the harness runs
@@ -174,13 +224,41 @@ run_test() {
     local dflags=""
     [ -n "$UVM_DPI_SO" ] && dflags="-d $UVM_DPI_SO"
     local srcs=""
-    [ -f "$cfile" ] && srcs="$srcs $PWD/$cfile"
+    [ -f "$cfile" ] && srcs="$srcs $REPO/$cfile"
     [ -f "$stub" ]  && srcs="$srcs $stub"
-    if [ -n "$srcs" ]; then
-        # Build the per-test companion the same way as the umbrella — via
-        # iverilog-vpi, so it links per-platform and resolves sv*/vpi_* against
-        # vvp on macOS/Windows too. Run in /tmp (absolute source paths) so the
-        # intermediate objects don't litter the repo checkout.
+    if [ "$UVM_WIN_MERGE" = 1 ]; then
+        # Windows: build ONE module = umbrella + this test's DPI-export stub
+        # (+ any test C), so the per-design dispatcher (m__uvm_report_dpi)
+        # defined in the stub resolves inside the same module the umbrella
+        # calls it from. sv*/__ivl_dpi_export_call_*/regex come from
+        # $DPI_EXTRA_LIB.
+        #
+        # Hand-rolled (not iverilog-vpi) because the FULL umbrella module does
+        # not auto-export its symbols on MinGW — so vvp's GetProcAddress could
+        # not find uvm_re_compexecfree / the DPI imports and they returned 0
+        # (both UVM/DPI/REGEX and the m10 "got 0" clusters). Forcing
+        # -Wl,--export-all-symbols restores the exports vvp resolves by name.
+        # iverilog-vpi cannot pass -Wl flags, hence the explicit compilers
+        # below ($DPI_MERGE_CC/CXX: gcc/g++ on MINGW64/UCRT64, clang/clang++
+        # on CLANG64 which ships no gcc alias).
+        local blog="/tmp/uvm_dpi_${name}.buildlog"
+        local objs="/tmp/umb_${name}.o"
+        "$DPI_MERGE_CXX" -c $IVPI_CXX "$UMBRELLA_INC" "$UMBRELLA" -o "/tmp/umb_${name}.o" >"$blog" 2>&1
+        local s b o
+        for s in $srcs ; do
+            b="$(basename "$s")"; o="/tmp/${b%.*}_${name}.o"
+            "$DPI_MERGE_CC" -c $IVPI_CC "$UMBRELLA_INC" "$s" -o "$o" >>"$blog" 2>&1
+            objs="$objs $o"
+        done
+        # NOTE: no $IVPI_LDL here (it carries -lvpi -lveriuser). libvpi.a must
+        # NOT be linked on Windows — see the import-lib comment above. All
+        # vvp symbols come from -lvvpimp; regex from -lsystre -ltre.
+        "$DPI_MERGE_CXX" $IVPI_LDF -Wl,--export-all-symbols -o "/tmp/uvm_dpi_${name}.vpi" \
+            $objs $DPI_EXTRA_LIB >>"$blog" 2>&1
+        dflags="-d /tmp/uvm_dpi_${name}.vpi"
+    elif [ -n "$srcs" ]; then
+        # Linux/macOS: the umbrella is loaded globally; here just build the
+        # per-test companion (test C + DPI-export stub) via iverilog-vpi.
         ( cd /tmp && "$IVPI" --name="/tmp/uvm_dpi_${name}" $srcs ) \
             >"/tmp/uvm_dpi_${name}.buildlog" 2>&1
         dflags="$dflags -d /tmp/uvm_dpi_${name}.vpi"
@@ -255,7 +333,9 @@ echo ""
 # truncated CI log tail (the "UVM DPI library built ..." banner prints at the
 # top of the step, thousands of lines up). On the secondary platforms this is
 # the at-a-glance answer to "did we exercise real DPI or silently fall back?".
-if [ -n "$UVM_DPI_SO" ]; then
+if [ "$UVM_DPI_REAL" = 1 ] && [ "$UVM_WIN_MERGE" = 1 ]; then
+    echo "DPI mode: REAL DPI (per-test merged umbrella, Windows link model)"
+elif [ "$UVM_DPI_REAL" = 1 ]; then
     echo "DPI mode: REAL DPI umbrella loaded ($UVM_DPI_SO)"
 else
     echo "DPI mode: UVM_NO_DPI FALLBACK — umbrella build failed"

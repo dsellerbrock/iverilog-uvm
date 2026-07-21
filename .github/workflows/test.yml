@@ -140,6 +140,7 @@ jobs:
           mingw-w64-${{ matrix.env }}-perl
           mingw-w64-${{ matrix.env }}-z3
           mingw-w64-${{ matrix.env }}-libffi
+          mingw-w64-${{ matrix.env }}-libsystre
 
     - name: Install Python dependencies
       run: pip3 install docopt
@@ -155,6 +156,17 @@ jobs:
     - name: Install binary
       run: pacman -U --noconfirm msys2/*.zst
 
+    - name: DPI/regex diagnostic probe
+      continue-on-error: true
+      run: bash .github/win_dpi_probe.sh 2>&1 | tee "win_probe_${{ matrix.msystem }}.txt"
+
+    - name: Upload probe output
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: probe-${{ matrix.msystem }}
+        path: win_probe_${{ matrix.msystem }}.txt
+
     - name: Regression tests
       continue-on-error: true
       run: |
@@ -164,11 +176,18 @@ jobs:
             ./.github/test.sh
         fi
 
+    # Windows UVM runs real DPI and passes 209/0 on all three MSYS2
+    # toolchains (verified in CI after the vvp.def export, GMP-Z3 numeral
+    # extraction, and per-toolchain compiler fixes), so this step gates for
+    # real — a regression here fails the job instead of hiding under
+    # continue-on-error. The plain regression suite above keeps its soft
+    # gate: its Windows baseline has known non-UVM deltas that are tracked
+    # separately.
     - name: UVM regression tests
-      continue-on-error: true
       run: ./.github/uvm_test.sh
 
     - uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: ${{ matrix.msystem }}
         path: msys2/*.zst
