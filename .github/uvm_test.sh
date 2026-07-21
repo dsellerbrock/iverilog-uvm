@@ -94,19 +94,22 @@ rm -f uvm_dpi_iverilog.o
 # m7_objection_stress_test: run_phase never completes cleanly under the
 # concurrent workload, so the run extends to the UVM 9200s watchdog instead
 # of ending at t=80. The run_phase objection counters pass; only the
-# end-of-sim time check fails. ROOT CAUSE (issue #103): after the run phase
-# completes, the phase_hopper_objection ends off-by-two on uvm_top (27
-# raises / 25 drops), so uvm_phase_hopper::run_phases never returns from
-# wait_for_objection(UVM_ALL_DROPPED). Two phase-hopper raises on uvm_top
-# are never balanced; which schedule/domain phase drops them is not yet
-# identified.
+# end-of-sim time check fails. ROOT CAUSE fully traced (issue #103): the
+# implicit `this` in a nested detached (join_none) fork body is not captured
+# at spawn -- it is read deferred and goes null for later loop iterations.
+# In uvm_phase_hopper::run_phases the per-phase drop runs in such a fork, so
+# for the later phases common.run and common.check `this` is null,
+# get_objection() returns null, and objection.drop_objection() SILENTLY
+# no-ops on the null handle (iverilog does not fatal on a null-handle method
+# call). Those two phase-hopper objections never drop (27 raise / 25 drop on
+# uvm_top), so run_phases never returns from wait_for_objection. Minimal
+# reproducer: docs/conformance/repros/m7_this_null_nested_detached_fork.sv.
 #
-# Ruled out: (a) run-phase objection count propagation -- it reaches
-# uvm_top=0 correctly (traced); (b) forked-argument capture (#102, fixed in
-# 9f1909b) -- m7 fails identically with that fix, and the hopper's own
-# capture uses an inline `automatic phase = ph` initializer that always
-# worked. So m7 is isolated to the phase-hopper teardown, not the user
-# objection or fork capture.
+# Ruled out: (a) run-phase objection count propagation -- reaches uvm_top=0
+# correctly (traced); (b) forked-argument capture (#102, fixed in 9f1909b) --
+# that hoist only covers a single-branch `fork task(args); join_none`, not a
+# general inline detached fork body / implicit `this`. Fix needs spawn-time
+# capture of `this` + enclosing automatics for inline detached fork bodies.
 KNOWN_FAIL="m7_objection_stress_test"
 
 # Per-test plusargs and extra iverilog compile flags. Kept as plain case
