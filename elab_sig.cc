@@ -1629,6 +1629,16 @@ void PBlock::elaborate_sig(Design*des, NetScope*scope) const
 	    list_[idx] -> elaborate_sig(des, my_scope);
 }
 
+void PRandCase::elaborate_sig(Design*des, NetScope*scope) const
+{
+      if (!items_)
+	    return;
+      for (PCase::Item*cur : *items_) {
+	    if (cur && cur->stat)
+		  cur->stat->elaborate_sig(des, scope);
+      }
+}
+
 void PCase::elaborate_sig(Design*des, NetScope*scope) const
 {
       if (items_ == 0)

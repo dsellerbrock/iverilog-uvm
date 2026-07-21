@@ -5159,6 +5159,162 @@ static NetExpr*elab_and_eval_case(Design*des, NetScope*scope, PExpr*pe,
       return expr;
 }
 
+/* randcase (IEEE 1800-2017 18.16): weighted random branch selection.
+ * Lowered here to plain procedural code:
+ *
+ *   begin
+ *     w0 = <weight0>; ... wn = <weightn>;   // each weight evaluated ONCE
+ *     sum = w0 + ... + wn;
+ *     if (sum != 0) begin
+ *       pick = $urandom_range(sum - 1);
+ *       if (pick < w0) stmt0
+ *       else if (pick < w0+w1) stmt1
+ *       ...
+ *       else stmtN
+ *     end
+ *   end
+ *
+ * Weights are evaluated into temporaries so a weight expression's side
+ * effects happen exactly once, and the cumulative thresholds are pure
+ * reads of those temporaries. A zero total weight executes no branch,
+ * per the clause.
+ */
+NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
+{
+      ivl_assert(*this, scope);
+
+      if (!items_ || items_->empty())
+	    return new NetBlock(NetBlock::SEQU, 0);
+
+      const unsigned nitems = items_->size();
+
+      NetBlock*top = new NetBlock(NetBlock::SEQU, 0);
+      top->set_line(*this);
+
+	// Evaluate each weight once into a 32-bit unsigned temp.
+      vector<NetNet*> wsig (nitems);
+      for (unsigned idx = 0 ; idx < nitems ; idx += 1) {
+	    PCase::Item*cur = (*items_)[idx];
+	    if (!cur || cur->expr.size() != 1 || cur->expr.front() == 0) {
+		  cerr << get_fileline() << ": error: each randcase item "
+		       << "requires exactly one weight expression "
+		       << "(IEEE 1800-2017 18.16)." << endl;
+		  des->errors += 1;
+		  delete top;
+		  return 0;
+	    }
+
+	    NetExpr*we = elab_and_eval(des, scope, cur->expr.front(), 32,
+				       false, false, IVL_VT_BOOL, true);
+	    if (we == 0) {
+		  delete top;
+		  return 0;
+	    }
+
+	    wsig[idx] = new NetNet(scope, scope->local_symbol(),
+				   NetNet::REG, &netvector_t::atom2u32);
+	    wsig[idx]->set_line(*this);
+	    wsig[idx]->local_flag(true);
+
+	    NetAssign*as = new NetAssign(new NetAssign_(wsig[idx]), we);
+	    as->set_line(*this);
+	    top->append(as);
+      }
+
+	// sum = w0 + ... + wn
+      NetNet*sum_sig = new NetNet(scope, scope->local_symbol(),
+				  NetNet::REG, &netvector_t::atom2u32);
+      sum_sig->set_line(*this);
+      sum_sig->local_flag(true);
+      {
+	    NetExpr*sum_expr = new NetESignal(wsig[0]);
+	    sum_expr->set_line(*this);
+	    for (unsigned idx = 1 ; idx < nitems ; idx += 1) {
+		  NetESignal*rd = new NetESignal(wsig[idx]);
+		  rd->set_line(*this);
+		  sum_expr = new NetEBAdd('+', sum_expr, rd, 32, false);
+		  sum_expr->set_line(*this);
+	    }
+	    NetAssign*as = new NetAssign(new NetAssign_(sum_sig), sum_expr);
+	    as->set_line(*this);
+	    top->append(as);
+      }
+
+	// pick = $urandom_range(sum - 1)
+      NetNet*pick_sig = new NetNet(scope, scope->local_symbol(),
+				   NetNet::REG, &netvector_t::atom2u32);
+      pick_sig->set_line(*this);
+      pick_sig->local_flag(true);
+
+      NetBlock*inner = new NetBlock(NetBlock::SEQU, 0);
+      inner->set_line(*this);
+      {
+	    NetESignal*sum_rd = new NetESignal(sum_sig);
+	    sum_rd->set_line(*this);
+	    NetExpr*maxv = new NetEBAdd('-', sum_rd, make_const_val(1), 32, false);
+	    maxv->set_line(*this);
+	    NetESFunc*ur = new NetESFunc("$urandom_range", IVL_VT_BOOL, 32, 1);
+	    ur->set_line(*this);
+	    ur->parm(0, maxv);
+	    NetAssign*as = new NetAssign(new NetAssign_(pick_sig), ur);
+	    as->set_line(*this);
+	    inner->append(as);
+      }
+
+	// Branch chain, last item as the final else.
+      NetProc*chain = 0;
+      {
+	    PCase::Item*last = (*items_)[nitems-1];
+	    chain = last->stat ? last->stat->elaborate(des, scope)
+			       : new NetBlock(NetBlock::SEQU, 0);
+	    if (chain == 0) {
+		  delete top;
+		  return 0;
+	    }
+      }
+      for (int idx = (int)nitems - 2 ; idx >= 0 ; idx -= 1) {
+	    PCase::Item*cur = (*items_)[idx];
+	    NetProc*st = cur->stat ? cur->stat->elaborate(des, scope)
+				   : new NetBlock(NetBlock::SEQU, 0);
+	    if (st == 0) {
+		  delete top;
+		  return 0;
+	    }
+
+	      // threshold = w0 + ... + w_idx (pure temp reads)
+	    NetExpr*thresh = new NetESignal(wsig[0]);
+	    thresh->set_line(*this);
+	    for (int k = 1 ; k <= idx ; k += 1) {
+		  NetESignal*rd = new NetESignal(wsig[k]);
+		  rd->set_line(*this);
+		  thresh = new NetEBAdd('+', thresh, rd, 32, false);
+		  thresh->set_line(*this);
+	    }
+	    NetESignal*pick_rd = new NetESignal(pick_sig);
+	    pick_rd->set_line(*this);
+	    NetEBComp*cmp = new NetEBComp('<', pick_rd, thresh);
+	    cmp->set_line(*this);
+
+	    NetCondit*cond = new NetCondit(cmp, st, chain);
+	    cond->set_line(*this);
+	    chain = cond;
+      }
+      inner->append(chain);
+
+	// if (sum != 0) inner
+      {
+	    NetESignal*sum_rd = new NetESignal(sum_sig);
+	    sum_rd->set_line(*this);
+	    NetEBComp*nz = new NetEBComp('n', sum_rd, make_const_val(0));
+	    nz->set_line(*this);
+	    NetCondit*guard = new NetCondit(nz, inner, 0);
+	    guard->set_line(*this);
+	    top->append(guard);
+      }
+
+      return top;
+}
+
 /* Phase 63b/B7 (gap close): elaborate `case (X) matches` for tagged
  * unions.  Lower to an if-else cascade testing the companion-tag
  * NetNet of X.  Each tagged item generates:
@@ -12596,6 +12752,72 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (s.empty())
 			      return "";
 			acc = acc.empty() ? s : "(and " + acc + " " + s + ")";
+		  }
+	    }
+	    return acc;
+      }
+
+	// unique {...} (IEEE 1800-2017 18.5.5): the listed scalars and
+	// array elements take pairwise distinct values. Un-indexed
+	// identifiers naming a rand unpacked-array property expand to all
+	// their elements; every other operand (scalar rand property,
+	// indexed element, constant) is emitted through the ordinary
+	// expression path. The result is a conjunction of pairwise (ne).
+      if (const PEUnique*uq = dynamic_cast<const PEUnique*>(expr)) {
+	    vector<string> atoms;
+	    for (PExpr*item : uq->items()) {
+		  if (!item) continue;
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(item);
+		  bool expanded = false;
+		  if (id && id->path().size() == 1
+		      && id->path().back().index.empty()) {
+			perm_string pname = id->path().back().name;
+			int pidx = cls->property_idx_from_name(pname);
+			if (pidx >= 0
+			    && cls->get_prop_qual((size_t)pidx).test_rand()) {
+			      const netuarray_t*ua =
+				    dynamic_cast<const netuarray_t*>(
+					  cls->get_prop_type((size_t)pidx));
+			      if (ua) {
+				    const netranges_t&dims =
+					  ua->static_dimensions();
+				    if (dims.size() != 1)
+					  return "";
+				    ivl_type_t etype = ua->element_type();
+				    unsigned ewid = etype
+					  ? etype->packed_width() : 32;
+				    if (ewid == 0) ewid = 32;
+				    string esfx =
+					  (etype && etype->get_signed())
+						? ":s" : "";
+				    for (unsigned long k = 0
+					       ; k < dims[0].width() ; k += 1)
+					  atoms.push_back("e:"
+						+ to_string(pidx) + ":"
+						+ to_string(ewid) + ":"
+						+ to_string(k) + esfx);
+				    expanded = true;
+			      }
+			}
+		  }
+		  if (!expanded) {
+			string s = pexpr_to_constraint_ir(item, cls,
+						value_slots, scope, loop_env);
+			if (s.empty())
+			      return "";
+			atoms.push_back(s);
+		  }
+	    }
+	      // Fewer than two operands is trivially satisfied; emit an
+	      // always-true term so the enclosing conjunction is unharmed.
+	    if (atoms.size() < 2)
+		  return "(ne c:0 c:1)";
+	    string acc;
+	    for (size_t i = 0 ; i < atoms.size() ; i += 1) {
+		  for (size_t j = i + 1 ; j < atoms.size() ; j += 1) {
+			string term = "(ne " + atoms[i] + " " + atoms[j] + ")";
+			acc = acc.empty() ? term
+					  : "(and " + acc + " " + term + ")";
 		  }
 	    }
 	    return acc;

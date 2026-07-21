@@ -3,6 +3,41 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21l (M3B: randcase + std::randomize + unique {})
+
+Three clause-18 randomization gaps closed (Tier-1 frontier work after the
+PR #96 merge):
+
+- **`randcase` (IEEE 1800-2017 18.16)** — was a `sorry`. New `PRandCase`
+  pform node (`Statement.h/.cc`, grammar in `parse.y`) lowers at elaboration
+  (`elaborate.cc`) to procedural code: each weight is evaluated exactly once
+  into a temp, the temps are summed, a single `$urandom_range(sum-1)` draw
+  selects a branch by cumulative-threshold compare, and a zero total weight
+  runs no branch. Test `sv_randcase` (distribution + once-evaluation +
+  zero-weight).
+- **`std::randomize(vars)` scope form (18.12)** — the expression form used
+  to return success WITHOUT assigning the variables (silent
+  no-randomization). It now lowers to a new `$ivl_std_randomize` system
+  function (`elab_expr.cc` → `vpi/sys_random.c sys_std_randomize_calltf`)
+  that writes an unconstrained random value into each integral variable
+  argument and returns 1. A with-clause in *expression* context randomizes
+  but does not enforce constraints (loud one-time warning); the *statement*
+  with-clause form keeps its existing range/enum/retry lowering. Test
+  `sv_std_randomize_scope`.
+- **`unique {}` constraint (18.5.5)** — was a syntax error. New `PEUnique`
+  pform node (`PExpr.h`, grammar in `parse.y`); the constraint-IR emitter
+  (`elaborate.cc pexpr_to_constraint_ir`) expands an un-indexed rand
+  unpacked-array operand to its element solver-variables and emits pairwise
+  `(ne ...)` terms, so the Z3 backend enforces distinctness. Handles scalar
+  lists and whole-array operands. Test `sv_constraint_unique`.
+
+Remaining M3B: `randsequence`, `disable soft`, rand_mode/constraint_mode
+reaudit, seed-stability tests.
+
+**Validation:** full ivtest default run byte-identical to baseline
+(3074 passed / 44 failed, 0 new / 0 stale by name; +3 new tests); UVM suite
+209/0/0.
+
 ## State as of 2026-07-21k (P1 type-param formal member access — VERIFIED RESOLVED)
 
 - **P1 "member access on output/ref formals typed by type parameters"

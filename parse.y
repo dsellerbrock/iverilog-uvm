@@ -2650,6 +2650,13 @@ constraint_declaration /* IEEE1800-2005: A.1.9 */
 constraint_expression /* IEEE1800-2005 A.1.9 */
   : expression ';'
       { $$ = $1; }
+  | K_unique '{' expression_list_proper '}' ';'
+      { /* unique {...} (IEEE 1800-2017 18.5.5): pairwise-distinct
+	   values. Lowered in the constraint-IR emitter. */
+	PEUnique*tmp = new PEUnique($3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | expression K_dist '{' dist_list_opt '}' ';'
       { /* `dist` — lower weights ignored, ranges lowered to `inside` to
            enforce the value domain. Proper weighted distribution is TODO. */
@@ -13016,21 +13023,10 @@ statement_item /* This is roughly statement_item in the LRM */
       { yyerrok; }
 
   /* randcase (IEEE 1800-2017 18.16): weighted random branch select.
-     Not implemented; diagnose loudly rather than silently discarding
-     it (a silent empty block executes NO branch — manifesto
-     principle 4). */
+     Elaboration lowers it to a $urandom_range draw over the summed
+     weights with cumulative-threshold branch selection. */
   | K_randcase case_items K_endcase
-      { for (auto* it : *$2) {
-	    for (auto* e : it->expr) delete e;
-	    if (it->stat) delete it->stat;
-	    delete it;
-	}
-	delete $2;
-	cerr << @1 << ": sorry: randcase (IEEE 1800-2017 18.16) is not "
-	        "supported; use a $urandom_range-based weighted select "
-	        "instead." << endl;
-	error_count += 1;
-	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+      { PRandCase*tmp = new PRandCase($2);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }

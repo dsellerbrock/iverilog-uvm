@@ -3639,32 +3639,16 @@ classify_compile_progress_unresolved_func_stub_(const pform_scoped_name_t&path)
 		  || func_name == perm_string::literal("is_excl"))
 		    return CP_EXPR_METHOD_STUB_BOOL0;
 
-      /* std::randomize(var) with {...} — we don't yet implement the
-         free-standing std::randomize, but UVM/DV use it as an "did
-         randomization succeed" check and treat 0 as fatal. Return true
-         so DV can proceed; the variable retains its current value
-         (often 0), which usually satisfies the with-constraint or is
-         caught by a downstream check. */
+      /* std::randomize(vars): the expression form is lowered to the
+         real $ivl_std_randomize system function during elaboration
+         (PECallFunction::elaborate_expr), so this classification only
+         supplies the width/type for the width-query pass — no warning
+         here. Other (non-std) unresolved randomize falls back to 0. */
       if (func_name == perm_string::literal("randomize")) {
 	    if (path.name.size() >= 2) {
 		  pform_name_t::const_iterator head = path.name.begin();
-		  if (head->name == perm_string::literal("std")) {
-			/* M14: the scope form std::randomize(var) is not
-			   implemented — it returns success but leaves the
-			   variable unchanged. Warn loudly (once) rather
-			   than silently reporting a randomization that did
-			   not happen (manifesto principle 4). */
-			static bool warned_std_randomize = false;
-			if (!warned_std_randomize) {
-			      cerr << "warning: the scope form "
-				      "std::randomize(var) is not implemented; "
-				      "it returns success but does NOT "
-				      "randomize the variable (further such "
-				      "warnings suppressed)." << endl;
-			      warned_std_randomize = true;
-			}
+		  if (head->name == perm_string::literal("std"))
 			return CP_EXPR_METHOD_STUB_BOOL1;
-		  }
 	    }
 	    return CP_EXPR_METHOD_STUB_BOOL0;
       }
@@ -7001,6 +6985,51 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      }
 			}
 		  }
+	    }
+
+	      // std::randomize(vars) in EXPRESSION context (IEEE 1800-2017
+	      // 18.12): lower to the $ivl_std_randomize system function,
+	      // whose VPI implementation writes an unconstrained random
+	      // value into each variable argument and returns 1. (The
+	      // statement form with a with-clause gets range/enum/retry
+	      // constraint lowering in the parser.) If a with-clause is
+	      // attached in expression context, the variables are still
+	      // randomized but the constraints are NOT enforced — warn
+	      // loudly rather than silently.
+	    if (peek_tail_name(path_) == perm_string::literal("randomize")
+		&& path_.name.size() == 2
+		&& path_.name.front().name == perm_string::literal("std")
+		&& !parms_.empty()) {
+		  if (!with_constraints().empty()) {
+			static bool warned_std_rand_with = false;
+			if (!warned_std_rand_with) {
+			      cerr << get_fileline() << ": warning: "
+				      "std::randomize() with-clause "
+				      "constraints are not enforced in "
+				      "expression context; the variables "
+				      "receive unconstrained random values "
+				      "(use the statement form for "
+				      "constraint lowering; further such "
+				      "warnings suppressed)." << endl;
+			      warned_std_rand_with = true;
+			}
+		  }
+		  NetESFunc*fun = new NetESFunc("$ivl_std_randomize",
+						IVL_VT_BOOL, 32,
+						parms_.size());
+		  fun->set_line(*this);
+		  bool args_ok = true;
+		  for (size_t idx = 0 ; idx < parms_.size() ; idx += 1) {
+			NetExpr*ap = 0;
+			if (parms_[idx].parm)
+			      ap = elab_and_eval(des, scope,
+						 parms_[idx].parm, -1);
+			if (!ap) { args_ok = false; break; }
+			fun->parm(idx, ap);
+		  }
+		  if (args_ok)
+			return fun;
+		  delete fun;
 	    }
 
 	    if (NetExpr*stub = elaborate_compile_progress_expr_method_stub_(

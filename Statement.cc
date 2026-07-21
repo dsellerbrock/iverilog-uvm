@@ -215,6 +215,29 @@ bool PCase::contains_detached_fork() const
       return false;
 }
 
+PRandCase::~PRandCase()
+{
+      if (items_) {
+	    for (PCase::Item*cur : *items_) {
+		  if (!cur) continue;
+		  for (PExpr*e : cur->expr) delete e;
+		  delete cur->stat;
+		  delete cur;
+	    }
+	    delete items_;
+      }
+}
+
+bool PRandCase::contains_detached_fork() const
+{
+      if (!items_)
+	    return false;
+      for (PCase::Item*cur : *items_)
+	    if (cur && cur->stat && cur->stat->contains_detached_fork())
+		  return true;
+      return false;
+}
+
 bool PCondit::contains_detached_fork() const
 {
       if (if_ && if_->contains_detached_fork())

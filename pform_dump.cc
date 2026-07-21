@@ -942,6 +942,20 @@ void PCallTask::dump(ostream&out, unsigned ind) const
       out << "; /* " << get_fileline() << " */" << endl;
 }
 
+void PRandCase::dump(ostream&out, unsigned ind) const
+{
+      out << setw(ind) << "" << "randcase" << endl;
+      if (items_) {
+	    for (PCase::Item*cur : *items_) {
+		  if (!cur) continue;
+		  if (!cur->expr.empty() && cur->expr.front())
+			out << setw(ind+2) << "" << *cur->expr.front() << ":" << endl;
+		  if (cur->stat) cur->stat->dump(out, ind+6);
+	    }
+      }
+      out << setw(ind) << "" << "endcase" << endl;
+}
+
 void PCase::dump(ostream&out, unsigned ind) const
 {
       out << setw(ind) << "";
