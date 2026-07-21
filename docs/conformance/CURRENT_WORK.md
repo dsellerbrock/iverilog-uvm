@@ -49,24 +49,31 @@ parameterized-UVM regressions.
 `5d04176`). Branch restarted from `main` per the merged-PR policy for the
 follow-up below.
 
-### Next item (in progress 2026-07-21n): interface-member change-sensitivity
+### interface-member change-sensitivity — FIXED 2026-07-21p
 
-While reauditing M5, found a NEW silent miscompile (see M5 manifesto
-entry): an edge/`@*` sensitivity whose source is an interface-member read
-never fires, because interfaces are class objects and the member read
-sensitizes on the object HANDLE, not the underlying interface signal.
-`assign p.b = p.a;` and `always @(p.a) p.b = p.a;` (p an interface port)
-leave `b` stuck at its T0 value. Boundary verified: assign INSIDE the
-interface works; a member-target assign whose R-VALUE is a real module net
-works (`ivltests/sv_interface.v` `assign inf.req = rnd[0]` passes);
-procedural member writes propagate (storage aliased). Root cause is general
-event-control elaboration over `NetEProperty` reads (collects the handle
-net, not the aliased interface signal) — the M5-if lowering
-`elaborate_vif_member_assign_` is only the most visible caller. A correct
-fix resolves an interface-member read to its underlying interface-instance
-net when building sensitivity; multi-turn architectural work. Documented
-loudly this session (manifesto M5) as the honest interim state; NOT exercised
-by UVM (209/0/0).
+An edge/`@*` sensitivity whose source is an interface-member read never
+fired, because interfaces are class objects and the member read sensitized
+on the object HANDLE, not the underlying interface signal. `assign p.b =
+p.a;` and `always @(p.a) p.b = p.a;` left `b` stuck at its T0 value.
+
+Fix reuses the existing virtual-interface edge machinery (`%wait/vif/*`,
+which resolves a vif object's per-signal edge functor dynamically at run
+time) that previously handled only the NESTED `obj.vif_handle.sig` UVM
+pattern. A DIRECT interface-port member `p.sig` (the port handle IS the vif,
+no intermediate vif property) is now detected in the explicit `@()` path
+(`elaborate.cc`, sentinel `vif_N == UINT_MAX`); codegen
+(`tgt-vvp/vvp_process.c`) emits `%load/obj <port>; %wait/vif/<edge> <M>`
+with no `%prop/obj` extraction. The vif-member continuous-assign lowering
+(`elaborate_vif_member_assign_`) now sensitizes on `@(<rhs>)` instead of
+`@*`. A vif edge event also no longer wires an edge functor onto the object
+handle net (`draw_event_in_scope` emits a plain named event for vif events)
+— that spurious functor's `recv_object` aborted on posedge/negedge. Test
+`sv_interface_member_sensitivity` (continuous-assign + explicit anyedge +
+posedge). Real-net r-values (`assign inf.req = rnd[0]`) unaffected; UVM
+209/0/0 (nested-vif clocking still works). Remaining: a COMPLEX r-value
+that reads an interface member inside a larger expression
+(`assign p.b = p.a & p.c;`) still routes the combined expression through
+`nex_input` (handle net); recursing into sub-expressions is the follow-up.
 
 ## State as of 2026-07-21m (Tier-1 frontier sweep COMPLETE — on draft PR #104)
 

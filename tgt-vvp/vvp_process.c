@@ -1892,13 +1892,22 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		  unsigned pre_N = ivl_event_vif_pre_N(ev);
 		  int has_pre = (pre_N != UINT_MAX);
 		  fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
-		  if (has_pre)
-			fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
-		  fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
-			  ivl_event_vif_N(ev));
-		  fprintf(vvp_out, "    %%pop/obj %d, 1;\n", has_pre ? 2 : 1);
-		  fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
-			  opcode, ivl_event_vif_M(ev));
+		  if (ivl_event_vif_N(ev) == UINT_MAX) {
+			/* Direct interface-port member `@(edge p.sig)`: the base
+			   object loaded above IS the virtual interface, so there
+			   is no intermediate vif property to extract. %wait/vif
+			   pops the object it waits on. */
+			fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
+				opcode, ivl_event_vif_M(ev));
+		  } else {
+			if (has_pre)
+			      fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
+			fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
+				ivl_event_vif_N(ev));
+			fprintf(vvp_out, "    %%pop/obj %d, 1;\n", has_pre ? 2 : 1);
+			fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
+				opcode, ivl_event_vif_M(ev));
+		  }
 	    } else {
 		  fprintf(vvp_out, "    %%wait E_%p;\n", ev);
 	    }

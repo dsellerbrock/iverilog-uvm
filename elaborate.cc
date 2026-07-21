@@ -1030,7 +1030,20 @@ static void elaborate_vif_member_assign_(Design*des, NetScope*scope,
       PAssign*ast1 = new PAssign(const_cast<PExpr*>(ga->pin(0)),
 				 const_cast<PExpr*>(ga->pin(1)));
       ast1->set_line(*ga);
-      PEventStatement*wait = new PEventStatement();
+	// Sensitize the re-apply process on the r-value explicitly with
+	// `@(<rhs>)` rather than `@*`. An `@*` implicit list collects its
+	// sensitivity via NexusSet/nex_input, which for an interface-member
+	// read (a class property on the vif handle) yields the HANDLE net —
+	// and the handle never changes after binding, so the assign never
+	// re-triggered when the underlying interface signal changed. An
+	// explicit `@(p.a)` instead routes through the virtual-interface edge
+	// probe (dynamic per-signal sensitivity), so it fires correctly; a
+	// real-net r-value (e.g. `assign inf.req = rnd[0];`) is unaffected —
+	// `@(rnd[0])` sensitizes on the real net exactly as `@*` did.
+      PEEvent*rhs_ev = new PEEvent(PEEvent::ANYEDGE,
+				   const_cast<PExpr*>(ga->pin(1)));
+      rhs_ev->set_line(*ga);
+      PEventStatement*wait = new PEventStatement(rhs_ev);
       wait->set_line(*ga);
       wait->set_statement(ast1);
       NetProc*cur1 = wait->elaborate(des, scope);
@@ -9466,6 +9479,24 @@ cerr << endl;
 			      if (etype == PEEvent::POSEDGE || etype == PEEvent::NEGEDGE
 				  || etype == PEEvent::ANYEDGE) {
 				    NetEProperty*outer_p = dynamic_cast<NetEProperty*>(tmp);
+				    // Direct interface-port member `@(edge p.sig)`: p is itself the
+				    // virtual-interface object (its net_type is an interface class),
+				    // so there is no intermediate vif property to extract. Encode a
+				    // DIRECT vif probe (vif_N == UINT_MAX). Without this the probe
+				    // sensitized on the handle net, which never changes after binding.
+				    if (outer_p && outer_p->get_sig()) {
+				          const netclass_t*sig_cls = dynamic_cast<const netclass_t*>(
+				              outer_p->get_sig()->net_type());
+				          if (sig_cls && sig_cls->is_interface()) {
+				                unsigned Mdir = outer_p->property_idx();
+				                if (etype == PEEvent::POSEDGE)
+				                      pr->set_vif_posedge(UINT_MAX, Mdir, UINT_MAX);
+				                else if (etype == PEEvent::NEGEDGE)
+				                      pr->set_vif_negedge(UINT_MAX, Mdir, UINT_MAX);
+				                else
+				                      pr->set_vif_anyedge(UINT_MAX, Mdir, UINT_MAX);
+				          }
+				    }
 				    if (outer_p && !outer_p->get_sig()) {
 					  NetEProperty*mid_p = dynamic_cast<NetEProperty*>(
 					      const_cast<NetExpr*>(outer_p->get_base()));

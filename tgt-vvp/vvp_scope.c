@@ -1386,6 +1386,23 @@ static void draw_event_in_scope(ivl_event_t obj)
 
       const unsigned ntmp = sizeof(tmp) / sizeof(tmp[0]);
 
+	/* A virtual-interface edge event (@(edge vif.sig) / a direct
+	   interface-port member) is serviced at run time by the
+	   %wait/vif/<edge> opcode, which resolves the signal's edge functor
+	   from the vif object dynamically — it never waits on this E_ record.
+	   Emitting the usual edge-probe functors here would wire a
+	   posedge/negedge/anyedge functor onto the vif HANDLE net (an object
+	   net); when the handle is assigned its object at binding, that
+	   functor's recv_object fires and asserts (posedge/negedge are not
+	   implemented for object values). Emit a plain named-event record
+	   instead so the label resolves but no spurious functor is created. */
+      if (ivl_event_is_vif_posedge(obj) || ivl_event_is_vif_negedge(obj)
+	  || ivl_event_is_vif_anyedge(obj)) {
+	    fprintf(vvp_out, "E_%p .event \"%s\";\n", obj,
+		    vvp_mangle_name(ivl_event_basename(obj)));
+	    return;
+      }
+
       unsigned nany = ivl_event_nany(obj);
       unsigned nneg = ivl_event_nneg(obj);
       unsigned npos = ivl_event_npos(obj);
