@@ -1076,3 +1076,4 @@ sv_class_function_fork_task1 normal,-g2012 ivltests
 fork_disable_detached_grandchild normal,-g2012 ivltests
 sv_array_obj_prop_store normal,-g2012 ivltests
 sv_unit_class_timescale normal,-g2012 ivltests
+sv_unpacked_array_packed_struct_member normal,-g2012 ivltests

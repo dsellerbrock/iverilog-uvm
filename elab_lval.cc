@@ -1792,8 +1792,35 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
       ++ name_idx;
       const name_component_t&name_base = *name_idx;
 
-	// Shouldn't be seeing unpacked arrays of packed structs...
-      ivl_assert(*this, reg->unpacked_dimensions() == 0);
+	// An UNPACKED array of a PACKED struct (`pair_t arr[N]; arr[i].m =`)
+	// indexes the unpacked element with name_base.index and then
+	// part-selects the member off the element vector. Set the array
+	// word index on the l-value here; the member part-select (off /
+	// use_width computed below) is relative to the element.
+      bool ua_of_packed = reg->unpacked_dimensions() > 0
+	    && struct_type->packed()
+	    && !name_base.index.empty()
+	    && name_base.index.size() == reg->unpacked_dimensions();
+      if (ua_of_packed) {
+	    std::list<NetExpr*> ua_idx;
+	    std::list<long> ua_idx_const;
+	    indices_flags ua_flags;
+	    indices_to_expressions(des, scope, this, name_base.index,
+				   reg->unpacked_dimensions(), false, ua_flags,
+				   ua_idx, ua_idx_const);
+	    NetExpr*ua_canon = 0;
+	    if (!ua_flags.invalid && !ua_flags.undefined)
+		  ua_canon = ua_flags.variable
+			? normalize_variable_unpacked(reg, ua_idx)
+			: normalize_variable_unpacked(reg, ua_idx_const);
+	    if (!ua_canon)
+		  return false;
+	    ua_canon->set_line(*this);
+	    lv->set_word(ua_canon);
+      } else {
+	      // Shouldn't be seeing unpacked arrays of packed structs...
+	    ivl_assert(*this, reg->unpacked_dimensions() == 0);
+      }
 
 	// These make up the "part" select that is the equivilent of
 	// following the member path through the nested structs. To
@@ -2083,13 +2110,14 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	// match the declaration of "b".
 	// Note that one of the packed dimensions is the packed struct
 	// itself.
-      ivl_assert(*this, name_base.index.size()+1 == reg->packed_dimensions());
+      if (!ua_of_packed)
+	    ivl_assert(*this, name_base.index.size()+1 == reg->packed_dimensions());
 
 	// Generate an expression that takes the input array of
 	// expressions and generates a canonical offset into the
 	// packed array.
       NetExpr*packed_base = 0;
-      if (reg->packed_dimensions() > 1) {
+      if (!ua_of_packed && reg->packed_dimensions() > 1) {
 	    list<index_component_t>tmp_index = name_base.index;
 	    index_component_t member_select;
 	    member_select.sel = index_component_t::SEL_BIT;

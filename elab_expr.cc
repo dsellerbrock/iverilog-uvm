@@ -5524,6 +5524,35 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 	    struct_type = dynamic_cast<const netstruct_t*>(net->array_type()->element_type());
       ivl_assert(*li, struct_type);
 
+	// An UNPACKED array of a PACKED struct (`pair_t arr[N]; arr[i].m`)
+	// reaches the packed member handling below with a struct that
+	// reports packed()==true, but base_index here indexes the UNPACKED
+	// array -- not packed dimensions -- so the packed-dimension
+	// assertion and array-collapse do not apply. Detect it, index the
+	// element, and part-select the member off the element vector.
+      NetExpr*ua_canon_index = 0;
+      bool ua_of_packed = false;
+      if (struct_type->packed() && net->array_type()
+	  && net->unpacked_dimensions() > 0
+	  && !base_index.empty()
+	  && base_index.size() == net->unpacked_dimensions()) {
+	    std::list<NetExpr*> ua_idx;
+	    std::list<long> ua_idx_const;
+	    indices_flags ua_flags;
+	    indices_to_expressions(des, scope, li, base_index,
+				   net->unpacked_dimensions(), false, ua_flags,
+				   ua_idx, ua_idx_const);
+	    if (!ua_flags.invalid && !ua_flags.undefined) {
+		  ua_canon_index = ua_flags.variable
+			? normalize_variable_unpacked(net, ua_idx)
+			: normalize_variable_unpacked(net, ua_idx_const);
+	    }
+	    if (ua_canon_index) {
+		  ua_canon_index->set_line(*li);
+		  ua_of_packed = true;
+	    }
+      }
+
       if (! struct_type->packed()) {
 	    NetExpr*base_expr = nullptr;
 
@@ -5871,10 +5900,11 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 	// match the declaration of "b".
 	// Note that one of the packed dimensions is the packed struct
 	// itself.
-      ivl_assert(*li, base_index.size()+1 == net->packed_dimensions());
+      if (!ua_of_packed)
+	    ivl_assert(*li, base_index.size()+1 == net->packed_dimensions());
 
       NetExpr*packed_base = 0;
-      if (net->packed_dimensions() > 1) {
+      if (!ua_of_packed && net->packed_dimensions() > 1) {
 	    list<index_component_t>tmp_index = base_index;
 	    index_component_t member_select;
 	    member_select.sel = index_component_t::SEL_BIT;
@@ -5895,7 +5925,8 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 	    packed_base = 0;
       }
 
-      NetESignal*sig = new NetESignal(net);
+      NetESignal*sig = ua_of_packed ? new NetESignal(net, ua_canon_index)
+	                            : new NetESignal(net);
       NetExpr   *base = packed_base? packed_base : make_const_val(off);
       NetESelect*sel = new NetESelect(sig, base, use_width, member_type);
 
