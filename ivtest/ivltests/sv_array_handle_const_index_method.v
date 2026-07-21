@@ -16,7 +16,11 @@ module sv_array_handle_const_index_method;
   int errors = 0;
 
   initial begin
-    foreach (qa[i]) begin qa[i] = new; qa[i].set(i*10 - 5); end
+    // set() is a void method called as a STATEMENT with a constant index
+    // (the task-method path), which had the same crash as the function-
+    // expression path below.
+    qa[0] = new; qa[0].set(-5);
+    for (int i = 1; i < 3; i++) begin qa[i] = new; qa[i].set(i*10 - 5); end
 
     // Constant-index method calls (the crash case) address the right element.
     if (qa[0].get() != -5) begin $display("FAIL qa[0]=%0d", qa[0].get()); errors++; end

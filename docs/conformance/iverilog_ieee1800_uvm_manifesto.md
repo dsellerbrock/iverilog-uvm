@@ -169,15 +169,29 @@ Maintain clean builds, canonical regressions, UVM, negative tests, VPI, cross-pl
       `canonical_expr` assertion (`elab_expr.cc`; test
       `sv_array_handle_const_index_method`). Two deeper defects remain
       OPEN, see below.)*
-- [~] Reprobe specialization inside nested aggregates. *(2026-07-21: two
-      defects found, not yet fixed — (a) a class handle that is a struct
-      member of a static-array element read back as null with an
-      "unresolved functor stub" when accessed as `arr[i].member.method()`
-      (the struct-member-of-array-element object lowering is incomplete);
+- [~] Reprobe specialization inside nested aggregates. *(2026-07-21:
+      defect (a) RESOLVED, (b) OPEN. (a) The struct-member-of-array-element
+      symptom generalized to: member access on an element of a static
+      unpacked array or a plain dynamic array of an UNPACKED struct is not
+      correctly lowered — writes drop, reads return garbage (queues,
+      associative arrays, packed structs and scalar unpacked structs all
+      work, as they store each element as an object or a flat vector). Full
+      support is a large storage/codegen effort disproportionate to the
+      (rare, non-UVM) usage, so per the honesty policy the silent
+      miscompile is now a loud `sorry` at both the l-value (`elab_lval.cc`)
+      and r-value (`elab_expr.cc check_for_struct_members`) sites, gated on
+      the container being `netuarray_t` / plain `netdarray_t` (not
+      `netqueue_t`). CE test `sv_ustruct_array_member_ce`. While reducing
+      (a) a second real crash surfaced and was fixed: the TASK-method path
+      (`arr[0].method();` as a statement — a void method with a constant
+      index) hit the same `canonical_expr` assertion as the earlier
+      function-expression fix; `elaborate_root_indexed_method_target_expr_`
+      now uses the constant normalize path too (test
+      `sv_array_handle_const_index_method` extended to cover it).
       (b) `$cast` between two different specializations of the same
       parameterized class (Box#(byte) vs Box#(shortint)) wrongly succeeds —
-      specialization identity is not checked in the dynamic cast. Both
-      reproduced in scratch probes; neither is exercised by the UVM suite.)*
+      specialization identity is not checked in the dynamic cast; still
+      OPEN, not exercised by UVM.)*
 - [ ] Remove remaining compile-progress fallbacks caused by lost specialization.
 - [ ] Add adversarial parameterized-UVM regressions.
 

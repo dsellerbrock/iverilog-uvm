@@ -361,6 +361,29 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 		  dynamic_cast<const netclass_t *>(member_root_type);
 	    const netstruct_t *struct_type =
 		  dynamic_cast<const netstruct_t *>(member_root_type);
+	      // Member access on an element of a STATIC unpacked array
+	      // (netuarray_t) or a plain DYNAMIC array (netdarray_t, but not
+	      // a queue/associative array which are netqueue_t) of an unpacked
+	      // struct is not correctly lowered — the element's struct members
+	      // are not addressed, so writes are dropped and reads return
+	      // garbage. Queues and associative arrays store each element as
+	      // an object and work. Diagnose the unsupported cases loudly
+	      // rather than miscompiling silently (IEEE 1800-2017 7.2.1).
+	    if (struct_type && !struct_type->packed() && !base_index.empty()) {
+		  ivl_type_t container = reg->array_type();
+		  bool broken_container =
+			dynamic_cast<const netuarray_t*>(container)
+			|| (dynamic_cast<const netdarray_t*>(container)
+			    && !dynamic_cast<const netqueue_t*>(container));
+		  if (broken_container) {
+			cerr << get_fileline() << ": sorry: member access on an "
+			        "element of a static or dynamic array of unpacked "
+			        "structs is not yet supported (use a queue, an "
+			        "associative array, or a packed struct)." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+	    }
 	    if (class_type || (struct_type && !struct_type->packed()))
 		  return elaborate_lval_net_class_member_(des, scope, member_root_type,
 							  reg, tail_path, base_index);
