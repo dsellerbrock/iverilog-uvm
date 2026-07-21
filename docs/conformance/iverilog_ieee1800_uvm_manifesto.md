@@ -334,12 +334,16 @@ Remaining:
       `%wait/obj` opcodes; `->obj.ev` / `@(obj.ev)` are per-instance for
       obj.ev, a.b.ev, arr[i].ev, and assoc `m_events[k].ev`. Also fixed a
       pre-existing fork double-reap crash exposed by the change.)*
-- [~] Implement correct `process.status()` transitions. *(2026-07-21:
-      SUSPENDED now reported for suspended processes; FINISHED / KILLED /
-      WAITING(event/join) / RUNNING already worked. Remaining refinement: a
-      process parked on a `#delay` reports RUNNING, not WAITING — the delay
-      queue marks the thread `is_scheduled`, so distinguishing "ready now"
-      from "parked on a future delay" needs a dedicated flag.)*
+- [x] Implement correct `process.status()` transitions. *(2026-07-21:
+      SUSPENDED reported for suspended processes; FINISHED / KILLED /
+      WAITING(event/join) / RUNNING already worked. Final refinement done
+      2026-07-21: a process parked on a `#delay` reported RUNNING, not
+      WAITING — the delay reschedules the thread on the timing wheel
+      (`is_scheduled` stays set) with no distinguishing flag. New
+      `i_am_delaying` vthread flag (set in `of_DELAY`/`of_DELAYX`, cleared
+      when the thread resumes in `vthread_run`) drives the WAITING
+      transition. All six states verified in
+      `sv_process_status_transitions`.)*
 - [x] Implement `process::suspend()` and `process::resume()`. *(Done
       2026-07-21: `%process/suspend` / `%process/resume` opcodes; a
       suspended thread is skipped by vthread_run with the pending wake
