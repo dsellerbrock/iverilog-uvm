@@ -3,6 +3,21 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21b (P0 $unit timescale + array-of-object property crash)
+
+- **`$unit` class timescale (P0) — FIXED.** `$time`/`$realtime` in a
+  `$unit`-scope class method scaled to `$unit` (1 s) -> stored `$time` gave
+  0. `vpi/sys_time.c` `sys_time_scope()` now stops the scope walk before a
+  package/`$unit`. Commit `8e60735`. Test `sv_unit_class_timescale`.
+- **`arr[i].prop` for a static array of class handles (#97) — FIXED
+  (crash + store + read).** Was an ivl crash; the l-value elaboration
+  dropped the array index + property, and the read base dropped the index
+  too. Fixes in `elab_lval.cc`, `tgt-vvp/stmt_assign.c`, `elab_expr.cc`.
+  Commits `e370bdf`, `40e0f26`. Test `sv_array_obj_prop_store`.
+- All on PR #96; each increment ivtest name-diff clean (44 expected, 0
+  new). Next manifesto item: M4B known crashes (nested packed-struct array
+  literal; unpacked-array typedef return + assignment pattern).
+
 ## State as of 2026-07-21 (P0 per-instance class events + fork double-reap fix)
 
 - **Per-instance class events (P0) — IMPLEMENTED.** Non-static class

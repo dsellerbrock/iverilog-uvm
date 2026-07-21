@@ -419,11 +419,17 @@ elaboration yet).
 
 ## P0 — `$unit` class timescale semantics
 
-- [ ] Apply active timescale/timeunit semantics to `$unit` class declarations.
-- [ ] Verify `$time`.
-- [ ] Verify `$realtime`.
-- [ ] Verify delays inside class methods.
-- [ ] Verify nested calls and package interaction.
+**Status: FIXED (2026-07-21).** `$time`/`$realtime` in a `$unit`-scope class
+method now scale to the active `` `timescale `` (they used to walk out to
+`$unit` = 1 s and give 0 for a stored `$time`). Fix: `sys_time_scope()` in
+`vpi/sys_time.c` stops the scope walk before crossing into a package/`$unit`.
+
+- [x] Apply active timescale/timeunit semantics to `$unit` class declarations.
+- [x] Verify `$time`.
+- [x] Verify `$realtime`.
+- [x] Verify delays inside class methods.
+- [x] Verify nested calls and package interaction. *(module / `$unit` / package
+      classes all covered; ivtest `sv_unit_class_timescale`.)*
 
 ## P1 — Remaining type-parameter formal member access
 
