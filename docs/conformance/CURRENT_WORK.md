@@ -3,6 +3,29 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21h (process::suspend()/resume() — IMPLEMENTED, M6B)
+
+- **`process::suspend()` / `process::resume()` implemented; `status()` now
+  reports SUSPENDED.** Commit `a916815`. Elaboration lowers the methods to
+  internal system tasks (same pattern as kill/await), codegen emits new
+  `%process/suspend` / `%process/resume` opcodes, and the runtime marks the
+  owning thread `suspended` so `vthread_run` skips it, recording any
+  attempted wake in `suspend_resched`. resume() reschedules if a run was
+  pending — an event that fires while suspended is deferred, not lost.
+  Self-suspend parks immediately (opcode returns false). Both idempotent.
+  Test `sv_process_suspend_resume` (freeze/unfreeze, SUSPENDED status,
+  deferred event, idempotency, kill-after-resume).
+  Known refinement (recorded in manifesto M6B): a `#delay`-parked process
+  reports RUNNING not WAITING (the delay queue marks it `is_scheduled`; a
+  dedicated flag would be needed to distinguish).
+- **Validation:** ivtest full default run byte-identical to baseline
+  (3065/44, 0 new / 0 stale; +1 test); UVM 209/0/0.
+- **In progress at checkpoint:** unpacked-array SLICE assignment
+  (`m[0] = '{1,2,3}` for int[2][3] — was "sorry") via slice l-values
+  (NetAssign_::set_array_slice: flat base word + sub-array type) and
+  offset-aware pattern codegen. All shapes (2D/3D int, real, string) pass
+  locally; full validation running.
+
 ## State as of 2026-07-21g (`%p` aggregate formatting — FIXED, M4B)
 
 - **`%p` (assignment-pattern format) on integral aggregates now correct.**
