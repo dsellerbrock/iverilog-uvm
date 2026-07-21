@@ -59,6 +59,11 @@ jobs:
     - name: UVM regression tests
       run: ./.github/uvm_test.sh
 
+    # Validate the simplified `iverilog -uvm' front end end-to-end against a
+    # freshly installed, relocated toolchain (real DPI, custom prefix).
+    - name: UVM front-end regression
+      run: ./.github/uvm_frontend_test.sh
+
 
   lin:
     strategy:
@@ -98,6 +103,11 @@ jobs:
 
     - name: UVM regression tests (hard)
       run: ./.github/uvm_test.sh
+
+    # Validate the simplified `iverilog -uvm' front end end-to-end against a
+    # freshly installed, relocated toolchain (real DPI, custom prefix).
+    - name: UVM front-end regression (hard)
+      run: ./.github/uvm_frontend_test.sh
 
     - name: Documentation
       run: |
