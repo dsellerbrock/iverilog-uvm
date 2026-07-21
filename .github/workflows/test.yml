@@ -176,11 +176,18 @@ jobs:
             ./.github/test.sh
         fi
 
+    # Windows UVM runs real DPI and passes 209/0 on all three MSYS2
+    # toolchains (verified in CI after the vvp.def export, GMP-Z3 numeral
+    # extraction, and per-toolchain compiler fixes), so this step gates for
+    # real — a regression here fails the job instead of hiding under
+    # continue-on-error. The plain regression suite above keeps its soft
+    # gate: its Windows baseline has known non-UVM deltas that are tracked
+    # separately.
     - name: UVM regression tests
-      continue-on-error: true
       run: ./.github/uvm_test.sh
 
     - uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: ${{ matrix.msystem }}
         path: msys2/*.zst
