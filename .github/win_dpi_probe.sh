@@ -201,12 +201,15 @@ if [ -f "$M3_SRC" ] && command -v iverilog >/dev/null 2>&1 ; then
         echo "  pass/fail line:"
         IVL_Z3_DYNDBG=1 vvp /tmp/m3_probe.vvp 2>/tmp/m3_trace.txt \
             | grep -aE "PASS|FAIL" | sed 's/^/    /'
-        echo "  ranged_size (base-coupled) expansion + write-backs:"
-        # The ranged_size dynforeach body contains 'add p:' (element coupled to
-        # the rand scalar base); show it and the following per-instance lines,
-        # plus every write-back (element solved value) in the run.
-        grep -aE "add p:|inst i=|writeback prop=" /tmp/m3_trace.txt \
-            | grep -aA0 -E "add p:|writeback|inst i=" | head -40 | sed 's/^/    /'
+        echo "  ranged_size (base-coupled) solve(s) — expansion, insts, and the"
+        echo "  element write-backs that immediately follow (bits should equal"
+        echo "  base, base+1, base+2, base+3 if the solver bound them):"
+        # Each ranged_size randomize call prints, contiguously: the 'add p:1:8'
+        # expansion, its 4 inst lines, then (after the z3 solve) the 4 elem
+        # write-back lines. -A16 captures the whole block; two blocks are plenty.
+        grep -aA16 'add p:1:8 L)' /tmp/m3_trace.txt \
+            | grep -aE 'add p:1:8 L\)|inst i=|writeback prop=|\] prop ' \
+            | head -28 | sed 's/^/    /'
         echo "  FAILED element lines (if any):"
         grep -a "FAILED" /tmp/m3_trace.txt | sed 's/^/    /' | head -8
     else

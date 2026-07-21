@@ -1207,8 +1207,13 @@ static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_ast interp = nullptr;
 	    if (Z3_model_eval(ctx, model, pv.var, 1, &interp) && interp) {
 		  uint64_t bits = 0;
-		  if (Z3_get_numeral_uint64(ctx, interp, &bits))
+		  if (Z3_get_numeral_uint64(ctx, interp, &bits)) {
 			cobj_set_prop_bits(cobj, pv.idx, bits);
+			if (z3_dyndbg())
+			      fprintf(stderr, "[z3dyn] prop  prop=%u width=%u "
+				      "bits=%llu\n", pv.idx, pv.width,
+				      (unsigned long long)bits);
+		  }
 	    }
       }
 
