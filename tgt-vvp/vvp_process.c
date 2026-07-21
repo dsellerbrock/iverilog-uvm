@@ -3383,13 +3383,22 @@ static int show_system_task_call(ivl_statement_t net)
       }
 
       if (strcmp(stmt_name, "$ivl_process$kill") == 0
-	  || strcmp(stmt_name, "$ivl_process$await") == 0) {
+	  || strcmp(stmt_name, "$ivl_process$await") == 0
+	  || strcmp(stmt_name, "$ivl_process$suspend") == 0
+	  || strcmp(stmt_name, "$ivl_process$resume") == 0) {
 	    ivl_expr_t recv = ivl_stmt_parm(net, 0);
+	    const char*op;
 	    if (recv)
 		  draw_eval_object(recv);
-	    fprintf(vvp_out, "    %s;\n",
-		    strcmp(stmt_name, "$ivl_process$kill") == 0
-			  ? "%process/kill" : "%process/await");
+	    if (strcmp(stmt_name, "$ivl_process$kill") == 0)
+		  op = "%process/kill";
+	    else if (strcmp(stmt_name, "$ivl_process$await") == 0)
+		  op = "%process/await";
+	    else if (strcmp(stmt_name, "$ivl_process$suspend") == 0)
+		  op = "%process/suspend";
+	    else
+		  op = "%process/resume";
+	    fprintf(vvp_out, "    %s;\n", op);
 	    return 0;
       }
 

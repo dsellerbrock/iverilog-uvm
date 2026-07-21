@@ -519,6 +519,14 @@ struct vthread_s {
 	   Counted at creation; when the last one completes, simulation
 	   implicitly finishes. */
       unsigned is_program_init :1;
+	// process::suspend()/resume() (IEEE 1800-2017 9.7.2). `suspended`
+	// marks the process as suspended; a suspended thread is skipped by
+	// vthread_run and reports PROCESS_STATE_SUSPENDED. `suspend_resched`
+	// records that resume() must reschedule the thread (either it
+	// self-suspended mid-run, or an event tried to wake it while it was
+	// suspended) so the process continues where it left off.
+      unsigned suspended :1;
+      unsigned suspend_resched :1;
       unsigned owns_automatic_context :1;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
@@ -730,6 +738,9 @@ unsigned vvp_process::status() const
 
       if (owner_->i_have_ended)
 	    return PROCESS_STATE_FINISHED;
+
+      if (owner_->suspended)
+	    return PROCESS_STATE_SUSPENDED;
 
       if (owner_->i_am_waiting || owner_->waiting_for_event || owner_->i_am_joining)
 	    return PROCESS_STATE_WAITING;
@@ -3493,6 +3504,8 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
 	    }
       }
       thr->is_program_init = 0;
+      thr->suspended = 0;
+      thr->suspend_resched = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context = 0;
       thr->skip_free_context = 0;
@@ -3924,6 +3937,16 @@ void vthread_run(vthread_t thr)
 
 	    assert(thr->is_scheduled);
 	    thr->is_scheduled = 0;
+
+	      // A suspended process (process::suspend()) does not run. What
+	      // tried to schedule it — an event wake, a %join, or its ready
+	      // state at suspend time — is remembered so resume() reschedules
+	      // it to continue where it left off.
+	    if (thr->suspended) {
+		  thr->suspend_resched = 1;
+		  thr = tmp;
+		  continue;
+	    }
 
             running_thread = thr;
             __vpiScope*run_ctx_scope = resolve_context_scope(thr->parent_scope);
@@ -13269,6 +13292,90 @@ bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
 
       (void)do_disable(target, target);
       return !self_kill;
+}
+
+/*
+ * %process/suspend
+ *   Pop a process object and suspend its owning thread (IEEE 1800-2017
+ *   9.7.2). A suspended thread is skipped by vthread_run until resumed. If
+ *   a process suspends itself the suspension takes effect immediately: the
+ *   opcode parks the thread (returns false) after marking it so resume()
+ *   will reschedule it to continue. Suspending an already ready/running
+ *   thread likewise marks it for reschedule; suspending a thread that is
+ *   blocked (waiting on an event/join) leaves the block in place and lets
+ *   the eventual wake re-arm the reschedule.
+ */
+bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      vvp_process*proc = obj.peek<vvp_process>();
+      if (!proc)
+	    return true;
+
+      vthread_t target = proc->owner();
+      if (!target)
+	    return true;
+
+      unsigned status = proc->status();
+      if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
+	    return true;
+
+	// Idempotent: suspending an already-suspended process is a no-op.
+      if (target->suspended)
+	    return true;
+
+      target->suspended = 1;
+
+      vthread_t self_process = logical_process_thread_(thr);
+      bool self_suspend = (target == thr) || (target == self_process);
+
+	// A running/ready process must be rescheduled by resume() to make
+	// progress. A blocked process (waiting on an event or join) will have
+	// its reschedule armed by vthread_run when the wake is delivered.
+      if (self_suspend || target->is_scheduled)
+	    target->suspend_resched = 1;
+
+	// Self-suspension takes effect immediately: park this thread. It is
+	// not placed on any run queue, so only resume() will revive it.
+      if (self_suspend)
+	    return false;
+
+      return true;
+}
+
+/*
+ * %process/resume
+ *   Pop a process object and resume its owning thread (IEEE 1800-2017
+ *   9.7.2). Clearing the suspended flag lets vthread_run run it again; if a
+ *   run was pending (self-suspended, or an event tried to wake it while it
+ *   was suspended) it is rescheduled so it continues where it left off. A
+ *   process still blocked on an event with no pending wake simply resumes
+ *   waiting.
+ */
+bool of_PROCESS_RESUME(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+
+      vvp_process*proc = obj.peek<vvp_process>();
+      if (!proc)
+	    return true;
+
+      vthread_t target = proc->owner();
+      if (!target || !target->suspended)
+	    return true;
+
+      target->suspended = 0;
+
+      if (target->suspend_resched) {
+	    target->suspend_resched = 0;
+	    if (!target->is_scheduled)
+		  schedule_vthread(target, 0, true);
+      }
+
+      return true;
 }
 
 bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)

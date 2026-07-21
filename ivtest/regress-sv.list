@@ -1084,3 +1084,4 @@ sv_fork_call_arg_capture normal,-g2012 ivltests
 sv_this_nested_detached_fork normal,-g2012 ivltests
 sv_loop_local_detached_fork normal,-g2012 ivltests
 sv_display_p_aggregates normal,-g2012 ivltests
+sv_process_suspend_resume normal,-g2012 ivltests

@@ -7104,12 +7104,19 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    perm_string cname = class_type->get_name();
 	    if (cname == perm_string::literal("process")
 		&& (method_name == perm_string::literal("kill")
-		    || method_name == perm_string::literal("await"))) {
+		    || method_name == perm_string::literal("await")
+		    || method_name == perm_string::literal("suspend")
+		    || method_name == perm_string::literal("resume"))) {
 		  static const std::vector<perm_string> no_parm_names;
-		  const char*sys_task_name =
-			(method_name == perm_string::literal("kill"))
-			      ? "$ivl_process$kill"
-			      : "$ivl_process$await";
+		  const char*sys_task_name;
+		  if (method_name == perm_string::literal("kill"))
+			sys_task_name = "$ivl_process$kill";
+		  else if (method_name == perm_string::literal("await"))
+			sys_task_name = "$ivl_process$await";
+		  else if (method_name == perm_string::literal("suspend"))
+			sys_task_name = "$ivl_process$suspend";
+		  else
+			sys_task_name = "$ivl_process$resume";
 		  return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
 						    method_name, sys_task_name,
 						    no_parm_names);
