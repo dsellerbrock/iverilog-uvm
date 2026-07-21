@@ -47,18 +47,30 @@ case "$(uname -s)" in
         EXTRA_INC="-I$shim"
         ;;
     MINGW*|MSYS*|CYGWIN*)
-        # Build an import library exposing ONLY vvp's sv* exports (kept
-        # separate so it does not collide with libvpi's vpi_* definitions),
-        # then link it plus the regex provider.
+        # NOTE: on Windows the standalone global umbrella this helper builds is
+        # NOT the supported real-DPI path — the UVM regression suite
+        # (.github/uvm_test.sh) instead merges the umbrella with each design's
+        # generated DPI-export stub per test, because the per-design dispatcher
+        # m__uvm_report_dpi cannot bind across separately loaded PE modules, and
+        # because the umbrella's imports must be published with
+        # -Wl,--export-all-symbols (which iverilog-vpi cannot pass). So this
+        # build is expected to fall back; installuvm then installs the UVM
+        # sources only and `iverilog -uvm` uses UVM_NO_DPI with a clear
+        # diagnostic. The flags below still mirror the proven ones so the
+        # attempt is correct as far as it goes:
+        #   * import the WHOLE vvp.def (vpi_* AND sv* AND __ivl_dpi_export_call_*)
+        #     from vvp.exe, not just sv* — libvpi.a's vpi_* shims assert for a
+        #     -d library, and the umbrella needs vvp's real routines;
+        #   * link regex via libsystre/tre, not a bare -lregex, whose <regex.h>
+        #     often disagrees with the linked regex_t layout and corrupts every
+        #     UVM config_db wildcard match.
         if command -v dlltool >/dev/null 2>&1 && [ -n "$VVP_DEF" ] && [ -f "$VVP_DEF" ] ; then
-            tmpdef="${TMPDIR:-/tmp}/uvm_sv.def"
-            implib="${TMPDIR:-/tmp}/libuvmsv.a"
-            { printf 'EXPORTS\n'; grep -E '^sv[A-Za-z]' "$VVP_DEF"; } > "$tmpdef"
-            if dlltool -d "$tmpdef" -D vvp.exe -l "$implib" 2>/dev/null ; then
-                EXTRA_LIB="-L${TMPDIR:-/tmp} -luvmsv"
+            implib="${TMPDIR:-/tmp}/libvvpimp.a"
+            if dlltool -d "$VVP_DEF" -D vvp.exe -l "$implib" 2>/dev/null ; then
+                EXTRA_LIB="-L${TMPDIR:-/tmp} -lvvpimp"
             fi
         fi
-        EXTRA_LIB="$EXTRA_LIB -lregex"
+        EXTRA_LIB="$EXTRA_LIB -lsystre -ltre"
         ;;
 esac
 
