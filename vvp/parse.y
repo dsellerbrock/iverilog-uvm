@@ -118,6 +118,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %token <vect> T_VECTOR
 
 %type <flag>  local_flag
+%type <flag>  signed_opt
 %type <numb>  storage_flag
 %type <vpi_enum> port_type
 %type <numb>  signed_t_number
@@ -792,28 +793,28 @@ statement
   | T_LABEL K_VAR_STR local_flag storage_flag T_STRING ';'
       { (void)$3; compile_var_string($1, $5, $4); }
 
-  | T_LABEL K_VAR_DARRAY storage_flag T_STRING ',' T_NUMBER ';'
-      { compile_var_darray($1, $4, $6, $3); }
-  | T_LABEL K_VAR_DARRAY local_flag storage_flag T_STRING ',' T_NUMBER ';'
-      { (void)$3; compile_var_darray($1, $5, $7, $4); }
+  | T_LABEL K_VAR_DARRAY storage_flag T_STRING ',' T_NUMBER signed_opt ';'
+      { compile_var_darray($1, $4, $6, $3, $7); }
+  | T_LABEL K_VAR_DARRAY local_flag storage_flag T_STRING ',' T_NUMBER signed_opt ';'
+      { (void)$3; compile_var_darray($1, $5, $7, $4, $8); }
 
-  | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER';'
-      { compile_var_queue($1, $4, $6, 0, $3); }
-  | T_LABEL K_VAR_QUEUE local_flag storage_flag T_STRING  ',' T_NUMBER';'
-      { (void)$3; compile_var_queue($1, $5, $7, 0, $4); }
+  | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER signed_opt ';'
+      { compile_var_queue($1, $4, $6, 0, $3, $7); }
+  | T_LABEL K_VAR_QUEUE local_flag storage_flag T_STRING  ',' T_NUMBER signed_opt ';'
+      { (void)$3; compile_var_queue($1, $5, $7, 0, $4, $8); }
 
-  | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER ',' T_STRING ';'
-      {
-            char*queue_type = $8 ? strdup($8) : 0;
-            delete[] $8;
-            compile_var_queue($1, $4, $6, queue_type, $3);
-      }
-  | T_LABEL K_VAR_QUEUE local_flag storage_flag T_STRING  ',' T_NUMBER ',' T_STRING ';'
+  | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER signed_opt ',' T_STRING ';'
       {
             char*queue_type = $9 ? strdup($9) : 0;
             delete[] $9;
+            compile_var_queue($1, $4, $6, queue_type, $3, $7);
+      }
+  | T_LABEL K_VAR_QUEUE local_flag storage_flag T_STRING  ',' T_NUMBER signed_opt ',' T_STRING ';'
+      {
+            char*queue_type = $10 ? strdup($10) : 0;
+            delete[] $10;
             (void)$3;
-            compile_var_queue($1, $5, $7, queue_type, $4);
+            compile_var_queue($1, $5, $7, queue_type, $4, $8);
       }
 
   | T_LABEL K_VAR_COBJECT storage_flag T_STRING ';'
@@ -1060,6 +1061,14 @@ storage_flag
   : '!' { $$ = -1; }
   | '^' { $$ = 1; }
   |     { $$ = 0; }
+  ;
+
+  /* Optional element-signedness marker on .var/darray and .var/queue
+     declarations. A trailing '+' means the (integral) element type is
+     signed; absence means unsigned, so older assembly stays valid. */
+signed_opt
+  : '+' { $$ = true; }
+  |     { $$ = false; }
   ;
 
   /* There are a few places where the label is optional. This rule

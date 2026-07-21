@@ -135,7 +135,7 @@ void compile_var_string(char*label, char*name, int lifetime_flag)
 }
 
 void compile_var_darray(char*label, char*name, unsigned size,
-			int lifetime_flag)
+			int lifetime_flag, bool element_signed)
 {
       vvp_net_t*net = new vvp_net_t;
       bool use_auto = use_automatic_storage_(lifetime_flag);
@@ -151,7 +151,7 @@ void compile_var_darray(char*label, char*name, unsigned size,
 
       define_functor_symbol(label, net);
 
-      vpiHandle obj = vpip_make_darray_var(name, net);
+      vpiHandle obj = vpip_make_darray_var(name, net, element_signed);
       compile_vpi_symbol(label, obj);
 
       vpip_attach_to_current_scope(obj);
@@ -160,7 +160,7 @@ void compile_var_darray(char*label, char*name, unsigned size,
 }
 
 void compile_var_queue(char*label, char*name, unsigned size,
-		       char*type, int lifetime_flag)
+		       char*type, int lifetime_flag, bool element_signed)
 {
       vvp_net_t*net = new vvp_net_t;
       bool use_auto = use_automatic_storage_(lifetime_flag);
@@ -181,7 +181,7 @@ void compile_var_queue(char*label, char*name, unsigned size,
 
       define_functor_symbol(label, net);
 
-      vpiHandle obj = vpip_make_queue_var(name, net);
+      vpiHandle obj = vpip_make_queue_var(name, net, element_signed);
       compile_vpi_symbol(label, obj);
 
       vpip_attach_to_current_scope(obj);

@@ -552,11 +552,12 @@ extern void compile_variable(char*label, char*name,
 extern void compile_var_real(char*label, char*name, int lifetime_flag);
 extern void compile_var_string(char*label, char*name, int lifetime_flag);
 extern void compile_var_darray(char*label, char*name, unsigned size,
-			       int lifetime_flag);
+			       int lifetime_flag, bool element_signed = false);
 extern void compile_var_cobject(char*label, char*name, char*type,
 				int lifetime_flag);
 extern void compile_var_queue(char*label, char*name, unsigned size,
-			      char*type, int lifetime_flag);
+			      char*type, int lifetime_flag,
+			      bool element_signed = false);
 
 /*
  * This function is used to create a scope port

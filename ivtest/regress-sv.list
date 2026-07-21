@@ -1096,3 +1096,4 @@ sv_std_randomize_scope normal,-g2012 ivltests
 sv_constraint_unique normal,-g2012 ivltests
 sv_assoc_wildcard_index normal,-g2012 ivltests
 sv_process_status_transitions normal,-g2012 ivltests
+sv_display_p_signed normal,-g2012 ivltests
