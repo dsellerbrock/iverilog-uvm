@@ -184,4 +184,36 @@ else
     echo "    build failed:"; tail -4 /tmp/fc.log | sed 's/^/    /'
 fi
 echo "============================================================"
+
+# --- m3_constraint_dynforeach corner: z3 dynamic-foreach element solve ------
+# Windows-only failure: ranged_size (`da[i] == base + i`) writes garbage for
+# i>=1 while fixed_size passes and no delem fallback warning fires. Enable the
+# vvp solver trace (IVL_Z3_DYNDBG, added to vvp_z3.cc) so the artifact shows the
+# expansion count, per-instance folded index, and each solved write-back value.
+# Compare against the Linux baseline: ranged_size expands to
+#   body=<(eq (delem 0:32 L) (add p:1:8 L))> with count == solved size and
+#   write-back bits == base, base+1, base+2, ... (contiguous). A divergence in
+#   count or in the write-back bits localizes the Windows corner.
+echo "[m3] z3 dynamic-foreach element solve trace (IVL_Z3_DYNDBG)"
+M3_SRC="$REPO_DIR/tests/m3_constraint_dynforeach_test.sv"
+if [ -f "$M3_SRC" ] && command -v iverilog >/dev/null 2>&1 ; then
+    if iverilog -g2012 -o /tmp/m3_probe.vvp "$M3_SRC" >/tmp/m3.log 2>&1 ; then
+        echo "  pass/fail line:"
+        IVL_Z3_DYNDBG=1 vvp /tmp/m3_probe.vvp 2>/tmp/m3_trace.txt \
+            | grep -aE "PASS|FAIL" | sed 's/^/    /'
+        echo "  ranged_size (base-coupled) expansion + write-backs:"
+        # The ranged_size dynforeach body contains 'add p:' (element coupled to
+        # the rand scalar base); show it and the following per-instance lines,
+        # plus every write-back (element solved value) in the run.
+        grep -aE "add p:|inst i=|writeback prop=" /tmp/m3_trace.txt \
+            | grep -aA0 -E "add p:|writeback|inst i=" | head -40 | sed 's/^/    /'
+        echo "  FAILED element lines (if any):"
+        grep -a "FAILED" /tmp/m3_trace.txt | sed 's/^/    /' | head -8
+    else
+        echo "  compile failed:"; tail -4 /tmp/m3.log | sed 's/^/    /'
+    fi
+else
+    echo "  (m3 source or iverilog unavailable — skipping)"
+fi
+echo "============================================================"
 exit 0

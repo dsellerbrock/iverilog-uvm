@@ -33,6 +33,22 @@
 
 using namespace std;
 
+/* Opt-in constraint-solver trace (set IVL_Z3_DYNDBG=1). Off by default so
+ * production runs are unaffected. Used to localize the Windows-only
+ * dynamic-foreach corner (m3_constraint_dynforeach_test): it prints the
+ * expansion element count, the per-element index each foreach instance folds
+ * to, and the solved element value written back — the values that differ
+ * between the Linux/macOS (correct) and Windows (garbage) builds. */
+static bool z3_dyndbg()
+{
+      static int on = -1;
+      if (on < 0) {
+	    const char*e = getenv("IVL_Z3_DYNDBG");
+	    on = (e && *e && strcmp(e, "0") != 0) ? 1 : 0;
+      }
+      return on != 0;
+}
+
 /* ---------------------------------------------------------------
  * Simple recursive-descent tokenizer/parser for the IR format.
  * --------------------------------------------------------------- */
@@ -424,9 +440,16 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 		  auto it = b.dyn_sizes->find(pidx);
 		  if (it != b.dyn_sizes->end()) count = it->second;
 	    }
+	    if (z3_dyndbg())
+		  fprintf(stderr, "[z3dyn] dynforeach expand prop=%u count=%llu "
+			  "ewid=%u body=<%s>\n", pidx,
+			  (unsigned long long)count, ewid, body.c_str());
 	    Z3_ast conj = b.mk_true();
 	    for (uint64_t i = 0 ; i < count ; i += 1) {
 		  string inst_text = subst_loop_token(body, i);
+		  if (z3_dyndbg())
+			fprintf(stderr, "[z3dyn]   inst i=%llu text=<%s>\n",
+				(unsigned long long)i, inst_text.c_str());
 		  IRParser sub(inst_text);
 		  Z3_ast inst = bv_to_bool(b.ctx, build_z3_atom(sub, b));
 		  Z3_ast args[2] = { conj, inst };
@@ -1221,9 +1244,16 @@ static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       for (auto& ev : builder.elem_vars) {
 	    Z3_ast interp = nullptr;
 	    uint64_t bits = 0;
-	    if (Z3_model_eval(ctx, model, ev.var, 1, &interp) && interp
-		&& Z3_get_numeral_uint64(ctx, interp, &bits))
+	    bool ev_ok = Z3_model_eval(ctx, model, ev.var, 1, &interp) && interp
+		&& Z3_get_numeral_uint64(ctx, interp, &bits);
+	    if (ev_ok)
 		  cobj_set_elem_bits(cobj, ev.idx, ev.elem, ev.width, bits);
+	    if (z3_dyndbg())
+		  fprintf(stderr, "[z3dyn] writeback prop=%u elem=%u width=%u "
+			  "eval_ok=%d bits=%llu (post-write da_size=%llu)\n",
+			  ev.idx, ev.elem, ev.width, ev_ok ? 1 : 0,
+			  (unsigned long long)bits,
+			  (unsigned long long)cobj_darray_size(cobj, ev.idx));
       }
 
       Z3_model_dec_ref(ctx, model);
