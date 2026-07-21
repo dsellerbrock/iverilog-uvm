@@ -196,6 +196,34 @@ jobs:
     - name: UVM regression tests
       run: ./.github/uvm_test.sh
 
+    # Validate the `iverilog -uvm' front end on the INSTALLED Windows toolchain
+    # (pacman-installed above), which carries uvm_dpi.vpi only if installuvm's
+    # Windows hand-rolled umbrella build succeeded during packaging. Asserts
+    # REAL DPI (not a UVM_NO_DPI fallback) via a necessity contrast, so a silent
+    # revert to no-DPI fails here.
+    - name: UVM front-end (installed toolchain, real DPI)
+      run: |
+        set -e
+        base="$(dirname "$(dirname "$(command -v iverilog)")")/lib/ivl"
+        echo "resolved toolchain base: $base"
+        test -f "$base/uvm_dpi.vpi" \
+          || { echo "FAIL: uvm_dpi.vpi not installed (installuvm fell back to UVM_NO_DPI)"; exit 1; }
+        test -f "$base/uvm/src/uvm_pkg.sv" || { echo "FAIL: UVM sources not installed"; exit 1; }
+        cp tests/reg_basic_test.sv "$TMP/fe_tb.sv" 2>/dev/null || cp tests/reg_basic_test.sv /tmp/fe_tb.sv
+        work="${TMP:-/tmp}"; cd "$work"
+        iverilog -g2012 -uvm -o fe.vvp fe_tb.sv
+        grep -q ':vpi_module "[^"]*uvm_dpi' fe.vvp \
+          || { echo "FAIL: uvm_dpi not baked into the compiled program"; exit 1; }
+        out="$(vvp fe.vvp 2>&1)"; echo "$out" | tail -6
+        echo "$out" | grep -q 'UVM_ERROR :    0' || { echo "FAIL: run not clean"; exit 1; }
+        if echo "$out" | grep -q 'DPI error'; then echo "FAIL: unresolved DPI symbols"; exit 1; fi
+        # Necessity: the same design in real-DPI mode with NO provider must
+        # report the missing native symbols, proving DPI is genuinely used.
+        iverilog -g2012 -I "$base/uvm/src" -o nomod.vvp "$base/uvm/src/uvm_pkg.sv" fe_tb.sv
+        vvp nomod.vvp 2>&1 | grep -q 'DPI error' \
+          || { echo "FAIL: necessity check — design did not need native DPI"; exit 1; }
+        echo "PASS: iverilog -uvm runs REAL DPI on the installed Windows toolchain"
+
     - uses: actions/upload-artifact@v4
       if: always()
       with:

@@ -156,6 +156,29 @@ int uvm_hdl_release(char* path)
 }
 
 //----------------------------------------------------------------------
+// Standalone/global-umbrella self-containment.
+//
+// uvm_common.c's m_uvm_report_dpi() wrapper calls the DPI *export*
+// m__uvm_report_dpi(), whose C dispatcher is generated per design into that
+// design's .dpiexport.c stub. The `iverilog -uvm' front end installs and loads
+// ONE global umbrella and does not load any per-design stub, so that symbol
+// would be undefined. On ELF/Mach-O that is harmless (the wrapper's own callers
+// — the vendor HDL/polling backends — are excluded from this umbrella, so it is
+// a reference in dead code that is never resolved at run time), but a Windows PE
+// image must bind every symbol at link time. Provide a no-op fallback so the
+// standalone umbrella is self-contained on every platform. It is never actually
+// invoked. Guarded so the per-test *merged* build used by the regression suite
+// (which links the design's real dispatcher) does not see a duplicate.
+#ifdef UVM_DPI_STANDALONE
+void m__uvm_report_dpi(int severity, const char* id, const char* message,
+                       int verbosity, const char* file, int linenum)
+{
+      (void)severity; (void)id; (void)message;
+      (void)verbosity; (void)file; (void)linenum;
+}
+#endif
+
+//----------------------------------------------------------------------
 // VPI loadable-module entry point.
 //
 // vvp loads a module named by a `:vpi_module "uvm_dpi";' directive (which
