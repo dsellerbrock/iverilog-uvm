@@ -156,8 +156,63 @@ Maintain clean builds, canonical regressions, UVM, negative tests, VPI, cross-pl
 - [x] Fix member access on type-parameter-typed output/ref formals.
       *(Verified resolved 2026-07-21 — see the P1 entry; pinned by
       `sv_typeparam_formal_member`.)*
-- [ ] Audit specialization through variables, properties, locals, arrays, returns, and formals.
-- [ ] Reprobe specialization inside nested aggregates.
+- [~] Audit specialization through variables, properties, locals, arrays,
+      returns, and formals. *(Audited 2026-07-21: specialization is
+      preserved through locals, properties, fixed/queue/assoc arrays of
+      specialized handles, output/ref formals, function returns, nested
+      parameterization, parameterized inheritance + virtual dispatch, and
+      per-specialization statics — all correct. The audit uncovered and
+      fixed a compiler crash unrelated to specialization: a method call on
+      a constant-indexed element of a static unpacked array of class
+      handles (`arr[0].method()`) fed a folded-constant index to the
+      variable-index normalize path, aborting ivl on a
+      `canonical_expr` assertion (`elab_expr.cc`; test
+      `sv_array_handle_const_index_method`). Two deeper defects remain
+      OPEN, see below.)*
+- [~] Reprobe specialization inside nested aggregates. *(2026-07-21:
+      defect (a) RESOLVED, (b) OPEN. (a) The struct-member-of-array-element
+      symptom generalized to: member access on an element of a static
+      unpacked array or a plain dynamic array of an UNPACKED struct is not
+      correctly lowered — writes drop, reads return garbage (queues,
+      associative arrays, packed structs and scalar unpacked structs all
+      work, as they store each element as an object or a flat vector). Full
+      support is a large storage/codegen effort disproportionate to the
+      (rare, non-UVM) usage, so per the honesty policy the silent
+      miscompile is now a loud `sorry` at both the l-value (`elab_lval.cc`)
+      and r-value (`elab_expr.cc check_for_struct_members`) sites, gated on
+      the container being `netuarray_t` / plain `netdarray_t` (not
+      `netqueue_t`). CE test `sv_ustruct_array_member_ce`. A sibling of
+      defect (a), the WHOLE-element write `arr[i] = <expr>` (no member
+      select), was found to crash the same way — the static-array element
+      write degrades the struct r-value to a null store, so the element ends
+      up null and later reads / `%p` abort at run time. The precise boundary
+      differs from the member case: only a STATIC unpacked array
+      (`netuarray_t`) whole-element write is broken; dynamic and associative
+      arrays and queues of unpacked structs, and whole-ARRAY pattern assigns
+      (`arr = '{...}`), all store elements correctly. It is now a loud
+      `sorry` in `elaborate_lval_net_word_` (`elab_lval.cc`) gated on
+      `netuarray_t` + non-packed `netstruct_t` element. CE test
+      `sv_ustruct_array_element_ce`. While reducing
+      (a) a second real crash surfaced and was fixed: the TASK-method path
+      (`arr[0].method();` as a statement — a void method with a constant
+      index) hit the same `canonical_expr` assertion as the earlier
+      function-expression fix; `elaborate_root_indexed_method_target_expr_`
+      now uses the constant normalize path too (test
+      `sv_array_handle_const_index_method` extended to cover it).
+      (b) `$cast` between two different specializations of the same
+      parameterized class (Box#(byte) vs Box#(shortint)) wrongly succeeded —
+      RESOLVED 2026-07-21. The run-time cast check
+      (`vpi/sys_sv_class.cc class_cast_compatible_`) keyed types on the bare
+      class name (`vpiName`), which is `"Box"` for every specialization, so
+      distinct specializations aliased. Root cause: the compiler emits a
+      separate `.class` record for the same specialization in each
+      referencing scope, each with a different `scope_path`, so neither the
+      class-type pointer nor `vpiFullName` is invariant per specialization —
+      but the dispatch prefix (`m._ivl_0` vs `m._ivl_1`) is. The fix exposes
+      the dispatch prefix through `vpiDefName` (`vvp/class_type.cc`) and keys
+      the cast on it, so matching specializations still cast and mismatched
+      ones are rejected; ordinary inheritance up/down casts are unchanged.
+      Test `sv_cast_param_class_specialization`.)*
 - [ ] Remove remaining compile-progress fallbacks caused by lost specialization.
 - [ ] Add adversarial parameterized-UVM regressions.
 
@@ -232,21 +287,20 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       fixed assoc key rendering (vector keys were the raw byte encoding —
       now decimal, `vvp_assoc.h peek_entry`) and queue element type
       detection for real/string queues (`vpi_darray.cc get_word_value`).
-      Test `sv_display_p_aggregates`. Remaining refinements (audited
-      2026-07-21, deferred as disproportionate to a display-only payoff —
-      fixed unpacked arrays and scalars already print correctly, so these
-      affect only dynamic containers): (1) signed integral **dynamic-array
-      / queue** elements render unsigned — the runtime `vvp_darray_vec4` /
-      `vvp_queue_vec4` discard the `sv` vs `v` element-signedness the
-      codegen emits, and neither the 10+ lazy queue-construction sites nor
-      the `.var/darray` declaration carry a signedness field to the VPI
-      object; (2) a multi-dimensional unpacked array prints flat
-      (`'{1,2,3,4,5,6}`) rather than nested (`'{'{1,2,3},'{4,5,6}}`)
+      Test `sv_display_p_aggregates`. Element signedness fixed 2026-07-21:
+      signed integral dynamic-array/queue/assoc elements now render in
+      signed decimal (`-1`, not `4294967295`). The declared element
+      signedness is carried on the `.var/darray` / `.var/queue` declaration
+      (a `'+'` marker emitted by codegen, parsed via a `signed_opt`
+      grammar flag, stored on `__vpiDarrayVar`, and used by
+      `get_word_value`) — the VPI-handle route, which is one declaration
+      site rather than the 10+ lazy runtime construction sites. Test
+      `sv_display_p_signed`. Two cosmetic refinements remain (deferred as
+      disproportionate to a display-only payoff): a multi-dimensional
+      unpacked array prints flat (`'{1,2,3,4,5,6}`) rather than nested
       because iverilog flattens unpacked dims and VPI exposes no per-dim
-      geometry for the element iterator; (3) a packed struct prints as one
-      decimal rather than a `'{member:val}` pattern. All three need
-      type-descriptor plumbing (codegen → vvp assembler → VPI handle) out
-      of proportion to the cosmetic gain.)*
+      geometry for the element iterator; and a packed struct prints as one
+      decimal rather than a `'{member:val}` pattern.)*
 - [x] Fix nested packed-struct array literal compiler crash. *(Done
       2026-07-21: module-scope nested literals work on all probed shapes;
       the remaining defect was a class-property whole-array pattern store

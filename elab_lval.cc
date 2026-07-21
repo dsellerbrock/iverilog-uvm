@@ -361,6 +361,29 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 		  dynamic_cast<const netclass_t *>(member_root_type);
 	    const netstruct_t *struct_type =
 		  dynamic_cast<const netstruct_t *>(member_root_type);
+	      // Member access on an element of a STATIC unpacked array
+	      // (netuarray_t) or a plain DYNAMIC array (netdarray_t, but not
+	      // a queue/associative array which are netqueue_t) of an unpacked
+	      // struct is not correctly lowered — the element's struct members
+	      // are not addressed, so writes are dropped and reads return
+	      // garbage. Queues and associative arrays store each element as
+	      // an object and work. Diagnose the unsupported cases loudly
+	      // rather than miscompiling silently (IEEE 1800-2017 7.2.1).
+	    if (struct_type && !struct_type->packed() && !base_index.empty()) {
+		  ivl_type_t container = reg->array_type();
+		  bool broken_container =
+			dynamic_cast<const netuarray_t*>(container)
+			|| (dynamic_cast<const netdarray_t*>(container)
+			    && !dynamic_cast<const netqueue_t*>(container));
+		  if (broken_container) {
+			cerr << get_fileline() << ": sorry: member access on an "
+			        "element of a static or dynamic array of unpacked "
+			        "structs is not yet supported (use a queue, an "
+			        "associative array, or a packed struct)." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+	    }
 	    if (class_type || (struct_type && !struct_type->packed()))
 		  return elaborate_lval_net_class_member_(des, scope, member_root_type,
 							  reg, tail_path, base_index);
@@ -631,6 +654,37 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
       index_component_t::ctype_t use_sel = index_component_t::SEL_NONE;
       if (name_tail.index.size() > reg->unpacked_dimensions())
 	    use_sel = name_tail.index.back().sel;
+
+	// Whole-element assignment to an element of a STATIC unpacked array
+	// (netuarray_t) of an unpacked struct is not correctly lowered: such
+	// arrays are stored as arrays of objects, but the element write
+	// degrades the struct r-value to a null/packed-vector store, so the
+	// element ends up null (later reads and %p abort in the runtime). A
+	// whole-ARRAY pattern assignment (`arr = '{...}`) works and is
+	// handled elsewhere, and dynamic arrays / queues / associative arrays
+	// of unpacked structs assign their elements correctly (they take a
+	// different, object-based store path); only the STATIC-array indexed
+	// per-element write is broken. This is the whole-element sibling of
+	// the member-access diagnostic above (member writes such as
+	// `arr[i].field = ...`); diagnose it loudly rather than miscompiling
+	// silently (IEEE 1800-2017 7.2.1). This path is reached only for a
+	// fixed-size unpacked array word (reg->unpacked_dimensions() > 0), so
+	// gating on netuarray_t is sufficient.
+      if (use_sel == index_component_t::SEL_NONE && gn_system_verilog()) {
+	    const netstruct_t*elem_struct =
+		  dynamic_cast<const netstruct_t*>(lv->net_type());
+	    if (elem_struct && !elem_struct->packed()
+		&& dynamic_cast<const netuarray_t*>(reg->array_type())) {
+		  cerr << get_fileline() << ": sorry: assignment to an element "
+		          "of a static (fixed-size) unpacked array of unpacked "
+		          "structs is not yet supported (use a queue, a dynamic "
+		          "or associative array, a packed struct, or assign the "
+		          "whole array at once)." << endl;
+		  des->errors += 1;
+		  delete lv;
+		  return 0;
+	    }
+      }
 
       if (reg->get_scalar() &&
           use_sel != index_component_t::SEL_NONE) {

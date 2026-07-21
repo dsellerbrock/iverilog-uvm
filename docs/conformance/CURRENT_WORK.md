@@ -3,6 +3,49 @@
 Keep this accurate enough that another session can resume without repeating
 the investigation. Update at every meaningful checkpoint.
 
+## State as of 2026-07-21n (Tier-2 M1B type-fidelity fixes — on draft PR #105)
+
+Tier-2 work after the PR #104 merge, all on branch
+`claude/ieee1800-uvm-conformance-vp6ic2` (draft PR #105). Every increment:
+ivtest sv list Failed=44 (baseline, 0 new / 0 stale by name) + UVM 209/0/0
++ negative suite 49/0. Five fixes:
+
+1. **`%p` signed elements** (`7801f07`): signed integral dynamic-array /
+   queue elements printed as unsigned; element signedness now carried on
+   the `.var/darray|queue` decl via a `+` marker + `signed_opt` vvp grammar
+   flag → `__vpiDarrayVar`. Test `sv_display_p_signed`.
+2. **const-index method crash** (`42f5452`, `67ab8dd`): `arr[0].method()`
+   (function-expr AND void-statement paths) fed a folded const index to the
+   variable-index normalize → `canonical_expr` assert. Both paths now use
+   the const-list normalize. Test `sv_array_handle_const_index_method`.
+3. **unpacked-struct array element access** — static/darray of UNPACKED
+   struct is stored as objects but element access isn't lowered (null /
+   garbage, `%p` aborts). Diagnosed loudly, not miscompiled:
+   - member `arr[i].field` (`67ab8dd`, defect A) → `sorry` in
+     `elab_lval.cc`, CE test `sv_ustruct_array_member_ce`.
+   - whole-element `arr[i] = <expr>` on a STATIC array (`1c10fe3`) → `sorry`
+     in `elaborate_lval_net_word_`. Boundary: darray/assoc/queue element
+     writes and whole-array `arr='{...}` assigns all WORK; only static-array
+     per-element is broken. CE test `sv_ustruct_array_element_ce`.
+4. **`$cast` specialization identity** (`76e2b2e`, defect B): `$cast`
+   between two specializations of one parameterized class (`Box#(byte)` vs
+   `Box#(shortint)`) wrongly succeeded — cast keyed on bare `vpiName`
+   (`"Box"` for all specializations). Root cause: the compiler re-emits a
+   `.class` record per referencing scope with different `scope_path`, so
+   neither the class-type pointer nor `vpiFullName` is invariant per
+   specialization; the dispatch prefix (`m._ivl_0` vs `m._ivl_1`) is.
+   Exposed the dispatch prefix via `vpiDefName` (`vvp/class_type.cc`) and
+   keyed the cast on it (`vpi/sys_sv_class.cc`). Inheritance up/down casts
+   and null-source casts unaffected. Test
+   `sv_cast_param_class_specialization`.
+
+M1B "reprobe specialization inside nested aggregates" is now fully closed
+(both member and whole-element unpacked-struct-array corners diagnosed;
+specialization identity fixed in $cast). Remaining M1B checklist:
+compile-progress fallbacks from lost specialization; adversarial
+parameterized-UVM regressions. Next per execution order: reaudit M5, or
+hunt the next concrete type-fidelity crash/miscompile.
+
 ## State as of 2026-07-21m (Tier-1 frontier sweep COMPLETE — on draft PR #104)
 
 Post-#96-merge Tier-1 work, all on branch

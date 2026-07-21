@@ -858,6 +858,14 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
     public:
       __vpiDarrayVar(__vpiScope*scope, const char*name, vvp_net_t*net);
 
+	// Record the declared signedness of the element type. Integral
+	// dynamic-array/queue elements are stored as unsigned vec4 words at
+	// run time (the C++ element type does not survive the vec4 read),
+	// so %p and vpiDecStrVal need this to render negative values
+	// correctly instead of as large unsigned numbers.
+      void set_element_signed(bool flag) { element_signed_ = flag; }
+      bool element_signed() const { return element_signed_; }
+
       int get_type_code() const override { return vpiArrayVar; }
       unsigned get_size() const override;
       vpiHandle get_left_range() override;
@@ -887,9 +895,11 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
 	// handle): vpiDynamicArray for darrays, vpiQueueArray for
 	// queue-declared variables.
       int default_array_type_ = vpiDynamicArray;
+      bool element_signed_ = false;
 };
 
-extern vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net);
+extern vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
+				      bool element_signed = false);
 
 /* M12: queues (and associative arrays declared through the queue
  * path) share the full darray element-access machinery. */
@@ -899,7 +909,8 @@ class __vpiQueueVar : public __vpiDarrayVar {
       __vpiQueueVar(__vpiScope*scope, const char*name, vvp_net_t*net);
 };
 
-extern vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net);
+extern vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net,
+				     bool element_signed = false);
 
 class __vpiCobjectVar : public __vpiBaseVar {
 

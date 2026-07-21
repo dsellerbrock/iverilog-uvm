@@ -126,7 +126,7 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 		      case 0:
 			if (vp->format == vpiObjTypeVal)
 			      vp->format = vpiVectorVal;
-			vpip_vec4_get_value(vval, vval.size(), false, vp);
+			vpip_vec4_get_value(vval, vval.size(), element_signed_, vp);
 			return;
 		      case 1:
 			vp->format = vpiRealVal;
@@ -172,7 +172,11 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
       {
           vvp_vector4_t v;
           aobj->get_word(index, v);
-          vpip_vec4_get_value(v, v.size(), false, vp);  // TODO sign?
+	    // Use the declared element signedness so a signed element (e.g.
+	    // int/byte queue or dynamic array) renders negative values
+	    // correctly under vpiDecStrVal / %p instead of as a large
+	    // unsigned number.
+          vpip_vec4_get_value(v, v.size(), element_signed_, vp);
       }
       break;
 
@@ -377,12 +381,14 @@ const vvp_assoc_base*__vpiDarrayVar::get_vvp_assoc() const
       return obj.peek<vvp_assoc_base>();
 }
 
-vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net)
+vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
+			       bool element_signed)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       const char*use_name = name ? vpip_name_string(name) : NULL;
 
       __vpiDarrayVar*obj = new __vpiDarrayVar(scope, use_name, net);
+      obj->set_element_signed(element_signed);
 
       return obj;
 }
@@ -397,12 +403,14 @@ __vpiQueueVar::__vpiQueueVar(__vpiScope*sc, const char*na, vvp_net_t*ne)
       default_array_type_ = vpiQueueArray;
 }
 
-vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net)
+vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net,
+			      bool element_signed)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       const char*use_name = name ? vpip_name_string(name) : NULL;
 
       __vpiQueueVar*obj = new __vpiQueueVar(scope, use_name, net);
+      obj->set_element_signed(element_signed);
 
       return obj;
 }

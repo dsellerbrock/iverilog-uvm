@@ -1357,6 +1357,19 @@ char* class_type::vpi_get_str(int code)
                   return rbuf;
             }
 
+	    // The dispatch prefix uniquely identifies a class definition,
+	    // including a distinct entry for each specialization of a
+	    // parameterized class. Unlike vpiName (which is the bare class
+	    // name, identical across specializations) and vpiFullName (which
+	    // varies with the scope the specialization is referenced from),
+	    // the dispatch prefix is a stable, one-per-specialization key.
+	    // Expose it through vpiDefName so run-time type checks ($cast)
+	    // can distinguish Box#(byte) from Box#(shortint).
+          case vpiDefName:
+            if (dispatch_prefix_.empty())
+                  return const_cast<char*>(class_name_.c_str());
+            return const_cast<char*>(dispatch_prefix_.c_str());
+
           default:
             return 0;
       }

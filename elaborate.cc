@@ -683,10 +683,21 @@ static NetExpr* elaborate_root_indexed_method_target_expr_(const LineInfo*li,
 		  NetExpr*mux = elab_and_eval(des, scope,
 					      base_index.back().msb, -1, false);
 		  if (mux) {
-			list<NetExpr*> idx1;
-			idx1.push_back(mux);
-			NetExpr*canon =
-			      normalize_variable_unpacked(base_sig->sig(), idx1);
+			  // A folded constant index must use the constant
+			  // normalize path; the variable-index variant asserts
+			  // a non-constant index and would abort ivl on
+			  // `arr[0].method()`.
+			NetExpr*canon = 0;
+			if (const NetEConst*cmux = dynamic_cast<const NetEConst*>(mux)) {
+			      list<long> idx_consts;
+			      idx_consts.push_back(cmux->value().as_long());
+			      canon = normalize_variable_unpacked(base_sig->sig(), idx_consts);
+			      delete mux;
+			} else {
+			      list<NetExpr*> idx1;
+			      idx1.push_back(mux);
+			      canon = normalize_variable_unpacked(base_sig->sig(), idx1);
+			}
 			if (canon) {
 			      canon->set_line(*li);
 			      NetESignal*tmp =

@@ -679,10 +679,13 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    ivl_type_t var_type = ivl_signal_net_type(sig);
 	    ivl_type_t element_type = ivl_type_element(var_type);
 
-	    fprintf(vvp_out, "v%p_0 .var/darray %s\"%s\", %u;%s\n", sig,
+	    fprintf(vvp_out, "v%p_0 .var/darray %s\"%s\", %u%s;%s\n", sig,
 		    storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    ivl_type_packed_width(element_type),
+		      /* '+' marks a signed integral element so %p and
+		         vpiDecStrVal render negatives correctly. */
+		    (element_type && ivl_type_signed(element_type)) ? "+" : "",
 		    ivl_signal_local(sig)? " Local signal" : "");
 
       } else if (ivl_signal_data_type(sig) == IVL_VT_QUEUE) {
@@ -718,10 +721,13 @@ static void draw_reg_in_scope(ivl_signal_t sig)
                   break;
             }
 
-	    fprintf(vvp_out, "v%p_0 .var/queue %s\"%s\", %u, \"%s\";%s\n", sig,
+	    fprintf(vvp_out, "v%p_0 .var/queue %s\"%s\", %u%s, \"%s\";%s\n", sig,
 		    storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
-		    ivl_type_packed_width(element_type), queue_kind,
+		    ivl_type_packed_width(element_type),
+		      /* '+' marks a signed integral element (see .var/darray). */
+		    (element_type && ivl_type_signed(element_type)) ? "+" : "",
+		    queue_kind,
 		    ivl_signal_local(sig)? " Local signal" : "");
 
       } else if (ivl_signal_data_type(sig) == IVL_VT_STRING) {

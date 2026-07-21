@@ -7809,9 +7809,22 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  search_results.path_head.back().index.back();
 	    NetExpr*mux = elab_and_eval(des, scope, use_index.msb, -1, false);
 	    if (mux) {
-		  std::list<NetExpr*> idx1;
-		  idx1.push_back(mux);
-		  if (NetExpr*canon = normalize_variable_unpacked(net, idx1)) {
+		    // A constant element index must use the constant
+		    // normalize path: the variable-index variant asserts that
+		    // at least one index is non-constant, so `arr[0].method()`
+		    // (a folded constant) would otherwise abort the compiler.
+		  NetExpr*canon = 0;
+		  if (const NetEConst*cmux = dynamic_cast<const NetEConst*>(mux)) {
+			std::list<long> idx_consts;
+			idx_consts.push_back(cmux->value().as_long());
+			canon = normalize_variable_unpacked(net, idx_consts);
+			delete mux;
+		  } else {
+			std::list<NetExpr*> idx1;
+			idx1.push_back(mux);
+			canon = normalize_variable_unpacked(net, idx1);
+		  }
+		  if (canon) {
 			canon->set_line(*this);
 			NetESignal*elem = new NetESignal(net, canon);
 			elem->set_line(*this);
