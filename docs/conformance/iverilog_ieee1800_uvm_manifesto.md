@@ -156,8 +156,28 @@ Maintain clean builds, canonical regressions, UVM, negative tests, VPI, cross-pl
 - [x] Fix member access on type-parameter-typed output/ref formals.
       *(Verified resolved 2026-07-21 — see the P1 entry; pinned by
       `sv_typeparam_formal_member`.)*
-- [ ] Audit specialization through variables, properties, locals, arrays, returns, and formals.
-- [ ] Reprobe specialization inside nested aggregates.
+- [~] Audit specialization through variables, properties, locals, arrays,
+      returns, and formals. *(Audited 2026-07-21: specialization is
+      preserved through locals, properties, fixed/queue/assoc arrays of
+      specialized handles, output/ref formals, function returns, nested
+      parameterization, parameterized inheritance + virtual dispatch, and
+      per-specialization statics — all correct. The audit uncovered and
+      fixed a compiler crash unrelated to specialization: a method call on
+      a constant-indexed element of a static unpacked array of class
+      handles (`arr[0].method()`) fed a folded-constant index to the
+      variable-index normalize path, aborting ivl on a
+      `canonical_expr` assertion (`elab_expr.cc`; test
+      `sv_array_handle_const_index_method`). Two deeper defects remain
+      OPEN, see below.)*
+- [~] Reprobe specialization inside nested aggregates. *(2026-07-21: two
+      defects found, not yet fixed — (a) a class handle that is a struct
+      member of a static-array element read back as null with an
+      "unresolved functor stub" when accessed as `arr[i].member.method()`
+      (the struct-member-of-array-element object lowering is incomplete);
+      (b) `$cast` between two different specializations of the same
+      parameterized class (Box#(byte) vs Box#(shortint)) wrongly succeeds —
+      specialization identity is not checked in the dynamic cast. Both
+      reproduced in scratch probes; neither is exercised by the UVM suite.)*
 - [ ] Remove remaining compile-progress fallbacks caused by lost specialization.
 - [ ] Add adversarial parameterized-UVM regressions.
 

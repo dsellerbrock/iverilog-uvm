@@ -1097,3 +1097,4 @@ sv_constraint_unique normal,-g2012 ivltests
 sv_assoc_wildcard_index normal,-g2012 ivltests
 sv_process_status_transitions normal,-g2012 ivltests
 sv_display_p_signed normal,-g2012 ivltests
+sv_array_handle_const_index_method normal,-g2012 ivltests
