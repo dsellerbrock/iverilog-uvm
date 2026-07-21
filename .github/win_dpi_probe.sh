@@ -102,5 +102,36 @@ iverilog -g2012 -o /tmp/dpi_probe.vvp /tmp/dpi_probe.sv 2>&1 | sed 's/^/  ivl: /
 # link the regex provider so regcomp resolves inside the loaded module.
 ( cd /tmp && "$IVPI" --name=/tmp/dpi_probe_lib /tmp/dpi_probe.c -lsystre -ltre ) 2>&1 | sed 's/^/  vpi: /'
 vvp -d /tmp/dpi_probe_lib.vpi /tmp/dpi_probe.vvp 2>&1 | sed 's/^/  run: /'
+
+echo "--- ACTUAL UVM uvm_regex.cc (extern \"C\"-wrapped, as the umbrella builds it) ---"
+# All primitives above work in isolation, so build the real uvm_regex.cc the way
+# the umbrella does (wrapped in extern "C") and call uvm_re_compexecfree directly.
+# On Linux this returns ok=1; if Windows returns ok=0, this reproduces the UVM
+# regex failure minimally (no full umbrella / stub / -luvmsv), isolating whether
+# it is the regex provider or the uvm_regex.cc code path itself.
+REPO_DIR="$(pwd)"
+printf 'extern "C" {\n#include <stdlib.h>\n#include "uvm_regex.cc"\n}\n' > /tmp/re_umbrella.cc
+cat > /tmp/re_probe.sv <<'PROBEEOF'
+module retop;
+  import "DPI-C" function bit uvm_re_compexecfree(string re, string str, bit deglob, output int exec_ret);
+  initial begin
+    int r; bit ok;
+    ok = uvm_re_compexecfree("uvm_test_top.*", "uvm_test_top.foo", 1'b0, r);
+    $display("RE_COMPEXECFREE ok=%0d exec_ret=%0d (exp ok=1 exec_ret=0)", ok, r);
+    $finish;
+  end
+endmodule
+PROBEEOF
+iverilog -g2012 -o /tmp/re_probe.vvp /tmp/re_probe.sv 2>&1 | sed 's/^/  ivl: /'
+for lib in "-lsystre -ltre" "-lregex" "-lgnurx"; do
+    echo "  [regex lib: $lib]"
+    if ( cd /tmp && "$IVPI" --name=/tmp/re_probe_lib -I"$REPO_DIR/uvm-core/src/dpi" \
+              /tmp/re_umbrella.cc $lib ) >/tmp/re_vpi.log 2>&1 ; then
+        vvp -d /tmp/re_probe_lib.vpi /tmp/re_probe.vvp 2>&1 \
+            | grep -aE "RE_COMPEXECFREE|error|not found" | sed 's/^/    run: /'
+    else
+        echo "    build failed:"; tail -3 /tmp/re_vpi.log | sed 's/^/    /'
+    fi
+done
 echo "============================================================"
 exit 0
