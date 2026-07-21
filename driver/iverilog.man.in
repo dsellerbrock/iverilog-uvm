@@ -10,6 +10,7 @@ iverilog - Icarus Verilog compiler
 [\-Iincludedir] [\-Lmoduledir] [\-mmodule] [\-M[mode=]file] [\-Nfile]
 [\-ooutputfilename] [\-stopmodule] [\-ttype] [\-Tmin/typ/max] [\-Wclass]
 [\-ypath] [\-lfile]
+[\-uvm] [\-\-uvm-home=dir] [\-\-uvm-no-dpi] [\-\-uvm-version]
 sourcefile
 
 .SH DESCRIPTION
@@ -266,6 +267,27 @@ Treat each source file as a separate compilation unit (as defined in
 SystemVerilog). If compiling for an \fIIEEE1364\fP generation, this
 will just reset all compiler directives (including macro definitions)
 before each new file is processed.
+.TP 8
+.B -uvm
+Enable the supported UVM environment. The installed UVM sources are added
+automatically (include directory and \fBuvm_pkg.sv\fP in the correct compile
+order), and the standard UVM DPI runtime is recorded so that \fBvvp\fP loads
+it at startup with no \fB-M\fP/\fB-m\fP/\fB-d\fP arguments. Requires
+SystemVerilog; the generation is raised to \fB-g2012\fP if a non-SystemVerilog
+default was in effect. See \fBdocs/uvm_frontend.md\fP.
+.TP 8
+.B --uvm-home=\fIdir\fP
+Use the UVM library at \fIdir\fP instead of the bundled one (implies
+\fB-uvm\fP). \fIdir\fP may contain \fBuvm_pkg.sv\fP directly or a \fBsrc/\fP
+subdirectory that does. The environment variable \fBIVERILOG_UVM_HOME\fP has
+the same effect.
+.TP 8
+.B --uvm-no-dpi
+With \fB-uvm\fP, compile UVM's pure-SystemVerilog fallbacks and do not load
+the UVM DPI runtime (defines \fBUVM_NO_DPI\fP).
+.TP 8
+.B --uvm-version
+Print the version of the bundled UVM library and exit.
 .TP 8
 .B -v
 Turn on verbose messages. This will print the command lines that are
