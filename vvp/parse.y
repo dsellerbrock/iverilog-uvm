@@ -801,6 +801,14 @@ statement
   | T_LABEL K_VAR_DARRAY local_flag storage_flag T_STRING ',' T_NUMBER signed_opt ';'
       { (void)$3; compile_var_darray($1, $5, $7, $4, $8); }
 
+  /* .var/darray with a trailing element class-type symbol: a dynamic array
+     of an object-backed unpacked struct records its element type so nil
+     elements can be lazily default-constructed on member access. */
+  | T_LABEL K_VAR_DARRAY storage_flag T_STRING ',' T_NUMBER signed_opt ',' T_SYMBOL ';'
+      { compile_var_darray($1, $4, $6, $3, $7, $9); }
+  | T_LABEL K_VAR_DARRAY local_flag storage_flag T_STRING ',' T_NUMBER signed_opt ',' T_SYMBOL ';'
+      { (void)$3; compile_var_darray($1, $5, $7, $4, $8, $10); }
+
   | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER signed_opt ';'
       { compile_var_queue($1, $4, $6, 0, $3, $7); }
   | T_LABEL K_VAR_QUEUE local_flag storage_flag T_STRING  ',' T_NUMBER signed_opt ';'

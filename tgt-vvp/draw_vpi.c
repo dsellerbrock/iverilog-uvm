@@ -127,6 +127,28 @@ static int expr_is_class_like_(ivl_expr_t expr)
                   && ivl_type_properties(net_type) > 0)))
             return 1;
 
+	/* An element select of an object-backed dynamic array or queue
+	   (e.g. `da[i]` where the element is a class handle or an
+	   object-backed unpacked struct) is itself an object and must be
+	   passed to %p / $display as an object handle, not read as a garbage
+	   vector. The base signal's type is the DARRAY/QUEUE container, so the
+	   check above (which matches a struct-array signal whose net_type IS
+	   the element) does not fire. The whole container reads with value
+	   IVL_VT_DARRAY/QUEUE and is handled elsewhere; only an element select
+	   (value NO_TYPE or CLASS) is class-like here. */
+      if (net_type
+          && (ivl_type_base(net_type) == IVL_VT_DARRAY
+              || ivl_type_base(net_type) == IVL_VT_QUEUE)) {
+            ivl_type_t et = ivl_type_element(net_type);
+            int ev = ivl_expr_value(expr);
+            if (et
+                && (ivl_type_base(et) == IVL_VT_CLASS
+                    || (ivl_type_base(et) == IVL_VT_NO_TYPE
+                        && ivl_type_properties(et) > 0))
+                && (ev == IVL_VT_CLASS || ev == IVL_VT_NO_TYPE))
+                  return 1;
+      }
+
       return ivl_expr_value(expr) == IVL_VT_CLASS;
 }
 

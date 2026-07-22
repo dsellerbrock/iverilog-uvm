@@ -10821,8 +10821,20 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
 
       vvp_object_t word;
       if (darray &&
-          (adr >= 0) && (thr->flags[4] == BIT4_0))
+          (adr >= 0) && (thr->flags[4] == BIT4_0)) {
 	    darray->get_word(adr, word);
+	      // A dynamic array of an object-backed unpacked struct records its
+	      // element class type (declared_type()). A `new[]`-allocated
+	      // element starts nil; materialize it as a default-constructed
+	      // object on first access so a member write `da[i].field = ...`
+	      // (and a member/%p read) addresses a live instance instead of
+	      // storing through a null handle. Class-handle darrays carry no
+	      // element type, so their nil elements correctly stay null.
+	    if (word.test_nil() && obj->declared_type()) {
+		  word = vvp_object_t(new vvp_cobject(obj->declared_type()));
+		  darray->set_word(adr, word);
+	    }
+      }
       // else word remains nil (default-constructed vvp_object_t)
 
       thr->push_object(word);
