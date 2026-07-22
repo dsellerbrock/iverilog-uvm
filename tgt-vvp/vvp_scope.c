@@ -660,10 +660,30 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    unsigned swapped = ivl_signal_array_addr_swapped(sig);
 	    int last = ivl_signal_array_base(sig)+word_count-1;
 	    int first = ivl_signal_array_base(sig);
-	    fprintf(vvp_out, "v%p .array%s \"%s\", %d %d;\n",
+
+	      /* A static unpacked array of an object-backed UNPACKED struct
+		 (element data type IVL_VT_NO_TYPE with properties) carries its
+		 element class type on the .array/obj record so the runtime can
+		 default-construct each element lazily — otherwise a member
+		 write `arr[i].field = ...` to a never-whole-assigned element
+		 would store through a nil handle and be dropped. A class-handle
+		 array (element base IVL_VT_CLASS) emits no type: its elements
+		 correctly default to null. */
+	    ivl_type_t arr_elem_type = ivl_signal_net_type(sig);
+	    int struct_obj_elem =
+		  (ivl_signal_data_type(sig) == IVL_VT_NO_TYPE)
+		  && arr_elem_type
+		  && ivl_type_base(arr_elem_type) == IVL_VT_NO_TYPE
+		  && ivl_type_properties(arr_elem_type) > 0;
+	    if (struct_obj_elem)
+		  draw_class_in_scope(arr_elem_type);
+	    fprintf(vvp_out, "v%p .array%s \"%s\", %d %d",
 		    sig, datatype_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    swapped ? first: last, swapped ? last : first);
+	    if (struct_obj_elem)
+		  fprintf(vvp_out, ", C%p", arr_elem_type);
+	    fprintf(vvp_out, ";\n");
 
       } else if (ivl_signal_dimensions(sig) > 0) {
 	    unsigned word_count = ivl_signal_array_count(sig);
@@ -1385,6 +1405,23 @@ static void draw_event_in_scope(ivl_event_t obj)
       char tmp[4][32];
 
       const unsigned ntmp = sizeof(tmp) / sizeof(tmp[0]);
+
+	/* A virtual-interface edge event (@(edge vif.sig) / a direct
+	   interface-port member) is serviced at run time by the
+	   %wait/vif/<edge> opcode, which resolves the signal's edge functor
+	   from the vif object dynamically — it never waits on this E_ record.
+	   Emitting the usual edge-probe functors here would wire a
+	   posedge/negedge/anyedge functor onto the vif HANDLE net (an object
+	   net); when the handle is assigned its object at binding, that
+	   functor's recv_object fires and asserts (posedge/negedge are not
+	   implemented for object values). Emit a plain named-event record
+	   instead so the label resolves but no spurious functor is created. */
+      if (ivl_event_is_vif_posedge(obj) || ivl_event_is_vif_negedge(obj)
+	  || ivl_event_is_vif_anyedge(obj)) {
+	    fprintf(vvp_out, "E_%p .event \"%s\";\n", obj,
+		    vvp_mangle_name(ivl_event_basename(obj)));
+	    return;
+      }
 
       unsigned nany = ivl_event_nany(obj);
       unsigned nneg = ivl_event_nneg(obj);

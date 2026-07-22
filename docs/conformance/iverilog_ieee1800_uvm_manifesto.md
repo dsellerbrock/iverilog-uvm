@@ -182,17 +182,46 @@ Maintain clean builds, canonical regressions, UVM, negative tests, VPI, cross-pl
       and r-value (`elab_expr.cc check_for_struct_members`) sites, gated on
       the container being `netuarray_t` / plain `netdarray_t` (not
       `netqueue_t`). CE test `sv_ustruct_array_member_ce`. A sibling of
+      STATIC-array member access RESOLVED 2026-07-22: a static unpacked
+      array of an object-backed unpacked struct now default-constructs its
+      elements lazily. The `.array/obj` declaration carries the element class
+      type (`tgt-vvp/vvp_scope.c`), `compile_object_array` resolves it into
+      `__vpiArray::element_defn_` (`vvp/array.cc`, grammar in `vvp/parse.y`),
+      and `get_word_obj` constructs and caches a default element object on
+      first access — so `arr[i].field = x` on a never-whole-assigned element
+      addresses a real object and a read of an unassigned element returns the
+      struct default (0). The member-write codegen loads the indexed element
+      with `%load/obja` (`tgt-vvp/stmt_assign.c`). Class-handle arrays emit no
+      element type and correctly keep null elements. The `elab_lval.cc`
+      `sorry` is narrowed to the DYNAMIC-array case only (darray object
+      elements are not yet default-constructed). Positive test
+      `sv_ustruct_array_member`; CE test `sv_ustruct_array_member_ce`
+      repurposed to the still-unsupported darray case. Known separate
+      limitation: `%p` on a whole struct-object array element still aborts in
+      the decimal formatter (an M4B `%p`-aggregate display gap, pre-existing
+      and orthogonal to member access — member reads/writes are unaffected).
+      A sibling of
       defect (a), the WHOLE-element write `arr[i] = <expr>` (no member
-      select), was found to crash the same way — the static-array element
-      write degrades the struct r-value to a null store, so the element ends
-      up null and later reads / `%p` abort at run time. The precise boundary
-      differs from the member case: only a STATIC unpacked array
-      (`netuarray_t`) whole-element write is broken; dynamic and associative
-      arrays and queues of unpacked structs, and whole-ARRAY pattern assigns
-      (`arr = '{...}`), all store elements correctly. It is now a loud
-      `sorry` in `elaborate_lval_net_word_` (`elab_lval.cc`) gated on
-      `netuarray_t` + non-packed `netstruct_t` element. CE test
-      `sv_ustruct_array_element_ce`. While reducing
+      select), was first found to crash the same way and was briefly gated
+      with a `sorry` — then ROOT-CAUSED and FIXED (2026-07-21o). The bug was
+      pure codegen: `show_stmt_assign_object` (`tgt-vvp/stmt_assign.c`)
+      diverted ANY assignment-pattern r-value to `draw_array_pattern`, which
+      is the WHOLE-ARRAY distributor — it ignores the l-value word index and
+      read the struct's fields `'{a,b}` as successive array *elements*
+      (`arr[0]=a; arr[1]=b`), calling `draw_eval_object` on a plain integer
+      and emitting `%null`. The fix only calls `draw_array_pattern` when the
+      l-value has NO word index (a true whole-array assign); a per-element
+      pattern (`ivl_lval_idx != 0`) now falls through to the same
+      build-the-object + `%store/obja` path the scalar `s = '{...}` and the
+      element-copy/struct-var cases already use. So `arr[i] = '{...}`, a
+      struct-variable assign, and an element-to-element copy all work now,
+      and member READS of an assigned element read back correctly. Positive
+      test `sv_ustruct_array_element` (the earlier CE test was removed). Note
+      the sibling still open: a member WRITE `arr[i].field = x` to an element
+      that was never whole-assigned drops silently because static object-array
+      elements are not auto-constructed (each element starts null); that path
+      stays gated by the member-access `sorry` above until element
+      auto-construction lands. While reducing
       (a) a second real crash surfaced and was fixed: the TASK-method path
       (`arr[0].method();` as a statement — a void method with a constant
       index) hit the same `canonical_expr` assertion as the earlier
@@ -341,8 +370,14 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       NOT enforced — writing a member the modport does not list compiled
       silently; now a clean error (`elab_lval.cc`, alongside the direction
       check; import/export-listed subroutines stay accessible). CE test
-      `sv_modport_visibility_fail`. Remaining refinement: visibility on
-      the READ side (expression path) is not yet enforced.)*
+      `sv_modport_visibility_fail`. READ-side visibility now enforced too
+      (2026-07-21n): reading an interface member not listed in the modport
+      through the expression path (`x = p.hidden;`) used to compile
+      silently and then ICE in synthesis ("Failed to synthesize
+      expression"); it is now the same clean error, added in
+      `PEIdent::elaborate_expr_class_member_` (`elab_expr.cc`), visibility
+      only — reading a listed input OR output member stays legal. CE test
+      `sv_modport_read_visibility_fail`.)*
 - [x] Revalidate output/inout imported task copy-back. *(2026-07-21:
       works — single-attached-instance binding with an explicit warning
       that dynamic multi-instance copy-back is not implemented; verified
@@ -370,6 +405,52 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       a `virtual pin_if vp;` declaration at compilation-unit ($unit) scope
       is a parse error. Module-scope and class-property declarations
       work.)*
+- [x] Fix change-sensitivity on interface-member (object-property) reads.
+      *(Found 2026-07-21n, FIXED 2026-07-21p. An edge/`@*` sensitivity whose
+      source is an interface-member read did not fire when that member
+      changed: interfaces are modeled as class objects, so the member read
+      lowers to a property access whose value-change event was built on the
+      object HANDLE (which never changes after binding), not on the
+      underlying interface signal. `assign p.b = p.a;` and `always @(p.a)
+      p.b = p.a;` (p an interface port) left `b` stuck at its T0 value.
+      The fix reuses the existing virtual-interface edge machinery
+      (`%wait/vif/anyedge`, which dynamically resolves a vif object's
+      per-signal edge functor at run time) that previously handled only the
+      NESTED `obj.vif_handle.sig` UVM pattern. A DIRECT interface-port member
+      `p.sig` — where the port handle IS the vif object, with no intermediate
+      vif property — is now detected in the explicit `@()` event path
+      (`elaborate.cc`) and encoded as a direct vif probe (sentinel
+      `vif_N == UINT_MAX`); codegen (`tgt-vvp/vvp_process.c`) emits
+      `%load/obj <port>; %wait/vif/<edge> <M>` with no `%prop/obj` extraction.
+      The vif-member continuous-assign lowering
+      (`elaborate_vif_member_assign_`) now sensitizes the re-apply process on
+      `@(<rhs>)` instead of `@*`, so a single interface-member r-value routes
+      through the direct probe. A real-net r-value (`assign inf.req =
+      rnd[0];`, `ivltests/sv_interface.v`) is unaffected — `@(rnd[0])`
+      sensitizes on the real net exactly as `@*` did. Test
+      `sv_interface_member_sensitivity` (continuous-assign + explicit-`@`,
+      both edges). Extended 2026-07-22 to a SINGLE interface member wrapped
+      in operators (`assign p.out = ~p.in;`, `p.a[i]`, `sel ? p.a : ...`):
+      `collect_iface_member_props_` recurses the event expression, and when
+      exactly one interface member and no ordinary-net read is present a
+      direct vif probe is built in the general (post-`synthesize`) event path
+      too — previously such expressions failed to synthesize (class property)
+      and the event was dropped to a T0-only trigger. Finally extended
+      2026-07-22 to MULTI-member and MIXED r-values (`p.a & p.c`,
+      `p.a & module_net`): `%wait/vif` waits on a single signal per event, so
+      the vif-member continuous-assign lowering now FANS OUT into one
+      `always @(read) (lhs = rhs)` process per distinct signal read in the
+      r-value (`collect_pform_reads_` + a `symbol_search`/dedup filter),
+      each re-applying the whole assignment when its own source changes — an
+      interface member routes through the vif probe, an ordinary net through a
+      normal probe. This exposed a second bug: `NetEvent::find_similar_event`
+      merged the per-member events because their probe nets (the shared vif
+      HANDLE) matched, collapsing both to one signal's `vif_M`; a
+      `vif_probes_match_` guard now blocks merging events whose vif signal
+      identity (edge kind / `vif_N` / `vif_M` / `vif_pre_N`) differs. All
+      forms (bare / indexed / operator-wrapped / multi-member / mixed, both
+      edges) covered by `sv_interface_member_sensitivity`. UVM 209/0/0
+      (nested-vif clocking unaffected).)*
 
 ## M6A — Core scheduler/runtime repairs
 

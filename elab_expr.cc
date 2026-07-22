@@ -32,6 +32,7 @@
 # include  "pform.h"
 # include  "parse_api.h"
 # include  "Module.h"
+# include  "PModport.h"
 # include  "PTask.h"
 # include  "netlist.h"
 # include  "netclass.h"
@@ -6668,6 +6669,44 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		 << " is not accessible in this context."
 		 << " (scope=" << scope_path(scope) << ")" << endl;
 	    des->errors += 1;
+      }
+
+	// Modport member visibility (IEEE 1800-2017 25.5): an interface port
+	// declared with a modport may only ACCESS members the modport lists
+	// (as ports, or via import/export). A READ of any other interface
+	// member used to compile silently (or ICE later in synthesis). This
+	// mirrors the l-value visibility check in elab_lval.cc. Direction is
+	// deliberately NOT enforced on reads: reading a listed input or
+	// output member is legal (a module may read back a member it drives),
+	// only accessing an unlisted member is the violation.
+      if (class_type->is_interface()) {
+	    verinum mp_attr = sr.net->attribute(perm_string::literal("ivl_modport"));
+	    if (mp_attr != verinum()) {
+		  std::string mp_name = mp_attr.as_string();
+		  auto im = pform_modules.find(class_type->get_name());
+		  if (im != pform_modules.end()) {
+			auto mit = im->second->modports.find(
+			      lex_strings.make(mp_name.c_str()));
+			if (mit != im->second->modports.end()) {
+			      perm_string member = comp.name;
+			      if (mit->second->simple_ports.find(member)
+					== mit->second->simple_ports.end()
+				  && mit->second->import_ports.count(member) == 0
+				  && mit->second->export_ports.count(member) == 0
+				  && class_type->property_idx_from_name(member) >= 0) {
+				    cerr << get_fileline() << ": error: "
+					 << "cannot access '" << member
+					 << "' through modport '" << mp_name
+					 << "' of interface '"
+					 << class_type->get_name()
+					 << "' — it is not listed in that"
+					 << " modport (IEEE 1800-2017 25.5)." << endl;
+				    des->errors += 1;
+				    return 0;
+			      }
+			}
+		  }
+	    }
       }
 
       if (qual.test_static()) {

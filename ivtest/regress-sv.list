@@ -1088,6 +1088,8 @@ sv_display_p_aggregates normal,-g2012 ivltests
 sv_process_suspend_resume normal,-g2012 ivltests
 sv_uarray_slice_pattern_assign normal,-g2012 ivltests
 sv_modport_visibility_fail CE,-g2012 ivltests
+sv_modport_read_visibility_fail CE,-g2012 ivltests
+sv_interface_member_sensitivity normal,-g2012 ivltests
 sv_vif_dispatch_many normal,-g2012 ivltests
 sv_class_array_method_dispatch normal,-g2012 ivltests
 sv_typeparam_formal_member normal,-g2012 ivltests
@@ -1100,4 +1102,5 @@ sv_display_p_signed normal,-g2012 ivltests
 sv_array_handle_const_index_method normal,-g2012 ivltests
 sv_cast_param_class_specialization normal,-g2012 ivltests
 sv_ustruct_array_member_ce CE,-g2012 ivltests
-sv_ustruct_array_element_ce CE,-g2012 ivltests
+sv_ustruct_array_element normal,-g2012 ivltests
+sv_ustruct_array_member normal,-g2012 ivltests

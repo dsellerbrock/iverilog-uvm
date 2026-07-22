@@ -843,6 +843,13 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       struct __vpiCallback *vpi_callbacks;
       bool signed_flag;
       bool swap_addr;
+	// For a static unpacked array whose element is an object-backed
+	// unpacked struct, this is the element's class definition. Elements
+	// start nil; get_word_obj() lazily constructs (and caches) a default
+	// element object on first access, so `arr[i].field = ...` addresses a
+	// real object even when the element was never whole-assigned. Left
+	// null for class-handle arrays, whose elements correctly stay nil.
+      class class_type*element_defn_ = nullptr;
 
 private:
       unsigned array_count;

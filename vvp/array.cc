@@ -24,6 +24,8 @@
 # include  "vpi_priv.h"
 # include  "vvp_net_sig.h"
 # include  "vvp_darray.h"
+# include  "vvp_cobject.h"
+# include  "class_type.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
 #include  "vvp_cleanup.h"
@@ -187,9 +189,86 @@ char*__vpiArray::get_word_str(struct __vpiArrayWord*word, int code)
       return generic_get_str(code, get_scope(), name, sidx);
 }
 
+/* Render an object-backed struct/class instance as `'{name:value, ...}` for
+   %p and string value fetches. Iterates the class definition's properties
+   and reads each from the live instance. Nested object properties recurse;
+   queue/associative properties are shown as a placeholder. */
+static std::string format_cobject_p_(vvp_object_t obj)
+{
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj)
+	    return std::string("null");
+      const class_type*defn = cobj->get_defn();
+      if (!defn)
+	    return std::string("null");
+
+      std::string out = "'{";
+      for (size_t i = 0 ; i < defn->property_count() ; i += 1) {
+	    if (i) out += ", ";
+	    out += defn->property_name(i);
+	    out += ":";
+	    const std::string&bt = defn->property_base_type(i);
+	    if (bt == "r") {
+		  char b[64];
+		  snprintf(b, sizeof b, "%g", cobj->get_real(i));
+		  out += b;
+	    } else if (bt == "S") {
+		  out += "\"";
+		  out += cobj->get_string(i);
+		  out += "\"";
+	    } else if (!bt.empty() && bt[0] == 'o') {
+		  vvp_object_t sub;
+		  cobj->get_object(i, sub, 0);
+		  out += format_cobject_p_(sub);
+	    } else if (!bt.empty() && (bt[0] == 'Q' || bt[0] == 'M')) {
+		  out += "<container>";
+	    } else {
+		    // Integral property: read the vector and print in decimal.
+		  vvp_vector4_t v;
+		  cobj->get_vec4(i, v);
+		  bool is_signed = (!bt.empty() && bt[0] == 's');
+		  char b[256];
+		  vpip_vec4_to_dec_str(v, b, sizeof b, is_signed);
+		  out += b;
+	    }
+      }
+      out += "}";
+      return out;
+}
+
 void __vpiArray::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 {
       unsigned index = word->get_index();
+
+	// An object element (a class handle or an object-backed unpacked
+	// struct) cannot be read through the vec4/real/string paths below —
+	// doing so reads the object handle as a garbage vector and aborts the
+	// decimal formatter. Render it as `'{...}` for %p / string fetches and
+	// steer vpiObjTypeVal to that path; numeric fetches return 0.
+      if (dynamic_cast<vvp_darray_object*>(vals)) {
+	    switch (vp->format) {
+		case vpiObjTypeVal:
+		  vp->format = vpiIntVal;
+		  vp->value.integer = 0;
+		  return;
+		case vpiBinStrVal:
+		case vpiOctStrVal:
+		case vpiDecStrVal:
+		case vpiHexStrVal:
+		case vpiStringVal: {
+		      vvp_object_t oval;
+		      get_word_obj(index, oval);
+		      std::string s = format_cobject_p_(oval);
+		      char*rbuf = (char*) need_result_buf(s.size()+1, RBUF_VAL);
+		      strcpy(rbuf, s.c_str());
+		      vp->value.str = rbuf;
+		      return;
+		}
+		default:
+		  vp->value.integer = 0;
+		  return;
+	    }
+      }
 
     // Determine the appropriate format (The Verilog PLI Handbook 5.2.10)
       if(vp->format == vpiObjTypeVal) {
@@ -437,6 +516,33 @@ void __vpiArrayVthrA::vpi_get_value(p_vpi_value vp)
       assert(array);
 
       unsigned index = get_address();
+	// An object element (class handle or object-backed unpacked struct):
+	// render as `'{...}` for %p / string fetches; the vec4 path below reads
+	// the object handle as a garbage vector and aborts the formatter.
+      if (dynamic_cast<vvp_darray_object*>(array->vals)) {
+	    switch (vp->format) {
+		case vpiObjTypeVal:
+		  vp->format = vpiIntVal;
+		  vp->value.integer = 0;
+		  return;
+		case vpiBinStrVal:
+		case vpiOctStrVal:
+		case vpiDecStrVal:
+		case vpiHexStrVal:
+		case vpiStringVal: {
+		      vvp_object_t oval;
+		      array->get_word_obj(index, oval);
+		      std::string s = format_cobject_p_(oval);
+		      char*rbuf = (char*) need_result_buf(s.size()+1, RBUF_VAL);
+		      strcpy(rbuf, s.c_str());
+		      vp->value.str = rbuf;
+		      return;
+		}
+		default:
+		  vp->value.integer = 0;
+		  return;
+	    }
+      }
       if (vpi_array_is_real(array)) {
 	    double tmp = array->get_word_r(index);
 	    vpip_real_get_value(tmp, vp);
@@ -757,6 +863,15 @@ void __vpiArray::get_word_obj(unsigned address, vvp_object_t&val)
 	    }
 
 	    vals->get_word(address, val);
+	      // Lazily default-construct an object-backed unpacked-struct
+	      // element on first access so member writes (`arr[i].field = ...`)
+	      // to a never-whole-assigned element address a real object rather
+	      // than a nil handle. The constructed object is cached back into
+	      // the slot so the write persists and later reads see it.
+	    if (val.test_nil() && element_defn_) {
+		  val = vvp_object_t(new vvp_cobject(element_defn_));
+		  vals->set_word(address, val);
+	    }
 	    return;
       }
 
@@ -1013,7 +1128,8 @@ void compile_string_array(char*label, char*name, int last, int first)
       delete[] name;
 }
 
-void compile_object_array(char*label, char*name, int last, int first)
+void compile_object_array(char*label, char*name, int last, int first,
+			  char*element_type)
 {
       vpiHandle obj = vpip_make_array(label, name, first, last, true);
 
@@ -1022,6 +1138,15 @@ void compile_object_array(char*label, char*name, int last, int first)
 	/* Make the words. */
       arr->vals = new vvp_darray_object(arr->get_size());
       arr->vals_width = 1;
+
+	/* An object-backed unpacked-struct element type lets get_word_obj()
+	   default-construct elements lazily (see __vpiArray::element_defn_).
+	   The class definition is resolved by the deferred symbol pass; class
+	   handle arrays pass no type here and keep nil elements. */
+      if (element_type) {
+	    compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&arr->element_defn_),
+			       element_type);
+      }
 
       count_real_arrays += 1;
       count_real_array_words += arr->get_size();
