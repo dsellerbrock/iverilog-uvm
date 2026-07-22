@@ -414,6 +414,14 @@ pform_sva_binprop(const struct vlltype&loc, int op_type,
 extern sva_property_t*
 pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 		 long win_lo = -1, long win_hi = -1, int strength = 0);
+/* M9-2: abort operators (IEEE 1800-2017 16.12.9). `accept_on(c) p' aborts to
+   a PASS the instant c holds; `reject_on(c) p' aborts to a FAIL. The sync_
+   variants sample c at the clock (op_type 14 accept_on, 15 reject_on,
+   16 sync_accept_on, 17 sync_reject_on). The operand must be a boolean
+   property; cond and sub are consumed. */
+extern sva_property_t*
+pform_sva_abort(const struct vlltype&loc, int op_type, PExpr*cond,
+		sva_property_t*sub);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at

@@ -107,6 +107,10 @@ struct sva_property_t {
       // form the existing lowering already handles).
       long win_lo = -1;
       long win_hi = -1;
+      // IEEE 1800-2017 16.12.9: abort operators (accept_on/reject_on and
+      // their sync_ variants, op_type 14..17). abort_cond is the abort
+      // condition expression; null for every non-abort op.
+      PExpr* abort_cond = nullptr;
 };
 
 /*

@@ -6334,6 +6334,45 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 }
 
 /*
+ * M9-2: package an abort operator (IEEE 1800-2017 16.12.9). op_type:
+ * 14 accept_on, 15 reject_on, 16 sync_accept_on, 17 sync_reject_on. The
+ * operand must be a plain boolean property (this engine aborts a
+ * single-cycle obligation); the abort condition is stored on abort_cond
+ * and the boolean step list is moved onto a fresh sva_property_t lowered
+ * by pform_make_assertion. Consumes cond and sub.
+ */
+sva_property_t*
+pform_sva_abort(const struct vlltype&loc, int op_type, PExpr*cond,
+		sva_property_t*sub)
+{
+      const char*w = (op_type == 14) ? "accept_on"
+		   : (op_type == 15) ? "reject_on"
+		   : (op_type == 16) ? "sync_accept_on"
+		   : "sync_reject_on";
+      if (!sub) { delete cond; return nullptr; }
+      if (sub->op_type != 0 || sub->antecedent || !sub->seq
+	  || sub->seq->size() != 1
+	  || (*sub->seq)[0].delay_lo != 0 || (*sub->seq)[0].delay_hi != 0
+	  || (*sub->seq)[0].rep_tail != 0
+	  || sub->clk_evt || sub->disable_iff_expr) {
+	    cerr << loc << ": sorry: `" << w << "' is supported only with a "
+		 << "boolean operand (no nested or sequence property); the "
+		 << "assertion is dropped." << endl;
+	    error_count += 1;
+	    delete cond;
+	    delete sub->antecedent; delete sub->seq; delete sub;
+	    return nullptr;
+      }
+      sva_property_t*p = new sva_property_t;
+      p->op_type = op_type;
+      p->abort_cond = cond;
+      p->seq = sub->seq;   /* move the boolean step list */
+      sub->seq = nullptr;
+      delete sub;
+      return p;
+}
+
+/*
  * M9C: lower the temporal/sequence property operators that do not fit
  * the linear token pipeline.
  *
@@ -6367,7 +6406,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 {
       int op = prop->op_type;
       bool is_within   = (op == 8);
-      bool is_liveness = (op >= 9);
+      bool is_liveness = (op >= 9 && op <= 13);
+      bool is_abort    = (op >= 14 && op <= 17);
       bool with   = (op == 5 || op == 7);
       bool strong = (op == 6 || op == 7);
 
@@ -6413,7 +6453,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
       bool bad = false;
 
-      if (!is_within && !is_liveness) {
+      if (!is_within && !is_liveness && !is_abort) {
 	      /* ---- until family (boolean operands only). ---- */
 	    if (kind == 2) {
 		  cerr << loc << ": sorry: `cover property' of an `until' "
@@ -6628,6 +6668,55 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 			FILE_NAME(fp, loc);
 		  }
 	    }
+      } else if (is_abort) {
+	      /* ---- abort operators (IEEE 1800-2017 16.12.9). The boolean
+		 operand p is in prop->seq[0]; the abort condition is
+		 prop->abort_cond. For a single-cycle boolean obligation the
+		 abort collapses to a per-cycle boolean check:
+		     reject_on(c) p — abort-to-FAIL on c: fail = c | !p
+		     accept_on(c) p — abort-to-PASS on c: fail = !c & !p
+		 Both c and p are read as sampled values at the clock tick.
+		 That is exact for sync_accept_on/sync_reject_on and, for the
+		 unsynced accept_on/reject_on, exact whenever the abort
+		 condition changes only at the clock (the synchronous-stimulus
+		 case). Like the rest of this sampled-value engine, a purely
+		 asynchronous mid-cycle glitch on c is not modeled. */
+	    if (kind == 2) {
+		  const char*w = (op == 14) ? "accept_on"
+			       : (op == 15) ? "reject_on"
+			       : (op == 16) ? "sync_accept_on"
+			       : "sync_reject_on";
+		  cerr << loc << ": sorry: `cover property' of a `" << w
+		       << "' operator is not supported; the cover is dropped."
+		       << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete clk; delete disable;
+		  return;
+	    }
+	    bool accept = (op == 14 || op == 16);
+	    PExpr*pe = (*prop->seq)[0].expr;   /* operand p (consumed below) */
+	    PExpr*ce = prop->abort_cond;       /* abort condition (consumed) */
+	    prop->abort_cond = nullptr;
+	    PExpr*failexpr;
+	    if (accept)
+		  failexpr = sva_logic_(loc, 'a', sva_not_(loc, ce),
+					sva_not_(loc, pe));
+	    else
+		  failexpr = sva_logic_(loc, 'o', ce, sva_not_(loc, pe));
+	    PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
+					    pre, post, init_zero);
+	    perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
+	    pre.push_back(sva_assign_(loc, r_ff, fs));
+	    Statement*action = fail_stmt;
+	    if (!action) {
+		  std::list<named_pexpr_t> no_args;
+		  PCallTask*err = new PCallTask(lex_strings.make("$error"),
+						no_args);
+		  FILE_NAME(err, loc);
+		  action = err;
+	    }
+	    body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
+				   sva_fail_action_(loc, inst, action), nullptr));
       } else {
 	      /* ---- within (fixed-length sequences). ---- */
 	    std::vector<PExpr*> A, B;

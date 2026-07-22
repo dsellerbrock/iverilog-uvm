@@ -5623,6 +5623,18 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { yyerror(@1, "error: unbounded `eventually' is not legal; use "
 		    "`s_eventually' (or a bounded `eventually [m:n]').");
 	delete $2; $$ = 0; }
+  /* IEEE 1800-2017 16.12.9: abort operators. `accept_on(c) p' aborts the
+     evaluation to a PASS the moment c holds; `reject_on(c) p' aborts to a
+     FAIL. The sync_ variants sample c at the clock (op 14 accept_on,
+     15 reject_on, 16 sync_accept_on, 17 sync_reject_on). */
+  | K_accept_on '(' expression ')' property_expr
+      { $$ = pform_sva_abort(@1, 14, $3, $5); }
+  | K_reject_on '(' expression ')' property_expr
+      { $$ = pform_sva_abort(@1, 15, $3, $5); }
+  | K_sync_accept_on '(' expression ')' property_expr
+      { $$ = pform_sva_abort(@1, 16, $3, $5); }
+  | K_sync_reject_on '(' expression ')' property_expr
+      { $$ = pform_sva_abort(@1, 17, $3, $5); }
   /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
      same interval. For equal-length fixed operands this lowers to a
      per-cycle AND chain the linear engine handles directly. */

@@ -1109,3 +1109,4 @@ sv_ustruct_value_copy_containers normal,-g2012 ivltests
 sv_clocking_audit normal,-g2012 ivltests
 sv_vif_member_access normal,-g2012 ivltests
 sv_program_clocking_finish normal,-g2012 ivltests
+sv_abort_operators normal,-g2012 ivltests
