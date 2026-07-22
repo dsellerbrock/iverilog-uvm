@@ -772,7 +772,15 @@ static NetExpr* elaborate_nested_method_target_property_task_(const LineInfo*li,
       if (!class_type || !base_expr)
 	    return nullptr;
 
-      int pidx = class_type->property_idx_from_name(comp.name);
+	// Force the property to be declared on the (possibly still
+	// incrementally-elaborating) specialization before looking it up.
+	// A bare property_idx_from_name() returns -1 when the method-target
+	// statement is elaborated before this specialization's properties are
+	// committed (e.g. `obj.p.push_back(..)` where p's type is a type
+	// parameter bound to a queue/darray) — which then mis-drops the call
+	// as an unknown task. ensure_property_decl() elaborates p's type in
+	// the specialized scope now, matching the expression/index path.
+      int pidx = const_cast<netclass_t*>(class_type)->ensure_property_decl(des, comp.name);
       if (pidx < 0) {
 	    delete base_expr;
 	    return nullptr;

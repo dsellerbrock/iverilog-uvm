@@ -1111,3 +1111,4 @@ sv_vif_member_access normal,-g2012 ivltests
 sv_program_clocking_finish normal,-g2012 ivltests
 sv_abort_operators normal,-g2012 ivltests
 sv_property_combinators normal,-g2012 ivltests
+sv_typeparm_aggregate_property normal,-g2012 ivltests

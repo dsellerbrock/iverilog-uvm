@@ -6,8 +6,21 @@
 // (parameterized classes). A property `T value;` in `box#(T)` specialized
 // with a queue type argument must behave as a queue.
 //
-// STATUS: characterized, not yet fixed. This is the general form of the
-// bug that the UVM-specific hack in net_expr.cc
+// STATUS: FIXED (M1B-3a). Root cause was an elaboration-ORDER bug, not a
+// queue- or type-specific one: the method-target path
+// (`elaborate_nested_method_target_property_task_` in elaborate.cc) looked
+// the property up with property_idx_from_name(), which returns -1 when the
+// specialization's property has not yet been committed (properties are
+// declared on demand). The call was then mis-dropped as an "unknown task"
+// and the aggregate silently stayed empty. Both the queue push_back path
+// and the darray/assoc method paths hit this (indexing worked because it
+// goes through the NetEProperty expression path, which already forces the
+// declaration). Fixed by calling ensure_property_decl() on the specialized
+// class first, matching the expression/index path. Regression test:
+// ivtest/ivltests/sv_typeparm_aggregate_property.v.
+//
+// Historical context: this is the general form of the bug that the
+// UVM-specific hack in net_expr.cc
 // (`infer_indexed_property_type_fallback_`, hardcoded to `uvm_shared`/
 // `value`/`T`) works around — `uvm_shared#(uvm_resource_base[$])` is
 // exactly this queue-typed-type-parameter shape.

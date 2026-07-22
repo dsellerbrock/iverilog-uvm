@@ -105,26 +105,31 @@ X=architecture, K=campaign.
 | M1B-1 | Member access on element of static/dynamic unpacked-struct array | C | **DONE** (#106/#107) | — | static+dyn+queue member r/w + `%p`; lazy element ctor |
 | M1B-2 | Struct value-copy on assignment (was reference-alias) | C | **DONE** (#108) | — | scalar/array/darray/queue `=` copy; class handle still aliases |
 | M1B-3 | Remove compile-progress fallbacks caused by lost specialization | C | IN PROGRESS | — | each silent type-recovery fallback → tracked diagnostic or fix |
-| M1B-3a | **Queue-typed type-parameter property mistyped as int** | C | OPEN (tracked, repro landed) | — | `box#(int_q_t)` `T value` usable as a queue; UVM `uvm_shared` hack removable |
+| M1B-3a | Type-parameter aggregate property unusable via methods (elaboration-order) | C | **DONE** | — | queue/darray/assoc type-parameter property usable via built-in methods |
 | M1B-4 | Adversarial parameterized-UVM specialization regressions | A | OPEN | — | generated multi-specialization suite, all correct |
 
 **M1B-3 audit note (2026-07-22).** Surveyed the compile-progress /
-type-recovery fallbacks. The clearest correctness defect surfaced is
-**M1B-3a**: a class property typed as a type parameter bound to a **queue**
-is mistyped as `int`/`logic` at access time, so the queue is silently
-unusable (`repros/typeparm_queue_property_mistyped.sv`). Bisected: dynamic
-arrays, associative arrays, and concrete (non-parameter) queue properties
-all work; only the queue-typed type-parameter case fails. The
-specialization key is distinct and the property commits with the correct
-`IVL_VT_QUEUE` type — the defect is in access-site type derivation, which
-is also why the UVM-specific hack `infer_indexed_property_type_fallback_`
-(net_expr.cc, hardcoded to `uvm_shared`/`value`/`T`) exists. The safe fix
-needs the exact access-site divergence located plus full UVM/ivtest/
-dual-run validation (the same path carries live UVM usage), so it is
-tracked here rather than rushed. Other surveyed fallback sites
-(elab_lval.cc, t-dll-proc.cc, the enum-through-macro path in elab_expr.cc)
-already emit a loud "compile-progress fallback" diagnostic — they are
-tracked, not silent.
+type-recovery fallbacks. **M1B-3a is now FIXED.** The defect was an
+elaboration-ORDER bug (not queue- or type-specific, as the first bisection
+suggested): a class property typed as a type parameter bound to an
+aggregate (queue/darray/assoc) was unusable through its built-in **methods**
+because the method-target path
+(`elaborate_nested_method_target_property_task_`, elaborate.cc) resolved it
+with `property_idx_from_name()`, which returns -1 when the specialization's
+property has not yet been committed (properties are declared on demand). The
+method call was then mis-dropped as an "unknown task" and the aggregate
+silently stayed empty. Indexing worked because it goes through the
+`NetEProperty` expression path, which already forces `ensure_property_decl()`
+— so the fix routes the method-target path through the same
+`ensure_property_decl()`. Regression:
+`ivtest/ivltests/sv_typeparm_aggregate_property.v` (queue/darray/assoc
+method access). The other surveyed fallback sites (elab_lval.cc,
+t-dll-proc.cc, the enum-through-macro path in elab_expr.cc) already emit a
+loud "compile-progress fallback" diagnostic — they are tracked, not silent.
+Follow-up: the UVM-specific hack `infer_indexed_property_type_fallback_`
+(net_expr.cc, hardcoded to `uvm_shared`/`value`/`T`) patches the *indexed*
+type-inference path for the same underlying shape and may now be removable
+— left as a separate tracked cleanup pending its own UVM validation.
 
 ### M4B — aggregate/container completion  (clause 7/21)
 
