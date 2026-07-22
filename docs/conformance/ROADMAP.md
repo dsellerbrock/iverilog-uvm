@@ -160,9 +160,9 @@ X=architecture, K=campaign.
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M9-1 | Bounded liveness/safety `nexttime[n]`,`eventually[m:n]`,`always[m:n]` | F | OPEN | — | windowed lowering + tests |
-| M9-2 | Abort operators `accept_on`/`reject_on`/`sync_*` | F | OPEN | — | sampled gating over checker |
-| M9-3 | Property combinators `implies`/`iff`/`if-else`/`case` property | F | OPEN | — | boolean-combinator lowerings |
+| M9-1 | Bounded liveness/safety `nexttime[n]`,`eventually[m:n]`,`always[m:n]` | F | **DONE** (PR #109) | — | windowed lowering + tests |
+| M9-2 | Abort operators `accept_on`/`reject_on`/`sync_*` | F | **DONE** (PR #109) | — | boolean-operand sampled gating + tests |
+| M9-3 | Property combinators `implies`/`iff`/`if-else`/`case` property | F | **DONE** (PR #109) | — | boolean-combinator lowerings + tests |
 | M9-4 | Goto / nonconsecutive repetition `b[->n]` `b[=n]` | F | OPEN | **M9-NFA** | per-attempt branching matcher |
 | M9-5 | Local sequence variables `(a, v=e) ##1 (b && f(v))` | F | OPEN | **M9-NFA** | per-attempt state |
 | M9-6 | `.matched` / complete `.triggered` / strong-weak sequences | F | OPEN | **M9-NFA** | sequence method semantics |
@@ -171,6 +171,13 @@ X=architecture, K=campaign.
 | M9-9 | `checker`/`endchecker` (clause 17; today a loud sorry) | F | OPEN | **M9-NFA** | real checker instantiation |
 | M9-10 | Procedural concurrent assertion forms | F | OPEN | **M9-NFA** | inline procedural assert |
 | M9-11 | `expect` statement | F | OPEN | **M6-CALLF** | process blocks on a property |
+
+**M9 status note.** M9-1/2/3 are DONE (PR #109). These were the entire
+subset of clause-16 operators that lower onto the existing sampled-value,
+per-cycle "collapse" engine over boolean operands. That subset is now
+**exhausted**: every remaining M9 item (M9-4..M9-10) is hard-blocked on
+**M9-NFA** (the per-attempt automaton engine), and M9-11 on M6-CALLF. No
+further SVA feature can land without one of those two architecture rocks.
 
 ### M10B/C — DPI completion  (clause 35)
 
