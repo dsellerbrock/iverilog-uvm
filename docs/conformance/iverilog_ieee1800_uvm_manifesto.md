@@ -410,12 +410,17 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       rnd[0];`, `ivltests/sv_interface.v`) is unaffected — `@(rnd[0])`
       sensitizes on the real net exactly as `@*` did. Test
       `sv_interface_member_sensitivity` (continuous-assign + explicit-`@`,
-      both edges). Remaining: a COMPLEX r-value that reads an interface member
-      inside a larger expression (`assign p.b = p.a & p.c;`) still routes the
-      combined expression's sensitivity through `nex_input` (handle net) — the
-      direct-probe detection only fires when the event expression is itself a
-      single interface-member property; recursing into sub-expressions (as the
-      `wait()` path already does) is the follow-up.)*
+      both edges). Extended 2026-07-22 to a SINGLE interface member wrapped
+      in operators (`assign p.out = ~p.in;`, `p.a[i]`, `sel ? p.a : ...`):
+      `collect_iface_member_props_` recurses the event expression, and when
+      exactly one interface member and no ordinary-net read is present a
+      direct vif probe is built in the general (post-`synthesize`) event path
+      too — previously such expressions failed to synthesize (class property)
+      and the event was dropped to a T0-only trigger. Remaining: a MIXED or
+      MULTI-member r-value (`p.a & p.c`, `p.a & module_net`) stays on the
+      legacy handle-net path — `%wait/vif` waits on a single signal per event,
+      so covering several members needs either a multi-signal vif wait or a
+      per-member process fan-out; that is the follow-up.)*
 
 ## M6A — Core scheduler/runtime repairs
 

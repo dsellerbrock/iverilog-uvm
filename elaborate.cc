@@ -8917,6 +8917,108 @@ NetProc* PDoWhile::elaborate(Design*des, NetScope*scope) const
  * NetEvWait object can refer to.
  */
 
+/* Collect DIRECT interface-port member reads (a class property whose root
+   signal is itself an interface handle) from a sensitivity expression,
+   recursing through the common operator nodes. A NESTED vif chain
+   (`obj.vif_handle.sig`, where the property's root is a base expression and
+   get_sig() is null) is deliberately NOT collected here — it is handled by
+   the dedicated 2-/3-level detection in the caller. Used to route a single
+   interface-member read inside a larger r-value (e.g. `~p.a`, `p.a[0]`) to
+   a virtual-interface edge probe. When more than one distinct interface
+   member appears (e.g. `p.a & p.c`), the caller leaves the expression on
+   the legacy (handle-net) path, because the %wait/vif opcode waits on a
+   single signal per event. */
+static void collect_iface_member_props_(const NetExpr*e,
+					std::vector<const NetEProperty*>&out)
+{
+      if (!e) return;
+      if (const NetEProperty*p = dynamic_cast<const NetEProperty*>(e)) {
+	    if (const NetNet*sig = p->get_sig()) {
+		  const netclass_t*cls =
+			dynamic_cast<const netclass_t*>(sig->net_type());
+		  if (cls && cls->is_interface()) {
+			out.push_back(p);
+			return;
+		  }
+	    }
+	    collect_iface_member_props_(p->get_base(), out);
+	    collect_iface_member_props_(p->get_index(), out);
+	    return;
+      }
+      if (const NetEBinary*b = dynamic_cast<const NetEBinary*>(e)) {
+	    collect_iface_member_props_(b->left(), out);
+	    collect_iface_member_props_(b->right(), out);
+	    return;
+      }
+      if (const NetEUnary*u = dynamic_cast<const NetEUnary*>(e)) {
+	    collect_iface_member_props_(u->expr(), out);
+	    return;
+      }
+      if (const NetESelect*s = dynamic_cast<const NetESelect*>(e)) {
+	    collect_iface_member_props_(s->sub_expr(), out);
+	    collect_iface_member_props_(s->select(), out);
+	    return;
+      }
+      if (const NetETernary*t = dynamic_cast<const NetETernary*>(e)) {
+	    collect_iface_member_props_(t->cond_expr(), out);
+	    collect_iface_member_props_(t->true_expr(), out);
+	    collect_iface_member_props_(t->false_expr(), out);
+	    return;
+      }
+      if (const NetEConcat*c = dynamic_cast<const NetEConcat*>(e)) {
+	    for (unsigned i = 0 ; i < c->nparms() ; i += 1)
+		  collect_iface_member_props_(c->parm(i), out);
+	    return;
+      }
+      if (const NetESFunc*f = dynamic_cast<const NetESFunc*>(e)) {
+	    for (unsigned i = 0 ; i < f->nparms() ; i += 1)
+		  collect_iface_member_props_(f->parm(i), out);
+	    return;
+      }
+}
+
+/* True if the expression reads any ordinary net (a NetESignal anywhere in
+   the tree). Used to keep the single-interface-member direct-vif probe from
+   firing on a MIXED r-value such as `p.a & module_net`, whose real-net part
+   would otherwise lose its sensitivity (%wait/vif waits on one signal). Such
+   mixed / multi-member forms stay on the legacy path (a recorded limitation)
+   rather than gaining a new, subtly-wrong partial sensitivity. */
+static bool expr_reads_real_signal_(const NetExpr*e)
+{
+      if (!e) return false;
+      if (dynamic_cast<const NetESignal*>(e)) return true;
+      if (const NetEProperty*p = dynamic_cast<const NetEProperty*>(e)) {
+	    // A direct interface-member read (get_sig() set) is NOT a real-net
+	    // read for this purpose; but its base/index sub-expressions might
+	    // read real nets.
+	    return expr_reads_real_signal_(p->get_base())
+		|| expr_reads_real_signal_(p->get_index());
+      }
+      if (const NetEBinary*b = dynamic_cast<const NetEBinary*>(e))
+	    return expr_reads_real_signal_(b->left())
+		|| expr_reads_real_signal_(b->right());
+      if (const NetEUnary*u = dynamic_cast<const NetEUnary*>(e))
+	    return expr_reads_real_signal_(u->expr());
+      if (const NetESelect*s = dynamic_cast<const NetESelect*>(e))
+	    return expr_reads_real_signal_(s->sub_expr())
+		|| expr_reads_real_signal_(s->select());
+      if (const NetETernary*t = dynamic_cast<const NetETernary*>(e))
+	    return expr_reads_real_signal_(t->cond_expr())
+		|| expr_reads_real_signal_(t->true_expr())
+		|| expr_reads_real_signal_(t->false_expr());
+      if (const NetEConcat*c = dynamic_cast<const NetEConcat*>(e)) {
+	    for (unsigned i = 0 ; i < c->nparms() ; i += 1)
+		  if (expr_reads_real_signal_(c->parm(i))) return true;
+	    return false;
+      }
+      if (const NetESFunc*f = dynamic_cast<const NetESFunc*>(e)) {
+	    for (unsigned i = 0 ; i < f->nparms() ; i += 1)
+		  if (expr_reads_real_signal_(f->parm(i))) return true;
+	    return false;
+      }
+      return false;
+}
+
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet) const
 {
@@ -9479,23 +9581,29 @@ cerr << endl;
 			      if (etype == PEEvent::POSEDGE || etype == PEEvent::NEGEDGE
 				  || etype == PEEvent::ANYEDGE) {
 				    NetEProperty*outer_p = dynamic_cast<NetEProperty*>(tmp);
-				    // Direct interface-port member `@(edge p.sig)`: p is itself the
-				    // virtual-interface object (its net_type is an interface class),
-				    // so there is no intermediate vif property to extract. Encode a
-				    // DIRECT vif probe (vif_N == UINT_MAX). Without this the probe
-				    // sensitized on the handle net, which never changes after binding.
-				    if (outer_p && outer_p->get_sig()) {
-				          const netclass_t*sig_cls = dynamic_cast<const netclass_t*>(
-				              outer_p->get_sig()->net_type());
-				          if (sig_cls && sig_cls->is_interface()) {
-				                unsigned Mdir = outer_p->property_idx();
-				                if (etype == PEEvent::POSEDGE)
-				                      pr->set_vif_posedge(UINT_MAX, Mdir, UINT_MAX);
-				                else if (etype == PEEvent::NEGEDGE)
-				                      pr->set_vif_negedge(UINT_MAX, Mdir, UINT_MAX);
-				                else
-				                      pr->set_vif_anyedge(UINT_MAX, Mdir, UINT_MAX);
-				          }
+				    // Direct interface-port member `@(edge p.sig)`, including a
+				    // single such member wrapped in a larger r-value (`~p.a`,
+				    // `p.a[0]`, `p.a ? x : y`): p is itself the virtual-interface
+				    // object, so there is no intermediate vif property to extract.
+				    // Encode a DIRECT vif probe (vif_N == UINT_MAX). Without this
+				    // the probe sensitized on the handle net, which never changes
+				    // after binding. Exactly one interface member is required —
+				    // %wait/vif waits on a single signal per event; more than one
+				    // (`p.a & p.c`) is left on the legacy handle-net path.
+				    {
+					  std::vector<const NetEProperty*> iface_props;
+					  collect_iface_member_props_(tmp, iface_props);
+					  if (iface_props.size() == 1
+					      && iface_props[0]->get_sig()) {
+						unsigned Mdir =
+						      iface_props[0]->property_idx();
+						if (etype == PEEvent::POSEDGE)
+						      pr->set_vif_posedge(UINT_MAX, Mdir, UINT_MAX);
+						else if (etype == PEEvent::NEGEDGE)
+						      pr->set_vif_negedge(UINT_MAX, Mdir, UINT_MAX);
+						else
+						      pr->set_vif_anyedge(UINT_MAX, Mdir, UINT_MAX);
+					  }
 				    }
 				    if (outer_p && !outer_p->get_sig()) {
 					  NetEProperty*mid_p = dynamic_cast<NetEProperty*>(
@@ -9572,6 +9680,53 @@ cerr << endl;
 		  delete tmp;
 		  ignored_class_property_event_expr = true;
 		  continue;
+	    }
+
+
+	    // A single DIRECT interface-port member read wrapped in operators
+	    // (`~p.a`, `p.a[i]` with a member r-value, `sel ? p.a : ...`):
+	    // synthesize() cannot lower a class property, so without this the
+	    // event would be skipped entirely and the process would run only once
+	    // (T0). Build a direct virtual-interface edge probe on that member
+	    // instead. Requires EXACTLY one interface member and no ordinary-net
+	    // read (%wait/vif is single-signal); mixed/multi-member r-values keep
+	    // the legacy path.
+	    if (gn_system_verilog()) {
+		  std::vector<const NetEProperty*> iface_props;
+		  collect_iface_member_props_(tmp, iface_props);
+		  if (iface_props.size() == 1 && iface_props[0]->get_sig()
+		      && !expr_reads_real_signal_(tmp)) {
+			NexusSet*ivset = iface_props[0]->nex_input();
+			if (ivset && ivset->size() > 0) {
+			      PEEvent::edge_t etype2 = expr_[idx]->type();
+			      unsigned pins = (etype2 == PEEvent::ANYEDGE)
+					     ? ivset->size() : 1;
+			      NetEvProbe::edge_t pt =
+				    etype2 == PEEvent::POSEDGE ? NetEvProbe::POSEDGE
+				  : etype2 == PEEvent::NEGEDGE ? NetEvProbe::NEGEDGE
+				  : etype2 == PEEvent::EDGE    ? NetEvProbe::EDGE
+				  : NetEvProbe::ANYEDGE;
+			      NetEvProbe*pr2 = new NetEvProbe(scope,
+				    scope->local_symbol(), ev, pt, pins);
+			      for (unsigned pp = 0 ; pp < pr2->pin_count() ; pp += 1) {
+				    unsigned src = (etype2 == PEEvent::ANYEDGE) ? pp : 0;
+				    connect(ivset->at(src).lnk, pr2->pin(pp));
+			      }
+			      unsigned Mdir = iface_props[0]->property_idx();
+			      if (etype2 == PEEvent::POSEDGE)
+				    pr2->set_vif_posedge(UINT_MAX, Mdir, UINT_MAX);
+			      else if (etype2 == PEEvent::NEGEDGE)
+				    pr2->set_vif_negedge(UINT_MAX, Mdir, UINT_MAX);
+			      else
+				    pr2->set_vif_anyedge(UINT_MAX, Mdir, UINT_MAX);
+			      des->add_node(pr2);
+			      delete ivset;
+			      delete tmp;
+			      expr_count += 1;
+			      continue;
+			}
+			delete ivset;
+		  }
 	    }
 
 	    NetNet*expr = tmp->synthesize(des, scope, tmp);

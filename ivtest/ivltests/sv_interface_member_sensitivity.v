@@ -26,6 +26,18 @@ module ev_driver(simple_if p);
   always @(p.a) p.c = p.a;
 endmodule
 
+// A single interface member wrapped in an operator (`~p.a`) must still be
+// detected and routed to the vif edge probe (synthesize() cannot lower the
+// class property, so the event would otherwise be skipped and the process
+// run only once).
+interface inv_if;
+  logic in;
+  logic out;
+endinterface
+module inv_driver(inv_if p);
+  assign p.out = ~p.in;
+endmodule
+
 // Explicit posedge event on an interface port member (edge-qualified: a
 // vif posedge/negedge probe must NOT wire an edge functor onto the object
 // handle net, or its recv_object aborts).
@@ -43,6 +55,8 @@ module sv_interface_member_sensitivity;
   ev_driver ev(intf);
   clk_if    cif();
   cnt_driver cd(cif);
+  inv_if    iif();
+  inv_driver iv(iif);
   int errors = 0;
 
   initial begin
@@ -58,6 +72,12 @@ module sv_interface_member_sensitivity;
     cif.cnt = 0; cif.clk = 0;
     repeat (3) begin #1 cif.clk = 1; #1 cif.clk = 0; end
     #1 if (cif.cnt !== 3) begin $display("FAIL: posedge cnt=%0d (expect 3)", cif.cnt); errors++; end
+
+    // single interface member wrapped in an operator: out = ~in.
+    iif.in = 0; #1;
+    if (iif.out !== 1'b1) begin $display("FAIL: ~p.a out=%b (expect 1)", iif.out); errors++; end
+    iif.in = 1; #1;
+    if (iif.out !== 1'b0) begin $display("FAIL: ~p.a out=%b (expect 0)", iif.out); errors++; end
 
     if (errors == 0) $display("PASSED");
     else $display("FAILED (%0d errors)", errors);
