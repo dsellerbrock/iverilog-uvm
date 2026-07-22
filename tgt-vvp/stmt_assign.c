@@ -1397,10 +1397,34 @@ static void show_stmt_assign_sig_darray_queue_mux(ivl_statement_t net)
 		  draw_eval_expr_into_integer(mux, 3);
 		    }
 		    break;
+	  case IVL_VT_NO_TYPE:
+		    assert(ivl_stmt_opcode(net) == 0);
+		      /* An object-backed unpacked-struct element has VALUE
+			 semantics: `da[i] = x` (or `q[i] = x`) must copy x's
+			 contents into a fresh object, not alias x's object. Clone
+			 only when the r-value reads existing struct storage; a
+			 freshly built aggregate is already independent. */
+		    {
+			  ivl_expr_type_t rvt = ivl_expr_type(rval);
+			  int rval_aliases = (rvt == IVL_EX_SIGNAL
+					      || rvt == IVL_EX_PROPERTY
+					      || rvt == IVL_EX_SELECT);
+			  int is_struct = element_type
+				&& ivl_type_properties(element_type) > 0;
+			  if (is_struct && rval_aliases) {
+				fprintf(vvp_out, "    %%new/cobj C%p;"
+					" struct value copy\n", element_type);
+				draw_eval_object(rval);
+				fprintf(vvp_out, "    %%scopy;\n");
+			  } else {
+				draw_eval_object(rval);
+			  }
+		    }
+		    draw_eval_expr_into_integer(mux, 3);
+		    break;
 	  case IVL_VT_CLASS:
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
-	  case IVL_VT_NO_TYPE:
 		    assert(ivl_stmt_opcode(net) == 0);
 		    draw_eval_object(rval);
 		    draw_eval_expr_into_integer(mux, 3);
@@ -2696,8 +2720,39 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 
 	      /* There is no property select, so evaluate the r-value
 		 as an object and assign the entire object to the
-		 variable. */
-	    errors += draw_eval_object(rval);
+		 variable.
+
+		 An object-backed unpacked struct has VALUE semantics: `y = x`
+		 (or `arr[i] = x`) must copy x's contents into a fresh object,
+		 not alias x's object — otherwise a later `y.field = ...` would
+		 also mutate x. Only a reference-yielding r-value (reading
+		 existing struct storage: a signal, a member, or an element
+		 select) needs the clone; a freshly built aggregate (array
+		 pattern, new, concat) is already independent. A class handle
+		 (IVL_VT_CLASS) keeps reference semantics and is never cloned.
+		 The clone is a shallow copy of the properties (scalar/real/
+		 string members copy by value); a nested unpacked-struct member
+		 is not yet deep-copied. (IEEE 1800-2017 7.2.1.) */
+	    ivl_type_t lv_type = ivl_signal_net_type(sig);
+	    int value_struct = lv_type
+		  && ivl_type_base(lv_type) == IVL_VT_NO_TYPE
+		  && ivl_type_properties(lv_type) > 0;
+	    ivl_expr_type_t rvt = ivl_expr_type(rval);
+	    int rval_aliases = (rvt == IVL_EX_SIGNAL || rvt == IVL_EX_PROPERTY
+				|| rvt == IVL_EX_SELECT);
+
+	    if (value_struct && rval_aliases) {
+		    /* Build a fresh destination object and shallow-copy the
+		       source into it (%scopy pops the source and copies it into
+		       the new top-of-stack), leaving the independent copy to be
+		       stored below. */
+		  fprintf(vvp_out, "    %%new/cobj C%p; struct value copy\n",
+			  lv_type);
+		  errors += draw_eval_object(rval);
+		  fprintf(vvp_out, "    %%scopy;\n");
+	    } else {
+		  errors += draw_eval_object(rval);
+	    }
 
 	    if (ivl_signal_array_count(sig) > 1) {
 		  unsigned ix;

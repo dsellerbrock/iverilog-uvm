@@ -1104,3 +1104,4 @@ sv_cast_param_class_specialization normal,-g2012 ivltests
 sv_ustruct_array_element normal,-g2012 ivltests
 sv_ustruct_array_member normal,-g2012 ivltests
 sv_dyn_array_member normal,-g2012 ivltests
+sv_ustruct_value_copy normal,-g2012 ivltests
