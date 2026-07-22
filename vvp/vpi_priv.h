@@ -1176,6 +1176,16 @@ extern unsigned vpip_vec4_to_dec_str(const vvp_vector4_t&vec4,
 				     char *buf, unsigned int nbuf,
 				     int signed_flag);
 
+/*
+ * Render an object-backed struct/class instance as `'{name:value, ...}` for
+ * %p and object string-value fetches. Walks the class definition's properties
+ * and reads each from the live instance (real -> %g, string -> quoted, nested
+ * object -> recurse, queue/associative -> placeholder, integral -> decimal).
+ * A nil handle (or one with no definition) renders as "null". The depth guard
+ * bounds recursion so a cyclic object graph cannot loop forever.
+ */
+extern std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth = 0);
+
 
 extern void vpip_vec4_to_hex_str(const vvp_vector4_t&bits, char*buf,
 				 unsigned nbuf);

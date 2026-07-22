@@ -43,18 +43,20 @@ using namespace std;
 
 namespace {
 
-static const char* describe_thread_object_(const vvp_object_t&obj)
+static std::string describe_thread_object_(const vvp_object_t&obj)
 {
       if (obj.test_nil())
-            return "null";
+            return std::string("null");
 
-      if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
-            const class_type*defn = cobj->get_defn();
-            if (defn)
-                  return defn->class_name().c_str();
-      }
+	// An object-backed struct/class instance renders as `'{name:value,
+	// ...}` for %p (via the shared renderer), so a dynamic-array or queue
+	// element `da[i]` printed with %p reads the same as a static-array
+	// element. Non-cobject objects (a nested darray/queue/string handle)
+	// have no property list to walk.
+      if (obj.peek<vvp_cobject>())
+            return vvp_format_cobject_p(obj);
 
-      return "<object>";
+      return std::string("<object>");
 }
 
 }
@@ -363,9 +365,9 @@ void __vpiVThrObjStack::vpi_get_value(p_vpi_value vp)
 	  case vpiOctStrVal:
 	  case vpiHexStrVal:
 	  case vpiStringVal: {
-		const char*desc = describe_thread_object_(val);
-		char*rbuf = static_cast<char *>(need_result_buf(strlen(desc)+1, RBUF_VAL));
-		strcpy(rbuf, desc);
+		std::string desc = describe_thread_object_(val);
+		char*rbuf = static_cast<char *>(need_result_buf(desc.size()+1, RBUF_VAL));
+		strcpy(rbuf, desc.c_str());
 		vp->value.str = rbuf;
 		break;
 	  }

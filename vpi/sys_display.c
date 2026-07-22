@@ -383,7 +383,11 @@ static char* format_p_value(vpiHandle item)
       strcpy(acc + used, "}");
       return acc;
     }
-    return strdup("null");
+    /* The object is live (the null test above already returned "null") but
+       this handle does not support member iteration — e.g. a thread
+       object-stack handle for a dynamic-array / queue element `da[i]`. Fall
+       through to the leaf string path, whose vpiDecStrVal fetch returns the
+       object's `'{...}` rendering from the shared renderer. */
   }
 
   /* Leaf value. Discover the natural element format, then render it the way

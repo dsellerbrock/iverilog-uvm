@@ -23,6 +23,8 @@
 # include  "vvp_net_sig.h"
 # include  "vvp_darray.h"
 # include  "vvp_assoc.h"
+# include  "vvp_cobject.h"
+# include  "class_type.h"
 # include  "array_common.h"
 # include  "schedule.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -143,6 +145,47 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 	    }
 	    vp->format = vpiSuppressVal;
 	    return;
+      }
+
+	// An object-backed element (a class handle or an object-backed
+	// unpacked struct) cannot be read through the vec4 path below —
+	// aobj->get_word(index, vvp_vector4_t) reads the object handle as a
+	// garbage vector and warns. Render it as `'{...}` for %p / string
+	// fetches so a whole dynamic array or queue of structs prints like a
+	// static array. A nil struct element (never member-written) is shown
+	// as its default value by rendering a temporary default-constructed
+	// instance, matching the static-array element semantics; a nil class
+	// handle element renders as "null".
+      if (dynamic_cast<vvp_darray_object*>(aobj)) {
+	    switch (vp->format) {
+		case vpiObjTypeVal:
+		  vp->format = vpiIntVal;
+		  vp->value.integer = 0;
+		  return;
+		case vpiBinStrVal:
+		case vpiOctStrVal:
+		case vpiDecStrVal:
+		case vpiHexStrVal:
+		case vpiStringVal: {
+		      vvp_object_t oval;
+		      aobj->get_word(index, oval);
+		      if (oval.test_nil()) {
+			    const vvp_fun_signal_object*fun =
+				  dynamic_cast<vvp_fun_signal_object*>(get_net()->fun);
+			    class_type*defn = fun ? fun->declared_type() : 0;
+			    if (defn)
+				  oval = vvp_object_t(new vvp_cobject(defn));
+		      }
+		      std::string s = vvp_format_cobject_p(oval);
+		      char*rbuf = (char*)need_result_buf(s.size()+1, RBUF_VAL);
+		      strcpy(rbuf, s.c_str());
+		      vp->value.str = rbuf;
+		      return;
+		}
+		default:
+		  vp->value.integer = 0;
+		  return;
+	    }
       }
 
       if(vp->format == vpiObjTypeVal) {

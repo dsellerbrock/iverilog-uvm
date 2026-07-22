@@ -189,52 +189,10 @@ char*__vpiArray::get_word_str(struct __vpiArrayWord*word, int code)
       return generic_get_str(code, get_scope(), name, sidx);
 }
 
-/* Render an object-backed struct/class instance as `'{name:value, ...}` for
-   %p and string value fetches. Iterates the class definition's properties
-   and reads each from the live instance. Nested object properties recurse;
-   queue/associative properties are shown as a placeholder. */
-static std::string format_cobject_p_(vvp_object_t obj)
-{
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      if (!cobj)
-	    return std::string("null");
-      const class_type*defn = cobj->get_defn();
-      if (!defn)
-	    return std::string("null");
-
-      std::string out = "'{";
-      for (size_t i = 0 ; i < defn->property_count() ; i += 1) {
-	    if (i) out += ", ";
-	    out += defn->property_name(i);
-	    out += ":";
-	    const std::string&bt = defn->property_base_type(i);
-	    if (bt == "r") {
-		  char b[64];
-		  snprintf(b, sizeof b, "%g", cobj->get_real(i));
-		  out += b;
-	    } else if (bt == "S") {
-		  out += "\"";
-		  out += cobj->get_string(i);
-		  out += "\"";
-	    } else if (!bt.empty() && bt[0] == 'o') {
-		  vvp_object_t sub;
-		  cobj->get_object(i, sub, 0);
-		  out += format_cobject_p_(sub);
-	    } else if (!bt.empty() && (bt[0] == 'Q' || bt[0] == 'M')) {
-		  out += "<container>";
-	    } else {
-		    // Integral property: read the vector and print in decimal.
-		  vvp_vector4_t v;
-		  cobj->get_vec4(i, v);
-		  bool is_signed = (!bt.empty() && bt[0] == 's');
-		  char b[256];
-		  vpip_vec4_to_dec_str(v, b, sizeof b, is_signed);
-		  out += b;
-	    }
-      }
-      out += "}";
-      return out;
-}
+/* Object-backed struct/class element rendering for %p is provided by the
+   shared vvp_format_cobject_p() (see vpi_priv.h), so the static-array element
+   path here and the dynamic-array/queue element path (thread object stack)
+   render identically. */
 
 void __vpiArray::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 {
@@ -258,7 +216,7 @@ void __vpiArray::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 		case vpiStringVal: {
 		      vvp_object_t oval;
 		      get_word_obj(index, oval);
-		      std::string s = format_cobject_p_(oval);
+		      std::string s = vvp_format_cobject_p(oval);
 		      char*rbuf = (char*) need_result_buf(s.size()+1, RBUF_VAL);
 		      strcpy(rbuf, s.c_str());
 		      vp->value.str = rbuf;
@@ -532,7 +490,7 @@ void __vpiArrayVthrA::vpi_get_value(p_vpi_value vp)
 		case vpiStringVal: {
 		      vvp_object_t oval;
 		      array->get_word_obj(index, oval);
-		      std::string s = format_cobject_p_(oval);
+		      std::string s = vvp_format_cobject_p(oval);
 		      char*rbuf = (char*) need_result_buf(s.size()+1, RBUF_VAL);
 		      strcpy(rbuf, s.c_str());
 		      vp->value.str = rbuf;

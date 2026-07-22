@@ -437,7 +437,20 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 
 	    if (word_ex && sig_type) {
 		  ivl_type_t element_type = ivl_type_element(sig_type);
-		  if (element_type && ivl_type_base(element_type) == IVL_VT_CLASS) {
+		    /* The element is object-backed when it is a class handle or
+		       an object-backed unpacked struct (base IVL_VT_NO_TYPE with
+		       properties). A dynamic array / queue of such an element
+		       stores each entry as an object, so a member write
+		       `arr[i].field = ...` must load the addressed ELEMENT as an
+		       object (not the whole array) and return the element type so
+		       the property store selects the right opcode. Without the
+		       NO_TYPE case a darray/queue of unpacked structs fell through
+		       to the whole-array %load/obj below and dropped the index. */
+		  int elem_is_object = element_type &&
+			(ivl_type_base(element_type) == IVL_VT_CLASS
+			 || (ivl_type_base(element_type) == IVL_VT_NO_TYPE
+			     && ivl_type_properties(element_type) > 0));
+		  if (elem_is_object) {
 			  /* An associative array keyed by a class handle (or any
 			     assoc key) is an IVL_VT_QUEUE with assoc-compat. Its
 			     element is fetched with %aa/load using the real key —

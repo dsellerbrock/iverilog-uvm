@@ -135,7 +135,8 @@ void compile_var_string(char*label, char*name, int lifetime_flag)
 }
 
 void compile_var_darray(char*label, char*name, unsigned size,
-			int lifetime_flag, bool element_signed)
+			int lifetime_flag, bool element_signed,
+			char*element_type)
 {
       vvp_net_t*net = new vvp_net_t;
       bool use_auto = use_automatic_storage_(lifetime_flag);
@@ -147,6 +148,17 @@ void compile_var_darray(char*label, char*name, unsigned size,
       } else {
 	    net->fil = 0;
 	    net->fun = new vvp_fun_signal_object_sa(size);
+      }
+
+	// An object-backed unpacked-struct element type: record the element
+	// class definition so a nil element can be lazily default-constructed
+	// on the first member access (%load/dar/obj). Class-handle darrays
+	// carry no element type and their elements correctly default to null.
+      if (element_type) {
+	    if (vvp_fun_signal_object*obj =
+		    dynamic_cast<vvp_fun_signal_object*>(net->fun))
+		  compile_vpi_lookup(reinterpret_cast<vpiHandle*>
+				     (&obj->declared_type_ref()), element_type);
       }
 
       define_functor_symbol(label, net);

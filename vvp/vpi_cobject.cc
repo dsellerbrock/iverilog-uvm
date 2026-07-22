@@ -66,6 +66,57 @@ static class_type* get_declared_class_type_(vvp_fun_signal_object*fun)
 
 }
 
+/* Shared object -> `'{name:value, ...}` renderer for %p and object string
+   value fetches (see vpi_priv.h). Used by the static-array element path
+   (array.cc), the dynamic-array/queue element path (the thread object stack
+   handle in vpi_vthr_vector.cc), and any other object string fetch. */
+std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
+{
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj)
+	    return std::string("null");
+      const class_type*defn = cobj->get_defn();
+      if (!defn)
+	    return std::string("null");
+	// Bound recursion so a cyclic object graph (a class handle that
+	// references itself, directly or transitively) cannot loop forever.
+      if (depth > 32)
+	    return std::string("...");
+
+      std::string out = "'{";
+      for (size_t i = 0 ; i < defn->property_count() ; i += 1) {
+	    if (i) out += ", ";
+	    out += defn->property_name(i);
+	    out += ":";
+	    const std::string&bt = defn->property_base_type(i);
+	    if (bt == "r") {
+		  char b[64];
+		  snprintf(b, sizeof b, "%g", cobj->get_real(i));
+		  out += b;
+	    } else if (bt == "S") {
+		  out += "\"";
+		  out += cobj->get_string(i);
+		  out += "\"";
+	    } else if (!bt.empty() && bt[0] == 'o') {
+		  vvp_object_t sub;
+		  cobj->get_object(i, sub, 0);
+		  out += vvp_format_cobject_p(sub, depth+1);
+	    } else if (!bt.empty() && (bt[0] == 'Q' || bt[0] == 'M')) {
+		  out += "<container>";
+	    } else {
+		    // Integral property: read the vector and print in decimal.
+		  vvp_vector4_t v;
+		  cobj->get_vec4(i, v);
+		  bool is_signed = (!bt.empty() && bt[0] == 's');
+		  char b[256];
+		  vpip_vec4_to_dec_str(v, b, sizeof b, is_signed);
+		  out += b;
+	    }
+      }
+      out += "}";
+      return out;
+}
+
 __vpiCobjectVar::__vpiCobjectVar(__vpiScope*sc, const char*na, vvp_net_t*ne)
 : __vpiBaseVar(sc, na, ne)
 {
