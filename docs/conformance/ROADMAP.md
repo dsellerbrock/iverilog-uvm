@@ -82,7 +82,7 @@ breakdown that follows is grouped under it.
 | 6 | **M8** | Clocking reprobes | PROVISIONAL |
 | 3 | **M3B** | Full clause-18 randomization | PARTIAL |
 | 3 | **M4B** | Aggregate/container completion | PARTIAL |
-| 7 | **M9B/C/D** | SVA sequence/temporal/automaton | PARTIAL → OPEN |
+| 7 | **M9B/C/D** | SVA sequence/temporal/automaton | AUTOMATON LANDED; M9-9 checker + M9-7 residuals OPEN |
 | 8 | **M10B/C** | DPI completion | PARTIAL |
 | 9 | **M11B** | Coverage declaration/sampling surface | PARTIAL |
 | 10 | **M12B/C** | VPI completion | PARTIAL |
@@ -163,21 +163,28 @@ X=architecture, K=campaign.
 | M9-1 | Bounded liveness/safety `nexttime[n]`,`eventually[m:n]`,`always[m:n]` | F | **DONE** (PR #109) | — | windowed lowering + tests |
 | M9-2 | Abort operators `accept_on`/`reject_on`/`sync_*` | F | **DONE** (PR #109) | — | boolean-operand sampled gating + tests |
 | M9-3 | Property combinators `implies`/`iff`/`if-else`/`case` property | F | **DONE** (PR #109) | — | boolean-combinator lowerings + tests |
-| M9-4 | Goto / nonconsecutive repetition `b[->n]` `b[=n]` | F | OPEN | **M9-NFA** | per-attempt branching matcher |
-| M9-5 | Local sequence variables `(a, v=e) ##1 (b && f(v))` | F | OPEN | **M9-NFA** | per-attempt state |
-| M9-6 | `.matched` / complete `.triggered` / strong-weak sequences | F | OPEN | **M9-NFA** | sequence method semantics |
-| M9-7 | Multiclock sequences | F | OPEN | **M9-NFA** | clock-crossing tokens |
-| M9-8 | Variable-length `intersect` / `within` | F | OPEN | **M9-NFA** | non-fixed operands |
-| M9-9 | `checker`/`endchecker` (clause 17; today a loud sorry) | F | OPEN | **M9-NFA** | real checker instantiation |
-| M9-10 | Procedural concurrent assertion forms | F | OPEN | **M9-NFA** | inline procedural assert |
+| M9-4 | Goto / nonconsecutive repetition `b[->n]` `b[=n]` | F | **DONE** (NFA C.1) | — | plain-seq + `##N` + `\|=>` consequent; `##0`-fused `\|->` consequent is a loud sorry corner |
+| M9-5 | Local sequence variables `(a, v=e) ##1 (b && f(v))` | F | **DONE** (NFA LV-1/LV-2) | — | fixed + variable-delay per-slot storage |
+| M9-6 | `.matched` / complete `.triggered` / strong-weak sequences | F | **DONE** (NFA C.2/C.3) | — | endpoint methods + strong/weak obligation |
+| M9-7 | Multiclock sequences | F | **PARTIAL** (NFA D.1) | — | `\|=>` CDC handshake done; mid-seq clock flow / cross-clock `\|->` / multi-cycle CDC operands are loud errors |
+| M9-8 | Variable-length `intersect` / `within` | F | **DONE** (NFA B.2/B.4) | — | non-fixed operands over the automaton |
+| M9-9 | `checker`/`endchecker` (clause 17; today a loud sorry) | F | **OPEN** | — | real checker instantiation |
+| M9-10 | Procedural concurrent assertion forms | F | **MOSTLY DONE** | — | clocked `assert property` in a proc block elaborates; needs the always-block edge as implicit clock + audit |
 | M9-11 | `expect` statement | F | OPEN | **M6-CALLF** | process blocks on a property |
 
-**M9 status note.** M9-1/2/3 are DONE (PR #109). These were the entire
-subset of clause-16 operators that lower onto the existing sampled-value,
-per-cycle "collapse" engine over boolean operands. That subset is now
-**exhausted**: every remaining M9 item (M9-4..M9-10) is hard-blocked on
-**M9-NFA** (the per-attempt automaton engine), and M9-11 on M6-CALLF. No
-further SVA feature can land without one of those two architecture rocks.
+**M9 status note (corrected 2026-07-22).** The **M9-NFA per-attempt
+automaton engine is LANDED and is the default SVA engine** — stages
+A/B/C/D.1 all shipped in prior sessions (design doc
+`m9_nfa_design_2026-07-19.md`), verified by `tests/sva_nfa/run.sh`
+(dual-run 33/33: automaton vs legacy verdict-parity, plus nfa-only golds).
+M9-4/5/6/8 are therefore DONE via the automaton; M9-7 is PARTIAL (the
+`|=>` CDC handshake works, harder multiclock forms are loud errors). The
+boolean-collapse operators M9-1/2/3 (PR #109) fill in the pieces the
+automaton doesn't need. **Every M9 residual is a LOUD rejection — there is
+no silent-miscompile gap anywhere in clause 16.** The genuine remaining
+frontier is **M9-9 (checker/endchecker, clause 17)** — the largest
+unimplemented SVA feature — plus the M9-7 multiclock residuals, the
+`##0`-fused goto-consequent corner, and eventual legacy-engine retirement.
 
 ### M10B/C — DPI completion  (clause 35)
 
