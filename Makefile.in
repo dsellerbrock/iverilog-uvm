@@ -168,6 +168,7 @@ clean:
 	rm -f ivl.exp iverilog-vpi.man iverilog-vpi.pdf iverilog-vpi.ps
 	rm -f parse.output syn-rules.output dosify$(BUILDEXT) ivl@EXEEXT@ check.vvp
 	rm -f lexor_keyword.cc libivl.a libvpi.a iverilog-vpi syn-rules.cc
+	rm -f uvm_dpi.vpi uvm_dpi_iverilog.o
 	rm -rf dep
 	rm -f version.exe
 
@@ -346,8 +347,58 @@ else
 WIN32_INSTALL = installwin32
 endif
 
+# --- Supported UVM environment (see docs/uvm_frontend.md) -----------------
+# The bundled UVM sources and the standard UVM DPI runtime module are
+# installed alongside the rest of the toolchain so `iverilog -uvm' works with
+# no user-specified paths:
+#     $(libdir)/ivl$(suffix)/uvm/src/   UVM SystemVerilog sources (uvm_pkg.sv)
+#     $(libdir)/ivl$(suffix)/uvm_dpi.vpi  UVM DPI umbrella (a VPI module)
+# The UVM sources come from the uvm-core submodule; when it is not checked
+# out, the UVM steps are skipped with a note and the rest of the install is
+# unaffected.
+UVM_CORE_SRC = $(srcdir)/uvm-core/src
+UVM_DPI_SRC = $(srcdir)/uvm_dpi/uvm_dpi_iverilog.cc
+UVM_DPI_BUILD = $(srcdir)/uvm_dpi/build_uvm_dpi.sh
+uvmdir = $(libdir)/ivl$(suffix)/uvm
+vpidir = $(libdir)/ivl$(suffix)
+
+# Build the UVM DPI umbrella as a loadable VPI module, in the build tree,
+# using the just-built iverilog-vpi and the in-tree headers/libvpi (so this
+# is independent of DESTDIR staging). The per-platform link quirks live in
+# build_uvm_dpi.sh. Best effort: a failure here warns but does not abort the
+# install (the -uvm front end then falls back to UVM_NO_DPI with a clear
+# diagnostic), so a toolchain build never breaks on the DPI umbrella.
+uvm_dpi.vpi: $(UVM_DPI_SRC) $(UVM_DPI_BUILD)
+	IVPI=./iverilog-vpi VVP_DEF=$(srcdir)/vvp/vvp.def \
+	    sh $(UVM_DPI_BUILD) --name=uvm_dpi \
+	    -I$(srcdir) -I. -I$(UVM_CORE_SRC)/dpi -Lvpi $(UVM_DPI_SRC)
+	rm -f uvm_dpi_iverilog.o
+
 install: all installdirs installfiles
 	$(foreach dir,$(SUBDIRS),$(MAKE) -C $(dir) $@ && ) true
+	$(MAKE) installuvm
+
+# Install the UVM sources and (best effort) the UVM DPI runtime module.
+# Kept as its own target invoked from install's recipe so it runs after the
+# subdirectories (libvpi.a) and iverilog-vpi are built.
+installuvm: installdirs
+	@if [ ! -f "$(UVM_CORE_SRC)/uvm_pkg.sv" ]; then \
+	    echo "note: uvm-core submodule not checked out; skipping UVM install."; \
+	    echo "      run 'git submodule update --init' to enable 'iverilog -uvm'."; \
+	else \
+	    echo "Installing UVM sources to $(DESTDIR)$(uvmdir)/src ..."; \
+	    rm -rf "$(DESTDIR)$(uvmdir)/src"; \
+	    $(srcdir)/mkinstalldirs "$(DESTDIR)$(uvmdir)"; \
+	    cp -R "$(UVM_CORE_SRC)" "$(DESTDIR)$(uvmdir)/src"; \
+	    echo "Building UVM DPI runtime module ..."; \
+	    if $(MAKE) uvm_dpi.vpi; then \
+	        $(INSTALL_PROGRAM) ./uvm_dpi.vpi "$(DESTDIR)$(vpidir)/uvm_dpi.vpi"; \
+	        echo "Installed $(DESTDIR)$(vpidir)/uvm_dpi.vpi"; \
+	    else \
+	        echo "WARNING: UVM DPI runtime build failed; 'iverilog -uvm' will"; \
+	        echo "         use UVM_NO_DPI. See docs/uvm_frontend.md."; \
+	    fi; \
+	fi
 
 F = ./ivl@EXEEXT@ \
 	$(srcdir)/constants.vams \
@@ -395,6 +446,8 @@ uninstall:
 	$(foreach dir,$(SUBDIRS),$(MAKE) -C $(dir) $@ && ) true
 	for f in ivl@EXEEXT@ include/constants.vams include/disciplines.vams; \
 	    do rm -f "$(DESTDIR)$(libdir)/ivl$(suffix)/$$f"; done
+	rm -f "$(DESTDIR)$(libdir)/ivl$(suffix)/uvm_dpi.vpi"
+	rm -rf "$(DESTDIR)$(libdir)/ivl$(suffix)/uvm"
 	-rmdir "$(DESTDIR)$(libdir)/ivl$(suffix)/include"
 	-rmdir "$(DESTDIR)$(libdir)/ivl$(suffix)"
 	for f in verilog$(suffix) iverilog-vpi$(suffix) gverilog$(suffix)@EXEEXT@; \

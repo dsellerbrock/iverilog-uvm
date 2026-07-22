@@ -18,30 +18,47 @@ the simulator gets fixed, not the library.
 
 ## Canonical invocation
 
-```bash
-iverilog -g2012 \
-  -I uvm-core/src \
-  -DUVM_NO_DPI \
-  -o sim.vvp \
-  uvm-core/src/uvm_pkg.sv \
-  my_testbench.sv
+With an installed toolchain, `-uvm` wires up UVM for you — sources, include
+path, compile order, and the standard UVM DPI runtime:
 
+```bash
+iverilog -g2012 -uvm -s top -o sim.vvp my_testbench.sv
 vvp sim.vvp +UVM_TESTNAME=my_test
 ```
 
-Element by element:
+Options precede the source files, as `iverilog` always expects. This is the
+recommended flow; it needs no UVM paths and no `-M`/`-m`/`-d`
+runtime arguments, and it enables the real UVM DPI layer automatically. See
+[docs/uvm_frontend.md](uvm_frontend.md) for how the front end resolves and
+loads these resources, and for the overrides (`--uvm-home`, `--uvm-no-dpi`,
+`--uvm-version`).
 
 | Element | Why |
 |---|---|
-| `-g2012` | Selects IEEE 1800 SystemVerilog mode. Required; UVM will not parse without it. |
-| `-I uvm-core/src` | Include path so `` `include "uvm_macros.svh" `` resolves. |
-| `-DUVM_NO_DPI` | Builds UVM's pure-SystemVerilog fallbacks instead of its DPI-C layer. **Recommended** — see [DPI and UVM](#dpi-and-uvm) below. |
-| `uvm-core/src/uvm_pkg.sv` | The UVM package source. Compile it **before** your testbench files, in the same command. |
-| `-o sim.vvp` | Output file for the compiled VVP bytecode. |
+| `-g2012` | Selects IEEE 1800 SystemVerilog mode. Required; UVM will not parse without it (`-uvm` raises the generation to this if left at a non-SV default). |
+| `-uvm` | Adds the installed UVM sources and DPI runtime automatically. |
+| `-s top` | Selects the top module when there is more than one candidate. |
 | `+UVM_TESTNAME=...` | Selects the test at runtime when the testbench calls `run_test()` with no argument. A hardcoded `run_test("name")` needs no plusarg. |
 
 Standard UVM plusargs read via `$value$plusargs` work, e.g.
 `+UVM_TESTNAME`, `+UVM_VERBOSITY=UVM_HIGH`.
+
+### Manual invocation (advanced / working from the source tree)
+
+Without an installed toolchain — for example running straight from a build
+tree — you can still name the UVM sources explicitly. `uvm_pkg.sv` must
+precede your testbench, and `-I uvm-core/src` makes the includes resolve:
+
+```bash
+iverilog -g2012 -I uvm-core/src -DUVM_NO_DPI -o sim.vvp \
+  uvm-core/src/uvm_pkg.sv my_testbench.sv
+vvp sim.vvp +UVM_TESTNAME=my_test
+```
+
+`-DUVM_NO_DPI` selects UVM's pure-SystemVerilog fallbacks (no DPI object to
+build); see [DPI and UVM](#dpi-and-uvm) for running the real DPI layer this
+way. The `-uvm` flow above does all of this for you and enables DPI by
+default.
 
 ## Minimal smoke test
 

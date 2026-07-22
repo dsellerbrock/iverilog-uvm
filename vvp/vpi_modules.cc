@@ -20,6 +20,7 @@
 # include  "config.h"
 # include  "vpi_priv.h"
 # include  "ivl_dlfcn.h"
+# include  "vvp_dpi.h"
 # include  "vvp_cleanup.h"
 # include  <cstdio>
 # include  <cstring>
@@ -253,6 +254,13 @@ void vpip_load_module(const char*name)
       dll_list = static_cast<ivl_dll_t*>
                  (realloc(dll_list, dll_list_cnt*sizeof(ivl_dll_t)));
       dll_list[dll_list_cnt-1] = dll;
+
+	/* A loadable module may also export C functions that the design
+	   imports through DPI. The standard UVM DPI umbrella is exactly
+	   this: a vpi_module that provides the uvm_re_, uvm_hdl_ and
+	   uvm_dpi_ entry points. Make its symbols visible to DPI import
+	   resolution so no separate command-line DPI load is needed. */
+      vvp_dpi_register_lib(dll);
 
       vpi_mode_flag = VPI_MODE_REGISTER;
       vlog_startup_routines_t*routines = (vlog_startup_routines_t*)table;

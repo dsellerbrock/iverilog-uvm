@@ -109,45 +109,36 @@ to pick the top module when there is more than one candidate.
 
 ### Running a UVM testbench
 
+Pass `-uvm` and the toolchain wires up UVM for you — the bundled UVM
+sources, the correct include path and compile order, and the standard UVM
+DPI runtime — the way a commercial simulator does:
+
 ```bash
-# Build the UVM DPI library once (regex + command-line + HDL backdoor).
-# The include dir holds Icarus' svdpi.h/vpi_user.h (usually
-# <prefix>/include/iverilog, e.g. /usr/local/include/iverilog).
-g++ -shared -fPIC -I<prefix>/include/iverilog \
-    -I uvm-core/src/dpi -o uvm_dpi.so uvm_dpi/uvm_dpi_iverilog.cc
-
-iverilog -g2012 \
-  -I uvm-core/src \
-  -o sim.vvp \
-  uvm-core/src/uvm_pkg.sv \
-  my_testbench.sv
-
-vvp -d ./uvm_dpi.so sim.vvp +UVM_TESTNAME=my_test
+iverilog -g2012 -uvm -s top -o sim.vvp my_testbench.sv
+vvp sim.vvp +UVM_TESTNAME=my_test
 ```
 
-`uvm_pkg.sv` must precede your sources. The fork now ships an Icarus UVM
-DPI backend ([`uvm_dpi/uvm_dpi_iverilog.cc`](uvm_dpi/uvm_dpi_iverilog.cc)):
-build it into `uvm_dpi.so` and load it with `vvp -d` to run UVM with its
-real DPI layer — regex name matching, command-line/plusarg access, and the
-`uvm_hdl_*` register **backdoor** (`vpi_handle_by_name`-based). Building the
-DPI object requires the Icarus DPI headers, whose directory
-`iverilog -V` prints. Alternatively, compile with `-DUVM_NO_DPI` to select
-UVM's pure-SystemVerilog fallbacks and skip the DPI object entirely — still
-a supported configuration. `+UVM_TESTNAME` selects the test when the
-testbench calls `run_test()` with no argument.
+No UVM source paths, no `uvm_pkg.sv` on the command line, no `-M`/`-m`/`-d`
+shared-library arguments. (Options precede the source files, as `iverilog`
+always expects.) The DPI layer (regex name matching, command-line
+/ plusarg access, the `uvm_hdl_*` register **backdoor**) is loaded
+automatically, and `+UVM_TESTNAME` selects the test when `run_test()` is
+called with no argument. This works from any directory and from a relocated
+or custom-prefix install.
 
-**Smoke test:** any test in [`tests/`](tests) is a ready-made example, e.g.
+**Smoke test:** any test in [`tests/`](tests) is a ready-made example:
 
 ```bash
-iverilog -g2012 -I uvm-core/src -DUVM_NO_DPI -o smoke.vvp \
-    uvm-core/src/uvm_pkg.sv tests/no_rand_test.sv
+iverilog -g2012 -uvm -o smoke.vvp tests/no_rand_test.sv
 vvp smoke.vvp
 ```
 
-which ends with a UVM report summary showing `UVM_ERROR : 0`. Compiling the
-UVM library prints deliberate loud warnings/sorries for recorded corners —
-see **[docs/uvm.md](docs/uvm.md)** for the full UVM guide (test selection,
-plusargs, DPI-on vs. DPI-off, known UVM-visible limitations).
+which ends with a UVM report summary showing `UVM_ERROR : 0`.
+
+Advanced overrides (a different UVM library, disabling DPI, raw module
+loading) are all still available — see **[docs/uvm_frontend.md](docs/uvm_frontend.md)**
+for the front-end architecture and **[docs/uvm.md](docs/uvm.md)** for the
+UVM usage guide (test selection, plusargs, known UVM-visible limitations).
 
 ## Feature highlights
 
@@ -368,8 +359,8 @@ read it for the per-clause evidence and the complete corner ledger.
   across time; a loud sorry on Windows, which lacks `<ucontext.h>`).
   Object/open-array/wide-vector and output/inout export arguments remain
   loud sorries. UVM's `uvm_hdl_*` register **backdoor** works via the
-  Icarus UVM DPI backend ([`uvm_dpi/`](uvm_dpi)) loaded with `vvp -d`;
-  `-DUVM_NO_DPI` remains available to skip DPI entirely.
+  Icarus UVM DPI backend ([`uvm_dpi/`](uvm_dpi)), which `-uvm` installs and
+  loads automatically; `--uvm-no-dpi` remains available to skip DPI.
 - `randcase`, `randsequence`, `wait_order`, interface classes, `checker`
   blocks: rejected with explicit diagnostics.
 - Of the 3101-test upstream `ivtest` suite, 44 tests currently fail (vs. 83
