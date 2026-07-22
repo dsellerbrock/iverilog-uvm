@@ -69,7 +69,7 @@ breakdown that follows is grouped under it.
 | — | M4A | Core container runtime | DONE (core) |
 | — | M6A | Core scheduler/runtime repairs | DONE (subset) |
 | — | M7 | Accellera UVM qualification | DONE (harness 209/0/0) |
-| — | M8 | Clocking blocks & program sched | PROVISIONAL |
+| — | M8 | Clocking blocks & program sched | DONE (clause-14 disposition) |
 | — | M9A | Core SVA token pipeline | DONE |
 | — | M10A | Core DPI imports & packed vectors | DONE (subset) |
 | — | M11A | Class functional-coverage core | DONE |
@@ -79,7 +79,7 @@ breakdown that follows is grouped under it.
 | 4 | **M1B** | Specialization/aggregate typing fidelity | PARTIAL |
 | 5 | **M5** | Interfaces & modports | PARTIAL |
 | 6 | **M6B** | Scheduler conformance | PARTIAL |
-| 6 | **M8** | Clocking reprobes | PROVISIONAL |
+| 6 | **M8** | Clocking reprobes | DONE (audit + disposition matrix) |
 | 3 | **M3B** | Full clause-18 randomization | PARTIAL |
 | 3 | **M4B** | Aggregate/container completion | PARTIAL |
 | 7 | **M9B/C/D** | SVA sequence/temporal/automaton | AUTOMATON LANDED; M9-9 checker + M9-7 residuals OPEN |
@@ -170,15 +170,15 @@ type-inference path for the same underlying shape and may now be removable
 | M6B-3 | Scheduling for time-consuming DPI imports | F | OPEN | M6-CALLF | DPI task may consume time |
 | M6B-4 | Assertion attempt-lifecycle scheduling | F | OPEN | ARCH M9-NFA | per-attempt start/step/end regions |
 
-### M8 — clocking blocks (PROVISIONAL — audit owed)  (clause 14)
+### M8 — clocking blocks (DONE — clause-14 disposition matrix)  (clause 14)
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M8-1 | Reprobe edge-qualified skew forms | A | OPEN | — | each skew form verified vs spec |
-| M8-2 | Reprobe real/string/aggregate clockvars | A | OPEN | — | non-integral clockvars correct |
-| M8-3 | Parameterized vif clocking stress | A | OPEN | — | per-specialization clocking correct |
-| M8-4 | Clocking + program + assertion + VPI ordering stress | A | OPEN | — | region ordering litmus green |
-| M8-5 | Every clause-14 subfeature has a disposition | K | OPEN | — | subclause matrix rows + tests |
+| M8-1 | Reprobe edge-qualified skew forms | A | **DONE** | — | input/output `#N` skew timing verified & pinned (sv_clocking_skew_audit) |
+| M8-2 | Reprobe real/string/aggregate clockvars | A | **DONE** | — | packed sample correctly; real/string/unpacked-array are a loud `sorry`→alias (disclosed) |
+| M8-3 | Parameterized vif clocking stress | A | **DONE** | — | non-param vif clocking verified; parameterized vif is a loud warning (tracked repro) |
+| M8-4 | Clocking + program + assertion + VPI ordering stress | A | **DONE** | — | region ordering + program end-of-sim (24.7) pinned (sv_program_clocking_finish) |
+| M8-5 | Every clause-14 subfeature has a disposition | K | **DONE** | — | `docs/conformance/m8_clocking_disposition.md` |
 
 ### M9 — SVA  (clause 16/17)
 
