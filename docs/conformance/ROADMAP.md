@@ -147,7 +147,7 @@ type-inference path for the same underlying shape and may now be removable
 |----|------|-----|--------|-----------|-----------|
 | M5-1 | Modport member visibility (read + write) | C | **DONE** | — | listed-only access; CE tests |
 | M5-2 | Interface-member change-sensitivity (all r-value forms) | C | **DONE** | — | bare/indexed/operator/multi/mixed, both edges |
-| M5-3 | Runtime-index vif-array binding `vp[i]=pins[i]` in a loop | F | OPEN | — | needs runtime instance-dispatch table |
+| M5-3 | Runtime-index vif-array binding `vp[i]=pins[i]` in a loop | F | **DONE** | — | synthesized instance-dispatch mux (ternary of NetEScope handles); out-of-range→null |
 | M5-4 | Bare `$unit`-scope `virtual iface v;` (parse error today) | F | OPEN | — | parses & binds at $unit scope |
 | M5-5 | Generic `interface` ports | F | OPEN | — | generic port binds to any matching iface |
 
@@ -338,9 +338,9 @@ combinators) · M1B-3a (type-parameter aggregate property method miscompile) ·
 dual-run). M4B-1/M4B-2 (struct value-copy through args/return + nested deep copy) were
 verified already-working in prior sessions; M1B-3's remaining fallbacks are already loud.
 
-1. **M5-3 / M5-4 / M5-5** — vif runtime-index array binding, `$unit`-scope vif decl,
-   generic `interface` ports (FEATURE; unblocked; UVM-load-bearing — vif arrays are
-   common in UVM agents/envs). **Current top pick.**
+1. **M5-4 / M5-5** — `$unit`-scope vif decl, generic `interface` ports (FEATURE;
+   unblocked). M5-3 (vif runtime-index array binding) is **DONE** — synthesized
+   instance-dispatch mux. **Current top pick.**
 2. **M3B-2 / M3B-3** — `randsequence`, `disable soft` (FEATURE; no arch dependency).
 3. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
    UVM value). M9-7 residual multiclock forms alongside.
