@@ -1107,3 +1107,4 @@ sv_dyn_array_member normal,-g2012 ivltests
 sv_ustruct_value_copy normal,-g2012 ivltests
 sv_ustruct_value_copy_containers normal,-g2012 ivltests
 sv_clocking_audit normal,-g2012 ivltests
+sv_vif_member_access normal,-g2012 ivltests

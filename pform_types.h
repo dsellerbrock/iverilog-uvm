@@ -421,6 +421,15 @@ struct interface_type_t : public data_type_t {
       ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
 
       perm_string name;
+      // A parameter override on the virtual-interface type (e.g.
+      // `virtual bus_if #(16) v;`). Parameterized virtual-interface
+      // SPECIALIZATION is not yet modeled: all specializations of an
+      // interface share one netclass elaborated with the interface's DEFAULT
+      // parameters, so a non-default override would silently use the default
+      // member widths. This flag lets elaboration diagnose that loudly instead
+      // of miscompiling silently (IEEE 1800-2017 25.9). Overrides are not yet
+      // honored; when they are, this becomes the specialization key.
+      bool has_param_override = false;
       // Phase 63a/A1: optional modport name from `if.modport` port header.
       // When set, restricts which interface members are accessible
       // through this port reference.  Currently captured but not yet

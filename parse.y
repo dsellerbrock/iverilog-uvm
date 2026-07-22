@@ -3352,14 +3352,13 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 	$$ = tmp;
       }
   | K_virtual TYPE_IDENTIFIER parameter_value_opt
-      { if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0) {
+      { interface_type_t*tmp;
+	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
 	      yyerror(@2, "error: virtual may only be used with interface types.");
-	      $$ = new interface_type_t(lex_strings.make($2.text));
-	      FILE_NAME($$, @1);
-	} else {
-	      $$ = new interface_type_t(lex_strings.make($2.text));
-	      FILE_NAME($$, @1);
-	}
+	tmp = new interface_type_t(lex_strings.make($2.text));
+	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($3 != 0);
+	$$ = tmp;
 	delete[] $2.text;
 	if ($3) delete $3;
       }
@@ -3367,6 +3366,7 @@ data_type /* IEEE1800-2005: A.2.2.1 */
       { /* Forward-referenced or un-typed interface — create by name */
 	interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
 	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($3 != 0);
 	delete[] $2;
 	if ($3) delete $3;
 	$$ = tmp;
@@ -3375,14 +3375,19 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 
 virtual_interface_type
   : TYPE_IDENTIFIER parameter_value_opt
-      { if (dynamic_cast<const interface_type_t*>($1.type->get_data_type()) == 0) {
+      { interface_type_t*tmp;
+	if (dynamic_cast<const interface_type_t*>($1.type->get_data_type()) == 0) {
 	      yyerror(@1, "error: virtual may only be used with interface types.");
-	      $$ = new interface_type_t(lex_strings.make($1.text));
-	      FILE_NAME($$, @1);
+	      tmp = new interface_type_t(lex_strings.make($1.text));
 	} else {
-	      $$ = new interface_type_t(lex_strings.make($1.text));
-	      FILE_NAME($$, @1);
+	      tmp = new interface_type_t(lex_strings.make($1.text));
 	}
+	FILE_NAME(tmp, @1);
+	  /* Record that a parameter override was given so elaboration can
+	     diagnose the unmodeled specialization instead of silently using
+	     the interface's default parameters. */
+	tmp->has_param_override = ($2 != 0);
+	$$ = tmp;
 	delete[] $1.text;
 	if ($2) delete $2;
       }
@@ -3390,6 +3395,7 @@ virtual_interface_type
   | IDENTIFIER parameter_value_opt
       { interface_type_t*tmp = new interface_type_t(lex_strings.make($1));
 	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($2 != 0);
 	delete[] $1;
 	if ($2) delete $2;
 	$$ = tmp;
@@ -10568,6 +10574,7 @@ module_item
 	      yyerror(@2, "error: virtual may only be used with interface types.");
 	itype = new interface_type_t(lex_strings.make($2.text));
 	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
 	pform_make_var(@2, $4, itype, nullptr, false);
 	delete[] $2.text;
 	if ($3) delete $3;
@@ -10576,6 +10583,7 @@ module_item
       { /* Forward-referenced or not-yet-registered interface name. */
 	interface_type_t*itype = new interface_type_t(lex_strings.make($2));
 	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
 	pform_make_var(@2, $4, itype, nullptr, false);
 	delete[] $2;
 	if ($3) delete $3;
