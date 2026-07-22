@@ -2404,10 +2404,13 @@ static int show_insert_method(ivl_statement_t net)
 		      case IVL_VT_CLASS:
 		      case IVL_VT_DARRAY:
 		      case IVL_VT_QUEUE:
-		      case IVL_VT_NO_TYPE:
-			draw_eval_object(parm2);
+		      case IVL_VT_NO_TYPE: {
+			ivl_type_t p0t = ivl_expr_net_type(parm0);
+			draw_eval_object_value_copy(parm2,
+						    p0t ? ivl_type_element(p0t) : 0);
 			fprintf(vvp_out, "    %%qinsert/o/obj;\n");
 			break;
+		      }
 		      default:
 			draw_eval_vec4(parm2);
 			fprintf(vvp_out, "    %%qinsert/o/v %u;\n",
@@ -2454,7 +2457,7 @@ static int show_insert_method(ivl_statement_t net)
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
-	    draw_eval_object(parm2);
+	    draw_eval_object_value_copy(parm2, element_type);
 	    fprintf(vvp_out, "    %%qinsert/obj v%p_0, %d;\n",
 	            var, idx);
 	    break;
@@ -2525,7 +2528,8 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 		      case IVL_VT_DARRAY:
 		      case IVL_VT_QUEUE:
 		      case IVL_VT_NO_TYPE:
-			draw_eval_object(parm1);
+			draw_eval_object_value_copy(parm1,
+						    parm0_type ? ivl_type_element(parm0_type) : 0);
 			fprintf(vvp_out, "    %%store/qo/%s/obj;\n", type_code + 1);
 			break;
 		      default:
@@ -2578,7 +2582,7 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
-	    draw_eval_object(parm1);
+	    draw_eval_object_value_copy(parm1, element_type);
 	    fprintf(vvp_out, "    %%store/%s/obj v%p_0, %d;\n",
 	            type_code, var, idx);
 	    break;
