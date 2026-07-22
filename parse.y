@@ -1085,6 +1085,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       // M9: sequence step chains for property/sequence expressions.
       std::vector<sva_seq_step_t>* sva_seq;
 
+      // M9-3: `case (...) ... endcase' property branches.
+      sva_prop_case_item_t* sva_case_item;
+      std::vector<sva_prop_case_item_t>* sva_case_items;
+
       decl_assignment_t*decl_assignment;
       std::list<decl_assignment_t*>*decl_assignments;
 
@@ -1301,6 +1305,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <sva_prop> property_expr property_spec
 %type <sva_prop> sva_seq_comb sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
 %type <sva_seq>  sva_seq_expr sva_seq_atom
+%type <sva_case_item>  property_case_item
+%type <sva_case_items> property_case_items
 %type <perm_strings> cross_item_list
 
 %type <named_pexprs> enum_name_list enum_name
@@ -5635,6 +5641,21 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_abort(@1, 16, $3, $5); }
   | K_sync_reject_on '(' expression ')' property_expr
       { $$ = pform_sva_abort(@1, 17, $3, $5); }
+  /* IEEE 1800-2017 16.12.8: property combinators over boolean operands.
+     `a implies b' == `!a | b'; `a iff b' == `(a & b) | (!a & !b)';
+     `if (c) p [else q]' selects a branch; `case (e) ... endcase' selects
+     the first matching branch (a default, or vacuous truth, when none
+     match). Each collapses to a single boolean property. */
+  | sva_seq_expr K_implies sva_seq_expr
+      { $$ = pform_sva_prop_implies(@2, $1, $3); }
+  | sva_seq_expr K_iff sva_seq_expr
+      { $$ = pform_sva_prop_iff(@2, $1, $3); }
+  | K_if '(' expression ')' property_expr %prec less_than_K_else
+      { $$ = pform_sva_prop_if(@1, $3, $5, nullptr); }
+  | K_if '(' expression ')' property_expr K_else property_expr
+      { $$ = pform_sva_prop_if(@1, $3, $5, $7); }
+  | K_case '(' expression ')' property_case_items K_endcase
+      { $$ = pform_sva_case(@1, $3, $5); }
   /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
      same interval. For equal-length fixed operands this lowers to a
      per-cycle AND chain the linear engine handles directly. */
@@ -5659,6 +5680,30 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      [*m:n]) builds a SEQ_THROUGHOUT tree for the automaton engine. */
   | expression K_throughout sva_seq_expr
       { $$ = pform_sva_seq_throughout(@2, $1, $3); }
+  ;
+
+  /* IEEE 1800-2017 16.12.8: `case' property branches. A matched branch is
+     `expr {, expr} : property_expr ;'; the default branch is
+     `default [:] property_expr ;'. vals == null marks the default. */
+property_case_item
+  : expression_list_proper ':' property_expr ';'
+      { sva_prop_case_item_t*it = new sva_prop_case_item_t;
+	it->vals = $1; it->prop = $3; $$ = it; }
+  | K_default ':' property_expr ';'
+      { sva_prop_case_item_t*it = new sva_prop_case_item_t;
+	it->vals = nullptr; it->prop = $3; $$ = it; }
+  | K_default property_expr ';'
+      { sva_prop_case_item_t*it = new sva_prop_case_item_t;
+	it->vals = nullptr; it->prop = $2; $$ = it; }
+  ;
+
+property_case_items
+  : property_case_item
+      { std::vector<sva_prop_case_item_t>*v =
+	      new std::vector<sva_prop_case_item_t>;
+	v->push_back(*$1); delete $1; $$ = v; }
+  | property_case_items property_case_item
+      { $1->push_back(*$2); delete $2; $$ = $1; }
   ;
 
   /* M9: a sequence expression as a linear chain of cycle-delayed

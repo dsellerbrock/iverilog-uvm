@@ -114,6 +114,17 @@ struct sva_property_t {
 };
 
 /*
+ * M9-3: one branch of a `case (expr) ... endcase' property (IEEE
+ * 1800-2017 16.12.8). vals is the match-expression list (null marks the
+ * `default' branch); prop is the branch property. The parser collects a
+ * list of these and pform_sva_case() folds them into a boolean property.
+ */
+struct sva_prop_case_item_t {
+      std::list<PExpr*>* vals = nullptr;   // null => default branch
+      sva_property_t* prop = nullptr;
+};
+
+/*
  * The vlltype supports the passing of detailed source file location
  * information between the lexical analyzer and the parser. Defining
  * YYLTYPE compels the lexor to use this type and not something other.

@@ -272,6 +272,7 @@ extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
    kind: 0=assert, 1=assume, 2=cover. */
 struct sva_property_t;
 struct sva_seq_step_t;
+struct sva_prop_case_item_t;
 extern void pform_make_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
 				 Statement*fail_stmt, Statement*pass_stmt,
@@ -422,6 +423,26 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 extern sva_property_t*
 pform_sva_abort(const struct vlltype&loc, int op_type, PExpr*cond,
 		sva_property_t*sub);
+/* M9-3: property combinators (IEEE 1800-2017 16.12.8). For boolean operands
+   `a implies b', `a iff b', `if (c) p [else q]' and `case (e) ... endcase'
+   reduce to a single boolean property (`!a|b', `(a&b)|(!a&!b)',
+   `(c&p)|(!c&q)', and a nested match chain respectively). Operands must be
+   boolean properties; a sequence/nested operand is a loud sorry. All
+   operands (and, for case, the item list) are consumed. */
+extern sva_property_t*
+pform_sva_prop_implies(const struct vlltype&loc,
+		       std::vector<sva_seq_step_t>*a,
+		       std::vector<sva_seq_step_t>*b);
+extern sva_property_t*
+pform_sva_prop_iff(const struct vlltype&loc,
+		   std::vector<sva_seq_step_t>*a,
+		   std::vector<sva_seq_step_t>*b);
+extern sva_property_t*
+pform_sva_prop_if(const struct vlltype&loc, PExpr*cond, sva_property_t*then_p,
+		  sva_property_t*else_p);
+extern sva_property_t*
+pform_sva_case(const struct vlltype&loc, PExpr*sel,
+	       std::vector<sva_prop_case_item_t>*items);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at

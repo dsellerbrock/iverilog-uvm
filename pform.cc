@@ -6373,6 +6373,206 @@ pform_sva_abort(const struct vlltype&loc, int op_type, PExpr*cond,
 }
 
 /*
+ * M9-3: property combinators (IEEE 1800-2017 16.12.8). For a boolean
+ * operand each combinator reduces to a single boolean property, so the
+ * result is a plain op_type-0 property that the standard assertion path
+ * samples and checks — no new lowering. A sequence or nested-property
+ * operand cannot be collapsed this way and is a loud sorry.
+ */
+
+/* Extract the single boolean expression from a boolean sequence operand
+ * (one plain step, no cycle delay or repetition). On success returns the
+ * expression (ownership moved) and empties the step; on failure emits a
+ * sorry and returns nullptr. The step vector is always freed. */
+static PExpr* sva_take_bool_seq_(const struct vlltype&loc, const char*w,
+				 std::vector<sva_seq_step_t>*seq)
+{
+      if (!seq) return nullptr;
+      PExpr*e = nullptr;
+      if (seq->size() == 1 && (*seq)[0].delay_lo == 0
+	  && (*seq)[0].delay_hi == 0 && (*seq)[0].rep_tail == 0) {
+	    e = (*seq)[0].expr;
+	    (*seq)[0].expr = nullptr;
+      } else {
+	    cerr << loc << ": sorry: `" << w << "' is supported only with "
+		 << "boolean operands (no sequence operand); the assertion "
+		 << "is dropped." << endl;
+	    error_count += 1;
+      }
+      delete seq;
+      return e;
+}
+
+/* As above but for a property operand (used by `if'/`case', whose branches
+ * are property_expr). The operand must be a plain boolean property. */
+static PExpr* sva_take_bool_prop_(const struct vlltype&loc, const char*w,
+				  sva_property_t*sub)
+{
+      if (!sub) return nullptr;
+      bool ok = (sub->op_type == 0 && !sub->antecedent && sub->seq
+		 && sub->seq->size() == 1
+		 && (*sub->seq)[0].delay_lo == 0 && (*sub->seq)[0].delay_hi == 0
+		 && (*sub->seq)[0].rep_tail == 0
+		 && !sub->clk_evt && !sub->disable_iff_expr);
+      PExpr*e = nullptr;
+      if (ok) {
+	    e = (*sub->seq)[0].expr;
+	    (*sub->seq)[0].expr = nullptr;
+      } else {
+	    cerr << loc << ": sorry: `" << w << "' is supported only with a "
+		 << "boolean branch (no sequence or nested property); the "
+		 << "assertion is dropped." << endl;
+	    error_count += 1;
+      }
+      delete sub->antecedent;
+      delete sub->seq;
+      delete sub;
+      return e;
+}
+
+/* Wrap a boolean expression as a plain op_type-0 boolean property. */
+static sva_property_t* sva_wrap_bool_(PExpr*e)
+{
+      if (!e) return nullptr;
+      sva_property_t*p = new sva_property_t;
+      p->seq = new std::vector<sva_seq_step_t>;
+      sva_seq_step_t step;
+      step.expr = e;
+      p->seq->push_back(step);
+      p->op_type = 0;
+      return p;
+}
+
+sva_property_t*
+pform_sva_prop_implies(const struct vlltype&loc,
+		       std::vector<sva_seq_step_t>*a,
+		       std::vector<sva_seq_step_t>*b)
+{
+      PExpr*ae = sva_take_bool_seq_(loc, "implies", a);
+      PExpr*be = sva_take_bool_seq_(loc, "implies", b);
+      if (!ae || !be) { delete ae; delete be; return nullptr; }
+	/* a implies b  ==  !a | b */
+      return sva_wrap_bool_(sva_logic_(loc, 'o', sva_not_(loc, ae), be));
+}
+
+sva_property_t*
+pform_sva_prop_iff(const struct vlltype&loc,
+		   std::vector<sva_seq_step_t>*a,
+		   std::vector<sva_seq_step_t>*b)
+{
+      PExpr*ae = sva_take_bool_seq_(loc, "iff", a);
+      PExpr*be = sva_take_bool_seq_(loc, "iff", b);
+      if (!ae || !be) { delete ae; delete be; return nullptr; }
+	/* a iff b  ==  (a & b) | (!a & !b) */
+      PExpr*both = sva_logic_(loc, 'a', sva_clone_expr_(ae), sva_clone_expr_(be));
+      PExpr*neither = sva_logic_(loc, 'a', sva_not_(loc, ae), sva_not_(loc, be));
+      return sva_wrap_bool_(sva_logic_(loc, 'o', both, neither));
+}
+
+sva_property_t*
+pform_sva_prop_if(const struct vlltype&loc, PExpr*cond,
+		  sva_property_t*then_p, sva_property_t*else_p)
+{
+      PExpr*pe = sva_take_bool_prop_(loc, "if", then_p);
+      PExpr*qe = else_p ? sva_take_bool_prop_(loc, "if", else_p) : nullptr;
+      if (!cond || !pe || (else_p && !qe)) {
+	    delete cond; delete pe; delete qe;
+	    return nullptr;
+      }
+      PExpr*result;
+      if (else_p) {
+	      /* if (c) p else q  ==  (c & p) | (!c & q) */
+	    PExpr*t = sva_logic_(loc, 'a', sva_clone_expr_(cond), pe);
+	    PExpr*f = sva_logic_(loc, 'a', sva_not_(loc, cond), qe);
+	    result = sva_logic_(loc, 'o', t, f);
+      } else {
+	      /* if (c) p  ==  !c | p  (a missing else branch is vacuously true) */
+	    result = sva_logic_(loc, 'o', sva_not_(loc, cond), pe);
+      }
+      return sva_wrap_bool_(result);
+}
+
+sva_property_t*
+pform_sva_case(const struct vlltype&loc, PExpr*sel,
+	       std::vector<sva_prop_case_item_t>*items)
+{
+      if (!sel || !items) {
+	    delete sel;
+	    if (items) {
+		  for (size_t k = 0 ; k < items->size() ; k += 1) {
+			delete (*items)[k].vals;
+			delete (*items)[k].prop;
+		  }
+		  delete items;
+	    }
+	    return nullptr;
+      }
+
+	/* Extract a boolean expression from every branch; separate the
+	   (at most one) default branch from the matched branches. */
+      bool bad = false;
+      PExpr*defexpr = nullptr;
+      std::vector<std::pair<std::list<PExpr*>*, PExpr*> > branches;
+      for (size_t k = 0 ; k < items->size() ; k += 1) {
+	    PExpr*pe = sva_take_bool_prop_(loc, "case", (*items)[k].prop);
+	    if (!pe) bad = true;
+	    if ((*items)[k].vals == nullptr) {
+		  if (defexpr) {
+			cerr << loc << ": error: a `case' property has more than "
+			     << "one `default' branch." << endl;
+			error_count += 1;
+			bad = true;
+			delete pe;
+		  } else {
+			defexpr = pe;
+		  }
+	    } else {
+		  branches.push_back(std::make_pair((*items)[k].vals, pe));
+		  (*items)[k].vals = nullptr;   /* ownership moved */
+	    }
+      }
+      delete items;
+
+      if (bad) {
+	    delete sel;
+	    delete defexpr;
+	    for (size_t k = 0 ; k < branches.size() ; k += 1) {
+		  if (branches[k].first)
+			for (std::list<PExpr*>::iterator it = branches[k].first->begin()
+			     ; it != branches[k].first->end() ; ++it)
+			      delete *it;
+		  delete branches[k].first;
+		  delete branches[k].second;
+	    }
+	    return nullptr;
+      }
+
+	/* No default -> an unmatched case evaluates to true (16.12.8). Fold
+	   right-to-left so the first listed branch is checked outermost:
+	     match_k ? p_k : rest   ==  (match_k & p_k) | (!match_k & rest) */
+      PExpr*result = defexpr ? defexpr : sva_bit_(loc, 1);
+      for (size_t i = branches.size() ; i-- > 0 ; ) {
+	    std::list<PExpr*>*vals = branches[i].first;
+	    PExpr*matchcond = nullptr;
+	    for (std::list<PExpr*>::iterator it = vals->begin()
+		 ; it != vals->end() ; ++it) {
+		  PEBComp*cmp = new PEBComp('E', sva_clone_expr_(sel), *it);
+		  FILE_NAME(cmp, loc);
+		  matchcond = matchcond ? sva_logic_(loc, 'o', matchcond, cmp)
+					: (PExpr*)cmp;
+	    }
+	    delete vals;   /* list shell; the value exprs are now owned by cmp */
+	    if (!matchcond) matchcond = sva_bit_(loc, 0);
+	    PExpr*pe = branches[i].second;
+	    PExpr*t = sva_logic_(loc, 'a', sva_clone_expr_(matchcond), pe);
+	    PExpr*f = sva_logic_(loc, 'a', sva_not_(loc, matchcond), result);
+	    result = sva_logic_(loc, 'o', t, f);
+      }
+      delete sel;
+      return sva_wrap_bool_(result);
+}
+
+/*
  * M9C: lower the temporal/sequence property operators that do not fit
  * the linear token pipeline.
  *
