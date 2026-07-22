@@ -206,11 +206,21 @@ jobs:
         set -e
         base="$(dirname "$(dirname "$(command -v iverilog)")")/lib/ivl"
         echo "resolved toolchain base: $base"
-        test -f "$base/uvm_dpi.vpi" \
-          || { echo "FAIL: uvm_dpi.vpi not installed (installuvm fell back to UVM_NO_DPI)"; exit 1; }
+        if [ ! -f "$base/uvm_dpi.vpi" ]; then
+          echo "uvm_dpi.vpi NOT installed. Diagnosing the umbrella build inline..."
+          echo "  UVM sources installed? $( [ -f "$base/uvm/src/uvm_pkg.sv" ] && echo yes || echo no )"
+          echo "  iverilog-vpi: $(command -v iverilog-vpi || echo MISSING)"
+          echo "  --- iverilog-vpi --ccflags ---"; iverilog-vpi --ccflags 2>&1 || true
+          echo "  --- iverilog-vpi --ldflags ---"; iverilog-vpi --ldflags 2>&1 || true
+          echo "  --- rebuild umbrella (trace) ---"
+          IVPI="$(command -v iverilog-vpi)" VVP_DEF="$PWD/vvp/vvp.def" \
+            sh -x uvm_dpi/build_uvm_dpi.sh --name=/tmp/diag_uvm_dpi \
+            -I. -Iuvm-core/src/dpi uvm_dpi/uvm_dpi_iverilog.cc 2>&1 | tail -60 || true
+          echo "FAIL: uvm_dpi.vpi not installed (installuvm fell back to UVM_NO_DPI)"; exit 1
+        fi
         test -f "$base/uvm/src/uvm_pkg.sv" || { echo "FAIL: UVM sources not installed"; exit 1; }
-        cp tests/reg_basic_test.sv "$TMP/fe_tb.sv" 2>/dev/null || cp tests/reg_basic_test.sv /tmp/fe_tb.sv
-        work="${TMP:-/tmp}"; cd "$work"
+        cp tests/reg_basic_test.sv /tmp/fe_tb.sv
+        cd /tmp
         iverilog -g2012 -uvm -o fe.vvp fe_tb.sv
         grep -q ':vpi_module "[^"]*uvm_dpi' fe.vvp \
           || { echo "FAIL: uvm_dpi not baked into the compiled program"; exit 1; }

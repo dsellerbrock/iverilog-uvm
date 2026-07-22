@@ -370,7 +370,7 @@ vpidir = $(libdir)/ivl$(suffix)
 # diagnostic), so a toolchain build never breaks on the DPI umbrella.
 uvm_dpi.vpi: $(UVM_DPI_SRC) $(UVM_DPI_BUILD)
 	IVPI=./iverilog-vpi VVP_DEF=$(srcdir)/vvp/vvp.def \
-	    $(UVM_DPI_BUILD) --name=uvm_dpi \
+	    sh $(UVM_DPI_BUILD) --name=uvm_dpi \
 	    -I$(srcdir) -I. -I$(UVM_CORE_SRC)/dpi -Lvpi $(UVM_DPI_SRC)
 	rm -f uvm_dpi_iverilog.o
 
