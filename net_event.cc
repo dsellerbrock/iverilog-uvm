@@ -146,6 +146,30 @@ unsigned NetEvent::nexpr() const
  * A "similar" event is one that has an identical non-nil set of
  * probes.
  */
+/* Two virtual-interface edge probes resolve their per-signal edge functor
+   from the vif object at run time, so two vif probes on the SAME handle net
+   but for DIFFERENT signals (or different edge kinds) — e.g. `@(p.a)` and
+   `@(p.c)` in separate processes — are NOT the same event, even though their
+   probe nets match. Merging them would collapse both to one signal's
+   sensitivity and silently drop the other. Non-vif probes are unaffected. */
+static bool vif_probes_match_(const NetEvProbe*a, const NetEvProbe*b)
+{
+      if (!a || !b)
+	    return true;
+      bool a_vif = a->is_vif_anyedge() || a->is_vif_posedge() || a->is_vif_negedge();
+      bool b_vif = b->is_vif_anyedge() || b->is_vif_posedge() || b->is_vif_negedge();
+      if (!a_vif && !b_vif)
+	    return true;
+      if (a_vif != b_vif)
+	    return false;
+      return a->is_vif_anyedge() == b->is_vif_anyedge()
+	  && a->is_vif_posedge() == b->is_vif_posedge()
+	  && a->is_vif_negedge() == b->is_vif_negedge()
+	  && a->vif_N() == b->vif_N()
+	  && a->vif_M() == b->vif_M()
+	  && a->vif_pre_N() == b->vif_pre_N();
+}
+
 void NetEvent::find_similar_event(list<NetEvent*>&event_list)
 {
       if (probes_ == 0)
@@ -218,6 +242,12 @@ void NetEvent::find_similar_event(list<NetEvent*>&event_list)
 	    unsigned tcnt = 0;
 	    for (const NetEvProbe*cur = tmp->probes_ ; cur ; cur = cur->enext_)
 		  tcnt += 1;
+
+	      // Do not merge vif edge probes that resolve to different
+	      // interface signals (or edge kinds) even though their handle
+	      // nets match — that would drop one signal's sensitivity.
+	    if (!vif_probes_match_(this->probes_, tmp->probes_))
+		  continue;
 
 	    if (tcnt == probe_count)
 		  event_list .push_back(tmp);

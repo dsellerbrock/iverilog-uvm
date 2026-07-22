@@ -416,11 +416,22 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       exactly one interface member and no ordinary-net read is present a
       direct vif probe is built in the general (post-`synthesize`) event path
       too — previously such expressions failed to synthesize (class property)
-      and the event was dropped to a T0-only trigger. Remaining: a MIXED or
-      MULTI-member r-value (`p.a & p.c`, `p.a & module_net`) stays on the
-      legacy handle-net path — `%wait/vif` waits on a single signal per event,
-      so covering several members needs either a multi-signal vif wait or a
-      per-member process fan-out; that is the follow-up.)*
+      and the event was dropped to a T0-only trigger. Finally extended
+      2026-07-22 to MULTI-member and MIXED r-values (`p.a & p.c`,
+      `p.a & module_net`): `%wait/vif` waits on a single signal per event, so
+      the vif-member continuous-assign lowering now FANS OUT into one
+      `always @(read) (lhs = rhs)` process per distinct signal read in the
+      r-value (`collect_pform_reads_` + a `symbol_search`/dedup filter),
+      each re-applying the whole assignment when its own source changes — an
+      interface member routes through the vif probe, an ordinary net through a
+      normal probe. This exposed a second bug: `NetEvent::find_similar_event`
+      merged the per-member events because their probe nets (the shared vif
+      HANDLE) matched, collapsing both to one signal's `vif_M`; a
+      `vif_probes_match_` guard now blocks merging events whose vif signal
+      identity (edge kind / `vif_N` / `vif_M` / `vif_pre_N`) differs. All
+      forms (bare / indexed / operator-wrapped / multi-member / mixed, both
+      edges) covered by `sv_interface_member_sensitivity`. UVM 209/0/0
+      (nested-vif clocking unaffected).)*
 
 ## M6A — Core scheduler/runtime repairs
 

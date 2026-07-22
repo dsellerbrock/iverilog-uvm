@@ -1003,6 +1003,45 @@ unsigned PGate::calculate_array_size_(Design*des, NetScope*scope,
  * class-typed handle and mis-lowers the store. The synthesized PAssigns
  * borrow the gate's pin expressions; pform objects live for the whole
  * compilation, so sharing is safe. */
+/* Collect the leaf signal-read sub-expressions (PEIdent nodes) of a pform
+   r-value, recursing through the common operator nodes. Used to fan a
+   continuous assign whose l-value is an interface member into one
+   `always @(read) (lhs = rhs)` process per distinct read: %wait/vif waits on
+   a single signal per event, so a multi-member or mixed r-value
+   (`p.a & p.c`, `p.a & enable`) cannot be covered by one combined event.
+   Each single-read event routes correctly on its own — an interface member
+   through the virtual-interface edge probe, an ordinary net through a normal
+   probe. */
+static void collect_pform_reads_(PExpr*e, std::vector<PExpr*>&out)
+{
+      if (!e) return;
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    out.push_back(id);
+	    return;
+      }
+      if (PEBinary*b = dynamic_cast<PEBinary*>(e)) {
+	    collect_pform_reads_(b->get_left(), out);
+	    collect_pform_reads_(b->get_right(), out);
+	    return;
+      }
+      if (PEUnary*u = dynamic_cast<PEUnary*>(e)) {
+	    collect_pform_reads_(u->get_expr(), out);
+	    return;
+      }
+      if (PETernary*t = dynamic_cast<PETernary*>(e)) {
+	    collect_pform_reads_(t->get_cond(), out);
+	    collect_pform_reads_(t->get_true(), out);
+	    collect_pform_reads_(t->get_false(), out);
+	    return;
+      }
+      if (PEConcat*c = dynamic_cast<PEConcat*>(e)) {
+	    for (PExpr*p : c->stream_parms())
+		  collect_pform_reads_(p, out);
+	    return;
+      }
+      // PENumber / PEString / function calls / etc. contribute no simple read.
+}
+
 static void elaborate_vif_member_assign_(Design*des, NetScope*scope,
 					 const PGAssign*ga)
 {
@@ -1027,36 +1066,66 @@ static void elaborate_vif_member_assign_(Design*des, NetScope*scope,
       if (const_rhs)
 	    return;
 
-      PAssign*ast1 = new PAssign(const_cast<PExpr*>(ga->pin(0)),
-				 const_cast<PExpr*>(ga->pin(1)));
-      ast1->set_line(*ga);
-	// Sensitize the re-apply process on the r-value explicitly with
-	// `@(<rhs>)` rather than `@*`. An `@*` implicit list collects its
-	// sensitivity via NexusSet/nex_input, which for an interface-member
-	// read (a class property on the vif handle) yields the HANDLE net —
-	// and the handle never changes after binding, so the assign never
-	// re-triggered when the underlying interface signal changed. An
-	// explicit `@(p.a)` instead routes through the virtual-interface edge
-	// probe (dynamic per-signal sensitivity), so it fires correctly; a
-	// real-net r-value (e.g. `assign inf.req = rnd[0];`) is unaffected —
-	// `@(rnd[0])` sensitizes on the real net exactly as `@*` did.
-      PEEvent*rhs_ev = new PEEvent(PEEvent::ANYEDGE,
-				   const_cast<PExpr*>(ga->pin(1)));
-      rhs_ev->set_line(*ga);
-      PEventStatement*wait = new PEventStatement(rhs_ev);
-      wait->set_line(*ga);
-      wait->set_statement(ast1);
-      NetProc*cur1 = wait->elaborate(des, scope);
-      if (cur1 == 0) {
-	    cerr << ga->get_fileline() << ": error: Unable to elaborate "
-		 << "continuous assignment to interface member `"
-		 << lid->path() << "`." << endl;
-	    des->errors += 1;
-	    return;
+	// Build the re-apply process(es) with explicit sensitivity rather than
+	// `@*`. An `@*` implicit list collects its sensitivity via
+	// NexusSet/nex_input, which for an interface-member read (a class
+	// property on the vif handle) yields the HANDLE net — and the handle
+	// never changes after binding, so the assign never re-triggered when
+	// the underlying interface signal changed.
+	//
+	// Fan out one `always @(read) (lhs = rhs)` process per distinct signal
+	// read in the r-value. A single interface member routes through the
+	// virtual-interface edge probe; an ordinary net through a normal probe.
+	// One process per source is required because %wait/vif waits on a
+	// single signal per event, so a multi-member or mixed r-value
+	// (`p.a & p.c`, `p.a & enable`) cannot share one combined event — each
+	// process re-applies the whole assignment when its own source changes.
+      std::vector<PExpr*> reads;
+      collect_pform_reads_(const_cast<PExpr*>(ga->pin(1)), reads);
+
+	// Keep only reads that resolve to a signal (net / interface member),
+	// de-duplicated by name, so constants and parameters do not spawn
+	// (invalid) event processes.
+      std::vector<PExpr*> sources;
+      std::set<std::string> seen;
+      for (PExpr*r : reads) {
+	    PEIdent*id = dynamic_cast<PEIdent*>(r);
+	    if (!id) continue;
+	    symbol_search_results sr;
+	    symbol_search(ga, des, scope, id->path(), UINT_MAX, &sr);
+	    if (!sr.net) continue;
+	    ostringstream key;
+	    key << id->path();
+	    if (!seen.insert(key.str()).second) continue;
+	    sources.push_back(id);
       }
-      NetProcTop*t1 = new NetProcTop(scope, IVL_PR_ALWAYS, cur1);
-      t1->set_line(*ga);
-      des->add_process(t1);
+
+	// Fall back to `@(<rhs>)` when no simple signal read was found (e.g. a
+	// function-call r-value): preserves the previous behavior.
+      if (sources.empty())
+	    sources.push_back(const_cast<PExpr*>(ga->pin(1)));
+
+      for (PExpr*src : sources) {
+	    PAssign*ast1 = new PAssign(const_cast<PExpr*>(ga->pin(0)),
+				       const_cast<PExpr*>(ga->pin(1)));
+	    ast1->set_line(*ga);
+	    PEEvent*rhs_ev = new PEEvent(PEEvent::ANYEDGE, src);
+	    rhs_ev->set_line(*ga);
+	    PEventStatement*wait = new PEventStatement(rhs_ev);
+	    wait->set_line(*ga);
+	    wait->set_statement(ast1);
+	    NetProc*cur1 = wait->elaborate(des, scope);
+	    if (cur1 == 0) {
+		  cerr << ga->get_fileline() << ": error: Unable to elaborate "
+		       << "continuous assignment to interface member `"
+		       << lid->path() << "`." << endl;
+		  des->errors += 1;
+		  return;
+	    }
+	    NetProcTop*t1 = new NetProcTop(scope, IVL_PR_ALWAYS, cur1);
+	    t1->set_line(*ga);
+	    des->add_process(t1);
+      }
 }
 
 void PGAssign::elaborate(Design*des, NetScope*scope) const

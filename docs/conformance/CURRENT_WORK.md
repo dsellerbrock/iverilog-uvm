@@ -70,10 +70,14 @@ handle net (`draw_event_in_scope` emits a plain named event for vif events)
 — that spurious functor's `recv_object` aborted on posedge/negedge. Test
 `sv_interface_member_sensitivity` (continuous-assign + explicit anyedge +
 posedge). Real-net r-values (`assign inf.req = rnd[0]`) unaffected; UVM
-209/0/0 (nested-vif clocking still works). Remaining: a COMPLEX r-value
-that reads an interface member inside a larger expression
-(`assign p.b = p.a & p.c;`) still routes the combined expression through
-`nex_input` (handle net); recursing into sub-expressions is the follow-up.
+209/0/0 (nested-vif clocking still works). COMPLETE 2026-07-22: extended to
+operator-wrapped single members (`~p.in`), then to multi-member and mixed
+r-values (`p.a & p.c`, `p.a & module_net`) by fanning the vif-member
+continuous assign into one `always @(read) (lhs = rhs)` process per distinct
+signal read (`collect_pform_reads_`); a `vif_probes_match_` guard in
+`NetEvent::find_similar_event` stops the per-member events from merging on
+their shared handle net. All forms covered by
+`sv_interface_member_sensitivity`.
 
 ## State as of 2026-07-21m (Tier-1 frontier sweep COMPLETE — on draft PR #104)
 
