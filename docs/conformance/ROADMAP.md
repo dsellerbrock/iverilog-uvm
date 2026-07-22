@@ -329,20 +329,26 @@ deliberately gated.
 
 Re-derive this by applying the priority rule to the OPEN items above; do not hand-edit
 the structure. As of this writing (no known silent miscompiles outstanding, robustness
-clear), the frontier is bounded FEATURE + AUDIT work, then the first big rock:
+clear), the frontier is bounded FEATURE + AUDIT work — the correctness residuals and the
+first "big rock" (M9-NFA) turned out already closed:
 
-1. **M4B-1 / M4B-2** — struct value-copy through args/returns + nested deep copy
-   (CORRECTNESS residual from the assignment work; highest nature).
-2. **M1B-3** — convert lost-specialization compile-progress fallbacks to diagnostics
-   (CORRECTNESS; interleave ARCH-3/M1C conversions here).
-3. **M8-1…M8-4** — clocking reprobes (AUDIT; PROVISIONAL status owes this; high ROI —
-   this is the audit class that surfaced the M5 "dispatch-through-element-0" bug).
-4. **M5-3 / M5-4 / M5-5** — vif runtime-index binding, `$unit` vif decl, generic ports (FEATURE).
-5. **M3B-2 / M3B-3**, **M9-1 / M9-2 / M9-3** — bounded randomization + bounded SVA
-   operators (FEATURE; no architecture dependency).
-6. **ARCH-1 · M9-NFA** — first big rock; retires M9-4…M9-10 + M12-1,2 + M6B-4.
-7. **ARCH-2 · M6-CALLF** — second big rock; unblocks DPI export + `expect` + time-consuming DPI.
-8. **M14B** subclause campaign → **M15** 2023 delta.
+Recently retired: M8 (clause-14 audit + disposition) · M9-1/2/3 (bounded SVA / abort /
+combinators) · M1B-3a (type-parameter aggregate property method miscompile) ·
+**ARCH-1 · M9-NFA discovered already LANDED** (automaton engine is default; 33/33
+dual-run). M4B-1/M4B-2 (struct value-copy through args/return + nested deep copy) were
+verified already-working in prior sessions; M1B-3's remaining fallbacks are already loud.
+
+1. **M5-3 / M5-4 / M5-5** — vif runtime-index array binding, `$unit`-scope vif decl,
+   generic `interface` ports (FEATURE; unblocked; UVM-load-bearing — vif arrays are
+   common in UVM agents/envs). **Current top pick.**
+2. **M3B-2 / M3B-3** — `randsequence`, `disable soft` (FEATURE; no arch dependency).
+3. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
+   UVM value). M9-7 residual multiclock forms alongside.
+4. **M1B-4 / M4B-3** — adversarial specialization + nested-container audits (AUDIT;
+   high ROI, may surface new silent miscompiles — interleave).
+5. **M10-1** — multidimensional open arrays (FEATURE; DPI export M10-2 needs ARCH-2).
+6. **ARCH-2 · M6-CALLF** — big rock; unblocks DPI export + `expect` + time-consuming DPI.
+7. **M14B** subclause campaign → **M15** 2023 delta.
 
 **Standing override:** any newly discovered silent miscompile or crash preempts this
 list (rule gates 1–2).
