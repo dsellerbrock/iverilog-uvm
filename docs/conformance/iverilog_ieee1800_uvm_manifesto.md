@@ -182,6 +182,25 @@ Maintain clean builds, canonical regressions, UVM, negative tests, VPI, cross-pl
       and r-value (`elab_expr.cc check_for_struct_members`) sites, gated on
       the container being `netuarray_t` / plain `netdarray_t` (not
       `netqueue_t`). CE test `sv_ustruct_array_member_ce`. A sibling of
+      STATIC-array member access RESOLVED 2026-07-22: a static unpacked
+      array of an object-backed unpacked struct now default-constructs its
+      elements lazily. The `.array/obj` declaration carries the element class
+      type (`tgt-vvp/vvp_scope.c`), `compile_object_array` resolves it into
+      `__vpiArray::element_defn_` (`vvp/array.cc`, grammar in `vvp/parse.y`),
+      and `get_word_obj` constructs and caches a default element object on
+      first access — so `arr[i].field = x` on a never-whole-assigned element
+      addresses a real object and a read of an unassigned element returns the
+      struct default (0). The member-write codegen loads the indexed element
+      with `%load/obja` (`tgt-vvp/stmt_assign.c`). Class-handle arrays emit no
+      element type and correctly keep null elements. The `elab_lval.cc`
+      `sorry` is narrowed to the DYNAMIC-array case only (darray object
+      elements are not yet default-constructed). Positive test
+      `sv_ustruct_array_member`; CE test `sv_ustruct_array_member_ce`
+      repurposed to the still-unsupported darray case. Known separate
+      limitation: `%p` on a whole struct-object array element still aborts in
+      the decimal formatter (an M4B `%p`-aggregate display gap, pre-existing
+      and orthogonal to member access — member reads/writes are unaffected).
+      A sibling of
       defect (a), the WHOLE-element write `arr[i] = <expr>` (no member
       select), was first found to crash the same way and was briefly gated
       with a `sorry` — then ROOT-CAUSED and FIXED (2026-07-21o). The bug was

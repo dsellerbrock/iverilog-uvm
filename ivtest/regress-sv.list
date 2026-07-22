@@ -1103,3 +1103,4 @@ sv_array_handle_const_index_method normal,-g2012 ivltests
 sv_cast_param_class_specialization normal,-g2012 ivltests
 sv_ustruct_array_member_ce CE,-g2012 ivltests
 sv_ustruct_array_element normal,-g2012 ivltests
+sv_ustruct_array_member normal,-g2012 ivltests

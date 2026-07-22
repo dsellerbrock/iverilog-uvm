@@ -417,6 +417,24 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 		  return sig_type;
 	    }
 
+	      /* A static unpacked array of an object-backed UNPACKED struct
+		 (`struct{...} arr[N]`) reports the element struct directly as
+		 its net_type (base IVL_VT_NO_TYPE with properties) while still
+		 carrying array dimensions, like the class-array case above.
+		 Load the indexed element with %load/obja so a member write
+		 `arr[i].field = ...` addresses the right element; the runtime
+		 lazily default-constructs a nil element on load. Without this
+		 the scalar %load/obj fallback loaded the whole array-of-objects
+		 as a single (nil) handle and dropped every member write. */
+	    if (word_ex && sig_type
+		&& ivl_type_base(sig_type) == IVL_VT_NO_TYPE
+		&& ivl_type_properties(sig_type) > 0
+		&& ivl_signal_dimensions(lval_sig) > 0) {
+		  draw_eval_expr_into_integer(word_ex, 3);
+		  fprintf(vvp_out, "    %%load/obja v%p, 3;\n", lval_sig);
+		  return sig_type;
+	    }
+
 	    if (word_ex && sig_type) {
 		  ivl_type_t element_type = ivl_type_element(sig_type);
 		  if (element_type && ivl_type_base(element_type) == IVL_VT_CLASS) {

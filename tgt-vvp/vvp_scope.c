@@ -660,10 +660,30 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    unsigned swapped = ivl_signal_array_addr_swapped(sig);
 	    int last = ivl_signal_array_base(sig)+word_count-1;
 	    int first = ivl_signal_array_base(sig);
-	    fprintf(vvp_out, "v%p .array%s \"%s\", %d %d;\n",
+
+	      /* A static unpacked array of an object-backed UNPACKED struct
+		 (element data type IVL_VT_NO_TYPE with properties) carries its
+		 element class type on the .array/obj record so the runtime can
+		 default-construct each element lazily — otherwise a member
+		 write `arr[i].field = ...` to a never-whole-assigned element
+		 would store through a nil handle and be dropped. A class-handle
+		 array (element base IVL_VT_CLASS) emits no type: its elements
+		 correctly default to null. */
+	    ivl_type_t arr_elem_type = ivl_signal_net_type(sig);
+	    int struct_obj_elem =
+		  (ivl_signal_data_type(sig) == IVL_VT_NO_TYPE)
+		  && arr_elem_type
+		  && ivl_type_base(arr_elem_type) == IVL_VT_NO_TYPE
+		  && ivl_type_properties(arr_elem_type) > 0;
+	    if (struct_obj_elem)
+		  draw_class_in_scope(arr_elem_type);
+	    fprintf(vvp_out, "v%p .array%s \"%s\", %d %d",
 		    sig, datatype_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    swapped ? first: last, swapped ? last : first);
+	    if (struct_obj_elem)
+		  fprintf(vvp_out, ", C%p", arr_elem_type);
+	    fprintf(vvp_out, ";\n");
 
       } else if (ivl_signal_dimensions(sig) > 0) {
 	    unsigned word_count = ivl_signal_array_count(sig);

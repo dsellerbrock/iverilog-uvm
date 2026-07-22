@@ -430,7 +430,7 @@ extern void compile_real_array(char*label, char*name,
 extern void compile_string_array(char*label, char*name,
 				 int last, int first);
 extern void compile_object_array(char*label, char*name,
-				 int last, int first);
+				 int last, int first, char*element_type = nullptr);
 extern void compile_net_array(char*label, char*name,
 			      int last, int first);
 extern void compile_array_alias(char*label, char*name, char*src);

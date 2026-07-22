@@ -24,6 +24,8 @@
 # include  "vpi_priv.h"
 # include  "vvp_net_sig.h"
 # include  "vvp_darray.h"
+# include  "vvp_cobject.h"
+# include  "class_type.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
 #include  "vvp_cleanup.h"
@@ -757,6 +759,15 @@ void __vpiArray::get_word_obj(unsigned address, vvp_object_t&val)
 	    }
 
 	    vals->get_word(address, val);
+	      // Lazily default-construct an object-backed unpacked-struct
+	      // element on first access so member writes (`arr[i].field = ...`)
+	      // to a never-whole-assigned element address a real object rather
+	      // than a nil handle. The constructed object is cached back into
+	      // the slot so the write persists and later reads see it.
+	    if (val.test_nil() && element_defn_) {
+		  val = vvp_object_t(new vvp_cobject(element_defn_));
+		  vals->set_word(address, val);
+	    }
 	    return;
       }
 
@@ -1013,7 +1024,8 @@ void compile_string_array(char*label, char*name, int last, int first)
       delete[] name;
 }
 
-void compile_object_array(char*label, char*name, int last, int first)
+void compile_object_array(char*label, char*name, int last, int first,
+			  char*element_type)
 {
       vpiHandle obj = vpip_make_array(label, name, first, last, true);
 
@@ -1022,6 +1034,15 @@ void compile_object_array(char*label, char*name, int last, int first)
 	/* Make the words. */
       arr->vals = new vvp_darray_object(arr->get_size());
       arr->vals_width = 1;
+
+	/* An object-backed unpacked-struct element type lets get_word_obj()
+	   default-construct elements lazily (see __vpiArray::element_defn_).
+	   The class definition is resolved by the deferred symbol pass; class
+	   handle arrays pass no type here and keep nil elements. */
+      if (element_type) {
+	    compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&arr->element_defn_),
+			       element_type);
+      }
 
       count_real_arrays += 1;
       count_real_array_words += arr->get_size();

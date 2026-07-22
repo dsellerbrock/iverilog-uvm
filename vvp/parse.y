@@ -253,6 +253,9 @@ statement
         | T_LABEL K_ARRAY_OBJ T_STRING ',' signed_t_number signed_t_number ';'
                 { compile_object_array($1, $3, $5, $6); }
 
+        | T_LABEL K_ARRAY_OBJ T_STRING ',' signed_t_number signed_t_number ',' T_SYMBOL ';'
+                { compile_object_array($1, $3, $5, $6, $8); }
+
         | T_LABEL K_ARRAY T_STRING ',' signed_t_number signed_t_number ';'
                 { compile_net_array($1, $3, $5, $6); }
 
