@@ -12528,6 +12528,15 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 
 	    NetProcTop*top = new NetProcTop(scope, IVL_PR_INITIAL, prologue);
 	    top->set_line(*cb);
+	      /* This synthesized sampler is an INITIAL wrapping a forever loop,
+		 so it never completes. In a PROGRAM scope it must not be counted
+		 toward program-completion end-of-simulation (IEEE 1800-2017
+		 24.7) — otherwise a program whose only post-initial activity is
+		 a clocking block never finishes. Mark it as a clocking-background
+		 process so tgt-vvp omits the `$prog` tag. */
+	    if (gn_system_verilog())
+		  top->attribute(perm_string::literal("_ivl_clocking_bg"),
+				 verinum(1));
 	    des->add_process(top);
 
 	      /* M8-2b: the drive-apply process (14.16). Buffered output
@@ -12576,6 +12585,11 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetProcTop*apply_top = new NetProcTop(scope, IVL_PR_INITIAL,
 							apply_loop);
 		  apply_top->set_line(*cb);
+		    /* Background forever loop — see the sampler above; must not
+		       gate program-completion end-of-simulation. */
+		  if (gn_system_verilog())
+			apply_top->attribute(perm_string::literal("_ivl_clocking_bg"),
+					     verinum(1));
 		  des->add_process(apply_top);
 	    }
       }

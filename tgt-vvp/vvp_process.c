@@ -4226,6 +4226,7 @@ int draw_process(ivl_process_t net, void*x)
 
       int init_flag = 0;
       int push_flag = 0;
+      int clocking_bg_flag = 0;
 
       (void)x; /* Parameter is not used. */
 
@@ -4246,6 +4247,15 @@ int draw_process(ivl_process_t net, void*x)
 	    } else if (strcmp(attr->key, "ivl_combinational") == 0) {
 
 		  push_flag = 1;
+
+	    } else if (strcmp(attr->key, "_ivl_clocking_bg") == 0) {
+
+		    /* A synthesized clocking sampler/apply process: an INITIAL
+		       wrapping a forever loop that never completes. It must not
+		       be tagged `$prog`, or a program whose only post-initial
+		       activity is a clocking block would never reach
+		       program-completion end-of-simulation. */
+		  clocking_bg_flag = 1;
 
 	    }
       }
@@ -4293,7 +4303,7 @@ int draw_process(ivl_process_t net, void*x)
 	    } else if (push_flag) {
 		  fprintf(vvp_out, "    .thread T_%u, $push;\n", thread_count);
 	    } else if (ivl_process_type(net) == IVL_PR_INITIAL
-		       && ivl_scope_program(scope)) {
+		       && ivl_scope_program(scope) && !clocking_bg_flag) {
 		    /* M6B: a program-block INITIAL procedure. Mark it so the
 		       runtime can end the simulation when the last program
 		       initial completes (IEEE 1800-2017 24.7). Concurrent
