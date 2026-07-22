@@ -347,6 +347,45 @@ static char* format_p_value(vpiHandle item)
     return acc;
   }
 
+  /* A class/struct object: render as '{member:value, ...} by iterating its
+     properties. Covers a scalar object-backed unpacked struct and an element
+     of an object array (which would otherwise fall through to the integral
+     path below and, for an array element, abort the decimal formatter). A
+     null handle has no live members and prints "null". */
+  if (itype == vpiClassVar) {
+    /* A null handle still enumerates its member *declarations*, so the member
+       iterator alone cannot distinguish null from a live object. Query the
+       handle's truth value first: vpiIntVal is 0 for a null class handle and 1
+       for a live one (an object-backed unpacked struct is never null). */
+    value.format = vpiIntVal;
+    vpi_get_value(item, &value);
+    if (value.format == vpiIntVal && value.value.integer == 0)
+      return strdup("null");
+    vpiHandle iter = vpi_iterate(vpiMember, item);
+    if (iter) {
+      char *acc = strdup("'{");
+      size_t used = strlen(acc);
+      int first = 1;
+      vpiHandle mem;
+      while ((mem = vpi_scan(iter)) != 0) {
+        char *nm = vpi_get_str(vpiName, mem);
+        char *ev = format_p_value(mem);
+        size_t nlen = nm ? strlen(nm) + 1 /* ':' */ : 0;
+        size_t elen = strlen(ev);
+        acc = realloc(acc, used + (first ? 0 : 2) + nlen + elen + 2);
+        if (!first) { strcpy(acc + used, ", "); used += 2; }
+        if (nm) { used += (size_t)sprintf(acc + used, "%s:", nm); }
+        strcpy(acc + used, ev); used += elen;
+        free(ev);
+        first = 0;
+      }
+      acc = realloc(acc, used + 2);
+      strcpy(acc + used, "}");
+      return acc;
+    }
+    return strdup("null");
+  }
+
   /* Leaf value. Discover the natural element format, then render it the way
      SV %p does for that kind. */
   value.format = vpiObjTypeVal;
