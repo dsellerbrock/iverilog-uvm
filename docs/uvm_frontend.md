@@ -193,37 +193,39 @@ flags and links against `-lvpi`):
 
 ### Windows / MSYS2
 
-Windows is a special case. A standalone global umbrella cannot serve real DPI
-there, for two reasons a PE DLL cannot escape:
+Windows needs a hand-rolled link, because a PE DLL cannot be built the way
+`iverilog-vpi` builds one on Unix. Two constraints have to be met:
 
 1. The umbrella references the per-design DPI-export dispatcher
-   `m__uvm_report_dpi`, which exists only in the design's generated
+   `m__uvm_report_dpi`, which normally exists only in a design's generated
    `.dpiexport.c` stub — a PE image must bind every symbol at link time and
    cannot late-bind it across separately loaded modules the way Linux/macOS
-   do. (In this fork's umbrella that reference is in dead code — the vendor
-   HDL/polling backends that call it are excluded — but the link still fails.)
+   do. In this fork's umbrella that reference is in dead code (the vendor
+   HDL/polling backends that call it are excluded), so `-DUVM_DPI_STANDALONE`
+   supplies a no-op fallback definition and the global umbrella becomes
+   self-contained.
 2. `vvp` resolves a module's DPI imports by name via `GetProcAddress`, which
    only finds *exported* symbols; the large C++ umbrella does not auto-export
-   on MinGW, and `iverilog-vpi` cannot pass the `-Wl,--export-all-symbols`
-   that would fix it.
+   on MinGW, so the link forces `-Wl,--export-all-symbols`.
 
-The supported real-DPI path on Windows is therefore the **per-test merged
-module** used by the regression suite ([`.github/uvm_test.sh`](../.github/uvm_test.sh)):
-it compiles the umbrella together with each design's DPI-export stub into one
-module (so the dispatcher resolves internally), imports the whole `vvp.def`
-from `vvp.exe`, links regex via `libsystre`/`tre` (a bare `-lregex` disagrees
-on the `regex_t` layout and corrupts every wildcard match), and forces
-`-Wl,--export-all-symbols`. That model verifies 209/0 real DPI on MINGW64,
-UCRT64 and CLANG64.
+So on Windows [`build_uvm_dpi.sh`](../uvm_dpi/build_uvm_dpi.sh) hand-rolls the
+compile/link instead of wrapping `iverilog-vpi`: it compiles the umbrella with
+`-DUVM_DPI_STANDALONE`, imports the whole `vvp.def` from `vvp.exe` (`vpi_*`,
+`sv*`, and the `__ivl_dpi_export_call_*` dispatchers), links regex via
+`libsystre`/`tre` (a bare `-lregex` disagrees on the `regex_t` layout and
+corrupts every wildcard match), and links with
+`-shared -Wl,--enable-auto-image-base -Wl,--export-all-symbols`. The
+`-shared` flags are set directly rather than queried from `iverilog-vpi`,
+which on Windows is a different tool that does not report them (and is not
+reliably present at `make install` time).
 
-Because the `-uvm` front end installs a single global umbrella rather than
-merging per design, `make install` on Windows currently cannot produce a
-working global umbrella: the build falls back, the installer ships the UVM
-sources only, and `iverilog -uvm` runs under `UVM_NO_DPI` with a clear
-diagnostic. Extending the global-umbrella front end to real DPI on Windows
-(hand-rolling the umbrella link with the export/import flags above plus a
-dead-code `m__uvm_report_dpi` stub) is tracked as follow-up; the manual
-per-design flow in `uvm_test.sh` is the reference until then.
+With that, `make install` installs a working `uvm_dpi.vpi` on all three MSYS2
+toolchains (MINGW64, UCRT64, CLANG64) and `iverilog -uvm` runs full real DPI —
+verified in CI by a front-end step that compiles and runs a UVM test on the
+installed toolchain and asserts native DPI via a necessity contrast. The
+regression suite's separate **per-test merged module** path
+([`.github/uvm_test.sh`](../.github/uvm_test.sh)) exercises the same DPI layer
+against every test and gates at 209/0 on all three toolchains.
 
 ## Diagnostics
 
