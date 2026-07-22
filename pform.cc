@@ -6302,10 +6302,13 @@ pform_sva_binprop(const struct vlltype&loc, int op_type,
  */
 sva_property_t*
 pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
-		 long win_lo, long win_hi)
+		 long win_lo, long win_hi, int strength)
 {
       const char*w = (op_type == 9) ? "nexttime"
-		   : (op_type == 10) ? "s_nexttime" : "s_eventually";
+		   : (op_type == 10) ? "s_nexttime"
+		   : (op_type == 11) ? "s_eventually"
+		   : (op_type == 12) ? (strength ? "s_always" : "always")
+		   : "eventually";
       if (!sub) return nullptr;
       if (sub->op_type != 0 || sub->antecedent || !sub->seq
 	  || sub->seq->size() != 1
@@ -6323,6 +6326,7 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
       p->op_type = op_type;
       p->win_lo = win_lo;
       p->win_hi = win_hi;
+      p->strength = strength;
       p->seq = sub->seq;   /* move the boolean step list */
       sub->seq = nullptr;
       delete sub;
@@ -6497,11 +6501,14 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  FILE_NAME(fp, loc);
 	    }
       } else if (is_liveness) {
-	      /* ---- liveness: nexttime / s_nexttime / s_eventually. ----
-		 The boolean operand p is in prop->seq[0]. */
+	      /* ---- liveness/safety: nexttime / s_nexttime / s_eventually /
+		 always / bounded eventually. The boolean operand p is in
+		 prop->seq[0]. */
 	    if (kind == 2) {
 		  const char*w = (op == 9) ? "nexttime"
-			       : (op == 10) ? "s_nexttime" : "s_eventually";
+			       : (op == 10) ? "s_nexttime"
+			       : (op == 11) ? "s_eventually"
+			       : (op == 12) ? "always" : "eventually";
 		  cerr << loc << ": sorry: `cover property' of a `" << w
 		       << "' operator is not supported; the cover is dropped."
 		       << endl;
@@ -6509,6 +6516,10 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  delete fail_stmt; delete clk; delete disable;
 		  return;
 	    }
+	      /* Bounded eventually (op 13) samples p across a window, so it
+		 needs the raw operand; keep a clone before rewrite consumes it. */
+	    PExpr*p_win_src = (op == 13)
+		  ? sva_clone_expr_((*prop->seq)[0].expr) : nullptr;
 	    PExpr*pe = sva_rewrite_sampled_(loc, (*prop->seq)[0].expr, inst,
 					    hist_idx, pre, post, init_zero);
 	    perm_string r_p = sva_make_reg_(loc, inst, "p", 0);
@@ -6535,6 +6546,49 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 					 sva_fail_action_(loc, inst, action), nullptr);
 		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 		  FILE_NAME(fp, loc);
+	    } else if (op == 12) {
+		    /* always / always[m:n] / s_always[m:n] (16.12.7): a safety
+		       obligation. Under overlapping-attempt semantics the aggregate
+		       collapses to "p holds at every cycle T >= m" (m = win_lo, 0 for
+		       unbounded `always'); fail on !p, guarded by a $past(1,m) warm-up
+		       for the bounded form. The strong s_always form adds no distinct
+		       obligation under this collapse. */
+		  long lo = (prop->win_lo >= 0) ? prop->win_lo : 0;
+		  PExpr*failexpr = sva_not_(loc, sva_id_(loc, r_p));
+		  if (lo > 0) {
+			PExpr*valid = sva_past_(loc, sva_bit_(loc, 1), lo);
+			failexpr = sva_logic_(loc, 'a', valid, failexpr);
+		  }
+		  PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
+						  pre, post, init_zero);
+		  perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
+		  pre.push_back(sva_assign_(loc, r_ff, fs));
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
+					 sva_fail_action_(loc, inst, action), nullptr));
+	    } else if (op == 13) {
+		    /* eventually[m:n] / s_eventually[m:n] (16.12.6): p must hold at
+		       SOME cycle in the window. Checked at the window end (cycle T for
+		       the attempt that started n cycles ago): that attempt fails iff p
+		       held at NONE of its window cycles [T-(n-m) .. T]. Guard with
+		       $past(1,n) so a window predating time 0 imposes nothing. */
+		  long lo = (prop->win_lo >= 0) ? prop->win_lo : 0;
+		  long hi = (prop->win_hi >= 0) ? prop->win_hi : lo;
+		  if (hi < lo) hi = lo;
+		  PExpr*anyp = sva_clone_expr_(p_win_src);   /* p@T */
+		  for (long k = 1 ; k <= hi - lo ; k += 1) {
+			PExpr*pk = sva_past_(loc, sva_clone_expr_(p_win_src), k);
+			anyp = sva_logic_(loc, 'o', anyp, pk);
+		  }
+		  PExpr*valid = (hi > 0) ? sva_past_(loc, sva_bit_(loc, 1), hi)
+					 : sva_bit_(loc, 1);
+		  PExpr*failexpr = sva_logic_(loc, 'a', valid, sva_not_(loc, anyp));
+		  PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
+						  pre, post, init_zero);
+		  perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
+		  pre.push_back(sva_assign_(loc, r_ff, fs));
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
+					 sva_fail_action_(loc, inst, action), nullptr));
+		  delete p_win_src;
 	    } else {
 		    /* nexttime / s_nexttime (16.12.2): p must hold at the
 		       NEXT cycle. Per attempt at cycle S that is p@(S+1);

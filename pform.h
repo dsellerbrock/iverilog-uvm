@@ -404,14 +404,16 @@ pform_sva_binprop(const struct vlltype&loc, int op_type,
 		  std::vector<sva_seq_step_t>*sub,
 		  std::vector<sva_seq_step_t>*obj);
 
-/* M9C-live: unary liveness property operators (IEEE 1800-2017 16.12.2
-   `nexttime`/`s_nexttime`, 16.12.5 `s_eventually`). The operand must be
-   a boolean property; it is repackaged onto an sva_property_t with a
-   dedicated op_type (9 nexttime, 10 s_nexttime, 11 s_eventually) and
-   lowered by pform_make_assertion. Consumes sub. */
+/* M9C-live / M9F: unary liveness/safety property operators (IEEE 1800-2017
+   16.12.2 `nexttime`/`s_nexttime`, 16.12.5 `s_eventually`, 16.12.6-.7 bounded
+   `eventually`/`s_eventually`/`always`/`s_always`). The operand must be a
+   boolean property; it is repackaged onto an sva_property_t with a dedicated
+   op_type (9 nexttime, 10 s_nexttime, 11 s_eventually unbounded, 12 always
+   family, 13 bounded eventually family) and lowered by pform_make_assertion.
+   `strength` marks the strong form (s_always/s_eventually). Consumes sub. */
 extern sva_property_t*
 pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
-		 long win_lo = -1, long win_hi = -1);
+		 long win_lo = -1, long win_hi = -1, int strength = 0);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at

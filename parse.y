@@ -5584,8 +5584,41 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
 	long nn = n ? n->value().as_long() : 1;
 	delete $3;
 	$$ = pform_sva_unprop(@1, 10, $5, nn, nn); }
-  /* Unbounded `eventually' is not legal (IEEE 1800-2017 Table 16-1 —
-     `eventually' must carry a cycle range); use `s_eventually'. */
+  /* IEEE 1800-2017 16.12.7: `always' — p holds at every current and future
+     cycle (safety). Unbounded and bounded `always [m:n]' / `s_always [m:n]'. */
+  | K_always property_expr
+      { $$ = pform_sva_unprop(@1, 12, $2); }
+  | K_always '[' expression ':' expression ']' property_expr
+      { PENumber*m = dynamic_cast<PENumber*>($3);
+	PENumber*n = dynamic_cast<PENumber*>($5);
+	long mm = m ? m->value().as_long() : 0;
+	long nn = n ? n->value().as_long() : mm;
+	delete $3; delete $5;
+	$$ = pform_sva_unprop(@1, 12, $7, mm, nn, 0); }
+  | K_s_always '[' expression ':' expression ']' property_expr
+      { PENumber*m = dynamic_cast<PENumber*>($3);
+	PENumber*n = dynamic_cast<PENumber*>($5);
+	long mm = m ? m->value().as_long() : 0;
+	long nn = n ? n->value().as_long() : mm;
+	delete $3; delete $5;
+	$$ = pform_sva_unprop(@1, 12, $7, mm, nn, 1); }
+  /* IEEE 1800-2017 16.12.6: bounded `eventually [m:n]' — p holds at some
+     cycle in the window; strong `s_eventually [m:n]' adds the end-of-sim
+     obligation. Unbounded `eventually' is illegal (must carry a range). */
+  | K_eventually '[' expression ':' expression ']' property_expr
+      { PENumber*m = dynamic_cast<PENumber*>($3);
+	PENumber*n = dynamic_cast<PENumber*>($5);
+	long mm = m ? m->value().as_long() : 0;
+	long nn = n ? n->value().as_long() : mm;
+	delete $3; delete $5;
+	$$ = pform_sva_unprop(@1, 13, $7, mm, nn, 0); }
+  | K_s_eventually '[' expression ':' expression ']' property_expr
+      { PENumber*m = dynamic_cast<PENumber*>($3);
+	PENumber*n = dynamic_cast<PENumber*>($5);
+	long mm = m ? m->value().as_long() : 0;
+	long nn = n ? n->value().as_long() : mm;
+	delete $3; delete $5;
+	$$ = pform_sva_unprop(@1, 13, $7, mm, nn, 1); }
   | K_eventually property_expr
       { yyerror(@1, "error: unbounded `eventually' is not legal; use "
 		    "`s_eventually' (or a bounded `eventually [m:n]').");
