@@ -1110,6 +1110,7 @@ sv_clocking_audit normal,-g2012 ivltests
 sv_clocking_skew_audit normal,-g2012 ivltests
 sv_vif_member_access normal,-g2012 ivltests
 sv_vif_array_runtime_index normal,-g2012 ivltests
+sv_unit_scope_vif normal,-g2012 ivltests
 sv_program_clocking_finish normal,-g2012 ivltests
 sv_abort_operators normal,-g2012 ivltests
 sv_property_combinators normal,-g2012 ivltests

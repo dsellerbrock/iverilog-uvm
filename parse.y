@@ -5014,6 +5014,31 @@ package_item /* IEEE1800-2005 A.1.10 */
   | package_import_export_declaration
   | package_constraint_declaration
   | package_covergroup_declaration
+  /* M5-4: a bare package-/`$unit`-scope virtual-interface variable
+     (`virtual bus_if v;`). As at module scope (see module_item), the
+     generic route (data_declaration -> data_type -> K_virtual
+     TYPE_IDENTIFIER) is unreachable here — after K_virtual the parser
+     state only expects K_class (class_declaration). These dedicated
+     alternatives give that state the TYPE_IDENTIFIER/IDENTIFIER shifts. */
+  | K_virtual TYPE_IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'
+      { interface_type_t*itype;
+	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
+	      yyerror(@2, "error: virtual may only be used with interface types.");
+	itype = new interface_type_t(lex_strings.make($2.text));
+	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
+	pform_make_var(@2, $4, itype, nullptr, false);
+	delete[] $2.text;
+	if ($3) delete $3;
+      }
+  | K_virtual IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'
+      { interface_type_t*itype = new interface_type_t(lex_strings.make($2));
+	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
+	pform_make_var(@2, $4, itype, nullptr, false);
+	delete[] $2;
+	if ($3) delete $3;
+      }
   ;
 
 /* Package-scope covergroup (IEEE 1800-2017 §19.3).

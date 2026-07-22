@@ -148,10 +148,22 @@ type-inference path for the same underlying shape and may now be removable
 | M5-1 | Modport member visibility (read + write) | C | **DONE** | — | listed-only access; CE tests |
 | M5-2 | Interface-member change-sensitivity (all r-value forms) | C | **DONE** | — | bare/indexed/operator/multi/mixed, both edges |
 | M5-3 | Runtime-index vif-array binding `vp[i]=pins[i]` in a loop | F | **DONE** | — | synthesized instance-dispatch mux (ternary of NetEScope handles); out-of-range→null |
-| M5-4 | Bare `$unit`-scope `virtual iface v;` (parse error today) | F | OPEN | — | parses & binds at $unit scope |
-| M5-5 | Generic `interface` ports | F | OPEN | — | generic port binds to any matching iface |
+| M5-4 | Bare `$unit`-scope `virtual iface v;` (parse error today) | F | **DONE** | — | dedicated package_item alternatives; $unit + package scope, incl. vif arrays |
+| M5-5 | Generic `interface` ports | F | OPEN (larger — per-instantiation typing) | — | generic port binds to any matching iface |
 
-### M3B — full clause-18 randomization  (clause 18)
+**M5 status note (2026-07-22).** M5-1/2/3/4 are DONE. **M5-5 (generic
+`interface` ports) is a materially larger feature than the other M5 items**
+and stays open as its own arc. Confirmed by investigation: an interface
+type resolves by NAME (`interface_type_t::elaborate_type_raw` looks it up in
+`pform_modules`), a generic port has no name, and the module body (`ifp.d`)
+elaborates against the port's declared type *before* any instantiation
+connection is known. Supporting it needs **per-instantiation port typing** —
+resolve the port's interface type from each connection during the instance's
+scope-elaboration phase and elaborate the body against it (like a
+type-parameterized module) — which reworks module-elaboration order that all
+instantiation depends on. The current behavior is a **loud, actionable
+`sorry`** (points the user at the typed-port form), so there is no
+silent-miscompile gap; it is deferred rather than rushed.
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
@@ -338,9 +350,10 @@ combinators) · M1B-3a (type-parameter aggregate property method miscompile) ·
 dual-run). M4B-1/M4B-2 (struct value-copy through args/return + nested deep copy) were
 verified already-working in prior sessions; M1B-3's remaining fallbacks are already loud.
 
-1. **M5-4 / M5-5** — `$unit`-scope vif decl, generic `interface` ports (FEATURE;
-   unblocked). M5-3 (vif runtime-index array binding) is **DONE** — synthesized
-   instance-dispatch mux. **Current top pick.**
+1. **M3B-2 / M3B-3** — `randsequence`, `disable soft` (FEATURE; unblocked;
+   self-contained). **Current top pick.** M5-1/2/3/4 are DONE; the only M5
+   remainder is **M5-5** (generic `interface` ports), a larger
+   per-instantiation-typing arc deferred with a loud sorry.
 2. **M3B-2 / M3B-3** — `randsequence`, `disable soft` (FEATURE; no arch dependency).
 3. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
    UVM value). M9-7 residual multiclock forms alongside.
