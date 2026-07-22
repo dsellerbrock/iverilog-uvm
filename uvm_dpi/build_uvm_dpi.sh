@@ -62,9 +62,15 @@ case "$(uname -s)" in
         exec "$IVPI" "$@" -DUVM_DPI_STANDALONE "-I$shim"
         ;;
     MINGW*|MSYS*|CYGWIN*)
+        # Do NOT query iverilog-vpi for flags here: on Windows iverilog-vpi is
+        # a different tool that does not implement --ccflags (it prints usage),
+        # and at `make install' time the in-tree ./iverilog-vpi may not be
+        # built, so --ldflags can come back empty — dropping -shared and turning
+        # the link into a doomed executable build. The needed flags are fixed
+        # and match configure's @shared@ for MinGW, so set them directly. No
+        # -fPIC (Windows code is position-independent) and no compile flags are
+        # required beyond the include paths (headers come from the -I args).
         CXX="$(command -v g++ || command -v clang++ || command -v c++)"
-        CCFLAGS="$("$IVPI" --ccflags 2>/dev/null || true)"
-        LDFLAGS="$("$IVPI" --ldflags 2>/dev/null || true)"
 
         EXTRA=""
         if command -v dlltool >/dev/null 2>&1 && [ -n "${VVP_DEF:-}" ] && [ -f "$VVP_DEF" ] ; then
@@ -76,9 +82,10 @@ case "$(uname -s)" in
 
         obj="$TMP/uvm_dpi_umbrella.o"
         # shellcheck disable=SC2086
-        "$CXX" -c $CCFLAGS $INCS -DUVM_DPI_STANDALONE $SRCS -o "$obj"
+        "$CXX" -c $INCS -DUVM_DPI_STANDALONE $SRCS -o "$obj"
         # shellcheck disable=SC2086
-        "$CXX" $LDFLAGS -Wl,--export-all-symbols -o "$OUT.vpi" "$obj" $EXTRA
+        "$CXX" -shared -Wl,--enable-auto-image-base -Wl,--export-all-symbols \
+               -o "$OUT.vpi" "$obj" $EXTRA
         ;;
     *)
         exec "$IVPI" "$@" -DUVM_DPI_STANDALONE
