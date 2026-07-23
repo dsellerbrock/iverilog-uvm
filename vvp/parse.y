@@ -828,6 +828,23 @@ statement
             compile_var_queue($1, $5, $7, queue_type, $4, $8);
       }
 
+  /* .var/queue with a trailing element class-type symbol: an object-backed
+     unpacked-struct element records its element type so an absent element can
+     be lazily default-constructed on member access (see .var/darray). */
+  | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER signed_opt ',' T_STRING ',' T_SYMBOL ';'
+      {
+            char*queue_type = $9 ? strdup($9) : 0;
+            delete[] $9;
+            compile_var_queue($1, $4, $6, queue_type, $3, $7, $11);
+      }
+  | T_LABEL K_VAR_QUEUE local_flag storage_flag T_STRING  ',' T_NUMBER signed_opt ',' T_STRING ',' T_SYMBOL ';'
+      {
+            char*queue_type = $10 ? strdup($10) : 0;
+            delete[] $10;
+            (void)$3;
+            compile_var_queue($1, $5, $7, queue_type, $4, $8, $12);
+      }
+
   | T_LABEL K_VAR_COBJECT storage_flag T_STRING ';'
       { compile_var_cobject($1, $4, 0, $3); }
   | T_LABEL K_VAR_COBJECT local_flag storage_flag T_STRING ';'

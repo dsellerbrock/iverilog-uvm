@@ -107,7 +107,7 @@ X=architecture, K=campaign.
 | M1B-3 | Remove compile-progress fallbacks caused by lost specialization | C | IN PROGRESS | — | each silent type-recovery fallback → tracked diagnostic or fix |
 | M1B-3a | Type-parameter aggregate property unusable via methods (elaboration-order) | C | **DONE** | — | queue/darray/assoc type-parameter property usable via built-in methods |
 | M1B-4 | Adversarial parameterized-UVM specialization regressions | A | **DONE** | — | multi-spec suite (widths/truncation, class+struct type params, nesting, per-spec statics, param inheritance) all correct (sv_param_spec_audit) |
-| M1B-5 | **Partial write (bit-select / struct-member) to a class property is broken** | C | OPEN (tracked, repro landed) | — | RMW bit-select + struct-member writes to class properties; runtime cobject `%store/prop/v/bits` |
+| M1B-5 | Partial write (bit-select / part-select / struct-member) to a class property was broken | C | **DONE** | — | RMW bit/part-select + indexed part-select (`+:`/`-:`, constant & run-time offset) + packed-struct-member writes to class properties, across elaboration (typed `set_part`), codegen (`%store/prop/v/bits` + new `%store/prop/v/bits/x`) and runtime (cobject RMW). Descending vectors fully supported; ascending-variable/multi-dim loudly rejected (sorry). sv_class_property_partial_write + negative test |
 
 **M1B-3 audit note (2026-07-22).** Surveyed the compile-progress /
 type-recovery fallbacks. **M1B-3a is now FIXED.** The defect was an
@@ -141,6 +141,11 @@ type-inference path for the same underlying shape and may now be removable
 | M4B-3 | Adversarial nested-container testing | A | **DONE** | — | queue-of-struct, struct-of-darray, assoc-of-queue, class-of-queue-of-struct verified; array-of-queue is a loud sorry (known); the partial-write bug (M1B-5) surfaced here too |
 | M4B-4 | `%p` on packed struct → `'{member:val}` (prints one decimal) | F | OPEN (deferred, cosmetic) | — | packed struct prints member pattern |
 | M4B-5 | `%p` nested unpacked dims print nested not flat | F | OPEN (deferred, cosmetic) | — | multi-dim prints `'{'{..},..}` |
+| M4B-6 | Partial write to a packed-vector member of a plain (unpacked) STRUCT variable (`s.byte_en[z]`, `s.data[i +: 8]`, constant & run-time offset, incl. nested structs) was silently miscompiled (whole-member store) | C | **DONE** | — | unpacked-struct members are cobject-backed and share the M1B-5 read-modify-write path (typed `set_part` → `%store/prop/v/bits`[`/x`]); the class-member elaborator no longer drops the sub-member index for struct owners. sv_struct_member_partial_write |
+| M4B-7 | **Compound assignment** (`|=`, `+=`, …) into a partial class-property/struct-member select crashed vvp (a regression the M1B-5/M4B-6 RMW opcodes introduced: the binary opcode had no LHS operand) | C | **DONE** | — | codegen now loads the current field (`%prop/v`+`%parti/u`, or `%part/u` for a run-time offset) and pads the r-value to the field width before the op; constant & run-time offset, single-bit, width-mismatched r-value all correct. Found by the write-path audit; sv_class_property_partial_write |
+| M4B-8 | Partial write to a **virtual-interface struct field** (`vif.pkt.a = …`, `vif.pkt.b[3:0] = …`) silently miscompiled (whole clobber / dropped) | C | **DONE** | — | two causes: (1) an interface-local typedef failed to resolve when the vif property type was elaborated in a disposable scope that carried only parameters (not typedefs) → member degraded to a 32-bit integer; fixed by registering the interface's typedefs. (2) a bit/part-select ON a packed-struct field was discarded (whole-field store); fixed by composing the field base offset with the sub-select — also fixes the same defect on class packed-struct-field selects. sv_vif_struct_field_write |
+| M4B-9 | Member write into an **associative-array element** of an unpacked struct (`m[key].d = …`, part-selects & compound too) was silently dropped for a not-yet-present key (whole element read back 0) | C | **DONE** | — | root cause: object-backed queue/assoc signals never recorded their element class type (only darrays did), so the l-value load pushed a discarded default. Now the `.var/queue` record carries the element type (like `.var/darray`), and a new `%aa/loadlv/sig/obj/*` opcode get-or-CREATES + inserts the element on the write path (reads still don't insert; class-handle elements stay null). sv_assoc_elem_member_write |
+| M4B-10 | Slice/part write to a **multi-dimensional packed** class property/member (`r.m[1] = …` where `m` is `logic [3:0][7:0]`) is a loud `sorry` | F | OPEN (feature, honest) | — | write-path-audit finding; single-dim canonicalization only. Loudly rejected, not miscompiled |
 
 ### M5 — interfaces & modports  (clause 25)
 
@@ -351,31 +356,28 @@ deliberately gated.
 ## Current focus (the only mutable ordered list — derived from the rule)
 
 Re-derive this by applying the priority rule to the OPEN items above; do not hand-edit
-the structure. As of this writing (no known silent miscompiles outstanding, robustness
-clear), the frontier is bounded FEATURE + AUDIT work — the correctness residuals and the
-first "big rock" (M9-NFA) turned out already closed:
+the structure. The partial-write correctness arc is now fully closed — both the class-
+property form (M1B-5) and its unpacked-struct-member sibling (M4B-6). No known silent
+miscompiles outstanding; the frontier is again bounded FEATURE + AUDIT work.
 
 Recently retired: M8 (clause-14 audit + disposition) · M9-1/2/3 (bounded SVA / abort /
-combinators) · M1B-3a (type-parameter aggregate property method miscompile) ·
-**ARCH-1 · M9-NFA discovered already LANDED** (automaton engine is default; 33/33
-dual-run). M4B-1/M4B-2 (struct value-copy through args/return + nested deep copy) were
-verified already-working in prior sessions; M1B-3's remaining fallbacks are already loud.
+combinators) · M1B-3a (type-parameter aggregate property method miscompile) · **M1B-5 +
+M4B-6** (partial write to a class property AND to an unpacked-struct member —
+bit/part/indexed-part with constant & run-time offset + packed-struct member, across
+elaboration/codegen/runtime) · M1B-4 / M4B-3 (adversarial parameterized-specialization +
+nested-container audits) · **ARCH-1 · M9-NFA discovered already LANDED** (automaton
+engine is default; 33/33 dual-run). M4B-1/M4B-2 verified already-working in prior sessions.
 
-Also DONE this session: M5-3/M5-4 (vif runtime-index array binding + `$unit`/package-scope
-vif decls) and M3B-2/M3B-3 (`randsequence` + `disable soft`). Remaining M5/M3B items are
-the larger deferred arcs (M5-5 generic interface ports) and audits (M3B-4/5).
+Also DONE recently: M5-3/M5-4 (vif runtime-index array binding + `$unit`/package-scope
+vif decls) and M3B-2/M3B-3 (`randsequence` + `disable soft`).
 
-1. **M1B-4 / M4B-3** — adversarial parameterized-specialization + nested-container
-   audits (AUDIT; high ROI — this class is what surfaced the M1B-3a silent
-   miscompile). **Current top pick:** correctness-adjacent, and the remaining
-   FEATURE items are each a larger arc (M9-9 checker, M5-5 generic ports, ARCH-2).
-2. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
+1. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
    UVM value). M9-7 residual multiclock forms alongside.
-3. **M5-5** — generic `interface` ports (FEATURE; per-instantiation-typing arc).
-4. **M3B-4 / M3B-5** — `rand_mode`/`constraint_mode` reaudit, seed-stability (AUDIT).
-5. **M10-1** — multidimensional open arrays (FEATURE; DPI export M10-2 needs ARCH-2).
-6. **ARCH-2 · M6-CALLF** — big rock; unblocks DPI export + `expect` + time-consuming DPI.
-7. **M14B** subclause campaign → **M15** 2023 delta.
+2. **M5-5** — generic `interface` ports (FEATURE; per-instantiation-typing arc).
+3. **M3B-4 / M3B-5** — `rand_mode`/`constraint_mode` reaudit, seed-stability (AUDIT).
+4. **M10-1** — multidimensional open arrays (FEATURE; DPI export M10-2 needs ARCH-2).
+5. **ARCH-2 · M6-CALLF** — big rock; unblocks DPI export + `expect` + time-consuming DPI.
+6. **M14B** subclause campaign → **M15** 2023 delta.
 
 **Standing override:** any newly discovered silent miscompile or crash preempts this
 list (rule gates 1–2).

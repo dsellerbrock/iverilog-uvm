@@ -462,7 +462,11 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 			if (ivl_type_base(sig_type) == IVL_VT_QUEUE &&
 			    ivl_type_queue_assoc_compat(sig_type)) {
 			      const char*key_kind = draw_eval_assoc_key_(word_ex, 0);
-			      fprintf(vvp_out, "    %%aa/load/sig/obj/%s v%p_0;\n",
+			      /* L-value path: get-or-CREATE the element so a
+				 member write into a not-yet-present assoc entry
+				 (`a[key].field = ...`) is inserted and persists,
+				 instead of storing through a discarded default. */
+			      fprintf(vvp_out, "    %%aa/loadlv/sig/obj/%s v%p_0;\n",
 				      key_kind, lval_sig);
 			      return element_type;
 			}
@@ -2428,7 +2432,22 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  if (part_off_ex && !idx_expr &&
 		      ivl_expr_type(part_off_ex) == IVL_EX_NUMBER) {
 			unsigned bitoff = (unsigned)ivl_expr_uvalue(part_off_ex);
+			/* Compound assignment (`fld |= x`) needs the current
+			   field value on the stack before the r-value so the
+			   binary opcode has both operands. Load the whole
+			   property and part-select [bitoff+:lwid]. */
+			if (ivl_stmt_opcode(net) != 0) {
+			      fprintf(vvp_out, "    %%prop/v %d;\n", prop_idx);
+			      fprintf(vvp_out, "    %%parti/u %u, %u, 32;\n",
+				      lwid, bitoff);
+			}
 			draw_eval_vec4(rval);
+			/* For a compound op the r-value must match the field
+			   width (lwid) so the binary opcode's operands agree;
+			   the plain store truncates on its own. */
+			if (ivl_stmt_opcode(net) != 0)
+			      fprintf(vvp_out, "    %%pad/%s %u;\n",
+				      ivl_expr_signed(rval) ? "s" : "u", lwid);
 			draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
 						       ivl_expr_signed(rval));
 			fprintf(vvp_out,
@@ -2436,6 +2455,51 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 				" Store field [%u+:%u] of property %s\n",
 				prop_idx, bitoff, lwid, bitoff, lwid,
 				ivl_type_prop_name(sig_type, prop_idx));
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			/* Emit the null-guard epilogue inline and return. */
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			return errors;
+		  }
+
+		  /* Variable bit-offset RMW: a bit-select or indexed part-
+		     select of a vector property with a run-time offset (e.g.
+		     `obj.m_bits[i +: 4] = ...`).  The canonical bit offset is
+		     evaluated into an index register and consumed by the
+		     %store/prop/v/bits/x handler, which read-modify-writes the
+		     property so bits outside [off+:wid] are preserved. */
+		  if (part_off_ex && !idx_expr) {
+			int off_reg = allocate_word();
+			if (ivl_stmt_opcode(net) != 0) {
+			      /* Compound assignment: load the current field
+				 value first. Evaluate the offset once as a
+				 vec4, keep a copy in off_reg (for the store),
+				 and part-select [off+:lwid] off the loaded
+				 property so the binary opcode has both
+				 operands. */
+			      fprintf(vvp_out, "    %%prop/v %d;\n", prop_idx);
+			      draw_eval_vec4(part_off_ex);
+			      fprintf(vvp_out, "    %%dup/vec4;\n");
+			      fprintf(vvp_out, "    %%ix/vec4 %d;\n", off_reg);
+			      fprintf(vvp_out, "    %%part/u %u;\n", lwid);
+			} else {
+			      draw_eval_expr_into_integer(part_off_ex, off_reg);
+			}
+			draw_eval_vec4(rval);
+			/* Match r-value width to the field for a compound op. */
+			if (ivl_stmt_opcode(net) != 0)
+			      fprintf(vvp_out, "    %%pad/%s %u;\n",
+				      ivl_expr_signed(rval) ? "s" : "u", lwid);
+			draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
+						       ivl_expr_signed(rval));
+			fprintf(vvp_out,
+				"    %%store/prop/v/bits/x %d, %d, %u;"
+				" Store field [<var>+:%u] of property %s\n",
+				prop_idx, off_reg, lwid, lwid,
+				ivl_type_prop_name(sig_type, prop_idx));
+			clr_word(off_reg);
 			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			/* Emit the null-guard epilogue inline and return. */
 			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);

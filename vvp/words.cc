@@ -172,7 +172,8 @@ void compile_var_darray(char*label, char*name, unsigned size,
 }
 
 void compile_var_queue(char*label, char*name, unsigned size,
-		       char*type, int lifetime_flag, bool element_signed)
+		       char*type, int lifetime_flag, bool element_signed,
+		       char*element_type)
 {
       vvp_net_t*net = new vvp_net_t;
       bool use_auto = use_automatic_storage_(lifetime_flag);
@@ -189,6 +190,14 @@ void compile_var_queue(char*label, char*name, unsigned size,
       if (vvp_fun_signal_object*obj =
               dynamic_cast<vvp_fun_signal_object*>(net->fun)) {
             obj->default_object_kind(queue_init_kind_from_text_(type));
+	      // An object-backed unpacked-struct element type: record the
+	      // element class definition so an absent element can be lazily
+	      // default-constructed and inserted on the first member write
+	      // (%aa/loadlv/sig/obj/*). Class-handle queues carry no element
+	      // type and their elements correctly default to null.
+	    if (element_type)
+		  compile_vpi_lookup(reinterpret_cast<vpiHandle*>
+				     (&obj->declared_type_ref()), element_type);
       }
 
       define_functor_symbol(label, net);

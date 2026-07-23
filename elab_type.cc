@@ -291,6 +291,16 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 		  iface_scope->set_parameter(kv.first, false, *kv.second, nullptr);
       }
 
+      // Interface-local typedefs (e.g. `typedef struct packed {...} pkt_t;`
+      // declared inside the interface, then used as a member type) must be
+      // resolvable when the member property types are elaborated below. A
+      // disposable temp_scope carries only parameters, so a member typed by an
+      // interface-local typedef would otherwise degrade to a 32-bit integer
+      // (losing struct/enum structure) — which breaks `vif.member.field`
+      // access. Register the module's typedefs into the elaboration scope.
+      if (temp_scope)
+	    temp_scope->add_typedefs(&mod->typedefs);
+
       for (map<perm_string,PWire*>::const_iterator cur = mod->wires.begin()
 		 ; cur != mod->wires.end() ; ++cur) {
 	    ivl_type_t prop_type = cur->second->elaborate_sig_type(des, iface_scope);
