@@ -49,6 +49,14 @@ program g01_prog(input logic clk, input logic [7:0] pin, output logic [7:0] pout
     @(pcb);
     if (pout !== 8'h77) $display("FAIL: program pcb.pout = %h", pout);
     else $display("PROGRAM CLOCKING OK");
+    // This program's checks finish before the module's comprehensive checks
+    // below. Per IEEE 1800-2017 24.7 a program's completion ends the
+    // simulation, so if this initial simply returned here it would cut off the
+    // module's remaining checks and its final PASS/$finish. Stay alive on the
+    // clocking event and let the module's $finish(0) control end-of-sim. (This
+    // used to "work" only because a bug counted the clocking sampler as a
+    // program procedure, keeping the program alive; that bug is now fixed.)
+    forever @(pcb);
   end
 endprogram
 

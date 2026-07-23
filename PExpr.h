@@ -1406,6 +1406,36 @@ class PESoft : public PExpr {
 };
 
 /*
+ * M3B-3: `disable soft <variable>;' inside a constraint block (IEEE
+ * 1800-2017 18.5.14.1). Removes any soft constraint on the given
+ * variable for this randomize() call. Only meaningful in constraint IR
+ * emission, where it lowers to `(disable-soft <var>)'; in any other
+ * elaboration context it delegates to the inner variable expression.
+ */
+class PEDisableSoft : public PExpr {
+    public:
+      explicit PEDisableSoft(PExpr* inner) : inner_(inner) {}
+      ~PEDisableSoft() override { delete inner_; }
+      PExpr* get_inner() const { return inner_; }
+      void dump(std::ostream& out) const override {
+            out << "(disable-soft "; inner_->dump(out); out << ")";
+      }
+      unsigned test_width(Design*des, NetScope*scope, width_mode_t&mode) override {
+            return inner_->test_width(des, scope, mode);
+      }
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+                              ivl_type_t type, unsigned flags) const override {
+            return inner_->elaborate_expr(des, scope, type, flags);
+      }
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+                              unsigned w, unsigned flags) const override {
+            return inner_->elaborate_expr(des, scope, w, flags);
+      }
+    private:
+      PExpr* inner_;
+};
+
+/*
  * Represents conditional constraint forms inside constraint blocks
  * (IEEE 1800-2017 18.5.6 implication with a constraint set,
  * 18.5.7 if-else constraints):

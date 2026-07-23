@@ -39,6 +39,7 @@
 # include  "discipline.h"
 # include  <list>
 # include  <map>
+# include  <set>
 # include  <cassert>
 # include  <stack>
 # include  <typeinfo>
@@ -4619,6 +4620,132 @@ void pform_set_clocking_default_skews(const struct vlltype&loc,
       pform_cur_clocking->set_default_skews(in_skew, out_skew);
 }
 
+/*
+ * M3B-2: randsequence (IEEE 1800-2017 18.17). Lower the production grammar
+ * to procedural code by source-level expansion from the start production:
+ *   - a production with one alternative -> a sequential block of its items;
+ *   - a production with >1 alternatives -> a weighted PRandCase (the same
+ *     lowering as `randcase`) selecting one alternative;
+ *   - a code-block item -> its statement (moved in);
+ *   - a non-terminal item -> the recursively expanded production.
+ * Because statements cannot be duplicated, each production is expanded at
+ * most once across the whole randsequence; a production referenced more
+ * than once, or a cyclic (recursive) grammar, is a loud sorry rather than
+ * a silent miscompile — such grammars need the automaton/task lowering,
+ * which is future work.
+ */
+static Statement* pform_rs_expand_(const struct vlltype&loc, perm_string name,
+				   std::map<perm_string,rs_production_t*>&pmap,
+				   std::set<perm_string>&used, bool&bad);
+
+static Statement* pform_rs_expand_rule_(const struct vlltype&loc,
+					rs_rule_t&rule,
+					std::map<perm_string,rs_production_t*>&pmap,
+					std::set<perm_string>&used, bool&bad)
+{
+      std::vector<Statement*> stmts;
+      if (rule.items) {
+	    for (size_t i = 0 ; i < rule.items->size() ; i += 1) {
+		  rs_item_t&it = (*rule.items)[i];
+		  Statement*s = nullptr;
+		  if (it.code) { s = it.code; it.code = nullptr; }  /* move */
+		  else s = pform_rs_expand_(loc, it.name, pmap, used, bad);
+		  if (s) stmts.push_back(s);
+	    }
+      }
+      PBlock*blk = new PBlock(PBlock::BL_SEQ);
+      FILE_NAME(blk, loc);
+      blk->set_statement(stmts);
+      return blk;
+}
+
+static Statement* pform_rs_expand_(const struct vlltype&loc, perm_string name,
+				   std::map<perm_string,rs_production_t*>&pmap,
+				   std::set<perm_string>&used, bool&bad)
+{
+      std::map<perm_string,rs_production_t*>::iterator it = pmap.find(name);
+      if (it == pmap.end()) {
+	    cerr << loc << ": error: randsequence production `" << name
+		 << "' is not defined." << endl;
+	    error_count += 1; bad = true;
+	    return nullptr;
+      }
+      if (used.count(name)) {
+	    cerr << loc << ": sorry: randsequence production `" << name
+		 << "' is referenced more than once (or recursively); the "
+		 << "source-level expansion supports each production at most "
+		 << "once. Rewrite the grammar without production reuse." << endl;
+	    error_count += 1; bad = true;
+	    return nullptr;
+      }
+      used.insert(name);
+
+      rs_production_t*p = it->second;
+      if (!p->rules || p->rules->empty()) {
+	    PBlock*blk = new PBlock(PBlock::BL_SEQ);
+	    FILE_NAME(blk, loc);
+	    return blk;
+      }
+      if (p->rules->size() == 1)
+	    return pform_rs_expand_rule_(loc, (*p->rules)[0], pmap, used, bad);
+
+	/* >1 alternatives: a weighted PRandCase (18.17.2). */
+      std::vector<PCase::Item*>*items = new std::vector<PCase::Item*>;
+      for (size_t r = 0 ; r < p->rules->size() ; r += 1) {
+	    rs_rule_t&rule = (*p->rules)[r];
+	    Statement*s = pform_rs_expand_rule_(loc, rule, pmap, used, bad);
+	    PCase::Item*ci = new PCase::Item;
+	    PExpr*w = rule.weight;
+	    rule.weight = nullptr;   /* moved */
+	    if (!w) w = new PENumber(new verinum((uint64_t)1, 32));
+	    ci->expr.push_back(w);
+	    ci->stat = s ? s : new PBlock(PBlock::BL_SEQ);
+	    items->push_back(ci);
+      }
+      PRandCase*rc = new PRandCase(items);
+      FILE_NAME(rc, loc);
+      return rc;
+}
+
+Statement* pform_make_randsequence(const struct vlltype&loc, perm_string start,
+				   std::vector<rs_production_t>*prods)
+{
+      if (!prods || prods->empty()) {
+	    delete prods;
+	    return new PBlock(PBlock::BL_SEQ);
+      }
+
+      std::map<perm_string,rs_production_t*> pmap;
+      for (size_t i = 0 ; i < prods->size() ; i += 1)
+	    pmap[(*prods)[i].name] = &(*prods)[i];
+
+      perm_string start_name = start;
+      if (start_name.nil())
+	    start_name = (*prods)[0].name;
+
+      std::set<perm_string> used;
+      bool bad = false;
+      Statement*body = pform_rs_expand_(loc, start_name, pmap, used, bad);
+
+	/* Free the production containers. Item code-blocks and rule weights
+	   were moved into the expanded tree (or dropped on the bad path). */
+      for (size_t i = 0 ; i < prods->size() ; i += 1) {
+	    rs_production_t&pr = (*prods)[i];
+	    if (pr.rules) {
+		  for (size_t r = 0 ; r < pr.rules->size() ; r += 1)
+			delete (*pr.rules)[r].items;
+		  delete pr.rules;
+	    }
+      }
+      delete prods;
+
+      if (!body) {
+	    body = new PBlock(PBlock::BL_SEQ);
+	    FILE_NAME(body, loc);
+      }
+      return body;
+}
+
 void pform_end_clocking_block(const struct vlltype&loc)
 {
       /* May be 0 if the block body had a parse error and was skipped */
@@ -6302,10 +6429,13 @@ pform_sva_binprop(const struct vlltype&loc, int op_type,
  */
 sva_property_t*
 pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
-		 long win_lo, long win_hi)
+		 long win_lo, long win_hi, int strength)
 {
       const char*w = (op_type == 9) ? "nexttime"
-		   : (op_type == 10) ? "s_nexttime" : "s_eventually";
+		   : (op_type == 10) ? "s_nexttime"
+		   : (op_type == 11) ? "s_eventually"
+		   : (op_type == 12) ? (strength ? "s_always" : "always")
+		   : "eventually";
       if (!sub) return nullptr;
       if (sub->op_type != 0 || sub->antecedent || !sub->seq
 	  || sub->seq->size() != 1
@@ -6323,10 +6453,250 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
       p->op_type = op_type;
       p->win_lo = win_lo;
       p->win_hi = win_hi;
+      p->strength = strength;
       p->seq = sub->seq;   /* move the boolean step list */
       sub->seq = nullptr;
       delete sub;
       return p;
+}
+
+/*
+ * M9-2: package an abort operator (IEEE 1800-2017 16.12.9). op_type:
+ * 14 accept_on, 15 reject_on, 16 sync_accept_on, 17 sync_reject_on. The
+ * operand must be a plain boolean property (this engine aborts a
+ * single-cycle obligation); the abort condition is stored on abort_cond
+ * and the boolean step list is moved onto a fresh sva_property_t lowered
+ * by pform_make_assertion. Consumes cond and sub.
+ */
+sva_property_t*
+pform_sva_abort(const struct vlltype&loc, int op_type, PExpr*cond,
+		sva_property_t*sub)
+{
+      const char*w = (op_type == 14) ? "accept_on"
+		   : (op_type == 15) ? "reject_on"
+		   : (op_type == 16) ? "sync_accept_on"
+		   : "sync_reject_on";
+      if (!sub) { delete cond; return nullptr; }
+      if (sub->op_type != 0 || sub->antecedent || !sub->seq
+	  || sub->seq->size() != 1
+	  || (*sub->seq)[0].delay_lo != 0 || (*sub->seq)[0].delay_hi != 0
+	  || (*sub->seq)[0].rep_tail != 0
+	  || sub->clk_evt || sub->disable_iff_expr) {
+	    cerr << loc << ": sorry: `" << w << "' is supported only with a "
+		 << "boolean operand (no nested or sequence property); the "
+		 << "assertion is dropped." << endl;
+	    error_count += 1;
+	    delete cond;
+	    delete sub->antecedent; delete sub->seq; delete sub;
+	    return nullptr;
+      }
+      sva_property_t*p = new sva_property_t;
+      p->op_type = op_type;
+      p->abort_cond = cond;
+      p->seq = sub->seq;   /* move the boolean step list */
+      sub->seq = nullptr;
+      delete sub;
+      return p;
+}
+
+/*
+ * M9-3: property combinators (IEEE 1800-2017 16.12.8). For a boolean
+ * operand each combinator reduces to a single boolean property, so the
+ * result is a plain op_type-0 property that the standard assertion path
+ * samples and checks — no new lowering. A sequence or nested-property
+ * operand cannot be collapsed this way and is a loud sorry.
+ */
+
+/* Extract the single boolean expression from a boolean sequence operand
+ * (one plain step, no cycle delay or repetition). On success returns the
+ * expression (ownership moved) and empties the step; on failure emits a
+ * sorry and returns nullptr. The step vector is always freed. */
+static PExpr* sva_take_bool_seq_(const struct vlltype&loc, const char*w,
+				 std::vector<sva_seq_step_t>*seq)
+{
+      if (!seq) return nullptr;
+      PExpr*e = nullptr;
+      if (seq->size() == 1 && (*seq)[0].delay_lo == 0
+	  && (*seq)[0].delay_hi == 0 && (*seq)[0].rep_tail == 0) {
+	    e = (*seq)[0].expr;
+	    (*seq)[0].expr = nullptr;
+      } else {
+	    cerr << loc << ": sorry: `" << w << "' is supported only with "
+		 << "boolean operands (no sequence operand); the assertion "
+		 << "is dropped." << endl;
+	    error_count += 1;
+      }
+      delete seq;
+      return e;
+}
+
+/* As above but for a property operand (used by `if'/`case', whose branches
+ * are property_expr). The operand must be a plain boolean property. */
+static PExpr* sva_take_bool_prop_(const struct vlltype&loc, const char*w,
+				  sva_property_t*sub)
+{
+      if (!sub) return nullptr;
+      bool ok = (sub->op_type == 0 && !sub->antecedent && sub->seq
+		 && sub->seq->size() == 1
+		 && (*sub->seq)[0].delay_lo == 0 && (*sub->seq)[0].delay_hi == 0
+		 && (*sub->seq)[0].rep_tail == 0
+		 && !sub->clk_evt && !sub->disable_iff_expr);
+      PExpr*e = nullptr;
+      if (ok) {
+	    e = (*sub->seq)[0].expr;
+	    (*sub->seq)[0].expr = nullptr;
+      } else {
+	    cerr << loc << ": sorry: `" << w << "' is supported only with a "
+		 << "boolean branch (no sequence or nested property); the "
+		 << "assertion is dropped." << endl;
+	    error_count += 1;
+      }
+      delete sub->antecedent;
+      delete sub->seq;
+      delete sub;
+      return e;
+}
+
+/* Wrap a boolean expression as a plain op_type-0 boolean property. */
+static sva_property_t* sva_wrap_bool_(PExpr*e)
+{
+      if (!e) return nullptr;
+      sva_property_t*p = new sva_property_t;
+      p->seq = new std::vector<sva_seq_step_t>;
+      sva_seq_step_t step;
+      step.expr = e;
+      p->seq->push_back(step);
+      p->op_type = 0;
+      return p;
+}
+
+sva_property_t*
+pform_sva_prop_implies(const struct vlltype&loc,
+		       std::vector<sva_seq_step_t>*a,
+		       std::vector<sva_seq_step_t>*b)
+{
+      PExpr*ae = sva_take_bool_seq_(loc, "implies", a);
+      PExpr*be = sva_take_bool_seq_(loc, "implies", b);
+      if (!ae || !be) { delete ae; delete be; return nullptr; }
+	/* a implies b  ==  !a | b */
+      return sva_wrap_bool_(sva_logic_(loc, 'o', sva_not_(loc, ae), be));
+}
+
+sva_property_t*
+pform_sva_prop_iff(const struct vlltype&loc,
+		   std::vector<sva_seq_step_t>*a,
+		   std::vector<sva_seq_step_t>*b)
+{
+      PExpr*ae = sva_take_bool_seq_(loc, "iff", a);
+      PExpr*be = sva_take_bool_seq_(loc, "iff", b);
+      if (!ae || !be) { delete ae; delete be; return nullptr; }
+	/* a iff b  ==  (a & b) | (!a & !b) */
+      PExpr*both = sva_logic_(loc, 'a', sva_clone_expr_(ae), sva_clone_expr_(be));
+      PExpr*neither = sva_logic_(loc, 'a', sva_not_(loc, ae), sva_not_(loc, be));
+      return sva_wrap_bool_(sva_logic_(loc, 'o', both, neither));
+}
+
+sva_property_t*
+pform_sva_prop_if(const struct vlltype&loc, PExpr*cond,
+		  sva_property_t*then_p, sva_property_t*else_p)
+{
+      PExpr*pe = sva_take_bool_prop_(loc, "if", then_p);
+      PExpr*qe = else_p ? sva_take_bool_prop_(loc, "if", else_p) : nullptr;
+      if (!cond || !pe || (else_p && !qe)) {
+	    delete cond; delete pe; delete qe;
+	    return nullptr;
+      }
+      PExpr*result;
+      if (else_p) {
+	      /* if (c) p else q  ==  (c & p) | (!c & q) */
+	    PExpr*t = sva_logic_(loc, 'a', sva_clone_expr_(cond), pe);
+	    PExpr*f = sva_logic_(loc, 'a', sva_not_(loc, cond), qe);
+	    result = sva_logic_(loc, 'o', t, f);
+      } else {
+	      /* if (c) p  ==  !c | p  (a missing else branch is vacuously true) */
+	    result = sva_logic_(loc, 'o', sva_not_(loc, cond), pe);
+      }
+      return sva_wrap_bool_(result);
+}
+
+sva_property_t*
+pform_sva_case(const struct vlltype&loc, PExpr*sel,
+	       std::vector<sva_prop_case_item_t>*items)
+{
+      if (!sel || !items) {
+	    delete sel;
+	    if (items) {
+		  for (size_t k = 0 ; k < items->size() ; k += 1) {
+			delete (*items)[k].vals;
+			delete (*items)[k].prop;
+		  }
+		  delete items;
+	    }
+	    return nullptr;
+      }
+
+	/* Extract a boolean expression from every branch; separate the
+	   (at most one) default branch from the matched branches. */
+      bool bad = false;
+      PExpr*defexpr = nullptr;
+      std::vector<std::pair<std::list<PExpr*>*, PExpr*> > branches;
+      for (size_t k = 0 ; k < items->size() ; k += 1) {
+	    PExpr*pe = sva_take_bool_prop_(loc, "case", (*items)[k].prop);
+	    if (!pe) bad = true;
+	    if ((*items)[k].vals == nullptr) {
+		  if (defexpr) {
+			cerr << loc << ": error: a `case' property has more than "
+			     << "one `default' branch." << endl;
+			error_count += 1;
+			bad = true;
+			delete pe;
+		  } else {
+			defexpr = pe;
+		  }
+	    } else {
+		  branches.push_back(std::make_pair((*items)[k].vals, pe));
+		  (*items)[k].vals = nullptr;   /* ownership moved */
+	    }
+      }
+      delete items;
+
+      if (bad) {
+	    delete sel;
+	    delete defexpr;
+	    for (size_t k = 0 ; k < branches.size() ; k += 1) {
+		  if (branches[k].first)
+			for (std::list<PExpr*>::iterator it = branches[k].first->begin()
+			     ; it != branches[k].first->end() ; ++it)
+			      delete *it;
+		  delete branches[k].first;
+		  delete branches[k].second;
+	    }
+	    return nullptr;
+      }
+
+	/* No default -> an unmatched case evaluates to true (16.12.8). Fold
+	   right-to-left so the first listed branch is checked outermost:
+	     match_k ? p_k : rest   ==  (match_k & p_k) | (!match_k & rest) */
+      PExpr*result = defexpr ? defexpr : sva_bit_(loc, 1);
+      for (size_t i = branches.size() ; i-- > 0 ; ) {
+	    std::list<PExpr*>*vals = branches[i].first;
+	    PExpr*matchcond = nullptr;
+	    for (std::list<PExpr*>::iterator it = vals->begin()
+		 ; it != vals->end() ; ++it) {
+		  PEBComp*cmp = new PEBComp('E', sva_clone_expr_(sel), *it);
+		  FILE_NAME(cmp, loc);
+		  matchcond = matchcond ? sva_logic_(loc, 'o', matchcond, cmp)
+					: (PExpr*)cmp;
+	    }
+	    delete vals;   /* list shell; the value exprs are now owned by cmp */
+	    if (!matchcond) matchcond = sva_bit_(loc, 0);
+	    PExpr*pe = branches[i].second;
+	    PExpr*t = sva_logic_(loc, 'a', sva_clone_expr_(matchcond), pe);
+	    PExpr*f = sva_logic_(loc, 'a', sva_not_(loc, matchcond), result);
+	    result = sva_logic_(loc, 'o', t, f);
+      }
+      delete sel;
+      return sva_wrap_bool_(result);
 }
 
 /*
@@ -6363,7 +6733,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 {
       int op = prop->op_type;
       bool is_within   = (op == 8);
-      bool is_liveness = (op >= 9);
+      bool is_liveness = (op >= 9 && op <= 13);
+      bool is_abort    = (op >= 14 && op <= 17);
       bool with   = (op == 5 || op == 7);
       bool strong = (op == 6 || op == 7);
 
@@ -6409,7 +6780,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
       bool bad = false;
 
-      if (!is_within && !is_liveness) {
+      if (!is_within && !is_liveness && !is_abort) {
 	      /* ---- until family (boolean operands only). ---- */
 	    if (kind == 2) {
 		  cerr << loc << ": sorry: `cover property' of an `until' "
@@ -6497,11 +6868,14 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  FILE_NAME(fp, loc);
 	    }
       } else if (is_liveness) {
-	      /* ---- liveness: nexttime / s_nexttime / s_eventually. ----
-		 The boolean operand p is in prop->seq[0]. */
+	      /* ---- liveness/safety: nexttime / s_nexttime / s_eventually /
+		 always / bounded eventually. The boolean operand p is in
+		 prop->seq[0]. */
 	    if (kind == 2) {
 		  const char*w = (op == 9) ? "nexttime"
-			       : (op == 10) ? "s_nexttime" : "s_eventually";
+			       : (op == 10) ? "s_nexttime"
+			       : (op == 11) ? "s_eventually"
+			       : (op == 12) ? "always" : "eventually";
 		  cerr << loc << ": sorry: `cover property' of a `" << w
 		       << "' operator is not supported; the cover is dropped."
 		       << endl;
@@ -6509,6 +6883,10 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  delete fail_stmt; delete clk; delete disable;
 		  return;
 	    }
+	      /* Bounded eventually (op 13) samples p across a window, so it
+		 needs the raw operand; keep a clone before rewrite consumes it. */
+	    PExpr*p_win_src = (op == 13)
+		  ? sva_clone_expr_((*prop->seq)[0].expr) : nullptr;
 	    PExpr*pe = sva_rewrite_sampled_(loc, (*prop->seq)[0].expr, inst,
 					    hist_idx, pre, post, init_zero);
 	    perm_string r_p = sva_make_reg_(loc, inst, "p", 0);
@@ -6535,6 +6913,49 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 					 sva_fail_action_(loc, inst, action), nullptr);
 		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 		  FILE_NAME(fp, loc);
+	    } else if (op == 12) {
+		    /* always / always[m:n] / s_always[m:n] (16.12.7): a safety
+		       obligation. Under overlapping-attempt semantics the aggregate
+		       collapses to "p holds at every cycle T >= m" (m = win_lo, 0 for
+		       unbounded `always'); fail on !p, guarded by a $past(1,m) warm-up
+		       for the bounded form. The strong s_always form adds no distinct
+		       obligation under this collapse. */
+		  long lo = (prop->win_lo >= 0) ? prop->win_lo : 0;
+		  PExpr*failexpr = sva_not_(loc, sva_id_(loc, r_p));
+		  if (lo > 0) {
+			PExpr*valid = sva_past_(loc, sva_bit_(loc, 1), lo);
+			failexpr = sva_logic_(loc, 'a', valid, failexpr);
+		  }
+		  PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
+						  pre, post, init_zero);
+		  perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
+		  pre.push_back(sva_assign_(loc, r_ff, fs));
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
+					 sva_fail_action_(loc, inst, action), nullptr));
+	    } else if (op == 13) {
+		    /* eventually[m:n] / s_eventually[m:n] (16.12.6): p must hold at
+		       SOME cycle in the window. Checked at the window end (cycle T for
+		       the attempt that started n cycles ago): that attempt fails iff p
+		       held at NONE of its window cycles [T-(n-m) .. T]. Guard with
+		       $past(1,n) so a window predating time 0 imposes nothing. */
+		  long lo = (prop->win_lo >= 0) ? prop->win_lo : 0;
+		  long hi = (prop->win_hi >= 0) ? prop->win_hi : lo;
+		  if (hi < lo) hi = lo;
+		  PExpr*anyp = sva_clone_expr_(p_win_src);   /* p@T */
+		  for (long k = 1 ; k <= hi - lo ; k += 1) {
+			PExpr*pk = sva_past_(loc, sva_clone_expr_(p_win_src), k);
+			anyp = sva_logic_(loc, 'o', anyp, pk);
+		  }
+		  PExpr*valid = (hi > 0) ? sva_past_(loc, sva_bit_(loc, 1), hi)
+					 : sva_bit_(loc, 1);
+		  PExpr*failexpr = sva_logic_(loc, 'a', valid, sva_not_(loc, anyp));
+		  PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
+						  pre, post, init_zero);
+		  perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
+		  pre.push_back(sva_assign_(loc, r_ff, fs));
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
+					 sva_fail_action_(loc, inst, action), nullptr));
+		  delete p_win_src;
 	    } else {
 		    /* nexttime / s_nexttime (16.12.2): p must hold at the
 		       NEXT cycle. Per attempt at cycle S that is p@(S+1);
@@ -6574,6 +6995,55 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 			FILE_NAME(fp, loc);
 		  }
 	    }
+      } else if (is_abort) {
+	      /* ---- abort operators (IEEE 1800-2017 16.12.9). The boolean
+		 operand p is in prop->seq[0]; the abort condition is
+		 prop->abort_cond. For a single-cycle boolean obligation the
+		 abort collapses to a per-cycle boolean check:
+		     reject_on(c) p — abort-to-FAIL on c: fail = c | !p
+		     accept_on(c) p — abort-to-PASS on c: fail = !c & !p
+		 Both c and p are read as sampled values at the clock tick.
+		 That is exact for sync_accept_on/sync_reject_on and, for the
+		 unsynced accept_on/reject_on, exact whenever the abort
+		 condition changes only at the clock (the synchronous-stimulus
+		 case). Like the rest of this sampled-value engine, a purely
+		 asynchronous mid-cycle glitch on c is not modeled. */
+	    if (kind == 2) {
+		  const char*w = (op == 14) ? "accept_on"
+			       : (op == 15) ? "reject_on"
+			       : (op == 16) ? "sync_accept_on"
+			       : "sync_reject_on";
+		  cerr << loc << ": sorry: `cover property' of a `" << w
+		       << "' operator is not supported; the cover is dropped."
+		       << endl;
+		  error_count += 1;
+		  delete fail_stmt; delete clk; delete disable;
+		  return;
+	    }
+	    bool accept = (op == 14 || op == 16);
+	    PExpr*pe = (*prop->seq)[0].expr;   /* operand p (consumed below) */
+	    PExpr*ce = prop->abort_cond;       /* abort condition (consumed) */
+	    prop->abort_cond = nullptr;
+	    PExpr*failexpr;
+	    if (accept)
+		  failexpr = sva_logic_(loc, 'a', sva_not_(loc, ce),
+					sva_not_(loc, pe));
+	    else
+		  failexpr = sva_logic_(loc, 'o', ce, sva_not_(loc, pe));
+	    PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
+					    pre, post, init_zero);
+	    perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
+	    pre.push_back(sva_assign_(loc, r_ff, fs));
+	    Statement*action = fail_stmt;
+	    if (!action) {
+		  std::list<named_pexpr_t> no_args;
+		  PCallTask*err = new PCallTask(lex_strings.make("$error"),
+						no_args);
+		  FILE_NAME(err, loc);
+		  action = err;
+	    }
+	    body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
+				   sva_fail_action_(loc, inst, action), nullptr));
       } else {
 	      /* ---- within (fixed-length sequences). ---- */
 	    std::vector<PExpr*> A, B;

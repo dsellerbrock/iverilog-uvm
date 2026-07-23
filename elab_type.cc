@@ -878,6 +878,28 @@ ivl_type_t interface_type_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 	    return 0;
       }
 
+	// Parameterized virtual-interface SPECIALIZATION is not yet modeled:
+	// every specialization of an interface shares one netclass elaborated
+	// with the interface's DEFAULT parameters (see elaborate_interface_type_).
+	// A non-default parameter override therefore does NOT change the member
+	// widths of a `virtual iface #(...)` handle — a member WRITE through it
+	// would truncate to the default width. Diagnose that loudly (once)
+	// rather than miscompiling silently (IEEE 1800-2017 25.9). The override
+	// is honored only when it is absent or the interface has no parameters.
+      if (has_param_override && !cur->second->parameters.empty()) {
+	    static bool warned_vif_param_override = false;
+	    if (!warned_vif_param_override) {
+		  cerr << get_fileline() << ": warning: parameter overrides on a "
+		          "virtual interface type (`" << name << "') are not yet "
+		          "honored — all specializations share the interface's "
+		          "default parameters, so member widths use the defaults "
+		          "(a non-default member write would truncate). "
+		          "(IEEE 1800-2017 25.9; further similar warnings "
+		          "suppressed.)" << endl;
+		  warned_vif_param_override = true;
+	    }
+      }
+
       return elaborate_interface_type_(des, scope, cur->second);
 }
 

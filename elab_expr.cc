@@ -9880,10 +9880,97 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 }
 
 
+/*
+ * M5-3: runtime-index dispatch over an array of interface INSTANCES.
+ * `vp[i] = pins[i]` (and any `pins[expr]` used as a virtual-interface
+ * r-value) needs a runtime instance-dispatch table: interface instances
+ * are scopes, and a scope index must be constant, so a non-constant
+ * `pins[i]` cannot pick a scope at elaboration time. When the wanted type
+ * is an interface and the identifier is a single `name[expr]` whose base
+ * names an interface-instance array in this scope with a NON-constant
+ * index, synthesize a select over the N instance handles:
+ *     (i==0)?pins[0] : (i==1)?pins[1] : ... : null
+ * built from NetEScope handles, which the object codegen lowers via
+ * eval_object_ternary/eval_object_scope. Returns nil when the pattern does
+ * not apply, so the caller falls through to the normal (constant) path.
+ */
+static NetExpr* elaborate_vif_instance_array_dispatch_(const LineInfo*loc,
+						       Design*des, NetScope*scope,
+						       const pform_name_t&path,
+						       ivl_type_t ntype)
+{
+      const netclass_t*want_class = dynamic_cast<const netclass_t*>(ntype);
+      if (!want_class || !want_class->is_interface())
+	    return 0;
+      if (path.size() != 1)
+	    return 0;
+      const name_component_t&comp = path.back();
+      if (comp.index.size() != 1)
+	    return 0;
+      const index_component_t&ic = comp.index.back();
+      if (ic.sel != index_component_t::SEL_BIT || ic.msb == 0)
+	    return 0;
+
+	// Collect interface-instance child scopes `name[k]' of the wanted
+	// type. The instances live in the module scope, which may be a parent
+	// of the current (e.g. for-loop) scope — walk up like symbol_search.
+      std::map<long,NetScope*> insts;
+      for (NetScope*s = scope ; s && insts.empty() ; s = s->parent()) {
+	    const std::map<hname_t,NetScope*>&kids = s->children();
+	    for (std::map<hname_t,NetScope*>::const_iterator it = kids.begin()
+		   ; it != kids.end() ; ++it) {
+		  const hname_t&hn = it->first;
+		  if (hn.peek_name() != comp.name) continue;
+		  if (hn.has_numbers() != 1) continue;
+		  NetScope*cs = it->second;
+		  if (!cs || !cs->is_interface()) continue;
+		  if (cs->module_name() != want_class->get_name()) continue;
+		  insts[hn.peek_number(0)] = cs;
+	    }
+      }
+      if (insts.empty())
+	    return 0;
+
+	// Only synthesize the table for a NON-constant index; a constant
+	// index must use the normal scope-selecting path.
+      NetExpr*idx = elab_and_eval(des, scope, ic.msb, -1, false);
+      if (!idx)
+	    return 0;
+      if (dynamic_cast<NetEConst*>(idx)) { delete idx; return 0; }
+
+      unsigned wid = ntype->packed_width();
+      if (wid == 0) wid = 32;
+      NetExpr*acc = new NetENull;
+      acc->set_line(*loc);
+      for (std::map<long,NetScope*>::reverse_iterator it = insts.rbegin()
+	     ; it != insts.rend() ; ++it) {
+	    NetEScope*handle = new NetEScope(it->second, ntype);
+	    handle->set_line(*loc);
+	    verinum kval ((uint64_t)it->first, 32);
+	    NetEConst*kc = new NetEConst(kval);
+	    kc->set_line(*loc);
+	    NetEBComp*cmp = new NetEBComp('e', idx->dup_expr(), kc);
+	    cmp->set_line(*loc);
+	    NetETernary*tern = new NetETernary(cmp, handle, acc, wid, false);
+	    tern->set_line(*loc);
+	    acc = tern;
+      }
+      delete idx;
+      return acc;
+}
+
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 ivl_type_t ntype, unsigned flags) const
 {
       bool need_const = NEED_CONST & flags;
+
+	// M5-3: a non-constant index into an interface-instance array used as
+	// a virtual-interface value becomes a runtime dispatch table.
+      if (path_.package == 0) {
+	    if (NetExpr*disp = elaborate_vif_instance_array_dispatch_(this, des,
+							scope, path_.name, ntype))
+		  return disp;
+      }
 
 	// M13: expand let uses by substitution.
       if (PExpr*sub = let_substitution_(des, scope)) {

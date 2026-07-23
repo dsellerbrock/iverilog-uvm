@@ -245,6 +245,15 @@ extern void draw_eval_string(ivl_expr_t ex);
  */
 extern int draw_eval_object(ivl_expr_t ex);
 
+/*
+ * Like draw_eval_object, but applies unpacked-struct VALUE semantics when the
+ * result is about to be copied into a variable / container element / container
+ * insert: a value-type struct read from existing storage is cloned into a fresh
+ * object so the stored copy is independent (class handles keep reference
+ * semantics). Pass the destination element/variable type as element_type.
+ */
+extern int draw_eval_object_value_copy(ivl_expr_t ex, ivl_type_t element_type);
+
 static inline int expr_is_string_assoc_key_(ivl_expr_t expr)
 {
       if (!expr)

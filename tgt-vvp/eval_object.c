@@ -1658,3 +1658,36 @@ int draw_eval_object(ivl_expr_t ex)
 
       }
 }
+
+/*
+ * Evaluate an object r-value that is about to be COPIED into a variable,
+ * container element, or container-insert method (`=`, `push_back`/`push_front`/
+ * `insert`, queue pattern). An object-backed unpacked struct is a value type
+ * (IEEE 1800-2017 7.2): copying it must produce an independent object, not
+ * share the source's handle. So when `element_type` is a value struct
+ * (IVL_VT_NO_TYPE with properties) and the r-value reads existing struct
+ * storage (a signal, a member, or an element select), build a fresh object and
+ * shallow-copy the source into it (`%new/cobj` + `%scopy`). A class handle
+ * (IVL_VT_CLASS) keeps reference semantics; a freshly built aggregate r-value
+ * (array pattern, `new`, concat) is already independent — both fall through to
+ * a plain draw_eval_object. Leaves exactly one object on the object stack.
+ */
+int draw_eval_object_value_copy(ivl_expr_t ex, ivl_type_t element_type)
+{
+      ivl_expr_type_t rvt = ivl_expr_type(ex);
+      int rval_aliases = (rvt == IVL_EX_SIGNAL || rvt == IVL_EX_PROPERTY
+			  || rvt == IVL_EX_SELECT);
+      int is_value_struct = element_type
+			    && ivl_type_base(element_type) == IVL_VT_NO_TYPE
+			    && ivl_type_properties(element_type) > 0;
+
+      if (is_value_struct && rval_aliases) {
+	    ensure_class_type_emitted(element_type);
+	    fprintf(vvp_out, "    %%new/cobj C%p; struct value copy\n", element_type);
+	    int errors = draw_eval_object(ex);
+	    fprintf(vvp_out, "    %%scopy;\n");
+	    return errors;
+      }
+
+      return draw_eval_object(ex);
+}

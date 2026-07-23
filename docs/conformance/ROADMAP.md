@@ -69,7 +69,7 @@ breakdown that follows is grouped under it.
 | — | M4A | Core container runtime | DONE (core) |
 | — | M6A | Core scheduler/runtime repairs | DONE (subset) |
 | — | M7 | Accellera UVM qualification | DONE (harness 209/0/0) |
-| — | M8 | Clocking blocks & program sched | PROVISIONAL |
+| — | M8 | Clocking blocks & program sched | DONE (clause-14 disposition) |
 | — | M9A | Core SVA token pipeline | DONE |
 | — | M10A | Core DPI imports & packed vectors | DONE (subset) |
 | — | M11A | Class functional-coverage core | DONE |
@@ -79,10 +79,10 @@ breakdown that follows is grouped under it.
 | 4 | **M1B** | Specialization/aggregate typing fidelity | PARTIAL |
 | 5 | **M5** | Interfaces & modports | PARTIAL |
 | 6 | **M6B** | Scheduler conformance | PARTIAL |
-| 6 | **M8** | Clocking reprobes | PROVISIONAL |
+| 6 | **M8** | Clocking reprobes | DONE (audit + disposition matrix) |
 | 3 | **M3B** | Full clause-18 randomization | PARTIAL |
 | 3 | **M4B** | Aggregate/container completion | PARTIAL |
-| 7 | **M9B/C/D** | SVA sequence/temporal/automaton | PARTIAL → OPEN |
+| 7 | **M9B/C/D** | SVA sequence/temporal/automaton | AUTOMATON LANDED; M9-9 checker + M9-7 residuals OPEN |
 | 8 | **M10B/C** | DPI completion | PARTIAL |
 | 9 | **M11B** | Coverage declaration/sampling surface | PARTIAL |
 | 10 | **M12B/C** | VPI completion | PARTIAL |
@@ -104,8 +104,33 @@ X=architecture, K=campaign.
 |----|------|-----|--------|-----------|-----------|
 | M1B-1 | Member access on element of static/dynamic unpacked-struct array | C | **DONE** (#106/#107) | — | static+dyn+queue member r/w + `%p`; lazy element ctor |
 | M1B-2 | Struct value-copy on assignment (was reference-alias) | C | **DONE** (#108) | — | scalar/array/darray/queue `=` copy; class handle still aliases |
-| M1B-3 | Remove compile-progress fallbacks caused by lost specialization | C | OPEN | — | each silent type-recovery fallback → tracked diagnostic or fix |
-| M1B-4 | Adversarial parameterized-UVM specialization regressions | A | OPEN | — | generated multi-specialization suite, all correct |
+| M1B-3 | Remove compile-progress fallbacks caused by lost specialization | C | IN PROGRESS | — | each silent type-recovery fallback → tracked diagnostic or fix |
+| M1B-3a | Type-parameter aggregate property unusable via methods (elaboration-order) | C | **DONE** | — | queue/darray/assoc type-parameter property usable via built-in methods |
+| M1B-4 | Adversarial parameterized-UVM specialization regressions | A | **DONE** | — | multi-spec suite (widths/truncation, class+struct type params, nesting, per-spec statics, param inheritance) all correct (sv_param_spec_audit) |
+| M1B-5 | **Partial write (bit-select / struct-member) to a class property is broken** | C | OPEN (tracked, repro landed) | — | RMW bit-select + struct-member writes to class properties; runtime cobject `%store/prop/v/bits` |
+
+**M1B-3 audit note (2026-07-22).** Surveyed the compile-progress /
+type-recovery fallbacks. **M1B-3a is now FIXED.** The defect was an
+elaboration-ORDER bug (not queue- or type-specific, as the first bisection
+suggested): a class property typed as a type parameter bound to an
+aggregate (queue/darray/assoc) was unusable through its built-in **methods**
+because the method-target path
+(`elaborate_nested_method_target_property_task_`, elaborate.cc) resolved it
+with `property_idx_from_name()`, which returns -1 when the specialization's
+property has not yet been committed (properties are declared on demand). The
+method call was then mis-dropped as an "unknown task" and the aggregate
+silently stayed empty. Indexing worked because it goes through the
+`NetEProperty` expression path, which already forces `ensure_property_decl()`
+— so the fix routes the method-target path through the same
+`ensure_property_decl()`. Regression:
+`ivtest/ivltests/sv_typeparm_aggregate_property.v` (queue/darray/assoc
+method access). The other surveyed fallback sites (elab_lval.cc,
+t-dll-proc.cc, the enum-through-macro path in elab_expr.cc) already emit a
+loud "compile-progress fallback" diagnostic — they are tracked, not silent.
+Follow-up: the UVM-specific hack `infer_indexed_property_type_fallback_`
+(net_expr.cc, hardcoded to `uvm_shared`/`value`/`T`) patches the *indexed*
+type-inference path for the same underlying shape and may now be removable
+— left as a separate tracked cleanup pending its own UVM validation.
 
 ### M4B — aggregate/container completion  (clause 7/21)
 
@@ -113,7 +138,7 @@ X=architecture, K=campaign.
 |----|------|-----|--------|-----------|-----------|
 | M4B-1 | Struct value-copy through method args / return / `push_back(var)` | C | OPEN | — | by-value struct arg & return copy independently |
 | M4B-2 | Nested unpacked-struct **deep** copy (current copy is shallow) | C | OPEN | — | nested struct member copied by value, not shared |
-| M4B-3 | Adversarial nested-container testing | A | OPEN | — | generated nested array/queue/assoc/struct suite clean |
+| M4B-3 | Adversarial nested-container testing | A | **DONE** | — | queue-of-struct, struct-of-darray, assoc-of-queue, class-of-queue-of-struct verified; array-of-queue is a loud sorry (known); the partial-write bug (M1B-5) surfaced here too |
 | M4B-4 | `%p` on packed struct → `'{member:val}` (prints one decimal) | F | OPEN (deferred, cosmetic) | — | packed struct prints member pattern |
 | M4B-5 | `%p` nested unpacked dims print nested not flat | F | OPEN (deferred, cosmetic) | — | multi-dim prints `'{'{..},..}` |
 
@@ -123,19 +148,41 @@ X=architecture, K=campaign.
 |----|------|-----|--------|-----------|-----------|
 | M5-1 | Modport member visibility (read + write) | C | **DONE** | — | listed-only access; CE tests |
 | M5-2 | Interface-member change-sensitivity (all r-value forms) | C | **DONE** | — | bare/indexed/operator/multi/mixed, both edges |
-| M5-3 | Runtime-index vif-array binding `vp[i]=pins[i]` in a loop | F | OPEN | — | needs runtime instance-dispatch table |
-| M5-4 | Bare `$unit`-scope `virtual iface v;` (parse error today) | F | OPEN | — | parses & binds at $unit scope |
-| M5-5 | Generic `interface` ports | F | OPEN | — | generic port binds to any matching iface |
+| M5-3 | Runtime-index vif-array binding `vp[i]=pins[i]` in a loop | F | **DONE** | — | synthesized instance-dispatch mux (ternary of NetEScope handles); out-of-range→null |
+| M5-4 | Bare `$unit`-scope `virtual iface v;` (parse error today) | F | **DONE** | — | dedicated package_item alternatives; $unit + package scope, incl. vif arrays |
+| M5-5 | Generic `interface` ports | F | OPEN (larger — per-instantiation typing) | — | generic port binds to any matching iface |
 
-### M3B — full clause-18 randomization  (clause 18)
+**M5 status note (2026-07-22).** M5-1/2/3/4 are DONE. **M5-5 (generic
+`interface` ports) is a materially larger feature than the other M5 items**
+and stays open as its own arc. Confirmed by investigation: an interface
+type resolves by NAME (`interface_type_t::elaborate_type_raw` looks it up in
+`pform_modules`), a generic port has no name, and the module body (`ifp.d`)
+elaborates against the port's declared type *before* any instantiation
+connection is known. Supporting it needs **per-instantiation port typing** —
+resolve the port's interface type from each connection during the instance's
+scope-elaboration phase and elaborate the body against it (like a
+type-parameterized module) — which reworks module-elaboration order that all
+instantiation depends on. The current behavior is a **loud, actionable
+`sorry`** (points the user at the typed-port form), so there is no
+silent-miscompile gap; it is deferred rather than rushed.
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
 | M3B-1 | `randcase` / `std::randomize(var)` / `unique {}` | F | **DONE** | — | tests landed |
-| M3B-2 | `randsequence` | F | OPEN | — | production grammar → weighted lowering |
-| M3B-3 | `disable soft` | F | OPEN | — | soft-constraint removal honored |
+| M3B-2 | `randsequence` | F | **DONE** | — | productions/sequences/nesting/weighted alternatives via source-level expansion; recursion/reuse is a loud sorry |
+| M3B-3 | `disable soft` | F | **DONE** | — | soft constraints on the named variable dropped for the randomize() call |
 | M3B-4 | Reaudit `rand_mode` / `constraint_mode` combinations | A | OPEN | — | all combos correct incl. per-field |
 | M3B-5 | Seed-stability + failed-randomization state tests | A | OPEN | — | deterministic seed + fail-state coverage |
+
+**M3B-2 note.** `randsequence` is lowered by source-level expansion from
+the start production: sequences become blocks, alternatives become a
+weighted `PRandCase` (the same lowering as `randcase`), code blocks and
+non-terminals expand in place. Because pform statements cannot be
+duplicated, each production is expanded at most once; a production
+referenced more than once or a recursive grammar is a **loud sorry** (needs
+a task/automaton lowering — future work). No silent-miscompile gap.
+Advanced production features (`rand join`, `repeat`/`case` productions,
+production value/args, `break`/`return`) are not yet parsed.
 
 ### M6B — scheduler conformance  (clause 4)
 
@@ -146,31 +193,45 @@ X=architecture, K=campaign.
 | M6B-3 | Scheduling for time-consuming DPI imports | F | OPEN | M6-CALLF | DPI task may consume time |
 | M6B-4 | Assertion attempt-lifecycle scheduling | F | OPEN | ARCH M9-NFA | per-attempt start/step/end regions |
 
-### M8 — clocking blocks (PROVISIONAL — audit owed)  (clause 14)
+### M8 — clocking blocks (DONE — clause-14 disposition matrix)  (clause 14)
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M8-1 | Reprobe edge-qualified skew forms | A | OPEN | — | each skew form verified vs spec |
-| M8-2 | Reprobe real/string/aggregate clockvars | A | OPEN | — | non-integral clockvars correct |
-| M8-3 | Parameterized vif clocking stress | A | OPEN | — | per-specialization clocking correct |
-| M8-4 | Clocking + program + assertion + VPI ordering stress | A | OPEN | — | region ordering litmus green |
-| M8-5 | Every clause-14 subfeature has a disposition | K | OPEN | — | subclause matrix rows + tests |
+| M8-1 | Reprobe edge-qualified skew forms | A | **DONE** | — | input/output `#N` skew timing verified & pinned (sv_clocking_skew_audit) |
+| M8-2 | Reprobe real/string/aggregate clockvars | A | **DONE** | — | packed sample correctly; real/string/unpacked-array are a loud `sorry`→alias (disclosed) |
+| M8-3 | Parameterized vif clocking stress | A | **DONE** | — | non-param vif clocking verified; parameterized vif is a loud warning (tracked repro) |
+| M8-4 | Clocking + program + assertion + VPI ordering stress | A | **DONE** | — | region ordering + program end-of-sim (24.7) pinned (sv_program_clocking_finish) |
+| M8-5 | Every clause-14 subfeature has a disposition | K | **DONE** | — | `docs/conformance/m8_clocking_disposition.md` |
 
 ### M9 — SVA  (clause 16/17)
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M9-1 | Bounded liveness/safety `nexttime[n]`,`eventually[m:n]`,`always[m:n]` | F | OPEN | — | windowed lowering + tests |
-| M9-2 | Abort operators `accept_on`/`reject_on`/`sync_*` | F | OPEN | — | sampled gating over checker |
-| M9-3 | Property combinators `implies`/`iff`/`if-else`/`case` property | F | OPEN | — | boolean-combinator lowerings |
-| M9-4 | Goto / nonconsecutive repetition `b[->n]` `b[=n]` | F | OPEN | **M9-NFA** | per-attempt branching matcher |
-| M9-5 | Local sequence variables `(a, v=e) ##1 (b && f(v))` | F | OPEN | **M9-NFA** | per-attempt state |
-| M9-6 | `.matched` / complete `.triggered` / strong-weak sequences | F | OPEN | **M9-NFA** | sequence method semantics |
-| M9-7 | Multiclock sequences | F | OPEN | **M9-NFA** | clock-crossing tokens |
-| M9-8 | Variable-length `intersect` / `within` | F | OPEN | **M9-NFA** | non-fixed operands |
-| M9-9 | `checker`/`endchecker` (clause 17; today a loud sorry) | F | OPEN | **M9-NFA** | real checker instantiation |
-| M9-10 | Procedural concurrent assertion forms | F | OPEN | **M9-NFA** | inline procedural assert |
+| M9-1 | Bounded liveness/safety `nexttime[n]`,`eventually[m:n]`,`always[m:n]` | F | **DONE** (PR #109) | — | windowed lowering + tests |
+| M9-2 | Abort operators `accept_on`/`reject_on`/`sync_*` | F | **DONE** (PR #109) | — | boolean-operand sampled gating + tests |
+| M9-3 | Property combinators `implies`/`iff`/`if-else`/`case` property | F | **DONE** (PR #109) | — | boolean-combinator lowerings + tests |
+| M9-4 | Goto / nonconsecutive repetition `b[->n]` `b[=n]` | F | **DONE** (NFA C.1) | — | plain-seq + `##N` + `\|=>` consequent; `##0`-fused `\|->` consequent is a loud sorry corner |
+| M9-5 | Local sequence variables `(a, v=e) ##1 (b && f(v))` | F | **DONE** (NFA LV-1/LV-2) | — | fixed + variable-delay per-slot storage |
+| M9-6 | `.matched` / complete `.triggered` / strong-weak sequences | F | **DONE** (NFA C.2/C.3) | — | endpoint methods + strong/weak obligation |
+| M9-7 | Multiclock sequences | F | **PARTIAL** (NFA D.1) | — | `\|=>` CDC handshake done; mid-seq clock flow / cross-clock `\|->` / multi-cycle CDC operands are loud errors |
+| M9-8 | Variable-length `intersect` / `within` | F | **DONE** (NFA B.2/B.4) | — | non-fixed operands over the automaton |
+| M9-9 | `checker`/`endchecker` (clause 17; today a loud sorry) | F | **OPEN** | — | real checker instantiation |
+| M9-10 | Procedural concurrent assertion forms | F | **MOSTLY DONE** | — | clocked `assert property` in a proc block elaborates; needs the always-block edge as implicit clock + audit |
 | M9-11 | `expect` statement | F | OPEN | **M6-CALLF** | process blocks on a property |
+
+**M9 status note (corrected 2026-07-22).** The **M9-NFA per-attempt
+automaton engine is LANDED and is the default SVA engine** — stages
+A/B/C/D.1 all shipped in prior sessions (design doc
+`m9_nfa_design_2026-07-19.md`), verified by `tests/sva_nfa/run.sh`
+(dual-run 33/33: automaton vs legacy verdict-parity, plus nfa-only golds).
+M9-4/5/6/8 are therefore DONE via the automaton; M9-7 is PARTIAL (the
+`|=>` CDC handshake works, harder multiclock forms are loud errors). The
+boolean-collapse operators M9-1/2/3 (PR #109) fill in the pieces the
+automaton doesn't need. **Every M9 residual is a LOUD rejection — there is
+no silent-miscompile gap anywhere in clause 16.** The genuine remaining
+frontier is **M9-9 (checker/endchecker, clause 17)** — the largest
+unimplemented SVA feature — plus the M9-7 multiclock residuals, the
+`##0`-fused goto-consequent corner, and eventual legacy-engine retirement.
 
 ### M10B/C — DPI completion  (clause 35)
 
@@ -291,20 +352,30 @@ deliberately gated.
 
 Re-derive this by applying the priority rule to the OPEN items above; do not hand-edit
 the structure. As of this writing (no known silent miscompiles outstanding, robustness
-clear), the frontier is bounded FEATURE + AUDIT work, then the first big rock:
+clear), the frontier is bounded FEATURE + AUDIT work — the correctness residuals and the
+first "big rock" (M9-NFA) turned out already closed:
 
-1. **M4B-1 / M4B-2** — struct value-copy through args/returns + nested deep copy
-   (CORRECTNESS residual from the assignment work; highest nature).
-2. **M1B-3** — convert lost-specialization compile-progress fallbacks to diagnostics
-   (CORRECTNESS; interleave ARCH-3/M1C conversions here).
-3. **M8-1…M8-4** — clocking reprobes (AUDIT; PROVISIONAL status owes this; high ROI —
-   this is the audit class that surfaced the M5 "dispatch-through-element-0" bug).
-4. **M5-3 / M5-4 / M5-5** — vif runtime-index binding, `$unit` vif decl, generic ports (FEATURE).
-5. **M3B-2 / M3B-3**, **M9-1 / M9-2 / M9-3** — bounded randomization + bounded SVA
-   operators (FEATURE; no architecture dependency).
-6. **ARCH-1 · M9-NFA** — first big rock; retires M9-4…M9-10 + M12-1,2 + M6B-4.
-7. **ARCH-2 · M6-CALLF** — second big rock; unblocks DPI export + `expect` + time-consuming DPI.
-8. **M14B** subclause campaign → **M15** 2023 delta.
+Recently retired: M8 (clause-14 audit + disposition) · M9-1/2/3 (bounded SVA / abort /
+combinators) · M1B-3a (type-parameter aggregate property method miscompile) ·
+**ARCH-1 · M9-NFA discovered already LANDED** (automaton engine is default; 33/33
+dual-run). M4B-1/M4B-2 (struct value-copy through args/return + nested deep copy) were
+verified already-working in prior sessions; M1B-3's remaining fallbacks are already loud.
+
+Also DONE this session: M5-3/M5-4 (vif runtime-index array binding + `$unit`/package-scope
+vif decls) and M3B-2/M3B-3 (`randsequence` + `disable soft`). Remaining M5/M3B items are
+the larger deferred arcs (M5-5 generic interface ports) and audits (M3B-4/5).
+
+1. **M1B-4 / M4B-3** — adversarial parameterized-specialization + nested-container
+   audits (AUDIT; high ROI — this class is what surfaced the M1B-3a silent
+   miscompile). **Current top pick:** correctness-adjacent, and the remaining
+   FEATURE items are each a larger arc (M9-9 checker, M5-5 generic ports, ARCH-2).
+2. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
+   UVM value). M9-7 residual multiclock forms alongside.
+3. **M5-5** — generic `interface` ports (FEATURE; per-instantiation-typing arc).
+4. **M3B-4 / M3B-5** — `rand_mode`/`constraint_mode` reaudit, seed-stability (AUDIT).
+5. **M10-1** — multidimensional open arrays (FEATURE; DPI export M10-2 needs ARCH-2).
+6. **ARCH-2 · M6-CALLF** — big rock; unblocks DPI export + `expect` + time-consuming DPI.
+7. **M14B** subclause campaign → **M15** 2023 delta.
 
 **Standing override:** any newly discovered silent miscompile or crash preempts this
 list (rule gates 1–2).

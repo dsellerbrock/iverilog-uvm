@@ -1105,3 +1105,17 @@ sv_ustruct_array_element normal,-g2012 ivltests
 sv_ustruct_array_member normal,-g2012 ivltests
 sv_dyn_array_member normal,-g2012 ivltests
 sv_ustruct_value_copy normal,-g2012 ivltests
+sv_ustruct_value_copy_containers normal,-g2012 ivltests
+sv_clocking_audit normal,-g2012 ivltests
+sv_clocking_skew_audit normal,-g2012 ivltests
+sv_vif_member_access normal,-g2012 ivltests
+sv_vif_array_runtime_index normal,-g2012 ivltests
+sv_unit_scope_vif normal,-g2012 ivltests
+sv_program_clocking_finish normal,-g2012 ivltests
+sv_abort_operators normal,-g2012 ivltests
+sv_property_combinators normal,-g2012 ivltests
+sv_typeparm_aggregate_property normal,-g2012 ivltests
+sv_disable_soft normal,-g2012 ivltests
+sv_randsequence normal,-g2012 ivltests
+sv_param_spec_audit normal,-g2012 ivltests
+sv_nested_container_audit normal,-g2012 ivltests

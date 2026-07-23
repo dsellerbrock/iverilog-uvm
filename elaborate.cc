@@ -772,7 +772,15 @@ static NetExpr* elaborate_nested_method_target_property_task_(const LineInfo*li,
       if (!class_type || !base_expr)
 	    return nullptr;
 
-      int pidx = class_type->property_idx_from_name(comp.name);
+	// Force the property to be declared on the (possibly still
+	// incrementally-elaborating) specialization before looking it up.
+	// A bare property_idx_from_name() returns -1 when the method-target
+	// statement is elaborated before this specialization's properties are
+	// committed (e.g. `obj.p.push_back(..)` where p's type is a type
+	// parameter bound to a queue/darray) — which then mis-drops the call
+	// as an unknown task. ensure_property_decl() elaborates p's type in
+	// the specialized scope now, matching the expression/index path.
+      int pidx = const_cast<netclass_t*>(class_type)->ensure_property_decl(des, comp.name);
       if (pidx < 0) {
 	    delete base_expr;
 	    return nullptr;
@@ -12528,6 +12536,15 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 
 	    NetProcTop*top = new NetProcTop(scope, IVL_PR_INITIAL, prologue);
 	    top->set_line(*cb);
+	      /* This synthesized sampler is an INITIAL wrapping a forever loop,
+		 so it never completes. In a PROGRAM scope it must not be counted
+		 toward program-completion end-of-simulation (IEEE 1800-2017
+		 24.7) — otherwise a program whose only post-initial activity is
+		 a clocking block never finishes. Mark it as a clocking-background
+		 process so tgt-vvp omits the `$prog` tag. */
+	    if (gn_system_verilog())
+		  top->attribute(perm_string::literal("_ivl_clocking_bg"),
+				 verinum(1));
 	    des->add_process(top);
 
 	      /* M8-2b: the drive-apply process (14.16). Buffered output
@@ -12576,6 +12593,11 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetProcTop*apply_top = new NetProcTop(scope, IVL_PR_INITIAL,
 							apply_loop);
 		  apply_top->set_line(*cb);
+		    /* Background forever loop — see the sampler above; must not
+		       gate program-completion end-of-simulation. */
+		  if (gn_system_verilog())
+			apply_top->attribute(perm_string::literal("_ivl_clocking_bg"),
+					     verinum(1));
 		  des->add_process(apply_top);
 	    }
       }
@@ -12837,6 +12859,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    string s = pexpr_to_constraint_ir(sf->get_inner(), cls, value_slots, scope, loop_env);
 	    if (s.empty() || s[0] == '?') return "";
 	    return "(soft " + s + ")";
+      }
+
+      // M3B-3: `disable soft <var>` -> `(disable-soft <var>)`. The Z3
+      // backend drops any pending soft assert that references the operand's
+      // property before applying soft asserts.
+      if (const PEDisableSoft*ds = dynamic_cast<const PEDisableSoft*>(expr)) {
+	    string s = pexpr_to_constraint_ir(ds->get_inner(), cls, value_slots, scope, loop_env);
+	    if (s.empty() || s[0] == '?') return "";
+	    return "(disable-soft " + s + ")";
       }
 
 	// Conditional constraint sets: if-else (IEEE 1800-2017 18.5.7)

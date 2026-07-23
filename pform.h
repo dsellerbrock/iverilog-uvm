@@ -272,6 +272,8 @@ extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
    kind: 0=assert, 1=assume, 2=cover. */
 struct sva_property_t;
 struct sva_seq_step_t;
+struct sva_prop_case_item_t;
+struct rs_production_t;
 extern void pform_make_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
 				 Statement*fail_stmt, Statement*pass_stmt,
@@ -404,14 +406,53 @@ pform_sva_binprop(const struct vlltype&loc, int op_type,
 		  std::vector<sva_seq_step_t>*sub,
 		  std::vector<sva_seq_step_t>*obj);
 
-/* M9C-live: unary liveness property operators (IEEE 1800-2017 16.12.2
-   `nexttime`/`s_nexttime`, 16.12.5 `s_eventually`). The operand must be
-   a boolean property; it is repackaged onto an sva_property_t with a
-   dedicated op_type (9 nexttime, 10 s_nexttime, 11 s_eventually) and
-   lowered by pform_make_assertion. Consumes sub. */
+/* M9C-live / M9F: unary liveness/safety property operators (IEEE 1800-2017
+   16.12.2 `nexttime`/`s_nexttime`, 16.12.5 `s_eventually`, 16.12.6-.7 bounded
+   `eventually`/`s_eventually`/`always`/`s_always`). The operand must be a
+   boolean property; it is repackaged onto an sva_property_t with a dedicated
+   op_type (9 nexttime, 10 s_nexttime, 11 s_eventually unbounded, 12 always
+   family, 13 bounded eventually family) and lowered by pform_make_assertion.
+   `strength` marks the strong form (s_always/s_eventually). Consumes sub. */
 extern sva_property_t*
 pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
-		 long win_lo = -1, long win_hi = -1);
+		 long win_lo = -1, long win_hi = -1, int strength = 0);
+/* M9-2: abort operators (IEEE 1800-2017 16.12.9). `accept_on(c) p' aborts to
+   a PASS the instant c holds; `reject_on(c) p' aborts to a FAIL. The sync_
+   variants sample c at the clock (op_type 14 accept_on, 15 reject_on,
+   16 sync_accept_on, 17 sync_reject_on). The operand must be a boolean
+   property; cond and sub are consumed. */
+extern sva_property_t*
+pform_sva_abort(const struct vlltype&loc, int op_type, PExpr*cond,
+		sva_property_t*sub);
+/* M9-3: property combinators (IEEE 1800-2017 16.12.8). For boolean operands
+   `a implies b', `a iff b', `if (c) p [else q]' and `case (e) ... endcase'
+   reduce to a single boolean property (`!a|b', `(a&b)|(!a&!b)',
+   `(c&p)|(!c&q)', and a nested match chain respectively). Operands must be
+   boolean properties; a sequence/nested operand is a loud sorry. All
+   operands (and, for case, the item list) are consumed. */
+extern sva_property_t*
+pform_sva_prop_implies(const struct vlltype&loc,
+		       std::vector<sva_seq_step_t>*a,
+		       std::vector<sva_seq_step_t>*b);
+extern sva_property_t*
+pform_sva_prop_iff(const struct vlltype&loc,
+		   std::vector<sva_seq_step_t>*a,
+		   std::vector<sva_seq_step_t>*b);
+extern sva_property_t*
+pform_sva_prop_if(const struct vlltype&loc, PExpr*cond, sva_property_t*then_p,
+		  sva_property_t*else_p);
+extern sva_property_t*
+pform_sva_case(const struct vlltype&loc, PExpr*sel,
+	       std::vector<sva_prop_case_item_t>*items);
+/* M3B-2: expand a `randsequence' (IEEE 1800-2017 18.17) into procedural
+   code. `start' is the initial production (empty => the first listed).
+   Alternatives lower to a weighted PRandCase; a production sequence lowers
+   to a block; a non-terminal reference expands recursively (a cyclic
+   grammar is a loud sorry — the source-level expansion cannot unroll it).
+   Consumes the production list. */
+extern Statement* pform_make_randsequence(const struct vlltype&loc,
+					  perm_string start,
+					  std::vector<rs_production_t>*prods);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at

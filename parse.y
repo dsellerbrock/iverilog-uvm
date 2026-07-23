@@ -1085,6 +1085,18 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       // M9: sequence step chains for property/sequence expressions.
       std::vector<sva_seq_step_t>* sva_seq;
 
+      // M9-3: `case (...) ... endcase' property branches.
+      sva_prop_case_item_t* sva_case_item;
+      std::vector<sva_prop_case_item_t>* sva_case_items;
+
+      // M3B-2: randsequence productions.
+      rs_item_t* rs_item;
+      std::vector<rs_item_t>* rs_item_list;
+      rs_rule_t* rs_rule;
+      std::vector<rs_rule_t>* rs_rule_list;
+      rs_production_t* rs_production;
+      std::vector<rs_production_t>* rs_production_list;
+
       decl_assignment_t*decl_assignment;
       std::list<decl_assignment_t*>*decl_assignments;
 
@@ -1301,6 +1313,14 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <sva_prop> property_expr property_spec
 %type <sva_prop> sva_seq_comb sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
 %type <sva_seq>  sva_seq_expr sva_seq_atom
+%type <sva_case_item>  property_case_item
+%type <sva_case_items> property_case_items
+%type <rs_item>           rs_prod_item
+%type <rs_item_list>      rs_prod_item_list
+%type <rs_rule>           rs_rule
+%type <rs_rule_list>      rs_rule_list
+%type <rs_production>     rs_production
+%type <rs_production_list> rs_production_list
 %type <perm_strings> cross_item_list
 
 %type <named_pexprs> enum_name_list enum_name
@@ -2700,6 +2720,10 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
      expression so the soft flag is invisible there. */
   | K_soft expression ';'
       { PESoft*tmp = new PESoft($2); FILE_NAME(tmp, @1); $$ = tmp; }
+  /* M3B-3: `disable soft <variable>;' (IEEE 1800-2017 18.5.14.1) removes
+     soft constraints on the variable for this randomize() call. */
+  | K_disable K_soft expression ';'
+      { PEDisableSoft*tmp = new PEDisableSoft($3); FILE_NAME(tmp, @1); $$ = tmp; }
   | K_soft expression K_dist '{' dist_list_opt '}' ';'
       { if ($5) {
               PEInside*tmp = new PEInside($2, $5);
@@ -3352,14 +3376,13 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 	$$ = tmp;
       }
   | K_virtual TYPE_IDENTIFIER parameter_value_opt
-      { if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0) {
+      { interface_type_t*tmp;
+	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
 	      yyerror(@2, "error: virtual may only be used with interface types.");
-	      $$ = new interface_type_t(lex_strings.make($2.text));
-	      FILE_NAME($$, @1);
-	} else {
-	      $$ = new interface_type_t(lex_strings.make($2.text));
-	      FILE_NAME($$, @1);
-	}
+	tmp = new interface_type_t(lex_strings.make($2.text));
+	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($3 != 0);
+	$$ = tmp;
 	delete[] $2.text;
 	if ($3) delete $3;
       }
@@ -3367,6 +3390,7 @@ data_type /* IEEE1800-2005: A.2.2.1 */
       { /* Forward-referenced or un-typed interface — create by name */
 	interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
 	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($3 != 0);
 	delete[] $2;
 	if ($3) delete $3;
 	$$ = tmp;
@@ -3375,14 +3399,19 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 
 virtual_interface_type
   : TYPE_IDENTIFIER parameter_value_opt
-      { if (dynamic_cast<const interface_type_t*>($1.type->get_data_type()) == 0) {
+      { interface_type_t*tmp;
+	if (dynamic_cast<const interface_type_t*>($1.type->get_data_type()) == 0) {
 	      yyerror(@1, "error: virtual may only be used with interface types.");
-	      $$ = new interface_type_t(lex_strings.make($1.text));
-	      FILE_NAME($$, @1);
+	      tmp = new interface_type_t(lex_strings.make($1.text));
 	} else {
-	      $$ = new interface_type_t(lex_strings.make($1.text));
-	      FILE_NAME($$, @1);
+	      tmp = new interface_type_t(lex_strings.make($1.text));
 	}
+	FILE_NAME(tmp, @1);
+	  /* Record that a parameter override was given so elaboration can
+	     diagnose the unmodeled specialization instead of silently using
+	     the interface's default parameters. */
+	tmp->has_param_override = ($2 != 0);
+	$$ = tmp;
 	delete[] $1.text;
 	if ($2) delete $2;
       }
@@ -3390,6 +3419,7 @@ virtual_interface_type
   | IDENTIFIER parameter_value_opt
       { interface_type_t*tmp = new interface_type_t(lex_strings.make($1));
 	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($2 != 0);
 	delete[] $1;
 	if ($2) delete $2;
 	$$ = tmp;
@@ -5002,6 +5032,31 @@ package_item /* IEEE1800-2005 A.1.10 */
   | package_import_export_declaration
   | package_constraint_declaration
   | package_covergroup_declaration
+  /* M5-4: a bare package-/`$unit`-scope virtual-interface variable
+     (`virtual bus_if v;`). As at module scope (see module_item), the
+     generic route (data_declaration -> data_type -> K_virtual
+     TYPE_IDENTIFIER) is unreachable here — after K_virtual the parser
+     state only expects K_class (class_declaration). These dedicated
+     alternatives give that state the TYPE_IDENTIFIER/IDENTIFIER shifts. */
+  | K_virtual TYPE_IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'
+      { interface_type_t*itype;
+	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
+	      yyerror(@2, "error: virtual may only be used with interface types.");
+	itype = new interface_type_t(lex_strings.make($2.text));
+	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
+	pform_make_var(@2, $4, itype, nullptr, false);
+	delete[] $2.text;
+	if ($3) delete $3;
+      }
+  | K_virtual IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'
+      { interface_type_t*itype = new interface_type_t(lex_strings.make($2));
+	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
+	pform_make_var(@2, $4, itype, nullptr, false);
+	delete[] $2;
+	if ($3) delete $3;
+      }
   ;
 
 /* Package-scope covergroup (IEEE 1800-2017 §19.3).
@@ -5578,12 +5633,72 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
 	long nn = n ? n->value().as_long() : 1;
 	delete $3;
 	$$ = pform_sva_unprop(@1, 10, $5, nn, nn); }
-  /* Unbounded `eventually' is not legal (IEEE 1800-2017 Table 16-1 —
-     `eventually' must carry a cycle range); use `s_eventually'. */
+  /* IEEE 1800-2017 16.12.7: `always' — p holds at every current and future
+     cycle (safety). Unbounded and bounded `always [m:n]' / `s_always [m:n]'. */
+  | K_always property_expr
+      { $$ = pform_sva_unprop(@1, 12, $2); }
+  | K_always '[' expression ':' expression ']' property_expr
+      { PENumber*m = dynamic_cast<PENumber*>($3);
+	PENumber*n = dynamic_cast<PENumber*>($5);
+	long mm = m ? m->value().as_long() : 0;
+	long nn = n ? n->value().as_long() : mm;
+	delete $3; delete $5;
+	$$ = pform_sva_unprop(@1, 12, $7, mm, nn, 0); }
+  | K_s_always '[' expression ':' expression ']' property_expr
+      { PENumber*m = dynamic_cast<PENumber*>($3);
+	PENumber*n = dynamic_cast<PENumber*>($5);
+	long mm = m ? m->value().as_long() : 0;
+	long nn = n ? n->value().as_long() : mm;
+	delete $3; delete $5;
+	$$ = pform_sva_unprop(@1, 12, $7, mm, nn, 1); }
+  /* IEEE 1800-2017 16.12.6: bounded `eventually [m:n]' — p holds at some
+     cycle in the window; strong `s_eventually [m:n]' adds the end-of-sim
+     obligation. Unbounded `eventually' is illegal (must carry a range). */
+  | K_eventually '[' expression ':' expression ']' property_expr
+      { PENumber*m = dynamic_cast<PENumber*>($3);
+	PENumber*n = dynamic_cast<PENumber*>($5);
+	long mm = m ? m->value().as_long() : 0;
+	long nn = n ? n->value().as_long() : mm;
+	delete $3; delete $5;
+	$$ = pform_sva_unprop(@1, 13, $7, mm, nn, 0); }
+  | K_s_eventually '[' expression ':' expression ']' property_expr
+      { PENumber*m = dynamic_cast<PENumber*>($3);
+	PENumber*n = dynamic_cast<PENumber*>($5);
+	long mm = m ? m->value().as_long() : 0;
+	long nn = n ? n->value().as_long() : mm;
+	delete $3; delete $5;
+	$$ = pform_sva_unprop(@1, 13, $7, mm, nn, 1); }
   | K_eventually property_expr
       { yyerror(@1, "error: unbounded `eventually' is not legal; use "
 		    "`s_eventually' (or a bounded `eventually [m:n]').");
 	delete $2; $$ = 0; }
+  /* IEEE 1800-2017 16.12.9: abort operators. `accept_on(c) p' aborts the
+     evaluation to a PASS the moment c holds; `reject_on(c) p' aborts to a
+     FAIL. The sync_ variants sample c at the clock (op 14 accept_on,
+     15 reject_on, 16 sync_accept_on, 17 sync_reject_on). */
+  | K_accept_on '(' expression ')' property_expr
+      { $$ = pform_sva_abort(@1, 14, $3, $5); }
+  | K_reject_on '(' expression ')' property_expr
+      { $$ = pform_sva_abort(@1, 15, $3, $5); }
+  | K_sync_accept_on '(' expression ')' property_expr
+      { $$ = pform_sva_abort(@1, 16, $3, $5); }
+  | K_sync_reject_on '(' expression ')' property_expr
+      { $$ = pform_sva_abort(@1, 17, $3, $5); }
+  /* IEEE 1800-2017 16.12.8: property combinators over boolean operands.
+     `a implies b' == `!a | b'; `a iff b' == `(a & b) | (!a & !b)';
+     `if (c) p [else q]' selects a branch; `case (e) ... endcase' selects
+     the first matching branch (a default, or vacuous truth, when none
+     match). Each collapses to a single boolean property. */
+  | sva_seq_expr K_implies sva_seq_expr
+      { $$ = pform_sva_prop_implies(@2, $1, $3); }
+  | sva_seq_expr K_iff sva_seq_expr
+      { $$ = pform_sva_prop_iff(@2, $1, $3); }
+  | K_if '(' expression ')' property_expr %prec less_than_K_else
+      { $$ = pform_sva_prop_if(@1, $3, $5, nullptr); }
+  | K_if '(' expression ')' property_expr K_else property_expr
+      { $$ = pform_sva_prop_if(@1, $3, $5, $7); }
+  | K_case '(' expression ')' property_case_items K_endcase
+      { $$ = pform_sva_case(@1, $3, $5); }
   /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
      same interval. For equal-length fixed operands this lowers to a
      per-cycle AND chain the linear engine handles directly. */
@@ -5608,6 +5723,30 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      [*m:n]) builds a SEQ_THROUGHOUT tree for the automaton engine. */
   | expression K_throughout sva_seq_expr
       { $$ = pform_sva_seq_throughout(@2, $1, $3); }
+  ;
+
+  /* IEEE 1800-2017 16.12.8: `case' property branches. A matched branch is
+     `expr {, expr} : property_expr ;'; the default branch is
+     `default [:] property_expr ;'. vals == null marks the default. */
+property_case_item
+  : expression_list_proper ':' property_expr ';'
+      { sva_prop_case_item_t*it = new sva_prop_case_item_t;
+	it->vals = $1; it->prop = $3; $$ = it; }
+  | K_default ':' property_expr ';'
+      { sva_prop_case_item_t*it = new sva_prop_case_item_t;
+	it->vals = nullptr; it->prop = $3; $$ = it; }
+  | K_default property_expr ';'
+      { sva_prop_case_item_t*it = new sva_prop_case_item_t;
+	it->vals = nullptr; it->prop = $2; $$ = it; }
+  ;
+
+property_case_items
+  : property_case_item
+      { std::vector<sva_prop_case_item_t>*v =
+	      new std::vector<sva_prop_case_item_t>;
+	v->push_back(*$1); delete $1; $$ = v; }
+  | property_case_items property_case_item
+      { $1->push_back(*$2); delete $2; $$ = $1; }
   ;
 
   /* M9: a sequence expression as a linear chain of cycle-delayed
@@ -10568,6 +10707,7 @@ module_item
 	      yyerror(@2, "error: virtual may only be used with interface types.");
 	itype = new interface_type_t(lex_strings.make($2.text));
 	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
 	pform_make_var(@2, $4, itype, nullptr, false);
 	delete[] $2.text;
 	if ($3) delete $3;
@@ -10576,6 +10716,7 @@ module_item
       { /* Forward-referenced or not-yet-registered interface name. */
 	interface_type_t*itype = new interface_type_t(lex_strings.make($2));
 	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
 	pform_make_var(@2, $4, itype, nullptr, false);
 	delete[] $2;
 	if ($3) delete $3;
@@ -13053,6 +13194,17 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
 
+  /* M3B-2: randsequence (IEEE 1800-2017 18.17). Expanded to procedural
+     code (weighted PRandCase over alternatives + sequential blocks). */
+  | K_randsequence '(' ')' rs_production_list K_endsequence
+      { $$ = pform_make_randsequence(@1, perm_string(), $4); }
+  | K_randsequence '(' IDENTIFIER ')' rs_production_list K_endsequence
+      { $$ = pform_make_randsequence(@1, lex_strings.make($3), $5);
+	delete[] $3; }
+  | K_randsequence '(' error ')' rs_production_list K_endsequence
+      { yyerrok;
+	$$ = pform_make_randsequence(@1, perm_string(), $5); }
+
   | K_if '(' expression ')' statement_or_null %prec less_than_K_else
       { PCondit*tmp = new PCondit($3, $5, 0);
 	FILE_NAME(tmp, @1);
@@ -13671,6 +13823,57 @@ statement_item /* This is roughly statement_item in the LRM */
   | package_import_declaration
       { $$ = new PNoop; }
 
+  ;
+
+  /* M3B-2: randsequence production grammar (IEEE 1800-2017 A.5.2, subset).
+     A production is `name : rule | rule | ... ;'; a rule is a sequence of
+     items with an optional `:= weight'; an item is a non-terminal name or
+     an inline `{ statement }' code block. */
+rs_production_list
+  : rs_production
+      { $$ = new std::vector<rs_production_t>; $$->push_back(*$1); delete $1; }
+  | rs_production_list rs_production
+      { $1->push_back(*$2); delete $2; $$ = $1; }
+  ;
+
+rs_production
+  : IDENTIFIER ':' rs_rule_list ';'
+      { rs_production_t*p = new rs_production_t;
+	p->name = lex_strings.make($1); p->rules = $3;
+	delete[] $1; $$ = p; }
+  ;
+
+rs_rule_list
+  : rs_rule
+      { $$ = new std::vector<rs_rule_t>; $$->push_back(*$1); delete $1; }
+  | rs_rule_list '|' rs_rule
+      { $1->push_back(*$3); delete $3; $$ = $1; }
+  ;
+
+rs_rule
+  : rs_prod_item_list
+      { rs_rule_t*r = new rs_rule_t; r->items = $1; r->weight = nullptr; $$ = r; }
+  /* Weight `:= <expr>' (IEEE 1800-2017 18.17.2). A restricted primary
+     (number/identifier/parenthesized) avoids swallowing the `|'
+     alternative separator as a bitwise-or operator. */
+  | rs_prod_item_list ':' '=' expr_primary
+      { rs_rule_t*r = new rs_rule_t; r->items = $1; r->weight = $4; $$ = r; }
+  ;
+
+rs_prod_item_list
+  : rs_prod_item
+      { $$ = new std::vector<rs_item_t>; $$->push_back(*$1); delete $1; }
+  | rs_prod_item_list rs_prod_item
+      { $1->push_back(*$2); delete $2; $$ = $1; }
+  ;
+
+rs_prod_item
+  : IDENTIFIER
+      { rs_item_t*i = new rs_item_t;
+	i->name = lex_strings.make($1); i->code = nullptr;
+	delete[] $1; $$ = i; }
+  | '{' statement_or_null '}'
+      { rs_item_t*i = new rs_item_t; i->code = $2; $$ = i; }
   ;
 
 compressed_operator
