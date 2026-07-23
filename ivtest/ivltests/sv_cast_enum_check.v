@@ -7,6 +7,7 @@
 // class up/down-cast success and failure, and dispatch after $cast.
 module sv_cast_enum_check;
   typedef enum logic [1:0] { RED=1, GREEN=2, BLUE=3 } col_t;
+  typedef enum logic [39:0] { W1=40'h11_2233_4455, W2=40'hAB_CDEF_0123 } wide_t;
   class Base; virtual function int f(); return 1; endfunction endclass
   class Der extends Base; virtual function int f(); return 2; endfunction endclass
   int errors = 0;
@@ -30,6 +31,19 @@ module sv_cast_enum_check;
       if (!$cast(d, b) || d.f() !== 2) begin $display("FAIL class downcast"); errors++; end
       b = new;
       if ($cast(d, b)) begin $display("FAIL bad downcast succeeded"); errors++; end
+    end
+
+    // Wide (>32-bit) enum members are membership-checked as full vectors,
+    // and an x/z-bearing source matches no member.
+    begin
+      automatic wide_t w = W1;
+      automatic logic [1:0] xv = 2'b1x;
+      ok = $cast(w, 40'hAB_CDEF_0123);
+      if (!ok || w !== W2) begin $display("FAIL wide valid"); errors++; end
+      ok = $cast(w, 40'h99_9999_9999);
+      if (ok || w !== W2) begin $display("FAIL wide invalid"); errors++; end
+      ok = $cast(y, xv);
+      if (ok) begin $display("FAIL x-source accepted"); errors++; end
     end
 
     if (errors == 0) $display("PASSED");

@@ -22,6 +22,7 @@
 # include  <cstring>
 # include  <cstdio>
 # include  <string>
+# include  <vector>
 
 static int class_cast_is_null_(vpiHandle src_h)
 {
@@ -124,33 +125,66 @@ static PLI_INT32 sys_cast_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
       /* Enum destination (hidden third argument = the enum typespec,
          appended by elaboration): the cast succeeds only if the source
          value matches a member (IEEE 1800-2017 6.19.4/8.16); on failure
-         the destination is left unmodified and 0 is returned. Members
-         wider than 32 bits fall back to accepting (limitation). */
+         the destination is left unmodified and 0 is returned. Values are
+         compared as full vectors (any width); a source carrying x/z bits
+         matches no member and fails the cast. */
       if (dest_h && src_h && enum_ts
           && vpi_get(vpiType, enum_ts) == vpiEnumTypespec) {
-            s_vpi_value sv;
-            sv.format = vpiIntVal;
-            vpi_get_value(src_h, &sv);
-            PLI_INT32 src_val = sv.value.integer;
+            int src_size = vpi_get(vpiSize, src_h);
+            int src_words = (src_size + 31) / 32;
+            if (src_words < 1) src_words = 1;
+            std::vector<PLI_UINT32> src_a(src_words, 0);
+            int src_has_xz = 0;
+            {
+                  s_vpi_value sv;
+                  sv.format = vpiVectorVal;
+                  vpi_get_value(src_h, &sv);
+                  for (int w = 0; w < src_words; w += 1) {
+                        src_a[w] = sv.value.vector[w].aval;
+                        if (sv.value.vector[w].bval)
+                              src_has_xz = 1;
+                  }
+                    /* Mask unused high bits of the top word. */
+                  if (src_size % 32)
+                        src_a[src_words-1] &= (1u << (src_size % 32)) - 1;
+            }
             int found = 0;
-            int too_wide = 0;
             vpiHandle members = vpi_iterate(vpiEnumConst, enum_ts);
-            if (members) {
+            if (members && !src_has_xz) {
                   vpiHandle m;
                   while ((m = vpi_scan(members))) {
-                        if (vpi_get(vpiSize, m) > 32) { too_wide = 1; continue; }
+                        int m_size = vpi_get(vpiSize, m);
+                        int m_words = (m_size + 31) / 32;
+                        if (m_words < 1) m_words = 1;
                         s_vpi_value mv;
-                        mv.format = vpiIntVal;
+                        mv.format = vpiVectorVal;
                         vpi_get_value(m, &mv);
-                        if (mv.value.integer == src_val)
+                        int match = 1;
+                        int maxw = src_words > m_words ? src_words : m_words;
+                        for (int w = 0; w < maxw; w += 1) {
+                              PLI_UINT32 sa = w < src_words ? src_a[w] : 0;
+                              PLI_UINT32 ma = w < m_words
+                                    ? mv.value.vector[w].aval : 0;
+                              PLI_UINT32 mb = w < m_words
+                                    ? mv.value.vector[w].bval : 0;
+                              if (w == m_words-1 && (m_size % 32)) {
+                                    PLI_UINT32 mask = (1u << (m_size % 32)) - 1;
+                                    ma &= mask; mb &= mask;
+                              }
+                              if (mb) { match = 0; break; }
+                              if (sa != ma) { match = 0; break; }
+                        }
+                        if (match)
                               found = 1;
                   }
+            } else if (members) {
+                  vpi_free_object(members);
             }
-            ok = found || too_wide;
+            ok = found;
             if (ok) {
                   s_vpi_value v;
-                  v.format = vpiIntVal;
-                  v.value.integer = src_val;
+                  v.format = vpiObjTypeVal;
+                  vpi_get_value(src_h, &v);
                   vpi_put_value(dest_h, &v, 0, vpiNoDelay);
             }
             s_vpi_value rv2;
