@@ -6,7 +6,10 @@
 BIN=$(which iverilog)
 VVP=$(which vvp)
 UVM="uvm-core/src"
-TESTS="tests"
+# UVM_TESTS_DIR overrides the test directory: the tiered regression system
+# (.github/regression/) points this at a directory of symlinks to run the
+# smoke suite or a targeted subsystem subset instead of the full 212 tests.
+TESTS="${UVM_TESTS_DIR:-tests}"
 
 # Per-test run timeout wrapper. GNU coreutils `timeout` is present on Linux
 # CI but NOT on the base macOS runner (it ships neither `timeout` nor

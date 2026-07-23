@@ -602,6 +602,36 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 	    }
       }
 
+	/* Nonblocking store to a class-object / virtual-interface property
+	   (`obj.prop <= v`, `vif.sig <= v`): schedule it in the NBA region
+	   (IEEE 1800-2017 10.4.2). The old code degraded these to BLOCKING
+	   assignments — the value was visible immediately, a silent
+	   event-region violation. Constant delays are supported; residual
+	   forms (partial selects, indexed properties, event/repeat
+	   controls) still degrade, but now WARN instead of staying silent. */
+      if (nevents == 0 &&
+	  (ivl_lval_nest(lval) ||
+	   (sig && ivl_signal_data_type(sig) == IVL_VT_CLASS))) {
+	    uint64_t prop_delay = 0;
+	    int can_delay = 1;
+	    if (del && (ivl_expr_type(del) == IVL_EX_DELAY) &&
+		number_is_immediate(del, 64, 0)) {
+		  prop_delay = ivl_expr_delay_val(del);
+	    } else if (del) {
+		  can_delay = 0;
+	    }
+	    if (can_delay && show_stmt_assign_nb_cobject(net, prop_delay) == 0)
+		  return 0;
+	    if (ivl_lval_property_idx(ivl_stmt_lval(net,0)) >= 0 ||
+		ivl_lval_nest(lval)) {
+		  fprintf(stderr, "%s:%u: vvp.tgt warning: this nonblocking "
+			  "property assignment form is not yet scheduled in "
+			  "the NBA region (compile-progress: executing as a "
+			  "blocking assignment).\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    }
+      }
+
       if ((del == 0) && (nevents == 0)) {
 	    if (ivl_lval_nest(lval))
 		  return show_stmt_assign(net);

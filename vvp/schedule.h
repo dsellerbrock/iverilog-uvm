@@ -47,6 +47,16 @@ extern void schedule_final_vthread(vthread_t thr);
  * like a non-blocking assignment. This is in fact mostly used to
  * implement the non-blocking assignment.
  */
+/*
+ * Schedule an NBA-region store to a class-object / virtual-interface
+ * property. The receiver handle and value are captured at schedule time
+ * (IEEE 1800-2017 10.4.2); the store applies in the NBA region after
+ * <delay> ticks. A nil receiver is a no-op.
+ */
+extern void schedule_assign_prop_vec4(const vvp_object_t&obj, unsigned pid,
+				      const vvp_vector4_t&val,
+				      vvp_time64_t delay);
+
 extern void schedule_assign_vector(vvp_net_ptr_t ptr,
 				   unsigned base, unsigned vwid,
 				   const vvp_vector4_t&val,

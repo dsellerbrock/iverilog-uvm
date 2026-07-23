@@ -66,6 +66,13 @@ struct vec_slice_info {
 
 	    struct {
 		  unsigned long use_word;
+		    /* Constant bit offset of a part-select ON the word
+		       (arr[i][m:l] op= ...); part_wid != 0 marks a partial
+		       slice (it can be offset 0 with a narrow width). */
+		  unsigned long part_off;
+		  unsigned part_wid;
+		    /* Reg holding a DYNAMIC part offset, or 0. */
+		  int part_off_reg;
 	    } memory_word_static;
 
 	    struct {
@@ -73,6 +80,10 @@ struct vec_slice_info {
 		  int word_idx_reg;
 		    /* Stored x/non-x flag */
 		  unsigned x_flag;
+		    /* Partial slice on the word: see memory_word_static. */
+		  unsigned long part_off;
+		  unsigned part_wid;
+		  int part_off_reg;
 	    } memory_word_dynamic;
       } u_;
 };
@@ -180,11 +191,33 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 
 	    slice->type = SLICE_MEMORY_WORD_STATIC;
 	    slice->u_.memory_word_static.use_word = use_word;
+	    slice->u_.memory_word_static.part_off = part_off;
+	    slice->u_.memory_word_static.part_wid =
+		  (wid < ivl_signal_width(sig) || part_off != 0) ? wid : 0;
+	    slice->u_.memory_word_static.part_off_reg = 0;
 	    if (use_word < ivl_signal_array_count(sig)) {
 		  fprintf(vvp_out, "    %%ix/load 3, %lu, 0;\n",
 			  use_word);
 		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 		  fprintf(vvp_out, "    %%load/vec4a v%p, 3;\n", sig);
+		    /* A part-select ON the array word (arr[i][m:l] op= ...):
+		       extract the part so the compound opcode sees matching
+		       operand widths. The old code loaded the WHOLE word,
+		       crashing %add/%xor on width mismatch and applying |=
+		       to the entire element; the store side then wrote back
+		       at offset 0. */
+		  if (part_off_ex) {
+			slice->u_.memory_word_static.part_off_reg = allocate_word();
+			slice->u_.memory_word_static.part_wid = wid;
+			draw_eval_vec4(part_off_ex);
+			fprintf(vvp_out, "    %%dup/vec4;\n");
+			fprintf(vvp_out, "    %%ix/vec4 %d;\n",
+				slice->u_.memory_word_static.part_off_reg);
+			fprintf(vvp_out, "    %%part/u %u;\n", wid);
+		  } else if (slice->u_.memory_word_static.part_wid) {
+			fprintf(vvp_out, "    %%parti/u %u, %lu, 32;\n",
+				wid, part_off);
+		  }
 	    } else {
 		  if (wid <= 32) {
 			fprintf(vvp_out, "    %%pushi/vec4 4294967295, 4294967295, %u;\n", wid);
@@ -201,11 +234,29 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 
 	    slice->u_.memory_word_dynamic.word_idx_reg = allocate_word();
 	    slice->u_.memory_word_dynamic.x_flag = allocate_flag();
+	    slice->u_.memory_word_dynamic.part_off = part_off;
+	    slice->u_.memory_word_dynamic.part_wid =
+		  (wid < ivl_signal_width(sig) || part_off != 0) ? wid : 0;
+	    slice->u_.memory_word_dynamic.part_off_reg = 0;
 
 		  draw_eval_expr_into_integer(word_ix, slice->u_.memory_word_dynamic.word_idx_reg);
 		  fprintf(vvp_out, "    %%flag_mov %u, 4;\n", slice->u_.memory_word_dynamic.x_flag);
 		  note_array_signal_use(sig);
 		  fprintf(vvp_out, "    %%load/vec4a v%p, %d;\n", sig, slice->u_.memory_word_dynamic.word_idx_reg);
+		    /* Part-select on the dynamically-indexed word: see the
+		       static-word branch above. */
+		  if (part_off_ex) {
+			slice->u_.memory_word_dynamic.part_off_reg = allocate_word();
+			slice->u_.memory_word_dynamic.part_wid = wid;
+			draw_eval_vec4(part_off_ex);
+			fprintf(vvp_out, "    %%dup/vec4;\n");
+			fprintf(vvp_out, "    %%ix/vec4 %d;\n",
+				slice->u_.memory_word_dynamic.part_off_reg);
+			fprintf(vvp_out, "    %%part/u %u;\n", wid);
+		  } else if (slice->u_.memory_word_dynamic.part_wid) {
+			fprintf(vvp_out, "    %%parti/u %u, %lu, 32;\n",
+				wid, part_off);
+		  }
 
       } else {
 	    assert(0);
@@ -342,24 +393,47 @@ static void put_vec_to_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 	  case SLICE_MEMORY_WORD_STATIC:
 	    if (slice->u_.memory_word_static.use_word < ivl_signal_array_count(sig)) {
 		  int word_idx = allocate_word();
+		  int off_idx = slice->u_.memory_word_static.part_off_reg;
 		  fprintf(vvp_out,"    %%flag_set/imm 4, 0;\n");
 		  fprintf(vvp_out,"    %%ix/load %d, %lu, 0;\n", word_idx, slice->u_.memory_word_static.use_word);
 		  note_array_signal_use(sig);
-		  fprintf(vvp_out,"    %%store/vec4a v%p, %d, 0;\n", sig, word_idx);
+		    /* Partial slice: store back AT the part offset — the runtime
+		       set_word(adr, off, val) read-modify-writes the word (a
+		       narrow in-bounds value is left alone by resize_rval_vec).
+		       The old code always stored at offset 0. */
+		  if (!off_idx && slice->u_.memory_word_static.part_wid
+		      && slice->u_.memory_word_static.part_off) {
+			off_idx = allocate_word();
+			fprintf(vvp_out,"    %%ix/load %d, %lu, 0;\n",
+				off_idx, slice->u_.memory_word_static.part_off);
+		  }
+		  fprintf(vvp_out,"    %%store/vec4a v%p, %d, %d;\n", sig,
+			  word_idx, off_idx);
 		  clr_word(word_idx);
+		  if (off_idx) clr_word(off_idx);
 	    } else {
 		  fprintf(vvp_out," ; Skip this slice write to v%p [%lu]\n", sig, slice->u_.memory_word_static.use_word);
 		  fprintf(vvp_out,"    %%pop/vec4 1;\n");
 	    }
 	    break;
 
-	  case SLICE_MEMORY_WORD_DYNAMIC:
+	  case SLICE_MEMORY_WORD_DYNAMIC: {
+	    int off_idx = slice->u_.memory_word_dynamic.part_off_reg;
 	    fprintf(vvp_out, "    %%flag_mov 4, %u;\n", slice->u_.memory_word_dynamic.x_flag);
 	    note_array_signal_use(sig);
-	    fprintf(vvp_out, "    %%store/vec4a v%p, %d, 0;\n", sig, slice->u_.memory_word_dynamic.word_idx_reg);
+	    if (!off_idx && slice->u_.memory_word_dynamic.part_wid
+		&& slice->u_.memory_word_dynamic.part_off) {
+		  off_idx = allocate_word();
+		  fprintf(vvp_out,"    %%ix/load %d, %lu, 0;\n",
+			  off_idx, slice->u_.memory_word_dynamic.part_off);
+	    }
+	    fprintf(vvp_out, "    %%store/vec4a v%p, %d, %d;\n", sig,
+		    slice->u_.memory_word_dynamic.word_idx_reg, off_idx);
 	    clr_word(slice->u_.memory_word_dynamic.word_idx_reg);
+	    if (off_idx) clr_word(off_idx);
 	    clr_flag(slice->u_.memory_word_dynamic.x_flag);
 	    break;
+	  }
 
       }
 }
@@ -1682,6 +1756,56 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 
       assert(ivl_stmt_lvals(net) == 1);
 
+	/* Part/bit-select store into an ASSOCIATIVE-array element
+	   (am[key][m:l] = v; packed-struct member writes are lowered by
+	   elaboration to the member's bit range). The numeric-index queue
+	   path below coerces the key to an integer element address, which
+	   corrupted the store ("cannot write to an undefined darray").
+	   Lower as an assoc RMW instead: load the element keeping the key,
+	   merge the value at the bit offset (%setbits/vec4), store back. */
+      if (part != 0 && ivl_lval_idx(lval) && ivl_stmt_opcode(net) == 0
+	  && ivl_type_queue_assoc_compat(var_type)
+	  && (ivl_type_base(element_type) == IVL_VT_BOOL
+	      || ivl_type_base(element_type) == IVL_VT_LOGIC)) {
+	    ivl_expr_t key = ivl_lval_idx(lval);
+	    unsigned lwid = ivl_lval_width(lval);
+	    unsigned elem_wid = ivl_type_packed_width(element_type);
+	    const char*key_kind;
+	    int key_is_object = expr_is_object_assoc_key_(key);
+	    int key_is_string = expr_is_string_assoc_key_(key);
+
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", var);
+	    if (key_is_string) {
+		  key_kind = "str";
+		  draw_eval_string(key);
+	    } else if (key_is_object) {
+		  key_kind = "obj";
+		  errors += draw_eval_object(key);
+	    } else {
+		  key_kind = "v";
+		  draw_eval_vec4(key);
+	    }
+	    fprintf(vvp_out, "    %%aa/loadk/v/%s %u;\n", key_kind, elem_wid);
+
+	    if (ivl_expr_type(part) == IVL_EX_NUMBER) {
+		  draw_eval_vec4(rval);
+		  resize_vec4_wid(rval, lwid);
+		  fprintf(vvp_out, "    %%setbits/vec4 %lu, %u;\n",
+			  (unsigned long)ivl_expr_uvalue(part), lwid);
+	    } else {
+		  int off_word = allocate_word();
+		  draw_eval_expr_into_integer(part, off_word);
+		  draw_eval_vec4(rval);
+		  resize_vec4_wid(rval, lwid);
+		  fprintf(vvp_out, "    %%setbits/vec4/x %d, %u;\n",
+			  off_word, lwid);
+		  clr_word(off_word);
+	    }
+	    fprintf(vvp_out, "    %%aa/store/v/%s %u;\n", key_kind, elem_wid);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    return errors;
+      }
+
 	/* Part/bit-select store into a queue element that is a packed
 	   vector: q[i][off +: wid] = rhs. Same read-modify-write lowering as
 	   for dynamic arrays (%store/dar/vec4/off operates on the shared
@@ -2372,6 +2496,52 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
       fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
       return errors;
+}
+
+/* Nonblocking assignment to a vec4 class-object / virtual-interface
+   property: `obj.prop <= [#d] value` (IEEE 1800-2017 10.4.2). Evaluates
+   the receiver and the r-value NOW and schedules the store in the NBA
+   region via %assign/prop/v. Returns 0 on success, -1 when the l-value
+   form is not (yet) supported here so the caller can fall back (loudly).
+   Increment 1 scope: single l-value, whole-property store (no part/index),
+   vec4 property type. */
+int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
+{
+      ivl_lval_t lval = ivl_stmt_lval(net, 0);
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      unsigned lwid = ivl_lval_width(lval);
+      int prop_idx = ivl_lval_property_idx(lval);
+
+      if (ivl_stmt_lvals(net) != 1)
+	    return -1;
+      if (prop_idx < 0)
+	    return -1;
+      if (ivl_lval_idx(lval) || ivl_lval_part_off(lval))
+	    return -1;
+      if (ivl_stmt_opcode(net) != 0)
+	    return -1;
+      if (delay > 0xffffffffUL)
+	    return -1;
+
+      ivl_type_t sig_type = draw_lval_expr(lval);
+      ivl_type_t prop_type = ivl_type_prop_type(sig_type, prop_idx);
+      if (ivl_type_base(prop_type) != IVL_VT_BOOL &&
+	  ivl_type_base(prop_type) != IVL_VT_LOGIC) {
+	      /* Receiver already pushed: discard and fall back. */
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    return -1;
+      }
+
+      draw_eval_vec4(rval);
+      if (ivl_type_base(prop_type) == IVL_VT_BOOL &&
+	  ivl_expr_value(rval) != IVL_VT_BOOL)
+	    fprintf(vvp_out, "    %%cast2;\n");
+
+      fprintf(vvp_out, "    %%assign/prop/v %d, %lu, %u;"
+	      " NBA store to property %s\n",
+	      prop_idx, (unsigned long)delay, lwid,
+	      ivl_type_prop_name(sig_type, prop_idx));
+      return 0;
 }
 
 static int show_stmt_assign_sig_cobject(ivl_statement_t net)

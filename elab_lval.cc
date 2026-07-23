@@ -329,6 +329,109 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	// If we find that the matched variable is a packed struct,
 	// then we can handled it with the net_packed_member_ method.
       if (reg->struct_type() && reg->struct_type()->packed() && !tail_path.empty()) {
+	      // A CONTAINER (darray/queue/assoc) of a packed struct:
+	      // `pm[key].member = v` is a part-write into the keyed ELEMENT
+	      // at the member's bit range — NOT a packed-member select of
+	      // the container signal (which asserted on the dimension
+	      // check, elab_lval.cc ICE). Lower to word(key) + part(off).
+	    const name_component_t*cont_base = nullptr;
+	    if (reg->darray_type() && path_.name.size() >= 2) {
+		    // The container KEY sits on the component BEFORE the
+		    // member tail: pm["x"].a -> base comp is pm["x"].
+		  auto bit = path_.name.end();
+		  --bit; --bit;
+		  cont_base = &*bit;
+	    }
+	    if (cont_base && cont_base->index.size() == 1) {
+		  const netstruct_t*es = reg->struct_type();
+		  const name_component_t&mcomp = tail_path.front();
+		  unsigned long moff = 0;
+		  const netstruct_t::member_t*mbr =
+			es->packed_member(mcomp.name, moff);
+		  if (!mbr) {
+			cerr << get_fileline() << ": error: Packed struct "
+			     << "has no member " << mcomp.name << "." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		    // A trailing constant bit/part select ON the member
+		    // (pm[key].a[3:0] = v) narrows the range: compose the
+		    // member base offset with the canonical sub-offset.
+		  long sub_off = 0;
+		  unsigned long sub_wid = 0;
+		  ivl_type_t part_type = mbr->net_type;
+		  bool sub_ok = mcomp.index.empty();
+		  if (!mcomp.index.empty() && mcomp.index.size() == 1) {
+			const netvector_t*fv =
+			      dynamic_cast<const netvector_t*>(mbr->net_type);
+			const index_component_t&fs = mcomp.index.front();
+			if (fv && fv->packed_dims().size() == 1
+			    && fv->packed_dims()[0].defined()) {
+			      long bm = fv->packed_dims()[0].get_msb();
+			      long bl = fv->packed_dims()[0].get_lsb();
+			      bool desc = bm >= bl;
+			      auto canon = [&](long i)->long {
+				    return desc ? (i-bl) : (bl-i); };
+			      if (fs.sel == index_component_t::SEL_BIT
+				  && fs.msb && !fs.lsb) {
+				    NetExpr*ie = elab_and_eval(des, scope,
+							       fs.msb, -1);
+				    NetEConst*ic = dynamic_cast<NetEConst*>(ie);
+				    if (ic && ic->value().is_defined()) {
+					  sub_off = canon(ic->value().as_long());
+					  sub_wid = 1;
+					  part_type = new netvector_t(
+						fv->base_type(), 0, 0);
+					  sub_ok = true;
+				    }
+			      } else if (fs.sel == index_component_t::SEL_PART
+					 && fs.msb && fs.lsb) {
+				    NetExpr*me = elab_and_eval(des, scope,
+							       fs.msb, -1);
+				    NetExpr*le = elab_and_eval(des, scope,
+							       fs.lsb, -1);
+				    NetEConst*mc = dynamic_cast<NetEConst*>(me);
+				    NetEConst*lc = dynamic_cast<NetEConst*>(le);
+				    if (mc && lc && mc->value().is_defined()
+					&& lc->value().is_defined()) {
+					  long mv = mc->value().as_long();
+					  long lv2 = lc->value().as_long();
+					  long ca = canon(mv), cb = canon(lv2);
+					  sub_off = ca < cb ? ca : cb;
+					  sub_wid = (unsigned long)
+						((mv>=lv2 ? mv-lv2 : lv2-mv)+1);
+					  part_type = new netvector_t(
+						fv->base_type(),
+						(long)sub_wid-1, 0);
+					  sub_ok = true;
+				    }
+			      }
+			}
+		  }
+		  if (tail_path.size() != 1 || !sub_ok) {
+			cerr << get_fileline() << ": sorry: this form of "
+			     << "member select on a container element of "
+			     << "packed-struct type is not yet supported as "
+			     << "an l-value." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  NetAssign_*lv = new NetAssign_(reg);
+		  NetExpr*key = elab_and_eval(des, scope,
+					      cont_base->index.front().msb,
+					      -1);
+		  if (!key)
+			return 0;
+		  lv->set_word(key);
+		  if (sub_wid)
+			lv->set_part(new NetEConst(
+				       verinum((uint64_t)(moff + sub_off), 64u)),
+				     part_type);
+		  else
+			lv->set_part(new NetEConst(verinum((uint64_t)moff, 64u)),
+				     mbr->net_type);
+		  return lv;
+	    }
 	    NetAssign_*lv = new NetAssign_(reg);
 	    elaborate_lval_net_packed_member_(des, scope, lv, tail_path, is_force);
 	    return lv;
@@ -408,8 +511,49 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       if (use_sel == index_component_t::SEL_IDX_UP ||
           use_sel == index_component_t::SEL_IDX_DO) {
 	    if (reg->darray_type()) {
-		    // `d[i][base+:w]`/`[base-:w]` into a darray element is not
-		    // yet lowered; a loud sorry beats the backend assert.
+		    // `d[i][base +: w]` / `[base -: w]` into a darray/queue/
+		    // assoc element: word(first index) + part(base, w). The
+		    // codegen RMW paths (%store/dar/vec4/off and the assoc
+		    // %setbits/vec4 sequence) take run-time offsets; only the
+		    // width must be constant. Element vectors are canonical
+		    // LSB-0, so the source base needs no range shift; the
+		    // [b -: w] form addresses down from b (LSB = b-w+1).
+		  const name_component_t&nt = path_.back();
+		  const netdarray_t*da = reg->darray_type();
+		  const netvector_t*ev =
+			dynamic_cast<const netvector_t*>(da->element_type());
+		  if (nt.index.size() == 2 && ev
+		      && ev->packed_dims().size() == 1
+		      && ev->packed_dims()[0].defined()
+		      && ev->packed_dims()[0].get_msb()
+			 >= ev->packed_dims()[0].get_lsb()) {
+			const index_component_t&pidx = nt.index.back();
+			NetExpr*we = elab_and_eval(des, scope, pidx.lsb, -1, true);
+			long w = 0;
+			if (we && eval_as_long(w, we) && w > 0) {
+			      delete we;
+			      NetAssign_*lv = new NetAssign_(reg);
+			      NetExpr*key = elab_and_eval(des, scope,
+							  nt.index.front().msb, -1);
+			      NetExpr*base = elab_and_eval(des, scope,
+							   pidx.msb, -1);
+			      if (!key || !base)
+				    return 0;
+			      lv->set_word(key);
+			      long blsb = ev->packed_dims()[0].get_lsb();
+			      if (blsb != 0)
+				    base = new NetEBAdd('-', pad_to_width(base, 32, true, *this),
+					  new NetEConst(verinum((uint64_t)(uint32_t)(int32_t)blsb, 32)),
+					  32, true);
+			      if (use_sel == index_component_t::SEL_IDX_DO && w > 1)
+				    base = new NetEBAdd('-', pad_to_width(base, 32, true, *this),
+					  new NetEConst(verinum((uint64_t)(w-1), 32)),
+					  32, true);
+			      lv->set_part(base, (unsigned)w);
+			      return lv;
+			}
+			delete we;
+		  }
 		  cerr << get_fileline() << ": sorry: assignment to an indexed "
 		          "part-select of a dynamic-array element is not yet "
 		          "supported." << endl;
@@ -750,7 +894,23 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 		  long loff;
 		  unsigned long lwid;
 		  bool rcl = reg->sb_to_slice(prefix_indices, lsb, loff, lwid);
-		  ivl_assert(*this, rcl);
+		  if (!rcl) {
+			  // Constant OUT-OF-BOUNDS element index on a
+			  // multi-dimensional packed variable (m[7] = ...
+			  // where m is [3:0][...]). IEEE 1800-2017 11.5.1/
+			  // 7.4.6: an out-of-range select write is a no-op.
+			  // This used to be an ivl_assert ICE.
+			if (warn_ob_select) {
+			      cerr << get_fileline() << ": warning: "
+				   << "L-value packed array select of "
+				   << reg->name()
+				   << " is out of bounds (write ignored)."
+				   << endl;
+			}
+			lv->set_part(new NetEConst(verinum(verinum::Vx)),
+				     reg->slice_width(prefix_indices.size()+1));
+			return true;
+		  }
 
 		  if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
 			ivl_assert(*this, reg->coerced_to_uwire());
@@ -1944,6 +2104,83 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 						       make_part_type(wid));
 					  handled = true;
 				    }
+			      }
+
+			      // Multi-dimensional packed vector (e.g. `logic [3:0][7:0]`):
+			      // a slice/element write `m[i]`, a full bit select `m[i][j]`,
+			      // or an element then part-select `m[i][3:0]`, for CONSTANT
+			      // indices. Reuse prefix_to_slice to map the leading bit indices
+			      // to a canonical (LSB-0) offset and slice width, then narrow by
+			      // an optional trailing part-select on the innermost dimension.
+			      // (IEEE 1800-2017 7.4.) Variable multi-dim indices remain a
+			      // loud sorry below.
+			      if (!handled && !member_cur.index.empty() && dims.size() > 1) {
+			            bool all_def = true;
+			            for (size_t di = 0; di < dims.size(); di += 1)
+			      	    if (!dims[di].defined()) all_def = false;
+
+			            std::list<long> bit_ix;
+			            bool ok = all_def;
+			            bool has_part = false;
+			            long part_msb = 0, part_lsb = 0;
+			            unsigned n_comp = member_cur.index.size();
+			            unsigned ci = 0;
+			            for (const index_component_t&ic : member_cur.index) {
+			      	    ci += 1;
+			      	    if (ic.sel == index_component_t::SEL_BIT
+			      		&& ic.msb && !ic.lsb) {
+			      		  NetExpr*e = elab_and_eval(des, scope, ic.msb, -1);
+			      		  NetEConst*ec = dynamic_cast<NetEConst*>(e);
+			      		  if (ec && ec->value().is_defined())
+			      			bit_ix.push_back(ec->value().as_long());
+			      		  else ok = false;
+			      	    } else if (ic.sel == index_component_t::SEL_PART
+			      		       && ic.msb && ic.lsb && ci == n_comp) {
+			      		  has_part = true;
+			      		  NetExpr*me = elab_and_eval(des, scope, ic.msb, -1);
+			      		  NetExpr*le = elab_and_eval(des, scope, ic.lsb, -1);
+			      		  NetEConst*mec = dynamic_cast<NetEConst*>(me);
+			      		  NetEConst*lec = dynamic_cast<NetEConst*>(le);
+			      		  if (mec && lec && mec->value().is_defined()
+			      		      && lec->value().is_defined()) {
+			      			part_msb = mec->value().as_long();
+			      			part_lsb = lec->value().as_long();
+			      		  } else ok = false;
+			      	    } else {
+			      		  ok = false;
+			      	    }
+			            }
+
+			            if (ok && !bit_ix.empty() && bit_ix.size() <= dims.size()) {
+			      	    long loff = 0; unsigned long lwid = 0;
+			      	    std::list<long> prefix = bit_ix;
+			      	    long sb = prefix.back(); prefix.pop_back();
+			      	    if (prefix_to_slice(dims, prefix, sb, loff, lwid)) {
+			      		  long foff = loff;
+			      		  unsigned fwid = (unsigned)lwid;
+			      		  bool part_ok = true;
+			      		  if (has_part) {
+			      			const netrange_t&inr = dims.back();
+			      			bool idesc = inr.get_msb() >= inr.get_lsb();
+			      			long ca = idesc ? part_msb-inr.get_lsb()
+			      					: inr.get_lsb()-part_msb;
+			      			long cb = idesc ? part_lsb-inr.get_lsb()
+			      					: inr.get_lsb()-part_lsb;
+			      			long lo = ca < cb ? ca : cb;
+			      			unsigned pw = (unsigned)((part_msb>=part_lsb
+			      				? part_msb-part_lsb : part_lsb-part_msb)+1);
+			      			if (lo < 0 || lo + (long)pw > (long)lwid)
+			      			      part_ok = false;
+			      			else { foff = loff + lo; fwid = pw; }
+			      		  }
+			      		  if (part_ok && fwid > 0) {
+			      			lv->set_part(new NetEConst(verinum((int64_t)foff)),
+			      				     new netvector_t(pvec->base_type(),
+			      						     (long)fwid - 1, 0));
+			      			handled = true;
+			      		  }
+			      	    }
+			            }
 			      }
 
 			      if (!handled) {

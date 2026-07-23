@@ -10830,7 +10830,15 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
 	      // (and a member/%p read) addresses a live instance instead of
 	      // storing through a null handle. Class-handle darrays carry no
 	      // element type, so their nil elements correctly stay null.
-	    if (word.test_nil() && obj->declared_type()) {
+	      //
+	      // Bounds guard: materialize ONLY within the container's current
+	      // size. Queues share this opcode (and, since they also record
+	      // declared_type, an out-of-bounds READ like q[5] on a 2-element
+	      // queue would otherwise set_word(5) and silently GROW the queue
+	      // to 6 elements — IEEE 1800-2017 7.10.2: an out-of-range queue
+	      // read returns the default value and must not modify the queue).
+	    if (word.test_nil() && obj->declared_type()
+		&& (size_t)adr < darray->get_size()) {
 		  word = vvp_object_t(new vvp_cobject(obj->declared_type()));
 		  darray->set_word(adr, word);
 	    }
@@ -11295,7 +11303,7 @@ static bool aa_load_keep_vec(vthread_t thr, unsigned wid=0)
       ELEM value;
       dq_default(value, wid);
 
-      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr, 1);
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr, 0) /* vec4 key lives on the vec4 stack; the receiver is the TOP object (the str variant already peeks depth 0 — depth 1 asserted on the obj stack) */;
       if (assoc)
 	    assoc->get(key, value);
 
@@ -15270,6 +15278,46 @@ bool of_SET_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
  *
  * Pop the operand, then push the result.
  */
+/*
+ * %setbits/vec4 <off>, <wid>
+ * %setbits/vec4/x <off_reg>, <wid>
+ *
+ * Read-modify-write on the vec4 stack: pops a <wid>-bit value and merges
+ * it into the vector BELOW it at bit offset <off> (immediate, or read
+ * from index register <off_reg> for the /x form), extending the target
+ * with x bits if needed. Generic building block for container-element
+ * partial stores (e.g. assoc[key][m:l] = v).
+ */
+static bool setbits_vec4_(vthread_t thr, long off, unsigned wid)
+{
+      vvp_vector4_t val = thr->pop_vec4();
+      vvp_vector4_t&tgt = thr->peek_vec4();
+
+      if (off < 0)
+	    return true;
+      if ((size_t)(off) + wid > tgt.size()) {
+	    vvp_vector4_t bigger((unsigned)(off + wid), BIT4_X);
+	    bigger.set_vec(0, tgt);
+	    tgt = bigger;
+      }
+      if (val.size() > wid)
+	    val = val.subvalue(0, wid);
+      tgt.set_vec((unsigned)off, val);
+      return true;
+}
+
+bool of_SETBITS_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      return setbits_vec4_(thr, (long)cp->bit_idx[0], cp->bit_idx[1]);
+}
+
+bool of_SETBITS_VEC4_X(vthread_t thr, vvp_code_t cp)
+{
+      unsigned off_reg = cp->bit_idx[0];
+      assert(off_reg < vthread_s::WORDS_COUNT);
+      return setbits_vec4_(thr, thr->words[off_reg].w_int, cp->bit_idx[1]);
+}
+
 bool of_SHIFTL(vthread_t thr, vvp_code_t cp)
 {
       int use_index = cp->number;
@@ -16058,6 +16106,33 @@ bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
       else     cobj->set_vec4(pid, current, 0);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-bits");
+      return true;
+}
+
+/*
+ * %assign/prop/v <pid>, <delay>, <wid>
+ *
+ * NONBLOCKING store to a vec4 property of a class object or virtual
+ * interface (IEEE 1800-2017 10.4.2): pops <wid> bits of value from the
+ * vec4 stack and the receiver handle from the object stack, then
+ * schedules the property store in the NBA region after <delay> ticks.
+ * The receiver and value are captured now; a null receiver is a no-op.
+ */
+bool of_ASSIGN_PROP_V(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid   = cp->number;
+      unsigned delay = cp->bit_idx[0];
+      unsigned wid   = cp->bit_idx[1];
+
+      vvp_vector4_t val;
+      pop_prop_val(thr, val, wid);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (obj.test_nil())
+	    return true;
+
+      schedule_assign_prop_vec4(obj, pid, val, delay);
       return true;
 }
 

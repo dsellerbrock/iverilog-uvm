@@ -619,6 +619,7 @@ static inline int emit_property_queue_last_index_(ivl_expr_t expr,
 }
 
 extern int show_stmt_assign(ivl_statement_t net);
+extern int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay);
 extern void show_stmt_file_line(ivl_statement_t net, const char*desc);
 
 /*

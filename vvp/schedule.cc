@@ -31,6 +31,8 @@
 # include  <cstring>
 # include  <cassert>
 # include  <iostream>
+# include  "vvp_cobject.h"
+# include  "vvp_vinterface.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 # include  "ivl_alloc.h"
@@ -1042,6 +1044,33 @@ void schedule_final_vthread(vthread_t thr)
       vthread_mark_scheduled(thr);
 
       schedule_final_event(cur);
+}
+
+struct assign_prop_vec4_event_s : public event_s {
+      explicit assign_prop_vec4_event_s(const vvp_object_t&o, unsigned p,
+					const vvp_vector4_t&v)
+      : obj(o), pid(p), val(v) { next = NULL; }
+      vvp_object_t obj;
+      unsigned pid;
+      vvp_vector4_t val;
+      void run_run(void) override
+      {
+	    if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+		  cobj->set_vec4(pid, val, 0);
+	    } else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>()) {
+		  vif->set_vec4(pid, val, 0);
+	    }
+      }
+      void single_step_display(void) override
+      { std::cerr << "assign_prop_vec4_event: pid=" << pid << std::endl; }
+};
+
+void schedule_assign_prop_vec4(const vvp_object_t&obj, unsigned pid,
+			       const vvp_vector4_t&val, vvp_time64_t delay)
+{
+      struct assign_prop_vec4_event_s*cur =
+	    new assign_prop_vec4_event_s(obj, pid, val);
+      schedule_event_(cur, delay, SEQ_NBASSIGN);
 }
 
 void schedule_assign_vector(vvp_net_ptr_t ptr,
