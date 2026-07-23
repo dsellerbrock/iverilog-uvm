@@ -354,7 +354,61 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 			des->errors += 1;
 			return 0;
 		  }
-		  if (tail_path.size() != 1 || !mcomp.index.empty()) {
+		    // A trailing constant bit/part select ON the member
+		    // (pm[key].a[3:0] = v) narrows the range: compose the
+		    // member base offset with the canonical sub-offset.
+		  long sub_off = 0;
+		  unsigned long sub_wid = 0;
+		  ivl_type_t part_type = mbr->net_type;
+		  bool sub_ok = mcomp.index.empty();
+		  if (!mcomp.index.empty() && mcomp.index.size() == 1) {
+			const netvector_t*fv =
+			      dynamic_cast<const netvector_t*>(mbr->net_type);
+			const index_component_t&fs = mcomp.index.front();
+			if (fv && fv->packed_dims().size() == 1
+			    && fv->packed_dims()[0].defined()) {
+			      long bm = fv->packed_dims()[0].get_msb();
+			      long bl = fv->packed_dims()[0].get_lsb();
+			      bool desc = bm >= bl;
+			      auto canon = [&](long i)->long {
+				    return desc ? (i-bl) : (bl-i); };
+			      if (fs.sel == index_component_t::SEL_BIT
+				  && fs.msb && !fs.lsb) {
+				    NetExpr*ie = elab_and_eval(des, scope,
+							       fs.msb, -1);
+				    NetEConst*ic = dynamic_cast<NetEConst*>(ie);
+				    if (ic && ic->value().is_defined()) {
+					  sub_off = canon(ic->value().as_long());
+					  sub_wid = 1;
+					  part_type = new netvector_t(
+						fv->base_type(), 0, 0);
+					  sub_ok = true;
+				    }
+			      } else if (fs.sel == index_component_t::SEL_PART
+					 && fs.msb && fs.lsb) {
+				    NetExpr*me = elab_and_eval(des, scope,
+							       fs.msb, -1);
+				    NetExpr*le = elab_and_eval(des, scope,
+							       fs.lsb, -1);
+				    NetEConst*mc = dynamic_cast<NetEConst*>(me);
+				    NetEConst*lc = dynamic_cast<NetEConst*>(le);
+				    if (mc && lc && mc->value().is_defined()
+					&& lc->value().is_defined()) {
+					  long mv = mc->value().as_long();
+					  long lv2 = lc->value().as_long();
+					  long ca = canon(mv), cb = canon(lv2);
+					  sub_off = ca < cb ? ca : cb;
+					  sub_wid = (unsigned long)
+						((mv>=lv2 ? mv-lv2 : lv2-mv)+1);
+					  part_type = new netvector_t(
+						fv->base_type(),
+						(long)sub_wid-1, 0);
+					  sub_ok = true;
+				    }
+			      }
+			}
+		  }
+		  if (tail_path.size() != 1 || !sub_ok) {
 			cerr << get_fileline() << ": sorry: this form of "
 			     << "member select on a container element of "
 			     << "packed-struct type is not yet supported as "
@@ -369,8 +423,13 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 		  if (!key)
 			return 0;
 		  lv->set_word(key);
-		  lv->set_part(new NetEConst(verinum((uint64_t)moff, 64u)),
-			       mbr->net_type);
+		  if (sub_wid)
+			lv->set_part(new NetEConst(
+				       verinum((uint64_t)(moff + sub_off), 64u)),
+				     part_type);
+		  else
+			lv->set_part(new NetEConst(verinum((uint64_t)moff, 64u)),
+				     mbr->net_type);
 		  return lv;
 	    }
 	    NetAssign_*lv = new NetAssign_(reg);

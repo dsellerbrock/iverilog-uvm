@@ -52,6 +52,13 @@ module sv_assoc_elem_partial_write;
     am["c"] = 16'h0010; am["c"] += 16'h0001; am["c"] |= 16'h0100;
     if (am["c"] !== 16'h0111) begin $display("FAIL compound=%h", am["c"]); errors++; end
 
+    // (5) deeper member selects: member + bit/part compose.
+    pm["d"] = 16'hFFFF;
+    pm["d"].a[3:0] = 4'h0;
+    if (pm["d"] !== 16'hF0FF) begin $display("FAIL deep part=%h", pm["d"]); errors++; end
+    pm["d"].b[7] = 1'b0;
+    if (pm["d"] !== 16'hF07F) begin $display("FAIL deep bit=%h", pm["d"]); errors++; end
+
     if (errors == 0) $display("PASSED");
     else $display("FAILED (%0d errors)", errors);
     $finish;
