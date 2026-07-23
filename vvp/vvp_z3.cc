@@ -514,6 +514,8 @@ struct Z3Builder {
 
 // Forward declaration
 static Z3_ast build_z3_expr(IRParser&, Z3Builder&);
+static uint64_t cobj_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem);
+static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx);
 
 // Parse "p:N:W[:s]" — returns Z3 bitvector variable
 static Z3_ast parse_prop(IRParser&, Z3Builder& b, const string& tok)
@@ -973,6 +975,36 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 			      Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
 						      Z3_mk_bv_sort(b.ctx, sw));
 			      clauses.push_back(Z3_mk_eq(b.ctx, subject, cv));
+			} else if (tok.substr(0,2) == "q:") {
+			      // Queue/darray property container: expand the
+			      // membership set from the container's contents
+			      // at solve time. An empty (or unallocated)
+			      // container contributes an unsatisfiable
+			      // clause: `x inside {empty}` has no legal
+			      // values, so randomize() must fail.
+			      unsigned qpidx, qewid; bool qesig;
+			      parse_pws_header(tok.substr(2), qpidx, qewid, qesig);
+			      if (qewid > 64) qewid = 64;
+			      uint64_t qcount = b.cobj
+				    ? cobj_darray_size(b.cobj, qpidx) : 0;
+			      if (qcount == 0) {
+				    clauses.push_back(Z3_mk_false(b.ctx));
+			      } else for (uint64_t qi = 0; qi < qcount; qi += 1) {
+				    uint64_t bits =
+					  cobj_elem_bits(b.cobj, qpidx, (unsigned)qi);
+				    if (qewid < 64)
+					  bits &= (1ULL << qewid) - 1;
+				    if (qesig && qewid < 64
+					&& ((bits >> (qewid - 1)) & 1))
+					  bits |= ~((1ULL << qewid) - 1);
+				    uint64_t v = bits;
+				    if (sw < 64) v &= (1ULL << sw) - 1;
+				    Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
+					    Z3_mk_bv_sort(b.ctx, sw <= 64 ? sw : 64));
+				    if (sw > 64)
+					  cv = match_width(cv);
+				    clauses.push_back(Z3_mk_eq(b.ctx, subject, cv));
+			      }
 			} else if (tok.empty()) {
 			      // Unrecognized input: consume one char so the
 			      // scan always makes forward progress (a stuck
@@ -1266,13 +1298,21 @@ static string substitute_slots(const string& ir,
       return result;
 }
 
+/* Result of one solve pass. SAT_APPLIED: a model was found and written
+ * back. SAT_CURRENT: the pre-filled values already satisfy the
+ * constraints (or the solver returned UNKNOWN and we lean on them).
+ * UNSAT: the hard constraint set is proven unsatisfiable — the caller
+ * must treat randomize() as failed (IEEE 1800-2017 18.6.1). */
+enum z3_pass_status { Z3PASS_UNSAT = 0, Z3PASS_SAT_APPLIED = 1,
+		      Z3PASS_SAT_CURRENT = 2 };
+
 /* One solve pass. dyn_sizes null: dynamic-foreach templates are
  * collected (returned via dyn_out) and contribute `true`; sizes are
  * free subject to their constraints. dyn_sizes set: templates expand
  * to the given element counts and every size variable is pinned to
  * the array's current (pass-1-written) size, implementing the
  * IEEE 1800-2017 18.5.8.2 size-before-iterative-constraints order. */
-static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
+static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       const vector<string>& extra_ir,
                       const vector<uint64_t>& slot_vals,
                       const std::map<unsigned,uint64_t>* dyn_sizes,
@@ -1405,7 +1445,7 @@ static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  // the optimize check.
 		  Z3_optimize_dec_ref(ctx, opt);
 		  Z3_del_context(ctx);
-		  return false;
+		  return Z3PASS_SAT_CURRENT;
 	    }
       }
 
@@ -1525,7 +1565,19 @@ static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       if (result != Z3_L_TRUE) {
 	    Z3_optimize_dec_ref(ctx, opt);
 	    Z3_del_context(ctx);
-	    return false;
+	    if (result == Z3_L_FALSE)
+		  return Z3PASS_UNSAT;
+	      // UNKNOWN (solver resource limits): keep the pre-filled
+	      // random values and report success — but say so.
+	    static bool warned_undef = false;
+	    if (!warned_undef) {
+		  fprintf(stderr, "Warning: constraint solver returned "
+			  "UNKNOWN; rand properties keep unconstrained "
+			  "random values (further similar warnings "
+			  "suppressed).\n");
+		  warned_undef = true;
+	    }
+	    return Z3PASS_SAT_CURRENT;
       }
 
       Z3_model model = Z3_optimize_get_model(ctx, opt);
@@ -1585,22 +1637,22 @@ static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       Z3_model_dec_ref(ctx, model);
       Z3_optimize_dec_ref(ctx, opt);
       Z3_del_context(ctx);
-      return true;
+      return Z3PASS_SAT_APPLIED;
 }
 
 bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const vector<string>& extra_ir,
                       const vector<uint64_t>& slot_vals)
 {
-      if (defn->constraint_count() == 0 && extra_ir.empty()) return false;
+      if (defn->constraint_count() == 0 && extra_ir.empty()) return true;
 
 	// Size pass: dynamic-foreach bodies deferred; sizes solved and
 	// written back.
       std::vector<Z3Builder::DynForeach> dyn;
-      bool r1 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
-			       nullptr, &dyn);
+      int r1 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
+			      nullptr, &dyn);
       if (dyn.empty())
-	    return r1;
+	    return r1 != Z3PASS_UNSAT;
 
 	// Element pass (IEEE 1800-2017 18.5.8.2): expand each foreach
 	// to the now-current element count of its array and re-solve
@@ -1610,7 +1662,7 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       std::map<unsigned,uint64_t> sizes;
       for (const auto& d : dyn)
 	    sizes[d.pidx] = cobj_darray_size(cobj, d.pidx);
-      bool r2 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
-			       &sizes, nullptr);
-      return r1 || r2;
+      int r2 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
+			      &sizes, nullptr);
+      return r1 != Z3PASS_UNSAT && r2 != Z3PASS_UNSAT;
 }

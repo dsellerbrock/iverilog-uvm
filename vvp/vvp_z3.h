@@ -15,8 +15,11 @@ class vvp_cobject;
  * Apply constraints to a cobject's rand properties using Z3.
  * extra_ir: additional IR strings from randomize()-with constraints.
  *           "v:N:W" tokens in extra_ir are substituted with slot_vals[N].
- * Returns true if a satisfying assignment was found and applied.
- * Returns false if unsatisfiable.
+ * Returns true when the constraint set is satisfiable: either a model
+ * was applied, the pre-filled values already satisfy it, or there were
+ * no constraints at all. Returns false only when the hard constraints
+ * are proven unsatisfiable — the caller must then restore the
+ * pre-randomize state and make randomize() return 0 (IEEE 18.6.1).
  */
 bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const std::vector<std::string>& extra_ir   = {},

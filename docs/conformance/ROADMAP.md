@@ -193,7 +193,8 @@ silent-miscompile gap; it is deferred rather than rushed.
 | M3B-2 | `randsequence` | F | **DONE** | — | productions/sequences/nesting/weighted alternatives via source-level expansion; recursion/reuse is a loud sorry |
 | M3B-3 | `disable soft` | F | **DONE** | — | soft constraints on the named variable dropped for the randomize() call |
 | M3B-4 | Reaudit `rand_mode` / `constraint_mode` combinations | A | OPEN | — | all combos correct incl. per-field |
-| M3B-5 | Seed-stability + failed-randomization state tests | A | OPEN | — | deterministic seed + fail-state coverage |
+| M3B-5 | Seed-stability + failed-randomization state tests | A | OPEN | — | deterministic seed + fail-state coverage (fail-state semantics now implemented by M3B-6; audit remains) |
+| M3B-6 | `x inside {q}` container-property constraints + honest randomize() failure | C | **DONE** | — | queue/darray property containers expand against live contents at solve time (`q:IDX:EWID` IR + solver support); empty container unsatisfiable; item-level IR drops fail loudly; %randomize/%randomize-with return 0 on UNSAT and restore pre-call rand values (18.6.1); solver UNKNOWN stays lenient but loud; with-form solves inherited base constraints. sv_constraint_inside_container |
 
 **M3B-2 note.** `randsequence` is lowered by source-level expansion from
 the start production: sequences become blocks, alternatives become a

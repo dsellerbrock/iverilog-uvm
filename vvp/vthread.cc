@@ -2491,20 +2491,67 @@ bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
       return qsort_unique_dispatch_(arr, false, true, cp->bit_idx[0] != 0);
 }
 
+/* Snapshot/restore of scalar and static-array rand property values, so
+ * an unsatisfiable constraint set can leave the object unchanged and
+ * randomize() can return 0 (IEEE 1800-2017 18.6.1). Assoc-array rand
+ * properties are not captured (their pre-fill is a compile-progress
+ * convenience; constraint UNSAT over assoc entries is not modeled). */
+struct rand_saved_prop_s {
+      size_t pid;
+      uint64_t adr;
+      vvp_vector4_t val;
+};
+
+static void randomize_snapshot_(vvp_cobject*cobj, const class_type*defn,
+				std::vector<rand_saved_prop_s>&saved)
+{
+      for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+	    if (!defn->property_is_rand(pid)) continue;
+	    if (!cobj->rand_mode(pid)) continue;
+	    uint64_t asize = defn->property_array_size(pid);
+	    if (asize < 1) asize = 1;
+	    for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+		  rand_saved_prop_s s;
+		  s.pid = pid;
+		  s.adr = adr;
+		  cobj->get_vec4(pid, s.val, adr);
+		  if (s.val.size() == 0) break;
+		  saved.push_back(s);
+	    }
+      }
+}
+
+static void randomize_restore_(vvp_cobject*cobj,
+			       const std::vector<rand_saved_prop_s>&saved)
+{
+      for (const rand_saved_prop_s&s : saved)
+	    cobj->set_vec4(s.pid, s.val, s.adr);
+}
+
 /*
  * %randomize
  *
  * Randomize all rand/randc properties of the class object on top of the
- * object stack.  Pushes 1 (success) onto the vec4 stack.  Does not
- * implement constraint solving; constraints are ignored.
+ * object stack, then solve the class constraints.  Pushes 1 on success;
+ * pushes 0 and restores the pre-call values when the constraint set is
+ * unsatisfiable (IEEE 1800-2017 18.6.1).
  */
 bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 {
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
 
+      bool solve_ok = true;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
+
+	    bool have_constraints = false;
+	    for (const class_type*walker = defn; walker; walker = walker->runtime_super())
+		  if (walker->constraint_count() > 0)
+			have_constraints = true;
+	    std::vector<rand_saved_prop_s> saved;
+	    if (have_constraints)
+		  randomize_snapshot_(cobj, defn, saved);
 
 	      // Fill all rand properties with random bits first.
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
@@ -2625,8 +2672,11 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 	      // ignore inside-range / equality constraints.
 	    for (const class_type*walker = defn; walker; walker = walker->runtime_super()) {
 		  if (walker->constraint_count() > 0)
-			vvp_z3_randomize(walker, cobj);
+			if (!vvp_z3_randomize(walker, cobj))
+			      solve_ok = false;
 	    }
+	    if (!solve_ok)
+		  randomize_restore_(cobj, saved);
       }
 
       vvp_object_t tmp;
@@ -2635,7 +2685,7 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 	// Return a 32-bit result (1 = success) so %store/vec4 with any
 	// width up to 32 works without assertion failure.
       vvp_vector4_t result(32, BIT4_0);
-      result.set_bit(0, BIT4_1);
+      result.set_bit(0, solve_ok ? BIT4_1 : BIT4_0);
       thr->push_vec4(result);
       return true;
 }
@@ -2661,8 +2711,12 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
 
+      bool solve_ok = true;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
+
+	    std::vector<rand_saved_prop_s> saved;
+	    randomize_snapshot_(cobj, defn, saved);
 
 	      // Randomize all rand properties first.
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
@@ -2730,14 +2784,23 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	      // Solve with Z3: class constraints + with-constraints.
 	    vector<string> extra_ir;
 	    if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
-	    vvp_z3_randomize(defn, cobj, extra_ir, slot_vals);
+	    solve_ok = vvp_z3_randomize(defn, cobj, extra_ir, slot_vals);
+	      // Base-class constraints (mirrors of_RANDOMIZE).
+	    for (const class_type*walker = defn->runtime_super();
+		 walker; walker = walker->runtime_super()) {
+		  if (walker->constraint_count() > 0)
+			if (!vvp_z3_randomize(walker, cobj, {}, {}))
+			      solve_ok = false;
+	    }
+	    if (!solve_ok)
+		  randomize_restore_(cobj, saved);
       }
 
       vvp_object_t tmp;
       thr->pop_object(tmp);
 
       vvp_vector4_t result(32, BIT4_0);
-      result.set_bit(0, BIT4_1);
+      result.set_bit(0, solve_ok ? BIT4_1 : BIT4_0);
       thr->push_vec4(result);
       return true;
 }
