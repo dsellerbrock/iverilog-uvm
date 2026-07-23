@@ -2297,6 +2297,87 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			            }
 			      }
 
+			      // VARIABLE leading indices on a multi-dim packed vector
+			      // (r.m[i][3:0] = v): build the canonical offset as an
+			      // expression (per-dim canon x stride), like the read-side
+			      // helper; the /x store opcode takes run-time offsets. The
+			      // trailing component must be a constant bit or [m:l] part
+			      // on the innermost dimension (or absent for a full slice).
+			      if (!handled && !member_cur.index.empty() && dims.size() > 1) {
+			            bool all_def2 = true;
+			            for (size_t di = 0; di < dims.size(); di += 1)
+			      	    if (!dims[di].defined()) all_def2 = false;
+			            std::vector<long> stride(dims.size(), 1);
+			            for (size_t k = dims.size(); k-- > 1; )
+			      	    stride[k-1] = stride[k] * (long)dims[k].width();
+			            NetExpr*offx = nullptr;
+			            long coff = 0;
+			            size_t depth2 = 0;
+			            unsigned wid2 = 0;
+			            bool ok2 = all_def2;
+			            size_t nci = member_cur.index.size();
+			            size_t cci = 0;
+			            for (const index_component_t&ic2 : member_cur.index) {
+			      	    cci += 1;
+			      	    if (!ok2) break;
+			      	    if (ic2.sel == index_component_t::SEL_BIT
+			      		&& ic2.msb && !ic2.lsb && depth2 < dims.size()) {
+			      		  NetExpr*e2 = elab_and_eval(des, scope, ic2.msb, -1);
+			      		  if (!e2) { ok2 = false; break; }
+			      		  const netrange_t&r2 = dims[depth2];
+			      		  bool d2 = r2.get_msb() >= r2.get_lsb();
+			      		  if (NetEConst*ec2 = dynamic_cast<NetEConst*>(e2)) {
+			      			if (!ec2->value().is_defined()) { ok2=false; break; }
+			      			long i2 = ec2->value().as_long();
+			      			coff += (d2 ? i2-r2.get_lsb() : r2.get_lsb()-i2)
+			      			        * stride[depth2];
+			      			delete e2;
+			      		  } else {
+			      			e2 = pad_to_width(e2, 32, true, *this);
+			      			if (r2.get_lsb() != 0)
+			      			      e2 = d2
+			      				? new NetEBAdd('-', e2, new NetEConst(verinum((uint64_t)(uint32_t)(int32_t)r2.get_lsb(), 32)), 32, true)
+			      				: new NetEBAdd('-', new NetEConst(verinum((uint64_t)(uint32_t)(int32_t)r2.get_lsb(), 32)), e2, 32, true);
+			      			else if (!d2)
+			      			      { ok2 = false; break; }
+			      			if (stride[depth2] != 1)
+			      			      e2 = new NetEBMult('*', e2, new NetEConst(verinum((uint64_t)stride[depth2], 32)), 32, true);
+			      			offx = offx ? new NetEBAdd('+', offx, e2, 32, true) : e2;
+			      		  }
+			      		  depth2 += 1;
+			      		  if (cci == nci)
+			      			wid2 = (depth2 == dims.size()) ? 1 : (unsigned)stride[depth2-1];
+			      	    } else if (ic2.sel == index_component_t::SEL_PART
+			      		       && ic2.msb && ic2.lsb && cci == nci
+			      		       && depth2 == dims.size()-1) {
+			      		  NetExpr*m2 = elab_and_eval(des, scope, ic2.msb, -1);
+			      		  NetExpr*l2 = elab_and_eval(des, scope, ic2.lsb, -1);
+			      		  NetEConst*mc2 = dynamic_cast<NetEConst*>(m2);
+			      		  NetEConst*lc2 = dynamic_cast<NetEConst*>(l2);
+			      		  if (!mc2 || !lc2 || !mc2->value().is_defined()
+			      		      || !lc2->value().is_defined()) { ok2=false; break; }
+			      		  const netrange_t&ir2 = dims.back();
+			      		  bool id2 = ir2.get_msb() >= ir2.get_lsb();
+			      		  long mv2 = mc2->value().as_long();
+			      		  long lv3 = lc2->value().as_long();
+			      		  long ca2 = id2 ? mv2-ir2.get_lsb() : ir2.get_lsb()-mv2;
+			      		  long cb2 = id2 ? lv3-ir2.get_lsb() : ir2.get_lsb()-lv3;
+			      		  coff += (ca2 < cb2 ? ca2 : cb2);
+			      		  wid2 = (unsigned)((mv2>=lv3 ? mv2-lv3 : lv3-mv2)+1);
+			      	    } else {
+			      		  ok2 = false;
+			      	    }
+			            }
+			            if (ok2 && wid2 > 0 && offx) {
+			      	    NetExpr*base2 = coff
+			      		  ? new NetEBAdd('+', offx, new NetEConst(verinum((uint64_t)(uint32_t)(int32_t)coff, 32)), 32, true)
+			      		  : offx;
+			      	    lv->set_part(base2,
+			      			 new netvector_t(pvec->base_type(), (long)wid2-1, 0));
+			      	    handled = true;
+			            }
+			      }
+
 			      if (!handled) {
 				    cerr << get_fileline() << ": sorry: "
 					 << "This form of partial write to packed "
