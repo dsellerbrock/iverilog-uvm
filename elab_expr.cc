@@ -7033,7 +7033,52 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			     << " got " << comp.index.size() << " indices." << endl;
 		  }
 
-		  if (dims.size() != comp.index.size()) {
+		  if (dims.size() < comp.index.size()
+		      && dynamic_cast<const netvector_t*>(tmp_ua->element_type())) {
+			  // Element access + bit/part-select of a packed-vector
+			  // element (c.arr[i][m:l]): split the index list —
+			  // leading indices address the array element, trailing
+			  // ones select within the element vector.
+			std::list<index_component_t> elem_idx(
+			      comp.index.begin(),
+			      std::next(comp.index.begin(), dims.size()));
+			std::list<index_component_t> tail_idx(
+			      std::next(comp.index.begin(), dims.size()),
+			      comp.index.end());
+			canon_index = make_canonical_index(des, scope, this,
+							   elem_idx, tmp_ua, false);
+			if (canon_index) {
+			      NetExpr*base_expr = nullptr;
+			      if (!sr.path_head.empty()
+				  && !sr.path_head.back().index.empty()) {
+				    ivl_type_t bt = nullptr;
+				    base_expr = elaborate_root_indexed_class_base_expr_(
+					  this, des, scope, sr.net,
+					  sr.path_head.back().index, bt);
+			      } else {
+				    base_expr = new NetESignal(sr.net);
+				    base_expr->set_line(*this);
+			      }
+			      if (!base_expr)
+				    return nullptr;
+			      NetEProperty*ep = new NetEProperty(base_expr, pidx,
+								 canon_index);
+			      ep->set_line(*this);
+			      const netvector_t*evec =
+				    dynamic_cast<const netvector_t*>(tmp_ua->element_type());
+			      ivl_type_t sel_type = nullptr;
+			      NetExpr*sel = make_vector_property_select_(
+				    des, scope, this, ep, evec, tail_idx, sel_type);
+			      if (sel)
+				    return sel;
+			      cerr << get_fileline() << ": sorry: this form of "
+				   << "select on array property element "
+				   << class_type->get_prop_name(pidx)
+				   << " is not yet supported." << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+		  } else if (dims.size() != comp.index.size()) {
 			cerr << get_fileline() << ": error: "
 			     << "Got " << comp.index.size() << " indices, "
 			     << "expecting " << dims.size()

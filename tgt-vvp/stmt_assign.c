@@ -2679,6 +2679,44 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			return errors;
 		  }
 
+		  /* Element index PLUS a bit/part-select on the element
+		     (c.arr[i][m:l] = v): read-modify-write the ELEMENT via
+		     %prop/v/i, merge with %setbits, store back. */
+		  if (idx_expr && part_off_ex && ivl_stmt_opcode(net) == 0) {
+			ivl_type_t elem_t = ivl_type_element(prop_type);
+			unsigned elem_wid = elem_t
+			      ? ivl_type_packed_width(elem_t)
+			      : ivl_type_packed_width(prop_type);
+			prop_word_idx = allocate_word();
+			draw_eval_expr_into_integer(idx_expr, prop_word_idx);
+			fprintf(vvp_out, "    %%prop/v/i %d, %d;\n",
+				prop_idx, prop_word_idx);
+			if (ivl_expr_type(part_off_ex) == IVL_EX_NUMBER) {
+			      draw_eval_vec4(rval);
+			      fprintf(vvp_out, "    %%setbits/vec4 %lu, %u;\n",
+				      (unsigned long)ivl_expr_uvalue(part_off_ex),
+				      lwid);
+			} else {
+			      int off_word = allocate_word();
+			      draw_eval_expr_into_integer(part_off_ex, off_word);
+			      draw_eval_vec4(rval);
+			      fprintf(vvp_out, "    %%setbits/vec4/x %d, %u;\n",
+				      off_word, lwid);
+			      clr_word(off_word);
+			}
+			fprintf(vvp_out, "    %%store/prop/v/i %d, %d, %u;"
+				" RMW element part of property %s\n",
+				prop_idx, prop_word_idx, elem_wid,
+				ivl_type_prop_name(sig_type, prop_idx));
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			clr_word(prop_word_idx);
+			return errors;
+		  }
+
 		  if (idx_expr) {
 			prop_word_idx = allocate_word();
 			draw_eval_expr_into_integer(idx_expr, prop_word_idx);
