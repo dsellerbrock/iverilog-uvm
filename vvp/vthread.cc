@@ -12119,6 +12119,54 @@ bool of_AA_LOAD_SIG_OBJ_V(vthread_t thr, vvp_code_t cp)
       return aa_load_signal<vvp_vector4_t, vvp_object_t, vvp_assoc_object>(thr, cp->net);
 }
 
+/*
+ * L-value variant of the object-backed associative-array element load. On the
+ * WRITE path a member assignment `a[key].field = ...` must address the element
+ * stored in the map. For a missing (or nil) object-backed element the read
+ * variant above pushes a discarded default, so the store is lost; here we
+ * instead materialize a live default instance of the element's declared type
+ * and insert it into the map before pushing it — mirroring the darray l-value
+ * path (of_LOAD_DAR_OBJ). Read paths keep get-or-default (no insert), so
+ * reading a non-existent element does not create it.
+ */
+template <class KEY, class ASSOC>
+static bool aa_load_signal_obj_lval(vthread_t thr, vvp_net_t*net)
+{
+      KEY key = pop_assoc_key_<KEY>(thr);
+
+      vvp_object_t value;
+      ASSOC*assoc = peek_signal_assoc_<ASSOC>(net);
+      bool have = assoc && assoc->get(key, value);
+
+      if (assoc && (!have || value.test_nil())) {
+	    vvp_fun_signal_object*obj =
+		  dynamic_cast<vvp_fun_signal_object*>(net->fun);
+	    if (obj && obj->declared_type()) {
+		  value = vvp_object_t(new vvp_cobject(obj->declared_type()));
+		  assoc->set(key, value);
+	    }
+      }
+
+      assoc_trace_signal_load_(thr, net, assoc, key, value);
+      thr->push_object(value);
+      return true;
+}
+
+bool of_AA_LOADLV_SIG_OBJ_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_signal_obj_lval<vvp_object_t, vvp_assoc_object>(thr, cp->net);
+}
+
+bool of_AA_LOADLV_SIG_OBJ_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_signal_obj_lval<string, vvp_assoc_object>(thr, cp->net);
+}
+
+bool of_AA_LOADLV_SIG_OBJ_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_load_signal_obj_lval<vvp_vector4_t, vvp_assoc_object>(thr, cp->net);
+}
+
 bool of_AA_LOAD_SIG_R_OBJ(vthread_t thr, vvp_code_t cp)
 {
       return aa_load_signal<vvp_object_t, double, vvp_assoc_real>(thr, cp->net);

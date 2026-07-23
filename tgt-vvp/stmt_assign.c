@@ -462,7 +462,11 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 			if (ivl_type_base(sig_type) == IVL_VT_QUEUE &&
 			    ivl_type_queue_assoc_compat(sig_type)) {
 			      const char*key_kind = draw_eval_assoc_key_(word_ex, 0);
-			      fprintf(vvp_out, "    %%aa/load/sig/obj/%s v%p_0;\n",
+			      /* L-value path: get-or-CREATE the element so a
+				 member write into a not-yet-present assoc entry
+				 (`a[key].field = ...`) is inserted and persists,
+				 instead of storing through a discarded default. */
+			      fprintf(vvp_out, "    %%aa/loadlv/sig/obj/%s v%p_0;\n",
 				      key_kind, lval_sig);
 			      return element_type;
 			}

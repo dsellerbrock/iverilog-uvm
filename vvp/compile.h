@@ -558,7 +558,8 @@ extern void compile_var_cobject(char*label, char*name, char*type,
 				int lifetime_flag);
 extern void compile_var_queue(char*label, char*name, unsigned size,
 			      char*type, int lifetime_flag,
-			      bool element_signed = false);
+			      bool element_signed = false,
+			      char*element_type = 0);
 
 /*
  * This function is used to create a scope port

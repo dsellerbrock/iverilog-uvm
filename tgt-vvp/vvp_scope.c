@@ -759,13 +759,31 @@ static void draw_reg_in_scope(ivl_signal_t sig)
                   break;
             }
 
-	    fprintf(vvp_out, "v%p_0 .var/queue %s\"%s\", %u%s, \"%s\";%s\n", sig,
+	      /* Like .var/darray: an object-backed UNPACKED struct element
+		 (base IVL_VT_NO_TYPE with properties) records its element class
+		 type so the runtime can lazily default-construct a nil/absent
+		 element on first member access. This is what makes a member
+		 write into a not-yet-present associative-array entry
+		 (`a[key].field = ...`) address a live, inserted element instead
+		 of a discarded default. Class-handle queues emit no type (their
+		 elements correctly default to null). */
+	    int struct_obj_elem =
+		  element_type
+		  && ivl_type_base(element_type) == IVL_VT_NO_TYPE
+		  && ivl_type_properties(element_type) > 0;
+	    if (struct_obj_elem)
+		  draw_class_in_scope(element_type);
+
+	    fprintf(vvp_out, "v%p_0 .var/queue %s\"%s\", %u%s, \"%s\"", sig,
 		    storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    ivl_type_packed_width(element_type),
 		      /* '+' marks a signed integral element (see .var/darray). */
 		    (element_type && ivl_type_signed(element_type)) ? "+" : "",
-		    queue_kind,
+		    queue_kind);
+	    if (struct_obj_elem)
+		  fprintf(vvp_out, ", C%p", element_type);
+	    fprintf(vvp_out, ";%s\n",
 		    ivl_signal_local(sig)? " Local signal" : "");
 
       } else if (ivl_signal_data_type(sig) == IVL_VT_STRING) {
