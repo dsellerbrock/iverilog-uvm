@@ -835,7 +835,23 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 		  long loff;
 		  unsigned long lwid;
 		  bool rcl = reg->sb_to_slice(prefix_indices, lsb, loff, lwid);
-		  ivl_assert(*this, rcl);
+		  if (!rcl) {
+			  // Constant OUT-OF-BOUNDS element index on a
+			  // multi-dimensional packed variable (m[7] = ...
+			  // where m is [3:0][...]). IEEE 1800-2017 11.5.1/
+			  // 7.4.6: an out-of-range select write is a no-op.
+			  // This used to be an ivl_assert ICE.
+			if (warn_ob_select) {
+			      cerr << get_fileline() << ": warning: "
+				   << "L-value packed array select of "
+				   << reg->name()
+				   << " is out of bounds (write ignored)."
+				   << endl;
+			}
+			lv->set_part(new NetEConst(verinum(verinum::Vx)),
+				     reg->slice_width(prefix_indices.size()+1));
+			return true;
+		  }
 
 		  if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
 			ivl_assert(*this, reg->coerced_to_uwire());
