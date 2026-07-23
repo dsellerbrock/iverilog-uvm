@@ -1097,7 +1097,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 		  par.skip_ws();
 		  hard_clauses.push_back(clause);
 		  // Queue the soft assert; caller applies it after build.
-		  Z3Builder::SoftAssert sa = { clause, weight, false /* dist */ };
+		  // dist-branch soft assert: no `soft'-keyword property refs, so
+		  // `disable soft' never applies (empty prop_refs).
+		  Z3Builder::SoftAssert sa = { clause, weight, false /* dist */, {} };
 		  b.pending_soft.push_back(sa);
 	    }
 	    par.expect(')');
