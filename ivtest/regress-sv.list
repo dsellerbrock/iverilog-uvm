@@ -1119,3 +1119,4 @@ sv_disable_soft normal,-g2012 ivltests
 sv_randsequence normal,-g2012 ivltests
 sv_param_spec_audit normal,-g2012 ivltests
 sv_nested_container_audit normal,-g2012 ivltests
+sv_class_property_partial_write normal,-g2012 ivltests

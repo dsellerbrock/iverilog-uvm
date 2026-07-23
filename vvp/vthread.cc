@@ -15985,15 +15985,20 @@ bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
       vvp_vector4_t new_val;
       pop_prop_val(thr, new_val, wid);
 
+      /* M1B-5: partial (bit-select / packed-struct-field) write to a vector
+	 property. Read-modify-write the property so bits outside [bitoff+:wid]
+	 are preserved. Both a virtual interface and a plain class object
+	 (vvp_cobject) expose the same get_vec4/set_vec4 property API; a null
+	 receiver is a no-op (matches the other %store/prop handlers). */
       vvp_object_t&obj = thr->peek_object();
       vvp_vinterface*vif = obj.peek<vvp_vinterface>();
-      if (!vif) {
-	    /* Not a VIF — cobjects don't use packed struct bit fields. */
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!vif && !cobj)
 	    return true;
-      }
 
       vvp_vector4_t current;
-      vif->get_vec4(pid, current, 0);
+      if (vif) vif->get_vec4(pid, current, 0);
+      else     cobj->get_vec4(pid, current, 0);
 
       /* Merge new_val bits into current at [bitoff .. bitoff+wid-1]. */
       for (unsigned i = 0; i < wid; i++) {
@@ -16001,9 +16006,56 @@ bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 		  current.set_bit(bitoff + i, new_val.value(i));
       }
 
-      vif->set_vec4(pid, current, 0);
+      if (vif) vif->set_vec4(pid, current, 0);
+      else     cobj->set_vec4(pid, current, 0);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-bits");
+      return true;
+}
+
+/*
+ * %store/prop/v/bits/x <pid>, <off_reg>, <wid>
+ *
+ * As %store/prop/v/bits, but the destination bit offset is taken at run
+ * time from index register <off_reg> (thr->words[off_reg]) rather than
+ * being an assembled literal. This is the read-modify-write path for a
+ * VARIABLE bit-select or indexed part-select of a vector property, e.g.
+ * `obj.m_bits[i +: 4] = ...`. Bits that fall outside the property vector
+ * (including a negative computed offset) are dropped, matching the
+ * no-op semantics of an out-of-bounds part-select.
+ */
+bool of_STORE_PROP_V_BITSX(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid     = cp->number;
+      unsigned off_reg = cp->bit_idx[0];
+      unsigned wid     = cp->bit_idx[1];
+
+      vvp_vector4_t new_val;
+      pop_prop_val(thr, new_val, wid);
+
+      assert(off_reg < vthread_s::WORDS_COUNT);
+      long bitoff = thr->words[off_reg].w_int;
+
+      vvp_object_t&obj = thr->peek_object();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!vif && !cobj)
+	    return true;
+
+      vvp_vector4_t current;
+      if (vif) vif->get_vec4(pid, current, 0);
+      else     cobj->get_vec4(pid, current, 0);
+
+      for (unsigned i = 0; i < wid; i++) {
+	    long pos = bitoff + (long)i;
+	    if (pos >= 0 && (size_t)pos < current.size())
+		  current.set_bit((unsigned)pos, new_val.value(i));
+      }
+
+      if (vif) vif->set_vec4(pid, current, 0);
+      else     cobj->set_vec4(pid, current, 0);
+      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+                                  thr->peek_object_root(0), "store-prop-bits-x");
       return true;
 }
 

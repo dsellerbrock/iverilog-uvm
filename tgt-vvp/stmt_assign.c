@@ -2445,6 +2445,33 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			return errors;
 		  }
 
+		  /* Variable bit-offset RMW: a bit-select or indexed part-
+		     select of a vector property with a run-time offset (e.g.
+		     `obj.m_bits[i +: 4] = ...`).  The canonical bit offset is
+		     evaluated into an index register and consumed by the
+		     %store/prop/v/bits/x handler, which read-modify-writes the
+		     property so bits outside [off+:wid] are preserved. */
+		  if (part_off_ex && !idx_expr) {
+			int off_reg = allocate_word();
+			draw_eval_expr_into_integer(part_off_ex, off_reg);
+			draw_eval_vec4(rval);
+			draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
+						       ivl_expr_signed(rval));
+			fprintf(vvp_out,
+				"    %%store/prop/v/bits/x %d, %d, %u;"
+				" Store field [<var>+:%u] of property %s\n",
+				prop_idx, off_reg, lwid, lwid,
+				ivl_type_prop_name(sig_type, prop_idx));
+			clr_word(off_reg);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			/* Emit the null-guard epilogue inline and return. */
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			return errors;
+		  }
+
 		  if (idx_expr) {
 			prop_word_idx = allocate_word();
 			draw_eval_expr_into_integer(idx_expr, prop_word_idx);

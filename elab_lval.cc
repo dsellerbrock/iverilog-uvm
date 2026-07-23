@@ -1513,8 +1513,14 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		    /* Cast disambiguates `verinum(uint64_t, unsigned)` from the
 		       `verinum(V, unsigned, bool)` constructor — older gcc/clang
 		       on macOS/MinGW reject the implicit conversion. */
+		    // Pass the field's own type (not just the width) so
+		    // NetAssign_::net_type()/expr_type() report the field's
+		    // packed type. Otherwise net_type() is null and expr_type()
+		    // falls back to the class handle's IVL_VT_CLASS, which
+		    // corrupts r-value elaboration (the assigned value comes out
+		    // as a null-handle test) and crashes the runtime.
 		    lv->set_part(new NetEConst(verinum((uint64_t)member_off, 64u)),
-				 (unsigned)field_wid);
+				 mbr->net_type);
 		    if (!member_path.empty()) {
 			  cerr << get_fileline() << ": warning: "
 			       << "Deeply nested packed struct field in VIF property "
@@ -1732,17 +1738,165 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      }
 			}
 
-		  } else if (dynamic_cast<const netvector_t*>(ptype)) {
-			// Packed vector property: treat index as a bit-select.
-			if (member_cur.index.size() == 1
-			    && member_cur.index.front().sel == index_component_t::SEL_BIT
-			    && member_cur.index.front().msb
-			    && member_cur.index.front().lsb == 0) {
-			      word_index = elab_and_eval(des, scope,
-						       member_cur.index.front().msb, -1);
+		  } else if (const netvector_t*pvec =
+			     dynamic_cast<const netvector_t*>(ptype)) {
+			// A bit- or part-select of a packed-vector member.
+			//
+			// For a true class-OBJECT property (owner_class set) this
+			// is a PARTIAL WRITE into the object property vector, and
+			// must become a read-modify-write (set_part) so the other
+			// bits are preserved. Using the old array word-index path
+			// (set_word) mis-treats the property vector as an unpacked
+			// array and crashes the runtime; a whole-property store
+			// silently clobbers the untouched bits.
+			//
+			// For a plain struct member (owner_struct, e.g. an
+			// unpacked-struct field like uvm_reg_bus_op.byte_en[z])
+			// the historical word-index path is correct and exercised;
+			// preserve it unchanged.
+			const netranges_t&dims = pvec->packed_dims();
+			const index_component_t&sel = member_cur.index.front();
+
+			if (!owner_class) {
+			      // Struct member: preserve prior behavior. A single
+			      // constant/variable bit-select becomes a word index;
+			      // other forms degrade as before (compile progress).
+			      if (member_cur.index.size() == 1
+				  && sel.sel == index_component_t::SEL_BIT
+				  && sel.msb && !sel.lsb) {
+				    word_index = elab_and_eval(des, scope,
+							       sel.msb, -1);
+			      }
 			} else {
-			      // Part-select or indexed part-select on packed vector
-			      // property — degrade gracefully for compile progress.
+			      bool handled = false;
+
+			      if (member_cur.index.size() == 1 && dims.size() == 1
+				  && dims[0].defined()) {
+				    const long base_msb = dims[0].get_msb();
+				    const long base_lsb = dims[0].get_lsb();
+				    const bool descending = base_msb >= base_lsb;
+				      // Build the part's own packed data type so
+				      // NetAssign_::net_type()/expr_type() report
+				      // the selected sub-vector (logic/bit) rather
+				      // than falling back to the class-handle's
+				      // IVL_VT_CLASS, which corrupts r-value
+				      // elaboration.
+				    auto make_part_type = [&](unsigned w)->ivl_type_t {
+					  return new netvector_t(pvec->base_type(),
+								 (long)w - 1, 0);
+				    };
+				      // Canonicalize a (possibly non-constant)
+				      // source-space index to an LSB-0 bit offset.
+				      // Constant offsets fold to NetEConst so the
+				      // constant %store/prop/v/bits path is used;
+				      // variable offsets flow to the /x path. Only
+				      // the descending (msb>=lsb) direction is
+				      // handled for variable offsets; ascending
+				      // packed vectors fall through to the sorry.
+				    auto canon_expr =
+					  [&](NetExpr*e)->NetExpr* {
+					  if (NetEConst*ec =
+						dynamic_cast<NetEConst*>(e)) {
+						if (!ec->value().is_defined())
+						      return nullptr;
+						long i = ec->value().as_long();
+						long off = descending
+							 ? (i - base_lsb)
+							 : (base_lsb - i);
+						return new NetEConst(
+						      verinum((int64_t)off));
+					  }
+					  if (!descending)
+						return nullptr;
+					  if (base_lsb == 0)
+						return e;
+					  return new NetEBAdd('-', e,
+						new NetEConst(verinum(
+						  (int64_t)base_lsb)), 32, true);
+				    };
+
+				    NetExpr*off_expr = nullptr;
+				    unsigned wid = 0;
+
+				    if (sel.sel == index_component_t::SEL_BIT
+					&& sel.msb && !sel.lsb) {
+					  NetExpr*ie = elab_and_eval(des, scope,
+								     sel.msb, -1);
+					  if (ie) {
+						off_expr = canon_expr(ie);
+						wid = 1;
+					  }
+				    } else if ((sel.sel == index_component_t::SEL_IDX_UP
+						|| sel.sel == index_component_t::SEL_IDX_DO)
+					       && sel.msb && sel.lsb) {
+					  NetExpr*be = elab_and_eval(des, scope,
+								     sel.msb, -1);
+					  NetExpr*we = elab_and_eval(des, scope,
+								     sel.lsb, -1);
+					  NetEConst*wec =
+						dynamic_cast<NetEConst*>(we);
+					  if (be && wec
+					      && wec->value().is_defined()
+					      && wec->value().as_long() > 0) {
+						long w = wec->value().as_long();
+						off_expr = canon_expr(be);
+						  // [b -: w] addresses down from
+						  // b, so its LSB is b-(w-1).
+						if (off_expr
+						    && sel.sel == index_component_t::SEL_IDX_DO
+						    && w > 1)
+						      off_expr = new NetEBAdd('-',
+							off_expr,
+							new NetEConst(verinum(
+							  (int64_t)(w-1))),
+							32, true);
+						wid = (unsigned)w;
+					  }
+				    } else if (sel.sel == index_component_t::SEL_PART
+					       && sel.msb && sel.lsb) {
+					  NetExpr*me = elab_and_eval(des, scope,
+								     sel.msb, -1);
+					  NetExpr*le = elab_and_eval(des, scope,
+								     sel.lsb, -1);
+					  NetEConst*mec =
+						dynamic_cast<NetEConst*>(me);
+					  NetEConst*lec =
+						dynamic_cast<NetEConst*>(le);
+					  if (mec && lec
+					      && mec->value().is_defined()
+					      && lec->value().is_defined()) {
+						long mv = mec->value().as_long();
+						long lv_ = lec->value().as_long();
+						long ca = descending
+							? (mv-base_lsb)
+							: (base_lsb-mv);
+						long cb = descending
+							? (lv_-base_lsb)
+							: (base_lsb-lv_);
+						long off = ca < cb ? ca : cb;
+						off_expr = new NetEConst(
+						      verinum((int64_t)off));
+						wid = (unsigned)
+						      ((mv >= lv_ ? mv-lv_
+								  : lv_-mv) + 1);
+					  }
+				    }
+
+				    if (off_expr && wid > 0) {
+					  lv->set_part(off_expr,
+						       make_part_type(wid));
+					  handled = true;
+				    }
+			      }
+
+			      if (!handled) {
+				    cerr << get_fileline() << ": sorry: "
+					 << "This form of partial write to packed "
+					 << "vector class property " << method_name
+					 << " (unsupported select form) is not"
+					 << " yet supported." << endl;
+				    des->errors += 1;
+			      }
 			}
 		  } else {
 			cerr << get_fileline() << ": warning: "
