@@ -273,6 +273,7 @@ unimplemented SVA feature — plus the M9-7 multiclock residuals, the
 | M11-4 | `with function sample` formal semantics | F | OPEN | — | sampled formals correct |
 | M11-5 | Coverpoint-expression + option/type_option audit | A | OPEN | — | arbitrary exprs + all options |
 | M11-6 | Coverage serialization/interchange + adversarial cross/transition | A | OPEN | — | durable format + generated tests |
+| M11-7 | Chained covergroup method calls (`obj.cg.sample()`) | F | DONE | — | sample/guard values read from the covergroup's parent object, not the caller's `this`; chained + cross-object sites correct |
 
 ### M12B/C — VPI completion  (clause 36/38/40)
 
