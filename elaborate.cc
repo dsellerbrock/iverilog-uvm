@@ -13171,12 +13171,42 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (r.is_range) {
 			string lo = pexpr_to_constraint_ir(r.lo, cls, value_slots, scope, loop_env);
 			string hi = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope, loop_env);
-			if (lo.empty() || hi.empty()) continue;
+			  // A dropped item silently NARROWS (or, when all
+			  // items drop, voids) the membership set; fail the
+			  // whole expression so the top-level warning fires.
+			if (lo.empty() || hi.empty()) return "";
 			range_ir = "[" + lo + "," + hi + "]";
 		  } else {
-			string v = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope, loop_env);
-			if (v.empty()) continue;
-			range_ir = v;
+			  // A queue/darray class-property container item:
+			  // membership in the container's contents at
+			  // randomize() time. Emitted as q:IDX:EWID[:s] and
+			  // expanded against the live container by the
+			  // solver.
+			const PEIdent*cid = dynamic_cast<const PEIdent*>(r.hi);
+			if (cid && !is_dist && cid->path().size() == 1
+			    && cid->path().back().index.empty()) {
+			      perm_string cnm = cid->path().back().name;
+			      int cpi = cls->property_idx_from_name(cnm);
+			      const netdarray_t*da = cpi >= 0
+				    ? dynamic_cast<const netdarray_t*>(
+					  cls->get_prop_type((size_t)cpi))
+				    : 0;
+			      ivl_type_t et = da ? da->element_type() : 0;
+			      ivl_variable_type_t eb = et
+				    ? et->base_type() : IVL_VT_NO_TYPE;
+			      if (et && (eb == IVL_VT_BOOL || eb == IVL_VT_LOGIC)) {
+				    unsigned ewid = et->packed_width();
+				    if (ewid == 0 || ewid > 64) ewid = 32;
+				    range_ir = "q:" + to_string(cpi)
+					  + ":" + to_string(ewid)
+					  + (et->get_signed() ? ":s" : "");
+			      }
+			}
+			if (range_ir.empty()) {
+			      string v = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope, loop_env);
+			      if (v.empty()) return "";
+			      range_ir = v;
+			}
 		  }
 		  if (is_dist) {
 			// Default weight 1 for unweighted branches in a

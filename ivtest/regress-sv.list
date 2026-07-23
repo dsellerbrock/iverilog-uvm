@@ -1134,4 +1134,5 @@ sv_multidim_oob_write normal,-g2012 ivltests
 sv_cast_enum_check normal,-g2012 ivltests
 sv_covergroup_chained_sample normal,-g2012 ivltests
 sv_inside_property_container normal,-g2012 ivltests
+sv_constraint_inside_container normal,-g2012 ivltests
 sv_class_arrayprop_elem_select normal,-g2012 ivltests
