@@ -93,10 +93,7 @@ static int prop_is_numeric_queue_index_(ivl_type_t prop_type, ivl_expr_t idx_exp
 static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
                                             ivl_signal_t var,
                                             ivl_type_t var_type);
-static int type_is_object_like_(ivl_type_t type);
 
-static int queue_pattern_operand_is_object_collection_(ivl_expr_t expr,
-                                                       ivl_type_t element_type);
 
 static ivl_expr_t prop_lval_index_expr_(ivl_lval_t lval)
 {
@@ -1640,38 +1637,86 @@ static int show_stmt_assign_queue_pattern(ivl_signal_t var, ivl_expr_t rval,
       unsigned idx;
       unsigned max_size;
       unsigned max_elems;
-      int use_object_collection_append = 0;
+      int use_collection_append = 0;
       assert(ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN);
       max_size = ivl_signal_array_count(var);
       max_elems = ivl_expr_parms(rval);
 
-      if (type_is_object_like_(element_type)) {
-            for (idx = 0 ; idx < max_elems ; idx += 1) {
-                  if (queue_pattern_operand_is_object_collection_(
-                              ivl_expr_parm(rval, idx), element_type)) {
-                        use_object_collection_append = 1;
-                        break;
-                  }
+      for (idx = 0 ; idx < max_elems ; idx += 1) {
+            if (queue_pattern_operand_is_collection_(
+                        ivl_expr_parm(rval, idx), element_type)) {
+                  use_collection_append = 1;
+                  break;
             }
       }
 
-      if (use_object_collection_append) {
+      if (use_collection_append) {
+            /* At least one operand is a container to splice (10.10), so
+             * positions are not static: clear the queue and build it by
+             * appends. Container operands splice element-wise with
+             * %append/qobj/<k>; plain operands append as one element. */
+            unsigned elem_wid = ivl_type_packed_width(element_type);
             fprintf(vvp_out, "    %%null;\n");
             fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
 
             for (idx = 0 ; idx < max_elems ; idx += 1) {
                   ivl_expr_t parm = ivl_expr_parm(rval, idx);
 
-                    /* A struct-value operand (`q = '{x, y}` with x,y struct
-                       vars) is copied by value; the helper passes class /
-                       collection operands through unchanged. */
-                  errors += draw_eval_object_value_copy(parm, element_type);
-                  if (queue_pattern_operand_is_object_collection_(parm, element_type))
-                        fprintf(vvp_out, "    %%append/qobj/obj v%p_0, %d;\n",
+                  if (queue_pattern_operand_is_collection_(parm, element_type)) {
+                        errors += draw_eval_object(parm);
+                        switch (ivl_type_base(element_type)) {
+                            case IVL_VT_BOOL:
+                            case IVL_VT_LOGIC:
+                              fprintf(vvp_out, "    %%append/qobj/v v%p_0, %d, %u;\n",
+                                      var, max_idx, elem_wid);
+                              break;
+                            case IVL_VT_REAL:
+                              fprintf(vvp_out, "    %%append/qobj/r v%p_0, %d;\n",
+                                      var, max_idx);
+                              break;
+                            case IVL_VT_STRING:
+                              fprintf(vvp_out, "    %%append/qobj/str v%p_0, %d;\n",
+                                      var, max_idx);
+                              break;
+                            default:
+                              fprintf(vvp_out, "    %%append/qobj/obj v%p_0, %d;\n",
+                                      var, max_idx);
+                              break;
+                        }
+                        continue;
+                  }
+
+                  switch (ivl_type_base(element_type)) {
+                      case IVL_VT_BOOL:
+                      case IVL_VT_LOGIC:
+                        draw_eval_vec4(parm);
+                        if (ivl_expr_width(parm) != elem_wid)
+                              fprintf(vvp_out, "    %%pad/%c %u;\n",
+                                      (ivl_type_signed(element_type)
+                                       && ivl_expr_signed(parm)) ? 's' : 'u',
+                                      elem_wid);
+                        fprintf(vvp_out, "    %%store/qb/v v%p_0, %d, %u;\n",
+                                var, max_idx, elem_wid);
+                        break;
+                      case IVL_VT_REAL:
+                        draw_eval_real(parm);
+                        fprintf(vvp_out, "    %%store/qb/r v%p_0, %d;\n",
                                 var, max_idx);
-                  else
+                        break;
+                      case IVL_VT_STRING:
+                        draw_eval_string(parm);
+                        fprintf(vvp_out, "    %%store/qb/str v%p_0, %d;\n",
+                                var, max_idx);
+                        break;
+                      default:
+                        /* A struct-value operand (`q = '{x, y}` with x,y
+                           struct vars) is copied by value; the helper passes
+                           class / collection operands through unchanged. */
+                        errors += draw_eval_object_value_copy(parm, element_type);
                         fprintf(vvp_out, "    %%store/qb/obj v%p_0, %d;\n",
                                 var, max_idx);
+                        break;
+                  }
             }
 
             return errors;
@@ -2392,45 +2437,9 @@ static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
 	      }
 }
 
-static int type_is_object_like_(ivl_type_t type)
-{
-      if (!type)
-            return 0;
-
-      switch (ivl_type_base(type)) {
-          case IVL_VT_CLASS:
-          case IVL_VT_DARRAY:
-          case IVL_VT_QUEUE:
-          case IVL_VT_NO_TYPE:
-            return 1;
-          default:
-            return 0;
-      }
-}
-
-static int queue_pattern_operand_is_object_collection_(ivl_expr_t expr,
-                                                       ivl_type_t element_type)
-{
-      ivl_type_t expr_type;
-      ivl_type_t src_element_type;
-
-      if (!expr || !type_is_object_like_(element_type))
-            return 0;
-
-      if (expr_is_queue_container_(expr))
-            return 1;
-
-      expr_type = ivl_expr_net_type(expr);
-      if (!expr_type)
-            return ivl_expr_value(expr) == IVL_VT_DARRAY;
-
-      if (ivl_type_base(expr_type) != IVL_VT_QUEUE
-          && ivl_type_base(expr_type) != IVL_VT_DARRAY)
-            return 0;
-
-      src_element_type = ivl_type_element(expr_type);
-      return type_is_object_like_(src_element_type);
-}
+/* type_is_object_like_, container_type_shape_eq_ and the queue-pattern
+ * operand classifiers moved to vvp_priv.h (shared with eval_object.c's
+ * container-literal builder). */
 
 static int show_stmt_assign_nested_index_object(ivl_statement_t net)
 {

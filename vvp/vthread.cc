@@ -1740,13 +1740,29 @@ template <class VVP_QUEUE> static vvp_queue*get_queue_object(vthread_t thr, vvp_
       return typed_queue;
 }
 
+/* All pop_queue_receiver_ callers are mutation operations (push/insert/
+ * indexed store/delete). A null or wrong-typed receiver means the
+ * operation is DROPPED, which must never happen silently. */
+static void warn_null_queue_receiver_(vthread_t thr, bool wrong_type)
+{
+      cerr << thr->get_fileline()
+	   << "Warning: queue operation on a "
+	   << (wrong_type ? "mismatched-type" : "null")
+	   << " queue value was skipped." << endl;
+}
+
 template <class VVP_QUEUE> static VVP_QUEUE*pop_queue_receiver_(vthread_t thr, vvp_object_t&recv)
 {
       thr->pop_object(recv);
       vvp_queue*queue = recv.peek<vvp_queue>();
-      if (!queue)
+      if (!queue) {
+	    warn_null_queue_receiver_(thr, false);
 	    return 0;
-      return dynamic_cast<VVP_QUEUE*>(queue);
+      }
+      VVP_QUEUE*use_queue = dynamic_cast<VVP_QUEUE*>(queue);
+      if (!use_queue)
+	    warn_null_queue_receiver_(thr, true);
+      return use_queue;
 }
 
 template <class VVP_QUEUE>
@@ -1757,9 +1773,14 @@ static VVP_QUEUE*pop_queue_receiver_(vthread_t thr, vvp_object_t&recv,
       root_obj = thr->peek_object_root(0);
       thr->pop_object(recv);
       vvp_queue*queue = recv.peek<vvp_queue>();
-      if (!queue)
-            return 0;
-      return dynamic_cast<VVP_QUEUE*>(queue);
+      if (!queue) {
+	    warn_null_queue_receiver_(thr, false);
+	    return 0;
+      }
+      VVP_QUEUE*use_queue = dynamic_cast<VVP_QUEUE*>(queue);
+      if (!use_queue)
+	    warn_null_queue_receiver_(thr, true);
+      return use_queue;
 }
 
 /*
@@ -9191,6 +9212,21 @@ bool of_DUP_OBJ(vthread_t thr, vvp_code_t)
       else
 	    thr->push_object(src.duplicate());
 
+      return true;
+}
+
+/*
+ * %dup/obj/ref
+ *
+ * Push an ALIASING reference to the object on top of the object stack
+ * (%dup/obj deep-copies). Used when a subsequent receiver-popping store
+ * must mutate the original object, e.g. building a container literal
+ * element by element.
+ */
+bool of_DUP_OBJ_REF(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t src = thr->peek_object();
+      thr->push_object(src);
       return true;
 }
 
@@ -16687,9 +16723,81 @@ static bool append_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       return true;
 }
 
+/*
+ * %append/qo/<type> [wid]
+ *
+ * Splice a source collection into a queue receiver held on the OBJECT
+ * stack (the signal-based %append/qobj forms cannot serve container
+ * literals being built in expression context). Pops the source
+ * collection, then pops the receiver queue, and appends every source
+ * element. The builder holds its own alias of the receiver, so the
+ * mutation is visible without a write-back.
+ */
+template <typename ELEM, class QTYPE>
+static bool append_qo(vthread_t thr, unsigned wid=0)
+{
+      vvp_object_t src;
+      thr->pop_object(src);
+
+      vvp_object_t recv;
+      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv);
+      if (!queue)
+	    return true;
+
+      if (src.test_nil())
+	    return true;
+
+      if (vvp_queue*src_queue = src.peek<vvp_queue>())
+	    append_qobj_elements_<ELEM, QTYPE, vvp_queue>(
+		  queue, src_queue, 0, wid);
+      else if (vvp_darray*src_darray = src.peek<vvp_darray>())
+	    append_qobj_elements_<ELEM, QTYPE, vvp_darray>(
+		  queue, src_darray, 0, wid);
+      else
+	    cerr << thr->get_fileline()
+		 << "Warning: queue splice source is not a collection;"
+		 << " the operand was skipped." << endl;
+      return true;
+}
+
+bool of_APPEND_QO_OBJ(vthread_t thr, vvp_code_t)
+{
+      return append_qo<vvp_object_t, vvp_queue_object>(thr);
+}
+
+bool of_APPEND_QO_R(vthread_t thr, vvp_code_t)
+{
+      return append_qo<double, vvp_queue_real>(thr);
+}
+
+bool of_APPEND_QO_STR(vthread_t thr, vvp_code_t)
+{
+      return append_qo<string, vvp_queue_string>(thr);
+}
+
+bool of_APPEND_QO_V(vthread_t thr, vvp_code_t cp)
+{
+      return append_qo<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
+}
+
 bool of_APPEND_QOBJ_OBJ(vthread_t thr, vvp_code_t cp)
 {
       return append_qobj<vvp_object_t, vvp_queue_object>(thr, cp);
+}
+
+bool of_APPEND_QOBJ_V(vthread_t thr, vvp_code_t cp)
+{
+      return append_qobj<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
+}
+
+bool of_APPEND_QOBJ_R(vthread_t thr, vvp_code_t cp)
+{
+      return append_qobj<double, vvp_queue_real>(thr, cp);
+}
+
+bool of_APPEND_QOBJ_STR(vthread_t thr, vvp_code_t cp)
+{
+      return append_qobj<string, vvp_queue_string>(thr, cp);
 }
 
 static void vvp_send(vthread_t thr, vvp_net_ptr_t ptr, const double&val)

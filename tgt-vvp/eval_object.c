@@ -334,6 +334,38 @@ static int eval_class_new(ivl_expr_t ex)
       return 0;
 }
 
+/* Build the runtime type-encoding string for a queue/darray element
+ * type, as consumed by %new/queue and %new/darray. */
+static void container_element_enc_(ivl_type_t etype, char*enc, size_t enc_len)
+{
+      if (!etype) {
+	    snprintf(enc, enc_len, "v32");
+	    return;
+      }
+      switch (ivl_type_base(etype)) {
+	  case IVL_VT_REAL:
+	    snprintf(enc, enc_len, "r");
+	    break;
+	  case IVL_VT_STRING:
+	    snprintf(enc, enc_len, "S");
+	    break;
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	    snprintf(enc, enc_len, "o");
+	    break;
+	  default: {
+	    unsigned w = ivl_type_packed_width(etype);
+	    if (w == 0) w = 32;
+	    snprintf(enc, enc_len, "%s%s%u",
+		     ivl_type_signed(etype) ? "s" : "",
+		     (ivl_type_base(etype) == IVL_VT_BOOL) ? "b" : "v",
+		     w);
+	    break;
+	  }
+      }
+}
+
 static int eval_object_null(ivl_expr_t ex)
 {
       (void)ex; /* Parameter is not used. */
@@ -998,30 +1030,7 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    ivl_type_t qtype = ivl_expr_net_type(expr);
 	    ivl_type_t etype = qtype ? ivl_type_element(qtype) : 0;
 	    char enc[32];
-	    if (!etype) {
-		  snprintf(enc, sizeof enc, "v32");
-	    } else switch (ivl_type_base(etype)) {
-		case IVL_VT_REAL:
-		  snprintf(enc, sizeof enc, "r");
-		  break;
-		case IVL_VT_STRING:
-		  snprintf(enc, sizeof enc, "S");
-		  break;
-		case IVL_VT_CLASS:
-		case IVL_VT_DARRAY:
-		case IVL_VT_QUEUE:
-		  snprintf(enc, sizeof enc, "o");
-		  break;
-		default: {
-		  unsigned w = ivl_type_packed_width(etype);
-		  if (w == 0) w = 32;
-		  snprintf(enc, sizeof enc, "%s%s%u",
-			   ivl_type_signed(etype) ? "s" : "",
-			   (ivl_type_base(etype) == IVL_VT_BOOL) ? "b" : "v",
-			   w);
-		  break;
-		}
-	    }
+	    container_element_enc_(etype, enc, sizeof enc);
 	    if (qtype && ivl_type_base(qtype) == IVL_VT_DARRAY) {
 		  fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
 		  fprintf(vvp_out, "    %%new/darray 3, \"%s\";\n", enc);
@@ -1514,22 +1523,153 @@ static int eval_object_aggregate_literal_(ivl_expr_t expr)
       return errors;
 }
 
-/* Handle IVL_EX_ARRAY_PATTERN in object context.
- * Compile-progress fallback: use the first element when present. */
-static int eval_object_array_pattern(ivl_expr_t expr)
+/* Queue/darray-typed array pattern (e.g. the literal {1,2} pushed into
+ * a queue-of-queues): build the container value element by element on
+ * the object stack. Queues append with %store/qo/b/<k>; darrays are
+ * sized up front and store by index with %store/qo/i/<k>. Both store
+ * forms POP the receiver, so each element store works on a
+ * %dup/obj/ref ALIAS of the container handle (%dup/obj would deep-copy
+ * and the stores would mutate a discarded clone). */
+static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 {
       unsigned nparm = ivl_expr_parms(expr);
+      ivl_type_t etype = ivl_type_element(agg_type);
+      int is_darray = ivl_type_base(agg_type) == IVL_VT_DARRAY;
+      char enc[32];
+      int errors = 0;
+      unsigned idx;
+
+      container_element_enc_(etype, enc, sizeof enc);
+      if (is_darray) {
+	    fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", nparm);
+	    fprintf(vvp_out, "    %%new/darray 3, \"%s\";\n", enc);
+      } else {
+	    fprintf(vvp_out, "    %%new/queue \"%s\";\n", enc);
+      }
+
+      for (idx = 0; idx < nparm; idx += 1) {
+	    ivl_expr_t parm = ivl_expr_parm(expr, idx);
+	    if (!parm)
+		  continue;
+	      /* A same-shape collection operand splices element-wise
+	       * (10.10): {q1, 5} with q1 a queue concatenates. Only
+	       * queue-built literals support this; a darray literal
+	       * with a runtime-sized operand cannot be pre-sized. */
+	    if (!is_darray
+		&& queue_pattern_operand_is_collection_(parm, etype)) {
+		  fprintf(vvp_out, "    %%dup/obj/ref;\n");
+		  errors += draw_eval_object(parm);
+		  switch (etype ? ivl_type_base(etype) : IVL_VT_LOGIC) {
+		      case IVL_VT_REAL:
+			fprintf(vvp_out, "    %%append/qo/r;\n");
+			break;
+		      case IVL_VT_STRING:
+			fprintf(vvp_out, "    %%append/qo/str;\n");
+			break;
+		      case IVL_VT_CLASS:
+		      case IVL_VT_DARRAY:
+		      case IVL_VT_QUEUE:
+		      case IVL_VT_NO_TYPE:
+			fprintf(vvp_out, "    %%append/qo/obj;\n");
+			break;
+		      default: {
+			unsigned wid = etype ? ivl_type_packed_width(etype) : 32;
+			if (wid == 0) wid = 32;
+			fprintf(vvp_out, "    %%append/qo/v %u;\n", wid);
+			break;
+		      }
+		  }
+		  continue;
+	    }
+	    if (is_darray
+		&& queue_pattern_operand_is_collection_(parm, etype)) {
+		  static int warned_darray_splice = 0;
+		  if (!warned_darray_splice) {
+			fprintf(stderr, "Warning: draw_eval_object: a"
+				" runtime-sized collection operand in a"
+				" dynamic-array literal at %s:%u is not"
+				" supported; the operand contributes one"
+				" default element (further similar warnings"
+				" suppressed)\n",
+				ivl_expr_file(parm), ivl_expr_lineno(parm));
+			warned_darray_splice = 1;
+		  }
+	    }
+	    fprintf(vvp_out, "    %%dup/obj/ref;\n");
+	    if (is_darray) {
+		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+	    }
+	    switch (etype ? ivl_type_base(etype) : IVL_VT_LOGIC) {
+		case IVL_VT_REAL:
+		  draw_eval_real(parm);
+		  fprintf(vvp_out, "    %%store/qo/%c/r;\n",
+			  is_darray ? 'i' : 'b');
+		  break;
+		case IVL_VT_STRING:
+		  draw_eval_string(parm);
+		  fprintf(vvp_out, "    %%store/qo/%c/str;\n",
+			  is_darray ? 'i' : 'b');
+		  break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE:
+		  errors += draw_eval_object_value_copy(parm, etype);
+		  fprintf(vvp_out, "    %%store/qo/%c/obj;\n",
+			  is_darray ? 'i' : 'b');
+		  break;
+		default: {
+		  unsigned wid = etype ? ivl_type_packed_width(etype) : 0;
+		  if (wid == 0)
+			wid = ivl_expr_width(parm);
+		  draw_eval_vec4(parm);
+		  if (ivl_expr_width(parm) != wid)
+			fprintf(vvp_out, "    %%pad/%c %u;\n",
+				(etype && ivl_type_signed(etype)
+				 && ivl_expr_signed(parm)) ? 's' : 'u',
+				wid);
+		  fprintf(vvp_out, "    %%store/qo/%c/v %u;\n",
+			  is_darray ? 'i' : 'b', wid);
+		  break;
+		}
+	    }
+      }
+
+      return errors;
+}
+
+/* Handle IVL_EX_ARRAY_PATTERN in object context. */
+static int eval_object_array_pattern(ivl_expr_t expr)
+{
+      static int warned_pattern_fallback = 0;
+      unsigned nparm = ivl_expr_parms(expr);
       int errors;
+      ivl_type_t agg_type;
 
       errors = eval_object_aggregate_literal_(expr);
       if (errors >= 0)
             return errors;
+
+      agg_type = ivl_expr_net_type(expr);
+      if (agg_type && (ivl_type_base(agg_type) == IVL_VT_QUEUE
+		       || ivl_type_base(agg_type) == IVL_VT_DARRAY))
+	    return eval_object_container_pattern_(expr, agg_type);
 
       if (nparm == 0) {
 	    fprintf(vvp_out, "    %%null; ; empty object array-pattern fallback\n");
 	    return 0;
       }
 
+      /* Compile-progress fallback: use the first element — and say so. */
+      if (!warned_pattern_fallback) {
+	    fprintf(stderr, "Warning: draw_eval_object: array pattern of"
+		    " unsupported aggregate type at %s:%u degrades to its"
+		    " first element (further similar warnings"
+		    " suppressed)\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    warned_pattern_fallback = 1;
+      }
       return draw_eval_object(ivl_expr_parm(expr, 0));
 }
 
