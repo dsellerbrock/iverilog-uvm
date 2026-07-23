@@ -1493,8 +1493,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	      // encode as a part-select on the current lv (read-modify-write at
 	      // runtime via %store/prop/v/bits).
 	      if (!owner_class && owner_struct && owner_struct->packed()) {
-		    perm_string field_name = peek_head_name(member_path);
-		    member_path.pop_front();
+		    const name_component_t&field_comp = member_path.front();
+		    perm_string field_name = field_comp.name;
 		    unsigned long member_off = 0;
 		    const netstruct_t::member_t*mbr =
 			  owner_struct->packed_member(field_name, member_off);
@@ -1519,8 +1519,78 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		    // falls back to the class handle's IVL_VT_CLASS, which
 		    // corrupts r-value elaboration (the assigned value comes out
 		    // as a null-handle test) and crashes the runtime.
-		    lv->set_part(new NetEConst(verinum((uint64_t)member_off, 64u)),
-				 mbr->net_type);
+		    // A bit/part-select ON the field (e.g. `.b[3:0]`) narrows
+		    // the write to a sub-range: compose the field base offset
+		    // within the struct with the canonical offset of the
+		    // sub-select so only those bits are written (else the whole
+		    // field is clobbered).
+		    long sub_off = 0;
+		    unsigned sub_wid = (unsigned)field_wid;
+		    ivl_type_t part_type = mbr->net_type;
+		    if (!field_comp.index.empty()) {
+			  const netvector_t*fvec =
+				dynamic_cast<const netvector_t*>(mbr->net_type);
+			  const index_component_t&fs = field_comp.index.front();
+			  bool ok = false;
+			  if (fvec && field_comp.index.size() == 1
+			      && fvec->packed_dims().size() == 1
+			      && fvec->packed_dims()[0].defined()) {
+				long bmsb = fvec->packed_dims()[0].get_msb();
+				long blsb = fvec->packed_dims()[0].get_lsb();
+				bool desc = bmsb >= blsb;
+				auto canon = [&](long i)->long {
+				      return desc ? (i-blsb) : (blsb-i); };
+				if (fs.sel == index_component_t::SEL_BIT
+				    && fs.msb && !fs.lsb) {
+				      NetExpr*ie = elab_and_eval(des, scope, fs.msb, -1);
+				      NetEConst*iec = dynamic_cast<NetEConst*>(ie);
+				      if (iec && iec->value().is_defined()) {
+					    sub_off = canon(iec->value().as_long());
+					    sub_wid = 1;
+					    part_type = new netvector_t(
+						  fvec->base_type(), 0, 0);
+					    ok = true;
+				      }
+				} else if (fs.sel == index_component_t::SEL_PART
+					   && fs.msb && fs.lsb) {
+				      NetExpr*me = elab_and_eval(des, scope, fs.msb, -1);
+				      NetExpr*le = elab_and_eval(des, scope, fs.lsb, -1);
+				      NetEConst*mec = dynamic_cast<NetEConst*>(me);
+				      NetEConst*lec = dynamic_cast<NetEConst*>(le);
+				      if (mec && lec && mec->value().is_defined()
+					  && lec->value().is_defined()) {
+					    long mv = mec->value().as_long();
+					    long lvv = lec->value().as_long();
+					    long ca = canon(mv), cb = canon(lvv);
+					    sub_off = ca < cb ? ca : cb;
+					    sub_wid = (unsigned)
+						  ((mv >= lvv ? mv-lvv : lvv-mv) + 1);
+					    part_type = new netvector_t(
+						  fvec->base_type(),
+						  (long)sub_wid - 1, 0);
+					    ok = true;
+				      }
+				}
+			  }
+			  if (!ok) {
+				cerr << get_fileline() << ": sorry: this form of "
+				     << "select on packed-struct field " << field_name
+				     << " (variable/indexed/nested) is not yet"
+				     << " supported." << endl;
+				des->errors += 1;
+				return 0;
+			  }
+		    }
+		    member_path.pop_front();
+
+		    /* Cast disambiguates `verinum(uint64_t, unsigned)` from the
+		       `verinum(V, unsigned, bool)` constructor. Pass the (sub-)
+		       field's own packed type so NetAssign_::net_type()/
+		       expr_type() report it (else expr_type() falls back to the
+		       handle's IVL_VT_CLASS and corrupts r-value elaboration). */
+		    lv->set_part(new NetEConst(
+				   verinum((uint64_t)(member_off + sub_off), 64u)),
+				 part_type);
 		    if (!member_path.empty()) {
 			  cerr << get_fileline() << ": warning: "
 			       << "Deeply nested packed struct field in VIF property "
