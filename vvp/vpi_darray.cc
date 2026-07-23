@@ -156,7 +156,8 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 	// as its default value by rendering a temporary default-constructed
 	// instance, matching the static-array element semantics; a nil class
 	// handle element renders as "null".
-      if (dynamic_cast<vvp_darray_object*>(aobj)) {
+      if (dynamic_cast<vvp_darray_object*>(aobj)
+	  || dynamic_cast<vvp_queue_object*>(aobj)) {
 	    switch (vp->format) {
 		case vpiObjTypeVal:
 		  vp->format = vpiIntVal;

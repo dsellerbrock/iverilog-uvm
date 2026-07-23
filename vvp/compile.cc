@@ -438,6 +438,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qshuffle",   of_QSHUFFLE, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qsize",      of_QSIZE,   1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qsize/o",    of_QSIZE_O, 0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%qslice",     of_QSLICE,  0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%qsort",      of_QSORT,   2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%qsort/keys", of_QSORT_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%qsort/r",    of_QSORT_R, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },

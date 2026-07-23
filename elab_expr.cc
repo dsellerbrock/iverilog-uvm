@@ -12752,6 +12752,25 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
 				           NetESignal*net, NetScope*,
                                            unsigned expr_wid) const
 {
+	// Queue/darray slice q[a:b] (IEEE 1800-2017 7.10.1): a NEW
+	// queue holding elements a..b. Lower to the runtime slice
+	// helper — the packed part-select machinery below asserted on
+	// the (empty) packed dims of a dynamic container signal.
+      if (net->sig()->darray_type() != 0) {
+	    const index_component_t&index_tail = path_.back().index.back();
+	    NetExpr*mse = elab_and_eval(des, scope, index_tail.msb, -1, false);
+	    NetExpr*lse = elab_and_eval(des, scope, index_tail.lsb, -1, false);
+	    if (!mse || !lse)
+		  return 0;
+	    NetESFunc*fn = new NetESFunc("$ivl_queue$slice",
+					 net->sig()->net_type(), 3);
+	    fn->set_line(*this);
+	    fn->parm(0, net);
+	    fn->parm(1, mse);
+	    fn->parm(2, lse);
+	    return fn;
+      }
+
       if (net->sig()->data_type() == IVL_VT_STRING) {
 	    cerr << get_fileline() << ": error: Cannot take the part select of a string ('"
 	         << net->name() << "')." << endl;

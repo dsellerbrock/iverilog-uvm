@@ -22,6 +22,7 @@
 # include  "class_type.h"
 # include  "vpi_priv.h"
 # include  "vvp_cobject.h"
+# include  "vvp_darray.h"
 # include  "vvp_net_sig.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -72,6 +73,51 @@ static class_type* get_declared_class_type_(vvp_fun_signal_object*fun)
    handle in vpi_vthr_vector.cc), and any other object string fetch. */
 std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
 {
+	// A container value (queue/darray element that is itself a
+	// queue or dynamic array — e.g. `int qq[$][$]`): render its
+	// elements recursively. Reading such an element through the
+	// vec4 path aborted the decimal formatter on a garbage width.
+      if (vvp_darray*da = obj.peek<vvp_darray>()) {
+	    if (depth > 32)
+		  return std::string("...");
+	    bool is_real = dynamic_cast<vvp_queue_real*>(da)
+		  || dynamic_cast<vvp_darray_real*>(da);
+	    bool is_str = dynamic_cast<vvp_queue_string*>(da)
+		  || dynamic_cast<vvp_darray_string*>(da);
+	    bool is_obj = dynamic_cast<vvp_queue_object*>(da)
+		  || dynamic_cast<vvp_darray_object*>(da);
+	    std::string out = "'{";
+	    size_t sz = da->get_size();
+	    for (size_t i = 0 ; i < sz ; i += 1) {
+		  if (i) out += ", ";
+		  if (is_real) {
+			double d = 0.0;
+			da->get_word(i, d);
+			char b[64];
+			snprintf(b, sizeof b, "%g", d);
+			out += b;
+		  } else if (is_str) {
+			std::string s;
+			da->get_word(i, s);
+			out += "\"";
+			out += s;
+			out += "\"";
+		  } else if (is_obj) {
+			vvp_object_t sub;
+			da->get_word(i, sub);
+			out += vvp_format_cobject_p(sub, depth+1);
+		  } else {
+			vvp_vector4_t v;
+			da->get_word(i, v);
+			char b[256];
+			vpip_vec4_to_dec_str(v, b, sizeof b, 0);
+			out += b;
+		  }
+	    }
+	    out += "}";
+	    return out;
+      }
+
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
       if (!cobj)
 	    return std::string("null");
@@ -97,11 +143,11 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
 		  out += "\"";
 		  out += cobj->get_string(i);
 		  out += "\"";
-	    } else if (!bt.empty() && bt[0] == 'o') {
+	    } else if (!bt.empty() && (bt[0] == 'o' || bt[0] == 'Q')) {
 		  vvp_object_t sub;
 		  cobj->get_object(i, sub, 0);
 		  out += vvp_format_cobject_p(sub, depth+1);
-	    } else if (!bt.empty() && (bt[0] == 'Q' || bt[0] == 'M')) {
+	    } else if (!bt.empty() && bt[0] == 'M') {
 		  out += "<container>";
 	    } else {
 		    // Integral property: read the vector and print in decimal.

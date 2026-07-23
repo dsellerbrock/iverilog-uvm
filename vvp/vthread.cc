@@ -2235,6 +2235,73 @@ bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
 /* Phase 63b/Q-methods: expression-form q.unique() — return a new
  * queue (on obj stack) containing each value from q at most once,
  * in order of first appearance.  Vec4 element type only for now. */
+/* Copy source elements [lo..hi] into a fresh queue of the matching
+ * element kind. */
+template <typename ELEM, class QTYPE>
+static vvp_object_t qslice_copy_(vvp_darray*src, int64_t lo, int64_t hi)
+{
+      QTYPE*dst = new QTYPE;
+      for (int64_t i = lo; i <= hi; i += 1) {
+	    ELEM v;
+	    src->get_word((unsigned)i, v);
+	    dst->push_back(v, 0);
+      }
+      return vvp_object_t(dst);
+}
+
+/*
+ * %qslice
+ *
+ * Queue slice q[msb:lsb] (IEEE 1800-2017 7.10.1). Pops the lsb bound,
+ * then the msb bound from the vec4 stack, pops the source queue/darray
+ * from the object stack, and pushes a NEW queue holding elements
+ * [msb..lsb] inclusive. Bounds are clamped to the source range; an
+ * inverted or fully out-of-range slice yields an empty queue.
+ */
+bool of_QSLICE(vthread_t thr, vvp_code_t)
+{
+      int64_t lsb = 0, msb = 0;
+      vvp_vector4_t lsv = thr->pop_vec4();
+      vvp_vector4_t msv = thr->pop_vec4();
+      vector4_to_value(lsv, lsb, true);
+      vector4_to_value(msv, msb, true);
+
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+
+      int64_t lo = msb;
+      int64_t hi = lsb;
+      if (src) {
+	    int64_t sz = (int64_t)src->get_size();
+	    if (lo < 0) lo = 0;
+	    if (hi >= sz) hi = sz - 1;
+      }
+
+      if (!src || lo > hi) {
+	    /* Empty slice: a fresh empty vec4 queue is a safe universal
+	       "no elements" value for reads. */
+	    thr->push_object(vvp_object_t(new vvp_queue_vec4));
+	    return true;
+      }
+
+      vvp_object_t out;
+      if (dynamic_cast<vvp_queue_real*>(src)
+	  || dynamic_cast<vvp_darray_real*>(src))
+	    out = qslice_copy_<double, vvp_queue_real>(src, lo, hi);
+      else if (dynamic_cast<vvp_queue_string*>(src)
+	       || dynamic_cast<vvp_darray_string*>(src))
+	    out = qslice_copy_<string, vvp_queue_string>(src, lo, hi);
+      else if (dynamic_cast<vvp_queue_object*>(src)
+	       || dynamic_cast<vvp_darray_object*>(src))
+	    out = qslice_copy_<vvp_object_t, vvp_queue_object>(src, lo, hi);
+      else
+	    out = qslice_copy_<vvp_vector4_t, vvp_queue_vec4>(src, lo, hi);
+
+      thr->push_object(out);
+      return true;
+}
+
 bool of_QUNIQUE_COPY(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);

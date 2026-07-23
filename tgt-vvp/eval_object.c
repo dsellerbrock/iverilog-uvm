@@ -1023,6 +1023,20 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    return 0;
       }
 
+      /* Queue slice q[a:b] (7.10.1): push the source container, the
+       * two bounds, and let %qslice build the element-range copy. */
+      if (strcmp(name, "$ivl_queue$slice") == 0) {
+	    if (parm_count != 3) {
+		  fprintf(vvp_out, "    %%null; ; qslice: bad parm count\n");
+		  return 0;
+	    }
+	    int errors = draw_eval_object(ivl_expr_parm(expr, 0));
+	    draw_eval_vec4(ivl_expr_parm(expr, 1));
+	    draw_eval_vec4(ivl_expr_parm(expr, 2));
+	    fprintf(vvp_out, "    %%qslice;\n");
+	    return errors;
+      }
+
       /* The empty queue literal `{}` (IEEE 1800-2017 7.10.4): push a
        * fresh EMPTY container of the context type. A null handle here
        * made q_of_q.push_back({}) store nil (G73). */

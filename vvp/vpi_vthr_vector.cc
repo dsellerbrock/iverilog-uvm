@@ -28,6 +28,7 @@
 # include  "class_type.h"
 # include  "vvp_cobject.h"
 # include  "vthread.h"
+# include  "vvp_darray.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
@@ -54,6 +55,12 @@ static std::string describe_thread_object_(const vvp_object_t&obj)
 	// element. Non-cobject objects (a nested darray/queue/string handle)
 	// have no property list to walk.
       if (obj.peek<vvp_cobject>())
+            return vvp_format_cobject_p(obj);
+
+	// A container value (queue/darray — e.g. a queue-slice
+	// expression q[1:2] passed to %p): the shared renderer walks
+	// its elements too.
+      if (obj.peek<vvp_darray>())
             return vvp_format_cobject_p(obj);
 
       return std::string("<object>");
