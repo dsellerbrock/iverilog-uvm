@@ -1137,4 +1137,5 @@ sv_inside_property_container normal,-g2012 ivltests
 sv_constraint_inside_container normal,-g2012 ivltests
 sv_queue_of_queues normal,-g2012 ivltests
 sv_queue_slice_p normal,-g2012 ivltests
+sv_assoc_queue_property normal,-g2012 ivltests
 sv_class_arrayprop_elem_select normal,-g2012 ivltests

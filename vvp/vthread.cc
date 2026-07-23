@@ -12345,6 +12345,53 @@ static bool aa_load_signal_obj_lval(vthread_t thr, vvp_net_t*net)
       return true;
 }
 
+static vvp_object_t make_queue_for_enc_(const char*text);
+
+/*
+ * %aa/loadlv/o/q/<keytype> "<elem-enc>"
+ *
+ * Get-or-create load of a QUEUE-valued associative element through an
+ * assoc receiver on the OBJECT stack (mutation contexts like
+ * c.aq[key].push_back(v) — a plain %aa/load/obj/* returns nil for a
+ * missing key and the mutation is silently dropped). Pops the key,
+ * PEEKS the assoc receiver, and pushes the element; a missing or nil
+ * element is first created as an empty queue of the encoded element
+ * kind and stored under the key.
+ */
+template <typename KEY>
+static bool aa_loadlv_o_queue(vthread_t thr, const char*enc)
+{
+      KEY key = pop_assoc_key_<KEY>(thr);
+
+      vvp_object_t value;
+      vvp_assoc_object*assoc = peek_assoc_receiver_<vvp_assoc_object>(thr);
+      bool have = assoc && assoc->get(key, value);
+
+      if (assoc && (!have || value.test_nil())) {
+	    value = make_queue_for_enc_(enc);
+	    if (!value.test_nil())
+		  assoc->set(key, value);
+      }
+
+      thr->push_object(value);
+      return true;
+}
+
+bool of_AA_LOADLV_O_Q_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_loadlv_o_queue<vvp_object_t>(thr, cp->text);
+}
+
+bool of_AA_LOADLV_O_Q_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_loadlv_o_queue<string>(thr, cp->text);
+}
+
+bool of_AA_LOADLV_O_Q_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_loadlv_o_queue<vvp_vector4_t>(thr, cp->text);
+}
+
 bool of_AA_LOADLV_SIG_OBJ_OBJ(vthread_t thr, vvp_code_t cp)
 {
       return aa_load_signal_obj_lval<vvp_object_t, vvp_assoc_object>(thr, cp->net);
@@ -13699,9 +13746,10 @@ bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-bool of_NEW_QUEUE(vthread_t thr, vvp_code_t cp)
+/* Make a fresh empty queue for the element-kind encoding used by
+ * %new/queue. Returns a nil object for an unknown encoding. */
+static vvp_object_t make_queue_for_enc_(const char*text)
 {
-      const char*text = cp->text;
       unsigned word_wid;
       size_t n;
 
@@ -13724,7 +13772,16 @@ bool of_NEW_QUEUE(vthread_t thr, vvp_code_t cp)
       } else if ((1 == sscanf(text, "sv%u%zn", &word_wid, &n))
 		 && (n == strlen(text))) {
 	    obj = new vvp_queue_vec4;
-      } else {
+      }
+      return obj;
+}
+
+bool of_NEW_QUEUE(vthread_t thr, vvp_code_t cp)
+{
+      const char*text = cp->text;
+
+      vvp_object_t obj = make_queue_for_enc_(text);
+      if (obj.test_nil()) {
 	    cerr << get_fileline()
 		 << "Internal error: Unsupported queue type: "
 		 << text << "." << endl;

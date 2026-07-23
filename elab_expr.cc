@@ -3945,6 +3945,19 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  stub_use_path.push_back(*it);
       }
 
+	// An INDEXED dynamic-container target (aq[k].pop_front(),
+	// qq[i].size()...): the property walk above already descended
+	// target_type to the ELEMENT type, so only the indexed flag
+	// needs clearing — the method applies to the element as an
+	// unindexed receiver (mirrors elaborate_method_dispatch_).
+	// Without this the width query gave up and the compile-progress
+	// stub typed the call CLASS, which the generic elab_and_eval
+	// then short-circuited to a constant 0 WITHOUT elaborating — a
+	// silently dropped pop/method call.
+      if (target_indexed && target_type
+	  && dynamic_cast<const netdarray_t*>(target_type))
+	    target_indexed = false;
+
       // Dynamic array variable without a select expression. The method
       // applies to the array itself, and not to the object that might be
       // indexed from it. So return
@@ -6323,16 +6336,6 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    return sel;
       }
 
-      if (comp.index.size() != 1) {
-	    if (!warned_multi_index_array_prop_fallback) {
-		  cerr << li->get_fileline() << ": warning: "
-		       << "Multi-index array properties not fully supported"
-		       << " (compile-progress fallback, using first index, "
-		       << "further similar warnings suppressed)." << endl;
-		  warned_multi_index_array_prop_fallback = true;
-	    }
-      }
-
       const index_component_t&idx_comp = comp.index.front();
       NetExpr*idx_expr = nullptr;
       if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
@@ -6361,6 +6364,13 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    elem_type = darr->element_type();
 	    elem_width = darr->element_width();
       } else {
+	    if (comp.index.size() != 1 && !warned_multi_index_array_prop_fallback) {
+		  cerr << li->get_fileline() << ": warning: "
+		       << "Multi-index array properties not fully supported"
+		       << " (compile-progress fallback, using first index, "
+		       << "further similar warnings suppressed)." << endl;
+		  warned_multi_index_array_prop_fallback = true;
+	    }
 	    delete idx_expr;
 	    out_type = prop_type;
 	    return prop_expr;
@@ -6369,12 +6379,48 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       if (elem_width == 0)
 	    elem_width = 1;
 
-      NetESelect*sel = elem_type
+      NetExpr*cur = elem_type
 	    ? new NetESelect(prop_expr, idx_expr, elem_width, elem_type)
 	    : new NetESelect(prop_expr, idx_expr, elem_width);
-      sel->set_line(*li);
-      out_type = elem_type;
-      return sel;
+      cur->set_line(*li);
+
+	// Consume TRAILING indices through nested container elements
+	// (iq[key][idx] on an assoc-of-queue property, qq[i][j]...).
+	// These used to be dropped with a "using first index" warning,
+	// so the read returned the whole inner container.
+      ivl_type_t cur_type = elem_type;
+      auto idx_it = comp.index.begin();
+      ++idx_it;
+      for (; idx_it != comp.index.end() ; ++idx_it) {
+	    const netdarray_t*da = dynamic_cast<const netdarray_t*>(cur_type);
+	    if (!da)
+		  break;
+	    NetExpr*ix = elab_and_eval(des, scope, idx_it->msb, -1, false);
+	    if (!ix) {
+		  delete cur;
+		  return 0;
+	    }
+	    unsigned ew = da->element_width();
+	    if (ew == 0)
+		  ew = 1;
+	    NetESelect*sel2 = da->element_type()
+		  ? new NetESelect(cur, ix, ew, da->element_type())
+		  : new NetESelect(cur, ix, ew);
+	    sel2->set_line(*li);
+	    cur = sel2;
+	    cur_type = da->element_type();
+      }
+      if (idx_it != comp.index.end()) {
+	    cerr << li->get_fileline() << ": sorry: this index chain on "
+		 << "property " << class_type->get_prop_name(pidx)
+		 << " is not yet supported." << endl;
+	    des->errors += 1;
+	    delete cur;
+	    return 0;
+      }
+
+      out_type = cur_type;
+      return cur;
 }
 
 static NetExpr* elaborate_root_indexed_class_base_expr_(const LineInfo*li,
@@ -8409,7 +8455,10 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 	// dynamic container (aq[k].size(), qa[i].num(), aa[k].sum(),
 	// aq[k].pop_back()...): the element expression IS the container
 	// receiver, so dispatch on the element type exactly as for an
-	// unindexed receiver.  The lowering paths evaluate non-signal
+	// unindexed receiver. NOTE: the nested-property helper already
+	// descended target_type to the ELEMENT type — only the indexed
+	// flag needs clearing here (descending again dispatched one
+	// level too deep). The lowering paths evaluate non-signal
 	// receivers through the object stack (IEEE 1800-2017 7.12 array
 	// methods apply to any unpacked array expression; 7.9/7.10 for
 	// the assoc/queue query methods).
