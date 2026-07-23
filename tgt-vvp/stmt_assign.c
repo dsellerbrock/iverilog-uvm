@@ -66,6 +66,13 @@ struct vec_slice_info {
 
 	    struct {
 		  unsigned long use_word;
+		    /* Constant bit offset of a part-select ON the word
+		       (arr[i][m:l] op= ...); part_wid != 0 marks a partial
+		       slice (it can be offset 0 with a narrow width). */
+		  unsigned long part_off;
+		  unsigned part_wid;
+		    /* Reg holding a DYNAMIC part offset, or 0. */
+		  int part_off_reg;
 	    } memory_word_static;
 
 	    struct {
@@ -73,6 +80,10 @@ struct vec_slice_info {
 		  int word_idx_reg;
 		    /* Stored x/non-x flag */
 		  unsigned x_flag;
+		    /* Partial slice on the word: see memory_word_static. */
+		  unsigned long part_off;
+		  unsigned part_wid;
+		  int part_off_reg;
 	    } memory_word_dynamic;
       } u_;
 };
@@ -180,11 +191,33 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 
 	    slice->type = SLICE_MEMORY_WORD_STATIC;
 	    slice->u_.memory_word_static.use_word = use_word;
+	    slice->u_.memory_word_static.part_off = part_off;
+	    slice->u_.memory_word_static.part_wid =
+		  (wid < ivl_signal_width(sig) || part_off != 0) ? wid : 0;
+	    slice->u_.memory_word_static.part_off_reg = 0;
 	    if (use_word < ivl_signal_array_count(sig)) {
 		  fprintf(vvp_out, "    %%ix/load 3, %lu, 0;\n",
 			  use_word);
 		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 		  fprintf(vvp_out, "    %%load/vec4a v%p, 3;\n", sig);
+		    /* A part-select ON the array word (arr[i][m:l] op= ...):
+		       extract the part so the compound opcode sees matching
+		       operand widths. The old code loaded the WHOLE word,
+		       crashing %add/%xor on width mismatch and applying |=
+		       to the entire element; the store side then wrote back
+		       at offset 0. */
+		  if (part_off_ex) {
+			slice->u_.memory_word_static.part_off_reg = allocate_word();
+			slice->u_.memory_word_static.part_wid = wid;
+			draw_eval_vec4(part_off_ex);
+			fprintf(vvp_out, "    %%dup/vec4;\n");
+			fprintf(vvp_out, "    %%ix/vec4 %d;\n",
+				slice->u_.memory_word_static.part_off_reg);
+			fprintf(vvp_out, "    %%part/u %u;\n", wid);
+		  } else if (slice->u_.memory_word_static.part_wid) {
+			fprintf(vvp_out, "    %%parti/u %u, %lu, 32;\n",
+				wid, part_off);
+		  }
 	    } else {
 		  if (wid <= 32) {
 			fprintf(vvp_out, "    %%pushi/vec4 4294967295, 4294967295, %u;\n", wid);
@@ -201,11 +234,29 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 
 	    slice->u_.memory_word_dynamic.word_idx_reg = allocate_word();
 	    slice->u_.memory_word_dynamic.x_flag = allocate_flag();
+	    slice->u_.memory_word_dynamic.part_off = part_off;
+	    slice->u_.memory_word_dynamic.part_wid =
+		  (wid < ivl_signal_width(sig) || part_off != 0) ? wid : 0;
+	    slice->u_.memory_word_dynamic.part_off_reg = 0;
 
 		  draw_eval_expr_into_integer(word_ix, slice->u_.memory_word_dynamic.word_idx_reg);
 		  fprintf(vvp_out, "    %%flag_mov %u, 4;\n", slice->u_.memory_word_dynamic.x_flag);
 		  note_array_signal_use(sig);
 		  fprintf(vvp_out, "    %%load/vec4a v%p, %d;\n", sig, slice->u_.memory_word_dynamic.word_idx_reg);
+		    /* Part-select on the dynamically-indexed word: see the
+		       static-word branch above. */
+		  if (part_off_ex) {
+			slice->u_.memory_word_dynamic.part_off_reg = allocate_word();
+			slice->u_.memory_word_dynamic.part_wid = wid;
+			draw_eval_vec4(part_off_ex);
+			fprintf(vvp_out, "    %%dup/vec4;\n");
+			fprintf(vvp_out, "    %%ix/vec4 %d;\n",
+				slice->u_.memory_word_dynamic.part_off_reg);
+			fprintf(vvp_out, "    %%part/u %u;\n", wid);
+		  } else if (slice->u_.memory_word_dynamic.part_wid) {
+			fprintf(vvp_out, "    %%parti/u %u, %lu, 32;\n",
+				wid, part_off);
+		  }
 
       } else {
 	    assert(0);
@@ -342,24 +393,47 @@ static void put_vec_to_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 	  case SLICE_MEMORY_WORD_STATIC:
 	    if (slice->u_.memory_word_static.use_word < ivl_signal_array_count(sig)) {
 		  int word_idx = allocate_word();
+		  int off_idx = slice->u_.memory_word_static.part_off_reg;
 		  fprintf(vvp_out,"    %%flag_set/imm 4, 0;\n");
 		  fprintf(vvp_out,"    %%ix/load %d, %lu, 0;\n", word_idx, slice->u_.memory_word_static.use_word);
 		  note_array_signal_use(sig);
-		  fprintf(vvp_out,"    %%store/vec4a v%p, %d, 0;\n", sig, word_idx);
+		    /* Partial slice: store back AT the part offset — the runtime
+		       set_word(adr, off, val) read-modify-writes the word (a
+		       narrow in-bounds value is left alone by resize_rval_vec).
+		       The old code always stored at offset 0. */
+		  if (!off_idx && slice->u_.memory_word_static.part_wid
+		      && slice->u_.memory_word_static.part_off) {
+			off_idx = allocate_word();
+			fprintf(vvp_out,"    %%ix/load %d, %lu, 0;\n",
+				off_idx, slice->u_.memory_word_static.part_off);
+		  }
+		  fprintf(vvp_out,"    %%store/vec4a v%p, %d, %d;\n", sig,
+			  word_idx, off_idx);
 		  clr_word(word_idx);
+		  if (off_idx) clr_word(off_idx);
 	    } else {
 		  fprintf(vvp_out," ; Skip this slice write to v%p [%lu]\n", sig, slice->u_.memory_word_static.use_word);
 		  fprintf(vvp_out,"    %%pop/vec4 1;\n");
 	    }
 	    break;
 
-	  case SLICE_MEMORY_WORD_DYNAMIC:
+	  case SLICE_MEMORY_WORD_DYNAMIC: {
+	    int off_idx = slice->u_.memory_word_dynamic.part_off_reg;
 	    fprintf(vvp_out, "    %%flag_mov 4, %u;\n", slice->u_.memory_word_dynamic.x_flag);
 	    note_array_signal_use(sig);
-	    fprintf(vvp_out, "    %%store/vec4a v%p, %d, 0;\n", sig, slice->u_.memory_word_dynamic.word_idx_reg);
+	    if (!off_idx && slice->u_.memory_word_dynamic.part_wid
+		&& slice->u_.memory_word_dynamic.part_off) {
+		  off_idx = allocate_word();
+		  fprintf(vvp_out,"    %%ix/load %d, %lu, 0;\n",
+			  off_idx, slice->u_.memory_word_dynamic.part_off);
+	    }
+	    fprintf(vvp_out, "    %%store/vec4a v%p, %d, %d;\n", sig,
+		    slice->u_.memory_word_dynamic.word_idx_reg, off_idx);
 	    clr_word(slice->u_.memory_word_dynamic.word_idx_reg);
+	    if (off_idx) clr_word(off_idx);
 	    clr_flag(slice->u_.memory_word_dynamic.x_flag);
 	    break;
+	  }
 
       }
 }
