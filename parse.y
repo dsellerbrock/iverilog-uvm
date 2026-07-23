@@ -1089,6 +1089,14 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       sva_prop_case_item_t* sva_case_item;
       std::vector<sva_prop_case_item_t>* sva_case_items;
 
+      // M3B-2: randsequence productions.
+      rs_item_t* rs_item;
+      std::vector<rs_item_t>* rs_item_list;
+      rs_rule_t* rs_rule;
+      std::vector<rs_rule_t>* rs_rule_list;
+      rs_production_t* rs_production;
+      std::vector<rs_production_t>* rs_production_list;
+
       decl_assignment_t*decl_assignment;
       std::list<decl_assignment_t*>*decl_assignments;
 
@@ -1307,6 +1315,12 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <sva_seq>  sva_seq_expr sva_seq_atom
 %type <sva_case_item>  property_case_item
 %type <sva_case_items> property_case_items
+%type <rs_item>           rs_prod_item
+%type <rs_item_list>      rs_prod_item_list
+%type <rs_rule>           rs_rule
+%type <rs_rule_list>      rs_rule_list
+%type <rs_production>     rs_production
+%type <rs_production_list> rs_production_list
 %type <perm_strings> cross_item_list
 
 %type <named_pexprs> enum_name_list enum_name
@@ -2706,6 +2720,10 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
      expression so the soft flag is invisible there. */
   | K_soft expression ';'
       { PESoft*tmp = new PESoft($2); FILE_NAME(tmp, @1); $$ = tmp; }
+  /* M3B-3: `disable soft <variable>;' (IEEE 1800-2017 18.5.14.1) removes
+     soft constraints on the variable for this randomize() call. */
+  | K_disable K_soft expression ';'
+      { PEDisableSoft*tmp = new PEDisableSoft($3); FILE_NAME(tmp, @1); $$ = tmp; }
   | K_soft expression K_dist '{' dist_list_opt '}' ';'
       { if ($5) {
               PEInside*tmp = new PEInside($2, $5);
@@ -13176,6 +13194,17 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
 
+  /* M3B-2: randsequence (IEEE 1800-2017 18.17). Expanded to procedural
+     code (weighted PRandCase over alternatives + sequential blocks). */
+  | K_randsequence '(' ')' rs_production_list K_endsequence
+      { $$ = pform_make_randsequence(@1, perm_string(), $4); }
+  | K_randsequence '(' IDENTIFIER ')' rs_production_list K_endsequence
+      { $$ = pform_make_randsequence(@1, lex_strings.make($3), $5);
+	delete[] $3; }
+  | K_randsequence '(' error ')' rs_production_list K_endsequence
+      { yyerrok;
+	$$ = pform_make_randsequence(@1, perm_string(), $5); }
+
   | K_if '(' expression ')' statement_or_null %prec less_than_K_else
       { PCondit*tmp = new PCondit($3, $5, 0);
 	FILE_NAME(tmp, @1);
@@ -13794,6 +13823,57 @@ statement_item /* This is roughly statement_item in the LRM */
   | package_import_declaration
       { $$ = new PNoop; }
 
+  ;
+
+  /* M3B-2: randsequence production grammar (IEEE 1800-2017 A.5.2, subset).
+     A production is `name : rule | rule | ... ;'; a rule is a sequence of
+     items with an optional `:= weight'; an item is a non-terminal name or
+     an inline `{ statement }' code block. */
+rs_production_list
+  : rs_production
+      { $$ = new std::vector<rs_production_t>; $$->push_back(*$1); delete $1; }
+  | rs_production_list rs_production
+      { $1->push_back(*$2); delete $2; $$ = $1; }
+  ;
+
+rs_production
+  : IDENTIFIER ':' rs_rule_list ';'
+      { rs_production_t*p = new rs_production_t;
+	p->name = lex_strings.make($1); p->rules = $3;
+	delete[] $1; $$ = p; }
+  ;
+
+rs_rule_list
+  : rs_rule
+      { $$ = new std::vector<rs_rule_t>; $$->push_back(*$1); delete $1; }
+  | rs_rule_list '|' rs_rule
+      { $1->push_back(*$3); delete $3; $$ = $1; }
+  ;
+
+rs_rule
+  : rs_prod_item_list
+      { rs_rule_t*r = new rs_rule_t; r->items = $1; r->weight = nullptr; $$ = r; }
+  /* Weight `:= <expr>' (IEEE 1800-2017 18.17.2). A restricted primary
+     (number/identifier/parenthesized) avoids swallowing the `|'
+     alternative separator as a bitwise-or operator. */
+  | rs_prod_item_list ':' '=' expr_primary
+      { rs_rule_t*r = new rs_rule_t; r->items = $1; r->weight = $4; $$ = r; }
+  ;
+
+rs_prod_item_list
+  : rs_prod_item
+      { $$ = new std::vector<rs_item_t>; $$->push_back(*$1); delete $1; }
+  | rs_prod_item_list rs_prod_item
+      { $1->push_back(*$2); delete $2; $$ = $1; }
+  ;
+
+rs_prod_item
+  : IDENTIFIER
+      { rs_item_t*i = new rs_item_t;
+	i->name = lex_strings.make($1); i->code = nullptr;
+	delete[] $1; $$ = i; }
+  | '{' statement_or_null '}'
+      { rs_item_t*i = new rs_item_t; i->code = $2; $$ = i; }
   ;
 
 compressed_operator

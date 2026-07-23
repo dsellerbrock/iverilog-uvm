@@ -12861,6 +12861,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    return "(soft " + s + ")";
       }
 
+      // M3B-3: `disable soft <var>` -> `(disable-soft <var>)`. The Z3
+      // backend drops any pending soft assert that references the operand's
+      // property before applying soft asserts.
+      if (const PEDisableSoft*ds = dynamic_cast<const PEDisableSoft*>(expr)) {
+	    string s = pexpr_to_constraint_ir(ds->get_inner(), cls, value_slots, scope, loop_env);
+	    if (s.empty() || s[0] == '?') return "";
+	    return "(disable-soft " + s + ")";
+      }
+
 	// Conditional constraint sets: if-else (IEEE 1800-2017 18.5.7)
 	// and "cond -> { ... }" implication sets (18.5.6). Lower to
 	// (impl C then) [and (impl (not C) else)].

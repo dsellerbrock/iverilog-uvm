@@ -168,10 +168,20 @@ silent-miscompile gap; it is deferred rather than rushed.
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
 | M3B-1 | `randcase` / `std::randomize(var)` / `unique {}` | F | **DONE** | — | tests landed |
-| M3B-2 | `randsequence` | F | OPEN | — | production grammar → weighted lowering |
-| M3B-3 | `disable soft` | F | OPEN | — | soft-constraint removal honored |
+| M3B-2 | `randsequence` | F | **DONE** | — | productions/sequences/nesting/weighted alternatives via source-level expansion; recursion/reuse is a loud sorry |
+| M3B-3 | `disable soft` | F | **DONE** | — | soft constraints on the named variable dropped for the randomize() call |
 | M3B-4 | Reaudit `rand_mode` / `constraint_mode` combinations | A | OPEN | — | all combos correct incl. per-field |
 | M3B-5 | Seed-stability + failed-randomization state tests | A | OPEN | — | deterministic seed + fail-state coverage |
+
+**M3B-2 note.** `randsequence` is lowered by source-level expansion from
+the start production: sequences become blocks, alternatives become a
+weighted `PRandCase` (the same lowering as `randcase`), code blocks and
+non-terminals expand in place. Because pform statements cannot be
+duplicated, each production is expanded at most once; a production
+referenced more than once or a recursive grammar is a **loud sorry** (needs
+a task/automaton lowering — future work). No silent-miscompile gap.
+Advanced production features (`rand join`, `repeat`/`case` productions,
+production value/args, `break`/`return`) are not yet parsed.
 
 ### M6B — scheduler conformance  (clause 4)
 
@@ -350,15 +360,18 @@ combinators) · M1B-3a (type-parameter aggregate property method miscompile) ·
 dual-run). M4B-1/M4B-2 (struct value-copy through args/return + nested deep copy) were
 verified already-working in prior sessions; M1B-3's remaining fallbacks are already loud.
 
-1. **M3B-2 / M3B-3** — `randsequence`, `disable soft` (FEATURE; unblocked;
-   self-contained). **Current top pick.** M5-1/2/3/4 are DONE; the only M5
-   remainder is **M5-5** (generic `interface` ports), a larger
-   per-instantiation-typing arc deferred with a loud sorry.
-2. **M3B-2 / M3B-3** — `randsequence`, `disable soft` (FEATURE; no arch dependency).
-3. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
+Also DONE this session: M5-3/M5-4 (vif runtime-index array binding + `$unit`/package-scope
+vif decls) and M3B-2/M3B-3 (`randsequence` + `disable soft`). Remaining M5/M3B items are
+the larger deferred arcs (M5-5 generic interface ports) and audits (M3B-4/5).
+
+1. **M1B-4 / M4B-3** — adversarial parameterized-specialization + nested-container
+   audits (AUDIT; high ROI — this class is what surfaced the M1B-3a silent
+   miscompile). **Current top pick:** correctness-adjacent, and the remaining
+   FEATURE items are each a larger arc (M9-9 checker, M5-5 generic ports, ARCH-2).
+2. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
    UVM value). M9-7 residual multiclock forms alongside.
-4. **M1B-4 / M4B-3** — adversarial specialization + nested-container audits (AUDIT;
-   high ROI, may surface new silent miscompiles — interleave).
+3. **M5-5** — generic `interface` ports (FEATURE; per-instantiation-typing arc).
+4. **M3B-4 / M3B-5** — `rand_mode`/`constraint_mode` reaudit, seed-stability (AUDIT).
 5. **M10-1** — multidimensional open arrays (FEATURE; DPI export M10-2 needs ARCH-2).
 6. **ARCH-2 · M6-CALLF** — big rock; unblocks DPI export + `expect` + time-consuming DPI.
 7. **M14B** subclause campaign → **M15** 2023 delta.

@@ -39,6 +39,7 @@
 # include  "discipline.h"
 # include  <list>
 # include  <map>
+# include  <set>
 # include  <cassert>
 # include  <stack>
 # include  <typeinfo>
@@ -4617,6 +4618,132 @@ void pform_set_clocking_default_skews(const struct vlltype&loc,
 {
       if (pform_cur_clocking == 0) return;
       pform_cur_clocking->set_default_skews(in_skew, out_skew);
+}
+
+/*
+ * M3B-2: randsequence (IEEE 1800-2017 18.17). Lower the production grammar
+ * to procedural code by source-level expansion from the start production:
+ *   - a production with one alternative -> a sequential block of its items;
+ *   - a production with >1 alternatives -> a weighted PRandCase (the same
+ *     lowering as `randcase`) selecting one alternative;
+ *   - a code-block item -> its statement (moved in);
+ *   - a non-terminal item -> the recursively expanded production.
+ * Because statements cannot be duplicated, each production is expanded at
+ * most once across the whole randsequence; a production referenced more
+ * than once, or a cyclic (recursive) grammar, is a loud sorry rather than
+ * a silent miscompile — such grammars need the automaton/task lowering,
+ * which is future work.
+ */
+static Statement* pform_rs_expand_(const struct vlltype&loc, perm_string name,
+				   std::map<perm_string,rs_production_t*>&pmap,
+				   std::set<perm_string>&used, bool&bad);
+
+static Statement* pform_rs_expand_rule_(const struct vlltype&loc,
+					rs_rule_t&rule,
+					std::map<perm_string,rs_production_t*>&pmap,
+					std::set<perm_string>&used, bool&bad)
+{
+      std::vector<Statement*> stmts;
+      if (rule.items) {
+	    for (size_t i = 0 ; i < rule.items->size() ; i += 1) {
+		  rs_item_t&it = (*rule.items)[i];
+		  Statement*s = nullptr;
+		  if (it.code) { s = it.code; it.code = nullptr; }  /* move */
+		  else s = pform_rs_expand_(loc, it.name, pmap, used, bad);
+		  if (s) stmts.push_back(s);
+	    }
+      }
+      PBlock*blk = new PBlock(PBlock::BL_SEQ);
+      FILE_NAME(blk, loc);
+      blk->set_statement(stmts);
+      return blk;
+}
+
+static Statement* pform_rs_expand_(const struct vlltype&loc, perm_string name,
+				   std::map<perm_string,rs_production_t*>&pmap,
+				   std::set<perm_string>&used, bool&bad)
+{
+      std::map<perm_string,rs_production_t*>::iterator it = pmap.find(name);
+      if (it == pmap.end()) {
+	    cerr << loc << ": error: randsequence production `" << name
+		 << "' is not defined." << endl;
+	    error_count += 1; bad = true;
+	    return nullptr;
+      }
+      if (used.count(name)) {
+	    cerr << loc << ": sorry: randsequence production `" << name
+		 << "' is referenced more than once (or recursively); the "
+		 << "source-level expansion supports each production at most "
+		 << "once. Rewrite the grammar without production reuse." << endl;
+	    error_count += 1; bad = true;
+	    return nullptr;
+      }
+      used.insert(name);
+
+      rs_production_t*p = it->second;
+      if (!p->rules || p->rules->empty()) {
+	    PBlock*blk = new PBlock(PBlock::BL_SEQ);
+	    FILE_NAME(blk, loc);
+	    return blk;
+      }
+      if (p->rules->size() == 1)
+	    return pform_rs_expand_rule_(loc, (*p->rules)[0], pmap, used, bad);
+
+	/* >1 alternatives: a weighted PRandCase (18.17.2). */
+      std::vector<PCase::Item*>*items = new std::vector<PCase::Item*>;
+      for (size_t r = 0 ; r < p->rules->size() ; r += 1) {
+	    rs_rule_t&rule = (*p->rules)[r];
+	    Statement*s = pform_rs_expand_rule_(loc, rule, pmap, used, bad);
+	    PCase::Item*ci = new PCase::Item;
+	    PExpr*w = rule.weight;
+	    rule.weight = nullptr;   /* moved */
+	    if (!w) w = new PENumber(new verinum((uint64_t)1, 32));
+	    ci->expr.push_back(w);
+	    ci->stat = s ? s : new PBlock(PBlock::BL_SEQ);
+	    items->push_back(ci);
+      }
+      PRandCase*rc = new PRandCase(items);
+      FILE_NAME(rc, loc);
+      return rc;
+}
+
+Statement* pform_make_randsequence(const struct vlltype&loc, perm_string start,
+				   std::vector<rs_production_t>*prods)
+{
+      if (!prods || prods->empty()) {
+	    delete prods;
+	    return new PBlock(PBlock::BL_SEQ);
+      }
+
+      std::map<perm_string,rs_production_t*> pmap;
+      for (size_t i = 0 ; i < prods->size() ; i += 1)
+	    pmap[(*prods)[i].name] = &(*prods)[i];
+
+      perm_string start_name = start;
+      if (start_name.nil())
+	    start_name = (*prods)[0].name;
+
+      std::set<perm_string> used;
+      bool bad = false;
+      Statement*body = pform_rs_expand_(loc, start_name, pmap, used, bad);
+
+	/* Free the production containers. Item code-blocks and rule weights
+	   were moved into the expanded tree (or dropped on the bad path). */
+      for (size_t i = 0 ; i < prods->size() ; i += 1) {
+	    rs_production_t&pr = (*prods)[i];
+	    if (pr.rules) {
+		  for (size_t r = 0 ; r < pr.rules->size() ; r += 1)
+			delete (*pr.rules)[r].items;
+		  delete pr.rules;
+	    }
+      }
+      delete prods;
+
+      if (!body) {
+	    body = new PBlock(PBlock::BL_SEQ);
+	    FILE_NAME(body, loc);
+      }
+      return body;
 }
 
 void pform_end_clocking_block(const struct vlltype&loc)

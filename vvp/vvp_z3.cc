@@ -398,8 +398,17 @@ struct Z3Builder {
       // optimize even if hard constraints are already satisfied) from
       // `dist` branches (probabilistic — bvxor diversity randomizes the
       // pick across branches; early-return on hard satisfaction is OK).
-      struct SoftAssert { Z3_ast a; unsigned weight; bool from_soft_kw; };
+      struct SoftAssert { Z3_ast a; unsigned weight; bool from_soft_kw;
+			  std::set<int> prop_refs; };
       vector<SoftAssert> pending_soft;
+      // M3B-3 (`disable soft <var>`, IEEE 1800-2017 18.5.14.1): property
+      // indices whose soft constraints are disabled for this randomize().
+      // A pending soft assert that references any of these is dropped
+      // before it is applied. collect_prop_refs, when non-null, gathers the
+      // property indices seen while building one soft constraint's inner
+      // expression.
+      std::set<int> disabled_soft_props;
+      std::set<int>* collect_prop_refs = nullptr;
       bool any_soft_kw_assert() const {
             for (const auto& s : pending_soft) if (s.from_soft_kw) return true;
             return false;
@@ -518,6 +527,7 @@ static Z3_ast parse_prop(IRParser&, Z3Builder& b, const string& tok)
       bool sflag = (*s == ':' && s[1] == 's');
       Z3_ast var = b.get_prop_var(idx, width);
       if (sflag) b.signed_vars.insert(var);
+      if (b.collect_prop_refs) b.collect_prop_refs->insert((int)idx);
       return var;
 }
 
@@ -991,11 +1001,32 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    // — soft constraints get satisfied unless a hard conflict.
 	    // Hard constraints still take priority (soft asserts are
 	    // optional by definition).
+	    std::set<int> refs;
+	    std::set<int>* saved = b.collect_prop_refs;
+	    b.collect_prop_refs = &refs;
 	    Z3_ast inner = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    b.collect_prop_refs = saved;
 	    par.skip_ws();
 	    par.expect(')');
-	    Z3Builder::SoftAssert sa = { inner, 256, true /* from_soft_kw */ };
+	    Z3Builder::SoftAssert sa = { inner, 256, true /* from_soft_kw */, refs };
 	    b.pending_soft.push_back(sa);
+	    return b.mk_true();
+      }
+
+      if (op == "disable-soft") {
+	    // M3B-3: `disable soft <var>;` — record the property index(es) in
+	    // the operand so any soft constraint referencing them is dropped
+	    // before the pending soft asserts are applied. The operand is a
+	    // plain variable reference (or a small expression over one); we
+	    // collect every property it mentions.
+	    std::set<int> refs;
+	    std::set<int>* saved = b.collect_prop_refs;
+	    b.collect_prop_refs = &refs;
+	    (void) build_z3_atom(par, b);
+	    b.collect_prop_refs = saved;
+	    par.skip_ws();
+	    par.expect(')');
+	    for (int r : refs) b.disabled_soft_props.insert(r);
 	    return b.mk_true();
       }
 
@@ -1300,6 +1331,15 @@ static bool z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // weight; Z3_optimize_assert_soft prefers higher-weight branches when
       // multiple feasible solutions exist.
       for (const auto& sa : builder.pending_soft) {
+	    // M3B-3: drop a soft assert that references a `disable soft'd
+	    // property (regardless of the order the two constraint blocks
+	    // were parsed — disabled_soft_props is complete by now).
+	    if (!builder.disabled_soft_props.empty()) {
+		  bool disabled = false;
+		  for (int r : sa.prop_refs)
+			if (builder.disabled_soft_props.count(r)) { disabled = true; break; }
+		  if (disabled) continue;
+	    }
 	    char w_str[32];
 	    snprintf(w_str, sizeof(w_str), "%u", sa.weight);
 	    Z3_symbol grp = Z3_mk_string_symbol(ctx, "dist");

@@ -273,6 +273,7 @@ extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
 struct sva_property_t;
 struct sva_seq_step_t;
 struct sva_prop_case_item_t;
+struct rs_production_t;
 extern void pform_make_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
 				 Statement*fail_stmt, Statement*pass_stmt,
@@ -443,6 +444,15 @@ pform_sva_prop_if(const struct vlltype&loc, PExpr*cond, sva_property_t*then_p,
 extern sva_property_t*
 pform_sva_case(const struct vlltype&loc, PExpr*sel,
 	       std::vector<sva_prop_case_item_t>*items);
+/* M3B-2: expand a `randsequence' (IEEE 1800-2017 18.17) into procedural
+   code. `start' is the initial production (empty => the first listed).
+   Alternatives lower to a weighted PRandCase; a production sequence lowers
+   to a block; a non-terminal reference expands recursively (a cyclic
+   grammar is a loud sorry — the source-level expansion cannot unroll it).
+   Consumes the production list. */
+extern Statement* pform_make_randsequence(const struct vlltype&loc,
+					  perm_string start,
+					  std::vector<rs_production_t>*prods);
 extern void pform_end_clocking_block(const struct vlltype&loc);
 /* `default clocking <id>;` — select an existing clocking block as the
    scope default (IEEE 1800-2017 14.12). Existence is checked at
