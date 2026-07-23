@@ -113,9 +113,52 @@ static PLI_INT32 sys_cast_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
 
       vpiHandle dest_h = vpi_scan(argv);
       vpiHandle src_h  = vpi_scan(argv);
-      vpi_free_object(argv);
+      vpiHandle enum_ts = src_h ? vpi_scan(argv) : 0;
+      if (!enum_ts)
+            argv = 0;      /* iterator auto-freed by the final vpi_scan */
+      if (argv)
+            vpi_free_object(argv);
 
       int ok = 1;
+
+      /* Enum destination (hidden third argument = the enum typespec,
+         appended by elaboration): the cast succeeds only if the source
+         value matches a member (IEEE 1800-2017 6.19.4/8.16); on failure
+         the destination is left unmodified and 0 is returned. Members
+         wider than 32 bits fall back to accepting (limitation). */
+      if (dest_h && src_h && enum_ts
+          && vpi_get(vpiType, enum_ts) == vpiEnumTypespec) {
+            s_vpi_value sv;
+            sv.format = vpiIntVal;
+            vpi_get_value(src_h, &sv);
+            PLI_INT32 src_val = sv.value.integer;
+            int found = 0;
+            int too_wide = 0;
+            vpiHandle members = vpi_iterate(vpiEnumConst, enum_ts);
+            if (members) {
+                  vpiHandle m;
+                  while ((m = vpi_scan(members))) {
+                        if (vpi_get(vpiSize, m) > 32) { too_wide = 1; continue; }
+                        s_vpi_value mv;
+                        mv.format = vpiIntVal;
+                        vpi_get_value(m, &mv);
+                        if (mv.value.integer == src_val)
+                              found = 1;
+                  }
+            }
+            ok = found || too_wide;
+            if (ok) {
+                  s_vpi_value v;
+                  v.format = vpiIntVal;
+                  v.value.integer = src_val;
+                  vpi_put_value(dest_h, &v, 0, vpiNoDelay);
+            }
+            s_vpi_value rv2;
+            rv2.format = vpiIntVal;
+            rv2.value.integer = ok;
+            vpi_put_value(callh, &rv2, 0, vpiNoDelay);
+            return 0;
+      }
 
       if (dest_h && src_h) {
             vpiHandle dest_type = vpi_handle(vpiClassTypespec, dest_h);
