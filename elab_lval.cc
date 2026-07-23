@@ -1740,34 +1740,21 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 		  } else if (const netvector_t*pvec =
 			     dynamic_cast<const netvector_t*>(ptype)) {
-			// A bit- or part-select of a packed-vector member.
-			//
-			// For a true class-OBJECT property (owner_class set) this
-			// is a PARTIAL WRITE into the object property vector, and
-			// must become a read-modify-write (set_part) so the other
-			// bits are preserved. Using the old array word-index path
-			// (set_word) mis-treats the property vector as an unpacked
-			// array and crashes the runtime; a whole-property store
-			// silently clobbers the untouched bits.
-			//
-			// For a plain struct member (owner_struct, e.g. an
-			// unpacked-struct field like uvm_reg_bus_op.byte_en[z])
-			// the historical word-index path is correct and exercised;
-			// preserve it unchanged.
+			// A bit- or part-select of a packed-vector member is a
+			// PARTIAL WRITE. This applies both to a class-OBJECT
+			// property (owner_class) and to a member of a plain
+			// UNPACKED struct (owner_struct): both are cobject-backed
+			// and expose the same vec4 property API, so both must
+			// read-modify-write (set_part) the vector rather than
+			// store the whole property (which silently clobbers the
+			// untouched bits) or set a word index (which mis-treats
+			// the vector as an unpacked array and crashes the
+			// runtime). Constant offsets fold to a NetEConst; run-time
+			// offsets flow to the %store/prop/v/bits/x codegen path.
 			const netranges_t&dims = pvec->packed_dims();
 			const index_component_t&sel = member_cur.index.front();
 
-			if (!owner_class) {
-			      // Struct member: preserve prior behavior. A single
-			      // constant/variable bit-select becomes a word index;
-			      // other forms degrade as before (compile progress).
-			      if (member_cur.index.size() == 1
-				  && sel.sel == index_component_t::SEL_BIT
-				  && sel.msb && !sel.lsb) {
-				    word_index = elab_and_eval(des, scope,
-							       sel.msb, -1);
-			      }
-			} else {
+			{
 			      bool handled = false;
 
 			      if (member_cur.index.size() == 1 && dims.size() == 1
@@ -1892,7 +1879,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      if (!handled) {
 				    cerr << get_fileline() << ": sorry: "
 					 << "This form of partial write to packed "
-					 << "vector class property " << method_name
+					 << "vector member " << method_name
 					 << " (unsupported select form) is not"
 					 << " yet supported." << endl;
 				    des->errors += 1;

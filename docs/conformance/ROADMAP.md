@@ -141,7 +141,7 @@ type-inference path for the same underlying shape and may now be removable
 | M4B-3 | Adversarial nested-container testing | A | **DONE** | — | queue-of-struct, struct-of-darray, assoc-of-queue, class-of-queue-of-struct verified; array-of-queue is a loud sorry (known); the partial-write bug (M1B-5) surfaced here too |
 | M4B-4 | `%p` on packed struct → `'{member:val}` (prints one decimal) | F | OPEN (deferred, cosmetic) | — | packed struct prints member pattern |
 | M4B-5 | `%p` nested unpacked dims print nested not flat | F | OPEN (deferred, cosmetic) | — | multi-dim prints `'{'{..},..}` |
-| M4B-6 | Partial write to a packed-vector member of a plain (unpacked) STRUCT variable via a run-time index (`s.byte_en[z]`, `s.data[i +: 8]`) silently miscompiles (whole-member store) | C | OPEN (tracked, pre-existing) | — | surfaced during M1B-5; distinct from the class-property path (fixed) — the struct-member l-value routes through the class-member elaborator and drops the sub-member index. UVM's uvm_reg_bus_op writes hit this; unchecked by UVM self-tests |
+| M4B-6 | Partial write to a packed-vector member of a plain (unpacked) STRUCT variable (`s.byte_en[z]`, `s.data[i +: 8]`, constant & run-time offset, incl. nested structs) was silently miscompiled (whole-member store) | C | **DONE** | — | unpacked-struct members are cobject-backed and share the M1B-5 read-modify-write path (typed `set_part` → `%store/prop/v/bits`[`/x`]); the class-member elaborator no longer drops the sub-member index for struct owners. sv_struct_member_partial_write |
 
 ### M5 — interfaces & modports  (clause 25)
 
@@ -352,34 +352,28 @@ deliberately gated.
 ## Current focus (the only mutable ordered list — derived from the rule)
 
 Re-derive this by applying the priority rule to the OPEN items above; do not hand-edit
-the structure. The class-property partial-write correctness arc (M1B-5) is now closed;
-one correctness residual remains (M4B-6, the analogous partial write into a run-time-
-indexed member of a plain unpacked STRUCT — silently miscompiles, now tracked), so it
-leads the frontier by the correctness-first rule.
+the structure. The partial-write correctness arc is now fully closed — both the class-
+property form (M1B-5) and its unpacked-struct-member sibling (M4B-6). No known silent
+miscompiles outstanding; the frontier is again bounded FEATURE + AUDIT work.
 
 Recently retired: M8 (clause-14 audit + disposition) · M9-1/2/3 (bounded SVA / abort /
-combinators) · M1B-3a (type-parameter aggregate property method miscompile) · **M1B-5**
-(partial write to a class property — bit/part/indexed-part with constant & run-time
-offset + packed-struct member, across elaboration/codegen/runtime) · M1B-4 / M4B-3
-(adversarial parameterized-specialization + nested-container audits) · **ARCH-1 ·
-M9-NFA discovered already LANDED** (automaton engine is default; 33/33 dual-run).
-M4B-1/M4B-2 verified already-working in prior sessions.
+combinators) · M1B-3a (type-parameter aggregate property method miscompile) · **M1B-5 +
+M4B-6** (partial write to a class property AND to an unpacked-struct member —
+bit/part/indexed-part with constant & run-time offset + packed-struct member, across
+elaboration/codegen/runtime) · M1B-4 / M4B-3 (adversarial parameterized-specialization +
+nested-container audits) · **ARCH-1 · M9-NFA discovered already LANDED** (automaton
+engine is default; 33/33 dual-run). M4B-1/M4B-2 verified already-working in prior sessions.
 
 Also DONE recently: M5-3/M5-4 (vif runtime-index array binding + `$unit`/package-scope
 vif decls) and M3B-2/M3B-3 (`randsequence` + `disable soft`).
 
-1. **M4B-6** — run-time-indexed partial write into a plain unpacked-STRUCT vector member
-   (`s.byte_en[z]`, `s.data[i +: 8]`) silently miscompiles (CORRECTNESS; surfaced by
-   M1B-5). The struct-member l-value routes through the class-member elaborator and drops
-   the sub-member index; the class-property path is now correct, this sibling is not.
-   **Current top pick** by the correctness-first rule.
-2. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
+1. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
    UVM value). M9-7 residual multiclock forms alongside.
-3. **M5-5** — generic `interface` ports (FEATURE; per-instantiation-typing arc).
-4. **M3B-4 / M3B-5** — `rand_mode`/`constraint_mode` reaudit, seed-stability (AUDIT).
-5. **M10-1** — multidimensional open arrays (FEATURE; DPI export M10-2 needs ARCH-2).
-6. **ARCH-2 · M6-CALLF** — big rock; unblocks DPI export + `expect` + time-consuming DPI.
-7. **M14B** subclause campaign → **M15** 2023 delta.
+2. **M5-5** — generic `interface` ports (FEATURE; per-instantiation-typing arc).
+3. **M3B-4 / M3B-5** — `rand_mode`/`constraint_mode` reaudit, seed-stability (AUDIT).
+4. **M10-1** — multidimensional open arrays (FEATURE; DPI export M10-2 needs ARCH-2).
+5. **ARCH-2 · M6-CALLF** — big rock; unblocks DPI export + `expect` + time-consuming DPI.
+6. **M14B** subclause campaign → **M15** 2023 delta.
 
 **Standing override:** any newly discovered silent miscompile or crash preempts this
 list (rule gates 1–2).
