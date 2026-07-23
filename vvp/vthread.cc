@@ -16070,6 +16070,33 @@ bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %assign/prop/v <pid>, <delay>, <wid>
+ *
+ * NONBLOCKING store to a vec4 property of a class object or virtual
+ * interface (IEEE 1800-2017 10.4.2): pops <wid> bits of value from the
+ * vec4 stack and the receiver handle from the object stack, then
+ * schedules the property store in the NBA region after <delay> ticks.
+ * The receiver and value are captured now; a null receiver is a no-op.
+ */
+bool of_ASSIGN_PROP_V(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid   = cp->number;
+      unsigned delay = cp->bit_idx[0];
+      unsigned wid   = cp->bit_idx[1];
+
+      vvp_vector4_t val;
+      pop_prop_val(thr, val, wid);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (obj.test_nil())
+	    return true;
+
+      schedule_assign_prop_vec4(obj, pid, val, delay);
+      return true;
+}
+
+/*
  * %store/prop/v/bits/x <pid>, <off_reg>, <wid>
  *
  * As %store/prop/v/bits, but the destination bit offset is taken at run

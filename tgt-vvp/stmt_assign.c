@@ -2448,6 +2448,52 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
       return errors;
 }
 
+/* Nonblocking assignment to a vec4 class-object / virtual-interface
+   property: `obj.prop <= [#d] value` (IEEE 1800-2017 10.4.2). Evaluates
+   the receiver and the r-value NOW and schedules the store in the NBA
+   region via %assign/prop/v. Returns 0 on success, -1 when the l-value
+   form is not (yet) supported here so the caller can fall back (loudly).
+   Increment 1 scope: single l-value, whole-property store (no part/index),
+   vec4 property type. */
+int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
+{
+      ivl_lval_t lval = ivl_stmt_lval(net, 0);
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      unsigned lwid = ivl_lval_width(lval);
+      int prop_idx = ivl_lval_property_idx(lval);
+
+      if (ivl_stmt_lvals(net) != 1)
+	    return -1;
+      if (prop_idx < 0)
+	    return -1;
+      if (ivl_lval_idx(lval) || ivl_lval_part_off(lval))
+	    return -1;
+      if (ivl_stmt_opcode(net) != 0)
+	    return -1;
+      if (delay > 0xffffffffUL)
+	    return -1;
+
+      ivl_type_t sig_type = draw_lval_expr(lval);
+      ivl_type_t prop_type = ivl_type_prop_type(sig_type, prop_idx);
+      if (ivl_type_base(prop_type) != IVL_VT_BOOL &&
+	  ivl_type_base(prop_type) != IVL_VT_LOGIC) {
+	      /* Receiver already pushed: discard and fall back. */
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    return -1;
+      }
+
+      draw_eval_vec4(rval);
+      if (ivl_type_base(prop_type) == IVL_VT_BOOL &&
+	  ivl_expr_value(rval) != IVL_VT_BOOL)
+	    fprintf(vvp_out, "    %%cast2;\n");
+
+      fprintf(vvp_out, "    %%assign/prop/v %d, %lu, %u;"
+	      " NBA store to property %s\n",
+	      prop_idx, (unsigned long)delay, lwid,
+	      ivl_type_prop_name(sig_type, prop_idx));
+      return 0;
+}
+
 static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 {
       int errors = 0;
