@@ -106,7 +106,8 @@ X=architecture, K=campaign.
 | M1B-2 | Struct value-copy on assignment (was reference-alias) | C | **DONE** (#108) | — | scalar/array/darray/queue `=` copy; class handle still aliases |
 | M1B-3 | Remove compile-progress fallbacks caused by lost specialization | C | IN PROGRESS | — | each silent type-recovery fallback → tracked diagnostic or fix |
 | M1B-3a | Type-parameter aggregate property unusable via methods (elaboration-order) | C | **DONE** | — | queue/darray/assoc type-parameter property usable via built-in methods |
-| M1B-4 | Adversarial parameterized-UVM specialization regressions | A | OPEN | — | generated multi-specialization suite, all correct |
+| M1B-4 | Adversarial parameterized-UVM specialization regressions | A | **DONE** | — | multi-spec suite (widths/truncation, class+struct type params, nesting, per-spec statics, param inheritance) all correct (sv_param_spec_audit) |
+| M1B-5 | **Partial write (bit-select / struct-member) to a class property is broken** | C | OPEN (tracked, repro landed) | — | RMW bit-select + struct-member writes to class properties; runtime cobject `%store/prop/v/bits` |
 
 **M1B-3 audit note (2026-07-22).** Surveyed the compile-progress /
 type-recovery fallbacks. **M1B-3a is now FIXED.** The defect was an
@@ -137,7 +138,7 @@ type-inference path for the same underlying shape and may now be removable
 |----|------|-----|--------|-----------|-----------|
 | M4B-1 | Struct value-copy through method args / return / `push_back(var)` | C | OPEN | — | by-value struct arg & return copy independently |
 | M4B-2 | Nested unpacked-struct **deep** copy (current copy is shallow) | C | OPEN | — | nested struct member copied by value, not shared |
-| M4B-3 | Adversarial nested-container testing | A | OPEN | — | generated nested array/queue/assoc/struct suite clean |
+| M4B-3 | Adversarial nested-container testing | A | **DONE** | — | queue-of-struct, struct-of-darray, assoc-of-queue, class-of-queue-of-struct verified; array-of-queue is a loud sorry (known); the partial-write bug (M1B-5) surfaced here too |
 | M4B-4 | `%p` on packed struct → `'{member:val}` (prints one decimal) | F | OPEN (deferred, cosmetic) | — | packed struct prints member pattern |
 | M4B-5 | `%p` nested unpacked dims print nested not flat | F | OPEN (deferred, cosmetic) | — | multi-dim prints `'{'{..},..}` |
 
