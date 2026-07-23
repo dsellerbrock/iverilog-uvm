@@ -2315,6 +2315,12 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 				   || nn->unpacked_dimensions() > 0)) {
 			      is_array_sig = true;
 			}
+		  } else if (item->net_type()
+			     && dynamic_cast<const netdarray_t*>(item->net_type())) {
+			  /* Queue/darray-valued expression that is not a
+			     bare signal (e.g. a class property): runtime
+			     membership test on the object. */
+			is_array_sig = true;
 		  }
 
 		  if (is_array_sig) {

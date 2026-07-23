@@ -238,6 +238,7 @@ extern bool of_FORK_V(vthread_t thr, vvp_code_t code);
 extern bool of_FREE(vthread_t thr, vvp_code_t code);
 extern bool of_HIST_ON(vthread_t thr, vvp_code_t code);
 extern bool of_INSIDE_ARR(vthread_t thr, vvp_code_t code);
+extern bool of_INSIDE_ARR_O(vthread_t thr, vvp_code_t code);
 extern bool of_INV(vthread_t thr, vvp_code_t code);
 extern bool of_IX_ADD(vthread_t thr, vvp_code_t code);
 extern bool of_IX_GETV(vthread_t thr, vvp_code_t code);
