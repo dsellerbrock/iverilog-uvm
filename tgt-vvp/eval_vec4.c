@@ -1679,7 +1679,20 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%inside/arr v%p_0;\n", ivl_expr_signal(arr_arg));
 		  return;
 	    }
-	    /* Fallback: push 0 (no match) */
+	    /* Queue/darray held in an expression (e.g. a class property):
+	     * push the value then the container object and use the
+	     * object-stack form of the opcode. */
+	    if (arr_arg && val_arg
+		&& (ivl_expr_type(arr_arg) == IVL_EX_PROPERTY
+		    || ivl_expr_value(arr_arg) == IVL_VT_DARRAY)) {
+		  draw_eval_vec4(val_arg);
+		  draw_eval_object(arr_arg);
+		  fprintf(vvp_out, "    %%inside/arr/o;\n");
+		  return;
+	    }
+	    /* Fallback: push 0 (no match) — and say so, loudly. */
+	    fprintf(stderr, "vvp.tgt error: unsupported container operand "
+		    "for the inside operator; membership result forced to 0.\n");
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
 	    return;
       }

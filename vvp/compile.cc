@@ -304,6 +304,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%free",   of_FREE,   1,  {OA_VPI_PTR,  OA_NONE,     OA_NONE} },
       { "%hist/on", of_HIST_ON, 1, {OA_FUNC_PTR, OA_NONE,    OA_NONE} },
       { "%inside/arr", of_INSIDE_ARR, 1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
+      { "%inside/arr/o", of_INSIDE_ARR_O, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%inv",    of_INV,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%ix/add", of_IX_ADD, 3,  {OA_NUMBER,   OA_BIT1,     OA_BIT2} },
       { "%ix/getv",of_IX_GETV,2,  {OA_BIT1,     OA_FUNC_PTR, OA_NONE} },

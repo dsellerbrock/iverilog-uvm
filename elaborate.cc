@@ -7658,14 +7658,49 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			      // args 1..ncp: coverpoint values from the
 			      // parent class; args ncp+1..2*ncp: the iff
 			      // guard values (constant 1 when unguarded).
+			      //
+			      // The coverpoint source properties live in the
+			      // object that CONTAINS the covergroup property.
+			      // For a chained call (obj.cg.sample()) that
+			      // parent is the base of the covergroup property
+			      // expression; the implicit "this" handle only
+			      // covers calls made from inside the parent
+			      // class itself.
 			      NetNet* this_net = find_implicit_this_handle(des, scope);
-			      if (this_net) {
+			      const NetEProperty*cg_prop =
+				    dynamic_cast<const NetEProperty*>(obj_expr);
+			      const netclass_t*parent_cls = 0;
+			      if (cg_prop && cg_prop->get_base())
+				    parent_cls = dynamic_cast<const netclass_t*>
+					  (cg_prop->get_base()->net_type());
+			      else if (cg_prop && cg_prop->get_sig())
+				    parent_cls = dynamic_cast<const netclass_t*>
+					  (cg_prop->get_sig()->net_type());
+			      else if (this_net)
+				    parent_cls = dynamic_cast<const netclass_t*>
+					  (this_net->net_type());
+			      auto make_parent_expr = [&]() -> NetExpr* {
+				    if (cg_prop && cg_prop->get_base())
+					  return cg_prop->get_base()->dup_expr();
+				    if (cg_prop && cg_prop->get_sig()) {
+					  NetESignal*sig = new NetESignal(
+						const_cast<NetNet*>(cg_prop->get_sig()));
+					  sig->set_line(*this);
+					  return sig;
+				    }
+				    if (this_net) {
+					  NetESignal*sig = new NetESignal(this_net);
+					  sig->set_line(*this);
+					  return sig;
+				    }
+				    return 0;
+			      };
+			      if (parent_cls) {
 				    for (unsigned cpi = 0; cpi < ncp; ++cpi) {
 					  int pp = cgtype->covgrp_cp_parent_prop(cpi);
 					  if (pp >= 0) {
-					      NetESignal* sig = new NetESignal(this_net);
-					      sig->set_line(*this);
-					      NetEProperty* prop = new NetEProperty(sig, pp, nullptr);
+					      NetEProperty* prop = new NetEProperty(
+						    make_parent_expr(), pp, nullptr);
 					      prop->set_line(*this);
 					      argv.push_back(prop);
 					  } else {
@@ -7685,16 +7720,11 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						if (const PEIdent*gid =
 						      dynamic_cast<const PEIdent*>(gexpr)) {
 						      perm_string gnm = peek_head_name(gid->path());
-						      const netclass_t*parent_cls =
-							    dynamic_cast<const netclass_t*>(this_net->net_type());
-						      int gp = parent_cls
-							  ? parent_cls->property_idx_from_name(gnm)
-							  : -1;
+						      int gp = parent_cls->property_idx_from_name(gnm);
 						      if (gp >= 0) {
-							    NetESignal*gsig = new NetESignal(this_net);
-							    gsig->set_line(*this);
 							    NetEProperty*gprop =
-								  new NetEProperty(gsig, gp, nullptr);
+								  new NetEProperty(make_parent_expr(),
+										   gp, nullptr);
 							    gprop->set_line(*this);
 							    gval = gprop;
 						      }
@@ -7720,6 +7750,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						gval = new NetEConst(verinum((uint64_t)1, 32));
 					  argv.push_back(gval);
 				    }
+			      } else {
+				    cerr << get_fileline() << ": sorry: cannot "
+					 << "resolve the parent object of "
+					 << "covergroup '" << cgtype->get_name()
+					 << "' at this sample() site; the "
+					 << "sample records no coverpoint "
+					 << "values." << endl;
 			      }
 
 			      NetSTask* sys = new NetSTask(

@@ -1770,20 +1770,12 @@ static VVP_QUEUE*pop_queue_receiver_(vthread_t thr, vvp_object_t&recv,
  * compares with the popped value using 4-state equality (X/Z bits ignored).
  * Pushes a 1-bit result: '1' if any element matched, '0' otherwise.
  */
-bool of_INSIDE_ARR(vthread_t thr, vvp_code_t cp)
+static void inside_arr_match_(vthread_t thr, vvp_darray*arr)
 {
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
-      if (!fun) {
-            thr->push_vec4(vvp_vector4_t(1, BIT4_0));
-            return true;
-      }
-
-      vvp_object_t obj = fun->get_object();
-      vvp_darray*arr = obj.peek<vvp_darray>();
       if (!arr) {
             thr->pop_vec4();   /* discard value */
             thr->push_vec4(vvp_vector4_t(1, BIT4_0));
-            return true;
+            return;
       }
 
       vvp_vector4_t val = thr->pop_vec4();
@@ -1812,6 +1804,33 @@ bool of_INSIDE_ARR(vthread_t thr, vvp_code_t cp)
       }
 
       thr->push_vec4(vvp_vector4_t(1, matched ? BIT4_1 : BIT4_0));
+}
+
+bool of_INSIDE_ARR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_darray*arr = 0;
+      vvp_object_t obj;
+      if (fun) {
+            obj = fun->get_object();
+            arr = obj.peek<vvp_darray>();
+      }
+      inside_arr_match_(thr, arr);
+      return true;
+}
+
+/*
+ * %inside/arr/o
+ *
+ * Like %inside/arr, but the container (queue/darray) is popped from the
+ * object stack instead of being named as a signal. Used when the
+ * container is held in an expression, e.g. a class property.
+ */
+bool of_INSIDE_ARR_O(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      inside_arr_match_(thr, recv.peek<vvp_darray>());
       return true;
 }
 

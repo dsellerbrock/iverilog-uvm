@@ -39,6 +39,19 @@ module sv_multidim_packed_prop_write;
     s.s = 0; s.s[1][7:4] = 4'hD;
     if (s.s !== 32'h0000D000) begin $display("FAIL s.s[1][7:4]=%h exp 0000d000", s.s); errors++; end
 
+    // VARIABLE leading element indices (formerly a loud sorry): the
+    // canonical offset is built as a stride expression feeding the
+    // run-time-offset RMW store.
+    begin
+      automatic R rv = new;
+      rv.m2 = 32'hFFFFFFFF;
+      for (int i = 0; i < 4; i++) rv.m2[i] = i[7:0]*17;
+      if (rv.m2 !== 32'h33221100) begin $display("FAIL var elem=%h", rv.m2); errors++; end
+      rv.m2 = 0;
+      for (int i = 0; i < 4; i++) rv.m2[i][7:4] = i[3:0]+1;
+      if (rv.m2 !== 32'h40302010) begin $display("FAIL var elem+part=%h", rv.m2); errors++; end
+    end
+
     if (errors == 0) $display("PASSED");
     else $display("FAILED (%0d errors)", errors);
     $finish;
