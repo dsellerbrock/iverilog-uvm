@@ -1946,6 +1946,83 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    }
 			      }
 
+			      // Multi-dimensional packed vector (e.g. `logic [3:0][7:0]`):
+			      // a slice/element write `m[i]`, a full bit select `m[i][j]`,
+			      // or an element then part-select `m[i][3:0]`, for CONSTANT
+			      // indices. Reuse prefix_to_slice to map the leading bit indices
+			      // to a canonical (LSB-0) offset and slice width, then narrow by
+			      // an optional trailing part-select on the innermost dimension.
+			      // (IEEE 1800-2017 7.4.) Variable multi-dim indices remain a
+			      // loud sorry below.
+			      if (!handled && !member_cur.index.empty() && dims.size() > 1) {
+			            bool all_def = true;
+			            for (size_t di = 0; di < dims.size(); di += 1)
+			      	    if (!dims[di].defined()) all_def = false;
+
+			            std::list<long> bit_ix;
+			            bool ok = all_def;
+			            bool has_part = false;
+			            long part_msb = 0, part_lsb = 0;
+			            unsigned n_comp = member_cur.index.size();
+			            unsigned ci = 0;
+			            for (const index_component_t&ic : member_cur.index) {
+			      	    ci += 1;
+			      	    if (ic.sel == index_component_t::SEL_BIT
+			      		&& ic.msb && !ic.lsb) {
+			      		  NetExpr*e = elab_and_eval(des, scope, ic.msb, -1);
+			      		  NetEConst*ec = dynamic_cast<NetEConst*>(e);
+			      		  if (ec && ec->value().is_defined())
+			      			bit_ix.push_back(ec->value().as_long());
+			      		  else ok = false;
+			      	    } else if (ic.sel == index_component_t::SEL_PART
+			      		       && ic.msb && ic.lsb && ci == n_comp) {
+			      		  has_part = true;
+			      		  NetExpr*me = elab_and_eval(des, scope, ic.msb, -1);
+			      		  NetExpr*le = elab_and_eval(des, scope, ic.lsb, -1);
+			      		  NetEConst*mec = dynamic_cast<NetEConst*>(me);
+			      		  NetEConst*lec = dynamic_cast<NetEConst*>(le);
+			      		  if (mec && lec && mec->value().is_defined()
+			      		      && lec->value().is_defined()) {
+			      			part_msb = mec->value().as_long();
+			      			part_lsb = lec->value().as_long();
+			      		  } else ok = false;
+			      	    } else {
+			      		  ok = false;
+			      	    }
+			            }
+
+			            if (ok && !bit_ix.empty() && bit_ix.size() <= dims.size()) {
+			      	    long loff = 0; unsigned long lwid = 0;
+			      	    std::list<long> prefix = bit_ix;
+			      	    long sb = prefix.back(); prefix.pop_back();
+			      	    if (prefix_to_slice(dims, prefix, sb, loff, lwid)) {
+			      		  long foff = loff;
+			      		  unsigned fwid = (unsigned)lwid;
+			      		  bool part_ok = true;
+			      		  if (has_part) {
+			      			const netrange_t&inr = dims.back();
+			      			bool idesc = inr.get_msb() >= inr.get_lsb();
+			      			long ca = idesc ? part_msb-inr.get_lsb()
+			      					: inr.get_lsb()-part_msb;
+			      			long cb = idesc ? part_lsb-inr.get_lsb()
+			      					: inr.get_lsb()-part_lsb;
+			      			long lo = ca < cb ? ca : cb;
+			      			unsigned pw = (unsigned)((part_msb>=part_lsb
+			      				? part_msb-part_lsb : part_lsb-part_msb)+1);
+			      			if (lo < 0 || lo + (long)pw > (long)lwid)
+			      			      part_ok = false;
+			      			else { foff = loff + lo; fwid = pw; }
+			      		  }
+			      		  if (part_ok && fwid > 0) {
+			      			lv->set_part(new NetEConst(verinum((int64_t)foff)),
+			      				     new netvector_t(pvec->base_type(),
+			      						     (long)fwid - 1, 0));
+			      			handled = true;
+			      		  }
+			      	    }
+			            }
+			      }
+
 			      if (!handled) {
 				    cerr << get_fileline() << ": sorry: "
 					 << "This form of partial write to packed "
