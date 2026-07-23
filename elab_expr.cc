@@ -2377,9 +2377,122 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
  * remainder as the first concat element (so it ends up at the MSBs of
  * the result, matching the spec).
  */
+/* A stream operand that is a whole FIXED unpacked array of packed
+ * elements (11.4.14: an unpacked-array operand streams element by
+ * element, left to right) — either a plain signal array or a
+ * class-property array (`{>>byte{c.payload}}`). Without this,
+ * `{>>byte{arr}}` as an r-value errored with "Array arr needs an array
+ * index here", and property-array operands packed silently wrong. */
+struct stream_uarray_op_info_t {
+      NetNet*net = 0;              // plain signal array
+      NetNet*base = 0;             // class handle for a property array
+      int pidx = -1;
+      const netuarray_t*ua = 0;
+      ivl_type_t elem_type = 0;
+      unsigned elem_count = 0;
+};
+
+static bool stream_whole_uarray_operand_(Design*des, NetScope*scope,
+					 PExpr*inner,
+					 stream_uarray_op_info_t&info)
+{
+      PEIdent*id = dynamic_cast<PEIdent*>(inner);
+      if (!id)
+	    return false;
+      if (!id->path().back().index.empty())
+	    return false;
+      symbol_search_results sr;
+      symbol_search(id, des, scope, id->path(), UINT_MAX, &sr);
+      if (!sr.net)
+	    return false;
+
+      const netuarray_t*ua = 0;
+      if (sr.path_tail.empty()) {
+	    ua = dynamic_cast<const netuarray_t*>(sr.net->array_type());
+	    if (!ua)
+		  return false;
+	    info.net = sr.net;
+      } else if (sr.path_tail.size() == 1
+		 && sr.path_tail.front().index.empty()) {
+	    const netclass_t*ct =
+		  dynamic_cast<const netclass_t*>(sr.net->net_type());
+	    if (!ct)
+		  return false;
+	    int pidx = ct->property_idx_from_name(sr.path_tail.front().name);
+	    if (pidx < 0)
+		  return false;
+	    ua = dynamic_cast<const netuarray_t*>(ct->get_prop_type(pidx));
+	    if (!ua)
+		  return false;
+	    info.base = sr.net;
+	    info.pidx = pidx;
+      } else {
+	    return false;
+      }
+
+      if (ua->static_dimensions().size() != 1)
+	    return false;
+      ivl_type_t et = ua->element_type();
+      if (!et || !et->packed() || et->packed_width() <= 0)
+	    return false;
+      info.ua = ua;
+      info.elem_type = et;
+      info.elem_count = (unsigned)ua->static_dimensions()[0].width();
+      return true;
+}
+
+/* Pack a whole fixed unpacked array operand: concatenation of the
+ * elements in DECLARED order (left bound first), which is the stream
+ * order of 11.4.14. */
+static NetExpr* stream_uarray_concat_(const LineInfo*li,
+				      const stream_uarray_op_info_t&info)
+{
+      const netranges_t&dims = info.ua->static_dimensions();
+      long left = dims[0].get_msb();
+      long right = dims[0].get_lsb();
+      long step = (left <= right) ? 1 : -1;
+      long lo = (left <= right) ? left : right;
+
+      NetEConcat*cat = new NetEConcat(info.elem_count, 1, IVL_VT_LOGIC);
+      cat->set_line(*li);
+      for (unsigned i = 0; i < info.elem_count; i += 1) {
+	    long dv = left + step * (long)i;
+	    NetExpr*word = 0;
+	    if (info.net) {
+		  std::list<long> idx_consts;
+		  idx_consts.push_back(dv);
+		  NetExpr*canon = normalize_variable_unpacked(info.net, idx_consts);
+		  if (!canon) {
+			delete cat;
+			return 0;
+		  }
+		  canon->set_line(*li);
+		  NetESignal*sig = new NetESignal(info.net, canon);
+		  sig->set_line(*li);
+		  word = sig;
+	    } else {
+		  NetESignal*base = new NetESignal(info.base);
+		  base->set_line(*li);
+		  NetEConst*canon = new NetEConst(verinum((uint64_t)(dv - lo), 32u));
+		  canon->set_line(*li);
+		  NetEProperty*prop = new NetEProperty(base, (size_t)info.pidx, canon);
+		  prop->set_line(*li);
+		  word = prop;
+	    }
+	    cat->set(i, word);
+      }
+      return cat;
+}
+
 unsigned PEStreaming::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
-      expr_width_ = inner_->test_width(des, scope, mode);
+      stream_uarray_op_info_t s_info;
+      if (inner_ && stream_whole_uarray_operand_(des, scope, inner_, s_info)) {
+	    expr_width_ = (unsigned)s_info.elem_type->packed_width()
+		  * s_info.elem_count;
+      } else {
+	    expr_width_ = inner_->test_width(des, scope, mode);
+      }
       expr_type_  = IVL_VT_LOGIC;
       signed_flag_ = false;
       min_width_ = expr_width_;
@@ -2502,6 +2615,111 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
       if (dynamic_cast<const netstring_t*>(type))
 	    return elaborate_stream_sfunc(des, scope, type, 0);
 
+	// A FIXED unpacked-array target ({>>byte{arr}} = word, or the
+	// stream as a plain assignment source for such an array):
+	// unpack the stream into the elements left to right
+	// (11.4.14.3). The parser rewrite made the stream the r-value,
+	// so lval_context_ selects the INVERSE {<<} re-ordering.
+      if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(type)) {
+	    const netranges_t&dims = ua->static_dimensions();
+	    ivl_type_t et = ua->element_type();
+	    long ewl = (et && et->packed()) ? et->packed_width() : 0;
+	    if (dims.size() == 1 && ewl > 0 && inner_
+		&& !stream_is_dynamic(des, scope)) {
+		  unsigned ew = (unsigned)ewl;
+		  unsigned n = (unsigned)dims[0].width();
+		  unsigned total = ew * n;
+		  width_mode_t m = SIZED;
+		  unsigned w;
+		  NetExpr*body = 0;
+		  stream_uarray_op_info_t s_info;
+		  bool s_have = stream_whole_uarray_operand_(des, scope,
+							     inner_, s_info);
+		  if (s_have)
+			w = (unsigned)s_info.elem_type->packed_width()
+			      * s_info.elem_count;
+		  else
+			w = inner_->test_width(des, scope, m);
+		  if (w < total) {
+			cerr << get_fileline() << ": error: streaming "
+			      "concatenation provides a " << w << "-bit "
+			      "stream, which does not fill the " << total
+			     << "-bit unpacked-array target (IEEE "
+			      "1800-2017 11.4.14.3)." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  unsigned slice = resolve_slice_(des, scope);
+		  if (slice == 0)
+			return nullptr;
+		  if (s_have)
+			body = stream_uarray_concat_(this, s_info);
+		  else
+			body = inner_->elaborate_expr(des, scope, w, flags);
+		  if (!body)
+			return nullptr;
+		    // Consume the leading (left-most) total bits.
+		  if (w > total) {
+			NetEConst*base = new NetEConst(verinum((uint64_t)(w - total), 32u));
+			base->set_line(*this);
+			NetESelect*lead = new NetESelect(body, base, total);
+			lead->set_line(*this);
+			body = lead;
+		  }
+		  if (dir_ == DIR_LSHIFT)
+			body = reorder_stream_(body, total, slice, lval_context_);
+		    // The i-th DECLARED element (left bound first) takes
+		    // the i-th slice from the MSB end. Array-pattern
+		    // positions are CANONICAL indices, so map each
+		    // declared position through the normalizer (a
+		    // descending range [3:0] fills element 3 first).
+		  long a_left = dims[0].get_msb();
+		  long a_right = dims[0].get_lsb();
+		  long a_step = (a_left <= a_right) ? 1 : -1;
+		  std::vector<NetExpr*> elems(n, (NetExpr*)0);
+		  bool map_ok = true;
+		  for (unsigned i = 0; i < n && map_ok; i += 1) {
+			long dv = a_left + a_step * (long)i;
+			unsigned ci = i;
+			  // The target is an ivl_type_t, not a signal, so
+			  // compute the canonical position directly from
+			  // the declared range bounds.
+			long lo = (a_left <= a_right) ? a_left : a_right;
+			ci = (unsigned)(dv - lo);
+			if (ci >= n) {
+			      map_ok = false;
+			      break;
+			}
+			NetEConst*base = new NetEConst(verinum((uint64_t)(total - (i+1)*ew), 32u));
+			base->set_line(*this);
+			NetESelect*sel = new NetESelect(body->dup_expr(), base, ew, et);
+			sel->set_line(*this);
+			elems[ci] = sel;
+		  }
+		  if (!map_ok) {
+			for (unsigned i = 0; i < n; i += 1)
+			      delete elems[i];
+			delete body;
+			cerr << get_fileline() << ": internal error: "
+			      "cannot map unpacked-array range for "
+			      "streaming unpack." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  delete body;
+		  NetEArrayPattern*res = new NetEArrayPattern(type, elems);
+		  res->set_line(*this);
+		  return res;
+	    }
+	    if (dims.size() == 1 && ewl > 0) {
+		  cerr << get_fileline() << ": sorry: streaming with "
+		        "dynamically sized operands into a FIXED unpacked "
+		        "array target is not yet supported." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
+
       unsigned use_wid = 0;
       if (type && type->packed()) {
 	    long pw = type->packed_width();
@@ -2537,17 +2755,30 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
       }
 
       width_mode_t m = SIZED;
-      unsigned w = inner_->test_width(des, scope, m);
-      if (w == 0) {
-            cerr << get_fileline() << ": error: streaming concatenation "
-                  "requires a known-width inner expression." << endl;
-            des->errors += 1;
-            return nullptr;
+      unsigned w;
+      NetExpr*body;
+      {
+	    stream_uarray_op_info_t s_info;
+	    if (stream_whole_uarray_operand_(des, scope, inner_, s_info)) {
+		  w = (unsigned)s_info.elem_type->packed_width()
+			* s_info.elem_count;
+		  body = stream_uarray_concat_(this, s_info);
+	    } else {
+		  w = inner_->test_width(des, scope, m);
+		  if (w == 0) {
+			cerr << get_fileline() << ": error: streaming concatenation "
+			      "requires a known-width inner expression." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  body = inner_->elaborate_expr(des, scope, w, flags);
+	    }
       }
       unsigned slice = resolve_slice_(des, scope);
-      if (slice == 0) return nullptr;
-
-      NetExpr*body = inner_->elaborate_expr(des, scope, w, flags);
+      if (slice == 0) {
+	    delete body;
+	    return nullptr;
+      }
       if (!body) return nullptr;
 
       // {>>N {x}} packs in stream order — the concatenation itself.
@@ -2575,7 +2806,16 @@ NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
 	    return elaborate_stream_sfunc(des, scope, 0, lv_width);
 
       width_mode_t m = SIZED;
-      unsigned w = inner_->test_width(des, scope, m);
+      unsigned w;
+      {
+	    stream_uarray_op_info_t s_info;
+	    if (stream_whole_uarray_operand_(des, scope, inner_, s_info)) {
+		  w = (unsigned)s_info.elem_type->packed_width()
+			* s_info.elem_count;
+	    } else {
+		  w = inner_->test_width(des, scope, m);
+	    }
+      }
       if (w == 0) {
             cerr << get_fileline() << ": error: streaming concatenation "
                   "requires a known-width inner expression." << endl;
