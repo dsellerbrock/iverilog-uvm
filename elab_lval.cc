@@ -329,6 +329,50 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	// If we find that the matched variable is a packed struct,
 	// then we can handled it with the net_packed_member_ method.
       if (reg->struct_type() && reg->struct_type()->packed() && !tail_path.empty()) {
+	      // A CONTAINER (darray/queue/assoc) of a packed struct:
+	      // `pm[key].member = v` is a part-write into the keyed ELEMENT
+	      // at the member's bit range — NOT a packed-member select of
+	      // the container signal (which asserted on the dimension
+	      // check, elab_lval.cc ICE). Lower to word(key) + part(off).
+	    const name_component_t*cont_base = nullptr;
+	    if (reg->darray_type() && path_.name.size() >= 2) {
+		    // The container KEY sits on the component BEFORE the
+		    // member tail: pm["x"].a -> base comp is pm["x"].
+		  auto bit = path_.name.end();
+		  --bit; --bit;
+		  cont_base = &*bit;
+	    }
+	    if (cont_base && cont_base->index.size() == 1) {
+		  const netstruct_t*es = reg->struct_type();
+		  const name_component_t&mcomp = tail_path.front();
+		  unsigned long moff = 0;
+		  const netstruct_t::member_t*mbr =
+			es->packed_member(mcomp.name, moff);
+		  if (!mbr) {
+			cerr << get_fileline() << ": error: Packed struct "
+			     << "has no member " << mcomp.name << "." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  if (tail_path.size() != 1 || !mcomp.index.empty()) {
+			cerr << get_fileline() << ": sorry: this form of "
+			     << "member select on a container element of "
+			     << "packed-struct type is not yet supported as "
+			     << "an l-value." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  NetAssign_*lv = new NetAssign_(reg);
+		  NetExpr*key = elab_and_eval(des, scope,
+					      cont_base->index.front().msb,
+					      -1);
+		  if (!key)
+			return 0;
+		  lv->set_word(key);
+		  lv->set_part(new NetEConst(verinum((uint64_t)moff, 64u)),
+			       mbr->net_type);
+		  return lv;
+	    }
 	    NetAssign_*lv = new NetAssign_(reg);
 	    elaborate_lval_net_packed_member_(des, scope, lv, tail_path, is_force);
 	    return lv;
@@ -408,8 +452,49 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       if (use_sel == index_component_t::SEL_IDX_UP ||
           use_sel == index_component_t::SEL_IDX_DO) {
 	    if (reg->darray_type()) {
-		    // `d[i][base+:w]`/`[base-:w]` into a darray element is not
-		    // yet lowered; a loud sorry beats the backend assert.
+		    // `d[i][base +: w]` / `[base -: w]` into a darray/queue/
+		    // assoc element: word(first index) + part(base, w). The
+		    // codegen RMW paths (%store/dar/vec4/off and the assoc
+		    // %setbits/vec4 sequence) take run-time offsets; only the
+		    // width must be constant. Element vectors are canonical
+		    // LSB-0, so the source base needs no range shift; the
+		    // [b -: w] form addresses down from b (LSB = b-w+1).
+		  const name_component_t&nt = path_.back();
+		  const netdarray_t*da = reg->darray_type();
+		  const netvector_t*ev =
+			dynamic_cast<const netvector_t*>(da->element_type());
+		  if (nt.index.size() == 2 && ev
+		      && ev->packed_dims().size() == 1
+		      && ev->packed_dims()[0].defined()
+		      && ev->packed_dims()[0].get_msb()
+			 >= ev->packed_dims()[0].get_lsb()) {
+			const index_component_t&pidx = nt.index.back();
+			NetExpr*we = elab_and_eval(des, scope, pidx.lsb, -1, true);
+			long w = 0;
+			if (we && eval_as_long(w, we) && w > 0) {
+			      delete we;
+			      NetAssign_*lv = new NetAssign_(reg);
+			      NetExpr*key = elab_and_eval(des, scope,
+							  nt.index.front().msb, -1);
+			      NetExpr*base = elab_and_eval(des, scope,
+							   pidx.msb, -1);
+			      if (!key || !base)
+				    return 0;
+			      lv->set_word(key);
+			      long blsb = ev->packed_dims()[0].get_lsb();
+			      if (blsb != 0)
+				    base = new NetEBAdd('-', pad_to_width(base, 32, true, *this),
+					  new NetEConst(verinum((uint64_t)(uint32_t)(int32_t)blsb, 32)),
+					  32, true);
+			      if (use_sel == index_component_t::SEL_IDX_DO && w > 1)
+				    base = new NetEBAdd('-', pad_to_width(base, 32, true, *this),
+					  new NetEConst(verinum((uint64_t)(w-1), 32)),
+					  32, true);
+			      lv->set_part(base, (unsigned)w);
+			      return lv;
+			}
+			delete we;
+		  }
 		  cerr << get_fileline() << ": sorry: assignment to an indexed "
 		          "part-select of a dynamic-array element is not yet "
 		          "supported." << endl;

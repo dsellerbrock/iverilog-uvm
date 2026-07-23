@@ -11303,7 +11303,7 @@ static bool aa_load_keep_vec(vthread_t thr, unsigned wid=0)
       ELEM value;
       dq_default(value, wid);
 
-      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr, 1);
+      ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr, 0) /* vec4 key lives on the vec4 stack; the receiver is the TOP object (the str variant already peeks depth 0 — depth 1 asserted on the obj stack) */;
       if (assoc)
 	    assoc->get(key, value);
 
@@ -15278,6 +15278,46 @@ bool of_SET_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
  *
  * Pop the operand, then push the result.
  */
+/*
+ * %setbits/vec4 <off>, <wid>
+ * %setbits/vec4/x <off_reg>, <wid>
+ *
+ * Read-modify-write on the vec4 stack: pops a <wid>-bit value and merges
+ * it into the vector BELOW it at bit offset <off> (immediate, or read
+ * from index register <off_reg> for the /x form), extending the target
+ * with x bits if needed. Generic building block for container-element
+ * partial stores (e.g. assoc[key][m:l] = v).
+ */
+static bool setbits_vec4_(vthread_t thr, long off, unsigned wid)
+{
+      vvp_vector4_t val = thr->pop_vec4();
+      vvp_vector4_t&tgt = thr->peek_vec4();
+
+      if (off < 0)
+	    return true;
+      if ((size_t)(off) + wid > tgt.size()) {
+	    vvp_vector4_t bigger((unsigned)(off + wid), BIT4_X);
+	    bigger.set_vec(0, tgt);
+	    tgt = bigger;
+      }
+      if (val.size() > wid)
+	    val = val.subvalue(0, wid);
+      tgt.set_vec((unsigned)off, val);
+      return true;
+}
+
+bool of_SETBITS_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      return setbits_vec4_(thr, (long)cp->bit_idx[0], cp->bit_idx[1]);
+}
+
+bool of_SETBITS_VEC4_X(vthread_t thr, vvp_code_t cp)
+{
+      unsigned off_reg = cp->bit_idx[0];
+      assert(off_reg < vthread_s::WORDS_COUNT);
+      return setbits_vec4_(thr, thr->words[off_reg].w_int, cp->bit_idx[1]);
+}
+
 bool of_SHIFTL(vthread_t thr, vvp_code_t cp)
 {
       int use_index = cp->number;

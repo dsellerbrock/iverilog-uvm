@@ -1756,6 +1756,56 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 
       assert(ivl_stmt_lvals(net) == 1);
 
+	/* Part/bit-select store into an ASSOCIATIVE-array element
+	   (am[key][m:l] = v; packed-struct member writes are lowered by
+	   elaboration to the member's bit range). The numeric-index queue
+	   path below coerces the key to an integer element address, which
+	   corrupted the store ("cannot write to an undefined darray").
+	   Lower as an assoc RMW instead: load the element keeping the key,
+	   merge the value at the bit offset (%setbits/vec4), store back. */
+      if (part != 0 && ivl_lval_idx(lval) && ivl_stmt_opcode(net) == 0
+	  && ivl_type_queue_assoc_compat(var_type)
+	  && (ivl_type_base(element_type) == IVL_VT_BOOL
+	      || ivl_type_base(element_type) == IVL_VT_LOGIC)) {
+	    ivl_expr_t key = ivl_lval_idx(lval);
+	    unsigned lwid = ivl_lval_width(lval);
+	    unsigned elem_wid = ivl_type_packed_width(element_type);
+	    const char*key_kind;
+	    int key_is_object = expr_is_object_assoc_key_(key);
+	    int key_is_string = expr_is_string_assoc_key_(key);
+
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", var);
+	    if (key_is_string) {
+		  key_kind = "str";
+		  draw_eval_string(key);
+	    } else if (key_is_object) {
+		  key_kind = "obj";
+		  errors += draw_eval_object(key);
+	    } else {
+		  key_kind = "v";
+		  draw_eval_vec4(key);
+	    }
+	    fprintf(vvp_out, "    %%aa/loadk/v/%s %u;\n", key_kind, elem_wid);
+
+	    if (ivl_expr_type(part) == IVL_EX_NUMBER) {
+		  draw_eval_vec4(rval);
+		  resize_vec4_wid(rval, lwid);
+		  fprintf(vvp_out, "    %%setbits/vec4 %lu, %u;\n",
+			  (unsigned long)ivl_expr_uvalue(part), lwid);
+	    } else {
+		  int off_word = allocate_word();
+		  draw_eval_expr_into_integer(part, off_word);
+		  draw_eval_vec4(rval);
+		  resize_vec4_wid(rval, lwid);
+		  fprintf(vvp_out, "    %%setbits/vec4/x %d, %u;\n",
+			  off_word, lwid);
+		  clr_word(off_word);
+	    }
+	    fprintf(vvp_out, "    %%aa/store/v/%s %u;\n", key_kind, elem_wid);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    return errors;
+      }
+
 	/* Part/bit-select store into a queue element that is a packed
 	   vector: q[i][off +: wid] = rhs. Same read-modify-write lowering as
 	   for dynamic arrays (%store/dar/vec4/off operates on the shared
