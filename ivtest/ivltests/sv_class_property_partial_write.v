@@ -42,6 +42,18 @@ module sv_class_property_partial_write;
     rg.val.lo = 4'h5;
     if (rg.val !== 8'hA5) begin $display("FAIL struct lo: val=%h exp a5", rg.val); errors++; end
 
+    // Compound assignment into a partial select (read-modify-write) — constant
+    // and run-time offset, single-bit, and a width-mismatched r-value.
+    r.v = 8'h0F; r.v[7:4] |= 4'hA;
+    if (r.v !== 8'hAF) begin $display("FAIL cmpd |=: v=%h exp af", r.v); errors++; end
+    r.v = 8'h00; r.v[3] |= 1'b1;
+    if (r.v !== 8'h08) begin $display("FAIL cmpd bit: v=%h exp 08", r.v); errors++; end
+    begin automatic int k = 5; r.v = 8'h01; r.v[7:0] += k; end
+    if (r.v !== 8'h06) begin $display("FAIL cmpd wide: v=%h exp 06", r.v); errors++; end
+    w.m = 16'h0000;
+    for (int i = 0; i < 4; i++) w.m[i*4 +: 4] += (i+1);
+    if (w.m !== 16'h4321) begin $display("FAIL cmpd var: m=%h exp 4321", w.m); errors++; end
+
     if (errors == 0) $display("PASSED");
     else $display("FAILED (%0d errors)", errors);
     $finish;
