@@ -1,0 +1,17 @@
+# UVM smoke suite (Tier 3) — ~14 cross-cutting tests, target < 3 min.
+# Run via: .github/regression/run_uvm_subset.sh .github/regression/smoke.list
+# One test name per line (tests/<name>.sv). Comments/blank lines ignored.
+m1_uvm_factory_by_name_test
+factory_param_cast_test
+configdb_classprop_test
+vif_config_db_test
+m7_objection_stress_test
+seq_trace_test
+tlm_debug_test
+i5_uvm_callbacks_register_test
+m2_uvm_field_array_dyn_test
+reg_basic_test
+m7_reg_frontdoor_stress_test
+m1b_typeparam_member_call_test
+m6_sched_litmus_test
+dpi_basic_test
