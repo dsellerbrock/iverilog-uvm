@@ -820,6 +820,30 @@ static void draw_binary_vec4(ivl_expr_t expr)
  *   stack. In this case, start with %concati/vec4 and continue
  *   generating %concati/vec4 instructions to finish up the large number.
  */
+/* Push an all-X vec4 of the given width (chunked for wid > 32). Used by
+   null-receiver property fallbacks for 4-state properties: reading a member
+   of a nonexistent/nil object-backed element must yield the 4-state default
+   value x, not 0 (IEEE 1800-2017 7.8.6/6.8). */
+static void draw_pushi_all_x(unsigned wid)
+{
+      unsigned remaining = wid;
+      int first = 1;
+      while (remaining > 0) {
+	    unsigned chunk = remaining > 32 ? 32 : remaining;
+	    unsigned long mask = (chunk >= 32)
+		  ? 0xffffffffUL : ((1UL << chunk) - 1);
+	    if (first) {
+		  fprintf(vvp_out, "    %%pushi/vec4 %lu, %lu, %u;\n",
+			  mask, mask, chunk);
+		  first = 0;
+	    } else {
+		  fprintf(vvp_out, "    %%concati/vec4 %lu, %lu, %u;\n",
+			  mask, mask, chunk);
+	    }
+	    remaining -= chunk;
+      }
+}
+
 static void draw_concat_number_vec4(ivl_expr_t expr, int as_concati)
 {
       unsigned long val0 = 0;
@@ -1026,7 +1050,10 @@ static void draw_property_vec4(ivl_expr_t expr)
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
       fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
-      fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", ivl_expr_width(expr));
+      if (ivl_expr_value(expr) == IVL_VT_LOGIC)
+	    draw_pushi_all_x(ivl_expr_width(expr));
+      else
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", ivl_expr_width(expr));
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
       if (idx_word)
 	    clr_word(idx_word);

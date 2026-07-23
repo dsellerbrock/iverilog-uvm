@@ -6845,6 +6845,27 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			     << endl;
 			return nullptr;
 		  } else {
+			  // An ARRAY-typed property must receive its element
+			  // index inside the helper (NetEProperty canon_index,
+			  // which codegen loads with %prop/v/i). Post-applying
+			  // a NetESelect over the whole array property reads
+			  // element 0 / x — the index was effectively dropped.
+			int tprop = cur_class->property_idx_from_name(tail_comp.name);
+			ivl_type_t tprop_type = (tprop >= 0)
+			      ? cur_class->get_prop_type(tprop) : nullptr;
+			bool array_prop = dynamic_cast<const netsarray_t*>(tprop_type)
+			      || dynamic_cast<const netdarray_t*>(tprop_type);
+			if (array_prop && !tail_comp.index.empty()) {
+			      NetExpr*next_expr = elaborate_nested_method_target_property(
+				    this, des, scope, base_expr, cur_class,
+				    tail_comp, cur_type);
+			      if (!next_expr) {
+				    delete base_expr;
+				    return nullptr;
+			      }
+			      base_expr = next_expr;
+			      continue;
+			}
 			name_component_t prop_comp = tail_comp;
 			prop_comp.index.clear();
 			NetExpr*next_expr = elaborate_nested_method_target_property(this, des, scope,
@@ -13457,6 +13478,30 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 		  ? new NetESelect(node, elem_mux, elem_width, elem_type)
 		  : new NetESelect(node, elem_mux, elem_width);
 	    elem_sel->set_line(*this);
+
+	      // Packed-vector element: the remaining indices are a canonical
+	      // bit/part/indexed select of the element value (11.5.1). The old
+	      // code RETURNED the whole element for [m:l] (comment claimed
+	      // "handled below") and mis-based [b -: w] as [b +: w].
+	    if (const netvector_t*evec =
+		    dynamic_cast<const netvector_t*>(elem_type)) {
+		  std::list<index_component_t> rest(
+			std::next(path_.back().index.begin()),
+			path_.back().index.end());
+		  ivl_type_t sel_res = nullptr;
+		  NetExpr*vsel = make_vector_property_select_(des, scope, this,
+							      elem_sel, evec,
+							      rest, sel_res);
+		  if (!vsel) {
+			delete elem_sel;
+			cerr << get_fileline() << ": sorry: this form of "
+			     << "select on a dynamic-array/queue element is"
+			     << " not yet supported." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  return vsel;
+	    }
 
 	      // Now handle the last index on the element.
 	    const index_component_t&last_index = path_.back().index.back();
