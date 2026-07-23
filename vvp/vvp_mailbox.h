@@ -153,4 +153,46 @@ class vvp_boxed_vec4 : public vvp_object {
       vvp_vector4_t value_;
 };
 
+/* As vvp_boxed_vec4, but for STRING mailbox messages (mailbox
+ * #(string)) — these used to be pushed as vec4 string-bits and stored
+ * back into the string variable through recv_vec4, which aborts. */
+class vvp_boxed_string : public vvp_object {
+    public:
+      explicit vvp_boxed_string(const std::string& s) : value_(s) {}
+      ~vvp_boxed_string() override {}
+
+      vvp_object* duplicate() const override {
+	    return new vvp_boxed_string(value_);
+      }
+      void shallow_copy(const vvp_object* src) override {
+	    if (const vvp_boxed_string* s = dynamic_cast<const vvp_boxed_string*>(src))
+		  value_ = s->value_;
+      }
+
+      const std::string& get_value() const { return value_; }
+
+    private:
+      std::string value_;
+};
+
+/* REAL mailbox messages (mailbox #(real)). */
+class vvp_boxed_real : public vvp_object {
+    public:
+      explicit vvp_boxed_real(double v) : value_(v) {}
+      ~vvp_boxed_real() override {}
+
+      vvp_object* duplicate() const override {
+	    return new vvp_boxed_real(value_);
+      }
+      void shallow_copy(const vvp_object* src) override {
+	    if (const vvp_boxed_real* s = dynamic_cast<const vvp_boxed_real*>(src))
+		  value_ = s->value_;
+      }
+
+      double get_value() const { return value_; }
+
+    private:
+      double value_;
+};
+
 #endif /* VVP_MAILBOX_H */

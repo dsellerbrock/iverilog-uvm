@@ -382,9 +382,13 @@ extern bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_TRY_PEEK(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_NUM(vthread_t thr, vvp_code_t code);
 /* Boxing/unboxing opcodes for non-class mailbox items */
+extern bool of_BOX_REAL(vthread_t thr, vvp_code_t code);
+extern bool of_BOX_STR(vthread_t thr, vvp_code_t code);
 extern bool of_BOX_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_UARR_ORDER(vthread_t thr, vvp_code_t code);
 extern bool of_UARR_UNIQUE(vthread_t thr, vvp_code_t code);
+extern bool of_UNBOX_REAL(vthread_t thr, vvp_code_t code);
+extern bool of_UNBOX_STR(vthread_t thr, vvp_code_t code);
 extern bool of_UNBOX_VEC4(vthread_t thr, vvp_code_t code);
 /* Semaphore opcodes */
 extern bool of_SEM_NEW(vthread_t thr, vvp_code_t code);

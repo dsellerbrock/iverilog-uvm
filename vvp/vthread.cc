@@ -18153,6 +18153,64 @@ bool of_BOX_VEC4(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %box/str
+ * Pop a string from the string stack, wrap it as a vvp_boxed_string
+ * object, and push it onto the obj stack (string mailbox messages).
+ */
+bool of_BOX_STR(vthread_t thr, vvp_code_t)
+{
+      string s = thr->pop_str();
+      vvp_object_t box(new vvp_boxed_string(s));
+      thr->push_object(box);
+      return true;
+}
+
+/*
+ * %unbox/str
+ * Pop an object from the obj stack. If it is a vvp_boxed_string, push
+ * its value onto the string stack; otherwise push "".
+ */
+bool of_UNBOX_STR(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t box;
+      thr->pop_object(box);
+      if (vvp_boxed_string*bs = box.peek<vvp_boxed_string>())
+	    thr->push_str(bs->get_value());
+      else
+	    thr->push_str(string());
+      return true;
+}
+
+/*
+ * %box/real
+ * Pop a real from the real stack, wrap it as a vvp_boxed_real object,
+ * and push it onto the obj stack (real mailbox messages).
+ */
+bool of_BOX_REAL(vthread_t thr, vvp_code_t)
+{
+      double v = thr->pop_real();
+      vvp_object_t box(new vvp_boxed_real(v));
+      thr->push_object(box);
+      return true;
+}
+
+/*
+ * %unbox/real
+ * Pop an object from the obj stack. If it is a vvp_boxed_real, push
+ * its value onto the real stack; otherwise push 0.0.
+ */
+bool of_UNBOX_REAL(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t box;
+      thr->pop_object(box);
+      if (vvp_boxed_real*br = box.peek<vvp_boxed_real>())
+	    thr->push_real(br->get_value());
+      else
+	    thr->push_real(0.0);
+      return true;
+}
+
+/*
  * %unbox/vec4 <width>
  * Pop an object from the obj stack.  If it is a vvp_boxed_vec4,
  * extract its vec4 value and push <width> bits onto the vec4 stack.

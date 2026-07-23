@@ -3555,11 +3555,22 @@ static int show_system_task_call(ivl_statement_t net)
       /* ---- Mailbox task methods ---- */
 
       /* Helper: push a mailbox item onto the obj stack.
-       * Class types are pushed directly; primitives are boxed as vvp_boxed_vec4. */
+       * Class types are pushed directly; strings/reals/vec4 primitives
+       * are boxed as vvp_boxed_{string,real,vec4}. A string message
+       * used to be drawn as vec4 string-bits and the receiving side
+       * stored them into the string variable through recv_vec4, which
+       * aborts the runtime. */
 #define EMIT_MBX_PUSH_ITEM(item_expr) \
       do { \
 	    if ((item_expr) && ivl_expr_value(item_expr) == IVL_VT_CLASS) { \
 		  draw_eval_object(item_expr); \
+	    } else if ((item_expr) && (ivl_expr_value(item_expr) == IVL_VT_STRING \
+				       || ivl_expr_type(item_expr) == IVL_EX_STRING)) { \
+		  draw_eval_string(item_expr); \
+		  fprintf(vvp_out, "    %%box/str;\n"); \
+	    } else if ((item_expr) && ivl_expr_value(item_expr) == IVL_VT_REAL) { \
+		  draw_eval_real(item_expr); \
+		  fprintf(vvp_out, "    %%box/real;\n"); \
 	    } else if (item_expr) { \
 		  draw_eval_vec4(item_expr); \
 		  unsigned _wid = ivl_expr_width(item_expr); \
@@ -3591,6 +3602,12 @@ static int show_system_task_call(ivl_statement_t net)
 			ivl_signal_t _sig = ivl_expr_signal(_item); \
 			if (_sig && ivl_signal_data_type(_sig) == IVL_VT_CLASS) { \
 			      fprintf(vvp_out, "    %%store/obj v%p_0;\n", _sig); \
+			} else if (_sig && ivl_signal_data_type(_sig) == IVL_VT_STRING) { \
+			      fprintf(vvp_out, "    %%unbox/str;\n"); \
+			      fprintf(vvp_out, "    %%store/str v%p_0;\n", _sig); \
+			} else if (_sig && ivl_signal_data_type(_sig) == IVL_VT_REAL) { \
+			      fprintf(vvp_out, "    %%unbox/real;\n"); \
+			      fprintf(vvp_out, "    %%store/real v%p_0;\n", _sig); \
 			} else if (_sig) { \
 			      unsigned _wid = ivl_signal_width(_sig); \
 			      if (!_wid) _wid = 32; \
