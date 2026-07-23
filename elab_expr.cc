@@ -5497,6 +5497,13 @@ bool calculate_part(const LineInfo*li, Design*des, NetScope*scope,
  * struct is packed, then return a NetExpr that selects the member out
  * of the variable.
  */
+static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
+					     const LineInfo*li,
+					     NetExpr*prop_expr,
+					     const netvector_t*pvec,
+					     const std::list<index_component_t>&indices,
+					     ivl_type_t&out_type);
+
 static NetExpr* check_for_struct_members(const LineInfo*li,
 					 Design*des, NetScope*scope,
 					 NetNet*net,
@@ -5585,10 +5592,6 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 			delete base_expr;
 			return 0;
 		  }
-		  if (!member_comp.index.empty()) {
-			delete base_expr;
-			return 0;
-		  }
 
 		  unsigned long dummy_off = 0;
 		  const netstruct_t::member_t*member =
@@ -5604,6 +5607,36 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 		  prop->set_line(*li);
 		  base_expr = prop;
 		  cur_type = member->net_type;
+
+		    // A select ON the member (`s.d[15:8]`, `s.d[i +: 8]`) is a
+		    // bit/part-select of the member value (IEEE 1800-2017 7.2.1
+		    // + 11.5.1). The old path silently returned nil here, which
+		    // callers propagated as x / a blank $display argument / a
+		    // zero compound-assign operand.
+		  if (!member_comp.index.empty()) {
+			const netvector_t*mvec =
+			      dynamic_cast<const netvector_t*>(cur_type);
+			if (!mvec) {
+			      delete base_expr;
+			      return 0;
+			}
+			ivl_type_t sel_type = nullptr;
+			NetExpr*sel = make_vector_property_select_(des, scope, li,
+								   base_expr, mvec,
+								   member_comp.index,
+								   sel_type);
+			if (!sel) {
+			      cerr << li->get_fileline() << ": sorry: this form"
+				   << " of select on struct member "
+				   << member_comp.name
+				   << " is not yet supported." << endl;
+			      des->errors += 1;
+			      delete base_expr;
+			      return 0;
+			}
+			base_expr = sel;
+			cur_type = sel_type;
+		  }
 	    }
 
 	    return base_expr;
@@ -6660,15 +6693,6 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		  }
 
 		  if (cur_struct && gn_system_verilog()) {
-			    // Handle struct member access after array indexing
-			if (!tail_comp.index.empty()) {
-			      delete base_expr;
-			      cerr << get_fileline() << ": sorry: "
-				   << "Indexed struct member access not yet supported."
-				   << endl;
-			      return nullptr;
-			}
-			
 			unsigned long member_off = 0;
 			const netstruct_t::member_t*member = cur_struct->packed_member(tail_comp.name, member_off);
 			if (!member) {
@@ -6693,6 +6717,36 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			      NetEProperty*prop = new NetEProperty(base_expr, member_idx, nullptr);
 			      prop->set_line(*this);
 			      base_expr = prop;
+			}
+
+			  // An index ON the struct member (`....pkt.b[3:0]`,
+			  // `....byte_en[z]`) is a bit/part-select of the member
+			  // value (IEEE 1800-2017 7.2.1 + 11.5.1). The old path
+			  // was a NON-FATAL sorry: iverilog exited 0, the
+			  // expression evaluated as x, and enclosing
+			  // if-conditions const-folded to the wrong branch,
+			  // silently deleting user checks.
+			if (!tail_comp.index.empty()) {
+			      const netvector_t*mvec =
+				    dynamic_cast<const netvector_t*>(cur_type);
+			      ivl_type_t sel_type = nullptr;
+			      NetExpr*sel = mvec
+				    ? make_vector_property_select_(des, scope, this,
+								   base_expr, mvec,
+								   tail_comp.index,
+								   sel_type)
+				    : nullptr;
+			      if (!sel) {
+				    delete base_expr;
+				    cerr << get_fileline() << ": sorry: "
+					 << "this form of indexed struct member"
+					 << " access is not yet supported."
+					 << endl;
+				    des->errors += 1;
+				    return nullptr;
+			      }
+			      base_expr = sel;
+			      cur_type = sel_type;
 			}
 			
 		  } else if (const netenum_t*tail_enum = dynamic_cast<const netenum_t*>(cur_type)) {
@@ -10408,20 +10462,46 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				    }
 
 				    if (!tail_comp.index.empty()) {
-					  if (tail_comp.index.size() != 1) {
-						delete base_expr;
-						cerr << get_fileline() << ": sorry: "
-						     << "Multi-index struct member access is not yet supported."
-						     << endl;
-						des->errors += 1;
-						return nullptr;
+					    // Packed-vector member: canonical
+					    // bit/part/indexed select of the
+					    // member value (7.2.1 + 11.5.1),
+					    // incl. multi-dim and [b -: w].
+					  const netvector_t*mvec =
+						dynamic_cast<const netvector_t*>(member_type);
+					  if (mvec) {
+						ivl_type_t sel_res = nullptr;
+						NetExpr*sel = make_vector_property_select_(
+						      des, scope, this, base_expr,
+						      mvec, tail_comp.index, sel_res);
+						if (!sel) {
+						      delete base_expr;
+						      cerr << get_fileline() << ": sorry: "
+							   << "this form of select on struct member "
+							   << tail_comp.name
+							   << " is not yet supported." << endl;
+						      des->errors += 1;
+						      return nullptr;
+						}
+						base_expr = sel;
+						cur_type = sel_res;
+					  } else {
+						if (tail_comp.index.size() != 1) {
+						      delete base_expr;
+						      cerr << get_fileline() << ": sorry: "
+							   << "Multi-index struct member access is not yet supported."
+							   << endl;
+						      des->errors += 1;
+						      return nullptr;
+						}
+						base_expr = apply_member_index(base_expr, member_type,
+									       tail_comp.index.front());
+						if (!base_expr)
+						      return nullptr;
+						cur_type = member_type;
 					  }
-					  base_expr = apply_member_index(base_expr, member_type,
-									 tail_comp.index.front());
-					  if (!base_expr)
-						return nullptr;
+				    } else {
+					  cur_type = member_type;
 				    }
-				    cur_type = member_type;
 			      } else if (cur_class) {
 				    ivl_type_t next_type = nullptr;
 				    NetExpr*next_expr = elaborate_nested_method_target_property(this,
@@ -11118,16 +11198,44 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    }
 
 				    if (!tail_comp.index.empty()) {
-					  if (tail_comp.index.size() != 1) {
-						delete base_expr;
-						return make_nested_stub(cur_type);
+					    // Packed-vector member: canonical
+					    // bit/part/indexed select of the
+					    // member value (7.2.1 + 11.5.1).
+					    // The stub path silently returned
+					    // zeros for [m:l] and treated
+					    // [b -: w] as [b +: w].
+					  const netvector_t*mvec =
+						dynamic_cast<const netvector_t*>(member_type);
+					  if (mvec) {
+						ivl_type_t sel_res = nullptr;
+						NetExpr*sel = make_vector_property_select_(
+						      des, scope, this, base_expr,
+						      mvec, tail_comp.index, sel_res);
+						if (!sel) {
+						      delete base_expr;
+						      cerr << get_fileline() << ": sorry: "
+							   << "this form of select on struct member "
+							   << tail_comp.name
+							   << " is not yet supported." << endl;
+						      des->errors += 1;
+						      return nullptr;
+						}
+						base_expr = sel;
+						cur_type = sel_res;
+					  } else {
+						if (tail_comp.index.size() != 1) {
+						      delete base_expr;
+						      return make_nested_stub(cur_type);
+						}
+						base_expr = apply_member_index(base_expr, member_type,
+									       tail_comp.index.front());
+						if (!base_expr)
+						      return make_nested_stub(member_type);
+						cur_type = member_type;
 					  }
-					  base_expr = apply_member_index(base_expr, member_type,
-									 tail_comp.index.front());
+				    } else {
+					  cur_type = member_type;
 				    }
-				    if (!base_expr)
-					  return make_nested_stub(member_type);
-				    cur_type = member_type;
 			      } else if (cur_class) {
 				    ivl_type_t next_type = nullptr;
 				    NetExpr*next_expr = elaborate_nested_method_target_property(this,

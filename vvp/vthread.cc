@@ -10830,7 +10830,15 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
 	      // (and a member/%p read) addresses a live instance instead of
 	      // storing through a null handle. Class-handle darrays carry no
 	      // element type, so their nil elements correctly stay null.
-	    if (word.test_nil() && obj->declared_type()) {
+	      //
+	      // Bounds guard: materialize ONLY within the container's current
+	      // size. Queues share this opcode (and, since they also record
+	      // declared_type, an out-of-bounds READ like q[5] on a 2-element
+	      // queue would otherwise set_word(5) and silently GROW the queue
+	      // to 6 elements — IEEE 1800-2017 7.10.2: an out-of-range queue
+	      // read returns the default value and must not modify the queue).
+	    if (word.test_nil() && obj->declared_type()
+		&& (size_t)adr < darray->get_size()) {
 		  word = vvp_object_t(new vvp_cobject(obj->declared_type()));
 		  darray->set_word(adr, word);
 	    }
