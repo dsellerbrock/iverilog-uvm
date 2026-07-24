@@ -123,9 +123,12 @@ EXTERN_C_START
 #define cbAssertionReset        613
 #define cbAssertionKill         614
 
-/* Attempt information passed to an assertion callback. The step detail
-   is not modeled; failExpr is 0 and attemptStartTime carries the
-   current simulation time. */
+/* Attempt information passed to an assertion callback. attemptStartTime
+   is the completing attempt's real launch time for fixed-latency
+   assertions (recovered from a start-time ring) and the current time
+   for variable-latency/cyclic/legacy checkers and for cbAssertionStart.
+   The step detail is not modeled and failExpr is 0 (no SVA
+   sub-expression handle model). */
 typedef struct t_vpi_assertion_step_info {
       PLI_INT32 matched_expression_count;
       vpiHandle *matched_exprs;

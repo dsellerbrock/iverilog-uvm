@@ -662,9 +662,13 @@ struct assert_cb_t {
 class __vpiAssertion : public __vpiHandle {
     public:
       __vpiAssertion(int idx, const char*nam, const char*file, int line,
-		     __vpiScope*scope)
+		     __vpiScope*scope, int depth_arg)
       : idx_(idx), name_(nam?nam:""), file_(file?file:""), line_(line),
-	scope_(scope) { }
+	scope_(scope),
+	  // M12-2: depth_arg is the fixed start->accept edge count (>=1)
+	  // or 0 (variable/unknown). The attempt's real tick latency is
+	  // depth_arg-1; latency_ < 0 disables start-time recovery.
+	latency_(depth_arg >= 1 ? depth_arg - 1 : -1) { }
 
       int get_type_code(void) const override { return vpiAssertion; }
 
@@ -714,13 +718,41 @@ class __vpiAssertion : public __vpiHandle {
       void fire(int reason)
       {
 	    if (cbs_.empty()) return;
+	    vvp_time64_t now_raw = schedule_simtime();
 	    s_vpi_time t;
 	    t.type = vpiSimTime;
-	    vpip_time_to_timestruct(&t, schedule_simtime());
+	    vpip_time_to_timestruct(&t, now_raw);
 	    t.real = 0.0;
+
+	      /* M12-2: recover a completing attempt's real start time.
+		 For a fixed-latency automaton every attempt takes
+		 exactly latency_ ticks, so the START-time ring (kept to
+		 the last latency_+1 launch times) has the completing
+		 attempt's start at its front. START launches now, so its
+		 attemptStartTime is now. Variable/unknown latency
+		 (latency_ < 0) reports now, which is exact for same-tick
+		 assertions. */
+	    vvp_time64_t start_raw = now_raw;
+	    if (reason == cbAssertionStart) {
+		  if (latency_ >= 0) {
+			starts_.push_back(now_raw);
+			while ((int)starts_.size() > latency_ + 1)
+			      starts_.erase(starts_.begin());
+		  }
+	    } else if ((reason == cbAssertionSuccess
+			|| reason == cbAssertionFailure)
+		       && latency_ >= 0
+		       && (int)starts_.size() == latency_ + 1) {
+		  start_raw = starts_.front();
+	    }
+	    s_vpi_time st;
+	    st.type = vpiSimTime;
+	    vpip_time_to_timestruct(&st, start_raw);
+	    st.real = 0.0;
+
 	    s_vpi_attempt_info info;
 	    info.detail.failExpr = 0;
-	    info.attemptStartTime = t;
+	    info.attemptStartTime = st;
 	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
 		  if (cbs_[i].reason == reason && cbs_[i].cb)
 			cbs_[i].cb(reason, &t, this, &info,
@@ -735,6 +767,8 @@ class __vpiAssertion : public __vpiHandle {
       int line_;
       __vpiScope*scope_;
       std::vector<assert_cb_t> cbs_;
+      int latency_;                    // M12-2: fixed tick latency, or -1
+      std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
 };
 
 static std::vector<__vpiAssertion*> assertion_registry;
@@ -742,10 +776,11 @@ static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*> assertion_by_key;
 static int assertion_cb_total = 0;
 
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
-			     PLI_INT32 line, vpiHandle scope)
+			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
-      __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line, sc);
+      __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line,
+					      sc, (int)depth_arg);
       assertion_registry.push_back(obj);
       if (sc) {
 	    vpip_attach_to_scope(sc, obj);

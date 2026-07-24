@@ -1,0 +1,28 @@
+Compiling vpi/m12_assert_attempt.c...
+Making m12_assert_attempt.vpi from  m12_assert_attempt.o...
+assert_L16_1 reason=606 evt=5 start=5
+assert_L12_0 reason=606 evt=5 start=5
+assert_L12_0 reason=607 evt=5 start=5
+assert_L12_0 reason=606 evt=15 start=15
+ERROR: vpi/m12_assert_attempt.v:12: 
+       Time: 15  Scope: top
+assert_L12_0 reason=608 evt=15 start=15
+assert_L16_1 reason=606 evt=15 start=15
+ERROR: vpi/m12_assert_attempt.v:16: 
+       Time: 15  Scope: top
+assert_L16_1 reason=608 evt=15 start=5
+assert_L16_1 reason=606 evt=25 start=25
+assert_L12_0 reason=606 evt=25 start=25
+ERROR: vpi/m12_assert_attempt.v:12: 
+       Time: 25  Scope: top
+assert_L12_0 reason=608 evt=25 start=25
+assert_L12_0 reason=606 evt=35 start=35
+ERROR: vpi/m12_assert_attempt.v:12: 
+       Time: 35  Scope: top
+assert_L12_0 reason=608 evt=35 start=35
+assert_L16_1 reason=606 evt=35 start=35
+assert_L16_1 reason=606 evt=45 start=45
+assert_L12_0 reason=606 evt=45 start=45
+ERROR: vpi/m12_assert_attempt.v:12: 
+       Time: 45  Scope: top
+assert_L12_0 reason=608 evt=45 start=45

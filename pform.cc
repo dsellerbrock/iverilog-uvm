@@ -5211,7 +5211,14 @@ static Statement* sva_gate_(const struct vlltype&loc, Statement*action)
    number, which together with the runtime scope identifies the
    assertion for callback reporting. Placed in the checker's zero-init
    initial block. */
-static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst)
+/* M12-2: `edges' is the FIXED start->accept tick-edge count of the
+   assertion automaton (from pform_sva_nfa_fixed_latency), or -1 when
+   the latency is variable/unknown. The attempt's real tick latency is
+   edges-1 (the first edge samples on the attempt's own start tick), so
+   this emits depth_arg = edges (>=1), with the runtime looking back
+   depth_arg-1 clock ticks; depth_arg = 0 means unknown (report now). */
+static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
+				     long edges = -1)
 {
       char nbuf[64];
       snprintf(nbuf, sizeof nbuf, "assert_L%d_%u", loc.first_line, inst);
@@ -5226,6 +5233,10 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst)
       named_pexpr_t a3;
       a3.parm = new PENumber(new verinum((uint64_t)loc.first_line, 32));
       args.push_back(a3);
+      named_pexpr_t a4;
+      a4.parm = new PENumber(new verinum(
+	    (uint64_t)(edges >= 1 ? edges : 0), 32));
+      args.push_back(a4);
       PCallTask*t = new PCallTask(
 	    lex_strings.make("$ivl_register_assertion"), args);
       FILE_NAME(t, loc);
@@ -8232,7 +8243,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
       FILE_NAME(pp, loc);
 
-      init_zero.push_back(sva_register_stmt_(loc, inst));
+	// M12-2: a fixed-latency loop-free automaton lets the runtime
+	// report a correct attemptStartTime (the attempt started
+	// `latency' ticks ago).
+      init_zero.push_back(sva_register_stmt_(loc, inst,
+					     pform_sva_nfa_fixed_latency(nfa)));
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
 					sva_block_(loc, init_zero), nullptr);
       FILE_NAME(ip, loc);

@@ -79,4 +79,9 @@ extern bool pform_sva_nfa_has_cycle(const sva_nfa_t&nfa);
    an attempt's lifetime exactly. */
 extern long pform_sva_nfa_depth(const sva_nfa_t&nfa);
 
+/* M12-2: the fixed attempt latency (unique start->accept tick-edge
+   count), or -1 when latency is variable or the automaton has a
+   cycle. Used to give assertion callbacks a correct attemptStartTime. */
+extern long pform_sva_nfa_fixed_latency(const sva_nfa_t&nfa);
+
 #endif /* IVL_pform_sva_nfa_H */
