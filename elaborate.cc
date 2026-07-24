@@ -7806,6 +7806,78 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    }
 				    return 0;
 			      };
+
+				// M11-4: `with function sample(<formals>)`
+				// (19.8.1). Elaborate each call argument
+				// once; coverpoint/guard sources that name
+				// a formal bind to the corresponding
+				// argument expression instead of a caller-
+				// scope signal.
+			      unsigned nformals = cgtype->covgrp_sample_formal_count();
+			      vector<NetExpr*> formal_vals(nformals, nullptr);
+			      if (nformals > 0) {
+				    if (parms_.size() != nformals) {
+					  cerr << get_fileline()
+					       << ": error: covergroup '"
+					       << cgtype->get_name()
+					       << "' sample() expects "
+					       << nformals << " argument(s), got "
+					       << parms_.size() << "." << endl;
+					  des->errors += 1;
+				    }
+				    for (unsigned ai = 0; ai < parms_.size(); ai += 1) {
+					  unsigned fj = ai;
+					  if (!parms_[ai].name.nil()) {
+						fj = nformals;
+						for (unsigned k = 0; k < nformals; k += 1)
+						      if (cgtype->covgrp_sample_formal(k)
+							  == parms_[ai].name) {
+							    fj = k;
+							    break;
+						      }
+						if (fj == nformals) {
+						      cerr << get_fileline()
+							   << ": error: sample() has no "
+							   << "formal named '"
+							   << parms_[ai].name
+							   << "' in covergroup '"
+							   << cgtype->get_name()
+							   << "'." << endl;
+						      des->errors += 1;
+						      continue;
+						}
+					  }
+					  if (fj >= nformals || !parms_[ai].parm)
+						continue;
+					  formal_vals[fj] = elab_and_eval(
+						des, scope, parms_[ai].parm,
+						-1, false, false);
+				    }
+			      }
+			      auto formal_expr_for = [&](PExpr*src) -> NetExpr* {
+				    if (nformals == 0 || !src) return nullptr;
+				    const PEIdent*pid = dynamic_cast<const PEIdent*>(src);
+				    if (!pid) return nullptr;
+				    perm_string nm = peek_head_name(pid->path());
+				    for (unsigned k = 0; k < nformals; k += 1) {
+					  if (cgtype->covgrp_sample_formal(k) != nm)
+						continue;
+					  if (!formal_vals[k]) {
+						cerr << get_fileline()
+						     << ": sorry: sample() formal '"
+						     << nm << "' has no usable "
+						     << "argument here; the "
+						     << "coverpoint samples "
+						     << "constant 0." << endl;
+						NetExpr*z = new NetEConst(
+						      verinum((uint64_t)0, 32));
+						z->set_line(*this);
+						return z;
+					  }
+					  return formal_vals[k]->dup_expr();
+				    }
+				    return nullptr;
+			      };
 			      {
 				    // Coverpoint VALUES. Prefer the parent-
 				    // class property read (class-embedded
@@ -7827,10 +7899,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					      continue;
 					  }
 					  NetExpr*sval = nullptr;
-					  if (PExpr*sexpr = cgtype->covgrp_cp_expr(cpi))
-						sval = elab_and_eval(des, scope,
-								     sexpr, -1,
-								     false, false);
+					  if (PExpr*sexpr = cgtype->covgrp_cp_expr(cpi)) {
+						sval = formal_expr_for(sexpr);
+						if (!sval)
+						      sval = elab_and_eval(des, scope,
+									   sexpr, -1,
+									   false, false);
+					  }
 					  if (!sval) {
 						cerr << get_fileline()
 						     << ": sorry: coverpoint "
@@ -7853,6 +7928,8 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  PExpr*gexpr = cgtype->covgrp_cp_guard(cpi);
 					  NetExpr*gval = nullptr;
 					  if (gexpr) {
+						gval = formal_expr_for(gexpr);
+						if (!gval)
 						if (const PEIdent*gid =
 						      dynamic_cast<const PEIdent*>(gexpr)) {
 						      perm_string gnm = peek_head_name(gid->path());
@@ -7884,6 +7961,8 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  argv.push_back(gval);
 				    }
 			      }
+			      for (unsigned k = 0; k < nformals; k += 1)
+				    delete formal_vals[k];
 			      NetSTask* sys = new NetSTask(
 				    "$ivl_class_method$covgrp_sample",
 				    IVL_SFUNC_AS_TASK_IGNORE, argv);
@@ -13696,6 +13775,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cg_class->set_is_covergroup(true);
 		    }
 
+		      // M11-4: `with function sample(<formals>)` names.
+		      // sample() call sites bind these positionally to
+		      // the call arguments as coverpoint/guard sources.
+		    for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1)
+			  cg_class->add_covgrp_sample_formal(cgdef->sample_formals[fi]);
+
 		      // Constant-evaluate an option value (default when
 		      // absent; loud when non-constant).
 		    auto opt_uint = [&](const std::map<perm_string,PExpr*>&opts,
@@ -13807,7 +13892,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  if (!cg_standalone)
 			  if (const PEIdent* pe = dynamic_cast<const PEIdent*>(cp.expr)) {
 				perm_string cp_var_name = peek_head_name(pe->path());
-				parent_prop = property_idx_from_name(cp_var_name);
+				  // M11-4: a sample() formal shadows a
+				  // parent-class property of the same
+				  // name (19.8.1) — the source binds to
+				  // the call argument, not the property.
+				bool is_formal = false;
+				for (auto&fn : cgdef->sample_formals)
+				      if (fn == cp_var_name) {
+					    is_formal = true;
+					    break;
+				      }
+				if (!is_formal)
+				      parent_prop = property_idx_from_name(cp_var_name);
 			  }
 			  if (parent_prop < 0 && !cp.expr) {
 				cerr << "sorry: covergroup '" << cgdef->name

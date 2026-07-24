@@ -312,6 +312,11 @@ class netclass_t : public ivl_type_s {
 	// (module/package-scope) covergroups sample scope signals, and
 	// the expression elaborates in the CALLER's scope.
       void add_covgrp_cp_expr(PExpr*e) { covgrp_cp_exprs_.push_back(e); }
+	// M11-4: `with function sample(...)` formal names, in
+	// declaration order — sample() call arguments bind to them.
+      void add_covgrp_sample_formal(perm_string n) { covgrp_sample_formals_.push_back(n); }
+      size_t covgrp_sample_formal_count() const { return covgrp_sample_formals_.size(); }
+      perm_string covgrp_sample_formal(size_t i) const { return covgrp_sample_formals_[i]; }
       PExpr* covgrp_cp_expr(unsigned cp_idx) const {
 	    if (cp_idx < covgrp_cp_exprs_.size()) return covgrp_cp_exprs_[cp_idx];
 	    return 0;
@@ -323,6 +328,7 @@ class netclass_t : public ivl_type_s {
 
     private:
       std::vector<PExpr*> covgrp_cp_exprs_;
+      std::vector<perm_string> covgrp_sample_formals_;
       std::vector<covgrp_bin_t> covgrp_bins_;
       std::vector<covgrp_item_t> covgrp_items_;
       std::vector<int> covgrp_cp_parent_props_;

@@ -2390,9 +2390,21 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_function = pform_push_function_scope_unbound(@6, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
     covergroup_item_list_opt K_endgroup label_opt
-      { if ($8) current_function->set_ports($8);
+      { /* M11-4: `with function sample(<formals>)` (19.8.1) — the
+	   formal names bind positionally to the sample() call
+	   arguments at each call site. */
+	if (strcmp($6, "sample") != 0)
+	      yyerror(@6, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
+	std::vector<perm_string>*formals__ = 0;
+	if ($8) {
+	      formals__ = new std::vector<perm_string>;
+	      for (size_t idx__ = 0; idx__ < $8->size(); idx__ += 1)
+		    if ((*$8)[idx__].port)
+			  formals__->push_back((*$8)[idx__].port->basename());
+	      current_function->set_ports($8);
+	}
         pform_pop_scope(); current_function = 0;
-        pform_class_covergroup(@1, $2, $10);
+        pform_class_covergroup(@1, $2, $10, formals__);
 	delete[] $2; if ($3) delete $3; delete[] $6;
 	if ($12) delete[] $12;
       }
@@ -5063,17 +5075,12 @@ package_item /* IEEE1800-2005 A.1.10 */
    which cause LALR reduce/reduce conflicts. */
 package_cg_port_prefix
   : K_covergroup IDENTIFIER
-      { /* Register as a real class stub so "cg_t m_cg" elaborates without errors.
-           pform_push_class_scope registers in scopex->classes; we immediately pop
-           so the CG body is NOT parsed in a class scope. */
-        perm_string cg_name__ = lex_strings.make($2);
-        class_type_t*cg_type__ = new class_type_t(cg_name__);
-        FILE_NAME(cg_type__, @2);
-        cg_type__->is_covergroup_stub = true;
-        PClass*cg_cls__ = pform_push_class_scope(@2, cg_name__);
-        cg_cls__->type = cg_type__;
-        pform_set_typedef(@2, cg_name__, cg_type__, nullptr);
-        pform_pop_scope();
+      { /* The real covergroup class is registered by
+           pform_standalone_covergroup when the declaration completes
+           (before any use of the type). A stub class registered here
+           would DUPLICATE that registration — the stub's empty
+           netclass shadowed the real one and every instance silently
+           collected no coverage. */
         /* Unbound scope for the constructor port list */
         current_function = pform_push_function_scope_unbound(@2, $2, LexicalScope::INHERITED); }
     tf_port_list_parens_opt
@@ -5103,12 +5110,21 @@ package_covergroup_declaration
       { pform_pop_scope();
         current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { cerr << @2 << ": sorry: package/module-scope covergroup '" << $1
-             << "' is a stub type only — its body is ignored and no "
-             << "coverage is collected (class-embedded covergroups are "
-             << "fully supported)." << endl;
-        if ($6) current_function->set_ports($6);
+      { /* M11-4: real with-function-sample covergroup (19.8.1).
+           Constructor formals from the prefix were parsed but are
+           not modeled (same as the plain ctor-args form above). */
+        if (strcmp($4, "sample") != 0)
+              yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
+        std::vector<perm_string>*formals__ = 0;
+        if ($6) {
+              formals__ = new std::vector<perm_string>;
+              for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
+                    if ((*$6)[idx__].port)
+                          formals__->push_back((*$6)[idx__].port->basename());
+              current_function->set_ports($6);
+        }
         pform_pop_scope(); current_function = 0;
+        pform_standalone_covergroup(@2, $1, $8, nullptr, formals__);
         delete[] $1; delete[] $4; if ($10) delete[] $10; }
   | package_cg_port_prefix ';' error K_endgroup label_opt
       { pform_pop_scope(); current_function = 0; yyerrok;
@@ -10704,6 +10720,29 @@ module_item
   | K_covergroup IDENTIFIER tf_port_list_parens_opt '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
       { pform_standalone_covergroup(@1, $2, $9, $6);
 	delete[] $2; if ($3) delete $3; if ($11) delete[] $11;
+      }
+  /* M11-4: `with function sample(<formals>)` (IEEE 1800-2017
+     19.8.1). The formal names become the coverpoint sample sources,
+     bound positionally to the sample() call arguments at each call
+     site. */
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER
+      { current_function = pform_push_function_scope_unbound(@6, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
+      { if (strcmp($6, "sample") != 0)
+	      yyerror(@6, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
+	std::vector<perm_string>*formals__ = 0;
+	if ($8) {
+	      formals__ = new std::vector<perm_string>;
+	      for (size_t idx__ = 0; idx__ < $8->size(); idx__ += 1)
+		    if ((*$8)[idx__].port)
+			  formals__->push_back((*$8)[idx__].port->basename());
+	      current_function->set_ports($8);
+	}
+	pform_pop_scope();
+	current_function = 0;
+	pform_standalone_covergroup(@1, $2, $10, nullptr, formals__);
+	delete[] $2; if ($3) delete $3; delete[] $6;
+	if ($12) delete[] $12;
       }
 
   /* M5-if: a bare module-scope virtual-interface variable

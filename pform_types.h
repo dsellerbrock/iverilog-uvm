@@ -557,6 +557,10 @@ struct class_type_t : public data_type_t {
 	      // (`covergroup cg @(posedge clk);`) — instances get a
 	      // synthesized `always @(ev) inst.sample();` process.
 	    std::vector<PEEvent*> sample_events;
+	      // M11-4: `with function sample(<formals>)` — coverpoint
+	      // sources naming a formal bind to the matching sample()
+	      // call argument at each call site.
+	    std::vector<perm_string> sample_formals;
 	    std::vector<pform_coverpoint_t> coverpoints;
 	    std::vector<pform_cross_t> crosses;  // I1: cross declarations
 	      // M11: covergroup options (option.name = const_expr)

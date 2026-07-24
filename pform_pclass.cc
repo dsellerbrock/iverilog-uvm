@@ -364,11 +364,13 @@ extern std::map<perm_string, PExpr*> pending_cg_options_;
 
 void pform_class_covergroup(const struct vlltype& /*loc*/,
 			     const char*name,
-			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints)
+			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
+			     std::vector<perm_string>*sample_formals)
 {
       if (!pform_cur_class || !name) {
 	    pending_crosses_.clear();  // discard if we can't attach
 	    pending_cg_options_.clear();
+	    if (sample_formals) delete sample_formals;
 	    return;
       }
 
@@ -385,13 +387,19 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
       // M11: move accumulated covergroup-level options.
       cg->options = std::move(pending_cg_options_);
       pending_cg_options_.clear();
+      // M11-4: `with function sample(<formals>)` names.
+      if (sample_formals) {
+	    cg->sample_formals = *sample_formals;
+	    delete sample_formals;
+      }
       pform_cur_class->type->covergroups.push_back(cg);
 }
 
 void pform_standalone_covergroup(const struct vlltype&loc,
 			     const char*name,
 			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
-			     std::vector<PEEvent*>*sample_events)
+			     std::vector<PEEvent*>*sample_events,
+			     std::vector<perm_string>*sample_formals)
 {
       if (!name) {
 	    pending_crosses_.clear();
@@ -418,6 +426,12 @@ void pform_standalone_covergroup(const struct vlltype&loc,
 	    delete sample_events;
       } else if (sample_events) {
 	    delete sample_events;
+      }
+      if (sample_formals && !ct->covergroups.empty()) {
+	    ct->covergroups.back()->sample_formals = *sample_formals;
+	    delete sample_formals;
+      } else if (sample_formals) {
+	    delete sample_formals;
       }
       pform_pop_scope();
 }
