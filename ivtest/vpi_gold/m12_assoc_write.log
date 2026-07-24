@@ -1,0 +1,8 @@
+Compiling vpi/m12_assoc_write.c...
+Making m12_assoc_write.vpi from  m12_assoc_write.o...
+vpi sorry: value format 8 cannot be written to this associative array element (value kind 1).
+vpi sorry: value format 6 cannot be written to this associative array element (value kind 3).
+aa_i[0](a)=4
+aa_i[7]: no handle
+final: aa_i[a]=40 aa_i[b]=50 aa_r[k]=6.25 aa_s[k]='after'
+final: aa_b[1]=ab aa_b[3]=11 aa_o[k].x=1
