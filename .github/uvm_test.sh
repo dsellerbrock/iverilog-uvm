@@ -227,7 +227,17 @@ run_test() {
     local dflags=""
     [ -n "$UVM_DPI_SO" ] && dflags="-d $UVM_DPI_SO"
     local srcs=""
-    [ -f "$cfile" ] && srcs="$srcs $REPO/$cfile"
+    # $REPO-prefix a RELATIVE test dir only. UVM_TESTS_DIR may be absolute
+    # (.github/regression/run_uvm_subset.sh builds its symlink dir under
+    # /tmp), and blindly prefixing produced "$REPO//tmp/..." -- the C
+    # companion then failed to compile and the test reported a FAIL that
+    # was purely a path bug. Silent enough to have raised two false alarms.
+    if [ -f "$cfile" ]; then
+        case "$cfile" in
+            /*) srcs="$srcs $cfile" ;;
+            *)  srcs="$srcs $REPO/$cfile" ;;
+        esac
+    fi
     [ -f "$stub" ]  && srcs="$srcs $stub"
     if [ "$UVM_WIN_MERGE" = 1 ]; then
         # Windows: build ONE module = umbrella + this test's DPI-export stub

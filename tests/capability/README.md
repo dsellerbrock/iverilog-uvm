@@ -40,9 +40,6 @@ the failure mode the project's loud-sorry rule exists to prevent.
 
 | Probe | Item | What it shows |
 |-------|------|---------------|
-| `m10_4f_auto1` | M10-4(a) | An `automatic`-lifetime DPI export reads `x` for every argument, even on a single non-concurrent call |
-| `m10_4c_trace` | M10-4(b) | Two concurrent invocations of one exported task alias their arguments — `sv_wait(3,1)` runs as `id=0 d=5` |
-| `m10_4d_auto` | M10-4(a+b) | The two above compounding: concurrent *and* automatic |
 | `m6b4_det` | M6B-4 | A concurrent assertion samples the **Active**-region value, not the **Preponed** one (IEEE 1800-2017 16.5.1). Deterministic — one thread, no inter-process race |
 | `m6b4_sample` | M6B-4 | The same defect in the racy form a testbench would actually hit |
 | `m3b5_seed_stability` | M3B-5 | `srandom()` is a no-op: the same object re-seeded with the same value yields different results |
@@ -55,7 +52,11 @@ the failure mode the project's loud-sorry rule exists to prevent.
 |-------|------|
 | `m10_3_chandle`, `m10_3b_adv` | M10-3 — `chandle`/`real`/`string` ABI, including output/inout formals and `chandle` in a class property or array |
 | `m10_5_reentr` | M10-5 — two-deep C→SV→C→SV reentrancy |
-| `m10_4_slowtask`, `m10_4e_diff` | M10-4 — the parts that *do* work: a single time-consuming export, and two *different* exports concurrently |
+| `m10_4f_auto1`, `m10_4d_auto` | M10-4 — automatic-lifetime exports: a single call, and two concurrent invocations of one automatic exported task. **Both reproduced the fixed P0** (every argument arrived as `x`); now pinned by `tests/m10h_dpi_export_automatic_test` |
+| `m10_4_slowtask`, `m10_4e_diff` | M10-4 — a single time-consuming export, and two *different* exports concurrently |
+| `m10_4c_trace`, `staticsem` | M10-4 — concurrent invocations of a **static** export alias their arguments. Not a defect: IEEE 1800-2017 13.3.1 gives a static subroutine one copy of its arguments, and `staticsem` shows a plain SV static task doing exactly the same |
+| `m10_4g_nested` | M10-4 — an automatic export whose body calls nested automatic subroutines and then delays; three concurrent invocations each keep their own frame |
+| `m10_4h_recurse` | M10-4 — recursive re-entry: C → automatic export → C → the same export, four levels deep, each holding its own frame |
 | `m6b3_kill` | M6B-3 — `join_any` + `disable fork` correctly abandons a blocked DPI import |
 | `m13_1_bind_instpath`, `m13_2_bind_instlist` | M13-1/2 — bind to an instance path and to a target list, checked functionally rather than by parse |
 | `m3b4_randmode` | M3B-4 — `rand_mode()`/`constraint_mode()` in all combinations |
