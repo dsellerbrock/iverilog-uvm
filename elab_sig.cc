@@ -890,6 +890,10 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
       // triggered lazily by PENew before netclass_t::elaborate() has run.
       for (auto* cgdef : pclass->type->covergroups) {
 	    if (!cgdef) continue;
+	    // M11-1/2: a STANDALONE covergroup class IS the covergroup —
+	    // no handle property (its own properties are the bins).
+	    if (pclass->type->is_covergroup_standalone)
+		  continue;
 	    // Skip if the property was already added (e.g. by a prior elaborate() call).
 	    if (property_idx_from_name(cgdef->name) >= 0)
 		  continue;

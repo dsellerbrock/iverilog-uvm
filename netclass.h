@@ -307,12 +307,22 @@ class netclass_t : public ivl_type_s {
 	// M11: per-coverpoint iff guard expressions (pform, evaluated
 	// at each sample() call site; null = unguarded).
       void add_covgrp_cp_guard(PExpr*g) { covgrp_cp_guards_.push_back(g); }
+	// Coverpoint SOURCE expressions (pform), for sample() sites
+	// where the source is not a parent-class property — standalone
+	// (module/package-scope) covergroups sample scope signals, and
+	// the expression elaborates in the CALLER's scope.
+      void add_covgrp_cp_expr(PExpr*e) { covgrp_cp_exprs_.push_back(e); }
+      PExpr* covgrp_cp_expr(unsigned cp_idx) const {
+	    if (cp_idx < covgrp_cp_exprs_.size()) return covgrp_cp_exprs_[cp_idx];
+	    return 0;
+      }
       PExpr* covgrp_cp_guard(unsigned cp_idx) const {
 	    if (cp_idx < covgrp_cp_guards_.size()) return covgrp_cp_guards_[cp_idx];
 	    return nullptr;
       }
 
     private:
+      std::vector<PExpr*> covgrp_cp_exprs_;
       std::vector<covgrp_bin_t> covgrp_bins_;
       std::vector<covgrp_item_t> covgrp_items_;
       std::vector<int> covgrp_cp_parent_props_;

@@ -7806,32 +7806,59 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    }
 				    return 0;
 			      };
-			      if (parent_cls) {
+			      {
+				    // Coverpoint VALUES. Prefer the parent-
+				    // class property read (class-embedded
+				    // covergroups); otherwise elaborate the
+				    // recorded SOURCE expression in the
+				    // CALLER's scope — this is how
+				    // standalone (module/package-scope)
+				    // covergroups sample scope signals, and
+				    // it also serves in-class expression
+				    // coverpoints sampled where the names
+				    // are visible.
 				    for (unsigned cpi = 0; cpi < ncp; ++cpi) {
 					  int pp = cgtype->covgrp_cp_parent_prop(cpi);
-					  if (pp >= 0) {
+					  if (pp >= 0 && parent_cls) {
 					      NetEProperty* prop = new NetEProperty(
 						    make_parent_expr(), pp, nullptr);
 					      prop->set_line(*this);
 					      argv.push_back(prop);
-					  } else {
-					      // Unknown coverpoint: push zero
-					      argv.push_back(new NetEConst(verinum((uint64_t)0, 32)));
+					      continue;
 					  }
+					  NetExpr*sval = nullptr;
+					  if (PExpr*sexpr = cgtype->covgrp_cp_expr(cpi))
+						sval = elab_and_eval(des, scope,
+								     sexpr, -1,
+								     false, false);
+					  if (!sval) {
+						cerr << get_fileline()
+						     << ": sorry: coverpoint "
+						     << (cpi+1) << " of covergroup '"
+						     << cgtype->get_name()
+						     << "' cannot be evaluated at "
+						     << "this sample() site; it "
+						     << "samples constant 0." << endl;
+						sval = new NetEConst(verinum((uint64_t)0, 32));
+						sval->set_line(*this);
+					  }
+					  argv.push_back(sval);
 				    }
+				    // iff GUARDS: parent-property read,
+				    // else the guard expression elaborated
+				    // in the caller's scope (a runtime
+				    // value is fine — it is just another
+				    // sample() argument).
 				    for (unsigned cpi = 0; cpi < ncp; ++cpi) {
 					  PExpr*gexpr = cgtype->covgrp_cp_guard(cpi);
 					  NetExpr*gval = nullptr;
 					  if (gexpr) {
-						// Supported guard forms:
-						// simple property name or
-						// constant. Anything else
-						// is a loud sorry (guard
-						// treated as enabled).
 						if (const PEIdent*gid =
 						      dynamic_cast<const PEIdent*>(gexpr)) {
 						      perm_string gnm = peek_head_name(gid->path());
-						      int gp = parent_cls->property_idx_from_name(gnm);
+						      int gp = parent_cls
+							    ? parent_cls->property_idx_from_name(gnm)
+							    : -1;
 						      if (gp >= 0) {
 							    NetEProperty*gprop =
 								  new NetEProperty(make_parent_expr(),
@@ -7840,36 +7867,23 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 							    gval = gprop;
 						      }
 						}
-						if (!gval) {
-						      NetExpr*ge = elab_and_eval(des, scope,
-										 gexpr, -1,
-										 false, false);
-						      if (dynamic_cast<NetEConst*>(ge)) {
-							    gval = ge;
-						      } else {
-							    delete ge;
-							    cerr << get_fileline()
-								 << ": sorry: coverpoint iff "
-								 << "guard uses a form that is "
-								 << "not supported at sample() "
-								 << "sites; the guard is treated "
-								 << "as enabled." << endl;
-						      }
-						}
+						if (!gval)
+						      gval = elab_and_eval(des, scope,
+									   gexpr, -1,
+									   false, false);
+						if (!gval)
+						      cerr << get_fileline()
+							   << ": sorry: coverpoint iff "
+							   << "guard cannot be evaluated "
+							   << "at this sample() site; the "
+							   << "guard is treated as "
+							   << "enabled." << endl;
 					  }
 					  if (!gval)
 						gval = new NetEConst(verinum((uint64_t)1, 32));
 					  argv.push_back(gval);
 				    }
-			      } else {
-				    cerr << get_fileline() << ": sorry: cannot "
-					 << "resolve the parent object of "
-					 << "covergroup '" << cgtype->get_name()
-					 << "' at this sample() site; the "
-					 << "sample records no coverpoint "
-					 << "values." << endl;
 			      }
-
 			      NetSTask* sys = new NetSTask(
 				    "$ivl_class_method$covgrp_sample",
 				    IVL_SFUNC_AS_TASK_IGNORE, argv);
@@ -12374,6 +12388,54 @@ static void elaborate_tasks(Design*des, NetScope*scope,
 }
 
 
+
+// M11-2: synthesize the auto-sampling processes for standalone
+// covergroup instances declared with a sampling event
+// (`covergroup cg @(posedge clk); ... endgroup` + `cg inst = new;`):
+// for each variable in this scope whose type is a standalone
+// covergroup class carrying sample events, elaborate
+// `always @(events) inst.sample();` in the enclosing scope.
+static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope)
+{
+      for (auto&kv : scope->signals_map()) {
+	    NetNet*sig = kv.second;
+	    if (!sig) continue;
+	    const netclass_t*ct =
+		  dynamic_cast<const netclass_t*>(sig->net_type());
+	    if (!ct || !ct->is_covergroup()) continue;
+	    const NetScope*cscope = ct->class_scope();
+	    const PClass*pcl = cscope ? cscope->class_pform() : 0;
+	    if (!pcl || !pcl->type || !pcl->type->is_covergroup_standalone)
+		  continue;
+	    if (pcl->type->covergroups.empty()) continue;
+	    class_type_t::pform_covergroup_t*cgdef = pcl->type->covergroups.front();
+	    if (!cgdef || cgdef->sample_events.empty()) continue;
+
+	    pform_name_t mpath;
+	    mpath.push_back(name_component_t(sig->name()));
+	    mpath.push_back(name_component_t(
+		  perm_string::literal("sample")));
+	    std::list<named_pexpr_t> no_parms;
+	    PCallTask*call = new PCallTask(mpath, no_parms);
+	    call->set_line(*sig);
+	    PEventStatement*ev = new PEventStatement(cgdef->sample_events);
+	    ev->set_line(*sig);
+	    ev->set_statement(call);
+	    NetProc*st = ev->elaborate(des, scope);
+	    if (!st) {
+		  cerr << sig->get_fileline() << ": sorry: cannot "
+		       << "elaborate the sampling event of covergroup '"
+		       << ct->get_name() << "' for instance '"
+		       << sig->name() << "'; automatic sampling is "
+		       << "disabled (call sample() explicitly)." << endl;
+		  continue;
+	    }
+	    NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS, st);
+	    top->set_line(*sig);
+	    des->add_process(top);
+      }
+}
+
 // I5 (Phase 62i): elaborate package/module classes in declaration
 // (lexical) order rather than alphabetical (std::map).  Class-static
 // initializers are emitted as IVL_PR_INITIAL processes via
@@ -12778,6 +12840,10 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // Elaborate class definitions in declaration (lexical) order
 	      // so static initializers fire in declaration order (I5 fix).
 	    elaborate_classes_lexical(des, scope, classes_lexical);
+
+	      // M11-2: auto-sampling processes for standalone
+	      // covergroup instances with a sampling event.
+	    elaborate_standalone_cg_samplers_(des, scope);
 
 	      // Get all the gates of the module and elaborate them by
 	      // connecting them to the signals. The gate may be simple or
@@ -13604,8 +13670,20 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      + "_" + string(cgdef->name.str()) + "_t";
 		    perm_string cg_class_pname = lex_strings.make(cg_cname.c_str());
 
+		      // M11-1/2: a STANDALONE covergroup (module/package
+		      // scope) has no containing class — the synthesized
+		      // bins/metadata land on THIS class itself, and an
+		      // instance (`cg cg_inst = new;`) is directly a
+		      // covergroup object. Coverpoint sources are scope
+		      // signals, resolved at each sample() site.
+		    bool cg_standalone = pclass->type->is_covergroup_standalone;
+
 		    netclass_t* cg_class = nullptr;
-		    {
+		    if (cg_standalone) {
+			  cg_class = this;
+			  cg_class->set_is_covergroup(true);
+		    }
+		    if (!cg_class) {
 			  int existing_idx = property_idx_from_name(cgdef->name);
 			  if (existing_idx >= 0)
 				cg_class = const_cast<netclass_t*>(
@@ -13726,20 +13804,26 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    unsigned cp_idx  = 0;
 		    for (auto& cp : cgdef->coverpoints) {
 			  int parent_prop = -1;
+			  if (!cg_standalone)
 			  if (const PEIdent* pe = dynamic_cast<const PEIdent*>(cp.expr)) {
 				perm_string cp_var_name = peek_head_name(pe->path());
 				parent_prop = property_idx_from_name(cp_var_name);
 			  }
-			  if (parent_prop < 0) {
+			  if (parent_prop < 0 && !cp.expr) {
 				cerr << "sorry: covergroup '" << cgdef->name
 				     << "' coverpoint '" << cp.label
-				     << "': only simple class-property "
-				     << "expressions are supported; the "
-				     << "coverpoint samples constant 0."
+				     << "': the coverpoint has no source "
+				     << "expression; it samples constant 0."
 				     << endl;
 			  }
 			  cg_class->add_covgrp_cp_parent_prop(parent_prop);
 			  cg_class->add_covgrp_cp_guard(cp.iff_expr);
+			    // Keep the SOURCE expression: sample() sites
+			    // elaborate it in the caller's scope when it
+			    // is not a parent-class property (standalone
+			    // covergroups, in-class expression
+			    // coverpoints).
+			  cg_class->add_covgrp_cp_expr(cp.expr);
 
 			  opt_check(cp.options, "coverpoint");
 			  unsigned cp_at_least = opt_uint(cp.options, "at_least", cg_at_least);
@@ -14307,10 +14391,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    }
 
 		    // Replace the covergroup property declaration on the
-		    // parent class with a handle to the synthesized class.
-		    set_property(cgdef->name,
-				 property_qualifier_t::make_none(),
-				 cg_class);
+		    // parent class with a handle to the synthesized class
+		    // (not for a standalone covergroup: the class IS the
+		    // covergroup object type).
+		    if (!cg_standalone)
+			  set_property(cgdef->name,
+				       property_qualifier_t::make_none(),
+				       cg_class);
 	      }
 
 	      for (map<perm_string,PFunction*>::iterator cur = pclass->funcs.begin()

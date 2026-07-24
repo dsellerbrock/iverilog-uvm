@@ -387,3 +387,37 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
       pending_cg_options_.clear();
       pform_cur_class->type->covergroups.push_back(cg);
 }
+
+void pform_standalone_covergroup(const struct vlltype&loc,
+			     const char*name,
+			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
+			     std::vector<PEEvent*>*sample_events)
+{
+      if (!name) {
+	    pending_crosses_.clear();
+	    pending_cg_options_.clear();
+	    return;
+      }
+      perm_string cg_name = lex_strings.make(name);
+      PClass*cls = pform_push_class_scope(loc, cg_name);
+      class_type_t*ct = new class_type_t(cg_name);
+      FILE_NAME(ct, loc);
+      ct->is_covergroup_standalone = true;
+      cls->type = ct;
+      pform_set_typedef(loc, cg_name, ct, nullptr);
+	// The regular class-covergroup registration attaches the
+	// covergroup (and any pending crosses/options) via
+	// pform_cur_class, which only class_declaration normally
+	// manages — point it at the wrapper for the call.
+      PClass*save_cur = pform_cur_class;
+      pform_cur_class = cls;
+      pform_class_covergroup(loc, name, coverpoints);
+      pform_cur_class = save_cur;
+      if (sample_events && !ct->covergroups.empty()) {
+	    ct->covergroups.back()->sample_events = *sample_events;
+	    delete sample_events;
+      } else if (sample_events) {
+	    delete sample_events;
+      }
+      pform_pop_scope();
+}

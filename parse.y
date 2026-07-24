@@ -5083,26 +5083,21 @@ package_cg_port_prefix
 
 package_covergroup_declaration
   : K_covergroup IDENTIFIER ';' covergroup_item_list_opt K_endgroup label_opt
-      { /* Register as a real class stub so "cg_t m_cg" elaborates without errors */
-        cerr << @1 << ": sorry: package/module-scope covergroup '" << $2
-             << "' is a stub type only — its body is ignored and no "
-             << "coverage is collected (class-embedded covergroups are "
-             << "fully supported)." << endl;
-        perm_string cg_name__ = lex_strings.make($2);
-        class_type_t*cg_type__ = new class_type_t(cg_name__);
-        FILE_NAME(cg_type__, @2);
-        cg_type__->is_covergroup_stub = true;
-        PClass*cg_cls__ = pform_push_class_scope(@2, cg_name__);
-        cg_cls__->type = cg_type__;
-        pform_set_typedef(@2, cg_name__, cg_type__, nullptr);
-        pform_pop_scope();
+      { /* M11-1: real package-scope covergroup type (19.3). */
+        pform_standalone_covergroup(@1, $2, $4);
         delete[] $2; if ($6) delete[] $6; }
+  | K_covergroup IDENTIFIER '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_standalone_covergroup(@1, $2, $8, $5);
+        delete[] $2; if ($10) delete[] $10; }
   | package_cg_port_prefix ';' covergroup_item_list_opt K_endgroup label_opt
-      { cerr << @2 << ": sorry: package/module-scope covergroup '" << $1
-             << "' is a stub type only — its body is ignored and no "
-             << "coverage is collected (class-embedded covergroups are "
-             << "fully supported)." << endl;
+      { /* Constructor formals are parsed (the unbound function scope
+           from the prefix) but not yet modeled; the covergroup itself
+           is real. */
         pform_pop_scope(); current_function = 0;
+        cerr << @2 << ": sorry: covergroup constructor arguments on '"
+             << $1 << "' are ignored (the covergroup itself is "
+             << "collected)." << endl;
+        pform_standalone_covergroup(@2, $1, $3);
         delete[] $1; if ($5) delete[] $5; }
   | package_cg_port_prefix K_with K_function IDENTIFIER
       { pform_pop_scope();
@@ -10697,6 +10692,19 @@ module_item
       { pform_error_in_generate(@1, "timeunit declaration"); }
 
   | class_declaration
+
+  /* M11-2: MODULE/interface-scope covergroup declaration (IEEE
+     1800-2017 19.3): declares a type; instances are created with
+     `new`. Coverpoint sources are scope signals, resolved at each
+     sample() site. */
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_standalone_covergroup(@1, $2, $5);
+	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
+      }
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_standalone_covergroup(@1, $2, $9, $6);
+	delete[] $2; if ($3) delete $3; if ($11) delete[] $11;
+      }
 
   /* M5-if: a bare module-scope virtual-interface variable
      (`virtual bus_if v;`). The generic route (block_item_decl ->

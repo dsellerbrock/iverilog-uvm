@@ -274,9 +274,9 @@ module-like subset — leaving the M9-7 multiclock residuals, the
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M11-1 | Package-scope covergroups | F | OPEN | — | package cg samples |
-| M11-2 | Module/interface-scope covergroups | F | OPEN | — | non-class cg samples |
-| M11-3 | Complete sampling-event forms | F | OPEN | — | all `@(...)` sample forms |
+| M11-1 | Package-scope covergroups | F | **DONE** | — | standalone covergroups declare a class type whose netclass IS the covergroup (bins as own properties); `new` instantiates; coverpoint sources elaborate at each sample site in the caller's scope. sv_covergroup_standalone |
+| M11-2 | Module/interface-scope covergroups | F | **DONE** | — | module_item grammar (+0 bison conflicts), explicit sample()/crosses/iff/per-instance state, and declaration sampling events (`covergroup cg @(posedge clk);`) synthesizing per-instance `always @(ev) inst.sample();` processes. Ctor formals on standalone covergroups are parsed but ignored (loud). sv_covergroup_standalone |
+| M11-3 | Complete sampling-event forms | F | OPEN (basic `@(edge sig)` header DONE for standalone cgs via M11-2; class-embedded headers and richer forms remain) | — | all `@(...)` sample forms |
 | M11-4 | `with function sample` formal semantics | F | OPEN | — | sampled formals correct |
 | M11-5 | Coverpoint-expression + option/type_option audit | A | OPEN | — | arbitrary exprs + all options |
 | M11-6 | Coverage serialization/interchange + adversarial cross/transition | A | OPEN | — | durable format + generated tests |

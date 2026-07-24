@@ -1,15 +1,13 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM (212 tests, 4x53 batches, ~25-30 min) last passed:
-  commit: M3B-4 (this commit — randomize() failure semantics, HIGH risk)
-  date: 2026-07-23
-
 Full UVM last passed: M9-9 head (212/212, 4x53 batches, 2026-07-24 —
 covered M4C-15 MEDIUM + M4C-16 MEDIUM + M9-9 HIGH checker grammar).
 
-Commits since full UVM: 1 (M5-5 MEDIUM-HIGH generic interface ports —
-vif-binding init ordering changed; gated on full ivtest + negative +
-sva_nfa + vif 14/14 + classes 25/25 + smoke 14/14).
+Commits since full UVM: 2 (M5-5 MEDIUM-HIGH generic interface ports,
+M11-1/2 MEDIUM-HIGH standalone covergroups — the covergroup sample
+dispatch was restructured, shared with class-embedded covergroups;
+coverage 9/9 + classes 25/25 + smoke 14/14 green). Two consecutive
+MEDIUM-HIGH commits: a debt-clearing full run is in flight.
 Highest risk change since last full run: MEDIUM-HIGH.
 
 Triggers for a full run (see docs/conformance/REGRESSION_POLICY.md):
