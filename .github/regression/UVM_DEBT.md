@@ -1,10 +1,10 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: M10-4 head (214/214, 4x batches of 54/54/53/53,
-2026-07-24 — validated the DPI-export automatic-lifetime fix. Ran a full
-pass because the change allocates and hands off an automatic context in
-the export dispatcher, and automatic context lifetime is shared
-machinery that UVM leans on heavily.)
+Full UVM last passed: M6B-4 head (216/216, 4x54 batches, 2026-07-24 —
+validated the Preponed-sampling change. Ran a full pass because it
+rewrites the operand reads of EVERY synthesized concurrent assertion and
+touches system-function width/type determination in elaboration, both of
+which reach far beyond the assertion itself.)
 
 Commits since full UVM: 0
 Highest risk change since last full run: —

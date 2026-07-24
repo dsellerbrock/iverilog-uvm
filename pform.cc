@@ -5031,6 +5031,169 @@ static PExpr* sva_clone_expr_(PExpr*e)
       return sva_clone_subst_(e, nullptr);
 }
 
+/*
+ * M6B-4 — Preponed sampling for concurrent assertions.
+ *
+ * IEEE 1800-2017 16.5.1: a concurrent assertion evaluates its operands
+ * against the values they held in the PREPONED region, i.e. before any
+ * update made in the current time slot. The synthesized checker is an
+ * ordinary `always @(clk)' process, so reading an operand directly gave
+ * the ACTIVE-region value instead: a blocking write in the same time
+ * slot as the clock edge was visible to the assertion, and the verdict
+ * flipped. There was no diagnostic -- just a wrong pass or fail.
+ *
+ *   #5 a = 1;      // Active
+ *      clk = 1;    // posedge in the same slot
+ *   assert property (@(posedge clk) a |-> b);
+ *
+ * Preponed `a' is 0, so the attempt is vacuous. Icarus saw a==1 and
+ * reported a failure. (Operands written by NBA happened to be right,
+ * but only because NBA updates land after edge detection -- not
+ * because anything sampled.)
+ *
+ * The runtime already carries the machinery, built for clocking-block
+ * `#1step' inputs (14.13): $ivl_clocking_hist_on(sig) turns on a 1-deep
+ * driven-value history for a signal, and $ivl_clocking_sample(sig)
+ * lowers to %load/preponed, which returns the value the signal held
+ * when the current time step began. So the fix is a source-level
+ * rewrite in the checker the SVA lowering already synthesizes: wrap
+ * each operand read, and emit the matching history-enable in the
+ * checker's initial block.
+ *
+ * Wrapping is applied to a signal read as a WHOLE (`a', `vec'). A
+ * select (`vec[3]', `vec[7:4]') is left alone: %load/preponed needs a
+ * whole-signal operand and degrades to a live read otherwise, so
+ * wrapping it would buy nothing while looking like it had. Those are
+ * counted and reported by the caller rather than silently skipped.
+ *
+ * Returns a fresh tree (the input is borrowed and never mutated), or
+ * nullptr for a shape this cannot copy -- the caller then keeps the
+ * original expression, reading live.
+ */
+static PExpr* sva_wrap_preponed_(PExpr*e,
+				 std::set<perm_string>&sampled,
+				 unsigned&unsampled_selects)
+{
+      if (!e) return nullptr;
+
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    PEIdent*cp = id->path().package
+		  ? new PEIdent(id->path().package, id->path().name,
+				id->lexical_pos())
+		  : new PEIdent(id->path().name, id->lexical_pos());
+	    cp->set_line(*e);
+
+	      /* Only a bare, whole-signal read is sampled. A package- or
+		 hierarchy-qualified name, or one carrying a select, stays
+		 a live read. */
+	    bool whole = !id->path().package
+		       && id->path().name.size() == 1
+		       && id->path().name.front().index.empty();
+	    if (!whole) {
+		  if (!id->path().name.empty()
+		      && !id->path().name.back().index.empty())
+			unsampled_selects += 1;
+		  return cp;
+	    }
+
+	    std::list<named_pexpr_t> parms;
+	    named_pexpr_t a0;
+	    a0.parm = cp;
+	    parms.push_back(a0);
+	    PECallFunction*smp = new PECallFunction(
+		  lex_strings.make("$ivl_clocking_sample"), parms);
+	    smp->set_line(*e);
+	    sampled.insert(id->path().name.front().name);
+	    return smp;
+      }
+
+      if (PENumber*num = dynamic_cast<PENumber*>(e)) {
+	    PENumber*cp = new PENumber(new verinum(num->value()));
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
+	    PExpr*sub = sva_wrap_preponed_(un->get_expr(), sampled,
+					   unsampled_selects);
+	    if (!sub) return nullptr;
+	    PEUnary*cp = new PEUnary(un->get_op(), sub);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
+	    PExpr*l = sva_wrap_preponed_(bin->get_left(), sampled,
+					 unsampled_selects);
+	    PExpr*r = sva_wrap_preponed_(bin->get_right(), sampled,
+					 unsampled_selects);
+	    if (!l || !r) { delete l; delete r; return nullptr; }
+	    PEBinary*cp;
+	    if (dynamic_cast<PEBComp*>(e))
+		  cp = new PEBComp(bin->get_op(), l, r);
+	    else if (dynamic_cast<PEBLogic*>(e))
+		  cp = new PEBLogic(bin->get_op(), l, r);
+	    else if (dynamic_cast<PEBShift*>(e))
+		  cp = new PEBShift(bin->get_op(), l, r);
+	    else if (typeid(*e) == typeid(PEBinary))
+		  cp = new PEBinary(bin->get_op(), l, r);
+	    else { delete l; delete r; return nullptr; }
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
+	    PExpr*c = sva_wrap_preponed_(ter->get_cond(), sampled,
+					 unsampled_selects);
+	    PExpr*t = sva_wrap_preponed_(ter->get_true(), sampled,
+					 unsampled_selects);
+	    PExpr*f = sva_wrap_preponed_(ter->get_false(), sampled,
+					 unsampled_selects);
+	    if (!c || !t || !f) { delete c; delete t; delete f; return nullptr; }
+	    PETernary*cp = new PETernary(c, t, f);
+	    cp->set_line(*e);
+	    return cp;
+      }
+	/* Sampled-value functions ($past/$rose/…) are rewritten to history
+	   chains after this pass; sampling their arguments here means the
+	   history captures preponed values too, which is what 16.9.3
+	   requires. */
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    if (cf->path().package || cf->path().name.size() != 1)
+		  return nullptr;
+	    const std::vector<named_pexpr_t>&parms = cf->get_parms();
+	    std::list<named_pexpr_t> np;
+	    for (size_t k = 0 ; k < parms.size() ; k += 1) {
+		  named_pexpr_t a;
+		  a.name = parms[k].name;
+		  if (parms[k].parm) {
+			a.parm = sva_wrap_preponed_(parms[k].parm, sampled,
+						    unsampled_selects);
+			if (!a.parm) return nullptr;
+		  }
+		  np.push_back(a);
+	    }
+	    PECallFunction*cp = new PECallFunction(
+		  peek_tail_name(cf->path().name), np);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      return nullptr;
+}
+
+/* Build `$ivl_clocking_hist_on(sig);' — turns on the 1-deep driven-value
+   history %load/preponed reads. Emitted once per sampled signal into the
+   checker's initial block. */
+static Statement* sva_hist_on_stmt_(const struct vlltype&loc, perm_string sig)
+{
+      std::list<named_pexpr_t> args;
+      named_pexpr_t a0;
+      a0.parm = new PEIdent(sig, loc.lexical_pos);
+      FILE_NAME(a0.parm, loc);
+      args.push_back(a0);
+      PCallTask*t = new PCallTask(
+	    lex_strings.make("$ivl_clocking_hist_on"), args);
+      FILE_NAME(t, loc);
+      return t;
+}
+
 /* M9D: build a formal->actual substitution map from a call's arguments,
    checking arity. Returns false (diagnosed) on a mismatch or empty arg. */
 static bool sva_build_subst_(const struct vlltype&loc, const char*what,
@@ -7915,6 +8078,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   conjuncts, and a `throughout' invariant AND-ed onto every
 	   edge (which is not a chain step). */
       std::map<PExpr*, perm_string> guard_reg;
+	/* M6B-4: signals whose preponed value the guards read, and the
+	   count of select operands that had to stay live (see
+	   sva_wrap_preponed_). */
+      std::set<perm_string> prep_sampled;
+      unsigned prep_unsampled_selects = 0;
       {
 	    unsigned bidx = 0;
 	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
@@ -7928,7 +8096,17 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			     NOT captured into a shared sample register. */
 			if (has_lv && sva_expr_reads_lv_(key, lv_index))
 			      continue;
-			PExpr*be = sva_rewrite_sampled_(loc, key, inst,
+			  /* M6B-4: read the guard's operands as of the
+			     Preponed region (16.5.1). Done BEFORE the
+			     sampled-value rewrite so $past/$rose history
+			     chains capture preponed values too. A shape the
+			     wrap cannot copy keeps the original expression
+			     and reads live. */
+			PExpr*src = key;
+			PExpr*prep = sva_wrap_preponed_(key, prep_sampled,
+							prep_unsampled_selects);
+			if (prep) src = prep;
+			PExpr*be = sva_rewrite_sampled_(loc, src, inst,
 							hist_idx, pre, post,
 							init_zero);
 			perm_string r = sva_make_reg_(loc, inst, "b", bidx++);
@@ -7937,6 +8115,27 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  }
 	    }
       }
+	/* Enable the 1-deep driven-value history for every signal the
+	   guards sample. Ordered by name so the generated code is
+	   deterministic. */
+      for (std::set<perm_string>::const_iterator it = prep_sampled.begin()
+		 ; it != prep_sampled.end() ; ++it)
+	    init_zero.push_back(sva_hist_on_stmt_(loc, *it));
+
+	/* An operand that is a bit- or part-select could not be sampled
+	   (%load/preponed reads a whole signal), so it still reads its
+	   ACTIVE-region value. That is a wrong verdict whenever such an
+	   operand is written with a blocking assignment in the same time
+	   slot as the clock -- say so rather than leave it silent. One
+	   note per assertion, not per operand. */
+      if (prep_unsampled_selects > 0)
+	    cerr << loc << ": warning: this assertion has "
+		 << prep_unsampled_selects << " select operand(s) "
+		 << "(a bit- or part-select) that are read live instead of "
+		 << "sampled in the Preponed region (IEEE 1800-2017 16.5.1). "
+		 << "A blocking write to one of them in the same time slot "
+		 << "as the clock will be visible to this assertion. Whole "
+		 << "signal operands ARE sampled correctly." << endl;
 
 	/* LV-2: sample each local variable's rhs once per tick into a
 	   32-bit register; when a slot enters that variable's capture

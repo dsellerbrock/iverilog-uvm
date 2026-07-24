@@ -40,8 +40,7 @@ the failure mode the project's loud-sorry rule exists to prevent.
 
 | Probe | Item | What it shows |
 |-------|------|---------------|
-| `m6b4_det` | M6B-4 | A concurrent assertion samples the **Active**-region value, not the **Preponed** one (IEEE 1800-2017 16.5.1). Deterministic — one thread, no inter-process race |
-| `m6b4_sample` | M6B-4 | The same defect in the racy form a testbench would actually hit |
+| `m6b4_selbound` | M6B-4 | The residual after the preponed fix: a **select** operand (`v[0]`) still reads live, while the whole-signal operand next to it samples correctly. Now warned about at compile time rather than silent |
 | `m3b5_seed_stability` | M3B-5 | `srandom()` is a no-op: the same object re-seeded with the same value yields different results |
 | `m13_5_timingchecks`, `m13_6_edgedesc`, `m13_7_pulsestyle`, `beh_nochange_fires`, `beh_setup_fires` | M13-5/6/7 | Timing checks, edge descriptors and pulse controls parse, elaborate, and are silently ignored |
 | `m4b4_p_packed_struct`, `m4b5_p_nested_dims` | M4B-4/5 | `%p` prints a packed struct as a plain integer and flattens nested dimensions (deferred cosmetic) |
@@ -61,7 +60,7 @@ the failure mode the project's loud-sorry rule exists to prevent.
 | `m13_1_bind_instpath`, `m13_2_bind_instlist` | M13-1/2 — bind to an instance path and to a target list, checked functionally rather than by parse |
 | `m3b4_randmode` | M3B-4 — `rand_mode()`/`constraint_mode()` in all combinations |
 | `m1b3_generic` | M1B-3 — the same shape the hardcoded `uvm_shared` fallback patches, under a different class name, works through the general path |
-| `m6b4_nba` | M6B-4 — the NBA case that happens to be right, kept as the contrast to `m6b4_det` |
+| `m6b4_det`, `m6b4_sample`, `m6b4_nba` | M6B-4 — preponed sampling. `m6b4_det` is the deterministic discriminator (one thread, no race); `m6b4_sample` the racy form, checking the failure count *and* time; `m6b4_nba` the NBA operand. **All three reproduced the fixed P0**; now pinned by `tests/m6b4_assert_preponed_sample_test` |
 
 ## Loud gaps (correct behaviour today, kept for the record)
 
