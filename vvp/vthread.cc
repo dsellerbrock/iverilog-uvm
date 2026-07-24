@@ -3019,6 +3019,10 @@ static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
  *                       active-position masks; a completed sequence
  *                       bumps the bin counter.
  */
+static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
+				const vector<uint64_t>&cp_vals,
+				const vector<uint64_t>&guards);
+
 bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 {
       unsigned ncp = cp->number;
@@ -3057,6 +3061,16 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       if (!cobj) return true;
       if (!cobj->cov_enabled()) return true;
 
+      covgrp_sample_core_(cobj, ncp, cp_vals, guards);
+      return true;
+}
+
+/* The record-matching heart of %covgrp/sample, shared with
+ * %covgrp/sample/all (M11-3 event-driven sampling). */
+static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
+				const vector<uint64_t>&cp_vals,
+				const vector<uint64_t>&guards)
+{
       const class_type*defn = cobj->get_defn();
       size_t nbins = defn->covgrp_bin_count();
 
@@ -3228,7 +3242,59 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 		  continue;
 	    covgrp_bump_count_(cobj, dp.first);
       }
+}
 
+/* %covgrp/sample/all <class> (M11-3): event-driven sampling of a
+ * class-embedded covergroup. Walk every live instance of the
+ * covergroup class; read each instance's coverpoint source (and iff
+ * guard) values from its PARENT object's properties, reached through
+ * the hidden parent handle, then run the shared sampling core. */
+bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
+{
+      const class_type*defn = dynamic_cast<const class_type*>(cp->handle);
+      if (!defn) return true;
+      int pprop = defn->covgrp_parent_prop();
+      if (pprop < 0) return true;
+      unsigned ncp = defn->covgrp_src_count();
+
+      auto read_u64 = [](vvp_cobject*o, unsigned prop,
+			 uint64_t&val, bool&low_is_1) {
+	    vvp_vector4_t v;
+	    o->get_vec4(prop, v);
+	    val = 0;
+	    for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1)
+		  if (v.value(b) == BIT4_1)
+			val |= ((uint64_t)1 << b);
+	    low_is_1 = (v.size() > 0 && v.value(0) == BIT4_1);
+      };
+
+	// Copy the list: sampling must stay safe even if it perturbs
+	// the registry.
+      std::vector<vvp_cobject*> live = defn->covgrp_live();
+      for (vvp_cobject*cg : live) {
+	    if (!cg->cov_enabled()) continue;
+	    vvp_object_t pobj;
+	    cg->get_object((size_t)pprop, pobj, 0);
+	    vvp_cobject*parent = pobj.peek<vvp_cobject>();
+	    if (!parent) continue;
+
+	    vector<uint64_t> vals(ncp, 0);
+	    vector<uint64_t> guards(ncp, 1);
+	    for (unsigned ci = 0 ; ci < ncp ; ci += 1) {
+		  uint64_t v; bool low;
+		  int sp = defn->covgrp_srcprop(ci);
+		  if (sp >= 0) {
+			read_u64(parent, (unsigned)sp, v, low);
+			vals[ci] = v;
+		  }
+		  int gp = defn->covgrp_guardsrc(ci);
+		  if (gp >= 0) {
+			read_u64(parent, (unsigned)gp, v, low);
+			guards[ci] = low ? 1 : 0;
+		  }
+	    }
+	    covgrp_sample_core_(cg, ncp, vals, guards);
+      }
       return true;
 }
 

@@ -31,6 +31,10 @@ vvp_cobject::vvp_cobject(const class_type*defn)
   rand_mode_(defn->property_count(), true),
   constraint_mode_(defn->constraint_count(), true)
 {
+	// M11-3: covergroup instances with a declaration sampling
+	// event register so %covgrp/sample/all can walk them.
+      if (defn->covgrp_parent_prop() >= 0)
+	    defn->covgrp_live_add(this);
 }
 
 bool vvp_cobject::rand_mode(size_t pid) const
@@ -102,6 +106,9 @@ void vvp_cobject::randc_mark(size_t pid, uint64_t val)
 
 vvp_cobject::~vvp_cobject()
 {
+      if (defn_->covgrp_parent_prop() >= 0)
+	    defn_->covgrp_live_remove(this);
+
       defn_->instance_delete(properties_);
       properties_ = 0;
 
@@ -161,6 +168,21 @@ string vvp_cobject::get_string(size_t pid, size_t idx)
 void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 {
       defn_->set_object(properties_, pid, val, idx);
+
+	// M11-3: storing a covergroup object that has a declaration
+	// sampling event into an object property links the covergroup
+	// back to its containing object through the hidden parent
+	// slot, so %covgrp/sample/all can read the coverpoint source
+	// properties. (The resulting reference cycle is intentional:
+	// coverage state persists for the whole simulation.)
+      if ((int)pid != defn_->covgrp_parent_prop())
+      if (vvp_cobject*cg = val.peek<vvp_cobject>()) {
+	    int pp = cg->get_defn()->covgrp_parent_prop();
+	    if (pp >= 0 && cg != this) {
+		  vvp_object_t self(this);
+		  cg->set_object((size_t)pp, self, 0);
+	    }
+      }
       touch();
 }
 

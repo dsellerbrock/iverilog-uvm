@@ -366,13 +366,15 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
 			     const char*name,
 			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
 			     std::vector<perm_string>*sample_formals,
-			     std::vector<data_type_t*>*sample_formal_types)
+			     std::vector<data_type_t*>*sample_formal_types,
+			     std::vector<PEEvent*>*sample_events)
 {
       if (!pform_cur_class || !name) {
 	    pending_crosses_.clear();  // discard if we can't attach
 	    pending_cg_options_.clear();
 	    if (sample_formals) delete sample_formals;
 	    if (sample_formal_types) delete sample_formal_types;
+	    if (sample_events) delete sample_events;
 	    return;
       }
 
@@ -397,6 +399,12 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
       if (sample_formal_types) {
 	    cg->sample_formal_types = *sample_formal_types;
 	    delete sample_formal_types;
+      }
+	// M11-3: declaration sampling event on a class-embedded
+	// covergroup.
+      if (sample_events) {
+	    cg->sample_events = *sample_events;
+	    delete sample_events;
       }
       pform_cur_class->type->covergroups.push_back(cg);
 }

@@ -326,6 +326,25 @@ class netclass_t : public ivl_type_s {
 	    return nullptr;
       }
 
+	// M11-3: event-driven sampling of class-embedded covergroups.
+	// The runtime samples every live instance on the declaration
+	// event: per coverpoint it reads the PARENT object's property
+	// (srcprop; -1 = not property-backed, samples constant 0) and
+	// guard property (guardsrc; -1 = unguarded), reaching the
+	// parent through the hidden __covgrp_parent handle property.
+      void add_covgrp_cp_srcprop(int p) { covgrp_cp_srcprops_.push_back(p); }
+      int covgrp_cp_srcprop(unsigned cp_idx) const {
+	    if (cp_idx < covgrp_cp_srcprops_.size()) return covgrp_cp_srcprops_[cp_idx];
+	    return -1;
+      }
+      void add_covgrp_cp_guardsrc(int p) { covgrp_cp_guardsrcs_.push_back(p); }
+      int covgrp_cp_guardsrc(unsigned cp_idx) const {
+	    if (cp_idx < covgrp_cp_guardsrcs_.size()) return covgrp_cp_guardsrcs_[cp_idx];
+	    return -1;
+      }
+      void set_covgrp_parent_prop(int p) { covgrp_parent_prop_ = p; }
+      int covgrp_parent_prop() const { return covgrp_parent_prop_; }
+
     private:
       std::vector<PExpr*> covgrp_cp_exprs_;
       std::vector<perm_string> covgrp_sample_formals_;
@@ -333,6 +352,9 @@ class netclass_t : public ivl_type_s {
       std::vector<covgrp_item_t> covgrp_items_;
       std::vector<int> covgrp_cp_parent_props_;
       std::vector<PExpr*> covgrp_cp_guards_;
+      std::vector<int> covgrp_cp_srcprops_;
+      std::vector<int> covgrp_cp_guardsrcs_;
+      int covgrp_parent_prop_ = -1;
       bool is_covergroup_ = false;
       bool has_embedded_cgs_ = false;
       unsigned covgrp_ncoverpoints_ = 0;

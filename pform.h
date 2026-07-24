@@ -206,7 +206,8 @@ extern void pform_class_covergroup(const struct vlltype&loc,
 				    const char*name,
 				    std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
 				    std::vector<perm_string>*sample_formals = nullptr,
-				    std::vector<data_type_t*>*sample_formal_types = nullptr);
+				    std::vector<data_type_t*>*sample_formal_types = nullptr,
+				    std::vector<PEEvent*>*sample_events = nullptr);
 
 // M11-1/2: a STANDALONE covergroup declaration (module/package/
 // interface scope). Synthesizes a class type of the same name whose

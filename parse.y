@@ -2386,6 +2386,14 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
       }
 
+  /* M11-3: class-embedded covergroup with a declaration sampling
+     event (IEEE 1800-2017 19.3): every instance samples on the
+     event automatically. */
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_class_covergroup(@1, $2, $9, nullptr, nullptr, $6);
+	delete[] $2; if ($3) delete $3; if ($11) delete[] $11;
+      }
+
   | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER
       { current_function = pform_push_function_scope_unbound(@6, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'

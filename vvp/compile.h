@@ -625,6 +625,8 @@ extern void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 				     uint64_t item_idx = 0);
 extern void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 				      uint64_t is_cross);
+extern void compile_class_covgrp_parent(uint64_t prop);
+extern void compile_class_covgrp_src(uint64_t srcprop, uint64_t guardsrc);
 extern void compile_class_done(void);
 
 #endif /* IVL_compile_H */

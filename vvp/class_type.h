@@ -175,10 +175,41 @@ class class_type : public __vpiHandle {
       static void covgrp_register(const class_type*ct);
       static void covgrp_report(FILE*fd);
 
+	// M11-3: event-driven sampling of class-embedded covergroup
+	// instances. The parent-handle property links each covergroup
+	// object back to its containing object; per-coverpoint source
+	// and guard property indexes name the PARENT properties the
+	// event process reads; the live-instance list is walked by
+	// %covgrp/sample/all.
+      void set_covgrp_parent_prop(int p) { covgrp_parent_prop_ = p; }
+      int covgrp_parent_prop() const { return covgrp_parent_prop_; }
+      void add_covgrp_src(int srcprop, int guardsrc)
+      { covgrp_srcprops_.push_back(srcprop);
+	covgrp_guardsrcs_.push_back(guardsrc); }
+      int covgrp_srcprop(size_t cp) const
+      { return cp < covgrp_srcprops_.size() ? covgrp_srcprops_[cp] : -1; }
+      int covgrp_guardsrc(size_t cp) const
+      { return cp < covgrp_guardsrcs_.size() ? covgrp_guardsrcs_[cp] : -1; }
+      size_t covgrp_src_count() const { return covgrp_srcprops_.size(); }
+      void covgrp_live_add(class vvp_cobject*obj) const
+      { covgrp_live_.push_back(obj); }
+      void covgrp_live_remove(class vvp_cobject*obj) const
+      { for (size_t i = 0; i < covgrp_live_.size(); i += 1)
+	      if (covgrp_live_[i] == obj) {
+		    covgrp_live_.erase(covgrp_live_.begin() + (long)i);
+		    return;
+	      } }
+      const std::vector<class vvp_cobject*>& covgrp_live() const
+      { return covgrp_live_; }
+
     private:
       std::vector<cov_bin_t> covgrp_bins_;
       std::vector<cov_item_t> covgrp_items_;
       mutable std::vector<uint32_t> type_counts_;
+      int covgrp_parent_prop_ = -1;
+      std::vector<int> covgrp_srcprops_;
+      std::vector<int> covgrp_guardsrcs_;
+      mutable std::vector<class vvp_cobject*> covgrp_live_;
 };
 
 const class_type* class_type_from_dispatch_prefix(const std::string&prefix);

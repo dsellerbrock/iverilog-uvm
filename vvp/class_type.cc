@@ -1476,6 +1476,21 @@ void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 				     is_cross != 0);
 }
 
+/* M11-3: event-driven sampling metadata. The .covgrp_src property
+ * indexes arrive biased by +1 (0 = none) because the vvp lexer only
+ * accepts unsigned numbers. */
+void compile_class_covgrp_parent(uint64_t prop)
+{
+      assert(compile_class);
+      compile_class->set_covgrp_parent_prop((int)prop);
+}
+
+void compile_class_covgrp_src(uint64_t srcprop, uint64_t guardsrc)
+{
+      assert(compile_class);
+      compile_class->add_covgrp_src((int)srcprop - 1, (int)guardsrc - 1);
+}
+
 /* M11: type-level (merged) coverage counters and registry. */
 
 void class_type::type_bump(unsigned prop) const

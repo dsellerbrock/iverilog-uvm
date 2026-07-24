@@ -137,6 +137,9 @@ extern void draw_vpi_rfunc_call(ivl_expr_t expr);
 extern void draw_vpi_sfunc_call(ivl_expr_t expr);
 
 extern void draw_class_in_scope(ivl_type_t classtype);
+/* Emit the .class definition for a scope-less class type (parameterized
+ * specialization, synthesized covergroup class) exactly once. */
+extern void ensure_class_type_emitted(ivl_type_t class_type);
 
 /*
  * Enumeration draw routine.

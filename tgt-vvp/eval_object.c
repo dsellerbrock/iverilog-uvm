@@ -301,7 +301,7 @@ static int eval_darray_new(ivl_expr_t ex)
 static ivl_type_t emitted_classes[MAX_EMITTED_CLASSES];
 static unsigned emitted_classes_count = 0;
 
-static void ensure_class_type_emitted(ivl_type_t class_type)
+void ensure_class_type_emitted(ivl_type_t class_type)
 {
       unsigned idx;
       int found = 0;

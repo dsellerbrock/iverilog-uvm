@@ -3791,6 +3791,20 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+      /* M11-3: event-driven sampling of a class-embedded covergroup:
+       * sample every live instance of the covergroup class. argv[0]
+       * is a type-carrier expression (never evaluated) whose net
+       * type is the covergroup class. */
+      if (strcmp(stmt_name, "$ivl_class_method$covgrp_sample_all") == 0) {
+	    ivl_expr_t arg = ivl_stmt_parm(net, 0);
+	    ivl_type_t ctype = arg ? ivl_expr_net_type(arg) : 0;
+	    if (ctype) {
+		  ensure_class_type_emitted(ctype);
+		  fprintf(vvp_out, "    %%covgrp/sample/all C%p;\n", ctype);
+	    }
+	    return 0;
+      }
+
       /* M11: covergroup start()/stop() — per-instance sampling enable. */
       if (strcmp(stmt_name, "$ivl_class_method$covgrp_start") == 0
 	  || strcmp(stmt_name, "$ivl_class_method$covgrp_stop") == 0) {

@@ -12474,8 +12474,58 @@ static void elaborate_tasks(Design*des, NetScope*scope,
 // for each variable in this scope whose type is a standalone
 // covergroup class carrying sample events, elaborate
 // `always @(events) inst.sample();` in the enclosing scope.
-static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope)
+static void elaborate_standalone_cg_samplers_(Design*des, NetScope*scope,
+				      const std::vector<PClass*>&classes_lexical)
 {
+	// M11-3: class-EMBEDDED covergroups with a declaration
+	// sampling event. Instances are dynamic, so one static
+	// process per (module scope x covergroup class) samples every
+	// live instance: %covgrp/sample/all walks the runtime
+	// instance registry, reaching each instance's coverpoint
+	// source properties through its hidden parent handle.
+      for (PClass*pcl : classes_lexical) {
+	    if (!pcl || !pcl->type) continue;
+	    if (pcl->type->is_covergroup_standalone) continue;
+	    for (auto*cgdef : pcl->type->covergroups) {
+		  if (!cgdef || cgdef->sample_events.empty()) continue;
+		  netclass_t*parent_ct = scope->find_class(des, pcl->pscope_name());
+		  if (!parent_ct) continue;
+		  int cgp = parent_ct->property_idx_from_name(cgdef->name);
+		  if (cgp < 0) continue;
+		  const netclass_t*cgct = dynamic_cast<const netclass_t*>(
+			parent_ct->get_prop_type(cgp));
+		  if (!cgct || cgct->covgrp_parent_prop() < 0) continue;
+
+		    // The argument exists only to carry the covergroup
+		    // class type to code generation; it is never
+		    // evaluated.
+		  NetENew*carrier = new NetENew(cgct);
+		  carrier->set_line(*pcl);
+		  vector<NetExpr*> argv(1);
+		  argv[0] = carrier;
+		  NetSTask*st = new NetSTask(
+			"$ivl_class_method$covgrp_sample_all",
+			IVL_SFUNC_AS_TASK_IGNORE, argv);
+		  st->set_line(*pcl);
+		  PEventStatement ev(cgdef->sample_events);
+		  ev.set_line(*pcl);
+		  NetProc*wrapped = ev.elaborate_st(des, scope, st);
+		  if (!wrapped) {
+			cerr << pcl->get_fileline() << ": sorry: cannot "
+			     << "elaborate the sampling event of covergroup '"
+			     << cgdef->name << "' in class '"
+			     << pcl->pscope_name() << "'; automatic "
+			     << "sampling is disabled (call sample() "
+			     << "explicitly)." << endl;
+			delete st;
+			continue;
+		  }
+		  NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS, wrapped);
+		  top->set_line(*pcl);
+		  des->add_process(top);
+	    }
+      }
+
       for (auto&kv : scope->signals_map()) {
 	    NetNet*sig = kv.second;
 	    if (!sig) continue;
@@ -12556,6 +12606,10 @@ bool PPackage::elaborate(Design*des, NetScope*scope) const
 	// uvm_register_cb relies on the base typed_callbacks#(T)::m_b_inst
 	// being initialized before the derived class's m_register_pair).
       elaborate_classes_lexical(des, scope, classes_lexical);
+
+	// M11-3: auto-sampling processes for covergroups with a
+	// declaration sampling event declared at package scope.
+      elaborate_standalone_cg_samplers_(des, scope, classes_lexical);
 
 	// Elaborate the variable initialization statements, making a
 	// single initial process out of them.
@@ -12920,9 +12974,10 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // so static initializers fire in declaration order (I5 fix).
 	    elaborate_classes_lexical(des, scope, classes_lexical);
 
-	      // M11-2: auto-sampling processes for standalone
-	      // covergroup instances with a sampling event.
-	    elaborate_standalone_cg_samplers_(des, scope);
+	      // M11-2/3: auto-sampling processes for standalone
+	      // covergroup instances and class-embedded covergroups
+	      // with a sampling event.
+	    elaborate_standalone_cg_samplers_(des, scope, classes_lexical);
 
 	      // Get all the gates of the module and elaborate them by
 	      // connecting them to the signals. The gate may be simple or
@@ -13915,6 +13970,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  cg_class->add_covgrp_cp_parent_prop(parent_prop);
 			  cg_class->add_covgrp_cp_guard(cp.iff_expr);
+			    // M11-3: event-driven sampling metadata —
+			    // the runtime reads these parent properties
+			    // directly on each declaration-event fire.
+			  cg_class->add_covgrp_cp_srcprop(parent_prop);
+			  {
+				int gsrc = -1;
+				if (!cg_standalone && cp.iff_expr)
+				if (const PEIdent*gpe =
+				      dynamic_cast<const PEIdent*>(cp.iff_expr))
+				      gsrc = property_idx_from_name(
+					    peek_head_name(gpe->path()));
+				cg_class->add_covgrp_cp_guardsrc(gsrc);
+			  }
 			    // Keep the SOURCE expression: sample() sites
 			    // elaborate it in the caller's scope when it
 			    // is not a parent-class property (standalone
@@ -14654,6 +14722,30 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (k == idx.size()) done = true;
 			  }
 			  cross_no++;
+		    }
+
+		    // M11-3: a class-embedded covergroup with a declaration
+		    // sampling event gets a hidden handle back to its parent
+		    // object (linked at runtime when the covergroup object is
+		    // stored into the parent's property) so the event process
+		    // can read the coverpoint source properties of every live
+		    // instance. Added AFTER the bin properties so their
+		    // indexes are unchanged.
+		    if (!cg_standalone && !cgdef->sample_events.empty()) {
+			  cg_class->set_property(
+				perm_string::literal("__covgrp_parent"),
+				property_qualifier_t::make_none(),
+				this);
+			  cg_class->set_covgrp_parent_prop((int)prop_idx);
+			  prop_idx++;
+			  for (unsigned ci = 0; ci < cg_class->covgrp_ncoverpoints(); ci++) {
+				if (cg_class->covgrp_cp_srcprop(ci) < 0)
+				      cerr << "sorry: covergroup '" << cgdef->name
+					   << "' coverpoint " << (ci+1)
+					   << " is not backed by a parent-class "
+					   << "property; event-driven sampling "
+					   << "records constant 0 for it." << endl;
+			  }
 		    }
 
 		    // Replace the covergroup property declaration on the
