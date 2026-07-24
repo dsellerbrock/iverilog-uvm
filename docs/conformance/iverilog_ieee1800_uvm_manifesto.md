@@ -596,16 +596,33 @@ Note: the harness suite is green, but per the truth rules this is
 
 ## M12B/M12C — VPI completion
 
-**Status: PARTIAL**
+**Status: COMPLETE** — all eight items done; bundled VPI suite 91/91,
+full UVM 212/212 at the completing head.
 
-- [ ] Implement assertion start/step/disable lifecycle callbacks.
-- [ ] Populate meaningful `s_vpi_attempt_info`.
-- [ ] Complete bit-select force/release.
-- [ ] Complete associative-array element writes.
-- [ ] Complete nested class-member traversal.
-- [ ] Expose complete modport direction/access metadata.
-- [ ] Complete covergroup drill-down handles.
-- [ ] Define and test VPI object lifetime/free behavior.
+- [x] Implement assertion start/step/disable lifecycle callbacks.
+      *(Start/Success/Failure from the automaton checkers,
+      Disable/Enable/Reset from the global control tasks, and
+      StepSuccess/StepFailure from the slot advance. Step reports are
+      per-tick — they cover every attempt that stepped that tick — so
+      the step matched-expression list and state pair are zeroed
+      rather than guessed. The legacy engine delivers all but the
+      step pair.)*
+- [x] Populate meaningful `s_vpi_attempt_info`.
+      *(attemptStartTime recovers a completing attempt's real launch
+      tick from a start-time ring for fixed-latency assertions —
+      always for Success, and for Failure where every reported
+      failure ran the full latency (implications). Plain-sequence
+      failures, variable-latency, cyclic and legacy/multiclock
+      checkers report the completion tick. failExpr stays 0: there is
+      no SVA sub-expression handle model.)*
+- [x] Complete bit-select force/release.
+      *(vpi_put_value force/release on a single bit-select handle,
+      plus cbForce/cbRelease registration on bit-select handles.)*
+- [x] Complete associative-array element writes.
+- [x] Complete nested class-member traversal.
+- [x] Expose complete modport direction/access metadata.
+- [x] Complete covergroup drill-down handles.
+- [x] Define and test VPI object lifetime/free behavior.
 
 ## M13A — Implemented long-tail core
 

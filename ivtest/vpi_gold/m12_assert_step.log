@@ -1,0 +1,16 @@
+Compiling vpi/m12_assert_step.c...
+Making m12_assert_step.vpi from  m12_assert_step.o...
+STEP_OK t=5 step(cnt=0 from=0 to=0)
+ERROR: vpi/m12_assert_step.v:22: 
+       Time: 15  Scope: top
+FAILURE t=15 start=15
+STEP_OK t=15 step(cnt=0 from=0 to=0)
+STEP_FAIL t=15 step(cnt=0 from=0 to=0)
+ERROR: vpi/m12_assert_step.v:22: 
+       Time: 25  Scope: top
+FAILURE t=25 start=25
+STEP_FAIL t=25 step(cnt=0 from=0 to=0)
+ERROR: vpi/m12_assert_step.v:22: 
+       Time: 35  Scope: top
+FAILURE t=35 start=35
+STEP_FAIL t=35 step(cnt=0 from=0 to=0)

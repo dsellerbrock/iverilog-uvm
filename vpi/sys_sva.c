@@ -127,7 +127,7 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       char nbuf[1024], fbuf[1024];
       const char*nm = "";
       const char*fl = "";
-      PLI_INT32 idx = 0, ln = 0, depth = 0;
+      PLI_INT32 idx = 0, ln = 0, depth = 0, flags = 0;
       (void)name;
       nbuf[0] = 0; fbuf[0] = 0;
       if (argv) {
@@ -167,11 +167,18 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  v.format = vpiIntVal;
 		  vpi_get_value(a, &v);
 		  depth = v.value.integer;
+	    }
+	      /* M12-1: optional flags (bit0 = failures always run the
+		 full latency). Absent in older .vvp output. */
+	    if ((a = vpi_scan(argv))) {           /* flags */
+		  v.format = vpiIntVal;
+		  vpi_get_value(a, &v);
+		  flags = v.value.integer;
 		  vpi_free_object(argv);
 	    }
       }
       vpip_register_assertion(idx, nm, fl, ln, vpi_handle(vpiScope, callh),
-			      depth);
+			      depth, flags);
       return 0;
 }
 

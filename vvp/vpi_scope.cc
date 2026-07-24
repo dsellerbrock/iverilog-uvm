@@ -662,13 +662,18 @@ struct assert_cb_t {
 class __vpiAssertion : public __vpiHandle {
     public:
       __vpiAssertion(int idx, const char*nam, const char*file, int line,
-		     __vpiScope*scope, int depth_arg)
+		     __vpiScope*scope, int depth_arg, int flags)
       : idx_(idx), name_(nam?nam:""), file_(file?file:""), line_(line),
 	scope_(scope),
 	  // M12-2: depth_arg is the fixed start->accept edge count (>=1)
 	  // or 0 (variable/unknown). The attempt's real tick latency is
 	  // depth_arg-1; latency_ < 0 disables start-time recovery.
-	latency_(depth_arg >= 1 ? depth_arg - 1 : -1) { }
+	latency_(depth_arg >= 1 ? depth_arg - 1 : -1),
+	  // M12-1: bit0 = a FAILURE report can only come from an attempt
+	  // that ran the full latency (implications). A plain sequence
+	  // also fails an attempt that dies at its FIRST step, whose
+	  // start is the failing tick itself.
+	fail_full_latency_((flags & 1) != 0) { }
 
       int get_type_code(void) const override { return vpiAssertion; }
 
@@ -740,9 +745,13 @@ class __vpiAssertion : public __vpiHandle {
 			      starts_.erase(starts_.begin());
 		  }
 	    } else if ((reason == cbAssertionSuccess
-			|| reason == cbAssertionFailure)
+			|| (reason == cbAssertionFailure && fail_full_latency_))
 		       && latency_ >= 0
 		       && (int)starts_.size() == latency_ + 1) {
+		    // An accept always consumes the full latency, so the
+		    // ring front is this attempt's launch. A failure only
+		    // does when the checker guarantees it (an early death
+		    // would otherwise be attributed to an older start).
 		  start_raw = starts_.front();
 	    }
 	    s_vpi_time st;
@@ -751,7 +760,21 @@ class __vpiAssertion : public __vpiHandle {
 	    st.real = 0.0;
 
 	    s_vpi_attempt_info info;
-	    info.detail.failExpr = 0;
+	      /* M12-1: for a STEP reason the detail union carries the
+		 step info, not failExpr. The matched-expression list and
+		 state pair are not modeled (a per-tick step report covers
+		 every attempt that advanced), so they are zeroed rather
+		 than guessed. */
+	    s_vpi_assertion_step_info stepinfo;
+	    stepinfo.matched_expression_count = 0;
+	    stepinfo.matched_exprs = 0;
+	    stepinfo.stateFrom = 0;
+	    stepinfo.stateTo = 0;
+	    if (reason == cbAssertionStepSuccess
+		|| reason == cbAssertionStepFailure)
+		  info.detail.step = &stepinfo;
+	    else
+		  info.detail.failExpr = 0;
 	    info.attemptStartTime = st;
 	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
 		  if (cbs_[i].reason == reason && cbs_[i].cb)
@@ -768,6 +791,7 @@ class __vpiAssertion : public __vpiHandle {
       __vpiScope*scope_;
       std::vector<assert_cb_t> cbs_;
       int latency_;                    // M12-2: fixed tick latency, or -1
+      bool fail_full_latency_;         // M12-1: failures run full latency
       std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
 };
 
@@ -776,11 +800,12 @@ static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*> assertion_by_key;
 static int assertion_cb_total = 0;
 
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
-			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg)
+			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg,
+			     PLI_INT32 flags)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line,
-					      sc, (int)depth_arg);
+					      sc, (int)depth_arg, (int)flags);
       assertion_registry.push_back(obj);
       if (sc) {
 	    vpip_attach_to_scope(sc, obj);

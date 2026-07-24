@@ -107,12 +107,16 @@ EXTERN_C_START
 /********* Assertion object (IEEE 1800-2017 clause 40) ***********/
 #define vpiAssertion        686
 
-/* Assertion callback reasons (IEEE 1800-2017 40.x). Delivered:
-   cbAssertionStart (each attempt tick), cbAssertionSuccess,
-   cbAssertionFailure, and -- from the global control tasks --
-   cbAssertionDisable/Enable ($assertoff/$asserton transitions) and
-   cbAssertionReset ($assertkill). Step callbacks are accepted by
-   vpi_register_assertion_cb but not yet delivered. */
+/* Assertion callback reasons (IEEE 1800-2017 40.x). All are delivered
+   by the automaton engine: cbAssertionStart (each attempt tick),
+   cbAssertionSuccess, cbAssertionFailure, cbAssertionStepSuccess /
+   cbAssertionStepFailure (an attempt advanced one step of the
+   sequence, or died mid-sequence -- reported once per clock tick,
+   covering every attempt that stepped that tick), and -- from the
+   global control tasks -- cbAssertionDisable/Enable
+   ($assertoff/$asserton transitions) and cbAssertionReset
+   ($assertkill). The legacy engine (IVL_SVA_LEGACY=1) delivers
+   everything except the step reasons. */
 #define cbAssertionStart        606
 #define cbAssertionSuccess      607
 #define cbAssertionFailure      608
@@ -123,12 +127,23 @@ EXTERN_C_START
 #define cbAssertionReset        613
 #define cbAssertionKill         614
 
-/* Attempt information passed to an assertion callback. attemptStartTime
-   is the completing attempt's real launch time for fixed-latency
-   assertions (recovered from a start-time ring) and the current time
-   for variable-latency/cyclic/legacy checkers and for cbAssertionStart.
-   The step detail is not modeled and failExpr is 0 (no SVA
-   sub-expression handle model). */
+/* Attempt information passed to an assertion callback.
+
+   attemptStartTime is the completing attempt's real launch time,
+   recovered from a start-time ring, when the assertion has a fixed
+   attempt latency AND the report can only come from a full-length
+   attempt: always for cbAssertionSuccess, and for cbAssertionFailure
+   on an implication (an unobligated attempt dies silently). It is the
+   current time for cbAssertionStart, for variable-latency/cyclic and
+   legacy/multiclock checkers, and for a plain-sequence failure --
+   there an attempt may die at its FIRST step, so the failing tick IS
+   its start and no launch is recovered.
+
+   detail: for the step reasons it points at the step info below, whose
+   matched-expression list and state pair are zeroed (a step report
+   covers every attempt that stepped that tick, so no single state
+   transition applies). For all other reasons failExpr is 0 -- there is
+   no SVA sub-expression handle model. */
 typedef struct t_vpi_assertion_step_info {
       PLI_INT32 matched_expression_count;
       vpiHandle *matched_exprs;

@@ -5216,9 +5216,17 @@ static Statement* sva_gate_(const struct vlltype&loc, Statement*action)
    the latency is variable/unknown. The attempt's real tick latency is
    edges-1 (the first edge samples on the attempt's own start tick), so
    this emits depth_arg = edges (>=1), with the runtime looking back
-   depth_arg-1 clock ticks; depth_arg = 0 means unknown (report now). */
+   depth_arg-1 clock ticks; depth_arg = 0 means unknown (report now).
+
+   M12-1: `fail_full_latency' says a FAILURE report can only come from
+   an attempt that ran the full latency (true for implications: an
+   unobligated attempt dies silently). A plain sequence also reports a
+   failure for an attempt that dies at its FIRST step, whose start is
+   the failing tick itself, so its start time must not be recovered
+   from the latency ring. */
 static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
-				     long edges = -1)
+				     long edges = -1,
+				     bool fail_full_latency = false)
 {
       char nbuf[64];
       snprintf(nbuf, sizeof nbuf, "assert_L%d_%u", loc.first_line, inst);
@@ -5237,6 +5245,10 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
       a4.parm = new PENumber(new verinum(
 	    (uint64_t)(edges >= 1 ? edges : 0), 32));
       args.push_back(a4);
+      named_pexpr_t a5;
+      a5.parm = new PENumber(new verinum(
+	    (uint64_t)(fail_full_latency ? 1 : 0), 32));
+      args.push_back(a5);
       PCallTask*t = new PCallTask(
 	    lex_strings.make("$ivl_register_assertion"), args);
       FILE_NAME(t, loc);
@@ -5248,6 +5260,11 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
 static const int SVA_CB_START   = 606;   /* cbAssertionStart */
 static const int SVA_CB_SUCCESS = 607;   /* cbAssertionSuccess */
 static const int SVA_CB_FAILURE = 608;   /* cbAssertionFailure */
+/* M12-1: per-STEP reports — an attempt advanced one step of the
+   sequence (STEP_SUCCESS) or died mid-sequence (STEP_FAILURE). Only
+   the automaton engine delivers these. */
+static const int SVA_CB_STEP_SUCCESS = 609;  /* cbAssertionStepSuccess */
+static const int SVA_CB_STEP_FAILURE = 610;  /* cbAssertionStepFailure */
 
 /* M12B-cb: build `if ($ivl_assert_cb_active()) $ivl_assert_report(inst,
    reason);` — a synthesized checker reports a success or failure event,
@@ -7984,6 +8001,17 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    r_p = sva_make_reg_(loc, inst, "p", 0);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
       }
+	// M12-1: per-tick STEP flags — set by the slot advance when an
+	// attempt moves forward one step (sp) or dies mid-sequence
+	// (sf), dispatched once per tick like the pass/fail flags.
+	// Cover has no step notion (its counter is the record).
+      perm_string r_sp, r_sf;
+      if (!cover) {
+	    r_sp = sva_make_reg_(loc, inst, "sp", 0);
+	    init_zero.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
+	    r_sf = sva_make_reg_(loc, inst, "sf", 0);
+	    init_zero.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
+      }
       perm_string r_cnt;
       if (cover) {
 	      /* Same name as the legacy engine's counter, so tests can
@@ -8166,7 +8194,23 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    } else if (!negated && !cover) {
 		  die_v.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
 	    }
+	      /* M12-1: this branch is taken only when the slot was live
+		 and has no surviving next state (dead_busy), i.e. an
+		 attempt just failed a step of the sequence. */
+	    if (!cover)
+		  die_v.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    clear_slot(k, die_v);
+
+	      /* M12-1: a live slot reaching the continue branch advanced
+		 one step (the accept and dead_busy branches are already
+		 excluded), so a pre-advance busy test identifies exactly
+		 the stepping attempts. It must precede the state writes
+		 below, which overwrite the bits busy_expr reads. */
+	    if (!cover)
+		  cont_v.push_back(sva_if_(loc, busy_expr(k),
+					   sva_assign_(loc, r_sp,
+						       sva_bit_(loc, 1)),
+					   nullptr));
 
 	    for (unsigned j = 0 ; j < N ; j += 1)
 		  cont_v.push_back(sva_assign_(loc, s[k][j],
@@ -8214,6 +8258,24 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    fail_stmt = nullptr;
       }
 
+	/* M12-1: STEP dispatch, after the pass/fail sites so no existing
+	   report ordering changes. These carry no user action — they only
+	   drive cbAssertionStepSuccess/StepFailure, and the report site
+	   is itself gated on a callback being registered. */
+      if (!cover) {
+	    std::vector<Statement*> sp_hit;
+	    sp_hit.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
+	    sp_hit.push_back(sva_report_stmt_(loc, inst, SVA_CB_STEP_SUCCESS));
+	    body.push_back(sva_if_(loc, sva_id_(loc, r_sp),
+				   sva_block_(loc, sp_hit), nullptr));
+
+	    std::vector<Statement*> sf_hit;
+	    sf_hit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
+	    sf_hit.push_back(sva_report_stmt_(loc, inst, SVA_CB_STEP_FAILURE));
+	    body.push_back(sva_if_(loc, sva_id_(loc, r_sf),
+				   sva_block_(loc, sf_hit), nullptr));
+      }
+
 	/* Assemble: pre-captures; disable guard clears all slot state
 	   with no reports; history updates outside the guard. */
       std::vector<Statement*> full = pre;
@@ -8230,6 +8292,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
 	    if (!negated && !cover)
 		  clr.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
+	      // M12-1: a disabled tick reports nothing, steps included.
+	    if (!cover) {
+		  clr.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
+		  clr.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
+	    }
 	    PCondit*dc = new PCondit(disable, sva_block_(loc, clr), core);
 	    FILE_NAME(dc, loc);
 	    full.push_back(dc);
@@ -8247,7 +8314,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	// report a correct attemptStartTime (the attempt started
 	// `latency' ticks ago).
       init_zero.push_back(sva_register_stmt_(loc, inst,
-					     pform_sva_nfa_fixed_latency(nfa)));
+					     pform_sva_nfa_fixed_latency(nfa),
+					     track_ob));
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
 					sva_block_(loc, init_zero), nullptr);
       FILE_NAME(ip, loc);
