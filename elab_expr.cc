@@ -3513,6 +3513,21 @@ unsigned PECallFunction::test_width_sfunc_(Design*des, NetScope*scope,
 	    return expr_width_;
       }
 
+	/* $ivl_clocking_sample(x) has exactly x's width, type and
+	   signedness -- it is x, read one region earlier. The argument has
+	   to be width-tested here or elaborate_sfunc_ would size the call
+	   from an expr_width() of 0 and produce a zero-width read. */
+      if (name=="$ivl_clocking_sample") {
+	    if (parms_.empty() || parms_[0].parm == 0)
+		  return 0;
+	    PExpr *expr = parms_[0].parm;
+	    expr_width_  = expr->test_width(des, scope, mode);
+	    expr_type_   = expr->expr_type();
+	    min_width_   = expr->min_width();
+	    signed_flag_ = expr->has_sign();
+	    return expr_width_;
+      }
+
       if (name=="$signed" || name=="$unsigned") {
 	    PExpr *expr = parms_[0].parm;
 	    if (expr == 0)
@@ -5255,6 +5270,45 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    NetExpr*sub = expr->elaborate_expr(des, scope, expr_width_, flags);
 
 	    return cast_to_width_(sub, expr_wid);
+      }
+
+	/* The internal $ivl_clocking_sample(sig) reads sig's
+	   Preponed-region value (IEEE 1800-2017 14.13 clocking inputs,
+	   16.5.1 assertion operands). It lowers to %load/preponed, which
+	   pushes the SIGNAL's full width, so the expression has to be
+	   typed exactly as its argument. Left to the generic sfunc path it
+	   took the default 32-bit logic type, so an 8-bit signal produced
+	   a 32-bit-wide expression with nothing to pad it: the store then
+	   tripped `val_size >= wid' in of_STORE_VEC4. Type it from the
+	   argument and let cast_to_width_ adapt it to the context. */
+      if (name=="$ivl_clocking_sample") {
+	    if ((parms_.size() != 1) || !parms_[0].parm) {
+		  cerr << get_fileline() << ": error: The " << name
+		       << " function takes exactly one(1) argument." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    PExpr*arg = parms_[0].parm;
+	    NetExpr*sub = arg->elaborate_expr(des, scope, arg->expr_width(),
+					      flags);
+	    if (sub == 0) return 0;
+
+	      /* %load/preponed reads a whole SIGNAL. Anything else -- a
+		 parameter, a literal, a select, a computed expression --
+		 has no driven-value history to read, and the codegen
+		 fallback for it emitted no code at all, leaving the
+		 operand missing from the stack (peek_vec4 underflow). A
+		 constant's Preponed value is simply its value, so drop the
+		 wrapper and use the argument directly. */
+	    if (dynamic_cast<NetESignal*>(sub) == 0)
+		  return cast_to_width_(sub, expr_wid);
+
+	    NetESFunc*fun = new NetESFunc(name, sub->expr_type(),
+					  sub->expr_width(), 1);
+	    fun->set_line(*this);
+	    fun->cast_signed(sub->has_sign());
+	    fun->parm(0, sub);
+	    return cast_to_width_(fun, expr_wid);
       }
 
 	/* Interpret the internal $sizeof system function to return

@@ -132,12 +132,25 @@ Follow-up: the UVM-specific hack `infer_indexed_property_type_fallback_`
 type-inference path for the same underlying shape and may now be removable
 — left as a separate tracked cleanup pending its own UVM validation.
 
+**M1B-3 capability probe (2026-07-24).** The hack triggers only on the
+literal class name `uvm_shared`, so the discriminator is whether the same
+shape works under a *different* name. Probe m1b3_generic declares
+`class my_shared #(type T)` with property `value` specialized to a queue
+and to a dynamic array, and exercises `push_back`, `size()`, indexed read
+and indexed write through it — all correct. The general path
+(`ensure_property_decl()` via `NetEProperty`) therefore already resolves
+the shape, and the hardcoded fallback is very likely dead code.
+**Remaining terms for M1B-3:** delete `infer_indexed_property_type_fallback_`
+and its single call site (net_expr.cc:73), then validate with a full UVM
+run (212/212) — a full run is the only evidence that can retire a
+UVM-specific hack.
+
 ### M4B — aggregate/container completion  (clause 7/21)
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M4B-1 | Struct value-copy through method args / return / `push_back(var)` | C | OPEN | — | by-value struct arg & return copy independently |
-| M4B-2 | Nested unpacked-struct **deep** copy (current copy is shallow) | C | OPEN | — | nested struct member copied by value, not shared |
+| M4B-1 | Struct value-copy through method args / return / `push_back(var)` | C | **DONE** | — | by-value struct arg, by-value return, and `push_back(var)` each snapshot rather than alias — verified and pinned by sv_struct_value_copy_args (the row was stale; the behavior already worked) |
+| M4B-2 | Nested unpacked-struct **deep** copy (current copy is shallow) | C | **DONE** | — | assigning a nested unpacked struct deep-copies the inner struct — verified and pinned by sv_struct_value_copy_args (the row was stale) |
 | M4B-3 | Adversarial nested-container testing | A | **DONE** | — | queue-of-struct, struct-of-darray, assoc-of-queue, class-of-queue-of-struct verified; array-of-queue is a loud sorry (known); the partial-write bug (M1B-5) surfaced here too |
 | M4B-4 | `%p` on packed struct → `'{member:val}` (prints one decimal) | F | OPEN (deferred, cosmetic) | — | packed struct prints member pattern |
 | M4B-5 | `%p` nested unpacked dims print nested not flat | F | OPEN (deferred, cosmetic) | — | multi-dim prints `'{'{..},..}` |
@@ -197,8 +210,8 @@ silent-miscompile gap; it is deferred rather than rushed.
 | M3B-1 | `randcase` / `std::randomize(var)` / `unique {}` | F | **DONE** | — | tests landed |
 | M3B-2 | `randsequence` | F | **DONE** | — | productions/sequences/nesting/weighted alternatives via source-level expansion; recursion/reuse is a loud sorry |
 | M3B-3 | `disable soft` | F | **DONE** | — | soft constraints on the named variable dropped for the randomize() call |
-| M3B-4 | Reaudit `rand_mode` / `constraint_mode` combinations | A | OPEN | — | all combos correct incl. per-field |
-| M3B-5 | Seed-stability + failed-randomization state tests | A | OPEN | — | deterministic seed + fail-state coverage (fail-state semantics now implemented by M3B-6; audit remains) |
+| M3B-4 | Reaudit `rand_mode` / `constraint_mode` combinations | A | **VERIFIED WORKING** | — | Probe m3b4_randmode: object-level and per-field `rand_mode()`/`constraint_mode()` set and query, in all combinations, behave correctly. **Terms:** pin the probe as a regression test, then close |
+| M3B-5 | Seed-stability + failed-randomization state tests | A | OPEN — **P0 silent no-op** | — | **`srandom()` and `set_randstate()` are silently discarded.** `elaborate.cc:7574` matches both method names and returns an empty `NetBlock`, so seeding compiles and runs but does nothing: re-seeding one object with seed 7 twice yields different values (103 then 198), and two objects seeded identically diverge (105 vs 115) (probe m3b5_seed_stability). Every seeded-reproducibility flow is silently non-reproducible — this is the RNG half of the item, ahead of the fail-state audit (fail-state semantics themselves landed with M3B-6). **Terms:** give each class object an RNG state per 18.13.3 (`srandom` seeds it, `get_randstate`/`set_randstate` serialize it), thread it through `%randomize`, and make the object RNG the source for `randomize()` and `$urandom` inside class methods; at minimum, make the discarded call a loud sorry rather than a no-op |
 | M3B-6 | `x inside {q}` container-property constraints + honest randomize() failure | C | **DONE** | — | queue/darray property containers expand against live contents at solve time (`q:IDX:EWID` IR + solver support); empty container unsatisfiable; item-level IR drops fail loudly; %randomize/%randomize-with return 0 on UNSAT and restore pre-call rand values (18.6.1); solver UNKNOWN stays lenient but loud; with-form solves inherited base constraints. sv_constraint_inside_container |
 
 **M3B-2 note.** `randsequence` is lowered by source-level expansion from
@@ -216,9 +229,9 @@ production value/args, `break`/`return`) are not yet parsed.
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
 | M6B-1 | Per-instance class events; process suspend/resume/status | F | **DONE** | — | tests landed |
-| M6B-2 | Post-NBA VPI callback region (cbNBASynch) | F | OPEN | M6-CALLF | post-NBA callbacks fire in region |
-| M6B-3 | Scheduling for time-consuming DPI imports | F | OPEN | M6-CALLF | DPI task may consume time |
-| M6B-4 | Assertion attempt-lifecycle scheduling | F | OPEN | ARCH M9-NFA | per-attempt start/step/end regions |
+| M6B-2 | Post-NBA VPI callback region (cbNBASynch) | F | OPEN (loud) | M6-CALLF | `cbNBASynch` is **not defined in `vpi_user.h` at all**, so a VPI app that registers it fails to *compile* — loud, not silent. The existing sync regions do work and all fire after NBA settle, in the order cbReadWriteSynch → cbAtEndOfSimTime → cbReadOnlySynch (probe m6b2b). **Terms:** define `cbNBASynch` (IEEE 1800-2017 clause 38 reason code), add a scheduler queue drained immediately after the NBA queue and before the existing RWSync point, and accept the reason in `vpi_register_cb`/vvp/vpi_callback.cc dispatch |
+| M6B-3 | Scheduling for time-consuming DPI imports | F | **VERIFIED WORKING** | M6-CALLF | An imported `context task` consumes simulation time via the coroutine path, and it participates in normal scheduling: `fork`/`join_any` + `disable fork` correctly abandons a blocked DPI import and its exported task never completes (probe m6b3_kill). **Terms:** pin the probe as a regression test, then close |
+| M6B-4 | Assertion attempt-lifecycle scheduling | F | **PARTIAL** — preponed sampling landed; select operands still live | ARCH M9-NFA | **Fixed the P0:** concurrent assertions sampled **Active**-region values instead of **Preponed** (IEEE 1800-2017 16.5.1), so a blocking write in the same time slot as the clock was visible to the assertion and the verdict flipped, silently. Repro (probe m6b4_det): one thread does `a = 1; clk = 1;`; `assert property (@(posedge clk) a \|-> b)` must sample the preponed `a` (=0) and be vacuous, but Icarus saw `a`==1 and reported a failure. NBA-written operands only looked right because NBA updates land after edge detection — nothing sampled. **Fix:** the synthesized checker now reads each whole-signal operand through `$ivl_clocking_sample` (lowers to `%load/preponed`) with a matching `$ivl_clocking_hist_on` prologue — reusing the 1-deep driven-value history built for clocking-block `#1step` inputs (14.13) rather than adding a scheduler region. The wrap is applied before the sampled-value rewrite, so `$past`/`$rose` history chains capture preponed values too (16.9.3). Two latent bugs in that sysfunc surfaced and are fixed with it: it had no `test_width` case (argument width 0 → zero-width read) and no elaboration typing (default 32-bit vs the `%load/preponed` operand width → `val_size >= wid` abort in `of_STORE_VEC4`), and a non-signal argument such as a parameter emitted **no code at all** for the operand (`peek_vec4` stack underflow — `sv_checker_bind`); a constant's preponed value is now simply its value. **Remaining (loud, not silent):** a bit- or part-select operand cannot be sampled — `%load/preponed` reads a whole signal — so it still reads live; each such assertion now emits a warning naming the count. Closing it needs the select re-expressed against the sampled value at elaboration (`NetESelect` over the sampled read). Per-attempt start/step/end region placement is the other half of this row and is untouched. tests m6b4_assert_preponed_sample_test; probes m6b4_det, m6b4_sample, m6b4_nba, m6b4_selbound |
 
 ### M8 — clocking blocks (DONE — clause-14 disposition matrix)  (clause 14)
 
@@ -265,10 +278,10 @@ module-like subset — leaving the M9-7 multiclock residuals, the
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
 | M10-1 | Multidimensional open arrays (`svGetArrElemPtr2/3`) | F | OPEN | — | 2-D/3-D open-array access |
-| M10-2 | DPI export (C→SV) | F | OPEN | **M6-CALLF** | C calls an SV export via shim |
-| M10-3 | Real context semantics / `chandle` ABI verification | A | OPEN | — | context + chandle round-trip tests |
-| M10-4 | Time-consuming imported tasks | F | OPEN | **M6-CALLF** | import task consumes time |
-| M10-5 | C→SV→C reentrancy + cross-platform DPI regressions | A | OPEN | M10-2 | Linux/macOS/Windows green |
+| M10-2 | DPI export (C→SV) | F | **DONE** | — | `export "DPI-C"` was already implemented end-to-end (parse → pform resolve → t-dll → tgt-vvp directives + a generated `.dpiexport.c` stub → the vvp `__ivl_dpi_export_call_*` dispatcher); the row was stale. Verified working: int/real/string/void returns and args, renamed (`c_name =`) exports, multi-instance and context exports, and time-consuming exported tasks via the coroutine path when reached from an imported DPI *task*. **Fixed a crash found by probing the boundary:** a time-consuming export reached from an imported DPI *function* has no coroutine to park on — the inline runner spun the child past its delay and joined it while the scheduler still held a future event, aborting vvp on assert(is_scheduled) (then assert(children.empty())). The runner now stops when the child delays, emits the existing loud sorry, and detaches the child so it completes under the scheduler. tests m10c/d/e/f + new m10g_dpi_export_blocking_diag_test |
+| M10-3 | Real context semantics / `chandle` ABI verification | A | **VERIFIED WORKING** | — | Probes m10_3_chandle + m10_3b_adv: `chandle` round-trip through import and through an **output** formal; `chandle` stored in a class property and in an unpacked array and read back; `real` in/out and **inout**; `string` in and **output**; `inout int`. All correct. **Terms:** pin both probes as regression tests, then close |
+| M10-4 | Time-consuming imported tasks | F | **DONE** | **M6-CALLF** | An imported `context task` consumes time via the coroutine path, and a time-consuming exported task reached from it runs across simulation time (probe m10_4_slowtask). **Fixed one P0 silent wrong result found by probing the boundary:** an export declared with **`automatic` lifetime** received **`x` for every argument**, even on a single non-concurrent call, so a value-returning export returned garbage and `#(d)` degenerated to a zero delay -- with no diagnostic. **Root cause:** `compile_export_dpi` (vvp/compile.cc:1250-1263) resolves `arg_nets` once at link time to the **static prototype nets**, and `dpi_export_run_` (vvp/vthread.cc) marshaled into them with a null context; an automatic body reads its per-invocation frame and never sees those nets. The dispatcher now allocates a context for an automatic export and marshals into it -- the same shape `%alloc` gives an ordinary SV call -- and hands it to the child, which owns it so `release_owned_context_` frees it on the inline, coroutine and orphaned-detach paths alike. This also makes **concurrent** invocations of one automatic exported task correct, each keeping its own arguments. **Correction:** an earlier probe read concurrent aliasing of a *static* export as a second defect; it is not. IEEE 1800-2017 13.3.1 gives a static subroutine one copy of its arguments, so concurrent invocations alias -- verified identical for a plain SV static task (probe staticsem), and deliberately preserved. Nested automatic frames inside the exported body and recursive C -> export -> C -> export re-entry both verified (probes m10_4g_nested, m10_4h_recurse). tests m10h_dpi_export_automatic_test + m10i_dpi_export_automatic_nested_test |
+| M10-5 | C→SV→C reentrancy + cross-platform DPI regressions | A | **VERIFIED WORKING** (Linux) | M10-2 | Probe m10_5_reentr: two-deep reentrancy `c_outer → sv_mid → c_inner → sv_leaf` returns the correct value with each SV frame entered exactly once. **Terms:** pin the probe as a regression test; the remaining scope is only the macOS/Windows CI legs |
 
 ### M11B — coverage surface  (clause 19)
 
@@ -299,13 +312,13 @@ module-like subset — leaving the M9-7 multiclock residuals, the
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M13-1 | Bind to specific instance path | F | OPEN | — | instance-path bind |
-| M13-2 | Bind target-instance lists | F | OPEN | — | list-target bind |
-| M13-3 | `config` semantics + library mapping | F | OPEN | — | real config resolution |
-| M13-4 | `trireg` charge semantics | F | OPEN | — | charge decay model |
-| M13-5 | `$nochange` / `$timeskew` / `$fullskew` | F | OPEN | — | remaining timing checks |
-| M13-6 | Timing-check edge-descriptor lists + timestamp/timecheck conds | F | OPEN | — | edge lists + conds |
-| M13-7 | `pulsestyle` / `showcancelled` | F | OPEN | — | pulse controls honored |
+| M13-1 | Bind to specific instance path | F | **VERIFIED WORKING** | — | Probe m13_1_bind_instpath: functionally checked, not just parsed — the bound checker observed the correct value from its target instance. **Terms:** pin the probe as a regression test, then close |
+| M13-2 | Bind target-instance lists | F | **VERIFIED WORKING** | — | Probe m13_2_bind_instlist: list-target bind reaches every named instance. **Terms:** pin the probe as a regression test, then close |
+| M13-3 | `config` semantics + library mapping | F | OPEN (loud) | — | Unimplemented and diagnosed with a sorry — no silent-miscompile risk. **Terms:** real config/library resolution |
+| M13-4 | `trireg` charge semantics | F | OPEN (loud) | — | Unimplemented and diagnosed with a sorry — no silent-miscompile risk. **Terms:** charge decay model |
+| M13-5 | `$nochange` / `$timeskew` / `$fullskew` | F | OPEN — **accepted-noop** | — | These **parse and elaborate but are silently ignored** (`elaborate.cc:12309`: "At present, no timing checks are supported"), so a design relying on them runs with no violation reporting and no diagnostic. Probes beh_nochange_fires / beh_setup_fires never fire. **Terms:** either implement the checks or make an unimplemented timing check a tracked loud diagnostic — the accepted-noop state is the one thing the loud-sorry rule forbids |
+| M13-6 | Timing-check edge-descriptor lists + timestamp/timecheck conds | F | OPEN — **accepted-noop** | — | Same as M13-5: edge-descriptor lists and timestamp/timecheck conditions are accepted by the parser and dropped at elaboration with no diagnostic (probe m13_6_edgedesc). **Terms:** as M13-5 |
+| M13-7 | `pulsestyle` / `showcancelled` | F | OPEN — **accepted-noop** | — | `pulsestyle_onevent`/`pulsestyle_ondetect`/`showcancelled`/`noshowcancelled` exist only as lexer keywords; they are accepted and have no effect on pulse propagation, with no diagnostic (probe m13_7_pulsestyle). **Terms:** as M13-5 |
 
 ### M14B — exhaustive subclause campaign  (all clauses)
 
@@ -383,24 +396,57 @@ the structure. The partial-write correctness arc is now fully closed — both th
 property form (M1B-5) and its unpacked-struct-member sibling (M4B-6). No known silent
 miscompiles outstanding; the frontier is again bounded FEATURE + AUDIT work.
 
-Recently retired: M8 (clause-14 audit + disposition) · M9-1/2/3 (bounded SVA / abort /
-combinators) · M1B-3a (type-parameter aggregate property method miscompile) · **M1B-5 +
-M4B-6** (partial write to a class property AND to an unpacked-struct member —
-bit/part/indexed-part with constant & run-time offset + packed-struct member, across
-elaboration/codegen/runtime) · M1B-4 / M4B-3 (adversarial parameterized-specialization +
-nested-container audits) · **ARCH-1 · M9-NFA discovered already LANDED** (automaton
-engine is default; 33/33 dual-run). M4B-1/M4B-2 verified already-working in prior sessions.
+Recently retired (this arc): **M12B/C VPI completion — the whole
+milestone** (assertion lifecycle + step callbacks, meaningful
+`s_vpi_attempt_info`, bit-select force/release, assoc-element writes,
+nested class-member traversal, modport metadata, covergroup
+drill-down, lifetime/free audit) · **M11B coverage — the whole
+milestone** (standalone covergroups, `with function sample`, option
+audit, ignore/illegal carving, class-embedded sampling events) ·
+M9-11 (`expect`) · M9-7 D.2 (multiclock fixed-length chains) · M5-5
+(generic interface ports) · M9-9 (checkers) · M4B-1/M4B-2 (verified
+already-correct and pinned by a test).
 
-Also DONE recently: M5-3/M5-4 (vif runtime-index array binding + `$unit`/package-scope
-vif decls) and M3B-2/M3B-3 (`randsequence` + `disable soft`).
+Complete milestones: M0-M8, M11, M12.
 
-1. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
-   UVM value). M9-7 residual multiclock forms alongside.
-2. **M5-5** — generic `interface` ports (FEATURE; per-instantiation-typing arc).
-3. **M3B-4 / M3B-5** — `rand_mode`/`constraint_mode` reaudit, seed-stability (AUDIT).
-4. **M10-1** — multidimensional open arrays (FEATURE; DPI export M10-2 needs ARCH-2).
-5. **ARCH-2 · M6-CALLF** — big rock; unblocks DPI export + `expect` + time-consuming DPI.
-6. **M14B** subclause campaign → **M15** 2023 delta.
+**Capability analysis of all open items (2026-07-24).** Every open item
+was probed for what it *actually* does rather than what its row claimed.
+The ordering below is the re-derived result. Nine rows were stale in both
+directions: six items already worked (M13-1, M13-2, M3B-4, M6B-3, M10-3,
+M10-5) and three silent defects were hiding under "OPEN" rows that read as
+merely unimplemented (M3B-5, M6B-4, M10-4, plus M13-5/6/7 as
+accepted-noops; M10-4 is now fixed). The lesson that drove this sweep holds: **probe
+boundaries, not headline features** — every headline worked.
+
+1. **P0 silent wrong results — these preempt everything** (rule gate 1):
+   - ~~**M10-4** `automatic`-lifetime DPI exports read `x` for every
+     argument~~ — **FIXED**; the dispatcher now allocates a per-invocation
+     frame. This also made concurrent automatic exports correct.
+   - ~~**M6B-4** concurrent assertions sample **Active**, not
+     **Preponed**, values~~ — **FIXED** for whole-signal operands, which
+     is the common case. A bit/part-select operand still reads live and
+     now says so with a compile-time warning, so the residual is loud.
+   - **M3B-5** `srandom()`/`set_randstate()` are silent no-ops, so no
+     seeded flow is reproducible.
+   - **M10-1** (carried) object-array element load ignores its index
+     (`tgt-vvp/eval_object.c:514-524`).
+2. **M13-5/6/7 accepted-noops** — timing checks, edge descriptors and
+   `pulsestyle`/`showcancelled` are accepted and silently ignored. Under
+   the loud-sorry rule an accepted-noop ranks above ordinary unimplemented
+   work, and a tracked diagnostic is a small change.
+3. **Pin the six verified-working items** (M13-1, M13-2, M3B-4, M6B-3,
+   M10-3, M10-5) with their probes as regression tests and close them.
+   Cheap, and it stops the rows from going stale again.
+4. **M6B-2** — define `cbNBASynch` and give it a post-NBA queue. Already
+   loud (undefined macro → user compile error), so it is ordinary work.
+5. **M13-3/M13-4** — `config` + library mapping, `trireg` charge decay.
+   Both already loud sorries; real feature work.
+6. **M9-7 residuals** — mid-sequence clock flow (parse error), cross-clock
+   `|->` (loud sorry); needs engine support, not synthesis.
+7. **M1B-3 / M4C-10 / M4B-4,5** — delete the now-dead `uvm_shared` hack
+   (needs a full-UVM run to retire), the automatic-event parse gap, and
+   the deferred cosmetic `%p` forms.
+8. **M14B** subclause campaign → **M15** 2023 delta (CAMPAIGN; last).
 
 **Standing override:** any newly discovered silent miscompile or crash preempts this
 list (rule gates 1–2).

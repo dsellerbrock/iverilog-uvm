@@ -10680,6 +10680,29 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
       child->i_am_in_function = 1;
       thr->children.insert(child);
 
+	/* M10-4: an automatic-lifetime export needs an argument frame of its
+	   own. info.arg_nets names the STATIC prototype nets, which an
+	   automatic body never reads -- it reads its per-invocation context --
+	   so marshaling into them with a null context silently delivered x for
+	   every argument, even on a single call. Allocate a context here, the
+	   same shape %alloc gives an ordinary SV call to an automatic
+	   subroutine, and hand it to the child; the child owns it and
+	   release_owned_context_ frees it when the thread is reaped, so the
+	   inline, coroutine and orphaned-detach paths all clean up.
+
+	   A static-lifetime export keeps a null context and so keeps sharing
+	   the one static frame. That is not a defect: IEEE 1800-2017 13.3.1
+	   gives a static subroutine one copy of its arguments, so concurrent
+	   invocations alias -- exactly what a plain SV static task does. */
+      vvp_context_t exp_context = 0;
+      if (scope->is_automatic()) {
+	    exp_context = vthread_alloc_context(scope);
+	    child->wt_context = exp_context;
+	    child->rd_context = exp_context;
+	    child->owns_automatic_context = 1;
+	    child->owned_context = exp_context;
+      }
+
 	/* Marshal the C arguments into the subroutine's argument nets. */
       for (unsigned idx = 0 ; idx < info.nargs && (int)idx < nargs ; idx += 1) {
 	    vvp_net_t*net = info.arg_nets[idx];
@@ -10687,11 +10710,11 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 		  continue;
 	    char letter = info.arg_sig[idx];
 	    if (letter == 'r') {
-		  vvp_send_real(vvp_net_ptr_t(net, 0), args[idx].r, 0);
+		  vvp_send_real(vvp_net_ptr_t(net, 0), args[idx].r, exp_context);
 	    } else if (letter == 's') {
 		  vvp_send_string(vvp_net_ptr_t(net, 0),
 				  std::string(args[idx].s ? args[idx].s : ""),
-				  0);
+				  exp_context);
 	    } else {
 		  vvp_signal_value*sv = dynamic_cast<vvp_signal_value*>(net->fil);
 		  unsigned wid = sv ? sv->value_size() : 64;
@@ -10700,7 +10723,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 		  for (unsigned b = 0 ; b < wid ; b += 1)
 			val.set_bit(b, ((u >> (b < 64 ? b : 63)) & 1)
 				    ? BIT4_1 : BIT4_0);
-		  vvp_send_vec4(vvp_net_ptr_t(net, 0), val, 0);
+		  vvp_send_vec4(vvp_net_ptr_t(net, 0), val, exp_context);
 	    }
       }
 
@@ -10762,7 +10785,13 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	     && child->parent == thr
 	     && child->is_callf_child
 	     && child->is_scheduled
-	     && ! child->waiting_for_event) {
+	     && ! child->waiting_for_event
+	       /* M10-2: a child that hit a delay is scheduled for a FUTURE
+		  time. Spinning it here would run past the delay AND leave
+		  the scheduler holding an event for a thread we then join
+		  and free -- which later tripped assert(is_scheduled) in
+		  vthread_run. Stop and report instead. */
+	     && ! child->i_am_delaying) {
 	    if (++guard > 1000000u)
 		  break;
 	    vthread_run(child);
@@ -10811,6 +10840,18 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 		    "supported only for a task reached from an imported DPI "
 		    "task.\n",
 		    cname);
+	      /* M10-2: DETACH the still-running child. We are about to
+		 return to the C caller, so nothing will ever join it; if it
+		 kept pointing at this parent it would try to resume a frame
+		 that no longer exists when it finally ends. Orphaned, it
+		 simply runs to completion under the scheduler. */
+	    if (! child->i_have_ended) {
+		  child->is_callf_child = 0;
+		  child->i_am_in_function = 0;
+		  thr->children.erase(child);
+		  child->parent = 0;
+		  thr->i_am_joining = 0;
+	    }
       }
 
 	/* Restore the VPI mode the enclosing %dpi/call established. */

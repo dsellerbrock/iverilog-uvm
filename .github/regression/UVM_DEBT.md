@@ -1,10 +1,10 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: M12-1 head addb0f1 (212/212, 4x53 batches,
-2026-07-24 — the M12B/C VPI-completion MILESTONE head. Validated the
-core-SVA lowering touch (every automaton checker now carries per-tick
-step flags and two extra report sites) plus the assertion-registration
-ABI gaining a flags argument, and M12-3's bit-select force path.)
+Full UVM last passed: M6B-4 head (216/216, 4x54 batches, 2026-07-24 —
+validated the Preponed-sampling change. Ran a full pass because it
+rewrites the operand reads of EVERY synthesized concurrent assertion and
+touches system-function width/type determination in elaboration, both of
+which reach far beyond the assertion itself.)
 
 Commits since full UVM: 0
 Highest risk change since last full run: —
