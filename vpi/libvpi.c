@@ -293,10 +293,12 @@ void vpip_make_systf_system_defined(vpiHandle ref)
 }
 
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
-                             PLI_INT32 line, vpiHandle scope)
+                             PLI_INT32 line, vpiHandle scope,
+                             PLI_INT32 depth_arg, PLI_INT32 flags)
 {
       assert(vpip_routines);
-      vpip_routines->register_assertion(idx, name, file, line, scope);
+      vpip_routines->register_assertion(idx, name, file, line, scope,
+                                        depth_arg, flags);
 }
 
 void vpip_assertion_report_all(PLI_INT32 reason)

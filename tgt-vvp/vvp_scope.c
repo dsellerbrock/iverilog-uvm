@@ -2732,11 +2732,19 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
 
-	/* M12: modport declarations of an interface, for VPI. */
+	/* M12: modport declarations of an interface, for VPI —
+	   M12-6 appends each port as "name" direction pairs. */
       if (ivl_scope_is_interface(net)) {
-	    for (idx = 0; idx < ivl_scope_modports(net); idx += 1)
-		  fprintf(vvp_out, " .modport \"%s\";\n",
+	    for (idx = 0; idx < ivl_scope_modports(net); idx += 1) {
+		  unsigned pidx;
+		  fprintf(vvp_out, " .modport \"%s\"",
 			  vvp_mangle_name(ivl_scope_modport_name(net, idx)));
+		  for (pidx = 0; pidx < ivl_scope_modport_ports(net, idx); pidx += 1)
+			fprintf(vvp_out, " \"%s\" %d",
+				vvp_mangle_name(ivl_scope_modport_port_name(net, idx, pidx)),
+				ivl_scope_modport_port_dir(net, idx, pidx));
+		  fprintf(vvp_out, ";\n");
+	    }
       }
 
       if( ivl_scope_type(net) == IVL_SCT_MODULE ) {

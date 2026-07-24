@@ -739,8 +739,11 @@ statement
 		{ compile_port_info( $2 /* port_index */, $3, $4 /* width */,
 		                     $5 /*&name */, nullptr /* buffer */ ); }
 
-	|         K_MODPORT T_STRING ';'
+  /* M12-6: the .modport directive carries optional "port" direction
+     pairs after the modport name. */
+	|         K_MODPORT T_STRING
 		{ compile_modport_decl($2); }
+	  modport_ports_opt ';'
 
 	|         K_TIMESCALE T_NUMBER T_NUMBER';'
 		{ compile_timescale($2, $3); }
@@ -1022,6 +1025,8 @@ class_property
       { compile_class_covgrp_bin($2, $3, $4, $5, $6, $7, $8); }
   | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_item($2, $3, $4); }
+  | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER T_STRING
+      { compile_class_covgrp_item($2, $3, $4, $5); }
   | K_COVGRP_PARENT T_NUMBER
       { compile_class_covgrp_parent($2); }
   | K_COVGRP_SRC T_NUMBER T_NUMBER
@@ -1321,6 +1326,14 @@ port_type
         | K_PORT_INOUT  { $$ = vpiInout; }
         | K_PORT_MIXED  { $$ = vpiMixedIO; }
         | K_PORT_NODIR  { $$ = vpiNoDirection; }
+        ;
+
+  /* M12-6: optional "port" direction pairs on a .modport directive,
+     appended to the modport declared by the enclosing statement. */
+modport_ports_opt
+        : /* empty */
+        | modport_ports_opt T_STRING T_NUMBER
+                { compile_modport_port($2, $3); }
         ;
 
 modpath_src

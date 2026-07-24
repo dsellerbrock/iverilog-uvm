@@ -67,6 +67,17 @@ class vvp_assoc_base : public vvp_object {
 			      vvp_vector4_t&val_vec, double&val_real,
 			      std::string&val_str, int&val_kind) const =0;
 
+	// M12-4 VPI: positional element WRITE, the mirror of
+	// peek_entry (same key order, same val_kind tags). The entry
+	// keeps its key; only the value changes, and only when
+	// val_kind matches the map's value type (a vec4 write into a
+	// vec4 map is resized to the stored entry's width). Returns
+	// false when pos is out of range or the kind does not match
+	// (object values are not writable through value puts).
+      virtual bool poke_entry(size_t pos, const vvp_vector4_t&val_vec,
+			      double val_real, const std::string&val_str,
+			      int val_kind) =0;
+
     protected:
       static const vvp_object* object_key_(const vvp_object_t&key);
       static std::string vec4_key_(const vvp_vector4_t&key);
@@ -332,6 +343,36 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 	    return false;
       }
 
+      bool poke_entry(size_t pos, const vvp_vector4_t&val_vec,
+		      double val_real, const std::string&val_str,
+		      int val_kind) override
+      {
+	    if (pos < str_map_.size()) {
+		  typename std::map<std::string, TYPE>::iterator cur
+			= str_map_.begin();
+		  std::advance(cur, pos);
+		  return update_entry_val_(cur->second, val_vec,
+					   val_real, val_str, val_kind);
+	    }
+	    pos -= str_map_.size();
+	    if (pos < obj_map_.size()) {
+		  typename std::map<const vvp_object*, TYPE>::iterator cur
+			= obj_map_.begin();
+		  std::advance(cur, pos);
+		  return update_entry_val_(cur->second, val_vec,
+					   val_real, val_str, val_kind);
+	    }
+	    pos -= obj_map_.size();
+	    if (pos < vec_map_.size()) {
+		  typename std::map<std::string, vec_entry_t>::iterator cur
+			= vec_map_.begin();
+		  std::advance(cur, pos);
+		  return update_entry_val_(cur->second.value, val_vec,
+					   val_real, val_str, val_kind);
+	    }
+	    return false;
+      }
+
     private:
 	// Overload set routing the stored value into the right VPI
 	// payload slot; returns the val_kind tag.
@@ -347,6 +388,34 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       static int assign_entry_val_(const vvp_object_t&, vvp_vector4_t&,
 				   double&, std::string&)
       { return 3; }
+
+	// M12-4: overload set routing a VPI put into the stored value
+	// (mirrors assign_entry_val_). A vec4 store is resized to the
+	// existing entry's width so a 32-bit vpiIntVal put cannot
+	// widen an 8-bit element.
+      static bool update_entry_val_(vvp_vector4_t&dst, const vvp_vector4_t&vv,
+				    double, const std::string&, int kind)
+      {
+	    if (kind != 0) return false;
+	    if (dst.size() > 0 && vv.size() != dst.size()) {
+		  vvp_vector4_t sized (dst.size(), BIT4_0);
+		  for (unsigned b = 0 ; b < dst.size() && b < vv.size() ; b += 1)
+			sized.set_bit(b, vv.value(b));
+		  dst = sized;
+	    } else {
+		  dst = vv;
+	    }
+	    return true;
+      }
+      static bool update_entry_val_(double&dst, const vvp_vector4_t&,
+				    double rv, const std::string&, int kind)
+      { if (kind != 1) return false; dst = rv; return true; }
+      static bool update_entry_val_(std::string&dst, const vvp_vector4_t&,
+				    double, const std::string&sv, int kind)
+      { if (kind != 2) return false; dst = sv; return true; }
+      static bool update_entry_val_(vvp_object_t&, const vvp_vector4_t&,
+				    double, const std::string&, int)
+      { return false; }
 
     protected:
       std::map<std::string, TYPE> str_map_;

@@ -303,10 +303,13 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    }
 	    int ni = ivl_type_covgrp_items(classtype);
 	    for (idx = 0 ; idx < ni ; idx += 1) {
-		  fprintf(vvp_out, " .covgrp_item %u %u %u\n",
+		    /* M12-7: the trailing string is the coverpoint/cross
+		       label, consumed by the VPI drill-down handles. */
+		  fprintf(vvp_out, " .covgrp_item %u %u %u \"%s\"\n",
 			  ivl_type_covgrp_item_at_least(classtype, idx),
 			  ivl_type_covgrp_item_weight(classtype, idx),
-			  ivl_type_covgrp_item_is_cross(classtype, idx));
+			  ivl_type_covgrp_item_is_cross(classtype, idx),
+			  ivl_type_covgrp_item_name(classtype, idx));
 	    }
 	      /* M11-3: event-driven sampling metadata — the hidden
 		 parent-handle property plus per-coverpoint parent

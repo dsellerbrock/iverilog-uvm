@@ -253,10 +253,91 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
       vvp_darray*aobj = get_vvp_darray();
 
       if (!aobj) {
-	      // M12: associative array elements are keyed, not
-	      // positional — VPI writes are diagnosed, not guessed.
-	    fprintf(stderr, "vpi sorry: writing associative array "
-		    "elements through VPI is not supported.\n");
+	      // M12-4: associative array elements — positional write
+	      // in key order, the mirror of get_word_value. The
+	      // existing entry supplies the value kind (and the vec4
+	      // width); the put format must be convertible to it.
+	    vvp_assoc_base*mobj = const_cast<vvp_assoc_base*>(get_vvp_assoc());
+	    if (!mobj) {
+		  fprintf(stderr, "vpi sorry: this array element kind "
+			  "cannot be written through VPI.\n");
+		  return;
+	    }
+	    std::string key, cur_str;
+	    vvp_vector4_t cur_vec;
+	    double cur_real = 0.0;
+	    int kind = -1;
+	    if (! mobj->peek_entry(index, key, cur_vec, cur_real,
+				   cur_str, kind)) {
+		  fprintf(stderr, "vpi error: associative array element "
+			  "index %u does not exist.\n", index);
+		  return;
+	    }
+	    vvp_vector4_t new_vec;
+	    double new_real = 0.0;
+	    std::string new_str;
+	    bool ok = true;
+	    switch (kind) {
+		case 0: {   // vec4-valued entry
+		      unsigned wid = cur_vec.size() ? cur_vec.size() : 32;
+		      switch (vp->format) {
+			  case vpiScalarVal:
+			    new_vec = vvp_vector4_t(wid, BIT4_0);
+			    new_vec.set_bit(0, vp->value.scalar ? BIT4_1 : BIT4_0);
+			    break;
+			  case vpiIntVal: {
+				new_vec = vvp_vector4_t(wid, BIT4_0);
+				unsigned long uval =
+				      (unsigned long)(PLI_UINT32)vp->value.integer;
+				for (unsigned b = 0 ; b < wid && b < 32 ; b += 1)
+				      new_vec.set_bit(b, (uval >> b) & 1
+						      ? BIT4_1 : BIT4_0);
+				break;
+			  }
+			  case vpiVectorVal: {
+				new_vec = vvp_vector4_t(wid, BIT4_0);
+				p_vpi_vecval vec = vp->value.vector;
+				for (unsigned b = 0 ; b < wid ; b += 1) {
+				      unsigned wrd = b / 32, bit = b % 32;
+				      int aa = (vec[wrd].aval >> bit) & 1;
+				      int bb = (vec[wrd].bval >> bit) & 1;
+				      new_vec.set_bit(b,
+					    bb ? (aa ? BIT4_X : BIT4_Z)
+					       : (aa ? BIT4_1 : BIT4_0));
+				}
+				break;
+			  }
+			  default:
+			    ok = false;
+			    break;
+		      }
+		      break;
+		}
+		case 1:     // real-valued entry
+		      if (vp->format == vpiRealVal)
+			    new_real = vp->value.real;
+		      else if (vp->format == vpiIntVal)
+			    new_real = (double)vp->value.integer;
+		      else
+			    ok = false;
+		      break;
+		case 2:     // string-valued entry
+		      if (vp->format == vpiStringVal && vp->value.str)
+			    new_str = vp->value.str;
+		      else
+			    ok = false;
+		      break;
+		default:    // object-valued entry
+		      ok = false;
+		      break;
+	    }
+	    if (!ok || ! mobj->poke_entry(index, new_vec, new_real,
+					  new_str, kind)) {
+		  fprintf(stderr, "vpi sorry: value format %d cannot be "
+			  "written to this associative array element "
+			  "(value kind %d).\n", (int)vp->format, kind);
+		  return;
+	    }
 	    return;
       }
 

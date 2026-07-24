@@ -1089,6 +1089,16 @@ class NetScope : public Definitions, public Attrib {
       inline bool program_block() const { return program_block_; }
       inline bool is_interface() const { return is_interface_; }
       inline bool is_unit() const { return is_unit_; }
+	// M12-6: per-modport port lists — (port name, VPI direction
+	// code: vpiInput/vpiOutput/vpiInout/vpiNoDirection) in
+	// declaration order, parallel to modport_names_.
+      typedef std::vector<std::pair<perm_string,int> > modport_port_list_t;
+      void add_modport_ports(const modport_port_list_t&ports)
+      { modport_ports_.push_back(ports); }
+      const modport_port_list_t& modport_ports(size_t idx) const
+      { static const modport_port_list_t empty;
+	return idx < modport_ports_.size() ? modport_ports_[idx] : empty; }
+
 	// M12: modport names declared by an interface, for VPI
 	// introspection (directions stay pform-side).
       void add_modport_name(perm_string nm) { modport_names_.push_back(nm); }
@@ -1378,6 +1388,7 @@ class NetScope : public Definitions, public Attrib {
 	// True if the scope is an interface
       bool is_interface_;
       std::vector<perm_string> modport_names_;
+      std::vector<modport_port_list_t> modport_ports_;
       std::map<perm_string,PLet*> lets_;
 	// True if the scope is a compilation unit
       bool is_unit_;

@@ -21,6 +21,7 @@
 # include  "compile.h"
 # include  "class_type.h"
 # include  "vpi_priv.h"
+# include  "sv_vpi_user.h"
 # include  "vvp_cobject.h"
 # include  "vvp_darray.h"
 # include  "vvp_net_sig.h"
@@ -31,6 +32,8 @@
 # include  <cstring>
 # include  <string>
 # include  <cstdlib>
+# include  <map>
+# include  <vector>
 
 namespace {
 
@@ -329,11 +332,25 @@ vpiHandle __vpiCobjectVar::vpi_put_value(p_vpi_value val, int)
  * across object re-assignment (and reports nil values when the
  * variable holds null).
  */
+/* M12-7 (defined below): iterate covergroup items of the object held
+ * by a variable or nested member handle. */
+static vpiHandle covgrp_iterate_items_(vpiHandle root, int code);
+
 class __vpiClassMember : public __vpiHandle {
     public:
       __vpiClassMember(__vpiCobjectVar*parent, const class_type*defn,
 		       unsigned idx)
-      : parent_(parent), defn_(defn), idx_(idx)
+      : parent_(parent), parent_member_(0), defn_(defn), idx_(idx)
+      {
+	    decode_type_();
+      }
+	/* M12-5: a nested member — the containing object is itself an
+	   object-valued member, re-fetched through the parent chain on
+	   every access so the handle stays valid across re-assignment
+	   anywhere along the path. */
+      __vpiClassMember(__vpiClassMember*parent_member, const class_type*defn,
+		       unsigned idx)
+      : parent_(0), parent_member_(parent_member), defn_(defn), idx_(idx)
       {
 	    decode_type_();
       }
@@ -363,7 +380,9 @@ class __vpiClassMember : public __vpiHandle {
 		      return rbuf;
 		}
 		case vpiFullName: {
-		      char*pn = parent_->vpi_get_str(vpiFullName);
+		      char*pn = parent_member_
+			    ? parent_member_->vpi_get_str(vpiFullName)
+			    : parent_->vpi_get_str(vpiFullName);
 		      std::string full = std::string(pn ? pn : "?") + "." + nm;
 		      char*rbuf = (char*)need_result_buf(full.size()+1, RBUF_STR);
 		      strcpy(rbuf, full.c_str());
@@ -498,18 +517,79 @@ class __vpiClassMember : public __vpiHandle {
 
       vpiHandle vpi_handle(int code) override
       {
-	    if (code == vpiParent || code == vpiScope)
+	    if (code == vpiParent || code == vpiScope) {
+		  if (parent_member_) return parent_member_;
 		  return parent_;
+	    }
 	    return 0;
+      }
+
+	/* M12-5: iterate / find members of an OBJECT-VALUED member, so
+	   dotted paths and vpiMember recursion descend any depth. The
+	   member set follows the LIVE stored object's class (a null
+	   object has no members). */
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code == vpiCoverpoint || code == vpiCoverCross)
+		  return covgrp_iterate_items_(this, code);
+	    if (code != vpiMember && code != vpiVariables)
+		  return 0;
+	    refresh_children_();
+	    if (children_.empty())
+		  return 0;
+	    vpiHandle*args = (vpiHandle*)malloc(children_.size() * sizeof(vpiHandle));
+	    for (size_t idx = 0 ; idx < children_.size() ; idx += 1)
+		  args[idx] = children_[idx];
+	    return vpip_make_iterator(children_.size(), args, true);
+      }
+
+      vpiHandle member_by_name(const char*name)
+      {
+	    refresh_children_();
+	    if (!children_defn_)
+		  return 0;
+	    for (size_t idx = 0 ; idx < children_.size() ; idx += 1) {
+		  if (children_defn_->property_name(idx) == name)
+			return children_[idx];
+	    }
+	    return 0;
+      }
+
+	/* The object stored IN this member (nil-safe). */
+      vvp_cobject* member_object_()
+      {
+	    if (kind_ != 'o') return 0;
+	    vvp_cobject*container = live_object_();
+	    if (!container) return 0;
+	    vvp_object_t obj;
+	    container->get_object(idx_, obj, 0);
+	    return obj.peek<vvp_cobject>();
       }
 
     private:
       vvp_cobject* live_object_()
       {
+	    if (parent_member_)
+		  return parent_member_->member_object_();
 	    vvp_fun_signal_object*fun = get_object_fun_(parent_);
 	    if (!fun) return 0;
 	    vvp_object_t obj = fun->peek_object();
 	    return obj.peek<vvp_cobject>();
+      }
+
+      void refresh_children_()
+      {
+	    const class_type*defn = 0;
+	    if (vvp_cobject*mobj = member_object_())
+		  defn = mobj->get_defn();
+	    if (defn == children_defn_)
+		  return;
+	    children_.clear();
+	    children_defn_ = defn;
+	    if (!defn)
+		  return;
+	    for (size_t idx = 0 ; idx < defn->property_count() ; idx += 1)
+		  children_.push_back(new __vpiClassMember(this, defn, idx));
       }
 
 	// Decode the property base-type string into (vpi type code,
@@ -562,13 +642,272 @@ class __vpiClassMember : public __vpiHandle {
       }
 
       __vpiCobjectVar*parent_;
+      __vpiClassMember*parent_member_;
       const class_type*defn_;
       unsigned idx_;
       int type_code_;
       unsigned width_;
       bool signed_;
       char kind_;
+      std::vector<__vpiClassMember*> children_;
+      const class_type*children_defn_ = nullptr;
 };
+
+/* M12-5: dotted-path descent helper — resolve one member name on
+   either a class VARIABLE handle or a (nested) class MEMBER handle,
+   so vpi_handle_by_name walks object chains of any depth. */
+vpiHandle vpip_class_member_by_name(vpiHandle base, const char*name)
+{
+      if (__vpiCobjectVar*cv = dynamic_cast<__vpiCobjectVar*>(base))
+	    return cv->member_by_name(name);
+      if (__vpiClassMember*cm = dynamic_cast<__vpiClassMember*>(base))
+	    return cm->member_by_name(name);
+      return 0;
+}
+
+/* M12-7: covergroup drill-down handles. The root is the class
+ * VARIABLE (or nested MEMBER) handle holding the covergroup object;
+ * the live object is re-fetched through it on every access, so item
+ * and bin handles follow re-assignment just like member handles. */
+static vvp_cobject* live_cobject_of_(vpiHandle root)
+{
+      if (__vpiCobjectVar*cv = dynamic_cast<__vpiCobjectVar*>(root)) {
+	    vvp_fun_signal_object*fun = get_object_fun_(cv);
+	    if (!fun) return 0;
+	    vvp_object_t obj = fun->peek_object();
+	    return obj.peek<vvp_cobject>();
+      }
+      if (__vpiClassMember*cm = dynamic_cast<__vpiClassMember*>(root))
+	    return cm->member_object_();
+      return 0;
+}
+
+static uint32_t cov_prop_count_(vvp_cobject*cobj, unsigned prop)
+{
+      vvp_vector4_t cur(32, BIT4_0);
+      cobj->get_vec4(prop, cur);
+      uint32_t count = 0;
+      for (unsigned b = 0 ; b < cur.size() && b < 32 ; b += 1)
+	    if (cur.value(b) == BIT4_1)
+		  count |= ((uint32_t)1 << b);
+      return count;
+}
+
+class __vpiCovBin : public __vpiHandle {
+    public:
+      __vpiCovBin(vpiHandle root, const class_type*defn,
+		  unsigned prop, unsigned item)
+      : root_(root), defn_(defn), prop_(prop), item_(item) { }
+
+      int get_type_code(void) const override { return vpiCoverBin; }
+
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiCoverCount: {
+		      vvp_cobject*cobj = live_cobject_of_(root_);
+		      if (!cobj) return 0;
+		      return (int)cov_prop_count_(cobj, prop_);
+		}
+		case vpiCoverTypeCount:
+		  return (int)defn_->type_count(prop_);
+		case vpiCoverAtLeast:
+		  if (item_ < defn_->covgrp_item_count())
+			return (int)defn_->covgrp_item(item_).at_least;
+		  return 1;
+		case vpiCoverWeight:
+		  if (item_ < defn_->covgrp_item_count())
+			return (int)defn_->covgrp_item(item_).weight;
+		  return 1;
+		default:
+		  return vpiUndefined;
+	    }
+      }
+
+      char* vpi_get_str(int code) override
+      {
+	    if (code != vpiName && code != vpiFullName)
+		  return 0;
+	    const std::string&nm = defn_->property_name(prop_);
+	    char*rbuf = (char*)need_result_buf(nm.size()+1, RBUF_STR);
+	    strcpy(rbuf, nm.c_str());
+	    return rbuf;
+      }
+
+    private:
+      vpiHandle root_;
+      const class_type*defn_;
+      unsigned prop_;
+      unsigned item_;
+};
+
+class __vpiCovItem : public __vpiHandle {
+    public:
+      __vpiCovItem(vpiHandle root, const class_type*defn, unsigned item)
+      : root_(root), defn_(defn), item_(item) { }
+
+      int get_type_code(void) const override
+      {
+	    if (item_ < defn_->covgrp_item_count()
+		&& defn_->covgrp_item(item_).is_cross)
+		  return vpiCoverCross;
+	    return vpiCoverpoint;
+      }
+
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiCoverAtLeast:
+		  if (item_ < defn_->covgrp_item_count())
+			return (int)defn_->covgrp_item(item_).at_least;
+		  return 1;
+		case vpiCoverWeight:
+		  if (item_ < defn_->covgrp_item_count())
+			return (int)defn_->covgrp_item(item_).weight;
+		  return 1;
+		case vpiSize:
+		  return (int)countable_props_().size();
+		default:
+		  return vpiUndefined;
+	    }
+      }
+
+      char* vpi_get_str(int code) override
+      {
+	    if (code != vpiName && code != vpiFullName)
+		  return 0;
+	    std::string nm;
+	    if (item_ < defn_->covgrp_item_count())
+		  nm = defn_->covgrp_item(item_).name;
+	    if (nm.empty())
+		  nm = "<item>";
+	    char*rbuf = (char*)need_result_buf(nm.size()+1, RBUF_STR);
+	    strcpy(rbuf, nm.c_str());
+	    return rbuf;
+      }
+
+	/* The item's INSTANCE coverage percent, the same per-item
+	   model as get_inst_coverage: countable bins with count >=
+	   at_least over countable bins. */
+      void vpi_get_value(p_vpi_value val) override
+      {
+	    std::vector<unsigned> props = countable_props_();
+	    vvp_cobject*cobj = live_cobject_of_(root_);
+	    double result = 0.0;
+	    if (cobj && !props.empty()) {
+		  unsigned at_least = 1;
+		  if (item_ < defn_->covgrp_item_count())
+			at_least = defn_->covgrp_item(item_).at_least;
+		  unsigned hits = 0;
+		  for (size_t i = 0 ; i < props.size() ; i += 1)
+			if (cov_prop_count_(cobj, props[i]) >= at_least)
+			      hits += 1;
+		  result = 100.0 * (double)hits / (double)props.size();
+	    }
+	    val->format = vpiRealVal;
+	    val->value.real = result;
+      }
+
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiCoverBin)
+		  return 0;
+	      /* M12-8: build the bin handles once and reuse them.
+		 The bin SET is fixed by the class definition (only
+		 the counts change, and those are read live), so a
+		 fresh alloc per iterate call was a per-call leak. The
+		 handles live for the simulation, like member handles;
+		 the iterator only frees its own args-array copy. */
+	    if (!bins_built_) {
+		  bins_built_ = true;
+		  std::vector<unsigned> props = countable_props_();
+		  for (size_t i = 0 ; i < props.size() ; i += 1)
+			bins_.push_back(new __vpiCovBin(root_, defn_,
+							props[i], item_));
+	    }
+	    if (bins_.empty())
+		  return 0;
+	    vpiHandle*args = (vpiHandle*)malloc(bins_.size() * sizeof(vpiHandle));
+	    for (size_t i = 0 ; i < bins_.size() ; i += 1)
+		  args[i] = bins_[i];
+	    return vpip_make_iterator((unsigned)bins_.size(), args, true);
+      }
+
+    private:
+	/* Distinct counter properties of this item's countable bins
+	   (normal + transition records; ignore/illegal/default are
+	   excluded from coverage, matching the runtime model). */
+      std::vector<unsigned> countable_props_() const
+      {
+	    std::vector<unsigned> out;
+	    for (size_t bi = 0 ; bi < defn_->covgrp_bin_count() ; bi += 1) {
+		  const class_type::cov_bin_t&bin = defn_->covgrp_bin(bi);
+		  if (bin.item_idx != item_) continue;
+		  unsigned k = bin.kind & 7;
+		  if (k == 1 || k == 2 || k == 3) continue;
+		  if (bin.prop_idx == class_type::COV_NO_PROP) continue;
+		  bool seen = false;
+		  for (size_t i = 0 ; i < out.size() ; i += 1)
+			if (out[i] == bin.prop_idx) { seen = true; break; }
+		  if (!seen) out.push_back(bin.prop_idx);
+	    }
+	    return out;
+      }
+
+      vpiHandle root_;
+      const class_type*defn_;
+      unsigned item_;
+      std::vector<vpiHandle> bins_;
+      bool bins_built_ = false;
+};
+
+/* Build the item iterator for a covergroup object held by `root'
+ * (a class variable or nested member handle).
+ *
+ * M12-8: the item handles are cached per (root, defn, kind). A
+ * covergroup instance's class is fixed after construction, so the
+ * item set never changes; a fresh alloc per iterate call was a
+ * per-call leak. Cached handles live for the simulation (like member
+ * handles) and are keyed by defn too, so the rare case of a variable
+ * reused for a different covergroup type still resolves correctly.
+ * The iterator frees only its own args-array copy. */
+static vpiHandle covgrp_iterate_items_(vpiHandle root, int code)
+{
+      vvp_cobject*cobj = live_cobject_of_(root);
+      if (!cobj) return 0;
+      const class_type*defn = cobj->get_defn();
+      if (!defn || !defn->is_covergroup()) return 0;
+      bool want_cross = (code == vpiCoverCross);
+
+      struct item_cache_key {
+	    vpiHandle root;
+	    const class_type*defn;
+	    bool cross;
+	    bool operator < (const item_cache_key&that) const
+	    { if (root != that.root) return root < that.root;
+	      if (defn != that.defn) return defn < that.defn;
+	      return cross < that.cross; }
+      };
+      static std::map<item_cache_key, std::vector<vpiHandle> > cache;
+      item_cache_key key = { root, defn, want_cross };
+      std::map<item_cache_key, std::vector<vpiHandle> >::iterator it
+	    = cache.find(key);
+      if (it == cache.end()) {
+	    std::vector<vpiHandle> items;
+	    for (size_t i = 0 ; i < defn->covgrp_item_count() ; i += 1) {
+		  if (defn->covgrp_item(i).is_cross != want_cross)
+			continue;
+		  items.push_back(new __vpiCovItem(root, defn, (unsigned)i));
+	    }
+	    it = cache.insert(std::make_pair(key, items)).first;
+      }
+      const std::vector<vpiHandle>&items = it->second;
+      if (items.empty()) return 0;
+      vpiHandle*args = (vpiHandle*)malloc(items.size() * sizeof(vpiHandle));
+      for (size_t i = 0 ; i < items.size() ; i += 1)
+	    args[i] = items[i];
+      return vpip_make_iterator((unsigned)items.size(), args, true);
+}
 
 void __vpiCobjectVar::refresh_members_()
 {
@@ -595,6 +934,8 @@ void __vpiCobjectVar::refresh_members_()
 
 vpiHandle __vpiCobjectVar::vpi_iterate(int code)
 {
+      if (code == vpiCoverpoint || code == vpiCoverCross)
+	    return covgrp_iterate_items_(this, code);
       if (code != vpiMember && code != vpiVariables)
 	    return 0;
       refresh_members_();

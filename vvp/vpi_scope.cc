@@ -474,8 +474,36 @@ struct vpiScopeInterface  : public __vpiScope {
       int get_type_code(void) const override { return vpiInterface; }
 };
 
-/* M12: a modport declaration of an interface — name-level VPI
-   introspection (per-signal directions stay compile-time). */
+/* M12: a modport declaration of an interface. M12-6 adds the port
+   list: vpi_iterate(vpiIODecl) yields one handle per modport port
+   with its declared direction (vpi_get(vpiDirection)). */
+class __vpiModport;
+
+class __vpiModportIO : public __vpiHandle {
+    public:
+      __vpiModportIO(__vpiModport*parent, const std::string&name, int dir)
+      : parent_(parent), name_(name), dir_(dir) { }
+
+      int get_type_code(void) const override { return vpiIODecl; }
+
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiDirection: return dir_;
+		default: return vpiUndefined;
+	    }
+      }
+
+      char* vpi_get_str(int code) override;
+
+      vpiHandle vpi_handle(int code) override;
+
+    private:
+      __vpiModport*parent_;
+      std::string name_;
+      int dir_;
+};
+
 class __vpiModport : public __vpiHandle {
     public:
       __vpiModport(__vpiScope*scope, const char*name)
@@ -487,6 +515,7 @@ class __vpiModport : public __vpiHandle {
       {
 	    switch (code) {
 		case vpiLineNo: return 0;
+		case vpiSize: return (int)ports_.size();
 		default: return vpiUndefined;
 	    }
       }
@@ -502,10 +531,53 @@ class __vpiModport : public __vpiHandle {
 	    return 0;
       }
 
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiIODecl || ports_.empty())
+		  return 0;
+	    vpiHandle*args = (vpiHandle*)malloc(ports_.size() * sizeof(vpiHandle));
+	    for (size_t idx = 0 ; idx < ports_.size() ; idx += 1)
+		  args[idx] = ports_[idx];
+	    return vpip_make_iterator((unsigned)ports_.size(), args, true);
+      }
+
+      void add_port(const std::string&pname, int dir)
+      { ports_.push_back(new __vpiModportIO(this, pname, dir)); }
+
+      const char*name() const { return name_; }
+
     private:
       __vpiScope*scope_;
       const char*name_;
+      std::vector<__vpiModportIO*> ports_;
 };
+
+char* __vpiModportIO::vpi_get_str(int code)
+{
+      switch (code) {
+	  case vpiName: {
+		char*rbuf = (char*)need_result_buf(name_.size()+1, RBUF_STR);
+		strcpy(rbuf, name_.c_str());
+		return rbuf;
+	  }
+	  case vpiFullName: {
+		char*pn = parent_->vpi_get_str(vpiFullName);
+		std::string full = std::string(pn ? pn : "?") + "." + name_;
+		char*rbuf = (char*)need_result_buf(full.size()+1, RBUF_STR);
+		strcpy(rbuf, full.c_str());
+		return rbuf;
+	  }
+	  default:
+	    return 0;
+      }
+}
+
+vpiHandle __vpiModportIO::vpi_handle(int code)
+{
+      if (code == vpiParent || code == vpiScope)
+	    return parent_;
+      return 0;
+}
 
 /*
  * The current_scope is a compile time concept. As the vvp source is
@@ -590,9 +662,18 @@ struct assert_cb_t {
 class __vpiAssertion : public __vpiHandle {
     public:
       __vpiAssertion(int idx, const char*nam, const char*file, int line,
-		     __vpiScope*scope)
+		     __vpiScope*scope, int depth_arg, int flags)
       : idx_(idx), name_(nam?nam:""), file_(file?file:""), line_(line),
-	scope_(scope) { }
+	scope_(scope),
+	  // M12-2: depth_arg is the fixed start->accept edge count (>=1)
+	  // or 0 (variable/unknown). The attempt's real tick latency is
+	  // depth_arg-1; latency_ < 0 disables start-time recovery.
+	latency_(depth_arg >= 1 ? depth_arg - 1 : -1),
+	  // M12-1: bit0 = a FAILURE report can only come from an attempt
+	  // that ran the full latency (implications). A plain sequence
+	  // also fails an attempt that dies at its FIRST step, whose
+	  // start is the failing tick itself.
+	fail_full_latency_((flags & 1) != 0) { }
 
       int get_type_code(void) const override { return vpiAssertion; }
 
@@ -642,13 +723,59 @@ class __vpiAssertion : public __vpiHandle {
       void fire(int reason)
       {
 	    if (cbs_.empty()) return;
+	    vvp_time64_t now_raw = schedule_simtime();
 	    s_vpi_time t;
 	    t.type = vpiSimTime;
-	    vpip_time_to_timestruct(&t, schedule_simtime());
+	    vpip_time_to_timestruct(&t, now_raw);
 	    t.real = 0.0;
+
+	      /* M12-2: recover a completing attempt's real start time.
+		 For a fixed-latency automaton every attempt takes
+		 exactly latency_ ticks, so the START-time ring (kept to
+		 the last latency_+1 launch times) has the completing
+		 attempt's start at its front. START launches now, so its
+		 attemptStartTime is now. Variable/unknown latency
+		 (latency_ < 0) reports now, which is exact for same-tick
+		 assertions. */
+	    vvp_time64_t start_raw = now_raw;
+	    if (reason == cbAssertionStart) {
+		  if (latency_ >= 0) {
+			starts_.push_back(now_raw);
+			while ((int)starts_.size() > latency_ + 1)
+			      starts_.erase(starts_.begin());
+		  }
+	    } else if ((reason == cbAssertionSuccess
+			|| (reason == cbAssertionFailure && fail_full_latency_))
+		       && latency_ >= 0
+		       && (int)starts_.size() == latency_ + 1) {
+		    // An accept always consumes the full latency, so the
+		    // ring front is this attempt's launch. A failure only
+		    // does when the checker guarantees it (an early death
+		    // would otherwise be attributed to an older start).
+		  start_raw = starts_.front();
+	    }
+	    s_vpi_time st;
+	    st.type = vpiSimTime;
+	    vpip_time_to_timestruct(&st, start_raw);
+	    st.real = 0.0;
+
 	    s_vpi_attempt_info info;
-	    info.detail.failExpr = 0;
-	    info.attemptStartTime = t;
+	      /* M12-1: for a STEP reason the detail union carries the
+		 step info, not failExpr. The matched-expression list and
+		 state pair are not modeled (a per-tick step report covers
+		 every attempt that advanced), so they are zeroed rather
+		 than guessed. */
+	    s_vpi_assertion_step_info stepinfo;
+	    stepinfo.matched_expression_count = 0;
+	    stepinfo.matched_exprs = 0;
+	    stepinfo.stateFrom = 0;
+	    stepinfo.stateTo = 0;
+	    if (reason == cbAssertionStepSuccess
+		|| reason == cbAssertionStepFailure)
+		  info.detail.step = &stepinfo;
+	    else
+		  info.detail.failExpr = 0;
+	    info.attemptStartTime = st;
 	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
 		  if (cbs_[i].reason == reason && cbs_[i].cb)
 			cbs_[i].cb(reason, &t, this, &info,
@@ -663,6 +790,9 @@ class __vpiAssertion : public __vpiHandle {
       int line_;
       __vpiScope*scope_;
       std::vector<assert_cb_t> cbs_;
+      int latency_;                    // M12-2: fixed tick latency, or -1
+      bool fail_full_latency_;         // M12-1: failures run full latency
+      std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
 };
 
 static std::vector<__vpiAssertion*> assertion_registry;
@@ -670,10 +800,12 @@ static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*> assertion_by_key;
 static int assertion_cb_total = 0;
 
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
-			     PLI_INT32 line, vpiHandle scope)
+			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg,
+			     PLI_INT32 flags)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
-      __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line, sc);
+      __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line,
+					      sc, (int)depth_arg, (int)flags);
       assertion_registry.push_back(obj);
       if (sc) {
 	    vpip_attach_to_scope(sc, obj);
@@ -734,13 +866,24 @@ vpiHandle vpip_make_assertion_iterator(void)
 }
 
 /* M12: attach a modport declaration to the current (interface)
-   scope. */
+   scope. M12-6: subsequent compile_modport_port calls append the
+   directive's (port, direction) pairs to the modport just declared. */
+static __vpiModport*last_modport_decl_ = 0;
+
 void compile_modport_decl(char*name)
 {
       assert(current_scope);
       const char*use_name = vpip_name_string(name);
       __vpiModport*obj = new __vpiModport(current_scope, use_name);
       vpip_attach_to_current_scope(obj);
+      last_modport_decl_ = obj;
+      delete[] name;
+}
+
+void compile_modport_port(char*name, uint64_t dir)
+{
+      assert(last_modport_decl_);
+      last_modport_decl_->add_port(std::string(name), (int)dir);
       delete[] name;
 }
 

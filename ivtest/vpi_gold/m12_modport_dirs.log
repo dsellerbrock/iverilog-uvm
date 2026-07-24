@@ -1,0 +1,20 @@
+Compiling vpi/m12_modport_dirs.c...
+Making m12_modport_dirs.vpi from  m12_modport_dirs.o...
+modport mon ports=5
+  input clk (full top.bus.mon.clk)
+  input rdata (full top.bus.mon.rdata)
+  input ready (full top.bus.mon.ready)
+  input valid (full top.bus.mon.valid)
+  input wdata (full top.bus.mon.wdata)
+modport mst ports=5
+  input clk (full top.bus.mst.clk)
+  input rdata (full top.bus.mst.rdata)
+  input ready (full top.bus.mst.ready)
+  output valid (full top.bus.mst.valid)
+  output wdata (full top.bus.mst.wdata)
+modport slv ports=5
+  input clk (full top.bus.slv.clk)
+  output rdata (full top.bus.slv.rdata)
+  output ready (full top.bus.slv.ready)
+  input valid (full top.bus.slv.valid)
+  input wdata (full top.bus.slv.wdata)

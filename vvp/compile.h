@@ -317,8 +317,11 @@ extern void compile_shiftr(char*label, long width, bool signed_flag,
 			   unsigned argc, struct symb_s*argv);
 
 extern void compile_timescale(long units, long precision);
-/* M12: modport declaration inside an interface scope. */
+/* M12: modport declaration inside an interface scope. M12-6: each
+   following (port name, VPI direction) pair attaches to the modport
+   just declared. */
 extern void compile_modport_decl(char*name);
+extern void compile_modport_port(char*name, uint64_t dir);
 
 extern void compile_vpi_symbol(const char*label, vpiHandle obj);
 extern void compile_vpi_lookup(vpiHandle *objref, char*label);
@@ -624,7 +627,7 @@ extern void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 				     uint64_t kind = 0, uint64_t tuple = 0,
 				     uint64_t item_idx = 0);
 extern void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
-				      uint64_t is_cross);
+				      uint64_t is_cross, char*name = 0);
 extern void compile_class_covgrp_parent(uint64_t prop);
 extern void compile_class_covgrp_src(uint64_t srcprop, uint64_t guardsrc);
 extern void compile_class_done(void);

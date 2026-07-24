@@ -2281,6 +2281,37 @@ extern "C" const char* ivl_scope_modport_name(ivl_scope_t net, unsigned idx)
       return net->modport_names[idx].str();
 }
 
+/* M12-6: per-modport port lists with VPI direction codes. */
+extern "C" unsigned ivl_scope_modport_ports(ivl_scope_t net, unsigned idx)
+{
+      assert(net);
+      if (idx >= net->modport_ports.size())
+	    return 0;
+      return (unsigned)net->modport_ports[idx].size();
+}
+
+extern "C" const char* ivl_scope_modport_port_name(ivl_scope_t net,
+						   unsigned idx, unsigned pidx)
+{
+      assert(net);
+      if (idx >= net->modport_ports.size())
+	    return 0;
+      if (pidx >= net->modport_ports[idx].size())
+	    return 0;
+      return net->modport_ports[idx][pidx].first.str();
+}
+
+extern "C" int ivl_scope_modport_port_dir(ivl_scope_t net,
+					  unsigned idx, unsigned pidx)
+{
+      assert(net);
+      if (idx >= net->modport_ports.size())
+	    return 5;
+      if (pidx >= net->modport_ports[idx].size())
+	    return 5;
+      return net->modport_ports[idx][pidx].second;
+}
+
 extern "C" int ivl_scope_is_dpi_import(ivl_scope_t net)
 {
       assert(net);
@@ -3695,6 +3726,18 @@ extern "C" int ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx)
       if (class_type && idx >= 0)
 	    return class_type->covgrp_item((size_t)idx).is_cross ? 1 : 0;
       return 0;
+}
+
+/* M12-7: coverpoint/cross label of a coverage item (may be nil). */
+extern "C" const char* ivl_type_covgrp_item_name(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count()) {
+	    perm_string nm = class_type->covgrp_item((size_t)idx).name;
+	    return nm.nil() ? "" : nm.str();
+      }
+      return "";
 }
 
 /* M11-3: event-driven sampling metadata for class-embedded

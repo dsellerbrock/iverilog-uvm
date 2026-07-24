@@ -47,6 +47,12 @@ EXTERN_C_START
 #define vpiInterface        601
 #define vpiProgram          602
 #define vpiModport          603
+/* M12-6: modport port declarations — vpi_iterate(vpiIODecl, modport)
+ * yields one handle per modport port; vpi_get(vpiDirection) gives
+ * vpiInput/vpiOutput/vpiInout (vpiNoDirection for ref). (The IEEE
+ * vpiIODecl code 25 collides with Icarus's vpiIntegerVar, so this
+ * header assigns a free code.) */
+#define vpiIODecl           604
 #define vpiCovergroup       605
 #define vpiArrayType        606
 #define   vpiStaticArray      1
@@ -62,6 +68,25 @@ EXTERN_C_START
 #define vpiStringVar        616
 #define vpiBitVar           620
 #define vpiArrayVar         vpiRegArray
+
+/* M12-7: covergroup drill-down (Icarus extension — IEEE 1800 defines
+ * no covergroup VPI object model; UCIS covers interchange). On a
+ * class variable (or nested class member) holding a covergroup
+ * object: vpi_iterate(vpiCoverpoint/vpiCoverCross) yields the
+ * coverage items; vpi_iterate(vpiCoverBin, item) yields its value
+ * bins. Item handles: vpiName = the coverpoint/cross label,
+ * vpi_get(vpiCoverAtLeast/vpiCoverWeight), and
+ * vpi_get_value(vpiRealVal) = the item's instance coverage percent.
+ * Bin handles: vpiName = the bin counter property name,
+ * vpi_get(vpiCoverCount) = this instance's hit count,
+ * vpi_get(vpiCoverTypeCount) = the type-merged count. */
+#define vpiCoverpoint       660
+#define vpiCoverCross       661
+#define vpiCoverBin         662
+#define vpiCoverAtLeast     663
+#define vpiCoverWeight      664
+#define vpiCoverCount       665
+#define vpiCoverTypeCount   666
 
 /********* TYPESPECS *************/
 #define vpiClassTypespec    630
@@ -82,12 +107,16 @@ EXTERN_C_START
 /********* Assertion object (IEEE 1800-2017 clause 40) ***********/
 #define vpiAssertion        686
 
-/* Assertion callback reasons (IEEE 1800-2017 40.x). Delivered:
-   cbAssertionStart (each attempt tick), cbAssertionSuccess,
-   cbAssertionFailure, and -- from the global control tasks --
-   cbAssertionDisable/Enable ($assertoff/$asserton transitions) and
-   cbAssertionReset ($assertkill). Step callbacks are accepted by
-   vpi_register_assertion_cb but not yet delivered. */
+/* Assertion callback reasons (IEEE 1800-2017 40.x). All are delivered
+   by the automaton engine: cbAssertionStart (each attempt tick),
+   cbAssertionSuccess, cbAssertionFailure, cbAssertionStepSuccess /
+   cbAssertionStepFailure (an attempt advanced one step of the
+   sequence, or died mid-sequence -- reported once per clock tick,
+   covering every attempt that stepped that tick), and -- from the
+   global control tasks -- cbAssertionDisable/Enable
+   ($assertoff/$asserton transitions) and cbAssertionReset
+   ($assertkill). The legacy engine (IVL_SVA_LEGACY=1) delivers
+   everything except the step reasons. */
 #define cbAssertionStart        606
 #define cbAssertionSuccess      607
 #define cbAssertionFailure      608
@@ -98,9 +127,23 @@ EXTERN_C_START
 #define cbAssertionReset        613
 #define cbAssertionKill         614
 
-/* Attempt information passed to an assertion callback. The step detail
-   is not modeled; failExpr is 0 and attemptStartTime carries the
-   current simulation time. */
+/* Attempt information passed to an assertion callback.
+
+   attemptStartTime is the completing attempt's real launch time,
+   recovered from a start-time ring, when the assertion has a fixed
+   attempt latency AND the report can only come from a full-length
+   attempt: always for cbAssertionSuccess, and for cbAssertionFailure
+   on an implication (an unobligated attempt dies silently). It is the
+   current time for cbAssertionStart, for variable-latency/cyclic and
+   legacy/multiclock checkers, and for a plain-sequence failure --
+   there an attempt may die at its FIRST step, so the failing tick IS
+   its start and no launch is recovered.
+
+   detail: for the step reasons it points at the step info below, whose
+   matched-expression list and state pair are zeroed (a step report
+   covers every attempt that stepped that tick, so no single state
+   transition applies). For all other reasons failExpr is 0 -- there is
+   no SVA sub-expression handle model. */
 typedef struct t_vpi_assertion_step_info {
       PLI_INT32 matched_expression_count;
       vpiHandle *matched_exprs;

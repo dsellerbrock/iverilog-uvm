@@ -944,6 +944,10 @@ class __vpiCobjectVar : public __vpiBaseVar {
 
 extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net);
 
+/* M12-5: resolve one member name on a class VARIABLE handle or a
+   nested class MEMBER handle (returns nil for anything else). */
+extern vpiHandle vpip_class_member_by_name(vpiHandle base, const char*name);
+
 /* Phase 51: VPI handle targeting a specific string property of a
  * class instance. tgt-vvp emits this for class string property
  * lvalues passed to sysfuncs such as `$value$plusargs`. */

@@ -679,3 +679,64 @@ long pform_sva_nfa_depth(const sva_nfa_t&nfa)
       std::vector<bool> onstack (nfa.nstates, false);
       return nfa_depth_rec_(adj, memo, onstack, nfa.start);
 }
+
+/*
+ * M12-2: the FIXED attempt latency — the number of tick edges from the
+ * start state to the accept state when every start->accept path has the
+ * SAME length (a fixed-##N chain / overlapping-or-non-overlapping
+ * implication). Returns that unique length, or -1 when the latency is
+ * variable (##[m:n], [*m:n], unbounded waits) or the automaton has a
+ * cycle. A fixed latency lets the runtime recover a completing
+ * attempt's real start time exactly (it started `latency` clock ticks
+ * ago), even for pipelined attempts.
+ */
+long pform_sva_nfa_fixed_latency(const sva_nfa_t&nfa)
+{
+      if (nfa.nstates == 0) return -1;
+      if (pform_sva_nfa_has_cycle(nfa)) return -1;
+      std::vector< std::vector<unsigned> > adj (nfa.nstates);
+      for (size_t i = 0; i < nfa.edges.size(); i += 1)
+	    adj[nfa.edges[i].from].push_back(nfa.edges[i].to);
+	// Min and max tick-distance from start to every state over the
+	// DAG (topological DP via memoized DFS). LONG_MAX in dmin means
+	// "unreached".
+      std::vector<long> dmin (nfa.nstates, -1), dmax (nfa.nstates, -1);
+	// Longest to each state is already the depth recursion; do both
+	// with an explicit reverse-reachability DP from accept instead:
+	// distances from start via forward DP.
+      std::vector<bool> onstack (nfa.nstates, false);
+      std::vector<long> memo_max (nfa.nstates, -2), memo_min (nfa.nstates, -2);
+      struct rec {
+	    static void go(const std::vector< std::vector<unsigned> >&adj,
+			   std::vector<long>&mmax, std::vector<long>&mmin,
+			   std::vector<bool>&onst, unsigned accept, unsigned s)
+	    {
+		  if (mmax[s] != -2) return;
+		  onst[s] = true;
+		  long bmax = (s == accept) ? 0 : -1;
+		  long bmin = (s == accept) ? 0 : -1;
+		  for (size_t i = 0 ; i < adj[s].size() ; i += 1) {
+			unsigned t = adj[s][i];
+			if (onst[t]) continue;
+			go(adj, mmax, mmin, onst, accept, t);
+			if (mmax[t] >= 0) {
+			      long vmax = 1 + mmax[t];
+			      if (vmax > bmax) bmax = vmax;
+			}
+			if (mmin[t] >= 0) {
+			      long vmin = 1 + mmin[t];
+			      if (bmin < 0 || vmin < bmin) bmin = vmin;
+			}
+		  }
+		  onst[s] = false;
+		  mmax[s] = bmax;
+		  mmin[s] = bmin;
+	    }
+      };
+      (void)dmin; (void)dmax;
+      rec::go(adj, memo_max, memo_min, onstack, nfa.accept, nfa.start);
+      long lo = memo_min[nfa.start];
+      long hi = memo_max[nfa.start];
+      if (lo < 0 || hi < 0 || lo != hi) return -1;
+      return lo;
+}

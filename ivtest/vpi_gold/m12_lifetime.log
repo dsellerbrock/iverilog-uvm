@@ -1,0 +1,7 @@
+Compiling vpi/m12_lifetime.c...
+Making m12_lifetime.vpi from  m12_lifetime.o...
+members n=2 stable=1
+cov items n=1 stable=1
+cov bins n=4 stable=1
+after free, v=5
+after null, format=13

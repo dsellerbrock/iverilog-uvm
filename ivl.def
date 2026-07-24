@@ -227,6 +227,9 @@ ivl_scope_program
 ivl_scope_is_interface
 ivl_scope_modports
 ivl_scope_modport_name
+ivl_scope_modport_ports
+ivl_scope_modport_port_name
+ivl_scope_modport_port_dir
 ivl_scope_lineno
 ivl_scope_logs
 ivl_scope_log
@@ -369,6 +372,7 @@ ivl_type_covgrp_items
 ivl_type_covgrp_item_at_least
 ivl_type_covgrp_item_weight
 ivl_type_covgrp_item_is_cross
+ivl_type_covgrp_item_name
 ivl_type_covgrp_parent_prop
 ivl_type_covgrp_srcprop
 ivl_type_covgrp_guardsrc

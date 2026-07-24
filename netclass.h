@@ -272,6 +272,7 @@ class netclass_t : public ivl_type_s {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
 	    bool is_cross = false;
+	    perm_string name;   // M12-7: coverpoint/cross label
       };
 
       static const unsigned COVGRP_NO_PROP = 0xFFFFFFFF;
@@ -281,11 +282,13 @@ class netclass_t : public ivl_type_s {
 			  unsigned item_idx = 0);
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const covgrp_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
-      void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross)
+      void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross,
+			   perm_string name = perm_string())
       { covgrp_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
 	it.is_cross = is_cross;
+	it.name = name;
 	covgrp_items_.push_back(it); }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
