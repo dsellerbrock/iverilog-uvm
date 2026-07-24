@@ -1532,6 +1532,19 @@ const std::vector<const class_type*>& class_type::covgrp_registry()
 
 void class_type::covgrp_register(const class_type*ct)
 {
+	// The compiler may emit the same class definition several
+	// times (once per referencing scope); each compile lands
+	// here. Later compiles win everywhere else (the scope map and
+	// the dispatch-prefix map are overwritten), so keep exactly
+	// one registry entry per dispatch prefix - the newest. Stale
+	// duplicates held zero counters and dragged the
+	// $get_coverage mean toward 0.
+      for (auto&slot : covgrp_registry_) {
+	    if (slot->dispatch_prefix() == ct->dispatch_prefix()) {
+		  slot = ct;
+		  return;
+	    }
+      }
       covgrp_registry_.push_back(ct);
 }
 

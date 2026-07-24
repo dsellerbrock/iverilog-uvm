@@ -13932,6 +13932,53 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
 			  bool has_value_bins = false;
 
+			    // M11-6: IEEE 19.5.5 — values named by
+			    // ignore_bins/illegal_bins are excluded from
+			    // the coverpoint's OTHER bins. A value bin
+			    // left with no reachable values must not stay
+			    // in the coverage denominator (it could never
+			    // be hit), and the cross product must not
+			    // generate tuples from it.
+			  std::vector<std::pair<uint64_t,uint64_t>> carve_ranges;
+			  for (auto& xbin : cp.bins) {
+				unsigned xk = ((unsigned)xbin.kind) & 7;
+				if (xk != 1 && xk != 2) continue;
+				if (xbin.wildcard || !xbin.trans_seqs.empty())
+				      continue;
+				std::vector<std::pair<uint64_t,uint64_t>> xr;
+				if (eval_ranges(xbin.ranges, xr))
+				      carve_ranges.insert(carve_ranges.end(),
+							  xr.begin(), xr.end());
+			  }
+			  auto subtract_carved =
+			      [&](std::vector<std::pair<uint64_t,uint64_t>>&rr) {
+				if (carve_ranges.empty()) return;
+				std::vector<std::pair<uint64_t,uint64_t>> out;
+				for (auto&r : rr) {
+				      std::vector<std::pair<uint64_t,uint64_t>> cur;
+				      cur.push_back(r);
+				      for (auto&c : carve_ranges) {
+					    std::vector<std::pair<uint64_t,uint64_t>> nxt;
+					    for (auto&x : cur) {
+						  if (c.second < x.first
+						      || c.first > x.second) {
+							nxt.push_back(x);
+							continue;
+						  }
+						  if (c.first > x.first)
+							nxt.push_back(std::make_pair(
+							      x.first, c.first - 1));
+						  if (c.second < x.second)
+							nxt.push_back(std::make_pair(
+							      c.second + 1, x.second));
+					    }
+					    cur = std::move(nxt);
+				      }
+				      out.insert(out.end(), cur.begin(), cur.end());
+				}
+				rr = std::move(out);
+			  };
+
 			  auto add_value_prop = [&](const std::string&bname,
 						    const std::vector<std::pair<uint64_t,uint64_t>>&rr,
 						    unsigned kindval) {
@@ -14106,6 +14153,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      continue;
 				}
 
+				  // Carve ignored/illegal values out of
+				  // normal bins (19.5.5); a bin with no
+				  // values left is dropped entirely.
+				if (base_kind == 0 && !bin.wildcard) {
+				      subtract_carved(rr);
+				      if (rr.empty()) continue;
+				}
+
 				if (bin.arrayed && base_kind == 0) {
 				      uint64_t total = 0;
 				      for (auto&r : rr) total += (r.second - r.first + 1);
@@ -14256,6 +14311,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    uint64_t vv = src_enum->value_at(k).as_ulong64();
 					    std::vector<std::pair<uint64_t,uint64_t>> rr1;
 					    rr1.push_back(std::make_pair(vv, vv));
+					    subtract_carved(rr1);
+					    if (rr1.empty()) continue;
 					    std::string bn = std::string("__bin_")
 							   + std::string(cp.label.str())
 							   + "_auto_" + std::to_string(k);
@@ -14285,6 +14342,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      }
 				      std::vector<std::pair<uint64_t,uint64_t>> rr1;
 				      rr1.push_back(std::make_pair(lo, hi));
+				      subtract_carved(rr1);
+				      if (rr1.empty()) continue;
 				      std::string bn = std::string("__bin_")
 						     + std::string(cp.label.str())
 						     + "_auto_" + std::to_string(k);
