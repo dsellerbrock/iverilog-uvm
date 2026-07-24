@@ -265,7 +265,7 @@ module-like subset — leaving the M9-7 multiclock residuals, the
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
 | M10-1 | Multidimensional open arrays (`svGetArrElemPtr2/3`) | F | OPEN | — | 2-D/3-D open-array access |
-| M10-2 | DPI export (C→SV) | F | OPEN | **M6-CALLF** | C calls an SV export via shim |
+| M10-2 | DPI export (C→SV) | F | **DONE** | — | `export "DPI-C"` was already implemented end-to-end (parse → pform resolve → t-dll → tgt-vvp directives + a generated `.dpiexport.c` stub → the vvp `__ivl_dpi_export_call_*` dispatcher); the row was stale. Verified working: int/real/string/void returns and args, renamed (`c_name =`) exports, multi-instance and context exports, and time-consuming exported tasks via the coroutine path when reached from an imported DPI *task*. **Fixed a crash found by probing the boundary:** a time-consuming export reached from an imported DPI *function* has no coroutine to park on — the inline runner spun the child past its delay and joined it while the scheduler still held a future event, aborting vvp on assert(is_scheduled) (then assert(children.empty())). The runner now stops when the child delays, emits the existing loud sorry, and detaches the child so it completes under the scheduler. tests m10c/d/e/f + new m10g_dpi_export_blocking_diag_test |
 | M10-3 | Real context semantics / `chandle` ABI verification | A | OPEN | — | context + chandle round-trip tests |
 | M10-4 | Time-consuming imported tasks | F | OPEN | **M6-CALLF** | import task consumes time |
 | M10-5 | C→SV→C reentrancy + cross-platform DPI regressions | A | OPEN | M10-2 | Linux/macOS/Windows green |

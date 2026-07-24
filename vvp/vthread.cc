@@ -10762,7 +10762,13 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	     && child->parent == thr
 	     && child->is_callf_child
 	     && child->is_scheduled
-	     && ! child->waiting_for_event) {
+	     && ! child->waiting_for_event
+	       /* M10-2: a child that hit a delay is scheduled for a FUTURE
+		  time. Spinning it here would run past the delay AND leave
+		  the scheduler holding an event for a thread we then join
+		  and free -- which later tripped assert(is_scheduled) in
+		  vthread_run. Stop and report instead. */
+	     && ! child->i_am_delaying) {
 	    if (++guard > 1000000u)
 		  break;
 	    vthread_run(child);
@@ -10811,6 +10817,18 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 		    "supported only for a task reached from an imported DPI "
 		    "task.\n",
 		    cname);
+	      /* M10-2: DETACH the still-running child. We are about to
+		 return to the C caller, so nothing will ever join it; if it
+		 kept pointing at this parent it would try to resume a frame
+		 that no longer exists when it finally ends. Orphaned, it
+		 simply runs to completion under the scheduler. */
+	    if (! child->i_have_ended) {
+		  child->is_callf_child = 0;
+		  child->i_am_in_function = 0;
+		  thr->children.erase(child);
+		  child->parent = 0;
+		  thr->i_am_joining = 0;
+	    }
       }
 
 	/* Restore the VPI mode the enclosing %dpi/call established. */
