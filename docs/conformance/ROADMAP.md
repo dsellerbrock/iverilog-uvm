@@ -211,7 +211,8 @@ silent-miscompile gap; it is deferred rather than rushed.
 | M3B-2 | `randsequence` | F | **DONE** | — | productions/sequences/nesting/weighted alternatives via source-level expansion; recursion/reuse is a loud sorry |
 | M3B-3 | `disable soft` | F | **DONE** | — | soft constraints on the named variable dropped for the randomize() call |
 | M3B-4 | Reaudit `rand_mode` / `constraint_mode` combinations | A | **VERIFIED WORKING** | — | Probe m3b4_randmode: object-level and per-field `rand_mode()`/`constraint_mode()` set and query, in all combinations, behave correctly. **Terms:** pin the probe as a regression test, then close |
-| M3B-5 | Seed-stability + failed-randomization state tests | A | OPEN — **P0 silent no-op** | — | **`srandom()` and `set_randstate()` are silently discarded.** `elaborate.cc:7574` matches both method names and returns an empty `NetBlock`, so seeding compiles and runs but does nothing: re-seeding one object with seed 7 twice yields different values (103 then 198), and two objects seeded identically diverge (105 vs 115) (probe m3b5_seed_stability). Every seeded-reproducibility flow is silently non-reproducible — this is the RNG half of the item, ahead of the fail-state audit (fail-state semantics themselves landed with M3B-6). **Terms:** give each class object an RNG state per 18.13.3 (`srandom` seeds it, `get_randstate`/`set_randstate` serialize it), thread it through `%randomize`, and make the object RNG the source for `randomize()` and `$urandom` inside class methods; at minimum, make the discarded call a loud sorry rather than a no-op |
+| M3B-5 | Seed-stability + failed-randomization state tests | A | **DONE** (RNG half) | — | **Fixed the P0:** `srandom()` and `set_randstate()` elaborated to an empty `NetBlock` and `get_randstate()` returned a literal empty string, so seeding silently did nothing — re-seeding one object with seed 7 gave 103 then 198, and two objects seeded identically diverged (probe m3b5_seed_stability). **Fix:** each `vvp_cobject` carries its own RNG and each `vthread_s` carries the process RNG (18.13.2) — xorshift64*, one 64-bit word, so `get_randstate()` is that word and `set_randstate()` reads it back exactly; 18.13.3 leaves the string implementation-defined, and a tagged prefix (`ivl1:` / `ivlp1:`) lets a foreign string be rejected loudly. New `%srandom` / `%get_randstate` / `%set_randstate` opcodes dispatch on object vs. `process`. `randomize()` draws from the object RNG, and per 18.13.1 so do `$urandom`/`$urandom_range` — via a new `vpip_object_urandom()` hook the vpi/ module consults before its own generator, resolving the enclosing object first, then walking the thread's parent chain for a seeded process. Reproducible for unconstrained *and* constrained properties (the solver starts from the same draws). Unqualified in-method `srandom()`/`get_randstate()` resolve through `this`. UVM's `p.get_randstate()`/`p.set_randstate()` save-restore idiom works. **Deliberate boundary:** a generator activates only once SEEDED; unseeded objects and threads keep drawing from the global generator, so every unseeded sequence — and each gold depending on one — is bit-for-bit unchanged (ivtest 1024/1068, full UVM confirm). **Note:** `process p = process::self();` as a *static* declaration initializer captures the wrong process (it is hoisted to a separate init thread); Icarus already warns on that form — use `automatic` or assign inside the block. The fail-state audit half of this row is separate and covered by M3B-6. tests m3b5_object_random_state_test, m3b5b_swrite_return_var_test |
+| M3B-7 | `$swrite`/`$sformat` into a function's return variable wrote nothing | C | **DONE** | — | Discovered while landing M3B-5, and it had to be fixed for UVM to run at all. The target is an output argument, but a function's return variable cannot be passed to a VPI call as a signal (`draw_vpi.c` falls back for `signal_is_return_value()`), so it went across as a read-only copy on the string stack: `vpi_put_value` updated that copy, the call popped it, and nothing committed it to the return slot — a **silent** empty result. Elaboration now rewrites `$swrite(f, fmt, ...)` to `f = $sformatf(fmt, ...)`, the same operation through the path that does work. UVM's `uvm_instance_scope()` (uvm_misc.svh) does `$swrite(uvm_instance_scope, "%m")` and then walks backwards from `len()-1`, so the empty string started the walk at -1 and looped without bound. It had been unreachable because its only caller arrives via `uvm_object::reseed()` -> `srandom()`, and srandom's empty-block elaboration discarded the ARGUMENT along with the call — so making srandom real is what first executed it. test m3b5b_swrite_return_var_test |
 | M3B-6 | `x inside {q}` container-property constraints + honest randomize() failure | C | **DONE** | — | queue/darray property containers expand against live contents at solve time (`q:IDX:EWID` IR + solver support); empty container unsatisfiable; item-level IR drops fail loudly; %randomize/%randomize-with return 0 on UNSAT and restore pre-call rand values (18.6.1); solver UNKNOWN stays lenient but loud; with-form solves inherited base constraints. sv_constraint_inside_container |
 
 **M3B-2 note.** `randsequence` is lowered by source-level expansion from
@@ -415,7 +416,7 @@ The ordering below is the re-derived result. Nine rows were stale in both
 directions: six items already worked (M13-1, M13-2, M3B-4, M6B-3, M10-3,
 M10-5) and three silent defects were hiding under "OPEN" rows that read as
 merely unimplemented (M3B-5, M6B-4, M10-4, plus M13-5/6/7 as
-accepted-noops; M10-4 is now fixed). The lesson that drove this sweep holds: **probe
+accepted-noops). All three of those are now fixed; M13-5/6/7 remain. The lesson that drove this sweep holds: **probe
 boundaries, not headline features** — every headline worked.
 
 1. **P0 silent wrong results — these preempt everything** (rule gate 1):
@@ -426,8 +427,8 @@ boundaries, not headline features** — every headline worked.
      **Preponed**, values~~ — **FIXED** for whole-signal operands, which
      is the common case. A bit/part-select operand still reads live and
      now says so with a compile-time warning, so the residual is loud.
-   - **M3B-5** `srandom()`/`set_randstate()` are silent no-ops, so no
-     seeded flow is reproducible.
+   - ~~**M3B-5** `srandom()`/`set_randstate()` are silent no-ops~~ —
+     **FIXED**; per-object RNG, and `$urandom` in a method follows it.
    - **M10-1** (carried) object-array element load ignores its index
      (`tgt-vvp/eval_object.c:514-524`).
 2. **M13-5/6/7 accepted-noops** — timing checks, edge descriptors and
@@ -450,3 +451,41 @@ boundaries, not headline features** — every headline worked.
 
 **Standing override:** any newly discovered silent miscompile or crash preempts this
 list (rule gates 1–2).
+
+---
+
+## Residual register
+
+Every **partial** fix leaves a residual. This is the one list of them, so a
+row marked DONE or PARTIAL above cannot quietly read as complete. A residual
+leaves this list only by being fixed — never by being re-described.
+
+**Rule:** a residual is acceptable only while it is LOUD (a sorry, an error,
+or a warning naming the case). A residual that is silently wrong is a rule-1
+defect and preempts the ordered list above. The `Loud?` column is therefore
+the thing to check first.
+
+| # | Residual | From | Loud? | What closing it takes |
+|---|----------|------|-------|------------------------|
+| R1 | A bit/part-select assertion operand reads its **live** value, not its Preponed one, so a blocking write in the same slot as the clock is visible to it. Whole-signal operands sample correctly. | M6B-4 | **yes** — per-assertion warning naming the count | Re-express the select against the sampled read at elaboration (`NetESelect` over `$ivl_clocking_sample`), instead of skipping the wrap in pform |
+| R2 | Per-attempt assertion start/step/end **region placement** is unimplemented; only the sampled values were fixed. | M6B-4 | n/a — not wrong, absent | The other half of the M6B-4 row |
+| R3 | An object's / process's RNG activates only once **seeded**; an unseeded one draws from the global generator rather than one derived from its parent process (18.13.1). | M3B-5 | n/a — deliberate, documented | Seed each object's RNG *from the process RNG* at construction, and each thread's from its parent at `fork`. Doing so changes every unseeded sequence, so it needs a gold-rebaseline decision first — that is why it is deferred, not difficulty |
+| R4 | A **static** declaration initializer (`process p = process::self();`) is hoisted to a separate init thread, so it captures the wrong process. | M3B-5 (pre-existing) | **yes** — Icarus already warns that the form needs an explicit lifetime | Evaluate a static initializer in the declaring block's thread, or narrow the warning into an error for `process::self()`. `automatic` and in-block assignment both work today |
+| R5 | A time-consuming export reached from an imported DPI **function** is unsupported. | M10-2 | **yes** — sorry | Nothing: illegal for value-returning functions, and no coroutine exists to park on |
+| R6 | Timing checks, edge descriptors and `pulsestyle`/`showcancelled` parse, elaborate and are **silently ignored**. | M13-5/6/7 | **NO — rule-1 defect** | Implement, or make an unimplemented timing check a tracked diagnostic. The accepted-noop state is the one thing the loud rule forbids, so this outranks ordinary feature work |
+| R7 | Object-array element load ignores its index (`tgt-vvp/eval_object.c`), silently reading element 0. | M10-1 | **NO — rule-1 defect** | Make the empty handle loud first, then implement fixed-array marshaling into contiguous DPI storage with copy-back |
+| R8 | `%p` prints a packed struct as a plain integer and flattens nested dimensions. | M4B-4/5 | no — cosmetic | Deferred by decision, not by difficulty |
+| R9 | The hardcoded `uvm_shared`/`value`/`T` type-inference fallback is very likely dead code. | M1B-3 | n/a — cleanup | Delete it and its call site, then validate with a full UVM run |
+
+R6 and R7 are the two residuals that are still *silent*, so by rule 1 they
+lead the queue regardless of where their milestones sit in the ordered list
+above.
+
+**Retired from this list:** the original R3 — `process::srandom()` rejected
+with a sorry — was closed by being implemented rather than re-described,
+within M3B-5 itself, once UVM proved the reject was the wrong call (UVM's own
+save/restore idiom uses it). Two of the residuals here were found *by fixing
+another one*
+(R4 and M3B-7 both surfaced while landing M3B-5), which is the argument for
+keeping the list: a partial fix reliably exposes the next defect underneath
+it.

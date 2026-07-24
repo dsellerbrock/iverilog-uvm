@@ -548,6 +548,15 @@ struct vthread_s {
 	/* This points to the containing scope. */
       __vpiScope*parent_scope;
       vvp_code_t last_pause_pc;
+	/* M3B-5 (IEEE 1800-2017 18.13.2): the process's own RNG, reached
+	   through process::self().srandom()/get_randstate()/set_randstate().
+	   Same xorshift64* as the per-object generator, and like it, active
+	   only once the thread has been SEEDED -- otherwise $urandom keeps
+	   using the global generator so unseeded sequences are unchanged.
+	   0 means "never seeded", which is also what get_randstate() then
+	   reports so that a save/restore round-trips. */
+      uint64_t rng_state;
+      bool rng_seeded;
 	/* This is used for keeping wait queues. */
       struct vthread_s*wait_next;
 	/* These are used to access automatically allocated items. */
@@ -2617,6 +2626,20 @@ static void randomize_restore_(vvp_cobject*cobj,
 }
 
 /*
+ * M3B-5 (IEEE 1800-2017 18.13.1): randomize() draws from the OBJECT's
+ * generator once that object has been seeded (srandom/set_randstate);
+ * otherwise it keeps using the global one, so unseeded randomization
+ * sequences -- and every recorded gold that depends on them -- are
+ * bit-for-bit unchanged. Seeding is the thing that opts an object in.
+ */
+static inline unsigned randomize_rand_(vvp_cobject*cobj)
+{
+      if (cobj && cobj->rng_seeded())
+	    return (unsigned)cobj->rng_next();
+      return (unsigned)rand();
+}
+
+/*
  * %randomize
  *
  * Randomize all rand/randc properties of the class object on top of the
@@ -2674,7 +2697,7 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 				    break;
 			      vvp_vector4_t nv(wid, BIT4_0);
 			      for (unsigned b = 0 ; b < wid ; b += 1)
-				    nv.set_bit(b, (rand() & 1) ? BIT4_1 : BIT4_0);
+				    nv.set_bit(b, (randomize_rand_(cobj) & 1) ? BIT4_1 : BIT4_0);
 			      cobj->set_vec4(pid, nv, adr);
 			}
 			continue;
@@ -2696,7 +2719,7 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 				    // (e.g. inside {[5:100]}) are satisfied without
 				    // a real solver pass.  Width-clip back to wid.
 				    unsigned cap = (wid >= 8) ? 0xFF : ((1u<<wid) - 1);
-				    unsigned rnd = ((unsigned)rand() % cap) + 1;
+				    unsigned rnd = (randomize_rand_(cobj) % cap) + 1;
 				    vvp_vector4_t nv(wid, BIT4_0);
 				    for (unsigned b = 0 ; b < wid ; b += 1)
 					  nv.set_bit(b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
@@ -2722,7 +2745,7 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 			      for (unsigned attempt = 0;
 				   attempt < 4 * (unsigned)period;
 				   attempt += 1) {
-				    uint64_t cand = (uint64_t)rand() % period;
+				    uint64_t cand = (uint64_t)randomize_rand_(cobj) % period;
 				    if (!cobj->randc_seen(pid, cand)) {
 					  pick = cand; found = true; break;
 				    }
@@ -2745,7 +2768,7 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 			}
 		  }
 		  for (unsigned i = 0 ; i < wid ; i += 32) {
-			unsigned rnd = (unsigned)rand();
+			unsigned rnd = randomize_rand_(cobj);
 			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
 			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
 		  }
@@ -2822,7 +2845,7 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 				    break;
 			      vvp_vector4_t nv(awid, BIT4_0);
 			      for (unsigned b = 0 ; b < awid ; b += 1)
-				    nv.set_bit(b, (rand() & 1) ? BIT4_1 : BIT4_0);
+				    nv.set_bit(b, (randomize_rand_(cobj) & 1) ? BIT4_1 : BIT4_0);
 			      cobj->set_vec4(pid, nv, adr);
 			}
 			continue;
@@ -2839,7 +2862,7 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 			      bool found = false;
 			      for (unsigned attempt = 0;
 				   attempt < 4 * (unsigned)period; attempt += 1) {
-				    uint64_t cand = (uint64_t)rand() % period;
+				    uint64_t cand = (uint64_t)randomize_rand_(cobj) % period;
 				    if (!cobj->randc_seen(pid, cand)) {
 					  pick = cand; found = true; break;
 				    }
@@ -2862,7 +2885,7 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 			}
 		  }
 		  for (unsigned i = 0 ; i < wid ; i += 32) {
-			unsigned rnd = (unsigned)rand();
+			unsigned rnd = randomize_rand_(cobj);
 			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
 			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
 		  }
@@ -2961,6 +2984,217 @@ bool of_RAND_MODE_P(vthread_t thr, vvp_code_t cp)
 	    if (pid < defn->property_count() && defn->property_is_rand(pid))
 		  cobj->set_rand_mode(pid, mode);
       }
+      return true;
+}
+
+/*
+ * M3B-5: the process (per-thread) generator, IEEE 1800-2017 18.13.2.
+ *
+ * Same xorshift64* as vvp_cobject's, kept here rather than shared through
+ * a header because the state lives directly on vthread_s. UVM leans on
+ * the save/restore idiom
+ *      process p = process::self();
+ *      string st = p.get_randstate(); ... p.set_randstate(st);
+ * (uvm_report_message.svh, uvm_resource_pool.svh, uvm_component.svh), so
+ * these have to work rather than be diagnosed away.
+ */
+static const char thread_rng_tag[] = "ivlp1:";
+
+static void thread_rng_srandom_(vthread_t thr, int32_t seed)
+{
+      uint64_t z = (uint64_t)(uint32_t)seed + 0x9E3779B97F4A7C15ull;
+      z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+      z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+      z = z ^ (z >> 31);
+      thr->rng_state = z ? z : 0x9E3779B97F4A7C15ull;
+      thr->rng_seeded = true;
+}
+
+static uint32_t thread_rng_next_(vthread_t thr)
+{
+      if (! thr->rng_seeded)
+	    thread_rng_srandom_(thr, 0);
+      uint64_t x = thr->rng_state;
+      x ^= x >> 12;
+      x ^= x << 25;
+      x ^= x >> 27;
+      thr->rng_state = x;
+      return (uint32_t)((x * 0x2545F4914F6CDD1Dull) >> 32);
+}
+
+static std::string thread_rng_get_state_(vthread_t thr)
+{
+      char buf[32];
+      snprintf(buf, sizeof buf, "%s%016llx", thread_rng_tag,
+	       (unsigned long long)(thr->rng_seeded ? thr->rng_state : 0));
+      return std::string(buf);
+}
+
+static bool thread_rng_set_state_(vthread_t thr, const std::string&state)
+{
+      size_t tag_len = sizeof thread_rng_tag - 1;
+      if (state.compare(0, tag_len, thread_rng_tag) != 0)
+	    return false;
+      uint64_t st = 0;
+      if (sscanf(state.c_str() + tag_len, "%16llx",
+		 (unsigned long long*)&st) != 1)
+	    return false;
+      if (st == 0) {
+	    thr->rng_state = 0;
+	    thr->rng_seeded = false;
+	    return true;
+      }
+      thr->rng_state = st;
+      thr->rng_seeded = true;
+      return true;
+}
+
+/*
+ * M3B-5 (IEEE 1800-2017 18.13): per-object RNG control.
+ *
+ * srandom() and set_randstate() used to elaborate to an empty block, so
+ * seeding silently did nothing and no seeded flow was reproducible;
+ * get_randstate() returned the empty string. These three opcodes drive
+ * the object's own generator (vvp_cobject::rng_*).
+ *
+ * %srandom        pops the seed (vec4), then the object.
+ * %set_randstate  pops the state string, then the object.
+ * %get_randstate  pops the object, pushes the state string.
+ */
+bool of_SRANDOM(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t seed_vec = thr->pop_vec4();
+      int32_t seed = 0;
+      for (unsigned b = 0 ; b < seed_vec.size() && b < 32 ; b += 1)
+	    if (seed_vec.value(b) == BIT4_1)
+		  seed |= (int32_t)((uint32_t)1 << b);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
+	    cobj->rng_srandom(seed);
+      else if (vvp_process*proc = obj.peek<vvp_process>()) {
+	      /* process::srandom() seeds the per-THREAD generator (18.13.2). */
+	    if (vthread_t target = proc->owner()) {
+		  thread_rng_srandom_(target, seed);
+	    }
+      }
+      return true;
+}
+
+bool of_SET_RANDSTATE(vthread_t thr, vvp_code_t)
+{
+      std::string state = thr->pop_str();
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_process*proc = obj.peek<vvp_process>()) {
+	    vthread_t target = proc->owner();
+	    if (target && ! thread_rng_set_state_(target, state)) {
+		  static bool pwarned = false;
+		  if (! pwarned) {
+			fprintf(stderr, "vvp: warning: process::set_randstate() "
+				"was given a string this implementation did not "
+				"produce ('%s'); the process random state is "
+				"unchanged (further similar warnings "
+				"suppressed).\n", state.c_str());
+			pwarned = true;
+		  }
+	    }
+	    return true;
+      }
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+	    if (! cobj->rng_set_state(state)) {
+		    /* 18.13.3 leaves the string implementation-defined, so
+		       a string this implementation did not produce cannot
+		       be honoured. Say so rather than silently continuing
+		       with an unchanged generator. */
+		  static bool warned = false;
+		  if (! warned) {
+			fprintf(stderr, "vvp: warning: set_randstate() was "
+				"given a string this implementation did not "
+				"produce ('%s'); the object's random state is "
+				"unchanged (further similar warnings "
+				"suppressed).\n", state.c_str());
+			warned = true;
+		  }
+	    }
+      }
+      return true;
+}
+
+/*
+ * M3B-5 (IEEE 1800-2017 18.13.1): $urandom called from inside a class
+ * method draws from THAT OBJECT's generator, so seeding the object makes
+ * it reproducible. $urandom lives in the vpi/ system module and has its
+ * own static generator, so it asks here first: if the running thread is
+ * executing a method of an object that has been seeded, hand back a draw
+ * from the object's RNG.
+ *
+ * Returns 0 when there is no seeded enclosing object, and $urandom then
+ * uses its own generator exactly as before -- so unseeded sequences, and
+ * every gold that depends on them, are untouched.
+ */
+extern "C" int vpip_object_urandom(unsigned int*val)
+{
+	/* Use the thread the VPI call was made ON. `running_thread' is not
+	   reliable here -- during a %vpi_func it can still name an earlier
+	   thread, which sent this lookup to the wrong generator entirely.
+	   vpip_current_vthread is set by vpip_execute_vpi_call for exactly
+	   this purpose. */
+      vthread_t thr = vpip_current_vthread ? vpip_current_vthread
+					   : running_thread;
+      if (! (thr && val))
+	    return 0;
+
+	// Walk out through enclosing scopes: $urandom may sit in a
+	// begin/end or a nested block inside the method.
+      for (__vpiScope*scope = thr->parent_scope ; scope ; scope = scope->scope) {
+	    vpiHandle self = lookup_scope_item_(scope, "@");
+	    if (! self)
+		  continue;
+	    vvp_object_t obj;
+	    if (! read_handle_object_in_thread_(self, thr, obj))
+		  continue;
+	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
+	    if (cobj && cobj->rng_seeded()) {
+		  *val = cobj->rng_next();
+		  return 1;
+	    }
+	      // Found `this' but it is not seeded: stop looking outward
+	      // rather than reaching some unrelated enclosing object. The
+	      // thread generator below still applies.
+	    break;
+      }
+
+	// No seeded enclosing object: fall back to the PROCESS generator
+	// (18.13.2). process::self() hands out the LOGICAL process thread
+	// (function calls and synchronous task calls run on child threads
+	// of it), so the seed can live on an ancestor of the thread that
+	// actually reaches $urandom. Walk up the parent chain to find it --
+	// which is also the behaviour 18.13.2 wants: a task called from a
+	// seeded process draws from that process's generator.
+      for (vthread_t walk = thr ; walk ; walk = walk->parent) {
+	    if (walk->rng_seeded) {
+		  *val = thread_rng_next_(walk);
+		  return 1;
+	    }
+      }
+      return 0;
+}
+
+bool of_GET_RANDSTATE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_process*proc = obj.peek<vvp_process>()) {
+	    vthread_t target = proc->owner();
+	    thr->push_str(target ? thread_rng_get_state_(target)
+				 : std::string());
+	    return true;
+      }
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      thr->push_str(cobj ? cobj->rng_get_state() : std::string());
       return true;
 }
 
@@ -3725,6 +3959,9 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->wait_next = 0;
       thr->wt_context = 0;
       thr->rd_context = 0;
+	// M3B-5: unseeded until process::srandom()/set_randstate() says so.
+      thr->rng_state = 0;
+      thr->rng_seeded = false;
 
       thr->i_am_joining  = 0;
       thr->i_am_detached = 0;

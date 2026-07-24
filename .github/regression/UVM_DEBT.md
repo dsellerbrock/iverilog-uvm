@@ -1,10 +1,10 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: M6B-4 head (216/216, 4x54 batches, 2026-07-24 —
-validated the Preponed-sampling change. Ran a full pass because it
-rewrites the operand reads of EVERY synthesized concurrent assertion and
-touches system-function width/type determination in elaboration, both of
-which reach far beyond the assertion itself.)
+Full UVM last passed: M3B-5 head (218/218, 4x batches of 55/55/54/54,
+2026-07-24 — validated the per-object and per-process RNG. Ran a full pass
+because seeding changes what randomize() and $urandom draw from across the
+whole library (UVM calls srandom() on every object via reseed()), and
+because the companion $swrite fix touches system-task elaboration.)
 
 Commits since full UVM: 0
 Highest risk change since last full run: —

@@ -428,6 +428,13 @@ void draw_eval_string(ivl_expr_t expr)
 		  string_ex_pop(expr);
 	    else if (strcmp(ivl_expr_name(expr), "$ivl_queue_method$pop_front")==0)
 		  string_ex_pop(expr);
+	    else if (strcmp(ivl_expr_name(expr),
+			    "$ivl_class_method$get_randstate") == 0) {
+		    /* M3B-5 (IEEE 1800-2017 18.13.3): push the object, then
+		       %get_randstate replaces it with the state string. */
+		  draw_eval_object(ivl_expr_parm(expr, 0));
+		  fprintf(vvp_out, "    %%get_randstate;\n");
+	    }
 	    else if (strcmp(ivl_expr_name(expr), "$ivl_string$repeat") == 0) {
 		  /* Phase 63b/string-replicate: parm0=unit string,
 		     parm1=count vec4.  Build unit string, push count

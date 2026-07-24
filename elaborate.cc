@@ -6228,6 +6228,44 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    return noop;
       }
 
+	/* $swrite/$sformat whose TARGET is the enclosing function's return
+	   variable wrote nothing at all, silently.
+
+	   The target is an output argument, but a function's return variable
+	   cannot be passed to a VPI call as a signal (draw_vpi.c falls back
+	   for signal_is_return_value()), so it went as a read-only copy on
+	   the string stack: $swrite's vpi_put_value updated that copy, the
+	   call popped it, and nothing ever committed it to the return slot.
+	   A plain assignment to the return variable works, so rewrite
+	       $swrite(f, fmt, args...)   ->   f = $sformatf(fmt, args...)
+	   which is the same operation through the path that does work.
+
+	   UVM depends on this: uvm_instance_scope() does
+	   `$swrite(uvm_instance_scope, "%m")' and then walks backwards
+	   through the result, so an empty string sent it into an unbounded
+	   loop. (Reached only once M3B-5 made srandom() evaluate its
+	   argument -- the discarded call had been hiding it.) */
+      if ((name == "$swrite" || name == "$sformat") && parm_count >= 2
+	  && eparms[0] && scope->type() == NetScope::FUNC) {
+	    NetESignal*tgt = dynamic_cast<NetESignal*>(eparms[0]);
+	    NetNet*tgt_sig = tgt ? tgt->sig() : 0;
+	    if (tgt_sig && tgt_sig->scope() == scope
+		&& tgt_sig->name() == scope->basename()) {
+		  NetESFunc*fmt = new NetESFunc("$sformatf",
+						&netstring_t::type_string,
+						parm_count - 1);
+		  fmt->set_line(*this);
+		  for (unsigned idx = 1 ; idx < parm_count ; idx += 1)
+			fmt->parm(idx - 1, eparms[idx]);
+
+		  NetAssign_*lv = new NetAssign_(tgt_sig);
+		  NetAssign*asn = new NetAssign(lv, fmt);
+		  asn->set_line(*this);
+		  delete eparms[0];
+		  return asn;
+	    }
+      }
+
       scope->calls_sys_task(true);
 
       NetSTask*cur = new NetSTask(name, def_sfunc_as_task, eparms);
@@ -7570,12 +7608,29 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						    method_name, sys_task_name,
 						    no_parm_names);
 	    }
-	    if (method_name == perm_string::literal("set_randstate")
-		|| method_name == perm_string::literal("srandom")) {
-		  delete obj_expr;
-		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-		  noop->set_line(*this);
-		  return noop;
+	      /* M3B-5 (IEEE 1800-2017 18.13.2/18.13.3): seed, or restore
+		 the state of, the object's own RNG. Both used to elaborate
+		 to an empty block, so seeding silently did nothing and no
+		 seeded flow was reproducible. */
+	    if (method_name == perm_string::literal("srandom")) {
+		  static const std::vector<perm_string> parm_seed = {
+			perm_string::literal("seed")
+		  };
+		  return elaborate_sys_task_method_(des, scope,
+						    obj_expr, obj_type,
+						    method_name,
+						    "$ivl_class_method$srandom",
+						    parm_seed);
+	    }
+	    if (method_name == perm_string::literal("set_randstate")) {
+		  static const std::vector<perm_string> parm_state = {
+			perm_string::literal("state")
+		  };
+		  return elaborate_sys_task_method_(des, scope,
+						    obj_expr, obj_type,
+						    method_name,
+						    "$ivl_class_method$set_randstate",
+						    parm_state);
 	    }
 	      // Built-in mailbox task methods: generate real opcodes.
 	    if (cname == perm_string::literal("mailbox")) {

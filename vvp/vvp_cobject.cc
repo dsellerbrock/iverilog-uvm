@@ -23,6 +23,7 @@
 # include  "event.h"
 # include  <iostream>
 # include  <cassert>
+# include  <cstdio>
 
 using namespace std;
 
@@ -35,6 +36,78 @@ vvp_cobject::vvp_cobject(const class_type*defn)
 	// event register so %covgrp/sample/all can walk them.
       if (defn->covgrp_parent_prop() >= 0)
 	    defn->covgrp_live_add(this);
+}
+
+/*
+ * M3B-5 (IEEE 1800-2017 18.13): the object's own RNG.
+ *
+ * xorshift64* -- one 64-bit word of state, so get_randstate() is just
+ * that word printed, and set_randstate() reads it back exactly. 18.13.3
+ * leaves the string's contents implementation-defined; it only has to
+ * round-trip through this implementation, which the tagged prefix below
+ * lets us check.
+ */
+static const char rng_state_tag[] = "ivl1:";
+
+void vvp_cobject::rng_srandom(int32_t seed)
+{
+	// A zero state is the one xorshift64* fixed point (it would emit
+	// only zeroes), and srandom(0) is perfectly legal, so fold the seed
+	// through splitmix64 first. That also spreads adjacent seeds --
+	// srandom(1) and srandom(2) must not give correlated streams.
+      uint64_t z = (uint64_t)(uint32_t)seed + 0x9E3779B97F4A7C15ull;
+      z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+      z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+      z = z ^ (z >> 31);
+      rng_state_ = z ? z : 0x9E3779B97F4A7C15ull;
+      rng_seeded_ = true;
+}
+
+uint32_t vvp_cobject::rng_next()
+{
+      if (! rng_seeded_)
+	    rng_srandom(0);
+      uint64_t x = rng_state_;
+      x ^= x >> 12;
+      x ^= x << 25;
+      x ^= x >> 27;
+      rng_state_ = x;
+      return (uint32_t)((x * 0x2545F4914F6CDD1Dull) >> 32);
+}
+
+std::string vvp_cobject::rng_get_state() const
+{
+      char buf[32];
+	// Report the state even if the object has never been seeded, so
+	// get_randstate() then set_randstate() round-trips either way.
+      uint64_t st = rng_seeded_ ? rng_state_ : 0;
+      snprintf(buf, sizeof buf, "%s%016llx", rng_state_tag,
+	       (unsigned long long)st);
+      return std::string(buf);
+}
+
+bool vvp_cobject::rng_set_state(const std::string&state)
+{
+      size_t tag_len = sizeof rng_state_tag - 1;
+      if (state.compare(0, tag_len, rng_state_tag) != 0)
+	    return false;
+
+      uint64_t st = 0;
+      if (sscanf(state.c_str() + tag_len, "%16llx",
+		 (unsigned long long*)&st) != 1)
+	    return false;
+
+	// A state of 0 means "was never seeded" (see rng_get_state), so
+	// restoring it puts the object back in that state rather than
+	// installing the generator's fixed point.
+      if (st == 0) {
+	    rng_state_ = 0;
+	    rng_seeded_ = false;
+	    return true;
+      }
+      rng_state_ = st;
+      rng_seeded_ = true;
+      return true;
 }
 
 bool vvp_cobject::rand_mode(size_t pid) const

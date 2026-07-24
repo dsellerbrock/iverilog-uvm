@@ -7695,9 +7695,22 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  cerr << get_fileline() << ": error: get_randstate() takes no arguments." << endl;
 		  des->errors += 1;
 	    }
-	    NetECString*tmp = new NetECString(string());
-	    tmp->set_line(*this);
-	    return tmp;
+	      /* M3B-5: unqualified get_randstate() inside a class method is
+		 this.get_randstate() (IEEE 1800-2017 18.13.3). It used to
+		 return a literal empty string. */
+	    if (NetNet*this_net = find_implicit_this_handle(des, scope)) {
+		  NetESignal*self = new NetESignal(this_net);
+		  self->set_line(*this);
+		  NetESFunc*tmp = new NetESFunc("$ivl_class_method$get_randstate",
+						&netstring_t::type_string, 1);
+		  tmp->set_line(*this);
+		  tmp->parm(0, self);
+		  return tmp;
+	    }
+	    cerr << get_fileline() << ": error: get_randstate() has no "
+		 << "enclosing object to read the random state of." << endl;
+	    des->errors += 1;
+	    return 0;
       }
 
       // Search for the symbol. This should turn up a scope.
@@ -9243,8 +9256,14 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				     << "takes no arguments" << endl;
 				des->errors += 1;
 			  }
-			  NetECString*tmp = new NetECString(string());
+			    // M3B-5 (IEEE 1800-2017 18.13.3): return the
+			    // object's actual RNG state. This used to be a
+			    // literal empty string, so get_randstate() /
+			    // set_randstate() could not round-trip anything.
+			  NetESFunc*tmp = new NetESFunc("$ivl_class_method$get_randstate",
+							&netstring_t::type_string, 1);
 			  tmp->set_line(*this);
+			  tmp->parm(0, sub_expr);
 			  return tmp;
 		    }
 	    if (method == 0) {

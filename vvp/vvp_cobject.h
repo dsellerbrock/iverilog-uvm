@@ -83,6 +83,26 @@ class vvp_cobject : public vvp_object {
       bool cov_enabled() const { return cov_enabled_; }
       void set_cov_enabled(bool f) { cov_enabled_ = f; }
 
+	// M3B-5 (IEEE 1800-2017 18.13): the object's own random number
+	// generator. srandom()/set_randstate() had elaborated to a no-op,
+	// so seeding did nothing and no seeded flow was reproducible.
+	//
+	// The generator is a 64-bit xorshift64* -- small, deterministic,
+	// and trivially serializable, which is what get_randstate() needs
+	// (18.13.3 leaves the string's contents implementation-defined).
+	//
+	// The RNG becomes active only once the object has been SEEDED,
+	// explicitly via srandom() or set_randstate(). Until then
+	// randomize() keeps drawing from the global generator, so
+	// unseeded randomization sequences -- and every recorded gold that
+	// depends on them -- are unchanged. See the M3B-5 ROADMAP row.
+      void rng_srandom(int32_t seed);
+      std::string rng_get_state() const;
+	// False if the string is not one this implementation wrote.
+      bool rng_set_state(const std::string&state);
+      bool rng_seeded() const { return rng_seeded_; }
+      uint32_t rng_next();
+
     private:
       const class_type* defn_;
 	// For now, only support 32bit bool signed properties.
@@ -94,6 +114,9 @@ class vvp_cobject : public vvp_object {
       bool cov_enabled_ = true;
 	// Lazily-allocated per-instance event nets, keyed by event slot.
       std::map<uint32_t, class vvp_net_t*> inst_events_;
+	// M3B-5: per-object RNG state (see rng_* above).
+      uint64_t rng_state_ = 0;
+      bool rng_seeded_ = false;
 };
 
 #endif /* IVL_vvp_cobject_H */
