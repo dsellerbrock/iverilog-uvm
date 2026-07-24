@@ -383,24 +383,36 @@ the structure. The partial-write correctness arc is now fully closed — both th
 property form (M1B-5) and its unpacked-struct-member sibling (M4B-6). No known silent
 miscompiles outstanding; the frontier is again bounded FEATURE + AUDIT work.
 
-Recently retired: M8 (clause-14 audit + disposition) · M9-1/2/3 (bounded SVA / abort /
-combinators) · M1B-3a (type-parameter aggregate property method miscompile) · **M1B-5 +
-M4B-6** (partial write to a class property AND to an unpacked-struct member —
-bit/part/indexed-part with constant & run-time offset + packed-struct member, across
-elaboration/codegen/runtime) · M1B-4 / M4B-3 (adversarial parameterized-specialization +
-nested-container audits) · **ARCH-1 · M9-NFA discovered already LANDED** (automaton
-engine is default; 33/33 dual-run). M4B-1/M4B-2 verified already-working in prior sessions.
+Recently retired (this arc): **M12B/C VPI completion — the whole
+milestone** (assertion lifecycle + step callbacks, meaningful
+`s_vpi_attempt_info`, bit-select force/release, assoc-element writes,
+nested class-member traversal, modport metadata, covergroup
+drill-down, lifetime/free audit) · **M11B coverage — the whole
+milestone** (standalone covergroups, `with function sample`, option
+audit, ignore/illegal carving, class-embedded sampling events) ·
+M9-11 (`expect`) · M9-7 D.2 (multiclock fixed-length chains) · M5-5
+(generic interface ports) · M9-9 (checkers) · M4B-1/M4B-2 (verified
+already-correct and pinned by a test).
 
-Also DONE recently: M5-3/M5-4 (vif runtime-index array binding + `$unit`/package-scope
-vif decls) and M3B-2/M3B-3 (`randsequence` + `disable soft`).
+Complete milestones: M0-M8, M11, M12.
 
-1. **M9-9** — `checker`/`endchecker` (FEATURE; the last real SVA gap; larger, lower
-   UVM value). M9-7 residual multiclock forms alongside.
-2. **M5-5** — generic `interface` ports (FEATURE; per-instantiation-typing arc).
-3. **M3B-4 / M3B-5** — `rand_mode`/`constraint_mode` reaudit, seed-stability (AUDIT).
-4. **M10-1** — multidimensional open arrays (FEATURE; DPI export M10-2 needs ARCH-2).
-5. **ARCH-2 · M6-CALLF** — big rock; unblocks DPI export + `expect` + time-consuming DPI.
-6. **M14B** subclause campaign → **M15** 2023 delta.
+1. **M10 — DPI completion** (5 open; the largest untouched milestone).
+   M10-2 DPI export (C→SV) is the anchor — ARCH-2/M6-CALLF has landed,
+   so it is unblocked; scope functions + non-time-consuming tasks
+   first, leaving time-consuming exported tasks to M10-4. M10-1
+   (multidim open arrays) is the self-contained fallback.
+2. **M6B-2/3/4** — scheduler conformance (post-NBA VPI region,
+   time-consuming DPI scheduling, assertion attempt-lifecycle
+   scheduling). M6B-3 pairs naturally with M10-4.
+3. **M13 — long tail** (7 open): bind-to-instance-path/lists, `config`
+   + library mapping, `trireg`, timing-check forms, `pulsestyle`.
+4. **M3B-4/M3B-5** — `rand_mode`/`constraint_mode` reaudit,
+   seed-stability (AUDIT; interleave, high ROI per the rule).
+5. **M9-7 residuals** — mid-sequence clock flow, cross-clock `|->`
+   (needs engine support, not synthesis).
+6. **M1B-3 / M4C-10 / M4B-4,5** — remaining tracked-loud gaps and the
+   deferred cosmetic `%p` forms.
+7. **M14B** subclause campaign → **M15** 2023 delta (CAMPAIGN; last).
 
 **Standing override:** any newly discovered silent miscompile or crash preempts this
 list (rule gates 1–2).
