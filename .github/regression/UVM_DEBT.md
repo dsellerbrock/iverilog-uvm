@@ -6,13 +6,14 @@ package stub-class removal, auto-bin sizing/enum bins, ignore/illegal
 carving, registry dedupe, and class-embedded event sampling with the
 new %covgrp/sample/all runtime).
 
-Commits since full UVM: 5 (ivl.def Windows export list; M9-11 expect
-statement; M9-7 D.2 multiclock chain pipelines; M12-4 assoc-element
-VPI writes; M12-5 nested VPI member traversal — VPI-only, covered by
-VPI 85/85, classes 25/25, smoke 14/14, full ivtest fail-list
-byte-identical)
+Commits since full UVM: 6 (ivl.def Windows exports; M9-11 expect;
+M9-7 D.2 multiclock chains; M12-4 assoc VPI writes; M12-5 nested VPI
+members; M12-7 covergroup VPI drill-down — VPI/coverage metadata
+only, covered by VPI 86/86, coverage 9/9, smoke 14/14, full ivtest
+fail-list byte-identical)
 Highest risk change since last full run: LOW-MEDIUM (SVA lowering
-paths in pform.cc + VPI object/array access paths)
+paths in pform.cc + VPI object/array/coverage access paths).
+NOTE: 2 more stable commits reach the 8-commit full-UVM trigger.
 
 Triggers for a full run (see docs/conformance/REGRESSION_POLICY.md):
   - HIGH-risk commits since last full UVM >= 2

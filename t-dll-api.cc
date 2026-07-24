@@ -3697,6 +3697,18 @@ extern "C" int ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx)
       return 0;
 }
 
+/* M12-7: coverpoint/cross label of a coverage item (may be nil). */
+extern "C" const char* ivl_type_covgrp_item_name(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count()) {
+	    perm_string nm = class_type->covgrp_item((size_t)idx).name;
+	    return nm.nil() ? "" : nm.str();
+      }
+      return "";
+}
+
 /* M11-3: event-driven sampling metadata for class-embedded
  * covergroups. */
 extern "C" int ivl_type_covgrp_parent_prop(ivl_type_t net)

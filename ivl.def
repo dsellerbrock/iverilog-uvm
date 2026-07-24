@@ -369,6 +369,7 @@ ivl_type_covgrp_items
 ivl_type_covgrp_item_at_least
 ivl_type_covgrp_item_weight
 ivl_type_covgrp_item_is_cross
+ivl_type_covgrp_item_name
 ivl_type_covgrp_parent_prop
 ivl_type_covgrp_srcprop
 ivl_type_covgrp_guardsrc

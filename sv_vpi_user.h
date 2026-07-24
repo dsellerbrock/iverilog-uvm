@@ -63,6 +63,25 @@ EXTERN_C_START
 #define vpiBitVar           620
 #define vpiArrayVar         vpiRegArray
 
+/* M12-7: covergroup drill-down (Icarus extension — IEEE 1800 defines
+ * no covergroup VPI object model; UCIS covers interchange). On a
+ * class variable (or nested class member) holding a covergroup
+ * object: vpi_iterate(vpiCoverpoint/vpiCoverCross) yields the
+ * coverage items; vpi_iterate(vpiCoverBin, item) yields its value
+ * bins. Item handles: vpiName = the coverpoint/cross label,
+ * vpi_get(vpiCoverAtLeast/vpiCoverWeight), and
+ * vpi_get_value(vpiRealVal) = the item's instance coverage percent.
+ * Bin handles: vpiName = the bin counter property name,
+ * vpi_get(vpiCoverCount) = this instance's hit count,
+ * vpi_get(vpiCoverTypeCount) = the type-merged count. */
+#define vpiCoverpoint       660
+#define vpiCoverCross       661
+#define vpiCoverBin         662
+#define vpiCoverAtLeast     663
+#define vpiCoverWeight      664
+#define vpiCoverCount       665
+#define vpiCoverTypeCount   666
+
 /********* TYPESPECS *************/
 #define vpiClassTypespec    630
 #define vpiEnumTypespec     633

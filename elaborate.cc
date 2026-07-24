@@ -13994,7 +13994,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  unsigned cp_at_least = opt_uint(cp.options, "at_least", cg_at_least);
 			  unsigned cp_weight = opt_uint(cp.options, "weight", 1);
 			  unsigned cp_abm = opt_uint(cp.options, "auto_bin_max", cg_auto_bin_max);
-			  cg_class->add_covgrp_item(cp_at_least, cp_weight, false);
+			  cg_class->add_covgrp_item(cp_at_least, cp_weight, false,
+						    cp.label);
 
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
@@ -14496,7 +14497,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  unsigned x_at_least = opt_uint(cross.options, "at_least", cg_at_least);
 			  unsigned x_weight = opt_uint(cross.options, "weight", 1);
 			  unsigned item_idx = cp_idx + cross_no;
-			  cg_class->add_covgrp_item(x_at_least, x_weight, true);
+			  cg_class->add_covgrp_item(x_at_least, x_weight, true,
+						    cross.label);
 
 			    // M11-3: named cross bins — per product
 			    // tuple, evaluate each user bin's binsof

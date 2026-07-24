@@ -1022,6 +1022,8 @@ class_property
       { compile_class_covgrp_bin($2, $3, $4, $5, $6, $7, $8); }
   | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_item($2, $3, $4); }
+  | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER T_STRING
+      { compile_class_covgrp_item($2, $3, $4, $5); }
   | K_COVGRP_PARENT T_NUMBER
       { compile_class_covgrp_parent($2); }
   | K_COVGRP_SRC T_NUMBER T_NUMBER

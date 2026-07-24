@@ -1,0 +1,26 @@
+Compiling vpi/m12_covgrp_drill.c...
+Making m12_covgrp_drill.vpi from  m12_covgrp_drill.o...
+top.c1 cp cp_a type=660 at_least=2 weight=3 bins=4 cov=25.00
+  bin __bin_cp_a_x_0 count=2 type_count=2
+  bin __bin_cp_a_x_1 count=1 type_count=1
+  bin __bin_cp_a_x_2 count=0 type_count=0
+  bin __bin_cp_a_x_3 count=0 type_count=1
+top.c1 cp cp_b type=660 at_least=1 weight=1 bins=2 cov=100.00
+  bin __bin_cp_b_y_0 count=2 type_count=2
+  bin __bin_cp_b_y_1 count=1 type_count=2
+top.c1 cross axb bins=8 cov=37.50
+top.c2 cp cp_a type=660 at_least=2 weight=3 bins=4 cov=0.00
+  bin __bin_cp_a_x_0 count=0 type_count=2
+  bin __bin_cp_a_x_1 count=0 type_count=1
+  bin __bin_cp_a_x_2 count=0 type_count=0
+  bin __bin_cp_a_x_3 count=1 type_count=1
+top.c2 cp cp_b type=660 at_least=1 weight=1 bins=2 cov=50.00
+  bin __bin_cp_b_y_0 count=0 type_count=2
+  bin __bin_cp_b_y_1 count=1 type_count=2
+top.c2 cross axb bins=8 cov=12.50
+top.wr.wcg cp cp_v type=660 at_least=1 weight=1 bins=4 cov=25.00
+  bin __bin_cp_v_w_0 count=0 type_count=0
+  bin __bin_cp_v_w_1 count=0 type_count=0
+  bin __bin_cp_v_w_2 count=1 type_count=1
+  bin __bin_cp_v_w_3 count=0 type_count=0
+non-cg items=none

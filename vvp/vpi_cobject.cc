@@ -21,6 +21,7 @@
 # include  "compile.h"
 # include  "class_type.h"
 # include  "vpi_priv.h"
+# include  "sv_vpi_user.h"
 # include  "vvp_cobject.h"
 # include  "vvp_darray.h"
 # include  "vvp_net_sig.h"
@@ -329,6 +330,10 @@ vpiHandle __vpiCobjectVar::vpi_put_value(p_vpi_value val, int)
  * across object re-assignment (and reports nil values when the
  * variable holds null).
  */
+/* M12-7 (defined below): iterate covergroup items of the object held
+ * by a variable or nested member handle. */
+static vpiHandle covgrp_iterate_items_(vpiHandle root, int code);
+
 class __vpiClassMember : public __vpiHandle {
     public:
       __vpiClassMember(__vpiCobjectVar*parent, const class_type*defn,
@@ -523,6 +528,8 @@ class __vpiClassMember : public __vpiHandle {
 	   object has no members). */
       vpiHandle vpi_iterate(int code) override
       {
+	    if (code == vpiCoverpoint || code == vpiCoverCross)
+		  return covgrp_iterate_items_(this, code);
 	    if (code != vpiMember && code != vpiVariables)
 		  return 0;
 	    refresh_children_();
@@ -656,6 +663,210 @@ vpiHandle vpip_class_member_by_name(vpiHandle base, const char*name)
       return 0;
 }
 
+/* M12-7: covergroup drill-down handles. The root is the class
+ * VARIABLE (or nested MEMBER) handle holding the covergroup object;
+ * the live object is re-fetched through it on every access, so item
+ * and bin handles follow re-assignment just like member handles. */
+static vvp_cobject* live_cobject_of_(vpiHandle root)
+{
+      if (__vpiCobjectVar*cv = dynamic_cast<__vpiCobjectVar*>(root)) {
+	    vvp_fun_signal_object*fun = get_object_fun_(cv);
+	    if (!fun) return 0;
+	    vvp_object_t obj = fun->peek_object();
+	    return obj.peek<vvp_cobject>();
+      }
+      if (__vpiClassMember*cm = dynamic_cast<__vpiClassMember*>(root))
+	    return cm->member_object_();
+      return 0;
+}
+
+static uint32_t cov_prop_count_(vvp_cobject*cobj, unsigned prop)
+{
+      vvp_vector4_t cur(32, BIT4_0);
+      cobj->get_vec4(prop, cur);
+      uint32_t count = 0;
+      for (unsigned b = 0 ; b < cur.size() && b < 32 ; b += 1)
+	    if (cur.value(b) == BIT4_1)
+		  count |= ((uint32_t)1 << b);
+      return count;
+}
+
+class __vpiCovBin : public __vpiHandle {
+    public:
+      __vpiCovBin(vpiHandle root, const class_type*defn,
+		  unsigned prop, unsigned item)
+      : root_(root), defn_(defn), prop_(prop), item_(item) { }
+
+      int get_type_code(void) const override { return vpiCoverBin; }
+
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiCoverCount: {
+		      vvp_cobject*cobj = live_cobject_of_(root_);
+		      if (!cobj) return 0;
+		      return (int)cov_prop_count_(cobj, prop_);
+		}
+		case vpiCoverTypeCount:
+		  return (int)defn_->type_count(prop_);
+		case vpiCoverAtLeast:
+		  if (item_ < defn_->covgrp_item_count())
+			return (int)defn_->covgrp_item(item_).at_least;
+		  return 1;
+		case vpiCoverWeight:
+		  if (item_ < defn_->covgrp_item_count())
+			return (int)defn_->covgrp_item(item_).weight;
+		  return 1;
+		default:
+		  return vpiUndefined;
+	    }
+      }
+
+      char* vpi_get_str(int code) override
+      {
+	    if (code != vpiName && code != vpiFullName)
+		  return 0;
+	    const std::string&nm = defn_->property_name(prop_);
+	    char*rbuf = (char*)need_result_buf(nm.size()+1, RBUF_STR);
+	    strcpy(rbuf, nm.c_str());
+	    return rbuf;
+      }
+
+    private:
+      vpiHandle root_;
+      const class_type*defn_;
+      unsigned prop_;
+      unsigned item_;
+};
+
+class __vpiCovItem : public __vpiHandle {
+    public:
+      __vpiCovItem(vpiHandle root, const class_type*defn, unsigned item)
+      : root_(root), defn_(defn), item_(item) { }
+
+      int get_type_code(void) const override
+      {
+	    if (item_ < defn_->covgrp_item_count()
+		&& defn_->covgrp_item(item_).is_cross)
+		  return vpiCoverCross;
+	    return vpiCoverpoint;
+      }
+
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiCoverAtLeast:
+		  if (item_ < defn_->covgrp_item_count())
+			return (int)defn_->covgrp_item(item_).at_least;
+		  return 1;
+		case vpiCoverWeight:
+		  if (item_ < defn_->covgrp_item_count())
+			return (int)defn_->covgrp_item(item_).weight;
+		  return 1;
+		case vpiSize:
+		  return (int)countable_props_().size();
+		default:
+		  return vpiUndefined;
+	    }
+      }
+
+      char* vpi_get_str(int code) override
+      {
+	    if (code != vpiName && code != vpiFullName)
+		  return 0;
+	    std::string nm;
+	    if (item_ < defn_->covgrp_item_count())
+		  nm = defn_->covgrp_item(item_).name;
+	    if (nm.empty())
+		  nm = "<item>";
+	    char*rbuf = (char*)need_result_buf(nm.size()+1, RBUF_STR);
+	    strcpy(rbuf, nm.c_str());
+	    return rbuf;
+      }
+
+	/* The item's INSTANCE coverage percent, the same per-item
+	   model as get_inst_coverage: countable bins with count >=
+	   at_least over countable bins. */
+      void vpi_get_value(p_vpi_value val) override
+      {
+	    std::vector<unsigned> props = countable_props_();
+	    vvp_cobject*cobj = live_cobject_of_(root_);
+	    double result = 0.0;
+	    if (cobj && !props.empty()) {
+		  unsigned at_least = 1;
+		  if (item_ < defn_->covgrp_item_count())
+			at_least = defn_->covgrp_item(item_).at_least;
+		  unsigned hits = 0;
+		  for (size_t i = 0 ; i < props.size() ; i += 1)
+			if (cov_prop_count_(cobj, props[i]) >= at_least)
+			      hits += 1;
+		  result = 100.0 * (double)hits / (double)props.size();
+	    }
+	    val->format = vpiRealVal;
+	    val->value.real = result;
+      }
+
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiCoverBin)
+		  return 0;
+	    std::vector<unsigned> props = countable_props_();
+	    if (props.empty())
+		  return 0;
+	    vpiHandle*args = (vpiHandle*)malloc(props.size() * sizeof(vpiHandle));
+	    for (size_t i = 0 ; i < props.size() ; i += 1)
+		  args[i] = new __vpiCovBin(root_, defn_, props[i], item_);
+	    return vpip_make_iterator((unsigned)props.size(), args, true);
+      }
+
+    private:
+	/* Distinct counter properties of this item's countable bins
+	   (normal + transition records; ignore/illegal/default are
+	   excluded from coverage, matching the runtime model). */
+      std::vector<unsigned> countable_props_() const
+      {
+	    std::vector<unsigned> out;
+	    for (size_t bi = 0 ; bi < defn_->covgrp_bin_count() ; bi += 1) {
+		  const class_type::cov_bin_t&bin = defn_->covgrp_bin(bi);
+		  if (bin.item_idx != item_) continue;
+		  unsigned k = bin.kind & 7;
+		  if (k == 1 || k == 2 || k == 3) continue;
+		  if (bin.prop_idx == class_type::COV_NO_PROP) continue;
+		  bool seen = false;
+		  for (size_t i = 0 ; i < out.size() ; i += 1)
+			if (out[i] == bin.prop_idx) { seen = true; break; }
+		  if (!seen) out.push_back(bin.prop_idx);
+	    }
+	    return out;
+      }
+
+      vpiHandle root_;
+      const class_type*defn_;
+      unsigned item_;
+};
+
+/* Build the item iterator for a covergroup object held by `root'
+ * (a class variable or nested member handle). */
+static vpiHandle covgrp_iterate_items_(vpiHandle root, int code)
+{
+      vvp_cobject*cobj = live_cobject_of_(root);
+      if (!cobj) return 0;
+      const class_type*defn = cobj->get_defn();
+      if (!defn || !defn->is_covergroup()) return 0;
+      bool want_cross = (code == vpiCoverCross);
+      std::vector<vpiHandle> items;
+      for (size_t i = 0 ; i < defn->covgrp_item_count() ; i += 1) {
+	    if (defn->covgrp_item(i).is_cross != want_cross)
+		  continue;
+	    items.push_back(new __vpiCovItem(root, defn, (unsigned)i));
+      }
+      if (items.empty()) return 0;
+      vpiHandle*args = (vpiHandle*)malloc(items.size() * sizeof(vpiHandle));
+      for (size_t i = 0 ; i < items.size() ; i += 1)
+	    args[i] = items[i];
+      return vpip_make_iterator((unsigned)items.size(), args, true);
+}
+
 void __vpiCobjectVar::refresh_members_()
 {
       vvp_fun_signal_object*fun = get_object_fun_(this);
@@ -681,6 +892,8 @@ void __vpiCobjectVar::refresh_members_()
 
 vpiHandle __vpiCobjectVar::vpi_iterate(int code)
 {
+      if (code == vpiCoverpoint || code == vpiCoverCross)
+	    return covgrp_iterate_items_(this, code);
       if (code != vpiMember && code != vpiVariables)
 	    return 0;
       refresh_members_();

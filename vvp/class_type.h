@@ -144,16 +144,19 @@ class class_type : public __vpiHandle {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
 	    bool is_cross = false;
+	    std::string name;   // M12-7: coverpoint/cross label
       };
       static const unsigned COV_NO_PROP = 0xFFFFFFFFu;
       void add_covgrp_bin(unsigned cp_idx, unsigned prop_idx, uint64_t lo, uint64_t hi,
 			  unsigned kind = 0, unsigned tuple = 0,
 			  unsigned item_idx = 0);
-      void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross)
+      void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross,
+			   const std::string&name = std::string())
       { cov_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
 	it.is_cross = is_cross;
+	it.name = name;
 	covgrp_items_.push_back(it); }
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
