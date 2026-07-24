@@ -13823,6 +13823,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    opt_check(cgdef->options, "covergroup");
 		    unsigned cg_at_least = opt_uint(cgdef->options, "at_least", 1);
 		    unsigned cg_auto_bin_max = opt_uint(cgdef->options, "auto_bin_max", 64);
+		    unsigned cg_detect_overlap = opt_uint(cgdef->options, "detect_overlap", 0);
 
 		      // Per-coverpoint expanded VALUE-bin descriptors,
 		      // feeding cross product generation.
@@ -14179,15 +14180,93 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // over the coverpoint's bit-pattern space.
 			  if (!has_value_bins) {
 				unsigned w = 32;
+				  // IEEE 19.5.1: an ENUM coverpoint gets
+				  // one automatic bin per named value,
+				  // not a uniform split of the bit space.
+				const netenum_t*src_enum = nullptr;
 				if (parent_prop >= 0) {
 				      ivl_type_t pt = get_prop_type(parent_prop);
-				      if (const netvector_t*vt =
+				      if (const netenum_t*et =
+					    dynamic_cast<const netenum_t*>(pt))
+					    src_enum = et;
+				      else if (const netvector_t*vt =
 					    dynamic_cast<const netvector_t*>(pt))
 					    w = vt->packed_width();
-				      else if (dynamic_cast<const netenum_t*>(pt))
-					    w = 32;
+				} else if (cp.expr) {
+					// M11-5: size auto bins from the
+					// SOURCE. A bare 32-bit default
+					// spread the bins over 2**32, so
+					// narrow sources silently piled
+					// every sample into bin 0.
+				      unsigned src_w = 0;
+					// sample() formal: use the
+					// formal's declared type.
+				      bool is_formal_src = false;
+				      if (const PEIdent*spe =
+					    dynamic_cast<const PEIdent*>(cp.expr)) {
+					    perm_string snm = peek_head_name(spe->path());
+					    for (size_t fj = 0;
+						 fj < cgdef->sample_formals.size()
+						 && fj < cgdef->sample_formal_types.size();
+						 fj += 1) {
+						  if (cgdef->sample_formals[fj] != snm)
+							continue;
+						  is_formal_src = true;
+						  if (data_type_t*ft =
+							cgdef->sample_formal_types[fj]) {
+							ivl_type_t fit =
+							      ft->elaborate_type(des, class_scope_);
+							if (const netenum_t*fet =
+							      dynamic_cast<const netenum_t*>(fit))
+							      src_enum = fet;
+							else if (const netvector_t*fvt =
+							      dynamic_cast<const netvector_t*>(fit))
+							      src_w = fvt->packed_width();
+						  }
+						  break;
+					    }
+					      // Bare scope-signal source:
+					      // resolve the signal so an
+					      // enum type gets per-value
+					      // bins.
+					    if (!is_formal_src && !src_enum) {
+						  symbol_search_results sr;
+						  if (symbol_search(spe, des, class_scope_,
+								    spe->path(), UINT_MAX, &sr)
+						      && sr.net && sr.path_tail.empty()) {
+							if (const netenum_t*set_ =
+							      dynamic_cast<const netenum_t*>(sr.net->net_type()))
+							      src_enum = set_;
+						  }
+					    }
+				      }
+					// Scope-signal / expression source:
+					// ask the expression itself (names
+					// resolve up the definition scope
+					// chain).
+				      if (!src_enum && src_w == 0) {
+					    PExpr::width_mode_t wm = PExpr::SIZED;
+					    src_w = cp.expr->test_width(des, class_scope_, wm);
+				      }
+				      if (src_w > 0) w = src_w;
 				}
 				if (w > 64) w = 64;
+				if (src_enum) {
+				      for (size_t k = 0; k < src_enum->size(); k++) {
+					    uint64_t vv = src_enum->value_at(k).as_ulong64();
+					    std::vector<std::pair<uint64_t,uint64_t>> rr1;
+					    rr1.push_back(std::make_pair(vv, vv));
+					    std::string bn = std::string("__bin_")
+							   + std::string(cp.label.str())
+							   + "_auto_" + std::to_string(k);
+					    add_value_prop(bn, rr1, 0);
+					    xbin_desc_t d;
+					    d.name = src_enum->name_at(k);
+					    d.ranges = rr1;
+					    d.wildcard = false;
+					    vbins.push_back(d);
+				      }
+				} else {
 				uint64_t nb = cp_abm;
 				if (w < 32 && ((uint64_t)1 << w) < nb)
 				      nb = (uint64_t)1 << w;
@@ -14216,6 +14295,38 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      d.ranges = rr1;
 				      d.wildcard = false;
 				      vbins.push_back(d);
+				}
+				}
+			  }
+
+			    // M11-5: option.detect_overlap (19.7.1) —
+			    // warn when two value bins of this
+			    // coverpoint share values.
+			  if (opt_uint(cp.options, "detect_overlap",
+				       cg_detect_overlap)) {
+				for (size_t b1 = 0; b1 < vbins.size(); b1++) {
+				      if (vbins[b1].wildcard) continue;
+				      for (size_t b2 = b1 + 1; b2 < vbins.size(); b2++) {
+					    if (vbins[b2].wildcard) continue;
+					    bool lap = false;
+					    for (auto&r1 : vbins[b1].ranges) {
+						  for (auto&r2 : vbins[b2].ranges)
+							if (r1.first <= r2.second
+							    && r2.first <= r1.second) {
+							      lap = true;
+							      break;
+							}
+						  if (lap) break;
+					    }
+					    if (lap)
+						  cerr << "warning: covergroup '"
+						       << cgdef->name
+						       << "' coverpoint '" << cp.label
+						       << "': bins '" << vbins[b1].name
+						       << "' and '" << vbins[b2].name
+						       << "' overlap (option.detect_overlap)."
+						       << endl;
+				      }
 				}
 			  }
 			  cp_idx++;

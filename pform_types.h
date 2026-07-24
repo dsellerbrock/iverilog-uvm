@@ -559,8 +559,11 @@ struct class_type_t : public data_type_t {
 	    std::vector<PEEvent*> sample_events;
 	      // M11-4: `with function sample(<formals>)` — coverpoint
 	      // sources naming a formal bind to the matching sample()
-	      // call argument at each call site.
+	      // call argument at each call site. The parallel types
+	      // vector (entries may be null) gives each formal's
+	      // declared type, used to size automatic bins (M11-5).
 	    std::vector<perm_string> sample_formals;
+	    std::vector<data_type_t*> sample_formal_types;
 	    std::vector<pform_coverpoint_t> coverpoints;
 	    std::vector<pform_cross_t> crosses;  // I1: cross declarations
 	      // M11: covergroup options (option.name = const_expr)

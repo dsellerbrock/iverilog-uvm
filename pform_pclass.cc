@@ -365,12 +365,14 @@ extern std::map<perm_string, PExpr*> pending_cg_options_;
 void pform_class_covergroup(const struct vlltype& /*loc*/,
 			     const char*name,
 			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
-			     std::vector<perm_string>*sample_formals)
+			     std::vector<perm_string>*sample_formals,
+			     std::vector<data_type_t*>*sample_formal_types)
 {
       if (!pform_cur_class || !name) {
 	    pending_crosses_.clear();  // discard if we can't attach
 	    pending_cg_options_.clear();
 	    if (sample_formals) delete sample_formals;
+	    if (sample_formal_types) delete sample_formal_types;
 	    return;
       }
 
@@ -392,6 +394,10 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
 	    cg->sample_formals = *sample_formals;
 	    delete sample_formals;
       }
+      if (sample_formal_types) {
+	    cg->sample_formal_types = *sample_formal_types;
+	    delete sample_formal_types;
+      }
       pform_cur_class->type->covergroups.push_back(cg);
 }
 
@@ -399,11 +405,14 @@ void pform_standalone_covergroup(const struct vlltype&loc,
 			     const char*name,
 			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
 			     std::vector<PEEvent*>*sample_events,
-			     std::vector<perm_string>*sample_formals)
+			     std::vector<perm_string>*sample_formals,
+			     std::vector<data_type_t*>*sample_formal_types)
 {
       if (!name) {
 	    pending_crosses_.clear();
 	    pending_cg_options_.clear();
+	    if (sample_formals) delete sample_formals;
+	    if (sample_formal_types) delete sample_formal_types;
 	    return;
       }
       perm_string cg_name = lex_strings.make(name);
@@ -432,6 +441,12 @@ void pform_standalone_covergroup(const struct vlltype&loc,
 	    delete sample_formals;
       } else if (sample_formals) {
 	    delete sample_formals;
+      }
+      if (sample_formal_types && !ct->covergroups.empty()) {
+	    ct->covergroups.back()->sample_formal_types = *sample_formal_types;
+	    delete sample_formal_types;
+      } else if (sample_formal_types) {
+	    delete sample_formal_types;
       }
       pform_pop_scope();
 }

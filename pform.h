@@ -205,7 +205,8 @@ extern void pform_class_constraint(const struct vlltype&loc,
 extern void pform_class_covergroup(const struct vlltype&loc,
 				    const char*name,
 				    std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
-				    std::vector<perm_string>*sample_formals = nullptr);
+				    std::vector<perm_string>*sample_formals = nullptr,
+				    std::vector<data_type_t*>*sample_formal_types = nullptr);
 
 // M11-1/2: a STANDALONE covergroup declaration (module/package/
 // interface scope). Synthesizes a class type of the same name whose
@@ -215,7 +216,8 @@ extern void pform_standalone_covergroup(const struct vlltype&loc,
 				    const char*name,
 				    std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
 				    std::vector<PEEvent*>*sample_events = nullptr,
-				    std::vector<perm_string>*sample_formals = nullptr);
+				    std::vector<perm_string>*sample_formals = nullptr,
+				    std::vector<data_type_t*>*sample_formal_types = nullptr);
 
 extern void pform_make_udp(const struct vlltype&loc, perm_string name,
 			   std::list<pform_ident_t>*parms,

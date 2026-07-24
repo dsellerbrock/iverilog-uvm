@@ -2396,15 +2396,19 @@ class_item /* IEEE1800-2005: A.1.8 */
 	if (strcmp($6, "sample") != 0)
 	      yyerror(@6, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
 	std::vector<perm_string>*formals__ = 0;
+	std::vector<data_type_t*>*ftypes__ = 0;
 	if ($8) {
 	      formals__ = new std::vector<perm_string>;
+	      ftypes__ = new std::vector<data_type_t*>;
 	      for (size_t idx__ = 0; idx__ < $8->size(); idx__ += 1)
-		    if ((*$8)[idx__].port)
+		    if ((*$8)[idx__].port) {
 			  formals__->push_back((*$8)[idx__].port->basename());
+			  ftypes__->push_back(const_cast<data_type_t*>((*$8)[idx__].port->data_type()));
+		    }
 	      current_function->set_ports($8);
 	}
         pform_pop_scope(); current_function = 0;
-        pform_class_covergroup(@1, $2, $10, formals__);
+        pform_class_covergroup(@1, $2, $10, formals__, ftypes__);
 	delete[] $2; if ($3) delete $3; delete[] $6;
 	if ($12) delete[] $12;
       }
@@ -5116,15 +5120,19 @@ package_covergroup_declaration
         if (strcmp($4, "sample") != 0)
               yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
         std::vector<perm_string>*formals__ = 0;
+        std::vector<data_type_t*>*ftypes__ = 0;
         if ($6) {
               formals__ = new std::vector<perm_string>;
+              ftypes__ = new std::vector<data_type_t*>;
               for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
-                    if ((*$6)[idx__].port)
+                    if ((*$6)[idx__].port) {
                           formals__->push_back((*$6)[idx__].port->basename());
+                          ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
+                    }
               current_function->set_ports($6);
         }
         pform_pop_scope(); current_function = 0;
-        pform_standalone_covergroup(@2, $1, $8, nullptr, formals__);
+        pform_standalone_covergroup(@2, $1, $8, nullptr, formals__, ftypes__);
         delete[] $1; delete[] $4; if ($10) delete[] $10; }
   | package_cg_port_prefix ';' error K_endgroup label_opt
       { pform_pop_scope(); current_function = 0; yyerrok;
@@ -10731,16 +10739,20 @@ module_item
       { if (strcmp($6, "sample") != 0)
 	      yyerror(@6, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
 	std::vector<perm_string>*formals__ = 0;
+	std::vector<data_type_t*>*ftypes__ = 0;
 	if ($8) {
 	      formals__ = new std::vector<perm_string>;
+	      ftypes__ = new std::vector<data_type_t*>;
 	      for (size_t idx__ = 0; idx__ < $8->size(); idx__ += 1)
-		    if ((*$8)[idx__].port)
+		    if ((*$8)[idx__].port) {
 			  formals__->push_back((*$8)[idx__].port->basename());
+			  ftypes__->push_back(const_cast<data_type_t*>((*$8)[idx__].port->data_type()));
+		    }
 	      current_function->set_ports($8);
 	}
 	pform_pop_scope();
 	current_function = 0;
-	pform_standalone_covergroup(@1, $2, $10, nullptr, formals__);
+	pform_standalone_covergroup(@1, $2, $10, nullptr, formals__, ftypes__);
 	delete[] $2; if ($3) delete $3; delete[] $6;
 	if ($12) delete[] $12;
       }

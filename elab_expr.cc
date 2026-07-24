@@ -7009,6 +7009,27 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			continue;
 		  }
 
+		    // M11-5: procedural covergroup option access
+		    // (cg_inst.option.goal, cg_inst.type_option.weight).
+		    // The option structs are not modeled as runtime
+		    // state; reads previously collapsed to 0 with no
+		    // diagnostic at all. Keep the constant-0 result so
+		    // code compiles, but say so.
+		  if (cur_class && cur_class->is_covergroup()
+		      && (tail_comp.name == perm_string::literal("option")
+			  || tail_comp.name == perm_string::literal("type_option"))
+		      && cur_class->property_idx_from_name(tail_comp.name) < 0) {
+			cerr << get_fileline() << ": sorry: covergroup "
+			     << tail_comp.name << " members are not "
+			     << "run-time state; this read evaluates to "
+			     << "constant 0 (set options in the "
+			     << "covergroup body instead)." << endl;
+			delete base_expr;
+			NetExpr*zero = new NetEConst(verinum((uint64_t)0, 32));
+			zero->set_line(*this);
+			return zero;
+		  }
+
 		  if (cur_struct && gn_system_verilog()) {
 			unsigned long member_off = 0;
 			const netstruct_t::member_t*member = cur_struct->packed_member(tail_comp.name, member_off);

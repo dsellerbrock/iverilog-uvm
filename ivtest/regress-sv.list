@@ -1145,4 +1145,5 @@ sv_checker_bind normal,-g2012 ivltests
 sv_generic_interface_port normal,-g2012 ivltests
 sv_covergroup_standalone normal,-g2012 ivltests
 sv_covergroup_with_sample normal,-g2012 ivltests
+sv_covergroup_options normal,-g2012 ivltests
 sv_class_arrayprop_elem_select normal,-g2012 ivltests
