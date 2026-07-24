@@ -9886,30 +9886,28 @@ port_declaration
 	$$ = module_declare_port(@4, $4, $2, NetNet::WIRE,
 				 real_type, nullptr, nullptr, $1);
       }
-  /* M5-if: GENERIC interface ports (IEEE 1800-2017 A.2.2.3,
+  /* M5-5: GENERIC interface ports (IEEE 1800-2017 25.3.3, A.2.2.3,
      `interface b` / `interface.mp b`). The port's actual interface
-     type comes from the connected instance, which needs
-     per-instantiation port typing the elaborator does not do yet.
-     Give the previously-bare syntax error a loud, actionable sorry
-     and recover with a scalar port so parsing continues. */
+     type comes from the connected instance at each instantiation, so
+     the pform records an interface_type_t with a NIL name; the type
+     is resolved per instance at port-binding time from the actual. */
   | attribute_list_opt K_interface IDENTIFIER dimensions_opt initializer_opt
-      { yyerror(@2, "sorry: Generic `interface` ports are not yet "
-		    "supported; declare the port with its interface "
-		    "type (e.g. `bus_if b`).");
-	vector_type_t*errt = new vector_type_t(IVL_VT_LOGIC, false, 0);
-	FILE_NAME(errt, @2);
-	$$ = module_declare_port(@3, $3, port_declaration_context.port_type,
-				 NetNet::IMPLICIT, errt, $4, $5, $1);
+      { interface_type_t*it = new interface_type_t(perm_string());
+	FILE_NAME(it, @2);
+	pform_requires_sv(@3, "generic interface port");
+	  /* An interface port is a handle, not a wire: input-kind
+	     avoids the inout-vs-variable check on the placeholder. */
+	$$ = module_declare_port(@3, $3, NetNet::PINPUT,
+				 NetNet::IMPLICIT, it, $4, $5, $1);
       }
   | attribute_list_opt K_interface '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
-      { yyerror(@2, "sorry: Generic `interface` ports are not yet "
-		    "supported; declare the port with its interface "
-		    "type (e.g. `bus_if.mp b`).");
+      { interface_type_t*it = new interface_type_t(perm_string());
+	it->modport = lex_strings.make($4);
+	FILE_NAME(it, @2);
 	delete[] $4;
-	vector_type_t*errt = new vector_type_t(IVL_VT_LOGIC, false, 0);
-	FILE_NAME(errt, @2);
-	$$ = module_declare_port(@5, $5, port_declaration_context.port_type,
-				 NetNet::IMPLICIT, errt, $6, $7, $1);
+	pform_requires_sv(@5, "generic interface port");
+	$$ = module_declare_port(@5, $5, NetNet::PINPUT,
+				 NetNet::IMPLICIT, it, $6, $7, $1);
       }
   ;
 

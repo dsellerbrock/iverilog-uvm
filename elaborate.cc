@@ -2416,6 +2416,100 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	// later.
 
       NetScope::scope_vec_t&instance = scope->instance_arrays[get_name()];
+
+	// M5-5: GENERIC interface ports (`interface i` / `interface.mp
+	// i`, IEEE 1800-2017 25.3.3) carry a placeholder type from
+	// elab_sig; the concrete interface comes from the ACTUAL of
+	// THIS instantiation. Retype the formal in every instance
+	// BEFORE the recursive elaboration below, so the child body
+	// elaborates member references (i.clk, i.data...) against the
+	// real interface class. The regular interface-port binding
+	// later in this function then connects the vif handle exactly
+	// as for explicitly typed interface formals.
+      for (unsigned idx = 0 ; idx < pins.size() ; idx += 1) {
+	    vector<PEIdent*> mport = rmod->get_port(idx);
+	    if (mport.size() != 1 || instance.empty())
+		  continue;
+	    perm_string pname = peek_tail_name(mport[0]->path().name);
+	    NetNet*psig = instance[0]->find_signal(pname);
+	    if (!psig)
+		  continue;
+	    if (psig->attribute(perm_string::literal("ivl_generic_iface")).len() == 0)
+		  continue;
+	    if (const netclass_t*already =
+		      dynamic_cast<const netclass_t*>(psig->net_type()))
+		  if (already->is_interface())
+			continue;
+	    perm_string port_name = rmod->get_port_name(idx);
+	    if (!pins[idx]) {
+		  cerr << get_fileline() << ": error: Generic interface "
+		       << "port `" << port_name << "' of module `"
+		       << rmod->mod_name()
+		       << "' cannot be left unconnected." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+	    perm_string act_iface_name;
+	    const netclass_t*sig_ifc = 0;
+	    if (const PEIdent*aid = dynamic_cast<const PEIdent*>(pins[idx])) {
+		  const pform_name_t&ap = aid->path().name;
+		  if (ap.size() >= 1 && ap.size() <= 2
+		      && ap.front().index.empty()
+		      && ap.back().index.empty()) {
+			NetScope*iscope = scope->child(hname_t(ap.front().name));
+			if (iscope && iscope->type() == NetScope::MODULE) {
+			      auto pm = pform_modules.find(iscope->module_name());
+			      if (pm != pform_modules.end()
+				  && pm->second->is_interface)
+				    act_iface_name = iscope->module_name();
+			}
+			  // Pass-through: the actual is an interface-typed
+			  // signal in the parent (an already-retyped
+			  // interface port handle being forwarded).
+			if (act_iface_name.nil() && ap.size() == 1) {
+			      if (NetNet*asig = scope->find_signal(ap.front().name)) {
+				    const netclass_t*ac =
+					  dynamic_cast<const netclass_t*>(asig->net_type());
+				    if (ac && ac->is_interface())
+					  sig_ifc = ac;
+			      }
+			}
+		  }
+	    }
+	    if (sig_ifc) {
+		  for (unsigned inst = 0 ; inst < instance.size() ; inst += 1) {
+			if (NetNet*isig = instance[inst]->find_signal(pname))
+			      isig->set_net_type(sig_ifc);
+		  }
+		  continue;
+	    }
+	    if (act_iface_name.nil()) {
+		  cerr << pins[idx]->get_fileline() << ": error: The actual "
+		       << "for generic interface port `" << port_name
+		       << "' of module `" << rmod->mod_name() << "' must be "
+		       << "an interface instance (or instance.modport)."
+		       << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+	    interface_type_t act_type(act_iface_name);
+	    act_type.set_line(*this);
+	    const netclass_t*ifc = dynamic_cast<const netclass_t*>(
+		  act_type.elaborate_type(des, scope));
+	    if (!ifc || !ifc->is_interface()) {
+		  cerr << pins[idx]->get_fileline() << ": error: Cannot "
+		       << "resolve interface `" << act_iface_name
+		       << "' for generic interface port `" << port_name
+		       << "'." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+	    for (unsigned inst = 0 ; inst < instance.size() ; inst += 1) {
+		  if (NetNet*isig = instance[inst]->find_signal(pname))
+			isig->set_net_type(ifc);
+	    }
+      }
+
       if (debug_elaborate) cerr << get_fileline() << ": debug: start "
 	    "recursive elaboration of " << instance.size() << " instance(s) of " <<
 	    get_name() << "..." << endl;
@@ -2664,7 +2758,24 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			      if (gn_system_verilog())
 				    top->attribute(perm_string::literal(
 					  "_ivl_schedule_init"), verinum(1));
-			      des->add_process(top);
+				// A binding that resolves directly to an
+				// interface instance SCOPE must run before
+				// one that FORWARDS another port handle
+				// (`inner u(i)` reads the outer formal, so
+				// the outer formal must be bound first).
+				// Tail-added processes run FIRST in vvp's
+				// schedule_init list (see the I5 note at
+				// the specialized-instance static-init
+				// site), so scope-direct bindings go to
+				// the tail and forwarding ones to the
+				// head. One forwarding LEVEL is thereby
+				// ordered; deeper chains that still read
+				// an unbound handle fail loudly at time 0
+				// (%wait/vif on a nil handle asserts).
+			      if (dynamic_cast<NetEScope*>(vif))
+				    des->add_process_at_tail(top);
+			      else
+				    des->add_process(top);
 			}
 			continue;
 		  }

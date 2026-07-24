@@ -176,7 +176,7 @@ type-inference path for the same underlying shape and may now be removable
 | M5-2 | Interface-member change-sensitivity (all r-value forms) | C | **DONE** | — | bare/indexed/operator/multi/mixed, both edges |
 | M5-3 | Runtime-index vif-array binding `vp[i]=pins[i]` in a loop | F | **DONE** | — | synthesized instance-dispatch mux (ternary of NetEScope handles); out-of-range→null |
 | M5-4 | Bare `$unit`-scope `virtual iface v;` (parse error today) | F | **DONE** | — | dedicated package_item alternatives; $unit + package scope, incl. vif arrays |
-| M5-5 | Generic `interface` ports | F | OPEN (larger — per-instantiation typing) | — | generic port binds to any matching iface |
+| M5-5 | Generic `interface` ports | F | **DONE** | — | `interface i` / `interface.mp i` formals get a placeholder type at elab_sig and are retyped per instance from the ACTUAL in a PGModule pre-pass BEFORE the child body elaborates; the existing vif binding then connects. One generic module binds different interfaces per instantiation; modport actuals and one-level formal forwarding work (scope-direct bindings init before forwarding ones); non-interface and unconnected actuals are loud errors (negative-tested); deeper forwarding chains fail loudly at t0. sv_generic_interface_port |
 
 **M5 status note (2026-07-22).** M5-1/2/3/4 are DONE. **M5-5 (generic
 `interface` ports) is a materially larger feature than the other M5 items**
