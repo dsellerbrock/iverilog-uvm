@@ -1,9 +1,11 @@
-// M9-frontier (Phase 3): `expect' currently lowers only a fixed-length
-// boolean sequence (16.17). A variable-length / implication / combinator
-// expect needs the standing checker plus a process-resume hook (a later
-// increment); until then it must be a loud sorry, not silently dropped.
+// M9-11: `expect' now lowers fixed chains procedurally and every other
+// plain-sequence shape (windows, repetition, goto, unbounded waits,
+// or/and/intersect trees) through the automaton engine as an inline
+// single attempt. PROPERTY operators remain outside the sequence
+// automaton: an implication (|->/|=>), strong/weak, negation, or
+// multiclock expect must stay a loud sorry, never a silent drop.
 module sva_expect_unsupported;
   logic clk=0, a=0, b=0;
   always #5 clk=~clk;
-  initial expect (@(posedge clk) a ##[1:3] b) $display("P"); else $display("Q");
+  initial expect (@(posedge clk) a |-> b) $display("P"); else $display("Q");
 endmodule
