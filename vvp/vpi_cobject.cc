@@ -333,7 +333,17 @@ class __vpiClassMember : public __vpiHandle {
     public:
       __vpiClassMember(__vpiCobjectVar*parent, const class_type*defn,
 		       unsigned idx)
-      : parent_(parent), defn_(defn), idx_(idx)
+      : parent_(parent), parent_member_(0), defn_(defn), idx_(idx)
+      {
+	    decode_type_();
+      }
+	/* M12-5: a nested member — the containing object is itself an
+	   object-valued member, re-fetched through the parent chain on
+	   every access so the handle stays valid across re-assignment
+	   anywhere along the path. */
+      __vpiClassMember(__vpiClassMember*parent_member, const class_type*defn,
+		       unsigned idx)
+      : parent_(0), parent_member_(parent_member), defn_(defn), idx_(idx)
       {
 	    decode_type_();
       }
@@ -363,7 +373,9 @@ class __vpiClassMember : public __vpiHandle {
 		      return rbuf;
 		}
 		case vpiFullName: {
-		      char*pn = parent_->vpi_get_str(vpiFullName);
+		      char*pn = parent_member_
+			    ? parent_member_->vpi_get_str(vpiFullName)
+			    : parent_->vpi_get_str(vpiFullName);
 		      std::string full = std::string(pn ? pn : "?") + "." + nm;
 		      char*rbuf = (char*)need_result_buf(full.size()+1, RBUF_STR);
 		      strcpy(rbuf, full.c_str());
@@ -498,18 +510,77 @@ class __vpiClassMember : public __vpiHandle {
 
       vpiHandle vpi_handle(int code) override
       {
-	    if (code == vpiParent || code == vpiScope)
+	    if (code == vpiParent || code == vpiScope) {
+		  if (parent_member_) return parent_member_;
 		  return parent_;
+	    }
 	    return 0;
+      }
+
+	/* M12-5: iterate / find members of an OBJECT-VALUED member, so
+	   dotted paths and vpiMember recursion descend any depth. The
+	   member set follows the LIVE stored object's class (a null
+	   object has no members). */
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiMember && code != vpiVariables)
+		  return 0;
+	    refresh_children_();
+	    if (children_.empty())
+		  return 0;
+	    vpiHandle*args = (vpiHandle*)malloc(children_.size() * sizeof(vpiHandle));
+	    for (size_t idx = 0 ; idx < children_.size() ; idx += 1)
+		  args[idx] = children_[idx];
+	    return vpip_make_iterator(children_.size(), args, true);
+      }
+
+      vpiHandle member_by_name(const char*name)
+      {
+	    refresh_children_();
+	    if (!children_defn_)
+		  return 0;
+	    for (size_t idx = 0 ; idx < children_.size() ; idx += 1) {
+		  if (children_defn_->property_name(idx) == name)
+			return children_[idx];
+	    }
+	    return 0;
+      }
+
+	/* The object stored IN this member (nil-safe). */
+      vvp_cobject* member_object_()
+      {
+	    if (kind_ != 'o') return 0;
+	    vvp_cobject*container = live_object_();
+	    if (!container) return 0;
+	    vvp_object_t obj;
+	    container->get_object(idx_, obj, 0);
+	    return obj.peek<vvp_cobject>();
       }
 
     private:
       vvp_cobject* live_object_()
       {
+	    if (parent_member_)
+		  return parent_member_->member_object_();
 	    vvp_fun_signal_object*fun = get_object_fun_(parent_);
 	    if (!fun) return 0;
 	    vvp_object_t obj = fun->peek_object();
 	    return obj.peek<vvp_cobject>();
+      }
+
+      void refresh_children_()
+      {
+	    const class_type*defn = 0;
+	    if (vvp_cobject*mobj = member_object_())
+		  defn = mobj->get_defn();
+	    if (defn == children_defn_)
+		  return;
+	    children_.clear();
+	    children_defn_ = defn;
+	    if (!defn)
+		  return;
+	    for (size_t idx = 0 ; idx < defn->property_count() ; idx += 1)
+		  children_.push_back(new __vpiClassMember(this, defn, idx));
       }
 
 	// Decode the property base-type string into (vpi type code,
@@ -562,13 +633,28 @@ class __vpiClassMember : public __vpiHandle {
       }
 
       __vpiCobjectVar*parent_;
+      __vpiClassMember*parent_member_;
       const class_type*defn_;
       unsigned idx_;
       int type_code_;
       unsigned width_;
       bool signed_;
       char kind_;
+      std::vector<__vpiClassMember*> children_;
+      const class_type*children_defn_ = nullptr;
 };
+
+/* M12-5: dotted-path descent helper — resolve one member name on
+   either a class VARIABLE handle or a (nested) class MEMBER handle,
+   so vpi_handle_by_name walks object chains of any depth. */
+vpiHandle vpip_class_member_by_name(vpiHandle base, const char*name)
+{
+      if (__vpiCobjectVar*cv = dynamic_cast<__vpiCobjectVar*>(base))
+	    return cv->member_by_name(name);
+      if (__vpiClassMember*cm = dynamic_cast<__vpiClassMember*>(base))
+	    return cm->member_by_name(name);
+      return 0;
+}
 
 void __vpiCobjectVar::refresh_members_()
 {

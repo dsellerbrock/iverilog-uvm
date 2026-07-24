@@ -290,7 +290,7 @@ module-like subset — leaving the M9-7 multiclock residuals, the
 | M12-2 | Populate `s_vpi_attempt_info` | F | OPEN | ARCH M9-NFA | real attempt detail |
 | M12-3 | Bit-select force/release + cbForce/cbRelease | F | OPEN | — | force/release on bit-selects |
 | M12-4 | Associative-array element writes via VPI | F | **DONE** | — | vpi_put_value on positional element handles (key order, mirroring the read path): the entry keeps its key, the existing entry supplies the value kind and vec4 width (a 32-bit vpiIntVal put into a byte element truncates); int/scalar/vector puts into vec4 maps, real (and int-converted) into real maps, string into string maps. Loud rejections: mismatched formats, object-valued elements, out-of-range positions. ivtest vpi m12_assoc_write (VPI suite 84/84) |
-| M12-5 | Nested class-member traversal | F | OPEN | — | multi-level member descent |
+| M12-5 | Nested class-member traversal | F | **DONE** | — | dotted-path vpi_handle_by_name walks object-valued members at any depth (was one level), vpiMember iteration recurses into object members, vpiFullName composes through the chain, and handles re-fetch the live object through the parent chain on every access — a handle stays valid (and follows the FRESH subtree) after any object along the path is re-assigned. Null intermediates are gracefully handle-less. ivtest vpi m12_nested_members (VPI suite 85/85) |
 | M12-6 | Modport direction/access metadata | F | OPEN | — | modport dirs exposed |
 | M12-7 | Covergroup drill-down handles | F | OPEN | — | bin-level handles |
 | M12-8 | VPI object lifetime/free behavior | A | OPEN | — | defined free semantics + tests |

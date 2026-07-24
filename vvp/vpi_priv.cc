@@ -1501,8 +1501,10 @@ static char * find_next(char *name)
 
 /*
  * M12: dotted-path descent into class objects — resolve "….obj.prop"
- * by finding the class variable then its member. One level of member
- * descent (nested object members are a recorded corner).
+ * by finding the class variable then its member. The recursion through
+ * vpi_handle_by_name on the prefix walks object chains of any depth
+ * (M12-5): each intermediate hop resolves to a class variable or a
+ * nested member handle, and vpip_class_member_by_name descends both.
  */
 static vpiHandle class_member_descent_(const char*name, vpiHandle scope)
 {
@@ -1513,12 +1515,7 @@ static vpiHandle class_member_descent_(const char*name, vpiHandle scope)
       vpiHandle base = vpi_handle_by_name(prefix.c_str(), scope);
       if (!base)
 	    return 0;
-      if (base->get_type_code() != vpiClassVar)
-	    return 0;
-      __vpiCobjectVar*cv = dynamic_cast<__vpiCobjectVar*>(base);
-      if (!cv)
-	    return 0;
-      return cv->member_by_name(last_dot + 1);
+      return vpip_class_member_by_name(base, last_dot + 1);
 }
 
 vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)

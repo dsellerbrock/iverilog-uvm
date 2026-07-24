@@ -1,0 +1,14 @@
+Compiling vpi/m12_nested_members.c...
+Making m12_nested_members.vpi from  m12_nested_members.o...
+deep count=7
+deep fullname=top.env.agent.cfg.leaf.count
+null-mid handle=no
+member agent
+  member cfg
+    member leaf
+      member count
+      member tag
+  member id
+member dead
+reprobe count=100
+final: count=55 tag='leaf0' id=3
