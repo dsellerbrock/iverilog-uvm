@@ -1963,6 +1963,39 @@ static int expr_is_queue_expr(ivl_expr_t expr);
 static int show_queue_object_receiver(ivl_expr_t parm);
 static int expr_is_static_array_expr(ivl_expr_t expr);
 
+/* Runtime element-kind encoding of a queue type (as used by
+ * %new/queue and %aa/loadlv/o/q). */
+static void queue_elem_enc_(ivl_type_t queue_type, char*enc, size_t enc_len)
+{
+      ivl_type_t element_type = ivl_type_element(queue_type);
+      ivl_variable_type_t type = element_type ? ivl_type_base(element_type) : IVL_VT_NO_TYPE;
+      int wid = 0;
+      const char*signed_char = "";
+
+      if ((type == IVL_VT_BOOL) || (type == IVL_VT_LOGIC)) {
+	    wid = ivl_type_packed_width(element_type);
+	    signed_char = ivl_type_signed(element_type) ? "s" : "";
+      }
+
+      switch (type) {
+	  case IVL_VT_REAL:
+	    snprintf(enc, enc_len, "r");
+	    break;
+	  case IVL_VT_STRING:
+	    snprintf(enc, enc_len, "S");
+	    break;
+	  case IVL_VT_BOOL:
+	    snprintf(enc, enc_len, "%sb%d", signed_char, wid);
+	    break;
+	  case IVL_VT_LOGIC:
+	    snprintf(enc, enc_len, "%sv%d", signed_char, wid);
+	    break;
+	  default:
+	    snprintf(enc, enc_len, "o");
+	    break;
+      }
+}
+
 static void emit_new_queue_object_(ivl_type_t queue_type)
 {
       ivl_type_t element_type = ivl_type_element(queue_type);
@@ -2351,6 +2384,48 @@ static int show_queue_object_receiver(ivl_expr_t parm)
 	    ivl_type_t base_type = 0;
 	    ivl_type_t recv_type = 0;
 
+	      /* Assoc-of-queue element through a class PROPERTY
+	       * (c.aq[key].push_back(v)): the plain %aa/load/obj read
+	       * returns nil for a missing key and the mutation is
+	       * dropped. Use the get-or-create element load. */
+	    if (sube && index && ivl_expr_type(sube) == IVL_EX_PROPERTY) {
+		  ivl_type_t ptype = ivl_expr_net_type(sube);
+		  ivl_type_t elem = ptype ? ivl_type_element(ptype) : 0;
+		  if (ptype && ivl_type_base(ptype) == IVL_VT_QUEUE
+		      && ivl_type_queue_assoc_compat(ptype)
+		      && elem && ivl_type_base(elem) == IVL_VT_QUEUE) {
+			ivl_signal_t bsig = ivl_expr_signal(sube);
+			ivl_expr_t base_expr = ivl_expr_oper2(sube);
+			unsigned pidx = ivl_expr_property_idx(sube);
+			unsigned lab_null = local_count++;
+			unsigned lab_out = local_count++;
+			const char*key_kind;
+			char enc[32];
+			queue_elem_enc_(elem, enc, sizeof enc);
+			if (bsig)
+			      fprintf(vvp_out, "    %%load/obj v%p_0;\n", bsig);
+			else if (base_expr)
+			      draw_eval_object(base_expr);
+			else
+			      fprintf(vvp_out, "    %%null;\n");
+			fprintf(vvp_out, "    %%test_nul/obj;\n");
+			fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+				thread_count, lab_null);
+			fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pidx);
+			key_kind = draw_eval_assoc_key_(index, 0);
+			fprintf(vvp_out, "    %%aa/loadlv/o/q/%s \"%s\";\n",
+				key_kind, enc);
+			fprintf(vvp_out, "    %%pop/obj 2, 1;\n");
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
+				thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "    %%null;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			return 0;
+		  }
+	    }
+
 	    if (sube && index
 		&& (ivl_expr_type(sube) == IVL_EX_SIGNAL
 		    || ivl_expr_type(sube) == IVL_EX_ARRAY)) {
@@ -2540,6 +2615,25 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 			   * when we have a net_type. */
 			  ivl_variable_type_t elem_kind = ivl_expr_value(parm1);
 			  ivl_type_t parm0_type = ivl_expr_net_type(parm0);
+			    /* An element select (aq[key] / qq[i]) often
+			     * carries no net_type of its own — derive the
+			     * receiver queue type from the select's BASE
+			     * container so the value stores with the right
+			     * element kind (a string pushed into an
+			     * assoc-of-string-queues used to be drawn as
+			     * vec4 and dropped with a type mismatch). */
+			  if (!parm0_type && ivl_expr_type(parm0) == IVL_EX_SELECT) {
+				ivl_expr_t sube = ivl_expr_oper1(parm0);
+				ivl_type_t bt = sube ? ivl_expr_net_type(sube) : 0;
+				if (!bt && sube
+				    && (ivl_expr_type(sube) == IVL_EX_SIGNAL
+					|| ivl_expr_type(sube) == IVL_EX_ARRAY)
+				    && ivl_expr_signal(sube))
+				      bt = ivl_signal_net_type(ivl_expr_signal(sube));
+				if (bt && (ivl_type_base(bt) == IVL_VT_QUEUE
+					   || ivl_type_base(bt) == IVL_VT_DARRAY))
+				      parm0_type = ivl_type_element(bt);
+			  }
 			  if (parm0_type) {
 				ivl_type_t elem_type = ivl_type_element(parm0_type);
 				if (elem_type)
@@ -3461,11 +3555,22 @@ static int show_system_task_call(ivl_statement_t net)
       /* ---- Mailbox task methods ---- */
 
       /* Helper: push a mailbox item onto the obj stack.
-       * Class types are pushed directly; primitives are boxed as vvp_boxed_vec4. */
+       * Class types are pushed directly; strings/reals/vec4 primitives
+       * are boxed as vvp_boxed_{string,real,vec4}. A string message
+       * used to be drawn as vec4 string-bits and the receiving side
+       * stored them into the string variable through recv_vec4, which
+       * aborts the runtime. */
 #define EMIT_MBX_PUSH_ITEM(item_expr) \
       do { \
 	    if ((item_expr) && ivl_expr_value(item_expr) == IVL_VT_CLASS) { \
 		  draw_eval_object(item_expr); \
+	    } else if ((item_expr) && (ivl_expr_value(item_expr) == IVL_VT_STRING \
+				       || ivl_expr_type(item_expr) == IVL_EX_STRING)) { \
+		  draw_eval_string(item_expr); \
+		  fprintf(vvp_out, "    %%box/str;\n"); \
+	    } else if ((item_expr) && ivl_expr_value(item_expr) == IVL_VT_REAL) { \
+		  draw_eval_real(item_expr); \
+		  fprintf(vvp_out, "    %%box/real;\n"); \
 	    } else if (item_expr) { \
 		  draw_eval_vec4(item_expr); \
 		  unsigned _wid = ivl_expr_width(item_expr); \
@@ -3497,6 +3602,12 @@ static int show_system_task_call(ivl_statement_t net)
 			ivl_signal_t _sig = ivl_expr_signal(_item); \
 			if (_sig && ivl_signal_data_type(_sig) == IVL_VT_CLASS) { \
 			      fprintf(vvp_out, "    %%store/obj v%p_0;\n", _sig); \
+			} else if (_sig && ivl_signal_data_type(_sig) == IVL_VT_STRING) { \
+			      fprintf(vvp_out, "    %%unbox/str;\n"); \
+			      fprintf(vvp_out, "    %%store/str v%p_0;\n", _sig); \
+			} else if (_sig && ivl_signal_data_type(_sig) == IVL_VT_REAL) { \
+			      fprintf(vvp_out, "    %%unbox/real;\n"); \
+			      fprintf(vvp_out, "    %%store/real v%p_0;\n", _sig); \
 			} else if (_sig) { \
 			      unsigned _wid = ivl_signal_width(_sig); \
 			      if (!_wid) _wid = 32; \
@@ -3677,6 +3788,20 @@ static int show_system_task_call(ivl_statement_t net)
 	    ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
 	    if (obj_arg) draw_eval_object(obj_arg);
 	    fprintf(vvp_out, "    %%covgrp/sample %u, %u;\n", ncp, has_guards);
+	    return 0;
+      }
+
+      /* M11-3: event-driven sampling of a class-embedded covergroup:
+       * sample every live instance of the covergroup class. argv[0]
+       * is a type-carrier expression (never evaluated) whose net
+       * type is the covergroup class. */
+      if (strcmp(stmt_name, "$ivl_class_method$covgrp_sample_all") == 0) {
+	    ivl_expr_t arg = ivl_stmt_parm(net, 0);
+	    ivl_type_t ctype = arg ? ivl_expr_net_type(arg) : 0;
+	    if (ctype) {
+		  ensure_class_type_emitted(ctype);
+		  fprintf(vvp_out, "    %%covgrp/sample/all C%p;\n", ctype);
+	    }
 	    return 0;
       }
 

@@ -890,6 +890,10 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
       // triggered lazily by PENew before netclass_t::elaborate() has run.
       for (auto* cgdef : pclass->type->covergroups) {
 	    if (!cgdef) continue;
+	    // M11-1/2: a STANDALONE covergroup class IS the covergroup —
+	    // no handle property (its own properties are the bins).
+	    if (pclass->type->is_covergroup_standalone)
+		  continue;
 	    // Skip if the property was already added (e.g. by a prior elaborate() call).
 	    if (property_idx_from_name(cgdef->name) >= 0)
 		  continue;
@@ -2018,7 +2022,27 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    wtype = NetNet::WIRE;
       }
 
-      ivl_type_t type = early_class_type
+	// M5-5: GENERIC interface port (`interface i` / `interface.mp
+	// i`, IEEE 1800-2017 25.3.3): the concrete interface type comes
+	// from the ACTUAL at each instantiation. Create the signal with
+	// a placeholder type and mark it; the port-binding code in
+	// PGModule elaboration retypes it from the connected instance
+	// and binds the vif handle.
+      bool generic_iface = false;
+      perm_string generic_modport;
+      if (const interface_type_t*git =
+	    dynamic_cast<const interface_type_t*>(set_data_type_.get())) {
+	    if (git->name.nil()) {
+		  generic_iface = true;
+		  generic_modport = git->modport;
+	    }
+      }
+      if (generic_iface && wtype != NetNet::REG)
+	    wtype = NetNet::REG;
+
+      ivl_type_t type = generic_iface
+		      ? (ivl_type_t)&netvector_t::atom2s32
+		      : early_class_type
 		      ? early_class_type
 		      : elaborate_type(des, scope, packed_dimensions);
 	// Create the type for the unpacked dimensions. If the
@@ -2078,6 +2102,14 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 			sig->attribute(perm_string::literal("ivl_modport"),
 				       verinum(std::string(itype->modport.str())));
 	    }
+      }
+
+      if (generic_iface) {
+	    sig->attribute(perm_string::literal("ivl_generic_iface"),
+			   verinum(1));
+	    if (!generic_modport.nil())
+		  sig->attribute(perm_string::literal("ivl_modport"),
+				 verinum(std::string(generic_modport.str())));
       }
 
       if (ivl_discipline_t dis = get_discipline()) {

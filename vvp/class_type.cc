@@ -1476,6 +1476,21 @@ void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 				     is_cross != 0);
 }
 
+/* M11-3: event-driven sampling metadata. The .covgrp_src property
+ * indexes arrive biased by +1 (0 = none) because the vvp lexer only
+ * accepts unsigned numbers. */
+void compile_class_covgrp_parent(uint64_t prop)
+{
+      assert(compile_class);
+      compile_class->set_covgrp_parent_prop((int)prop);
+}
+
+void compile_class_covgrp_src(uint64_t srcprop, uint64_t guardsrc)
+{
+      assert(compile_class);
+      compile_class->add_covgrp_src((int)srcprop - 1, (int)guardsrc - 1);
+}
+
 /* M11: type-level (merged) coverage counters and registry. */
 
 void class_type::type_bump(unsigned prop) const
@@ -1532,6 +1547,19 @@ const std::vector<const class_type*>& class_type::covgrp_registry()
 
 void class_type::covgrp_register(const class_type*ct)
 {
+	// The compiler may emit the same class definition several
+	// times (once per referencing scope); each compile lands
+	// here. Later compiles win everywhere else (the scope map and
+	// the dispatch-prefix map are overwritten), so keep exactly
+	// one registry entry per dispatch prefix - the newest. Stale
+	// duplicates held zero counters and dragged the
+	// $get_coverage mean toward 0.
+      for (auto&slot : covgrp_registry_) {
+	    if (slot->dispatch_prefix() == ct->dispatch_prefix()) {
+		  slot = ct;
+		  return;
+	    }
+      }
       covgrp_registry_.push_back(ct);
 }
 

@@ -32,6 +32,7 @@
 # include  <vector>
 
 class PExpr;
+class PEEvent;
 # include  <list>
 # include  <vector>
 # include  <map>
@@ -45,6 +46,7 @@ class Design;
 class NetScope;
 class Definitions;
 class PExpr;
+class PEEvent;
 class PScope;
 class PPackage;
 class PWire;
@@ -140,6 +142,7 @@ struct index_component_t {
    parser's clocking_skew rules; the delay PExpr ownership transfers
    to Module::PClocking. */
 class PExpr;
+class PEEvent;
 struct pform_clocking_skew_t {
       char edge = 0;          // 0 (none), 'p'osedge, 'n'egedge, 'e'dge
       PExpr*delay = nullptr;
@@ -439,7 +442,7 @@ struct interface_type_t : public data_type_t {
 
 struct class_type_t : public data_type_t {
 
-      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; is_covergroup_stub = false; }
+      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; is_covergroup_stub = false; is_covergroup_standalone = false; }
 
       void pform_dump(std::ostream&out, unsigned indent) const override;
       void pform_dump_init(std::ostream&out, unsigned indent) const;
@@ -453,6 +456,10 @@ struct class_type_t : public data_type_t {
 
       bool virtual_class;
       bool is_covergroup_stub; // true when created as a package-level CG stub
+	// M11-1/2: standalone (module/package-scope) covergroup type —
+	// the elaborated netclass IS the covergroup class itself (bins
+	// as its own properties), instantiable with plain `new`.
+      bool is_covergroup_standalone;
 
 	// This is a map of the properties. Map the name to the type.
       struct prop_info_t : public LineInfo {
@@ -546,6 +553,17 @@ struct class_type_t : public data_type_t {
       };
       struct pform_covergroup_t {
 	    perm_string name;   // covergroup instance name (e.g., "cg")
+	      // M11-2: the declaration's sampling event
+	      // (`covergroup cg @(posedge clk);`) — instances get a
+	      // synthesized `always @(ev) inst.sample();` process.
+	    std::vector<PEEvent*> sample_events;
+	      // M11-4: `with function sample(<formals>)` — coverpoint
+	      // sources naming a formal bind to the matching sample()
+	      // call argument at each call site. The parallel types
+	      // vector (entries may be null) gives each formal's
+	      // declared type, used to size automatic bins (M11-5).
+	    std::vector<perm_string> sample_formals;
+	    std::vector<data_type_t*> sample_formal_types;
 	    std::vector<pform_coverpoint_t> coverpoints;
 	    std::vector<pform_cross_t> crosses;  // I1: cross declarations
 	      // M11: covergroup options (option.name = const_expr)

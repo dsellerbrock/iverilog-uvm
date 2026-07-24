@@ -1740,13 +1740,29 @@ template <class VVP_QUEUE> static vvp_queue*get_queue_object(vthread_t thr, vvp_
       return typed_queue;
 }
 
+/* All pop_queue_receiver_ callers are mutation operations (push/insert/
+ * indexed store/delete). A null or wrong-typed receiver means the
+ * operation is DROPPED, which must never happen silently. */
+static void warn_null_queue_receiver_(vthread_t thr, bool wrong_type)
+{
+      cerr << thr->get_fileline()
+	   << "Warning: queue operation on a "
+	   << (wrong_type ? "mismatched-type" : "null")
+	   << " queue value was skipped." << endl;
+}
+
 template <class VVP_QUEUE> static VVP_QUEUE*pop_queue_receiver_(vthread_t thr, vvp_object_t&recv)
 {
       thr->pop_object(recv);
       vvp_queue*queue = recv.peek<vvp_queue>();
-      if (!queue)
+      if (!queue) {
+	    warn_null_queue_receiver_(thr, false);
 	    return 0;
-      return dynamic_cast<VVP_QUEUE*>(queue);
+      }
+      VVP_QUEUE*use_queue = dynamic_cast<VVP_QUEUE*>(queue);
+      if (!use_queue)
+	    warn_null_queue_receiver_(thr, true);
+      return use_queue;
 }
 
 template <class VVP_QUEUE>
@@ -1757,9 +1773,14 @@ static VVP_QUEUE*pop_queue_receiver_(vthread_t thr, vvp_object_t&recv,
       root_obj = thr->peek_object_root(0);
       thr->pop_object(recv);
       vvp_queue*queue = recv.peek<vvp_queue>();
-      if (!queue)
-            return 0;
-      return dynamic_cast<VVP_QUEUE*>(queue);
+      if (!queue) {
+	    warn_null_queue_receiver_(thr, false);
+	    return 0;
+      }
+      VVP_QUEUE*use_queue = dynamic_cast<VVP_QUEUE*>(queue);
+      if (!use_queue)
+	    warn_null_queue_receiver_(thr, true);
+      return use_queue;
 }
 
 /*
@@ -2214,6 +2235,73 @@ bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
 /* Phase 63b/Q-methods: expression-form q.unique() — return a new
  * queue (on obj stack) containing each value from q at most once,
  * in order of first appearance.  Vec4 element type only for now. */
+/* Copy source elements [lo..hi] into a fresh queue of the matching
+ * element kind. */
+template <typename ELEM, class QTYPE>
+static vvp_object_t qslice_copy_(vvp_darray*src, int64_t lo, int64_t hi)
+{
+      QTYPE*dst = new QTYPE;
+      for (int64_t i = lo; i <= hi; i += 1) {
+	    ELEM v;
+	    src->get_word((unsigned)i, v);
+	    dst->push_back(v, 0);
+      }
+      return vvp_object_t(dst);
+}
+
+/*
+ * %qslice
+ *
+ * Queue slice q[msb:lsb] (IEEE 1800-2017 7.10.1). Pops the lsb bound,
+ * then the msb bound from the vec4 stack, pops the source queue/darray
+ * from the object stack, and pushes a NEW queue holding elements
+ * [msb..lsb] inclusive. Bounds are clamped to the source range; an
+ * inverted or fully out-of-range slice yields an empty queue.
+ */
+bool of_QSLICE(vthread_t thr, vvp_code_t)
+{
+      int64_t lsb = 0, msb = 0;
+      vvp_vector4_t lsv = thr->pop_vec4();
+      vvp_vector4_t msv = thr->pop_vec4();
+      vector4_to_value(lsv, lsb, true);
+      vector4_to_value(msv, msb, true);
+
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+
+      int64_t lo = msb;
+      int64_t hi = lsb;
+      if (src) {
+	    int64_t sz = (int64_t)src->get_size();
+	    if (lo < 0) lo = 0;
+	    if (hi >= sz) hi = sz - 1;
+      }
+
+      if (!src || lo > hi) {
+	    /* Empty slice: a fresh empty vec4 queue is a safe universal
+	       "no elements" value for reads. */
+	    thr->push_object(vvp_object_t(new vvp_queue_vec4));
+	    return true;
+      }
+
+      vvp_object_t out;
+      if (dynamic_cast<vvp_queue_real*>(src)
+	  || dynamic_cast<vvp_darray_real*>(src))
+	    out = qslice_copy_<double, vvp_queue_real>(src, lo, hi);
+      else if (dynamic_cast<vvp_queue_string*>(src)
+	       || dynamic_cast<vvp_darray_string*>(src))
+	    out = qslice_copy_<string, vvp_queue_string>(src, lo, hi);
+      else if (dynamic_cast<vvp_queue_object*>(src)
+	       || dynamic_cast<vvp_darray_object*>(src))
+	    out = qslice_copy_<vvp_object_t, vvp_queue_object>(src, lo, hi);
+      else
+	    out = qslice_copy_<vvp_vector4_t, vvp_queue_vec4>(src, lo, hi);
+
+      thr->push_object(out);
+      return true;
+}
+
 bool of_QUNIQUE_COPY(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
@@ -2931,6 +3019,10 @@ static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
  *                       active-position masks; a completed sequence
  *                       bumps the bin counter.
  */
+static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
+				const vector<uint64_t>&cp_vals,
+				const vector<uint64_t>&guards);
+
 bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 {
       unsigned ncp = cp->number;
@@ -2969,6 +3061,16 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       if (!cobj) return true;
       if (!cobj->cov_enabled()) return true;
 
+      covgrp_sample_core_(cobj, ncp, cp_vals, guards);
+      return true;
+}
+
+/* The record-matching heart of %covgrp/sample, shared with
+ * %covgrp/sample/all (M11-3 event-driven sampling). */
+static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
+				const vector<uint64_t>&cp_vals,
+				const vector<uint64_t>&guards)
+{
       const class_type*defn = cobj->get_defn();
       size_t nbins = defn->covgrp_bin_count();
 
@@ -3140,7 +3242,59 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 		  continue;
 	    covgrp_bump_count_(cobj, dp.first);
       }
+}
 
+/* %covgrp/sample/all <class> (M11-3): event-driven sampling of a
+ * class-embedded covergroup. Walk every live instance of the
+ * covergroup class; read each instance's coverpoint source (and iff
+ * guard) values from its PARENT object's properties, reached through
+ * the hidden parent handle, then run the shared sampling core. */
+bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
+{
+      const class_type*defn = dynamic_cast<const class_type*>(cp->handle);
+      if (!defn) return true;
+      int pprop = defn->covgrp_parent_prop();
+      if (pprop < 0) return true;
+      unsigned ncp = defn->covgrp_src_count();
+
+      auto read_u64 = [](vvp_cobject*o, unsigned prop,
+			 uint64_t&val, bool&low_is_1) {
+	    vvp_vector4_t v;
+	    o->get_vec4(prop, v);
+	    val = 0;
+	    for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1)
+		  if (v.value(b) == BIT4_1)
+			val |= ((uint64_t)1 << b);
+	    low_is_1 = (v.size() > 0 && v.value(0) == BIT4_1);
+      };
+
+	// Copy the list: sampling must stay safe even if it perturbs
+	// the registry.
+      std::vector<vvp_cobject*> live = defn->covgrp_live();
+      for (vvp_cobject*cg : live) {
+	    if (!cg->cov_enabled()) continue;
+	    vvp_object_t pobj;
+	    cg->get_object((size_t)pprop, pobj, 0);
+	    vvp_cobject*parent = pobj.peek<vvp_cobject>();
+	    if (!parent) continue;
+
+	    vector<uint64_t> vals(ncp, 0);
+	    vector<uint64_t> guards(ncp, 1);
+	    for (unsigned ci = 0 ; ci < ncp ; ci += 1) {
+		  uint64_t v; bool low;
+		  int sp = defn->covgrp_srcprop(ci);
+		  if (sp >= 0) {
+			read_u64(parent, (unsigned)sp, v, low);
+			vals[ci] = v;
+		  }
+		  int gp = defn->covgrp_guardsrc(ci);
+		  if (gp >= 0) {
+			read_u64(parent, (unsigned)gp, v, low);
+			guards[ci] = low ? 1 : 0;
+		  }
+	    }
+	    covgrp_sample_core_(cg, ncp, vals, guards);
+      }
       return true;
 }
 
@@ -9194,6 +9348,21 @@ bool of_DUP_OBJ(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/*
+ * %dup/obj/ref
+ *
+ * Push an ALIASING reference to the object on top of the object stack
+ * (%dup/obj deep-copies). Used when a subsequent receiver-popping store
+ * must mutate the original object, e.g. building a container literal
+ * element by element.
+ */
+bool of_DUP_OBJ_REF(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t src = thr->peek_object();
+      thr->push_object(src);
+      return true;
+}
+
 bool of_DUP_REAL(vthread_t thr, vvp_code_t)
 {
       thr->push_real(thr->peek_real(0));
@@ -12242,6 +12411,53 @@ static bool aa_load_signal_obj_lval(vthread_t thr, vvp_net_t*net)
       return true;
 }
 
+static vvp_object_t make_queue_for_enc_(const char*text);
+
+/*
+ * %aa/loadlv/o/q/<keytype> "<elem-enc>"
+ *
+ * Get-or-create load of a QUEUE-valued associative element through an
+ * assoc receiver on the OBJECT stack (mutation contexts like
+ * c.aq[key].push_back(v) — a plain %aa/load/obj/* returns nil for a
+ * missing key and the mutation is silently dropped). Pops the key,
+ * PEEKS the assoc receiver, and pushes the element; a missing or nil
+ * element is first created as an empty queue of the encoded element
+ * kind and stored under the key.
+ */
+template <typename KEY>
+static bool aa_loadlv_o_queue(vthread_t thr, const char*enc)
+{
+      KEY key = pop_assoc_key_<KEY>(thr);
+
+      vvp_object_t value;
+      vvp_assoc_object*assoc = peek_assoc_receiver_<vvp_assoc_object>(thr);
+      bool have = assoc && assoc->get(key, value);
+
+      if (assoc && (!have || value.test_nil())) {
+	    value = make_queue_for_enc_(enc);
+	    if (!value.test_nil())
+		  assoc->set(key, value);
+      }
+
+      thr->push_object(value);
+      return true;
+}
+
+bool of_AA_LOADLV_O_Q_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return aa_loadlv_o_queue<vvp_object_t>(thr, cp->text);
+}
+
+bool of_AA_LOADLV_O_Q_STR(vthread_t thr, vvp_code_t cp)
+{
+      return aa_loadlv_o_queue<string>(thr, cp->text);
+}
+
+bool of_AA_LOADLV_O_Q_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_loadlv_o_queue<vvp_vector4_t>(thr, cp->text);
+}
+
 bool of_AA_LOADLV_SIG_OBJ_OBJ(vthread_t thr, vvp_code_t cp)
 {
       return aa_load_signal_obj_lval<vvp_object_t, vvp_assoc_object>(thr, cp->net);
@@ -13596,9 +13812,10 @@ bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-bool of_NEW_QUEUE(vthread_t thr, vvp_code_t cp)
+/* Make a fresh empty queue for the element-kind encoding used by
+ * %new/queue. Returns a nil object for an unknown encoding. */
+static vvp_object_t make_queue_for_enc_(const char*text)
 {
-      const char*text = cp->text;
       unsigned word_wid;
       size_t n;
 
@@ -13621,7 +13838,16 @@ bool of_NEW_QUEUE(vthread_t thr, vvp_code_t cp)
       } else if ((1 == sscanf(text, "sv%u%zn", &word_wid, &n))
 		 && (n == strlen(text))) {
 	    obj = new vvp_queue_vec4;
-      } else {
+      }
+      return obj;
+}
+
+bool of_NEW_QUEUE(vthread_t thr, vvp_code_t cp)
+{
+      const char*text = cp->text;
+
+      vvp_object_t obj = make_queue_for_enc_(text);
+      if (obj.test_nil()) {
 	    cerr << get_fileline()
 		 << "Internal error: Unsupported queue type: "
 		 << text << "." << endl;
@@ -16687,9 +16913,81 @@ static bool append_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       return true;
 }
 
+/*
+ * %append/qo/<type> [wid]
+ *
+ * Splice a source collection into a queue receiver held on the OBJECT
+ * stack (the signal-based %append/qobj forms cannot serve container
+ * literals being built in expression context). Pops the source
+ * collection, then pops the receiver queue, and appends every source
+ * element. The builder holds its own alias of the receiver, so the
+ * mutation is visible without a write-back.
+ */
+template <typename ELEM, class QTYPE>
+static bool append_qo(vthread_t thr, unsigned wid=0)
+{
+      vvp_object_t src;
+      thr->pop_object(src);
+
+      vvp_object_t recv;
+      QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv);
+      if (!queue)
+	    return true;
+
+      if (src.test_nil())
+	    return true;
+
+      if (vvp_queue*src_queue = src.peek<vvp_queue>())
+	    append_qobj_elements_<ELEM, QTYPE, vvp_queue>(
+		  queue, src_queue, 0, wid);
+      else if (vvp_darray*src_darray = src.peek<vvp_darray>())
+	    append_qobj_elements_<ELEM, QTYPE, vvp_darray>(
+		  queue, src_darray, 0, wid);
+      else
+	    cerr << thr->get_fileline()
+		 << "Warning: queue splice source is not a collection;"
+		 << " the operand was skipped." << endl;
+      return true;
+}
+
+bool of_APPEND_QO_OBJ(vthread_t thr, vvp_code_t)
+{
+      return append_qo<vvp_object_t, vvp_queue_object>(thr);
+}
+
+bool of_APPEND_QO_R(vthread_t thr, vvp_code_t)
+{
+      return append_qo<double, vvp_queue_real>(thr);
+}
+
+bool of_APPEND_QO_STR(vthread_t thr, vvp_code_t)
+{
+      return append_qo<string, vvp_queue_string>(thr);
+}
+
+bool of_APPEND_QO_V(vthread_t thr, vvp_code_t cp)
+{
+      return append_qo<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
+}
+
 bool of_APPEND_QOBJ_OBJ(vthread_t thr, vvp_code_t cp)
 {
       return append_qobj<vvp_object_t, vvp_queue_object>(thr, cp);
+}
+
+bool of_APPEND_QOBJ_V(vthread_t thr, vvp_code_t cp)
+{
+      return append_qobj<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
+}
+
+bool of_APPEND_QOBJ_R(vthread_t thr, vvp_code_t cp)
+{
+      return append_qobj<double, vvp_queue_real>(thr, cp);
+}
+
+bool of_APPEND_QOBJ_STR(vthread_t thr, vvp_code_t cp)
+{
+      return append_qobj<string, vvp_queue_string>(thr, cp);
 }
 
 static void vvp_send(vthread_t thr, vvp_net_ptr_t ptr, const double&val)
@@ -17917,6 +18215,64 @@ bool of_BOX_VEC4(vthread_t thr, vvp_code_t cp)
       thr->pop_vec4(1);
       vvp_object_t box(new vvp_boxed_vec4(v));
       thr->push_object(box);
+      return true;
+}
+
+/*
+ * %box/str
+ * Pop a string from the string stack, wrap it as a vvp_boxed_string
+ * object, and push it onto the obj stack (string mailbox messages).
+ */
+bool of_BOX_STR(vthread_t thr, vvp_code_t)
+{
+      string s = thr->pop_str();
+      vvp_object_t box(new vvp_boxed_string(s));
+      thr->push_object(box);
+      return true;
+}
+
+/*
+ * %unbox/str
+ * Pop an object from the obj stack. If it is a vvp_boxed_string, push
+ * its value onto the string stack; otherwise push "".
+ */
+bool of_UNBOX_STR(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t box;
+      thr->pop_object(box);
+      if (vvp_boxed_string*bs = box.peek<vvp_boxed_string>())
+	    thr->push_str(bs->get_value());
+      else
+	    thr->push_str(string());
+      return true;
+}
+
+/*
+ * %box/real
+ * Pop a real from the real stack, wrap it as a vvp_boxed_real object,
+ * and push it onto the obj stack (real mailbox messages).
+ */
+bool of_BOX_REAL(vthread_t thr, vvp_code_t)
+{
+      double v = thr->pop_real();
+      vvp_object_t box(new vvp_boxed_real(v));
+      thr->push_object(box);
+      return true;
+}
+
+/*
+ * %unbox/real
+ * Pop an object from the obj stack. If it is a vvp_boxed_real, push
+ * its value onto the real stack; otherwise push 0.0.
+ */
+bool of_UNBOX_REAL(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t box;
+      thr->pop_object(box);
+      if (vvp_boxed_real*br = box.peek<vvp_boxed_real>())
+	    thr->push_real(br->get_value());
+      else
+	    thr->push_real(0.0);
       return true;
 }
 

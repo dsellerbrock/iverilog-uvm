@@ -1135,4 +1135,17 @@ sv_cast_enum_check normal,-g2012 ivltests
 sv_covergroup_chained_sample normal,-g2012 ivltests
 sv_inside_property_container normal,-g2012 ivltests
 sv_constraint_inside_container normal,-g2012 ivltests
+sv_queue_of_queues normal,-g2012 ivltests
+sv_queue_slice_p normal,-g2012 ivltests
+sv_assoc_queue_property normal,-g2012 ivltests
+sv_mailbox_string_real normal,-g2012 ivltests
+sv_stream_unpacked_array normal,-g2012 ivltests
+sv_checker_basic normal,-g2012 ivltests
+sv_checker_bind normal,-g2012 ivltests
+sv_generic_interface_port normal,-g2012 ivltests
+sv_covergroup_standalone normal,-g2012 ivltests
+sv_covergroup_with_sample normal,-g2012 ivltests
+sv_covergroup_options normal,-g2012 ivltests
+sv_covergroup_adversarial normal,-g2012 ivltests
+sv_covergroup_class_event normal,-g2012 ivltests
 sv_class_arrayprop_elem_select normal,-g2012 ivltests

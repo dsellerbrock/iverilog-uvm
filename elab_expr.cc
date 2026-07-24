@@ -2377,9 +2377,122 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
  * remainder as the first concat element (so it ends up at the MSBs of
  * the result, matching the spec).
  */
+/* A stream operand that is a whole FIXED unpacked array of packed
+ * elements (11.4.14: an unpacked-array operand streams element by
+ * element, left to right) — either a plain signal array or a
+ * class-property array (`{>>byte{c.payload}}`). Without this,
+ * `{>>byte{arr}}` as an r-value errored with "Array arr needs an array
+ * index here", and property-array operands packed silently wrong. */
+struct stream_uarray_op_info_t {
+      NetNet*net = 0;              // plain signal array
+      NetNet*base = 0;             // class handle for a property array
+      int pidx = -1;
+      const netuarray_t*ua = 0;
+      ivl_type_t elem_type = 0;
+      unsigned elem_count = 0;
+};
+
+static bool stream_whole_uarray_operand_(Design*des, NetScope*scope,
+					 PExpr*inner,
+					 stream_uarray_op_info_t&info)
+{
+      PEIdent*id = dynamic_cast<PEIdent*>(inner);
+      if (!id)
+	    return false;
+      if (!id->path().back().index.empty())
+	    return false;
+      symbol_search_results sr;
+      symbol_search(id, des, scope, id->path(), UINT_MAX, &sr);
+      if (!sr.net)
+	    return false;
+
+      const netuarray_t*ua = 0;
+      if (sr.path_tail.empty()) {
+	    ua = dynamic_cast<const netuarray_t*>(sr.net->array_type());
+	    if (!ua)
+		  return false;
+	    info.net = sr.net;
+      } else if (sr.path_tail.size() == 1
+		 && sr.path_tail.front().index.empty()) {
+	    const netclass_t*ct =
+		  dynamic_cast<const netclass_t*>(sr.net->net_type());
+	    if (!ct)
+		  return false;
+	    int pidx = ct->property_idx_from_name(sr.path_tail.front().name);
+	    if (pidx < 0)
+		  return false;
+	    ua = dynamic_cast<const netuarray_t*>(ct->get_prop_type(pidx));
+	    if (!ua)
+		  return false;
+	    info.base = sr.net;
+	    info.pidx = pidx;
+      } else {
+	    return false;
+      }
+
+      if (ua->static_dimensions().size() != 1)
+	    return false;
+      ivl_type_t et = ua->element_type();
+      if (!et || !et->packed() || et->packed_width() <= 0)
+	    return false;
+      info.ua = ua;
+      info.elem_type = et;
+      info.elem_count = (unsigned)ua->static_dimensions()[0].width();
+      return true;
+}
+
+/* Pack a whole fixed unpacked array operand: concatenation of the
+ * elements in DECLARED order (left bound first), which is the stream
+ * order of 11.4.14. */
+static NetExpr* stream_uarray_concat_(const LineInfo*li,
+				      const stream_uarray_op_info_t&info)
+{
+      const netranges_t&dims = info.ua->static_dimensions();
+      long left = dims[0].get_msb();
+      long right = dims[0].get_lsb();
+      long step = (left <= right) ? 1 : -1;
+      long lo = (left <= right) ? left : right;
+
+      NetEConcat*cat = new NetEConcat(info.elem_count, 1, IVL_VT_LOGIC);
+      cat->set_line(*li);
+      for (unsigned i = 0; i < info.elem_count; i += 1) {
+	    long dv = left + step * (long)i;
+	    NetExpr*word = 0;
+	    if (info.net) {
+		  std::list<long> idx_consts;
+		  idx_consts.push_back(dv);
+		  NetExpr*canon = normalize_variable_unpacked(info.net, idx_consts);
+		  if (!canon) {
+			delete cat;
+			return 0;
+		  }
+		  canon->set_line(*li);
+		  NetESignal*sig = new NetESignal(info.net, canon);
+		  sig->set_line(*li);
+		  word = sig;
+	    } else {
+		  NetESignal*base = new NetESignal(info.base);
+		  base->set_line(*li);
+		  NetEConst*canon = new NetEConst(verinum((uint64_t)(dv - lo), 32u));
+		  canon->set_line(*li);
+		  NetEProperty*prop = new NetEProperty(base, (size_t)info.pidx, canon);
+		  prop->set_line(*li);
+		  word = prop;
+	    }
+	    cat->set(i, word);
+      }
+      return cat;
+}
+
 unsigned PEStreaming::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
-      expr_width_ = inner_->test_width(des, scope, mode);
+      stream_uarray_op_info_t s_info;
+      if (inner_ && stream_whole_uarray_operand_(des, scope, inner_, s_info)) {
+	    expr_width_ = (unsigned)s_info.elem_type->packed_width()
+		  * s_info.elem_count;
+      } else {
+	    expr_width_ = inner_->test_width(des, scope, mode);
+      }
       expr_type_  = IVL_VT_LOGIC;
       signed_flag_ = false;
       min_width_ = expr_width_;
@@ -2502,6 +2615,111 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
       if (dynamic_cast<const netstring_t*>(type))
 	    return elaborate_stream_sfunc(des, scope, type, 0);
 
+	// A FIXED unpacked-array target ({>>byte{arr}} = word, or the
+	// stream as a plain assignment source for such an array):
+	// unpack the stream into the elements left to right
+	// (11.4.14.3). The parser rewrite made the stream the r-value,
+	// so lval_context_ selects the INVERSE {<<} re-ordering.
+      if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(type)) {
+	    const netranges_t&dims = ua->static_dimensions();
+	    ivl_type_t et = ua->element_type();
+	    long ewl = (et && et->packed()) ? et->packed_width() : 0;
+	    if (dims.size() == 1 && ewl > 0 && inner_
+		&& !stream_is_dynamic(des, scope)) {
+		  unsigned ew = (unsigned)ewl;
+		  unsigned n = (unsigned)dims[0].width();
+		  unsigned total = ew * n;
+		  width_mode_t m = SIZED;
+		  unsigned w;
+		  NetExpr*body = 0;
+		  stream_uarray_op_info_t s_info;
+		  bool s_have = stream_whole_uarray_operand_(des, scope,
+							     inner_, s_info);
+		  if (s_have)
+			w = (unsigned)s_info.elem_type->packed_width()
+			      * s_info.elem_count;
+		  else
+			w = inner_->test_width(des, scope, m);
+		  if (w < total) {
+			cerr << get_fileline() << ": error: streaming "
+			      "concatenation provides a " << w << "-bit "
+			      "stream, which does not fill the " << total
+			     << "-bit unpacked-array target (IEEE "
+			      "1800-2017 11.4.14.3)." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  unsigned slice = resolve_slice_(des, scope);
+		  if (slice == 0)
+			return nullptr;
+		  if (s_have)
+			body = stream_uarray_concat_(this, s_info);
+		  else
+			body = inner_->elaborate_expr(des, scope, w, flags);
+		  if (!body)
+			return nullptr;
+		    // Consume the leading (left-most) total bits.
+		  if (w > total) {
+			NetEConst*base = new NetEConst(verinum((uint64_t)(w - total), 32u));
+			base->set_line(*this);
+			NetESelect*lead = new NetESelect(body, base, total);
+			lead->set_line(*this);
+			body = lead;
+		  }
+		  if (dir_ == DIR_LSHIFT)
+			body = reorder_stream_(body, total, slice, lval_context_);
+		    // The i-th DECLARED element (left bound first) takes
+		    // the i-th slice from the MSB end. Array-pattern
+		    // positions are CANONICAL indices, so map each
+		    // declared position through the normalizer (a
+		    // descending range [3:0] fills element 3 first).
+		  long a_left = dims[0].get_msb();
+		  long a_right = dims[0].get_lsb();
+		  long a_step = (a_left <= a_right) ? 1 : -1;
+		  std::vector<NetExpr*> elems(n, (NetExpr*)0);
+		  bool map_ok = true;
+		  for (unsigned i = 0; i < n && map_ok; i += 1) {
+			long dv = a_left + a_step * (long)i;
+			unsigned ci = i;
+			  // The target is an ivl_type_t, not a signal, so
+			  // compute the canonical position directly from
+			  // the declared range bounds.
+			long lo = (a_left <= a_right) ? a_left : a_right;
+			ci = (unsigned)(dv - lo);
+			if (ci >= n) {
+			      map_ok = false;
+			      break;
+			}
+			NetEConst*base = new NetEConst(verinum((uint64_t)(total - (i+1)*ew), 32u));
+			base->set_line(*this);
+			NetESelect*sel = new NetESelect(body->dup_expr(), base, ew, et);
+			sel->set_line(*this);
+			elems[ci] = sel;
+		  }
+		  if (!map_ok) {
+			for (unsigned i = 0; i < n; i += 1)
+			      delete elems[i];
+			delete body;
+			cerr << get_fileline() << ": internal error: "
+			      "cannot map unpacked-array range for "
+			      "streaming unpack." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  delete body;
+		  NetEArrayPattern*res = new NetEArrayPattern(type, elems);
+		  res->set_line(*this);
+		  return res;
+	    }
+	    if (dims.size() == 1 && ewl > 0) {
+		  cerr << get_fileline() << ": sorry: streaming with "
+		        "dynamically sized operands into a FIXED unpacked "
+		        "array target is not yet supported." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
+
       unsigned use_wid = 0;
       if (type && type->packed()) {
 	    long pw = type->packed_width();
@@ -2537,17 +2755,30 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
       }
 
       width_mode_t m = SIZED;
-      unsigned w = inner_->test_width(des, scope, m);
-      if (w == 0) {
-            cerr << get_fileline() << ": error: streaming concatenation "
-                  "requires a known-width inner expression." << endl;
-            des->errors += 1;
-            return nullptr;
+      unsigned w;
+      NetExpr*body;
+      {
+	    stream_uarray_op_info_t s_info;
+	    if (stream_whole_uarray_operand_(des, scope, inner_, s_info)) {
+		  w = (unsigned)s_info.elem_type->packed_width()
+			* s_info.elem_count;
+		  body = stream_uarray_concat_(this, s_info);
+	    } else {
+		  w = inner_->test_width(des, scope, m);
+		  if (w == 0) {
+			cerr << get_fileline() << ": error: streaming concatenation "
+			      "requires a known-width inner expression." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  body = inner_->elaborate_expr(des, scope, w, flags);
+	    }
       }
       unsigned slice = resolve_slice_(des, scope);
-      if (slice == 0) return nullptr;
-
-      NetExpr*body = inner_->elaborate_expr(des, scope, w, flags);
+      if (slice == 0) {
+	    delete body;
+	    return nullptr;
+      }
       if (!body) return nullptr;
 
       // {>>N {x}} packs in stream order — the concatenation itself.
@@ -2575,7 +2806,16 @@ NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
 	    return elaborate_stream_sfunc(des, scope, 0, lv_width);
 
       width_mode_t m = SIZED;
-      unsigned w = inner_->test_width(des, scope, m);
+      unsigned w;
+      {
+	    stream_uarray_op_info_t s_info;
+	    if (stream_whole_uarray_operand_(des, scope, inner_, s_info)) {
+		  w = (unsigned)s_info.elem_type->packed_width()
+			* s_info.elem_count;
+	    } else {
+		  w = inner_->test_width(des, scope, m);
+	    }
+      }
       if (w == 0) {
             cerr << get_fileline() << ": error: streaming concatenation "
                   "requires a known-width inner expression." << endl;
@@ -3944,6 +4184,19 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	    for (; it != end; ++it)
 		  stub_use_path.push_back(*it);
       }
+
+	// An INDEXED dynamic-container target (aq[k].pop_front(),
+	// qq[i].size()...): the property walk above already descended
+	// target_type to the ELEMENT type, so only the indexed flag
+	// needs clearing — the method applies to the element as an
+	// unindexed receiver (mirrors elaborate_method_dispatch_).
+	// Without this the width query gave up and the compile-progress
+	// stub typed the call CLASS, which the generic elab_and_eval
+	// then short-circuited to a constant 0 WITHOUT elaborating — a
+	// silently dropped pop/method call.
+      if (target_indexed && target_type
+	  && dynamic_cast<const netdarray_t*>(target_type))
+	    target_indexed = false;
 
       // Dynamic array variable without a select expression. The method
       // applies to the array itself, and not to the object that might be
@@ -6323,16 +6576,6 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    return sel;
       }
 
-      if (comp.index.size() != 1) {
-	    if (!warned_multi_index_array_prop_fallback) {
-		  cerr << li->get_fileline() << ": warning: "
-		       << "Multi-index array properties not fully supported"
-		       << " (compile-progress fallback, using first index, "
-		       << "further similar warnings suppressed)." << endl;
-		  warned_multi_index_array_prop_fallback = true;
-	    }
-      }
-
       const index_component_t&idx_comp = comp.index.front();
       NetExpr*idx_expr = nullptr;
       if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
@@ -6361,6 +6604,13 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    elem_type = darr->element_type();
 	    elem_width = darr->element_width();
       } else {
+	    if (comp.index.size() != 1 && !warned_multi_index_array_prop_fallback) {
+		  cerr << li->get_fileline() << ": warning: "
+		       << "Multi-index array properties not fully supported"
+		       << " (compile-progress fallback, using first index, "
+		       << "further similar warnings suppressed)." << endl;
+		  warned_multi_index_array_prop_fallback = true;
+	    }
 	    delete idx_expr;
 	    out_type = prop_type;
 	    return prop_expr;
@@ -6369,12 +6619,48 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       if (elem_width == 0)
 	    elem_width = 1;
 
-      NetESelect*sel = elem_type
+      NetExpr*cur = elem_type
 	    ? new NetESelect(prop_expr, idx_expr, elem_width, elem_type)
 	    : new NetESelect(prop_expr, idx_expr, elem_width);
-      sel->set_line(*li);
-      out_type = elem_type;
-      return sel;
+      cur->set_line(*li);
+
+	// Consume TRAILING indices through nested container elements
+	// (iq[key][idx] on an assoc-of-queue property, qq[i][j]...).
+	// These used to be dropped with a "using first index" warning,
+	// so the read returned the whole inner container.
+      ivl_type_t cur_type = elem_type;
+      auto idx_it = comp.index.begin();
+      ++idx_it;
+      for (; idx_it != comp.index.end() ; ++idx_it) {
+	    const netdarray_t*da = dynamic_cast<const netdarray_t*>(cur_type);
+	    if (!da)
+		  break;
+	    NetExpr*ix = elab_and_eval(des, scope, idx_it->msb, -1, false);
+	    if (!ix) {
+		  delete cur;
+		  return 0;
+	    }
+	    unsigned ew = da->element_width();
+	    if (ew == 0)
+		  ew = 1;
+	    NetESelect*sel2 = da->element_type()
+		  ? new NetESelect(cur, ix, ew, da->element_type())
+		  : new NetESelect(cur, ix, ew);
+	    sel2->set_line(*li);
+	    cur = sel2;
+	    cur_type = da->element_type();
+      }
+      if (idx_it != comp.index.end()) {
+	    cerr << li->get_fileline() << ": sorry: this index chain on "
+		 << "property " << class_type->get_prop_name(pidx)
+		 << " is not yet supported." << endl;
+	    des->errors += 1;
+	    delete cur;
+	    return 0;
+      }
+
+      out_type = cur_type;
+      return cur;
 }
 
 static NetExpr* elaborate_root_indexed_class_base_expr_(const LineInfo*li,
@@ -6721,6 +7007,27 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			base_expr = sfunc;
 			cur_type = &netvector_t::atom2s32;
 			continue;
+		  }
+
+		    // M11-5: procedural covergroup option access
+		    // (cg_inst.option.goal, cg_inst.type_option.weight).
+		    // The option structs are not modeled as runtime
+		    // state; reads previously collapsed to 0 with no
+		    // diagnostic at all. Keep the constant-0 result so
+		    // code compiles, but say so.
+		  if (cur_class && cur_class->is_covergroup()
+		      && (tail_comp.name == perm_string::literal("option")
+			  || tail_comp.name == perm_string::literal("type_option"))
+		      && cur_class->property_idx_from_name(tail_comp.name) < 0) {
+			cerr << get_fileline() << ": sorry: covergroup "
+			     << tail_comp.name << " members are not "
+			     << "run-time state; this read evaluates to "
+			     << "constant 0 (set options in the "
+			     << "covergroup body instead)." << endl;
+			delete base_expr;
+			NetExpr*zero = new NetEConst(verinum((uint64_t)0, 32));
+			zero->set_line(*this);
+			return zero;
 		  }
 
 		  if (cur_struct && gn_system_verilog()) {
@@ -8409,7 +8716,10 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 	// dynamic container (aq[k].size(), qa[i].num(), aa[k].sum(),
 	// aq[k].pop_back()...): the element expression IS the container
 	// receiver, so dispatch on the element type exactly as for an
-	// unindexed receiver.  The lowering paths evaluate non-signal
+	// unindexed receiver. NOTE: the nested-property helper already
+	// descended target_type to the ELEMENT type — only the indexed
+	// flag needs clearing here (descending again dispatched one
+	// level too deep). The lowering paths evaluate non-signal
 	// receivers through the object stack (IEEE 1800-2017 7.12 array
 	// methods apply to any unpacked array expression; 7.9/7.10 for
 	// the assoc/queue query methods).
@@ -12752,6 +13062,25 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
 				           NetESignal*net, NetScope*,
                                            unsigned expr_wid) const
 {
+	// Queue/darray slice q[a:b] (IEEE 1800-2017 7.10.1): a NEW
+	// queue holding elements a..b. Lower to the runtime slice
+	// helper — the packed part-select machinery below asserted on
+	// the (empty) packed dims of a dynamic container signal.
+      if (net->sig()->darray_type() != 0) {
+	    const index_component_t&index_tail = path_.back().index.back();
+	    NetExpr*mse = elab_and_eval(des, scope, index_tail.msb, -1, false);
+	    NetExpr*lse = elab_and_eval(des, scope, index_tail.lsb, -1, false);
+	    if (!mse || !lse)
+		  return 0;
+	    NetESFunc*fn = new NetESFunc("$ivl_queue$slice",
+					 net->sig()->net_type(), 3);
+	    fn->set_line(*this);
+	    fn->parm(0, net);
+	    fn->parm(1, mse);
+	    fn->parm(2, lse);
+	    return fn;
+      }
+
       if (net->sig()->data_type() == IVL_VT_STRING) {
 	    cerr << get_fileline() << ": error: Cannot take the part select of a string ('"
 	         << net->name() << "')." << endl;

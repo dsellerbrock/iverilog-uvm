@@ -2386,13 +2386,37 @@ class_item /* IEEE1800-2005: A.1.8 */
 	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
       }
 
+  /* M11-3: class-embedded covergroup with a declaration sampling
+     event (IEEE 1800-2017 19.3): every instance samples on the
+     event automatically. */
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_class_covergroup(@1, $2, $9, nullptr, nullptr, $6);
+	delete[] $2; if ($3) delete $3; if ($11) delete[] $11;
+      }
+
   | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER
       { current_function = pform_push_function_scope_unbound(@6, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
     covergroup_item_list_opt K_endgroup label_opt
-      { if ($8) current_function->set_ports($8);
+      { /* M11-4: `with function sample(<formals>)` (19.8.1) — the
+	   formal names bind positionally to the sample() call
+	   arguments at each call site. */
+	if (strcmp($6, "sample") != 0)
+	      yyerror(@6, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
+	std::vector<perm_string>*formals__ = 0;
+	std::vector<data_type_t*>*ftypes__ = 0;
+	if ($8) {
+	      formals__ = new std::vector<perm_string>;
+	      ftypes__ = new std::vector<data_type_t*>;
+	      for (size_t idx__ = 0; idx__ < $8->size(); idx__ += 1)
+		    if ((*$8)[idx__].port) {
+			  formals__->push_back((*$8)[idx__].port->basename());
+			  ftypes__->push_back(const_cast<data_type_t*>((*$8)[idx__].port->data_type()));
+		    }
+	      current_function->set_ports($8);
+	}
         pform_pop_scope(); current_function = 0;
-        pform_class_covergroup(@1, $2, $10);
+        pform_class_covergroup(@1, $2, $10, formals__, ftypes__);
 	delete[] $2; if ($3) delete $3; delete[] $6;
 	if ($12) delete[] $12;
       }
@@ -3564,7 +3588,6 @@ description /* IEEE1800-2005: A.1.2 */
   : module
   | udp_primitive
   | config_declaration
-  | checker_declaration
   | nature_declaration
   | package_declaration
   | discipline_declaration
@@ -5064,17 +5087,12 @@ package_item /* IEEE1800-2005 A.1.10 */
    which cause LALR reduce/reduce conflicts. */
 package_cg_port_prefix
   : K_covergroup IDENTIFIER
-      { /* Register as a real class stub so "cg_t m_cg" elaborates without errors.
-           pform_push_class_scope registers in scopex->classes; we immediately pop
-           so the CG body is NOT parsed in a class scope. */
-        perm_string cg_name__ = lex_strings.make($2);
-        class_type_t*cg_type__ = new class_type_t(cg_name__);
-        FILE_NAME(cg_type__, @2);
-        cg_type__->is_covergroup_stub = true;
-        PClass*cg_cls__ = pform_push_class_scope(@2, cg_name__);
-        cg_cls__->type = cg_type__;
-        pform_set_typedef(@2, cg_name__, cg_type__, nullptr);
-        pform_pop_scope();
+      { /* The real covergroup class is registered by
+           pform_standalone_covergroup when the declaration completes
+           (before any use of the type). A stub class registered here
+           would DUPLICATE that registration — the stub's empty
+           netclass shadowed the real one and every instance silently
+           collected no coverage. */
         /* Unbound scope for the constructor port list */
         current_function = pform_push_function_scope_unbound(@2, $2, LexicalScope::INHERITED); }
     tf_port_list_parens_opt
@@ -5084,37 +5102,45 @@ package_cg_port_prefix
 
 package_covergroup_declaration
   : K_covergroup IDENTIFIER ';' covergroup_item_list_opt K_endgroup label_opt
-      { /* Register as a real class stub so "cg_t m_cg" elaborates without errors */
-        cerr << @1 << ": sorry: package/module-scope covergroup '" << $2
-             << "' is a stub type only — its body is ignored and no "
-             << "coverage is collected (class-embedded covergroups are "
-             << "fully supported)." << endl;
-        perm_string cg_name__ = lex_strings.make($2);
-        class_type_t*cg_type__ = new class_type_t(cg_name__);
-        FILE_NAME(cg_type__, @2);
-        cg_type__->is_covergroup_stub = true;
-        PClass*cg_cls__ = pform_push_class_scope(@2, cg_name__);
-        cg_cls__->type = cg_type__;
-        pform_set_typedef(@2, cg_name__, cg_type__, nullptr);
-        pform_pop_scope();
+      { /* M11-1: real package-scope covergroup type (19.3). */
+        pform_standalone_covergroup(@1, $2, $4);
         delete[] $2; if ($6) delete[] $6; }
+  | K_covergroup IDENTIFIER '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_standalone_covergroup(@1, $2, $8, $5);
+        delete[] $2; if ($10) delete[] $10; }
   | package_cg_port_prefix ';' covergroup_item_list_opt K_endgroup label_opt
-      { cerr << @2 << ": sorry: package/module-scope covergroup '" << $1
-             << "' is a stub type only — its body is ignored and no "
-             << "coverage is collected (class-embedded covergroups are "
-             << "fully supported)." << endl;
+      { /* Constructor formals are parsed (the unbound function scope
+           from the prefix) but not yet modeled; the covergroup itself
+           is real. */
         pform_pop_scope(); current_function = 0;
+        cerr << @2 << ": sorry: covergroup constructor arguments on '"
+             << $1 << "' are ignored (the covergroup itself is "
+             << "collected)." << endl;
+        pform_standalone_covergroup(@2, $1, $3);
         delete[] $1; if ($5) delete[] $5; }
   | package_cg_port_prefix K_with K_function IDENTIFIER
       { pform_pop_scope();
         current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { cerr << @2 << ": sorry: package/module-scope covergroup '" << $1
-             << "' is a stub type only — its body is ignored and no "
-             << "coverage is collected (class-embedded covergroups are "
-             << "fully supported)." << endl;
-        if ($6) current_function->set_ports($6);
+      { /* M11-4: real with-function-sample covergroup (19.8.1).
+           Constructor formals from the prefix were parsed but are
+           not modeled (same as the plain ctor-args form above). */
+        if (strcmp($4, "sample") != 0)
+              yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
+        std::vector<perm_string>*formals__ = 0;
+        std::vector<data_type_t*>*ftypes__ = 0;
+        if ($6) {
+              formals__ = new std::vector<perm_string>;
+              ftypes__ = new std::vector<data_type_t*>;
+              for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
+                    if ((*$6)[idx__].port) {
+                          formals__->push_back((*$6)[idx__].port->basename());
+                          ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
+                    }
+              current_function->set_ports($6);
+        }
         pform_pop_scope(); current_function = 0;
+        pform_standalone_covergroup(@2, $1, $8, nullptr, formals__, ftypes__);
         delete[] $1; delete[] $4; if ($10) delete[] $10; }
   | package_cg_port_prefix ';' error K_endgroup label_opt
       { pform_pop_scope(); current_function = 0; yyerrok;
@@ -7366,21 +7392,17 @@ nature_item
       { delete[] $3; }
   ;
 
-  /* SystemVerilog checkers (IEEE 1800-2017 clause 17) are not
-     implemented. Rather than aborting the whole parse with a bare
-     "syntax error", consume the checker body via error recovery and
-     emit an explicit unsupported-feature diagnostic, so the rest of
-     the source still compiles (manifesto principle 4). */
-checker_declaration
-  : K_checker IDENTIFIER error K_endchecker
-      { cerr << @1 << ": sorry: checker declarations (IEEE 1800-2017 "
-               "clause 17) are not supported; the checker is skipped."
-             << endl;
-        error_count += 1;
-        delete[] $2;
-        yyerrok;
-      }
-  ;
+  /* SystemVerilog checkers (IEEE 1800-2017 clause 17): the checker
+     declaration syntax is a strict subset of the module syntax (typed
+     formals, assertion items, procedures, sequence/property
+     declarations), and checker INSTANTIATION matches module
+     instantiation. Checkers therefore ride the module machinery: the
+     "module" rule accepts K_checker/K_endchecker and elaborates the
+     checker as a module-like scope, giving per-instance assertion
+     elaboration, which matches clause-17 semantics for this subset.
+     (Untyped formals and procedural checker instantiation are not
+     covered and diagnose loudly through the normal port/syntax
+     paths.) */
 
 config_declaration
   : K_config IDENTIFIER ';'
@@ -9891,30 +9913,28 @@ port_declaration
 	$$ = module_declare_port(@4, $4, $2, NetNet::WIRE,
 				 real_type, nullptr, nullptr, $1);
       }
-  /* M5-if: GENERIC interface ports (IEEE 1800-2017 A.2.2.3,
+  /* M5-5: GENERIC interface ports (IEEE 1800-2017 25.3.3, A.2.2.3,
      `interface b` / `interface.mp b`). The port's actual interface
-     type comes from the connected instance, which needs
-     per-instantiation port typing the elaborator does not do yet.
-     Give the previously-bare syntax error a loud, actionable sorry
-     and recover with a scalar port so parsing continues. */
+     type comes from the connected instance at each instantiation, so
+     the pform records an interface_type_t with a NIL name; the type
+     is resolved per instance at port-binding time from the actual. */
   | attribute_list_opt K_interface IDENTIFIER dimensions_opt initializer_opt
-      { yyerror(@2, "sorry: Generic `interface` ports are not yet "
-		    "supported; declare the port with its interface "
-		    "type (e.g. `bus_if b`).");
-	vector_type_t*errt = new vector_type_t(IVL_VT_LOGIC, false, 0);
-	FILE_NAME(errt, @2);
-	$$ = module_declare_port(@3, $3, port_declaration_context.port_type,
-				 NetNet::IMPLICIT, errt, $4, $5, $1);
+      { interface_type_t*it = new interface_type_t(perm_string());
+	FILE_NAME(it, @2);
+	pform_requires_sv(@3, "generic interface port");
+	  /* An interface port is a handle, not a wire: input-kind
+	     avoids the inout-vs-variable check on the placeholder. */
+	$$ = module_declare_port(@3, $3, NetNet::PINPUT,
+				 NetNet::IMPLICIT, it, $4, $5, $1);
       }
   | attribute_list_opt K_interface '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
-      { yyerror(@2, "sorry: Generic `interface` ports are not yet "
-		    "supported; declare the port with its interface "
-		    "type (e.g. `bus_if.mp b`).");
+      { interface_type_t*it = new interface_type_t(perm_string());
+	it->modport = lex_strings.make($4);
+	FILE_NAME(it, @2);
 	delete[] $4;
-	vector_type_t*errt = new vector_type_t(IVL_VT_LOGIC, false, 0);
-	FILE_NAME(errt, @2);
-	$$ = module_declare_port(@5, $5, port_declaration_context.port_type,
-				 NetNet::IMPLICIT, errt, $6, $7, $1);
+	pform_requires_sv(@5, "generic interface port");
+	$$ = module_declare_port(@5, $5, NetNet::PINPUT,
+				 NetNet::IMPLICIT, it, $6, $7, $1);
       }
   ;
 
@@ -10127,7 +10147,12 @@ cont_assign_list
 module
   : attribute_list_opt module_start lifetime_opt IDENTIFIER
       { pform_startmodule(@2, $4, $2==K_program, $2==K_interface, $3, $1);
-        port_declaration_context_init(); }
+        port_declaration_context_init();
+	  // Checker formals without an explicit direction are INPUTS
+	  // (IEEE 1800-2017 17.4); module ports default to inout.
+	if ($2 == K_checker)
+	      port_declaration_context.port_type = NetNet::PINPUT;
+      }
     module_package_import_list_opt
     module_parameter_port_list_opt
     module_port_list_opt
@@ -10166,6 +10191,9 @@ module
 		  case K_interface:
 		    yyerror(@15, "error: interface not closed by endinterface.");
 		    break;
+		  case K_checker:
+		    yyerror(@15, "error: checker not closed by endchecker.");
+		    break;
 		  default:
 		    break;
 	      }
@@ -10187,6 +10215,9 @@ module
 	      break;
 	    case K_interface:
 	      check_end_label(@17, "interface", $4, $17);
+	      break;
+	    case K_checker:
+	      check_end_label(@17, "checker", $4, $17);
 	      break;
 	    default:
 	      break;
@@ -10216,12 +10247,17 @@ module_start
       { pform_error_in_generate(@1, "interface declaration");
         $$ = K_interface;
       }
+  | K_checker
+      { pform_error_in_generate(@1, "checker declaration");
+        $$ = K_checker;
+      }
   ;
 
 module_end
   : K_endmodule    { $$ = K_module; }
   | K_endprogram   { $$ = K_program; }
   | K_endinterface { $$ = K_interface; }
+  | K_endchecker   { $$ = K_checker; }
   ;
 
 label_opt
@@ -10307,10 +10343,6 @@ module_item
 
   /* SystemVerilog permits package imports as module items. */
   | package_import_declaration
-
-  /* SystemVerilog checkers as module items (IEEE 1800-2017 17) —
-     unsupported, diagnosed and skipped (see checker_declaration). */
-  | checker_declaration
 
   | attribute_list_opt net_type data_type_or_implicit delay3_opt net_variable_list ';'
 
@@ -10692,6 +10724,46 @@ module_item
       { pform_error_in_generate(@1, "timeunit declaration"); }
 
   | class_declaration
+
+  /* M11-2: MODULE/interface-scope covergroup declaration (IEEE
+     1800-2017 19.3): declares a type; instances are created with
+     `new`. Coverpoint sources are scope signals, resolved at each
+     sample() site. */
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_standalone_covergroup(@1, $2, $5);
+	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
+      }
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_standalone_covergroup(@1, $2, $9, $6);
+	delete[] $2; if ($3) delete $3; if ($11) delete[] $11;
+      }
+  /* M11-4: `with function sample(<formals>)` (IEEE 1800-2017
+     19.8.1). The formal names become the coverpoint sample sources,
+     bound positionally to the sample() call arguments at each call
+     site. */
+  | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER
+      { current_function = pform_push_function_scope_unbound(@6, $6, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
+      { if (strcmp($6, "sample") != 0)
+	      yyerror(@6, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
+	std::vector<perm_string>*formals__ = 0;
+	std::vector<data_type_t*>*ftypes__ = 0;
+	if ($8) {
+	      formals__ = new std::vector<perm_string>;
+	      ftypes__ = new std::vector<data_type_t*>;
+	      for (size_t idx__ = 0; idx__ < $8->size(); idx__ += 1)
+		    if ((*$8)[idx__].port) {
+			  formals__->push_back((*$8)[idx__].port->basename());
+			  ftypes__->push_back(const_cast<data_type_t*>((*$8)[idx__].port->data_type()));
+		    }
+	      current_function->set_ports($8);
+	}
+	pform_pop_scope();
+	current_function = 0;
+	pform_standalone_covergroup(@1, $2, $10, nullptr, formals__, ftypes__);
+	delete[] $2; if ($3) delete $3; delete[] $6;
+	if ($12) delete[] $12;
+      }
 
   /* M5-if: a bare module-scope virtual-interface variable
      (`virtual bus_if v;`). The generic route (block_item_decl ->

@@ -307,16 +307,54 @@ class netclass_t : public ivl_type_s {
 	// M11: per-coverpoint iff guard expressions (pform, evaluated
 	// at each sample() call site; null = unguarded).
       void add_covgrp_cp_guard(PExpr*g) { covgrp_cp_guards_.push_back(g); }
+	// Coverpoint SOURCE expressions (pform), for sample() sites
+	// where the source is not a parent-class property — standalone
+	// (module/package-scope) covergroups sample scope signals, and
+	// the expression elaborates in the CALLER's scope.
+      void add_covgrp_cp_expr(PExpr*e) { covgrp_cp_exprs_.push_back(e); }
+	// M11-4: `with function sample(...)` formal names, in
+	// declaration order — sample() call arguments bind to them.
+      void add_covgrp_sample_formal(perm_string n) { covgrp_sample_formals_.push_back(n); }
+      size_t covgrp_sample_formal_count() const { return covgrp_sample_formals_.size(); }
+      perm_string covgrp_sample_formal(size_t i) const { return covgrp_sample_formals_[i]; }
+      PExpr* covgrp_cp_expr(unsigned cp_idx) const {
+	    if (cp_idx < covgrp_cp_exprs_.size()) return covgrp_cp_exprs_[cp_idx];
+	    return 0;
+      }
       PExpr* covgrp_cp_guard(unsigned cp_idx) const {
 	    if (cp_idx < covgrp_cp_guards_.size()) return covgrp_cp_guards_[cp_idx];
 	    return nullptr;
       }
 
+	// M11-3: event-driven sampling of class-embedded covergroups.
+	// The runtime samples every live instance on the declaration
+	// event: per coverpoint it reads the PARENT object's property
+	// (srcprop; -1 = not property-backed, samples constant 0) and
+	// guard property (guardsrc; -1 = unguarded), reaching the
+	// parent through the hidden __covgrp_parent handle property.
+      void add_covgrp_cp_srcprop(int p) { covgrp_cp_srcprops_.push_back(p); }
+      int covgrp_cp_srcprop(unsigned cp_idx) const {
+	    if (cp_idx < covgrp_cp_srcprops_.size()) return covgrp_cp_srcprops_[cp_idx];
+	    return -1;
+      }
+      void add_covgrp_cp_guardsrc(int p) { covgrp_cp_guardsrcs_.push_back(p); }
+      int covgrp_cp_guardsrc(unsigned cp_idx) const {
+	    if (cp_idx < covgrp_cp_guardsrcs_.size()) return covgrp_cp_guardsrcs_[cp_idx];
+	    return -1;
+      }
+      void set_covgrp_parent_prop(int p) { covgrp_parent_prop_ = p; }
+      int covgrp_parent_prop() const { return covgrp_parent_prop_; }
+
     private:
+      std::vector<PExpr*> covgrp_cp_exprs_;
+      std::vector<perm_string> covgrp_sample_formals_;
       std::vector<covgrp_bin_t> covgrp_bins_;
       std::vector<covgrp_item_t> covgrp_items_;
       std::vector<int> covgrp_cp_parent_props_;
       std::vector<PExpr*> covgrp_cp_guards_;
+      std::vector<int> covgrp_cp_srcprops_;
+      std::vector<int> covgrp_cp_guardsrcs_;
+      int covgrp_parent_prop_ = -1;
       bool is_covergroup_ = false;
       bool has_embedded_cgs_ = false;
       unsigned covgrp_ncoverpoints_ = 0;

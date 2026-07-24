@@ -654,6 +654,23 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 			  str_stack_need += 1;
 			  buffer[0] = 0;
 			  break;
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		    /* A whole-container EXPRESSION (e.g. a queue slice
+		       q[1:2] or a container-valued function result —
+		       container signals were already handled above):
+		       pass the object handle so %p can render the
+		       elements instead of reading a garbage vector. */
+		  draw_eval_object(expr);
+		  args[idx].vec_flag = 0;
+		  args[idx].str_flag = 0;
+		  args[idx].real_flag = 0;
+		  args[idx].obj_flag = 1;
+		  args[idx].obj_type = 0;
+		  args[idx].stack = obj_stack_need;
+		  obj_stack_need += 1;
+		  buffer[0] = 0;
+		  break;
 		default:
 		  /* Fallback: For unsupported types (CLASS, VOID, etc.), try to
 		     evaluate as vec4. This handles cases like $cast which may return

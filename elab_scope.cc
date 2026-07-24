@@ -1745,6 +1745,12 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 
       total_class_allocs_ += 1;
       netclass_t*use_class = new netclass_t(use_type->name, 0);
+	// M11-1/2: a standalone covergroup type IS a covergroup class;
+	// mark it at creation so method dispatch (sample(),
+	// get_inst_coverage()...) recognizes instances before the
+	// body-elaboration pass synthesizes the bins.
+      if (use_type->is_covergroup_standalone)
+	    use_class->set_is_covergroup(true);
 
       NetScope*class_scope = new NetScope(scope, hname_t(pclass->pscope_name()),
 					  NetScope::CLASS, scope->unit());

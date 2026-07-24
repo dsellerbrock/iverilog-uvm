@@ -137,6 +137,9 @@ extern void draw_vpi_rfunc_call(ivl_expr_t expr);
 extern void draw_vpi_sfunc_call(ivl_expr_t expr);
 
 extern void draw_class_in_scope(ivl_type_t classtype);
+/* Emit the .class definition for a scope-less class type (parameterized
+ * specialization, synthesized covergroup class) exactly once. */
+extern void ensure_class_type_emitted(ivl_type_t class_type);
 
 /*
  * Enumeration draw routine.
@@ -332,6 +335,46 @@ static inline int expr_is_queue_container_(ivl_expr_t expr)
       return ivl_expr_value(expr) == IVL_VT_QUEUE;
 }
 
+static inline int type_is_object_like_(ivl_type_t type)
+{
+      if (!type)
+            return 0;
+
+      switch (ivl_type_base(type)) {
+          case IVL_VT_CLASS:
+          case IVL_VT_DARRAY:
+          case IVL_VT_QUEUE:
+          case IVL_VT_NO_TYPE:
+            return 1;
+          default:
+            return 0;
+      }
+}
+
+/* Structural shape equality for container element typing: enough to
+ * tell "one element of the target" apart from "a same-shape collection
+ * to splice" in queue pattern assignments and container literals. */
+static inline int container_type_shape_eq_(ivl_type_t a, ivl_type_t b)
+{
+      if (a == b)
+            return 1;
+      if (!a || !b)
+            return 0;
+      if (ivl_type_base(a) != ivl_type_base(b))
+            return 0;
+      switch (ivl_type_base(a)) {
+          case IVL_VT_QUEUE:
+          case IVL_VT_DARRAY:
+            return container_type_shape_eq_(ivl_type_element(a),
+                                            ivl_type_element(b));
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC:
+            return ivl_type_packed_width(a) == ivl_type_packed_width(b);
+          default:
+            return 1;
+      }
+}
+
 /* Queue OR plain dynamic array: both are 0-based runtime-sized
  * containers held as vvp_darray objects, so the object-stack indexed
  * load path (%load/qo/*) serves both. */
@@ -348,6 +391,65 @@ static inline int expr_is_dynarray_container_(ivl_expr_t expr)
             return 1;
 
       return ivl_expr_value(expr) == IVL_VT_QUEUE
+          || ivl_expr_value(expr) == IVL_VT_DARRAY;
+}
+
+/* Decide whether a queue-pattern operand is a same-shape COLLECTION to
+ * splice element-wise (IEEE 1800-2017 10.10 unpacked array
+ * concatenation: {q_a, q_b} concatenates), or a single ELEMENT of the
+ * target queue (e.g. the literal {1} in `qq = {{1},{2,3}}` with
+ * qq[$][$] — its type IS the target's element type, so it must be
+ * appended whole, not spliced). */
+static inline int queue_pattern_operand_is_object_collection_(ivl_expr_t expr,
+                                                              ivl_type_t element_type)
+{
+      ivl_type_t expr_type;
+      ivl_type_t src_element_type;
+
+      if (!expr || !type_is_object_like_(element_type))
+            return 0;
+
+      expr_type = ivl_expr_net_type(expr);
+      if (!expr_type)
+            return expr_is_queue_container_(expr)
+                || ivl_expr_value(expr) == IVL_VT_DARRAY;
+
+      if (ivl_type_base(expr_type) != IVL_VT_QUEUE
+          && ivl_type_base(expr_type) != IVL_VT_DARRAY)
+            return 0;
+
+      /* Operand type matches the target's ELEMENT type exactly: it is
+       * one element, even though it is itself a container. */
+      if (container_type_shape_eq_(expr_type, element_type))
+            return 0;
+
+      /* Operand's own element type matches the target's element type:
+       * a same-shape collection — splice. */
+      if (container_type_shape_eq_(ivl_type_element(expr_type), element_type))
+            return 1;
+
+      src_element_type = ivl_type_element(expr_type);
+      return type_is_object_like_(src_element_type);
+}
+
+/* Kind-generic version: also recognizes containers spliced into queues
+ * of NON-object elements (`q = {q1, 5, q2}` with int elements — IEEE
+ * 1800-2017 10.10). The object-like case defers to the shape-aware
+ * classifier above. */
+static inline int queue_pattern_operand_is_collection_(ivl_expr_t expr,
+                                                       ivl_type_t element_type)
+{
+      ivl_type_t expr_type;
+
+      if (!expr)
+            return 0;
+      if (type_is_object_like_(element_type))
+            return queue_pattern_operand_is_object_collection_(expr, element_type);
+      expr_type = ivl_expr_net_type(expr);
+      if (expr_type)
+            return ivl_type_base(expr_type) == IVL_VT_QUEUE
+                || ivl_type_base(expr_type) == IVL_VT_DARRAY;
+      return expr_is_queue_container_(expr)
           || ivl_expr_value(expr) == IVL_VT_DARRAY;
 }
 

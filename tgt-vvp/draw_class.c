@@ -308,6 +308,21 @@ void draw_class_in_scope(ivl_type_t classtype)
 			  ivl_type_covgrp_item_weight(classtype, idx),
 			  ivl_type_covgrp_item_is_cross(classtype, idx));
 	    }
+	      /* M11-3: event-driven sampling metadata — the hidden
+		 parent-handle property plus per-coverpoint parent
+		 source/guard property indexes. */
+	      /* Property indexes are emitted biased by +1 (0 = none)
+		 because the vvp lexer only accepts unsigned numbers. */
+	    int pprop = ivl_type_covgrp_parent_prop(classtype);
+	    if (pprop >= 0) {
+		  fprintf(vvp_out, " .covgrp_parent %d\n", pprop);
+		  int ncp = ivl_type_covgrp_ncoverpoints(classtype);
+		  for (idx = 0 ; idx < ncp ; idx += 1) {
+			fprintf(vvp_out, " .covgrp_src %d %d\n",
+				ivl_type_covgrp_srcprop(classtype, idx) + 1,
+				ivl_type_covgrp_guardsrc(classtype, idx) + 1);
+		  }
+	    }
       }
 
       fprintf(vvp_out, " ;\n");

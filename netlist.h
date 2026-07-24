@@ -1144,6 +1144,10 @@ class NetScope : public Definitions, public Attrib {
       const PTask*task_pform() const { return task_pform_; };
       void set_class_pform(const PClass*pclass) { class_pform_ = pclass; };
       const PClass*class_pform() const { return class_pform_; };
+	// M11-2: read-only view of the scope's signals, for passes
+	// that scan variables (e.g. the standalone-covergroup
+	// auto-sampler synthesis).
+      const std::map<perm_string,NetNet*>& signals_map() const { return signals_map_; };
 
         /* Allow tracking of elaboration stages. The three stages are:
              1 - scope elaboration

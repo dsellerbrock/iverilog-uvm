@@ -364,11 +364,17 @@ extern std::map<perm_string, PExpr*> pending_cg_options_;
 
 void pform_class_covergroup(const struct vlltype& /*loc*/,
 			     const char*name,
-			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints)
+			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
+			     std::vector<perm_string>*sample_formals,
+			     std::vector<data_type_t*>*sample_formal_types,
+			     std::vector<PEEvent*>*sample_events)
 {
       if (!pform_cur_class || !name) {
 	    pending_crosses_.clear();  // discard if we can't attach
 	    pending_cg_options_.clear();
+	    if (sample_formals) delete sample_formals;
+	    if (sample_formal_types) delete sample_formal_types;
+	    if (sample_events) delete sample_events;
 	    return;
       }
 
@@ -385,5 +391,70 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
       // M11: move accumulated covergroup-level options.
       cg->options = std::move(pending_cg_options_);
       pending_cg_options_.clear();
+      // M11-4: `with function sample(<formals>)` names.
+      if (sample_formals) {
+	    cg->sample_formals = *sample_formals;
+	    delete sample_formals;
+      }
+      if (sample_formal_types) {
+	    cg->sample_formal_types = *sample_formal_types;
+	    delete sample_formal_types;
+      }
+	// M11-3: declaration sampling event on a class-embedded
+	// covergroup.
+      if (sample_events) {
+	    cg->sample_events = *sample_events;
+	    delete sample_events;
+      }
       pform_cur_class->type->covergroups.push_back(cg);
+}
+
+void pform_standalone_covergroup(const struct vlltype&loc,
+			     const char*name,
+			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
+			     std::vector<PEEvent*>*sample_events,
+			     std::vector<perm_string>*sample_formals,
+			     std::vector<data_type_t*>*sample_formal_types)
+{
+      if (!name) {
+	    pending_crosses_.clear();
+	    pending_cg_options_.clear();
+	    if (sample_formals) delete sample_formals;
+	    if (sample_formal_types) delete sample_formal_types;
+	    return;
+      }
+      perm_string cg_name = lex_strings.make(name);
+      PClass*cls = pform_push_class_scope(loc, cg_name);
+      class_type_t*ct = new class_type_t(cg_name);
+      FILE_NAME(ct, loc);
+      ct->is_covergroup_standalone = true;
+      cls->type = ct;
+      pform_set_typedef(loc, cg_name, ct, nullptr);
+	// The regular class-covergroup registration attaches the
+	// covergroup (and any pending crosses/options) via
+	// pform_cur_class, which only class_declaration normally
+	// manages — point it at the wrapper for the call.
+      PClass*save_cur = pform_cur_class;
+      pform_cur_class = cls;
+      pform_class_covergroup(loc, name, coverpoints);
+      pform_cur_class = save_cur;
+      if (sample_events && !ct->covergroups.empty()) {
+	    ct->covergroups.back()->sample_events = *sample_events;
+	    delete sample_events;
+      } else if (sample_events) {
+	    delete sample_events;
+      }
+      if (sample_formals && !ct->covergroups.empty()) {
+	    ct->covergroups.back()->sample_formals = *sample_formals;
+	    delete sample_formals;
+      } else if (sample_formals) {
+	    delete sample_formals;
+      }
+      if (sample_formal_types && !ct->covergroups.empty()) {
+	    ct->covergroups.back()->sample_formal_types = *sample_formal_types;
+	    delete sample_formal_types;
+      } else if (sample_formal_types) {
+	    delete sample_formal_types;
+      }
+      pform_pop_scope();
 }

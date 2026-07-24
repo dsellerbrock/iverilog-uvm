@@ -8780,36 +8780,92 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 			     Statement*pass_stmt, Statement*else_stmt)
 {
       const char*why = nullptr;
-      if (!prop || !prop->seq || prop->seq->empty())
+      bool have_tree = prop && prop->tree;
+      if (!prop || (!have_tree && (!prop->seq || prop->seq->empty())))
 	    why = "an empty `expect' property";
-      else if (prop->op_type != 0 || prop->antecedent || prop->tree
+      else if (prop->op_type != 0 || prop->antecedent
 	       || prop->seq_clk_evt || prop->strength != 0)
 	    why = "an `expect' that is not a plain sequence property "
-		  "(implication, strong/weak, combinator, or multiclock)";
+		  "(implication, strong/weak, negation, or multiclock)";
       else if (!prop->clk_evt)
 	    why = "an `expect' with no explicit clocking event";
       else if (prop->disable_iff_expr)
 	    why = "`disable iff' on an `expect'";
-      if (!why) {
+
+	/* Fast path: a fixed `##N' boolean chain is exactly a run of
+	   clock-waits + checks (no automaton needed). */
+      bool fast = false;
+      if (!why && !have_tree) {
+	    fast = true;
 	    std::vector<sva_seq_step_t>&s = *prop->seq;
 	    for (size_t j = 0 ; j < s.size() ; j += 1) {
 		  if (s[j].delay_lo != s[j].delay_hi || s[j].delay_lo < 0
 		      || s[j].rep_tail || s[j].rep_kind || s[j].lv_rhs
 		      || s[j].fm) {
-			why = "an `expect' with a variable-length, "
-			      "repetition, goto, local-variable, or "
-			      "first_match sequence (only fixed `##N' boolean "
-			      "chains are supported)";
+			fast = false;
 			break;
 		  }
-		  if (j == 0 && s[j].delay_lo != 0) {
-			why = "an `expect' whose first term carries a leading "
-			      "cycle delay";
-			break;
-		  }
-		  if (j > 0 && s[j].delay_lo < 1) {
-			why = "an `expect' with a `##0'-fused term";
-			break;
+		  if (j == 0 && s[j].delay_lo != 0) { fast = false; break; }
+		  if (j > 0 && s[j].delay_lo < 1) { fast = false; break; }
+	    }
+      }
+
+	/* M9-11: every other sequence shape (windows, repetition,
+	   goto, first_match, unbounded waits, or/and/intersect trees)
+	   rides the automaton engine — the blocking process itself
+	   drives a SINGLE inline attempt: one 1-bit state register per
+	   automaton state, advanced once per clock tick; first accept
+	   is the match, an empty next-state set is the failure. */
+      sva_nfa_t xnfa;
+      std::vector< std::vector<sva_seq_step_t>* > xleaves;
+      if (!why && !fast) {
+	    if (!pform_sva_nfa_enabled())
+		  why = "this `expect' sequence shape under the legacy "
+			"SVA engine (unset IVL_SVA_LEGACY to use the "
+			"automaton engine)";
+      }
+      if (!why && !fast) {
+	    if (have_tree) {
+		  sva_tree_leaves_(prop->tree, xleaves);
+		  for (size_t i = 0 ; i < xleaves.size() ; i += 1)
+			sva_splice_sequences_(loc, *xleaves[i]);
+	    } else {
+		  sva_splice_sequences_(loc, *prop->seq);
+		  xleaves.push_back(prop->seq);
+	    }
+	    bool has_lv = false;
+	    for (size_t i = 0 ; i < xleaves.size() ; i += 1)
+		  for (size_t sj = 0 ; sj < xleaves[i]->size() ; sj += 1)
+			if ((*xleaves[i])[sj].lv_rhs) has_lv = true;
+	    if (has_lv)
+		  why = "a sequence local variable in an `expect'";
+	    else {
+		  bool built = have_tree
+			? pform_sva_nfa_build_from_tree(xnfa, prop->tree)
+			: pform_sva_nfa_build_from_chain(xnfa, *prop->seq);
+		  if (!built)
+			why = "this sequence shape in an `expect' (the "
+			      "automaton construction does not cover it)";
+		  else if (xnfa.nstates > 128)
+			why = "an `expect' automaton over 128 states";
+		  else {
+			  /* An unreachable accept (an intersect of
+			     incompatible lengths) could never match:
+			     diagnose instead of blocking forever. */
+			std::vector<bool> seen (xnfa.nstates, false);
+			std::vector<unsigned> q;
+			seen[xnfa.start] = true;
+			q.push_back(xnfa.start);
+			for (size_t h = 0 ; h < q.size() ; h += 1)
+			      for (size_t i = 0 ; i < xnfa.edges.size() ; i += 1) {
+				    const sva_nfa_edge_t&ed = xnfa.edges[i];
+				    if (ed.from != q[h] || seen[ed.to]) continue;
+				    seen[ed.to] = true;
+				    q.push_back(ed.to);
+			      }
+			if (!seen[xnfa.accept])
+			      why = "an `expect' whose property can never "
+				    "match (unreachable accept state)";
 		  }
 	    }
       }
@@ -8822,6 +8878,7 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 	    if (prop) {
 		  delete prop->antecedent;
 		  delete prop->seq;
+		  if (prop->tree) sva_tree_delete_(prop->tree, true);
 		  delete prop->clk_evt;
 		  delete prop->seq_clk_evt;
 		  delete prop->disable_iff_expr;
@@ -8832,46 +8889,153 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
       }
 
       PEventStatement*clk = prop->clk_evt;
-      std::vector<sva_seq_step_t>&s = *prop->seq;
       unsigned inst = sva_gensym_counter++;
-      perm_string m = sva_make_reg_(loc, inst, "em", 0);   // 1-bit match flag
 
-      std::vector<Statement*> body;
-      body.push_back(sva_assign_(loc, m, sva_bit_(loc, 1)));
+      if (fast) {
+	    std::vector<sva_seq_step_t>&s = *prop->seq;
+	    perm_string m = sva_make_reg_(loc, inst, "em", 0);   // 1-bit match flag
 
-	/* First term: wait the first tick, then check e0. */
-      body.push_back(sva_clone_wait_(loc, clk));
-      PExpr*e0 = s[0].expr; s[0].expr = nullptr;
-      body.push_back(sva_if_(loc, sva_not_(loc, e0),
-			     sva_assign_(loc, m, sva_bit_(loc, 0)), nullptr));
+	    std::vector<Statement*> body;
+	    body.push_back(sva_assign_(loc, m, sva_bit_(loc, 1)));
 
-	/* Subsequent terms, each guarded by the running match flag. */
-      for (size_t j = 1 ; j < s.size() ; j += 1) {
-	    long dj = s[j].delay_lo;
-	    PExpr*ej = s[j].expr; s[j].expr = nullptr;
-	    std::vector<Statement*> inner;
-	    if (dj == 1) {
-		  inner.push_back(sva_clone_wait_(loc, clk));
-	    } else {
-		  PENumber*cnt = new PENumber(new verinum((uint64_t)dj, 32));
-		  FILE_NAME(cnt, loc);
-		  PRepeat*rep = new PRepeat(cnt, sva_clone_wait_(loc, clk));
-		  FILE_NAME(rep, loc);
-		  inner.push_back(rep);
+	      /* First term: wait the first tick, then check e0. */
+	    body.push_back(sva_clone_wait_(loc, clk));
+	    PExpr*e0 = s[0].expr; s[0].expr = nullptr;
+	    body.push_back(sva_if_(loc, sva_not_(loc, e0),
+				   sva_assign_(loc, m, sva_bit_(loc, 0)), nullptr));
+
+	      /* Subsequent terms, each guarded by the running match flag. */
+	    for (size_t j = 1 ; j < s.size() ; j += 1) {
+		  long dj = s[j].delay_lo;
+		  PExpr*ej = s[j].expr; s[j].expr = nullptr;
+		  std::vector<Statement*> inner;
+		  if (dj == 1) {
+			inner.push_back(sva_clone_wait_(loc, clk));
+		  } else {
+			PENumber*cnt = new PENumber(new verinum((uint64_t)dj, 32));
+			FILE_NAME(cnt, loc);
+			PRepeat*rep = new PRepeat(cnt, sva_clone_wait_(loc, clk));
+			FILE_NAME(rep, loc);
+			inner.push_back(rep);
+		  }
+		  inner.push_back(sva_if_(loc, sva_not_(loc, ej),
+					  sva_assign_(loc, m, sva_bit_(loc, 0)),
+					  nullptr));
+		  body.push_back(sva_if_(loc, sva_id_(loc, m),
+					 sva_block_(loc, inner), nullptr));
 	    }
-	    inner.push_back(sva_if_(loc, sva_not_(loc, ej),
-				    sva_assign_(loc, m, sva_bit_(loc, 0)),
-				    nullptr));
-	    body.push_back(sva_if_(loc, sva_id_(loc, m),
-				   sva_block_(loc, inner), nullptr));
+
+	      /* Terminal dispatch: pass on a match, else on a failure. */
+	    body.push_back(sva_if_(loc, sva_id_(loc, m), pass_stmt, else_stmt));
+
+	      /* The clock was cloned per wait; the original is now free. */
+	    delete prop->clk_evt;
+	    delete prop->seq;      // step exprs stolen (nulled) above
+	    delete prop;
+
+	    return sva_block_(loc, body);
       }
 
-	/* Terminal dispatch: pass on a match, else on a failure. */
-      body.push_back(sva_if_(loc, sva_id_(loc, m), pass_stmt, else_stmt));
+	/* ---- M9-11: inline single-attempt automaton driver ----
+	 * st_i / nx_i are 1-bit current/next state registers. Each
+	 * distinct edge-guard expression (guards are BORROWED pointers
+	 * shared across edges) is sampled once per tick into its own
+	 * register, then every tick edge whose source state is live
+	 * and whose sampled guards hold sets its destination. First
+	 * accept = match; an empty next set = failure. An unbounded
+	 * wait (`##[1:$]') that never resolves blocks forever, which
+	 * is the specified behavior of a weak unbounded sequence. */
+      unsigned N = xnfa.nstates;
 
-	/* The clock was cloned per wait; the original is now free. */
+      std::map<PExpr*, unsigned> gidx;
+      std::vector<PExpr*> glist;
+      for (size_t i = 0 ; i < xnfa.edges.size() ; i += 1)
+	    for (size_t g = 0 ; g < xnfa.edges[i].guards.size() ; g += 1) {
+		  PExpr*ge = xnfa.edges[i].guards[g];
+		  if (!gidx.count(ge)) {
+			gidx[ge] = (unsigned)glist.size();
+			glist.push_back(ge);
+		  }
+	    }
+
+      std::vector<perm_string> st_r (N), nx_r (N);
+      for (unsigned i = 0 ; i < N ; i += 1) {
+	    st_r[i] = sva_make_reg_(loc, inst, "xs", i);
+	    nx_r[i] = sva_make_reg_(loc, inst, "xn", i);
+      }
+      std::vector<perm_string> g_r (glist.size());
+      for (unsigned k = 0 ; k < glist.size() ; k += 1)
+	    g_r[k] = sva_make_reg_(loc, inst, "xg", k);
+      perm_string done_r = sva_make_reg_(loc, inst, "xd", 0);
+      perm_string ok_r = sva_make_reg_(loc, inst, "xo", 0);
+
+      std::vector<Statement*> body;
+      for (unsigned i = 0 ; i < N ; i += 1)
+	    body.push_back(sva_assign_(loc, st_r[i],
+				       sva_bit_(loc, i == xnfa.start ? 1 : 0)));
+      body.push_back(sva_assign_(loc, done_r, sva_bit_(loc, 0)));
+      body.push_back(sva_assign_(loc, ok_r, sva_bit_(loc, 0)));
+
+      std::vector<Statement*> tick;
+      tick.push_back(sva_clone_wait_(loc, clk));
+	/* Sample each distinct guard once (steals the expression). */
+      for (unsigned k = 0 ; k < glist.size() ; k += 1)
+	    tick.push_back(sva_assign_(loc, g_r[k], glist[k]));
+      for (unsigned i = 0 ; i < N ; i += 1)
+	    tick.push_back(sva_assign_(loc, nx_r[i], sva_bit_(loc, 0)));
+      for (size_t i = 0 ; i < xnfa.edges.size() ; i += 1) {
+	    const sva_nfa_edge_t&ed = xnfa.edges[i];
+	    PExpr*cond = sva_id_(loc, st_r[ed.from]);
+	    for (size_t g = 0 ; g < ed.guards.size() ; g += 1) {
+		  PEBinary*bb = new PEBLogic('a', cond,
+					     sva_id_(loc, g_r[gidx[ed.guards[g]]]));
+		  FILE_NAME(bb, loc);
+		  cond = bb;
+	    }
+	    tick.push_back(sva_if_(loc, cond,
+				   sva_assign_(loc, nx_r[ed.to], sva_bit_(loc, 1)),
+				   nullptr));
+      }
+      std::vector<Statement*> matched;
+      matched.push_back(sva_assign_(loc, ok_r, sva_bit_(loc, 1)));
+      matched.push_back(sva_assign_(loc, done_r, sva_bit_(loc, 1)));
+      std::vector<Statement*> advance;
+      for (unsigned i = 0 ; i < N ; i += 1)
+	    advance.push_back(sva_assign_(loc, st_r[i], sva_id_(loc, nx_r[i])));
+      PExpr*alive = nullptr;
+      for (unsigned i = 0 ; i < N ; i += 1) {
+	    PExpr*bit = sva_id_(loc, nx_r[i]);
+	    if (!alive) { alive = bit; continue; }
+	    PEBinary*bb = new PEBLogic('o', alive, bit);
+	    FILE_NAME(bb, loc);
+	    alive = bb;
+      }
+      advance.push_back(sva_if_(loc, sva_not_(loc, alive),
+				sva_assign_(loc, done_r, sva_bit_(loc, 1)),
+				nullptr));
+      tick.push_back(sva_if_(loc, sva_id_(loc, nx_r[xnfa.accept]),
+			     sva_block_(loc, matched),
+			     sva_block_(loc, advance)));
+
+      PWhile*loop = new PWhile(sva_not_(loc, sva_id_(loc, done_r)),
+			       sva_block_(loc, tick));
+      FILE_NAME(loop, loc);
+      body.push_back(loop);
+      body.push_back(sva_if_(loc, sva_id_(loc, ok_r), pass_stmt, else_stmt));
+
+	/* Null the stolen guard expressions at their sources so the
+	   deletes below cannot double-free them. */
+      for (size_t i = 0 ; i < xleaves.size() ; i += 1)
+	    for (size_t sj = 0 ; sj < xleaves[i]->size() ; sj += 1)
+		  if ((*xleaves[i])[sj].expr
+		      && gidx.count((*xleaves[i])[sj].expr))
+			(*xleaves[i])[sj].expr = nullptr;
+
       delete prop->clk_evt;
-      delete prop->seq;      // step exprs stolen (nulled) above
+      if (have_tree)
+	    sva_tree_delete_(prop->tree, true);
+      else
+	    delete prop->seq;
       delete prop;
 
       return sva_block_(loc, body);

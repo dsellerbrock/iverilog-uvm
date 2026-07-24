@@ -3697,6 +3697,32 @@ extern "C" int ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx)
       return 0;
 }
 
+/* M11-3: event-driven sampling metadata for class-embedded
+ * covergroups. */
+extern "C" int ivl_type_covgrp_parent_prop(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type)
+	    return class_type->covgrp_parent_prop();
+      return -1;
+}
+
+extern "C" int ivl_type_covgrp_srcprop(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_cp_srcprop((unsigned)idx);
+      return -1;
+}
+
+extern "C" int ivl_type_covgrp_guardsrc(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0)
+	    return class_type->covgrp_cp_guardsrc((unsigned)idx);
+      return -1;
+}
+
 extern "C" int ivl_type_signed(ivl_type_t net)
 {
       assert(net);
