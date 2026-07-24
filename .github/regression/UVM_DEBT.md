@@ -1,11 +1,10 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: M12-8 head b3f3b2b (212/212, 4x53 batches,
-2026-07-24 — validated the full accumulated arc since the M11 head:
-M9-11 expect, M9-7 D.2 multiclock chains, and the entire M12-4/5/6/7/8
-VPI completion cluster: assoc-element writes, nested member
-traversal, covergroup drill-down, modport direction metadata, and the
-lifetime audit + covergroup-handle leak fix).
+Full UVM last passed: M12-2 head f21cb21 (212/212, 4x53 batches,
+2026-07-24 — validated the SVA assertion-ABI change: attemptStartTime
+recovery via depth_arg threaded through $ivl_register_assertion and
+the __vpiAssertion start-time ring; ran a full pass because it touches
+the core SVA lowering + assertion VPI ABI, not just VPI read paths).
 
 Commits since full UVM: 0
 Highest risk change since last full run: —
