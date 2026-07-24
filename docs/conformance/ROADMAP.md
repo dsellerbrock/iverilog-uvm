@@ -136,8 +136,8 @@ type-inference path for the same underlying shape and may now be removable
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M4B-1 | Struct value-copy through method args / return / `push_back(var)` | C | OPEN | — | by-value struct arg & return copy independently |
-| M4B-2 | Nested unpacked-struct **deep** copy (current copy is shallow) | C | OPEN | — | nested struct member copied by value, not shared |
+| M4B-1 | Struct value-copy through method args / return / `push_back(var)` | C | **DONE** | — | by-value struct arg, by-value return, and `push_back(var)` each snapshot rather than alias — verified and pinned by sv_struct_value_copy_args (the row was stale; the behavior already worked) |
+| M4B-2 | Nested unpacked-struct **deep** copy (current copy is shallow) | C | **DONE** | — | assigning a nested unpacked struct deep-copies the inner struct — verified and pinned by sv_struct_value_copy_args (the row was stale) |
 | M4B-3 | Adversarial nested-container testing | A | **DONE** | — | queue-of-struct, struct-of-darray, assoc-of-queue, class-of-queue-of-struct verified; array-of-queue is a loud sorry (known); the partial-write bug (M1B-5) surfaced here too |
 | M4B-4 | `%p` on packed struct → `'{member:val}` (prints one decimal) | F | OPEN (deferred, cosmetic) | — | packed struct prints member pattern |
 | M4B-5 | `%p` nested unpacked dims print nested not flat | F | OPEN (deferred, cosmetic) | — | multi-dim prints `'{'{..},..}` |
