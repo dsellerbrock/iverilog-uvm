@@ -227,6 +227,9 @@ ivl_scope_program
 ivl_scope_is_interface
 ivl_scope_modports
 ivl_scope_modport_name
+ivl_scope_modport_ports
+ivl_scope_modport_port_name
+ivl_scope_modport_port_dir
 ivl_scope_lineno
 ivl_scope_logs
 ivl_scope_log

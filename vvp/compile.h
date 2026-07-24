@@ -317,8 +317,11 @@ extern void compile_shiftr(char*label, long width, bool signed_flag,
 			   unsigned argc, struct symb_s*argv);
 
 extern void compile_timescale(long units, long precision);
-/* M12: modport declaration inside an interface scope. */
+/* M12: modport declaration inside an interface scope. M12-6: each
+   following (port name, VPI direction) pair attaches to the modport
+   just declared. */
 extern void compile_modport_decl(char*name);
+extern void compile_modport_port(char*name, uint64_t dir);
 
 extern void compile_vpi_symbol(const char*label, vpiHandle obj);
 extern void compile_vpi_lookup(vpiHandle *objref, char*label);

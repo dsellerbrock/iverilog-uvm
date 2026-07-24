@@ -720,6 +720,9 @@ struct ivl_scope_s {
       unsigned is_program;
       unsigned is_interface;
       std::vector<perm_string> modport_names;
+	// M12-6: per-modport (port name, VPI direction) lists,
+	// parallel to modport_names.
+      std::vector< std::vector< std::pair<perm_string,int> > > modport_ports;
       ivl_variable_type_t func_type;
       bool func_signed;
       unsigned func_width;

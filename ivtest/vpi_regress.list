@@ -155,6 +155,7 @@ m12_sv_objects   normal,-g2012   m12_sv_objects.c  m12_sv_objects.log
 m12_assoc_write  normal,-g2012   m12_assoc_write.c m12_assoc_write.log
 m12_nested_members  normal,-g2012 m12_nested_members.c m12_nested_members.log
 m12_covgrp_drill  normal,-g2012 m12_covgrp_drill.c m12_covgrp_drill.log
+m12_modport_dirs  normal,-g2012 m12_modport_dirs.c m12_modport_dirs.log
 m12_sv_scopes    normal,-g2012   m12_sv_scopes.c   m12_sv_scopes.log
 m12_sv_coverage  normal,-g2012   m12_sv_coverage.c m12_sv_coverage.log
 m12b_assert_vpi  normal,-g2012   m12b_assert_vpi.c m12b_assert_vpi.log

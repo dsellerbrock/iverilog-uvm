@@ -46,6 +46,7 @@
 # include  "PClass.h"
 # include  "PGate.h"
 # include  "PGenerate.h"
+# include  "PModport.h"
 # include  "PPackage.h"
 # include  "PTask.h"
 # include  "PWire.h"
@@ -2169,11 +2170,30 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
 bool Module::elaborate_scope(Design*des, NetScope*scope,
 			     const replace_t&replacements)
 {
-	// M12: record modport names on interface scopes for VPI.
+	// M12: record modport names on interface scopes for VPI —
+	// M12-6 adds each modport's port list with VPI direction
+	// codes (ref ports map to vpiNoDirection).
       if (is_interface) {
 	    for (std::map<perm_string,PModport*>::const_iterator mp = modports.begin()
-		       ; mp != modports.end() ; ++ mp)
+		       ; mp != modports.end() ; ++ mp) {
 		  scope->add_modport_name(mp->first);
+		  NetScope::modport_port_list_t ports;
+		  if (mp->second) {
+			for (std::map<perm_string,PModport::simple_port_t>::const_iterator
+				   sp = mp->second->simple_ports.begin()
+				   ; sp != mp->second->simple_ports.end() ; ++ sp) {
+			      int dir;
+			      switch (sp->second.first) {
+				  case NetNet::PINPUT:  dir = 1; break; // vpiInput
+				  case NetNet::POUTPUT: dir = 2; break; // vpiOutput
+				  case NetNet::PINOUT:  dir = 3; break; // vpiInout
+				  default:              dir = 5; break; // vpiNoDirection
+			      }
+			      ports.push_back(std::make_pair(sp->first, dir));
+			}
+		  }
+		  scope->add_modport_ports(ports);
+	    }
       }
 
 	// M13: make let declarations visible to expression elaboration.

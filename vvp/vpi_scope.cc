@@ -474,8 +474,36 @@ struct vpiScopeInterface  : public __vpiScope {
       int get_type_code(void) const override { return vpiInterface; }
 };
 
-/* M12: a modport declaration of an interface — name-level VPI
-   introspection (per-signal directions stay compile-time). */
+/* M12: a modport declaration of an interface. M12-6 adds the port
+   list: vpi_iterate(vpiIODecl) yields one handle per modport port
+   with its declared direction (vpi_get(vpiDirection)). */
+class __vpiModport;
+
+class __vpiModportIO : public __vpiHandle {
+    public:
+      __vpiModportIO(__vpiModport*parent, const std::string&name, int dir)
+      : parent_(parent), name_(name), dir_(dir) { }
+
+      int get_type_code(void) const override { return vpiIODecl; }
+
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiDirection: return dir_;
+		default: return vpiUndefined;
+	    }
+      }
+
+      char* vpi_get_str(int code) override;
+
+      vpiHandle vpi_handle(int code) override;
+
+    private:
+      __vpiModport*parent_;
+      std::string name_;
+      int dir_;
+};
+
 class __vpiModport : public __vpiHandle {
     public:
       __vpiModport(__vpiScope*scope, const char*name)
@@ -487,6 +515,7 @@ class __vpiModport : public __vpiHandle {
       {
 	    switch (code) {
 		case vpiLineNo: return 0;
+		case vpiSize: return (int)ports_.size();
 		default: return vpiUndefined;
 	    }
       }
@@ -502,10 +531,53 @@ class __vpiModport : public __vpiHandle {
 	    return 0;
       }
 
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiIODecl || ports_.empty())
+		  return 0;
+	    vpiHandle*args = (vpiHandle*)malloc(ports_.size() * sizeof(vpiHandle));
+	    for (size_t idx = 0 ; idx < ports_.size() ; idx += 1)
+		  args[idx] = ports_[idx];
+	    return vpip_make_iterator((unsigned)ports_.size(), args, true);
+      }
+
+      void add_port(const std::string&pname, int dir)
+      { ports_.push_back(new __vpiModportIO(this, pname, dir)); }
+
+      const char*name() const { return name_; }
+
     private:
       __vpiScope*scope_;
       const char*name_;
+      std::vector<__vpiModportIO*> ports_;
 };
+
+char* __vpiModportIO::vpi_get_str(int code)
+{
+      switch (code) {
+	  case vpiName: {
+		char*rbuf = (char*)need_result_buf(name_.size()+1, RBUF_STR);
+		strcpy(rbuf, name_.c_str());
+		return rbuf;
+	  }
+	  case vpiFullName: {
+		char*pn = parent_->vpi_get_str(vpiFullName);
+		std::string full = std::string(pn ? pn : "?") + "." + name_;
+		char*rbuf = (char*)need_result_buf(full.size()+1, RBUF_STR);
+		strcpy(rbuf, full.c_str());
+		return rbuf;
+	  }
+	  default:
+	    return 0;
+      }
+}
+
+vpiHandle __vpiModportIO::vpi_handle(int code)
+{
+      if (code == vpiParent || code == vpiScope)
+	    return parent_;
+      return 0;
+}
 
 /*
  * The current_scope is a compile time concept. As the vvp source is
@@ -734,13 +806,24 @@ vpiHandle vpip_make_assertion_iterator(void)
 }
 
 /* M12: attach a modport declaration to the current (interface)
-   scope. */
+   scope. M12-6: subsequent compile_modport_port calls append the
+   directive's (port, direction) pairs to the modport just declared. */
+static __vpiModport*last_modport_decl_ = 0;
+
 void compile_modport_decl(char*name)
 {
       assert(current_scope);
       const char*use_name = vpip_name_string(name);
       __vpiModport*obj = new __vpiModport(current_scope, use_name);
       vpip_attach_to_current_scope(obj);
+      last_modport_decl_ = obj;
+      delete[] name;
+}
+
+void compile_modport_port(char*name, uint64_t dir)
+{
+      assert(last_modport_decl_);
+      last_modport_decl_->add_port(std::string(name), (int)dir);
       delete[] name;
 }
 

@@ -1921,6 +1921,13 @@ extern unsigned ivl_scope_program(ivl_scope_t net);
 extern unsigned ivl_scope_is_interface(ivl_scope_t net);
 extern unsigned ivl_scope_modports(ivl_scope_t net);
 extern const char* ivl_scope_modport_name(ivl_scope_t net, unsigned idx);
+  /* M12-6: modport port lists — VPI direction codes (vpiInput=1,
+     vpiOutput=2, vpiInout=3, vpiNoDirection=5 for ref/import). */
+extern unsigned ivl_scope_modport_ports(ivl_scope_t net, unsigned idx);
+extern const char* ivl_scope_modport_port_name(ivl_scope_t net,
+                                               unsigned idx, unsigned pidx);
+extern int ivl_scope_modport_port_dir(ivl_scope_t net,
+                                      unsigned idx, unsigned pidx);
 extern unsigned ivl_scope_is_cell(ivl_scope_t net);
 extern unsigned ivl_scope_lineno(ivl_scope_t net);
 extern unsigned     ivl_scope_logs(ivl_scope_t net);

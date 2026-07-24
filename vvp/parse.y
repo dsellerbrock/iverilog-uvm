@@ -739,8 +739,11 @@ statement
 		{ compile_port_info( $2 /* port_index */, $3, $4 /* width */,
 		                     $5 /*&name */, nullptr /* buffer */ ); }
 
-	|         K_MODPORT T_STRING ';'
+  /* M12-6: the .modport directive carries optional "port" direction
+     pairs after the modport name. */
+	|         K_MODPORT T_STRING
 		{ compile_modport_decl($2); }
+	  modport_ports_opt ';'
 
 	|         K_TIMESCALE T_NUMBER T_NUMBER';'
 		{ compile_timescale($2, $3); }
@@ -1323,6 +1326,14 @@ port_type
         | K_PORT_INOUT  { $$ = vpiInout; }
         | K_PORT_MIXED  { $$ = vpiMixedIO; }
         | K_PORT_NODIR  { $$ = vpiNoDirection; }
+        ;
+
+  /* M12-6: optional "port" direction pairs on a .modport directive,
+     appended to the modport declared by the enclosing statement. */
+modport_ports_opt
+        : /* empty */
+        | modport_ports_opt T_STRING T_NUMBER
+                { compile_modport_port($2, $3); }
         ;
 
 modpath_src

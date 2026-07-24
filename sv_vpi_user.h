@@ -47,6 +47,12 @@ EXTERN_C_START
 #define vpiInterface        601
 #define vpiProgram          602
 #define vpiModport          603
+/* M12-6: modport port declarations — vpi_iterate(vpiIODecl, modport)
+ * yields one handle per modport port; vpi_get(vpiDirection) gives
+ * vpiInput/vpiOutput/vpiInout (vpiNoDirection for ref). (The IEEE
+ * vpiIODecl code 25 collides with Icarus's vpiIntegerVar, so this
+ * header assigns a free code.) */
+#define vpiIODecl           604
 #define vpiCovergroup       605
 #define vpiArrayType        606
 #define   vpiStaticArray      1

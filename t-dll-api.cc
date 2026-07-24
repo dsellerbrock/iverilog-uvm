@@ -2281,6 +2281,37 @@ extern "C" const char* ivl_scope_modport_name(ivl_scope_t net, unsigned idx)
       return net->modport_names[idx].str();
 }
 
+/* M12-6: per-modport port lists with VPI direction codes. */
+extern "C" unsigned ivl_scope_modport_ports(ivl_scope_t net, unsigned idx)
+{
+      assert(net);
+      if (idx >= net->modport_ports.size())
+	    return 0;
+      return (unsigned)net->modport_ports[idx].size();
+}
+
+extern "C" const char* ivl_scope_modport_port_name(ivl_scope_t net,
+						   unsigned idx, unsigned pidx)
+{
+      assert(net);
+      if (idx >= net->modport_ports.size())
+	    return 0;
+      if (pidx >= net->modport_ports[idx].size())
+	    return 0;
+      return net->modport_ports[idx][pidx].first.str();
+}
+
+extern "C" int ivl_scope_modport_port_dir(ivl_scope_t net,
+					  unsigned idx, unsigned pidx)
+{
+      assert(net);
+      if (idx >= net->modport_ports.size())
+	    return 5;
+      if (pidx >= net->modport_ports[idx].size())
+	    return 5;
+      return net->modport_ports[idx][pidx].second;
+}
+
 extern "C" int ivl_scope_is_dpi_import(ivl_scope_t net)
 {
       assert(net);
