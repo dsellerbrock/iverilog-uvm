@@ -6,12 +6,12 @@ package stub-class removal, auto-bin sizing/enum bins, ignore/illegal
 carving, registry dedupe, and class-embedded event sampling with the
 new %covgrp/sample/all runtime).
 
-Commits since full UVM: 2 (ivl.def Windows export list; M9-11 expect
-statement — pform-only lowering, covered by sva_nfa 35/35, negative
-53/53, UVM sva 19/19, smoke 14/14, full ivtest fail-list
-byte-identical)
-Highest risk change since last full run: LOW-MEDIUM (M9-11 touches
-only the expect lowering path in pform.cc)
+Commits since full UVM: 3 (ivl.def Windows export list; M9-11 expect
+statement; M9-7 D.2 multiclock chain pipelines — both pform-only
+lowerings, covered by sva_nfa 36/36, negative 53/53, UVM sva 19/19,
+smoke 14/14, full ivtest fail-list byte-identical at each)
+Highest risk change since last full run: LOW-MEDIUM (M9-11/M9-7
+touch only SVA lowering paths in pform.cc)
 
 Triggers for a full run (see docs/conformance/REGRESSION_POLICY.md):
   - HIGH-risk commits since last full UVM >= 2

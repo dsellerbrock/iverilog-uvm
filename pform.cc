@@ -8601,6 +8601,34 @@ static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v)
       return n;
 }
 
+/* M9-7: expand a FIXED-length sequence chain (constant ##N delays, no
+   repetition/goto/local-variable/first_match) into per-tick boolean
+   slots. slots[t] is the boolean checked at tick offset t (null = a
+   pure delay tick). Returns false for any non-fixed shape. The
+   expressions stay owned by the steps until the caller steals them. */
+static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
+				 std::vector<PExpr*>&slots)
+{
+      long off = 0;
+      for (size_t j = 0 ; j < steps.size() ; j += 1) {
+	    const sva_seq_step_t&st = steps[j];
+	    if (st.delay_lo != st.delay_hi || st.delay_lo < 0
+		|| st.rep_tail || st.rep_kind || st.lv_rhs || st.fm)
+		  return false;
+	    if (j == 0) {
+		  if (st.delay_lo != 0) return false;
+	    } else {
+		  if (st.delay_lo < 1) return false;
+		  off += st.delay_lo;
+	    }
+	    if ((size_t)off + 1 > slots.size())
+		  slots.resize((size_t)off + 1, nullptr);
+	    if (slots[(size_t)off]) return false;
+	    slots[(size_t)off] = st.expr;
+      }
+      return true;
+}
+
 /* M9-NFA stage D.1: multiclocked non-overlapping implication
    `@(c1) a |=> @(c2) b' (IEEE 1800-2017 16.13.3): the antecedent boolean
    is clocked by c1, the consequent boolean by c2, and the consequent is
@@ -8641,18 +8669,27 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    why = "a multiclocked property with no explicit antecedent clock";
       else if (prop->disable_iff_expr)
 	    why = "`disable iff' on a multiclocked property";
-      else if (!prop->antecedent || prop->antecedent->size() != 1
-	       || !prop->seq || prop->seq->size() != 1)
-	    why = "a multiclocked implication whose antecedent or consequent "
-		  "is not a single boolean";
+      else if (!prop->antecedent || prop->antecedent->empty()
+	       || !prop->seq || prop->seq->empty())
+	    why = "a multiclocked implication with an empty antecedent "
+		  "or consequent";
+
+	/* M9-7: each side may be a FIXED-length boolean chain
+	   (`a0 ##d a1 ...', constant delays): it pipelines exactly in
+	   its own clock domain. Expand each chain to a per-tick slot
+	   array (null slot = pure delay tick). */
+      std::vector<PExpr*> a_slots, b_slots;
       if (!why) {
-	    const sva_seq_step_t&A = (*prop->antecedent)[0];
-	    const sva_seq_step_t&B = (*prop->seq)[0];
-	    if (A.delay_lo || A.delay_hi || A.rep_tail || A.rep_kind
-		|| A.lv_rhs || A.fm || B.delay_lo || B.delay_hi || B.rep_tail
-		|| B.rep_kind || B.lv_rhs || B.fm)
+	    sva_splice_sequences_(loc, *prop->antecedent);
+	    sva_splice_sequences_(loc, *prop->seq);
+	    if (!sva_mc_expand_chain_(*prop->antecedent, a_slots)
+		|| !sva_mc_expand_chain_(*prop->seq, b_slots))
 		  why = "a multiclocked implication whose antecedent or "
-			"consequent is not a simple boolean";
+			"consequent is not a fixed-length boolean chain "
+			"(constant ##N delays only)";
+	    else if (a_slots.size() > 64 || b_slots.size() > 64)
+		  why = "a multiclocked implication with a chain over "
+			"64 ticks";
       }
       if (why) {
 	    cerr << loc << ": sorry: " << why << " is not supported "
@@ -8669,31 +8706,86 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       perm_string req = sva_make_reg_(loc, inst, "mcreq", 0, true);
       perm_string ack = sva_make_reg_(loc, inst, "mcack", 0, true);
 
-	/* Steal the operand booleans from their steps. */
-      PExpr*a_expr = (*prop->antecedent)[0].expr;
-      (*prop->antecedent)[0].expr = nullptr;
-      PExpr*b_expr = (*prop->seq)[0].expr;
-      (*prop->seq)[0].expr = nullptr;
+	/* Steal the slot booleans from their steps (the slot arrays
+	   alias the step expressions). */
+      for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1)
+	    (*prop->antecedent)[j].expr = nullptr;
+      for (size_t j = 0 ; j < prop->seq->size() ; j += 1)
+	    (*prop->seq)[j].expr = nullptr;
 
-	/* initial: zero the counters + register the assertion for VPI. */
+      size_t Ta = a_slots.size();
+      size_t Tb = b_slots.size();
+
+	/* M9-7: antecedent PIPELINE in the c1 domain. pa_k = "an
+	   attempt matched the first k ticks and awaits the tick-k
+	   check now"; a fresh attempt starts every tick (pa_0 == 1).
+	   All writes are NBA, so a tick's reads see the previous
+	   tick's stages. */
+      std::vector<perm_string> pa (Ta);
+      for (size_t k = 1 ; k < Ta ; k += 1)
+	    pa[k] = sva_make_reg_(loc, inst, "mca", (unsigned)k);
+	/* consequent pipeline stages tb_1..tb_{Tb-1} in the c2 domain */
+      std::vector<perm_string> tb (Tb);
+      for (size_t k = 1 ; k < Tb ; k += 1)
+	    tb[k] = sva_make_reg_(loc, inst, "mcb", (unsigned)k);
+
+	/* initial: zero everything + register the assertion for VPI. */
       std::vector<Statement*> initv;
       initv.push_back(sva_assign_(loc, req, sva_num32_(loc, 0)));
       initv.push_back(sva_assign_(loc, ack, sva_num32_(loc, 0)));
+      for (size_t k = 1 ; k < Ta ; k += 1)
+	    initv.push_back(sva_assign_(loc, pa[k], sva_bit_(loc, 0)));
+      for (size_t k = 1 ; k < Tb ; k += 1)
+	    initv.push_back(sva_assign_(loc, tb[k], sva_bit_(loc, 0)));
       initv.push_back(sva_register_stmt_(loc, inst));
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
 					sva_block_(loc, initv), nullptr);
       FILE_NAME(ip, loc);
 
-	/* c1: if (a) req <= req + 1; */
-      PExpr*inc = new PEBinary('+', sva_id_(loc, req), sva_num32_(loc, 1));
-      FILE_NAME(inc, loc);
-      c1->set_statement(sva_if_(loc, a_expr, sva_assign_nb_(loc, req, inc),
-				nullptr));
+	/* c1 body: match = pa_{Ta-1} && e_{Ta-1} (current-tick reads,
+	   pre-NBA stage values); if (match) req <= req+1; then the
+	   NBA stage shift pa_{k+1} <= pa_k && e_k. A null slot is a
+	   pure delay (no check). */
+      std::vector<Statement*> body1;
+      {
+	    auto stage_cond = [&](size_t k) -> PExpr* {
+		    /* pa_k gate (k==0: none) AND slot boolean (may be null) */
+		  PExpr*g = (k == 0) ? nullptr : sva_id_(loc, pa[k]);
+		  if (a_slots[k]) {
+			if (!g) return a_slots[k];
+			PEBinary*bb = new PEBLogic('a', g, a_slots[k]);
+			FILE_NAME(bb, loc);
+			return bb;
+		  }
+		  return g ? g : nullptr;
+	    };
+	      /* match condition (slot exprs are used exactly once —
+		 the final stage consumes slot Ta-1 here). */
+	    PExpr*match = stage_cond(Ta - 1);
+	    PExpr*inc = new PEBinary('+', sva_id_(loc, req), sva_num32_(loc, 1));
+	    FILE_NAME(inc, loc);
+	    Statement*bump = sva_assign_nb_(loc, req, inc);
+	    if (match)
+		  body1.push_back(sva_if_(loc, match, bump, nullptr));
+	    else
+		  body1.push_back(bump);
+	      /* stage shifts, earlier stages (each consumes slot k) */
+	    for (size_t k = 0 ; k + 1 < Ta ; k += 1) {
+		  PExpr*cond = stage_cond(k);
+		  body1.push_back(sva_assign_nb_(loc, pa[k+1],
+						 cond ? cond : sva_bit_(loc, 1)));
+	    }
+      }
+      c1->set_statement(sva_block_(loc, body1));
       PProcess*p1 = pform_make_behavior(IVL_PR_ALWAYS, c1, nullptr);
       FILE_NAME(p1, loc);
       prop->clk_evt = nullptr;    /* consumed by the always block */
 
-	/* c2: if (req != ack) begin ack <= req; if (b) <pass> else <fail>; end */
+	/* c2 body: an obligation enters the pipe at the first c2 tick
+	   that sees req != ack (NBA-latched req: strictly after the
+	   c1 match). Each stage checks its slot boolean at its tick;
+	   a false boolean FAILS at that tick, the final stage's true
+	   boolean PASSES. */
       PExpr*outstanding = new PEBComp('n', sva_id_(loc, req), sva_id_(loc, ack));
       FILE_NAME(outstanding, loc);
 
@@ -8713,10 +8805,63 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       Statement*passstmt = sva_block_(loc, passv);
 
       std::vector<Statement*> body2;
-      body2.push_back(sva_assign_nb_(loc, ack, sva_id_(loc, req)));
-      body2.push_back(sva_if_(loc, b_expr, passstmt, failstmt));
-      c2->set_statement(sva_if_(loc, outstanding, sva_block_(loc, body2),
-				nullptr));
+	/* per-tick failure flag: ANY stage (mid-chain or final) that
+	   sees its boolean false raises it; one shared fail action
+	   fires at the end of the tick. gate(k) below is always a
+	   synthesizer-built expression (req != ack, or a stage reg),
+	   so it can be rebuilt freely; each user boolean is consumed
+	   exactly once. */
+      perm_string ffail = sva_make_reg_(loc, inst, "mcbf", 0);
+      body2.push_back(sva_assign_(loc, ffail, sva_bit_(loc, 0)));
+      body2.push_back(sva_if_(loc, outstanding,
+			      sva_assign_nb_(loc, ack, sva_id_(loc, req)),
+			      nullptr));
+      {
+	    auto gate = [&](size_t k) -> PExpr* {
+		  if (k == 0) {
+			PExpr*d = new PEBComp('n', sva_id_(loc, req),
+					      sva_id_(loc, ack));
+			FILE_NAME(d, loc);
+			return d;
+		  }
+		  return sva_id_(loc, tb[k]);
+	    };
+	    auto raise_fail = [&]() -> Statement* {
+		  return sva_assign_(loc, ffail, sva_bit_(loc, 1));
+	    };
+	      /* Mid-chain stages: a 1-bit blocking temp holds the
+		 advance condition so the user boolean is read once;
+		 failure = gate && !advance. */
+	    for (size_t k = 0 ; k + 1 < Tb ; k += 1) {
+		  PExpr*fb = b_slots[k];   /* null = pure delay tick */
+		  if (!fb) {
+			PExpr*g = gate(k);
+			body2.push_back(sva_assign_nb_(loc, tb[k+1], g));
+			continue;
+		  }
+		  perm_string adv = sva_make_reg_(loc, inst, "mcadv",
+						  (unsigned)k);
+		  PEBinary*advx = new PEBLogic('a', gate(k), fb);
+		  FILE_NAME(advx, loc);
+		  body2.push_back(sva_assign_(loc, adv, advx));
+		  body2.push_back(sva_assign_nb_(loc, tb[k+1],
+						 sva_id_(loc, adv)));
+		  PEBinary*dead = new PEBLogic('a', gate(k),
+					       sva_not_(loc, sva_id_(loc, adv)));
+		  FILE_NAME(dead, loc);
+		  body2.push_back(sva_if_(loc, dead, raise_fail(), nullptr));
+	    }
+	      /* Final stage: pass on a true boolean, flag on false. */
+	    {
+		  PExpr*fb = b_slots[Tb - 1];
+		  body2.push_back(sva_if_(loc, gate(Tb - 1),
+			  sva_if_(loc, fb, passstmt, raise_fail()),
+			  nullptr));
+	    }
+	    body2.push_back(sva_if_(loc, sva_id_(loc, ffail),
+				    failstmt, nullptr));
+      }
+      c2->set_statement(sva_block_(loc, body2));
       PProcess*p2 = pform_make_behavior(IVL_PR_ALWAYS, c2, nullptr);
       FILE_NAME(p2, loc);
       prop->seq_clk_evt = nullptr;
