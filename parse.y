@@ -3564,7 +3564,6 @@ description /* IEEE1800-2005: A.1.2 */
   : module
   | udp_primitive
   | config_declaration
-  | checker_declaration
   | nature_declaration
   | package_declaration
   | discipline_declaration
@@ -7366,21 +7365,17 @@ nature_item
       { delete[] $3; }
   ;
 
-  /* SystemVerilog checkers (IEEE 1800-2017 clause 17) are not
-     implemented. Rather than aborting the whole parse with a bare
-     "syntax error", consume the checker body via error recovery and
-     emit an explicit unsupported-feature diagnostic, so the rest of
-     the source still compiles (manifesto principle 4). */
-checker_declaration
-  : K_checker IDENTIFIER error K_endchecker
-      { cerr << @1 << ": sorry: checker declarations (IEEE 1800-2017 "
-               "clause 17) are not supported; the checker is skipped."
-             << endl;
-        error_count += 1;
-        delete[] $2;
-        yyerrok;
-      }
-  ;
+  /* SystemVerilog checkers (IEEE 1800-2017 clause 17): the checker
+     declaration syntax is a strict subset of the module syntax (typed
+     formals, assertion items, procedures, sequence/property
+     declarations), and checker INSTANTIATION matches module
+     instantiation. Checkers therefore ride the module machinery: the
+     "module" rule accepts K_checker/K_endchecker and elaborates the
+     checker as a module-like scope, giving per-instance assertion
+     elaboration, which matches clause-17 semantics for this subset.
+     (Untyped formals and procedural checker instantiation are not
+     covered and diagnose loudly through the normal port/syntax
+     paths.) */
 
 config_declaration
   : K_config IDENTIFIER ';'
@@ -10127,7 +10122,12 @@ cont_assign_list
 module
   : attribute_list_opt module_start lifetime_opt IDENTIFIER
       { pform_startmodule(@2, $4, $2==K_program, $2==K_interface, $3, $1);
-        port_declaration_context_init(); }
+        port_declaration_context_init();
+	  // Checker formals without an explicit direction are INPUTS
+	  // (IEEE 1800-2017 17.4); module ports default to inout.
+	if ($2 == K_checker)
+	      port_declaration_context.port_type = NetNet::PINPUT;
+      }
     module_package_import_list_opt
     module_parameter_port_list_opt
     module_port_list_opt
@@ -10166,6 +10166,9 @@ module
 		  case K_interface:
 		    yyerror(@15, "error: interface not closed by endinterface.");
 		    break;
+		  case K_checker:
+		    yyerror(@15, "error: checker not closed by endchecker.");
+		    break;
 		  default:
 		    break;
 	      }
@@ -10187,6 +10190,9 @@ module
 	      break;
 	    case K_interface:
 	      check_end_label(@17, "interface", $4, $17);
+	      break;
+	    case K_checker:
+	      check_end_label(@17, "checker", $4, $17);
 	      break;
 	    default:
 	      break;
@@ -10216,12 +10222,17 @@ module_start
       { pform_error_in_generate(@1, "interface declaration");
         $$ = K_interface;
       }
+  | K_checker
+      { pform_error_in_generate(@1, "checker declaration");
+        $$ = K_checker;
+      }
   ;
 
 module_end
   : K_endmodule    { $$ = K_module; }
   | K_endprogram   { $$ = K_program; }
   | K_endinterface { $$ = K_interface; }
+  | K_endchecker   { $$ = K_checker; }
   ;
 
 label_opt
@@ -10307,10 +10318,6 @@ module_item
 
   /* SystemVerilog permits package imports as module items. */
   | package_import_declaration
-
-  /* SystemVerilog checkers as module items (IEEE 1800-2017 17) —
-     unsupported, diagnosed and skipped (see checker_declaration). */
-  | checker_declaration
 
   | attribute_list_opt net_type data_type_or_implicit delay3_opt net_variable_list ';'
 

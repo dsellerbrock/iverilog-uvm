@@ -242,7 +242,7 @@ production value/args, `break`/`return`) are not yet parsed.
 | M9-6 | `.matched` / complete `.triggered` / strong-weak sequences | F | **DONE** (NFA C.2/C.3) | — | endpoint methods + strong/weak obligation |
 | M9-7 | Multiclock sequences | F | **PARTIAL** (NFA D.1) | — | `\|=>` CDC handshake done; mid-seq clock flow / cross-clock `\|->` / multi-cycle CDC operands are loud errors |
 | M9-8 | Variable-length `intersect` / `within` | F | **DONE** (NFA B.2/B.4) | — | non-fixed operands over the automaton |
-| M9-9 | `checker`/`endchecker` (clause 17; today a loud sorry) | F | **OPEN** | — | real checker instantiation |
+| M9-9 | `checker`/`endchecker` (clause 17) | F | **DONE** (module-like subset) | — | checkers ride the module machinery (grammar folds K_checker/K_endchecker into the module rule, zero new bison conflicts): typed formals with directionless-defaults-to-INPUT (17.4), default formal values, property/sequence decls, assert/assume/cover, default clocking, internal variables/procedures, multiple instances with independent assertion state, endchecker labels, keyword-mismatch diagnostics. LOUD residuals: untyped formals, event-typed formals, nested-checker instantiation (nested-module scoping limit, negative-tested), procedural instantiation. sv_checker_basic |
 | M9-10 | Procedural concurrent assertion forms | F | **MOSTLY DONE** | — | clocked `assert property` in a proc block elaborates; needs the always-block edge as implicit clock + audit |
 | M9-11 | `expect` statement | F | OPEN | **M6-CALLF** | process blocks on a property |
 
@@ -256,8 +256,8 @@ M9-4/5/6/8 are therefore DONE via the automaton; M9-7 is PARTIAL (the
 boolean-collapse operators M9-1/2/3 (PR #109) fill in the pieces the
 automaton doesn't need. **Every M9 residual is a LOUD rejection — there is
 no silent-miscompile gap anywhere in clause 16.** The genuine remaining
-frontier is **M9-9 (checker/endchecker, clause 17)** — the largest
-unimplemented SVA feature — plus the M9-7 multiclock residuals, the
+frontier WAS **M9-9 (checker/endchecker, clause 17)** — now landed as the
+module-like subset — leaving the M9-7 multiclock residuals, the
 `##0`-fused goto-consequent corner, and eventual legacy-engine retirement.
 
 ### M10B/C — DPI completion  (clause 35)

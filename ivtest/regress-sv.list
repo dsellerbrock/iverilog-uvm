@@ -1140,4 +1140,6 @@ sv_queue_slice_p normal,-g2012 ivltests
 sv_assoc_queue_property normal,-g2012 ivltests
 sv_mailbox_string_real normal,-g2012 ivltests
 sv_stream_unpacked_array normal,-g2012 ivltests
+sv_checker_basic normal,-g2012 ivltests
+sv_checker_bind normal,-g2012 ivltests
 sv_class_arrayprop_elem_select normal,-g2012 ivltests
