@@ -332,6 +332,11 @@ void vpip_mcd_rawwrite(PLI_UINT32 mcd, const char*buf, size_t count)
       assert(vpip_routines);
       vpip_routines->mcd_rawwrite(mcd, buf, count);
 }
+int vpip_object_urandom(unsigned int*val)
+{
+      assert(vpip_routines);
+      return vpip_routines->object_urandom(val);
+}
 void vpip_set_return_value(int value)
 {
       assert(vpip_routines);
