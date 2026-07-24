@@ -158,6 +158,7 @@ m12_covgrp_drill  normal,-g2012 m12_covgrp_drill.c m12_covgrp_drill.log
 m12_modport_dirs  normal,-g2012 m12_modport_dirs.c m12_modport_dirs.log
 m12_lifetime  normal,-g2012 m12_lifetime.c m12_lifetime.log
 m12_assert_attempt  normal,-g2012 m12_assert_attempt.c m12_assert_attempt.log
+m12_bit_force  normal,-g2012 m12_bit_force.c m12_bit_force.log
 m12_sv_scopes    normal,-g2012   m12_sv_scopes.c   m12_sv_scopes.log
 m12_sv_coverage  normal,-g2012   m12_sv_coverage.c m12_sv_coverage.log
 m12b_assert_vpi  normal,-g2012   m12b_assert_vpi.c m12b_assert_vpi.log

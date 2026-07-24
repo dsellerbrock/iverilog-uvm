@@ -808,10 +808,48 @@ vpiHandle __vpiSignal::put_bit_value(struct __vpiBit*bit, p_vpi_value vp, int fl
       vvp_vector4_t val = vec4_from_vpi_value(vp, 1);
 
       if ((flags == vpiForceFlag) || (flags == vpiReleaseFlag)) {
-	    fprintf(stderr, "Sorry: vpi_put_value() for %s does not "
-	                    "currently support force/release.\n",
-	                    bit->as_bit.vpi_get_str(vpiFullName));
-	    return NULL;
+	      // M12-3: force/release a single bit-select (sig[i]) — a
+	      // width-1 case of the part-select force path.
+	    vvp_signal_value*sig = node->fil
+		  ? dynamic_cast<vvp_signal_value*>(node->fil) : 0;
+	    if (!sig) {
+		  fprintf(stderr, "vpi error: vpi_put_value() force/release "
+			  "on %s: object cannot carry a force.\n",
+			  bit->as_bit.vpi_get_str(vpiFullName));
+		  return NULL;
+	    }
+	    unsigned sig_size = sig->value_size();
+	    if (index >= sig_size)
+		  return NULL;
+	    bool net_flag = (get_type_code() == vpiNet);
+	    bool full_sig = (sig_size == 1);
+
+	    if (flags == vpiReleaseFlag) {
+		  node->fil->force_unlink();
+		  if (full_sig)
+			node->fil->release(dest, net_flag);
+		  else
+			node->fil->release_pv(dest, index, 1, net_flag);
+		  node->fil->run_force_callbacks(cbRelease);
+		  node->fun->force_flag(true);
+		  return &bit->as_bit;
+	    }
+
+	      // vpiForceFlag: force this one bit, leaving the others.
+	    if (full_sig) {
+		  vvp_vector2_t mask (vvp_vector2_t::FILL1, sig_size);
+		  node->force_vec4(val, mask);
+	    } else {
+		  vvp_vector2_t mask (vvp_vector2_t::FILL0, sig_size);
+		  mask.set_bit(index, 1);
+		    // force_vec4 propagates every bit, so seed the
+		    // unforced bits with the signal's current value.
+		  vvp_vector4_t tmp (sig_size, BIT4_Z);
+		  sig->vec4_value(tmp);
+		  tmp.set_vec(index, val);
+		  node->force_vec4(tmp, mask);
+	    }
+	    return &bit->as_bit;
       }
 
       if ((get_type_code() == vpiNet) &&

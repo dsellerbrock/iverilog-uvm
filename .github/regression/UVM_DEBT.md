@@ -6,8 +6,12 @@ recovery via depth_arg threaded through $ivl_register_assertion and
 the __vpiAssertion start-time ring; ran a full pass because it touches
 the core SVA lowering + assertion VPI ABI, not just VPI read paths).
 
-Commits since full UVM: 0
-Highest risk change since last full run: —
+Commits since full UVM: 1 (M12-3 bit-select VPI force/release —
+vpi_signal.cc put_bit_value + vpi_callback.cc make_force_release;
+VPI put-path only, no core-SVA/scheduler change. Covered by VPI
+90/90, negative 53/53, smoke 14/14, full ivtest fail-list
+byte-identical.)
+Highest risk change since last full run: LOW
 
 Triggers for a full run (see docs/conformance/REGRESSION_POLICY.md):
   - HIGH-risk commits since last full UVM >= 2

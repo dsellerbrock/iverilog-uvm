@@ -1,0 +1,8 @@
+Compiling vpi/m12_bit_force.c...
+Making m12_bit_force.vpi from  m12_bit_force.o...
+bit type=49
+cb reason=3 name=sig[3] time=2
+force[3]: sig=08 (expect 08)
+hold:     sig=08 (expect 08)
+cb reason=4 name=sig[3] time=5
+released: sig=55 (expect 55)
