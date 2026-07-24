@@ -20,6 +20,10 @@ static PLI_INT32 probe_calltf(PLI_BYTE8*ud)
 {
       vpiHandle obj, cg, a1[16], a2[16];
       int n1, n2, i, stable;
+      /* zero-init so no compiler emits -Wmaybe-uninitialized (the
+       * VPI harness logs compile output; warnings vary by compiler
+       * version and would make the gold environment-dependent). */
+      memset(a1, 0, sizeof a1); memset(a2, 0, sizeof a2);
       (void)ud;
 
       /* class member handles must be identical across iterate calls
@@ -45,9 +49,12 @@ static PLI_INT32 probe_calltf(PLI_BYTE8*ud)
       /* and the bin handles of an item, across two iterate calls */
       if (n1 > 0) {
 	    vpiHandle b1[16], b2[16];
-	    int m1 = collect(vpi_iterate(vpiCoverBin, a1[0]), b1, 16);
-	    int m2 = collect(vpi_iterate(vpiCoverBin, a2[0]), b2, 16);
-	    int bstable = (m1 == m2);
+	    int m1, m2;
+	    memset(b1, 0, sizeof b1); memset(b2, 0, sizeof b2);
+	    int bstable;
+	    m1 = collect(vpi_iterate(vpiCoverBin, a1[0]), b1, 16);
+	    m2 = collect(vpi_iterate(vpiCoverBin, a2[0]), b2, 16);
+	    bstable = (m1 == m2);
 	    for (i = 0 ; i < m1 && bstable ; i += 1)
 		  if (b1[i] != b2[i]) bstable = 0;
 	    vpi_printf("cov bins n=%d stable=%d\n", m1, bstable);

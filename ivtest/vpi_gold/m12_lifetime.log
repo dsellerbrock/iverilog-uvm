@@ -1,17 +1,4 @@
 Compiling vpi/m12_lifetime.c...
-vpi/m12_lifetime.c: In function 'probe_calltf':
-vpi/m12_lifetime.c:52:34: warning: 'b2' may be used uninitialized [-Wmaybe-uninitialized]
-   52 |                   if (b1[i] != b2[i]) bstable = 0;
-      |                                ~~^~~
-vpi/m12_lifetime.c:47:31: note: 'b2' declared here
-   47 |             vpiHandle b1[16], b2[16];
-      |                               ^~
-vpi/m12_lifetime.c:32:28: warning: 'a2' may be used uninitialized [-Wmaybe-uninitialized]
-   32 |             if (a1[i] != a2[i]) stable = 0;
-      |                          ~~^~~
-vpi/m12_lifetime.c:21:34: note: 'a2' declared here
-   21 |       vpiHandle obj, cg, a1[16], a2[16];
-      |                                  ^~
 Making m12_lifetime.vpi from  m12_lifetime.o...
 members n=2 stable=1
 cov items n=1 stable=1
