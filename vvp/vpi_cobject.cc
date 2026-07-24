@@ -32,6 +32,8 @@
 # include  <cstring>
 # include  <string>
 # include  <cstdlib>
+# include  <map>
+# include  <vector>
 
 namespace {
 
@@ -810,13 +812,25 @@ class __vpiCovItem : public __vpiHandle {
       {
 	    if (code != vpiCoverBin)
 		  return 0;
-	    std::vector<unsigned> props = countable_props_();
-	    if (props.empty())
+	      /* M12-8: build the bin handles once and reuse them.
+		 The bin SET is fixed by the class definition (only
+		 the counts change, and those are read live), so a
+		 fresh alloc per iterate call was a per-call leak. The
+		 handles live for the simulation, like member handles;
+		 the iterator only frees its own args-array copy. */
+	    if (!bins_built_) {
+		  bins_built_ = true;
+		  std::vector<unsigned> props = countable_props_();
+		  for (size_t i = 0 ; i < props.size() ; i += 1)
+			bins_.push_back(new __vpiCovBin(root_, defn_,
+							props[i], item_));
+	    }
+	    if (bins_.empty())
 		  return 0;
-	    vpiHandle*args = (vpiHandle*)malloc(props.size() * sizeof(vpiHandle));
-	    for (size_t i = 0 ; i < props.size() ; i += 1)
-		  args[i] = new __vpiCovBin(root_, defn_, props[i], item_);
-	    return vpip_make_iterator((unsigned)props.size(), args, true);
+	    vpiHandle*args = (vpiHandle*)malloc(bins_.size() * sizeof(vpiHandle));
+	    for (size_t i = 0 ; i < bins_.size() ; i += 1)
+		  args[i] = bins_[i];
+	    return vpip_make_iterator((unsigned)bins_.size(), args, true);
       }
 
     private:
@@ -843,10 +857,20 @@ class __vpiCovItem : public __vpiHandle {
       vpiHandle root_;
       const class_type*defn_;
       unsigned item_;
+      std::vector<vpiHandle> bins_;
+      bool bins_built_ = false;
 };
 
 /* Build the item iterator for a covergroup object held by `root'
- * (a class variable or nested member handle). */
+ * (a class variable or nested member handle).
+ *
+ * M12-8: the item handles are cached per (root, defn, kind). A
+ * covergroup instance's class is fixed after construction, so the
+ * item set never changes; a fresh alloc per iterate call was a
+ * per-call leak. Cached handles live for the simulation (like member
+ * handles) and are keyed by defn too, so the rare case of a variable
+ * reused for a different covergroup type still resolves correctly.
+ * The iterator frees only its own args-array copy. */
 static vpiHandle covgrp_iterate_items_(vpiHandle root, int code)
 {
       vvp_cobject*cobj = live_cobject_of_(root);
@@ -854,12 +878,30 @@ static vpiHandle covgrp_iterate_items_(vpiHandle root, int code)
       const class_type*defn = cobj->get_defn();
       if (!defn || !defn->is_covergroup()) return 0;
       bool want_cross = (code == vpiCoverCross);
-      std::vector<vpiHandle> items;
-      for (size_t i = 0 ; i < defn->covgrp_item_count() ; i += 1) {
-	    if (defn->covgrp_item(i).is_cross != want_cross)
-		  continue;
-	    items.push_back(new __vpiCovItem(root, defn, (unsigned)i));
+
+      struct item_cache_key {
+	    vpiHandle root;
+	    const class_type*defn;
+	    bool cross;
+	    bool operator < (const item_cache_key&that) const
+	    { if (root != that.root) return root < that.root;
+	      if (defn != that.defn) return defn < that.defn;
+	      return cross < that.cross; }
+      };
+      static std::map<item_cache_key, std::vector<vpiHandle> > cache;
+      item_cache_key key = { root, defn, want_cross };
+      std::map<item_cache_key, std::vector<vpiHandle> >::iterator it
+	    = cache.find(key);
+      if (it == cache.end()) {
+	    std::vector<vpiHandle> items;
+	    for (size_t i = 0 ; i < defn->covgrp_item_count() ; i += 1) {
+		  if (defn->covgrp_item(i).is_cross != want_cross)
+			continue;
+		  items.push_back(new __vpiCovItem(root, defn, (unsigned)i));
+	    }
+	    it = cache.insert(std::make_pair(key, items)).first;
       }
+      const std::vector<vpiHandle>&items = it->second;
       if (items.empty()) return 0;
       vpiHandle*args = (vpiHandle*)malloc(items.size() * sizeof(vpiHandle));
       for (size_t i = 0 ; i < items.size() ; i += 1)
