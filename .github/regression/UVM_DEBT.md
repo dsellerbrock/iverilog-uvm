@@ -1,10 +1,11 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: M12-1 head addb0f1 (212/212, 4x53 batches,
-2026-07-24 — the M12B/C VPI-completion MILESTONE head. Validated the
-core-SVA lowering touch (every automaton checker now carries per-tick
-step flags and two extra report sites) plus the assertion-registration
-ABI gaining a flags argument, and M12-3's bit-select force path.)
+Full UVM last passed: M10-2 head 1c706ef (212/212, 4x53 batches,
+2026-07-24 — validated the vvp thread-lifecycle change in the DPI
+export inline runner: stopping the spin on a delaying child and
+detaching it instead of joining a still-scheduled thread. Ran a full
+pass because it touches vthread parent/child teardown, which UVM
+leans on heavily.)
 
 Commits since full UVM: 0
 Highest risk change since last full run: —
