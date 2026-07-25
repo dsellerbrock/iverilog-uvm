@@ -2,8 +2,8 @@
 // is a single handle is not a legal actual (IEEE 1800-2017 13.5.x) and must
 // be rejected.
 //
-// tgt-vvp used to pass element 0 silently, so this compiled and quietly
-// behaved as `takes(arr[0])'.
+// Rejected at ELABORATION (M10-1c): argument passing is an assignment to
+// the formal, so it goes through the same rvalue type check as `h = arr'.
 module object_array_as_handle_arg;
   class C;
     int id;

@@ -1,10 +1,10 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: M10-1 marshaling head (220/220, 4x55 batches,
-2026-07-25 — validated fixed-array marshaling. Ran a full pass because it
-adds fields to vvp_darray, which every UVM queue and dynamic array uses, and
-a new runtime opcode; the DPI-only reasoning that justified a subset for the
-bounds fix does not cover a change to the darray base class.)
+Full UVM last passed: M10-1c head (220/220, 4x55 batches, 2026-07-25 —
+validated an assignment type check added to elaborate_rval_expr. That
+function runs for EVERY assignment in every design, so a false positive
+there would fail broadly rather than narrowly; a full run is the only way to
+show UVM has no pattern the new check misreads.)
 
 Commits since full UVM: 0
 Highest risk change since last full run: —

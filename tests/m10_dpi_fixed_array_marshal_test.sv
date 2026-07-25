@@ -20,6 +20,11 @@
 // increment -1). A 0-based range would hide all of it.
 module m10_dpi_fixed_array_marshal_test;
 
+  class Item;
+    int tag;
+  endclass
+
+
   // Returns 0 on success or a bitmask of what was wrong.
   import "DPI-C" function int c_fixed_asc (input int a[]);
   import "DPI-C" function int c_fixed_desc(input int a[]);
@@ -74,6 +79,41 @@ module m10_dpi_fixed_array_marshal_test;
     dyn = new[5];
     foreach (dyn[i]) dyn[i] = i * 7;
     check("c_dyn_plain", c_dyn_plain(dyn));
+
+    // 4. A fixed array of CLASS HANDLES marshals element-wise into a
+    //    dynamic array (handles copied by reference). The illegal
+    //    single-handle form `h = arr' is rejected at ELABORATION, where the
+    //    target type is visible -- see tests/negative/object_array_to_handle.
+    //    Codegen cannot tell the two apart, so that check has to be there
+    //    for this to be safe to marshal at all.
+    begin
+      automatic Item items[3];
+      Item iq[];
+      for (int i = 0; i < 3; i++) begin
+        items[i] = new;
+        items[i].tag = 50 + i;
+      end
+      iq = items;
+      if (iq.size() != 3) begin
+        $display("FAIL handle array size: %0d, expected 3", iq.size());
+        errors++;
+      end
+      else if (iq[0].tag !== 50 || iq[2].tag !== 52) begin
+        $display("FAIL handle array values: iq[0].tag=%0d iq[2].tag=%0d, expected 50 and 52",
+                 iq[0].tag, iq[2].tag);
+        errors++;
+      end
+      else begin
+        // Handles are copied by reference, so mutating through the queue
+        // must be visible through the original array.
+        iq[1].tag = 999;
+        if (items[1].tag !== 999) begin
+          $display("FAIL handle array aliasing: items[1].tag=%0d, expected 999",
+                   items[1].tag);
+          errors++;
+        end
+      end
+    end
 
     if (errors == 0) $display("PASS m10_dpi_fixed_array_marshal_test");
     $finish(0);

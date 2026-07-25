@@ -567,28 +567,21 @@ static int eval_object_array(ivl_expr_t expr)
 		       | (ivl_signal_signed(sig) ? (1u << 8) : 0u)
 		       | ((dt == IVL_VT_LOGIC) ? (1u << 9) : 0u);
 		  break;
-		  /* Class-handle elements are deliberately NOT marshaled
-		     here. `q = arr' for a dynamic array q is legal and
-		     would work, but codegen cannot see the target type, so
-		     the same expression also covers `h = arr' for a single
-		     handle -- a type error. Marshaling both would silently
-		     accept the illegal one (it re-broke
-		     tests/negative/object_array_to_handle when tried).
-		     DPI open arrays cannot have class-handle elements
-		     anyway, so nothing is lost here; closing it properly
-		     needs the type error caught at ELABORATION, where the
-		     target type is known. */
+		case IVL_VT_CLASS:
+		    /* Handle elements: copied by reference, exactly as an
+		       element-wise assignment would. `h = arr' -- the type
+		       error that made this unsafe to marshal before -- is
+		       now rejected at elaboration, where the target type is
+		       visible (M10-1c), so only the legal `q = arr' shape
+		       reaches here. */
+		  kind = (1u << 11);
+		  break;
 		default:
 		  fprintf(stderr, "%s:%u: sorry: the whole unpacked array "
 			  "`%s' cannot be used as an object: only arrays of "
-			  "integral or real elements can be marshaled into "
-			  "dynamic-array storage. A class-handle array needs "
-			  "the target type checked at elaboration first, "
-			  "since `h = %s' is a type error while `q = %s' is "
-			  "not.\n",
+			  "integral, real or class-handle elements can be "
+			  "marshaled into dynamic-array storage.\n",
 			  ivl_expr_file(expr), ivl_expr_lineno(expr),
-			  ivl_signal_basename(sig),
-			  ivl_signal_basename(sig),
 			  ivl_signal_basename(sig));
 		  vvp_errors += 1;
 		  fprintf(vvp_out, "    %%null;\n");

@@ -1157,6 +1157,34 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
       if (rval == 0)
 	    return 0;
 
+	/* M10-1c: a WHOLE unpacked array is not assignment-compatible with a
+	   single class handle (IEEE 1800-2017 7.4/8.3):
+
+	       C arr[4]; C h;    h = arr;      // error
+	       C arr[4]; C q[];  q = arr;      // fine, element-wise
+
+	   Only this point can tell the two apart -- tgt-vvp sees the same
+	   IVL_EX_ARRAY expression for both and cannot see the target type, so
+	   catching it there meant either rejecting the legal form or silently
+	   accepting the illegal one (it did the latter, compiling `h = arr'
+	   as `arr[0]'). Reject it here, where the target type is known, and
+	   the error lands on the user's assignment rather than in codegen. */
+      if (lv_type == IVL_VT_CLASS && !dynamic_cast<const netuarray_t*>(lv_net_type)) {
+	    if (const NetESignal*esig = dynamic_cast<const NetESignal*>(rval)) {
+		  const NetNet*nsig = esig->sig();
+		  if (nsig && nsig->unpacked_dimensions() > 0
+		      && esig->word_index() == 0) {
+			cerr << expr->get_fileline() << ": error: cannot assign "
+			     << "the whole unpacked array `" << nsig->name()
+			     << "' to a single class handle. Select an element "
+			     << "(`" << nsig->name() << "[<index>]'), or make "
+			     << "the target a dynamic array or queue." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+	    }
+      }
+
       const netenum_t *lval_enum = dynamic_cast<const netenum_t*>(lv_net_type);
       if (lval_enum) {
 	    const netenum_t *rval_enum = rval->enumeration();
