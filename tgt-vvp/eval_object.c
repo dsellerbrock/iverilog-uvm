@@ -547,20 +547,72 @@ static int eval_object_array(ivl_expr_t expr)
 	    return 0;
       }
 
-      fprintf(stderr, "%s:%u: sorry: the whole unpacked array `%s' cannot yet "
-	      "be used as an object; marshaling a fixed-size array into "
-	      "dynamic-array storage is not implemented. Assigning it to a "
-	      "dynamic array or passing it to a DPI open-array argument needs "
-	      "that support; using it where a single handle is required "
-	      "(`h = %s') is a type error -- select an element "
-	      "(`%s[<index>]') instead.\n",
-	      ivl_expr_file(expr), ivl_expr_lineno(expr),
-	      ivl_signal_basename(sig), ivl_signal_basename(sig),
-	      ivl_signal_basename(sig));
-      vvp_errors += 1;
-	/* Keep the object stack balanced so the rest of codegen does not
-	   cascade into unrelated noise before the error is reported. */
-      fprintf(vvp_out, "    %%null;\n");
+	/* M10-1: marshal the whole fixed-size array into a dynamic array.
+	   The element kind is a packed number rather than a string because
+	   vvp_code_s keeps `array' and `text' in one union -- a string
+	   operand would clobber the array pointer. See %load/arr/dar. */
+      {
+	    ivl_variable_type_t dt = ivl_signal_data_type(sig);
+	    unsigned wid = ivl_signal_width(sig);
+	    unsigned kind;
+
+	    switch (dt) {
+		case IVL_VT_REAL:
+		  kind = 0;                     /* ARRDAR_REAL */
+		  break;
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		  if (wid == 0) wid = 1;
+		  kind = (wid & 0xFFu)
+		       | (ivl_signal_signed(sig) ? (1u << 8) : 0u)
+		       | ((dt == IVL_VT_LOGIC) ? (1u << 9) : 0u);
+		  break;
+		  /* Class-handle elements are deliberately NOT marshaled
+		     here. `q = arr' for a dynamic array q is legal and
+		     would work, but codegen cannot see the target type, so
+		     the same expression also covers `h = arr' for a single
+		     handle -- a type error. Marshaling both would silently
+		     accept the illegal one (it re-broke
+		     tests/negative/object_array_to_handle when tried).
+		     DPI open arrays cannot have class-handle elements
+		     anyway, so nothing is lost here; closing it properly
+		     needs the type error caught at ELABORATION, where the
+		     target type is known. */
+		default:
+		  fprintf(stderr, "%s:%u: sorry: the whole unpacked array "
+			  "`%s' cannot be used as an object: only arrays of "
+			  "integral or real elements can be marshaled into "
+			  "dynamic-array storage. A class-handle array needs "
+			  "the target type checked at elaboration first, "
+			  "since `h = %s' is a type error while `q = %s' is "
+			  "not.\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr),
+			  ivl_signal_basename(sig),
+			  ivl_signal_basename(sig),
+			  ivl_signal_basename(sig));
+		  vvp_errors += 1;
+		  fprintf(vvp_out, "    %%null;\n");
+		  return 0;
+	    }
+
+	      /* Carry the DECLARED range so the open-array accessors report
+		 it rather than the 0..N-1 of the dynamic array this becomes
+		 (H.10.2). array_base is the source address of the canonical
+		 zero word; a swapped array descends from the high end. */
+	    unsigned count = ivl_signal_array_count(sig);
+	    int base = ivl_signal_array_base(sig);
+	    int left;
+	    if (ivl_signal_array_addr_swapped(sig)) {
+		  left = base + (int)count - 1;
+		  kind |= (1u << 10);          /* descending */
+	    } else {
+		  left = base;
+	    }
+
+	    note_array_signal_use(sig);
+	    fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %d;\n",
+		    sig, kind, left);
+      }
       return 0;
 }
 

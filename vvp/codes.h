@@ -280,6 +280,7 @@ extern bool of_LOAD_QO_R(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_QO_STR(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_QO_V(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_OBJ(vthread_t thr, vvp_code_t code);
+extern bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_OBJA(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_PREPONED(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_STR(vthread_t thr, vvp_code_t code);

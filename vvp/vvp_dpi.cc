@@ -472,34 +472,40 @@ int svSize(const void*h, int dim)
 /*
  * M10-1/R7: array bounds (IEEE 1800-2017 H.10.2).
  *
- * Every array that reaches here is either a dynamic array or a nesting of
- * them, and those are 0-based ascending with size N -- so low/left are 0
- * and high/right are N-1. That makes svLow's 0 correct TODAY, but only
- * incidentally: a fixed-size array with a declared range (`int a[3:10]',
- * `int a[10:3]') would need its real bounds, and cannot currently be
- * marshaled at all (tgt-vvp says so with a sorry). When that support
- * lands, these have to carry per-dimension bounds through
- * vvp_dpi_open_array_t rather than deriving them from the size.
+ * A plain dynamic array is 0-based ascending, so low/left are 0 and
+ * high/right are N-1. An array MARSHALED from a fixed-size one stands in
+ * for that array's DECLARED range and reports it instead -- including a
+ * descending range, where left > right and the increment is -1.
+ *
+ * Only dimension 1 carries a declared range: inner dimensions of a
+ * multi-dimensional open array are dynamic arrays in their own right.
  */
-int svLow(const void*h, int dim)
-{
-      (void)h; (void)dim;
-      return 0;
-}
-
-int svHigh(const void*h, int dim)
-{
-      return svSize(h, dim) - 1;
-}
-
 int svLeft(const void*h, int dim)
 {
-      return svLow(h, dim);
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (arr && arr->has_range && dim == 1) return arr->left;
+      return 0;
 }
 
 int svRight(const void*h, int dim)
 {
-      return svHigh(h, dim);
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (arr && arr->has_range && dim == 1) return arr->right;
+      return svSize(h, dim) - 1;
+}
+
+int svLow(const void*h, int dim)
+{
+      int left  = svLeft(h, dim);
+      int right = svRight(h, dim);
+      return (left <= right) ? left : right;
+}
+
+int svHigh(const void*h, int dim)
+{
+      int left  = svLeft(h, dim);
+      int right = svRight(h, dim);
+      return (left <= right) ? right : left;
 }
 
 /*
@@ -556,12 +562,32 @@ int svSizeOfArray(const void*h)
       return (int)(words * ebytes);
 }
 
+/*
+ * H.10.3: element access uses the DECLARED index, so an array marshaled
+ * from `int a[3:10]' is addressed 3..10 and one from `int a[10:3]' is
+ * addressed 10..3. Storage is canonically ascending in both cases -- the
+ * marshal copies word k as declared index low+k -- so the translation is
+ * the same either way: subtract the low bound.
+ *
+ * This has to agree with svLow/svHigh, or a C model looping
+ * `for (i = svLow; i <= svHigh; i++) svGetArrElemPtr1(h, i)' reads the
+ * wrong elements and runs off the end. A plain dynamic array has no
+ * declared range, so its low bound is 0 and this is the identity.
+ */
+static int dpi_canon_index_(const vvp_dpi_open_array_t*arr, int indx1)
+{
+      if (!arr || !arr->has_range) return indx1;
+      int low = (arr->left <= arr->right) ? arr->left : arr->right;
+      return indx1 - low;
+}
+
 void* svGetArrElemPtr1(const void*h, int indx1)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       if (!arr || !arr->data) return 0;
-      if (indx1 < 0 || (unsigned)indx1 >= arr->length) return 0;
-      return (char*)arr->data + (size_t)indx1 * arr->elem_bytes;
+      int k = dpi_canon_index_(arr, indx1);
+      if (k < 0 || (unsigned)k >= arr->length) return 0;
+      return (char*)arr->data + (size_t)k * arr->elem_bytes;
 }
 
 /* M10B-md: 2-D element access — outer word indx1 is an inner dynamic
@@ -569,7 +595,7 @@ void* svGetArrElemPtr1(const void*h, int indx1)
 void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      vvp_darray*inner = md_inner_(arr, indx1);
+      vvp_darray*inner = md_inner_(arr, dpi_canon_index_(arr, indx1));
       if (!inner) return 0;
       unsigned eb = inner->dpi_elem_bytes();
       void*base = inner->dpi_raw_data();
@@ -583,7 +609,7 @@ void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
 void* svGetArrElemPtr3(const void*h, int indx1, int indx2, int indx3)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      vvp_darray*mid = md_inner_(arr, indx1);
+      vvp_darray*mid = md_inner_(arr, dpi_canon_index_(arr, indx1));
       if (!mid) return 0;
       if (indx2 < 0 || (size_t)indx2 >= mid->get_size()) return 0;
       vvp_object_t w;

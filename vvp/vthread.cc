@@ -8615,7 +8615,18 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.elem_bytes = 0;
 		      arr.elem_is_real = false;
 		      arr.outer = 0;
+		      arr.has_range = false;
+		      arr.left = 0;
+		      arr.right = 0;
 		      vvp_darray*da = obj_store[slot].peek<vvp_darray>();
+		      if (da && da->dpi_has_decl_range()) {
+			      /* M10-1: marshaled from a fixed-size array, so
+				 dimension 1 reports that array's declared
+				 range (H.10.2). */
+			    arr.has_range = true;
+			    arr.left  = da->dpi_decl_left();
+			    arr.right = da->dpi_decl_right();
+		      }
 		      if (da) {
 			    unsigned eb = da->dpi_elem_bytes();
 			    if (eb > 0) {
@@ -12838,6 +12849,112 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
  *    value. If flags[4] == 1, the calculation of <index> may have
  *    failed, so push nil.
  */
+/*
+ * %load/arr/dar <array>, <kind>
+ *
+ * M10-1: marshal a WHOLE fixed-size unpacked array into a dynamic array
+ * and push it as an object.
+ *
+ * A fixed array is not an object, so using one where an object is wanted --
+ * `d = a' for a dynamic array d (IEEE 1800-2017 7.6), or passing it to a
+ * DPI open-array formal (35.5.6.1) -- needs a dynamic-array copy of its
+ * words. tgt-vvp used to push element 0 instead, so both produced an EMPTY
+ * array; then it was a sorry. This makes the copy.
+ *
+ * The element kind is a packed NUMBER, not a string, because vvp_code_s
+ * keeps `array' and `text' in the same union -- an OA_STRING operand would
+ * silently clobber the array pointer resolved by OA_ARR_PTR. Layout:
+ *
+ *    0                      -> real elements
+ *    bits 7..0  = width
+ *    bit  8     = signed
+ *    bit  9     = 4-state (logic) rather than 2-state (bit)
+ *    bit 10     = the declared range DESCENDS (left > right)
+ *    bit 11     = object (class handle) elements
+ *
+ * bit_idx[1] carries the declared LEFT bound, so the marshaled array can
+ * report its source array's range through the open-array accessors rather
+ * than the 0..N-1 of the dynamic array it now is (H.10.2).
+ *
+ * 2-state elements become vvp_darray_atom<T>, whose storage is contiguous
+ * so the DPI open-array accessors can hand out raw pointers. 4-state
+ * elements become vvp_darray_vec4, preserving x/z at the cost of
+ * contiguity; the DPI path rejects non-atom elements upstream with its own
+ * sorry, so that only affects plain SV assignment.
+ */
+# define ARRDAR_REAL      0u
+# define ARRDAR_WIDTH(k)  ((k) & 0xFFu)
+# define ARRDAR_SIGNED(k) (((k) >> 8) & 1u)
+# define ARRDAR_FOUR(k)   (((k) >> 9) & 1u)
+# define ARRDAR_DESC(k)   (((k) >> 10) & 1u)
+# define ARRDAR_OBJ(k)    (((k) >> 11) & 1u)
+
+bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/arr/dar");
+      uint32_t kind = cp->bit_idx[0];
+
+      if (!array) {
+	    thr->push_object(vvp_object_t());   // nil
+	    return true;
+      }
+
+      size_t count = array->get_size();
+      unsigned wid = ARRDAR_WIDTH(kind);
+      bool is_real = (kind == ARRDAR_REAL);
+      bool is_signed = ARRDAR_SIGNED(kind) != 0;
+      vvp_object_t obj;
+
+      if (ARRDAR_OBJ(kind))
+	      /* Class-handle elements: the words are handles, copied by
+		 reference exactly as an element-wise assignment would. */
+	    obj = new vvp_darray_object(count);
+      else if (is_real)
+	    obj = new vvp_darray_real(count);
+      else if (ARRDAR_FOUR(kind))
+	    obj = new vvp_darray_vec4(count, wid ? wid : 1);
+      else if (wid <= 8)
+	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int8_t>(count)
+			    : (vvp_object*)new vvp_darray_atom<uint8_t>(count);
+      else if (wid <= 16)
+	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int16_t>(count)
+			    : (vvp_object*)new vvp_darray_atom<uint16_t>(count);
+      else if (wid <= 32)
+	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int32_t>(count)
+			    : (vvp_object*)new vvp_darray_atom<uint32_t>(count);
+      else if (wid <= 64)
+	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int64_t>(count)
+			    : (vvp_object*)new vvp_darray_atom<uint64_t>(count);
+      else
+	      /* Wider than an atom: keep the value rather than truncate. */
+	    obj = new vvp_darray_vec4(count, wid);
+
+      vvp_darray*dar = obj.peek<vvp_darray>();
+      for (size_t idx = 0 ; dar && idx < count ; idx += 1) {
+	    if (ARRDAR_OBJ(kind)) {
+		  vvp_object_t w;
+		  array->get_word_obj((unsigned)idx, w);
+		  dar->set_word((unsigned)idx, w);
+	    } else if (is_real) {
+		  dar->set_word((unsigned)idx, array->get_word_r((unsigned)idx));
+	    } else {
+		  dar->set_word((unsigned)idx, array->get_word((unsigned)idx));
+	    }
+      }
+
+	/* Record the source array's declared range so the DPI open-array
+	   accessors report it instead of 0..N-1. */
+      if (dar && count > 0) {
+	    int left = (int)(int32_t)cp->bit_idx[1];
+	    int span = (int)count - 1;
+	    int right = ARRDAR_DESC(kind) ? (left - span) : (left + span);
+	    dar->dpi_set_decl_range(left, right);
+      }
+
+      thr->push_object(obj);
+      return true;
+}
+
 bool of_LOAD_OBJA(vthread_t thr, vvp_code_t cp)
 {
       unsigned idx = cp->bit_idx[0];
