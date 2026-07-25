@@ -1,6 +1,14 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: convergence head (222/222, 4x~55 batches, 2026-07-25 —
+Full UVM last passed: M9-7 D.4 + R4 + R11 + R2 head (222/222, 4x~55 batches,
+2026-07-25 — one run over the whole batch. The Observed-region move (R2) is
+what earns it: EVERY concurrent assertion in every design now suspends into
+a different scheduler region before evaluating, so a mistake there would
+change verdicts broadly. The process-identity fix (R4) is the second reason
+— UVM leans on process::self() throughout. An earlier run of this batch was
+discarded and redone: the install was replaced mid-run, so its result
+described no single compiler. Previous full run, same result, at
+convergence head —
 validated DELETING the uvm_shared/value/T type-inference fallback (R9). The
 run is the evidence, not a formality: the fallback only ever fired for UVM's
 own parameterized wrapper, so UVM is the only thing that could have depended

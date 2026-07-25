@@ -5388,6 +5388,12 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			     << "(IEEE 1800-2017 16.5.1) and is read live; a "
 			     << "blocking write to it in the same time slot "
 			     << "as the clock will be visible." << endl;
+		    /* A real has no bit width to cast to: cast_to_width_
+		       would wrap it in a NetESelect, and draw_select_real
+		       asserts on a select whose signal is not a darray.
+		       Hand the argument back untouched. */
+		  if (sub->expr_type() == IVL_VT_REAL)
+			return sub;
 		  return cast_to_width_(sub, expr_wid);
 	    }
 
