@@ -14876,8 +14876,7 @@ static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, double&va
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, double&val)
 {
-      (void)idx;
-      val = vif->get_real(pid);
+      val = vif->get_real(pid, idx);
 }
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, string&val)
@@ -14887,8 +14886,7 @@ static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, string&va
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, string&val)
 {
-      (void)idx;
-      val = vif->get_string(pid);
+      val = vif->get_string(pid, idx);
 }
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, vvp_vector4_t&val)
@@ -16761,8 +16759,7 @@ static void set_val(vvp_cobject*cobj, size_t pid, const double&val, size_t idx)
 
 static void set_val(vvp_vinterface*vif, size_t pid, const double&val, size_t idx)
 {
-      (void)idx;
-      vif->set_real(pid, val);
+      vif->set_real(pid, val, idx);
 }
 
 static void set_val(vvp_cobject*cobj, size_t pid, const string&val, size_t idx)
@@ -16772,8 +16769,7 @@ static void set_val(vvp_cobject*cobj, size_t pid, const string&val, size_t idx)
 
 static void set_val(vvp_vinterface*vif, size_t pid, const string&val, size_t idx)
 {
-      (void)idx;
-      vif->set_string(pid, val);
+      vif->set_string(pid, val, idx);
 }
 
 static void set_val(vvp_cobject*cobj, size_t pid, const vvp_vector4_t&val, size_t idx)

@@ -1,46 +1,27 @@
-// M1C-4 (OPEN, rule gate 1 — SILENT): an UNPACKED ARRAY member of an
-// interface, reached through a VIRTUAL interface, reads `x' and writes to
-// it are silently dropped.
+// M1C-4 (FIXED) -- minimization trail. An UNPACKED ARRAY member of an
+// interface, reached through a VIRTUAL interface, used to read `x' and
+// silently drop writes:
 //
-//   iverilog -g2012 -o a.vvp <this file> && vvp a.vvp
-//
-//   direct  arr[2]      = 82 (want 82)     <-- direct access is correct
 //   vif     arr[const]  = x  (want 82)
-//   vif     arr[var]    = x  (want 82)
-//   vif     data        = 7  (want 7)      <-- scalar members are correct
 //   after vif write const: direct arr[2] = 82 (want 90)
-//   after vif write var  : direct arr[2] = 82 (want 91)
 //
-// No diagnostic, exit 0. The write is the dangerous half: a testbench
-// driving an interface array through a virtual interface -- the ordinary
-// UVM driver shape -- silently drives nothing.
+// No diagnostic, exit 0. Direct access through the instance was correct,
+// and so was every scalar member through the same handle.
 //
-// What is known:
+// ROOT CAUSE: the member got no slot at all. A virtual-interface handle
+// resolves each member of the interface class type to a slot backed by
+// the instance's VPI handle, and the resolver skipped anything that was
+// not a signal / real / string / base variable. An unpacked array's
+// handle is a `__vpiArray', so it fell through -- reads returned an empty
+// value and writes returned early.
 //
-//   * Scalar interface members through the same virtual interface are
-//     correct, as are all direct (non-virtual) accesses. The defect is
-//     specific to an unpacked-array member reached through the handle.
-//   * The lowering already emits an INDEXED property access --
-//     `%prop/v/i 0, 4' to read and `%store/prop/v/i 0, 4, 8' to write --
-//     so the index reaches the runtime; what it indexes is the question.
-//   * An interface is mirrored into a netclass_t in elab_type.cc
-//     (`iface_type->set_property(cur->first, ..., prop_type)` over
-//     `mod->wires`), one property per member, and the property's array
-//     storage comes from the elaborated member TYPE. The first thing to
-//     check is whether `elaborate_sig_type` returns the unpacked-array
-//     type here or just the element type -- a single-slot property would
-//     explain both the `x' read and the dropped write.
-//   * This is the same shape as M1C-3, which is fixed: an indexed access
-//     whose index has nowhere to go because the property holds one slot.
-//     M1C-3 covered containers in CLASS properties; this is the interface
-//     mirror.
+// FIXED by a SLOT_ARRAY kind whose element index selects the word.
+// Reals and strings went the same way: their accessors discarded the
+// index outright (`(void)idx'). Regression:
+// ivtest/ivltests/sv_vif_array_member.v.
 //
-// Found by the M1C Cartesian access probe (container x element kind x
-// operation x index), batch 2, which also confirmed that every other
-// interface shape in that batch -- scalar read/write/compound through
-// both a direct and a virtual interface, interface task call through a
-// virtual interface, bit and part selects on a scalar member -- is
-// correct.
+// This file now prints the wanted value on every line.
+
 interface bus_if;
   bit [7:0] data;
   bit [7:0] arr[4];

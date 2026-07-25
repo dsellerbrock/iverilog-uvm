@@ -80,17 +80,23 @@ and whole-element stores of an unpacked struct aliased the source so
 every element ended up holding the last value. Pinned by
 `sv_class_property_container_element`.
 
-**Next concrete change (M1C-4, rule gate 1).** The access probe's second
-batch turned up one more SILENT defect and it is unfixed: an unpacked-
-array member of an interface reached through a VIRTUAL interface reads
-`x`, and writes to it are dropped with no diagnostic — while the same
-member accessed directly, and every scalar member through the same
-virtual interface, is correct. A driver driving an interface array
-through a virtual interface silently drives nothing. Minimal reproducer
-and the evidence trail: `repros/vif_unpacked_array_member_silent.sv` and
-the M1C-4 row. It looks like the same shape as M1C-3 — an index with
-nowhere to go — in the interface-to-class mirror rather than in a class
-property.
+**M1C-4 is fixed.** An unpacked-array member of an interface reached
+through a VIRTUAL interface read `x` and dropped writes, silently: the
+slot resolver skipped anything that was not a signal / real / string /
+base variable, and an unpacked array's VPI handle is a `__vpiArray`, so
+the member got no slot at all. An array slot kind now resolves and the
+element index selects the word; reals and strings were fixed with it
+(their accessors discarded the index outright). Pinned by
+`sv_vif_array_member`, which was run against a build with the fix
+reverted: reads returned 0 and the first write aborted the runtime.
+
+**No silent defect is known to be outstanding in the M1C access family.**
+Every cell of the two Cartesian probes and the ~110-cell adversarial
+matrix now passes, and the remaining gaps in that family are LOUD: a
+struct-typed array member through a virtual-interface handle (nested
+member path sorry) and `foreach` over an interface-instance array member
+(unresolved-target error). The open architecture item is M1C-2, the
+canonical access representation itself.
 
 **Where to look first when resuming:** the `Current focus` list at the
 bottom of `ROADMAP.md`. It is re-derived from the priority rule, not
