@@ -8964,20 +8964,30 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       PEventStatement*c1 = prop->clk_evt;
       PEventStatement*c2 = prop->seq_clk_evt;
       const char*why = nullptr;
+      bool cover = (kind == 2);
 
-      if (kind == 2)
-	    why = "a multiclocked `cover property'";
-      else if (prop->op_type != 2)
+      if (prop->op_type != 2)
 	    why = "multiclocked overlapping implication (`@(c1) a |-> "
 		  "@(c2) b'); use non-overlapping `|=>'";
       else if (!c1)
 	    why = "a multiclocked property with no explicit antecedent clock";
-      else if (prop->disable_iff_expr)
-	    why = "`disable iff' on a multiclocked property";
       else if (!prop->antecedent || prop->antecedent->empty()
 	       || !prop->seq || prop->seq->empty())
 	    why = "a multiclocked implication with an empty antecedent "
 		  "or consequent";
+
+	/* M9-7: a multiclocked `cover property' counts consequent matches
+	   in the c2 domain exactly where the assert form reports a pass.
+	   Neither engine runs a cover pass statement (see the shared
+	   warning in pform_make_assertion), and the multiclock dispatch
+	   runs before that check, so repeat it here. */
+      if (cover && pass_stmt && !why) {
+	    cerr << loc << ": warning: the pass statement of this "
+		 << "`cover property' is not executed (recorded corner); "
+		 << "it is dropped. The match counter still counts." << endl;
+	    delete pass_stmt;
+	    pass_stmt = nullptr;
+      }
 
 	/* M9-7: each side may be a FIXED-length boolean chain
 	   (`a0 ##d a1 ...', constant delays): it pipelines exactly in
@@ -9011,6 +9021,35 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       perm_string req = sva_make_reg_(loc, inst, "mcreq", 0, true);
       perm_string ack = sva_make_reg_(loc, inst, "mcack", 0, true);
 
+	/* M9-7: `disable iff'. The condition is a level, read in BOTH
+	   domains at their own ticks, so each always block needs its own
+	   copy. While it holds, the c1 side starts and matures nothing and
+	   the c2 side drops any outstanding obligation -- an aborted
+	   attempt neither passes nor fails (IEEE 1800-2017 16.12). */
+      PExpr*dis = prop->disable_iff_expr;
+      prop->disable_iff_expr = nullptr;
+      PExpr*dis1 = dis ? sva_clone_expr_(dis) : nullptr;
+      PExpr*dis2 = dis ? sva_clone_expr_(dis) : nullptr;
+      if (dis && (!dis1 || !dis2)) {
+	    cerr << loc << ": sorry: this `disable iff' condition has a "
+		 << "shape that cannot be copied into both clock domains "
+		 << "of a multiclocked property (IEEE 1800-2017 16.13.3); "
+		 << "the assertion is dropped." << endl;
+	    error_count += 1;
+	    delete dis; delete dis1; delete dis2;
+	    delete fail_stmt; delete pass_stmt;
+	    delete prop->antecedent; delete prop->seq;
+	    delete c1; delete c2; delete prop;
+	    return;
+      }
+      delete dis;
+
+	/* Cover counts matches into the same register name the legacy and
+	   automaton engines use, so a test reads the count identically
+	   whichever engine or clocking shape produced it. */
+      perm_string r_cnt;
+      if (cover) r_cnt = sva_make_reg_(loc, inst, "cnt", 0, true);
+
 	/* Steal the slot booleans from their steps (the slot arrays
 	   alias the step expressions). */
       for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1)
@@ -9042,6 +9081,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    initv.push_back(sva_assign_(loc, pa[k], sva_bit_(loc, 0)));
       for (size_t k = 1 ; k < Tb ; k += 1)
 	    initv.push_back(sva_assign_(loc, tb[k], sva_bit_(loc, 0)));
+      if (cover)
+	    initv.push_back(sva_assign_(loc, r_cnt,
+			new PENumber(new verinum((uint64_t)0, 32))));
       initv.push_back(sva_register_stmt_(loc, inst));
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
 					sva_block_(loc, initv), nullptr);
@@ -9081,6 +9123,19 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 						 cond ? cond : sva_bit_(loc, 1)));
 	    }
       }
+	/* disable iff: abort in the c1 domain -- clear the stages so no
+	   in-flight attempt matures, and do not bump req. */
+      if (dis1) {
+	    std::vector<Statement*> kill1;
+	    for (size_t k = 1 ; k < Ta ; k += 1)
+		  kill1.push_back(sva_assign_nb_(loc, pa[k], sva_bit_(loc, 0)));
+	    if (kill1.empty())
+		  kill1.push_back(sva_assign_nb_(loc, req, sva_id_(loc, req)));
+	    std::vector<Statement*> gated1;
+	    gated1.push_back(sva_if_(loc, dis1, sva_block_(loc, kill1),
+				     sva_block_(loc, body1)));
+	    body1.swap(gated1);
+      }
       c1->set_statement(sva_block_(loc, body1));
       PProcess*p1 = pform_make_behavior(IVL_PR_ALWAYS, c1, nullptr);
       FILE_NAME(p1, loc);
@@ -9094,20 +9149,37 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       PExpr*outstanding = new PEBComp('n', sva_id_(loc, req), sva_id_(loc, ack));
       FILE_NAME(outstanding, loc);
 
-      Statement*action = fail_stmt;
-      if (!action) {
-	    std::list<named_pexpr_t> no_args;
-	    PCallTask*err = new PCallTask(lex_strings.make("$error"), no_args);
-	    FILE_NAME(err, loc);
-	    action = err;
+	/* A cover has no verdict: an unmatched consequent is simply not a
+	   match, so no fail action is built and no stage raises one. */
+      Statement*failstmt = nullptr;
+      if (!cover) {
+	    Statement*action = fail_stmt;
+	    if (!action) {
+		  std::list<named_pexpr_t> no_args;
+		  PCallTask*err = new PCallTask(lex_strings.make("$error"),
+						no_args);
+		  FILE_NAME(err, loc);
+		  action = err;
+	    }
+	    fail_stmt = nullptr;
+	    failstmt = sva_fail_action_(loc, inst, action);
+      } else {
+	    delete fail_stmt;
+	    fail_stmt = nullptr;
       }
-      fail_stmt = nullptr;
-      Statement*failstmt = sva_fail_action_(loc, inst, action);
 
-      std::vector<Statement*> passv;
-      if (pass_stmt) { passv.push_back(pass_stmt); pass_stmt = nullptr; }
-      passv.push_back(sva_report_stmt_(loc, inst, SVA_CB_SUCCESS));
-      Statement*passstmt = sva_block_(loc, passv);
+      Statement*passstmt;
+      if (cover) {
+	    PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt),
+					sva_num32_(loc, 1));
+	    FILE_NAME(add, loc);
+	    passstmt = sva_assign_(loc, r_cnt, add);
+      } else {
+	    std::vector<Statement*> passv;
+	    if (pass_stmt) { passv.push_back(pass_stmt); pass_stmt = nullptr; }
+	    passv.push_back(sva_report_stmt_(loc, inst, SVA_CB_SUCCESS));
+	    passstmt = sva_block_(loc, passv);
+      }
 
       std::vector<Statement*> body2;
 	/* per-tick failure flag: ANY stage (mid-chain or final) that
@@ -9131,8 +9203,13 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  }
 		  return sva_id_(loc, tb[k]);
 	    };
+	      /* For a cover there is no verdict, so a stage that does not
+		 advance simply drops the attempt. Assign ffail=0 rather
+		 than build a separate statement shape: it keeps the two
+		 paths structurally identical and costs one store. */
 	    auto raise_fail = [&]() -> Statement* {
-		  return sva_assign_(loc, ffail, sva_bit_(loc, 1));
+		  return sva_assign_(loc, ffail,
+				     sva_bit_(loc, cover ? 0 : 1));
 	    };
 	      /* Mid-chain stages: a 1-bit blocking temp holds the
 		 advance condition so the user boolean is read once;
@@ -9163,8 +9240,23 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			  sva_if_(loc, fb, passstmt, raise_fail()),
 			  nullptr));
 	    }
-	    body2.push_back(sva_if_(loc, sva_id_(loc, ffail),
-				    failstmt, nullptr));
+	    if (failstmt)
+		  body2.push_back(sva_if_(loc, sva_id_(loc, ffail),
+					  failstmt, nullptr));
+      }
+
+	/* disable iff: abort in the c2 domain -- swallow the outstanding
+	   obligation (ack catches up to req) and clear the stages, so the
+	   attempt neither passes nor fails. */
+      if (dis2) {
+	    std::vector<Statement*> kill2;
+	    kill2.push_back(sva_assign_nb_(loc, ack, sva_id_(loc, req)));
+	    for (size_t k = 1 ; k < Tb ; k += 1)
+		  kill2.push_back(sva_assign_nb_(loc, tb[k], sva_bit_(loc, 0)));
+	    std::vector<Statement*> gated2;
+	    gated2.push_back(sva_if_(loc, dis2, sva_block_(loc, kill2),
+				     sva_block_(loc, body2)));
+	    body2.swap(gated2);
       }
       c2->set_statement(sva_block_(loc, body2));
       PProcess*p2 = pform_make_behavior(IVL_PR_ALWAYS, c2, nullptr);

@@ -1,6 +1,11 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: R1 head (222/222, 4x~55 batches, 2026-07-25 —
+Full UVM last passed: M9-7 D.3 head (222/222, 4x~55 batches, 2026-07-25 —
+validated a parse.y grammar addition plus changes to the multiclock
+assertion lowering. The grammar change is the reason a full run was needed
+rather than a subset: a new production in sva_seq_expr affects how every
+source file is parsed, not just multiclocked ones. Conflict baseline
+unchanged at 494 s/r + 1161 r/r. Previous full run, same result, at R1 head —
 validated the Preponed-sampling change to $ivl_clocking_sample elaboration.
 Every concurrent-assertion operand in every design passes through that code,
 and a select operand's value now comes from a different simulation region
