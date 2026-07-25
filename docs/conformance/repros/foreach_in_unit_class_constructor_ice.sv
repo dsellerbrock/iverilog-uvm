@@ -20,12 +20,22 @@
 //     for the constructor (elab_stage 1 -> 2) and its walk reaches the
 //     block -- `PBlock::elaborate_sig' does not report a missing child
 //     scope -- so `elaborate_sig_wires_' ran against an EMPTY wire list.
-//     The declaration `pform_make_foreach_declarations' builds therefore
-//     lands in some lexical scope other than the pushed block.
+//   * The PFORM SIDE IS CORRECT. Instrumenting
+//     `pform_make_foreach_declarations' shows the loop variable being
+//     declared into the pushed PBlock in BOTH the failing constructor and
+//     the working non-constructor case ("into lexical_scope=... kind=PBlock,
+//     scope now has 1 wires"). So the declaration is where it belongs and
+//     the loss is on the elaboration side.
 //
-// So the fix is on the pform side (where the foreach block scope is
-// pushed for a $unit class constructor), not in the elaborator, and the
-// assertion at elaborate.cc:11284 is the symptom.
+// That leaves one shape consistent with every observation: the constructor's
+// signals are elaborated against a DIFFERENT NetScope tree from the one its
+// body is elaborated against -- which would also explain why only $unit
+// classes are affected, since those are materialized on demand
+// (`ensure_visible_class_type') rather than with the enclosing module. The
+// next step is to confirm that directly: log the NetScope pointer for
+// `$unit.H.new' in `netclass_t::elaborate_sig' and again at the failing
+// `elaborate_runtime_array_', and compare. The assertion at
+// elaborate.cc:11284 is the symptom, not the defect.
 //
 // Uncomment either variant to reproduce; both abort.
 
