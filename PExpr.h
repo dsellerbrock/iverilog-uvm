@@ -231,6 +231,12 @@ class PEAssignPattern : public PExpr {
                                      unsigned flags) const override;
       const std::vector<PExpr*>& parms() const { return parms_; }
       const std::vector<perm_string>& parm_names() const { return parm_names_; }
+	// Non-null when the pattern is exactly `'{default: value}'.
+      PExpr* lone_default_() const;
+	// Effective element list, expanding the `'{N{...}}' replication
+	// form. False (diagnosed) when N is not a usable constant.
+      bool expand_replication_(Design*des, NetScope*scope,
+			       std::vector<PExpr*>&out) const;
       PExpr* replication() const { return replication_; }
     private:
       NetExpr* elaborate_expr_packed_(Design *des, NetScope *scope,

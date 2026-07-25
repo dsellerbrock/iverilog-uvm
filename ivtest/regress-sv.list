@@ -1164,3 +1164,4 @@ sv_assert_reactive_action normal,-g2012 ivltests
 sv_assert_reactive_drain normal,-g2012 ivltests gold=sv_assert_reactive_drain.gold
 sv_constraint_inherited_soft normal,-g2012 ivltests
 sv_constraint_soft_priority normal,-g2012 ivltests
+sv_default_assign_pattern normal,-g2012 ivltests

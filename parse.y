@@ -1554,9 +1554,14 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
 	$$ = tmp;
       }
   | K_LP K_default ':' expression '}'
-      { std::list<PExpr*> vals;
-	vals.push_back($4);
-	PEAssignPattern*tmp = new PEAssignPattern(vals);
+      { /* `'{default: value}' is the NAMED form with the sole key
+	   `default' (IEEE 1800-2017 10.9.1), not a one-element
+	   positional pattern. Building it positionally made every use
+	   an arity error -- "expects N element(s) ... Found 1" -- for
+	   arrays and structs alike. */
+	std::list<std::pair<perm_string,PExpr*>> named;
+	named.push_back(std::make_pair(lex_strings.make("default"), $4));
+	PEAssignPattern*tmp = new PEAssignPattern(named);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }

@@ -1321,6 +1321,56 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
       return 0;
 }
 
+/* IEEE 1800-2017 10.9.1 / A.6.7.1 replication form: `'{N{a, b, ...}}'
+   stands for the element list repeated N times. The count was parsed and
+   then dropped everywhere, so `'{4{8'hAB}}' assigned a SINGLE element --
+   silently wrong for a packed target (it landed in the low element and
+   the rest stayed zero) and an arity error for an unpacked one.
+
+   Fills `out' with the effective element list. Returns false, having
+   diagnosed, when the count is not a usable constant. */
+bool PEAssignPattern::expand_replication_(Design*des, NetScope*scope,
+					  std::vector<PExpr*>&out) const
+{
+      out.clear();
+      if (!replication_) {
+	    out.assign(parms_.begin(), parms_.end());
+	    return true;
+      }
+
+      NetExpr*tmp = elab_and_eval(des, scope, replication_, -1, true);
+      const NetEConst*rep = dynamic_cast<const NetEConst*>(tmp);
+      if (rep == 0 || !rep->value().is_defined() || rep->value().is_negative()) {
+	    cerr << get_fileline() << ": error: Assignment pattern "
+		 << "replication count must be a defined, non-negative "
+		 << "constant." << endl;
+	    des->errors++;
+	    delete tmp;
+	    return false;
+      }
+      unsigned long n = rep->value().as_ulong();
+      delete tmp;
+
+      for (unsigned long r = 0 ; r < n ; r += 1)
+	    out.insert(out.end(), parms_.begin(), parms_.end());
+      return true;
+}
+
+/* IEEE 1800-2017 10.9.1: `'{default: value}' supplies every element or
+   member the pattern does not name. When `default' is the ONLY key the
+   pattern has no explicit elements at all, so the target's own dimension
+   (or member list) decides how many copies it stands for. Returns the
+   value expression, or null when this is not that form. */
+PExpr* PEAssignPattern::lone_default_() const
+{
+      if (parm_names_.size() != 1 || parms_.size() != 1)
+	    return nullptr;
+      static const perm_string def_key = lex_strings.make("default");
+      if (parm_names_[0] != def_key)
+	    return nullptr;
+      return parms_[0];
+}
+
 NetExpr* PEAssignPattern::elaborate_expr_array_(Design *des, NetScope *scope,
 					        const netarray_t *array_type,
 					        bool need_const, bool up) const
@@ -1334,15 +1384,38 @@ NetExpr* PEAssignPattern::elaborate_expr_array_(Design *des, NetScope *scope,
 	    return tmp;
       }
 
+	/* `'{default: v}' against a container with no size of its own --
+	   a dynamic array, a queue, or an associative array. 7.9.11 makes
+	   this the container's DEFAULT VALUE for entries that were never
+	   written, which is state the runtime does not carry; the element
+	   list is empty either way. Kept as the single-element lowering it
+	   has always had (UVM declares `int m[string] = '{default:0}'),
+	   but no longer silently: a non-zero default is the case where the
+	   difference is observable, so that one warns. */
+      if (PExpr*dflt = lone_default_()) {
+	    const PENumber*dn = dynamic_cast<const PENumber*>(dflt);
+	    if (!dn || !dn->value().is_defined() || dn->value().as_ulong() != 0) {
+		  cerr << get_fileline() << ": warning: '{default:...} on a "
+		       << "dynamic array, queue or associative array sets the "
+		       << "container's default value for unwritten entries "
+		       << "(IEEE 1800-2017 7.9.11), which is not modelled; "
+		       << "unwritten entries read as zero." << endl;
+	    }
+      }
+
 	// This is an array pattern, so run through the elements of
 	// the expression and elaborate each as if they are
 	// element_type expressions.
+      vector<PExpr*> pv;
+      if (!expand_replication_(des, scope, pv))
+	    return nullptr;
+
       ivl_type_t elem_type = array_type->element_type();
-      vector<NetExpr*> elem_exprs (parms_.size());
-      size_t elem_idx = up ? 0 : parms_.size() - 1;
-      for (size_t idx = 0 ; idx < parms_.size() ; idx += 1) {
+      vector<NetExpr*> elem_exprs (pv.size());
+      size_t elem_idx = up ? 0 : pv.size() - 1;
+      for (size_t idx = 0 ; idx < pv.size() ; idx += 1) {
 	    elem_exprs[elem_idx] = elaborate_rval_expr(des, scope, elem_type,
-						       parms_[idx], need_const);
+						       pv[idx], need_const);
 	    if (up)
 		  elem_idx++;
 	    else
@@ -1363,46 +1436,71 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
       if (dims.size() <= cur_dim)
 	    return nullptr;
 
-      if (dims[cur_dim].width() != parms_.size()) {
+      bool up = dims[cur_dim].get_msb() < dims[cur_dim].get_lsb();
+
+	/* `'{default: v}': one value standing for every element of this
+	   dimension, and of every dimension under it. */
+      if (PExpr*dflt = lone_default_()) {
+	    unsigned n = dims[cur_dim].width();
+	    vector<NetExpr*> elem_exprs (n);
+	    bool inner = (cur_dim + 1) < dims.size();
+	    for (unsigned idx = 0 ; idx < n ; idx += 1) {
+		  NetExpr*e = inner
+			? elaborate_expr_uarray_(des, scope, uarray_type,
+						 dims, cur_dim + 1, need_const)
+			: elaborate_rval_expr(des, scope,
+					      uarray_type->element_type(),
+					      dflt, need_const);
+		  elem_exprs[up ? idx : (n - 1 - idx)] = e;
+	    }
+	    NetEArrayPattern*res = new NetEArrayPattern(uarray_type, elem_exprs);
+	    res->set_line(*this);
+	    return res;
+      }
+
+      vector<PExpr*> pv;
+      if (!expand_replication_(des, scope, pv))
+	    return nullptr;
+
+      if (dims[cur_dim].width() != pv.size()) {
 	    cerr << get_fileline() << ": error: Unpacked array assignment pattern expects "
 	         << dims[cur_dim].width() << " element(s) in this context.\n"
 	         << get_fileline() << ":      : Found "
-		 << parms_.size() << " element(s)." << endl;
+		 << pv.size() << " element(s)." << endl;
 	    des->errors++;
       }
 
-      bool up = dims[cur_dim].get_msb() < dims[cur_dim].get_lsb();
       if  (cur_dim == dims.size() - 1) {
 	    return elaborate_expr_array_(des, scope, uarray_type, need_const, up);
       }
 
       cur_dim++;
-      vector<NetExpr*> elem_exprs(parms_.size());
-      size_t elem_idx = up ? 0 : parms_.size() - 1;
-      for (size_t idx = 0; idx < parms_.size(); idx++) {
+      vector<NetExpr*> elem_exprs(pv.size());
+      size_t elem_idx = up ? 0 : pv.size() - 1;
+      for (size_t idx = 0; idx < pv.size(); idx++) {
 	    NetExpr *expr = nullptr;
 	    // Handle nested assignment patterns as a special case. We do not
 	    // have a good way of passing the inner dimensions through the
 	    // generic elaborate_expr() API and assigment patterns is the only
 	    // place where we need it.
-	    if (const auto ap = dynamic_cast<PEAssignPattern*>(parms_[idx])) {
+	    if (const auto ap = dynamic_cast<PEAssignPattern*>(pv[idx])) {
 		  expr = ap->elaborate_expr_uarray_(des, scope, uarray_type,
 						    dims, cur_dim, need_const);
-	    } else if (dynamic_cast<PEConcat*>(parms_[idx])) {
+	    } else if (dynamic_cast<PEConcat*>(pv[idx])) {
 		  cerr << get_fileline() << ": sorry: "
 		       << "Array concatenation is not yet supported."
 		       << endl;
 		  des->errors++;
-	    } else if (dynamic_cast<PEIdent*>(parms_[idx])) {
+	    } else if (dynamic_cast<PEIdent*>(pv[idx])) {
 		  // The only other thing that's allow in this
 		  // context is an array slice or identifier.
 		  cerr << get_fileline() << ": sorry: "
 		       << "Procedural assignment of array or array slice"
 		       << " is not yet supported." << endl;
 		  des->errors++;
-	    } else if (parms_[idx]) {
+	    } else if (pv[idx]) {
 		  cerr << get_fileline() << ": error: Expression "
-		       << *parms_[idx]
+		       << *pv[idx]
 		       << " is not compatible with this context."
 		       << " Expected array or array-like expression."
 		       << endl;
@@ -1436,15 +1534,43 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 	    return nullptr;
       }
 
-      if (dims[cur_dim].width() != parms_.size()) {
+	/* `'{default: v}': the value fills every LEAF element of the
+	   packed target. In a packed declaration the innermost range is
+	   the element's own width, not another level of elements --
+	   `bit [2:0][3:0]' is three 4-bit elements -- so the leaf width
+	   is the last range and the leaf count is everything above it.
+	   A plain vector (one range left) has 1-bit elements, which is
+	   how the positional form already treats it. */
+      if (lone_default_()) {
+	    unsigned leaf_wid = ((dims.size() - cur_dim) >= 2)
+		  ? dims.back().width() : 1;
+	    if (leaf_wid == 0) leaf_wid = 1;
+	    unsigned leaves = width / leaf_wid;
+	    if (leaves == 0) leaves = 1;
+
+	    NetEConcat*neconcat = new NetEConcat(leaves, 1, base_type);
+	    for (unsigned idx = 0 ; idx < leaves ; idx += 1) {
+		  NetExpr*e = elaborate_rval_expr(des, scope, nullptr,
+						  base_type, leaf_wid,
+						  parms_[0], need_const);
+		  if (e) neconcat->set(idx, e);
+	    }
+	    return neconcat;
+      }
+
+      vector<PExpr*> pv;
+      if (!expand_replication_(des, scope, pv))
+	    return nullptr;
+
+      if (dims[cur_dim].width() != pv.size()) {
 	    // Compile-progress fallback: Some macro expansions (e.g. UVM
 	    // reporting macros) can confuse the parser into treating function
 	    // argument lists as assignment patterns. If the mismatch is large
 	    // (expected elements == width of integer), likely a misparse.
 	    if (gn_system_verilog() && dims[cur_dim].width() == 32
-		&& parms_.size() <= 8) {
-	    } else if (parms_.size() != 0
-		       && dims[cur_dim].width() % parms_.size() == 0) {
+		&& pv.size() <= 8) {
+	    } else if (pv.size() != 0
+		       && dims[cur_dim].width() % pv.size() == 0) {
 	      // Compile-progress fallback for flattened multi-dim packed
 	      // parameters: when iverilog has collapsed `[M:0][N:0]` to a
 	      // single combined range of M*N bits, an assignment pattern of
@@ -1457,7 +1583,7 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 		  cerr << get_fileline() << ": error: Packed array assignment pattern expects "
 		       << dims[cur_dim].width() << " element(s) in this context.\n"
 		       << get_fileline() << ":      : Found "
-		       << parms_.size() << " element(s)." << endl;
+		       << pv.size() << " element(s)." << endl;
 		  des->errors++;
 	    }
       }
@@ -1465,21 +1591,21 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
       width /= dims[cur_dim].width();
       cur_dim++;
 
-      NetEConcat *neconcat = new NetEConcat(parms_.size(), 1, base_type);
-      for (size_t idx = 0; idx < parms_.size(); idx++) {
+      NetEConcat *neconcat = new NetEConcat(pv.size(), 1, base_type);
+      for (size_t idx = 0; idx < pv.size(); idx++) {
 	    NetExpr *expr;
 	    // Handle nested assignment patterns as a special case. We do not
 	    // have a good way of passing the inner dimensions through the
 	    // generic elaborate_expr() API and assigment patterns is the only
 	    // place where we need it.
-	    const auto ap = dynamic_cast<PEAssignPattern*>(parms_[idx]);
+	    const auto ap = dynamic_cast<PEAssignPattern*>(pv[idx]);
 	    if (ap)
 		  expr = ap->elaborate_expr_packed_(des, scope, base_type,
 						    width, dims, cur_dim, need_const);
 	    else
 		  expr = elaborate_rval_expr(des, scope, nullptr,
 					     base_type, width,
-					     parms_[idx], need_const);
+					     pv[idx], need_const);
 	    if (expr)
 		  neconcat->set(idx, expr);
       }
