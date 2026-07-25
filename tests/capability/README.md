@@ -80,6 +80,20 @@ was never primed — a descriptor silently discarded a real violation.
 `edgeforms` extends that to `edge[10]` and multi-entry lists. All are now
 pinned by `ivtest/ivltests/sv_timing_check_edge_descriptor.v`.
 
+## A claim needs a test that would fail if it were false
+
+Two residual entries (R6 timing checks, R7 object-array indexing) were both
+written from reading source -- a code comment and a hardcoded constant --
+rather than from a discriminating run, and **both were wrong**. `objidx`
+shows object-array element reads already honour constant, variable,
+expression and descending indices, plus queues; `reach2` and `reach3` show
+what the hardcoded `%ix/load 3, 0, 0` actually affected: `h = arr;` and
+`f(arr)`, both illegal, silently accepted as `arr[0]` and now loud errors.
+
+Re-examining each found a real silent defect, but a narrower and different
+one than the entry claimed. Write the probe so it fails when the claim is
+false.
+
 ## Loud gaps (correct behaviour today, kept for the record)
 
 `m13_3_config` and `m13_4_trireg` are unimplemented and say so with a sorry.

@@ -1,18 +1,14 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: M3B-5 head (218/218, 4x batches of 55/55/54/54,
-2026-07-24 — validated the per-object and per-process RNG. Ran a full pass
-because seeding changes what randomize() and $urandom draw from across the
-whole library (UVM calls srandom() on every object via reseed()), and
-because the companion $swrite fix touches system-task elaboration.)
+Full UVM last passed: M10-1b head (218/218, 4x batches of 55/55/54/54,
+2026-07-25 — validated turning a previously-silent tgt-vvp codegen path into
+a hard error. Instrumenting that path and compiling all 218 UVM tests plus
+all 1070 ivtest cases had already shown zero hits, but a NEW hard error is
+exactly the change where being wrong fails everything, so the full run was
+worth its cost as independent confirmation.)
 
-Commits since full UVM: 1
-Highest risk change since last full run: LOW — M13-6 primes an
-edge-descriptor timing-check tracker (reachable only from a specify block
-under -gspecify, which UVM does not use) plus a parse.y warning message
-and a vvp.def removal. Validated with the scheduler (20/20) and uvm_core
-(27/27) subsets instead of a full run; ivtest 1025/1069 with the 44-fail
-baseline intact.
+Commits since full UVM: 0
+Highest risk change since last full run: —
 
 Triggers for a full run (see docs/conformance/REGRESSION_POLICY.md):
   - HIGH-risk commits since last full UVM >= 2

@@ -278,7 +278,8 @@ module-like subset — leaving the M9-7 multiclock residuals, the
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M10-1 | Multidimensional open arrays (`svGetArrElemPtr2/3`) | F | OPEN | — | 2-D/3-D open-array access |
+| M10-1 | Multidimensional open arrays (`svGetArrElemPtr2/3`) | F | OPEN | — | 2-D/3-D open-array access. `svLow` returns a hardcoded 0, `svIncrement` a hardcoded -1, and `svSizeOfArray` computes `length * elem_bytes` so it returns 0 for a multidim array (vvp/vvp_dpi.cc). **Terms:** real bounds in `vvp_dpi_open_array_t`, multidim `svSizeOfArray`, and fixed-array marshaling into contiguous DPI storage with copy-back. **Note:** the object-array-element half that used to be filed here was a misreading and is resolved — see M10-1b |
+| M10-1b | Whole object array used where a single class handle is required was silently accepted | C | **DONE** | — | `tgt-vvp/eval_object.c`'s `IVL_EX_ARRAY` path loaded element 0 and carried on, so `h = arr;` and `f(arr)` -- both type errors -- compiled and behaved as if the author had written `arr[0]`. Now a `vvp.tgt error` naming the array and pointing at element selection. **The claim this row replaces was wrong:** it said `arr[i]` silently read element 0, inferred from the hardcoded `%ix/load 3, 0, 0`. An indexed element read is `IVL_EX_SIGNAL`, whose path (`eval_object_signal`) evaluates the word index properly; `IVL_EX_ARRAY` is by API definition the whole array with **no index**, so it is reachable only from the illegal forms above. Established by instrumenting the path and compiling all 1069 ivtest cases and all 218 UVM tests: **zero hits**. Indexing is pinned as already-correct across constant, variable, expression and descending indices, write-through, queues, dynamic arrays and string-keyed associative arrays. tests sv_class_array_element_index + negative object_array_to_handle, object_array_as_handle_arg |
 | M10-2 | DPI export (C→SV) | F | **DONE** | — | `export "DPI-C"` was already implemented end-to-end (parse → pform resolve → t-dll → tgt-vvp directives + a generated `.dpiexport.c` stub → the vvp `__ivl_dpi_export_call_*` dispatcher); the row was stale. Verified working: int/real/string/void returns and args, renamed (`c_name =`) exports, multi-instance and context exports, and time-consuming exported tasks via the coroutine path when reached from an imported DPI *task*. **Fixed a crash found by probing the boundary:** a time-consuming export reached from an imported DPI *function* has no coroutine to park on — the inline runner spun the child past its delay and joined it while the scheduler still held a future event, aborting vvp on assert(is_scheduled) (then assert(children.empty())). The runner now stops when the child delays, emits the existing loud sorry, and detaches the child so it completes under the scheduler. tests m10c/d/e/f + new m10g_dpi_export_blocking_diag_test |
 | M10-3 | Real context semantics / `chandle` ABI verification | A | **VERIFIED WORKING** | — | Probes m10_3_chandle + m10_3b_adv: `chandle` round-trip through import and through an **output** formal; `chandle` stored in a class property and in an unpacked array and read back; `real` in/out and **inout**; `string` in and **output**; `inout int`. All correct. **Terms:** pin both probes as regression tests, then close |
 | M10-4 | Time-consuming imported tasks | F | **DONE** | **M6-CALLF** | An imported `context task` consumes time via the coroutine path, and a time-consuming exported task reached from it runs across simulation time (probe m10_4_slowtask). **Fixed one P0 silent wrong result found by probing the boundary:** an export declared with **`automatic` lifetime** received **`x` for every argument**, even on a single non-concurrent call, so a value-returning export returned garbage and `#(d)` degenerated to a zero delay -- with no diagnostic. **Root cause:** `compile_export_dpi` (vvp/compile.cc:1250-1263) resolves `arg_nets` once at link time to the **static prototype nets**, and `dpi_export_run_` (vvp/vthread.cc) marshaled into them with a null context; an automatic body reads its per-invocation frame and never sees those nets. The dispatcher now allocates a context for an automatic export and marshals into it -- the same shape `%alloc` gives an ordinary SV call -- and hands it to the child, which owns it so `release_owned_context_` frees it on the inline, coroutine and orphaned-detach paths alike. This also makes **concurrent** invocations of one automatic exported task correct, each keeping its own arguments. **Correction:** an earlier probe read concurrent aliasing of a *static* export as a second defect; it is not. IEEE 1800-2017 13.3.1 gives a static subroutine one copy of its arguments, so concurrent invocations alias -- verified identical for a plain SV static task (probe staticsem), and deliberately preserved. Nested automatic frames inside the exported body and recursive C -> export -> C -> export re-entry both verified (probes m10_4g_nested, m10_4h_recurse). tests m10h_dpi_export_automatic_test + m10i_dpi_export_automatic_nested_test |
@@ -429,8 +430,11 @@ boundaries, not headline features** — every headline worked.
      now says so with a compile-time warning, so the residual is loud.
    - ~~**M3B-5** `srandom()`/`set_randstate()` are silent no-ops~~ —
      **FIXED**; per-object RNG, and `$urandom` in a method follows it.
-   - **M10-1** (carried) object-array element load ignores its index
-     (`tgt-vvp/eval_object.c:514-524`).
+   - ~~**M10-1** object-array element load ignores its index~~ —
+     **misdiagnosed**; indexing was already correct. The real defect was
+     silent acceptance of an illegal whole-array-to-handle assignment,
+     now a loud error (M10-1b). What remains under M10-1 is the svdpi
+     open-array bounds (R7), which is silently wrong but not a miscompile.
 2. **M13-5/6/7 accepted-noops** — timing checks, edge descriptors and
    `pulsestyle`/`showcancelled` are accepted and silently ignored. Under
    the loud-sorry rule an accepted-noop ranks above ordinary unimplemented
@@ -473,12 +477,14 @@ the thing to check first.
 | R4 | A **static** declaration initializer (`process p = process::self();`) is hoisted to a separate init thread, so it captures the wrong process. | M3B-5 (pre-existing) | **yes** — Icarus already warns that the form needs an explicit lifetime | Evaluate a static initializer in the declaring block's thread, or narrow the warning into an error for `process::self()`. `automatic` and in-block assignment both work today |
 | R5 | A time-consuming export reached from an imported DPI **function** is unsupported. | M10-2 | **yes** — sorry | Nothing: illegal for value-returning functions, and no coroutine exists to park on |
 | R6 | `pulsestyle_*` / `showcancelled` are accepted and have no effect on pulse propagation. | M13-7 | **yes** — per-directive warning naming the construct and what is not modelled | Model pulse filtering in the path-delay engine (reject/error limits, cancelled-pulse propagation) |
-| R7 | Object-array element load ignores its index (`tgt-vvp/eval_object.c`), silently reading element 0. | M10-1 | **NO — rule-1 defect** | Make the empty handle loud first, then implement fixed-array marshaling into contiguous DPI storage with copy-back |
+| R7 | `svLow`/`svIncrement` return hardcoded values and `svSizeOfArray` returns 0 for a multidim open array. | M10-1 | no — silently wrong values | Real bounds in `vvp_dpi_open_array_t`, multidim `svSizeOfArray`, and fixed-array marshaling with copy-back |
 | R8 | `%p` prints a packed struct as a plain integer and flattens nested dimensions. | M4B-4/5 | no — cosmetic | Deferred by decision, not by difficulty |
 | R9 | The hardcoded `uvm_shared`/`value`/`T` type-inference fallback is very likely dead code. | M1B-3 | n/a — cleanup | Delete it and its call site, then validate with a full UVM run |
 
 **R7 is the only residual still *silent*,** so by rule 1 it leads the queue
-regardless of where its milestone sits in the ordered list above.
+regardless of where its milestone sits in the ordered list above. Its scope
+is now narrower and accurate: the object-array-element half was a misreading
+(see M10-1b) and what remains is the svdpi open-array bounds.
 
 **R6 was corrected, not closed by wishful thinking.** It previously read
 "timing checks, edge descriptors and pulse controls parse, elaborate and are
@@ -490,6 +496,15 @@ pulse controls were already warned about. Probing the family properly
 the unprimed edge-descriptor tracker, now fixed under M13-6 — which is the
 second time a residual entry has paid for itself by being re-examined
 rather than trusted.
+
+**Both R6 and R7 turned out to be misdiagnosed**, and in the same way: each
+was written from reading a code comment or a hardcoded constant instead of
+running a discriminating test. Re-examining them found a real silent defect
+in each case, but a *different and narrower* one than the entry described --
+the unprimed edge-descriptor tracker (M13-6) and silent acceptance of an
+illegal whole-array-to-handle assignment (M10-1b). The lesson is the one this
+tracker keeps relearning: **a claim about behaviour needs a test that would
+fail if the claim were false**, and reading the source is not that test.
 
 **Retired from this list:** the original R3 — `process::srandom()` rejected
 with a sorry — was closed by being implemented rather than re-described,
