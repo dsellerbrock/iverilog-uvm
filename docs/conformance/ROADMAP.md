@@ -229,6 +229,13 @@ a task/automaton lowering — future work). No silent-miscompile gap.
 Advanced production features (`rand join`, `repeat`/`case` productions,
 production value/args, `break`/`return`) are not yet parsed.
 
+### M1C — canonical semantic access architecture  (clause 6/7/8, architecture)
+
+| ID | Item | Nat | Status | Blocked-by | Done when |
+|----|------|-----|--------|-----------|-----------|
+| M1C-1 | ICE: `foreach` over a runtime-sized array in a `$unit`-scope class constructor | R | OPEN | — | Compiler ABORTS on legal input: `assert: elaborate.cc:11284: failed assertion idx_sig`. Minimized boundary (repro `repros/foreach_in_unit_class_constructor_ice.sv`): only the CONSTRUCTOR (the same body in `function void init()` is correct), only a dynamic array or queue (a fixed-size array property takes the compile-time-bounds path and is fine), only at `$unit` scope (the same class inside a module works), and it applies to method locals as well as properties. Evidence gathered: at the failure point `$unit.H.new.$ivl_foreach0` exists as a child of the constructor scope but holds no signal `i` — not there, not in the constructor scope, the class scope or `$unit`. `PFunction::elaborate_sig` runs once for the constructor (elab_stage 1→2), its walk reaches the block (`PBlock::elaborate_sig` does not report a missing child scope), so `elaborate_sig_wires_` ran against an EMPTY wire list. **The declaration `pform_make_foreach_declarations` builds lands in a lexical scope other than the pushed block, so the fix is on the pform side; the assertion is the symptom.** Done when the repro compiles and runs, with a permanent regression test covering property + local × darray + queue × `$unit` + module |
+| M1C-2 | Canonical access representation (root · indices · member chain · packed select · rvalue/lvalue/receiver intent) | X | OPEN | — | The migration described in the campaign brief. **Evidence for scoping it:** a 40-shape Cartesian probe (container × element kind × operation × index) over static/dynamic/queue/assoc arrays of class handles, unpacked structs and packed structs — read, write, compound write, nonblocking write, method receiver (task and function), constant and variable index, and packed bit/part select after member access — passes in full, as does a second batch over class-property containers, queue-of-queue, string-keyed assoc, and interface members through both a direct and a virtual interface. The earlier aggregate/receiver defects that motivated this item are closed; what remains is the fragmentation itself, not a list of live miscompiles |
+
 ### M6B — scheduler conformance  (clause 4)
 
 | ID | Item | Nat | Status | Blocked-by | Done when |

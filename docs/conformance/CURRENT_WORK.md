@@ -42,6 +42,32 @@ where work stands and what to pick up. It is a pointer, not a log.
   (`join_any` returns while one is parked; `disable fork` abandons it for
   good).
 
+**Preempted into (rule gate 1 — silent wrong results jump the queue):**
+
+- **M3B-8** inherited constraints were solved class by class, so a
+  base-only re-solve overwrote the full solution and silently violated a
+  derived hard constraint. Now one solve over the complete set.
+- **M3B-9** soft-constraint priority (18.5.14.1) was settled by weight
+  sum rather than declaration order. Each `soft` is now its own
+  lexicographic objective, and the compiler emits inherited constraint
+  lists in ascending declaration order so list position is priority.
+- **M4B-11** `'{default: value}` was rejected everywhere (parsed as a
+  one-element positional pattern) and the `'{N{...}}` replication count
+  was dropped by every elaboration path — silently wrong on a packed
+  target.
+
+**Campaign 1 is closed.** M6B is COMPLETE (all four items), M7 is
+verified at 224/0/0 with an empty known-fail list, and the region
+pipeline self-test drains Preponed → Active → NBA → NBASync → Observed →
+Reactive → Re-NBA → RWSync → ROSync in order under reverse insertion.
+
+**Next concrete change (Campaign 2 / M1C-1):** a compiler ICE on legal
+input — `foreach` over a runtime-sized array inside the constructor of a
+`$unit`-scope class. Minimized, with the boundary and the evidence, in
+`repros/foreach_in_unit_class_constructor_ice.sv` and the M1C-1 row. The
+fix is on the pform side: the foreach index declaration lands outside the
+block scope that was pushed for it.
+
 **Where to look first when resuming:** the `Current focus` list at the
 bottom of `ROADMAP.md`. It is re-derived from the priority rule, not
 hand-picked.
