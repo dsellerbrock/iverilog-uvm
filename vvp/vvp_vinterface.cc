@@ -358,6 +358,17 @@ std::string vvp_vinterface::get_string(size_t pid, size_t idx) const
 void vvp_vinterface::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 {
       slot_t slot = get_slot_(pid);
+
+	// An OBJECT-element array member -- an unpacked array of structs.
+	// The element index selects the word, exactly as for the vec4,
+	// real and string element kinds.
+      if (slot.kind == SLOT_ARRAY) {
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && idx < arr->get_size())
+		  arr->set_word((unsigned)idx, val);
+	    return;
+      }
+
       if (slot.kind != SLOT_OBJECT)
 	    return;
 
@@ -372,6 +383,20 @@ void vvp_vinterface::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 void vvp_vinterface::get_object(size_t pid, vvp_object_t&val, size_t idx) const
 {
       slot_t slot = get_slot_(pid);
+
+	// An OBJECT-element array member: without this, a struct-typed
+	// array member reached through a handle read as null -- so
+	// `vif.sarr[i].field' read zero, silently, while the same access
+	// through the interface instance was correct.
+      if (slot.kind == SLOT_ARRAY) {
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && idx < arr->get_size())
+		  arr->get_word_obj((unsigned)idx, val);
+	    else
+		  val.reset();
+	    return;
+      }
+
       if (slot.kind != SLOT_OBJECT) {
 	    val.reset();
 	    return;

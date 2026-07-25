@@ -18,12 +18,17 @@
 // An array slot now resolves, and the element index selects the word:
 // `vif.arr[i]' reads and writes the instance's array. Reals and strings
 // took the same route (their accessors discarded the index outright,
-// `(void)idx'), so those are covered here too.
+// `(void)idx'), and so did OBJECT elements -- an unpacked array of
+// structs read as null through a handle, so `vif.sarr[i].field' read
+// zero while the same access through the instance was correct. All are
+// covered here.
 //
 // Against the pre-fix compiler every `vif ...' line below read x / 0 / ""
 // and every write through the handle left the instance unchanged.
 
 interface bus_if;
+  typedef struct { bit [3:0] hi; int lo; } elem_t;
+
   bit [7:0]      data;         // scalar control: always worked
   bit [7:0]      arr[4];       // unpacked array of packed
   bit [3:0][3:0] pk;           // packed array member: a single slot
@@ -31,6 +36,7 @@ interface bus_if;
   real           rarr[2];
   string         sarr[2];
   bit [7:0]      m2[2][2];     // 2-D unpacked
+  elem_t         earr[2];      // OBJECT-element array (unpacked struct)
 endinterface
 
 module main;
@@ -103,6 +109,19 @@ module main;
       fails++;
       $display("FAILED -- string array write: instance has \"%s\" want \"two\"", sif.sarr[1]);
     end
+
+    // An OBJECT-element array member -- an unpacked array of structs.
+    // Its slot resolves the same way; the element index selects the word,
+    // and the member is then read out of that element. This read as null
+    // (member reads gave 0) while the same access through the instance
+    // was correct.
+    vif.earr[k].hi = 4'h9;
+    vif.earr[k].lo = 55;
+    chk("struct array member write, hi", sif.earr[1].hi, 4'h9);
+    chk("struct array member write, lo", sif.earr[1].lo, 55);
+    chk("struct array member read",      vif.earr[k].hi, 4'h9);
+    sif.earr[0].hi = 4'h3;
+    chk("struct array instance write seen through handle", vif.earr[0].hi, 4'h3);
 
     // A write through the instance must be visible through the handle.
     sif.arr[3] = 8'd44;
