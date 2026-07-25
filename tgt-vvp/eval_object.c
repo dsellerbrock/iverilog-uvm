@@ -504,25 +504,35 @@ static int eval_object_ufunc(ivl_expr_t ex)
 
 /*
  * IVL_EX_ARRAY in an OBJECT context (draw_eval_object leaves exactly one
- * object on the stack).
+ * object on the stack) -- the whole unpacked array used as an object.
  *
  * Per the ivl_target API, IVL_EX_ARRAY is the whole array with NO index
- * expression -- it exists for passing an array to a system task/function.
- * The array-method paths that legitimately take a whole-array receiver
- * (see the IVL_EX_ARRAY checks in eval_object_select and the array-method
- * helpers) recognise it themselves and never route it through here. So an
- * IVL_EX_ARRAY reaching this point means a whole unpacked array was used
- * where a single class handle was required -- a type error:
+ * expression. Indexed element reads are IVL_EX_SIGNAL and go through
+ * eval_object_signal, which evaluates the word index properly; the
+ * array-method paths that legitimately take a whole-array receiver
+ * recognise IVL_EX_ARRAY themselves and never route it through here.
  *
- *     C arr[4]; C h;   h = arr;        // not assignment-compatible
- *     function int f(C x); ...  f(arr) // not a legal actual for x
+ * What DOES arrive here is a whole fixed-size unpacked array standing in
+ * for an object, which happens in three shapes:
  *
- * This used to load element 0 and carry on, so illegal code compiled and
- * silently behaved as if the author had written arr[0]. Nothing in the
- * corpus relies on it: instrumenting the path and compiling all 1069
- * ivtest cases and all 218 UVM tests produced zero hits, and the only ways
- * found to reach it are the two illegal forms above. Diagnose instead --
- * there is no correct single object to produce.
+ *     int  a[3:10]; int d[];   d = a;      // 7.6, legal: fixed -> dynamic
+ *     import "DPI-C" function void f(input int x[]);  f(a);   // 35.5.6.1
+ *     C arr[4]; C h;           h = arr;    // NOT legal: type mismatch
+ *
+ * All three used to emit `%ix/load 3, 0, 0' + `%load/obja' -- element 0 as
+ * the object. The legal two therefore produced an EMPTY dynamic array
+ * (size 0, so a C model saw a zero-length open array) and the illegal one
+ * compiled as if the author had written arr[0]. Silent in every case.
+ *
+ * Marshaling a fixed array into dynamic-array storage is not implemented,
+ * so this is a sorry rather than an answer. It is deliberately NOT phrased
+ * as a type error: two of the three shapes are legal SystemVerilog and it
+ * is this implementation that is missing, not the user's code.
+ *
+ * Nothing in the corpus depends on the old behaviour: instrumenting this
+ * path and compiling all 1070 ivtest cases and all 218 UVM tests produced
+ * zero hits (DPI open-array arguments in the suite are dynamic arrays,
+ * which marshal through a different path and are unaffected).
  */
 static int eval_object_array(ivl_expr_t expr)
 {
@@ -537,11 +547,16 @@ static int eval_object_array(ivl_expr_t expr)
 	    return 0;
       }
 
-      fprintf(stderr, "%s:%u: vvp.tgt error: the whole array `%s' cannot be "
-	      "used where a single class handle is required. Select an "
-	      "element (%s[<index>]) instead.\n",
+      fprintf(stderr, "%s:%u: sorry: the whole unpacked array `%s' cannot yet "
+	      "be used as an object; marshaling a fixed-size array into "
+	      "dynamic-array storage is not implemented. Assigning it to a "
+	      "dynamic array or passing it to a DPI open-array argument needs "
+	      "that support; using it where a single handle is required "
+	      "(`h = %s') is a type error -- select an element "
+	      "(`%s[<index>]') instead.\n",
 	      ivl_expr_file(expr), ivl_expr_lineno(expr),
-	      ivl_signal_basename(sig), ivl_signal_basename(sig));
+	      ivl_signal_basename(sig), ivl_signal_basename(sig),
+	      ivl_signal_basename(sig));
       vvp_errors += 1;
 	/* Keep the object stack balanced so the rest of codegen does not
 	   cascade into unrelated noise before the error is reported. */

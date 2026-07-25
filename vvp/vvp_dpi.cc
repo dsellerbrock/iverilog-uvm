@@ -469,6 +469,18 @@ int svSize(const void*h, int dim)
       return cur ? (int)cur->get_size() : 0;
 }
 
+/*
+ * M10-1/R7: array bounds (IEEE 1800-2017 H.10.2).
+ *
+ * Every array that reaches here is either a dynamic array or a nesting of
+ * them, and those are 0-based ascending with size N -- so low/left are 0
+ * and high/right are N-1. That makes svLow's 0 correct TODAY, but only
+ * incidentally: a fixed-size array with a declared range (`int a[3:10]',
+ * `int a[10:3]') would need its real bounds, and cannot currently be
+ * marshaled at all (tgt-vvp says so with a sorry). When that support
+ * lands, these have to carry per-dimension bounds through
+ * vvp_dpi_open_array_t rather than deriving them from the size.
+ */
 int svLow(const void*h, int dim)
 {
       (void)h; (void)dim;
@@ -490,17 +502,58 @@ int svRight(const void*h, int dim)
       return svHigh(h, dim);
 }
 
+/*
+ * H.10.2: the increment is +1 when left <= right (ascending) and -1 when
+ * left > right (descending). This returned a hardcoded -1, which is wrong
+ * for EVERY array that can currently be marshaled, since they are all
+ * ascending -- a C model stepping an index by svIncrement walked the wrong
+ * way with no diagnostic. Derive it from the bounds instead.
+ */
 int svIncrement(const void*h, int dim)
 {
-      (void)h; (void)dim;
-      return -1;
+      int left  = svLeft(h, dim);
+      int right = svRight(h, dim);
+      return (left <= right) ? 1 : -1;
 }
 
+/*
+ * H.10.1: the TOTAL size of the array in bytes.
+ *
+ * This was `length * elem_bytes', which is right for a 1-D array but
+ * returned 0 for a multi-dimensional one: the outer array of a nesting is
+ * non-contiguous, so its elem_bytes is 0. A C model sizing a buffer from
+ * it silently got zero. Walk every dimension and use the LEAF element
+ * size, which is where the contiguous atom storage actually is.
+ */
 int svSizeOfArray(const void*h)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       if (!arr) return 0;
-      return (int)(arr->length * arr->elem_bytes);
+
+      if (!arr->outer)
+	    return (int)(arr->length * arr->elem_bytes);
+
+      int dims = svDimensions(h);
+      size_t words = 1;
+      for (int d = 1 ; d <= dims ; d += 1) {
+	    int n = svSize(h, d);
+	    if (n <= 0) return 0;
+	    words *= (size_t)n;
+      }
+
+	// Descend to the leaf, whose dpi_elem_bytes() is the atom size.
+      vvp_darray*leaf = md_inner_(arr, 0);
+      while (leaf && leaf->dpi_elem_bytes() == 0 && leaf->get_size() > 0) {
+	    vvp_object_t w;
+	    leaf->get_word(0, w);
+	    vvp_darray*next = w.peek<vvp_darray>();
+	    if (!next) break;
+	    leaf = next;
+      }
+      unsigned ebytes = leaf ? leaf->dpi_elem_bytes() : 0;
+      if (ebytes == 0) return 0;
+
+      return (int)(words * ebytes);
 }
 
 void* svGetArrElemPtr1(const void*h, int indx1)
