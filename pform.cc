@@ -5623,6 +5623,19 @@ static void tc_always_at_(const struct vlltype&loc,
 	    stmts.push_back(gated);
 	    stmts.push_back(rec);
 
+	      /* Prime the previous-value tracker with the signal's value at
+		 time 0. The always block below wakes only ON a change, so
+		 without this `prev' sat at the x sentinel until the first
+		 transition -- and that first transition therefore matched no
+		 descriptor at all. A 0->1 edge on a signal that starts at 0
+		 was silently dropped, taking a real violation with it, which
+		 is worse than ignoring the descriptor: `edge[01] d' reported
+		 nothing where plain `d' reported the violation. */
+	    PAssign*prime = new PAssign(sva_id_(loc, prev_var),
+					tc_edge_encode_(loc, ev.name));
+	    FILE_NAME(prime, loc);
+	    pform_make_behavior(IVL_PR_INITIAL, prime, nullptr);
+
 	    PEEvent*pe = new PEEvent(PEEvent::ANYEDGE,
 				     tc_name_id_(loc, ev.name));
 	    PEventStatement*es = new PEventStatement(pe);

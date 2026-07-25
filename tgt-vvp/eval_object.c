@@ -502,7 +502,28 @@ static int eval_object_ufunc(ivl_expr_t ex)
       return 0;
 }
 
-/* Handle IVL_EX_ARRAY in object context without assuming oper1 API support. */
+/*
+ * IVL_EX_ARRAY in an OBJECT context (draw_eval_object leaves exactly one
+ * object on the stack).
+ *
+ * Per the ivl_target API, IVL_EX_ARRAY is the whole array with NO index
+ * expression -- it exists for passing an array to a system task/function.
+ * The array-method paths that legitimately take a whole-array receiver
+ * (see the IVL_EX_ARRAY checks in eval_object_select and the array-method
+ * helpers) recognise it themselves and never route it through here. So an
+ * IVL_EX_ARRAY reaching this point means a whole unpacked array was used
+ * where a single class handle was required -- a type error:
+ *
+ *     C arr[4]; C h;   h = arr;        // not assignment-compatible
+ *     function int f(C x); ...  f(arr) // not a legal actual for x
+ *
+ * This used to load element 0 and carry on, so illegal code compiled and
+ * silently behaved as if the author had written arr[0]. Nothing in the
+ * corpus relies on it: instrumenting the path and compiling all 1069
+ * ivtest cases and all 218 UVM tests produced zero hits, and the only ways
+ * found to reach it are the two illegal forms above. Diagnose instead --
+ * there is no correct single object to produce.
+ */
 static int eval_object_array(ivl_expr_t expr)
 {
       ivl_signal_t sig = ivl_expr_signal(expr);
@@ -516,11 +537,15 @@ static int eval_object_array(ivl_expr_t expr)
 	    return 0;
       }
 
-      /* ivl_expr_oper1() is not valid for IVL_EX_ARRAY in this backend API;
-         use deterministic index-0 fallback for object array access here. */
-      fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
-      note_array_signal_use(sig);
-      fprintf(vvp_out, "    %%load/obja v%p, 3;\n", sig);
+      fprintf(stderr, "%s:%u: vvp.tgt error: the whole array `%s' cannot be "
+	      "used where a single class handle is required. Select an "
+	      "element (%s[<index>]) instead.\n",
+	      ivl_expr_file(expr), ivl_expr_lineno(expr),
+	      ivl_signal_basename(sig), ivl_signal_basename(sig));
+      vvp_errors += 1;
+	/* Keep the object stack balanced so the rest of codegen does not
+	   cascade into unrelated noise before the error is reported. */
+      fprintf(vvp_out, "    %%null;\n");
       return 0;
 }
 

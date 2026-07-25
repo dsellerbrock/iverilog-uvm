@@ -211,7 +211,8 @@ silent-miscompile gap; it is deferred rather than rushed.
 | M3B-2 | `randsequence` | F | **DONE** | — | productions/sequences/nesting/weighted alternatives via source-level expansion; recursion/reuse is a loud sorry |
 | M3B-3 | `disable soft` | F | **DONE** | — | soft constraints on the named variable dropped for the randomize() call |
 | M3B-4 | Reaudit `rand_mode` / `constraint_mode` combinations | A | **VERIFIED WORKING** | — | Probe m3b4_randmode: object-level and per-field `rand_mode()`/`constraint_mode()` set and query, in all combinations, behave correctly. **Terms:** pin the probe as a regression test, then close |
-| M3B-5 | Seed-stability + failed-randomization state tests | A | OPEN — **P0 silent no-op** | — | **`srandom()` and `set_randstate()` are silently discarded.** `elaborate.cc:7574` matches both method names and returns an empty `NetBlock`, so seeding compiles and runs but does nothing: re-seeding one object with seed 7 twice yields different values (103 then 198), and two objects seeded identically diverge (105 vs 115) (probe m3b5_seed_stability). Every seeded-reproducibility flow is silently non-reproducible — this is the RNG half of the item, ahead of the fail-state audit (fail-state semantics themselves landed with M3B-6). **Terms:** give each class object an RNG state per 18.13.3 (`srandom` seeds it, `get_randstate`/`set_randstate` serialize it), thread it through `%randomize`, and make the object RNG the source for `randomize()` and `$urandom` inside class methods; at minimum, make the discarded call a loud sorry rather than a no-op |
+| M3B-5 | Seed-stability + failed-randomization state tests | A | **DONE** (RNG half) | — | **Fixed the P0:** `srandom()` and `set_randstate()` elaborated to an empty `NetBlock` and `get_randstate()` returned a literal empty string, so seeding silently did nothing — re-seeding one object with seed 7 gave 103 then 198, and two objects seeded identically diverged (probe m3b5_seed_stability). **Fix:** each `vvp_cobject` carries its own RNG and each `vthread_s` carries the process RNG (18.13.2) — xorshift64*, one 64-bit word, so `get_randstate()` is that word and `set_randstate()` reads it back exactly; 18.13.3 leaves the string implementation-defined, and a tagged prefix (`ivl1:` / `ivlp1:`) lets a foreign string be rejected loudly. New `%srandom` / `%get_randstate` / `%set_randstate` opcodes dispatch on object vs. `process`. `randomize()` draws from the object RNG, and per 18.13.1 so do `$urandom`/`$urandom_range` — via a new `vpip_object_urandom()` hook the vpi/ module consults before its own generator, resolving the enclosing object first, then walking the thread's parent chain for a seeded process. Reproducible for unconstrained *and* constrained properties (the solver starts from the same draws). Unqualified in-method `srandom()`/`get_randstate()` resolve through `this`. UVM's `p.get_randstate()`/`p.set_randstate()` save-restore idiom works. **Deliberate boundary:** a generator activates only once SEEDED; unseeded objects and threads keep drawing from the global generator, so every unseeded sequence — and each gold depending on one — is bit-for-bit unchanged (ivtest 1024/1068, full UVM confirm). **Note:** `process p = process::self();` as a *static* declaration initializer captures the wrong process (it is hoisted to a separate init thread); Icarus already warns on that form — use `automatic` or assign inside the block. The fail-state audit half of this row is separate and covered by M3B-6. tests m3b5_object_random_state_test, m3b5b_swrite_return_var_test |
+| M3B-7 | `$swrite`/`$sformat` into a function's return variable wrote nothing | C | **DONE** | — | Discovered while landing M3B-5, and it had to be fixed for UVM to run at all. The target is an output argument, but a function's return variable cannot be passed to a VPI call as a signal (`draw_vpi.c` falls back for `signal_is_return_value()`), so it went across as a read-only copy on the string stack: `vpi_put_value` updated that copy, the call popped it, and nothing committed it to the return slot — a **silent** empty result. Elaboration now rewrites `$swrite(f, fmt, ...)` to `f = $sformatf(fmt, ...)`, the same operation through the path that does work. UVM's `uvm_instance_scope()` (uvm_misc.svh) does `$swrite(uvm_instance_scope, "%m")` and then walks backwards from `len()-1`, so the empty string started the walk at -1 and looped without bound. It had been unreachable because its only caller arrives via `uvm_object::reseed()` -> `srandom()`, and srandom's empty-block elaboration discarded the ARGUMENT along with the call — so making srandom real is what first executed it. test m3b5b_swrite_return_var_test |
 | M3B-6 | `x inside {q}` container-property constraints + honest randomize() failure | C | **DONE** | — | queue/darray property containers expand against live contents at solve time (`q:IDX:EWID` IR + solver support); empty container unsatisfiable; item-level IR drops fail loudly; %randomize/%randomize-with return 0 on UNSAT and restore pre-call rand values (18.6.1); solver UNKNOWN stays lenient but loud; with-form solves inherited base constraints. sv_constraint_inside_container |
 
 **M3B-2 note.** `randsequence` is lowered by source-level expansion from
@@ -277,7 +278,8 @@ module-like subset — leaving the M9-7 multiclock residuals, the
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M10-1 | Multidimensional open arrays (`svGetArrElemPtr2/3`) | F | OPEN | — | 2-D/3-D open-array access |
+| M10-1 | Multidimensional open arrays (`svGetArrElemPtr2/3`) | F | OPEN | — | 2-D/3-D open-array access. `svLow` returns a hardcoded 0, `svIncrement` a hardcoded -1, and `svSizeOfArray` computes `length * elem_bytes` so it returns 0 for a multidim array (vvp/vvp_dpi.cc). **Terms:** real bounds in `vvp_dpi_open_array_t`, multidim `svSizeOfArray`, and fixed-array marshaling into contiguous DPI storage with copy-back. **Note:** the object-array-element half that used to be filed here was a misreading and is resolved — see M10-1b |
+| M10-1b | Whole object array used where a single class handle is required was silently accepted | C | **DONE** | — | `tgt-vvp/eval_object.c`'s `IVL_EX_ARRAY` path loaded element 0 and carried on, so `h = arr;` and `f(arr)` -- both type errors -- compiled and behaved as if the author had written `arr[0]`. Now a `vvp.tgt error` naming the array and pointing at element selection. **The claim this row replaces was wrong:** it said `arr[i]` silently read element 0, inferred from the hardcoded `%ix/load 3, 0, 0`. An indexed element read is `IVL_EX_SIGNAL`, whose path (`eval_object_signal`) evaluates the word index properly; `IVL_EX_ARRAY` is by API definition the whole array with **no index**, so it is reachable only from the illegal forms above. Established by instrumenting the path and compiling all 1069 ivtest cases and all 218 UVM tests: **zero hits**. Indexing is pinned as already-correct across constant, variable, expression and descending indices, write-through, queues, dynamic arrays and string-keyed associative arrays. tests sv_class_array_element_index + negative object_array_to_handle, object_array_as_handle_arg |
 | M10-2 | DPI export (C→SV) | F | **DONE** | — | `export "DPI-C"` was already implemented end-to-end (parse → pform resolve → t-dll → tgt-vvp directives + a generated `.dpiexport.c` stub → the vvp `__ivl_dpi_export_call_*` dispatcher); the row was stale. Verified working: int/real/string/void returns and args, renamed (`c_name =`) exports, multi-instance and context exports, and time-consuming exported tasks via the coroutine path when reached from an imported DPI *task*. **Fixed a crash found by probing the boundary:** a time-consuming export reached from an imported DPI *function* has no coroutine to park on — the inline runner spun the child past its delay and joined it while the scheduler still held a future event, aborting vvp on assert(is_scheduled) (then assert(children.empty())). The runner now stops when the child delays, emits the existing loud sorry, and detaches the child so it completes under the scheduler. tests m10c/d/e/f + new m10g_dpi_export_blocking_diag_test |
 | M10-3 | Real context semantics / `chandle` ABI verification | A | **VERIFIED WORKING** | — | Probes m10_3_chandle + m10_3b_adv: `chandle` round-trip through import and through an **output** formal; `chandle` stored in a class property and in an unpacked array and read back; `real` in/out and **inout**; `string` in and **output**; `inout int`. All correct. **Terms:** pin both probes as regression tests, then close |
 | M10-4 | Time-consuming imported tasks | F | **DONE** | **M6-CALLF** | An imported `context task` consumes time via the coroutine path, and a time-consuming exported task reached from it runs across simulation time (probe m10_4_slowtask). **Fixed one P0 silent wrong result found by probing the boundary:** an export declared with **`automatic` lifetime** received **`x` for every argument**, even on a single non-concurrent call, so a value-returning export returned garbage and `#(d)` degenerated to a zero delay -- with no diagnostic. **Root cause:** `compile_export_dpi` (vvp/compile.cc:1250-1263) resolves `arg_nets` once at link time to the **static prototype nets**, and `dpi_export_run_` (vvp/vthread.cc) marshaled into them with a null context; an automatic body reads its per-invocation frame and never sees those nets. The dispatcher now allocates a context for an automatic export and marshals into it -- the same shape `%alloc` gives an ordinary SV call -- and hands it to the child, which owns it so `release_owned_context_` frees it on the inline, coroutine and orphaned-detach paths alike. This also makes **concurrent** invocations of one automatic exported task correct, each keeping its own arguments. **Correction:** an earlier probe read concurrent aliasing of a *static* export as a second defect; it is not. IEEE 1800-2017 13.3.1 gives a static subroutine one copy of its arguments, so concurrent invocations alias -- verified identical for a plain SV static task (probe staticsem), and deliberately preserved. Nested automatic frames inside the exported body and recursive C -> export -> C -> export re-entry both verified (probes m10_4g_nested, m10_4h_recurse). tests m10h_dpi_export_automatic_test + m10i_dpi_export_automatic_nested_test |
@@ -316,9 +318,9 @@ module-like subset — leaving the M9-7 multiclock residuals, the
 | M13-2 | Bind target-instance lists | F | **VERIFIED WORKING** | — | Probe m13_2_bind_instlist: list-target bind reaches every named instance. **Terms:** pin the probe as a regression test, then close |
 | M13-3 | `config` semantics + library mapping | F | OPEN (loud) | — | Unimplemented and diagnosed with a sorry — no silent-miscompile risk. **Terms:** real config/library resolution |
 | M13-4 | `trireg` charge semantics | F | OPEN (loud) | — | Unimplemented and diagnosed with a sorry — no silent-miscompile risk. **Terms:** charge decay model |
-| M13-5 | `$nochange` / `$timeskew` / `$fullskew` | F | OPEN — **accepted-noop** | — | These **parse and elaborate but are silently ignored** (`elaborate.cc:12309`: "At present, no timing checks are supported"), so a design relying on them runs with no violation reporting and no diagnostic. Probes beh_nochange_fires / beh_setup_fires never fire. **Terms:** either implement the checks or make an unimplemented timing check a tracked loud diagnostic — the accepted-noop state is the one thing the loud-sorry rule forbids |
-| M13-6 | Timing-check edge-descriptor lists + timestamp/timecheck conds | F | OPEN — **accepted-noop** | — | Same as M13-5: edge-descriptor lists and timestamp/timecheck conditions are accepted by the parser and dropped at elaboration with no diagnostic (probe m13_6_edgedesc). **Terms:** as M13-5 |
-| M13-7 | `pulsestyle` / `showcancelled` | F | OPEN — **accepted-noop** | — | `pulsestyle_onevent`/`pulsestyle_ondetect`/`showcancelled`/`noshowcancelled` exist only as lexer keywords; they are accepted and have no effect on pulse propagation, with no diagnostic (probe m13_7_pulsestyle). **Terms:** as M13-5 |
+| M13-5 | `$nochange` / `$timeskew` / `$fullskew` | F | **DONE** (row was wrong) | — | All three are implemented and **fire on violation**, together with `$width`, `$period`, `$setup`, `$hold`, `$recovery`, `$removal`, `$recrem` and `$setuphold` (probe fires: violations reported for `$width`@12/18, `$period`@16/28, `$nochange`@48, `$fullskew`@48, `$timeskew`@48). Unsupported *shapes* are a loud sorry, e.g. `$nochange` with non-zero start/end offsets. **The earlier accepted-noop reading was a probe error:** the whole specify block -- path delays and timing checks alike -- is inert without `-gspecify`, which is the established opt-in contract, and the probes had omitted the flag. Re-probed with `-gspecify` and the checks work |
+| M13-6 | Timing-check edge-descriptor lists + timestamp/timecheck conds | F | **DONE** | — | Edge descriptors select which transitions arm a check, and `&&&` conditions gate the body. **Fixed a real silent defect found by probing this functionally rather than by parse:** the synthesized previous-value tracker was written only from an `always @(sig)` block, which never runs at time 0, so it sat at the `x` sentinel until the first transition -- and that transition therefore matched no descriptor. The failure mode was worse than ignoring the descriptor: for a signal starting at 0, `$setup(edge[01] d, ...)` reported **nothing** where plain `$setup(d, ...)` reported the violation, so adding a descriptor silently discarded a real violation. The tracker is now primed at time 0 from the signal's own value. `edge[01]`, `edge[10]` and multi-entry lists all verified to select exactly the right transitions. test sv_timing_check_edge_descriptor |
+| M13-7 | `pulsestyle` / `showcancelled` | F | OPEN (loud) | — | `pulsestyle_onevent`/`pulsestyle_ondetect`/`showcancelled`/`noshowcancelled` are accepted and have no effect on pulse propagation. This was already loud under `-gspecify`, but the warning read "Timing checks are not supported" -- naming the wrong construct entirely, since these are pulse-filtering controls. The message now names the specific directive and says pulse filtering is not modelled, so cancelled and short pulses propagate as usual. **Terms:** model pulse filtering in the path-delay engine (reject/error limits, cancelled-pulse propagation) |
 
 ### M14B — exhaustive subclause campaign  (all clauses)
 
@@ -415,7 +417,7 @@ The ordering below is the re-derived result. Nine rows were stale in both
 directions: six items already worked (M13-1, M13-2, M3B-4, M6B-3, M10-3,
 M10-5) and three silent defects were hiding under "OPEN" rows that read as
 merely unimplemented (M3B-5, M6B-4, M10-4, plus M13-5/6/7 as
-accepted-noops; M10-4 is now fixed). The lesson that drove this sweep holds: **probe
+accepted-noops). All three of those are now fixed; M13-5/6/7 remain. The lesson that drove this sweep holds: **probe
 boundaries, not headline features** — every headline worked.
 
 1. **P0 silent wrong results — these preempt everything** (rule gate 1):
@@ -426,10 +428,13 @@ boundaries, not headline features** — every headline worked.
      **Preponed**, values~~ — **FIXED** for whole-signal operands, which
      is the common case. A bit/part-select operand still reads live and
      now says so with a compile-time warning, so the residual is loud.
-   - **M3B-5** `srandom()`/`set_randstate()` are silent no-ops, so no
-     seeded flow is reproducible.
-   - **M10-1** (carried) object-array element load ignores its index
-     (`tgt-vvp/eval_object.c:514-524`).
+   - ~~**M3B-5** `srandom()`/`set_randstate()` are silent no-ops~~ —
+     **FIXED**; per-object RNG, and `$urandom` in a method follows it.
+   - ~~**M10-1** object-array element load ignores its index~~ —
+     **misdiagnosed**; indexing was already correct. The real defect was
+     silent acceptance of an illegal whole-array-to-handle assignment,
+     now a loud error (M10-1b). What remains under M10-1 is the svdpi
+     open-array bounds (R7), which is silently wrong but not a miscompile.
 2. **M13-5/6/7 accepted-noops** — timing checks, edge descriptors and
    `pulsestyle`/`showcancelled` are accepted and silently ignored. Under
    the loud-sorry rule an accepted-noop ranks above ordinary unimplemented
@@ -450,3 +455,62 @@ boundaries, not headline features** — every headline worked.
 
 **Standing override:** any newly discovered silent miscompile or crash preempts this
 list (rule gates 1–2).
+
+---
+
+## Residual register
+
+Every **partial** fix leaves a residual. This is the one list of them, so a
+row marked DONE or PARTIAL above cannot quietly read as complete. A residual
+leaves this list only by being fixed — never by being re-described.
+
+**Rule:** a residual is acceptable only while it is LOUD (a sorry, an error,
+or a warning naming the case). A residual that is silently wrong is a rule-1
+defect and preempts the ordered list above. The `Loud?` column is therefore
+the thing to check first.
+
+| # | Residual | From | Loud? | What closing it takes |
+|---|----------|------|-------|------------------------|
+| R1 | A bit/part-select assertion operand reads its **live** value, not its Preponed one, so a blocking write in the same slot as the clock is visible to it. Whole-signal operands sample correctly. | M6B-4 | **yes** — per-assertion warning naming the count | Re-express the select against the sampled read at elaboration (`NetESelect` over `$ivl_clocking_sample`), instead of skipping the wrap in pform |
+| R2 | Per-attempt assertion start/step/end **region placement** is unimplemented; only the sampled values were fixed. | M6B-4 | n/a — not wrong, absent | The other half of the M6B-4 row |
+| R3 | An object's / process's RNG activates only once **seeded**; an unseeded one draws from the global generator rather than one derived from its parent process (18.13.1). | M3B-5 | n/a — deliberate, documented | Seed each object's RNG *from the process RNG* at construction, and each thread's from its parent at `fork`. Doing so changes every unseeded sequence, so it needs a gold-rebaseline decision first — that is why it is deferred, not difficulty |
+| R4 | A **static** declaration initializer (`process p = process::self();`) is hoisted to a separate init thread, so it captures the wrong process. | M3B-5 (pre-existing) | **yes** — Icarus already warns that the form needs an explicit lifetime | Evaluate a static initializer in the declaring block's thread, or narrow the warning into an error for `process::self()`. `automatic` and in-block assignment both work today |
+| R5 | A time-consuming export reached from an imported DPI **function** is unsupported. | M10-2 | **yes** — sorry | Nothing: illegal for value-returning functions, and no coroutine exists to park on |
+| R6 | `pulsestyle_*` / `showcancelled` are accepted and have no effect on pulse propagation. | M13-7 | **yes** — per-directive warning naming the construct and what is not modelled | Model pulse filtering in the path-delay engine (reject/error limits, cancelled-pulse propagation) |
+| R7 | `svLow`/`svIncrement` return hardcoded values and `svSizeOfArray` returns 0 for a multidim open array. | M10-1 | no — silently wrong values | Real bounds in `vvp_dpi_open_array_t`, multidim `svSizeOfArray`, and fixed-array marshaling with copy-back |
+| R8 | `%p` prints a packed struct as a plain integer and flattens nested dimensions. | M4B-4/5 | no — cosmetic | Deferred by decision, not by difficulty |
+| R9 | The hardcoded `uvm_shared`/`value`/`T` type-inference fallback is very likely dead code. | M1B-3 | n/a — cleanup | Delete it and its call site, then validate with a full UVM run |
+
+**R7 is the only residual still *silent*,** so by rule 1 it leads the queue
+regardless of where its milestone sits in the ordered list above. Its scope
+is now narrower and accurate: the object-array-element half was a misreading
+(see M10-1b) and what remains is the svdpi open-array bounds.
+
+**R6 was corrected, not closed by wishful thinking.** It previously read
+"timing checks, edge descriptors and pulse controls parse, elaborate and are
+silently ignored", and that was simply wrong: the whole specify block is
+inert without `-gspecify` and the probes behind the claim had omitted the
+flag. With the flag, the timing checks are implemented and fire, and the
+pulse controls were already warned about. Probing the family properly
+*did* turn up a real silent defect, but a different and narrower one --
+the unprimed edge-descriptor tracker, now fixed under M13-6 — which is the
+second time a residual entry has paid for itself by being re-examined
+rather than trusted.
+
+**Both R6 and R7 turned out to be misdiagnosed**, and in the same way: each
+was written from reading a code comment or a hardcoded constant instead of
+running a discriminating test. Re-examining them found a real silent defect
+in each case, but a *different and narrower* one than the entry described --
+the unprimed edge-descriptor tracker (M13-6) and silent acceptance of an
+illegal whole-array-to-handle assignment (M10-1b). The lesson is the one this
+tracker keeps relearning: **a claim about behaviour needs a test that would
+fail if the claim were false**, and reading the source is not that test.
+
+**Retired from this list:** the original R3 — `process::srandom()` rejected
+with a sorry — was closed by being implemented rather than re-described,
+within M3B-5 itself, once UVM proved the reject was the wrong call (UVM's own
+save/restore idiom uses it). Two of the residuals here were found *by fixing
+another one*
+(R4 and M3B-7 both surfaced while landing M3B-5), which is the argument for
+keeping the list: a partial fix reliably exposes the next defect underneath
+it.

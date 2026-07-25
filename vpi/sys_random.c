@@ -620,7 +620,16 @@ static PLI_INT32 sys_urandom_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       if (seed) {
             val.value.integer = urandom(&i_seed, UINT32_MAX, 0);
       } else {
-            val.value.integer = urandom(0, UINT32_MAX, 0);
+              /* M3B-5 (IEEE 1800-2017 18.13.1): inside a class method,
+                 $urandom draws from the object's own RNG once that object
+                 has been seeded. Falls through to the generator below when
+                 there is no seeded enclosing object, so unseeded sequences
+                 are unchanged. */
+            unsigned int obj_rnd;
+            if (vpip_object_urandom(&obj_rnd))
+                  val.value.integer = (PLI_INT32)obj_rnd;
+            else
+                  val.value.integer = urandom(0, UINT32_MAX, 0);
       }
       vpi_put_value(callh, &val, 0, vpiNoDelay);
 
@@ -669,7 +678,21 @@ static PLI_INT32 sys_urandom_range_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       }
 
       /* Calculate and return the result. */
-      val.value.integer = urandom(0, i_maxval, i_minval);
+      {
+              /* M3B-5: as $urandom above -- the enclosing object's RNG
+                 when it has been seeded, scaled into [min,max]. */
+            unsigned int obj_rnd;
+            if (vpip_object_urandom(&obj_rnd)) {
+                  uint32_t span = i_maxval - i_minval;
+                  if (span == UINT32_MAX)
+                        val.value.integer = (PLI_INT32)obj_rnd;
+                  else
+                        val.value.integer =
+                              (PLI_INT32)(i_minval + obj_rnd % (span + 1));
+            } else {
+                  val.value.integer = urandom(0, i_maxval, i_minval);
+            }
+      }
       vpi_put_value(callh, &val, 0, vpiNoDelay);
       return 0;
 }

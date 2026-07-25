@@ -1,0 +1,7 @@
+./ivltests/sv_timing_check_edge_descriptor.v:30: Timing violation: $setup check in main.u_rise at time 11
+./ivltests/sv_timing_check_edge_descriptor.v:38: Timing violation: $setup check in main.u_both at time 11
+./ivltests/sv_timing_check_edge_descriptor.v:42: Timing violation: $setup check in main.u_any at time 11
+./ivltests/sv_timing_check_edge_descriptor.v:34: Timing violation: $setup check in main.u_fall at time 32
+./ivltests/sv_timing_check_edge_descriptor.v:38: Timing violation: $setup check in main.u_both at time 32
+./ivltests/sv_timing_check_edge_descriptor.v:42: Timing violation: $setup check in main.u_any at time 32
+PASSED

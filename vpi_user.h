@@ -650,6 +650,13 @@ extern void vpip_format_strength(char*str, s_vpi_value*value, unsigned bit);
 extern void vpip_set_return_value(int value);
 
 extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
+
+/* M3B-5 (IEEE 1800-2017 18.13.1): if the calling thread is running a
+   method of a class object whose RNG has been seeded (srandom() or
+   set_randstate()), store a draw from THAT object's generator in *val
+   and return 1. Return 0 when there is no seeded enclosing object, in
+   which case the caller should use its own generator. */
+extern int vpip_object_urandom(unsigned int*val);
 extern void vpip_make_systf_system_defined(vpiHandle ref);
 /* M12B: register a concurrent assertion for VPI enumeration
    (vpi_iterate(vpiAssertion, ...)). name/file are copied. idx is the
@@ -729,7 +736,7 @@ extern void vpip_count_drivers(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 4;
+static const PLI_UINT32 vpip_routines_version = 5;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -778,6 +785,7 @@ typedef struct {
     PLI_INT32   (*assertion_cb_active)(void);
     vpiHandle   (*register_assertion_cb)(vpiHandle, PLI_INT32, vpi_assertion_cb_func, PLI_BYTE8*);
     void        (*assertion_report_all)(PLI_INT32);
+    int         (*object_urandom)(unsigned int*);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

@@ -3749,6 +3749,31 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+      /* M3B-5 $ivl_class_method$srandom(object, seed) and
+       * $ivl_class_method$set_randstate(object, state) -- IEEE 1800-2017
+       * 18.13. Both opcodes want the object UNDER the value, so push the
+       * value first. */
+      if (strcmp(stmt_name, "$ivl_class_method$srandom") == 0) {
+	    ivl_expr_t obj_arg  = ivl_stmt_parm(net, 0);
+	    ivl_expr_t seed_arg = (ivl_stmt_parm_count(net) >= 2)
+		  ? ivl_stmt_parm(net, 1) : 0;
+	    if (obj_arg) draw_eval_object(obj_arg);
+	    if (seed_arg) draw_eval_vec4(seed_arg);
+	    else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    fprintf(vvp_out, "    %%srandom;\n");
+	    return 0;
+      }
+      if (strcmp(stmt_name, "$ivl_class_method$set_randstate") == 0) {
+	    ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
+	    ivl_expr_t st_arg  = (ivl_stmt_parm_count(net) >= 2)
+		  ? ivl_stmt_parm(net, 1) : 0;
+	    if (obj_arg) draw_eval_object(obj_arg);
+	    if (st_arg) draw_eval_string(st_arg);
+	    else fprintf(vvp_out, "    %%pushi/str \"\";\n");
+	    fprintf(vvp_out, "    %%set_randstate;\n");
+	    return 0;
+      }
+
       /* $ivl_class_method$rand_mode(object, en [, pid])
        * 2 args: set rand_mode for ALL rand properties (obj.rand_mode(en)).
        * 3 args: set rand_mode for the single property `pid` only

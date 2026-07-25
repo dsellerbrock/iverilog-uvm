@@ -1149,4 +1149,6 @@ sv_covergroup_options normal,-g2012 ivltests
 sv_covergroup_adversarial normal,-g2012 ivltests
 sv_covergroup_class_event normal,-g2012 ivltests
 sv_struct_value_copy_args normal,-g2012 ivltests
+sv_timing_check_edge_descriptor normal,-g2012,-gspecify ivltests gold=sv_timing_check_edge_descriptor.gold
+sv_class_array_element_index normal,-g2012 ivltests
 sv_class_arrayprop_elem_select normal,-g2012 ivltests
