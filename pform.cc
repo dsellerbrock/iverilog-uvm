@@ -4973,6 +4973,19 @@ static PExpr* sva_clone_subst_(PExpr*e,
 	    cp->set_line(*e);
 	    return cp;
       }
+	/* A real literal is as constant as an integer one; without this the
+	   whole guard fell back to a live read for something as ordinary as
+	   `r > 1.0'. */
+      if (PEFNumber*fnum = dynamic_cast<PEFNumber*>(e)) {
+	    PEFNumber*cp = new PEFNumber(new verireal(fnum->value()));
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEString*str = dynamic_cast<PEString*>(e)) {
+	    PEString*cp = new PEString(strdup(str->value().c_str()));
+	    cp->set_line(*e);
+	    return cp;
+      }
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
 	    PExpr*sub = sva_clone_subst_(un->get_expr(), subst);
 	    if (!sub) return nullptr;
@@ -5073,19 +5086,21 @@ static PExpr* sva_clone_expr_(PExpr*e)
  * unpacked-array word or a real, is warned about there rather than skipped
  * here.
  *
- * A package- or hierarchy-qualified name still stays live: the history
- * enable is emitted into this checker's own scope and cannot reach another
- * one. Those, and any expression shape this copier cannot clone (which makes
- * the caller keep the original, live expression), are counted into
- * `live_operands' so the caller can say so. A live read where a sampled one
- * was asked for is a wrong verdict, so it must not be silent.
+ * A HIERARCHICAL name (`u.q', `u.q[3]') is sampled too: the history enable
+ * is a system task taking the signal, so a hierarchical reference in the
+ * checker's own initial block reaches the other scope's signal perfectly
+ * well. Only a PACKAGE-qualified name stays live, and any expression shape
+ * this copier cannot clone (which makes the caller keep the original, live
+ * expression). Both are counted into `live_operands' so the caller can say
+ * so: a live read where a sampled one was asked for is a wrong verdict, and
+ * must not be silent.
  *
  * Returns a fresh tree (the input is borrowed and never mutated), or
  * nullptr for a shape this cannot copy -- the caller then keeps the
  * original expression, reading live.
  */
 static PExpr* sva_wrap_preponed_(PExpr*e,
-				 std::set<perm_string>&sampled,
+				 std::map<std::string, pform_name_t>&sampled,
 				 unsigned&live_operands)
 {
       if (!e) return nullptr;
@@ -5101,11 +5116,19 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		 carries a select; elaboration lowers a select as the select
 		 of the sampled whole signal. A package- or hierarchy-
 		 qualified name stays a live read. */
-	    bool local = !id->path().package
-		       && id->path().name.size() == 1;
-	    if (!local) {
+	    if (id->path().package || id->path().name.empty()) {
 		  live_operands += 1;
 		  return cp;
+	    }
+
+	      /* The history-enable target is the WHOLE signal, so strip any
+		 select off the path; `u.q[3]' enables history on `u.q'. */
+	    pform_name_t base = id->path().name;
+	    std::string key;
+	    for (auto&comp : base) {
+		  comp.index.clear();
+		  if (!key.empty()) key += ".";
+		  key += comp.name.str();
 	    }
 
 	    std::list<named_pexpr_t> parms;
@@ -5115,12 +5138,25 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    PECallFunction*smp = new PECallFunction(
 		  lex_strings.make("$ivl_clocking_sample"), parms);
 	    smp->set_line(*e);
-	    sampled.insert(id->path().name.front().name);
+	    sampled[key] = base;
 	    return smp;
       }
 
       if (PENumber*num = dynamic_cast<PENumber*>(e)) {
 	    PENumber*cp = new PENumber(new verinum(num->value()));
+	    cp->set_line(*e);
+	    return cp;
+      }
+	/* A real literal is as constant as an integer one; without this the
+	   whole guard fell back to a live read for something as ordinary as
+	   `r > 1.0'. */
+      if (PEFNumber*fnum = dynamic_cast<PEFNumber*>(e)) {
+	    PEFNumber*cp = new PEFNumber(new verireal(fnum->value()));
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEString*str = dynamic_cast<PEString*>(e)) {
+	    PEString*cp = new PEString(strdup(str->value().c_str()));
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -5186,11 +5222,32 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 /* Build `$ivl_clocking_hist_on(sig);' — turns on the 1-deep driven-value
    history %load/preponed reads. Emitted once per sampled signal into the
    checker's initial block. */
-static Statement* sva_hist_on_stmt_(const struct vlltype&loc, perm_string sig)
+/* R2: suspend the checker until the OBSERVED region of this time slot
+ * (IEEE 1800-2017 4.4.2.4). A concurrent assertion is evaluated there, after
+ * every NBA update of the step has settled -- not in Active, where the
+ * checker's `always @(clk)' would otherwise run interleaved with the design
+ * it is judging. Sampled operands are unaffected: %load/preponed reads the
+ * value the signal held when the step began, whenever the read happens.
+ *
+ * The runtime already had the region and the opcode (schedule_at_observed /
+ * %wait/observed), built for clocking blocks with numeric input skew; this
+ * points the assertion engines at them.
+ */
+static Statement* sva_observed_wait_(const struct vlltype&loc)
+{
+      std::list<named_pexpr_t> no_args;
+      PCallTask*t = new PCallTask(
+	    lex_strings.make("$ivl_observed_wait"), no_args);
+      FILE_NAME(t, loc);
+      return t;
+}
+
+static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
+				    const pform_name_t&path)
 {
       std::list<named_pexpr_t> args;
       named_pexpr_t a0;
-      a0.parm = new PEIdent(sig, loc.lexical_pos);
+      a0.parm = new PEIdent(path, loc.lexical_pos);
       FILE_NAME(a0.parm, loc);
       args.push_back(a0);
       PCallTask*t = new PCallTask(
@@ -8098,7 +8155,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       std::map<PExpr*, perm_string> guard_reg;
 	/* M6B-4: signals whose preponed value the guards read, and the
 	   count of operands that had to stay live (see sva_wrap_preponed_). */
-      std::set<perm_string> prep_sampled;
+      std::map<std::string, pform_name_t> prep_sampled;
       unsigned prep_live_operands = 0;
       {
 	    unsigned bidx = 0;
@@ -8136,14 +8193,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	/* Enable the 1-deep driven-value history for every signal the
 	   guards sample. Ordered by name so the generated code is
 	   deterministic. */
-      for (std::set<perm_string>::const_iterator it = prep_sampled.begin()
-		 ; it != prep_sampled.end() ; ++it)
-	    init_zero.push_back(sva_hist_on_stmt_(loc, *it));
+      for (std::map<std::string, pform_name_t>::const_iterator it =
+		 prep_sampled.begin() ; it != prep_sampled.end() ; ++it)
+	    init_zero.push_back(sva_hist_on_stmt_(loc, it->second));
 
 	/* An operand this pass could not route through the Preponed read --
-	   a hierarchical or package-qualified name, whose history enable
-	   cannot be emitted into another scope, or an expression shape the
-	   copier cannot clone -- still reads its ACTIVE-region value. That
+	   a package-qualified name, or an expression shape the copier
+	   cannot clone -- still reads its ACTIVE-region value. That
 	   is a wrong verdict whenever such an operand is written with a
 	   blocking assignment in the same time slot as the clock, so say so
 	   rather than leave it silent. One note per assertion. Operands that
@@ -8153,11 +8209,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    cerr << loc << ": warning: this assertion has "
 		 << prep_live_operands << " operand(s) that are read live "
 		 << "instead of sampled in the Preponed region (IEEE "
-		 << "1800-2017 16.5.1): a hierarchical or package-qualified "
-		 << "name, or an expression shape the sampling rewrite "
-		 << "cannot copy. A blocking write to one of them in the "
-		 << "same time slot as the clock will be visible to this "
-		 << "assertion. Local signals, including their bit- and "
+		 << "1800-2017 16.5.1): a package-qualified name, or an "
+		 << "expression shape the sampling rewrite cannot copy. A "
+		 << "blocking write to one of them in the same time slot as "
+		 << "the clock will be visible to this assertion. Local and "
+		 << "hierarchical signals, including their bit- and "
 		 << "part-selects, ARE sampled correctly." << endl;
 
 	/* LV-2: sample each local variable's rhs once per tick into a
@@ -8259,6 +8315,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       std::vector<Statement*> body;
 	/* cbAssertionStart: an attempt launches every evaluated tick
 	   (inside the disable guard, like the legacy engine). */
+      body.push_back(sva_observed_wait_(loc));
       body.push_back(sva_report_stmt_(loc, inst, SVA_CB_START));
 
 	/* Injection into the first free slot. The terminal else is a
@@ -8911,20 +8968,54 @@ static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v)
    slots. slots[t] is the boolean checked at tick offset t (null = a
    pure delay tick). Returns false for any non-fixed shape. The
    expressions stay owned by the steps until the caller steals them. */
+/* Flatten a chain into one boolean per tick (null slot = a pure delay tick).
+ *
+ * `window' is an out-parameter used only for the CONSEQUENT: the number of
+ * EXTRA ticks the final boolean may arrive on, i.e. the `n-m' of a trailing
+ * `##[m:n]'. Zero for a fixed chain. Pass null to forbid it, which is what
+ * the antecedent does.
+ *
+ * Two relaxations apply to a consequent and NOT to an antecedent, both for
+ * the same reason -- a property is satisfied by the EARLIEST match of its
+ * consequent, so a longer alternative adds nothing:
+ *
+ *   - `rep_tail' (the `n-m' the parser leaves on a trailing `b[*m:n]' after
+ *     collapsing it to `b[*m]') is simply dropped. In an antecedent it
+ *     cannot be: each additional match there creates its own obligation, so
+ *     ignoring it would under-count them.
+ *
+ *   - a bounded `##[m:n]' before the FINAL boolean becomes a window the
+ *     obligation may be discharged anywhere inside. Only trailing, because
+ *     a mid-chain window branches: `##[1:2] b ##1 c' can fail on the b@1
+ *     branch and still match on b@2, which one alive-bit per tick cannot
+ *     represent.
+ */
 static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
-				 std::vector<PExpr*>&slots)
+				 std::vector<PExpr*>&slots,
+				 long*window = nullptr)
 {
       long off = 0;
+      if (window) *window = 0;
       for (size_t j = 0 ; j < steps.size() ; j += 1) {
 	    const sva_seq_step_t&st = steps[j];
-	    if (st.delay_lo != st.delay_hi || st.delay_lo < 0
-		|| st.rep_tail || st.rep_kind || st.lv_rhs || st.fm)
-		  return false;
+	    bool last = (j + 1 == steps.size());
+	    if (st.rep_kind || st.lv_rhs || st.fm) return false;
+	    if (st.rep_tail && !(window && last)) return false;
+
+	    long lo = st.delay_lo;
+	    if (st.delay_lo != st.delay_hi) {
+		    /* a bounded window, trailing, consequent only */
+		  if (!window || !last || j == 0) return false;
+		  if (st.delay_lo < 1 || st.delay_hi < st.delay_lo) return false;
+		  *window = st.delay_hi - st.delay_lo;
+	    }
+	    if (lo < 0) return false;
+
 	    if (j == 0) {
-		  if (st.delay_lo != 0) return false;
+		  if (lo != 0) return false;
 	    } else {
-		  if (st.delay_lo < 1) return false;
-		  off += st.delay_lo;
+		  if (lo < 1) return false;
+		  off += lo;
 	    }
 	    if ((size_t)off + 1 > slots.size())
 		  slots.resize((size_t)off + 1, nullptr);
@@ -8994,15 +9085,22 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	   its own clock domain. Expand each chain to a per-tick slot
 	   array (null slot = pure delay tick). */
       std::vector<PExpr*> a_slots, b_slots;
+      long b_window = 0;      /* extra ticks the final boolean may land on */
       if (!why) {
 	    sva_splice_sequences_(loc, *prop->antecedent);
 	    sva_splice_sequences_(loc, *prop->seq);
-	    if (!sva_mc_expand_chain_(*prop->antecedent, a_slots)
-		|| !sva_mc_expand_chain_(*prop->seq, b_slots))
-		  why = "a multiclocked implication whose antecedent or "
-			"consequent is not a fixed-length boolean chain "
-			"(constant ##N delays only)";
-	    else if (a_slots.size() > 64 || b_slots.size() > 64)
+	    if (!sva_mc_expand_chain_(*prop->antecedent, a_slots))
+		  why = "a multiclocked implication whose ANTECEDENT is not "
+			"a fixed-length boolean chain (constant ##N delays "
+			"only; a variable-length antecedent creates one "
+			"obligation per match, which the request counter "
+			"cannot distinguish)";
+	    else if (!sva_mc_expand_chain_(*prop->seq, b_slots, &b_window))
+		  why = "a multiclocked implication whose consequent is "
+			"neither a fixed-length boolean chain nor one with a "
+			"single trailing bounded window (`##[m:n] b', "
+			"`b[*m:n]')";
+	    else if (a_slots.size() > 64 || b_slots.size() + b_window > 64)
 		  why = "a multiclocked implication with a chain over "
 			"64 ticks";
       }
@@ -9068,9 +9166,15 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       std::vector<perm_string> pa (Ta);
       for (size_t k = 1 ; k < Ta ; k += 1)
 	    pa[k] = sva_make_reg_(loc, inst, "mca", (unsigned)k);
-	/* consequent pipeline stages tb_1..tb_{Tb-1} in the c2 domain */
-      std::vector<perm_string> tb (Tb);
-      for (size_t k = 1 ; k < Tb ; k += 1)
+	/* Consequent pipeline stages tb_1..tb_{Tw-1} in the c2 domain. With a
+	   trailing window the pipe runs b_window ticks past the fixed length:
+	   ages Tb-1 .. Tb-1+b_window are all ticks the final boolean may
+	   discharge the obligation on. An age slot IS the obligation -- at
+	   most one enters per tick -- so a discharge at one age cannot
+	   disturb another obligation in flight. */
+      size_t Tw = Tb + (size_t)b_window;
+      std::vector<perm_string> tb (Tw);
+      for (size_t k = 1 ; k < Tw ; k += 1)
 	    tb[k] = sva_make_reg_(loc, inst, "mcb", (unsigned)k);
 
 	/* initial: zero everything + register the assertion for VPI. */
@@ -9079,7 +9183,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       initv.push_back(sva_assign_(loc, ack, sva_num32_(loc, 0)));
       for (size_t k = 1 ; k < Ta ; k += 1)
 	    initv.push_back(sva_assign_(loc, pa[k], sva_bit_(loc, 0)));
-      for (size_t k = 1 ; k < Tb ; k += 1)
+      for (size_t k = 1 ; k < Tw ; k += 1)
 	    initv.push_back(sva_assign_(loc, tb[k], sva_bit_(loc, 0)));
       if (cover)
 	    initv.push_back(sva_assign_(loc, r_cnt,
@@ -9233,12 +9337,84 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  FILE_NAME(dead, loc);
 		  body2.push_back(sva_if_(loc, dead, raise_fail(), nullptr));
 	    }
-	      /* Final stage: pass on a true boolean, flag on false. */
+	      /* Final boolean. Without a window this is one tick: pass on a
+		 true boolean, flag on false.
+
+		 With a trailing `##[m:n]' the same boolean is offered at
+		 ages Tb-1 .. Tb-1+b_window. It is evaluated ONCE per tick
+		 into a blocking temp (the user expression must be read
+		 once, and every age reads the same value at the same
+		 tick), then each age is settled independently: a live age
+		 whose boolean is true is discharged and does NOT propagate;
+		 one whose boolean is false moves to the next age; the last
+		 age fails. Because at most one obligation enters per tick,
+		 an age slot identifies an obligation uniquely, so
+		 discharging one cannot disturb another still in flight. */
 	    {
 		  PExpr*fb = b_slots[Tb - 1];
-		  body2.push_back(sva_if_(loc, gate(Tb - 1),
-			  sva_if_(loc, fb, passstmt, raise_fail()),
-			  nullptr));
+		  size_t last = Tw - 1;
+		  if (b_window == 0) {
+			body2.push_back(sva_if_(loc, gate(Tb - 1),
+				sva_if_(loc, fb, passstmt, raise_fail()),
+				nullptr));
+		  } else {
+			perm_string fbv = sva_make_reg_(loc, inst, "mcbv", 0);
+			body2.push_back(sva_assign_(loc, fbv,
+					fb ? fb : sva_bit_(loc, 1)));
+
+			  /* Propagate each unsatisfied live age forward. */
+			for (size_t d = Tb - 1 ; d < last ; d += 1) {
+			      PEBinary*keep = new PEBLogic('a', gate(d),
+					sva_not_(loc, sva_id_(loc, fbv)));
+			      FILE_NAME(keep, loc);
+			      body2.push_back(sva_assign_nb_(loc, tb[d+1],
+							     keep));
+			}
+
+			  /* Discharge: any live age whose boolean holds.
+			     For a cover, count each discharged obligation --
+			     several ages can complete in the same tick and
+			     each is a distinct match. */
+			if (cover) {
+			      PExpr*sum = sva_id_(loc, r_cnt);
+			      for (size_t d = Tb - 1 ; d <= last ; d += 1) {
+				    PEBinary*hit = new PEBLogic('a', gate(d),
+							sva_id_(loc, fbv));
+				    FILE_NAME(hit, loc);
+				    PEBinary*ad = new PEBinary('+', sum, hit);
+				    FILE_NAME(ad, loc);
+				    sum = ad;
+			      }
+			      delete passstmt;
+			      body2.push_back(sva_assign_(loc, r_cnt, sum));
+			      passstmt = nullptr;
+			} else {
+			      PExpr*any = nullptr;
+			      for (size_t d = Tb - 1 ; d <= last ; d += 1) {
+				    PEBinary*hit = new PEBLogic('a', gate(d),
+							sva_id_(loc, fbv));
+				    FILE_NAME(hit, loc);
+				    if (!any) any = hit;
+				    else {
+					  PEBinary*o = new PEBLogic('o', any,
+								    hit);
+					  FILE_NAME(o, loc);
+					  any = o;
+				    }
+			      }
+			      body2.push_back(sva_if_(loc, any, passstmt,
+						      nullptr));
+			      passstmt = nullptr;
+			}
+
+			  /* The last age with a false boolean is the only
+			     way this consequent fails. */
+			PEBinary*dead = new PEBLogic('a', gate(last),
+					sva_not_(loc, sva_id_(loc, fbv)));
+			FILE_NAME(dead, loc);
+			body2.push_back(sva_if_(loc, dead, raise_fail(),
+						nullptr));
+		  }
 	    }
 	    if (failstmt)
 		  body2.push_back(sva_if_(loc, sva_id_(loc, ffail),
@@ -9251,7 +9427,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       if (dis2) {
 	    std::vector<Statement*> kill2;
 	    kill2.push_back(sva_assign_nb_(loc, ack, sva_id_(loc, req)));
-	    for (size_t k = 1 ; k < Tb ; k += 1)
+	    for (size_t k = 1 ; k < Tw ; k += 1)
 		  kill2.push_back(sva_assign_nb_(loc, tb[k], sva_bit_(loc, 0)));
 	    std::vector<Statement*> gated2;
 	    gated2.push_back(sva_if_(loc, dis2, sva_block_(loc, kill2),
@@ -10687,6 +10863,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   $ivl_assert_cb_active like every report, so it costs nothing
 	   when no callback is registered. */
       body.insert(body.begin(), sva_report_stmt_(loc, inst, SVA_CB_START));
+      body.insert(body.begin(), sva_observed_wait_(loc));
 
 	/* Assemble: pre-captures; disable guard around the token
 	   machinery; history updates. */

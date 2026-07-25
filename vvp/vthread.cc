@@ -10161,8 +10161,19 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
 	/* Task calls compiled as %fork...%join should share the parent's
 	   logical process for process::self(), matching SV semantics where
 	   a task call runs in the calling thread's process. Mark them
-	   is_fork_v_child so logical_process_thread_() walks up to the parent. */
-      if (cp->scope->get_type_code() == vpiTask)
+	   is_fork_v_child so logical_process_thread_() walks up to the parent.
+
+	   A named begin/end block is lowered the same way when it owns an
+	   activation frame, and it is NOT a process either: IEEE 1800-2017
+	   9.3.1 gives sequential-block status to fork...join, not to
+	   begin...end. Without this, `process::self()' inside
+	   `begin : b  automatic int z; ... end' returned a DIFFERENT handle
+	   from the enclosing process -- silently, and including for the
+	   block's own declaration initializers, which run in the parent
+	   while the body runs in the child. Fork branches keep their own
+	   identity: their scopes are vpiNamedFork, not vpiNamedBegin. */
+      if (cp->scope->get_type_code() == vpiTask
+	  || cp->scope->get_type_code() == vpiNamedBegin)
 	    child->is_fork_v_child = 1;
       thr->children.insert(child);
 
