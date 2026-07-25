@@ -42,17 +42,26 @@
 //     So `elaborate_sig_wires_' is called on the right scope, with the
 //     right wire, in both -- and only one of them ends up with a signal.
 //
-// The next step is therefore INSIDE `elaborate_sig_wires_' /
-// `PWire::elaborate_sig' for that one wire: log why the NetNet is not
-// created (or is created and then not findable) when the enclosing
-// function is a constructor. The loop variable's type is a
-// `foreach_index_type_t', which resolves through
-// `resolve_class_handle_placeholder_type_weak_' -- that returns 0 for a
-// non-class index type, and whether the caller treats 0 as "skip this
-// wire" is the first thing to check. The assertion at elaborate.cc:11284
-// is the symptom, not the defect.
+// RESOLVED. The wire IS created at signature time -- instrumenting
+// `elaborate_sig_wires_' shows `i' elaborated into
+// `$unit.H.new.$ivl_foreach0' and findable there. Printing the BLOCK
+// scope pointer on both sides is what closed it:
 //
-// Uncomment either variant to reproduce; both abort.
+//   DBG wire 'i' in $unit.H.new.$ivl_foreach0 scopeptr=0x...470 found=1
+//   DBG elab-lookup in $unit.H.new.$ivl_foreach0 scopeptr=0x...ff0
+//
+// Two different NetScope objects with the same path under the same
+// parent. `PBlock::elaborate_scope' unconditionally built a new NetScope
+// for the block's name, and the constructor's body is reached twice, so
+// the second one orphaned the first: signatures went into the first, the
+// body was elaborated against the second, and the loop variable was
+// nowhere to be found.
+//
+// Fixed by reusing an existing child scope of that name under the same
+// parent. Regression: ivtest/ivltests/sv_foreach_in_class_constructor.v.
+// This file is kept for the minimization trail -- it now compiles and
+// runs, printing the control line and x.d[2]=2.
+
 
 class H;
   int d[];                  // property variant
@@ -60,7 +69,7 @@ class H;
     int q[];                // local variant
     d = new[4];
     q = new[4];
-    foreach (d[i]) d[i] = i;   // <-- aborts here
+    foreach (d[i]) d[i] = i;   // <-- used to abort here
     foreach (q[i]) q[i] = i;   // <-- and here
   endfunction
 endclass

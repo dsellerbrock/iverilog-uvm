@@ -264,6 +264,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%cvt/sr", of_CVT_SR, 1,  {OA_BIT1,     OA_NONE,     OA_NONE} },
       { "%cvt/ur", of_CVT_UR, 1,  {OA_BIT1,     OA_NONE,     OA_NONE} },
       { "%cvt/vr", of_CVT_VR, 1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },
+      { "%dar/elem/proto",of_DAR_ELEM_PROTO,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%deassign",of_DEASSIGN,3,{OA_FUNC_PTR, OA_BIT1,     OA_BIT2} },
       { "%deassign/wr",of_DEASSIGN_WR,1,{OA_FUNC_PTR, OA_NONE,     OA_NONE} },
       { "%debug/thr",  of_DEBUG_THR,  1,{OA_STRING,   OA_NONE,     OA_NONE} },

@@ -333,6 +333,19 @@ static void draw_binary_vec4_compare_class(ivl_expr_t expr)
 	    int idx = 0;
 	    unsigned wid = ivl_expr_width(expr) ? ivl_expr_width(expr) : 1;
 
+	      /* An ELEMENT of a container property is not the property
+		 slot: the slot holds the container object, and
+		 %test_nul/prop reads the slot. Testing `obj.arr[i] ==
+		 null' that way reported the CONTAINER's nullness for
+		 index 0 -- so a null element read as non-null and every
+		 lazy-allocation guard silently failed open -- and
+		 asserted in the runtime for index >= 1. Fall through to
+		 the general object compare, which evaluates the element
+		 properly. A fixed-size unpacked array property is
+		 unaffected: there the index really is a slot index. */
+	    if (property_is_indexed_container_expr_(le))
+		  goto general_object_compare;
+
 	    if (!property_is_object_expr_(le)) {
 		  draw_eval_vec4(le);
 		  fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", wid);
@@ -368,6 +381,7 @@ static void draw_binary_vec4_compare_class(ivl_expr_t expr)
 
       /* General case: compare two class handle expressions by pushing
          both onto the object stack and using %cmp/obj for pointer identity. */
+general_object_compare:
       draw_eval_object(le);
       draw_eval_object(re);
       fprintf(vvp_out, "    %%cmp/obj;\n");

@@ -593,7 +593,22 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
       element_type = ivl_type_element(prop_type);
       nested_idx_expr = ivl_lval_idx(lval_nest);
       if (nested_idx_expr) {
-	    if (prop_is_numeric_queue_index_(prop_type, nested_idx_expr)) {
+	      /* A DYNAMIC ARRAY property indexes like a queue property:
+		 the property slot holds ONE object (the container), so
+		 the element index belongs inside the container, not on
+		 %prop/obj. Passing it as a slot index made
+		 `obj.arr[i].member = v' read the CONTAINER as the
+		 receiver -- a silent wrong store for index 0 and a
+		 runtime abort (assert idx < array_size_) for index >= 1.
+		 %load/qo/obj accepts any vvp_darray receiver, queue or
+		 plain dynamic array, so the queue lowering is exactly
+		 right here. A fixed-size unpacked array property still
+		 takes the slot-index path below, where the index IS a
+		 slot index. */
+	    if (prop_is_numeric_queue_index_(prop_type, nested_idx_expr)
+		|| (prop_type
+		    && ivl_type_base(prop_type) == IVL_VT_DARRAY
+		    && expr_is_numeric_container_index_(nested_idx_expr))) {
 		  queue_indexed = 1;
 	    } else if (prop_type
 	               && ivl_type_base(prop_type) == IVL_VT_QUEUE
@@ -2253,7 +2268,12 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		  draw_eval_expr_into_integer(idx_expr, idx_word);
 		  fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
-		  errors += draw_eval_object(rval);
+		    /* An object-backed unpacked struct is a VALUE (7.2):
+		       storing the r-value's handle would alias the source,
+		       so every element written from one struct variable
+		       ended up sharing it -- silently. The module-scope
+		       store already copies; this one has to as well. */
+		  errors += draw_eval_object_value_copy(rval, element_type);
 		  fprintf(vvp_out, "    %%set/dar/obj/obj %d;\n", idx_word);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  clr_word(idx_word);
@@ -2346,7 +2366,8 @@ static int show_stmt_assign_sig_prop_darray_index(ivl_statement_t net,
             draw_eval_expr_into_integer(idx_expr, idx_word);
             fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
             fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
-            errors += draw_eval_object(rval);
+              /* Value-copy an unpacked-struct element -- see above. */
+            errors += draw_eval_object_value_copy(rval, element_type);
             fprintf(vvp_out, "    %%set/dar/obj/obj %d;\n", idx_word);
             fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
             clr_word(idx_word);
@@ -2428,7 +2449,9 @@ static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
-	    errors += draw_eval_object(rval);
+	      /* Value-copy an unpacked-struct element (7.2): storing the
+		 r-value's handle would alias the source. */
+	    errors += draw_eval_object_value_copy(rval, element_type);
 	    fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
 	    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
 	    return errors;
@@ -2476,7 +2499,7 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
 
             key_kind = draw_eval_assoc_key_(idx_expr, &errors);
 
-            errors += draw_eval_object(rval);
+            errors += draw_eval_object_value_copy(rval, element_type);
             fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
             fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
 
@@ -2486,7 +2509,7 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
             int idx_word = allocate_word();
 
             draw_eval_expr_into_integer(idx_expr, idx_word);
-            errors += draw_eval_object(rval);
+            errors += draw_eval_object_value_copy(rval, element_type);
             fprintf(vvp_out, "    %%set/dar/obj/obj %d;\n", idx_word);
             fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
             clr_word(idx_word);
@@ -2914,10 +2937,48 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 
 	    } else if (ivl_type_base(prop_type) == IVL_VT_NO_TYPE) {
 		  ivl_variable_type_t rv_type = ivl_expr_value(rval);
-		  if (rv_type == IVL_VT_CLASS ||
-		      rv_type == IVL_VT_DARRAY ||
-		      rv_type == IVL_VT_QUEUE ||
-		      ivl_expr_type(rval) == IVL_EX_NULL) {
+		  ivl_type_t rval_type = ivl_expr_net_type(rval);
+		  ivl_type_t nt_elem_type = ivl_type_element(prop_type);
+		  int lval_is_value_struct =
+			(ivl_type_properties(prop_type) > 0)
+			|| (nt_elem_type
+			    && ivl_type_properties(nt_elem_type) > 0);
+		  int rval_is_value_struct =
+			lval_is_value_struct
+			&& rv_type != IVL_VT_CLASS
+			&& rv_type != IVL_VT_DARRAY
+			&& rv_type != IVL_VT_QUEUE
+			&& ivl_expr_type(rval) != IVL_EX_NULL
+			&& (rval_type == 0
+			    || ivl_type_base(rval_type) == IVL_VT_NO_TYPE);
+		  ivl_expr_t no_type_idx_expr = ivl_lval_idx(lval);
+
+		    /* An unpacked struct stored into a slot of a FIXED-SIZE
+		       unpacked array property. The branch below ignores the
+		       l-value index entirely and, because a struct r-value
+		       is not one of the object-like value kinds it tests
+		       for, took the "coerce to null" path -- so the element
+		       was silently left empty and every slot read back
+		       zero. Store the struct as an object, value-copied
+		       (7.2), into the slot the index names. */
+		  if (rval_is_value_struct) {
+			int nt_idx = 0;
+			ivl_type_t nt_elem = nt_elem_type;
+			if (no_type_idx_expr)
+			      nt_idx = allocate_word();
+			errors += draw_eval_object_value_copy(rval,
+				      nt_elem ? nt_elem : prop_type);
+			if (no_type_idx_expr)
+			      draw_eval_expr_into_integer(no_type_idx_expr,
+							  nt_idx);
+			fprintf(vvp_out, "    %%store/prop/obj %d, %d;"
+				" ; value struct\n", prop_idx, nt_idx);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			if (no_type_idx_expr) clr_word(nt_idx);
+		  } else if (rv_type == IVL_VT_CLASS ||
+			     rv_type == IVL_VT_DARRAY ||
+			     rv_type == IVL_VT_QUEUE ||
+			     ivl_expr_type(rval) == IVL_EX_NULL) {
 			/* Queue or unresolved property: object-like RHS stores as object. */
 			errors += draw_eval_object(rval);
 			fprintf(vvp_out, "    %%store/prop/obj %d, 0;"

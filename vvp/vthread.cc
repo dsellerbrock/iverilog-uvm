@@ -12392,9 +12392,63 @@ bool of_LOAD_QO_V(vthread_t thr, vvp_code_t cp)
       return load_qo<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
 }
 
+/*
+ * %load/qo/obj
+ *
+ * Pop a container (queue or dynamic array) and push the element at the
+ * index in word register 3.
+ *
+ * A container of an object-backed VALUE type -- an unpacked struct --
+ * starts with nil element slots, so a member write `arr[i].f = v' would
+ * store through a null handle and be dropped. Materialize a nil element
+ * from the container's element prototype on first access, exactly as
+ * of_LOAD_DAR_OBJ does from the signal's declared_type(), and only
+ * within the current size so an out-of-range READ cannot grow a queue
+ * (IEEE 1800-2017 7.10.2). Containers of class handles carry no
+ * prototype, so their nil elements correctly stay null.
+ */
 bool of_LOAD_QO_OBJ(vthread_t thr, vvp_code_t)
 {
-      return load_qo<vvp_object_t, vvp_queue_object>(thr);
+      int64_t adr = thr->words[3].w_int;
+
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_darray*arr = recv.peek<vvp_darray>();
+
+      vvp_object_t word;
+      if (arr && (adr >= 0) && (thr->flags[4] == BIT4_0)
+	  && (static_cast<size_t>(adr) < arr->get_size())) {
+	    arr->get_word(adr, word);
+	    if (word.test_nil() && arr->elem_class()) {
+		  word = vvp_object_t(new vvp_cobject(arr->elem_class()));
+		  arr->set_word(adr, word);
+	    }
+      }
+
+      thr->push_object(word);
+      return true;
+}
+
+/*
+ * %dar/elem/proto
+ *
+ * Pop an element prototype object and record ITS CLASS on the container
+ * now on top of the object stack (which stays there). Emitted right
+ * after %new/darray for a container whose elements are object-backed
+ * value structs; the runtime materializes nil elements from that class.
+ * A no-op if either operand is not what is expected.
+ */
+bool of_DAR_ELEM_PROTO(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t proto;
+      thr->pop_object(proto);
+
+      vvp_cobject*cobj = proto.peek<vvp_cobject>();
+      vvp_object_t recv = thr->peek_object();
+      if (vvp_darray*arr = recv.peek<vvp_darray>())
+	    if (cobj) arr->set_elem_class(cobj->get_defn());
+
+      return true;
 }
 
 bool of_AA_LOAD_OBJ_OBJ(vthread_t thr, vvp_code_t)

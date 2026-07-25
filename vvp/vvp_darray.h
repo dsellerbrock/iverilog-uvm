@@ -67,10 +67,28 @@ class vvp_darray : public vvp_object {
       virtual unsigned dpi_elem_bytes() const { return 0; }
       virtual bool dpi_elem_is_real() const { return false; }
 
+	// An element PROTOTYPE for a container whose elements are
+	// object-backed VALUE types (an unpacked struct). `new[]` leaves
+	// the element slots nil; a member write such as `arr[i].f = v'
+	// needs a live instance to store into, so a nil element is
+	// materialized on first access by duplicating this prototype.
+	//
+	// A signal-backed container gets the same treatment from its
+	// functor's declared_type(), but a container held in a CLASS
+	// PROPERTY has no signal to ask -- which is why the member write
+	// was silently dropped there. Carrying the prototype on the
+	// container itself makes the two paths agree.
+	//
+	// Unset (nil) for containers of class HANDLES, whose nil elements
+	// must stay null.
+      void set_elem_class(const class class_type*t) { elem_class_ = t; }
+      const class class_type* elem_class() const { return elem_class_; }
+
     private:
       int  dpi_left_  = 0;
       int  dpi_right_ = 0;
       bool dpi_has_range_ = false;
+      const class class_type* elem_class_ = 0;
 };
 
 template <class TYPE> class vvp_darray_atom : public vvp_darray {

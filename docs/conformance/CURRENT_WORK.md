@@ -61,12 +61,24 @@ verified at 224/0/0 with an empty known-fail list, and the region
 pipeline self-test drains Preponed → Active → NBA → NBASync → Observed →
 Reactive → Re-NBA → RWSync → ROSync in order under reverse insertion.
 
-**Next concrete change (Campaign 2 / M1C-1):** a compiler ICE on legal
-input — `foreach` over a runtime-sized array inside the constructor of a
-`$unit`-scope class. Minimized, with the boundary and the evidence, in
-`repros/foreach_in_unit_class_constructor_ice.sv` and the M1C-1 row. The
-fix is on the pform side: the foreach index declaration lands outside the
-block scope that was pushed for it.
+**M1C-1 is fixed.** The ICE — `foreach` over a runtime-sized array inside
+a `$unit`-scope class constructor — was a named block scope being
+elaborated twice: `PBlock::elaborate_scope` built a second `NetScope` for
+the same name under the same parent, orphaning the one the signature pass
+had declared the loop variable into. A same-named child of the same
+parent is now reused. Pinned by `sv_foreach_in_class_constructor`;
+`repros/foreach_in_unit_class_constructor_ice.sv` keeps the minimization
+trail.
+
+**M1C-3 is fixed** — the largest thing this campaign has turned up. An
+element of a container held in a CLASS PROPERTY was being addressed with
+the property-SLOT index, and the slot holds the container, not the
+element. Three silent defects fell out of that one shape: null guards
+read non-null for null elements (so lazy allocation silently skipped),
+member writes through an element hit the container (abort for index ≥ 1),
+and whole-element stores of an unpacked struct aliased the source so
+every element ended up holding the last value. Pinned by
+`sv_class_property_container_element`.
 
 **Where to look first when resuming:** the `Current focus` list at the
 bottom of `ROADMAP.md`. It is re-derived from the priority rule, not

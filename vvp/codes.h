@@ -276,6 +276,7 @@ extern bool of_LOAD_DAR_R(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_DAR_STR(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_DAR_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_QO_OBJ(vthread_t thr, vvp_code_t code);
+extern bool of_DAR_ELEM_PROTO(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_QO_R(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_QO_STR(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_QO_V(vthread_t thr, vvp_code_t code);
