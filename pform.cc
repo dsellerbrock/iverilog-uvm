@@ -5519,6 +5519,14 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
 
 /* M12B/M12B-cb: the effect of an assertion failure — the (enable-gated)
    user/default fail action, plus a cbAssertionFailure report. */
+/* R2 (attempted, reverted): an assertion ACTION block belongs in the
+ * Reactive region (IEEE 1800-2017 4.4.2.5), one after the Observed region
+ * the assertion is evaluated in. Deferring it there DROPS VERDICTS at the
+ * end of simulation: a `final'-block action -- which is how a strong
+ * sequence reports its unfulfilled obligation -- suspends and never
+ * resumes, and the last tick's action is lost to $finish. Losing a failure
+ * report is worse than reporting it one region early, so the action stays
+ * inline. See the M6B-4 row. */
 static Statement* sva_fail_action_(const struct vlltype&loc, unsigned inst,
 				   Statement*action)
 {

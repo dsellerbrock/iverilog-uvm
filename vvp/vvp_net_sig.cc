@@ -1718,12 +1718,37 @@ bool vvp_wire_vec8::is_forced(unsigned idx) const
 }
 
 vvp_wire_real::vvp_wire_real()
-: bit_(0.0), force_(0.0)
+: bit_(0.0), force_(0.0), hist_enabled_(false), hist_valid_(false),
+  hist_time_(0), hist_prev_(0.0)
 {
+}
+
+/* R11: snapshot the value the signal held when this time step began, the
+   first time it changes within the step. The real twin of
+   vvp_wire_vec4::hist_snapshot_. */
+void vvp_wire_real::hist_snapshot_()
+{
+      if (!hist_enabled_) return;
+      vvp_time64_t now = schedule_simtime();
+      if (hist_valid_ && hist_time_ == now) return;
+      hist_prev_ = bit_;
+      hist_time_ = now;
+      hist_valid_ = true;
+}
+
+/* The Preponed-region value: if the signal has changed during the current
+   time step, the value it had when the step started; otherwise the current
+   value. */
+double vvp_wire_real::real_preponed_value() const
+{
+      if (hist_enabled_ && hist_valid_ && hist_time_ == schedule_simtime())
+	    return hist_prev_;
+      return real_value();
 }
 
 vvp_net_fil_t::prop_t vvp_wire_real::filter_real(double&bit)
 {
+      hist_snapshot_();
       bit_ = bit;
       return filter_mask_(bit, force_);
 }

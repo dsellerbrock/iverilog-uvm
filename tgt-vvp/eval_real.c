@@ -385,6 +385,28 @@ static void real_ex_pop(ivl_expr_t expr)
 
 static void draw_sfunc_real(ivl_expr_t expr)
 {
+      /* R11: $ivl_clocking_sample(r) on a REAL operand -- the Preponed
+       * value of the raw signal (IEEE 1800-2017 16.5.1). The vec4 form of
+       * this lives in eval_vec4.c; a real operand needs the real-valued
+       * load, because there is no bit width to push. */
+      if (strcmp(ivl_expr_name(expr), "$ivl_clocking_sample") == 0) {
+	    ivl_expr_t arg = (ivl_expr_parms(expr) > 0)
+			      ? ivl_expr_parm(expr, 0) : 0;
+	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(arg)) {
+		  fprintf(vvp_out, "    %%load/preponed/real v%p_0;\n",
+			  ivl_expr_signal(arg));
+		  return;
+	    }
+	    /* Unexpected shape: fall back to the plain (alias) read. */
+	    if (arg) {
+		  draw_eval_real(arg);
+		  return;
+	    }
+	    fprintf(vvp_out, "    %%pushi/real 0, 0;\n");
+	    return;
+      }
+
       /* $ivl_class_method$covgrp_get_inst_coverage(cg_obj)
        * Pop cg object from obj stack, compute (hit_bins/total_bins)*100.0 */
       if (ivl_expr_value(expr) == IVL_VT_REAL &&

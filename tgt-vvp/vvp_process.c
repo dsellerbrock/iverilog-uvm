@@ -3089,10 +3089,20 @@ static int show_system_task_call(ivl_statement_t net)
       if (strcmp(stmt_name,"$ivl_clocking_hist_on") == 0) {
 	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
 		  ? ivl_stmt_parm(net, 0) : 0;
-	    if (parm0 && ivl_expr_type(parm0) == IVL_EX_SIGNAL
+	      /* A bare unpacked-array name arrives as IVL_EX_ARRAY, not
+		 IVL_EX_SIGNAL. */
+	    if (parm0 && (ivl_expr_type(parm0) == IVL_EX_SIGNAL
+			  || ivl_expr_type(parm0) == IVL_EX_ARRAY)
 		&& ivl_expr_signal(parm0)) {
-		  fprintf(vvp_out, "    %%hist/on v%p_0;\n",
-			  ivl_expr_signal(parm0));
+		  ivl_signal_t hsig = ivl_expr_signal(parm0);
+		    /* R11: an unpacked array carries per-word history, so
+		       it needs the array form of the enable. */
+		  if (ivl_signal_dimensions(hsig) > 0) {
+			note_array_signal_use(hsig);
+			fprintf(vvp_out, "    %%hist/on/av v%p;\n", hsig);
+		  } else {
+			fprintf(vvp_out, "    %%hist/on v%p_0;\n", hsig);
+		  }
 	    }
 	    return 0;
       }

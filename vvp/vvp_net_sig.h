@@ -606,9 +606,22 @@ class vvp_wire_real : public vvp_wire_base {
 
       void get_signal_value(struct t_vpi_value*vp) override;
 
+	// R11: 1-deep driven-value history, the real-valued twin of the
+	// vec4 one. Preponed reads of a real assertion operand need it for
+	// the same reason vectors do -- see vvp_wire_vec4::hist_snapshot_.
+      void enable_sample_hist() { hist_enabled_ = true; }
+      double real_preponed_value() const;
+
+    private:
+      void hist_snapshot_();
+
     private:
       double bit_;
       double force_;
+      bool hist_enabled_;
+      bool hist_valid_;
+      vvp_time64_t hist_time_;
+      double hist_prev_;
 };
 
 #if 0

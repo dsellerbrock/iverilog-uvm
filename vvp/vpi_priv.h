@@ -823,6 +823,24 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       void get_word_obj(unsigned address, vvp_object_t&val);
       std::string get_word_str(unsigned address);
 
+	// R11: 1-deep per-word driven-value history, the array twin of
+	// vvp_wire_vec4's. %load/preponed takes a signal and ignores any
+	// word index, so an unpacked-array element could not be sampled at
+	// all; this records the value each word held when the current time
+	// step began, for the words that changed during it. The map is
+	// cleared at the first write of each new step, so it costs one
+	// entry per word actually written per step and nothing when the
+	// history is off.
+      void enable_sample_hist() { hist_enabled_ = true; }
+      vvp_vector4_t get_word_preponed(unsigned address);
+    private:
+      void hist_snapshot_word_(unsigned address);
+      bool hist_enabled_ = false;
+      vvp_time64_t hist_time_ = 0;
+      bool hist_valid_ = false;
+      std::map<unsigned, vvp_vector4_t> hist_prev_;
+    public:
+
       void alias_word(unsigned long addr, vpiHandle word, int msb, int lsb);
       void attach_word(unsigned addr, vpiHandle word);
       void word_change(unsigned long addr);
