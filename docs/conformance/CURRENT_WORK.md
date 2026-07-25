@@ -80,6 +80,18 @@ and whole-element stores of an unpacked struct aliased the source so
 every element ended up holding the last value. Pinned by
 `sv_class_property_container_element`.
 
+**Next concrete change (M1C-4, rule gate 1).** The access probe's second
+batch turned up one more SILENT defect and it is unfixed: an unpacked-
+array member of an interface reached through a VIRTUAL interface reads
+`x`, and writes to it are dropped with no diagnostic — while the same
+member accessed directly, and every scalar member through the same
+virtual interface, is correct. A driver driving an interface array
+through a virtual interface silently drives nothing. Minimal reproducer
+and the evidence trail: `repros/vif_unpacked_array_member_silent.sv` and
+the M1C-4 row. It looks like the same shape as M1C-3 — an index with
+nowhere to go — in the interface-to-class mirror rather than in a class
+property.
+
 **Where to look first when resuming:** the `Current focus` list at the
 bottom of `ROADMAP.md`. It is re-derived from the priority rule, not
 hand-picked.
