@@ -1,0 +1,6 @@
+Compiling vpi/m6b_nba_sync.c...
+Making m6b_nba_sync.vpi from  m6b_nba_sync.o...
+cbNBASynch at 5: q=1
+cbAtEndOfSimTime at 5: q=1
+cbReadWriteSynch at 5: q=1
+cbReadOnlySynch at 5: q=1

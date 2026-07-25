@@ -500,6 +500,13 @@ typedef struct t_cb_data {
 #define cbExitInteractive   22
 #define cbInteractiveScopeChange 23
 #define cbUnresolvedSystf   24
+/* IEEE 1800-2017 clause 38 simulation-time callback: after every
+   nonblocking update of the current time slot has been applied, and
+   before cbReadWriteSynch / cbAtEndOfSimTime.  (Reason codes 25-29 are
+   the other 1800 additions -- cbAssign, cbDeassign, cbDisable,
+   cbPLIError, cbSignal -- which this simulator does not implement and
+   therefore does not name.) */
+#define cbNBASynch          30
 #define cbAtEndOfSimTime    31
 
 extern vpiHandle vpi_register_cb(p_cb_data data);

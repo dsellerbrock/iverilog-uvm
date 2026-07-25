@@ -175,6 +175,10 @@ extern void schedule_at_end_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay);
 extern void schedule_at_preponed(vvp_gen_event_t obj, vvp_time64_t delay);
 extern void schedule_at_observed(vvp_gen_event_t obj, vvp_time64_t delay);
 
+/* Post-NBA callback point (cbNBASynch, clause 38): after the NBA region
+ * of the slot has fully drained, before Observed and cbReadWriteSynch. */
+extern void schedule_at_nba_sync(vvp_gen_event_t obj, vvp_time64_t delay);
+
 /* Reactive region (4.4.2.5): assertion action blocks run here, one
  * region after the Observed region their verdict is computed in. */
 extern void schedule_at_reactive(vvp_gen_event_t obj, vvp_time64_t delay);

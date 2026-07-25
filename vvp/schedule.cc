@@ -63,7 +63,7 @@ static vvp_time64_t schedule_time;
  * invariants (M6 remediation item 1).
  */
 typedef enum event_queue_e { SEQ_START, SEQ_PREPONED, SEQ_ACTIVE, SEQ_INACTIVE,
-			     SEQ_NBASSIGN, SEQ_OBSERVED,
+			     SEQ_NBASSIGN, SEQ_NBASYNC, SEQ_OBSERVED,
 			     SEQ_REACTIVE, SEQ_RE_INACTIVE, SEQ_RE_NBASSIGN,
 			     SEQ_RWSYNC, SEQ_ROSYNC, DEL_THREAD } event_queue_t;
 
@@ -108,6 +108,7 @@ struct event_time_s {
 	    active = 0;
 	    inactive = 0;
 	    nbassign = 0;
+	    nbasync = 0;
 	    observed = 0;
 	    reactive = 0;
 	    re_inactive = 0;
@@ -124,6 +125,7 @@ struct event_time_s {
       struct event_s*active;
       struct event_s*inactive;
       struct event_s*nbassign;
+      struct event_s*nbasync;
       struct event_s*observed;
       struct event_s*reactive;
       struct event_s*re_inactive;
@@ -746,6 +748,7 @@ static const char* region_name_(event_queue_t r)
 	  case SEQ_ACTIVE:      return "Active";
 	  case SEQ_INACTIVE:    return "Inactive";
 	  case SEQ_NBASSIGN:    return "NBA";
+	  case SEQ_NBASYNC:     return "NBASync";
 	  case SEQ_OBSERVED:    return "Observed";
 	  case SEQ_REACTIVE:    return "Reactive";
 	  case SEQ_RE_INACTIVE: return "Re-Inactive";
@@ -919,6 +922,10 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 
 	  case SEQ_NBASSIGN:
 	    q = &ctim->nbassign;
+	    break;
+
+	  case SEQ_NBASYNC:
+	    q = &ctim->nbasync;
 	    break;
 
 	  case SEQ_OBSERVED:
@@ -1293,6 +1300,21 @@ void schedule_at_observed(vvp_gen_event_t obj, vvp_time64_t delay)
 }
 
 /*
+ * Post-NBA callback point (cbNBASynch, IEEE 1800-2017 clause 38):
+ * schedule an event to run once the NBA region of the slot has fully
+ * drained -- including updates scheduled by NBA updates -- and before
+ * the Observed region and the cbReadWriteSynch point.
+ */
+void schedule_at_nba_sync(vvp_gen_event_t obj, vvp_time64_t delay)
+{
+      struct generic_event_s*cur = new generic_event_s;
+
+      cur->obj = obj;
+      cur->delete_obj_when_done = false;
+      schedule_event_(cur, delay, SEQ_NBASYNC);
+}
+
+/*
  * Reactive region (IEEE 1800-2017 4.4.2.5): schedule an event to run
  * after the design regions of this slot have settled.  Concurrent
  * assertion pass/fail ACTION blocks run here, one region after the
@@ -1390,6 +1412,7 @@ static void run_rosync(struct event_time_s*ctim)
       sched_current_region = SEQ_START;
 
       if (ctim->preponed || ctim->active || ctim->inactive || ctim->nbassign
+	  || ctim->nbasync
 	  || ctim->observed || ctim->reactive || ctim->re_inactive
 	  || ctim->re_nbassign || ctim->rwsync) {
 	    cerr << "SCHEDULER ERROR: read-only sync events "
@@ -1426,6 +1449,7 @@ static void region_selftest_(void)
 	    { SEQ_RE_NBASSIGN, "Re-NBA"   },
 	    { SEQ_REACTIVE,    "Reactive" },
 	    { SEQ_OBSERVED,    "Observed" },
+	    { SEQ_NBASYNC,     "NBASync"  },
 	    { SEQ_NBASSIGN,    "NBA"      },
 	    { SEQ_ACTIVE,      "Active"   },
 	    { SEQ_PREPONED,    "Preponed" },
@@ -1606,6 +1630,17 @@ void schedule_simulate(void)
 		  if (ctim->active == 0) {
 			ctim->active = ctim->nbassign;
 			ctim->nbassign = 0;
+
+			  /* Post-NBA callback point (cbNBASynch, IEEE
+			     1800-2017 clause 38): every nonblocking
+			     update of the step, including NBA-scheduled-
+			     from-NBA cascades, has been applied.  Drained
+			     before Observed, and so before the existing
+			     cbReadWriteSynch / cbAtEndOfSimTime points. */
+			if (ctim->active == 0) {
+			      ctim->active = ctim->nbasync;
+			      ctim->nbasync = 0;
+			}
 
 			  /* Observed region (IEEE 1800-2017 4.4.2.4):
 			     concurrent assertions are evaluated after the

@@ -91,6 +91,8 @@ static const char*cb_reason_name(PLI_INT32 reason)
 	    return "cbInteractiveScopeChange";
 	  case cbUnresolvedSystf:
 	    return "cbUnresolvedSystf";
+	  case cbNBASynch:
+	    return "cbNBASynch";
 	  case cbAtEndOfSimTime:
 	    return "cbAtEndOfSimTime";
 	  default:
@@ -676,6 +678,36 @@ static struct __vpiCallback* make_at_start_of_sim_time(p_cb_data data)
       return obj;
 }
 
+/* cbNBASynch (IEEE 1800-2017 clause 38): fires once the NBA region of
+   the target time slot has fully drained -- including nonblocking
+   updates scheduled by nonblocking updates -- and before the Observed
+   region and the cbReadWriteSynch / cbAtEndOfSimTime points. */
+static struct __vpiCallback* make_nba_sync(p_cb_data data)
+{
+      if (!check_callback_time(data, false))
+	    return 0;
+
+      sync_callback*obj = new sync_callback(data);
+      struct sync_cb*cb = new sync_cb;
+      cb->sync_flag = false;
+      cb->handle = obj;
+      obj->cb_sync = cb;
+
+      vvp_time64_t tv = get_sync_cb_time(obj);
+      vvp_time64_t cur = schedule_simtime();
+      if (cur > tv) {
+	    tv = 0;
+	    assert(0);
+      } else if (cur == tv) {
+	    tv = 0;
+      } else {
+	    tv -= cur;
+      }
+      schedule_at_nba_sync(cb, tv);
+
+      return obj;
+}
+
 static struct __vpiCallback* make_at_end_of_sim_time(p_cb_data data)
 {
       if (!check_callback_time(data, false))
@@ -911,6 +943,10 @@ vpiHandle vpi_register_cb(p_cb_data data)
 
 	  case cbAtStartOfSimTime:
 	    obj = make_at_start_of_sim_time(data);
+	    break;
+
+	  case cbNBASynch:
+	    obj = make_nba_sync(data);
 	    break;
 
 	  case cbAtEndOfSimTime:

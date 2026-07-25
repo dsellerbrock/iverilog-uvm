@@ -159,11 +159,21 @@ class my_item extends uvm_sequence_item;
 endclass
 ```
 
-`randomize()` (plain, `with {}`, `rand_mode`/`constraint_mode`,
-pre/post_randomize, `dist`, `soft`, foreach constraints) is solved with Z3.
-Known gaps: `randcase`/`randsequence` and the scope form
-`std::randomize(var)` are loud diagnostics; per-field `obj.f.rand_mode(0)`
-freeze is not honored. Examples: [tests/constraint_test.sv](tests/constraint_test.sv),
+`randomize()` (plain, `with {}`, object- and per-field
+`rand_mode`/`constraint_mode`, pre/post_randomize, `dist`, `soft`, foreach
+constraints) is solved with Z3. `randcase` and `randsequence` work.
+`srandom()`/`get_randstate()`/`set_randstate()` give each object its own
+generator.
+
+**Known gap:** the scope form `std::randomize(vars) with {...}` does not
+reach the Z3 solver. As a bare statement it gets a heuristic lowering
+(range fast path, enum pick, bounded retry loop) which satisfies simple
+`inside`/comparison constraints and can fail to converge on tight ones; in
+expression context — `if (std::randomize(a,b) with {...})` — the
+constraints are not enforced at all and the variables get unconstrained
+values. That form warns loudly rather than failing silently. Without a
+with-clause, `std::randomize(vars)` randomizes correctly.
+Examples: [tests/constraint_test.sv](tests/constraint_test.sv),
 [tests/randomize_with_test.sv](tests/randomize_with_test.sv).
 
 ### Interfaces, modports, virtual interfaces — substantial
@@ -336,12 +346,12 @@ read it for the per-clause evidence and the complete corner ledger.
 |---|---|---|
 | Core classes / OOP (cl. 8) | Substantial | No interface classes, nested classes, out-of-body `extern` methods |
 | UVM (Accellera core, unmodified) | Substantial | 200-test regression green (zero skips), run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported |
-| Constraints / randomization (cl. 18) | Substantial | Z3-backed; `randcase`, scope `std::randomize` diagnosed |
+| Constraints / randomization (cl. 18) | Substantial | Z3-backed; `randcase`/`randsequence` work; scope `std::randomize` with-clause does not reach the solver (heuristic as a statement, loudly unenforced in expression context) |
 | Containers (queues/darrays/assoc, cl. 7) | Substantial | Full method set; narrow recorded corners |
 | Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; bare module-scope `virtual` var missing |
 | Clocking blocks (cl. 14) | Supported | Sampled inputs, output drives, `##N`, global clocking |
-| Scheduler / event regions (cl. 4) | Partial | Regions modeled; formal region trace still open ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
-| SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; remaining automaton-class features (broader multiclock, `expect`) are loud sorries |
+| Scheduler / event regions (cl. 4) | Supported | Full stratified queue incl. Preponed, post-NBA (`cbNBASynch`), Observed and the Reactive set; assertions sample Preponed, evaluate in Observed and run their actions in Reactive; region tracing/self-test under `IVL_REGION_TRACE` / `IVL_REGION_SELFTEST` ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
+| SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; `expect` and `checker`/`endchecker` implemented; remaining automaton-class features (cross-clock overlapping implication, mid-sequence clock flow) are loud sorries |
 | Functional coverage (cl. 19) | Supported | Full clause-19 bin semantics |
 | DPI-C (cl. 35) | Substantial | Import: open arrays incl. multi-dim. Export: functions + tasks (int/real/string/void), `svScope` multi-instance + context-relative selection, and time-consuming tasks (POSIX coroutine); generated C stub. Loud sorries: object/open-array/wide-vector/output export args, time-consuming export on Windows |
 | VPI SV object model (cl. 36) | Substantial | Classes, containers, covergroups, assertions; force/release corners open |
