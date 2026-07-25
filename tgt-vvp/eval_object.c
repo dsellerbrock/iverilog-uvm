@@ -504,25 +504,35 @@ static int eval_object_ufunc(ivl_expr_t ex)
 
 /*
  * IVL_EX_ARRAY in an OBJECT context (draw_eval_object leaves exactly one
- * object on the stack).
+ * object on the stack) -- the whole unpacked array used as an object.
  *
  * Per the ivl_target API, IVL_EX_ARRAY is the whole array with NO index
- * expression -- it exists for passing an array to a system task/function.
- * The array-method paths that legitimately take a whole-array receiver
- * (see the IVL_EX_ARRAY checks in eval_object_select and the array-method
- * helpers) recognise it themselves and never route it through here. So an
- * IVL_EX_ARRAY reaching this point means a whole unpacked array was used
- * where a single class handle was required -- a type error:
+ * expression. Indexed element reads are IVL_EX_SIGNAL and go through
+ * eval_object_signal, which evaluates the word index properly; the
+ * array-method paths that legitimately take a whole-array receiver
+ * recognise IVL_EX_ARRAY themselves and never route it through here.
  *
- *     C arr[4]; C h;   h = arr;        // not assignment-compatible
- *     function int f(C x); ...  f(arr) // not a legal actual for x
+ * What DOES arrive here is a whole fixed-size unpacked array standing in
+ * for an object, which happens in three shapes:
  *
- * This used to load element 0 and carry on, so illegal code compiled and
- * silently behaved as if the author had written arr[0]. Nothing in the
- * corpus relies on it: instrumenting the path and compiling all 1069
- * ivtest cases and all 218 UVM tests produced zero hits, and the only ways
- * found to reach it are the two illegal forms above. Diagnose instead --
- * there is no correct single object to produce.
+ *     int  a[3:10]; int d[];   d = a;      // 7.6, legal: fixed -> dynamic
+ *     import "DPI-C" function void f(input int x[]);  f(a);   // 35.5.6.1
+ *     C arr[4]; C h;           h = arr;    // NOT legal: type mismatch
+ *
+ * All three used to emit `%ix/load 3, 0, 0' + `%load/obja' -- element 0 as
+ * the object. The legal two therefore produced an EMPTY dynamic array
+ * (size 0, so a C model saw a zero-length open array) and the illegal one
+ * compiled as if the author had written arr[0]. Silent in every case.
+ *
+ * Marshaling a fixed array into dynamic-array storage is not implemented,
+ * so this is a sorry rather than an answer. It is deliberately NOT phrased
+ * as a type error: two of the three shapes are legal SystemVerilog and it
+ * is this implementation that is missing, not the user's code.
+ *
+ * Nothing in the corpus depends on the old behaviour: instrumenting this
+ * path and compiling all 1070 ivtest cases and all 218 UVM tests produced
+ * zero hits (DPI open-array arguments in the suite are dynamic arrays,
+ * which marshal through a different path and are unaffected).
  */
 static int eval_object_array(ivl_expr_t expr)
 {
@@ -537,15 +547,65 @@ static int eval_object_array(ivl_expr_t expr)
 	    return 0;
       }
 
-      fprintf(stderr, "%s:%u: vvp.tgt error: the whole array `%s' cannot be "
-	      "used where a single class handle is required. Select an "
-	      "element (%s[<index>]) instead.\n",
-	      ivl_expr_file(expr), ivl_expr_lineno(expr),
-	      ivl_signal_basename(sig), ivl_signal_basename(sig));
-      vvp_errors += 1;
-	/* Keep the object stack balanced so the rest of codegen does not
-	   cascade into unrelated noise before the error is reported. */
-      fprintf(vvp_out, "    %%null;\n");
+	/* M10-1: marshal the whole fixed-size array into a dynamic array.
+	   The element kind is a packed number rather than a string because
+	   vvp_code_s keeps `array' and `text' in one union -- a string
+	   operand would clobber the array pointer. See %load/arr/dar. */
+      {
+	    ivl_variable_type_t dt = ivl_signal_data_type(sig);
+	    unsigned wid = ivl_signal_width(sig);
+	    unsigned kind;
+
+	    switch (dt) {
+		case IVL_VT_REAL:
+		  kind = 0;                     /* ARRDAR_REAL */
+		  break;
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		  if (wid == 0) wid = 1;
+		  kind = (wid & 0xFFu)
+		       | (ivl_signal_signed(sig) ? (1u << 8) : 0u)
+		       | ((dt == IVL_VT_LOGIC) ? (1u << 9) : 0u);
+		  break;
+		case IVL_VT_CLASS:
+		    /* Handle elements: copied by reference, exactly as an
+		       element-wise assignment would. `h = arr' -- the type
+		       error that made this unsafe to marshal before -- is
+		       now rejected at elaboration, where the target type is
+		       visible (M10-1c), so only the legal `q = arr' shape
+		       reaches here. */
+		  kind = (1u << 11);
+		  break;
+		default:
+		  fprintf(stderr, "%s:%u: sorry: the whole unpacked array "
+			  "`%s' cannot be used as an object: only arrays of "
+			  "integral, real or class-handle elements can be "
+			  "marshaled into dynamic-array storage.\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr),
+			  ivl_signal_basename(sig));
+		  vvp_errors += 1;
+		  fprintf(vvp_out, "    %%null;\n");
+		  return 0;
+	    }
+
+	      /* Carry the DECLARED range so the open-array accessors report
+		 it rather than the 0..N-1 of the dynamic array this becomes
+		 (H.10.2). array_base is the source address of the canonical
+		 zero word; a swapped array descends from the high end. */
+	    unsigned count = ivl_signal_array_count(sig);
+	    int base = ivl_signal_array_base(sig);
+	    int left;
+	    if (ivl_signal_array_addr_swapped(sig)) {
+		  left = base + (int)count - 1;
+		  kind |= (1u << 10);          /* descending */
+	    } else {
+		  left = base;
+	    }
+
+	    note_array_signal_use(sig);
+	    fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %d;\n",
+		    sig, kind, left);
+      }
       return 0;
 }
 

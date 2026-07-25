@@ -339,6 +339,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%join",   of_JOIN,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%join/detach",of_JOIN_DETACH,1,{OA_NUMBER,OA_NONE,  OA_NONE} },
       { "%load/ar",of_LOAD_AR,2,  {OA_ARR_PTR,  OA_BIT1,     OA_NONE} },
+      { "%load/arr/dar", of_LOAD_ARR_DAR, 3, {OA_ARR_PTR, OA_BIT1, OA_BIT2} },
       { "%load/dar/obj", of_LOAD_DAR_OBJ,  1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%load/dar/obj/vec4",of_LOAD_DAR_OBJ_VEC4,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%load/dar/r",  of_LOAD_DAR_R,    1, {OA_FUNC_PTR, OA_NONE, OA_NONE}},

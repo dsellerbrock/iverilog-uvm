@@ -52,6 +52,12 @@ struct vvp_dpi_open_array_t {
 	// live object tree from here instead of using data/elem_bytes
 	// (the outer array is non-contiguous). Null for 1-D arrays.
       vvp_darray* outer;
+	// M10-1: declared range of dimension 1 when the array was
+	// marshaled from a fixed-size array (H.10.2). has_range false
+	// means an ordinary 0-based dynamic array.
+      bool has_range;
+      int  left;
+      int  right;
 };
 
 struct vvp_dpi_arg_t {

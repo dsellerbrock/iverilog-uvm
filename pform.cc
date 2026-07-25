@@ -2031,6 +2031,11 @@ void pform_endmodule(const char*name, bool inside_celldefine,
       pform_cur_module.pop_front();
       perm_string mod_name = cur_module->mod_name();
 
+	/* M9-10: an unclocked concurrent assertion that never found an
+	   enclosing procedural event control is an error, reported here so
+	   the whole module has been seen. */
+      pform_sva_flush_pending_procedural();
+
 	/* M9: named property/sequence declarations and the default
 	   disable are module-scoped. */
       pform_sva_module_done();
@@ -5060,11 +5065,20 @@ static PExpr* sva_clone_expr_(PExpr*e)
  * each operand read, and emit the matching history-enable in the
  * checker's initial block.
  *
- * Wrapping is applied to a signal read as a WHOLE (`a', `vec'). A
- * select (`vec[3]', `vec[7:4]') is left alone: %load/preponed needs a
- * whole-signal operand and degrades to a live read otherwise, so
- * wrapping it would buy nothing while looking like it had. Those are
- * counted and reported by the caller rather than silently skipped.
+ * Wrapping is applied to a signal read as a WHOLE (`a', `vec') and to a
+ * bit- or part-select of one (`vec[3]', `vec[7:4]'). %load/preponed reads
+ * a whole signal, so a select is lowered in elaboration as the select
+ * applied to the sampled whole signal (see $ivl_clocking_sample in
+ * elab_expr.cc) -- the operand a select cannot be sampled from, such as an
+ * unpacked-array word or a real, is warned about there rather than skipped
+ * here.
+ *
+ * A package- or hierarchy-qualified name still stays live: the history
+ * enable is emitted into this checker's own scope and cannot reach another
+ * one. Those, and any expression shape this copier cannot clone (which makes
+ * the caller keep the original, live expression), are counted into
+ * `live_operands' so the caller can say so. A live read where a sampled one
+ * was asked for is a wrong verdict, so it must not be silent.
  *
  * Returns a fresh tree (the input is borrowed and never mutated), or
  * nullptr for a shape this cannot copy -- the caller then keeps the
@@ -5072,7 +5086,7 @@ static PExpr* sva_clone_expr_(PExpr*e)
  */
 static PExpr* sva_wrap_preponed_(PExpr*e,
 				 std::set<perm_string>&sampled,
-				 unsigned&unsampled_selects)
+				 unsigned&live_operands)
 {
       if (!e) return nullptr;
 
@@ -5083,16 +5097,14 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  : new PEIdent(id->path().name, id->lexical_pos());
 	    cp->set_line(*e);
 
-	      /* Only a bare, whole-signal read is sampled. A package- or
-		 hierarchy-qualified name, or one carrying a select, stays
-		 a live read. */
-	    bool whole = !id->path().package
-		       && id->path().name.size() == 1
-		       && id->path().name.front().index.empty();
-	    if (!whole) {
-		  if (!id->path().name.empty()
-		      && !id->path().name.back().index.empty())
-			unsampled_selects += 1;
+	      /* A bare single-name read is sampled whether or not it
+		 carries a select; elaboration lowers a select as the select
+		 of the sampled whole signal. A package- or hierarchy-
+		 qualified name stays a live read. */
+	    bool local = !id->path().package
+		       && id->path().name.size() == 1;
+	    if (!local) {
+		  live_operands += 1;
 		  return cp;
 	    }
 
@@ -5113,18 +5125,15 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    return cp;
       }
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
-	    PExpr*sub = sva_wrap_preponed_(un->get_expr(), sampled,
-					   unsampled_selects);
+	    PExpr*sub = sva_wrap_preponed_(un->get_expr(), sampled, live_operands);
 	    if (!sub) return nullptr;
 	    PEUnary*cp = new PEUnary(un->get_op(), sub);
 	    cp->set_line(*e);
 	    return cp;
       }
       if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
-	    PExpr*l = sva_wrap_preponed_(bin->get_left(), sampled,
-					 unsampled_selects);
-	    PExpr*r = sva_wrap_preponed_(bin->get_right(), sampled,
-					 unsampled_selects);
+	    PExpr*l = sva_wrap_preponed_(bin->get_left(), sampled, live_operands);
+	    PExpr*r = sva_wrap_preponed_(bin->get_right(), sampled, live_operands);
 	    if (!l || !r) { delete l; delete r; return nullptr; }
 	    PEBinary*cp;
 	    if (dynamic_cast<PEBComp*>(e))
@@ -5140,12 +5149,9 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    return cp;
       }
       if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
-	    PExpr*c = sva_wrap_preponed_(ter->get_cond(), sampled,
-					 unsampled_selects);
-	    PExpr*t = sva_wrap_preponed_(ter->get_true(), sampled,
-					 unsampled_selects);
-	    PExpr*f = sva_wrap_preponed_(ter->get_false(), sampled,
-					 unsampled_selects);
+	    PExpr*c = sva_wrap_preponed_(ter->get_cond(), sampled, live_operands);
+	    PExpr*t = sva_wrap_preponed_(ter->get_true(), sampled, live_operands);
+	    PExpr*f = sva_wrap_preponed_(ter->get_false(), sampled, live_operands);
 	    if (!c || !t || !f) { delete c; delete t; delete f; return nullptr; }
 	    PETernary*cp = new PETernary(c, t, f);
 	    cp->set_line(*e);
@@ -5164,8 +5170,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  named_pexpr_t a;
 		  a.name = parms[k].name;
 		  if (parms[k].parm) {
-			a.parm = sva_wrap_preponed_(parms[k].parm, sampled,
-						    unsampled_selects);
+			a.parm = sva_wrap_preponed_(parms[k].parm, sampled, live_operands);
 			if (!a.parm) return nullptr;
 		  }
 		  np.push_back(a);
@@ -8092,10 +8097,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   edge (which is not a chain step). */
       std::map<PExpr*, perm_string> guard_reg;
 	/* M6B-4: signals whose preponed value the guards read, and the
-	   count of select operands that had to stay live (see
-	   sva_wrap_preponed_). */
+	   count of operands that had to stay live (see sva_wrap_preponed_). */
       std::set<perm_string> prep_sampled;
-      unsigned prep_unsampled_selects = 0;
+      unsigned prep_live_operands = 0;
       {
 	    unsigned bidx = 0;
 	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
@@ -8117,8 +8121,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			     and reads live. */
 			PExpr*src = key;
 			PExpr*prep = sva_wrap_preponed_(key, prep_sampled,
-							prep_unsampled_selects);
+							prep_live_operands);
 			if (prep) src = prep;
+			else prep_live_operands += 1;
 			PExpr*be = sva_rewrite_sampled_(loc, src, inst,
 							hist_idx, pre, post,
 							init_zero);
@@ -8135,20 +8140,25 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		 ; it != prep_sampled.end() ; ++it)
 	    init_zero.push_back(sva_hist_on_stmt_(loc, *it));
 
-	/* An operand that is a bit- or part-select could not be sampled
-	   (%load/preponed reads a whole signal), so it still reads its
-	   ACTIVE-region value. That is a wrong verdict whenever such an
-	   operand is written with a blocking assignment in the same time
-	   slot as the clock -- say so rather than leave it silent. One
-	   note per assertion, not per operand. */
-      if (prep_unsampled_selects > 0)
+	/* An operand this pass could not route through the Preponed read --
+	   a hierarchical or package-qualified name, whose history enable
+	   cannot be emitted into another scope, or an expression shape the
+	   copier cannot clone -- still reads its ACTIVE-region value. That
+	   is a wrong verdict whenever such an operand is written with a
+	   blocking assignment in the same time slot as the clock, so say so
+	   rather than leave it silent. One note per assertion. Operands that
+	   ARE routed but cannot be sampled at the far end (an unpacked-array
+	   word, a real) are reported by $ivl_clocking_sample elaboration. */
+      if (prep_live_operands > 0)
 	    cerr << loc << ": warning: this assertion has "
-		 << prep_unsampled_selects << " select operand(s) "
-		 << "(a bit- or part-select) that are read live instead of "
-		 << "sampled in the Preponed region (IEEE 1800-2017 16.5.1). "
-		 << "A blocking write to one of them in the same time slot "
-		 << "as the clock will be visible to this assertion. Whole "
-		 << "signal operands ARE sampled correctly." << endl;
+		 << prep_live_operands << " operand(s) that are read live "
+		 << "instead of sampled in the Preponed region (IEEE "
+		 << "1800-2017 16.5.1): a hierarchical or package-qualified "
+		 << "name, or an expression shape the sampling rewrite "
+		 << "cannot copy. A blocking write to one of them in the "
+		 << "same time slot as the clock will be visible to this "
+		 << "assertion. Local signals, including their bit- and "
+		 << "part-selects, ARE sampled correctly." << endl;
 
 	/* LV-2: sample each local variable's rhs once per tick into a
 	   32-bit register; when a slot enters that variable's capture
@@ -8954,20 +8964,30 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       PEventStatement*c1 = prop->clk_evt;
       PEventStatement*c2 = prop->seq_clk_evt;
       const char*why = nullptr;
+      bool cover = (kind == 2);
 
-      if (kind == 2)
-	    why = "a multiclocked `cover property'";
-      else if (prop->op_type != 2)
+      if (prop->op_type != 2)
 	    why = "multiclocked overlapping implication (`@(c1) a |-> "
 		  "@(c2) b'); use non-overlapping `|=>'";
       else if (!c1)
 	    why = "a multiclocked property with no explicit antecedent clock";
-      else if (prop->disable_iff_expr)
-	    why = "`disable iff' on a multiclocked property";
       else if (!prop->antecedent || prop->antecedent->empty()
 	       || !prop->seq || prop->seq->empty())
 	    why = "a multiclocked implication with an empty antecedent "
 		  "or consequent";
+
+	/* M9-7: a multiclocked `cover property' counts consequent matches
+	   in the c2 domain exactly where the assert form reports a pass.
+	   Neither engine runs a cover pass statement (see the shared
+	   warning in pform_make_assertion), and the multiclock dispatch
+	   runs before that check, so repeat it here. */
+      if (cover && pass_stmt && !why) {
+	    cerr << loc << ": warning: the pass statement of this "
+		 << "`cover property' is not executed (recorded corner); "
+		 << "it is dropped. The match counter still counts." << endl;
+	    delete pass_stmt;
+	    pass_stmt = nullptr;
+      }
 
 	/* M9-7: each side may be a FIXED-length boolean chain
 	   (`a0 ##d a1 ...', constant delays): it pipelines exactly in
@@ -9001,6 +9021,35 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       perm_string req = sva_make_reg_(loc, inst, "mcreq", 0, true);
       perm_string ack = sva_make_reg_(loc, inst, "mcack", 0, true);
 
+	/* M9-7: `disable iff'. The condition is a level, read in BOTH
+	   domains at their own ticks, so each always block needs its own
+	   copy. While it holds, the c1 side starts and matures nothing and
+	   the c2 side drops any outstanding obligation -- an aborted
+	   attempt neither passes nor fails (IEEE 1800-2017 16.12). */
+      PExpr*dis = prop->disable_iff_expr;
+      prop->disable_iff_expr = nullptr;
+      PExpr*dis1 = dis ? sva_clone_expr_(dis) : nullptr;
+      PExpr*dis2 = dis ? sva_clone_expr_(dis) : nullptr;
+      if (dis && (!dis1 || !dis2)) {
+	    cerr << loc << ": sorry: this `disable iff' condition has a "
+		 << "shape that cannot be copied into both clock domains "
+		 << "of a multiclocked property (IEEE 1800-2017 16.13.3); "
+		 << "the assertion is dropped." << endl;
+	    error_count += 1;
+	    delete dis; delete dis1; delete dis2;
+	    delete fail_stmt; delete pass_stmt;
+	    delete prop->antecedent; delete prop->seq;
+	    delete c1; delete c2; delete prop;
+	    return;
+      }
+      delete dis;
+
+	/* Cover counts matches into the same register name the legacy and
+	   automaton engines use, so a test reads the count identically
+	   whichever engine or clocking shape produced it. */
+      perm_string r_cnt;
+      if (cover) r_cnt = sva_make_reg_(loc, inst, "cnt", 0, true);
+
 	/* Steal the slot booleans from their steps (the slot arrays
 	   alias the step expressions). */
       for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1)
@@ -9032,6 +9081,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    initv.push_back(sva_assign_(loc, pa[k], sva_bit_(loc, 0)));
       for (size_t k = 1 ; k < Tb ; k += 1)
 	    initv.push_back(sva_assign_(loc, tb[k], sva_bit_(loc, 0)));
+      if (cover)
+	    initv.push_back(sva_assign_(loc, r_cnt,
+			new PENumber(new verinum((uint64_t)0, 32))));
       initv.push_back(sva_register_stmt_(loc, inst));
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
 					sva_block_(loc, initv), nullptr);
@@ -9071,6 +9123,19 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 						 cond ? cond : sva_bit_(loc, 1)));
 	    }
       }
+	/* disable iff: abort in the c1 domain -- clear the stages so no
+	   in-flight attempt matures, and do not bump req. */
+      if (dis1) {
+	    std::vector<Statement*> kill1;
+	    for (size_t k = 1 ; k < Ta ; k += 1)
+		  kill1.push_back(sva_assign_nb_(loc, pa[k], sva_bit_(loc, 0)));
+	    if (kill1.empty())
+		  kill1.push_back(sva_assign_nb_(loc, req, sva_id_(loc, req)));
+	    std::vector<Statement*> gated1;
+	    gated1.push_back(sva_if_(loc, dis1, sva_block_(loc, kill1),
+				     sva_block_(loc, body1)));
+	    body1.swap(gated1);
+      }
       c1->set_statement(sva_block_(loc, body1));
       PProcess*p1 = pform_make_behavior(IVL_PR_ALWAYS, c1, nullptr);
       FILE_NAME(p1, loc);
@@ -9084,20 +9149,37 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       PExpr*outstanding = new PEBComp('n', sva_id_(loc, req), sva_id_(loc, ack));
       FILE_NAME(outstanding, loc);
 
-      Statement*action = fail_stmt;
-      if (!action) {
-	    std::list<named_pexpr_t> no_args;
-	    PCallTask*err = new PCallTask(lex_strings.make("$error"), no_args);
-	    FILE_NAME(err, loc);
-	    action = err;
+	/* A cover has no verdict: an unmatched consequent is simply not a
+	   match, so no fail action is built and no stage raises one. */
+      Statement*failstmt = nullptr;
+      if (!cover) {
+	    Statement*action = fail_stmt;
+	    if (!action) {
+		  std::list<named_pexpr_t> no_args;
+		  PCallTask*err = new PCallTask(lex_strings.make("$error"),
+						no_args);
+		  FILE_NAME(err, loc);
+		  action = err;
+	    }
+	    fail_stmt = nullptr;
+	    failstmt = sva_fail_action_(loc, inst, action);
+      } else {
+	    delete fail_stmt;
+	    fail_stmt = nullptr;
       }
-      fail_stmt = nullptr;
-      Statement*failstmt = sva_fail_action_(loc, inst, action);
 
-      std::vector<Statement*> passv;
-      if (pass_stmt) { passv.push_back(pass_stmt); pass_stmt = nullptr; }
-      passv.push_back(sva_report_stmt_(loc, inst, SVA_CB_SUCCESS));
-      Statement*passstmt = sva_block_(loc, passv);
+      Statement*passstmt;
+      if (cover) {
+	    PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt),
+					sva_num32_(loc, 1));
+	    FILE_NAME(add, loc);
+	    passstmt = sva_assign_(loc, r_cnt, add);
+      } else {
+	    std::vector<Statement*> passv;
+	    if (pass_stmt) { passv.push_back(pass_stmt); pass_stmt = nullptr; }
+	    passv.push_back(sva_report_stmt_(loc, inst, SVA_CB_SUCCESS));
+	    passstmt = sva_block_(loc, passv);
+      }
 
       std::vector<Statement*> body2;
 	/* per-tick failure flag: ANY stage (mid-chain or final) that
@@ -9121,8 +9203,13 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  }
 		  return sva_id_(loc, tb[k]);
 	    };
+	      /* For a cover there is no verdict, so a stage that does not
+		 advance simply drops the attempt. Assign ffail=0 rather
+		 than build a separate statement shape: it keeps the two
+		 paths structurally identical and costs one store. */
 	    auto raise_fail = [&]() -> Statement* {
-		  return sva_assign_(loc, ffail, sva_bit_(loc, 1));
+		  return sva_assign_(loc, ffail,
+				     sva_bit_(loc, cover ? 0 : 1));
 	    };
 	      /* Mid-chain stages: a 1-bit blocking temp holds the
 		 advance condition so the user boolean is read once;
@@ -9153,8 +9240,23 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			  sva_if_(loc, fb, passstmt, raise_fail()),
 			  nullptr));
 	    }
-	    body2.push_back(sva_if_(loc, sva_id_(loc, ffail),
-				    failstmt, nullptr));
+	    if (failstmt)
+		  body2.push_back(sva_if_(loc, sva_id_(loc, ffail),
+					  failstmt, nullptr));
+      }
+
+	/* disable iff: abort in the c2 domain -- swallow the outstanding
+	   obligation (ack catches up to req) and clear the stages, so the
+	   attempt neither passes nor fails. */
+      if (dis2) {
+	    std::vector<Statement*> kill2;
+	    kill2.push_back(sva_assign_nb_(loc, ack, sva_id_(loc, req)));
+	    for (size_t k = 1 ; k < Tb ; k += 1)
+		  kill2.push_back(sva_assign_nb_(loc, tb[k], sva_bit_(loc, 0)));
+	    std::vector<Statement*> gated2;
+	    gated2.push_back(sva_if_(loc, dis2, sva_block_(loc, kill2),
+				     sva_block_(loc, body2)));
+	    body2.swap(gated2);
       }
       c2->set_statement(sva_block_(loc, body2));
       PProcess*p2 = pform_make_behavior(IVL_PR_ALWAYS, c2, nullptr);
@@ -9481,11 +9583,247 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
       return sva_block_(loc, body);
 }
 
+/*
+ * M9-10: implicit clock inference for a PROCEDURAL concurrent assertion
+ * (IEEE 1800-2017 16.14.6).
+ *
+ * An assertion written inside a procedural block need not name a clock:
+ *
+ *     always @(posedge clk) assert property (a |-> b);
+ *
+ * The inferred clocking event is the one controlling the enclosing
+ * procedural block. That used to be a hard error -- correct per the clause
+ * as a diagnostic, but the clause also says the clock should be inferred,
+ * so the construct was simply unusable.
+ *
+ * The parser cannot supply it at assertion time: bison reduces the assert
+ * before the statement it sits in. But `event_control' in
+ * `event_control statement_or_null' reduces BEFORE its statement, so by the
+ * time that rule's action runs, the assertion has been reduced and the
+ * controlling event already exists. So the clock-less assertion is parked
+ * here, and parse.y hands it the event from that rule -- no grammar change,
+ * so the conflict baseline is untouched.
+ *
+ * The innermost enclosing event control wins, which is what 16.14.6 wants:
+ * a nested `@(negedge clk)' inside `always @(posedge clk)' drains the
+ * pending assertion first and supplies negedge.
+ *
+ * Anything still parked when the module ends had no enclosing event control
+ * at all (`initial assert property (a |-> b);'), and gets the original
+ * error.
+ */
+struct sva_pending_proc_t {
+      struct vlltype loc;
+      sva_property_t*prop;
+      Statement*fail_stmt;
+      Statement*pass_stmt;
+      int kind;
+};
+static std::vector<sva_pending_proc_t> sva_pending_proc_;
+
+static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
+						 const struct vlltype&loc)
+{
+      if (!src) return nullptr;
+      const std::vector<PEEvent*>&evs = src->event_expressions();
+      if (evs.empty()) return nullptr;
+
+	/* The enclosing always block owns its own event control, and the
+	   synthesizer takes ownership of whatever it is given, so clone. */
+      std::vector<PEEvent*> copy;
+      for (size_t idx = 0 ; idx < evs.size() ; idx += 1) {
+	    if (!evs[idx]) continue;
+	    PExpr*sub = sva_clone_expr_(evs[idx]->expr());
+	    if (!sub) {
+		  for (size_t k = 0 ; k < copy.size() ; k += 1) delete copy[k];
+		  return nullptr;
+	    }
+	    PEEvent*ev = new PEEvent(evs[idx]->type(), sub);
+	    FILE_NAME(ev, loc);
+	    copy.push_back(ev);
+      }
+      if (copy.empty()) return nullptr;
+
+      PEventStatement*out = new PEventStatement(copy);
+      FILE_NAME(out, loc);
+      return out;
+}
+
+/* True when `ctl' textually encloses an assertion parked at `loc'.
+ *
+ * The parser walks the source in order, so an event control that encloses
+ * the assertion was necessarily opened on an earlier (or the same) line of
+ * the same file. A *sibling* event control that merely follows the parked
+ * assertion -- the `initial assert property(p); always @(posedge clk) ...'
+ * shape -- starts later and is rejected here, so it cannot adopt an
+ * assertion it does not contain. Nested controls sort out naturally: the
+ * inner `event_control statement_or_null' reduces first, and an assertion
+ * that appears above the inner `@' is left for the outer one.
+ *
+ * If the two ended up in different files (a mid-block `include'), we refuse
+ * rather than guess: the assertion stays parked and the module end reports
+ * it, because inferring a clock the user did not write would be a silently
+ * wrong assertion.
+ */
+static bool sva_ctl_encloses_(const PEventStatement*ctl,
+			      const struct vlltype&loc)
+{
+      if (ctl->get_file() != filename_strings.make(loc.text)) return false;
+      return ctl->get_lineno() <= (unsigned)loc.first_line;
+}
+
+/* Called from parse.y for `event_control statement_or_null'. */
+void pform_sva_infer_procedural_clock(PEventStatement*ctl)
+{
+      if (sva_pending_proc_.empty() || !ctl) return;
+
+      std::vector<sva_pending_proc_t> take;
+      std::vector<sva_pending_proc_t> keep;
+      for (size_t idx = 0 ; idx < sva_pending_proc_.size() ; idx += 1) {
+	    if (sva_ctl_encloses_(ctl, sva_pending_proc_[idx].loc))
+		  take.push_back(sva_pending_proc_[idx]);
+	    else
+		  keep.push_back(sva_pending_proc_[idx]);
+      }
+      sva_pending_proc_.swap(keep);
+      if (take.empty()) return;
+
+      for (size_t idx = 0 ; idx < take.size() ; idx += 1) {
+	    sva_pending_proc_t&p = take[idx];
+	    PEventStatement*clk = sva_clone_event_control_(ctl, p.loc);
+	    if (!clk) {
+		  cerr << p.loc << ": sorry: this procedural assertion's "
+		       << "enclosing event control has a shape the implicit "
+		       << "clock inference cannot copy (IEEE 1800-2017 "
+		       << "16.14.6); give the assertion an explicit clock."
+		       << endl;
+		  error_count += 1;
+		  delete p.fail_stmt;
+		  delete p.pass_stmt;
+		  continue;
+	    }
+	    p.prop->clk_evt = clk;
+	    pform_make_assertion(p.loc, p.prop, p.fail_stmt, p.pass_stmt,
+				 p.kind);
+      }
+}
+
+/* Called at end of module: anything left never had an enclosing event
+   control, so it is the plain 16.14.6 error. */
+void pform_sva_flush_pending_procedural(void)
+{
+      for (size_t idx = 0 ; idx < sva_pending_proc_.size() ; idx += 1) {
+	    sva_pending_proc_t&p = sva_pending_proc_[idx];
+	    cerr << p.loc << ": error: concurrent assertion has no clocking "
+		 << "event, no enclosing procedural event control to infer "
+		 << "one from, and no default clocking block is declared "
+		 << "(IEEE 1800-2017 16.14.6)." << endl;
+	    error_count += 1;
+	    delete p.fail_stmt;
+	    delete p.pass_stmt;
+      }
+      sva_pending_proc_.clear();
+}
+
+/* A concurrent assertion synthesizes its own clocked always block plus the
+ * state variables that block needs, and it does so at the point the
+ * assertion is parsed. When the assertion sits in procedural code --
+ * `always @(posedge clk) begin assert property (...); end', which is
+ * ordinary SystemVerilog -- that point has lexical_scope set to the
+ * enclosing begin/end PBlock.
+ *
+ * Nothing elaborates a PBlock's `behaviors' list (only PScope::
+ * elaborate_behaviors_ for modules and PGenerate::elaborate for generate
+ * blocks walk it), and the seq_block rule `delete's an unnamed block whose
+ * scope holds no declarations outright. Either way the synthesized always
+ * block and its variables were dropped WITH NO DIAGNOSTIC: the assertion
+ * registered itself, reported nothing, and passed forever.
+ *
+ * So run the whole lowering against the nearest enclosing non-block scope.
+ * At module or generate scope -- every non-procedural assertion, and every
+ * assertion re-driven by pform_sva_infer_procedural_clock, which runs after
+ * the block has already been reduced -- this is a no-op.
+ */
+struct sva_hoist_out_of_block_t {
+      LexicalScope*saved;
+      sva_hoist_out_of_block_t() {
+	    saved = lexical_scope;
+	    LexicalScope*scope = lexical_scope;
+	    while (dynamic_cast<PBlock*>(scope) && scope->parent_scope())
+		  scope = scope->parent_scope();
+	    lexical_scope = scope;
+      }
+      ~sva_hoist_out_of_block_t() { lexical_scope = saved; }
+};
+
+/* True when this property is nothing but a reference to a property or
+ * sequence declared in this scope -- `assert property (p);'.
+ *
+ * Such a reference has no clk_evt of its own, but the DECLARATION may carry
+ * one (`property p; @(posedge clk) a |=> b; endproperty'), and it is only
+ * substituted further down in pform_make_assertion, which then re-enters
+ * with the declaration's own sva_property_t. So the park decision cannot be
+ * made here: parking a reference would hide the declaration's clock and
+ * report a spurious 16.14.6 error (this is what broke sv_checker_basic).
+ * Skip it and let the re-entry decide -- a declaration that really has no
+ * clock parks on the second pass and gets the enclosing event exactly as a
+ * literal property would.
+ *
+ * The name is looked up without regard to the expansion's consume-once
+ * flag: an already-consumed name will not expand, and parking it would
+ * treat the property name as an ordinary boolean signal -- silently wrong,
+ * where falling through is the pre-existing loud error.
+ */
+static bool sva_prop_is_named_ref_(const sva_property_t*prop)
+{
+      if (prop->op_type != 0 || !prop->seq || prop->seq->size() != 1)
+	    return false;
+      PExpr*e = (*prop->seq)[0].expr;
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    if (id->path().package || id->path().name.size() != 1
+		|| !id->path().name.front().index.empty())
+		  return false;
+	    perm_string nm = id->path().name.front().name;
+	    return sva_module_properties.count(nm)
+		|| sva_module_sequences.count(nm);
+      }
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    if (cf->path().package || cf->path().name.size() != 1)
+		  return false;
+	    perm_string nm = peek_tail_name(cf->path().name);
+	    return sva_param_properties.count(nm)
+		|| sva_param_sequences.count(nm);
+      }
+      return false;
+}
+
 /* Lower one concurrent assertion (assert/assume/cover property) to a
    synthesized clocked checker. kind: 0=assert, 1=assume, 2=cover. */
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			  Statement*fail_stmt, Statement*pass_stmt, int kind)
 {
+	/* M9-10: no explicit clock and no default clocking -- park it and
+	   let an enclosing procedural event control supply the clock
+	   (16.14.6). See pform_sva_infer_procedural_clock. */
+      if (prop && !prop->clk_evt && !sva_prop_is_named_ref_(prop)) {
+	    Module*mod = pform_cur_module.empty() ? nullptr
+			 : pform_cur_module.front();
+	    if (!mod || mod->default_clocking.nil()) {
+		  sva_pending_proc_t pend;
+		  pend.loc = loc;
+		  pend.prop = prop;
+		  pend.fail_stmt = fail_stmt;
+		  pend.pass_stmt = pass_stmt;
+		  pend.kind = kind;
+		  sva_pending_proc_.push_back(pend);
+		  return;
+	    }
+      }
+
+	/* Synthesize into the nearest non-block scope; see
+	   sva_hoist_out_of_block_t. */
+      sva_hoist_out_of_block_t sva_scope_guard;
+
 	/* Stage B combinator trees (sequence or/and): only the
 	   automaton engine lowers these — everything below assumes
 	   the chain members. */
@@ -10543,6 +10881,10 @@ int pform_parse(const char*path)
       warn_count = 0;
       if (getenv("IVL_PARSE_TRACE")) VLdebug = 1;
       int rc = VLparse();
+
+	/* M9-10: an unclocked assertion outside any module never reaches
+	   pform_endmodule, so drain the park list here too. */
+      pform_sva_flush_pending_procedural();
 
       if (vl_input != stdin) {
 	    if (ivlpp_string)

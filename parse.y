@@ -5927,6 +5927,17 @@ sva_seq_expr
 	}
 	delete $3;
 	$$ = $7; }
+  /* IEEE 1800-2017 16.13.1 mid-sequence clock flow: `a ##1 @(c2) b'.
+     Not supported -- the cross-clock handoff is built for the boundary at
+     an implication, not at an arbitrary point in a chain. Recognised here
+     only so it names itself instead of reporting a bare syntax error. */
+  | sva_seq_expr K_CYCLE_DELAY delay_value_simple event_control sva_seq_atom
+      { yyerror(@4, "sorry: a clocking event inside a sequence "
+		"(mid-sequence clock flow, IEEE 1800-2017 16.13.1) is not "
+		"supported; the cross-clock handoff is available at a "
+		"non-overlapping implication (`@(c1) a |=> @(c2) b').");
+	delete $3; delete $4; delete $5;
+	$$ = $1; }
   | sva_seq_expr K_CYCLE_DELAY delay_value_simple sva_seq_atom
       { PENumber*num = dynamic_cast<PENumber*>($3);
 	sva_seq_step_t&f0 = (*$4)[0];
@@ -13359,6 +13370,9 @@ statement_item /* This is roughly statement_item in the LRM */
 	      $$ = 0;
 	} else {
 	      tmp->set_statement($2);
+	      /* M9-10: a concurrent assertion inside this statement with
+		 no clock of its own inherits this event (16.14.6). */
+	      pform_sva_infer_procedural_clock(tmp);
 	      $$ = tmp;
 	}
       }

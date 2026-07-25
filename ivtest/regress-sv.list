@@ -1141,6 +1141,7 @@ sv_assoc_queue_property normal,-g2012 ivltests
 sv_mailbox_string_real normal,-g2012 ivltests
 sv_stream_unpacked_array normal,-g2012 ivltests
 sv_checker_basic normal,-g2012 ivltests
+sv_checker_nested_instance normal,-g2012 ivltests
 sv_checker_bind normal,-g2012 ivltests
 sv_generic_interface_port normal,-g2012 ivltests
 sv_covergroup_standalone normal,-g2012 ivltests
@@ -1152,3 +1153,7 @@ sv_struct_value_copy_args normal,-g2012 ivltests
 sv_timing_check_edge_descriptor normal,-g2012,-gspecify ivltests gold=sv_timing_check_edge_descriptor.gold
 sv_class_array_element_index normal,-g2012 ivltests
 sv_class_arrayprop_elem_select normal,-g2012 ivltests
+sv_assert_in_procedural_block normal,-g2012 ivltests
+sv_assert_procedural_implicit_clock normal,-g2012 ivltests
+sv_assert_select_preponed_sample normal,-g2012 ivltests
+sv_assert_multiclock_cover_disable normal,-g2012 ivltests

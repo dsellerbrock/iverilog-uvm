@@ -47,12 +47,30 @@ class vvp_darray : public vvp_object {
 
       virtual vvp_vector4_t get_bitstream(bool as_vec4);
 
+	// M10-1: a dynamic array is 0-based, but one MARSHALED from a
+	// fixed-size array stands in for that array's DECLARED range, and
+	// the open-array bounds accessors have to report the declared
+	// range (IEEE 1800-2017 H.10.2), not 0..N-1. Carry it here so
+	// %load/arr/dar can record it and svLow/svHigh/svLeft/svRight/
+	// svIncrement can read it back. Unset for an ordinary dynamic
+	// array, which really is 0-based.
+      void dpi_set_decl_range(int left, int right)
+      { dpi_left_ = left; dpi_right_ = right; dpi_has_range_ = true; }
+      bool dpi_has_decl_range() const { return dpi_has_range_; }
+      int dpi_decl_left() const  { return dpi_left_; }
+      int dpi_decl_right() const { return dpi_right_; }
+
 	// M10 DPI open arrays: contiguous raw element storage for
 	// atom-typed arrays (svOpenArrayHandle element access).
 	// dpi_elem_bytes() is 0 when raw access is not available.
       virtual void* dpi_raw_data() { return 0; }
       virtual unsigned dpi_elem_bytes() const { return 0; }
       virtual bool dpi_elem_is_real() const { return false; }
+
+    private:
+      int  dpi_left_  = 0;
+      int  dpi_right_ = 0;
+      bool dpi_has_range_ = false;
 };
 
 template <class TYPE> class vvp_darray_atom : public vvp_darray {

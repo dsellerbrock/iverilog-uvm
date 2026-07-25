@@ -292,6 +292,13 @@ extern void pform_make_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
 				 Statement*fail_stmt, Statement*pass_stmt,
 				 int kind);
+/* M9-10: implicit clock inference for a concurrent assertion written
+   inside procedural code (IEEE 1800-2017 16.14.6). An unclocked assertion
+   with no default clocking is parked by pform_make_assertion; the first
+   enclosing `event_control statement_or_null' supplies its event, and
+   anything still parked when the module (or checker) ends is an error. */
+extern void pform_sva_infer_procedural_clock(PEventStatement*ctl);
+extern void pform_sva_flush_pending_procedural(void);
 /* M9-frontier (Phase 3): `expect (property) pass; else fail;' (IEEE
    1800-2017 16.17) — a PROCEDURAL statement that blocks the executing
    process until a single attempt of the property completes, then runs

@@ -469,46 +469,125 @@ int svSize(const void*h, int dim)
       return cur ? (int)cur->get_size() : 0;
 }
 
-int svLow(const void*h, int dim)
-{
-      (void)h; (void)dim;
-      return 0;
-}
-
-int svHigh(const void*h, int dim)
-{
-      return svSize(h, dim) - 1;
-}
-
+/*
+ * M10-1/R7: array bounds (IEEE 1800-2017 H.10.2).
+ *
+ * A plain dynamic array is 0-based ascending, so low/left are 0 and
+ * high/right are N-1. An array MARSHALED from a fixed-size one stands in
+ * for that array's DECLARED range and reports it instead -- including a
+ * descending range, where left > right and the increment is -1.
+ *
+ * Only dimension 1 carries a declared range: inner dimensions of a
+ * multi-dimensional open array are dynamic arrays in their own right.
+ */
 int svLeft(const void*h, int dim)
 {
-      return svLow(h, dim);
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (arr && arr->has_range && dim == 1) return arr->left;
+      return 0;
 }
 
 int svRight(const void*h, int dim)
 {
-      return svHigh(h, dim);
+      const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (arr && arr->has_range && dim == 1) return arr->right;
+      return svSize(h, dim) - 1;
 }
 
+int svLow(const void*h, int dim)
+{
+      int left  = svLeft(h, dim);
+      int right = svRight(h, dim);
+      return (left <= right) ? left : right;
+}
+
+int svHigh(const void*h, int dim)
+{
+      int left  = svLeft(h, dim);
+      int right = svRight(h, dim);
+      return (left <= right) ? right : left;
+}
+
+/*
+ * H.10.2: the increment is +1 when left <= right (ascending) and -1 when
+ * left > right (descending). This returned a hardcoded -1, which is wrong
+ * for EVERY array that can currently be marshaled, since they are all
+ * ascending -- a C model stepping an index by svIncrement walked the wrong
+ * way with no diagnostic. Derive it from the bounds instead.
+ */
 int svIncrement(const void*h, int dim)
 {
-      (void)h; (void)dim;
-      return -1;
+      int left  = svLeft(h, dim);
+      int right = svRight(h, dim);
+      return (left <= right) ? 1 : -1;
 }
 
+/*
+ * H.10.1: the TOTAL size of the array in bytes.
+ *
+ * This was `length * elem_bytes', which is right for a 1-D array but
+ * returned 0 for a multi-dimensional one: the outer array of a nesting is
+ * non-contiguous, so its elem_bytes is 0. A C model sizing a buffer from
+ * it silently got zero. Walk every dimension and use the LEAF element
+ * size, which is where the contiguous atom storage actually is.
+ */
 int svSizeOfArray(const void*h)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       if (!arr) return 0;
-      return (int)(arr->length * arr->elem_bytes);
+
+      if (!arr->outer)
+	    return (int)(arr->length * arr->elem_bytes);
+
+      int dims = svDimensions(h);
+      size_t words = 1;
+      for (int d = 1 ; d <= dims ; d += 1) {
+	    int n = svSize(h, d);
+	    if (n <= 0) return 0;
+	    words *= (size_t)n;
+      }
+
+	// Descend to the leaf, whose dpi_elem_bytes() is the atom size.
+      vvp_darray*leaf = md_inner_(arr, 0);
+      while (leaf && leaf->dpi_elem_bytes() == 0 && leaf->get_size() > 0) {
+	    vvp_object_t w;
+	    leaf->get_word(0, w);
+	    vvp_darray*next = w.peek<vvp_darray>();
+	    if (!next) break;
+	    leaf = next;
+      }
+      unsigned ebytes = leaf ? leaf->dpi_elem_bytes() : 0;
+      if (ebytes == 0) return 0;
+
+      return (int)(words * ebytes);
+}
+
+/*
+ * H.10.3: element access uses the DECLARED index, so an array marshaled
+ * from `int a[3:10]' is addressed 3..10 and one from `int a[10:3]' is
+ * addressed 10..3. Storage is canonically ascending in both cases -- the
+ * marshal copies word k as declared index low+k -- so the translation is
+ * the same either way: subtract the low bound.
+ *
+ * This has to agree with svLow/svHigh, or a C model looping
+ * `for (i = svLow; i <= svHigh; i++) svGetArrElemPtr1(h, i)' reads the
+ * wrong elements and runs off the end. A plain dynamic array has no
+ * declared range, so its low bound is 0 and this is the identity.
+ */
+static int dpi_canon_index_(const vvp_dpi_open_array_t*arr, int indx1)
+{
+      if (!arr || !arr->has_range) return indx1;
+      int low = (arr->left <= arr->right) ? arr->left : arr->right;
+      return indx1 - low;
 }
 
 void* svGetArrElemPtr1(const void*h, int indx1)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       if (!arr || !arr->data) return 0;
-      if (indx1 < 0 || (unsigned)indx1 >= arr->length) return 0;
-      return (char*)arr->data + (size_t)indx1 * arr->elem_bytes;
+      int k = dpi_canon_index_(arr, indx1);
+      if (k < 0 || (unsigned)k >= arr->length) return 0;
+      return (char*)arr->data + (size_t)k * arr->elem_bytes;
 }
 
 /* M10B-md: 2-D element access — outer word indx1 is an inner dynamic
@@ -516,7 +595,7 @@ void* svGetArrElemPtr1(const void*h, int indx1)
 void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      vvp_darray*inner = md_inner_(arr, indx1);
+      vvp_darray*inner = md_inner_(arr, dpi_canon_index_(arr, indx1));
       if (!inner) return 0;
       unsigned eb = inner->dpi_elem_bytes();
       void*base = inner->dpi_raw_data();
@@ -530,7 +609,7 @@ void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
 void* svGetArrElemPtr3(const void*h, int indx1, int indx2, int indx3)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      vvp_darray*mid = md_inner_(arr, indx1);
+      vvp_darray*mid = md_inner_(arr, dpi_canon_index_(arr, indx1));
       if (!mid) return 0;
       if (indx2 < 0 || (size_t)indx2 >= mid->get_size()) return 0;
       vvp_object_t w;
