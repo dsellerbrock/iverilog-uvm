@@ -1,6 +1,11 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: M9-10 head (222/222, 4x~55 batches, 2026-07-25 —
+Full UVM last passed: R1 head (222/222, 4x~55 batches, 2026-07-25 —
+validated the Preponed-sampling change to $ivl_clocking_sample elaboration.
+Every concurrent-assertion operand in every design passes through that code,
+and a select operand's value now comes from a different simulation region
+than before, so a wrong rewrite would change assertion verdicts broadly
+rather than narrowly. Previous full run, same result, at M9-10 head —
 validated the assertion-lowering scope fix. Concurrent assertions inside a
 procedural begin/end were silently dropped; they now run, so any such
 assertion in UVM changes from inert to live. That can only be shown by a

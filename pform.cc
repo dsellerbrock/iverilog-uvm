@@ -5065,11 +5065,20 @@ static PExpr* sva_clone_expr_(PExpr*e)
  * each operand read, and emit the matching history-enable in the
  * checker's initial block.
  *
- * Wrapping is applied to a signal read as a WHOLE (`a', `vec'). A
- * select (`vec[3]', `vec[7:4]') is left alone: %load/preponed needs a
- * whole-signal operand and degrades to a live read otherwise, so
- * wrapping it would buy nothing while looking like it had. Those are
- * counted and reported by the caller rather than silently skipped.
+ * Wrapping is applied to a signal read as a WHOLE (`a', `vec') and to a
+ * bit- or part-select of one (`vec[3]', `vec[7:4]'). %load/preponed reads
+ * a whole signal, so a select is lowered in elaboration as the select
+ * applied to the sampled whole signal (see $ivl_clocking_sample in
+ * elab_expr.cc) -- the operand a select cannot be sampled from, such as an
+ * unpacked-array word or a real, is warned about there rather than skipped
+ * here.
+ *
+ * A package- or hierarchy-qualified name still stays live: the history
+ * enable is emitted into this checker's own scope and cannot reach another
+ * one. Those, and any expression shape this copier cannot clone (which makes
+ * the caller keep the original, live expression), are counted into
+ * `live_operands' so the caller can say so. A live read where a sampled one
+ * was asked for is a wrong verdict, so it must not be silent.
  *
  * Returns a fresh tree (the input is borrowed and never mutated), or
  * nullptr for a shape this cannot copy -- the caller then keeps the
@@ -5077,7 +5086,7 @@ static PExpr* sva_clone_expr_(PExpr*e)
  */
 static PExpr* sva_wrap_preponed_(PExpr*e,
 				 std::set<perm_string>&sampled,
-				 unsigned&unsampled_selects)
+				 unsigned&live_operands)
 {
       if (!e) return nullptr;
 
@@ -5088,16 +5097,14 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  : new PEIdent(id->path().name, id->lexical_pos());
 	    cp->set_line(*e);
 
-	      /* Only a bare, whole-signal read is sampled. A package- or
-		 hierarchy-qualified name, or one carrying a select, stays
-		 a live read. */
-	    bool whole = !id->path().package
-		       && id->path().name.size() == 1
-		       && id->path().name.front().index.empty();
-	    if (!whole) {
-		  if (!id->path().name.empty()
-		      && !id->path().name.back().index.empty())
-			unsampled_selects += 1;
+	      /* A bare single-name read is sampled whether or not it
+		 carries a select; elaboration lowers a select as the select
+		 of the sampled whole signal. A package- or hierarchy-
+		 qualified name stays a live read. */
+	    bool local = !id->path().package
+		       && id->path().name.size() == 1;
+	    if (!local) {
+		  live_operands += 1;
 		  return cp;
 	    }
 
@@ -5118,18 +5125,15 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    return cp;
       }
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
-	    PExpr*sub = sva_wrap_preponed_(un->get_expr(), sampled,
-					   unsampled_selects);
+	    PExpr*sub = sva_wrap_preponed_(un->get_expr(), sampled, live_operands);
 	    if (!sub) return nullptr;
 	    PEUnary*cp = new PEUnary(un->get_op(), sub);
 	    cp->set_line(*e);
 	    return cp;
       }
       if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
-	    PExpr*l = sva_wrap_preponed_(bin->get_left(), sampled,
-					 unsampled_selects);
-	    PExpr*r = sva_wrap_preponed_(bin->get_right(), sampled,
-					 unsampled_selects);
+	    PExpr*l = sva_wrap_preponed_(bin->get_left(), sampled, live_operands);
+	    PExpr*r = sva_wrap_preponed_(bin->get_right(), sampled, live_operands);
 	    if (!l || !r) { delete l; delete r; return nullptr; }
 	    PEBinary*cp;
 	    if (dynamic_cast<PEBComp*>(e))
@@ -5145,12 +5149,9 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    return cp;
       }
       if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
-	    PExpr*c = sva_wrap_preponed_(ter->get_cond(), sampled,
-					 unsampled_selects);
-	    PExpr*t = sva_wrap_preponed_(ter->get_true(), sampled,
-					 unsampled_selects);
-	    PExpr*f = sva_wrap_preponed_(ter->get_false(), sampled,
-					 unsampled_selects);
+	    PExpr*c = sva_wrap_preponed_(ter->get_cond(), sampled, live_operands);
+	    PExpr*t = sva_wrap_preponed_(ter->get_true(), sampled, live_operands);
+	    PExpr*f = sva_wrap_preponed_(ter->get_false(), sampled, live_operands);
 	    if (!c || !t || !f) { delete c; delete t; delete f; return nullptr; }
 	    PETernary*cp = new PETernary(c, t, f);
 	    cp->set_line(*e);
@@ -5169,8 +5170,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  named_pexpr_t a;
 		  a.name = parms[k].name;
 		  if (parms[k].parm) {
-			a.parm = sva_wrap_preponed_(parms[k].parm, sampled,
-						    unsampled_selects);
+			a.parm = sva_wrap_preponed_(parms[k].parm, sampled, live_operands);
 			if (!a.parm) return nullptr;
 		  }
 		  np.push_back(a);
@@ -8097,10 +8097,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   edge (which is not a chain step). */
       std::map<PExpr*, perm_string> guard_reg;
 	/* M6B-4: signals whose preponed value the guards read, and the
-	   count of select operands that had to stay live (see
-	   sva_wrap_preponed_). */
+	   count of operands that had to stay live (see sva_wrap_preponed_). */
       std::set<perm_string> prep_sampled;
-      unsigned prep_unsampled_selects = 0;
+      unsigned prep_live_operands = 0;
       {
 	    unsigned bidx = 0;
 	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
@@ -8122,8 +8121,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			     and reads live. */
 			PExpr*src = key;
 			PExpr*prep = sva_wrap_preponed_(key, prep_sampled,
-							prep_unsampled_selects);
+							prep_live_operands);
 			if (prep) src = prep;
+			else prep_live_operands += 1;
 			PExpr*be = sva_rewrite_sampled_(loc, src, inst,
 							hist_idx, pre, post,
 							init_zero);
@@ -8140,20 +8140,25 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		 ; it != prep_sampled.end() ; ++it)
 	    init_zero.push_back(sva_hist_on_stmt_(loc, *it));
 
-	/* An operand that is a bit- or part-select could not be sampled
-	   (%load/preponed reads a whole signal), so it still reads its
-	   ACTIVE-region value. That is a wrong verdict whenever such an
-	   operand is written with a blocking assignment in the same time
-	   slot as the clock -- say so rather than leave it silent. One
-	   note per assertion, not per operand. */
-      if (prep_unsampled_selects > 0)
+	/* An operand this pass could not route through the Preponed read --
+	   a hierarchical or package-qualified name, whose history enable
+	   cannot be emitted into another scope, or an expression shape the
+	   copier cannot clone -- still reads its ACTIVE-region value. That
+	   is a wrong verdict whenever such an operand is written with a
+	   blocking assignment in the same time slot as the clock, so say so
+	   rather than leave it silent. One note per assertion. Operands that
+	   ARE routed but cannot be sampled at the far end (an unpacked-array
+	   word, a real) are reported by $ivl_clocking_sample elaboration. */
+      if (prep_live_operands > 0)
 	    cerr << loc << ": warning: this assertion has "
-		 << prep_unsampled_selects << " select operand(s) "
-		 << "(a bit- or part-select) that are read live instead of "
-		 << "sampled in the Preponed region (IEEE 1800-2017 16.5.1). "
-		 << "A blocking write to one of them in the same time slot "
-		 << "as the clock will be visible to this assertion. Whole "
-		 << "signal operands ARE sampled correctly." << endl;
+		 << prep_live_operands << " operand(s) that are read live "
+		 << "instead of sampled in the Preponed region (IEEE "
+		 << "1800-2017 16.5.1): a hierarchical or package-qualified "
+		 << "name, or an expression shape the sampling rewrite "
+		 << "cannot copy. A blocking write to one of them in the "
+		 << "same time slot as the clock will be visible to this "
+		 << "assertion. Local signals, including their bit- and "
+		 << "part-selects, ARE sampled correctly." << endl;
 
 	/* LV-2: sample each local variable's rhs once per tick into a
 	   32-bit register; when a slot enters that variable's capture

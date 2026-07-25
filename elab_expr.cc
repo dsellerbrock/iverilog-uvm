@@ -5321,15 +5321,75 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 					      flags);
 	    if (sub == 0) return 0;
 
-	      /* %load/preponed reads a whole SIGNAL. Anything else -- a
-		 parameter, a literal, a select, a computed expression --
-		 has no driven-value history to read, and the codegen
-		 fallback for it emitted no code at all, leaving the
-		 operand missing from the stack (peek_vec4 underflow). A
-		 constant's Preponed value is simply its value, so drop the
-		 wrapper and use the argument directly. */
-	    if (dynamic_cast<NetESignal*>(sub) == 0)
+	      /* %load/preponed reads a whole SIGNAL and pushes its full
+		 width. A bit- or part-select of one is still a sampled
+		 read: take the WHOLE signal's Preponed value and apply the
+		 select to that, which is exactly what 16.5.1 asks for.
+		 (draw_select_vec4 evaluates its sub-expression onto the
+		 stack and part-selects the top, so the sub-expression does
+		 not have to be a signal.) Without this a select operand
+		 read its live value while a whole-signal operand beside it
+		 sampled correctly -- the same assertion mixing two
+		 different sampling regions. */
+	    if (NetESelect*sel = dynamic_cast<NetESelect*>(sub)) {
+		  const NetESignal*bsig =
+			dynamic_cast<const NetESignal*>(sel->sub_expr());
+		    /* Only a vector signal read as a whole has a Preponed
+		       history to select out of. An array WORD select is
+		       excluded deliberately: %load/preponed takes a signal
+		       and ignores the word index, so sampling one would
+		       silently read word 0. */
+		  if (bsig && bsig->word_index() == 0
+		      && (bsig->expr_type() == IVL_VT_LOGIC
+			  || bsig->expr_type() == IVL_VT_BOOL)) {
+			NetExpr*inner = bsig->dup_expr();
+			NetESFunc*bfun = new NetESFunc(name,
+						       inner->expr_type(),
+						       inner->expr_width(), 1);
+			bfun->set_line(*this);
+			bfun->cast_signed(inner->has_sign());
+			bfun->parm(0, inner);
+
+			NetExpr*sbase = sel->select()
+			      ? sel->select()->dup_expr() : 0;
+			NetESelect*out = new NetESelect(bfun, sbase,
+							sel->expr_width(),
+							sel->select_type());
+			out->set_line(*sel);
+			out->cast_signed(sel->has_sign());
+			delete sel;
+			return cast_to_width_(out, expr_wid);
+		  }
+	    }
+
+	      /* Anything else -- a parameter, a literal, an array word, a
+		 real, a computed expression -- has no whole-vector
+		 driven-value history to read, and the codegen fallback for
+		 it emitted no code at all, leaving the operand missing from
+		 the stack (peek_vec4 underflow). A constant's Preponed value
+		 is simply its value, so drop the wrapper silently there; for
+		 anything else say so, because a live read where a sampled
+		 one was asked for is a wrong verdict, not a missing
+		 feature.
+
+		 The array-word and non-vector cases matter as much as the
+		 non-signal ones: %load/preponed takes a SIGNAL and ignores
+		 any word index, so wrapping `arr[i]' would read word 0, and
+		 it has no real-valued form at all. */
+	    NetESignal*ssig = dynamic_cast<NetESignal*>(sub);
+	    bool samplable = ssig && ssig->word_index() == 0
+			   && (ssig->expr_type() == IVL_VT_LOGIC
+			       || ssig->expr_type() == IVL_VT_BOOL);
+	    if (!samplable) {
+		  if (dynamic_cast<NetEConst*>(sub) == 0
+		      && dynamic_cast<NetECReal*>(sub) == 0)
+			cerr << get_fileline() << ": warning: this operand "
+			     << "cannot be sampled in the Preponed region "
+			     << "(IEEE 1800-2017 16.5.1) and is read live; a "
+			     << "blocking write to it in the same time slot "
+			     << "as the clock will be visible." << endl;
 		  return cast_to_width_(sub, expr_wid);
+	    }
 
 	    NetESFunc*fun = new NetESFunc(name, sub->expr_type(),
 					  sub->expr_width(), 1);

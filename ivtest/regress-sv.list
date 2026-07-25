@@ -1155,3 +1155,4 @@ sv_class_array_element_index normal,-g2012 ivltests
 sv_class_arrayprop_elem_select normal,-g2012 ivltests
 sv_assert_in_procedural_block normal,-g2012 ivltests
 sv_assert_procedural_implicit_clock normal,-g2012 ivltests
+sv_assert_select_preponed_sample normal,-g2012 ivltests
