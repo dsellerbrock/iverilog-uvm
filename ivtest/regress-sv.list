@@ -1141,6 +1141,7 @@ sv_assoc_queue_property normal,-g2012 ivltests
 sv_mailbox_string_real normal,-g2012 ivltests
 sv_stream_unpacked_array normal,-g2012 ivltests
 sv_checker_basic normal,-g2012 ivltests
+sv_checker_nested_instance normal,-g2012 ivltests
 sv_checker_bind normal,-g2012 ivltests
 sv_generic_interface_port normal,-g2012 ivltests
 sv_covergroup_standalone normal,-g2012 ivltests

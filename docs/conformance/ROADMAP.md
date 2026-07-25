@@ -82,7 +82,7 @@ breakdown that follows is grouped under it.
 | 6 | **M8** | Clocking reprobes | DONE (audit + disposition matrix) |
 | 3 | **M3B** | Full clause-18 randomization | PARTIAL |
 | 3 | **M4B** | Aggregate/container completion | PARTIAL |
-| 7 | **M9B/C/D** | SVA sequence/temporal/automaton | AUTOMATON LANDED; M9-9 checker + M9-7 residuals OPEN |
+| 7 | **M9B/C/D** | SVA sequence/temporal/automaton | AUTOMATON LANDED; M9-9 DONE; **M9-7 + M9-10 residuals** (all loud) |
 | 8 | **M10B/C** | DPI completion | **COMPLETE** (all items DONE) |
 | 9 | **M11B** | Coverage declaration/sampling surface | PARTIAL |
 | 10 | **M12B/C** | VPI completion | **COMPLETE** (all 8 items DONE) |
@@ -256,7 +256,7 @@ production value/args, `break`/`return`) are not yet parsed.
 | M9-6 | `.matched` / complete `.triggered` / strong-weak sequences | F | **DONE** (NFA C.2/C.3) | — | endpoint methods + strong/weak obligation |
 | M9-7 | Multiclock sequences | F | **PARTIAL** (D.1 + D.2) | — | `\|=>` CDC with FIXED-length chains on both sides done (D.2): the antecedent chain pipelines in the c1 domain (one attempt per tick, request counter on match), the consequent chain pipelines in the c2 domain from the first strictly-after tick (mid-chain failures fail at their own tick); overlapping attempts, `##N` gaps, vacuous passes verified. Remaining loud errors: mid-sequence clock flow (`@(c1) a ##1 @(c2) b`), cross-clock `\|->` (same-tick coincidence is racy to lower behaviorally), variable-length CDC operands, multiclocked cover/`disable iff`. tests/sva_nfa multiclock_chain |
 | M9-8 | Variable-length `intersect` / `within` | F | **DONE** (NFA B.2/B.4) | — | non-fixed operands over the automaton |
-| M9-9 | `checker`/`endchecker` (clause 17) | F | **DONE** (module-like subset) | — | checkers ride the module machinery (grammar folds K_checker/K_endchecker into the module rule, zero new bison conflicts): typed formals with directionless-defaults-to-INPUT (17.4), default formal values, property/sequence decls, assert/assume/cover, default clocking, internal variables/procedures, multiple instances with independent assertion state, endchecker labels, keyword-mismatch diagnostics. LOUD residuals: untyped formals, event-typed formals, nested-checker instantiation (nested-module scoping limit, negative-tested), procedural instantiation. sv_checker_basic |
+| M9-9 | `checker`/`endchecker` (clause 17) | F | **DONE** (module-like subset) | — | Checkers ride the module machinery (the grammar folds `K_checker`/`K_endchecker` into the module rule, zero new bison conflicts): typed formals with directionless-defaults-to-INPUT (17.4), default formal values, property/sequence decls, `assert`/`assume`/`cover`, checker-local `default clocking` (verified functionally — an assertion with no explicit clock fires), internal variables and procedures, multiple instances with independent assertion state, `endchecker` labels, keyword-mismatch diagnostics, and **a checker instantiated inside another checker** (verified against a direct-instantiation control driven by the same stimulus, so an inert nested instance would show up as a count mismatch). **Corrections to this row:** it previously listed nested-checker instantiation as a residual, citing `tests/negative/m14_checker_unsupported` — but that test covers a different thing, a checker DECLARED inside a module (the nested-module scoping limit, still correctly rejected). And it omitted free variables. **LOUD residuals:** untyped formals, event-typed formals, free (`rand`) variables (17.9), a checker declared inside a module, procedural instantiation — all four probed and confirmed loud. sv_checker_basic, sv_checker_nested_instance, sv_checker_bind; negative m14_checker_unsupported, checker_free_variable |
 | M9-10 | Procedural concurrent assertion forms | F | **MOSTLY DONE** | — | clocked `assert property` in a proc block elaborates; needs the always-block edge as implicit clock + audit |
 | M9-11 | `expect` statement | F | **DONE** | — | the process blocks on a single inline attempt: fixed `##N` chains unroll to clock-waits (both engines); windows, repetition, goto, unbounded `##[1:$]`, and or/and/intersect trees drive the sequence automaton inline (per-state 1-bit registers advanced per tick; first accept = pass, empty next set = fail) — no M6-CALLF dependency needed. Residual loud sorries: implication/strong/weak/negation/multiclock/`disable iff`/local-variable expects, and any shape under IVL_SVA_LEGACY=1. tests/sva_nfa expect_fixed_chain (dual-run) + expect_general_nfa_only |
 
@@ -410,7 +410,7 @@ M9-11 (`expect`) · M9-7 D.2 (multiclock fixed-length chains) · M5-5
 (generic interface ports) · M9-9 (checkers) · M4B-1/M4B-2 (verified
 already-correct and pinned by a test).
 
-Complete milestones: M0-M8, M11, M12.
+Complete milestones: M0-M8, **M10**, M11, M12. (M9 is one row short: M9-7 multiclock and M9-10 procedural forms are PARTIAL, both with loud residuals.)
 
 **Capability analysis of all open items (2026-07-24).** Every open item
 was probed for what it *actually* does rather than what its row claimed.
