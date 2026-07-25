@@ -614,7 +614,19 @@ void netclass_t::merge_inherited_constraint_irs_() const
 	// constraint of the same name (IEEE 1800-2017 18.5.2). The
 	// synthesized _enum_* constraints regenerate per class and match
 	// by name, so they do not duplicate.
+	//
+	// Inherited entries go in FRONT of the class's own, so the merged
+	// list reads in ascending declaration order: base blocks (in their
+	// own declaration order) first, then this class's. That order is
+	// what soft-constraint priority is defined against (18.5.14.1:
+	// later declared wins, and a derived class outranks its base), and
+	// it lets the solver rank soft constraints by list position alone
+	// without carrying class-origin metadata into the runtime. Every
+	// other consumer indexes the list uniformly -- constraint_mode(),
+	// the per-index %constraint_mode lowering and the runtime solve all
+	// read the same merged list -- so the positions stay consistent.
       super_->merge_inherited_constraint_irs_();
+      std::vector<constraint_ir_t> inherited;
       for (const constraint_ir_t&base_c : super_->constraint_irs_) {
 	    bool overridden = false;
 	    for (const constraint_ir_t&own_c : constraint_irs_) {
@@ -624,8 +636,11 @@ void netclass_t::merge_inherited_constraint_irs_() const
 		  }
 	    }
 	    if (!overridden)
-		  constraint_irs_.push_back(base_c);
+		  inherited.push_back(base_c);
       }
+      if (!inherited.empty())
+	    constraint_irs_.insert(constraint_irs_.begin(),
+				   inherited.begin(), inherited.end());
 }
 
 void netclass_t::add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi,

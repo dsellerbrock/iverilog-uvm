@@ -2647,6 +2647,46 @@ static inline unsigned randomize_rand_(vvp_cobject*cobj)
       return (unsigned)rand();
 }
 
+
+/*
+ * IEEE 1800-2017 18.5.2: constraints are inherited, and a derived
+ * constraint block overrides a base block of the same name.
+ *
+ * The compiler merges the whole chain into each class's own constraint
+ * list (netclass_t::merge_inherited_constraint_irs_), so a derived
+ * class's list is already complete -- which is why the constraint set
+ * must be solved ONCE, over that complete list. Solving each class of
+ * the chain separately (what the runtime used to do) re-solves a SUBSET
+ * afterwards and lets it overwrite the full solution: with `soft v == 3'
+ * in the base and a hard `v > 100' in the derived class, the base-only
+ * re-solve is forced off the accept-current fast path by the soft
+ * assert, picks v == 3, and silently violates the derived hard
+ * constraint.
+ *
+ * This collects any base constraint the merge did not carry across --
+ * normally none -- so the single solve is still complete if the
+ * compiler-side merge is ever incomplete. Nearest base wins, and a name
+ * the derived class defines is never taken from a base.
+ */
+static void collect_unmerged_base_constraints_(const class_type*defn,
+					       vector<string>&extra)
+{
+      std::set<string> have;
+      for (size_t di = 0 ; di < defn->constraint_count() ; di += 1)
+	    have.insert(defn->constraint_name(di));
+
+      for (const class_type*walker = defn->runtime_super(); walker;
+	   walker = walker->runtime_super()) {
+	    for (size_t ci = 0 ; ci < walker->constraint_count() ; ci += 1) {
+		  const string&nm = walker->constraint_name(ci);
+		  if (have.count(nm)) continue;
+		  have.insert(nm);
+		  const string&ir = walker->constraint_ir(ci);
+		  if (!ir.empty()) extra.push_back(ir);
+	    }
+      }
+}
+
 /*
  * %randomize
  *
@@ -2783,15 +2823,14 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 		  cobj->set_vec4(pid, val);
 	    }
 
-	      // Solve constraints with Z3 for this class AND every base
-	      // class in the inheritance chain. Without walking the chain,
-	      // a constraint declared on a base class's rand property is
-	      // silently dropped when the runtime instance is a derived
-	      // class, leaving those properties with raw rand() values that
-	      // ignore inside-range / equality constraints.
-	    for (const class_type*walker = defn; walker; walker = walker->runtime_super()) {
-		  if (walker->constraint_count() > 0)
-			if (!vvp_z3_randomize(walker, cobj))
+	      // ONE solve over the complete inherited constraint set --
+	      // see collect_unmerged_base_constraints_ for why solving the
+	      // chain class by class silently violates derived constraints.
+	    {
+		  vector<string> extra_ir;
+		  collect_unmerged_base_constraints_(defn, extra_ir);
+		  if (defn->constraint_count() > 0 || !extra_ir.empty())
+			if (!vvp_z3_randomize(defn, cobj, extra_ir, {}))
 			      solve_ok = false;
 	    }
 	    if (!solve_ok)
@@ -2901,16 +2940,15 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    }
 
 	      // Solve with Z3: class constraints + with-constraints.
+	      // Inherited constraints join the same single solve as the
+	      // class's own and the inline with-clause (mirrors
+	      // of_RANDOMIZE). Order is ascending soft-constraint priority
+	      // (18.5.14.1): anything the merge missed from a base first,
+	      // then the call-site with-clause, which outranks everything.
 	    vector<string> extra_ir;
+	    collect_unmerged_base_constraints_(defn, extra_ir);
 	    if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
 	    solve_ok = vvp_z3_randomize(defn, cobj, extra_ir, slot_vals);
-	      // Base-class constraints (mirrors of_RANDOMIZE).
-	    for (const class_type*walker = defn->runtime_super();
-		 walker; walker = walker->runtime_super()) {
-		  if (walker->constraint_count() > 0)
-			if (!vvp_z3_randomize(walker, cobj, {}, {}))
-			      solve_ok = false;
-	    }
 	    if (!solve_ok)
 		  randomize_restore_(cobj, saved);
       }

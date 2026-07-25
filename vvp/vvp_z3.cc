@@ -1372,19 +1372,45 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // C7: apply queued soft asserts from dist branches.  Each carries a
       // weight; Z3_optimize_assert_soft prefers higher-weight branches when
       // multiple feasible solutions exist.
-      for (const auto& sa : builder.pending_soft) {
+      auto soft_dropped = [&](const Z3Builder::SoftAssert& sa) -> bool {
 	    // M3B-3: drop a soft assert that references a `disable soft'd
 	    // property (regardless of the order the two constraint blocks
 	    // were parsed — disabled_soft_props is complete by now).
-	    if (!builder.disabled_soft_props.empty()) {
-		  bool disabled = false;
-		  for (int r : sa.prop_refs)
-			if (builder.disabled_soft_props.count(r)) { disabled = true; break; }
-		  if (disabled) continue;
-	    }
+	    if (builder.disabled_soft_props.empty()) return false;
+	    for (int r : sa.prop_refs)
+		  if (builder.disabled_soft_props.count(r)) return true;
+	    return false;
+      };
+
+	// `dist' branch preferences first, all in one weighted group: their
+	// weights ARE the distribution, so they must be traded off against
+	// each other inside a single objective.
+      for (const auto& sa : builder.pending_soft) {
+	    if (sa.from_soft_kw || soft_dropped(sa)) continue;
 	    char w_str[32];
 	    snprintf(w_str, sizeof(w_str), "%u", sa.weight);
 	    Z3_symbol grp = Z3_mk_string_symbol(ctx, "dist");
+	    Z3_optimize_assert_soft(ctx, opt, sa.a, w_str, grp);
+      }
+
+	// Explicit `soft' constraints are PRIORITISED, not weighted
+	// (IEEE 1800-2017 18.5.14.1): when two of them conflict, the one
+	// declared later wins outright — no combination of earlier soft
+	// constraints can outvote it. Z3 optimises separate soft groups
+	// lexicographically in the order the groups are created, so each
+	// gets its own group and they are applied in REVERSE declaration
+	// order: last declared becomes the first, highest-priority
+	// objective. Summing them into one weighted group instead (what
+	// this used to do) let `soft v == 3; soft v == 200;' settle on
+	// v == 3, silently.
+      for (size_t si = builder.pending_soft.size() ; si-- > 0 ; ) {
+	    const auto& sa = builder.pending_soft[si];
+	    if (!sa.from_soft_kw || soft_dropped(sa)) continue;
+	    char w_str[32];
+	    snprintf(w_str, sizeof(w_str), "%u", sa.weight);
+	    char gname[32];
+	    snprintf(gname, sizeof(gname), "soft%u", (unsigned)si);
+	    Z3_symbol grp = Z3_mk_string_symbol(ctx, gname);
 	    Z3_optimize_assert_soft(ctx, opt, sa.a, w_str, grp);
       }
 
