@@ -3083,6 +3083,15 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+	/* Suspend until the Reactive region of the current time step
+	 * (4.4.2.5: assertion pass/fail action blocks).  A no-op once no
+	 * Reactive region is reachable (final blocks / Postponed), so an
+	 * end-of-simulation verdict is never dropped. */
+      if (strcmp(stmt_name,"$ivl_reactive_wait") == 0) {
+	    fprintf(vvp_out, "    %%wait/reactive;\n");
+	    return 0;
+      }
+
 	/* Clocking input sampling prologue (14.13): enable the 1-deep
 	 * driven-value history on the raw signal so %load/preponed
 	 * (from $ivl_clocking_sample) returns the Preponed value. */

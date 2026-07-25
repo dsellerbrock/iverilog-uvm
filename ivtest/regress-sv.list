@@ -1160,3 +1160,5 @@ sv_assert_multiclock_cover_disable normal,-g2012 ivltests
 sv_assert_multiclock_varlen normal,-g2012 ivltests
 sv_process_self_named_block normal,-g2012 ivltests
 sv_assert_observed_region normal,-g2012 ivltests
+sv_assert_reactive_action normal,-g2012 ivltests
+sv_assert_reactive_drain normal,-g2012 ivltests gold=sv_assert_reactive_drain.gold

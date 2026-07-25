@@ -175,6 +175,16 @@ extern void schedule_at_end_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay);
 extern void schedule_at_preponed(vvp_gen_event_t obj, vvp_time64_t delay);
 extern void schedule_at_observed(vvp_gen_event_t obj, vvp_time64_t delay);
 
+/* Reactive region (4.4.2.5): assertion action blocks run here, one
+ * region after the Observed region their verdict is computed in. */
+extern void schedule_at_reactive(vvp_gen_event_t obj, vvp_time64_t delay);
+
+/* False once the run loop can no longer reach the Reactive region of a
+ * time slot (final blocks, post-simulation callbacks, and the read-only
+ * Postponed region).  A Reactive deferral runs inline instead of being
+ * dropped when this is false. */
+extern bool schedule_regions_live(void);
+
 /* Use this is schedule thread deletion (after rosync). */
 extern void schedule_del_thr(vthread_t thr);
 

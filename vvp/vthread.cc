@@ -515,6 +515,14 @@ struct vthread_s {
 	   in the Reactive region set.  Set at creation from the scope
 	   chain and inherited by spawned children. */
       unsigned is_reactive_process :1;
+	/* R2 end-of-simulation drain: this thread was resumed by an
+	   explicit region deferral (%wait/observed or %wait/reactive) and
+	   is completing work that belongs to a time slot already under
+	   way -- a concurrent assertion's evaluation and its action.  A
+	   $finish issued earlier in that same slot must not cut the work
+	   short, so such a thread is exempt from the of_VPI_CALL freeze
+	   until it suspends again on an event or a delay. */
+      unsigned in_region_drain :1;
 	/* M6B: a program-block INITIAL procedure (IEEE 1800-2017 24.7).
 	   Counted at creation; when the last one completes, simulation
 	   implicitly finishes. */
@@ -3977,6 +3985,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->is_fork_v_child = 0;
       thr->is_trampoline_child = 0;
       thr->is_reactive_process = 0;
+      thr->in_region_drain = 0;
       for (__vpiScope*sc = scope ; sc ; sc = sc->scope) {
 	    if (sc->get_type_code() == vpiProgram) {
 		  thr->is_reactive_process = 1;
@@ -8880,6 +8889,7 @@ bool of_DELAY(vthread_t thr, vvp_code_t cp)
 
       vvp_time64_t delay = (hig << 32) | low;
 
+      thr->in_region_drain = 0;
       if (schedule_finished())
             return false;
 
@@ -8895,6 +8905,7 @@ bool of_DELAYX(vthread_t thr, vvp_code_t cp)
 
       assert(cp->number < vthread_s::WORDS_COUNT);
       delay = thr->words[cp->number].w_uint;
+      thr->in_region_drain = 0;
       if (schedule_finished())
             return false;
       thr->i_am_delaying = 1;
@@ -18010,6 +18021,15 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
             fflush(stderr);
       }
 
+	/* $finish stops a thread at its next system-task call, which is
+	   how statements after $finish are kept from running.  A thread
+	   draining a region of the slot $finish was called in is exempt:
+	   it is finishing work that belongs to that slot (a concurrent
+	   assertion's Observed-region evaluation and its Reactive-region
+	   action), and freezing it there silently drops the verdict. */
+      if (schedule_finished() && thr && thr->in_region_drain)
+	    return true;
+
       return schedule_finished()? false : true;
 }
 
@@ -18037,6 +18057,7 @@ bool of_WAIT(vthread_t thr, vvp_code_t cp)
       }
       assert(! thr->waiting_for_event);
       thr->waiting_for_event = 1;
+      thr->in_region_drain = 0;
 
 	/* Add this thread to the list in the event. */
       waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (cp->net->fun);
@@ -18197,11 +18218,50 @@ struct observed_resume_event_s : public vvp_gen_event_s {
       }
 };
 
+struct reactive_resume_event_s : public vvp_gen_event_s {
+      vthread_t thr;
+      void run_run() override
+      {
+	    schedule_vthread(thr, 0, true);
+	    delete this;
+      }
+};
+
 bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t)
 {
+      thr->in_region_drain = 1;
       observed_resume_event_s*ev = new observed_resume_event_s;
       ev->thr = thr;
       schedule_at_observed(ev, 0);
+      return false;
+}
+
+/*
+ * %wait/reactive
+ *
+ * Suspend this thread and resume it in the Reactive region of the
+ * current time step (IEEE 1800-2017 4.4.2.5).  A concurrent assertion's
+ * pass/fail ACTION block runs there, one region after the Observed
+ * region its verdict was computed in, so the action sees the settled
+ * design state of the step it is judging.
+ *
+ * When no Reactive region is reachable any more -- inside a `final'
+ * block, a post-simulation callback, or the read-only Postponed region,
+ * none of which have a slot around them -- the deferral would drop the
+ * work entirely.  A dropped verdict is worse than one reported a region
+ * early, so the opcode falls through and the action runs inline.  This
+ * is what makes an end-of-simulation strong-property failure (reported
+ * from a synthesized `final' block) survive the deferral.
+ */
+bool of_WAIT_REACTIVE(vthread_t thr, vvp_code_t)
+{
+      if (! schedule_regions_live())
+	    return true;
+
+      thr->in_region_drain = 1;
+      reactive_resume_event_s*ev = new reactive_resume_event_s;
+      ev->thr = thr;
+      schedule_at_reactive(ev, 0);
       return false;
 }
 

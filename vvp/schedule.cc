@@ -1293,6 +1293,39 @@ void schedule_at_observed(vvp_gen_event_t obj, vvp_time64_t delay)
 }
 
 /*
+ * Reactive region (IEEE 1800-2017 4.4.2.5): schedule an event to run
+ * after the design regions of this slot have settled.  Concurrent
+ * assertion pass/fail ACTION blocks run here, one region after the
+ * Observed region their verdict was computed in.
+ */
+void schedule_at_reactive(vvp_gen_event_t obj, vvp_time64_t delay)
+{
+      struct generic_event_s*cur = new generic_event_s;
+
+      cur->obj = obj;
+      cur->delete_obj_when_done = false;
+      schedule_event_(cur, delay, SEQ_REACTIVE);
+}
+
+/*
+ * True while the run loop can still reach the Reactive region of the
+ * current time slot.  It goes false once the loop has exited — final
+ * blocks (IVL_PR_FINAL) and post-simulation callbacks run with no slot
+ * around them — and while the Postponed (ROSync) region is draining,
+ * which 4.4.2.10 forbids creating non-Postponed events from.
+ *
+ * A deferral into the Reactive region (%wait/reactive) consults this
+ * and runs its work inline when the region is unreachable, so an
+ * end-of-simulation verdict is reported one region early rather than
+ * dropped.  Losing a failure report is the worse error.
+ */
+static bool sched_regions_live = true;
+bool schedule_regions_live(void)
+{
+      return sched_regions_live && sched_current_region != SEQ_ROSYNC;
+}
+
+/*
  * In the vvp runtime of Icarus Verilog, the SEQ_RWSYNC time step is
  * after all of the non-blocking assignments, so is effectively the
  * same as the ReadWriteSync time.
@@ -1646,7 +1679,10 @@ void schedule_simulate(void)
       if (schedule_runnable && !sched_list)
             vthread_dump_live_threads("scheduler-quiesce");
 
-	// Execute final events.
+	// Execute final events.  There is no time slot around them, so
+	// the stratified regions are no longer reachable: work deferred
+	// with %wait/reactive runs inline from here on.
+      sched_regions_live = false;
       schedule_runnable = run_finals;
       while (schedule_runnable && schedule_final_list) {
 	    struct event_s*cur = schedule_final_list->next;

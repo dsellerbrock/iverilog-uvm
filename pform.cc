@@ -5242,6 +5242,33 @@ static Statement* sva_observed_wait_(const struct vlltype&loc)
       return t;
 }
 
+/* R2: defer an assertion ACTION block to the Reactive region of the
+ * current time slot (IEEE 1800-2017 4.4.2.5), one region after the
+ * Observed region the verdict was computed in.  The action therefore
+ * reads the settled design state of the step it is judging, and a
+ * testbench process it wakes runs in the region the LRM puts testbench
+ * code in.
+ *
+ * The wait is emitted INSIDE the per-tick dispatch guard, so a checker
+ * only suspends on a tick that actually has something to report; a
+ * silent tick runs straight through and is back at its clock event
+ * before the Observed region ends.
+ *
+ * `%wait/reactive' runs inline (no suspension) once the run loop can no
+ * longer reach a Reactive region -- inside the synthesized `final'
+ * block that reports an unfulfilled strong obligation, or during the
+ * Postponed region.  That is what makes this deferral safe: the earlier
+ * attempt at R2 dropped exactly those verdicts.
+ */
+static Statement* sva_reactive_wait_(const struct vlltype&loc)
+{
+      std::list<named_pexpr_t> no_args;
+      PCallTask*t = new PCallTask(
+	    lex_strings.make("$ivl_reactive_wait"), no_args);
+      FILE_NAME(t, loc);
+      return t;
+}
+
 static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
 				    const pform_name_t&path)
 {
@@ -5519,20 +5546,40 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
 
 /* M12B/M12B-cb: the effect of an assertion failure — the (enable-gated)
    user/default fail action, plus a cbAssertionFailure report. */
-/* R2 (attempted, reverted): an assertion ACTION block belongs in the
- * Reactive region (IEEE 1800-2017 4.4.2.5), one after the Observed region
- * the assertion is evaluated in. Deferring it there DROPS VERDICTS at the
- * end of simulation: a `final'-block action -- which is how a strong
- * sequence reports its unfulfilled obligation -- suspends and never
- * resumes, and the last tick's action is lost to $finish. Losing a failure
- * report is worse than reporting it one region early, so the action stays
- * inline. See the M6B-4 row. */
+/* R2: an assertion ACTION block runs in the Reactive region (IEEE
+ * 1800-2017 4.4.2.5), one region after the Observed region the verdict
+ * was computed in.  The deferral is emitted here, inside the per-tick
+ * dispatch guard, so a checker suspends only on a tick that has a
+ * failure to report.
+ *
+ * The first attempt at this was reverted because it dropped verdicts at
+ * end of simulation: the `final'-block action a strong sequence uses to
+ * report an unfulfilled obligation suspended and never resumed.  That is
+ * fixed in the runtime instead of avoided here — `%wait/reactive' falls
+ * through and runs inline whenever no Reactive region is reachable any
+ * more (final blocks, Postponed, post-simulation).  See vvp/vthread.cc
+ * of_WAIT_REACTIVE and schedule_regions_live(). */
 static Statement* sva_fail_action_(const struct vlltype&loc, unsigned inst,
 				   Statement*action)
 {
       std::vector<Statement*> v;
+      v.push_back(sva_reactive_wait_(loc));
       v.push_back(sva_gate_(loc, action));
       v.push_back(sva_report_stmt_(loc, inst, SVA_CB_FAILURE));
+      return sva_block_(loc, v);
+}
+
+/* The pass counterpart: the cbAssertionSuccess report plus the user's
+ * pass action, both deferred to the Reactive region for the same reason
+ * (4.4.2.5).  Folding the deferral in here keeps both engines' success
+ * paths in the same region as their failure paths. */
+static Statement* sva_pass_action_(const struct vlltype&loc, unsigned inst,
+				   Statement*pass_stmt)
+{
+      std::vector<Statement*> v;
+      v.push_back(sva_reactive_wait_(loc));
+      v.push_back(sva_report_stmt_(loc, inst, SVA_CB_SUCCESS));
+      if (pass_stmt) v.push_back(pass_stmt);
       return sva_block_(loc, v);
 }
 
@@ -8130,15 +8177,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   cbAssertionSuccess; negated properties have no pass path and
 	   cover keeps only its counter (matching the legacy engine). */
       if (!negated && !cover) {
-	    Statement*succ = sva_report_stmt_(loc, inst, SVA_CB_SUCCESS);
-	    if (pass_stmt) {
-		  std::vector<Statement*> v;
-		  v.push_back(succ);
-		  v.push_back(pass_stmt);
-		  pass_stmt = sva_block_(loc, v);
-	    } else {
-		  pass_stmt = succ;
-	    }
+	    pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
       }
 
 	/* disable iff: own, else the module default (cloned). */
@@ -10488,15 +10527,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   match machinery below fires). This also makes the match block
 	   run when the user gave no pass statement. */
       if (kind != 2 && !negated) {
-	    Statement*succ = sva_report_stmt_(loc, inst, SVA_CB_SUCCESS);
-	    if (pass_stmt) {
-		  std::vector<Statement*> v;
-		  v.push_back(succ);
-		  v.push_back(pass_stmt);
-		  pass_stmt = sva_block_(loc, v);
-	    } else {
-		  pass_stmt = succ;
-	    }
+	    pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
       }
 
 	/* Clock: explicit, else the module's default clocking. */

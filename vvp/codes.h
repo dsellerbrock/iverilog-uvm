@@ -510,6 +510,7 @@ extern bool of_VIF_TICKCHG(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_FORK(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t code);
+extern bool of_WAIT_REACTIVE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_POSEDGE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_NEGEDGE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t code);
