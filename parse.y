@@ -13359,6 +13359,9 @@ statement_item /* This is roughly statement_item in the LRM */
 	      $$ = 0;
 	} else {
 	      tmp->set_statement($2);
+	      /* M9-10: a concurrent assertion inside this statement with
+		 no clock of its own inherits this event (16.14.6). */
+	      pform_sva_infer_procedural_clock(tmp);
 	      $$ = tmp;
 	}
       }

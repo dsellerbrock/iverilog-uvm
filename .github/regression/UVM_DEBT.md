@@ -1,10 +1,12 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: M10-1c head (220/220, 4x55 batches, 2026-07-25 —
-validated an assignment type check added to elaborate_rval_expr. That
-function runs for EVERY assignment in every design, so a false positive
-there would fail broadly rather than narrowly; a full run is the only way to
-show UVM has no pattern the new check misreads.)
+Full UVM last passed: M9-10 head (222/222, 4x~55 batches, 2026-07-25 —
+validated the assertion-lowering scope fix. Concurrent assertions inside a
+procedural begin/end were silently dropped; they now run, so any such
+assertion in UVM changes from inert to live. That can only be shown by a
+full run, and it is the reason a full run was mandatory here rather than a
+subset. Also covers the pform_make_assertion park path, which every
+assertion in every design now passes through.)
 
 Commits since full UVM: 0
 Highest risk change since last full run: —

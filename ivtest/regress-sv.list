@@ -1153,3 +1153,5 @@ sv_struct_value_copy_args normal,-g2012 ivltests
 sv_timing_check_edge_descriptor normal,-g2012,-gspecify ivltests gold=sv_timing_check_edge_descriptor.gold
 sv_class_array_element_index normal,-g2012 ivltests
 sv_class_arrayprop_elem_select normal,-g2012 ivltests
+sv_assert_in_procedural_block normal,-g2012 ivltests
+sv_assert_procedural_implicit_clock normal,-g2012 ivltests
