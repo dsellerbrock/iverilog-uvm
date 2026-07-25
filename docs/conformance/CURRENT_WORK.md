@@ -90,6 +90,13 @@ element index selects the word; reals and strings were fixed with it
 `sv_vif_array_member`, which was run against a build with the fix
 reverted: reads returned 0 and the first write aborted the runtime.
 
+**M5-6 landed while probing the same family.** `virtual bus_if.drv vif;`
+— a modport-qualified virtual interface, IEEE 1800-2017 25.9 and the
+standard UVM agent idiom — was a hard syntax error in every declaration
+context. It now parses everywhere the unqualified form does, at zero
+grammar-conflict cost. The modport's direction restrictions are not
+enforced (a superset, stated in the M5-6 row, not implied).
+
 **No silent defect is known to be outstanding in the M1C access family.**
 Every cell of the two Cartesian probes and the ~110-cell adversarial
 matrix now passes, and the remaining gaps in that family are LOUD: a
