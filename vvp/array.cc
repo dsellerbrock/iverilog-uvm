@@ -639,10 +639,40 @@ vpiHandle __vpiArrayVthrAPV::vpi_handle(int code)
       return 0;
 }
 
+/* R11: record what this word held when the current time step began, the
+   first time it is written within the step. */
+void __vpiArray::hist_snapshot_word_(unsigned address)
+{
+      if (!hist_enabled_) return;
+      vvp_time64_t now = schedule_simtime();
+      if (!hist_valid_ || hist_time_ != now) {
+	    hist_prev_.clear();
+	    hist_time_ = now;
+	    hist_valid_ = true;
+      }
+      if (hist_prev_.find(address) != hist_prev_.end()) return;
+      hist_prev_[address] = get_word(address);
+}
+
+/* The Preponed-region value of one word: if it changed during the current
+   time step, the value it had when the step started; otherwise the current
+   value. */
+vvp_vector4_t __vpiArray::get_word_preponed(unsigned address)
+{
+      if (hist_enabled_ && hist_valid_ && hist_time_ == schedule_simtime()) {
+	    std::map<unsigned, vvp_vector4_t>::const_iterator it =
+		  hist_prev_.find(address);
+	    if (it != hist_prev_.end()) return it->second;
+      }
+      return get_word(address);
+}
+
 void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4_t&val)
 {
       if (address >= get_size())
 	    return;
+
+      hist_snapshot_word_(address);
 
       if (vals4) {
 	    assert(nets == 0);

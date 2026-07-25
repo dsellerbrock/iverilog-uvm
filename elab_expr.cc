@@ -5334,14 +5334,11 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    if (NetESelect*sel = dynamic_cast<NetESelect*>(sub)) {
 		  const NetESignal*bsig =
 			dynamic_cast<const NetESignal*>(sel->sub_expr());
-		    /* Only a vector signal read as a whole has a Preponed
-		       history to select out of. An array WORD select is
-		       excluded deliberately: %load/preponed takes a signal
-		       and ignores the word index, so sampling one would
-		       silently read word 0. */
-		  if (bsig && bsig->word_index() == 0
-		      && (bsig->expr_type() == IVL_VT_LOGIC
-			  || bsig->expr_type() == IVL_VT_BOOL)) {
+		    /* A select of an array word samples too: the word-indexed
+		       load supplies the word's Preponed value and the select
+		       is applied to that, exactly as for a plain vector. */
+		  if (bsig && (bsig->expr_type() == IVL_VT_LOGIC
+			       || bsig->expr_type() == IVL_VT_BOOL)) {
 			NetExpr*inner = bsig->dup_expr();
 			NetESFunc*bfun = new NetESFunc(name,
 						       inner->expr_type(),
@@ -5372,14 +5369,18 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		 one was asked for is a wrong verdict, not a missing
 		 feature.
 
-		 The array-word and non-vector cases matter as much as the
-		 non-signal ones: %load/preponed takes a SIGNAL and ignores
-		 any word index, so wrapping `arr[i]' would read word 0, and
-		 it has no real-valued form at all. */
+		 What is left here is a real array element, for which no
+		 preponed load exists, and anything that is not a signal at
+		 all. */
 	    NetESignal*ssig = dynamic_cast<NetESignal*>(sub);
-	    bool samplable = ssig && ssig->word_index() == 0
+	      /* An unpacked-array WORD is samplable through the word-indexed
+		 load (%load/preponed/av); a real through the real-valued one.
+		 A real ARRAY element has neither, so it stays live. */
+	    bool samplable = ssig
 			   && (ssig->expr_type() == IVL_VT_LOGIC
-			       || ssig->expr_type() == IVL_VT_BOOL);
+			       || ssig->expr_type() == IVL_VT_BOOL
+			       || (ssig->expr_type() == IVL_VT_REAL
+				   && ssig->word_index() == 0));
 	    if (!samplable) {
 		  if (dynamic_cast<NetEConst*>(sub) == 0
 		      && dynamic_cast<NetECReal*>(sub) == 0)
@@ -5388,10 +5389,10 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			     << "(IEEE 1800-2017 16.5.1) and is read live; a "
 			     << "blocking write to it in the same time slot "
 			     << "as the clock will be visible." << endl;
-		    /* A real has no bit width to cast to: cast_to_width_
-		       would wrap it in a NetESelect, and draw_select_real
-		       asserts on a select whose signal is not a darray.
-		       Hand the argument back untouched. */
+		    /* A non-samplable real still has no bit width to cast
+		       to: cast_to_width_ would wrap it in a NetESelect, and
+		       draw_select_real asserts on a select whose signal is
+		       not a darray. Hand the argument back untouched. */
 		  if (sub->expr_type() == IVL_VT_REAL)
 			return sub;
 		  return cast_to_width_(sub, expr_wid);
@@ -5402,6 +5403,10 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    fun->set_line(*this);
 	    fun->cast_signed(sub->has_sign());
 	    fun->parm(0, sub);
+	      /* Same reason as above: a real sample is a real, and casting
+		 it to a bit width would build a select over it. */
+	    if (fun->expr_type() == IVL_VT_REAL)
+		  return fun;
 	    return cast_to_width_(fun, expr_wid);
       }
 

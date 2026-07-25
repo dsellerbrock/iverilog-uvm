@@ -20,6 +20,12 @@
 // reference in the checker's own initial block reaches the other scope's
 // signal perfectly well -- it had simply been excluded. Only a
 // package-qualified name still reads live, and it warns.
+//
+// R11 closed: an unpacked-array WORD samples through a word-indexed preponed
+// load (%load/preponed/av over per-word history), and a REAL through a
+// real-valued one (%load/preponed/real). Plain %load/preponed takes a signal
+// and ignores any word index, which is why an array element could not be
+// sampled through it at all -- it would have read word 0.
 module sub;
   reg [7:0] q = 8'h00;
 endmodule
@@ -36,6 +42,10 @@ module main;
 
   int f_bit = 0, f_part = 0, f_idx = 0, f_down = 0, f_whole = 0;
   int f_hier = 0, f_hbit = 0;
+  int f_word = 0, f_wbit = 0, f_real = 0;
+
+  reg [7:0] mem [0:3];
+  real      rv = 0.0;
 
   always @(posedge clk) assert property (@(posedge clk) up[0])     else f_bit++;
   always @(posedge clk) assert property (@(posedge clk) up[3:0])   else f_part++;
@@ -44,14 +54,18 @@ module main;
   always @(posedge clk) assert property (@(posedge clk) flag)      else f_whole++;
   always @(posedge clk) assert property (@(posedge clk) u.q)      else f_hier++;
   always @(posedge clk) assert property (@(posedge clk) u.q[0])   else f_hbit++;
+  always @(posedge clk) assert property (@(posedge clk) mem[1])   else f_word++;
+  always @(posedge clk) assert property (@(posedge clk) mem[1][0])else f_wbit++;
+  always @(posedge clk) assert property (@(posedge clk) rv > 1.0) else f_real++;
 
   initial begin
+    mem[0] = 8'h00; mem[1] = 8'h00; mem[2] = 8'h00; mem[3] = 8'h00;
     // Two clock edges, each preceded in the SAME time slot by blocking
     // writes that set every operand to 1. The Preponed value is 0 each time.
-    #5 up = 8'hFF; down = 8'hFF; flag = 1'b1; u.q = 8'hFF; clk = 1;
-    #5 clk = 0; up = 8'h00; down = 8'h00; flag = 1'b0; u.q = 8'h00;
-    #5 up = 8'hFF; down = 8'hFF; flag = 1'b1; u.q = 8'hFF; clk = 1;
-    #5 clk = 0; up = 8'h00; down = 8'h00; flag = 1'b0; u.q = 8'h00;
+    #5 up = 8'hFF; down = 8'hFF; flag = 1'b1; u.q = 8'hFF; mem[1] = 8'hFF; rv = 5.0; clk = 1;
+    #5 clk = 0; up = 8'h00; down = 8'h00; flag = 1'b0; u.q = 8'h00; mem[1] = 8'h00; rv = 0.0;
+    #5 up = 8'hFF; down = 8'hFF; flag = 1'b1; u.q = 8'hFF; mem[1] = 8'hFF; rv = 5.0; clk = 1;
+    #5 clk = 0; up = 8'h00; down = 8'h00; flag = 1'b0; u.q = 8'h00; mem[1] = 8'h00; rv = 0.0;
     #5;
 
     if (f_whole == 0)
@@ -73,6 +87,14 @@ module main;
                f_hier, f_whole);
     else if (f_hbit != f_whole)
       $display("FAILED -- hierarchical bit-select=%0d whole=%0d", f_hbit, f_whole);
+    else if (f_word != f_whole)
+      $display("FAILED -- array word=%0d whole=%0d; an unpacked-array element is read live",
+               f_word, f_whole);
+    else if (f_wbit != f_whole)
+      $display("FAILED -- array-word bit-select=%0d whole=%0d", f_wbit, f_whole);
+    else if (f_real != f_whole)
+      $display("FAILED -- real=%0d whole=%0d; a real operand is read live",
+               f_real, f_whole);
     else
       $display("PASSED");
 

@@ -1718,8 +1718,22 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
       if (strcmp(ivl_expr_name(expr), "$ivl_clocking_sample")==0) {
 	    ivl_expr_t arg = (ivl_expr_parms(expr) > 0) ? ivl_expr_parm(expr, 0) : 0;
 	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL && ivl_expr_signal(arg)) {
-		  fprintf(vvp_out, "    %%load/preponed v%p_0;\n",
-			  ivl_expr_signal(arg));
+		  ivl_signal_t asig = ivl_expr_signal(arg);
+		    /* R11: an unpacked-array WORD needs the word-indexed
+		       load -- %load/preponed takes a signal and would
+		       ignore the index, reading word 0. */
+		  if (ivl_signal_dimensions(asig) > 0) {
+			int addr_index = allocate_word();
+			draw_eval_expr_into_integer(ivl_expr_oper1(arg),
+						    addr_index);
+			note_array_signal_use(asig);
+			fprintf(vvp_out,
+				"    %%load/preponed/av v%p, %d;\n",
+				asig, addr_index);
+			clr_word(addr_index);
+			return;
+		  }
+		  fprintf(vvp_out, "    %%load/preponed v%p_0;\n", asig);
 		  return;
 	    }
 	    /* Unexpected shape: fall back to the plain (alias) read. */

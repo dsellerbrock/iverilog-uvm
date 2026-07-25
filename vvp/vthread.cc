@@ -13104,6 +13104,8 @@ bool of_HIST_ON(vthread_t, vvp_code_t cp)
       vvp_net_t*net = cp->net;
       if (vvp_wire_vec4*sig = dynamic_cast<vvp_wire_vec4*>(net->fil))
 	    sig->enable_sample_hist();
+      else if (vvp_wire_real*rsig = dynamic_cast<vvp_wire_real*>(net->fil))
+	    rsig->enable_sample_hist();
       return true;
 }
 
@@ -13139,6 +13141,81 @@ bool of_LOAD_PREPONED(vthread_t thr, vvp_code_t cp)
       }
 
       sig->vec4_value(sig_value);
+      return true;
+}
+
+/*
+ * %hist/on/av <arr-label>
+ *
+ * Turn on the 1-deep per-word driven-value history of an unpacked array,
+ * so %load/preponed/av can read a word's Preponed value.
+ */
+bool of_HIST_ON_AV(vthread_t, vvp_code_t cp)
+{
+      vvp_array_t array = resolve_runtime_array_(cp, "%hist/on/av");
+      if (array) array->enable_sample_hist();
+      return true;
+}
+
+/*
+ * %load/preponed/av <arr>, <adrx>
+ *
+ * The array-word twin of %load/preponed: push the Preponed-region value of
+ * one word. %load/preponed itself takes a signal and ignores any word
+ * index, which is why an array element could not be sampled through it.
+ */
+bool of_LOAD_PREPONED_AV(vthread_t thr, vvp_code_t cp)
+{
+      int adr_index = cp->bit_idx[0];
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/preponed/av");
+
+      long adr = thr->words[adr_index].w_int;
+
+	/* Same out-of-range convention as %load/vec4a. */
+      if (thr->flags[4] == BIT4_1) {
+	    vvp_vector4_t tmp (array ? array->get_word_size() : 1, BIT4_X);
+	    thr->push_vec4(tmp);
+	    return true;
+      }
+
+      if (!array) {
+	    thr->push_vec4(vvp_vector4_t(1, BIT4_X));
+	    return true;
+      }
+
+      thr->push_vec4(array->get_word_preponed(adr));
+      return true;
+}
+
+/*
+ * %load/preponed/real <var-label>
+ *
+ * The real-valued twin of %load/preponed: push the signal's
+ * Preponed-region value. Requires a %hist/on for exact semantics; without
+ * one (or on a non-real filter) this degrades to the current value, which
+ * is what a signal that never changed in this step holds anyway.
+ */
+bool of_LOAD_PREPONED_REAL(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = cp->net;
+
+      if (vvp_wire_real*sig = dynamic_cast<vvp_wire_real*>(net->fil)) {
+	    thr->push_real(sig->real_preponed_value());
+	    return true;
+      }
+
+      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (net->fil);
+      if (sig == 0) {
+	    cerr << thr->get_fileline()
+	         << "%load/preponed/real error: Net arg not a signal? "
+		 << (net->fil ? typeid(*net->fil).name() :
+	                        typeid(*net->fun).name())
+	         << endl;
+	    assert(sig);
+	    return true;
+      }
+
+      thr->push_real(sig->real_value());
       return true;
 }
 
