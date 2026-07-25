@@ -104,7 +104,7 @@ X=architecture, K=campaign.
 |----|------|-----|--------|-----------|-----------|
 | M1B-1 | Member access on element of static/dynamic unpacked-struct array | C | **DONE** (#106/#107) | — | static+dyn+queue member r/w + `%p`; lazy element ctor |
 | M1B-2 | Struct value-copy on assignment (was reference-alias) | C | **DONE** (#108) | — | scalar/array/darray/queue `=` copy; class handle still aliases |
-| M1B-3 | Remove compile-progress fallbacks caused by lost specialization | C | IN PROGRESS | — | each silent type-recovery fallback → tracked diagnostic or fix |
+| M1B-3 | Remove compile-progress fallbacks caused by lost specialization | C | IN PROGRESS | — | each silent type-recovery fallback → tracked diagnostic or fix. **The `uvm_shared`/`value`/`T` fallback is gone** (R9): it was the only place in the compiler that inspected a user-visible identifier by name to decide a type, a crutch from before parameterized class properties carried concrete types. Deleting it left `get_indexed_property_type_from_base_` as just the element type of whatever the property is; validated with a full UVM run and the full ivtest suite |
 | M1B-3a | Type-parameter aggregate property unusable via methods (elaboration-order) | C | **DONE** | — | queue/darray/assoc type-parameter property usable via built-in methods |
 | M1B-4 | Adversarial parameterized-UVM specialization regressions | A | **DONE** | — | multi-spec suite (widths/truncation, class+struct type params, nesting, per-spec statics, param inheritance) all correct (sv_param_spec_audit) |
 | M1B-5 | Partial write (bit-select / part-select / struct-member) to a class property was broken | C | **DONE** | — | RMW bit/part-select + indexed part-select (`+:`/`-:`, constant & run-time offset) + packed-struct-member writes to class properties, across elaboration (typed `set_part`), codegen (`%store/prop/v/bits` + new `%store/prop/v/bits/x`) and runtime (cobject RMW). Descending vectors fully supported; ascending-variable/multi-dim loudly rejected (sorry). sv_class_property_partial_write + negative test |
@@ -462,30 +462,53 @@ list (rule gates 1–2).
 ## Residual register
 
 Every **partial** fix leaves a residual. This is the one list of them, so a
-row marked DONE or PARTIAL above cannot quietly read as complete. A residual
-leaves this list only by being fixed — never by being re-described.
+row marked DONE or PARTIAL above cannot quietly read as complete.
 
 **Rule:** a residual is acceptable only while it is LOUD (a sorry, an error,
 or a warning naming the case). A residual that is silently wrong is a rule-1
 defect and preempts the ordered list above. The `Loud?` column is therefore
 the thing to check first.
 
+**A residual leaves this table only by being fixed, or by being shown to have
+nothing to fix — never by being re-described.** The second exit was added
+deliberately, because the table had started to accumulate rows recording
+*decisions* rather than work: a construct the LRM makes illegal, a clause
+with no clock to offer, a lowering strategy that cannot be built
+behaviorally. Those are conformance limits, not debt, and leaving them here
+made the list grow every time a milestone was touched. They move to
+**Settled limits** below, and closed rows move to **Closed**. Nothing is
+deleted; the numbers never get reused. What remains in this table is work
+someone still has to do.
+
 | # | Residual | From | Loud? | What closing it takes |
 |---|----------|------|-------|------------------------|
-| R1 | ~~A bit/part-select assertion operand reads its **live** value~~ | M6B-4 | — | **CLOSED.** A select is now sampled by taking the whole signal's Preponed value and applying the select to *that* (`NetESelect` over `$ivl_clocking_sample`, built in elaboration where the operand's type is known), so bit-selects, part-selects, indexed part-selects and descending vectors all sample like a whole signal. Pinned by sv_assert_select_preponed_sample, which compares each select against a whole-signal control under blocking writes in the clock's own time slot — against the pre-fix compiler it printed `bit=0 part=0 whole=2`, i.e. the selects read the new value and the assertions wrongly PASSED. Closing it surfaced two more live-read paths in the same rewrite that were **silent**, now loud — see R11 |
 | R2 | Per-attempt assertion start/step/end **region placement** is unimplemented; only the sampled values were fixed. | M6B-4 | n/a — not wrong, absent | The other half of the M6B-4 row |
 | R3 | An object's / process's RNG activates only once **seeded**; an unseeded one draws from the global generator rather than one derived from its parent process (18.13.1). | M3B-5 | n/a — deliberate, documented | Seed each object's RNG *from the process RNG* at construction, and each thread's from its parent at `fork`. Doing so changes every unseeded sequence, so it needs a gold-rebaseline decision first — that is why it is deferred, not difficulty |
 | R4 | A **static** declaration initializer (`process p = process::self();`) is hoisted to a separate init thread, so it captures the wrong process. | M3B-5 (pre-existing) | **yes** — Icarus already warns that the form needs an explicit lifetime | Evaluate a static initializer in the declaring block's thread, or narrow the warning into an error for `process::self()`. `automatic` and in-block assignment both work today |
-| R5 | A time-consuming export reached from an imported DPI **function** is unsupported. | M10-2 | **yes** — sorry | Nothing: illegal for value-returning functions, and no coroutine exists to park on |
 | R6 | `pulsestyle_*` / `showcancelled` are accepted and have no effect on pulse propagation. | M13-7 | **yes** — per-directive warning naming the construct and what is not modelled | Model pulse filtering in the path-delay engine (reject/error limits, cancelled-pulse propagation) |
-| R7 | ~~svdpi open-array bounds and fixed-array marshaling~~ | M10-1 | — | **CLOSED.** Bounds report the declared range (including descending, increment −1), element access translates the declared index, and fixed arrays of integral/real elements marshal. What is left is narrower and has its own row: a fixed array of **class handles** used as an object, a loud sorry pending an elaboration-time type check — see M10-1c |
 | R8 | `%p` prints a packed struct as a plain integer and flattens nested dimensions. | M4B-4/5 | no — cosmetic | Deferred by decision, not by difficulty |
-| R9 | The hardcoded `uvm_shared`/`value`/`T` type-inference fallback is very likely dead code. | M1B-3 | n/a — cleanup | Delete it and its call site, then validate with a full UVM run |
-| R12 | Cross-clock **overlapping** implication `@(c1) a \|-> @(c2) b` is rejected. 16.13.3 wants the consequent to start at a c2 tick coincident with the antecedent match, and two `always` blocks triggered on the same edge have undefined relative order, so any behavioral lowering picks a winner by luck. | M9-7 | **yes** — sorry naming the construct and the `\|=>` form that works | Nothing behavioral. It would take the two domains fused into one evaluation body driven by both edges, which is a different lowering strategy from the request/ack handoff — recorded as a design limit, not a TODO |
 | R11 | Two operand shapes still read live: a **hierarchical or package-qualified** name (the history enable is emitted into the checker's own scope and cannot reach another one), and an operand the Preponed read cannot reach at the far end — an **unpacked-array word** (`%load/preponed` takes a signal and ignores the word index, so sampling one would read word 0) or a **real** (no `%load/preponed` form exists). A third, an expression shape the copier cannot clone, makes the whole guard fall back to live. | M6B-4 / R1 | **yes** — the first and third get a per-assertion warning naming the count and the reason; the second gets a per-operand warning at elaboration. Before closing R1 all three were silent | Array words need a word-indexed preponed load (a new opcode); reals need a real-valued one; hierarchical names need the history enable emitted into the target scope. Each is a runtime addition, not a rewrite fix |
-| R10 | Implicit clock inference takes the innermost **enclosing** event control. Where nothing encloses the assertion at all — a module-item `assert property (p);`, or `initial assert property (p);` with no `@` — it stays an error. Conversely the inference accepts shapes 16.14.6 leaves as errors (an assertion preceded in the procedure by another timing control still takes the enclosing clock), which is a superset: no conformant design is mis-clocked, and the clock taken is always one written lexically around the assertion. | M9-10 | **yes** — error naming 16.14.6, and it names the absence of an enclosing event control specifically | For the `initial`/module-item case, nothing: 16.14.6 has no clock to offer there. For exact rather than superset conformance, reject inference when a preceding timing control disqualifies it — deliberately not done, because erroring on a shape whose intended clock is unambiguous is worse for users than accepting it |
 
-**No residual in this list is silently wrong any more. R1 and R7 are both
+### Settled limits (nothing to implement)
+
+Kept enumerated and numbered so a reference to them still resolves, and so
+re-opening one is a visible decision rather than a rediscovery.
+
+| # | Limit | From | Loud? | Why there is nothing to do |
+|---|-------|------|-------|-----------------------------|
+| R5 | A time-consuming export reached from an imported DPI **function** is unsupported. | M10-2 | **yes** — sorry | Nothing: illegal for value-returning functions, and no coroutine exists to park on |
+| R10 | Implicit clock inference takes the innermost **enclosing** event control. Where nothing encloses the assertion at all — a module-item `assert property (p);`, or `initial assert property (p);` with no `@` — it stays an error. Conversely the inference accepts shapes 16.14.6 leaves as errors (an assertion preceded in the procedure by another timing control still takes the enclosing clock), which is a superset: no conformant design is mis-clocked, and the clock taken is always one written lexically around the assertion. | M9-10 | **yes** — error naming 16.14.6, and it names the absence of an enclosing event control specifically | For the `initial`/module-item case, nothing: 16.14.6 has no clock to offer there. For exact rather than superset conformance, reject inference when a preceding timing control disqualifies it — deliberately not done, because erroring on a shape whose intended clock is unambiguous is worse for users than accepting it |
+| R12 | Cross-clock **overlapping** implication `@(c1) a \|-> @(c2) b` is rejected. 16.13.3 wants the consequent to start at a c2 tick coincident with the antecedent match, and two `always` blocks triggered on the same edge have undefined relative order, so any behavioral lowering picks a winner by luck. | M9-7 | **yes** — sorry naming the construct and the `\|=>` form that works | Nothing behavioral. It would take the two domains fused into one evaluation body driven by both edges, which is a different lowering strategy from the request/ack handoff — recorded as a design limit, not a TODO |
+
+### Closed
+
+| # | Was | From | — | How it closed |
+|---|-----|------|---|----------------|
+| R1 | ~~A bit/part-select assertion operand reads its **live** value~~ | M6B-4 | — | **CLOSED.** A select is now sampled by taking the whole signal's Preponed value and applying the select to *that* (`NetESelect` over `$ivl_clocking_sample`, built in elaboration where the operand's type is known), so bit-selects, part-selects, indexed part-selects and descending vectors all sample like a whole signal. Pinned by sv_assert_select_preponed_sample, which compares each select against a whole-signal control under blocking writes in the clock's own time slot — against the pre-fix compiler it printed `bit=0 part=0 whole=2`, i.e. the selects read the new value and the assertions wrongly PASSED. Closing it surfaced two more live-read paths in the same rewrite that were **silent**, now loud — see R11 |
+| R7 | ~~svdpi open-array bounds and fixed-array marshaling~~ | M10-1 | — | **CLOSED.** Bounds report the declared range (including descending, increment −1), element access translates the declared index, and fixed arrays of integral/real elements marshal. What is left is narrower and has its own row: a fixed array of **class handles** used as an object, a loud sorry pending an elaboration-time type check — see M10-1c |
+| R9 | ~~The hardcoded `uvm_shared`/`value`/`T` type-inference fallback~~ | M1B-3 | — | **CLOSED.** Deleted, along with the now-unused parameters of `get_indexed_property_type_from_base_`, which reduces to the element type of whatever the property is. It was the only place in the compiler that inspected a user-visible identifier by name to decide a type — a compile-progress crutch from before parameterized class properties carried concrete types. Validated with a full UVM run plus the full ivtest suite: nothing depends on it |
+
+**No residual in the open table is silently wrong any more. R1, R7 and R9 are
 closed outright.** R7 took three passes: the two hardcoded bounds accessors, then
 the declared-range plumbing, then the declared-index translation that the
 bounds fix made necessary (without it a standard
@@ -497,6 +520,22 @@ loud-sorry rule sets. That does not make the list finished; it makes it
 honest. One pattern is worth keeping in view: **three of the entries here
 were narrowed or corrected only when someone ran a discriminating test
 against them**, and two turned out to be misdiagnosed outright.
+
+**The split into open / settled / closed was itself a correction.** The
+table had been growing: closing a residual reliably turned up one or two
+more, and some of what got written down was not work at all but a decision
+already made — R5 (illegal per the LRM), R10 (16.14.6 has no clock to offer
+where nothing encloses the assertion), R12 (a coincident cross-clock start
+is not lowerable behaviorally when two `always` blocks on the same edge have
+undefined relative order). Recording those as debt made the list read as
+though it were losing ground when it was not. They are now enumerated
+separately, and the open table is six rows of real engineering: **R2**
+assertion region placement, **R3** RNG derivation (blocked on a
+gold-rebaseline decision, not on difficulty), **R4** static-initializer
+process capture, **R6** pulse filtering, **R8** `%p` formatting (cosmetic,
+deferred by choice), **R11** word-indexed and real preponed loads. Plus one
+milestone residual with no register row of its own: M9-7's variable-length
+cross-clock operands.
 
 **R6 was corrected, not closed by wishful thinking.** It previously read
 "timing checks, edge descriptors and pulse controls parse, elaborate and are

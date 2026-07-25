@@ -1,6 +1,11 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: M9-7 D.3 head (222/222, 4x~55 batches, 2026-07-25 —
+Full UVM last passed: convergence head (222/222, 4x~55 batches, 2026-07-25 —
+validated DELETING the uvm_shared/value/T type-inference fallback (R9). The
+run is the evidence, not a formality: the fallback only ever fired for UVM's
+own parameterized wrapper, so UVM is the only thing that could have depended
+on it, and the roadmap row required exactly this run to close. Previous full
+run, same result, at M9-7 D.3 head —
 validated a parse.y grammar addition plus changes to the multiclock
 assertion lowering. The grammar change is the reason a full run was needed
 rather than a subset: a new production in sva_seq_expr affects how every

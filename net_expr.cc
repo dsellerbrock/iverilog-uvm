@@ -32,10 +32,6 @@
 
 using namespace std;
 
-static ivl_type_t infer_indexed_property_type_fallback_(const netclass_t*use_type,
-						       size_t pidx,
-						       ivl_type_t prop_type);
-
 static ivl_type_t get_property_type_from_base_(ivl_type_t use_type, size_t pidx)
 {
       if (!use_type)
@@ -53,24 +49,26 @@ static ivl_type_t get_property_type_from_base_(ivl_type_t use_type, size_t pidx)
       return nullptr;
 }
 
-static ivl_type_t get_indexed_property_type_from_base_(ivl_type_t use_type,
-						       size_t pidx,
-						       ivl_type_t prop_type)
+/* The type of `obj.prop[i]': the element type of whatever `prop' is.
+ *
+ * This used to end in a fallback keyed on the class being literally named
+ * `uvm_shared' with a property literally named `value', which then read the
+ * class's `T' type parameter. It was a compile-progress crutch from before
+ * parameterized class properties carried concrete types, and it was the
+ * only place in the compiler that inspected a user-visible identifier by
+ * name to decide a type. Deleted and validated with a full UVM run. */
+static ivl_type_t get_indexed_property_type_from_base_(ivl_type_t prop_type)
 {
       if (!prop_type)
 	    return nullptr;
 
-      auto array_type = dynamic_cast<const netarray_t*>(prop_type);
       if (prop_type->base_type() == IVL_VT_QUEUE) {
 	    ivl_type_t elem_type = ivl_type_element(prop_type);
 	    return elem_type ? elem_type : prop_type;
       }
 
-      if (array_type)
+      if (auto array_type = dynamic_cast<const netarray_t*>(prop_type))
 	    return array_type->element_type();
-
-      if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(use_type))
-	    return infer_indexed_property_type_fallback_(class_type, pidx, prop_type);
 
       return prop_type;
 }
@@ -452,29 +450,6 @@ ivl_variable_type_t NetENull::expr_type() const
       return IVL_VT_CLASS;
 }
 
-static ivl_type_t infer_indexed_property_type_fallback_(const netclass_t*use_type,
-						       size_t pidx,
-						       ivl_type_t prop_type)
-{
-      if (!use_type)
-	    return nullptr;
-
-      // Compile-progress fallback for parameterized wrappers such as
-      // uvm_shared#(T) where property `value` is declared with a type
-      // parameter and may not have a concrete array type attached here.
-      if (use_type->get_name() == perm_string::literal("uvm_shared")
-	  && use_type->get_prop_name(pidx) == perm_string::literal("value")) {
-	    ivl_type_t par_type = nullptr;
-	    (void) use_type->get_parameter(nullptr, perm_string::literal("T"), par_type);
-	    if (const netarray_t*arr_type = dynamic_cast<const netarray_t*>(par_type))
-		  return arr_type->element_type();
-	    if (par_type)
-		  return par_type;
-      }
-
-      return prop_type;
-}
-
 NetEProperty::NetEProperty(NetNet*net, size_t pidx, NetExpr*idx)
 : net_(net), expr_(0), pidx_(pidx), index_(idx)
 {
@@ -486,7 +461,7 @@ NetEProperty::NetEProperty(NetNet*net, size_t pidx, NetExpr*idx)
       }
 
       if (idx) {
-	    set_net_type(get_indexed_property_type_from_base_(use_type, pidx_, prop_type));
+	    set_net_type(get_indexed_property_type_from_base_(prop_type));
       } else {
 	    set_net_type(prop_type);
       }
@@ -504,7 +479,7 @@ NetEProperty::NetEProperty(NetExpr*expr, size_t pidx, NetExpr*idx)
       }
 
       if (idx) {
-	    set_net_type(get_indexed_property_type_from_base_(use_type, pidx_, prop_type));
+	    set_net_type(get_indexed_property_type_from_base_(prop_type));
       } else {
 	    set_net_type(prop_type);
       }
