@@ -27,15 +27,30 @@
 //     scope now has 1 wires"). So the declaration is where it belongs and
 //     the loss is on the elaboration side.
 //
-// That leaves one shape consistent with every observation: the constructor's
-// signals are elaborated against a DIFFERENT NetScope tree from the one its
-// body is elaborated against -- which would also explain why only $unit
-// classes are affected, since those are materialized on demand
-// (`ensure_visible_class_type') rather than with the enclosing module. The
-// next step is to confirm that directly: log the NetScope pointer for
-// `$unit.H.new' in `netclass_t::elaborate_sig' and again at the failing
-// `elaborate_runtime_array_', and compare. The assertion at
-// elaborate.cc:11284 is the symptom, not the defect.
+//   * NOT two NetScope trees. Logging the scope pointer in
+//     `netclass_t::elaborate_sig' and again at the failing
+//     `elaborate_runtime_array_' gives the SAME NetScope object, at
+//     elab_stage 1 with a statement attached -- so the signature pass runs
+//     on exactly the scope the body is later elaborated against.
+//   * THE SIGNATURE WALK IS IDENTICAL to the working case. Tracing
+//     `PBlock::elaborate_sig' shows both the failing constructor and the
+//     working control descending into `$ivl_foreach0' with wires=1:
+//
+//       DBG blk in $unit.H.new       name=$ivl_foreach0 wires=1 stmts=1
+//       DBG blk in $unit.Holder.init name=$ivl_foreach0 wires=1 stmts=1
+//
+//     So `elaborate_sig_wires_' is called on the right scope, with the
+//     right wire, in both -- and only one of them ends up with a signal.
+//
+// The next step is therefore INSIDE `elaborate_sig_wires_' /
+// `PWire::elaborate_sig' for that one wire: log why the NetNet is not
+// created (or is created and then not findable) when the enclosing
+// function is a constructor. The loop variable's type is a
+// `foreach_index_type_t', which resolves through
+// `resolve_class_handle_placeholder_type_weak_' -- that returns 0 for a
+// non-class index type, and whether the caller treats 0 as "skip this
+// wire" is the first thing to check. The assertion at elaborate.cc:11284
+// is the symptom, not the defect.
 //
 // Uncomment either variant to reproduce; both abort.
 
