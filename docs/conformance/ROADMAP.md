@@ -317,9 +317,9 @@ module-like subset — leaving the M9-7 multiclock residuals, the
 | M13-2 | Bind target-instance lists | F | **VERIFIED WORKING** | — | Probe m13_2_bind_instlist: list-target bind reaches every named instance. **Terms:** pin the probe as a regression test, then close |
 | M13-3 | `config` semantics + library mapping | F | OPEN (loud) | — | Unimplemented and diagnosed with a sorry — no silent-miscompile risk. **Terms:** real config/library resolution |
 | M13-4 | `trireg` charge semantics | F | OPEN (loud) | — | Unimplemented and diagnosed with a sorry — no silent-miscompile risk. **Terms:** charge decay model |
-| M13-5 | `$nochange` / `$timeskew` / `$fullskew` | F | OPEN — **accepted-noop** | — | These **parse and elaborate but are silently ignored** (`elaborate.cc:12309`: "At present, no timing checks are supported"), so a design relying on them runs with no violation reporting and no diagnostic. Probes beh_nochange_fires / beh_setup_fires never fire. **Terms:** either implement the checks or make an unimplemented timing check a tracked loud diagnostic — the accepted-noop state is the one thing the loud-sorry rule forbids |
-| M13-6 | Timing-check edge-descriptor lists + timestamp/timecheck conds | F | OPEN — **accepted-noop** | — | Same as M13-5: edge-descriptor lists and timestamp/timecheck conditions are accepted by the parser and dropped at elaboration with no diagnostic (probe m13_6_edgedesc). **Terms:** as M13-5 |
-| M13-7 | `pulsestyle` / `showcancelled` | F | OPEN — **accepted-noop** | — | `pulsestyle_onevent`/`pulsestyle_ondetect`/`showcancelled`/`noshowcancelled` exist only as lexer keywords; they are accepted and have no effect on pulse propagation, with no diagnostic (probe m13_7_pulsestyle). **Terms:** as M13-5 |
+| M13-5 | `$nochange` / `$timeskew` / `$fullskew` | F | **DONE** (row was wrong) | — | All three are implemented and **fire on violation**, together with `$width`, `$period`, `$setup`, `$hold`, `$recovery`, `$removal`, `$recrem` and `$setuphold` (probe fires: violations reported for `$width`@12/18, `$period`@16/28, `$nochange`@48, `$fullskew`@48, `$timeskew`@48). Unsupported *shapes* are a loud sorry, e.g. `$nochange` with non-zero start/end offsets. **The earlier accepted-noop reading was a probe error:** the whole specify block -- path delays and timing checks alike -- is inert without `-gspecify`, which is the established opt-in contract, and the probes had omitted the flag. Re-probed with `-gspecify` and the checks work |
+| M13-6 | Timing-check edge-descriptor lists + timestamp/timecheck conds | F | **DONE** | — | Edge descriptors select which transitions arm a check, and `&&&` conditions gate the body. **Fixed a real silent defect found by probing this functionally rather than by parse:** the synthesized previous-value tracker was written only from an `always @(sig)` block, which never runs at time 0, so it sat at the `x` sentinel until the first transition -- and that transition therefore matched no descriptor. The failure mode was worse than ignoring the descriptor: for a signal starting at 0, `$setup(edge[01] d, ...)` reported **nothing** where plain `$setup(d, ...)` reported the violation, so adding a descriptor silently discarded a real violation. The tracker is now primed at time 0 from the signal's own value. `edge[01]`, `edge[10]` and multi-entry lists all verified to select exactly the right transitions. test sv_timing_check_edge_descriptor |
+| M13-7 | `pulsestyle` / `showcancelled` | F | OPEN (loud) | — | `pulsestyle_onevent`/`pulsestyle_ondetect`/`showcancelled`/`noshowcancelled` are accepted and have no effect on pulse propagation. This was already loud under `-gspecify`, but the warning read "Timing checks are not supported" -- naming the wrong construct entirely, since these are pulse-filtering controls. The message now names the specific directive and says pulse filtering is not modelled, so cancelled and short pulses propagate as usual. **Terms:** model pulse filtering in the path-delay engine (reject/error limits, cancelled-pulse propagation) |
 
 ### M14B — exhaustive subclause campaign  (all clauses)
 
@@ -472,14 +472,24 @@ the thing to check first.
 | R3 | An object's / process's RNG activates only once **seeded**; an unseeded one draws from the global generator rather than one derived from its parent process (18.13.1). | M3B-5 | n/a — deliberate, documented | Seed each object's RNG *from the process RNG* at construction, and each thread's from its parent at `fork`. Doing so changes every unseeded sequence, so it needs a gold-rebaseline decision first — that is why it is deferred, not difficulty |
 | R4 | A **static** declaration initializer (`process p = process::self();`) is hoisted to a separate init thread, so it captures the wrong process. | M3B-5 (pre-existing) | **yes** — Icarus already warns that the form needs an explicit lifetime | Evaluate a static initializer in the declaring block's thread, or narrow the warning into an error for `process::self()`. `automatic` and in-block assignment both work today |
 | R5 | A time-consuming export reached from an imported DPI **function** is unsupported. | M10-2 | **yes** — sorry | Nothing: illegal for value-returning functions, and no coroutine exists to park on |
-| R6 | Timing checks, edge descriptors and `pulsestyle`/`showcancelled` parse, elaborate and are **silently ignored**. | M13-5/6/7 | **NO — rule-1 defect** | Implement, or make an unimplemented timing check a tracked diagnostic. The accepted-noop state is the one thing the loud rule forbids, so this outranks ordinary feature work |
+| R6 | `pulsestyle_*` / `showcancelled` are accepted and have no effect on pulse propagation. | M13-7 | **yes** — per-directive warning naming the construct and what is not modelled | Model pulse filtering in the path-delay engine (reject/error limits, cancelled-pulse propagation) |
 | R7 | Object-array element load ignores its index (`tgt-vvp/eval_object.c`), silently reading element 0. | M10-1 | **NO — rule-1 defect** | Make the empty handle loud first, then implement fixed-array marshaling into contiguous DPI storage with copy-back |
 | R8 | `%p` prints a packed struct as a plain integer and flattens nested dimensions. | M4B-4/5 | no — cosmetic | Deferred by decision, not by difficulty |
 | R9 | The hardcoded `uvm_shared`/`value`/`T` type-inference fallback is very likely dead code. | M1B-3 | n/a — cleanup | Delete it and its call site, then validate with a full UVM run |
 
-R6 and R7 are the two residuals that are still *silent*, so by rule 1 they
-lead the queue regardless of where their milestones sit in the ordered list
-above.
+**R7 is the only residual still *silent*,** so by rule 1 it leads the queue
+regardless of where its milestone sits in the ordered list above.
+
+**R6 was corrected, not closed by wishful thinking.** It previously read
+"timing checks, edge descriptors and pulse controls parse, elaborate and are
+silently ignored", and that was simply wrong: the whole specify block is
+inert without `-gspecify` and the probes behind the claim had omitted the
+flag. With the flag, the timing checks are implemented and fire, and the
+pulse controls were already warned about. Probing the family properly
+*did* turn up a real silent defect, but a different and narrower one --
+the unprimed edge-descriptor tracker, now fixed under M13-6 — which is the
+second time a residual entry has paid for itself by being re-examined
+rather than trusted.
 
 **Retired from this list:** the original R3 — `process::srandom()` rejected
 with a sorry — was closed by being implemented rather than re-described,

@@ -42,7 +42,6 @@ the failure mode the project's loud-sorry rule exists to prevent.
 |-------|------|---------------|
 | `m6b4_selbound` | M6B-4 | The residual after the preponed fix: a **select** operand (`v[0]`) still reads live, while the whole-signal operand next to it samples correctly. Now warned about at compile time rather than silent |
 | `m3b5_seed_stability` | M3B-5 | `srandom()` is a no-op: the same object re-seeded with the same value yields different results |
-| `m13_5_timingchecks`, `m13_6_edgedesc`, `m13_7_pulsestyle`, `beh_nochange_fires`, `beh_setup_fires` | M13-5/6/7 | Timing checks, edge descriptors and pulse controls parse, elaborate, and are silently ignored |
 | `m4b4_p_packed_struct`, `m4b5_p_nested_dims` | M4B-4/5 | `%p` prints a packed struct as a plain integer and flattens nested dimensions (deferred cosmetic) |
 
 ## Verified working — candidates to pin as regression tests
@@ -62,11 +61,31 @@ the failure mode the project's loud-sorry rule exists to prevent.
 | `m1b3_generic` | M1B-3 — the same shape the hardcoded `uvm_shared` fallback patches, under a different class name, works through the general path |
 | `m6b4_det`, `m6b4_sample`, `m6b4_nba` | M6B-4 — preponed sampling. `m6b4_det` is the deterministic discriminator (one thread, no race); `m6b4_sample` the racy form, checking the failure count *and* time; `m6b4_nba` the NBA operand. **All three reproduced the fixed P0**; now pinned by `tests/m6b4_assert_preponed_sample_test` |
 
+## A probe is only as good as its flags
+
+`m13_5_timingchecks`, `m13_6_edgedesc`, `m13_7_pulsestyle`,
+`beh_nochange_fires` and `beh_setup_fires` were originally read as proof
+that timing checks were silently ignored. **They were not** — every one had
+been run without `-gspecify`, and the entire specify block (path delays and
+timing checks alike) is inert without it by design. Re-run with the flag,
+`$setup`/`$hold`/`$width`/`$period`/`$nochange`/`$timeskew`/`$fullskew` all
+report violations (`fires`), unsupported shapes emit a sorry, and the pulse
+controls emit a warning. **Always run a specify probe with `-gspecify`.**
+
+Probing the family properly did find one real silent defect, and only a
+functional probe could have: `edge01` and `edge_both` share one stimulus so
+the violation counts discriminate. `edge[01]` used to report *nothing* where
+plain `$setup` reported the violation, because the previous-value tracker
+was never primed — a descriptor silently discarded a real violation.
+`edgeforms` extends that to `edge[10]` and multi-entry lists. All are now
+pinned by `ivtest/ivltests/sv_timing_check_edge_descriptor.v`.
+
 ## Loud gaps (correct behaviour today, kept for the record)
 
 `m13_3_config` and `m13_4_trireg` are unimplemented and say so with a sorry.
 `m4c10_event_lifetime`, `m9_7_midseq_clock` and `m9_7_crossclock_overlap`
-are a parse error and a sorry respectively. `m6b2b_syncregions` shows the
+are a parse error and a sorry respectively. `m13_7_pulsestyle` is accepted
+with a warning naming the directive and what is not modelled. `m6b2b_syncregions` shows the
 existing sync-region ordering (`cbReadWriteSynch` → `cbAtEndOfSimTime` →
 `cbReadOnlySynch`, all after NBA settle); `cbNBASynch` is absent from
 `vpi_user.h` entirely, so it cannot be registered at all.

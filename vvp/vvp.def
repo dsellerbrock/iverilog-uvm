@@ -45,7 +45,6 @@ vpip_count_drivers
 vpip_format_strength
 vpip_make_systf_system_defined
 vpip_mcd_rawwrite
-vpip_object_urandom
 vpip_set_return_value
 svDimensions
 svSize

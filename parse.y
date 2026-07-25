@@ -11810,29 +11810,49 @@ specify_item
       }
   | K_pulsestyle_onevent specify_path_identifiers ';'
       {
+	/* Pulse-filtering control, not a timing check -- the old
+	   message named the wrong construct. It is accepted and
+	   ignored, so say which one is being ignored. */
 	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
+	      yywarn(@3, "warning: `pulsestyle_onevent' is accepted but has no "
+			 "effect; pulse filtering is not modelled, so "
+			 "cancelled and short pulses propagate as usual.");
 	}
 	delete $2; // specify_path_identifiers
       }
   | K_pulsestyle_ondetect specify_path_identifiers ';'
       {
+	/* Pulse-filtering control, not a timing check -- the old
+	   message named the wrong construct. It is accepted and
+	   ignored, so say which one is being ignored. */
 	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
+	      yywarn(@3, "warning: `pulsestyle_ondetect' is accepted but has no "
+			 "effect; pulse filtering is not modelled, so "
+			 "cancelled and short pulses propagate as usual.");
 	}
 	delete $2; // specify_path_identifiers
       }
   | K_showcancelled specify_path_identifiers ';'
       {
+	/* Pulse-filtering control, not a timing check -- the old
+	   message named the wrong construct. It is accepted and
+	   ignored, so say which one is being ignored. */
 	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
+	      yywarn(@3, "warning: `showcancelled' is accepted but has no "
+			 "effect; pulse filtering is not modelled, so "
+			 "cancelled and short pulses propagate as usual.");
 	}
 	delete $2; // specify_path_identifiers
       }
   | K_noshowcancelled specify_path_identifiers ';'
       {
+	/* Pulse-filtering control, not a timing check -- the old
+	   message named the wrong construct. It is accepted and
+	   ignored, so say which one is being ignored. */
 	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: Timing checks are not supported.");
+	      yywarn(@3, "warning: `noshowcancelled' is accepted but has no "
+			 "effect; pulse filtering is not modelled, so "
+			 "cancelled and short pulses propagate as usual.");
 	}
 	delete $2; // specify_path_identifiers
       }
