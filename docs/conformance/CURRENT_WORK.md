@@ -345,6 +345,21 @@ read WITH a word index — the shape a class property already used.
 Pinned by `sv_struct_array_member_element`, against which the reverted
 build cannot even generate code.
 
+**M4B-13 followed immediately: the dynamic-array and queue members.**
+A `netdarray_t` member (and a queue, which derives from it) holds a
+container OBJECT in its slot rather than inline storage, so the
+slot-indexed read M4B-12 added would fetch the handle's bit pattern
+instead of an element. Those now build the container read plus an
+element select — `%prop/obj` + `%load/qo/v` — which is the shape a
+class-property container already used. My own hypothesis about this
+was **wrong** and worth recording: I guessed `ivl_type_properties()`
+returned 0 for a struct so the target-side classifier never fired. It
+does not; `t-dll-api.cc:3553` has handled `netstruct_t` since well
+before this work. The target classifier was simply never reached,
+because elaboration rejected the expression first. `sv_nested_container_audit`
+now passes genuinely and its `ivtest_expected_fails.list` entry is
+removed.
+
 **The fix exposed a sibling defect and a vacuously-passing test.**
 Making a non-fixed-array indexed member a loud sorry instead of a
 silent nil turned up `sv_nested_container_audit`, which was passing
@@ -362,17 +377,28 @@ it is a wider change than M4B-12, so the audit test is registered in
 over. Probe: `repros/struct_array_member_darray.sv` — `s.da.size()`
 is right (3) while every element reads -1.
 
-**Residual, and the next thing to pick up: the WHOLE-array forms.**
-`$size(s.arr)` still returns x, and passing `s.arr` to an open-array
-formal delivers an empty array — SystemVerilog (`sum_open(s.arr)`
-returns 0) and DPI (`c_take_open(s.arr, …)` returns mask=15: size 0,
-degenerate bounds, null elements) alike. That last one is the row the
-sweep recorded as a DPI defect; it is not, and the DPI layer is only
-where it was noticed. These need the member's whole-array VALUE rather
-than an element of it, which is a different construction from the one
-M4B-12 added. Repros: `repros/struct_array_member_access_matrix.sv`
-and `repros/struct_array_member_dpi.{sv,c}` (the latter has plain
-fixed, dynamic, byte and shortint arrays as passing controls).
+**M4B-14 closed the array-query half.** `$size(s.arr)` returned x, and
+so did the rest of the family, because the query special-case only
+recognised a dynamic-array property and a fixed one fell through to the
+generic path — where an array property arrives as a plain 32-bit value,
+since an array's `base_type()` is its element's type. A member's shape
+is known at elaboration, so the family folds to a constant there.
+
+**The one genuinely LARGE residual is passing the whole array.**
+`sum_open(s.arr)` returns 0 and `c_take_open(s.arr, …)` returns mask=15
+(size 0, degenerate bounds, null elements) — the row the sweep recorded
+as a DPI defect, which it is not. Both go through the same argument
+copy-in: `netmisc.cc:1121` waves the mistyped whole-array property
+through as compatible with a darray port, and `eval_object_property()`
+then emits `%prop/obj` — an object-slot read — for a member that is
+stored as inline vector words, not an object. There is no runtime
+primitive that builds a darray from N inline property words, so closing
+this needs a new target-API concept (tagging "this property is a whole
+fixed array"), a new tgt-vvp path, and new runtime support in
+`vvp/vvp_darray.*` / `vvp/class_type.*` plus an opcode. That is the
+LARGE item on the list; everything else in this family is done. Repros:
+`repros/struct_array_member_access_matrix.sv` and
+`repros/struct_array_member_dpi.{sv,c}`.
 
 **The sweep list was 22% stale.** Of the original eighteen: five are
 fixed (SVA ×2, processes ×2, the DPI open array), **four do not
@@ -383,8 +409,13 @@ defect. Re-probe before estimating, not after: the recorded count
 overstated the work by roughly a third. A fresh adversarial sweep is
 worth running to re-baseline, since this one has drifted.
 
-**Known open, in priority order:** the whole-array residual above; the
-struct dynamic-array member; `sample()` from a module-scope task; the
+**Also found, still open:** a queue member's METHODS do not resolve as
+method calls at all — `s.q.push_back(x)` is "Enable of unknown task …
+ignored", a loud gap. An assignment pattern (`s.q = '{5,6,7}`) works,
+which is how the regression test fills one.
+
+**Known open, in priority order:** the whole-array residual above;
+`sample()` from a module-scope task; the
 VPI container-property reporting defect; `foreach` over a hierarchical
 name with a constant instance index; `cbValueChange` on a container
 element (unverified); R16 (`$cast`

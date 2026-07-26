@@ -5740,6 +5740,42 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  res->set_line(*this);
 		  return cast_to_width_(res, expr_wid);
 	    }
+	      // A FIXED unpacked array reached through a property (e.g. a
+	      // struct member `s.arr`, whole-array, no element index): its
+	      // shape is a compile-time constant, so answer directly instead
+	      // of going through the netdarray_t $ivl_queue_method$size path
+	      // above (which does not apply -- there is no runtime container
+	      // object here) or falling through to the old VPI path below
+	      // (which has no NetEProperty case and constant-folds to 'x').
+	    if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(
+			  sub ? sub->net_type() : nullptr)) {
+		  const netranges_t&dims = ua->static_dimensions();
+		  if (!dims.empty()) {
+			long left = dims.front().get_msb();
+			long right = dims.front().get_lsb();
+			long low = (left < right) ? left : right;
+			long high = (left < right) ? right : left;
+			long incr = (left >= right) ? 1 : -1;
+			NetExpr*res = 0;
+			delete sub;
+			if (strcmp(name, "$size") == 0)
+			      res = make_const_val((long)dims.front().width());
+			else if (strcmp(name, "$high") == 0)
+			      res = make_const_val(high);
+			else if (strcmp(name, "$low") == 0)
+			      res = make_const_val(low);
+			else if (strcmp(name, "$left") == 0)
+			      res = make_const_val(left);
+			else if (strcmp(name, "$right") == 0)
+			      res = make_const_val(right);
+			else if (strcmp(name, "$increment") == 0)
+			      res = make_const_val_s(incr);
+			else /* $unpacked_dimensions */
+			      res = make_const_val((long)dims.size());
+			res->set_line(*this);
+			return cast_to_width_(res, expr_wid);
+		  }
+	    }
 	    delete sub;
       }
 
@@ -6292,6 +6328,48 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 			      iprop->set_line(*li);
 			      base_expr = iprop;
 			      cur_type = member_ua->element_type();
+			      continue;
+			}
+
+			  // A DYNAMIC ARRAY member (or QUEUE, which derives from
+			  // netdarray_t) indexed by an element select (`s.da[i]`).
+			  // Unlike a fixed unpacked array, the member slot holds a
+			  // CONTAINER OBJECT, not inline storage, so %prop/v/i (which
+			  // reads the slot itself) would fetch the container handle's
+			  // bit pattern instead of an element -- silently, for index 0.
+			  // Build the same shape a class-property container already
+			  // uses: read the container as an object (NetEProperty with
+			  // no index) and element-select it, which lowers to
+			  // %prop/obj + %load/qo/v.
+			if (const netdarray_t*member_da =
+				  dynamic_cast<const netdarray_t*>(member_type)) {
+			      if (member_comp.index.size() != 1) {
+				    cerr << li->get_fileline() << ": sorry: "
+					 << "Multi-index struct member access is not yet supported."
+					 << endl;
+				    des->errors += 1;
+				    delete base_expr;
+				    return 0;
+			      }
+			      NetEProperty*cprop =
+				    new NetEProperty(base_expr, member_idx, nullptr);
+			      cprop->set_line(*li);
+			      NetExpr*idx_expr = elab_and_eval(des, scope,
+				    member_comp.index.front().msb, -1, false);
+			      if (!idx_expr) {
+				    delete cprop;
+				    return 0;
+			      }
+			      unsigned elem_width = member_da->element_width();
+			      if (elem_width == 0)
+				    elem_width = 1;
+			      ivl_type_t elem_type = member_da->element_type();
+			      NetESelect*sel = elem_type
+				    ? new NetESelect(cprop, idx_expr, elem_width, elem_type)
+				    : new NetESelect(cprop, idx_expr, elem_width);
+			      sel->set_line(*li);
+			      base_expr = sel;
+			      cur_type = elem_type;
 			      continue;
 			}
 		  }
