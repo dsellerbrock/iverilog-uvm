@@ -5443,6 +5443,112 @@ static Statement* sva_assign_(const struct vlltype&loc, perm_string lv, PExpr*rv
 static Statement* sva_assign_nb_(const struct vlltype&loc, perm_string lv,
 				 PExpr*rv);
 
+/*
+ * Duplicate a user action block (IEEE 1800-2017 16.14.6).
+ *
+ * A property whose failure can be decided either DURING the run or only
+ * at the end of it needs the user's statement at two sites: the
+ * per-cycle dispatch in the checker's `always' process, and a `final'
+ * block for an obligation that was still pending when time ran out.
+ * A Statement can live at only one of them, so the second gets a copy.
+ *
+ * The unbounded-sequence lowering used to give the per-cycle site the
+ * user's `else' and the end-of-simulation site a canned `$error', which
+ * meant a strong sequence that never completed reported through a
+ * message the user never wrote and their own else never ran.
+ *
+ * Only the shapes an action block can actually hold are duplicated --
+ * a task or system-task call, an assignment, an if, a begin/end of
+ * those, and an empty statement. Anything else returns null and the
+ * caller says so out loud rather than quietly dropping it.
+ */
+static Statement* sva_clone_stmt_(Statement*st)
+{
+      if (!st) return nullptr;
+
+      if (PCallTask*ct = dynamic_cast<PCallTask*> (st)) {
+	      /* A method call on a receiver expression keeps no accessor
+		 for the receiver, so leave that shape to the caller. */
+	    if (ct->path().empty()) return nullptr;
+	    std::list<named_pexpr_t> parms;
+	    for (size_t i = 0 ; i < ct->parms().size() ; i += 1) {
+		  named_pexpr_t np;
+		  np.name = ct->parms()[i].name;
+		  np.parm = sva_clone_expr_(ct->parms()[i].parm);
+		  if (ct->parms()[i].parm && !np.parm) return nullptr;
+		  parms.push_back(np);
+	    }
+	    PCallTask*out = new PCallTask(ct->path(), parms);
+	    out->set_lineno(ct->get_lineno());
+	    out->set_file(ct->get_file());
+	    return out;
+      }
+
+      if (PAssignNB*an = dynamic_cast<PAssignNB*> (st)) {
+	    PExpr*lv = sva_clone_expr_(const_cast<PExpr*>(an->lval()));
+	    PExpr*rv = sva_clone_expr_(an->rval());
+	    if (!lv || !rv) return nullptr;
+	    PAssignNB*out = new PAssignNB(lv, rv);
+	    out->set_lineno(an->get_lineno());
+	    out->set_file(an->get_file());
+	    return out;
+      }
+
+      if (PAssign*as = dynamic_cast<PAssign*> (st)) {
+	    PExpr*lv = sva_clone_expr_(const_cast<PExpr*>(as->lval()));
+	    PExpr*rv = sva_clone_expr_(as->rval());
+	    if (!lv || !rv) return nullptr;
+	    PAssign*out = as->op() ? new PAssign(lv, as->op(), rv)
+				   : new PAssign(lv, rv);
+	    out->set_lineno(as->get_lineno());
+	    out->set_file(as->get_file());
+	    return out;
+      }
+
+      if (PCondit*cd = dynamic_cast<PCondit*> (st)) {
+	    PExpr*ce = sva_clone_expr_(cd->cond_expr());
+	    if (!ce) return nullptr;
+	    Statement*ic = nullptr;
+	    Statement*ec = nullptr;
+	    if (cd->if_clause()) {
+		  ic = sva_clone_stmt_(cd->if_clause());
+		  if (!ic) return nullptr;
+	    }
+	    if (cd->else_clause()) {
+		  ec = sva_clone_stmt_(cd->else_clause());
+		  if (!ec) return nullptr;
+	    }
+	    PCondit*out = new PCondit(ce, ic, ec);
+	    out->set_lineno(cd->get_lineno());
+	    out->set_file(cd->get_file());
+	    return out;
+      }
+
+      if (PBlock*bk = dynamic_cast<PBlock*> (st)) {
+	      /* A NAMED block is a scope; duplicating it would duplicate
+		 the scope with it. Only the anonymous sequential form is
+		 safe to copy. */
+	    if (bk->bl_type() != PBlock::BL_SEQ) return nullptr;
+	    if (bk->pscope_name() != perm_string()) return nullptr;
+	    std::vector<Statement*> out_list;
+	    for (size_t i = 0 ; i < bk->statements().size() ; i += 1) {
+		  Statement*c = sva_clone_stmt_(bk->statements()[i]);
+		  if (!c) return nullptr;
+		  out_list.push_back(c);
+	    }
+	    PBlock*out = new PBlock(PBlock::BL_SEQ);
+	    out->set_statement(out_list);
+	    out->set_lineno(bk->get_lineno());
+	    out->set_file(bk->get_file());
+	    return out;
+      }
+
+      if (dynamic_cast<PNoop*> (st))
+	    return new PNoop;
+
+      return nullptr;
+}
+
 static Statement* sva_block_(const struct vlltype&loc,
 			     const std::vector<Statement*>&stmts)
 {
@@ -9087,6 +9193,17 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    delete pass_stmt;
 	    pass_stmt = nullptr;
       }
+	/* A strong sequence can also fail by running out of time, and
+	   that failure is reported from a `final' block further down.
+	   Both sites need the user's `else', so take a copy before the
+	   per-cycle dispatch below consumes the original. */
+      Statement*eos_fail_stmt = nullptr;
+      bool eos_fail_unclonable = false;
+      if (!cover && fail_stmt) {
+	    eos_fail_stmt = sva_clone_stmt_(fail_stmt);
+	    if (!eos_fail_stmt) eos_fail_unclonable = true;
+      }
+
       if (cover) {
 	    delete fail_stmt;
 	    fail_stmt = nullptr;
@@ -9191,15 +9308,32 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			pend = pend ? sva_logic_(loc, 'o', pend, t) : t;
 		  }
 	    if (pend && strong_seq) {
-		    /* strong: pending at end of simulation is a failure.
-		       (The per-cycle fail action / else-clause was already
-		       consumed by the main dispatch above and never fires for
-		       a bare unbounded sequence, so report via $error.) */
-		  std::list<named_pexpr_t> no_args;
-		  PCallTask*err = new PCallTask(
-			lex_strings.make("$error"), no_args);
-		  FILE_NAME(err, loc);
-		  Statement*fa = sva_fail_action_(loc, inst, err);
+		    /* strong: pending at end of simulation is a failure,
+		       and it is reported through the user's own `else'
+		       (16.14.6) -- eos_fail_stmt is the copy taken before
+		       the per-cycle dispatch consumed the original. An
+		       assertion with no else, or one whose action block
+		       could not be duplicated, still gets the built-in
+		       $error; the second case says so rather than
+		       swallowing the statement. */
+		  Statement*eos = eos_fail_stmt;
+		  eos_fail_stmt = nullptr;
+		  if (!eos) {
+			if (eos_fail_unclonable) {
+			      cerr << loc << ": sorry: this action block "
+				   << "cannot be reproduced for the "
+				   << "end-of-simulation failure of a strong "
+				   << "sequence; that one failure reports "
+				   << "through $error instead." << endl;
+			      error_count += 1;
+			}
+			std::list<named_pexpr_t> no_args;
+			PCallTask*err = new PCallTask(
+			      lex_strings.make("$error"), no_args);
+			FILE_NAME(err, loc);
+			eos = err;
+		  }
+		  Statement*fa = sva_fail_action_(loc, inst, eos);
 		  PCondit*fc = new PCondit(pend, fa, nullptr);
 		  FILE_NAME(fc, loc);
 		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
@@ -9221,6 +9355,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  FILE_NAME(fp, loc);
 	    }
       }
+
+      delete eos_fail_stmt;
 
       if (have_tree) {
 	    sva_tree_delete_(prop->tree, false);

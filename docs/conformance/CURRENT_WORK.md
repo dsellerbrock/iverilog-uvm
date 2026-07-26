@@ -198,14 +198,26 @@ already fixed this session (M3B-15, and the three halves of M9-12).
 **Eighteen remain, all confirmed and reproducible**, and they are the
 best-evidenced backlog available:
 
-- SVA: ~~`assert property (S within T)` never runs its pass action~~
-  — **fixed** (M9-13). The verdicts were right all along; the whole
-  temporal-operator lowering deleted the pass statement before it
-  emitted anything. Still open: an end-of-sim `strong(seq)` failure
-  ignores the user's `else` block.
-- DPI (2 left; the open-array one is now M10-6, DONE): a fixed
-  array reached through a member select arrives empty; a sub-32-bit
-  open array is marshaled byte-packed instead of one word per element.
+- ~~SVA (2)~~ — **both fixed.** M9-13: the temporal-operator lowering
+  deleted the pass statement before emitting anything, so `within`
+  never ran its pass action (the verdicts were right all along).
+  M9-14: a `strong` sequence that never completes reported its
+  end-of-simulation failure through a canned `$error` instead of the
+  user's `else`, which stayed at zero — so a testbench counting its
+  own failures saw none. Both sites now get the action block, the
+  second by copy.
+- DPI (both rows re-probed; **neither is a DPI defect**):
+  - "a fixed array reached through a member select arrives empty" is
+    real (`c_take_open(s.arr, …)` returns mask=15 — size 0, degenerate
+    bounds, null elements) but the DPI layer is only where it was
+    noticed. See **the struct-array-member finding below**, which is
+    much larger.
+  - "a sub-32-bit open array is marshaled byte-packed" **did not
+    reproduce**. `input byte a[]` and `input shortint a[]` both arrive
+    with the right size and the right per-element values through
+    `svGetArrElemPtr1`. Probably fixed by the M10-1 fixed-array
+    marshaling work; the row was stale. Probe:
+    `repros/struct_array_member_dpi.{sv,c}`.
 - Coverage (4): a bit- or part-select of a class property in a
   coverpoint is dropped and the whole property sampled; `sample()`
   called only from a module-scope task is a no-op; `coverpoint arr[N]`
@@ -288,8 +300,70 @@ join_none` with the body inline was always correct, and so was a forked
 call with copy-out work after it, because that keeps its `%alloc` inside
 the detached thread. Both are controls in the test.
 
-**Known open, in priority order:** the sixteen remaining from the
-sweep; R16 (`$cast`
+**NEW, and it goes to the head of the queue — every element of an
+unpacked-array member of a struct reads back as the element WIDTH.**
+
+```
+  typedef struct { int arr[4]; int tag; } S;
+  S s;
+  s.tag = 7;
+  for (int i = 0; i < 4; i++) s.arr[i] = 200 + i;
+  $display("%0d %0d %0d %0d", s.arr[0], s.arr[1], s.arr[2], s.arr[3]);
+  // prints  32 32 32 32
+```
+
+32 is `int`'s width, so the read is returning array metadata rather
+than an element — for every index, whatever was written. The scalar
+member `s.tag` of the same struct is correct, and a plain `int
+plain[4]` is correct, which is what has kept this hidden.
+
+The whole-array accesses are wrong too, and three of the four
+silently:
+
+| access | got | want |
+|---|---|---|
+| `s.arr[2]` | 32 | 202 |
+| `$size(s.arr)` | x | 4 |
+| `foreach (s.arr[i])` | `vvp.tgt: Unable to draw statement type 0` + 0 | 806 |
+| passed to an SV `input int a[]` formal | 0 | 806 |
+| passed to a DPI `input int a[]` formal | empty (mask=15) | — |
+
+Only the `foreach` is loud. This is gate 1 (silent wrong results) over
+an ordinary, common declaration, plus gate 3 (a codegen error on legal
+input), and it outranks everything else on this list.
+
+Repros: `repros/struct_array_member_reads_width.sv` (the four-element
+read, with the scalar member and a plain array as controls),
+`repros/struct_array_member_access_matrix.sv` (all four access forms),
+`repros/struct_array_member_dpi.{sv,c}` (the DPI symptom, with plain
+fixed, dynamic, byte and shortint arrays as passing controls).
+
+**The WRITE side is already right and the runtime already has the read
+opcode.** `s.arr[2] = 202` lowers to
+
+```
+    %ix/load 4, 2, 0;
+    %pushi/vec4 202, 0, 32;
+    %store/prop/v/i 0, 4, 32;      ; indexed store into property `arr'
+```
+
+and the class record declares the member correctly
+(`0: "arr", "sb32" [0:3]`). The matching indexed READ opcode
+`%prop/v/i` exists in the vvp opcode table too (next to `%prop/v`,
+`%prop/r/i`, `%prop/str/i`). It is simply never emitted for a
+struct-typed variable: the read is dropped on the floor. In a
+`$display` argument list the whole argument disappears — the emitted
+call carries a literal `" "` where `s.arr[2]` should be, which is
+where the stray 32 comes from — and `t = s.arr[2]` assigns 0.
+
+So the work is in elaboration/codegen, routing an indexed member read
+of a struct-typed variable to the same lowering a class property
+already uses (the path M1C-3 and M1C-6 touched), not in the runtime.
+Read forms to cover: assignment r-value, sub-expression, system-task
+argument, `foreach`, `$size`, and passing the whole array.
+
+**Known open, in priority order:** the finding above, then the fourteen
+remaining from the sweep; R16 (`$cast`
 into a container element that is not a direct class property — a local
 queue, or one behind a nested receiver — writes nothing; into a local
 fixed array element it aborts); M3B-10 (`std::randomize(vars) with

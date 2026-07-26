@@ -166,6 +166,11 @@ class PAssign  : public PAssign_ {
       explicit PAssign(PExpr*lval, PExpr*ex, bool is_constant, bool is_init);
       ~PAssign() override;
 
+	// The compressed-assignment operator ('+' for `x += e'), or 0
+	// for a plain assignment. Read by the assertion lowering, which
+	// has to reproduce a user action block at two sites.
+      char op() const { return op_; }
+
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
 
@@ -222,6 +227,10 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       void set_join_type(BL_TYPE);
 
       void set_statement(const std::vector<Statement*>&st);
+
+	// Read by the assertion lowering, which has to reproduce a user
+	// action block at two sites.
+      const std::vector<Statement*>& statements() const { return list_; }
 
 	// Copy the statement from that block to the front of this
 	// block.
@@ -469,6 +478,12 @@ class PCondit  : public Statement {
     public:
       PCondit(PExpr*ex, Statement*i, Statement*e);
       ~PCondit() override;
+
+	// Read by the assertion lowering, which has to reproduce a user
+	// action block at two sites.
+      PExpr* cond_expr() const { return expr_; }
+      Statement* if_clause() const { return if_; }
+      Statement* else_clause() const { return else_; }
 
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
