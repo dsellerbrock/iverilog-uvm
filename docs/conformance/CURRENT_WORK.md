@@ -300,70 +300,62 @@ join_none` with the body inline was always correct, and so was a forked
 call with copy-out work after it, because that keeps its `%alloc` inside
 the detached thread. Both are controls in the test.
 
-**NEW, and it goes to the head of the queue — every element of an
-unpacked-array member of a struct reads back as the element WIDTH.**
+**M4B-12 is fixed** — every element of an unpacked-array member of a
+struct used to read back as nothing at all.
 
 ```
   typedef struct { int arr[4]; int tag; } S;
-  S s;
-  s.tag = 7;
+  S s;  s.tag = 7;
   for (int i = 0; i < 4; i++) s.arr[i] = 200 + i;
   $display("%0d %0d %0d %0d", s.arr[0], s.arr[1], s.arr[2], s.arr[3]);
-  // prints  32 32 32 32
+  // printed  32 32 32 32
 ```
 
-32 is `int`'s width, so the read is returning array metadata rather
-than an element — for every index, whatever was written. The scalar
-member `s.tag` of the same struct is correct, and a plain `int
-plain[4]` is correct, which is what has kept this hidden.
+32 is `int`'s width. `check_for_struct_members` handled only a
+bit/part-select of a PACKED member and returned nil for anything else,
+so the expression disappeared: `t = s.arr[2];` was dropped from the
+netlist entirely and a `$display` argument came out blank, which is
+what left the format string reading a stray width. `foreach
+(s.arr[i])` tripped `vvp.tgt: Unable to draw statement type 0`.
 
-The whole-array accesses are wrong too, and three of the four
-silently:
+The write side was correct all along and the runtime already had the
+indexed read opcode `%prop/v/i`; it was never emitted. A member is one
+property holding the whole array, so an element read is the property
+read WITH a word index — the shape a class property already used.
+Pinned by `sv_struct_array_member_element`, against which the reverted
+build cannot even generate code.
 
-| access | got | want |
-|---|---|---|
-| `s.arr[2]` | 32 | 202 |
-| `$size(s.arr)` | x | 4 |
-| `foreach (s.arr[i])` | `vvp.tgt: Unable to draw statement type 0` + 0 | 806 |
-| passed to an SV `input int a[]` formal | 0 | 806 |
-| passed to a DPI `input int a[]` formal | empty (mask=15) | — |
+**The fix exposed a sibling defect and a vacuously-passing test.**
+Making a non-fixed-array indexed member a loud sorry instead of a
+silent nil turned up `sv_nested_container_audit`, which was passing
+only because its `s.da[1]` check (line 31) elaborated to nil and the
+whole `if` vanished. The real defect: for a DYNAMIC ARRAY member of a
+struct the element read takes the slot-indexed `%prop/v/i` path
+instead of `%prop/obj` + `%load/dar/obj/vec4`. The write side is
+already correct (`%prop/obj` + `%set/dar/obj/vec4`), and the
+target-side classifier `property_is_indexed_darray_expr_` would pick
+the right path — but it asks `ivl_type_properties()` about the
+receiver, and that reports 0 for a struct type, so it never fires.
+Teaching the target API that a struct has properties is the fix, and
+it is a wider change than M4B-12, so the audit test is registered in
+`ivtest_expected_fails.list` with that reason rather than papered
+over. Probe: `repros/struct_array_member_darray.sv` — `s.da.size()`
+is right (3) while every element reads -1.
 
-Only the `foreach` is loud. This is gate 1 (silent wrong results) over
-an ordinary, common declaration, plus gate 3 (a codegen error on legal
-input), and it outranks everything else on this list.
-
-Repros: `repros/struct_array_member_reads_width.sv` (the four-element
-read, with the scalar member and a plain array as controls),
-`repros/struct_array_member_access_matrix.sv` (all four access forms),
-`repros/struct_array_member_dpi.{sv,c}` (the DPI symptom, with plain
+**Residual, and the next thing to pick up: the WHOLE-array forms.**
+`$size(s.arr)` still returns x, and passing `s.arr` to an open-array
+formal delivers an empty array — SystemVerilog (`sum_open(s.arr)`
+returns 0) and DPI (`c_take_open(s.arr, …)` returns mask=15: size 0,
+degenerate bounds, null elements) alike. That last one is the row the
+sweep recorded as a DPI defect; it is not, and the DPI layer is only
+where it was noticed. These need the member's whole-array VALUE rather
+than an element of it, which is a different construction from the one
+M4B-12 added. Repros: `repros/struct_array_member_access_matrix.sv`
+and `repros/struct_array_member_dpi.{sv,c}` (the latter has plain
 fixed, dynamic, byte and shortint arrays as passing controls).
 
-**The WRITE side is already right and the runtime already has the read
-opcode.** `s.arr[2] = 202` lowers to
-
-```
-    %ix/load 4, 2, 0;
-    %pushi/vec4 202, 0, 32;
-    %store/prop/v/i 0, 4, 32;      ; indexed store into property `arr'
-```
-
-and the class record declares the member correctly
-(`0: "arr", "sb32" [0:3]`). The matching indexed READ opcode
-`%prop/v/i` exists in the vvp opcode table too (next to `%prop/v`,
-`%prop/r/i`, `%prop/str/i`). It is simply never emitted for a
-struct-typed variable: the read is dropped on the floor. In a
-`$display` argument list the whole argument disappears — the emitted
-call carries a literal `" "` where `s.arr[2]` should be, which is
-where the stray 32 comes from — and `t = s.arr[2]` assigns 0.
-
-So the work is in elaboration/codegen, routing an indexed member read
-of a struct-typed variable to the same lowering a class property
-already uses (the path M1C-3 and M1C-6 touched), not in the runtime.
-Read forms to cover: assignment r-value, sub-expression, system-task
-argument, `foreach`, `$size`, and passing the whole array.
-
-**Known open, in priority order:** the finding above, then the fourteen
-remaining from the sweep; R16 (`$cast`
+**Known open, in priority order:** the whole-array residual above,
+then the fourteen remaining from the sweep; R16 (`$cast`
 into a container element that is not a direct class property — a local
 queue, or one behind a nested receiver — writes nothing; into a local
 fixed array element it aborts); M3B-10 (`std::randomize(vars) with

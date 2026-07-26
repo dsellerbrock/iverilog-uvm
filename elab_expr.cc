@@ -6242,10 +6242,64 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 
 		  const auto&members = cur_struct->members();
 		  size_t member_idx = member - &members.front();
+		  ivl_type_t member_type = member->net_type;
+
+		    // An UNPACKED ARRAY member indexed by an element select
+		    // (`s.arr[2]`). The member is one property holding the
+		    // whole array, so the element read is the property read
+		    // WITH a word index -- the same NetEProperty shape a class
+		    // property already uses, which lowers to %prop/v/i.
+		    //
+		    // This case fell through to the packed-vector handling
+		    // below and returned nil, silently. The caller dropped the
+		    // whole assignment or passed a blank argument, so every
+		    // `s.arr[i]' read back as nothing at all while a scalar
+		    // member beside it was correct.
+		    // An UNPACKED ARRAY member indexed by an element select
+		    // (`s.arr[2]'). The member is one property holding the
+		    // whole array, so the element read is the property read
+		    // WITH a word index -- the same NetEProperty shape a class
+		    // property already uses, which lowers to %prop/v/i.
+		    //
+		    // This case used to fall through to the packed-vector
+		    // handling below and return nil, silently. The caller
+		    // dropped the whole assignment or passed a blank argument,
+		    // so every `s.arr[i]' read back as nothing at all while a
+		    // scalar member beside it was correct.
+		  if (!member_comp.index.empty()) {
+			if (const netuarray_t*member_ua =
+				  dynamic_cast<const netuarray_t*>(member_type)) {
+			      const auto&dims = member_ua->static_dimensions();
+			      if (dims.size() != member_comp.index.size()) {
+				    cerr << li->get_fileline() << ": error: "
+					 << "Got " << member_comp.index.size()
+					 << " indices, expecting " << dims.size()
+					 << " to index struct member "
+					 << member_comp.name << "." << endl;
+				    des->errors += 1;
+				    delete base_expr;
+				    return 0;
+			      }
+			      NetExpr*widx = make_canonical_index(des, scope, li,
+								  member_comp.index,
+								  member_ua, false);
+			      if (!widx) {
+				    delete base_expr;
+				    return 0;
+			      }
+			      NetEProperty*iprop =
+				    new NetEProperty(base_expr, member_idx, widx);
+			      iprop->set_line(*li);
+			      base_expr = iprop;
+			      cur_type = member_ua->element_type();
+			      continue;
+			}
+		  }
+
 		  NetEProperty*prop = new NetEProperty(base_expr, member_idx, nullptr);
 		  prop->set_line(*li);
 		  base_expr = prop;
-		  cur_type = member->net_type;
+		  cur_type = member_type;
 
 		    // A select ON the member (`s.d[15:8]`, `s.d[i +: 8]`) is a
 		    // bit/part-select of the member value (IEEE 1800-2017 7.2.1
@@ -6256,6 +6310,11 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 			const netvector_t*mvec =
 			      dynamic_cast<const netvector_t*>(cur_type);
 			if (!mvec) {
+			      cerr << li->get_fileline() << ": sorry: an index"
+				   << " on struct member " << member_comp.name
+				   << " of this type is not yet supported."
+				   << endl;
+			      des->errors += 1;
 			      delete base_expr;
 			      return 0;
 			}

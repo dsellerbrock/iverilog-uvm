@@ -1183,3 +1183,4 @@ sv_ref_argument_is_a_reference normal,-g2012 ivltests
 sv_assert_pass_action normal,-g2012 ivltests
 sv_fork_join_none_automatic_frame normal,-g2012 ivltests
 sv_assert_strong_eos_action normal,-g2012 ivltests
+sv_struct_array_member_element normal,-g2012 ivltests
