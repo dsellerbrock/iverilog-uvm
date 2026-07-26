@@ -2151,6 +2151,66 @@ NetNet* find_implicit_this_handle(Design*des, NetScope*scope)
  * Print a warning if we find a mixture of default and explicit timescale
  * based delays in the design, since this is likely an error.
  */
+/*
+ * A `ref' formal is represented as a real reference only for the types
+ * whose reads and writes go through the generic signal-value interface
+ * -- packed integral variables. A real, string, class-handle or
+ * container formal is read by an opcode that reaches for a
+ * type-specific functor instead, which a bound formal cannot answer, so
+ * those keep the copy-in/copy-out pair they have always had.
+ */
+bool ref_formal_is_bound(const NetNet*port)
+{
+      if (port == 0 || port->port_type() != NetNet::PREF)
+	    return false;
+
+	/* Only a subroutine formal is bound. A `ref' port on a MODULE is
+	   a different construct on a different elaboration path, with no
+	   call site to bind it at; it keeps whatever it had. */
+      const NetScope*owner = port->scope();
+      if (owner == 0)
+	    return false;
+      if (owner->type() != NetScope::TASK && owner->type() != NetScope::FUNC)
+	    return false;
+
+	/* The binding lives in the frame, so there has to be one. A
+	   static-lifetime subroutine has no frame; its ref formals keep
+	   the copy pair, which is what they had. (A static subroutine
+	   cannot recurse or be re-entered concurrently either, so the
+	   two differ only for one that consumes time.) */
+      if (!owner->is_auto())
+	    return false;
+
+	/* A DPI import's formals are marshaled to C by the DPI layer,
+	   which reads the formal's storage; there is nothing there to
+	   read once it is a binding. */
+      if (owner->type() == NetScope::FUNC && owner->func_pform()
+	  && owner->func_pform()->is_dpi_import())
+	    return false;
+      if (owner->type() == NetScope::TASK && owner->task_pform()
+	  && owner->task_pform()->is_dpi_import())
+	    return false;
+
+      if (port->unpacked_dimensions() > 0)
+	    return false;
+
+      ivl_type_t ptype = port->net_type();
+      if (dynamic_cast<const netdarray_t*>(ptype))    // dynamic array, queue
+	    return false;
+      if (dynamic_cast<const netclass_t*>(ptype))
+	    return false;
+      if (dynamic_cast<const netarray_t*>(ptype))
+	    return false;
+
+      switch (port->data_type()) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
 void check_for_inconsistent_delays(const NetScope*scope)
 {
       static bool used_implicit_timescale = false;

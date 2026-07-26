@@ -2728,9 +2728,10 @@ void dll_target::signal(const NetNet*net)
 	    break;
 
 	  case NetNet::PREF:
-	    /* The target API has no dedicated ref-port enum. Treat
-	       subroutine ref ports as copy-in/copy-out formals. */
-	    obj->port_ = IVL_SIP_INOUT;
+	      /* A ref formal that is represented as a real reference is
+		 its own port kind; one that still uses the copy pair is
+		 an inout, which is what every ref formal used to be. */
+	    obj->port_ = ref_formal_is_bound(net) ? IVL_SIP_REF : IVL_SIP_INOUT;
 	    break;
 
 	  default:

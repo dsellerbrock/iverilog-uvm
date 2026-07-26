@@ -1625,9 +1625,51 @@ static bool write_handle_vec4_to_context_(vpiHandle item,
       return true;
 }
 
+/*
+ * A `ref' formal holds a binding, not a value (IEEE 1800-2017 13.5.2),
+ * so there is nothing for the value copies below to read. A virtual
+ * method call allocates the OVERRIDE's frame and copies the base
+ * formals into it; unless the binding travels with them the override's
+ * formal is unbound and its writes go nowhere.
+ */
+static bool copy_ref_binding_to_context_(vpiHandle src_item, vthread_t src_thr,
+                                         vpiHandle dst_item,
+                                         vvp_context_t dst_context)
+{
+      vvp_net_t*src_net = handle_net_(src_item);
+      vvp_net_t*dst_net = handle_net_(dst_item);
+      if (!(src_net && dst_net && dst_context))
+            return false;
+
+      vvp_ref_signal_aa*src_ref =
+            dynamic_cast<vvp_ref_signal_aa*> (src_net->fil);
+      vvp_ref_signal_aa*dst_ref =
+            dynamic_cast<vvp_ref_signal_aa*> (dst_net->fil);
+      if (!(src_ref && dst_ref))
+            return false;
+
+      vthread_t save_running = running_thread;
+      if (src_thr) running_thread = src_thr;
+
+      vvp_net_t*target = 0;
+      vvp_context_t ctx = 0;
+      bool have = src_ref->read_binding(target, ctx);
+
+      running_thread = save_running;
+
+      if (!have)
+            return false;
+
+      dst_ref->write_binding(dst_context, target, ctx);
+      return true;
+}
+
 static bool copy_handle_value_to_context_(vpiHandle src_item, vthread_t src_thr,
                                           vpiHandle dst_item, vvp_context_t dst_context)
 {
+      if (copy_ref_binding_to_context_(src_item, src_thr, dst_item, dst_context))
+            return true;
+
       vvp_object_t obj_val;
       if (read_handle_object_in_thread_(src_item, src_thr, obj_val))
             return write_handle_object_to_context_(dst_item, obj_val, dst_context);
@@ -4870,6 +4912,50 @@ vvp_context_t vthread_get_rd_context()
             return running_thread->rd_context;
       else
             return 0;
+}
+
+/*
+ * Evaluate a `ref' formal against the frame it was bound in.
+ *
+ * A ref formal forwards every access to the caller's variable
+ * (IEEE 1800-2017 13.5.2). When that variable is itself automatic, its
+ * value lives in the CALLER's frame -- but the thread running the
+ * access is the callee, so the ordinary context lookup would resolve
+ * against the callee's frame and read the wrong storage (or none). The
+ * binding therefore records the caller's context, and these two put it
+ * back in place for the duration of one delegated access.
+ *
+ * Nothing else about the thread changes, and the save/restore is
+ * strictly paired, so a ref chain (a ref formal passed on as another
+ * subroutine's ref actual) nests correctly.
+ */
+void vthread_push_ref_context(vvp_context_t ctx, struct vthread_ref_ctx_save*save)
+{
+      save->engaged = false;
+      if (!running_thread || !ctx)
+            return;
+
+      save->rd = running_thread->rd_context;
+      save->wt = running_thread->wt_context;
+      save->staged_rd = running_thread->staged_alloc_rd_context;
+      save->staged_rd_scope = running_thread->staged_alloc_rd_scope;
+      save->engaged = true;
+
+      running_thread->rd_context = ctx;
+      running_thread->wt_context = ctx;
+      running_thread->staged_alloc_rd_context = 0;
+      running_thread->staged_alloc_rd_scope = 0;
+}
+
+void vthread_pop_ref_context(const struct vthread_ref_ctx_save*save)
+{
+      if (!save->engaged || !running_thread)
+            return;
+
+      running_thread->rd_context = save->rd;
+      running_thread->wt_context = save->wt;
+      running_thread->staged_alloc_rd_context = save->staged_rd;
+      running_thread->staged_alloc_rd_scope = save->staged_rd_scope;
 }
 
 static bool context_on_list(vvp_context_t head, vvp_context_t needle)
@@ -15967,6 +16053,50 @@ static bool do_release_vec(vvp_code_t cp, bool net_flag)
 	// M12B-fr: report the release to any cbRelease callbacks.
       net->fil->run_force_callbacks(cbRelease);
 
+      return true;
+}
+
+/*
+ * %ref/bind <formal>, <actual>
+ *
+ * Point a `ref' formal at the caller's variable (IEEE 1800-2017
+ * 13.5.2). Emitted between the callee's %alloc and its %fork, so the
+ * write context is already the callee's frame -- which is where the
+ * binding belongs -- while the read context is still the caller's,
+ * which is the frame a caller-local automatic actual lives in.
+ */
+bool of_REF_BIND(vthread_t, vvp_code_t cp)
+{
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*> (cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind error: the formal is not a ref signal." << endl;
+	    assert(formal);
+	    return true;
+      }
+
+      formal->bind(cp->net2, false);
+      return true;
+}
+
+/*
+ * %ref/bind/f <formal>, <companion>
+ *
+ * The same, for an actual that could not be named: the caller copied it
+ * into a companion word in THIS frame, so that is where the target has
+ * to be resolved.
+ */
+bool of_REF_BIND_F(vthread_t, vvp_code_t cp)
+{
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*> (cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/f error: the formal is not a ref signal." << endl;
+	    assert(formal);
+	    return true;
+      }
+
+      formal->bind(cp->net2, true);
       return true;
 }
 

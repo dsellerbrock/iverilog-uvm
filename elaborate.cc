@@ -8455,6 +8455,89 @@ NetProc* PCallTask::elaborate_void_function_(Design*des, NetScope*scope,
       return elaborate_build_call_(des, scope, dscope, 0);
 }
 
+/*
+ * Bind a `ref' formal to its actual (IEEE 1800-2017 13.5.2).
+ *
+ * A ref formal is not storage; it is another name for the caller's
+ * variable. Writes through it are visible to the caller at once rather
+ * than at return, and reads see whatever the caller has put there since
+ * the call. Copy-in/copy-out cannot express either -- it is
+ * observationally equivalent only for a subroutine that neither
+ * consumes time nor shares the variable with anything else, and for one
+ * that never returns it drops the argument entirely.
+ *
+ * The bind is a `$ivl_ref_bind' system task rather than a new statement
+ * kind so that targets which do not implement it are unaffected; the
+ * vvp target lowers it to %ref/bind.
+ *
+ * The formal's storage kind is fixed by its declaration, so a bound
+ * formal must be bound at EVERY call site -- an unbound one would read
+ * and write nothing at all. When the actual cannot be named directly
+ * (an array element, a class property, a part select) the bind targets
+ * a temporary and the caller copies the actual through it, which
+ * reproduces the old copy-in/copy-out for that one argument without
+ * changing what the formal is. That temporary comes back in *via, and
+ * the caller then emits its copy pair against it rather than against
+ * the port.
+ */
+NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
+					NetNet*port, PExpr*actual,
+					unsigned argno,
+					NetNet**via) const
+{
+      *via = 0;
+
+      if (actual == 0) {
+	    cerr << get_fileline() << ": error: "
+		 << "Missing argument " << (argno+1)
+		 << " of call to task: a `ref' formal has no default." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+      NetNet*sig = 0;
+      if (NetAssign_*lv = actual->elaborate_lval(des, scope, false, false)) {
+	      /* Only a whole variable can be named. Anything with a word
+		 index, a part select, a property or a slice designates
+		 storage inside a variable, which %ref/bind cannot
+		 address. */
+	    if (lv->word() == 0 && lv->get_base() == 0
+		&& lv->get_property_idx() < 0 && !lv->is_array_slice())
+		  sig = lv->sig();
+	    delete lv;
+      }
+
+      if (sig == 0) {
+	      /* Bind to a temporary of the formal's own type and let the
+		 caller copy the actual in and out through it. */
+	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+				    NetNet::REG, port->net_type());
+	    tmp->set_line(*this);
+	    tmp->local_flag(true);
+	    if (scope->is_auto())
+		  tmp->lifetime_override(IVL_VLT_AUTOMATIC);
+	    sig = tmp;
+	    *via = tmp;
+      }
+
+	/* An actual that is itself a ref formal is bound through at run
+	   time (see vvp_ref_signal_aa::bind), so a chain of ref
+	   arguments still ends at the one real variable. */
+      NetESignal*formal_e = new NetESignal(port);
+      formal_e->set_line(*this);
+      NetESignal*actual_e = new NetESignal(sig);
+      actual_e->set_line(*this);
+
+      vector<NetExpr*> argv(2);
+      argv[0] = formal_e;
+      argv[1] = actual_e;
+
+      NetSTask*bind = new NetSTask("$ivl_ref_bind",
+				   IVL_SFUNC_AS_TASK_IGNORE, argv);
+      bind->set_line(*this);
+      return bind;
+}
+
 NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 					  NetScope*task, NetExpr*use_this,
 					  bool super_call) const
@@ -8645,16 +8728,41 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
       unsigned int off = use_this ? 1 : 0;
 
       auto args = map_named_args(des, def, parms_, off);
+	/* Where each argument's copy pair, if it still needs one, has to
+	   land. Null means the port itself, which is the ordinary case.
+	   A bound `ref' formal is never copied; a bound ref formal whose
+	   actual could not be named is copied through a temporary, and
+	   this records that temporary. */
+      vector<NetNet*> copy_via (parm_count, static_cast<NetNet*>(0));
+      vector<bool> ref_bound (parm_count, false);
       for (unsigned int idx = off; idx < parm_count; idx++) {
 	    size_t parms_idx = idx - off;
 
 	    NetNet*port = def->port(idx);
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
+
+	      /* A `ref' formal is not a copy (IEEE 1800-2017 13.5.2): it
+		 is another name for the actual. Bind it here -- where
+		 the copy-in used to be, so the bind lands between the
+		 frame allocation and the call. */
+	    if (ref_formal_is_bound(port)) {
+		  NetNet*via = 0;
+		  NetProc*bind = elaborate_ref_bind_(des, scope, port,
+						     args[parms_idx], idx,
+						     &via);
+		  if (bind)
+			block->append(bind);
+		  copy_via[idx] = via;
+		  ref_bound[idx] = (via == 0);
+		  if (via == 0)
+			continue;
+	    }
+
 	    if (port->port_type() == NetNet::POUTPUT
 		&& !dpi_open_array_formal_needs_copy_in_(task, port))
 		  continue;
 
-	    NetAssign_*lv = new NetAssign_(port);
+	    NetAssign_*lv = new NetAssign_(copy_via[idx] ? copy_via[idx] : port);
 	    unsigned wid = count_lval_width(lv);
 	    ivl_variable_type_t lv_type = lv->expr_type();
 
@@ -8716,9 +8824,14 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 	    NetNet*port = def->port(idx);
 
-	      /* Skip input ports. */
+	      /* Skip input ports, and any ref port that was bound to its
+		 actual -- there is nothing to copy back, and a copy-back
+		 would clobber whatever the caller has written through
+		 the same name since the call. */
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
 	    if (port->port_type() == NetNet::PINPUT)
+		  continue;
+	    if (ref_bound[idx])
 		  continue;
 
 
@@ -8747,7 +8860,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    if (lv == 0)
 		  continue;
 
-	    NetExpr*rv = new NetESignal(port);
+	    NetExpr*rv = new NetESignal(copy_via[idx] ? copy_via[idx] : port);
 
 		  /* Handle any implicit cast. */
 			unsigned lv_width = count_lval_width(lv);

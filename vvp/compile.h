@@ -552,6 +552,14 @@ extern void compile_variable(char*label, char*name,
 			     bool signed_flag, bool local_flag,
 			     int lifetime_flag);
 
+/*
+ * Declare a `ref' subroutine formal (IEEE 1800-2017 13.5.2). It holds
+ * no value; %ref/bind points it at the caller's variable and every
+ * access is forwarded there.
+ */
+extern void compile_ref_variable(char*label, char*name,
+				 int msb, int lsb, bool local_flag);
+
 extern void compile_var_real(char*label, char*name, int lifetime_flag);
 extern void compile_var_string(char*label, char*name, int lifetime_flag);
 extern void compile_var_darray(char*label, char*name, unsigned size,

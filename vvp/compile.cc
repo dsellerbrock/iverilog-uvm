@@ -464,6 +464,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%rand_mode/p",    of_RAND_MODE_P,     1,{OA_NUMBER, OA_NONE,OA_NONE} },
       { "%randomize",      of_RANDOMIZE,      0,{OA_NONE,   OA_NONE,OA_NONE} },
       { "%randomize/with", of_RANDOMIZE_WITH,  2,{OA_STRING, OA_BIT1,OA_NONE} },
+      { "%ref/bind",  of_REF_BIND,    2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+      { "%ref/bind/f",of_REF_BIND_F,  2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%release/net",of_RELEASE_NET,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/reg",of_RELEASE_REG,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/wr", of_RELEASE_WR, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },

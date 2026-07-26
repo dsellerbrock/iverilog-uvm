@@ -384,7 +384,13 @@ typedef enum OUT {
       IVL_SIP_NONE  = 0,
       IVL_SIP_INPUT = 1,
       IVL_SIP_OUTPUT= 2,
-      IVL_SIP_INOUT = 3
+      IVL_SIP_INOUT = 3,
+	/* A subroutine `ref' formal (IEEE 1800-2017 13.5.2). Unlike the
+	   three above it is not a copy: the formal is another name for
+	   the actual, so a target must bind it rather than copy in and
+	   out. A target that does not know this port kind can treat it
+	   as IVL_SIP_INOUT, which is what it meant before. */
+      IVL_SIP_REF   = 4
 } ivl_signal_port_t;
 
 /* This is the type code for an ivl_signal_t object. Implicit types

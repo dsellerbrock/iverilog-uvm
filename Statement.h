@@ -296,6 +296,12 @@ class PCallTask  : public Statement {
       NetProc*elaborate_build_call_(Design*des, NetScope*scope,
 				    NetScope*task, NetExpr*use_this,
 				    bool super_call = false) const;
+	// Bind a `ref' formal to its actual (IEEE 1800-2017 13.5.2).
+	// Sets *via to a temporary when the actual could not be named
+	// directly, in which case the caller copies through it.
+      NetProc*elaborate_ref_bind_(Design*des, NetScope*scope,
+				  NetNet*port, PExpr*actual,
+				  unsigned argno, NetNet**via) const;
       NetProc*elaborate_sys_task_method_(Design*des, NetScope*scope,
 					 NetExpr*obj,
 					 ivl_type_t obj_type,

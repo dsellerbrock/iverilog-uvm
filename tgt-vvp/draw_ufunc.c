@@ -66,11 +66,47 @@ static int port_is_unsupported_aggregate_formal_(ivl_signal_t port)
       }
 }
 
+/* True when a `ref' actual can be named directly by %ref/bind: a whole
+   variable, not a word of an array or a part of one. */
+static int ref_actual_is_nameable_(ivl_expr_t expr)
+{
+      if (!expr) return 0;
+      if (ivl_expr_type(expr) != IVL_EX_SIGNAL) return 0;
+      if (ivl_expr_oper1(expr)) return 0;          /* word select */
+      if (!ivl_expr_signal(expr)) return 0;
+      if (ivl_signal_dimensions(ivl_expr_signal(expr)) > 0) return 0;
+      return 1;
+}
+
+/* Bind one `ref' formal (IEEE 1800-2017 13.5.2). An actual that cannot
+   be named is copied into the formal's per-frame companion word, which
+   is what the formal is then bound to; draw_copy_out_function_arguments
+   copies it back through the same binding. */
+static void draw_bind_function_ref_argument(ivl_signal_t port, ivl_expr_t expr)
+{
+      if (ref_actual_is_nameable_(expr)) {
+	    fprintf(vvp_out, "    %%ref/bind v%p_0, v%p_0;\n",
+		    port, ivl_expr_signal(expr));
+	    return;
+      }
+
+      draw_eval_vec4(expr);
+      fprintf(vvp_out, "    %%store/vec4 v%p_R, 0, %u;\n",
+	      port, ivl_signal_width(port));
+      fprintf(vvp_out, "    %%ref/bind/f v%p_0, v%p_R;\n", port, port);
+}
+
 static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
 {
       static int warned_unsupported_arg_type = 0;
       static int warned_aggregate_arg_skip = 0;
       ivl_variable_type_t dtype = ivl_signal_data_type(port);
+
+	/* A ref formal is bound, not copied. The bind is emitted in its
+	   own pass (it must land after every argument has been
+	   evaluated, since evaluating one may call another function). */
+      if (ivl_signal_port(port) == IVL_SIP_REF)
+	    return;
       if (port_is_unsupported_aggregate_formal_(port)) {
 	    if (!warned_aggregate_arg_skip) {
 		  fprintf(stderr,
@@ -121,6 +157,9 @@ static void draw_send_function_argument(ivl_signal_t port)
       static int warned_unsupported_send_type = 0;
       static int warned_aggregate_send_skip = 0;
       ivl_variable_type_t dtype = ivl_signal_data_type(port);
+
+      if (ivl_signal_port(port) == IVL_SIP_REF)
+	    return;
 
       if (port_is_unsupported_aggregate_formal_(port)) {
 	    if (!warned_aggregate_send_skip) {
@@ -518,9 +557,17 @@ static void draw_copy_out_function_arguments(ivl_expr_t expr)
 	    ivl_signal_t port = ivl_scope_port(def, idx+1);
 	    ivl_signal_port_t port_type = ivl_signal_port(port);
 
-	    if ((port_type != IVL_SIP_OUTPUT) &&
-	        (port_type != IVL_SIP_INOUT))
+	      /* A bound ref formal needs no copy-out -- writes through it
+		 already landed in the caller's variable. One bound to a
+		 companion does: reading the formal reads the companion,
+		 so the ordinary copy-out is what puts it back. */
+	    if (port_type == IVL_SIP_REF) {
+		  if (ref_actual_is_nameable_(ivl_expr_parm(expr, idx)))
+			continue;
+	    } else if ((port_type != IVL_SIP_OUTPUT) &&
+		       (port_type != IVL_SIP_INOUT)) {
 		  continue;
+	    }
 
 	    draw_copy_out_function_argument(port, ivl_expr_parm(expr, idx));
       }
@@ -550,6 +597,15 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
       for (idx = ivl_expr_parms(expr) ;  idx > 0 ;  idx -= 1) {
 	    ivl_signal_t port = ivl_scope_port(def, idx);
 	    draw_send_function_argument(port);
+      }
+
+	/* Bind the ref formals last, so that evaluating any argument --
+	   which may itself call a function, allocating and freeing
+	   frames -- is finished before this frame's bindings are set. */
+      for (idx = 0 ;  idx < ivl_expr_parms(expr) ;  idx += 1) {
+	    ivl_signal_t port = ivl_scope_port(def, idx+1);
+	    if (ivl_signal_port(port) == IVL_SIP_REF)
+		  draw_bind_function_ref_argument(port, ivl_expr_parm(expr, idx));
       }
 
 	/* Call the function */

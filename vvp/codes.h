@@ -412,6 +412,8 @@ extern bool of_PUSHI_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_PUSHV_STR(vthread_t thr, vvp_code_t code);
 extern bool of_PUTC_STR_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_RELEASE_NET(vthread_t thr, vvp_code_t code);
+extern bool of_REF_BIND(vthread_t thr, vvp_code_t code);
+extern bool of_REF_BIND_F(vthread_t thr, vvp_code_t code);
 extern bool of_RELEASE_REG(vthread_t thr, vvp_code_t code);
 extern bool of_RELEASE_WR(vthread_t thr, vvp_code_t code);
 extern bool of_REPLICATE(vthread_t thr, vvp_code_t code);

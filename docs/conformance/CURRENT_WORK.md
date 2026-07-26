@@ -200,10 +200,9 @@ best-evidenced backlog available:
 
 - SVA: `assert property (S within T)` never runs its pass action; an
   end-of-sim `strong(seq)` failure ignores the user's `else` block.
-- DPI (3): an `output`/open-array formal arrives with size 0 and copies
-  an empty array back over the actual; a fixed array reached through a
-  member select arrives empty; a sub-32-bit open array is marshaled
-  byte-packed instead of one word per element.
+- DPI (2 left; the open-array one is now M10-6, DONE): a fixed
+  array reached through a member select arrives empty; a sub-32-bit
+  open array is marshaled byte-packed instead of one word per element.
 - Coverage (4): a bit- or part-select of a class property in a
   coverpoint is dropped and the whole property sampled; `sample()`
   called only from a module-scope task is a no-op; `coverpoint arr[N]`
@@ -211,13 +210,38 @@ best-evidenced backlog available:
 - VPI (4): array-typed class properties report their storage rather
   than their type; queue/assoc members report size 0; cbValueChange on
   a container element never fires.
-- Processes (2): `process::kill()` leaves fork-spawned sub-processes
-  running; `suspend()` is dropped when the target is blocked inside a
-  named begin/end.
+- ~~Processes (2)~~ — **both fixed**, see M6-9 below.
 - Access (1 left): `foreach` over a hierarchical name containing a
   constant bit-select iterates zero times.
 
-**Known open, in priority order:** the eighteen above; R16 (`$cast`
+**Two of the eighteen are closed, and one more turned up under them.**
+
+- **M6-9 (processes, both entries).** `process::kill()` walked only the
+  set a `%join` waits on, so a `fork ... join_none` child — which is
+  detached and never joined — survived its parent's kill and kept
+  running, silently. `suspend()` had the mirror defect one level down: a
+  named `begin`/`end` body and a synchronous task frame each run in
+  their own thread but are the SAME process, so marking only the named
+  thread stopped nothing while `status()` answered SUSPENDED. That shape
+  could also **abort the runtime** outright. Both now cover exactly the
+  right set: kill() cascades to sub-processes (9.7.2 gives that cascade
+  to kill alone), suspend()/resume() cover the threads one process is
+  made of and no more. Pinned by `sv_process_kill_subprocess` and
+  `sv_process_suspend_subthread`, both run against a reverted build.
+
+- **M6-10 (`ref` arguments), found while probing the same family.** A
+  `ref` formal was copy-in/copy-out rather than a reference (13.5.2).
+  The worst shape is total loss, not a timing nuance: a task forked
+  `join_none` that never returns never copied anything out, so
+  `fork spin(count); join_none` left the caller's count at 0 forever.
+  Aliasing failed with no concurrency at all. A ref formal is now a name
+  bound to the caller's variable (`.ref` + `%ref/bind`), with a
+  per-frame temporary for an actual that cannot be named. Real, string,
+  class-handle and container formals keep the copy pair and are
+  exercised as controls. Pinned by `sv_ref_argument_is_a_reference`.
+
+**Known open, in priority order:** the sixteen remaining from the
+sweep; R16 (`$cast`
 into a container element that is not a direct class property — a local
 queue, or one behind a nested receiver — writes nothing; into a local
 fixed array element it aborts); M3B-10 (`std::randomize(vars) with

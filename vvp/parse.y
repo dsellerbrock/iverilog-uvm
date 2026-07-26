@@ -102,7 +102,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_UFUNC_REAL K_UFUNC_VEC4 K_UFUNC_E K_UDP K_UDP_C K_UDP_S
 %token K_VAR K_VAR_COBJECT K_VAR_DARRAY
 %token K_VAR_QUEUE
-%token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U
+%token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_REF
 %token K_vpi_call K_vpi_call_w K_vpi_call_i
 %token K_vpi_func K_vpi_func_r K_vpi_func_s
 %token K_ivl_version K_ivl_delay_selection
@@ -782,6 +782,12 @@ statement
 
   | T_LABEL K_VAR_2U local_flag storage_flag T_STRING ',' signed_t_number signed_t_number ';'
       { compile_variable($1, $5, $7, $8, vpiIntVar, false, $3, $4); }
+
+  /* A `ref' subroutine formal (IEEE 1800-2017 13.5.2). It declares a
+     name, not storage: %ref/bind points it at the caller's variable
+     and every access is forwarded there. */
+  | T_LABEL K_REF local_flag T_STRING ',' signed_t_number signed_t_number ';'
+      { compile_ref_variable($1, $4, $6, $7, $3); }
 
   | T_LABEL K_VAR_R storage_flag T_STRING ',' signed_t_number signed_t_number ';'
       { compile_var_real($1, $4, $3); }

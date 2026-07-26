@@ -326,6 +326,35 @@ void compile_variable(char*label, char*name,
 }
 
 
+void compile_ref_variable(char*label, char*name, int msb, int lsb,
+			  bool local_flag)
+{
+      unsigned wid = ((msb > lsb)? msb-lsb : lsb-msb) + 1;
+
+      vvp_net_t*net = new vvp_net_t;
+      vvp_ref_signal_aa*tmp = new vvp_ref_signal_aa(wid);
+      net->fil = tmp;
+      net->fun = tmp;
+
+      define_functor_symbol(label, net);
+
+	/* A ref formal has no storage of its own, so there is nothing to
+	   initialize and nothing a VPI handle could usefully report that
+	   the bound variable does not already report itself. It is still
+	   attached to the scope so that $display of the formal name and
+	   the automatic-context machinery both see a signal there. */
+      if (! local_flag && name) {
+	    vpiHandle obj = vpip_make_int2(name, msb, lsb, true, net);
+	    if (obj) {
+		  compile_vpi_symbol(label, obj);
+		  vpip_attach_to_current_scope(obj);
+	    }
+      }
+
+      free(label);
+      delete[] name;
+}
+
 vvp_net_t* create_constant_node(const char*val_str)
 {
       if (c4string_test(val_str)) {
