@@ -8602,6 +8602,11 @@ expr_primary
 	if ($2->empty())
 	      pform_requires_sv(@1, "Empty function argument list");
 	FILE_NAME(tmp, @1);
+	  /* M9-SV: a sampled value function needs a clocking event to
+	     mean anything (16.9.3). Record it so the enclosing
+	     behavior can bind it to one. */
+	if (pform_is_sampled_value_function($1))
+	      pform_note_sampled_call(@1, tmp);
 	delete[]$1;
 	delete $2;
 	$$ = tmp;

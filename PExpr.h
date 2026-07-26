@@ -1100,7 +1100,19 @@ class PECallFunction : public PExpr {
       const std::vector<PExpr*>& with_constraints() const
             { return with_constraints_; }
 
+	// M9-SV: procedural sampled value functions (IEEE 1800-2017
+	// 16.9.3). $past/$rose/$fell/$stable/$changed are not ordinary
+	// system functions -- their value depends on a clocking event,
+	// not just on their arguments. When the parser binds one of
+	// these calls to a clock it synthesizes the sample and history
+	// registers and leaves here the expression that reads them;
+	// test_width and elaborate_expr then use that in place of the
+	// call, the same way a `let' expansion substitutes.
+      void set_sampled_subst(PExpr*e) { sampled_subst_ = e; }
+      PExpr* sampled_subst() const { return sampled_subst_; }
+
     private:
+      PExpr*sampled_subst_ = nullptr;
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;
       std::vector<PExpr*> with_constraints_;

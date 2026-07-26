@@ -811,6 +811,17 @@ extern void pform_timing_check_sorry(const struct vlltype&loc,
  * pform_make_behavior creates processes that are declared with always
  * or initial items.
  */
+/* M9-SV: procedural sampled value functions (IEEE 1800-2017 16.9.3).
+ * The parser records each $past/$rose/$fell/$stable/$changed call it
+ * builds; pform_make_behavior binds the ones written inside an
+ * edge-triggered always block to that block's clock, and whatever is
+ * still unbound when the module closes gets a diagnostic instead of a
+ * silent unsampled answer. */
+extern bool pform_is_sampled_value_function(const char*name);
+extern void pform_note_sampled_call(const struct vlltype&loc,
+				    class PECallFunction*cf);
+extern void pform_flush_pending_sampled_calls();
+
 extern PProcess*  pform_make_behavior(ivl_process_type_t, Statement*,
 				      std::list<named_pexpr_t>*attr);
 extern void pform_mc_translate_on(bool flag);

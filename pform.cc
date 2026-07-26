@@ -2031,6 +2031,10 @@ void pform_endmodule(const char*name, bool inside_celldefine,
       pform_cur_module.pop_front();
       perm_string mod_name = cur_module->mod_name();
 
+	/* M9-SV: any sampled value function still waiting for a clock
+	   never found one inside this module. */
+      pform_flush_pending_sampled_calls();
+
 	/* M9-10: an unclocked concurrent assertion that never found an
 	   enclosing procedural event control is an error, reported here so
 	   the whole module has been seen. */
@@ -4410,9 +4414,18 @@ vector<PWire*>* pform_make_udp_input_ports(list<pform_ident_t>*names)
       return out;
 }
 
+/* M9-SV: bind any sampled value function calls parsed inside this
+ * behavior to the block's own clocking event (IEEE 1800-2017 16.9.3,
+ * clock inference 16.14.6). Defined after the sampled-value rewrite it
+ * shares with the assertion engine. */
+static void pform_bind_procedural_sampled_(ivl_process_type_t type,
+					   Statement*st);
+
 PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 			      list<named_pexpr_t>*attr)
 {
+      pform_bind_procedural_sampled_(type, st);
+
 	// Add an implicit @* around the statement for the always_comb and
 	// always_latch statements.
       if ((type == IVL_PR_ALWAYS_COMB) || (type == IVL_PR_ALWAYS_LATCH)) {
@@ -5378,17 +5391,34 @@ static PExpr* sva_bit_(const struct vlltype&loc, int v)
 
 static perm_string sva_make_reg_(const struct vlltype&loc, unsigned inst,
 				 const char*what, unsigned idx,
-				 bool wide32 = false)
+				 bool wide = false, bool as_real = false)
 {
       char buf[64];
       snprintf(buf, sizeof buf, "_ivl_sva%u_%s%u", inst, what, idx);
       perm_string name = lex_strings.make(buf);
+      if (as_real) {
+	      /* A real sample keeps its fraction: an integral history
+		 would round it away with no diagnostic. */
+	    std::list<decl_assignment_t*>*decls = new std::list<decl_assignment_t*>;
+	    decl_assignment_t*decl = new decl_assignment_t;
+	    decl->name = pform_ident_t(name, loc.lexical_pos);
+	    decls->push_back(decl);
+	    real_type_t*rtype = new real_type_t(real_type_t::REAL);
+	    FILE_NAME(rtype, loc);
+	    pform_make_var(loc, decls, rtype, nullptr, false);
+	    return name;
+      }
       PWire*w = pform_makewire(loc, pform_ident_t(name, loc.lexical_pos),
 			       NetNet::REG, nullptr);
-      if (wide32 && w) {
+	/* A value-carrying sample register ($past history, a local
+	   variable capture) is 64 bits: wide enough for every integral
+	   type the LRM allows here, including longint and time. It used
+	   to be 32, which silently truncated the upper half of a wider
+	   $past. Boolean sample registers stay 1 bit. */
+      if (wide && w) {
 	    std::list<pform_range_t> range;
 	    pform_range_t r;
-	    r.first = new PENumber(new verinum((uint64_t)31, 32));
+	    r.first = new PENumber(new verinum((uint64_t)63, 32));
 	    r.second = new PENumber(new verinum((uint64_t)0, 32));
 	    range.push_back(r);
 	    w->set_range(range, SR_NET);
@@ -6178,6 +6208,10 @@ void pform_timing_check_sorry(const struct vlltype&loc,
    synthesized 1-cycle (or N-cycle) history registers. The argument
    is captured once at the top of the checker (pre) and shifted into
    the history at the bottom (post), so no subtree is shared. */
+/* M9-SV: forward declaration -- the rewrite below hands each call it
+   binds back to the procedural pending list so it is not bound twice. */
+static void sampled_pending_drop_(const PECallFunction*cf);
+
 static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				   unsigned inst, unsigned&hist_idx,
 				   std::vector<Statement*>&pre,
@@ -6187,6 +6221,12 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
       if (!e) return e;
 
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	      /* Already bound to a clock (an inner call of a nested
+		 sampled expression, bound on an earlier pass): reuse
+		 that substitution rather than building a second,
+		 identical history chain for the same call site. */
+	    if (PExpr*done = cf->sampled_subst())
+		  return done;
 	    if (cf->path().name.size() == 1 && !cf->path().package) {
 		  const char*nm = peek_tail_name(cf->path().name).str();
 		  bool is_rose = !strcmp(nm, "$rose");
@@ -6216,20 +6256,63 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			      depth = dn->value().as_long();
 			      if (depth < 1) depth = 1;
 			}
+			  /* $past(expr, n, GATING_EXPR): the history
+			     advances only on ticks where the gating
+			     expression is true (16.9.3). The argument was
+			     accepted and then ignored, so a gated $past
+			     silently read the ungated history. */
+			PExpr*gate = nullptr;
+			if (is_past && parms.size() > 2 && parms[2].parm)
+			      gate = parms[2].parm;
+			if (!is_past && parms.size() > 1) {
+			      cerr << loc << ": sorry: a clocking-event "
+				   << "argument to " << nm << " is not "
+				   << "supported here; it is ignored and the "
+				   << "inferred clock is used." << endl;
+			}
+			if (is_past && parms.size() > 3 && parms[3].parm) {
+			      cerr << loc << ": sorry: an explicit "
+				   << "clocking-event argument to $past is "
+				   << "not supported here; it is ignored and "
+				   << "the inferred clock is used." << endl;
+			}
 			  /* $past must preserve the FULL value of its
 			     argument (a local-variable capture stores a
 			     data word, not a bit), so its sample/history
-			     registers are 32-bit; the boolean sampled
-			     functions ($rose/$fell/... ) stay 1-bit. */
+			     registers are 64-bit -- wide enough for every
+			     integral type; the boolean sampled functions
+			     ($rose/$fell/... ) stay 1-bit. */
 			bool wide = is_past;
+			  /* ...unless the argument is a real variable, in
+			     which case an integral history would round
+			     the fraction away silently. A REAL history
+			     keeps it. Decided from the declaration in
+			     scope, so it covers $past(r) -- the shape
+			     that matters; a real-valued EXPRESSION still
+			     lands in the integral chain. */
+			bool as_real = false;
+			if (is_past) {
+			      if (const PEIdent*aid =
+				  dynamic_cast<const PEIdent*>(parms[0].parm)) {
+				    if (aid->path().size() == 1) {
+					  PWire*w = pform_get_wire_in_scope(
+						aid->path().back().name);
+					  if (w && dynamic_cast<const real_type_t*>(
+						      w->data_type()))
+						as_real = true;
+				    }
+			      }
+			}
 			  /* Capture the argument now... */
-			perm_string cur = sva_make_reg_(loc, inst, "smp", hist_idx++, wide);
+			perm_string cur = sva_make_reg_(loc, inst, "smp", hist_idx++,
+							wide, as_real);
 			pre.push_back(sva_assign_(loc, cur, arg));
 			  /* ...and build the history chain, updated
 			     bottom-of-block in shift order. */
 			std::vector<perm_string> hist (depth);
 			for (long k = 0 ; k < depth ; k += 1) {
-			      hist[k] = sva_make_reg_(loc, inst, "hist", hist_idx++, wide);
+			      hist[k] = sva_make_reg_(loc, inst, "hist", hist_idx++,
+						      wide, as_real);
 				/* Deterministic first-cycle behavior:
 				   histories start at 0, so $stable
 				   compares against 0 rather than the
@@ -6237,11 +6320,31 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			      init.push_back(sva_assign_(loc, hist[k],
 							 sva_bit_(loc, 0)));
 			}
+			std::vector<Statement*> shift;
 			for (long k = depth-1 ; k >= 1 ; k -= 1)
-			      post.push_back(sva_assign_(loc, hist[k],
-							 sva_id_(loc, hist[k-1])));
-			post.push_back(sva_assign_(loc, hist[0], sva_id_(loc, cur)));
+			      shift.push_back(sva_assign_(loc, hist[k],
+							  sva_id_(loc, hist[k-1])));
+			shift.push_back(sva_assign_(loc, hist[0], sva_id_(loc, cur)));
+			if (gate) {
+				/* Gated: both the capture and the shift
+				   happen only on enabled ticks, so the
+				   history holds the n-th ENABLED sample. */
+			      Statement*cap = pre.back();
+			      pre.pop_back();
+			      pre.push_back(sva_if_(loc, sva_clone_expr_(gate),
+						    cap, nullptr));
+			      post.push_back(sva_if_(loc, sva_clone_expr_(gate),
+						     sva_block_(loc, shift),
+						     nullptr));
+			} else {
+			      for (size_t k = 0 ; k < shift.size() ; k += 1)
+				    post.push_back(shift[k]);
+			}
 			perm_string old_reg = hist[depth-1];
+
+			  /* This call now has a clock; it is no longer
+			     waiting for one. */
+			sampled_pending_drop_(cf);
 
 			if (is_past)
 			      return sva_id_(loc, old_reg);
@@ -6311,6 +6414,183 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 	    return cp;
       }
       return e;
+}
+
+/*
+ * M9-SV: PROCEDURAL sampled value functions (IEEE 1800-2017 16.9.3).
+ *
+ * $past / $rose / $fell / $stable / $changed have a value only with
+ * respect to a clocking event. Inside a concurrent assertion the SVA
+ * lowering supplies that clock and rewrites them (sva_rewrite_sampled_
+ * above). Everywhere else they used to be plain system-function calls
+ * served by compile-progress VPI stubs that returned
+ *
+ *      $past(e)   -> e     (the CURRENT value)
+ *      $rose(e)   -> 0
+ *      $fell(e)   -> 0
+ *      $stable(e) -> 1
+ *
+ * with no diagnostic -- so
+ *
+ *      always @(posedge clk) if ($rose(req)) ...
+ *
+ * silently never fired, and $past(d) silently read d itself. The
+ * number-of-ticks argument was ignored too, and the boolean functions
+ * came back 32 bits wide instead of 1.
+ *
+ * A sampled call is parsed into a pending list. When a behavior closes,
+ * every pending call written inside it is bound to that block's own
+ * clocking event (16.14.6 clock inference) by reusing the exact
+ * rewrite the assertion engine uses: a per-call sample register plus a
+ * history chain, with the capture spliced in at the TOP of the block
+ * and the shift at the BOTTOM. Both halves run in the block itself, so
+ * there is no cross-process race to reason about -- a reader in the
+ * body sees the sample taken at the previous tick, which is what
+ * $past(e, 1) means.
+ */
+struct sampled_pending_t {
+      PECallFunction*call;
+      struct vlltype loc;
+};
+static std::vector<sampled_pending_t> sampled_pending_;
+
+bool pform_is_sampled_value_function(const char*name)
+{
+      if (!name) return false;
+      return !strcmp(name, "$past")   || !strcmp(name, "$rose")
+	  || !strcmp(name, "$fell")   || !strcmp(name, "$stable")
+	  || !strcmp(name, "$changed");
+}
+
+void pform_note_sampled_call(const struct vlltype&loc, PECallFunction*cf)
+{
+      sampled_pending_t p;
+      p.call = cf;
+      p.loc = loc;
+      sampled_pending_.push_back(p);
+}
+
+/* The assertion engine consumed this call itself: drop it so the
+   procedural binder does not build a second, dead history chain for
+   it (and does not report it as unclocked). */
+static void sampled_pending_drop_(const PECallFunction*cf)
+{
+      for (size_t i = 0 ; i < sampled_pending_.size() ; i += 1) {
+	    if (sampled_pending_[i].call == cf) {
+		  sampled_pending_.erase(sampled_pending_.begin() + i);
+		  return;
+	    }
+      }
+}
+
+/* Is this behavior clocked by a single edge, and if so which event
+   statement carries it? Only an edge qualifies: 16.14.6 infers the
+   clock from an edge-sensitive event control, and a level-sensitive
+   or @* block has no tick to sample on. */
+static PEventStatement* sampled_clock_event_(ivl_process_type_t type,
+					     Statement*st)
+{
+      if (type != IVL_PR_ALWAYS && type != IVL_PR_ALWAYS_FF)
+	    return nullptr;
+      PEventStatement*ev = dynamic_cast<PEventStatement*>(st);
+      if (!ev) return nullptr;
+      const std::vector<PEEvent*>&evs = ev->event_expressions();
+      if (evs.empty()) return nullptr;
+      for (size_t i = 0 ; i < evs.size() ; i += 1) {
+	    if (!evs[i]) return nullptr;
+	    PEEvent::edge_t k = evs[i]->type();
+	    if (k != PEEvent::POSEDGE && k != PEEvent::NEGEDGE
+		&& k != PEEvent::EDGE)
+		  return nullptr;
+      }
+      return ev;
+}
+
+static void pform_bind_procedural_sampled_(ivl_process_type_t type,
+					   Statement*st)
+{
+      if (sampled_pending_.empty() || !st)
+	    return;
+
+      PEventStatement*ev = sampled_clock_event_(type, st);
+      if (!ev)
+	    return;
+
+	/* Only calls written INSIDE this block: the pending list can
+	   still hold calls from an earlier construct in the same module
+	   (an initial block, a task body), and those must not be
+	   captured by whatever clocked block happens to come next. The
+	   event control opens the block, so anything at or after its
+	   line and in the same file is inside it. */
+      const char*evfile = ev->get_file() ? ev->get_file().str() : nullptr;
+      unsigned evline = ev->get_lineno();
+
+      std::vector<sampled_pending_t> mine;
+      std::vector<sampled_pending_t> rest;
+      for (size_t i = 0 ; i < sampled_pending_.size() ; i += 1) {
+	    const sampled_pending_t&p = sampled_pending_[i];
+	    const char*pfile = p.call->get_file() ? p.call->get_file().str()
+					          : nullptr;
+	    bool inside = evfile && pfile && !strcmp(evfile, pfile)
+			  && p.call->get_lineno() >= evline;
+	    if (inside) mine.push_back(p);
+	    else rest.push_back(p);
+      }
+      sampled_pending_ = rest;
+      if (mine.empty())
+	    return;
+
+      unsigned inst = sva_gensym_counter++;
+      unsigned hist_idx = 0;
+      std::vector<Statement*> pre, post, init;
+
+      for (size_t i = 0 ; i < mine.size() ; i += 1) {
+	    PECallFunction*cf = mine[i].call;
+	    if (cf->sampled_subst())
+		  continue;               // already bound (nested call)
+	    PExpr*sub = sva_rewrite_sampled_(mine[i].loc, cf, inst, hist_idx,
+					     pre, post, init);
+	    if (sub && sub != cf)
+		  cf->set_sampled_subst(sub);
+      }
+
+      if (pre.empty() && post.empty())
+	    return;
+
+      const struct vlltype&loc = mine[0].loc;
+
+	/* Splice the capture in ahead of the body and the history shift
+	   in behind it. */
+      std::vector<Statement*> seq;
+      for (size_t i = 0 ; i < pre.size() ; i += 1) seq.push_back(pre[i]);
+      if (Statement*body = ev->statement()) seq.push_back(body);
+      for (size_t i = 0 ; i < post.size() ; i += 1) seq.push_back(post[i]);
+      ev->set_statement(sva_block_(loc, seq));
+
+	/* Histories start at 0 so the first tick is deterministic. */
+      if (!init.empty()) {
+	    PProcess*ip = new PProcess(IVL_PR_INITIAL, sva_block_(loc, init));
+	    FILE_NAME(ip, loc);
+	    pform_put_behavior_in_scope(ip);
+      }
+}
+
+/* Anything still pending when a module closes was written where no
+   clocking event could be inferred. Say so rather than letting the
+   VPI stub answer with the current value. */
+void pform_flush_pending_sampled_calls()
+{
+      for (size_t i = 0 ; i < sampled_pending_.size() ; i += 1) {
+	    const sampled_pending_t&p = sampled_pending_[i];
+	    cerr << p.call->get_fileline() << ": warning: this sampled value "
+		 << "function has no clocking event to sample on (IEEE "
+		 << "1800-2017 16.9.3): it is not inside a concurrent "
+		 << "assertion and not inside an edge-triggered always "
+		 << "block. It falls back to the unsampled value -- $past "
+		 << "returns the current value and $rose/$fell return 0."
+		 << endl;
+      }
+      sampled_pending_.clear();
 }
 
 /* Substitute named sequence references: a step whose expression is a

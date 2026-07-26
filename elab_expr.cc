@@ -5139,6 +5139,19 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 	    return expr_width_;
       }
 
+	// M9-SV: a sampled value function bound to a clocking event
+	// reads the synthesized history registers (16.9.3). Its width
+	// and type are the substitution's, not the call's -- $rose and
+	// friends become a 1-bit boolean, not the 32-bit integer a
+	// system function call would default to.
+      if (sampled_subst_) {
+	    expr_width_ = sampled_subst_->test_width(des, scope, mode);
+	    expr_type_ = sampled_subst_->expr_type();
+	    min_width_ = expr_width_;
+	    signed_flag_ = sampled_subst_->has_sign();
+	    return expr_width_;
+      }
+
 	// M13: a call that names a let in scope is a macro expansion.
       if (PExpr*sub = let_substitution_(des, scope)) {
 	    if (let_expand_depth_ >= LET_EXPAND_DEPTH_MAX) {
@@ -7926,6 +7939,11 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 	    cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 		 << "expr_wid: " << expr_wid << endl;
       }
+
+	// M9-SV: a sampled value function bound to a clocking event
+	// reads the synthesized history registers instead (16.9.3).
+      if (sampled_subst_)
+	    return sampled_subst_->elaborate_expr(des, scope, expr_wid, flags);
 
 	// M13: expand let uses by substitution.
       if (PExpr*sub = let_substitution_(des, scope)) {

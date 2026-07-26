@@ -602,6 +602,10 @@ class PEventStatement  : public Statement {
       ~PEventStatement() override;
 
       void set_statement(Statement*st);
+	// The statement the event control guards, so a caller that
+	// synthesizes extra work around it (M9-SV sampled value
+	// capture) can wrap what is already there.
+      Statement* statement() const { return statement_; }
 
       virtual void dump(std::ostream&out, unsigned ind) const override;
 	// Call this with a NULL statement only. It is used to print
