@@ -127,6 +127,21 @@ extern vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx);
 extern vvp_context_item_t vthread_get_rd_context_item(unsigned context_idx);
 extern vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx,
                                                              __vpiScope*scope);
+
+/*
+ * Saved thread context around one delegated access through a `ref'
+ * formal. See vthread_push_ref_context() in vthread.cc.
+ */
+struct vthread_ref_ctx_save {
+      vvp_context_t rd;
+      vvp_context_t wt;
+      vvp_context_t staged_rd;
+      __vpiScope*staged_rd_scope;
+      bool engaged;
+};
+extern void vthread_push_ref_context(vvp_context_t ctx,
+                                     struct vthread_ref_ctx_save*save);
+extern void vthread_pop_ref_context(const struct vthread_ref_ctx_save*save);
 extern vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
                                                        __vpiScope*scope);
 

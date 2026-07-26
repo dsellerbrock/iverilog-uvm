@@ -605,6 +605,285 @@ void vvp_fun_signal4_aa::operator delete(void*)
 }
 
 /*
+ * A `ref' formal (IEEE 1800-2017 13.5.2). See vvp_net_sig.h.
+ */
+namespace {
+struct ref_aa_slot {
+      static const unsigned MAGIC = 0x52454621u; // "REF!"
+      unsigned magic;
+      vvp_net_t*target;
+      vvp_context_t caller_ctx;
+
+      ref_aa_slot() : magic(MAGIC), target(0), caller_ctx(0) { }
+};
+
+static ref_aa_slot* ref_aa_slot_from_raw(void*raw)
+{
+      ref_aa_slot*slot = static_cast<ref_aa_slot*>(raw);
+      if (!(slot && slot->magic == ref_aa_slot::MAGIC))
+            return 0;
+      return slot;
+}
+}
+
+  /* Resolve this frame's binding. Reads and writes both use the READ
+     context: %ref/bind runs between the callee's %alloc and its %fork,
+     where the write context is already the callee's frame, but by the
+     time the body executes both point at that same frame. */
+static ref_aa_slot* ref_slot_(unsigned context_idx, __vpiScope*scope)
+{
+      return ref_aa_slot_from_raw(
+            vthread_get_rd_context_item_scoped(context_idx, scope));
+}
+
+vvp_ref_signal_aa::vvp_ref_signal_aa(unsigned wid)
+{
+      context_scope_ = vpip_peek_context_scope();
+      context_idx_ = vpip_add_item_to_context(this, context_scope_);
+      size_ = wid;
+}
+
+vvp_ref_signal_aa::~vvp_ref_signal_aa()
+{
+      assert(0);
+}
+
+void vvp_ref_signal_aa::operator delete(void*)
+{
+      assert(0);
+}
+
+void vvp_ref_signal_aa::alloc_instance(vvp_context_t context)
+{
+      vvp_set_context_item(context, context_idx_, new ref_aa_slot);
+}
+
+void vvp_ref_signal_aa::reset_instance(vvp_context_t context)
+{
+      ref_aa_slot*slot =
+            ref_aa_slot_from_raw(vvp_get_context_item(context, context_idx_));
+      if (!slot) {
+            slot = new ref_aa_slot;
+            vvp_set_context_item(context, context_idx_, slot);
+            return;
+      }
+      slot->target = 0;
+      slot->caller_ctx = 0;
+}
+
+#ifdef CHECK_WITH_VALGRIND
+void vvp_ref_signal_aa::free_instance(vvp_context_t context)
+{
+      ref_aa_slot*slot =
+            ref_aa_slot_from_raw(vvp_get_context_item(context, context_idx_));
+      delete slot;
+}
+#endif
+
+void vvp_ref_signal_aa::bind(vvp_net_t*net, bool in_frame)
+{
+      vvp_context_t frame = vthread_get_wt_context();
+      if (!frame) return;
+
+      ref_aa_slot*slot =
+            ref_aa_slot_from_raw(vvp_get_context_item(frame, context_idx_));
+      if (!slot) {
+            slot = new ref_aa_slot;
+            vvp_set_context_item(frame, context_idx_, slot);
+      }
+
+	/* A ref actual that is itself a ref formal binds through to what
+	   THAT frame names, so a chain of ref arguments still ends at the
+	   one real variable. Resolving here rather than at every access
+	   also keeps the caller's frame out of the recorded binding. */
+      vvp_ref_signal_aa*chain = net ? dynamic_cast<vvp_ref_signal_aa*>(net->fil) : 0;
+      if (chain) {
+            ref_aa_slot*outer = ref_slot_(chain->context_idx_, chain->context_scope_);
+            if (outer) {
+                  slot->target = outer->target;
+                  slot->caller_ctx = outer->caller_ctx;
+                  return;
+            }
+      }
+
+      slot->target = net;
+      slot->caller_ctx = in_frame ? frame : vthread_get_rd_context();
+}
+
+bool vvp_ref_signal_aa::read_binding(vvp_net_t*&tgt, vvp_context_t&ctx) const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (!slot || !slot->target) return false;
+
+      tgt = slot->target;
+      ctx = slot->caller_ctx;
+      return true;
+}
+
+void vvp_ref_signal_aa::write_binding(vvp_context_t frame, vvp_net_t*tgt,
+                                      vvp_context_t ctx)
+{
+      if (!frame) return;
+
+      ref_aa_slot*slot =
+            ref_aa_slot_from_raw(vvp_get_context_item(frame, context_idx_));
+      if (!slot) {
+            slot = new ref_aa_slot;
+            vvp_set_context_item(frame, context_idx_, slot);
+      }
+      slot->target = tgt;
+      slot->caller_ctx = ctx;
+}
+
+vvp_net_t*vvp_ref_signal_aa::target() const
+{
+      ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      return slot ? slot->target : 0;
+}
+
+  /* One delegated access: put the caller's frame back for the duration
+     so that a caller-local automatic actual resolves against the frame
+     it actually lives in. */
+namespace {
+class ref_delegate_ {
+    public:
+      explicit ref_delegate_(const ref_aa_slot*slot)
+      {
+            vthread_push_ref_context(slot ? slot->caller_ctx : 0, &save_);
+      }
+      ~ref_delegate_() { vthread_pop_ref_context(&save_); }
+    private:
+      struct vthread_ref_ctx_save save_;
+};
+}
+
+void vvp_ref_signal_aa::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
+                                  vvp_context_t)
+{
+      ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (!slot || !slot->target) return;
+
+      ref_delegate_ hold (slot);
+      vvp_send_vec4(vvp_net_ptr_t(slot->target, 0), bit,
+                    vthread_get_wt_context());
+}
+
+void vvp_ref_signal_aa::recv_vec4_pv(vvp_net_ptr_t, const vvp_vector4_t&bit,
+                                     unsigned base, unsigned vwid, vvp_context_t)
+{
+      ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (!slot || !slot->target) return;
+
+      ref_delegate_ hold (slot);
+      vvp_send_vec4_pv(vvp_net_ptr_t(slot->target, 0), bit, base, vwid,
+                       vthread_get_wt_context());
+}
+
+void vvp_ref_signal_aa::recv_real(vvp_net_ptr_t, double bit, vvp_context_t)
+{
+      ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (!slot || !slot->target) return;
+
+      ref_delegate_ hold (slot);
+      vvp_send_real(vvp_net_ptr_t(slot->target, 0), bit,
+                    vthread_get_wt_context());
+}
+
+void vvp_ref_signal_aa::recv_string(vvp_net_ptr_t, const std::string&bit,
+                                    vvp_context_t)
+{
+      ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (!slot || !slot->target) return;
+
+      ref_delegate_ hold (slot);
+      vvp_send_string(vvp_net_ptr_t(slot->target, 0), bit,
+                      vthread_get_wt_context());
+}
+
+void vvp_ref_signal_aa::recv_object(vvp_net_ptr_t, vvp_object_t bit,
+                                    vvp_context_t)
+{
+      ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (!slot || !slot->target) return;
+
+      ref_delegate_ hold (slot);
+      vvp_send_object(vvp_net_ptr_t(slot->target, 0), bit,
+                      vthread_get_wt_context());
+}
+
+  /* Reads. An unbound formal cannot answer, so it reports the width it
+     was declared with and an all-x value -- the same thing an
+     unallocated automatic reports. */
+static vvp_signal_value* ref_read_target_(const ref_aa_slot*slot)
+{
+      if (!slot || !slot->target) return 0;
+      return dynamic_cast<vvp_signal_value*> (slot->target->fil);
+}
+
+unsigned vvp_ref_signal_aa::value_size() const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      vvp_signal_value*sig = ref_read_target_(slot);
+      if (!sig) return size_;
+
+      ref_delegate_ hold (slot);
+      return sig->value_size();
+}
+
+vvp_bit4_t vvp_ref_signal_aa::value(unsigned idx) const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      vvp_signal_value*sig = ref_read_target_(slot);
+      if (!sig) return BIT4_X;
+
+      ref_delegate_ hold (slot);
+      return sig->value(idx);
+}
+
+vvp_scalar_t vvp_ref_signal_aa::scalar_value(unsigned idx) const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      vvp_signal_value*sig = ref_read_target_(slot);
+      if (!sig) return vvp_scalar_t();
+
+      ref_delegate_ hold (slot);
+      return sig->scalar_value(idx);
+}
+
+void vvp_ref_signal_aa::vec4_value(vvp_vector4_t&val) const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      vvp_signal_value*sig = ref_read_target_(slot);
+      if (!sig) {
+            val = vvp_vector4_t(size_, BIT4_X);
+            return;
+      }
+
+      ref_delegate_ hold (slot);
+      sig->vec4_value(val);
+}
+
+double vvp_ref_signal_aa::real_value() const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      vvp_signal_value*sig = ref_read_target_(slot);
+      if (!sig) return 0.0;
+
+      ref_delegate_ hold (slot);
+      return sig->real_value();
+}
+
+void vvp_ref_signal_aa::get_signal_value(struct t_vpi_value*vp)
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      vvp_signal_value*sig = ref_read_target_(slot);
+      if (!sig) return;
+
+      ref_delegate_ hold (slot);
+      sig->get_signal_value(vp);
+}
+
+/*
  * Testing for equality, we want a bitwise test instead of an
  * arithmetic test because we want to treat for example -0 different
  * from +0.

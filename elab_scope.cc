@@ -3159,6 +3159,32 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 		       << "Elaborate block scope " << use_name
 		       << " within " << scope_path(scope) << endl;
 
+	      /* A named block scope is elaborated ONCE per parent scope.
+		 Some paths reach the same body twice -- a class
+		 constructor at $unit scope is one -- and building a
+		 second NetScope for the same name under the same parent
+		 orphans the first: the signature pass declares the
+		 block's locals into the scope it saw, and the body is
+		 then elaborated against the newer, EMPTY one. That is
+		 how `foreach' over a runtime-sized array inside such a
+		 constructor reached elaborate_runtime_array_ with no
+		 loop-variable signal and aborted the compiler
+		 (elaborate.cc, assert idx_sig).
+
+		 Two blocks of the same name cannot legitimately share a
+		 parent -- unnamed blocks get generated unique names, and
+		 separate module instances or generate iterations have
+		 separate parent scopes -- so an existing child of this
+		 name IS this block, and is reused. Its parameters,
+		 signals, events and enums were collected on the first
+		 pass; redoing them would duplicate the declarations. */
+	    if (NetScope*prior = scope->child(use_name)) {
+		  my_scope = prior;
+		  for (unsigned idx = 0 ; idx < list_.size() ; idx += 1)
+			list_[idx] -> elaborate_scope(des, my_scope);
+		  return;
+	    }
+
 	      // The scope type is begin-end or fork-join. The
 	      // sub-types of fork-join are not interesting to the scope.
 	    my_scope = new NetScope(scope, use_name, bl_type_!=BL_SEQ

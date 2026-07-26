@@ -60,6 +60,15 @@
 # include  "ivl_assert.h"
 # include "map_named_args.h"
 
+/* In-line random variable control (IEEE 1800-2017 18.11). Defined in
+ * elab_expr.cc next to the other randomize() lowering; shared here so
+ * the statement form `void'(obj.randomize(b))' narrows the random set
+ * the same way the expression form does. */
+extern std::string randomize_arg_selector(
+      const std::vector<named_pexpr_t>&parms,
+      const netclass_t*class_type,
+      const LineInfo*loc);
+
 using namespace std;
 
 static bool elaboration_perf_trace_enabled_()
@@ -6301,6 +6310,53 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
  *    y = b;
  *  end
  */
+/*
+ * M10-6: an OUTPUT open-array formal of a DPI import still has to be
+ * copied IN.
+ *
+ * For an ordinary SystemVerilog subroutine an output argument is
+ * write-only: 13.5.2 copies it out at return and the formal starts
+ * uninitialized, so skipping the copy-in is right. A DPI open array is
+ * not that. IEEE 1800-2017 35.5.6.1 and H.10.2 say the ACTUAL argument
+ * determines the open array's shape, and the C side reads that shape
+ * back through svSize/svLow/svHigh/svGetArrElemPtr before it writes any
+ * element. Only the element VALUES are outputs; the array itself has to
+ * arrive.
+ *
+ * Skipping the copy-in handed C an unallocated formal, so
+ *
+ *     import "DPI-C" function void c_fill(output int a[]);
+ *     dyn = new[4];  c_fill(dyn);
+ *
+ * reported size=0, low=-1, high=0 -- a degenerate range that makes the
+ * natural `for (i = svLow; i <= svHigh; i++)' loop run twice out of
+ * bounds -- svGetArrElemPtr returned NULL for every index, and on
+ * return the empty formal was copied back OVER the actual, leaving
+ * dyn.size() == 0. The caller's array was destroyed, with no
+ * diagnostic and a clean exit.
+ *
+ * Restricted to DPI imports so ordinary SV output arguments keep their
+ * 13.5.2 semantics, and to open-array (dynamic array / queue) formals,
+ * which are the only ones whose shape the callee must be able to read.
+ */
+static bool dpi_open_array_formal_needs_copy_in_(const NetScope*task,
+						 const NetNet*port)
+{
+      if (!task || !port)
+	    return false;
+
+      bool is_dpi = false;
+      if (task->type() == NetScope::FUNC && task->func_pform())
+	    is_dpi = task->func_pform()->is_dpi_import();
+      else if (task->type() == NetScope::TASK && task->task_pform())
+	    is_dpi = task->task_pform()->is_dpi_import();
+      if (!is_dpi)
+	    return false;
+
+      ivl_type_t pt = port->net_type();
+      return pt && (dynamic_cast<const netdarray_t*>(pt) != 0);
+}
+
 NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -7717,11 +7773,18 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    // both expression context (elab_expr.cc) and statement context
 	    // (void'(obj.randomize())) work correctly.
 	    if (method_name == perm_string::literal("randomize")) {
-		  static const std::vector<perm_string> no_parms;
+		    // The 18.11 argument selector rides on the system
+		    // function name, exactly as in expression context —
+		    // `void'(obj.randomize(b))' is the SAME call and has
+		    // to narrow the random set the same way.
+		  std::string rname = "$ivl_class_method$randomize";
+		  std::string rsel = randomize_arg_selector(parms_, class_type,
+							    this);
+		  if (rsel != "*") rname += "|" + rsel;
 		  return elaborate_method_func_(scope, obj_expr,
 					        &netvector_t::atom2s32,
 					        method_name,
-					        "$ivl_class_method$randomize");
+					        rname.c_str());
 	    }
 
 	    NetScope*task = class_type->resolve_method_call_scope(des, method_name);
@@ -8392,6 +8455,89 @@ NetProc* PCallTask::elaborate_void_function_(Design*des, NetScope*scope,
       return elaborate_build_call_(des, scope, dscope, 0);
 }
 
+/*
+ * Bind a `ref' formal to its actual (IEEE 1800-2017 13.5.2).
+ *
+ * A ref formal is not storage; it is another name for the caller's
+ * variable. Writes through it are visible to the caller at once rather
+ * than at return, and reads see whatever the caller has put there since
+ * the call. Copy-in/copy-out cannot express either -- it is
+ * observationally equivalent only for a subroutine that neither
+ * consumes time nor shares the variable with anything else, and for one
+ * that never returns it drops the argument entirely.
+ *
+ * The bind is a `$ivl_ref_bind' system task rather than a new statement
+ * kind so that targets which do not implement it are unaffected; the
+ * vvp target lowers it to %ref/bind.
+ *
+ * The formal's storage kind is fixed by its declaration, so a bound
+ * formal must be bound at EVERY call site -- an unbound one would read
+ * and write nothing at all. When the actual cannot be named directly
+ * (an array element, a class property, a part select) the bind targets
+ * a temporary and the caller copies the actual through it, which
+ * reproduces the old copy-in/copy-out for that one argument without
+ * changing what the formal is. That temporary comes back in *via, and
+ * the caller then emits its copy pair against it rather than against
+ * the port.
+ */
+NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
+					NetNet*port, PExpr*actual,
+					unsigned argno,
+					NetNet**via) const
+{
+      *via = 0;
+
+      if (actual == 0) {
+	    cerr << get_fileline() << ": error: "
+		 << "Missing argument " << (argno+1)
+		 << " of call to task: a `ref' formal has no default." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+      NetNet*sig = 0;
+      if (NetAssign_*lv = actual->elaborate_lval(des, scope, false, false)) {
+	      /* Only a whole variable can be named. Anything with a word
+		 index, a part select, a property or a slice designates
+		 storage inside a variable, which %ref/bind cannot
+		 address. */
+	    if (lv->word() == 0 && lv->get_base() == 0
+		&& lv->get_property_idx() < 0 && !lv->is_array_slice())
+		  sig = lv->sig();
+	    delete lv;
+      }
+
+      if (sig == 0) {
+	      /* Bind to a temporary of the formal's own type and let the
+		 caller copy the actual in and out through it. */
+	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+				    NetNet::REG, port->net_type());
+	    tmp->set_line(*this);
+	    tmp->local_flag(true);
+	    if (scope->is_auto())
+		  tmp->lifetime_override(IVL_VLT_AUTOMATIC);
+	    sig = tmp;
+	    *via = tmp;
+      }
+
+	/* An actual that is itself a ref formal is bound through at run
+	   time (see vvp_ref_signal_aa::bind), so a chain of ref
+	   arguments still ends at the one real variable. */
+      NetESignal*formal_e = new NetESignal(port);
+      formal_e->set_line(*this);
+      NetESignal*actual_e = new NetESignal(sig);
+      actual_e->set_line(*this);
+
+      vector<NetExpr*> argv(2);
+      argv[0] = formal_e;
+      argv[1] = actual_e;
+
+      NetSTask*bind = new NetSTask("$ivl_ref_bind",
+				   IVL_SFUNC_AS_TASK_IGNORE, argv);
+      bind->set_line(*this);
+      return bind;
+}
+
 NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 					  NetScope*task, NetExpr*use_this,
 					  bool super_call) const
@@ -8511,6 +8657,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
       }
 
 	/* Detect the case where the definition of the task is known
+
 	   empty. In this case, we need not bother with calls to the
 	   task, all the assignments, etc. Just return a no-op. */
 
@@ -8581,15 +8728,41 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
       unsigned int off = use_this ? 1 : 0;
 
       auto args = map_named_args(des, def, parms_, off);
+	/* Where each argument's copy pair, if it still needs one, has to
+	   land. Null means the port itself, which is the ordinary case.
+	   A bound `ref' formal is never copied; a bound ref formal whose
+	   actual could not be named is copied through a temporary, and
+	   this records that temporary. */
+      vector<NetNet*> copy_via (parm_count, static_cast<NetNet*>(0));
+      vector<bool> ref_bound (parm_count, false);
       for (unsigned int idx = off; idx < parm_count; idx++) {
 	    size_t parms_idx = idx - off;
 
 	    NetNet*port = def->port(idx);
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
-	    if (port->port_type() == NetNet::POUTPUT)
+
+	      /* A `ref' formal is not a copy (IEEE 1800-2017 13.5.2): it
+		 is another name for the actual. Bind it here -- where
+		 the copy-in used to be, so the bind lands between the
+		 frame allocation and the call. */
+	    if (ref_formal_is_bound(port)) {
+		  NetNet*via = 0;
+		  NetProc*bind = elaborate_ref_bind_(des, scope, port,
+						     args[parms_idx], idx,
+						     &via);
+		  if (bind)
+			block->append(bind);
+		  copy_via[idx] = via;
+		  ref_bound[idx] = (via == 0);
+		  if (via == 0)
+			continue;
+	    }
+
+	    if (port->port_type() == NetNet::POUTPUT
+		&& !dpi_open_array_formal_needs_copy_in_(task, port))
 		  continue;
 
-	    NetAssign_*lv = new NetAssign_(port);
+	    NetAssign_*lv = new NetAssign_(copy_via[idx] ? copy_via[idx] : port);
 	    unsigned wid = count_lval_width(lv);
 	    ivl_variable_type_t lv_type = lv->expr_type();
 
@@ -8651,9 +8824,14 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 	    NetNet*port = def->port(idx);
 
-	      /* Skip input ports. */
+	      /* Skip input ports, and any ref port that was bound to its
+		 actual -- there is nothing to copy back, and a copy-back
+		 would clobber whatever the caller has written through
+		 the same name since the call. */
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
 	    if (port->port_type() == NetNet::PINPUT)
+		  continue;
+	    if (ref_bound[idx])
 		  continue;
 
 
@@ -8682,7 +8860,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    if (lv == 0)
 		  continue;
 
-	    NetExpr*rv = new NetESignal(port);
+	    NetExpr*rv = new NetESignal(copy_via[idx] ? copy_via[idx] : port);
 
 		  /* Handle any implicit cast. */
 			unsigned lv_width = count_lval_width(lv);
@@ -10884,6 +11062,17 @@ static NetExpr* elaborate_foreach_target_expr_(Design*des,
 NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 {
       if (foreach_target_is_non_simple_(array_path_)) {
+	      /* A hierarchical target may name an ordinary SIGNAL in
+		 another scope -- an array member of an interface
+		 instance is the common case. Resolve that first and
+		 iterate it exactly as a local array; only a path that
+		 does NOT resolve to a signal (a class property, a
+		 virtual-interface member) needs the expression route
+		 below, which cannot yield a whole unpacked array for a
+		 hierarchical name. */
+	    if (NetNet*hier_sig = des->find_signal(scope, array_path_))
+		  return elaborate_signal_array_(des, scope, hier_sig);
+
 	    ivl_type_t ptype = 0;
 	    NetExpr*array_expr = elaborate_foreach_target_expr_(
 		  des, *this, lexical_pos_, scope, array_path_, ptype);
@@ -11112,6 +11301,23 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 
       ivl_assert(*this, array_sig);
 
+      return elaborate_signal_array_(des, scope, array_sig);
+}
+
+/*
+ * Iterate a foreach target that resolved to a SIGNAL. Split out of
+ * PForeach::elaborate so a HIERARCHICAL target reaches it too: an array
+ * member of an interface instance, `foreach (sif.arr[i])', resolves to a
+ * signal in the instance's scope, and there is no reason for it to take a
+ * different route from a plain local array. It used to be routed through
+ * the expression path instead, which cannot produce a whole unpacked
+ * array for a hierarchical name -- so it failed with "Array sif.arr needs
+ * an array index here", while `foreach (h.a[i])' over a class property
+ * and `foreach (vif.arr[i])' through a virtual interface both worked.
+ */
+NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
+					   NetNet*array_sig) const
+{
       if (const netqueue_t*aq = dynamic_cast<const netqueue_t*>(array_sig->net_type())) {
 	    if (aq->assoc_compat()) {
 		  NetESignal*array_expr = new NetESignal(array_sig);
@@ -13101,6 +13307,33 @@ struct dynforeach_emit_ctx_t {
 };
 static const dynforeach_emit_ctx_t*dynforeach_emit_ctx_ = nullptr;
 
+/* Can a STATE variable of this type take part in a constraint (IEEE
+ * 1800-2017 18.3)? The solver reads a state variable as the constant it
+ * holds at randomize() time, which it gets from the property's raw
+ * bits — so the type must have a bitvector image. A `rand` property of
+ * some other type is a separate question (the solver has always given
+ * those a 32-bit fallback); this gate only decides whether a NON-rand
+ * property is worth emitting instead of dropping the constraint item.
+ * `indexed` asks about the element type of an unpacked array, which is
+ * what an `arr[i]` reference resolves to. */
+static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
+{
+      if (!ptype) return false;
+      if (indexed) {
+	    const netuarray_t*ua = dynamic_cast<const netuarray_t*>(ptype);
+	    const netdarray_t*da = dynamic_cast<const netdarray_t*>(ptype);
+	    if (ua) ptype = ua->element_type();
+	    else if (da) ptype = da->element_type();
+	    else return false;
+	    if (!ptype) return false;
+      }
+      if (const netvector_t*nv = dynamic_cast<const netvector_t*>(ptype))
+	    return nv->packed_width() > 0;
+      if (const netenum_t*ne = dynamic_cast<const netenum_t*>(ptype))
+	    return ne->packed_width() > 0;
+      return false;
+}
+
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots,
@@ -13143,8 +13376,26 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    int idx = cls->property_idx_from_name(name);
 	    if (idx >= 0) {
 		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
-		  if (!q.test_rand()) return "";
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+		    // A property that is not `rand` is a STATE VARIABLE
+		    // (IEEE 1800-2017 18.3): it takes part in the
+		    // constraint at the value it holds when randomize()
+		    // is called. It is emitted as an ordinary solver
+		    // variable and PINNED to that value at solve time,
+		    // which is also how a rand_mode(0) property (18.8)
+		    // and a property left out of randomize(a, b) (18.11)
+		    // are handled — the set of variables a call actually
+		    // solves for is a runtime question, so the IR does
+		    // not try to answer it. Dropping these items instead
+		    // (what this used to do) silently WEAKENED every
+		    // constraint that mentioned a state variable.
+		    // The pin needs a real value, so a state variable
+		    // whose type has no bitvector image is still dropped
+		    // by the representability check below.
+		  if (!q.test_rand()
+		      && !constraint_state_prop_ok_(ptype,
+						    !id->path().back().index.empty()))
+			return "";
 
 		    // Indexed reference to a static-array rand property
 		    // (arr[i] in a foreach set): emit an element variable
@@ -13317,9 +13568,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		&& cpath.back().index.empty()
 		&& cpath.front().index.empty()) {
 		  perm_string aname = cpath.front().name;
+		    // A non-rand array's size is a state value (18.3):
+		    // emit the same size variable and let the solve pin
+		    // it. `x < buf.size()' is an ordinary constraint.
 		  int idx = cls->property_idx_from_name(aname);
-		  if (idx >= 0
-		      && cls->get_prop_qual((size_t)idx).test_rand()) {
+		  if (idx >= 0) {
 			ivl_type_t ptype = cls->get_prop_type((size_t)idx);
 			const netdarray_t*da =
 			      dynamic_cast<const netdarray_t*>(ptype);
@@ -13380,8 +13633,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	  dynamic_cast<const PEConstraintForeach*>(expr)) {
 	    if (cfe->loop_vars().size() != 1 || cfe->loop_vars()[0].nil())
 		  return "";
+	      // The iterated array may be a state variable (18.3): its
+	      // elements then read as the values it holds, which is how
+	      // `foreach (mask[i]) data[i] <= mask[i];' constrains a rand
+	      // array against a non-rand one.
 	    int idx = cls->property_idx_from_name(cfe->array_name());
-	    if (idx < 0 || !cls->get_prop_qual((size_t)idx).test_rand())
+	    if (idx < 0)
+		  return "";
+	    if (!cls->get_prop_qual((size_t)idx).test_rand()
+		&& !constraint_state_prop_ok_(cls->get_prop_type((size_t)idx), true))
 		  return "";
 	    const netuarray_t*ua =
 		  dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)idx));
@@ -13472,9 +13732,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (id && id->path().size() == 1
 		      && id->path().back().index.empty()) {
 			perm_string pname = id->path().back().name;
+			  // `x inside {tbl}' where tbl is a state array
+			  // (18.3): its elements are the set members, at
+			  // the values they hold now.
 			int pidx = cls->property_idx_from_name(pname);
 			if (pidx >= 0
-			    && cls->get_prop_qual((size_t)pidx).test_rand()) {
+			    && (cls->get_prop_qual((size_t)pidx).test_rand()
+				|| constraint_state_prop_ok_(
+				      cls->get_prop_type((size_t)pidx), true))) {
 			      const netuarray_t*ua =
 				    dynamic_cast<const netuarray_t*>(
 					  cls->get_prop_type((size_t)pidx));

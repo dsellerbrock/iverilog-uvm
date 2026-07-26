@@ -623,6 +623,28 @@ static inline int property_is_indexed_darray_expr_(ivl_expr_t expr)
       return prop_type && ivl_type_base(prop_type) == IVL_VT_DARRAY;
 }
 
+/* True when this property expression selects an ELEMENT of a container
+   property -- a dynamic array, a queue, or an associative array held in a
+   class property -- as opposed to naming the property slot itself (or a
+   slot of a fixed-size unpacked array property, where the index really is
+   a property-slot index).
+
+   The distinction matters wherever an opcode takes a property id plus an
+   index: for a container property the runtime holds ONE object in the
+   slot (the container), so a slot-indexed opcode reads the container
+   instead of the element -- silently, for index 0. */
+static inline int property_is_indexed_container_expr_(ivl_expr_t expr)
+{
+      if (!expr || ivl_expr_type(expr) != IVL_EX_PROPERTY)
+            return 0;
+      if (ivl_expr_oper1(expr) == 0)
+            return 0;
+
+      return property_is_indexed_darray_expr_(expr)
+          || property_is_indexed_queue_expr_(expr)
+          || property_is_assoc_indexed_expr_(expr);
+}
+
 static inline int same_property_receiver_path_(ivl_expr_t lhs, ivl_expr_t rhs)
 {
       if (lhs == rhs)

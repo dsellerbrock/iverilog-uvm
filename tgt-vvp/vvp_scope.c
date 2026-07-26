@@ -617,6 +617,27 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    return;
       }
 
+	/* A `ref' formal (IEEE 1800-2017 13.5.2) is a name, not storage:
+	   %ref/bind points it at the caller's variable and every access
+	   is forwarded there. The core only marks a port IVL_SIP_REF
+	   when it also emits the bind, so an unbound .ref cannot occur. */
+      if (ivl_signal_port(sig) == IVL_SIP_REF) {
+	    fprintf(vvp_out, "v%p_0 .ref %s\"%s\", %d %d;\n",
+		    sig, local_flag_str(sig),
+		    vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb);
+	      /* A companion word in the same frame, for a call whose
+		 actual cannot be named -- an array element, a class
+		 property, a part select. Such a call copies the actual
+		 into the companion, binds the formal to it, and copies
+		 it back, which is the copy-in/copy-out those shapes had
+		 before. It is per-frame like everything else here, so
+		 recursion and concurrent calls each get their own. */
+	    fprintf(vvp_out, "v%p_R .var/2s *%s\"%s$ref\", %d %d;\n",
+		    sig, storage_flag_str(sig),
+		    vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb);
+	    return;
+      }
+
       const char *datatype_flag = ivl_signal_integer(sig) ? "/i" :
 			       ivl_signal_signed(sig)? "/s" : "";
       const char *local_flag = local_flag_str(sig);

@@ -1,0 +1,6 @@
+ACTION at 5
+ACTION at 15
+FINISH at 25
+ACTION at 25
+ERROR: ./ivltests/sv_assert_reactive_drain.v:31: 
+       Time: 25  Scope: main

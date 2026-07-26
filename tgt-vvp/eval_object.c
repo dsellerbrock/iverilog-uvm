@@ -101,6 +101,20 @@ void darray_new(ivl_type_t element_type, unsigned size_reg)
 	    /* Expected compile-progress path: object-like and unresolved
 	       element types use object-array storage. */
 	    fprintf(vvp_out, "    %%new/darray %u, \"o\";\n", size_reg);
+	      /* An object-backed VALUE element (an unpacked struct) needs a
+		 live instance in every slot a member write addresses, and
+		 `new[]' leaves them nil. Attach a prototype so the runtime
+		 can materialize a nil element on first access -- the same
+		 service a signal-backed container gets from its functor's
+		 declared_type(), which a container held in a class property
+		 has no way to reach. Class HANDLE elements get no
+		 prototype: their nil elements must stay null. */
+	    if (type == IVL_VT_NO_TYPE && ivl_type_properties(element_type) > 0) {
+		  ensure_class_type_emitted(element_type);
+		  fprintf(vvp_out, "    %%new/cobj C%p; darray element prototype\n",
+			  element_type);
+		  fprintf(vvp_out, "    %%dar/elem/proto;\n");
+	    }
 	    break;
 
 	  default:

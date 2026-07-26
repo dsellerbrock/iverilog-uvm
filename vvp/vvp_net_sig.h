@@ -208,6 +208,89 @@ class vvp_fun_signal4_aa : public vvp_fun_signal_vec, public automatic_signal_ba
 	      vvp_bit4_t init_;
 };
 
+/*
+ * A `ref' subroutine formal (IEEE 1800-2017 13.5.2).
+ *
+ * A ref formal is not storage. It is another name for the caller's
+ * variable: a write through it is visible to the caller at once rather
+ * than at return, and a read through it sees whatever the caller has
+ * put there since the call. Copy-in/copy-out cannot express either --
+ * it is observationally equivalent only for a subroutine that neither
+ * consumes time nor shares the variable with anything else.
+ *
+ * So this functor holds no value at all. Each frame's context slot
+ * holds the net it was bound to by %ref/bind, plus the caller's context
+ * (a caller's own automatic variable resolves against the caller's
+ * frame, not the callee's), and every access is forwarded there.
+ *
+ * The delegate is reached through the same vvp_signal_value and
+ * vvp_net_fun_t interfaces the opcodes already use, so %load, %store
+ * and every part/word variant work unchanged.
+ */
+class vvp_ref_signal_aa : public vvp_net_fun_t,
+                          public automatic_signal_base,
+                          public automatic_hooks_s {
+
+    public:
+      explicit vvp_ref_signal_aa(unsigned wid);
+      ~vvp_ref_signal_aa() override;
+
+      void alloc_instance(vvp_context_t context) override;
+      void reset_instance(vvp_context_t context) override;
+#ifdef CHECK_WITH_VALGRIND
+      void free_instance(vvp_context_t context) override;
+#endif
+
+	// Point this frame's formal at a variable. Called by %ref/bind
+	// between the callee's %alloc and its call, so the write context
+	// is already the callee's frame while the read context is still
+	// the caller's. in_frame says which of the two the target lives
+	// in: an ordinary actual is the caller's, but an actual that
+	// could not be named is copied into a companion word in the
+	// callee's own frame and the formal is bound to that.
+      void bind(vvp_net_t*target, bool in_frame);
+
+	// vvp_net_fun_t: forward everything to the bound net.
+      void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
+                     vvp_context_t context) override;
+      void recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
+			unsigned base, unsigned vwid, vvp_context_t) override;
+      void recv_real(vvp_net_ptr_t port, double bit, vvp_context_t) override;
+      void recv_string(vvp_net_ptr_t port, const std::string&bit,
+                       vvp_context_t) override;
+      void recv_object(vvp_net_ptr_t port, vvp_object_t bit,
+                       vvp_context_t) override;
+
+	// vvp_signal_value: read through to the bound net.
+      unsigned   value_size() const override;
+      vvp_bit4_t value(unsigned idx) const override;
+      vvp_scalar_t scalar_value(unsigned idx) const override;
+      void vec4_value(vvp_vector4_t&) const override;
+      double real_value() const override;
+      void get_signal_value(struct t_vpi_value*vp) override;
+
+	// The net this frame is bound to, or nil if %ref/bind never ran
+	// (an unbound formal is a compiler defect, not a user error).
+      vvp_net_t*target() const;
+
+	// Move a binding between frames. A virtual method call allocates
+	// the OVERRIDE's frame and copies the base formals into it; a
+	// bound formal has no value to copy, so its binding is what has
+	// to travel or the override writes nowhere.
+      bool read_binding(vvp_net_t*&target, vvp_context_t&ctx) const;
+      void write_binding(vvp_context_t frame, vvp_net_t*target,
+                         vvp_context_t ctx);
+
+    public: // These objects are only permallocated.
+      static void* operator new(std::size_t size) { return vvp_net_fun_t::heap_.alloc(size); }
+      static void operator delete(void*obj);
+
+    private:
+      __vpiScope*context_scope_;
+      unsigned context_idx_;
+      unsigned size_;
+};
+
 class vvp_fun_signal_real : public vvp_fun_signal_base {
 
     public:

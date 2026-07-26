@@ -1,0 +1,3 @@
+compatible task-form cast: id=3
+./ivltests/sv_cast_task_failure.v:41: error: $cast failed: the source object is not assignment compatible with the destination type (IEEE 1800-2017 6.24.2). The destination is unchanged.
+after the failed cast: o.id=3

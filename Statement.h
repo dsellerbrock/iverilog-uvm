@@ -166,6 +166,11 @@ class PAssign  : public PAssign_ {
       explicit PAssign(PExpr*lval, PExpr*ex, bool is_constant, bool is_init);
       ~PAssign() override;
 
+	// The compressed-assignment operator ('+' for `x += e'), or 0
+	// for a plain assignment. Read by the assertion lowering, which
+	// has to reproduce a user action block at two sites.
+      char op() const { return op_; }
+
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
 
@@ -222,6 +227,10 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       void set_join_type(BL_TYPE);
 
       void set_statement(const std::vector<Statement*>&st);
+
+	// Read by the assertion lowering, which has to reproduce a user
+	// action block at two sites.
+      const std::vector<Statement*>& statements() const { return list_; }
 
 	// Copy the statement from that block to the front of this
 	// block.
@@ -296,6 +305,12 @@ class PCallTask  : public Statement {
       NetProc*elaborate_build_call_(Design*des, NetScope*scope,
 				    NetScope*task, NetExpr*use_this,
 				    bool super_call = false) const;
+	// Bind a `ref' formal to its actual (IEEE 1800-2017 13.5.2).
+	// Sets *via to a temporary when the actual could not be named
+	// directly, in which case the caller copies through it.
+      NetProc*elaborate_ref_bind_(Design*des, NetScope*scope,
+				  NetNet*port, PExpr*actual,
+				  unsigned argno, NetNet**via) const;
       NetProc*elaborate_sys_task_method_(Design*des, NetScope*scope,
 					 NetExpr*obj,
 					 ivl_type_t obj_type,
@@ -464,6 +479,12 @@ class PCondit  : public Statement {
       PCondit(PExpr*ex, Statement*i, Statement*e);
       ~PCondit() override;
 
+	// Read by the assertion lowering, which has to reproduce a user
+	// action block at two sites.
+      PExpr* cond_expr() const { return expr_; }
+      Statement* if_clause() const { return if_; }
+      Statement* else_clause() const { return else_; }
+
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
@@ -602,6 +623,10 @@ class PEventStatement  : public Statement {
       ~PEventStatement() override;
 
       void set_statement(Statement*st);
+	// The statement the event control guards, so a caller that
+	// synthesizes extra work around it (M9-SV sampled value
+	// capture) can wrap what is already there.
+      Statement* statement() const { return statement_; }
 
       virtual void dump(std::ostream&out, unsigned ind) const override;
 	// Call this with a NULL statement only. It is used to print
@@ -666,6 +691,12 @@ class PForeach : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+	// Iterate a target that resolved to a SIGNAL (a net or variable),
+	// whatever the path shape was. A hierarchical target -- an array
+	// member of an interface INSTANCE, `foreach (sif.arr[i])' -- lands
+	// here too, so it takes the same route as a plain local array.
+      NetProc* elaborate_signal_array_(Design*des, NetScope*scope,
+				       NetNet*array_sig) const;
       NetProc* elaborate_assoc_array_(Design*des, NetScope*scope,
 				      NetExpr*array_expr,
 				      size_t index_var_start) const;

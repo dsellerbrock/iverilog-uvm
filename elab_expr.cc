@@ -60,9 +60,67 @@ extern string pexpr_to_constraint_ir(const PExpr*expr,
 				     const NetScope*scope = nullptr,
 				     const std::map<perm_string,uint64_t>*loop_env = nullptr);
 
+/* In-line random variable control (IEEE 1800-2017 18.11). Turn the
+ * ARGUMENT list of obj.randomize(...) into the selector the %rand/active
+ * opcode takes:
+ *
+ *   "*"     no argument list — the object's own declarations and
+ *           rand_mode() state decide (18.3, 18.8);
+ *   ""      randomize(null) — a constraint check that randomizes
+ *           nothing and calls neither pre_ nor post_randomize;
+ *   "3,7"   the property ids of the listed variables, which become
+ *           this call's ONLY random variables. Everything else the
+ *           object holds is a state variable for the call, and a
+ *           listed variable is random even if it was not declared
+ *           `rand'.
+ *
+ * The argument list used to be dropped on the floor, so randomize(b)
+ * randomized the whole object and randomize(null) mutated it.
+ */
+string randomize_arg_selector(const std::vector<named_pexpr_t>&parms,
+			      const netclass_t*class_type,
+			      const LineInfo*loc)
+{
+      bool any = false;
+      for (size_t i = 0 ; i < parms.size() ; i += 1)
+	    if (parms[i].parm) any = true;
+      if (!any || !class_type) return "*";
+
+      if (parms.size() == 1 && dynamic_cast<const PENull*>(parms[0].parm))
+	    return "";
+
+      string sel;
+      for (size_t i = 0 ; i < parms.size() ; i += 1) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(parms[i].parm);
+	    int pid = -1;
+	    if (id && id->path().size() == 1
+		&& id->path().back().index.empty())
+		  pid = class_type->property_idx_from_name(
+			      id->path().back().name);
+	    if (pid < 0) {
+		  cerr << loc->get_fileline() << ": sorry: every argument of "
+		       << "randomize() must name a property of the object "
+		       << "(IEEE 1800-2017 18.11). The argument list is "
+		       << "ignored, so every rand property is randomized."
+		       << endl;
+		  return "*";
+	    }
+	    if (!sel.empty()) sel += ",";
+	    sel += to_string(pid);
+      }
+      return sel;
+}
+
+static string randomize_sel_(const PECallFunction*call,
+			     const netclass_t*class_type)
+{
+      return randomize_arg_selector(call->get_parms(), class_type, call);
+}
+
 /* Build a NetESFunc for randomize() with inline with-constraints.
- * The mangled function name encodes the N_vals count and IR string so
- * tgt-vvp can emit the correct %randomize/with instruction.
+ * The mangled function name encodes the N_vals count, the 18.11
+ * argument selector and the IR string so tgt-vvp can emit the correct
+ * %randomize/with instruction.
  * parms: [0]=object, [1..N_vals]=runtime slot values. */
 static NetESFunc* make_randomize_with_expr(
       const PECallFunction*call,
@@ -82,9 +140,14 @@ static NetESFunc* make_randomize_with_expr(
       }
 
       unsigned n_vals = (unsigned)value_slots.size();
-      // Encode as "$ivl_class_method$randomize_with|N_vals|ir_string"
+      // Encode as "$ivl_class_method$randomize_with|N_vals|sel|ir_string".
+      // `sel` holds only digits, commas or a single `*`, so the IR — the
+      // one field that can carry arbitrary text — stays last and needs
+      // no escaping.
       string mangled = string("$ivl_class_method$randomize_with|")
-		     + to_string(n_vals) + "|" + combined_ir;
+		     + to_string(n_vals) + "|"
+		     + randomize_sel_(call, class_type) + "|"
+		     + combined_ir;
 
       NetESFunc*rand_expr = new NetESFunc(mangled.c_str(),
 					 IVL_VT_BOOL, 1, 1 + n_vals);
@@ -1321,6 +1384,56 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
       return 0;
 }
 
+/* IEEE 1800-2017 10.9.1 / A.6.7.1 replication form: `'{N{a, b, ...}}'
+   stands for the element list repeated N times. The count was parsed and
+   then dropped everywhere, so `'{4{8'hAB}}' assigned a SINGLE element --
+   silently wrong for a packed target (it landed in the low element and
+   the rest stayed zero) and an arity error for an unpacked one.
+
+   Fills `out' with the effective element list. Returns false, having
+   diagnosed, when the count is not a usable constant. */
+bool PEAssignPattern::expand_replication_(Design*des, NetScope*scope,
+					  std::vector<PExpr*>&out) const
+{
+      out.clear();
+      if (!replication_) {
+	    out.assign(parms_.begin(), parms_.end());
+	    return true;
+      }
+
+      NetExpr*tmp = elab_and_eval(des, scope, replication_, -1, true);
+      const NetEConst*rep = dynamic_cast<const NetEConst*>(tmp);
+      if (rep == 0 || !rep->value().is_defined() || rep->value().is_negative()) {
+	    cerr << get_fileline() << ": error: Assignment pattern "
+		 << "replication count must be a defined, non-negative "
+		 << "constant." << endl;
+	    des->errors++;
+	    delete tmp;
+	    return false;
+      }
+      unsigned long n = rep->value().as_ulong();
+      delete tmp;
+
+      for (unsigned long r = 0 ; r < n ; r += 1)
+	    out.insert(out.end(), parms_.begin(), parms_.end());
+      return true;
+}
+
+/* IEEE 1800-2017 10.9.1: `'{default: value}' supplies every element or
+   member the pattern does not name. When `default' is the ONLY key the
+   pattern has no explicit elements at all, so the target's own dimension
+   (or member list) decides how many copies it stands for. Returns the
+   value expression, or null when this is not that form. */
+PExpr* PEAssignPattern::lone_default_() const
+{
+      if (parm_names_.size() != 1 || parms_.size() != 1)
+	    return nullptr;
+      static const perm_string def_key = lex_strings.make("default");
+      if (parm_names_[0] != def_key)
+	    return nullptr;
+      return parms_[0];
+}
+
 NetExpr* PEAssignPattern::elaborate_expr_array_(Design *des, NetScope *scope,
 					        const netarray_t *array_type,
 					        bool need_const, bool up) const
@@ -1334,15 +1447,38 @@ NetExpr* PEAssignPattern::elaborate_expr_array_(Design *des, NetScope *scope,
 	    return tmp;
       }
 
+	/* `'{default: v}' against a container with no size of its own --
+	   a dynamic array, a queue, or an associative array. 7.9.11 makes
+	   this the container's DEFAULT VALUE for entries that were never
+	   written, which is state the runtime does not carry; the element
+	   list is empty either way. Kept as the single-element lowering it
+	   has always had (UVM declares `int m[string] = '{default:0}'),
+	   but no longer silently: a non-zero default is the case where the
+	   difference is observable, so that one warns. */
+      if (PExpr*dflt = lone_default_()) {
+	    const PENumber*dn = dynamic_cast<const PENumber*>(dflt);
+	    if (!dn || !dn->value().is_defined() || dn->value().as_ulong() != 0) {
+		  cerr << get_fileline() << ": warning: '{default:...} on a "
+		       << "dynamic array, queue or associative array sets the "
+		       << "container's default value for unwritten entries "
+		       << "(IEEE 1800-2017 7.9.11), which is not modelled; "
+		       << "unwritten entries read as zero." << endl;
+	    }
+      }
+
 	// This is an array pattern, so run through the elements of
 	// the expression and elaborate each as if they are
 	// element_type expressions.
+      vector<PExpr*> pv;
+      if (!expand_replication_(des, scope, pv))
+	    return nullptr;
+
       ivl_type_t elem_type = array_type->element_type();
-      vector<NetExpr*> elem_exprs (parms_.size());
-      size_t elem_idx = up ? 0 : parms_.size() - 1;
-      for (size_t idx = 0 ; idx < parms_.size() ; idx += 1) {
+      vector<NetExpr*> elem_exprs (pv.size());
+      size_t elem_idx = up ? 0 : pv.size() - 1;
+      for (size_t idx = 0 ; idx < pv.size() ; idx += 1) {
 	    elem_exprs[elem_idx] = elaborate_rval_expr(des, scope, elem_type,
-						       parms_[idx], need_const);
+						       pv[idx], need_const);
 	    if (up)
 		  elem_idx++;
 	    else
@@ -1363,46 +1499,71 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
       if (dims.size() <= cur_dim)
 	    return nullptr;
 
-      if (dims[cur_dim].width() != parms_.size()) {
+      bool up = dims[cur_dim].get_msb() < dims[cur_dim].get_lsb();
+
+	/* `'{default: v}': one value standing for every element of this
+	   dimension, and of every dimension under it. */
+      if (PExpr*dflt = lone_default_()) {
+	    unsigned n = dims[cur_dim].width();
+	    vector<NetExpr*> elem_exprs (n);
+	    bool inner = (cur_dim + 1) < dims.size();
+	    for (unsigned idx = 0 ; idx < n ; idx += 1) {
+		  NetExpr*e = inner
+			? elaborate_expr_uarray_(des, scope, uarray_type,
+						 dims, cur_dim + 1, need_const)
+			: elaborate_rval_expr(des, scope,
+					      uarray_type->element_type(),
+					      dflt, need_const);
+		  elem_exprs[up ? idx : (n - 1 - idx)] = e;
+	    }
+	    NetEArrayPattern*res = new NetEArrayPattern(uarray_type, elem_exprs);
+	    res->set_line(*this);
+	    return res;
+      }
+
+      vector<PExpr*> pv;
+      if (!expand_replication_(des, scope, pv))
+	    return nullptr;
+
+      if (dims[cur_dim].width() != pv.size()) {
 	    cerr << get_fileline() << ": error: Unpacked array assignment pattern expects "
 	         << dims[cur_dim].width() << " element(s) in this context.\n"
 	         << get_fileline() << ":      : Found "
-		 << parms_.size() << " element(s)." << endl;
+		 << pv.size() << " element(s)." << endl;
 	    des->errors++;
       }
 
-      bool up = dims[cur_dim].get_msb() < dims[cur_dim].get_lsb();
       if  (cur_dim == dims.size() - 1) {
 	    return elaborate_expr_array_(des, scope, uarray_type, need_const, up);
       }
 
       cur_dim++;
-      vector<NetExpr*> elem_exprs(parms_.size());
-      size_t elem_idx = up ? 0 : parms_.size() - 1;
-      for (size_t idx = 0; idx < parms_.size(); idx++) {
+      vector<NetExpr*> elem_exprs(pv.size());
+      size_t elem_idx = up ? 0 : pv.size() - 1;
+      for (size_t idx = 0; idx < pv.size(); idx++) {
 	    NetExpr *expr = nullptr;
 	    // Handle nested assignment patterns as a special case. We do not
 	    // have a good way of passing the inner dimensions through the
 	    // generic elaborate_expr() API and assigment patterns is the only
 	    // place where we need it.
-	    if (const auto ap = dynamic_cast<PEAssignPattern*>(parms_[idx])) {
+	    if (const auto ap = dynamic_cast<PEAssignPattern*>(pv[idx])) {
 		  expr = ap->elaborate_expr_uarray_(des, scope, uarray_type,
 						    dims, cur_dim, need_const);
-	    } else if (dynamic_cast<PEConcat*>(parms_[idx])) {
+	    } else if (dynamic_cast<PEConcat*>(pv[idx])) {
 		  cerr << get_fileline() << ": sorry: "
 		       << "Array concatenation is not yet supported."
 		       << endl;
 		  des->errors++;
-	    } else if (dynamic_cast<PEIdent*>(parms_[idx])) {
+	    } else if (dynamic_cast<PEIdent*>(pv[idx])) {
 		  // The only other thing that's allow in this
 		  // context is an array slice or identifier.
 		  cerr << get_fileline() << ": sorry: "
 		       << "Procedural assignment of array or array slice"
 		       << " is not yet supported." << endl;
 		  des->errors++;
-	    } else if (parms_[idx]) {
+	    } else if (pv[idx]) {
 		  cerr << get_fileline() << ": error: Expression "
-		       << *parms_[idx]
+		       << *pv[idx]
 		       << " is not compatible with this context."
 		       << " Expected array or array-like expression."
 		       << endl;
@@ -1436,15 +1597,43 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 	    return nullptr;
       }
 
-      if (dims[cur_dim].width() != parms_.size()) {
+	/* `'{default: v}': the value fills every LEAF element of the
+	   packed target. In a packed declaration the innermost range is
+	   the element's own width, not another level of elements --
+	   `bit [2:0][3:0]' is three 4-bit elements -- so the leaf width
+	   is the last range and the leaf count is everything above it.
+	   A plain vector (one range left) has 1-bit elements, which is
+	   how the positional form already treats it. */
+      if (lone_default_()) {
+	    unsigned leaf_wid = ((dims.size() - cur_dim) >= 2)
+		  ? dims.back().width() : 1;
+	    if (leaf_wid == 0) leaf_wid = 1;
+	    unsigned leaves = width / leaf_wid;
+	    if (leaves == 0) leaves = 1;
+
+	    NetEConcat*neconcat = new NetEConcat(leaves, 1, base_type);
+	    for (unsigned idx = 0 ; idx < leaves ; idx += 1) {
+		  NetExpr*e = elaborate_rval_expr(des, scope, nullptr,
+						  base_type, leaf_wid,
+						  parms_[0], need_const);
+		  if (e) neconcat->set(idx, e);
+	    }
+	    return neconcat;
+      }
+
+      vector<PExpr*> pv;
+      if (!expand_replication_(des, scope, pv))
+	    return nullptr;
+
+      if (dims[cur_dim].width() != pv.size()) {
 	    // Compile-progress fallback: Some macro expansions (e.g. UVM
 	    // reporting macros) can confuse the parser into treating function
 	    // argument lists as assignment patterns. If the mismatch is large
 	    // (expected elements == width of integer), likely a misparse.
 	    if (gn_system_verilog() && dims[cur_dim].width() == 32
-		&& parms_.size() <= 8) {
-	    } else if (parms_.size() != 0
-		       && dims[cur_dim].width() % parms_.size() == 0) {
+		&& pv.size() <= 8) {
+	    } else if (pv.size() != 0
+		       && dims[cur_dim].width() % pv.size() == 0) {
 	      // Compile-progress fallback for flattened multi-dim packed
 	      // parameters: when iverilog has collapsed `[M:0][N:0]` to a
 	      // single combined range of M*N bits, an assignment pattern of
@@ -1457,7 +1646,7 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 		  cerr << get_fileline() << ": error: Packed array assignment pattern expects "
 		       << dims[cur_dim].width() << " element(s) in this context.\n"
 		       << get_fileline() << ":      : Found "
-		       << parms_.size() << " element(s)." << endl;
+		       << pv.size() << " element(s)." << endl;
 		  des->errors++;
 	    }
       }
@@ -1465,21 +1654,21 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
       width /= dims[cur_dim].width();
       cur_dim++;
 
-      NetEConcat *neconcat = new NetEConcat(parms_.size(), 1, base_type);
-      for (size_t idx = 0; idx < parms_.size(); idx++) {
+      NetEConcat *neconcat = new NetEConcat(pv.size(), 1, base_type);
+      for (size_t idx = 0; idx < pv.size(); idx++) {
 	    NetExpr *expr;
 	    // Handle nested assignment patterns as a special case. We do not
 	    // have a good way of passing the inner dimensions through the
 	    // generic elaborate_expr() API and assigment patterns is the only
 	    // place where we need it.
-	    const auto ap = dynamic_cast<PEAssignPattern*>(parms_[idx]);
+	    const auto ap = dynamic_cast<PEAssignPattern*>(pv[idx]);
 	    if (ap)
 		  expr = ap->elaborate_expr_packed_(des, scope, base_type,
 						    width, dims, cur_dim, need_const);
 	    else
 		  expr = elaborate_rval_expr(des, scope, nullptr,
 					     base_type, width,
-					     parms_[idx], need_const);
+					     pv[idx], need_const);
 	    if (expr)
 		  neconcat->set(idx, expr);
       }
@@ -4950,6 +5139,19 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 	    return expr_width_;
       }
 
+	// M9-SV: a sampled value function bound to a clocking event
+	// reads the synthesized history registers (16.9.3). Its width
+	// and type are the substitution's, not the call's -- $rose and
+	// friends become a 1-bit boolean, not the 32-bit integer a
+	// system function call would default to.
+      if (sampled_subst_) {
+	    expr_width_ = sampled_subst_->test_width(des, scope, mode);
+	    expr_type_ = sampled_subst_->expr_type();
+	    min_width_ = expr_width_;
+	    signed_flag_ = sampled_subst_->has_sign();
+	    return expr_width_;
+      }
+
 	// M13: a call that names a let in scope is a macro expansion.
       if (PExpr*sub = let_substitution_(des, scope)) {
 	    if (let_expand_depth_ >= LET_EXPAND_DEPTH_MAX) {
@@ -5538,6 +5740,42 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  res->set_line(*this);
 		  return cast_to_width_(res, expr_wid);
 	    }
+	      // A FIXED unpacked array reached through a property (e.g. a
+	      // struct member `s.arr`, whole-array, no element index): its
+	      // shape is a compile-time constant, so answer directly instead
+	      // of going through the netdarray_t $ivl_queue_method$size path
+	      // above (which does not apply -- there is no runtime container
+	      // object here) or falling through to the old VPI path below
+	      // (which has no NetEProperty case and constant-folds to 'x').
+	    if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(
+			  sub ? sub->net_type() : nullptr)) {
+		  const netranges_t&dims = ua->static_dimensions();
+		  if (!dims.empty()) {
+			long left = dims.front().get_msb();
+			long right = dims.front().get_lsb();
+			long low = (left < right) ? left : right;
+			long high = (left < right) ? right : left;
+			long incr = (left >= right) ? 1 : -1;
+			NetExpr*res = 0;
+			delete sub;
+			if (strcmp(name, "$size") == 0)
+			      res = make_const_val((long)dims.front().width());
+			else if (strcmp(name, "$high") == 0)
+			      res = make_const_val(high);
+			else if (strcmp(name, "$low") == 0)
+			      res = make_const_val(low);
+			else if (strcmp(name, "$left") == 0)
+			      res = make_const_val(left);
+			else if (strcmp(name, "$right") == 0)
+			      res = make_const_val(right);
+			else if (strcmp(name, "$increment") == 0)
+			      res = make_const_val_s(incr);
+			else /* $unpacked_dimensions */
+			      res = make_const_val((long)dims.size());
+			res->set_line(*this);
+			return cast_to_width_(res, expr_wid);
+		  }
+	    }
 	    delete sub;
       }
 
@@ -6040,10 +6278,106 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 
 		  const auto&members = cur_struct->members();
 		  size_t member_idx = member - &members.front();
+		  ivl_type_t member_type = member->net_type;
+
+		    // An UNPACKED ARRAY member indexed by an element select
+		    // (`s.arr[2]`). The member is one property holding the
+		    // whole array, so the element read is the property read
+		    // WITH a word index -- the same NetEProperty shape a class
+		    // property already uses, which lowers to %prop/v/i.
+		    //
+		    // This case fell through to the packed-vector handling
+		    // below and returned nil, silently. The caller dropped the
+		    // whole assignment or passed a blank argument, so every
+		    // `s.arr[i]' read back as nothing at all while a scalar
+		    // member beside it was correct.
+		    // An UNPACKED ARRAY member indexed by an element select
+		    // (`s.arr[2]'). The member is one property holding the
+		    // whole array, so the element read is the property read
+		    // WITH a word index -- the same NetEProperty shape a class
+		    // property already uses, which lowers to %prop/v/i.
+		    //
+		    // This case used to fall through to the packed-vector
+		    // handling below and return nil, silently. The caller
+		    // dropped the whole assignment or passed a blank argument,
+		    // so every `s.arr[i]' read back as nothing at all while a
+		    // scalar member beside it was correct.
+		  if (!member_comp.index.empty()) {
+			if (const netuarray_t*member_ua =
+				  dynamic_cast<const netuarray_t*>(member_type)) {
+			      const auto&dims = member_ua->static_dimensions();
+			      if (dims.size() != member_comp.index.size()) {
+				    cerr << li->get_fileline() << ": error: "
+					 << "Got " << member_comp.index.size()
+					 << " indices, expecting " << dims.size()
+					 << " to index struct member "
+					 << member_comp.name << "." << endl;
+				    des->errors += 1;
+				    delete base_expr;
+				    return 0;
+			      }
+			      NetExpr*widx = make_canonical_index(des, scope, li,
+								  member_comp.index,
+								  member_ua, false);
+			      if (!widx) {
+				    delete base_expr;
+				    return 0;
+			      }
+			      NetEProperty*iprop =
+				    new NetEProperty(base_expr, member_idx, widx);
+			      iprop->set_line(*li);
+			      base_expr = iprop;
+			      cur_type = member_ua->element_type();
+			      continue;
+			}
+
+			  // A DYNAMIC ARRAY member (or QUEUE, which derives from
+			  // netdarray_t) indexed by an element select (`s.da[i]`).
+			  // Unlike a fixed unpacked array, the member slot holds a
+			  // CONTAINER OBJECT, not inline storage, so %prop/v/i (which
+			  // reads the slot itself) would fetch the container handle's
+			  // bit pattern instead of an element -- silently, for index 0.
+			  // Build the same shape a class-property container already
+			  // uses: read the container as an object (NetEProperty with
+			  // no index) and element-select it, which lowers to
+			  // %prop/obj + %load/qo/v.
+			if (const netdarray_t*member_da =
+				  dynamic_cast<const netdarray_t*>(member_type)) {
+			      if (member_comp.index.size() != 1) {
+				    cerr << li->get_fileline() << ": sorry: "
+					 << "Multi-index struct member access is not yet supported."
+					 << endl;
+				    des->errors += 1;
+				    delete base_expr;
+				    return 0;
+			      }
+			      NetEProperty*cprop =
+				    new NetEProperty(base_expr, member_idx, nullptr);
+			      cprop->set_line(*li);
+			      NetExpr*idx_expr = elab_and_eval(des, scope,
+				    member_comp.index.front().msb, -1, false);
+			      if (!idx_expr) {
+				    delete cprop;
+				    return 0;
+			      }
+			      unsigned elem_width = member_da->element_width();
+			      if (elem_width == 0)
+				    elem_width = 1;
+			      ivl_type_t elem_type = member_da->element_type();
+			      NetESelect*sel = elem_type
+				    ? new NetESelect(cprop, idx_expr, elem_width, elem_type)
+				    : new NetESelect(cprop, idx_expr, elem_width);
+			      sel->set_line(*li);
+			      base_expr = sel;
+			      cur_type = elem_type;
+			      continue;
+			}
+		  }
+
 		  NetEProperty*prop = new NetEProperty(base_expr, member_idx, nullptr);
 		  prop->set_line(*li);
 		  base_expr = prop;
-		  cur_type = member->net_type;
+		  cur_type = member_type;
 
 		    // A select ON the member (`s.d[15:8]`, `s.d[i +: 8]`) is a
 		    // bit/part-select of the member value (IEEE 1800-2017 7.2.1
@@ -6054,6 +6388,11 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 			const netvector_t*mvec =
 			      dynamic_cast<const netvector_t*>(cur_type);
 			if (!mvec) {
+			      cerr << li->get_fileline() << ": sorry: an index"
+				   << " on struct member " << member_comp.name
+				   << " of this type is not yet supported."
+				   << endl;
+			      des->errors += 1;
 			      delete base_expr;
 			      return 0;
 			}
@@ -7738,6 +8077,11 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 		 << "expr_wid: " << expr_wid << endl;
       }
 
+	// M9-SV: a sampled value function bound to a clocking event
+	// reads the synthesized history registers instead (16.9.3).
+      if (sampled_subst_)
+	    return sampled_subst_->elaborate_expr(des, scope, expr_wid, flags);
+
 	// M13: expand let uses by substitution.
       if (PExpr*sub = let_substitution_(des, scope)) {
 	    if (let_expand_depth_ >= LET_EXPAND_DEPTH_MAX) {
@@ -7785,6 +8129,56 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					  0);
 	    tmp->set_line(*this);
 	    return tmp;
+      }
+
+	/* M3B-12: obj.field.rand_mode() called as a FUNCTION (IEEE
+	   1800-2017 18.8) returns that variable's current active state.
+	   It used to elaborate to a constant 0, so a query could not tell
+	   a frozen variable from an active one, and the save/restore
+	   idiom
+	       bit save = obj.f.rand_mode(); obj.f.rand_mode(0);
+	       ... obj.f.rand_mode(save);
+	   always restored the variable DISABLED. Disambiguated from the
+	   object-level form the same way the statement path in
+	   PCallTask::elaborate is: by resolving the second-to-last path
+	   component as a property of a class object. */
+      if (gn_system_verilog()
+	  && peek_tail_name(path_) == perm_string::literal("rand_mode")
+	  && path_.name.size() >= 2 && parms_.empty()) {
+	    perm_string fname = std::next(path_.name.end(), -2)->name;
+	    NetNet*obj_net = nullptr;
+	    if (path_.name.size() == 2) {
+		  obj_net = find_implicit_this_handle(des, scope);
+	    } else {
+		  pform_name_t obj_path;
+		  auto it = path_.name.begin();
+		  auto end_it = std::next(path_.name.end(), -2);
+		  for (; it != end_it; ++it)
+			obj_path.push_back(*it);
+		  symbol_search_results sr;
+		  symbol_search(this, des, scope, obj_path, UINT_MAX, &sr);
+		  obj_net = sr.net;
+	    }
+	    if (obj_net) {
+		  const netclass_t*ctype =
+			dynamic_cast<const netclass_t*>(obj_net->net_type());
+		  int pid = ctype ? ctype->property_idx_from_name(fname) : -1;
+		  if (pid >= 0) {
+			NetESignal*self = new NetESignal(obj_net);
+			self->set_line(*this);
+			NetEConst*pe = new NetEConst(
+			      verinum((uint64_t)pid, 32));
+			pe->set_line(*this);
+			NetESFunc*tmp = new NetESFunc(
+			      "$ivl_class_method$rand_mode_get",
+			      IVL_VT_BOOL, 1, 2);
+			tmp->set_line(*this);
+			tmp->parm(0, self);
+			tmp->parm(1, pe);
+			return tmp;
+		  }
+	    }
+	      // Not a resolvable field: fall through to normal dispatch.
       }
 
       if (path_.size() == 1
@@ -7988,8 +8382,12 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 						  rand_expr->set_line(*this);
 						  return rand_expr;
 					    }
+					    string rname =
+						  "$ivl_class_method$randomize";
+					    string rsel = randomize_sel_(this, class_type);
+					    if (rsel != "*") rname += "|" + rsel;
 					    NetESFunc*rand_expr = new NetESFunc(
-						  "$ivl_class_method$randomize",
+						  rname.c_str(),
 						  IVL_VT_BOOL, 1, 1);
 					    rand_expr->set_line(*this);
 					    rand_expr->parm(0, obj_expr);
@@ -9314,8 +9712,11 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				      rand_expr->set_line(*this);
 				      return rand_expr;
 				}
+				string rname = "$ivl_class_method$randomize";
+				string rsel = randomize_sel_(this, class_type);
+				if (rsel != "*") rname += "|" + rsel;
 				NetESFunc*rand_expr = new NetESFunc(
-					"$ivl_class_method$randomize",
+					rname.c_str(),
 					IVL_VT_BOOL, 1, 1);
 				rand_expr->set_line(*this);
 				rand_expr->parm(0, sub_expr);

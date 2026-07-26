@@ -1554,9 +1554,14 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
 	$$ = tmp;
       }
   | K_LP K_default ':' expression '}'
-      { std::list<PExpr*> vals;
-	vals.push_back($4);
-	PEAssignPattern*tmp = new PEAssignPattern(vals);
+      { /* `'{default: value}' is the NAMED form with the sole key
+	   `default' (IEEE 1800-2017 10.9.1), not a one-element
+	   positional pattern. Building it positionally made every use
+	   an arity error -- "expects N element(s) ... Found 1" -- for
+	   arrays and structs alike. */
+	std::list<std::pair<perm_string,PExpr*>> named;
+	named.push_back(std::make_pair(lex_strings.make("default"), $4));
+	PEAssignPattern*tmp = new PEAssignPattern(named);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
@@ -3410,12 +3415,43 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 	delete[] $2.text;
 	if ($3) delete $3;
       }
+    /* Modport-qualified virtual interface (IEEE 1800-2017 25.9 /
+       A.2.2.1): `virtual iface [#(...)] .modport'. The standard UVM
+       agent idiom. The modport name is recorded on the type; the handle
+       itself still exposes the whole interface, so what is accepted is a
+       SUPERSET of the modport's view -- direction enforcement through a
+       modport-qualified handle is a follow-up, and is noted as such
+       rather than silently implied. */
+  | K_virtual TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER
+      { interface_type_t*tmp;
+	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
+	      yyerror(@2, "error: virtual may only be used with interface types.");
+	tmp = new interface_type_t(lex_strings.make($2.text));
+	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($3 != 0);
+	tmp->modport = lex_strings.make($5);
+	$$ = tmp;
+	delete[] $2.text;
+	delete[] $5;
+	if ($3) delete $3;
+      }
   | K_virtual IDENTIFIER parameter_value_opt
       { /* Forward-referenced or un-typed interface — create by name */
 	interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
 	FILE_NAME(tmp, @1);
 	tmp->has_param_override = ($3 != 0);
 	delete[] $2;
+	if ($3) delete $3;
+	$$ = tmp;
+      }
+  | K_virtual IDENTIFIER parameter_value_opt '.' IDENTIFIER
+      { /* Forward-referenced interface, modport-qualified. */
+	interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
+	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($3 != 0);
+	tmp->modport = lex_strings.make($5);
+	delete[] $2;
+	delete[] $5;
 	if ($3) delete $3;
 	$$ = tmp;
       }
@@ -3445,6 +3481,30 @@ virtual_interface_type
 	FILE_NAME(tmp, @1);
 	tmp->has_param_override = ($2 != 0);
 	delete[] $1;
+	if ($2) delete $2;
+	$$ = tmp;
+      }
+    /* Modport-qualified forms, for the class-property path (25.9). */
+  | TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER
+      { interface_type_t*tmp;
+	if (dynamic_cast<const interface_type_t*>($1.type->get_data_type()) == 0)
+	      yyerror(@1, "error: virtual may only be used with interface types.");
+	tmp = new interface_type_t(lex_strings.make($1.text));
+	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($2 != 0);
+	tmp->modport = lex_strings.make($4);
+	$$ = tmp;
+	delete[] $1.text;
+	delete[] $4;
+	if ($2) delete $2;
+      }
+  | IDENTIFIER parameter_value_opt '.' IDENTIFIER
+      { interface_type_t*tmp = new interface_type_t(lex_strings.make($1));
+	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($2 != 0);
+	tmp->modport = lex_strings.make($4);
+	delete[] $1;
+	delete[] $4;
 	if ($2) delete $2;
 	$$ = tmp;
       }
@@ -5070,6 +5130,30 @@ package_item /* IEEE1800-2005 A.1.10 */
 	itype->has_param_override = ($3 != 0);
 	pform_make_var(@2, $4, itype, nullptr, false);
 	delete[] $2.text;
+	if ($3) delete $3;
+      }
+    /* Modport-qualified (IEEE 1800-2017 25.9): `virtual iface.mp v;'. */
+  | K_virtual TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER list_of_variable_decl_assignments ';'
+      { interface_type_t*itype;
+	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
+	      yyerror(@2, "error: virtual may only be used with interface types.");
+	itype = new interface_type_t(lex_strings.make($2.text));
+	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
+	itype->modport = lex_strings.make($5);
+	pform_make_var(@2, $6, itype, nullptr, false);
+	delete[] $2.text;
+	delete[] $5;
+	if ($3) delete $3;
+      }
+  | K_virtual IDENTIFIER parameter_value_opt '.' IDENTIFIER list_of_variable_decl_assignments ';'
+      { interface_type_t*itype = new interface_type_t(lex_strings.make($2));
+	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
+	itype->modport = lex_strings.make($5);
+	pform_make_var(@2, $6, itype, nullptr, false);
+	delete[] $2;
+	delete[] $5;
 	if ($3) delete $3;
       }
   | K_virtual IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'
@@ -8512,12 +8596,42 @@ expr_primary
 	delete $4;
 	$$ = tmp;
       }
+  /* M9-SV/R14: a sampled value function may take an explicit clocking
+     event as its last argument -- `$past(e, n, gate, @(posedge clk))'
+     (IEEE 1800-2017 16.9.3). An event control is not an expression, so
+     it cannot ride inside argument_list; this rule takes it separately
+     and hands it to the binder, which builds the history sampler on
+     that clock instead of an inferred one. Costs no grammar conflicts:
+     the token after the comma decides, and `@' can never start an
+     argument. */
+  | SYSTEM_IDENTIFIER '(' argument_list ',' event_control ')'
+      { perm_string tn = lex_strings.make($1);
+	argument_list_fixup($3);
+	PECallFunction *tmp = new PECallFunction(tn, *$3);
+	FILE_NAME(tmp, @1);
+	if (pform_is_sampled_value_function($1)) {
+	      pform_bind_sampled_call_to_event(@1, tmp, $5);
+	} else {
+	      yyerror(@5, "error: a clocking-event argument is only allowed "
+		      "on a sampled value function ($past, $rose, $fell, "
+		      "$stable, $changed).");
+	}
+	delete $5;
+	delete[]$1;
+	delete $3;
+	$$ = tmp;
+      }
   | SYSTEM_IDENTIFIER argument_list_parens
       { perm_string tn = lex_strings.make($1);
 	PECallFunction *tmp = new PECallFunction(tn, *$2);
 	if ($2->empty())
 	      pform_requires_sv(@1, "Empty function argument list");
 	FILE_NAME(tmp, @1);
+	  /* M9-SV: a sampled value function needs a clocking event to
+	     mean anything (16.9.3). Record it so the enclosing
+	     behavior can bind it to one. */
+	if (pform_is_sampled_value_function($1))
+	      pform_note_sampled_call(@1, tmp);
 	delete[]$1;
 	delete $2;
 	$$ = tmp;
@@ -10793,6 +10907,30 @@ module_item
 	itype->has_param_override = ($3 != 0);
 	pform_make_var(@2, $4, itype, nullptr, false);
 	delete[] $2.text;
+	if ($3) delete $3;
+      }
+    /* Modport-qualified (IEEE 1800-2017 25.9): `virtual iface.mp v;'. */
+  | K_virtual TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER list_of_variable_decl_assignments ';'
+      { interface_type_t*itype;
+	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
+	      yyerror(@2, "error: virtual may only be used with interface types.");
+	itype = new interface_type_t(lex_strings.make($2.text));
+	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
+	itype->modport = lex_strings.make($5);
+	pform_make_var(@2, $6, itype, nullptr, false);
+	delete[] $2.text;
+	delete[] $5;
+	if ($3) delete $3;
+      }
+  | K_virtual IDENTIFIER parameter_value_opt '.' IDENTIFIER list_of_variable_decl_assignments ';'
+      { interface_type_t*itype = new interface_type_t(lex_strings.make($2));
+	FILE_NAME(itype, @1);
+	itype->has_param_override = ($3 != 0);
+	itype->modport = lex_strings.make($5);
+	pform_make_var(@2, $6, itype, nullptr, false);
+	delete[] $2;
+	delete[] $5;
 	if ($3) delete $3;
       }
   | K_virtual IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'

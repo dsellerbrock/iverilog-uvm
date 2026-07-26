@@ -38,11 +38,11 @@ class vvp_vinterface : public vvp_object {
       void set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx = 0);
       void get_vec4(size_t pid, vvp_vector4_t&val, size_t idx = 0) const;
 
-      void set_real(size_t pid, double val);
-      double get_real(size_t pid) const;
+      void set_real(size_t pid, double val, size_t idx = 0);
+      double get_real(size_t pid, size_t idx = 0) const;
 
-      void set_string(size_t pid, const std::string&val);
-      std::string get_string(size_t pid) const;
+      void set_string(size_t pid, const std::string&val, size_t idx = 0);
+      std::string get_string(size_t pid, size_t idx = 0) const;
 
       void set_object(size_t pid, const vvp_object_t&val, size_t idx = 0);
       void get_object(size_t pid, vvp_object_t&val, size_t idx = 0) const;
@@ -72,7 +72,14 @@ class vvp_vinterface : public vvp_object {
 	    SLOT_SIGNAL,
 	    SLOT_REAL,
 	    SLOT_STRING,
-	    SLOT_OBJECT
+	    SLOT_OBJECT,
+	      // An UNPACKED ARRAY member. Its VPI handle is a __vpiArray,
+	      // not a __vpiSignal, so the signal slot kinds do not cover
+	      // it -- and while they did not, the member resolved to no
+	      // slot at all: `vif.arr[i]' read x and writes to it were
+	      // discarded, silently. The property index selects the array
+	      // and the element index selects the word within it.
+	    SLOT_ARRAY
       };
 
       struct slot_t {

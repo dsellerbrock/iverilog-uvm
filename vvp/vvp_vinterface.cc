@@ -42,7 +42,8 @@ static vpiHandle find_named_item_(__vpiScope*scope, const std::string&name)
 	    if (!dynamic_cast<__vpiSignal*>(item)
 		&& !dynamic_cast<__vpiRealVar*>(item)
 		&& !dynamic_cast<__vpiStringVar*>(item)
-		&& !dynamic_cast<__vpiBaseVar*>(item))
+		&& !dynamic_cast<__vpiBaseVar*>(item)
+		&& !dynamic_cast<__vpiArray*>(item))
 		  continue;
 
 	    char*item_name = item->vpi_get_str(vpiName);
@@ -142,7 +143,9 @@ void vvp_vinterface::resolve_slots_(void)
 	    slot_t&slot = slots_[idx];
 	    slot.handle = item;
 
-	    if (dynamic_cast<__vpiSignal*>(item)) {
+	    if (dynamic_cast<__vpiArray*>(item)) {
+		  slot.kind = SLOT_ARRAY;
+	    } else if (dynamic_cast<__vpiSignal*>(item)) {
 		  slot.kind = SLOT_SIGNAL;
 	    } else if (dynamic_cast<__vpiRealVar*>(item)) {
 		  slot.kind = SLOT_REAL;
@@ -164,6 +167,29 @@ vvp_vinterface::slot_t vvp_vinterface::get_slot_(size_t pid) const
 void vvp_vinterface::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 {
       slot_t slot = get_slot_(pid);
+
+	// An unpacked-array member: the element index selects the word.
+	// The array's own word width wins, for the same reason the signal
+	// path below resizes -- the interface class type is elaborated
+	// once with DEFAULT parameters, so a parameterized instance's
+	// width can differ.
+      if (slot.kind == SLOT_ARRAY) {
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (!arr || idx >= arr->get_size())
+		  return;
+	    unsigned wid = (unsigned) arr->get_word_size();
+	    if (wid != 0 && wid != val.size()) {
+		  vvp_vector4_t tmp(wid, BIT4_0);
+		  unsigned n = val.size() < wid ? val.size() : wid;
+		  for (unsigned b = 0 ; b < n ; b += 1)
+			tmp.set_bit(b, val.value(b));
+		  arr->set_word((unsigned)idx, 0, tmp);
+	    } else {
+		  arr->set_word((unsigned)idx, 0, val);
+	    }
+	    return;
+      }
+
       if (slot.kind != SLOT_SIGNAL)
 	    return;
 
@@ -215,6 +241,17 @@ bool vvp_vinterface::sig_changed_this_step(size_t pid) const
 void vvp_vinterface::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx) const
 {
       slot_t slot = get_slot_(pid);
+
+	// An unpacked-array member: the element index selects the word.
+      if (slot.kind == SLOT_ARRAY) {
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && idx < arr->get_size())
+		  val = arr->get_word((unsigned)idx);
+	    else
+		  val = vvp_vector4_t();
+	    return;
+      }
+
       if (slot.kind != SLOT_SIGNAL) {
 	    val = vvp_vector4_t();
 	    return;
@@ -230,9 +267,17 @@ void vvp_vinterface::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx) const
       vsig->vec4_value(val);
 }
 
-void vvp_vinterface::set_real(size_t pid, double val)
+void vvp_vinterface::set_real(size_t pid, double val, size_t idx)
 {
       slot_t slot = get_slot_(pid);
+
+      if (slot.kind == SLOT_ARRAY) {
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && idx < arr->get_size())
+		  arr->set_word((unsigned)idx, val);
+	    return;
+      }
+
       if (slot.kind != SLOT_REAL)
 	    return;
 
@@ -244,9 +289,17 @@ void vvp_vinterface::set_real(size_t pid, double val)
       vvp_send_real(dest, val, vthread_get_wt_context());
 }
 
-double vvp_vinterface::get_real(size_t pid) const
+double vvp_vinterface::get_real(size_t pid, size_t idx) const
 {
       slot_t slot = get_slot_(pid);
+
+      if (slot.kind == SLOT_ARRAY) {
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && idx < arr->get_size())
+		  return arr->get_word_r((unsigned)idx);
+	    return 0.0;
+      }
+
       if (slot.kind != SLOT_REAL)
 	    return 0.0;
 
@@ -258,9 +311,17 @@ double vvp_vinterface::get_real(size_t pid) const
       return vsig->real_value();
 }
 
-void vvp_vinterface::set_string(size_t pid, const std::string&val)
+void vvp_vinterface::set_string(size_t pid, const std::string&val, size_t idx)
 {
       slot_t slot = get_slot_(pid);
+
+      if (slot.kind == SLOT_ARRAY) {
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && idx < arr->get_size())
+		  arr->set_word((unsigned)idx, val);
+	    return;
+      }
+
       if (slot.kind != SLOT_STRING)
 	    return;
 
@@ -272,9 +333,17 @@ void vvp_vinterface::set_string(size_t pid, const std::string&val)
       vvp_send_string(dest, val, vthread_get_wt_context());
 }
 
-std::string vvp_vinterface::get_string(size_t pid) const
+std::string vvp_vinterface::get_string(size_t pid, size_t idx) const
 {
       slot_t slot = get_slot_(pid);
+
+      if (slot.kind == SLOT_ARRAY) {
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && idx < arr->get_size())
+		  return arr->get_word_str((unsigned)idx);
+	    return std::string();
+      }
+
       if (slot.kind != SLOT_STRING)
 	    return std::string();
 
@@ -289,6 +358,17 @@ std::string vvp_vinterface::get_string(size_t pid) const
 void vvp_vinterface::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 {
       slot_t slot = get_slot_(pid);
+
+	// An OBJECT-element array member -- an unpacked array of structs.
+	// The element index selects the word, exactly as for the vec4,
+	// real and string element kinds.
+      if (slot.kind == SLOT_ARRAY) {
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && idx < arr->get_size())
+		  arr->set_word((unsigned)idx, val);
+	    return;
+      }
+
       if (slot.kind != SLOT_OBJECT)
 	    return;
 
@@ -303,6 +383,20 @@ void vvp_vinterface::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 void vvp_vinterface::get_object(size_t pid, vvp_object_t&val, size_t idx) const
 {
       slot_t slot = get_slot_(pid);
+
+	// An OBJECT-element array member: without this, a struct-typed
+	// array member reached through a handle read as null -- so
+	// `vif.sarr[i].field' read zero, silently, while the same access
+	// through the interface instance was correct.
+      if (slot.kind == SLOT_ARRAY) {
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && idx < arr->get_size())
+		  arr->get_word_obj((unsigned)idx, val);
+	    else
+		  val.reset();
+	    return;
+      }
+
       if (slot.kind != SLOT_OBJECT) {
 	    val.reset();
 	    return;

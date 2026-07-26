@@ -3083,6 +3083,15 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+	/* Suspend until the Reactive region of the current time step
+	 * (4.4.2.5: assertion pass/fail action blocks).  A no-op once no
+	 * Reactive region is reachable (final blocks / Postponed), so an
+	 * end-of-simulation verdict is never dropped. */
+      if (strcmp(stmt_name,"$ivl_reactive_wait") == 0) {
+	    fprintf(vvp_out, "    %%wait/reactive;\n");
+	    return 0;
+      }
+
 	/* Clocking input sampling prologue (14.13): enable the 1-deep
 	 * driven-value history on the raw signal so %load/preponed
 	 * (from $ivl_clocking_sample) returns the Preponed value. */
@@ -3848,6 +3857,24 @@ static int show_system_task_call(ivl_statement_t net)
 	    fprintf(vvp_out, "    %%covgrp/%s;\n",
 		    strcmp(stmt_name, "$ivl_class_method$covgrp_start") == 0
 			  ? "start" : "stop");
+	    return 0;
+      }
+
+      /* $ivl_ref_bind(<formal>, <actual>) — point a `ref' formal at the
+       * caller's variable (IEEE 1800-2017 13.5.2). The core emits this
+       * where the copy-in used to be, which puts it between the
+       * callee's %alloc and its %fork: the write context is already the
+       * callee's frame, and the read context is still the caller's,
+       * which is the frame a caller-local automatic actual lives in. */
+      if (strcmp(stmt_name, "$ivl_ref_bind") == 0) {
+	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
+	    ivl_expr_t actual = ivl_stmt_parm_count(net) > 1
+		  ? ivl_stmt_parm(net, 1) : 0;
+	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
+	    ivl_signal_t asig = actual ? ivl_expr_signal(actual) : 0;
+	    if (fsig && asig)
+		  fprintf(vvp_out, "    %%ref/bind v%p_0, v%p_0;\n",
+			  fsig, asig);
 	    return 0;
       }
 

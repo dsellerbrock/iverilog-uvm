@@ -209,7 +209,13 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
 	    break;
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_CLASS:
-	    fprintf(vvp_out, "\"o\"");
+	      /* The rand prefix has to reach the runtime here too. A
+	       * `rand int arr[]' was emitted as a bare "o", so the
+	       * runtime read the property as NOT rand -- which the
+	       * solver's state-variable pinning then took literally and
+	       * froze the array's size at whatever it already was.
+	       * (Queues, vectors and enums already carried it.) */
+	    fprintf(vvp_out, "\"%so\"", rand_prefix ? rand_prefix : "");
 	    if (packed_dimensions > 0) {
 		  unsigned idx;
 		  fprintf(vvp_out, " ");

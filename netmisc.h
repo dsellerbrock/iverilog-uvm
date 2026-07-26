@@ -533,6 +533,20 @@ extern void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 extern NetPartSelect* detect_partselect_lval(Link&pin);
 
 /*
+ * True when a `ref' subroutine formal (IEEE 1800-2017 13.5.2) is
+ * represented as a real reference -- a name bound to the caller's
+ * variable -- rather than as the copy-in/copy-out pair it used to be.
+ *
+ * The answer depends only on the FORMAL, never on a particular
+ * actual: the formal's storage kind is fixed by its declaration, and
+ * every call site has to agree with it. A call whose actual cannot be
+ * named directly binds to a temporary instead (see
+ * PCallTask::elaborate_ref_bind_), which reproduces the copy pair for
+ * that one argument without changing what the formal is.
+ */
+extern bool ref_formal_is_bound(const NetNet*port);
+
+/*
  * Print a warning if we find a mixture of default and explicit timescale
  * based delays in the design, since this is likely an error.
  */

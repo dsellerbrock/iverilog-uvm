@@ -515,6 +515,14 @@ struct vthread_s {
 	   in the Reactive region set.  Set at creation from the scope
 	   chain and inherited by spawned children. */
       unsigned is_reactive_process :1;
+	/* R2 end-of-simulation drain: this thread was resumed by an
+	   explicit region deferral (%wait/observed or %wait/reactive) and
+	   is completing work that belongs to a time slot already under
+	   way -- a concurrent assertion's evaluation and its action.  A
+	   $finish issued earlier in that same slot must not cut the work
+	   short, so such a thread is exempt from the of_VPI_CALL freeze
+	   until it suspends again on an event or a delay. */
+      unsigned in_region_drain :1;
 	/* M6B: a program-block INITIAL procedure (IEEE 1800-2017 24.7).
 	   Counted at creation; when the last one completes, simulation
 	   implicitly finishes. */
@@ -534,6 +542,17 @@ struct vthread_s {
 	// report a delayed process as WAITING rather than RUNNING.
       unsigned i_am_delaying :1;
       unsigned owns_automatic_context :1;
+	/* M3B-13 (IEEE 1800-2017 18.11): in-line random variable
+	   control. `%rand/active' arms the property set that the NEXT
+	   %randomize / %randomize/with solves for, which is how
+	   randomize(a, b) makes everything else a state variable and
+	   randomize(null) makes ALL of them state variables. Armed and
+	   consumed within one straight-line opcode run, so it never
+	   survives a suspension; a call with no argument list leaves it
+	   disarmed and the default set (rand properties with rand_mode
+	   on) applies. */
+      bool rand_sel_armed;
+      std::vector<bool> rand_sel;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
 	/* This points to the detached children of the thread. */
@@ -564,10 +583,21 @@ struct vthread_s {
       vvp_context_t owned_context;
       vvp_context_t skip_free_context;
       vvp_context_t staged_alloc_rd_context;
+	/* A frame allocated by %alloc that no call has consumed yet.
+	   tgt-vvp's spawn-time argument capture for a single-branch
+	   `fork <task>(); join_none' emits the %alloc in the SPAWNING
+	   thread and the call itself in the detached thread, so the frame
+	   has to survive one thread hop to reach the callee. */
+      vvp_context_t pending_alloc_context;
+	/* Where this thread's own contexts stood before that %alloc, so
+	   the hand-off can put them back. */
+      vvp_context_t pending_alloc_prev_wt;
+      vvp_context_t pending_alloc_prev_rd;
       vvp_code_t nonlocal_target;
       __vpiScope*nonlocal_origin_scope;
       __vpiScope*skip_free_scope;
       __vpiScope*staged_alloc_rd_scope;
+      __vpiScope*pending_alloc_scope;
       __vpiScope*return_object_mirror_scope;
       __vpiScope*dynamic_dispatch_base_scope;
 	/* These are used to pass non-blocking event control information. */
@@ -655,8 +685,12 @@ inline vthread_s::vthread_s()
       owned_context = 0;
       skip_free_context = 0;
       staged_alloc_rd_context = 0;
+      pending_alloc_context = 0;
+      pending_alloc_prev_wt = 0;
+      pending_alloc_prev_rd = 0;
       skip_free_scope = 0;
       staged_alloc_rd_scope = 0;
+      pending_alloc_scope = 0;
       return_object_mirror_scope = 0;
       dynamic_dispatch_base_scope = 0;
       last_pause_pc = 0;
@@ -1606,9 +1640,51 @@ static bool write_handle_vec4_to_context_(vpiHandle item,
       return true;
 }
 
+/*
+ * A `ref' formal holds a binding, not a value (IEEE 1800-2017 13.5.2),
+ * so there is nothing for the value copies below to read. A virtual
+ * method call allocates the OVERRIDE's frame and copies the base
+ * formals into it; unless the binding travels with them the override's
+ * formal is unbound and its writes go nowhere.
+ */
+static bool copy_ref_binding_to_context_(vpiHandle src_item, vthread_t src_thr,
+                                         vpiHandle dst_item,
+                                         vvp_context_t dst_context)
+{
+      vvp_net_t*src_net = handle_net_(src_item);
+      vvp_net_t*dst_net = handle_net_(dst_item);
+      if (!(src_net && dst_net && dst_context))
+            return false;
+
+      vvp_ref_signal_aa*src_ref =
+            dynamic_cast<vvp_ref_signal_aa*> (src_net->fil);
+      vvp_ref_signal_aa*dst_ref =
+            dynamic_cast<vvp_ref_signal_aa*> (dst_net->fil);
+      if (!(src_ref && dst_ref))
+            return false;
+
+      vthread_t save_running = running_thread;
+      if (src_thr) running_thread = src_thr;
+
+      vvp_net_t*target = 0;
+      vvp_context_t ctx = 0;
+      bool have = src_ref->read_binding(target, ctx);
+
+      running_thread = save_running;
+
+      if (!have)
+            return false;
+
+      dst_ref->write_binding(dst_context, target, ctx);
+      return true;
+}
+
 static bool copy_handle_value_to_context_(vpiHandle src_item, vthread_t src_thr,
                                           vpiHandle dst_item, vvp_context_t dst_context)
 {
+      if (copy_ref_binding_to_context_(src_item, src_thr, dst_item, dst_context))
+            return true;
+
       vvp_object_t obj_val;
       if (read_handle_object_in_thread_(src_item, src_thr, obj_val))
             return write_handle_object_to_context_(dst_item, obj_val, dst_context);
@@ -2599,12 +2675,43 @@ struct rand_saved_prop_s {
       vvp_vector4_t val;
 };
 
+/*
+ * Which properties is THIS randomize() call solving for? Everything else
+ * the object holds is a STATE variable for the call (IEEE 1800-2017
+ * 18.3) and must come out of it unchanged. `sel`, when non-null, is the
+ * in-line control set from randomize(a, b) / randomize(null) (18.11),
+ * which overrides the declaration — a listed variable is random for the
+ * call even if it was never declared `rand`. With no in-line set the
+ * answer is the declaration, gated by rand_mode() (18.8).
+ *
+ * This is the runtime half of the same question the solver asks in
+ * rand_active_(); the two must agree, so both take the same `sel`.
+ */
+static bool rand_call_active_(const class_type*defn, vvp_cobject*cobj,
+			      const std::vector<bool>*sel, size_t pid)
+{
+      if (sel) return pid < sel->size() ? (*sel)[pid] : false;
+      if (!defn->property_is_rand(pid)) return false;
+      return cobj->rand_mode(pid);
+}
+
+/* Does this property hold an OBJECT rather than bits -- a dynamic
+ * array, a class handle, an unpacked struct? Answered from the declared
+ * property type code so it is true even while the property is still
+ * nil. Queue and assoc codes are deliberately excluded: those have
+ * their own pre-fill paths above. */
+static bool rand_prop_is_container_(const class_type*defn, size_t pid)
+{
+      const std::string&bt = defn->property_base_type(pid);
+      return bt == "o" || bt.compare(0, 3, "oc:") == 0;
+}
+
 static void randomize_snapshot_(vvp_cobject*cobj, const class_type*defn,
-				std::vector<rand_saved_prop_s>&saved)
+				std::vector<rand_saved_prop_s>&saved,
+				const std::vector<bool>*sel = nullptr)
 {
       for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
-	    if (!defn->property_is_rand(pid)) continue;
-	    if (!cobj->rand_mode(pid)) continue;
+	    if (!rand_call_active_(defn, cobj, sel, pid)) continue;
 	    uint64_t asize = defn->property_array_size(pid);
 	    if (asize < 1) asize = 1;
 	    for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
@@ -2639,6 +2746,46 @@ static inline unsigned randomize_rand_(vvp_cobject*cobj)
       return (unsigned)rand();
 }
 
+
+/*
+ * IEEE 1800-2017 18.5.2: constraints are inherited, and a derived
+ * constraint block overrides a base block of the same name.
+ *
+ * The compiler merges the whole chain into each class's own constraint
+ * list (netclass_t::merge_inherited_constraint_irs_), so a derived
+ * class's list is already complete -- which is why the constraint set
+ * must be solved ONCE, over that complete list. Solving each class of
+ * the chain separately (what the runtime used to do) re-solves a SUBSET
+ * afterwards and lets it overwrite the full solution: with `soft v == 3'
+ * in the base and a hard `v > 100' in the derived class, the base-only
+ * re-solve is forced off the accept-current fast path by the soft
+ * assert, picks v == 3, and silently violates the derived hard
+ * constraint.
+ *
+ * This collects any base constraint the merge did not carry across --
+ * normally none -- so the single solve is still complete if the
+ * compiler-side merge is ever incomplete. Nearest base wins, and a name
+ * the derived class defines is never taken from a base.
+ */
+static void collect_unmerged_base_constraints_(const class_type*defn,
+					       vector<string>&extra)
+{
+      std::set<string> have;
+      for (size_t di = 0 ; di < defn->constraint_count() ; di += 1)
+	    have.insert(defn->constraint_name(di));
+
+      for (const class_type*walker = defn->runtime_super(); walker;
+	   walker = walker->runtime_super()) {
+	    for (size_t ci = 0 ; ci < walker->constraint_count() ; ci += 1) {
+		  const string&nm = walker->constraint_name(ci);
+		  if (have.count(nm)) continue;
+		  have.insert(nm);
+		  const string&ir = walker->constraint_ir(ci);
+		  if (!ir.empty()) extra.push_back(ir);
+	    }
+      }
+}
+
 /*
  * %randomize
  *
@@ -2652,6 +2799,17 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
 
+	// Consume the in-line control set armed by %rand/active, if any
+	// (IEEE 1800-2017 18.11). It applies to this call only.
+      std::vector<bool> sel_store;
+      const std::vector<bool>*sel = nullptr;
+      if (thr->rand_sel_armed) {
+	    sel_store = thr->rand_sel;
+	    sel = &sel_store;
+	    thr->rand_sel_armed = false;
+	    thr->rand_sel.clear();
+      }
+
       bool solve_ok = true;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
@@ -2662,13 +2820,11 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 			have_constraints = true;
 	    std::vector<rand_saved_prop_s> saved;
 	    if (have_constraints)
-		  randomize_snapshot_(cobj, defn, saved);
+		  randomize_snapshot_(cobj, defn, saved, sel);
 
-	      // Fill all rand properties with random bits first.
+	      // Fill this call's random variables with random bits first.
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
-		  if (!defn->property_is_rand(pid))
-			continue;
-		  if (!cobj->rand_mode(pid))
+		  if (!rand_call_active_(defn, cobj, sel, pid))
 			continue;
 
 		    // Phase 50b: rand assoc-vec4 array properties.  When a
@@ -2729,6 +2885,17 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 			      continue;  // skip the get_vec4 path below
 			}
 		  }
+		    // A CONTAINER or handle property -- a dynamic array,
+		    // a class handle, a struct object. There are no
+		    // property bits to pre-fill: get_vec4 hands back a
+		    // 1-bit "non-nil" flag and writing that back is not a
+		    // value (class_property_t::set_vec4 rejects it and
+		    // warns). A rand dynamic array's size and elements are
+		    // the solver's business (18.4), not this loop's. Asked
+		    // of the DECLARED type, so it holds for a property
+		    // that is still nil on the first call.
+		  if (rand_prop_is_container_(defn, pid))
+			continue;
 
 		  vvp_vector4_t val;
 		  cobj->get_vec4(pid, val);
@@ -2775,15 +2942,14 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 		  cobj->set_vec4(pid, val);
 	    }
 
-	      // Solve constraints with Z3 for this class AND every base
-	      // class in the inheritance chain. Without walking the chain,
-	      // a constraint declared on a base class's rand property is
-	      // silently dropped when the runtime instance is a derived
-	      // class, leaving those properties with raw rand() values that
-	      // ignore inside-range / equality constraints.
-	    for (const class_type*walker = defn; walker; walker = walker->runtime_super()) {
-		  if (walker->constraint_count() > 0)
-			if (!vvp_z3_randomize(walker, cobj))
+	      // ONE solve over the complete inherited constraint set --
+	      // see collect_unmerged_base_constraints_ for why solving the
+	      // chain class by class silently violates derived constraints.
+	    {
+		  vector<string> extra_ir;
+		  collect_unmerged_base_constraints_(defn, extra_ir);
+		  if (defn->constraint_count() > 0 || !extra_ir.empty())
+			if (!vvp_z3_randomize(defn, cobj, extra_ir, {}, sel))
 			      solve_ok = false;
 	    }
 	    if (!solve_ok)
@@ -2822,17 +2988,27 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
 
+	// Consume the in-line control set armed by %rand/active, if any
+	// (IEEE 1800-2017 18.11); it applies to this call only.
+      std::vector<bool> sel_store;
+      const std::vector<bool>*sel = nullptr;
+      if (thr->rand_sel_armed) {
+	    sel_store = thr->rand_sel;
+	    sel = &sel_store;
+	    thr->rand_sel_armed = false;
+	    thr->rand_sel.clear();
+      }
+
       bool solve_ok = true;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
 
 	    std::vector<rand_saved_prop_s> saved;
-	    randomize_snapshot_(cobj, defn, saved);
+	    randomize_snapshot_(cobj, defn, saved, sel);
 
-	      // Randomize all rand properties first.
+	      // Randomize this call's random variables first.
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
-		  if (!defn->property_is_rand(pid)) continue;
-		  if (!cobj->rand_mode(pid)) continue;
+		  if (!rand_call_active_(defn, cobj, sel, pid)) continue;
 		    // Static-array rand properties: fill each element
 		    // (mirrors of_RANDOMIZE).
 		  if (defn->property_array_size(pid) > 1) {
@@ -2850,6 +3026,10 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 			}
 			continue;
 		  }
+		    // Container / handle property: nothing to pre-fill
+		    // (see of_RANDOMIZE for why).
+		  if (rand_prop_is_container_(defn, pid))
+			continue;
 		  vvp_vector4_t val;
 		  cobj->get_vec4(pid, val);
 		  unsigned wid = val.size();
@@ -2893,16 +3073,15 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    }
 
 	      // Solve with Z3: class constraints + with-constraints.
+	      // Inherited constraints join the same single solve as the
+	      // class's own and the inline with-clause (mirrors
+	      // of_RANDOMIZE). Order is ascending soft-constraint priority
+	      // (18.5.14.1): anything the merge missed from a base first,
+	      // then the call-site with-clause, which outranks everything.
 	    vector<string> extra_ir;
+	    collect_unmerged_base_constraints_(defn, extra_ir);
 	    if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
-	    solve_ok = vvp_z3_randomize(defn, cobj, extra_ir, slot_vals);
-	      // Base-class constraints (mirrors of_RANDOMIZE).
-	    for (const class_type*walker = defn->runtime_super();
-		 walker; walker = walker->runtime_super()) {
-		  if (walker->constraint_count() > 0)
-			if (!vvp_z3_randomize(walker, cobj, {}, {}))
-			      solve_ok = false;
-	    }
+	    solve_ok = vvp_z3_randomize(defn, cobj, extra_ir, slot_vals, sel);
 	    if (!solve_ok)
 		  randomize_restore_(cobj, saved);
       }
@@ -2983,6 +3162,65 @@ bool of_RAND_MODE_P(vthread_t thr, vvp_code_t cp)
 	    size_t pid = (size_t) cp->number;
 	    if (pid < defn->property_count() && defn->property_is_rand(pid))
 		  cobj->set_rand_mode(pid, mode);
+      }
+      return true;
+}
+
+/*
+ * %rand_mode/get <pid>
+ *
+ * M3B-12: rand_mode() called as a FUNCTION on a single variable
+ * (IEEE 1800-2017 18.8) — it returns that variable's current active
+ * state. Pops the object, pushes the state as a 32-bit result. A
+ * property that was never declared rand is permanently inactive and
+ * reads 0. This used to elaborate to a constant 0, so the query could
+ * not tell a frozen variable from an active one.
+ */
+bool of_RAND_MODE_GET(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      bool st = false;
+      if (cobj) {
+	    const class_type*defn = cobj->get_defn();
+	    size_t pid = (size_t) cp->number;
+	    if (pid < defn->property_count() && defn->property_is_rand(pid))
+		  st = cobj->rand_mode(pid);
+      }
+
+      vvp_vector4_t result(32, BIT4_0);
+      result.set_bit(0, st ? BIT4_1 : BIT4_0);
+      thr->push_vec4(result);
+      return true;
+}
+
+/*
+ * %rand/active "<pid,pid,...>"
+ *
+ * M3B-13: in-line random variable control (IEEE 1800-2017 18.11). Arm
+ * the property set that the next %randomize / %randomize/with solves
+ * for. The listed properties are the call's random variables — every
+ * other property of the object is a state variable for that call, held
+ * at its current value. An EMPTY list is randomize(null): nothing is
+ * randomized and the call only reports whether the constraints are
+ * satisfiable.
+ */
+bool of_RAND_ACTIVE(vthread_t thr, vvp_code_t cp)
+{
+      thr->rand_sel_armed = true;
+      thr->rand_sel.clear();
+
+      for (const char*cur = cp->text ? cp->text : "" ; *cur ; ) {
+	    char*end = 0;
+	    unsigned long pid = strtoul(cur, &end, 10);
+	    if (end == cur) break;
+	    if (thr->rand_sel.size() <= pid)
+		  thr->rand_sel.resize(pid + 1, false);
+	    thr->rand_sel[pid] = true;
+	    cur = end;
+	    while (*cur == ',') cur += 1;
       }
       return true;
 }
@@ -3977,6 +4215,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->is_fork_v_child = 0;
       thr->is_trampoline_child = 0;
       thr->is_reactive_process = 0;
+      thr->in_region_drain = 0;
       for (__vpiScope*sc = scope ; sc ; sc = sc->scope) {
 	    if (sc->get_type_code() == vpiProgram) {
 		  thr->is_reactive_process = 1;
@@ -3988,13 +4227,18 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->suspend_resched = 0;
       thr->i_am_delaying = 0;
       thr->owns_automatic_context = 0;
+      thr->rand_sel_armed = false;
       thr->owned_context = 0;
       thr->skip_free_context = 0;
       thr->staged_alloc_rd_context = 0;
+      thr->pending_alloc_context = 0;
+      thr->pending_alloc_prev_wt = 0;
+      thr->pending_alloc_prev_rd = 0;
       thr->nonlocal_target = 0;
       thr->nonlocal_origin_scope = 0;
       thr->skip_free_scope = 0;
       thr->staged_alloc_rd_scope = 0;
+      thr->pending_alloc_scope = 0;
       thr->return_object_mirror_scope = 0;
       thr->dynamic_dispatch_base_scope = 0;
       thr->waiting_for_event = 0;
@@ -4689,6 +4933,50 @@ vvp_context_t vthread_get_rd_context()
             return 0;
 }
 
+/*
+ * Evaluate a `ref' formal against the frame it was bound in.
+ *
+ * A ref formal forwards every access to the caller's variable
+ * (IEEE 1800-2017 13.5.2). When that variable is itself automatic, its
+ * value lives in the CALLER's frame -- but the thread running the
+ * access is the callee, so the ordinary context lookup would resolve
+ * against the callee's frame and read the wrong storage (or none). The
+ * binding therefore records the caller's context, and these two put it
+ * back in place for the duration of one delegated access.
+ *
+ * Nothing else about the thread changes, and the save/restore is
+ * strictly paired, so a ref chain (a ref formal passed on as another
+ * subroutine's ref actual) nests correctly.
+ */
+void vthread_push_ref_context(vvp_context_t ctx, struct vthread_ref_ctx_save*save)
+{
+      save->engaged = false;
+      if (!running_thread || !ctx)
+            return;
+
+      save->rd = running_thread->rd_context;
+      save->wt = running_thread->wt_context;
+      save->staged_rd = running_thread->staged_alloc_rd_context;
+      save->staged_rd_scope = running_thread->staged_alloc_rd_scope;
+      save->engaged = true;
+
+      running_thread->rd_context = ctx;
+      running_thread->wt_context = ctx;
+      running_thread->staged_alloc_rd_context = 0;
+      running_thread->staged_alloc_rd_scope = 0;
+}
+
+void vthread_pop_ref_context(const struct vthread_ref_ctx_save*save)
+{
+      if (!save->engaged || !running_thread)
+            return;
+
+      running_thread->rd_context = save->rd;
+      running_thread->wt_context = save->wt;
+      running_thread->staged_alloc_rd_context = save->staged_rd;
+      running_thread->staged_alloc_rd_scope = save->staged_rd_scope;
+}
+
 static bool context_on_list(vvp_context_t head, vvp_context_t needle)
 {
       for (vvp_context_t cur = head ; cur ; cur = vvp_get_next_context(cur)) {
@@ -5380,6 +5668,12 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
         /* Allocate a context. */
       vvp_context_t child_context = vthread_alloc_context(ctx_scope);
 
+        /* Remember where this thread stood, so a %fork into a
+           non-automatic scope can move the frame to the thread that
+           will use it and leave this one as it was. See of_FORK. */
+      vvp_context_t prev_wt = thr->wt_context;
+      vvp_context_t prev_rd = thr->rd_context;
+
         /* If this context is being reused from the free list, scrub any
            stale references to the same storage out of the current thread's
            stacked chains before pushing it again. */
@@ -5411,6 +5705,13 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
                   thr->staged_alloc_rd_scope = ctx_scope;
             }
       }
+	/* Record the frame so a %fork into a NON-automatic scope can carry
+	   it to the thread that will actually make the call. See of_FORK. */
+      thr->pending_alloc_context = child_context;
+      thr->pending_alloc_scope = ctx_scope;
+      thr->pending_alloc_prev_wt = prev_wt;
+      thr->pending_alloc_prev_rd = prev_rd;
+
       trace_context_event_("alloc", thr, ctx_scope, child_context);
 
       return true;
@@ -6890,6 +7191,14 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
           && child_ctx_scope == thr->staged_alloc_rd_scope) {
             thr->staged_alloc_rd_context = 0;
             thr->staged_alloc_rd_scope = 0;
+      }
+	/* This call consumes the staged frame, so it is no longer a
+	   candidate for the %fork hand-off in of_FORK. Without this, a
+	   %fork sitting between the call and its matching %free would
+	   move the frame off this thread while it is still in use. */
+      if (thr->pending_alloc_scope == child_ctx_scope) {
+            thr->pending_alloc_context = 0;
+            thr->pending_alloc_scope = 0;
       }
       vvp_code_t callsite_pc = thr->pc ? (thr->pc - 1) : 0;
       string caller_name_buf;
@@ -8880,6 +9189,7 @@ bool of_DELAY(vthread_t thr, vvp_code_t cp)
 
       vvp_time64_t delay = (hig << 32) | low;
 
+      thr->in_region_drain = 0;
       if (schedule_finished())
             return false;
 
@@ -8895,6 +9205,7 @@ bool of_DELAYX(vthread_t thr, vvp_code_t cp)
 
       assert(cp->number < vthread_s::WORDS_COUNT);
       delay = thr->words[cp->number].w_uint;
+      thr->in_region_drain = 0;
       if (schedule_finished())
             return false;
       thr->i_am_delaying = 1;
@@ -10126,6 +10437,10 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
                  on the write context stack. */
             child->wt_context = thr->wt_context;
             child->rd_context = thr->wt_context;
+            if (thr->pending_alloc_scope == child_ctx_scope) {
+                  thr->pending_alloc_context = 0;
+                  thr->pending_alloc_scope = 0;
+            }
             /* Phase 59: keep a retained self-reference to the just-allocated
                autotask frame in owned_context.  Nested calls inside the
                forked task body (e.g. forever loops with %alloc/%free for
@@ -10144,6 +10459,46 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
                   child->owned_context = thr->wt_context;
             }
       }
+      if (!cp->scope->is_automatic()
+          && thr->pending_alloc_context
+          && thr->pending_alloc_context == thr->wt_context) {
+              /* An %alloc that no call has consumed yet, and a fork into a
+                 scope that is not automatic: this is tgt-vvp's spawn-time
+                 argument capture for a single-branch
+                 `fork <task>(); join_none'. It emits
+
+                     %alloc S_<callee>;          <- here, in the spawner
+                     %fork t_1, S_<enclosing>;   <- this instruction
+                   t_1:
+                     %fork TD_<callee>, S_<callee>;
+
+                 so that a loop-carried automatic passed to the detached
+                 task is snapshotted at spawn. The frame therefore has to
+                 survive the hop to t_1: vthread_new zeroes the contexts,
+                 and the branch above only hands them over when the fork's
+                 OWN scope is automatic -- which t_1's is not. Without
+                 this, the callee ran with no frame at all and lost both
+                 its automatic locals and the arguments just captured for
+                 it, silently. t_1's own %fork into the callee scope then
+                 takes the frame off the top of this inherited stack. */
+            child->wt_context = thr->wt_context;
+            child->rd_context = thr->wt_context;
+            child->pending_alloc_context = thr->pending_alloc_context;
+            child->pending_alloc_scope = thr->pending_alloc_scope;
+
+              /* A move, not a share. The frame belongs to the child --
+                 the matching %free is in the child too -- so this thread
+                 goes back to where it stood before the %alloc. Leaving
+                 the frame on this thread's stack would hand a later
+                 sibling a pointer to storage the child has since freed. */
+            thr->wt_context = thr->pending_alloc_prev_wt;
+            thr->rd_context = thr->pending_alloc_prev_rd;
+            thr->pending_alloc_context = 0;
+            thr->pending_alloc_scope = 0;
+            thr->pending_alloc_prev_wt = 0;
+            thr->pending_alloc_prev_rd = 0;
+      }
+
       if (thr->owned_context && !child->owned_context
           && context_live_in_owner(thr->owned_context)) {
               /* Detached automatic fork blocks can retain a shared frame in
@@ -10245,6 +10600,11 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
 bool of_FREE(vthread_t thr, vvp_code_t cp)
 {
       __vpiScope*ctx_scope = resolve_context_scope(cp->scope);
+      if (thr->pending_alloc_scope
+          && (!ctx_scope || thr->pending_alloc_scope == ctx_scope)) {
+            thr->pending_alloc_context = 0;
+            thr->pending_alloc_scope = 0;
+      }
       if (thr->staged_alloc_rd_scope
           && (!ctx_scope || thr->staged_alloc_rd_scope == ctx_scope)) {
             thr->staged_alloc_rd_context = 0;
@@ -12343,9 +12703,63 @@ bool of_LOAD_QO_V(vthread_t thr, vvp_code_t cp)
       return load_qo<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
 }
 
+/*
+ * %load/qo/obj
+ *
+ * Pop a container (queue or dynamic array) and push the element at the
+ * index in word register 3.
+ *
+ * A container of an object-backed VALUE type -- an unpacked struct --
+ * starts with nil element slots, so a member write `arr[i].f = v' would
+ * store through a null handle and be dropped. Materialize a nil element
+ * from the container's element prototype on first access, exactly as
+ * of_LOAD_DAR_OBJ does from the signal's declared_type(), and only
+ * within the current size so an out-of-range READ cannot grow a queue
+ * (IEEE 1800-2017 7.10.2). Containers of class handles carry no
+ * prototype, so their nil elements correctly stay null.
+ */
 bool of_LOAD_QO_OBJ(vthread_t thr, vvp_code_t)
 {
-      return load_qo<vvp_object_t, vvp_queue_object>(thr);
+      int64_t adr = thr->words[3].w_int;
+
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_darray*arr = recv.peek<vvp_darray>();
+
+      vvp_object_t word;
+      if (arr && (adr >= 0) && (thr->flags[4] == BIT4_0)
+	  && (static_cast<size_t>(adr) < arr->get_size())) {
+	    arr->get_word(adr, word);
+	    if (word.test_nil() && arr->elem_class()) {
+		  word = vvp_object_t(new vvp_cobject(arr->elem_class()));
+		  arr->set_word(adr, word);
+	    }
+      }
+
+      thr->push_object(word);
+      return true;
+}
+
+/*
+ * %dar/elem/proto
+ *
+ * Pop an element prototype object and record ITS CLASS on the container
+ * now on top of the object stack (which stays there). Emitted right
+ * after %new/darray for a container whose elements are object-backed
+ * value structs; the runtime materializes nil elements from that class.
+ * A no-op if either operand is not what is expected.
+ */
+bool of_DAR_ELEM_PROTO(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t proto;
+      thr->pop_object(proto);
+
+      vvp_cobject*cobj = proto.peek<vvp_cobject>();
+      vvp_object_t recv = thr->peek_object();
+      if (vvp_darray*arr = recv.peek<vvp_darray>())
+	    if (cobj) arr->set_elem_class(cobj->get_defn());
+
+      return true;
 }
 
 bool of_AA_LOAD_OBJ_OBJ(vthread_t thr, vvp_code_t)
@@ -14133,6 +14547,43 @@ bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t)
       return false;
 }
 
+/*
+ * IEEE 1800-2017 9.7.2: kill() terminates the process AND every
+ * sub-process it spawned -- "processes spawned using fork statements by
+ * the process being killed".
+ *
+ * do_disable() unwinds thr->children, which is the set a %join is
+ * waiting on. A `fork ... join_none' child is DETACHED: it is never
+ * joined, so it lives in detached_children instead and that walk never
+ * reached it. Killing a parent therefore left its join_none children
+ * running, still counting time and still reporting WAITING -- silently,
+ * since kill() returned normally and the parent really was dead.
+ *
+ * Only kill() takes this path. `disable' keeps its own semantics, which
+ * are a different clause (9.6.2) and a much larger blast radius.
+ */
+static void kill_detached_subprocesses_(vthread_t thr)
+{
+      if (!thr) return;
+
+      while (!thr->detached_children.empty()) {
+	    size_t before = thr->detached_children.size();
+	    vthread_t kid = *(thr->detached_children.begin());
+	    if (!kid) break;
+
+	      /* Depth first, so a grandchild spawned by the detached
+		 child goes with it. */
+	    kill_detached_subprocesses_(kid);
+	    (void) do_disable(kid, kid);
+
+	      /* do_disable reaps a detached thread, which is what
+		 removes it from this set. If some path ever leaves it in
+		 place, stop rather than spin. */
+	    if (thr->detached_children.size() >= before)
+		  break;
+      }
+}
+
 bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
 {
       vvp_object_t obj;
@@ -14153,8 +14604,41 @@ bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
       vthread_t self_process = logical_process_thread_(thr);
       bool self_kill = (target == thr) || (target == self_process);
 
+	/* Sub-processes first: once do_disable has run on the target it
+	   may already have been reaped, taking the set with it. */
+      kill_detached_subprocesses_(target);
+
       (void)do_disable(target, target);
       return !self_kill;
+}
+
+/*
+ * The threads that together ARE one logical process.
+ *
+ * A named begin/end body and a synchronous task frame each execute in
+ * their own vthread, but they are not sub-processes: they are the same
+ * process, which is why logical_process_thread_() walks straight past
+ * them and process::self() inside one returns the enclosing fork thread.
+ * While such a child runs, the parent is parked in %join -- so marking
+ * the parent alone suspended nothing, and status() then reported
+ * SUSPENDED for a process that was still counting time.
+ *
+ * fork...join_none children are deliberately excluded: those really are
+ * sub-processes, and 9.7.2 gives the cascade to kill() only.
+ */
+static void logical_process_threads_(vthread_t thr, vector<vthread_t>&out)
+{
+      if (!thr) return;
+
+      out.push_back(thr);
+
+      for (set<vthread_t>::iterator cur = thr->children.begin()
+		 ; cur != thr->children.end() ; ++cur) {
+	    vthread_t kid = *cur;
+	    if (!kid) continue;
+	    if (!kid->is_callf_child && !kid->is_fork_v_child) continue;
+	    logical_process_threads_(kid, out);
+      }
 }
 
 /*
@@ -14189,21 +14673,33 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
       if (target->suspended)
 	    return true;
 
-      target->suspended = 1;
-
       vthread_t self_process = logical_process_thread_(thr);
       bool self_suspend = (target == thr) || (target == self_process);
 
-	// A running/ready process must be rescheduled by resume() to make
-	// progress. A blocked process (waiting on an event or join) will have
-	// its reschedule armed by vthread_run when the wake is delivered.
-      if (self_suspend || target->is_scheduled)
-	    target->suspend_resched = 1;
+	// Every thread the process is made of, not just the one the handle
+	// names: while a named block or a task frame is executing, IT is the
+	// thread that has to stop and `target' is parked in %join behind it.
+      vector<vthread_t> parts;
+      logical_process_threads_(target, parts);
+
+      for (size_t idx = 0 ; idx < parts.size() ; idx += 1) {
+	    vthread_t part = parts[idx];
+	    part->suspended = 1;
+
+	      // A running/ready thread must be rescheduled by resume() to
+	      // make progress. A blocked one (waiting on an event or a join)
+	      // will have its reschedule armed by vthread_run when the wake
+	      // is delivered.
+	    if (part == thr || part->is_scheduled)
+		  part->suspend_resched = 1;
+      }
 
 	// Self-suspension takes effect immediately: park this thread. It is
 	// not placed on any run queue, so only resume() will revive it.
-      if (self_suspend)
+      if (self_suspend) {
+	    thr->suspend_resched = 1;
 	    return false;
+      }
 
       return true;
 }
@@ -14230,12 +14726,23 @@ bool of_PROCESS_RESUME(vthread_t thr, vvp_code_t)
       if (!target || !target->suspended)
 	    return true;
 
-      target->suspended = 0;
+	// Resume every thread the process is made of -- the same set
+	// suspend() stopped. The one that was actually executing is the one
+	// that has to be put back on a run queue.
+      vector<vthread_t> parts;
+      logical_process_threads_(target, parts);
 
-      if (target->suspend_resched) {
-	    target->suspend_resched = 0;
-	    if (!target->is_scheduled)
-		  schedule_vthread(target, 0, true);
+      for (size_t idx = 0 ; idx < parts.size() ; idx += 1) {
+	    vthread_t part = parts[idx];
+	    if (!part->suspended) continue;
+
+	    part->suspended = 0;
+
+	    if (part->suspend_resched) {
+		  part->suspend_resched = 0;
+		  if (!part->is_scheduled)
+			schedule_vthread(part, 0, true);
+	    }
       }
 
       return true;
@@ -14773,8 +15280,7 @@ static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, double&va
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, double&val)
 {
-      (void)idx;
-      val = vif->get_real(pid);
+      val = vif->get_real(pid, idx);
 }
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, string&val)
@@ -14784,8 +15290,7 @@ static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, string&va
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_vinterface*vif, string&val)
 {
-      (void)idx;
-      val = vif->get_string(pid);
+      val = vif->get_string(pid, idx);
 }
 
 static void get_from_obj(unsigned pid, unsigned idx, vvp_cobject*cobj, vvp_vector4_t&val)
@@ -15637,6 +16142,50 @@ static bool do_release_vec(vvp_code_t cp, bool net_flag)
 	// M12B-fr: report the release to any cbRelease callbacks.
       net->fil->run_force_callbacks(cbRelease);
 
+      return true;
+}
+
+/*
+ * %ref/bind <formal>, <actual>
+ *
+ * Point a `ref' formal at the caller's variable (IEEE 1800-2017
+ * 13.5.2). Emitted between the callee's %alloc and its %fork, so the
+ * write context is already the callee's frame -- which is where the
+ * binding belongs -- while the read context is still the caller's,
+ * which is the frame a caller-local automatic actual lives in.
+ */
+bool of_REF_BIND(vthread_t, vvp_code_t cp)
+{
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*> (cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind error: the formal is not a ref signal." << endl;
+	    assert(formal);
+	    return true;
+      }
+
+      formal->bind(cp->net2, false);
+      return true;
+}
+
+/*
+ * %ref/bind/f <formal>, <companion>
+ *
+ * The same, for an actual that could not be named: the caller copied it
+ * into a companion word in THIS frame, so that is where the target has
+ * to be resolved.
+ */
+bool of_REF_BIND_F(vthread_t, vvp_code_t cp)
+{
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*> (cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/f error: the formal is not a ref signal." << endl;
+	    assert(formal);
+	    return true;
+      }
+
+      formal->bind(cp->net2, true);
       return true;
 }
 
@@ -16658,8 +17207,7 @@ static void set_val(vvp_cobject*cobj, size_t pid, const double&val, size_t idx)
 
 static void set_val(vvp_vinterface*vif, size_t pid, const double&val, size_t idx)
 {
-      (void)idx;
-      vif->set_real(pid, val);
+      vif->set_real(pid, val, idx);
 }
 
 static void set_val(vvp_cobject*cobj, size_t pid, const string&val, size_t idx)
@@ -16669,8 +17217,7 @@ static void set_val(vvp_cobject*cobj, size_t pid, const string&val, size_t idx)
 
 static void set_val(vvp_vinterface*vif, size_t pid, const string&val, size_t idx)
 {
-      (void)idx;
-      vif->set_string(pid, val);
+      vif->set_string(pid, val, idx);
 }
 
 static void set_val(vvp_cobject*cobj, size_t pid, const vvp_vector4_t&val, size_t idx)
@@ -17870,6 +18417,55 @@ bool of_TEST_NUL_A(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %test/class <class>
+ *
+ * Is the object on top of the object stack assignment-compatible with
+ * <class> (IEEE 1800-2017 6.24.2 / 8.16)? That is: is its DYNAMIC type
+ * that class or a class derived from it? Sets flag 4, leaving the object
+ * in place. `null` is compatible with everything.
+ *
+ * This is the check $cast owes its caller. The code generator used to
+ * emit an unconditional store and an unconditional 1 for a $cast whose
+ * destination was a class variable or property, so a cast between
+ * unrelated classes reported success AND wrote the incompatible handle
+ * into the destination -- silently breaking the type system rather than
+ * returning 0 and leaving the destination alone.
+ */
+bool of_TEST_CLASS(vthread_t thr, vvp_code_t cp)
+{
+      const class_type*want = dynamic_cast<const class_type*> (cp->handle);
+      vvp_object_t&obj = thr->peek_object();
+
+      bool ok = false;
+      if (obj.test_nil()) {
+	    ok = true;
+      } else if (want) {
+	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
+	      /* Walk the object's DYNAMIC type up its super chain. The
+		 comparison is by dispatch prefix rather than by pointer:
+		 that is the identity the runtime itself uses to resolve a
+		 super (class_type::runtime_super), one .class definition
+		 can be emitted more than once in a program, and matching
+		 the super PREFIX directly also succeeds when the super's
+		 definition is not reachable through the map. */
+	    const std::string&want_key = want->dispatch_prefix();
+	    for (const class_type*w = cobj? cobj->get_defn() : 0 ; w ; ) {
+		  if (w == want) { ok = true; break; }
+		  if (!want_key.empty() && w->dispatch_prefix() == want_key) {
+			ok = true; break;
+		  }
+		  const std::string&sup = w->super_dispatch_prefix();
+		  if (sup.empty()) break;
+		  if (!want_key.empty() && sup == want_key) { ok = true; break; }
+		  w = class_type_from_dispatch_prefix(sup);
+	    }
+      }
+
+      thr->flags[4] = ok? BIT4_1 : BIT4_0;
+      return true;
+}
+
 bool of_TEST_NUL_OBJ(vthread_t thr, vvp_code_t)
 {
       if (thr->peek_object().test_nil())
@@ -18010,6 +18606,15 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
             fflush(stderr);
       }
 
+	/* $finish stops a thread at its next system-task call, which is
+	   how statements after $finish are kept from running.  A thread
+	   draining a region of the slot $finish was called in is exempt:
+	   it is finishing work that belongs to that slot (a concurrent
+	   assertion's Observed-region evaluation and its Reactive-region
+	   action), and freezing it there silently drops the verdict. */
+      if (schedule_finished() && thr && thr->in_region_drain)
+	    return true;
+
       return schedule_finished()? false : true;
 }
 
@@ -18037,6 +18642,7 @@ bool of_WAIT(vthread_t thr, vvp_code_t cp)
       }
       assert(! thr->waiting_for_event);
       thr->waiting_for_event = 1;
+      thr->in_region_drain = 0;
 
 	/* Add this thread to the list in the event. */
       waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (cp->net->fun);
@@ -18197,11 +18803,50 @@ struct observed_resume_event_s : public vvp_gen_event_s {
       }
 };
 
+struct reactive_resume_event_s : public vvp_gen_event_s {
+      vthread_t thr;
+      void run_run() override
+      {
+	    schedule_vthread(thr, 0, true);
+	    delete this;
+      }
+};
+
 bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t)
 {
+      thr->in_region_drain = 1;
       observed_resume_event_s*ev = new observed_resume_event_s;
       ev->thr = thr;
       schedule_at_observed(ev, 0);
+      return false;
+}
+
+/*
+ * %wait/reactive
+ *
+ * Suspend this thread and resume it in the Reactive region of the
+ * current time step (IEEE 1800-2017 4.4.2.5).  A concurrent assertion's
+ * pass/fail ACTION block runs there, one region after the Observed
+ * region its verdict was computed in, so the action sees the settled
+ * design state of the step it is judging.
+ *
+ * When no Reactive region is reachable any more -- inside a `final'
+ * block, a post-simulation callback, or the read-only Postponed region,
+ * none of which have a slot around them -- the deferral would drop the
+ * work entirely.  A dropped verdict is worse than one reported a region
+ * early, so the opcode falls through and the action runs inline.  This
+ * is what makes an end-of-simulation strong-property failure (reported
+ * from a synthesized `final' block) survive the deferral.
+ */
+bool of_WAIT_REACTIVE(vthread_t thr, vvp_code_t)
+{
+      if (! schedule_regions_live())
+	    return true;
+
+      thr->in_region_drain = 1;
+      reactive_resume_event_s*ev = new reactive_resume_event_s;
+      ev->thr = thr;
+      schedule_at_reactive(ev, 0);
       return false;
 }
 
