@@ -6310,6 +6310,53 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
  *    y = b;
  *  end
  */
+/*
+ * M10-6: an OUTPUT open-array formal of a DPI import still has to be
+ * copied IN.
+ *
+ * For an ordinary SystemVerilog subroutine an output argument is
+ * write-only: 13.5.2 copies it out at return and the formal starts
+ * uninitialized, so skipping the copy-in is right. A DPI open array is
+ * not that. IEEE 1800-2017 35.5.6.1 and H.10.2 say the ACTUAL argument
+ * determines the open array's shape, and the C side reads that shape
+ * back through svSize/svLow/svHigh/svGetArrElemPtr before it writes any
+ * element. Only the element VALUES are outputs; the array itself has to
+ * arrive.
+ *
+ * Skipping the copy-in handed C an unallocated formal, so
+ *
+ *     import "DPI-C" function void c_fill(output int a[]);
+ *     dyn = new[4];  c_fill(dyn);
+ *
+ * reported size=0, low=-1, high=0 -- a degenerate range that makes the
+ * natural `for (i = svLow; i <= svHigh; i++)' loop run twice out of
+ * bounds -- svGetArrElemPtr returned NULL for every index, and on
+ * return the empty formal was copied back OVER the actual, leaving
+ * dyn.size() == 0. The caller's array was destroyed, with no
+ * diagnostic and a clean exit.
+ *
+ * Restricted to DPI imports so ordinary SV output arguments keep their
+ * 13.5.2 semantics, and to open-array (dynamic array / queue) formals,
+ * which are the only ones whose shape the callee must be able to read.
+ */
+static bool dpi_open_array_formal_needs_copy_in_(const NetScope*task,
+						 const NetNet*port)
+{
+      if (!task || !port)
+	    return false;
+
+      bool is_dpi = false;
+      if (task->type() == NetScope::FUNC && task->func_pform())
+	    is_dpi = task->func_pform()->is_dpi_import();
+      else if (task->type() == NetScope::TASK && task->task_pform())
+	    is_dpi = task->task_pform()->is_dpi_import();
+      if (!is_dpi)
+	    return false;
+
+      ivl_type_t pt = port->net_type();
+      return pt && (dynamic_cast<const netdarray_t*>(pt) != 0);
+}
+
 NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -8527,6 +8574,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
       }
 
 	/* Detect the case where the definition of the task is known
+
 	   empty. In this case, we need not bother with calls to the
 	   task, all the assignments, etc. Just return a no-op. */
 
@@ -8602,7 +8650,8 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 	    NetNet*port = def->port(idx);
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
-	    if (port->port_type() == NetNet::POUTPUT)
+	    if (port->port_type() == NetNet::POUTPUT
+		&& !dpi_open_array_formal_needs_copy_in_(task, port))
 		  continue;
 
 	    NetAssign_*lv = new NetAssign_(port);
