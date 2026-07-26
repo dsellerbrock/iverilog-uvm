@@ -218,16 +218,36 @@ best-evidenced backlog available:
     `svGetArrElemPtr1`. Probably fixed by the M10-1 fixed-array
     marshaling work; the row was stale. Probe:
     `repros/struct_array_member_dpi.{sv,c}`.
-- Coverage (4): a bit- or part-select of a class property in a
-  coverpoint is dropped and the whole property sampled; `sample()`
-  called only from a module-scope task is a no-op; `coverpoint arr[N]`
-  drops the index.
-- VPI (4): array-typed class properties report their storage rather
-  than their type; queue/assoc members report size 0; cbValueChange on
-  a container element never fires.
-- ~~Processes (2)~~ — **both fixed**, see M6-9 below.
-- Access (1 left): `foreach` over a hierarchical name containing a
-  constant bit-select iterates zero times.
+- Coverage (4 recorded → **1 real**). Re-probed 2026-07-26 with one
+  covergroup per coverpoint so each could be measured on its own
+  (`get_coverage()` per COVERPOINT is not supported — that is its own
+  loud gap):
+  - a bit-select of a class property in a coverpoint — **100%,
+    does not reproduce**
+  - a part-select of a class property — **100%, does not reproduce**
+  - `coverpoint arr[N]` on a class property — **100%, does not
+    reproduce**
+  - `sample()` called only from a module-scope task — **REAL**: 0%
+    where 100% is required.
+- VPI (4 recorded → **2+ real, likely one root cause**). Probed with a
+  `vpiMember` walk over a class holding one member of each kind:
+  ```
+    member sc  type=612(vpiIntVar)  size=32     <- correct
+    member fa  type=612(vpiIntVar)  size=32     <- WRONG: `int fa[4]'
+                                                   reports the ELEMENT
+    member dq  type=116(vpiRegArray) size=0     <- WRONG: queue of 2
+    member da  type=615(vpiClassVar) size=64    <- WRONG: darray of 3
+    member aa  type=116(vpiRegArray) size=0     <- WRONG: assoc of 1
+  ```
+  Every container-typed property misreports its type and its size; only
+  the scalar is right. Reads as ONE defect in the VPI layer's
+  type/size reporting for container properties, not four.
+  - `cbValueChange` on a container element — **not yet re-probed**.
+- Access (1) — **REAL**. Narrowed: it is a hierarchical name whose
+  EARLIER component carries a constant index.
+  `foreach (u[1].bus[i])` over an array of instances iterates **zero
+  times**, silently; `foreach (w.bus[i])` through a plain hierarchical
+  name is correct (3). Probe: `repros/foreach_indexed_instance.sv`.
 
 **Two of the eighteen are closed, and one more turned up under them.**
 
@@ -354,8 +374,20 @@ M4B-12 added. Repros: `repros/struct_array_member_access_matrix.sv`
 and `repros/struct_array_member_dpi.{sv,c}` (the latter has plain
 fixed, dynamic, byte and shortint arrays as passing controls).
 
-**Known open, in priority order:** the whole-array residual above,
-then the fourteen remaining from the sweep; R16 (`$cast`
+**The sweep list was 22% stale.** Of the original eighteen: five are
+fixed (SVA ×2, processes ×2, the DPI open array), **four do not
+reproduce at all** (three coverage rows and the DPI byte-packing row),
+one turned out to be the struct-member family rather than a DPI defect,
+and the four VPI rows read as a single container-property reporting
+defect. Re-probe before estimating, not after: the recorded count
+overstated the work by roughly a third. A fresh adversarial sweep is
+worth running to re-baseline, since this one has drifted.
+
+**Known open, in priority order:** the whole-array residual above; the
+struct dynamic-array member; `sample()` from a module-scope task; the
+VPI container-property reporting defect; `foreach` over a hierarchical
+name with a constant instance index; `cbValueChange` on a container
+element (unverified); R16 (`$cast`
 into a container element that is not a direct class property — a local
 queue, or one behind a nested receiver — writes nothing; into a local
 fixed array element it aborts); M3B-10 (`std::randomize(vars) with
