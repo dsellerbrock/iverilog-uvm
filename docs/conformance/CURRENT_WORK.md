@@ -198,8 +198,11 @@ already fixed this session (M3B-15, and the three halves of M9-12).
 **Eighteen remain, all confirmed and reproducible**, and they are the
 best-evidenced backlog available:
 
-- SVA: `assert property (S within T)` never runs its pass action; an
-  end-of-sim `strong(seq)` failure ignores the user's `else` block.
+- SVA: ~~`assert property (S within T)` never runs its pass action~~
+  — **fixed** (M9-13). The verdicts were right all along; the whole
+  temporal-operator lowering deleted the pass statement before it
+  emitted anything. Still open: an end-of-sim `strong(seq)` failure
+  ignores the user's `else` block.
 - DPI (2 left; the open-array one is now M10-6, DONE): a fixed
   array reached through a member select arrives empty; a sub-32-bit
   open array is marshaled byte-packed instead of one word per element.

@@ -7529,9 +7529,32 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       bool with   = (op == 5 || op == 7);
       bool strong = (op == 6 || op == 7);
 
-	/* A pass action is not meaningful for these forms. */
-      delete pass_stmt;
-      pass_stmt = nullptr;
+	/* IEEE 1800-2017 16.14.6: the action block's pass statement runs
+	   when the assertion SUCCEEDS, for any property. It used to be
+	   dropped here for every operator in this function, silently --
+	   so `assert property (a within b) $display("ok");' never said
+	   anything. It is now honoured wherever this lowering computes a
+	   definite success, and refused out loud where it does not.
+
+	   The forms it is still refused for are the ones whose obligation
+	   is not discharged cycle by cycle in this lowering: the weak
+	   `until' family (an attempt that has not failed yet has not
+	   succeeded either), the abort operators, and the liveness
+	   operators, whose per-cycle collapse settles failure but not
+	   success. Refusing out loud is the point -- they used to accept
+	   the statement and drop it. */
+      bool pass_supported = is_within;
+      if (pass_stmt && !pass_supported) {
+	    cerr << loc << ": sorry: a pass action on this property "
+		 << "operator is not supported (IEEE 1800-2017 16.14.6). "
+		 << "Use the `else' half alone, or an `always' block on the "
+		 << "same condition." << endl;
+	    error_count += 1;
+      }
+      if (!pass_supported) {
+	    delete pass_stmt;
+	    pass_stmt = nullptr;
+      }
 
 	/* Clock: explicit, else the module's default clocking. */
       PEventStatement*clk = prop->clk_evt;
@@ -7899,6 +7922,10 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    if (!s2term) s2term = sva_bit_(loc, 1);
 	    if (!s1embed) s1embed = sva_bit_(loc, 1);
 	    PExpr*wmatch = sva_logic_(loc, 'a', s2term, s1embed);
+	      /* Kept for the success test: building the failure expression
+		 below hands wmatch to it, and the sampled-value rewrite
+		 then rebuilds that tree. */
+	    PExpr*wmatch_pass = pass_stmt ? sva_clone_expr_(wmatch) : nullptr;
 
 	    if (kind == 2) {
 		    /* cover: count each window that matches. Warm-up
@@ -7915,6 +7942,9 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  FILE_NAME(add, loc);
 		  body.push_back(sva_assign_(loc, r_cnt, add));
 		  delete fail_stmt;
+		  delete wmatch_pass;
+		  delete pass_stmt;
+		  pass_stmt = nullptr;
 	    } else {
 		    /* assert/assume: every mature window must match. A
 		       `$past(1, L2)` guard is 0 until L2 cycles elapse, so
@@ -7935,6 +7965,29 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  }
 		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
 					 sva_fail_action_(loc, inst, action), nullptr));
+
+		    /* Success: a MATURE window that matched. `valid' is the
+		       same warm-up guard the failure uses, so a window that
+		       predates time 0 reports neither way. Emitted only when
+		       the user wrote a pass statement -- the cbAssertionSuccess
+		       report for this operator is a separate gap, and adding
+		       it here would change what every existing `within'
+		       assertion reports to VPI. */
+		  if (pass_stmt) {
+			PExpr*passexpr = sva_logic_(loc, 'a',
+			      sva_past_(loc, sva_bit_(loc, 1), L2),
+			      wmatch_pass);
+			wmatch_pass = nullptr;
+			PExpr*ps = sva_rewrite_sampled_(loc, passexpr, inst,
+							hist_idx, pre, post,
+							init_zero);
+			perm_string r_pf = sva_make_reg_(loc, inst, "pf", 0);
+			pre.push_back(sva_assign_(loc, r_pf, ps));
+			body.push_back(sva_if_(loc, sva_id_(loc, r_pf),
+				 sva_pass_action_(loc, inst, pass_stmt),
+				 nullptr));
+			pass_stmt = nullptr;
+		  }
 	    }
       }
 
