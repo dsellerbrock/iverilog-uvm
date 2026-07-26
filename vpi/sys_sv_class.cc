@@ -291,6 +291,31 @@ static PLI_INT32 sys_typename_compiletf(ICARUS_VPI_CONST PLI_BYTE8*)
       return 0;
 }
 
+/*
+ * $ivl_cast_error -- the diagnostic IEEE 1800-2017 6.24.2 requires when
+ * $cast is called as a TASK and the cast fails. (Called as a function it
+ * simply returns 0, which is what the caller asked to be told.) Emitted
+ * on the failure path of the $cast lowering, so it costs nothing when
+ * the cast succeeds.
+ */
+static PLI_INT32 sys_cast_error_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      const char*file = callh ? vpi_get_str(vpiFile, callh) : 0;
+      int line = callh ? (int) vpi_get(vpiLineNo, callh) : 0;
+
+      vpi_printf("%s:%d: error: $cast failed: the source object is not "
+                 "assignment compatible with the destination type "
+                 "(IEEE 1800-2017 6.24.2). The destination is unchanged.\n",
+                 file ? file : "<unknown>", line);
+      return 0;
+}
+
+static PLI_INT32 sys_cast_error_compiletf(ICARUS_VPI_CONST PLI_BYTE8*)
+{
+      return 0;
+}
+
 extern "C" void sys_sv_class_register(void)
 {
       static const struct t_vpi_systf_data cast_data = {
@@ -314,4 +339,15 @@ extern "C" void sys_sv_class_register(void)
       };
       vpiHandle typename_h = vpi_register_systf(&typename_data);
       vpip_make_systf_system_defined(typename_h);
+
+      static const struct t_vpi_systf_data cast_error_data = {
+            vpiSysTask, 0,
+            (PLI_BYTE8*)"$ivl_cast_error",
+            sys_cast_error_calltf,
+            sys_cast_error_compiletf,
+            0,
+            0
+      };
+      vpiHandle cast_error_h = vpi_register_systf(&cast_error_data);
+      vpip_make_systf_system_defined(cast_error_h);
 }

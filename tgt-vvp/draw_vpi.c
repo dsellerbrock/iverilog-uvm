@@ -417,6 +417,187 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
       }
 }
 
+/*
+ * $cast(dest, src) where dest is a class variable or a class-typed
+ * property (IEEE 1800-2017 6.24.2). The generic VPI path cannot serve
+ * this: the destination reaches the systf as a handle to the CONTAINING
+ * class object rather than to the property, so the runtime checked the
+ * wrong type and wrote to the wrong place. This lowers the whole thing
+ * to opcodes instead.
+ *
+ * Three things it must get right, all of which the previous shortcut got
+ * wrong, silently:
+ *
+ *   * the TYPE CHECK. The old code emitted an unconditional store and an
+ *     unconditional 1, so a cast between unrelated classes reported
+ *     success and installed the incompatible handle. 6.24.2 requires 0
+ *     and the destination left alone.
+ *   * the ELEMENT INDEX of a fixed unpacked array property. The store
+ *     was emitted with a literal index selector of 0, so
+ *     `$cast(p.arr[2], h)' wrote p.arr[0].
+ *   * an element of a CONTAINER property -- a queue, dynamic array or
+ *     associative array held in the property. The slot holds the
+ *     container, not the element, so storing into the slot REPLACED the
+ *     whole container with the handle: `$cast(p.q[1], h)' left p.q with
+ *     size 0. (Same shape as M1C-3, on the one path that did not go
+ *     through the assignment lowering.)
+ *
+ * Returns 0 for any destination shape it does not handle, leaving the
+ * caller to fall back to the generic path.
+ *
+ * result_width == 0 means the statement form (no value pushed);
+ * otherwise the 1/0 result is pushed onto the vec4 stack.
+ */
+static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
+                                      unsigned result_width,
+                                      unsigned file_idx, unsigned lineno)
+{
+      ivl_signal_t base_sig = 0;
+      ivl_type_t dest_type = 0;
+      ivl_expr_t idx;
+      int pidx;
+      int is_container;
+      int is_assoc;
+      ivl_expr_t recv = 0;
+      unsigned lab_fail, lab_done;
+      int depth_on_fail;
+
+      if (!(dest && src))
+            return 0;
+      if (ivl_expr_value(dest) != IVL_VT_CLASS)
+            return 0;
+
+      /* ivl_expr_signal() asserts on an expression that has no signal,
+         so the shape has to be established BEFORE asking for one. Any
+         other destination shape falls back to the generic path. */
+      switch (ivl_expr_type(dest)) {
+          case IVL_EX_SIGNAL:
+          case IVL_EX_PROPERTY:
+            break;
+          default:
+            return 0;
+      }
+
+      if (ivl_expr_type(dest) == IVL_EX_SIGNAL) {
+            base_sig = ivl_expr_signal(dest);
+            if (!base_sig)
+                  return 0;
+            if (ivl_signal_dimensions(base_sig) != 0)
+                  return 0;
+            dest_type = ivl_signal_net_type(base_sig);
+      } else {
+              /* A property always carries its receiver as oper2, and a
+                 NESTED receiver (p.inn.arr[i]) has no single signal to
+                 ask for -- so drive everything off the receiver
+                 expression and never reach for a signal here. */
+              /* A NESTED receiver (p.inn.arr[i]) carries the receiver
+                 as oper2 and has no single signal to ask for; a direct
+                 one (p.arr[i]) leaves oper2 null and names its signal. */
+            recv = ivl_expr_oper2(dest);
+            if (!recv) {
+                  base_sig = ivl_expr_signal(dest);
+                  if (!base_sig)
+                        return 0;
+            }
+            dest_type = ivl_expr_net_type(dest);
+      }
+
+      /* Without the destination's class type there is nothing to check
+         against; hand the call back rather than store unchecked. */
+      if (!(dest_type && ivl_type_base(dest_type) == IVL_VT_CLASS))
+            return 0;
+
+      idx = (ivl_expr_type(dest) == IVL_EX_PROPERTY)
+            ? ivl_expr_oper1(dest) : 0;
+      pidx = (ivl_expr_type(dest) == IVL_EX_PROPERTY)
+            ? (int) ivl_expr_property_idx(dest) : 0;
+      is_container = property_is_indexed_container_expr_(dest);
+      is_assoc = property_is_assoc_indexed_expr_(dest);
+
+      lab_fail = local_count++;
+      lab_done = local_count++;
+
+      /* Push the destination context first where there is one, so the
+         source ends up on top of the OBJECT stack for the type test in
+         every shape. */
+      if (ivl_expr_type(dest) == IVL_EX_PROPERTY) {
+              /* The receiver may itself be a property path (p.inn.arr[i]),
+                 so evaluate it rather than assuming the base signal IS
+                 the receiver -- that would store into the wrong object. */
+            if (recv)
+                  draw_eval_object(recv);
+            else
+                  fprintf(vvp_out, "    %%load/obj v%p_0; $cast: receiver\n",
+                          base_sig);
+            depth_on_fail = 2;
+            if (is_assoc) {
+                  fprintf(vvp_out, "    %%prop/obj %d, 0; $cast: the map\n",
+                          pidx);
+                  depth_on_fail = 3;
+            } else if (is_container) {
+                  draw_eval_expr_into_integer(idx, 4);
+                  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+                  fprintf(vvp_out, "    %%prop/obj %d, 0; $cast: the container\n",
+                          pidx);
+                  fprintf(vvp_out, "    %%pop/obj 1, 1; $cast: drop receiver\n");
+            }
+      } else {
+            depth_on_fail = 1;
+      }
+
+      draw_eval_object(src);
+      fprintf(vvp_out, "    %%test/class C%p; $cast: 6.24.2 type check\n",
+              dest_type);
+      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 4;\n",
+              thread_count, lab_fail);
+
+      if (ivl_expr_type(dest) != IVL_EX_PROPERTY) {
+            fprintf(vvp_out, "    %%store/obj v%p_0; $cast\n", base_sig);
+      } else if (is_assoc) {
+              /* The key goes on its own stack, so it may be pushed
+                 after the value; the store consumes key and value and
+                 leaves the map and the receiver to be dropped. */
+            {     /* The shared helper pushes the key on whichever stack
+                     it belongs to and names the matching store. */
+                  const char*key_kind = draw_eval_assoc_key_(idx, 0);
+                  fprintf(vvp_out, "    %%aa/store/obj/%s; $cast: store entry\n",
+                          key_kind);
+            }
+            fprintf(vvp_out, "    %%pop/obj 2, 0; $cast: drop map and receiver\n");
+      } else if (is_container) {
+            fprintf(vvp_out, "    %%set/dar/obj/obj 4; $cast: store element\n");
+            fprintf(vvp_out, "    %%pop/obj 1, 0; $cast: drop container\n");
+      } else {
+            if (idx) {
+                  draw_eval_expr_into_integer(idx, 4);
+                  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+                  fprintf(vvp_out, "    %%store/prop/obj %d, 4; $cast\n", pidx);
+            } else {
+                  fprintf(vvp_out, "    %%store/prop/obj %d, 0; $cast\n", pidx);
+            }
+            fprintf(vvp_out, "    %%pop/obj 1, 0; $cast: drop receiver\n");
+      }
+      if (result_width)
+            fprintf(vvp_out, "    %%pushi/vec4 1, 0, %u; $cast: success\n",
+                    result_width);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_done);
+
+      /* Failure: the destination is left exactly as it was (6.24.2). */
+      fprintf(vvp_out, "T_%u.%u ; $cast failed\n", thread_count, lab_fail);
+      fprintf(vvp_out, "    %%pop/obj %d, 0;\n", depth_on_fail);
+      if (result_width) {
+            fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u; $cast: failure\n",
+                    result_width);
+      } else {
+              /* Task form: 6.24.2 requires a diagnostic, because the
+                 caller has no return value to inspect. */
+            fprintf(vvp_out, "    %%vpi_call %u %u \"$ivl_cast_error\" {0 0 0 0};\n",
+                    file_idx, lineno);
+      }
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_done);
+      return 1;
+}
+
 static int draw_sv_cast_class_task(ivl_statement_t tnet)
 {
       if (!(tnet && ivl_stmt_name(tnet)))
@@ -426,22 +607,10 @@ static int draw_sv_cast_class_task(ivl_statement_t tnet)
       if (ivl_stmt_parm_count(tnet) != 2)
             return 0;
 
-      ivl_expr_t dest = ivl_stmt_parm(tnet, 0);
-      ivl_expr_t src  = ivl_stmt_parm(tnet, 1);
-      if (!(dest && src))
-            return 0;
-      if (ivl_expr_value(dest) != IVL_VT_CLASS)
-            return 0;
-      if (ivl_expr_type(dest) != IVL_EX_SIGNAL)
-            return 0;
-
-      ivl_signal_t sig = ivl_expr_signal(dest);
-      if (!(sig && ivl_signal_dimensions(sig) == 0))
-            return 0;
-
-      draw_eval_object(src);
-      fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
-      return 1;
+      return draw_sv_cast_class_common_(ivl_stmt_parm(tnet, 0),
+                                        ivl_stmt_parm(tnet, 1), 0,
+                                        ivl_file_table_index(ivl_stmt_file(tnet)),
+                                        ivl_stmt_lineno(tnet));
 }
 
 static int get_vpi_taskfunc_lvalue_arg(struct args_info *result,
@@ -786,13 +955,7 @@ void draw_vpi_task_call(ivl_statement_t tnet)
       }
 }
 
-/*
- * Function-form $cast(dest, src) shortcut when dest is a class-property
- * lvalue. The default VPI path passes a handle to the containing class
- * object (`this`) instead of the property, so the runtime cast checks
- * the wrong class type. Emit a direct property-store sequence and push
- * 1 (success) onto the vec4 stack as the function result.
- */
+/* Function form: the same lowering, plus the 1/0 result. */
 static int draw_sv_cast_class_func(ivl_expr_t fnet)
 {
       const char*name = ivl_expr_name(fnet);
@@ -801,40 +964,11 @@ static int draw_sv_cast_class_func(ivl_expr_t fnet)
       if (ivl_expr_parms(fnet) != 2)
             return 0;
 
-      ivl_expr_t dest = ivl_expr_parm(fnet, 0);
-      ivl_expr_t src  = ivl_expr_parm(fnet, 1);
-      if (!(dest && src))
-            return 0;
-      if (ivl_expr_value(dest) != IVL_VT_CLASS)
-            return 0;
-      if (ivl_expr_type(dest) != IVL_EX_PROPERTY)
-            return 0;
-
-      /* base signal (the containing class object — typically `this`) and
-         the property index of the destination. */
-      ivl_signal_t base_sig = ivl_expr_signal(dest);
-      if (!base_sig)
-            return 0;
-      int pidx = (int) ivl_expr_property_idx(dest);
-
-      /* Emit:
-            push src as object (top of obj stack)
-            push base (this) — now [base, src]
-            swap so order is [src, base]:
-              actually %store/prop/obj pops the value and peeks the cobj,
-              so the stack must be [..., cobj, value]. Push base FIRST,
-              then value last.
-         %store/prop/obj N, 0; %pop/obj 1, 0.
-         Then push 1 (success) onto vec4 as the function return. */
-      fprintf(vvp_out, "    %%load/obj v%p_0; $cast: push base (this)\n",
-              base_sig);
-      draw_eval_object(src);
-      fprintf(vvp_out, "    %%store/prop/obj %d, 0; $cast: store property\n",
-              pidx);
-      fprintf(vvp_out, "    %%pop/obj 1, 0; $cast: drop base\n");
-      fprintf(vvp_out, "    %%pushi/vec4 1, 0, %u; $cast: success\n",
-              ivl_expr_width(fnet));
-      return 1;
+      return draw_sv_cast_class_common_(ivl_expr_parm(fnet, 0),
+                                        ivl_expr_parm(fnet, 1),
+                                        ivl_expr_width(fnet),
+                                        ivl_file_table_index(ivl_expr_file(fnet)),
+                                        ivl_expr_lineno(fnet));
 }
 
 void draw_vpi_func_call(ivl_expr_t fnet)

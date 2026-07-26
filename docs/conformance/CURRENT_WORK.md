@@ -172,13 +172,60 @@ every Active-region reader, so sharing the edge is race-free. That
 construction also gave the `default clocking` binding for free, so all
 three clock sources of 16.14.6 are covered.
 
-**Known open, in priority order:** R14 (an explicit clocking-event
-argument to a sampled value function does not parse — the lowering
-exists, only the grammar rule is missing); M3B-10
-(`std::randomize(vars) with {...}` does not reach Z3);
-`obj.randomize() with {...}` in STATEMENT position is a syntax error
-(only the expression form parses); M1C-2 (canonical access
-representation); M9-7 multiclock residuals.
+**R14 is closed.** An explicit clocking event as the last argument of a
+sampled value function — `$past(e, n, gate, @(posedge sclk))` — was a
+bare syntax error. It now has its own grammar rule at zero conflict
+cost, and the named event outranks the enclosing block and the default
+clocking, as 16.14.6 orders them.
+
+**M1C-6 closed the `$cast` destination family**, the worst of the
+findings the adversarial sweep confirmed. `$cast` to a class-typed
+destination did **no type check at all** — a cast between unrelated
+classes returned 1 and installed the incompatible handle — wrote
+element 0 of a fixed array property whatever index was written, and,
+when the destination was an element of a container held in a property,
+stored into the property SLOT and so replaced the whole container:
+`$cast(p.q[1], h)` left the queue with size 0 and still returned 1. A
+new `%test/class` opcode answers the 6.24.2 question (is the object's
+DYNAMIC type this class or derived from it, matched by dispatch prefix),
+and the store now uses the receiver expression, the element index and
+the container-vs-slot distinction the assignment path already had.
+
+**The earlier adversarial sweep finally returned** (its later probes
+died on a session limit, so the second sweep produced nothing). It
+confirmed 22 silent defects independently; four of them were the ones
+already fixed this session (M3B-15, and the three halves of M9-12).
+**Eighteen remain, all confirmed and reproducible**, and they are the
+best-evidenced backlog available:
+
+- SVA: `assert property (S within T)` never runs its pass action; an
+  end-of-sim `strong(seq)` failure ignores the user's `else` block.
+- DPI (3): an `output`/open-array formal arrives with size 0 and copies
+  an empty array back over the actual; a fixed array reached through a
+  member select arrives empty; a sub-32-bit open array is marshaled
+  byte-packed instead of one word per element.
+- Coverage (4): a bit- or part-select of a class property in a
+  coverpoint is dropped and the whole property sampled; `sample()`
+  called only from a module-scope task is a no-op; `coverpoint arr[N]`
+  drops the index.
+- VPI (4): array-typed class properties report their storage rather
+  than their type; queue/assoc members report size 0; cbValueChange on
+  a container element never fires.
+- Processes (2): `process::kill()` leaves fork-spawned sub-processes
+  running; `suspend()` is dropped when the target is blocked inside a
+  named begin/end.
+- Access (1 left): `foreach` over a hierarchical name containing a
+  constant bit-select iterates zero times.
+
+**Known open, in priority order:** the eighteen above; R16 (`$cast`
+into a container element that is not a direct class property — a local
+queue, or one behind a nested receiver — writes nothing; into a local
+fixed array element it aborts); M3B-10 (`std::randomize(vars) with
+{...}` does not reach Z3); `obj.randomize() with {...}` in STATEMENT
+position is a syntax error (only the expression form parses); M1C-2
+(canonical access representation); M9-7 multiclock residuals; R15 (a
+sampled value read from a context not aligned with its clocking event
+is one tick young).
 
 **Where to look first when resuming:** the `Current focus` list at the
 bottom of `ROADMAP.md`. It is re-derived from the priority rule, not

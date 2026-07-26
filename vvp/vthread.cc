@@ -18105,6 +18105,55 @@ bool of_TEST_NUL_A(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %test/class <class>
+ *
+ * Is the object on top of the object stack assignment-compatible with
+ * <class> (IEEE 1800-2017 6.24.2 / 8.16)? That is: is its DYNAMIC type
+ * that class or a class derived from it? Sets flag 4, leaving the object
+ * in place. `null` is compatible with everything.
+ *
+ * This is the check $cast owes its caller. The code generator used to
+ * emit an unconditional store and an unconditional 1 for a $cast whose
+ * destination was a class variable or property, so a cast between
+ * unrelated classes reported success AND wrote the incompatible handle
+ * into the destination -- silently breaking the type system rather than
+ * returning 0 and leaving the destination alone.
+ */
+bool of_TEST_CLASS(vthread_t thr, vvp_code_t cp)
+{
+      const class_type*want = dynamic_cast<const class_type*> (cp->handle);
+      vvp_object_t&obj = thr->peek_object();
+
+      bool ok = false;
+      if (obj.test_nil()) {
+	    ok = true;
+      } else if (want) {
+	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
+	      /* Walk the object's DYNAMIC type up its super chain. The
+		 comparison is by dispatch prefix rather than by pointer:
+		 that is the identity the runtime itself uses to resolve a
+		 super (class_type::runtime_super), one .class definition
+		 can be emitted more than once in a program, and matching
+		 the super PREFIX directly also succeeds when the super's
+		 definition is not reachable through the map. */
+	    const std::string&want_key = want->dispatch_prefix();
+	    for (const class_type*w = cobj? cobj->get_defn() : 0 ; w ; ) {
+		  if (w == want) { ok = true; break; }
+		  if (!want_key.empty() && w->dispatch_prefix() == want_key) {
+			ok = true; break;
+		  }
+		  const std::string&sup = w->super_dispatch_prefix();
+		  if (sup.empty()) break;
+		  if (!want_key.empty() && sup == want_key) { ok = true; break; }
+		  w = class_type_from_dispatch_prefix(sup);
+	    }
+      }
+
+      thr->flags[4] = ok? BIT4_1 : BIT4_0;
+      return true;
+}
+
 bool of_TEST_NUL_OBJ(vthread_t thr, vvp_code_t)
 {
       if (thr->peek_object().test_nil())
