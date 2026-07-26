@@ -666,6 +666,12 @@ class PForeach : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+	// Iterate a target that resolved to a SIGNAL (a net or variable),
+	// whatever the path shape was. A hierarchical target -- an array
+	// member of an interface INSTANCE, `foreach (sif.arr[i])' -- lands
+	// here too, so it takes the same route as a plain local array.
+      NetProc* elaborate_signal_array_(Design*des, NetScope*scope,
+				       NetNet*array_sig) const;
       NetProc* elaborate_assoc_array_(Design*des, NetScope*scope,
 				      NetExpr*array_expr,
 				      size_t index_var_start) const;

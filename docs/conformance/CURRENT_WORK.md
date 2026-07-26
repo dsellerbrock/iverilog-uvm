@@ -94,8 +94,10 @@ reverted: reads returned 0 and the first write aborted the runtime.
 — a modport-qualified virtual interface, IEEE 1800-2017 25.9 and the
 standard UVM agent idiom — was a hard syntax error in every declaration
 context. It now parses everywhere the unqualified form does, at zero
-grammar-conflict cost. The modport's direction restrictions are not
-enforced (a superset, stated in the M5-6 row, not implied).
+grammar-conflict cost. The modport view IS enforced through the new
+form -- writing an `input` member is rejected and an unlisted member is
+inaccessible -- which corrected this row's first, wrong claim that it was
+not.
 
 **No silent defect is known to be outstanding in the M1C access family.**
 Every cell of the two Cartesian probes and the ~110-cell adversarial

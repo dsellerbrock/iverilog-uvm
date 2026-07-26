@@ -15,13 +15,14 @@
 // resolved (TYPE_IDENTIFIER) and forward-referenced (IDENTIFIER) shapes,
 // and with an optional parameter override before the modport.
 //
-// Boundary, stated rather than implied: the modport NAME is recorded on
-// the type but its direction restrictions are NOT enforced — a handle
-// declared `virtual bus_if.mon' can still write. What is accepted is a
-// superset of the modport's view, so no conformant design is rejected;
-// direction enforcement through a modport-qualified handle is separate
-// work (M12-6 already carries the modport direction metadata that it
-// would consult). Grammar cost: zero new conflicts (494 shift/reduce,
+// The modport VIEW is enforced through this declaration form: writing a
+// member the modport declares `input' is rejected, and a member the
+// modport does not list is not accessible at all -- the interface-PORT
+// path's direction check reaches the handle unchanged, so only the
+// declaration syntax had been missing. Those two rejections are pinned in
+// tests/negative/vif_modport_input_write and
+// tests/negative/vif_modport_unlisted_member; this file covers the
+// positive half. Grammar cost: zero new conflicts (494 shift/reduce,
 // 1161 reduce/reduce, unchanged).
 
 interface bus_if;

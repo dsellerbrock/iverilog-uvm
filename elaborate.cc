@@ -10884,6 +10884,17 @@ static NetExpr* elaborate_foreach_target_expr_(Design*des,
 NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 {
       if (foreach_target_is_non_simple_(array_path_)) {
+	      /* A hierarchical target may name an ordinary SIGNAL in
+		 another scope -- an array member of an interface
+		 instance is the common case. Resolve that first and
+		 iterate it exactly as a local array; only a path that
+		 does NOT resolve to a signal (a class property, a
+		 virtual-interface member) needs the expression route
+		 below, which cannot yield a whole unpacked array for a
+		 hierarchical name. */
+	    if (NetNet*hier_sig = des->find_signal(scope, array_path_))
+		  return elaborate_signal_array_(des, scope, hier_sig);
+
 	    ivl_type_t ptype = 0;
 	    NetExpr*array_expr = elaborate_foreach_target_expr_(
 		  des, *this, lexical_pos_, scope, array_path_, ptype);
@@ -11112,6 +11123,23 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 
       ivl_assert(*this, array_sig);
 
+      return elaborate_signal_array_(des, scope, array_sig);
+}
+
+/*
+ * Iterate a foreach target that resolved to a SIGNAL. Split out of
+ * PForeach::elaborate so a HIERARCHICAL target reaches it too: an array
+ * member of an interface instance, `foreach (sif.arr[i])', resolves to a
+ * signal in the instance's scope, and there is no reason for it to take a
+ * different route from a plain local array. It used to be routed through
+ * the expression path instead, which cannot produce a whole unpacked
+ * array for a hierarchical name -- so it failed with "Array sif.arr needs
+ * an array index here", while `foreach (h.a[i])' over a class property
+ * and `foreach (vif.arr[i])' through a virtual interface both worked.
+ */
+NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
+					   NetNet*array_sig) const
+{
       if (const netqueue_t*aq = dynamic_cast<const netqueue_t*>(array_sig->net_type())) {
 	    if (aq->assoc_compat()) {
 		  NetESignal*array_expr = new NetESignal(array_sig);

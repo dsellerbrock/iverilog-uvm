@@ -1169,3 +1169,4 @@ sv_foreach_in_class_constructor normal,-g2012 ivltests
 sv_class_property_container_element normal,-g2012 ivltests
 sv_vif_array_member normal,-g2012 ivltests
 sv_vif_modport_qualified normal,-g2012 ivltests
+sv_foreach_hierarchical_target normal,-g2012 ivltests
