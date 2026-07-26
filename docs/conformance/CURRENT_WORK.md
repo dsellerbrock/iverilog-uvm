@@ -243,8 +243,36 @@ best-evidenced backlog available:
   class-handle and container formals keep the copy pair and are
   exercised as controls. Pinned by `sv_ref_argument_is_a_reference`.
 
-**Known open, in priority order:** the sixteen remaining from the
-sweep; R16 (`$cast`
+**NEW, and it goes to the head of the queue — an automatic local of a
+task invoked by `fork <task>(); join_none` loses its writes.** Found
+while probing `ref` argument shapes, reproduced against the stock
+installed toolchain with no `ref` in sight:
+
+```
+  task automatic t4();
+    int loc = 0;
+    loc++; loc++; loc++;
+    $display("inside t4: loc=%0d", loc);   // prints 0
+  endtask
+  initial begin fork t4(); join_none  #1; end
+```
+
+`loc` reads back as its initializer immediately after three increments,
+inside the task's own body, with no delay and no diagnostic. Calling
+`t4()` directly in the same run prints 3. The failing shape is narrow
+enough to have hidden: `fork begin ... end join_none` with the body
+inline is correct, and so is a forked task that writes through an
+`output` port (`task automatic t(output int o)` returns 3) — which is
+why 3209 ivtest tests and 225 UVM tests do not see it. Probes:
+`k/r18.sv` (minimal, stock toolchain), `k/r19.sv` (the four fork body
+shapes, all correct), `k/r20.sv` (zero-port and one-port, both wrong).
+The next session should start by finishing the discrimination — the
+frame the writes land in versus the one the reads resolve against —
+since this is a gate-1 silent wrong result in the most common
+concurrency idiom there is.
+
+**Known open, in priority order:** the item above, then the sixteen
+remaining from the sweep; R16 (`$cast`
 into a container element that is not a direct class property — a local
 queue, or one behind a nested receiver — writes nothing; into a local
 fixed array element it aborts); M3B-10 (`std::randomize(vars) with
