@@ -266,10 +266,42 @@ inline is correct, and so is a forked task that writes through an
 why 3209 ivtest tests and 225 UVM tests do not see it. Probes:
 `k/r18.sv` (minimal, stock toolchain), `k/r19.sv` (the four fork body
 shapes, all correct), `k/r20.sv` (zero-port and one-port, both wrong).
-The next session should start by finishing the discrimination — the
-frame the writes land in versus the one the reads resolve against —
-since this is a gate-1 silent wrong result in the most common
-concurrency idiom there is.
+**Root cause found, fix not yet made.** `show_stmt_fork` in
+`tgt-vvp/vvp_process.c` has a spawn-time argument capture for a
+SINGLE-branch `join_none`: it hoists the child's leading `%alloc` and
+argument stores out of the detached thread and runs them in the
+spawning thread, so that `fork task(<loop automatic>); join_none` in a
+loop snapshots the automatic at spawn. The hoist emits
+
+```
+    %alloc S_<callee>;          <- in the SPAWNING thread
+    %fork t_1, S_<enclosing>;
+    %join/detach 1;
+  t_1:
+    %fork TD_<callee>, S_<callee>;
+```
+
+and the frame never arrives. `of_FORK` hands the staged write context to
+the child only when `cp->scope->is_automatic()`; the intermediate thread
+`t_1` is forked into the ENCLOSING (non-automatic) scope, and
+`vthread_new` zeroes `wt_context`/`rd_context`. So `t_1` calls the
+callee with no staged frame, and both the callee's automatic locals and
+its hoisted argument values are lost. A child that keeps its `%alloc`
+inside the detached thread — which is what happens whenever the call has
+copy-out work after it — is correct, which is the whole difference
+between the working and failing shapes.
+
+Confirmed by building `tgt-vvp` with the hoist disabled behind an
+environment switch: every repro above, plus `k/r12.sv`, `k/r13.sv` and
+`k/r16.sv`, goes from wrong to correct. The switch was reverted; it was
+a diagnostic, not a fix.
+
+The fix belongs in `of_FORK` (`vvp/vthread.cc`, around the
+`cp->scope->is_automatic()` test): a fork child must inherit the
+spawning thread's staged automatic frame even when the child's own
+scope is not automatic. Removing the hoist instead would reintroduce
+the loop-snapshot defect it was written for. This touches the frame
+machinery, so it needs its own full regression cycle — start there.
 
 **Known open, in priority order:** the item above, then the sixteen
 remaining from the sweep; R16 (`$cast`
