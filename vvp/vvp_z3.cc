@@ -468,6 +468,44 @@ struct Z3Builder {
       bool is_signed(Z3_ast a) const
 	    { return signed_vars.find(a) != signed_vars.end(); }
 
+	// IEEE 1800-2017 11.6.1 expression width. Arithmetic here is
+	// built at FULL precision -- an 8-bit add lands in a 9-bit
+	// bitvector -- so nothing is lost while the expression is being
+	// assembled. What the LRM actually specifies is a truncation to
+	// the CONTEXT width, and the context is not known until the
+	// comparison the expression feeds is reached. So each AST also
+	// carries its SELF-DETERMINED width (max of its operands' , per
+	// Table 11-21), which is a property of the expression alone;
+	// the comparison takes the max of its two sides and coerces both
+	// to exactly that many bits, truncating or extending. An AST
+	// with no entry is its own width, which is right for every leaf.
+	//
+	// Without this, arithmetic was evaluated at the OPERAND width:
+	// `a + b == 300' with two 8-bit rand variables wrapped mod 256
+	// and came back UNSAT, and `s == a * b' with a 32-bit s solved
+	// s to the low 8 bits of the product.
+      std::map<Z3_ast,unsigned> sv_wid;
+      void set_sv(Z3_ast a, unsigned w) { sv_wid[a] = w; }
+      unsigned sv_of(Z3_ast a) {
+	    std::map<Z3_ast,unsigned>::const_iterator it = sv_wid.find(a);
+	    if (it != sv_wid.end()) return it->second;
+	    return bv_width_(a);
+      }
+	// Coerce to exactly `w' bits: truncate the high bits away (the
+	// LRM's context truncation) or extend, signed when the value is.
+      Z3_ast coerce(Z3_ast a, unsigned w) {
+	    unsigned aw = bv_width_(a);
+	    if (aw == w) return a;
+	    if (aw > w) return Z3_mk_extract(ctx, w - 1, 0, a);
+	    return is_signed(a) ? Z3_mk_sign_ext(ctx, w - aw, a)
+				: Z3_mk_zero_ext(ctx, w - aw, a);
+      }
+      unsigned bv_width_(Z3_ast a) const {
+	    Z3_sort s = Z3_get_sort(ctx, a);
+	    if (Z3_get_sort_kind(ctx, s) != Z3_BV_SORT) return 1;
+	    return Z3_get_bv_sort_size(ctx, s);
+      }
+
 	// Dynamic-array foreach templates "(dynforeach P:W[:s] <body>)"
 	// (IEEE 1800-2017 18.5.8.2). In the size pass (dyn_sizes null)
 	// the body is captured raw and the form contributes `true`; in
@@ -844,28 +882,45 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    return Z3_mk_iff(b.ctx, left, right);
       }
 
-      /* Bitvector arithmetic. Widths are harmonized by zero-extension
-       * (same policy as the comparisons below). */
+      /* Bitvector arithmetic (IEEE 1800-2017 11.6.1, Table 11-21).
+       *
+       * The SELF-DETERMINED width of `i op j' is max(L(i), L(j)), and
+       * that is what the result is eventually truncated to -- but only
+       * once the CONTEXT width is known, which happens at the
+       * comparison this feeds. So build at full precision here (an
+       * 8-bit add in a 9-bit vector, a product in lw+rw bits) and
+       * record the self-determined width for the comparison to use.
+       * Evaluating at the operand width instead, which is what this
+       * did, wrapped `a + b == 300' mod 256 and reported UNSAT. */
       if (op == "add" || op == "sub" || op == "mul"
 	  || op == "div" || op == "mod") {
 	    Z3_ast left  = build_z3_atom(par, b);
 	    Z3_ast right = build_z3_atom(par, b);
 	    par.skip_ws(); par.expect(')');
 
+	    unsigned sv = b.sv_of(left);
+	    if (b.sv_of(right) > sv) sv = b.sv_of(right);
+
 	    unsigned lw = bv_width(b.ctx, left);
 	    unsigned rw = bv_width(b.ctx, right);
-	    if (lw != rw) {
-		  if (rw < lw)
-			right = Z3_mk_zero_ext(b.ctx, lw - rw, right);
-		  else
-			left = Z3_mk_zero_ext(b.ctx, rw - lw, left);
-	    }
+	    unsigned work = lw > rw ? lw : rw;
+	      /* Headroom so the operation itself cannot lose bits: one
+		 carry for add/sub, the full lw+rw for a product. */
+	    if (op == "add" || op == "sub") work += 1;
+	    else if (op == "mul") work = lw + rw;
+	    if (work < sv) work = sv;
 
-	    if (op == "add") return Z3_mk_bvadd(b.ctx, left, right);
-	    if (op == "sub") return Z3_mk_bvsub(b.ctx, left, right);
-	    if (op == "mul") return Z3_mk_bvmul(b.ctx, left, right);
-	    if (op == "div") return Z3_mk_bvudiv(b.ctx, left, right);
-	    return Z3_mk_bvurem(b.ctx, left, right);
+	    left  = b.coerce(left,  work);
+	    right = b.coerce(right, work);
+
+	    Z3_ast r;
+	    if (op == "add")      r = Z3_mk_bvadd(b.ctx, left, right);
+	    else if (op == "sub") r = Z3_mk_bvsub(b.ctx, left, right);
+	    else if (op == "mul") r = Z3_mk_bvmul(b.ctx, left, right);
+	    else if (op == "div") r = Z3_mk_bvudiv(b.ctx, left, right);
+	    else                  r = Z3_mk_bvurem(b.ctx, left, right);
+	    b.set_sv(r, sv);
+	    return r;
       }
 
       if (op == "not") {
@@ -895,20 +950,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	      // are themselves signed).
 	    bool use_signed = b.is_signed(left) || b.is_signed(right);
 
-	    // Make sure both sides have the same BV width
-	    unsigned lw = bv_width(b.ctx, left);
-	    unsigned rw = bv_width(b.ctx, right);
-	    if (lw != rw) {
-		  if (rw < lw) {
-			right = use_signed
-			      ? Z3_mk_sign_ext(b.ctx, lw - rw, right)
-			      : Z3_mk_zero_ext(b.ctx, lw - rw, right);
-		  } else {
-			left = use_signed
-			      ? Z3_mk_sign_ext(b.ctx, rw - lw, left)
-			      : Z3_mk_zero_ext(b.ctx, rw - lw, left);
-		  }
-	    }
+	      // This is the CONTEXT (Table 11-21): a comparison sizes
+	      // both of its operands to max(L(i), L(j)) of their
+	      // SELF-DETERMINED widths, and that is where an arithmetic
+	      // subexpression built at full precision above finally
+	      // truncates. `a + b == 300' therefore evaluates the add at
+	      // 32 bits (the literal's width) and matches; `c == a + b'
+	      // with an 8-bit c evaluates it at 8 and wraps, which is
+	      // equally what the LRM says.
+	    unsigned ctx_w = b.sv_of(left);
+	    if (b.sv_of(right) > ctx_w) ctx_w = b.sv_of(right);
+	    left  = b.coerce(left,  ctx_w);
+	    right = b.coerce(right, ctx_w);
 
 	    if (op == "lt") return use_signed ? Z3_mk_bvslt(b.ctx, left, right)
 					      : Z3_mk_bvult(b.ctx, left, right);
@@ -927,19 +980,25 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    // Format: (inside p:N:W [lo,hi] val ...) where lo/hi/val are
 	    // atoms: c:V literals or parenthesized expressions.
 	    Z3_ast subject = build_z3_atom(par, b);
-	    unsigned sw = bv_width(b.ctx, subject);
+	    unsigned subj_sv = b.sv_of(subject);
 	      // A signed subject selects signed range semantics
 	      // (IEEE 1800-2017 11.4.13, 11.8.1).
 	    bool subj_signed = b.is_signed(subject);
 
-	    // Match an atom's width to the subject for the comparisons.
+	      // `inside' compares like `==' (11.4.13), so each member is
+	      // sized WITH the subject to the wider of the two -- the
+	      // subject is not the ceiling. Truncating members down to the
+	      // subject's width, which is what this did, silently rewrote
+	      // `x inside {[0:300]}' on an 8-bit x into `x inside {[0:44]}'.
+	    auto member_width = [&](Z3_ast a) -> unsigned {
+		  unsigned mw = b.sv_of(a);
+		  return mw > subj_sv ? mw : subj_sv;
+	    };
 	    auto match_width = [&](Z3_ast a) -> Z3_ast {
-		  unsigned aw = bv_width(b.ctx, a);
-		  if (aw < sw) return subj_signed
-			? Z3_mk_sign_ext(b.ctx, sw - aw, a)
-			: Z3_mk_zero_ext(b.ctx, sw - aw, a);
-		  if (aw > sw) return Z3_mk_extract(b.ctx, sw - 1, 0, a);
-		  return a;
+		  return b.coerce(a, member_width(a));
+	    };
+	    auto subj_at = [&](Z3_ast member) -> Z3_ast {
+		  return b.coerce(subject, bv_width(b.ctx, member));
 	    };
 	    auto range_ge = [&](Z3_ast x, Z3_ast lo) -> Z3_ast {
 		  return subj_signed ? Z3_mk_bvsge(b.ctx, x, lo)
@@ -955,26 +1014,38 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    while (par.peek() != ')' && !par.at_end()) {
 		  if (par.peek() == '[') {
 			par.consume(); // '['
-			Z3_ast lo = match_width(build_z3_atom(par, b));
+			Z3_ast lo_raw = build_z3_atom(par, b);
 			par.expect(',');
-			Z3_ast hi = match_width(build_z3_atom(par, b));
+			Z3_ast hi_raw = build_z3_atom(par, b);
 			par.expect(']');
+			  // One width for the whole range test: the widest
+			  // of the subject and the two bounds.
+			unsigned rw = member_width(lo_raw);
+			if (member_width(hi_raw) > rw) rw = member_width(hi_raw);
+			Z3_ast lo = b.coerce(lo_raw, rw);
+			Z3_ast hi = b.coerce(hi_raw, rw);
+			Z3_ast sx = b.coerce(subject, rw);
 			// subject >= lo && subject <= hi
-			Z3_ast c1 = range_ge(subject, lo);
-			Z3_ast c2 = range_le(subject, hi);
+			Z3_ast c1 = range_ge(sx, lo);
+			Z3_ast c2 = range_le(sx, hi);
 			Z3_ast both[2] = {c1, c2};
 			clauses.push_back(Z3_mk_and(b.ctx, 2, both));
 		  } else if (par.peek() == '(') {
 			Z3_ast v = match_width(build_z3_atom(par, b));
-			clauses.push_back(Z3_mk_eq(b.ctx, subject, v));
+			clauses.push_back(Z3_mk_eq(b.ctx, subj_at(v), v));
 		  } else {
 			// Single value token
 			string tok = par.read_token();
 			if (tok.substr(0,2) == "c:") {
 			      uint64_t v = strtoull(tok.c_str()+2, nullptr, 10);
+				// An unsized literal is 32 bits (11.6.1);
+				// the comparison then sizes both sides.
 			      Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
-						      Z3_mk_bv_sort(b.ctx, sw));
-			      clauses.push_back(Z3_mk_eq(b.ctx, subject, cv));
+						      Z3_mk_bv_sort(b.ctx, 32));
+			      unsigned mw = member_width(cv);
+			      clauses.push_back(Z3_mk_eq(b.ctx,
+					    b.coerce(subject, mw),
+					    b.coerce(cv, mw)));
 			} else if (tok.substr(0,2) == "q:") {
 			      // Queue/darray property container: expand the
 			      // membership set from the container's contents
@@ -997,13 +1068,20 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 				    if (qesig && qewid < 64
 					&& ((bits >> (qewid - 1)) & 1))
 					  bits |= ~((1ULL << qewid) - 1);
-				    uint64_t v = bits;
-				    if (sw < 64) v &= (1ULL << sw) - 1;
-				    Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
-					    Z3_mk_bv_sort(b.ctx, sw <= 64 ? sw : 64));
-				    if (sw > 64)
-					  cv = match_width(cv);
-				    clauses.push_back(Z3_mk_eq(b.ctx, subject, cv));
+				      /* Build the member at its OWN element
+					 width and size it with the subject,
+					 like any other `inside' member.
+					 Masking it down to the subject's
+					 width instead made a value that
+					 cannot fit -- 300 against an 8-bit
+					 subject -- match at 44. */
+				    Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, bits,
+					    Z3_mk_bv_sort(b.ctx, qewid));
+				    if (qesig) b.signed_vars.insert(cv);
+				    unsigned mw = member_width(cv);
+				    clauses.push_back(Z3_mk_eq(b.ctx,
+					    b.coerce(subject, mw),
+					    b.coerce(cv, mw)));
 			      }
 			} else if (tok.empty()) {
 			      // Unrecognized input: consume one char so the
@@ -1070,7 +1148,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    //   `(<expr> matches branch)` with weight W, so the optimizer
 	    //   prefers higher-weight branches when feasible.
 	    Z3_ast subject = build_z3_atom(par, b);
-	    unsigned sw = bv_width(b.ctx, subject);
+	    unsigned sw = b.sv_of(subject);
+	      // A dist branch value is an unsized literal: 32 bits, or 64
+	      // when it needs them (11.6.1). Building it at the SUBJECT's
+	      // width, which is what this did, truncated it -- `x dist
+	      // {[0:300] := 1}' on an 8-bit x became `[0:44]'.
+	    auto lit_at = [&](uint64_t v) -> unsigned {
+		  unsigned vw = (v >> 32) ? 64u : 32u;
+		  return vw > sw ? vw : sw;
+	    };
 
 	    vector<Z3_ast> hard_clauses;
 	    par.skip_ws();
@@ -1107,21 +1193,26 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 			par.expect(']');
 			uint64_t lo_v = strtoull(lo_tok.c_str()+2, 0, 10);
 			uint64_t hi_v = strtoull(hi_tok.c_str()+2, 0, 10);
+			unsigned rw = lit_at(lo_v);
+			if (lit_at(hi_v) > rw) rw = lit_at(hi_v);
 			Z3_ast lo = Z3_mk_unsigned_int64(b.ctx, lo_v,
-					 Z3_mk_bv_sort(b.ctx, sw));
+					 Z3_mk_bv_sort(b.ctx, rw));
 			Z3_ast hi = Z3_mk_unsigned_int64(b.ctx, hi_v,
-					 Z3_mk_bv_sort(b.ctx, sw));
-			Z3_ast c1 = Z3_mk_bvuge(b.ctx, subject, lo);
-			Z3_ast c2 = Z3_mk_bvule(b.ctx, subject, hi);
+					 Z3_mk_bv_sort(b.ctx, rw));
+			Z3_ast sx = b.coerce(subject, rw);
+			Z3_ast c1 = Z3_mk_bvuge(b.ctx, sx, lo);
+			Z3_ast c2 = Z3_mk_bvule(b.ctx, sx, hi);
 			Z3_ast both[2] = {c1, c2};
 			clause = Z3_mk_and(b.ctx, 2, both);
 		  } else {
 			string tok = par.read_token();
 			if (tok.substr(0,2) == "c:") {
 			      uint64_t v = strtoull(tok.c_str()+2, 0, 10);
+			      unsigned vw = lit_at(v);
 			      Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
-					      Z3_mk_bv_sort(b.ctx, sw));
-			      clause = Z3_mk_eq(b.ctx, subject, cv);
+					      Z3_mk_bv_sort(b.ctx, vw));
+			      clause = Z3_mk_eq(b.ctx,
+					  b.coerce(subject, vw), cv);
 			}
 		  }
 		  par.skip_ws();
