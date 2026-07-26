@@ -14372,6 +14372,43 @@ bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t)
       return false;
 }
 
+/*
+ * IEEE 1800-2017 9.7.2: kill() terminates the process AND every
+ * sub-process it spawned -- "processes spawned using fork statements by
+ * the process being killed".
+ *
+ * do_disable() unwinds thr->children, which is the set a %join is
+ * waiting on. A `fork ... join_none' child is DETACHED: it is never
+ * joined, so it lives in detached_children instead and that walk never
+ * reached it. Killing a parent therefore left its join_none children
+ * running, still counting time and still reporting WAITING -- silently,
+ * since kill() returned normally and the parent really was dead.
+ *
+ * Only kill() takes this path. `disable' keeps its own semantics, which
+ * are a different clause (9.6.2) and a much larger blast radius.
+ */
+static void kill_detached_subprocesses_(vthread_t thr)
+{
+      if (!thr) return;
+
+      while (!thr->detached_children.empty()) {
+	    size_t before = thr->detached_children.size();
+	    vthread_t kid = *(thr->detached_children.begin());
+	    if (!kid) break;
+
+	      /* Depth first, so a grandchild spawned by the detached
+		 child goes with it. */
+	    kill_detached_subprocesses_(kid);
+	    (void) do_disable(kid, kid);
+
+	      /* do_disable reaps a detached thread, which is what
+		 removes it from this set. If some path ever leaves it in
+		 place, stop rather than spin. */
+	    if (thr->detached_children.size() >= before)
+		  break;
+      }
+}
+
 bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
 {
       vvp_object_t obj;
@@ -14392,8 +14429,41 @@ bool of_PROCESS_KILL(vthread_t thr, vvp_code_t)
       vthread_t self_process = logical_process_thread_(thr);
       bool self_kill = (target == thr) || (target == self_process);
 
+	/* Sub-processes first: once do_disable has run on the target it
+	   may already have been reaped, taking the set with it. */
+      kill_detached_subprocesses_(target);
+
       (void)do_disable(target, target);
       return !self_kill;
+}
+
+/*
+ * The threads that together ARE one logical process.
+ *
+ * A named begin/end body and a synchronous task frame each execute in
+ * their own vthread, but they are not sub-processes: they are the same
+ * process, which is why logical_process_thread_() walks straight past
+ * them and process::self() inside one returns the enclosing fork thread.
+ * While such a child runs, the parent is parked in %join -- so marking
+ * the parent alone suspended nothing, and status() then reported
+ * SUSPENDED for a process that was still counting time.
+ *
+ * fork...join_none children are deliberately excluded: those really are
+ * sub-processes, and 9.7.2 gives the cascade to kill() only.
+ */
+static void logical_process_threads_(vthread_t thr, vector<vthread_t>&out)
+{
+      if (!thr) return;
+
+      out.push_back(thr);
+
+      for (set<vthread_t>::iterator cur = thr->children.begin()
+		 ; cur != thr->children.end() ; ++cur) {
+	    vthread_t kid = *cur;
+	    if (!kid) continue;
+	    if (!kid->is_callf_child && !kid->is_fork_v_child) continue;
+	    logical_process_threads_(kid, out);
+      }
 }
 
 /*
@@ -14428,21 +14498,33 @@ bool of_PROCESS_SUSPEND(vthread_t thr, vvp_code_t)
       if (target->suspended)
 	    return true;
 
-      target->suspended = 1;
-
       vthread_t self_process = logical_process_thread_(thr);
       bool self_suspend = (target == thr) || (target == self_process);
 
-	// A running/ready process must be rescheduled by resume() to make
-	// progress. A blocked process (waiting on an event or join) will have
-	// its reschedule armed by vthread_run when the wake is delivered.
-      if (self_suspend || target->is_scheduled)
-	    target->suspend_resched = 1;
+	// Every thread the process is made of, not just the one the handle
+	// names: while a named block or a task frame is executing, IT is the
+	// thread that has to stop and `target' is parked in %join behind it.
+      vector<vthread_t> parts;
+      logical_process_threads_(target, parts);
+
+      for (size_t idx = 0 ; idx < parts.size() ; idx += 1) {
+	    vthread_t part = parts[idx];
+	    part->suspended = 1;
+
+	      // A running/ready thread must be rescheduled by resume() to
+	      // make progress. A blocked one (waiting on an event or a join)
+	      // will have its reschedule armed by vthread_run when the wake
+	      // is delivered.
+	    if (part == thr || part->is_scheduled)
+		  part->suspend_resched = 1;
+      }
 
 	// Self-suspension takes effect immediately: park this thread. It is
 	// not placed on any run queue, so only resume() will revive it.
-      if (self_suspend)
+      if (self_suspend) {
+	    thr->suspend_resched = 1;
 	    return false;
+      }
 
       return true;
 }
@@ -14469,12 +14551,23 @@ bool of_PROCESS_RESUME(vthread_t thr, vvp_code_t)
       if (!target || !target->suspended)
 	    return true;
 
-      target->suspended = 0;
+	// Resume every thread the process is made of -- the same set
+	// suspend() stopped. The one that was actually executing is the one
+	// that has to be put back on a run queue.
+      vector<vthread_t> parts;
+      logical_process_threads_(target, parts);
 
-      if (target->suspend_resched) {
-	    target->suspend_resched = 0;
-	    if (!target->is_scheduled)
-		  schedule_vthread(target, 0, true);
+      for (size_t idx = 0 ; idx < parts.size() ; idx += 1) {
+	    vthread_t part = parts[idx];
+	    if (!part->suspended) continue;
+
+	    part->suspended = 0;
+
+	    if (part->suspend_resched) {
+		  part->suspend_resched = 0;
+		  if (!part->is_scheduled)
+			schedule_vthread(part, 0, true);
+	    }
       }
 
       return true;

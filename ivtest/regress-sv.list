@@ -1177,3 +1177,5 @@ sv_sampled_value_default_clocking normal,-g2012 ivltests
 sv_sampled_value_explicit_clock normal,-g2012 ivltests
 sv_cast_class_destination normal,-g2012 ivltests
 sv_cast_task_failure normal,-g2012 ivltests gold=sv_cast_task_failure.gold
+sv_process_kill_subprocess normal,-g2012 ivltests
+sv_process_suspend_subthread normal,-g2012 ivltests
