@@ -583,10 +583,21 @@ struct vthread_s {
       vvp_context_t owned_context;
       vvp_context_t skip_free_context;
       vvp_context_t staged_alloc_rd_context;
+	/* A frame allocated by %alloc that no call has consumed yet.
+	   tgt-vvp's spawn-time argument capture for a single-branch
+	   `fork <task>(); join_none' emits the %alloc in the SPAWNING
+	   thread and the call itself in the detached thread, so the frame
+	   has to survive one thread hop to reach the callee. */
+      vvp_context_t pending_alloc_context;
+	/* Where this thread's own contexts stood before that %alloc, so
+	   the hand-off can put them back. */
+      vvp_context_t pending_alloc_prev_wt;
+      vvp_context_t pending_alloc_prev_rd;
       vvp_code_t nonlocal_target;
       __vpiScope*nonlocal_origin_scope;
       __vpiScope*skip_free_scope;
       __vpiScope*staged_alloc_rd_scope;
+      __vpiScope*pending_alloc_scope;
       __vpiScope*return_object_mirror_scope;
       __vpiScope*dynamic_dispatch_base_scope;
 	/* These are used to pass non-blocking event control information. */
@@ -674,8 +685,12 @@ inline vthread_s::vthread_s()
       owned_context = 0;
       skip_free_context = 0;
       staged_alloc_rd_context = 0;
+      pending_alloc_context = 0;
+      pending_alloc_prev_wt = 0;
+      pending_alloc_prev_rd = 0;
       skip_free_scope = 0;
       staged_alloc_rd_scope = 0;
+      pending_alloc_scope = 0;
       return_object_mirror_scope = 0;
       dynamic_dispatch_base_scope = 0;
       last_pause_pc = 0;
@@ -4216,10 +4231,14 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->owned_context = 0;
       thr->skip_free_context = 0;
       thr->staged_alloc_rd_context = 0;
+      thr->pending_alloc_context = 0;
+      thr->pending_alloc_prev_wt = 0;
+      thr->pending_alloc_prev_rd = 0;
       thr->nonlocal_target = 0;
       thr->nonlocal_origin_scope = 0;
       thr->skip_free_scope = 0;
       thr->staged_alloc_rd_scope = 0;
+      thr->pending_alloc_scope = 0;
       thr->return_object_mirror_scope = 0;
       thr->dynamic_dispatch_base_scope = 0;
       thr->waiting_for_event = 0;
@@ -5649,6 +5668,12 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
         /* Allocate a context. */
       vvp_context_t child_context = vthread_alloc_context(ctx_scope);
 
+        /* Remember where this thread stood, so a %fork into a
+           non-automatic scope can move the frame to the thread that
+           will use it and leave this one as it was. See of_FORK. */
+      vvp_context_t prev_wt = thr->wt_context;
+      vvp_context_t prev_rd = thr->rd_context;
+
         /* If this context is being reused from the free list, scrub any
            stale references to the same storage out of the current thread's
            stacked chains before pushing it again. */
@@ -5680,6 +5705,13 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
                   thr->staged_alloc_rd_scope = ctx_scope;
             }
       }
+	/* Record the frame so a %fork into a NON-automatic scope can carry
+	   it to the thread that will actually make the call. See of_FORK. */
+      thr->pending_alloc_context = child_context;
+      thr->pending_alloc_scope = ctx_scope;
+      thr->pending_alloc_prev_wt = prev_wt;
+      thr->pending_alloc_prev_rd = prev_rd;
+
       trace_context_event_("alloc", thr, ctx_scope, child_context);
 
       return true;
@@ -7159,6 +7191,14 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
           && child_ctx_scope == thr->staged_alloc_rd_scope) {
             thr->staged_alloc_rd_context = 0;
             thr->staged_alloc_rd_scope = 0;
+      }
+	/* This call consumes the staged frame, so it is no longer a
+	   candidate for the %fork hand-off in of_FORK. Without this, a
+	   %fork sitting between the call and its matching %free would
+	   move the frame off this thread while it is still in use. */
+      if (thr->pending_alloc_scope == child_ctx_scope) {
+            thr->pending_alloc_context = 0;
+            thr->pending_alloc_scope = 0;
       }
       vvp_code_t callsite_pc = thr->pc ? (thr->pc - 1) : 0;
       string caller_name_buf;
@@ -10397,6 +10437,10 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
                  on the write context stack. */
             child->wt_context = thr->wt_context;
             child->rd_context = thr->wt_context;
+            if (thr->pending_alloc_scope == child_ctx_scope) {
+                  thr->pending_alloc_context = 0;
+                  thr->pending_alloc_scope = 0;
+            }
             /* Phase 59: keep a retained self-reference to the just-allocated
                autotask frame in owned_context.  Nested calls inside the
                forked task body (e.g. forever loops with %alloc/%free for
@@ -10415,6 +10459,46 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
                   child->owned_context = thr->wt_context;
             }
       }
+      if (!cp->scope->is_automatic()
+          && thr->pending_alloc_context
+          && thr->pending_alloc_context == thr->wt_context) {
+              /* An %alloc that no call has consumed yet, and a fork into a
+                 scope that is not automatic: this is tgt-vvp's spawn-time
+                 argument capture for a single-branch
+                 `fork <task>(); join_none'. It emits
+
+                     %alloc S_<callee>;          <- here, in the spawner
+                     %fork t_1, S_<enclosing>;   <- this instruction
+                   t_1:
+                     %fork TD_<callee>, S_<callee>;
+
+                 so that a loop-carried automatic passed to the detached
+                 task is snapshotted at spawn. The frame therefore has to
+                 survive the hop to t_1: vthread_new zeroes the contexts,
+                 and the branch above only hands them over when the fork's
+                 OWN scope is automatic -- which t_1's is not. Without
+                 this, the callee ran with no frame at all and lost both
+                 its automatic locals and the arguments just captured for
+                 it, silently. t_1's own %fork into the callee scope then
+                 takes the frame off the top of this inherited stack. */
+            child->wt_context = thr->wt_context;
+            child->rd_context = thr->wt_context;
+            child->pending_alloc_context = thr->pending_alloc_context;
+            child->pending_alloc_scope = thr->pending_alloc_scope;
+
+              /* A move, not a share. The frame belongs to the child --
+                 the matching %free is in the child too -- so this thread
+                 goes back to where it stood before the %alloc. Leaving
+                 the frame on this thread's stack would hand a later
+                 sibling a pointer to storage the child has since freed. */
+            thr->wt_context = thr->pending_alloc_prev_wt;
+            thr->rd_context = thr->pending_alloc_prev_rd;
+            thr->pending_alloc_context = 0;
+            thr->pending_alloc_scope = 0;
+            thr->pending_alloc_prev_wt = 0;
+            thr->pending_alloc_prev_rd = 0;
+      }
+
       if (thr->owned_context && !child->owned_context
           && context_live_in_owner(thr->owned_context)) {
               /* Detached automatic fork blocks can retain a shared frame in
@@ -10516,6 +10600,11 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
 bool of_FREE(vthread_t thr, vvp_code_t cp)
 {
       __vpiScope*ctx_scope = resolve_context_scope(cp->scope);
+      if (thr->pending_alloc_scope
+          && (!ctx_scope || thr->pending_alloc_scope == ctx_scope)) {
+            thr->pending_alloc_context = 0;
+            thr->pending_alloc_scope = 0;
+      }
       if (thr->staged_alloc_rd_scope
           && (!ctx_scope || thr->staged_alloc_rd_scope == ctx_scope)) {
             thr->staged_alloc_rd_context = 0;

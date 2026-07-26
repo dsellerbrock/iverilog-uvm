@@ -243,68 +243,53 @@ best-evidenced backlog available:
   class-handle and container formals keep the copy pair and are
   exercised as controls. Pinned by `sv_ref_argument_is_a_reference`.
 
-**NEW, and it goes to the head of the queue — an automatic local of a
-task invoked by `fork <task>(); join_none` loses its writes.** Found
-while probing `ref` argument shapes, reproduced against the stock
-installed toolchain with no `ref` in sight:
+**M6-11 is fixed** — the defect that went to the head of the queue at
+the end of the previous session, and the largest thing this campaign has
+turned up since M1C-3.
+
+An automatic local of a task invoked as `fork <task>(); join_none` read
+back as its initializer, inside the task's own body, with no delay and
+no diagnostic; so did the arguments the call was given.
 
 ```
   task automatic t4();
     int loc = 0;
     loc++; loc++; loc++;
-    $display("inside t4: loc=%0d", loc);   // prints 0
+    $display("inside t4: loc=%0d", loc);   // printed 0
   endtask
   initial begin fork t4(); join_none  #1; end
 ```
 
-`loc` reads back as its initializer immediately after three increments,
-inside the task's own body, with no delay and no diagnostic. Calling
-`t4()` directly in the same run prints 3. The failing shape is narrow
-enough to have hidden: `fork begin ... end join_none` with the body
-inline is correct, and so is a forked task that writes through an
-`output` port (`task automatic t(output int o)` returns 3) — which is
-why 3209 ivtest tests and 225 UVM tests do not see it. Probes:
-`k/r18.sv` (minimal, stock toolchain), `k/r19.sv` (the four fork body
-shapes, all correct), `k/r20.sv` (zero-port and one-port, both wrong).
-**Root cause found, fix not yet made.** `show_stmt_fork` in
-`tgt-vvp/vvp_process.c` has a spawn-time argument capture for a
-SINGLE-branch `join_none`: it hoists the child's leading `%alloc` and
-argument stores out of the detached thread and runs them in the
-spawning thread, so that `fork task(<loop automatic>); join_none` in a
-loop snapshots the automatic at spawn. The hoist emits
+The cause is tgt-vvp's spawn-time argument capture. For a single-branch
+`join_none` it hoists the child's leading `%alloc` and argument stores
+out of the detached thread and runs them in the spawning thread, so that
+`for (int i…) fork worker(i); join_none` snapshots the loop's automatic
+at spawn. That emits the `%alloc` in the spawner and the call in an
+intermediate thread forked into the ENCLOSING scope — and `of_FORK`
+handed a child the staged write context only when the CHILD's own scope
+was automatic. `vthread_new` zeroes the contexts, so the callee ran with
+no frame at all.
 
-```
-    %alloc S_<callee>;          <- in the SPAWNING thread
-    %fork t_1, S_<enclosing>;
-    %join/detach 1;
-  t_1:
-    %fork TD_<callee>, S_<callee>;
-```
+The frame is now MOVED to the thread that will use it, with the spawner
+restored to where it stood before the `%alloc` (the matching `%free`
+belongs to the child; sharing the frame instead would hand a later
+sibling a pointer to storage the child has already freed —
+`sv_fork_join_none_automatic_frame` has two forked calls in a row for
+exactly that). `do_callf_void` clears the marker as well, so a `%fork`
+between a call and its `%free` cannot move a frame still in use.
 
-and the frame never arrives. `of_FORK` hands the staged write context to
-the child only when `cp->scope->is_automatic()`; the intermediate thread
-`t_1` is forked into the ENCLOSING (non-automatic) scope, and
-`vthread_new` zeroes `wt_context`/`rd_context`. So `t_1` calls the
-callee with no staged frame, and both the callee's automatic locals and
-its hoisted argument values are lost. A child that keeps its `%alloc`
-inside the detached thread — which is what happens whenever the call has
-copy-out work after it — is correct, which is the whole difference
-between the working and failing shapes.
+**The hoist's own stated purpose was broken too**: the loop-snapshot it
+was written for never worked either. That case is in the test and fails
+4/4 against a reverted build, which brings the pre-fix failure count to
+8.
 
-Confirmed by building `tgt-vvp` with the hoist disabled behind an
-environment switch: every repro above, plus `k/r12.sv`, `k/r13.sv` and
-`k/r16.sv`, goes from wrong to correct. The switch was reverted; it was
-a diagnostic, not a fix.
+Why it hid behind 3210 ivtest and 225 UVM tests: `fork begin … end
+join_none` with the body inline was always correct, and so was a forked
+call with copy-out work after it, because that keeps its `%alloc` inside
+the detached thread. Both are controls in the test.
 
-The fix belongs in `of_FORK` (`vvp/vthread.cc`, around the
-`cp->scope->is_automatic()` test): a fork child must inherit the
-spawning thread's staged automatic frame even when the child's own
-scope is not automatic. Removing the hoist instead would reintroduce
-the loop-snapshot defect it was written for. This touches the frame
-machinery, so it needs its own full regression cycle — start there.
-
-**Known open, in priority order:** the item above, then the sixteen
-remaining from the sweep; R16 (`$cast`
+**Known open, in priority order:** the sixteen remaining from the
+sweep; R16 (`$cast`
 into a container element that is not a direct class property — a local
 queue, or one behind a nested receiver — writes nothing; into a local
 fixed array element it aborts); M3B-10 (`std::randomize(vars) with
