@@ -1312,11 +1312,28 @@ enum z3_pass_status { Z3PASS_UNSAT = 0, Z3PASS_SAT_APPLIED = 1,
  * to the given element counts and every size variable is pinned to
  * the array's current (pass-1-written) size, implementing the
  * IEEE 1800-2017 18.5.8.2 size-before-iterative-constraints order. */
+/*
+ * Is property `pid` a RANDOM variable for this randomize() call, or a
+ * STATE variable (IEEE 1800-2017 18.3)? `sel`, when non-null, is the
+ * explicit set from randomize(a, b) / randomize(null) (18.11) and
+ * overrides the declaration entirely — 18.11 makes a listed variable
+ * random even if it was not declared `rand`. With no explicit set the
+ * answer is the declaration, gated by rand_mode() (18.8).
+ */
+static bool rand_active_(const class_type* defn, vvp_cobject* cobj,
+			 const std::vector<bool>* sel, unsigned pid)
+{
+      if (sel) return pid < sel->size() ? (*sel)[pid] : false;
+      if (!defn->property_is_rand(pid)) return false;
+      return cobj ? cobj->rand_mode(pid) : true;
+}
+
 static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       const vector<string>& extra_ir,
                       const vector<uint64_t>& slot_vals,
                       const std::map<unsigned,uint64_t>* dyn_sizes,
-                      std::vector<Z3Builder::DynForeach>* dyn_out)
+                      std::vector<Z3Builder::DynForeach>* dyn_out,
+                      const std::vector<bool>* prop_active)
 {
       Z3_config cfg = Z3_mk_config();
       Z3_set_param_value(cfg, "model", "true");
@@ -1349,6 +1366,38 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
       if (dyn_out)
 	    *dyn_out = builder.dyn_foreach;
+
+      // STATE VARIABLES (IEEE 1800-2017 18.3). Every class property the
+      // constraints mention became a solver variable while the IR was
+      // parsed, whether or not this call randomizes it. Pin the ones it
+      // does not — a plain non-rand property, a property frozen with
+      // rand_mode(0) (18.8), or one left out of randomize(a, b) (18.11)
+      // — to the value it holds right now, so the solver reads it as a
+      // constant instead of choosing it. The pins go on before the
+      // objectives below, which then skip the same properties: an
+      // inactive variable gets no diversity target and no write-back.
+      for (auto& pv : builder.prop_vars) {
+	    if (rand_active_(defn, cobj, prop_active, pv.idx)) continue;
+	    Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
+	    Z3_ast cv = Z3_mk_unsigned_int64(ctx,
+		  cobj_prop_bits(cobj, pv.idx), sort);
+	    Z3_optimize_assert(ctx, opt, Z3_mk_eq(ctx, pv.var, cv));
+      }
+      for (auto& ev : builder.elem_vars) {
+	    if (rand_active_(defn, cobj, prop_active, ev.idx)) continue;
+	    Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
+	    Z3_ast cv = Z3_mk_unsigned_int64(ctx,
+		  cobj_elem_bits(cobj, ev.idx, ev.elem), sort);
+	    Z3_optimize_assert(ctx, opt, Z3_mk_eq(ctx, ev.var, cv));
+      }
+      for (auto& sv : builder.size_vars) {
+	    if (rand_active_(defn, cobj, prop_active, sv.idx)) continue;
+	    Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
+	    Z3_ast cv = Z3_mk_unsigned_int64(ctx,
+		  cobj_darray_size(cobj, sv.idx), s32);
+	    Z3_optimize_assert(ctx, opt, Z3_mk_eq(ctx, sv.var, cv));
+      }
+
       // Dynamic-array size variables are bounded by a pragmatic hard cap
       // so an under-constrained `arr.size() > k` cannot demand a huge
       // allocation. (IEEE places no bound; this is an implementation
@@ -1461,6 +1510,21 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (!builder.order_pairs.empty())
 		  precheck = Z3_L_FALSE;
 
+	      // A rand dynamic array's SIZE is randomized by the solver
+	      // (18.4), not by the caller's pre-fill — so unlike every
+	      // scalar rand property it arrives at this check holding the
+	      // PREVIOUS call's value, not a fresh random target. Taking
+	      // the accept-current path on it would keep that size for
+	      // the rest of the simulation: `rand int a[]' with
+	      // `a.size() inside {[3:6]}' resized once and then answered
+	      // 3 forever. Run the optimize pass so the size gets its
+	      // randomized objective like everything else. (Only in the
+	      // size pass — the element pass has them pinned already.)
+	    if (!dyn_sizes)
+		  for (auto& sv : builder.size_vars)
+			if (rand_active_(defn, cobj, prop_active, sv.idx))
+			      precheck = Z3_L_FALSE;
+
 	    if (precheck == Z3_L_TRUE && !builder.any_soft_kw_assert()) {
 		  // C7/I4: only fast-path early-out when there are no
 		  // `soft`-keyword assertions queued.  Dist branches use the
@@ -1521,6 +1585,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      auto it = rank.find(pv.idx);
 			      if (it == rank.end() || it->second != r)
 				    continue;
+			      if (!rand_active_(defn, cobj, prop_active, pv.idx))
+				    continue;
 			      uint64_t rand_bits = cobj_prop_bits(cobj, pv.idx);
 			      Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
 			      Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
@@ -1538,6 +1604,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			for (auto& pv : builder.prop_vars) {
 			      auto it = rank.find(pv.idx);
 			      if (it == rank.end() || it->second != r)
+				    continue;
+			      if (!rand_active_(defn, cobj, prop_active, pv.idx))
 				    continue;
 			      Z3_ast interp = nullptr;
 			      uint64_t bits = 0;
@@ -1566,6 +1634,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // not, Z3 finds the feasible value with the minimum XOR distance from the
       // random target, giving varied results across different random seeds.
       for (auto& pv : builder.prop_vars) {
+	    if (!rand_active_(defn, cobj, prop_active, pv.idx)) continue;
 	    uint64_t rand_bits = cobj_prop_bits(cobj, pv.idx);
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
 	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
@@ -1573,12 +1642,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_minimize(ctx, opt, xor_expr);
       }
       for (auto& sv : builder.size_vars) {
+	    if (!rand_active_(defn, cobj, prop_active, sv.idx)) continue;
 	      // Prefer small varied sizes when the constraints leave slack.
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
 	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, (uint64_t)(rand() & 0xF), sort);
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, sv.var, rv));
       }
       for (auto& ev : builder.elem_vars) {
+	    if (!rand_active_(defn, cobj, prop_active, ev.idx)) continue;
 	    uint64_t rand_bits = 0;
 	    for (unsigned b = 0; b < ev.width && b < 64; ++b)
 		  if (rand() & 1) rand_bits |= (1ULL << b);
@@ -1610,6 +1681,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       Z3_model_inc_ref(ctx, model);
 
       for (auto& pv : builder.prop_vars) {
+	    if (!rand_active_(defn, cobj, prop_active, pv.idx)) continue;
 	    uint64_t bits = 0;
 	    if (z3_eval_uint64(ctx, model, pv.var, bits)) {
 		  cobj_set_prop_bits(cobj, pv.idx, bits);
@@ -1625,6 +1697,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	// elements with random bits. Element constraints, when present,
 	// overwrite specific entries below.
       for (auto& sv : builder.size_vars) {
+	    if (!rand_active_(defn, cobj, prop_active, sv.idx)) continue;
 	    uint64_t new_size = 0;
 	    if (!z3_eval_uint64(ctx, model, sv.var, new_size))
 		  continue;
@@ -1648,6 +1721,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
 	// Apply solved array-element values.
       for (auto& ev : builder.elem_vars) {
+	    if (!rand_active_(defn, cobj, prop_active, ev.idx)) continue;
 	    uint64_t bits = 0;
 	    bool ev_ok = z3_eval_uint64(ctx, model, ev.var, bits);
 	    if (ev_ok)
@@ -1668,7 +1742,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
 bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const vector<string>& extra_ir,
-                      const vector<uint64_t>& slot_vals)
+                      const vector<uint64_t>& slot_vals,
+                      const std::vector<bool>* prop_active)
 {
       if (defn->constraint_count() == 0 && extra_ir.empty()) return true;
 
@@ -1676,7 +1751,7 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	// written back.
       std::vector<Z3Builder::DynForeach> dyn;
       int r1 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
-			      nullptr, &dyn);
+			      nullptr, &dyn, prop_active);
       if (dyn.empty())
 	    return r1 != Z3PASS_UNSAT;
 
@@ -1689,6 +1764,6 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       for (const auto& d : dyn)
 	    sizes[d.pidx] = cobj_darray_size(cobj, d.pidx);
       int r2 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
-			      &sizes, nullptr);
+			      &sizes, nullptr, prop_active);
       return r1 != Z3PASS_UNSAT && r2 != Z3PASS_UNSAT;
 }

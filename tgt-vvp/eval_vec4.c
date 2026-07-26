@@ -1551,6 +1551,32 @@ static void emit_void_this_method_call_(ivl_expr_t recv, ivl_scope_t target)
             fprintf(vvp_out, "    %%free S_%p;\n", target);
 }
 
+/* M3B-14 (IEEE 1800-2017 18.6.2): post_randomize() runs only when
+ * randomize() SUCCEEDED. On a failed call the object still holds its
+ * pre-call values, so a post_randomize that derives fields from the
+ * solved ones would compute them from stale state — and it used to run
+ * unconditionally, with nothing to tell it apart from a real solve.
+ *
+ * %randomize leaves its 32-bit success word on top of the vec4 stack
+ * and that word is this expression's value, so branch on a duplicate of
+ * it and leave the original in place. */
+static void emit_conditional_post_randomize_(ivl_expr_t recv, ivl_scope_t post)
+{
+      unsigned lab_skip = local_count++;
+      int flag = allocate_flag();
+
+      fprintf(vvp_out, "    %%dup/vec4;\n");
+      fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", flag);
+      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
+              thread_count, lab_skip, flag);
+      /* %callf/void preserves the parent's vec4 stack, so the success
+       * word survives the call untouched. */
+      emit_void_this_method_call_(recv, post);
+      fprintf(vvp_out, "T_%u.%u ; end post_randomize (skipped when "
+              "randomize() failed)\n", thread_count, lab_skip);
+      clr_flag(flag);
+}
+
 static void draw_sfunc_vec4(ivl_expr_t expr)
 {
       unsigned parm_count = ivl_expr_parms(expr);
@@ -1607,8 +1633,23 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%evtest E_%p;\n", ivl_expr_event(earg));
 	    return;
       }
-      if (strcmp(ivl_expr_name(expr),"$ivl_class_method$randomize")==0) {
+      if (strcmp(ivl_expr_name(expr),"$ivl_class_method$rand_mode_get")==0) {
+	      /* M3B-12 (IEEE 1800-2017 18.8): parm[0] = object,
+	       * parm[1] = property id. Reads the variable's active state. */
+	    ivl_expr_t obj_arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    ivl_expr_t pid_arg = (parm_count > 1) ? ivl_expr_parm(expr, 1) : 0;
+	    long pid = pid_arg ? get_number_immediate(pid_arg) : 0;
+	    if (obj_arg) draw_eval_object(obj_arg);
+	    fprintf(vvp_out, "    %%rand_mode/get %ld;\n", pid);
+	    return;
+      }
+      if (strcmp(ivl_expr_name(expr),"$ivl_class_method$randomize")==0
+	  || strncmp(ivl_expr_name(expr),"$ivl_class_method$randomize|",28)==0) {
 	    ivl_expr_t arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+	      /* M3B-13: the 18.11 argument selector, when the call had an
+	       * argument list. NULL here means the plain form. */
+	    const char*sel = strchr(ivl_expr_name(expr), '|');
+	    if (sel) sel += 1;
 	    /* Phase 50e: invoke pre_randomize / post_randomize hooks on
 	     * the receiver class (and inherited from super) per IEEE
 	     * 1800-2017 §18.10.  Without these, OpenTitan's
@@ -1629,32 +1670,41 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 				rt ? (ivl_type_method_prefix(rt) ?: "<n>") : "<no rt>",
 				(void*)pre, (void*)post);
 	    }
+	      /* randomize(null) is a constraint CHECK (18.11): it changes
+	       * nothing, so neither hook runs. */
+	    if (sel && sel[0] == 0) pre = post = 0;
 	    if (pre && arg) {
 		  emit_void_this_method_call_(arg, pre);
 	    }
+	    if (sel)
+		  fprintf(vvp_out, "    %%rand/active \"%s\";\n", sel);
 	    if (arg) {
 		  draw_eval_object(arg);
 	    }
 	      /* %randomize peeks at the object stack and pops it, then
 	       * pushes 1 (success) onto the vec4 stack. */
 	    fprintf(vvp_out, "    %%randomize;\n");
-	    if (post && arg) {
-		    /* Save the success result on a stack slot the
-		     * post_randomize call cannot touch (it uses its own
-		     * vec4 stack frame).  Just keep it on top of the vec4
-		     * stack — %callf/void preserves the parent's vec4 stack. */
-		    emit_void_this_method_call_(arg, post);
-	    }
+	    if (post && arg)
+		  emit_conditional_post_randomize_(arg, post);
 	    return;
       }
       if (strncmp(ivl_expr_name(expr),"$ivl_class_method$randomize_with|",33)==0) {
-	      /* Mangled name: "$ivl_class_method$randomize_with|N_vals|ir_string"
-	       * parm[0] = object, parm[1..N_vals] = runtime slot values */
+	      /* Mangled name:
+	       *   "$ivl_class_method$randomize_with|N_vals|sel|ir_string"
+	       * parm[0] = object, parm[1..N_vals] = runtime slot values.
+	       * `sel` is the 18.11 argument selector: "*" for the plain
+	       * form, "" for randomize(null), else a property-id list. */
 	    const char*rest = ivl_expr_name(expr) + 33;
 	    unsigned n_vals = (unsigned)strtoul(rest, NULL, 10);
 	    while (*rest && *rest != '|') rest++;
 	    if (*rest == '|') rest++;
+	    const char*sel_beg = rest;
+	    while (*rest && *rest != '|') rest++;
+	    size_t sel_len = (size_t)(rest - sel_beg);
+	    if (*rest == '|') rest++;
 	    const char*ir = rest;
+	    int have_sel = !(sel_len == 1 && sel_beg[0] == '*');
+	    int is_null_form = have_sel && sel_len == 0;
 	    ivl_expr_t obj_arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
 	      /* Phase 50e: pre/post_randomize hooks for randomize() with {...}
 	       * see plain randomize() above. */
@@ -1668,6 +1718,8 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  if (rt && ivl_type_base(rt) == IVL_VT_CLASS)
 			rand_hooks_for_type_(rt, &pre, &post);
 	    }
+	      /* randomize(null) with {...} checks only, so no hooks. */
+	    if (is_null_form) pre = post = 0;
 	    if (pre && obj_arg) emit_void_this_method_call_(obj_arg, pre);
 	      /* Push runtime slot values (vec4 stack) first so they're
 	       * under the result when %randomize/with pops them. */
@@ -1676,10 +1728,16 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  if (slot) draw_eval_vec4(slot);
 		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
 	    }
+	      /* Arm the 18.11 selector last, so nothing between it and
+	       * %randomize/with can consume it. */
+	    if (have_sel)
+		  fprintf(vvp_out, "    %%rand/active \"%.*s\";\n",
+			  (int)sel_len, sel_beg);
 	      /* Push the object. */
 	    if (obj_arg) draw_eval_object(obj_arg);
 	    fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir, n_vals);
-	    if (post && obj_arg) emit_void_this_method_call_(obj_arg, post);
+	    if (post && obj_arg)
+		  emit_conditional_post_randomize_(obj_arg, post);
 	    return;
       }
       if (strcmp(ivl_expr_name(expr), "$ivl_inside_arr")==0) {

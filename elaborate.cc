@@ -60,6 +60,15 @@
 # include  "ivl_assert.h"
 # include "map_named_args.h"
 
+/* In-line random variable control (IEEE 1800-2017 18.11). Defined in
+ * elab_expr.cc next to the other randomize() lowering; shared here so
+ * the statement form `void'(obj.randomize(b))' narrows the random set
+ * the same way the expression form does. */
+extern std::string randomize_arg_selector(
+      const std::vector<named_pexpr_t>&parms,
+      const netclass_t*class_type,
+      const LineInfo*loc);
+
 using namespace std;
 
 static bool elaboration_perf_trace_enabled_()
@@ -7717,11 +7726,18 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    // both expression context (elab_expr.cc) and statement context
 	    // (void'(obj.randomize())) work correctly.
 	    if (method_name == perm_string::literal("randomize")) {
-		  static const std::vector<perm_string> no_parms;
+		    // The 18.11 argument selector rides on the system
+		    // function name, exactly as in expression context —
+		    // `void'(obj.randomize(b))' is the SAME call and has
+		    // to narrow the random set the same way.
+		  std::string rname = "$ivl_class_method$randomize";
+		  std::string rsel = randomize_arg_selector(parms_, class_type,
+							    this);
+		  if (rsel != "*") rname += "|" + rsel;
 		  return elaborate_method_func_(scope, obj_expr,
 					        &netvector_t::atom2s32,
 					        method_name,
-					        "$ivl_class_method$randomize");
+					        rname.c_str());
 	    }
 
 	    NetScope*task = class_type->resolve_method_call_scope(des, method_name);
@@ -13129,6 +13145,33 @@ struct dynforeach_emit_ctx_t {
 };
 static const dynforeach_emit_ctx_t*dynforeach_emit_ctx_ = nullptr;
 
+/* Can a STATE variable of this type take part in a constraint (IEEE
+ * 1800-2017 18.3)? The solver reads a state variable as the constant it
+ * holds at randomize() time, which it gets from the property's raw
+ * bits — so the type must have a bitvector image. A `rand` property of
+ * some other type is a separate question (the solver has always given
+ * those a 32-bit fallback); this gate only decides whether a NON-rand
+ * property is worth emitting instead of dropping the constraint item.
+ * `indexed` asks about the element type of an unpacked array, which is
+ * what an `arr[i]` reference resolves to. */
+static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
+{
+      if (!ptype) return false;
+      if (indexed) {
+	    const netuarray_t*ua = dynamic_cast<const netuarray_t*>(ptype);
+	    const netdarray_t*da = dynamic_cast<const netdarray_t*>(ptype);
+	    if (ua) ptype = ua->element_type();
+	    else if (da) ptype = da->element_type();
+	    else return false;
+	    if (!ptype) return false;
+      }
+      if (const netvector_t*nv = dynamic_cast<const netvector_t*>(ptype))
+	    return nv->packed_width() > 0;
+      if (const netenum_t*ne = dynamic_cast<const netenum_t*>(ptype))
+	    return ne->packed_width() > 0;
+      return false;
+}
+
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots,
@@ -13171,8 +13214,26 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    int idx = cls->property_idx_from_name(name);
 	    if (idx >= 0) {
 		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
-		  if (!q.test_rand()) return "";
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+		    // A property that is not `rand` is a STATE VARIABLE
+		    // (IEEE 1800-2017 18.3): it takes part in the
+		    // constraint at the value it holds when randomize()
+		    // is called. It is emitted as an ordinary solver
+		    // variable and PINNED to that value at solve time,
+		    // which is also how a rand_mode(0) property (18.8)
+		    // and a property left out of randomize(a, b) (18.11)
+		    // are handled — the set of variables a call actually
+		    // solves for is a runtime question, so the IR does
+		    // not try to answer it. Dropping these items instead
+		    // (what this used to do) silently WEAKENED every
+		    // constraint that mentioned a state variable.
+		    // The pin needs a real value, so a state variable
+		    // whose type has no bitvector image is still dropped
+		    // by the representability check below.
+		  if (!q.test_rand()
+		      && !constraint_state_prop_ok_(ptype,
+						    !id->path().back().index.empty()))
+			return "";
 
 		    // Indexed reference to a static-array rand property
 		    // (arr[i] in a foreach set): emit an element variable
@@ -13345,9 +13406,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		&& cpath.back().index.empty()
 		&& cpath.front().index.empty()) {
 		  perm_string aname = cpath.front().name;
+		    // A non-rand array's size is a state value (18.3):
+		    // emit the same size variable and let the solve pin
+		    // it. `x < buf.size()' is an ordinary constraint.
 		  int idx = cls->property_idx_from_name(aname);
-		  if (idx >= 0
-		      && cls->get_prop_qual((size_t)idx).test_rand()) {
+		  if (idx >= 0) {
 			ivl_type_t ptype = cls->get_prop_type((size_t)idx);
 			const netdarray_t*da =
 			      dynamic_cast<const netdarray_t*>(ptype);
@@ -13408,8 +13471,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	  dynamic_cast<const PEConstraintForeach*>(expr)) {
 	    if (cfe->loop_vars().size() != 1 || cfe->loop_vars()[0].nil())
 		  return "";
+	      // The iterated array may be a state variable (18.3): its
+	      // elements then read as the values it holds, which is how
+	      // `foreach (mask[i]) data[i] <= mask[i];' constrains a rand
+	      // array against a non-rand one.
 	    int idx = cls->property_idx_from_name(cfe->array_name());
-	    if (idx < 0 || !cls->get_prop_qual((size_t)idx).test_rand())
+	    if (idx < 0)
+		  return "";
+	    if (!cls->get_prop_qual((size_t)idx).test_rand()
+		&& !constraint_state_prop_ok_(cls->get_prop_type((size_t)idx), true))
 		  return "";
 	    const netuarray_t*ua =
 		  dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)idx));
@@ -13500,9 +13570,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (id && id->path().size() == 1
 		      && id->path().back().index.empty()) {
 			perm_string pname = id->path().back().name;
+			  // `x inside {tbl}' where tbl is a state array
+			  // (18.3): its elements are the set members, at
+			  // the values they hold now.
 			int pidx = cls->property_idx_from_name(pname);
 			if (pidx >= 0
-			    && cls->get_prop_qual((size_t)pidx).test_rand()) {
+			    && (cls->get_prop_qual((size_t)pidx).test_rand()
+				|| constraint_state_prop_ok_(
+				      cls->get_prop_type((size_t)pidx), true))) {
 			      const netuarray_t*ua =
 				    dynamic_cast<const netuarray_t*>(
 					  cls->get_prop_type((size_t)pidx));

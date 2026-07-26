@@ -60,9 +60,67 @@ extern string pexpr_to_constraint_ir(const PExpr*expr,
 				     const NetScope*scope = nullptr,
 				     const std::map<perm_string,uint64_t>*loop_env = nullptr);
 
+/* In-line random variable control (IEEE 1800-2017 18.11). Turn the
+ * ARGUMENT list of obj.randomize(...) into the selector the %rand/active
+ * opcode takes:
+ *
+ *   "*"     no argument list — the object's own declarations and
+ *           rand_mode() state decide (18.3, 18.8);
+ *   ""      randomize(null) — a constraint check that randomizes
+ *           nothing and calls neither pre_ nor post_randomize;
+ *   "3,7"   the property ids of the listed variables, which become
+ *           this call's ONLY random variables. Everything else the
+ *           object holds is a state variable for the call, and a
+ *           listed variable is random even if it was not declared
+ *           `rand'.
+ *
+ * The argument list used to be dropped on the floor, so randomize(b)
+ * randomized the whole object and randomize(null) mutated it.
+ */
+string randomize_arg_selector(const std::vector<named_pexpr_t>&parms,
+			      const netclass_t*class_type,
+			      const LineInfo*loc)
+{
+      bool any = false;
+      for (size_t i = 0 ; i < parms.size() ; i += 1)
+	    if (parms[i].parm) any = true;
+      if (!any || !class_type) return "*";
+
+      if (parms.size() == 1 && dynamic_cast<const PENull*>(parms[0].parm))
+	    return "";
+
+      string sel;
+      for (size_t i = 0 ; i < parms.size() ; i += 1) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(parms[i].parm);
+	    int pid = -1;
+	    if (id && id->path().size() == 1
+		&& id->path().back().index.empty())
+		  pid = class_type->property_idx_from_name(
+			      id->path().back().name);
+	    if (pid < 0) {
+		  cerr << loc->get_fileline() << ": sorry: every argument of "
+		       << "randomize() must name a property of the object "
+		       << "(IEEE 1800-2017 18.11). The argument list is "
+		       << "ignored, so every rand property is randomized."
+		       << endl;
+		  return "*";
+	    }
+	    if (!sel.empty()) sel += ",";
+	    sel += to_string(pid);
+      }
+      return sel;
+}
+
+static string randomize_sel_(const PECallFunction*call,
+			     const netclass_t*class_type)
+{
+      return randomize_arg_selector(call->get_parms(), class_type, call);
+}
+
 /* Build a NetESFunc for randomize() with inline with-constraints.
- * The mangled function name encodes the N_vals count and IR string so
- * tgt-vvp can emit the correct %randomize/with instruction.
+ * The mangled function name encodes the N_vals count, the 18.11
+ * argument selector and the IR string so tgt-vvp can emit the correct
+ * %randomize/with instruction.
  * parms: [0]=object, [1..N_vals]=runtime slot values. */
 static NetESFunc* make_randomize_with_expr(
       const PECallFunction*call,
@@ -82,9 +140,14 @@ static NetESFunc* make_randomize_with_expr(
       }
 
       unsigned n_vals = (unsigned)value_slots.size();
-      // Encode as "$ivl_class_method$randomize_with|N_vals|ir_string"
+      // Encode as "$ivl_class_method$randomize_with|N_vals|sel|ir_string".
+      // `sel` holds only digits, commas or a single `*`, so the IR — the
+      // one field that can carry arbitrary text — stays last and needs
+      // no escaping.
       string mangled = string("$ivl_class_method$randomize_with|")
-		     + to_string(n_vals) + "|" + combined_ir;
+		     + to_string(n_vals) + "|"
+		     + randomize_sel_(call, class_type) + "|"
+		     + combined_ir;
 
       NetESFunc*rand_expr = new NetESFunc(mangled.c_str(),
 					 IVL_VT_BOOL, 1, 1 + n_vals);
@@ -7913,6 +7976,56 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	    return tmp;
       }
 
+	/* M3B-12: obj.field.rand_mode() called as a FUNCTION (IEEE
+	   1800-2017 18.8) returns that variable's current active state.
+	   It used to elaborate to a constant 0, so a query could not tell
+	   a frozen variable from an active one, and the save/restore
+	   idiom
+	       bit save = obj.f.rand_mode(); obj.f.rand_mode(0);
+	       ... obj.f.rand_mode(save);
+	   always restored the variable DISABLED. Disambiguated from the
+	   object-level form the same way the statement path in
+	   PCallTask::elaborate is: by resolving the second-to-last path
+	   component as a property of a class object. */
+      if (gn_system_verilog()
+	  && peek_tail_name(path_) == perm_string::literal("rand_mode")
+	  && path_.name.size() >= 2 && parms_.empty()) {
+	    perm_string fname = std::next(path_.name.end(), -2)->name;
+	    NetNet*obj_net = nullptr;
+	    if (path_.name.size() == 2) {
+		  obj_net = find_implicit_this_handle(des, scope);
+	    } else {
+		  pform_name_t obj_path;
+		  auto it = path_.name.begin();
+		  auto end_it = std::next(path_.name.end(), -2);
+		  for (; it != end_it; ++it)
+			obj_path.push_back(*it);
+		  symbol_search_results sr;
+		  symbol_search(this, des, scope, obj_path, UINT_MAX, &sr);
+		  obj_net = sr.net;
+	    }
+	    if (obj_net) {
+		  const netclass_t*ctype =
+			dynamic_cast<const netclass_t*>(obj_net->net_type());
+		  int pid = ctype ? ctype->property_idx_from_name(fname) : -1;
+		  if (pid >= 0) {
+			NetESignal*self = new NetESignal(obj_net);
+			self->set_line(*this);
+			NetEConst*pe = new NetEConst(
+			      verinum((uint64_t)pid, 32));
+			pe->set_line(*this);
+			NetESFunc*tmp = new NetESFunc(
+			      "$ivl_class_method$rand_mode_get",
+			      IVL_VT_BOOL, 1, 2);
+			tmp->set_line(*this);
+			tmp->parm(0, self);
+			tmp->parm(1, pe);
+			return tmp;
+		  }
+	    }
+	      // Not a resolvable field: fall through to normal dispatch.
+      }
+
       if (path_.size() == 1
 	  && peek_tail_name(path_) == perm_string::literal("get_randstate")
 	  && scope->get_class_scope()) {
@@ -8114,8 +8227,12 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 						  rand_expr->set_line(*this);
 						  return rand_expr;
 					    }
+					    string rname =
+						  "$ivl_class_method$randomize";
+					    string rsel = randomize_sel_(this, class_type);
+					    if (rsel != "*") rname += "|" + rsel;
 					    NetESFunc*rand_expr = new NetESFunc(
-						  "$ivl_class_method$randomize",
+						  rname.c_str(),
 						  IVL_VT_BOOL, 1, 1);
 					    rand_expr->set_line(*this);
 					    rand_expr->parm(0, obj_expr);
@@ -9440,8 +9557,11 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				      rand_expr->set_line(*this);
 				      return rand_expr;
 				}
+				string rname = "$ivl_class_method$randomize";
+				string rsel = randomize_sel_(this, class_type);
+				if (rsel != "*") rname += "|" + rsel;
 				NetESFunc*rand_expr = new NetESFunc(
-					"$ivl_class_method$randomize",
+					rname.c_str(),
 					IVL_VT_BOOL, 1, 1);
 				rand_expr->set_line(*this);
 				rand_expr->parm(0, sub_expr);

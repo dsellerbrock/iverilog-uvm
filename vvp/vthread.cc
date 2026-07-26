@@ -542,6 +542,17 @@ struct vthread_s {
 	// report a delayed process as WAITING rather than RUNNING.
       unsigned i_am_delaying :1;
       unsigned owns_automatic_context :1;
+	/* M3B-13 (IEEE 1800-2017 18.11): in-line random variable
+	   control. `%rand/active' arms the property set that the NEXT
+	   %randomize / %randomize/with solves for, which is how
+	   randomize(a, b) makes everything else a state variable and
+	   randomize(null) makes ALL of them state variables. Armed and
+	   consumed within one straight-line opcode run, so it never
+	   survives a suspension; a call with no argument list leaves it
+	   disarmed and the default set (rand properties with rand_mode
+	   on) applies. */
+      bool rand_sel_armed;
+      std::vector<bool> rand_sel;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
 	/* This points to the detached children of the thread. */
@@ -2607,12 +2618,43 @@ struct rand_saved_prop_s {
       vvp_vector4_t val;
 };
 
+/*
+ * Which properties is THIS randomize() call solving for? Everything else
+ * the object holds is a STATE variable for the call (IEEE 1800-2017
+ * 18.3) and must come out of it unchanged. `sel`, when non-null, is the
+ * in-line control set from randomize(a, b) / randomize(null) (18.11),
+ * which overrides the declaration — a listed variable is random for the
+ * call even if it was never declared `rand`. With no in-line set the
+ * answer is the declaration, gated by rand_mode() (18.8).
+ *
+ * This is the runtime half of the same question the solver asks in
+ * rand_active_(); the two must agree, so both take the same `sel`.
+ */
+static bool rand_call_active_(const class_type*defn, vvp_cobject*cobj,
+			      const std::vector<bool>*sel, size_t pid)
+{
+      if (sel) return pid < sel->size() ? (*sel)[pid] : false;
+      if (!defn->property_is_rand(pid)) return false;
+      return cobj->rand_mode(pid);
+}
+
+/* Does this property hold an OBJECT rather than bits -- a dynamic
+ * array, a class handle, an unpacked struct? Answered from the declared
+ * property type code so it is true even while the property is still
+ * nil. Queue and assoc codes are deliberately excluded: those have
+ * their own pre-fill paths above. */
+static bool rand_prop_is_container_(const class_type*defn, size_t pid)
+{
+      const std::string&bt = defn->property_base_type(pid);
+      return bt == "o" || bt.compare(0, 3, "oc:") == 0;
+}
+
 static void randomize_snapshot_(vvp_cobject*cobj, const class_type*defn,
-				std::vector<rand_saved_prop_s>&saved)
+				std::vector<rand_saved_prop_s>&saved,
+				const std::vector<bool>*sel = nullptr)
 {
       for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
-	    if (!defn->property_is_rand(pid)) continue;
-	    if (!cobj->rand_mode(pid)) continue;
+	    if (!rand_call_active_(defn, cobj, sel, pid)) continue;
 	    uint64_t asize = defn->property_array_size(pid);
 	    if (asize < 1) asize = 1;
 	    for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
@@ -2700,6 +2742,17 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
 
+	// Consume the in-line control set armed by %rand/active, if any
+	// (IEEE 1800-2017 18.11). It applies to this call only.
+      std::vector<bool> sel_store;
+      const std::vector<bool>*sel = nullptr;
+      if (thr->rand_sel_armed) {
+	    sel_store = thr->rand_sel;
+	    sel = &sel_store;
+	    thr->rand_sel_armed = false;
+	    thr->rand_sel.clear();
+      }
+
       bool solve_ok = true;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
@@ -2710,13 +2763,11 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 			have_constraints = true;
 	    std::vector<rand_saved_prop_s> saved;
 	    if (have_constraints)
-		  randomize_snapshot_(cobj, defn, saved);
+		  randomize_snapshot_(cobj, defn, saved, sel);
 
-	      // Fill all rand properties with random bits first.
+	      // Fill this call's random variables with random bits first.
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
-		  if (!defn->property_is_rand(pid))
-			continue;
-		  if (!cobj->rand_mode(pid))
+		  if (!rand_call_active_(defn, cobj, sel, pid))
 			continue;
 
 		    // Phase 50b: rand assoc-vec4 array properties.  When a
@@ -2777,6 +2828,17 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 			      continue;  // skip the get_vec4 path below
 			}
 		  }
+		    // A CONTAINER or handle property -- a dynamic array,
+		    // a class handle, a struct object. There are no
+		    // property bits to pre-fill: get_vec4 hands back a
+		    // 1-bit "non-nil" flag and writing that back is not a
+		    // value (class_property_t::set_vec4 rejects it and
+		    // warns). A rand dynamic array's size and elements are
+		    // the solver's business (18.4), not this loop's. Asked
+		    // of the DECLARED type, so it holds for a property
+		    // that is still nil on the first call.
+		  if (rand_prop_is_container_(defn, pid))
+			continue;
 
 		  vvp_vector4_t val;
 		  cobj->get_vec4(pid, val);
@@ -2830,7 +2892,7 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 		  vector<string> extra_ir;
 		  collect_unmerged_base_constraints_(defn, extra_ir);
 		  if (defn->constraint_count() > 0 || !extra_ir.empty())
-			if (!vvp_z3_randomize(defn, cobj, extra_ir, {}))
+			if (!vvp_z3_randomize(defn, cobj, extra_ir, {}, sel))
 			      solve_ok = false;
 	    }
 	    if (!solve_ok)
@@ -2869,17 +2931,27 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
 
+	// Consume the in-line control set armed by %rand/active, if any
+	// (IEEE 1800-2017 18.11); it applies to this call only.
+      std::vector<bool> sel_store;
+      const std::vector<bool>*sel = nullptr;
+      if (thr->rand_sel_armed) {
+	    sel_store = thr->rand_sel;
+	    sel = &sel_store;
+	    thr->rand_sel_armed = false;
+	    thr->rand_sel.clear();
+      }
+
       bool solve_ok = true;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
 
 	    std::vector<rand_saved_prop_s> saved;
-	    randomize_snapshot_(cobj, defn, saved);
+	    randomize_snapshot_(cobj, defn, saved, sel);
 
-	      // Randomize all rand properties first.
+	      // Randomize this call's random variables first.
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
-		  if (!defn->property_is_rand(pid)) continue;
-		  if (!cobj->rand_mode(pid)) continue;
+		  if (!rand_call_active_(defn, cobj, sel, pid)) continue;
 		    // Static-array rand properties: fill each element
 		    // (mirrors of_RANDOMIZE).
 		  if (defn->property_array_size(pid) > 1) {
@@ -2897,6 +2969,10 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 			}
 			continue;
 		  }
+		    // Container / handle property: nothing to pre-fill
+		    // (see of_RANDOMIZE for why).
+		  if (rand_prop_is_container_(defn, pid))
+			continue;
 		  vvp_vector4_t val;
 		  cobj->get_vec4(pid, val);
 		  unsigned wid = val.size();
@@ -2948,7 +3024,7 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    vector<string> extra_ir;
 	    collect_unmerged_base_constraints_(defn, extra_ir);
 	    if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
-	    solve_ok = vvp_z3_randomize(defn, cobj, extra_ir, slot_vals);
+	    solve_ok = vvp_z3_randomize(defn, cobj, extra_ir, slot_vals, sel);
 	    if (!solve_ok)
 		  randomize_restore_(cobj, saved);
       }
@@ -3029,6 +3105,65 @@ bool of_RAND_MODE_P(vthread_t thr, vvp_code_t cp)
 	    size_t pid = (size_t) cp->number;
 	    if (pid < defn->property_count() && defn->property_is_rand(pid))
 		  cobj->set_rand_mode(pid, mode);
+      }
+      return true;
+}
+
+/*
+ * %rand_mode/get <pid>
+ *
+ * M3B-12: rand_mode() called as a FUNCTION on a single variable
+ * (IEEE 1800-2017 18.8) — it returns that variable's current active
+ * state. Pops the object, pushes the state as a 32-bit result. A
+ * property that was never declared rand is permanently inactive and
+ * reads 0. This used to elaborate to a constant 0, so the query could
+ * not tell a frozen variable from an active one.
+ */
+bool of_RAND_MODE_GET(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      bool st = false;
+      if (cobj) {
+	    const class_type*defn = cobj->get_defn();
+	    size_t pid = (size_t) cp->number;
+	    if (pid < defn->property_count() && defn->property_is_rand(pid))
+		  st = cobj->rand_mode(pid);
+      }
+
+      vvp_vector4_t result(32, BIT4_0);
+      result.set_bit(0, st ? BIT4_1 : BIT4_0);
+      thr->push_vec4(result);
+      return true;
+}
+
+/*
+ * %rand/active "<pid,pid,...>"
+ *
+ * M3B-13: in-line random variable control (IEEE 1800-2017 18.11). Arm
+ * the property set that the next %randomize / %randomize/with solves
+ * for. The listed properties are the call's random variables — every
+ * other property of the object is a state variable for that call, held
+ * at its current value. An EMPTY list is randomize(null): nothing is
+ * randomized and the call only reports whether the constraints are
+ * satisfiable.
+ */
+bool of_RAND_ACTIVE(vthread_t thr, vvp_code_t cp)
+{
+      thr->rand_sel_armed = true;
+      thr->rand_sel.clear();
+
+      for (const char*cur = cp->text ? cp->text : "" ; *cur ; ) {
+	    char*end = 0;
+	    unsigned long pid = strtoul(cur, &end, 10);
+	    if (end == cur) break;
+	    if (thr->rand_sel.size() <= pid)
+		  thr->rand_sel.resize(pid + 1, false);
+	    thr->rand_sel[pid] = true;
+	    cur = end;
+	    while (*cur == ',') cur += 1;
       }
       return true;
 }
@@ -4035,6 +4170,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->suspend_resched = 0;
       thr->i_am_delaying = 0;
       thr->owns_automatic_context = 0;
+      thr->rand_sel_armed = false;
       thr->owned_context = 0;
       thr->skip_free_context = 0;
       thr->staged_alloc_rd_context = 0;
