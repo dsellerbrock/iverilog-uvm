@@ -27,11 +27,15 @@
 //     was integral).
 //
 // A sampled call written inside an edge-triggered always block is now
-// bound to that block's own clock (16.14.6 clock inference): a sample
-// register is captured at the top of the block and a history chain
-// shifted at the bottom, so the body reads the value sampled at the
-// previous tick with no cross-process race. A call with no inferable
-// clock is diagnosed instead of answered wrongly.
+// bound to that block's own clock (16.14.6 clock inference), and one
+// with no enclosing event control binds to the module's `default
+// clocking'. The history lives in its OWN sampler process, shifted
+// under NBA: it therefore ticks once per clock edge whatever the
+// reader does -- a block that waits inside its body still sees "one
+// clock tick ago" rather than "one execution ago" -- and the NBA
+// update lands after every Active-region reader, so sharing the edge
+// with them is race-free. A call with no clock at all is diagnosed
+// instead of answered wrongly.
 
 module main;
 
@@ -103,6 +107,28 @@ module main;
       $display("FAILED -- negedge block $past(d)=%0d at its 4th tick (want 3)",
                $past(d));
     end
+  end
+
+  // A block that WAITS inside its body skips clock ticks. The history
+  // belongs to the clock, not to the block's execution, so $past must
+  // still mean "one tick ago" -- which is why the sampler is its own
+  // process rather than statements spliced around the body. (#12 with a
+  // period of 10 skips every other posedge: the block runs at ticks
+  // 1, 3, 5, 7 and reads d from ticks 0, 2, 4, 6.)
+  int slow_tick = 0;
+  always @(posedge clk) begin
+    slow_tick++;
+    if (slow_tick == 2 && $past(d) !== 1) begin
+      fails++;
+      $display("FAILED -- tick-skipping block: $past(d)=%0d at its 2nd run (want 1)",
+               $past(d));
+    end
+    if (slow_tick == 3 && $past(d) !== 3) begin
+      fails++;
+      $display("FAILED -- tick-skipping block: $past(d)=%0d at its 3rd run (want 3)",
+               $past(d));
+    end
+    #12;
   end
 
   initial begin

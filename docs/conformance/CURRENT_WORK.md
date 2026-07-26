@@ -107,6 +107,79 @@ member path sorry) and `foreach` over an interface-instance array member
 (unresolved-target error). The open architecture item is M1C-2, the
 canonical access representation itself.
 
+---
+
+## Resume state — 2026-07-26 (Campaign 3: M3B randomization, then M9 clause 16)
+
+**Campaign 3 is closed for the `randomize()` call-semantics family.**
+Four IEEE clauses answer one question — which variables does this call
+solve for? — and all four were wrong in the same direction, silently:
+
+- **M3B-11** a property that is not `rand` is a STATE variable (18.3);
+  every constraint item that mentioned one was dropped, so
+  `constraint c { a == b; }` with a non-rand `b` was no constraint at
+  all and `randomize()` returned 1 with it violated.
+- **M3B-12** `rand_mode(0)` skipped the pre-fill but the solver still
+  solved the variable and wrote it back, so a frozen field moved
+  anyway; and `rand_mode()` as a function was a constant 0, which broke
+  the save/restore idiom in the disabling direction.
+- **M3B-13** the `randomize(a, b)` argument list was discarded —
+  `randomize(b)` randomized the whole object and `randomize(null)`
+  mutated it instead of only checking satisfiability (18.11).
+- **M3B-14** `post_randomize()` ran after a FAILED randomize (18.6.2).
+
+One mechanism carries the first three: every class property reference is
+an ordinary solver variable and the SOLVE decides what it is solving
+for, pinning everything else to its current value. `%rand/active`
+carries the 18.11 set from elaboration; `%rand_mode/get` answers the
+query form. Pinned by `sv_randomize_variable_control`, verified against
+a build with the fixes reverted.
+
+**M9-12 preempted the rest of Campaign 3** (rule gate 1). The sampled
+value functions used PROCEDURALLY — `$past`/`$rose`/`$fell`/`$stable`
+outside a concurrent assertion — were compile-progress VPI stubs:
+`$past(e)` returned `e`, `$rose` returned 0, `$stable` returned 1, with
+no diagnostic. `always @(posedge clk) if ($rose(req))` silently never
+fired. They now bind to the enclosing block's clock (16.14.6) through
+the same rewrite the assertion engine uses; the tick count, the gating
+expression, 1-bit boolean results, 64-bit history and real-typed
+history all came with it, and `$changed` exists at all for the first
+time. Pinned by `sv_sampled_value_procedural`.
+
+**This corrected a false claim in ROADMAP.md**, which asserted that
+every M9 residual was loud and clause 16 had no silent-miscompile gap.
+
+**M3B-15 followed from the same family.** A constraint expression is an
+ordinary SV expression, evaluated at the CONTEXT width (11.6.1,
+Table 11-21), not the operand width. The solver used the operand
+width, so `constraint { a + b == 300; }` with two 8-bit rand variables
+wrapped mod 256 and came back UNSAT — `randomize()` returned 0 for a
+set with 155 solutions — and `s == a * b` with a 32-bit `s` solved `s`
+to the low 8 bits of the product. `inside` and `dist` truncated their
+bounds down to the subject's width, rewriting `x inside {[0:300]}` on
+an 8-bit `x` into `[0:44]`. Arithmetic is now built at full precision
+and truncated at the comparison to the max of the two sides'
+self-determined widths — so a wide context does not wrap and a narrow
+one still does. Pinned by `sv_constraint_expr_width`.
+
+**The sampler is its own process.** The first cut spliced the capture
+and the shift around the reader's block body, which is wrong for a
+block that WAITS inside itself: the history then advanced once per
+execution instead of once per clock tick, silently. It is now an
+`always @(<the same event>)` process shifting under NBA — it ticks with
+the clock whatever the reader does, and the NBA update lands after
+every Active-region reader, so sharing the edge is race-free. That
+construction also gave the `default clocking` binding for free, so all
+three clock sources of 16.14.6 are covered.
+
+**Known open, in priority order:** R14 (an explicit clocking-event
+argument to a sampled value function does not parse — the lowering
+exists, only the grammar rule is missing); M3B-10
+(`std::randomize(vars) with {...}` does not reach Z3);
+`obj.randomize() with {...}` in STATEMENT position is a syntax error
+(only the expression form parses); M1C-2 (canonical access
+representation); M9-7 multiclock residuals.
+
 **Where to look first when resuming:** the `Current focus` list at the
 bottom of `ROADMAP.md`. It is re-derived from the priority rule, not
 hand-picked.

@@ -2027,13 +2027,14 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	// calling pform_startmodule(). Thus, it is impossible for the
 	// pform_cur_module stack to be empty at this point.
       assert(! pform_cur_module.empty());
+	/* M9-SV: bind or diagnose any sampled value function still
+	   waiting for a clock. Before the pop, because binding
+	   synthesizes a sampler process into THIS module's scope. */
+      pform_flush_pending_sampled_calls();
+
       Module*cur_module  = pform_cur_module.front();
       pform_cur_module.pop_front();
       perm_string mod_name = cur_module->mod_name();
-
-	/* M9-SV: any sampled value function still waiting for a clock
-	   never found one inside this module. */
-      pform_flush_pending_sampled_calls();
 
 	/* M9-10: an unclocked concurrent assertion that never found an
 	   enclosing procedural event control is an error, reported here so
@@ -5433,6 +5434,15 @@ static Statement* sva_assign_(const struct vlltype&loc, perm_string lv, PExpr*rv
       return a;
 }
 
+/* Nonblocking form (defined with the multiclock helpers below). A
+   sampler that runs as its OWN process has to update its history under
+   NBA: it shares a clock edge with the processes that read that
+   history, and only an NBA update is guaranteed to land after every
+   Active-region reader, so each reader sees the previous tick's sample
+   no matter which process the scheduler runs first. */
+static Statement* sva_assign_nb_(const struct vlltype&loc, perm_string lv,
+				 PExpr*rv);
+
 static Statement* sva_block_(const struct vlltype&loc,
 			     const std::vector<Statement*>&stmts)
 {
@@ -6216,7 +6226,18 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				   unsigned inst, unsigned&hist_idx,
 				   std::vector<Statement*>&pre,
 				   std::vector<Statement*>&post,
-				   std::vector<Statement*>&init)
+				   std::vector<Statement*>&init,
+				     /* When true the "current sample" is
+					read LIVE from the argument instead
+					of from a capture register, and the
+					history shifts under NBA: that is
+					what a sampler running as its own
+					process needs (see
+					pform_bind_procedural_sampled_).
+					The assertion engine leaves it
+					false -- its capture and shift
+					bracket the checker body. */
+				   bool cur_live = false)
 {
       if (!e) return e;
 
@@ -6243,7 +6264,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			      return e;
 			}
 			PExpr*arg = sva_rewrite_sampled_(loc, parms[0].parm,
-							 inst, hist_idx, pre, post, init);
+							 inst, hist_idx, pre, post,
+							 init, cur_live);
 			long depth = 1;
 			if (is_past && parms.size() > 1 && parms[1].parm) {
 			      PENumber*dn = dynamic_cast<PENumber*>(parms[1].parm);
@@ -6303,10 +6325,29 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				    }
 			      }
 			}
-			  /* Capture the argument now... */
-			perm_string cur = sva_make_reg_(loc, inst, "smp", hist_idx++,
-							wide, as_real);
-			pre.push_back(sva_assign_(loc, cur, arg));
+			  /* The CURRENT sample. Spliced into a checker
+			     body it is a capture register assigned at the
+			     top of the block; in a standalone sampler
+			     there is no such moment, so the value is read
+			     live from the argument wherever it is needed
+			     ($rose and friends compare it against the
+			     history). mk_cur() hands out a fresh node
+			     each time so no expression node is shared
+			     between two trees. */
+			perm_string cur;
+			if (!cur_live) {
+			      cur = sva_make_reg_(loc, inst, "smp", hist_idx++,
+						  wide, as_real);
+			      pre.push_back(sva_assign_(loc, cur, arg));
+			}
+			auto mk_cur = [&]() -> PExpr* {
+			      return cur_live ? sva_clone_expr_(arg)
+					      : sva_id_(loc, cur);
+			};
+			auto mk_assign = [&](perm_string lv, PExpr*rv) -> Statement* {
+			      return cur_live ? sva_assign_nb_(loc, lv, rv)
+					      : sva_assign_(loc, lv, rv);
+			};
 			  /* ...and build the history chain, updated
 			     bottom-of-block in shift order. */
 			std::vector<perm_string> hist (depth);
@@ -6322,17 +6363,20 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			}
 			std::vector<Statement*> shift;
 			for (long k = depth-1 ; k >= 1 ; k -= 1)
-			      shift.push_back(sva_assign_(loc, hist[k],
-							  sva_id_(loc, hist[k-1])));
-			shift.push_back(sva_assign_(loc, hist[0], sva_id_(loc, cur)));
+			      shift.push_back(mk_assign(hist[k],
+							sva_id_(loc, hist[k-1])));
+			shift.push_back(mk_assign(hist[0], mk_cur()));
 			if (gate) {
 				/* Gated: both the capture and the shift
 				   happen only on enabled ticks, so the
 				   history holds the n-th ENABLED sample. */
-			      Statement*cap = pre.back();
-			      pre.pop_back();
-			      pre.push_back(sva_if_(loc, sva_clone_expr_(gate),
-						    cap, nullptr));
+			      if (!cur_live) {
+				    Statement*cap = pre.back();
+				    pre.pop_back();
+				    pre.push_back(sva_if_(loc,
+						sva_clone_expr_(gate),
+						cap, nullptr));
+			      }
 			      post.push_back(sva_if_(loc, sva_clone_expr_(gate),
 						     sva_block_(loc, shift),
 						     nullptr));
@@ -6351,12 +6395,12 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			if (is_rose) {
 			      PEUnary*np = new PEUnary('!', sva_id_(loc, old_reg));
 			      FILE_NAME(np, loc);
-			      PEBLogic*r = new PEBLogic('a', sva_id_(loc, cur), np);
+			      PEBLogic*r = new PEBLogic('a', mk_cur(), np);
 			      FILE_NAME(r, loc);
 			      return r;
 			}
 			if (is_fell) {
-			      PEUnary*nc = new PEUnary('!', sva_id_(loc, cur));
+			      PEUnary*nc = new PEUnary('!', mk_cur());
 			      FILE_NAME(nc, loc);
 			      PEBLogic*r = new PEBLogic('a', nc, sva_id_(loc, old_reg));
 			      FILE_NAME(r, loc);
@@ -6365,7 +6409,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			  /* $stable / $changed: case (in)equality on the
 			     sampled pair. */
 			PEBComp*r = new PEBComp(is_stbl ? 'E' : 'N',
-						sva_id_(loc, cur),
+						mk_cur(),
 						sva_id_(loc, old_reg));
 			FILE_NAME(r, loc);
 			return r;
@@ -6376,7 +6420,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
 	    PExpr*sub = sva_rewrite_sampled_(loc, un->get_expr(),
-					     inst, hist_idx, pre, post, init);
+					     inst, hist_idx, pre, post, init,
+					     cur_live);
 	    if (sub == un->get_expr()) return e;
 	    PEUnary*cp = new PEUnary(un->get_op(), sub);
 	    cp->set_line(*e);
@@ -6384,9 +6429,11 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
       }
       if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
 	    PExpr*l = sva_rewrite_sampled_(loc, bin->get_left(),
-					   inst, hist_idx, pre, post, init);
+					   inst, hist_idx, pre, post, init,
+					   cur_live);
 	    PExpr*r = sva_rewrite_sampled_(loc, bin->get_right(),
-					   inst, hist_idx, pre, post, init);
+					   inst, hist_idx, pre, post, init,
+					   cur_live);
 	    if (l == bin->get_left() && r == bin->get_right()) return e;
 	    PEBinary*cp;
 	    if (dynamic_cast<PEBComp*>(e))
@@ -6402,11 +6449,14 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
       }
       if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
 	    PExpr*c = sva_rewrite_sampled_(loc, ter->get_cond(),
-					   inst, hist_idx, pre, post, init);
+					   inst, hist_idx, pre, post, init,
+					   cur_live);
 	    PExpr*t = sva_rewrite_sampled_(loc, ter->get_true(),
-					   inst, hist_idx, pre, post, init);
+					   inst, hist_idx, pre, post, init,
+					   cur_live);
 	    PExpr*f = sva_rewrite_sampled_(loc, ter->get_false(),
-					   inst, hist_idx, pre, post, init);
+					   inst, hist_idx, pre, post, init,
+					   cur_live);
 	    if (c == ter->get_cond() && t == ter->get_true()
 		&& f == ter->get_false()) return e;
 	    PETernary*cp = new PETernary(c, t, f);
@@ -6506,6 +6556,12 @@ static PEventStatement* sampled_clock_event_(ivl_process_type_t type,
       return ev;
 }
 
+static void pform_make_sampled_history_process_(
+	    const struct vlltype&loc,
+	    const std::vector<PEEvent*>&events,
+	    std::vector<Statement*>&post,
+	    std::vector<Statement*>&init);
+
 static void pform_bind_procedural_sampled_(ivl_process_type_t type,
 					   Statement*st)
 {
@@ -6549,23 +6605,57 @@ static void pform_bind_procedural_sampled_(ivl_process_type_t type,
 	    if (cf->sampled_subst())
 		  continue;               // already bound (nested call)
 	    PExpr*sub = sva_rewrite_sampled_(mine[i].loc, cf, inst, hist_idx,
-					     pre, post, init);
+					     pre, post, init, true);
 	    if (sub && sub != cf)
 		  cf->set_sampled_subst(sub);
       }
 
-      if (pre.empty() && post.empty())
+      if (post.empty())
 	    return;
 
       const struct vlltype&loc = mine[0].loc;
+      pform_make_sampled_history_process_(loc, ev->event_expressions(),
+					  post, init);
+}
 
-	/* Splice the capture in ahead of the body and the history shift
-	   in behind it. */
-      std::vector<Statement*> seq;
-      for (size_t i = 0 ; i < pre.size() ; i += 1) seq.push_back(pre[i]);
-      if (Statement*body = ev->statement()) seq.push_back(body);
-      for (size_t i = 0 ; i < post.size() ; i += 1) seq.push_back(post[i]);
-      ev->set_statement(sva_block_(loc, seq));
+/* Build the sampler: `always @(<the same event>) <history shift>'.
+ *
+ * It is a SEPARATE process rather than statements spliced into the
+ * reader's block, for two reasons. It must tick once per clock edge
+ * whatever the reader does -- a block that waits inside its body would
+ * otherwise advance the history on its own schedule, silently. And the
+ * same construction then serves a reader that has no block of its own
+ * to splice into (a default-clocking binding).
+ *
+ * The shift is NONBLOCKING, which is what makes sharing an edge with
+ * the readers safe: the update lands after every Active-region read, so
+ * a reader sees the previous tick's sample no matter which process the
+ * scheduler picks first.
+ */
+static void pform_make_sampled_history_process_(
+	    const struct vlltype&loc,
+	    const std::vector<PEEvent*>&events,
+	    std::vector<Statement*>&post,
+	    std::vector<Statement*>&init)
+{
+      std::vector<PEEvent*> evs;
+      for (size_t i = 0 ; i < events.size() ; i += 1) {
+	    if (!events[i]) continue;
+	    PExpr*ce = sva_clone_expr_(events[i]->expr());
+	    if (!ce) return;
+	    PEEvent*ne = new PEEvent(events[i]->type(), ce);
+	    FILE_NAME(ne, loc);
+	    evs.push_back(ne);
+      }
+      if (evs.empty()) return;
+
+      PEventStatement*sampler = new PEventStatement(evs);
+      FILE_NAME(sampler, loc);
+      sampler->set_statement(sva_block_(loc, post));
+
+      PProcess*pp = new PProcess(IVL_PR_ALWAYS, sampler);
+      FILE_NAME(pp, loc);
+      pform_put_behavior_in_scope(pp);
 
 	/* Histories start at 0 so the first tick is deterministic. */
       if (!init.empty()) {
@@ -6576,21 +6666,70 @@ static void pform_bind_procedural_sampled_(ivl_process_type_t type,
 }
 
 /* Anything still pending when a module closes was written where no
-   clocking event could be inferred. Say so rather than letting the
-   VPI stub answer with the current value. */
+   enclosing event control could supply a clock -- in an initial block,
+   a task body, a continuous assignment. IEEE 1800-2017 16.14.6 has one
+   more source for those: the module's DEFAULT CLOCKING. Bind to it when
+   there is one (the `$ivl_default_clock' marker resolves to the block's
+   event during elaboration, so the sampler is built exactly like any
+   other), and diagnose when there is not -- silence there would leave
+   the VPI stub answering with the current value. */
 void pform_flush_pending_sampled_calls()
 {
-      for (size_t i = 0 ; i < sampled_pending_.size() ; i += 1) {
-	    const sampled_pending_t&p = sampled_pending_[i];
-	    cerr << p.call->get_fileline() << ": warning: this sampled value "
-		 << "function has no clocking event to sample on (IEEE "
-		 << "1800-2017 16.9.3): it is not inside a concurrent "
-		 << "assertion and not inside an edge-triggered always "
-		 << "block. It falls back to the unsampled value -- $past "
-		 << "returns the current value and $rose/$fell return 0."
-		 << endl;
+      if (sampled_pending_.empty())
+	    return;
+
+      bool have_default = !pform_cur_module.empty()
+			  && !pform_cur_module.front()->default_clocking.nil();
+
+      if (!have_default) {
+	    for (size_t i = 0 ; i < sampled_pending_.size() ; i += 1) {
+		  const sampled_pending_t&p = sampled_pending_[i];
+		  cerr << p.call->get_fileline() << ": warning: this sampled "
+		       << "value function has no clocking event to sample on "
+		       << "(IEEE 1800-2017 16.9.3): it is not inside a "
+		       << "concurrent assertion, not inside an edge-triggered "
+		       << "always block, and the module declares no default "
+		       << "clocking. It falls back to the unsampled value -- "
+		       << "$past returns the current value and $rose/$fell "
+		       << "return 0." << endl;
+	    }
+	    sampled_pending_.clear();
+	    return;
       }
-      sampled_pending_.clear();
+
+      std::vector<sampled_pending_t> mine;
+      mine.swap(sampled_pending_);
+
+      const struct vlltype&loc = mine[0].loc;
+      unsigned inst = sva_gensym_counter++;
+      unsigned hist_idx = 0;
+      std::vector<Statement*> pre, post, init;
+
+      for (size_t i = 0 ; i < mine.size() ; i += 1) {
+	    PECallFunction*cf = mine[i].call;
+	    if (cf->sampled_subst())
+		  continue;
+	    PExpr*sub = sva_rewrite_sampled_(mine[i].loc, cf, inst, hist_idx,
+					     pre, post, init, true);
+	    if (sub && sub != cf)
+		  cf->set_sampled_subst(sub);
+      }
+      if (post.empty())
+	    return;
+
+	/* `@($ivl_default_clock)': an ANYEDGE event on the marker
+	   function, which PEventStatement::elaborate resolves to the
+	   default clocking block's own event. */
+      std::list<named_pexpr_t> no_parms;
+      PECallFunction*mark = new PECallFunction(
+	    perm_string::literal("$ivl_default_clock"), no_parms);
+      FILE_NAME(mark, loc);
+      PEEvent*devt = new PEEvent(PEEvent::ANYEDGE, mark);
+      FILE_NAME(devt, loc);
+      std::vector<PEEvent*> evs;
+      evs.push_back(devt);
+
+      pform_make_sampled_history_process_(loc, evs, post, init);
 }
 
 /* Substitute named sequence references: a step whose expression is a
