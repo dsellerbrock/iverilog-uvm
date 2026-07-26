@@ -821,6 +821,12 @@ extern bool pform_is_sampled_value_function(const char*name);
 extern void pform_note_sampled_call(const struct vlltype&loc,
 				    class PECallFunction*cf);
 extern void pform_flush_pending_sampled_calls();
+/* Bind ONE sampled value call to an explicit clocking event, given as
+ * that call's last argument. Consumes nothing; the caller still owns
+ * the event statement. */
+extern void pform_bind_sampled_call_to_event(const struct vlltype&loc,
+					     class PECallFunction*cf,
+					     class PEventStatement*ev);
 
 extern PProcess*  pform_make_behavior(ivl_process_type_t, Statement*,
 				      std::list<named_pexpr_t>*attr);

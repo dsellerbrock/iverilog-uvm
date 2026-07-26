@@ -6218,6 +6218,25 @@ void pform_timing_check_sorry(const struct vlltype&loc,
    synthesized 1-cycle (or N-cycle) history registers. The argument
    is captured once at the top of the checker (pre) and shifted into
    the history at the bottom (post), so no subtree is shared. */
+/* Synthesized processes and their state registers must land in a scope
+   something actually elaborates. A named begin/end is a PBlock whose
+   `behaviors' nothing walks -- and the seq_block rule deletes it
+   outright when it holds no declarations -- so anything synthesized
+   while parsing inside one has to be hoisted to the nearest enclosing
+   non-block scope. (This is the trap that silently dropped concurrent
+   assertions written inside a begin/end; see M9-10.) */
+struct sva_hoist_out_of_block_t {
+      LexicalScope*saved;
+      sva_hoist_out_of_block_t() {
+	    saved = lexical_scope;
+	    LexicalScope*scope = lexical_scope;
+	    while (dynamic_cast<PBlock*>(scope) && scope->parent_scope())
+		  scope = scope->parent_scope();
+	    lexical_scope = scope;
+      }
+      ~sva_hoist_out_of_block_t() { lexical_scope = saved; }
+};
+
 /* M9-SV: forward declaration -- the rewrite below hands each call it
    binds back to the procedural pending list so it is not bound twice. */
 static void sampled_pending_drop_(const PECallFunction*cf);
@@ -6663,6 +6682,38 @@ static void pform_make_sampled_history_process_(
 	    FILE_NAME(ip, loc);
 	    pform_put_behavior_in_scope(ip);
       }
+}
+
+/* M9-SV/R14: an EXPLICIT clocking event, written as the last argument
+   of the call. It outranks both the enclosing event control and the
+   default clocking (IEEE 1800-2017 16.9.3, and 16.14.6's order), so it
+   binds here and now rather than joining the pending list. */
+void pform_bind_sampled_call_to_event(const struct vlltype&loc,
+				      PECallFunction*cf,
+				      PEventStatement*ev)
+{
+      if (!cf || !ev || ev->event_expressions().empty())
+	    return;
+      if (cf->sampled_subst())
+	    return;
+
+	/* Parsed mid-statement, so this can be inside a begin/end.
+	   Hoist the sampler and its registers out of the PBlock. */
+      sva_hoist_out_of_block_t sva_scope_guard;
+
+      unsigned inst = sva_gensym_counter++;
+      unsigned hist_idx = 0;
+      std::vector<Statement*> pre, post, init;
+
+      PExpr*sub = sva_rewrite_sampled_(loc, cf, inst, hist_idx,
+				       pre, post, init, true);
+      if (sub && sub != cf)
+	    cf->set_sampled_subst(sub);
+      if (post.empty())
+	    return;
+
+      pform_make_sampled_history_process_(loc, ev->event_expressions(),
+					  post, init);
 }
 
 /* Anything still pending when a module closes was written where no
@@ -10386,17 +10437,6 @@ void pform_sva_flush_pending_procedural(void)
  * assertion re-driven by pform_sva_infer_procedural_clock, which runs after
  * the block has already been reduced -- this is a no-op.
  */
-struct sva_hoist_out_of_block_t {
-      LexicalScope*saved;
-      sva_hoist_out_of_block_t() {
-	    saved = lexical_scope;
-	    LexicalScope*scope = lexical_scope;
-	    while (dynamic_cast<PBlock*>(scope) && scope->parent_scope())
-		  scope = scope->parent_scope();
-	    lexical_scope = scope;
-      }
-      ~sva_hoist_out_of_block_t() { lexical_scope = saved; }
-};
 
 /* True when this property is nothing but a reference to a property or
  * sequence declared in this scope -- `assert property (p);'.

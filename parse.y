@@ -8596,6 +8596,31 @@ expr_primary
 	delete $4;
 	$$ = tmp;
       }
+  /* M9-SV/R14: a sampled value function may take an explicit clocking
+     event as its last argument -- `$past(e, n, gate, @(posedge clk))'
+     (IEEE 1800-2017 16.9.3). An event control is not an expression, so
+     it cannot ride inside argument_list; this rule takes it separately
+     and hands it to the binder, which builds the history sampler on
+     that clock instead of an inferred one. Costs no grammar conflicts:
+     the token after the comma decides, and `@' can never start an
+     argument. */
+  | SYSTEM_IDENTIFIER '(' argument_list ',' event_control ')'
+      { perm_string tn = lex_strings.make($1);
+	argument_list_fixup($3);
+	PECallFunction *tmp = new PECallFunction(tn, *$3);
+	FILE_NAME(tmp, @1);
+	if (pform_is_sampled_value_function($1)) {
+	      pform_bind_sampled_call_to_event(@1, tmp, $5);
+	} else {
+	      yyerror(@5, "error: a clocking-event argument is only allowed "
+		      "on a sampled value function ($past, $rose, $fell, "
+		      "$stable, $changed).");
+	}
+	delete $5;
+	delete[]$1;
+	delete $3;
+	$$ = tmp;
+      }
   | SYSTEM_IDENTIFIER argument_list_parens
       { perm_string tn = lex_strings.make($1);
 	PECallFunction *tmp = new PECallFunction(tn, *$2);
