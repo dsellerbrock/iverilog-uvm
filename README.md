@@ -294,10 +294,12 @@ coverage, `$get_coverage`, and a durable end-of-run report. Examples:
 Existing Icarus VPI flows (`iverilog-vpi`, `vvp -M/-m`) still work. On top,
 the fork models SystemVerilog objects through VPI: typed class variables
 with value-change callbacks, dynamic arrays/queues/associative arrays with
-element access, class member navigation, interfaces/modports/packages as
-scopes, live covergroup handles, and assertion handles with
-success/failure callbacks. Tests live in `ivtest/vpi/` (`m12_*`, `m12b_*`).
-Remaining: force/release on bit-selects, some `cbAssertion*` reasons.
+element access, live runtime-container class properties, class member
+navigation, interfaces/modports/packages as scopes, live covergroup
+handles, and assertion handles with lifecycle callbacks. Tests live in
+`ivtest/vpi/` (`m12_*`, `m12b_*`). Remaining documented corners include
+whole-container class-property writes and detailed assertion
+sub-expression/variable-latency attempt attribution.
 
 ### bind — partial
 
@@ -356,7 +358,7 @@ read it for the per-clause evidence and the complete corner ledger.
 | SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; `expect` and `checker`/`endchecker` implemented; remaining automaton-class features (cross-clock overlapping implication, mid-sequence clock flow) are loud sorries |
 | Functional coverage (cl. 19) | Supported | Full clause-19 bin semantics |
 | DPI-C (cl. 35) | Substantial | Import: open arrays incl. multi-dim. Export: functions + tasks (int/real/string/void), `svScope` multi-instance + context-relative selection, and time-consuming tasks (POSIX coroutine); generated C stub. Loud sorries: object/open-array/wide-vector/output export args, time-consuming export on Windows |
-| VPI SV object model (cl. 36) | Substantial | Classes, containers, covergroups, assertions; force/release corners open |
+| VPI SV object model (cl. 36) | Substantial | Classes, live direct/property containers and element callbacks, covergroups, assertions; documented whole-container-write and assertion-detail corners remain |
 | `bind` (cl. 23.11) | Substantial | Module/type, instance-path, and instance-list targets |
 | `let` (cl. 11.13) | Supported | Expression-macro semantics |
 | Specify / timing checks (cl. 30–31) | Substantial | With `-gspecify`; full checker set incl. `$timeskew`/`$fullskew`/`$nochange` |

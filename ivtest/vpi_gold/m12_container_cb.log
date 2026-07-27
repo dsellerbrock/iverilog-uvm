@@ -1,0 +1,17 @@
+Compiling vpi/m12_container_cb.c...
+Making m12_container_cb.vpi from  m12_container_cb.o...
+CB direct count=1 value=12
+CB direct-assoc count=1 value=52
+CB property count=1 value=22
+CB dynamic count=1 value=32
+CB assoc count=1 value=42
+CB string count=1 value='sv'
+CB real count=1 value=2.500
+CB direct count=2 value=13
+CB direct-assoc count=2 value=53
+CB property count=2 value=23
+CB dynamic count=2 value=33
+CB assoc count=2 value=43
+CB string count=2 value='vpi'
+CB real count=2 value=3.500
+PASSED

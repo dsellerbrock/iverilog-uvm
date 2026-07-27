@@ -2770,7 +2770,8 @@ static bool rand_call_active_(const class_type*defn, vvp_cobject*cobj,
 static bool rand_prop_is_container_(const class_type*defn, size_t pid)
 {
       const std::string&bt = defn->property_base_type(pid);
-      return bt == "o" || bt.compare(0, 3, "oc:") == 0;
+      return bt == "o" || bt.compare(0, 3, "oc:") == 0
+	  || (!bt.empty() && bt[0] == 'D');
 }
 
 static void randomize_snapshot_(vvp_cobject*cobj, const class_type*defn,
@@ -12332,9 +12333,15 @@ static bool aa_store_str(vthread_t thr, unsigned wid=0)
       container_value_copy_(value);
 
       string key = thr->pop_str();
+      vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc)
+      if (assoc) {
 	    assoc->set(key, value);
+	    notify_mutated_object_root_(thr, recv,
+					thr->peek_object_source_net(0),
+					thr->peek_object_root(0),
+					"aa-store-str");
+      }
 
       return true;
 }
@@ -12349,9 +12356,15 @@ static bool aa_store_obj(vthread_t thr, unsigned wid=0)
       vvp_object_t key;
       thr->pop_object(key);
 
+      vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc)
+      if (assoc) {
 	    assoc->set(key, value);
+	    notify_mutated_object_root_(thr, recv,
+					thr->peek_object_source_net(0),
+					thr->peek_object_root(0),
+					"aa-store-obj");
+      }
 
       if (assoc_trace_scope_match_(thr)) {
             fprintf(stderr,
@@ -12375,9 +12388,15 @@ static bool aa_store_vec(vthread_t thr, unsigned wid=0)
       container_value_copy_(value);
 
       vvp_vector4_t key = thr->pop_vec4();
+      vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc)
+      if (assoc) {
 	    assoc->set(key, value);
+	    notify_mutated_object_root_(thr, recv,
+					thr->peek_object_source_net(0),
+					thr->peek_object_root(0),
+					"aa-store-vec");
+      }
 
       return true;
 }
@@ -12386,9 +12405,15 @@ template <class ASSOC>
 static bool aa_delete_str(vthread_t thr)
 {
       string key = thr->pop_str();
+      vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc)
+      if (assoc && assoc->exists_key(key)) {
 	    assoc->erase_key(key);
+	    notify_mutated_object_root_(thr, recv,
+					thr->peek_object_source_net(0),
+					thr->peek_object_root(0),
+					"aa-delete-str");
+      }
       return true;
 }
 
@@ -12397,9 +12422,15 @@ static bool aa_delete_obj(vthread_t thr)
 {
       vvp_object_t key;
       thr->pop_object(key);
+      vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc)
+      if (assoc && assoc->exists_key(key)) {
 	    assoc->erase_key(key);
+	    notify_mutated_object_root_(thr, recv,
+					thr->peek_object_source_net(0),
+					thr->peek_object_root(0),
+					"aa-delete-obj");
+      }
       return true;
 }
 
@@ -12407,9 +12438,15 @@ template <class ASSOC>
 static bool aa_delete_vec(vthread_t thr)
 {
       vvp_vector4_t key = thr->pop_vec4();
+      vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
-      if (assoc)
+      if (assoc && assoc->exists_key(key)) {
 	    assoc->erase_key(key);
+	    notify_mutated_object_root_(thr, recv,
+					thr->peek_object_source_net(0),
+					thr->peek_object_root(0),
+					"aa-delete-vec");
+      }
       return true;
 }
 
@@ -12634,8 +12671,10 @@ static bool aa_store_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
 
       KEY key = pop_assoc_key_<KEY>(thr);
       ASSOC*assoc = ensure_signal_assoc_<ASSOC>(thr, net, "aa-store-sig");
-      if (assoc)
+      if (assoc) {
             assoc->set(key, value);
+	    notify_mutated_object_signal_(thr, net, "aa-store-sig");
+      }
 
       assoc_trace_signal_store_(thr, net, assoc, key, value);
 

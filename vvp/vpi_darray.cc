@@ -338,6 +338,9 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
 			  "(value kind %d).\n", (int)vp->format, kind);
 		  return;
 	    }
+	    mobj->touch();
+	    if (vvp_fun_signal_base*fun = get_callback_functor())
+		  fun->run_sv_vpi_callbacks();
 	    return;
       }
 
@@ -398,13 +401,17 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
 
       default:
           fprintf(stderr, "vpi sorry: value format %d is not implemented "
-		  "for array element writes.\n", (int)vp->format);
+			  "for array element writes.\n", (int)vp->format);
+		  return;
       }
+
+      if (vvp_fun_signal_base*fun = get_callback_functor())
+	    fun->run_sv_vpi_callbacks();
 }
 
 vpiHandle __vpiDarrayVar::get_iter_index(struct __vpiArrayIterator*, int idx)
 {
-      if (vals_words == 0) make_vals_words();
+      make_vals_words();
 
       return &(vals_words[idx].as_word);
 }
@@ -478,8 +485,7 @@ vpiHandle __vpiDarrayVar::vpi_index(int index)
       if (index < 0)
 	    return 0;
 
-      if (vals_words == 0)
-	    make_vals_words();
+      make_vals_words();
 
       return &(vals_words[index].as_word);
 }
@@ -487,6 +493,17 @@ vpiHandle __vpiDarrayVar::vpi_index(int index)
 void __vpiDarrayVar::vpi_get_value(p_vpi_value val)
 {
       val->format = vpiSuppressVal;
+}
+
+vvp_fun_signal_base*__vpiDarrayVar::get_callback_functor() const
+{
+      if (!get_net())
+	    return 0;
+      vvp_fun_signal_base*fun =
+	    dynamic_cast<vvp_fun_signal_base*>(get_net()->fun);
+      if (!fun)
+	    fun = dynamic_cast<vvp_fun_signal_base*>(get_net()->fil);
+      return fun;
 }
 
 vvp_darray*__vpiDarrayVar::get_vvp_darray() const

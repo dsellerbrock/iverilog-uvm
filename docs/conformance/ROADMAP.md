@@ -68,7 +68,7 @@ breakdown that follows is grouped under it.
 | — | M3A | Common class constraint solving | DONE (common) |
 | — | M4A | Core container runtime | DONE (core) |
 | — | M6A | Core scheduler/runtime repairs | DONE (subset) |
-| — | M7 | Accellera UVM qualification | DONE (harness 224/0/0, zero known-fails; issue #98 boundary verified) |
+| — | M7 | Accellera UVM qualification | DONE (harness 226/0/0, zero known-fails; issue #98 boundary verified) |
 | — | M8 | Clocking blocks & program sched | DONE (clause-14 disposition) |
 | — | M9A | Core SVA token pipeline | DONE |
 | — | M10A | Core DPI imports & packed vectors | DONE (subset) |
@@ -85,7 +85,7 @@ breakdown that follows is grouped under it.
 | 7 | **M9B/C/D** | SVA sequence/temporal/automaton | AUTOMATON LANDED; M9-9 + M9-10 DONE; **M9-7 residual** (loud) |
 | 8 | **M10B/C** | DPI completion | **COMPLETE** (all items DONE) |
 | 9 | **M11B** | Coverage declaration/sampling surface | PARTIAL |
-| 10 | **M12B/C** | VPI completion | **COMPLETE** (all 8 items DONE) |
+| 10 | **M12B/C** | VPI completion | **COMPLETE** (all 9 items DONE) |
 | 11 | **M13B** | Long-tail tails | PARTIAL |
 | 12 | **M14B** | Exhaustive subclause campaign | OPEN |
 | 13 | **M15** | IEEE 1800-2023 delta | OPEN |
@@ -349,6 +349,7 @@ module-like subset — leaving the M9-7 multiclock residuals, the
 | M12-6 | Modport direction/access metadata | F | **DONE** | — | each interface modport's port list flows elaboration→ivl_scope_modport_port_{name,dir}→extended .modport directive→VPI: vpi_iterate(vpiIODecl, modport) yields per-port handles with vpi_get(vpiDirection) (input/output/inout; ref→vpiNoDirection), vpiName/vpiFullName composition, vpiSize = port count. vpiIODecl assigned code 604 in sv_vpi_user.h (IEEE's 25 collides with Icarus vpiIntegerVar). ivtest vpi m12_modport_dirs (VPI suite 87/87) |
 | M12-7 | Covergroup drill-down handles | F | **DONE** | — | vpi_iterate(vpiCoverpoint/vpiCoverCross) on a covergroup object (standalone variable or nested class member), vpi_iterate(vpiCoverBin) per item; item handles expose the coverpoint/cross label (plumbed compile→.covgrp_item→runtime), at_least/weight, bin count, and per-item instance coverage (vpiRealVal); bin handles expose instance and type-merged hit counts. Constants documented in sv_vpi_user.h (Icarus extension — IEEE defines no covergroup VPI model). ivtest vpi m12_covgrp_drill (VPI suite 86/86) |
 | M12-8 | VPI object lifetime/free behavior | A | **DONE** | — | audit of the M12 handle families: found and fixed a per-call leak in the covergroup drill-down (M12-7) — item and bin handles were `new`'d fresh on every vpi_iterate and never stored; now cached per (root, defn, kind) / per item so repeated iterate returns identical handles (verified stable), living for the simulation like member handles. Confirmed safe: member/nested-member/modport handles are container-owned; vpi_free_object on a suppress_free handle is a no-op (no double-free); a handle whose backing object is dropped to null reads vpiSuppressVal, not a crash (live re-fetch through the root). ivtest vpi m12_lifetime (VPI suite 88/88) |
+| M12-9 | Runtime-container class-property observability and element callbacks | F | **DONE** | — | Queue, dynamic-array and associative-array class properties now expose a live `vpiArrayVar` surface: declared kind while null/empty, current size, member/index iteration, natural int/string/real element reads and writes, nested paths, and saved member handles that follow owner replacement and growth. Dynamic-array declaration metadata is distinct from a generic class handle. `cbValueChange` on direct and class-property runtime-container elements fires immediately for SV and VPI writes; callbacks attached through a shared class root keep a per-element natural-value snapshot, so sibling-container changes do not fire them spuriously. Associative stores/deletes now publish object-mutation notifications, and runtime word callbacks no longer cast their parent to the static-array implementation. Whole-container property writes remain a loud unsupported boundary; element writes are supported. ivtest vpi m12_container_props, m12_container_cb (VPI suite 94/94) |
 
 ### M13B — long-tail tails  (clause 23/28/31)
 

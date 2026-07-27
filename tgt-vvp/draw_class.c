@@ -176,6 +176,43 @@ static void show_prop_type_queue(ivl_type_t ptype, const char*rand_prefix)
       }
 }
 
+/*
+ * Keep dynamic-array declarations distinct from generic object handles in
+ * the .class metadata. Both use object storage at runtime, but VPI needs the
+ * declaration kind even while the dynamic array is null or empty.
+ *
+ * D{r,S,o,v<width>,sv<width>} mirrors the queue/associative-array element
+ * tags while retaining integral width and signedness.
+ */
+static void show_prop_type_darray(ivl_type_t ptype, const char*rand_prefix)
+{
+      ivl_type_t element_type = ivl_type_element(ptype);
+      const char*rp = rand_prefix ? rand_prefix : "";
+
+      if (!element_type) {
+	    fprintf(vvp_out, "\"%sDo\"", rp);
+	    return;
+      }
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_REAL:
+	    fprintf(vvp_out, "\"%sDr\"", rp);
+	    break;
+	  case IVL_VT_STRING:
+	    fprintf(vvp_out, "\"%sDS\"", rp);
+	    break;
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    fprintf(vvp_out, "\"%sD%sv%u\"", rp,
+		    ivl_type_signed(element_type) ? "s" : "",
+		    ivl_type_packed_width(element_type));
+	    break;
+	  default:
+	    fprintf(vvp_out, "\"%sDo\"", rp);
+	    break;
+      }
+}
+
 static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
 {
       ivl_type_t base_ptype = ptype;
@@ -208,13 +245,11 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
 	    show_prop_type_vector(base_ptype, rand_prefix);
 	    break;
 	  case IVL_VT_DARRAY:
+	    show_prop_type_darray(base_ptype, rand_prefix);
+	    break;
 	  case IVL_VT_CLASS:
-	      /* The rand prefix has to reach the runtime here too. A
-	       * `rand int arr[]' was emitted as a bare "o", so the
-	       * runtime read the property as NOT rand -- which the
-	       * solver's state-variable pinning then took literally and
-	       * froze the array's size at whatever it already was.
-	       * (Queues, vectors and enums already carried it.) */
+	      /* A rand class-handle property must retain its qualifier in
+	       * the runtime metadata, just like containers and vectors. */
 	    fprintf(vvp_out, "\"%so\"", rand_prefix ? rand_prefix : "");
 	    if (packed_dimensions > 0) {
 		  unsigned idx;

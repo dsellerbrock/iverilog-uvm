@@ -6,58 +6,58 @@ narratives live in `session_logs/`.
 
 ## Resume state — 2026-07-26
 
-Branch: `codex/access-aggregate-boundary-closure`, based on the merge of
-PR #121 (`9ca10bd18`).
+Branch: `codex/vpi-container-observability`, based on the merge of
+PR #122 (`d0d51c226`). Draft PR: #123.
 
-The access and aggregate boundary campaign is closed:
+The VPI runtime-container observability campaign is closed:
 
-- **M4B-15:** a whole fixed unpacked-array member of an unpacked struct now
-  crosses ordinary SystemVerilog and DPI open-array formals with its element
-  type, values, dimensions, declared bounds, index translation, and
-  output/inout copyback intact. The covered receivers are direct structs,
-  structs in class properties and runtime containers, and direct/virtual
-  interfaces for ordinary SV calls.
-- **M1C-7 / R16:** `$cast` destinations now include local fixed, dynamic,
-  queue, and associative-array elements plus elements behind nested
-  receivers. Successful downcasts store, failed casts preserve the
-  destination, and task-form failures diagnose.
-- **M1C-7:** `foreach (u[constant].nested.array[i])` retains the selected
-  instance-array prefix and iterates/updates the target. Local, unindexed
-  hierarchical, class-property, and virtual-interface controls remain clean.
-
-The implementation materializes an inline fixed-array property as a typed
-nested darray value. Declared-range metadata stays passive for ordinary
-fixed-to-dynamic assignment and is activated only at an open-array formal,
-so an ordinary dynamic array remains 0-based. SV array queries/`foreach` and
-DPI H.10 accessors see the fixed actual's declared indices. Copyback uses the
-aggregate property store.
+- queue, dynamic-array and associative-array class properties expose a
+  live `vpiArrayVar` surface with declared/live kind, current size,
+  member/index iteration, and typed int/string/real element access;
+- VPI element writes update the SystemVerilog object;
+- member handles stay live across owner replacement and container growth;
+- `cbValueChange` on direct and class-property container elements fires
+  immediately for both SV and VPI writes;
+- per-element snapshots prevent a mutation elsewhere in the same class
+  object from spuriously firing sibling callbacks.
 
 Discriminating pre-fix evidence:
 
-- the struct-member access matrix computed 0 instead of 806;
-- the legal real-element open-array calls were rejected;
-- the container `$cast` regression aborted in VVP;
-- indexed-instance `foreach` loops silently read/wrote zero elements.
+- `m12_container_props` produced 36 deterministic failures: property
+  queues appeared empty, dynamic arrays looked like 64-bit class
+  variables, associative arrays had the wrong kind, element handles were
+  null, typed/nested properties were missing, writes had no effect, and
+  saved handles did not follow owner replacement;
+- `m12_container_cb` produced three deterministic failures, including a
+  null class-property element and callbacks that registered but never
+  fired.
 
-Final gates on this branch:
+The root causes were split across metadata, handle adaptation, callback
+routing and mutation notification. Dynamic-array properties had been
+serialized as generic objects; class members exposed only static property
+metadata; a runtime word callback cast its parent to the static-array
+implementation; associative stores did not notify the owning object; and
+class-root notifications required element-level filtering.
 
-- focused SV access/aggregate matrix: pass;
-- real-DPI `m4b_struct_array_member_open_test`: pass;
+Final gates:
+
+- focused property/callback family: pass;
 - `make check`: pass;
 - negative suite: 61 passed, 0 failed;
 - SVA dual-run: 36 passed, 0 failed;
 - vendored ivtest: 3,217 total, exactly 44 expected failures and no
   failure-identity drift;
-- bundled VPI: 92 passed, 0 failed;
+- bundled VPI: 94 passed, 0 failed;
+- dedicated DPI subsystem with real DPI: 20 passed, 0 failed, 0 skipped;
 - full UVM with real DPI: 226 passed, 0 failed, 0 skipped;
-- installed/relocated `-uvm` frontend: all scenarios passed.
+- installed/relocated `-uvm` frontend: all eight scenarios passed.
 
-Detailed implementation and test evidence:
-`session_logs/2026-07-26_access_aggregate_boundary_closure.md`.
+The macOS run also exposed `mapfile` in the targeted-subsystem helper; it
+now de-duplicates with Bash 3.2-compatible array handling.
 
-Known neighboring gaps remain loud and outside this closed campaign:
-method calls on queue members of unpacked structs, and direct
-multidimensional arrays of instances (not represented by the compiler).
+Detailed implementation and pre-fix evidence:
+`session_logs/2026-07-26_vpi_container_observability.md`.
 
-Resume from the priority-ordered open rows in `ROADMAP.md`; do not reopen
-this campaign without a new discriminating reproducer.
+The public VPI status remains **substantial**, not FULL. Whole-container
+class-property writes and detailed assertion sub-expression/
+variable-latency attribution remain documented boundaries.

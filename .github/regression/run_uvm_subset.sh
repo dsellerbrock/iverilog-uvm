@@ -32,8 +32,12 @@ else
     names=("$@")
 fi
 [ ${#names[@]} -gt 0 ] || { echo "no tests selected" >&2; exit 2; }
-# de-dup
-mapfile -t names < <(printf '%s\n' "${names[@]}" | sort -u)
+# De-dup without mapfile, which is unavailable in macOS's Bash 3.2.
+unique_names=()
+while IFS= read -r name; do
+    unique_names+=("$name")
+done < <(printf '%s\n' "${names[@]}" | sort -u)
+names=("${unique_names[@]}")
 dir=$(mktemp -d)
 trap 'rm -rf "$dir"' EXIT
 missing=0

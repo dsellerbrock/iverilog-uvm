@@ -39,6 +39,7 @@
 class class_type;
 class vvp_darray;
 class vvp_fun_arrayport;
+class vvp_fun_signal_base;
 
 typedef struct __vpiArray* vvp_array_t;
 
@@ -743,7 +744,7 @@ class __vpiStringVar : public __vpiBaseVar {
 extern vpiHandle vpip_make_string_var(const char*name, vvp_net_t*net);
 
 struct __vpiArrayBase {
-      __vpiArrayBase() : vals_words(NULL) {}
+      __vpiArrayBase() : vals_words(NULL), vals_words_capacity(0) {}
       virtual ~__vpiArrayBase() {}
 
       virtual unsigned get_size(void) const = 0;
@@ -757,6 +758,7 @@ struct __vpiArrayBase {
       virtual void put_word_value(struct __vpiArrayWord*word, p_vpi_value vp,
                                     int flags) = 0;
       virtual vpiHandle get_iter_index(struct __vpiArrayIterator*iter, int idx) = 0;
+      virtual vvp_fun_signal_base*get_callback_functor() const { return 0; }
 
     // vpi_iterate is already defined by vpiHandle, so to avoid problems with
     // classes inheriting from vpiHandle and vpiArrayBase just share the common
@@ -766,6 +768,7 @@ struct __vpiArrayBase {
       virtual void make_vals_words();
 
       struct __vpiArrayWord*vals_words;
+      unsigned vals_words_capacity;
 };
 
 /*
@@ -911,10 +914,11 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
       vpiHandle vpi_index(int index) override;
 
       void vpi_get_value(p_vpi_value val) override;
+      vvp_fun_signal_base*get_callback_functor() const override;
 
     protected:
-      vvp_darray*get_vvp_darray() const;
-      const class vvp_assoc_base*get_vvp_assoc() const;
+      virtual vvp_darray*get_vvp_darray() const;
+      virtual const class vvp_assoc_base*get_vvp_assoc() const;
       __vpiDecConst left_range_, right_range_;
 	// M12: reported when the live object cannot decide (null
 	// handle): vpiDynamicArray for darrays, vpiQueueArray for

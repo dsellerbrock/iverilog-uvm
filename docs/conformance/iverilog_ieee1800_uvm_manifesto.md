@@ -596,8 +596,8 @@ Note: the harness suite is green, but per the truth rules this is
 
 ## M12B/M12C — VPI completion
 
-**Status: COMPLETE** — all eight items done; bundled VPI suite 91/91,
-full UVM 212/212 at the completing head.
+**Status: COMPLETE** — all nine items done; bundled VPI suite 94/94,
+full UVM 226/226 at the current head.
 
 - [x] Implement assertion start/step/disable lifecycle callbacks.
       *(Start/Success/Failure from the automaton checkers,
@@ -623,6 +623,14 @@ full UVM 212/212 at the completing head.
 - [x] Expose complete modport direction/access metadata.
 - [x] Complete covergroup drill-down handles.
 - [x] Define and test VPI object lifetime/free behavior.
+- [x] Expose live runtime-container class properties and element callbacks.
+      *(Queue, dynamic-array and associative-array properties report their
+      declared/live kind and size, support member/index iteration and typed
+      element access, and keep saved member handles live across owner
+      replacement and growth. `cbValueChange` on direct and class-property
+      elements fires for SV and VPI writes with per-element filtering when
+      notifications share a class root. Whole-container property writes
+      remain a loud boundary.)*
 
 ## M13A — Implemented long-tail core
 

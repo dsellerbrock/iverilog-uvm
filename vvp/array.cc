@@ -1638,12 +1638,86 @@ bool array_word_part_callback::test_value_callback_ready(void)
 
 }
 
+/*
+ * A runtime container is notified through its declaring object signal. One
+ * class object may own many containers, so every mutation wakes every
+ * element callback attached to that root. Keep a natural-format snapshot
+ * and suppress callbacks whose particular element did not change.
+ */
+class runtime_array_word_value_callback : public value_callback {
+    public:
+      explicit runtime_array_word_value_callback(p_cb_data data)
+      : value_callback(data)
+      {
+	    snapshot_(false);
+      }
+
+      bool test_value_callback_ready(void) override
+      {
+	    return snapshot_(true);
+      }
+
+    private:
+      bool snapshot_(bool compare)
+      {
+	    s_vpi_value natural = {};
+	    natural.format = vpiObjTypeVal;
+	    cb_data.obj->vpi_get_value(&natural);
+
+	    if (natural.format == vpiSuppressVal) {
+		  bool changed = !compare || value_kind_ != vpiSuppressVal;
+		  value_kind_ = vpiSuppressVal;
+		  text_value_.clear();
+		  return changed;
+	    }
+
+	    if (natural.format == vpiRealVal) {
+		  bool changed = !compare || value_kind_ != vpiRealVal
+			      || natural.value.real != real_value_;
+		  real_value_ = natural.value.real;
+		  value_kind_ = vpiRealVal;
+		  return changed;
+	    }
+
+	    s_vpi_value text = {};
+	    if (natural.format == vpiStringVal) {
+		  text.format = vpiStringVal;
+	    } else {
+		  text.format = vpiBinStrVal;
+	    }
+	    cb_data.obj->vpi_get_value(&text);
+	    std::string next = text.value.str ? text.value.str : "";
+	    bool changed = !compare || value_kind_ != text.format
+			 || next != text_value_;
+	    value_kind_ = text.format;
+	    text_value_ = next;
+	    return changed;
+      }
+
+      int value_kind_ = vpiSuppressVal;
+      double real_value_ = 0.0;
+      std::string text_value_;
+};
+
 value_callback*vpip_array_word_change(p_cb_data data)
 {
       struct __vpiArray*parent = 0;
       array_word_value_callback*cbh = 0;
       if (const struct __vpiArrayWord*word = array_var_word_from_handle(data->obj)) {
-	    parent = static_cast<__vpiArray*>(word->get_parent());
+	    __vpiArrayBase*base = word->get_parent();
+	    parent = dynamic_cast<__vpiArray*>(base);
+	    if (!parent) {
+		  vvp_fun_signal_base*fun = base->get_callback_functor();
+		  if (!fun) {
+			fprintf(stderr, "vpi error: cannot attach value-change "
+				"callback to this runtime-container word.\n");
+			return 0;
+		  }
+		  value_callback*runtime_cbh =
+			new runtime_array_word_value_callback(data);
+		  fun->add_vpi_callback(runtime_cbh);
+		  return runtime_cbh;
+	    }
 	    unsigned addr = word->get_index();
 	    cbh = new array_word_value_callback(data, addr);
 

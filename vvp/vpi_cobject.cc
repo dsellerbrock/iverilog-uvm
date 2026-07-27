@@ -24,7 +24,9 @@
 # include  "sv_vpi_user.h"
 # include  "vvp_cobject.h"
 # include  "vvp_darray.h"
+# include  "vvp_assoc.h"
 # include  "vvp_net_sig.h"
+# include  "array_common.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
@@ -146,7 +148,8 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
 		  out += "\"";
 		  out += cobj->get_string(i);
 		  out += "\"";
-	    } else if (!bt.empty() && (bt[0] == 'o' || bt[0] == 'Q')) {
+	    } else if (!bt.empty()
+		       && (bt[0] == 'o' || bt[0] == 'Q' || bt[0] == 'D')) {
 		  vvp_object_t sub;
 		  cobj->get_object(i, sub, 0);
 		  out += vvp_format_cobject_p(sub, depth+1);
@@ -336,11 +339,13 @@ vpiHandle __vpiCobjectVar::vpi_put_value(p_vpi_value val, int)
  * by a variable or nested member handle. */
 static vpiHandle covgrp_iterate_items_(vpiHandle root, int code);
 
-class __vpiClassMember : public __vpiHandle {
+class __vpiClassMember : public __vpiDarrayVar {
     public:
       __vpiClassMember(__vpiCobjectVar*parent, const class_type*defn,
 		       unsigned idx)
-      : parent_(parent), parent_member_(0), defn_(defn), idx_(idx)
+      : __vpiDarrayVar(0, defn->property_name(idx).c_str(),
+		       parent ? parent->get_net() : 0),
+	parent_(parent), parent_member_(0), defn_(defn), idx_(idx)
       {
 	    decode_type_();
       }
@@ -350,15 +355,36 @@ class __vpiClassMember : public __vpiHandle {
 	   anywhere along the path. */
       __vpiClassMember(__vpiClassMember*parent_member, const class_type*defn,
 		       unsigned idx)
-      : parent_(0), parent_member_(parent_member), defn_(defn), idx_(idx)
+      : __vpiDarrayVar(0, defn->property_name(idx).c_str(),
+		       parent_member ? parent_member->get_net() : 0),
+	parent_(0), parent_member_(parent_member), defn_(defn), idx_(idx)
       {
 	    decode_type_();
       }
 
-      int get_type_code(void) const override { return type_code_; }
+      int get_type_code(void) const override
+      {
+	    return is_container_() ? vpiArrayVar : type_code_;
+      }
 
       int vpi_get(int code) override
       {
+	    if (is_container_()) {
+		  switch (code) {
+		      case vpiArrayType:
+			if (get_vvp_assoc()) return vpiAssocArray;
+			if (vvp_darray*array = get_vvp_darray())
+			      return dynamic_cast<vvp_queue*>(array)
+				   ? vpiQueueArray : vpiDynamicArray;
+			if (kind_ == 'q')
+			      return declared_array_type_;
+			return vpiDynamicArray;
+		      case vpiSize:
+			return (int)get_size();
+		      default:
+			return __vpiDarrayVar::vpi_get(code);
+		  }
+	    }
 	    switch (code) {
 		case vpiSize:      return (int)width_;
 		case vpiSigned:    return signed_ ? 1 : 0;
@@ -395,6 +421,10 @@ class __vpiClassMember : public __vpiHandle {
 
       void vpi_get_value(p_vpi_value val) override
       {
+	    if (is_container_()) {
+		  __vpiDarrayVar::vpi_get_value(val);
+		  return;
+	    }
 	    vvp_cobject*cobj = live_object_();
 	    if (!cobj) {
 		  val->format = vpiSuppressVal;
@@ -451,6 +481,11 @@ class __vpiClassMember : public __vpiHandle {
 
       vpiHandle vpi_put_value(p_vpi_value val, int) override
       {
+	    if (is_container_()) {
+		  fprintf(stderr, "vpi sorry: writing a whole runtime-container "
+			  "class property is not supported; write an element.\n");
+		  return 0;
+	    }
 	    vvp_cobject*cobj = live_object_();
 	    if (!cobj)
 		  return 0;
@@ -517,6 +552,12 @@ class __vpiClassMember : public __vpiHandle {
 
       vpiHandle vpi_handle(int code) override
       {
+	    if (is_container_()) {
+		  if (code == vpiLeftRange)
+			return get_left_range();
+		  if (code == vpiRightRange)
+			return get_right_range();
+	    }
 	    if (code == vpiParent || code == vpiScope) {
 		  if (parent_member_) return parent_member_;
 		  return parent_;
@@ -530,6 +571,10 @@ class __vpiClassMember : public __vpiHandle {
 	   object has no members). */
       vpiHandle vpi_iterate(int code) override
       {
+	    if (is_container_()
+		&& (code == vpiMember || code == vpiMemoryWord
+		    || code == vpiReg))
+		  return vpi_array_base_iterate(code);
 	    if (code == vpiCoverpoint || code == vpiCoverCross)
 		  return covgrp_iterate_items_(this, code);
 	    if (code != vpiMember && code != vpiVariables)
@@ -558,7 +603,7 @@ class __vpiClassMember : public __vpiHandle {
 	/* The object stored IN this member (nil-safe). */
       vvp_cobject* member_object_()
       {
-	    if (kind_ != 'o') return 0;
+	    if (kind_ != 'o' || is_container_()) return 0;
 	    vvp_cobject*container = live_object_();
 	    if (!container) return 0;
 	    vvp_object_t obj;
@@ -566,8 +611,63 @@ class __vpiClassMember : public __vpiHandle {
 	    return obj.peek<vvp_cobject>();
       }
 
+      vpiHandle vpi_index(int index) override
+      {
+	    if (!is_container_())
+		  return 0;
+	    return __vpiDarrayVar::vpi_index(index);
+      }
+
+      unsigned get_size() const override
+      {
+	    if (const vvp_darray*array = get_vvp_darray())
+		  return (unsigned)array->get_size();
+	    if (const vvp_assoc_base*assoc = get_vvp_assoc())
+		  return (unsigned)assoc->size();
+	    return 0;
+      }
+
+      __vpiScope*get_scope() const override
+      {
+	    if (parent_member_)
+		  return parent_member_->get_scope();
+	    return parent_
+		 ? dynamic_cast<__vpiScope*>(parent_->vpi_handle(vpiScope)) : 0;
+      }
+
+      char*get_word_str(struct __vpiArrayWord*word, int code) override
+      {
+	    unsigned index = word->get_index();
+	    std::string label;
+	    if (const vvp_assoc_base*assoc = get_vvp_assoc()) {
+		  std::string key, sval;
+		  vvp_vector4_t vval;
+		  double rval = 0.0;
+		  int value_kind = -1;
+		  if (assoc->peek_entry(index, key, vval, rval, sval, value_kind))
+			label = key;
+	    }
+	    if (label.empty()) {
+		  char ibuf[32];
+		  snprintf(ibuf, sizeof ibuf, "%u", index);
+		  label = ibuf;
+	    }
+
+	    if (code == vpiName)
+		  return simple_set_rbuf_str(label.c_str());
+	    if (code == vpiFullName) {
+		  const char*parent_name = vpi_get_str(vpiFullName);
+		  std::string full = std::string(parent_name ? parent_name : "?")
+				   + "[" + label + "]";
+		  return simple_set_rbuf_str(full.c_str());
+	    }
+	    if (code == vpiFile)
+		  return simple_set_rbuf_str(file_names[0]);
+	    return 0;
+      }
+
     private:
-      vvp_cobject* live_object_()
+      vvp_cobject* live_object_() const
       {
 	    if (parent_member_)
 		  return parent_member_->member_object_();
@@ -575,6 +675,38 @@ class __vpiClassMember : public __vpiHandle {
 	    if (!fun) return 0;
 	    vvp_object_t obj = fun->peek_object();
 	    return obj.peek<vvp_cobject>();
+      }
+
+      vvp_object_t live_member_value_() const
+      {
+	    vvp_object_t value;
+	    if (vvp_cobject*cobj = live_object_())
+		  cobj->get_object(idx_, value, 0);
+	    return value;
+      }
+
+      vvp_darray*get_vvp_darray() const override
+      {
+	    vvp_object_t value = live_member_value_();
+	    return value.peek<vvp_darray>();
+      }
+
+      const vvp_assoc_base*get_vvp_assoc() const override
+      {
+	    vvp_object_t value = live_member_value_();
+	    return value.peek<vvp_assoc_base>();
+      }
+
+      bool is_container_() const
+      {
+	    if (kind_ == 'q' || kind_ == 'd')
+		  return true;
+	    if (kind_ != 'o')
+		  return false;
+	      // Compatibility with older .vvp files that encoded a dynamic
+	      // array property as the generic object type.
+	    vvp_object_t value = live_member_value_();
+	    return value.peek<vvp_darray>() || value.peek<vvp_assoc_base>();
       }
 
       void refresh_children_()
@@ -594,7 +726,8 @@ class __vpiClassMember : public __vpiHandle {
 
 	// Decode the property base-type string into (vpi type code,
 	// width, signedness, access kind). kinds: 'v' vec4, 'r' real,
-	// 'S' string, 'o' object, 'q' container, '?' unknown.
+	// 'S' string, 'o' object, 'q' queue/assoc, 'd' dynamic array,
+	// '?' unknown.
       void decode_type_()
       {
 	    const std::string&bt = defn_->property_base_type(idx_);
@@ -617,6 +750,27 @@ class __vpiClassMember : public __vpiHandle {
 	    }
 	    if (bt.size() >= 1 && (t[0] == 'Q' || t[0] == 'M')) {
 		  kind_ = 'q'; type_code_ = vpiArrayVar; width_ = 0;
+		  declared_array_type_ = t[0] == 'M'
+					   ? vpiAssocArray : vpiQueueArray;
+		  return;
+	    }
+	    if (bt.size() >= 2 && t[0] == 'D') {
+		  kind_ = 'd'; type_code_ = vpiArrayVar; width_ = 0;
+		  declared_array_type_ = vpiDynamicArray;
+		  const char*elem = t + 1;
+		  if (*elem == 's') {
+			signed_ = true;
+			set_element_signed(true);
+			elem += 1;
+		  }
+		  if (*elem == 'v') {
+			width_ = (unsigned)strtoul(elem+1, 0, 0);
+			if (width_ == 0) width_ = 1;
+		  } else if (*elem == 'r') {
+			width_ = 1;
+		  } else if (*elem == 'S') {
+			width_ = 8;
+		  }
 		  return;
 	    }
 	    bool sgn = (t[0] == 's');
@@ -649,6 +803,7 @@ class __vpiClassMember : public __vpiHandle {
       unsigned width_;
       bool signed_;
       char kind_;
+      int declared_array_type_ = vpiUndefined;
       std::vector<__vpiClassMember*> children_;
       const class_type*children_defn_ = nullptr;
 };
