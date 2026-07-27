@@ -64,6 +64,7 @@ static struct __vpiModPath*modpath_dst = 0;
 
       struct enum_name_s enum_name;
       std::list<struct enum_name_s>*enum_namev;
+      std::vector<std::pair<int,int> >*ranges;
 
       struct symb_s vect;
 
@@ -122,7 +123,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %type <numb>  storage_flag
 %type <vpi_enum> port_type
 %type <numb>  signed_t_number
-%type <numb>  dimension dimensions dimensions_opt
+%type <ranges> dimension dimensions dimensions_opt
 %type <symb>  symbol symbol_opt
 %type <symbv> symbols symbols_net
 %type <numbv> numbers
@@ -1041,9 +1042,9 @@ class_property
 
 /*
  * The syntax for dimensions allows the code generator to give the
- * accurate dimensions for for the property, but for now we are only
- * interested in the total number of elements. So reduce the ranges
- * to a simple number, and scale the number.
+ * accurate dimensions for the property. Preserve the ranges: fixed
+ * array properties are stored inline, and whole-property open-array
+ * arguments need both the nesting and declared bounds at runtime.
  */
 dimensions_opt
   : dimensions
@@ -1053,14 +1054,22 @@ dimensions_opt
 
 dimensions
   : dimensions dimension
-      { $$ = $1 * $2; }
+      {
+	    $1->insert($1->end(), $2->begin(), $2->end());
+	    delete $2;
+	    $$ = $1;
+      }
   | dimension
       { $$ = $1; }
   ;
 
 dimension
-  : '[' T_NUMBER ':' T_NUMBER ']'
-      { $$ = ($2 > $4? $2 - $4 : $4 - $2) + 1; }
+  : '[' signed_t_number ':' signed_t_number ']'
+      {
+	    $$ = new vector<pair<int,int> >;
+	    $$->push_back(pair<int,int>((int)(int64_t)$2,
+					(int)(int64_t)$4));
+      }
   ;
 
   /* Enumeration types */

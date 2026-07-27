@@ -22,6 +22,7 @@
 # include  <cstdio>
 # include  <fstream>
 # include  <list>
+# include  <utility>
 # include  <vector>
 # include  "parse_misc.h"
 # include  "sv_vpi_user.h"
@@ -628,7 +629,9 @@ extern void delete_udp_symbols(void);
 
 extern void compile_class_start(char*lab, char*nam, char*dispatch_prefix,
                                 char*super_dispatch_prefix, unsigned nprop);
-extern void compile_class_property(unsigned idx, char*nam, char*typ, uint64_t array_size);
+extern void compile_class_property(
+      unsigned idx, char*nam, char*typ,
+      std::vector<std::pair<int,int> >*dimensions);
 extern void compile_class_constraint(char*name, char*ir);
 extern void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 				     uint64_t lo, uint64_t hi,

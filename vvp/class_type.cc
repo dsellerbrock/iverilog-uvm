@@ -949,6 +949,14 @@ uint64_t class_type::property_array_size(size_t idx) const
       return properties_[idx].array_size;
 }
 
+const vector<pair<int,int> >& class_type::property_dimensions(size_t idx) const
+{
+      static const vector<pair<int,int> > nil;
+      if (idx >= properties_.size())
+	    return nil;
+      return properties_[idx].dimensions;
+}
+
 void class_type::add_constraint(const string&name, const string&ir)
 {
       constraint_t c;
@@ -1005,10 +1013,19 @@ const class_type* class_type_from_dispatch_prefix(const string&prefix)
       return cur->second;
 }
 
-void class_type::set_property(size_t idx, const string&name, const string&type, uint64_t array_size)
+void class_type::set_property(size_t idx, const string&name, const string&type,
+                             const vector<pair<int,int> >&dimensions)
 {
       assert(idx < properties_.size());
       properties_[idx].name = name;
+
+      uint64_t array_size = 1;
+      for (const pair<int,int>&range : dimensions) {
+	    uint64_t count = range.first > range.second
+			   ? (uint64_t)(range.first - range.second) + 1
+			   : (uint64_t)(range.second - range.first) + 1;
+	    array_size *= count;
+      }
 
 	// Strip rand/randc prefix ("r" or "rc") from the type string.
       string base_type = type;
@@ -1027,7 +1044,8 @@ void class_type::set_property(size_t idx, const string&name, const string&type, 
       const string&type_to_use = base_type;
 
       properties_[idx].base_type = base_type;
-      properties_[idx].array_size = array_size ? array_size : 1;
+      properties_[idx].array_size = array_size;
+      properties_[idx].dimensions = dimensions;
 
       const string&t = type_to_use;
       if (t == "b8")
@@ -1427,10 +1445,14 @@ void compile_class_start(char*lab, char*nam, char*dispatch_prefix,
       delete[]super_dispatch_prefix;
 }
 
-void compile_class_property(unsigned idx, char*nam, char*typ, uint64_t array_size)
+void compile_class_property(unsigned idx, char*nam, char*typ,
+                            vector<pair<int,int> >*dimensions)
 {
       assert(compile_class);
-      compile_class->set_property(idx, nam, typ, array_size);
+      static const vector<pair<int,int> > no_dimensions;
+      compile_class->set_property(idx, nam, typ,
+				  dimensions ? *dimensions : no_dimensions);
+      delete dimensions;
       delete[]nam;
       delete[]typ;
 }

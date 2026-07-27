@@ -21,6 +21,7 @@
 
 # include  <cstdint>
 # include  <string>
+# include  <utility>
 # include  <vector>
 # include  "vpi_priv.h"
 
@@ -58,7 +59,9 @@ class class_type : public __vpiHandle {
 	// Set the details about the property. This is used during
 	// parse of the .vvp file to fill in the details of the
 	// property for the class definition.
-      void set_property(size_t idx, const std::string&name, const std::string&type, uint64_t array_size);
+      void set_property(size_t idx, const std::string&name,
+                        const std::string&type,
+                        const std::vector<std::pair<int,int> >&dimensions);
 
       bool property_is_rand(size_t idx) const;
       bool property_is_randc(size_t idx) const;
@@ -69,6 +72,8 @@ class class_type : public __vpiHandle {
 	// back array-typed rand properties.
       const std::string& property_base_type(size_t idx) const;
       uint64_t property_array_size(size_t idx) const;
+      const std::vector<std::pair<int,int> >&
+            property_dimensions(size_t idx) const;
 
       void add_constraint(const std::string&name, const std::string&ir);
       size_t constraint_count() const { return constraints_.size(); }
@@ -113,6 +118,7 @@ class class_type : public __vpiHandle {
 	    bool randc_flag = false;
 	    std::string base_type;
 	    uint64_t array_size = 1;
+	    std::vector<std::pair<int,int> > dimensions;
       };
       std::vector<prop_t> properties_;
       size_t instance_size_;

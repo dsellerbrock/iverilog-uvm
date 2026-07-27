@@ -431,6 +431,22 @@ static vvp_darray* md_inner_(const vvp_dpi_open_array_t*arr, int idx)
       return w.peek<vvp_darray>();
 }
 
+/* Return the representative array object for a dimension. Dimension 1
+   is the outer object itself; deeper dimensions follow word zero because
+   open fixed arrays are rectangular. */
+static vvp_darray* md_dimension_(const vvp_dpi_open_array_t*arr, int dim)
+{
+      if (!arr || !arr->outer || dim < 1) return 0;
+      vvp_darray*cur = arr->outer;
+      for (int d = 1 ; cur && d < dim ; d += 1) {
+	    if (cur->get_size() == 0) return 0;
+	    vvp_object_t word;
+	    cur->get_word(0, word);
+	    cur = word.peek<vvp_darray>();
+      }
+      return cur;
+}
+
 int svDimensions(const void*h)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
@@ -477,13 +493,19 @@ int svSize(const void*h, int dim)
  * for that array's DECLARED range and reports it instead -- including a
  * descending range, where left > right and the increment is -1.
  *
- * Only dimension 1 carries a declared range: inner dimensions of a
- * multi-dimensional open array are dynamic arrays in their own right.
+ * A passive marshaling range does not affect a later ordinary dynamic-array
+ * value. The declared range is visible only when the object has been
+ * installed as an open-array formal. Multidimensional fixed actuals carry
+ * and activate the range on every nested dimension.
  */
 int svLeft(const void*h, int dim)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       if (arr && arr->has_range && dim == 1) return arr->left;
+      vvp_darray*dar = md_dimension_(arr, dim);
+      if (dar && dar->sv_uses_declared_indexing()
+	  && dar->dpi_has_decl_range())
+	    return dar->dpi_decl_left();
       return 0;
 }
 
@@ -491,6 +513,10 @@ int svRight(const void*h, int dim)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       if (arr && arr->has_range && dim == 1) return arr->right;
+      vvp_darray*dar = md_dimension_(arr, dim);
+      if (dar && dar->sv_uses_declared_indexing()
+	  && dar->dpi_has_decl_range())
+	    return dar->dpi_decl_right();
       return svSize(h, dim) - 1;
 }
 
@@ -581,6 +607,17 @@ static int dpi_canon_index_(const vvp_dpi_open_array_t*arr, int indx1)
       return indx1 - low;
 }
 
+static int dpi_canon_darray_index_(const vvp_darray*arr, int index)
+{
+      if (!arr || !arr->sv_uses_declared_indexing()
+	  || !arr->dpi_has_decl_range())
+	    return index;
+      int left = arr->dpi_decl_left();
+      int right = arr->dpi_decl_right();
+      int low = left <= right ? left : right;
+      return index - low;
+}
+
 void* svGetArrElemPtr1(const void*h, int indx1)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
@@ -600,8 +637,9 @@ void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
       unsigned eb = inner->dpi_elem_bytes();
       void*base = inner->dpi_raw_data();
       if (eb == 0 || base == 0) return 0;
-      if (indx2 < 0 || (size_t)indx2 >= inner->get_size()) return 0;
-      return (char*)base + (size_t)indx2 * eb;
+      int k2 = dpi_canon_darray_index_(inner, indx2);
+      if (k2 < 0 || (size_t)k2 >= inner->get_size()) return 0;
+      return (char*)base + (size_t)k2 * eb;
 }
 
 /* M10B-md: 3-D element access — two object-walk levels then the
@@ -611,16 +649,18 @@ void* svGetArrElemPtr3(const void*h, int indx1, int indx2, int indx3)
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       vvp_darray*mid = md_inner_(arr, dpi_canon_index_(arr, indx1));
       if (!mid) return 0;
-      if (indx2 < 0 || (size_t)indx2 >= mid->get_size()) return 0;
+      int k2 = dpi_canon_darray_index_(mid, indx2);
+      if (k2 < 0 || (size_t)k2 >= mid->get_size()) return 0;
       vvp_object_t w;
-      mid->get_word((unsigned)indx2, w);
+      mid->get_word((unsigned)k2, w);
       vvp_darray*inner = w.peek<vvp_darray>();
       if (!inner) return 0;
       unsigned eb = inner->dpi_elem_bytes();
       void*base = inner->dpi_raw_data();
       if (eb == 0 || base == 0) return 0;
-      if (indx3 < 0 || (size_t)indx3 >= inner->get_size()) return 0;
-      return (char*)base + (size_t)indx3 * eb;
+      int k3 = dpi_canon_darray_index_(inner, indx3);
+      if (k3 < 0 || (size_t)k3 >= inner->get_size()) return 0;
+      return (char*)base + (size_t)k3 * eb;
 }
 
 void* svGetArrElemPtr(const void*h, int indx1, ...)

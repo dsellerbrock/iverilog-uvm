@@ -1632,7 +1632,12 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
 	    // assignment to the array as a whole. Evaluate the
 	    // "object", and store the evaluated result.
 	    errors += draw_eval_object(rval);
-	    fprintf(vvp_out, "    %%store/obj v%p_0; %s:%u: %s = <expr type %d>\n",
+	    int fixed_open_actual =
+		  ivl_signal_port(var) != IVL_SIP_NONE
+		  && (ivl_expr_type(rval) == IVL_EX_ARRAY
+		      || vvp_expr_is_whole_fixed_array_property(rval));
+	    fprintf(vvp_out, "    %%store/obj%s v%p_0; %s:%u: %s = <expr type %d>\n",
+		    fixed_open_actual ? "/open" : "",
 		    var, ivl_stmt_file(net), ivl_stmt_lineno(net),
 		    ivl_signal_basename(var), ivl_expr_type(rval));
       }
@@ -2591,6 +2596,11 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 	    ivl_type_t prop_type = ivl_type_prop_type(sig_type, prop_idx);
 	    unsigned lab_null = local_count++;
 	    unsigned lab_out = local_count++;
+	    int whole_fixed_array =
+		  !ivl_lval_idx(lval) && !ivl_lval_part_off(lval)
+		  && ivl_type_element(prop_type)
+		  && ivl_type_packed_dimensions(prop_type) > 0
+		  && ivl_type_packed_width(prop_type) == 1;
 
 	    /* Dynamic null-handle guard: if the receiver object is null, skip
 	       property assignment and pop the receiver object without issuing
@@ -2598,7 +2608,14 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 	    fprintf(vvp_out, "    %%test_nul/obj;\n");
 	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
 
-	    if (ivl_type_base(prop_type) == IVL_VT_BOOL ||
+	    if (whole_fixed_array
+		&& (ivl_expr_value(rval) == IVL_VT_DARRAY
+		    || ivl_expr_value(rval) == IVL_VT_QUEUE)) {
+		  errors += draw_eval_object(rval);
+		  fprintf(vvp_out, "    %%store/prop/arr/dar %d;\n", prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+
+	    } else if (ivl_type_base(prop_type) == IVL_VT_BOOL ||
 	        ivl_type_base(prop_type) == IVL_VT_LOGIC) {
 		  int prop_word_idx = 0;
 		  ivl_expr_t idx_expr = ivl_lval_idx(lval);

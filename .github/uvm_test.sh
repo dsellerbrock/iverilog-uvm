@@ -8,7 +8,7 @@ VVP=$(which vvp)
 UVM="uvm-core/src"
 # UVM_TESTS_DIR overrides the test directory: the tiered regression system
 # (.github/regression/) points this at a directory of symlinks to run the
-# smoke suite or a targeted subsystem subset instead of the full 212 tests.
+# smoke suite or a targeted subsystem subset instead of the full suite.
 TESTS="${UVM_TESTS_DIR:-tests}"
 
 # Per-test run timeout wrapper. GNU coreutils `timeout` is present on Linux
