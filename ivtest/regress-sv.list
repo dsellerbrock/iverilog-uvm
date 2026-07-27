@@ -1095,6 +1095,7 @@ sv_class_array_method_dispatch normal,-g2012 ivltests
 sv_typeparam_formal_member normal,-g2012 ivltests
 sv_randcase normal,-g2012 ivltests
 sv_std_randomize_scope normal,-g2012 ivltests
+sv_std_randomize_with_solver normal,-g2012 ivltests
 sv_constraint_unique normal,-g2012 ivltests
 sv_assoc_wildcard_index normal,-g2012 ivltests
 sv_process_status_transitions normal,-g2012 ivltests

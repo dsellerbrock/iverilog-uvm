@@ -2,9 +2,8 @@
 // must actually assign random values to the args satisfying the
 // with-clause constraint, not silently drop it.
 //
-// Real impl: lower the statement to a retry loop at parse time:
-//   repeat (256) begin args=$random; if (constraints) break; end
-// 256 retries empirically covers small-domain constraints.
+// The statement and expression forms share the Z3-backed scope-randomize
+// lowering; successful model values copy back through normal signal stores.
 //
 // Coverage:
 //   T1 : void'(std::randomize(x))    — no constraint
@@ -50,9 +49,8 @@ module top;
     if (success < 8)
       $fatal(1, "FAIL/T3: expected at least 8/16 both non-zero, got %0d", success);
 
-    // T4: tight range `x > 0 && x < 16` — must use $urandom_range
-    // fast path detection (retry loop alone wouldn't converge in
-    // any reasonable number of tries for this range size)
+    // T4: tight range `x > 0 && x < 16` — proves a small feasible
+    // domain is solved directly instead of sampled by finite retries.
     for (int i = 0; i < 32; i++) begin
       x = 0;
       std::randomize(x) with { x > 0; x < 16; };
@@ -78,8 +76,7 @@ module top;
 	$fatal(1, "FAIL/T5: y=%0d not >0", y);
     end
 
-    // T6: tight range via `inside` operator — fast path detects
-    // `arg inside [lo:hi]` and folds into min/max bounds.
+    // T6: tight range via the `inside` operator.
     for (int i = 0; i < 32; i++) begin
       x = 0;
       std::randomize(x) with { x inside {[5:9]}; };
@@ -95,9 +92,7 @@ module top;
 	$fatal(1, "FAIL/T7 iter=%0d: x=%0d expected 42", i, x);
     end
 
-    // T8: multi-value enum — `inside {1, 5, 10, 100}` exercises the
-    // case-statement uniform-pick lowering.  Verify all returned
-    // values are in the set.
+    // T8: multi-value set. Verify all returned values are in the set.
     begin
       bit hit_1 = 0, hit_5 = 0, hit_10 = 0, hit_100 = 0;
       for (int i = 0; i < 64; i++) begin
