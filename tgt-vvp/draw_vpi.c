@@ -459,6 +459,12 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       int is_container;
       int is_assoc;
       ivl_expr_t recv = 0;
+      ivl_expr_t container = 0;
+      ivl_signal_t container_sig = 0;
+      int is_fixed_signal = 0;
+      int is_select_signal = 0;
+      int is_select_object = 0;
+      int select_is_queue = 0;
       unsigned lab_fail, lab_done;
       int depth_on_fail;
 
@@ -473,6 +479,7 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       switch (ivl_expr_type(dest)) {
           case IVL_EX_SIGNAL:
           case IVL_EX_PROPERTY:
+          case IVL_EX_SELECT:
             break;
           default:
             return 0;
@@ -482,17 +489,22 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
             base_sig = ivl_expr_signal(dest);
             if (!base_sig)
                   return 0;
-            if (ivl_signal_dimensions(base_sig) != 0)
-                  return 0;
-            dest_type = ivl_signal_net_type(base_sig);
-      } else {
+            if (ivl_signal_dimensions(base_sig) != 0) {
+                  ivl_type_t signal_type = ivl_signal_net_type(base_sig);
+                  is_fixed_signal = 1;
+                  idx = ivl_expr_oper1(dest);
+                  dest_type = signal_type
+                        ? ivl_type_element(signal_type) : 0;
+                  if (!dest_type)
+                        dest_type = signal_type;
+            } else {
+                  dest_type = ivl_signal_net_type(base_sig);
+            }
+      } else if (ivl_expr_type(dest) == IVL_EX_PROPERTY) {
               /* A property always carries its receiver as oper2, and a
                  NESTED receiver (p.inn.arr[i]) has no single signal to
                  ask for -- so drive everything off the receiver
                  expression and never reach for a signal here. */
-              /* A NESTED receiver (p.inn.arr[i]) carries the receiver
-                 as oper2 and has no single signal to ask for; a direct
-                 one (p.arr[i]) leaves oper2 null and names its signal. */
             recv = ivl_expr_oper2(dest);
             if (!recv) {
                   base_sig = ivl_expr_signal(dest);
@@ -500,6 +512,32 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
                         return 0;
             }
             dest_type = ivl_expr_net_type(dest);
+      } else {
+            container = ivl_expr_oper1(dest);
+            idx = ivl_expr_oper2(dest);
+            if (!container || !idx)
+                  return 0;
+
+            is_container = 1;
+
+            if (ivl_expr_type(container) == IVL_EX_SIGNAL) {
+                  container_sig = ivl_expr_signal(container);
+                  if (!container_sig)
+                        return 0;
+                  is_select_signal = 1;
+            } else {
+                  is_select_object = 1;
+            }
+            ivl_type_t container_type = is_select_signal
+                  ? ivl_signal_net_type(container_sig)
+                  : ivl_expr_net_type(container);
+            dest_type = container_type
+                  ? ivl_type_element(container_type) : 0;
+            is_assoc = container_type
+                  && ivl_type_base(container_type) == IVL_VT_QUEUE
+                  && ivl_type_queue_assoc_compat(container_type);
+            select_is_queue = container_type
+                  && ivl_type_base(container_type) == IVL_VT_QUEUE;
       }
 
       /* Without the destination's class type there is nothing to check
@@ -507,12 +545,17 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       if (!(dest_type && ivl_type_base(dest_type) == IVL_VT_CLASS))
             return 0;
 
-      idx = (ivl_expr_type(dest) == IVL_EX_PROPERTY)
-            ? ivl_expr_oper1(dest) : 0;
+      if (ivl_expr_type(dest) == IVL_EX_PROPERTY)
+            idx = ivl_expr_oper1(dest);
       pidx = (ivl_expr_type(dest) == IVL_EX_PROPERTY)
             ? (int) ivl_expr_property_idx(dest) : 0;
-      is_container = property_is_indexed_container_expr_(dest);
-      is_assoc = property_is_assoc_indexed_expr_(dest);
+      if (ivl_expr_type(dest) == IVL_EX_PROPERTY) {
+            is_container = property_is_indexed_container_expr_(dest);
+            is_assoc = property_is_assoc_indexed_expr_(dest);
+      } else if (ivl_expr_type(dest) != IVL_EX_SELECT) {
+            is_container = 0;
+            is_assoc = 0;
+      }
 
       lab_fail = local_count++;
       lab_done = local_count++;
@@ -541,6 +584,9 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
                           pidx);
                   fprintf(vvp_out, "    %%pop/obj 1, 1; $cast: drop receiver\n");
             }
+      } else if (is_select_object) {
+            draw_eval_object(container);
+            depth_on_fail = 2;
       } else {
             depth_on_fail = 1;
       }
@@ -551,7 +597,40 @@ static int draw_sv_cast_class_common_(ivl_expr_t dest, ivl_expr_t src,
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 4;\n",
               thread_count, lab_fail);
 
-      if (ivl_expr_type(dest) != IVL_EX_PROPERTY) {
+      if (is_fixed_signal) {
+            draw_eval_expr_into_integer(idx, 4);
+            fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+            note_array_signal_use(base_sig);
+            fprintf(vvp_out, "    %%store/obja v%p, 4; $cast\n", base_sig);
+      } else if (is_select_signal && is_assoc) {
+            const char*key_kind = draw_eval_assoc_key_(idx, 0);
+            fprintf(vvp_out, "    %%aa/store/sig/obj/%s v%p_0;"
+                    " $cast: store assoc entry\n",
+                    key_kind, container_sig);
+      } else if (is_select_signal) {
+            draw_eval_expr_into_integer(idx, 3);
+            if (select_is_queue) {
+                  fprintf(vvp_out, "    %%ix/load 5, %u, 0;\n",
+                          ivl_signal_array_count(container_sig));
+                  fprintf(vvp_out, "    %%store/qdar/obj v%p_0, 5;"
+                          " $cast: store queue element\n", container_sig);
+            } else {
+                  fprintf(vvp_out, "    %%store/dar/obj v%p_0;"
+                          " $cast: store darray element\n", container_sig);
+            }
+      } else if (is_select_object && is_assoc) {
+            const char*key_kind = draw_eval_assoc_key_(idx, 0);
+            fprintf(vvp_out, "    %%aa/store/obj/%s;"
+                    " $cast: store nested assoc entry\n", key_kind);
+            fprintf(vvp_out, "    %%pop/obj 1, 0;"
+                    " $cast: drop nested map\n");
+      } else if (is_select_object) {
+            draw_eval_expr_into_integer(idx, 4);
+            fprintf(vvp_out, "    %%set/dar/obj/obj 4;"
+                    " $cast: store nested container element\n");
+            fprintf(vvp_out, "    %%pop/obj 1, 0;"
+                    " $cast: drop nested container\n");
+      } else if (ivl_expr_type(dest) != IVL_EX_PROPERTY) {
             fprintf(vvp_out, "    %%store/obj v%p_0; $cast\n", base_sig);
       } else if (is_assoc) {
               /* The key goes on its own stack, so it may be pushed

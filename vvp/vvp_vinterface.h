@@ -58,6 +58,7 @@ class vvp_vinterface : public vvp_object {
 	// Dynamic method dispatch (%jmp/vif) compares it against
 	// candidate instance scopes.
       __vpiScope* vif_scope(void) const { return scope_; }
+      const class_type* get_defn(void) const { return defn_; }
 
 	// True if the pid-th property signal changed during the
 	// current time step (its Preponed value differs from its

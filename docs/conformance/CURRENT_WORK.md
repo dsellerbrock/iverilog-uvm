@@ -1,433 +1,63 @@
 # CURRENT WORK — continuation state
 
-**What this file is.** The shortest thing a new session can read to know
-where work stands and what to pick up. It is a pointer, not a log.
+This is the short resume state. `ROADMAP.md` is the living tracker,
+`iverilog_ieee1800_uvm_manifesto.md` carries policy, and dated technical
+narratives live in `session_logs/`.
 
-- **What is left, and in what order** → `ROADMAP.md`. That is the single
-  living tracker; this file never duplicates its rows.
-- **Policy and architecture** → `iverilog_ieee1800_uvm_manifesto.md`.
-- **Per-checkpoint history** → `session_logs/`. Everything this file used
-  to carry inline (2026-07-14 .. 2026-07-21, ~110 KB) is archived verbatim
-  in `session_logs/2026-07-14_to_2026-07-21_current_work_archive.md`.
+## Resume state — 2026-07-26
 
-**Rule:** when a campaign closes, its narrative goes to a dated
-`session_logs/` entry and this file keeps only the resume state below.
+Branch: `codex/access-aggregate-boundary-closure`, based on the merge of
+PR #121 (`9ca10bd18`).
 
----
+The access and aggregate boundary campaign is closed:
 
-## Resume state — 2026-07-25 (Campaign 1: M6/M7 scheduler and UVM)
+- **M4B-15:** a whole fixed unpacked-array member of an unpacked struct now
+  crosses ordinary SystemVerilog and DPI open-array formals with its element
+  type, values, dimensions, declared bounds, index translation, and
+  output/inout copyback intact. The covered receivers are direct structs,
+  structs in class properties and runtime containers, and direct/virtual
+  interfaces for ordinary SV calls.
+- **M1C-7 / R16:** `$cast` destinations now include local fixed, dynamic,
+  queue, and associative-array elements plus elements behind nested
+  receivers. Successful downcasts store, failed casts preserve the
+  destination, and task-form failures diagnose.
+- **M1C-7:** `foreach (u[constant].nested.array[i])` retains the selected
+  instance-array prefix and iterates/updates the target. Local, unindexed
+  hierarchical, class-property, and virtual-interface controls remain clean.
 
-**Branch:** `claude/ieee1800-closure-campaign-lqalye`.
+The implementation materializes an inline fixed-array property as a typed
+nested darray value. Declared-range metadata stays passive for ordinary
+fixed-to-dynamic assignment and is activated only at an open-array formal,
+so an ordinary dynamic array remains 0-based. SV array queries/`foreach` and
+DPI H.10 accessors see the fixed actual's declared indices. Copyback uses the
+aggregate property store.
 
-**Closed in this campaign so far:**
+Discriminating pre-fix evidence:
 
-- **Issue #98** — the UVM phase-hopper objection reaching `uvm_root`. The
-  language-level defect behind it was fixed by the #103 work (a nested
-  detached fork's implicit `this` resolving to null); this campaign
-  supplied the missing half of the acceptance boundary:
-  `m7_post_run_phases_test` proves extract/check/report/final all execute,
-  in order, after a run_phase held open by two-level concurrent objection
-  traffic, with the run still ending at t=80.
-- **R2 / M6B-4** — assertion ACTION blocks now run in the **Reactive**
-  region (4.4.2.5), one region after the Observed evaluation. The earlier
-  attempt at this was reverted for dropping end-of-simulation verdicts;
-  both causes were runtime defects and are fixed: `%wait/reactive` runs
-  inline wherever no Reactive region is reachable (final blocks,
-  Postponed, post-simulation), and a thread resumed by a region deferral
-  is exempt from the `of_VPI_CALL` freeze that `$finish` otherwise applies
-  mid-body.
-- **M6B-2** — `cbNBASynch` (reason code 30) defined, registered and backed
-  by a real `SEQ_NBASYNC` queue drained after NBA and before Observed.
-- **M6B-3** — time-consuming DPI imports pinned as schedulable processes
-  (`join_any` returns while one is parked; `disable fork` abandons it for
-  good).
+- the struct-member access matrix computed 0 instead of 806;
+- the legal real-element open-array calls were rejected;
+- the container `$cast` regression aborted in VVP;
+- indexed-instance `foreach` loops silently read/wrote zero elements.
 
-**Preempted into (rule gate 1 — silent wrong results jump the queue):**
+Final gates on this branch:
 
-- **M3B-8** inherited constraints were solved class by class, so a
-  base-only re-solve overwrote the full solution and silently violated a
-  derived hard constraint. Now one solve over the complete set.
-- **M3B-9** soft-constraint priority (18.5.14.1) was settled by weight
-  sum rather than declaration order. Each `soft` is now its own
-  lexicographic objective, and the compiler emits inherited constraint
-  lists in ascending declaration order so list position is priority.
-- **M4B-11** `'{default: value}` was rejected everywhere (parsed as a
-  one-element positional pattern) and the `'{N{...}}` replication count
-  was dropped by every elaboration path — silently wrong on a packed
-  target.
+- focused SV access/aggregate matrix: pass;
+- real-DPI `m4b_struct_array_member_open_test`: pass;
+- `make check`: pass;
+- negative suite: 61 passed, 0 failed;
+- SVA dual-run: 36 passed, 0 failed;
+- vendored ivtest: 3,217 total, exactly 44 expected failures and no
+  failure-identity drift;
+- bundled VPI: 92 passed, 0 failed;
+- full UVM with real DPI: 226 passed, 0 failed, 0 skipped;
+- installed/relocated `-uvm` frontend: all scenarios passed.
 
-**Campaign 1 is closed.** M6B is COMPLETE (all four items), M7 is
-verified at 224/0/0 with an empty known-fail list, and the region
-pipeline self-test drains Preponed → Active → NBA → NBASync → Observed →
-Reactive → Re-NBA → RWSync → ROSync in order under reverse insertion.
+Detailed implementation and test evidence:
+`session_logs/2026-07-26_access_aggregate_boundary_closure.md`.
 
-**M1C-1 is fixed.** The ICE — `foreach` over a runtime-sized array inside
-a `$unit`-scope class constructor — was a named block scope being
-elaborated twice: `PBlock::elaborate_scope` built a second `NetScope` for
-the same name under the same parent, orphaning the one the signature pass
-had declared the loop variable into. A same-named child of the same
-parent is now reused. Pinned by `sv_foreach_in_class_constructor`;
-`repros/foreach_in_unit_class_constructor_ice.sv` keeps the minimization
-trail.
+Known neighboring gaps remain loud and outside this closed campaign:
+method calls on queue members of unpacked structs, and direct
+multidimensional arrays of instances (not represented by the compiler).
 
-**M1C-3 is fixed** — the largest thing this campaign has turned up. An
-element of a container held in a CLASS PROPERTY was being addressed with
-the property-SLOT index, and the slot holds the container, not the
-element. Three silent defects fell out of that one shape: null guards
-read non-null for null elements (so lazy allocation silently skipped),
-member writes through an element hit the container (abort for index ≥ 1),
-and whole-element stores of an unpacked struct aliased the source so
-every element ended up holding the last value. Pinned by
-`sv_class_property_container_element`.
-
-**M1C-4 is fixed.** An unpacked-array member of an interface reached
-through a VIRTUAL interface read `x` and dropped writes, silently: the
-slot resolver skipped anything that was not a signal / real / string /
-base variable, and an unpacked array's VPI handle is a `__vpiArray`, so
-the member got no slot at all. An array slot kind now resolves and the
-element index selects the word; reals and strings were fixed with it
-(their accessors discarded the index outright). Pinned by
-`sv_vif_array_member`, which was run against a build with the fix
-reverted: reads returned 0 and the first write aborted the runtime.
-
-**M5-6 landed while probing the same family.** `virtual bus_if.drv vif;`
-— a modport-qualified virtual interface, IEEE 1800-2017 25.9 and the
-standard UVM agent idiom — was a hard syntax error in every declaration
-context. It now parses everywhere the unqualified form does, at zero
-grammar-conflict cost. The modport view IS enforced through the new
-form -- writing an `input` member is rejected and an unlisted member is
-inaccessible -- which corrected this row's first, wrong claim that it was
-not.
-
-**No silent defect is known to be outstanding in the M1C access family.**
-Every cell of the two Cartesian probes and the ~110-cell adversarial
-matrix now passes, and the remaining gaps in that family are LOUD: a
-struct-typed array member through a virtual-interface handle (nested
-member path sorry) and `foreach` over an interface-instance array member
-(unresolved-target error). The open architecture item is M1C-2, the
-canonical access representation itself.
-
----
-
-## Resume state — 2026-07-26 (Campaign 3: M3B randomization, then M9 clause 16)
-
-**Campaign 3 is closed for the `randomize()` call-semantics family.**
-Four IEEE clauses answer one question — which variables does this call
-solve for? — and all four were wrong in the same direction, silently:
-
-- **M3B-11** a property that is not `rand` is a STATE variable (18.3);
-  every constraint item that mentioned one was dropped, so
-  `constraint c { a == b; }` with a non-rand `b` was no constraint at
-  all and `randomize()` returned 1 with it violated.
-- **M3B-12** `rand_mode(0)` skipped the pre-fill but the solver still
-  solved the variable and wrote it back, so a frozen field moved
-  anyway; and `rand_mode()` as a function was a constant 0, which broke
-  the save/restore idiom in the disabling direction.
-- **M3B-13** the `randomize(a, b)` argument list was discarded —
-  `randomize(b)` randomized the whole object and `randomize(null)`
-  mutated it instead of only checking satisfiability (18.11).
-- **M3B-14** `post_randomize()` ran after a FAILED randomize (18.6.2).
-
-One mechanism carries the first three: every class property reference is
-an ordinary solver variable and the SOLVE decides what it is solving
-for, pinning everything else to its current value. `%rand/active`
-carries the 18.11 set from elaboration; `%rand_mode/get` answers the
-query form. Pinned by `sv_randomize_variable_control`, verified against
-a build with the fixes reverted.
-
-**M9-12 preempted the rest of Campaign 3** (rule gate 1). The sampled
-value functions used PROCEDURALLY — `$past`/`$rose`/`$fell`/`$stable`
-outside a concurrent assertion — were compile-progress VPI stubs:
-`$past(e)` returned `e`, `$rose` returned 0, `$stable` returned 1, with
-no diagnostic. `always @(posedge clk) if ($rose(req))` silently never
-fired. They now bind to the enclosing block's clock (16.14.6) through
-the same rewrite the assertion engine uses; the tick count, the gating
-expression, 1-bit boolean results, 64-bit history and real-typed
-history all came with it, and `$changed` exists at all for the first
-time. Pinned by `sv_sampled_value_procedural`.
-
-**This corrected a false claim in ROADMAP.md**, which asserted that
-every M9 residual was loud and clause 16 had no silent-miscompile gap.
-
-**M3B-15 followed from the same family.** A constraint expression is an
-ordinary SV expression, evaluated at the CONTEXT width (11.6.1,
-Table 11-21), not the operand width. The solver used the operand
-width, so `constraint { a + b == 300; }` with two 8-bit rand variables
-wrapped mod 256 and came back UNSAT — `randomize()` returned 0 for a
-set with 155 solutions — and `s == a * b` with a 32-bit `s` solved `s`
-to the low 8 bits of the product. `inside` and `dist` truncated their
-bounds down to the subject's width, rewriting `x inside {[0:300]}` on
-an 8-bit `x` into `[0:44]`. Arithmetic is now built at full precision
-and truncated at the comparison to the max of the two sides'
-self-determined widths — so a wide context does not wrap and a narrow
-one still does. Pinned by `sv_constraint_expr_width`.
-
-**The sampler is its own process.** The first cut spliced the capture
-and the shift around the reader's block body, which is wrong for a
-block that WAITS inside itself: the history then advanced once per
-execution instead of once per clock tick, silently. It is now an
-`always @(<the same event>)` process shifting under NBA — it ticks with
-the clock whatever the reader does, and the NBA update lands after
-every Active-region reader, so sharing the edge is race-free. That
-construction also gave the `default clocking` binding for free, so all
-three clock sources of 16.14.6 are covered.
-
-**R14 is closed.** An explicit clocking event as the last argument of a
-sampled value function — `$past(e, n, gate, @(posedge sclk))` — was a
-bare syntax error. It now has its own grammar rule at zero conflict
-cost, and the named event outranks the enclosing block and the default
-clocking, as 16.14.6 orders them.
-
-**M1C-6 closed the `$cast` destination family**, the worst of the
-findings the adversarial sweep confirmed. `$cast` to a class-typed
-destination did **no type check at all** — a cast between unrelated
-classes returned 1 and installed the incompatible handle — wrote
-element 0 of a fixed array property whatever index was written, and,
-when the destination was an element of a container held in a property,
-stored into the property SLOT and so replaced the whole container:
-`$cast(p.q[1], h)` left the queue with size 0 and still returned 1. A
-new `%test/class` opcode answers the 6.24.2 question (is the object's
-DYNAMIC type this class or derived from it, matched by dispatch prefix),
-and the store now uses the receiver expression, the element index and
-the container-vs-slot distinction the assignment path already had.
-
-**The earlier adversarial sweep finally returned** (its later probes
-died on a session limit, so the second sweep produced nothing). It
-confirmed 22 silent defects independently; four of them were the ones
-already fixed this session (M3B-15, and the three halves of M9-12).
-**Eighteen remain, all confirmed and reproducible**, and they are the
-best-evidenced backlog available:
-
-- ~~SVA (2)~~ — **both fixed.** M9-13: the temporal-operator lowering
-  deleted the pass statement before emitting anything, so `within`
-  never ran its pass action (the verdicts were right all along).
-  M9-14: a `strong` sequence that never completes reported its
-  end-of-simulation failure through a canned `$error` instead of the
-  user's `else`, which stayed at zero — so a testbench counting its
-  own failures saw none. Both sites now get the action block, the
-  second by copy.
-- DPI (both rows re-probed; **neither is a DPI defect**):
-  - "a fixed array reached through a member select arrives empty" is
-    real (`c_take_open(s.arr, …)` returns mask=15 — size 0, degenerate
-    bounds, null elements) but the DPI layer is only where it was
-    noticed. See **the struct-array-member finding below**, which is
-    much larger.
-  - "a sub-32-bit open array is marshaled byte-packed" **did not
-    reproduce**. `input byte a[]` and `input shortint a[]` both arrive
-    with the right size and the right per-element values through
-    `svGetArrElemPtr1`. Probably fixed by the M10-1 fixed-array
-    marshaling work; the row was stale. Probe:
-    `repros/struct_array_member_dpi.{sv,c}`.
-- Coverage (4 recorded → **1 real**). Re-probed 2026-07-26 with one
-  covergroup per coverpoint so each could be measured on its own
-  (`get_coverage()` per COVERPOINT is not supported — that is its own
-  loud gap):
-  - a bit-select of a class property in a coverpoint — **100%,
-    does not reproduce**
-  - a part-select of a class property — **100%, does not reproduce**
-  - `coverpoint arr[N]` on a class property — **100%, does not
-    reproduce**
-  - `sample()` called only from a module-scope task — **REAL**: 0%
-    where 100% is required.
-- VPI (4 recorded → **2+ real, likely one root cause**). Probed with a
-  `vpiMember` walk over a class holding one member of each kind:
-  ```
-    member sc  type=612(vpiIntVar)  size=32     <- correct
-    member fa  type=612(vpiIntVar)  size=32     <- WRONG: `int fa[4]'
-                                                   reports the ELEMENT
-    member dq  type=116(vpiRegArray) size=0     <- WRONG: queue of 2
-    member da  type=615(vpiClassVar) size=64    <- WRONG: darray of 3
-    member aa  type=116(vpiRegArray) size=0     <- WRONG: assoc of 1
-  ```
-  Every container-typed property misreports its type and its size; only
-  the scalar is right. Reads as ONE defect in the VPI layer's
-  type/size reporting for container properties, not four.
-  - `cbValueChange` on a container element — **not yet re-probed**.
-- Access (1) — **REAL**. Narrowed: it is a hierarchical name whose
-  EARLIER component carries a constant index.
-  `foreach (u[1].bus[i])` over an array of instances iterates **zero
-  times**, silently; `foreach (w.bus[i])` through a plain hierarchical
-  name is correct (3). Probe: `repros/foreach_indexed_instance.sv`.
-
-**Two of the eighteen are closed, and one more turned up under them.**
-
-- **M6-9 (processes, both entries).** `process::kill()` walked only the
-  set a `%join` waits on, so a `fork ... join_none` child — which is
-  detached and never joined — survived its parent's kill and kept
-  running, silently. `suspend()` had the mirror defect one level down: a
-  named `begin`/`end` body and a synchronous task frame each run in
-  their own thread but are the SAME process, so marking only the named
-  thread stopped nothing while `status()` answered SUSPENDED. That shape
-  could also **abort the runtime** outright. Both now cover exactly the
-  right set: kill() cascades to sub-processes (9.7.2 gives that cascade
-  to kill alone), suspend()/resume() cover the threads one process is
-  made of and no more. Pinned by `sv_process_kill_subprocess` and
-  `sv_process_suspend_subthread`, both run against a reverted build.
-
-- **M6-10 (`ref` arguments), found while probing the same family.** A
-  `ref` formal was copy-in/copy-out rather than a reference (13.5.2).
-  The worst shape is total loss, not a timing nuance: a task forked
-  `join_none` that never returns never copied anything out, so
-  `fork spin(count); join_none` left the caller's count at 0 forever.
-  Aliasing failed with no concurrency at all. A ref formal is now a name
-  bound to the caller's variable (`.ref` + `%ref/bind`), with a
-  per-frame temporary for an actual that cannot be named. Real, string,
-  class-handle and container formals keep the copy pair and are
-  exercised as controls. Pinned by `sv_ref_argument_is_a_reference`.
-
-**M6-11 is fixed** — the defect that went to the head of the queue at
-the end of the previous session, and the largest thing this campaign has
-turned up since M1C-3.
-
-An automatic local of a task invoked as `fork <task>(); join_none` read
-back as its initializer, inside the task's own body, with no delay and
-no diagnostic; so did the arguments the call was given.
-
-```
-  task automatic t4();
-    int loc = 0;
-    loc++; loc++; loc++;
-    $display("inside t4: loc=%0d", loc);   // printed 0
-  endtask
-  initial begin fork t4(); join_none  #1; end
-```
-
-The cause is tgt-vvp's spawn-time argument capture. For a single-branch
-`join_none` it hoists the child's leading `%alloc` and argument stores
-out of the detached thread and runs them in the spawning thread, so that
-`for (int i…) fork worker(i); join_none` snapshots the loop's automatic
-at spawn. That emits the `%alloc` in the spawner and the call in an
-intermediate thread forked into the ENCLOSING scope — and `of_FORK`
-handed a child the staged write context only when the CHILD's own scope
-was automatic. `vthread_new` zeroes the contexts, so the callee ran with
-no frame at all.
-
-The frame is now MOVED to the thread that will use it, with the spawner
-restored to where it stood before the `%alloc` (the matching `%free`
-belongs to the child; sharing the frame instead would hand a later
-sibling a pointer to storage the child has already freed —
-`sv_fork_join_none_automatic_frame` has two forked calls in a row for
-exactly that). `do_callf_void` clears the marker as well, so a `%fork`
-between a call and its `%free` cannot move a frame still in use.
-
-**The hoist's own stated purpose was broken too**: the loop-snapshot it
-was written for never worked either. That case is in the test and fails
-4/4 against a reverted build, which brings the pre-fix failure count to
-8.
-
-Why it hid behind 3210 ivtest and 225 UVM tests: `fork begin … end
-join_none` with the body inline was always correct, and so was a forked
-call with copy-out work after it, because that keeps its `%alloc` inside
-the detached thread. Both are controls in the test.
-
-**M4B-12 is fixed** — every element of an unpacked-array member of a
-struct used to read back as nothing at all.
-
-```
-  typedef struct { int arr[4]; int tag; } S;
-  S s;  s.tag = 7;
-  for (int i = 0; i < 4; i++) s.arr[i] = 200 + i;
-  $display("%0d %0d %0d %0d", s.arr[0], s.arr[1], s.arr[2], s.arr[3]);
-  // printed  32 32 32 32
-```
-
-32 is `int`'s width. `check_for_struct_members` handled only a
-bit/part-select of a PACKED member and returned nil for anything else,
-so the expression disappeared: `t = s.arr[2];` was dropped from the
-netlist entirely and a `$display` argument came out blank, which is
-what left the format string reading a stray width. `foreach
-(s.arr[i])` tripped `vvp.tgt: Unable to draw statement type 0`.
-
-The write side was correct all along and the runtime already had the
-indexed read opcode `%prop/v/i`; it was never emitted. A member is one
-property holding the whole array, so an element read is the property
-read WITH a word index — the shape a class property already used.
-Pinned by `sv_struct_array_member_element`, against which the reverted
-build cannot even generate code.
-
-**M4B-13 followed immediately: the dynamic-array and queue members.**
-A `netdarray_t` member (and a queue, which derives from it) holds a
-container OBJECT in its slot rather than inline storage, so the
-slot-indexed read M4B-12 added would fetch the handle's bit pattern
-instead of an element. Those now build the container read plus an
-element select — `%prop/obj` + `%load/qo/v` — which is the shape a
-class-property container already used. My own hypothesis about this
-was **wrong** and worth recording: I guessed `ivl_type_properties()`
-returned 0 for a struct so the target-side classifier never fired. It
-does not; `t-dll-api.cc:3553` has handled `netstruct_t` since well
-before this work. The target classifier was simply never reached,
-because elaboration rejected the expression first. `sv_nested_container_audit`
-now passes genuinely and its `ivtest_expected_fails.list` entry is
-removed.
-
-**The fix exposed a sibling defect and a vacuously-passing test.**
-Making a non-fixed-array indexed member a loud sorry instead of a
-silent nil turned up `sv_nested_container_audit`, which was passing
-only because its `s.da[1]` check (line 31) elaborated to nil and the
-whole `if` vanished. The real defect: for a DYNAMIC ARRAY member of a
-struct the element read takes the slot-indexed `%prop/v/i` path
-instead of `%prop/obj` + `%load/dar/obj/vec4`. The write side is
-already correct (`%prop/obj` + `%set/dar/obj/vec4`), and the
-target-side classifier `property_is_indexed_darray_expr_` would pick
-the right path — but it asks `ivl_type_properties()` about the
-receiver, and that reports 0 for a struct type, so it never fires.
-Teaching the target API that a struct has properties is the fix, and
-it is a wider change than M4B-12, so the audit test is registered in
-`ivtest_expected_fails.list` with that reason rather than papered
-over. Probe: `repros/struct_array_member_darray.sv` — `s.da.size()`
-is right (3) while every element reads -1.
-
-**M4B-14 closed the array-query half.** `$size(s.arr)` returned x, and
-so did the rest of the family, because the query special-case only
-recognised a dynamic-array property and a fixed one fell through to the
-generic path — where an array property arrives as a plain 32-bit value,
-since an array's `base_type()` is its element's type. A member's shape
-is known at elaboration, so the family folds to a constant there.
-
-**The one genuinely LARGE residual is passing the whole array.**
-`sum_open(s.arr)` returns 0 and `c_take_open(s.arr, …)` returns mask=15
-(size 0, degenerate bounds, null elements) — the row the sweep recorded
-as a DPI defect, which it is not. Both go through the same argument
-copy-in: `netmisc.cc:1121` waves the mistyped whole-array property
-through as compatible with a darray port, and `eval_object_property()`
-then emits `%prop/obj` — an object-slot read — for a member that is
-stored as inline vector words, not an object. There is no runtime
-primitive that builds a darray from N inline property words, so closing
-this needs a new target-API concept (tagging "this property is a whole
-fixed array"), a new tgt-vvp path, and new runtime support in
-`vvp/vvp_darray.*` / `vvp/class_type.*` plus an opcode. That is the
-LARGE item on the list; everything else in this family is done. Repros:
-`repros/struct_array_member_access_matrix.sv` and
-`repros/struct_array_member_dpi.{sv,c}`.
-
-**The sweep list was 22% stale.** Of the original eighteen: five are
-fixed (SVA ×2, processes ×2, the DPI open array), **four do not
-reproduce at all** (three coverage rows and the DPI byte-packing row),
-one turned out to be the struct-member family rather than a DPI defect,
-and the four VPI rows read as a single container-property reporting
-defect. Re-probe before estimating, not after: the recorded count
-overstated the work by roughly a third. A fresh adversarial sweep is
-worth running to re-baseline, since this one has drifted.
-
-**Also found, still open:** a queue member's METHODS do not resolve as
-method calls at all — `s.q.push_back(x)` is "Enable of unknown task …
-ignored", a loud gap. An assignment pattern (`s.q = '{5,6,7}`) works,
-which is how the regression test fills one.
-
-**Known open, in priority order:** the whole-array residual above;
-`sample()` from a module-scope task; the
-VPI container-property reporting defect; `foreach` over a hierarchical
-name with a constant instance index; `cbValueChange` on a container
-element (unverified); R16 (`$cast`
-into a container element that is not a direct class property — a local
-queue, or one behind a nested receiver — writes nothing; into a local
-fixed array element it aborts); M3B-10 (`std::randomize(vars) with
-{...}` does not reach Z3); `obj.randomize() with {...}` in STATEMENT
-position is a syntax error (only the expression form parses); M1C-2
-(canonical access representation); M9-7 multiclock residuals; R15 (a
-sampled value read from a context not aligned with its clocking event
-is one tick young).
-
-**Where to look first when resuming:** the `Current focus` list at the
-bottom of `ROADMAP.md`. It is re-derived from the priority rule, not
-hand-picked.
+Resume from the priority-ordered open rows in `ROADMAP.md`; do not reopen
+this campaign without a new discriminating reproducer.

@@ -4335,18 +4335,26 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	pform_make_foreach_declarations(@1, 0, $10);
       }
     statement_or_null
-      { /* paths[0].slices[i] — hierarchical target with const prefix index */
-	pform_requires_sv(@1, "foreach over hierarchical array target");
-	warn_count += 1;
-	delete $5;
-	delete $10;
-	delete $14;
-	delete $3;
+      { /* paths[0].slices[i] — hierarchical target with a selected prefix */
+	pform_name_t*tmp_name = $3;
+	name_component_t&tail = tmp_name->back();
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_BIT;
+	itmp.msb = $5;
+	itmp.lsb = 0;
+	tail.index.push_back(itmp);
+	tmp_name->splice(tmp_name->end(), *$8);
 	delete $8;
+
+	PForeach*tmp_for = pform_make_foreach(@1, *tmp_name, $10, $14);
+	delete tmp_name;
 
 	pform_pop_scope();
 	PBlock*tmp_blk = current_block_stack.top();
 	current_block_stack.pop();
+	vector<Statement*>tmp_for_list(1);
+	tmp_for_list[0] = tmp_for;
+	tmp_blk->set_statement(tmp_for_list);
 	$$ = tmp_blk;
       }
 

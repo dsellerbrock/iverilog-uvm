@@ -1105,6 +1105,22 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  if ((expr_type == IVL_VT_DARRAY) || (expr_type == IVL_VT_QUEUE))
 			return tmp;
 
+		    // An open unpacked-array formal accepts a fixed unpacked
+		    // array actual with the same element type. Integral element
+		    // arrays happened to pass through the vectorable fallback
+		    // below, but real element arrays are not vectorable and were
+		    // rejected even though the identical fixed-array actual is
+		    // legal for an open formal.
+		  if (const netdarray_t*formal_array =
+			dynamic_cast<const netdarray_t*>(lv_net_type)) {
+			if (const netuarray_t*fixed_actual =
+			      dynamic_cast<const netuarray_t*>(tmp->net_type())) {
+			      if (formal_array->element_type()->type_equivalent(
+				    fixed_actual->element_type()))
+				    return tmp;
+			}
+		  }
+
 		  // This is needed to handle the special case of `'{}` which
 		  // gets elaborated to NetENull.
 		  if (dynamic_cast<PEAssignPattern*>(pe))

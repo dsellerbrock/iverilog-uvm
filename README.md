@@ -50,8 +50,9 @@ On top of upstream Icarus Verilog's Verilog/partial-SystemVerilog support:
 - **SVA**: a real concurrent-assertion engine (implication, delay/repetition
   windows, `disable iff`, sampled-value functions, sequence algebra,
   `cover property`)
-- **DPI-C**: `import "DPI-C"` with libffi-exact marshaling, open arrays, wide
-  vectors, shared-library loading via `vvp -d`
+- **DPI-C**: `import "DPI-C"` with libffi-exact marshaling, open arrays
+  (including multidimensional fixed arrays and fixed array members of
+  structs), wide vectors, shared-library loading via `vvp -d`
 - **Functional coverage**: covergroups with full clause-19 bin semantics,
   transitions, crosses, options, coverage queries
 - **VPI**: SystemVerilog object model — class variables/members, containers,
@@ -248,7 +249,8 @@ vvp -d ./mylib.so sim.vvp          # ./ needed: the path goes to dlopen(3)
 
 `import "DPI-C"` functions and tasks with exact libffi marshaling: int/real/
 string/chandle scalars, output/inout copy-back, open arrays (1-D and
-multi-dimensional, `svGetArrElemPtr` and friends),
+multi-dimensional, including whole fixed-array struct members with declared
+range preservation and copy-back, `svGetArrElemPtr` and friends),
 `svBitVecVal`/`svLogicVecVal` wide vectors, `c_name=` aliasing. Requires
 libffi.
 
@@ -373,7 +375,7 @@ read it for the per-clause evidence and the complete corner ledger.
   loads automatically; `--uvm-no-dpi` remains available to skip DPI.
 - `randcase`, `randsequence`, `wait_order`, interface classes, `checker`
   blocks: rejected with explicit diagnostics.
-- Of the 3101-test upstream `ivtest` suite, 44 tests currently fail (vs. 83
+- Of the 3217-test vendored `ivtest` suite, 44 tests currently fail (vs. 83
   on pristine upstream at the fork base) — the live expected set is
   [ivtest_expected_fails.list](docs/conformance/ivtest_expected_fails.list);
   the fork-vs-upstream deltas, both directions, are itemized in the
@@ -392,7 +394,7 @@ Deeper status: [clause matrix](docs/conformance/matrices/ieee1800_2017_clause_ma
 With `install/bin` on `PATH`, from the repository root:
 
 ```bash
-./.github/uvm_test.sh                    # UVM sweep: all tests/*.sv (198)
+./.github/uvm_test.sh                    # UVM sweep: all tests/*.sv (226)
 bash tests/negative/run_negative.sh      # negative tests: must FAIL loudly
 ./.github/test.sh                        # full ivtest + VPI regression
 bash tests/sva_nfa/run.sh                # SVA dual-run gate (legacy vs NFA engine)
@@ -400,7 +402,7 @@ bash tests/sva_nfa/run.sh                # SVA dual-run gate (legacy vs NFA engi
 
 `./.github/test.sh` is what CI runs; it expands to
 `cd ivtest && perl vvp_reg.pl && perl vpi_reg.pl --with-pli1 && python3 vvp_reg.py`
-(the 3101-test vendored upstream suite — compare failures against the
+(the 3217-test vendored upstream suite — compare failures against the
 [recorded baseline](docs/conformance/ivtest_vendored_baseline_2026-07-18.txt)).
 `make check` runs the compiler's own self-test. The UVM sweep scores by
 explicit evidence: a test with no PASS marker and no error output counts as

@@ -1964,6 +1964,73 @@ bool of_QSIZE_O(vthread_t thr, vvp_code_t)
 }
 
 /*
+ * %qrange/o <query>
+ *
+ * Query a queue/dynamic-array object in dimension words[3]. query is:
+ * 0 size, 1 left, 2 right, 3 low, 4 high, 5 increment.
+ *
+ * Ordinary dynamic arrays use 0..size-1. An open-array copy of a fixed
+ * actual carries and activates that actual's declared bounds on each nested
+ * vvp_darray; report those bounds so SystemVerilog queries and DPI H.10
+ * queries agree.
+ * The vvp_darray range accessors retain their dpi_* names for compatibility,
+ * but the metadata is shared by both language boundaries.
+ */
+bool of_QRANGE_O(vthread_t thr, vvp_code_t cp)
+{
+      int dim = thr->words[3].w_int;
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_darray*array = recv.peek<vvp_darray>();
+
+      for (int cur = 1 ; array && cur < dim ; cur += 1) {
+	    if (array->get_size() == 0) {
+		  array = 0;
+		  break;
+	    }
+	    vvp_object_t word;
+	    array->get_word(0, word);
+	    array = word.peek<vvp_darray>();
+      }
+
+      int32_t value = 0;
+      if (array && dim >= 1) {
+	    int32_t size = static_cast<int32_t>(array->get_size());
+	    int32_t left = 0;
+	    int32_t right = size - 1;
+	    if (array->sv_uses_declared_indexing()
+		&& array->dpi_has_decl_range()) {
+		  left = array->dpi_decl_left();
+		  right = array->dpi_decl_right();
+	    }
+	    int32_t low = left < right ? left : right;
+	    int32_t high = left < right ? right : left;
+
+	    switch (cp->number) {
+		case 0: value = size; break;
+		case 1: value = left; break;
+		case 2: value = right; break;
+		case 3: value = low; break;
+		case 4: value = high; break;
+		case 5: value = (left >= right) ? 1 : -1; break;
+		default: value = 0; break;
+	    }
+      } else if (cp->number == 2 || cp->number == 4) {
+	      // Empty/invalid dimension: the ordinary dynamic-array right/high
+	      // answer is -1.
+	    value = -1;
+      }
+
+      vvp_vector4_t val(32, BIT4_0);
+      uint32_t bits = static_cast<uint32_t>(value);
+      for (unsigned idx = 0 ; idx < 32 ; idx += 1)
+	    if ((bits >> idx) & 1U)
+		  val.set_bit(idx, BIT4_1);
+      thr->push_vec4(val);
+      return true;
+}
+
+/*
  * Compare two vvp_vector4_t values numerically (treating X/Z as 0).
  * Returns true if a < b.
  */
@@ -8927,8 +8994,9 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.has_range = false;
 		      arr.left = 0;
 		      arr.right = 0;
-		      vvp_darray*da = obj_store[slot].peek<vvp_darray>();
-		      if (da && da->dpi_has_decl_range()) {
+	      vvp_darray*da = obj_store[slot].peek<vvp_darray>();
+	      if (da && da->sv_uses_declared_indexing()
+		  && da->dpi_has_decl_range()) {
 			      /* M10-1: marshaled from a fixed-size array, so
 				 dimension 1 reports that array's declared
 				 range (H.10.2). */
@@ -11667,6 +11735,19 @@ bool of_LOAD_AR(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+static int64_t darray_canonical_index_(const vvp_darray*array,
+				       int64_t declared_index)
+{
+      if (!array || !array->sv_uses_declared_indexing()
+	  || !array->dpi_has_decl_range())
+	    return declared_index;
+
+      int left = array->dpi_decl_left();
+      int right = array->dpi_decl_right();
+      int low = left < right ? left : right;
+      return declared_index - low;
+}
+
 template <typename ELEM>
 static bool load_dar(vthread_t thr, vvp_code_t cp)
 {
@@ -11678,10 +11759,12 @@ static bool load_dar(vthread_t thr, vvp_code_t cp)
       assert(obj);
 
       vvp_darray*darray = obj->get_object().peek<vvp_darray>();
+      adr = darray_canonical_index_(darray, adr);
 
       ELEM word;
       if (darray &&
-          (adr >= 0) && (thr->flags[4] == BIT4_0)) // A defined address >= 0
+          (adr >= 0) && (thr->flags[4] == BIT4_0) &&
+          (static_cast<size_t>(adr) < darray->get_size()))
 	    darray->get_word(adr, word);
       else
 	    dq_default(word, obj->size());
@@ -11729,6 +11812,7 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
       assert(obj);
 
       vvp_darray*darray = obj->get_object().peek<vvp_darray>();
+      adr = darray_canonical_index_(darray, adr);
 
       vvp_object_t word;
       if (darray &&
@@ -11771,6 +11855,7 @@ bool of_LOAD_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
 
       vvp_object_t&top = thr->peek_object();
       vvp_darray*darray = top.peek<vvp_darray>();
+      adr = darray_canonical_index_(darray, adr);
 
       vvp_vector4_t word;
       if (darray && (adr >= 0) && (thr->flags[4] == BIT4_0))
@@ -12678,6 +12763,7 @@ static bool load_qo(vthread_t thr, unsigned wid=0)
       vvp_object_t recv;
       thr->pop_object(recv);
       vvp_darray*arr = recv.peek<vvp_darray>();
+      adr = darray_canonical_index_(arr, adr);
       if (arr &&
           (adr >= 0) &&
           (thr->flags[4] == BIT4_0) &&
@@ -12725,6 +12811,7 @@ bool of_LOAD_QO_OBJ(vthread_t thr, vvp_code_t)
       vvp_object_t recv;
       thr->pop_object(recv);
       vvp_darray*arr = recv.peek<vvp_darray>();
+      adr = darray_canonical_index_(arr, adr);
 
       vvp_object_t word;
       if (arr && (adr >= 0) && (thr->flags[4] == BIT4_0)
@@ -15178,6 +15265,232 @@ static const char*prop_trace_receiver_class_(const vvp_object_t&obj);
 static bool prop_pid_in_range_(const vvp_object_t&obj, size_t pid, size_t*count_out);
 static void prop_trace_log_(vthread_t thr, const char*op, size_t pid, unsigned idx, const vvp_object_t&obj, bool has_propobj);
 
+struct fixed_prop_receiver_t {
+      vvp_cobject*cobj;
+      vvp_vinterface*vif;
+
+      const class_type* defn(void) const
+      {
+	    return cobj ? cobj->get_defn() : (vif ? vif->get_defn() : 0);
+      }
+
+      void get_vec4(size_t pid, vvp_vector4_t&val, size_t idx) const
+      {
+	    if (cobj) cobj->get_vec4(pid, val, idx);
+	    else if (vif) vif->get_vec4(pid, val, idx);
+      }
+      void set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx) const
+      {
+	    if (cobj) cobj->set_vec4(pid, val, idx);
+	    else if (vif) vif->set_vec4(pid, val, idx);
+      }
+      double get_real(size_t pid, size_t idx) const
+      {
+	    return cobj ? cobj->get_real(pid, idx)
+			: (vif ? vif->get_real(pid, idx) : 0.0);
+      }
+      void set_real(size_t pid, double val, size_t idx) const
+      {
+	    if (cobj) cobj->set_real(pid, val, idx);
+	    else if (vif) vif->set_real(pid, val, idx);
+      }
+      string get_string(size_t pid, size_t idx) const
+      {
+	    return cobj ? cobj->get_string(pid, idx)
+			: (vif ? vif->get_string(pid, idx) : string());
+      }
+      void set_string(size_t pid, const string&val, size_t idx) const
+      {
+	    if (cobj) cobj->set_string(pid, val, idx);
+	    else if (vif) vif->set_string(pid, val, idx);
+      }
+      void get_object(size_t pid, vvp_object_t&val, size_t idx) const
+      {
+	    if (cobj) cobj->get_object(pid, val, idx);
+	    else if (vif) vif->get_object(pid, val, idx);
+      }
+      void set_object(size_t pid, const vvp_object_t&val, size_t idx) const
+      {
+	    if (cobj) cobj->set_object(pid, val, idx);
+	    else if (vif) vif->set_object(pid, val, idx);
+      }
+};
+
+static size_t fixed_prop_range_size_(const pair<int,int>&range)
+{
+      return range.first > range.second
+	   ? (size_t)((int64_t)range.first - range.second) + 1
+	   : (size_t)((int64_t)range.second - range.first) + 1;
+}
+
+static vvp_darray* fixed_prop_leaf_(const string&type, size_t size)
+{
+      if (type == "b8")   return new vvp_darray_atom<uint8_t>(size);
+      if (type == "b16")  return new vvp_darray_atom<uint16_t>(size);
+      if (type == "b32")  return new vvp_darray_atom<uint32_t>(size);
+      if (type == "b64")  return new vvp_darray_atom<uint64_t>(size);
+      if (type == "sb8")  return new vvp_darray_atom<int8_t>(size);
+      if (type == "sb16") return new vvp_darray_atom<int16_t>(size);
+      if (type == "sb32") return new vvp_darray_atom<int32_t>(size);
+      if (type == "sb64") return new vvp_darray_atom<int64_t>(size);
+      if (type == "r")    return new vvp_darray_real(size);
+      if (type == "S")    return new vvp_darray_string(size);
+      if (type == "o" || type.compare(0, 3, "oc:") == 0)
+	    return new vvp_darray_object(size);
+
+      const char*cp = type.c_str();
+      bool is_signed = false;
+      if (cp[0] == 's') {
+	    is_signed = true;
+	    cp += 1;
+      }
+      char flavor = *cp++;
+      unsigned width = (unsigned)strtoul(cp, 0, 10);
+      if (width == 0) width = 1;
+      if (flavor == 'b')
+	    return new vvp_darray_vec2(size, width);
+      if (flavor == 'L')
+	    return new vvp_darray_vec4(size, width);
+
+      (void)is_signed;
+      return new vvp_darray_object(size);
+}
+
+static vvp_object_t fixed_prop_materialize_(
+      const fixed_prop_receiver_t&recv, size_t pid,
+      const vector<pair<int,int> >&dimensions, size_t dim, size_t&flat)
+{
+      const class_type*defn = recv.defn();
+      if (!defn || dim >= dimensions.size())
+	    return vvp_object_t();
+
+      size_t count = fixed_prop_range_size_(dimensions[dim]);
+      vvp_object_t out;
+      vvp_darray*array = 0;
+      if (dim + 1 < dimensions.size())
+	    out = array = new vvp_darray_object(count);
+      else
+	    out = array = fixed_prop_leaf_(defn->property_base_type(pid), count);
+
+      array->dpi_set_decl_range(dimensions[dim].first,
+				dimensions[dim].second);
+
+      if (dim + 1 < dimensions.size()) {
+	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  vvp_object_t inner =
+			fixed_prop_materialize_(recv, pid, dimensions,
+						dim + 1, flat);
+		  array->set_word((unsigned)idx, inner);
+	    }
+	    return out;
+      }
+
+      const string&type = defn->property_base_type(pid);
+      for (size_t idx = 0 ; idx < count ; idx += 1, flat += 1) {
+	    if (type == "r") {
+		  array->set_word((unsigned)idx, recv.get_real(pid, flat));
+	    } else if (type == "S") {
+		  array->set_word((unsigned)idx, recv.get_string(pid, flat));
+	    } else if (type == "o" || type.compare(0, 3, "oc:") == 0) {
+		  vvp_object_t val;
+		  recv.get_object(pid, val, flat);
+		  array->set_word((unsigned)idx, val);
+	    } else {
+		  vvp_vector4_t val;
+		  recv.get_vec4(pid, val, flat);
+		  array->set_word((unsigned)idx, val);
+	    }
+      }
+      return out;
+}
+
+static size_t fixed_prop_subtree_size_(
+      const vector<pair<int,int> >&dimensions, size_t dim)
+{
+      size_t size = 1;
+      for ( ; dim < dimensions.size() ; dim += 1)
+	    size *= fixed_prop_range_size_(dimensions[dim]);
+      return size;
+}
+
+static void fixed_prop_copy_back_(
+      const fixed_prop_receiver_t&recv, size_t pid, vvp_darray*array,
+      const vector<pair<int,int> >&dimensions, size_t dim, size_t&flat)
+{
+      if (dim >= dimensions.size())
+	    return;
+
+      size_t count = fixed_prop_range_size_(dimensions[dim]);
+      size_t available = array ? min(count, array->get_size()) : 0;
+      if (dim + 1 < dimensions.size()) {
+	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  if (idx < available) {
+			vvp_object_t word;
+			array->get_word((unsigned)idx, word);
+			fixed_prop_copy_back_(recv, pid,
+					     word.peek<vvp_darray>(),
+					     dimensions, dim + 1, flat);
+		  } else {
+			flat += fixed_prop_subtree_size_(dimensions, dim + 1);
+		  }
+	    }
+	    return;
+      }
+
+      const class_type*defn = recv.defn();
+      const string&type = defn->property_base_type(pid);
+      for (size_t idx = 0 ; idx < count ; idx += 1, flat += 1) {
+	    if (idx >= available)
+		  continue;
+	    if (type == "r") {
+		  double val = 0.0;
+		  array->get_word((unsigned)idx, val);
+		  recv.set_real(pid, val, flat);
+	    } else if (type == "S") {
+		  string val;
+		  array->get_word((unsigned)idx, val);
+		  recv.set_string(pid, val, flat);
+	    } else if (type == "o" || type.compare(0, 3, "oc:") == 0) {
+		  vvp_object_t val;
+		  array->get_word((unsigned)idx, val);
+		  recv.set_object(pid, val, flat);
+	    } else {
+		  vvp_vector4_t val;
+		  array->get_word((unsigned)idx, val);
+		  recv.set_vec4(pid, val, flat);
+	    }
+      }
+}
+
+/*
+ * %prop/arr/dar <pid>
+ *
+ * Materialize an inline fixed-array property as a nested dynamic-array
+ * object. The receiver remains below the new value on the object stack.
+ */
+bool of_PROP_ARR_DAR(vthread_t thr, vvp_code_t cp)
+{
+      size_t pid = cp->number;
+      vvp_object_t&obj = thr->peek_object();
+      fixed_prop_receiver_t recv = {
+	    obj.peek<vvp_cobject>(), obj.peek<vvp_vinterface>()
+      };
+      const class_type*defn = recv.defn();
+      if (!defn || pid >= defn->property_count()
+	  || defn->property_dimensions(pid).empty()) {
+	    thr->push_object(vvp_object_t(), thr->peek_object_source_net(0),
+			     thr->peek_object_root(0));
+	    return true;
+      }
+
+      size_t flat = 0;
+      vvp_object_t val = fixed_prop_materialize_(
+	    recv, pid, defn->property_dimensions(pid), 0, flat);
+      thr->push_object(val, thr->peek_object_source_net(0),
+		       thr->peek_object_root(0));
+      return true;
+}
+
 bool of_PROP_OBJ(vthread_t thr, vvp_code_t cp)
 {
       unsigned pid = cp->number;
@@ -16538,13 +16851,15 @@ inline bool set_dar_obj_skip_obj_queue_(vvp_vector4_t&)
 template <typename ELEM>
 static bool set_dar_obj(vthread_t thr, vvp_code_t cp)
 {
-      unsigned adr = thr->words[cp->number].w_int;
+      int64_t adr = thr->words[cp->number].w_int;
 
       ELEM value;
       thread_peek(thr, value);
 
       vvp_object_t&top = thr->peek_object();
       if (vvp_queue*queue = top.peek<vvp_queue>()) {
+	    adr = darray_canonical_index_(queue, adr);
+	    if (adr < 0) return true;
 	    if (set_dar_obj_skip_obj_queue_(value) &&
 	        dynamic_cast<vvp_queue_object*>(queue)) {
 		  /* No-op: vec4-into-object-queue silently absorbed. */
@@ -16554,6 +16869,8 @@ static bool set_dar_obj(vthread_t thr, vvp_code_t cp)
       } else {
 	    vvp_darray*darray = top.peek<vvp_darray>();
 	    if (!darray) return true;
+	    adr = darray_canonical_index_(darray, adr);
+	    if (adr < 0) return true;
 	    if (set_dar_obj_skip_obj_queue_(value) &&
 	        dynamic_cast<vvp_darray_object*>(darray)) {
 		  /* No-op. */
@@ -16579,17 +16896,21 @@ bool of_SET_DAR_OBJ_REAL(vthread_t thr, vvp_code_t cp)
  */
 bool of_SET_DAR_OBJ_OBJ(vthread_t thr, vvp_code_t cp)
 {
-      unsigned adr = thr->words[cp->number].w_int;
+      int64_t adr = thr->words[cp->number].w_int;
 
       vvp_object_t value;
       thr->pop_object(value);
 
       vvp_object_t&top = thr->peek_object();
-      if (vvp_queue*queue = top.peek<vvp_queue>())
+      if (vvp_queue*queue = top.peek<vvp_queue>()) {
+	    adr = darray_canonical_index_(queue, adr);
+	    if (adr < 0) return true;
 	    queue->set_word_max(adr, value, 0);
-      else {
+      } else {
 	    vvp_darray*darray = top.peek<vvp_darray>();
 	    assert(darray);
+	    adr = darray_canonical_index_(darray, adr);
+	    if (adr < 0) return true;
 	    darray->set_word(adr, value);
       }
       notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),
@@ -16823,6 +17144,7 @@ static bool store_dar(vthread_t thr, vvp_code_t cp)
       assert(obj);
 
       vvp_darray*darray = obj->get_object().peek<vvp_darray>();
+      adr = darray_canonical_index_(darray, adr);
 
       if (adr < 0)
 	    cerr << thr->get_fileline()
@@ -16914,6 +17236,7 @@ bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
       assert(obj);
 
       vvp_darray*darray = obj->get_object().peek<vvp_darray>();
+      adr = darray_canonical_index_(darray, adr);
 
       if (adr < 0)
 	    cerr << thr->get_fileline()
@@ -16964,6 +17287,7 @@ bool of_STORE_DAR_OBJ(vthread_t thr, vvp_code_t cp)
       assert(obj);
 
       vvp_darray*darray = obj->get_object().peek<vvp_darray>();
+      adr = darray_canonical_index_(darray, adr);
 
       if (adr < 0)
 	    cerr << thr->get_fileline()
@@ -17043,6 +17367,42 @@ bool of_STORE_OBJ(vthread_t thr, vvp_code_t cp)
       }
 
       return true;
+}
+
+/*
+ * Activate the declared-index view on a fixed array that has been
+ * materialized as nested darray objects. Each multidimensional word owns
+ * its own child object, so walk every child rather than only a prototype.
+ */
+static void activate_open_array_indices_(vvp_darray*array)
+{
+      if (!array || !array->dpi_has_decl_range())
+	    return;
+
+      array->sv_set_declared_indexing(true);
+      vvp_darray_object*objects = dynamic_cast<vvp_darray_object*>(array);
+      if (!objects)
+	    return;
+
+      for (size_t idx = 0 ; idx < objects->get_size() ; idx += 1) {
+	    vvp_object_t word;
+	    objects->get_word((unsigned)idx, word);
+	    activate_open_array_indices_(word.peek<vvp_darray>());
+      }
+}
+
+/*
+ * %store/obj/open <signal>
+ *
+ * Store through the ordinary object-signal infrastructure, but first mark
+ * a materialized fixed-array actual as the declared-index view used by an
+ * SV/DPI open-array formal. The range metadata remains passive for ordinary
+ * fixed-to-dynamic assignments.
+ */
+bool of_STORE_OBJ_OPEN(vthread_t thr, vvp_code_t cp)
+{
+      activate_open_array_indices_(thr->peek_object().peek<vvp_darray>());
+      return of_STORE_OBJ(thr, cp);
 }
 
 /*
@@ -17150,6 +17510,38 @@ bool of_STORE_PROP_OBJ(vthread_t thr, vvp_code_t cp)
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-obj");
 
+      return true;
+}
+
+/*
+ * %store/prop/arr/dar <pid>
+ *
+ * Copy a nested dynamic-array value back into an inline fixed-array
+ * property. Pop the value and leave the receiver on the object stack,
+ * matching %store/prop/obj.
+ */
+bool of_STORE_PROP_ARR_DAR(vthread_t thr, vvp_code_t cp)
+{
+      size_t pid = cp->number;
+      vvp_object_t val;
+      thr->pop_object(val);
+
+      vvp_object_t&obj = thr->peek_object();
+      fixed_prop_receiver_t recv = {
+	    obj.peek<vvp_cobject>(), obj.peek<vvp_vinterface>()
+      };
+      const class_type*defn = recv.defn();
+      vvp_darray*array = val.peek<vvp_darray>();
+      if (!defn || !array || pid >= defn->property_count()
+	  || defn->property_dimensions(pid).empty())
+	    return true;
+
+      size_t flat = 0;
+      fixed_prop_copy_back_(recv, pid, array,
+			    defn->property_dimensions(pid), 0, flat);
+      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+				  thr->peek_object_root(0),
+				  "store-prop-arr-dar");
       return true;
 }
 
@@ -17614,6 +18006,13 @@ static bool store_qo_i(vthread_t thr, unsigned wid=0)
       vvp_darray*dar = recv.peek<vvp_darray>();
       if (!dar)
 	    return true;
+
+	// A fixed unpacked array materialized for an SV open-array formal
+	// carries its declared range on the darray object. Reads through
+	// %load/qo already translate declared indices; apply the same
+	// translation to nested-dimension writes so a[i][j] is symmetric
+	// when j belongs to a non-zero or descending declared range.
+      idx = darray_canonical_index_(dar, idx);
 
       if (idx < 0) {
 	    cerr << thr->get_fileline()

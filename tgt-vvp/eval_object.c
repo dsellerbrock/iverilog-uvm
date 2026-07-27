@@ -402,6 +402,19 @@ static int eval_object_scope(ivl_expr_t ex)
       return 0;
 }
 
+int vvp_expr_is_whole_fixed_array_property(ivl_expr_t expr)
+{
+      ivl_type_t type;
+      if (!expr || ivl_expr_type(expr) != IVL_EX_PROPERTY
+	  || ivl_expr_oper1(expr))
+	    return 0;
+
+      type = ivl_expr_net_type(expr);
+      return type && ivl_type_element(type)
+	  && ivl_type_packed_dimensions(type) > 0
+	  && ivl_type_packed_width(type) == 1;
+}
+
 static int eval_object_property(ivl_expr_t expr)
 {
       ivl_signal_t sig = ivl_expr_signal(expr);
@@ -455,8 +468,15 @@ static int eval_object_property(ivl_expr_t expr)
 		    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_queue_property\n", pidx);
 		    fprintf(vvp_out, "    %%load/qo/obj;\n");
 		    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
-	      } else {
-	    fprintf(vvp_out, "    %%prop/obj %u, %d; eval_object_property\n", pidx, idx);
+      } else {
+	    if (vvp_expr_is_whole_fixed_array_property(expr))
+		  fprintf(vvp_out,
+			  "    %%prop/arr/dar %u; eval_fixed_property_array\n",
+			  pidx);
+	    else
+		  fprintf(vvp_out,
+			  "    %%prop/obj %u, %d; eval_object_property\n",
+			  pidx, idx);
 	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
       }
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
@@ -1518,9 +1538,10 @@ static int eval_object_sfunc(ivl_expr_t expr)
       }
 
       if (!warned_non_queue) {
-	    fprintf(stderr, "Warning: eval_object_sfunc: unsupported sfunc '%s'"
+	    fprintf(stderr, "%s:%u: warning: eval_object_sfunc: unsupported sfunc '%s'"
 		    " in object context; emitting null fallback"
-		    " (further similar warnings suppressed)\n", name);
+		    " (further similar warnings suppressed)\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr), name);
 	    warned_non_queue = 1;
       }
       fprintf(vvp_out, "    %%null; ; unsupported object sfunc fallback\n");

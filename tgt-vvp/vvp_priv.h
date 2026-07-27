@@ -247,6 +247,7 @@ extern void draw_eval_string(ivl_expr_t ex);
  * and pushes the object onto the object stack.
  */
 extern int draw_eval_object(ivl_expr_t ex);
+extern int vvp_expr_is_whole_fixed_array_property(ivl_expr_t ex);
 
 /*
  * Like draw_eval_object, but applies unpacked-struct VALUE semantics when the

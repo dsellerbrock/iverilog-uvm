@@ -821,7 +821,10 @@ ivl_type_t foreach_index_type_t::elaborate_type_raw(Design*des, NetScope*scope) 
       const data_type_t*wire_index_type =
 	    array_wire ? find_foreach_wire_index_type_(array_wire, index_depth) : 0;
       const data_type_t*class_prop_index_type =
-	    scope ? find_foreach_class_property_index_type_(des, scope, target_path, index_depth) : 0;
+	    (!array_wire && scope)
+	      ? find_foreach_class_property_index_type_(
+		    des, scope, target_path, index_depth)
+	      : 0;
       string target_path_string = foreach_target_path_string_(target_path);
       if (trace && *trace) {
 	    cerr << "foreach-type: scope=";

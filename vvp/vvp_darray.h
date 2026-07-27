@@ -48,17 +48,23 @@ class vvp_darray : public vvp_object {
       virtual vvp_vector4_t get_bitstream(bool as_vec4);
 
 	// M10-1: a dynamic array is 0-based, but one MARSHALED from a
-	// fixed-size array stands in for that array's DECLARED range, and
-	// the open-array bounds accessors have to report the declared
-	// range (IEEE 1800-2017 H.10.2), not 0..N-1. Carry it here so
-	// %load/arr/dar can record it and svLow/svHigh/svLeft/svRight/
-	// svIncrement can read it back. Unset for an ordinary dynamic
-	// array, which really is 0-based.
+	// fixed-size array carries that array's DECLARED range so the DPI
+	// open-array accessors can report it (IEEE 1800-2017 H.10.2).
+	//
+	// Merely carrying that metadata must not change an ordinary
+	// fixed-to-dynamic assignment: the resulting dynamic array is
+	// still indexed 0..N-1. sv_declared_indexing_ is enabled only
+	// while the object is installed in an open-array formal; the SV
+	// query/index opcodes use it to expose the fixed actual's view.
       void dpi_set_decl_range(int left, int right)
       { dpi_left_ = left; dpi_right_ = right; dpi_has_range_ = true; }
       bool dpi_has_decl_range() const { return dpi_has_range_; }
       int dpi_decl_left() const  { return dpi_left_; }
       int dpi_decl_right() const { return dpi_right_; }
+      void sv_set_declared_indexing(bool flag)
+      { sv_declared_indexing_ = flag; }
+      bool sv_uses_declared_indexing() const
+      { return sv_declared_indexing_; }
 
 	// M10 DPI open arrays: contiguous raw element storage for
 	// atom-typed arrays (svOpenArrayHandle element access).
@@ -88,6 +94,7 @@ class vvp_darray : public vvp_object {
       int  dpi_left_  = 0;
       int  dpi_right_ = 0;
       bool dpi_has_range_ = false;
+      bool sv_declared_indexing_ = false;
       const class class_type* elem_class_ = 0;
 };
 

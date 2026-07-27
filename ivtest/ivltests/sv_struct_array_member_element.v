@@ -41,14 +41,12 @@
 // member's shape is known at elaboration time, so the whole family is
 // now folded to a constant there.
 //
-// STILL OPEN (deliberately not claimed by this test): passing `s.arr'
-// to an open-array formal -- SystemVerilog or DPI -- still delivers an
-// empty array. That one is genuinely larger: the member is stored as
-// inline vector words, the port wants a dynamic-array OBJECT, and there
-// is no runtime primitive that builds one from the other. Also
-// open: a queue member's METHODS (`s.q.push_back(x)') do not resolve as
-// method calls at all -- "Enable of unknown task" -- which is why the
-// queue below is filled with an assignment pattern.
+// Whole fixed-array member values passed to SystemVerilog and DPI
+// open-array formals are covered separately by
+// sv_struct_array_member_open_arg and m4b_struct_array_member_open_test.
+// A queue member's METHODS (`s.q.push_back(x)') remain a separate
+// receiver-family concern, so the queue below is filled with an
+// assignment pattern.
 
 module main;
 

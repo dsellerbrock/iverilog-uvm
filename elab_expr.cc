@@ -5699,8 +5699,9 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	// $high/$low VPI path — a property receiver there used to
 	// constant-fold to 'x' (get_array_info has no NetEProperty
 	// case). Strings keep the VPI path ($high(str) = len-1).
-      if (nparms == 1 && parms_[0].parm
+      if ((nparms == 1 || nparms == 2) && parms_[0].parm
 	  && dynamic_cast<PEIdent*>(parms_[0].parm)
+	  && (strcmp(name, "$unpacked_dimensions") != 0 || nparms == 1)
 	  && (strcmp(name, "$size") == 0
 	      || strcmp(name, "$high") == 0
 	      || strcmp(name, "$low") == 0
@@ -5712,33 +5713,58 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    NetExpr*sub = elab_sys_task_arg(des, scope, pname, 0,
 					    parms_[0].parm, false);
 	    if (sub && dynamic_cast<const netdarray_t*>(sub->net_type())) {
-		  NetExpr*res = 0;
-		  if (strcmp(name, "$low") == 0
-		      || strcmp(name, "$left") == 0) {
-			delete sub;
-			res = make_const_val(0);
-		  } else if (strcmp(name, "$increment") == 0) {
-			delete sub;
-			res = make_const_val_s(-1);
-		  } else if (strcmp(name, "$unpacked_dimensions") == 0) {
-			delete sub;
-			res = make_const_val(1);
-		  } else {
-			NetESFunc*szf = new NetESFunc(
-			      "$ivl_queue_method$size",
-			      &netvector_t::atom2u32, 1);
-			szf->set_line(*this);
-			szf->parm(0, sub);
-			if (strcmp(name, "$size") == 0) {
-			      res = szf;
-			} else {
-			        // $high / $right = size - 1
-			      NetEConst*one = make_const_val(1);
-			      res = new NetEBAdd('-', szf, one, 32, false);
+		    // The runtime object may be an open-array copy of a fixed
+		    // actual. Such an object carries the actual's declared
+		    // range, so the query cannot be folded to the ordinary
+		    // dynamic-array 0..size-1 answers here.
+		  if (strcmp(name, "$unpacked_dimensions") == 0) {
+			unsigned dims = 0;
+			for (ivl_type_t cur = sub->net_type() ; cur ; ) {
+			      const netarray_t*arr =
+				    dynamic_cast<const netarray_t*>(cur);
+			      if (!arr) break;
+			      dims += 1;
+			      cur = arr->element_type();
 			}
+			delete sub;
+			NetExpr*res = make_const_val(dims);
+			res->set_line(*this);
+			return cast_to_width_(res, expr_wid);
 		  }
-		  res->set_line(*this);
-		  return cast_to_width_(res, expr_wid);
+
+		  const char*query_name = 0;
+		  if (strcmp(name, "$size") == 0)
+			query_name = "$ivl_array_query$size";
+		  else if (strcmp(name, "$left") == 0)
+			query_name = "$ivl_array_query$left";
+		  else if (strcmp(name, "$right") == 0)
+			query_name = "$ivl_array_query$right";
+		  else if (strcmp(name, "$low") == 0)
+			query_name = "$ivl_array_query$low";
+		  else if (strcmp(name, "$high") == 0)
+			query_name = "$ivl_array_query$high";
+		  else if (strcmp(name, "$increment") == 0)
+			query_name = "$ivl_array_query$increment";
+
+		  if (query_name) {
+			NetExpr*dim = 0;
+			if (nparms == 2 && parms_[1].parm)
+			      dim = elab_sys_task_arg(des, scope, pname, 1,
+						      parms_[1].parm, false);
+			else
+			      dim = make_const_val(1);
+			if (!dim) {
+			      delete sub;
+			      return 0;
+			}
+
+			NetESFunc*query = new NetESFunc(
+			      query_name, &netvector_t::atom2s32, 2);
+			query->set_line(*this);
+			query->parm(0, sub);
+			query->parm(1, dim);
+			return cast_to_width_(query, expr_wid);
+		  }
 	    }
 	      // A FIXED unpacked array reached through a property (e.g. a
 	      // struct member `s.arr`, whole-array, no element index): its
@@ -5747,8 +5773,9 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	      // above (which does not apply -- there is no runtime container
 	      // object here) or falling through to the old VPI path below
 	      // (which has no NetEProperty case and constant-folds to 'x').
-	    if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(
-			  sub ? sub->net_type() : nullptr)) {
+	    if (nparms == 1) {
+	      if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(
+			    sub ? sub->net_type() : nullptr)) {
 		  const netranges_t&dims = ua->static_dimensions();
 		  if (!dims.empty()) {
 			long left = dims.front().get_msb();
@@ -5773,8 +5800,9 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			else /* $unpacked_dimensions */
 			      res = make_const_val((long)dims.size());
 			res->set_line(*this);
-			return cast_to_width_(res, expr_wid);
+		    return cast_to_width_(res, expr_wid);
 		  }
+	      }
 	    }
 	    delete sub;
       }

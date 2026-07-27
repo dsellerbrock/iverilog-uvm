@@ -1,0 +1,4 @@
+./ivltests/sv_cast_container_task_failure.v:30: error: $cast failed: the source object is not assignment compatible with the destination type (IEEE 1800-2017 6.24.2). The destination is unchanged.
+after fixed failure: id=99
+./ivltests/sv_cast_container_task_failure.v:33: error: $cast failed: the source object is not assignment compatible with the destination type (IEEE 1800-2017 6.24.2). The destination is unchanged.
+after nested failure: id=99 size=1

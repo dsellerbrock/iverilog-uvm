@@ -152,7 +152,14 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
       }
 }
 
-static void draw_send_function_argument(ivl_signal_t port)
+static int fixed_array_open_actual_(ivl_expr_t expr)
+{
+      return expr
+	  && (ivl_expr_type(expr) == IVL_EX_ARRAY
+	      || vvp_expr_is_whole_fixed_array_property(expr));
+}
+
+static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
 {
       static int warned_unsupported_send_type = 0;
       static int warned_aggregate_send_skip = 0;
@@ -189,7 +196,8 @@ static void draw_send_function_argument(ivl_signal_t port)
 	    fprintf(vvp_out, "    %%store/str v%p_0;\n", port);
 	    break;
 	  case IVL_VT_DARRAY:
-	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
+	    fprintf(vvp_out, "    %%store/obj%s v%p_0;\n",
+		    fixed_array_open_actual_(actual) ? "/open" : "", port);
 	    break;
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
@@ -344,6 +352,8 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	    }
 	    int pidx = (int)ivl_expr_property_idx(actual);
 	    dtype = ivl_signal_data_type(port);
+	    int fixed_array_property =
+		  vvp_expr_is_whole_fixed_array_property(actual);
 
 	    /* Push the containing cobj. If base_sig is set, use a direct
 	       load; otherwise oper2 holds the nested-base property expression
@@ -384,9 +394,17 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		  fprintf(vvp_out, "    %%store/prop/str %d;\n", pidx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  break;
-		case IVL_VT_CLASS:
-		case IVL_VT_DARRAY:
-		case IVL_VT_QUEUE:
+	    case IVL_VT_DARRAY:
+		  if (fixed_array_property) {
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			fprintf(vvp_out,
+				"    %%store/prop/arr/dar %d;\n", pidx);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			break;
+		  }
+		  /* fall through */
+	    case IVL_VT_CLASS:
+	    case IVL_VT_QUEUE:
 		case IVL_VT_NO_TYPE:
 		default:
 		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
@@ -596,7 +614,7 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
       }
       for (idx = ivl_expr_parms(expr) ;  idx > 0 ;  idx -= 1) {
 	    ivl_signal_t port = ivl_scope_port(def, idx);
-	    draw_send_function_argument(port);
+	    draw_send_function_argument(port, ivl_expr_parm(expr, idx-1));
       }
 
 	/* Bind the ref formals last, so that evaluating any argument --

@@ -1817,6 +1817,24 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		    ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
 	    return;
       }
+      if (strncmp(ivl_expr_name(expr), "$ivl_array_query$", 17) == 0) {
+	    ivl_expr_t arg = ivl_expr_parm(expr, 0);
+	    ivl_expr_t dim = ivl_expr_parm(expr, 1);
+	    unsigned query = 0;
+	    const char*name = ivl_expr_name(expr) + 17;
+
+	    if (strcmp(name, "size") == 0) query = 0;
+	    else if (strcmp(name, "left") == 0) query = 1;
+	    else if (strcmp(name, "right") == 0) query = 2;
+	    else if (strcmp(name, "low") == 0) query = 3;
+	    else if (strcmp(name, "high") == 0) query = 4;
+	    else if (strcmp(name, "increment") == 0) query = 5;
+
+	    draw_eval_object(arg);
+	    draw_eval_expr_into_integer(dim, 3);
+	    fprintf(vvp_out, "    %%qrange/o %u;\n", query);
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),"$ivl_queue_method$size")==0) {
 	    ivl_expr_t arg = ivl_expr_parm(expr, 0);
 	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL && ivl_expr_signal(arg)) {

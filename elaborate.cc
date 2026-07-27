@@ -6311,17 +6311,13 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
  *  end
  */
 /*
- * M10-6: an OUTPUT open-array formal of a DPI import still has to be
- * copied IN.
+ * M10-6/M4B-15: an OUTPUT open-array formal still has to be copied IN.
  *
- * For an ordinary SystemVerilog subroutine an output argument is
- * write-only: 13.5.2 copies it out at return and the formal starts
- * uninitialized, so skipping the copy-in is right. A DPI open array is
- * not that. IEEE 1800-2017 35.5.6.1 and H.10.2 say the ACTUAL argument
- * determines the open array's shape, and the C side reads that shape
- * back through svSize/svLow/svHigh/svGetArrElemPtr before it writes any
- * element. Only the element VALUES are outputs; the array itself has to
- * arrive.
+ * The output values are write-only, but an open formal's shape comes
+ * from its actual. This is observable in ordinary SV through foreach
+ * and the array query functions, and in DPI through the H.10 accessors.
+ * Copying the container in supplies that shape; the callee remains free
+ * to overwrite every element before the ordinary copy-out.
  *
  * Skipping the copy-in handed C an unallocated formal, so
  *
@@ -6335,22 +6331,12 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
  * dyn.size() == 0. The caller's array was destroyed, with no
  * diagnostic and a clean exit.
  *
- * Restricted to DPI imports so ordinary SV output arguments keep their
- * 13.5.2 semantics, and to open-array (dynamic array / queue) formals,
- * which are the only ones whose shape the callee must be able to read.
+ * Restrict this exception to open-array formals. Scalar and other
+ * aggregate output arguments retain the ordinary 13.5.2 behavior.
  */
-static bool dpi_open_array_formal_needs_copy_in_(const NetScope*task,
-						 const NetNet*port)
+static bool open_array_formal_needs_copy_in_(const NetNet*port)
 {
-      if (!task || !port)
-	    return false;
-
-      bool is_dpi = false;
-      if (task->type() == NetScope::FUNC && task->func_pform())
-	    is_dpi = task->func_pform()->is_dpi_import();
-      else if (task->type() == NetScope::TASK && task->task_pform())
-	    is_dpi = task->task_pform()->is_dpi_import();
-      if (!is_dpi)
+      if (!port)
 	    return false;
 
       ivl_type_t pt = port->net_type();
@@ -8759,7 +8745,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    }
 
 	    if (port->port_type() == NetNet::POUTPUT
-		&& !dpi_open_array_formal_needs_copy_in_(task, port))
+		&& !open_array_formal_needs_copy_in_(port))
 		  continue;
 
 	    NetAssign_*lv = new NetAssign_(copy_via[idx] ? copy_via[idx] : port);
@@ -8868,12 +8854,19 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			ivl_variable_type_t rv_type = rv->expr_type();
 			bool pad_vector_copyback = (lv_type == IVL_VT_BOOL || lv_type == IVL_VT_LOGIC);
 			if (lv_type != rv_type) {
+			      bool fixed_array_copyback_passthrough =
+				      dynamic_cast<const netuarray_t*>(lv->net_type())
+				      && (rv_type == IVL_VT_DARRAY
+					  || rv_type == IVL_VT_QUEUE);
 			      bool container_copyback_passthrough =
 				      (lv_type == IVL_VT_DARRAY || lv_type == IVL_VT_QUEUE) &&
 				      (rv_type == IVL_VT_DARRAY || rv_type == IVL_VT_QUEUE);
-				      // Keep task copy-back behavior aligned with assignment cast
-				      // fallback in netmisc.cc: darray<->queue passes through.
-			      if (container_copyback_passthrough) {
+			      // Keep task copy-back behavior aligned with assignment cast
+			      // fallback in netmisc.cc: darray<->queue and a fixed
+			      // array actual receiving its open-array formal pass
+			      // through to the aggregate copy-back path.
+			      if (container_copyback_passthrough
+				  || fixed_array_copyback_passthrough) {
 				    pad_vector_copyback = false;
 			      } else {
 			      switch (lv_type) {
@@ -10999,15 +10992,18 @@ static NetExpr* make_foreach_array_element_expr_(const LineInfo&li,
       return sel;
 }
 
-static NetExpr* make_foreach_queue_size_expr_(const LineInfo&li,
-					      NetExpr*array_expr)
+static NetExpr* make_foreach_array_query_expr_(const LineInfo&li,
+					       const char*query_name,
+					       NetExpr*array_expr)
 {
-      ivl_assert(li, array_expr);
-      NetESFunc*size_expr = new NetESFunc("$ivl_queue_method$size",
-					  &netvector_t::atom2u32, 1);
-      size_expr->set_line(li);
-      size_expr->parm(0, array_expr);
-      return size_expr;
+      NetESFunc*query = new NetESFunc(query_name,
+				      &netvector_t::atom2s32, 2);
+      query->set_line(li);
+      query->parm(0, array_expr);
+      NetEConst*dim = make_const_val(1);
+      dim->set_line(li);
+      query->parm(1, dim);
+      return query;
 }
 
 static bool foreach_target_is_simple_(const pform_name_t&array_path)
@@ -11020,13 +11016,14 @@ static bool foreach_target_is_non_simple_(const pform_name_t&array_path)
       if (array_path.size() <= 1)
 	    return false;
 
-      for (pform_name_t::const_iterator cur = array_path.begin()
-		 ; cur != array_path.end() ; ++cur) {
-	    if (!cur->index.empty())
-		  return false;
-      }
-
-      return true;
+	/*
+	 * A select on an earlier path component is an instance-array
+	 * selection, not an array select on the foreach target. Keep the
+	 * final component unselected (the parser removes the foreach index
+	 * variables from it), but allow find_signal/elaborate_expr to resolve
+	 * selections on the hierarchy leading to that target.
+	 */
+      return array_path.back().index.empty();
 }
 
 static NetExpr* elaborate_foreach_target_expr_(Design*des,
@@ -11495,18 +11492,54 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
       NetExpr*init_expr = 0;
       NetExpr*limit_expr = 0;
       char cond_op = 'L';
-	// Queues and plain dynamic arrays are always 0-based with a
-	// runtime size (IEEE 1800-2017 7.5, 7.10), so iterate
-	// 0 <= idx < size. The size sfunc accepts signal AND non-signal
-	// (e.g. class-property) receivers, unlike the $low/$high VPI
-	// path below which requires a signal handle — a property
-	// receiver there used to constant-fold $high to 'x' and the
-	// loop silently ran zero times.
+      NetExpr*cond_expr = 0;
+      bool declared_range_runtime = false;
+	// Ordinary queues and dynamic arrays are 0-based, but an open-array
+	// formal can carry a fixed actual's declared range. Query the runtime
+	// object so foreach uses the actual's left-to-right order in both
+	// cases. The internal query accepts signal and non-signal expressions,
+	// including a queue/darray class property.
       if (dynamic_cast<const netdarray_t*>(array_expr->net_type())) {
-	    init_expr = make_const_val(0);
-	    init_expr->set_line(*this);
-	    limit_expr = make_foreach_queue_size_expr_(*this, array_expr);
-	    cond_op = '<';
+	    declared_range_runtime = true;
+	    init_expr = make_foreach_array_query_expr_(
+		  *this, "$ivl_array_query$left", array_expr);
+
+	    NetExpr*increment = make_foreach_array_query_expr_(
+		  *this, "$ivl_array_query$increment",
+		  array_expr->dup_expr());
+	    NetEConst*zero = make_const_val_s(0);
+	    zero->set_line(*this);
+	    NetEBComp*ascending = new NetEBComp('<', increment, zero);
+	    ascending->set_line(*this);
+
+	    NetEBComp*up_cond = new NetEBComp(
+		  'L', idx_exp->dup_expr(),
+		  make_foreach_array_query_expr_(
+			*this, "$ivl_array_query$right",
+			array_expr->dup_expr()));
+	    up_cond->set_line(*this);
+	    NetEBComp*down_cond = new NetEBComp(
+		  'G', idx_exp,
+		  make_foreach_array_query_expr_(
+			*this, "$ivl_array_query$right",
+			array_expr->dup_expr()));
+	    down_cond->set_line(*this);
+
+	    NetETernary*range_cond = new NetETernary(
+		  ascending, up_cond, down_cond, 1, false);
+	    range_cond->set_line(*this);
+
+	    NetEConst*empty_zero = make_const_val_s(0);
+	    empty_zero->set_line(*this);
+	    NetEBComp*nonempty = new NetEBComp(
+		  '>', make_foreach_array_query_expr_(
+			*this, "$ivl_array_query$size",
+			array_expr->dup_expr()),
+		  empty_zero);
+	    nonempty->set_line(*this);
+
+	    cond_expr = new NetEBLogic('a', nonempty, range_cond);
+	    cond_expr->set_line(*this);
       } else {
 	    NetESFunc*low_expr = new NetESFunc("$low", &netvector_t::atom2s32, 1);
 	    low_expr->set_line(*this);
@@ -11517,10 +11550,9 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
 	    high_expr->set_line(*this);
 	    high_expr->parm(0, array_expr->dup_expr());
 	    limit_expr = high_expr;
+	    cond_expr = new NetEBComp(cond_op, idx_exp, limit_expr);
+	    cond_expr->set_line(*this);
       }
-
-      NetEBComp*cond_expr = new NetEBComp(cond_op, idx_exp, limit_expr);
-      cond_expr->set_line(*this);
 
       NetProc*sub;
       if (index_var_start + 1 < index_vars_.size()) {
@@ -11543,8 +11575,13 @@ NetProc* PForeach::elaborate_runtime_array_(Design*des, NetScope*scope,
       }
 
       NetAssign_*idx_lv = new NetAssign_(idx_sig);
-      NetEConst*step_val = make_const_val(1);
-      NetAssign*step = new NetAssign(idx_lv, '+', step_val);
+      NetExpr*step_val = declared_range_runtime
+	    ? make_foreach_array_query_expr_(
+		  *this, "$ivl_array_query$increment",
+		  array_expr->dup_expr())
+	    : static_cast<NetExpr*>(make_const_val(1));
+      NetAssign*step = new NetAssign(
+	    idx_lv, declared_range_runtime ? '-' : '+', step_val);
       step->set_line(*this);
 
       NetForLoop*stmt = new NetForLoop(idx_sig, init_expr, cond_expr, sub, step);
