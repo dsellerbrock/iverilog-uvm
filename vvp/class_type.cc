@@ -1076,6 +1076,8 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 			       strdup(t.c_str()+3));
 	    properties_[idx].type = prop;
       }
+      else if (!t.empty() && t[0] == 'D')
+	    properties_[idx].type = new property_object(array_size);
       else if (t == "Qr")
 	    properties_[idx].type = new property_queue<vvp_queue_real>(array_size);
       else if (t == "QS")

@@ -42,16 +42,26 @@ vpiHandle __vpiArrayBase::vpi_array_base_iterate(int code)
 
 void __vpiArrayBase::make_vals_words()
 {
-    assert(vals_words == 0);
-    vals_words = new struct __vpiArrayWord[get_size() + 1];
+    unsigned needed = get_size();
+    if (vals_words && vals_words_capacity >= needed)
+          return;
 
-    // Make word[-1] point to the parent.
-    vals_words->parent = this;
+    /*
+     * A VPI word handle may outlive a queue resize or a class-owner
+     * replacement. Grow by allocating a new handle block and retain the old
+     * block: existing handles remain valid and continue to resolve their
+     * positional index through this live parent. VPI handles are
+     * simulator-lifetime objects, so the retired block has the same lifetime.
+     */
+    struct __vpiArrayWord*raw =
+          new struct __vpiArrayWord[needed + 1];
+    raw->parent = this;
     // Now point to word-0
-    vals_words += 1;
+    vals_words = raw + 1;
+    vals_words_capacity = needed;
 
     struct __vpiArrayWord*words = vals_words;
-    for (unsigned idx = 0 ; idx < get_size() ; idx += 1) {
+    for (unsigned idx = 0 ; idx < needed ; idx += 1) {
             words[idx].word0 = words;
     }
 }
@@ -203,4 +213,3 @@ struct __vpiArrayWord* array_var_index_from_handle(vpiHandle ref)
       assert(sizeof(__vpiHandle) == sizeof(__vpiArrayWord::as_word_t));
       return (struct __vpiArrayWord*)(ref-1);
 }
-
