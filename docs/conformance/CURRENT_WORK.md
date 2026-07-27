@@ -7,7 +7,7 @@ narratives live in `session_logs/`.
 ## Resume state — 2026-07-26
 
 Branch: `codex/vpi-container-observability`, based on the merge of
-PR #122 (`d0d51c226`).
+PR #122 (`d0d51c226`). Draft PR: #123.
 
 The VPI runtime-container observability campaign is closed:
 
