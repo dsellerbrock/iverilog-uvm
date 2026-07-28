@@ -5,51 +5,28 @@
 # and on stale entries. Full attribution: ivtest_vendored_baseline_*.txt
 # and test_suite_audit_2026-07-17.md.
 #
-# --- Pre-existing upstream failures (31): fail identically on
-# --- pristine upstream Icarus 13.0 @ fork base 9b44d55.
-sv_assoc_obj_key_bit_copy1		# pre-existing upstream
-sv_assoc_obj_key_delete1		# pre-existing upstream
-sv_assoc_obj_key_size1		# pre-existing upstream
-sv_callf_nonlocal_break1		# pre-existing upstream
-sv_callf_nonlocal_continue1		# pre-existing upstream
-sv_class_assoc_recursive_find1		# pre-existing upstream
-sv_class_auto_recursive_raise1		# pre-existing upstream
-sv_class_case_wait_wakeup1		# pre-existing upstream
-sv_class_extern_ctor_const_init1		# pre-existing upstream
-sv_class_extern_task1		# pre-existing upstream
-sv_class_forward_typeparam_cb1		# pre-existing upstream
-sv_class_function_fork_task1		# pre-existing upstream
-sv_class_getter_handle_wait1		# pre-existing upstream
-sv_class_method_auto_return1		# pre-existing upstream
-sv_class_method_prop_wait_wakeup1		# pre-existing upstream
-sv_class_method_receiver_copy1		# pre-existing upstream
-sv_class_packed_prop2d1		# pre-existing upstream
-sv_class_prop_wait_wakeup1		# pre-existing upstream
-sv_class_queue_insert_wait_wakeup1		# pre-existing upstream
-sv_class_queue_wait_wakeup1		# pre-existing upstream
-sv_class_recursive_ctor_add1		# pre-existing upstream
-sv_class_recursive_find_wrapper1		# pre-existing upstream
-sv_class_static_assoc_method1		# pre-existing upstream
-sv_class_static_queue_pop_back		# pre-existing upstream
-sv_class_static_queue_wait_wakeup1		# pre-existing upstream
-sv_darray_obj_duplicate1		# pre-existing upstream
-sv_fork_auto_init1		# pre-existing upstream
-sv_string_cmp_empty1		# pre-existing upstream
-sv_uarray_locator1		# pre-existing upstream
-sv_virtual_if_specialized_dispatch1		# pre-existing upstream
-sv_virtual_task_output_copy1		# pre-existing upstream
-#
-# --- Documented fork divergences (13):
-br1005		# implemented-feature divergence: fork legalizes queue-in-class (gold expects rejection)
-br_ml20150315b		# implemented-feature divergence: fork legalizes the declaration form (gold expects rejection)
-br_ml20180227		# implemented-feature divergence: fork legalizes the assignment form (gold expects rejection)
-case_unique		# implemented-feature divergence: fork implements unique-case runtime checks; gold requires upstream's codegen sorry
-func_empty_arg_fail4		# blocked on M1B typing fidelity: unresolved-simple-name leniency (audit Part 10)
-struct_invalid_member		# better-diagnostic divergence: fork names the unknown type; gold expects generic syntax error
-sv_class_new_fail1		# blocked on M1B typing fidelity: literal-new stub indistinguishable from UVM printer globals (audit Part 10, failed-attempt 1)
-sv_deferred_assert1		# implemented-feature divergence: fork implements deferred assertions; gold expects sorry
-sv_deferred_assert2		# implemented-feature divergence: fork implements deferred assertions; gold expects sorry
-sv_deferred_assume1		# implemented-feature divergence: fork implements deferred assumes; gold expects sorry
-sv_deferred_assume2		# implemented-feature divergence: fork implements deferred assumes; gold expects sorry
-sv_timeunit_prec_fail1		# implemented-feature divergence: LRM 5.7.1 digit separators in time literals + 1-line anchor drift (audit Part 12)
-sv_timeunit_prec_fail2		# implemented-feature divergence: LRM 5.7.1 digit separators in time literals (audit Part 12)
+# --- THIS LIST IS EMPTY (was 44 on 2026-07-28). Every entry was
+# --- closed by the two-stage deep investigation, not excused:
+# ---
+# --- Stage 1 (44 -> 13): 29 verdict-string artifacts (tests printed
+# --- "PASS"; gold-less normal tests require "PASSED"), 1
+# --- silence-as-success, 1 nonconformant test (`return' in an initial
+# --- block, 13.4.4 -- rejecting it was correct; the legal form
+# --- passes), all repaired and enforced.
+# ---
+# --- Stage 2 (13 -> 0): case_unique, struct_invalid_member and the
+# --- timeunit pair regolded to LRM-verified output (5.7.1 digit
+# --- separators made `1_0s` legal, so the correct diagnostic is the
+# --- 3.14.2 repeat-mismatch). R28 turned sv_class_new_fail1 +
+# --- func_empty_arg_fail4 into real diagnostics (8.7 / 13.5.3). The
+# --- deferred assert/assume quartet's recorded reason was FALSE -- the
+# --- fork never implemented deferred assertions, it silently DELETED
+# --- them; upstream flag defaults restored, the quartet passes CE
+# --- against its original golds, R29 tracks the real 16.4
+# --- implementation. br1005 (queue-in-class) reclassified normal with
+# --- a recorded gold. br_ml20150315b (unpacked struct typedef, no
+# --- simulation content) reclassified CO. br_ml20180227 exposed R30 --
+# --- `reg = string_var' silently stored ZERO (front-end const-0
+# --- substitution) and, once fixed, the %cast/vec4/str opcode
+# --- left-justified wide targets; both fixed, semantics pinned by
+# --- sv_string_to_vector_assign1, test reclassified CO.

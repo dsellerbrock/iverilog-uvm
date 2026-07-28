@@ -15,7 +15,7 @@ module test;
           $display("FAIL size=%0d val=%0d", h.q.size(), h.q.size() ? h.q[0] : -1);
           $finish(1);
         end
-        $display("PASS");
+        $display("PASSED");
       end
       begin
         #0;

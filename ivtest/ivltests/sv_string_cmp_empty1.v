@@ -22,7 +22,7 @@ module test;
     end
 
     if (s == "") begin
-      $display("PASS");
+      $display("PASSED");
     end else begin
       $display("EMPTY_EQ_FALSE");
       $finish_and_return(1);

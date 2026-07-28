@@ -37,6 +37,6 @@ module test;
       $display("FAIL a.b.tag=%0d x.tag=%0d p=%0d l=%0d", a.b.tag, x.tag, p, l);
       $finish(1);
     end
-    $display("PASS");
+    $display("PASSED");
   end
 endmodule

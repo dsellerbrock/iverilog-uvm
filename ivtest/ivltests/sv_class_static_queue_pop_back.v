@@ -59,6 +59,7 @@ module test;
       $finish_and_return(2);
     end
 
+    $display("PASSED");
     $finish;
   end
 endmodule

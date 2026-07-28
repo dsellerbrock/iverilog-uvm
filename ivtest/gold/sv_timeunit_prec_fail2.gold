@@ -14,7 +14,7 @@
 ./ivltests/sv_timeunit_prec_fail2a.v:41: error: Invalid timeprecision constant (number of zeros).
 ./ivltests/sv_timeunit_prec_fail2a.v:43: error: Invalid timeunit scale '2s'.
 ./ivltests/sv_timeunit_prec_fail2a.v:43: error: Invalid timeprecision scale '2s'.
-./ivltests/sv_timeunit_prec_fail2a.v:46: error: Invalid timeunit constant ('_' is not supported).
-./ivltests/sv_timeunit_prec_fail2a.v:46: error: Invalid timeprecision constant ('_' is not supported).
+./ivltests/sv_timeunit_prec_fail2a.v:46: error: Repeat timeunit does not match the initial timeunit for this scope.
+./ivltests/sv_timeunit_prec_fail2a.v:46: error: Repeat timeprecision does not match the initial timeprecision for this scope.
 ./ivltests/sv_timeunit_prec_fail2b.v:4: error: A timeprecision is missing or is too large!
 ./ivltests/sv_timeunit_prec_fail2c.v:5: error: A timeprecision is missing or is too large!

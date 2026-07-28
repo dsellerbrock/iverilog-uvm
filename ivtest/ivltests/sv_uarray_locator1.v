@@ -6,26 +6,29 @@ module test;
   int qq[$];
   int m;
 
-  initial begin
+  // NB: `return' is only legal inside tasks/functions (IEEE 1800-2017
+  // 13.4.4); the original form of this test used it directly in the
+  // initial block, so rejecting the test was conformant behavior.
+  initial begin : blk
     q = '{11, -3, 55, 22, 44};
 
     if (q.size != 5) begin
       $display("FAILED size");
-      return;
+      disable blk;
     end
 
     qq = q.max;
     m = qq[0];
     if (m !== 55) begin
       $display("FAILED max");
-      return;
+      disable blk;
     end
 
     qq = q.min;
     m = qq[0];
     if (m !== -3) begin
       $display("FAILED min");
-      return;
+      disable blk;
     end
 
     $display("PASSED");

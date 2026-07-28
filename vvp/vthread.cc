@@ -8233,7 +8233,12 @@ bool of_CAST_VEC4_STR(vthread_t thr, vvp_code_t cp)
       const unsigned use_chars = (use_wid + 7) / 8;
 
       unsigned sdx = 0;
-      unsigned vdx = wid;
+	/* Right-justify: the string occupies the LOW 8*len bits with
+	   zero-pad above (IEEE 1800-2017 6.16 string-to-integral
+	   packing, same as a string literal). Starting at the vector
+	   width instead left-justified the value whenever the target
+	   was wider than the string. */
+      unsigned vdx = use_wid;
       while (vdx > 0 && sdx < use_chars) {
             char ch = str[sdx++];
             if (vdx < 8) {
@@ -12024,6 +12029,39 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
                           trace_context_event_("join-detach-share", thr,
                                                child ? child->parent_scope : 0,
                                                child_context);
+                          /* If the shared head is an UNCONSUMED staged frame
+                             -- an %alloc this thread made for the detached
+                             child's hoisted call arguments (see
+                             fork_child_hoist_split_ in tgt-vvp), recognizable
+                             because pending_alloc still points at it and its
+                             owner scope is the CALLEE's, not this thread's --
+                             then the frame belongs to the child alone.
+                             Leaving it at this thread's write head made the
+                             next scoped store here (e.g. a later loop
+                             iteration's task output copy-back) resolve
+                             against a wrong-scope frame the child frees at
+                             an arbitrary time: `forever begin get(ph);
+                             fork process(ph); join_none end' silently
+                             re-spawned with the PREVIOUS iteration's
+                             argument. Restore this thread's write head to
+                             its own frame. */
+                          if (thr->pending_alloc_context == child_context
+                              && parent_context
+                              && parent_context != child_context) {
+                                __vpiScope*own_scope =
+                                      resolve_context_scope(thr->parent_scope);
+                                if (child_context_scope && own_scope
+                                    && child_context_scope != own_scope) {
+                                      thr->wt_context = parent_context;
+                                      thr->pending_alloc_context = 0;
+                                      thr->pending_alloc_scope = 0;
+                                      ctx_stats_bump("detach.unstage-wt");
+                                      trace_context_event_("join-detach-unstage",
+                                                           thr,
+                                                           child_context_scope,
+                                                           child_context);
+                                }
+                          }
 		    }
 		    if (child->i_have_ended) {
 			    // If the child has already ended, then reap it.

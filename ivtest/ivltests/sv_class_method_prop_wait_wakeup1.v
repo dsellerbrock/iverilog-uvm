@@ -32,6 +32,6 @@ module test;
       $finish_and_return(1);
     end
 
-    $display("PASS");
+    $display("PASSED");
   end
 endmodule
