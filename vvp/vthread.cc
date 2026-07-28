@@ -13579,6 +13579,75 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %store/arr/dar <array>, <kind>
+ *
+ * The inverse of %load/arr/dar: unmarshal a dynamic array or queue back
+ * into a WHOLE fixed-size unpacked array, popping the container off the
+ * object stack. <kind> is the same packed element descriptor.
+ *
+ * Every legal whole-aggregate copy in the container -> fixed direction
+ * reaches this one instruction: the 7.6 assignment `fa = da', a struct
+ * member `s.arr = da', and the 13.5.2 copy-back of an `inout'/`ref'/
+ * `output' open-array formal into a fixed-array actual. The opposite
+ * direction has had %load/arr/dar since M10-1; this side was missing, so
+ * elaboration rejected the assignment forms outright and the subroutine
+ * forms reached the code generator as an untyped store -- an ivl abort
+ * for a task and a silently skipped copy-out for a function.
+ *
+ * IEEE 1800-2017 7.6 requires the element counts to agree. A dynamic
+ * source's size is not known until run time, so the check is here: a
+ * mismatch is reported and the destination is left alone rather than
+ * partially overwritten.
+ */
+bool of_STORE_ARR_DAR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t val;
+      thr->pop_object(val);
+
+      vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar");
+      if (!array)
+	    return true;
+
+      vvp_darray*dar = val.peek<vvp_darray>();
+      if (!dar) {
+	      /* A nil container: 7.6 has nothing to copy. Leave the
+		 destination as it is. */
+	    return true;
+      }
+
+      uint32_t kind = cp->bit_idx[0];
+      size_t count = array->get_size();
+      if (dar->get_size() != count) {
+	    cerr << "RUN-TIME ERROR: cannot copy a container of size "
+		 << dar->get_size() << " into an unpacked array of size "
+		 << count << " (IEEE 1800-2017 7.6 requires equal element "
+		    "counts); the array is unchanged." << endl;
+	    return true;
+      }
+
+      for (size_t idx = 0 ; idx < count ; idx += 1) {
+	    if (ARRDAR_OBJ(kind)) {
+		  vvp_object_t w;
+		  dar->get_word((unsigned)idx, w);
+		  array->set_word((unsigned)idx, w);
+	    } else if (kind == ARRDAR_REAL) {
+		  double w = 0.0;
+		  dar->get_word((unsigned)idx, w);
+		  array->set_word((unsigned)idx, w);
+	    } else {
+		  vvp_vector4_t w;
+		  dar->get_word((unsigned)idx, w);
+		  unsigned wid = ARRDAR_WIDTH(kind);
+		  if (wid && w.size() != wid)
+			w = coerce_to_width(w, wid);
+		  array->set_word((unsigned)idx, 0, w);
+	    }
+      }
+
+      return true;
+}
+
 bool of_LOAD_OBJA(vthread_t thr, vvp_code_t cp)
 {
       unsigned idx = cp->bit_idx[0];

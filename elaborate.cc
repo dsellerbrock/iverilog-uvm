@@ -8900,7 +8900,59 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    if (lv == 0)
 		  continue;
 
-	    NetExpr*rv = new NetESignal(copy_via[idx] ? copy_via[idx] : port);
+	    NetNet*copy_src = copy_via[idx] ? copy_via[idx] : port;
+
+	      /* Copy-back into a FIXED unpacked array actual from an
+		 open-array (or queue) formal -- `task t(inout int q[])'
+		 called as `t(fa)' where `fa' is `int fa[3]'.
+
+		 The actual is N inline words in a word-array signal and
+		 the formal is a container object, so this is the same
+		 container -> fixed-array copy as the 7.6 assignment
+		 `fa = da'. It goes through the same NetAssign, and so
+		 through the same %store/arr/dar, rather than growing a
+		 second lowering: the whole point of the instruction is
+		 that every legal copy in this direction shares it.
+
+		 Before that instruction existed the copy-out reached the
+		 code generator as an untyped store and aborted ivl --
+		 `store_vec4_to_lval: Assertion `lwid ==
+		 ivl_signal_width(lsig)' failed' -- on legal 13.5.2
+		 input, whether or not the task body ever wrote the
+		 formal, because the copy-out is generated from the port
+		 DIRECTION alone. Shapes the instruction cannot express
+		 are refused here, where the l-value is still readable,
+		 instead of aborting there. */
+	    if (const netuarray_t*lv_ua =
+		      dynamic_cast<const netuarray_t*>(lv->net_type())) {
+		  ivl_variable_type_t src_vt = copy_src->data_type();
+		  if (src_vt == IVL_VT_DARRAY || src_vt == IVL_VT_QUEUE) {
+			const netdarray_t*src_da =
+			      dynamic_cast<const netdarray_t*>(copy_src->net_type());
+			bool simple_dst = !lv->word() && (lv->more == 0)
+			      && (lv_ua->static_dimensions().size() == 1);
+			if (!simple_dst
+			    || !uarray_element_matches_container_(lv_ua, src_da)) {
+			      cerr << get_fileline() << ": sorry: "
+				   << "Cannot copy subroutine port " << (idx+1)
+				   << " back into '" << lv->name()
+				   << "': copy-back from an open-array formal "
+				   << "is supported for a one-dimensional "
+				   << "unpacked array actual with an "
+				   << "assignment-compatible element type."
+				   << endl;
+			      des->errors += 1;
+			      delete lv;
+			      continue;
+			}
+			NetAssign*ass = new NetAssign(lv, new NetESignal(copy_src));
+			ass->set_line(*this);
+			block->append(ass);
+			continue;
+		  }
+	    }
+
+	    NetExpr*rv = new NetESignal(copy_src);
 
 		  /* Handle any implicit cast. */
 			unsigned lv_width = count_lval_width(lv);

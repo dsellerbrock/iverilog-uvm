@@ -11777,6 +11777,26 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 			  }
 		    }
 
+		      /* A dynamic array or queue read in the context of a
+			 fixed-size unpacked array (IEEE 1800-2017 7.6:
+			 `fa = da', and the copy-back of an open-array
+			 formal into a fixed-array actual). The two have
+			 different representations but the same element
+			 values, so this is a copy, not a type error. The
+			 element counts can only be compared at run time
+			 for a dynamic source; %store/arr/dar does that. */
+		    if (const netuarray_t*want_ua =
+			      dynamic_cast<const netuarray_t*>(ntype)) {
+			  const netdarray_t*have_da =
+				dynamic_cast<const netdarray_t*>(have_type);
+			  if (have_da && want_ua->static_dimensions().size() == 1
+			      && uarray_element_matches_container_(want_ua, have_da)) {
+				NetESignal*tmp = new NetESignal(net);
+				tmp->set_line(*this);
+				return tmp;
+			  }
+		    }
+
 		    cerr << get_fileline() << ": error: the type of the variable '"
 			 << path_ << "' doesn't match the context type." << endl;
 

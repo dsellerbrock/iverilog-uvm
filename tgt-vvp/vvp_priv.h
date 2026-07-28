@@ -743,6 +743,12 @@ static inline int emit_property_queue_last_index_(ivl_expr_t expr,
       return 1;
 }
 
+/* The packed element descriptor %load/arr/dar and %store/arr/dar share
+   for a fixed unpacked array's elements. Returns 0 (and reports) when
+   the element kind has no container representation. */
+extern int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
+				  const char*file, unsigned lineno);
+
 extern int show_stmt_assign(ivl_statement_t net);
 extern int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay);
 extern void show_stmt_file_line(ivl_statement_t net, const char*desc);

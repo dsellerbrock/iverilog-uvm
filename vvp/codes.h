@@ -449,6 +449,7 @@ extern bool of_SHIFTR_S(vthread_t thr, vvp_code_t code);
 extern bool of_SPLIT_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_STD_RANDOMIZE_LOAD(vthread_t thr, vvp_code_t code);
 extern bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code);
+extern bool of_STORE_ARR_DAR(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_R(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_STR(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_VEC4(vthread_t thr, vvp_code_t code);

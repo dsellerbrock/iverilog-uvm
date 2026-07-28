@@ -1098,6 +1098,29 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
       }
 
       if (!compatible) {
+	      // A dynamic array or queue in the context of a fixed-size
+	      // unpacked array (IEEE 1800-2017 7.6). The two are not
+	      // type_compatible -- one is a container object, the other
+	      // is inline words -- but the assignment is legal and is a
+	      // per-element copy, which the code generator performs with
+	      // %store/arr/dar.
+	      //
+	      // This has to be caught HERE, ahead of the fallbacks
+	      // below: `cast_type' for an unpacked array is its ELEMENT
+	      // base type, so an `int fa[3]' target looks vectorable,
+	      // and the compile-progress stub replaced the whole
+	      // right-hand side with the constant 0. `fa = da' then
+	      // compiled without a word of complaint and zeroed the
+	      // array.
+	    if (const netuarray_t*want_ua =
+		      dynamic_cast<const netuarray_t*>(lv_net_type)) {
+		  const netdarray_t*have_da =
+			dynamic_cast<const netdarray_t*>(tmp->net_type());
+		  if (have_da && want_ua->static_dimensions().size() == 1
+		      && uarray_element_matches_container_(want_ua, have_da))
+			return tmp;
+	    }
+
 	      // Catch some special cases.
 	    switch (cast_type) {
 		case IVL_VT_DARRAY:
@@ -1111,14 +1134,34 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		    // below, but real element arrays are not vectorable and were
 		    // rejected even though the identical fixed-array actual is
 		    // legal for an open formal.
+		    //
+		    // The array type of a signal expression is on the
+		    // SIGNAL: NetESignal::net_type() reports the ELEMENT
+		    // type, which is what a read of it usually yields.
+		    // Asking the expression for a netuarray_t therefore
+		    // never succeeded, so this stayed dead and a real
+		    // element array kept taking the cast error below
+		    // while an integral one slipped past on the
+		    // vectorable fallback. Ask the signal too.
 		  if (const netdarray_t*formal_array =
 			dynamic_cast<const netdarray_t*>(lv_net_type)) {
-			if (const netuarray_t*fixed_actual =
-			      dynamic_cast<const netuarray_t*>(tmp->net_type())) {
-			      if (formal_array->element_type()->type_equivalent(
-				    fixed_actual->element_type()))
-				    return tmp;
+			const netuarray_t*fixed_actual =
+			      dynamic_cast<const netuarray_t*>(tmp->net_type());
+			if (!fixed_actual) {
+			      if (const NetESignal*esig =
+					dynamic_cast<const NetESignal*>(tmp)) {
+				    if (esig->sig() && esig->word_index() == 0)
+					  fixed_actual =
+						dynamic_cast<const netuarray_t*>
+						      (esig->sig()->array_type());
+			      }
 			}
+			if (fixed_actual
+			    && formal_array->element_type()
+			    && fixed_actual->element_type()
+			    && formal_array->element_type()->type_equivalent(
+				  fixed_actual->element_type()))
+			      return tmp;
 		  }
 
 		  // This is needed to handle the special case of `'{}` which
@@ -2167,6 +2210,32 @@ NetNet* find_implicit_this_handle(Design*des, NetScope*scope)
  * Print a warning if we find a mixture of default and explicit timescale
  * based delays in the design, since this is likely an error.
  */
+bool uarray_element_matches_container_(const netuarray_t*dst,
+				       const netdarray_t*src)
+{
+      if (dst == 0 || src == 0)
+	    return false;
+
+      ivl_type_t dst_elem = dst->element_type();
+      ivl_type_t src_elem = src->element_type();
+      if (dst_elem == 0 || src_elem == 0)
+	    return false;
+
+      if (dst_elem->packed_width() != src_elem->packed_width())
+	    return false;
+
+      ivl_variable_type_t dst_vt = dst_elem->base_type();
+      ivl_variable_type_t src_vt = src_elem->base_type();
+	/* A 2-state and a 4-state vector of the same width copy
+	   element-for-element; the store coerces. */
+      auto is_vec = [](ivl_variable_type_t vt) {
+	    return vt == IVL_VT_BOOL || vt == IVL_VT_LOGIC;
+      };
+      if (is_vec(dst_vt) && is_vec(src_vt))
+	    return true;
+      return dst_vt == src_vt;
+}
+
 /*
  * A `ref' formal is represented as a real reference only for the types
  * whose reads and writes go through the generic signal-value interface

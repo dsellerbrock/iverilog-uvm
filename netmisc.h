@@ -22,6 +22,8 @@
 # include  "netlist.h"
 
 class netsarray_t;
+class netuarray_t;
+class netdarray_t;
 
 /*
  * Search for a hierarchical name. The input path is one or more name
@@ -545,6 +547,16 @@ extern NetPartSelect* detect_partselect_lval(Link&pin);
  * that one argument without changing what the formal is.
  */
 extern bool ref_formal_is_bound(const NetNet*port);
+
+/*
+ * True when a dynamic array or queue holds elements that a fixed-size
+ * unpacked array can receive verbatim (IEEE 1800-2017 7.6: equivalent
+ * element types). The ELEMENT COUNT is deliberately not part of this
+ * test -- a dynamic source does not have one until run time, so the
+ * count is checked by %store/arr/dar when the copy happens.
+ */
+extern bool uarray_element_matches_container_(const netuarray_t*dst,
+					      const netdarray_t*src);
 
 /*
  * Print a warning if we find a mixture of default and explicit timescale

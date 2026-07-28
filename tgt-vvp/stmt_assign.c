@@ -3095,6 +3095,116 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
       return errors;
 }
 
+/* The element descriptor %store/arr/dar wants, in the same packed
+   encoding %load/arr/dar uses (see of_LOAD_ARR_DAR). Returns 0 and
+   reports if the element kind cannot be carried. */
+int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
+			   const char*file, unsigned lineno)
+{
+      ivl_variable_type_t dt = ivl_signal_data_type(sig);
+      unsigned wid = ivl_signal_width(sig);
+      unsigned kind;
+
+      switch (dt) {
+	  case IVL_VT_REAL:
+	    kind = 0;                           /* ARRDAR_REAL */
+	    break;
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    if (wid == 0) wid = 1;
+	    kind = (wid & 0xFFu)
+		 | (ivl_signal_signed(sig) ? (1u << 8) : 0u)
+		 | ((dt == IVL_VT_LOGIC) ? (1u << 9) : 0u);
+	    break;
+	  case IVL_VT_CLASS:
+	    kind = (1u << 11);
+	    break;
+	  default:
+	    fprintf(stderr, "%s:%u: sorry: the whole unpacked array `%s' "
+		    "cannot receive a dynamic array or queue: only arrays "
+		    "of integral, real or class-handle elements have a "
+		    "matching element representation.\n",
+		    file ? file : "<unknown>", lineno,
+		    ivl_signal_basename(sig));
+	    vvp_errors += 1;
+	    return 0;
+      }
+
+      *kind_out = kind;
+      return 1;
+}
+
+/* `fa = da' and its siblings: a WHOLE fixed-size unpacked array l-value
+   receiving a dynamic-array or queue r-value (IEEE 1800-2017 7.6).
+   %load/arr/dar has marshaled the other direction since M10-1; this is
+   the return trip, and it is the single instruction every legal
+   container -> fixed-array copy goes through -- the plain assignment
+   here, a struct member's assignment, and the copy-back of an
+   `inout'/`ref'/`output' open-array formal into a fixed-array actual
+   (13.5.2), which elaboration lowers to exactly this assignment. */
+static int show_stmt_assign_uarray_from_container(ivl_statement_t net,
+						  ivl_signal_t sig)
+{
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      unsigned kind;
+
+      if (!uarray_container_kind_(sig, &kind, ivl_stmt_file(net),
+				  ivl_stmt_lineno(net)))
+	    return 1;
+
+      draw_eval_object(rval);
+      note_array_signal_use(sig);
+      fprintf(vvp_out, "    %%store/arr/dar v%p, %u;\n", sig, kind);
+      return 0;
+}
+
+/* True when an r-value expression is a WHOLE container value.
+
+   ivl_expr_value() is not the test: a signal expression naming a
+   dynamic array reports its ELEMENT type (IVL_VT_LOGIC for `int da[]'),
+   because that is what a read of it usually yields. The container-ness
+   is on the signal, so ask the signal -- and only when the expression
+   carries no word index, which would make it an element read after
+   all. */
+static int rval_is_whole_container_(ivl_expr_t rv)
+{
+      ivl_type_t nt;
+
+      if (!rv)
+	    return 0;
+
+      if (ivl_expr_type(rv) == IVL_EX_SIGNAL && !ivl_expr_oper1(rv)) {
+	    ivl_signal_t rsig = ivl_expr_signal(rv);
+	    ivl_variable_type_t dt = rsig ? ivl_signal_data_type(rsig)
+					  : IVL_VT_NO_TYPE;
+	    if (rsig && ivl_signal_dimensions(rsig) == 0
+		&& (dt == IVL_VT_DARRAY || dt == IVL_VT_QUEUE))
+		  return 1;
+      }
+
+      nt = ivl_expr_net_type(rv);
+      if (nt && (ivl_type_base(nt) == IVL_VT_DARRAY
+		 || ivl_type_base(nt) == IVL_VT_QUEUE))
+	    return 1;
+
+      return 0;
+}
+
+/* True for an l-value that names a whole unpacked array -- no word
+   index, no part select, not nested inside a class object. */
+static int lval_is_whole_uarray_(ivl_lval_t lval, ivl_signal_t sig)
+{
+      if (!sig || ivl_signal_dimensions(sig) == 0)
+	    return 0;
+      if (ivl_lval_nest(lval))
+	    return 0;
+      if (ivl_lval_idx(lval))
+	    return 0;
+      if (ivl_lval_part_off(lval))
+	    return 0;
+      return 1;
+}
+
 int show_stmt_assign(ivl_statement_t net)
 {
       ivl_lval_t lval;
@@ -3122,6 +3232,15 @@ int show_stmt_assign(ivl_statement_t net)
 			return 0;
 		  }
 	    }
+      }
+
+	/* A whole fixed unpacked array receiving a container value. */
+      {
+	    ivl_expr_t rv = ivl_stmt_rval(net);
+	    if (rv && ivl_stmt_opcode(net) == 0
+		&& lval_is_whole_uarray_(lval, sig)
+		&& rval_is_whole_container_(rv))
+		  return show_stmt_assign_uarray_from_container(net, sig);
       }
 
       if (sig && (ivl_signal_data_type(sig) == IVL_VT_REAL)) {

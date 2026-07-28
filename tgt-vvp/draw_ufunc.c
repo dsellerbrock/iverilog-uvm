@@ -450,6 +450,34 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	    }
       }
 
+	/* A `ref'/`output'/`inout' open-array formal whose actual is a
+	   WHOLE fixed unpacked array. The formal holds a container and
+	   the actual holds inline words, so the copy back out is the
+	   same container -> fixed-array copy the 7.6 assignment makes;
+	   it goes through the same %store/arr/dar.
+
+	   Without this the actual was not an IVL_EX_SIGNAL, so the
+	   generic path below skipped the copy-out and warned once --
+	   after which every further such call was silent. A function
+	   that wrote through its open-array formal simply had no effect
+	   on the caller's array, which is what `sv_open_array_copy_back'
+	   pins for both the task and the function spelling. */
+      if (ivl_expr_type(actual) == IVL_EX_ARRAY
+	  && ivl_expr_signal(actual)
+	  && ivl_signal_dimensions(ivl_expr_signal(actual)) > 0
+	  && (ivl_signal_data_type(port) == IVL_VT_DARRAY
+	      || ivl_signal_data_type(port) == IVL_VT_QUEUE)) {
+	    ivl_signal_t asig = ivl_expr_signal(actual);
+	    unsigned kind;
+	    if (uarray_container_kind_(asig, &kind, ivl_expr_file(actual),
+				       ivl_expr_lineno(actual))) {
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+		  note_array_signal_use(asig);
+		  fprintf(vvp_out, "    %%store/arr/dar v%p, %u;\n", asig, kind);
+	    }
+	    return;
+      }
+
       if (!function_argument_actual_signal_(actual, &sig, &word)) {
 	    /* Phase 63b/B6: surface the file:line of the call site so
 	       users can find and rewrite affected callers.  The runtime
