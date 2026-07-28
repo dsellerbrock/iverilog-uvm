@@ -64,19 +64,33 @@ loud). Tests: `sv_whole_aggregate_value_copy`,
   three-deep container elaborated two levels and then produced **no loop
   at all** for the third — zero iterations, no diagnostic.
 
+### A finding I had to withdraw
+
+I recorded nested containers — `int d[][]`, `int m[string][]` — as an
+unparseable subsystem and filed R19 against it. That was wrong, and the
+error was mine: my probe used `foreach (m[k]) foreach (m[k][i])`, which
+is not legal SystemVerilog. `foreach` takes one bracket with a
+comma-separated variable list. The syntax error was on my `foreach`
+line, not on the declaration.
+
+Re-probed with `foreach (m[k,i])`: nested dynamic arrays, queues of
+queues and associative arrays of dynamic arrays all declare, allocate
+per level, iterate, index, and pass to open-array formals. Nothing there
+needed building. R19 is withdrawn; R24 records the withdrawal so the
+claim is not rediscovered.
+
+That re-probe did turn up one real gap, now fixed: a **queue of queues**
+was refused as an open-array actual. The outer level had a queue/darray
+passthrough, but inner levels were compared strictly, and a queue is not
+`type_compatible` with a dynamic array even though they share
+`vvp_darray` at run time.
+
 ### Next frontier
 
-**Nested dynamic arrays as declared types.** `int d[][];` still does not
-parse, so a container *of containers* cannot be declared, only received
-as an open-array formal. That is what R19 (`int m[string][]`) shares,
-and it is its own campaign — a parser, type and runtime piece, unlike
-M10-8 which turned out to be five capped loops.
-
-A recurring root cause worth carrying forward: **a signal expression's
-`net_type()` is its ELEMENT type.** Three separate defects closed this
-session were that mistake — the real-element open-array gate, and both
-multidimensional elaboration gates. Any code asking an expression
-whether it is an array should ask the SIGNAL.
+Campaign 2's acceptance criteria are all met — see the pull request for
+the evidence. The remaining severity-ordered items are R17 (`$typename`
+on a parameterized class returns a wrong string — the only *wrong value*
+left), then R18, R20, R21, R22, and the deliberately-unvalidated R23.
 
 ### Truth pass — 2026-07-28
 

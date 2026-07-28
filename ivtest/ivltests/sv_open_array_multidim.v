@@ -56,6 +56,9 @@ module main;
   int   a3[2][2][2];
   int   a4[2][2][2][2];
   int   a5[2][2][2][2][2];
+  int   nd[][];                 // a nested DYNAMIC array
+  int   qq[$][$];               // a queue of queues
+  int   am[string][];           // an associative array of dynamic arrays
 
   int fails = 0;
 
@@ -215,6 +218,32 @@ module main;
     bump4(a4);
     chk("4-D copy-back first", a4[0][0][0][0], 100);
     chk("4-D copy-back last",  a4[1][1][1][1], 115);
+
+    // ---- sibling CONTAINER spellings of the same nested shape ----
+    //
+    // An open-array formal does not care which spelling it was given:
+    // a queue and a dynamic array share vvp_darray at run time. The
+    // outer level already had a queue/darray passthrough, but the
+    // check compared INNER levels strictly, so a queue of queues was
+    // refused with "the type of the variable 'qq' doesn't match the
+    // context type" while the identical nested dynamic array was
+    // accepted.
+    nd = new[2];
+    foreach (nd[i]) nd[i] = new[3];
+    foreach (nd[i,j]) nd[i][j] = i*3 + j;
+    qq = '{'{0,1,2}, '{3,4,5}};
+    am["x"] = new[3];
+    for (int i = 0; i < 3; i++) am["x"][i] = i;
+
+    chk("nested dynamic array -> open", sum2(nd), 15);
+    chk("queue of queues      -> open", sum2(qq), 15);
+
+    bump2(nd);
+    chk("nested dynamic array copy-back", nd[1][2], 105);
+    bump2(qq);
+    chk("queue of queues copy-back",      qq[1][2], 105);
+
+    chk("assoc of dynamic arrays, element", am["x"][2], 2);
 
     if (fails == 0) $display("PASSED");
     else            $display("FAILED (%0d)", fails);

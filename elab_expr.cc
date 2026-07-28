@@ -11811,6 +11811,43 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				      return tmp;
 				}
 			  }
+
+			    /* A NESTED CONTAINER actual for a nested
+			       open-array formal -- `int qq[$][$]' passed
+			       to `int q[][]'. A queue and a dynamic array
+			       are not type_compatible with each other, so
+			       the check failed at the INNER level even
+			       though the outer one already had a
+			       queue/darray passthrough. They share
+			       vvp_darray at run time and an open formal
+			       does not care which spelling it was given,
+			       so walk the levels treating the two as
+			       equivalent and compare the leaf. */
+			  if (const netdarray_t*act_da =
+				    dynamic_cast<const netdarray_t*>(net->net_type())) {
+				const netdarray_t*wl = want_da;
+				const netdarray_t*al = act_da;
+				while (wl && al) {
+				      const netdarray_t*wn =
+					    dynamic_cast<const netdarray_t*>
+						  (wl->element_type());
+				      const netdarray_t*an =
+					    dynamic_cast<const netdarray_t*>
+						  (al->element_type());
+				      if (!wn || !an)
+					    break;
+				      wl = wn;
+				      al = an;
+				}
+				if (wl && al && wl->element_type()
+				    && al->element_type()
+				    && wl->element_type()->type_equivalent(
+					  al->element_type())) {
+				      NetESignal*tmp = new NetESignal(net);
+				      tmp->set_line(*this);
+				      return tmp;
+				}
+			  }
 		    }
 
 		    if (const netuarray_t*want_ua =
