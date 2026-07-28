@@ -534,7 +534,7 @@ escape4b		normal			ivltests
 event2			normal			ivltests
 event3			normal			ivltests gold=event3.gold
 event3.15		normal			ivltests # Validate event lists, and -> operator.
-event_array		CE			ivltests
+event_array		normal			ivltests
 event_list		normal			ivltests # Contrib by S Williams
 event_list2		normal			ivltests # Contrib by S Williams
 event_list3		normal			ivltests gold=event_list3.gold
