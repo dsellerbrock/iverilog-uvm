@@ -8922,25 +8922,33 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		 formal, because the copy-out is generated from the port
 		 DIRECTION alone. Shapes the instruction cannot express
 		 are refused here, where the l-value is still readable,
-		 instead of aborting there. */
+		 instead of aborting there.
+
+		 A destination that is a class property or struct member
+		 is NOT this case: the member slot is reached by
+		 %store/prop/arr/dar, which has handled it -- including
+		 multidimensional members -- since the property work.
+		 Only a plain word-array SIGNAL had no instruction, so
+		 only that is taken over here. */
 	    if (const netuarray_t*lv_ua =
 		      dynamic_cast<const netuarray_t*>(lv->net_type())) {
 		  ivl_variable_type_t src_vt = copy_src->data_type();
-		  if (src_vt == IVL_VT_DARRAY || src_vt == IVL_VT_QUEUE) {
+		  bool plain_signal_dst = (lv->get_property_idx() < 0)
+			&& (lv->more == 0) && !lv->word() && lv->sig();
+		  if (plain_signal_dst
+		      && (src_vt == IVL_VT_DARRAY || src_vt == IVL_VT_QUEUE)) {
 			const netdarray_t*src_da =
 			      dynamic_cast<const netdarray_t*>(copy_src->net_type());
-			bool simple_dst = !lv->word() && (lv->more == 0)
-			      && (lv_ua->static_dimensions().size() == 1);
-			if (!simple_dst
+			if (lv_ua->static_dimensions().size() != 1
 			    || !uarray_element_matches_container_(lv_ua, src_da)) {
 			      cerr << get_fileline() << ": sorry: "
 				   << "Cannot copy subroutine port " << (idx+1)
 				   << " back into '" << lv->name()
 				   << "': copy-back from an open-array formal "
-				   << "is supported for a one-dimensional "
-				   << "unpacked array actual with an "
-				   << "assignment-compatible element type."
-				   << endl;
+				   << "into a plain array variable is "
+				   << "supported for a one-dimensional actual "
+				   << "with an assignment-compatible element "
+				   << "type." << endl;
 			      des->errors += 1;
 			      delete lv;
 			      continue;
