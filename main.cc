@@ -111,12 +111,17 @@ bool gn_cadence_types_flag = true;
 bool gn_specify_blocks_flag = true;
 bool gn_interconnect_flag = true;
 bool gn_supported_assertions_flag = true;
-// iverilog-uvm: default unsupported-assertions to false so concurrent
-// assertions parse as silent no-ops instead of erroring out. SVA modules
-// (tlul_assert, prim_assert) are typically gated out via SYNTHESIS but
-// some testbenches still embed `assert property(@(posedge clk) a |-> b)`
-// inline. Re-enable with -gunsupported-assertions if you want errors.
-bool gn_unsupported_assertions_flag = false;
+// iverilog-uvm: this default was once flipped to false so concurrent
+// assertions would parse as silent no-ops. That rationale is obsolete:
+// the M9 engine implements concurrent assertions (they never reach the
+// unsupported branch while gn_supported_assertions_flag is set), and
+// with the flag false the only remaining consumers -- DEFERRED immediate
+// assertions (assert/assume #0 / final, IEEE 1800-2017 16.4), which are
+// NOT implemented -- were being deleted from the design SILENTLY.
+// Upstream's default (true) makes that a loud sorry again; R29 tracks
+// the real implementation. -gno-assertions still opts out of the
+// message (and of assertions altogether).
+bool gn_unsupported_assertions_flag = true;
 bool gn_io_range_error_flag = true;
 bool gn_strict_ca_eval_flag = false;
 bool gn_strict_expr_width_flag = false;

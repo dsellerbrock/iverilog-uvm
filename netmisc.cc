@@ -848,7 +848,50 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  // Those exceptions take the hard error below.
 		  bool null_to_logic = dynamic_cast<const PENull*>(pe)
 			&& cast_type == IVL_VT_LOGIC;
-		  if (!need_const && !null_to_logic
+		  //  - a class `new`/`new copy` r-value ALWAYS produces a
+		  //    class object (IEEE 1800-2017 8.7), so a 2-state
+		  //    (int/bit/chandle), real or string target is the
+		  //    always-illegal `i = new;' (sv_class_new_fail1) --
+		  //    substituting a default value miscompiled it silently.
+		  //    A 4-state LOGIC target is NOT safely distinguishable:
+		  //    a class variable whose declared type is a
+		  //    forward-referenced class name collapses to implicit
+		  //    logic (e.g. `uvm_table_printer
+		  //    uvm_default_table_printer;' before uvm_printer.svh is
+		  //    seen -- the "UVM printer globals" of audit Part 10),
+		  //    and `top = new();' on it must keep compiling. That
+		  //    case degrades to a LOUD warning and a null stub
+		  //    below instead of a silent const-0.
+		  bool is_class_new = dynamic_cast<const PENewClass*>(pe)
+			|| dynamic_cast<const PENewCopy*>(pe);
+		  //    Inside a class scope the target may be typed by a
+		  //    type PARAMETER whose default (`type T1=int' in
+		  //    uvm_pair) elaborates the template body with a 2-state
+		  //    type even though every real specialization is a
+		  //    class; same scope test the virtual-class `new'
+		  //    degrade above this file already uses.
+		  bool in_class_scope = false;
+		  if (is_class_new) {
+			for (NetScope*sc = scope ; sc ; sc = sc->parent()) {
+			      if (sc->type() == NetScope::CLASS || sc->class_def()) {
+				    in_class_scope = true;
+				    break;
+			      }
+			}
+		  }
+		  bool class_new_hard_error = is_class_new
+			&& cast_type != IVL_VT_LOGIC
+			&& !in_class_scope;
+		  if (is_class_new && !class_new_hard_error) {
+			cerr << pe->get_fileline() << ": warning: 'new' into a "
+			     << "4-state l-value: treating the target as a "
+			     << "class variable whose type did not resolve "
+			     << "(compile-progress); degrading to null." << endl;
+			NetENull*tmp = new NetENull;
+			tmp->set_line(*pe);
+			return tmp;
+		  }
+		  if (!need_const && !null_to_logic && !class_new_hard_error
 		      && !dynamic_cast<const PEBinary*>(pe)
 		      && !dynamic_cast<const PEUnary*>(pe)) {
 			if (cast_type == IVL_VT_BOOL || cast_type == IVL_VT_LOGIC) {
@@ -878,8 +921,13 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			tmp->set_line(*pe);
 			return tmp;
 		  }
-		  cerr << pe->get_fileline() << ": Error: "
-		       << "Class/null r-value not allowed in this context." << endl;
+		  if (class_new_hard_error)
+			cerr << pe->get_fileline() << ": error: "
+			     << "The 'new' operator requires a class-typed "
+			     << "l-value (IEEE 1800-2017 8.7)." << endl;
+		  else
+			cerr << pe->get_fileline() << ": Error: "
+			     << "Class/null r-value not allowed in this context." << endl;
 		  des->errors += 1;
 		  return 0;
 	    }

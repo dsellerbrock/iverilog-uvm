@@ -8989,46 +8989,28 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 
 	      if (missing_parms > 0) {
 		  if (gn_system_verilog()) {
-			// Compile-progress fallback: synthesize typed default
-			// expressions for unresolved/missing arguments.
+			// IEEE 1800-2017 13.5.3: an actual argument may only
+			// be omitted when the corresponding formal declares a
+			// default value. The formals reaching here have none
+			// (the port_defe branch above already bound every
+			// default), so this is an error. This used to be a
+			// compile-progress fallback that silently synthesized
+			// typed zero/null values -- which miscompiled
+			// `f( , 3)' against a defaultless formal
+			// (func_empty_arg_fail4) into a real call.
 			for (unsigned idx = 0 ; idx < parm_count ; idx += 1) {
 			      const unsigned pidx = idx + parm_off;
 			      if (parms[pidx] != 0)
 				    continue;
-			      NetExpr*fallback = nullptr;
-			      ivl_type_t ptype = def->port(pidx)->net_type();
-			      if (ptype) {
-				    switch (ptype->base_type()) {
-					case IVL_VT_REAL:
-					  fallback = new NetECReal(verireal(0.0));
-					  break;
-					case IVL_VT_STRING:
-					  fallback = new NetECString(string());
-					  break;
-					case IVL_VT_CLASS:
-					case IVL_VT_DARRAY:
-					case IVL_VT_QUEUE:
-					case IVL_VT_NO_TYPE: {
-					  NetENull*tmp = new NetENull;
-					  tmp->set_line(*this);
-					  fallback = tmp;
-					  break;
-					}
-					default: {
-					  long pw = ptype->packed_width();
-					  if (pw <= 0)
-						pw = integer_width;
-					  fallback = new NetEConst(verinum((uint64_t)0, (unsigned)pw));
-					  break;
-					}
-				    }
-			      } else {
-				    fallback = new NetEConst(verinum((uint64_t)0, integer_width));
-			      }
-			      fallback->set_line(*this);
-			      parms[pidx] = fallback;
+			      cerr << get_fileline() << ": error: Missing/empty "
+				   << "argument " << (idx+1) << " ('"
+				   << def->port(pidx)->name()
+				   << "') in call to function " << path_
+				   << ": the formal has no default value "
+				   << "(IEEE 1800-2017 13.5.3)." << endl;
+			      parm_errors += 1;
+			      des->errors += 1;
 			}
-			missing_parms = 0;
 		  } else {
 			cerr << get_fileline() << ": error: The function " << path_
 			     << " has been called with missing/empty parameters." << endl;

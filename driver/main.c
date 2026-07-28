@@ -143,10 +143,15 @@ char depmode = 'a';
 const char*generation = "2005";
 const char*gen_specify = "no-specify";
 const char*gen_interconnect = "no-interconnect";
-// iverilog-uvm: default to "supported-assertions" so unsupported
-// concurrent assertions parse as silent no-ops instead of erroring.
-// Pass `-gassertions` to restore strict behavior.
-const char*gen_assertions = "supported-assertions";
+// iverilog-uvm: this default was once "supported-assertions" so
+// unsupported concurrent assertions would parse as silent no-ops. The
+// M9 engine implements concurrent assertions, so the only constructs
+// that branch still swallowed were DEFERRED immediate assertions
+// (assert/assume #0 / final, IEEE 1800-2017 16.4) -- deleted from the
+// design SILENTLY. Upstream's default ("assertions") makes that a loud
+// sorry again; R29 tracks the real implementation.
+// -gsupported-assertions / -gno-assertions restore the quiet modes.
+const char*gen_assertions = "assertions";
 const char*gen_xtypes = "xtypes";
 const char*gen_icarus = "icarus-misc";
 const char*gen_io_range_error = "io-range-error";
