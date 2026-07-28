@@ -2712,6 +2712,7 @@ void dll_target::signal(const NetNet*net)
       obj->discipline = net->get_discipline();
 
       obj->array_dimensions_ = net->unpacked_dimensions();
+      obj->unpacked_dims = net->unpacked_dims();
 
       switch (net->port_type()) {
 

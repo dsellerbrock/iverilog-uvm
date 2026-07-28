@@ -1156,6 +1156,25 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 						      (esig->sig()->array_type());
 			      }
 			}
+			  /* A MULTI-dimensional actual for a nested open
+			     formal (`int m[2][3]' for `int q[][]'). The
+			     element types to compare are the LEAF of the
+			     actual against the innermost element of the
+			     formal, one unwrap per dimension. */
+			if (fixed_actual
+			    && fixed_actual->static_dimensions().size() > 1) {
+			      const netdarray_t*inner = formal_array;
+			      size_t levels =
+				    fixed_actual->static_dimensions().size();
+			      for (size_t lv = 1 ; lv < levels && inner ; lv += 1)
+				    inner = dynamic_cast<const netdarray_t*>
+					  (inner->element_type());
+			      if (inner && inner->element_type()
+				  && fixed_actual->element_type()
+				  && inner->element_type()->type_equivalent(
+					fixed_actual->element_type()))
+				    return tmp;
+			}
 			if (fixed_actual
 			    && formal_array->element_type()
 			    && fixed_actual->element_type()

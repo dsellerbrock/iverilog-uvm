@@ -3134,6 +3134,25 @@ int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
       return 1;
 }
 
+/* Emit the container -> fixed-array store for one signal. A
+   multi-dimensional destination is stored as one flat word array, so
+   the declared shape has to be handed over separately before the
+   nesting form of the instruction can walk the container back. */
+void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind)
+{
+      if (ivl_signal_dimensions(sig) > 1) {
+	    unsigned dim;
+	    for (dim = 0 ; dim < ivl_signal_dimensions(sig) ; dim += 1)
+		  fprintf(vvp_out, "    %%dim/push %d, %d;\n",
+			  ivl_signal_array_dim_msb(sig, dim),
+			  ivl_signal_array_dim_lsb(sig, dim));
+	    fprintf(vvp_out, "    %%store/arr/dar/md v%p, %u;\n", sig, kind);
+	    return;
+      }
+
+      fprintf(vvp_out, "    %%store/arr/dar v%p, %u;\n", sig, kind);
+}
+
 /* `fa = da' and its siblings: a WHOLE fixed-size unpacked array l-value
    receiving a dynamic-array or queue r-value (IEEE 1800-2017 7.6).
    %load/arr/dar has marshaled the other direction since M10-1; this is
@@ -3154,7 +3173,7 @@ static int show_stmt_assign_uarray_from_container(ivl_statement_t net,
 
       draw_eval_object(rval);
       note_array_signal_use(sig);
-      fprintf(vvp_out, "    %%store/arr/dar v%p, %u;\n", sig, kind);
+      emit_store_arr_dar_(sig, kind);
       return 0;
 }
 

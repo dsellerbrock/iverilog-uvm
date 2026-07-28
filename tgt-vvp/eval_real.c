@@ -305,12 +305,28 @@ static void draw_select_real(ivl_expr_t expr)
 	/* This is the select expression */
       ivl_expr_t shift= ivl_expr_oper2(expr);
 
-      if (expr_is_queue_container_(sube) &&
-          ivl_expr_type(sube) != IVL_EX_SIGNAL) {
-	    draw_eval_object(sube);
-	    draw_eval_expr_into_integer(shift, 3);
-	    fprintf(vvp_out, "    %%load/qo/r;\n");
-	    return;
+	/* A container that is not a bare signal: the value to select
+	   from has to be evaluated onto the object stack first. This
+	   covers a queue, and also the INNER level of a nested
+	   container -- `q[i][j]' for a real `q[][]', where `q[i]' is a
+	   select yielding a darray. Only the queue spelling used to be
+	   recognised, so a nested real read fell through to the
+	   bare-signal path below and aborted ivl on its
+	   ivl_expr_signal() assert. vvp_darray backs both, so one
+	   %load/qo/r serves both. */
+      {
+	    ivl_type_t sube_type = sube ? ivl_expr_net_type(sube) : 0;
+	    int sube_is_container =
+		  expr_is_queue_container_(sube)
+		  || (sube_type && ivl_type_base(sube_type) == IVL_VT_DARRAY)
+		  || (sube && ivl_expr_value(sube) == IVL_VT_DARRAY);
+
+	    if (sube_is_container && ivl_expr_type(sube) != IVL_EX_SIGNAL) {
+		  draw_eval_object(sube);
+		  draw_eval_expr_into_integer(shift, 3);
+		  fprintf(vvp_out, "    %%load/qo/r;\n");
+		  return;
+	    }
       }
 
 	/* Assume the sub-expression is a signal */

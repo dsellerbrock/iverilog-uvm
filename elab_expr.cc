@@ -11785,6 +11785,34 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 			 values, so this is a copy, not a type error. The
 			 element counts can only be compared at run time
 			 for a dynamic source; %store/arr/dar does that. */
+		      /* A MULTI-dimensional fixed array read in the
+			 context of a nested open-array formal
+			 (`int m[2][3]' for `int q[][]'). As above, the
+			 array type is on the SIGNAL -- net_type() gives
+			 the element type -- which is why this context
+			 check never saw it either. */
+		    if (const netdarray_t*want_da =
+			      dynamic_cast<const netdarray_t*>(ntype)) {
+			  const netuarray_t*act_ua =
+				dynamic_cast<const netuarray_t*>(net->array_type());
+			  if (act_ua && act_ua->static_dimensions().size() > 1) {
+				const netdarray_t*inner = want_da;
+				size_t levels =
+				      act_ua->static_dimensions().size();
+				for (size_t lv = 1 ; lv < levels && inner ; lv += 1)
+				      inner = dynamic_cast<const netdarray_t*>
+					    (inner->element_type());
+				if (inner && inner->element_type()
+				    && act_ua->element_type()
+				    && inner->element_type()->type_equivalent(
+					  act_ua->element_type())) {
+				      NetESignal*tmp = new NetESignal(net);
+				      tmp->set_line(*this);
+				      return tmp;
+				}
+			  }
+		    }
+
 		    if (const netuarray_t*want_ua =
 			      dynamic_cast<const netuarray_t*>(ntype)) {
 			  const netdarray_t*have_da =
@@ -14584,23 +14612,67 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	    ivl_type_t elem_type = darray
 		  ? darray->element_type()
 		  : queue ? queue->element_type() : 0;
-	    unsigned elem_width = darray
-		  ? darray->element_width()
-		  : queue ? queue->element_width() : 0;
 
-	      // Elaborate the first index as the element access.
-	    const index_component_t&elem_index = path_.back().index.front();
-	    NetExpr*elem_mux = elab_and_eval(des, scope, elem_index.msb,
-					     -1, need_const);
-	    if (!elem_mux) {
-		  delete node;
+	      // Walk ONE container level per index, for as many levels as
+	      // the type actually has.
+	      //
+	      // This used to elaborate index.front() as the element access
+	      // and then index.back() as a select on it, which is right for
+	      // exactly two indices and silently WRONG for three or more:
+	      // every index in between was dropped, so `q[i][j][k]' on a
+	      // three-level container read `q[i][j]' -- a whole inner array
+	      // where an element was asked for, with no diagnostic. The
+	      // property path already walked its indices properly
+	      // (apply_trailing_property_indices); this is the signal-side
+	      // equivalent, and it is what lets an unpacked array of any
+	      // legal dimensionality be used as an open-array actual.
+	    NetExpr*cur_sel = node;
+	    ivl_type_t cur_type = elem_type;
+	    auto idx_it = path_.back().index.begin();
+	    {
+		  const netarray_t*level = darray
+			? (const netarray_t*)darray : (const netarray_t*)queue;
+		  while (level && idx_it != path_.back().index.end()) {
+			ivl_type_t et = level->element_type();
+			unsigned ew = 1;
+			if (const netdarray_t*da =
+				  dynamic_cast<const netdarray_t*>(level))
+			      ew = da->element_width();
+			if (ew == 0)
+			      ew = 1;
+
+			NetExpr*mux = elab_and_eval(des, scope, idx_it->msb,
+						    -1, need_const);
+			if (!mux) {
+			      delete cur_sel;
+			      return 0;
+			}
+
+			NetESelect*sel = et
+			      ? new NetESelect(cur_sel, mux, ew, et)
+			      : new NetESelect(cur_sel, mux, ew);
+			sel->set_line(*this);
+			cur_sel = sel;
+			cur_type = et;
+			++idx_it;
+
+			  // Only a further CONTAINER level consumes another
+			  // index; anything else leaves the remaining
+			  // indices to the packed-select handling below.
+			level = dynamic_cast<const netdarray_t*>(et);
+		  }
+	    }
+
+	    NetESelect*elem_sel = dynamic_cast<NetESelect*>(cur_sel);
+	    elem_type = cur_type;
+	    if (!elem_sel) {
+		  delete cur_sel;
 		  return 0;
 	    }
 
-	    NetESelect*elem_sel = elem_type
-		  ? new NetESelect(node, elem_mux, elem_width, elem_type)
-		  : new NetESelect(node, elem_mux, elem_width);
-	    elem_sel->set_line(*this);
+	      // Every index consumed: this is the element itself.
+	    if (idx_it == path_.back().index.end())
+		  return elem_sel;
 
 	      // Packed-vector element: the remaining indices are a canonical
 	      // bit/part/indexed select of the element value (11.5.1). The old
@@ -14609,8 +14681,7 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	    if (const netvector_t*evec =
 		    dynamic_cast<const netvector_t*>(elem_type)) {
 		  std::list<index_component_t> rest(
-			std::next(path_.back().index.begin()),
-			path_.back().index.end());
+			idx_it, path_.back().index.end());
 		  ivl_type_t sel_res = nullptr;
 		  NetExpr*vsel = make_vector_property_select_(des, scope, this,
 							      elem_sel, evec,

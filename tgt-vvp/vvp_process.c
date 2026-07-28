@@ -3467,10 +3467,17 @@ static int show_system_task_call(ivl_statement_t net)
        * through %store/qo/i (receiver popped). */
       if (strcmp(stmt_name, "$ivl_assoc$store2") == 0) {
 	    if (ivl_stmt_parm_count(net) < 4) return 0;
+	      /* [outer, k1, k2, ... kN, value]: every key but the last
+		 navigates one container level, the last one is the store
+		 index. Two keys was the only shape this used to accept;
+		 the count is now whatever the front end passed, so a
+		 container of any legal depth stores through here. */
+	    unsigned nparm_ = ivl_stmt_parm_count(net);
+	    unsigned nkeys_ = (nparm_ >= 3) ? (nparm_ - 2) : 0;
 	    ivl_expr_t outer_arg = ivl_stmt_parm(net, 0);
 	    ivl_expr_t k1 = ivl_stmt_parm(net, 1);
-	    ivl_expr_t k2 = ivl_stmt_parm(net, 2);
-	    ivl_expr_t val = ivl_stmt_parm(net, 3);
+	    ivl_expr_t k2 = ivl_stmt_parm(net, nkeys_);
+	    ivl_expr_t val = ivl_stmt_parm(net, nparm_ - 1);
 	    ivl_signal_t outer_sig =
 		  (outer_arg && (ivl_expr_type(outer_arg) == IVL_EX_SIGNAL))
 			? ivl_expr_signal(outer_arg) : 0;
@@ -3492,7 +3499,20 @@ static int show_system_task_call(ivl_statement_t net)
 	    ivl_type_t outer_type = outer_sig
 		  ? ivl_signal_net_type(outer_sig)
 		  : ivl_expr_net_type(outer_arg);
-	    ivl_type_t inner_type = outer_type ? ivl_type_element(outer_type) : 0;
+	      /* The container that RECEIVES the value is nkeys_-1 levels
+		 below the outer one, not always exactly one. Walking only
+		 one level made a deeper store take the value kind of an
+		 intermediate container -- an object rather than a vector --
+		 so the value was evaluated with draw_eval_object and the
+		 store wrote a null. */
+	    ivl_type_t inner_type = outer_type;
+	    {
+		  unsigned lv_;
+		  for (lv_ = 1 ; lv_ < nkeys_ && inner_type ; lv_ += 1)
+			inner_type = ivl_type_element(inner_type);
+	    }
+	    if (inner_type == outer_type)
+		  inner_type = outer_type ? ivl_type_element(outer_type) : 0;
 	    if (inner_type) {
 		  int is_assoc = ivl_type_base(inner_type) == IVL_VT_QUEUE
 			&& ivl_type_queue_assoc_compat(inner_type);
@@ -3544,6 +3564,17 @@ static int show_system_task_call(ivl_statement_t net)
 			draw_eval_object(outer_arg);
 			draw_eval_expr_into_integer(k1, 3);
 			fprintf(vvp_out, "    %%load/qo/obj;\n");
+		  }
+
+		    /* Any further navigation keys walk down from the
+		       handle now on the object stack. */
+		  {
+			unsigned ki_;
+			for (ki_ = 2 ; ki_ < nkeys_ ; ki_ += 1) {
+			      draw_eval_expr_into_integer(
+				    ivl_stmt_parm(net, ki_), 3);
+			      fprintf(vvp_out, "    %%load/qo/obj;\n");
+			}
 		  }
 	    }
 

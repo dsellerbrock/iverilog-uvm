@@ -776,13 +776,21 @@ struct ivl_signal_s {
 
       unsigned forced_net_ : 1;
 
-	/* For now, support only 0 or 1 array dimensions. */
       unsigned array_dimensions_ : 8;
       unsigned array_addr_swapped : 1;
 
 	/* These encode the declared packed dimensions for the
 	   signal, in case they are needed by the run-time */
       netranges_t packed_dims;
+
+	/* The declared UNPACKED dimensions, all of them. array_base
+	   and array_words describe the flat word array a signal is
+	   stored as, which is all a one-dimensional signal needs; a
+	   multi-dimensional one also has to be able to say what shape
+	   that flat storage is declared to have -- an open-array
+	   formal is nested, and its per-dimension bounds are what
+	   svLow/svHigh report (H.10.2). */
+      netranges_t unpacked_dims;
 
       perm_string name_;
       ivl_scope_t scope_;

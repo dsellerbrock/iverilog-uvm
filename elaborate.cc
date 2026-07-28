@@ -4227,7 +4227,7 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
       if (gn_system_verilog() && delay_ == 0 && event_ == 0 && count_ == 0) {
 	    const PEIdent*id_lval = dynamic_cast<const PEIdent*>(lval());
 	    if (id_lval && id_lval->path().size() >= 1
-		&& id_lval->path().back().index.size() == 2) {
+		&& id_lval->path().back().index.size() >= 2) {
 		  symbol_search_results sr;
 		  bool found = symbol_search(this, des, scope, id_lval->path(),
 					     id_lval->lexical_pos(), &sr);
@@ -4259,7 +4259,7 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			const netclass_t*cls =
 			      dynamic_cast<const netclass_t*>(sr.net->net_type());
 			const name_component_t&pc = sr.path_tail.front();
-			if (cls && pc.index.size() == 2) {
+			if (cls && pc.index.size() >= 2) {
 			      int pidx = cls->property_idx_from_name(pc.name);
 			      if (pidx >= 0) {
 				    outer = dynamic_cast<const netdarray_t*>(
@@ -4295,48 +4295,77 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			}
 		  }
 
-		  const netdarray_t*inner = outer
-			? dynamic_cast<const netdarray_t*>(outer->element_type())
-			: 0;
+		    /* Walk ONE container level per index. All but the
+		       last index navigate down to the container that
+		       finally receives the value; the last one is the
+		       store index. This used to take index.front() and
+		       index.back() and nothing else, which is right for
+		       exactly two indices and refused everything deeper
+		       -- `q[i][j][k] = v' on a three-level container hit
+		       "Only single-dimension darray index selects are
+		       supported in this l-value form". */
 		  const name_component_t&tail = id_lval->path().back();
-		  const index_component_t&i1 = tail.index.front();
-		  const index_component_t&i2 = tail.index.back();
-		  if (outer_e && inner
-		      && i1.sel == index_component_t::SEL_BIT
-		      && i1.msb && !i1.lsb
-		      && i2.sel == index_component_t::SEL_BIT
-		      && i2.msb && !i2.lsb) {
-			NetExpr*k1 = elab_and_eval(des, scope, i1.msb, -1, false);
-			NetExpr*k2 = elab_and_eval(des, scope, i2.msb, -1, false);
-			ivl_type_t val_type = inner->element_type();
-			unsigned val_wid = 0;
-			if (val_type) {
-			      long pw = val_type->packed_width();
-			      val_wid = (pw > 0) ? (unsigned)pw : 1;
+		  const netdarray_t*level = outer;
+		  bool shape_ok = (outer_e != 0) && (level != 0);
+		  vector<NetExpr*> keys;
+		  ivl_type_t val_type = 0;
+
+		  if (shape_ok) {
+			size_t nkeys = tail.index.size();
+			size_t kn = 0;
+			for (auto ii = tail.index.begin()
+				   ; ii != tail.index.end() ; ++ii, ++kn) {
+			      if (ii->sel != index_component_t::SEL_BIT
+				  || !ii->msb || ii->lsb) {
+				    shape_ok = false;
+				    break;
+			      }
+				/* Every key but the last must land on a
+				   further container level. */
+			      if (kn + 1 < nkeys) {
+				    const netdarray_t*next =
+					  dynamic_cast<const netdarray_t*>
+						(level->element_type());
+				    if (!next) { shape_ok = false; break; }
+				    level = next;
+			      }
+			      NetExpr*k = elab_and_eval(des, scope,
+							ii->msb, -1, false);
+			      if (!k) { shape_ok = false; break; }
+			      keys.push_back(k);
 			}
-			NetExpr*val = val_type
-			      ? elaborate_rval_expr(des, scope, val_type,
-						    val_type->base_type(),
-						    val_wid, rval())
-			      : 0;
-			if (k1 && k2 && val) {
-			      vector<NetExpr*> argv(4);
-			      argv[0] = outer_e;
-			      argv[1] = k1;
-			      argv[2] = k2;
-			      argv[3] = val;
+			if (shape_ok)
+			      val_type = level->element_type();
+		  }
+
+		  if (shape_ok && val_type) {
+			unsigned val_wid = 0;
+			long pw = val_type->packed_width();
+			val_wid = (pw > 0) ? (unsigned)pw : 1;
+			NetExpr*val = elaborate_rval_expr(des, scope, val_type,
+							  val_type->base_type(),
+							  val_wid, rval());
+			if (val) {
+			      vector<NetExpr*> argv;
+			      argv.push_back(outer_e);
+			      for (size_t ki = 0 ; ki < keys.size() ; ki += 1)
+				    argv.push_back(keys[ki]);
+			      argv.push_back(val);
 			      NetSTask*sys = new NetSTask(
 				    "$ivl_assoc$store2",
 				    IVL_SFUNC_AS_TASK_IGNORE, argv);
 			      sys->set_line(*this);
 			      return sys;
 			}
-			delete k1;
-			delete k2;
-			delete val;
+			shape_ok = false;
 		  }
-		  if (outer_e && !inner)
-			delete outer_e;
+
+		  if (!shape_ok) {
+			for (size_t ki = 0 ; ki < keys.size() ; ki += 1)
+			      delete keys[ki];
+			if (outer_e)
+			      delete outer_e;
+		  }
 	    }
       }
 
@@ -8939,7 +8968,15 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		      && (src_vt == IVL_VT_DARRAY || src_vt == IVL_VT_QUEUE)) {
 			const netdarray_t*src_da =
 			      dynamic_cast<const netdarray_t*>(copy_src->net_type());
-			if (lv_ua->static_dimensions().size() != 1
+			  /* A multi-dimensional actual is copied back
+			     from a NESTED formal, one container level
+			     per declared dimension, so unwrap to the
+			     leaf before comparing element types. */
+			size_t levels = lv_ua->static_dimensions().size();
+			for (size_t lv = 1 ; lv < levels && src_da ; lv += 1)
+			      src_da = dynamic_cast<const netdarray_t*>
+				    (src_da->element_type());
+			if (levels < 1
 			    || !uarray_element_matches_container_(lv_ua, src_da)) {
 			      cerr << get_fileline() << ": sorry: "
 				   << "Cannot copy subroutine port " << (idx+1)

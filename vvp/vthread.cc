@@ -229,6 +229,15 @@ struct vthread_s {
 	// stack_obj_[].  Used by %ret/obj and %retload/obj.
       vector<unsigned> args_obj;
 
+	// Declared unpacked bounds accumulated by %dim/push, consumed
+	// by the next %load/arr/dar/md or %store/arr/dar/md. A signal
+	// is stored as ONE flat word array whatever its declared
+	// dimensionality, so the shape has to be handed to the
+	// instruction separately -- and it cannot ride in an operand,
+	// because vvp_code_s keeps `array' and `text' in one union and
+	// the array pointer already occupies it.
+      vector<pair<int,int> > dim_stack;
+
     private:
       vector<vvp_vector4_t>stack_vec4_;
     public:
@@ -13513,6 +13522,38 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
 # define ARRDAR_DESC(k)   (((k) >> 10) & 1u)
 # define ARRDAR_OBJ(k)    (((k) >> 11) & 1u)
 
+/* Build one LEAF container of `count' elements for a packed element
+   descriptor. Shared by the flat and the multi-dimensional marshalers
+   so the two cannot drift on element representation. */
+static vvp_darray* arrdar_leaf_(uint32_t kind, size_t count)
+{
+      unsigned wid = ARRDAR_WIDTH(kind);
+      bool is_signed = ARRDAR_SIGNED(kind) != 0;
+
+      if (ARRDAR_OBJ(kind))
+	      /* Class-handle elements: the words are handles, copied by
+		 reference exactly as an element-wise assignment would. */
+	    return new vvp_darray_object(count);
+      if (kind == ARRDAR_REAL)
+	    return new vvp_darray_real(count);
+      if (ARRDAR_FOUR(kind))
+	    return new vvp_darray_vec4(count, wid ? wid : 1);
+      if (wid <= 8)
+	    return is_signed ? (vvp_darray*)new vvp_darray_atom<int8_t>(count)
+			     : (vvp_darray*)new vvp_darray_atom<uint8_t>(count);
+      if (wid <= 16)
+	    return is_signed ? (vvp_darray*)new vvp_darray_atom<int16_t>(count)
+			     : (vvp_darray*)new vvp_darray_atom<uint16_t>(count);
+      if (wid <= 32)
+	    return is_signed ? (vvp_darray*)new vvp_darray_atom<int32_t>(count)
+			     : (vvp_darray*)new vvp_darray_atom<uint32_t>(count);
+      if (wid <= 64)
+	    return is_signed ? (vvp_darray*)new vvp_darray_atom<int64_t>(count)
+			     : (vvp_darray*)new vvp_darray_atom<uint64_t>(count);
+	/* Wider than an atom: keep the value rather than truncate. */
+      return new vvp_darray_vec4(count, wid);
+}
+
 bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
 {
       vvp_array_t array = resolve_runtime_array_(cp, "%load/arr/dar");
@@ -13524,34 +13565,8 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
       }
 
       size_t count = array->get_size();
-      unsigned wid = ARRDAR_WIDTH(kind);
       bool is_real = (kind == ARRDAR_REAL);
-      bool is_signed = ARRDAR_SIGNED(kind) != 0;
-      vvp_object_t obj;
-
-      if (ARRDAR_OBJ(kind))
-	      /* Class-handle elements: the words are handles, copied by
-		 reference exactly as an element-wise assignment would. */
-	    obj = new vvp_darray_object(count);
-      else if (is_real)
-	    obj = new vvp_darray_real(count);
-      else if (ARRDAR_FOUR(kind))
-	    obj = new vvp_darray_vec4(count, wid ? wid : 1);
-      else if (wid <= 8)
-	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int8_t>(count)
-			    : (vvp_object*)new vvp_darray_atom<uint8_t>(count);
-      else if (wid <= 16)
-	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int16_t>(count)
-			    : (vvp_object*)new vvp_darray_atom<uint16_t>(count);
-      else if (wid <= 32)
-	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int32_t>(count)
-			    : (vvp_object*)new vvp_darray_atom<uint32_t>(count);
-      else if (wid <= 64)
-	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int64_t>(count)
-			    : (vvp_object*)new vvp_darray_atom<uint64_t>(count);
-      else
-	      /* Wider than an atom: keep the value rather than truncate. */
-	    obj = new vvp_darray_vec4(count, wid);
+      vvp_object_t obj = vvp_object_t(arrdar_leaf_(kind, count));
 
       vvp_darray*dar = obj.peek<vvp_darray>();
       for (size_t idx = 0 ; dar && idx < count ; idx += 1) {
@@ -13645,6 +13660,181 @@ bool of_STORE_ARR_DAR(vthread_t thr, vvp_code_t cp)
 	    }
       }
 
+      return true;
+}
+
+/*
+ * %dim/push <msb>, <lsb>
+ *
+ * Push one declared unpacked bound, leftmost dimension first. The
+ * bounds are signed and ride in the unsigned operand fields the same
+ * way %load/arr/dar's declared left does.
+ */
+bool of_DIM_PUSH(vthread_t thr, vvp_code_t cp)
+{
+      thr->dim_stack.push_back(std::make_pair((int)(int32_t)cp->bit_idx[0],
+					      (int)(int32_t)cp->bit_idx[1]));
+      return true;
+}
+
+static size_t md_range_size_(const pair<int,int>&r)
+{
+      int span = r.first > r.second ? r.first - r.second : r.second - r.first;
+      return (size_t)span + 1;
+}
+
+/*
+ * Build the NESTED container an open-array formal iterates, out of the
+ * ONE flat word array a multi-dimensional signal is stored as. This is
+ * the signal-side twin of fixed_prop_materialize_, which does the same
+ * for a class property using its property_dimensions().
+ *
+ * Each level is a vvp_darray_object holding the level below, and every
+ * level records its own declared range, so svLow/svHigh answer per
+ * dimension (H.10.2) rather than reporting the flattened extent.
+ */
+static vvp_object_t md_materialize_(vvp_array_t array, uint32_t kind,
+				    const vector<pair<int,int> >&dims,
+				    size_t dim, size_t&flat)
+{
+      if (dim >= dims.size())
+	    return vvp_object_t();
+
+      size_t count = md_range_size_(dims[dim]);
+      vvp_object_t out;
+      vvp_darray*level = 0;
+
+      if (dim + 1 < dims.size()) {
+	    level = new vvp_darray_object(count);
+	    out = vvp_object_t(level);
+	    level->dpi_set_decl_range(dims[dim].first, dims[dim].second);
+	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  vvp_object_t inner =
+			md_materialize_(array, kind, dims, dim + 1, flat);
+		  level->set_word((unsigned)idx, inner);
+	    }
+	    return out;
+      }
+
+      level = arrdar_leaf_(kind, count);
+      out = vvp_object_t(level);
+      level->dpi_set_decl_range(dims[dim].first, dims[dim].second);
+      for (size_t idx = 0 ; idx < count ; idx += 1, flat += 1) {
+	    if (flat >= array->get_size())
+		  break;
+	    if (ARRDAR_OBJ(kind)) {
+		  vvp_object_t w;
+		  array->get_word_obj((unsigned)flat, w);
+		  level->set_word((unsigned)idx, w);
+	    } else if (kind == ARRDAR_REAL) {
+		  level->set_word((unsigned)idx,
+				  array->get_word_r((unsigned)flat));
+	    } else {
+		  level->set_word((unsigned)idx,
+				  array->get_word((unsigned)flat));
+	    }
+      }
+      return out;
+}
+
+/* The inverse: walk the nested container back into the flat words. */
+static void md_copy_back_(vvp_array_t array, uint32_t kind,
+			  const vvp_object_t&val,
+			  const vector<pair<int,int> >&dims,
+			  size_t dim, size_t&flat)
+{
+      vvp_darray*level = val.peek<vvp_darray>();
+      if (!level || dim >= dims.size())
+	    return;
+
+      size_t count = md_range_size_(dims[dim]);
+      if (level->get_size() < count)
+	    count = level->get_size();
+
+      if (dim + 1 < dims.size()) {
+	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  vvp_object_t inner;
+		  level->get_word((unsigned)idx, inner);
+		  md_copy_back_(array, kind, inner, dims, dim + 1, flat);
+	    }
+	    return;
+      }
+
+      for (size_t idx = 0 ; idx < count ; idx += 1, flat += 1) {
+	    if (flat >= array->get_size())
+		  break;
+	    if (ARRDAR_OBJ(kind)) {
+		  vvp_object_t w;
+		  level->get_word((unsigned)idx, w);
+		  array->set_word((unsigned)flat, w);
+	    } else if (kind == ARRDAR_REAL) {
+		  double w = 0.0;
+		  level->get_word((unsigned)idx, w);
+		  array->set_word((unsigned)flat, w);
+	    } else {
+		  vvp_vector4_t w;
+		  level->get_word((unsigned)idx, w);
+		  unsigned wid = ARRDAR_WIDTH(kind);
+		  if (wid && w.size() != wid)
+			w = coerce_to_width(w, wid);
+		  array->set_word((unsigned)flat, 0, w);
+	    }
+      }
+}
+
+/*
+ * %load/arr/dar/md <array>, <kind>
+ *
+ * The multi-dimensional form of %load/arr/dar: marshal a flat signal
+ * array into the nested container shape the %dim/push instructions just
+ * described, and push it.
+ */
+bool of_LOAD_ARR_DAR_MD(vthread_t thr, vvp_code_t cp)
+{
+      vector<pair<int,int> > dims;
+      dims.swap(thr->dim_stack);
+
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/arr/dar/md");
+      if (!array || dims.empty()) {
+	    thr->push_object(vvp_object_t());
+	    return true;
+      }
+
+      size_t flat = 0;
+      thr->push_object(md_materialize_(array, cp->bit_idx[0], dims, 0, flat));
+      return true;
+}
+
+/*
+ * %store/arr/dar/md <array>, <kind>
+ *
+ * The inverse, for the copy-back of an inout/ref/output open-array
+ * formal into a multi-dimensional fixed-array actual.
+ */
+bool of_STORE_ARR_DAR_MD(vthread_t thr, vvp_code_t cp)
+{
+      vector<pair<int,int> > dims;
+      dims.swap(thr->dim_stack);
+
+      vvp_object_t val;
+      thr->pop_object(val);
+
+      vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar/md");
+      if (!array || dims.empty() || !val.peek<vvp_darray>())
+	    return true;
+
+      size_t total = 1;
+      for (size_t idx = 0 ; idx < dims.size() ; idx += 1)
+	    total *= md_range_size_(dims[idx]);
+      if (total != array->get_size()) {
+	    cerr << "RUN-TIME ERROR: cannot copy a container of " << total
+		 << " declared elements into an unpacked array of size "
+		 << array->get_size() << "; the array is unchanged." << endl;
+	    return true;
+      }
+
+      size_t flat = 0;
+      md_copy_back_(array, cp->bit_idx[0], val, dims, 0, flat);
       return true;
 }
 

@@ -1198,3 +1198,4 @@ sv_struct_array_member_element normal,-g2012 ivltests
 sv_struct_array_member_open_arg normal,-g2012 ivltests
 sv_whole_aggregate_value_copy normal,-g2012 ivltests
 sv_whole_aggregate_size_mismatch normal,-g2012 ivltests gold=sv_whole_aggregate_size_mismatch.gold
+sv_open_array_multidim normal,-g2012 ivltests

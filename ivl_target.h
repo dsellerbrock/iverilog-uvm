@@ -2099,6 +2099,16 @@ extern int         ivl_signal_array_base(ivl_signal_t net);
 extern unsigned    ivl_signal_array_count(ivl_signal_t net);
 extern unsigned    ivl_signal_array_addr_swapped(ivl_signal_t net);
 extern unsigned    ivl_signal_dimensions(ivl_signal_t net);
+  /* The declared bounds of unpacked dimension <dim>, counting from the
+     leftmost (0). ivl_signal_array_base/array_count describe the FLAT
+     word array the signal is stored as, which is all a one-dimensional
+     signal needs; these say what shape that storage is declared to
+     have, which a multi-dimensional one also needs -- an open-array
+     formal built from it is nested, and its per-dimension bounds are
+     what svLow/svHigh report (IEEE 1800-2017 H.10.2). Returns 0 for
+     a dim beyond ivl_signal_dimensions(). */
+extern int         ivl_signal_array_dim_msb(ivl_signal_t net, unsigned dim);
+extern int         ivl_signal_array_dim_lsb(ivl_signal_t net, unsigned dim);
 extern ivl_discipline_t ivl_signal_discipline(ivl_signal_t net);
 extern unsigned    ivl_signal_packed_dimensions(ivl_signal_t net);
 extern int         ivl_signal_packed_msb(ivl_signal_t net, unsigned dim);

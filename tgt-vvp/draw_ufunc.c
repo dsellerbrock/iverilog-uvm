@@ -473,7 +473,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 				       ivl_expr_lineno(actual))) {
 		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
 		  note_array_signal_use(asig);
-		  fprintf(vvp_out, "    %%store/arr/dar v%p, %u;\n", asig, kind);
+		  emit_store_arr_dar_(asig, kind);
 	    }
 	    return;
       }
