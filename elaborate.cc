@@ -75,6 +75,10 @@ extern NetESFunc* make_randomize_with_expr(
       NetExpr*obj_expr,
       const netclass_t*class_type,
       Design*des, NetScope*scope);
+extern NetESFunc* make_std_randomize_with_expr(
+      const std::vector<named_pexpr_t>&parms,
+      const std::vector<PExpr*>&with_constraints,
+      Design*des, NetScope*scope, const LineInfo*loc);
 
 using namespace std;
 
@@ -6364,6 +6368,20 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	  && path_.front().name == perm_string::literal("std")
 	  && path_.back().name == perm_string::literal("randomize")
 	  && !parms_.empty()) {
+	    if (!with_constraints_.empty()) {
+		  NetESFunc*fun = make_std_randomize_with_expr(
+			parms_, with_constraints_, des, scope, this);
+		  if (!fun) return nullptr;
+		  vector<NetExpr*> argv(fun->nparms());
+		  for (unsigned i = 0 ; i < fun->nparms() ; i += 1)
+			argv[i] = fun->parm(i)->dup_expr();
+		  NetSTask*sys = new NetSTask(fun->name(),
+					      IVL_SFUNC_AS_TASK_IGNORE,
+					      argv);
+		  sys->set_line(*this);
+		  delete fun;
+		  return sys;
+	    }
 	    NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
 	    blk->set_line(*this);
 	    for (unsigned i = 0; i < parms_.size(); i++) {
@@ -13380,6 +13398,32 @@ struct dynforeach_emit_ctx_t {
 };
 static const dynforeach_emit_ctx_t*dynforeach_emit_ctx_ = nullptr;
 
+/* IEEE 1800-2017 18.12 scope randomization uses the same constraint IR
+ * grammar as class randomization, but its solver variables are the plain
+ * variables listed in std::randomize(...), not class properties.  While one
+ * call-site constraint is emitted, this map gives each simple identifier its
+ * synthetic p:N:W[:s] token.  Other identifiers remain runtime value slots
+ * (state variables). */
+static const map<perm_string,string>*scope_randomize_emit_ctx_ = nullptr;
+
+string pexpr_to_constraint_ir(
+      const PExpr*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env = nullptr);
+
+string pexpr_to_scope_constraint_ir(
+      const PExpr*expr,
+      const map<perm_string,string>&random_tokens,
+      vector<const PExpr*>*value_slots,
+      const NetScope*scope)
+{
+      const map<perm_string,string>*save = scope_randomize_emit_ctx_;
+      scope_randomize_emit_ctx_ = &random_tokens;
+      string out = pexpr_to_constraint_ir(expr, nullptr, value_slots, scope);
+      scope_randomize_emit_ctx_ = save;
+      return out;
+}
+
 /* Can a STATE variable of this type take part in a constraint (IEEE
  * 1800-2017 18.3)? The solver reads a state variable as the constant it
  * holds at randomize() time, which it gets from the property's raw
@@ -13424,7 +13468,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    for (unsigned i = 0 ; i < bits && i < 64 ; i += 1)
 		  if (v.get(i) == verinum::V1)
 			val |= (uint64_t)1 << i;
-	    return "c:" + to_string(val);
+	    return "c:" + to_string(val) + ":" + to_string(bits)
+		  + (v.has_sign() ? ":s" : "");
       }
 
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
@@ -13446,7 +13491,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		&& name == dynforeach_emit_ctx_->loop_var)
 		  return "L";
 
-	    int idx = cls->property_idx_from_name(name);
+	      // std::randomize(a, b) scope variables are emitted as
+	      // synthetic property tokens so the shared Z3 IR parser sees
+	      // them as model variables rather than caller-value constants.
+	    if (scope_randomize_emit_ctx_ && id->path().size() == 1
+		&& id->path().back().index.empty()) {
+		  map<perm_string,string>::const_iterator it =
+			scope_randomize_emit_ctx_->find(name);
+		  if (it != scope_randomize_emit_ctx_->end())
+			return it->second;
+	    }
+
+	    int idx = cls ? cls->property_idx_from_name(name) : -1;
 	    if (idx >= 0) {
 		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
@@ -13564,7 +13620,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (const NetEConst*ec =
 			    dynamic_cast<const NetEConst*>(en)) {
 			      uint64_t val = ec->value().as_unsigned();
-			      return "c:" + to_string(val);
+			      return "c:" + to_string(val) + ":"
+				    + to_string(ec->value().len())
+				    + (ec->value().has_sign() ? ":s" : "");
 			}
 			break;
 		  }
@@ -13639,7 +13697,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (cpath.size() == 2
 		&& cpath.back().name == perm_string::literal("size")
 		&& cpath.back().index.empty()
-		&& cpath.front().index.empty()) {
+		&& cpath.front().index.empty() && cls) {
 		  perm_string aname = cpath.front().name;
 		    // A non-rand array's size is a state value (18.3):
 		    // emit the same size variable and let the solve pin
@@ -13704,6 +13762,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	// binding the loop variable to each canonical index.
       if (const PEConstraintForeach*cfe =
 	  dynamic_cast<const PEConstraintForeach*>(expr)) {
+	    if (!cls)
+		  return "";
 	    if (cfe->loop_vars().size() != 1 || cfe->loop_vars()[0].nil())
 		  return "";
 	      // The iterated array may be a state variable (18.3): its
@@ -13802,7 +13862,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (!item) continue;
 		  const PEIdent*id = dynamic_cast<const PEIdent*>(item);
 		  bool expanded = false;
-		  if (id && id->path().size() == 1
+		  if (cls && id && id->path().size() == 1
 		      && id->path().back().index.empty()) {
 			perm_string pname = id->path().back().name;
 			  // `x inside {tbl}' where tbl is a state array
@@ -13887,7 +13947,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			  // expanded against the live container by the
 			  // solver.
 			const PEIdent*cid = dynamic_cast<const PEIdent*>(r.hi);
-			if (cid && !is_dist && cid->path().size() == 1
+			if (cls && cid && !is_dist && cid->path().size() == 1
 			    && cid->path().back().index.empty()) {
 			      perm_string cnm = cid->path().back().name;
 			      int cpi = cls->property_idx_from_name(cnm);

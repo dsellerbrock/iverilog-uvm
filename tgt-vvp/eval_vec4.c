@@ -1740,6 +1740,61 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  emit_conditional_post_randomize_(obj_arg, post);
 	    return;
       }
+      if (strncmp(ivl_expr_name(expr), "$ivl_std_randomize_with|", 24) == 0) {
+	      /* IEEE 1800-2017 18.12 scope randomization.
+	       * Mangled name:
+	       *   "$ivl_std_randomize_with|N_rand|N_vals|ir"
+	       * parms[0..N_rand-1] are both model inputs and destinations;
+	       * remaining parms are caller-scope state values. */
+	    const char*rest = ivl_expr_name(expr) + 24;
+	    unsigned n_rand = (unsigned)strtoul(rest, NULL, 10);
+	    while (*rest && *rest != '|') rest++;
+	    if (*rest == '|') rest++;
+	    unsigned n_vals = (unsigned)strtoul(rest, NULL, 10);
+	    while (*rest && *rest != '|') rest++;
+	    if (*rest == '|') rest++;
+	    const char*ir = rest;
+
+	    for (unsigned i = 0 ; i < n_rand ; i++) {
+		  ivl_expr_t var = ivl_expr_parm(expr, i);
+		  draw_eval_vec4(var);
+	    }
+	    for (unsigned i = 0 ; i < n_vals ; i++) {
+		  ivl_expr_t slot = ivl_expr_parm(expr, n_rand + i);
+		  draw_eval_vec4(slot);
+	    }
+	    fprintf(vvp_out, "    %%std/randomize/with \"%s\", %u, %u;\n",
+		    ir, n_rand, n_vals);
+
+	      /* The opcode leaves the success result on the vec4 stack and
+	       * keeps model values in thread-local storage. Loading/storing a
+	       * model value therefore preserves the expression result below
+	       * it. UNSAT produces no stores. */
+	    unsigned lab_done = local_count++;
+	    int success_flag = allocate_flag();
+	    fprintf(vvp_out, "    %%dup/vec4;\n");
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", success_flag);
+	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
+		    thread_count, lab_done, success_flag);
+	    for (unsigned i = 0 ; i < n_rand ; i++) {
+		  ivl_expr_t var = ivl_expr_parm(expr, i);
+		  ivl_signal_t sig = var ? ivl_expr_signal(var) : 0;
+		  unsigned wid = var ? ivl_expr_width(var) : 0;
+		  if (!sig || ivl_expr_type(var) != IVL_EX_SIGNAL) {
+			fprintf(stderr, "%s:%u: vvp.tgt error: unsupported "
+				"std::randomize destination; solver result not "
+				"stored.\\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr));
+			continue;
+		  }
+		  fprintf(vvp_out, "    %%std/randomize/load %u;\n", i);
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+			  sig, wid);
+	    }
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
+	    clr_flag(success_flag);
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr), "$ivl_inside_arr")==0) {
 	    /* parm 0: array signal (receiver), parm 1: value to check */
 	    ivl_expr_t arr_arg = (ivl_expr_parms(expr) > 0) ? ivl_expr_parm(expr, 0) : 0;
