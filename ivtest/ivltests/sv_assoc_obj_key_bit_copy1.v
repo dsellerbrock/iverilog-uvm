@@ -19,6 +19,6 @@ module test;
     if (!b.exists(c) || b[c] !== 1'b1)
       $display("FAIL");
     else
-      $display("PASS");
+      $display("PASSED");
   end
 endmodule

@@ -19,6 +19,6 @@ module test;
       $display("FAIL seen=%0d", w.seen);
       $finish(1);
     end
-    $display("PASS");
+    $display("PASSED");
   end
 endmodule

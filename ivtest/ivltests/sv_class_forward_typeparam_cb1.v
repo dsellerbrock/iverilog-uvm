@@ -37,7 +37,7 @@ module test;
     i = new;
     cb = i.first();
     if (cb == null)
-      $display("PASS");
+      $display("PASSED");
     else begin
       $display("FAIL: expected null");
       $finish(1);

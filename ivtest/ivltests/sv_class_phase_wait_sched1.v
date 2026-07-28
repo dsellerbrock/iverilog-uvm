@@ -83,15 +83,15 @@ module test;
     #1;
 
     if (common.m_state !== PH_DONE) begin
-      $display("FAIL common=%0d", common.m_state);
+      $display("FAILED common=%0d", common.m_state);
       $finish(1);
     end
 
     if (build.m_state !== PH_DONE) begin
-      $display("FAIL build=%0d", build.m_state);
+      $display("FAILED build=%0d", build.m_state);
       $finish(1);
     end
 
-    $display("PASS");
+    $display("PASSED");
   end
 endmodule

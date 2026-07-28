@@ -7,7 +7,7 @@ module test;
         if (phase !== 7)
           $display("FAIL phase=%0d", phase);
         else
-          $display("PASS");
+          $display("PASSED");
       end
     join_none
     #0;

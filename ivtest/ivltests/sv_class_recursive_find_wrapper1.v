@@ -95,6 +95,6 @@ module test;
       $display("FAIL imp mismatch");
       $finish(1);
     end
-    $display("PASS");
+    $display("PASSED");
   end
 endmodule

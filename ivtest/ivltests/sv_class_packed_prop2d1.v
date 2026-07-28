@@ -12,6 +12,6 @@ module test;
       $display("FAIL data=%h", item.data);
       $finish(1);
     end
-    $display("PASS");
+    $display("PASSED");
   end
 endmodule

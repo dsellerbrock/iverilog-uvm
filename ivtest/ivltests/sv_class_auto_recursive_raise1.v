@@ -69,6 +69,6 @@ module test;
     check("mid", o.total_count[mid], 1);
     check("top", o.total_count[top], 1);
 
-    $display("PASS");
+    $display("PASSED");
   end
 endmodule

@@ -22,6 +22,6 @@ module test;
       $display("FAIL mid(4)=%0d", mid(4));
       $finish(1);
     end
-    $display("PASS");
+    $display("PASSED");
   end
 endmodule

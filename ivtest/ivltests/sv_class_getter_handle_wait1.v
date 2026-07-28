@@ -42,6 +42,6 @@ module sv_class_getter_handle_wait1;
       $display("FAIL size=%0d", h.q.size());
       $finish_and_return(1);
     end
-    $display("PASS");
+    $display("PASSED");
   end
 endmodule
