@@ -1808,6 +1808,27 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	       populated for downstream concatenation. */
 	    bool is_union = struct_type->union_flag();
 	    for (size_t idx = 0; idx < members.size(); idx++) {
+		  ivl_type_t idx_nt = members[idx].net_type;
+
+		    /* R20: a `void` tagged-union member (IEEE 1800-2017
+		       7.3.2) carries no payload. `tagged TAG` (the
+		       void-tag constructor) lowers in the grammar to a
+		       named pattern with a synthetic placeholder value
+		       for TAG; there is nothing meaningful to elaborate
+		       into this slot, so always synthesize a harmless
+		       zero placeholder instead of elaborating whatever
+		       value the pattern happens to carry for it. This
+		       also covers the (illegal) `tagged TAG value` form
+		       against a void tag without crashing. */
+		  if (idx_nt && idx_nt->base_type() == IVL_VT_VOID) {
+			unsigned w = idx_nt->packed_width();
+			if (w == 0) w = 1;
+			verinum z((uint64_t)0, w);
+			items[idx] = new NetEConst(z);
+			items[idx]->set_line(*this);
+			continue;
+		  }
+
 		  auto it = name_map.find(members[idx].name);
 		  PExpr*src = (it != name_map.end()) ? it->second : dflt;
 		  if (!src) {

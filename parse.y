@@ -7003,6 +7003,23 @@ struct_union_member /* IEEE 1800-2012 A.2.2.1 */
 	tmp->names .reset($3);
 	$$ = tmp;
       }
+  /* R20 (roadmap): a `union tagged` member may be declared with type
+     `void`, IEEE 1800-2017 7.3.2 -- a tag that carries no payload
+     value, e.g. `union tagged { void Inv; int Valid; }`. The `void`
+     keyword is not a data_type (it is only otherwise legal as a
+     function return type), so it needs its own struct_union_member
+     alternative. Legality of `void` outside a tagged union is
+     checked at elaboration (struct_type_t::elaborate_type_raw),
+     where the union/tagged context is known. */
+  | attribute_list_opt K_void list_of_variable_decl_assignments ';'
+      { struct_member_t*tmp = new struct_member_t;
+	FILE_NAME(tmp, @2);
+	void_type_t*vtype = new void_type_t;
+	FILE_NAME(vtype, @2);
+	tmp->type  .reset(vtype);
+	tmp->names .reset($3);
+	$$ = tmp;
+      }
   | attribute_list_opt IDENTIFIER list_of_variable_decl_assignments ';'
       { struct_member_t*tmp = nullptr;
 	typedef_t*type = pform_test_type_identifier(@2, $2);
