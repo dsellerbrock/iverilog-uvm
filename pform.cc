@@ -4891,6 +4891,7 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 	    cerr << loc << ": error: duplicate property declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
+	    pform_sva_destroy_property(prop);
 	    return;
       }
       sva_module_properties[use_name] = prop;
@@ -4904,6 +4905,7 @@ void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 	    cerr << loc << ": error: duplicate sequence declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
+	    pform_sva_destroy_sequence(steps);
 	    return;
       }
       sva_module_sequences[use_name] = steps;
@@ -4920,6 +4922,7 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 		 << use_name << "'." << endl;
 	    error_count += 1;
 	    delete formals;
+	    pform_sva_destroy_property(prop);
 	    return;
       }
       sva_param_prop_t rec;
@@ -4939,6 +4942,7 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 		 << use_name << "'." << endl;
 	    error_count += 1;
 	    delete formals;
+	    pform_sva_destroy_sequence(steps);
 	    return;
       }
       sva_param_seq_t rec;
@@ -4950,10 +4954,27 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 
 void pform_sva_module_done(void)
 {
+      for (std::map<perm_string, sva_property_t*>::iterator it =
+		sva_module_properties.begin() ;
+	   it != sva_module_properties.end() ; ++it)
+	    pform_sva_destroy_property(it->second);
+      for (std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator it =
+		sva_module_sequences.begin() ;
+	   it != sva_module_sequences.end() ; ++it)
+	    pform_sva_destroy_sequence(it->second);
+      for (std::map<perm_string, sva_param_seq_t>::iterator it =
+		sva_param_sequences.begin() ;
+	   it != sva_param_sequences.end() ; ++it)
+	    pform_sva_destroy_sequence(it->second.body);
+      for (std::map<perm_string, sva_param_prop_t>::iterator it =
+		sva_param_properties.begin() ;
+	   it != sva_param_properties.end() ; ++it)
+	    pform_sva_destroy_property(it->second.body);
       sva_module_properties.clear();
       sva_module_sequences.clear();
       sva_param_sequences.clear();
       sva_param_properties.clear();
+      delete sva_default_disable;
       sva_default_disable = nullptr;
 }
 
@@ -5113,6 +5134,10 @@ static PExpr* sva_clone_expr_(PExpr*e)
  * nullptr for a shape this cannot copy -- the caller then keeps the
  * original expression, reading live.
  */
+/* A cloned sampled-value call is consumed by the assertion rewrite rather
+   than the later procedural/default-clock binder. */
+static void sampled_pending_drop_(const PECallFunction*cf);
+
 static PExpr* sva_wrap_preponed_(PExpr*e,
 				 std::map<std::string, pform_name_t>&sampled,
 				 unsigned&live_operands)
@@ -5212,6 +5237,8 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	   history captures preponed values too, which is what 16.9.3
 	   requires. */
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    if (PExpr*done = cf->sampled_subst())
+		  return sva_clone_expr_(done);
 	    if (cf->path().package || cf->path().name.size() != 1)
 		  return nullptr;
 	    const std::vector<named_pexpr_t>&parms = cf->get_parms();
@@ -5228,6 +5255,9 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    PECallFunction*cp = new PECallFunction(
 		  peek_tail_name(cf->path().name), np);
 	    cp->set_line(*e);
+	    if (pform_is_sampled_value_function(
+		      peek_tail_name(cf->path().name).str()))
+		  sampled_pending_drop_(cf);
 	    return cp;
       }
       return nullptr;
@@ -5279,6 +5309,19 @@ static Statement* sva_reactive_wait_(const struct vlltype&loc)
       std::list<named_pexpr_t> no_args;
       PCallTask*t = new PCallTask(
 	    lex_strings.make("$ivl_reactive_wait"), no_args);
+      FILE_NAME(t, loc);
+      return t;
+}
+
+/* Mark a dedicated assertion-action dispatcher as a Reactive-region
+   process. Unlike the checker itself, this process does no sampling or
+   verdict evaluation: every event wake, delay continuation, event wait,
+   and forked action child must remain in the Reactive region set. */
+static Statement* sva_reactive_process_(const struct vlltype&loc)
+{
+      std::list<named_pexpr_t> no_args;
+      PCallTask*t = new PCallTask(
+	    lex_strings.make("$ivl_reactive_process"), no_args);
       FILE_NAME(t, loc);
       return t;
 }
@@ -5590,13 +5633,19 @@ static PExpr* sva_logic_(const struct vlltype&loc, char op,
    `$ivl_sva_enabled()` returns; `$asserton` sets it. Gating the action
    (rather than the whole checker) keeps token/pipeline state advancing so
    re-enabling resumes cleanly. */
-static Statement* sva_gate_(const struct vlltype&loc, Statement*action)
+static PExpr* sva_enabled_expr_(const struct vlltype&loc)
 {
-      if (!action) return action;
       std::list<named_pexpr_t> no_parms;
       PECallFunction*en = new PECallFunction(
 	    perm_string::literal("$ivl_sva_enabled"), no_parms);
       FILE_NAME(en, loc);
+      return en;
+}
+
+static Statement* sva_gate_(const struct vlltype&loc, Statement*action)
+{
+      if (!action) return action;
+      PExpr*en = sva_enabled_expr_(loc);
       PCondit*c = new PCondit(en, action, nullptr);
       FILE_NAME(c, loc);
       return c;
@@ -5726,6 +5775,17 @@ static Statement* sva_pass_action_(const struct vlltype&loc, unsigned inst,
       v.push_back(sva_reactive_wait_(loc));
       v.push_back(sva_report_stmt_(loc, inst, SVA_CB_SUCCESS));
       if (pass_stmt) v.push_back(pass_stmt);
+      return sva_block_(loc, v);
+}
+
+/* A cover property executes its statement once for every sequence/property
+   match, but it is not an assertion-success callback. */
+static Statement* sva_cover_action_(const struct vlltype&loc,
+				    Statement*pass_stmt)
+{
+      std::vector<Statement*> v;
+      v.push_back(sva_reactive_wait_(loc));
+      v.push_back(sva_gate_(loc, pass_stmt));
       return sva_block_(loc, v);
 }
 
@@ -6342,10 +6402,6 @@ struct sva_hoist_out_of_block_t {
       }
       ~sva_hoist_out_of_block_t() { lexical_scope = saved; }
 };
-
-/* M9-SV: forward declaration -- the rewrite below hands each call it
-   binds back to the procedural pending list so it is not bound twice. */
-static void sampled_pending_drop_(const PECallFunction*cf);
 
 static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				   unsigned inst, unsigned&hist_idx,
@@ -7338,12 +7394,13 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 	  || sub->seq->size() != 1
 	  || (*sub->seq)[0].delay_lo != 0 || (*sub->seq)[0].delay_hi != 0
 	  || (*sub->seq)[0].rep_tail != 0
-	  || sub->clk_evt || sub->disable_iff_expr) {
+	  || sub->clk_evt || sub->seq_clk_evt || sub->mc_prefix
+	  || sub->mc_boundary != -1 || sub->disable_iff_expr) {
 	    cerr << loc << ": sorry: `" << w << "' is supported only with a "
 		 << "boolean operand (no nested or sequence property); the "
 		 << "assertion is dropped." << endl;
 	    error_count += 1;
-	    if (sub) { delete sub->antecedent; delete sub->seq; delete sub; }
+	    pform_sva_destroy_property(sub);
 	    return nullptr;
       }
       sva_property_t*p = new sva_property_t;
@@ -7353,7 +7410,7 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
       p->strength = strength;
       p->seq = sub->seq;   /* move the boolean step list */
       sub->seq = nullptr;
-      delete sub;
+      pform_sva_destroy_property(sub);
       return p;
 }
 
@@ -7378,13 +7435,14 @@ pform_sva_abort(const struct vlltype&loc, int op_type, PExpr*cond,
 	  || sub->seq->size() != 1
 	  || (*sub->seq)[0].delay_lo != 0 || (*sub->seq)[0].delay_hi != 0
 	  || (*sub->seq)[0].rep_tail != 0
-	  || sub->clk_evt || sub->disable_iff_expr) {
+	  || sub->clk_evt || sub->seq_clk_evt || sub->mc_prefix
+	  || sub->mc_boundary != -1 || sub->disable_iff_expr) {
 	    cerr << loc << ": sorry: `" << w << "' is supported only with a "
 		 << "boolean operand (no nested or sequence property); the "
 		 << "assertion is dropped." << endl;
 	    error_count += 1;
 	    delete cond;
-	    delete sub->antecedent; delete sub->seq; delete sub;
+	    pform_sva_destroy_property(sub);
 	    return nullptr;
       }
       sva_property_t*p = new sva_property_t;
@@ -7392,7 +7450,7 @@ pform_sva_abort(const struct vlltype&loc, int op_type, PExpr*cond,
       p->abort_cond = cond;
       p->seq = sub->seq;   /* move the boolean step list */
       sub->seq = nullptr;
-      delete sub;
+      pform_sva_destroy_property(sub);
       return p;
 }
 
@@ -7437,7 +7495,8 @@ static PExpr* sva_take_bool_prop_(const struct vlltype&loc, const char*w,
 		 && sub->seq->size() == 1
 		 && (*sub->seq)[0].delay_lo == 0 && (*sub->seq)[0].delay_hi == 0
 		 && (*sub->seq)[0].rep_tail == 0
-		 && !sub->clk_evt && !sub->disable_iff_expr);
+		 && !sub->clk_evt && !sub->seq_clk_evt && !sub->mc_prefix
+		 && sub->mc_boundary == -1 && !sub->disable_iff_expr);
       PExpr*e = nullptr;
       if (ok) {
 	    e = (*sub->seq)[0].expr;
@@ -7448,9 +7507,7 @@ static PExpr* sva_take_bool_prop_(const struct vlltype&loc, const char*w,
 		 << "assertion is dropped." << endl;
 	    error_count += 1;
       }
-      delete sub->antecedent;
-      delete sub->seq;
-      delete sub;
+      pform_sva_destroy_property(sub);
       return e;
 }
 
@@ -7525,7 +7582,7 @@ pform_sva_case(const struct vlltype&loc, PExpr*sel,
 	    if (items) {
 		  for (size_t k = 0 ; k < items->size() ; k += 1) {
 			delete (*items)[k].vals;
-			delete (*items)[k].prop;
+			pform_sva_destroy_property((*items)[k].prop);
 		  }
 		  delete items;
 	    }
@@ -8210,12 +8267,38 @@ static void sva_tree_delete_(sva_stree_t*t, bool with_exprs)
       sva_tree_delete_(t->b, with_exprs);
       if (t->chain) {
 	    if (with_exprs)
-		  for (size_t k = 0 ; k < t->chain->size() ; k += 1)
+		  for (size_t k = 0 ; k < t->chain->size() ; k += 1) {
 			delete (*t->chain)[k].expr;
+			delete (*t->chain)[k].lv_rhs;
+		  }
 	    delete t->chain;
       }
       if (with_exprs && t->gexpr) delete t->gexpr;
       delete t;
+}
+
+void pform_sva_destroy_sequence(std::vector<sva_seq_step_t>*seq)
+{
+      if (!seq) return;
+      for (size_t k = 0 ; k < seq->size() ; k += 1) {
+	    delete (*seq)[k].expr;
+	    delete (*seq)[k].lv_rhs;
+      }
+      delete seq;
+}
+
+void pform_sva_destroy_property(sva_property_t*prop)
+{
+      if (!prop) return;
+      delete prop->clk_evt;
+      delete prop->seq_clk_evt;
+      delete prop->disable_iff_expr;
+      delete prop->abort_cond;
+      pform_sva_destroy_sequence(prop->antecedent);
+      pform_sva_destroy_sequence(prop->mc_prefix);
+      pform_sva_destroy_sequence(prop->seq);
+      sva_tree_delete_(prop->tree, true);
+      delete prop;
 }
 
 sva_property_t* pform_sva_seq_comb(const struct vlltype&loc, char op,
@@ -9669,6 +9752,16 @@ static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v)
       return n;
 }
 
+/* Execute an assertion action once per obligation in a runtime-valued
+   batch. PRepeat owns both the count expression and the action. */
+static Statement* sva_repeat_(const struct vlltype&loc, PExpr*count,
+			      Statement*action)
+{
+      PRepeat*rep = new PRepeat(count, action);
+      FILE_NAME(rep, loc);
+      return rep;
+}
+
 /* M9-7: expand a FIXED-length sequence chain (constant ##N delays, no
    repetition/goto/local-variable/first_match) into per-tick boolean
    slots. slots[t] is the boolean checked at tick offset t (null = a
@@ -9731,11 +9824,15 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
       return true;
 }
 
-/* M9-NFA stage D.1: multiclocked non-overlapping implication
-   `@(c1) a |=> @(c2) b' (IEEE 1800-2017 16.13.3): the antecedent boolean
-   is clocked by c1, the consequent boolean by c2, and the consequent is
-   evaluated at the FIRST c2 tick STRICTLY AFTER the c1 tick where the
-   antecedent held.
+/* M9-7: multiclocked sequence/property lowering (IEEE 1800-2017 16.13).
+   A fixed boolean chain may flow from c1 to c2 through either:
+
+     prefix ##0 @(c2) suffix   -- nearest c2 tick at or after the c1 match
+     prefix ##1 @(c2) suffix   -- nearest c2 tick strictly after it
+
+   The same boundary is used after an implication. Each side pipelines in
+   its own clock domain and a request/acknowledge COUNT carries every match
+   across the boundary without collapsing coincident obligations.
 
    Lowered by a race-free request/acknowledge counter handoff. Each
    counter is written by exactly one clock domain (req by c1, ack by c2),
@@ -9750,9 +9847,12 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
          if (b) <pass> else <fail>;
      end
 
-   Only the simple two-clock boolean `|=>' is handled; overlapping `|->',
-   cover, `disable iff', a missing antecedent clock, or a non-boolean
-   operand is a loud sorry (broader multiclock is later stage-D work). */
+   ##0 uses a blocking request update and lets the c2 process reach an
+   Inactive-region #0 before it captures the request, so a coincident c1
+   tick is visible without depending on Active-process order. ##1 uses an
+   NBA request update, so a coincident c2 tick necessarily sees the old
+   request. Operand reads themselves are rewritten to the runtime's
+   Preponed-value loads in both domains. */
 static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 					     sva_property_t*prop,
 					     Statement*fail_stmt,
@@ -9763,67 +9863,96 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       const char*why = nullptr;
       bool cover = (kind == 2);
 
-      if (prop->op_type != 2)
-	    why = "multiclocked overlapping implication (`@(c1) a |-> "
-		  "@(c2) b'); use non-overlapping `|=>'";
+      bool plain = (prop->op_type == 0);
+      if (prop->op_type < 0 || prop->op_type > 2)
+	    why = "this multiclocked property operator";
       else if (!c1)
 	    why = "a multiclocked property with no explicit antecedent clock";
-      else if (!prop->antecedent || prop->antecedent->empty()
-	       || !prop->seq || prop->seq->empty())
-	    why = "a multiclocked implication with an empty antecedent "
-		  "or consequent";
-
-	/* M9-7: a multiclocked `cover property' counts consequent matches
-	   in the c2 domain exactly where the assert form reports a pass.
-	   Neither engine runs a cover pass statement (see the shared
-	   warning in pform_make_assertion), and the multiclock dispatch
-	   runs before that check, so repeat it here. */
-      if (cover && pass_stmt && !why) {
-	    cerr << loc << ": warning: the pass statement of this "
-		 << "`cover property' is not executed (recorded corner); "
-		 << "it is dropped. The match counter still counts." << endl;
-	    delete pass_stmt;
-	    pass_stmt = nullptr;
-      }
+      else if (prop->mc_boundary != 0 && prop->mc_boundary != 1)
+	    why = "a multiclocked sequence whose clock-flow boundary is "
+		  "not ##0 or ##1";
+      else if (!prop->seq || prop->seq->empty())
+	    why = "a multiclocked property with an empty second-clock suffix";
+      else if (plain && (!prop->mc_prefix || prop->mc_prefix->empty()))
+	    why = "a multiclocked sequence with an empty first-clock prefix";
+      else if (!plain && (!prop->antecedent || prop->antecedent->empty()))
+	    why = "a multiclocked implication with an empty antecedent";
 
 	/* M9-7: each side may be a FIXED-length boolean chain
 	   (`a0 ##d a1 ...', constant delays): it pipelines exactly in
 	   its own clock domain. Expand each chain to a per-tick slot
 	   array (null slot = pure delay tick). */
-      std::vector<PExpr*> a_slots, b_slots;
+      std::vector<PExpr*> a_slots, p_slots, b_slots;
       long b_window = 0;      /* extra ticks the final boolean may land on */
       if (!why) {
-	    sva_splice_sequences_(loc, *prop->antecedent);
+	    if (prop->antecedent)
+		  sva_splice_sequences_(loc, *prop->antecedent);
+	    if (prop->mc_prefix)
+		  sva_splice_sequences_(loc, *prop->mc_prefix);
 	    sva_splice_sequences_(loc, *prop->seq);
-	    if (!sva_mc_expand_chain_(*prop->antecedent, a_slots))
+	    if (prop->antecedent
+		&& !sva_mc_expand_chain_(*prop->antecedent, a_slots))
 		  why = "a multiclocked implication whose ANTECEDENT is not "
 			"a fixed-length boolean chain (constant ##N delays "
 			"only; a variable-length antecedent creates one "
 			"obligation per match, which the request counter "
 			"cannot distinguish)";
+	    else if (prop->mc_prefix
+		     && !sva_mc_expand_chain_(*prop->mc_prefix, p_slots))
+		  why = "a multiclocked sequence whose first-clock prefix is "
+			"not a fixed-length boolean chain (constant ##N delays "
+			"only)";
 	    else if (!sva_mc_expand_chain_(*prop->seq, b_slots, &b_window))
-		  why = "a multiclocked implication whose consequent is "
+		  why = "a multiclocked property's second-clock suffix is "
 			"neither a fixed-length boolean chain nor one with a "
 			"single trailing bounded window (`##[m:n] b', "
 			"`b[*m:n]')";
-	    else if (a_slots.size() > 64 || b_slots.size() + b_window > 64)
-		  why = "a multiclocked implication with a chain over "
+	    else if (a_slots.size() > 64 || p_slots.size() > 64
+		     || b_slots.size() + b_window > 64)
+		  why = "a multiclocked property with a chain over "
 			"64 ticks";
       }
       if (why) {
 	    cerr << loc << ": sorry: " << why << " is not supported "
-		 << "(IEEE 1800-2017 16.13.3); the assertion is dropped."
+		 << "(IEEE 1800-2017 16.13); the assertion is dropped."
 		 << endl;
 	    error_count += 1;
 	    delete fail_stmt; delete pass_stmt;
-	    delete prop->antecedent; delete prop->seq;
-	    delete c1; delete c2; delete prop->disable_iff_expr; delete prop;
+	    pform_sva_destroy_property(prop);
 	    return;
       }
+
+      bool overlap_boundary = (prop->mc_boundary == 0);
 
       unsigned inst = sva_gensym_counter++;
       perm_string req = sva_make_reg_(loc, inst, "mcreq", 0, true);
       perm_string ack = sva_make_reg_(loc, inst, "mcack", 0, true);
+
+	/* A verdict can be reached in either clock domain, but a user action
+	   syntax tree has exactly one owner. Domain-local monotonically
+	   increasing request counters hand each verdict to one persistent
+	   Reactive-region dispatcher. This is deliberately more general than
+	   cloning action statements: loops, timing controls, event triggers,
+	   receiver calls, named blocks, and every other legal statement keep
+	   their original syntax and scope. Separate counters also preserve
+	   multiplicity without giving any register more than one writer. */
+      bool have_pass_action = pass_stmt != nullptr;
+      perm_string pv_req, pn_req, pv_ack, pn_ack, pv_due, pn_due;
+      perm_string fp_req, fs_req, fp_ack, fs_ack, fp_due, fs_due;
+      if (!cover) {
+	    pv_req = sva_make_reg_(loc, inst, "mcpvrq", 0, true);
+	    pn_req = sva_make_reg_(loc, inst, "mcpnrq", 0, true);
+	    pv_ack = sva_make_reg_(loc, inst, "mcpvak", 0, true);
+	    pn_ack = sva_make_reg_(loc, inst, "mcpnak", 0, true);
+	    pv_due = sva_make_reg_(loc, inst, "mcpvdu", 0, true);
+	    pn_due = sva_make_reg_(loc, inst, "mcpndu", 0, true);
+	    fp_req = sva_make_reg_(loc, inst, "mcfprq", 0, true);
+	    fs_req = sva_make_reg_(loc, inst, "mcfsrq", 0, true);
+	    fp_ack = sva_make_reg_(loc, inst, "mcfpak", 0, true);
+	    fs_ack = sva_make_reg_(loc, inst, "mcfsak", 0, true);
+	    fp_due = sva_make_reg_(loc, inst, "mcfpdu", 0, true);
+	    fs_due = sva_make_reg_(loc, inst, "mcfsdu", 0, true);
+      }
 
 	/* M9-7: `disable iff'. The condition is a level, read in BOTH
 	   domains at their own ticks, so each always block needs its own
@@ -9842,8 +9971,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    error_count += 1;
 	    delete dis; delete dis1; delete dis2;
 	    delete fail_stmt; delete pass_stmt;
-	    delete prop->antecedent; delete prop->seq;
-	    delete c1; delete c2; delete prop;
+	    pform_sva_destroy_property(prop);
 	    return;
       }
       delete dis;
@@ -9856,13 +9984,68 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 
 	/* Steal the slot booleans from their steps (the slot arrays
 	   alias the step expressions). */
-      for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1)
-	    (*prop->antecedent)[j].expr = nullptr;
+      if (prop->antecedent)
+	    for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1)
+		  (*prop->antecedent)[j].expr = nullptr;
+      if (prop->mc_prefix)
+	    for (size_t j = 0 ; j < prop->mc_prefix->size() ; j += 1)
+		  (*prop->mc_prefix)[j].expr = nullptr;
       for (size_t j = 0 ; j < prop->seq->size() ; j += 1)
 	    (*prop->seq)[j].expr = nullptr;
 
       size_t Ta = a_slots.size();
+      size_t Tp = p_slots.size();
       size_t Tb = b_slots.size();
+
+	/* Concurrent-assertion operands are sampled in Preponed (16.5.1).
+	   The c1 calculation deliberately stays before Observed because a
+	   coincident ##0 c2 edge must see its blocking request update. That is
+	   semantically safe only when every user operand has already become a
+	   Preponed load. The c2 side captures the request first (preserving the
+	   ##0/##1 boundary) and waits for Observed before it evaluates these
+	   same sampled expressions below. */
+      std::map<std::string, pform_name_t> prep_sampled;
+      unsigned prep_live_operands = 0;
+      auto sample_slots = [&](std::vector<PExpr*>&slots) {
+	    for (size_t k = 0 ; k < slots.size() ; k += 1) {
+		  if (!slots[k]) continue;
+		  PExpr*prep = sva_wrap_preponed_(
+			slots[k], prep_sampled, prep_live_operands);
+		  if (!prep) continue;
+		  delete slots[k];
+		  slots[k] = prep;
+	    }
+      };
+      sample_slots(a_slots);
+      sample_slots(p_slots);
+      sample_slots(b_slots);
+
+	/* Sampled-value histories are clock-domain state, not obligation
+	   state: `$past' in the suffix must advance at every c2 edge even
+	   when req==ack, and a prefix call must advance at every c1 edge.
+	   The rewrite supplies a top-of-tick capture and a bottom-of-tick
+	   history shift for each checker domain. Keeping both in the checker
+	   (rather than a separate NBA sampler) matters because the verdict
+	   waits until Observed: a separate sampler's same-edge NBA would
+	   overwrite the prior value before `$past' was read. */
+      unsigned mc_hist_idx = 0;
+      std::vector<Statement*> mc_pre1, mc_post1, mc_init1;
+      std::vector<Statement*> mc_pre2, mc_post2, mc_init2;
+      auto bind_sampled = [&](std::vector<PExpr*>&slots,
+			      std::vector<Statement*>&pre,
+			      std::vector<Statement*>&post,
+			      std::vector<Statement*>&init) {
+	    for (size_t k = 0 ; k < slots.size() ; k += 1) {
+		  if (!slots[k]) continue;
+		  PExpr*bound = sva_rewrite_sampled_(
+			loc, slots[k], inst, mc_hist_idx, pre, post, init);
+		  if (bound && bound != slots[k])
+			slots[k] = bound;
+	    }
+      };
+      bind_sampled(a_slots, mc_pre1, mc_post1, mc_init1);
+      bind_sampled(p_slots, mc_pre1, mc_post1, mc_init1);
+      bind_sampled(b_slots, mc_pre2, mc_post2, mc_init2);
 
 	/* M9-7: antecedent PIPELINE in the c1 domain. pa_k = "an
 	   attempt matched the first k ticks and awaits the tick-k
@@ -9872,65 +10055,203 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       std::vector<perm_string> pa (Ta);
       for (size_t k = 1 ; k < Ta ; k += 1)
 	    pa[k] = sva_make_reg_(loc, inst, "mca", (unsigned)k);
+	/* A first-clock prefix after an implication has its own pipeline.
+	   For nonoverlapping implication, pstart delays a completed
+	   antecedent by one c1 tick before prefix slot zero is tested. */
+      std::vector<perm_string> pp (Tp);
+      for (size_t k = 1 ; k < Tp ; k += 1)
+	    pp[k] = sva_make_reg_(loc, inst, "mcp", (unsigned)k);
+      perm_string pstart;
+      if (!plain && Tp && prop->op_type == 2)
+	    pstart = sva_make_reg_(loc, inst, "mcps", 0);
 	/* Consequent pipeline stages tb_1..tb_{Tw-1} in the c2 domain. With a
 	   trailing window the pipe runs b_window ticks past the fixed length:
 	   ages Tb-1 .. Tb-1+b_window are all ticks the final boolean may
-	   discharge the obligation on. An age slot IS the obligation -- at
-	   most one enters per tick -- so a discharge at one age cannot
-	   disturb another obligation in flight. */
+	   discharge the obligation on. A c2 tick can receive several c1
+	   matches at once, so every age carries an obligation COUNT rather
+	   than a presence bit. */
       size_t Tw = Tb + (size_t)b_window;
       std::vector<perm_string> tb (Tw);
       for (size_t k = 1 ; k < Tw ; k += 1)
-	    tb[k] = sva_make_reg_(loc, inst, "mcb", (unsigned)k);
+	    tb[k] = sva_make_reg_(loc, inst, "mcb", (unsigned)k, true);
 
 	/* initial: zero everything + register the assertion for VPI. */
       std::vector<Statement*> initv;
       initv.push_back(sva_assign_(loc, req, sva_num32_(loc, 0)));
       initv.push_back(sva_assign_(loc, ack, sva_num32_(loc, 0)));
+      if (!cover) {
+	    initv.push_back(sva_assign_(loc, pv_req, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, pn_req, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, pv_ack, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, pn_ack, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, pv_due, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, pn_due, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, fp_req, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, fs_req, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, fp_ack, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, fs_ack, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, fp_due, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, fs_due, sva_num32_(loc, 0)));
+      }
       for (size_t k = 1 ; k < Ta ; k += 1)
 	    initv.push_back(sva_assign_(loc, pa[k], sva_bit_(loc, 0)));
+      for (size_t k = 1 ; k < Tp ; k += 1)
+	    initv.push_back(sva_assign_(loc, pp[k], sva_bit_(loc, 0)));
+      if (pstart != perm_string())
+	    initv.push_back(sva_assign_(loc, pstart, sva_bit_(loc, 0)));
       for (size_t k = 1 ; k < Tw ; k += 1)
 	    initv.push_back(sva_assign_(loc, tb[k], sva_bit_(loc, 0)));
+      initv.insert(initv.end(), mc_init1.begin(), mc_init1.end());
+      initv.insert(initv.end(), mc_init2.begin(), mc_init2.end());
       if (cover)
 	    initv.push_back(sva_assign_(loc, r_cnt,
 			new PENumber(new verinum((uint64_t)0, 32))));
+      for (std::map<std::string, pform_name_t>::const_iterator it =
+		prep_sampled.begin() ; it != prep_sampled.end() ; ++it)
+	    initv.push_back(sva_hist_on_stmt_(loc, it->second));
+      if (prep_live_operands > 0)
+	    cerr << loc << ": warning: this multiclocked assertion has "
+		 << prep_live_operands << " operand(s) that are read live "
+		 << "instead of sampled in the Preponed region (IEEE "
+		 << "1800-2017 16.5.1); a blocking write in the same time "
+		 << "slot as either clock can be visible to the assertion."
+		 << endl;
       initv.push_back(sva_register_stmt_(loc, inst));
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
 					sva_block_(loc, initv), nullptr);
       FILE_NAME(ip, loc);
 
-	/* c1 body: match = pa_{Ta-1} && e_{Ta-1} (current-tick reads,
-	   pre-NBA stage values); if (match) req <= req+1; then the
-	   NBA stage shift pa_{k+1} <= pa_k && e_k. A null slot is a
-	   pure delay (no check). */
+	/* c1 body. An implication first pipelines its antecedent; a false
+	   antecedent step is a vacuous success. If a first-clock consequent
+	   prefix exists, its failures are real property failures. The prefix
+	   starts immediately for |->, one c1 tick later for |=>, and every
+	   c1 tick for a plain multiclocked sequence. */
       std::vector<Statement*> body1;
       {
-	    auto stage_cond = [&](size_t k) -> PExpr* {
-		    /* pa_k gate (k==0: none) AND slot boolean (may be null) */
-		  PExpr*g = (k == 0) ? nullptr : sva_id_(loc, pa[k]);
-		  if (a_slots[k]) {
-			if (!g) return a_slots[k];
-			PEBinary*bb = new PEBLogic('a', g, a_slots[k]);
-			FILE_NAME(bb, loc);
-			return bb;
-		  }
-		  return g ? g : nullptr;
+	    auto ante_gate = [&](size_t k) -> PExpr* {
+		  return (k == 0) ? sva_bit_(loc, 1)
+				  : (PExpr*)sva_id_(loc, pa[k]);
 	    };
-	      /* match condition (slot exprs are used exactly once —
-		 the final stage consumes slot Ta-1 here). */
-	    PExpr*match = stage_cond(Ta - 1);
+	    perm_string vcount;
+	    if (!plain && !cover && have_pass_action) {
+		  vcount = sva_make_reg_(loc, inst, "mcva", 0, true);
+		  body1.push_back(sva_assign_(loc, vcount,
+					      sva_num32_(loc, 0)));
+	    }
+	    PExpr*ante_match = nullptr;
+	    if (!plain) {
+		  for (size_t k = 0 ; k < Ta ; k += 1) {
+			PExpr*advance;
+			if (a_slots[k]) {
+			      perm_string adv = sva_make_reg_(
+					loc, inst, "mcaadv", (unsigned)k);
+			      PEBinary*advx = new PEBLogic('a', ante_gate(k),
+							   a_slots[k]);
+			      FILE_NAME(advx, loc);
+			      body1.push_back(sva_assign_(loc, adv, advx));
+			      advance = sva_id_(loc, adv);
+			      if (!cover && have_pass_action) {
+				    PEBinary*dead = new PEBLogic(
+					      'a', ante_gate(k),
+					      sva_not_(loc, sva_id_(loc, adv)));
+				    FILE_NAME(dead, loc);
+				    PEBinary*add = new PEBinary(
+					      '+', sva_id_(loc, vcount), dead);
+				    FILE_NAME(add, loc);
+				    body1.push_back(
+					      sva_assign_(loc, vcount, add));
+			      }
+			} else {
+			      advance = ante_gate(k);
+			}
+			if (k + 1 < Ta)
+			      body1.push_back(sva_assign_nb_(
+					loc, pa[k+1], advance));
+			else
+			      ante_match = advance;
+		  }
+	    }
+
+	    PExpr*match = ante_match;
+	    perm_string fcount;
+	    if (Tp) {
+		  if (!cover) {
+			fcount = sva_make_reg_(loc, inst, "mcpf", 0, true);
+			body1.push_back(sva_assign_(loc, fcount,
+						   sva_num32_(loc, 0)));
+		  }
+
+		  PExpr*prefix_start;
+		  if (plain) {
+			prefix_start = sva_bit_(loc, 1);
+		  } else if (prop->op_type == 1) {
+			prefix_start = ante_match;
+			ante_match = nullptr;
+		  } else {
+			body1.push_back(sva_assign_nb_(loc, pstart,
+						     ante_match));
+			ante_match = nullptr;
+			prefix_start = sva_id_(loc, pstart);
+		  }
+
+		  auto pgate = [&](size_t k) -> PExpr* {
+			if (k != 0) return sva_id_(loc, pp[k]);
+			return sva_clone_expr_(prefix_start);
+		  };
+
+		  match = nullptr;
+		  for (size_t k = 0 ; k < Tp ; k += 1) {
+			PExpr*advance;
+			if (p_slots[k]) {
+			      perm_string adv = sva_make_reg_(
+					loc, inst, "mcpadv", (unsigned)k);
+			      PEBinary*advx = new PEBLogic('a', pgate(k),
+							   p_slots[k]);
+			      FILE_NAME(advx, loc);
+			      body1.push_back(sva_assign_(loc, adv, advx));
+			      advance = sva_id_(loc, adv);
+			      if (!cover) {
+				    PEBinary*dead = new PEBLogic(
+					      'a', pgate(k),
+					      sva_not_(loc, sva_id_(loc, adv)));
+				    FILE_NAME(dead, loc);
+				    PEBinary*add = new PEBinary(
+					      '+', sva_id_(loc, fcount), dead);
+				    FILE_NAME(add, loc);
+				    body1.push_back(
+					      sva_assign_(loc, fcount, add));
+			      }
+			} else {
+			      advance = pgate(k);
+			}
+			if (k + 1 < Tp)
+			      body1.push_back(sva_assign_nb_(
+					loc, pp[k+1], advance));
+			else
+			      match = advance;
+		  }
+		  delete prefix_start;
+	    }
+
 	    PExpr*inc = new PEBinary('+', sva_id_(loc, req), sva_num32_(loc, 1));
 	    FILE_NAME(inc, loc);
-	    Statement*bump = sva_assign_nb_(loc, req, inc);
-	    if (match)
-		  body1.push_back(sva_if_(loc, match, bump, nullptr));
-	    else
-		  body1.push_back(bump);
-	      /* stage shifts, earlier stages (each consumes slot k) */
-	    for (size_t k = 0 ; k + 1 < Ta ; k += 1) {
-		  PExpr*cond = stage_cond(k);
-		  body1.push_back(sva_assign_nb_(loc, pa[k+1],
-						 cond ? cond : sva_bit_(loc, 1)));
+	    Statement*bump = overlap_boundary
+		  ? sva_assign_(loc, req, inc)
+		  : sva_assign_nb_(loc, req, inc);
+	    body1.push_back(sva_if_(loc, match, bump, nullptr));
+	    if (!plain && !cover && have_pass_action) {
+		  PEBinary*add = new PEBinary(
+			'+', sva_id_(loc, pv_req), sva_id_(loc, vcount));
+		  FILE_NAME(add, loc);
+		  body1.push_back(sva_if_(loc, sva_id_(loc, vcount),
+				sva_assign_(loc, pv_req, add), nullptr));
+	    }
+	    if (Tp && !cover) {
+		  PEBinary*add = new PEBinary(
+			'+', sva_id_(loc, fp_req), sva_id_(loc, fcount));
+		  FILE_NAME(add, loc);
+		  body1.push_back(sva_if_(loc, sva_id_(loc, fcount),
+				sva_assign_(loc, fp_req, add), nullptr));
 	    }
       }
 	/* disable iff: abort in the c1 domain -- clear the stages so no
@@ -9939,6 +10260,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    std::vector<Statement*> kill1;
 	    for (size_t k = 1 ; k < Ta ; k += 1)
 		  kill1.push_back(sva_assign_nb_(loc, pa[k], sva_bit_(loc, 0)));
+	    for (size_t k = 1 ; k < Tp ; k += 1)
+		  kill1.push_back(sva_assign_nb_(loc, pp[k], sva_bit_(loc, 0)));
+	    if (pstart != perm_string())
+		  kill1.push_back(sva_assign_nb_(loc, pstart, sva_bit_(loc, 0)));
 	    if (kill1.empty())
 		  kill1.push_back(sva_assign_nb_(loc, req, sva_id_(loc, req)));
 	    std::vector<Statement*> gated1;
@@ -9946,84 +10271,80 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 				     sva_block_(loc, body1)));
 	    body1.swap(gated1);
       }
-      c1->set_statement(sva_block_(loc, body1));
+      {
+	    std::vector<Statement*> full1 = mc_pre1;
+	    full1.insert(full1.end(), body1.begin(), body1.end());
+	    full1.insert(full1.end(), mc_post1.begin(), mc_post1.end());
+	    c1->set_statement(sva_block_(loc, full1));
+      }
       PProcess*p1 = pform_make_behavior(IVL_PR_ALWAYS, c1, nullptr);
       FILE_NAME(p1, loc);
       prop->clk_evt = nullptr;    /* consumed by the always block */
 
 	/* c2 body: an obligation enters the pipe at the first c2 tick
 	   that sees req != ack (NBA-latched req: strictly after the
-	   c1 match). Each stage checks its slot boolean at its tick;
-	   a false boolean FAILS at that tick, the final stage's true
-	   boolean PASSES. */
-      PExpr*outstanding = new PEBComp('n', sva_id_(loc, req), sva_id_(loc, ack));
-      FILE_NAME(outstanding, loc);
+	   c1 match). `due' preserves the full req-ack multiplicity when
+	   several antecedent matches accumulated before this c2 edge.
+	   Each stage checks its slot boolean at its tick; a false boolean
+	   FAILS every obligation in that batch, and the final stage's true
+	   boolean PASSES every obligation in that batch. */
+      perm_string due = sva_make_reg_(loc, inst, "mcdue", 0, true);
 
-	/* A cover has no verdict: an unmatched consequent is simply not a
-	   match, so no fail action is built and no stage raises one. */
-      Statement*failstmt = nullptr;
-      if (!cover) {
-	    Statement*action = fail_stmt;
-	    if (!action) {
-		  std::list<named_pexpr_t> no_args;
-		  PCallTask*err = new PCallTask(lex_strings.make("$error"),
-						no_args);
-		  FILE_NAME(err, loc);
-		  action = err;
-	    }
-	    fail_stmt = nullptr;
-	    failstmt = sva_fail_action_(loc, inst, action);
-      } else {
+	/* A cover has no failure verdict. Its action stays at the one c2
+	   match site; assertions retain both action trees for the persistent
+	   single-owner dispatchers built below. */
+      if (cover) {
 	    delete fail_stmt;
 	    fail_stmt = nullptr;
       }
 
-      Statement*passstmt;
-      if (cover) {
-	    PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt),
-					sva_num32_(loc, 1));
-	    FILE_NAME(add, loc);
-	    passstmt = sva_assign_(loc, r_cnt, add);
-      } else {
-	    std::vector<Statement*> passv;
-	    if (pass_stmt) { passv.push_back(pass_stmt); pass_stmt = nullptr; }
-	    passv.push_back(sva_report_stmt_(loc, inst, SVA_CB_SUCCESS));
-	    passstmt = sva_block_(loc, passv);
+      Statement*coverstmt = nullptr;
+      if (cover && pass_stmt) {
+	    coverstmt = sva_cover_action_(loc, pass_stmt);
+	    pass_stmt = nullptr;
       }
 
       std::vector<Statement*> body2;
-	/* per-tick failure flag: ANY stage (mid-chain or final) that
-	   sees its boolean false raises it; one shared fail action
-	   fires at the end of the tick. gate(k) below is always a
-	   synthesizer-built expression (req != ack, or a stage reg),
+	/* Per-tick failure count: every stage (mid-chain or final) that
+	   sees its boolean false adds its obligation multiplicity; the
+	   shared fail action executes that many times at the end of the
+	   tick. gate(k) below is always a synthesizer-built count
+	   expression (`due' or an age register),
 	   so it can be rebuilt freely; each user boolean is consumed
 	   exactly once. */
-      perm_string ffail = sva_make_reg_(loc, inst, "mcbf", 0);
-      body2.push_back(sva_assign_(loc, ffail, sva_bit_(loc, 0)));
-      body2.push_back(sva_if_(loc, outstanding,
+      perm_string ffail = sva_make_reg_(loc, inst, "mcbf", 0, true);
+      PEBinary*duex = new PEBinary('-', sva_id_(loc, req), sva_id_(loc, ack));
+      FILE_NAME(duex, loc);
+      body2.push_back(sva_assign_(loc, due, duex));
+      body2.push_back(sva_assign_(loc, ffail, sva_num32_(loc, 0)));
+      body2.push_back(sva_if_(loc, sva_id_(loc, due),
 			      sva_assign_nb_(loc, ack, sva_id_(loc, req)),
 			      nullptr));
+	/* `due' must be captured before this wait: for ##1 it must not see a
+	   coincident c1 NBA, while for ##0 the enclosing #0 has already made
+	   the coincident blocking request visible. The verdict itself is then
+	   computed in Observed, like every other concurrent assertion. */
+      body2.push_back(sva_observed_wait_(loc));
       {
 	    auto gate = [&](size_t k) -> PExpr* {
-		  if (k == 0) {
-			PExpr*d = new PEBComp('n', sva_id_(loc, req),
-					      sva_id_(loc, ack));
-			FILE_NAME(d, loc);
-			return d;
-		  }
+		  if (k == 0) return sva_id_(loc, due);
 		  return sva_id_(loc, tb[k]);
 	    };
-	      /* For a cover there is no verdict, so a stage that does not
-		 advance simply drops the attempt. Assign ffail=0 rather
-		 than build a separate statement shape: it keeps the two
-		 paths structurally identical and costs one store. */
-	    auto raise_fail = [&]() -> Statement* {
-		  return sva_assign_(loc, ffail,
-				     sva_bit_(loc, cover ? 0 : 1));
+	      /* A cover has no failure verdict. For an assertion, accumulate
+		 the count instead of a boolean so coincident obligations do
+		 not collapse to one action. */
+	    auto raise_fail = [&](PExpr*count) -> Statement* {
+		  if (cover) {
+			delete count;
+			return sva_assign_(loc, ffail, sva_id_(loc, ffail));
+		  }
+		  PEBinary*add = new PEBinary('+', sva_id_(loc, ffail), count);
+		  FILE_NAME(add, loc);
+		  return sva_assign_(loc, ffail, add);
 	    };
-	      /* Mid-chain stages: a 1-bit blocking temp holds the
-		 advance condition so the user boolean is read once;
-		 failure = gate && !advance. */
+	      /* Mid-chain stages: a wide blocking temp holds the number
+		 that advances, so the user boolean is read once and only
+		 when at least one obligation is live. failure = gate-advance. */
 	    for (size_t k = 0 ; k + 1 < Tb ; k += 1) {
 		  PExpr*fb = b_slots[k];   /* null = pure delay tick */
 		  if (!fb) {
@@ -10032,16 +10353,18 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			continue;
 		  }
 		  perm_string adv = sva_make_reg_(loc, inst, "mcadv",
-						  (unsigned)k);
-		  PEBinary*advx = new PEBLogic('a', gate(k), fb);
-		  FILE_NAME(advx, loc);
-		  body2.push_back(sva_assign_(loc, adv, advx));
+						  (unsigned)k, true);
+		  body2.push_back(sva_assign_(loc, adv, sva_num32_(loc, 0)));
+		  body2.push_back(sva_if_(loc, gate(k),
+				sva_if_(loc, fb,
+					sva_assign_(loc, adv, gate(k)), nullptr),
+				nullptr));
 		  body2.push_back(sva_assign_nb_(loc, tb[k+1],
 						 sva_id_(loc, adv)));
-		  PEBinary*dead = new PEBLogic('a', gate(k),
-					       sva_not_(loc, sva_id_(loc, adv)));
+		  PEBinary*dead = new PEBinary('-', gate(k),
+					       sva_id_(loc, adv));
 		  FILE_NAME(dead, loc);
-		  body2.push_back(sva_if_(loc, dead, raise_fail(), nullptr));
+		  body2.push_back(raise_fail(dead));
 	    }
 	      /* Final boolean. Without a window this is one tick: pass on a
 		 true boolean, flag on false.
@@ -10060,8 +10383,28 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  PExpr*fb = b_slots[Tb - 1];
 		  size_t last = Tw - 1;
 		  if (b_window == 0) {
+			Statement*hit;
+			if (cover) {
+			      PEBinary*add = new PEBinary('+',
+					sva_id_(loc, r_cnt), gate(Tb - 1));
+			      FILE_NAME(add, loc);
+			      std::vector<Statement*> hitv;
+			      hitv.push_back(sva_assign_(loc, r_cnt, add));
+			      if (coverstmt) {
+				    hitv.push_back(sva_repeat_(loc,
+					  gate(Tb - 1), coverstmt));
+				    coverstmt = nullptr;
+			      }
+			      hit = sva_block_(loc, hitv);
+			} else {
+			      PEBinary*add = new PEBinary(
+				    '+', sva_id_(loc, pn_req), gate(Tb - 1));
+			      FILE_NAME(add, loc);
+			      hit = sva_assign_(loc, pn_req, add);
+			}
 			body2.push_back(sva_if_(loc, gate(Tb - 1),
-				sva_if_(loc, fb, passstmt, raise_fail()),
+				sva_if_(loc, fb, hit,
+					raise_fail(gate(Tb - 1))),
 				nullptr));
 		  } else {
 			perm_string fbv = sva_make_reg_(loc, inst, "mcbv", 0);
@@ -10070,61 +10413,62 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 
 			  /* Propagate each unsatisfied live age forward. */
 			for (size_t d = Tb - 1 ; d < last ; d += 1) {
-			      PEBinary*keep = new PEBLogic('a', gate(d),
-					sva_not_(loc, sva_id_(loc, fbv)));
+			      PETernary*keep = new PETernary(
+					sva_not_(loc, sva_id_(loc, fbv)),
+					gate(d), sva_num32_(loc, 0));
 			      FILE_NAME(keep, loc);
 			      body2.push_back(sva_assign_nb_(loc, tb[d+1],
 							     keep));
 			}
 
-			  /* Discharge: any live age whose boolean holds.
-			     For a cover, count each discharged obligation --
-			     several ages can complete in the same tick and
-			     each is a distinct match. */
+			  /* Discharge every live age whose boolean holds. */
+			perm_string fpass = sva_make_reg_(loc, inst, "mcbp",
+							  0, true);
+			PExpr*sum = gate(Tb - 1);
+			for (size_t d = Tb ; d <= last ; d += 1) {
+			      PEBinary*ad = new PEBinary('+', sum, gate(d));
+			      FILE_NAME(ad, loc);
+			      sum = ad;
+			}
+			body2.push_back(sva_assign_(loc, fpass,
+						    sva_num32_(loc, 0)));
+			body2.push_back(sva_if_(loc, sva_id_(loc, fbv),
+				sva_assign_(loc, fpass, sum), nullptr));
 			if (cover) {
-			      PExpr*sum = sva_id_(loc, r_cnt);
-			      for (size_t d = Tb - 1 ; d <= last ; d += 1) {
-				    PEBinary*hit = new PEBLogic('a', gate(d),
-							sva_id_(loc, fbv));
-				    FILE_NAME(hit, loc);
-				    PEBinary*ad = new PEBinary('+', sum, hit);
-				    FILE_NAME(ad, loc);
-				    sum = ad;
+			      PEBinary*add = new PEBinary('+',
+					sva_id_(loc, r_cnt),
+					sva_id_(loc, fpass));
+			      FILE_NAME(add, loc);
+			      body2.push_back(sva_assign_(loc, r_cnt, add));
+			      if (coverstmt) {
+				    body2.push_back(sva_repeat_(loc,
+					  sva_id_(loc, fpass), coverstmt));
+				    coverstmt = nullptr;
 			      }
-			      delete passstmt;
-			      body2.push_back(sva_assign_(loc, r_cnt, sum));
-			      passstmt = nullptr;
 			} else {
-			      PExpr*any = nullptr;
-			      for (size_t d = Tb - 1 ; d <= last ; d += 1) {
-				    PEBinary*hit = new PEBLogic('a', gate(d),
-							sva_id_(loc, fbv));
-				    FILE_NAME(hit, loc);
-				    if (!any) any = hit;
-				    else {
-					  PEBinary*o = new PEBLogic('o', any,
-								    hit);
-					  FILE_NAME(o, loc);
-					  any = o;
-				    }
-			      }
-			      body2.push_back(sva_if_(loc, any, passstmt,
-						      nullptr));
-			      passstmt = nullptr;
+			      PEBinary*add = new PEBinary(
+				    '+', sva_id_(loc, pn_req),
+				    sva_id_(loc, fpass));
+			      FILE_NAME(add, loc);
+			      body2.push_back(sva_if_(
+				    loc, sva_id_(loc, fpass),
+				    sva_assign_(loc, pn_req, add), nullptr));
 			}
 
 			  /* The last age with a false boolean is the only
 			     way this consequent fails. */
-			PEBinary*dead = new PEBLogic('a', gate(last),
-					sva_not_(loc, sva_id_(loc, fbv)));
-			FILE_NAME(dead, loc);
-			body2.push_back(sva_if_(loc, dead, raise_fail(),
-						nullptr));
+			body2.push_back(sva_if_(loc,
+				sva_not_(loc, sva_id_(loc, fbv)),
+				raise_fail(gate(last)), nullptr));
 		  }
 	    }
-	    if (failstmt)
+	    if (!cover) {
+		  PEBinary*add = new PEBinary(
+			'+', sva_id_(loc, fs_req), sva_id_(loc, ffail));
+		  FILE_NAME(add, loc);
 		  body2.push_back(sva_if_(loc, sva_id_(loc, ffail),
-					  failstmt, nullptr));
+				sva_assign_(loc, fs_req, add), nullptr));
+	    }
       }
 
 	/* disable iff: abort in the c2 domain -- swallow the outstanding
@@ -10140,16 +10484,183 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 				     sva_block_(loc, body2)));
 	    body2.swap(gated2);
       }
-      c2->set_statement(sva_block_(loc, body2));
+      std::vector<Statement*> full2 = mc_pre2;
+      full2.insert(full2.end(), body2.begin(), body2.end());
+      full2.insert(full2.end(), mc_post2.begin(), mc_post2.end());
+      Statement*c2body = sva_block_(loc, full2);
+      if (overlap_boundary) {
+	    PDelayStatement*z = new PDelayStatement(
+		  sva_num32_(loc, 0), c2body);
+	    FILE_NAME(z, loc);
+	    c2body = z;
+      }
+      c2->set_statement(c2body);
       PProcess*p2 = pform_make_behavior(IVL_PR_ALWAYS, c2, nullptr);
       FILE_NAME(p2, loc);
       prop->seq_clk_evt = nullptr;
 
+	/* Each single-owner dispatcher snapshots and acknowledges the verdict
+	   counters before entering Reactive. A conditional event wait also
+	   catches requests that arrive while the dispatcher is draining an
+	   earlier batch: unequal request/ack counters are consumed immediately
+	   on the next forever-loop iteration, without waiting for an edge that
+	   has already happened.
+
+	   The user action itself runs in a detached child, once per verdict.
+	   That is essential procedural semantics: one delayed or nonterminating
+	   action must not serialize or suppress another assertion action. The
+	   dispatcher and its children have permanent Reactive-region affinity,
+	   so a #delay or @event continuation stays in the Reactive region set
+	   rather than escaping back to Active. The leading #0 lets the shared
+	   initialization process establish all counters before either
+	   dispatcher examines them. */
+      if (!cover) {
+	      /* Pass dispatcher: nonvacuous successes report the VPI
+		 callback; vacuous successes do not. Both execute the same
+		 single-owned user statement in independent detached
+		 Reactive processes. */
+	    std::vector<PEEvent*> pev;
+	    pev.push_back(new PEEvent(PEEvent::ANYEDGE,
+				      sva_id_(loc, pv_req)));
+	    pev.push_back(new PEEvent(PEEvent::ANYEDGE,
+				      sva_id_(loc, pn_req)));
+	    PEventStatement*pwait = new PEventStatement(pev);
+	    FILE_NAME(pwait, loc);
+
+	    PEBComp*pveq = new PEBComp(
+		  'e', sva_id_(loc, pv_req), sva_id_(loc, pv_ack));
+	    FILE_NAME(pveq, loc);
+	    PEBComp*pneq = new PEBComp(
+		  'e', sva_id_(loc, pn_req), sva_id_(loc, pn_ack));
+	    FILE_NAME(pneq, loc);
+	    PEBLogic*pidle = new PEBLogic('a', pveq, pneq);
+	    FILE_NAME(pidle, loc);
+
+	    std::vector<Statement*> ploop;
+	    ploop.push_back(sva_if_(loc, pidle, pwait, nullptr));
+	    PEBinary*pvd = new PEBinary(
+		  '-', sva_id_(loc, pv_req), sva_id_(loc, pv_ack));
+	    FILE_NAME(pvd, loc);
+	    ploop.push_back(sva_assign_(loc, pv_due, pvd));
+	    PEBinary*pnd = new PEBinary(
+		  '-', sva_id_(loc, pn_req), sva_id_(loc, pn_ack));
+	    FILE_NAME(pnd, loc);
+	    ploop.push_back(sva_assign_(loc, pn_due, pnd));
+	    ploop.push_back(sva_assign_(
+		  loc, pv_ack, sva_id_(loc, pv_req)));
+	    ploop.push_back(sva_assign_(
+		  loc, pn_ack, sva_id_(loc, pn_req)));
+	    ploop.push_back(sva_reactive_wait_(loc));
+
+	      /* Report every nonvacuous success before starting any user
+		 action. A delayed/nonreturning action therefore cannot delay
+		 or lose the assertion callback. */
+	    ploop.push_back(sva_repeat_(
+		  loc, sva_id_(loc, pn_due),
+		  sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
+
+	    if (have_pass_action) {
+		  PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
+		  FILE_NAME(spawn, loc);
+		  std::vector<Statement*>one;
+		  one.push_back(sva_gate_(loc, pass_stmt));
+		  spawn->set_statement(one);
+		  pass_stmt = nullptr;
+		  PEBinary*ptotal = new PEBinary(
+			'+', sva_id_(loc, pn_due), sva_id_(loc, pv_due));
+		  FILE_NAME(ptotal, loc);
+		  ploop.push_back(sva_repeat_(loc, ptotal, spawn));
+	    }
+
+	    PForever*pforever = new PForever(sva_block_(loc, ploop));
+	    FILE_NAME(pforever, loc);
+	    std::vector<Statement*>pstartv;
+	    pstartv.push_back(sva_reactive_process_(loc));
+	    pstartv.push_back(pforever);
+	    PDelayStatement*pass_start = new PDelayStatement(
+		  sva_num32_(loc, 0), sva_block_(loc, pstartv));
+	    FILE_NAME(pass_start, loc);
+	    PProcess*pd = pform_make_behavior(
+		  IVL_PR_INITIAL, pass_start, nullptr);
+	    FILE_NAME(pd, loc);
+
+	      /* Failure dispatcher: prefix and suffix failures share one
+		 default/user action and one callback path, so an arbitrary
+		 action statement is never copied. */
+	    std::vector<PEEvent*> fev;
+	    fev.push_back(new PEEvent(PEEvent::ANYEDGE,
+				      sva_id_(loc, fp_req)));
+	    fev.push_back(new PEEvent(PEEvent::ANYEDGE,
+				      sva_id_(loc, fs_req)));
+	    PEventStatement*fwait = new PEventStatement(fev);
+	    FILE_NAME(fwait, loc);
+
+	    PEBComp*fpeq = new PEBComp(
+		  'e', sva_id_(loc, fp_req), sva_id_(loc, fp_ack));
+	    FILE_NAME(fpeq, loc);
+	    PEBComp*fseq = new PEBComp(
+		  'e', sva_id_(loc, fs_req), sva_id_(loc, fs_ack));
+	    FILE_NAME(fseq, loc);
+	    PEBLogic*fidle = new PEBLogic('a', fpeq, fseq);
+	    FILE_NAME(fidle, loc);
+
+	    std::vector<Statement*> floop;
+	    floop.push_back(sva_if_(loc, fidle, fwait, nullptr));
+	    PEBinary*fpd = new PEBinary(
+		  '-', sva_id_(loc, fp_req), sva_id_(loc, fp_ack));
+	    FILE_NAME(fpd, loc);
+	    floop.push_back(sva_assign_(loc, fp_due, fpd));
+	    PEBinary*fsd = new PEBinary(
+		  '-', sva_id_(loc, fs_req), sva_id_(loc, fs_ack));
+	    FILE_NAME(fsd, loc);
+	    floop.push_back(sva_assign_(loc, fs_due, fsd));
+	    floop.push_back(sva_assign_(
+		  loc, fp_ack, sva_id_(loc, fp_req)));
+	    floop.push_back(sva_assign_(
+		  loc, fs_ack, sva_id_(loc, fs_req)));
+	    floop.push_back(sva_reactive_wait_(loc));
+
+	    Statement*action = fail_stmt;
+	    if (!action) {
+		  std::list<named_pexpr_t> no_args;
+		  PCallTask*err = new PCallTask(
+			lex_strings.make("$error"), no_args);
+		  FILE_NAME(err, loc);
+		  action = err;
+	    }
+	    fail_stmt = nullptr;
+	    PEBinary*ftotal = new PEBinary(
+		  '+', sva_id_(loc, fp_due), sva_id_(loc, fs_due));
+	    FILE_NAME(ftotal, loc);
+
+	      /* Like success, failure notification precedes user code. */
+	    floop.push_back(sva_repeat_(
+		  loc, sva_clone_expr_(ftotal),
+		  sva_report_stmt_(loc, inst, SVA_CB_FAILURE)));
+
+	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
+	    FILE_NAME(spawn, loc);
+	    std::vector<Statement*>one;
+	    one.push_back(sva_gate_(loc, action));
+	    spawn->set_statement(one);
+	    floop.push_back(sva_repeat_(loc, ftotal, spawn));
+
+	    PForever*fforever = new PForever(sva_block_(loc, floop));
+	    FILE_NAME(fforever, loc);
+	    std::vector<Statement*>fstartv;
+	    fstartv.push_back(sva_reactive_process_(loc));
+	    fstartv.push_back(fforever);
+	    PDelayStatement*fstart = new PDelayStatement(
+		  sva_num32_(loc, 0), sva_block_(loc, fstartv));
+	    FILE_NAME(fstart, loc);
+	    PProcess*fd = pform_make_behavior(
+		  IVL_PR_INITIAL, fstart, nullptr);
+	    FILE_NAME(fd, loc);
+      }
+
+      delete fail_stmt;
       delete pass_stmt;
-      delete prop->antecedent;
-      delete prop->seq;
-      delete prop->disable_iff_expr;
-      delete prop;
+      pform_sva_destroy_property(prop);
 }
 
 /* Build a fresh procedural wait `@(<clk events>)' cloning the clocking
@@ -10299,15 +10810,7 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 	    error_count += 1;
 	    delete pass_stmt;
 	    delete else_stmt;
-	    if (prop) {
-		  delete prop->antecedent;
-		  delete prop->seq;
-		  if (prop->tree) sva_tree_delete_(prop->tree, true);
-		  delete prop->clk_evt;
-		  delete prop->seq_clk_evt;
-		  delete prop->disable_iff_expr;
-		  delete prop;
-	    }
+	    pform_sva_destroy_property(prop);
 	    std::vector<Statement*> empty;
 	    return sva_block_(loc, empty);
       }
@@ -10504,7 +11007,8 @@ struct sva_pending_proc_t {
 static std::vector<sva_pending_proc_t> sva_pending_proc_;
 
 static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
-						 const struct vlltype&loc)
+						 const struct vlltype&loc,
+			 const std::map<perm_string,PExpr*>*subst = nullptr)
 {
       if (!src) return nullptr;
       const std::vector<PEEvent*>&evs = src->event_expressions();
@@ -10515,7 +11019,7 @@ static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
       std::vector<PEEvent*> copy;
       for (size_t idx = 0 ; idx < evs.size() ; idx += 1) {
 	    if (!evs[idx]) continue;
-	    PExpr*sub = sva_clone_expr_(evs[idx]->expr());
+	    PExpr*sub = sva_clone_subst_(evs[idx]->expr(), subst);
 	    if (!sub) {
 		  for (size_t k = 0 ; k < copy.size() ; k += 1) delete copy[k];
 		  return nullptr;
@@ -10582,6 +11086,7 @@ void pform_sva_infer_procedural_clock(PEventStatement*ctl)
 		  error_count += 1;
 		  delete p.fail_stmt;
 		  delete p.pass_stmt;
+		  pform_sva_destroy_property(p.prop);
 		  continue;
 	    }
 	    p.prop->clk_evt = clk;
@@ -10603,6 +11108,7 @@ void pform_sva_flush_pending_procedural(void)
 	    error_count += 1;
 	    delete p.fail_stmt;
 	    delete p.pass_stmt;
+	    pform_sva_destroy_property(p.prop);
       }
       sva_pending_proc_.clear();
 }
@@ -10647,7 +11153,9 @@ void pform_sva_flush_pending_procedural(void)
  */
 static bool sva_prop_is_named_ref_(const sva_property_t*prop)
 {
-      if (prop->op_type != 0 || !prop->seq || prop->seq->size() != 1)
+      if (prop->op_type != 0 || prop->seq_clk_evt || prop->mc_prefix
+	  || prop->mc_boundary != -1
+	  || !prop->seq || prop->seq->size() != 1)
 	    return false;
       PExpr*e = (*prop->seq)[0].expr;
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
@@ -10754,7 +11262,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* Named property instantiation: `assert property (p);` where p
 	   is a declared no-argument property of this module. */
       if (prop->op_type == 0 && prop->seq->size() == 1
-	  && !prop->clk_evt && !prop->disable_iff_expr) {
+	  && !prop->clk_evt && !prop->seq_clk_evt && !prop->mc_prefix
+	  && prop->mc_boundary == -1 && !prop->disable_iff_expr) {
 	    if (PEIdent*id = dynamic_cast<PEIdent*>((*prop->seq)[0].expr)) {
 		  if (!id->path().package && id->path().name.size() == 1
 		      && id->path().name.front().index.empty()) {
@@ -10774,11 +11283,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    }
       }
 
-	/* M9D: parameterized property instantiation `p(a,b)`. The clock
-	   comes from the assertion site (`assert property (@(clk) p(...))`);
-	   a clock in the property body is unsupported (would need per-
-	   instantiation cloning of the event). */
+	/* M9D: parameterized property instantiation `p(a,b)'. A clock-flow
+	   event in the declaration body is cloned with formal substitution;
+	   the leading clock comes from the assertion site. */
       if (prop->op_type == 0 && prop->seq->size() == 1
+	  && !prop->seq_clk_evt && !prop->mc_prefix
+	  && prop->mc_boundary == -1
 	  && (*prop->seq)[0].delay_lo == 0 && (*prop->seq)[0].delay_hi == 0
 	  && (*prop->seq)[0].rep_tail == 0) {
 	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>((*prop->seq)[0].expr)) {
@@ -10791,10 +11301,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      bool fatal = false;
 			      if (decl->clk_evt) {
 				    cerr << loc << ": sorry: a parameterized "
-					 << "property with a clock in its body is "
-					 << "not supported; put the clock at the "
-					 << "assertion (`@(clk) " << nm << "(...)`)."
-					 << endl;
+					 << "property with a leading clock in its "
+					 << "body is not supported; put that clock "
+					 << "at the assertion (`@(clk) " << nm
+					 << "(...)`). A clock-flow event later in "
+					 << "the body is supported." << endl;
 				    error_count += 1;
 				    fatal = true;
 			      }
@@ -10806,11 +11317,39 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      if (!fatal) {
 				    inst = new sva_property_t;
 				    inst->op_type = decl->op_type;
+				    inst->mc_boundary = decl->mc_boundary;
+				    inst->strength = decl->strength;
+				    inst->win_lo = decl->win_lo;
+				    inst->win_hi = decl->win_hi;
+				    bool ok = true;
 				    inst->clk_evt = prop->clk_evt;
 				    prop->clk_evt = nullptr;
 				    inst->disable_iff_expr = prop->disable_iff_expr;
 				    prop->disable_iff_expr = nullptr;
-				    bool ok = true;
+				    if (decl->seq_clk_evt) {
+					  inst->seq_clk_evt = sva_clone_event_control_(
+						decl->seq_clk_evt, loc, &subst);
+					  if (!inst->seq_clk_evt) ok = false;
+				    }
+				    if (ok && decl->disable_iff_expr) {
+					  PExpr*dd = sva_clone_subst_(
+						decl->disable_iff_expr, &subst);
+					  if (!dd) {
+						ok = false;
+					  } else if (inst->disable_iff_expr) {
+						PEBLogic*both = new PEBLogic(
+						      'o', inst->disable_iff_expr, dd);
+						FILE_NAME(both, loc);
+						inst->disable_iff_expr = both;
+					  } else {
+						inst->disable_iff_expr = dd;
+					  }
+				    }
+				    if (ok && decl->abort_cond) {
+					  inst->abort_cond = sva_clone_subst_(
+						decl->abort_cond, &subst);
+					  if (!inst->abort_cond) ok = false;
+				    }
 				    if (decl->seq) {
 					  inst->seq = sva_clone_steps_subst_(loc, decl->seq, subst);
 					  if (!inst->seq) ok = false;
@@ -10819,14 +11358,19 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  inst->antecedent = sva_clone_steps_subst_(loc, decl->antecedent, subst);
 					  if (!inst->antecedent) ok = false;
 				    }
+				    if (ok && decl->mc_prefix) {
+					  inst->mc_prefix = sva_clone_steps_subst_(
+						loc, decl->mc_prefix, subst);
+					  if (!inst->mc_prefix) ok = false;
+				    }
 				    if (!ok) {
 					  cerr << loc << ": sorry: property `" << nm
 					       << "' has a body expression that cannot "
 					       << "be instantiated with arguments; the "
 					       << "assertion is dropped." << endl;
 					  error_count += 1;
-					  delete inst->seq; delete inst->antecedent;
-					  delete inst; inst = nullptr;
+					  pform_sva_destroy_property(inst);
+					  inst = nullptr;
 					  fatal = true;
 				    }
 			      }

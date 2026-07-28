@@ -288,6 +288,11 @@ struct sva_property_t;
 struct sva_seq_step_t;
 struct sva_prop_case_item_t;
 struct rs_production_t;
+/* Ownership helpers used by parser error/disabled-feature paths as well as
+   the SVA lowerers. They delete all expressions and event controls still
+   owned by the supplied IR object. */
+extern void pform_sva_destroy_sequence(std::vector<sva_seq_step_t>*seq);
+extern void pform_sva_destroy_property(sva_property_t*prop);
 extern void pform_make_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
 				 Statement*fail_stmt, Statement*pass_stmt,

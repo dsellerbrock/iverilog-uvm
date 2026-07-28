@@ -1158,6 +1158,11 @@ sv_assert_in_procedural_block normal,-g2012 ivltests
 sv_assert_procedural_implicit_clock normal,-g2012 ivltests
 sv_assert_select_preponed_sample normal,-g2012 ivltests
 sv_assert_multiclock_cover_disable normal,-g2012 ivltests
+sv_assert_multiclock_action_blocks normal,-g2012 ivltests
+sv_assert_multiclock_clock_flow normal,-g2012 ivltests
+sv_assert_multiclock_multiplicity normal,-g2012 ivltests
+sv_assert_multiclock_nested_flow normal,-g2012 ivltests
+sv_assert_multiclock_sampled_values normal,-g2012 ivltests
 sv_assert_multiclock_varlen normal,-g2012 ivltests
 sv_process_self_named_block normal,-g2012 ivltests
 sv_assert_observed_region normal,-g2012 ivltests

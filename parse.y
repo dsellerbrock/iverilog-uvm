@@ -1121,11 +1121,13 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <expr> property_spec_disable_iff_opt
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
-%type <sva_prop> property_expr property_spec
+%type <sva_prop> property_expr property_spec sva_multiclock_seq
 %type <sva_prop> sva_seq_comb sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
 %type <sva_seq>  sva_seq_expr sva_seq_atom
 %type <sva_case_item>  property_case_item
 %type <sva_case_items> property_case_items
+%destructor { pform_sva_destroy_property($$); } <sva_prop>
+%destructor { pform_sva_destroy_sequence($$); } <sva_seq>
 %type <rs_item>           rs_prod_item
 %type <rs_item_list>      rs_prod_item_list
 %type <rs_rule>           rs_rule
@@ -2368,7 +2370,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      delete $4; delete $6;
+	      pform_sva_destroy_property($4); delete $6;
 	}
 	$$ = 0;
       }
@@ -2381,7 +2383,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      delete $4; delete $7;
+	      pform_sva_destroy_property($4); delete $7;
 	}
 	$$ = 0;
       }
@@ -2394,7 +2396,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      delete $4; delete $6; delete $8;
+	      pform_sva_destroy_property($4); delete $6; delete $8;
 	}
 	$$ = 0;
       }
@@ -2407,7 +2409,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      delete $4; delete $6;
+	      pform_sva_destroy_property($4); delete $6;
 	}
 	$$ = 0;
       }
@@ -2422,14 +2424,14 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      delete $4; delete $6;
+	      pform_sva_destroy_property($4); delete $6;
 	}
 	$$ = 0;
       }
   | K_restrict K_property '(' property_spec ')' ';'
       { /* IEEE 1800-2017 16.8: restrict is a formal-tools directive;
 	   simulation ignores it. */
-	if ($4) { delete $4->antecedent; delete $4->seq; delete $4; }
+	pform_sva_destroy_property($4);
         $$ = 0;
       }
   | assert_or_assume K_property '(' error ')' statement_or_null %prec less_than_K_else
@@ -5440,12 +5442,12 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
   | K_expect '(' property_spec ')' statement_or_null %prec less_than_K_else
       { if (gn_supported_assertions_flag)
 	      $$ = pform_make_expect(@1, $3, $5, nullptr);
-	else { delete $3; delete $5; $$ = 0; }
+	else { pform_sva_destroy_property($3); delete $5; $$ = 0; }
       }
   | K_expect '(' property_spec ')' statement_or_null K_else statement_or_null
       { if (gn_supported_assertions_flag)
 	      $$ = pform_make_expect(@1, $3, $5, $7);
-	else { delete $3; delete $5; delete $7; $$ = 0; }
+	else { pform_sva_destroy_property($3); delete $5; delete $7; $$ = 0; }
       }
   ;
 
@@ -5460,11 +5462,34 @@ sva_formal_list
 	l->push_back(lex_strings.make($1)); delete[]$1; $$ = l; }
   ;
 
+/* IEEE 1800-2017 16.13.1: a multiclocked sequence has exactly ##0 or ##1
+   at the clock-flow boundary. The same-clock prefix and suffix keep their
+   ordinary fixed-delay chains; the boundary stays explicit in the property
+   IR so lowering can distinguish possibly-overlapping from strictly-after. */
+sva_multiclock_seq
+  : sva_seq_expr K_CYCLE_DELAY delay_value_simple event_control sva_seq_expr
+      { sva_property_t*p = new sva_property_t;
+	PENumber*num = dynamic_cast<PENumber*>($3);
+	p->mc_prefix = $1;
+	p->seq = $5;
+	p->seq_clk_evt = $4;
+	p->mc_boundary = num ? num->value().as_long() : -2;
+	p->op_type = 0;
+	delete $3;
+	$$ = p; }
+  ;
+
 property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   : sva_seq_expr
       { sva_property_t*p = new sva_property_t;
 	p->seq = $1; p->op_type = 0;
 	$$ = p; }
+  | sva_multiclock_seq
+      { $$ = $1; }
+  | sva_seq_expr K_PIPE_IMPL_OV sva_multiclock_seq
+      { $3->antecedent = $1; $3->op_type = 1; $$ = $3; }
+  | sva_seq_expr K_PIPE_IMPL_NOV sva_multiclock_seq
+      { $3->antecedent = $1; $3->op_type = 2; $$ = $3; }
   | sva_seq_expr K_PIPE_IMPL_OV sva_seq_expr
       { sva_property_t*p = new sva_property_t;
 	p->antecedent = $1; p->seq = $3; p->op_type = 1;
@@ -5482,11 +5507,13 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { sva_property_t*p = new sva_property_t;
 	p->antecedent = $1; p->seq = $4; p->op_type = 2;
 	p->seq_clk_evt = $3;
+	p->mc_boundary = 1;
 	$$ = p; }
   | sva_seq_expr K_PIPE_IMPL_OV event_control sva_seq_expr
       { sva_property_t*p = new sva_property_t;
 	p->antecedent = $1; p->seq = $4; p->op_type = 1;
 	p->seq_clk_evt = $3;
+	p->mc_boundary = 0;
 	$$ = p; }
   /* IEEE 1800-2017 16.12.2: strong/weak consequent — `req |-> strong(s)'
      is the canonical form (attempts are gated by the antecedent, so the
@@ -5600,7 +5627,7 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | K_eventually property_expr
       { yyerror(@1, "error: unbounded `eventually' is not legal; use "
 		    "`s_eventually' (or a bounded `eventually [m:n]').");
-	delete $2; $$ = 0; }
+	pform_sva_destroy_property($2); $$ = 0; }
   /* IEEE 1800-2017 16.12.9: abort operators. `accept_on(c) p' aborts the
      evaluation to a PASS the moment c holds; `reject_on(c) p' aborts to a
      FAIL. The sync_ variants sample c at the clock (op 14 accept_on,
@@ -5830,17 +5857,6 @@ sva_seq_expr
 	}
 	delete $3;
 	$$ = $7; }
-  /* IEEE 1800-2017 16.13.1 mid-sequence clock flow: `a ##1 @(c2) b'.
-     Not supported -- the cross-clock handoff is built for the boundary at
-     an implication, not at an arbitrary point in a chain. Recognised here
-     only so it names itself instead of reporting a bare syntax error. */
-  | sva_seq_expr K_CYCLE_DELAY delay_value_simple event_control sva_seq_atom
-      { yyerror(@4, "sorry: a clocking event inside a sequence "
-		"(mid-sequence clock flow, IEEE 1800-2017 16.13.1) is not "
-		"supported; the cross-clock handoff is available at a "
-		"non-overlapping implication (`@(c1) a |=> @(c2) b').");
-	delete $3; delete $4; delete $5;
-	$$ = $1; }
   | sva_seq_expr K_CYCLE_DELAY delay_value_simple sva_seq_atom
       { PENumber*num = dynamic_cast<PENumber*>($3);
 	sva_seq_step_t&f0 = (*$4)[0];
