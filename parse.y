@@ -142,6 +142,25 @@ static stack<PBlock*> current_block_stack;
    specified. */
 static LexicalScope::lifetime_t var_lifetime;
 
+/* M4C-10: `automatic event' is a loud, tracked "sorry", not a silent
+   degrade to static behavior and not a bare syntax error. Shared by the
+   block_item_decl and statement_item alternatives that accept an
+   explicit event lifetime, so the diagnostic can't drift between them. */
+static void pform_check_event_lifetime(const struct vlltype&loc,
+                                        LexicalScope::lifetime_t lifetime)
+{
+      if (lifetime != LexicalScope::AUTOMATIC)
+	    return;
+
+      yyerror(loc, "sorry: automatic named events are not supported. "
+	      "Icarus elaborates a named event once per lexical scope "
+	      "instance (a single compile-time event functor), so it "
+	      "cannot give an automatic event a fresh synchronization "
+	      "identity on every activation as IEEE 1800-2017 6.17/6.21 "
+	      "imply. Use the default lifetime, or spell it out as "
+	      "`static event'.");
+}
+
 /* IEEE 1800-2017 7.12: build a method-call expression for the
    keyword-named array methods (and/or/xor), which the generic
    function-call and with-clause rules cannot match.  args may be
@@ -6565,6 +6584,30 @@ block_item_decl
       { if ($2) pform_make_events(@1, $2);
       }
 
+  /* M4C-10: `static event`/`automatic event' in a block. The bare rule
+     above already covers the (default-lifetime) plain `event e;'. This
+     alternative shares the `K_const_opt' prefix already used by the
+     variable-declaration alternatives above it, so it reuses the
+     existing K_const_opt/lifetime states instead of introducing a
+     competing epsilon-reduction path for `variable_lifetime_opt' --
+     that competing-epsilon shape is what previously blew up the grammar
+     (+43 shift/reduce conflicts); this shape adds none (measured with
+     bison -v: 495/1161 before and after).
+
+     `static' is just an explicit spelling of the (module-inherited)
+     default, so it is accepted unconditionally. `automatic' asks for a
+     new synchronization identity on every activation (IEEE 1800-2017
+     6.17, 6.21): Icarus elaborates a named event exactly once per
+     lexical scope instance -- a single compile-time NetEvent/vvp event
+     functor (see PEvent::elaborate_scope) -- with no per-call storage,
+     so it cannot honor that. Rather than silently degrade to static
+     behavior, say so loudly and fail the compile. */
+  | K_const_opt lifetime K_event event_variable_list ';'
+      { pform_requires_sv(@2, "Overriding default event lifetime");
+	pform_check_event_lifetime(@2, $2);
+	if ($4) pform_make_events(@3, $4);
+      }
+
   | parameter_declaration
 
   /* Blocks can have type declarations. */
@@ -12781,6 +12824,20 @@ statement_item /* This is roughly statement_item in the LRM */
      block_item_decl event rule does. */
   | K_event event_variable_list ';'
       { if ($2) pform_make_events(@1, $2);
+	$$ = nullptr;
+      }
+
+  /* M4C-10: `static event`/`automatic event' arriving through this same
+     intermixed-with-statements path (see the comment above -- this is
+     exactly where a *leading* `event' declaration in a block lands, since
+     the empty-K_const_opt vs empty-list conflict already resolves this
+     position toward the statement path before block_item_decl ever gets
+     a look at it). Mirrors the block_item_decl alternative of the same
+     name; measured with bison -v: 495/1161 before and after, unchanged. */
+  | lifetime K_event event_variable_list ';'
+      { pform_requires_sv(@1, "Overriding default event lifetime");
+	pform_check_event_lifetime(@1, $1);
+	if ($3) pform_make_events(@2, $3);
 	$$ = nullptr;
       }
 

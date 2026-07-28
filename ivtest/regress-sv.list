@@ -1203,3 +1203,4 @@ sv_open_array_multidim normal,-g2012 ivltests
 sv_process_status_identity normal,-g2012 ivltests
 sv_stacktrace_task_call normal,-g2012 ivltests
 sv_event_array normal,-g2012 ivltests
+sv_event_lifetime_qualifier normal,-g2012 ivltests
