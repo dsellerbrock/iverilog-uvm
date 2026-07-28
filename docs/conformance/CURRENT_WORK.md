@@ -4,60 +4,44 @@ This is the short resume state. `ROADMAP.md` is the living tracker,
 `iverilog_ieee1800_uvm_manifesto.md` carries policy, and dated technical
 narratives live in `session_logs/`.
 
-## Resume state — 2026-07-26
+## Resume state — 2026-07-27
 
-Branch: `codex/vpi-container-observability`, based on the merge of
-PR #122 (`d0d51c226`). Draft PR: #123.
+Branch: `codex/object-randomize-statement-with`, based on current `main`
+at `2e5eab5d8`.
 
-The VPI runtime-container observability campaign is closed:
+The object `randomize() with {...}` statement-position campaign is closed:
 
-- queue, dynamic-array and associative-array class properties expose a
-  live `vpiArrayVar` surface with declared/live kind, current size,
-  member/index iteration, and typed int/string/real element access;
-- VPI element writes update the SystemVerilog object;
-- member handles stay live across owner replacement and container growth;
-- `cbValueChange` on direct and class-property container elements fires
-  immediately for both SV and VPI writes;
-- per-element snapshots prevent a mutation elsewhere in the same class
-  object from spuriously firing sibling callbacks.
+- bare, `void'(...)`, and no-parentheses statement calls retain their
+  inline constraint block instead of rejecting it or dropping it;
+- statement calls use the same Z3-backed builder as expression calls;
+- variable selectors, caller-scope values, nested/indexed/call-result
+  receivers, explicit and implicit current-object receivers, hooks, and
+  failed-call rollback all follow the existing expression semantics;
+- the ordinary discarded-function warning remains for bare calls and is
+  suppressed by an explicit void cast.
 
-Discriminating pre-fix evidence:
-
-- `m12_container_props` produced 36 deterministic failures: property
-  queues appeared empty, dynamic arrays looked like 64-bit class
-  variables, associative arrays had the wrong kind, element handles were
-  null, typed/nested properties were missing, writes had no effect, and
-  saved handles did not follow owner replacement;
-- `m12_container_cb` produced three deterministic failures, including a
-  null class-property element and callbacks that registered but never
-  fired.
-
-The root causes were split across metadata, handle adaptation, callback
-routing and mutation notification. Dynamic-array properties had been
-serialized as generic objects; class members exposed only static property
-metadata; a runtime word callback cast its parent to the static-array
-implementation; associative stores did not notify the owning object; and
-class-root notifications required element-level filtering.
+The permanent discriminator is
+`ivtest/ivltests/sv_object_randomize_statement_with.v`. Current `main`
+rejects its legal statement calls during parsing; the fixed build computes
+and checks every value and hook count.
 
 Final gates:
 
-- focused property/callback family: pass;
+- focused clause-18 tests: pass;
+- constraints/UVM subset: 22 passed, 0 failed, real DPI;
 - `make check`: pass;
 - negative suite: 61 passed, 0 failed;
 - SVA dual-run: 36 passed, 0 failed;
-- vendored ivtest: 3,217 total, exactly 44 expected failures and no
+- vendored ivtest: 3,218 total, exactly 44 expected failures and no
   failure-identity drift;
 - bundled VPI: 94 passed, 0 failed;
-- dedicated DPI subsystem with real DPI: 20 passed, 0 failed, 0 skipped;
-- full UVM with real DPI: 226 passed, 0 failed, 0 skipped;
+- dedicated DPI subsystem: 20 passed, 0 failed, 0 skipped, real DPI;
+- full UVM: 226 passed, 0 failed, 0 skipped, real DPI;
 - installed/relocated `-uvm` frontend: all eight scenarios passed.
 
-The macOS run also exposed `mapfile` in the targeted-subsystem helper; it
-now de-duplicates with Bash 3.2-compatible array handling.
-
 Detailed implementation and pre-fix evidence:
-`session_logs/2026-07-26_vpi_container_observability.md`.
+`session_logs/2026-07-27_object_randomize_statement_with.md`.
 
-The public VPI status remains **substantial**, not FULL. Whole-container
-class-property writes and detailed assertion sub-expression/
-variable-latency attribution remain documented boundaries.
+The independent scope-randomization frontier
+`std::randomize(vars) with {...}` remains M3B-10 and is not folded into
+this object-method campaign.

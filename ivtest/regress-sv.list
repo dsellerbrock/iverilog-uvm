@@ -1172,6 +1172,7 @@ sv_vif_modport_qualified normal,-g2012 ivltests
 sv_foreach_hierarchical_target normal,-g2012 ivltests
 sv_foreach_indexed_instance_target normal,-g2012 ivltests
 sv_randomize_variable_control normal,-g2012 ivltests
+sv_object_randomize_statement_with normal,-g2012 ivltests
 sv_sampled_value_procedural normal,-g2012 ivltests
 sv_constraint_expr_width normal,-g2012 ivltests
 sv_sampled_value_default_clocking normal,-g2012 ivltests
