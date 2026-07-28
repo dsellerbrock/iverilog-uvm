@@ -2365,6 +2365,13 @@ void reset_lexor(FILE* out, char* paths[])
     struct include_stack_t* isp;
     struct include_stack_t* tail = 0;
 
+    /* Wire up yyout before doing anything that might call
+     * early_exit(), since early_exit() writes its error tally
+     * through yyout. If the first input file below fails to open,
+     * yyout must already be valid or that fprintf() dereferences a
+     * null FILE* and crashes. */
+    yyout = out;
+
     isp = malloc(sizeof(struct include_stack_t));
     isp->next = 0;
     isp->path = strdup(paths[0]);
@@ -2387,8 +2394,6 @@ void reset_lexor(FILE* out, char* paths[])
 	    fprintf(depend_file, "%s\n", paths[0]);
 	}
     }
-
-    yyout = out;
 
     yyrestart(isp->file);
 
