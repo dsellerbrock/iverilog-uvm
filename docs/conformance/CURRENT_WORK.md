@@ -4,60 +4,42 @@ This is the short resume state. `ROADMAP.md` is the living tracker,
 `iverilog_ieee1800_uvm_manifesto.md` carries policy, and dated technical
 narratives live in `session_logs/`.
 
-## Resume state — 2026-07-26
+## Resume state — 2026-07-27
 
-Branch: `codex/vpi-container-observability`, based on the merge of
-PR #122 (`d0d51c226`). Draft PR: #123.
+Branch: `codex/unaligned-sampled-history`, based on current `origin/main`
+after PR #123 (`2e5eab5d8`).
 
-The VPI runtime-container observability campaign is closed:
+R15 is closed as a stale diagnosis, not an implementation change.
+IEEE 1800-2017 16.9.3 selects clocking-event time steps strictly prior to
+the time step in which `$past` is evaluated. Therefore:
 
-- queue, dynamic-array and associative-array class properties expose a
-  live `vpiArrayVar` surface with declared/live kind, current size,
-  member/index iteration, and typed int/string/real element access;
-- VPI element writes update the SystemVerilog object;
-- member handles stay live across owner replacement and container growth;
-- `cbValueChange` on direct and class-property container elements fires
-  immediately for both SV and VPI writes;
-- per-element snapshots prevent a mutation elsewhere in the same class
-  object from spuriously firing sibling callbacks.
+- a call on the named-clock tick excludes that tick;
+- a call between named-clock ticks includes the most recent tick.
 
-Discriminating pre-fix evidence:
+The existing NBA history shift already implements both cases. The
+permanent explicit-clock regression now checks aligned and unaligned
+`$past` at depths one and two, plus `$rose`, `$fell`, `$stable`, and
+`$changed` on and between named-clock ticks. It would fail the proposed
+extra-delay “fix.”
 
-- `m12_container_props` produced 36 deterministic failures: property
-  queues appeared empty, dynamic arrays looked like 64-bit class
-  variables, associative arrays had the wrong kind, element handles were
-  null, typed/nested properties were missing, writes had no effect, and
-  saved handles did not follow owner replacement;
-- `m12_container_cb` produced three deterministic failures, including a
-  null class-property element and callbacks that registered but never
-  fired.
+Validation completed:
 
-The root causes were split across metadata, handle adaptation, callback
-routing and mutation notification. Dynamic-array properties had been
-serialized as generic objects; class members exposed only static property
-metadata; a runtime word callback cast its parent to the static-array
-implementation; associative stores did not notify the owning object; and
-class-root notifications required element-level filtering.
-
-Final gates:
-
-- focused property/callback family: pass;
+- focused ivtest: pass;
 - `make check`: pass;
-- negative suite: 61 passed, 0 failed;
-- SVA dual-run: 36 passed, 0 failed;
+- SVA legacy/NFA dual-run: 36/36;
 - vendored ivtest: 3,217 total, exactly 44 expected failures and no
   failure-identity drift;
-- bundled VPI: 94 passed, 0 failed;
-- dedicated DPI subsystem with real DPI: 20 passed, 0 failed, 0 skipped;
-- full UVM with real DPI: 226 passed, 0 failed, 0 skipped;
-- installed/relocated `-uvm` frontend: all eight scenarios passed.
+- bundled VPI: 94/94;
+- negative diagnostics: 61/61;
+- installed/relocated `-uvm` front-end: all eight scenarios pass;
+- full UVM with real DPI: 226/226, zero skips;
+- dedicated real-DPI subsystem: 20/20, zero skips.
 
-The macOS run also exposed `mapfile` in the targeted-subsystem helper; it
-now de-duplicates with Bash 3.2-compatible array handling.
+Detailed evidence:
+`session_logs/2026-07-27_r15_sampled_history_audit.md`.
 
-Detailed implementation and pre-fix evidence:
-`session_logs/2026-07-26_vpi_container_observability.md`.
-
-The public VPI status remains **substantial**, not FULL. Whole-container
-class-property writes and detailed assertion sub-expression/
-variable-latency attribution remain documented boundaries.
+The next confirmed implementation frontier is M9-7 mid-sequence clock
+flow. Its parser currently rejects the legal form
+`@(c1) a ##1 @(c2) b`; closure needs a clock-domain boundary in the
+sequence representation and a race-free handoff derived from the existing
+multiclock implication machinery.
