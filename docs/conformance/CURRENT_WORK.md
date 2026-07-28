@@ -7,7 +7,7 @@ narratives live in `session_logs/`.
 ## Resume state — 2026-07-27
 
 Branch: `codex/object-randomize-statement-with`, based on current `main`
-at `2e5eab5d8`.
+at `2e5eab5d8`. Draft PR: #126.
 
 The object `randomize() with {...}` statement-position campaign is closed:
 
