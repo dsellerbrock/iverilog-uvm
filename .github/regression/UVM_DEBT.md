@@ -1,11 +1,15 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: R11-closed head (222/222, 4x~55 batches, 2026-07-25 —
-three new runtime opcodes (%load/preponed/av, %load/preponed/real,
-%hist/on/av) plus per-word history on every unpacked array and history on
-every real wire. The array history hooks __vpiArray::set_word, which every
-unpacked-array write in every design goes through, so a mistake there would
-be broad rather than narrow. Previous full run, same result, at
+Full UVM last passed: object-randomize statement-with head (226/226, real
+DPI, zero skips, 2026-07-27). This validates the new parser productions and
+the shared expression/statement randomize-with elaboration path across the
+whole UVM suite. Previous full run at R11-closed head (222/222, 4x~55
+batches, 2026-07-25 — three new runtime opcodes
+(%load/preponed/av, %load/preponed/real, %hist/on/av) plus per-word history
+on every unpacked array and history on every real wire. The array history
+hooks __vpiArray::set_word, which every unpacked-array write in every design
+goes through, so a mistake there would be broad rather than narrow.
+Previous full run, same result, at
 M9-7 D.4 + R4 + R11 + R2 head —
 2026-07-25 — one run over the whole batch. The Observed-region move (R2) is
 what earns it: EVERY concurrent assertion in every design now suspends into

@@ -13537,6 +13537,31 @@ statement_item /* This is roughly statement_item in the LRM */
       { $4->void_cast();
 	$$ = $4;
       }
+  | K_void '\'' '(' hierarchy_identifier argument_list_parens K_with '{' constraint_block_item_list_opt '}' ')' ';'
+      { if (peek_tail_name(*$4) != "randomize") {
+	      yyerror(@6, "error: Constraint block can only be applied to randomize method.");
+	      $$ = new PNoop;
+	} else {
+	      pform_requires_sv(@6, "void'(randomize with constraint)");
+	      PCallTask*ct = pform_make_call_task(@4, *$4, *$5);
+	      if ($8) {
+		    std::vector<PExpr*> wc($8->begin(), $8->end());
+		    ct->set_with_constraints(std::move(wc));
+		    delete $8;
+		    $8 = nullptr;
+	      }
+	      ct->void_cast();
+	      $4 = nullptr;
+	      $5 = nullptr;
+	      $$ = ct;
+	}
+	if ($4) delete $4;
+	if ($5) delete $5;
+	if ($8) {
+	      while (!$8->empty()) { delete $8->front(); $8->pop_front(); }
+	      delete $8;
+	}
+      }
   /* C6 (Phase 62e): void'(pkg::func(args) with {...}) form. */
   | K_void '\'' '(' IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with '{' constraint_block_item_list_opt '}' ')' ';'
       { pform_name_t hident;
@@ -13573,6 +13598,47 @@ statement_item /* This is roughly statement_item in the LRM */
 		      delete $4;
 		}
 		$$ = $1;
+	      }
+	| subroutine_call K_with '{' constraint_block_item_list_opt '}' ';'
+	      { /* IEEE 1800-2017 18.6: randomize() is a function, but
+		   its return value may be discarded in statement position.
+		   Keep the constraint block on the PCallTask so elaboration
+		   can reuse the expression-form Z3 path. */
+		PCallTask*ct = dynamic_cast<PCallTask*>($1);
+		if (!ct || peek_tail_name(ct->path()) != "randomize") {
+		      yyerror(@2, "error: Constraint block can only be applied to randomize method.");
+		} else {
+		      pform_requires_sv(@2, "Randomize with constraint");
+		      if ($4) {
+			    std::vector<PExpr*> wc($4->begin(), $4->end());
+			    ct->set_with_constraints(std::move(wc));
+			    delete $4;
+			    $4 = nullptr;
+		      }
+		}
+		if ($4) {
+		      while (!$4->empty()) { delete $4->front(); $4->pop_front(); }
+		      delete $4;
+		}
+		$$ = $1;
+	      }
+	| class_hierarchy_identifier argument_list_parens K_with '{' constraint_block_item_list_opt '}' ';'
+	      { /* Explicit `this.randomize() with {...};' cannot reduce
+		   through subroutine_call because the expression-form rule
+		   for the same prefix wins that parser state. */
+		if (peek_tail_name(*$1) != "randomize") {
+		      yyerror(@3, "error: Constraint block can only be applied to randomize method.");
+		}
+		pform_requires_sv(@3, "Randomize with constraint");
+		PCallTask*ct = pform_make_call_task(@1, *$1, *$2);
+		if ($5) {
+		      std::vector<PExpr*> wc($5->begin(), $5->end());
+		      ct->set_with_constraints(std::move(wc));
+		      delete $5;
+		}
+		delete $1;
+		delete $2;
+		$$ = ct;
 	      }
 	| hierarchy_identifier K_with '(' expression ')' ';'
 	      { /* No-parens method form: q.sort with (...). */
@@ -13636,18 +13702,25 @@ statement_item /* This is roughly statement_item in the LRM */
       }
 
 	| hierarchy_identifier K_with '{' constraint_block_item_list_opt '}' ';'
-	      { /* ....randomize with { <constraints> } */
+	      { /* randomize with { <constraints> } — the empty-
+		   parentheses form is handled through subroutine_call
+		   above; this is the legal no-parentheses sibling. */
 		if (peek_tail_name(*$1) == "randomize") {
 		      pform_requires_sv(@2, "Randomize with constraint");
 		} else {
 		      yyerror(@2, "error: Constraint block can only be applied to randomize method.");
-	}
-	list<named_pexpr_t> pt;
-	PCallTask*tmp = new PCallTask(*$1, pt);
-	FILE_NAME(tmp, @1);
-	delete $1;
-	$$ = tmp;
-      }
+		}
+		list<named_pexpr_t> pt;
+		PCallTask*tmp = new PCallTask(*$1, pt);
+		FILE_NAME(tmp, @1);
+		if ($4) {
+		      std::vector<PExpr*> wc($4->begin(), $4->end());
+		      tmp->set_with_constraints(std::move(wc));
+		      delete $4;
+		}
+		delete $1;
+		$$ = tmp;
+	      }
 
     /* IEEE1800 A.1.8: class_constructor_declaration with a call to
        parent constructor. Note that the implicit_class_handle must

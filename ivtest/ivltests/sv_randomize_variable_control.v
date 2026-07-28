@@ -287,10 +287,9 @@ module main;
     chk("randomize(null) did not call pre_randomize",  h.pre_calls,  2);
     chk("randomize(null) did not call post_randomize", h.post_calls, 1);
 
-    // the with-clause form carries the argument list too. (Written as
-    // an assignment because `obj.randomize() with {...}' in statement
-    // position -- bare or inside void'() -- is still a syntax error;
-    // only the expression form parses.)
+    // The expression-form with-clause carries the argument list too.
+    // The bare and void-cast statement siblings are pinned separately
+    // by sv_object_randomize_statement_with.
     p = new();
     void'(p.randomize());
     a0 = p.a;

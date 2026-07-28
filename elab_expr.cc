@@ -126,9 +126,11 @@ static string randomize_sel_(const PECallFunction*call,
  * The mangled function name encodes the N_vals count, the 18.11
  * argument selector and the IR string so tgt-vvp can emit the correct
  * %randomize/with instruction.
- * parms: [0]=object, [1..N_vals]=runtime slot values. */
-static NetESFunc* make_randomize_with_expr(
-      const PECallFunction*call,
+ * The constructed call has [0]=object and [1..N_vals]=runtime values. */
+NetESFunc* make_randomize_with_expr(
+      const LineInfo*call,
+      const vector<named_pexpr_t>&parms,
+      const vector<PExpr*>&with_constraints,
       NetExpr*obj_expr,
       const netclass_t*class_type,
       Design*des, NetScope*scope)
@@ -136,7 +138,7 @@ static NetESFunc* make_randomize_with_expr(
       string combined_ir;
       vector<const PExpr*> value_slots;
 
-      for (const PExpr*wc : call->with_constraints()) {
+      for (const PExpr*wc : with_constraints) {
 	    if (!wc) continue;
 	    string ir = pexpr_to_constraint_ir(wc, class_type, &value_slots, scope);
 	    if (ir.empty()) continue;
@@ -151,7 +153,7 @@ static NetESFunc* make_randomize_with_expr(
       // no escaping.
       string mangled = string("$ivl_class_method$randomize_with|")
 		     + to_string(n_vals) + "|"
-		     + randomize_sel_(call, class_type) + "|"
+		     + randomize_arg_selector(parms, class_type, call) + "|"
 		     + combined_ir;
 
       NetESFunc*rand_expr = new NetESFunc(mangled.c_str(),
@@ -8498,7 +8500,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					    if (!with_constraints().empty() && class_type) {
 						  NetESFunc*rand_expr =
 							make_randomize_with_expr(
-							      this, obj_expr,
+							      this, get_parms(),
+							      with_constraints(), obj_expr,
 							      class_type, des, scope);
 						  rand_expr->set_line(*this);
 						  return rand_expr;
@@ -9828,7 +9831,8 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				if (!with_constraints().empty() && class_type) {
 				      NetESFunc*rand_expr =
 					    make_randomize_with_expr(
-						  this, sub_expr,
+						  this, get_parms(),
+						  with_constraints(), sub_expr,
 						  class_type, des, scope);
 				      rand_expr->set_line(*this);
 				      return rand_expr;

@@ -68,6 +68,13 @@ extern std::string randomize_arg_selector(
       const std::vector<named_pexpr_t>&parms,
       const netclass_t*class_type,
       const LineInfo*loc);
+extern NetESFunc* make_randomize_with_expr(
+      const LineInfo*call,
+      const std::vector<named_pexpr_t>&parms,
+      const std::vector<PExpr*>&with_constraints,
+      NetExpr*obj_expr,
+      const netclass_t*class_type,
+      Design*des, NetScope*scope);
 extern NetESFunc* make_std_randomize_with_expr(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_constraints,
@@ -6916,6 +6923,27 @@ NetProc* PCallTask::elaborate_method_func_(NetScope*scope,
       return cur;
 }
 
+NetProc* PCallTask::elaborate_randomize_with_(
+      Design*des, NetScope*scope, NetExpr*obj,
+      const netclass_t*class_type) const
+{
+      if (!void_cast_) {
+	    cerr << get_fileline() << ": warning: method function 'randomize'"
+		 << " is being called as a task." << endl;
+      }
+
+      NetESFunc*sys_expr = make_randomize_with_expr(
+	    this, parms_, with_constraints_, obj, class_type, des, scope);
+      sys_expr->set_line(*this);
+      NetNet*tmp = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			       &netvector_t::atom2u32);
+      tmp->set_line(*this);
+      NetAssign_*lv = new NetAssign_(tmp);
+      NetAssign*cur = new NetAssign(lv, sys_expr);
+      cur->set_line(*this);
+      return cur;
+}
+
 static bool is_tlm_forward_task_stub_candidate_(const pform_name_t&use_path,
 						perm_string method_name)
 {
@@ -7063,6 +7091,10 @@ NetProc* PCallTask::elaborate_receiver_method_(Design*des, NetScope*scope) const
 							class_type->get_name()))
 		  class_type = visible_class;
       }
+
+      if (method_name == perm_string::literal("randomize")
+	  && !with_constraints().empty())
+	    return elaborate_randomize_with_(des, scope, sub_expr, class_type);
 
       NetScope*task = class_type->resolve_method_call_scope(des, method_name);
       if (!task) {
@@ -7777,6 +7809,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    // both expression context (elab_expr.cc) and statement context
 	    // (void'(obj.randomize())) work correctly.
 	    if (method_name == perm_string::literal("randomize")) {
+		  if (!with_constraints().empty()) {
+			return elaborate_randomize_with_(
+			      des, scope, obj_expr, class_type);
+		  }
 		    // The 18.11 argument selector rides on the system
 		    // function name, exactly as in expression context —
 		    // `void'(obj.randomize(b))' is the SAME call and has
