@@ -59,6 +59,11 @@ extern string pexpr_to_constraint_ir(const PExpr*expr,
 				     vector<const PExpr*>*value_slots,
 				     const NetScope*scope = nullptr,
 				     const std::map<perm_string,uint64_t>*loop_env = nullptr);
+extern string pexpr_to_scope_constraint_ir(
+      const PExpr*expr,
+      const std::map<perm_string,string>&random_tokens,
+      vector<const PExpr*>*value_slots,
+      const NetScope*scope);
 
 /* In-line random variable control (IEEE 1800-2017 18.11). Turn the
  * ARGUMENT list of obj.randomize(...) into the selector the %rand/active
@@ -161,6 +166,104 @@ static NetESFunc* make_randomize_with_expr(
       }
 
       return rand_expr;
+}
+
+/* Build the shared expression/task payload for
+ * std::randomize(vars) with { ... } (IEEE 1800-2017 18.12).
+ *
+ * parms[0..N-1] are the destinations themselves. Remaining parms are
+ * caller-scope state values referenced by the constraint. The mangled name
+ * carries the two counts and the common Z3 IR; tgt-vvp writes successful
+ * model values back through the ordinary signal-store opcode. */
+NetESFunc* make_std_randomize_with_expr(
+      const vector<named_pexpr_t>&parms,
+      const vector<PExpr*>&with_constraints,
+      Design*des, NetScope*scope, const LineInfo*loc)
+{
+      vector<NetExpr*> random_vars;
+      map<perm_string,string> random_tokens;
+
+      for (size_t idx = 0 ; idx < parms.size() ; idx += 1) {
+	    PExpr*pe = parms[idx].parm;
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(pe);
+	    if (!id || id->path().size() != 1
+		|| !id->path().back().index.empty()) {
+		  cerr << loc->get_fileline() << ": sorry: "
+		       << "std::randomize() with constraints currently requires "
+		       << "each argument to be a simple integral variable."
+		       << endl;
+		  des->errors += 1;
+		  for (NetExpr*old : random_vars) delete old;
+		  return nullptr;
+	    }
+
+	    NetExpr*ne = elab_and_eval(des, scope, pe, -1, false);
+	    NetESignal*se = dynamic_cast<NetESignal*>(ne);
+	    if (!se || se->word_index()
+		|| (se->expr_type() != IVL_VT_BOOL
+		    && se->expr_type() != IVL_VT_LOGIC)) {
+		  cerr << loc->get_fileline() << ": sorry: "
+		       << "std::randomize() with constraints requires integral "
+		       << "scalar or packed-vector variables." << endl;
+		  des->errors += 1;
+		  delete ne;
+		  for (NetExpr*old : random_vars) delete old;
+		  return nullptr;
+	    }
+
+	    unsigned wid = se->vector_width();
+	    if (wid == 0 || wid > 64) {
+		  cerr << loc->get_fileline() << ": sorry: "
+		       << "solver-backed std::randomize() currently supports "
+		       << "integral variables from 1 through 64 bits; argument "
+		       << (idx + 1) << " is " << wid << " bits." << endl;
+		  des->errors += 1;
+		  delete ne;
+		  for (NetExpr*old : random_vars) delete old;
+		  return nullptr;
+	    }
+
+	    string token = "p:" + to_string(idx) + ":" + to_string(wid);
+	    if (se->sig()->get_signed()) token += ":s";
+	    random_tokens[id->path().back().name] = token;
+	    random_vars.push_back(ne);
+      }
+
+      string combined_ir;
+      vector<const PExpr*> value_slots;
+      for (const PExpr*wc : with_constraints) {
+	    if (!wc) continue;
+	    string ir = pexpr_to_scope_constraint_ir(
+		  wc, random_tokens, &value_slots, scope);
+	    if (ir.empty()) {
+		  cerr << loc->get_fileline() << ": sorry: constraint form in "
+		       << "std::randomize() with-clause is not representable by "
+		       << "the solver; the call was not weakened." << endl;
+		  des->errors += 1;
+		  for (NetExpr*old : random_vars) delete old;
+		  return nullptr;
+	    }
+	    if (!combined_ir.empty()) combined_ir += " ";
+	    combined_ir += ir;
+      }
+
+      const unsigned n_rand = (unsigned)random_vars.size();
+      const unsigned n_vals = (unsigned)value_slots.size();
+      string mangled = string("$ivl_std_randomize_with|")
+		     + to_string(n_rand) + "|" + to_string(n_vals)
+		     + "|" + combined_ir;
+      NetESFunc*fun = new NetESFunc(mangled.c_str(), IVL_VT_BOOL, 32,
+				    n_rand + n_vals);
+      fun->set_line(*loc);
+      for (unsigned i = 0 ; i < n_rand ; i += 1)
+	    fun->parm(i, random_vars[i]);
+      for (unsigned i = 0 ; i < n_vals ; i += 1) {
+	    NetExpr*slot = const_cast<PExpr*>(value_slots[i])
+				->elaborate_expr(des, scope, 32, 0);
+	    if (!slot) slot = new NetEConst(verinum(verinum::V0, 32));
+	    fun->parm(n_rand + i, slot);
+      }
+      return fun;
 }
 
 static bool warned_object_missing_method_fallback = false;
@@ -8326,18 +8429,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		&& path_.name.front().name == perm_string::literal("std")
 		&& !parms_.empty()) {
 		  if (!with_constraints().empty()) {
-			static bool warned_std_rand_with = false;
-			if (!warned_std_rand_with) {
-			      cerr << get_fileline() << ": warning: "
-				      "std::randomize() with-clause "
-				      "constraints are not enforced in "
-				      "expression context; the variables "
-				      "receive unconstrained random values "
-				      "(use the statement form for "
-				      "constraint lowering; further such "
-				      "warnings suppressed)." << endl;
-			      warned_std_rand_with = true;
-			}
+			return make_std_randomize_with_expr(
+			      parms_, with_constraints(), des, scope, this);
 		  }
 		  NetESFunc*fun = new NetESFunc("$ivl_std_randomize",
 						IVL_VT_BOOL, 32,

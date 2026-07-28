@@ -685,9 +685,20 @@ static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
       if (tok.empty()) return b.mk_true();
       if (tok.substr(0,2) == "p:") return parse_prop(par, b, tok);
       if (tok.substr(0,2) == "c:") {
-	    uint64_t v = (uint64_t)strtoull(tok.c_str()+2, nullptr, 10);
-	    Z3_sort sort = Z3_mk_bv_sort(b.ctx, 32);
-	    return Z3_mk_unsigned_int64(b.ctx, v, sort);
+	    const char*s = tok.c_str() + 2;
+	    char*end = nullptr;
+	    uint64_t v = (uint64_t)strtoull(s, &end, 10);
+	    unsigned width = 32;
+	    bool sflag = false;
+	    if (end && *end == ':') {
+		  width = (unsigned)strtoul(end + 1, &end, 10);
+		  if (width == 0) width = 32;
+		  if (end && *end == ':' && end[1] == 's') sflag = true;
+	    }
+	    Z3_sort sort = Z3_mk_bv_sort(b.ctx, width);
+	    Z3_ast val = Z3_mk_unsigned_int64(b.ctx, v, sort);
+	    if (sflag) b.signed_vars.insert(val);
+	    return val;
       }
       if (tok.substr(0,2) == "s:") {
 	      // s:N:T — size of dynamic-array property N, darray type T.
@@ -945,10 +956,12 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    Z3_ast right = build_z3_atom(par, b);
 	    par.skip_ws(); par.expect(')');
 
-	      // A signed variable on either side selects signed compare
-	      // semantics (IEEE 1800-2017 11.8.1; bare integer literals
-	      // are themselves signed).
-	    bool use_signed = b.is_signed(left) || b.is_signed(right);
+	      // Relational operands are unsigned when either operand is
+	      // unsigned (IEEE 1800-2017 11.8.1). Bare decimal literals are
+	      // signed, but that must not make `bit [7:0] u; u < 5' compare
+	      // u as an 8-bit signed value after extension. Both operands
+	      // must be signed before selecting the signed BV predicate.
+	    bool use_signed = b.is_signed(left) && b.is_signed(right);
 
 	      // This is the CONTEXT (Table 11-21): a comparison sizes
 	      // both of its operands to max(L(i), L(j)) of their
@@ -1857,4 +1870,100 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       int r2 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
 			      &sizes, nullptr, prop_active);
       return r1 != Z3PASS_UNSAT && r2 != Z3PASS_UNSAT;
+}
+
+bool vvp_z3_randomize_scope(const string&ir,
+			    const vector<uint64_t>&targets,
+			    const vector<unsigned>&widths,
+			    const vector<uint64_t>&slot_vals,
+			    vector<uint64_t>&values)
+{
+      values.clear();
+      if (targets.size() != widths.size())
+	    return false;
+
+      Z3_config cfg = Z3_mk_config();
+      Z3_set_param_value(cfg, "model", "true");
+      Z3_context ctx = Z3_mk_context(cfg);
+      Z3_del_config(cfg);
+
+      Z3Builder builder(ctx, nullptr, nullptr);
+      Z3_optimize opt = Z3_mk_optimize(ctx);
+      Z3_optimize_inc_ref(ctx, opt);
+      builder.opt = opt;
+
+      string sub = substitute_slots(ir, slot_vals);
+      Z3_ast assertion = parse_constraint_ir(sub, builder);
+      Z3_optimize_assert(ctx, opt, assertion);
+
+	// Ensure even a variable absent from the constraint is represented:
+	// every argument of std::randomize is randomized, not only those
+	// named in the with-clause.
+      for (unsigned idx = 0 ; idx < widths.size() ; idx += 1)
+	    builder.get_prop_var(idx, widths[idx] ? widths[idx] : 32);
+
+	// Reuse the class solver's soft/dist representation. Dist alternatives
+	// share one weighted group; explicit soft constraints are separate,
+	// reverse-priority groups (last declaration has highest priority).
+      auto soft_dropped = [&](const Z3Builder::SoftAssert&sa) -> bool {
+	    for (int ref : sa.prop_refs)
+		  if (builder.disabled_soft_props.count(ref))
+			return true;
+	    return false;
+      };
+      for (const auto&sa : builder.pending_soft) {
+	    if (sa.from_soft_kw || soft_dropped(sa)) continue;
+	    char weight[32];
+	    snprintf(weight, sizeof(weight), "%u", sa.weight);
+	    Z3_symbol grp = Z3_mk_string_symbol(ctx, "dist");
+	    Z3_optimize_assert_soft(ctx, opt, sa.a, weight, grp);
+      }
+      for (size_t si = builder.pending_soft.size() ; si-- > 0 ; ) {
+	    const auto&sa = builder.pending_soft[si];
+	    if (!sa.from_soft_kw || soft_dropped(sa)) continue;
+	    char weight[32], group[32];
+	    snprintf(weight, sizeof(weight), "%u", sa.weight);
+	    snprintf(group, sizeof(group), "soft%u", (unsigned)si);
+	    Z3_optimize_assert_soft(ctx, opt, sa.a, weight,
+				   Z3_mk_string_symbol(ctx, group));
+      }
+
+      for (auto&pv : builder.prop_vars) {
+	    uint64_t target = pv.idx < targets.size() ? targets[pv.idx] : 0;
+	    Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
+	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, target, sort);
+	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, pv.var, rv));
+      }
+
+      Z3_lbool result = Z3_optimize_check(ctx, opt, 0, nullptr);
+      if (result == Z3_L_FALSE) {
+	    Z3_optimize_dec_ref(ctx, opt);
+	    Z3_del_context(ctx);
+	    return false;
+      }
+
+      values = targets;
+      if (result == Z3_L_TRUE) {
+	    Z3_model model = Z3_optimize_get_model(ctx, opt);
+	    Z3_model_inc_ref(ctx, model);
+	    for (auto&pv : builder.prop_vars) {
+		  uint64_t bits = 0;
+		  if (pv.idx < values.size()
+		      && z3_eval_uint64(ctx, model, pv.var, bits))
+			values[pv.idx] = bits;
+	    }
+	    Z3_model_dec_ref(ctx, model);
+      } else {
+	    static bool warned_unknown = false;
+	    if (!warned_unknown) {
+		  fprintf(stderr, "Warning: scope randomization solver returned "
+			  "UNKNOWN; unconstrained random targets are used "
+			  "(further similar warnings suppressed).\n");
+		  warned_unknown = true;
+	    }
+      }
+
+      Z3_optimize_dec_ref(ctx, opt);
+      Z3_del_context(ctx);
+      return true;
 }

@@ -553,6 +553,11 @@ struct vthread_s {
 	   on) applies. */
       bool rand_sel_armed;
       std::vector<bool> rand_sel;
+	/* IEEE 1800-2017 18.12: one scope-randomize solve produces several
+	   values but an expression returns only its success bit. The solve
+	   opcode parks the model here; following load opcodes feed ordinary
+	   signal stores without disturbing that result on the vec4 stack. */
+      std::vector<vvp_vector4_t> std_randomize_results;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
 	/* This points to the detached children of the thread. */
@@ -3160,6 +3165,74 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       vvp_vector4_t result(32, BIT4_0);
       result.set_bit(0, solve_ok ? BIT4_1 : BIT4_0);
       thr->push_vec4(result);
+      return true;
+}
+
+/*
+ * %std/randomize/with "IR", <N-random>, <N-slots>
+ *
+ * Stack input (deepest first): N current destination values, then N slot
+ * values. The current values provide exact widths; fresh random diversity
+ * targets are generated here. On SAT, model values are saved in the thread
+ * and 1 is pushed. On UNSAT, no values are saved and 0 is pushed, so the
+ * target skips every copy-back store.
+ */
+bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
+{
+      const unsigned n_rand = code->bit_idx[0];
+      const unsigned n_vals = code->bit_idx[1];
+      vector<uint64_t> slot_vals(n_vals);
+      for (unsigned i = n_vals ; i > 0 ; i -= 1) {
+	    vvp_vector4_t v = thr->pop_vec4();
+	    uint64_t bits = 0;
+	    unsigned wid = v.size() > 64 ? 64 : v.size();
+	    for (unsigned b = 0 ; b < wid ; b += 1)
+		  if (v.value(b) == BIT4_1) bits |= UINT64_C(1) << b;
+	    slot_vals[i - 1] = bits;
+      }
+
+      vector<unsigned> widths(n_rand);
+      vector<uint64_t> targets(n_rand);
+      for (unsigned i = n_rand ; i > 0 ; i -= 1) {
+	    vvp_vector4_t old = thr->pop_vec4();
+	    widths[i - 1] = old.size();
+      }
+      for (unsigned i = 0 ; i < n_rand ; i += 1) {
+	    uint64_t bits = 0;
+	    for (unsigned b = 0 ; b < widths[i] && b < 64 ; b += 1)
+		  if (rand() & 1) bits |= UINT64_C(1) << b;
+	    targets[i] = bits;
+      }
+
+      vector<uint64_t> model;
+      bool ok = vvp_z3_randomize_scope(code->text ? code->text : "",
+				       targets, widths, slot_vals, model);
+      thr->std_randomize_results.clear();
+      if (ok) {
+	    thr->std_randomize_results.resize(n_rand);
+	    for (unsigned i = 0 ; i < n_rand ; i += 1) {
+		  vvp_vector4_t val(widths[i], BIT4_0);
+		  uint64_t bits = i < model.size() ? model[i] : targets[i];
+		  for (unsigned b = 0 ; b < widths[i] ; b += 1)
+			val.set_bit(b, (bits >> b) & 1 ? BIT4_1 : BIT4_0);
+		  thr->std_randomize_results[i] = val;
+	    }
+      }
+
+      vvp_vector4_t result(32, BIT4_0);
+      result.set_bit(0, ok ? BIT4_1 : BIT4_0);
+      thr->push_vec4(result);
+      return true;
+}
+
+/* Push one model value above the still-live randomize() success result. */
+bool of_STD_RANDOMIZE_LOAD(vthread_t thr, vvp_code_t code)
+{
+      unsigned idx = code->number;
+      if (idx < thr->std_randomize_results.size())
+	    thr->push_vec4(thr->std_randomize_results[idx]);
+      else
+	    thr->push_vec4(vvp_vector4_t(1, BIT4_X));
       return true;
 }
 
