@@ -4,60 +4,49 @@ This is the short resume state. `ROADMAP.md` is the living tracker,
 `iverilog_ieee1800_uvm_manifesto.md` carries policy, and dated technical
 narratives live in `session_logs/`.
 
-## Resume state — 2026-07-26
+## Resume state — 2026-07-27
 
-Branch: `codex/vpi-container-observability`, based on the merge of
-PR #122 (`d0d51c226`). Draft PR: #123.
+Branch: `codex/std-randomize-with-z3`, rebased onto current `main`
+(`2e5eab5d8`, including merged VPI container-observability PR #123).
+Draft PR: #124.
 
-The VPI runtime-container observability campaign is closed:
+M3B-10 is implemented at the integral-signal boundary:
 
-- queue, dynamic-array and associative-array class properties expose a
-  live `vpiArrayVar` surface with declared/live kind, current size,
-  member/index iteration, and typed int/string/real element access;
-- VPI element writes update the SystemVerilog object;
-- member handles stay live across owner replacement and container growth;
-- `cbValueChange` on direct and class-property container elements fires
-  immediately for both SV and VPI writes;
-- per-element snapshots prevent a mutation elsewhere in the same class
-  object from spuriously firing sibling callbacks.
+- `std::randomize(a, b) with {...}` reaches Z3 in statement,
+  `void'(...)`, and expression contexts;
+- supported destinations are simple integral scalar/packed-vector signals
+  from 1 through 64 bits, including enums and automatic locals;
+- call-time state references, cross-variable constraints, `inside`, soft,
+  conditional, and UNSAT behavior are covered;
+- a successful solve writes every model value through the ordinary signal
+  store; failure returns zero and preserves every destination;
+- selected/container destinations, arrays, and variables wider than 64 bits
+  remain loud unsupported forms.
 
-Discriminating pre-fix evidence:
+Discriminating pre-fix coverage reported six failures: statement and
+expression constraints were violated, signed/unsigned widths were wrong,
+UNSAT returned success, and failed solves changed destinations. The permanent
+regression now passes. A full ivtest name diff also caught and fixed one
+mixed-sign regression in the shared class solver before checkpointing.
 
-- `m12_container_props` produced 36 deterministic failures: property
-  queues appeared empty, dynamic arrays looked like 64-bit class
-  variables, associative arrays had the wrong kind, element handles were
-  null, typed/nested properties were missing, writes had no effect, and
-  saved handles did not follow owner replacement;
-- `m12_container_cb` produced three deterministic failures, including a
-  null class-property element and callbacks that registered but never
-  fired.
+Final integrated gates:
 
-The root causes were split across metadata, handle adaptation, callback
-routing and mutation notification. Dynamic-array properties had been
-serialized as generic objects; class members exposed only static property
-metadata; a runtime word callback cast its parent to the static-array
-implementation; associative stores did not notify the owning object; and
-class-root notifications required element-level filtering.
-
-Final gates:
-
-- focused property/callback family: pass;
+- focused scope and adjacent class-constraint regressions: pass;
 - `make check`: pass;
-- negative suite: 61 passed, 0 failed;
+- constraint UVM group: 22 passed, 0 failed, 0 skipped;
+- real-DPI group: 20 passed, 0 failed, 0 skipped;
 - SVA dual-run: 36 passed, 0 failed;
-- vendored ivtest: 3,217 total, exactly 44 expected failures and no
-  failure-identity drift;
+- vendored ivtest: 3,218 total, exactly 44 expected failures, no identity
+  drift;
 - bundled VPI: 94 passed, 0 failed;
-- dedicated DPI subsystem with real DPI: 20 passed, 0 failed, 0 skipped;
+- negative suite: 61 passed, 0 failed;
 - full UVM with real DPI: 226 passed, 0 failed, 0 skipped;
-- installed/relocated `-uvm` frontend: all eight scenarios passed.
+- installed/relocated `-uvm` front end: all eight scenarios passed.
 
-The macOS run also exposed `mapfile` in the targeted-subsystem helper; it
-now de-duplicates with Bash 3.2-compatible array handling.
+The campaign is complete at its documented integral-signal boundary. Resume
+from the next confirmed severity-ordered frontier after PR #124 merges; do not
+expand this PR into arrays, selected/container destinations, or wider-vector
+randomization without a new bounded campaign.
 
-Detailed implementation and pre-fix evidence:
-`session_logs/2026-07-26_vpi_container_observability.md`.
-
-The public VPI status remains **substantial**, not FULL. Whole-container
-class-property writes and detailed assertion sub-expression/
-variable-latency attribution remain documented boundaries.
+Detailed evidence:
+`session_logs/2026-07-26_std_randomize_scope_z3.md`.

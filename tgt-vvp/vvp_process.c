@@ -3070,6 +3070,53 @@ static int show_system_task_call(ivl_statement_t net)
 {
       const char*stmt_name = ivl_stmt_name(net);
 
+      if (strncmp(stmt_name, "$ivl_std_randomize_with|", 24) == 0) {
+	      /* Task-form sibling of the expression lowering in
+	       * eval_vec4.c. The runtime solves once; successful model
+	       * values are copied back with the normal signal store. */
+	    const char*rest = stmt_name + 24;
+	    unsigned n_rand = (unsigned)strtoul(rest, NULL, 10);
+	    while (*rest && *rest != '|') rest++;
+	    if (*rest == '|') rest++;
+	    unsigned n_vals = (unsigned)strtoul(rest, NULL, 10);
+	    while (*rest && *rest != '|') rest++;
+	    if (*rest == '|') rest++;
+	    const char*ir = rest;
+
+	    for (unsigned i = 0 ; i < n_rand ; i++)
+		  draw_eval_vec4(ivl_stmt_parm(net, i));
+	    for (unsigned i = 0 ; i < n_vals ; i++)
+		  draw_eval_vec4(ivl_stmt_parm(net, n_rand + i));
+	    fprintf(vvp_out, "    %%std/randomize/with \"%s\", %u, %u;\n",
+		    ir, n_rand, n_vals);
+
+	    unsigned lab_done = local_count++;
+	    int success_flag = allocate_flag();
+	    fprintf(vvp_out, "    %%dup/vec4;\n");
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", success_flag);
+	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
+		    thread_count, lab_done, success_flag);
+	    for (unsigned i = 0 ; i < n_rand ; i++) {
+		  ivl_expr_t var = ivl_stmt_parm(net, i);
+		  ivl_signal_t sig = var ? ivl_expr_signal(var) : 0;
+		  unsigned wid = var ? ivl_expr_width(var) : 0;
+		  if (!sig || ivl_expr_type(var) != IVL_EX_SIGNAL) {
+			fprintf(stderr, "%s:%u: vvp.tgt error: unsupported "
+				"std::randomize task destination; solver result "
+				"not stored.\\n",
+				ivl_stmt_file(net), ivl_stmt_lineno(net));
+			continue;
+		  }
+		  fprintf(vvp_out, "    %%std/randomize/load %u;\n", i);
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+			  sig, wid);
+	    }
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
+	    clr_flag(success_flag);
+	    fprintf(vvp_out, "    %%pop/vec4 1;\n");
+	    return 0;
+      }
+
       if (strncmp(stmt_name, "$ivl_iface_late$", 16) == 0)
 	    return show_iface_late_call(net);
 
