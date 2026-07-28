@@ -19245,7 +19245,10 @@ struct reactive_resume_event_s : public vvp_gen_event_s {
       vthread_t thr;
       void run_run() override
       {
-	    schedule_vthread(thr, 0, true);
+	      /* A dedicated action dispatcher has permanent Reactive
+		 affinity. Do not use the %fork-style Active-queue push for
+		 it, or the action escapes back into the design region set. */
+	    schedule_vthread(thr, 0, !vthread_is_reactive(thr));
 	    delete this;
       }
 };
@@ -19286,6 +19289,21 @@ bool of_WAIT_REACTIVE(vthread_t thr, vvp_code_t)
       ev->thr = thr;
       schedule_at_reactive(ev, 0);
       return false;
+}
+
+/*
+ * %reactive/process
+ *
+ * Permanently give this thread Reactive-region affinity. Synthesized
+ * multiclock assertion action dispatchers use a dedicated process, so this
+ * does not move the checker evaluation itself: it only ensures that action
+ * event wakes, delay continuations, and forked children stay in the Reactive
+ * region set (IEEE 1800-2023 4.4.2.5-4.4.2.8).
+ */
+bool of_REACTIVE_PROCESS(vthread_t thr, vvp_code_t)
+{
+      thr->is_reactive_process = 1;
+      return true;
 }
 
 /*

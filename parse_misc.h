@@ -106,6 +106,15 @@ struct sva_property_t {
       // consequent; the assertion is lowered by a race-free request/ack
       // counter handoff between the two clock domains.
       PEventStatement* seq_clk_evt = nullptr;
+      // M9-7: sequence clock-flow boundary
+      //   prefix ##0/##1 @(seq_clk_evt) seq
+      // `mc_prefix' is evaluated on clk_evt before the boundary. It is
+      // null for the direct implication forms
+      //   antecedent |->/|=> @(seq_clk_evt) seq.
+      // mc_boundary: 0 = nearest possibly-overlapping tick, 1 = nearest
+      // strictly-subsequent tick, -1 = no explicit boundary metadata.
+      std::vector<sva_seq_step_t>* mc_prefix = nullptr;
+      int mc_boundary = -1;
       PExpr* disable_iff_expr = nullptr;    // disable iff expr (may be null)
       std::vector<sva_seq_step_t>* antecedent = nullptr;  // null for op 0
       std::vector<sva_seq_step_t>* seq = nullptr;         // consequent / plain sequence

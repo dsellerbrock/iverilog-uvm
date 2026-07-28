@@ -3092,6 +3092,14 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+	/* A synthesized assertion-action dispatcher is permanently a
+	 * Reactive-region process. Its delayed/event-controlled continuations
+	 * and detached action children inherit that affinity. */
+      if (strcmp(stmt_name,"$ivl_reactive_process") == 0) {
+	    fprintf(vvp_out, "    %%reactive/process;\n");
+	    return 0;
+      }
+
 	/* Clocking input sampling prologue (14.13): enable the 1-deep
 	 * driven-value history on the raw signal so %load/preponed
 	 * (from $ivl_clocking_sample) returns the Preponed value. */

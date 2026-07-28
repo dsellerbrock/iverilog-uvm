@@ -418,6 +418,7 @@ extern bool of_REF_BIND(vthread_t thr, vvp_code_t code);
 extern bool of_REF_BIND_F(vthread_t thr, vvp_code_t code);
 extern bool of_RELEASE_REG(vthread_t thr, vvp_code_t code);
 extern bool of_RELEASE_WR(vthread_t thr, vvp_code_t code);
+extern bool of_REACTIVE_PROCESS(vthread_t thr, vvp_code_t code);
 extern bool of_REPLICATE(vthread_t thr, vvp_code_t code);
 extern bool of_QREVERSE(vthread_t thr, vvp_code_t code);
 extern bool of_QRSORT_KEYS(vthread_t thr, vvp_code_t code);
