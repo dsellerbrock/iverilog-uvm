@@ -275,6 +275,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%delete/o/obj",of_DELETE_O_OBJ,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%delete/obj",of_DELETE_OBJ,1,{OA_FUNC_PTR,OA_NONE,  OA_NONE} },
       { "%delete/tail",of_DELETE_TAIL,2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
+      { "%dim/push", of_DIM_PUSH, 2, {OA_BIT1,   OA_BIT2,     OA_NONE} },
       { "%disable",  of_DISABLE, 1, {OA_VPI_PTR,OA_NONE,     OA_NONE} },
       { "%disable/flow", of_DISABLE_FLOW, 1, {OA_VPI_PTR,OA_NONE, OA_NONE} },
       { "%disable/flow/child", of_DISABLE_FLOW_CHILD, 1, {OA_VPI_PTR,OA_NONE, OA_NONE} },
@@ -299,9 +300,12 @@ static const struct opcode_table_s opcode_table[] = {
       { "%evctl/s",of_EVCTLS, 2,  {OA_FUNC_PTR, OA_BIT1,     OA_NONE} },
       { "%event",    of_EVENT,    1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%event/nb", of_EVENT_NB, 2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
+      { "%evt/arr",   of_EVT_ARR,    2, {OA_NUMBER, OA_BIT1, OA_NONE} },
+      { "%evt/arr/nb",of_EVT_ARR_NB, 3, {OA_NUMBER, OA_BIT1, OA_BIT2} },
       { "%evt/obj",   of_EVT_OBJ,    1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%evt/obj/nb",of_EVT_OBJ_NB, 2, {OA_NUMBER, OA_BIT1, OA_NONE} },
       { "%evtest",   of_EVTEST,   1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
+      { "%evtest/arr",of_EVTEST_ARR, 2, {OA_NUMBER, OA_BIT1, OA_NONE} },
       { "%evtest/obj",of_EVTEST_OBJ, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%flag_get/vec4", of_FLAG_GET_VEC4, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%flag_inv",      of_FLAG_INV,      1, {OA_BIT1,   OA_NONE, OA_NONE} },
@@ -315,6 +319,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%force/vec4/off/d",of_FORCE_VEC4_OFF_D,3,{OA_FUNC_PTR, OA_BIT1,  OA_BIT2} },
       { "%force/wr",      of_FORCE_WR,      1,{OA_FUNC_PTR, OA_NONE,      OA_NONE} },
       { "%fork",   of_FORK,   2,  {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
+      { "%fork/p", of_FORK_P, 2,  {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
       { "%fork/v", of_FORK_V, 2,  {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
       { "%free",   of_FREE,   1,  {OA_VPI_PTR,  OA_NONE,     OA_NONE} },
       { "%get_randstate", of_GET_RANDSTATE, 0,{OA_NONE, OA_NONE, OA_NONE} },
@@ -342,6 +347,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%join/detach",of_JOIN_DETACH,1,{OA_NUMBER,OA_NONE,  OA_NONE} },
       { "%load/ar",of_LOAD_AR,2,  {OA_ARR_PTR,  OA_BIT1,     OA_NONE} },
       { "%load/arr/dar", of_LOAD_ARR_DAR, 3, {OA_ARR_PTR, OA_BIT1, OA_BIT2} },
+      { "%load/arr/dar/md",of_LOAD_ARR_DAR_MD,2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },
       { "%load/dar/obj", of_LOAD_DAR_OBJ,  1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%load/dar/obj/vec4",of_LOAD_DAR_OBJ_VEC4,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%load/dar/r",  of_LOAD_DAR_R,    1, {OA_FUNC_PTR, OA_NONE, OA_NONE}},
@@ -466,12 +472,12 @@ static const struct opcode_table_s opcode_table[] = {
       { "%rand_mode/p",    of_RAND_MODE_P,     1,{OA_NUMBER, OA_NONE,OA_NONE} },
       { "%randomize",      of_RANDOMIZE,      0,{OA_NONE,   OA_NONE,OA_NONE} },
       { "%randomize/with", of_RANDOMIZE_WITH,  2,{OA_STRING, OA_BIT1,OA_NONE} },
+      { "%reactive/process",of_REACTIVE_PROCESS,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%ref/bind",  of_REF_BIND,    2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%ref/bind/f",of_REF_BIND_F,  2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%release/net",of_RELEASE_NET,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/reg",of_RELEASE_REG,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/wr", of_RELEASE_WR, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
-      { "%reactive/process",of_REACTIVE_PROCESS,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%rep/str",   of_REP_STR,     1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%replicate", of_REPLICATE,   1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%ret/obj",   of_RET_OBJ,     1,{OA_NUMBER,  OA_NONE,OA_NONE} },
@@ -502,6 +508,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%srandom",  of_SRANDOM,  0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%std/randomize/load",of_STD_RANDOMIZE_LOAD,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%std/randomize/with",of_STD_RANDOMIZE_WITH,3,{OA_STRING,OA_BIT1,OA_BIT2} },
+      { "%store/arr/dar", of_STORE_ARR_DAR, 2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },
+      { "%store/arr/dar/md",of_STORE_ARR_DAR_MD,2,{OA_ARR_PTR,OA_BIT1,OA_NONE} },
       { "%store/dar/obj", of_STORE_DAR_OBJ, 1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%store/dar/r",   of_STORE_DAR_R,   1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%store/dar/str", of_STORE_DAR_STR, 1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
@@ -578,6 +586,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%unbox/vec4", of_UNBOX_VEC4,1,{OA_NUMBER,  OA_NONE,    OA_NONE} },
       { "%vif/tickchg",of_VIF_TICKCHG,1,{OA_NUMBER, OA_NONE,    OA_NONE} },
       { "%wait",   of_WAIT,   1,  {OA_FUNC_PTR, OA_NONE,     OA_NONE} },
+      { "%wait/arr",of_WAIT_ARR,2,{OA_NUMBER,  OA_BIT1,     OA_NONE} },
       { "%wait/fork",of_WAIT_FORK,0,{OA_NONE,   OA_NONE,     OA_NONE} },
       { "%wait/obj",of_WAIT_OBJ,1,{OA_NUMBER,  OA_NONE,     OA_NONE} },
       { "%wait/observed",of_WAIT_OBSERVED,0,{OA_NONE,OA_NONE, OA_NONE} },
@@ -1556,8 +1565,37 @@ void compile_vpi_symbol(const char*label, vpiHandle obj)
  * Initialize the compiler by allocation empty symbol tables and
  * initializing the various address spaces.
  */
+/*
+ * opcode_table is searched with bsearch(), so it has to be sorted by
+ * mnemonic. A single entry in the wrong place does not break only that
+ * entry: bsearch then mis-navigates a whole RANGE, and unrelated
+ * instructions that have worked for years start reporting "Invalid
+ * opcode" at load time -- a legal design simply refuses to run, and the
+ * message points at the innocent instruction rather than at the table.
+ *
+ * That is far too quiet a failure for an invariant a one-line edit can
+ * violate, so check it once at startup and name the offending pair.
+ */
+static void check_opcode_table_order_(void)
+{
+      for (unsigned idx = 1 ; idx < opcode_count ; idx += 1) {
+	    if (strcmp(opcode_table[idx-1].mnemonic,
+		       opcode_table[idx].mnemonic) < 0)
+		  continue;
+
+	    fprintf(stderr, "COMPILER ERROR: the vvp opcode table is not "
+		    "sorted: \"%s\" precedes \"%s\". The table is searched "
+		    "with bsearch(), so this silently breaks lookups for a "
+		    "range of unrelated instructions.\n",
+		    opcode_table[idx-1].mnemonic, opcode_table[idx].mnemonic);
+	    exit(1);
+      }
+}
+
 void compile_init(void)
 {
+      check_opcode_table_order_();
+
       sym_vpi = new_symbol_table();
 
       sym_functors = new_symbol_table();

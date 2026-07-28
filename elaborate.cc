@@ -276,8 +276,21 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 
 static NetEvent* resolve_named_event_member_from_search_(const symbol_search_results&sr)
 {
-      if (sr.eve && sr.path_tail.empty())
+      if (sr.eve && sr.path_tail.empty()) {
+	      // Reject a stray index on a scalar event (`->scalar_ev[0]`,
+	      // meaningless) and a bare reference to a named-event array's
+	      // group NetEvent (`->arr`, `@(arr)` -- there is no runtime
+	      // object backing the group itself, only its indexed
+	      // elements; see elaborate_event_array_target_ for the valid
+	      // `arr[i]` form). Silently falling through here would
+	      // otherwise trigger/wait on the wrong (or a nonexistent)
+	      // event.
+	    bool has_index = !sr.path_head.empty()
+	                      && !sr.path_head.back().index.empty();
+	    if (has_index || sr.eve->is_event_array())
+		  return nullptr;
 	    return sr.eve;
+      }
 
       if (!sr.net || sr.path_tail.empty())
 	    return nullptr;
@@ -426,6 +439,69 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 
       slot_out = eve->obj_slot();
       return obj;
+}
+
+/*
+ * Resolve an indexed reference into a named-event array, e.g. `arr[i]`
+ * used by `->arr[i]`, `->>arr[i]`, or `@(arr[i])` (IEEE 1800-2017 6.20:
+ * an unpacked array of events, where each element is its own
+ * independent named event). Returns the array's group NetEvent
+ * (is_event_array()==true) and, in idx_out, the elaborated index
+ * expression (caller owns), or nullptr if `full_path` is not a
+ * (single-dimension) event-array element reference -- in which case the
+ * caller falls back to the ordinary scalar-event path. A malformed
+ * reference (multi-dimensional index, or a part-select/slice instead of
+ * a single bit select) is reported here with a loud diagnostic rather
+ * than silently falling through to a path that would ignore the index.
+ * Hierarchical/multi-component event-array references are out of scope
+ * and are treated as "not an array reference" (full_path.size() != 1).
+ */
+static NetEvent* elaborate_event_array_target_(Design*des, NetScope*scope,
+					       const LineInfo&loc,
+					       const pform_name_t&full_path,
+					       unsigned lexical_pos,
+					       NetExpr*&idx_out)
+{
+      idx_out = 0;
+      if (full_path.size() != 1)
+	    return nullptr;
+
+      const name_component_t&comp = full_path.back();
+      if (comp.index.empty())
+	    return nullptr;
+
+      symbol_search_results sr;
+      if (!symbol_search(&loc, des, scope, full_path, lexical_pos, &sr))
+	    return nullptr;
+      if (!sr.eve || !sr.path_tail.empty() || !sr.eve->is_event_array())
+	    return nullptr;
+
+      if (comp.index.size() > 1) {
+	    cerr << loc.get_fileline() << ": sorry: multi-dimensional "
+	            "named-event arrays are not supported (`" << comp.name
+	         << "' has " << comp.index.size() << " index dimensions)."
+	         << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      const index_component_t&sel = comp.index.front();
+      if (sel.sel != index_component_t::SEL_BIT) {
+	    cerr << loc.get_fileline() << ": error: named-event array `"
+	         << comp.name << "' element select must be a single bit "
+	            "select, not a part select or slice." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      NetExpr*idx = elab_and_eval(des, scope, sel.msb, -1);
+      if (!idx) {
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      idx_out = idx;
+      return sr.eve;
 }
 
 /* Resolve `<instance_scope>` (no NetNet, but path consumed) to the
@@ -4227,7 +4303,7 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
       if (gn_system_verilog() && delay_ == 0 && event_ == 0 && count_ == 0) {
 	    const PEIdent*id_lval = dynamic_cast<const PEIdent*>(lval());
 	    if (id_lval && id_lval->path().size() >= 1
-		&& id_lval->path().back().index.size() == 2) {
+		&& id_lval->path().back().index.size() >= 2) {
 		  symbol_search_results sr;
 		  bool found = symbol_search(this, des, scope, id_lval->path(),
 					     id_lval->lexical_pos(), &sr);
@@ -4259,7 +4335,7 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			const netclass_t*cls =
 			      dynamic_cast<const netclass_t*>(sr.net->net_type());
 			const name_component_t&pc = sr.path_tail.front();
-			if (cls && pc.index.size() == 2) {
+			if (cls && pc.index.size() >= 2) {
 			      int pidx = cls->property_idx_from_name(pc.name);
 			      if (pidx >= 0) {
 				    outer = dynamic_cast<const netdarray_t*>(
@@ -4295,48 +4371,77 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			}
 		  }
 
-		  const netdarray_t*inner = outer
-			? dynamic_cast<const netdarray_t*>(outer->element_type())
-			: 0;
+		    /* Walk ONE container level per index. All but the
+		       last index navigate down to the container that
+		       finally receives the value; the last one is the
+		       store index. This used to take index.front() and
+		       index.back() and nothing else, which is right for
+		       exactly two indices and refused everything deeper
+		       -- `q[i][j][k] = v' on a three-level container hit
+		       "Only single-dimension darray index selects are
+		       supported in this l-value form". */
 		  const name_component_t&tail = id_lval->path().back();
-		  const index_component_t&i1 = tail.index.front();
-		  const index_component_t&i2 = tail.index.back();
-		  if (outer_e && inner
-		      && i1.sel == index_component_t::SEL_BIT
-		      && i1.msb && !i1.lsb
-		      && i2.sel == index_component_t::SEL_BIT
-		      && i2.msb && !i2.lsb) {
-			NetExpr*k1 = elab_and_eval(des, scope, i1.msb, -1, false);
-			NetExpr*k2 = elab_and_eval(des, scope, i2.msb, -1, false);
-			ivl_type_t val_type = inner->element_type();
-			unsigned val_wid = 0;
-			if (val_type) {
-			      long pw = val_type->packed_width();
-			      val_wid = (pw > 0) ? (unsigned)pw : 1;
+		  const netdarray_t*level = outer;
+		  bool shape_ok = (outer_e != 0) && (level != 0);
+		  vector<NetExpr*> keys;
+		  ivl_type_t val_type = 0;
+
+		  if (shape_ok) {
+			size_t nkeys = tail.index.size();
+			size_t kn = 0;
+			for (auto ii = tail.index.begin()
+				   ; ii != tail.index.end() ; ++ii, ++kn) {
+			      if (ii->sel != index_component_t::SEL_BIT
+				  || !ii->msb || ii->lsb) {
+				    shape_ok = false;
+				    break;
+			      }
+				/* Every key but the last must land on a
+				   further container level. */
+			      if (kn + 1 < nkeys) {
+				    const netdarray_t*next =
+					  dynamic_cast<const netdarray_t*>
+						(level->element_type());
+				    if (!next) { shape_ok = false; break; }
+				    level = next;
+			      }
+			      NetExpr*k = elab_and_eval(des, scope,
+							ii->msb, -1, false);
+			      if (!k) { shape_ok = false; break; }
+			      keys.push_back(k);
 			}
-			NetExpr*val = val_type
-			      ? elaborate_rval_expr(des, scope, val_type,
-						    val_type->base_type(),
-						    val_wid, rval())
-			      : 0;
-			if (k1 && k2 && val) {
-			      vector<NetExpr*> argv(4);
-			      argv[0] = outer_e;
-			      argv[1] = k1;
-			      argv[2] = k2;
-			      argv[3] = val;
+			if (shape_ok)
+			      val_type = level->element_type();
+		  }
+
+		  if (shape_ok && val_type) {
+			unsigned val_wid = 0;
+			long pw = val_type->packed_width();
+			val_wid = (pw > 0) ? (unsigned)pw : 1;
+			NetExpr*val = elaborate_rval_expr(des, scope, val_type,
+							  val_type->base_type(),
+							  val_wid, rval());
+			if (val) {
+			      vector<NetExpr*> argv;
+			      argv.push_back(outer_e);
+			      for (size_t ki = 0 ; ki < keys.size() ; ki += 1)
+				    argv.push_back(keys[ki]);
+			      argv.push_back(val);
 			      NetSTask*sys = new NetSTask(
 				    "$ivl_assoc$store2",
 				    IVL_SFUNC_AS_TASK_IGNORE, argv);
 			      sys->set_line(*this);
 			      return sys;
 			}
-			delete k1;
-			delete k2;
-			delete val;
+			shape_ok = false;
 		  }
-		  if (outer_e && !inner)
-			delete outer_e;
+
+		  if (!shape_ok) {
+			for (size_t ki = 0 ; ki < keys.size() ; ki += 1)
+			      delete keys[ki];
+			if (outer_e)
+			      delete outer_e;
+		  }
 	    }
       }
 
@@ -8900,7 +9005,75 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    if (lv == 0)
 		  continue;
 
-	    NetExpr*rv = new NetESignal(copy_via[idx] ? copy_via[idx] : port);
+	    NetNet*copy_src = copy_via[idx] ? copy_via[idx] : port;
+
+	      /* Copy-back into a FIXED unpacked array actual from an
+		 open-array (or queue) formal -- `task t(inout int q[])'
+		 called as `t(fa)' where `fa' is `int fa[3]'.
+
+		 The actual is N inline words in a word-array signal and
+		 the formal is a container object, so this is the same
+		 container -> fixed-array copy as the 7.6 assignment
+		 `fa = da'. It goes through the same NetAssign, and so
+		 through the same %store/arr/dar, rather than growing a
+		 second lowering: the whole point of the instruction is
+		 that every legal copy in this direction shares it.
+
+		 Before that instruction existed the copy-out reached the
+		 code generator as an untyped store and aborted ivl --
+		 `store_vec4_to_lval: Assertion `lwid ==
+		 ivl_signal_width(lsig)' failed' -- on legal 13.5.2
+		 input, whether or not the task body ever wrote the
+		 formal, because the copy-out is generated from the port
+		 DIRECTION alone. Shapes the instruction cannot express
+		 are refused here, where the l-value is still readable,
+		 instead of aborting there.
+
+		 A destination that is a class property or struct member
+		 is NOT this case: the member slot is reached by
+		 %store/prop/arr/dar, which has handled it -- including
+		 multidimensional members -- since the property work.
+		 Only a plain word-array SIGNAL had no instruction, so
+		 only that is taken over here. */
+	    if (const netuarray_t*lv_ua =
+		      dynamic_cast<const netuarray_t*>(lv->net_type())) {
+		  ivl_variable_type_t src_vt = copy_src->data_type();
+		  bool plain_signal_dst = (lv->get_property_idx() < 0)
+			&& (lv->more == 0) && !lv->word() && lv->sig();
+		  if (plain_signal_dst
+		      && (src_vt == IVL_VT_DARRAY || src_vt == IVL_VT_QUEUE)) {
+			const netdarray_t*src_da =
+			      dynamic_cast<const netdarray_t*>(copy_src->net_type());
+			  /* A multi-dimensional actual is copied back
+			     from a NESTED formal, one container level
+			     per declared dimension, so unwrap to the
+			     leaf before comparing element types. */
+			size_t levels = lv_ua->static_dimensions().size();
+			for (size_t lv = 1 ; lv < levels && src_da ; lv += 1)
+			      src_da = dynamic_cast<const netdarray_t*>
+				    (src_da->element_type());
+			if (levels < 1
+			    || !uarray_element_matches_container_(lv_ua, src_da)) {
+			      cerr << get_fileline() << ": sorry: "
+				   << "Cannot copy subroutine port " << (idx+1)
+				   << " back into '" << lv->name()
+				   << "': copy-back from an open-array formal "
+				   << "into a plain array variable is "
+				   << "supported for a one-dimensional actual "
+				   << "with an assignment-compatible element "
+				   << "type." << endl;
+			      des->errors += 1;
+			      delete lv;
+			      continue;
+			}
+			NetAssign*ass = new NetAssign(lv, new NetESignal(copy_src));
+			ass->set_line(*this);
+			block->append(ass);
+			continue;
+		  }
+	    }
+
+	    NetExpr*rv = new NetESignal(copy_src);
 
 		  /* Handle any implicit cast. */
 			unsigned lv_width = count_lval_width(lv);
@@ -10833,6 +11006,30 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	    }
       }
 
+	/* A wait on a single named-event array element (`@(arr[i])`):
+	   each element is its own independent named event
+	   (IEEE 1800-2017 6.20). */
+      if (expr_.size() == 1 && expr_[0]
+	  && (expr_[0]->type() == PEEvent::POSITIVE
+	      || expr_[0]->type() == PEEvent::ANYEDGE)
+	  && expr_[0]->expr()) {
+	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
+		  NetExpr*idx = 0;
+		  if (NetEvent*ev = elaborate_event_array_target_(des, scope,
+				*this, id->path().name, id->lexical_pos(), idx)) {
+			NetProc*body = 0;
+			if (statement_) {
+			      body = statement_->elaborate(des, scope);
+			      if (body == 0) { delete idx; return 0; }
+			}
+			NetEvWaitArr*wa = new NetEvWaitArr(ev, idx);
+			wa->set_line(*this);
+			wa->set_statement(body);
+			return wa;
+		  }
+	    }
+      }
+
       NetProc*enet = 0;
       if (statement_) {
 	    enet = statement_->elaborate(des, scope);
@@ -12262,6 +12459,19 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 	    }
       }
 
+	// A trigger on a named-event array element (`->arr[i]`): each
+	// element is its own independent named event (IEEE 1800-2017
+	// 6.20).
+      {
+	    NetExpr*idx = 0;
+	    if (NetEvent*ev = elaborate_event_array_target_(des, scope,
+					*this, event_.name, lexical_pos_, idx)) {
+		  NetEvTrigArr*trig = new NetEvTrigArr(ev, idx, false, 0);
+		  trig->set_line(*this);
+		  return trig;
+	    }
+      }
+
       symbol_search_results sr;
       if (!symbol_search(this, des, scope, event_, lexical_pos_, &sr)) {
 	    cerr << get_fileline() << ": error: event <" << event_ << ">"
@@ -12300,6 +12510,19 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 		  NetExpr*dly = 0;
 		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
 		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, true, dly);
+		  trig->set_line(*this);
+		  return trig;
+	    }
+      }
+
+	// Nonblocking trigger on a named-event array element (`->>arr[i]`).
+      {
+	    NetExpr*idx = 0;
+	    if (NetEvent*ev = elaborate_event_array_target_(des, scope,
+					*this, event_, lexical_pos_, idx)) {
+		  NetExpr*dly = 0;
+		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
+		  NetEvTrigArr*trig = new NetEvTrigArr(ev, idx, true, dly);
 		  trig->set_line(*this);
 		  return trig;
 	    }

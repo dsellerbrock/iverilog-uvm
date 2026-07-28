@@ -2810,21 +2810,28 @@ static void pform_set_net_range(PWire *wire,
 
 /*
  * This is invoked to make a named event. This is the declaration of
- * the event, and not necessarily the use of it.
+ * the event, and not necessarily the use of it. array_dims is the
+ * declared unpacked-array bound (IEEE 1800-2017 6.20, e.g.
+ * `event arr[3];`), or null for an ordinary scalar event; ownership
+ * transfers to the PEvent.
  */
-static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name)
+static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
+			      std::list<pform_range_t>*array_dims)
 {
       PEvent*event = new PEvent(name.first, name.second);
       FILE_NAME(event, loc);
+      if (array_dims) event->set_array_dims(array_dims);
 
       add_local_symbol(lexical_scope, name.first, event);
       lexical_scope->events[name.first] = event;
 }
 
-void pform_make_events(const struct vlltype&loc, const list<pform_ident_t>*names)
+void pform_make_events(const struct vlltype&loc,
+		       const list<pform_event_ident_t*>*names)
 {
       for (auto cur = names->begin() ;  cur != names->end() ; ++ cur ) {
-	    pform_make_event(loc, *cur);
+	    pform_make_event(loc, (*cur)->ident, (*cur)->array_dims);
+	    delete *cur;
       }
 
       delete names;

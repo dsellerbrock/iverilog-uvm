@@ -46,6 +46,19 @@ void nodangle_f::event(Design*, NetEvent*ev)
 {
       if (ecomplete) return;
 
+	/* A named-event array's group NetEvent (IEEE 1800-2017 6.20,
+	   `event arr[3];`) is referenced only indirectly: each element
+	   trigger/wait (NetEvTrigArr/NetEvWaitArr) carries a NetEvent*
+	   plus a run-time index, and does not bump nwait()/ntrig()/
+	   nnb_trig()/nexpr() the way a plain NetEvTrig/NetEvWait does.
+	   Those counters are therefore not a reliable "is this array
+	   used" signal, so never treat the group event as dangling --
+	   doing so would delete a NetEvent that NetEvTrigArr/NetEvWaitArr
+	   nodes still point to (a later stale-pointer read of the
+	   deleted event's base slot/count). */
+      if (ev->is_event_array())
+	    return;
+
 	/* If there are no references to this event, then go right
 	   ahead and delete it. There is no use looking further at
 	   it. */

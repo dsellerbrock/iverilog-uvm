@@ -637,6 +637,24 @@ static int eval_object_array(ivl_expr_t expr)
 	    }
 
 	    note_array_signal_use(sig);
+
+	      /* A MULTI-dimensional array is stored as one flat word
+		 array just like a one-dimensional one, but the formal
+		 built from it is nested -- one level per declared
+		 dimension, each reporting its own bounds (H.10.2). The
+		 shape is not recoverable from the flat storage, so hand
+		 it over explicitly and use the nesting marshaler. */
+	    if (ivl_signal_dimensions(sig) > 1) {
+		  unsigned dim;
+		  for (dim = 0 ; dim < ivl_signal_dimensions(sig) ; dim += 1)
+			fprintf(vvp_out, "    %%dim/push %d, %d;\n",
+				ivl_signal_array_dim_msb(sig, dim),
+				ivl_signal_array_dim_lsb(sig, dim));
+		  fprintf(vvp_out, "    %%load/arr/dar/md v%p, %u;\n",
+			  sig, kind);
+		  return 0;
+	    }
+
 	    fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %d;\n",
 		    sig, kind, left);
       }

@@ -245,9 +245,22 @@ NetEScope* NetEScope::dup_expr() const
 
 NetESelect* NetESelect::dup_expr() const
 {
-      NetESelect*tmp = new NetESelect(expr_->dup_expr(),
-			              base_? base_->dup_expr() : 0,
-			              expr_width(), sel_type_);
+	/* A select built with a net_type -- an element of a container,
+	   as opposed to a bit/part select of a vector -- has to keep it.
+	   Duplicating through the sel_type_ constructor silently dropped
+	   it, so the COPY reported no type at all, and anything that
+	   asked the copy what it was got nothing: foreach over a
+	   three-deep container elaborated its first two levels and then
+	   quietly produced no loop at all for the third, because the
+	   element-expression builder could not see a container type on
+	   the duplicate. Zero iterations, no diagnostic. */
+      NetESelect*tmp = net_type()
+	    ? new NetESelect(expr_->dup_expr(),
+			     base_? base_->dup_expr() : 0,
+			     expr_width(), net_type())
+	    : new NetESelect(expr_->dup_expr(),
+			     base_? base_->dup_expr() : 0,
+			     expr_width(), sel_type_);
       ivl_assert(*this, tmp);
       tmp->cast_signed(has_sign());
       tmp->set_line(*this);

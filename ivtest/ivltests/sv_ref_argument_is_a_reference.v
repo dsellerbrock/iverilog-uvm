@@ -29,10 +29,13 @@
 // temporary that is copied in and out, which is what those shapes had
 // before and is checked below so that path does not rot.
 //
-// Real, string, class-handle and container formals still use the copy
-// pair; their reads go through type-specific opcodes a bound formal
-// cannot answer. They are exercised here as controls, because the
-// change must not disturb them.
+// Real, string and container (dynamic array, queue, fixed array)
+// formals still use the copy pair; their reads go through type-specific
+// opcodes a bound formal cannot answer. They are exercised here as
+// controls, because the change must not disturb them. A class-handle
+// formal is ALSO bound now (R25: see sv_ref_arg_object_fork_detach.v),
+// because vvp_ref_signal_aa can answer the object accessor interface
+// too; that fork/join_none-detach shape is exercised over there.
 
 module main;
 

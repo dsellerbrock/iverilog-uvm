@@ -1808,6 +1808,27 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	       populated for downstream concatenation. */
 	    bool is_union = struct_type->union_flag();
 	    for (size_t idx = 0; idx < members.size(); idx++) {
+		  ivl_type_t idx_nt = members[idx].net_type;
+
+		    /* R20: a `void` tagged-union member (IEEE 1800-2017
+		       7.3.2) carries no payload. `tagged TAG` (the
+		       void-tag constructor) lowers in the grammar to a
+		       named pattern with a synthetic placeholder value
+		       for TAG; there is nothing meaningful to elaborate
+		       into this slot, so always synthesize a harmless
+		       zero placeholder instead of elaborating whatever
+		       value the pattern happens to carry for it. This
+		       also covers the (illegal) `tagged TAG value` form
+		       against a void tag without crashing. */
+		  if (idx_nt && idx_nt->base_type() == IVL_VT_VOID) {
+			unsigned w = idx_nt->packed_width();
+			if (w == 0) w = 1;
+			verinum z((uint64_t)0, w);
+			items[idx] = new NetEConst(z);
+			items[idx]->set_line(*this);
+			continue;
+		  }
+
 		  auto it = name_map.find(members[idx].name);
 		  PExpr*src = (it != name_map.end()) ? it->second : dflt;
 		  if (!src) {
@@ -11777,6 +11798,91 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 			  }
 		    }
 
+		      /* A dynamic array or queue read in the context of a
+			 fixed-size unpacked array (IEEE 1800-2017 7.6:
+			 `fa = da', and the copy-back of an open-array
+			 formal into a fixed-array actual). The two have
+			 different representations but the same element
+			 values, so this is a copy, not a type error. The
+			 element counts can only be compared at run time
+			 for a dynamic source; %store/arr/dar does that. */
+		      /* A MULTI-dimensional fixed array read in the
+			 context of a nested open-array formal
+			 (`int m[2][3]' for `int q[][]'). As above, the
+			 array type is on the SIGNAL -- net_type() gives
+			 the element type -- which is why this context
+			 check never saw it either. */
+		    if (const netdarray_t*want_da =
+			      dynamic_cast<const netdarray_t*>(ntype)) {
+			  const netuarray_t*act_ua =
+				dynamic_cast<const netuarray_t*>(net->array_type());
+			  if (act_ua && act_ua->static_dimensions().size() > 1) {
+				const netdarray_t*inner = want_da;
+				size_t levels =
+				      act_ua->static_dimensions().size();
+				for (size_t lv = 1 ; lv < levels && inner ; lv += 1)
+				      inner = dynamic_cast<const netdarray_t*>
+					    (inner->element_type());
+				if (inner && inner->element_type()
+				    && act_ua->element_type()
+				    && inner->element_type()->type_equivalent(
+					  act_ua->element_type())) {
+				      NetESignal*tmp = new NetESignal(net);
+				      tmp->set_line(*this);
+				      return tmp;
+				}
+			  }
+
+			    /* A NESTED CONTAINER actual for a nested
+			       open-array formal -- `int qq[$][$]' passed
+			       to `int q[][]'. A queue and a dynamic array
+			       are not type_compatible with each other, so
+			       the check failed at the INNER level even
+			       though the outer one already had a
+			       queue/darray passthrough. They share
+			       vvp_darray at run time and an open formal
+			       does not care which spelling it was given,
+			       so walk the levels treating the two as
+			       equivalent and compare the leaf. */
+			  if (const netdarray_t*act_da =
+				    dynamic_cast<const netdarray_t*>(net->net_type())) {
+				const netdarray_t*wl = want_da;
+				const netdarray_t*al = act_da;
+				while (wl && al) {
+				      const netdarray_t*wn =
+					    dynamic_cast<const netdarray_t*>
+						  (wl->element_type());
+				      const netdarray_t*an =
+					    dynamic_cast<const netdarray_t*>
+						  (al->element_type());
+				      if (!wn || !an)
+					    break;
+				      wl = wn;
+				      al = an;
+				}
+				if (wl && al && wl->element_type()
+				    && al->element_type()
+				    && wl->element_type()->type_equivalent(
+					  al->element_type())) {
+				      NetESignal*tmp = new NetESignal(net);
+				      tmp->set_line(*this);
+				      return tmp;
+				}
+			  }
+		    }
+
+		    if (const netuarray_t*want_ua =
+			      dynamic_cast<const netuarray_t*>(ntype)) {
+			  const netdarray_t*have_da =
+				dynamic_cast<const netdarray_t*>(have_type);
+			  if (have_da && want_ua->static_dimensions().size() == 1
+			      && uarray_element_matches_container_(want_ua, have_da)) {
+				NetESignal*tmp = new NetESignal(net);
+				tmp->set_line(*this);
+				return tmp;
+			  }
+		    }
+
 		    cerr << get_fileline() << ": error: the type of the variable '"
 			 << path_ << "' doesn't match the context type." << endl;
 
@@ -12678,6 +12784,76 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
                   }
                   scope->is_const_func(false);
             }
+
+	      // An indexed reference into a named-event array element,
+	      // e.g. `e[1]` or `e[1].triggered` (IEEE 1800-2017 6.20 /
+	      // 15.5.3). Each element is its own independent named event;
+	      // `->e[i]` and `@(e[i])` are handled directly in elaborate.cc,
+	      // but `.triggered` is a plain expression and so is elaborated
+	      // here. Guard every indexed/bare use of an event array so a
+	      // malformed or unsupported form gets a loud diagnostic instead
+	      // of silently falling through to the "whole array" NetEEvent
+	      // below, which has no runtime backing of its own and would
+	      // silently read as never-triggered.
+	    bool head_indexed = !sr.path_head.empty()
+	                         && !sr.path_head.back().index.empty();
+	    if (sr.eve->is_event_array()) {
+		  if (!head_indexed) {
+			cerr << get_fileline() << ": error: named-event array `"
+			     << sr.eve->name() << "' cannot be used without "
+			        "an element index." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+
+		  const std::list<index_component_t>&idxl = sr.path_head.back().index;
+		  if (idxl.size() > 1) {
+			cerr << get_fileline() << ": sorry: multi-dimensional "
+			        "named-event arrays are not supported (`"
+			     << sr.eve->name() << "')." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+
+		  const index_component_t&sel = idxl.front();
+		  if (sel.sel != index_component_t::SEL_BIT) {
+			cerr << get_fileline() << ": error: named-event array `"
+			     << sr.eve->name() << "' element select must be a "
+			        "single bit select, not a part select or slice."
+			     << endl;
+			des->errors += 1;
+			return 0;
+		  }
+
+		  if (gn_system_verilog()
+		      && sr.path_tail.size() == 1
+		      && peek_head_name(sr.path_tail) == perm_string::literal("triggered")
+		      && sr.path_tail.front().index.empty()) {
+			// IEEE 1800-2017 15.5.3 triggered property, applied
+			// to one array element: true if THAT element was
+			// triggered in the current time step.
+			NetExpr*idx = elab_and_eval(des, scope, sel.msb, -1);
+			if (!idx) {
+			      des->errors += 1;
+			      return 0;
+			}
+			NetESFunc*tmp = new NetESFunc(
+			      "$ivl_event_method$triggered_arr",
+			      IVL_VT_BOOL, 1, 2);
+			NetEEvent*ev = new NetEEvent(sr.eve);
+			ev->set_line(*this);
+			tmp->parm(0, ev);
+			tmp->parm(1, idx);
+			tmp->set_line(*this);
+			return tmp;
+		  }
+
+		  cerr << get_fileline() << ": error: named-event array "
+		          "element `" << sr.eve->name() << "[...]' can only "
+		          "be used with @, ->, ->>, or .triggered." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 
 	    if (!sr.path_tail.empty()) {
 		  if (gn_system_verilog()
@@ -14564,23 +14740,67 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	    ivl_type_t elem_type = darray
 		  ? darray->element_type()
 		  : queue ? queue->element_type() : 0;
-	    unsigned elem_width = darray
-		  ? darray->element_width()
-		  : queue ? queue->element_width() : 0;
 
-	      // Elaborate the first index as the element access.
-	    const index_component_t&elem_index = path_.back().index.front();
-	    NetExpr*elem_mux = elab_and_eval(des, scope, elem_index.msb,
-					     -1, need_const);
-	    if (!elem_mux) {
-		  delete node;
+	      // Walk ONE container level per index, for as many levels as
+	      // the type actually has.
+	      //
+	      // This used to elaborate index.front() as the element access
+	      // and then index.back() as a select on it, which is right for
+	      // exactly two indices and silently WRONG for three or more:
+	      // every index in between was dropped, so `q[i][j][k]' on a
+	      // three-level container read `q[i][j]' -- a whole inner array
+	      // where an element was asked for, with no diagnostic. The
+	      // property path already walked its indices properly
+	      // (apply_trailing_property_indices); this is the signal-side
+	      // equivalent, and it is what lets an unpacked array of any
+	      // legal dimensionality be used as an open-array actual.
+	    NetExpr*cur_sel = node;
+	    ivl_type_t cur_type = elem_type;
+	    auto idx_it = path_.back().index.begin();
+	    {
+		  const netarray_t*level = darray
+			? (const netarray_t*)darray : (const netarray_t*)queue;
+		  while (level && idx_it != path_.back().index.end()) {
+			ivl_type_t et = level->element_type();
+			unsigned ew = 1;
+			if (const netdarray_t*da =
+				  dynamic_cast<const netdarray_t*>(level))
+			      ew = da->element_width();
+			if (ew == 0)
+			      ew = 1;
+
+			NetExpr*mux = elab_and_eval(des, scope, idx_it->msb,
+						    -1, need_const);
+			if (!mux) {
+			      delete cur_sel;
+			      return 0;
+			}
+
+			NetESelect*sel = et
+			      ? new NetESelect(cur_sel, mux, ew, et)
+			      : new NetESelect(cur_sel, mux, ew);
+			sel->set_line(*this);
+			cur_sel = sel;
+			cur_type = et;
+			++idx_it;
+
+			  // Only a further CONTAINER level consumes another
+			  // index; anything else leaves the remaining
+			  // indices to the packed-select handling below.
+			level = dynamic_cast<const netdarray_t*>(et);
+		  }
+	    }
+
+	    NetESelect*elem_sel = dynamic_cast<NetESelect*>(cur_sel);
+	    elem_type = cur_type;
+	    if (!elem_sel) {
+		  delete cur_sel;
 		  return 0;
 	    }
 
-	    NetESelect*elem_sel = elem_type
-		  ? new NetESelect(node, elem_mux, elem_width, elem_type)
-		  : new NetESelect(node, elem_mux, elem_width);
-	    elem_sel->set_line(*this);
+	      // Every index consumed: this is the element itself.
+	    if (idx_it == path_.back().index.end())
+		  return elem_sel;
 
 	      // Packed-vector element: the remaining indices are a canonical
 	      // bit/part/indexed select of the element value (11.5.1). The old
@@ -14589,8 +14809,7 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	    if (const netvector_t*evec =
 		    dynamic_cast<const netvector_t*>(elem_type)) {
 		  std::list<index_component_t> rest(
-			std::next(path_.back().index.begin()),
-			path_.back().index.end());
+			idx_it, path_.back().index.end());
 		  ivl_type_t sel_res = nullptr;
 		  NetExpr*vsel = make_vector_property_select_(des, scope, this,
 							      elem_sel, evec,

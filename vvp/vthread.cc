@@ -229,6 +229,15 @@ struct vthread_s {
 	// stack_obj_[].  Used by %ret/obj and %retload/obj.
       vector<unsigned> args_obj;
 
+	// Declared unpacked bounds accumulated by %dim/push, consumed
+	// by the next %load/arr/dar/md or %store/arr/dar/md. A signal
+	// is stored as ONE flat word array whatever its declared
+	// dimensionality, so the shape has to be handed to the
+	// instruction separately -- and it cannot ride in an operand,
+	// because vvp_code_s keeps `array' and `text' in one union and
+	// the array pointer already occupies it.
+      vector<pair<int,int> > dim_stack;
+
     private:
       vector<vvp_vector4_t>stack_vec4_;
     public:
@@ -721,6 +730,11 @@ inline string vthread_s::get_fileline()
       return res;
 }
 
+	/* Defined later in this file; needed by vvp_process::status(). */
+extern struct vthread_s*running_thread;
+static void logical_process_threads_(vthread_t thr,
+				     std::vector<vthread_t>&out);
+
 vvp_process::vvp_process(vthread_t owner)
 : owner_(owner), final_status_(PROCESS_STATE_RUNNING), final_status_valid_(false)
 {
@@ -795,6 +809,24 @@ unsigned vvp_process::status() const
 
       if (owner_->suspended)
 	    return PROCESS_STATE_SUSPENDED;
+
+	/* A process is its root thread PLUS the synchronous frames it
+	   is executing through -- a named begin/end body or a task call
+	   runs in a child vthread while the root parks in %join. Ask
+	   only the root and every such process reported WAITING for its
+	   entire life, including to itself: `process::self().status()'
+	   from inside an initial block whose body ran in a begin-frame
+	   child came back WAITING while the caller was, demonstrably,
+	   running. If the thread executing RIGHT NOW is any part of
+	   this process, the process is RUNNING. */
+      {
+	    std::vector<vthread_t> parts;
+	    logical_process_threads_(owner_, parts);
+	    for (size_t idx = 0 ; idx < parts.size() ; idx += 1) {
+		  if (parts[idx] == running_thread)
+			return PROCESS_STATE_RUNNING;
+	    }
+      }
 
       if (owner_->i_am_waiting || owner_->waiting_for_event
 	  || owner_->i_am_joining || owner_->i_am_delaying)
@@ -3560,6 +3592,101 @@ extern "C" int vpip_object_urandom(unsigned int*val)
 	    }
       }
       return 0;
+}
+
+/*
+ * R21: $stacktrace, called from vpi/sys_display.c's calltf.
+ *
+ * NOTE ON THE LRM CITATION: the task description that motivated this
+ * points at IEEE 1800-2017 20.3.3, but that subclause is actually
+ * $realtime -- clause 20's own table of contents (20.10/20.11) lists only
+ * $fatal/$error/$warning/$info as severity/elaboration tasks, and
+ * $stacktrace does not appear anywhere in clause 20 of the 2017 LRM. It is
+ * a widely implemented vendor debug extension (e.g. Questa), not a
+ * standard SystemVerilog system task. Since there is no LRM text to
+ * conform to, this implements the common contract: a task (not usable as
+ * a function/in an expression), no arguments, that prints the current
+ * call stack to stdout and does not affect simulation control flow.
+ *
+ * A synchronous task or function call in vvp runs on a CHILD vthread whose
+ * ->parent points back at the calling thread (see do_callf_void and the
+ * plain-task-call fork/join pair elsewhere in this file). Walking ->parent
+ * from the thread that is actually executing $stacktrace therefore visits
+ * exactly the live call stack, innermost frame first, and cur->parent_scope
+ * names each frame's scope.
+ *
+ * File/line per frame: the innermost frame's location is the $stacktrace
+ * call site itself, which vpi/sys_display.c hands in directly from the
+ * systf call handle's vpiFile/vpiLineNo -- that is always available,
+ * compiled in regardless of any runtime flag. For OUTER frames (the
+ * caller(s) that are blocked waiting for the callee to return), the best
+ * this build can do is each thread's own last-executed-statement location
+ * (thr->get_fileline(), frozen at the call site while the thread waits).
+ * That bookkeeping is written by the %file_line opcode, which tgt-vvp only
+ * emits when compiled with -pfileline=1 (see tgt-vvp/vvp.c's `fileline`
+ * design flag and vvp_process.c's show_stmt_file_line()) -- so outer-frame
+ * locations are only available when the design was built that way. Rather
+ * than silently omitting or guessing, say so explicitly per frame.
+ */
+extern "C" void vpip_print_stacktrace(const char*call_file, long call_line)
+{
+	/* As with vpip_object_urandom, use the thread the VPI call was
+	   actually made on -- `running_thread' is not reliable during a
+	   %vpi_call/%vpi_func. */
+      vthread_t thr = vpip_current_vthread ? vpip_current_vthread
+					   : running_thread;
+
+	/* vpi_get_str() results (both call_file, from the caller, and every
+	   vpiFullName lookup below) come out of vvp's single shared/rotating
+	   RBUF_STR scratch buffer (need_result_buf() in vpi_signal.cc) -- a
+	   second vpi_get_str() call silently overwrites the string the first
+	   one returned. Copy call_file out to a private std::string right
+	   away, before the loop below makes any further vpi_get_str() calls,
+	   or frame 0's location would get clobbered by frame 0's own scope
+	   name lookup. */
+      string call_file_str = (call_file && call_file[0]) ? call_file : string();
+
+      vpi_printf("$stacktrace: call stack (innermost frame first):\n");
+
+      if (!thr) {
+	    vpi_printf("  <no active thread context available>\n");
+	    return;
+      }
+
+      unsigned depth = 0;
+      for (vthread_t cur = thr ; cur ; cur = cur->parent, depth += 1) {
+	    string scope_name;
+	    if (cur->parent_scope) {
+		  const char*sn = vpi_get_str(vpiFullName, cur->parent_scope);
+		  scope_name = sn ? sn : "<unnamed scope>";
+	    } else {
+		  scope_name = "<unknown scope>";
+	    }
+
+	      /* Frame 0 (the frame that is actually calling $stacktrace)
+		 always has an exact, always-available location: the
+		 systf call site itself. */
+	    if (depth == 0 && !call_file_str.empty()) {
+		  vpi_printf("  #0 %s (%s:%ld)\n", scope_name.c_str(),
+			     call_file_str.c_str(), call_line);
+		  continue;
+	    }
+
+	    string fl = cur->get_fileline();
+	      /* get_fileline() returns "file:line: " -- a trailing
+		 separator meant for prefixing cerr diagnostics elsewhere.
+		 Trim it for this one-frame-per-line report. */
+	    while (!fl.empty() && (fl.back() == ' ' || fl.back() == ':'))
+		  fl.erase(fl.size()-1);
+
+	    if (fl.empty()) {
+		  vpi_printf("  #%u %s (location unavailable -- recompile with "
+			     "-pfileline=1 to see call-site lines for "
+			     "enclosing frames)\n", depth, scope_name.c_str());
+	    } else {
+		  vpi_printf("  #%u %s (%s)\n", depth, scope_name.c_str(), fl.c_str());
+	    }
+      }
 }
 
 bool of_GET_RANDSTATE(vthread_t thr, vvp_code_t)
@@ -10293,6 +10420,98 @@ bool of_EVTEST_OBJ(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * Named-event array element opcodes (IEEE 1800-2017 6.20). The element
+ * index is a run-time computed offset from the array's design-global
+ * base slot; cp->number packs BOTH the base slot (high 32 bits) and the
+ * element count (low 32 bits), since these opcodes only have one number
+ * operand plus two bit-index registers to work with. An out-of-range
+ * index is a hard error rather than silently indexing outside the
+ * array's reserved slot range (which could alias another event).
+ */
+static inline uint32_t evarr_base_(unsigned long packed)
+{
+      return (uint32_t)(packed >> 32);
+}
+static inline uint32_t evarr_count_(unsigned long packed)
+{
+      return (uint32_t)(packed & 0xFFFFFFFFul);
+}
+
+/*
+ * Resolve the element net for an %evt/arr, %evt/arr/nb, or %wait/arr
+ * opcode. Returns 0 (and prints a diagnostic) if the run-time index is
+ * out of the declared array bounds.
+ */
+static vvp_net_t* evarr_resolve_(vthread_t thr, vvp_code_t cp, const char*opname)
+{
+      uint32_t base = evarr_base_(cp->number);
+      uint32_t count = evarr_count_(cp->number);
+      int32_t index = thr->words[cp->bit_idx[0]].w_int;
+
+      if (index < 0 || (uint32_t)index >= count) {
+	    fprintf(stderr, "%s: index %d is out of range for a "
+		    "named-event array of size %u.\n", opname, index, count);
+	    return 0;
+      }
+
+      return event_array_slot_net(base + (uint32_t)index);
+}
+
+/*
+ * %evt/arr <base|count>, <idx-reg>
+ * Blocking trigger of a named-event array element (IEEE 1800-2017 6.20:
+ * `->arr[i]`). Exactly like %event, but the target net is resolved at
+ * run time from the array's per-element slot table.
+ */
+bool of_EVT_ARR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = evarr_resolve_(thr, cp, "%evt/arr");
+      if (!net) return true;
+
+      vvp_net_ptr_t ptr (net, 0);
+      vvp_vector4_t tmp (1, BIT4_X);
+      vvp_send_vec4(ptr, tmp, ensure_write_context_(thr, "evt-arr"));
+      return true;
+}
+
+/*
+ * %evt/arr/nb <base|count>, <idx-reg>, <delay-reg>
+ * Nonblocking trigger of a named-event array element (`->>arr[i]`).
+ */
+bool of_EVT_ARR_NB(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = evarr_resolve_(thr, cp, "%evt/arr/nb");
+      if (!net) return true;
+
+      vvp_time64_t delay = thr->words[cp->bit_idx[1]].w_uint;
+      vvp_vector4_t tmp (1, BIT4_X);
+      schedule_assign_vector(vvp_net_ptr_t(net, 0), 0, 0, tmp, delay,
+			     thr->is_reactive_process);
+      return true;
+}
+
+/*
+ * %evtest/arr <base|count>, <idx-reg>
+ * Push a 1-bit vec4: 1 if the named-event array element identified by
+ * the run-time index was triggered in the current time step
+ * (IEEE 1800-2017 15.5.3 triggered property, applied per-element), else
+ * 0. An out-of-range index reads as "not triggered" rather than an
+ * error, since this is a pure query with no side effect to abort.
+ */
+bool of_EVTEST_ARR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = evarr_resolve_(thr, cp, "%evtest/arr");
+      bool trig = false;
+      if (net) {
+	    vvp_named_event*fun = dynamic_cast<vvp_named_event*>(net->fun);
+	    trig = fun && fun->triggered_now();
+      }
+      vvp_vector4_t val(1, trig ? BIT4_1 : BIT4_0);
+      thr->push_vec4(val);
+      return true;
+}
+
+/*
  * %event/nb <var-label>, <delay>
  *
  * The nonblocking event trigger (IEEE 1800-2017 15.5.1): deliver the
@@ -10564,7 +10783,7 @@ bool of_FORCE_WR(vthread_t thr, vvp_code_t cp)
  * added to the list of children, and for me to be the parent of the
  * new child.
  */
-bool of_FORK(vthread_t thr, vvp_code_t cp)
+static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
       __vpiScope*child_ctx_scope = resolve_context_scope(cp->scope);
@@ -10667,10 +10886,25 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
 	   `begin : b  automatic int z; ... end' returned a DIFFERENT handle
 	   from the enclosing process -- silently, and including for the
 	   block's own declaration initializers, which run in the parent
-	   while the body runs in the child. Fork branches keep their own
-	   identity: their scopes are vpiNamedFork, not vpiNamedBegin. */
-      if (cp->scope->get_type_code() == vpiTask
-	  || cp->scope->get_type_code() == vpiNamedBegin)
+	   while the body runs in the child.
+
+	   The scope's TYPE cannot make this call on its own: an
+	   anonymous fork branch is compiled with its ENCLOSING scope,
+	   so a branch spawned inside a task body or inside a
+	   frame-owning begin block arrived here wearing vpiTask or
+	   vpiNamedBegin and was silently reclassified as a
+	   continuation of its parent -- process::self() inside every
+	   branch of an ordinary `fork..join_none' then returned the
+	   SAME handle, the enclosing process's, and each branch's own
+	   identity (its status, its suspend/kill target) was simply
+	   unreachable. The code generator knows which construct it is
+	   emitting, so a true fork BRANCH now arrives through %fork/p
+	   (child_is_process set) and skips the heuristic; the scope
+	   test remains only for the wrapper spellings that reach plain
+	   %fork. */
+      if (!child_is_process
+	  && (cp->scope->get_type_code() == vpiTask
+	      || cp->scope->get_type_code() == vpiNamedBegin))
 	    child->is_fork_v_child = 1;
       thr->children.insert(child);
 
@@ -10690,6 +10924,24 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
 	      }
 	    }
 	      return true;
+}
+
+bool of_FORK(vthread_t thr, vvp_code_t cp)
+{
+      return do_fork_(thr, cp, false);
+}
+
+/*
+ * %fork/p <code-label>, <scope-label>
+ *
+ * A fork BRANCH: a thread that is its own process (IEEE 1800-2017
+ * 9.7). Identical to %fork except that the child is never reclassified
+ * as a continuation of its parent, whatever scope it was compiled
+ * with -- see the scope-type discussion in do_fork_().
+ */
+bool of_FORK_P(vthread_t thr, vvp_code_t cp)
+{
+      return do_fork_(thr, cp, true);
 }
 
 bool of_FORK_V(vthread_t thr, vvp_code_t cp)
@@ -13513,6 +13765,38 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
 # define ARRDAR_DESC(k)   (((k) >> 10) & 1u)
 # define ARRDAR_OBJ(k)    (((k) >> 11) & 1u)
 
+/* Build one LEAF container of `count' elements for a packed element
+   descriptor. Shared by the flat and the multi-dimensional marshalers
+   so the two cannot drift on element representation. */
+static vvp_darray* arrdar_leaf_(uint32_t kind, size_t count)
+{
+      unsigned wid = ARRDAR_WIDTH(kind);
+      bool is_signed = ARRDAR_SIGNED(kind) != 0;
+
+      if (ARRDAR_OBJ(kind))
+	      /* Class-handle elements: the words are handles, copied by
+		 reference exactly as an element-wise assignment would. */
+	    return new vvp_darray_object(count);
+      if (kind == ARRDAR_REAL)
+	    return new vvp_darray_real(count);
+      if (ARRDAR_FOUR(kind))
+	    return new vvp_darray_vec4(count, wid ? wid : 1);
+      if (wid <= 8)
+	    return is_signed ? (vvp_darray*)new vvp_darray_atom<int8_t>(count)
+			     : (vvp_darray*)new vvp_darray_atom<uint8_t>(count);
+      if (wid <= 16)
+	    return is_signed ? (vvp_darray*)new vvp_darray_atom<int16_t>(count)
+			     : (vvp_darray*)new vvp_darray_atom<uint16_t>(count);
+      if (wid <= 32)
+	    return is_signed ? (vvp_darray*)new vvp_darray_atom<int32_t>(count)
+			     : (vvp_darray*)new vvp_darray_atom<uint32_t>(count);
+      if (wid <= 64)
+	    return is_signed ? (vvp_darray*)new vvp_darray_atom<int64_t>(count)
+			     : (vvp_darray*)new vvp_darray_atom<uint64_t>(count);
+	/* Wider than an atom: keep the value rather than truncate. */
+      return new vvp_darray_vec4(count, wid);
+}
+
 bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
 {
       vvp_array_t array = resolve_runtime_array_(cp, "%load/arr/dar");
@@ -13524,34 +13808,8 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
       }
 
       size_t count = array->get_size();
-      unsigned wid = ARRDAR_WIDTH(kind);
       bool is_real = (kind == ARRDAR_REAL);
-      bool is_signed = ARRDAR_SIGNED(kind) != 0;
-      vvp_object_t obj;
-
-      if (ARRDAR_OBJ(kind))
-	      /* Class-handle elements: the words are handles, copied by
-		 reference exactly as an element-wise assignment would. */
-	    obj = new vvp_darray_object(count);
-      else if (is_real)
-	    obj = new vvp_darray_real(count);
-      else if (ARRDAR_FOUR(kind))
-	    obj = new vvp_darray_vec4(count, wid ? wid : 1);
-      else if (wid <= 8)
-	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int8_t>(count)
-			    : (vvp_object*)new vvp_darray_atom<uint8_t>(count);
-      else if (wid <= 16)
-	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int16_t>(count)
-			    : (vvp_object*)new vvp_darray_atom<uint16_t>(count);
-      else if (wid <= 32)
-	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int32_t>(count)
-			    : (vvp_object*)new vvp_darray_atom<uint32_t>(count);
-      else if (wid <= 64)
-	    obj = is_signed ? (vvp_object*)new vvp_darray_atom<int64_t>(count)
-			    : (vvp_object*)new vvp_darray_atom<uint64_t>(count);
-      else
-	      /* Wider than an atom: keep the value rather than truncate. */
-	    obj = new vvp_darray_vec4(count, wid);
+      vvp_object_t obj = vvp_object_t(arrdar_leaf_(kind, count));
 
       vvp_darray*dar = obj.peek<vvp_darray>();
       for (size_t idx = 0 ; dar && idx < count ; idx += 1) {
@@ -13576,6 +13834,250 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
       }
 
       thr->push_object(obj);
+      return true;
+}
+
+/*
+ * %store/arr/dar <array>, <kind>
+ *
+ * The inverse of %load/arr/dar: unmarshal a dynamic array or queue back
+ * into a WHOLE fixed-size unpacked array, popping the container off the
+ * object stack. <kind> is the same packed element descriptor.
+ *
+ * Every legal whole-aggregate copy in the container -> fixed direction
+ * reaches this one instruction: the 7.6 assignment `fa = da', a struct
+ * member `s.arr = da', and the 13.5.2 copy-back of an `inout'/`ref'/
+ * `output' open-array formal into a fixed-array actual. The opposite
+ * direction has had %load/arr/dar since M10-1; this side was missing, so
+ * elaboration rejected the assignment forms outright and the subroutine
+ * forms reached the code generator as an untyped store -- an ivl abort
+ * for a task and a silently skipped copy-out for a function.
+ *
+ * IEEE 1800-2017 7.6 requires the element counts to agree. A dynamic
+ * source's size is not known until run time, so the check is here: a
+ * mismatch is reported and the destination is left alone rather than
+ * partially overwritten.
+ */
+bool of_STORE_ARR_DAR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t val;
+      thr->pop_object(val);
+
+      vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar");
+      if (!array)
+	    return true;
+
+      vvp_darray*dar = val.peek<vvp_darray>();
+      if (!dar) {
+	      /* A nil container: 7.6 has nothing to copy. Leave the
+		 destination as it is. */
+	    return true;
+      }
+
+      uint32_t kind = cp->bit_idx[0];
+      size_t count = array->get_size();
+      if (dar->get_size() != count) {
+	    cerr << "RUN-TIME ERROR: cannot copy a container of size "
+		 << dar->get_size() << " into an unpacked array of size "
+		 << count << " (IEEE 1800-2017 7.6 requires equal element "
+		    "counts); the array is unchanged." << endl;
+	    return true;
+      }
+
+      for (size_t idx = 0 ; idx < count ; idx += 1) {
+	    if (ARRDAR_OBJ(kind)) {
+		  vvp_object_t w;
+		  dar->get_word((unsigned)idx, w);
+		  array->set_word((unsigned)idx, w);
+	    } else if (kind == ARRDAR_REAL) {
+		  double w = 0.0;
+		  dar->get_word((unsigned)idx, w);
+		  array->set_word((unsigned)idx, w);
+	    } else {
+		  vvp_vector4_t w;
+		  dar->get_word((unsigned)idx, w);
+		  unsigned wid = ARRDAR_WIDTH(kind);
+		  if (wid && w.size() != wid)
+			w = coerce_to_width(w, wid);
+		  array->set_word((unsigned)idx, 0, w);
+	    }
+      }
+
+      return true;
+}
+
+/*
+ * %dim/push <msb>, <lsb>
+ *
+ * Push one declared unpacked bound, leftmost dimension first. The
+ * bounds are signed and ride in the unsigned operand fields the same
+ * way %load/arr/dar's declared left does.
+ */
+bool of_DIM_PUSH(vthread_t thr, vvp_code_t cp)
+{
+      thr->dim_stack.push_back(std::make_pair((int)(int32_t)cp->bit_idx[0],
+					      (int)(int32_t)cp->bit_idx[1]));
+      return true;
+}
+
+static size_t md_range_size_(const pair<int,int>&r)
+{
+      int span = r.first > r.second ? r.first - r.second : r.second - r.first;
+      return (size_t)span + 1;
+}
+
+/*
+ * Build the NESTED container an open-array formal iterates, out of the
+ * ONE flat word array a multi-dimensional signal is stored as. This is
+ * the signal-side twin of fixed_prop_materialize_, which does the same
+ * for a class property using its property_dimensions().
+ *
+ * Each level is a vvp_darray_object holding the level below, and every
+ * level records its own declared range, so svLow/svHigh answer per
+ * dimension (H.10.2) rather than reporting the flattened extent.
+ */
+static vvp_object_t md_materialize_(vvp_array_t array, uint32_t kind,
+				    const vector<pair<int,int> >&dims,
+				    size_t dim, size_t&flat)
+{
+      if (dim >= dims.size())
+	    return vvp_object_t();
+
+      size_t count = md_range_size_(dims[dim]);
+      vvp_object_t out;
+      vvp_darray*level = 0;
+
+      if (dim + 1 < dims.size()) {
+	    level = new vvp_darray_object(count);
+	    out = vvp_object_t(level);
+	    level->dpi_set_decl_range(dims[dim].first, dims[dim].second);
+	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  vvp_object_t inner =
+			md_materialize_(array, kind, dims, dim + 1, flat);
+		  level->set_word((unsigned)idx, inner);
+	    }
+	    return out;
+      }
+
+      level = arrdar_leaf_(kind, count);
+      out = vvp_object_t(level);
+      level->dpi_set_decl_range(dims[dim].first, dims[dim].second);
+      for (size_t idx = 0 ; idx < count ; idx += 1, flat += 1) {
+	    if (flat >= array->get_size())
+		  break;
+	    if (ARRDAR_OBJ(kind)) {
+		  vvp_object_t w;
+		  array->get_word_obj((unsigned)flat, w);
+		  level->set_word((unsigned)idx, w);
+	    } else if (kind == ARRDAR_REAL) {
+		  level->set_word((unsigned)idx,
+				  array->get_word_r((unsigned)flat));
+	    } else {
+		  level->set_word((unsigned)idx,
+				  array->get_word((unsigned)flat));
+	    }
+      }
+      return out;
+}
+
+/* The inverse: walk the nested container back into the flat words. */
+static void md_copy_back_(vvp_array_t array, uint32_t kind,
+			  const vvp_object_t&val,
+			  const vector<pair<int,int> >&dims,
+			  size_t dim, size_t&flat)
+{
+      vvp_darray*level = val.peek<vvp_darray>();
+      if (!level || dim >= dims.size())
+	    return;
+
+      size_t count = md_range_size_(dims[dim]);
+      if (level->get_size() < count)
+	    count = level->get_size();
+
+      if (dim + 1 < dims.size()) {
+	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  vvp_object_t inner;
+		  level->get_word((unsigned)idx, inner);
+		  md_copy_back_(array, kind, inner, dims, dim + 1, flat);
+	    }
+	    return;
+      }
+
+      for (size_t idx = 0 ; idx < count ; idx += 1, flat += 1) {
+	    if (flat >= array->get_size())
+		  break;
+	    if (ARRDAR_OBJ(kind)) {
+		  vvp_object_t w;
+		  level->get_word((unsigned)idx, w);
+		  array->set_word((unsigned)flat, w);
+	    } else if (kind == ARRDAR_REAL) {
+		  double w = 0.0;
+		  level->get_word((unsigned)idx, w);
+		  array->set_word((unsigned)flat, w);
+	    } else {
+		  vvp_vector4_t w;
+		  level->get_word((unsigned)idx, w);
+		  unsigned wid = ARRDAR_WIDTH(kind);
+		  if (wid && w.size() != wid)
+			w = coerce_to_width(w, wid);
+		  array->set_word((unsigned)flat, 0, w);
+	    }
+      }
+}
+
+/*
+ * %load/arr/dar/md <array>, <kind>
+ *
+ * The multi-dimensional form of %load/arr/dar: marshal a flat signal
+ * array into the nested container shape the %dim/push instructions just
+ * described, and push it.
+ */
+bool of_LOAD_ARR_DAR_MD(vthread_t thr, vvp_code_t cp)
+{
+      vector<pair<int,int> > dims;
+      dims.swap(thr->dim_stack);
+
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/arr/dar/md");
+      if (!array || dims.empty()) {
+	    thr->push_object(vvp_object_t());
+	    return true;
+      }
+
+      size_t flat = 0;
+      thr->push_object(md_materialize_(array, cp->bit_idx[0], dims, 0, flat));
+      return true;
+}
+
+/*
+ * %store/arr/dar/md <array>, <kind>
+ *
+ * The inverse, for the copy-back of an inout/ref/output open-array
+ * formal into a multi-dimensional fixed-array actual.
+ */
+bool of_STORE_ARR_DAR_MD(vthread_t thr, vvp_code_t cp)
+{
+      vector<pair<int,int> > dims;
+      dims.swap(thr->dim_stack);
+
+      vvp_object_t val;
+      thr->pop_object(val);
+
+      vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar/md");
+      if (!array || dims.empty() || !val.peek<vvp_darray>())
+	    return true;
+
+      size_t total = 1;
+      for (size_t idx = 0 ; idx < dims.size() ; idx += 1)
+	    total *= md_range_size_(dims[idx]);
+      if (total != array->get_size()) {
+	    cerr << "RUN-TIME ERROR: cannot copy a container of " << total
+		 << " declared elements into an unpacked array of size "
+		 << array->get_size() << "; the array is unchanged." << endl;
+	    return true;
+      }
+
+      size_t flat = 0;
+      md_copy_back_(array, cp->bit_idx[0], val, dims, 0, flat);
       return true;
 }
 
@@ -19189,6 +19691,37 @@ bool of_WAIT_OBJ(vthread_t thr, vvp_code_t cp)
       thr->waiting_for_event = 1;
 
       vvp_net_t*net = cobj->get_inst_event(cp->number);
+      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (net->fun);
+      assert(ep);
+      thr->wait_next = ep->add_waiting_thread(thr);
+
+	/* Return false to suspend this thread. */
+      return false;
+}
+
+/*
+ * %wait/arr <base|count>, <idx-reg>
+ * Wait on a named-event array element (IEEE 1800-2017 6.20: `@(arr[i])`).
+ * Resolve the element net from the run-time index, add this thread to
+ * that element's private wait list, and suspend. Only a trigger on
+ * THIS element (%evt/arr, %evt/arr/nb) will resume the thread.
+ */
+bool of_WAIT_ARR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = evarr_resolve_(thr, cp, "%wait/arr");
+      if (!net) {
+	      /* Out-of-range index: nothing to wait on. Treat like an
+		 immediately-false wait so the thread does not hang
+		 forever on a malformed index. */
+	    return true;
+      }
+
+      if (thr->i_am_in_function)
+	    thr->i_am_in_function = 0;
+
+      assert(! thr->waiting_for_event);
+      thr->waiting_for_event = 1;
+
       waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (net->fun);
       assert(ep);
       thr->wait_next = ep->add_waiting_thread(thr);

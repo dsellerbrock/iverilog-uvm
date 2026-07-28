@@ -142,6 +142,25 @@ static stack<PBlock*> current_block_stack;
    specified. */
 static LexicalScope::lifetime_t var_lifetime;
 
+/* M4C-10: `automatic event' is a loud, tracked "sorry", not a silent
+   degrade to static behavior and not a bare syntax error. Shared by the
+   block_item_decl and statement_item alternatives that accept an
+   explicit event lifetime, so the diagnostic can't drift between them. */
+static void pform_check_event_lifetime(const struct vlltype&loc,
+                                        LexicalScope::lifetime_t lifetime)
+{
+      if (lifetime != LexicalScope::AUTOMATIC)
+	    return;
+
+      yyerror(loc, "sorry: automatic named events are not supported. "
+	      "Icarus elaborates a named event once per lexical scope "
+	      "instance (a single compile-time event functor), so it "
+	      "cannot give an automatic event a fresh synchronization "
+	      "identity on every activation as IEEE 1800-2017 6.17/6.21 "
+	      "imply. Use the default lifetime, or spell it out as "
+	      "`static event'.");
+}
+
 /* IEEE 1800-2017 7.12: build a method-call expression for the
    keyword-named array methods (and/or/xor), which the generic
    function-call and with-clause rules cannot match.  args may be
@@ -832,6 +851,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
       std::list<pform_ident_t>*identifiers;
 
+      pform_event_ident_t* event_ident;
+      std::list<pform_event_ident_t*>* event_idents;
+
       std::list<pform_port_t>*port_list;
 
       std::vector<pform_tf_port_t>* tf_ports;
@@ -1096,12 +1118,13 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <wire> net_variable
 %type <wires> net_variable_list
 
-%type <text> event_variable label_opt class_declaration_endlabel_opt
+%type <text> label_opt class_declaration_endlabel_opt
 %type <text> block_identifier_opt
 %type <text> identifier_name bins_name package_cg_port_prefix
 %type <text> bind_instance_path
 %type <strings> bind_instance_path_list
-%type <identifiers> event_variable_list
+%type <event_ident> event_variable
+%type <event_idents> event_variable_list
 %type <identifiers> class_type_parameter_port_list class_type_parameter_port_list_opt
 %type <identifiers> class_type_parameter_port_item
 %type <identifiers> list_of_identifiers
@@ -6561,6 +6584,30 @@ block_item_decl
       { if ($2) pform_make_events(@1, $2);
       }
 
+  /* M4C-10: `static event`/`automatic event' in a block. The bare rule
+     above already covers the (default-lifetime) plain `event e;'. This
+     alternative shares the `K_const_opt' prefix already used by the
+     variable-declaration alternatives above it, so it reuses the
+     existing K_const_opt/lifetime states instead of introducing a
+     competing epsilon-reduction path for `variable_lifetime_opt' --
+     that competing-epsilon shape is what previously blew up the grammar
+     (+43 shift/reduce conflicts); this shape adds none (measured with
+     bison -v: 495/1161 before and after).
+
+     `static' is just an explicit spelling of the (module-inherited)
+     default, so it is accepted unconditionally. `automatic' asks for a
+     new synchronization identity on every activation (IEEE 1800-2017
+     6.17, 6.21): Icarus elaborates a named event exactly once per
+     lexical scope instance -- a single compile-time NetEvent/vvp event
+     functor (see PEvent::elaborate_scope) -- with no per-call storage,
+     so it cannot honor that. Rather than silently degrade to static
+     behavior, say so loudly and fail the compile. */
+  | K_const_opt lifetime K_event event_variable_list ';'
+      { pform_requires_sv(@2, "Overriding default event lifetime");
+	pform_check_event_lifetime(@2, $2);
+	if ($4) pform_make_events(@3, $4);
+      }
+
   | parameter_declaration
 
   /* Blocks can have type declarations. */
@@ -7000,6 +7047,23 @@ struct_union_member /* IEEE 1800-2012 A.2.2.1 */
       { struct_member_t*tmp = new struct_member_t;
 	FILE_NAME(tmp, @2);
 	tmp->type  .reset($2);
+	tmp->names .reset($3);
+	$$ = tmp;
+      }
+  /* R20 (roadmap): a `union tagged` member may be declared with type
+     `void`, IEEE 1800-2017 7.3.2 -- a tag that carries no payload
+     value, e.g. `union tagged { void Inv; int Valid; }`. The `void`
+     keyword is not a data_type (it is only otherwise legal as a
+     function return type), so it needs its own struct_union_member
+     alternative. Legality of `void` outside a tagged union is
+     checked at elaboration (struct_type_t::elaborate_type_raw),
+     where the union/tagged context is known. */
+  | attribute_list_opt K_void list_of_variable_decl_assignments ';'
+      { struct_member_t*tmp = new struct_member_t;
+	FILE_NAME(tmp, @2);
+	void_type_t*vtype = new void_type_t;
+	FILE_NAME(vtype, @2);
+	tmp->type  .reset(vtype);
 	tmp->names .reset($3);
 	$$ = tmp;
       }
@@ -11587,19 +11651,30 @@ net_variable_list
 
 event_variable
   : IDENTIFIER dimensions_opt
-      { if ($2) {
-	      yyerror(@2, "sorry: event arrays are not supported.");
+      { pform_event_ident_t*tmp = new pform_event_ident_t;
+	tmp->ident = pform_ident_t(lex_strings.make($1), @1.lexical_pos);
+	tmp->array_dims = $2;
+	if ($2 && $2->size() > 1) {
+	      yyerror(@2, "sorry: multi-dimensional event arrays are "
+		      "not supported.");
 	      delete $2;
+	      tmp->array_dims = 0;
 	}
-	$$ = $1;
+	delete[] $1;
+	$$ = tmp;
       }
   ;
 
 event_variable_list
   : event_variable
-      { $$ = list_from_identifier($1, @1.lexical_pos); }
+      { std::list<pform_event_ident_t*>*tmp = new std::list<pform_event_ident_t*>;
+	tmp->push_back($1);
+	$$ = tmp;
+      }
   | event_variable_list ',' event_variable
-      { $$ = list_from_identifier($1, $3, @3.lexical_pos); }
+      { $1->push_back($3);
+	$$ = $1;
+      }
   ;
 
 specify_item
@@ -12749,6 +12824,20 @@ statement_item /* This is roughly statement_item in the LRM */
      block_item_decl event rule does. */
   | K_event event_variable_list ';'
       { if ($2) pform_make_events(@1, $2);
+	$$ = nullptr;
+      }
+
+  /* M4C-10: `static event`/`automatic event' arriving through this same
+     intermixed-with-statements path (see the comment above -- this is
+     exactly where a *leading* `event' declaration in a block lands, since
+     the empty-K_const_opt vs empty-list conflict already resolves this
+     position toward the statement path before block_item_decl ever gets
+     a look at it). Mirrors the block_item_decl alternative of the same
+     name; measured with bison -v: 495/1161 before and after, unchanged. */
+  | lifetime K_event event_variable_list ';'
+      { pform_requires_sv(@1, "Overriding default event lifetime");
+	pform_check_event_lifetime(@1, $1);
+	if ($3) pform_make_events(@2, $3);
 	$$ = nullptr;
       }
 

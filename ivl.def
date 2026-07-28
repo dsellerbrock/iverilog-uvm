@@ -40,8 +40,11 @@ ivl_enum_type
 ivl_enum_width
 
 ivl_event_any
+ivl_event_array_base
+ivl_event_array_count
 ivl_event_basename
 ivl_event_edg
+ivl_event_is_array
 ivl_event_file
 ivl_event_lineno
 ivl_event_name
@@ -259,6 +262,8 @@ ivl_scope_tname
 ivl_signal_array_addr_swapped
 ivl_signal_array_base
 ivl_signal_array_count
+ivl_signal_array_dim_lsb
+ivl_signal_array_dim_msb
 ivl_signal_attr
 ivl_signal_attr_cnt
 ivl_signal_attr_val
@@ -304,6 +309,9 @@ ivl_stmt_cond_false
 ivl_stmt_cond_true
 ivl_stmt_delay_expr
 ivl_stmt_delay_val
+ivl_stmt_evarr_base
+ivl_stmt_evarr_count
+ivl_stmt_evarr_index
 ivl_stmt_events
 ivl_stmt_evobj_expr
 ivl_stmt_evobj_slot

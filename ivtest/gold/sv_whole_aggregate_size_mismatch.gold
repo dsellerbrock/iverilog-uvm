@@ -1,0 +1,7 @@
+RUN-TIME ERROR: cannot copy a container of size 5 into an unpacked array of size 3 (IEEE 1800-2017 7.6 requires equal element counts); the array is unchanged.
+after the oversized copy: 1 2 3
+RUN-TIME ERROR: cannot copy a container of size 1 into an unpacked array of size 3 (IEEE 1800-2017 7.6 requires equal element counts); the array is unchanged.
+after the undersized copy: 1 2 3
+RUN-TIME ERROR: cannot copy a container of size 0 into an unpacked array of size 3 (IEEE 1800-2017 7.6 requires equal element counts); the array is unchanged.
+after the empty copy: 1 2 3
+after the matching copy: 40 50 60

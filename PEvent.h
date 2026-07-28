@@ -21,7 +21,9 @@
 
 # include  "PNamedItem.h"
 # include  "StringHeap.h"
+# include  "pform_types.h"
 # include  <string>
+# include  <list>
 
 class Design;
 class NetScope;
@@ -43,6 +45,12 @@ class PEvent : public PNamedItem {
 
       unsigned lexical_pos() const { return lexical_pos_; }
 
+	// An unpacked-array bound (IEEE 1800-2017 6.20, e.g.
+	// `event arr[3];`). Takes ownership of the list. Null for an
+	// ordinary scalar event.
+      void set_array_dims(std::list<pform_range_t>*dims) { array_dims_ = dims; }
+      const std::list<pform_range_t>* array_dims() const { return array_dims_; }
+
       void elaborate_scope(Design*des, NetScope*scope) const;
 
       SymbolType symbol_type() const override;
@@ -50,6 +58,7 @@ class PEvent : public PNamedItem {
     private:
       perm_string name_;
       unsigned lexical_pos_;
+      std::list<pform_range_t>*array_dims_;
 
     private: // not implemented
       PEvent(const PEvent&);

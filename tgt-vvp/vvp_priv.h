@@ -237,6 +237,14 @@ extern void resize_vec4_wid(ivl_expr_t expr, unsigned wid);
 extern void draw_eval_real(ivl_expr_t ex);
 
 /*
+ * draw_expr_into_idx evaluates an arbitrary (vec4 or real) expression
+ * and converts the result into an integer, left in index/word register
+ * <use_idx>. Used anywhere an expression needs to become a run-time
+ * word/element offset (delays, array indices, ...).
+ */
+extern void draw_expr_into_idx(ivl_expr_t expr, int use_idx);
+
+/*
  * The draw_eval_string function evaluates the expression as a string,
  * and pushes the string onto the string stack.
  */
@@ -742,6 +750,16 @@ static inline int emit_property_queue_last_index_(ivl_expr_t expr,
 
       return 1;
 }
+
+/* The packed element descriptor %load/arr/dar and %store/arr/dar share
+   for a fixed unpacked array's elements. Returns 0 (and reports) when
+   the element kind has no container representation. */
+extern int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
+				  const char*file, unsigned lineno);
+
+/* Emit the container -> fixed-array store, flat or nesting according to
+   the destination's declared dimensionality. */
+extern void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind);
 
 extern int show_stmt_assign(ivl_statement_t net);
 extern int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay);

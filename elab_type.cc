@@ -499,6 +499,21 @@ ivl_type_t data_type_t::elaborate_type_raw(Design*des, NetScope*) const
       return 0;
 }
 
+/* R20 (roadmap): elaborate a `void` tagged-union member (IEEE
+ * 1800-2017 7.3.2). There is no real payload to store, so this
+ * returns a 1-bit IVL_VT_VOID marker type. The single bit gives it
+ * concrete, non-zero storage (matching how every other member_t is
+ * represented) while IVL_VT_VOID lets member-pattern elaboration
+ * (PEAssignPattern::elaborate_expr_struct_) recognize "this member
+ * carries no value" and skip generating/needing one. struct_union_member
+ * is the only pform production that builds a void_type_t, and
+ * struct_type_t::elaborate_type_raw rejects it outside a `union
+ * tagged`, so reaching here always means a legitimate tag-only member. */
+ivl_type_t void_type_t::elaborate_type_raw(Design*, NetScope*) const
+{
+      return new netvector_t(IVL_VT_VOID);
+}
+
 ivl_type_t atom_type_t::elaborate_type_raw(Design*des, NetScope*) const
 {
       switch (type_code) {
@@ -1019,6 +1034,21 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 
 	      // Elaborate the type of the member.
 	    struct_member_t*curp = *cur;
+
+	      // R20: a `void` member (IEEE 1800-2017 7.3.2 tag-only
+	      // member) is only legal inside a `union tagged`. Reject
+	      // it loudly everywhere else instead of quietly building
+	      // a bogus 1-bit member -- there is no sensible fallback
+	      // meaning for `void` in a struct or a plain union.
+	    if (dynamic_cast<void_type_t*>(curp->type.get())
+		&& !(union_flag && tagged_flag)) {
+		  cerr << curp->get_fileline() << ": error: "
+		       << "A `void` member is only allowed in a `union "
+		       << "tagged`." << endl;
+		  des->errors++;
+		  continue;
+	    }
+
 	    ivl_type_t mem_vec = curp->type->elaborate_type(des, scope);
 	    if (mem_vec == 0)
 		  continue;
@@ -1035,6 +1065,22 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 			     << "Packed structs must not have default member values."
 			     << endl;
 			des->errors++;
+		  }
+
+		  if (dynamic_cast<void_type_t*>(curp->type.get())) {
+			if (namep->expr) {
+			      cerr << namep->expr->get_fileline() << ": error: "
+				   << "A `void` tagged-union member must not have "
+				   << "a default value." << endl;
+			      des->errors++;
+			}
+			if (!namep->index.empty()) {
+			      cerr << curp->get_fileline() << ": error: "
+				   << "A `void` tagged-union member must not have "
+				   << "array dimensions." << endl;
+			      des->errors++;
+			      continue;
+			}
 		  }
 
 		  netstruct_t::member_t memb;

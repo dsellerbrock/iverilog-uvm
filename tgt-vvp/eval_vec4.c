@@ -1633,6 +1633,24 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%evtest E_%p;\n", ivl_expr_event(earg));
 	    return;
       }
+      if (strcmp(ivl_expr_name(expr),"$ivl_event_method$triggered_arr")==0) {
+	      /* IEEE 1800-2017 15.5.3 / 6.20: read one named-event array
+	         element's triggered-this-time-step state. parm(0) carries
+	         the array's group event (for its base slot/count), parm(1)
+	         is the run-time element index. */
+	    ivl_expr_t earg = ivl_expr_parm(expr, 0);
+	    assert(earg && ivl_expr_type(earg) == IVL_EX_EVENT);
+	    ivl_event_t ev = ivl_expr_event(earg);
+	    unsigned long packed = ((unsigned long)ivl_event_array_base(ev) << 32)
+	                         | (unsigned long)ivl_event_array_count(ev);
+
+	    ivl_expr_t iarg = ivl_expr_parm(expr, 1);
+	    int use_idx = allocate_word();
+	    draw_expr_into_idx(iarg, use_idx);
+	    fprintf(vvp_out, "    %%evtest/arr %lu, %d;\n", packed, use_idx);
+	    clr_word(use_idx);
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),"$ivl_class_method$rand_mode_get")==0) {
 	      /* M3B-12 (IEEE 1800-2017 18.8): parm[0] = object,
 	       * parm[1] = property id. Reads the variable's active state. */

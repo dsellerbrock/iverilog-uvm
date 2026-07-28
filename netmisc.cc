@@ -1098,6 +1098,29 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
       }
 
       if (!compatible) {
+	      // A dynamic array or queue in the context of a fixed-size
+	      // unpacked array (IEEE 1800-2017 7.6). The two are not
+	      // type_compatible -- one is a container object, the other
+	      // is inline words -- but the assignment is legal and is a
+	      // per-element copy, which the code generator performs with
+	      // %store/arr/dar.
+	      //
+	      // This has to be caught HERE, ahead of the fallbacks
+	      // below: `cast_type' for an unpacked array is its ELEMENT
+	      // base type, so an `int fa[3]' target looks vectorable,
+	      // and the compile-progress stub replaced the whole
+	      // right-hand side with the constant 0. `fa = da' then
+	      // compiled without a word of complaint and zeroed the
+	      // array.
+	    if (const netuarray_t*want_ua =
+		      dynamic_cast<const netuarray_t*>(lv_net_type)) {
+		  const netdarray_t*have_da =
+			dynamic_cast<const netdarray_t*>(tmp->net_type());
+		  if (have_da && want_ua->static_dimensions().size() == 1
+		      && uarray_element_matches_container_(want_ua, have_da))
+			return tmp;
+	    }
+
 	      // Catch some special cases.
 	    switch (cast_type) {
 		case IVL_VT_DARRAY:
@@ -1111,14 +1134,53 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		    // below, but real element arrays are not vectorable and were
 		    // rejected even though the identical fixed-array actual is
 		    // legal for an open formal.
+		    //
+		    // The array type of a signal expression is on the
+		    // SIGNAL: NetESignal::net_type() reports the ELEMENT
+		    // type, which is what a read of it usually yields.
+		    // Asking the expression for a netuarray_t therefore
+		    // never succeeded, so this stayed dead and a real
+		    // element array kept taking the cast error below
+		    // while an integral one slipped past on the
+		    // vectorable fallback. Ask the signal too.
 		  if (const netdarray_t*formal_array =
 			dynamic_cast<const netdarray_t*>(lv_net_type)) {
-			if (const netuarray_t*fixed_actual =
-			      dynamic_cast<const netuarray_t*>(tmp->net_type())) {
-			      if (formal_array->element_type()->type_equivalent(
-				    fixed_actual->element_type()))
+			const netuarray_t*fixed_actual =
+			      dynamic_cast<const netuarray_t*>(tmp->net_type());
+			if (!fixed_actual) {
+			      if (const NetESignal*esig =
+					dynamic_cast<const NetESignal*>(tmp)) {
+				    if (esig->sig() && esig->word_index() == 0)
+					  fixed_actual =
+						dynamic_cast<const netuarray_t*>
+						      (esig->sig()->array_type());
+			      }
+			}
+			  /* A MULTI-dimensional actual for a nested open
+			     formal (`int m[2][3]' for `int q[][]'). The
+			     element types to compare are the LEAF of the
+			     actual against the innermost element of the
+			     formal, one unwrap per dimension. */
+			if (fixed_actual
+			    && fixed_actual->static_dimensions().size() > 1) {
+			      const netdarray_t*inner = formal_array;
+			      size_t levels =
+				    fixed_actual->static_dimensions().size();
+			      for (size_t lv = 1 ; lv < levels && inner ; lv += 1)
+				    inner = dynamic_cast<const netdarray_t*>
+					  (inner->element_type());
+			      if (inner && inner->element_type()
+				  && fixed_actual->element_type()
+				  && inner->element_type()->type_equivalent(
+					fixed_actual->element_type()))
 				    return tmp;
 			}
+			if (fixed_actual
+			    && formal_array->element_type()
+			    && fixed_actual->element_type()
+			    && formal_array->element_type()->type_equivalent(
+				  fixed_actual->element_type()))
+			      return tmp;
 		  }
 
 		  // This is needed to handle the special case of `'{}` which
@@ -2167,13 +2229,45 @@ NetNet* find_implicit_this_handle(Design*des, NetScope*scope)
  * Print a warning if we find a mixture of default and explicit timescale
  * based delays in the design, since this is likely an error.
  */
+bool uarray_element_matches_container_(const netuarray_t*dst,
+				       const netdarray_t*src)
+{
+      if (dst == 0 || src == 0)
+	    return false;
+
+      ivl_type_t dst_elem = dst->element_type();
+      ivl_type_t src_elem = src->element_type();
+      if (dst_elem == 0 || src_elem == 0)
+	    return false;
+
+      if (dst_elem->packed_width() != src_elem->packed_width())
+	    return false;
+
+      ivl_variable_type_t dst_vt = dst_elem->base_type();
+      ivl_variable_type_t src_vt = src_elem->base_type();
+	/* A 2-state and a 4-state vector of the same width copy
+	   element-for-element; the store coerces. */
+      auto is_vec = [](ivl_variable_type_t vt) {
+	    return vt == IVL_VT_BOOL || vt == IVL_VT_LOGIC;
+      };
+      if (is_vec(dst_vt) && is_vec(src_vt))
+	    return true;
+      return dst_vt == src_vt;
+}
+
 /*
- * A `ref' formal is represented as a real reference only for the types
- * whose reads and writes go through the generic signal-value interface
- * -- packed integral variables. A real, string, class-handle or
- * container formal is read by an opcode that reaches for a
- * type-specific functor instead, which a bound formal cannot answer, so
- * those keep the copy-in/copy-out pair they have always had.
+ * A `ref' formal is represented as a real reference for the types whose
+ * reads and writes go through an interface the bound-formal functor
+ * (vvp_ref_signal_aa) can answer: packed integral variables (the
+ * generic vvp_signal_value interface) and class handles (the
+ * vvp_fun_signal_object interface -- see vvp_ref_signal_aa in
+ * vvp_net_sig.h/.cc, which forwards get_object()/recv_object()/etc. to
+ * whatever the bound target's own object functor is). A real, string or
+ * container (dynamic array, queue, fixed array) formal is read by an
+ * opcode that reaches for a *different* type-specific functor instead
+ * (vvp_fun_signal_real/string, or the container element/word opcodes),
+ * which vvp_ref_signal_aa does not implement, so those keep the
+ * copy-in/copy-out pair they have always had.
  */
 bool ref_formal_is_bound(const NetNet*port)
 {
@@ -2213,15 +2307,19 @@ bool ref_formal_is_bound(const NetNet*port)
       ivl_type_t ptype = port->net_type();
       if (dynamic_cast<const netdarray_t*>(ptype))    // dynamic array, queue
 	    return false;
-      if (dynamic_cast<const netclass_t*>(ptype))
-	    return false;
-      if (dynamic_cast<const netarray_t*>(ptype))
+      if (dynamic_cast<const netarray_t*>(ptype))     // fixed array
 	    return false;
 
       switch (port->data_type()) {
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
 	    return true;
+	  case IVL_VT_CLASS:
+	      /* A class handle is a single machine word (a reference), not
+		 a container: it has none of the aggregate-copy hazards a
+		 darray/queue/fixed-array formal has, and vvp_ref_signal_aa
+		 answers the object accessor interface for it (see above). */
+	    return dynamic_cast<const netclass_t*>(ptype) != 0;
 	  default:
 	    return false;
       }

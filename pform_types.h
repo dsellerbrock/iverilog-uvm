@@ -84,6 +84,18 @@ typedef std::pair<perm_string, unsigned> pform_ident_t;
  */
 typedef std::pair<PExpr*,PExpr*> pform_range_t;
 
+/*
+ * A named event declared with an unpacked-array bound (IEEE 1800-2017
+ * 6.20, e.g. `event arr[3];`). array_dims is the declared range list,
+ * or null for an ordinary scalar event. Multi-dimensional event arrays
+ * are rejected at parse time, so array_dims never holds more than one
+ * pform_range_t.
+ */
+struct pform_event_ident_t {
+      pform_ident_t ident;
+      std::list<pform_range_t>*array_dims;
+};
+
 /* The lgate is gate instantiation information. */
 struct lgate : public LineInfo {
       explicit lgate() : parms(0), parms_by_name(0), ranges(0), decl_init(0) { }
@@ -269,6 +281,14 @@ struct type_parameter_t : data_type_t {
 
 struct void_type_t : public data_type_t {
       virtual void pform_dump(std::ostream&out, unsigned indent) const override;
+
+	// R20: a `void` member of a `union tagged` (IEEE 1800-2017
+	// 7.3.2) elaborates to a zero-payload marker type so the
+	// existing struct/union machinery in struct_type_t can carry
+	// it as a tag-only member. Used only as a struct_union_member
+	// type; `void` used as a function return type never reaches
+	// this (functions use data_type_or_implicit_or_void instead).
+      ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
 };
 
 /*

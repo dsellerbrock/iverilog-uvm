@@ -987,6 +987,9 @@ void dll_target::event(const NetEvent*net)
       obj->vif_N = 0;
       obj->vif_M = 0;
       obj->vif_pre_N = UINT_MAX;
+      obj->is_array = net->is_event_array();
+      obj->array_base = net->array_base_slot();
+      obj->array_count = net->array_count();
 
       if (net->nprobe() >= 1) {
 
@@ -2712,6 +2715,7 @@ void dll_target::signal(const NetNet*net)
       obj->discipline = net->get_discipline();
 
       obj->array_dimensions_ = net->unpacked_dimensions();
+      obj->unpacked_dims = net->unpacked_dims();
 
       switch (net->port_type()) {
 

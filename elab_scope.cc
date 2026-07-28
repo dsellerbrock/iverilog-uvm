@@ -3075,11 +3075,37 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
  * no hierarchy, but neither does the NetEvent, until it is stored in
  * the NetScope object.
  */
-void PEvent::elaborate_scope(Design*, NetScope*scope) const
+void PEvent::elaborate_scope(Design*des, NetScope*scope) const
 {
       NetEvent*ev = new NetEvent(name_);
       ev->lexical_pos(lexical_pos_);
       ev->set_line(*this);
+
+	// An unpacked array of named events (IEEE 1800-2017 6.20, e.g.
+	// `event arr[3];`): each element is its own independent named
+	// event. The declared bound must resolve to a constant range;
+	// reserve a contiguous run of design-global slots, one per
+	// element, for the runtime's flat per-slot event table.
+      if (array_dims_ && !array_dims_->empty()) {
+	    if (array_dims_->size() > 1) {
+		    // Parser already rejects this, but guard here too in
+		    // case this ever gets reached some other way.
+		  cerr << get_fileline() << ": sorry: multi-dimensional "
+		          "named-event arrays are not supported (`" << name_
+		       << "')." << endl;
+		  des->errors += 1;
+	    } else {
+		  long msb = 0, lsb = 0;
+		  bool ok = evaluate_range(des, scope, this,
+					    array_dims_->front(), msb, lsb);
+		  if (ok) {
+			unsigned count = (msb >= lsb) ? (unsigned)(msb-lsb+1)
+			                              : (unsigned)(lsb-msb+1);
+			ev->set_event_array(msb, lsb, count);
+		  }
+	    }
+      }
+
       scope->add_event(ev);
 }
 

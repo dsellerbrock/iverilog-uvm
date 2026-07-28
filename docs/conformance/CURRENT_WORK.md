@@ -6,78 +6,118 @@ narratives live in `session_logs/`.
 
 ## Resume state — 2026-07-28
 
-Base: `origin/main` `43d2450`, which already carries PR #123 (VPI
-container observability) and PR #124 (`std::randomize(vars) with {...}`
-through Z3 at its documented integral-signal boundary).
+Branch: `claude/ieee1800-closure-campaign-lqalye`, started fresh from
+main and rebased onto `7136907`, which carries the merged PRs #125, #126
+and #127. The previous PR on this branch (#121) is merged, so this is a
+new pull request rather than a continuation of that one.
 
-Three independent closures are landing on top of it. Each was validated
-on its own branch against this base; each carries its own permanent
-discriminator and its own dated session log.
+### Campaign 2 — whole aggregate value semantics
 
-### PR #125 — covergroup `sample()` from a scope subroutine (M11-8)
+One missing primitive turned out to explain four separate symptoms. A
+fixed unpacked array used where a container is wanted has marshaled its
+words since M10-1 (`%load/arr/dar`); the **return trip did not exist**,
+and each place it was needed failed differently:
 
-A `sample()` call inside a module-, package-, or interface-scope task
-compiled without diagnostics but emitted `%covgrp/sample 0, 0`, so
-coverage stayed at 0%. Standalone covergroups are synthesized classes and
-their coverpoint metadata is built during class elaboration, which ran
-*after* the subroutine bodies that referenced it. Class definitions are
-now elaborated first in both `PPackage::elaborate` and
-`Module::elaborate`; lexical class order — and therefore static
-initializer order (I5) — is preserved.
+| shape | what it did |
+|---|---|
+| `fa = da;` and `s.arr = da;` | assigned the **constant 0**, silently |
+| `t(fa)` for `inout int q[]` | **aborted ivl** on legal input, even when the body only read the formal |
+| `f(fa)` for `ref int q[]` | warned once, then silently left the caller's array alone |
 
-Discriminator: `ivtest/ivltests/sv_covergroup_task_sample.v`, covering
-module tasks/functions, package tasks, interface tasks,
-`with function sample`, and a chained class-embedded receiver. Pre-fix
-the repository reproducer printed `0.0% (want 100)` and the adversarial
-matrix reported 0% instead of 50% for every checked form.
-Log: `session_logs/2026-07-27_covergroup_scope_subroutine_sample.md`.
+The assignment case is the one worth remembering. `fa = da` is not
+`type_compatible`, so it reached the compile-progress fallback in
+`elab_and_eval` that substitutes a constant for an incompatible r-value
+when the target looks vectorable — and an unpacked array's `cast_type`
+is its ELEMENT type, so `int fa[3]` looked exactly that vectorable.
 
-### PR #126 — object `randomize() with {...}` in statement position (M3B-16)
+New `%store/arr/dar` is the inverse of `%load/arr/dar`, and all four
+paths go through it. The 7.6 element-count rule is checked inside the
+instruction, because a dynamic source has no size until it runs; a
+mismatch reports and leaves the destination unchanged rather than
+half-filling it.
 
-The expression form already reached Z3, but the legal bare and
-`void'(...)` statement forms were syntax errors, and an older
-no-parentheses statement rule accepted the tokens while discarding every
-inline constraint. The parser now retains the constraint block on
-`PCallTask` and statement elaboration reuses the same randomize-with
-builder as expression elaboration. Direct, nested-property, indexed,
-call-result, explicit-`this`, implicit-receiver, selector, caller-value,
-no-parentheses and void-cast forms all solve through one path; a failed
-solve preserves the object, runs `pre_randomize`, and skips
-`post_randomize`.
+The inbound direction is fixed for **real** elements too: the special
+case meant to accept a fixed-array actual for an open-array formal asked
+the EXPRESSION for its `netuarray_t`, but a signal expression's
+`net_type()` is its element type, so the test never succeeded — integral
+arrays slipped past on the vectorable fallback while real arrays took a
+cast error.
 
-Discriminator: `ivtest/ivltests/sv_object_randomize_statement_with.v`.
-Log: `session_logs/2026-07-27_object_randomize_statement_with.md`.
+Roadmap: M10-7 (done), M10-8 (the multidimensional boundary, open and
+loud). Tests: `sv_whole_aggregate_value_copy`,
+`sv_whole_aggregate_size_mismatch`.
 
-### PR #127 — R15 retired as a stale diagnosis
+**Verified, not assumed, on the way through:**
 
-R15 claimed an unaligned explicit-clock `$past` result was one tick
-young. IEEE 1800-2017 16.9.3 selects clocking-event time steps strictly
-prior to the time step in which `$past` is evaluated, so a call *on* the
-named-clock tick excludes that tick and a call *between* ticks includes
-the most recent one. The existing NBA history shift already implements
-both. The proposed extra delay would have been a regression, so this
-strengthens the permanent test and corrects the roadmap instead of
-changing the runtime.
+- DPI open arrays are complete — re-probed with a fresh C model, not an
+  existing test: `svDimensions`/`svSize`/`svLow`/`svHigh`/`svLeft`/
+  `svRight`/`svIncrement` all report the **declared** range for
+  ascending, descending and non-zero-based actuals, elements read
+  through `svGetArrElemPtr1`, and an `inout` formal writes back.
+  GitHub issue #45 closed on that evidence.
+- Multidimensional open arrays now work at **any legal dimensionality**,
+  verified 1-D through 5-D for read, `foreach`, element write and
+  whole-array copy-back. That took pushing past **five** separate
+  two-dimension caps — see ROADMAP M10-8. The one worth remembering:
+  `NetESelect::dup_expr()` dropped the select's `net_type`, so a
+  duplicated container select reported no type and `foreach` over a
+  three-deep container elaborated two levels and then produced **no loop
+  at all** for the third — zero iterations, no diagnostic.
 
-Discriminator: `ivtest/ivltests/sv_sampled_value_explicit_clock.v`, now
-covering aligned and unaligned `$past` at depths one and two plus
-`$rose`/`$fell`/`$stable`/`$changed` on and between named-clock ticks.
-Log: `session_logs/2026-07-27_r15_sampled_history_audit.md`.
+### A finding I had to withdraw
 
-### Gates
+I recorded nested containers — `int d[][]`, `int m[string][]` — as an
+unparseable subsystem and filed R19 against it. That was wrong, and the
+error was mine: my probe used `foreach (m[k]) foreach (m[k][i])`, which
+is not legal SystemVerilog. `foreach` takes one bracket with a
+comma-separated variable list. The syntax error was on my `foreach`
+line, not on the declaration.
 
-Each branch ran, against this base, the full hard matrix: `make check`,
-the vendored ivtest name-diff (3,217–3,218 total, exactly 44 expected
-failures, no failure-identity drift), bundled VPI 94/94, the negative
-suite 61/61, the SVA legacy/NFA dual-run 36/36, the dedicated real-DPI
-subsystem 20/20 with zero skips, full UVM 226/226 with real DPI and zero
-skips, and the installed/relocated `-uvm` front end across all eight
-scenarios. CI is green on all six platform jobs for each.
+Re-probed with `foreach (m[k,i])`: nested dynamic arrays, queues of
+queues and associative arrays of dynamic arrays all declare, allocate
+per level, iterate, index, and pass to open-array formals. Nothing there
+needed building. R19 is withdrawn; R24 records the withdrawal so the
+claim is not rediscovered.
+
+That re-probe did turn up one real gap, now fixed: a **queue of queues**
+was refused as an open-array actual. The outer level had a queue/darray
+passthrough, but inner levels were compared strictly, and a queue is not
+`type_compatible` with a dynamic array even though they share
+`vvp_darray` at run time.
 
 ### Next frontier
 
-M9-7 mid-sequence clock flow: the parser still rejects the legal form
-`@(c1) a ##1 @(c2) b`. Closure needs a clock-domain boundary in the
-sequence representation and a race-free handoff derived from the existing
-multiclock implication machinery. Draft PR #128 is an unfinished
-checkpoint of that work and is not ready to land.
+Campaign 2's acceptance criteria are all met — see the pull request for
+the evidence. The remaining severity-ordered items are R17 (`$typename`
+on a parameterized class returns a wrong string — the only *wrong value*
+left), then R18, R20, R21, R22, and the deliberately-unvalidated R23.
+
+### Truth pass — 2026-07-28
+
+The five `Phase 7x` GitHub issues were probed item by item rather than
+read. #43, #44, #45 and #47 are closed: #45 genuinely complete, the
+other three obsolete as tracking units (their acceptance criterion,
+"96+/98 regression", names a suite that no longer exists). #46
+(performance) is deliberately left open and unre-labelled — its claims
+are wall-clock measurements I did not reproduce, and closing it on the
+strength of the others would be the sort of unvalidated label this pass
+exists to remove.
+
+Sixteen of the twenty-eight probed items were already done. The
+survivors carry forward as R17–R23. One correction to my own first
+reading: `a.reverse()` returning nothing is **not** a defect — 7.12.2
+ordering methods return void, so the r-value spelling I probed with is
+not legal SystemVerilog. The in-place form works.
+
+### Gates
+
+`make check`, the vendored ivtest name-diff, bundled VPI, the negative
+suite, the SVA dual-run, the DPI subsystem and full UVM — see the pull
+request for the run.
+
+One regression was caught by the name-diff and fixed rather than
+absorbed: the first cut refused a multidimensional copy-back outright,
+which broke `sv_struct_array_member_open_arg` — a member destination had
+been working all along through `%store/prop/arr/dar`. The new path now
+takes over **only** a plain word-array signal destination, which is the
+one shape that had no instruction.

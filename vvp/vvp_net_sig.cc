@@ -637,6 +637,7 @@ static ref_aa_slot* ref_slot_(unsigned context_idx, __vpiScope*scope)
 }
 
 vvp_ref_signal_aa::vvp_ref_signal_aa(unsigned wid)
+: vvp_fun_signal_object(wid)
 {
       context_scope_ = vpip_peek_context_scope();
       context_idx_ = vpip_add_item_to_context(this, context_scope_);
@@ -881,6 +882,75 @@ void vvp_ref_signal_aa::get_signal_value(struct t_vpi_value*vp)
 
       ref_delegate_ hold (slot);
       sig->get_signal_value(vp);
+}
+
+  /* Object reads/writes, for a class-handle formal. Unlike the
+     vvp_signal_value case above, the bound target's object functor is
+     not reliably reachable through fil alone: a static (non-automatic)
+     class-handle variable's fun and fil are NOT the same object (fil is
+     nil there -- see compile_var_cobject in words.cc), so check fun
+     first and fall back to fil, matching every other object opcode in
+     vthread.cc (e.g. signal_object_fun_). */
+static vvp_fun_signal_object* ref_read_target_object_(const ref_aa_slot*slot)
+{
+      if (!slot || !slot->target) return 0;
+      vvp_fun_signal_object*fun =
+            dynamic_cast<vvp_fun_signal_object*> (slot->target->fun);
+      if (!fun)
+            fun = dynamic_cast<vvp_fun_signal_object*> (slot->target->fil);
+      return fun;
+}
+
+vvp_object_t vvp_ref_signal_aa::get_object() const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      vvp_fun_signal_object*obj = ref_read_target_object_(slot);
+      if (!obj) return vvp_object_t();
+
+      ref_delegate_ hold (slot);
+      return obj->get_object();
+}
+
+vvp_object_t vvp_ref_signal_aa::peek_object() const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      vvp_fun_signal_object*obj = ref_read_target_object_(slot);
+      if (!obj) return vvp_object_t();
+
+      ref_delegate_ hold (slot);
+      return obj->peek_object();
+}
+
+vvp_net_t* vvp_ref_signal_aa::get_root_net() const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      vvp_fun_signal_object*obj = ref_read_target_object_(slot);
+      if (!obj) return 0;
+
+      ref_delegate_ hold (slot);
+      return obj->get_root_net();
+}
+
+vvp_object_t vvp_ref_signal_aa::get_root_object() const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      vvp_fun_signal_object*obj = ref_read_target_object_(slot);
+      if (!obj) return vvp_object_t();
+
+      ref_delegate_ hold (slot);
+      return obj->get_root_object();
+}
+
+void vvp_ref_signal_aa::set_root_provenance(vvp_net_t*root_net,
+                                            const vvp_object_t&root_obj,
+                                            vvp_context_t)
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      vvp_fun_signal_object*obj = ref_read_target_object_(slot);
+      if (!obj) return;
+
+      ref_delegate_ hold (slot);
+      obj->set_root_provenance(root_net, root_obj, vthread_get_wt_context());
 }
 
 /*
