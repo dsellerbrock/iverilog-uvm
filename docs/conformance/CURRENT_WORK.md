@@ -56,19 +56,45 @@ loud). Tests: `sv_whole_aggregate_value_copy`,
   through `svGetArrElemPtr1`, and an `inout` formal writes back.
   GitHub issue #45 closed on that evidence.
 - Multidimensional open arrays are **not** as done as M10-1's label
-  said. A 2-D struct/class MEMBER works both ways (`%store/prop/arr/dar`
-  walks `property_dimensions()`); a plain 2-D variable is an elaboration
-  error, and a 2-D container does not parse at all — `int d[][];` is a
-  syntax error. Recorded honestly as M10-8.
+  said, but the gap is narrower than it first looked. A 2-D struct/class
+  MEMBER works both ways: `%prop/arr/dar` materializes a **nested**
+  object — a `vvp_darray_object` per declared dimension — and
+  `%store/prop/arr/dar` walks it back. A plain 2-D variable is an
+  elaboration error. Recorded as M10-8.
 
 ### Next frontier
 
-**Nested containers.** M10-8 and R19 are the same missing subsystem seen
-from two directions: a dynamic array whose elements are containers has
-no parser rule, no type, and no runtime value. That is what a plain 2-D
-open array, `int d[][]`, and `int m[string][]` all need. It is a
-subsystem to build, not a fix to the open-array code, and it should be
-its own campaign.
+**Finish M10-8: a plain 2-D variable as an open-array actual.** I had
+this filed as "nested containers are a subsystem"; an experiment showed
+that is only half right, and the useful half is much closer than that.
+
+A 2-D unpacked SIGNAL is already flat at runtime — `int m[2][3]` emits
+`.array/2s "m", 5 0, 31 0`, six words — and the nested representation
+the formal wants already exists and is already built for members.
+Opening both elaboration gates by hand gets a 2-D actual all the way to
+the runtime, where it reads zero with
+`get_word(vvp_object_t) not implemented for vvp_darray_atom<int>`:
+`%load/arr/dar` built a flat array where the formal iterates a nested
+one.
+
+So what is missing is the signal-side twins of
+`fixed_prop_materialize_`/`fixed_prop_copy_back_`, plus a way to carry
+the declared dimension list — which lives in the `netuarray_t` at
+elaboration and is absent from the flat signal — to the two
+instructions. The operand slots are the real constraint: `vvp_code_s`
+keeps `array` and `text` in one union, so the list cannot ride as a
+string beside `OA_ARR_PTR`; it needs its own codespace table or a
+push-dims instruction.
+
+Both elaboration gates fail for the *same* reason, worth knowing before
+starting: a signal expression's `net_type()` is its ELEMENT type, so
+neither the `elab_and_eval` cast check nor the `PEIdent` context check
+ever sees the `netuarray_t`. That is the third time this session that
+accessor has been the root cause.
+
+**Separately, and genuinely a subsystem:** `int d[][];` does not parse,
+so nested dynamic arrays as *declared types* remain out of reach. That
+is what R19 shares, and it is its own campaign.
 
 ### Truth pass — 2026-07-28
 
