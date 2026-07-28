@@ -3594,6 +3594,101 @@ extern "C" int vpip_object_urandom(unsigned int*val)
       return 0;
 }
 
+/*
+ * R21: $stacktrace, called from vpi/sys_display.c's calltf.
+ *
+ * NOTE ON THE LRM CITATION: the task description that motivated this
+ * points at IEEE 1800-2017 20.3.3, but that subclause is actually
+ * $realtime -- clause 20's own table of contents (20.10/20.11) lists only
+ * $fatal/$error/$warning/$info as severity/elaboration tasks, and
+ * $stacktrace does not appear anywhere in clause 20 of the 2017 LRM. It is
+ * a widely implemented vendor debug extension (e.g. Questa), not a
+ * standard SystemVerilog system task. Since there is no LRM text to
+ * conform to, this implements the common contract: a task (not usable as
+ * a function/in an expression), no arguments, that prints the current
+ * call stack to stdout and does not affect simulation control flow.
+ *
+ * A synchronous task or function call in vvp runs on a CHILD vthread whose
+ * ->parent points back at the calling thread (see do_callf_void and the
+ * plain-task-call fork/join pair elsewhere in this file). Walking ->parent
+ * from the thread that is actually executing $stacktrace therefore visits
+ * exactly the live call stack, innermost frame first, and cur->parent_scope
+ * names each frame's scope.
+ *
+ * File/line per frame: the innermost frame's location is the $stacktrace
+ * call site itself, which vpi/sys_display.c hands in directly from the
+ * systf call handle's vpiFile/vpiLineNo -- that is always available,
+ * compiled in regardless of any runtime flag. For OUTER frames (the
+ * caller(s) that are blocked waiting for the callee to return), the best
+ * this build can do is each thread's own last-executed-statement location
+ * (thr->get_fileline(), frozen at the call site while the thread waits).
+ * That bookkeeping is written by the %file_line opcode, which tgt-vvp only
+ * emits when compiled with -pfileline=1 (see tgt-vvp/vvp.c's `fileline`
+ * design flag and vvp_process.c's show_stmt_file_line()) -- so outer-frame
+ * locations are only available when the design was built that way. Rather
+ * than silently omitting or guessing, say so explicitly per frame.
+ */
+extern "C" void vpip_print_stacktrace(const char*call_file, long call_line)
+{
+	/* As with vpip_object_urandom, use the thread the VPI call was
+	   actually made on -- `running_thread' is not reliable during a
+	   %vpi_call/%vpi_func. */
+      vthread_t thr = vpip_current_vthread ? vpip_current_vthread
+					   : running_thread;
+
+	/* vpi_get_str() results (both call_file, from the caller, and every
+	   vpiFullName lookup below) come out of vvp's single shared/rotating
+	   RBUF_STR scratch buffer (need_result_buf() in vpi_signal.cc) -- a
+	   second vpi_get_str() call silently overwrites the string the first
+	   one returned. Copy call_file out to a private std::string right
+	   away, before the loop below makes any further vpi_get_str() calls,
+	   or frame 0's location would get clobbered by frame 0's own scope
+	   name lookup. */
+      string call_file_str = (call_file && call_file[0]) ? call_file : string();
+
+      vpi_printf("$stacktrace: call stack (innermost frame first):\n");
+
+      if (!thr) {
+	    vpi_printf("  <no active thread context available>\n");
+	    return;
+      }
+
+      unsigned depth = 0;
+      for (vthread_t cur = thr ; cur ; cur = cur->parent, depth += 1) {
+	    string scope_name;
+	    if (cur->parent_scope) {
+		  const char*sn = vpi_get_str(vpiFullName, cur->parent_scope);
+		  scope_name = sn ? sn : "<unnamed scope>";
+	    } else {
+		  scope_name = "<unknown scope>";
+	    }
+
+	      /* Frame 0 (the frame that is actually calling $stacktrace)
+		 always has an exact, always-available location: the
+		 systf call site itself. */
+	    if (depth == 0 && !call_file_str.empty()) {
+		  vpi_printf("  #0 %s (%s:%ld)\n", scope_name.c_str(),
+			     call_file_str.c_str(), call_line);
+		  continue;
+	    }
+
+	    string fl = cur->get_fileline();
+	      /* get_fileline() returns "file:line: " -- a trailing
+		 separator meant for prefixing cerr diagnostics elsewhere.
+		 Trim it for this one-frame-per-line report. */
+	    while (!fl.empty() && (fl.back() == ' ' || fl.back() == ':'))
+		  fl.erase(fl.size()-1);
+
+	    if (fl.empty()) {
+		  vpi_printf("  #%u %s (location unavailable -- recompile with "
+			     "-pfileline=1 to see call-site lines for "
+			     "enclosing frames)\n", depth, scope_name.c_str());
+	    } else {
+		  vpi_printf("  #%u %s (%s)\n", depth, scope_name.c_str(), fl.c_str());
+	    }
+      }
+}
+
 bool of_GET_RANDSTATE(vthread_t thr, vvp_code_t)
 {
       vvp_object_t obj;

@@ -664,6 +664,14 @@ extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
    and return 1. Return 0 when there is no seeded enclosing object, in
    which case the caller should use its own generator. */
 extern int vpip_object_urandom(unsigned int*val);
+/* R21: print, to stdout, the call stack (scope + call-site file:line for
+   each enclosing task/function call, innermost first) of the thread that
+   is currently executing a VPI call. Used to implement $stacktrace.
+   call_file/call_line are the file/line of the $stacktrace call itself
+   (from the systf call handle), used for the innermost frame since that
+   location is always available, unlike the best-effort tracking used for
+   outer frames. */
+extern void vpip_print_stacktrace(const char*call_file, long call_line);
 extern void vpip_make_systf_system_defined(vpiHandle ref);
 /* M12B: register a concurrent assertion for VPI enumeration
    (vpi_iterate(vpiAssertion, ...)). name/file are copied. idx is the
@@ -743,7 +751,7 @@ extern void vpip_count_drivers(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 5;
+static const PLI_UINT32 vpip_routines_version = 6;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -793,6 +801,7 @@ typedef struct {
     vpiHandle   (*register_assertion_cb)(vpiHandle, PLI_INT32, vpi_assertion_cb_func, PLI_BYTE8*);
     void        (*assertion_report_all)(PLI_INT32);
     int         (*object_urandom)(unsigned int*);
+    void        (*print_stacktrace)(const char*, long);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

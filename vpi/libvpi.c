@@ -337,6 +337,11 @@ int vpip_object_urandom(unsigned int*val)
       assert(vpip_routines);
       return vpip_routines->object_urandom(val);
 }
+void vpip_print_stacktrace(const char*call_file, long call_line)
+{
+      assert(vpip_routines);
+      vpip_routines->print_stacktrace(call_file, call_line);
+}
 void vpip_set_return_value(int value)
 {
       assert(vpip_routines);

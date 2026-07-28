@@ -2185,5 +2185,6 @@ vpip_routines_s vpi_routines = {
     .register_assertion_cb      = vpi_register_assertion_cb,
     .assertion_report_all       = vpip_assertion_report_all,
     .object_urandom             = vpip_object_urandom,
+    .print_stacktrace           = vpip_print_stacktrace,
 };
 #endif

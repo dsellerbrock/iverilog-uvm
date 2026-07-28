@@ -2411,6 +2411,38 @@ static PLI_INT32 sys_severity_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+/*
+ * R21: $stacktrace.
+ *
+ * NOTE: the roadmap item that motivated this cites IEEE 1800-2017 20.3.3,
+ * but that subclause is actually $realtime; clause 20's own severity/
+ * elaboration task lists (20.10/20.11) name only $fatal/$error/$warning/
+ * $info, and $stacktrace does not appear anywhere in clause 20 of the
+ * 2017 LRM. It is a widely implemented vendor debug extension (Questa and
+ * others), not a standard SystemVerilog system task. With no LRM text to
+ * conform to, this implements the common contract found elsewhere: a task
+ * (so it is NOT usable in an expression/as a function), taking no
+ * arguments, that prints the current call stack to stdout and does not
+ * itself affect simulation control flow -- exactly like a diagnostic
+ * severity task with no severity.
+ *
+ * The actual stack walk needs access to vvp's vthread call-frame chain,
+ * which is core-side state; vpip_print_stacktrace() (vvp/vthread.cc) does
+ * that walk and prints it, the same way $urandom reaches back into
+ * vthread.cc via vpip_object_urandom() for object-scoped RNG state.
+ */
+static PLI_INT32 sys_stacktrace_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+
+      (void)name; /* Parameter is not used. */
+
+      vpip_print_stacktrace(vpi_get_str(vpiFile, callh),
+                            (long)vpi_get(vpiLineNo, callh));
+
+      return 0;
+}
+
 
 static PLI_INT32 sys_end_of_simulation(p_cb_data cb_data)
 {
@@ -2863,6 +2895,16 @@ void sys_display_register(void)
       tf_data.compiletf = sys_display_compiletf;
       tf_data.sizetf    = 0;
       tf_data.user_data = "$info";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      /* R21: $stacktrace -- see the note on sys_stacktrace_calltf. */
+      tf_data.type      = vpiSysTask;
+      tf_data.tfname    = "$stacktrace";
+      tf_data.calltf    = sys_stacktrace_calltf;
+      tf_data.compiletf = sys_no_arg_compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = "$stacktrace";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 
