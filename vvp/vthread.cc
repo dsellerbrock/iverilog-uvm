@@ -8233,7 +8233,12 @@ bool of_CAST_VEC4_STR(vthread_t thr, vvp_code_t cp)
       const unsigned use_chars = (use_wid + 7) / 8;
 
       unsigned sdx = 0;
-      unsigned vdx = wid;
+	/* Right-justify: the string occupies the LOW 8*len bits with
+	   zero-pad above (IEEE 1800-2017 6.16 string-to-integral
+	   packing, same as a string literal). Starting at the vector
+	   width instead left-justified the value whenever the target
+	   was wider than the string. */
+      unsigned vdx = use_wid;
       while (vdx > 0 && sdx < use_chars) {
             char ch = str[sdx++];
             if (vdx < 8) {

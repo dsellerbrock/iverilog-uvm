@@ -1039,8 +1039,19 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			tmp = stub;
 			goto cast_done;
 		  }
-		  if (cast_type == IVL_VT_BOOL || cast_type == IVL_VT_LOGIC
-		      || type_is_vectorable(cast_type)) {
+		  // A well-typed STRING expression in a vector context is
+		  // NOT a lost-typing stub: `reg [127:0] b; b = str;' was
+		  // reaching the const-0 substitution below and silently
+		  // storing zero (br_ml20180227) while the equivalent
+		  // string LITERAL packed correctly. Let it fall through
+		  // to the ordinary cast path -- cast_to_int4/int2 wrap
+		  // it in NetECast, and codegen already lowers a string
+		  // operand via %cast/vec4/str (right-justified ASCII
+		  // pack, IEEE 1800-2017 6.16 literal-assignment
+		  // semantics).
+		  if ((cast_type == IVL_VT_BOOL || cast_type == IVL_VT_LOGIC
+		       || type_is_vectorable(cast_type))
+		      && tmp->expr_type() != IVL_VT_STRING) {
 			NetEConst*stub = make_const_val(0);
 			stub->set_line(*tmp);
 			delete tmp;
@@ -1053,6 +1064,10 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
                 case IVL_VT_BOOL:
                 case IVL_VT_LOGIC:
                 case IVL_VT_REAL:
+                  break;
+                case IVL_VT_STRING:
+		  // Fall through to the cast_type switch below, which
+		  // wraps the string expression in a real conversion.
                   break;
                 default:
 		  if (gn_system_verilog()) {

@@ -5,29 +5,28 @@
 # and on stale entries. Full attribution: ivtest_vendored_baseline_*.txt
 # and test_suite_audit_2026-07-17.md.
 #
-# --- Pre-existing upstream failures: NONE (was 31).
-# --- The 2026-07-28 deep investigation found 29 of the 31 were verdict
-# --- convention artifacts (the tests printed "PASS"; gold-less normal
-# --- tests require the literal string "PASSED") and ran clean;
-# --- sv_class_static_queue_pop_back used silence-as-success (no verdict
-# --- print at all); sv_uarray_locator1 used `return' directly in an
-# --- initial block, which is illegal (IEEE 1800-2017 13.4.4), so
-# --- rejecting it was conformant -- the legal form passes. All 31
-# --- tests were repaired and are now actively enforced.
-#
-# --- Documented fork divergences (3 remaining -- the br trio).
-# --- 2026-07-28 closure pass: case_unique,
-# --- struct_invalid_member and the timeunit pair were regolded to
-# --- LRM-correct output (5.7.1 digit separators made `1_0s` legal, so
-# --- the correct diagnostic became the 3.14.2 repeat-mismatch);
-# --- R28 turned sv_class_new_fail1 + func_empty_arg_fail4 into real
-# --- diagnostics; and the deferred assert/assume quartet's ledger
-# --- reason was FALSE -- the fork never implemented deferred
-# --- assertions, it silently DELETED them (parser nulled the statement
-# --- and the fork's flag defaults suppressed upstream's sorry).
-# --- Restoring the upstream defaults makes them a loud sorry again,
-# --- which is exactly what those four golds expect (R29 tracks the
-# --- real 16.4 implementation). All ten now pass, actively enforced:
-br1005		# implemented-feature divergence: fork legalizes queue-in-class (gold expects rejection)
-br_ml20150315b		# implemented-feature divergence: fork legalizes the declaration form (gold expects rejection)
-br_ml20180227		# implemented-feature divergence: fork legalizes the assignment form (gold expects rejection)
+# --- THIS LIST IS EMPTY (was 44 on 2026-07-28). Every entry was
+# --- closed by the two-stage deep investigation, not excused:
+# ---
+# --- Stage 1 (44 -> 13): 29 verdict-string artifacts (tests printed
+# --- "PASS"; gold-less normal tests require "PASSED"), 1
+# --- silence-as-success, 1 nonconformant test (`return' in an initial
+# --- block, 13.4.4 -- rejecting it was correct; the legal form
+# --- passes), all repaired and enforced.
+# ---
+# --- Stage 2 (13 -> 0): case_unique, struct_invalid_member and the
+# --- timeunit pair regolded to LRM-verified output (5.7.1 digit
+# --- separators made `1_0s` legal, so the correct diagnostic is the
+# --- 3.14.2 repeat-mismatch). R28 turned sv_class_new_fail1 +
+# --- func_empty_arg_fail4 into real diagnostics (8.7 / 13.5.3). The
+# --- deferred assert/assume quartet's recorded reason was FALSE -- the
+# --- fork never implemented deferred assertions, it silently DELETED
+# --- them; upstream flag defaults restored, the quartet passes CE
+# --- against its original golds, R29 tracks the real 16.4
+# --- implementation. br1005 (queue-in-class) reclassified normal with
+# --- a recorded gold. br_ml20150315b (unpacked struct typedef, no
+# --- simulation content) reclassified CO. br_ml20180227 exposed R30 --
+# --- `reg = string_var' silently stored ZERO (front-end const-0
+# --- substitution) and, once fixed, the %cast/vec4/str opcode
+# --- left-justified wide targets; both fixed, semantics pinned by
+# --- sv_string_to_vector_assign1, test reclassified CO.
