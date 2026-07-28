@@ -1375,7 +1375,7 @@ static int show_stmt_delay(ivl_statement_t net, ivl_scope_t sscope)
       return rc;
 }
 
-static void draw_expr_into_idx(ivl_expr_t expr, int use_idx)
+void draw_expr_into_idx(ivl_expr_t expr, int use_idx)
 {
       switch (ivl_expr_value(expr)) {
 
@@ -1849,6 +1849,64 @@ static int show_stmt_wait_obj(ivl_statement_t net, ivl_scope_t sscope)
 
       draw_eval_object(ivl_stmt_evobj_expr(net));
       fprintf(vvp_out, "    %%wait/obj %u;\n", slot);
+
+      return show_statement(ivl_stmt_sub_stmt(net), sscope);
+}
+
+/*
+ * Named-event array element trigger (IEEE 1800-2017 6.20): `->arr[i]`
+ * (IVL_ST_TRIGGER_ARR) or `->>arr[i]` (IVL_ST_NB_TRIGGER_ARR). Evaluate
+ * the index into a register, then emit the array trigger opcode
+ * carrying the array's base slot and element count; the runtime adds
+ * the (bounds-checked) index to the base slot to find the element's
+ * private event.
+ */
+static int show_stmt_trigger_arr(ivl_statement_t net)
+{
+      unsigned base = ivl_stmt_evarr_base(net);
+      unsigned count = ivl_stmt_evarr_count(net);
+      unsigned long packed = ((unsigned long)base << 32) | (unsigned long)count;
+      int is_nb = (ivl_statement_type(net) == IVL_ST_NB_TRIGGER_ARR);
+
+      show_stmt_file_line(net, "Named-event array element trigger.");
+
+      int use_idx = allocate_word();
+      draw_expr_into_idx(ivl_stmt_evarr_index(net), use_idx);
+
+      if (is_nb) {
+	    ivl_expr_t expr = ivl_stmt_delay_expr(net);
+	    int use_dly = allocate_word();
+	    if (expr)
+		  draw_expr_into_idx(expr, use_dly);
+	    else
+		  fprintf(vvp_out, "    %%ix/load %d, 0, 0;\n", use_dly);
+	    fprintf(vvp_out, "    %%evt/arr/nb %lu, %d, %d;\n",
+		    packed, use_idx, use_dly);
+	    clr_word(use_dly);
+      } else {
+	    fprintf(vvp_out, "    %%evt/arr %lu, %d;\n", packed, use_idx);
+      }
+      clr_word(use_idx);
+      return 0;
+}
+
+/*
+ * Named-event array element wait (IEEE 1800-2017 6.20): `@(arr[i])`.
+ * Evaluate the index into a register, emit the array wait opcode, then
+ * draw the guarded sub-statement.
+ */
+static int show_stmt_wait_arr(ivl_statement_t net, ivl_scope_t sscope)
+{
+      unsigned base = ivl_stmt_evarr_base(net);
+      unsigned count = ivl_stmt_evarr_count(net);
+      unsigned long packed = ((unsigned long)base << 32) | (unsigned long)count;
+
+      show_stmt_file_line(net, "Named-event array element wait (@).");
+
+      int use_idx = allocate_word();
+      draw_expr_into_idx(ivl_stmt_evarr_index(net), use_idx);
+      fprintf(vvp_out, "    %%wait/arr %lu, %d;\n", packed, use_idx);
+      clr_word(use_idx);
 
       return show_statement(ivl_stmt_sub_stmt(net), sscope);
 }
@@ -4496,6 +4554,15 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
 
 	  case IVL_ST_WAIT_OBJ:
 	    rc += show_stmt_wait_obj(net, sscope);
+	    break;
+
+	  case IVL_ST_TRIGGER_ARR:
+	  case IVL_ST_NB_TRIGGER_ARR:
+	    rc += show_stmt_trigger_arr(net);
+	    break;
+
+	  case IVL_ST_WAIT_ARR:
+	    rc += show_stmt_wait_arr(net, sscope);
 	    break;
 
 	  case IVL_ST_UTASK:

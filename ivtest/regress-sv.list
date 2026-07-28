@@ -1201,3 +1201,4 @@ sv_whole_aggregate_size_mismatch normal,-g2012 ivltests gold=sv_whole_aggregate_
 sv_open_array_multidim normal,-g2012 ivltests
 sv_process_status_identity normal,-g2012 ivltests
 sv_stacktrace_task_call normal,-g2012 ivltests
+sv_event_array normal,-g2012 ivltests

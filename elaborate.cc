@@ -276,8 +276,21 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 
 static NetEvent* resolve_named_event_member_from_search_(const symbol_search_results&sr)
 {
-      if (sr.eve && sr.path_tail.empty())
+      if (sr.eve && sr.path_tail.empty()) {
+	      // Reject a stray index on a scalar event (`->scalar_ev[0]`,
+	      // meaningless) and a bare reference to a named-event array's
+	      // group NetEvent (`->arr`, `@(arr)` -- there is no runtime
+	      // object backing the group itself, only its indexed
+	      // elements; see elaborate_event_array_target_ for the valid
+	      // `arr[i]` form). Silently falling through here would
+	      // otherwise trigger/wait on the wrong (or a nonexistent)
+	      // event.
+	    bool has_index = !sr.path_head.empty()
+	                      && !sr.path_head.back().index.empty();
+	    if (has_index || sr.eve->is_event_array())
+		  return nullptr;
 	    return sr.eve;
+      }
 
       if (!sr.net || sr.path_tail.empty())
 	    return nullptr;
@@ -426,6 +439,69 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 
       slot_out = eve->obj_slot();
       return obj;
+}
+
+/*
+ * Resolve an indexed reference into a named-event array, e.g. `arr[i]`
+ * used by `->arr[i]`, `->>arr[i]`, or `@(arr[i])` (IEEE 1800-2017 6.20:
+ * an unpacked array of events, where each element is its own
+ * independent named event). Returns the array's group NetEvent
+ * (is_event_array()==true) and, in idx_out, the elaborated index
+ * expression (caller owns), or nullptr if `full_path` is not a
+ * (single-dimension) event-array element reference -- in which case the
+ * caller falls back to the ordinary scalar-event path. A malformed
+ * reference (multi-dimensional index, or a part-select/slice instead of
+ * a single bit select) is reported here with a loud diagnostic rather
+ * than silently falling through to a path that would ignore the index.
+ * Hierarchical/multi-component event-array references are out of scope
+ * and are treated as "not an array reference" (full_path.size() != 1).
+ */
+static NetEvent* elaborate_event_array_target_(Design*des, NetScope*scope,
+					       const LineInfo&loc,
+					       const pform_name_t&full_path,
+					       unsigned lexical_pos,
+					       NetExpr*&idx_out)
+{
+      idx_out = 0;
+      if (full_path.size() != 1)
+	    return nullptr;
+
+      const name_component_t&comp = full_path.back();
+      if (comp.index.empty())
+	    return nullptr;
+
+      symbol_search_results sr;
+      if (!symbol_search(&loc, des, scope, full_path, lexical_pos, &sr))
+	    return nullptr;
+      if (!sr.eve || !sr.path_tail.empty() || !sr.eve->is_event_array())
+	    return nullptr;
+
+      if (comp.index.size() > 1) {
+	    cerr << loc.get_fileline() << ": sorry: multi-dimensional "
+	            "named-event arrays are not supported (`" << comp.name
+	         << "' has " << comp.index.size() << " index dimensions)."
+	         << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      const index_component_t&sel = comp.index.front();
+      if (sel.sel != index_component_t::SEL_BIT) {
+	    cerr << loc.get_fileline() << ": error: named-event array `"
+	         << comp.name << "' element select must be a single bit "
+	            "select, not a part select or slice." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      NetExpr*idx = elab_and_eval(des, scope, sel.msb, -1);
+      if (!idx) {
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      idx_out = idx;
+      return sr.eve;
 }
 
 /* Resolve `<instance_scope>` (no NetNet, but path consumed) to the
@@ -10930,6 +11006,30 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	    }
       }
 
+	/* A wait on a single named-event array element (`@(arr[i])`):
+	   each element is its own independent named event
+	   (IEEE 1800-2017 6.20). */
+      if (expr_.size() == 1 && expr_[0]
+	  && (expr_[0]->type() == PEEvent::POSITIVE
+	      || expr_[0]->type() == PEEvent::ANYEDGE)
+	  && expr_[0]->expr()) {
+	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
+		  NetExpr*idx = 0;
+		  if (NetEvent*ev = elaborate_event_array_target_(des, scope,
+				*this, id->path().name, id->lexical_pos(), idx)) {
+			NetProc*body = 0;
+			if (statement_) {
+			      body = statement_->elaborate(des, scope);
+			      if (body == 0) { delete idx; return 0; }
+			}
+			NetEvWaitArr*wa = new NetEvWaitArr(ev, idx);
+			wa->set_line(*this);
+			wa->set_statement(body);
+			return wa;
+		  }
+	    }
+      }
+
       NetProc*enet = 0;
       if (statement_) {
 	    enet = statement_->elaborate(des, scope);
@@ -12359,6 +12459,19 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 	    }
       }
 
+	// A trigger on a named-event array element (`->arr[i]`): each
+	// element is its own independent named event (IEEE 1800-2017
+	// 6.20).
+      {
+	    NetExpr*idx = 0;
+	    if (NetEvent*ev = elaborate_event_array_target_(des, scope,
+					*this, event_.name, lexical_pos_, idx)) {
+		  NetEvTrigArr*trig = new NetEvTrigArr(ev, idx, false, 0);
+		  trig->set_line(*this);
+		  return trig;
+	    }
+      }
+
       symbol_search_results sr;
       if (!symbol_search(this, des, scope, event_, lexical_pos_, &sr)) {
 	    cerr << get_fileline() << ": error: event <" << event_ << ">"
@@ -12397,6 +12510,19 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 		  NetExpr*dly = 0;
 		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
 		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, true, dly);
+		  trig->set_line(*this);
+		  return trig;
+	    }
+      }
+
+	// Nonblocking trigger on a named-event array element (`->>arr[i]`).
+      {
+	    NetExpr*idx = 0;
+	    if (NetEvent*ev = elaborate_event_array_target_(des, scope,
+					*this, event_, lexical_pos_, idx)) {
+		  NetExpr*dly = 0;
+		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
+		  NetEvTrigArr*trig = new NetEvTrigArr(ev, idx, true, dly);
 		  trig->set_line(*this);
 		  return trig;
 	    }

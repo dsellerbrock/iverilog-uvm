@@ -10420,6 +10420,98 @@ bool of_EVTEST_OBJ(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * Named-event array element opcodes (IEEE 1800-2017 6.20). The element
+ * index is a run-time computed offset from the array's design-global
+ * base slot; cp->number packs BOTH the base slot (high 32 bits) and the
+ * element count (low 32 bits), since these opcodes only have one number
+ * operand plus two bit-index registers to work with. An out-of-range
+ * index is a hard error rather than silently indexing outside the
+ * array's reserved slot range (which could alias another event).
+ */
+static inline uint32_t evarr_base_(unsigned long packed)
+{
+      return (uint32_t)(packed >> 32);
+}
+static inline uint32_t evarr_count_(unsigned long packed)
+{
+      return (uint32_t)(packed & 0xFFFFFFFFul);
+}
+
+/*
+ * Resolve the element net for an %evt/arr, %evt/arr/nb, or %wait/arr
+ * opcode. Returns 0 (and prints a diagnostic) if the run-time index is
+ * out of the declared array bounds.
+ */
+static vvp_net_t* evarr_resolve_(vthread_t thr, vvp_code_t cp, const char*opname)
+{
+      uint32_t base = evarr_base_(cp->number);
+      uint32_t count = evarr_count_(cp->number);
+      int32_t index = thr->words[cp->bit_idx[0]].w_int;
+
+      if (index < 0 || (uint32_t)index >= count) {
+	    fprintf(stderr, "%s: index %d is out of range for a "
+		    "named-event array of size %u.\n", opname, index, count);
+	    return 0;
+      }
+
+      return event_array_slot_net(base + (uint32_t)index);
+}
+
+/*
+ * %evt/arr <base|count>, <idx-reg>
+ * Blocking trigger of a named-event array element (IEEE 1800-2017 6.20:
+ * `->arr[i]`). Exactly like %event, but the target net is resolved at
+ * run time from the array's per-element slot table.
+ */
+bool of_EVT_ARR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = evarr_resolve_(thr, cp, "%evt/arr");
+      if (!net) return true;
+
+      vvp_net_ptr_t ptr (net, 0);
+      vvp_vector4_t tmp (1, BIT4_X);
+      vvp_send_vec4(ptr, tmp, ensure_write_context_(thr, "evt-arr"));
+      return true;
+}
+
+/*
+ * %evt/arr/nb <base|count>, <idx-reg>, <delay-reg>
+ * Nonblocking trigger of a named-event array element (`->>arr[i]`).
+ */
+bool of_EVT_ARR_NB(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = evarr_resolve_(thr, cp, "%evt/arr/nb");
+      if (!net) return true;
+
+      vvp_time64_t delay = thr->words[cp->bit_idx[1]].w_uint;
+      vvp_vector4_t tmp (1, BIT4_X);
+      schedule_assign_vector(vvp_net_ptr_t(net, 0), 0, 0, tmp, delay,
+			     thr->is_reactive_process);
+      return true;
+}
+
+/*
+ * %evtest/arr <base|count>, <idx-reg>
+ * Push a 1-bit vec4: 1 if the named-event array element identified by
+ * the run-time index was triggered in the current time step
+ * (IEEE 1800-2017 15.5.3 triggered property, applied per-element), else
+ * 0. An out-of-range index reads as "not triggered" rather than an
+ * error, since this is a pure query with no side effect to abort.
+ */
+bool of_EVTEST_ARR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = evarr_resolve_(thr, cp, "%evtest/arr");
+      bool trig = false;
+      if (net) {
+	    vvp_named_event*fun = dynamic_cast<vvp_named_event*>(net->fun);
+	    trig = fun && fun->triggered_now();
+      }
+      vvp_vector4_t val(1, trig ? BIT4_1 : BIT4_0);
+      thr->push_vec4(val);
+      return true;
+}
+
+/*
  * %event/nb <var-label>, <delay>
  *
  * The nonblocking event trigger (IEEE 1800-2017 15.5.1): deliver the
@@ -19599,6 +19691,37 @@ bool of_WAIT_OBJ(vthread_t thr, vvp_code_t cp)
       thr->waiting_for_event = 1;
 
       vvp_net_t*net = cobj->get_inst_event(cp->number);
+      waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (net->fun);
+      assert(ep);
+      thr->wait_next = ep->add_waiting_thread(thr);
+
+	/* Return false to suspend this thread. */
+      return false;
+}
+
+/*
+ * %wait/arr <base|count>, <idx-reg>
+ * Wait on a named-event array element (IEEE 1800-2017 6.20: `@(arr[i])`).
+ * Resolve the element net from the run-time index, add this thread to
+ * that element's private wait list, and suspend. Only a trigger on
+ * THIS element (%evt/arr, %evt/arr/nb) will resume the thread.
+ */
+bool of_WAIT_ARR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*net = evarr_resolve_(thr, cp, "%wait/arr");
+      if (!net) {
+	      /* Out-of-range index: nothing to wait on. Treat like an
+		 immediately-false wait so the thread does not hang
+		 forever on a malformed index. */
+	    return true;
+      }
+
+      if (thr->i_am_in_function)
+	    thr->i_am_in_function = 0;
+
+      assert(! thr->waiting_for_event);
+      thr->waiting_for_event = 1;
+
       waitable_hooks_s*ep = dynamic_cast<waitable_hooks_s*> (net->fun);
       assert(ep);
       thr->wait_next = ep->add_waiting_thread(thr);

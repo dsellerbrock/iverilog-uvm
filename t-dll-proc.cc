@@ -998,6 +998,62 @@ bool dll_target::proc_wait_obj(const NetEvWaitObj*net)
       return flag;
 }
 
+bool dll_target::proc_trigger_arr(const NetEvTrigArr*net)
+{
+      assert(stmt_cur_);
+      assert(stmt_cur_->type_ == IVL_ST_NONE);
+      FILE_NAME(stmt_cur_, net);
+
+      stmt_cur_->type_ = net->is_nb() ? IVL_ST_NB_TRIGGER_ARR
+	                              : IVL_ST_TRIGGER_ARR;
+      stmt_cur_->u_.evarr_.base_slot = net->event()->array_base_slot();
+      stmt_cur_->u_.evarr_.count = net->event()->array_count();
+      stmt_cur_->u_.evarr_.delay = 0;
+      stmt_cur_->u_.evarr_.stmt_ = 0;
+
+      assert(expr_ == 0);
+      net->index()->expr_scan(this);
+      stmt_cur_->u_.evarr_.index = expr_;
+      expr_ = 0;
+
+      if (const NetExpr*dly = net->delay()) {
+	    dly->expr_scan(this);
+	    stmt_cur_->u_.evarr_.delay = expr_;
+	    expr_ = 0;
+      }
+
+      return true;
+}
+
+bool dll_target::proc_wait_arr(const NetEvWaitArr*net)
+{
+      assert(stmt_cur_);
+      assert(stmt_cur_->type_ == IVL_ST_NONE);
+      FILE_NAME(stmt_cur_, net);
+
+      stmt_cur_->type_ = IVL_ST_WAIT_ARR;
+      stmt_cur_->u_.evarr_.base_slot = net->event()->array_base_slot();
+      stmt_cur_->u_.evarr_.count = net->event()->array_count();
+      stmt_cur_->u_.evarr_.delay = 0;
+      stmt_cur_->u_.evarr_.stmt_ = static_cast<struct ivl_statement_s*>
+	                           (calloc(1, sizeof(struct ivl_statement_s)));
+
+      assert(expr_ == 0);
+      net->index()->expr_scan(this);
+      stmt_cur_->u_.evarr_.index = expr_;
+      expr_ = 0;
+
+	/* Generate the sub-statement guarded by the wait. */
+      ivl_statement_t save_cur_ = stmt_cur_;
+      stmt_cur_ = stmt_cur_->u_.evarr_.stmt_;
+      bool flag = net->emit_recurse(this);
+      if (flag && (stmt_cur_->type_ == IVL_ST_NONE))
+	    stmt_cur_->type_ = IVL_ST_NOOP;
+      stmt_cur_ = save_cur_;
+
+      return flag;
+}
+
 void dll_target::proc_utask(const NetUTask*net)
 {
       assert(stmt_cur_);

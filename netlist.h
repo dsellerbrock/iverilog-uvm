@@ -3563,6 +3563,22 @@ class NetEvent : public LineInfo {
       void set_class_event() { is_class_event_ = true; }
       unsigned obj_slot();
 
+	// An unpacked array of named events (IEEE 1800-2017 6.20, e.g.
+	// `event arr[3];`) is elaborated as ONE NetEvent flagged here,
+	// carrying the declared bounds plus a contiguous run of
+	// design-global slots (one per element) used by the runtime to
+	// key a global per-slot event table. Each element behaves as its
+	// own independent named event; there is no runtime object backing
+	// the group NetEvent itself. Multi-dimensional event arrays are
+	// out of scope and are rejected before this is ever set.
+      bool is_event_array() const { return is_event_array_; }
+      void set_event_array(long msb, long lsb, unsigned count);
+      unsigned array_count() const { return array_count_; }
+      unsigned array_base_slot() const { return array_base_slot_; }
+	// Map a user index to a 0-based element offset. Returns false
+	// (leaving word unset) if index is out of the declared bounds.
+      bool array_index_to_word(long index, unsigned&word) const;
+
 	// Get information about probes connected to me.
       unsigned nprobe() const;
       NetEvProbe* probe(unsigned);
@@ -3602,6 +3618,13 @@ class NetEvent : public LineInfo {
       bool is_class_event_ = false;
       unsigned obj_slot_ = 0;
       bool obj_slot_set_ = false;
+
+	// Named-event array support (see is_event_array()).
+      bool is_event_array_ = false;
+      long array_msb_ = 0;
+      long array_lsb_ = 0;
+      unsigned array_count_ = 0;
+      unsigned array_base_slot_ = 0;
 
 	// The NetScope class uses these to list the events.
       NetScope*scope_;
@@ -3734,6 +3757,66 @@ class NetEvWaitObj : public NetProc {
     private:
       NetExpr*obj_;
       unsigned slot_;
+      NetProc*statement_ = nullptr;
+};
+
+/*
+ * Trigger an element of a named-event array (IEEE 1800-2017 6.20):
+ * `->arr[i]` or the nonblocking `->>arr[i]`. Unlike NetEvTrig this does
+ * not target a single static event; it evaluates an index expression at
+ * run time and triggers the array element identified by the array's
+ * design-global base slot plus that index (IEEE 1800-2017 6.20: each
+ * element of an unpacked array of events is its own independent named
+ * event).
+ */
+class NetEvTrigArr : public NetProc {
+
+    public:
+      explicit NetEvTrigArr(NetEvent*ev, NetExpr*idx, bool nb, NetExpr*dly);
+      ~NetEvTrigArr() override;
+
+      const NetEvent*event() const { return event_; }
+      const NetExpr*index() const { return index_; }
+      bool is_nb() const { return nb_; }
+      const NetExpr*delay() const { return dly_; }
+
+      bool emit_proc(struct target_t*) const override;
+      void dump(std::ostream&, unsigned ind) const override;
+
+    private:
+      NetEvent*event_;
+      NetExpr*index_;
+      bool nb_;
+      NetExpr*dly_;
+};
+
+/*
+ * Wait on an element of a named-event array (IEEE 1800-2017 6.20):
+ * `@(arr[i])`. Evaluates an index expression at run time and waits on
+ * the array element identified by the array's design-global base slot
+ * plus that index.
+ */
+class NetEvWaitArr : public NetProc {
+
+    public:
+      explicit NetEvWaitArr(NetEvent*ev, NetExpr*idx);
+      ~NetEvWaitArr() override;
+
+      const NetEvent*event() const { return event_; }
+      const NetExpr*index() const { return index_; }
+
+      NetProc*statement() { return statement_; }
+      const NetProc*statement() const { return statement_; }
+      void set_statement(NetProc*s) { statement_ = s; }
+
+      bool emit_proc(struct target_t*) const override;
+      bool emit_recurse(struct target_t*) const;
+      void dump(std::ostream&, unsigned ind) const override;
+      DelayType delay_type(bool print_delay=false) const override;
+
+    private:
+      NetEvent*event_;
+      NetExpr*index_;
       NetProc*statement_ = nullptr;
 };
 

@@ -362,6 +362,24 @@ extern "C" ivl_scope_t ivl_event_scope(ivl_event_t net)
       return net->scope;
 }
 
+extern "C" unsigned ivl_event_is_array(ivl_event_t net)
+{
+      assert(net);
+      return net->is_array;
+}
+
+extern "C" unsigned ivl_event_array_base(ivl_event_t net)
+{
+      assert(net);
+      return net->array_base;
+}
+
+extern "C" unsigned ivl_event_array_count(ivl_event_t net)
+{
+      assert(net);
+      return net->array_count;
+}
+
 extern "C" unsigned ivl_event_nany(ivl_event_t net)
 {
       assert(net);
@@ -3072,6 +3090,9 @@ extern "C" ivl_expr_t ivl_stmt_delay_expr(ivl_statement_t net)
 	  case IVL_ST_NB_TRIGGER_OBJ:
 	    return net->u_.evobj_.delay;
 
+	  case IVL_ST_NB_TRIGGER_ARR:
+	    return net->u_.evarr_.delay;
+
 	  default:
 	    assert(0);
 	    return 0;
@@ -3100,6 +3121,48 @@ extern "C" unsigned ivl_stmt_evobj_slot(ivl_statement_t net)
 	  case IVL_ST_NB_TRIGGER_OBJ:
 	  case IVL_ST_WAIT_OBJ:
 	    return net->u_.evobj_.ev_slot;
+	  default:
+	    assert(0);
+	    return 0;
+      }
+}
+
+extern "C" ivl_expr_t ivl_stmt_evarr_index(ivl_statement_t net)
+{
+      assert(net);
+      switch (net->type_) {
+	  case IVL_ST_TRIGGER_ARR:
+	  case IVL_ST_NB_TRIGGER_ARR:
+	  case IVL_ST_WAIT_ARR:
+	    return net->u_.evarr_.index;
+	  default:
+	    assert(0);
+	    return 0;
+      }
+}
+
+extern "C" unsigned ivl_stmt_evarr_base(ivl_statement_t net)
+{
+      assert(net);
+      switch (net->type_) {
+	  case IVL_ST_TRIGGER_ARR:
+	  case IVL_ST_NB_TRIGGER_ARR:
+	  case IVL_ST_WAIT_ARR:
+	    return net->u_.evarr_.base_slot;
+	  default:
+	    assert(0);
+	    return 0;
+      }
+}
+
+extern "C" unsigned ivl_stmt_evarr_count(ivl_statement_t net)
+{
+      assert(net);
+      switch (net->type_) {
+	  case IVL_ST_TRIGGER_ARR:
+	  case IVL_ST_NB_TRIGGER_ARR:
+	  case IVL_ST_WAIT_ARR:
+	    return net->u_.evarr_.count;
 	  default:
 	    assert(0);
 	    return 0;
@@ -3383,6 +3446,8 @@ extern "C" ivl_statement_t ivl_stmt_sub_stmt(ivl_statement_t net)
 	    return net->u_.wait_.stmt_;
 	  case IVL_ST_WAIT_OBJ:
 	    return net->u_.evobj_.stmt_;
+	  case IVL_ST_WAIT_ARR:
+	    return net->u_.evarr_.stmt_;
 	  case IVL_ST_DO_WHILE:
 	  case IVL_ST_REPEAT:
 	  case IVL_ST_WHILE:

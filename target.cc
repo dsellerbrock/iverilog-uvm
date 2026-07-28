@@ -468,6 +468,20 @@ bool target_t::proc_wait_obj(const NetEvWaitObj*tr)
       return false;
 }
 
+bool target_t::proc_trigger_arr(const NetEvTrigArr*tr)
+{
+      cerr << tr->get_fileline() << ": error: target (" << typeid(*this).name()
+	   <<  "): Unhandled named-event array trigger." << endl;
+      return false;
+}
+
+bool target_t::proc_wait_arr(const NetEvWaitArr*tr)
+{
+      cerr << tr->get_fileline() << ": error: target (" << typeid(*this).name()
+	   <<  "): Unhandled named-event array wait." << endl;
+      return false;
+}
+
 void target_t::proc_stask(const NetSTask*)
 {
       cerr << "target (" << typeid(*this).name() <<  "): "

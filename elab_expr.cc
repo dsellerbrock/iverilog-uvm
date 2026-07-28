@@ -12785,6 +12785,76 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
                   scope->is_const_func(false);
             }
 
+	      // An indexed reference into a named-event array element,
+	      // e.g. `e[1]` or `e[1].triggered` (IEEE 1800-2017 6.20 /
+	      // 15.5.3). Each element is its own independent named event;
+	      // `->e[i]` and `@(e[i])` are handled directly in elaborate.cc,
+	      // but `.triggered` is a plain expression and so is elaborated
+	      // here. Guard every indexed/bare use of an event array so a
+	      // malformed or unsupported form gets a loud diagnostic instead
+	      // of silently falling through to the "whole array" NetEEvent
+	      // below, which has no runtime backing of its own and would
+	      // silently read as never-triggered.
+	    bool head_indexed = !sr.path_head.empty()
+	                         && !sr.path_head.back().index.empty();
+	    if (sr.eve->is_event_array()) {
+		  if (!head_indexed) {
+			cerr << get_fileline() << ": error: named-event array `"
+			     << sr.eve->name() << "' cannot be used without "
+			        "an element index." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+
+		  const std::list<index_component_t>&idxl = sr.path_head.back().index;
+		  if (idxl.size() > 1) {
+			cerr << get_fileline() << ": sorry: multi-dimensional "
+			        "named-event arrays are not supported (`"
+			     << sr.eve->name() << "')." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+
+		  const index_component_t&sel = idxl.front();
+		  if (sel.sel != index_component_t::SEL_BIT) {
+			cerr << get_fileline() << ": error: named-event array `"
+			     << sr.eve->name() << "' element select must be a "
+			        "single bit select, not a part select or slice."
+			     << endl;
+			des->errors += 1;
+			return 0;
+		  }
+
+		  if (gn_system_verilog()
+		      && sr.path_tail.size() == 1
+		      && peek_head_name(sr.path_tail) == perm_string::literal("triggered")
+		      && sr.path_tail.front().index.empty()) {
+			// IEEE 1800-2017 15.5.3 triggered property, applied
+			// to one array element: true if THAT element was
+			// triggered in the current time step.
+			NetExpr*idx = elab_and_eval(des, scope, sel.msb, -1);
+			if (!idx) {
+			      des->errors += 1;
+			      return 0;
+			}
+			NetESFunc*tmp = new NetESFunc(
+			      "$ivl_event_method$triggered_arr",
+			      IVL_VT_BOOL, 1, 2);
+			NetEEvent*ev = new NetEEvent(sr.eve);
+			ev->set_line(*this);
+			tmp->parm(0, ev);
+			tmp->parm(1, idx);
+			tmp->set_line(*this);
+			return tmp;
+		  }
+
+		  cerr << get_fileline() << ": error: named-event array "
+		          "element `" << sr.eve->name() << "[...]' can only "
+		          "be used with @, ->, ->>, or .triggered." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+
 	    if (!sr.path_tail.empty()) {
 		  if (gn_system_verilog()
 		      && sr.path_tail.size() == 1

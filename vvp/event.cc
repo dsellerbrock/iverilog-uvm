@@ -26,6 +26,8 @@
 # include  <cstring>
 # include  <cassert>
 # include  <cstdlib>
+# include  <cstdint>
+# include  <vector>
 
 # include <iostream>
 
@@ -1184,6 +1186,34 @@ void vvp_named_event_dyn::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&,
 	/* A per-instance dynamic event has no fanout net graph and no
 	   VPI __vpiNamedEvent handle, so unlike vvp_named_event_sa there
 	   is nothing to propagate to and no VPI callbacks to run. */
+}
+
+/*
+ * Named-event array element storage (IEEE 1800-2017 6.20): each element
+ * of an unpacked array of events (`event arr[3];`) is its own
+ * independent named event. The compiler assigns each element a
+ * contiguous design-global slot (NetEvent::set_event_array()); this flat
+ * table maps that slot to a lazily-allocated vvp_net_t/vvp_named_event_dyn,
+ * exactly like vvp_cobject::get_inst_event() does for per-instance class
+ * events, but keyed globally rather than per-object (there is only ever
+ * one instance of a module-level event array, so no per-object map is
+ * needed). Like every other vvp_net_t, these are never individually
+ * freed -- they persist for the life of the simulation.
+ */
+static std::vector<vvp_net_t*> event_array_slots_;
+
+vvp_net_t* event_array_slot_net(uint32_t slot)
+{
+      if (slot >= event_array_slots_.size())
+	    event_array_slots_.resize(slot+1, 0);
+
+      vvp_net_t*net = event_array_slots_[slot];
+      if (!net) {
+	    net = new vvp_net_t;
+	    net->fun = new vvp_named_event_dyn;
+	    event_array_slots_[slot] = net;
+      }
+      return net;
 }
 
 void vvp_named_event_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,

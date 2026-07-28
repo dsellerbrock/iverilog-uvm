@@ -832,6 +832,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
       std::list<pform_ident_t>*identifiers;
 
+      pform_event_ident_t* event_ident;
+      std::list<pform_event_ident_t*>* event_idents;
+
       std::list<pform_port_t>*port_list;
 
       std::vector<pform_tf_port_t>* tf_ports;
@@ -1096,12 +1099,13 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <wire> net_variable
 %type <wires> net_variable_list
 
-%type <text> event_variable label_opt class_declaration_endlabel_opt
+%type <text> label_opt class_declaration_endlabel_opt
 %type <text> block_identifier_opt
 %type <text> identifier_name bins_name package_cg_port_prefix
 %type <text> bind_instance_path
 %type <strings> bind_instance_path_list
-%type <identifiers> event_variable_list
+%type <event_ident> event_variable
+%type <event_idents> event_variable_list
 %type <identifiers> class_type_parameter_port_list class_type_parameter_port_list_opt
 %type <identifiers> class_type_parameter_port_item
 %type <identifiers> list_of_identifiers
@@ -11604,19 +11608,30 @@ net_variable_list
 
 event_variable
   : IDENTIFIER dimensions_opt
-      { if ($2) {
-	      yyerror(@2, "sorry: event arrays are not supported.");
+      { pform_event_ident_t*tmp = new pform_event_ident_t;
+	tmp->ident = pform_ident_t(lex_strings.make($1), @1.lexical_pos);
+	tmp->array_dims = $2;
+	if ($2 && $2->size() > 1) {
+	      yyerror(@2, "sorry: multi-dimensional event arrays are "
+		      "not supported.");
 	      delete $2;
+	      tmp->array_dims = 0;
 	}
-	$$ = $1;
+	delete[] $1;
+	$$ = tmp;
       }
   ;
 
 event_variable_list
   : event_variable
-      { $$ = list_from_identifier($1, @1.lexical_pos); }
+      { std::list<pform_event_ident_t*>*tmp = new std::list<pform_event_ident_t*>;
+	tmp->push_back($1);
+	$$ = tmp;
+      }
   | event_variable_list ',' event_variable
-      { $$ = list_from_identifier($1, $3, @3.lexical_pos); }
+      { $1->push_back($3);
+	$$ = $1;
+      }
   ;
 
 specify_item

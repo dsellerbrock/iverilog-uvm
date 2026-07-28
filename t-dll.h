@@ -134,6 +134,8 @@ struct dll_target  : public target_t, public expr_scan_t {
       bool proc_nb_trigger(const NetEvNBTrig*) override;
       bool proc_trigger_obj(const NetEvTrigObj*) override;
       bool proc_wait_obj(const NetEvWaitObj*) override;
+      bool proc_trigger_arr(const NetEvTrigArr*) override;
+      bool proc_wait_arr(const NetEvWaitArr*) override;
       void proc_utask(const NetUTask*) override;
       bool proc_wait(const NetEvWait*) override;
       void proc_while(const NetWhile*) override;
@@ -232,6 +234,11 @@ struct ivl_event_s {
       unsigned vif_N;
       unsigned vif_M;
       unsigned vif_pre_N; // UINT_MAX = unused (2-level); set = extra prop hop (3-level)
+      // Named-event array support (IEEE 1800-2017 6.20): see
+      // ivl_event_is_array() et al. in ivl_target.h.
+      bool is_array;
+      unsigned array_base;
+      unsigned array_count;
 };
 
 /*
@@ -927,6 +934,15 @@ struct ivl_statement_s {
 		  ivl_expr_t delay;    /* NB trigger delay, else 0 */
 		  ivl_statement_t stmt_; /* wait body, else 0 */
 	    } evobj_;
+
+	    struct { /* IVL_ST_TRIGGER_ARR IVL_ST_NB_TRIGGER_ARR
+			IVL_ST_WAIT_ARR */
+		  ivl_expr_t index;      /* element index expression */
+		  unsigned   base_slot;  /* design-global base slot */
+		  unsigned   count;      /* element count (bounds check) */
+		  ivl_expr_t delay;      /* NB trigger delay, else 0 */
+		  ivl_statement_t stmt_; /* wait body, else 0 */
+	    } evarr_;
 
 	    struct { /* IVL_ST_WHILE IVL_ST_REPEAT */
 		  ivl_expr_t cond_;

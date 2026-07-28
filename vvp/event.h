@@ -459,4 +459,13 @@ class vvp_named_event_dyn : public vvp_named_event {
       vthread_t threads_;
 };
 
+/*
+ * Named-event array element storage (IEEE 1800-2017 6.20). Maps a
+ * compiler-assigned design-global slot (one per array element) to a
+ * lazily-allocated vvp_net_t whose functor is a vvp_named_event_dyn, so
+ * ->arr[i], @(arr[i]) and (eventually) arr[i].triggered all share the
+ * normal named-event wait/trigger machinery. See vvp/event.cc.
+ */
+extern class vvp_net_t* event_array_slot_net(uint32_t slot);
+
 #endif /* IVL_event_H */

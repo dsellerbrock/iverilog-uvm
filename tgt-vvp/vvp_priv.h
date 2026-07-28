@@ -237,6 +237,14 @@ extern void resize_vec4_wid(ivl_expr_t expr, unsigned wid);
 extern void draw_eval_real(ivl_expr_t ex);
 
 /*
+ * draw_expr_into_idx evaluates an arbitrary (vec4 or real) expression
+ * and converts the result into an integer, left in index/word register
+ * <use_idx>. Used anywhere an expression needs to become a run-time
+ * word/element offset (delays, array indices, ...).
+ */
+extern void draw_expr_into_idx(ivl_expr_t expr, int use_idx);
+
+/*
  * The draw_eval_string function evaluates the expression as a string,
  * and pushes the string onto the string stack.
  */

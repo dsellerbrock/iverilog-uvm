@@ -22,12 +22,13 @@
 # include  "PEvent.h"
 
 PEvent::PEvent(perm_string n, unsigned lexical_pos)
-: name_(n), lexical_pos_(lexical_pos)
+: name_(n), lexical_pos_(lexical_pos), array_dims_(0)
 {
 }
 
 PEvent::~PEvent()
 {
+      delete array_dims_;
 }
 
 perm_string  PEvent::name() const

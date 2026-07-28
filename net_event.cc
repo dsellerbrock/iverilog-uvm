@@ -391,6 +391,62 @@ DelayType NetEvWaitObj::delay_type(bool) const
       return POSSIBLE_DELAY;
 }
 
+/*
+ * Reserve a contiguous run of design-global slots for a named-event
+ * array (IEEE 1800-2017 6.20), one per element. This counter is
+ * independent of the per-class obj_slot() numbering above -- array
+ * elements are looked up in a flat global table, not a per-object map,
+ * so the two numbering spaces never need to interoperate.
+ */
+void NetEvent::set_event_array(long msb, long lsb, unsigned count)
+{
+      static unsigned next_array_slot = 0;
+
+      is_event_array_ = true;
+      array_msb_ = msb;
+      array_lsb_ = lsb;
+      array_count_ = count;
+      array_base_slot_ = next_array_slot;
+      next_array_slot += count;
+}
+
+bool NetEvent::array_index_to_word(long index, unsigned&word) const
+{
+      long lo = (array_msb_ >= array_lsb_) ? array_lsb_ : array_msb_;
+      long hi = (array_msb_ >= array_lsb_) ? array_msb_ : array_lsb_;
+      if (index < lo || index > hi)
+	    return false;
+      word = (unsigned)(index - lo);
+      return true;
+}
+
+NetEvTrigArr::NetEvTrigArr(NetEvent*ev, NetExpr*idx, bool nb, NetExpr*dly)
+: event_(ev), index_(idx), nb_(nb), dly_(dly)
+{
+}
+
+NetEvTrigArr::~NetEvTrigArr()
+{
+      delete index_;
+      delete dly_;
+}
+
+NetEvWaitArr::NetEvWaitArr(NetEvent*ev, NetExpr*idx)
+: event_(ev), index_(idx)
+{
+}
+
+NetEvWaitArr::~NetEvWaitArr()
+{
+      delete index_;
+      delete statement_;
+}
+
+DelayType NetEvWaitArr::delay_type(bool) const
+{
+      return POSSIBLE_DELAY;
+}
+
 NetEvProbe::NetEvProbe(NetScope*s, perm_string n, NetEvent*tgt,
 		       edge_t t, unsigned p)
 : NetNode(s, n, p), event_(tgt), edge_(t)

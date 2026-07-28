@@ -449,7 +449,13 @@ typedef enum ivl_statement_type_e {
 	   slot instead of a static ivl_event_t. */
       IVL_ST_TRIGGER_OBJ    = 35,
       IVL_ST_NB_TRIGGER_OBJ = 36,
-      IVL_ST_WAIT_OBJ       = 37
+      IVL_ST_WAIT_OBJ       = 37,
+	/* Named-event array element operations (IEEE 1800-2017 6.20).
+	   These carry a run-time index expression plus the array's
+	   design-global base slot instead of a static ivl_event_t. */
+      IVL_ST_TRIGGER_ARR    = 38,
+      IVL_ST_NB_TRIGGER_ARR = 39,
+      IVL_ST_WAIT_ARR       = 40
 } ivl_statement_type_t;
 
 /* Case statements can be tagged as unique/unique0/priority. */
@@ -787,6 +793,15 @@ extern unsigned ivl_enum_lineno(ivl_enumtype_t net);
 extern const char* ivl_event_name(ivl_event_t net);
 extern const char* ivl_event_basename(ivl_event_t net);
 extern ivl_scope_t ivl_event_scope(ivl_event_t net);
+
+  /* A named-event array's group event (IEEE 1800-2017 6.20, e.g.
+     `event arr[3];`) -- each element is its own independent named
+     event, keyed by a design-global base slot plus a run-time index
+     (see IVL_ST_TRIGGER_ARR etc.). ivl_event_array_base()/_count() are
+     only meaningful when ivl_event_is_array() is true. */
+extern unsigned    ivl_event_is_array(ivl_event_t net);
+extern unsigned    ivl_event_array_base(ivl_event_t net);
+extern unsigned    ivl_event_array_count(ivl_event_t net);
 
 extern unsigned    ivl_event_nany(ivl_event_t net);
 extern ivl_nexus_t ivl_event_any(ivl_event_t net, unsigned idx);
@@ -2365,6 +2380,12 @@ extern ivl_event_t ivl_stmt_events(ivl_statement_t net, unsigned idx);
      the object-handle expression and the per-class event slot. */
 extern ivl_expr_t  ivl_stmt_evobj_expr(ivl_statement_t net);
 extern unsigned    ivl_stmt_evobj_slot(ivl_statement_t net);
+  /* IVL_ST_TRIGGER_ARR IVL_ST_NB_TRIGGER_ARR IVL_ST_WAIT_ARR:
+     the run-time element index expression, the array's design-global
+     base slot, and its element count (for bounds checking). */
+extern ivl_expr_t  ivl_stmt_evarr_index(ivl_statement_t net);
+extern unsigned    ivl_stmt_evarr_base(ivl_statement_t net);
+extern unsigned    ivl_stmt_evarr_count(ivl_statement_t net);
   /* IVL_ST_DISABLE */
 extern bool ivl_stmt_flow_control(ivl_statement_t net);
   /* IVL_ST_CONTRIB */
