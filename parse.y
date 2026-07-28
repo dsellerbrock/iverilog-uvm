@@ -232,195 +232,6 @@ static Statement* pform_stream_lval_assign(const struct vlltype&loc,
       return tmp;
 }
 
-/* Phase 63b/B8 (gap close): range bound for std::randomize with-clause
- * detection.  Used to lower simple range constraints to
- * $urandom_range, which gives uniform sampling over the bounded
- * domain instead of the retry-loop's best-effort approach (which
- * fails for ranges < ~1% of 2^32).  See std_rand_collect_bounds_(). */
-struct b8_range_t {
-      bool has_min = false;
-      bool has_max = false;
-      int64_t min_v = 0;
-      int64_t max_v = 0;
-};
-
-/* Phase 63b/B8 (gap close): enum-form detection.  Recognizes
- *   arg inside { v1, v2, v3, ... }
- * (a single PEInside with all single-value entries).  Lowered to a
- * uniform pick:
- *   begin arg = $urandom_range(0, N-1);
- *         case (arg) 0:arg=v1; 1:arg=v2; ...; endcase
- *   end
- * Returns true if the constraint matches and populates `values`. */
-static bool std_rand_collect_enum_(const PExpr*expr,
-				   const std::string&arg_name,
-				   std::vector<int64_t>&values)
-{
-      if (!expr) return false;
-      auto*ins = dynamic_cast<const PEInside*>(expr);
-      if (!ins) return false;
-      auto*ide = dynamic_cast<const PEIdent*>(ins->get_expr());
-      if (!ide || ide->path().size() != 1) return false;
-      if (ide->path().back().name.str() != arg_name) return false;
-      auto extract = [](const PExpr*e, int64_t&out)->bool {
-	    if (auto*n = dynamic_cast<const PENumber*>(e)) {
-		  out = n->value().as_long(); return true;
-	    }
-	    if (auto*u = dynamic_cast<const PEUnary*>(e)) {
-		  if (u->get_op() == '-')
-			if (auto*n = dynamic_cast<const PENumber*>(u->get_expr())) {
-			      out = -n->value().as_long(); return true;
-			}
-	    }
-	    return false;
-      };
-      const auto&ranges = ins->get_ranges();
-      if (ranges.empty()) return false;
-      values.clear();
-      for (const auto&r : ranges) {
-	    if (r.weight) return false;
-	    if (r.is_range) {
-		  /* For range entries inside enum-form, expand the range
-		     fully — but only if it's small (<= 256 values) to
-		     avoid runaway code.  Otherwise fall back to retry. */
-		  int64_t lo, hi;
-		  if (!extract(r.lo, lo)) return false;
-		  if (!extract(r.hi, hi)) return false;
-		  if (hi < lo) return false;
-		  if (hi - lo > 255) return false;
-		  for (int64_t v = lo; v <= hi; v++) values.push_back(v);
-	    } else {
-		  /* Single-value entry: parser stores it in r.hi
-		     (with r.lo = nullptr).  See inside_value_range
-		     production. */
-		  int64_t v;
-		  if (!extract(r.hi, v)) return false;
-		  values.push_back(v);
-	    }
-      }
-      return !values.empty();
-}
-
-/* Walk a constraint PExpr AST and collect simple range bounds for the
- * named arg.  Returns true if the entire AST consists of supported
- * range patterns ((arg > C), (arg < C), (arg >= C), (arg <= C),
- * (arg == C), `arg inside [lo:hi]`, `arg inside {v}` and conjunctions
- * thereof), false otherwise (caller should fall back to retry loop).
- * C/lo/hi/v must be PENumber (or PEUnary('-', PENumber) for negative). */
-static bool std_rand_collect_bounds_(const PExpr*expr,
-				     const std::string&arg_name,
-				     b8_range_t&r)
-{
-      if (!expr) return true;
-      // Conjunction: a && b
-      if (auto*lg = dynamic_cast<const PEBLogic*>(expr)) {
-	    if (lg->get_op() != 'a') return false;
-	    return std_rand_collect_bounds_(lg->get_left(),  arg_name, r)
-		&& std_rand_collect_bounds_(lg->get_right(), arg_name, r);
-      }
-      // `arg inside { ... }` — handle single range or single value forms.
-      if (auto*ins = dynamic_cast<const PEInside*>(expr)) {
-	    auto*ide = dynamic_cast<const PEIdent*>(ins->get_expr());
-	    if (!ide || ide->path().size() != 1) return false;
-	    if (ide->path().back().name.str() != arg_name) return false;
-	    auto extract_num_local = [](const PExpr*e, int64_t&out)->bool {
-		  if (auto*n = dynamic_cast<const PENumber*>(e)) {
-			out = n->value().as_long(); return true;
-		  }
-		  if (auto*u = dynamic_cast<const PEUnary*>(e)) {
-			if (u->get_op() == '-')
-			      if (auto*n = dynamic_cast<const PENumber*>(u->get_expr())) {
-				    out = -n->value().as_long(); return true;
-			      }
-		  }
-		  return false;
-	    };
-	    const auto&ranges = ins->get_ranges();
-	    if (ranges.size() != 1) return false;  // multi-element handled by fallback
-	    const auto&rg = ranges[0];
-	    if (rg.weight) return false;  // dist not handled here
-	    if (rg.is_range) {
-		  // arg inside [lo:hi]  →  min=lo, max=hi
-		  int64_t lo, hi;
-		  if (!extract_num_local(rg.lo, lo)) return false;
-		  if (!extract_num_local(rg.hi, hi)) return false;
-		  if (!r.has_min || lo > r.min_v) { r.min_v = lo; r.has_min = true; }
-		  if (!r.has_max || hi < r.max_v) { r.max_v = hi; r.has_max = true; }
-		  return true;
-	    } else {
-		  // arg inside {v}  →  arg == v.  Single-value entry: parser
-		  // stores the value in rg.hi (rg.lo = nullptr).
-		  int64_t v;
-		  if (!extract_num_local(rg.hi, v)) return false;
-		  r.min_v = v; r.max_v = v;
-		  r.has_min = r.has_max = true;
-		  return true;
-	    }
-      }
-      // Comparison: arg <op> const  or  const <op> arg.  The const may
-      // be wrapped in PEUnary('-', PENumber) for negative literals.
-      const PEBinary*cmp = dynamic_cast<const PEBComp*>(expr);
-      if (!cmp) cmp = dynamic_cast<const PEBinary*>(expr);
-      if (!cmp) return false;
-      char op = cmp->get_op();
-      auto extract_num = [](const PExpr*e, int64_t&out)->bool {
-	    if (auto*n = dynamic_cast<const PENumber*>(e)) {
-		  out = n->value().as_long();
-		  return true;
-	    }
-	    if (auto*u = dynamic_cast<const PEUnary*>(e)) {
-		  if (u->get_op() == '-') {
-			int64_t inner;
-			if (auto*n = dynamic_cast<const PENumber*>(u->get_expr())) {
-			      inner = n->value().as_long();
-			      out = -inner;
-			      return true;
-			}
-		  }
-	    }
-	    return false;
-      };
-      const PEIdent*ide = dynamic_cast<const PEIdent*>(cmp->get_left());
-      int64_t v;
-      bool got_num = extract_num(cmp->get_right(), v);
-      bool swapped = false;
-      if (!(ide && got_num)) {
-	    ide = dynamic_cast<const PEIdent*>(cmp->get_right());
-	    got_num = extract_num(cmp->get_left(), v);
-	    swapped = true;
-      }
-      if (!ide || !got_num) return false;
-      if (ide->path().size() != 1) return false;
-      if (ide->path().back().name.str() != arg_name) return false;
-      if (swapped) {
-	    /* C <op> arg  →  arg <swapped-op> C */
-	    if (op == '<') op = '>';
-	    else if (op == '>') op = '<';
-	    else if (op == 'L') op = 'G';
-	    else if (op == 'G') op = 'L';
-      }
-      switch (op) {
-	  case '>':                              // arg > v   → min = v+1
-	    if (!r.has_min || v + 1 > r.min_v) { r.min_v = v + 1; r.has_min = true; }
-	    return true;
-	  case 'G':                              // arg >= v  → min = v
-	    if (!r.has_min || v > r.min_v)     { r.min_v = v;     r.has_min = true; }
-	    return true;
-	  case '<':                              // arg < v   → max = v-1
-	    if (!r.has_max || v - 1 < r.max_v) { r.max_v = v - 1; r.has_max = true; }
-	    return true;
-	  case 'L':                              // arg <= v  → max = v
-	    if (!r.has_max || v < r.max_v)     { r.max_v = v;     r.has_max = true; }
-	    return true;
-	  case 'e':                              // arg == v  → fixed
-	    r.min_v = v; r.max_v = v;
-	    r.has_min = r.has_max = true;
-	    return true;
-	  default:
-	    return false;
-      }
-}
-
 static void check_in_gen_region(const struct vlltype &loc)
 {
       if (in_gen_region) {
@@ -13721,7 +13532,12 @@ statement_item /* This is roughly statement_item in the LRM */
 	delete[]$6;
 	delete $7;
 	if ($10) {
-	      while (!$10->empty()) { delete $10->front(); $10->pop_front(); }
+	      std::vector<PExpr*> wc;
+	      while (!$10->empty()) {
+		    wc.push_back($10->front());
+		    $10->pop_front();
+	      }
+	      tmp->set_with_constraints(std::move(wc));
 	      delete $10;
 	}
 	pform_requires_sv(@8, "void'(pkg::func with-clause)");
@@ -13757,263 +13573,31 @@ statement_item /* This is roughly statement_item in the LRM */
   | subroutine_call ';'
       { $$ = $1;
       }
-  /* C6 (Phase 62e): bare-statement form of pkg::func(args) with {...};
-     Used by `std::randomize(x) with {...};`.  Direct statement-item
-     pattern to avoid shift-reduce conflicts via the subroutine_call
-     intermediate.
-     Phase 63b/B8 (real impl): for `std::randomize(args) with {...};`
-     lower the call to a sequential block of `arg = $random;`
-     assignments — the variables actually receive random values now
-     instead of being silent no-ops.  The with-clause constraints
-     are still dropped (no Z3 routing yet); a one-time advisory
-     surfaces that gap so users don't trust the constraint output.
-     For other pkg::func(args) with{} forms, fall through to the
-     existing PCallTask stub. */
+  /* IEEE 1800-2017 18.12: preserve the constraint AST on the ordinary
+     PCallTask. Elaboration routes std::randomize through the shared Z3
+     expression/task lowering; other package-function with-clauses retain
+     their compile-progress diagnostic. */
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with '{' constraint_block_item_list_opt '}' ';'
       { Statement*stmt = nullptr;
 	bool is_std_rand = ($1 && $3
 			    && strcmp($1, "std")==0
 			    && strcmp($3, "randomize")==0
 			    && $4 && !$4->empty());
-	if (is_std_rand) {
-	      /* Phase 63b/B8 (gap close): real with-clause enforcement.
-		 Two paths:
-		 (A) Range-bound fast path: if the constraint is a
-		     conjunction of `arg <op> const` patterns where each
-		     arg has clean min/max bounds, lower the assignment
-		     to `arg = $urandom_range(min, max)`.  This handles
-		     tight ranges (e.g. 1<x<16) that the retry loop
-		     can't satisfy in finite tries.
-		 (B) Retry loop fallback: for arbitrary constraints,
-		       repeat (4096) begin args=$random; if (CONSTR) break; end
-		     Best-effort; tight-domain constraints that don't
-		     match (A) and have <0.1% prob will likely not
-		     converge — those need full Z3 routing (future). */
-	      std::vector<std::string> arg_names;
-	      for (auto &arg : *$4) {
-		    if (!arg.parm) { arg_names.push_back(""); continue; }
-		    auto*aid = dynamic_cast<PEIdent*>(arg.parm);
-		    if (aid && aid->path().size() == 1)
-			  arg_names.push_back(aid->path().back().name.str());
-		    else
-			  arg_names.push_back("");
+	pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PCallTask*call = pform_make_call_task(@1, hident, *$4);
+	stmt = call;
+	if (is_std_rand && $7) {
+	      std::vector<PExpr*> wc;
+	      while (!$7->empty()) {
+		    wc.push_back($7->front());
+		    $7->pop_front();
 	      }
-
-	      /* Try the range-bound fast path: collect bounds for each
-		 arg from the constraint list.  If every arg gets a
-		 clean min+max and every constraint item is recognized,
-		 lower to $urandom_range. */
-	      bool fast_path_ok = true;
-	      std::vector<b8_range_t> bounds(arg_names.size());
-	      if (!$7 || $7->empty()) {
-		    fast_path_ok = false;  // no constraints — no fast path
-	      } else if (arg_names.empty()) {
-		    fast_path_ok = false;
-	      } else {
-		    for (size_t ai = 0; ai < arg_names.size(); ai++) {
-			  if (arg_names[ai].empty()) {
-				fast_path_ok = false; break;
-			  }
-			  for (PExpr*c : *$7) {
-				if (!c) continue;
-				if (!std_rand_collect_bounds_(c,
-				        arg_names[ai], bounds[ai])) {
-				      fast_path_ok = false; break;
-				}
-			  }
-			  if (!fast_path_ok) break;
-			  if (!bounds[ai].has_min || !bounds[ai].has_max) {
-				fast_path_ok = false; break;
-			  }
-			  if (bounds[ai].min_v > bounds[ai].max_v) {
-				fast_path_ok = false; break;  // contradictory
-			  }
-		    }
-	      }
-
-	      /* Per-arg enum detection: if arg's constraint is a single
-		 `inside { v1, v2, v3, ... }`, prefer the enum-pick
-		 lowering over the bounds-fast-path or retry. */
-	      std::vector<std::vector<int64_t> > arg_enums(arg_names.size());
-	      std::vector<bool> arg_is_enum(arg_names.size(), false);
-	      if (!fast_path_ok && $7 && !$7->empty() && !arg_names.empty()) {
-		    bool all_enum = true;
-		    for (size_t ai = 0; ai < arg_names.size(); ai++) {
-			  if (arg_names[ai].empty()) { all_enum = false; break; }
-			  bool found = false;
-			  for (PExpr*c : *$7) {
-				if (!c) continue;
-				std::vector<int64_t> vals;
-				if (std_rand_collect_enum_(c, arg_names[ai], vals)) {
-				      arg_enums[ai] = vals;
-				      arg_is_enum[ai] = true;
-				      found = true;
-				      break;
-				}
-			  }
-			  if (!found) { all_enum = false; break; }
-		    }
-		    if (!all_enum) {
-			  for (size_t ai = 0; ai < arg_names.size(); ai++)
-				arg_is_enum[ai] = false;
-		    } else {
-			  /* For enum mode we no longer need the retry loop
-			     fallback; treat it like a fast path. */
-			  fast_path_ok = true;
-		    }
-	      }
-
-	      std::vector<Statement*> rand_assign_stmts;
-	      size_t ai = 0;
-	      for (auto &arg : *$4) {
-		    if (!arg.parm) { ai++; continue; }
-		    PExpr*rng_call = nullptr;
-		    if (arg_is_enum[ai]) {
-			  /* arg = $urandom_range(0, N-1); case(arg) 0:arg=v0; ... */
-			  std::vector<int64_t>&vals = arg_enums[ai];
-			  std::vector<named_pexpr_t> ur_parms;
-			  named_pexpr_t lo_p, hi_p;
-			  lo_p.parm = new PENumber(new verinum((uint64_t)0, 32));
-			  FILE_NAME(lo_p.parm, @1);
-			  hi_p.parm = new PENumber(new verinum((uint64_t)(vals.size()-1), 32));
-			  FILE_NAME(hi_p.parm, @1);
-			  ur_parms.push_back(hi_p);
-			  ur_parms.push_back(lo_p);
-			  PECallFunction*ur = new PECallFunction(
-				perm_string::literal("$urandom_range"), ur_parms);
-			  FILE_NAME(ur, @1);
-			  PAssign*idx_assign = new PAssign(arg.parm, ur);
-			  FILE_NAME(idx_assign, @1);
-
-			  /* Build PCase items: for each i, item where expr=i,
-			     stmt = arg = vals[i]. */
-			  std::vector<PCase::Item*>*items =
-				new std::vector<PCase::Item*>();
-			  for (size_t vi = 0; vi < vals.size(); vi++) {
-				PCase::Item*it = new PCase::Item;
-				PENumber*ki = new PENumber(
-				      new verinum((uint64_t)vi, 32));
-				FILE_NAME(ki, @1);
-				it->expr.push_back(ki);
-				PENumber*v = new PENumber(
-				      new verinum((int64_t)vals[vi]));
-				FILE_NAME(v, @1);
-				PAssign*va = new PAssign(arg.parm, v);
-				FILE_NAME(va, @1);
-				it->stat = va;
-				items->push_back(it);
-			  }
-			  PCase*cs = new PCase(IVL_CASE_QUALITY_BASIC,
-					       NetCase::EQ, arg.parm, items);
-			  FILE_NAME(cs, @1);
-			  PBlock*enum_blk = new PBlock(PBlock::BL_SEQ);
-			  FILE_NAME(enum_blk, @1);
-			  std::vector<Statement*> enum_stmts;
-			  enum_stmts.push_back(idx_assign);
-			  enum_stmts.push_back(cs);
-			  enum_blk->set_statement(enum_stmts);
-			  rand_assign_stmts.push_back(enum_blk);
-			  ai++;
-			  continue;
-		    }
-		    if (fast_path_ok) {
-			  /* arg = $urandom_range(max-min) + min */
-			  int64_t mn = bounds[ai].min_v;
-			  int64_t mx = bounds[ai].max_v;
-			  uint64_t span = (uint64_t)(mx - mn);
-			  std::vector<named_pexpr_t> ur_parms;
-			  named_pexpr_t lo_p, hi_p;
-			  lo_p.parm = new PENumber(new verinum((uint64_t)0, 32));
-			  FILE_NAME(lo_p.parm, @1);
-			  hi_p.parm = new PENumber(new verinum(span, 32));
-			  FILE_NAME(hi_p.parm, @1);
-			  ur_parms.push_back(hi_p);
-			  ur_parms.push_back(lo_p);
-			  PECallFunction*ur = new PECallFunction(
-				perm_string::literal("$urandom_range"), ur_parms);
-			  FILE_NAME(ur, @1);
-			  if (mn == 0) {
-				rng_call = ur;
-			  } else {
-				PENumber*offs = new PENumber(
-				      new verinum((int64_t)mn));
-				FILE_NAME(offs, @1);
-				PEBinary*sum = new PEBinary('+', ur, offs);
-				FILE_NAME(sum, @1);
-				rng_call = sum;
-			  }
-		    } else {
-			  rng_call = new PECallFunction(
-				perm_string::literal("$random"));
-			  FILE_NAME(rng_call, @1);
-		    }
-		    PAssign*a = new PAssign(arg.parm, rng_call);
-		    FILE_NAME(a, @1);
-		    rand_assign_stmts.push_back(a);
-		    ai++;
-	      }
-
-	      /* Combine constraint items via &&. */
-	      PExpr*combined = nullptr;
-	      if ($7) {
-		    for (PExpr*c : *$7) {
-			  if (!c) continue;
-			  if (!combined) {
-				combined = c;
-			  } else {
-				PEBinary*conj = new PEBLogic('a', combined, c);
-				FILE_NAME(conj, @5);
-				combined = conj;
-			  }
-		    }
-	      }
-
-	      PBlock*outer = new PBlock(PBlock::BL_SEQ);
-	      FILE_NAME(outer, @1);
-	      std::vector<Statement*> outer_stmts;
-
-	      if (fast_path_ok) {
-		    /* Range-bound fast path: just emit per-arg
-		       $urandom_range — single uniform draw per arg. */
-		    outer_stmts = rand_assign_stmts;
-		    /* Constraint expressions consumed in the analysis
-		       above; they are not owned by anything else, so
-		       delete them. */
-		    if ($7) {
-			  for (PExpr*c : *$7) delete c;
-		    }
-	      } else if (combined) {
-		    /* Retry-loop fallback: repeat (4096) { args=$random;
-		       if (CONSTR) break; } */
-		    PBlock*body = new PBlock(PBlock::BL_SEQ);
-		    FILE_NAME(body, @1);
-		    std::vector<Statement*> body_stmts = rand_assign_stmts;
-		    PBreak*brk = new PBreak;
-		    FILE_NAME(brk, @1);
-		    PCondit*cond = new PCondit(combined, brk, nullptr);
-		    FILE_NAME(cond, @5);
-		    body_stmts.push_back(cond);
-		    body->set_statement(body_stmts);
-
-		    PENumber*n = new PENumber(new verinum((uint64_t)4096, 32));
-		    FILE_NAME(n, @1);
-		    PRepeat*rep = new PRepeat(n, body);
-		    FILE_NAME(rep, @1);
-		    outer_stmts.push_back(rep);
-	      } else {
-		    /* No constraints — just one round of $random. */
-		    outer_stmts = rand_assign_stmts;
-	      }
-	      outer->set_statement(outer_stmts);
-	      stmt = outer;
-	      /* Constraint list shell can be freed; items are owned
-		 (or freed) above. */
-	      if ($7) { delete $7; $7 = nullptr; }
+	      call->set_with_constraints(std::move(wc));
+	      delete $7;
+	      $7 = nullptr;
 	} else {
-	      pform_name_t hident;
-	      hident.push_back(name_component_t(lex_strings.make($1)));
-	      hident.push_back(name_component_t(lex_strings.make($3)));
-	      stmt = pform_make_call_task(@1, hident, *$4);
 	      static bool warned = false;
 	      if (!warned) {
 		    std::cerr << @5
