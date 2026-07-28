@@ -119,3 +119,6 @@ dep
 # Check output
 /check.vvp
 ivlpp/lex.yy.c
+
+# Ephemeral subagent worktrees
+.claude/worktrees/
