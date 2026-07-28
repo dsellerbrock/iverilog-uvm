@@ -2256,12 +2256,18 @@ bool uarray_element_matches_container_(const netuarray_t*dst,
 }
 
 /*
- * A `ref' formal is represented as a real reference only for the types
- * whose reads and writes go through the generic signal-value interface
- * -- packed integral variables. A real, string, class-handle or
- * container formal is read by an opcode that reaches for a
- * type-specific functor instead, which a bound formal cannot answer, so
- * those keep the copy-in/copy-out pair they have always had.
+ * A `ref' formal is represented as a real reference for the types whose
+ * reads and writes go through an interface the bound-formal functor
+ * (vvp_ref_signal_aa) can answer: packed integral variables (the
+ * generic vvp_signal_value interface) and class handles (the
+ * vvp_fun_signal_object interface -- see vvp_ref_signal_aa in
+ * vvp_net_sig.h/.cc, which forwards get_object()/recv_object()/etc. to
+ * whatever the bound target's own object functor is). A real, string or
+ * container (dynamic array, queue, fixed array) formal is read by an
+ * opcode that reaches for a *different* type-specific functor instead
+ * (vvp_fun_signal_real/string, or the container element/word opcodes),
+ * which vvp_ref_signal_aa does not implement, so those keep the
+ * copy-in/copy-out pair they have always had.
  */
 bool ref_formal_is_bound(const NetNet*port)
 {
@@ -2301,15 +2307,19 @@ bool ref_formal_is_bound(const NetNet*port)
       ivl_type_t ptype = port->net_type();
       if (dynamic_cast<const netdarray_t*>(ptype))    // dynamic array, queue
 	    return false;
-      if (dynamic_cast<const netclass_t*>(ptype))
-	    return false;
-      if (dynamic_cast<const netarray_t*>(ptype))
+      if (dynamic_cast<const netarray_t*>(ptype))     // fixed array
 	    return false;
 
       switch (port->data_type()) {
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
 	    return true;
+	  case IVL_VT_CLASS:
+	      /* A class handle is a single machine word (a reference), not
+		 a container: it has none of the aggregate-copy hazards a
+		 darray/queue/fixed-array formal has, and vvp_ref_signal_aa
+		 answers the object accessor interface for it (see above). */
+	    return dynamic_cast<const netclass_t*>(ptype) != 0;
 	  default:
 	    return false;
       }

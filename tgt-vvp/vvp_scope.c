@@ -631,10 +631,33 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		 into the companion, binds the formal to it, and copies
 		 it back, which is the copy-in/copy-out those shapes had
 		 before. It is per-frame like everything else here, so
-		 recursion and concurrent calls each get their own. */
-	    fprintf(vvp_out, "v%p_R .var/2s *%s\"%s$ref\", %d %d;\n",
-		    sig, storage_flag_str(sig),
-		    vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb);
+		 recursion and concurrent calls each get their own.
+
+		 A class-handle formal's companion has to be an object
+		 variable (.var/cobj), not a vector reg: vvp_ref_signal_aa
+		 answers the object accessor interface (get_object() and
+		 friends), not the vec4 one, for a class-typed binding, and
+		 a .var/2s companion would not carry the type the runtime's
+		 class-cast/property opcodes expect. Every other type here
+		 keeps the original vector companion. */
+	    if (ivl_signal_data_type(sig) == IVL_VT_CLASS) {
+		  ivl_type_t ref_type = ivl_signal_net_type(sig);
+		  if (ref_type && ivl_type_base(ref_type) == IVL_VT_CLASS) {
+			draw_class_in_scope(ref_type);
+			fprintf(vvp_out, "v%p_R .var/cobj *%s\"%s$ref\", TC%p;\n",
+				sig, storage_flag_str(sig),
+				vvp_mangle_name(ivl_signal_basename(sig)),
+				ref_type);
+		  } else {
+			fprintf(vvp_out, "v%p_R .var/cobj *%s\"%s$ref\";\n",
+				sig, storage_flag_str(sig),
+				vvp_mangle_name(ivl_signal_basename(sig)));
+		  }
+	    } else {
+		  fprintf(vvp_out, "v%p_R .var/2s *%s\"%s$ref\", %d %d;\n",
+			  sig, storage_flag_str(sig),
+			  vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb);
+	    }
 	    return;
       }
 
