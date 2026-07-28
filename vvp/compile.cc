@@ -466,12 +466,12 @@ static const struct opcode_table_s opcode_table[] = {
       { "%rand_mode/p",    of_RAND_MODE_P,     1,{OA_NUMBER, OA_NONE,OA_NONE} },
       { "%randomize",      of_RANDOMIZE,      0,{OA_NONE,   OA_NONE,OA_NONE} },
       { "%randomize/with", of_RANDOMIZE_WITH,  2,{OA_STRING, OA_BIT1,OA_NONE} },
+      { "%reactive/process",of_REACTIVE_PROCESS,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%ref/bind",  of_REF_BIND,    2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%ref/bind/f",of_REF_BIND_F,  2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%release/net",of_RELEASE_NET,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/reg",of_RELEASE_REG,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/wr", of_RELEASE_WR, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
-      { "%reactive/process",of_REACTIVE_PROCESS,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%rep/str",   of_REP_STR,     1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%replicate", of_REPLICATE,   1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%ret/obj",   of_RET_OBJ,     1,{OA_NUMBER,  OA_NONE,OA_NONE} },
@@ -1557,8 +1557,37 @@ void compile_vpi_symbol(const char*label, vpiHandle obj)
  * Initialize the compiler by allocation empty symbol tables and
  * initializing the various address spaces.
  */
+/*
+ * opcode_table is searched with bsearch(), so it has to be sorted by
+ * mnemonic. A single entry in the wrong place does not break only that
+ * entry: bsearch then mis-navigates a whole RANGE, and unrelated
+ * instructions that have worked for years start reporting "Invalid
+ * opcode" at load time -- a legal design simply refuses to run, and the
+ * message points at the innocent instruction rather than at the table.
+ *
+ * That is far too quiet a failure for an invariant a one-line edit can
+ * violate, so check it once at startup and name the offending pair.
+ */
+static void check_opcode_table_order_(void)
+{
+      for (unsigned idx = 1 ; idx < opcode_count ; idx += 1) {
+	    if (strcmp(opcode_table[idx-1].mnemonic,
+		       opcode_table[idx].mnemonic) < 0)
+		  continue;
+
+	    fprintf(stderr, "COMPILER ERROR: the vvp opcode table is not "
+		    "sorted: \"%s\" precedes \"%s\". The table is searched "
+		    "with bsearch(), so this silently breaks lookups for a "
+		    "range of unrelated instructions.\n",
+		    opcode_table[idx-1].mnemonic, opcode_table[idx].mnemonic);
+	    exit(1);
+      }
+}
+
 void compile_init(void)
 {
+      check_opcode_table_order_();
+
       sym_vpi = new_symbol_table();
 
       sym_functors = new_symbol_table();
