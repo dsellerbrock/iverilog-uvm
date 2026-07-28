@@ -12947,17 +12947,19 @@ bool PPackage::elaborate(Design*des, NetScope*scope) const
 {
       bool result_flag = true;
 
+	// Elaborate class definitions before package functions/tasks. A
+	// standalone covergroup is represented by a synthesized class, and
+	// its coverpoint metadata is built by netclass_t::elaborate(). Task
+	// bodies that call sample() need that metadata while they themselves
+	// are elaborated; doing the tasks first silently emitted a zero-input
+	// sample operation. Keep lexical class order for static initializers.
+      elaborate_classes_lexical(des, scope, classes_lexical);
+
 	// Elaborate function methods, and...
       elaborate_functions(des, scope, funcs);
 
 	// Elaborate task methods.
       elaborate_tasks(des, scope, tasks);
-
-	// Elaborate class definitions in declaration (lexical) order so
-	// the static initializers run in declaration order (I5 fix —
-	// uvm_register_cb relies on the base typed_callbacks#(T)::m_b_inst
-	// being initialized before the derived class's m_register_pair).
-      elaborate_classes_lexical(des, scope, classes_lexical);
 
 	// M11-3: auto-sampling processes for covergroups with a
 	// declaration sampling event declared at package scope.
@@ -13314,6 +13316,13 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // Elaborate within the generate blocks.
 	    for (const auto cur : generate_schemes) cur->elaborate(des, scope);
 
+	      // Elaborate class definitions in declaration (lexical) order
+	      // before ordinary module functions/tasks. Besides preserving
+	      // static-initializer order (I5), this makes synthesized
+	      // covergroup metadata available when a module-scope task body
+	      // containing cg.sample() is lowered.
+	    elaborate_classes_lexical(des, scope, classes_lexical);
+
 	      // Elaborate functions.
 	    elaborate_functions(des, scope, funcs);
 
@@ -13321,10 +13330,6 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // behaviors so that task calls may reference these, and after
 	      // the signals so that the tasks can reference them.
 	    elaborate_tasks(des, scope, tasks);
-
-	      // Elaborate class definitions in declaration (lexical) order
-	      // so static initializers fire in declaration order (I5 fix).
-	    elaborate_classes_lexical(des, scope, classes_lexical);
 
 	      // M11-2/3: auto-sampling processes for standalone
 	      // covergroup instances and class-embedded covergroups
