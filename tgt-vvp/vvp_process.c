@@ -1608,7 +1608,14 @@ static int show_stmt_fork(ivl_statement_t net, ivl_scope_t sscope)
 	    child_split[idx] = split;
 	    for (int j = 0 ; j < split ; j += 1)
 		  rc += show_statement(ivl_stmt_block_stmt(child, j), scope);
-	    fprintf(vvp_out, "    %%fork t_%u, S_%p;\n",
+	      /* %fork/p, not %fork: a branch is its own PROCESS (9.7).
+	         An anonymous branch is compiled with the ENCLOSING scope,
+	         so the runtime cannot tell it from a task-call or
+	         begin-frame wrapper by scope type -- inside a task body
+	         every branch looked like the task frame itself, and
+	         process::self() in the branch answered with the caller's
+	         handle. Say it explicitly instead. */
+	    fprintf(vvp_out, "    %%fork/p t_%u, S_%p;\n",
 		    id_base+idx, scope);
       }
 

@@ -246,6 +246,7 @@ extern bool of_FORCE_VEC4_OFF(vthread_t thr, vvp_code_t code);
 extern bool of_FORCE_VEC4_OFF_D(vthread_t thr, vvp_code_t code);
 extern bool of_FORCE_WR(vthread_t thr, vvp_code_t code);
 extern bool of_FORK(vthread_t thr, vvp_code_t code);
+extern bool of_FORK_P(vthread_t thr, vvp_code_t code);
 extern bool of_FORK_V(vthread_t thr, vvp_code_t code);
 extern bool of_FREE(vthread_t thr, vvp_code_t code);
 extern bool of_HIST_ON(vthread_t thr, vvp_code_t code);

@@ -730,6 +730,11 @@ inline string vthread_s::get_fileline()
       return res;
 }
 
+	/* Defined later in this file; needed by vvp_process::status(). */
+extern struct vthread_s*running_thread;
+static void logical_process_threads_(vthread_t thr,
+				     std::vector<vthread_t>&out);
+
 vvp_process::vvp_process(vthread_t owner)
 : owner_(owner), final_status_(PROCESS_STATE_RUNNING), final_status_valid_(false)
 {
@@ -804,6 +809,24 @@ unsigned vvp_process::status() const
 
       if (owner_->suspended)
 	    return PROCESS_STATE_SUSPENDED;
+
+	/* A process is its root thread PLUS the synchronous frames it
+	   is executing through -- a named begin/end body or a task call
+	   runs in a child vthread while the root parks in %join. Ask
+	   only the root and every such process reported WAITING for its
+	   entire life, including to itself: `process::self().status()'
+	   from inside an initial block whose body ran in a begin-frame
+	   child came back WAITING while the caller was, demonstrably,
+	   running. If the thread executing RIGHT NOW is any part of
+	   this process, the process is RUNNING. */
+      {
+	    std::vector<vthread_t> parts;
+	    logical_process_threads_(owner_, parts);
+	    for (size_t idx = 0 ; idx < parts.size() ; idx += 1) {
+		  if (parts[idx] == running_thread)
+			return PROCESS_STATE_RUNNING;
+	    }
+      }
 
       if (owner_->i_am_waiting || owner_->waiting_for_event
 	  || owner_->i_am_joining || owner_->i_am_delaying)
@@ -10573,7 +10596,7 @@ bool of_FORCE_WR(vthread_t thr, vvp_code_t cp)
  * added to the list of children, and for me to be the parent of the
  * new child.
  */
-bool of_FORK(vthread_t thr, vvp_code_t cp)
+static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
       __vpiScope*child_ctx_scope = resolve_context_scope(cp->scope);
@@ -10676,10 +10699,25 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
 	   `begin : b  automatic int z; ... end' returned a DIFFERENT handle
 	   from the enclosing process -- silently, and including for the
 	   block's own declaration initializers, which run in the parent
-	   while the body runs in the child. Fork branches keep their own
-	   identity: their scopes are vpiNamedFork, not vpiNamedBegin. */
-      if (cp->scope->get_type_code() == vpiTask
-	  || cp->scope->get_type_code() == vpiNamedBegin)
+	   while the body runs in the child.
+
+	   The scope's TYPE cannot make this call on its own: an
+	   anonymous fork branch is compiled with its ENCLOSING scope,
+	   so a branch spawned inside a task body or inside a
+	   frame-owning begin block arrived here wearing vpiTask or
+	   vpiNamedBegin and was silently reclassified as a
+	   continuation of its parent -- process::self() inside every
+	   branch of an ordinary `fork..join_none' then returned the
+	   SAME handle, the enclosing process's, and each branch's own
+	   identity (its status, its suspend/kill target) was simply
+	   unreachable. The code generator knows which construct it is
+	   emitting, so a true fork BRANCH now arrives through %fork/p
+	   (child_is_process set) and skips the heuristic; the scope
+	   test remains only for the wrapper spellings that reach plain
+	   %fork. */
+      if (!child_is_process
+	  && (cp->scope->get_type_code() == vpiTask
+	      || cp->scope->get_type_code() == vpiNamedBegin))
 	    child->is_fork_v_child = 1;
       thr->children.insert(child);
 
@@ -10699,6 +10737,24 @@ bool of_FORK(vthread_t thr, vvp_code_t cp)
 	      }
 	    }
 	      return true;
+}
+
+bool of_FORK(vthread_t thr, vvp_code_t cp)
+{
+      return do_fork_(thr, cp, false);
+}
+
+/*
+ * %fork/p <code-label>, <scope-label>
+ *
+ * A fork BRANCH: a thread that is its own process (IEEE 1800-2017
+ * 9.7). Identical to %fork except that the child is never reclassified
+ * as a continuation of its parent, whatever scope it was compiled
+ * with -- see the scope-type discussion in do_fork_().
+ */
+bool of_FORK_P(vthread_t thr, vvp_code_t cp)
+{
+      return do_fork_(thr, cp, true);
 }
 
 bool of_FORK_V(vthread_t thr, vvp_code_t cp)
