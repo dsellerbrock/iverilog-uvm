@@ -1209,6 +1209,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <spec_optional_args> timeskew_fullskew_opt_remain_active_flag
 
 %type <expr>  assignment_pattern expression expression_opt expr_mintypmax
+%type <expr>  sva_bool_atom
 %type <named_pattern> assignment_pattern_named_list
 %type <expr>  expr_primary_or_typename expr_primary
 %type <expr>  class_new dynamic_array_new
@@ -5570,6 +5571,18 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
 	$$ = p; }
   | sva_multiclock_seq
       { $$ = $1; }
+  /* IEEE 1800-2017 A.2.10: `property_expr ::= ( property_expr )'. A fully
+     parenthesized property is the shape emitted by every macro that wraps
+     its argument -- e.g. OpenTitan's `ASSERT' expands to
+     `assert property (@(posedge clk) disable iff (...) (__prop))'.
+     Parens holding only a sequence (or a plain boolean) stay on the
+     sva_seq_atom path: that is a shift/reduce conflict on the closing
+     ')' which bison resolves as a shift, so `(a)' and `(a ##1 b)' keep
+     their existing sequence meaning. This production engages only when
+     the parens contain property structure that no sequence rule accepts,
+     such as an implication. */
+  | '(' property_expr ')'
+      { $$ = $2; }
   | sva_seq_expr K_PIPE_IMPL_OV sva_multiclock_seq
       { $3->antecedent = $1; $3->op_type = 1; $$ = $3; }
   | sva_seq_expr K_PIPE_IMPL_NOV sva_multiclock_seq
@@ -5848,7 +5861,9 @@ sva_seq_comb
   ;
 
 sva_seq_atom
-  : expression
+    /* `sva_bool_atom' is a bare `expression'. See its definition for why
+       the indirection is required (reduce/reduce tie-break on ')'). */
+  : sva_bool_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
 	sva_seq_step_t st;
 	st.expr = $1;
@@ -7969,6 +7984,33 @@ expr_mintypmax
 	      min_typ_max_warn -= 1;
 	}
       }
+  ;
+
+  /* The boolean leaf of a sequence (IEEE 1800-2017 16.7). This is a
+     bare `expression' and nothing more; it exists as its own
+     nonterminal ONLY so that it is DECLARED AFTER `expr_mintypmax'.
+     Rule order is what bison uses to break a reduce/reduce tie, and
+     inside a property or sequence a parenthesized boolean reaches
+     exactly such a tie on the closing ')':
+
+         sva_seq_atom : expression .        (parenthesized SUB-SEQUENCE)
+         expr_mintypmax : expression .      (parenthesized EXPRESSION)
+
+     While the sequence reduction was declared first it always won, so
+     `(a)' became a sub-sequence and no expression operator could
+     follow it -- `(a) && b', `(x == 1) || (y == 2)' and `(a) ? b : c'
+     were all syntax errors inside `assert property', even though they
+     contain no sequence operators at all. Routing the leaf through
+     this later-declared nonterminal hands the tie to expr_mintypmax,
+     which is the reading the standard requires for a parenthesized
+     boolean.
+
+     Parens that really do hold sequence structure are untouched:
+     `(a ##1 b)' and `(a[*3])' cannot reduce to an `expression', so no
+     tie arises and the sub-sequence rule is the only one available. */
+sva_bool_atom
+  : expression
+      { $$ = $1; }
   ;
 
 

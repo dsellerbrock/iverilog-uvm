@@ -1213,3 +1213,7 @@ sv_deferred_final_latest1	normal,-g2012		ivltests gold=sv_deferred_final_latest1
 sv_typename1 normal,-g2012 ivltests
 sv_type_operator1 normal,-g2012 ivltests
 sv_param_type_identity1 normal,-g2012 ivltests
+sv_assert_paren_property normal,-g2012 ivltests
+sv_assert_paren_boolean normal,-g2012 ivltests
+sv_enum_ternary_type normal,-g2012 ivltests
+sv_cast_size_string_literal normal,-g2012 ivltests
