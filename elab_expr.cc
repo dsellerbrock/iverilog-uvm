@@ -14024,7 +14024,7 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 			for (unsigned b = 0 ; b < slice_wid ; b += 1) {
 			      long src = base + (long)b;
 			      if (src >= 0 && (unsigned long)src < par_v.len())
-				    res_v.set(b, par_v[src]);
+				    res_v.set(b, verinum(par_v[src], 1));
 			}
 		  } else if (warn_ob_select) {
 			cerr << get_fileline() << ": warning: "
