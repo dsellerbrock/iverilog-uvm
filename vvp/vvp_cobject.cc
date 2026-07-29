@@ -138,16 +138,20 @@ void vvp_cobject::set_constraint_mode(size_t cid, bool mode)
       if (cid < constraint_mode_.size()) constraint_mode_[cid] = mode;
 }
 
-// C1 (Phase 62a): randc cyclic state.  Cycle period = 2^width capped at
-// 65536 so the bitmap stays bounded.  Wider properties fall back to plain
-// rand (period reported as 0).
+// C1 (Phase 62a): randc cyclic state.  Cycle period = 2^width, capped at
+// 20 bits (a 2^20-entry, 128KB std::vector<bool> bitmap per instance --
+// the old 16-bit/65536-entry cap was stale conservatism; 128KB is a
+// trivial per-object cost for the guarantee of no repeat before a full
+// cycle). Wider properties fall back to plain rand (period reported as
+// 0); elab_sig.cc warns at compile time, by name, when that degrade
+// happens -- keep this bound in sync with the literal there.
 uint64_t vvp_cobject::randc_period(size_t pid) const
 {
       if (pid >= defn_->property_count()) return 0;
       vvp_vector4_t probe;
       const_cast<vvp_cobject*>(this)->get_vec4(pid, probe);
       unsigned w = probe.size();
-      if (w == 0 || w > 16) return 0;
+      if (w == 0 || w > 20) return 0;
       return (uint64_t)1 << w;
 }
 
@@ -175,6 +179,34 @@ void vvp_cobject::randc_mark(size_t pid, uint64_t val)
       if (all_used) {
             for (size_t i = 0; i < hist.size(); i += 1) hist[i] = false;
       }
+}
+
+// RANDOM-DIST fix #4: see the declaration in vvp_cobject.h.
+void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
+                                       const std::vector<uint64_t>&feasible)
+{
+      uint64_t period = randc_period(pid);
+      if (period == 0) return;
+      std::vector<bool>&hist = randc_history_[pid];
+      if (hist.size() != period) hist.assign((size_t)period, false);
+      if (val < period) hist[val] = true;
+
+      bool all_used = true;
+      for (uint64_t v : feasible) {
+            if (v < period && !hist[v]) { all_used = false; break; }
+      }
+      if (all_used) {
+            for (uint64_t v : feasible)
+                  if (v < period) hist[v] = false;
+      }
+}
+
+void vvp_cobject::randc_unmark(size_t pid, uint64_t val)
+{
+      std::map<size_t, std::vector<bool> >::iterator it
+            = randc_history_.find(pid);
+      if (it == randc_history_.end()) return;
+      if (val < it->second.size()) it->second[val] = false;
 }
 
 vvp_cobject::~vvp_cobject()

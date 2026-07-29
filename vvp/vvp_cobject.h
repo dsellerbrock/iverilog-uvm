@@ -70,6 +70,21 @@ class vvp_cobject : public vvp_object {
       void randc_mark(size_t pid, uint64_t val);
       uint64_t randc_period(size_t pid) const;
 
+      // RANDOM-DIST fix #4 (18.4.2): cyclic tracking scoped to an explicit
+      // feasible-value set, for a `randc` property that also carries an
+      // explicit constraint. `randc_mark` above judges "all used" over the
+      // property's WHOLE encoding space, which never fires when the legal
+      // set is a strict subset (an infeasible encoding sits unmarked
+      // forever) -- so cycling would silently stall after one pass instead
+      // of repeating. `randc_mark_feasible` judges "all used" only over
+      // the given feasible set. `randc_unmark` lets the caller retract a
+      // mark placed on a value that, in the end, was never actually
+      // emitted (the constraint solver may still override a randc
+      // property's cyclic pre-fill pick).
+      void randc_mark_feasible(size_t pid, uint64_t val,
+                                const std::vector<uint64_t>&feasible);
+      void randc_unmark(size_t pid, uint64_t val);
+
 	// M11: covergroup transition-bin progress state — active-
 	// position masks keyed by (prop_idx << 8) | seq_id.
       uint64_t cov_trans_mask(uint64_t key) const {
@@ -83,7 +98,7 @@ class vvp_cobject : public vvp_object {
       bool cov_enabled() const { return cov_enabled_; }
       void set_cov_enabled(bool f) { cov_enabled_ = f; }
 
-	// M3B-5 (IEEE 1800-2017 18.13): the object's own random number
+	// M3B-5/R3 (IEEE 1800-2017 18.13): the object's own random number
 	// generator. srandom()/set_randstate() had elaborated to a no-op,
 	// so seeding did nothing and no seeded flow was reproducible.
 	//
@@ -91,11 +106,14 @@ class vvp_cobject : public vvp_object {
 	// and trivially serializable, which is what get_randstate() needs
 	// (18.13.3 leaves the string's contents implementation-defined).
 	//
-	// The RNG becomes active only once the object has been SEEDED,
-	// explicitly via srandom() or set_randstate(). Until then
-	// randomize() keeps drawing from the global generator, so
-	// unseeded randomization sequences -- and every recorded gold that
-	// depends on them -- are unchanged. See the M3B-5 ROADMAP row.
+	// R3 (18.13.1, RANDOM STABILITY): every object is seeded at
+	// construction (of_NEW_COBJ, vvp/vthread.cc), from the next value
+	// of the constructing thread's own generator -- rng_srandom() is
+	// called there right after the object is built. srandom()/
+	// set_randstate() still work exactly as before, explicitly
+	// overwriting that derived seed. See the R3 ROADMAP row and the
+	// block comment above thread_rng_srandom_() in vvp/vthread.cc for
+	// the full derivation.
       void rng_srandom(int32_t seed);
       std::string rng_get_state() const;
 	// False if the string is not one this implementation wrote.
