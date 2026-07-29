@@ -556,6 +556,28 @@ someone still has to do.
 | R6 | `pulsestyle_*` / `showcancelled` are accepted and have no effect on pulse propagation. | M13-7 | **yes** — per-directive warning naming the construct and what is not modelled | Model pulse filtering in the path-delay engine (reject/error limits, cancelled-pulse propagation) |
 | R8 | `%p` prints a packed struct as a plain integer and flattens nested dimensions. | M4B-4/5 | no — cosmetic | Deferred by decision, not by difficulty |
 
+
+**Campaign 7 truth-pass corrections (2026-07-29).** Adversarial re-probe of 27
+DONE rows in the language/type/class families found 21 CONFIRMED and 6
+overstated or false; the false claims are being fixed in this campaign
+(struct value-copy of container FIELDS aliased instead of copying —
+M1B-2/M4B-1's claim was wrong for that shape; static class-property
+container-of-struct member reads returned garbage with the checking
+comparison silently no-op'd; string queue-of-queues lost element contents
+against M4C-12's own claim text; `'{N{...}}` replication on a plain 1-D
+packed vector produced silent garbage where 10.9.2 wants a count-mismatch
+error). Two boundaries are now DISCLOSED rather than fixed, loud in both
+cases: **M4B-12/13/14** hold only for structs as bare variables — an
+indexed access on an array member of a CLASS-PROPERTY-held struct is a
+compile-time sorry (`h.s.fixed_da[2] = 77`), undisclosed in the original
+row texts; and **M3B-6** container-membership constraints hold only for
+containers on `this` directly — one extra property hop
+(`v inside {f.allowed}`) drops the constraint with a warning while
+randomize() still reports success. Both are recorded here as open
+residuals of their rows; 9 of 16 M4C rows and the cross-milestone
+class-adjacent rows remain unprobed by this pass and are flagged as the
+highest-risk remaining surface.
+
 ### Settled limits (nothing to implement)
 
 Kept enumerated and numbered so a reference to them still resolves, and so
