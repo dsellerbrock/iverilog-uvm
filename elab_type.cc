@@ -1371,6 +1371,73 @@ ivl_type_t typeref_t::elaborate_type_raw(Design*des, NetScope*s) const
 	    elaborate_specialized_class_type(des, call_scope, class_type, overrides));
 }
 
+/*
+ * IEEE 1800-2017 6.23 `type()` operator. See the type_reference_t
+ * comment in pform_types.h for the overall design.
+ */
+ivl_type_t type_reference_t::elaborate_type_raw(Design*des, NetScope*scope) const
+{
+      if (named_type)
+	    return named_type->elaborate_type(des, scope);
+
+      ivl_assert(*this, expr);
+
+	// A plain (possibly indexed/hierarchical/member-selected)
+	// identifier: resolve its exact declared type without evaluating
+	// anything -- not even the index expressions, which are only
+	// counted structurally by PEIdent::test_type_of_ident().
+      if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+	    ivl_type_t use_type = ident->test_type_of_ident(des, scope);
+	    if (!use_type) {
+		  cerr << get_fileline() << ": sorry: type() could not resolve "
+		       << "the type of this identifier reference (hierarchical "
+		       << "or forward references are not supported)." << endl;
+		  des->errors += 1;
+	    }
+	    return use_type;
+      }
+
+	// Any other expression shape: fall back to the same evaluation-free
+	// self-determined width/type inference that $bits()/$sizeof() use
+	// for their type-name-or-expression argument (PExpr::test_width()).
+	// This never elaborates (and so never evaluates) the expression --
+	// a side-effecting function call in e.g. `type(f(x))` is never run.
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      PExpr*mut_expr = const_cast<PExpr*>(expr);
+      mut_expr->test_width(des, scope, mode);
+
+      ivl_variable_type_t vt = mut_expr->expr_type();
+      unsigned wid = mut_expr->expr_width();
+
+      switch (vt) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    if (wid == 0) {
+		  cerr << get_fileline() << ": sorry: type() could not "
+		       << "determine a self-determined width for this "
+		       << "expression." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    return new netvector_t(vt, (long)wid - 1, 0, mut_expr->has_sign());
+
+	  case IVL_VT_REAL:
+	    return &netreal_t::type_real;
+
+	  case IVL_VT_STRING:
+	    return &netstring_t::type_string;
+
+	  default:
+	    cerr << get_fileline() << ": sorry: type() of an expression whose "
+		 << "self-determined type is not an integral, real or string "
+		 << "value (e.g. a class handle, struct, or array produced by "
+		 << "a computed expression rather than a plain identifier) is "
+		 << "not supported." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+}
+
 NetScope *typeref_t::find_scope(Design *des, NetScope *s) const
 {
         // If a scope has been specified use that as a starting point for the

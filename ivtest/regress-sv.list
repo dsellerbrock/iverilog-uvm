@@ -1210,3 +1210,5 @@ sv_event_lifetime_qualifier normal,-g2012 ivltests
 sv_deferred_flush1	normal,-g2012		ivltests
 sv_deferred_final_latest1	normal,-g2012		ivltests gold=sv_deferred_final_latest1.gold
 sv_typename1 normal,-g2012 ivltests
+sv_type_operator1 normal,-g2012 ivltests
+sv_param_type_identity1 normal,-g2012 ivltests

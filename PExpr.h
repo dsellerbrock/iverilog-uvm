@@ -447,6 +447,15 @@ class PEIdent : public PExpr {
       const struct parmvalue_t* leading_type_args() const
             { return leading_type_args_; }
 
+	// IEEE 1800-2017 6.23 `type()` operator support: resolve the type
+	// of this identifier reference (including any indices, hierarchy
+	// or member-selects) WITHOUT evaluating it -- index expressions
+	// are only counted structurally, never computed. Returns 0 if the
+	// identifier can't be resolved this way; the caller is responsible
+	// for diagnosing that (no diagnostic is emitted here on failure,
+	// so callers that tolerate a null result don't get double errors).
+      ivl_type_t test_type_of_ident(Design*des, NetScope*scope) const;
+
     private:
       pform_scoped_name_t path_;
       unsigned lexical_pos_;

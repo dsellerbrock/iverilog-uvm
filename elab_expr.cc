@@ -2306,6 +2306,62 @@ NetExpr* PEBinary::elaborate_expr_base_mult_(Design*,
       return tmp;
 }
 
+/*
+ * IEEE 1800-2017 6.23 `type()` operator support in equality
+ * comparisons: `type(X) == type(Y)` (also !=, ===, !==) is a
+ * compile-time constant, true iff X and Y's types MATCH per 6.22.1. A
+ * `type()` operand is carried as a PETypename wrapping a
+ * type_reference_t -- see the type_reference_t comment in
+ * pform_types.h and the K_type production added to `expr_primary`
+ * (comparison operands), `type_declaration` (typedef) and
+ * `block_item_decl`/`data_declaration` (`var type(...) x;`) in parse.y.
+ */
+static const type_reference_t* as_type_reference_operand_(const PExpr*expr)
+{
+      const PETypename*tn = dynamic_cast<const PETypename*>(expr);
+      if (!tn)
+	    return 0;
+      return dynamic_cast<const type_reference_t*>(tn->get_type());
+}
+
+/*
+ * The `type()` equality fold below reuses ivl_type_s::type_equivalent()
+ * as its MATCHING predicate -- the same structural test that
+ * elaborate_specialized_class_type()'s specialization cache key
+ * (elab_scope.cc, append_cache_ivl_type_key_) uses to decide whether
+ * two class specializations (e.g. C#(int) and C#(bit signed[31:0]))
+ * share one netclass_t: for vectors/packed arrays/packed structs it
+ * compares base_type()+packed_width()+get_signed()
+ * (packed_types_equivalent, nettypes.cc), for dynamic arrays/queues it
+ * recurses on the element type, and for classes and enums (which don't
+ * override test_equivalence) it falls back to pointer identity -- which
+ * is exactly right here too, since a class/enum operand's ivl_type_t
+ * was already resolved through the same class-specialization cache
+ * elsewhere, so two `type()` operands naming "the same" specialization
+ * really do share one pointer.
+ *
+ * We restrict which *kinds* of type this fold is willing to call, via
+ * an allow-list: type_equivalent()'s coarse width/base-type comparison
+ * is a good match for 6.22.1 "matching types" on vectors/atoms/reals/
+ * strings/enums/classes, but for packed structs, packed arrays of a
+ * non-vector base, dynamic arrays, queues and unpacked arrays it only
+ * checks total width/element-type -- not the member-by-member matching
+ * 6.22.1 actually requires -- so accepting those risks a *wrong*
+ * "matching" verdict rather than merely an incomplete one. Those kinds
+ * are sorried instead (see the sv_type_operator1.v test).
+ */
+static bool type_operator_kind_supported_(ivl_type_t t)
+{
+      if (!t)
+	    return false;
+      if (dynamic_cast<const netvector_t*>(t)) return true;
+      if (dynamic_cast<const netreal_t*>(t))   return true;
+      if (dynamic_cast<const netstring_t*>(t)) return true;
+      if (dynamic_cast<const netenum_t*>(t))   return true;
+      if (dynamic_cast<const netclass_t*>(t))  return true;
+      return false;
+}
+
 unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
 {
       ivl_assert(*this, left_);
@@ -2316,6 +2372,35 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
       expr_width_  = 1;
       min_width_   = 1;
       signed_flag_ = false;
+
+      { const type_reference_t*l_tref = as_type_reference_operand_(left_);
+	const type_reference_t*r_tref = as_type_reference_operand_(right_);
+	if (l_tref || r_tref) {
+	      l_width_ = 1;
+	      r_width_ = 1;
+
+	      if (!(l_tref && r_tref)) {
+		    cerr << get_fileline() << ": sorry: type() may only be "
+			 << "compared against another type() operand (IEEE "
+			 << "1800-2017 6.23)." << endl;
+		    des->errors += 1;
+	      } else switch (op_) {
+		  case 'e': case 'n': case 'E': case 'N':
+		    break;
+		  default:
+		    cerr << get_fileline() << ": error: type() operands only "
+			 << "support the '" << human_readable_op('e') << "', '"
+			 << human_readable_op('n') << "', '"
+			 << human_readable_op('E') << "' and '"
+			 << human_readable_op('N') << "' operators, not '"
+			 << human_readable_op(op_) << "' (IEEE 1800-2017 6.23)."
+			 << endl;
+		    des->errors += 1;
+	      }
+
+	      return expr_width_;
+	}
+      }
 
 	// The widths of the operands are semi-self-determined. They
         // affect each other, but not the result.
@@ -2441,6 +2526,43 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 
       ivl_assert(*this, left_);
       ivl_assert(*this, right_);
+
+      { const type_reference_t*l_tref = as_type_reference_operand_(left_);
+	const type_reference_t*r_tref = as_type_reference_operand_(right_);
+	if (l_tref || r_tref) {
+	      if (!(l_tref && r_tref))
+		    return 0; // Already diagnosed by test_width().
+
+	      switch (op_) {
+		  case 'e': case 'n': case 'E': case 'N':
+		    break;
+		  default:
+		    return 0; // Already diagnosed by test_width().
+	      }
+
+	      ivl_type_t lt = const_cast<type_reference_t*>(l_tref)->elaborate_type(des, scope);
+	      ivl_type_t rt = const_cast<type_reference_t*>(r_tref)->elaborate_type(des, scope);
+	      if (!lt || !rt)
+		    return 0; // Already diagnosed by type_reference_t::elaborate_type_raw().
+
+	      if (!type_operator_kind_supported_(lt) || !type_operator_kind_supported_(rt)) {
+		    cerr << get_fileline() << ": sorry: type() equality "
+			 << "comparison of struct/union or array-typed "
+			 << "operands is not supported (member/element-wise "
+			 << "matching per IEEE 1800-2017 6.22.1 is not modeled "
+			 << "for these operand shapes)." << endl;
+		    des->errors += 1;
+		    return 0;
+	      }
+
+	      bool type_match = (lt == rt) || lt->type_equivalent(rt);
+	      bool result = (op_ == 'e' || op_ == 'E') ? type_match : !type_match;
+
+	      NetEConst*tmp = new NetEConst(verinum(result ? verinum::V1 : verinum::V0));
+	      tmp->set_line(*this);
+	      return pad_to_width(tmp, expr_wid, false, *this);
+	}
+      }
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PEBComp::elaborate_expr: "
@@ -11448,6 +11570,24 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
       return type;
 }
 
+/*
+ * IEEE 1800-2017 6.23 `type()` operator support. Reuse the same
+ * evaluation-free symbol_search()+resolve_type_() path that
+ * PEIdent::test_width() uses to size an identifier reference -- this
+ * never elaborates the identifier into a NetExpr and never touches any
+ * index value, so it cannot have side effects.
+ */
+ivl_type_t PEIdent::test_type_of_ident(Design*des, NetScope*scope) const
+{
+      symbol_search_results sr;
+      bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+      if (!found_symbol)
+	    return 0;
+
+      unsigned index_depth = 0;
+      return resolve_type_(des, sr, index_depth);
+}
+
 unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
 	// M13: a bare reference to a let in scope expands by
@@ -16058,6 +16198,26 @@ NetExpr* PETernary::elab_and_eval_alternative_(Design*des, NetScope*scope,
  */
 unsigned PETypename::test_width(Design*des, NetScope*, width_mode_t&)
 {
+	// IEEE 1800-2017 6.23: a `type()` operand (carried here as a
+	// PETypename wrapping a type_reference_t) may only appear as an
+	// operand of ==, !=, === or !==. PEBComp intercepts that case
+	// before ever calling test_width() on its operands, so reaching
+	// here means `type()` was used somewhere else (an assignment, a
+	// case expression/item, a function argument, ...) -- name that
+	// loudly rather than silently falling through to the UVM
+	// placeholder behavior below.
+      if (dynamic_cast<const type_reference_t*>(data_type_)) {
+	    cerr << get_fileline() << ": sorry: the type() operator is only "
+		 << "supported as an operand of ==, !=, === or !== (IEEE "
+		 << "1800-2017 6.23); this usage is not implemented." << endl;
+	    des->errors += 1;
+	    expr_type_   = IVL_VT_NO_TYPE;
+	    expr_width_  = 1;
+	    min_width_   = 1;
+	    signed_flag_ = false;
+	    return expr_width_;
+      }
+
       if (gn_system_verilog()) {
             // Compile-progress fallback for UVM `uvm_typename(T)`-style macro
             // expansions that leave bare type names in string expressions.
@@ -16082,6 +16242,14 @@ unsigned PETypename::test_width(Design*des, NetScope*, width_mode_t&)
 NetExpr*PETypename::elaborate_expr(Design*des, NetScope*scope_in,
 				   ivl_type_t want_type, unsigned flags) const
 {
+      if (dynamic_cast<const type_reference_t*>(data_type_)) {
+	    cerr << get_fileline() << ": sorry: the type() operator is only "
+		 << "supported as an operand of ==, !=, === or !== (IEEE "
+		 << "1800-2017 6.23); this usage is not implemented." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
       // Phase 46 / iface name shadow: when an interface instance shares its
       // name with the interface type (the canonical OpenTitan tb pattern,
       // `clk_rst_if clk_rst_if(.clk, .rst_n);`), the parser ambiguously
