@@ -98,6 +98,21 @@ struct sva_stree_t {
       PExpr* gexpr = nullptr;    // SEQ_THROUGHOUT invariant (a = the seq)
 };
 
+// M9-7 residual: one further clock-flow segment past the first boundary
+// (IEEE 1800-2017 16.13.1), e.g. the ` ##1 @(c3) c' in
+//   @(c1) a ##1 @(c2) b ##1 @(c3) c
+// `boundary' is the cycle-delay (0 or 1; -2 marks an illegal non-0/1
+// delay) immediately BEFORE `clk_evt'; `chain' is the fixed-length
+// boolean chain clocked by `clk_evt'. A property's `mc_more' list holds
+// these in source order for every clock change after the second clock
+// (the first is still carried by `seq_clk_evt'/`seq' below, unchanged,
+// so a 2-domain property's representation and lowering are untouched).
+struct sva_mc_seg_t {
+      int boundary = -1;
+      PEventStatement* clk_evt = nullptr;
+      std::vector<sva_seq_step_t>* chain = nullptr;
+};
+
 struct sva_property_t {
       PEventStatement* clk_evt = nullptr;   // clocking event (may be null)
       // M9-NFA stage D.1: consequent clocking event for a multiclocked
@@ -115,6 +130,15 @@ struct sva_property_t {
       // strictly-subsequent tick, -1 = no explicit boundary metadata.
       std::vector<sva_seq_step_t>* mc_prefix = nullptr;
       int mc_boundary = -1;
+      // M9-7 residual: further clock changes after `seq_clk_evt' chained
+      // in source order (each element's clock differs from the one
+      // before it, generally). Null/empty for every property with at
+      // most one clock-flow boundary -- i.e. everything that worked
+      // before this residual, unaffected. A dedicated N-domain lowering
+      // (`pform_make_multiclock_chain_assertion_') handles a nonempty
+      // list; the 2-domain `pform_make_multiclock_assertion_' is not
+      // touched by it.
+      std::vector<sva_mc_seg_t>* mc_more = nullptr;
       PExpr* disable_iff_expr = nullptr;    // disable iff expr (may be null)
       std::vector<sva_seq_step_t>* antecedent = nullptr;  // null for op 0
       std::vector<sva_seq_step_t>* seq = nullptr;         // consequent / plain sequence

@@ -918,6 +918,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       // M9: sequence step chains for property/sequence expressions.
       std::vector<sva_seq_step_t>* sva_seq;
 
+      // M9-7 residual: extra clock-flow segments after the first
+      // boundary (`@(c2) b ##1 @(c3) c ...').
+      std::vector<sva_mc_seg_t>* sva_mc_ext;
+
       // M9-3: `case (...) ... endcase' property branches.
       sva_prop_case_item_t* sva_case_item;
       std::vector<sva_prop_case_item_t>* sva_case_items;
@@ -1147,10 +1151,12 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
 %type <sva_prop> sva_seq_comb sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
 %type <sva_seq>  sva_seq_expr sva_seq_atom
+%type <sva_mc_ext> sva_mc_tail sva_mc_tail_opt
 %type <sva_case_item>  property_case_item
 %type <sva_case_items> property_case_items
 %destructor { pform_sva_destroy_property($$); } <sva_prop>
 %destructor { pform_sva_destroy_sequence($$); } <sva_seq>
+%destructor { pform_sva_destroy_mc_segments($$); } <sva_mc_ext>
 %type <rs_item>           rs_prod_item
 %type <rs_item_list>      rs_prod_item_list
 %type <rs_rule>           rs_rule
@@ -5502,16 +5508,42 @@ sva_formal_list
    ordinary fixed-delay chains; the boundary stays explicit in the property
    IR so lowering can distinguish possibly-overlapping from strictly-after. */
 sva_multiclock_seq
-  : sva_seq_expr K_CYCLE_DELAY delay_value_simple event_control sva_seq_expr
+  : sva_seq_expr K_CYCLE_DELAY delay_value_simple event_control sva_seq_expr sva_mc_tail_opt
       { sva_property_t*p = new sva_property_t;
 	PENumber*num = dynamic_cast<PENumber*>($3);
 	p->mc_prefix = $1;
 	p->seq = $5;
 	p->seq_clk_evt = $4;
 	p->mc_boundary = num ? num->value().as_long() : -2;
+	p->mc_more = $6;
 	p->op_type = 0;
 	delete $3;
 	$$ = p; }
+  ;
+
+/* M9-7 residual: any further clock changes after the first boundary
+   above, e.g. the ` ##1 @(c3) c' tail of
+   `@(c1) a ##1 @(c2) b ##1 @(c3) c'. Empty (the common single-boundary
+   case) leaves `mc_more' null, so a property with at most one
+   clock-flow change parses and lowers exactly as before. */
+sva_mc_tail_opt
+  : /* empty */
+      { $$ = nullptr; }
+  | sva_mc_tail
+      { $$ = $1; }
+  ;
+
+sva_mc_tail
+  : K_CYCLE_DELAY delay_value_simple event_control sva_seq_expr sva_mc_tail_opt
+      { std::vector<sva_mc_seg_t>*l = $5 ? $5 : new std::vector<sva_mc_seg_t>;
+	sva_mc_seg_t seg;
+	PENumber*num = dynamic_cast<PENumber*>($2);
+	seg.boundary = num ? num->value().as_long() : -2;
+	seg.clk_evt = $3;
+	seg.chain = $4;
+	delete $2;
+	l->insert(l->begin(), seg);
+	$$ = l; }
   ;
 
 property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
@@ -5538,17 +5570,19 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      is the property's clocking_event_opt; this event_control clocks the
      consequent. Lowered by a race-free request/ack counter handoff
      (automaton engine); other multiclock shapes are a loud sorry. */
-  | sva_seq_expr K_PIPE_IMPL_NOV event_control sva_seq_expr
+  | sva_seq_expr K_PIPE_IMPL_NOV event_control sva_seq_expr sva_mc_tail_opt
       { sva_property_t*p = new sva_property_t;
 	p->antecedent = $1; p->seq = $4; p->op_type = 2;
 	p->seq_clk_evt = $3;
 	p->mc_boundary = 1;
+	p->mc_more = $5;
 	$$ = p; }
-  | sva_seq_expr K_PIPE_IMPL_OV event_control sva_seq_expr
+  | sva_seq_expr K_PIPE_IMPL_OV event_control sva_seq_expr sva_mc_tail_opt
       { sva_property_t*p = new sva_property_t;
 	p->antecedent = $1; p->seq = $4; p->op_type = 1;
 	p->seq_clk_evt = $3;
 	p->mc_boundary = 0;
+	p->mc_more = $5;
 	$$ = p; }
   /* IEEE 1800-2017 16.12.2: strong/weak consequent — `req |-> strong(s)'
      is the canonical form (attempts are gated by the antecedent, so the
