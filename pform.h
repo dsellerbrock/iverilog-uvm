@@ -341,7 +341,7 @@ extern void pform_sva_module_done(void);
 extern std::vector<sva_seq_step_t>*
 pform_sva_repeat(const struct vlltype&loc,
 		 std::vector<sva_seq_step_t>*steps,
-		 PExpr*lo, PExpr*hi);
+		 PExpr*lo, PExpr*hi, bool unbounded = false);
 
 /* M9-NFA stage C.1: goto `b[->m:n]' (kind 1) / nonconsecutive `b[=m:n]'
    (kind 2) repetition of a boolean (IEEE 1800-2017 16.9.2). `steps' must

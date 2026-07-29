@@ -6,9 +6,11 @@ Short answer: **yes for block-level RTL, and that is now demonstrated end to
 end.** The unmodified OpenTitan UART IP — with the full TL-UL fabric,
 command/data integrity (SECDED), the `prim` library, the alert/escalation
 senders and riscv-dbg pulled in as dependencies — compiles and simulates
-correctly under this fork after four compiler fixes landed alongside this
-document. The UVM DV testbenches do **not** run yet; they are blocked
-behind gaps listed below, not behind anything architectural.
+correctly under this fork after seven compiler fixes landed alongside this
+document. The UVM DV testbenches do **not** run yet, but the compiler now
+reaches deep into them: the assertion-enabled `uart_sim` build is down to
+24 errors, dominated by one cascading parse failure. What is left there is
+two genuinely architectural SVA features, named precisely below.
 
 Everything here was measured, not estimated. Commands are reproducible from
 the "How to reproduce" section.
@@ -69,12 +71,16 @@ SMOKE TEST PASSED
 That exercises the register file, the TL-UL adapter, the SECDED integrity
 path, the FIFOs and the baud-rate generator — not a toy subset.
 
-## The four fixes this required
+## The fixes this required
 
-All four are IEEE 1800-2017 conformance gaps, not OpenTitan-specific
-accommodations. Each has a regression test in `ivtest/ivltests/`, and the
-full gate (`ivtest` 3237 pass / 0 fail, VPI 94/94, negative 76/76) stays
-clean.
+Every one is an IEEE 1800-2017 conformance gap, not an OpenTitan-specific
+accommodation, and several break ordinary RTL that has nothing to do with
+OpenTitan. Each has a regression test in `ivtest/ivltests/` that checks the
+construct is *evaluated correctly*, not merely accepted. The full gate
+(ivtest, VPI 94/94, negative 76/76, UVM 227/227) stays clean.
+
+The first four unblocked the UART RTL result; three more (numbered 3-5 under
+"Fixed since the first pass" below) came out of pushing toward the DV suite.
 
 ### 1. `property_expr ::= ( property_expr )` (A.2.10)
 
@@ -158,50 +164,122 @@ that is a dynamic type, not a vector. Test:
 | `kmac` | 11 errors | 2 errors | variable index into packed multi-dim array |
 | `spi_device` | 4 errors | 4 errors | parameter binding through package; packed assignment-pattern arity |
 | `aes` | 2 errors (blocked early) | 7 errors (deeper) | variable index into packed multi-dim array |
-| `hmac` | 9 errors | **compiler crash** | assertion failure in `elab_net.cc:695` |
+| `hmac` | compiler crash | 80 errors (deeper) | variable index into packed multi-dim array |
 | `otbn` | 60+ errors | 80 errors (deeper) | multiple-driver analysis; variable index; zero-width concat |
+
+`uart_sim` (the UVM DV target, assertions enabled) went from "never reached
+the DV code" to **24 errors**, dominated by one cascading parse failure.
 
 Lower error counts are not always the story — AES and OTBN went *up* because
 the earlier errors stopped aborting the compile and revealed what was
 behind them. That is progress, not regression.
 
+## Fixed since the first pass
+
+3. **`elab_net.cc:695` compiler crash** (`hmac`) — *fixed.* A continuous
+   assignment to an element of a packed array of structs
+   (`assign hw2reg.key[3].d = ...`) aborted the compiler. The member walk
+   found `key` was a packed array rather than a struct and asserted nothing
+   followed, but `.d` did; the index was ignored entirely. The procedural
+   lvalue path already handled this shape — the continuous-assignment path
+   now mirrors it, and the assertion is a diagnostic rather than an abort.
+
+4. **`for` with multiple typed declarations** (12.7.1) — *fixed.*
+   `for (int i = 0, state_e t = t.first(); i < t.num(); i += 1, t = t.next())`
+   now parses. The declarations go into the synthetic block that already
+   wraps a declaring `for`, and their initializers become ordinary
+   assignments emitted in source order ahead of the loop, which is what the
+   standard requires and matters when a later clause reads what an earlier
+   one set. Unblocks `prim_sparse_fsm_flop`.
+
+5. **Unbounded consecutive repetition `[*m:$]`** (16.9.2) — *fixed for the
+   consequent and standalone positions.* The grammar had `[->m:$]` and
+   `[=m:$]` but not `[*m:$]`; `rep_tail = -1` now encodes the unbounded
+   tail and the automaton lowers it as a guarded self-loop on the join
+   state rather than a finite fan-out. **Caveat:** OpenTitan uses it in an
+   implication *antecedent* (`prim_alert_receiver`), which remains blocked
+   by the separate variable-length-antecedent limitation below, so this fix
+   alone does not unblock that file.
+
 ## Remaining gaps, in rough priority order
 
-1. **`elab_net.cc:695` assertion failure** (`hmac`). A compiler crash, not a
-   diagnostic. `NetNet* PEIdent::elaborate_lnet_common_: Assertion
-   'use_path.empty()' failed`. Crashes should be triaged ahead of missing
-   features.
-2. **Variable index into a packed multi-dimensional array** inside a
-   function — `transpose[i][j] = in[j][i]` (`aes_pkg.sv:647`). Reported as
+1. **Property-expression implication consequents** — `a |-> s_eventually(b)`.
+   See the DV section; highest value because the *generated* CSR assertions
+   emit it for every comportable IP and its parse failure cascades.
+2. **Variable-length implication antecedents** — `a ##[1:3] b |=> c` and
+   friends. See the DV section.
+3. **Variable index into a packed multi-dimensional array** inside a
+   function — `transpose[i][j] = in[j][i]` (`aes_pkg.sv:647`), and the
+   struct-member form `reg2hw.key[i].qe` (`hmac.sv:819`). Reported as
    "A reference to a net or variable (`i') is not allowed in a constant
-   expression". Blocks `aes` and `kmac`; a common RTL idiom.
-3. **`for` with multiple typed declarations** — `for (int i = 0,
-   StateEnumT t = t.first(); ...)` (12.7.1). One declaration is supported,
-   several are not. Blocks `prim_sparse_fsm_flop`, i.e. assertion-enabled
-   builds of anything with a sparse FSM.
-4. **Unbounded consecutive repetition `[*m:$]`** (16.9.2). The grammar has
-   `[->m:$]` and `[=m:$]` but not `[*m:$]`, and the automaton's `rep_tail`
-   has no unbounded encoding, so this is engine work rather than a grammar
-   line. Blocks assertion-enabled `prim_alert_receiver`.
-5. **Multiple-driver analysis** (`otbn`) — 38 "cannot have multiple
+   expression". Now the dominant blocker for `aes`, `hmac` and `kmac`; a
+   common RTL idiom that needs a dynamic part select rather than a constant
+   offset.
+4. **Multiple-driver analysis** (`otbn`) — 38 "cannot have multiple
    drivers" plus 10 "also continuously assigned". Needs its own
    investigation; may be several distinct causes.
 
-Items 3 and 4 only affect **assertion-enabled** builds. With `-DSYNTHESIS`
-they are irrelevant, which is why UART builds clean today.
-
-## UVM DV testbenches: not yet
+## UVM DV testbenches: closer, blocked on two SVA features
 
 `fusesoc --target=sim --tool=icarus` successfully generates the complete
 `uart_sim` file list — 256 entries covering `dv_utils`, `csr_utils`,
 `dv_lib`, `cip_lib`, the TL-UL/alert/push-pull/UART agents, the generated
 RAL package and `tb.sv`. So the DV build is fully *plumbed*.
 
-Compilation still stops in the RTL portion, which is compiled first, at gaps
-3 and 4 above. **The DV/UVM code itself has not yet been reached by the
-compiler**, so no claim can be made in either direction about how well the
-UVM layer works — that measurement is gated on finishing the RTL gaps.
-Closing items 3 and 4 is the next step to get a first real reading.
+With the seven fixes in place, the assertion-enabled `uart_sim` build is
+down to **24 errors**, and the `for`-loop and packed-array-member blockers
+are gone. What remains is dominated by a single cascading parse failure in
+the generated `uart_csr_assert_fpv.sv`, plus a handful of dropped
+assertions in `prim_diff_decode`.
+
+**A methodology warning, recorded because it produced a wrong reading
+first.** `-DSYNTHESIS` is *not* a valid way to probe the DV build past the
+assertion gaps. `hw/dv/sv/common_ifs/pins_if.sv` wraps its entire interface
+in `` `ifndef SYNTHESIS ``, so the define deletes DV infrastructure, not
+just assertions — it produced 15 confident-looking "compiler gaps"
+(`Unknown interface type 'pins_if'`, `cfg.intr_vif.sample()` has no method)
+that were pure artifacts of the workaround. `-DVERILATOR` is no better: it
+strips the `dv_macros.svh` / `uvm_macros.svh` includes out of
+`clk_rst_if.sv`. There is no safe stub define; the DV build has to be
+measured with assertions genuinely working. Also note the DV sources need
+`+define+UVM` (OpenTitan's dvsim passes it) — without it `` `gfn `` expands
+to `$sformatf("%m")` and produces invalid method-call syntax.
+
+### The two features the DV suite still needs
+
+Both are architectural — they need design, not a grammar line — and both
+are pre-existing gaps unrelated to OpenTitan specifically.
+
+1. **Variable-length implication antecedents.** No antecedent longer than a
+   fixed-delay chain is supported: `a ##[1:3] b |=> c`, `a[*1:3] ##1 b |=> c`,
+   `a ##[1:$] b |=> c` and `a[*1:$] ##1 b |=> c` all hit
+   *"this assertion antecedent shape is not supported (fixed-delay sequence
+   chains up to 128 cycles only)"* (`pform.cc`, `pform_make_assertion_`).
+   The lowering builds the antecedent as an AND of per-step booleans delayed
+   through the `$past` history machinery, which only models one attempt at a
+   fixed offset. A variable-length antecedent means several attempts in
+   flight at once, each with its own obligation — the automaton engine can
+   express that, but the assert-property lowering does not route antecedents
+   through it. `prim_alert_receiver` and `prim_diff_decode` need this.
+
+2. **Property-expression implication consequents.** IEEE 1800-2017 A.2.10
+   is `sequence_expr |-> property_expr`, but the grammar only has
+   `sva_seq_expr K_PIPE_IMPL_OV sva_seq_expr`, so the consequent can only
+   ever be a sequence. That rejects `a |-> s_eventually(b)`,
+   `a |-> always b`, `a |-> nexttime b` and nested implications
+   `a |-> (b |-> c)`. It is not just a missing production:
+   `sva_property_t` models the consequent as
+   `std::vector<sva_seq_step_t>* seq`, a flat chain with no field for a
+   nested property, so the data model and both lowerings need extending.
+   The generated `uart_csr_assert_fpv.sv` uses
+   `` `ASSERT(TlulOOBAddrErr_A, oob_addr_err |-> s_eventually(...)) ``, and
+   because the parse failure loses module boundaries it cascades into
+   `lc_ctrl_reg_pkg`, `prim_esc_*` and the `uart_bind` targets — which is
+   why 24 errors trace back to roughly two causes.
+
+Closing (2) is the higher-value next step: it is one construct, it is what
+the *generated* CSR assertions emit for every comportable IP, and its
+cascade accounts for most of the remaining error count.
 
 ## How to reproduce
 

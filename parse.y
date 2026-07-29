@@ -937,6 +937,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       decl_assignment_t*decl_assignment;
       std::list<decl_assignment_t*>*decl_assignments;
 
+	// IEEE 1800-2017 12.7.1: the extra `, data_type name = expr'
+	// clauses of a multi-declaration for_initialization.
+      std::vector<for_var_decl_t>*for_var_decls;
+
       struct_member_t*struct_member;
       std::list<struct_member_t*>*struct_members;
       struct_type_t*struct_type;
@@ -1210,6 +1214,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <expr>  assignment_pattern expression expression_opt expr_mintypmax
 %type <expr>  sva_bool_atom
+%type <for_var_decls> for_var_decl_list
 %type <named_pattern> assignment_pattern_named_list
 %type <expr>  expr_primary_or_typename expr_primary
 %type <expr>  class_new dynamic_array_new
@@ -4085,6 +4090,87 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	$$ = tmp;
       }
 
+      // IEEE 1800-2017 12.7.1: for_initialization may hold SEVERAL
+      // comma-separated declarations, each with its own data type:
+      //
+      //   for (int i = 0, state_e s = s.first(); i < s.num(); i += 1, s = s.next())
+      //
+      // Only the single-declaration form was accepted. This rule
+      // requires the comma, so it engages only for the multi-declaration
+      // case and every existing single-declaration rule is untouched.
+      //
+      // All the declarations go into the synthetic block that already
+      // wraps a declaring for loop, and their initializers become
+      // ordinary assignments emitted IN SOURCE ORDER ahead of the loop.
+      // The loop itself then uses the no-initializer form. That ordering
+      // is what the standard requires and it matters: a later clause may
+      // read a variable an earlier one just set.
+  | K_for '(' K_var_opt data_type IDENTIFIER '=' expression ',' for_var_decl_list ';' expression_opt ';' for_step_opt ')'
+      { static unsigned for_counter = 0;
+	char for_block_name [64];
+	snprintf(for_block_name, sizeof for_block_name, "$ivl_for_loop%u", for_counter);
+	for_counter += 1;
+	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+
+	  // Declare the first variable...
+	list<decl_assignment_t*>assign_list;
+	decl_assignment_t*tmp_assign = new decl_assignment_t;
+	tmp_assign->name = { lex_strings.make($5), @5.lexical_pos };
+	assign_list.push_back(tmp_assign);
+	pform_make_var(@5, &assign_list, $4);
+
+	  // ...then each of the rest, with its own type.
+	for (size_t idx = 0 ; idx < $9->size() ; idx += 1) {
+	      for_var_decl_t&decl = (*$9)[idx];
+	      list<decl_assignment_t*>more_list;
+	      decl_assignment_t*more_assign = new decl_assignment_t;
+	      more_assign->name = { lex_strings.make(decl.name), decl.loc.lexical_pos };
+	      more_list.push_back(more_assign);
+	      pform_make_var(decl.loc, &more_list, decl.type);
+	}
+      }
+    statement_or_null
+      { std::vector<Statement*>blk_items;
+
+	  // The initializing assignments, in source order.
+	pform_name_t first_hident;
+	first_hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*first_ident = pform_new_ident(@5, first_hident);
+	FILE_NAME(first_ident, @5);
+	PAssign*first_set = new PAssign(first_ident, $7);
+	FILE_NAME(first_set, @5);
+	blk_items.push_back(first_set);
+
+	for (size_t idx = 0 ; idx < $9->size() ; idx += 1) {
+	      for_var_decl_t&decl = (*$9)[idx];
+	      pform_name_t hident;
+	      hident.push_back(name_component_t(lex_strings.make(decl.name)));
+	      PEIdent*ident = pform_new_ident(decl.loc, hident);
+	      FILE_NAME(ident, decl.loc);
+	      PAssign*set = new PAssign(ident, decl.init);
+	      FILE_NAME(set, decl.loc);
+	      blk_items.push_back(set);
+	}
+
+	  // The loop proper, with the initialization already done above.
+	check_for_loop(@1, nullptr, $11, $13);
+	PForStatement*tmp_for = new PForStatement(nullptr, nullptr, $11, $13, $16);
+	FILE_NAME(tmp_for, @1);
+	blk_items.push_back(tmp_for);
+
+	pform_pop_scope();
+	PBlock*tmp_blk = current_block_stack.top();
+	current_block_stack.pop();
+	tmp_blk->set_statement(blk_items);
+	$$ = tmp_blk;
+
+	for (size_t idx = 0 ; idx < $9->size() ; idx += 1)
+	      delete[] (*$9)[idx].name;
+	delete $9;
+	delete[] $5;
+      }
+
       // Handle for_variable_declaration syntax by wrapping the for(...)
       // statement in a synthetic named block. We can name the block
       // after the variable that we are creating, that identifier is
@@ -5894,6 +5980,11 @@ sva_seq_atom
       { $$ = pform_sva_repeat(@2, $1, $3, 0); }
   | sva_seq_atom K_LBSTAR expression ':' expression ']'
       { $$ = pform_sva_repeat(@2, $1, $3, $5); }
+  /* IEEE 1800-2017 16.9.2: unbounded consecutive repetition `e[*m:$]'.
+     The goto and nonconsecutive forms already had their `:$' variants;
+     the plain star form did not, so `a[*1:$]' was a syntax error. */
+  | sva_seq_atom K_LBSTAR expression ':' '$' ']'
+      { $$ = pform_sva_repeat(@2, $1, $3, nullptr, true); }
   /* M9-NFA stage C.1: goto `b[->n]'/`b[->m:n]' and nonconsecutive
      `b[=n]'/`b[=m:n]' repetition of a boolean (16.9.2). kind 1 = goto,
      2 = nonconsecutive; the trailing bool marks an unbounded `:$' upper.
@@ -8011,6 +8102,30 @@ expr_mintypmax
 sva_bool_atom
   : expression
       { $$ = $1; }
+  ;
+
+  /* The second and later clauses of a multi-declaration
+     for_initialization (IEEE 1800-2017 12.7.1). The first clause is
+     matched inline by the loop rule; this covers everything after the
+     first comma. Each clause carries its own data type. */
+for_var_decl_list
+  : K_var_opt data_type IDENTIFIER '=' expression
+      { std::vector<for_var_decl_t>*lst = new std::vector<for_var_decl_t>;
+	for_var_decl_t decl;
+	decl.type = $2;
+	decl.name = $3;
+	decl.init = $5;
+	decl.loc  = @3;
+	lst->push_back(decl);
+	$$ = lst; }
+  | for_var_decl_list ',' K_var_opt data_type IDENTIFIER '=' expression
+      { for_var_decl_t decl;
+	decl.type = $4;
+	decl.name = $5;
+	decl.init = $7;
+	decl.loc  = @5;
+	$1->push_back(decl);
+	$$ = $1; }
   ;
 
 

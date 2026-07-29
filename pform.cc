@@ -7276,18 +7276,24 @@ static void sva_splice_sequences_(const struct vlltype&loc,
    clear sorry. */
 std::vector<sva_seq_step_t>*
 pform_sva_repeat(const struct vlltype&loc,
-		 std::vector<sva_seq_step_t>*steps, PExpr*lo, PExpr*hi)
+		 std::vector<sva_seq_step_t>*steps, PExpr*lo, PExpr*hi,
+		 bool unbounded)
 {
       PENumber*lon = dynamic_cast<PENumber*>(lo);
       PENumber*hin = dynamic_cast<PENumber*>(hi);
       long lov = lon ? lon->value().as_long() : -1;
-      long hiv = hi ? (hin ? hin->value().as_long() : -1) : lov;
+	/* `e[*m:$]' has no numeric upper bound; rep_tail = -1 marks it. */
+      long hiv = unbounded ? -1 : (hi ? (hin ? hin->value().as_long() : -1) : lov);
       delete lo;
       delete hi;
 
       if (!steps || steps->empty())
 	    return steps;
-      if (lov < 1 || hiv < lov || !lon || (hi && !hin)) {
+      if (lov < 1 || !lon) {
+	    (*steps)[0].delay_lo = -3;
+	    return steps;
+      }
+      if (!unbounded && (hiv < lov || (hi && !hin))) {
 	    (*steps)[0].delay_lo = -3;
 	    return steps;
       }
@@ -7310,7 +7316,7 @@ pform_sva_repeat(const struct vlltype&loc,
 		  steps->push_back(st);
 	    }
       }
-      steps->back().rep_tail = hiv - lov;
+      steps->back().rep_tail = unbounded ? -1 : (hiv - lov);
       return steps;
 }
 

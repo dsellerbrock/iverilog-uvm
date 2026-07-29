@@ -200,6 +200,26 @@ inline void FILE_NAME(LineInfo*tmp, const struct vlltype&where)
       tmp->set_file(filename_strings.make(where.text));
 }
 
+/*
+ * One `data_type name = expression' clause of a for_initialization
+ * list. IEEE 1800-2017 12.7.1 allows several of these separated by
+ * commas, each carrying its own data type:
+ *
+ *    for (int i = 0, state_e s = s.first(); i < s.num(); i += 1, s = s.next())
+ *
+ * The parser collects the clauses and the loop rule turns them into
+ * declarations plus ordered initializing assignments inside the
+ * synthetic block that already wraps a declaring for loop.
+ */
+class data_type_t;
+class PExpr;
+struct for_var_decl_t {
+      data_type_t*type;
+      char*name;
+      PExpr*init;
+      YYLTYPE loc;
+};
+
   /* This for compatibility with new and older bison versions. */
 #ifndef yylloc
 # define yylloc VLlloc
