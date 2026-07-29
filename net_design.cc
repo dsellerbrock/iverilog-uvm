@@ -693,24 +693,16 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 		  cur->second.val_expr = nullptr;
 		  return;
 	    }
+	      // evaluate_range handles the [size] form ([4] == [0:3]) and
+	      // reports unsized/queue/non-constant dimensions itself.
 	    const pform_range_t&dim = cur->second.udims->front();
-	    NetExpr*le = dim.first
-		  ? elab_and_eval(des, cur->second.val_scope, dim.first, -1, true)
-		  : 0;
-	    NetExpr*re = dim.second
-		  ? elab_and_eval(des, cur->second.val_scope, dim.second, -1, true)
-		  : 0;
-	    const NetEConst*lc = dynamic_cast<const NetEConst*>(le);
-	    const NetEConst*rc = dynamic_cast<const NetEConst*>(re);
-	    if (lc && rc) {
-		  arr_left = lc->value().as_long();
-		  arr_right = rc->value().as_long();
+	    if (evaluate_range(des, cur->second.val_scope, &cur->second,
+			       dim, arr_left, arr_right)) {
 		  bounds_known = true;
 	    } else {
-		  cerr << cur->second.get_fileline() << ": error: "
-		       << "Array parameter '" << cur->first
-		       << "' has non-constant dimension bounds." << endl;
-		  des->errors += 1;
+		  cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
+		  cur->second.val_expr = nullptr;
+		  return;
 	    }
       }
       cur->second.array_left = arr_left;

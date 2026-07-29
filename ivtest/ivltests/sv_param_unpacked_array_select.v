@@ -10,6 +10,8 @@ module main;
   parameter logic [3:0] CP [1:4] = '{4'd1, 4'd2, 4'd3, 4'd4};
   // Replication form.
   parameter logic [7:0] RP [0:3] = '{4{8'h5a}};
+  // SystemVerilog size-only dimension: [4] == [0:3].
+  parameter logic [3:0] DP [4] = '{4'd9, 4'd8, 4'd7, 4'd6};
   // String elements (constant index only).
   parameter string SP [0:1] = '{"aa", "bb"};
 
@@ -37,6 +39,10 @@ module main;
 
     // Replication.
     check_int("RP[3]", RP[3], 8'h5a);
+
+    // Size-only dimension.
+    check_int("DP[0]", DP[0], 9);
+    check_int("DP[3]", DP[3], 6);
 
     // Variable element index, each declaration direction.
     for (int i = 0; i < 4; i++) begin
