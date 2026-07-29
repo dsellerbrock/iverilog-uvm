@@ -263,7 +263,17 @@ sorry: sequence cycle delays must be literal constants
 
 8 occurrences in the OpenTitan DV build.
 
-## G14 — select on a multi-dimensional packed PARAMETER — **partial** (in progress)
+## G14 — select on a multi-dimensional packed PARAMETER — **fixed** (recovery campaign 1, 2026-07-29)
+
+Closed together with G15 by routing every multi-dim or multi-index
+parameter select through one canonical stride calculation
+(`param_select_packed_`, elab_expr.cc). Verified by value:
+`sv_param_multidim_packed_select` covers constant/variable indices in
+any dimension, part and indexed-part selects (element-range semantics),
+ascending dims, 3-D, package/class scopes, instance overrides, and the
+array query functions; `sv_param_unpacked_array_select` covers unpacked
+array parameters (descending/non-zero-based bounds, variable index,
+element-applied trailing selects). The original text follows.
 
 *11.5.2.* Was an assertion failure that aborted the compiler:
 
@@ -296,7 +306,13 @@ element when that width exceeds 1, in both the constant-fold and run-time
 paths. Callers that do not ask for a slice width still get the loud refusal
 rather than a mis-widthed select.
 
-## G15 — inline multi-dimensional packed parameter select — **⚠ silent**
+## G15 — inline multi-dimensional packed parameter select — **fixed** (recovery campaign 1, 2026-07-29)
+
+The declaration-time flattening in `pform_set_parameter` is removed:
+an inline multi-dim packed parameter now keeps its dimensions and
+elaborates identically to the typedef'd form, taking the same fixed
+select path as G14. The identity-permutation reproducer reads `8'ha5`.
+The original text follows.
 
 *11.5.2. [general] — WRONG ANSWER, NO DIAGNOSTIC.*
 

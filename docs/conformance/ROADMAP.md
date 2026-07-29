@@ -443,9 +443,25 @@ deliberately gated.
 ## Current focus (the only mutable ordered list — derived from the rule)
 
 Re-derive this by applying the priority rule to the OPEN items above; do not hand-edit
-the structure. The partial-write correctness arc is now fully closed — both the class-
-property form (M1B-5) and its unpacked-struct-member sibling (M4B-6). No known silent
-miscompiles outstanding; the frontier is again bounded FEATURE + AUDIT work.
+the structure.
+
+**Recovery state (2026-07-29).** The earlier "no known silent miscompiles
+outstanding" claim was overstated and is withdrawn. A fresh ground-truth
+pass on main (aa82a67) reproduced silent-wrong defects in: multi-dim
+packed parameter selects (G14/G15 family — **CLOSED by Recovery
+Campaign 1**, session log 2026-07-29, tests
+sv_param_multidim_packed_select / sv_param_unpacked_array_select);
+struct value-copy aliasing container fields; static class-property
+container access (a `sorry` that does not fail compilation and drops
+the expression); queue-of-queues string content loss; packed
+replication-mismatch garbage; detached-fork writes through `ref`
+companion temporaries (R25 unnameable-actual path, no warning); and a
+deterministic vvp abort in any UVM run with a runtime-schedule phase
+hook (`vvp_vector4_t::add` width assert — a wrong-class `this` is
+delivered into the hook through the detached-fork staging machinery;
+g65 family). These are the Recovery Campaign 2/3 targets, in the
+priority order silent-wrong > crash > loud, and none is DONE until its
+family passes the ten-point campaign definition of done.
 
 Recently retired (this arc): **M12B/C VPI completion — the whole
 milestone** (assertion lifecycle + step callbacks, meaningful
