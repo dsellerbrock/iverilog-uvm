@@ -902,13 +902,21 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  // only operators valid on handles) and was silently
 		  // becoming 0/""/0.0. Hard-error those; keep the two
 		  // collapse shapes, and make the LOGIC-target one LOUD.
+		  // A literal `null' keeps the degrade unconditionally:
+		  // `return null;' from a chandle function is legal
+		  // SystemVerilog (6.14; chandle lowers to a 2-state
+		  // atom) and UVM's --uvm-no-dpi stubs use exactly that
+		  // shape (uvm_svcmd_dpi.svh regcomp). The only illegal
+		  // null form, null-into-LOGIC, is already intercepted
+		  // above by null_to_logic (br_gh440).
 		  bool class_rval_degrade_ok = in_class_scope
-			|| cast_type == IVL_VT_LOGIC;
+			|| cast_type == IVL_VT_LOGIC
+			|| dynamic_cast<const PENull*>(pe);
 		  if (!need_const && !null_to_logic && !class_new_hard_error
 		      && class_rval_degrade_ok
 		      && !dynamic_cast<const PEBinary*>(pe)
 		      && !dynamic_cast<const PEUnary*>(pe)) {
-			if (!in_class_scope)
+			if (!in_class_scope && !dynamic_cast<const PENull*>(pe))
 			      cerr << pe->get_fileline() << ": warning: "
 				   << "class-typed r-value in a 4-state "
 				   << "context: treating the target as a "
