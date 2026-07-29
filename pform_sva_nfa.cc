@@ -258,6 +258,19 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
       }
 
 rep_tail_only:
+	// Unbounded tail expr[*m:$] (rep_tail == -1): the mandatory m
+	// copies are already in the chain, and any number of further
+	// consecutive matches is allowed. That is a guarded SELF-LOOP,
+	// not a finite fan-out -- stay in the join state as long as the
+	// expression keeps holding, and leave whenever the rest of the
+	// chain can take over.
+      if (st.rep_tail < 0) {
+	    unsigned join = nfa.new_state();
+	    nfa.eps(cur, join);
+	    nfa.tick(join, join, st.expr);
+	    return join;
+      }
+
 	// Tail repetition expr[*1:1+rep_tail] (legacy last-step
 	// encoding): optional extra guarded ticks.
       if (st.rep_tail > 0) {

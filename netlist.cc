@@ -2566,12 +2566,21 @@ NetETernary::~NetETernary()
 
 const netenum_t* NetETernary::enumeration() const
 {
-	// If the condition can evaluate to an ambiguous value,
-	// the result may be blended, and so is not guaranteed
-	// to be a valid enumeration value.
-      if (cond_->expr_type() != IVL_VT_BOOL)
-	    return 0;
-
+	// IEEE 1800-2017 11.4.11: when both arms of the conditional
+	// operator have the same type, that is the type of the result.
+	// Two operands of the same enumeration type therefore yield that
+	// enumeration type, which makes `e = cond ? A : B;' a legal
+	// 6.19.3 assignment with no cast.
+	//
+	// A 4-state condition does NOT change the result TYPE. If the
+	// condition is ambiguous the two arms are blended bit by bit and
+	// the value may not name an enumeration member -- but that is a
+	// runtime value question, and it is unchanged by writing the
+	// cast the caller would otherwise be forced to add:
+	// `e_t'(cond ? A : B)' blends to exactly the same bits. Refusing
+	// to propagate the type here bought no safety and rejected the
+	// conforming idiom (OpenTitan builds every multi-bit-encoded
+	// control signal this way, e.g. `mubi4_bool_to_mubi').
       if (true_val_->enumeration() != false_val_->enumeration())
 	    return 0;
 

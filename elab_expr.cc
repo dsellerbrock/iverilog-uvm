@@ -10836,14 +10836,24 @@ unsigned PECastSize::test_width(Design*des, NetScope*scope, width_mode_t&)
       width_mode_t tmp_mode = PExpr::SIZED;
       base_->test_width(des, scope, tmp_mode);
 
-      if (!type_is_vectorable(base_->expr_type())) {
+	// IEEE 1800-2017 5.9: a string LITERAL is a packed array of bytes,
+	// and in any context that wants an integral value it behaves as an
+	// unsigned integer constant. So `64'("GAL_XOR")' is a plain size
+	// cast of a vector, even though PEString reports IVL_VT_STRING.
+	// PEString::elaborate_expr(width) already yields the padded vector
+	// NetEConst this needs. Note this covers the literal only -- a
+	// string-TYPED expression is a dynamic type, not a vector, and
+	// still gets the error below.
+      bool string_literal_base = dynamic_cast<const PEString*>(base_) != nullptr;
+
+      if (!string_literal_base && !type_is_vectorable(base_->expr_type())) {
 	    cerr << get_fileline() << ": error: Cast base expression "
 		    "must be a vector type." << endl;
 	    des->errors += 1;
 	    return 0;
       }
 
-      expr_type_   = base_->expr_type();
+      expr_type_   = string_literal_base ? IVL_VT_LOGIC : base_->expr_type();
       min_width_   = expr_width_;
       signed_flag_ = base_->has_sign();
 

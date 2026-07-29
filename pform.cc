@@ -7276,18 +7276,24 @@ static void sva_splice_sequences_(const struct vlltype&loc,
    clear sorry. */
 std::vector<sva_seq_step_t>*
 pform_sva_repeat(const struct vlltype&loc,
-		 std::vector<sva_seq_step_t>*steps, PExpr*lo, PExpr*hi)
+		 std::vector<sva_seq_step_t>*steps, PExpr*lo, PExpr*hi,
+		 bool unbounded)
 {
       PENumber*lon = dynamic_cast<PENumber*>(lo);
       PENumber*hin = dynamic_cast<PENumber*>(hi);
       long lov = lon ? lon->value().as_long() : -1;
-      long hiv = hi ? (hin ? hin->value().as_long() : -1) : lov;
+	/* `e[*m:$]' has no numeric upper bound; rep_tail = -1 marks it. */
+      long hiv = unbounded ? -1 : (hi ? (hin ? hin->value().as_long() : -1) : lov);
       delete lo;
       delete hi;
 
       if (!steps || steps->empty())
 	    return steps;
-      if (lov < 1 || hiv < lov || !lon || (hi && !hin)) {
+      if (lov < 1 || !lon) {
+	    (*steps)[0].delay_lo = -3;
+	    return steps;
+      }
+      if (!unbounded && (hiv < lov || (hi && !hin))) {
 	    (*steps)[0].delay_lo = -3;
 	    return steps;
       }
@@ -7310,7 +7316,7 @@ pform_sva_repeat(const struct vlltype&loc,
 		  steps->push_back(st);
 	    }
       }
-      steps->back().rep_tail = hiv - lov;
+      steps->back().rep_tail = unbounded ? -1 : (hiv - lov);
       return steps;
 }
 
@@ -7917,6 +7923,10 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       bool is_within   = (op == 8);
       bool is_liveness = (op >= 9 && op <= 13);
       bool is_abort    = (op >= 14 && op <= 17);
+	/* IEEE 1800-2017 A.2.10: implication with an s_eventually
+	   consequent -- `a |-> s_eventually(b)' (18) and the
+	   non-overlapped `a |=> s_eventually(b)' (19). */
+      bool is_impl_live = (op == 18 || op == 19);
       bool with   = (op == 5 || op == 7);
       bool strong = (op == 6 || op == 7);
 
@@ -7985,7 +7995,103 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
       bool bad = false;
 
-      if (!is_within && !is_liveness && !is_abort) {
+      if (is_impl_live) {
+	      /* ---- `a |-> s_eventually(b)' / `a |=> s_eventually(b)'.
+
+		 For every match of the antecedent, b must hold at some
+		 cycle at or after that match (`|=>': strictly after).
+		 Under overlapping-attempt semantics the aggregate
+		 collapses to a single pending bit: the obligation from
+		 the LAST antecedent match is the strongest, because a b
+		 that discharges it also discharges every earlier one. So
+		 track one `pend' flag -- set by the antecedent, cleared
+		 by b -- and report at end of simulation if it is still
+		 set. `a' never matching leaves pend clear, which passes,
+		 as it must (vacuous truth).
+
+		 The two forms differ only in the ORDER of the set and
+		 clear within a cycle:
+		   |->  clear-else-set: a b in the SAME cycle as the
+			antecedent match discharges it.
+		   |=>  clear-then-set: b at the match cycle discharges
+			only OLDER obligations; the new one needs a later b. */
+	    if (kind == 2) {
+		  cerr << loc << ": sorry: `cover property' of an "
+		       << "implication with an `s_eventually' consequent is "
+		       << "not supported; the cover is dropped." << endl;
+		  error_count += 1;
+		  bad = true;
+	    }
+	    if (!bad && (!prop->antecedent || !prop->seq)) {
+		  cerr << loc << ": sorry: this `s_eventually' consequent "
+		       << "shape is not supported; the assertion is dropped."
+		       << endl;
+		  error_count += 1;
+		  bad = true;
+	    }
+	    if (bad) { delete fail_stmt; delete clk; delete disable; return; }
+
+	    std::vector<sva_seq_step_t>&Aa = *prop->antecedent;
+	    std::vector<sva_seq_step_t>&Bb = *prop->seq;
+	    if (Aa.size() != 1 || Bb.size() != 1
+		|| Aa[0].delay_lo != 0 || Aa[0].delay_hi != 0 || Aa[0].rep_tail != 0
+		|| Bb[0].delay_lo != 0 || Bb[0].delay_hi != 0 || Bb[0].rep_tail != 0) {
+		  cerr << loc << ": sorry: an `s_eventually' consequent is "
+		       << "supported only with a boolean antecedent and a "
+		       << "boolean operand (no sequence on either side); the "
+		       << "assertion is dropped." << endl;
+		  error_count += 1;
+		  bad = true;
+	    }
+	    if (bad) { delete fail_stmt; delete clk; delete disable; return; }
+
+	      /* A pass action is already refused out loud above
+		 (pass_supported is false for every operator here). */
+
+	    PExpr*ae = sva_rewrite_sampled_(loc, Aa[0].expr, inst, hist_idx,
+					    pre, post, init_zero);
+	    PExpr*be = sva_rewrite_sampled_(loc, Bb[0].expr, inst, hist_idx,
+					    pre, post, init_zero);
+	    perm_string r_a = sva_make_reg_(loc, inst, "a", 0);
+	    perm_string r_b = sva_make_reg_(loc, inst, "b", 0);
+	    pre.push_back(sva_assign_(loc, r_a, ae));
+	    pre.push_back(sva_assign_(loc, r_b, be));
+
+	    perm_string r_pend = sva_make_reg_(loc, inst, "pend", 0);
+	    init_zero.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
+
+	    Statement*set_pend = sva_assign_(loc, r_pend, sva_bit_(loc, 1));
+	    Statement*clr_pend = sva_assign_(loc, r_pend, sva_bit_(loc, 0));
+	    if (op == 18) {
+		    /* Overlapped: if (b) pend = 0; else if (a) pend = 1; */
+		  Statement*open = sva_if_(loc, sva_id_(loc, r_a), set_pend, nullptr);
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_b), clr_pend, open));
+	    } else {
+		    /* Non-overlapped: if (b) pend = 0;  then  if (a) pend = 1; */
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_b), clr_pend, nullptr));
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_a), set_pend, nullptr));
+	    }
+
+	      /* End-of-simulation obligation: s_eventually is STRONG, so a
+		 still-pending obligation is a failure. */
+	    Statement*action = fail_stmt;
+	    if (!action) {
+		  std::list<named_pexpr_t> dargs;
+		  named_pexpr_t darg;
+		  darg.parm = new PEString(strdup(
+			"SVA: s_eventually consequent never held after the "
+			"antecedent matched"));
+		  dargs.push_back(darg);
+		  PCallTask*warn = new PCallTask(lex_strings.make("$error"), dargs);
+		  FILE_NAME(warn, loc);
+		  action = warn;
+	    }
+	    Statement*fc = sva_if_(loc, sva_id_(loc, r_pend),
+				   sva_fail_action_(loc, inst, action), nullptr);
+	    PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
+	    FILE_NAME(fp, loc);
+
+      } else if (!is_within && !is_liveness && !is_abort) {
 	      /* ---- until family (boolean operands only). ---- */
 	    if (kind == 2) {
 		  cerr << loc << ": sorry: `cover property' of an `until' "

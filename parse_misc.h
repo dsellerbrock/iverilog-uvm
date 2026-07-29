@@ -152,7 +152,16 @@ struct sva_property_t {
       // succeeds); 1 = strong (`strong(seq)': a pending attempt at end of
       // simulation is a FAILURE). Automaton-engine-only.
       int strength = 0;
-      int op_type = 0;                      // 0=plain sequence, 1=|->, 2=|=>
+      // 0=plain sequence, 1=|->, 2=|=>; 4..17 the temporal/liveness/
+      // abort operators (see pform_make_temporal_assertion_).
+      // IEEE 1800-2017 A.2.10 makes an implication CONSEQUENT a full
+      // property_expr, not just a sequence. This struct still models the
+      // consequent as a flat step chain, so the property-consequent forms
+      // are encoded as dedicated op_types rather than a nested property:
+      //   18 = `a |-> s_eventually(b)', 19 = `a |=> s_eventually(b)'.
+      // Adding a real nested-consequent field is what the remaining forms
+      // (`a |-> always b', nested implications) will need.
+      int op_type = 0;
       // IEEE 1800-2017 16.12.2/16.12.5: bounded liveness window for the
       // unary liveness ops (nexttime[n]/s_nexttime[n]: win_lo==win_hi==n;
       // s_eventually[m:n]/eventually[m:n]: win_lo==m, win_hi==n). -1 on
@@ -199,6 +208,26 @@ inline void FILE_NAME(LineInfo*tmp, const struct vlltype&where)
       tmp->set_lineno(where.first_line);
       tmp->set_file(filename_strings.make(where.text));
 }
+
+/*
+ * One `data_type name = expression' clause of a for_initialization
+ * list. IEEE 1800-2017 12.7.1 allows several of these separated by
+ * commas, each carrying its own data type:
+ *
+ *    for (int i = 0, state_e s = s.first(); i < s.num(); i += 1, s = s.next())
+ *
+ * The parser collects the clauses and the loop rule turns them into
+ * declarations plus ordered initializing assignments inside the
+ * synthetic block that already wraps a declaring for loop.
+ */
+class data_type_t;
+class PExpr;
+struct for_var_decl_t {
+      data_type_t*type;
+      char*name;
+      PExpr*init;
+      YYLTYPE loc;
+};
 
   /* This for compatibility with new and older bison versions. */
 #ifndef yylloc
