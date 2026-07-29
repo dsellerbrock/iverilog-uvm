@@ -252,6 +252,9 @@ ostream& atom_type_t::debug_dump(ostream&out) const
       case BYTE:
 	    out << "byte";
 	    break;
+      case CHANDLE:
+	    out << "chandle";
+	    break;
       default:
 	    assert(0);
 	    break;

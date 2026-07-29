@@ -337,7 +337,12 @@ struct atom_type_t : public data_type_t {
 	    BYTE,
 	    SHORTINT,
 	    INT,
-	    LONGINT
+	    LONGINT,
+	      // `chandle` is storage-compatible with a 64-bit 2-state atom
+	      // (it lowered straight to LONGINT before this), but $typename
+	      // (IEEE 1800-2017 20.6.1) must print "chandle", not "longint",
+	      // so it gets its own type_code/singleton ivl_type_t.
+	    CHANDLE
       };
 
       explicit atom_type_t(enum type_code tc, bool flag) : type_code(tc),

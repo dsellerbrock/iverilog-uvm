@@ -10040,7 +10040,7 @@ atom_type
   | K_int      { $$ = atom_type_t::INT; }
   | K_longint  { $$ = atom_type_t::LONGINT; }
   | K_integer  { $$ = atom_type_t::INTEGER; }
-  | K_chandle  { $$ = atom_type_t::LONGINT; }
+  | K_chandle  { $$ = atom_type_t::CHANDLE; }
   ;
 
   /* An lpvalue is the expression that can go on the left side of a

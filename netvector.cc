@@ -35,6 +35,8 @@ netvector_t netvector_t::atom2u8  (IVL_VT_BOOL,  7, 0, false);
 netvector_t netvector_t::time_signed (IVL_VT_LOGIC, 63, 0, true);
 netvector_t netvector_t::time_unsigned (IVL_VT_LOGIC, 63, 0, false);
 
+netvector_t netvector_t::chandle_type (IVL_VT_BOOL, 63, 0, false);
+
 static netvector_t* save_integer_type[2];
 const netvector_t* netvector_t::integer_type(bool is_signed)
 {

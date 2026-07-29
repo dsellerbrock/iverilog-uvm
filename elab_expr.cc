@@ -5565,6 +5565,297 @@ NetExpr*PECallFunction::cast_to_width_(NetExpr*expr, unsigned wid) const
 }
 
 /*
+ * IEEE 1800-2017 20.6.1 $typename() support.
+ *
+ * A SystemVerilog expression's type is always statically known, so
+ * (unlike almost every other system function) $typename() can always be
+ * constant-folded to a string literal at elaboration time -- there is
+ * nothing to compute at run time. This is the one formatter that builds
+ * that string; every call site (a bare type argument, a plain variable,
+ * or an arbitrary expression) funnels through typename_format_type_()
+ * or, when elaboration cannot attach a full ivl_type_t to the argument,
+ * through typename_format_basic_().
+ *
+ * Previously $typename was implemented purely as a run-time VPI system
+ * function (vpi/sys_sv_class.cc) that inspected vpi_get(vpiType, arg);
+ * that switch only ever matched a handful of vpiType codes, so nearly
+ * every argument fell through to its "logic" default. That run-time
+ * function is left in place as a fallback for any argument this
+ * compile-time path cannot fold, but is no longer the common path.
+ */
+
+static std::string typename_format_packed_dims_(const netranges_t&dims)
+{
+      std::string out;
+      for (netranges_t::const_iterator cur = dims.begin(); cur != dims.end(); ++ cur) {
+	    if (!cur->defined())
+		  continue;
+	    out += " [" + std::to_string(cur->get_msb()) + ":"
+		 + std::to_string(cur->get_lsb()) + "]";
+      }
+      return out;
+}
+
+/*
+ * Format a netvector_t. This covers both plain "logic"/"bit" vectors
+ * and the fixed-width 2-state atoms (byte/shortint/int/longint), the
+ * `integer` atom, `time`, and `chandle` -- elab_type.cc hands back one
+ * of a small set of process-wide singleton objects for the latter
+ * group, so they are recovered by pointer identity, not by guessing
+ * from width/signedness. That distinction matters: `byte b` and `bit
+ * signed [7:0] v` have identical width and signedness but are
+ * different declared types, and only the singleton comparison tells
+ * them apart.
+ */
+static std::string typename_format_vector_(const netvector_t*vec)
+{
+      if (vec == &netvector_t::time_signed || vec == &netvector_t::time_unsigned)
+	    return "time";
+      if (vec == &netvector_t::chandle_type)
+	    return "chandle";
+
+      static const struct {
+	    const netvector_t*signed_type;
+	    const netvector_t*unsigned_type;
+	    const char*name;
+      } atoms[] = {
+	    { &netvector_t::atom2s64, &netvector_t::atom2u64, "longint" },
+	    { &netvector_t::atom2s32, &netvector_t::atom2u32, "int" },
+	    { &netvector_t::atom2s16, &netvector_t::atom2u16, "shortint" },
+	    { &netvector_t::atom2s8,  &netvector_t::atom2u8,  "byte" },
+      };
+      for (const auto &atom : atoms) {
+	    if (vec == atom.signed_type)
+		  return atom.name;
+	    if (vec == atom.unsigned_type)
+		  return std::string(atom.name) + " unsigned";
+      }
+
+      if (vec->get_isint())
+	    return vec->get_signed() ? "integer" : "integer unsigned";
+
+      if (vec->base_type() == IVL_VT_VOID)
+	    return "void";
+
+      std::string base = (vec->base_type() == IVL_VT_BOOL) ? "bit" : "logic";
+      if (vec->get_signed())
+	    base += " signed";
+      base += typename_format_packed_dims_(vec->packed_dims());
+      return base;
+}
+
+/*
+ * Format a single enum member value the way IEEE 1800-2017 20.6.1's own
+ * example shows it: "<width>'s?d<value>", e.g. "32'sd0". A negative
+ * signed value is shown with a leading '-', matching the ordinary
+ * Verilog literal syntax for a negative sized constant (there is no
+ * "negative digit" inside a sized literal).
+ */
+static std::string typename_format_enum_value_(long width, bool is_signed,
+						const verinum&val)
+{
+      bool neg = is_signed && val.is_negative();
+      unsigned long mag = neg ? (unsigned long)(-val.as_long()) : val.as_ulong();
+
+      std::string out;
+      if (neg) out += "-";
+      out += std::to_string(width) + "'" + (is_signed ? "s" : "") + "d"
+	   + std::to_string(mag);
+      return out;
+}
+
+/*
+ * Format an enum type as the structural expansion IEEE 1800-2017
+ * 20.6.1 shows for an anonymous enum: "enum{A=32'sd0,B=32'sd1}". Icarus
+ * does not track whether an enum type came from a typedef (netenum_t
+ * carries no name of its own), so this expansion is used uniformly for
+ * both typedef'd and anonymous enums; the caller appends the argument's
+ * own declared name afterward (matching the LRM example's trailing
+ * "...}e1"), which is the closest approximation available without
+ * typedef-name tracking. This is a documented implementation choice.
+ */
+static std::string typename_format_enum_(const netenum_t*en)
+{
+      long width = en->packed_width();
+      bool is_signed = en->get_signed();
+
+      std::string out = "enum{";
+      for (size_t idx = 0; idx < en->size(); idx += 1) {
+	    if (idx) out += ",";
+	    out += std::string(en->name_at(idx).str()) + "="
+		 + typename_format_enum_value_(width, is_signed, en->value_at(idx));
+      }
+      out += "}";
+      return out;
+}
+
+/*
+ * Format a struct/union type. Neither packed nor unpacked structs
+ * carry a typedef name in netstruct_t, so (as with enums, above) this
+ * is always the structural member expansion.
+ */
+static std::string typename_format_type_(ivl_type_t type);
+
+static std::string typename_format_struct_(const netstruct_t*st)
+{
+      std::string out = st->union_flag() ? "union " : "struct ";
+      if (st->packed()) {
+	    out += "packed ";
+	    if (st->get_signed())
+		  out += "signed ";
+      }
+      out += "{";
+      const std::vector<netstruct_t::member_t>&members = st->members();
+      for (size_t idx = 0; idx < members.size(); idx += 1) {
+	    out += typename_format_type_(members[idx].net_type) + " "
+		 + std::string(members[idx].name.str()) + ";";
+      }
+      out += "}";
+      return out;
+}
+
+/*
+ * Format a class type as its bare declared name. NOTE: parameterized
+ * class specializations are not distinguished beyond this base name --
+ * elaboration does not thread actual parameter values into a
+ * specialized class's name (elab_scope.cc constructs every
+ * specialization's netclass_t as `new netclass_t(use_type->name, 0)`,
+ * i.e. the unparameterized name). So Box#(byte) and Box#(shortint)
+ * both print as "Box". This is a documented limitation, not a silent
+ * wrong answer: it is the same base name a user would see from
+ * `$typename` on an unparameterized class.
+ */
+static std::string typename_format_class_(const netclass_t*cls)
+{
+      const char*nm = cls->get_name().str();
+      return nm ? std::string(nm) : std::string();
+}
+
+/*
+ * Top-level dispatcher: walk an ivl_type_t and build its IEEE
+ * 1800-2017 20.6.1 type name. Array/queue/associative-array wrappers
+ * recurse on their element type and append the "$[...]" notation the
+ * LRM's own examples use (e.g. "int$[0:3]" for `int a[4]`, "$[]" for a
+ * dynamic array, "$[$]" for a queue, "$[<index type>]" for an
+ * associative array).
+ */
+static std::string typename_format_type_(ivl_type_t type)
+{
+      if (!type)
+	    return "logic";
+
+      if (const netclass_t*cls = dynamic_cast<const netclass_t*>(type))
+	    return typename_format_class_(cls);
+
+      if (const netenum_t*en = dynamic_cast<const netenum_t*>(type))
+	    return typename_format_enum_(en);
+
+      if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(type))
+	    return typename_format_struct_(st);
+
+	// netqueue_t is also used to represent associative arrays
+	// (assoc_compat() set); check it before netdarray_t, which it
+	// derives from.
+      if (const netqueue_t*q = dynamic_cast<const netqueue_t*>(type)) {
+	    std::string elem = typename_format_type_(q->element_type());
+	    if (q->assoc_compat()) {
+		  if (ivl_type_t idx = q->assoc_index_type())
+			return elem + "$[" + typename_format_type_(idx) + "]";
+		    // The index type wasn't available where this
+		    // associative array was elaborated (e.g. reached
+		    // through some other lowering path); "int" is the
+		    // most common associative index type and keeps the
+		    // notation well-formed rather than silently dropping
+		    // the "$[...]" suffix.
+		  return elem + "$[int]";
+	    }
+	    return elem + "$[$]";
+      }
+
+      if (const netdarray_t*da = dynamic_cast<const netdarray_t*>(type))
+	    return typename_format_type_(da->element_type()) + "$[]";
+
+      if (const netuarray_t*ua = dynamic_cast<const netuarray_t*>(type)) {
+	    std::string elem = typename_format_type_(ua->element_type());
+	    const netranges_t&dims = ua->static_dimensions();
+	      // Multi-dimensional unpacked array ordering (outermost vs.
+	      // innermost dimension first in dims_) is not exercised by
+	      // any known caller; this simply emits them in storage order,
+	      // which is correct for the common single-dimension case
+	      // (`int a[4]` -> "int$[0:3]").
+	    for (netranges_t::const_iterator cur = dims.begin(); cur != dims.end(); ++ cur) {
+		  if (!cur->defined())
+			continue;
+		  long lo = std::min(cur->get_msb(), cur->get_lsb());
+		  long hi = std::max(cur->get_msb(), cur->get_lsb());
+		  elem += "$[" + std::to_string(lo) + ":" + std::to_string(hi) + "]";
+	    }
+	    return elem;
+      }
+
+	// A packed array of a non-vector element (e.g. a packed array of
+	// struct). Ordinary packed vectors (logic/bit [msb:lsb]) are
+	// netvector_t and handled below, not netparray_t.
+      if (const netparray_t*pa = dynamic_cast<const netparray_t*>(type))
+	    return typename_format_type_(pa->element_type());
+
+      if (dynamic_cast<const netstring_t*>(type))
+	    return "string";
+
+      if (const netreal_t*re = dynamic_cast<const netreal_t*>(type))
+	    return (re == &netreal_t::type_shortreal) ? "shortreal" : "real";
+
+      if (const netvector_t*vec = dynamic_cast<const netvector_t*>(type))
+	    return typename_format_vector_(vec);
+
+      return "logic";
+}
+
+/*
+ * Fallback for an expression that elaborates without a full ivl_type_t
+ * attached (an arithmetic result, a part-select, ...). SystemVerilog's
+ * own self-determined-type rules mean these still have a definite
+ * width/signedness, so approximate the declared-type keyword from
+ * that -- the same approach vvp's own VPI signal layer uses at run
+ * time to tell int/byte/shortint/longint/bit apart (vvp/vpi_signal.cc,
+ * vpip_make_int2()).
+ */
+static std::string typename_format_basic_(ivl_variable_type_t vtype,
+					  unsigned width, bool is_signed)
+{
+      switch (vtype) {
+	  case IVL_VT_REAL:
+	    return "real";
+	  case IVL_VT_STRING:
+	    return "string";
+	  case IVL_VT_CLASS:
+	    return "class";
+	  case IVL_VT_BOOL: {
+	    if (is_signed) {
+		  switch (width) {
+		      case 8:  return "byte";
+		      case 16: return "shortint";
+		      case 32: return "int";
+		      case 64: return "longint";
+		      default: break;
+		  }
+	    }
+	    std::string base = "bit";
+	    if (is_signed) base += " signed";
+	    if (width > 1) base += " [" + std::to_string(width-1) + ":0]";
+	    return base;
+	  }
+	  case IVL_VT_LOGIC:
+	  default: {
+	    std::string base = "logic";
+	    if (is_signed) base += " signed";
+	    if (width > 1) base += " [" + std::to_string(width-1) + ":0]";
+	    return base;
+	  }
+      }
+}
+
+/*
  * Given a call to a system function, generate the proper expression
  * nodes to represent the call in the netlist. Since we don't support
  * size_tf functions, make assumptions about widths based on some
@@ -5742,6 +6033,71 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	   the bit width of the sub-expression. The value of the
 	   sub-expression is not used, so the expression itself can be
 	   deleted. */
+	/* $typename() (IEEE 1800-2017 20.6.1): fold to a string constant
+	   at elaboration time -- see the block comment above
+	   typename_format_type_() near the top of this file for why that
+	   is always possible, and what falls back to sys_typename_calltf
+	   (vpi/sys_sv_class.cc). */
+      if (name=="$typename") {
+	    if ((parms_.size() != 1) || !parms_[0].parm) {
+		  cerr << get_fileline() << ": error: The " << name
+		       << " function takes exactly one(1) argument." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+
+	    PExpr *expr = parms_[0].parm;
+	    std::string tn;
+
+	    if (const PETypename*type_expr = dynamic_cast<PETypename*>(expr)) {
+		    // $typename(<type>) -- the argument names a type
+		    // directly, not an expression.
+		  ivl_type_t data_type = type_expr->get_type()->elaborate_type(des, scope);
+		  if (data_type) {
+			tn = typename_format_type_(data_type);
+		  } else {
+			cerr << get_fileline() << ": sorry: $typename of this "
+			     << "type expression is not supported." << endl;
+			des->errors += 1;
+		  }
+	    } else {
+		  NetExpr*sub = elab_sys_task_arg(des, scope, name, 0, expr, false);
+		  if (sub == 0) {
+			des->errors += 1;
+			return 0;
+		  }
+
+		  if (ivl_type_t nt = sub->net_type()) {
+			tn = typename_format_type_(nt);
+
+			  // IEEE 1800-2017 20.6.1's own example for an
+			  // anonymous enum appends the declaration's name
+			  // after the structural expansion
+			  // ("enum{...}e1"). Icarus does not track
+			  // typedef association for enum types, so this
+			  // is applied uniformly; see the comment on
+			  // typename_format_enum_() above.
+			if (dynamic_cast<const netenum_t*>(nt)) {
+			      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+				    perm_string leaf = peek_tail_name(id->path());
+				    if (!leaf.nil())
+					  tn += leaf.str();
+			      }
+			}
+		  } else {
+			tn = typename_format_basic_(sub->expr_type(),
+						    sub->expr_width(),
+						    sub->has_sign());
+		  }
+
+		  delete sub;
+	    }
+
+	    NetECString*result = new NetECString(tn);
+	    result->set_line(*this);
+	    return result;
+      }
+
       if (name=="$sizeof" || name=="$bits") {
 	    if ((parms_.size() != 1) || !parms_[0].parm) {
 		  cerr << get_fileline() << ": error: The " << name

@@ -532,6 +532,13 @@ ivl_type_t atom_type_t::elaborate_type_raw(Design*des, NetScope*) const
 	    else
 		  return &netvector_t::atom2u64;
 
+	  case CHANDLE:
+	      // Storage-compatible with an unsigned longint (64-bit,
+	      // 2-state), but kept as its own singleton so type-name
+	      // introspection ($typename) can print "chandle" instead of
+	      // "longint". See the CHANDLE comment in pform_types.h.
+	    return &netvector_t::chandle_type;
+
 	  case INT:
 	    if (signed_flag)
 		  return &netvector_t::atom2s32;
@@ -1126,7 +1133,8 @@ static ivl_type_t elaborate_darray_check_type(Design *des, const LineInfo &li,
 static ivl_type_t elaborate_queue_type(Design *des, NetScope *scope,
 				       const LineInfo &li, ivl_type_t base_type,
 				       PExpr *ridx,
-				       bool assoc_compat = false)
+				       bool assoc_compat = false,
+				       ivl_type_t assoc_index_type = 0)
 {
       base_type = elaborate_darray_check_type(des, li, base_type, "Queue");
 
@@ -1160,7 +1168,7 @@ static ivl_type_t elaborate_queue_type(Design *des, NetScope *scope,
 	    delete cv;
       }
 
-      return new netqueue_t(base_type, max_idx, assoc_compat);
+      return new netqueue_t(base_type, max_idx, assoc_compat, assoc_index_type);
 }
 
 static bool finite_enum_index_range_(const netenum_t*enum_type,
@@ -1214,12 +1222,13 @@ static ivl_type_t elaborate_assoc_array_type(Design *des, NetScope *scope,
       data_type_t*index_type_pf = const_cast<PEAssocType*>(assoc_idx)->index_type();
       ivl_type_t index_type = index_type_pf->elaborate_type(des, scope);
 
-      (void) index_type;
-
       // Keep associative arrays in the assoc-compat queue representation even
       // for finite enum-key cases. Lowering them to a plain unpacked array
-      // loses exists/delete/iteration semantics, which UVM relies on.
-      return elaborate_queue_type(des, scope, li, base_type, 0, true);
+      // loses exists/delete/iteration semantics, which UVM relies on. The
+      // index type is threaded through (rather than discarded) so type-name
+      // introspection ($typename, IEEE 1800-2017 20.6.1) can print the
+      // "$[<index type>]" suffix for an associative array.
+      return elaborate_queue_type(des, scope, li, base_type, 0, true, index_type);
 }
 
 // If dims is not empty create a unpacked array type and clear dims, otherwise
