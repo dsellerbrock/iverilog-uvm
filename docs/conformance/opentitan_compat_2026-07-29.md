@@ -6,11 +6,12 @@ Short answer: **yes for block-level RTL, and that is now demonstrated end to
 end.** The unmodified OpenTitan UART IP — with the full TL-UL fabric,
 command/data integrity (SECDED), the `prim` library, the alert/escalation
 senders and riscv-dbg pulled in as dependencies — compiles and simulates
-correctly under this fork after seven compiler fixes landed alongside this
+correctly under this fork after eight compiler fixes landed alongside this
 document. The UVM DV testbenches do **not** run yet, but the compiler now
-reaches deep into them: the assertion-enabled `uart_sim` build is down to
-24 errors, dominated by one cascading parse failure. What is left there is
-two genuinely architectural SVA features, named precisely below.
+parses well into them instead of giving up part way through the file list.
+What is left is a short list of SVA features, named precisely below — and
+see the warning there about why the raw error count is a poor progress
+metric while the parser can still bail out.
 
 Everything here was measured, not estimated. Commands are reproducible from
 the "How to reproduce" section.
@@ -79,7 +80,7 @@ OpenTitan. Each has a regression test in `ivtest/ivltests/` that checks the
 construct is *evaluated correctly*, not merely accepted. The full gate
 (ivtest, VPI 94/94, negative 76/76, UVM 227/227) stays clean.
 
-The first four unblocked the UART RTL result; three more (numbered 3-5 under
+The first four unblocked the UART RTL result; four more (numbered 3-6 under
 "Fixed since the first pass" below) came out of pushing toward the DV suite.
 
 ### 1. `property_expr ::= ( property_expr )` (A.2.10)
@@ -201,21 +202,30 @@ behind them. That is progress, not regression.
    by the separate variable-length-antecedent limitation below, so this fix
    alone does not unblock that file.
 
+6. **`a |-> s_eventually(b)`** (A.2.10) — *fixed.* See the DV section for
+   the encoding (op types 18/19), the last-match collapse the lowering
+   rests on, and exactly what is and is not covered.
+
 ## Remaining gaps, in rough priority order
 
-1. **Property-expression implication consequents** — `a |-> s_eventually(b)`.
-   See the DV section; highest value because the *generated* CSR assertions
-   emit it for every comportable IP and its parse failure cascades.
-2. **Variable-length implication antecedents** — `a ##[1:3] b |=> c` and
-   friends. See the DV section.
-3. **Variable index into a packed multi-dimensional array** inside a
+1. **Variable-length implication antecedents** — `a ##[1:3] b |=> c` and
+   friends. See the DV section. Architectural.
+2. **Sequence combinators as an implication operand** — `(a or b) |-> c`.
+   Now the first diagnostic in the DV build.
+3. **Non-literal cycle-delay bounds** — `##[P+2:P+3]` with parameter
+   bounds.
+4. **The other property-expression consequents** — `a |-> always b`,
+   `a |-> nexttime b`, nested `a |-> (b |-> c)`. These need the real
+   nested-consequent field in `sva_property_t` that op types 18/19
+   deliberately sidestep.
+5. **Variable index into a packed multi-dimensional array** inside a
    function — `transpose[i][j] = in[j][i]` (`aes_pkg.sv:647`), and the
    struct-member form `reg2hw.key[i].qe` (`hmac.sv:819`). Reported as
    "A reference to a net or variable (`i') is not allowed in a constant
    expression". Now the dominant blocker for `aes`, `hmac` and `kmac`; a
    common RTL idiom that needs a dynamic part select rather than a constant
    offset.
-4. **Multiple-driver analysis** (`otbn`) — 38 "cannot have multiple
+6. **Multiple-driver analysis** (`otbn`) — 38 "cannot have multiple
    drivers" plus 10 "also continuously assigned". Needs its own
    investigation; may be several distinct causes.
 
@@ -226,11 +236,17 @@ behind them. That is progress, not regression.
 `dv_lib`, `cip_lib`, the TL-UL/alert/push-pull/UART agents, the generated
 RAL package and `tb.sv`. So the DV build is fully *plumbed*.
 
-With the seven fixes in place, the assertion-enabled `uart_sim` build is
-down to **24 errors**, and the `for`-loop and packed-array-member blockers
-are gone. What remains is dominated by a single cascading parse failure in
-the generated `uart_csr_assert_fpv.sv`, plus a handful of dropped
-assertions in `prim_diff_decode`.
+Progress here has to be read carefully, because **the error count is not a
+progress metric while the parser can still give up.** With seven fixes in
+place the assertion-enabled `uart_sim` build reported 24 errors — but the
+log ended in `I give up.`, meaning the parser abandoned the file list part
+way through and everything after `uart_csr_assert_fpv.sv` (line 158 of 256)
+was never really parsed. Fixing that file's blocker took the count to
+**128**, which is the compiler getting *further*, not worse: files 173+ are
+now genuinely parsed and reporting their own pre-existing problems for the
+first time. The same thing happened on the RTL side, where `aes` went from
+2 errors to 7. Read the *first* diagnostic and whether the parser survived,
+not the total.
 
 **A methodology warning, recorded because it produced a wrong reading
 first.** `-DSYNTHESIS` is *not* a valid way to probe the DV build past the
@@ -245,41 +261,85 @@ measured with assertions genuinely working. Also note the DV sources need
 `+define+UVM` (OpenTitan's dvsim passes it) — without it `` `gfn `` expands
 to `$sformatf("%m")` and produces invalid method-call syntax.
 
-### The two features the DV suite still needs
+### Property-expression implication consequents — the `s_eventually` case is now in
 
-Both are architectural — they need design, not a grammar line — and both
-are pre-existing gaps unrelated to OpenTitan specifically.
+IEEE 1800-2017 A.2.10 is `sequence_expr |-> property_expr`, but the grammar
+only had `sva_seq_expr K_PIPE_IMPL_OV sva_seq_expr`, so the consequent could
+only ever be a sequence. That rejected `a |-> s_eventually(b)` —
+which is exactly what the *generated* CSR assertions emit for every
+comportable IP:
 
-1. **Variable-length implication antecedents.** No antecedent longer than a
-   fixed-delay chain is supported: `a ##[1:3] b |=> c`, `a[*1:3] ##1 b |=> c`,
-   `a ##[1:$] b |=> c` and `a[*1:$] ##1 b |=> c` all hit
-   *"this assertion antecedent shape is not supported (fixed-delay sequence
-   chains up to 128 cycles only)"* (`pform.cc`, `pform_make_assertion_`).
-   The lowering builds the antecedent as an AND of per-step booleans delayed
-   through the `$past` history machinery, which only models one attempt at a
-   fixed offset. A variable-length antecedent means several attempts in
-   flight at once, each with its own obligation — the automaton engine can
-   express that, but the assert-property lowering does not route antecedents
-   through it. `prim_alert_receiver` and `prim_diff_decode` need this.
+```systemverilog
+`ASSERT(TlulOOBAddrErr_A, oob_addr_err |-> s_eventually(d2h.d_valid && d2h.d_error))
+```
 
-2. **Property-expression implication consequents.** IEEE 1800-2017 A.2.10
-   is `sequence_expr |-> property_expr`, but the grammar only has
-   `sva_seq_expr K_PIPE_IMPL_OV sva_seq_expr`, so the consequent can only
-   ever be a sequence. That rejects `a |-> s_eventually(b)`,
-   `a |-> always b`, `a |-> nexttime b` and nested implications
-   `a |-> (b |-> c)`. It is not just a missing production:
-   `sva_property_t` models the consequent as
-   `std::vector<sva_seq_step_t>* seq`, a flat chain with no field for a
-   nested property, so the data model and both lowerings need extending.
-   The generated `uart_csr_assert_fpv.sv` uses
-   `` `ASSERT(TlulOOBAddrErr_A, oob_addr_err |-> s_eventually(...)) ``, and
-   because the parse failure loses module boundaries it cascades into
-   `lc_ctrl_reg_pkg`, `prim_esc_*` and the `uart_bind` targets — which is
-   why 24 errors trace back to roughly two causes.
+Because the parse failure lost module boundaries it cascaded into
+`lc_ctrl_reg_pkg`, `prim_esc_*` and the `uart_bind` targets, so most of the
+24 errors traced back to this one construct.
 
-Closing (2) is the higher-value next step: it is one construct, it is what
-the *generated* CSR assertions emit for every comportable IP, and its
-cascade accounts for most of the remaining error count.
+`sva_property_t` models the consequent as a flat `vector<sva_seq_step_t>`
+with no field for a nested property, so rather than invent a
+half-designed nested-consequent field, the two implication-with-liveness
+forms are encoded as dedicated op types — **18** (`|->`) and **19**
+(`|=>`) — and lowered in `pform_make_temporal_assertion_` next to the
+`until` family whose machinery they reuse.
+
+The lowering rests on a collapse worth stating explicitly, because it is
+what makes a single pending bit sufficient: for every antecedent match the
+consequent must hold at some cycle at or after that match, and the
+obligation from the **last** match is the strongest — a `b` that discharges
+it discharges every earlier one too. So one `pend` flag, set by the
+antecedent and cleared by `b`, is exact rather than approximate. The two
+forms differ only in the order of set and clear within a cycle: `|->` is
+clear-else-set (a same-cycle `b` discharges the match), `|=>` is
+clear-then-set (a same-cycle `b` discharges only older obligations). An
+antecedent that never matches leaves `pend` clear and passes vacuously, as
+it must.
+
+**Scope, stated plainly:** only `s_eventually` is covered, and only with a
+boolean antecedent and boolean operand. `a |-> always b`,
+`a |-> nexttime b` and nested implications `a |-> (b |-> c)` are still
+syntax errors — those do need the real nested-consequent field. Sequence
+operands on either side get a loud `sorry`, not silent acceptance.
+
+### What the fix revealed next
+
+With `uart_csr_assert_fpv.sv` parsing, the first diagnostic moved to
+`prim_alert_sender.sv:324`:
+
+```systemverilog
+`ASSERT(InBandInitFsm_A, PingSigInt_S or AckSigInt_S |->
+        ##[SkewCycles+2:SkewCycles+3] state_q == Idle)
+```
+
+Two further pre-existing gaps, both of which the parser previously never
+got far enough to notice:
+
+- **Sequence combinators as an implication operand.** `(a or b) |-> c`,
+  `(a and b) |-> c` and `a |-> (b or c)` are all syntax errors. The
+  combinator rules (`sva_or_has_op`, `sva_and_has_op`) yield an
+  `sva_property_t` carrying a combinator tree, while the implication
+  productions accept only `sva_seq_expr` on either side — so no production
+  covers the combination. Structural, and the antecedent side would need
+  the automaton engine.
+- **Non-literal cycle-delay bounds.** `##[SkewCycles+2:SkewCycles+3]`
+  where the bounds are parameters, not literals — 8 occurrences, reported
+  as *"sequence cycle delays must be literal constants"*.
+
+### The feature the DV suite still needs
+
+**Variable-length implication antecedents.** No antecedent longer than a
+fixed-delay chain is supported: `a ##[1:3] b |=> c`, `a[*1:3] ##1 b |=> c`,
+`a ##[1:$] b |=> c` and `a[*1:$] ##1 b |=> c` all hit *"this assertion
+antecedent shape is not supported (fixed-delay sequence chains up to 128
+cycles only)"* (`pform.cc`, `pform_make_assertion`). The lowering builds the
+antecedent as an AND of per-step booleans delayed through the `$past`
+history machinery, which only models one attempt at a fixed offset. A
+variable-length antecedent means several attempts in flight at once, each
+with its own obligation — the automaton engine can express that, but the
+assert-property lowering does not route antecedents through it.
+`prim_alert_receiver` and `prim_diff_decode` need this. It is architectural
+and wants a design pass, not a grammar line.
 
 ## How to reproduce
 

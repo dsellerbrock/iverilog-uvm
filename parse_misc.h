@@ -152,7 +152,16 @@ struct sva_property_t {
       // succeeds); 1 = strong (`strong(seq)': a pending attempt at end of
       // simulation is a FAILURE). Automaton-engine-only.
       int strength = 0;
-      int op_type = 0;                      // 0=plain sequence, 1=|->, 2=|=>
+      // 0=plain sequence, 1=|->, 2=|=>; 4..17 the temporal/liveness/
+      // abort operators (see pform_make_temporal_assertion_).
+      // IEEE 1800-2017 A.2.10 makes an implication CONSEQUENT a full
+      // property_expr, not just a sequence. This struct still models the
+      // consequent as a flat step chain, so the property-consequent forms
+      // are encoded as dedicated op_types rather than a nested property:
+      //   18 = `a |-> s_eventually(b)', 19 = `a |=> s_eventually(b)'.
+      // Adding a real nested-consequent field is what the remaining forms
+      // (`a |-> always b', nested implications) will need.
+      int op_type = 0;
       // IEEE 1800-2017 16.12.2/16.12.5: bounded liveness window for the
       // unary liveness ops (nexttime[n]/s_nexttime[n]: win_lo==win_hi==n;
       // s_eventually[m:n]/eventually[m:n]: win_lo==m, win_hi==n). -1 on

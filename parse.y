@@ -5719,6 +5719,25 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { sva_property_t*p = new sva_property_t;
 	p->antecedent = $1; p->seq = $5; p->op_type = 2; p->strength = 0;
 	$$ = p; }
+  /* IEEE 1800-2017 A.2.10: the consequent of an implication is a
+     `property_expr', not merely a sequence, so a liveness operator may
+     appear there — `req |-> s_eventually(ack)'. This is the shape
+     OpenTitan's GENERATED CSR assertions emit for every comportable IP
+     (`oob_addr_err |-> s_eventually(d_valid && d_error)').
+     op_type 18/19 = overlapped/non-overlapped implication with an
+     s_eventually consequent; the lowering is in
+     pform_make_temporal_assertion_.
+     Only `s_eventually' is covered here. Other property consequents
+     (`always', `nexttime', nested implications) still need the nested
+     consequent property that sva_property_t does not yet model. */
+  | sva_seq_expr K_PIPE_IMPL_OV K_s_eventually '(' sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $5; p->op_type = 18;
+	$$ = p; }
+  | sva_seq_expr K_PIPE_IMPL_NOV K_s_eventually '(' sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->antecedent = $1; p->seq = $5; p->op_type = 19;
+	$$ = p; }
   /* IEEE 1800-2017 16.12.9: negation — the property holds iff the
      sequence has NO match starting at any attempt point. */
   | K_not '(' sva_seq_expr ')'

@@ -1220,3 +1220,4 @@ sv_cast_size_string_literal normal,-g2012 ivltests
 sv_lnet_parray_struct_member normal,-g2012 ivltests
 sv_for_multi_var_decl normal,-g2012 ivltests
 sv_assert_star_unbounded normal,-g2012 ivltests
+sv_assert_impl_s_eventually normal,-g2012 ivltests
