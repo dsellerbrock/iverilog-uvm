@@ -2415,16 +2415,16 @@ static PLI_INT32 sys_severity_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
  * R21: $stacktrace.
  *
  * NOTE: the roadmap item that motivated this cites IEEE 1800-2017 20.3.3,
- * but that subclause is actually $realtime; clause 20's own severity/
- * elaboration task lists (20.10/20.11) name only $fatal/$error/$warning/
- * $info, and $stacktrace does not appear anywhere in clause 20 of the
- * 2017 LRM. It is a widely implemented vendor debug extension (Questa and
- * others), not a standard SystemVerilog system task. With no LRM text to
- * conform to, this implements the common contract found elsewhere: a task
- * (so it is NOT usable in an expression/as a function), taking no
- * arguments, that prints the current call stack to stdout and does not
- * itself affect simulation control flow -- exactly like a diagnostic
- * severity task with no severity.
+ * but that subclause is actually $realtime; $stacktrace does not appear
+ * anywhere in clause 20 of the 2017 LRM. At implementation time this was
+ * treated as the widely implemented vendor debug extension it then was
+ * (Questa and others). IEEE 1800-2023 has since STANDARDIZED $stacktrace
+ * as both a task and a string-returning function (2023 clause 20); the
+ * task form implemented here conforms to the standardized contract (the
+ * printed format is implementation-defined). The function form (string
+ * return value) is 1800-2023 uplift work, tracked under M15. Contract: a
+ * task taking no arguments that prints the current call stack to stdout
+ * and does not itself affect simulation control flow.
  *
  * The actual stack walk needs access to vvp's vthread call-frame chain,
  * which is core-side state; vpip_print_stacktrace() (vvp/vthread.cc) does
