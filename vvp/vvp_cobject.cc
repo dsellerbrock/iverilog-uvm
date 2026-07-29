@@ -181,6 +181,34 @@ void vvp_cobject::randc_mark(size_t pid, uint64_t val)
       }
 }
 
+// RANDOM-DIST fix #4: see the declaration in vvp_cobject.h.
+void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
+                                       const std::vector<uint64_t>&feasible)
+{
+      uint64_t period = randc_period(pid);
+      if (period == 0) return;
+      std::vector<bool>&hist = randc_history_[pid];
+      if (hist.size() != period) hist.assign((size_t)period, false);
+      if (val < period) hist[val] = true;
+
+      bool all_used = true;
+      for (uint64_t v : feasible) {
+            if (v < period && !hist[v]) { all_used = false; break; }
+      }
+      if (all_used) {
+            for (uint64_t v : feasible)
+                  if (v < period) hist[v] = false;
+      }
+}
+
+void vvp_cobject::randc_unmark(size_t pid, uint64_t val)
+{
+      std::map<size_t, std::vector<bool> >::iterator it
+            = randc_history_.find(pid);
+      if (it == randc_history_.end()) return;
+      if (val < it->second.size()) it->second[val] = false;
+}
+
 vvp_cobject::~vvp_cobject()
 {
       if (defn_->covgrp_parent_prop() >= 0)
