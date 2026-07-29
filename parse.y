@@ -3408,37 +3408,49 @@ deferred_immediate_assertion_item /* IEEE1800-2012: A.6.10 */
 deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   : assert_or_assume deferred_mode '(' expression ')' statement_or_null %prec less_than_K_else
       {
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: Deferred assertions are not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+	if (gn_supported_assertions_flag) {
+	      $$ = pform_make_deferred_assertion(@1, $4, $6, 0, $2 != 0);
+	} else {
+	      if (gn_unsupported_assertions_flag) {
+		    yyerror(@1, "sorry: Deferred assertions are not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      }
+	      delete $4;
+	      delete $6;
+	      $$ = 0;
 	}
-	delete $4;
-	delete $6;
-	$$ = 0;
       }
   | assert_or_assume deferred_mode '(' expression ')' K_else statement_or_null
       {
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: Deferred assertions are not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+	if (gn_supported_assertions_flag) {
+	      $$ = pform_make_deferred_assertion(@1, $4, 0, $7, $2 != 0);
+	} else {
+	      if (gn_unsupported_assertions_flag) {
+		    yyerror(@1, "sorry: Deferred assertions are not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      }
+	      delete $4;
+	      delete $7;
+	      $$ = 0;
 	}
-	delete $4;
-	delete $7;
-	$$ = 0;
       }
   | assert_or_assume deferred_mode '(' expression ')' statement_or_null K_else statement_or_null
       {
-	if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: Deferred assertions are not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+	if (gn_supported_assertions_flag) {
+	      $$ = pform_make_deferred_assertion(@1, $4, $6, $8, $2 != 0);
+	} else {
+	      if (gn_unsupported_assertions_flag) {
+		    yyerror(@1, "sorry: Deferred assertions are not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      }
+	      delete $4;
+	      delete $6;
+	      delete $8;
+	      $$ = 0;
 	}
-	delete $4;
-	delete $6;
-	delete $8;
-	$$ = 0;
       }
   | K_cover deferred_mode '(' expression ')' statement_or_null
       {

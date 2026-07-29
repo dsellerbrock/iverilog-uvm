@@ -1206,3 +1206,5 @@ sv_process_status_identity normal,-g2012 ivltests
 sv_stacktrace_task_call normal,-g2012 ivltests
 sv_event_array normal,-g2012 ivltests
 sv_event_lifetime_qualifier normal,-g2012 ivltests
+sv_deferred_flush1	normal,-g2012		ivltests
+sv_deferred_final_latest1	normal,-g2012		ivltests gold=sv_deferred_final_latest1.gold

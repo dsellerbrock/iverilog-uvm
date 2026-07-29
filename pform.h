@@ -835,6 +835,17 @@ extern void pform_bind_sampled_call_to_event(const struct vlltype&loc,
 
 extern PProcess*  pform_make_behavior(ivl_process_type_t, Statement*,
 				      std::list<named_pexpr_t>*attr);
+
+/* Lower a deferred immediate assertion (IEEE 1800-2017 16.4) into the
+   evaluate-now / report-in-Reactive (or report-at-final) synthesis.
+   pass_stmt/fail_stmt may be nil; a nil fail_stmt gets the default
+   $error. Returns the statement to put where the assertion was, or
+   nil on a (loud) unsupported context. */
+extern Statement* pform_make_deferred_assertion(const struct vlltype&loc,
+						PExpr*expr,
+						Statement*pass_stmt,
+						Statement*fail_stmt,
+						bool is_final);
 extern void pform_mc_translate_on(bool flag);
 
 extern std::vector<PWire*>* pform_make_udp_input_ports(std::list<pform_ident_t>*);
