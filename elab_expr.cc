@@ -23,8 +23,10 @@
 # include  <typeinfo>
 # include  <cstdlib>
 # include  <cstring>
+# include  <cctype>
 # include  <climits>
 # include  <map>
+# include  <set>
 # include  <sstream>
 # include "compiler.h"
 
@@ -268,7 +270,6 @@ NetESFunc* make_std_randomize_with_expr(
       return fun;
 }
 
-static bool warned_object_missing_method_fallback = false;
 static bool warned_multi_index_array_prop_fallback = false;
 
 /* Phase 63b/B1 (real impl): build a NetESFunc that the tgt-vvp side
@@ -4204,16 +4205,135 @@ enum compile_progress_expr_method_stub_kind_t {
       CP_EXPR_METHOD_STUB_CLASS_NULL
 };
 
+/*
+ * M1B-3 / Finding D: the method/function-name classifiers below
+ * fabricate a typed placeholder value (empty string, 0, null, ...)
+ * for a handful of hardcoded method/function name literals whenever
+ * normal resolution fails. That is appropriate for dead code inside
+ * the vendored UVM library (parameterized-class specializations that
+ * are never actually instantiated at the type that fails to resolve,
+ * e.g. a uvm_*_registry#(int) default) but is a silent correctness
+ * bug for ordinary user code: any call to a nonexistent method or
+ * function that happens to string-match one of these names (get_name,
+ * size, create, ...) compiles clean and returns a made-up value
+ * instead of the "no such method" error one branch away.
+ *
+ * Gate: only fire when the call site is plausibly part of the UVM
+ * library itself. We approximate "part of UVM" by file provenance:
+ * walk the call site's scope chain and check whether any enclosing
+ * scope was declared in a file whose path contains "uvm" (covers both
+ * the vendored dev-tree layout, <repo>/uvm-core/src/..., and the
+ * installed layout, <prefix>/lib/ivl/uvm/src/...). This is a crude
+ * (substring, case-insensitive) test, not a security boundary; it is
+ * intentionally over-inclusive of "files that merely mention uvm in
+ * their name" and under-inclusive of nothing that matters here, since
+ * the failure mode of a wrong classification is just an extra loud
+ * warning (fires) or an honest compile error (doesn't fire) — never a
+ * silently wrong value.
+ */
+static bool path_segment_is_uvm_(const char*seg, size_t seglen)
+{
+	// Matches whole path segments "uvm" or "uvm-core" (case-insensitive),
+	// covering both the vendored dev-tree layout
+	// (<repo>/uvm-core/src/...) and the installed layout
+	// (<prefix>/lib/ivl/uvm/src/...). Deliberately NOT a bare substring
+	// match: this repository's own checkout directory is itself named
+	// "iverilog-uvm", and a substring test would match every file in
+	// the tree (including ordinary user test files), silently
+	// defeating the gate.
+      static const char uvm3[] = "uvm";
+      static const char uvmcore[] = "uvm-core";
+      if (seglen == 3) {
+	    for (size_t i = 0 ; i < 3 ; i += 1)
+		  if (tolower((unsigned char)seg[i]) != uvm3[i])
+			return false;
+	    return true;
+      }
+      if (seglen == 8) {
+	    for (size_t i = 0 ; i < 8 ; i += 1)
+		  if (tolower((unsigned char)seg[i]) != uvmcore[i])
+			return false;
+	    return true;
+      }
+      return false;
+}
+
+static bool path_looks_like_uvm_(perm_string file)
+{
+      if (file.nil())
+	    return false;
+      const char*s = file.str();
+      if (!s || !*s)
+	    return false;
+      size_t start = 0;
+      size_t len = strlen(s);
+      for (size_t i = 0 ; i <= len ; i += 1) {
+	    if (i == len || s[i] == '/' || s[i] == '\\') {
+		  if (path_segment_is_uvm_(s + start, i - start))
+			return true;
+		  start = i + 1;
+	    }
+      }
+      return false;
+}
+
+static bool call_site_is_uvm_provenance_(const NetScope*scope)
+{
+      for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    if (path_looks_like_uvm_(cur->get_file()))
+		  return true;
+	    if (path_looks_like_uvm_(cur->get_def_file()))
+		  return true;
+      }
+      return false;
+}
+
+static bool class_is_uvm_provenance_(const netclass_t*class_type)
+{
+      if (!class_type)
+	    return false;
+      if (const NetScope*cs = class_type->class_scope()) {
+	    if (path_looks_like_uvm_(cs->get_file()))
+		  return true;
+	    if (path_looks_like_uvm_(cs->get_def_file()))
+		  return true;
+      }
+      return false;
+}
+
+/* Loud, de-duplicated (per method/site shape) warning that a
+ * compile-progress stub fired. Never silent: the FIRST time a given
+ * (site, method) shape fires we print; further identical shapes are
+ * suppressed only to keep a full UVM build's output readable (the
+ * same macro-expanded call fires thousands of times across
+ * parameterized specializations). */
+static void warn_compile_progress_stub_fired_(const LineInfo*li,
+					      const char*what,
+					      perm_string name)
+{
+      static std::set<string> warned;
+      string key = string(what) + ":" + name.str();
+      if (!warned.insert(key).second)
+	    return;
+      cerr << li->get_fileline() << ": warning: " << what << " `" << name
+	   << "' did not resolve; substituting a UVM compile-progress stub "
+	   << "value (further occurrences of this call suppressed)." << endl;
+}
+
 static compile_progress_expr_method_stub_kind_t
 classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 					    const netclass_t*class_type,
-					    perm_string method_name)
+					    perm_string method_name,
+					    bool in_uvm)
 {
 	if (class_type) {
 	    // Virtual interface types: any unknown method is a stub.
 	    // Interface functions are not elaborated into class_scope_, so
 	    // resolve_method_call_scope() will always miss them. Return an
 	    // int-0 stub so the call elaborates cleanly as compile-progress.
+	    // NOT gated to UVM: this compensates for a general elaboration
+	    // limitation on virtual interface method calls (plain user
+	    // testbenches use virtual interfaces too), not a UVM-only need.
 	    if (class_type->is_interface())
 		  return CP_EXPR_METHOD_STUB_INT0;
 
@@ -4224,6 +4344,14 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 	    if (class_name == perm_string::literal("process")
 		&& method_name == perm_string::literal("status"))
 		  return CP_EXPR_METHOD_STUB_NONE;
+	      // mailbox/semaphore/randomize below are identified by actual
+	      // built-in class identity (or, for randomize, apply
+	      // universally per IEEE 1800), not by a name guess over an
+	      // arbitrary unresolved class — NOT gated to UVM. (In
+	      // practice elaborate_expr_method_ dispatches these to real
+	      // $ivl_mailbox$*/$ivl_semaphore$*/randomize machinery before
+	      // ever reaching this classifier; these entries only still
+	      // matter for the early width-computation pass.)
 	    if (class_name == perm_string::literal("mailbox")) {
 		  if (method_name == perm_string::literal("num"))
 			return CP_EXPR_METHOD_STUB_INT0;
@@ -4239,6 +4367,9 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 	    if (method_name == perm_string::literal("randomize"))
 		  return CP_EXPR_METHOD_STUB_BOOL0;
 	}
+
+	if (!in_uvm)
+	      return CP_EXPR_METHOD_STUB_NONE;
 
 	if (method_name == perm_string::literal("size")
 	    || method_name == perm_string::literal("num"))
@@ -4346,9 +4477,19 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 }
 
 static compile_progress_expr_method_stub_kind_t
-classify_compile_progress_unresolved_func_stub_(const pform_scoped_name_t&path)
+classify_compile_progress_unresolved_func_stub_(const pform_scoped_name_t&path,
+						bool in_uvm)
 {
       if (path.name.empty())
+	    return CP_EXPR_METHOD_STUB_NONE;
+
+	// Unlike the method-call classifier above, a free-function-shaped
+	// unresolved call carries no receiver/class identity at all to
+	// narrow the guess — every branch below is a pure name match, so
+	// (unlike the class-identity-scoped mailbox/semaphore/interface
+	// entries above) there is nothing here that is safe to leave
+	// ungated.
+      if (!in_uvm)
 	    return CP_EXPR_METHOD_STUB_NONE;
 
       perm_string func_name = peek_tail_name(path);
@@ -4935,7 +5076,7 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	    const netclass_t *class_type = dynamic_cast<const netclass_t*>(target_type);
 	    ivl_assert(*this, class_type);
 	    if (apply_compile_progress_expr_method_stub_width_(
-		      classify_compile_progress_expr_method_stub_(stub_use_path, class_type, method_name),
+		      classify_compile_progress_expr_method_stub_(stub_use_path, class_type, method_name, true),
 		      expr_type_, expr_width_, min_width_, signed_flag_))
 		  return expr_width_;
 	    if (method_name == perm_string::literal("status")
@@ -4994,7 +5135,7 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		 << "I give up." << endl;
       }
       if (apply_compile_progress_expr_method_stub_width_(
-		classify_compile_progress_expr_method_stub_(stub_use_path, nullptr, method_name),
+		classify_compile_progress_expr_method_stub_(stub_use_path, nullptr, method_name, true),
 		expr_type_, expr_width_, min_width_, signed_flag_))
 	    return expr_width_;
       return 0;
@@ -5566,7 +5707,7 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 	    }
 
 	    if (apply_compile_progress_expr_method_stub_width_(
-			  classify_compile_progress_unresolved_func_stub_(path_),
+			  classify_compile_progress_unresolved_func_stub_(path_, true),
 			  expr_type_, expr_width_, min_width_, signed_flag_))
 		  return expr_width_;
 	    expr_width_ = 0;
@@ -5650,7 +5791,7 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 		  return expr_width_;
 	    }
 	    if (apply_compile_progress_expr_method_stub_width_(
-			  classify_compile_progress_unresolved_func_stub_(path_),
+			  classify_compile_progress_unresolved_func_stub_(path_, true),
 			  expr_type_, expr_width_, min_width_, signed_flag_))
 		  return expr_width_;
 
@@ -8966,8 +9107,11 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 
 	    if (NetExpr*stub = elaborate_compile_progress_expr_method_stub_(
 			  this,
-			  classify_compile_progress_unresolved_func_stub_(path_)))
+			  classify_compile_progress_unresolved_func_stub_(
+				path_, call_site_is_uvm_provenance_(scope)))) {
+		  warn_compile_progress_stub_fired_(this, "function", peek_tail_name(path_));
 		  return stub;
+	    }
 	    if (NetScope*lazy_func = find_lazy_function_scope_(des, scope, path_))
 		  return elaborate_base_(des, scope, lazy_func, flags);
 	    cerr << get_fileline() << ": error: No function named `" << path_
@@ -8995,7 +9139,10 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      // chains and foreach iterator method calls may fail
 			      // when the intermediate type is not fully resolved.
 			      // Return a typed placeholder to let compilation
-			      // continue.
+			      // continue -- but ONLY inside the UVM library itself
+			      // (see call_site_is_uvm_provenance_): ordinary user
+			      // code with a genuinely unresolved method must fall
+			      // through to the real error below.
 				      perm_string tail_method;
 				      if (!search_results.path_tail.empty())
 					    tail_method = search_results.path_tail.back().name;
@@ -9030,16 +9177,20 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					    return rand_expr;
 				      }
 
+				      bool in_uvm = call_site_is_uvm_provenance_(scope)
+					    || class_is_uvm_provenance_(class_type);
+
 				      compile_progress_expr_method_stub_kind_t stub_kind =
 					    classify_compile_progress_expr_method_stub_(
-						  search_results.path_head, class_type, tail_method);
+						  search_results.path_head, class_type, tail_method,
+						  in_uvm);
 				      if (NetExpr*stub = elaborate_compile_progress_expr_method_stub_(
-						    this, stub_kind))
+						    this, stub_kind)) {
+					    warn_compile_progress_stub_fired_(this, "method", tail_method);
 					    return stub;
-				      // Phase 63b/B2: suppress the noisy
-				      // "has no method" warning for known
-				      // dead-code patterns in UVM's default
-				      // template specializations.  When T=int
+				      }
+				      // Phase 63b/B2: known dead-code patterns in UVM's
+				      // default template specializations.  When T=int
 				      // (the default for uvm_class_comp /
 				      // uvm_class_converter / uvm_class_pair),
 				      // the body references methods like
@@ -9048,7 +9199,11 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				      // specializations are dead code (only
 				      // class-T specializations are ever
 				      // called) but iverilog still elaborates
-				      // the body and warns.
+				      // the body.  Gated to UVM provenance for the
+				      // same reason as the classifier above: this is
+				      // a UVM-library-specific accommodation, not a
+				      // general license to fabricate values for
+				      // ordinary unresolved user calls.
 				      //
 				      // Two patterns:
 				      //   a.compare(...) where a's type is non-class
@@ -9060,34 +9215,28 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				      //       resolve that here, so accept tail_method-only
 				      //       suppression for the well-known UVM list.
 				      bool is_uvm_dead_method = false;
-				      if (tail_method == perm_string::literal("compare")
-					  || tail_method == perm_string::literal("convert2string")
-					  || tail_method == perm_string::literal("do_copy")
-					  || tail_method == perm_string::literal("do_compare")) {
+				      if (in_uvm
+					  && (tail_method == perm_string::literal("compare")
+					      || tail_method == perm_string::literal("convert2string")
+					      || tail_method == perm_string::literal("do_copy")
+					      || tail_method == perm_string::literal("do_compare"))) {
 					    is_uvm_dead_method = true;
 				      }
-				      if (!warned_object_missing_method_fallback
-					  && !is_uvm_dead_method) {
-					    cerr << get_fileline() << ": warning: "
-					         << "Object " << scope_path(search_results.scope)
-				         << "." << search_results.path_head.back()
-				         << " has no method \"" << search_results.path_tail
-				         << "(...)\" (compile-progress fallback, "
-				         << "further similar warnings suppressed)." << endl;
-				    warned_object_missing_method_fallback = true;
-			      }
-			      // Return integer 0 for size/len/num, null for others.
-			      if (tail_method == perm_string::literal("len")
-			          || tail_method == perm_string::literal("size")
-			          || tail_method == perm_string::literal("num")) {
-				    NetEConst*tmp = make_const_val(0);
-				    tmp->set_line(*this);
-				    return tmp;
-			      } else {
-				    NetENull*tmp = new NetENull;
-				    tmp->set_line(*this);
-				    return tmp;
-			      }
+				      if (is_uvm_dead_method) {
+					    warn_compile_progress_stub_fired_(this, "method (dead template specialization)", tail_method);
+					    // Return integer 0 for size/len/num, null for others.
+					    if (tail_method == perm_string::literal("len")
+						|| tail_method == perm_string::literal("size")
+						|| tail_method == perm_string::literal("num")) {
+						  NetEConst*tmp = make_const_val(0);
+						  tmp->set_line(*this);
+						  return tmp;
+					    } else {
+						  NetENull*tmp = new NetENull;
+						  tmp->set_line(*this);
+						  return tmp;
+					    }
+				      }
 			}
 			cerr << get_fileline() << ": error: "
 			     << "Object " << scope_path(search_results.scope)
@@ -9116,8 +9265,11 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  return elaborate_access_func_(des, scope, access_nature);
 	    if (NetExpr*stub = elaborate_compile_progress_expr_method_stub_(
 			  this,
-			  classify_compile_progress_unresolved_func_stub_(path_)))
+			  classify_compile_progress_unresolved_func_stub_(
+				path_, call_site_is_uvm_provenance_(scope)))) {
+		  warn_compile_progress_stub_fired_(this, "function", peek_tail_name(path_));
 		  return stub;
+	    }
 
 	      // Nothing was found so report this as an error.
 	    cerr << get_fileline() << ": error: No function named `" << path_
@@ -10341,10 +10493,13 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				rand_expr->parm(0, sub_expr);
 				return rand_expr;
 			  }
+			  bool in_uvm = call_site_is_uvm_provenance_(scope)
+				|| class_is_uvm_provenance_(class_type);
 			  if (NetExpr*stub = elaborate_compile_progress_expr_method_stub_(
 					this,
 					classify_compile_progress_expr_method_stub_(use_path, class_type,
-										   method_name))) {
+										   method_name, in_uvm))) {
+				warn_compile_progress_stub_fired_(this, "method", method_name);
 				delete sub_expr;
 				return stub;
 			  }
@@ -10579,7 +10734,9 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
       if (NetExpr*stub = elaborate_compile_progress_expr_method_stub_(
 		    this,
 		    classify_compile_progress_expr_method_stub_(use_path, nullptr,
-							 method_name))) {
+							 method_name,
+							 call_site_is_uvm_provenance_(scope)))) {
+	    warn_compile_progress_stub_fired_(this, "method", method_name);
 	    delete sub_expr;
 	    return stub;
       }
