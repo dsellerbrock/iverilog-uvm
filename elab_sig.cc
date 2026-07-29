@@ -867,6 +867,73 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		       << " type=" << *use_type << endl;
 	    }
 
+	      // IEEE 1800-2017 18.4: rand/randc is restricted to integral
+	      // types (2-state/4-state, enums, and aggregates thereof).
+	      // real/shortreal, string, and chandle are NOT integral, so a
+	      // rand/randc property of one of these types used to compile
+	      // clean and simply never randomize (silent, randomize() still
+	      // returned 1) -- make it a hard error instead. `event` never
+	      // reaches this loop at all (the parser drops its qualifier
+	      // before a property is even recorded); that path is checked
+	      // at parse time (see the K_event class-item rule in parse.y).
+	      //
+	      // "aggregates thereof" cuts both ways: an array/queue/dynamic
+	      // array of real/string/chandle is exactly as illegal as the
+	      // scalar case, so unwrap through netarray_t (the common base
+	      // of fixed arrays, dynamic arrays, and queues) to the element
+	      // type before judging it.
+	    bool bad_type = false;
+	    if (cur->second.qual.test_rand() || cur->second.qual.test_randc()) {
+		  ivl_type_t elem_type = use_type;
+		  while (elem_type) {
+			const netarray_t*arr = dynamic_cast<const netarray_t*>(elem_type);
+			if (!arr) break;
+			elem_type = arr->element_type();
+		  }
+		  const char*what = 0;
+		  if (elem_type == &netreal_t::type_real
+		      || elem_type == &netreal_t::type_shortreal
+		      || (elem_type && elem_type->base_type() == IVL_VT_REAL)) {
+			bad_type = true; what = "real/shortreal";
+		  } else if (elem_type == &netstring_t::type_string
+			     || (elem_type && elem_type->base_type() == IVL_VT_STRING)) {
+			bad_type = true; what = "string";
+		  } else if (elem_type == &netvector_t::chandle_type) {
+			bad_type = true; what = "chandle";
+		  }
+		  if (bad_type) {
+			cerr << pclass->get_fileline() << ": error: property '"
+			     << cur->first << "' of class " << get_name()
+			     << " is declared " << (cur->second.qual.test_randc() ? "randc" : "rand")
+			     << " but has type " << what << ", which is not an "
+			     << "integral type (IEEE 1800-2017 18.4 restricts "
+			     << "rand/randc to 2-state/4-state types, enums, and "
+			     << "aggregates thereof)." << endl;
+			des->errors += 1;
+		  }
+	    }
+
+	      // C1 (Phase 62a) capped randc's cycle bitmap at a 16-bit
+	      // width (2^16 entries) and silently degraded anything wider
+	      // to plain (non-cyclic) rand -- no diagnostic at all. The cap
+	      // is now 20 bits (2^20-entry bitmap, 128KB: vvp/vvp_cobject.cc
+	      // randc_period() -- keep this bound in sync with that one),
+	      // but the same silent-degrade risk exists beyond THAT bound,
+	      // so name it here instead of letting it pass quietly.
+	    if (!bad_type && cur->second.qual.test_randc() && use_type) {
+		  long pw = use_type->packed_width();
+		  const long randc_cap_bits = 20;
+		  if (pw > randc_cap_bits) {
+			cerr << pclass->get_fileline() << ": warning: randc property '"
+			     << cur->first << "' of class " << get_name()
+			     << " is " << pw << " bits wide, beyond the "
+			     << randc_cap_bits << "-bit randc cycle-tracking cap; "
+			     << "it will randomize as plain (non-cyclic) rand instead "
+			     << "of guaranteeing a full permutation before any repeat."
+			     << endl;
+		  }
+	    }
+
 	    set_property(cur->first, cur->second.qual, use_type);
 
 	    if (! cur->second.qual.test_static())

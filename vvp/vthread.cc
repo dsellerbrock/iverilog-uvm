@@ -2900,6 +2900,262 @@ static void collect_unmerged_base_constraints_(const class_type*defn,
 }
 
 /*
+ * IEEE 1800-2017 18.4: a rand UNPACKED STRUCT is an aggregate of integral
+ * members, not a separate randomizable object -- structs cannot carry
+ * their own `constraint` blocks (those attach to classes), so an
+ * unconstrained rand struct property is just every integral member
+ * getting fresh random bits, recursively for a nested unpacked-struct
+ * member. A member that is itself a container, class handle, real, or
+ * string is not integral and is left untouched, with one loud warning
+ * (constraint support for struct members has the same limitation --
+ * see the "not representable" warning at constraint-IR build time).
+ */
+static void randomize_struct_members_(vvp_cobject*subcobj, const class_type*subdefn)
+{
+      if (!subcobj || !subdefn) return;
+      for (size_t mpid = 0 ; mpid < subdefn->property_count() ; mpid += 1) {
+	    const std::string&bt = subdefn->property_base_type(mpid);
+	    uint64_t asize = subdefn->property_array_size(mpid);
+	    if (asize < 1) asize = 1;
+
+	    if (bt.compare(0, 3, "oc:") == 0) {
+		    // Nested unpacked struct member: recurse per element.
+		  for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+			vvp_object_t propobj;
+			subcobj->get_object(mpid, propobj, adr);
+			if (vvp_cobject*nested = propobj.peek<vvp_cobject>())
+			      randomize_struct_members_(nested, nested->get_defn());
+		  }
+		  continue;
+	    }
+
+	    if (bt == "o" || bt == "r" || bt == "S" || bt.compare(0, 1, "Q") == 0
+		|| bt.compare(0, 1, "M") == 0
+		|| (!bt.empty() && bt[0] == 'D')) {
+		  static bool warned_struct_member_nonintegral = false;
+		  if (!warned_struct_member_nonintegral) {
+			cerr << "warning: member '" << subdefn->property_name(mpid)
+			     << "' of rand unpacked struct '" << subdefn->class_name()
+			     << "' is not an integral type (IEEE 1800-2017 18.4 "
+			     << "restricts rand aggregates to integral members) "
+			     << "and is not randomized (further similar warnings "
+			     << "suppressed)." << endl;
+			warned_struct_member_nonintegral = true;
+		  }
+		  continue;
+	    }
+
+	    for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+		  vvp_vector4_t val;
+		  subcobj->get_vec4(mpid, val, adr);
+		  unsigned wid = val.size();
+		  if (wid == 0)
+			continue;
+		  for (unsigned i = 0 ; i < wid ; i += 32) {
+			unsigned rnd = randomize_rand_(subcobj);
+			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
+			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+		  }
+		  subcobj->set_vec4(mpid, val, adr);
+	    }
+      }
+}
+
+/*
+ * IEEE 1800-2017 18.4: object.randomize() must also randomize any non-null
+ * rand HANDLE property, i.e. call that sub-object's own randomize(). This
+ * is sequential recursion -- the sub-object solves its own constraints on
+ * its own, NOT jointly with the parent's -- which is the documented limit:
+ * a sub-object constraint that references parent state is not modeled.
+ * A null handle is left null (18.4 default): nothing to recurse into.
+ *
+ * `randomize_stack_` guards against a cyclic rand-handle graph (a chain
+ * that loops back to an object already being randomized higher up this
+ * same call): re-entering would recurse forever, so a repeat occurrence
+ * is left as-is instead -- a documented limitation, not a fresh joint
+ * solve for the cycle.
+ */
+static std::vector<vvp_cobject*> randomize_stack_;
+
+static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
+{
+      if (!cobj) return true;
+      for (vvp_cobject*p : randomize_stack_)
+	    if (p == cobj) return true;
+      randomize_stack_.push_back(cobj);
+
+      bool solve_ok = true;
+      const class_type*defn = cobj->get_defn();
+
+      bool have_constraints = false;
+      for (const class_type*walker = defn; walker; walker = walker->runtime_super())
+	    if (walker->constraint_count() > 0)
+		  have_constraints = true;
+      std::vector<rand_saved_prop_s> saved;
+      if (have_constraints)
+	    randomize_snapshot_(cobj, defn, saved, sel);
+
+	// Fill this call's random variables with random bits first.
+      for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+	    if (!rand_call_active_(defn, cobj, sel, pid))
+		  continue;
+
+	      // Unpacked-struct and class-handle rand properties: no bits
+	      // of their own to pre-fill here -- struct members get filled
+	      // member-wise, and a non-null handle gets its own randomize()
+	      // (see the two helpers above). A null handle stays null.
+	    {
+		  const std::string&bt = defn->property_base_type(pid);
+		  bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;
+		  bool is_handle_prop = (bt == "o");
+		  if (is_struct_prop || is_handle_prop) {
+			uint64_t hsize = defn->property_array_size(pid);
+			if (hsize < 1) hsize = 1;
+			for (uint64_t adr = 0 ; adr < hsize ; adr += 1) {
+			      vvp_object_t propobj;
+			      cobj->get_object(pid, propobj, adr);
+			      vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
+			      if (!subcobj) continue;
+			      if (is_struct_prop)
+				    randomize_struct_members_(subcobj, subcobj->get_defn());
+			      else
+				    randomize_cobject_(subcobj, nullptr);
+			}
+			continue;
+		  }
+	    }
+
+	      // Phase 50b: rand assoc-vec4 array properties.  When a
+	      // property is `rand uint x[KEY]`, the storage is a
+	      // vvp_assoc_vec4 reachable via get_object().  The default
+	      // get_vec4 path returns a 1-bit "exists" flag and never
+	      // touches the actual entry values, so randomize() left
+	      // assoc entries at their initialised value (typically 0)
+	      // for OpenTitan's clk_freqs_mhz pattern.  Iterate string
+	      // keys here and replace each entry's value with random
+	      // bits of the entry's natural width, capped so the value
+	      // is within `int` range and non-zero.  The constraint
+	      // foreach is currently dropped at parse, so this is the
+	      // only mechanism that puts non-zero values in the assoc;
+	      // downstream code that checks `freq > 0` works.
+	      // Static-array rand properties (e.g. `rand int arr[4]`):
+	      // fill every element with random bits. Without this only
+	      // word 0 is touched and elements stay at 0.
+	    if (defn->property_array_size(pid) > 1) {
+		  uint64_t asize = defn->property_array_size(pid);
+		  for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+			vvp_vector4_t val;
+			cobj->get_vec4(pid, val, adr);
+			unsigned wid = val.size();
+			if (wid == 0)
+			      break;
+			vvp_vector4_t nv(wid, BIT4_0);
+			for (unsigned b = 0 ; b < wid ; b += 1)
+			      nv.set_bit(b, (randomize_rand_(cobj) & 1) ? BIT4_1 : BIT4_0);
+			cobj->set_vec4(pid, nv, adr);
+		  }
+		  continue;
+	    }
+
+	    {
+		  vvp_object_t propobj;
+		  cobj->get_object(pid, propobj, 0);
+		  if (vvp_assoc_vec4*assoc = propobj.peek<vvp_assoc_vec4>()) {
+			std::string key;
+			bool ok = assoc->first_key(key);
+			while (ok) {
+			      vvp_vector4_t cur;
+			      bool got = assoc->get(key, cur);
+			      unsigned wid = got ? cur.size() : 32;
+			      if (wid == 0) wid = 32;
+			      // Generate non-zero value capped at 8 bits so
+			      // typical clock-frequency-style constraints
+			      // (e.g. inside {[5:100]}) are satisfied without
+			      // a real solver pass.  Width-clip back to wid.
+			      unsigned cap = (wid >= 8) ? 0xFF : ((1u<<wid) - 1);
+			      unsigned rnd = (randomize_rand_(cobj) % cap) + 1;
+			      vvp_vector4_t nv(wid, BIT4_0);
+			      for (unsigned b = 0 ; b < wid ; b += 1)
+				    nv.set_bit(b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+			      assoc->set(key, nv);
+			      ok = assoc->next_key(key);
+			}
+			continue;  // skip the get_vec4 path below
+		  }
+	    }
+	      // A CONTAINER property -- a dynamic array or queue. There are
+	      // no property bits to pre-fill: get_vec4 hands back a 1-bit
+	      // "non-nil" flag and writing that back is not a value
+	      // (class_property_t::set_vec4 rejects it and warns). A rand
+	      // dynamic array's size and elements are the solver's business
+	      // (18.4), not this loop's. Asked of the DECLARED type, so it
+	      // holds for a property that is still nil on the first call.
+	    if (rand_prop_is_container_(defn, pid))
+		  continue;
+
+	    vvp_vector4_t val;
+	    cobj->get_vec4(pid, val);
+	    unsigned wid = val.size();
+	    if (wid == 0)
+		  continue;
+	    // C1 (Phase 62a): cyclic randc — pick unused value in current
+	    // cycle. randc_mark resets bitmap when cycle exhausted.
+	    if (defn->property_is_randc(pid)) {
+		  uint64_t period = cobj->randc_period(pid);
+		  if (period > 0) {
+			uint64_t pick = 0;
+			bool found = false;
+			for (unsigned attempt = 0;
+			     attempt < 4 * (unsigned)period;
+			     attempt += 1) {
+			      uint64_t cand = (uint64_t)randomize_rand_(cobj) % period;
+			      if (!cobj->randc_seen(pid, cand)) {
+				    pick = cand; found = true; break;
+			      }
+			}
+			if (!found) {
+			      for (uint64_t i = 0; i < period; i += 1) {
+				    if (!cobj->randc_seen(pid, i)) {
+					  pick = i; found = true; break;
+				    }
+			      }
+			}
+			if (found) {
+			      cobj->randc_mark(pid, pick);
+			      for (unsigned b = 0; b < wid; b += 1)
+				    val.set_bit(b, (pick >> b) & 1
+						  ? BIT4_1 : BIT4_0);
+			      cobj->set_vec4(pid, val);
+			      continue;
+			}
+		  }
+	    }
+	    for (unsigned i = 0 ; i < wid ; i += 32) {
+		  unsigned rnd = randomize_rand_(cobj);
+		  for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
+			val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+	    }
+	    cobj->set_vec4(pid, val);
+      }
+
+	// ONE solve over the complete inherited constraint set --
+	// see collect_unmerged_base_constraints_ for why solving the
+	// chain class by class silently violates derived constraints.
+      {
+	    vector<string> extra_ir;
+	    collect_unmerged_base_constraints_(defn, extra_ir);
+	    if (defn->constraint_count() > 0 || !extra_ir.empty())
+		  if (!vvp_z3_randomize(defn, cobj, extra_ir, {}, sel))
+			solve_ok = false;
+      }
+      if (!solve_ok)
+	    randomize_restore_(cobj, saved);
+
+      randomize_stack_.pop_back();
+      return solve_ok;
+}
+
+/*
  * %randomize
  *
  * Randomize all rand/randc properties of the class object on top of the
@@ -2923,151 +3179,7 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 	    thr->rand_sel.clear();
       }
 
-      bool solve_ok = true;
-      if (cobj) {
-	    const class_type*defn = cobj->get_defn();
-
-	    bool have_constraints = false;
-	    for (const class_type*walker = defn; walker; walker = walker->runtime_super())
-		  if (walker->constraint_count() > 0)
-			have_constraints = true;
-	    std::vector<rand_saved_prop_s> saved;
-	    if (have_constraints)
-		  randomize_snapshot_(cobj, defn, saved, sel);
-
-	      // Fill this call's random variables with random bits first.
-	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
-		  if (!rand_call_active_(defn, cobj, sel, pid))
-			continue;
-
-		    // Phase 50b: rand assoc-vec4 array properties.  When a
-		    // property is `rand uint x[KEY]`, the storage is a
-		    // vvp_assoc_vec4 reachable via get_object().  The default
-		    // get_vec4 path returns a 1-bit "exists" flag and never
-		    // touches the actual entry values, so randomize() left
-		    // assoc entries at their initialised value (typically 0)
-		    // for OpenTitan's clk_freqs_mhz pattern.  Iterate string
-		    // keys here and replace each entry's value with random
-		    // bits of the entry's natural width, capped so the value
-		    // is within `int` range and non-zero.  The constraint
-		    // foreach is currently dropped at parse, so this is the
-		    // only mechanism that puts non-zero values in the assoc;
-		    // downstream code that checks `freq > 0` works.
-		    // Static-array rand properties (e.g. `rand int arr[4]`):
-		    // fill every element with random bits. Without this only
-		    // word 0 is touched and elements stay at 0.
-		  if (defn->property_array_size(pid) > 1) {
-			uint64_t asize = defn->property_array_size(pid);
-			for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
-			      vvp_vector4_t val;
-			      cobj->get_vec4(pid, val, adr);
-			      unsigned wid = val.size();
-			      if (wid == 0)
-				    break;
-			      vvp_vector4_t nv(wid, BIT4_0);
-			      for (unsigned b = 0 ; b < wid ; b += 1)
-				    nv.set_bit(b, (randomize_rand_(cobj) & 1) ? BIT4_1 : BIT4_0);
-			      cobj->set_vec4(pid, nv, adr);
-			}
-			continue;
-		  }
-
-		  {
-			vvp_object_t propobj;
-			cobj->get_object(pid, propobj, 0);
-			if (vvp_assoc_vec4*assoc = propobj.peek<vvp_assoc_vec4>()) {
-			      std::string key;
-			      bool ok = assoc->first_key(key);
-			      while (ok) {
-				    vvp_vector4_t cur;
-				    bool got = assoc->get(key, cur);
-				    unsigned wid = got ? cur.size() : 32;
-				    if (wid == 0) wid = 32;
-				    // Generate non-zero value capped at 8 bits so
-				    // typical clock-frequency-style constraints
-				    // (e.g. inside {[5:100]}) are satisfied without
-				    // a real solver pass.  Width-clip back to wid.
-				    unsigned cap = (wid >= 8) ? 0xFF : ((1u<<wid) - 1);
-				    unsigned rnd = (randomize_rand_(cobj) % cap) + 1;
-				    vvp_vector4_t nv(wid, BIT4_0);
-				    for (unsigned b = 0 ; b < wid ; b += 1)
-					  nv.set_bit(b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
-				    assoc->set(key, nv);
-				    ok = assoc->next_key(key);
-			      }
-			      continue;  // skip the get_vec4 path below
-			}
-		  }
-		    // A CONTAINER or handle property -- a dynamic array,
-		    // a class handle, a struct object. There are no
-		    // property bits to pre-fill: get_vec4 hands back a
-		    // 1-bit "non-nil" flag and writing that back is not a
-		    // value (class_property_t::set_vec4 rejects it and
-		    // warns). A rand dynamic array's size and elements are
-		    // the solver's business (18.4), not this loop's. Asked
-		    // of the DECLARED type, so it holds for a property
-		    // that is still nil on the first call.
-		  if (rand_prop_is_container_(defn, pid))
-			continue;
-
-		  vvp_vector4_t val;
-		  cobj->get_vec4(pid, val);
-		  unsigned wid = val.size();
-		  if (wid == 0)
-			continue;
-		  // C1 (Phase 62a): cyclic randc — pick unused value in current
-		  // cycle. randc_mark resets bitmap when cycle exhausted.
-		  if (defn->property_is_randc(pid)) {
-			uint64_t period = cobj->randc_period(pid);
-			if (period > 0) {
-			      uint64_t pick = 0;
-			      bool found = false;
-			      for (unsigned attempt = 0;
-				   attempt < 4 * (unsigned)period;
-				   attempt += 1) {
-				    uint64_t cand = (uint64_t)randomize_rand_(cobj) % period;
-				    if (!cobj->randc_seen(pid, cand)) {
-					  pick = cand; found = true; break;
-				    }
-			      }
-			      if (!found) {
-				    for (uint64_t i = 0; i < period; i += 1) {
-					  if (!cobj->randc_seen(pid, i)) {
-						pick = i; found = true; break;
-					  }
-				    }
-			      }
-			      if (found) {
-				    cobj->randc_mark(pid, pick);
-				    for (unsigned b = 0; b < wid; b += 1)
-					  val.set_bit(b, (pick >> b) & 1
-							? BIT4_1 : BIT4_0);
-				    cobj->set_vec4(pid, val);
-				    continue;
-			      }
-			}
-		  }
-		  for (unsigned i = 0 ; i < wid ; i += 32) {
-			unsigned rnd = randomize_rand_(cobj);
-			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
-			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
-		  }
-		  cobj->set_vec4(pid, val);
-	    }
-
-	      // ONE solve over the complete inherited constraint set --
-	      // see collect_unmerged_base_constraints_ for why solving the
-	      // chain class by class silently violates derived constraints.
-	    {
-		  vector<string> extra_ir;
-		  collect_unmerged_base_constraints_(defn, extra_ir);
-		  if (defn->constraint_count() > 0 || !extra_ir.empty())
-			if (!vvp_z3_randomize(defn, cobj, extra_ir, {}, sel))
-			      solve_ok = false;
-	    }
-	    if (!solve_ok)
-		  randomize_restore_(cobj, saved);
-      }
+      bool solve_ok = cobj ? randomize_cobject_(cobj, sel) : true;
 
       vvp_object_t tmp;
       thr->pop_object(tmp);
@@ -3122,6 +3234,32 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	      // Randomize this call's random variables first.
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
 		  if (!rand_call_active_(defn, cobj, sel, pid)) continue;
+
+		    // Unpacked-struct / class-handle rand properties:
+		    // member-wise fill or recurse into a non-null handle's
+		    // own randomize() (mirrors of_RANDOMIZE / IEEE 1800-2017
+		    // 18.4). A null handle stays null.
+		  {
+			const std::string&bt = defn->property_base_type(pid);
+			bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;
+			bool is_handle_prop = (bt == "o");
+			if (is_struct_prop || is_handle_prop) {
+			      uint64_t hsize = defn->property_array_size(pid);
+			      if (hsize < 1) hsize = 1;
+			      for (uint64_t adr = 0 ; adr < hsize ; adr += 1) {
+				    vvp_object_t propobj;
+				    cobj->get_object(pid, propobj, adr);
+				    vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
+				    if (!subcobj) continue;
+				    if (is_struct_prop)
+					  randomize_struct_members_(subcobj, subcobj->get_defn());
+				    else
+					  randomize_cobject_(subcobj, nullptr);
+			      }
+			      continue;
+			}
+		  }
+
 		    // Static-array rand properties: fill each element
 		    // (mirrors of_RANDOMIZE).
 		  if (defn->property_array_size(pid) > 1) {

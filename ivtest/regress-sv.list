@@ -1213,3 +1213,5 @@ sv_deferred_final_latest1	normal,-g2012		ivltests gold=sv_deferred_final_latest1
 sv_typename1 normal,-g2012 ivltests
 sv_type_operator1 normal,-g2012 ivltests
 sv_param_type_identity1 normal,-g2012 ivltests
+sv_rand_conformance_pin1 normal,-g2012 ivltests
+sv_rand_conformance_pin2 normal,-g2012 ivltests

@@ -138,16 +138,20 @@ void vvp_cobject::set_constraint_mode(size_t cid, bool mode)
       if (cid < constraint_mode_.size()) constraint_mode_[cid] = mode;
 }
 
-// C1 (Phase 62a): randc cyclic state.  Cycle period = 2^width capped at
-// 65536 so the bitmap stays bounded.  Wider properties fall back to plain
-// rand (period reported as 0).
+// C1 (Phase 62a): randc cyclic state.  Cycle period = 2^width, capped at
+// 20 bits (a 2^20-entry, 128KB std::vector<bool> bitmap per instance --
+// the old 16-bit/65536-entry cap was stale conservatism; 128KB is a
+// trivial per-object cost for the guarantee of no repeat before a full
+// cycle). Wider properties fall back to plain rand (period reported as
+// 0); elab_sig.cc warns at compile time, by name, when that degrade
+// happens -- keep this bound in sync with the literal there.
 uint64_t vvp_cobject::randc_period(size_t pid) const
 {
       if (pid >= defn_->property_count()) return 0;
       vvp_vector4_t probe;
       const_cast<vvp_cobject*>(this)->get_vec4(pid, probe);
       unsigned w = probe.size();
-      if (w == 0 || w > 16) return 0;
+      if (w == 0 || w > 20) return 0;
       return (uint64_t)1 << w;
 }
 

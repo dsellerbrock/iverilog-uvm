@@ -124,6 +124,33 @@ void class_property_t::destruct(char*) const
 
 void class_property_t::set_vec4(char*, const vvp_vector4_t&)
 {
+	// A rand QUEUE property's `.size() == N` constraint reaches here:
+	// unlike a rand dynamic array (whose solved size resizes the
+	// vvp_darray directly through a container-aware path), a queue has
+	// no analogous resize hookup, so the solver's attempt to apply the
+	// solved size lands on this generic "no write" fallback and the
+	// queue is left empty. Name that specific limitation instead of
+	// the generic message when this fires on a queue-coded property
+	// (SORRY: rand queue .size() constraints are not implemented --
+	// mirroring the working darray-size-constraint path, which is
+	// solver-side vvp_z3.cc territory, is the way to close this).
+      if (!type_name_.empty()
+	  && type_name_.find('Q') != std::string::npos) {
+	    static bool warned_queue_size = false;
+	    if (!warned_queue_size) {
+		  fprintf(stderr,
+			  "Warning: sorry: rand queue '.size()' constraints are "
+			  "not implemented (class=%s property=%s type=%s); the "
+			  "queue is left empty instead of being sized/filled "
+			  "(further similar warnings suppressed)\n",
+			  owner_class_.empty() ? "<unknown>" : owner_class_.c_str(),
+			  prop_name_.empty() ? "<unknown>" : prop_name_.c_str(),
+			  type_name_.c_str());
+		  warned_queue_size = true;
+	    }
+	    return;
+      }
+
       static bool warned = false;
       if (!warned) {
 	    warn_unsupported_("set_vec4", "ignoring write");

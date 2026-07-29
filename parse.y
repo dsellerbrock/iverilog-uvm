@@ -1710,7 +1710,17 @@ class_item /* IEEE1800-2005: A.1.8 */
       { pform_class_property(@1, $2 | property_qualifier_t::make_const(), $3, $4); }
 
   | property_qualifier_opt K_event event_variable_list ';'
-      { if ($3) pform_make_events(@2, $3); }
+      { /* IEEE 1800-2017 18.4: rand/randc is restricted to integral
+	 * types; `event` is not one, so `rand event e;` is illegal. This
+	 * qualifier never reaches a class property record at all (events
+	 * are pform_make_events(), not pform_class_property()), so it has
+	 * to be checked here or it silently vanishes with no diagnostic. */
+	if ($1.test_rand() || $1.test_randc())
+	      yyerror(@2, "error: event properties cannot be declared %s "
+			  "(IEEE 1800-2017 18.4 restricts rand/randc to "
+			  "integral types).", $1.test_randc() ? "randc" : "rand");
+	if ($3) pform_make_events(@2, $3);
+      }
 
   | K_local K_static data_type list_of_variable_decl_assignments ';'
       { pform_class_property(@1,
