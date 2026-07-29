@@ -1,0 +1,21 @@
+WARNING: ./ivltests/sv_case_unique_multimatch1.v:18: multiple case items match for unique or unique0 case statement
+         Time: 0  Scope: main
+U overlap: first branch
+WARNING: ./ivltests/sv_case_unique_multimatch1.v:26: multiple case items match for unique or unique0 case statement
+         Time: 0  Scope: main
+U0 overlap: first branch
+P overlap: first branch
+WARNING: ./ivltests/sv_case_unique_multimatch1.v:44: multiple case items match for unique or unique0 case statement
+         Time: 0  Scope: main
+Uz overlap: first branch
+WARNING: ./ivltests/sv_case_unique_multimatch1.v:52: multiple case items match for unique or unique0 case statement
+         Time: 0  Scope: main
+loop 0: first branch
+WARNING: ./ivltests/sv_case_unique_multimatch1.v:52: multiple case items match for unique or unique0 case statement
+         Time: 0  Scope: main
+loop 1: first branch
+WARNING: ./ivltests/sv_case_unique_multimatch1.v:52: multiple case items match for unique or unique0 case statement
+         Time: 0  Scope: main
+loop 2: first branch
+control: item 2
+PASSED
