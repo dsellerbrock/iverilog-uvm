@@ -1909,22 +1909,32 @@ void collapse_partselect_pv_to_concat(Design*des, NetNet*sig)
  */
 bool evaluate_index_prefix(Design*des, NetScope*scope,
 			   list<long>&prefix_indices,
-			   const list<index_component_t>&indices)
+			   const list<index_component_t>&indices,
+			   bool quiet)
 {
       list<index_component_t>::const_iterator icur = indices.begin();
       for (size_t idx = 0 ; (idx+1) < indices.size() ; idx += 1, ++icur) {
 	    assert(icur != indices.end());
 	    if (icur->sel != index_component_t::SEL_BIT) {
+		  if (quiet) return false;
 		  cerr << icur->msb->get_fileline() << ": error: "
 			"All but the final index in a chain of indices must be "
 			"a single value, not a range." << endl;
 		  des->errors += 1;
 		  return false;
 	    }
-	    NetExpr*texpr = elab_and_eval(des, scope, icur->msb, -1, true);
+	    NetExpr*texpr = elab_and_eval(des, scope, icur->msb, -1, !quiet);
 
 	    long tmp;
 	    if (texpr == 0 || !eval_as_long(tmp, texpr)) {
+		    // In quiet mode a non-constant prefix is not an error --
+		    // the caller has a general path for it (a computed base
+		    // expression over all the packed dimensions). Say no and
+		    // let it take that path.
+		  if (quiet) {
+			delete texpr;
+			return false;
+		  }
 		  if (gn_system_verilog()) {
 			cerr << icur->msb->get_fileline() << ": warning: "
 				"Array index expressions must be constant here"
@@ -1944,6 +1954,67 @@ bool evaluate_index_prefix(Design*des, NetScope*scope,
       }
 
       return true;
+}
+
+/*
+ * IEEE 1800-2017 11.5.2 / 7.4.6: an index into a packed array may be a
+ * run-time expression in ANY dimension, not just the last one. The
+ * constant-prefix path above collapses the leading indices into a single
+ * constant slice offset, which cannot express `t[i][j]' with i variable.
+ *
+ * collapse_array_exprs() already builds the fully general canonical
+ * offset -- sum over dimensions of normalize(index_k) * slice_width_k --
+ * with no constant requirement, so this just pads the index list out to
+ * the signal's packed dimensionality (a select that stops short of the
+ * last dimension addresses the START of that slice, hence constant 0 for
+ * the dimensions not indexed) and hands it over.
+ *
+ * On return `sel_wid' is the width of the addressed slice: the product of
+ * the packed dimensions the index list did NOT cover.
+ */
+/*
+ * Scale an ELEMENT index into a bit offset, for an element `wid' bits
+ * wide. Used where a select addresses an element of a packed array
+ * rather than a bit. Widens the index first so the multiply cannot
+ * overflow it.
+ */
+NetExpr*scale_index_to_bits(NetExpr*idx, unsigned long wid, const LineInfo&loc)
+{
+      if (wid <= 1)
+	    return idx;
+
+      unsigned min_wid = idx->expr_width();
+      if (num_bits(wid) >= min_wid) {
+	    min_wid = num_bits(wid) + 1;
+	    idx = pad_to_width(idx, min_wid, loc);
+      }
+      return make_mult_expr(idx, wid);
+}
+
+NetExpr*collapse_packed_base(Design*des, NetScope*scope, const LineInfo*loc,
+			     const NetNet*net,
+			     const std::list<index_component_t>&indices,
+			     unsigned long&sel_wid)
+{
+      unsigned ndims = net->packed_dimensions();
+      if (indices.size() > ndims)
+	    return 0;
+
+      std::list<index_component_t> use_index = indices;
+      while (use_index.size() < ndims) {
+	    index_component_t pad;
+	    pad.sel = index_component_t::SEL_BIT;
+	    pad.msb = new PENumber(new verinum((uint64_t)0, integer_width));
+	    pad.lsb = 0;
+	    use_index.push_back(pad);
+      }
+
+	// slice_width(k) is the width of what remains after k dimensions
+	// have been indexed, so the covered index count gives the width of
+	// the thing being selected.
+      sel_wid = net->slice_width(indices.size());
+
+      return collapse_array_exprs(des, scope, loc, net, use_index);
 }
 
 /*
@@ -2569,7 +2640,8 @@ void check_for_inconsistent_delays(const NetScope*scope)
  * interpret things like bit selects.
  */
 bool calculate_param_range(const LineInfo&line, ivl_type_t par_type,
-			   long&par_msv, long&par_lsv, long length)
+			   long&par_msv, long&par_lsv, long length,
+			   unsigned long*slice_wid)
 {
       const netvector_t*vector_type = dynamic_cast<const netvector_t*> (par_type);
       if (vector_type == 0) {
@@ -2577,6 +2649,7 @@ bool calculate_param_range(const LineInfo&line, ivl_type_t par_type,
 	    // just return range values of [length-1:0].
 	    par_msv = length-1;
 	    par_lsv = 0;
+	    if (slice_wid) *slice_wid = 1;
 	    return true;
       }
 
@@ -2594,9 +2667,42 @@ bool calculate_param_range(const LineInfo&line, ivl_type_t par_type,
       if (packed_dims.size() == 0) {
 	    par_msv = length-1;
 	    par_lsv = 0;
+	    if (slice_wid) *slice_wid = 1;
 	    return true;
       }
-      ivl_assert(line, packed_dims.size() == 1);
+
+      // A MULTI-dimensional packed parameter -- e.g.
+      //
+      //    typedef logic [63:0][5:0] perm_t;
+      //    parameter perm_t RndCnstSharePerm = ...;   // aes_prng_clearing
+      //
+      // A select on one of these addresses an ELEMENT (here 6 bits wide),
+      // not a bit. The range that matters is the OUTERMOST dimension, and
+      // the element width is the product of the rest.
+      //
+      // A caller that asks for slice_wid can handle that. A caller that
+      // does not would read `Perm[i]' as a one-bit select and quietly
+      // return the wrong value, so it is refused out loud instead -- this
+      // used to be an assertion failure that aborted the compiler.
+      if (packed_dims.size() > 1) {
+	    const netrange_t&outer = packed_dims[0];
+	    if (slice_wid) {
+		  unsigned long outer_count = outer.width();
+		  ivl_assert(line, outer_count > 0);
+		  *slice_wid = vector_type->packed_width() / outer_count;
+		  par_msv = outer.get_msb();
+		  par_lsv = outer.get_lsb();
+		  return true;
+	    }
+	    cerr << line.get_fileline() << ": sorry: this select on a "
+		 << "multi-dimensional packed PARAMETER is not supported "
+		 << "(only a plain element select is); assign it to a "
+		 << "variable of the same type and select on that instead."
+		 << endl;
+	    return false;
+      }
+
+      if (slice_wid) *slice_wid = 1;
 
       netrange_t use_range = packed_dims[0];
       par_msv = use_range.get_msb();

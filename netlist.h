@@ -1330,6 +1330,17 @@ class NetScope : public Definitions, public Attrib {
 	    bool type_flag = false;
 	    // Is it an unpacked array parameter (elements stored as "name[i]")
 	    bool is_array_param = false;
+	    // Unpacked dimensions from the declaration (pform data, not
+	    // owned). Needed to expand and index the elements under their
+	    // REAL declared indices ([3:0] stores "name[3]" first), not
+	    // their pattern positions.
+	    const std::list<pform_range_t>*udims = nullptr;
+	    // The declared bounds, evaluated during array expansion.
+	    // array_left is the first-listed bound: '{e0, e1, ...}
+	    // assigns e0 to [array_left].
+	    long array_left = 0;
+	    long array_right = 0;
+	    bool array_bounds_known = false;
 	    // The lexical position of the declaration
 	    unsigned lexical_pos = 0;
 	    // range constraints

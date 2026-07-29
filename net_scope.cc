@@ -383,6 +383,7 @@ void NetScope::set_parameter(perm_string key, bool is_annotatable,
       ref.type_flag = param.type_flag;
       ref.lexical_pos = param.lexical_pos;
       ref.is_array_param = (param.udims != nullptr && !param.udims->empty());
+      ref.udims = param.udims;
       ivl_assert(param, !ref.range);
       ref.range = range_list;
       ref.val = 0;

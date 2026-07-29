@@ -518,9 +518,27 @@ extern uint64_t get_scaled_time_from_real(const Design*des,
 
 extern void collapse_partselect_pv_to_concat(Design*des, NetNet*sig);
 
+/* Collapse the leading indices of a packed select into constants. With
+   quiet=true a non-constant prefix simply returns false with no
+   diagnostic, so the caller can fall back to collapse_packed_base(). */
 extern bool evaluate_index_prefix(Design*des, NetScope*scope,
 				  std::list<long>&prefix_indices,
-				  const std::list<index_component_t>&indices);
+				  const std::list<index_component_t>&indices,
+				  bool quiet = false);
+
+/* Scale an ELEMENT index into a bit offset for an element `wid' bits
+   wide (a no-op when wid <= 1). */
+extern NetExpr*scale_index_to_bits(NetExpr*idx, unsigned long wid,
+				   const LineInfo&loc);
+
+/* General packed-array addressing: a run-time index in ANY dimension.
+   Returns the canonical bit offset of the addressed slice and sets
+   sel_wid to that slice's width. Returns 0 if the index list is longer
+   than the signal's packed dimensionality. */
+extern NetExpr*collapse_packed_base(Design*des, NetScope*scope,
+				    const LineInfo*loc, const NetNet*net,
+				    const std::list<index_component_t>&indices,
+				    unsigned long&sel_wid);
 
 extern NetExpr*collapse_array_indices(Design*des, NetScope*scope, const NetNet*net,
 				      const std::list<index_component_t>&indices);

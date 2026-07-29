@@ -29,6 +29,7 @@
 # include  "t-dll.h"
 # include  "netclass.h"
 # include  "netqueue.h"
+# include  "netvector.h"
 # include  "netmisc.h"
 # include  "discipline.h"
 # include  <cstdlib>
@@ -534,10 +535,21 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 
 	      // Type parameters don't have a range or expression
 	    if (!cur_pit->second.type_flag) {
-		  calculate_param_range(cur_pit->second,
-					cur_pit->second.ivl_type,
-					cur_par->msb, cur_par->lsb,
-					cur_pit->second.val->expr_width());
+		  const netvector_t*par_vec =
+			dynamic_cast<const netvector_t*>(cur_pit->second.ivl_type);
+		  if (par_vec && par_vec->packed_dims().size() > 1) {
+			  // A multi-dimensional packed parameter is presented
+			  // to the code generator/VPI as its flattened
+			  // vector; the element structure only matters to
+			  // select elaboration.
+			cur_par->msb = par_vec->packed_width() - 1;
+			cur_par->lsb = 0;
+		  } else {
+			calculate_param_range(cur_pit->second,
+					      cur_pit->second.ivl_type,
+					      cur_par->msb, cur_par->lsb,
+					      cur_pit->second.val->expr_width());
+		  }
 
 		  NetExpr*etmp = cur_pit->second.val;
 		  if (etmp == 0) {
