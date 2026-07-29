@@ -526,6 +526,11 @@ extern bool evaluate_index_prefix(Design*des, NetScope*scope,
 				  const std::list<index_component_t>&indices,
 				  bool quiet = false);
 
+/* Scale an ELEMENT index into a bit offset for an element `wid' bits
+   wide (a no-op when wid <= 1). */
+extern NetExpr*scale_index_to_bits(NetExpr*idx, unsigned long wid,
+				   const LineInfo&loc);
+
 /* General packed-array addressing: a run-time index in ANY dimension.
    Returns the canonical bit offset of the addressed slice and sets
    sel_wid to that slice's width. Returns 0 if the index list is longer

@@ -160,8 +160,15 @@ extern bool netrange_equivalent(const netranges_t &a, const netranges_t &b);
  *
  *   parameter [msv:lsv] foo ...;
  */
+/* slice_wid, when supplied, receives the width of ONE element of the
+   parameter: 1 for an ordinary vector, and the product of the inner
+   packed dimensions for a multi-dimensional packed parameter (whose
+   msv/lsv then describe the OUTERMOST dimension). A caller that does not
+   supply it gets a loud refusal for the multi-dimensional case rather
+   than a silently mis-widthed bit select. */
 extern bool calculate_param_range(const LineInfo&line, ivl_type_t par_type,
-				  long&par_msv, long&par_lsv, long length);
+				  long&par_msv, long&par_lsv, long length,
+				  unsigned long*slice_wid = 0);
 
 /*
  * Take as input a list of packed dimensions and a list of prefix
