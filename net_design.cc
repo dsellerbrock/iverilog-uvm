@@ -676,6 +676,56 @@ void Design::evaluate_parameters()
  */
 void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 {
+	// Evaluate the declared unpacked bounds first: '{e0, e1, ...}
+	// assigns e0 to [left], and elements are stored under their REAL
+	// indices so that a select by index finds the right element for
+	// descending ([3:0]) and non-zero-based ([1:4]) declarations
+	// alike.
+      long arr_left = 0, arr_right = 0;
+      bool bounds_known = false;
+      if (cur->second.udims && !cur->second.udims->empty()) {
+	    if (cur->second.udims->size() > 1) {
+		  cerr << cur->second.get_fileline() << ": sorry: "
+		       << "Multi-dimensional unpacked array parameter '"
+		       << cur->first << "' is not supported." << endl;
+		  des->errors += 1;
+		  cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
+		  cur->second.val_expr = nullptr;
+		  return;
+	    }
+	    const pform_range_t&dim = cur->second.udims->front();
+	    NetExpr*le = dim.first
+		  ? elab_and_eval(des, cur->second.val_scope, dim.first, -1, true)
+		  : 0;
+	    NetExpr*re = dim.second
+		  ? elab_and_eval(des, cur->second.val_scope, dim.second, -1, true)
+		  : 0;
+	    const NetEConst*lc = dynamic_cast<const NetEConst*>(le);
+	    const NetEConst*rc = dynamic_cast<const NetEConst*>(re);
+	    if (lc && rc) {
+		  arr_left = lc->value().as_long();
+		  arr_right = rc->value().as_long();
+		  bounds_known = true;
+	    } else {
+		  cerr << cur->second.get_fileline() << ": error: "
+		       << "Array parameter '" << cur->first
+		       << "' has non-constant dimension bounds." << endl;
+		  des->errors += 1;
+	    }
+      }
+      cur->second.array_left = arr_left;
+      cur->second.array_right = arr_right;
+      cur->second.array_bounds_known = bounds_known;
+
+	// Map a pattern position (0-based, left to right) to the real
+	// declared index.
+      auto pos_to_index = [&](size_t pos) -> long {
+	    if (!bounds_known)
+		  return (long)pos;
+	    return (arr_left <= arr_right) ? arr_left + (long)pos
+					   : arr_left - (long)pos;
+      };
+
       PEAssignPattern* ap = dynamic_cast<PEAssignPattern*>(cur->second.val_expr);
       if (!ap) {
 	    /* If val_expr is an identifier reference (e.g. a parent's array
@@ -685,18 +735,40 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 	    if (id && cur->second.val_scope) {
 		  perm_string src_name = peek_tail_name(id->path().name);
 		  NetScope* src_scope = cur->second.val_scope;
-		  // Find how many "[i]" elements exist in src_scope.
+		  // The source elements are stored under THEIR declared
+		  // indices; walk them by position using the source's
+		  // recorded bounds when available.
+		  long src_left = 0, src_right = 0;
+		  bool src_known = false;
+		  map<perm_string,param_expr_t>::const_iterator src_it =
+			src_scope->parameters.find(src_name);
+		  if (src_it != src_scope->parameters.end()
+		      && src_it->second.array_bounds_known) {
+			src_left = src_it->second.array_left;
+			src_right = src_it->second.array_right;
+			src_known = true;
+		  }
 		  for (size_t i = 0; ; i++) {
+			long src_idx = src_known
+			      ? ((src_left <= src_right) ? src_left + (long)i
+							 : src_left - (long)i)
+			      : (long)i;
+			if (src_known
+			    && (long)i > labs(src_left - src_right))
+			      break;
 			char buf[64];
-			snprintf(buf, sizeof(buf), "[%zu]", i);
+			snprintf(buf, sizeof(buf), "[%ld]", src_idx);
 			string elem_str = string(src_name.str()) + buf;
 			perm_string elem_name = lex_strings.make(elem_str.c_str());
 			// Stop if src_scope has no more elements.
 			ivl_type_t dummy_type = 0;
 			if (!src_scope->get_parameter(des, elem_name, dummy_type))
 			      break;
-			// Create a corresponding element in this scope.
-			string dst_str = string(cur->first.str()) + buf;
+			// Create a corresponding element in this scope,
+			// under THIS declaration's real index.
+			char dbuf[64];
+			snprintf(dbuf, sizeof(dbuf), "[%ld]", pos_to_index(i));
+			string dst_str = string(cur->first.str()) + dbuf;
 			perm_string dst_name = lex_strings.make(dst_str.c_str());
 			param_expr_t& ref = parameters[dst_name];
 			ref.is_annotatable = false;
@@ -756,9 +828,27 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 
       ivl_type_t elem_type = cur->second.ivl_type;
 
+	// IEEE 1800-2017 10.9.1/7.6: the pattern must supply exactly one
+	// expression per element. A mismatch is an error, not a silently
+	// truncated or padded array.
+      if (bounds_known) {
+	    size_t count = (size_t)labs(arr_left - arr_right) + 1;
+	    if (elems.size() != count) {
+		  cerr << cur->second.get_fileline() << ": error: "
+		       << "Assignment pattern for array parameter '"
+		       << cur->first << "' has " << elems.size()
+		       << " element(s), but the array has " << count
+		       << "." << endl;
+		  des->errors += 1;
+		  cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
+		  cur->second.val_expr = nullptr;
+		  return;
+	    }
+      }
+
       for (size_t i = 0; i < elems.size(); i++) {
 	    char buf[64];
-	    snprintf(buf, sizeof(buf), "[%zu]", i);
+	    snprintf(buf, sizeof(buf), "[%ld]", pos_to_index(i));
 	    string elem_str = string(cur->first.str()) + buf;
 	    perm_string elem_name = lex_strings.make(elem_str.c_str());
 

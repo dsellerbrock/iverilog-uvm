@@ -3992,71 +3992,12 @@ void pform_set_parameter(const struct vlltype&loc,
 		  return;
 	    }
 	    // Multi-dim packed parameter (e.g., logic [N-1:0][W-1:0] X = ...).
-	    // Flatten the packed dims into a single combined range whose
-	    // width is the product of the inner widths. The flattened param
-	    // is stored as a flat bit-vector; multi-dim element indexing
-	    // (e.g., X[i] returning an inner-width slice) is NOT preserved.
-	    // This is sufficient for compile-only consumers (e.g., upstream
-	    // packages that declare cipher SBOXes the testbench never
-	    // exercises).
-	    //
-	    // When all bounds are constant we collapse to a numeric literal
-	    // up front; otherwise we build a multiplicative expression that
-	    // elaboration evaluates per parameter binding. This handles the
-	    // common OpenTitan idiom `[NumCnt-1:0][Width-1:0]`.
-	    uint64_t const_width = 1;
-	    PExpr*expr_width = 0;
-	    bool all_constants = true;
-	    auto width_of = [&](const pform_range_t&dim) -> PExpr* {
-		  // Build expression: (msb - lsb + 1)
-		  PExpr*one = new PENumber(new verinum((uint64_t)1, 32));
-		  return new PEBinary('+',
-				new PEBinary('-', dim.first, dim.second),
-				one);
-	    };
-	    for (const auto&dim : *vt->pdims) {
-		  PENumber*hi = dynamic_cast<PENumber*>(dim.first);
-		  PENumber*lo = dynamic_cast<PENumber*>(dim.second);
-		  if (hi && lo) {
-			long h = hi->value().as_long();
-			long l = lo->value().as_long();
-			long w = (h >= l) ? (h - l + 1) : (l - h + 1);
-			if (w <= 0) {
-			      all_constants = false;
-			      break;
-			}
-			const_width *= (uint64_t)w;
-		  } else {
-			all_constants = false;
-			PExpr*w = width_of(dim);
-			expr_width = expr_width
-				? new PEBinary('*', expr_width, w) : w;
-		  }
-	    }
-	    PExpr*new_msb;
-	    if (all_constants) {
-		  new_msb = new PENumber(
-			new verinum((uint64_t)(const_width - 1), 32));
-	    } else {
-		  // Combine const part with expr part: total_w = const_width * expr_width
-		  PExpr*total_w;
-		  if (expr_width && const_width != 1) {
-			total_w = new PEBinary('*',
-				    new PENumber(new verinum(const_width, 32)),
-				    expr_width);
-		  } else if (expr_width) {
-			total_w = expr_width;
-		  } else {
-			total_w = new PENumber(new verinum(const_width, 32));
-		  }
-		  new_msb = new PEBinary('-', total_w,
-				new PENumber(new verinum((uint64_t)1, 32)));
-	    }
-	    auto*new_pd = new std::list<pform_range_t>;
-	    new_pd->push_back(pform_range_t(
-		    new_msb,
-		    new PENumber(new verinum((uint64_t)0, 32))));
-	    vt->pdims.reset(new_pd);
+	    // The dimensions are kept as declared, so an inline declaration
+	    // elaborates identically to a typedef'd one and a select of X[i]
+	    // addresses an inner-width ELEMENT. An earlier revision flattened
+	    // the dims to a single combined range here; that made X[i] a
+	    // one-bit select of the flattened vector and silently returned
+	    // the wrong value (gap ledger G15).
       }
 
       if (udims) {

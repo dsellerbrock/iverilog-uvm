@@ -562,6 +562,25 @@ class PEIdent : public PExpr {
 					const NetScope*found_in,
 					ivl_type_t par_type,
                                         bool need_const) const;
+	// General select on a multi-dimensional packed parameter, or any
+	// select with more than one index component. Computes ONE
+	// canonical flattened offset plus the addressed slice width, for
+	// any mix of constant and variable indices.
+      NetExpr*elaborate_expr_param_select_multi_(Design*des,
+						 NetScope*scope,
+						 const NetExpr*par,
+						 const NetScope*found_in,
+						 ivl_type_t par_type,
+						 bool need_const) const;
+	// Any select on an unpacked ARRAY parameter (elements are stored
+	// as individual "name[i]" parameters under their declared
+	// indices): resolve the element, then apply remaining indices.
+      NetExpr*elaborate_expr_param_array_(Design*des,
+					  NetScope*scope,
+					  const NetExpr*par,
+					  const NetScope*found_in,
+					  ivl_type_t par_type,
+					  bool need_const) const;
       NetExpr*elaborate_expr_param_part_(Design*des,
 					 NetScope*scope,
 					 const NetExpr*par,

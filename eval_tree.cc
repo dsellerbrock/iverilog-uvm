@@ -28,6 +28,7 @@
 # include  "netlist.h"
 # include  "ivl_assert.h"
 # include  "netmisc.h"
+# include  "netvector.h"
 
 using namespace std;
 
@@ -2045,6 +2046,19 @@ NetEConst* NetESFunc::evaluate_countones_(const NetExpr* arg) const
 /* Get the total number of dimensions for the given expression. */
 NetEConst* NetESFunc::evaluate_dimensions_(const NetExpr*arg) const
 {
+      if (const NetEConstParam*param =
+		dynamic_cast<const NetEConstParam*>(arg)) {
+	    long res = 1;
+	    std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
+		  param->scope()->parameters.find(param->name());
+	    if (pit != param->scope()->parameters.end()) {
+		  const netvector_t*vec =
+			dynamic_cast<const netvector_t*>(pit->second.ivl_type);
+		  if (vec && vec->packed_dims().size() > 0)
+			res = (long)vec->packed_dims().size();
+	    }
+	    return new NetEConst(verinum(verinum(res), integer_width));
+      }
       const NetESignal*esig = dynamic_cast<const NetESignal*>(arg);
       long res = 0;
       if (esig != 0) {
@@ -2183,7 +2197,24 @@ static bool get_array_info(const NetExpr*arg, long dim,
                            long &left, long &right, bool&defer)
 {
       if (const NetEConstParam*param = dynamic_cast<const NetEConstParam*>(arg)) {
-	    ivl_assert(*arg, dim == 1);
+	      // Consult the parameter's declared type: a
+	      // multi-dimensional packed parameter answers per dimension
+	      // exactly like a signal of the same type would.
+	    std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
+		  param->scope()->parameters.find(param->name());
+	    if (pit != param->scope()->parameters.end()) {
+		  const netvector_t*vec =
+			dynamic_cast<const netvector_t*>(pit->second.ivl_type);
+		  if (vec && vec->packed_dims().size() > 0) {
+			const netranges_t&dims = vec->packed_dims();
+			if (dim < 1 || (size_t)dim > dims.size())
+			      return true;
+			left = dims[dim-1].get_msb();
+			right = dims[dim-1].get_lsb();
+			return false;
+		  }
+	    }
+	    if (dim != 1) return true;
 	    left = param->expr_width() - 1;
 	    right = 0;
 	    return false;
