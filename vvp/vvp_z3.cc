@@ -401,6 +401,27 @@ struct Z3Builder {
       struct SoftAssert { Z3_ast a; unsigned weight; bool from_soft_kw;
 			  std::set<int> prop_refs; };
       vector<SoftAssert> pending_soft;
+
+      // RANDOM-DIST fix #2 (18.5.4): a `dist` node's branches, recorded
+      // structurally (not just as OR'd hard clauses + soft preferences)
+      // so the solver can draw a value with probability proportional to
+      // its weight instead of merely preferring the heaviest branch.
+      // Only usable when `subject` is exactly a plain property variable
+      // (the common, and only cheaply-enumerable, case); anything else
+      // still falls back to the pre-existing hard-union + soft-weight
+      // approximation below.
+      struct DistBranch {
+	    unsigned weight;
+	    bool is_range;
+	    uint64_t lo, hi;   // lo==hi and is_range==false for a single value
+      };
+      struct DistSpec {
+	    Z3_ast subject;
+	    unsigned width;
+	    std::vector<DistBranch> branches;
+      };
+      std::vector<DistSpec> dist_specs;
+
       // M3B-3 (`disable soft <var>`, IEEE 1800-2017 18.5.14.1): property
       // indices whose soft constraints are disabled for this randomize().
       // A pending soft assert that references any of these is dropped
@@ -1172,6 +1193,13 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    };
 
 	    vector<Z3_ast> hard_clauses;
+	      // RANDOM-DIST fix #2: structural record of this dist's branches,
+	      // parallel to hard_clauses/pending_soft above, so the solver can
+	      // later draw a value proportional to its weight instead of just
+	      // preferring the heaviest branch (see Z3Builder::DistSpec).
+	    Z3Builder::DistSpec dspec;
+	    dspec.subject = subject;
+	    dspec.width = sw;
 	    par.skip_ws();
 	    while (par.peek() != ')' && !par.at_end()) {
 		  // Each branch is `(b W <range>)`.
@@ -1217,6 +1245,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 			Z3_ast c2 = Z3_mk_bvule(b.ctx, sx, hi);
 			Z3_ast both[2] = {c1, c2};
 			clause = Z3_mk_and(b.ctx, 2, both);
+			Z3Builder::DistBranch db = { weight, true, lo_v, hi_v };
+			dspec.branches.push_back(db);
 		  } else {
 			string tok = par.read_token();
 			if (tok.substr(0,2) == "c:") {
@@ -1226,6 +1256,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 					      Z3_mk_bv_sort(b.ctx, vw));
 			      clause = Z3_mk_eq(b.ctx,
 					  b.coerce(subject, vw), cv);
+			      Z3Builder::DistBranch db = { weight, false, v, v };
+			      dspec.branches.push_back(db);
 			}
 		  }
 		  par.skip_ws();
@@ -1239,6 +1271,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 		  b.pending_soft.push_back(sa);
 	    }
 	    par.expect(')');
+	    if (!dspec.branches.empty())
+		  b.dist_specs.push_back(dspec);
 	    if (hard_clauses.empty()) return b.mk_true();
 	    if (hard_clauses.size() == 1) return hard_clauses[0];
 	    return Z3_mk_or(b.ctx, (unsigned)hard_clauses.size(), hard_clauses.data());
@@ -1432,6 +1466,266 @@ static bool rand_active_(const class_type* defn, vvp_cobject* cobj,
       return cobj ? cobj->rand_mode(pid) : true;
 }
 
+/* ---------------------------------------------------------------
+ * RANDOM-DIST fixes #1/#2/#4: exact-uniform / exact-weighted sampling
+ * for the overwhelmingly common case -- a single scalar rand property
+ * whose feasible set is small enough to enumerate outright.
+ *
+ * Why: `Z3_optimize_minimize(bvxor(prop, random_target))` (still used
+ * below as the fallback for anything NOT handled here) only samples
+ * uniformly when the feasible set is closed under XOR with a uniform
+ * random target -- true for a full power-of-two range, false for an
+ * arbitrary subset, where it instead produces a fixed "nearest in
+ * Hamming distance" sink value: `x inside {[0:2]}` on a 2-bit x came
+ * back close to 25/25/50 (never uniform 33/33/33), and `x inside
+ * {[0:99]}' on a 7-bit x made the top of the range (96-99) up to 7x
+ * hot. Enumerating the actual feasible set and choosing an index
+ * uniformly at random is exact for any shape of constraint, as long as
+ * the set is cheap to enumerate.
+ *
+ * Bound: ENUM_DOMAIN_CAP caps the property's OWN declared width (2^w),
+ * not some run-time count of a big multi-variable search -- so the
+ * cost is at most ENUM_DOMAIN_CAP+1 trivial bitvector SAT checks, and
+ * only for a property that reaches this code at all (an unconstrained
+ * property never enters the Z3 path in the first place, and a
+ * constraint the pre-filled random value already satisfies takes the
+ * existing fast path above and never reaches here either). Widths
+ * whose full domain exceeds the cap keep the old bvxor approximation,
+ * documented as such at the point of use below.
+ */
+static const uint64_t ENUM_DOMAIN_CAP = 1024;
+
+/* Enumerate every value `var` (a WIDTH-bit bitvector constant) can take
+ * while `base` remains satisfiable, via repeated SAT checks with
+ * blocking (var != each value found so far). `base` already carries
+ * every hard constraint/pin relevant to this solve -- callers push/pop
+ * around this so it is safe to call repeatedly as more variables get
+ * pinned. Returns false (leaving `out` empty) when the type's full
+ * domain is bigger than ENUM_DOMAIN_CAP -- not worth the SAT-call
+ * budget, and the caller should fall back to the approximate method. */
+static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
+                                 unsigned width, vector<uint64_t>& out)
+{
+      out.clear();
+      if (width == 0 || width > 32) return false;
+      uint64_t domain = (uint64_t)1 << width;
+      if (domain > ENUM_DOMAIN_CAP) return false;
+
+      Z3_solver_push(ctx, base);
+      while (out.size() < domain) {
+	    Z3_lbool r = Z3_solver_check(ctx, base);
+	    if (r != Z3_L_TRUE) break;
+	    Z3_model m = Z3_solver_get_model(ctx, base);
+	    Z3_model_inc_ref(ctx, m);
+	    uint64_t bits = 0;
+	    bool ok = z3_eval_uint64(ctx, m, var, bits);
+	    Z3_model_dec_ref(ctx, m);
+	    if (!ok) break;
+	    out.push_back(bits);
+	    Z3_sort sort = Z3_mk_bv_sort(ctx, width);
+	    Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits, sort);
+	    Z3_solver_assert(ctx, base, Z3_mk_not(ctx, Z3_mk_eq(ctx, var, cv)));
+      }
+      Z3_solver_pop(ctx, base, 1);
+      return !out.empty();
+}
+
+/* Performance note on z3_enumerate_domain above: it costs one Z3 call
+ * PER FEASIBLE VALUE (plus one to prove exhaustion) -- fine for a small
+ * or sparse feasible set, but a dense contiguous range close to the
+ * ENUM_DOMAIN_CAP (e.g. `x inside {[0:99]}`) costs on the order of 100
+ * Z3 round-trips, measurably slower per randomize() call than the old
+ * single-objective minimize. The function below discovers the SAME
+ * feasible set as a small list of maximal intervals via binary search
+ * -- O(log(domain)) Z3 calls per interval rather than one per value,
+ * e.g. ~14 calls instead of ~100 for a single 100-value contiguous
+ * range -- at the cost of only being valid when `var` is the ONLY free
+ * variable anywhere in the hard-constraint set (see the caller's
+ * eligibility check): with no other free variable to existentially
+ * quantify away, "value v is infeasible" is simply the ground logical
+ * negation of the same hard-constraint conjunction, which is what makes
+ * a second solver holding that negation meaningful. When some other
+ * rand property, array element, or array size is also still free, that
+ * negation would need to be a FORALL over those other variables, not a
+ * simple negated SAT query, so this fast path is skipped for that case
+ * (z3_enumerate_domain above still handles it, just at its normal
+ * per-value cost). */
+static bool z3_enumerate_domain_single_var_fast_(Z3_context ctx,
+                                                  Z3_solver base,
+                                                  Z3_ast var, unsigned width,
+                                                  vector<uint64_t>& out)
+{
+      out.clear();
+      if (width == 0 || width > 32) return false;
+      uint64_t domain = (uint64_t)1 << width;
+      if (domain > ENUM_DOMAIN_CAP) return false;
+
+      // `base` already carries exactly the hard-constraint conjunction we
+      // need for the POSITIVE ("is there a feasible value in here")
+      // queries -- reuse it directly rather than build a duplicate
+      // solver. The NEGATIVE ("is there an infeasible value in here")
+      // queries need the logical negation of that same conjunction, read
+      // back from `base` once via Z3_solver_get_assertions (valid here
+      // specifically because the eligibility check guarantees `var` is
+      // the only free variable in it -- see the function comment above).
+      Z3_ast_vector avec = Z3_solver_get_assertions(ctx, base);
+      Z3_ast_vector_inc_ref(ctx, avec);
+      unsigned n = Z3_ast_vector_size(ctx, avec);
+      Z3_ast conj;
+      if (n == 0) {
+	    conj = Z3_mk_true(ctx);
+      } else if (n == 1) {
+	    conj = Z3_ast_vector_get(ctx, avec, 0);
+      } else {
+	    vector<Z3_ast> parts;
+	    parts.reserve(n);
+	    for (unsigned i = 0 ; i < n ; i += 1)
+		  parts.push_back(Z3_ast_vector_get(ctx, avec, i));
+	    conj = Z3_mk_and(ctx, n, parts.data());
+      }
+      Z3_ast_vector_dec_ref(ctx, avec);
+
+      Z3_solver neg = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, neg);
+      Z3_solver_assert(ctx, neg, Z3_mk_not(ctx, conj));
+
+      Z3_sort sort = Z3_mk_bv_sort(ctx, width);
+      auto exists_in = [&](Z3_solver s, uint64_t lo, uint64_t hi) -> bool {
+	    if (lo > hi) return false;
+	    Z3_ast loc = Z3_mk_unsigned_int64(ctx, lo, sort);
+	    Z3_ast hic = Z3_mk_unsigned_int64(ctx, hi, sort);
+	    Z3_ast c1 = Z3_mk_bvuge(ctx, var, loc);
+	    Z3_ast c2 = Z3_mk_bvule(ctx, var, hic);
+	    Z3_ast both[2] = { c1, c2 };
+	    Z3_ast range = Z3_mk_and(ctx, 2, both);
+	    Z3_solver_push(ctx, s);
+	    Z3_solver_assert(ctx, s, range);
+	    Z3_lbool r = Z3_solver_check(ctx, s);
+	    Z3_solver_pop(ctx, s, 1);
+	    return r == Z3_L_TRUE;
+      };
+
+      uint64_t cur = 0;
+      const unsigned MAX_INTERVALS = 64;
+      unsigned interval_count = 0;
+      bool safety_ok = true;
+      while (cur < domain && interval_count < MAX_INTERVALS
+	     && out.size() < domain) {
+	    interval_count += 1;
+	    if (!exists_in(base, cur, domain - 1)) break;
+
+	      // Binary search: smallest m in [cur,domain-1] such that a
+	      // feasible value exists in [cur,m] -- that m IS the leftmost
+	      // feasible value >= cur.
+	    uint64_t lo = cur, hi = domain - 1;
+	    while (lo < hi) {
+		  uint64_t mid = lo + (hi - lo) / 2;
+		  if (exists_in(base, cur, mid)) hi = mid;
+		  else lo = mid + 1;
+	    }
+	    uint64_t start = lo;
+
+	      // Binary search: smallest m in [start,domain-1] such that an
+	      // INFEASIBLE value exists in [start,m] -- one past the end of
+	      // the maximal feasible run starting at `start`. None found
+	      // means the run reaches the end of the domain.
+	    uint64_t end_incl;
+	    if (!exists_in(neg, start, domain - 1)) {
+		  end_incl = domain - 1;
+	    } else {
+		  uint64_t l2 = start, h2 = domain - 1;
+		  while (l2 < h2) {
+			uint64_t mid = l2 + (h2 - l2) / 2;
+			if (exists_in(neg, start, mid)) h2 = mid;
+			else l2 = mid + 1;
+		  }
+		  if (l2 <= start) { safety_ok = false; break; }
+		  end_incl = l2 - 1;
+	    }
+
+	    for (uint64_t v = start ; v <= end_incl && out.size() < domain
+		 ; v += 1)
+		  out.push_back(v);
+	    cur = end_incl + 1;
+      }
+
+      Z3_solver_dec_ref(ctx, neg);
+      if (!safety_ok) out.clear();
+      return !out.empty();
+}
+
+/* RANDOM-DIST fix #2 (18.5.4): `dist`'s weights are a PROBABILITY
+ * distribution over its branch values, not a preference for the
+ * heaviest branch -- so draw a value with probability proportional to
+ * its weight, check it is jointly feasible with the rest of the
+ * constraints (18.5.4 explicitly requires dist values to still satisfy
+ * other constraints), and retry among the remaining weighted
+ * alternatives if not. `:/` divides a range branch's weight equally
+ * among its member values (expanded here up to RANGE_EXPAND_CAP; a
+ * bigger range bails out to the caller's fallback). On success the
+ * winning value is pinned as a hard equality into both `base` (so
+ * later enumerations/dist picks see it) and `opt` (so the final model
+ * reports it). Returns false (chosen left unset) when the subject
+ * isn't usable this way -- caller keeps the pre-existing hard-union +
+ * soft-weight approximation for it. */
+static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
+                                   Z3_optimize opt,
+                                   const Z3Builder::DistSpec& spec,
+                                   uint64_t& chosen)
+{
+      static const uint64_t RANGE_EXPAND_CAP = 4096;
+      struct Cand { uint64_t val; double weight; };
+      vector<Cand> cands;
+      for (const auto& br : spec.branches) {
+	    if (!br.is_range) {
+		  Cand c = { br.lo, (double)br.weight };
+		  cands.push_back(c);
+		  continue;
+	    }
+	    if (br.hi < br.lo) continue;
+	    uint64_t span = br.hi - br.lo + 1;
+	    if (span == 0 || span > RANGE_EXPAND_CAP)
+		  return false;
+	    double each = (double)br.weight / (double)span;
+	    for (uint64_t v = br.lo; v <= br.hi; v += 1) {
+		  Cand c = { v, each };
+		  cands.push_back(c);
+	    }
+      }
+      if (cands.empty()) return false;
+
+      Z3_sort sort = Z3_mk_bv_sort(ctx, spec.width ? spec.width : 32);
+      while (!cands.empty()) {
+	    double total = 0;
+	    for (const auto& c : cands) total += c.weight;
+	    if (total <= 0) return false;
+	    double r = ((double)rand() / ((double)RAND_MAX + 1.0)) * total;
+	    size_t pick_i = cands.size() - 1;
+	    double acc = 0;
+	    for (size_t i = 0 ; i < cands.size() ; i += 1) {
+		  acc += cands[i].weight;
+		  if (r < acc) { pick_i = i; break; }
+	    }
+	    uint64_t v = cands[pick_i].val;
+	    Z3_ast cv = Z3_mk_unsigned_int64(ctx, v, sort);
+	    Z3_ast eq = Z3_mk_eq(ctx, spec.subject, cv);
+
+	    Z3_solver_push(ctx, base);
+	    Z3_solver_assert(ctx, base, eq);
+	    Z3_lbool feasible = Z3_solver_check(ctx, base);
+	    Z3_solver_pop(ctx, base, 1);
+
+	    if (feasible == Z3_L_TRUE) {
+		  Z3_solver_assert(ctx, base, eq);
+		  Z3_optimize_assert(ctx, opt, eq);
+		  chosen = v;
+		  return true;
+	    }
+	    cands.erase(cands.begin() + pick_i);
+      }
+      return false;
+}
+
 static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       const vector<string>& extra_ir,
                       const vector<uint64_t>& slot_vals,
@@ -1453,6 +1747,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       Z3_optimize_inc_ref(ctx, opt);
       builder.opt = opt; // C7: collect dist soft asserts during build
 
+      // RANDOM-DIST fixes #1/#2/#4: a plain solver mirroring every HARD
+      // assertion made on `opt` below (constraints, pins, caps -- never
+      // the soft/diversity objectives), so exact feasible-set enumeration
+      // and exact weighted dist sampling can ask "is this candidate value
+      // jointly feasible" without the overhead/semantics of `opt`'s
+      // optimization objectives. Z3_mk_simple_solver (not Z3_mk_solver):
+      // measured ~7-8ms cheaper per randomize() call -- the tactic-
+      // combinator setup Z3_mk_solver does is unneeded overhead for a
+      // quantifier-free bitvector check like every one of these.
+      Z3_solver base = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, base);
+
       // Assert hard constraints (class-level), skipping disabled ones.
       for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
 	    if (cobj && !cobj->constraint_mode(ci)) continue;
@@ -1460,6 +1766,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (ir.empty()) continue;
 	    Z3_ast assertion = parse_constraint_ir(ir, builder);
 	    Z3_optimize_assert(ctx, opt, assertion);
+	    Z3_solver_assert(ctx, base, assertion);
       }
       // Assert with-constraints (call-site inline), with slot substitution.
       for (const string& wir : extra_ir) {
@@ -1467,6 +1774,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    string sub = substitute_slots(wir, slot_vals);
 	    Z3_ast assertion = parse_constraint_ir(sub, builder);
 	    Z3_optimize_assert(ctx, opt, assertion);
+	    Z3_solver_assert(ctx, base, assertion);
       }
       if (dyn_out)
 	    *dyn_out = builder.dyn_foreach;
@@ -1485,21 +1793,27 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
 	    Z3_ast cv = Z3_mk_unsigned_int64(ctx,
 		  cobj_prop_bits(cobj, pv.idx), sort);
-	    Z3_optimize_assert(ctx, opt, Z3_mk_eq(ctx, pv.var, cv));
+	    Z3_ast eq = Z3_mk_eq(ctx, pv.var, cv);
+	    Z3_optimize_assert(ctx, opt, eq);
+	    Z3_solver_assert(ctx, base, eq);
       }
       for (auto& ev : builder.elem_vars) {
 	    if (rand_active_(defn, cobj, prop_active, ev.idx)) continue;
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
 	    Z3_ast cv = Z3_mk_unsigned_int64(ctx,
 		  cobj_elem_bits(cobj, ev.idx, ev.elem), sort);
-	    Z3_optimize_assert(ctx, opt, Z3_mk_eq(ctx, ev.var, cv));
+	    Z3_ast eq = Z3_mk_eq(ctx, ev.var, cv);
+	    Z3_optimize_assert(ctx, opt, eq);
+	    Z3_solver_assert(ctx, base, eq);
       }
       for (auto& sv : builder.size_vars) {
 	    if (rand_active_(defn, cobj, prop_active, sv.idx)) continue;
 	    Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
 	    Z3_ast cv = Z3_mk_unsigned_int64(ctx,
 		  cobj_darray_size(cobj, sv.idx), s32);
-	    Z3_optimize_assert(ctx, opt, Z3_mk_eq(ctx, sv.var, cv));
+	    Z3_ast eq = Z3_mk_eq(ctx, sv.var, cv);
+	    Z3_optimize_assert(ctx, opt, eq);
+	    Z3_solver_assert(ctx, base, eq);
       }
 
       // Dynamic-array size variables are bounded by a pragmatic hard cap
@@ -1509,7 +1823,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       for (auto& sv : builder.size_vars) {
 	    Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
 	    Z3_ast cap = Z3_mk_unsigned_int64(ctx, 65536, s32);
-	    Z3_optimize_assert(ctx, opt, Z3_mk_bvule(ctx, sv.var, cap));
+	    Z3_ast le = Z3_mk_bvule(ctx, sv.var, cap);
+	    Z3_optimize_assert(ctx, opt, le);
+	    Z3_solver_assert(ctx, base, le);
       }
       // Element pass: sizes were solved (and written back) in the size
       // pass — pin them so the re-solve cannot move them.
@@ -1518,7 +1834,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
 		  Z3_ast cur = Z3_mk_unsigned_int64(ctx,
 			cobj_darray_size(cobj, sv.idx), s32);
-		  Z3_optimize_assert(ctx, opt, Z3_mk_eq(ctx, sv.var, cur));
+		  Z3_ast eq = Z3_mk_eq(ctx, sv.var, cur);
+		  Z3_optimize_assert(ctx, opt, eq);
+		  Z3_solver_assert(ctx, base, eq);
 	    }
       }
 
@@ -1569,9 +1887,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
       // Check if the already-randomized values satisfy all hard constraints.
       // Use a temporary solver for this fast-path check (opt is slow for pure
-      // feasibility when we already have a candidate).
+      // feasibility when we already have a candidate). RANDOM-DIST
+      // performance fix: Z3_mk_simple_solver skips the tactic-combinator
+      // setup Z3_mk_solver does (irrelevant for this quantifier-free
+      // bitvector check) -- measured ~7-8ms cheaper per randomize() call.
       {
-	    Z3_solver chk = Z3_mk_solver(ctx);
+	    Z3_solver chk = Z3_mk_simple_solver(ctx);
 	    Z3_solver_inc_ref(ctx, chk);
 	    for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
 		  if (cobj && !cobj->constraint_mode(ci)) continue;
@@ -1629,14 +1950,21 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			if (rand_active_(defn, cobj, prop_active, sv.idx))
 			      precheck = Z3_L_FALSE;
 
-	    if (precheck == Z3_L_TRUE && !builder.any_soft_kw_assert()) {
+	    if (precheck == Z3_L_TRUE && !builder.any_soft_kw_assert()
+		&& builder.dist_specs.empty()) {
 		  // C7/I4: only fast-path early-out when there are no
-		  // `soft`-keyword assertions queued.  Dist branches use the
-		  // soft-assert mechanism but rely on the bvxor diversity
-		  // minimize for probabilistic outcome — early-return is OK
-		  // for dist (random pre-fill provides the diversity).  Plain
-		  // `soft` is deterministic preference and must always run
-		  // the optimize check.
+		  // `soft`-keyword assertions queued.  Plain `soft` is
+		  // deterministic preference and must always run the
+		  // optimize check.
+		  //
+		  // RANDOM-DIST fix #2: also never fast-path when a `dist`
+		  // is present.  A lucky pre-fill landing inside the dist's
+		  // hard union used to be accepted as-is here regardless of
+		  // the branch weights (silently skipping the whole
+		  // diversity mechanism, dist's included) -- now z3_resolve_
+		  // dist_exact below must run every time so the weights are
+		  // actually honored.
+		  Z3_solver_dec_ref(ctx, base);
 		  Z3_optimize_dec_ref(ctx, opt);
 		  Z3_del_context(ctx);
 		  return Z3PASS_SAT_CURRENT;
@@ -1725,20 +2053,146 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      Z3_sort sort = Z3_get_sort(ctx, pin.first);
 			      Z3_ast cv = Z3_mk_unsigned_int64(ctx, pin.second,
 							       sort);
-			      Z3_optimize_assert(ctx, opt,
-				    Z3_mk_eq(ctx, pin.first, cv));
+			      Z3_ast eq = Z3_mk_eq(ctx, pin.first, cv);
+			      Z3_optimize_assert(ctx, opt, eq);
+			      Z3_solver_assert(ctx, base, eq);
 			}
 		  }
 	    }
       }
 
-      // Random values violate constraints.  Use minimize(bvxor(prop, rand))
-      // as the objective for each rand property.  When the random value is in
-      // the feasible region, xor == 0 so Z3 returns it exactly.  When it is
-      // not, Z3 finds the feasible value with the minimum XOR distance from the
-      // random target, giving varied results across different random seeds.
+      // RANDOM-DIST fix #2 (18.5.4): resolve `dist` subjects that are a
+      // plain rand property with an exact weighted draw (see
+      // z3_resolve_dist_exact above) BEFORE the general per-property
+      // diversity loop below, so a successfully-resolved property is
+      // pinned (hard) rather than re-diversified there. A spec that can't
+      // be resolved this way (not a plain property, or a branch range too
+      // big to expand) is simply left alone: the pre-existing hard-union
+      // constraint plus soft-weight preference asserted during IR parsing
+      // still apply, so correctness never depends on this succeeding --
+      // only true probability-proportional sampling does.
+      // RANDOM-DIST fix #1/#2 correctness guard: a property named by a
+      // live (not disabled) explicit `soft' constraint (18.5.14.1) must
+      // NOT go through the exact enumeration below. `soft' is a
+      // deterministic PRIORITY preference, not a member of the hard-
+      // constraint set `base' carries -- so enumerating that property's
+      // hard-feasible set and picking uniformly among it would treat
+      // "no conflicting hard constraint" as "value is arbitrary" and
+      // silently discard the soft preference (`soft v == 3;' with
+      // nothing else constraining v used to always answer v==3; a
+      // uniform pick among all 256 encodings of an 8-bit v answers 3
+      // only 1/256 of the time). These properties keep going through
+      // the pre-existing bvxor-minimize objective below, which Z3
+      // combines with the soft-assert groups already applied above.
+      std::set<unsigned> soft_kw_props;
+      for (const auto& sa : builder.pending_soft) {
+	    if (!sa.from_soft_kw || soft_dropped(sa)) continue;
+	    for (int r : sa.prop_refs) soft_kw_props.insert((unsigned)r);
+      }
+
+      std::set<unsigned> dist_resolved_idx;
+      for (const auto& spec : builder.dist_specs) {
+	    int found_idx = -1;
+	    for (auto& pv : builder.prop_vars) {
+		  if (pv.var == spec.subject) { found_idx = (int)pv.idx; break; }
+	    }
+	    if (found_idx < 0) continue;
+	    if (!rand_active_(defn, cobj, prop_active, (unsigned)found_idx))
+		  continue;
+	    if (dist_resolved_idx.count((unsigned)found_idx))
+		  continue; // already resolved by an earlier dist spec on it
+	    uint64_t chosen = 0;
+	    if (z3_resolve_dist_exact(ctx, base, opt, spec, chosen))
+		  dist_resolved_idx.insert((unsigned)found_idx);
+      }
+
+      // RANDOM-DIST fix #1 (also serves #4, randc): for every remaining
+      // rand scalar property, enumerate its actual feasible set (subject
+      // to everything asserted on `base` so far, including the dist pins
+      // above) when that set is cheap to enumerate, and choose an index
+      // into it uniformly at random -- exact, regardless of how lopsided
+      // or gap-ridden the feasible set is. A `randc` property draws from
+      // its cyclic history over that SAME feasible set instead of a flat
+      // random pick, restoring cycle-completeness for a constrained randc
+      // (18.4.2) as long as the feasible set is enumerable; the property
+      // may have been pre-filled by a cyclic pick over its FULL (pre-
+      // constraint) domain in the vthread.cc fill loop, so any such mark
+      // that turns out not to be the value actually emitted is retracted.
+      //
+      // Only when the property's own declared width makes enumeration too
+      // expensive (ENUM_DOMAIN_CAP) does this fall back to the old
+      // minimize(bvxor(prop, rand)) objective -- an approximation whose
+      // bias is undocumented in the general case, but which this project
+      // preserves rather than block on solving #P-hard exact sampling for
+      // an arbitrary multi-variable constraint. A `randc` property that
+      // falls back this way gets a loud one-time warning: its cycle-
+      // completeness is not maintained.
+	// Eligibility for the fast interval-based enumeration above: `pv`
+	// must be the ONLY free variable anywhere in the hard-constraint
+	// set built so far (see z3_enumerate_domain_single_var_fast_'s
+	// comment for why). True exactly when there is exactly one rand
+	// scalar property in play and no array elements/sizes at all --
+	// the common shape (`rand bit[N:0] x; constraint { x inside {...}
+	// }`) that dominates the performance-sensitive cases.
+      bool single_var_fast_ok = builder.prop_vars.size() == 1
+	    && builder.elem_vars.empty() && builder.size_vars.empty();
+
       for (auto& pv : builder.prop_vars) {
 	    if (!rand_active_(defn, cobj, prop_active, pv.idx)) continue;
+	    if (dist_resolved_idx.count(pv.idx)) continue;
+
+	    vector<uint64_t> feasible;
+	    bool enumerated = false;
+	    if (!soft_kw_props.count(pv.idx)) {
+		  if (single_var_fast_ok)
+			enumerated = z3_enumerate_domain_single_var_fast_(
+			      ctx, base, pv.var, pv.width, feasible);
+		  if (!enumerated)
+			enumerated = z3_enumerate_domain(ctx, base, pv.var,
+							  pv.width, feasible);
+	    }
+	    if (enumerated) {
+		  uint64_t chosen;
+		  if (defn->property_is_randc(pv.idx)) {
+			uint64_t prefill = cobj_prop_bits(cobj, pv.idx);
+			unsigned start = feasible.empty() ? 0
+			      : (unsigned)rand() % (unsigned)feasible.size();
+			chosen = feasible[start];
+			for (unsigned k = 0 ; k < feasible.size() ; k += 1) {
+			      uint64_t cand =
+				    feasible[(start + k) % feasible.size()];
+			      if (!cobj->randc_seen(pv.idx, cand)) {
+				    chosen = cand;
+				    break;
+			      }
+			}
+			if (chosen != prefill)
+			      cobj->randc_unmark(pv.idx, prefill);
+			cobj->randc_mark_feasible(pv.idx, chosen, feasible);
+		  } else {
+			chosen = feasible[(unsigned)rand() % feasible.size()];
+		  }
+		  Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
+		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen, sort);
+		  Z3_ast eq = Z3_mk_eq(ctx, pv.var, cv);
+		  Z3_optimize_assert(ctx, opt, eq);
+		  Z3_solver_assert(ctx, base, eq);
+		  continue;
+	    }
+
+	    if (defn->property_is_randc(pv.idx) && !soft_kw_props.count(pv.idx)) {
+		  static bool warned_randc_wide = false;
+		  if (!warned_randc_wide) {
+			fprintf(stderr, "Warning: randc property with a "
+				"constrained domain too large to enumerate "
+				"exactly (width %u); cycle-completeness is "
+				"not guaranteed for it (falling back to "
+				"weighted-random diversity; further similar "
+				"warnings suppressed).\n", pv.width);
+			warned_randc_wide = true;
+		  }
+	    }
+
 	    uint64_t rand_bits = cobj_prop_bits(cobj, pv.idx);
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
 	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
@@ -1769,6 +2223,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
       Z3_lbool result = Z3_optimize_check(ctx, opt, 0, nullptr);
       if (result != Z3_L_TRUE) {
+	    Z3_solver_dec_ref(ctx, base);
 	    Z3_optimize_dec_ref(ctx, opt);
 	    Z3_del_context(ctx);
 	    if (result == Z3_L_FALSE)
@@ -1844,6 +2299,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
 
       Z3_model_dec_ref(ctx, model);
+      Z3_solver_dec_ref(ctx, base);
       Z3_optimize_dec_ref(ctx, opt);
       Z3_del_context(ctx);
       return Z3PASS_SAT_APPLIED;

@@ -70,6 +70,21 @@ class vvp_cobject : public vvp_object {
       void randc_mark(size_t pid, uint64_t val);
       uint64_t randc_period(size_t pid) const;
 
+      // RANDOM-DIST fix #4 (18.4.2): cyclic tracking scoped to an explicit
+      // feasible-value set, for a `randc` property that also carries an
+      // explicit constraint. `randc_mark` above judges "all used" over the
+      // property's WHOLE encoding space, which never fires when the legal
+      // set is a strict subset (an infeasible encoding sits unmarked
+      // forever) -- so cycling would silently stall after one pass instead
+      // of repeating. `randc_mark_feasible` judges "all used" only over
+      // the given feasible set. `randc_unmark` lets the caller retract a
+      // mark placed on a value that, in the end, was never actually
+      // emitted (the constraint solver may still override a randc
+      // property's cyclic pre-fill pick).
+      void randc_mark_feasible(size_t pid, uint64_t val,
+                                const std::vector<uint64_t>&feasible);
+      void randc_unmark(size_t pid, uint64_t val);
+
 	// M11: covergroup transition-bin progress state — active-
 	// position masks keyed by (prop_idx << 8) | seq_id.
       uint64_t cov_trans_mask(uint64_t key) const {

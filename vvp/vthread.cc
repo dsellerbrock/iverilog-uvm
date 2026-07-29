@@ -3068,15 +3068,16 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 			      bool got = assoc->get(key, cur);
 			      unsigned wid = got ? cur.size() : 32;
 			      if (wid == 0) wid = 32;
-			      // Generate non-zero value capped at 8 bits so
-			      // typical clock-frequency-style constraints
-			      // (e.g. inside {[5:100]}) are satisfied without
-			      // a real solver pass.  Width-clip back to wid.
-			      unsigned cap = (wid >= 8) ? 0xFF : ((1u<<wid) - 1);
-			      unsigned rnd = (randomize_rand_(cobj) % cap) + 1;
+			      // Fill every bit of the entry's OWN declared
+			      // width, matching the static-array rand loop
+			      // above -- not a fixed [1,255] sliver of it
+			      // (RANDOM-DIST fix #3: the old cap silently
+			      // confined `rand int aa[string]' to [1,255]
+			      // regardless of declared width).
 			      vvp_vector4_t nv(wid, BIT4_0);
 			      for (unsigned b = 0 ; b < wid ; b += 1)
-				    nv.set_bit(b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+				    nv.set_bit(b, (randomize_rand_(cobj) & 1)
+						  ? BIT4_1 : BIT4_0);
 			      assoc->set(key, nv);
 			      ok = assoc->next_key(key);
 			}

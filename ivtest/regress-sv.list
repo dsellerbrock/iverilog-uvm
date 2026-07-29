@@ -1186,6 +1186,8 @@ sv_randomize_variable_control normal,-g2012 ivltests
 sv_object_randomize_statement_with normal,-g2012 ivltests
 sv_sampled_value_procedural normal,-g2012 ivltests
 sv_constraint_expr_width normal,-g2012 ivltests
+sv_rand_distribution1 normal,-g2012 ivltests
+sv_randc_constrained1 normal,-g2012 ivltests
 sv_sampled_value_default_clocking normal,-g2012 ivltests
 sv_sampled_value_explicit_clock normal,-g2012 ivltests
 sv_cast_class_destination normal,-g2012 ivltests
