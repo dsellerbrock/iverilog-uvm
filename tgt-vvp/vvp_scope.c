@@ -620,7 +620,22 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	/* A `ref' formal (IEEE 1800-2017 13.5.2) is a name, not storage:
 	   %ref/bind points it at the caller's variable and every access
 	   is forwarded there. The core only marks a port IVL_SIP_REF
-	   when it also emits the bind, so an unbound .ref cannot occur. */
+	   when it also emits the bind, so an unbound .ref cannot occur.
+
+	   A REAL formal needs its own declaration keyword (.ref/real,
+	   R25 stretch): a real functor never implements the int/vec4
+	   accessors (there is no meaningful width or bit for a real), only
+	   real_value()/get_signal_value(), so the VPI handle vvp attaches
+	   to it must be the real-flavored one (__vpiRealVar) rather than
+	   the integer one plain .ref always requested -- see
+	   compile_ref_variable_real() in vvp/words.cc. */
+      if (ivl_signal_port(sig) == IVL_SIP_REF
+	  && ivl_signal_data_type(sig) == IVL_VT_REAL) {
+	    fprintf(vvp_out, "v%p_0 .ref/real %s\"%s\", %d %d;\n",
+		    sig, local_flag_str(sig),
+		    vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb);
+	    return;
+      }
       if (ivl_signal_port(sig) == IVL_SIP_REF) {
 	    fprintf(vvp_out, "v%p_0 .ref %s\"%s\", %d %d;\n",
 		    sig, local_flag_str(sig),

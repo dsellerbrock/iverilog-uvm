@@ -30,8 +30,10 @@
 # include  "netclass.h"
 # include  "netdarray.h"
 # include  "netqueue.h"
+# include  "netstruct.h"
 # include  "PExpr.h"
 # include  "PTask.h"
+# include  "Statement.h"
 # include  "pform_types.h"
 # include  "Module.h"
 # include  "parse_api.h"
@@ -871,12 +873,10 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  //    class; same scope test the virtual-class `new'
 		  //    degrade above this file already uses.
 		  bool in_class_scope = false;
-		  if (is_class_new) {
-			for (NetScope*sc = scope ; sc ; sc = sc->parent()) {
-			      if (sc->type() == NetScope::CLASS || sc->class_def()) {
-				    in_class_scope = true;
-				    break;
-			      }
+		  for (NetScope*sc = scope ; sc ; sc = sc->parent()) {
+			if (sc->type() == NetScope::CLASS || sc->class_def()) {
+			      in_class_scope = true;
+			      break;
 			}
 		  }
 		  bool class_new_hard_error = is_class_new
@@ -891,9 +891,38 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			tmp->set_line(*pe);
 			return tmp;
 		  }
+		  // M1B-3 audit, finding A: this degrade exists for typing
+		  // collapses that only happen (a) inside a class body
+		  // elaborating a type-parameter default, or (b) where the
+		  // TARGET's declared class type collapsed to implicit
+		  // 4-state logic (the forward-referenced UVM printer
+		  // globals -- package/module scope, LOGIC target). A
+		  // class handle assigned to an int/real/string at plain
+		  // module scope is neither: it is illegal (8.4 lists the
+		  // only operators valid on handles) and was silently
+		  // becoming 0/""/0.0. Hard-error those; keep the two
+		  // collapse shapes, and make the LOGIC-target one LOUD.
+		  // A literal `null' keeps the degrade unconditionally:
+		  // `return null;' from a chandle function is legal
+		  // SystemVerilog (6.14; chandle lowers to a 2-state
+		  // atom) and UVM's --uvm-no-dpi stubs use exactly that
+		  // shape (uvm_svcmd_dpi.svh regcomp). The only illegal
+		  // null form, null-into-LOGIC, is already intercepted
+		  // above by null_to_logic (br_gh440).
+		  bool class_rval_degrade_ok = in_class_scope
+			|| cast_type == IVL_VT_LOGIC
+			|| dynamic_cast<const PENull*>(pe);
 		  if (!need_const && !null_to_logic && !class_new_hard_error
+		      && class_rval_degrade_ok
 		      && !dynamic_cast<const PEBinary*>(pe)
 		      && !dynamic_cast<const PEUnary*>(pe)) {
+			if (!in_class_scope && !dynamic_cast<const PENull*>(pe))
+			      cerr << pe->get_fileline() << ": warning: "
+				   << "class-typed r-value in a 4-state "
+				   << "context: treating the target as a "
+				   << "class variable whose type did not "
+				   << "resolve (compile-progress); "
+				   << "substituting 0." << endl;
 			if (cast_type == IVL_VT_BOOL || cast_type == IVL_VT_LOGIC) {
 			      NetEConst*tmp = make_const_0(1);
 			      tmp->set_line(*pe);
@@ -926,8 +955,9 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			     << "The 'new' operator requires a class-typed "
 			     << "l-value (IEEE 1800-2017 8.7)." << endl;
 		  else
-			cerr << pe->get_fileline() << ": Error: "
-			     << "Class/null r-value not allowed in this context." << endl;
+			cerr << pe->get_fileline() << ": error: "
+			     << "A class handle cannot be assigned to a "
+			     << "non-class target (IEEE 1800-2017 8.4)." << endl;
 		  des->errors += 1;
 		  return 0;
 	    }
@@ -1018,6 +1048,38 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 	    if (gn_system_verilog() && !need_const && !normal_scalar_cast_path) {
 		  // Compile-progress fallback for unresolved parameterized
 		  // helper/container method paths that lose argument typing.
+		  //
+		  // R30's principle, extended (M1B-3 audit, finding B): a
+		  // WELL-TYPED unpacked aggregate -- unpacked struct,
+		  // dynamic array, queue, associative array -- is no more
+		  // a lost-typing stub than a well-typed string was.
+		  // `int i; i = my_queue;' silently stored zero through
+		  // the const-0 substitution below. 7.2.2 allows
+		  // whole-struct assignment only to a compatible struct;
+		  // 7.5/7.9/7.10 define containers as assignable only to
+		  // same-shape containers. Hard error, never a stub.
+		  {
+			bool well_typed_aggregate = false;
+			if (ivl_type_t nt = tmp->net_type()) {
+			      if (dynamic_cast<const netdarray_t*>(nt)
+				  || dynamic_cast<const netuarray_t*>(nt))
+				    well_typed_aggregate = true;
+			      else if (const netstruct_t*st =
+					     dynamic_cast<const netstruct_t*>(nt))
+				    well_typed_aggregate = ! st->packed();
+			}
+			if (well_typed_aggregate) {
+			      cerr << pe->get_fileline() << ": error: An "
+				   << "unpacked aggregate (struct, dynamic "
+				   << "array, queue or associative array) "
+				   << "cannot be assigned to a "
+				   << "scalar/vector/string/real target "
+				   << "(IEEE 1800-2017 7.2.2, 7.10)." << endl;
+			      des->errors += 1;
+			      delete tmp;
+			      return 0;
+			}
+		  }
 		  if (cast_type == IVL_VT_STRING) {
 			if (const PEString*str_pe = dynamic_cast<const PEString*>(pe)) {
 			      NetECString*lit = new NetECString(str_pe->parsed_value());
@@ -2322,15 +2384,38 @@ bool uarray_element_matches_container_(const netuarray_t*dst,
  * A `ref' formal is represented as a real reference for the types whose
  * reads and writes go through an interface the bound-formal functor
  * (vvp_ref_signal_aa) can answer: packed integral variables (the
- * generic vvp_signal_value interface) and class handles (the
+ * generic vvp_signal_value interface), class handles (the
  * vvp_fun_signal_object interface -- see vvp_ref_signal_aa in
  * vvp_net_sig.h/.cc, which forwards get_object()/recv_object()/etc. to
- * whatever the bound target's own object functor is). A real, string or
- * container (dynamic array, queue, fixed array) formal is read by an
- * opcode that reaches for a *different* type-specific functor instead
- * (vvp_fun_signal_real/string, or the container element/word opcodes),
- * which vvp_ref_signal_aa does not implement, so those keep the
- * copy-in/copy-out pair they have always had.
+ * whatever the bound target's own object functor is), and now (R25
+ * stretch) a TASK's real formal -- real reads/writes already go through
+ * the very same generic interfaces (vvp_signal_value::real_value() and
+ * vvp_net_fun_t::recv_real(), both already forwarded by
+ * vvp_ref_signal_aa for the class-handle case, see vvp_net_sig.cc), so
+ * no new runtime surface was needed. A string or container (dynamic
+ * array, queue, fixed array) formal is read by an opcode that reaches
+ * for a *different* type-specific functor instead (%load/str, the
+ * container element/word opcodes), which vvp_ref_signal_aa does not
+ * implement, so those keep the copy-in/copy-out pair they have always
+ * had.
+ *
+ * Real is deliberately bound for TASK formals only, never FUNC. A
+ * function's ref-formal binding does not run through this same
+ * mechanism at all -- a non-void function call binds ref arguments
+ * through a completely separate path (tgt-vvp/draw_ufunc.c's
+ * draw_bind_function_ref_argument(), reached from the expression-level
+ * call lowering, not the `$ivl_ref_bind` system task this file emits)
+ * whose companion-copy fallback for an actual that cannot be named
+ * directly hardcodes a vec4 store regardless of the formal's type. That
+ * is a PRE-EXISTING, independent defect -- reachable today for a
+ * class-handle FUNC formal too (confirmed: an automatic non-void
+ * function with a `ref` class-handle formal called with an unnameable
+ * actual, e.g. an array element, crashes vvp with "recv_vec4 not
+ * implemented" before this change ever touched real) -- and fixing it
+ * is out of scope for R25, which is about TASKS whose body forks a
+ * detached branch. Binding a FUNC's real formal here would walk
+ * straight into that same crash for real, so it is withheld: a FUNC's
+ * real ref formal keeps the copy pair, exactly as before.
  */
 bool ref_formal_is_bound(const NetNet*port)
 {
@@ -2383,9 +2468,62 @@ bool ref_formal_is_bound(const NetNet*port)
 		 darray/queue/fixed-array formal has, and vvp_ref_signal_aa
 		 answers the object accessor interface for it (see above). */
 	    return dynamic_cast<const netclass_t*>(ptype) != 0;
+	  case IVL_VT_REAL:
+	      /* R25 stretch, TASK only -- see the long comment above. */
+	    return owner->type() == NetScope::TASK;
 	  default:
 	    return false;
       }
+}
+
+void warn_ref_formal_fork_hazard(const NetNet*port, const Statement*task_body)
+{
+      if (port == 0 || task_body == 0)
+	    return;
+
+	/* Only the shapes ref_formal_is_bound() leaves copy-bound because
+	   of TYPE are in scope here -- a class handle is bound, a packed
+	   integral formal is bound, and neither is the residual. Figure
+	   out the human-readable label the same way ref_formal_is_bound()
+	   figures out the exclusion, so the two can never drift apart. */
+      const char*what = 0;
+      ivl_type_t ptype = port->net_type();
+      if (port->unpacked_dimensions() > 0) {
+	    what = "fixed array";
+      } else if (const netqueue_t*q = dynamic_cast<const netqueue_t*>(ptype)) {
+	    what = q->assoc_compat() ? "associative array" : "queue";
+      } else if (dynamic_cast<const netdarray_t*>(ptype)) {
+	    what = "dynamic array";
+      } else if (dynamic_cast<const netarray_t*>(ptype)) {
+	    what = "fixed array";
+      } else switch (port->data_type()) {
+	  case IVL_VT_REAL:
+	    what = "real";
+	    break;
+	  case IVL_VT_STRING:
+	    what = "string";
+	    break;
+	  default:
+	      /* Bound (BOOL/LOGIC/CLASS) or some other shape entirely --
+		 not this residual. */
+	    return;
+      }
+
+      if (!task_body->contains_detached_fork())
+	    return;
+
+      cerr << port->get_fileline() << ": warning: ref formal `"
+	   << port->name() << "' has " << what << " type, so it is "
+	      "bound by VALUE-COPY, not by reference (IEEE 1800-2017 "
+	      "13.5.2 requires a `ref' argument to be a reference to the "
+	      "actual) -- the reads/writes this shape needs go through a "
+	      "type-specific functor the reference-binding path does not "
+	      "implement. This task contains a detached fork "
+	      "(join_none/join_any): a write to `" << port->name()
+	   << "' from a branch that is still running when this task "
+	      "itself returns is LOST, silently -- the copy-out back to "
+	      "the caller's actual runs at the task's own join, before "
+	      "such a branch gets to execute." << endl;
 }
 
 void check_for_inconsistent_delays(const NetScope*scope)

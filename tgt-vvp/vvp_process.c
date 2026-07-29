@@ -736,6 +736,193 @@ static int show_stmt_block_named(ivl_statement_t net, ivl_scope_t scope)
 }
 
 
+/*
+ * G44: unique/unique0 case statements must, in addition to the
+ * no-match check (handled by show_stmt_case below), detect and report
+ * at runtime when MORE THAN ONE case item matches the selector value
+ * (IEEE1800-2017 12.5.3). This can only be known by testing every
+ * item's label, so unlike the plain/priority early-exit branch chain
+ * (first match jumps straight into its branch and no further items
+ * are tested), the unique/unique0 lowering has to:
+ *
+ *   1. Evaluate every item's label exactly once, recording a
+ *      per-item "matched" flag and folding the results into an
+ *      "any match seen so far" flag and a "more than one match
+ *      seen" flag (the latter set precisely when a match is found
+ *      after a match was already seen).
+ *   2. Emit the multiple-match $warning once, if the multi-match
+ *      flag is set.
+ *   3. Dispatch to the FIRST matching item's branch, by replaying
+ *      the per-item matched flags (already computed, so this is a
+ *      cheap flag test, not a re-evaluation of the label) in item
+ *      order -- this preserves first-match-wins semantics exactly
+ *      like the plain/priority chain.
+ *   4. If nothing matched, fall through to the default branch (if
+ *      any) or the existing "value is unhandled" warning (unique
+ *      only -- unique0 stays silent on zero matches, unchanged).
+ *
+ * priority and plain case are untouched (they keep the original
+ * early-exit branch chain below) since they must not pay for any of
+ * this extra bookkeeping.
+ */
+static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
+                                  ivl_case_quality_t qual)
+{
+      int rc = 0;
+      ivl_expr_t expr = ivl_stmt_cond_expr(net);
+      unsigned count = ivl_stmt_case_count(net);
+
+      unsigned idx, default_case;
+      unsigned lab_out, lab_after_warn;
+
+      int any_flag = allocate_flag();
+      int multi_flag = allocate_flag();
+      int*match_flag = count ? calloc(count, sizeof(int)) : 0;
+      unsigned*body_label = count ? calloc(count, sizeof(unsigned)) : 0;
+
+      show_stmt_file_line(net, "Case statement.");
+
+	/* Evaluate the case condition to the top of the vec4
+	   stack. This expression will be compared multiple times to
+	   each case guard. */
+      draw_eval_vec4(expr);
+
+      fprintf(vvp_out, "    %%flag_set/imm %d, 0;\n", any_flag);
+      fprintf(vvp_out, "    %%flag_set/imm %d, 0;\n", multi_flag);
+
+      default_case = count;
+
+	/* Pass 1: evaluate every item's label exactly once, and fold
+	   the per-item match result into any_flag/multi_flag. */
+      for (idx = 0 ;  idx < count ;  idx += 1) {
+	    ivl_expr_t cex = ivl_stmt_case_expr(net, idx);
+	    unsigned lab_after;
+
+	    if (cex == 0) {
+		  default_case = idx;
+		  continue;
+	    }
+
+	    match_flag[idx] = allocate_flag();
+	    body_label[idx] = local_count++;
+
+	      /* Duplicate the case expression so that the cmp
+		 instructions below do not completely erase the
+		 value. Do this in front of each compare. */
+	    fprintf(vvp_out, "    %%dup/vec4;\n");
+	    draw_eval_vec4(cex);
+
+	    switch (ivl_statement_type(net)) {
+
+		case IVL_ST_CASE:
+		    /* Plain case uses case-equality (===-like); flag 6
+		       (eeq) is the well-defined match flag here -- flag
+		       4 (eq) can read back X when the operands carry
+		       X/Z bits, which %jmp/1 would treat as "no match"
+		       even though a literal case must match X/Z bits
+		       exactly. This mirrors the branch table below. */
+		  fprintf(vvp_out, "    %%cmp/u;\n");
+		  fprintf(vvp_out, "    %%flag_mov %d, 6;\n", match_flag[idx]);
+		  break;
+
+		case IVL_ST_CASEX:
+		  fprintf(vvp_out, "    %%cmp/x;\n");
+		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", match_flag[idx]);
+		  break;
+
+		case IVL_ST_CASEZ:
+		  fprintf(vvp_out, "    %%cmp/z;\n");
+		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", match_flag[idx]);
+		  break;
+
+		default:
+		  assert(0);
+	    }
+
+	      /* If this item did not match, skip the any/multi
+		 bookkeeping below. */
+	    lab_after = local_count++;
+	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
+		    thread_count, lab_after, match_flag[idx]);
+
+	      /* This item matched. If any_flag is already set, a
+		 previous item also matched, so this is (at least) a
+		 second match: fold that into multi_flag before
+		 marking any_flag. */
+	    fprintf(vvp_out, "    %%flag_or %d, %d;\n", multi_flag, any_flag);
+	    fprintf(vvp_out, "    %%flag_set/imm %d, 1;\n", any_flag);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_after);
+      }
+
+	/* Emit the multiple-match warning (unique and unique0 both
+	   warn on this -- they only differ on the zero-match case). */
+      lab_after_warn = local_count++;
+      fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
+	      thread_count, lab_after_warn, multi_flag);
+      fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+	      "\"multiple case items match for unique or unique0 case "
+	      "statement\" {0 0 0 0};\n",
+	      ivl_file_table_index(ivl_stmt_file(net)),
+	      ivl_stmt_lineno(net));
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_after_warn);
+
+      lab_out = local_count++;
+
+	/* Pass 2: dispatch to the first matching item, in item order,
+	   by testing the already-computed match flags (cheap -- no
+	   re-evaluation of any label). */
+      for (idx = 0 ;  idx < count ;  idx += 1) {
+	    if (idx == default_case)
+		  continue;
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
+		    thread_count, body_label[idx], match_flag[idx]);
+      }
+
+	/* Nothing matched: fall through to the default (if any) or
+	   the existing no-match warning (unique only; unique0 is
+	   silent on zero matches). */
+      if (default_case < count) {
+	    ivl_statement_t cst = ivl_stmt_case_stmt(net, default_case);
+	    rc += show_statement(cst, sscope);
+      } else if (qual == IVL_CASE_QUALITY_UNIQUE) {
+	    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+		    "\"value is unhandled for priority or unique case statement\""
+		    " {0 0 0 0};\n",
+		    ivl_file_table_index(ivl_stmt_file(net)),
+		    ivl_stmt_lineno(net));
+      }
+
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+
+      for (idx = 0 ;  idx < count ;  idx += 1) {
+	    ivl_statement_t cst = ivl_stmt_case_stmt(net, idx);
+
+	    if (idx == default_case)
+		  continue;
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, body_label[idx]);
+	    rc += show_statement(cst, sscope);
+
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+      }
+
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_out);
+      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+
+      clr_flag(any_flag);
+      clr_flag(multi_flag);
+      for (idx = 0 ;  idx < count ;  idx += 1) {
+	    if (idx == default_case)
+		  continue;
+	    clr_flag(match_flag[idx]);
+      }
+      free(match_flag);
+      free(body_label);
+
+      return rc;
+}
+
 static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 {
       int rc = 0;
@@ -747,8 +934,12 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 
       unsigned idx, default_case;
 
-      /* G44: unique/unique0 quality is enforced at runtime via the
-         $warning VPI call below when no case matches; no sorry needed. */
+      /* G44: unique/unique0 case statements are lowered by
+         show_stmt_case_unique (above), which additionally detects and
+         reports multiple matches per IEEE1800-2017 12.5.3. This
+         function handles plain and priority case, unchanged. */
+      if (qual == IVL_CASE_QUALITY_UNIQUE || qual == IVL_CASE_QUALITY_UNIQUE0)
+	    return show_stmt_case_unique(net, sscope, qual);
 
       show_stmt_file_line(net, "Case statement.");
 
@@ -808,21 +999,16 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 	    ivl_statement_t cst = ivl_stmt_case_stmt(net, default_case);
 	    rc += show_statement(cst, sscope);
       }
-	/* Emit code to check unique and priority have handled a value
-           (when there is no default). */
+	/* Emit code to check priority has handled a value (when there
+           is no default). Note: unique/unique0 never reach here -- they
+           are handled by show_stmt_case_unique above. */
       else if (default_case == count) {
-          switch (qual) {
-          case IVL_CASE_QUALITY_UNIQUE:
-          case IVL_CASE_QUALITY_PRIORITY:
+          if (qual == IVL_CASE_QUALITY_PRIORITY) {
               fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
                       "\"value is unhandled for priority or unique case statement\""
                       " {0 0 0 0};\n",
                       ivl_file_table_index(ivl_stmt_file(net)),
                       ivl_stmt_lineno(net));
-              break;
-
-          default:
-              break;
           }
       }
 

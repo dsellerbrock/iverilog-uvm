@@ -561,6 +561,13 @@ extern void compile_variable(char*label, char*name,
 extern void compile_ref_variable(char*label, char*name,
 				 int msb, int lsb, bool local_flag);
 
+/*
+ * The same, for a `ref' formal whose underlying type is real -- needs a
+ * real-flavored VPI handle rather than compile_ref_variable()'s integer
+ * one (see the comment at its definition in words.cc).
+ */
+extern void compile_ref_variable_real(char*label, char*name, bool local_flag);
+
 extern void compile_var_real(char*label, char*name, int lifetime_flag);
 extern void compile_var_string(char*label, char*name, int lifetime_flag);
 extern void compile_var_darray(char*label, char*name, unsigned size,

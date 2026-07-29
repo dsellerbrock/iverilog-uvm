@@ -24,6 +24,7 @@
 class netsarray_t;
 class netuarray_t;
 class netdarray_t;
+class Statement;
 
 /*
  * Search for a hierarchical name. The input path is one or more name
@@ -547,6 +548,34 @@ extern NetPartSelect* detect_partselect_lval(Link&pin);
  * that one argument without changing what the formal is.
  */
 extern bool ref_formal_is_bound(const NetNet*port);
+
+/*
+ * R25 (IEEE 1800-2017 13.5.2, Option B diagnostic): a `ref' formal that
+ * ref_formal_is_bound() answers false for still takes the legacy
+ * copy-in/copy-out pair. For a real/string/container (dynamic array,
+ * queue, associative array, fixed array) formal that copy-out runs when
+ * the TASK ITSELF returns; if the task body contains a detached fork
+ * (join_none/join_any) ANYWHERE, a branch that outlives the call and
+ * later writes the formal writes into dead frame storage that the
+ * copy-out already flushed -- the caller's actual never sees it, with
+ * no diagnostic before this change (see ref_formal_is_bound() above and
+ * ROADMAP.md row R25).
+ *
+ * This does not attempt to prove that a particular branch writes this
+ * particular formal after the call returns -- that needs alias/dataflow
+ * analysis this pass does not have. It warns structurally, once per
+ * (task, formal), whenever the shape is POSSIBLE: a copy-bound
+ * real/string/container ref formal on a task whose body contains a
+ * detached fork anywhere. A fork that provably completes before the
+ * task returns is a false positive, but a false positive here is a
+ * warning, not a rejection.
+ *
+ * `port' is a formal of `task_body's own task (not a nested task/function
+ * -- the walk this relies on, Statement::contains_detached_fork(), does
+ * not descend into nested subroutine bodies, since those are separate
+ * frames with their own call-return hazard, if any).
+ */
+extern void warn_ref_formal_fork_hazard(const NetNet*port, const Statement*task_body);
 
 /*
  * True when a dynamic array or queue holds elements that a fixed-size

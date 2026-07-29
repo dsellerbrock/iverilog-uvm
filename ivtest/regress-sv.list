@@ -245,6 +245,7 @@ br_ml20191221		normal,-g2009		ivltests
 br_mw20200501		normal,-g2009		ivltests
 case_priority		normal,-g2005-sv	ivltests gold=case_priority.gold
 case_unique		normal,-g2005-sv	ivltests gold=case_unique.gold
+sv_case_unique_multimatch1 normal,-g2012	ivltests gold=sv_case_unique_multimatch1.gold
 cast_real		normal,-g2005-sv	ivltests
 cfunc_assign_op_mixed	normal,-g2009		ivltests
 cfunc_assign_op_pv	normal,-g2009		ivltests
@@ -1194,7 +1195,7 @@ sv_cast_task_failure normal,-g2012 ivltests gold=sv_cast_task_failure.gold
 sv_process_kill_subprocess normal,-g2012 ivltests
 sv_process_suspend_subthread normal,-g2012 ivltests
 sv_ref_argument_is_a_reference normal,-g2012 ivltests
-sv_ref_arg_object_fork_detach normal,-g2012 ivltests
+sv_ref_arg_object_fork_detach normal,-g2012 ivltests gold=sv_ref_arg_object_fork_detach.gold
 sv_assert_pass_action normal,-g2012 ivltests
 sv_fork_join_none_automatic_frame normal,-g2012 ivltests
 sv_assert_strong_eos_action normal,-g2012 ivltests

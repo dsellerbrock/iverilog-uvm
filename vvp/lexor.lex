@@ -259,6 +259,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".var/2s"       { return K_VAR_2S; /* byte/shortint/int/longint signed */ }
 ".var/2u"       { return K_VAR_2U; /* byte/shortint/int/longint unsigned */ }
 ".ref"          { return K_REF; /* subroutine `ref' formal (13.5.2) */ }
+".ref/real"     { return K_REF_R; /* ... whose underlying type is real */ }
 ".udp"          { return K_UDP; }
 ".udp/c"(omb)?  { return K_UDP_C; }
 ".udp/s"(equ)?  { return K_UDP_S; }

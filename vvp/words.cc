@@ -355,6 +355,44 @@ void compile_ref_variable(char*label, char*name, int msb, int lsb,
       delete[] name;
 }
 
+/*
+ * A `ref' formal whose underlying type is real (R25 stretch). Same
+ * mechanism as compile_ref_variable() -- a vvp_ref_signal_aa with no
+ * storage of its own -- but the VPI handle attached to it (for
+ * $display/$strobe/etc. of the formal by name, and so that vpi_get_value
+ * on it reads through the binding) must be a REAL-flavored handle
+ * (__vpiRealVar, built the same way an ordinary `.var/real` builds one),
+ * not the integer one compile_ref_variable() always used: a real
+ * functor never implements the int/vec4 accessors (value_size(), et
+ * al. -- there is no meaningful "width" or "bit" for a real, so those
+ * are unimplemented stubs, see vvp_wire_real / vvp_fun_signal_real_aa),
+ * only real_value()/get_signal_value(). __vpiRealVar's read/write always
+ * goes through exactly those two, which vvp_ref_signal_aa already
+ * forwards correctly (see vvp_net_sig.cc) -- so requesting the matching
+ * VPI handle kind is the entire fix; nothing about the forwarding
+ * functor itself needed to change.
+ */
+void compile_ref_variable_real(char*label, char*name, bool local_flag)
+{
+      vvp_net_t*net = new vvp_net_t;
+      vvp_ref_signal_aa*tmp = new vvp_ref_signal_aa(1);
+      net->fil = tmp;
+      net->fun = tmp;
+
+      define_functor_symbol(label, net);
+
+      if (! local_flag && name) {
+	    vpiHandle obj = vpip_make_real_var(name, net);
+	    if (obj) {
+		  compile_vpi_symbol(label, obj);
+		  vpip_attach_to_current_scope(obj);
+	    }
+      }
+
+      free(label);
+      delete[] name;
+}
+
 vvp_net_t* create_constant_node(const char*val_str)
 {
       if (c4string_test(val_str)) {

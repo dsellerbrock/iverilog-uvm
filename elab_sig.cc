@@ -1470,6 +1470,22 @@ void PTask::elaborate_sig(Design*des, NetScope*scope) const
       NetTaskDef*def = new NetTaskDef(scope, ports, pdefs);
       scope->set_task_def(def);
 
+	// R25 (Option B, IEEE 1800-2017 13.5.2): a real/string/container
+	// `ref' formal that is not bound as a real reference still takes
+	// the copy-in/copy-out pair; if this task's own body contains a
+	// detached fork (join_none/join_any) anywhere, a branch that
+	// outlives the call can write the formal after the copy-out has
+	// already run, and the write is lost silently. Flag it here, once
+	// per (task, formal), regardless of how many places call this task.
+      for (unsigned int idx = 0 ; idx < ports.size() ; idx += 1) {
+	    NetNet*port = ports[idx];
+	    if (port == 0 || port->port_type() != NetNet::PREF)
+		  continue;
+	    if (ref_formal_is_bound(port))
+		  continue;
+	    warn_ref_formal_fork_hazard(port, statement_);
+      }
+
 	// Look for further signals in the sub-statement
       if (statement_)
 	    statement_->elaborate_sig(des, scope);
