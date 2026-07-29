@@ -30,6 +30,7 @@
 # include  "netclass.h"
 # include  "netdarray.h"
 # include  "netqueue.h"
+# include  "netstruct.h"
 # include  "PExpr.h"
 # include  "PTask.h"
 # include  "pform_types.h"
@@ -871,12 +872,10 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  //    class; same scope test the virtual-class `new'
 		  //    degrade above this file already uses.
 		  bool in_class_scope = false;
-		  if (is_class_new) {
-			for (NetScope*sc = scope ; sc ; sc = sc->parent()) {
-			      if (sc->type() == NetScope::CLASS || sc->class_def()) {
-				    in_class_scope = true;
-				    break;
-			      }
+		  for (NetScope*sc = scope ; sc ; sc = sc->parent()) {
+			if (sc->type() == NetScope::CLASS || sc->class_def()) {
+			      in_class_scope = true;
+			      break;
 			}
 		  }
 		  bool class_new_hard_error = is_class_new
@@ -891,9 +890,30 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			tmp->set_line(*pe);
 			return tmp;
 		  }
+		  // M1B-3 audit, finding A: this degrade exists for typing
+		  // collapses that only happen (a) inside a class body
+		  // elaborating a type-parameter default, or (b) where the
+		  // TARGET's declared class type collapsed to implicit
+		  // 4-state logic (the forward-referenced UVM printer
+		  // globals -- package/module scope, LOGIC target). A
+		  // class handle assigned to an int/real/string at plain
+		  // module scope is neither: it is illegal (8.4 lists the
+		  // only operators valid on handles) and was silently
+		  // becoming 0/""/0.0. Hard-error those; keep the two
+		  // collapse shapes, and make the LOGIC-target one LOUD.
+		  bool class_rval_degrade_ok = in_class_scope
+			|| cast_type == IVL_VT_LOGIC;
 		  if (!need_const && !null_to_logic && !class_new_hard_error
+		      && class_rval_degrade_ok
 		      && !dynamic_cast<const PEBinary*>(pe)
 		      && !dynamic_cast<const PEUnary*>(pe)) {
+			if (!in_class_scope)
+			      cerr << pe->get_fileline() << ": warning: "
+				   << "class-typed r-value in a 4-state "
+				   << "context: treating the target as a "
+				   << "class variable whose type did not "
+				   << "resolve (compile-progress); "
+				   << "substituting 0." << endl;
 			if (cast_type == IVL_VT_BOOL || cast_type == IVL_VT_LOGIC) {
 			      NetEConst*tmp = make_const_0(1);
 			      tmp->set_line(*pe);
@@ -926,8 +946,9 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			     << "The 'new' operator requires a class-typed "
 			     << "l-value (IEEE 1800-2017 8.7)." << endl;
 		  else
-			cerr << pe->get_fileline() << ": Error: "
-			     << "Class/null r-value not allowed in this context." << endl;
+			cerr << pe->get_fileline() << ": error: "
+			     << "A class handle cannot be assigned to a "
+			     << "non-class target (IEEE 1800-2017 8.4)." << endl;
 		  des->errors += 1;
 		  return 0;
 	    }
@@ -1018,6 +1039,38 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 	    if (gn_system_verilog() && !need_const && !normal_scalar_cast_path) {
 		  // Compile-progress fallback for unresolved parameterized
 		  // helper/container method paths that lose argument typing.
+		  //
+		  // R30's principle, extended (M1B-3 audit, finding B): a
+		  // WELL-TYPED unpacked aggregate -- unpacked struct,
+		  // dynamic array, queue, associative array -- is no more
+		  // a lost-typing stub than a well-typed string was.
+		  // `int i; i = my_queue;' silently stored zero through
+		  // the const-0 substitution below. 7.2.2 allows
+		  // whole-struct assignment only to a compatible struct;
+		  // 7.5/7.9/7.10 define containers as assignable only to
+		  // same-shape containers. Hard error, never a stub.
+		  {
+			bool well_typed_aggregate = false;
+			if (ivl_type_t nt = tmp->net_type()) {
+			      if (dynamic_cast<const netdarray_t*>(nt)
+				  || dynamic_cast<const netuarray_t*>(nt))
+				    well_typed_aggregate = true;
+			      else if (const netstruct_t*st =
+					     dynamic_cast<const netstruct_t*>(nt))
+				    well_typed_aggregate = ! st->packed();
+			}
+			if (well_typed_aggregate) {
+			      cerr << pe->get_fileline() << ": error: An "
+				   << "unpacked aggregate (struct, dynamic "
+				   << "array, queue or associative array) "
+				   << "cannot be assigned to a "
+				   << "scalar/vector/string/real target "
+				   << "(IEEE 1800-2017 7.2.2, 7.10)." << endl;
+			      des->errors += 1;
+			      delete tmp;
+			      return 0;
+			}
+		  }
 		  if (cast_type == IVL_VT_STRING) {
 			if (const PEString*str_pe = dynamic_cast<const PEString*>(pe)) {
 			      NetECString*lit = new NetECString(str_pe->parsed_value());

@@ -4130,10 +4130,17 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
       if (method_name == "exists") {
 	    NetExpr*key_expr = 0;
 	    if ((parms.size() != 1) || (parms[0].parm == 0)) {
+		    // M1B-3 audit, finding C: this used to silently
+		    // return const-0, indistinguishable from a genuine
+		    // "not found" on a populated array. The index
+		    // argument is mandatory (IEEE 1800-2017 7.9.3).
+		  cerr << li->get_fileline() << ": error: The associative "
+		       << "array method '" << method_name
+		       << "' requires exactly one index argument "
+		       << "(IEEE 1800-2017 7.9.3)." << endl;
+		  des->errors += 1;
 		  delete sub_expr;
-		  NetEConst*tmp = make_const_0(1);
-		  tmp->set_line(*li);
-		  return tmp;
+		  return 0;
 	    }
 
 	    key_expr = elab_and_eval(des, scope, parms[0].parm, -1, false);
@@ -4156,10 +4163,16 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 	  || method_name == "prev") {
 	    NetExpr*key_expr = 0;
 	    if ((parms.size() != 1) || (parms[0].parm == 0)) {
+		    // M1B-3 audit, finding C: silently returned const-0
+		    // (a false "empty array" answer). The ref index
+		    // argument is mandatory (IEEE 1800-2017 7.9.4).
+		  cerr << li->get_fileline() << ": error: The associative "
+		       << "array method '" << method_name
+		       << "' requires exactly one index argument "
+		       << "(IEEE 1800-2017 7.9.4)." << endl;
+		  des->errors += 1;
 		  delete sub_expr;
-		  NetEConst*tmp = make_const_0(1);
-		  tmp->set_line(*li);
-		  return tmp;
+		  return 0;
 	    }
 
 	    key_expr = elab_and_eval(des, scope, parms[0].parm, -1, false);
