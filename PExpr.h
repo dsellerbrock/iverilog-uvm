@@ -498,6 +498,13 @@ class PEIdent : public PExpr {
       bool calculate_packed_indices_(Design*des, NetScope*scope, const NetNet*net,
 				     std::list<long>&prefix_indices) const;
 
+	// True when this select needs the general computed packed base
+	// (a run-time index in a NON-final dimension, which the constant
+	// prefix path above cannot express). False for every shape that
+	// path already handles, so it stays in charge of those.
+      bool packed_base_needs_expr_(Design*des, NetScope*scope,
+				   const NetNet*net) const;
+
     private:
 
       void report_mixed_assignment_conflict_(const char*category) const;

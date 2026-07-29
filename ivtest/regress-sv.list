@@ -1225,3 +1225,4 @@ sv_assert_star_unbounded normal,-g2012 ivltests
 sv_assert_impl_s_eventually normal,-g2012 ivltests
 sv_rand_conformance_pin1 normal,-g2012 ivltests
 sv_rand_conformance_pin2 normal,-g2012 ivltests
+sv_packed_multidim_var_index normal,-g2012 ivltests

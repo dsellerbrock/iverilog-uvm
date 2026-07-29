@@ -11451,6 +11451,39 @@ bool PEIdent::calculate_packed_indices_(Design*des, NetScope*scope, const NetNet
       return evaluate_index_prefix(des, scope, prefix_indices, index);
 }
 
+bool PEIdent::packed_base_needs_expr_(Design*des, NetScope*scope,
+				      const NetNet*net) const
+{
+      if (!gn_system_verilog())
+	    return false;
+      if (!net || net->unpacked_dimensions() > 0)
+	    return false;
+
+      const list<index_component_t>&idx = path_.back().index;
+	// A single index is already handled: it IS the final one.
+      if (idx.size() < 2)
+	    return false;
+      if (idx.size() > net->packed_dimensions())
+	    return false;
+
+	// Only plain bit-select chains. Ranges and indexed part selects
+	// keep the existing path.
+      for (list<index_component_t>::const_iterator ic = idx.begin()
+		 ; ic != idx.end() ; ++ic) {
+	    if (ic->sel != index_component_t::SEL_BIT)
+		  return false;
+      }
+
+	// If the prefix IS constant the old path handles it, and handles
+	// it better (a constant offset rather than a computed one), so
+	// only take over when it genuinely cannot.
+      list<long> tmp;
+      if (evaluate_index_prefix(des, scope, tmp, idx, /*quiet=*/true))
+	    return false;
+
+      return true;
+}
+
 
 bool PEIdent::calculate_bits_(Design*des, NetScope*scope,
 			      long&msb, bool&defined) const
@@ -15093,6 +15126,26 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 				          NetESignal*net, NetScope*,
                                           bool need_const) const
 {
+	// IEEE 1800-2017 11.5.2: an index into a packed array may be a
+	// run-time expression in ANY dimension. The prefix-collapsing path
+	// below can only fold CONSTANT leading indices into a slice offset,
+	// so `t[i][j]' with a variable i needs the general computed base.
+	// Try the constant path quietly first; it stays the path for every
+	// shape that already worked, and this only engages where that path
+	// would previously have failed.
+      if (!need_const && packed_base_needs_expr_(des, scope, net->sig())) {
+	    unsigned long sel_wid = 0;
+	    NetExpr*base = collapse_packed_base(des, scope, this, net->sig(),
+						path_.back().index, sel_wid);
+	    if (base && sel_wid > 0) {
+		  base->set_line(*this);
+		  NetESelect*res = new NetESelect(net, base, sel_wid);
+		  res->set_line(*this);
+		  return res;
+	    }
+	    delete base;
+      }
+
       list<long>prefix_indices;
       bool rc = calculate_packed_indices_(des, scope, net->sig(), prefix_indices);
       if (!rc)
@@ -15543,6 +15596,25 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	    }
 	      // No additional select (or SEL_PART handled below).
 	    return elem_sel;
+      }
+
+	// IEEE 1800-2017 11.5.2: a run-time index is legal in ANY packed
+	// dimension. evaluate_index_prefix below can only fold CONSTANT
+	// leading indices into a slice offset, so `t[i][j]' with a variable
+	// i has to take the general computed-base path. This test is false
+	// for every shape the prefix path already handles, so that path
+	// stays in charge of them.
+      if (packed_base_needs_expr_(des, scope, node->sig())) {
+	    unsigned long sel_wid = 0;
+	    NetExpr*pbase = collapse_packed_base(des, scope, this, node->sig(),
+						 path_.back().index, sel_wid);
+	    if (pbase && sel_wid > 0) {
+		  pbase->set_line(*this);
+		  NetESelect*res = new NetESelect(node, pbase, sel_wid);
+		  res->set_line(*this);
+		  return res;
+	    }
+	    delete pbase;
       }
 
       list<long> prefix_indices;
