@@ -814,6 +814,32 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 				      bool need_const_idx,
 				      bool is_force) const
 {
+	// IEEE 1800-2017 11.5.2: a run-time index is legal in ANY packed
+	// dimension, so `t[i][j] = ...' with a variable i is a valid
+	// l-value. calculate_packed_indices_ can only fold CONSTANT
+	// leading indices into a slice offset, so that shape needs the
+	// general computed base. False for everything the prefix path
+	// already handles, which keeps it in charge of those.
+      if (!need_const_idx && packed_base_needs_expr_(des, scope, lv->sig())) {
+	    NetNet*preg = lv->sig();
+	    unsigned long sel_wid = 0;
+	    NetExpr*pbase = collapse_packed_base(des, scope, this, preg,
+						 path_.back().index, sel_wid);
+	    if (pbase && sel_wid > 0) {
+		  pbase->set_line(*this);
+		  if ((preg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
+			ivl_assert(*this, preg->coerced_to_uwire());
+			report_mixed_assignment_conflict_("bit select");
+			des->errors += 1;
+			delete pbase;
+			return false;
+		  }
+		  lv->set_part(pbase, sel_wid);
+		  return true;
+	    }
+	    delete pbase;
+      }
+
       list<long>prefix_indices;
       bool rc = calculate_packed_indices_(des, scope, lv->sig(), prefix_indices);
       if (!rc) return false;
