@@ -83,7 +83,7 @@ class vvp_cobject : public vvp_object {
       bool cov_enabled() const { return cov_enabled_; }
       void set_cov_enabled(bool f) { cov_enabled_ = f; }
 
-	// M3B-5 (IEEE 1800-2017 18.13): the object's own random number
+	// M3B-5/R3 (IEEE 1800-2017 18.13): the object's own random number
 	// generator. srandom()/set_randstate() had elaborated to a no-op,
 	// so seeding did nothing and no seeded flow was reproducible.
 	//
@@ -91,11 +91,14 @@ class vvp_cobject : public vvp_object {
 	// and trivially serializable, which is what get_randstate() needs
 	// (18.13.3 leaves the string's contents implementation-defined).
 	//
-	// The RNG becomes active only once the object has been SEEDED,
-	// explicitly via srandom() or set_randstate(). Until then
-	// randomize() keeps drawing from the global generator, so
-	// unseeded randomization sequences -- and every recorded gold that
-	// depends on them -- are unchanged. See the M3B-5 ROADMAP row.
+	// R3 (18.13.1, RANDOM STABILITY): every object is seeded at
+	// construction (of_NEW_COBJ, vvp/vthread.cc), from the next value
+	// of the constructing thread's own generator -- rng_srandom() is
+	// called there right after the object is built. srandom()/
+	// set_randstate() still work exactly as before, explicitly
+	// overwriting that derived seed. See the R3 ROADMAP row and the
+	// block comment above thread_rng_srandom_() in vvp/vthread.cc for
+	// the full derivation.
       void rng_srandom(int32_t seed);
       std::string rng_get_state() const;
 	// False if the string is not one this implementation wrote.

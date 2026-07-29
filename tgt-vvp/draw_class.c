@@ -226,10 +226,17 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
       switch (data_type) {
 	  case IVL_VT_VOID:
 	  case IVL_VT_NO_TYPE:
+	      /* An unpacked-struct property must retain its rand/randc
+	       * qualifier in the runtime metadata just like every other
+	       * property kind below -- omitting it here silently dropped
+	       * `rand`/`randc` on unpacked-struct properties entirely
+	       * (class_type::property_is_rand() would always read false),
+	       * which is why %randomize never touched them (IEEE 1800-2017
+	       * 18.4). */
 	    if (base_ptype && ivl_type_properties(base_ptype) > 0)
-		  fprintf(vvp_out, "\"oc:C%p\"", base_ptype);
+		  fprintf(vvp_out, "\"%soc:C%p\"", rand_prefix ? rand_prefix : "", base_ptype);
 	    else
-		  fprintf(vvp_out, "\"o\"");
+		  fprintf(vvp_out, "\"%so\"", rand_prefix ? rand_prefix : "");
 	    break;
 	  case IVL_VT_REAL:
 	    fprintf(vvp_out, "\"r\"");

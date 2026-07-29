@@ -1051,9 +1051,18 @@ static void draw_property_vec4(ivl_expr_t expr)
 			  fprintf(vvp_out, "    %%cast2;\n");
 		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	      } else if (darray_indexed && idx_word) {
-		    /* darray property element read: push darray as object, load element */
+		    /* darray property element read: push darray as object, load element.
+		     * A darray PROPERTY that has never been sized/`new[]`-ed is nil --
+		     * not merely an empty vvp_darray -- so %load/dar/obj/vec4 has no
+		     * element width to fall back on and leaves a 0-width value on the
+		     * stack. Every other read path in this function (assoc/queue/the
+		     * null-receiver fallback below) always yields a value already
+		     * padded to ivl_expr_width(expr); pad this one the same way so a
+		     * nil/out-of-range element read reads as a defined X/0 of the
+		     * right width instead of crashing %store/vec4 downstream. */
 		    fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pidx);
 		    fprintf(vvp_out, "    %%load/dar/obj/vec4 %d;\n", idx_word);
+		    fprintf(vvp_out, "    %%pad/u %u;\n", ivl_expr_width(expr));
 		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n"); /* pop darray */
 	      } else if (idx_word)
 	    fprintf(vvp_out, "    %%prop/v/i %u, %d;\n", pidx, idx_word);

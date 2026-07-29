@@ -1748,15 +1748,20 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       for (auto& sv : builder.size_vars) {
 	    if (!rand_active_(defn, cobj, prop_active, sv.idx)) continue;
 	      // Prefer small varied sizes when the constraints leave slack.
+	      // R3 (IEEE 1800-2017 18.13.1): draw from the OBJECT's own
+	      // generator (always seeded, see of_NEW_COBJ), not libc rand(),
+	      // so a dynamic-array rand property's size diversity is part of
+	      // the same hierarchical, stable sequence as its other rand
+	      // properties.
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
-	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, (uint64_t)(rand() & 0xF), sort);
+	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, (uint64_t)(cobj->rng_next() & 0xF), sort);
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, sv.var, rv));
       }
       for (auto& ev : builder.elem_vars) {
 	    if (!rand_active_(defn, cobj, prop_active, ev.idx)) continue;
 	    uint64_t rand_bits = 0;
 	    for (unsigned b = 0; b < ev.width && b < 64; ++b)
-		  if (rand() & 1) rand_bits |= (1ULL << b);
+		  if (cobj->rng_next() & 1) rand_bits |= (1ULL << b);
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
 	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, ev.var, rv));

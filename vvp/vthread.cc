@@ -100,6 +100,13 @@ static void notify_mutated_object_signal_(vthread_t thr, vvp_net_t*net, const ch
 static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
                                         vvp_net_t*root_net, const vvp_object_t&root_obj,
                                         const char*where);
+	/* R3 (IEEE 1800-2017 18.13.1) hierarchical RNG seeding -- defined in
+	   full below, next to design_root_rng_next_(), but needed here
+	   because of_STD_RANDOMIZE_WITH (which uses them) is textually
+	   earlier in this file than that definition. */
+static void thread_rng_srandom_(vthread_t thr, int32_t seed);
+static uint32_t thread_rng_next_(vthread_t thr);
+static vthread_t logical_process_thread_(vthread_t thr);
 static set<vthread_t> live_threads_registry_;
 
 static bool sched_dump_threads_enabled_(const char*reason)
@@ -2838,15 +2845,16 @@ static void randomize_restore_(vvp_cobject*cobj,
 }
 
 /*
- * M3B-5 (IEEE 1800-2017 18.13.1): randomize() draws from the OBJECT's
- * generator once that object has been seeded (srandom/set_randstate);
- * otherwise it keeps using the global one, so unseeded randomization
- * sequences -- and every recorded gold that depends on them -- are
- * bit-for-bit unchanged. Seeding is the thing that opts an object in.
+ * R3/M3B-5 (IEEE 1800-2017 18.13.1): randomize() draws from the OBJECT's
+ * own generator, seeded hierarchically at construction (of_NEW_COBJ) or
+ * explicitly via srandom()/set_randstate(). Every live cobject is seeded
+ * from the moment it exists, so this only falls back to libc rand() in
+ * the defensive case of no object at all (should not occur -- the
+ * callers above only reach here inside `if (cobj) {...}').
  */
 static inline unsigned randomize_rand_(vvp_cobject*cobj)
 {
-      if (cobj && cobj->rng_seeded())
+      if (cobj)
 	    return (unsigned)cobj->rng_next();
       return (unsigned)rand();
 }
@@ -2892,6 +2900,262 @@ static void collect_unmerged_base_constraints_(const class_type*defn,
 }
 
 /*
+ * IEEE 1800-2017 18.4: a rand UNPACKED STRUCT is an aggregate of integral
+ * members, not a separate randomizable object -- structs cannot carry
+ * their own `constraint` blocks (those attach to classes), so an
+ * unconstrained rand struct property is just every integral member
+ * getting fresh random bits, recursively for a nested unpacked-struct
+ * member. A member that is itself a container, class handle, real, or
+ * string is not integral and is left untouched, with one loud warning
+ * (constraint support for struct members has the same limitation --
+ * see the "not representable" warning at constraint-IR build time).
+ */
+static void randomize_struct_members_(vvp_cobject*subcobj, const class_type*subdefn)
+{
+      if (!subcobj || !subdefn) return;
+      for (size_t mpid = 0 ; mpid < subdefn->property_count() ; mpid += 1) {
+	    const std::string&bt = subdefn->property_base_type(mpid);
+	    uint64_t asize = subdefn->property_array_size(mpid);
+	    if (asize < 1) asize = 1;
+
+	    if (bt.compare(0, 3, "oc:") == 0) {
+		    // Nested unpacked struct member: recurse per element.
+		  for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+			vvp_object_t propobj;
+			subcobj->get_object(mpid, propobj, adr);
+			if (vvp_cobject*nested = propobj.peek<vvp_cobject>())
+			      randomize_struct_members_(nested, nested->get_defn());
+		  }
+		  continue;
+	    }
+
+	    if (bt == "o" || bt == "r" || bt == "S" || bt.compare(0, 1, "Q") == 0
+		|| bt.compare(0, 1, "M") == 0
+		|| (!bt.empty() && bt[0] == 'D')) {
+		  static bool warned_struct_member_nonintegral = false;
+		  if (!warned_struct_member_nonintegral) {
+			cerr << "warning: member '" << subdefn->property_name(mpid)
+			     << "' of rand unpacked struct '" << subdefn->class_name()
+			     << "' is not an integral type (IEEE 1800-2017 18.4 "
+			     << "restricts rand aggregates to integral members) "
+			     << "and is not randomized (further similar warnings "
+			     << "suppressed)." << endl;
+			warned_struct_member_nonintegral = true;
+		  }
+		  continue;
+	    }
+
+	    for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+		  vvp_vector4_t val;
+		  subcobj->get_vec4(mpid, val, adr);
+		  unsigned wid = val.size();
+		  if (wid == 0)
+			continue;
+		  for (unsigned i = 0 ; i < wid ; i += 32) {
+			unsigned rnd = randomize_rand_(subcobj);
+			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
+			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+		  }
+		  subcobj->set_vec4(mpid, val, adr);
+	    }
+      }
+}
+
+/*
+ * IEEE 1800-2017 18.4: object.randomize() must also randomize any non-null
+ * rand HANDLE property, i.e. call that sub-object's own randomize(). This
+ * is sequential recursion -- the sub-object solves its own constraints on
+ * its own, NOT jointly with the parent's -- which is the documented limit:
+ * a sub-object constraint that references parent state is not modeled.
+ * A null handle is left null (18.4 default): nothing to recurse into.
+ *
+ * `randomize_stack_` guards against a cyclic rand-handle graph (a chain
+ * that loops back to an object already being randomized higher up this
+ * same call): re-entering would recurse forever, so a repeat occurrence
+ * is left as-is instead -- a documented limitation, not a fresh joint
+ * solve for the cycle.
+ */
+static std::vector<vvp_cobject*> randomize_stack_;
+
+static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
+{
+      if (!cobj) return true;
+      for (vvp_cobject*p : randomize_stack_)
+	    if (p == cobj) return true;
+      randomize_stack_.push_back(cobj);
+
+      bool solve_ok = true;
+      const class_type*defn = cobj->get_defn();
+
+      bool have_constraints = false;
+      for (const class_type*walker = defn; walker; walker = walker->runtime_super())
+	    if (walker->constraint_count() > 0)
+		  have_constraints = true;
+      std::vector<rand_saved_prop_s> saved;
+      if (have_constraints)
+	    randomize_snapshot_(cobj, defn, saved, sel);
+
+	// Fill this call's random variables with random bits first.
+      for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+	    if (!rand_call_active_(defn, cobj, sel, pid))
+		  continue;
+
+	      // Unpacked-struct and class-handle rand properties: no bits
+	      // of their own to pre-fill here -- struct members get filled
+	      // member-wise, and a non-null handle gets its own randomize()
+	      // (see the two helpers above). A null handle stays null.
+	    {
+		  const std::string&bt = defn->property_base_type(pid);
+		  bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;
+		  bool is_handle_prop = (bt == "o");
+		  if (is_struct_prop || is_handle_prop) {
+			uint64_t hsize = defn->property_array_size(pid);
+			if (hsize < 1) hsize = 1;
+			for (uint64_t adr = 0 ; adr < hsize ; adr += 1) {
+			      vvp_object_t propobj;
+			      cobj->get_object(pid, propobj, adr);
+			      vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
+			      if (!subcobj) continue;
+			      if (is_struct_prop)
+				    randomize_struct_members_(subcobj, subcobj->get_defn());
+			      else
+				    randomize_cobject_(subcobj, nullptr);
+			}
+			continue;
+		  }
+	    }
+
+	      // Phase 50b: rand assoc-vec4 array properties.  When a
+	      // property is `rand uint x[KEY]`, the storage is a
+	      // vvp_assoc_vec4 reachable via get_object().  The default
+	      // get_vec4 path returns a 1-bit "exists" flag and never
+	      // touches the actual entry values, so randomize() left
+	      // assoc entries at their initialised value (typically 0)
+	      // for OpenTitan's clk_freqs_mhz pattern.  Iterate string
+	      // keys here and replace each entry's value with random
+	      // bits of the entry's natural width, capped so the value
+	      // is within `int` range and non-zero.  The constraint
+	      // foreach is currently dropped at parse, so this is the
+	      // only mechanism that puts non-zero values in the assoc;
+	      // downstream code that checks `freq > 0` works.
+	      // Static-array rand properties (e.g. `rand int arr[4]`):
+	      // fill every element with random bits. Without this only
+	      // word 0 is touched and elements stay at 0.
+	    if (defn->property_array_size(pid) > 1) {
+		  uint64_t asize = defn->property_array_size(pid);
+		  for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+			vvp_vector4_t val;
+			cobj->get_vec4(pid, val, adr);
+			unsigned wid = val.size();
+			if (wid == 0)
+			      break;
+			vvp_vector4_t nv(wid, BIT4_0);
+			for (unsigned b = 0 ; b < wid ; b += 1)
+			      nv.set_bit(b, (randomize_rand_(cobj) & 1) ? BIT4_1 : BIT4_0);
+			cobj->set_vec4(pid, nv, adr);
+		  }
+		  continue;
+	    }
+
+	    {
+		  vvp_object_t propobj;
+		  cobj->get_object(pid, propobj, 0);
+		  if (vvp_assoc_vec4*assoc = propobj.peek<vvp_assoc_vec4>()) {
+			std::string key;
+			bool ok = assoc->first_key(key);
+			while (ok) {
+			      vvp_vector4_t cur;
+			      bool got = assoc->get(key, cur);
+			      unsigned wid = got ? cur.size() : 32;
+			      if (wid == 0) wid = 32;
+			      // Generate non-zero value capped at 8 bits so
+			      // typical clock-frequency-style constraints
+			      // (e.g. inside {[5:100]}) are satisfied without
+			      // a real solver pass.  Width-clip back to wid.
+			      unsigned cap = (wid >= 8) ? 0xFF : ((1u<<wid) - 1);
+			      unsigned rnd = (randomize_rand_(cobj) % cap) + 1;
+			      vvp_vector4_t nv(wid, BIT4_0);
+			      for (unsigned b = 0 ; b < wid ; b += 1)
+				    nv.set_bit(b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+			      assoc->set(key, nv);
+			      ok = assoc->next_key(key);
+			}
+			continue;  // skip the get_vec4 path below
+		  }
+	    }
+	      // A CONTAINER property -- a dynamic array or queue. There are
+	      // no property bits to pre-fill: get_vec4 hands back a 1-bit
+	      // "non-nil" flag and writing that back is not a value
+	      // (class_property_t::set_vec4 rejects it and warns). A rand
+	      // dynamic array's size and elements are the solver's business
+	      // (18.4), not this loop's. Asked of the DECLARED type, so it
+	      // holds for a property that is still nil on the first call.
+	    if (rand_prop_is_container_(defn, pid))
+		  continue;
+
+	    vvp_vector4_t val;
+	    cobj->get_vec4(pid, val);
+	    unsigned wid = val.size();
+	    if (wid == 0)
+		  continue;
+	    // C1 (Phase 62a): cyclic randc — pick unused value in current
+	    // cycle. randc_mark resets bitmap when cycle exhausted.
+	    if (defn->property_is_randc(pid)) {
+		  uint64_t period = cobj->randc_period(pid);
+		  if (period > 0) {
+			uint64_t pick = 0;
+			bool found = false;
+			for (unsigned attempt = 0;
+			     attempt < 4 * (unsigned)period;
+			     attempt += 1) {
+			      uint64_t cand = (uint64_t)randomize_rand_(cobj) % period;
+			      if (!cobj->randc_seen(pid, cand)) {
+				    pick = cand; found = true; break;
+			      }
+			}
+			if (!found) {
+			      for (uint64_t i = 0; i < period; i += 1) {
+				    if (!cobj->randc_seen(pid, i)) {
+					  pick = i; found = true; break;
+				    }
+			      }
+			}
+			if (found) {
+			      cobj->randc_mark(pid, pick);
+			      for (unsigned b = 0; b < wid; b += 1)
+				    val.set_bit(b, (pick >> b) & 1
+						  ? BIT4_1 : BIT4_0);
+			      cobj->set_vec4(pid, val);
+			      continue;
+			}
+		  }
+	    }
+	    for (unsigned i = 0 ; i < wid ; i += 32) {
+		  unsigned rnd = randomize_rand_(cobj);
+		  for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
+			val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
+	    }
+	    cobj->set_vec4(pid, val);
+      }
+
+	// ONE solve over the complete inherited constraint set --
+	// see collect_unmerged_base_constraints_ for why solving the
+	// chain class by class silently violates derived constraints.
+      {
+	    vector<string> extra_ir;
+	    collect_unmerged_base_constraints_(defn, extra_ir);
+	    if (defn->constraint_count() > 0 || !extra_ir.empty())
+		  if (!vvp_z3_randomize(defn, cobj, extra_ir, {}, sel))
+			solve_ok = false;
+      }
+      if (!solve_ok)
+	    randomize_restore_(cobj, saved);
+
+      randomize_stack_.pop_back();
+      return solve_ok;
+}
+
+/*
  * %randomize
  *
  * Randomize all rand/randc properties of the class object on top of the
@@ -2915,151 +3179,7 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 	    thr->rand_sel.clear();
       }
 
-      bool solve_ok = true;
-      if (cobj) {
-	    const class_type*defn = cobj->get_defn();
-
-	    bool have_constraints = false;
-	    for (const class_type*walker = defn; walker; walker = walker->runtime_super())
-		  if (walker->constraint_count() > 0)
-			have_constraints = true;
-	    std::vector<rand_saved_prop_s> saved;
-	    if (have_constraints)
-		  randomize_snapshot_(cobj, defn, saved, sel);
-
-	      // Fill this call's random variables with random bits first.
-	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
-		  if (!rand_call_active_(defn, cobj, sel, pid))
-			continue;
-
-		    // Phase 50b: rand assoc-vec4 array properties.  When a
-		    // property is `rand uint x[KEY]`, the storage is a
-		    // vvp_assoc_vec4 reachable via get_object().  The default
-		    // get_vec4 path returns a 1-bit "exists" flag and never
-		    // touches the actual entry values, so randomize() left
-		    // assoc entries at their initialised value (typically 0)
-		    // for OpenTitan's clk_freqs_mhz pattern.  Iterate string
-		    // keys here and replace each entry's value with random
-		    // bits of the entry's natural width, capped so the value
-		    // is within `int` range and non-zero.  The constraint
-		    // foreach is currently dropped at parse, so this is the
-		    // only mechanism that puts non-zero values in the assoc;
-		    // downstream code that checks `freq > 0` works.
-		    // Static-array rand properties (e.g. `rand int arr[4]`):
-		    // fill every element with random bits. Without this only
-		    // word 0 is touched and elements stay at 0.
-		  if (defn->property_array_size(pid) > 1) {
-			uint64_t asize = defn->property_array_size(pid);
-			for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
-			      vvp_vector4_t val;
-			      cobj->get_vec4(pid, val, adr);
-			      unsigned wid = val.size();
-			      if (wid == 0)
-				    break;
-			      vvp_vector4_t nv(wid, BIT4_0);
-			      for (unsigned b = 0 ; b < wid ; b += 1)
-				    nv.set_bit(b, (randomize_rand_(cobj) & 1) ? BIT4_1 : BIT4_0);
-			      cobj->set_vec4(pid, nv, adr);
-			}
-			continue;
-		  }
-
-		  {
-			vvp_object_t propobj;
-			cobj->get_object(pid, propobj, 0);
-			if (vvp_assoc_vec4*assoc = propobj.peek<vvp_assoc_vec4>()) {
-			      std::string key;
-			      bool ok = assoc->first_key(key);
-			      while (ok) {
-				    vvp_vector4_t cur;
-				    bool got = assoc->get(key, cur);
-				    unsigned wid = got ? cur.size() : 32;
-				    if (wid == 0) wid = 32;
-				    // Generate non-zero value capped at 8 bits so
-				    // typical clock-frequency-style constraints
-				    // (e.g. inside {[5:100]}) are satisfied without
-				    // a real solver pass.  Width-clip back to wid.
-				    unsigned cap = (wid >= 8) ? 0xFF : ((1u<<wid) - 1);
-				    unsigned rnd = (randomize_rand_(cobj) % cap) + 1;
-				    vvp_vector4_t nv(wid, BIT4_0);
-				    for (unsigned b = 0 ; b < wid ; b += 1)
-					  nv.set_bit(b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
-				    assoc->set(key, nv);
-				    ok = assoc->next_key(key);
-			      }
-			      continue;  // skip the get_vec4 path below
-			}
-		  }
-		    // A CONTAINER or handle property -- a dynamic array,
-		    // a class handle, a struct object. There are no
-		    // property bits to pre-fill: get_vec4 hands back a
-		    // 1-bit "non-nil" flag and writing that back is not a
-		    // value (class_property_t::set_vec4 rejects it and
-		    // warns). A rand dynamic array's size and elements are
-		    // the solver's business (18.4), not this loop's. Asked
-		    // of the DECLARED type, so it holds for a property
-		    // that is still nil on the first call.
-		  if (rand_prop_is_container_(defn, pid))
-			continue;
-
-		  vvp_vector4_t val;
-		  cobj->get_vec4(pid, val);
-		  unsigned wid = val.size();
-		  if (wid == 0)
-			continue;
-		  // C1 (Phase 62a): cyclic randc — pick unused value in current
-		  // cycle. randc_mark resets bitmap when cycle exhausted.
-		  if (defn->property_is_randc(pid)) {
-			uint64_t period = cobj->randc_period(pid);
-			if (period > 0) {
-			      uint64_t pick = 0;
-			      bool found = false;
-			      for (unsigned attempt = 0;
-				   attempt < 4 * (unsigned)period;
-				   attempt += 1) {
-				    uint64_t cand = (uint64_t)randomize_rand_(cobj) % period;
-				    if (!cobj->randc_seen(pid, cand)) {
-					  pick = cand; found = true; break;
-				    }
-			      }
-			      if (!found) {
-				    for (uint64_t i = 0; i < period; i += 1) {
-					  if (!cobj->randc_seen(pid, i)) {
-						pick = i; found = true; break;
-					  }
-				    }
-			      }
-			      if (found) {
-				    cobj->randc_mark(pid, pick);
-				    for (unsigned b = 0; b < wid; b += 1)
-					  val.set_bit(b, (pick >> b) & 1
-							? BIT4_1 : BIT4_0);
-				    cobj->set_vec4(pid, val);
-				    continue;
-			      }
-			}
-		  }
-		  for (unsigned i = 0 ; i < wid ; i += 32) {
-			unsigned rnd = randomize_rand_(cobj);
-			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
-			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
-		  }
-		  cobj->set_vec4(pid, val);
-	    }
-
-	      // ONE solve over the complete inherited constraint set --
-	      // see collect_unmerged_base_constraints_ for why solving the
-	      // chain class by class silently violates derived constraints.
-	    {
-		  vector<string> extra_ir;
-		  collect_unmerged_base_constraints_(defn, extra_ir);
-		  if (defn->constraint_count() > 0 || !extra_ir.empty())
-			if (!vvp_z3_randomize(defn, cobj, extra_ir, {}, sel))
-			      solve_ok = false;
-	    }
-	    if (!solve_ok)
-		  randomize_restore_(cobj, saved);
-      }
+      bool solve_ok = cobj ? randomize_cobject_(cobj, sel) : true;
 
       vvp_object_t tmp;
       thr->pop_object(tmp);
@@ -3114,6 +3234,32 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	      // Randomize this call's random variables first.
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
 		  if (!rand_call_active_(defn, cobj, sel, pid)) continue;
+
+		    // Unpacked-struct / class-handle rand properties:
+		    // member-wise fill or recurse into a non-null handle's
+		    // own randomize() (mirrors of_RANDOMIZE / IEEE 1800-2017
+		    // 18.4). A null handle stays null.
+		  {
+			const std::string&bt = defn->property_base_type(pid);
+			bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;
+			bool is_handle_prop = (bt == "o");
+			if (is_struct_prop || is_handle_prop) {
+			      uint64_t hsize = defn->property_array_size(pid);
+			      if (hsize < 1) hsize = 1;
+			      for (uint64_t adr = 0 ; adr < hsize ; adr += 1) {
+				    vvp_object_t propobj;
+				    cobj->get_object(pid, propobj, adr);
+				    vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
+				    if (!subcobj) continue;
+				    if (is_struct_prop)
+					  randomize_struct_members_(subcobj, subcobj->get_defn());
+				    else
+					  randomize_cobject_(subcobj, nullptr);
+			      }
+			      continue;
+			}
+		  }
+
 		    // Static-array rand properties: fill each element
 		    // (mirrors of_RANDOMIZE).
 		  if (defn->property_array_size(pid) > 1) {
@@ -3229,10 +3375,14 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    vvp_vector4_t old = thr->pop_vec4();
 	    widths[i - 1] = old.size();
       }
+	// R3 (IEEE 1800-2017 18.13.1): std::randomize() has no receiver
+	// object, so its diversity targets draw from the calling thread's
+	// own (logical-process) generator rather than a raw global rand().
+      vthread_t rng_owner = logical_process_thread_(thr);
       for (unsigned i = 0 ; i < n_rand ; i += 1) {
 	    uint64_t bits = 0;
 	    for (unsigned b = 0 ; b < widths[i] && b < 64 ; b += 1)
-		  if (rand() & 1) bits |= UINT64_C(1) << b;
+		  if (thread_rng_next_(rng_owner) & 1) bits |= UINT64_C(1) << b;
 	    targets[i] = bits;
       }
 
@@ -3461,6 +3611,76 @@ static bool thread_rng_set_state_(vthread_t thr, const std::string&state)
 }
 
 /*
+ * R3 (IEEE 1800-2017 18.13.1): RANDOM STABILITY -- hierarchical seeding.
+ *
+ * Before this, an unseeded thread/object drew from a single shared
+ * generator (the vpi/ "$urandom" static or libc rand()), so an unrelated
+ * $urandom/randomize() call anywhere in the design could shift every other
+ * unseeded sequence -- the opposite of what 18.13.1 calls random
+ * stability. Now every thread and every class object is seeded AT
+ * CREATION, from the next value of its creator's own generator, forming a
+ * tree rooted at the design itself:
+ *
+ *   - A root/static thread (a module-level initial/always/final process,
+ *     created directly by the compiled .vvp's fixed sequence of `.thread'
+ *     directives -- see compile_thread()) is seeded from the next value of
+ *     design_root_rng_next_() below, in that same fixed, deterministic
+ *     order -- so re-running the same compiled design always reproduces
+ *     the same root seeds (the ROADMAP's "keep init order deterministic"
+ *     constraint).
+ *   - A thread created by a real `fork ... join/join_any/join_none' branch
+ *     (do_fork_() with child_is_process true, i.e. %fork/p) is seeded from
+ *     the next value of its parent's *logical process* generator.
+ *   - A class object is seeded, at `new' (of_NEW_COBJ, IEEE 1800 %new/cobj),
+ *     from the next value of the *logical process* generator of the
+ *     thread that executed the `new'.
+ *
+ * "Logical process" resolves through logical_process_thread_() below:
+ * synchronous task-call frames and automatic-function-call frames
+ * (is_fork_v_child / is_callf_child -- tgt-vvp's own internal
+ * continuation machinery, not real IEEE 1800 processes) are not
+ * independently seeded; any $urandom/randomize()/dist executed while one
+ * of those runs transparently uses the RNG of the nearest REAL enclosing
+ * thread, exactly as process::self() already resolves for those frames.
+ *
+ * This retires the old "unseeded -> global fallback" gate entirely:
+ * every thread and object is always seeded from the moment it exists, so
+ * rng_seeded/rng_seeded_ are now permanently true post-construction (kept
+ * only so srandom()/set_randstate() -- 18.13.3/18.13.5, untouched by this
+ * change -- can still explicitly overwrite the state old callers already
+ * rely on, and so get_randstate() -- 18.13.4 -- reports the real,
+ * always-live state rather than a "never seeded" placeholder).
+ *
+ * Sibling stability follows directly: two objects/threads created in
+ * sequence by the SAME creator draw two DIFFERENT, independent values
+ * from that creator's single advancing sequence, so their own later
+ * draws are unaffected by one another; an unrelated object/thread created
+ * by a DIFFERENT creator never touches that sequence at all.
+ */
+static uint64_t design_root_rng_state_ = 0x9E3779B97F4A7C15ull;
+
+static uint32_t design_root_rng_next_()
+{
+      uint64_t x = design_root_rng_state_;
+      x ^= x >> 12;
+      x ^= x << 25;
+      x ^= x >> 27;
+      design_root_rng_state_ = x;
+      return (uint32_t)((x * 0x2545F4914F6CDD1Dull) >> 32);
+}
+
+static vthread_t logical_process_thread_(vthread_t thr)
+{
+      // Walk up both callf children (function calls) and fork/v children
+      // (synchronous task calls) to reach the logical calling process.
+      // Only explicit fork...join_none threads (is_fork_v_child=0,
+      // is_callf_child=0) are their own logical process.
+      while (thr && (thr->is_callf_child || thr->is_fork_v_child) && thr->parent)
+	    thr = thr->parent;
+      return thr;
+}
+
+/*
  * M3B-5 (IEEE 1800-2017 18.13): per-object RNG control.
  *
  * srandom() and set_randstate() used to elaborate to an empty block, so
@@ -3535,16 +3755,18 @@ bool of_SET_RANDSTATE(vthread_t thr, vvp_code_t)
 }
 
 /*
- * M3B-5 (IEEE 1800-2017 18.13.1): $urandom called from inside a class
- * method draws from THAT OBJECT's generator, so seeding the object makes
- * it reproducible. $urandom lives in the vpi/ system module and has its
- * own static generator, so it asks here first: if the running thread is
- * executing a method of an object that has been seeded, hand back a draw
- * from the object's RNG.
+ * R3/M3B-5 (IEEE 1800-2017 18.13.1): $urandom called from inside a class
+ * method draws from THAT OBJECT's generator; $urandom called from an
+ * ordinary thread (or a function/task call nested inside one) draws from
+ * the enclosing LOGICAL PROCESS's generator (18.13.2). $urandom lives in
+ * the vpi/ system module and has its own static generator (the pre-R3
+ * global default), so it asks here first.
  *
- * Returns 0 when there is no seeded enclosing object, and $urandom then
- * uses its own generator exactly as before -- so unseeded sequences, and
- * every gold that depends on them, are untouched.
+ * Every thread and object is now always seeded (see the R3 block above
+ * thread_rng_srandom_/logical_process_thread_), so this always succeeds
+ * once a thread is found; it can only return 0 when there is no running
+ * thread context at all (e.g. a $urandom evaluated at compile time,
+ * which cannot happen, or a malformed call).
  */
 extern "C" int vpip_object_urandom(unsigned int*val)
 {
@@ -3578,18 +3800,12 @@ extern "C" int vpip_object_urandom(unsigned int*val)
 	    break;
       }
 
-	// No seeded enclosing object: fall back to the PROCESS generator
-	// (18.13.2). process::self() hands out the LOGICAL process thread
-	// (function calls and synchronous task calls run on child threads
-	// of it), so the seed can live on an ancestor of the thread that
-	// actually reaches $urandom. Walk up the parent chain to find it --
-	// which is also the behaviour 18.13.2 wants: a task called from a
-	// seeded process draws from that process's generator.
-      for (vthread_t walk = thr ; walk ; walk = walk->parent) {
-	    if (walk->rng_seeded) {
-		  *val = thread_rng_next_(walk);
-		  return 1;
-	    }
+	// No enclosing object: the PROCESS generator (18.13.2).
+	// logical_process_thread_() resolves straight to the real thread a
+	// callf/fork_v continuation belongs to, which is always seeded.
+      if (vthread_t owner = logical_process_thread_(thr)) {
+	    *val = thread_rng_next_(owner);
+	    return 1;
       }
       return 0;
 }
@@ -4465,9 +4681,19 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->wait_next = 0;
       thr->wt_context = 0;
       thr->rd_context = 0;
-	// M3B-5: unseeded until process::srandom()/set_randstate() says so.
+	// R3 (IEEE 1800-2017 18.13.1): every thread is seeded from the moment
+	// it exists. This is the ROOT default -- the design-root RNG, drawn
+	// in the same fixed order .thread directives always execute in (see
+	// design_root_rng_next_() for the full rationale). A real forked
+	// process (do_fork_ with child_is_process true) overwrites this
+	// right after with a seed derived from its parent instead; every
+	// other thread (callf/fork_v children -- not independent processes)
+	// simply never has this default consulted, since RNG access for
+	// those always resolves through logical_process_thread_() to a real
+	// ancestor first.
       thr->rng_state = 0;
       thr->rng_seeded = false;
+      thread_rng_srandom_(thr, (int32_t)design_root_rng_next_());
 
       thr->i_am_joining  = 0;
       thr->i_am_detached = 0;
@@ -10911,6 +11137,21 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 	  && (cp->scope->get_type_code() == vpiTask
 	      || cp->scope->get_type_code() == vpiNamedBegin))
 	    child->is_fork_v_child = 1;
+
+	/* R3 (IEEE 1800-2017 18.13.1): a real independent process -- exactly
+	   the threads logical_process_thread_() does NOT walk past, i.e.
+	   whatever came out of the branch above still unmarked -- is seeded
+	   from the next value of its parent's LOGICAL process generator,
+	   overwriting the design-root default vthread_new gave it. A
+	   fork...join_none/join_any/join sibling drawn this way advances the
+	   shared parent sequence once per sibling, so two siblings forked in
+	   sequence get two different, independently-evolving seeds, and an
+	   unrelated fork or object construction happening under some OTHER
+	   thread never touches this parent's sequence at all. */
+      if (!child->is_fork_v_child) {
+	    vthread_t rng_parent = logical_process_thread_(thr);
+	    thread_rng_srandom_(child, (int32_t)thread_rng_next_(rng_parent));
+      }
       thr->children.insert(child);
 
 		    /* When %fork sits at chunk_size-2, the pre-incremented pc lands
@@ -14891,13 +15132,24 @@ bool of_NAND(vthread_t thr, vvp_code_t)
  * This creates a new cobject (SystemVerilog class object) and pushes
  * it to the stack. The <vpi-object> is a __vpiHandle that is a
  * vpiClassDefn object that defines the item to be created.
+ *
+ * R3 (IEEE 1800-2017 18.13.1): the object's own RNG is seeded here, at
+ * construction, from the next value of the constructing thread's LOGICAL
+ * PROCESS generator (see the R3 block above thread_rng_srandom_ /
+ * logical_process_thread_). Two objects `new'd back to back by the same
+ * thread draw two different, independently-evolving seeds; an unrelated
+ * object or thread constructed by some OTHER thread never touches this
+ * one's sequence.
  */
 bool of_NEW_COBJ(vthread_t thr, vvp_code_t cp)
 {
       const class_type*defn = dynamic_cast<const class_type*> (cp->handle);
       assert(defn);
 
-      vvp_object_t tmp (new vvp_cobject(defn));
+      vvp_cobject*cobj = new vvp_cobject(defn);
+      if (vthread_t owner = logical_process_thread_(thr))
+	    cobj->rng_srandom((int32_t)thread_rng_next_(owner));
+      vvp_object_t tmp (cobj);
       thr->push_object(tmp);
       return true;
 }
@@ -15205,16 +15457,11 @@ bool of_NEW_VIF(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-static vthread_t logical_process_thread_(vthread_t thr)
-{
-      // Walk up both callf children (function calls) and fork/v children
-      // (synchronous task calls) to reach the logical calling process.
-      // Only explicit fork...join_none threads (is_fork_v_child=0,
-      // is_callf_child=0) are their own logical process.
-      while (thr && (thr->is_callf_child || thr->is_fork_v_child) && thr->parent)
-	    thr = thr->parent;
-      return thr;
-}
+/* logical_process_thread_() moved up next to the thread-RNG helpers
+   (R3, IEEE 1800-2017 18.13.1) -- it is the resolver both process::self()
+   and the RNG hierarchy use to find "the" thread a nested callf/fork_v
+   child belongs to. See its definition above, just before
+   vpip_object_urandom(). */
 
 static void process_status_to_vec4_(unsigned status, vvp_vector4_t&val)
 {
