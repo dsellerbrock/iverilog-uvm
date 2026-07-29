@@ -25,6 +25,7 @@
 # include  "netlist.h"
 # include  "netmisc.h"
 # include  "netstruct.h"
+# include  "netparray.h"
 # include  "netvector.h"
 # include  "compiler.h"
 
@@ -688,11 +689,98 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 		  member_off += tmp_off;
 		  member_width = member->net_type->packed_width();
 
-		  if (const netstruct_t*tmp_struct = dynamic_cast<const netstruct_t*> (member->net_type)) {
+		  if (const netparray_t*array = dynamic_cast<const netparray_t*> (member->net_type)) {
+			  // The member is a PACKED ARRAY, so this path
+			  // component carries an index that selects into it
+			  // before the walk can continue -- `hw2reg.key[3].d'
+			  // with `key' declared as `key_t [31:0]'. Take the
+			  // part select the index implies, then step to the
+			  // element type so the remaining path components
+			  // (here `.d') resolve against it.
+			  //
+			  // This mirrors what the procedural lvalue path
+			  // already does (elaborate_lval_net_packed_member_);
+			  // the continuous-assignment path used to fall
+			  // through to the else branch below and abort on its
+			  // assertion.
+			ivl_assert(*this, array->packed());
+
+			if (member_comp.index.empty()) {
+				// Whole array selected, no element to step into.
+			      struct_type = 0;
+			      continue;
+			}
+
+			const netranges_t&mem_packed_dims = array->static_dimensions();
+
+			if (member_comp.index.size() > mem_packed_dims.size()) {
+			      cerr << get_fileline() << ": error: "
+				   << "Too many index expressions for member "
+				   << member_name << "." << endl;
+			      des->errors += 1;
+			      return 0;
+			}
+
+			  // Evaluate all but the last index into prefix_indices.
+			list<long>prefix_indices;
+			if (! evaluate_index_prefix(des, scope, prefix_indices,
+						    member_comp.index)) {
+			      cerr << get_fileline() << ": error: "
+				   << "Array index expressions for member "
+				   << member_name << " must be constant here."
+				   << endl;
+			      des->errors += 1;
+			      return 0;
+			}
+
+			  // And the last one into a constant long.
+			NetExpr*texpr = elab_and_eval(des, scope,
+						      member_comp.index.back().msb,
+						      -1, true);
+			long tmp_idx;
+			if (texpr == 0 || !eval_as_long(tmp_idx, texpr)) {
+			      cerr << get_fileline() << ": error: "
+				   << "Array index expressions for member "
+				   << member_name << " must be constant here."
+				   << endl;
+			      des->errors += 1;
+			      delete texpr;
+			      return 0;
+			}
+			delete texpr;
+
+			long loff;
+			unsigned long lwid;
+			prefix_to_slice(mem_packed_dims, prefix_indices, tmp_idx,
+					loff, lwid);
+
+			  // prefix_to_slice works in ELEMENTS; scale to bits.
+			ivl_type_t element_type = array->element_type();
+			long element_width = element_type->packed_width();
+
+			member_off += loff * element_width;
+			member_width = lwid * element_width;
+
+			  // Step to the element type so the rest of the path
+			  // (if any) resolves against it.
+			struct_type = dynamic_cast<const netstruct_t*> (element_type);
+
+		  } else if (const netstruct_t*tmp_struct = dynamic_cast<const netstruct_t*> (member->net_type)) {
 		        struct_type = tmp_struct;
 		  } else {
 		        struct_type = 0;
-			assert (use_path.empty());
+		  }
+
+		    // A path component remaining with nothing left to walk
+		    // into is malformed input, not an internal error. Say so
+		    // instead of aborting the compiler.
+		  if (struct_type == 0 && ! use_path.empty()) {
+		        cerr << get_fileline() << ": error: "
+			     << "Member " << member_name << " of " << path()
+			     << " has no member `" << use_path.front().name
+			     << "'." << endl;
+			des->errors += 1;
+			return 0;
 		  }
 	    }
 

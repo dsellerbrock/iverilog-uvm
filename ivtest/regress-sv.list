@@ -1217,3 +1217,4 @@ sv_assert_paren_property normal,-g2012 ivltests
 sv_assert_paren_boolean normal,-g2012 ivltests
 sv_enum_ternary_type normal,-g2012 ivltests
 sv_cast_size_string_literal normal,-g2012 ivltests
+sv_lnet_parray_struct_member normal,-g2012 ivltests
