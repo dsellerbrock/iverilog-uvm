@@ -33,6 +33,7 @@
 # include  "netstruct.h"
 # include  "PExpr.h"
 # include  "PTask.h"
+# include  "Statement.h"
 # include  "pform_types.h"
 # include  "Module.h"
 # include  "parse_api.h"
@@ -2375,15 +2376,38 @@ bool uarray_element_matches_container_(const netuarray_t*dst,
  * A `ref' formal is represented as a real reference for the types whose
  * reads and writes go through an interface the bound-formal functor
  * (vvp_ref_signal_aa) can answer: packed integral variables (the
- * generic vvp_signal_value interface) and class handles (the
+ * generic vvp_signal_value interface), class handles (the
  * vvp_fun_signal_object interface -- see vvp_ref_signal_aa in
  * vvp_net_sig.h/.cc, which forwards get_object()/recv_object()/etc. to
- * whatever the bound target's own object functor is). A real, string or
- * container (dynamic array, queue, fixed array) formal is read by an
- * opcode that reaches for a *different* type-specific functor instead
- * (vvp_fun_signal_real/string, or the container element/word opcodes),
- * which vvp_ref_signal_aa does not implement, so those keep the
- * copy-in/copy-out pair they have always had.
+ * whatever the bound target's own object functor is), and now (R25
+ * stretch) a TASK's real formal -- real reads/writes already go through
+ * the very same generic interfaces (vvp_signal_value::real_value() and
+ * vvp_net_fun_t::recv_real(), both already forwarded by
+ * vvp_ref_signal_aa for the class-handle case, see vvp_net_sig.cc), so
+ * no new runtime surface was needed. A string or container (dynamic
+ * array, queue, fixed array) formal is read by an opcode that reaches
+ * for a *different* type-specific functor instead (%load/str, the
+ * container element/word opcodes), which vvp_ref_signal_aa does not
+ * implement, so those keep the copy-in/copy-out pair they have always
+ * had.
+ *
+ * Real is deliberately bound for TASK formals only, never FUNC. A
+ * function's ref-formal binding does not run through this same
+ * mechanism at all -- a non-void function call binds ref arguments
+ * through a completely separate path (tgt-vvp/draw_ufunc.c's
+ * draw_bind_function_ref_argument(), reached from the expression-level
+ * call lowering, not the `$ivl_ref_bind` system task this file emits)
+ * whose companion-copy fallback for an actual that cannot be named
+ * directly hardcodes a vec4 store regardless of the formal's type. That
+ * is a PRE-EXISTING, independent defect -- reachable today for a
+ * class-handle FUNC formal too (confirmed: an automatic non-void
+ * function with a `ref` class-handle formal called with an unnameable
+ * actual, e.g. an array element, crashes vvp with "recv_vec4 not
+ * implemented" before this change ever touched real) -- and fixing it
+ * is out of scope for R25, which is about TASKS whose body forks a
+ * detached branch. Binding a FUNC's real formal here would walk
+ * straight into that same crash for real, so it is withheld: a FUNC's
+ * real ref formal keeps the copy pair, exactly as before.
  */
 bool ref_formal_is_bound(const NetNet*port)
 {
@@ -2436,9 +2460,62 @@ bool ref_formal_is_bound(const NetNet*port)
 		 darray/queue/fixed-array formal has, and vvp_ref_signal_aa
 		 answers the object accessor interface for it (see above). */
 	    return dynamic_cast<const netclass_t*>(ptype) != 0;
+	  case IVL_VT_REAL:
+	      /* R25 stretch, TASK only -- see the long comment above. */
+	    return owner->type() == NetScope::TASK;
 	  default:
 	    return false;
       }
+}
+
+void warn_ref_formal_fork_hazard(const NetNet*port, const Statement*task_body)
+{
+      if (port == 0 || task_body == 0)
+	    return;
+
+	/* Only the shapes ref_formal_is_bound() leaves copy-bound because
+	   of TYPE are in scope here -- a class handle is bound, a packed
+	   integral formal is bound, and neither is the residual. Figure
+	   out the human-readable label the same way ref_formal_is_bound()
+	   figures out the exclusion, so the two can never drift apart. */
+      const char*what = 0;
+      ivl_type_t ptype = port->net_type();
+      if (port->unpacked_dimensions() > 0) {
+	    what = "fixed array";
+      } else if (const netqueue_t*q = dynamic_cast<const netqueue_t*>(ptype)) {
+	    what = q->assoc_compat() ? "associative array" : "queue";
+      } else if (dynamic_cast<const netdarray_t*>(ptype)) {
+	    what = "dynamic array";
+      } else if (dynamic_cast<const netarray_t*>(ptype)) {
+	    what = "fixed array";
+      } else switch (port->data_type()) {
+	  case IVL_VT_REAL:
+	    what = "real";
+	    break;
+	  case IVL_VT_STRING:
+	    what = "string";
+	    break;
+	  default:
+	      /* Bound (BOOL/LOGIC/CLASS) or some other shape entirely --
+		 not this residual. */
+	    return;
+      }
+
+      if (!task_body->contains_detached_fork())
+	    return;
+
+      cerr << port->get_fileline() << ": warning: ref formal `"
+	   << port->name() << "' has " << what << " type, so it is "
+	      "bound by VALUE-COPY, not by reference (IEEE 1800-2017 "
+	      "13.5.2 requires a `ref' argument to be a reference to the "
+	      "actual) -- the reads/writes this shape needs go through a "
+	      "type-specific functor the reference-binding path does not "
+	      "implement. This task contains a detached fork "
+	      "(join_none/join_any): a write to `" << port->name()
+	   << "' from a branch that is still running when this task "
+	      "itself returns is LOST, silently -- the copy-out back to "
+	      "the caller's actual runs at the task's own join, before "
+	      "such a branch gets to execute." << endl;
 }
 
 void check_for_inconsistent_delays(const NetScope*scope)
