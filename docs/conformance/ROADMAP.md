@@ -538,7 +538,7 @@ someone still has to do.
 
 | # | Residual | From | Loud? | What closing it takes |
 |---|----------|------|-------|------------------------|
-| R3 | An object's / process's RNG activates only once **seeded**; an unseeded one draws from the global generator rather than one derived from its parent process (18.13.1). | M3B-5 | n/a — deliberate, documented | Seed each object's RNG *from the process RNG* at construction, and each thread's from its parent at `fork`. Doing so changes every unseeded sequence, so it needs a gold-rebaseline decision first — that is why it is deferred, not difficulty |
+| R3 | ~~An object's / process's RNG activates only once **seeded**; an unseeded one draws from the global generator rather than one derived from its parent process (18.13.1).~~ | Campaign 6 randomization 2026-07-29 | — | **CLOSED — implemented the deferred gold-rebaseline decision.** Every thread and every class object is now seeded AT CREATION, not just when explicitly `srandom()`'d: a root/static thread (a module-level initial/always/final process, in the same fixed compile-time `.thread` order as before) draws from a new single design-root generator; a REAL forked process (`fork...join`/`join_any`/`join_none`, `do_fork_()`) is seeded from the next value of its parent's *logical process* generator; a class object is seeded, at `new' (`of_NEW_COBJ`), from the next value of the constructing thread's logical-process generator. "Logical process" resolution (`logical_process_thread_()`, `vvp/vthread.cc`) already existed for `process::self()` — synchronous task-call and function-call frames are not independently seeded, so `$urandom`/`randomize()`/`dist` inside one transparently uses the nearest REAL enclosing thread, unchanged. `srandom()`/`get_randstate()`/`set_randstate()` (18.13.3/4/5) are untouched: they still explicitly overwrite/report the same state word, and every seeded-sequence assertion in `tests/m3b5_object_random_state_test.sv` still passes bit-for-bit. Legacy `$random`/`$dist_*` (explicit seed-argument functions) are untouched by design — verified bit-identical in the ivtest `urand` gold diff. Rebaselined exactly 2 ivtest golds that depended on the old shared-global-generator default (`urand.gold`, `urand_r.gold` — the latter also covers `urand_r2`/`urand_r3`, which share it); the rest of the 3242-test ivtest sweep, the 103-test VPI suite, the 39-test sva_nfa dual-run, the 76-test negative suite, and the full UVM regression are unaffected. New self-checking regression: `tests/r3_random_stability_test.sv`, which also FAILS under the pre-fix binary on exactly the two properties this closes (stability under an unrelated thread's activity; a fork pair's reproducibility from a reset parent state) — proving it discriminates rather than passing vacuously |
 | R24 | ~~`int d[][];`, `int q[$][$];` and `int m[string][];` do not parse~~ | truth pass 2026-07-28 | — | **WITHDRAWN -- the finding was wrong, and it was mine.** I recorded nested containers as an unparseable subsystem on the strength of a probe that used `foreach (m[k]) foreach (m[k][i])`, which is not legal SystemVerilog: `foreach` takes ONE bracket with a comma-separated variable list. The syntax error was in my test, on the `foreach` line, not on the declaration. Re-probed with `foreach (m[k,i])`: nested dynamic arrays, queues of queues and associative arrays of dynamic arrays all declare, allocate per level, iterate, index, and pass to open-array formals. Nothing here needed building. Recorded rather than deleted so the claim is not rediscovered |
 | R26 | ~~ivl segfaults on an empty design~~ | M6-12 probe fallout | — | **CLOSED, and the diagnosis was corrected on the way:** the crash was never in ivl. When the FIRST source file fails to open, ivlpp's `reset_lexor()` called `early_exit()` -- which prints through the flex global `yyout` -- before the `yyout = out;` assignment, which sat AFTER the open-and-check block. A null `FILE*` into fprintf, an initialization-ordering bug in one function, fixed by moving the assignment first. The other empty-design shapes (existing empty file, comment-only, package-only) never crashed: their opens succeed and ivl cleanly reports 'No top level modules' with exit 1. The 'ivl segfault' framing in the original row came from reading the pipeline's combined stderr | 
 | R17 | ~~`$typename()` returns wrong strings~~ | truth pass 2026-07-28 (was G58) | — | **CLOSED.** The live string producer was the run-time VPI function `sys_typename_calltf` (proved by instrumentation — an earlier agent fix was falsified as a behavioral no-op for patching a dead path). `$typename` is now constant-folded at elaboration (`PECallFunction::elaborate_sfunc_`, one dedicated `ivl_type_t` formatter, same pattern as `$bits`), with the VPI path kept as the discarded-result-statement fallback. Two type-system gaps closed en route: `chandle` was silently parsed as `atom LONGINT` (now its own type with a `netvector_t::chandle_type` singleton — DPI chandle ABI tests unaffected), and associative arrays discarded their index type at elaboration (`netqueue_t::assoc_index_type()` now retains it, so `int a[string]` → `int$[string]`). Verified matrix: atoms incl. unsigned variants, packed vectors incl. nonzero-lsb signed, enums incl. non-default base (structural `enum{...}name` expansion per the 20.6.1 anonymous-enum example), fixed/dynamic/queue/associative arrays with the `$[...]`/`$[]`/`$[$]`/`$[string]` notations, structs, class names, class properties, the type-argument form `$typename(int)`, expressions and part-selects, and `T` inside a parameterized class method. Documented residue: typedef names for enums/structs print the structural expansion; parameterized specializations print the base class name only. sv_typename1 |
@@ -602,17 +602,20 @@ where nothing encloses the assertion), R12 (a coincident cross-clock start
 is not lowerable behaviorally when two `always` blocks on the same edge have
 undefined relative order). Recording those as debt made the list read as
 though it were losing ground when it was not. They are now enumerated
-separately, and the open table is now four rows: **R2** assertion
-action-region placement (blocked — see the row; deferring actions to
-Reactive was implemented and reverted because it drops end-of-simulation
-verdicts), **R3** RNG derivation (blocked on a gold-rebaseline decision, not
-on difficulty), **R6** pulse filtering, **R8** `%p` formatting (cosmetic,
-deferred by choice). Two of the six closed since that split: R4 and R11.
+separately. The open table was four rows at the time of that split: **R2**
+assertion action-region placement, **R3** RNG derivation, **R6** pulse
+filtering, **R8** `%p` formatting (cosmetic, deferred by choice). R2 was
+closed under M6B-4 (actions now defer to Reactive) and R3 under Campaign 6
+(hierarchical RNG seeding, 2026-07-29) — both were genuinely blocked on a
+decision (a scheduler change; a gold-rebaseline call) rather than
+difficulty, and both got unblocked once that decision was made rather than
+staying deferred forever. Two more rows closed the same way since the
+original split: R4 and R11.
 
-**Of the four, only R6 is unblocked plain engineering.** R2 and R3 each need
-a decision or a scheduler change before more code helps, and R8 is cosmetic
-by choice. That is worth stating plainly: the register is no longer a
-backlog to grind down, it is three constraints and one piece of work.
+**Of the remaining two, R6 is unblocked plain engineering and R8 is
+cosmetic by choice.** That is worth stating plainly: the register is no
+longer a backlog to grind down, it is one piece of work and one recorded
+decision.
 
 **R6 was corrected, not closed by wishful thinking.** It previously read
 "timing checks, edge descriptors and pulse controls parse, elaborate and are

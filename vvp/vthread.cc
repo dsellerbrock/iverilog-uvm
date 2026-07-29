@@ -100,6 +100,13 @@ static void notify_mutated_object_signal_(vthread_t thr, vvp_net_t*net, const ch
 static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
                                         vvp_net_t*root_net, const vvp_object_t&root_obj,
                                         const char*where);
+	/* R3 (IEEE 1800-2017 18.13.1) hierarchical RNG seeding -- defined in
+	   full below, next to design_root_rng_next_(), but needed here
+	   because of_STD_RANDOMIZE_WITH (which uses them) is textually
+	   earlier in this file than that definition. */
+static void thread_rng_srandom_(vthread_t thr, int32_t seed);
+static uint32_t thread_rng_next_(vthread_t thr);
+static vthread_t logical_process_thread_(vthread_t thr);
 static set<vthread_t> live_threads_registry_;
 
 static bool sched_dump_threads_enabled_(const char*reason)
@@ -2838,15 +2845,16 @@ static void randomize_restore_(vvp_cobject*cobj,
 }
 
 /*
- * M3B-5 (IEEE 1800-2017 18.13.1): randomize() draws from the OBJECT's
- * generator once that object has been seeded (srandom/set_randstate);
- * otherwise it keeps using the global one, so unseeded randomization
- * sequences -- and every recorded gold that depends on them -- are
- * bit-for-bit unchanged. Seeding is the thing that opts an object in.
+ * R3/M3B-5 (IEEE 1800-2017 18.13.1): randomize() draws from the OBJECT's
+ * own generator, seeded hierarchically at construction (of_NEW_COBJ) or
+ * explicitly via srandom()/set_randstate(). Every live cobject is seeded
+ * from the moment it exists, so this only falls back to libc rand() in
+ * the defensive case of no object at all (should not occur -- the
+ * callers above only reach here inside `if (cobj) {...}').
  */
 static inline unsigned randomize_rand_(vvp_cobject*cobj)
 {
-      if (cobj && cobj->rng_seeded())
+      if (cobj)
 	    return (unsigned)cobj->rng_next();
       return (unsigned)rand();
 }
@@ -3229,10 +3237,14 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    vvp_vector4_t old = thr->pop_vec4();
 	    widths[i - 1] = old.size();
       }
+	// R3 (IEEE 1800-2017 18.13.1): std::randomize() has no receiver
+	// object, so its diversity targets draw from the calling thread's
+	// own (logical-process) generator rather than a raw global rand().
+      vthread_t rng_owner = logical_process_thread_(thr);
       for (unsigned i = 0 ; i < n_rand ; i += 1) {
 	    uint64_t bits = 0;
 	    for (unsigned b = 0 ; b < widths[i] && b < 64 ; b += 1)
-		  if (rand() & 1) bits |= UINT64_C(1) << b;
+		  if (thread_rng_next_(rng_owner) & 1) bits |= UINT64_C(1) << b;
 	    targets[i] = bits;
       }
 
@@ -3461,6 +3473,76 @@ static bool thread_rng_set_state_(vthread_t thr, const std::string&state)
 }
 
 /*
+ * R3 (IEEE 1800-2017 18.13.1): RANDOM STABILITY -- hierarchical seeding.
+ *
+ * Before this, an unseeded thread/object drew from a single shared
+ * generator (the vpi/ "$urandom" static or libc rand()), so an unrelated
+ * $urandom/randomize() call anywhere in the design could shift every other
+ * unseeded sequence -- the opposite of what 18.13.1 calls random
+ * stability. Now every thread and every class object is seeded AT
+ * CREATION, from the next value of its creator's own generator, forming a
+ * tree rooted at the design itself:
+ *
+ *   - A root/static thread (a module-level initial/always/final process,
+ *     created directly by the compiled .vvp's fixed sequence of `.thread'
+ *     directives -- see compile_thread()) is seeded from the next value of
+ *     design_root_rng_next_() below, in that same fixed, deterministic
+ *     order -- so re-running the same compiled design always reproduces
+ *     the same root seeds (the ROADMAP's "keep init order deterministic"
+ *     constraint).
+ *   - A thread created by a real `fork ... join/join_any/join_none' branch
+ *     (do_fork_() with child_is_process true, i.e. %fork/p) is seeded from
+ *     the next value of its parent's *logical process* generator.
+ *   - A class object is seeded, at `new' (of_NEW_COBJ, IEEE 1800 %new/cobj),
+ *     from the next value of the *logical process* generator of the
+ *     thread that executed the `new'.
+ *
+ * "Logical process" resolves through logical_process_thread_() below:
+ * synchronous task-call frames and automatic-function-call frames
+ * (is_fork_v_child / is_callf_child -- tgt-vvp's own internal
+ * continuation machinery, not real IEEE 1800 processes) are not
+ * independently seeded; any $urandom/randomize()/dist executed while one
+ * of those runs transparently uses the RNG of the nearest REAL enclosing
+ * thread, exactly as process::self() already resolves for those frames.
+ *
+ * This retires the old "unseeded -> global fallback" gate entirely:
+ * every thread and object is always seeded from the moment it exists, so
+ * rng_seeded/rng_seeded_ are now permanently true post-construction (kept
+ * only so srandom()/set_randstate() -- 18.13.3/18.13.5, untouched by this
+ * change -- can still explicitly overwrite the state old callers already
+ * rely on, and so get_randstate() -- 18.13.4 -- reports the real,
+ * always-live state rather than a "never seeded" placeholder).
+ *
+ * Sibling stability follows directly: two objects/threads created in
+ * sequence by the SAME creator draw two DIFFERENT, independent values
+ * from that creator's single advancing sequence, so their own later
+ * draws are unaffected by one another; an unrelated object/thread created
+ * by a DIFFERENT creator never touches that sequence at all.
+ */
+static uint64_t design_root_rng_state_ = 0x9E3779B97F4A7C15ull;
+
+static uint32_t design_root_rng_next_()
+{
+      uint64_t x = design_root_rng_state_;
+      x ^= x >> 12;
+      x ^= x << 25;
+      x ^= x >> 27;
+      design_root_rng_state_ = x;
+      return (uint32_t)((x * 0x2545F4914F6CDD1Dull) >> 32);
+}
+
+static vthread_t logical_process_thread_(vthread_t thr)
+{
+      // Walk up both callf children (function calls) and fork/v children
+      // (synchronous task calls) to reach the logical calling process.
+      // Only explicit fork...join_none threads (is_fork_v_child=0,
+      // is_callf_child=0) are their own logical process.
+      while (thr && (thr->is_callf_child || thr->is_fork_v_child) && thr->parent)
+	    thr = thr->parent;
+      return thr;
+}
+
+/*
  * M3B-5 (IEEE 1800-2017 18.13): per-object RNG control.
  *
  * srandom() and set_randstate() used to elaborate to an empty block, so
@@ -3535,16 +3617,18 @@ bool of_SET_RANDSTATE(vthread_t thr, vvp_code_t)
 }
 
 /*
- * M3B-5 (IEEE 1800-2017 18.13.1): $urandom called from inside a class
- * method draws from THAT OBJECT's generator, so seeding the object makes
- * it reproducible. $urandom lives in the vpi/ system module and has its
- * own static generator, so it asks here first: if the running thread is
- * executing a method of an object that has been seeded, hand back a draw
- * from the object's RNG.
+ * R3/M3B-5 (IEEE 1800-2017 18.13.1): $urandom called from inside a class
+ * method draws from THAT OBJECT's generator; $urandom called from an
+ * ordinary thread (or a function/task call nested inside one) draws from
+ * the enclosing LOGICAL PROCESS's generator (18.13.2). $urandom lives in
+ * the vpi/ system module and has its own static generator (the pre-R3
+ * global default), so it asks here first.
  *
- * Returns 0 when there is no seeded enclosing object, and $urandom then
- * uses its own generator exactly as before -- so unseeded sequences, and
- * every gold that depends on them, are untouched.
+ * Every thread and object is now always seeded (see the R3 block above
+ * thread_rng_srandom_/logical_process_thread_), so this always succeeds
+ * once a thread is found; it can only return 0 when there is no running
+ * thread context at all (e.g. a $urandom evaluated at compile time,
+ * which cannot happen, or a malformed call).
  */
 extern "C" int vpip_object_urandom(unsigned int*val)
 {
@@ -3578,18 +3662,12 @@ extern "C" int vpip_object_urandom(unsigned int*val)
 	    break;
       }
 
-	// No seeded enclosing object: fall back to the PROCESS generator
-	// (18.13.2). process::self() hands out the LOGICAL process thread
-	// (function calls and synchronous task calls run on child threads
-	// of it), so the seed can live on an ancestor of the thread that
-	// actually reaches $urandom. Walk up the parent chain to find it --
-	// which is also the behaviour 18.13.2 wants: a task called from a
-	// seeded process draws from that process's generator.
-      for (vthread_t walk = thr ; walk ; walk = walk->parent) {
-	    if (walk->rng_seeded) {
-		  *val = thread_rng_next_(walk);
-		  return 1;
-	    }
+	// No enclosing object: the PROCESS generator (18.13.2).
+	// logical_process_thread_() resolves straight to the real thread a
+	// callf/fork_v continuation belongs to, which is always seeded.
+      if (vthread_t owner = logical_process_thread_(thr)) {
+	    *val = thread_rng_next_(owner);
+	    return 1;
       }
       return 0;
 }
@@ -4465,9 +4543,19 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->wait_next = 0;
       thr->wt_context = 0;
       thr->rd_context = 0;
-	// M3B-5: unseeded until process::srandom()/set_randstate() says so.
+	// R3 (IEEE 1800-2017 18.13.1): every thread is seeded from the moment
+	// it exists. This is the ROOT default -- the design-root RNG, drawn
+	// in the same fixed order .thread directives always execute in (see
+	// design_root_rng_next_() for the full rationale). A real forked
+	// process (do_fork_ with child_is_process true) overwrites this
+	// right after with a seed derived from its parent instead; every
+	// other thread (callf/fork_v children -- not independent processes)
+	// simply never has this default consulted, since RNG access for
+	// those always resolves through logical_process_thread_() to a real
+	// ancestor first.
       thr->rng_state = 0;
       thr->rng_seeded = false;
+      thread_rng_srandom_(thr, (int32_t)design_root_rng_next_());
 
       thr->i_am_joining  = 0;
       thr->i_am_detached = 0;
@@ -10911,6 +10999,21 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 	  && (cp->scope->get_type_code() == vpiTask
 	      || cp->scope->get_type_code() == vpiNamedBegin))
 	    child->is_fork_v_child = 1;
+
+	/* R3 (IEEE 1800-2017 18.13.1): a real independent process -- exactly
+	   the threads logical_process_thread_() does NOT walk past, i.e.
+	   whatever came out of the branch above still unmarked -- is seeded
+	   from the next value of its parent's LOGICAL process generator,
+	   overwriting the design-root default vthread_new gave it. A
+	   fork...join_none/join_any/join sibling drawn this way advances the
+	   shared parent sequence once per sibling, so two siblings forked in
+	   sequence get two different, independently-evolving seeds, and an
+	   unrelated fork or object construction happening under some OTHER
+	   thread never touches this parent's sequence at all. */
+      if (!child->is_fork_v_child) {
+	    vthread_t rng_parent = logical_process_thread_(thr);
+	    thread_rng_srandom_(child, (int32_t)thread_rng_next_(rng_parent));
+      }
       thr->children.insert(child);
 
 		    /* When %fork sits at chunk_size-2, the pre-incremented pc lands
@@ -14891,13 +14994,24 @@ bool of_NAND(vthread_t thr, vvp_code_t)
  * This creates a new cobject (SystemVerilog class object) and pushes
  * it to the stack. The <vpi-object> is a __vpiHandle that is a
  * vpiClassDefn object that defines the item to be created.
+ *
+ * R3 (IEEE 1800-2017 18.13.1): the object's own RNG is seeded here, at
+ * construction, from the next value of the constructing thread's LOGICAL
+ * PROCESS generator (see the R3 block above thread_rng_srandom_ /
+ * logical_process_thread_). Two objects `new'd back to back by the same
+ * thread draw two different, independently-evolving seeds; an unrelated
+ * object or thread constructed by some OTHER thread never touches this
+ * one's sequence.
  */
 bool of_NEW_COBJ(vthread_t thr, vvp_code_t cp)
 {
       const class_type*defn = dynamic_cast<const class_type*> (cp->handle);
       assert(defn);
 
-      vvp_object_t tmp (new vvp_cobject(defn));
+      vvp_cobject*cobj = new vvp_cobject(defn);
+      if (vthread_t owner = logical_process_thread_(thr))
+	    cobj->rng_srandom((int32_t)thread_rng_next_(owner));
+      vvp_object_t tmp (cobj);
       thr->push_object(tmp);
       return true;
 }
@@ -15205,16 +15319,11 @@ bool of_NEW_VIF(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-static vthread_t logical_process_thread_(vthread_t thr)
-{
-      // Walk up both callf children (function calls) and fork/v children
-      // (synchronous task calls) to reach the logical calling process.
-      // Only explicit fork...join_none threads (is_fork_v_child=0,
-      // is_callf_child=0) are their own logical process.
-      while (thr && (thr->is_callf_child || thr->is_fork_v_child) && thr->parent)
-	    thr = thr->parent;
-      return thr;
-}
+/* logical_process_thread_() moved up next to the thread-RNG helpers
+   (R3, IEEE 1800-2017 18.13.1) -- it is the resolver both process::self()
+   and the RNG hierarchy use to find "the" thread a nested callf/fork_v
+   child belongs to. See its definition above, just before
+   vpip_object_urandom(). */
 
 static void process_status_to_vec4_(unsigned status, vvp_vector4_t&val)
 {

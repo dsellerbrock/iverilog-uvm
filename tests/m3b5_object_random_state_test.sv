@@ -7,11 +7,15 @@
 // seeded flow was reproducible. All three now drive the object's own
 // generator (vvp_cobject::rng_*).
 //
-// The generator is active only once the object has been SEEDED --
-// explicitly, via srandom() or set_randstate(). An object that was never
-// seeded keeps drawing from the global generator, so unseeded
-// randomization sequences are unchanged. Seeding is what opts an object
-// in; see the M3B-5 ROADMAP row.
+// R3 (18.13.1, random stability, closed after this test was written):
+// every object's generator is now ALWAYS active, seeded automatically at
+// construction from the next value of the creating thread's own
+// generator -- there is no more "unseeded -> global fallback" state.
+// srandom()/set_randstate() below still work exactly as documented here:
+// they explicitly overwrite whatever seed the object started with. See
+// the R3 ROADMAP row and tests/r3_random_stability_test.sv, which pins
+// the hierarchical default seeding this test does not (it only ever
+// exercises explicitly-seeded objects/processes).
 //
 // process::srandom()/get_randstate()/set_randstate() drive the per-THREAD
 // generator (18.13.2), which is separate from any object's. $urandom uses
