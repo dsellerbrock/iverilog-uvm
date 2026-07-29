@@ -13959,8 +13959,13 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
       ivl_assert(*this, par_ex);
 
       long par_msv, par_lsv;
+	// A select on a multi-dimensional packed parameter addresses an
+	// ELEMENT, not a bit. slice_wid comes back as that element's width
+	// (1 for an ordinary vector), and par_msv/par_lsv then describe the
+	// outermost dimension.
+      unsigned long slice_wid = 1;
       if(! calculate_param_range(*this, par_type, par_msv, par_lsv,
-				 par_ex->value().len())) return 0;
+				 par_ex->value().len(), &slice_wid)) return 0;
 
       const name_component_t&name_tail = path_.back();
       ivl_assert(*this, !name_tail.index.empty());
@@ -14008,6 +14013,33 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 	    if (par_msv >= par_lsv) sel_v -= par_lsv;
 	    else sel_v = par_lsv - sel_v;
 
+	      // Multi-dimensional packed parameter: the index picks an
+	      // ELEMENT of slice_wid bits at offset sel_v*slice_wid, not a
+	      // single bit.
+	    if (slice_wid > 1) {
+		  verinum par_v = par_ex->value();
+		  verinum res_v (verinum::Vx, (unsigned)slice_wid);
+		  long base = sel_v * (long)slice_wid;
+		  if (sel_v >= 0) {
+			for (unsigned b = 0 ; b < slice_wid ; b += 1) {
+			      long src = base + (long)b;
+			      if (src >= 0 && (unsigned long)src < par_v.len())
+				    res_v.set(b, par_v[src]);
+			}
+		  } else if (warn_ob_select) {
+			cerr << get_fileline() << ": warning: "
+			        "Constant element select ["
+			     << sel_c->value().as_long() << "] is before "
+			     << name << "[" << par_msv << ":" << par_lsv
+			     << "]." << endl;
+			cerr << get_fileline() << ":        : "
+			        "Replacing select with a constant 'bx." << endl;
+		  }
+		  NetEConst*res = new NetEConst(res_v);
+		  res->set_line(*this);
+		  return res;
+	    }
+
 	      // Select a bit from the parameter.
 	    verinum par_v = par_ex->value();
 	    verinum::V rtn = verinum::Vx;
@@ -14039,11 +14071,17 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 
       sel = normalize_variable_base(sel, par_msv, par_lsv, 1, true);
 
+	// For a multi-dimensional packed parameter the canonical value
+	// above is an ELEMENT index; scale it to a bit offset and select
+	// the whole element.
+      if (slice_wid > 1)
+	    sel = scale_index_to_bits(sel, slice_wid, *this);
+
 	/* Create a parameter reference for the variable select. */
       NetEConstParam*ptmp = new NetEConstParam(found_in, name, par_ex->value());
       ptmp->set_line(found_in->get_parameter_line_info(name));
 
-      NetExpr*tmp = new NetESelect(ptmp, sel, 1);
+      NetExpr*tmp = new NetESelect(ptmp, sel, slice_wid);
       tmp->set_line(*this);
       return tmp;
 }

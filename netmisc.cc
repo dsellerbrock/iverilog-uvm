@@ -1972,6 +1972,25 @@ bool evaluate_index_prefix(Design*des, NetScope*scope,
  * On return `sel_wid' is the width of the addressed slice: the product of
  * the packed dimensions the index list did NOT cover.
  */
+/*
+ * Scale an ELEMENT index into a bit offset, for an element `wid' bits
+ * wide. Used where a select addresses an element of a packed array
+ * rather than a bit. Widens the index first so the multiply cannot
+ * overflow it.
+ */
+NetExpr*scale_index_to_bits(NetExpr*idx, unsigned long wid, const LineInfo&loc)
+{
+      if (wid <= 1)
+	    return idx;
+
+      unsigned min_wid = idx->expr_width();
+      if (num_bits(wid) >= min_wid) {
+	    min_wid = num_bits(wid) + 1;
+	    idx = pad_to_width(idx, min_wid, loc);
+      }
+      return make_mult_expr(idx, wid);
+}
+
 NetExpr*collapse_packed_base(Design*des, NetScope*scope, const LineInfo*loc,
 			     const NetNet*net,
 			     const std::list<index_component_t>&indices,
@@ -2621,7 +2640,8 @@ void check_for_inconsistent_delays(const NetScope*scope)
  * interpret things like bit selects.
  */
 bool calculate_param_range(const LineInfo&line, ivl_type_t par_type,
-			   long&par_msv, long&par_lsv, long length)
+			   long&par_msv, long&par_lsv, long length,
+			   unsigned long*slice_wid)
 {
       const netvector_t*vector_type = dynamic_cast<const netvector_t*> (par_type);
       if (vector_type == 0) {
@@ -2629,6 +2649,7 @@ bool calculate_param_range(const LineInfo&line, ivl_type_t par_type,
 	    // just return range values of [length-1:0].
 	    par_msv = length-1;
 	    par_lsv = 0;
+	    if (slice_wid) *slice_wid = 1;
 	    return true;
       }
 
@@ -2646,33 +2667,42 @@ bool calculate_param_range(const LineInfo&line, ivl_type_t par_type,
       if (packed_dims.size() == 0) {
 	    par_msv = length-1;
 	    par_lsv = 0;
+	    if (slice_wid) *slice_wid = 1;
 	    return true;
       }
 
       // A MULTI-dimensional packed parameter -- e.g.
       //
       //    typedef logic [63:0][5:0] perm_t;
-      //    parameter perm_t RndCnstSharePerm = ...;
+      //    parameter perm_t RndCnstSharePerm = ...;   // aes_prng_clearing
       //
-      // A select on such a parameter addresses an ELEMENT (here 6 bits
-      // wide), not a bit, and this interface can only describe a single
-      // range of bits -- there is nowhere to report the element width, so
-      // the caller would read `Perm[i]' as a one-bit select and quietly
-      // produce the wrong value.
+      // A select on one of these addresses an ELEMENT (here 6 bits wide),
+      // not a bit. The range that matters is the OUTERMOST dimension, and
+      // the element width is the product of the rest.
       //
-      // Refuse out loud instead. This used to be an assertion failure that
-      // aborted the compiler outright (OpenTitan's aes_prng_clearing hits
-      // it); a diagnostic is strictly better, and a wrong value silently
-      // returned would be strictly worse. Supporting the construct needs
-      // this interface to carry a slice width.
+      // A caller that asks for slice_wid can handle that. A caller that
+      // does not would read `Perm[i]' as a one-bit select and quietly
+      // return the wrong value, so it is refused out loud instead -- this
+      // used to be an assertion failure that aborted the compiler.
       if (packed_dims.size() > 1) {
-	    cerr << line.get_fileline() << ": sorry: a select on a "
+	    const netrange_t&outer = packed_dims[0];
+	    if (slice_wid) {
+		  unsigned long outer_count = outer.width();
+		  ivl_assert(line, outer_count > 0);
+		  *slice_wid = vector_type->packed_width() / outer_count;
+		  par_msv = outer.get_msb();
+		  par_lsv = outer.get_lsb();
+		  return true;
+	    }
+	    cerr << line.get_fileline() << ": sorry: this select on a "
 		 << "multi-dimensional packed PARAMETER is not supported "
-		 << "(the element width cannot be represented here); "
-		 << "assign it to a variable of the same type and select "
-		 << "on that instead." << endl;
+		 << "(only a plain element select is); assign it to a "
+		 << "variable of the same type and select on that instead."
+		 << endl;
 	    return false;
       }
+
+      if (slice_wid) *slice_wid = 1;
 
       netrange_t use_range = packed_dims[0];
       par_msv = use_range.get_msb();
