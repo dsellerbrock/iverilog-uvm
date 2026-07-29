@@ -578,6 +578,26 @@ residuals of their rows; 9 of 16 M4C rows and the cross-milestone
 class-adjacent rows remain unprobed by this pass and are flagged as the
 highest-risk remaining surface.
 
+**Campaign 7 truth-pass B (scheduling/assertion/DPI/randomization, 2026-07-29).**
+13 rows/claims re-probed with fresh reproducers: 11 CONFIRMED (R27 across six
+sibling shapes incl. join_any and class-method loops; M9-7 D.1/D.2/D.5 with
+tick-derived 4-domain mid-chain failure; R29 against NBA interleavings in both
+directions; R3 under spawn-order/timing reordering; M6-12/M6-9 through method
+forks and grandchild kills; a fresh DPI inout/descending/shortint combo). Two
+FALSE/settled, both silent, both in this campaign's fix wave: **G65 is a
+CONFIRMED BUG** (a uvm task-phase hook body executes twice per component with
+no user forking — hypothesis: uvm_task_phase::execute's function-scope
+fork/join_none of exec_task is an unfixed sibling call-site of the R27
+staging family; also surfaced a genuine vvp ICE, vvp_net.cc:1450 assert, when
+two threads race a += on one variable), and **R25 remains OVERSTATED for
+unnameable actuals** (its text claimed the companion path "already correct":
+a ref formal bound to an array element/class property whose task writes from
+a detached branch silently loses the write — for int, real, AND class
+handles — because the companion copy-out anchors at task return, and
+warn_ref_formal_fork_hazard misses it by gating on declared-type bindability
+instead of per-call-site companion fallback). Unprobed rows in these
+families are enumerated in the truth-pass record; inherited DONE status only.
+
 ### Settled limits (nothing to implement)
 
 Kept enumerated and numbered so a reference to them still resolves, and so
