@@ -858,11 +858,30 @@ and an unfulfilled request across two interleaved clocks);
 `tests/negative/sva_multiclock_ov.sv` pins the `|->` rejection.
 
 Stage D's substantive lowering (the CDC `|=>` handshake) is complete. The
-residual multiclock forms — mid-sequence clock flow (`@(c1) a ##1 @(c2)
-b`), overlapping `|->` across clocks, multi-cycle operands on either side,
-operators across differing clocks — are each loudly rejected (a syntax
-error or a precise sorry), so there is no silent-miscompile gap. They are
-harder, lower-value future work, not stage-D omissions left silent.
+residual multiclock forms as of this writing — mid-sequence clock flow
+(`@(c1) a ##1 @(c2) b`), overlapping `|->` across clocks, multi-cycle
+operands on either side, operators across differing clocks — are each
+loudly rejected (a syntax error or a precise sorry), so there is no
+silent-miscompile gap. They are harder, lower-value future work, not
+stage-D omissions left silent.
+
+**Update (M9-7 D.2–D.5, later sessions):** the CDC handshake gained
+fixed-length chains on both sides (D.2), multiclocked `cover
+property`/`disable iff` (D.3), variable-length CONSEQUENT operands —
+`b[*m:n]` and a trailing `##[m:n]` (D.4), and finally mid-sequence clock
+flow generalized to an ARBITRARY-length chain of clock-flow boundaries
+(D.5) — `@(c1) a ##1 @(c2) b ##1 @(c3) c ##1 ...`, any number of clock
+changes in one sequence. D.5 is a dedicated N-domain generalization of
+the same request/ack handoff (each domain but the last forwards its own
+match count to the next domain's request counter instead of running a
+user action; only the last domain computes the real verdict), gated
+behind a right-recursive grammar tail at zero added bison-conflict cost.
+The only residuals left in this area are cross-clock overlapping `|->`
+(R12 in the roadmap — a permanent design limit, not planned future
+work) and `disable iff` composed with a 2+-boundary chain (a new named
+sorry; the single-boundary form keeps `disable iff` support). See
+`docs/conformance/ROADMAP.md` row M9-7 for the current, authoritative
+detail and test list.
 
 ## FLIP: LANDED — the automaton engine is the default
 

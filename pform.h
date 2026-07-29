@@ -286,6 +286,7 @@ extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
    kind: 0=assert, 1=assume, 2=cover. */
 struct sva_property_t;
 struct sva_seq_step_t;
+struct sva_mc_seg_t;
 struct sva_prop_case_item_t;
 struct rs_production_t;
 /* Ownership helpers used by parser error/disabled-feature paths as well as
@@ -293,6 +294,7 @@ struct rs_production_t;
    owned by the supplied IR object. */
 extern void pform_sva_destroy_sequence(std::vector<sva_seq_step_t>*seq);
 extern void pform_sva_destroy_property(sva_property_t*prop);
+extern void pform_sva_destroy_mc_segments(std::vector<sva_mc_seg_t>*segs);
 extern void pform_make_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
 				 Statement*fail_stmt, Statement*pass_stmt,
@@ -835,6 +837,17 @@ extern void pform_bind_sampled_call_to_event(const struct vlltype&loc,
 
 extern PProcess*  pform_make_behavior(ivl_process_type_t, Statement*,
 				      std::list<named_pexpr_t>*attr);
+
+/* Lower a deferred immediate assertion (IEEE 1800-2017 16.4) into the
+   evaluate-now / report-in-Reactive (or report-at-final) synthesis.
+   pass_stmt/fail_stmt may be nil; a nil fail_stmt gets the default
+   $error. Returns the statement to put where the assertion was, or
+   nil on a (loud) unsupported context. */
+extern Statement* pform_make_deferred_assertion(const struct vlltype&loc,
+						PExpr*expr,
+						Statement*pass_stmt,
+						Statement*fail_stmt,
+						bool is_final);
 extern void pform_mc_translate_on(bool flag);
 
 extern std::vector<PWire*>* pform_make_udp_input_ports(std::list<pform_ident_t>*);

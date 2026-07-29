@@ -1167,6 +1167,7 @@ sv_assert_multiclock_multiplicity normal,-g2012 ivltests
 sv_assert_multiclock_nested_flow normal,-g2012 ivltests
 sv_assert_multiclock_sampled_values normal,-g2012 ivltests
 sv_assert_multiclock_varlen normal,-g2012 ivltests
+sv_assert_multiclock_chain3 normal,-g2012 ivltests
 sv_process_self_named_block normal,-g2012 ivltests
 sv_assert_observed_region normal,-g2012 ivltests
 sv_assert_reactive_action normal,-g2012 ivltests
@@ -1206,3 +1207,5 @@ sv_process_status_identity normal,-g2012 ivltests
 sv_stacktrace_task_call normal,-g2012 ivltests
 sv_event_array normal,-g2012 ivltests
 sv_event_lifetime_qualifier normal,-g2012 ivltests
+sv_deferred_flush1	normal,-g2012		ivltests
+sv_deferred_final_latest1	normal,-g2012		ivltests gold=sv_deferred_final_latest1.gold
