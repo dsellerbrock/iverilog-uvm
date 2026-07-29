@@ -30,7 +30,8 @@
 class netqueue_t : public netdarray_t {
 
     public:
-      explicit netqueue_t(ivl_type_t vec, long max_idx, bool assoc_compat = false);
+      explicit netqueue_t(ivl_type_t vec, long max_idx, bool assoc_compat = false,
+			 ivl_type_t assoc_index_type = 0);
       ~netqueue_t() override;
 
 	// This is the "base_type()" virtual method of the
@@ -41,11 +42,19 @@ class netqueue_t : public netdarray_t {
       long max_idx(void) const { return max_idx_; }
       bool assoc_compat(void) const { return assoc_compat_; }
 
+	// When assoc_compat() is set, this is the associative array's
+	// index/key type (e.g. `string` for `int a[string]`), so that
+	// type-name introspection ($typename) can print it. Null if this
+	// is a genuine queue, or if the index type wasn't available where
+	// the associative array was elaborated.
+      ivl_type_t assoc_index_type(void) const { return assoc_index_type_; }
+
       std::ostream& debug_dump(std::ostream&) const override;
 
     private:
       long max_idx_;
       bool assoc_compat_;
+      ivl_type_t assoc_index_type_;
 };
 
 #endif

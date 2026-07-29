@@ -226,6 +226,18 @@ std::ostream& typeref_t::debug_dump(ostream&out) const
       return out;
 }
 
+std::ostream& type_reference_t::debug_dump(ostream&out) const
+{
+      out << "type(";
+      if (named_type)
+	    named_type->debug_dump(out);
+      else if (expr)
+	    out << *expr;
+      out << ")";
+
+      return out;
+}
+
 ostream& atom_type_t::debug_dump(ostream&out) const
 {
       if (signed_flag)
@@ -251,6 +263,9 @@ ostream& atom_type_t::debug_dump(ostream&out) const
 	    break;
       case BYTE:
 	    out << "byte";
+	    break;
+      case CHANDLE:
+	    out << "chandle";
 	    break;
       default:
 	    assert(0);

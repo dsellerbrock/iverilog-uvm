@@ -532,6 +532,13 @@ ivl_type_t atom_type_t::elaborate_type_raw(Design*des, NetScope*) const
 	    else
 		  return &netvector_t::atom2u64;
 
+	  case CHANDLE:
+	      // Storage-compatible with an unsigned longint (64-bit,
+	      // 2-state), but kept as its own singleton so type-name
+	      // introspection ($typename) can print "chandle" instead of
+	      // "longint". See the CHANDLE comment in pform_types.h.
+	    return &netvector_t::chandle_type;
+
 	  case INT:
 	    if (signed_flag)
 		  return &netvector_t::atom2s32;
@@ -1126,7 +1133,8 @@ static ivl_type_t elaborate_darray_check_type(Design *des, const LineInfo &li,
 static ivl_type_t elaborate_queue_type(Design *des, NetScope *scope,
 				       const LineInfo &li, ivl_type_t base_type,
 				       PExpr *ridx,
-				       bool assoc_compat = false)
+				       bool assoc_compat = false,
+				       ivl_type_t assoc_index_type = 0)
 {
       base_type = elaborate_darray_check_type(des, li, base_type, "Queue");
 
@@ -1160,7 +1168,7 @@ static ivl_type_t elaborate_queue_type(Design *des, NetScope *scope,
 	    delete cv;
       }
 
-      return new netqueue_t(base_type, max_idx, assoc_compat);
+      return new netqueue_t(base_type, max_idx, assoc_compat, assoc_index_type);
 }
 
 static bool finite_enum_index_range_(const netenum_t*enum_type,
@@ -1214,12 +1222,13 @@ static ivl_type_t elaborate_assoc_array_type(Design *des, NetScope *scope,
       data_type_t*index_type_pf = const_cast<PEAssocType*>(assoc_idx)->index_type();
       ivl_type_t index_type = index_type_pf->elaborate_type(des, scope);
 
-      (void) index_type;
-
       // Keep associative arrays in the assoc-compat queue representation even
       // for finite enum-key cases. Lowering them to a plain unpacked array
-      // loses exists/delete/iteration semantics, which UVM relies on.
-      return elaborate_queue_type(des, scope, li, base_type, 0, true);
+      // loses exists/delete/iteration semantics, which UVM relies on. The
+      // index type is threaded through (rather than discarded) so type-name
+      // introspection ($typename, IEEE 1800-2017 20.6.1) can print the
+      // "$[<index type>]" suffix for an associative array.
+      return elaborate_queue_type(des, scope, li, base_type, 0, true, index_type);
 }
 
 // If dims is not empty create a unpacked array type and clear dims, otherwise
@@ -1360,6 +1369,73 @@ ivl_type_t typeref_t::elaborate_type_raw(Design*des, NetScope*s) const
       NetScope* call_scope = s_type_elaborate_caller_scope_ ? s_type_elaborate_caller_scope_ : s;
       return const_cast<netclass_t*>(
 	    elaborate_specialized_class_type(des, call_scope, class_type, overrides));
+}
+
+/*
+ * IEEE 1800-2017 6.23 `type()` operator. See the type_reference_t
+ * comment in pform_types.h for the overall design.
+ */
+ivl_type_t type_reference_t::elaborate_type_raw(Design*des, NetScope*scope) const
+{
+      if (named_type)
+	    return named_type->elaborate_type(des, scope);
+
+      ivl_assert(*this, expr);
+
+	// A plain (possibly indexed/hierarchical/member-selected)
+	// identifier: resolve its exact declared type without evaluating
+	// anything -- not even the index expressions, which are only
+	// counted structurally by PEIdent::test_type_of_ident().
+      if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+	    ivl_type_t use_type = ident->test_type_of_ident(des, scope);
+	    if (!use_type) {
+		  cerr << get_fileline() << ": sorry: type() could not resolve "
+		       << "the type of this identifier reference (hierarchical "
+		       << "or forward references are not supported)." << endl;
+		  des->errors += 1;
+	    }
+	    return use_type;
+      }
+
+	// Any other expression shape: fall back to the same evaluation-free
+	// self-determined width/type inference that $bits()/$sizeof() use
+	// for their type-name-or-expression argument (PExpr::test_width()).
+	// This never elaborates (and so never evaluates) the expression --
+	// a side-effecting function call in e.g. `type(f(x))` is never run.
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      PExpr*mut_expr = const_cast<PExpr*>(expr);
+      mut_expr->test_width(des, scope, mode);
+
+      ivl_variable_type_t vt = mut_expr->expr_type();
+      unsigned wid = mut_expr->expr_width();
+
+      switch (vt) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    if (wid == 0) {
+		  cerr << get_fileline() << ": sorry: type() could not "
+		       << "determine a self-determined width for this "
+		       << "expression." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    return new netvector_t(vt, (long)wid - 1, 0, mut_expr->has_sign());
+
+	  case IVL_VT_REAL:
+	    return &netreal_t::type_real;
+
+	  case IVL_VT_STRING:
+	    return &netstring_t::type_string;
+
+	  default:
+	    cerr << get_fileline() << ": sorry: type() of an expression whose "
+		 << "self-determined type is not an integral, real or string "
+		 << "value (e.g. a class handle, struct, or array produced by "
+		 << "a computed expression rather than a plain identifier) is "
+		 << "not supported." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
 }
 
 NetScope *typeref_t::find_scope(Design *des, NetScope *s) const

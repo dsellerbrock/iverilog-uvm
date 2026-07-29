@@ -272,6 +272,44 @@ private:
       parmvalue_t* overrides;
 };
 
+/*
+ * type_reference_t is the pform representation of the IEEE 1800-2017
+ * 6.23 `type()` operator: `type(expression)` or `type(data_type)`.
+ * Exactly one of "expr" or "named_type" is non-null.
+ *
+ *  - named_type set (the `type(data_type)` form, e.g. `type(int)`):
+ *    elaborate_type_raw() simply resolves that named type -- `type(X)`
+ *    names X directly.
+ *
+ *  - expr set (the `type(expression)` form, e.g. `type(a)`,
+ *    `type(a+b)`): elaborate_type_raw() resolves the SELF-DETERMINED
+ *    type of the expression WITHOUT evaluating it (6.23: "the
+ *    expression shall not be evaluated"). For a plain identifier
+ *    (including indexed/hierarchical/member references) this looks up
+ *    the exact declared type via symbol search. For any other
+ *    expression shape it falls back to the same evaluation-free
+ *    test_width() self-determined-width/type inference that
+ *    $bits()/$sizeof() already use for their type-name-or-expression
+ *    argument, so a side-effecting function call in e.g. `type(f(x))`
+ *    is never invoked.
+ *
+ * This node is carried into expression contexts (so `type(a)==type(b)`
+ * can parse and elaborate) by wrapping it in a PETypename -- see the
+ * `K_type '(' expression ')'` alternative of expr_primary in parse.y
+ * and the type_reference_t checks added to PETypename/PEBComp
+ * elaboration.
+ */
+struct type_reference_t : public data_type_t {
+      explicit type_reference_t(PExpr*e) : expr(e), named_type(0) { }
+      explicit type_reference_t(data_type_t*t) : expr(0), named_type(t) { }
+
+      ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
+      std::ostream& debug_dump(std::ostream&out) const override;
+
+      PExpr*expr;
+      data_type_t*named_type;
+};
+
 struct type_parameter_t : data_type_t {
       explicit type_parameter_t(perm_string n) : name(n) { }
       ivl_type_t elaborate_type_raw(Design *des, NetScope *scope) const override;
@@ -337,7 +375,12 @@ struct atom_type_t : public data_type_t {
 	    BYTE,
 	    SHORTINT,
 	    INT,
-	    LONGINT
+	    LONGINT,
+	      // `chandle` is storage-compatible with a 64-bit 2-state atom
+	      // (it lowered straight to LONGINT before this), but $typename
+	      // (IEEE 1800-2017 20.6.1) must print "chandle", not "longint",
+	      // so it gets its own type_code/singleton ivl_type_t.
+	    CHANDLE
       };
 
       explicit atom_type_t(enum type_code tc, bool flag) : type_code(tc),

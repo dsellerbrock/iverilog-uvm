@@ -3159,6 +3159,23 @@ data_declaration /* IEEE1800-2005: A.2.1.3 */
 	}
 	pform_make_var(@3, $5, data_type, $1, $2);
       }
+    /* IEEE 1800-2017 6.23: `var type(...) name;`. As with the typedef
+       alternative above, this is its own narrow, K_var-prefixed
+       alternative rather than a `data_type` addition. Measured with
+       `bison -d -v --report=state`, this exact shape costs zero
+       conflicts; the same shape WITHOUT the leading `var` (plain
+       `type(a) c;`) was tried too and costs +1 reduce/reduce (it lands
+       in an already-51-way-ambiguous declaration-start state), so that
+       bare form is deliberately not accepted -- `var` is required. */
+  | attribute_list_opt K_const_opt K_var K_type '(' expression ')' list_of_variable_decl_assignments ';'
+      { data_type_t*dt;
+	if (PETypename*tn = dynamic_cast<PETypename*>($6))
+	      dt = new type_reference_t(tn->get_type());
+	else
+	      dt = new type_reference_t($6);
+	FILE_NAME(dt, @4);
+	pform_make_var(@4, $8, dt, $1, $2);
+      }
   | attribute_list_opt K_event event_variable_list ';'
       { if ($3) pform_make_events(@2, $3);
       }
@@ -6615,6 +6632,25 @@ block_item_decl
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
       }
 
+    /* IEEE 1800-2017 6.23: `var type(...) name;` inside a module,
+       block (begin/end) or task/function body -- this is the real
+       module/block-scope variable-declaration entry point
+       (block_item_decl, shared with task/named-begin-end bodies via
+       the comment above); the data_declaration nonterminal used
+       elsewhere in this file is package-scope only. Zero conflict
+       cost measured the same way as the expr_primary/type_declaration
+       additions above. */
+  | K_const_opt K_var variable_lifetime_opt K_type '(' expression ')' list_of_variable_decl_assignments ';'
+      { data_type_t*dt;
+	if (PETypename*tn = dynamic_cast<PETypename*>($6))
+	      dt = new type_reference_t(tn->get_type());
+	else
+	      dt = new type_reference_t($6);
+	FILE_NAME(dt, @4);
+	pform_make_var(@4, $8, dt, attributes_in_context, $1);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+      }
+
   | K_const_opt variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
       { if ($3) pform_make_var(@3, $4, $3, attributes_in_context, $1);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
@@ -6874,6 +6910,25 @@ type_declaration
       { perm_string name = lex_strings.make($3);
 	pform_set_typedef(@3, name, $2, $4);
 	delete[]$3;
+      }
+    /* IEEE 1800-2017 6.23: `typedef type(...) name;`. Written as its
+       own alternative here (rather than by adding `type()` to the
+       general `data_type` nonterminal above) because -- measured with
+       `bison -d -v --report=state` -- growing `data_type` itself costs
+       +15 shift/reduce and +30 reduce/reduce conflicts (data_type is
+       reused far too widely), while this narrow, K_typedef-prefixed
+       form costs exactly zero. See the matching comment on the
+       expr_primary alternative above. */
+  | K_typedef K_type '(' expression ')' identifier_name dimensions_opt ';'
+      { data_type_t*dt;
+	if (PETypename*tn = dynamic_cast<PETypename*>($4))
+	      dt = new type_reference_t(tn->get_type());
+	else
+	      dt = new type_reference_t($4);
+	FILE_NAME(dt, @2);
+	perm_string name = lex_strings.make($6);
+	pform_set_typedef(@6, name, dt, $7);
+	delete[]$6;
       }
   | K_typedef IDENTIFIER identifier_name dimensions_opt ';'
       { typedef_t*base = pform_test_type_identifier(@2, $2);
@@ -8115,6 +8170,41 @@ expr_primary
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make("string")));
 	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+    /* IEEE 1800-2017 6.23: the `type()` operator, as a comparison
+       operand (also reachable from generate-if conditions, which are
+       plain `expression`s). The argument uses the general `expression`
+       nonterminal rather than expr_primary_or_typename -- a bare named
+       type like `int` in `type(int)` already parses as an `expression`
+       via the pre-existing expr_primary_or_typename bridge baked into
+       expression's own first alternative, so nothing is lost, and
+       measured empirically (`bison -d -v --report=state`) this keeps
+       the shift/reduce and reduce/reduce conflict counts EXACTLY at
+       baseline (495/1161), where reusing expr_primary_or_typename
+       directly here (or adding this to `data_type`) does not: both
+       cost extra conflicts because expr_primary_or_typename is itself
+       an already-heavily-shared alternation point in this grammar's
+       LALR automaton. See the type_reference_t comment in
+       pform_types.h for the elaboration-side design; see
+       type_declaration, data_declaration and block_item_decl elsewhere
+       in this file for the matching narrow additions that cover
+       `typedef type(...) t;` and `var type(...) c;`. Plain (non-var)
+       `type(a) c;` variable
+       declarations are NOT supported by the grammar -- every attempted
+       placement of that one shape perturbed an existing 51-way
+       reduce/reduce conflict state (module/block-item declaration-start
+       ambiguity) by +1, so it is deliberately left as a plain syntax
+       error rather than accepted at that cost; use `var type(a) c;`. */
+  | K_type '(' expression ')'
+      { data_type_t*dt;
+	if (PETypename*tn = dynamic_cast<PETypename*>($3))
+	      dt = new type_reference_t(tn->get_type());
+	else
+	      dt = new type_reference_t($3);
+	FILE_NAME(dt, @1);
+	PETypename*tmp = new PETypename(dt);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
@@ -10040,7 +10130,7 @@ atom_type
   | K_int      { $$ = atom_type_t::INT; }
   | K_longint  { $$ = atom_type_t::LONGINT; }
   | K_integer  { $$ = atom_type_t::INTEGER; }
-  | K_chandle  { $$ = atom_type_t::LONGINT; }
+  | K_chandle  { $$ = atom_type_t::CHANDLE; }
   ;
 
   /* An lpvalue is the expression that can go on the left side of a

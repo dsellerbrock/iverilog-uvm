@@ -73,6 +73,11 @@ class netvector_t : public ivl_type_s {
       static netvector_t atom2u8;
       static netvector_t time_signed;
       static netvector_t time_unsigned;
+	// `chandle` is a 64-bit 2-state atom for storage purposes, but is
+	// a distinct declared type from `longint` -- kept as its own
+	// singleton purely so $typename (IEEE 1800-2017 20.6.1) and other
+	// type-name introspection can tell the two apart by pointer identity.
+      static netvector_t chandle_type;
       static netvector_t scalar_bool;
       static netvector_t scalar_logic;
       static const netvector_t*integer_type(bool is_signed = true);

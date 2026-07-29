@@ -253,6 +253,22 @@ static PLI_INT32 sys_cast_compiletf(ICARUS_VPI_CONST PLI_BYTE8*)
  * $typename(expression)
  *
  * Returns a string describing the type of the expression.
+ *
+ * IEEE 1800-2017 20.6.1: a SystemVerilog expression's type is always
+ * statically known, so the elaborator (elab_expr.cc,
+ * PECallFunction::elaborate_sfunc_, name=="$typename") folds essentially
+ * every call to this system function into a compile-time string
+ * constant, using the full ivl_type_t of the argument -- packed ranges,
+ * unpacked/dynamic/associative/queue array notation, enum member
+ * expansion, struct members, class names, etc. That compile-time path
+ * is authoritative; this run-time VPI implementation is reached only
+ * when elaboration cannot fold the call away (currently: $typename(...)
+ * invoked as a bare task-call statement, IEEE 1800-2017 13.4.2, whose
+ * result is discarded and is therefore never observed, and any other
+ * argument shape the compile-time formatter does not recognize). It is
+ * necessarily coarser than the compile-time formatter: it can only see
+ * the small set of vpiType codes below, not packed ranges, array
+ * element types, enum members, or struct fields.
  */
 static PLI_INT32 sys_typename_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
 {
@@ -268,12 +284,21 @@ static PLI_INT32 sys_typename_calltf(ICARUS_VPI_CONST PLI_BYTE8*)
             if (arg) {
                   int vtype = vpi_get(vpiType, arg);
                   switch (vtype) {
-                    case vpiClassVar:  type_name = "class"; break;
-                    case vpiStringVar: type_name = "string"; break;
-                    case vpiRealVar:   type_name = "real"; break;
-                    case vpiIntegerVar:type_name = "integer"; break;
-                    case vpiReg:       type_name = "reg"; break;
-                    case vpiNet:       type_name = "wire"; break;
+                    case vpiClassVar:    type_name = "class"; break;
+                    case vpiStringVar:   type_name = "string"; break;
+                    case vpiRealVar:     type_name = "real"; break;
+                    case vpiIntegerVar:  type_name = "integer"; break;
+                    case vpiTimeVar:     type_name = "time"; break;
+                    case vpiByteVar:     type_name = "byte"; break;
+                    case vpiShortIntVar: type_name = "shortint"; break;
+                    case vpiIntVar:      type_name = "int"; break;
+                    case vpiLongIntVar:  type_name = "longint"; break;
+                    case vpiBitVar:      type_name = "bit"; break;
+                      // vpiLogicVar is #defined to vpiReg (sv_vpi_user.h);
+                      // IEEE 1800-2017 6.8 treats `reg` and `logic` as the
+                      // same type, so this always prints "logic".
+                    case vpiReg:         type_name = "logic"; break;
+                    case vpiNet:         type_name = "wire"; break;
                     default: break;
                   }
             }
