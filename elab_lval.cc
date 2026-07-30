@@ -1679,108 +1679,149 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	      // encode as a part-select on the current lv (read-modify-write at
 	      // runtime via %store/prop/v/bits).
 	      if (!owner_class && owner_struct && owner_struct->packed()) {
-		    const name_component_t&field_comp = member_path.front();
-		    perm_string field_name = field_comp.name;
+		      // Packed struct field access within a VIF/class
+		      // property: walk the member path, accumulating the
+		      // canonical bit offset of every hop -- nested struct
+		      // fields, indexed packed-array-of-struct members
+		      // (constant or RUN-TIME indices), and indexed vector
+		      // leaves -- then encode ONE part-select on the current
+		      // lv (run-time RMW via %store/prop/v/bits[/x]).
+		      // Recovery C4 wave 3: this block previously handled
+		      // only constant single-level vector selects; array-of-
+		      // struct hops and variable indices were loud sorries.
 		    unsigned long member_off = 0;
-		    const netstruct_t::member_t*mbr =
-			  owner_struct->packed_member(field_name, member_off);
-		    if (!mbr) {
-			  cerr << get_fileline() << ": error: Packed struct "
-			       << "does not have member " << field_name << "." << endl;
+		    NetExpr*var_off = 0;
+		    ivl_type_t cur_type = owner_struct;
+		    ivl_type_t part_type = nullptr;
+		    unsigned long leaf_wid = owner_struct->packed_width();
+		    bool bad = false;
+
+		    while (!member_path.empty()) {
+			  name_component_t field_comp = member_path.front();
+			  member_path.pop_front();
+
+			  const netstruct_t*cs =
+				dynamic_cast<const netstruct_t*>(cur_type);
+			  if (!cs || !cs->packed()) {
+				cerr << get_fileline() << ": sorry: member `"
+				     << field_comp.name << "' cannot be reached"
+				     << " through this packed property path yet."
+				     << endl;
+				bad = true;
+				break;
+			  }
+
+			  unsigned long hop_off = 0;
+			  const netstruct_t::member_t*mbr =
+				cs->packed_member(field_comp.name, hop_off);
+			  if (!mbr) {
+				cerr << get_fileline() << ": error: Packed struct "
+				     << "does not have member " << field_comp.name
+				     << "." << endl;
+				bad = true;
+				break;
+			  }
+			  member_off += hop_off;
+			  cur_type = mbr->net_type;
+			  leaf_wid = (unsigned long)cur_type->packed_width();
+			  part_type = cur_type;
+
+			  if (field_comp.index.empty())
+				continue;
+
+			  if (const netvector_t*mv =
+				    dynamic_cast<const netvector_t*>(cur_type)) {
+				NetExpr*moff = 0;
+				unsigned long mwid = 0;
+				if (!collapse_packed_member_indices(des, scope, this,
+						mv->packed_dims(),
+						field_comp.index, moff, mwid))
+				      return 0;
+				long cfold = 0;
+				if (eval_as_long(cfold, moff)) {
+				      member_off += cfold;
+				      delete moff;
+				} else {
+				      var_off = var_off
+					    ? make_packed_offset_sum(this, var_off, moff)
+					    : moff;
+				}
+				leaf_wid = mwid;
+				part_type = new netvector_t(mv->base_type(),
+							    (long)mwid - 1, 0);
+				cur_type = nullptr;
+				continue;
+			  }
+
+			  if (const netparray_t*pa =
+				    dynamic_cast<const netparray_t*>(cur_type)) {
+				NetExpr*moff = 0;
+				unsigned long mwid = 0;
+				if (!collapse_packed_member_indices(des, scope, this,
+						pa->static_dimensions(),
+						field_comp.index, moff, mwid))
+				      return 0;
+				ivl_type_t elem_type = pa->element_type();
+				long ew = elem_type->packed_width();
+				long cfold = 0;
+				if (eval_as_long(cfold, moff)) {
+				      member_off += cfold * ew;
+				      delete moff;
+				} else {
+				      if (ew > 1)
+					    moff = scale_index_to_bits(moff,
+							(unsigned long)ew, *this);
+				      var_off = var_off
+					    ? make_packed_offset_sum(this, var_off, moff)
+					    : moff;
+				}
+				leaf_wid = mwid * (unsigned long)ew;
+				if (mwid == 1) {
+				      // A single element: descend into it when the
+				      // path continues (array-of-struct hop).
+				      part_type = elem_type;
+				      cur_type = elem_type;
+				} else {
+				      part_type = nullptr;
+				      cur_type = nullptr;
+				}
+				continue;
+			  }
+
+			  cerr << get_fileline() << ": sorry: an index on packed"
+			       << " struct member " << field_comp.name
+			       << " of this type is not yet supported here."
+			       << endl;
+			  bad = true;
+			  break;
+		    }
+
+		    if (bad || !member_path.empty()) {
+			  if (!bad)
+				cerr << get_fileline() << ": sorry: this nested"
+				     << " packed struct field l-value form is not"
+				     << " yet supported." << endl;
 			  des->errors += 1;
 			  return 0;
 		    }
-		    long field_wid = mbr->net_type->packed_width();
-		    if (field_wid <= 0) {
-			  cerr << get_fileline() << ": sorry: packed struct field "
-			       << field_name << " has non-positive width." << endl;
+
+		    if (leaf_wid == 0) {
+			  cerr << get_fileline() << ": sorry: packed struct field"
+			       << " has non-positive width." << endl;
+			  des->errors += 1;
 			  return 0;
 		    }
-		    /* Cast disambiguates `verinum(uint64_t, unsigned)` from the
-		       `verinum(V, unsigned, bool)` constructor — older gcc/clang
-		       on macOS/MinGW reject the implicit conversion. */
-		    // Pass the field's own type (not just the width) so
-		    // NetAssign_::net_type()/expr_type() report the field's
-		    // packed type. Otherwise net_type() is null and expr_type()
-		    // falls back to the class handle's IVL_VT_CLASS, which
-		    // corrupts r-value elaboration (the assigned value comes out
-		    // as a null-handle test) and crashes the runtime.
-		    // A bit/part-select ON the field (e.g. `.b[3:0]`) narrows
-		    // the write to a sub-range: compose the field base offset
-		    // within the struct with the canonical offset of the
-		    // sub-select so only those bits are written (else the whole
-		    // field is clobbered).
-		    long sub_off = 0;
-		    unsigned sub_wid = (unsigned)field_wid;
-		    ivl_type_t part_type = mbr->net_type;
-		    if (!field_comp.index.empty()) {
-			  const netvector_t*fvec =
-				dynamic_cast<const netvector_t*>(mbr->net_type);
-			  const index_component_t&fs = field_comp.index.front();
-			  bool ok = false;
-			  if (fvec && field_comp.index.size() == 1
-			      && fvec->packed_dims().size() == 1
-			      && fvec->packed_dims()[0].defined()) {
-				long bmsb = fvec->packed_dims()[0].get_msb();
-				long blsb = fvec->packed_dims()[0].get_lsb();
-				bool desc = bmsb >= blsb;
-				auto canon = [&](long i)->long {
-				      return desc ? (i-blsb) : (blsb-i); };
-				if (fs.sel == index_component_t::SEL_BIT
-				    && fs.msb && !fs.lsb) {
-				      NetExpr*ie = elab_and_eval(des, scope, fs.msb, -1);
-				      NetEConst*iec = dynamic_cast<NetEConst*>(ie);
-				      if (iec && iec->value().is_defined()) {
-					    sub_off = canon(iec->value().as_long());
-					    sub_wid = 1;
-					    part_type = new netvector_t(
-						  fvec->base_type(), 0, 0);
-					    ok = true;
-				      }
-				} else if (fs.sel == index_component_t::SEL_PART
-					   && fs.msb && fs.lsb) {
-				      NetExpr*me = elab_and_eval(des, scope, fs.msb, -1);
-				      NetExpr*le = elab_and_eval(des, scope, fs.lsb, -1);
-				      NetEConst*mec = dynamic_cast<NetEConst*>(me);
-				      NetEConst*lec = dynamic_cast<NetEConst*>(le);
-				      if (mec && lec && mec->value().is_defined()
-					  && lec->value().is_defined()) {
-					    long mv = mec->value().as_long();
-					    long lvv = lec->value().as_long();
-					    long ca = canon(mv), cb = canon(lvv);
-					    sub_off = ca < cb ? ca : cb;
-					    sub_wid = (unsigned)
-						  ((mv >= lvv ? mv-lvv : lvv-mv) + 1);
-					    part_type = new netvector_t(
-						  fvec->base_type(),
-						  (long)sub_wid - 1, 0);
-					    ok = true;
-				      }
-				}
-			  }
-			  if (!ok) {
-				cerr << get_fileline() << ": sorry: this form of "
-				     << "select on packed-struct field " << field_name
-				     << " (variable/indexed/nested) is not yet"
-				     << " supported." << endl;
-				des->errors += 1;
-				return 0;
-			  }
-		    }
-		    member_path.pop_front();
 
-		    /* Cast disambiguates `verinum(uint64_t, unsigned)` from the
-		       `verinum(V, unsigned, bool)` constructor. Pass the (sub-)
-		       field's own packed type so NetAssign_::net_type()/
-		       expr_type() report it (else expr_type() falls back to the
-		       handle's IVL_VT_CLASS and corrupts r-value elaboration). */
-		    lv->set_part(new NetEConst(
-				   verinum((uint64_t)(member_off + sub_off), 64u)),
-				 part_type);
-		    if (!member_path.empty()) {
-			  cerr << get_fileline() << ": warning: "
-			       << "Deeply nested packed struct field in VIF property "
-			       << "(compile-progress: only outermost field written)." << endl;
+		    {
+			  NetExpr*base = new NetEConst(
+				verinum((uint64_t)member_off, 64u));
+			  if (var_off)
+				base = make_packed_offset_sum(this, base, var_off);
+			  if (part_type)
+				lv->set_part(base, part_type);
+			  else
+				lv->set_part(base, new netvector_t(IVL_VT_LOGIC,
+						(long)leaf_wid - 1, 0));
 		    }
 		    break;
 	      }
@@ -2643,6 +2684,9 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	// increases, and use_width shrinks.
       unsigned long off = 0;
       unsigned long use_width = struct_type->packed_width();
+	// Run-time member-offset contributions (variable indices into
+	// member vectors/arrays, recovery C4).
+      NetExpr*var_off = 0;
       ivl_type_t member_type;
 
       pform_name_t completed_path;
@@ -2700,20 +2744,11 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	      // struct. We can further refine the part select with any
 	      // indices that might be present.
 
-	      // Get the index component type. At this point, we only
-	      // support bit select or none.
-	    index_component_t::ctype_t use_sel = index_component_t::SEL_NONE;
-	    if (!member_comp.index.empty())
-		  use_sel = member_comp.index.back().sel;
-
-	    if (use_sel != index_component_t::SEL_NONE
-		&& use_sel != index_component_t::SEL_BIT
-		&& use_sel != index_component_t::SEL_PART) {
-		  cerr << get_fileline() << ": sorry: Assignments to part selects of "
-			"a struct member are not yet supported." << endl;
-		  des->errors += 1;
-		  return false;
-	    }
+	      // Get the index component type. The canonical member-index
+	      // collapse also lowers the indexed part-select forms
+	      // ([b +: w] / [b -: w], run-time base allowed), so only
+	      // genuinely unknown select kinds are refused -- inside
+	      // collapse_packed_member_indices, loudly.
 
 	    member_type = member->net_type;
 
@@ -2738,54 +2773,28 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 			  // These are the dimensions defined by the type
 			const netranges_t&mem_packed_dims = mem_vec->packed_dims();
 
-			if (member_comp.index.size() > mem_packed_dims.size()) {
-			      cerr << get_fileline() << ": error: "
-				   << "Too many index expressions for member." << endl;
-			      des->errors += 1;
-			      return false;
+			  // One canonical member-select calculation (recovery C4):
+			  // constant and run-time indices alike, incl. a trailing
+			  // part-select. Constants fold into `off'; run-time
+			  // contributions accumulate in var_off.
+			NetExpr*moff = 0;
+			unsigned long mwid = 0;
+			if (!collapse_packed_member_indices(des, scope, this,
+							    mem_packed_dims,
+							    member_comp.index,
+							    moff, mwid))
+				return false;
+
+			long cfold = 0;
+			if (eval_as_long(cfold, moff)) {
+				off += cfold;
+				delete moff;
+			} else {
+				var_off = var_off
+				      ? make_packed_offset_sum(this, var_off, moff)
+				      : moff;
 			}
-
-			  // Evaluate all but the last index expression, into prefix_indices.
-			list<long>prefix_indices;
-			bool rc = evaluate_index_prefix(des, scope, prefix_indices, member_comp.index);
-			ivl_assert(*this, rc);
-
-			if (debug_elaborate) {
-			      cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
-				   << "prefix_indices.size()==" << prefix_indices.size()
-				   << ", mem_packed_dims.size()==" << mem_packed_dims.size()
-				   << " (netvector_t context)"
-				   << endl;
-			}
-
-			long tail_off = 0;
-			unsigned long tail_wid = 0;
-			rc = calculate_part(this, des, scope, member_comp.index.back(), tail_off, tail_wid);
-			ivl_assert(*this, rc);
-
-			if (debug_elaborate) {
-			      cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
-				   << "calculate_part for tail returns tail_off=" << tail_off
-				   << ", tail_wid=" << tail_wid
-				   << endl;
-			}
-
-			  // Now use the prefix_to_slice function to calculate the
-			  // offset and width of the addressed slice of the member.
-			long loff;
-			unsigned long lwid;
-			prefix_to_slice(mem_packed_dims, prefix_indices, tail_off, loff, lwid);
-
-			if (debug_elaborate) {
-			      cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
-				   << "Calculate loff=" << loff << " lwid=" << lwid
-				   << " tail_off=" << tail_off << " tail_wid=" << tail_wid
-				   << " off=" << off << " use_width=" << use_width
-				   << endl;
-			}
-
-			off += loff;
-			use_width = lwid * tail_wid;
+			use_width = mwid;
 			member_type = nullptr;
 		  }
 
@@ -2811,61 +2820,37 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 		    // These are the dimensions defined by the type
 		  const netranges_t&mem_packed_dims = array->static_dimensions();
 
-		  if (member_comp.index.size() > mem_packed_dims.size()) {
-			cerr << get_fileline() << ": error: "
-			     << "Too many index expressions for member "
-			     << member_name << "." << endl;
-			des->errors += 1;
+		    // Canonical element addressing in ELEMENT units, scaled
+		    // to bits below (recovery C4).
+		  NetExpr*moff = 0;
+		  unsigned long mwid = 0;
+		  if (!collapse_packed_member_indices(des, scope, this,
+						      mem_packed_dims,
+						      member_comp.index,
+						      moff, mwid))
 			return false;
-		  }
-
-		    // Evaluate all but the last index expression, into prefix_indices.
-		  list<long>prefix_indices;
-		  bool rc = evaluate_index_prefix(des, scope, prefix_indices, member_comp.index);
-		  ivl_assert(*this, rc);
-
-		  if (debug_elaborate) {
-			cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
-			     << "prefix_indices.size()==" << prefix_indices.size()
-			     << ", mem_packed_dims.size()==" << mem_packed_dims.size()
-			     << " (netparray_t context)"
-			     << endl;
-		  }
-
-		    // Evaluate the last index expression into a constant long.
-		  NetExpr*texpr = elab_and_eval(des, scope, member_comp.index.back().msb, -1, true);
-		  long tmp;
-		  if (texpr == 0 || !eval_as_long(tmp, texpr)) {
-			cerr << get_fileline() << ": error: "
-			     << "Array index expressions for member " << member_name
-			     << " must be constant here." << endl;
-			des->errors += 1;
-			return false;
-		  }
-
-		  delete texpr;
-
-		    // Now use the prefix_to_slice function to calculate the
-		    // offset and width of the addressed slice of the member.
-		  long loff;
-		  unsigned long lwid;
-		  prefix_to_slice(mem_packed_dims, prefix_indices, tmp, loff, lwid);
 
 		  ivl_type_t element_type = array->element_type();
 		  long element_width = element_type->packed_width();
-		  if (debug_elaborate) {
-			cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
-			     << "parray subselection loff=" << loff
-			     << ", lwid=" << lwid
-			     << ", element_width=" << element_width
-			     << endl;
-		  }
 
-		    // The width and offset calculated from the
-		    // indices is actually in elements, and not
-		    // bits.
-		  off += loff * element_width;
-		  use_width = lwid * element_width;
+		  long cfold = 0;
+		  if (eval_as_long(cfold, moff)) {
+			off += cfold * element_width;
+			delete moff;
+		  } else {
+			if (element_width > 1)
+			      moff = scale_index_to_bits(moff,
+						 (unsigned long)element_width, *this);
+			var_off = var_off
+			      ? make_packed_offset_sum(this, var_off, moff)
+			      : moff;
+		  }
+		  use_width = mwid * element_width;
+		    /* An indexed parray selects a SLICE; the final set_part
+		       must size from use_width, not from the whole parray
+		       type. (Reassigned next iteration when the walk continues
+		       into a struct element.) */
+		  member_type = nullptr;
 
 		    // To move on to the next component in the member
 		    // path, get the element type. For example, for
@@ -2935,7 +2920,13 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	    member_select.sel = index_component_t::SEL_BIT;
 	    member_select.msb = new PENumber(new verinum(off));
 	    tmp_index.push_back(member_select);
-	    packed_base = collapse_array_indices(des, scope, reg, tmp_index);
+	      /* collapse_array_exprs is the run-time-capable collapse
+	         (the rvalue twin already uses it); the constant-only
+	         collapse_array_indices asserted on a variable word
+	         index (recovery C4 / G16 l-value). */
+	    packed_base = collapse_array_exprs(des, scope, this, reg, tmp_index);
+	    if (!packed_base)
+		  return false;
       }
 
       long tmp;
@@ -2952,21 +2943,23 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	    return false;
       }
 
-      if (packed_base == 0) {
-	    NetExpr *base = new NetEConst(verinum(off));
+      {
+	      /* The select base may now carry run-time components: a
+	         variable word index collapsed into packed_base, and/or
+	         variable member indices accumulated in var_off
+	         (recovery C4). The part-select store is a run-time RMW
+	         either way. */
+	    NetExpr *base = packed_base
+		  ? packed_base
+		  : new NetEConst(verinum(off));
+	    if (var_off)
+		  base = make_packed_offset_sum(this, base, var_off);
 	    if (member_type)
 		  lv->set_part(base, member_type);
 	    else
 		  lv->set_part(base, use_width);
 	    return true;
       }
-
-	// Oops, packed_base is not fully evaluated, so I don't know
-	// yet what to do with it.
-      cerr << get_fileline() << ": internal error: "
-	   << "I don't know how to handle this index expression? " << *packed_base << endl;
-      ivl_assert(*this, 0);
-      return false;
 }
 
 NetAssign_* PENumber::elaborate_lval(Design*des, NetScope*, bool, bool, bool) const

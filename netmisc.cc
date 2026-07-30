@@ -2017,37 +2017,47 @@ NetExpr*collapse_packed_base(Design*des, NetScope*scope, const LineInfo*loc,
       return collapse_array_exprs(des, scope, loc, net, use_index);
 }
 
+/* Width in bits of one slice below dimension k of an explicit packed
+   dimension list: the product of the widths of dims k..end (1 when k
+   covers every dimension). */
+static unsigned long slice_width_of_dims_(const netranges_t&pdims, size_t k)
+{
+      unsigned long wid = 1;
+      size_t idx = 0;
+      for (netranges_t::const_iterator cur = pdims.begin()
+		 ; cur != pdims.end() ; ++cur, ++idx) {
+	    if (idx >= k)
+		  wid *= cur->width();
+      }
+      return wid;
+}
+
 /*
- * Evaluate the indices. The chain of indices are applied to the
- * packed indices of a NetNet to generate a canonical expression to
- * replace the exprs.
+ * The dimension-list core of collapse_array_exprs: canonical bit
+ * offset for a chain of SEL_BIT indices against an explicit packed
+ * dimension list. Every index is normalized against its dimension.
  */
-NetExpr*collapse_array_exprs(Design*des, NetScope*scope,
-			     const LineInfo*loc, const NetNet*net,
-			     const list<index_component_t>&indices)
+NetExpr*collapse_dims_exprs(Design*des, NetScope*scope,
+			    const LineInfo*loc,
+			    const netranges_t&pdims,
+			    const list<index_component_t>&indices)
 {
 	// First elaborate all the expressions as far as possible.
       list<NetExpr*> exprs;
       list<long> exprs_const;
       indices_flags flags;
       indices_to_expressions(des, scope, loc, indices,
-                             net->packed_dimensions(),
+                             pdims.size(),
                              false, flags, exprs, exprs_const);
-      ivl_assert(*loc, exprs.size() == net->packed_dimensions());
+      if (exprs.size() != pdims.size())
+	    return 0;
 
-	// Special Case: there is only 1 packed dimension, so the
-	// single expression should already be naturally canonical.
-      if (net->slice_width(1) == 1) {
-	    return *exprs.begin();
-      }
-
-      const netranges_t&pdims = net->packed_dims();
       netranges_t::const_iterator pcur = pdims.begin();
 
       list<NetExpr*>::iterator ecur = exprs.begin();
       NetExpr* base = 0;
-      for (size_t idx = 0 ; idx < net->packed_dimensions() ; idx += 1, ++pcur, ++ecur) {
-	    unsigned cur_slice_width = net->slice_width(idx+1);
+      for (size_t idx = 0 ; idx < pdims.size() ; idx += 1, ++pcur, ++ecur) {
+	    unsigned long cur_slice_width = slice_width_of_dims_(pdims, idx+1);
 	    long lsb = pcur->get_lsb();
 	    long msb = pcur->get_msb();
 	      // This normalizes the expression of this index based on
@@ -2056,7 +2066,7 @@ NetExpr*collapse_array_exprs(Design*des, NetScope*scope,
 						  cur_slice_width, msb > lsb);
 
 	      // If this slice has width, then scale it.
-	    if (net->slice_width(idx+1) != 1) {
+	    if (cur_slice_width != 1) {
 		  unsigned min_wid = tmp->expr_width();
 		  if (num_bits(cur_slice_width) >= min_wid) {
 			min_wid = num_bits(cur_slice_width)+1;
@@ -2075,6 +2085,180 @@ NetExpr*collapse_array_exprs(Design*des, NetScope*scope,
       }
 
       return base;
+}
+
+/*
+ * Evaluate the indices. The chain of indices are applied to the
+ * packed indices of a NetNet to generate a canonical expression to
+ * replace the exprs.
+ */
+NetExpr*collapse_array_exprs(Design*des, NetScope*scope,
+			     const LineInfo*loc, const NetNet*net,
+			     const list<index_component_t>&indices)
+{
+	// Special Case: there is only 1 packed dimension, so the
+	// single expression should already be naturally canonical.
+	// (Preserved from the original NetNet-based implementation;
+	// the general dimension-list core always normalizes.)
+      if (net->slice_width(1) == 1) {
+	    list<NetExpr*> exprs;
+	    list<long> exprs_const;
+	    indices_flags flags;
+	    indices_to_expressions(des, scope, loc, indices,
+				   net->packed_dimensions(),
+				   false, flags, exprs, exprs_const);
+	    ivl_assert(*loc, exprs.size() == net->packed_dimensions());
+	    return *exprs.begin();
+      }
+
+      return collapse_dims_exprs(des, scope, loc, net->packed_dims(), indices);
+}
+
+/*
+ * Canonical select into a PACKED MEMBER (recovery C4): translate an
+ * index chain -- SEL_BIT element indices in any dimension, constant
+ * or run-time, plus an optional trailing part-select -- into one
+ * member-relative canonical bit offset. The trailing part forms are
+ * rewritten as the SEL_BIT index of their lowest-canonical-position
+ * bit ([m:l] needs constant bounds; [b +: w]/[b -: w] need only a
+ * constant WIDTH, the base may be a run-time expression), then the
+ * whole chain goes through the same dimension collapse every other
+ * packed select uses.
+ */
+bool collapse_packed_member_indices(Design*des, NetScope*scope,
+				    const LineInfo*loc,
+				    const netranges_t&pdims,
+				    const list<index_component_t>&indices,
+				    NetExpr*&off_expr,
+				    unsigned long&sel_wid)
+{
+      off_expr = 0;
+      sel_wid = 0;
+
+      size_t ndims = pdims.size();
+      if (indices.empty() || indices.size() > ndims) {
+	    cerr << loc->get_fileline() << ": error: Got "
+		 << indices.size() << " index expressions for a member"
+		 << " with " << ndims << " packed dimension(s)." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      size_t k = indices.size();
+      const index_component_t&tail = indices.front(),
+			     &tail_back = indices.back();
+      (void)tail;
+
+	// The dimension the trailing component indexes, for direction
+	// and part-form rewriting.
+      netranges_t::const_iterator tdim = pdims.begin();
+      for (size_t idx = 0 ; idx + 1 < k ; idx += 1)
+	    ++tdim;
+      bool tdesc = tdim->get_msb() >= tdim->get_lsb();
+
+      list<index_component_t> use_index = indices;
+      unsigned long unit_count = 1;
+
+      switch (tail_back.sel) {
+	  case index_component_t::SEL_BIT:
+	    break;
+
+	  case index_component_t::SEL_PART: {
+		  // Constant bounds by definition (11.5.1).
+		long m, l;
+		NetExpr*me = elab_and_eval(des, scope, tail_back.msb, -1, true);
+		NetExpr*le = elab_and_eval(des, scope, tail_back.lsb, -1, true);
+		bool ok = me && le && eval_as_long(m, me) && eval_as_long(l, le);
+		delete me;
+		delete le;
+		if (!ok) {
+		      cerr << loc->get_fileline() << ": error: Part-select"
+			   << " bounds must be constant." << endl;
+		      des->errors += 1;
+		      return false;
+		}
+		unit_count = (unsigned long)(m >= l ? m - l : l - m) + 1;
+		long lo_decl = tdesc ? (m <= l ? m : l) : (m >= l ? m : l);
+		index_component_t rep;
+		rep.sel = index_component_t::SEL_BIT;
+		rep.msb = new PENumber(new verinum((uint64_t)lo_decl, integer_width));
+		rep.lsb = 0;
+		use_index.back() = rep;
+		break;
+	    }
+
+	  case index_component_t::SEL_IDX_UP:
+	  case index_component_t::SEL_IDX_DO: {
+		  // Width must be constant; the base may be run-time.
+		long w;
+		NetExpr*we = elab_and_eval(des, scope, tail_back.lsb, -1, true);
+		bool ok = we && eval_as_long(w, we) && w > 0;
+		delete we;
+		if (!ok) {
+		      cerr << loc->get_fileline() << ": error: Indexed"
+			   << " part-select width must be a positive"
+			   << " constant." << endl;
+		      des->errors += 1;
+		      return false;
+		}
+		unit_count = (unsigned long)w;
+
+		  // The lowest-canonical-position DECLARED index of the
+		  // covered range [b..b+w-1] (+:) or [b-w+1..b] (-:):
+		  //   descending range: the smallest declared index;
+		  //   ascending range:  the largest declared index.
+		bool base_is_low =
+		      (tail_back.sel == index_component_t::SEL_IDX_UP)
+		      ? tdesc : !tdesc;
+		index_component_t rep;
+		rep.sel = index_component_t::SEL_BIT;
+		if (w == 1 || base_is_low) {
+		      rep.msb = tail_back.msb;
+		} else {
+		      PExpr*adj = new PENumber(
+			    new verinum((uint64_t)(w - 1), integer_width));
+		      rep.msb = new PEBinary(
+			    (tail_back.sel == index_component_t::SEL_IDX_UP)
+				  ? '+' : '-',
+			    tail_back.msb, adj);
+		}
+		rep.lsb = 0;
+		use_index.back() = rep;
+		break;
+	    }
+
+	  default:
+	    cerr << loc->get_fileline() << ": sorry: this select form is"
+		 << " not supported on a packed member." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+	// Pad out to the full dimensionality: a chain that stops short
+	// addresses the START of the remaining slice.
+      while (use_index.size() < ndims) {
+	    index_component_t pad;
+	    pad.sel = index_component_t::SEL_BIT;
+	    pad.msb = new PENumber(new verinum((uint64_t)0, integer_width));
+	    pad.lsb = 0;
+	    use_index.push_back(pad);
+      }
+
+      sel_wid = unit_count * slice_width_of_dims_(pdims, k);
+      off_expr = collapse_dims_exprs(des, scope, loc, pdims, use_index);
+      if (!off_expr) {
+	    cerr << loc->get_fileline() << ": error: Unable to evaluate"
+		 << " the member index expressions." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+      eval_expr(off_expr, -1);
+      return true;
+}
+
+NetExpr*make_packed_offset_sum(const LineInfo*loc, NetExpr*a, NetExpr*b)
+{
+      return make_add_expr(loc, a, b);
 }
 
 /*
