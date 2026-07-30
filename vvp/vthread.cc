@@ -19280,6 +19280,18 @@ static bool store_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       return true;
 }
 
+/*
+ * %store/qobj/obj <var-label>, <max-idx>
+ * Whole-container assignment into a queue of objects. Copies the
+ * source elements into the destination queue (value semantics per
+ * IEEE 1800-2017 7.9.9); the per-element policy in copy_elems keeps
+ * class handles shared while containers and structs copy by value.
+ */
+bool of_STORE_QOBJ_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return store_qobj<vvp_object_t, vvp_queue_object>(thr, cp);
+}
+
 bool of_STORE_QOBJ_R(vthread_t thr, vvp_code_t cp)
 {
       return store_qobj<double, vvp_queue_real>(thr, cp);

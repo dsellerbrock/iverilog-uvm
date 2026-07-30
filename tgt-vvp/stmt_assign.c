@@ -1612,16 +1612,27 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
 		    var, ivl_stmt_file(net), ivl_stmt_lineno(net),
 		    ivl_signal_basename(var));
 
-      } else if (ivl_expr_type(rval) == IVL_EX_SIGNAL) {
+      } else if (ivl_expr_type(rval) == IVL_EX_SIGNAL
+		 || ivl_expr_type(rval) == IVL_EX_PROPERTY) {
 	    assert(ivl_stmt_opcode(net) == 0);
 
 	    // There is no l-value mux, and the r-value expression is
-	    // a "signal" expression. Store a duplicate into the lvalue
-	    // By using the %dup/obj. Remember to pop the rvalue that
-	    // is no longer needed.
+	    // a "signal" (or class-property) expression, i.e. a live
+	    // handle to existing storage. Store a duplicate into the
+	    // lvalue by using the %dup/obj. Remember to pop the rvalue
+	    // that is no longer needed.
+	    //
+	    // A whole fixed-array struct member passed to an open-array
+	    // formal still needs the /open store so the DUPLICATE adopts
+	    // the actual's declared-index view (the range metadata rides
+	    // along on the duplicate).
+	    int fixed_open_actual =
+		  ivl_signal_port(var) != IVL_SIP_NONE
+		  && vvp_expr_is_whole_fixed_array_property(rval);
 	    errors += draw_eval_object(rval);
 	    fprintf(vvp_out, "    %%dup/obj;\n");
-	    fprintf(vvp_out, "    %%store/obj v%p_0; %s:%u: %s = <signal>\n",
+	    fprintf(vvp_out, "    %%store/obj%s v%p_0; %s:%u: %s = <signal>\n",
+		    fixed_open_actual ? "/open" : "",
 		    var, ivl_stmt_file(net), ivl_stmt_lineno(net),
 		    ivl_signal_basename(var));
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
@@ -1986,9 +1997,14 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 		       ivl_type_base(element_type) == IVL_VT_DARRAY ||
 		       ivl_type_base(element_type) == IVL_VT_QUEUE ||
 		       ivl_type_base(element_type) == IVL_VT_NO_TYPE) {
-		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
+		    /* A plain %store/obj here would alias the whole
+		       container (and its elements) instead of copying
+		       (recovery D11). Copy element-wise like the other
+		       element kinds; the runtime element policy keeps
+		       class handles shared. */
+		  fprintf(vvp_out, "    %%store/qobj/obj v%p_0, %d;\n", var, idx);
 	    } else {
-		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
+		  fprintf(vvp_out, "    %%store/qobj/obj v%p_0, %d;\n", var, idx);
 	    }
       }
       clr_word(idx);

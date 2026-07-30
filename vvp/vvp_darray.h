@@ -90,6 +90,21 @@ class vvp_darray : public vvp_object {
       void set_elem_class(const class class_type*t) { elem_class_ = t; }
       const class class_type* elem_class() const { return elem_class_; }
 
+    protected:
+	// Carry passive per-object metadata onto a value copy: the
+	// declared fixed-range view (a duplicate of a marshaled
+	// fixed-array actual describes the same geometry) and the
+	// struct-element prototype. The declared-indexing ACTIVATION
+	// flag is deliberately not copied — it is scoped to an
+	// open-array formal installation (%store/obj/open) and a plain
+	// dynamic-array copy is 0-based (IEEE 1800-2017 7.5).
+      void copy_value_metadata_(vvp_darray*that) const
+      {
+	    if (dpi_has_range_)
+		  that->dpi_set_decl_range(dpi_left_, dpi_right_);
+	    that->elem_class_ = elem_class_;
+      }
+
     private:
       int  dpi_left_  = 0;
       int  dpi_right_ = 0;

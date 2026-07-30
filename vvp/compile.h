@@ -636,6 +636,7 @@ extern void delete_udp_symbols(void);
 
 extern void compile_class_start(char*lab, char*nam, char*dispatch_prefix,
                                 char*super_dispatch_prefix, unsigned nprop);
+extern void compile_class_mark_struct(void);
 extern void compile_class_property(
       unsigned idx, char*nam, char*typ,
       std::vector<std::pair<int,int> >*dimensions);

@@ -21,9 +21,12 @@ program main;
       obj.a = 'hf_ff;
       obj.b = new[2];
 
-      tmp = obj.b;
-      tmp[0] = 0;
-      tmp[1] = 1;
+      // Write the property elements directly. (This test used to write
+      // through `tmp' after `tmp = obj.b' and expect the writes to show
+      // up in obj.b -- but IEEE 1800-2017 7.6 says dynamic-array
+      // assignment COPIES the elements, so tmp is an independent array.)
+      obj.b[0] = 0;
+      obj.b[1] = 1;
 
       if (obj.a != -1) begin
 	 $display("FAILED -- assign to object: obj.a=%0d", obj.a);
@@ -38,6 +41,14 @@ program main;
       end
       if (tmp[0] != 0 || tmp[1] != 1) begin
 	 $display("FAILED -- obj.b[0]=%0d, obj.b[1]=%0d", tmp[0], tmp[1]);
+	 $finish;
+      end
+
+      // And the copy really is a copy: mutating it must not write
+      // through to the property (IEEE 1800-2017 7.6).
+      tmp[0] = 42;
+      if (obj.b[0] != 0) begin
+	 $display("FAILED -- copy aliased the property: obj.b[0]=%0d", obj.b[0]);
 	 $finish;
       end
 

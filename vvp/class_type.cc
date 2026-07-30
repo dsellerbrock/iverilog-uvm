@@ -445,6 +445,33 @@ class property_object : public class_property_t {
       size_t array_size_;
 };
 
+/* A dynamic-array property is a VALUE (IEEE 1800-2017 7.5): copying
+   the enclosing object must copy the container, not alias it
+   (recovery D2). Storage-wise identical to property_object -- the slot
+   starts nil (a darray is null until new[n]) -- only copy() differs. */
+class property_darray : public property_object {
+    public:
+      inline explicit property_darray(uint64_t as)
+      : property_object(as), array_size_(as==0? 1 : as) { }
+
+      void copy(char*dst, char*src) override
+      {
+	    vvp_object_t*dst_obj = reinterpret_cast<vvp_object_t*>(dst+offset_);
+	    const vvp_object_t*src_obj = reinterpret_cast<vvp_object_t*>(src+offset_);
+	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1) {
+		  if (src_obj[idx].test_nil())
+			dst_obj[idx].reset();
+		  else if (src_obj[idx].peek<vvp_darray>())
+			dst_obj[idx] = src_obj[idx].duplicate();
+		  else
+			dst_obj[idx] = src_obj[idx];
+	    }
+      }
+
+    private:
+      size_t array_size_;
+};
+
 class property_cobject : public class_property_t {
     public:
       inline explicit property_cobject(uint64_t as)
@@ -1104,7 +1131,7 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 	    properties_[idx].type = prop;
       }
       else if (!t.empty() && t[0] == 'D')
-	    properties_[idx].type = new property_object(array_size);
+	    properties_[idx].type = new property_darray(array_size);
       else if (t == "Qr")
 	    properties_[idx].type = new property_queue<vvp_queue_real>(array_size);
       else if (t == "QS")
@@ -1472,6 +1499,12 @@ void compile_class_start(char*lab, char*nam, char*dispatch_prefix,
       delete[]nam;
       delete[]dispatch_prefix;
       delete[]super_dispatch_prefix;
+}
+
+void compile_class_mark_struct(void)
+{
+      assert(compile_class);
+      compile_class->set_struct_type();
 }
 
 void compile_class_property(unsigned idx, char*nam, char*typ,

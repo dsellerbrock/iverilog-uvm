@@ -117,6 +117,12 @@ class vvp_object_t {
       inline vvp_object_t duplicate(void) const
           { return vvp_object_t(ref_->duplicate()); }
 
+	/* Value-copy policy for one CONTAINER ELEMENT (IEEE 1800-2017
+	   7.5/7.9/7.10): containers (darrays, queues, assoc arrays) and
+	   struct-typed objects copy BY VALUE; class objects copy as
+	   handles; nil stays nil. Implemented in vvp_darray.cc. */
+      vvp_object_t value_copy_element(void) const;
+
       template <class T> T*peek(void) const;
 
     private:

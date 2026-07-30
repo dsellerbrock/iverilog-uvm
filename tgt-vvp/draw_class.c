@@ -85,7 +85,7 @@ static void emit_struct_cobject_definition_(ivl_type_t struct_type)
       if (!name)
 	    name = "";
 
-      fprintf(vvp_out, "C%p  .class \"%s\" [%d]\n",
+      fprintf(vvp_out, "C%p  .class/struct \"%s\" [%d]\n",
 	      struct_type, name, ivl_type_properties(struct_type));
       for (idx = 0 ; idx < ivl_type_properties(struct_type) ; idx += 1) {
 	    ivl_type_t ptype = ivl_type_prop_type(struct_type, idx);
@@ -295,7 +295,18 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    emit_struct_cobject_dependencies_(ivl_type_prop_type(classtype, idx));
       }
 
-      if (dispatch_prefix && *dispatch_prefix
+      if (classtype && ivl_type_base(classtype) == IVL_VT_NO_TYPE) {
+	      /* A synthetic struct cobject: the /struct marker drives the
+	         runtime element-copy policy (structs copy by value inside
+	         containers; real class handles stay shared). Struct types
+	         reached as property dependencies get the marker from
+	         emit_struct_cobject_definition_; this is the same form for
+	         struct types emitted by the scope walk. */
+	    const char*name = ivl_type_name(classtype);
+	    fprintf(vvp_out, "C%p  .class/struct \"%s\" [%d]\n",
+		    classtype, name ? name : "",
+		    ivl_type_properties(classtype));
+      } else if (dispatch_prefix && *dispatch_prefix
           && super_dispatch_prefix && *super_dispatch_prefix) {
 	    fprintf(vvp_out, "C%p  .class \"%s\" \"%s\" \"%s\" [%d]\n",
 		    classtype, ivl_type_name(classtype), dispatch_prefix,
