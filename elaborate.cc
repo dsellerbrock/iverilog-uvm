@@ -8641,14 +8641,102 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
       }
 
       NetNet*sig = 0;
+	/* Storage INSIDE a variable that the runtime can address as a
+	   true reference (R25): a class property, a dynamic-array or
+	   queue element, or a static-array word. Types whose access
+	   opcodes are delegated generically (packed integral, real,
+	   class handle); a string formal is never bound at all (see
+	   ref_formal_is_bound) so it cannot reach here. */
+      bool inside_ok = false;
+      switch (port->data_type()) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	  case IVL_VT_REAL:
+	    inside_ok = true;
+	    break;
+	  case IVL_VT_CLASS:
+	    inside_ok = dynamic_cast<const netclass_t*>(port->net_type()) != 0;
+	    break;
+	  default:
+	    break;
+      }
+
       if (NetAssign_*lv = actual->elaborate_lval(des, scope, false, false)) {
 	      /* Only a whole variable can be named. Anything with a word
 		 index, a part select, a property or a slice designates
 		 storage inside a variable, which %ref/bind cannot
-		 address. */
+		 address -- but the addressed bind forms below can. */
 	    if (lv->word() == 0 && lv->get_base() == 0
 		&& lv->get_property_idx() < 0 && !lv->is_array_slice())
 		  sig = lv->sig();
+
+	      /* A class property: o.p (single hop, the whole property). */
+	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
+		&& lv->get_property_idx() >= 0
+		&& lv->word() == 0 && lv->get_base() == 0
+		&& !lv->is_array_slice()) {
+		  NetESignal*formal_e = new NetESignal(port);
+		  formal_e->set_line(*this);
+		  NetESignal*obj_e = new NetESignal(lv->sig());
+		  obj_e->set_line(*this);
+		  NetEConst*pid_e = new NetEConst(
+			verinum((uint64_t)lv->get_property_idx(), 32));
+		  pid_e->set_line(*this);
+		  vector<NetExpr*> argv(3);
+		  argv[0] = formal_e;
+		  argv[1] = obj_e;
+		  argv[2] = pid_e;
+		  NetSTask*bind = new NetSTask("$ivl_ref_bind_prop",
+					       IVL_SFUNC_AS_TASK_IGNORE, argv);
+		  bind->set_line(*this);
+		  delete lv;
+		  return bind;
+	    }
+
+	      /* An element of a dynamic array or queue: da[i], q[i]. */
+	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
+		&& lv->word() != 0 && lv->get_base() == 0
+		&& lv->get_property_idx() < 0 && !lv->is_array_slice()
+		&& lv->sig()->darray_type() != 0) {
+		  NetESignal*formal_e = new NetESignal(port);
+		  formal_e->set_line(*this);
+		  NetESignal*cont_e = new NetESignal(lv->sig());
+		  cont_e->set_line(*this);
+		  vector<NetExpr*> argv(3);
+		  argv[0] = formal_e;
+		  argv[1] = cont_e;
+		  argv[2] = lv->word()->dup_expr();
+		  NetSTask*bind = new NetSTask("$ivl_ref_bind_elem",
+					       IVL_SFUNC_AS_TASK_IGNORE, argv);
+		  bind->set_line(*this);
+		  delete lv;
+		  return bind;
+	    }
+
+	      /* A word of a static unpacked array: arr[i]. Automatic
+		 arrays live per-frame and have no run-time array object
+		 to address, so they keep the copy pair. */
+	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
+		&& lv->word() != 0 && lv->get_base() == 0
+		&& lv->get_property_idx() < 0 && !lv->is_array_slice()
+		&& lv->sig()->darray_type() == 0
+		&& lv->sig()->unpacked_dimensions() > 0
+		&& !lv->sig()->scope()->is_auto()) {
+		  NetESignal*formal_e = new NetESignal(port);
+		  formal_e->set_line(*this);
+		  NetESignal*arr_e = new NetESignal(lv->sig());
+		  arr_e->set_line(*this);
+		  vector<NetExpr*> argv(3);
+		  argv[0] = formal_e;
+		  argv[1] = arr_e;
+		  argv[2] = lv->word()->dup_expr();
+		  NetSTask*bind = new NetSTask("$ivl_ref_bind_word",
+					       IVL_SFUNC_AS_TASK_IGNORE, argv);
+		  bind->set_line(*this);
+		  delete lv;
+		  return bind;
+	    }
+
 	    delete lv;
       }
 
@@ -8681,6 +8769,43 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 				   IVL_SFUNC_AS_TASK_IGNORE, argv);
       bind->set_line(*this);
       return bind;
+}
+
+/* R25 companion path: an actual that cannot be reference-bound (an
+   array element, class property, container element, or part select) is
+   copied through a temporary, with the copy-out at the call's return.
+   When the callee lexically contains a detached fork, a branch that
+   writes the formal AFTER the return loses the write -- silently, from
+   the user's point of view. Until such actuals are truly bound, say so
+   at the exact call site. (The declared-type warning in
+   PTask::elaborate_sig covers formals that are never bound at all;
+   this one covers per-call-site fallbacks of otherwise-bound formals.) */
+static void warn_ref_companion_fork_hazard_(const LineInfo*call_loc,
+                                            const NetNet*port,
+                                            const NetBaseDef*def)
+{
+      const NetScope*tscope = def ? def->scope() : 0;
+      if (tscope == 0)
+	    return;
+      const Statement*body = 0;
+      if (tscope->type() == NetScope::TASK && tscope->task_pform())
+	    body = tscope->task_pform()->get_statement();
+      else if (tscope->type() == NetScope::FUNC && tscope->func_pform())
+	    body = tscope->func_pform()->get_statement();
+      if (!body || !body->contains_detached_fork())
+	    return;
+
+      cerr << call_loc->get_fileline() << ": warning: the actual for `ref' "
+	   << "formal `" << port->name() << "' cannot be reference-bound "
+	   << "(it is storage inside a variable: an array element, class "
+	   << "property, container element or part select), so this call "
+	   << "COPIES it in and out through a temporary. The called "
+	   << "subroutine contains a detached fork (join_none/join_any): "
+	   << "a write to `" << port->name() << "' from a branch that is "
+	   << "still running when the subroutine returns is LOST -- the "
+	   << "copy-out back to the actual runs at return, but IEEE "
+	   << "1800-2017 13.5.2 binds the actual itself for the reference's "
+	   << "lifetime." << endl;
 }
 
 NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
@@ -8901,6 +9026,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  ref_bound[idx] = (via == 0);
 		  if (via == 0)
 			continue;
+		  warn_ref_companion_fork_hazard_(this, port, def);
 	    }
 
 	    if (port->port_type() == NetNet::POUTPUT

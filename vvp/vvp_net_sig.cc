@@ -610,11 +610,32 @@ void vvp_fun_signal4_aa::operator delete(void*)
 namespace {
 struct ref_aa_slot {
       static const unsigned MAGIC = 0x52454621u; // "REF!"
+	/* What this frame's formal is bound to. REF_NET is the ordinary
+	   whole-variable binding; the others are storage INSIDE a
+	   variable (R25): a class property, a dynamic-array/queue
+	   element, or a fixed-array word. */
+      enum kind_t { REF_NET = 0, REF_PROP, REF_ELEM, REF_WORD };
       unsigned magic;
-      vvp_net_t*target;
+      kind_t kind;
+      vvp_net_t*target;        // REF_NET: the net; REF_ELEM: the container variable's net
       vvp_context_t caller_ctx;
+      vvp_object_t obj;        // REF_PROP: the receiver (a strong handle)
+      unsigned prop_id;        // REF_PROP
+      int64_t index;           // REF_ELEM / REF_WORD
+      struct __vpiArray*arr;   // REF_WORD
 
-      ref_aa_slot() : magic(MAGIC), target(0), caller_ctx(0) { }
+      ref_aa_slot() : magic(MAGIC), kind(REF_NET), target(0), caller_ctx(0),
+                      prop_id(0), index(0), arr(0) { }
+      void clear()
+      {
+            kind = REF_NET;
+            target = 0;
+            caller_ctx = 0;
+            obj = vvp_object_t();
+            prop_id = 0;
+            index = 0;
+            arr = 0;
+      }
 };
 
 static ref_aa_slot* ref_aa_slot_from_raw(void*raw)
@@ -668,8 +689,7 @@ void vvp_ref_signal_aa::reset_instance(vvp_context_t context)
             vvp_set_context_item(context, context_idx_, slot);
             return;
       }
-      slot->target = 0;
-      slot->caller_ctx = 0;
+      slot->clear();
 }
 
 #ifdef CHECK_WITH_VALGRIND
@@ -701,29 +721,25 @@ void vvp_ref_signal_aa::bind(vvp_net_t*net, bool in_frame)
       if (chain) {
             ref_aa_slot*outer = ref_slot_(chain->context_idx_, chain->context_scope_);
             if (outer) {
+                  slot->kind = outer->kind;
                   slot->target = outer->target;
                   slot->caller_ctx = outer->caller_ctx;
+                  slot->obj = outer->obj;
+                  slot->prop_id = outer->prop_id;
+                  slot->index = outer->index;
+                  slot->arr = outer->arr;
                   return;
             }
       }
 
+      slot->clear();
       slot->target = net;
       slot->caller_ctx = in_frame ? frame : vthread_get_rd_context();
 }
 
-bool vvp_ref_signal_aa::read_binding(vvp_net_t*&tgt, vvp_context_t&ctx) const
+void vvp_ref_signal_aa::bind_prop(const vvp_object_t&obj, unsigned pid)
 {
-      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
-      if (!slot || !slot->target) return false;
-
-      tgt = slot->target;
-      ctx = slot->caller_ctx;
-      return true;
-}
-
-void vvp_ref_signal_aa::write_binding(vvp_context_t frame, vvp_net_t*tgt,
-                                      vvp_context_t ctx)
-{
+      vvp_context_t frame = vthread_get_wt_context();
       if (!frame) return;
 
       ref_aa_slot*slot =
@@ -732,14 +748,45 @@ void vvp_ref_signal_aa::write_binding(vvp_context_t frame, vvp_net_t*tgt,
             slot = new ref_aa_slot;
             vvp_set_context_item(frame, context_idx_, slot);
       }
-      slot->target = tgt;
-      slot->caller_ctx = ctx;
+      slot->clear();
+      slot->kind = ref_aa_slot::REF_PROP;
+      slot->obj = obj;
+      slot->prop_id = pid;
 }
 
-vvp_net_t*vvp_ref_signal_aa::target() const
+void vvp_ref_signal_aa::bind_elem(vvp_net_t*container, int64_t index)
 {
-      ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
-      return slot ? slot->target : 0;
+      vvp_context_t frame = vthread_get_wt_context();
+      if (!frame) return;
+
+      ref_aa_slot*slot =
+            ref_aa_slot_from_raw(vvp_get_context_item(frame, context_idx_));
+      if (!slot) {
+            slot = new ref_aa_slot;
+            vvp_set_context_item(frame, context_idx_, slot);
+      }
+      slot->clear();
+      slot->kind = ref_aa_slot::REF_ELEM;
+      slot->target = container;
+      slot->caller_ctx = vthread_get_rd_context();
+      slot->index = index;
+}
+
+void vvp_ref_signal_aa::bind_word(struct __vpiArray*arr, unsigned index)
+{
+      vvp_context_t frame = vthread_get_wt_context();
+      if (!frame) return;
+
+      ref_aa_slot*slot =
+            ref_aa_slot_from_raw(vvp_get_context_item(frame, context_idx_));
+      if (!slot) {
+            slot = new ref_aa_slot;
+            vvp_set_context_item(frame, context_idx_, slot);
+      }
+      slot->clear();
+      slot->kind = ref_aa_slot::REF_WORD;
+      slot->arr = arr;
+      slot->index = index;
 }
 
   /* One delegated access: put the caller's frame back for the duration
@@ -758,11 +805,282 @@ class ref_delegate_ {
 };
 }
 
+  /* Inside-storage accessors (REF_PROP / REF_ELEM / REF_WORD). Each
+     write goes straight to the CURRENT storage and each read fetches
+     the CURRENT value, so a resize of a bound container or a change
+     made directly through the underlying variable is always honoured.
+     An out-of-range element index reads the type default and drops the
+     write, matching a direct out-of-range element access. */
+namespace {
+
+static vvp_cobject* ref_prop_receiver_(const ref_aa_slot*slot)
+{
+      return slot->obj.peek<vvp_cobject>();
+}
+
+  /* The current container held by the bound variable, fetched per
+     access through the container variable's own object functor. */
+static vvp_darray* ref_elem_container_(const ref_aa_slot*slot)
+{
+      if (!slot->target) return 0;
+      vvp_fun_signal_object*fun =
+            dynamic_cast<vvp_fun_signal_object*> (slot->target->fun);
+      if (!fun)
+            fun = dynamic_cast<vvp_fun_signal_object*> (slot->target->fil);
+      if (!fun) return 0;
+      vvp_object_t cont = fun->peek_object();
+      return cont.peek<vvp_darray>();
+}
+
+static bool ref_inside_write_vec4_(ref_aa_slot*slot, const vvp_vector4_t&bit)
+{
+      switch (slot->kind) {
+          case ref_aa_slot::REF_PROP:
+            if (vvp_cobject*c = ref_prop_receiver_(slot))
+                  c->set_vec4(slot->prop_id, bit);
+            return true;
+          case ref_aa_slot::REF_ELEM: {
+            ref_delegate_ hold (slot);
+            if (slot->index >= 0)
+                  if (vvp_darray*d = ref_elem_container_(slot))
+                        d->set_word((unsigned)slot->index, bit);
+            return true;
+          }
+          case ref_aa_slot::REF_WORD:
+            if (slot->arr)
+                  slot->arr->set_word(slot->index, 0, bit);
+            return true;
+          default:
+            return false;
+      }
+}
+
+static bool ref_inside_write_real_(ref_aa_slot*slot, double bit)
+{
+      switch (slot->kind) {
+          case ref_aa_slot::REF_PROP:
+            if (vvp_cobject*c = ref_prop_receiver_(slot))
+                  c->set_real(slot->prop_id, bit);
+            return true;
+          case ref_aa_slot::REF_ELEM: {
+            ref_delegate_ hold (slot);
+            if (slot->index >= 0)
+                  if (vvp_darray*d = ref_elem_container_(slot))
+                        d->set_word((unsigned)slot->index, bit);
+            return true;
+          }
+          case ref_aa_slot::REF_WORD:
+            if (slot->arr)
+                  slot->arr->set_word(slot->index, bit);
+            return true;
+          default:
+            return false;
+      }
+}
+
+static bool ref_inside_write_string_(ref_aa_slot*slot, const std::string&bit)
+{
+      switch (slot->kind) {
+          case ref_aa_slot::REF_PROP:
+            if (vvp_cobject*c = ref_prop_receiver_(slot))
+                  c->set_string(slot->prop_id, bit);
+            return true;
+          case ref_aa_slot::REF_ELEM: {
+            ref_delegate_ hold (slot);
+            if (slot->index >= 0)
+                  if (vvp_darray*d = ref_elem_container_(slot))
+                        d->set_word((unsigned)slot->index, bit);
+            return true;
+          }
+          case ref_aa_slot::REF_WORD:
+            if (slot->arr)
+                  slot->arr->set_word(slot->index, bit);
+            return true;
+          default:
+            return false;
+      }
+}
+
+static bool ref_inside_write_object_(ref_aa_slot*slot, const vvp_object_t&bit)
+{
+      switch (slot->kind) {
+          case ref_aa_slot::REF_PROP:
+            if (vvp_cobject*c = ref_prop_receiver_(slot))
+                  c->set_object(slot->prop_id, bit, 0);
+            return true;
+          case ref_aa_slot::REF_ELEM: {
+            ref_delegate_ hold (slot);
+            if (slot->index >= 0)
+                  if (vvp_darray*d = ref_elem_container_(slot))
+                        d->set_word((unsigned)slot->index, bit);
+            return true;
+          }
+          case ref_aa_slot::REF_WORD:
+            if (slot->arr)
+                  slot->arr->set_word(slot->index, bit);
+            return true;
+          default:
+            return false;
+      }
+}
+
+static bool ref_inside_read_vec4_(const ref_aa_slot*slot, unsigned wid,
+                                  vvp_vector4_t&val)
+{
+      switch (slot->kind) {
+          case ref_aa_slot::REF_PROP:
+            if (vvp_cobject*c = ref_prop_receiver_(slot))
+                  c->get_vec4(slot->prop_id, val);
+            else
+                  val = vvp_vector4_t(wid, BIT4_X);
+            return true;
+          case ref_aa_slot::REF_ELEM: {
+            ref_delegate_ hold (slot);
+            val = vvp_vector4_t(wid, BIT4_X);
+            if (slot->index >= 0)
+                  if (vvp_darray*d = ref_elem_container_(slot))
+                        d->get_word((unsigned)slot->index, val);
+            return true;
+          }
+          case ref_aa_slot::REF_WORD:
+            if (slot->arr)
+                  val = slot->arr->get_word(slot->index);
+            else
+                  val = vvp_vector4_t(wid, BIT4_X);
+            return true;
+          default:
+            return false;
+      }
+}
+
+static bool ref_inside_read_real_(const ref_aa_slot*slot, double&val)
+{
+      switch (slot->kind) {
+          case ref_aa_slot::REF_PROP:
+            if (vvp_cobject*c = ref_prop_receiver_(slot))
+                  val = c->get_real(slot->prop_id);
+            else
+                  val = 0.0;
+            return true;
+          case ref_aa_slot::REF_ELEM: {
+            ref_delegate_ hold (slot);
+            val = 0.0;
+            if (slot->index >= 0)
+                  if (vvp_darray*d = ref_elem_container_(slot))
+                        d->get_word((unsigned)slot->index, val);
+            return true;
+          }
+          case ref_aa_slot::REF_WORD:
+            val = slot->arr ? slot->arr->get_word_r(slot->index) : 0.0;
+            return true;
+          default:
+            return false;
+      }
+}
+
+static bool ref_inside_read_string_(const ref_aa_slot*slot, std::string&val)
+{
+      switch (slot->kind) {
+          case ref_aa_slot::REF_PROP:
+            if (vvp_cobject*c = ref_prop_receiver_(slot))
+                  val = c->get_string(slot->prop_id);
+            else
+                  val = "";
+            return true;
+          case ref_aa_slot::REF_ELEM: {
+            ref_delegate_ hold (slot);
+            val = "";
+            if (slot->index >= 0)
+                  if (vvp_darray*d = ref_elem_container_(slot))
+                        d->get_word((unsigned)slot->index, val);
+            return true;
+          }
+          case ref_aa_slot::REF_WORD:
+            val = slot->arr ? slot->arr->get_word_str(slot->index) : "";
+            return true;
+          default:
+            return false;
+      }
+}
+
+static bool ref_inside_read_object_(const ref_aa_slot*slot, vvp_object_t&val)
+{
+      switch (slot->kind) {
+          case ref_aa_slot::REF_PROP:
+            if (vvp_cobject*c = ref_prop_receiver_(slot))
+                  c->get_object(slot->prop_id, val, 0);
+            else
+                  val = vvp_object_t();
+            return true;
+          case ref_aa_slot::REF_ELEM: {
+            ref_delegate_ hold (slot);
+            val = vvp_object_t();
+            if (slot->index >= 0)
+                  if (vvp_darray*d = ref_elem_container_(slot))
+                        d->get_word((unsigned)slot->index, val);
+            return true;
+          }
+          case ref_aa_slot::REF_WORD:
+            val = vvp_object_t();
+            if (slot->arr)
+                  slot->arr->get_word_obj(slot->index, val);
+            return true;
+          default:
+            return false;
+      }
+}
+
+}
+
+bool vvp_ref_signal_aa::read_binding(binding_t&out) const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (!slot) return false;
+      if (slot->kind == ref_aa_slot::REF_NET && !slot->target) return false;
+
+      out.kind = slot->kind;
+      out.target = slot->target;
+      out.caller_ctx = slot->caller_ctx;
+      out.obj = slot->obj;
+      out.prop_id = slot->prop_id;
+      out.index = slot->index;
+      out.arr = slot->arr;
+      return true;
+}
+
+void vvp_ref_signal_aa::write_binding(vvp_context_t frame, const binding_t&in)
+{
+      if (!frame) return;
+
+      ref_aa_slot*slot =
+            ref_aa_slot_from_raw(vvp_get_context_item(frame, context_idx_));
+      if (!slot) {
+            slot = new ref_aa_slot;
+            vvp_set_context_item(frame, context_idx_, slot);
+      }
+      slot->kind = static_cast<ref_aa_slot::kind_t>(in.kind);
+      slot->target = in.target;
+      slot->caller_ctx = in.caller_ctx;
+      slot->obj = in.obj;
+      slot->prop_id = in.prop_id;
+      slot->index = in.index;
+      slot->arr = in.arr;
+}
+
+vvp_net_t*vvp_ref_signal_aa::target() const
+{
+      ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      return slot ? slot->target : 0;
+}
+
+
 void vvp_ref_signal_aa::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
                                   vvp_context_t)
 {
       ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
-      if (!slot || !slot->target) return;
+      if (!slot) return;
+      if (ref_inside_write_vec4_(slot, bit)) return;
+      if (!slot->target) return;
 
       ref_delegate_ hold (slot);
       vvp_send_vec4(vvp_net_ptr_t(slot->target, 0), bit,
@@ -773,7 +1091,20 @@ void vvp_ref_signal_aa::recv_vec4_pv(vvp_net_ptr_t, const vvp_vector4_t&bit,
                                      unsigned base, unsigned vwid, vvp_context_t)
 {
       ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
-      if (!slot || !slot->target) return;
+      if (!slot) return;
+      if (slot->kind != ref_aa_slot::REF_NET) {
+	      /* Part-write into inside-storage: read-modify-write. */
+            vvp_vector4_t full;
+            ref_inside_read_vec4_(slot, vwid, full);
+            if (full.size() < vwid)
+                  full.resize(vwid, BIT4_X);
+            for (unsigned idx = 0; idx < bit.size()
+                       && base + idx < full.size(); idx += 1)
+                  full.set_bit(base + idx, bit.value(idx));
+            ref_inside_write_vec4_(slot, full);
+            return;
+      }
+      if (!slot->target) return;
 
       ref_delegate_ hold (slot);
       vvp_send_vec4_pv(vvp_net_ptr_t(slot->target, 0), bit, base, vwid,
@@ -783,7 +1114,9 @@ void vvp_ref_signal_aa::recv_vec4_pv(vvp_net_ptr_t, const vvp_vector4_t&bit,
 void vvp_ref_signal_aa::recv_real(vvp_net_ptr_t, double bit, vvp_context_t)
 {
       ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
-      if (!slot || !slot->target) return;
+      if (!slot) return;
+      if (ref_inside_write_real_(slot, bit)) return;
+      if (!slot->target) return;
 
       ref_delegate_ hold (slot);
       vvp_send_real(vvp_net_ptr_t(slot->target, 0), bit,
@@ -794,7 +1127,9 @@ void vvp_ref_signal_aa::recv_string(vvp_net_ptr_t, const std::string&bit,
                                     vvp_context_t)
 {
       ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
-      if (!slot || !slot->target) return;
+      if (!slot) return;
+      if (ref_inside_write_string_(slot, bit)) return;
+      if (!slot->target) return;
 
       ref_delegate_ hold (slot);
       vvp_send_string(vvp_net_ptr_t(slot->target, 0), bit,
@@ -805,7 +1140,9 @@ void vvp_ref_signal_aa::recv_object(vvp_net_ptr_t, vvp_object_t bit,
                                     vvp_context_t)
 {
       ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
-      if (!slot || !slot->target) return;
+      if (!slot) return;
+      if (ref_inside_write_object_(slot, bit)) return;
+      if (!slot->target) return;
 
       ref_delegate_ hold (slot);
       vvp_send_object(vvp_net_ptr_t(slot->target, 0), bit,
@@ -824,6 +1161,8 @@ static vvp_signal_value* ref_read_target_(const ref_aa_slot*slot)
 unsigned vvp_ref_signal_aa::value_size() const
 {
       const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (slot && slot->kind != ref_aa_slot::REF_NET)
+            return size_;
       vvp_signal_value*sig = ref_read_target_(slot);
       if (!sig) return size_;
 
@@ -834,6 +1173,11 @@ unsigned vvp_ref_signal_aa::value_size() const
 vvp_bit4_t vvp_ref_signal_aa::value(unsigned idx) const
 {
       const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (slot && slot->kind != ref_aa_slot::REF_NET) {
+            vvp_vector4_t tmp;
+            ref_inside_read_vec4_(slot, size_, tmp);
+            return idx < tmp.size() ? tmp.value(idx) : BIT4_X;
+      }
       vvp_signal_value*sig = ref_read_target_(slot);
       if (!sig) return BIT4_X;
 
@@ -844,6 +1188,12 @@ vvp_bit4_t vvp_ref_signal_aa::value(unsigned idx) const
 vvp_scalar_t vvp_ref_signal_aa::scalar_value(unsigned idx) const
 {
       const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (slot && slot->kind != ref_aa_slot::REF_NET) {
+            vvp_vector4_t tmp;
+            ref_inside_read_vec4_(slot, size_, tmp);
+            return vvp_scalar_t(idx < tmp.size() ? tmp.value(idx) : BIT4_X,
+                                6, 6);
+      }
       vvp_signal_value*sig = ref_read_target_(slot);
       if (!sig) return vvp_scalar_t();
 
@@ -854,6 +1204,10 @@ vvp_scalar_t vvp_ref_signal_aa::scalar_value(unsigned idx) const
 void vvp_ref_signal_aa::vec4_value(vvp_vector4_t&val) const
 {
       const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (slot && slot->kind != ref_aa_slot::REF_NET) {
+            ref_inside_read_vec4_(slot, size_, val);
+            return;
+      }
       vvp_signal_value*sig = ref_read_target_(slot);
       if (!sig) {
             val = vvp_vector4_t(size_, BIT4_X);
@@ -867,6 +1221,11 @@ void vvp_ref_signal_aa::vec4_value(vvp_vector4_t&val) const
 double vvp_ref_signal_aa::real_value() const
 {
       const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (slot && slot->kind != ref_aa_slot::REF_NET) {
+            double val = 0.0;
+            ref_inside_read_real_(slot, val);
+            return val;
+      }
       vvp_signal_value*sig = ref_read_target_(slot);
       if (!sig) return 0.0;
 
@@ -877,6 +1236,32 @@ double vvp_ref_signal_aa::real_value() const
 void vvp_ref_signal_aa::get_signal_value(struct t_vpi_value*vp)
 {
       const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (slot && slot->kind != ref_aa_slot::REF_NET) {
+	      /* Serve the common query formats from the current value.
+	         (%load/str and %vpi string reads use vpiStringVal /
+	         vpiObjTypeVal on string formals.) */
+            vvp_vector4_t tmp;
+            switch (vp->format) {
+                case vpiRealVal: {
+                  double rval = 0.0;
+                  ref_inside_read_real_(slot, rval);
+                  vp->value.real = rval;
+                  return;
+                }
+                case vpiStringVal:
+                case vpiObjTypeVal: {
+                  static std::string buf;
+                  ref_inside_read_string_(slot, buf);
+                  vp->format = vpiStringVal;
+                  vp->value.str = const_cast<char*>(buf.c_str());
+                  return;
+                }
+                default:
+                  ref_inside_read_vec4_(slot, size_, tmp);
+                  vpip_vec4_get_value(tmp, size_, false, vp);
+                  return;
+            }
+      }
       vvp_signal_value*sig = ref_read_target_(slot);
       if (!sig) return;
 
@@ -904,6 +1289,11 @@ static vvp_fun_signal_object* ref_read_target_object_(const ref_aa_slot*slot)
 vvp_object_t vvp_ref_signal_aa::get_object() const
 {
       const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (slot && slot->kind != ref_aa_slot::REF_NET) {
+            vvp_object_t val;
+            ref_inside_read_object_(slot, val);
+            return val;
+      }
       vvp_fun_signal_object*obj = ref_read_target_object_(slot);
       if (!obj) return vvp_object_t();
 
@@ -914,6 +1304,11 @@ vvp_object_t vvp_ref_signal_aa::get_object() const
 vvp_object_t vvp_ref_signal_aa::peek_object() const
 {
       const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (slot && slot->kind != ref_aa_slot::REF_NET) {
+            vvp_object_t val;
+            ref_inside_read_object_(slot, val);
+            return val;
+      }
       vvp_fun_signal_object*obj = ref_read_target_object_(slot);
       if (!obj) return vvp_object_t();
 

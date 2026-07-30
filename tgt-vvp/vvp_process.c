@@ -4215,6 +4215,57 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
+      /* $ivl_ref_bind_prop(<formal>, <obj>, <pid>) -- bind a ref formal
+       * to a property of the receiver object (R25: a true reference to
+       * storage inside a variable, replacing the copy pair whose
+       * copy-out at return lost writes from detached branches). */
+      if (strcmp(stmt_name, "$ivl_ref_bind_prop") == 0) {
+	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
+	    ivl_expr_t obj = ivl_stmt_parm(net, 1);
+	    ivl_expr_t pid = ivl_stmt_parm(net, 2);
+	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
+	    if (fsig && obj && pid
+		&& ivl_expr_type(pid) == IVL_EX_NUMBER) {
+		  draw_eval_object(obj);
+		  fprintf(vvp_out, "    %%ref/bind/pr v%p_0, %lu;\n",
+			  fsig, (unsigned long)get_number_immediate(pid));
+	    }
+	    return 0;
+      }
+
+      /* $ivl_ref_bind_elem(<formal>, <container>, <index>) -- bind a
+       * ref formal to an element of a dynamic array or queue. */
+      if (strcmp(stmt_name, "$ivl_ref_bind_elem") == 0) {
+	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
+	    ivl_expr_t cont = ivl_stmt_parm(net, 1);
+	    ivl_expr_t idx = ivl_stmt_parm(net, 2);
+	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
+	    ivl_signal_t csig = cont ? ivl_expr_signal(cont) : 0;
+	    if (fsig && csig && idx) {
+		  draw_eval_vec4(idx);
+		  fprintf(vvp_out, "    %%ref/bind/el v%p_0, v%p_0;\n",
+			  fsig, csig);
+	    }
+	    return 0;
+      }
+
+      /* $ivl_ref_bind_word(<formal>, <array>, <index>) -- bind a ref
+       * formal to one word of a static unpacked array. The index is
+       * the canonical word offset. */
+      if (strcmp(stmt_name, "$ivl_ref_bind_word") == 0) {
+	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
+	    ivl_expr_t arr = ivl_stmt_parm(net, 1);
+	    ivl_expr_t idx = ivl_stmt_parm(net, 2);
+	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
+	    ivl_signal_t asig = arr ? ivl_expr_signal(arr) : 0;
+	    if (fsig && asig && idx) {
+		  draw_eval_vec4(idx);
+		  fprintf(vvp_out, "    %%ref/bind/w v%p, v%p_0;\n",
+			  asig, fsig);
+	    }
+	    return 0;
+      }
+
       show_stmt_file_line(net, "System task call.");
 
       draw_vpi_task_call(net);

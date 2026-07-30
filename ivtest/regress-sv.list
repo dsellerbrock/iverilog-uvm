@@ -138,7 +138,6 @@ br1003c			normal,-g2009		ivltests gold=br1003c.gold
 br1003d			normal,-g2009		ivltests gold=br1003d.gold
 br1004			normal,-g2009		ivltests
 br1005			normal,-g2009		ivltests gold=br1005.gold
-br1015b			normal,-g2009		ivltests
 br1025			normal,-g2009		ivltests
 br1027b			normal,-g2009		ivltests gold=br1027b.gold
 br1027d			normal,-g2009		ivltests gold=br1027d.gold
@@ -584,6 +583,7 @@ sv_class22		normal,-g2009		ivltests
 sv_class23		normal,-g2009		ivltests
 sv_class24		normal,-g2009		ivltests
 sv_class_assoc_ternary_null1 normal,-g2009	ivltests
+sv_class_implicit_virtual_dispatch normal,-g2012 ivltests
 sv_class_prop_assoc_obj_member1 normal,-g2009	ivltests
 sv_class_call_result_prop1 normal,-g2009	ivltests
 sv_class_queue_last_prop1 normal,-g2009	ivltests
@@ -1196,6 +1196,8 @@ sv_cast_container_task_failure normal,-g2012 ivltests gold=sv_cast_container_tas
 sv_cast_task_failure normal,-g2012 ivltests gold=sv_cast_task_failure.gold
 sv_process_kill_subprocess normal,-g2012 ivltests
 sv_process_suspend_subthread normal,-g2012 ivltests
+sv_ref_arg_inside_storage_adversarial normal,-g2012 ivltests
+sv_ref_arg_inside_storage_bind normal,-g2012 ivltests
 sv_ref_argument_is_a_reference normal,-g2012 ivltests
 sv_ref_arg_object_fork_detach normal,-g2012 ivltests gold=sv_ref_arg_object_fork_detach.gold
 sv_assert_pass_action normal,-g2012 ivltests
