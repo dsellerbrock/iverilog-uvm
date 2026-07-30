@@ -1679,17 +1679,60 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	      // encode as a part-select on the current lv (read-modify-write at
 	      // runtime via %store/prop/v/bits).
 	      if (!owner_class && owner_struct && owner_struct->packed()) {
-		    const name_component_t&field_comp = member_path.front();
+		      // Walk NESTED packed-struct components, accumulating
+		      // the bit offset of each named field down to the leaf.
+		      // The old single-hop code consumed only the first
+		      // component and wrote the WHOLE outermost field for
+		      // c.data.inner.sub = v -- silently clobbering the
+		      // sibling fields (recovery C4-a6).
+		    name_component_t field_comp = member_path.front();
 		    perm_string field_name = field_comp.name;
 		    unsigned long member_off = 0;
-		    const netstruct_t::member_t*mbr =
-			  owner_struct->packed_member(field_name, member_off);
-		    if (!mbr) {
-			  cerr << get_fileline() << ": error: Packed struct "
-			       << "does not have member " << field_name << "." << endl;
+		    const netstruct_t*cur_struct = owner_struct;
+		    const netstruct_t::member_t*mbr = nullptr;
+
+		    for (;;) {
+			  unsigned long hop_off = 0;
+			  mbr = cur_struct->packed_member(field_comp.name, hop_off);
+			  if (!mbr) {
+				cerr << get_fileline() << ": error: Packed struct "
+				     << "does not have member " << field_comp.name
+				     << "." << endl;
+				des->errors += 1;
+				return 0;
+			  }
+			  member_off += hop_off;
+			  field_name = field_comp.name;
+			  member_path.pop_front();
+
+			  const netstruct_t*next_struct =
+				dynamic_cast<const netstruct_t*>(mbr->net_type);
+			  if (!member_path.empty() && next_struct
+			      && next_struct->packed()) {
+				if (!field_comp.index.empty()) {
+				      cerr << get_fileline() << ": sorry: an"
+					   << " index on intermediate packed"
+					   << " struct field " << field_comp.name
+					   << " is not yet supported here."
+					   << endl;
+				      des->errors += 1;
+				      return 0;
+				}
+				cur_struct = next_struct;
+				field_comp = member_path.front();
+				continue;
+			  }
+			  break;
+		    }
+
+		    if (!member_path.empty()) {
+			  cerr << get_fileline() << ": sorry: this nested"
+			       << " packed struct field l-value form is not"
+			       << " yet supported." << endl;
 			  des->errors += 1;
 			  return 0;
 		    }
+
 		    long field_wid = mbr->net_type->packed_width();
 		    if (field_wid <= 0) {
 			  cerr << get_fileline() << ": sorry: packed struct field "
@@ -1767,7 +1810,6 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				return 0;
 			  }
 		    }
-		    member_path.pop_front();
 
 		    /* Cast disambiguates `verinum(uint64_t, unsigned)` from the
 		       `verinum(V, unsigned, bool)` constructor. Pass the (sub-)
@@ -1777,11 +1819,6 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		    lv->set_part(new NetEConst(
 				   verinum((uint64_t)(member_off + sub_off), 64u)),
 				 part_type);
-		    if (!member_path.empty()) {
-			  cerr << get_fileline() << ": warning: "
-			       << "Deeply nested packed struct field in VIF property "
-			       << "(compile-progress: only outermost field written)." << endl;
-		    }
 		    break;
 	      }
 
@@ -2748,7 +2785,8 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 			  // Evaluate all but the last index expression, into prefix_indices.
 			list<long>prefix_indices;
 			bool rc = evaluate_index_prefix(des, scope, prefix_indices, member_comp.index);
-			ivl_assert(*this, rc);
+			if (!rc)
+			      return false;
 
 			if (debug_elaborate) {
 			      cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
@@ -2761,7 +2799,12 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 			long tail_off = 0;
 			unsigned long tail_wid = 0;
 			rc = calculate_part(this, des, scope, member_comp.index.back(), tail_off, tail_wid);
-			ivl_assert(*this, rc);
+			  /* The callee has already diagnosed a non-constant or
+			     unsupported index; this used to be an ivl_assert that
+			     promoted the reported user error into a compiler abort
+			     (recovery C4: s.key[i] = v with variable i). */
+			if (!rc)
+			      return false;
 
 			if (debug_elaborate) {
 			      cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
@@ -2822,7 +2865,8 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 		    // Evaluate all but the last index expression, into prefix_indices.
 		  list<long>prefix_indices;
 		  bool rc = evaluate_index_prefix(des, scope, prefix_indices, member_comp.index);
-		  ivl_assert(*this, rc);
+		  if (!rc)
+			return false;
 
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "

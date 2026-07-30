@@ -6933,6 +6933,16 @@ bool calculate_part(const LineInfo*li, Design*des, NetScope*scope,
 	    off = msb;
 	    break;
 
+	  case index_component_t::SEL_IDX_DO:
+	      // [base -: width] selects width bits ending at base; the
+	      // lowest selected DECLARED index is base-width+1 either
+	      // range direction (11.5.1). This case used to fall into
+	      // the default ivl_assert and abort the compiler for a
+	      // constant-base select on a struct member (recovery C4).
+	    wid = lsb;
+	    off = msb - (long)lsb + 1;
+	    break;
+
 	  case index_component_t::SEL_PART_LAST:
 	    // [lo:$] — use lo as both offset and width=1 (approximation)
 	    off = msb;
@@ -6940,8 +6950,10 @@ bool calculate_part(const LineInfo*li, Design*des, NetScope*scope,
 	    return true;
 
 	  default:
-	    ivl_assert(*li, 0);
-	    break;
+	    cerr << li->get_fileline() << ": sorry: this select form is"
+		 << " not supported here." << endl;
+	    des->errors += 1;
+	    return false;
       }
       return true;
 }
