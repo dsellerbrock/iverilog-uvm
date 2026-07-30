@@ -6999,6 +6999,13 @@ static NetESelect* make_container_member_element_select_(NetExpr*member_expr,
       return sel;
 }
 
+static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
+							Design*des, NetScope*scope,
+							NetExpr*base_expr,
+							const netclass_t*class_type,
+							const name_component_t&comp,
+							ivl_type_t&out_type);
+
 static NetExpr* check_for_struct_members(const LineInfo*li,
 					 Design*des, NetScope*scope,
 					 NetNet*net,
@@ -7082,8 +7089,36 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 		  const name_component_t member_comp = member_path.front();
 		  member_path.pop_front();
 
+		    // A CLASS-HANDLE hop in the member path (`a.h.v` with h
+		    // a class-typed struct member): resolve the property step
+		    // with the same helper the class-instance walkers use.
+		    // This used to bail out with a bare nullptr -- no
+		    // diagnostic -- and the callers dropped the enclosing
+		    // statement or substituted a blank argument (recovery
+		    // D12: the read compiled to nothing at all).
+		  if (const netclass_t*cur_class =
+			    dynamic_cast<const netclass_t*>(cur_type)) {
+			ivl_type_t next_type = nullptr;
+			NetExpr*next_expr =
+			      elaborate_nested_method_target_property(li, des, scope,
+								      base_expr, cur_class,
+								      member_comp, next_type);
+			if (!next_expr) {
+			      delete base_expr;
+			      return 0;
+			}
+			base_expr = next_expr;
+			cur_type = next_type;
+			continue;
+		  }
+
 		  const netstruct_t*cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
 		  if (!cur_struct) {
+			cerr << li->get_fileline() << ": sorry: member `"
+			     << member_comp.name << "' cannot be accessed"
+			     << " through a struct member of this type yet."
+			     << endl;
+			des->errors += 1;
 			delete base_expr;
 			return 0;
 		  }

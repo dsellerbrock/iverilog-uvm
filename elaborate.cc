@@ -7368,7 +7368,38 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    while (!sr.path_tail.empty()) {
 		  const netclass_t*class_type = dynamic_cast<const netclass_t*>(obj_type);
 		  const name_component_t&comp = sr.path_tail.front();
+
+		    // An UNPACKED-STRUCT hop in the method-target path
+		    // (`a.q.push_back(...)`, `a.h.method(...)` with a a
+		    // plain struct variable). The expression-side walker
+		    // has handled this shape for reads all along; this walk
+		    // only knew class hops, so every void container method
+		    // on a struct field fell through to the "Enable of
+		    // unknown task ... ignored" fallback and silently
+		    // no-opped (recovery SF-1/2/3, D12-4). Build the same
+		    // NetEProperty member hop the read side uses.
 		  if (!class_type) {
+			const netstruct_t*struct_type =
+			      dynamic_cast<const netstruct_t*>(obj_type);
+			if (struct_type && !struct_type->packed()
+			    && comp.index.empty()) {
+			      unsigned long dummy_off = 0;
+			      const netstruct_t::member_t*member =
+				    struct_type->packed_member(comp.name, dummy_off);
+			      if (!member) {
+				    delete obj_expr;
+				    return 0;
+			      }
+			      const auto&members = struct_type->members();
+			      size_t member_idx = member - &members.front();
+			      NetEProperty*prop =
+				    new NetEProperty(obj_expr, member_idx, nullptr);
+			      prop->set_line(*this);
+			      obj_expr = prop;
+			      obj_type = member->net_type;
+			      sr.path_tail.pop_front();
+			      continue;
+			}
 			delete obj_expr;
 			return 0;
 		  }

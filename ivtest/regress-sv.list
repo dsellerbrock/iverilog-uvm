@@ -823,6 +823,8 @@ sv_string7		normal,-g2009		ivltests
 sv_string7b		normal,-g2009		ivltests
 sv_string8		normal,-g2009		ivltests
 sv_string9		normal,-g2009		ivltests
+sv_struct_field_container_methods normal,-g2012 ivltests
+sv_struct_handle_member_access normal,-g2012 ivltests
 sv_struct_member_container_elem_read normal,-g2012 ivltests
 sv_timeunit_prec1	normal,-g2005-sv	ivltests
 sv_timeunit_prec2	normal,-g2009		ivltests
