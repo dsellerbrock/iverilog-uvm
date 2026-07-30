@@ -1,6 +1,25 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: Recovery Campaign 5 wave 1 head (229/229, real
+Full UVM last passed: Recovery Campaign 5 wave 3 head (229/229, real
+DPI, zero skips, 2026-07-30, one uninterrupted solo run on the exact
+commit tree; frontend regression all scenarios, ivtest gate clean,
+sva_nfa dual-run 46/46, negative 89/89). What earns the run: the wave
+changes nfa_add_step_, the construction EVERY automaton-engine
+sequence step passes through, so a mistake changes verdicts broadly
+rather than narrowly.
+
+NOTE (honesty record, 2026-07-30): the wave-2 head ALSO passed a full
+229/229 run, all six CI platforms, an 8-case hand-computed gold suite,
+and the ivtest gate -- while carrying a silent-wrong defect that made
+`assert property (req |-> ##[1:2] gnt[->1] ##1 done)' PASS on traces
+where the property cannot hold. No committed test had the
+discriminating shape (a cover with no continuation retires on the
+earliest legal accept, hiding a later illegal endpoint), so no gate
+could have caught it; only an adversarial pass aimed at REFUTING the
+new construction found it. Wave 3 fixes it and adds the test that
+would have caught it. A green ladder is evidence about the tests that
+exist, not proof of correctness -- weigh it accordingly.
+Previous recorded pass: Recovery Campaign 5 wave 1 head (229/229, real
 DPI, zero skips, 2026-07-30, one uninterrupted solo run on the exact
 commit tree). What earns the run: the wave rewires named-property
 instantiation (every `assert property (name)` in every design now goes
@@ -84,7 +103,7 @@ full run, and it is the reason a full run was mandatory here rather than a
 subset. Also covers the pform_make_assertion park path, which every
 assertion in every design now passes through.)
 
-Commits since full UVM: 0 (Campaign 5 wave 1 ladder ran on the exact tree)
+Commits since full UVM: 0 (Campaign 5 wave 3 ladder ran on the exact tree)
 Highest risk change since last full run: —
 
 Triggers for a full run (see docs/conformance/REGRESSION_POLICY.md):

@@ -192,6 +192,13 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 	      // rep_lo < 1 ([->0]/[=0]) admits empty matches -- still
 	      // declined here (falls back to the legacy loud sorry).
 	    if (m < 1 || (!ub && n < m)) return ~0u;
+	      // A tail repetition riding the SAME step -- `(b[->1])[*1:2]',
+	      // attached after the fact by pform_sva_repeat -- was silently
+	      // DROPPED: this branch returns before the `rep_tail_only'
+	      // code, so the automaton came out identical to the tail-free
+	      // sequence and legal matches went missing with no diagnostic.
+	      // Decline, so the shape is loud rather than quietly wrong.
+	    if (st.rep_tail != 0) return ~0u;
 	    PExpr*nose = new PEUnary('!', st.expr);   // shared !e guard
 	    nose->set_lineno(st.expr->get_lineno());
 	    nose->set_file(st.expr->get_file());
@@ -222,6 +229,21 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 	      // idle loop admits.
 	    if (unbounded)
 		  nfa.tick(cur, cur, nullptr);
+
+	      // The wait loop must NEVER be stamped onto a state the CALLER
+	      // owns. With an arrival of 0 or 1 the delay loop above emits no
+	      // state, so `cur' would carry both this fragment's `!e'
+	      // self-loop AND a sibling window split's unguarded delay tick:
+	      // a thread could idle on `!e' and then take the sibling's tick,
+	      // realizing an arrival past the window's upper bound and
+	      // skipping occurrences the LRM requires it to count (16.9.4).
+	      // That admitted matches the LRM forbids -- assertions PASSING
+	      // on traces where the property cannot hold. A private entry
+	      // (epsilon-reached, free after folding) keeps each fragment's
+	      // outgoing structure to itself.
+	    unsigned went = nfa.new_state();
+	    nfa.eps(cur, went);
+	    cur = went;
 	    unsigned exit = nfa.new_state();
 
 	    if (st.rep_kind == 1) {
