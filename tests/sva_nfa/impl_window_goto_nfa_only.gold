@@ -1,0 +1,4 @@
+ig pass=2 (exp 2) fail=0 (exp 0)
+ig2 pass=1 (exp 1) fail=0 (exp 0)
+SVA: unbounded ##[m:$] obligation still pending at end of simulation
+SVA: unbounded ##[m:$] obligation still pending at end of simulation
