@@ -440,6 +440,32 @@ Minimal reproducer: `docs/conformance/repros/ot_array_elem_member_assign.sv`
 (15 lines, no OpenTitan dependency). This is the net-side analogue of
 what Campaign 4 fixed for variables.
 
+**Root cause located.** `PEIdent::elaborate_lnet_common_` (elab_net.cc)
+chooses between whole-array and indexed-word assignment with:
+
+```
+} else if (gn_system_verilog() && sig->unpacked_dimensions() > 0
+           && path_tail.index.empty()) {
+      // whole-array assignment -> multi-pin net
+} else if (sig->unpacked_dimensions() > 0) {
+      // indexed word -> single word
+```
+
+It asks whether the LAST path component carries an index. For `o[i]`
+that is right. For `o[i].v` the last component is `.v`, whose index is
+empty, so it takes the WHOLE-ARRAY branch and returns a multi-pin net;
+`PGAssign::elaborate` then sees `pin_count() > 1` (elaborate.cc:1283)
+and routes to the unpacked-array path, which rejects the scalar RHS.
+Every genvar iteration produces such a whole-array driver, which is
+where the bogus multiple-driver errors come from.
+
+The index for an `arr[i].member` lvalue lives on the BASE component
+(`sr.path_head`), not on the tail (`sr.path_tail`). The fix is to read
+the unpacked index from the base component when a member path is
+present. Not attempted here -- it belongs with its own test matrix
+(net vs variable lvalue, genvar vs constant index, struct member vs
+nested member, multi-dimensional unpacked) and a full ladder.
+
 ### 2. Remaining, in rough frequency order
 
 - `Cannot perform procedural assignment to variable 'X.member' because
