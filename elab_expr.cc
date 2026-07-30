@@ -8521,6 +8521,40 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 				    }
 			      }
 
+				// A PACKED-ARRAY member (possibly of structs): the
+				// canonical collapse gives the element offset --
+				// run-time indices allowed -- as a select over the
+				// member select; a single element keeps its type so
+				// the walk can continue into a struct element
+				// (recovery C4 wave 3: c.reg2hw.key[i].qe reads).
+			      if (!sel && !mvec) {
+				    if (const netparray_t*mpa =
+					      dynamic_cast<const netparray_t*>(cur_type)) {
+					  NetExpr*moff = 0;
+					  unsigned long mwid = 0;
+					  if (!collapse_packed_member_indices(des, scope,
+						this, mpa->static_dimensions(),
+						tail_comp.index, moff, mwid)) {
+						delete base_expr;
+						return nullptr;
+					  }
+					  ivl_type_t mel_type = mpa->element_type();
+					  long mew = mel_type->packed_width();
+					  if (mew > 1)
+						moff = scale_index_to_bits(moff,
+						(unsigned long)mew, *this);
+					  eval_expr(moff, -1);
+					  unsigned long swid = mwid * (unsigned long)mew;
+					  ivl_type_t res_type = (mwid == 1) ? mel_type : nullptr;
+					  NetESelect*esel = res_type
+						? new NetESelect(base_expr, moff, swid, res_type)
+						: new NetESelect(base_expr, moff, swid);
+					  esel->set_line(*this);
+					  sel = esel;
+					  sel_type = res_type;
+				    }
+			      }
+
 			      if (!sel) {
 				    delete base_expr;
 				    cerr << get_fileline() << ": sorry: "

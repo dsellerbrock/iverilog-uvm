@@ -327,6 +327,7 @@ first_last_num		normal,-g2005-sv	ivltests
 fork_join_any		normal,-g2009		ivltests
 fork_join_dis		normal,-g2009		ivltests
 fork_join_none		normal,-g2009		ivltests
+sv_class_prop_packed_member_var normal,-g2012 ivltests
 sv_class_prop_struct_member_index normal,-g2012 ivltests
 sv_class_static_prop_arrays normal,-g2012 ivltests
 sv_class_static_struct_pool normal,-g2012 ivltests
