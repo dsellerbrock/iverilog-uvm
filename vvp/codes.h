@@ -69,6 +69,7 @@ extern bool of_AA_LOAD_R_V(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOAD_SIG_OBJ_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOAD_SIG_OBJ_STR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOAD_SIG_OBJ_V(vthread_t thr, vvp_code_t code);
+extern bool of_QDAR_LOADLV_O(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOADLV_O_Q_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOADLV_O_Q_STR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_LOADLV_O_Q_V(vthread_t thr, vvp_code_t code);

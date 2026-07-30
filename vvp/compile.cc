@@ -429,6 +429,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%pushi/vec4",of_PUSHI_VEC4,3,{OA_BIT1,   OA_BIT2,   OA_NUMBER} },
       { "%pushv/str", of_PUSHV_STR, 0,{OA_NONE,   OA_NONE,   OA_NONE} },
       { "%putc/str/vec4",of_PUTC_STR_VEC4,2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
+      { "%qdar/loadlv/o", of_QDAR_LOADLV_O, 1,{OA_STRING, OA_NONE, OA_NONE} },
       { "%qinsert/o/obj", of_QINSERT_O_OBJ, 0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%qinsert/o/real",of_QINSERT_O_REAL,0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%qinsert/o/str", of_QINSERT_O_STR, 0,{OA_NONE, OA_NONE, OA_NONE} },

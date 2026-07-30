@@ -13909,6 +13909,51 @@ static bool aa_loadlv_o_queue(vthread_t thr, const char*enc)
       return true;
 }
 
+/*
+ * %qdar/loadlv/o "<elem-enc>"
+ *
+ * Get-or-create load of a QUEUE-valued POSITIONAL container element
+ * (queue-of-queue or darray-of-queue) for mutation contexts like
+ * dq[i].push_back(v). A plain element load returns nil for a fresh
+ * element and the mutation is dropped downstream with only a runtime
+ * warning (recovery D14) — but per IEEE 1800-2017 7.5/7.9 container
+ * elements are VALUES: a fresh element is an empty queue, not null.
+ * Pops the outer container (index in words[3], canonical); a nil
+ * element within range is created as an empty queue of the encoded
+ * element kind and stored back. Out-of-range or undefined-index
+ * (flag 4) loads push nil, keeping the plain-load OOB semantics.
+ * The outer's provenance is carried onto the pushed element so the
+ * following mutation still notifies the source variable.
+ */
+bool of_QDAR_LOADLV_O(vthread_t thr, vvp_code_t cp)
+{
+      int64_t adr = thr->words[3].w_int;
+
+      vvp_net_t*src_net = thr->peek_object_source_net(0);
+      vvp_object_t src_root = thr->peek_object_root(0);
+
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_darray*arr = recv.peek<vvp_darray>();
+
+      vvp_object_t value;
+      adr = darray_canonical_index_(arr, adr);
+      if (arr && (adr >= 0) && (thr->flags[4] == BIT4_0)
+	  && (static_cast<size_t>(adr) < arr->get_size())) {
+	    arr->get_word((unsigned)adr, value);
+	    if (value.test_nil()) {
+		  value = make_queue_for_enc_(cp->text);
+		  if (!value.test_nil())
+			arr->set_word((unsigned)adr, value);
+	    }
+      }
+
+      if (src_root.test_nil())
+	    src_root = recv;
+      thr->push_object(value, src_net, src_root);
+      return true;
+}
+
 bool of_AA_LOADLV_O_Q_OBJ(vthread_t thr, vvp_code_t cp)
 {
       return aa_loadlv_o_queue<vvp_object_t>(thr, cp->text);
