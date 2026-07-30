@@ -467,6 +467,8 @@ pform_sva_prop_iff(const struct vlltype&loc,
 		   std::vector<sva_seq_step_t>*a,
 		   std::vector<sva_seq_step_t>*b);
 extern sva_property_t*
+pform_sva_prop_not(const struct vlltype&loc, sva_property_t*sub);
+extern sva_property_t*
 pform_sva_prop_if(const struct vlltype&loc, PExpr*cond, sva_property_t*then_p,
 		  sva_property_t*else_p);
 extern sva_property_t*

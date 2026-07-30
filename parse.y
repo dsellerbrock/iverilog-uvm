@@ -5750,10 +5750,8 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
 	$$ = p; }
   /* IEEE 1800-2017 16.12.9: negation — the property holds iff the
      sequence has NO match starting at any attempt point. */
-  | K_not '(' sva_seq_expr ')'
-      { sva_property_t*p = new sva_property_t;
-	p->seq = $3; p->op_type = 3;
-	$$ = p; }
+  | K_not '(' property_expr ')'
+      { $$ = pform_sva_prop_not(@1, $3); }
   /* IEEE 1800-2017 16.12.2: sequence property strength. `strong(seq)'
      requires every attempt to complete — an attempt still pending at end
      of simulation is a failure. `weak(seq)' is the explicit form of the
