@@ -181,8 +181,34 @@ ivl_type_t NetAssign_::net_type() const
 			ntype = members[member_idx_].net_type;
 		  else
 			ntype = nullptr;
+	    } else if (word_
+		       && (dynamic_cast<const netuarray_t*>(ntype)
+			   || dynamic_cast<const netdarray_t*>(ntype))) {
+		    /* member-of-an-indexed-element (pool[0].x, with pool an
+		       array of structs -- a static class property is how
+		       this was found): this single-node l-value carries
+		       both word_ and member_, and this composition means
+		       the WORD selects the element the member resolves
+		       against. Unwrap, then retry the member. The common
+		       composition (h.arr[0]: member first, then word) is
+		       the ordinary path above and stays untouched. */
+		  ivl_type_t etype = ntype;
+		  if (const netdarray_t *darray = dynamic_cast<const netdarray_t*>(etype))
+			etype = darray->element_type();
+		  else if (const netuarray_t *uarray = dynamic_cast<const netuarray_t*>(etype))
+			etype = uarray->element_type();
+		  if (const netstruct_t *struct_type = dynamic_cast<const netstruct_t*>(etype)) {
+			const auto&members = struct_type->members();
+			if ((member_idx_ >= 0) && ((size_t)member_idx_ < members.size()))
+			      return members[member_idx_].net_type;
+		  }
+		  ntype = nullptr;
 	    } else {
-		  ivl_assert(*this, 0);
+		    /* Unresolvable member path: a diagnostic, not an abort
+		       (this used to be ivl_assert(0), which turned a merely
+		       unsupported l-value shape into a compiler crash --
+		       recovery D4). */
+		  ntype = nullptr;
 	    }
       }
 

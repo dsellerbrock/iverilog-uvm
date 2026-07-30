@@ -6173,6 +6173,20 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	    // If in SystemVerilog mode and inside a function, assume the
 	    // condition is false and continue elaboration as a no-op.
 	    if (gn_system_verilog()) {
+		    /* Compile-progress fallback, now LOUD (recovery D3
+		       follow-through): assuming a condition false because it
+		       failed to elaborate rewrote the statement silently --
+		       an `if' ran its else branch with no record of why.
+		       Known remaining dependents in the UVM library:
+		       uvm_comparer.svh:638 (nested assoc index + member)
+		       and uvm_driver.svh:100 (unparenthesized method-result
+		       compare). Once those elaborate, this must become a
+		       hard error. */
+		  cerr << get_fileline() << ": warning: condition expression "
+		       << "failed to elaborate; ASSUMING FALSE and compiling "
+		       << "only the else-branch (compile-progress). The "
+		       << "surrounding logic will misbehave if this branch "
+		       << "matters." << endl;
 		  // Elaborate only the else branch (if present) or return empty block
 		  if (else_)
 			return else_->elaborate(des, scope);

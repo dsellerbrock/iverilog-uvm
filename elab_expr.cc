@@ -8459,6 +8459,13 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			cerr << get_fileline() << ": sorry: "
 			     << "Nested member path not yet supported for class properties."
 			     << endl;
+			  /* This refusal MUST count as an error. Without the
+			     increment, compilation continued and the caller's
+			     null-expression fallbacks quietly rewrote the
+			     surrounding statement -- an `if' whose condition
+			     used such a path compiled to its ELSE branch
+			     alone and ran, silently wrong (recovery D3). */
+			des->errors += 1;
 			return nullptr;
 		  } else {
 			  // An ARRAY-typed property must receive its element
