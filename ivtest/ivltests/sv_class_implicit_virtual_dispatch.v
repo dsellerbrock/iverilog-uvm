@@ -47,7 +47,7 @@ module top;
     d.hook(1);
     if (d.d_hits != 208) begin fails++; $display("FAIL: direct hook, d_hits=%0d expect 208", d.d_hits); end
 
-    if (fails == 0) $display("PASS");
+    if (fails == 0) $display("PASSED");
     else $display("FAIL count=%0d", fails);
   end
 endmodule

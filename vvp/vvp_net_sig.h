@@ -474,6 +474,8 @@ class vvp_fun_signal_object_aa : public vvp_fun_signal_object, public automatic_
  * the binding is the sole owner of that state, exactly as if the
  * caller's variable had been read or written directly.
  */
+struct __vpiArray;
+
 class vvp_ref_signal_aa : public vvp_fun_signal_object,
                           public automatic_signal_base,
                           public automatic_hooks_s {
@@ -496,6 +498,26 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
 	// could not be named is copied into a companion word in the
 	// callee's own frame and the formal is bound to that.
       void bind(vvp_net_t*target, bool in_frame);
+
+	// R25: bind to storage INSIDE a variable, so an actual that is
+	// not itself a whole variable is still a true reference
+	// (IEEE 1800-2017 13.5.2) rather than a copy pair whose copy-out
+	// at return loses writes from detached branches.
+	//
+	// bind_prop: a class property. The OBJECT is captured (a strong
+	// handle), so the reference survives the caller's handle variable
+	// being reassigned -- the ref names the property's storage, which
+	// lives in the object.
+	// bind_elem: an element of a dynamic array or queue. The
+	// CONTAINER VARIABLE's net is captured and the current container
+	// object is fetched on each access, so a resize or whole-array
+	// reassignment between accesses is honoured; an out-of-range
+	// index reads the type default and drops the write, matching a
+	// direct element access.
+	// bind_word: a word of a fixed (static) unpacked array.
+      void bind_prop(const vvp_object_t&obj, unsigned pid);
+      void bind_elem(vvp_net_t*container, int64_t index);
+      void bind_word(struct __vpiArray*arr, unsigned index);
 
 	// vvp_net_fun_t: forward everything to the bound net.
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -536,10 +558,23 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
 	// Move a binding between frames. A virtual method call allocates
 	// the OVERRIDE's frame and copies the base formals into it; a
 	// bound formal has no value to copy, so its binding is what has
-	// to travel or the override writes nowhere.
-      bool read_binding(vvp_net_t*&target, vvp_context_t&ctx) const;
-      void write_binding(vvp_context_t frame, vvp_net_t*target,
-                         vvp_context_t ctx);
+	// to travel or the override writes nowhere. The binding is a
+	// tagged value (see ref_aa_slot in vvp_net_sig.cc): a whole
+	// variable, a class property, a container element, or an array
+	// word all travel intact.
+      struct binding_t {
+            int kind;
+            vvp_net_t*target;
+            vvp_context_t caller_ctx;
+            vvp_object_t obj;
+            unsigned prop_id;
+            int64_t index;
+            struct __vpiArray*arr;
+            binding_t() : kind(0), target(0), caller_ctx(0), prop_id(0),
+                          index(0), arr(0) { }
+      };
+      bool read_binding(binding_t&out) const;
+      void write_binding(vvp_context_t frame, const binding_t&in);
 
     public: // These objects are only permallocated.
       static void* operator new(std::size_t size) { return vvp_net_fun_t::heap_.alloc(size); }

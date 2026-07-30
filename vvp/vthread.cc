@@ -1710,16 +1710,15 @@ static bool copy_ref_binding_to_context_(vpiHandle src_item, vthread_t src_thr,
       vthread_t save_running = running_thread;
       if (src_thr) running_thread = src_thr;
 
-      vvp_net_t*target = 0;
-      vvp_context_t ctx = 0;
-      bool have = src_ref->read_binding(target, ctx);
+      vvp_ref_signal_aa::binding_t binding;
+      bool have = src_ref->read_binding(binding);
 
       running_thread = save_running;
 
       if (!have)
             return false;
 
-      dst_ref->write_binding(dst_context, target, ctx);
+      dst_ref->write_binding(dst_context, binding);
       return true;
 }
 
@@ -17399,6 +17398,81 @@ bool of_REF_BIND_F(vthread_t, vvp_code_t cp)
       }
 
       formal->bind(cp->net2, true);
+      return true;
+}
+
+/*
+ * %ref/bind/pr <formal>, <pid>
+ *
+ * Bind a ref formal to property <pid> of the object popped from the
+ * object stack (IEEE 1800-2017 13.5.2: the actual is the property's
+ * storage, which lives in the object -- the binding holds the object,
+ * so a later reassignment of the caller's handle variable does not
+ * retarget the reference).
+ */
+bool of_REF_BIND_PR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*> (cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/pr error: the formal is not a ref signal." << endl;
+	    assert(formal);
+	    return true;
+      }
+      formal->bind_prop(recv, cp->bit_idx[0]);
+      return true;
+}
+
+/*
+ * %ref/bind/el <formal>, <container-var>
+ *
+ * Bind a ref formal to element <index> (popped from the vec4 stack) of
+ * the dynamic array or queue held by <container-var>. The binding
+ * records the VARIABLE, and the current container object is fetched on
+ * each access, so a resize or whole-container reassignment between
+ * accesses is honoured.
+ */
+bool of_REF_BIND_EL(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t idxv = thr->pop_vec4();
+      int64_t use_index = -1;
+      vector4_to_value(idxv, use_index, true, false);
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*> (cp->net->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/el error: the formal is not a ref signal." << endl;
+	    assert(formal);
+	    return true;
+      }
+      formal->bind_elem(cp->net2, use_index);
+      return true;
+}
+
+/*
+ * %ref/bind/w <array>, <formal>
+ *
+ * Bind a ref formal to word <index> (popped from the vec4 stack,
+ * already normalized to the canonical word offset) of a static
+ * unpacked array.
+ */
+bool of_REF_BIND_W(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t idxv = thr->pop_vec4();
+      int64_t use_index = -1;
+      bool defined = vector4_to_value(idxv, use_index, true, false);
+      vvp_ref_signal_aa*formal =
+	    dynamic_cast<vvp_ref_signal_aa*> (cp->net2->fil);
+      if (!formal) {
+	    cerr << "%ref/bind/w error: the formal is not a ref signal." << endl;
+	    assert(formal);
+	    return true;
+      }
+      if (!defined || use_index < 0)
+	    formal->bind_word(0, 0);
+      else
+	    formal->bind_word(cp->array, (unsigned)use_index);
       return true;
 }
 
