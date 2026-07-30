@@ -1223,7 +1223,7 @@ sv_whole_aggregate_value_copy normal,-g2012 ivltests
 sv_whole_aggregate_size_mismatch normal,-g2012 ivltests gold=sv_whole_aggregate_size_mismatch.gold
 sv_open_array_multidim normal,-g2012 ivltests
 sv_process_status_identity normal,-g2012 ivltests
-sv_stacktrace_task_call normal,-g2012 ivltests
+sv_stacktrace_task_call normal,-g2023 ivltests
 sv_event_array normal,-g2012 ivltests
 sv_event_lifetime_qualifier normal,-g2012 ivltests
 sv_deferred_flush1	normal,-g2012		ivltests
@@ -1244,3 +1244,12 @@ sv_rand_conformance_pin2 normal,-g2012 ivltests
 sv_packed_multidim_var_index normal,-g2012 ivltests
 sv_param_multidim_packed_select normal,-g2012 ivltests
 sv_param_unpacked_array_select normal,-g2012 ivltests
+sv_edition_stacktrace_old CE,-g2012 ivltests gold=sv_edition_stacktrace_old.gold
+sv_edition_stacktrace_def normal,-g2023 ivltests
+sv_edition_stacktrace_latest normal,-glatest ivltests
+sv_edition_stacktrace_neighbour normal,-g2012 ivltests
+sv_edition_iter_index_old CE,-g2012 ivltests gold=sv_edition_iter_index_old.gold
+sv_edition_iter_index_def normal,-g2023 ivltests
+sv_edition_iter_index_latest normal,-glatest ivltests
+sv_edition_iter_index_neighbour normal,-g2012 ivltests
+sv_edition_stacktrace_2017 CE,-g2017 ivltests gold=sv_edition_stacktrace_2017.gold

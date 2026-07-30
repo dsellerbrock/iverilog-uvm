@@ -111,6 +111,7 @@ extern const char*optarg;
 #endif
 
 # include  "globals.h"
+# include  "sv_edition.h"
 #include "cfparse_misc.h"   /* cfparse() */
 #include "ivl_alloc.h"
 
@@ -738,30 +739,37 @@ void process_file_name(const char*name, int lib_flag)
       }
 }
 
+/* Is this generation token a SystemVerilog edition? Answered from the
+   shared table (sv_edition.h) -- the driver used to carry its own
+   hand-written list of SV spellings, which had to be kept in lockstep
+   with the compiler's gn_system_verilog() across a process boundary. */
+static int generation_is_systemverilog(const char*name)
+{
+#define SV_EDITION_ROW(TOKEN, GEN, SV, IEEE)	\
+      if (strcmp(name, TOKEN) == 0) return SV;
+      SV_EDITION_TABLE
+#undef SV_EDITION_ROW
+      return 0;
+}
+
 static int process_generation(const char*name)
 {
-      if (strcmp(name,"1995") == 0)
-	    generation = "1995";
+	/* Editions come from the ONE shared table (sv_edition.h) that the
+	   compiler also expands, so the driver cannot accept a spelling
+	   the compiler will not understand -- or reject one it would. */
+      if (strcmp(name,"latest") == 0) {
+	    generation = SV_EDITION_LATEST_TOKEN;
+	    return 0;
+      }
+#define SV_EDITION_ROW(TOKEN, GEN, SV, IEEE)	\
+      if (strcmp(name, TOKEN) == 0) {		\
+	    generation = TOKEN;			\
+	    return 0;				\
+      }
+      SV_EDITION_TABLE
+#undef SV_EDITION_ROW
 
-      else if (strcmp(name,"2001") == 0)
-	    generation = "2001";
-
-      else if (strcmp(name,"2001-noconfig") == 0)
-	    generation = "2001-noconfig";
-
-      else if (strcmp(name,"2005") == 0)
-	    generation = "2005";
-
-      else if (strcmp(name,"2005-sv") == 0)
-	    generation = "2005-sv";
-
-      else if (strcmp(name,"2009") == 0)
-	    generation = "2009";
-
-      else if (strcmp(name,"2012") == 0)
-	    generation = "2012";
-
-      else if (strcmp(name,"1") == 0) { /* Deprecated: use 1995 */
+      if (strcmp(name,"1") == 0) { /* Deprecated: use 1995 */
 	    generation = "1995";
 	    gen_xtypes = "no-xtypes";
 	    gen_icarus = "no-icarus-misc";
@@ -1263,9 +1271,7 @@ static void configure_uvm_frontend(void)
 	/* UVM strictly needs SystemVerilog; quietly raise the generation to
 	   2012 if the user left it at a non-SV default so `iverilog -uvm'
 	   works without also remembering -g2012. An explicit SV -g is kept. */
-      if (strcmp(generation, "2005-sv") != 0 &&
-	  strcmp(generation, "2009") != 0 &&
-	  strcmp(generation, "2012") != 0) {
+      if (! generation_is_systemverilog(generation)) {
 	    if (verbose_flag)
 		  fprintf(stderr, "iverilog: -uvm selects -g2012 "
 			  "(SystemVerilog required by UVM).\n");
@@ -1584,9 +1590,11 @@ int main(int argc, char **argv)
 
 	/* If verilog-2005/09/12 is enabled or icarus-misc or verilog-ams,
 	 * then include the v2005_math library. */
+	/* NB: this list long omitted "2005-sv" although the comment above
+	   claimed the 2005 family; generation_is_systemverilog() now covers
+	   every SV edition, and "2005" stays as the one non-SV member. */
       if (strcmp(generation, "2005") == 0 ||
-          strcmp(generation, "2009") == 0 ||
-          strcmp(generation, "2012") == 0 ||
+          generation_is_systemverilog(generation) ||
           strcmp(gen_icarus, "icarus-misc") == 0 ||
           strcmp(gen_verilog_ams, "verilog-ams") == 0) {
 	    fprintf(iconfig_file, "module:%s%cv2005_math.vpi\n", vpi_dir, sep);
@@ -1599,9 +1607,7 @@ int main(int argc, char **argv)
       }
       /* If verilog-2009 (SystemVerilog) is enabled, then include the
          v2009 module. */
-      if (strcmp(generation, "2005-sv") == 0 ||
-          strcmp(generation, "2009") == 0 ||
-          strcmp(generation, "2012") == 0) {
+      if (generation_is_systemverilog(generation)) {
 	    fprintf(iconfig_file, "module:%s%cv2009.vpi\n", vpi_dir, sep);
       }
 

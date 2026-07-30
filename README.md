@@ -6,6 +6,16 @@ An **experimental development fork** of [Icarus Verilog](https://github.com/stev
 focused on broad IEEE 1800-2017 SystemVerilog conformance and running the
 unmodified [Accellera UVM Core library](https://github.com/accellera-official/uvm-core).
 
+Language edition is selected with `-g`: `-g2012`, `-g2017`, `-g2023` or
+`-glatest`. IEEE 1800-2017 is a maintenance revision of 1800-2012 and adds
+no syntax, so those two accept the same language; `-g2023` additionally
+enables the 1800-2023 constructs this fork implements, and those are
+refused under an earlier edition with a diagnostic naming the construct,
+the edition and the flag. Selecting an edition does **not** claim that
+edition is fully implemented — see the
+[1800-2023 delta survey](docs/conformance/ieee1800_2023_delta.md) for
+per-item status.
+
 - **Upstream:** [steveicarus/iverilog](https://github.com/steveicarus/iverilog) — the original project
 - **This fork:** [dsellerbrock/iverilog-uvm](https://github.com/dsellerbrock/iverilog-uvm)
 - **Status:** experimental, under active development. Not reviewed by

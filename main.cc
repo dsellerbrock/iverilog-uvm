@@ -299,6 +299,22 @@ const char *net_func_to_name(const net_func func)
 
 static void process_generation_flag(const char*gen)
 {
+	/* Editions come from the ONE shared table (sv_edition.h), so the
+	   driver and the compiler cannot disagree about the accepted
+	   spellings. `latest' resolves to the newest row. */
+      {
+	    const char*tok = gen;
+	    if (strcmp(tok,"latest") == 0)
+		  tok = SV_EDITION_LATEST_TOKEN;
+#define SV_EDITION_ROW(TOKEN, GEN, SV, IEEE)	\
+	    if (strcmp(tok, TOKEN) == 0) {	\
+		  generation_flag = GEN;	\
+		  return;			\
+	    }
+	    SV_EDITION_TABLE
+#undef SV_EDITION_ROW
+      }
+
       if (strcmp(gen,"1") == 0) { // FIXME: Deprecated for 1995
 	    generation_flag = GN_VER1995;
 
@@ -308,27 +324,6 @@ static void process_generation_flag(const char*gen)
       } else if (strcmp(gen,"2x") == 0) { // FIXME: Deprecated for 2001
 	    generation_flag = GN_VER2001;
 	    gn_icarus_misc_flag = true;
-
-      } else if (strcmp(gen,"1995") == 0) {
-	    generation_flag = GN_VER1995;
-
-      } else if (strcmp(gen,"2001") == 0) {
-	    generation_flag = GN_VER2001;
-
-      } else if (strcmp(gen,"2001-noconfig") == 0) {
-	    generation_flag = GN_VER2001_NOCONFIG;
-
-      } else if (strcmp(gen,"2005") == 0) {
-	    generation_flag = GN_VER2005;
-
-      } else if (strcmp(gen,"2005-sv") == 0) {
-	    generation_flag = GN_VER2005_SV;
-
-      } else if (strcmp(gen,"2009") == 0) {
-	    generation_flag = GN_VER2009;
-
-      } else if (strcmp(gen,"2012") == 0) {
-	    generation_flag = GN_VER2012;
 
       } else if (strcmp(gen,"icarus-misc") == 0) {
 	    gn_icarus_misc_flag = true;
@@ -1050,6 +1045,17 @@ int main(int argc, char*argv[])
 
       lexor_keyword_mask = 0;
       switch (generation_flag) {
+	  /* NOTE: this cascade is the ONLY thing that turns keywords on.
+	     A generation_flag value with no case here leaves the mask 0,
+	     which silently lexes EVERY keyword as a plain identifier --
+	     a whole-source misparse with no diagnostic. The default
+	     below makes that failure loud instead. */
+        case GN_VER2023:
+	  lexor_keyword_mask |= GN_KEYWORDS_1800_2023;
+	  // fallthrough
+        case GN_VER2017:
+	  lexor_keyword_mask |= GN_KEYWORDS_1800_2017;
+	  // fallthrough
         case GN_VER2012:
 	  lexor_keyword_mask |= GN_KEYWORDS_1800_2012;
 	  // fallthrough
@@ -1070,6 +1076,13 @@ int main(int argc, char*argv[])
 	  // fallthrough
         case GN_VER1995:
 	  lexor_keyword_mask |= GN_KEYWORDS_1364_1995;
+	  break;
+	default:
+	  cerr << "internal error: language generation " << (int)generation_flag
+	       << " has no keyword set; every keyword would lex as an"
+	          " identifier. A new edition must be added to this"
+	          " cascade." << endl;
+	  return 1;
       }
 
       if (gn_cadence_types_flag)
@@ -1084,26 +1097,16 @@ int main(int argc, char*argv[])
 
 	    cout << "Using language generation: ";
 	    switch (generation_flag) {
-		case GN_VER1995:
-		  cout << "IEEE1364-1995";
+		  /* Names come from the shared edition table so the
+		     banner cannot drift from the accepted spellings. */
+#define SV_EDITION_ROW(TOKEN, GEN, SV, IEEE)	\
+		case GEN:				\
+		  cout << IEEE;				\
 		  break;
-		case GN_VER2001_NOCONFIG:
-		  cout << "IEEE1364-2001-noconfig";
-		  break;
-		case GN_VER2001:
-		  cout << "IEEE1364-2001";
-		  break;
-		case GN_VER2005:
-		  cout << "IEEE1364-2005";
-		  break;
-		case GN_VER2005_SV:
-		  cout << "IEEE1800-2005";
-		  break;
-		case GN_VER2009:
-		  cout << "IEEE1800-2009";
-		  break;
-		case GN_VER2012:
-		  cout << "IEEE1800-2012";
+		SV_EDITION_TABLE
+#undef SV_EDITION_ROW
+		default:
+		  cout << "unknown(" << (int)generation_flag << ")";
 		  break;
 	    }
 

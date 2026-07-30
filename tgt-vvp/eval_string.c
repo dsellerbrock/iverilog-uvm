@@ -361,7 +361,23 @@ static void string_ex_pop(ivl_expr_t expr)
 
 static void draw_sfunc_string(ivl_expr_t expr)
 {
-    assert(ivl_expr_value(expr) == IVL_VT_STRING);
+	/* A system function used where a string is required, but whose
+	   own value type is not a string. This used to be a bare
+	   assert(), so `string s; s = $time();' -- or any typo'd
+	   `$bogus()' -- ABORTED the compiler with a raw assertion
+	   message and exit 134 instead of diagnosing the source. Report
+	   it and emit an empty string so the rest of the run can still
+	   produce diagnostics. */
+      if (ivl_expr_value(expr) != IVL_VT_STRING) {
+	    fprintf(stderr, "%s:%u: vvp.tgt error: system function %s does "
+		    "not return a string, but is used where a string is "
+		    "required.\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr),
+		    ivl_expr_name(expr));
+	    vvp_errors += 1;
+	    fprintf(vvp_out, "    %%pushi/str \"\";\n");
+	    return;
+      }
 
     /* Streaming concatenation in a string context (IEEE 1800-2017
        11.4.14, e.g. joining a queue of strings): build the stream and

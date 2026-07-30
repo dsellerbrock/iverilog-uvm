@@ -176,8 +176,33 @@ enum generation_t {
       GN_VER2005_SV  = 5,
       GN_VER2009  = 6,
       GN_VER2012  = 7,
+      GN_VER2017  = 8,
+      GN_VER2023  = 9,
       GN_DEFAULT  = 4
 };
+
+/* The spelling of each edition, and which of them are SystemVerilog,
+   live in ONE table shared with the driver. See sv_edition.h. */
+#include "sv_edition.h"
+
+/* The newest edition the compiler knows about. `-glatest' resolves to
+   this; keep it equal to the last row of SV_EDITION_TABLE. */
+#define GN_VER_NEWEST GN_VER2023
+
+/* The capability layer: ask whether the SELECTED edition includes a
+   named feature, rather than writing a version comparison at the use
+   site. sv_require_feature() additionally emits a diagnostic naming
+   the construct, the edition and the flag. See sv_edition.h. */
+enum sv_feature_t {
+#define SV_FEATURE_ROW(SYM, GEN, NAME) SYM,
+      SV_FEATURE_TABLE
+#undef SV_FEATURE_ROW
+      SVF_INVALID
+};
+class LineInfo;
+extern bool sv_feature_available(sv_feature_t);
+extern bool sv_require_feature(const LineInfo*li, sv_feature_t);
+extern const char* sv_feature_name(sv_feature_t);
 
 extern generation_t generation_flag;
 
@@ -256,6 +281,12 @@ enum { GN_KEYWORDS_1364_1995        = 0x0001,
        GN_KEYWORDS_1800_2005        = 0x0020,
        GN_KEYWORDS_1800_2009        = 0x0040,
        GN_KEYWORDS_1800_2012        = 0x0080,
+	 /* IEEE 1800-2017 and 1800-2023 keyword tiers. They start
+	    empty: a construct only moves into one of them when it has
+	    been shown to be introduced by that edition, so adding the
+	    tiers on its own changes no behavior. */
+       GN_KEYWORDS_1800_2017        = 0x0100,
+       GN_KEYWORDS_1800_2023        = 0x0200,
        GN_KEYWORDS_ICARUS           = 0x8000
 };
 extern int lexor_keyword_mask;

@@ -1,6 +1,17 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: Recovery Campaign 5 wave 3 head (229/229, real
+Full UVM last passed: language-edition gates head (229/229, real DPI,
+zero skips, 2026-07-30, one uninterrupted solo run on the exact commit
+tree; frontend all scenarios, ivtest gate clean at 3283 tests, VPI
+94/94, negative 90/90). What earns the run: the wave changes the
+lexer keyword-mask cascade -- which decides, for EVERY source file,
+which words are keywords at all -- and adds a `default' arm to it. A
+mistake there is not a narrow one: a generation with no case leaves
+the mask at 0 and every keyword lexes as an identifier. It also adds
+an elaboration-time gate on the system-task path that every $task
+call traverses.
+
+Previous recorded pass: Recovery Campaign 5 wave 3 head (229/229, real
 DPI, zero skips, 2026-07-30, one uninterrupted solo run on the exact
 commit tree; frontend regression all scenarios, ivtest gate clean,
 sva_nfa dual-run 46/46, negative 89/89). What earns the run: the wave
@@ -103,7 +114,7 @@ full run, and it is the reason a full run was mandatory here rather than a
 subset. Also covers the pform_make_assertion park path, which every
 assertion in every design now passes through.)
 
-Commits since full UVM: 0 (Campaign 5 wave 3 ladder ran on the exact tree)
+Commits since full UVM: 0 (edition-gates ladder ran on the exact tree)
 Highest risk change since last full run: —
 
 Triggers for a full run (see docs/conformance/REGRESSION_POLICY.md):
