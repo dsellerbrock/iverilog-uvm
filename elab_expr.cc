@@ -1732,29 +1732,23 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 	    return nullptr;
 
       if (dims[cur_dim].width() != pv.size()) {
-	    // Compile-progress fallback: Some macro expansions (e.g. UVM
-	    // reporting macros) can confuse the parser into treating function
-	    // argument lists as assignment patterns. If the mismatch is large
-	    // (expected elements == width of integer), likely a misparse.
-	    if (gn_system_verilog() && dims[cur_dim].width() == 32
-		&& pv.size() <= 8) {
-	    } else if (pv.size() != 0
-		       && dims[cur_dim].width() % pv.size() == 0) {
-	      // Compile-progress fallback for flattened multi-dim packed
-	      // parameters: when iverilog has collapsed `[M:0][N:0]` to a
-	      // single combined range of M*N bits, an assignment pattern of
-	      // M elements (each N bits wide) is what the source intended.
-	      // Treat each element as a slice of width = dim_width / N_elems
-	      // and continue. This is incorrect for true assignment-pattern
-	      // semantics (no broadcast / repeat) but is sufficient for
-	      // compile-only consumers such as unused cipher SBOX tables.
-	    } else {
-		  cerr << get_fileline() << ": error: Packed array assignment pattern expects "
-		       << dims[cur_dim].width() << " element(s) in this context.\n"
-		       << get_fileline() << ":      : Found "
-		       << pv.size() << " element(s)." << endl;
-		  des->errors++;
-	    }
+	    // An assignment pattern onto a packed dimension must supply
+	    // exactly one element per position (IEEE 1800-2017 10.9.2) --
+	    // there is no broadcast or repeat-to-fill. Two silent-accept
+	    // fallbacks used to live here (a width==32 "UVM macro
+	    // misparse" guess and a divisibility hatch for flattened
+	    // multi-dim packed parameters) and both produced silently
+	    // wrong constants: elements coerced to the wrong slice width,
+	    // underfills zero-extended (recovery D6). The flattening the
+	    // second hatch compensated for is gone -- multi-dim packed
+	    // parameter dims are preserved end-to-end (G14/G15) -- so
+	    // every arity mismatch is now the hard error it always was
+	    // for the overfill case.
+	    cerr << get_fileline() << ": error: Packed array assignment pattern expects "
+		 << dims[cur_dim].width() << " element(s) in this context.\n"
+		 << get_fileline() << ":      : Found "
+		 << pv.size() << " element(s)." << endl;
+	    des->errors++;
       }
 
       width /= dims[cur_dim].width();
