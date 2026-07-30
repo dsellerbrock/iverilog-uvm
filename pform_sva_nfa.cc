@@ -67,6 +67,45 @@ bool pform_sva_nfa_dump_enabled()
 }
 
 /*
+ * ##0 fusion primitive: the incoming tick edges of `cur' (every tick
+ * edge arriving anywhere in cur's backward epsilon closure) are
+ * duplicated with `guard' added to the conjunction, targeting a fresh
+ * join state, which is returned. The original arrival states keep
+ * their edges (delayed-arrival branches still need them); if nothing
+ * else uses them they die in accept-reachability pruning. Returns ~0u
+ * when cur has no incoming tick edges to fuse onto.
+ */
+static unsigned nfa_fuse_arrival_(sva_nfa_t&nfa, unsigned cur, PExpr*guard)
+{
+      std::vector<bool> incl (nfa.nstates, false);
+      incl[cur] = true;
+      bool chg = true;
+      while (chg) {
+	    chg = false;
+	    for (size_t i = 0; i < nfa.edges.size(); i += 1) {
+		  const sva_nfa_edge_t&e = nfa.edges[i];
+		  if (e.epsilon && incl[e.to] && !incl[e.from]) {
+			incl[e.from] = true;
+			chg = true;
+		  }
+	    }
+      }
+      unsigned join = nfa.new_state();
+      size_t nedges = nfa.edges.size();
+      bool any = false;
+      for (size_t i = 0; i < nedges; i += 1) {
+	    sva_nfa_edge_t e = nfa.edges[i];
+	    if (e.epsilon || !incl[e.to]) continue;
+	    e.to = join;
+	    e.guards.push_back(guard);
+	    nfa.edges.push_back(e);
+	    any = true;
+      }
+      if (!any) return ~0u;
+      return join;
+}
+
+/*
  * Build the automaton fragment for one legacy chain step:
  *   ##[m:n] expr  followed by  expr[*1:1+rep_tail]  tail repetition.
  * m == -1 encodes ##[m0:$] (unbounded upper: loop on a true tick);
@@ -97,6 +136,44 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
       long fixed = lo;
       if (fixed < 0) fixed = 0;
 
+	// C5-2 (CL1-001): a goto/nonconsecutive repetition fed by a
+	// WINDOWED arrival ##[m:n] is the union over the fixed arrivals
+	// d in [m,n] -- distinct arrival splits yield distinct match
+	// endpoints (with `##[1:2] b[->1]' and b true on two consecutive
+	// ticks, BOTH ticks end a match), so this is a genuine branch,
+	// not a collapsed wait. One exact-delay fragment per arrival,
+	// exits epsilon-joined.
+      if (st.rep_kind != 0 && !unbounded && hi != lo) {
+	    unsigned exit = nfa.new_state();
+	    for (long d = lo; d <= hi; d += 1) {
+		  sva_seq_step_t one = st;
+		  one.delay_lo = d;
+		  one.delay_hi = d;
+		  unsigned sub = nfa_add_step_(nfa, cur, one, first);
+		  if (sub == ~0u) return ~0u;
+		  nfa.eps(sub, exit);
+	    }
+	    return exit;
+      }
+	// C5-2: `##[0:$] rep' mid-chain splits into the ##0-fused
+	// arrival plus an ordinary unbounded ##[1:$] arrival.
+      if (st.rep_kind != 0 && unbounded && fixed == 0 && !first) {
+	    unsigned exit = nfa.new_state();
+	    sva_seq_step_t z = st;
+	    z.delay_lo = 0;
+	    z.delay_hi = 0;
+	    unsigned s0 = nfa_add_step_(nfa, cur, z, false);
+	    if (s0 == ~0u) return ~0u;
+	    nfa.eps(s0, exit);
+	    sva_seq_step_t r = st;
+	    r.delay_lo = 1;
+	    r.delay_hi = -1;
+	    unsigned s1 = nfa_add_step_(nfa, cur, r, false);
+	    if (s1 == ~0u) return ~0u;
+	    nfa.eps(s1, exit);
+	    return exit;
+      }
+
 	// (fixed-1) pure delay ticks, then the guarded tick.
       for (long k = 1; k < fixed; k += 1) {
 	    unsigned nxt = nfa.new_state();
@@ -109,17 +186,42 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 	// leading delay, `cur` is positioned so the first occurrence-check
 	// is the (fixed)-th tick out of it. Build a counting wait-loop.
       if (st.rep_kind != 0) {
-	      // ##0-fused rep starts (a rep step sharing a prior arrival
-	      // tick) are out of scope; unbounded/window leading delays too.
-	    if ((fixed == 0 && !first) || unbounded || hi != lo)
-		  return ~0u;
 	    long m = st.rep_lo;
 	    long n = st.rep_hi;                 // -1 == unbounded upper
 	    bool ub = (n < 0);
+	      // rep_lo < 1 ([->0]/[=0]) admits empty matches -- still
+	      // declined here (falls back to the legacy loud sorry).
 	    if (m < 1 || (!ub && n < m)) return ~0u;
 	    PExpr*nose = new PEUnary('!', st.expr);   // shared !e guard
 	    nose->set_lineno(st.expr->get_lineno());
 	    nose->set_file(st.expr->get_file());
+
+	      // C5-2 (CL1-001): ##0-fused rep start `x ##0 b[->m:n]' --
+	      // the level-1 occurrence check shares the arrival tick.
+	      // Fuse BOTH outcomes onto the arrival edges: e counts as
+	      // the first occurrence (a fused level-1 arrival, wired by
+	      // epsilon into the fragment's level-1 state below); !e
+	      // enters the wait loop. (Window and unbounded arrivals
+	      // never reach here fused -- the splits above decompose
+	      // them to exact delays first.)
+	    unsigned a1f = ~0u;
+	    if (fixed == 0 && !first) {
+		  unsigned w0f = nfa_fuse_arrival_(nfa, cur, nose);
+		  if (w0f == ~0u) return ~0u;
+		  a1f = nfa_fuse_arrival_(nfa, cur, st.expr);
+		  if (a1f == ~0u) return ~0u;
+		  cur = w0f;
+	    }
+	      // C5-2 (CL1-001): unbounded arrival ##[m:$] -- idle any
+	      // number of extra ticks before the wait loop. The union
+	      // over all fixed arrivals d >= m collapses to an unguarded
+	      // self-loop on the entry state: for the k-th-occurrence
+	      // exit, choosing the arrival just after a skipped
+	      // occurrence re-indexes the count, so every occurrence
+	      // from the k-th onward ends a match -- exactly what the
+	      // idle loop admits.
+	    if (unbounded)
+		  nfa.tick(cur, cur, nullptr);
 	    unsigned exit = nfa.new_state();
 
 	    if (st.rep_kind == 1) {
@@ -133,6 +235,8 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 			nfa.tick(w, w, nose);              // stay on !e
 			unsigned a = nfa.new_state();
 			nfa.tick(w, a, st.expr);           // advance on e
+			if (i == 1 && a1f != ~0u)
+			      nfa.eps(a1f, a);             // fused occurrence 1
 			if (i >= m) nfa.eps(a, exit);      // exit ON the i-th e
 			if (i < K) {
 			      unsigned wn = nfa.new_state();
@@ -161,6 +265,8 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 			nfa.tick(s[i], s[i], nose);        // stay on !e
 			nfa.tick(s[i], s[i+1], st.expr);   // advance on e
 		  }
+		  if (a1f != ~0u)
+			nfa.eps(a1f, s[1]);                // fused occurrence 1
 		  nfa.tick(s[K], s[K], nose);              // trailing !e
 		  if (ub) nfa.tick(s[K], s[K], st.expr);  // [=m:$]: absorb more
 		  for (long i = m; i <= K; i += 1) nfa.eps(s[i], exit);
@@ -171,39 +277,9 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
       unsigned before_expr = cur;
       if (fixed == 0 && !first) {
 	      // ##0 fusion: the step's boolean shares the arrival
-	      // tick of the previous step. Duplicate every tick edge
-	      // arriving in cur's backward epsilon closure (window
-	      // join states reach cur via eps) with this boolean
-	      // added to the guard conjunction, targeting a fresh
-	      // join state. The original arrival states keep their
-	      // edges (delayed-arrival branches below still need
-	      // them); if nothing else uses them they die in
-	      // accept-reachability pruning.
-	    std::vector<bool> incl (nfa.nstates, false);
-	    incl[cur] = true;
-	    bool chg = true;
-	    while (chg) {
-		  chg = false;
-		  for (size_t i = 0; i < nfa.edges.size(); i += 1) {
-			const sva_nfa_edge_t&e = nfa.edges[i];
-			if (e.epsilon && incl[e.to] && !incl[e.from]) {
-			      incl[e.from] = true;
-			      chg = true;
-			}
-		  }
-	    }
-	    unsigned join = nfa.new_state();
-	    size_t nedges = nfa.edges.size();
-	    bool any = false;
-	    for (size_t i = 0; i < nedges; i += 1) {
-		  sva_nfa_edge_t e = nfa.edges[i];
-		  if (e.epsilon || !incl[e.to]) continue;
-		  e.to = join;
-		  e.guards.push_back(st.expr);
-		  nfa.edges.push_back(e);
-		  any = true;
-	    }
-	    if (!any) return ~0u;
+	      // tick of the previous step (see nfa_fuse_arrival_).
+	    unsigned join = nfa_fuse_arrival_(nfa, cur, st.expr);
+	    if (join == ~0u) return ~0u;
 
 	      // ##[0:n] / ##[0:$]: arrivals >= 1 are an ordinary
 	      // ##[1:n]/##[1:$] fragment from the pre-fusion state,

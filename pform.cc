@@ -12437,18 +12437,25 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		       << endl;
 	    else if (prop->tree_sorry == 3)
 		  cerr << loc << ": sorry: `throughout' over a variable-"
-		       << "length sequence requires the automaton engine "
-		       << "(compile with IVL_SVA_NFA=1 in the environment); "
-		       << "the assertion is dropped." << endl;
+		       << "length sequence "
+		       << (pform_sva_nfa_enabled()
+			   ? "is not supported by the automaton engine in "
+			     "this shape yet"
+			   : "requires the automaton engine (unset "
+			     "IVL_SVA_LEGACY)")
+		       << "; the assertion is dropped." << endl;
 	    else if (prop->tree_sorry == 4)
 		  cerr << loc << ": sorry: this `first_match' shape is not "
 		       << "supported by the automaton engine yet; the "
 		       << "assertion is dropped." << endl;
 	    else
-		  cerr << loc << ": sorry: sequence `or'/`and' requires "
-		       << "the automaton engine (compile with IVL_SVA_NFA=1 "
-		       << "in the environment); the assertion is dropped."
-		       << endl;
+		  cerr << loc << ": sorry: sequence `or'/`and' "
+		       << (pform_sva_nfa_enabled()
+			   ? "is not supported by the automaton engine in "
+			     "this shape yet"
+			   : "requires the automaton engine (unset "
+			     "IVL_SVA_LEGACY)")
+		       << "; the assertion is dropped." << endl;
 	    error_count += 1;
 	    sva_tree_delete_(prop->tree, true);
 	    prop->tree = nullptr;
@@ -12778,9 +12785,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			return;
 		  }
 		  cerr << loc << ": sorry: `first_match' of a variable-length "
-		       << "sequence that feeds a continuation requires the "
-		       << "automaton engine (compile with IVL_SVA_NFA=1 in the "
-		       << "environment); the assertion is dropped." << endl;
+		       << "sequence that feeds a continuation "
+		       << (pform_sva_nfa_enabled()
+			   ? "is not supported by the automaton engine in "
+			     "this shape yet"
+			   : "requires the automaton engine (unset "
+			     "IVL_SVA_LEGACY)")
+		       << "; the assertion is dropped." << endl;
 		  error_count += 1;
 		  delete fail_stmt; delete pass_stmt;
 		  delete prop->antecedent; delete prop->seq;
@@ -12842,10 +12853,19 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    for (size_t si = 0 ; si < prop->antecedent->size() ; si += 1)
 		  if ((*prop->antecedent)[si].rep_kind != 0) has_rep_kind = true;
       if (has_rep_kind) {
-	    cerr << loc << ": sorry: SVA goto (`[->m:n]') / nonconsecutive "
-		 << "(`[=m:n]') repetition requires the automaton engine "
-		 << "(compile with IVL_SVA_NFA=1 in the environment); the "
-		 << "assertion is dropped." << endl;
+	      /* C5-2: name the true blocker. When the automaton engine is
+	         already active (the default), it DECLINED this shape --
+	         advising the user to enable it was misleading. */
+	    if (pform_sva_nfa_enabled())
+		  cerr << loc << ": sorry: this goto (`[->m:n]') / "
+		       << "nonconsecutive (`[=m:n]') repetition shape is "
+		       << "not supported by the automaton engine yet; the "
+		       << "assertion is dropped." << endl;
+	    else
+		  cerr << loc << ": sorry: SVA goto (`[->m:n]') / "
+		       << "nonconsecutive (`[=m:n]') repetition requires "
+		       << "the automaton engine (unset IVL_SVA_LEGACY); "
+		       << "the assertion is dropped." << endl;
 	    error_count += 1;
 	    delete fail_stmt; delete pass_stmt;
 	    delete prop->antecedent; delete prop->seq;
@@ -12861,9 +12881,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   off, or it declined the shape), diagnose loudly. (`weak(seq)' is
 	   the default and lowers on either engine identically.) */
       if (prop->strength == 1) {
-	    cerr << loc << ": sorry: `strong(...)' sequence properties "
-		 << "require the automaton engine (compile with IVL_SVA_NFA=1 "
-		 << "in the environment); the assertion is dropped." << endl;
+	    if (pform_sva_nfa_enabled())
+		  cerr << loc << ": sorry: this `strong(...)' sequence "
+		       << "property shape is not supported by the automaton "
+		       << "engine yet; the assertion is dropped." << endl;
+	    else
+		  cerr << loc << ": sorry: `strong(...)' sequence properties "
+		       << "require the automaton engine (unset "
+		       << "IVL_SVA_LEGACY); the assertion is dropped." << endl;
 	    error_count += 1;
 	    delete fail_stmt; delete pass_stmt;
 	    delete prop->antecedent; delete prop->seq;
