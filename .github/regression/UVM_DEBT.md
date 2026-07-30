@@ -1,7 +1,20 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: object-randomize statement-with head (226/226, real
-DPI, zero skips, 2026-07-27). This validates the new parser productions and
+Full UVM last passed: Recovery Campaign 2 head (229/229, real DPI, zero
+skips, 2026-07-30 — includes the new phase_hook_count_test). What earns
+the run: the campaign changes virtual-method dispatch flagging (every
+class method call in every design) and the ref-formal binding runtime
+(vvp_ref_signal_aa carries a tagged binding now), both HIGH-risk
+categories. NOTE (recovery audit, 2026-07-30): between the previous
+recorded pass (PR #126 head, 2026-07-27) and this one, ~60 commits and
+11 merges (#129-#140) landed WITHOUT this file being updated, including
+parse.y grammar, vthread.cc scheduler and vvp_cobject representation
+changes that the policy's own trigger table treats as mandatory-full-run
+categories. The C1 (#140) and C2 heads did get full runs (228/228 and
+229/229 respectively) — they were just never recorded here. Keep this
+file honest or the policy's automatic trigger cannot fire.
+Previous recorded pass: object-randomize statement-with head (226/226,
+real DPI, zero skips, 2026-07-27). This validates the new parser productions and
 the shared expression/statement randomize-with elaboration path across the
 whole UVM suite. Previous full run at R11-closed head (222/222, 4x~55
 batches, 2026-07-25 — three new runtime opcodes
