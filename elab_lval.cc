@@ -2680,6 +2680,9 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	// increases, and use_width shrinks.
       unsigned long off = 0;
       unsigned long use_width = struct_type->packed_width();
+	// Run-time member-offset contributions (variable indices into
+	// member vectors/arrays, recovery C4).
+      NetExpr*var_off = 0;
       ivl_type_t member_type;
 
       pform_name_t completed_path;
@@ -2737,20 +2740,11 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	      // struct. We can further refine the part select with any
 	      // indices that might be present.
 
-	      // Get the index component type. At this point, we only
-	      // support bit select or none.
-	    index_component_t::ctype_t use_sel = index_component_t::SEL_NONE;
-	    if (!member_comp.index.empty())
-		  use_sel = member_comp.index.back().sel;
-
-	    if (use_sel != index_component_t::SEL_NONE
-		&& use_sel != index_component_t::SEL_BIT
-		&& use_sel != index_component_t::SEL_PART) {
-		  cerr << get_fileline() << ": sorry: Assignments to part selects of "
-			"a struct member are not yet supported." << endl;
-		  des->errors += 1;
-		  return false;
-	    }
+	      // Get the index component type. The canonical member-index
+	      // collapse also lowers the indexed part-select forms
+	      // ([b +: w] / [b -: w], run-time base allowed), so only
+	      // genuinely unknown select kinds are refused -- inside
+	      // collapse_packed_member_indices, loudly.
 
 	    member_type = member->net_type;
 
@@ -2775,60 +2769,28 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 			  // These are the dimensions defined by the type
 			const netranges_t&mem_packed_dims = mem_vec->packed_dims();
 
-			if (member_comp.index.size() > mem_packed_dims.size()) {
-			      cerr << get_fileline() << ": error: "
-				   << "Too many index expressions for member." << endl;
-			      des->errors += 1;
-			      return false;
+			  // One canonical member-select calculation (recovery C4):
+			  // constant and run-time indices alike, incl. a trailing
+			  // part-select. Constants fold into `off'; run-time
+			  // contributions accumulate in var_off.
+			NetExpr*moff = 0;
+			unsigned long mwid = 0;
+			if (!collapse_packed_member_indices(des, scope, this,
+							    mem_packed_dims,
+							    member_comp.index,
+							    moff, mwid))
+				return false;
+
+			long cfold = 0;
+			if (eval_as_long(cfold, moff)) {
+				off += cfold;
+				delete moff;
+			} else {
+				var_off = var_off
+				      ? make_packed_offset_sum(this, var_off, moff)
+				      : moff;
 			}
-
-			  // Evaluate all but the last index expression, into prefix_indices.
-			list<long>prefix_indices;
-			bool rc = evaluate_index_prefix(des, scope, prefix_indices, member_comp.index);
-			if (!rc)
-			      return false;
-
-			if (debug_elaborate) {
-			      cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
-				   << "prefix_indices.size()==" << prefix_indices.size()
-				   << ", mem_packed_dims.size()==" << mem_packed_dims.size()
-				   << " (netvector_t context)"
-				   << endl;
-			}
-
-			long tail_off = 0;
-			unsigned long tail_wid = 0;
-			rc = calculate_part(this, des, scope, member_comp.index.back(), tail_off, tail_wid);
-			  /* The callee has already diagnosed a non-constant or
-			     unsupported index; this used to be an ivl_assert that
-			     promoted the reported user error into a compiler abort
-			     (recovery C4: s.key[i] = v with variable i). */
-			if (!rc)
-			      return false;
-
-			if (debug_elaborate) {
-			      cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
-				   << "calculate_part for tail returns tail_off=" << tail_off
-				   << ", tail_wid=" << tail_wid
-				   << endl;
-			}
-
-			  // Now use the prefix_to_slice function to calculate the
-			  // offset and width of the addressed slice of the member.
-			long loff;
-			unsigned long lwid;
-			prefix_to_slice(mem_packed_dims, prefix_indices, tail_off, loff, lwid);
-
-			if (debug_elaborate) {
-			      cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
-				   << "Calculate loff=" << loff << " lwid=" << lwid
-				   << " tail_off=" << tail_off << " tail_wid=" << tail_wid
-				   << " off=" << off << " use_width=" << use_width
-				   << endl;
-			}
-
-			off += loff;
-			use_width = lwid * tail_wid;
+			use_width = mwid;
 			member_type = nullptr;
 		  }
 
@@ -2854,62 +2816,37 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 		    // These are the dimensions defined by the type
 		  const netranges_t&mem_packed_dims = array->static_dimensions();
 
-		  if (member_comp.index.size() > mem_packed_dims.size()) {
-			cerr << get_fileline() << ": error: "
-			     << "Too many index expressions for member "
-			     << member_name << "." << endl;
-			des->errors += 1;
+		    // Canonical element addressing in ELEMENT units, scaled
+		    // to bits below (recovery C4).
+		  NetExpr*moff = 0;
+		  unsigned long mwid = 0;
+		  if (!collapse_packed_member_indices(des, scope, this,
+						      mem_packed_dims,
+						      member_comp.index,
+						      moff, mwid))
 			return false;
-		  }
-
-		    // Evaluate all but the last index expression, into prefix_indices.
-		  list<long>prefix_indices;
-		  bool rc = evaluate_index_prefix(des, scope, prefix_indices, member_comp.index);
-		  if (!rc)
-			return false;
-
-		  if (debug_elaborate) {
-			cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
-			     << "prefix_indices.size()==" << prefix_indices.size()
-			     << ", mem_packed_dims.size()==" << mem_packed_dims.size()
-			     << " (netparray_t context)"
-			     << endl;
-		  }
-
-		    // Evaluate the last index expression into a constant long.
-		  NetExpr*texpr = elab_and_eval(des, scope, member_comp.index.back().msb, -1, true);
-		  long tmp;
-		  if (texpr == 0 || !eval_as_long(tmp, texpr)) {
-			cerr << get_fileline() << ": error: "
-			     << "Array index expressions for member " << member_name
-			     << " must be constant here." << endl;
-			des->errors += 1;
-			return false;
-		  }
-
-		  delete texpr;
-
-		    // Now use the prefix_to_slice function to calculate the
-		    // offset and width of the addressed slice of the member.
-		  long loff;
-		  unsigned long lwid;
-		  prefix_to_slice(mem_packed_dims, prefix_indices, tmp, loff, lwid);
 
 		  ivl_type_t element_type = array->element_type();
 		  long element_width = element_type->packed_width();
-		  if (debug_elaborate) {
-			cerr << get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
-			     << "parray subselection loff=" << loff
-			     << ", lwid=" << lwid
-			     << ", element_width=" << element_width
-			     << endl;
-		  }
 
-		    // The width and offset calculated from the
-		    // indices is actually in elements, and not
-		    // bits.
-		  off += loff * element_width;
-		  use_width = lwid * element_width;
+		  long cfold = 0;
+		  if (eval_as_long(cfold, moff)) {
+			off += cfold * element_width;
+			delete moff;
+		  } else {
+			if (element_width > 1)
+			      moff = scale_index_to_bits(moff,
+						 (unsigned long)element_width, *this);
+			var_off = var_off
+			      ? make_packed_offset_sum(this, var_off, moff)
+			      : moff;
+		  }
+		  use_width = mwid * element_width;
+		    /* An indexed parray selects a SLICE; the final set_part
+		       must size from use_width, not from the whole parray
+		       type. (Reassigned next iteration when the walk continues
+		       into a struct element.) */
+		  member_type = nullptr;
 
 		    // To move on to the next component in the member
 		    // path, get the element type. For example, for
@@ -2979,7 +2916,13 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	    member_select.sel = index_component_t::SEL_BIT;
 	    member_select.msb = new PENumber(new verinum(off));
 	    tmp_index.push_back(member_select);
-	    packed_base = collapse_array_indices(des, scope, reg, tmp_index);
+	      /* collapse_array_exprs is the run-time-capable collapse
+	         (the rvalue twin already uses it); the constant-only
+	         collapse_array_indices asserted on a variable word
+	         index (recovery C4 / G16 l-value). */
+	    packed_base = collapse_array_exprs(des, scope, this, reg, tmp_index);
+	    if (!packed_base)
+		  return false;
       }
 
       long tmp;
@@ -2996,21 +2939,23 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 	    return false;
       }
 
-      if (packed_base == 0) {
-	    NetExpr *base = new NetEConst(verinum(off));
+      {
+	      /* The select base may now carry run-time components: a
+	         variable word index collapsed into packed_base, and/or
+	         variable member indices accumulated in var_off
+	         (recovery C4). The part-select store is a run-time RMW
+	         either way. */
+	    NetExpr *base = packed_base
+		  ? packed_base
+		  : new NetEConst(verinum(off));
+	    if (var_off)
+		  base = make_packed_offset_sum(this, base, var_off);
 	    if (member_type)
 		  lv->set_part(base, member_type);
 	    else
 		  lv->set_part(base, use_width);
 	    return true;
       }
-
-	// Oops, packed_base is not fully evaluated, so I don't know
-	// yet what to do with it.
-      cerr << get_fileline() << ": internal error: "
-	   << "I don't know how to handle this index expression? " << *packed_base << endl;
-      ivl_assert(*this, 0);
-      return false;
 }
 
 NetAssign_* PENumber::elaborate_lval(Design*des, NetScope*, bool, bool, bool) const

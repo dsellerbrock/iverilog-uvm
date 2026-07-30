@@ -547,6 +547,38 @@ extern NetExpr*collapse_array_exprs(Design*des, NetScope*scope,
 				    const LineInfo*loc, const NetNet*net,
 				    const std::list<index_component_t>&indices);
 
+/* The dimension-list core of collapse_array_exprs: build the canonical
+   bit offset for a chain of SEL_BIT indices against an explicit packed
+   dimension list (indices must already be padded to pdims.size()
+   components). Every index is normalized against its dimension --
+   unlike collapse_array_exprs there is no raw single-dimension
+   shortcut, so the result is canonical for any declared range. */
+extern NetExpr*collapse_dims_exprs(Design*des, NetScope*scope,
+				   const LineInfo*loc,
+				   const netranges_t&pdims,
+				   const std::list<index_component_t>&indices);
+
+/* Sum of two canonical offset expressions (width-harmonized add).
+   Companion to the member-index collapse below. */
+extern NetExpr*make_packed_offset_sum(const LineInfo*loc,
+				      NetExpr*a, NetExpr*b);
+
+/* Canonical select into a PACKED MEMBER with dimensions pdims (a
+   struct member vector or packed array): any mix of constant and
+   run-time SEL_BIT element indices, plus an optional trailing
+   part-select ([m:l] constant, or [b +: w]/[b -: w] with constant
+   width and possibly run-time base). On success off_expr holds the
+   member-relative canonical bit offset (fold it with eval_as_long for
+   the all-constant case) and sel_wid the selected width in units of
+   the innermost dimension. Diagnoses and returns false on an illegal
+   or unsupported index shape. */
+extern bool collapse_packed_member_indices(Design*des, NetScope*scope,
+					   const LineInfo*loc,
+					   const netranges_t&pdims,
+					   const std::list<index_component_t>&indices,
+					   NetExpr*&off_expr,
+					   unsigned long&sel_wid);
+
 extern void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 				      const LineInfo*loc,
 				      NetNet*lval, NetNet*rval);

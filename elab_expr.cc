@@ -7288,6 +7288,10 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 	// increases, and use_width shrinks.
       unsigned long off = 0;
       unsigned long use_width = struct_type->packed_width();
+	// Run-time member-offset contributions (variable indices into
+	// member vectors/arrays, recovery C4). Added to the constant
+	// base at the final select.
+      NetExpr*var_off = 0;
 
       pform_name_t completed_path;
       ivl_type_t member_type = 0;
@@ -7398,58 +7402,28 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 			  // These are the dimensions defined by the type
 			const netranges_t&mem_packed_dims = mem_vec->packed_dims();
 
-			if (member_comp.index.size() > mem_packed_dims.size()) {
-			      cerr << li->get_fileline() << ": error: "
-				   << "Too many index expressions for member." << endl;
-			      des->errors += 1;
-			      return 0;
+			  // One canonical member-select calculation (recovery C4):
+			  // constant and run-time indices alike, incl. a trailing
+			  // part-select. A constant chain folds to a constant and
+			  // joins `off'; anything else accumulates in var_off.
+			NetExpr*moff = 0;
+			unsigned long mwid = 0;
+			if (!collapse_packed_member_indices(des, scope, li,
+							    mem_packed_dims,
+							    member_comp.index,
+							    moff, mwid))
+				return 0;
+
+			long cfold = 0;
+			if (eval_as_long(cfold, moff)) {
+				off += cfold;
+				delete moff;
+			} else {
+				var_off = var_off
+				      ? make_packed_offset_sum(li, var_off, moff)
+				      : moff;
 			}
-
-			  // Evaluate all but the last index expression, into prefix_indices.
-			list<long>prefix_indices;
-			bool rc = evaluate_index_prefix(des, scope, prefix_indices, member_comp.index);
-			ivl_assert(*li, rc);
-
-			if (debug_elaborate) {
-			      cerr << li->get_fileline() << ": check_for_struct_members: "
-				   << "prefix_indices.size()==" << prefix_indices.size()
-				   << ", mem_packed_dims.size()==" << mem_packed_dims.size()
-				   << endl;
-			}
-
-			long tail_off = 0;
-			unsigned long tail_wid = 0;
-			rc = calculate_part(li, des, scope, member_comp.index.back(), tail_off, tail_wid);
-			if (! rc) return 0;
-
-			if (debug_elaborate) {
-			      cerr << li->get_fileline() << ": check_for_struct_member: "
-				   << "calculate_part for tail returns tail_off=" << tail_off
-				   << ", tail_wid=" << tail_wid
-				   << endl;
-			}
-
-
-			  // Now use the prefix_to_slice function to calculate the
-			  // offset and width of the addressed slice
-			  // of the member. The lwid comming out of
-			  // the prefix_to_slice is the number of
-			  // elements, and should be 1. The tmp_wid it
-			  // the bit with of the result.
-			long loff;
-			unsigned long lwid;
-			prefix_to_slice(mem_packed_dims, prefix_indices, tail_off, loff, lwid);
-
-			if (debug_elaborate) {
-			      cerr << li->get_fileline() << ": check_for_struct_members: "
-				   << "Calculate loff=" << loff << " lwid=" << lwid
-				   << " tail_off=" << tail_off << " tail_wid=" << tail_wid
-				   << " off=" << off << " use_width=" << use_width
-				   << endl;
-			}
-
-			off += loff;
-			use_width = lwid * tail_wid;
+			use_width = mwid;
 		  }
 
 		    // The netvector_t only has atom elements, so
@@ -7477,53 +7451,33 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 		    // These are the dimensions defined by the type
 		  const netranges_t&mem_packed_dims = array->static_dimensions();
 
-		  if (member_comp.index.size() > mem_packed_dims.size()) {
-			cerr << li->get_fileline() << ": error: "
-			     << "Too many index expressions for member "
-			     << member_name << "." << endl;
-			des->errors += 1;
+		    // Canonical element addressing in ELEMENT units, scaled
+		    // to bits below (recovery C4: run-time word indices into
+		    // a packed array member now elaborate).
+		  NetExpr*moff = 0;
+		  unsigned long mwid = 0;
+		  if (!collapse_packed_member_indices(des, scope, li,
+						      mem_packed_dims,
+						      member_comp.index,
+						      moff, mwid))
 			return 0;
-		  }
-
-		    // Evaluate all but the last index expression, into prefix_indices.
-		  list<long>prefix_indices;
-		  bool rc = evaluate_index_prefix(des, scope, prefix_indices, member_comp.index);
-		  ivl_assert(*li, rc);
-
-		    // Evaluate the last index expression into a constant long.
-		  NetExpr*texpr = elab_and_eval(des, scope, member_comp.index.back().msb, -1, true);
-		  long tmp;
-		  if (texpr == 0 || !eval_as_long(tmp, texpr)) {
-			cerr << li->get_fileline() << ": error: "
-			     << "Array index expressions for member " << member_name
-			     << " must be constant here." << endl;
-			des->errors += 1;
-			return 0;
-		  }
-
-		  delete texpr;
-
-		    // Now use the prefix_to_slice function to calculate the
-		    // offset and width of the addressed slice of the member.
-		  long loff;
-		  unsigned long lwid;
-		  prefix_to_slice(mem_packed_dims, prefix_indices, tmp, loff, lwid);
 
 		  ivl_type_t element_type = array->element_type();
 		  long element_width = element_type->packed_width();
-		  if (debug_elaborate) {
-			cerr << li->get_fileline() << ": PEIdent::elaborate_lval_net_packed_member_: "
-			     << "parray subselection loff=" << loff
-			     << ", lwid=" << lwid
-			     << ", element_width=" << element_width
-			     << endl;
-		  }
 
-		    // The width and offset calculated from the
-		    // indices is actually in elements, and not
-		    // bits.
-		  off += loff * element_width;
-		  use_width = lwid * element_width;
+		  long cfold = 0;
+		  if (eval_as_long(cfold, moff)) {
+			off += cfold * element_width;
+			delete moff;
+		  } else {
+			if (element_width > 1)
+			      moff = scale_index_to_bits(moff,
+						 (unsigned long)element_width, *li);
+			var_off = var_off
+			      ? make_packed_offset_sum(li, var_off, moff)
+			      : moff;
+		  }
+		  use_width = mwid * element_width;
 
 		    // To move on to the next component in the member
 		    // path, get the element type. For example, for
@@ -7583,6 +7537,8 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
       NetESignal*sig = ua_of_packed ? new NetESignal(net, ua_canon_index)
 	                            : new NetESignal(net);
       NetExpr   *base = packed_base? packed_base : make_const_val(off);
+      if (var_off)
+	    base = make_packed_offset_sum(li, base, var_off);
       NetESelect*sel = new NetESelect(sig, base, use_width, member_type);
 
       if (debug_elaborate) {
