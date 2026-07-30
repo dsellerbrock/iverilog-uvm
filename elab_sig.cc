@@ -833,6 +833,37 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 					    const_cast<PClass*>(super_pclass));
       }
 
+	// IEEE 1800-2017 8.20: a method that overrides an inherited virtual
+	// method is itself virtual, whether or not the declaration repeats
+	// the keyword. The pform flag only records an explicit keyword (or
+	// an extern prototype's), so walk the super chain here -- supers are
+	// sig-elaborated first, so their own implicit flags are already
+	// settled -- and mark keyword-less overrides. Without this, codegen
+	// emitted a NON-dispatching call for such an override: combined with
+	// the sole-override static binding below (resolve_method_call_scope),
+	// EVERY receiver of the base method -- including base-class objects
+	// that must run the base body -- ran the derived body with a
+	// wrong-class `this'. One user component overriding a UVM
+	// runtime-schedule task-phase hook without the keyword sent uvm_root
+	// through the override; the first property access then read a
+	// wrong-width value and aborted vvp (vvp_vector4_t::add).
+      if (super_ && class_scope_) {
+	    for (auto&kv : class_scope_->children()) {
+		  NetScope*method = kv.second;
+		  if (!method)
+			continue;
+		  if (method->type() != NetScope::TASK
+		      && method->type() != NetScope::FUNC)
+			continue;
+		  if (method->is_virtual_method())
+			continue;
+		  NetScope*sup = super_->method_from_name(kv.first.peek_name());
+		  if (sup && sup->type() == method->type()
+		      && sup->is_virtual_method())
+			method->is_virtual_method(true);
+	    }
+      }
+
 	// Collect the properties, elaborate them, and add them to the
 	// elaborated class definition.
       for (std::vector<perm_string>::const_iterator name_it =

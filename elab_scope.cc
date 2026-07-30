@@ -1643,7 +1643,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	    hname_t use_name(cur->first);
 	    NetScope*method_scope = new NetScope(class_scope, use_name, NetScope::TASK);
 	    method_scope->is_auto(true);
-	    method_scope->is_virtual_method(cur->second->is_virtual_method());
+	    method_scope->is_virtual_method(method_scope->is_virtual_method()
+					    || cur->second->is_virtual_method());
 	    method_scope->set_line(cur->second);
 	    method_scope->add_imports(&cur->second->explicit_imports);
 	    cur->second->elaborate_scope(des, method_scope);
@@ -1654,7 +1655,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 		    hname_t use_name(cur->first);
 		    NetScope*method_scope = new NetScope(class_scope, use_name, NetScope::FUNC);
 		    method_scope->is_auto(true);
-	    method_scope->is_virtual_method(cur->second->is_virtual_method());
+	    method_scope->is_virtual_method(method_scope->is_virtual_method()
+					    || cur->second->is_virtual_method());
 	    method_scope->set_line(cur->second);
 	    method_scope->add_imports(&cur->second->explicit_imports);
 		    cur->second->elaborate_scope(des, method_scope);
@@ -1842,7 +1844,8 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 		  des->errors += 1;
 	    }
 	    method_scope->is_auto(true);
-	    method_scope->is_virtual_method(cur->second->is_virtual_method());
+	    method_scope->is_virtual_method(method_scope->is_virtual_method()
+					    || cur->second->is_virtual_method());
 	    method_scope->set_line(cur->second);
 	    method_scope->add_imports(&cur->second->explicit_imports);
 
@@ -1869,7 +1872,8 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 		  des->errors += 1;
 	    }
 	    method_scope->is_auto(true);
-	    method_scope->is_virtual_method(cur->second->is_virtual_method());
+	    method_scope->is_virtual_method(method_scope->is_virtual_method()
+					    || cur->second->is_virtual_method());
 	    method_scope->set_line(cur->second);
 	    method_scope->add_imports(&cur->second->explicit_imports);
 
@@ -2021,7 +2025,8 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 	    if (!method_scope)
 		  method_scope = new NetScope(class_scope, use_name, NetScope::TASK);
 	    method_scope->is_auto(true);
-	    method_scope->is_virtual_method(cur->second->is_virtual_method());
+	    method_scope->is_virtual_method(method_scope->is_virtual_method()
+					    || cur->second->is_virtual_method());
 	    method_scope->set_line(cur->second);
 	    method_scope->add_imports(&cur->second->explicit_imports);
 	    cur->second->elaborate_scope(des, method_scope);
@@ -2034,7 +2039,8 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 	    if (!method_scope)
 		  method_scope = new NetScope(class_scope, use_name, NetScope::FUNC);
 	    method_scope->is_auto(true);
-	    method_scope->is_virtual_method(cur->second->is_virtual_method());
+	    method_scope->is_virtual_method(method_scope->is_virtual_method()
+					    || cur->second->is_virtual_method());
 	    method_scope->set_line(cur->second);
 	    method_scope->add_imports(&cur->second->explicit_imports);
 	    cur->second->elaborate_scope(des, method_scope);
@@ -2050,7 +2056,8 @@ static void elaborate_scope_task(Design*des, NetScope*scope, PTask*task)
 
       NetScope*task_scope = new NetScope(scope, use_name, NetScope::TASK);
       task_scope->is_auto(task->is_auto());
-      task_scope->is_virtual_method(task->is_virtual_method());
+      task_scope->is_virtual_method(task_scope->is_virtual_method()
+				     || task->is_virtual_method());
       task_scope->set_line(task);
       task_scope->add_imports(&task->explicit_imports);
 
@@ -2081,7 +2088,8 @@ static void elaborate_scope_func(Design*des, NetScope*scope, PFunction*task)
 
       NetScope*task_scope = new NetScope(scope, use_name, NetScope::FUNC);
       task_scope->is_auto(task->is_auto());
-      task_scope->is_virtual_method(task->is_virtual_method());
+      task_scope->is_virtual_method(task_scope->is_virtual_method()
+				     || task->is_virtual_method());
       task_scope->set_line(task);
       task_scope->add_imports(&task->explicit_imports);
 

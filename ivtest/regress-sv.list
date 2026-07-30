@@ -584,6 +584,7 @@ sv_class22		normal,-g2009		ivltests
 sv_class23		normal,-g2009		ivltests
 sv_class24		normal,-g2009		ivltests
 sv_class_assoc_ternary_null1 normal,-g2009	ivltests
+sv_class_implicit_virtual_dispatch normal,-g2012 ivltests
 sv_class_prop_assoc_obj_member1 normal,-g2009	ivltests
 sv_class_call_result_prop1 normal,-g2009	ivltests
 sv_class_queue_last_prop1 normal,-g2009	ivltests
