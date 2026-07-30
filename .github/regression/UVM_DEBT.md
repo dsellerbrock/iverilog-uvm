@@ -1,6 +1,21 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: Recovery Campaign 2 head (229/229, real DPI, zero
+Full UVM last passed: Recovery Campaign 3 head (229/229, real DPI, zero
+skips, 2026-07-30, re-run at every wave and finally on the exact
+five-wave tree in one uninterrupted ladder). What earns the run: the
+campaign rewires container value semantics (%store/qobj/obj + the
+element copy policy touch every whole-container assignment), struct
+member-path elaboration (check_for_struct_members and the method-call
+walk now take class hops -- every a.h.v read and a.q.push_back call
+routes differently), static-property signal SHAPE (array-typed static
+properties are now real arrays -- every class with a static array
+property elaborates differently), and the packed assignment-pattern
+arity check (two silent-accept hatches removed -- every packed pattern
+re-validates). Each is a HIGH-risk category on its own. One earlier
+full run of wave 4 was DISCARDED and redone: the install tree was
+replaced mid-run (same failure mode as the R2-era discarded run below),
+so its result described no single compiler.
+Previous recorded pass: Recovery Campaign 2 head (229/229, real DPI, zero
 skips, 2026-07-30 — includes the new phase_hook_count_test). What earns
 the run: the campaign changes virtual-method dispatch flagging (every
 class method call in every design) and the ref-formal binding runtime
@@ -54,7 +69,7 @@ full run, and it is the reason a full run was mandatory here rather than a
 subset. Also covers the pform_make_assertion park path, which every
 assertion in every design now passes through.)
 
-Commits since full UVM: 0
+Commits since full UVM: 0 (Campaign 3 final ladder ran on the exact tree)
 Highest risk change since last full run: —
 
 Triggers for a full run (see docs/conformance/REGRESSION_POLICY.md):
