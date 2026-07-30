@@ -183,6 +183,22 @@ static void string_ex_select(ivl_expr_t expr)
 			  strcmp(key_kind, "obj") == 0 ? "2, 0" : "1, 0");
 		  return;
 	    }
+
+	      /* POSITIONAL nested container in string context:
+	         qq[i][j] where qq is a queue/darray whose elements are
+	         string queues/darrays. This fell through to the
+	         empty-string fallback below, so every element READ was a
+	         compile-time "" -- sizes right, contents 'lost', no
+	         diagnostic (recovery D5). Load the inner container
+	         object, then do an indexed string load through it. */
+	    if (inner && (ivl_type_base(inner) == IVL_VT_QUEUE
+			  || ivl_type_base(inner) == IVL_VT_DARRAY)
+		&& !ivl_type_queue_assoc_compat(inner)) {
+		  draw_eval_object(sube);
+		  draw_eval_expr_into_integer(shift, 3);
+		  fprintf(vvp_out, "    %%load/qo/str;\n");
+		  return;
+	    }
       }
 
       if (ivl_expr_type(sube) != IVL_EX_SIGNAL &&

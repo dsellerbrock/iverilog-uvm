@@ -6965,6 +6965,40 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 					     const std::list<index_component_t>&indices,
 					     ivl_type_t&out_type);
 
+/*
+ * A positional index into a darray/queue-typed struct member
+ * (s.da[i] with da a dynamic array or queue) selects an ELEMENT. The
+ * select expression must carry the element type and width — an
+ * untyped 1-bit NetESelect leaves the expression object-typed and the
+ * read comes back nil at runtime. Assoc-compat queue members are keyed
+ * rather than positional, but the shape is the same: the select still
+ * carries the element type, and code generation dispatches on the key
+ * expression's own type. Returns nullptr when the member is not a
+ * container at all so the caller can fall back to its generic handling.
+ */
+static NetESelect* make_container_member_element_select_(NetExpr*member_expr,
+							  NetExpr*idx_expr,
+							  ivl_type_t use_type,
+							  ivl_type_t&elem_type_out)
+{
+      const netdarray_t*mdar = dynamic_cast<const netdarray_t*>(use_type);
+      if (!mdar)
+	    return nullptr;
+      ivl_type_t elem_type = mdar->element_type();
+      if (!elem_type)
+	    return nullptr;
+
+      unsigned elem_width = 1;
+      if (const netvector_t*vt = dynamic_cast<const netvector_t*>(elem_type))
+	    elem_width = vt->packed_width();
+      else if (const netdarray_t*ed = dynamic_cast<const netdarray_t*>(elem_type))
+	    elem_width = ed->element_width();
+
+      NetESelect*sel = new NetESelect(member_expr, idx_expr, elem_width, elem_type);
+      elem_type_out = elem_type;
+      return sel;
+}
+
 static NetExpr* check_for_struct_members(const LineInfo*li,
 					 Design*des, NetScope*scope,
 					 NetNet*net,
@@ -12216,6 +12250,7 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				    }
 
 				    ivl_type_t member_type = member->net_type;
+				    ivl_type_t member_index_result_type = nullptr;
 				    auto apply_member_index =
 					  [&](NetExpr*member_expr, ivl_type_t use_type,
 					      const index_component_t&idx_comp) -> NetExpr* {
@@ -12263,10 +12298,21 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 						      return nullptr;
 						}
 
+						if (idx_comp.sel == index_component_t::SEL_BIT) {
+						      ivl_type_t elem_type = nullptr;
+						      if (NetESelect*esel =
+						            make_container_member_element_select_(
+						                  member_expr, idx_expr,
+						                  use_type, elem_type)) {
+						            esel->set_line(*this);
+						            member_index_result_type = elem_type;
+						            return esel;
+						      }
+						}
+
 						NetESelect*sel = new NetESelect(member_expr, idx_expr,
 									 sel_wid, sel_type);
 						sel->set_line(*this);
-						(void)use_type;
 						return sel;
 					  };
 
@@ -12321,7 +12367,8 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 									       tail_comp.index.front());
 						if (!base_expr)
 						      return nullptr;
-						cur_type = member_type;
+						cur_type = member_index_result_type
+						      ? member_index_result_type : member_type;
 					  }
 				    } else {
 					  cur_type = member_type;
@@ -13046,6 +13093,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    }
 
 				    ivl_type_t member_type = member->net_type;
+				    ivl_type_t member_index_result_type = nullptr;
 				    auto apply_member_index =
 					  [&](NetExpr*member_expr, ivl_type_t use_type,
 					      const index_component_t&idx_comp) -> NetExpr* {
@@ -13083,6 +13131,18 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 						if (!idx_expr) {
 						      delete member_expr;
 						      return make_nested_stub(use_type);
+						}
+
+						if (idx_comp.sel == index_component_t::SEL_BIT) {
+						      ivl_type_t elem_type = nullptr;
+						      if (NetESelect*esel =
+						            make_container_member_element_select_(
+						                  member_expr, idx_expr,
+						                  use_type, elem_type)) {
+						            esel->set_line(*this);
+						            member_index_result_type = elem_type;
+						            return esel;
+						      }
 						}
 
 						NetESelect*sel = new NetESelect(member_expr, idx_expr,
@@ -13140,7 +13200,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 									       tail_comp.index.front());
 						if (!base_expr)
 						      return make_nested_stub(member_type);
-						cur_type = member_type;
+						cur_type = member_index_result_type
+						      ? member_index_result_type : member_type;
 					  }
 				    } else {
 					  cur_type = member_type;
