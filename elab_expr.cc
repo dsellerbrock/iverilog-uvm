@@ -8393,6 +8393,41 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			} else {
 			      const auto&members = cur_struct->members();
 			      size_t member_idx = member - &members.front();
+
+				// A FIXED unpacked-array member with a full word index
+				// (h.f.arr[i]): the member is one property holding the
+				// whole array, so the element read is the property read
+				// WITH a word index (%prop/v/i) -- the same shape
+				// check_for_struct_members builds for plain struct
+				// variables (recovery D8).
+			      if (!tail_comp.index.empty()) {
+				    if (const netuarray_t*mua =
+					      dynamic_cast<const netuarray_t*>(cur_type)) {
+					  const auto&adims = mua->static_dimensions();
+					  if (adims.size() != tail_comp.index.size()) {
+						cerr << get_fileline() << ": error: Got "
+						     << tail_comp.index.size() << " indices, expecting "
+						     << adims.size() << " to index struct member "
+						     << tail_comp.name << "." << endl;
+						des->errors += 1;
+						delete base_expr;
+						return nullptr;
+					  }
+					  NetExpr*widx = make_canonical_index(des, scope, this,
+									      tail_comp.index, mua, false);
+					  if (!widx) {
+						delete base_expr;
+						return nullptr;
+					  }
+					  NetEProperty*iprop =
+						new NetEProperty(base_expr, member_idx, widx);
+					  iprop->set_line(*this);
+					  base_expr = iprop;
+					  cur_type = mua->element_type();
+					  continue;
+				    }
+			      }
+
 			      NetEProperty*prop = new NetEProperty(base_expr, member_idx, nullptr);
 			      prop->set_line(*this);
 			      base_expr = prop;
@@ -8415,6 +8450,25 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 								   tail_comp.index,
 								   sel_type)
 				    : nullptr;
+
+				// A CONTAINER member (darray/queue/assoc): a single
+				// index selects an element -- reuse the typed helper
+				// the plain-variable walkers use (recovery D8).
+			      if (!sel && !mvec && tail_comp.index.size() == 1
+				  && tail_comp.index.front().sel == index_component_t::SEL_BIT) {
+				    NetExpr*idx_expr = elab_and_eval(des, scope,
+					  tail_comp.index.front().msb, -1, false);
+				    if (idx_expr) {
+					  if (NetESelect*esel =
+						make_container_member_element_select_(
+						      base_expr, idx_expr,
+						      cur_type, sel_type)) {
+						esel->set_line(*this);
+						sel = esel;
+					  }
+				    }
+			      }
+
 			      if (!sel) {
 				    delete base_expr;
 				    cerr << get_fileline() << ": sorry: "
