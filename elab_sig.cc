@@ -977,9 +977,26 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		       << "." << endl;
 	    }
 
-	    if (class_scope_->find_signal(cur->first) == 0)
-		  /* NetNet*sig = */ new NetNet(class_scope_, cur->first, NetNet::REG,
-						use_type);
+	    if (class_scope_->find_signal(cur->first) == 0) {
+		    // A static property is a real signal in the class
+		    // scope. A FIXED-ARRAY property must be created with
+		    // its unpacked dimensions -- the type-only NetNet
+		    // constructor makes a single-word signal, so the
+		    // variable reached the runtime as a scalar while
+		    // codegen addressed it as an array: every element
+		    // store failed at runtime ("unresolved %store/vec4a")
+		    // and reads came back zero with exit status 0
+		    // (recovery D9 family).
+		  if (const netuarray_t*ua =
+			    dynamic_cast<const netuarray_t*>(use_type)) {
+			new NetNet(class_scope_, cur->first, NetNet::REG,
+				   ua->static_dimensions(),
+				   ua->element_type());
+		  } else {
+			new NetNet(class_scope_, cur->first, NetNet::REG,
+				   use_type);
+		  }
+	    }
       }
 
       // Synthesize properties for class-embedded covergroups so they are

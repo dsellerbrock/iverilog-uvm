@@ -7595,6 +7595,86 @@ static NetExpr* class_static_property_expression(const LineInfo*li,
       return expr;
 }
 
+/*
+ * Indexed read of a static class property (recovery D10). The property
+ * is a real signal in the class scope, so an index selects a word of a
+ * fixed-array property or an element of a container property -- the
+ * old path returned the WHOLE property with the index dropped, so an
+ * element read either failed loudly downstream ("unpacked aggregate
+ * cannot be assigned to a scalar target") or degraded to a blank
+ * argument stub. out_type receives the type of the returned
+ * expression so path walks can continue past it.
+ */
+static NetExpr* class_static_property_indexed_expression(Design*des,
+							 NetScope*scope,
+							 const LineInfo*li,
+							 const netclass_t*class_type,
+							 const name_component_t&comp,
+							 ivl_type_t&out_type)
+{
+      NetNet*sig = class_type->find_static_property(comp.name);
+      if (!sig)
+	    return 0;
+
+      if (comp.index.empty()) {
+	    NetESignal*expr = new NetESignal(sig);
+	    expr->set_line(*li);
+	    out_type = sig->unpacked_dimensions() > 0
+		  ? sig->array_type()
+		  : sig->net_type();
+	    return expr;
+      }
+
+	// Fixed-array property read with full word indices.
+      if (sig->unpacked_dimensions() > 0
+	  && comp.index.size() == sig->unpacked_dimensions()) {
+	    list<NetExpr*>uidx;
+	    list<long>uidx_const;
+	    indices_flags iflags;
+	    indices_to_expressions(des, scope, li, comp.index,
+				   sig->unpacked_dimensions(), false,
+				   iflags, uidx, uidx_const);
+	    NetExpr*canon = 0;
+	    if (!iflags.invalid && !iflags.undefined) {
+		  canon = iflags.variable
+			? normalize_variable_unpacked(sig, uidx)
+			: normalize_variable_unpacked(sig, uidx_const);
+	    }
+	    if (canon) {
+		  canon->set_line(*li);
+		  NetESignal*expr = new NetESignal(sig, canon);
+		  expr->set_line(*li);
+		  out_type = sig->net_type();
+		  return expr;
+	    }
+      }
+
+	// Container property element read (single positional or keyed
+	// index): reuse the shared typed element-select helper.
+      if (comp.index.size() == 1
+	  && comp.index.front().sel == index_component_t::SEL_BIT) {
+	    NetExpr*idx_expr = elab_and_eval(des, scope,
+					     comp.index.front().msb, -1, false);
+	    if (idx_expr) {
+		  NetESignal*base = new NetESignal(sig);
+		  base->set_line(*li);
+		  ivl_type_t elem_out = nullptr;
+		  if (NetESelect*esel = make_container_member_element_select_(
+			    base, idx_expr, sig->net_type(), elem_out)) {
+			esel->set_line(*li);
+			out_type = elem_out;
+			return esel;
+		  }
+		  delete base;
+	    }
+      }
+
+      cerr << li->get_fileline() << ": sorry: this indexed static-property"
+	   << " read form is not yet supported." << endl;
+      des->errors += 1;
+      return 0;
+}
+
 static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 							   NetScope*scope,
 							   const pform_scoped_name_t&path,
@@ -7607,8 +7687,6 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 	    return nullptr;
 
       const name_component_t&prop_comp = path.name.back();
-      if (!prop_comp.index.empty())
-	    return nullptr;
 
       pform_name_t type_path = path.name;
       type_path.pop_back();
@@ -7663,7 +7741,17 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
       if (!qual.test_static())
 	    return nullptr;
 
-      return class_static_property_expression(li, class_type, prop_comp.name);
+      if (prop_comp.index.empty())
+	    return class_static_property_expression(li, class_type, prop_comp.name);
+
+	// Indexed static property via the scoped form,
+	// Class::arr[i] / Class::q[i] (recovery D10).
+      {
+	    ivl_type_t static_out = nullptr;
+	    return class_static_property_indexed_expression(des, scope, li,
+							    class_type, prop_comp,
+							    static_out);
+      }
 }
 
 /*
@@ -7855,14 +7943,10 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       }
 
       if (qual.test_static()) {
-	    NetNet*psig = class_type->find_static_property(comp.name);
-	    if (!psig)
-		  return 0;
 	    delete base_expr;
-	    NetESignal*expr = new NetESignal(psig);
-	    expr->set_line(*li);
-	    out_type = psig->net_type();
-	    return expr;
+	    return class_static_property_indexed_expression(des, scope, li,
+							    class_type, comp,
+							    out_type);
       }
 
       NetExpr *canon_index = nullptr;
@@ -8729,9 +8813,10 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
 
       if (qual.test_static()) {
-	    perm_string prop_name = lex_strings.make(class_type->get_prop_name(pidx));
-	    return class_static_property_expression(this, class_type,
-						    prop_name);
+	    ivl_type_t static_out = nullptr;
+	    return class_static_property_indexed_expression(des, scope, this,
+							    class_type, comp,
+							    static_out);
       }
 
       NetExpr *canon_index = nullptr;
