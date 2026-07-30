@@ -1,6 +1,21 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: Recovery Campaign 3 head (229/229, real DPI, zero
+Full UVM last passed: Recovery Campaign 5 wave 1 head (229/229, real
+DPI, zero skips, 2026-07-30, one uninterrupted solo run on the exact
+commit tree). What earns the run: the wave rewires named-property
+instantiation (every `assert property (name)` in every design now goes
+through a deep clone instead of consume-once transfer), the endpoint
+method lowering (recursive over whole boolean expressions and
+combinator trees), and the $sampled/$past front-end dispatch — all in
+pform_make_assertion territory that every concurrent assertion passes
+through, a HIGH-risk category per the policy table.
+NOTE (audit, 2026-07-30): the Recovery Campaign 4 head (PR #143) also
+got a full run in its final ladder — 229/229, real DPI, zero skips,
+after one DISCARDED run whose install tree was replaced mid-run by a
+concurrently launched frontend test — but this file was not updated in
+that PR. Recorded here after the fact; keep this file honest in the
+merging PR itself or the policy's automatic trigger cannot fire.
+Previous recorded pass: Recovery Campaign 3 head (229/229, real DPI, zero
 skips, 2026-07-30, re-run at every wave and finally on the exact
 five-wave tree in one uninterrupted ladder). What earns the run: the
 campaign rewires container value semantics (%store/qobj/obj + the
@@ -69,7 +84,7 @@ full run, and it is the reason a full run was mandatory here rather than a
 subset. Also covers the pform_make_assertion park path, which every
 assertion in every design now passes through.)
 
-Commits since full UVM: 0 (Campaign 3 final ladder ran on the exact tree)
+Commits since full UVM: 0 (Campaign 5 wave 1 ladder ran on the exact tree)
 Highest risk change since last full run: —
 
 Triggers for a full run (see docs/conformance/REGRESSION_POLICY.md):

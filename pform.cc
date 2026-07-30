@@ -6605,7 +6605,14 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 		  bool is_stbl = !strcmp(nm, "$stable");
 		  bool is_chgd = !strcmp(nm, "$changed");
 		  bool is_past = !strcmp(nm, "$past");
-		  if (is_rose || is_fell || is_stbl || is_chgd || is_past) {
+		    /* $sampled(e) is the Preponed sample of e (16.9.3) --
+		       definitionally $past(e, 0). It was missing from this
+		       dispatch, fell through to the live-value VPI fallback,
+		       and silently returned the POST-edge value (recovery
+		       C5): route it through the same capture register the
+		       other sampled functions use, with no history chain. */
+		  bool is_smpl = !strcmp(nm, "$sampled");
+		  if (is_rose || is_fell || is_stbl || is_chgd || is_past || is_smpl) {
 			const std::vector<named_pexpr_t>&parms = cf->get_parms();
 			if (parms.empty() || !parms[0].parm) {
 			      cerr << loc << ": error: " << nm
@@ -6626,7 +6633,17 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				    return e;
 			      }
 			      depth = dn->value().as_long();
-			      if (depth < 1) depth = 1;
+			      if (depth < 1) {
+				    /* 16.9.3: number_of_ticks shall be >= 1. The
+				       old clamp silently turned $past(x,0) into
+				       $past(x,1) (recovery C5); for the current
+				       sample the LRM spelling is $sampled(x). */
+				    cerr << loc << ": error: $past depth must be"
+					 " >= 1 (16.9.3); use $sampled() for the"
+					 " current sample." << endl;
+				    error_count += 1;
+				    return e;
+			      }
 			}
 			  /* $past(expr, n, GATING_EXPR): the history
 			     advances only on ticks where the gating
@@ -6654,7 +6671,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			     registers are 64-bit -- wide enough for every
 			     integral type; the boolean sampled functions
 			     ($rose/$fell/... ) stay 1-bit. */
-			bool wide = is_past;
+			bool wide = is_past || is_smpl;
 			  /* ...unless the argument is a real variable, in
 			     which case an integral history would round
 			     the fraction away silently. A REAL history
@@ -6663,7 +6680,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			     that matters; a real-valued EXPRESSION still
 			     lands in the integral chain. */
 			bool as_real = false;
-			if (is_past) {
+			if (is_past || is_smpl) {
 			      if (const PEIdent*aid =
 				  dynamic_cast<const PEIdent*>(parms[0].parm)) {
 				    if (aid->path().size() == 1) {
@@ -6698,6 +6715,11 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			      return cur_live ? sva_assign_nb_(loc, lv, rv)
 					      : sva_assign_(loc, lv, rv);
 			};
+			if (is_smpl) {
+			      /* No history: the Preponed capture IS the value. */
+			      sampled_pending_drop_(cf);
+			      return mk_cur();
+			}
 			  /* ...and build the history chain, updated
 			     bottom-of-block in shift order. */
 			std::vector<perm_string> hist (depth);
@@ -7248,6 +7270,20 @@ pform_sva_repeat(const struct vlltype&loc,
 		  if (!st.expr) {
 			(*steps)[0].delay_lo = -3;
 			return steps;
+		  }
+		    /* A local-variable assignment rides on the step as a
+		       raw owned pointer; the shallow copy above aliased it
+		       across every repetition and the local-var lowering
+		       then freed it once per alias -- a double-free
+		       SIGSEGV for `(a, v=d)[*2]' (recovery C5). Each
+		       repetition owns its own clone, so the assignment
+		       re-executes per iteration (16.9.2 expansion). */
+		  if (base[k].lv_rhs) {
+			st.lv_rhs = sva_clone_expr_(base[k].lv_rhs);
+			if (!st.lv_rhs) {
+			      (*steps)[0].delay_lo = -3;
+			      return steps;
+			}
 		  }
 		  if (k == 0) {
 			st.delay_lo = 1;
@@ -9960,63 +9996,156 @@ static bool sva_check_first_match_(const struct vlltype&loc,
    diagnostic. Under a single clock `.triggered' and `.matched' coincide
    (the observed-region distinction is a stage-D multiclock concern).
    Returns false (diagnosed) on an unsupported endpoint. */
+/* Build the $past-conjunction indicator for `seqname.method'. Returns
+   the expression, or null: with `failed' set when the sequence exists
+   but cannot be lowered (diagnosed here), clear when the name is not a
+   declared sequence (caller leaves the reference alone). */
+static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
+				      perm_string seqname, perm_string method,
+				      bool&failed)
+{
+      std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator it =
+	    sva_module_sequences.find(seqname);
+      if (it == sva_module_sequences.end() || !it->second)
+	    return nullptr;
+
+      std::vector<sva_seq_step_t>&body = *it->second;
+      bool ok = !body.empty();
+      long L = 0;
+      std::vector<long> off (body.size(), 0);
+      for (size_t j = 0 ; j < body.size() && ok ; j += 1) {
+	    const sva_seq_step_t&st = body[j];
+	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
+		|| st.rep_tail != 0 || st.rep_kind != 0 || st.lv_rhs)
+		  ok = false;
+	    else { L += st.delay_lo; off[j] = L; }
+      }
+      if (!ok) {
+	    cerr << loc << ": sorry: `" << seqname << "." << method
+		 << "' is supported only for a fixed-length sequence "
+		 << "(constant ##N delays, no ##[m:n]/##[m:$]/[*]/goto/"
+		 << "local variables); the assertion is dropped." << endl;
+	    error_count += 1;
+	    failed = true;
+	    return nullptr;
+      }
+	/* AND over j of $past(clone(e_j), L - off[j]). */
+      PExpr*conj = nullptr;
+      for (size_t j = 0 ; j < body.size() ; j += 1) {
+	    PExpr*ej = sva_clone_expr_(body[j].expr);
+	    if (!ej) { ok = false; break; }
+	    PExpr*term = sva_past_(loc, ej, L - off[j]);
+	    conj = conj ? sva_logic_(loc, 'a', conj, term) : term;
+      }
+      if (!ok || !conj) {
+	    cerr << loc << ": sorry: `" << seqname << "." << method
+		 << "' has a step expression that cannot be lowered; "
+		 << "the assertion is dropped." << endl;
+	    error_count += 1;
+	    delete conj;
+	    failed = true;
+	    return nullptr;
+      }
+      return conj;
+}
+
+/* Recursively rewrite `seq.triggered'/`seq.matched' references INSIDE
+   a step's boolean expression (16.13.6: the endpoint methods are
+   ordinary booleans and compose with any operator). The old lowering
+   only matched a step whose ENTIRE expression was the bare reference:
+   `s1.triggered && e' left the reference unresolved and the assertion
+   went silently wrong -- differently in each engine (recovery C5). */
+static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
+					 PExpr*e, bool&failed)
+{
+      if (!e || failed) return e;
+
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    if (id->path().package) return e;
+	    const pform_name_t&nm = id->path().name;
+	    if (nm.size() != 2) return e;
+	    if (!nm.front().index.empty() || !nm.back().index.empty())
+		  return e;
+	    perm_string method = nm.back().name;
+	    if (strcmp(method, "triggered") && strcmp(method, "matched"))
+		  return e;
+	    PExpr*ind = sva_endpoint_indicator_(loc, nm.front().name,
+						method, failed);
+	    if (!ind) return e;
+	    delete e;
+	    return ind;
+      }
+
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
+	    PExpr*sub = sva_rewrite_endpoint_expr_(loc, un->get_expr(), failed);
+	    if (sub == un->get_expr()) return e;
+	    PEUnary*cp = new PEUnary(un->get_op(), sub);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
+	    PExpr*l = sva_rewrite_endpoint_expr_(loc, bin->get_left(), failed);
+	    PExpr*r = sva_rewrite_endpoint_expr_(loc, bin->get_right(), failed);
+	    if (l == bin->get_left() && r == bin->get_right()) return e;
+	    PEBinary*cp;
+	    if (dynamic_cast<PEBComp*>(e))
+		  cp = new PEBComp(bin->get_op(), l, r);
+	    else if (dynamic_cast<PEBLogic*>(e))
+		  cp = new PEBLogic(bin->get_op(), l, r);
+	    else
+		  cp = new PEBinary(bin->get_op(), l, r);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
+	    PExpr*c = sva_rewrite_endpoint_expr_(loc, ter->get_cond(), failed);
+	    PExpr*t = sva_rewrite_endpoint_expr_(loc, ter->get_true(), failed);
+	    PExpr*f = sva_rewrite_endpoint_expr_(loc, ter->get_false(), failed);
+	    if (c == ter->get_cond() && t == ter->get_true()
+		&& f == ter->get_false()) return e;
+	    PETernary*cp = new PETernary(c, t, f);
+	    cp->set_line(*e);
+	    return cp;
+      }
+
+      return e;
+}
+
 static bool sva_lower_endpoint_methods_(const struct vlltype&loc,
 					std::vector<sva_seq_step_t>&steps)
 {
       for (size_t i = 0 ; i < steps.size() ; i += 1) {
-	    PEIdent*id = dynamic_cast<PEIdent*>(steps[i].expr);
-	    if (!id || id->path().package) continue;
-	    const pform_name_t&nm = id->path().name;
-	    if (nm.size() != 2) continue;
-	    if (!nm.front().index.empty() || !nm.back().index.empty()) continue;
-	    perm_string method = nm.back().name;
-	    if (strcmp(method, "triggered") && strcmp(method, "matched"))
-		  continue;
-	    perm_string seqname = nm.front().name;
-	    std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator it =
-		  sva_module_sequences.find(seqname);
-	    if (it == sva_module_sequences.end() || !it->second)
-		  continue;   /* not a declared sequence: leave it for the
-				 ordinary unresolved-reference diagnostic */
-
-	    std::vector<sva_seq_step_t>&body = *it->second;
-	    bool ok = !body.empty();
-	    long L = 0;
-	    std::vector<long> off (body.size(), 0);
-	    for (size_t j = 0 ; j < body.size() && ok ; j += 1) {
-		  const sva_seq_step_t&st = body[j];
-		  if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		      || st.rep_tail != 0 || st.rep_kind != 0 || st.lv_rhs)
-			ok = false;
-		  else { L += st.delay_lo; off[j] = L; }
-	    }
-	    if (!ok) {
-		  cerr << loc << ": sorry: `" << seqname << "." << method
-		       << "' is supported only for a fixed-length sequence "
-		       << "(constant ##N delays, no ##[m:n]/##[m:$]/[*]/goto/"
-		       << "local variables); the assertion is dropped." << endl;
-		  error_count += 1;
+	    bool failed = false;
+	    steps[i].expr = sva_rewrite_endpoint_expr_(loc, steps[i].expr,
+						       failed);
+	    if (failed)
 		  return false;
+	    if (steps[i].lv_rhs) {
+		  steps[i].lv_rhs = sva_rewrite_endpoint_expr_(loc,
+				steps[i].lv_rhs, failed);
+		  if (failed)
+			return false;
 	    }
-	      /* AND over j of $past(clone(e_j), L - off[j]). */
-	    PExpr*conj = nullptr;
-	    for (size_t j = 0 ; j < body.size() ; j += 1) {
-		  PExpr*ej = sva_clone_expr_(body[j].expr);
-		  if (!ej) { ok = false; break; }
-		  PExpr*term = sva_past_(loc, ej, L - off[j]);
-		  conj = conj ? sva_logic_(loc, 'a', conj, term) : term;
-	    }
-	    if (!ok || !conj) {
-		  cerr << loc << ": sorry: `" << seqname << "." << method
-		       << "' has a step expression that cannot be lowered; "
-		       << "the assertion is dropped." << endl;
-		  error_count += 1;
-		  delete conj;
-		  return false;
-	    }
-	    delete steps[i].expr;
-	    steps[i].expr = conj;
       }
+      return true;
+}
+
+/* Apply the endpoint-method lowering across a sequence-combinator
+   tree: every LEAF chain and every throughout-invariant expression
+   (the tree dispatch used to bypass the lowering entirely). */
+static bool sva_lower_endpoint_methods_tree_(const struct vlltype&loc,
+					     sva_stree_t*t)
+{
+      if (!t) return true;
+      if (t->chain && !sva_lower_endpoint_methods_(loc, *t->chain))
+	    return false;
+      if (t->gexpr) {
+	    bool failed = false;
+	    t->gexpr = sva_rewrite_endpoint_expr_(loc, t->gexpr, failed);
+	    if (failed) return false;
+      }
+      if (!sva_lower_endpoint_methods_tree_(loc, t->a)) return false;
+      if (!sva_lower_endpoint_methods_tree_(loc, t->b)) return false;
       return true;
 }
 
@@ -12277,6 +12406,21 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  delete pass_stmt;
 		  pass_stmt = nullptr;
 	    }
+	      /* The endpoint-method (.triggered/.matched) lowering must
+	         also cover combinator-tree leaf chains -- the tree
+	         dispatch used to bypass it, leaving the references
+	         unresolved and the assertion silently wrong
+	         (recovery C5). */
+	    if (!sva_lower_endpoint_methods_tree_(loc, prop->tree)) {
+		  sva_tree_delete_(prop->tree, true);
+		  prop->tree = nullptr;
+		  delete prop->clk_evt;
+		  delete prop->disable_iff_expr;
+		  delete prop;
+		  delete fail_stmt;
+		  delete pass_stmt;
+		  return;
+	    }
 	    if (pform_sva_nfa_enabled()
 		&& pform_sva_nfa_try_assertion(loc, prop, fail_stmt,
 					       pass_stmt, kind))
@@ -12331,13 +12475,102 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		      && id->path().name.front().index.empty()) {
 			std::map<perm_string, sva_property_t*>::iterator pit =
 			      sva_module_properties.find(id->path().name.front().name);
-			if (pit != sva_module_properties.end() && pit->second) {
-			      sva_property_t*named = pit->second;
-			      pit->second = nullptr;  /* consume once */
+			if (pit != sva_module_properties.end() && !pit->second) {
+			        /* The declaration existed but was consumed by a
+			           prior instantiation of a shape we cannot clone
+			           yet. The old behavior fell through to plain
+			           identifier resolution and the assertion went
+			           SILENTLY dead (recovery C5). */
+			      cerr << loc << ": sorry: named property `"
+				   << id->path().name.front().name
+				   << "' uses a form that supports only one"
+				   << " instantiation; this additional assertion"
+				   << " is dropped." << endl;
+			      error_count += 1;
 			      delete id;
 			      delete prop->seq;
 			      delete prop;
-			      pform_make_assertion(loc, named, fail_stmt,
+			      delete fail_stmt;
+			      delete pass_stmt;
+			      return;
+			}
+			if (pit != sva_module_properties.end() && pit->second) {
+			      sva_property_t*named = pit->second;
+			        /* Deep-clone the declaration per instantiation
+			           (recovery C5): the old transfer-and-null
+			           "consume once" made every SECOND assert of
+			           the same named property an unresolved
+			           reference -- silently dead on the automaton
+			           engine, constantly-true on the legacy one.
+			           Mirrors the parameterized-property path with
+			           an empty substitution. Shapes without a clone
+			           recipe (combinator trees, multiclock chains)
+			           keep transfer semantics; their re-use is the
+			           loud refusal above instead of silence. */
+			      sva_property_t*inst = nullptr;
+			      if (named->tree
+				  || (named->mc_more && !named->mc_more->empty())) {
+				    inst = named;
+				    pit->second = nullptr;  /* consume once */
+			      } else {
+				    std::map<perm_string,PExpr*> subst;
+				    bool ok = true;
+				    inst = new sva_property_t;
+				    inst->op_type = named->op_type;
+				    inst->mc_boundary = named->mc_boundary;
+				    inst->strength = named->strength;
+				    inst->win_lo = named->win_lo;
+				    inst->win_hi = named->win_hi;
+				    inst->tree_sorry = named->tree_sorry;
+				    if (named->clk_evt) {
+					  inst->clk_evt = sva_clone_event_control_(
+						named->clk_evt, loc, &subst);
+					  if (!inst->clk_evt) ok = false;
+				    }
+				    if (ok && named->seq_clk_evt) {
+					  inst->seq_clk_evt = sva_clone_event_control_(
+						named->seq_clk_evt, loc, &subst);
+					  if (!inst->seq_clk_evt) ok = false;
+				    }
+				    if (ok && named->disable_iff_expr) {
+					  inst->disable_iff_expr = sva_clone_subst_(
+						named->disable_iff_expr, &subst);
+					  if (!inst->disable_iff_expr) ok = false;
+				    }
+				    if (ok && named->abort_cond) {
+					  inst->abort_cond = sva_clone_subst_(
+						named->abort_cond, &subst);
+					  if (!inst->abort_cond) ok = false;
+				    }
+				    if (ok && named->seq) {
+					  inst->seq = sva_clone_steps_subst_(
+						loc, named->seq, subst);
+					  if (!inst->seq) ok = false;
+				    }
+				    if (ok && named->antecedent) {
+					  inst->antecedent = sva_clone_steps_subst_(
+						loc, named->antecedent, subst);
+					  if (!inst->antecedent) ok = false;
+				    }
+				    if (ok && named->mc_prefix) {
+					  inst->mc_prefix = sva_clone_steps_subst_(
+						loc, named->mc_prefix, subst);
+					  if (!inst->mc_prefix) ok = false;
+				    }
+				    if (!ok) {
+					    /* Clone failed: keep the old
+					       transfer semantics rather than
+					       dropping the FIRST use; re-use
+					       then hits the loud refusal. */
+					  pform_sva_destroy_property(inst);
+					  inst = named;
+					  pit->second = nullptr;
+				    }
+			      }
+			      delete id;
+			      delete prop->seq;
+			      delete prop;
+			      pform_make_assertion(loc, inst, fail_stmt,
 						   pass_stmt, kind);
 			      return;
 			}
