@@ -366,6 +366,12 @@ static void container_element_enc_(ivl_type_t etype, char*enc, size_t enc_len)
 	  case IVL_VT_CLASS:
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
+	    /* An unpacked STRUCT element (IVL_VT_NO_TYPE) is a cobject
+	       at runtime. It used to fall into the packed-width default,
+	       encoding a garbage width ("v4294967295") -- the container
+	       was created with a mismatched element class and every
+	       stored element was silently dropped. */
+	  case IVL_VT_NO_TYPE:
 	    snprintf(enc, enc_len, "o");
 	    break;
 	  default: {

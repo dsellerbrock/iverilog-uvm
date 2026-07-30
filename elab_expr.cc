@@ -13668,6 +13668,88 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
                         return tmp;
 			}
 		  }
+		    // Member access through stacked POSITIONAL container
+		    // selects (qq[i][j].x with struct or class elements,
+		    // recovery D13): chain the typed element selects, then
+		    // resolve the member path against the element type.
+		    // Only a full success returns; any unsupported piece
+		    // falls through to the loud error below.
+		  if (sr.net && sr.net->unpacked_dimensions() == 0
+		      && !sr.path_head.empty()
+		      && !sr.path_head.back().index.empty()
+		      && (sr.net->darray_type() || sr.net->queue_type())) {
+			ivl_type_t cur_type = sr.net->net_type();
+			NetESignal*sig_expr = new NetESignal(sr.net);
+			sig_expr->set_line(*this);
+			NetExpr*cur = sig_expr;
+			bool ok = true;
+			for (const index_component_t&idx : sr.path_head.back().index) {
+			      if (idx.sel != index_component_t::SEL_BIT) {
+				    ok = false;
+				    break;
+			      }
+			      NetExpr*idx_expr = elab_and_eval(des, scope,
+							       idx.msb, -1, false);
+			      if (!idx_expr) {
+				    ok = false;
+				    break;
+			      }
+			      ivl_type_t elem_out = nullptr;
+			      NetESelect*esel =
+				    make_container_member_element_select_(
+					  cur, idx_expr, cur_type, elem_out);
+			      if (!esel) {
+				    delete idx_expr;
+				    ok = false;
+				    break;
+			      }
+			      esel->set_line(*this);
+			      cur = esel;
+			      cur_type = elem_out;
+			}
+			for (const auto&tail_comp : sr.path_tail) {
+			      if (!ok)
+				    break;
+			      if (const netclass_t*cc =
+					dynamic_cast<const netclass_t*>(cur_type)) {
+				    ivl_type_t next_type = nullptr;
+				    NetExpr*next =
+					  elaborate_nested_method_target_property(
+						this, des, scope, cur, cc,
+						tail_comp, next_type);
+				    if (!next) {
+					  ok = false;
+					  cur = nullptr;
+					  break;
+				    }
+				    cur = next;
+				    cur_type = next_type;
+			      } else if (const netstruct_t*cs =
+					dynamic_cast<const netstruct_t*>(cur_type)) {
+				    unsigned long moff = 0;
+				    const netstruct_t::member_t*member =
+					  cs->packed_member(tail_comp.name, moff);
+				    if (!member || cs->packed()
+					|| !tail_comp.index.empty()) {
+					  ok = false;
+					  break;
+				    }
+				    const auto&members = cs->members();
+				    size_t midx = member - &members.front();
+				    NetEProperty*prop =
+					  new NetEProperty(cur, midx, nullptr);
+				    prop->set_line(*this);
+				    cur = prop;
+				    cur_type = member->net_type;
+			      } else {
+				    ok = false;
+				    break;
+			      }
+			}
+			if (ok && cur)
+			      return cur;
+		  }
+
 		  cerr << get_fileline() << ": error: Variable "
 		       << sr.path_head
 		       << " does not have a field named: "

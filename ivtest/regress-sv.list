@@ -720,6 +720,7 @@ sv_macro		normal,-g2009		ivltests
 sv_macro2		normal,-g2009		ivltests gold=sv_macro2.gold
 sv_macro3a		normal,-g2009		ivltests gold=sv_macro3.gold
 sv_macro3b		normal,-g2009		ivltests gold=sv_macro3.gold
+sv_nested_container_elem_member normal,-g2012 ivltests
 sv_new_array_error	CE,-g2009		ivltests gold=sv_new_array_error.gold
 sv_package		normal,-g2009		ivltests
 sv_package2		normal,-g2009		ivltests
