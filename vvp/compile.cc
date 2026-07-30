@@ -92,6 +92,7 @@ struct opcode_table_s {
 };
 
 static const struct opcode_table_s opcode_table[] = {
+      { "%aa/delete/all", of_AA_DELETE_ALL, 0, {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%aa/delete/obj", of_AA_DELETE_OBJ, 0, {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%aa/delete/str", of_AA_DELETE_STR, 0, {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%aa/delete/v", of_AA_DELETE_V, 0, {OA_NONE,       OA_NONE,     OA_NONE} },
@@ -428,6 +429,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%pushi/vec4",of_PUSHI_VEC4,3,{OA_BIT1,   OA_BIT2,   OA_NUMBER} },
       { "%pushv/str", of_PUSHV_STR, 0,{OA_NONE,   OA_NONE,   OA_NONE} },
       { "%putc/str/vec4",of_PUTC_STR_VEC4,2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
+      { "%qdar/loadlv/o", of_QDAR_LOADLV_O, 1,{OA_STRING, OA_NONE, OA_NONE} },
       { "%qinsert/o/obj", of_QINSERT_O_OBJ, 0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%qinsert/o/real",of_QINSERT_O_REAL,0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%qinsert/o/str", of_QINSERT_O_STR, 0,{OA_NONE, OA_NONE, OA_NONE} },
@@ -555,6 +557,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%store/qo/i/r",   of_STORE_QO_I_R,   0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%store/qo/i/str", of_STORE_QO_I_STR, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%store/qo/i/v",   of_STORE_QO_I_V,   1, {OA_BIT1, OA_NONE, OA_NONE} },
+      { "%store/qobj/obj",of_STORE_QOBJ_OBJ,2,{OA_FUNC_PTR,OA_BIT1, OA_NONE} },
       { "%store/qobj/r",  of_STORE_QOBJ_R,  2, {OA_FUNC_PTR,OA_BIT1, OA_NONE} },
       { "%store/qobj/str",of_STORE_QOBJ_STR,2, {OA_FUNC_PTR,OA_BIT1, OA_NONE} },
       { "%store/qobj/v",  of_STORE_QOBJ_V,  3, {OA_FUNC_PTR,OA_BIT1, OA_BIT2} },

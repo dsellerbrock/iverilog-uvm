@@ -327,6 +327,11 @@ first_last_num		normal,-g2005-sv	ivltests
 fork_join_any		normal,-g2009		ivltests
 fork_join_dis		normal,-g2009		ivltests
 fork_join_none		normal,-g2009		ivltests
+sv_class_prop_struct_member_index normal,-g2012 ivltests
+sv_class_static_prop_arrays normal,-g2012 ivltests
+sv_class_static_struct_pool normal,-g2012 ivltests
+sv_container_elem_queue_autoviv normal,-g2012 ivltests
+sv_container_whole_copy_value normal,-g2012 ivltests
 sv_fork_auto_init1	normal,-g2012		ivltests
 fr49			normal,-g2009		ivltests
 func_empty_arg1		normal,-g2005-sv	ivltests
@@ -715,6 +720,7 @@ sv_macro		normal,-g2009		ivltests
 sv_macro2		normal,-g2009		ivltests gold=sv_macro2.gold
 sv_macro3a		normal,-g2009		ivltests gold=sv_macro3.gold
 sv_macro3b		normal,-g2009		ivltests gold=sv_macro3.gold
+sv_nested_container_elem_member normal,-g2012 ivltests
 sv_new_array_error	CE,-g2009		ivltests gold=sv_new_array_error.gold
 sv_package		normal,-g2009		ivltests
 sv_package2		normal,-g2009		ivltests
@@ -822,6 +828,9 @@ sv_string7		normal,-g2009		ivltests
 sv_string7b		normal,-g2009		ivltests
 sv_string8		normal,-g2009		ivltests
 sv_string9		normal,-g2009		ivltests
+sv_struct_field_container_methods normal,-g2012 ivltests
+sv_struct_handle_member_access normal,-g2012 ivltests
+sv_struct_member_container_elem_read normal,-g2012 ivltests
 sv_timeunit_prec1	normal,-g2005-sv	ivltests
 sv_timeunit_prec2	normal,-g2009		ivltests
 sv_timeunit_prec3a	normal,-g2005-sv	ivltests gold=sv_timeunit_prec3a.gold
@@ -1016,6 +1025,7 @@ ipsupsel_real_idx	CE,-g2012		ivltests gold=ipsupsel_real_idx.gold
 real_edges		CE,-g2012		ivltests gold=real_edges.gold
 sv_struct_string_arg_push1 normal,-g2012 ivltests
 sv_queue_virtual_method_dispatch1 normal,-g2012 ivltests
+sv_assoc_delete_all normal,-g2012 ivltests
 sv_assoc_obj_methods1 normal,-g2012 ivltests
 sv_assoc_obj_foreach1 normal,-g2012 ivltests
 sv_assoc_obj_foreach_key1 normal,-g2012 ivltests

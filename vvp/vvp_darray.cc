@@ -21,6 +21,32 @@
 # include  <iostream>
 # include  <typeinfo>
 
+/* Value-copy policy for one container element (see vvp_object.h).
+   A struct compiles to a synthetic class marked .class/struct, so a
+   cobject element deep-copies exactly when its definition carries that
+   marker -- a real class object stays a shared handle, preserving
+   handle identity through whole-container copies. */
+# include  "vvp_cobject.h"
+# include  "class_type.h"
+# include  "vvp_assoc.h"
+
+vvp_object_t vvp_object_t::value_copy_element(void) const
+{
+      if (test_nil())
+	    return vvp_object_t();
+      if (peek<vvp_darray>() || peek<vvp_assoc_base>())
+	    return duplicate();
+      if (vvp_cobject*cobj = peek<vvp_cobject>()) {
+	    const class_type*defn = cobj->get_defn();
+	    if (defn && defn->is_struct_type()) {
+		  vvp_cobject*copy = new vvp_cobject(defn);
+		  copy->shallow_copy(cobj);
+		  return vvp_object_t(copy);
+	    }
+      }
+      return *this;
+}
+
 using namespace std;
 
 vvp_darray::~vvp_darray()
@@ -176,6 +202,7 @@ template <class TYPE> vvp_object* vvp_darray_atom<TYPE>::duplicate(void) const
       for (size_t idx = 0 ; idx < array_.size() ; idx += 1)
 	    that->array_[idx] = array_[idx];
 
+      copy_value_metadata_(that);
       return that;
 }
 
@@ -278,6 +305,7 @@ vvp_object* vvp_darray_vec4::duplicate(void) const
       for (size_t idx = 0 ; idx < array_.size() ; idx += 1)
 	    that->array_[idx] = array_[idx];
 
+      copy_value_metadata_(that);
       return that;
 }
 
@@ -445,9 +473,12 @@ vvp_object* vvp_darray_object::duplicate(void) const
 {
       vvp_darray_object*that = new vvp_darray_object(array_.size());
 
+	/* Element policy (recovery D11): container and struct elements
+	   copy by value; class handles stay shared. */
       for (size_t idx = 0 ; idx < array_.size() ; idx += 1)
-            that->array_[idx] = array_[idx];
+            that->array_[idx] = array_[idx].value_copy_element();
 
+      copy_value_metadata_(that);
       return that;
 }
 
@@ -516,6 +547,7 @@ vvp_object* vvp_darray_real::duplicate(void) const
       for (size_t idx = 0 ; idx < array_.size() ; idx += 1)
 	    that->array_[idx] = array_[idx];
 
+      copy_value_metadata_(that);
       return that;
 }
 
@@ -610,6 +642,7 @@ vvp_object* vvp_darray_string::duplicate(void) const
       for (size_t idx = 0 ; idx < array_.size() ; idx += 1)
 	    that->array_[idx] = array_[idx];
 
+      copy_value_metadata_(that);
       return that;
 }
 
@@ -761,6 +794,17 @@ static void print_copy_is_too_big(vvp_object_t&, size_t src_size, unsigned max_s
       print_copy_is_too_big(src_size, max_size, "object");
 }
 
+/* Element value policy for whole-container copies (IEEE 1800-2017
+   7.9.9/7.6): container and struct elements copy by value; class
+   handles stay shared. Only object elements carry a policy. */
+static inline void copy_element_value_(vvp_object_t&val)
+{
+      val = val.value_copy_element();
+}
+static inline void copy_element_value_(double&) { }
+static inline void copy_element_value_(std::string&) { }
+static inline void copy_element_value_(vvp_vector4_t&) { }
+
 template <typename ELEM, class QTYPE, class SRC_TYPE>
 static void copy_elements(QTYPE*queue, SRC_TYPE*src, unsigned max_size)
 {
@@ -776,6 +820,7 @@ static void copy_elements(QTYPE*queue, SRC_TYPE*src, unsigned max_size)
       for (unsigned idx=0; idx < copy_size; ++idx) {
 	    ELEM value;
 	    src->get_word(idx, value);
+	    copy_element_value_(value);
 	    queue->set_word_max(idx, value, max_size);
       }
 }
@@ -794,6 +839,7 @@ vvp_object* vvp_queue_real::duplicate(void) const
 {
       vvp_queue_real*that = new vvp_queue_real;
       that->queue = queue;
+      copy_value_metadata_(that);
       return that;
 }
 
@@ -912,6 +958,7 @@ vvp_object* vvp_queue_string::duplicate(void) const
 {
       vvp_queue_string*that = new vvp_queue_string;
       that->queue = queue;
+      copy_value_metadata_(that);
       return that;
 }
 
@@ -1054,6 +1101,7 @@ vvp_object* vvp_queue_vec4::duplicate(void) const
 {
       vvp_queue_vec4*that = new vvp_queue_vec4;
       that->queue = queue;
+      copy_value_metadata_(that);
       return that;
 }
 
@@ -1198,7 +1246,12 @@ void vvp_queue_object::copy_elems(vvp_object_t src, unsigned max_size)
 vvp_object* vvp_queue_object::duplicate(void) const
 {
       vvp_queue_object*that = new vvp_queue_object;
-      that->queue = queue;
+	/* Element policy (recovery D11): container and struct elements
+	   copy by value; class handles stay shared. */
+      that->queue.resize(queue.size());
+      for (size_t idx = 0 ; idx < queue.size() ; idx += 1)
+	    that->queue[idx] = queue[idx].value_copy_element();
+      copy_value_metadata_(that);
       return that;
 }
 

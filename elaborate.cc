@@ -6173,6 +6173,20 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	    // If in SystemVerilog mode and inside a function, assume the
 	    // condition is false and continue elaboration as a no-op.
 	    if (gn_system_verilog()) {
+		    /* Compile-progress fallback, now LOUD (recovery D3
+		       follow-through): assuming a condition false because it
+		       failed to elaborate rewrote the statement silently --
+		       an `if' ran its else branch with no record of why.
+		       Known remaining dependents in the UVM library:
+		       uvm_comparer.svh:638 (nested assoc index + member)
+		       and uvm_driver.svh:100 (unparenthesized method-result
+		       compare). Once those elaborate, this must become a
+		       hard error. */
+		  cerr << get_fileline() << ": warning: condition expression "
+		       << "failed to elaborate; ASSUMING FALSE and compiling "
+		       << "only the else-branch (compile-progress). The "
+		       << "surrounding logic will misbehave if this branch "
+		       << "matters." << endl;
 		  // Elaborate only the else branch (if present) or return empty block
 		  if (else_)
 			return else_->elaborate(des, scope);
@@ -7354,7 +7368,38 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    while (!sr.path_tail.empty()) {
 		  const netclass_t*class_type = dynamic_cast<const netclass_t*>(obj_type);
 		  const name_component_t&comp = sr.path_tail.front();
+
+		    // An UNPACKED-STRUCT hop in the method-target path
+		    // (`a.q.push_back(...)`, `a.h.method(...)` with a a
+		    // plain struct variable). The expression-side walker
+		    // has handled this shape for reads all along; this walk
+		    // only knew class hops, so every void container method
+		    // on a struct field fell through to the "Enable of
+		    // unknown task ... ignored" fallback and silently
+		    // no-opped (recovery SF-1/2/3, D12-4). Build the same
+		    // NetEProperty member hop the read side uses.
 		  if (!class_type) {
+			const netstruct_t*struct_type =
+			      dynamic_cast<const netstruct_t*>(obj_type);
+			if (struct_type && !struct_type->packed()
+			    && comp.index.empty()) {
+			      unsigned long dummy_off = 0;
+			      const netstruct_t::member_t*member =
+				    struct_type->packed_member(comp.name, dummy_off);
+			      if (!member) {
+				    delete obj_expr;
+				    return 0;
+			      }
+			      const auto&members = struct_type->members();
+			      size_t member_idx = member - &members.front();
+			      NetEProperty*prop =
+				    new NetEProperty(obj_expr, member_idx, nullptr);
+			      prop->set_line(*this);
+			      obj_expr = prop;
+			      obj_type = member->net_type;
+			      sr.path_tail.pop_front();
+			      continue;
+			}
 			delete obj_expr;
 			return 0;
 		  }

@@ -1861,8 +1861,71 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			NetNet*psig = owner_class->find_static_property(method_name);
 			ivl_assert(*this, psig);
 
-			lv = new NetAssign_(psig);
-			return lv;
+			if (member_cur.index.empty()) {
+			      lv = new NetAssign_(psig);
+			      return lv;
+			}
+
+			  // An indexed static property with a TRAILING
+			  // member path (h.pool[i].x with struct elements)
+			  // is not lowered yet: the shortcut below would
+			  // consume the word index and silently drop the
+			  // member. Keep it a loud refusal.
+			if (!member_path.empty()) {
+			      cerr << get_fileline() << ": sorry: member"
+				   << " access into an indexed static-property"
+				   << " element is not yet supported."
+				   << endl;
+			      des->errors += 1;
+			      return 0;
+			}
+
+			  // Indexed static property (recovery D9): the
+			  // property is a real signal in the class scope,
+			  // so build the same word/element l-value a plain
+			  // variable gets. The old unconditional return
+			  // dropped the index, so the assignment tried to
+			  // store a scalar into the whole array and failed
+			  // with a cast error.
+			if (psig->unpacked_dimensions() > 0
+			    && member_cur.index.size() == psig->unpacked_dimensions()) {
+			      list<NetExpr*>uidx;
+			      list<long>uidx_const;
+			      indices_flags iflags;
+			      indices_to_expressions(des, scope, this,
+						     member_cur.index,
+						     psig->unpacked_dimensions(),
+						     false, iflags,
+						     uidx, uidx_const);
+			      NetExpr*canon = 0;
+			      if (!iflags.invalid && !iflags.undefined) {
+				    canon = iflags.variable
+					  ? normalize_variable_unpacked(psig, uidx)
+					  : normalize_variable_unpacked(psig, uidx_const);
+			      }
+			      if (canon) {
+				    canon->set_line(*this);
+				    lv = new NetAssign_(psig);
+				    lv->set_word(canon);
+				    return lv;
+			      }
+			}
+			if ((psig->darray_type() || psig->queue_type())
+			    && member_cur.index.size() == 1
+			    && member_cur.index.front().sel == index_component_t::SEL_BIT) {
+			      NetExpr*mux = elab_and_eval(des, scope,
+							  member_cur.index.front().msb, -1);
+			      if (mux) {
+				    lv = new NetAssign_(psig);
+				    lv->set_word(mux);
+				    return lv;
+			      }
+			}
+			cerr << get_fileline() << ": sorry: this indexed"
+			     << " static-property l-value form is not yet"
+			     << " supported." << endl;
+			des->errors += 1;
+			return 0;
 
 		  } else if (qual.test_const()) {
 		       if (owner_class->get_prop_initialized(pidx)) {

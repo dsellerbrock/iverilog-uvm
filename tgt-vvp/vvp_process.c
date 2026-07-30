@@ -2402,6 +2402,24 @@ static int show_delete_property_method(ivl_statement_t net, ivl_expr_t parm, uns
 		    return 0;
 	      }
 
+	      /* aa.delete() with NO argument removes all entries
+	       * (IEEE 1800-2017 7.9.2). Without this branch the call fell
+	       * through to the plain-queue path below, whose typed
+	       * vvp_queue receiver peek nulls on an assoc object -- the
+	       * operation was DROPPED with only a generic (and wrong)
+	       * "null queue" warning. Every stock UVM run hit this ~127
+	       * times (objection counts, phase-graph splices, printer and
+	       * packer caches). */
+	      if ((parm_count == 1) && !prop_word && prop_type
+		  && ivl_type_base(prop_type) == IVL_VT_QUEUE
+		  && ivl_type_queue_assoc_compat(prop_type)) {
+		    draw_eval_object(base);
+		    fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+		    fprintf(vvp_out, "    %%aa/delete/all;\n");
+		    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+		    return 0;
+	      }
+
 	      if (expr_is_queue_expr(parm)) {
 		    draw_eval_object(parm);
 		    if (parm_count == 1) {
@@ -2675,6 +2693,45 @@ static int show_queue_object_receiver(ivl_expr_t parm)
 			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
 			return 0;
 		  }
+
+		    /* POSITIONAL container-of-queue element through a class
+		       PROPERTY (c.qq[i].push_back(v)): same fresh-element gap
+		       as the assoc form above, positional index (recovery
+		       D14). */
+		  if (ptype
+		      && (ivl_type_base(ptype) == IVL_VT_DARRAY
+			  || (ivl_type_base(ptype) == IVL_VT_QUEUE
+			      && !ivl_type_queue_assoc_compat(ptype)))
+		      && elem && ivl_type_base(elem) == IVL_VT_QUEUE
+		      && !ivl_type_queue_assoc_compat(elem)) {
+			ivl_signal_t bsig = ivl_expr_signal(sube);
+			ivl_expr_t base_expr = ivl_expr_oper2(sube);
+			unsigned pidx = ivl_expr_property_idx(sube);
+			unsigned lab_null = local_count++;
+			unsigned lab_out = local_count++;
+			char enc[32];
+			queue_elem_enc_(elem, enc, sizeof enc);
+			if (bsig)
+			      fprintf(vvp_out, "    %%load/obj v%p_0;\n", bsig);
+			else if (base_expr)
+			      draw_eval_object(base_expr);
+			else
+			      fprintf(vvp_out, "    %%null;\n");
+			fprintf(vvp_out, "    %%test_nul/obj;\n");
+			fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+				thread_count, lab_null);
+			fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pidx);
+			draw_eval_expr_into_integer(index, 3);
+			fprintf(vvp_out, "    %%qdar/loadlv/o \"%s\";\n", enc);
+			fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
+				thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "    %%null;\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			return 0;
+		  }
 	    }
 
 	    if (sube && index
@@ -2685,6 +2742,28 @@ static int show_queue_object_receiver(ivl_expr_t parm)
 			base_type = ivl_signal_net_type(sig);
 		  if (base_type)
 			recv_type = ivl_type_element(base_type);
+	    }
+
+	      /* POSITIONAL container-of-queue element receiver
+	         (dq[i].push_back(...) with dq a darray-of-queue or a
+	         genuine queue-of-queue). The plain element load returns
+	         nil for a fresh element and the runtime drops the
+	         mutation with only a warning (recovery D14); per
+	         IEEE 1800-2017 7.5/7.9 a fresh element is an EMPTY
+	         QUEUE. Use the positional get-or-create load. */
+	    if (sig
+		&& base_type
+		&& (ivl_type_base(base_type) == IVL_VT_DARRAY
+		    || (ivl_type_base(base_type) == IVL_VT_QUEUE
+			&& !ivl_type_queue_assoc_compat(base_type)))
+		&& recv_type && ivl_type_base(recv_type) == IVL_VT_QUEUE
+		&& !ivl_type_queue_assoc_compat(recv_type)) {
+		  char enc[32];
+		  queue_elem_enc_(recv_type, enc, sizeof enc);
+		  draw_eval_expr_into_integer(index, 3);
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+		  fprintf(vvp_out, "    %%qdar/loadlv/o \"%s\";\n", enc);
+		  return 0;
 	    }
 
 	    if (sig

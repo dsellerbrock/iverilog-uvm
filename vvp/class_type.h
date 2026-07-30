@@ -45,6 +45,12 @@ class class_type : public __vpiHandle {
 
 	// This is the name of the class type.
       inline const std::string&class_name(void) const { return class_name_; }
+
+	// True for the synthetic class that implements an unpacked
+	// STRUCT type: struct-typed objects copy BY VALUE wherever they
+	// are stored; class objects copy as handles.
+      inline bool is_struct_type(void) const { return is_struct_type_; }
+      inline void set_struct_type(void) { is_struct_type_ = true; }
       inline const std::string&scope_path(void) const { return scope_path_; }
       inline const std::string&dispatch_prefix(void) const { return dispatch_prefix_; }
       inline const std::string&super_dispatch_prefix(void) const { return super_dispatch_prefix_; }
@@ -107,6 +113,7 @@ class class_type : public __vpiHandle {
 
     private:
       std::string class_name_;
+      bool is_struct_type_ = false;
       std::string scope_path_;
       std::string dispatch_prefix_;
       std::string super_dispatch_prefix_;

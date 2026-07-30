@@ -1732,29 +1732,23 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 	    return nullptr;
 
       if (dims[cur_dim].width() != pv.size()) {
-	    // Compile-progress fallback: Some macro expansions (e.g. UVM
-	    // reporting macros) can confuse the parser into treating function
-	    // argument lists as assignment patterns. If the mismatch is large
-	    // (expected elements == width of integer), likely a misparse.
-	    if (gn_system_verilog() && dims[cur_dim].width() == 32
-		&& pv.size() <= 8) {
-	    } else if (pv.size() != 0
-		       && dims[cur_dim].width() % pv.size() == 0) {
-	      // Compile-progress fallback for flattened multi-dim packed
-	      // parameters: when iverilog has collapsed `[M:0][N:0]` to a
-	      // single combined range of M*N bits, an assignment pattern of
-	      // M elements (each N bits wide) is what the source intended.
-	      // Treat each element as a slice of width = dim_width / N_elems
-	      // and continue. This is incorrect for true assignment-pattern
-	      // semantics (no broadcast / repeat) but is sufficient for
-	      // compile-only consumers such as unused cipher SBOX tables.
-	    } else {
-		  cerr << get_fileline() << ": error: Packed array assignment pattern expects "
-		       << dims[cur_dim].width() << " element(s) in this context.\n"
-		       << get_fileline() << ":      : Found "
-		       << pv.size() << " element(s)." << endl;
-		  des->errors++;
-	    }
+	    // An assignment pattern onto a packed dimension must supply
+	    // exactly one element per position (IEEE 1800-2017 10.9.2) --
+	    // there is no broadcast or repeat-to-fill. Two silent-accept
+	    // fallbacks used to live here (a width==32 "UVM macro
+	    // misparse" guess and a divisibility hatch for flattened
+	    // multi-dim packed parameters) and both produced silently
+	    // wrong constants: elements coerced to the wrong slice width,
+	    // underfills zero-extended (recovery D6). The flattening the
+	    // second hatch compensated for is gone -- multi-dim packed
+	    // parameter dims are preserved end-to-end (G14/G15) -- so
+	    // every arity mismatch is now the hard error it always was
+	    // for the overfill case.
+	    cerr << get_fileline() << ": error: Packed array assignment pattern expects "
+		 << dims[cur_dim].width() << " element(s) in this context.\n"
+		 << get_fileline() << ":      : Found "
+		 << pv.size() << " element(s)." << endl;
+	    des->errors++;
       }
 
       width /= dims[cur_dim].width();
@@ -6965,6 +6959,47 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 					     const std::list<index_component_t>&indices,
 					     ivl_type_t&out_type);
 
+/*
+ * A positional index into a darray/queue-typed struct member
+ * (s.da[i] with da a dynamic array or queue) selects an ELEMENT. The
+ * select expression must carry the element type and width — an
+ * untyped 1-bit NetESelect leaves the expression object-typed and the
+ * read comes back nil at runtime. Assoc-compat queue members are keyed
+ * rather than positional, but the shape is the same: the select still
+ * carries the element type, and code generation dispatches on the key
+ * expression's own type. Returns nullptr when the member is not a
+ * container at all so the caller can fall back to its generic handling.
+ */
+static NetESelect* make_container_member_element_select_(NetExpr*member_expr,
+							  NetExpr*idx_expr,
+							  ivl_type_t use_type,
+							  ivl_type_t&elem_type_out)
+{
+      const netdarray_t*mdar = dynamic_cast<const netdarray_t*>(use_type);
+      if (!mdar)
+	    return nullptr;
+      ivl_type_t elem_type = mdar->element_type();
+      if (!elem_type)
+	    return nullptr;
+
+      unsigned elem_width = 1;
+      if (const netvector_t*vt = dynamic_cast<const netvector_t*>(elem_type))
+	    elem_width = vt->packed_width();
+      else if (const netdarray_t*ed = dynamic_cast<const netdarray_t*>(elem_type))
+	    elem_width = ed->element_width();
+
+      NetESelect*sel = new NetESelect(member_expr, idx_expr, elem_width, elem_type);
+      elem_type_out = elem_type;
+      return sel;
+}
+
+static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
+							Design*des, NetScope*scope,
+							NetExpr*base_expr,
+							const netclass_t*class_type,
+							const name_component_t&comp,
+							ivl_type_t&out_type);
+
 static NetExpr* check_for_struct_members(const LineInfo*li,
 					 Design*des, NetScope*scope,
 					 NetNet*net,
@@ -7048,8 +7083,36 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 		  const name_component_t member_comp = member_path.front();
 		  member_path.pop_front();
 
+		    // A CLASS-HANDLE hop in the member path (`a.h.v` with h
+		    // a class-typed struct member): resolve the property step
+		    // with the same helper the class-instance walkers use.
+		    // This used to bail out with a bare nullptr -- no
+		    // diagnostic -- and the callers dropped the enclosing
+		    // statement or substituted a blank argument (recovery
+		    // D12: the read compiled to nothing at all).
+		  if (const netclass_t*cur_class =
+			    dynamic_cast<const netclass_t*>(cur_type)) {
+			ivl_type_t next_type = nullptr;
+			NetExpr*next_expr =
+			      elaborate_nested_method_target_property(li, des, scope,
+								      base_expr, cur_class,
+								      member_comp, next_type);
+			if (!next_expr) {
+			      delete base_expr;
+			      return 0;
+			}
+			base_expr = next_expr;
+			cur_type = next_type;
+			continue;
+		  }
+
 		  const netstruct_t*cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
 		  if (!cur_struct) {
+			cerr << li->get_fileline() << ": sorry: member `"
+			     << member_comp.name << "' cannot be accessed"
+			     << " through a struct member of this type yet."
+			     << endl;
+			des->errors += 1;
 			delete base_expr;
 			return 0;
 		  }
@@ -7532,6 +7595,86 @@ static NetExpr* class_static_property_expression(const LineInfo*li,
       return expr;
 }
 
+/*
+ * Indexed read of a static class property (recovery D10). The property
+ * is a real signal in the class scope, so an index selects a word of a
+ * fixed-array property or an element of a container property -- the
+ * old path returned the WHOLE property with the index dropped, so an
+ * element read either failed loudly downstream ("unpacked aggregate
+ * cannot be assigned to a scalar target") or degraded to a blank
+ * argument stub. out_type receives the type of the returned
+ * expression so path walks can continue past it.
+ */
+static NetExpr* class_static_property_indexed_expression(Design*des,
+							 NetScope*scope,
+							 const LineInfo*li,
+							 const netclass_t*class_type,
+							 const name_component_t&comp,
+							 ivl_type_t&out_type)
+{
+      NetNet*sig = class_type->find_static_property(comp.name);
+      if (!sig)
+	    return 0;
+
+      if (comp.index.empty()) {
+	    NetESignal*expr = new NetESignal(sig);
+	    expr->set_line(*li);
+	    out_type = sig->unpacked_dimensions() > 0
+		  ? sig->array_type()
+		  : sig->net_type();
+	    return expr;
+      }
+
+	// Fixed-array property read with full word indices.
+      if (sig->unpacked_dimensions() > 0
+	  && comp.index.size() == sig->unpacked_dimensions()) {
+	    list<NetExpr*>uidx;
+	    list<long>uidx_const;
+	    indices_flags iflags;
+	    indices_to_expressions(des, scope, li, comp.index,
+				   sig->unpacked_dimensions(), false,
+				   iflags, uidx, uidx_const);
+	    NetExpr*canon = 0;
+	    if (!iflags.invalid && !iflags.undefined) {
+		  canon = iflags.variable
+			? normalize_variable_unpacked(sig, uidx)
+			: normalize_variable_unpacked(sig, uidx_const);
+	    }
+	    if (canon) {
+		  canon->set_line(*li);
+		  NetESignal*expr = new NetESignal(sig, canon);
+		  expr->set_line(*li);
+		  out_type = sig->net_type();
+		  return expr;
+	    }
+      }
+
+	// Container property element read (single positional or keyed
+	// index): reuse the shared typed element-select helper.
+      if (comp.index.size() == 1
+	  && comp.index.front().sel == index_component_t::SEL_BIT) {
+	    NetExpr*idx_expr = elab_and_eval(des, scope,
+					     comp.index.front().msb, -1, false);
+	    if (idx_expr) {
+		  NetESignal*base = new NetESignal(sig);
+		  base->set_line(*li);
+		  ivl_type_t elem_out = nullptr;
+		  if (NetESelect*esel = make_container_member_element_select_(
+			    base, idx_expr, sig->net_type(), elem_out)) {
+			esel->set_line(*li);
+			out_type = elem_out;
+			return esel;
+		  }
+		  delete base;
+	    }
+      }
+
+      cerr << li->get_fileline() << ": sorry: this indexed static-property"
+	   << " read form is not yet supported." << endl;
+      des->errors += 1;
+      return 0;
+}
+
 static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 							   NetScope*scope,
 							   const pform_scoped_name_t&path,
@@ -7544,8 +7687,6 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 	    return nullptr;
 
       const name_component_t&prop_comp = path.name.back();
-      if (!prop_comp.index.empty())
-	    return nullptr;
 
       pform_name_t type_path = path.name;
       type_path.pop_back();
@@ -7600,7 +7741,17 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
       if (!qual.test_static())
 	    return nullptr;
 
-      return class_static_property_expression(li, class_type, prop_comp.name);
+      if (prop_comp.index.empty())
+	    return class_static_property_expression(li, class_type, prop_comp.name);
+
+	// Indexed static property via the scoped form,
+	// Class::arr[i] / Class::q[i] (recovery D10).
+      {
+	    ivl_type_t static_out = nullptr;
+	    return class_static_property_indexed_expression(des, scope, li,
+							    class_type, prop_comp,
+							    static_out);
+      }
 }
 
 /*
@@ -7792,14 +7943,10 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       }
 
       if (qual.test_static()) {
-	    NetNet*psig = class_type->find_static_property(comp.name);
-	    if (!psig)
-		  return 0;
 	    delete base_expr;
-	    NetESignal*expr = new NetESignal(psig);
-	    expr->set_line(*li);
-	    out_type = psig->net_type();
-	    return expr;
+	    return class_static_property_indexed_expression(des, scope, li,
+							    class_type, comp,
+							    out_type);
       }
 
       NetExpr *canon_index = nullptr;
@@ -8330,6 +8477,41 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			} else {
 			      const auto&members = cur_struct->members();
 			      size_t member_idx = member - &members.front();
+
+				// A FIXED unpacked-array member with a full word index
+				// (h.f.arr[i]): the member is one property holding the
+				// whole array, so the element read is the property read
+				// WITH a word index (%prop/v/i) -- the same shape
+				// check_for_struct_members builds for plain struct
+				// variables (recovery D8).
+			      if (!tail_comp.index.empty()) {
+				    if (const netuarray_t*mua =
+					      dynamic_cast<const netuarray_t*>(cur_type)) {
+					  const auto&adims = mua->static_dimensions();
+					  if (adims.size() != tail_comp.index.size()) {
+						cerr << get_fileline() << ": error: Got "
+						     << tail_comp.index.size() << " indices, expecting "
+						     << adims.size() << " to index struct member "
+						     << tail_comp.name << "." << endl;
+						des->errors += 1;
+						delete base_expr;
+						return nullptr;
+					  }
+					  NetExpr*widx = make_canonical_index(des, scope, this,
+									      tail_comp.index, mua, false);
+					  if (!widx) {
+						delete base_expr;
+						return nullptr;
+					  }
+					  NetEProperty*iprop =
+						new NetEProperty(base_expr, member_idx, widx);
+					  iprop->set_line(*this);
+					  base_expr = iprop;
+					  cur_type = mua->element_type();
+					  continue;
+				    }
+			      }
+
 			      NetEProperty*prop = new NetEProperty(base_expr, member_idx, nullptr);
 			      prop->set_line(*this);
 			      base_expr = prop;
@@ -8352,6 +8534,25 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 								   tail_comp.index,
 								   sel_type)
 				    : nullptr;
+
+				// A CONTAINER member (darray/queue/assoc): a single
+				// index selects an element -- reuse the typed helper
+				// the plain-variable walkers use (recovery D8).
+			      if (!sel && !mvec && tail_comp.index.size() == 1
+				  && tail_comp.index.front().sel == index_component_t::SEL_BIT) {
+				    NetExpr*idx_expr = elab_and_eval(des, scope,
+					  tail_comp.index.front().msb, -1, false);
+				    if (idx_expr) {
+					  if (NetESelect*esel =
+						make_container_member_element_select_(
+						      base_expr, idx_expr,
+						      cur_type, sel_type)) {
+						esel->set_line(*this);
+						sel = esel;
+					  }
+				    }
+			      }
+
 			      if (!sel) {
 				    delete base_expr;
 				    cerr << get_fileline() << ": sorry: "
@@ -8459,6 +8660,13 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			cerr << get_fileline() << ": sorry: "
 			     << "Nested member path not yet supported for class properties."
 			     << endl;
+			  /* This refusal MUST count as an error. Without the
+			     increment, compilation continued and the caller's
+			     null-expression fallbacks quietly rewrote the
+			     surrounding statement -- an `if' whose condition
+			     used such a path compiled to its ELSE branch
+			     alone and ran, silently wrong (recovery D3). */
+			des->errors += 1;
 			return nullptr;
 		  } else {
 			  // An ARRAY-typed property must receive its element
@@ -8605,9 +8813,10 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
 
       if (qual.test_static()) {
-	    perm_string prop_name = lex_strings.make(class_type->get_prop_name(pidx));
-	    return class_static_property_expression(this, class_type,
-						    prop_name);
+	    ivl_type_t static_out = nullptr;
+	    return class_static_property_indexed_expression(des, scope, this,
+							    class_type, comp,
+							    static_out);
       }
 
       NetExpr *canon_index = nullptr;
@@ -12209,6 +12418,7 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				    }
 
 				    ivl_type_t member_type = member->net_type;
+				    ivl_type_t member_index_result_type = nullptr;
 				    auto apply_member_index =
 					  [&](NetExpr*member_expr, ivl_type_t use_type,
 					      const index_component_t&idx_comp) -> NetExpr* {
@@ -12256,10 +12466,21 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 						      return nullptr;
 						}
 
+						if (idx_comp.sel == index_component_t::SEL_BIT) {
+						      ivl_type_t elem_type = nullptr;
+						      if (NetESelect*esel =
+						            make_container_member_element_select_(
+						                  member_expr, idx_expr,
+						                  use_type, elem_type)) {
+						            esel->set_line(*this);
+						            member_index_result_type = elem_type;
+						            return esel;
+						      }
+						}
+
 						NetESelect*sel = new NetESelect(member_expr, idx_expr,
 									 sel_wid, sel_type);
 						sel->set_line(*this);
-						(void)use_type;
 						return sel;
 					  };
 
@@ -12314,7 +12535,8 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 									       tail_comp.index.front());
 						if (!base_expr)
 						      return nullptr;
-						cur_type = member_type;
+						cur_type = member_index_result_type
+						      ? member_index_result_type : member_type;
 					  }
 				    } else {
 					  cur_type = member_type;
@@ -13039,6 +13261,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    }
 
 				    ivl_type_t member_type = member->net_type;
+				    ivl_type_t member_index_result_type = nullptr;
 				    auto apply_member_index =
 					  [&](NetExpr*member_expr, ivl_type_t use_type,
 					      const index_component_t&idx_comp) -> NetExpr* {
@@ -13076,6 +13299,18 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 						if (!idx_expr) {
 						      delete member_expr;
 						      return make_nested_stub(use_type);
+						}
+
+						if (idx_comp.sel == index_component_t::SEL_BIT) {
+						      ivl_type_t elem_type = nullptr;
+						      if (NetESelect*esel =
+						            make_container_member_element_select_(
+						                  member_expr, idx_expr,
+						                  use_type, elem_type)) {
+						            esel->set_line(*this);
+						            member_index_result_type = elem_type;
+						            return esel;
+						      }
 						}
 
 						NetESelect*sel = new NetESelect(member_expr, idx_expr,
@@ -13133,7 +13368,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 									       tail_comp.index.front());
 						if (!base_expr)
 						      return make_nested_stub(member_type);
-						cur_type = member_type;
+						cur_type = member_index_result_type
+						      ? member_index_result_type : member_type;
 					  }
 				    } else {
 					  cur_type = member_type;
@@ -13432,6 +13668,88 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
                         return tmp;
 			}
 		  }
+		    // Member access through stacked POSITIONAL container
+		    // selects (qq[i][j].x with struct or class elements,
+		    // recovery D13): chain the typed element selects, then
+		    // resolve the member path against the element type.
+		    // Only a full success returns; any unsupported piece
+		    // falls through to the loud error below.
+		  if (sr.net && sr.net->unpacked_dimensions() == 0
+		      && !sr.path_head.empty()
+		      && !sr.path_head.back().index.empty()
+		      && (sr.net->darray_type() || sr.net->queue_type())) {
+			ivl_type_t cur_type = sr.net->net_type();
+			NetESignal*sig_expr = new NetESignal(sr.net);
+			sig_expr->set_line(*this);
+			NetExpr*cur = sig_expr;
+			bool ok = true;
+			for (const index_component_t&idx : sr.path_head.back().index) {
+			      if (idx.sel != index_component_t::SEL_BIT) {
+				    ok = false;
+				    break;
+			      }
+			      NetExpr*idx_expr = elab_and_eval(des, scope,
+							       idx.msb, -1, false);
+			      if (!idx_expr) {
+				    ok = false;
+				    break;
+			      }
+			      ivl_type_t elem_out = nullptr;
+			      NetESelect*esel =
+				    make_container_member_element_select_(
+					  cur, idx_expr, cur_type, elem_out);
+			      if (!esel) {
+				    delete idx_expr;
+				    ok = false;
+				    break;
+			      }
+			      esel->set_line(*this);
+			      cur = esel;
+			      cur_type = elem_out;
+			}
+			for (const auto&tail_comp : sr.path_tail) {
+			      if (!ok)
+				    break;
+			      if (const netclass_t*cc =
+					dynamic_cast<const netclass_t*>(cur_type)) {
+				    ivl_type_t next_type = nullptr;
+				    NetExpr*next =
+					  elaborate_nested_method_target_property(
+						this, des, scope, cur, cc,
+						tail_comp, next_type);
+				    if (!next) {
+					  ok = false;
+					  cur = nullptr;
+					  break;
+				    }
+				    cur = next;
+				    cur_type = next_type;
+			      } else if (const netstruct_t*cs =
+					dynamic_cast<const netstruct_t*>(cur_type)) {
+				    unsigned long moff = 0;
+				    const netstruct_t::member_t*member =
+					  cs->packed_member(tail_comp.name, moff);
+				    if (!member || cs->packed()
+					|| !tail_comp.index.empty()) {
+					  ok = false;
+					  break;
+				    }
+				    const auto&members = cs->members();
+				    size_t midx = member - &members.front();
+				    NetEProperty*prop =
+					  new NetEProperty(cur, midx, nullptr);
+				    prop->set_line(*this);
+				    cur = prop;
+				    cur_type = member->net_type;
+			      } else {
+				    ok = false;
+				    break;
+			      }
+			}
+			if (ok && cur)
+			      return cur;
+		  }
+
 		  cerr << get_fileline() << ": error: Variable "
 		       << sr.path_head
 		       << " does not have a field named: "

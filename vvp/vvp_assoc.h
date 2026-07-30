@@ -58,6 +58,11 @@ class vvp_assoc_base : public vvp_object {
       virtual void erase_key(const vvp_object_t&key) =0;
       virtual void erase_key(const vvp_vector4_t&key) =0;
 
+	// IEEE 1800-2017 7.9.2: aa.delete() with no arguments removes
+	// ALL entries. No single-key primitive can express this; the
+	// %aa/delete/all opcode calls it.
+      virtual void clear() =0;
+
 	// M12 VPI: positional element peek in key order (string keys
 	// first, then object keys, then vector keys — the same order
 	// size() sums them).  key_text receives a printable form of
@@ -90,6 +95,8 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 
       size_t size() const override
       { return str_map_.size() + obj_map_.size() + vec_map_.size(); }
+      void clear() override
+      { str_map_.clear(); obj_map_.clear(); vec_map_.clear(); }
       bool exists_key(const std::string&key) const override
       { return str_map_.find(key) != str_map_.end(); }
       bool exists_key(const vvp_object_t&key) const override
