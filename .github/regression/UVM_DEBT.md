@@ -1,6 +1,23 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
-Full UVM last passed: language-edition gates head (229/229, real DPI,
+Full UVM last passed: OpenTitan array-element member l-value head
+(229/229, real DPI, zero skips, 2026-07-30, solo run on the exact commit
+tree; ivtest gate clean at 3285 tests, VPI 94/94, negative 91/91). What
+earns the run: the change is in net l-value elaboration, which EVERY
+continuous assignment traverses.
+
+NOTE (process, 2026-07-30): three UVM runs were invalidated before this
+one, all by the same mechanism -- the install tree being replaced while
+a run was in flight. Twice from launching a second batch concurrently
+(the policy forbids it; they share /tmp/uvm_dpi_iv.vpi), once from the
+frontend test's own staged install. One of those runs reported
+"81 passed, 148 failed" and another died silently after building the
+DPI library, having run no tests at all while appearing to be alive.
+Neither number described any single compiler. Worth a guard: a lock
+file, or uvm_test.sh refusing to start while another run holds the DPI
+library, so a meaningless result cannot be produced quietly.
+
+Previous recorded pass: language-edition gates head (229/229, real DPI,
 zero skips, 2026-07-30, one uninterrupted solo run on the exact commit
 tree; frontend all scenarios, ivtest gate clean at 3283 tests, VPI
 94/94, negative 90/90). What earns the run: the wave changes the
@@ -114,7 +131,7 @@ full run, and it is the reason a full run was mandatory here rather than a
 subset. Also covers the pform_make_assertion park path, which every
 assertion in every design now passes through.)
 
-Commits since full UVM: 0 (edition-gates ladder ran on the exact tree)
+Commits since full UVM: 0 (this ladder ran on the exact tree)
 Highest risk change since last full run: —
 
 Triggers for a full run (see docs/conformance/REGRESSION_POLICY.md):
