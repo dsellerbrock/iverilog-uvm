@@ -33,6 +33,7 @@ typedef bool (*vvp_code_fun)(vthread_t thr, vvp_code_t code);
  */
 extern bool of_ABS_WR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_OBJ(vthread_t thr, vvp_code_t code);
+extern bool of_AA_DELETE_ALL(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_STR(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_V(vthread_t thr, vvp_code_t code);
 extern bool of_AA_EXISTS_OBJ(vthread_t thr, vvp_code_t code);

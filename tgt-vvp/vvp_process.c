@@ -2402,6 +2402,24 @@ static int show_delete_property_method(ivl_statement_t net, ivl_expr_t parm, uns
 		    return 0;
 	      }
 
+	      /* aa.delete() with NO argument removes all entries
+	       * (IEEE 1800-2017 7.9.2). Without this branch the call fell
+	       * through to the plain-queue path below, whose typed
+	       * vvp_queue receiver peek nulls on an assoc object -- the
+	       * operation was DROPPED with only a generic (and wrong)
+	       * "null queue" warning. Every stock UVM run hit this ~127
+	       * times (objection counts, phase-graph splices, printer and
+	       * packer caches). */
+	      if ((parm_count == 1) && !prop_word && prop_type
+		  && ivl_type_base(prop_type) == IVL_VT_QUEUE
+		  && ivl_type_queue_assoc_compat(prop_type)) {
+		    draw_eval_object(base);
+		    fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+		    fprintf(vvp_out, "    %%aa/delete/all;\n");
+		    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+		    return 0;
+	      }
+
 	      if (expr_is_queue_expr(parm)) {
 		    draw_eval_object(parm);
 		    if (parm_count == 1) {

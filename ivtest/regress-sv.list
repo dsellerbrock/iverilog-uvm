@@ -1016,6 +1016,7 @@ ipsupsel_real_idx	CE,-g2012		ivltests gold=ipsupsel_real_idx.gold
 real_edges		CE,-g2012		ivltests gold=real_edges.gold
 sv_struct_string_arg_push1 normal,-g2012 ivltests
 sv_queue_virtual_method_dispatch1 normal,-g2012 ivltests
+sv_assoc_delete_all normal,-g2012 ivltests
 sv_assoc_obj_methods1 normal,-g2012 ivltests
 sv_assoc_obj_foreach1 normal,-g2012 ivltests
 sv_assoc_obj_foreach_key1 normal,-g2012 ivltests

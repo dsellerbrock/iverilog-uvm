@@ -13657,6 +13657,28 @@ bool of_AA_DELETE_V(vthread_t thr, vvp_code_t)
       return aa_delete_vec<vvp_assoc_base>(thr);
 }
 
+/*
+ * %aa/delete/all
+ *
+ * IEEE 1800-2017 7.9.2: aa.delete() with no arguments removes ALL
+ * entries. Pops the assoc-array receiver from the object stack. A nil
+ * receiver means the array was never written -- clearing it is a
+ * correct no-op, silently.
+ */
+bool of_AA_DELETE_ALL(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t recv = thr->peek_object();
+      vvp_assoc_base*assoc = peek_assoc_receiver_<vvp_assoc_base>(thr);
+      if (assoc && assoc->size() > 0) {
+	    assoc->clear();
+	    notify_mutated_object_root_(thr, recv,
+					thr->peek_object_source_net(0),
+					thr->peek_object_root(0),
+					"aa-delete-all");
+      }
+      return true;
+}
+
 bool of_AA_EXISTS_OBJ(vthread_t thr, vvp_code_t cp)
 {
       return aa_exists_obj<vvp_assoc_base>(thr, cp->number);
