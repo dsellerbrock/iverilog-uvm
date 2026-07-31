@@ -488,3 +488,101 @@ binary. The fallback is conservative and correct (the process becomes
 sensitive to the whole vector), but a non-fatal `sorry` sits oddly with
 this fork's doctrine that `sorry` means a loud refusal. Decide whether
 these should be warnings or whether the construct deserves real support.
+
+---
+
+# Assertions ON: what actually blocks OpenTitan (measured)
+
+Every measurement above used `-DSYNTHESIS`, which is how OpenTitan
+DISABLES its assertions (`prim_assert.sv` selects the dummy macros under
+that define). So "uart builds and simulates" was always a result with
+the fork's flagship feature switched off. Building UART **without**
+`-DSYNTHESIS` gives the real picture: 47 errors, 12 sorries.
+
+Those reduce to exactly TWO independent root causes.
+
+## 1. Sequence combinator as an implication antecedent (breaks the build)
+
+```systemverilog
+sequence S1; a == b [*2]; endsequence
+sequence S2; c == d [*2]; endsequence
+assert property (@(posedge clk) S1 or S2 |-> c);   // syntax error
+```
+
+Reduced further: it is not about NAMED sequences at all.
+
+| construct | result |
+|---|---|
+| `S1 or S2` standalone | OK |
+| `S1 \|-> c` | OK |
+| `S1 or S2 \|-> c` | **syntax error** |
+| `(S1) or (S2) \|-> c` | **syntax error** |
+| `(a ##1 b) or (c ##1 d) \|-> c` | **syntax error** |
+| `S1 and S2 \|-> c` | **syntax error** |
+
+A sequence combinator expression parses as a `property_expr` standalone,
+but the implication productions take `sva_seq_expr` on the left, and
+`sva_seq_comb` is a different nonterminal, so there is no parse for a
+combinator on the left of `|->`. IEEE 1800-2017 A.2.10 makes the
+antecedent a `sequence_expr`, and 16.9.5 makes `sequence_expr or
+sequence_expr` one -- so this is legal and unparseable here.
+
+OpenTitan hits it in `prim_alert_sender.sv` / `prim_alert_receiver.sv`:
+
+```systemverilog
+`ASSERT(InBandInitFsm_A, PingSigInt_S or AckSigInt_S |->
+    ##[SkewCycles+2:SkewCycles+3] state_q == Idle)
+```
+
+Those primitives are instantiated by every OpenTitan IP, and a syntax
+error inside a macro expansion inside a generate block DESYNCS the
+parser -- which is where the 22 "Invalid module item", 8 "Malformed
+statement" and the `module end label ... doesn't match` errors come
+from. A handful of real defects present as 47.
+
+Reproducer: `docs/conformance/repros/ot_seq_comb_antecedent.sv`.
+
+**What a fix requires.** `sva_property_t::antecedent` is a flat
+`std::vector<sva_seq_step_t>*`; a combinator antecedent is an
+`sva_stree_t`, which that field cannot hold. So this needs the
+antecedent to be able to carry a tree -- smaller than full property_expr
+recursion, but a real representation change, not a grammar tweak.
+An interim step that is cheap and worthwhile on its own: give the form a
+production that fails with a NAMED diagnostic instead of a bare syntax
+error, which stops the parser desync and collapses the cascade.
+
+## 2. Parameterized sequence bounds (assertions compile but are DROPPED)
+
+```systemverilog
+##[0:SkewCycles] rise_o
+(diff_pd ^ diff_nd) [* (SkewCycles + 1)]
+##[SkewCycles+2:SkewCycles+4] alert_p ^ alert_n
+```
+
+Observed: `sorry: sequence cycle delays must be literal constants; the
+assertion is dropped.` IEEE 1800-2017 16.9.2 makes
+`cycle_delay_const_range_expression` a CONSTANT EXPRESSION -- a
+parameter, and arithmetic on one, qualify. `parse.y` requires a literal
+(`dynamic_cast<PENumber*>`), so a `PEIdent` or `PEBinary` becomes the
+"not literal" marker.
+
+Verified: this recovers cleanly. The sorry does NOT desync the parser --
+module items after it parse fine, even in the full `ASSERT macro
+expansion. So this half does not break the build; it silently removes
+assertions from the run.
+
+**What a fix requires.** Assertion lowering happens at PARSE time and
+sizes its pipeline, registers and automaton states from `delay_lo`/
+`delay_hi` as plain `long`s. Parameter values are known only at
+ELABORATION, and are per-instance -- `m #(.N(2))` and `m #(.N(5))` need
+different checker structures from one module definition. So this needs
+lowering to become parameter-aware (realistically, deferred past
+parameter resolution), not a relaxed cast.
+
+## Consequence for the roadmap
+
+"OpenTitan clean" and "assertions working" are different goals with
+different blockers. The RTL error families (measured separately) are
+elaboration-level; these two are the assertion path. Neither of these
+two is cheap, and (2) is the one that decides whether OpenTitan's
+assertions ever actually RUN.
