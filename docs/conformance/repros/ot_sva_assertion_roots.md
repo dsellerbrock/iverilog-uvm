@@ -70,52 +70,55 @@ NOT yet isolated, and the four hand-built reproductions that pass are
 evidence against the obvious hypotheses.
 
 
-## duplicate sequence declaration: root located, reproducer NOT reduced
+## duplicate sequence declaration: REDUCED
 
-`prim_alert_sender` declares `PingSigInt_S` and `AckSigInt_S` in BOTH
-arms of a conditional generate:
+CORRECTION. An earlier revision of this file said five hand-written
+reconstructions all passed and no minimal test existed. That was wrong.
+The test loop used to check them swallowed the diagnostic, so real
+failures were recorded as ACCEPTED. Re-run directly, the small case
+fails exactly as the real file does. There was never a mystery here.
 
-    if (AsyncOn) begin : gen_async_assert
-      sequence PingSigInt_S; ... endsequence
-      sequence AckSigInt_S;  ... endsequence
-      ...
-    end else begin : gen_sync_assert
-      sequence PingSigInt_S; ... endsequence
-      sequence AckSigInt_S;  ... endsequence
-      ...
-    end
+Minimal reproducer (8 lines), `sva_seq_generate_scope.sv`:
 
-Each generate block is its own scope, so this is legal.
+    module top;
+      logic clk=0, p=0, n=0;
+      if (1) begin : ga
+        sequence S1; p == n [*2]; endsequence
+      end else begin : gb
+        sequence S1; p == n; endsequence
+      end
+    endmodule
 
-The root is visible in the code: `pform_sva_declare_sequence`
-(pform.cc:5069) registers into `sva_module_sequences`, a map keyed by
-NAME alone with no scope component, and rejects any repeat. The same is
-true of `sva_module_properties`, `sva_param_sequences` and
-`sva_param_properties`. Generate scope is not represented at all.
+    error: duplicate sequence declaration `S1'.
 
-What is NOT yet established: a minimal test that discriminates. Every
-hand-written reconstruction of the shape above is ACCEPTED -- including
-two sequences per arm, the sequences used by assertions in each arm,
-`[*2]` bodies, parameterized `##[N+2:N+3]` delays, and multiple
-instantiations of the module. The failure reproduces only from the real
-file, reduced so far to 541 lines (package + module, first arm's
-assertions deleted).
+Each generate block is its own scope, so declaring `S1` in both arms of
+a conditional generate is legal -- and only one arm is ever elaborated.
+OpenTitan's prim_alert_sender does exactly this with `PingSigInt_S` and
+`AckSigInt_S` across `gen_async_assert` / `gen_sync_assert`.
 
-Line-deletion reduction is unsound here in BOTH directions: it can drop
-`begin`/`end` and produce a different syntax error, and -- as observed
--- it can drop the generate `if/else` itself, leaving four declarations
-genuinely at module level, which is a real duplicate and keeps the
-predicate satisfied while destroying the thing under test.
+Root: `pform_sva_declare_sequence` (pform.cc:5069) registers into
+`sva_module_sequences`, a map keyed by NAME alone, and rejects any
+repeat. The map is cleared only at endmodule
+(`pform_sva_module_done`). Generate scope is not part of the key. The
+same holds for `sva_module_properties`, `sva_param_sequences` and
+`sva_param_properties`.
 
-Two facts worth keeping separate:
-  * assertions inside generate blocks DO elaborate and DO fire
-    (verified: an always-false property inside `if (1) begin : g`
-    reports at `top.g`), so nothing is being silently dropped;
-  * the registration map has no scope key, which is a defect on its own
-    terms whatever the exact trigger turns out to be.
+Control that must keep failing: the same two declarations at MODULE
+level, with no generate, are a genuine duplicate and are correctly
+rejected today. A scope-aware key has to keep rejecting that.
 
-Next step: a structure-aware reduction (delete balanced generate blocks
-and whole declarations, never single lines), or instrument
-pform_sva_declare_sequence to print the call site and compare the real
-file against the passing reconstruction. Not another guess at the shape
--- five have now failed to reproduce it.
+## Separately: an undefined sequence reference is silently inert
+
+Reduced from the same investigation, and worse than the above --
+`sva_undefined_sequence_silent.sv`:
+
+    A: assert property (@(posedge clk) NoSuchSeq_S |=> 1'b0);
+
+`NoSuchSeq_S` is never declared. This compiles with a
+"compile-progress: unresolved reference" WARNING, and the assertion
+then never fires -- `X |=> 1'b0` cannot hold under any trace, so a live
+assertion would report on every clock. It reports nothing.
+
+For a verification flow that is the dangerous shape: the testbench
+builds, the run is green, and a check the engineer believes exists does
+not. Unlike a mistyped signal there is no later symptom.
