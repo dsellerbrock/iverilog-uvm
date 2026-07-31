@@ -14,10 +14,11 @@
 //    per-element INFERRED type, which flattens a multi-dimensional packed
 //    element to a single dimension.
 //
-//    A run-time element index FOLLOWED by a further select
-//    (`P[i][11:2]`, OpenTitan spi_tpm.sv:786) is still refused out loud
-//    and is not covered here; it needs the same element dimensions fed
-//    to a different code path.
+//  * `P[i][11:2]` -- a run-time element index FOLLOWED by a further
+//    select -- was refused outright ("a variable element index combined
+//    with further selects on array parameter is not supported"). That is
+//    OpenTitan spi_tpm.sv:786. It needs the same element dimensions,
+//    delivered to the variable-index table instead.
 //
 //  * ASCENDING array declarations. The element table is always laid out
 //    ascending from the low index, so an array dimension handed to the
@@ -74,6 +75,22 @@ module sv_param_uarray_packed_elem;
     // --- run-time element index, whole element ---
     for (i = 0; i < 2; i = i + 1)
       ck(TPM[i], WTPM[i], "TPM[i] vs W");
+
+    // --- run-time element index, then a further select ---
+    for (i = 0; i < 2; i = i + 1) begin
+      ck(P[i][1], V[i][1], "P[i][1] vs V");
+      ck(P[i][0], V[i][0], "P[i][0] vs V");
+      ck(TPM[i][11:2],  WTPM[i][11:2],  "TPM[i][11:2] vs W");
+      ck(TPM[i][8],     WTPM[i][8],     "TPM[i][8] vs W");
+      ck(TPM[i][11-:4], WTPM[i][11-:4], "TPM[i][11-:4] vs W");
+    end
+
+    // ...and the same on ASCENDING bounds, where a (left,right) array
+    // dimension would reverse the table with no diagnostic.
+    for (i = 1; i <= 4; i = i + 1)
+      ck(ASC1[i][7:4], WASC1[i][7:4], "ASC1[i][7:4] vs W");
+    for (i = 0; i <= 3; i = i + 1)
+      ck(ASC0[i][3:0], WASC0[i][3:0], "ASC0[i][3:0] vs W");
 
     // --- ascending array bounds must not reverse ---
     for (i = 1; i <= 4; i = i + 1)

@@ -14904,19 +14904,43 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
 	// canonical slot of index i is (i - lo), which is what
 	// normalize_variable_base computes with (hi, lo) as the range
 	// for either declaration direction.
-      sel = normalize_variable_base(sel, hi, lo, 1, true);
-      sel = scale_index_to_bits(sel, elem_wid, *this);
-
       NetEConst*table_ex = new NetEConst(table);
       table_ex->set_line(*this);
 
+	/* A run-time element index FOLLOWED by further selects --
+	   `P[i][11:2]', which is OpenTitan spi_tpm.sv:786. The flat
+	   element table built above IS a packed value: it has the array
+	   as its outermost packed dimension and the element's own
+	   dimensions inside. So hand the whole index list to the shared
+	   packed-select calculation, which already does exactly this for
+	   a genuinely packed parameter (`logic [1:0][11:0] P' with
+	   `P[i][11:2]' has always worked through that path).
+
+	   The array dimension must be built from (hi, lo), NOT from
+	   (arr_left, arr_right). The table is laid out ascending from
+	   the LOW index whichever way the array was declared, while
+	   normalize_variable_base branches on msb < lsb -- so passing
+	   the declared pair would silently REVERSE an ascending array
+	   such as [1:4] or [0:3], reading ASC[1] as ASC[4] with no
+	   diagnostic. */
       if (name_tail.index.size() > 1) {
-	    cerr << get_fileline() << ": sorry: A variable element index "
-		 << "combined with further selects on array parameter `"
-		 << name << "' is not supported." << endl;
-	    des->errors += 1;
-	    return 0;
+	    delete sel;
+	    netranges_t dims;
+	    dims.push_back(netrange_t(hi, lo));
+	    netranges_t elem_dims;
+	    if (par_type)
+		  elem_dims = par_type->slice_dimensions();
+	    if (elem_dims.empty())
+		  elem_dims.push_back(netrange_t((long)elem_wid - 1, 0));
+	    for (size_t k = 0 ; k < elem_dims.size() ; k += 1)
+		  dims.push_back(elem_dims[k]);
+	    return param_select_packed_(des, scope, this, name, table_ex,
+					dims, name_tail.index, found_in,
+					need_const);
       }
+
+      sel = normalize_variable_base(sel, hi, lo, 1, true);
+      sel = scale_index_to_bits(sel, elem_wid, *this);
 
       NetExpr*tmp = new NetESelect(table_ex, sel, elem_wid);
       tmp->set_line(*this);
