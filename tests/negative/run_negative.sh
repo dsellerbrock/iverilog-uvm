@@ -26,7 +26,19 @@ for sv in "$DIR"/*.sv; do
     # loud diagnostic. The fork uses both "error:" (illegal input) and
     # "sorry:" (deliberately-unsupported construct) as loud diagnostics
     # per the manifesto; either counts as a proper rejection.
-    if [ $status -ne 0 ] && echo "$out" | grep -qiE "error|sorry"; then
+    #
+    # A CRASH is not a rejection. Exit status >= 128 means the compiler
+    # died on a signal (134 = SIGABRT from a failed assert, 139 =
+    # SIGSEGV). Those used to pass here, because the diagnostic is
+    # printed BEFORE the crash and the old test was satisfied by any
+    # non-zero status -- so a compiler that says `sorry' and then
+    # segfaults looked identical to one that rejected cleanly. Rejecting
+    # properly means exiting with a normal failure status.
+    if [ $status -ge 128 ]; then
+        echo "FAIL (crashed: exit $status, signal $((status - 128)))"
+        echo "$out" | head -3
+        FAIL=$((FAIL+1))
+    elif [ $status -ne 0 ] && echo "$out" | grep -qiE "error|sorry"; then
         echo "PASS (rejected with diagnostic)"
         PASS=$((PASS+1))
     else

@@ -6905,6 +6905,55 @@ static void sampled_pending_drop_(const PECallFunction*cf)
       }
 }
 
+/* Forget every pending sampled-value call inside this expression tree,
+   because the tree is about to be freed.
+ 
+   A destructor hook on PECallFunction alone would NOT be enough:
+   ~PEBinary, ~PETernary and ~PEUnary are all empty (PExpr.cc), so
+   deleting `a && $rose(x)' frees the PEBinary and leaks the nested
+   call without ever running its destructor. The entry would survive
+   with a dangling pointer. So walk the tree explicitly, mirroring
+   sva_rewrite_sampled_'s recursion.
+ 
+   Leaving a stale entry is not merely untidy: the endmodule flush
+   reports one warning per entry, so a dropped assertion would emit
+   diagnostics about sampled calls the user can no longer see. */
+static void sva_expr_forget_sampled_(PExpr*e)
+{
+      if (!e) return;
+
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    sampled_pending_drop_(cf);
+	      // A sampled call can nest inside another call's arguments.
+	    const std::vector<named<PExpr*> >&parms = cf->get_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  sva_expr_forget_sampled_(parms[i].parm);
+	    return;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
+	    sva_expr_forget_sampled_(un->get_expr());
+	    return;
+      }
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
+	    sva_expr_forget_sampled_(bin->get_left());
+	    sva_expr_forget_sampled_(bin->get_right());
+	    return;
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
+	    sva_expr_forget_sampled_(ter->get_cond());
+	    sva_expr_forget_sampled_(ter->get_true());
+	    sva_expr_forget_sampled_(ter->get_false());
+	    return;
+      }
+      if (PEConcat*cc = dynamic_cast<PEConcat*>(e)) {
+	    const std::vector<PExpr*>&parms = cc->stream_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  sva_expr_forget_sampled_(parms[i]);
+	    sva_expr_forget_sampled_(cc->repeat_expr());
+	    return;
+      }
+}
+
 /* Is this behavior clocked by a single edge, and if so which event
    statement carries it? Only an edge qualifies: 16.14.6 infers the
    clock from an edge-sensitive event control, and a level-sensitive
@@ -7088,7 +7137,15 @@ void pform_flush_pending_sampled_calls()
       if (!have_default) {
 	    for (size_t i = 0 ; i < sampled_pending_.size() ; i += 1) {
 		  const sampled_pending_t&p = sampled_pending_[i];
-		  cerr << p.call->get_fileline() << ": warning: this sampled "
+		    // p.loc, NOT p.call->get_fileline(). The call node may
+		    // already be FREED: an assertion that is dropped on a
+		    // `sorry' path destroys its expression tree, and this
+		    // flush runs later, at endmodule. Dereferencing the
+		    // stale pointer segfaulted the compiler on inputs as
+		    // small as `$rose(a) |-> b and c'. The location was
+		    // captured by value when the call was noted precisely
+		    // so this does not have to touch the node.
+		  cerr << p.loc.get_fileline() << ": warning: this sampled "
 		       << "value function has no clocking event to sample on "
 		       << "(IEEE 1800-2017 16.9.3): it is not inside a "
 		       << "concurrent assertion, not inside an edge-triggered "
@@ -7384,8 +7441,13 @@ pform_sva_throughout(const struct vlltype&loc, PExpr*guard,
 	// Reject the variable-window sub-shapes up front.
       for (size_t i = 0 ; i < seq->size() ; i += 1) {
 	    const sva_seq_step_t&st = (*seq)[i];
+	      // rep_kind included for the same reason as in
+	      // sva_chain_fixed_len_: the steps emitted below never copy
+	      // rep_kind/rep_lo/rep_hi, so a repetition step that reached
+	      // this legacy lowering would be silently dropped rather
+	      // than diagnosed.
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		|| st.rep_tail != 0) {
+		|| st.rep_tail != 0 || st.rep_kind != 0) {
 		  cerr << loc << ": sorry: `throughout' is supported only "
 		       << "over a fixed-length sequence (constant ##N "
 		       << "delays, no ##[m:n]/##[m:$]/[*m:n]); the "
@@ -8600,12 +8662,19 @@ static void sva_tree_delete_(sva_stree_t*t, bool with_exprs)
       if (t->chain) {
 	    if (with_exprs)
 		  for (size_t k = 0 ; k < t->chain->size() ; k += 1) {
+			  // Forget before free -- see the note in
+			  // sva_expr_forget_sampled_.
+			sva_expr_forget_sampled_((*t->chain)[k].expr);
+			sva_expr_forget_sampled_((*t->chain)[k].lv_rhs);
 			delete (*t->chain)[k].expr;
 			delete (*t->chain)[k].lv_rhs;
 		  }
 	    delete t->chain;
       }
-      if (with_exprs && t->gexpr) delete t->gexpr;
+      if (with_exprs && t->gexpr) {
+	    sva_expr_forget_sampled_(t->gexpr);
+	    delete t->gexpr;
+      }
       delete t;
 }
 
@@ -8613,6 +8682,11 @@ void pform_sva_destroy_sequence(std::vector<sva_seq_step_t>*seq)
 {
       if (!seq) return;
       for (size_t k = 0 ; k < seq->size() ; k += 1) {
+	      // Drop any pending sampled-value record that points into
+	      // this tree BEFORE freeing it, or the endmodule flush will
+	      // read a dangling pointer.
+	    sva_expr_forget_sampled_((*seq)[k].expr);
+	    sva_expr_forget_sampled_((*seq)[k].lv_rhs);
 	    delete (*seq)[k].expr;
 	    delete (*seq)[k].lv_rhs;
       }
@@ -8802,8 +8876,21 @@ static bool sva_chain_fixed_len_(const std::vector<sva_seq_step_t>&seq,
       len = 0;
       for (size_t j = 0 ; j < seq.size() ; j += 1) {
 	    const sva_seq_step_t&st = seq[j];
+	      // rep_kind carries goto (`b[->m:n]') and nonconsecutive
+	      // (`b[=m:n]') repetition, which pform_sva_goto_repeat
+	      // records ONLY in rep_kind/rep_lo/rep_hi -- delay_lo and
+	      // delay_hi stay at the plain 0/0 of the boolean it wraps.
+	      // Omitting it here classified `b[->1]' as a fixed chain of
+	      // length 1, so `g throughout b[->n]' took the legacy
+	      // lowering, whose emitted steps never copy the repetition
+	      // fields: the whole thing silently collapsed to `g && b'
+	      // and reported violations that never happened.
+	      // A goto/nonconsecutive repetition spans an unbounded
+	      // number of cycles, so the chain has no fixed length.
+	      // (`[*m:n]' is unaffected -- it expands into delays and
+	      // rep_tail, and never sets rep_kind.)
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		|| st.rep_tail != 0)
+		|| st.rep_tail != 0 || st.rep_kind != 0)
 		  return false;
 	    if (j == 0)
 		  len = st.delay_lo + 1;

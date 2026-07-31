@@ -480,7 +480,25 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	// Past this point, we should have taken care of the cases
 	// where the name is a member/method of a struct/class.
 	// XXXX ivl_assert(*this, method_name.nil());
-      ivl_assert(*this, tail_path.empty());
+	//
+	// A member tail that is left over here means the base did not
+	// resolve to something that HAS members -- normally because an
+	// earlier error already rejected it, and elaboration carried on.
+	// `module m(interface b); initial b.x = 1;' instantiated with a
+	// plain wire reports "the actual for generic interface port must
+	// be an interface instance" and then arrived here with `.x'
+	// still attached; the assertion turned a clean diagnostic into
+	// SIGABRT. Report and fail instead of dying: the compile is
+	// already failing, and an abort loses every later diagnostic.
+      if (!tail_path.empty()) {
+	    cerr << get_fileline() << ": error: `" << reg->name()
+		 << "' has no member `" << tail_path << "'";
+	    if (des->errors)
+		  cerr << " (after an earlier error on this name)";
+	    cerr << "." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
 
       bool need_const_idx = is_cassign || is_force;
 

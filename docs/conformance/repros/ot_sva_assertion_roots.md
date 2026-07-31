@@ -162,3 +162,81 @@ Two behaviours must be preserved, and both already have reproducers:
     That second one is worth doing in the same change: making lookup
     scope-aware without making an unresolved name loud would leave the
     more dangerous half of this in place.
+
+## Wave: silent wrong result in `throughout` over a goto repetition
+
+Found by a fan-out review, not by the OpenTitan error list -- it produces
+NO diagnostic, so it does not appear in any error count.
+
+    A: assert property (@(posedge clk) 1 throughout b[->1]);
+
+The invariant is the constant `1`, so this cannot fail under any trace.
+It reported SEVEN violations.
+
+`pform_sva_goto_repeat` records goto (`b[->m:n]`) and nonconsecutive
+(`b[=m:n]`) repetition ONLY in `rep_kind`/`rep_lo`/`rep_hi`; `delay_lo`
+and `delay_hi` stay at the plain 0/0 of the boolean being repeated.
+`sva_chain_fixed_len_` tested `delay_lo`, `delay_hi` and `rep_tail` but
+not `rep_kind`, so `b[->1]` classified as a FIXED chain of length 1.
+That routed `throughout` to the legacy fixed-length lowering, whose
+emitted steps never copy the repetition fields -- the repetition
+vanished and the property silently became the one-cycle conjunction
+`g && b`. It checks a different property than the one written, so it can
+both false-fail and false-pass.
+
+`[*m:n]` is unaffected: it expands into delays plus `rep_tail` and never
+sets `rep_kind`.
+
+The same term was added to `pform_sva_throughout`'s up-front rejection
+loop, so any future caller reaching the legacy lowering with a
+repetition step is diagnosed rather than silently dropped.
+
+Fixed-length forms are untouched and verified: `g throughout (a ##1 c)`
+still takes the legacy path and still fires when the invariant drops;
+unequal-length `intersect` is still loud.
+
+## Wave: two compiler crashes, one of them previously masked
+
+### SIGSEGV on a dropped assertion carrying a sampled-value function
+
+    A: assert property (@(posedge clk) $rose(a) |-> b and c);
+    => sorry: ... combinator as the consequent ... is dropped.
+       Segmentation fault            (exit 139)
+
+`pform_note_sampled_call` parks a raw `PECallFunction*` so an unclocked
+`$rose`/`$fell`/`$past` can be diagnosed at endmodule. When the
+assertion is dropped its expression tree is freed, the parked entry
+survives, and the endmodule flush called `p.call->get_fileline()` on the
+freed node.
+
+Two parts, both needed:
+  * the flush uses `p.loc`, the location captured BY VALUE when the call
+    was noted, and never touches the node;
+  * `sva_expr_forget_sampled_()` drops parked entries for a tree before
+    it is freed, called from `pform_sva_destroy_sequence` and
+    `sva_tree_delete_`.
+
+A destructor hook on `PECallFunction` alone would NOT have been enough:
+`~PEBinary`, `~PETernary` and `~PEUnary` are all empty (PExpr.cc), so
+`a && $rose(x)` leaks the nested call and never runs its destructor --
+that shape produced a stale WARNING rather than a crash, which is why
+the two symptoms look unrelated.
+
+### SIGABRT that the negative harness was counting as a pass
+
+`tests/negative/run_negative.sh` accepted ANY non-zero exit accompanied
+by a diagnostic. A compiler that prints `sorry` and then dies on a
+signal was therefore indistinguishable from one that rejects cleanly.
+The harness now treats exit status >= 128 as a failure.
+
+That change immediately exposed a second, pre-existing crash that had
+been passing: `generic_interface_port` reports its intended error and
+then aborts on `elab_lval.cc: assert tail_path.empty()` (exit 134). A
+member tail left over at that point means the base did not resolve to
+something with members -- normally because an earlier error already
+rejected it and elaboration continued. It now reports and fails instead
+of dying, which also preserves the diagnostics an abort would have lost.
+
+Worth stating plainly: the harness gap was mine to find earlier and I
+did not. Every negative-suite "103 passed" before this change carried an
+unknown number of masked crashes.
