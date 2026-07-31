@@ -6456,7 +6456,18 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 		       uvm_comparer.svh:638 (nested assoc index + member)
 		       and uvm_driver.svh:100 (unparenthesized method-result
 		       compare). Once those elaborate, this must become a
-		       hard error. */
+		       hard error.
+
+		       Re-measured: both are still live. Removing this
+		       fallback fails the ENTIRE UVM suite (229/229) at
+		       exactly those two lines, so it stays until they
+		       elaborate. It is not harmless while it stays --
+		       see tests/negative/sv_cond_unelaborable.sv, which
+		       fails the compile only because the expression
+		       inside the condition now counts an error of its
+		       own. A condition that fails for a reason nothing
+		       else reports still silently loses its
+		       then-branch. */
 		  cerr << get_fileline() << ": warning: condition expression "
 		       << "failed to elaborate; ASSUMING FALSE and compiling "
 		       << "only the else-branch (compile-progress). The "

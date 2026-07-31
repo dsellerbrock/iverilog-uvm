@@ -1201,11 +1201,86 @@ the same assignment), and `tests/negative/sv_uarray_nb_pattern_evctl.sv`
 (pre-fix exit 134, which the crash-aware negative runner scores as a
 failure, not a rejection).
 
-### Still open: the zero fallback itself
+### The zero fallbacks, and what removing them found
 
-`draw_eval_vec4()`'s `default:` arm remains a warning plus a zero. Any
-expression kind that reaches it produces a program that runs and
-computes the wrong value. `IVL_EX_ARRAY_PATTERN` was one such kind and
-is now routed away from it, but the arm is a general silent-wrong-result
-generator and should be a hard error. Not changed here: that is a
-separate change with its own blast radius to measure.
+`draw_eval_vec4()`'s `default:` arm was a warning plus a zero, and it
+was not alone. Five sites across the code generator answered "I do not
+handle this" by emitting a zero and letting the compile SUCCEED:
+
+  * `eval_vec4.c` -- unknown expression KIND (this is the one
+    `IVL_EX_ARRAY_PATTERN` reached);
+  * `eval_vec4.c` -- unknown value TYPE in a vector context, which
+    skipped the warning entirely for `IVL_VT_NO_TYPE`, so that case
+    substituted a zero with no output at all;
+  * `eval_vec4.c` / `eval_real.c` -- `$pop_front`/`$pop_back` on a
+    non-signal operand;
+  * `eval_vec4.c` -- an associative traversal method (`first`/`next`/
+    ...) whose key argument is not a signal, where the fabricated zero
+    reads as "no more elements" and ends the caller's loop early.
+
+A sixth sat in elaboration: `PEAssignPattern::elaborate_expr`'s
+width-driven overload warned, returned null, and counted NO error, so
+callers that propagate the null dropped the construct.
+`$display("%p", '{1,2})` compiled, ran, and printed nothing.
+
+All six now count an error. Regressions:
+`tests/negative/sv_assign_pattern_no_context.sv`,
+`tests/negative/sv_vec4_bad_value_type.sv`, and
+`tests/negative/sv_cond_unelaborable.sv` -- each of which the previous
+compiler built and RAN, printing "FAILED -- should not have compiled".
+
+### Still open: the `if` condition fallback
+
+`PCondit::elaborate` still ASSUMES A CONDITION FALSE when it fails to
+elaborate, deleting the then-branch and compiling the else-branch in its
+place. The in-tree note says it must become a hard error once its two
+UVM dependents elaborate. They do not yet: removing it fails the entire
+229-test UVM suite at exactly the two lines the note names,
+`uvm_comparer.svh:638` (nested associative index plus member access) and
+`uvm_driver.svh:100` (`seq_item_port.size<1`, an unparenthesized
+method-result compare). Those two expression forms are the work that
+unblocks it. Measured, not assumed -- an earlier scan of the fork's
+suite missed this because it compiled the test files without
+`uvm_pkg.sv`, so the library was never elaborated.
+
+### The seventh: a packed-array element with a struct type
+
+Making the fallbacks loud found this the same afternoon. OpenTitan's
+spi_device declares
+
+    cmd_info_t [NumTotalCmdInfo-1:0] cmd_info;   // PACKED array
+
+and fills it (spi_device.sv:631) with
+
+    cmd_info[i] = '{ valid: ..., opcode: ..., ... };
+
+Every one of those assignments was being DISCARDED. The l-value select
+recorded only its WIDTH -- `elaborate_lval_net_bit_` called
+`set_part(base, lwid)` for the multi-dimensional packed-slice case -- so
+`NetAssign_::net_type()` answered null. That is the r-value's only
+source of context, and without it the pattern had nowhere to get its
+member types from: it fell into the width-driven
+`PEAssignPattern::elaborate_expr`, which (before the change above)
+warned and returned null without counting anything. The caller dropped
+the statement. spi_device's compiled model ran with an all-zero command
+table.
+
+`set_packed_slice_part_()` now carries the element's declared type onto
+the select. `packed_type_after_dims()` walks the real type tree, so it
+stops at the struct instead of dissolving it into bits, and it declines
+when the select would land mid-way through an array level. A plain
+VECTOR element deliberately keeps the width-only form: its type adds
+nothing a pattern or a member reference needs, and giving the r-value a
+type context where it previously had a width would change how
+self-determined operands size themselves in `x[2] = <expr>` for every
+packed vector in every design.
+
+Regression `sv_packed_array_elem_pattern` fills the same array twice --
+once through a run-time index, once through scrambled constant indices,
+which take different paths in `elaborate_lval_net_bit_` -- and compares
+element-wise and as one flat vector. Against the compiler from before
+this campaign it builds, runs, and reports twelve X-valued mismatches.
+
+spi_device's RTL build drops from three diagnostics to one; what is
+left is the `TpmReturnByHwAddr` array-parameter sorry, a real
+unimplemented construct.

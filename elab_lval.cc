@@ -862,6 +862,51 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
       return lv;
 }
 
+/*
+ * Attach an element select on a multi-dimensional PACKED variable to the
+ * l-value, carrying the element's declared type when it has one.
+ *
+ * `set_part(base, width)' records only how many bits are being written.
+ * That is enough for a bare vector, but it throws away the fact that the
+ * element is a struct -- and NetAssign_::net_type() then answers null,
+ * which is the r-value's only source of context. An assignment pattern
+ * has nowhere to get its member types from and dies in the width-driven
+ * PEAssignPattern::elaborate_expr, which used to WARN and drop the whole
+ * assignment.
+ *
+ * OpenTitan's spi_device declares
+ *
+ *     cmd_info_t [NumTotalCmdInfo-1:0] cmd_info;   // PACKED array
+ *
+ * and fills it with `cmd_info[i] = '{ valid: ..., opcode: ..., ... }'
+ * (spi_device.sv:631). Every one of those assignments was silently
+ * discarded: the compiled model ran with an all-zero command table.
+ *
+ * packed_type_after_dims() walks the real type tree, so it stops at the
+ * struct rather than dissolving it into bits. When it cannot descend
+ * exactly -- the select lands mid-way through one array level -- there
+ * is no named type to carry and the width-only form is still right.
+ *
+ * A plain vector element keeps the width-only form deliberately. Its
+ * type adds nothing an assignment pattern or a member reference needs,
+ * and handing the r-value a type context where it previously had a
+ * width would change how self-determined operands size themselves in
+ * `x[2] = <expr>' for every packed vector in every design. The defect
+ * is about element types that carry STRUCTURE, so only those are.
+ */
+static void set_packed_slice_part_(NetAssign_*lv, NetExpr*base,
+				   const NetNet*reg, size_t dims_used,
+				   unsigned long lwid)
+{
+      ivl_type_t elem = packed_type_after_dims(reg->net_type(), dims_used);
+      if (elem && elem->packed() && elem->packed_width() == (long)lwid
+	  && dynamic_cast<const netvector_t*>(elem) == 0) {
+	    lv->set_part(base, elem);
+	    return;
+      }
+      lv->set_part(base, lwid);
+}
+
 bool PEIdent::elaborate_lval_net_bit_(Design*des,
 				      NetScope*scope,
 				      NetAssign_*lv,
@@ -1001,7 +1046,8 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 			}
 		  }
 
-		  lv->set_part(new NetEConst(verinum(loff)), lwid);
+		  set_packed_slice_part_(lv, new NetEConst(verinum(loff)),
+					 reg, prefix_indices.size()+1, lwid);
 
 	    } else {
 		  unsigned long lwid;
@@ -1015,7 +1061,8 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 			return false;
 		  }
 
-		  lv->set_part(mux, lwid);
+		  set_packed_slice_part_(lv, mux, reg,
+					 prefix_indices.size()+1, lwid);
 	    }
 
       } else if (reg->data_type() == IVL_VT_STRING) {
