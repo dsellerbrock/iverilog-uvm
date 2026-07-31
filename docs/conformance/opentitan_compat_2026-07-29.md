@@ -582,6 +582,27 @@ module items after it parse fine, even in the full `ASSERT macro
 expansion. So this half does not break the build; it silently removes
 assertions from the run.
 
+**The tempting shortcut is provably unsafe -- do not take it.** It looks
+like parse-time constant folding would do: `pform_cur_module' is
+available during lowering, so a parameter's DEFAULT could be read and
+folded, and OpenTitan would go green. It would also be silently wrong.
+
+`SkewCycles` is an overridable `parameter int unsigned SkewCycles = 1`,
+and OpenTitan DOES override it:
+
+```systemverilog
+prim_alert_sender #(.SkewCycles(AlertSkewCycles)) u_...   // hmac, entropy_src,
+                                                          // sram_ctrl, keymgr_dpe
+```
+
+and `AlertSkewCycles` is itself a parameter (defaulting to 1) threaded
+down from the top level -- a parameter CHAIN, overridable at every level
+by anyone integrating OpenTitan. Folding the default would size every
+checker for skew 1 while an instance ran with another value: assertions
+silently checking a window of the wrong width, no diagnostic. That is
+the exact failure class this campaign exists to remove, and it would be
+invisible precisely because the build went green.
+
 **What a fix requires.** Assertion lowering happens at PARSE time and
 sizes its pipeline, registers and automaton states from `delay_lo`/
 `delay_hi` as plain `long`s. Parameter values are known only at
