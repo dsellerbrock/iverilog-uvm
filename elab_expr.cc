@@ -11677,12 +11677,32 @@ bool PEIdent::packed_base_needs_expr_(Design*des, NetScope*scope,
       if (idx.size() > net->packed_dimensions())
 	    return false;
 
-	// Only plain bit-select chains. Ranges and indexed part selects
-	// keep the existing path.
-      for (list<index_component_t>::const_iterator ic = idx.begin()
-		 ; ic != idx.end() ; ++ic) {
-	    if (ic->sel != index_component_t::SEL_BIT)
-		  return false;
+	// Only the LEADING indices have to be single values -- they
+	// select one element of an outer packed dimension. The FINAL
+	// index may be a range or an indexed part select; that is what
+	// `d[i][31:0]' and `w[sel][8*i +: 8]' are, and 11.5.2 / 7.4.6
+	// allow a run-time index in any dimension.
+	//
+	// This tested EVERY component, so a non-bit-select tail sent
+	// the whole chain back to the constant-folding path, which then
+	// rejected the run-time leading index with "A reference to a
+	// net or variable (`i') is not allowed in a constant
+	// expression". The identical shape reached through a struct
+	// member (`s.d[i][31:0]') already worked, because that path was
+	// rebuilt on the canonical packed-offset walk -- so the tail
+	// translation this needs (SEL_PART / SEL_IDX_UP / SEL_IDX_DO)
+	// already exists downstream.
+	//
+	// evaluate_index_prefix() itself only ever inspects all-but-
+	// the-final component; this loop now matches it.
+      if (idx.size() >= 2) {
+	    list<index_component_t>::const_iterator last = idx.end();
+	    --last;
+	    for (list<index_component_t>::const_iterator ic = idx.begin()
+		       ; ic != last ; ++ic) {
+		  if (ic->sel != index_component_t::SEL_BIT)
+			return false;
+	    }
       }
 
 	// If the prefix IS constant the old path handles it, and handles
@@ -16132,7 +16152,20 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 		  NetEConst*idx_c = new NetEConst(verinum(idx));
 		  idx_c->set_line(*net);
 
-		  NetESelect*res = new NetESelect(net, idx_c, lwid);
+		    // IEEE 1800-2017 6.19.3: the element of a packed
+		    // array of enums is still of the enum type, so
+		    // `sp2v_e [7:0] sig; ... sig[0] ...' assigns to an
+		    // sp2v_e without a cast. The flat packed_dims() list
+		    // cannot say that -- it has already dissolved the
+		    // enum into its base vector -- so carry the declared
+		    // element type on the select itself. Nil for an
+		    // ordinary vector slice, which keeps its old typing.
+		  ivl_type_t etype =
+			packed_type_after_dims(net->sig()->net_type(),
+					       prefix_indices.size() + 1);
+		  NetESelect*res = etype
+			? new NetESelect(net, idx_c, lwid, etype)
+			: new NetESelect(net, idx_c, lwid);
 		  res->set_line(*net);
 		  return res;
 	    }
@@ -16228,8 +16261,18 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 						net->sig(), lwid);
 	    mux->set_line(*net);
 
-	      // Make a PART select with the canonical index
-	    NetESelect*res = new NetESelect(net, mux, lwid);
+	      // Make a PART select with the canonical index. Same
+	      // declared-element-type rule as the constant-index arm
+	      // above (6.19.3): `arr[i]' of a packed array of enums is
+	      // of the enum type whether or not `i' folds. Leaving this
+	      // arm untyped would make the legality of an assignment
+	      // depend on whether the index happened to be constant.
+	    ivl_type_t etype =
+		  packed_type_after_dims(net->sig()->net_type(),
+					 prefix_indices.size() + 1);
+	    NetESelect*res = etype
+		  ? new NetESelect(net, mux, lwid, etype)
+		  : new NetESelect(net, mux, lwid);
 	    res->set_line(*net);
 
 	    return res;

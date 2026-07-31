@@ -1258,3 +1258,5 @@ sv_array_elem_member_cassign normal,-g2012 ivltests
 sv_struct_member_mixed_assign normal,-g2012 ivltests
 sv_uparam_dim_decl_scope normal,-g2012 ivltests sv_uparam_dim_decl_scope
 sv_nb_uarray_copy normal,-g2012 ivltests
+sv_packed_runtime_idx_part normal,-g2012 ivltests
+sv_enum_packed_array_sel normal,-g2012 ivltests

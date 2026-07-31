@@ -498,6 +498,42 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	    return 0;
       }
 
+	// IEEE 1800-2017 11.5.2: a run-time index is legal in ANY packed
+	// dimension, and 7.4.6 lets a part-select follow it -- so
+	// `d[i][31:0] = ...' and `d[i][b +: 8] = ...' are valid
+	// l-values. The per-select helpers below all reach the
+	// constant-folding prefix path, which cannot carry a run-time
+	// leading index; elaborate_lval_net_part_() in particular falls
+	// back to index 0 with a warning, which writes the WRONG
+	// element. Take the computed-base path first, exactly as the
+	// r-value side does, so both sides address the same bits.
+	//
+	// SEL_BIT keeps its own hook inside elaborate_lval_net_bit_();
+	// this covers only the tails that hook never saw.
+      if (!need_const_idx && !reg->darray_type()
+	  && (use_sel == index_component_t::SEL_PART
+	      || use_sel == index_component_t::SEL_IDX_UP
+	      || use_sel == index_component_t::SEL_IDX_DO)
+	  && packed_base_needs_expr_(des, scope, reg)) {
+	    unsigned long sel_wid = 0;
+	    NetExpr*pbase = collapse_packed_base(des, scope, this, reg,
+						 path_.back().index, sel_wid);
+	    if (pbase && sel_wid > 0) {
+		  pbase->set_line(*this);
+		  if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
+			ivl_assert(*this, reg->coerced_to_uwire());
+			report_mixed_assignment_conflict_("part select");
+			des->errors += 1;
+			delete pbase;
+			return 0;
+		  }
+		  NetAssign_*lv = new NetAssign_(reg);
+		  lv->set_part(pbase, sel_wid);
+		  return lv;
+	    }
+	    delete pbase;
+      }
+
       if (use_sel == index_component_t::SEL_PART ||
           use_sel == index_component_t::SEL_PART_LAST) {
 	    NetAssign_*lv = new NetAssign_(reg);

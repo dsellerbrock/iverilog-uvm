@@ -635,3 +635,110 @@ different blockers. The RTL error families (measured separately) are
 elaboration-level; these two are the assertion path. Neither of these
 two is cheap, and (2) is the one that decides whether OpenTitan's
 assertions ever actually RUN.
+
+## Wave: run-time packed index with a part-select tail, and enum element type
+
+Two elaboration defects, each reproduced minimally and confirmed on the
+pre-fix compiler, each with a discriminating regression.
+
+### 1. Run-time index in a leading packed dimension + part-select tail
+
+    logic [3:0][63:0] d;
+    always_comb for (int i = 0; i < 4; i++) o = d[i][31:0];
+
+Rejected with "A reference to a net or variable (`i') is not allowed in
+a constant expression", although IEEE 1800-2017 11.5.2 permits a
+run-time index in ANY packed dimension and 7.4.6 permits the part-select
+that follows. The identical shape reached through a struct member
+(`s.d[i][31:0]') was already accepted, so the two spellings of one
+selection disagreed.
+
+Root cause, in two layers:
+
+  * `PEIdent::packed_base_needs_expr_` (elab_expr.cc) required EVERY
+    index component to be a SEL_BIT, so a part-select tail pushed the
+    whole chain back onto the constant-folding path. `evaluate_index_prefix()`
+    only ever inspects all-but-the-final component; the test now matches.
+  * `collapse_packed_base()` (netmisc.cc) then could not carry the tail:
+    `collapse_array_exprs()` -> `indices_to_expressions()` rejects any
+    non-SEL_BIT component ("Array cannot be indexed by a range"). It now
+    routes such a chain through `collapse_packed_member_indices()`, the
+    same translation the struct-member path uses, which rewrites the
+    tail into the SEL_BIT index of its lowest canonical bit and scales
+    the selected width. That function gained a `quiet` mode so a
+    genuinely illegal tail falls back and is diagnosed once, by the
+    original path, rather than twice.
+
+The l-value side needed the same reach: `packed_base_needs_expr_` was
+consulted only inside `elaborate_lval_net_bit_`, so `d[i][31:0] = ...`
+never saw it and `elaborate_lval_net_part_` fell back to index 0 with a
+warning -- it would have written the WRONG element. The check is now
+made before the select-form dispatch in `PEIdent::elaborate_lval_net_`.
+
+Regression: `ivtest/ivltests/sv_packed_runtime_idx_part.v` checks values,
+not just acceptance: constant and run-time part tails, `+:`/`-:` with a
+run-time base, ascending declared ranges, and l-value writes, each
+against both an absolute expected value and the struct-member spelling.
+
+### 2. Element of a packed array of enums lost its enum type
+
+    typedef enum logic [2:0] { A = 3'b101 } e_t;
+    e_t [3:0] arr;
+    e_t       one;
+    assign one = arr[2];        // "This assignment requires an explicit cast."
+
+`NetNet::packed_dims()` is a FLAT list -- a packed array contributes its
+own dimensions and the element type then contributes its slice
+dimensions -- so by the time a select is built the enum has already been
+dissolved into its base vector. The select carried no declared type,
+`NetExpr::enumeration()` returned nil, and IEEE 1800-2017 6.19.3
+rejected the assignment. An UNPACKED array of the same enum was fine,
+because that path already attaches the element type.
+
+Fix: `packed_type_after_dims()` (netmisc.cc) walks the real type tree in
+the same order as the flat dimension list and returns the declared type
+left after N dimensions have been indexed away. Both arms of
+`elaborate_expr_net_bit_`'s multi-dimensional slice case -- constant
+index and run-time index -- now attach it. Typing only one arm would
+have made the legality of an assignment depend on whether the index
+happened to fold.
+
+The descent deliberately returns nil when the count would land in the
+MIDDLE of one array level: `e_t [1:0][3:0] arr` indexed once yields
+`e_t[3:0]`, twelve bits, which is NOT an e_t and must still be rejected.
+
+Regressions: `ivtest/ivltests/sv_enum_packed_array_sel.v` (values and
+types, constant and run-time indices, one and two packed dimensions,
+sub-selects still plain bits); `tests/negative/sv_enum_packed_sel_not_enum.sv`
+and `tests/negative/sv_enum_packed_sel_type_mismatch.sv` guard against
+over-reach in both directions.
+
+### Measured effect
+
+OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
+
+    ip           before   after
+    spi_device      4        4
+    aes            24        4
+    hmac           25        1
+    otbn            6        4
+    kmac            0        0
+    TOTAL          64       13
+
+### Still open
+
+  * `otbn` (4): a variable driven continuously on one packed element and
+    procedurally on others is rejected, but ONLY when generate nesting
+    puts the procedural driver first. `prim_subst_perm.sv` drives
+    `data_state[0]` with a continuous assign and `data_state[r+1]` from
+    an always_comb inside a conditional generate nested in a loop
+    generate. The var->uwire promotion in `elab_net.cc` gives up on
+    `sig->peek_lref() != 0`, a whole-signal flag; the bit-accurate
+    disjointness test only exists on the continuous side
+    (`lref_mask_` / `test_part_driven`). Reproducer:
+    `docs/conformance/repros/ot_uwire_promote_order.sv` -- the same
+    design without the conditional generate is accepted, so the
+    rejection tracks elaboration order rather than semantics.
+  * `spi_device` (4): package parameter binding in an instance context,
+    and packed-array assignment patterns.
+  * `hmac` (1): assignment pattern inside a nested conditional r-value.
