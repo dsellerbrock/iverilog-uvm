@@ -8947,6 +8947,64 @@ sva_property_t* pform_sva_comb_consequent_sorry(const struct vlltype&loc,
 }
 
 /*
+ * `a |-> ( P )' / `a |=> ( P )' -- a PARENTHESIZED property operand as
+ * the consequent of an implication. IEEE 1800-2017 A.2.10 makes the
+ * consequent a `property_expr', and `( property_expr )' is itself one,
+ * so every property operator is legal here.
+ *
+ * When the parens turn out to hold a plain sequence they are pure
+ * grouping: splice the chain in and build the ordinary implication,
+ * identical to the unparenthesized form.
+ *
+ * Otherwise the operand carries property structure -- `throughout',
+ * `within', an `and'/`or' combinator, a nested implication -- that
+ * sva_property_t cannot hold: its consequent field `seq' is a flat
+ * std::vector<sva_seq_step_t>. Refuse it BY NAME.
+ *
+ * Being loud here matters far beyond this one message. Without this
+ * production the shape has no parse at all and dies as a bare `syntax
+ * error'; the parser then desynchronizes, and when the assertion sits
+ * inside a macro inside a generate block -- exactly how OpenTitan
+ * writes them -- every later module item in the file is misparsed. One
+ * such assertion (otbn.sv:1328, a `within') accounts for 30 of that
+ * file's 43 errors, all of them attributed to unrelated, correct code.
+ */
+extern sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
+					      int op_type,
+					      std::vector<sva_seq_step_t>*ante,
+					      sva_property_t*conseq);
+sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
+				       int op_type,
+				       std::vector<sva_seq_step_t>*ante,
+				       sva_property_t*conseq)
+{
+      if (!ante || !conseq) {
+	    pform_sva_destroy_sequence(ante);
+	    pform_sva_destroy_property(conseq);
+	    return nullptr;
+      }
+
+      if (sva_prop_is_plain_seq_(conseq)) {
+	    std::vector<sva_seq_step_t>*chain = conseq->seq;
+	    conseq->seq = nullptr;
+	    pform_sva_destroy_property(conseq);
+	    sva_property_t*p = new sva_property_t;
+	    p->antecedent = ante;
+	    p->seq = chain;
+	    p->op_type = op_type;
+	    return p;
+      }
+
+      cerr << loc << ": sorry: a parenthesized property as the consequent "
+	   << "of an implication is not supported yet (IEEE 1800-2017 "
+	   << "A.2.10 makes it legal); the assertion is dropped." << endl;
+      error_count += 1;
+      pform_sva_destroy_sequence(ante);
+      pform_sva_destroy_property(conseq);
+      return nullptr;
+}
+
+/*
  * `not property_expr' (16.12.9). A plain-sequence operand lowers as it
  * always has (op_type 3); a nested property is refused by name.
  */

@@ -5923,6 +5923,21 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_comb_consequent_sorry(@2, $1, $3); }
   | sva_seq_expr K_PIPE_IMPL_NOV sva_seq_comb
       { $$ = pform_sva_comb_consequent_sorry(@2, $1, $3); }
+  /* IEEE 1800-2017 A.2.10: `property_expr ::= ( property_expr )', so a
+     PARENTHESIZED property is a legal implication consequent — this is
+     how OpenTitan writes its reset and secure-wipe checkers:
+       `$fell(rst_ni) |-> (!a throughout !b[->1])'   (prim_sync_reqack)
+       `$rose(w) |-> ((...) within (...))'           (otbn.sv:1328)
+     Parens holding only a sequence are pure grouping and splice into an
+     ordinary implication; parens holding property structure get one
+     loud `sorry'. Either way the parser stays in sync, which is the
+     whole point: as a bare syntax error the second form above desyncs
+     the parse and buries 30 unrelated module items under bogus
+     "Invalid module item" diagnostics. */
+  | sva_seq_expr K_PIPE_IMPL_OV '(' property_expr ')'
+      { $$ = pform_sva_paren_conseq(@2, 1, $1, $4); }
+  | sva_seq_expr K_PIPE_IMPL_NOV '(' property_expr ')'
+      { $$ = pform_sva_paren_conseq(@2, 2, $1, $4); }
   | sva_seq_comb
       { $$ = $1; }
   /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at

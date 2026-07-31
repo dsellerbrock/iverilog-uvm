@@ -1272,3 +1272,5 @@ sv_default_disable_iff normal,-g2012 ivltests
 sva_throughout_goto_repeat normal,-g2012 ivltests
 sva_clocking_member_assert normal,-g2012 ivltests
 sva_seq_generate_scope normal,-g2012 ivltests
+sva_paren_seq_conseq normal,-g2012 ivltests
+sva_paren_prop_conseq_ce CE,-g2012 ivltests gold=sva_paren_prop_conseq_ce.gold
