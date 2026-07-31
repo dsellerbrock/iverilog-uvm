@@ -1268,3 +1268,4 @@ sv_ternary_typed_aggregates normal,-g2012 ivltests
 sv_uwire_promote_generate normal,-g2012 ivltests
 sv_always_comb_partsel_sens normal,-g2012 ivltests
 sv_uarray_const_ternary normal,-g2012 ivltests
+sv_default_disable_iff normal,-g2012 ivltests

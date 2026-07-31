@@ -4678,11 +4678,20 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
       { pform_start_clocking_block(@2, 0, $3, false, true); }
     clocking_items_opt K_endclocking
       { pform_end_clocking_block(@7); }
-  /* M9 (IEEE 1800-2017 16.15): `default disable iff (expr);` applies
-     to every concurrent assertion in this module that lacks its own
-     disable clause. */
-  | K_default K_disable K_iff '(' expression ')' ';'
-      { pform_sva_set_default_disable($5); }
+  /* M9 (IEEE 1800-2017 16.15): `default disable iff expr;` applies to
+     every concurrent assertion in this module that lacks its own
+     disable clause.
+     The grammar (A.2.10) is
+        default disable iff expression_or_dist ;
+     with NO parentheses. Requiring them rejected the ordinary spelling
+     -- OpenTitan's tlul_assert.sv writes
+        default disable iff disable_sva || !rst_ni;
+     -- as "Invalid module item", and the parser then failed to recover
+     for the rest of the module, so every later assertion in the file
+     reported an error too. A parenthesized expression is still just an
+     expression, so the previous form keeps working. */
+  | K_default K_disable K_iff expression ';'
+      { pform_sva_set_default_disable($4); }
   /* M9: named no-argument property/sequence declarations, usable by
      assertions later in the SAME module. Parameterized forms still
      fall to the error-recovery rules below (parsed and dropped). */
