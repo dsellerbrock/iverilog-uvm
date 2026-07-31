@@ -1244,6 +1244,26 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  if (have_da && want_ua->static_dimensions().size() == 1
 		      && uarray_element_matches_container_(want_ua, have_da))
 			return tmp;
+
+		    // A WHOLE unpacked array assigned to an unpacked array
+		    // of equivalent type (IEEE 1800-2017 7.6). NetESignal
+		    // reports net_type() -- the ELEMENT type for an
+		    // unpacked signal -- so the dimensions have to come
+		    // from array_type(), exactly as the open-formal check
+		    // below already does. Without this an arm of a
+		    // conditional that resolved to a whole array reached
+		    // the cast error even though the plain assignment of
+		    // the same array is accepted.
+		  if (const NetESignal*esig =
+			    dynamic_cast<const NetESignal*>(tmp)) {
+			if (esig->sig() && esig->word_index() == 0) {
+			      if (const netarray_t*have_ua =
+					esig->sig()->array_type()) {
+				    if (want_ua->type_equivalent(have_ua))
+					  return tmp;
+			      }
+			}
+		  }
 	    }
 
 	      // Catch some special cases.

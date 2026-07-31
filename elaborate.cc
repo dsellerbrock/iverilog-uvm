@@ -4270,6 +4270,49 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
  * counts and equivalent element types; we require matching packed
  * width and vector base kind).
  */
+/*
+ * See through a conditional whose condition is a compile-time constant
+ * to the arm that is actually selected.
+ *
+ * The whole-unpacked-array copy below recognizes its source by PExpr
+ * SHAPE -- it has to resolve the name itself, because there is no
+ * whole-array r-value representation to elaborate first. A conditional
+ * therefore hid the array from it, and the assignment fell through to
+ * the vector path, where the code generator aborted on
+ * `lwid == ivl_signal_width(lsig)'.
+ *
+ * OpenTitan's aes_cipher_core writes exactly this shape:
+ *
+ *     key_full_d = !CiphOpFwdOnly ? key_dec_q : prd_clearing_key_i;
+ *
+ * with the condition a module parameter. Only a constant condition is
+ * folded here; a run-time one leaves the expression alone and is
+ * rejected later, because there is no run-time mux for a whole
+ * unpacked array.
+ *
+ * The condition is elaborated WITHOUT need_const so a non-constant one
+ * is not an error -- it simply is not folded.
+ */
+static const PExpr* see_through_const_ternary_(Design*des, NetScope*scope,
+					       const PExpr*pe)
+{
+      for (unsigned guard = 0 ; guard < 32 ; guard += 1) {
+	    const PETernary*ter = dynamic_cast<const PETernary*>(pe);
+	    if (!ter) break;
+
+	    NetExpr*c = elab_and_eval(des, scope, ter->get_cond(), -1, false);
+	    const NetEConst*cc = dynamic_cast<NetEConst*>(c);
+	    if (!cc || !cc->value().is_defined()) {
+		  delete c;
+		  break;
+	    }
+	    bool take_true = !cc->value().is_zero();
+	    delete c;
+	    pe = take_true ? ter->get_true() : ter->get_false();
+      }
+      return pe;
+}
+
 static bool uarray_copy_shapes_compatible_(const netuarray_t*dst,
 					   unsigned long src_count,
 					   ivl_type_t src_elem)
@@ -4553,7 +4596,8 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		  && lv_uarray->static_dimensions().size() == 1;
 
 	    if (simple_blocking) {
-		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rval())) {
+		  const PExpr*rsrc = see_through_const_ternary_(des, scope, rval());
+		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc)) {
 			symbol_search_results sr;
 			bool found = symbol_search(this, des, scope, rid->path(),
 						   rid->lexical_pos(), &sr);
@@ -5198,7 +5242,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	    if (lv->more == 0 && delay_ == 0 && event_ == 0 && count_ == 0
 		&& !lv->word()
 		&& lv_uarray->static_dimensions().size() == 1) {
-		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rval())) {
+		  const PExpr*rsrc = see_through_const_ternary_(des, scope, rval());
+		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc)) {
 			symbol_search_results sr;
 			bool found = symbol_search(this, des, scope, rid->path(),
 						   rid->lexical_pos(), &sr);

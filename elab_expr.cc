@@ -12875,6 +12875,27 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				tmp->set_line(*this);
 				return tmp;
 			  }
+
+			    // A WHOLE unpacked array against an unpacked
+			    // array context (IEEE 1800-2017 7.6): equivalent
+			    // types may be assigned as a unit. have_type is
+			    // NetNet::net_type(), which for an unpacked
+			    // signal reports only the ELEMENT type -- the
+			    // dimensions live on array_type() -- so this
+			    // comparison could never succeed and a bare
+			    // `a' never matched an `a[N]'-shaped context.
+			    // Only the whole array: an indexed reference is
+			    // an element and is handled above.
+			  if (net->unpacked_dimensions() > 0
+			      && use_comp.index.empty()) {
+				if (const netarray_t*have_ua = net->array_type()) {
+				      if (want_ua->type_equivalent(have_ua)) {
+					    NetESignal*tmp = new NetESignal(net);
+					    tmp->set_line(*this);
+					    return tmp;
+				      }
+				}
+			  }
 		    }
 
 		    cerr << get_fileline() << ": error: the type of the variable '"
@@ -17334,6 +17355,21 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 		  return live->elaborate_expr(des, scope, type, flags);
 	    }
 	      // An x/z condition has to blend both arms.
+      }
+
+	// Past the short circuit, both arms have to be evaluated and
+	// blended at run time. There is no run-time mux for a WHOLE
+	// unpacked array, so say so instead of building something the
+	// code generator cannot emit. A constant condition -- the usual
+	// case, and the one OpenTitan's `!CiphOpFwdOnly ? a : b' relies
+	// on -- never reaches here.
+      if (dynamic_cast<const netuarray_t*>(type)) {
+	    cerr << get_fileline() << ": sorry: a conditional with whole "
+		 << "unpacked array operands is only supported when the "
+		 << "condition is a constant." << endl;
+	    des->errors += 1;
+	    delete con;
+	    return 0;
       }
 
       NetExpr*tru = tru_->elaborate_expr(des, scope, type, flags);

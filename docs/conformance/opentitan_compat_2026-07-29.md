@@ -1058,3 +1058,72 @@ the implicit T0 trigger.
 This is the next defect to take: incorrect observable semantics, and the
 fix has a clear shape (enable bit/part-select sensitivity, which needs
 the event-expression side to carry a range).
+
+## Wave: conditional over whole unpacked arrays -- OpenTitan reaches ZERO
+
+    key_full_d = !CiphOpFwdOnly ? key_dec_q : prd_clearing_key_i;
+
+with all three of `logic [7:0][31:0] x [NumShares]` and the condition a
+module parameter. This was the last construct blocking aes, and the
+final four errors in the corpus.
+
+An earlier note here deferred it on the grounds that IEEE 1800-2017
+11.4.11 does not enumerate unpacked aggregates among the conditional's
+operand types. That reading was the reason to be careful, not a reason
+to leave it -- and the careful form turns out to be narrow: with a
+CONSTANT condition the conditional selects one arm at elaboration time
+and no run-time array mux is needed at all. That is the shape OpenTitan
+uses, and it is now supported. A RUN-TIME condition would require
+blending two whole arrays, which the code generator cannot express, and
+is rejected loudly (`tests/negative/sv_uarray_runtime_ternary.sv`).
+
+Three independent failures had to be cleared, each of which stopped the
+construct on its own:
+
+  * A bare unpacked-array identifier could not elaborate against an
+    unpacked-array context type. `NetNet::net_type()` reports only the
+    ELEMENT type for an unpacked signal -- the dimensions live on
+    `array_type()` -- so the comparison in `PEIdent::elaborate_expr`
+    never matched and reported "the type of the variable 'a' doesn't
+    match the context type", quoting an element type against an array
+    context.
+  * The same mismatch rejected the arm a second time at the
+    implicit-cast check in `elaborate_rval_expr` (netmisc.cc), which
+    already had the analogous darray case but not this one.
+  * With those cleared, the assignment reached the code generator and
+    ABORTED: `ivl: stmt_assign.c:733: store_vec4_to_lval: Assertion
+    'lwid == ivl_signal_width(lsig)' failed`. PAssign's whole-array copy
+    recognizes its source by PExpr SHAPE -- it resolves the name itself,
+    there being no whole-array r-value representation to elaborate first
+    -- so a conditional hid the array from it and the assignment fell
+    through to the vector path. `see_through_const_ternary_()` now
+    resolves a constant-condition conditional to its live arm before
+    that shape test, at both the blocking and non-blocking sites.
+
+That third one is worth noting: fixing only the first two would have
+turned a clean compile error into a compiler abort.
+
+### Measured effect
+
+OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
+
+    ip           start   now
+    spi_device      4      0
+    aes            24      0
+    hmac           25      0
+    otbn            6      0
+    kmac            0      0
+    TOTAL          64      0
+
+All five IPs elaborate clean.
+
+### Still open elsewhere
+
+Not OpenTitan blockers, recorded with reproducers under
+`docs/conformance/repros/`:
+
+  * `[*0]` empty-match repetition is rejected and the assertion is
+    DROPPED (`sva_empty_match_repetition.sv`). Boundary measured: the
+    zero lower bound only; `[*1:2]`, `[*1:$]` and `[*2]` all work.
+  * Member access on a parameter of packed-struct type is unimplemented
+    -- now a clean error rather than the compiler abort it used to be.
