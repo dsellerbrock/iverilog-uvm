@@ -14161,7 +14161,17 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		    }
 
 		      // I cannot interpret this identifier. Error message.
-	    if (gn_system_verilog() && !(NEED_CONST & flags)
+	      // A compiler-generated bookkeeping reference stays silent:
+	      // the user's own reference to the same name reports it.
+	    if (quiet_bind_) return 0;
+
+	      // strict_bind_ marks identifiers that came out of a
+	      // concurrent assertion. The compile-progress warning keeps
+	      // UVM-heavy code building, but in an assertion it leaves a
+	      // property that compiles, never evaluates, and reports
+	      // nothing -- the check silently does not exist. Those take
+	      // the error branch.
+	    if (gn_system_verilog() && !(NEED_CONST & flags) && !strict_bind_
 		&& !unresolved_prefix_is_real_scope(des, scope, path_)) {
 		  // Compile-progress: clocking blocks, interface constructs.
 		  cerr << get_fileline() << ": warning: Unable to bind "
@@ -14320,7 +14330,14 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// not be bound (e.g. @cb, @monitor_cb). Emit warning in SV mode --
 	// unless the reference is package-scoped or its prefix names a
 	// real scope (see unresolved_prefix_is_real_scope above).
-      if (gn_system_verilog()
+	// Compiler-generated bookkeeping reference: stay silent, the
+	// user's own reference to the same name reports it.
+      if (quiet_bind_) return 0;
+
+	// strict_bind_: see the companion site above. An identifier that
+	// came out of a concurrent assertion must not degrade to a
+	// warning here either.
+      if (gn_system_verilog() && !strict_bind_
 	  && !unresolved_prefix_is_real_scope(des, scope, path_)) {
 	    cerr << get_fileline() << ": warning: Unable to bind wire/reg/memory "
 		    "`" << path_ << "' in `" << scope_path(scope) << "'"

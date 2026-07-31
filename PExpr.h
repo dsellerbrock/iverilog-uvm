@@ -393,6 +393,23 @@ class PEIdent : public PExpr {
       explicit PEIdent(const pform_name_t&, unsigned lexical_pos);
       ~PEIdent() override;
 
+	// Set on identifiers that came out of a CONCURRENT ASSERTION.
+	// An unresolved name normally degrades to a compile-progress
+	// warning so UVM-heavy code keeps building, but inside an
+	// assertion that leaves a property which compiles, never
+	// evaluates, and reports nothing -- the check silently does not
+	// exist. Marked identifiers take the error branch instead.
+      void set_strict_bind() { strict_bind_ = true; }
+      bool strict_bind() const { return strict_bind_; }
+
+	// Set on COMPILER-GENERATED references that merely shadow a name
+	// the user already wrote (the $ivl_clocking_hist_on bookkeeping
+	// argument). If such a name fails to bind, the user's own
+	// reference reports it; this one must stay silent rather than
+	// duplicate the diagnostic.
+      void set_quiet_bind() { quiet_bind_ = true; }
+      bool quiet_bind() const { return quiet_bind_; }
+
 	// Add another name to the string of hierarchy that is the
 	// current identifier.
       void append_name(perm_string);
@@ -653,6 +670,9 @@ class PEIdent : public PExpr {
 			       unsigned int &index_depth) const;
 
     private:
+      bool strict_bind_ = false;
+      bool quiet_bind_ = false;
+
       NetNet* elaborate_lnet_common_(Design*des, NetScope*scope,
 				     bool bidirectional_flag,
 				     bool var_allowed_in_sv) const;

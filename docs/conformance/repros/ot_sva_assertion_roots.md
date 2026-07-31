@@ -240,3 +240,63 @@ of dying, which also preserves the diagnostics an abort would have lost.
 Worth stating plainly: the harness gap was mine to find earlier and I
 did not. Every negative-suite "103 passed" before this change carried an
 unknown number of masked crashes.
+
+## Wave: an undefined name in an assertion is now an error
+
+    A: assert property (@(posedge clk) NoSuchSeq_S |=> p);
+
+compiled with only
+
+    warning: Unable to bind wire/reg/memory `NoSuchSeq_S' in `top'
+             (compile-progress: unresolved reference).
+
+and the property was permanently inert. `X |=> 1'b0' cannot hold under
+any trace, yet it reported nothing across four clocks.
+
+For a verification flow this is the worst available shape: the testbench
+builds, the run is green, and a check the engineer believes exists does
+not. Unlike a mistyped signal in ordinary RTL there is no later symptom
+-- nothing downstream reads the result and notices.
+
+`PEIdent::strict_bind_` marks identifiers that came out of a concurrent
+assertion; the two give-up sites in elab_expr.cc take the error branch
+for those instead of the compile-progress warning. Marking is done in
+`sva_assign_`, `sva_assign_nb_` and `sva_if_`, which every lowered
+assertion statement passes through.
+
+### Why the compile-progress warning stays everywhere else
+
+It exists so UVM-heavy code keeps building through parameterized
+container typing losses, and 375 of 423 UVM test files depend on it --
+all via `uvm-core/src/base/uvm_comparer.svh`. `uvm-core/src` contains
+ZERO concurrent assertions, so an SVA-scoped mark provably cannot reach
+it. Measured newly-failing files elsewhere: zero across 46
+`tests/sva_nfa` and 129 SVA files under `tests/` and `ivtest/ivltests`.
+
+### Two corrections made while implementing
+
+  * Marking every reached `PEIdent` rather than only bare
+    single-component names. `NoSuchBus[0]`, `NoSuchBus2[3:0] != 0` and
+    `NoSuchStruct.fld` were all silently inert too; a fix keyed on
+    `name.size()==1 && index.empty()` would have left three live holes.
+    Pinned by `tests/negative/sva_undefined_indexed_inert.sv`.
+
+  * `sva_hist_on_stmt_` mints its own `PEIdent` for the
+    `$ivl_clocking_hist_on` bookkeeping call, so the same undefined name
+    produced a SECOND diagnostic. Marking it strict gave two errors;
+    the right answer is `quiet_bind_`, which makes a compiler-generated
+    reference stay silent because the user's own reference to that name
+    already reports. One clean error per undefined name now.
+
+### What this does NOT change
+
+`assert property (@(posedge clk) p)` where `p` is a declared named
+property errors with "Unable to bind" -- and did so identically BEFORE
+this change. That is a separate pre-existing gap, not a regression here.
+The working form, a named property carrying its own clocking event
+(`property p; @(posedge clk) a |-> b; endproperty` + `assert property
+(p)`), behaves byte-identically before and after, as do clocking-block
+members used as assertion operands. Both are pinned by
+`ivtest/ivltests/sva_clocking_member_assert.v`, which passes on the
+pre-fix compiler too -- it exists to stop the strictness drifting into
+them, not to demonstrate the fix.

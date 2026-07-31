@@ -5495,6 +5495,11 @@ static Statement* sva_reactive_process_(const struct vlltype&loc)
       return t;
 }
 
+/* Defined with the sampled-value helpers below. Marks every identifier
+   in an assertion expression so an unresolved name errors instead of
+   degrading to a silently inert property. */
+static void sva_mark_strict_(PExpr*e);
+
 static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
 				    const pform_name_t&path)
 {
@@ -5502,6 +5507,13 @@ static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
       named_pexpr_t a0;
       a0.parm = new PEIdent(path, loc.lexical_pos);
       FILE_NAME(a0.parm, loc);
+	// Compiler-generated bookkeeping reference. It shadows a name the
+	// user already wrote in the assertion, so if the name does not
+	// bind, THAT reference reports it -- this one must stay silent.
+	// Without this the same undefined name produced a contradictory
+	// pair: one error and one compile-progress warning.
+      if (PEIdent*hid = dynamic_cast<PEIdent*>(a0.parm))
+	    hid->set_quiet_bind();
       args.push_back(a0);
       PCallTask*t = new PCallTask(
 	    lex_strings.make("$ivl_clocking_hist_on"), args);
@@ -5641,6 +5653,7 @@ static perm_string sva_make_reg_(const struct vlltype&loc, unsigned inst,
 
 static Statement* sva_assign_(const struct vlltype&loc, perm_string lv, PExpr*rv)
 {
+      sva_mark_strict_(rv);
       PAssign*a = new PAssign(sva_id_(loc, lv), rv);
       FILE_NAME(a, loc);
       return a;
@@ -5777,6 +5790,7 @@ static Statement* sva_block_(const struct vlltype&loc,
 static Statement* sva_if_(const struct vlltype&loc, PExpr*c,
 			  Statement*t, Statement*e)
 {
+      sva_mark_strict_(c);
       PCondit*p = new PCondit(c, t, e);
       FILE_NAME(p, loc);
       return p;
@@ -6902,6 +6916,65 @@ static void sampled_pending_drop_(const PECallFunction*cf)
 		  sampled_pending_.erase(sampled_pending_.begin() + i);
 		  return;
 	    }
+      }
+}
+
+/* Mark every identifier in this expression tree as coming from a
+   CONCURRENT ASSERTION, so an unresolved name is an ERROR rather than
+   the compile-progress warning used elsewhere.
+
+   The warning exists so UVM-heavy code keeps building through
+   parameterized-container typing losses. Inside an assertion it is
+   actively harmful: `NoSuchSeq_S |=> 1'b0' cannot hold under any trace,
+   yet it compiles and reports nothing. The testbench builds, the run is
+   green, and a check the engineer believes exists does not -- with no
+   later symptom, unlike a mistyped signal in ordinary RTL.
+
+   Every PEIdent reached is marked, not just bare single-component
+   names: `NoSuchBus[0]', `NoSuchBus[3:0] != 0' and `NoSuchStruct.fld'
+   are all silently inert today. Package-qualified names are left alone;
+   they resolve through a different path and already error.
+
+   Marking happens at the pform level, so it cannot reach non-assertion
+   code -- in particular uvm-core/src, which contains no concurrent
+   assertions at all and whose reliance on the generic warning is
+   therefore untouched. */
+static void sva_mark_strict_(PExpr*e)
+{
+      if (!e) return;
+
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    if (id->path().package) return;
+	    id->set_strict_bind();
+	    return;
+      }
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    const std::vector<named<PExpr*> >&parms = cf->get_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  sva_mark_strict_(parms[i].parm);
+	    return;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
+	    sva_mark_strict_(un->get_expr());
+	    return;
+      }
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
+	    sva_mark_strict_(bin->get_left());
+	    sva_mark_strict_(bin->get_right());
+	    return;
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
+	    sva_mark_strict_(ter->get_cond());
+	    sva_mark_strict_(ter->get_true());
+	    sva_mark_strict_(ter->get_false());
+	    return;
+      }
+      if (PEConcat*cc = dynamic_cast<PEConcat*>(e)) {
+	    const std::vector<PExpr*>&parms = cc->stream_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  sva_mark_strict_(parms[i]);
+	    sva_mark_strict_(cc->repeat_expr());
+	    return;
       }
 }
 
@@ -10379,6 +10452,7 @@ static bool sva_lower_endpoint_methods_tree_(const struct vlltype&loc,
 static Statement* sva_assign_nb_(const struct vlltype&loc, perm_string lv,
 				 PExpr*rv)
 {
+      sva_mark_strict_(rv);
       PAssignNB*a = new PAssignNB(sva_id_(loc, lv), rv);
       FILE_NAME(a, loc);
       return a;
