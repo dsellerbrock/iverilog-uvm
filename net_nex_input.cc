@@ -477,8 +477,22 @@ NexusSet* NetBlock::nex_input(bool rem_out, bool always_sens, bool nested_func) 
 	    delete tmp;
 
 	      /* Add the current outputs to the accumulated output set if
-	       * they are going to be removed from the input set below. */
-	    if (rem_out) cur->nex_output(*prev);
+	       * they are going to be removed from the input set below.
+	       *
+	       * For an always_comb/always_latch sensitivity list, ask for
+	       * the PRECISE bits of a constant part select. Claiming the
+	       * whole signal here removes bits the block only READS, and
+	       * a block that reads st[0] and writes st[1] ended up with
+	       * an empty sensitivity set -- it ran once at time 0 and
+	       * then simulated a stale value. Synthesis (rem_out set by
+	       * the `synthesis' flag, always_sens false) keeps the
+	       * whole-signal answer it depends on. */
+	    if (rem_out) {
+		  bool saved = nex_output_precise_partsel;
+		  if (always_sens) nex_output_precise_partsel = true;
+		  cur->nex_output(*prev);
+		  nex_output_precise_partsel = saved;
+	    }
 
 	    cur = cur->next_;
       } while (cur != last_->next_);

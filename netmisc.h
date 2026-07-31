@@ -518,6 +518,14 @@ extern uint64_t get_scaled_time_from_real(const Design*des,
 
 extern void collapse_partselect_pv_to_concat(Design*des, NetNet*sig);
 
+/* When true, NetAssign_::nex_output() reports only the bits a CONSTANT,
+   in-range bit/part select actually assigns, instead of claiming the
+   whole signal. OFF by default -- synthesis reads that set to decide
+   what a process drives and needs the whole-signal answer. Only the
+   always_comb sensitivity subtraction in NetBlock::nex_input() turns it
+   on, and only around its own walk. */
+extern bool nex_output_precise_partsel;
+
 /* Collapse the leading indices of a packed select into constants. With
    quiet=true a non-constant prefix simply returns false with no
    diagnostic, so the caller can fall back to collapse_packed_base(). */
