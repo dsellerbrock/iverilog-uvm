@@ -635,6 +635,70 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    unsigned long member_off = 0;
 	    unsigned long member_width = sig->vector_width();
 
+	      // An UNPACKED array of structs, like `o[i].m'. The word
+	      // index lives on the BASE path component (`o[i]'), not on
+	      // path_tail -- path_tail is the last component of the
+	      // whole path, which here is the member `.m' and carries no
+	      // index. Without selecting the word, this signal keeps a
+	      // pin per array element, PGAssign::elaborate sees
+	      // pin_count() > 1 and routes the assignment to the
+	      // whole-array path, which then rejects the scalar r-value
+	      // with "Can not assign non-array expression ... to array".
+	      // Worse, every iteration of a generate loop produced such
+	      // a whole-array driver, so N legitimate per-element
+	      // assignments were reported as N drivers on one array.
+	      // This is the net-side counterpart of the packed-member
+	      // l-value work in the canonical-packed-access campaign.
+	    if (sig->unpacked_dimensions() > 0 && !base_path.empty()
+		&& !base_path.back().index.empty()) {
+		  const list<index_component_t>&widx_src = base_path.back().index;
+		  if (widx_src.size() < sig->unpacked_dimensions()) {
+			cerr << get_fileline() << ": error: Array " << path()
+			     << " needs " << sig->unpacked_dimensions()
+			     << " indices, but got only " << widx_src.size()
+			     << ". (net member)" << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  list<NetExpr*> widx_exprs;
+		  list<long> widx_const;
+		  indices_flags widx_flags;
+		  indices_to_expressions(des, scope, this, widx_src,
+					 sig->unpacked_dimensions(), true,
+					 widx_flags, widx_exprs, widx_const);
+		  if (widx_flags.invalid) {
+			return 0;
+		  } else if (widx_flags.variable) {
+			cerr << get_fileline() << ": error: array '"
+			     << sig->name() << "' index must be a constant"
+			     << " in this context." << endl;
+			des->errors += 1;
+			return 0;
+		  } else if (widx_flags.undefined) {
+			cerr << get_fileline() << ": warning: ignoring"
+			     << " undefined l-value array access "
+			     << sig->name() << as_indices(widx_exprs) << "."
+			     << endl;
+			widx = -1;
+			widx_flag = true;
+		  } else {
+			NetExpr*canon = normalize_variable_unpacked(sig, widx_const);
+			if (canon == 0) {
+			      cerr << get_fileline() << ": warning: ignoring"
+				   << " out of bounds l-value array access "
+				   << sig->name() << as_indices(widx_const)
+				   << "." << endl;
+			      widx = -1;
+			} else {
+			      const NetEConst*cc = dynamic_cast<NetEConst*>(canon);
+			      ivl_assert(*this, cc);
+			      widx = cc->value().as_long();
+			      delete canon;
+			}
+			widx_flag = true;
+		  }
+	    }
+
 	    // Might be an array of structs, like a.b[N].x.y. (A packed
 	    // array.) Handle that here by taking a part select that
 	    // reflects the array index.

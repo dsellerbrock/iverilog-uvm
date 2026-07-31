@@ -13641,6 +13641,27 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		      && sr.path_tail.front().index.empty()
 		      && sr.path_tail.front().name == perm_string::literal("index")) {
 			if (NetNet*idxn = find_array_method_iter_index(sr.net)) {
+			        /* Edition gate: the `index' iterator
+			           property is IEEE 1800-2023 (7.12).
+			           Under an older edition this name is
+			           not an iterator property at all, so
+			           fall through to ordinary resolution
+			           after diagnosing -- silently binding
+			           it produced correct 2023 answers for
+			           a user who asked for 2012. */
+			      if (!sv_require_feature(this,
+						      SVF_ITERATOR_INDEX)) {
+				      /* Keep elaborating with a benign
+				         value: returning 0 made the
+				         enclosing method report `has no
+				         method "sum(...)"', which is
+				         false and misleading. The error
+				         counter already fails the run. */
+				    des->errors += 1;
+				    NetEConst*zero = new NetEConst(verinum((uint64_t)0, 32));
+				    zero->set_line(*this);
+				    return zero;
+			      }
 			      NetESignal*tmp = new NetESignal(idxn);
 			      tmp->set_line(*this);
 			      return tmp;

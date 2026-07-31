@@ -1,0 +1,2 @@
+./ivltests/sv_edition_stacktrace_old.v:8: error: the $stacktrace system task requires IEEE1800-2023; compile with -g2023 (or -glatest).
+1 error(s) during elaboration.

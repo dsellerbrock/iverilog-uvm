@@ -380,3 +380,111 @@ file list with `-sot_uart_smoke`.
   sensitivity lists are coarser than written.
 - Per this fork's own standing warning: treat all of it as guilty until
   proven innocent, and verify independently before relying on it.
+
+---
+
+# Re-measurement after recovery campaigns C1-C5 + edition gates
+
+Measured on the post-C5 tree. **Reproduction correction:** the steps
+above omit the prim mapping, so a naive run resolves `prim_flop` to the
+ASAP7 standard-cell library and fails with 14
+`Unknown module type: DFFASRHQNx1_ASAP7_75t_R` errors that have nothing
+to do with the compiler. Add:
+
+```
+--mapping lowrisc:prim_generic:all:0.1
+```
+
+| IP | recorded 2026-07-29 | now | note |
+|---|---|---|---|
+| uart | 0 — builds/simulates | **0** | holds |
+| kmac | 2 | 2 | different causes (see below) |
+| spi_device | 4 | 4 | packed pattern arity persists |
+| aes | 7 | 53 | deeper, not a regression — same "blocked early -> deeper" pattern this doc already records |
+| hmac | 80 | **51** | |
+| otbn | 80 | **66** | |
+
+## What the campaigns actually cleared
+
+**"Variable index into packed multi-dim array" — the dominant recorded
+root cause across kmac, aes, hmac and otbn — no longer appears at all.**
+Campaign 4's canonical packed-offset work cleared it on real designs,
+not merely on the synthetic tests written alongside it. The designs now
+elaborate further and stop on different constructs.
+
+## The new work-list, by leverage
+
+### 1. Continuous assign to a member of an unpacked-array element (highest)
+
+`tlul_socket_1n.sv` is shared by every OpenTitan IP with a TL-UL socket,
+so this one construct blocks hmac and otbn together and accounts for the
+top TWO error classes in both:
+
+```systemverilog
+for (genvar i = 0 ; i < N ; i++) begin : gen_u_o
+  assign tl_u_o[i].a_valid = tl_t_o.a_valid & dev_select;
+```
+
+Observed: `error: Can not assign non-array expression ... to array.`
+plus `Variable 'tl_u_o' cannot have multiple drivers.` (11x hmac,
+30x otbn).
+
+ONE root cause explains both. `PGAssign::elaborate` routes to the
+unpacked-array path on `lval->pin_count() > 1` (elaborate.cc:1283), so
+`elaborate_lnet` on `o[i].v` is returning the WHOLE array instead of
+narrowing to the element's member. Every genvar iteration therefore
+looks like it drives the entire array, which is where the bogus
+multiple-driver errors come from.
+
+Minimal reproducer: `docs/conformance/repros/ot_array_elem_member_assign.sv`
+(15 lines, no OpenTitan dependency). This is the net-side analogue of
+what Campaign 4 fixed for variables.
+
+**Root cause located.** `PEIdent::elaborate_lnet_common_` (elab_net.cc)
+chooses between whole-array and indexed-word assignment with:
+
+```
+} else if (gn_system_verilog() && sig->unpacked_dimensions() > 0
+           && path_tail.index.empty()) {
+      // whole-array assignment -> multi-pin net
+} else if (sig->unpacked_dimensions() > 0) {
+      // indexed word -> single word
+```
+
+It asks whether the LAST path component carries an index. For `o[i]`
+that is right. For `o[i].v` the last component is `.v`, whose index is
+empty, so it takes the WHOLE-ARRAY branch and returns a multi-pin net;
+`PGAssign::elaborate` then sees `pin_count() > 1` (elaborate.cc:1283)
+and routes to the unpacked-array path, which rejects the scalar RHS.
+Every genvar iteration produces such a whole-array driver, which is
+where the bogus multiple-driver errors come from.
+
+The index for an `arr[i].member` lvalue lives on the BASE component
+(`sr.path_head`), not on the tail (`sr.path_tail`). The fix is to read
+the unpacked index from the base component when a member path is
+present. Not attempted here -- it belongs with its own test matrix
+(net vs variable lvalue, genvar vs constant index, struct member vs
+nested member, multi-dimensional unpacked) and a full ladder.
+
+### 2. Remaining, in rough frequency order
+
+- `Cannot perform procedural assignment to variable 'X.member' because
+  it is also continuously assigned` — aes, hmac, otbn. Likely the same
+  member-granularity confusion seen in (1): the whole aggregate is
+  treated as driven when only one member is.
+- `This assignment requires an explicit cast` (20x aes).
+- ``A reference to a net or variable (`i') is not allowed in a constant
+  expression`` (19x hmac) — genvar used where a constant is required.
+- `Multi-dimensional unpacked array parameter 'PiRotate' is not
+  supported` (kmac).
+- `Packed array assignment pattern expects 67 element(s)` (spi_device) —
+  survives C3's arity work; needs its own reproducer.
+
+## Caveat on the UART result
+
+The 135 "constant selects in `always_*` processes" diagnostics are
+emitted as `sorry:` yet the build still exits 0 and produces a working
+binary. The fallback is conservative and correct (the process becomes
+sensitive to the whole vector), but a non-fatal `sorry` sits oddly with
+this fork's doctrine that `sorry` means a loud refusal. Decide whether
+these should be warnings or whether the construct deserves real support.

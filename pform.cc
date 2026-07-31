@@ -8189,15 +8189,36 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    }
 
 	    if (op == 11) {
-		    /* s_eventually p (16.12.5): p must hold at least once.
-		       Track whether p was ever seen; report at end of
-		       simulation if it never was. (Standalone liveness: the
-		       cycle-0 attempt is the canonical obligation.) */
-		  perm_string r_seen = sva_make_reg_(loc, inst, "seen", 0);
-		  init_zero.push_back(sva_assign_(loc, r_seen, sva_bit_(loc, 0)));
-		  body.push_back(sva_if_(loc, sva_id_(loc, r_p),
-			sva_assign_(loc, r_seen, sva_bit_(loc, 1)), nullptr));
-		  Statement*fc = sva_if_(loc, sva_not_(loc, sva_id_(loc, r_seen)),
+		    /* s_eventually p (16.12.5): a STRONG obligation, and
+		       `assert property' starts a fresh attempt on every
+		       tick. An attempt beginning at tick t needs p at some
+		       tick >= t, so the obligation window SHRINKS: later
+		       attempts are strictly harder, never implied by an
+		       earlier one.
+
+		       This used to track "was p EVER seen" and report only
+		       if it never was -- the cycle-0 attempt treated as
+		       canonical. That silently under-reported: with p true
+		       once early and never again, every later attempt is
+		       undischargeable, yet the latch stayed set and NO
+		       failure was reported. The identical property written
+		       `1'b1 |-> s_eventually(p)' (op 18) did report it, so
+		       two spellings of one property disagreed.
+
+		       The collapse that IS valid: p holding at tick t
+		       discharges every attempt started at or before t, so
+		       one pending bit suffices -- set it whenever p is
+		       absent (the attempt starting now is outstanding),
+		       clear it whenever p holds. A trace ending with the
+		       bit set has an attempt that can never complete.
+		       (The same collapse is invalid for `always'-style
+		       SAFETY operators, whose obligations do not shrink;
+		       those keep their own per-cycle check below.) */
+		  perm_string r_pend = sva_make_reg_(loc, inst, "pend", 0);
+		  init_zero.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
+		  body.push_back(sva_assign_(loc, r_pend,
+					     sva_not_(loc, sva_id_(loc, r_p))));
+		  Statement*fc = sva_if_(loc, sva_id_(loc, r_pend),
 					 sva_fail_action_(loc, inst, action), nullptr);
 		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 		  FILE_NAME(fp, loc);
@@ -8606,6 +8627,66 @@ void pform_sva_destroy_mc_segments(std::vector<sva_mc_seg_t>*segs)
 	    pform_sva_destroy_sequence((*segs)[k].chain);
       }
       delete segs;
+}
+
+/*
+ * Is this property just a plain sequence wearing the property wrapper?
+ * That is the ONE shape the flat lowerings can consume as an operand of
+ * a property operator: no property operator of its own, no clock, no
+ * combinator tree, no multiclock boundary, default strength.
+ */
+static bool sva_prop_is_plain_seq_(const sva_property_t*prop)
+{
+      return prop && prop->op_type == 0 && prop->seq && !prop->tree
+	     && !prop->antecedent && !prop->clk_evt && !prop->seq_clk_evt
+	     && !prop->mc_prefix && (!prop->mc_more || prop->mc_more->empty())
+	     && !prop->disable_iff_expr && prop->strength == 0;
+}
+
+/*
+ * Name a property operator whose operand is a nested property rather
+ * than a plain sequence. IEEE 1800-2017 A.2.10 defines property_expr
+ * recursively, so these forms are LEGAL; this fork's sva_property_t
+ * models a property as a flat step chain and cannot represent them yet.
+ *
+ * Before this existed the grammar simply had no production for them and
+ * they died as a bare `syntax error', which tells the user their
+ * correct code is malformed. Accepting the form and refusing it by name
+ * is the honest diagnostic: it says what is unsupported, cites the
+ * clause that makes it legal, and does not blame the source.
+ */
+static sva_property_t* sva_nested_prop_sorry_(const struct vlltype&loc,
+					      const char*op,
+					      const char*clause,
+					      sva_property_t*sub)
+{
+      cerr << loc << ": sorry: `" << op << "' with a nested property "
+	   << "operand is not supported yet (IEEE 1800-2017 " << clause
+	   << " makes it legal); the assertion is dropped." << endl;
+      error_count += 1;
+      pform_sva_destroy_property(sub);
+      return nullptr;
+}
+
+/*
+ * `not property_expr' (16.12.9). A plain-sequence operand lowers as it
+ * always has (op_type 3); a nested property is refused by name.
+ */
+extern sva_property_t* pform_sva_prop_not(const struct vlltype&loc,
+					  sva_property_t*sub);
+sva_property_t* pform_sva_prop_not(const struct vlltype&loc,
+				   sva_property_t*sub)
+{
+      if (!sub) return nullptr;
+      if (!sva_prop_is_plain_seq_(sub))
+	    return sva_nested_prop_sorry_(loc, "not", "16.12.9", sub);
+
+      sva_property_t*p = new sva_property_t;
+      p->seq = sub->seq;
+      sub->seq = nullptr;
+      p->op_type = 3;
+      pform_sva_destroy_property(sub);
+      return p;
 }
 
 void pform_sva_destroy_property(sva_property_t*prop)

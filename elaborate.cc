@@ -6305,6 +6305,15 @@ NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 	    return elaborate_receiver_method_(des, scope);
 
       if (peek_tail_name(path_)[0] == '$') {
+	      /* Edition gate: a system task the SELECTED edition does not
+	         define. $stacktrace is IEEE 1800-2023 (it was a de-facto
+	         vendor extension before that), so accepting it under
+	         -g2012 ran 2023 semantics for a user who asked for 2012. */
+	    if (peek_tail_name(path_) == "$stacktrace"
+		&& !sv_require_feature(this, SVF_STACKTRACE)) {
+		  des->errors += 1;
+		  return new NetBlock(NetBlock::SEQU, 0);
+	    }
 	    if (void_cast_)
 		  return elaborate_non_void_function_(des, scope);
 	    else

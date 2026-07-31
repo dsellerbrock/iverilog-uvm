@@ -63,10 +63,43 @@ These flags affect the general behavior of the compiler.
     earlier. It is new to git master as of November 2009. Actual SystemVerilog
     support is ongoing.
 
+  * 2005-sv
+
+    This flag enables the IEEE1800-2005 standard, the first SystemVerilog
+    edition. (This entry was previously missing from this list although the
+    flag has long been accepted.)
+
   * 2012
 
     This flag enables the IEEE1800-2012 standard, which includes
     SystemVerilog.
+
+  * 2017
+
+    This flag enables the IEEE1800-2017 standard. IEEE 1800-2017 is a
+    maintenance revision of 1800-2012: it resolves errata and clarifies
+    wording but introduces no new syntax. Selecting it therefore accepts
+    exactly the same language as 2012 -- it exists so a design can state
+    the edition it targets, not because it enables anything.
+
+  * 2023
+
+    This flag enables the IEEE1800-2023 standard. Constructs introduced by
+    that edition are rejected under an earlier one, with a diagnostic that
+    names the construct, the edition that defines it and this flag.
+
+    Selecting 2023 does NOT mean the whole of IEEE 1800-2023 is
+    implemented. Most of that edition's additions are still unimplemented
+    and are rejected in every mode; see
+    docs/conformance/ieee1800_2023_delta.md for the per-item status. What
+    the flag guarantees is the converse: constructs this compiler has
+    implemented from 1800-2023 are available only when you ask for it.
+
+  * latest
+
+    A spelling of the newest edition the compiler knows (currently 2023).
+    It resolves when the option is parsed, so -glatest and the edition it
+    names compile identically.
 
   * verilog-ams
 
