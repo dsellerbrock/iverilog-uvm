@@ -1127,3 +1127,85 @@ Not OpenTitan blockers, recorded with reproducers under
     zero lower bound only; `[*1:2]`, `[*1:$]` and `[*2]` all work.
   * Member access on a parameter of packed-struct type is unimplemented
     -- now a clean error rather than the compiler abort it used to be.
+
+## Correction: what the RTL table above counted
+
+The "start / now" table counts lines matching `: error:`. That is not
+the same as "compiles". Re-measuring the same five IPs by exit status,
+and counting `sorry:` as well, gives a different and less flattering
+picture -- and turned up the worst defect found in this campaign.
+
+`iverilog -g2012 -s<ip> -DSYNTHESIS -c <ip>.scr -o <ip>.vvp`:
+
+    ip           before        after
+    spi_device   rc=1  (1 sorry)   rc=1  (1 sorry)
+    aes          rc=3  (3 sorry)   rc=3  (3 sorry)
+    hmac         rc=0             rc=0
+    otbn         rc=134 ABORT     rc=0   (22.8 MB image)
+    kmac         rc=1  (1 sorry)   rc=1  (1 sorry)
+
+The five residual sorries are loud, named refusals of real gaps: a
+variable element index with further selects on an array parameter
+(spi_device), unpacked subroutine ports and array slices in continuous
+assignment (aes), and a multi-dimensional unpacked array parameter
+(kmac). They are correct behaviour for constructs the fork does not
+implement.
+
+otbn was not in that category. It ABORTED the compiler, and the
+diagnostic the old table matched on never appeared, so the abort was
+counted as zero errors.
+
+### The abort, and the silent wrong result behind it
+
+`otbn_kmac_if.sv:734` writes
+
+    kmac_cfg_q <= '{default: kmac_cfg_t'('0)};
+
+an assignment pattern assigned NON-BLOCKING to a whole unpacked array.
+The blocking spelling has always worked: the code generator's
+`draw_array_pattern()` distributes the pattern's entries across the
+array's words. The non-blocking spelling had no path at all. It reached
+`draw_eval_vec4()`, which has no case for `IVL_EX_ARRAY_PATTERN` and
+falls through to a `default:` that prints
+
+    Warning: unsupported VEC4 expression (26); emitting zero fallback
+
+and pushes a zero of the l-value's width. The compile then SUCCEEDS or
+dies depending only on the l-value shape:
+
+  * a whole-array l-value carries no word index, so
+    `assign_to_lvector()` aborted on `Assertion 'word_ix' failed'. This
+    is what otbn hit.
+  * a SLICE l-value carries one -- the slice's flat base word -- so
+    nothing aborted. The zero went into the slice's first word and the
+    rest were dropped. `m[1] <= '{8'hA1, 8'hB2, 8'hC3}' left all three
+    words at zero, the simulation ran to completion, and the blocking
+    spelling of the same line on the same declaration produced
+    `a1 b2 c3`. A silent wrong result, sitting one l-value shape away
+    from the crash.
+
+Both are fixed in `PAssignNB::elaborate`, which now lowers the pattern
+to one non-blocking word assignment per entry (nested patterns
+flattened in canonical order, intra-assignment delay carried onto each
+word). The words are scheduled together in the NBA region and touch
+disjoint locations, so the split is not observable. The one shape that
+cannot be lowered this way -- an intra-assignment EVENT control, which
+must be waited on exactly once rather than N times -- is refused by
+name instead of crashing.
+
+Regressions: `sv_uarray_nb_pattern` (whole array, `default:` fill,
+multi-dimensional, intra-assignment delay -- the pre-fix compiler
+aborts on it), `sv_uarray_nb_pattern_slice` (the silent case: pre-fix
+it compiles and reports six mismatches against the blocking spelling of
+the same assignment), and `tests/negative/sv_uarray_nb_pattern_evctl.sv`
+(pre-fix exit 134, which the crash-aware negative runner scores as a
+failure, not a rejection).
+
+### Still open: the zero fallback itself
+
+`draw_eval_vec4()`'s `default:` arm remains a warning plus a zero. Any
+expression kind that reaches it produces a program that runs and
+computes the wrong value. `IVL_EX_ARRAY_PATTERN` was one such kind and
+is now routed away from it, but the arm is a general silent-wrong-result
+generator and should be a hard error. Not changed here: that is a
+separate change with its own blast radius to measure.
