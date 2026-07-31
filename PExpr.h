@@ -239,12 +239,17 @@ class PEAssignPattern : public PExpr {
 			       std::vector<PExpr*>&out) const;
       PExpr* replication() const { return replication_; }
     private:
+	// decl_type is the DECLARED type the dims were flattened from,
+	// carried along so a nested pattern can be matched against the
+	// real element type (a packed struct, say) instead of against a
+	// bit count. Nil keeps the pure dimension-list behaviour.
       NetExpr* elaborate_expr_packed_(Design *des, NetScope *scope,
 				      ivl_variable_type_t base_type,
 				      unsigned int width,
 				      const netranges_t &dims,
 				      unsigned int cur_dim,
-				      bool need_const) const;
+				      bool need_const,
+				      ivl_type_t decl_type = nullptr) const;
       NetExpr* elaborate_expr_struct_(Design *des, NetScope *scope,
 				      const netstruct_t *struct_type,
 				      bool need_const) const;
@@ -387,6 +392,23 @@ class PEIdent : public PExpr {
       explicit PEIdent(PPackage*pkg, const pform_name_t&name, unsigned lexical_pos);
       explicit PEIdent(const pform_name_t&, unsigned lexical_pos);
       ~PEIdent() override;
+
+	// Set on identifiers that came out of a CONCURRENT ASSERTION.
+	// An unresolved name normally degrades to a compile-progress
+	// warning so UVM-heavy code keeps building, but inside an
+	// assertion that leaves a property which compiles, never
+	// evaluates, and reports nothing -- the check silently does not
+	// exist. Marked identifiers take the error branch instead.
+      void set_strict_bind() { strict_bind_ = true; }
+      bool strict_bind() const { return strict_bind_; }
+
+	// Set on COMPILER-GENERATED references that merely shadow a name
+	// the user already wrote (the $ivl_clocking_hist_on bookkeeping
+	// argument). If such a name fails to bind, the user's own
+	// reference reports it; this one must stay silent rather than
+	// duplicate the diagnostic.
+      void set_quiet_bind() { quiet_bind_ = true; }
+      bool quiet_bind() const { return quiet_bind_; }
 
 	// Add another name to the string of hierarchy that is the
 	// current identifier.
@@ -648,6 +670,9 @@ class PEIdent : public PExpr {
 			       unsigned int &index_depth) const;
 
     private:
+      bool strict_bind_ = false;
+      bool quiet_bind_ = false;
+
       NetNet* elaborate_lnet_common_(Design*des, NetScope*scope,
 				     bool bidirectional_flag,
 				     bool var_allowed_in_sv) const;
@@ -1060,6 +1085,14 @@ class PETernary : public PExpr {
       virtual NetExpr*elaborate_expr(Design*des, NetScope*,
 		                     unsigned expr_wid,
                                      unsigned flags) const override;
+
+	// Type-context form. Without this the base class falls back to
+	// the width form with a width of 1, which strands any operand
+	// that needs a TYPE rather than a width -- an assignment pattern
+	// in particular.
+      virtual NetExpr*elaborate_expr(Design*des, NetScope*,
+				     ivl_type_t type,
+				     unsigned flags) const override;
 
     private:
       NetExpr* elab_and_eval_alternative_(Design*des, NetScope*scope,

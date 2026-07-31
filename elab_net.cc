@@ -578,31 +578,27 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       // If this is SystemVerilog and the variable is not yet
       // assigned by anything, then convert it to an unresolved
       // wire.
-      if (gn_var_can_be_uwire() && var_allowed_in_sv
-	  && (sig->type() == NetNet::REG)
-	  && (sig->peek_lref() == 0) ) {
-	    sig->type(NetNet::UNRESOLVED_WIRE);
-      }
-
-      // Don't allow registers as assign l-values.
-      if (sig->type() == NetNet::REG) {
-	    cerr << get_fileline() << ": error: Variable '" << sig->name()
-	         << "' cannot be driven by a ";
-	    if (var_allowed_in_sv) cerr << "continuous assignment/module";
-	    else cerr << "primitive";
-	    if (gn_var_can_be_uwire()) {
-		  cerr << " or continuous assignment with non-default strength." << endl;
-	    } else {
-		  cerr << "." << endl;
-		  if (var_allowed_in_sv) {
-			cerr << get_fileline() << ":      : "
-			     << "This is allowed when SystemVerilog is enabled."
-			     << endl;
-		  }
-	    }
-	    des->errors += 1;
-	    return nullptr;
-      }
+      //
+      // The var->uwire promotion and the "can't drive a variable" error
+      // used to live HERE, before the l-value's bit range is known, and
+      // gave up whenever peek_lref() was non-zero -- a whole-signal
+      // count of behavioural l-values with no bit information. A
+      // generate block's processes register their l-values before a
+      // module-level continuous assign is elaborated, so
+      //
+      //     assign data_state[0] = data_i;
+      //     for (genvar r = 0; r < N; r++)
+      //       always_comb data_state[r+1] = ...;
+      //
+      // was rejected even though the two drivers touch DIFFERENT
+      // elements, which IEEE 1800-2017 6.5 permits -- and the identical
+      // design written without the generate, in either textual order,
+      // was accepted. The decision tracked elaboration order rather
+      // than semantics.
+      //
+      // Both steps now happen below, once midx/lidx are final, where
+      // the question can be asked about the bits actually driven.
+      // Nothing between here and there reads sig->type().
 
       // Some parts below need the tail component. This is a convenient
       // reference to it.
@@ -623,6 +619,17 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       // path_ is a.b.x.y, we have determined that a.b is a reference
       // to the net, and that x.y are the member_path. So in this case
       // we handle the member_path.
+	// The DECLARED type of the member the path finally selects, when
+	// the l-value turns out to be a struct member. The synthesized
+	// l-value net below is otherwise given a bare vector of the right
+	// WIDTH, which loses the member's type -- and PGAssign::elaborate
+	// passes that type to the r-value, so an assignment pattern onto
+	// `hw2reg.tpm_cap' was matched against a bit count instead of
+	// against the struct, and its member names had nowhere to bind.
+	// The same pattern in an always_comb was accepted, because the
+	// procedural l-value keeps the member type.
+      ivl_type_t member_net_type = 0;
+
       const netstruct_t*struct_type = 0;
       if ((struct_type = sig->struct_type()) && !member_path.empty()) {
 
@@ -752,6 +759,11 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
 		  member_off += tmp_off;
 		  member_width = member->net_type->packed_width();
+		    // Remember what was selected. The branches below may
+		    // narrow this further (an index into a packed-array
+		    // member, a nested struct); the width guard at the
+		    // point of use rejects a stale answer.
+		  member_net_type = member->net_type;
 
 		  if (const netparray_t*array = dynamic_cast<const netparray_t*> (member->net_type)) {
 			  // The member is a PACKED ARRAY, so this path
@@ -1057,6 +1069,40 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
       unsigned subnet_wid = midx-lidx+1;
 
+	/* Now that the driven bits are known, decide whether this
+	   variable can become an unresolved wire (see the note where
+	   this test used to live). A behavioural l-value only blocks the
+	   promotion if it can actually reach one of THESE bits;
+	   test_part_procedurally_driven() answers true for anything it
+	   cannot pin down, so an overlap is never missed. */
+      if (gn_var_can_be_uwire() && var_allowed_in_sv
+	  && (sig->type() == NetNet::REG)
+	  && (sig->peek_lref() == 0
+	      || !sig->test_part_procedurally_driven(midx, lidx,
+						     widx_flag ? widx : 0))) {
+	    sig->type(NetNet::UNRESOLVED_WIRE);
+      }
+
+	/* Don't allow registers as assign l-values. */
+      if (sig->type() == NetNet::REG) {
+	    cerr << get_fileline() << ": error: Variable '" << sig->name()
+	         << "' cannot be driven by a ";
+	    if (var_allowed_in_sv) cerr << "continuous assignment/module";
+	    else cerr << "primitive";
+	    if (gn_var_can_be_uwire()) {
+		  cerr << " or continuous assignment with non-default strength." << endl;
+	    } else {
+		  cerr << "." << endl;
+		  if (var_allowed_in_sv) {
+			cerr << get_fileline() << ":      : "
+			     << "This is allowed when SystemVerilog is enabled."
+			     << endl;
+		  }
+	    }
+	    des->errors += 1;
+	    return nullptr;
+      }
+
 	/* Check if the l-value bits are double-driven. */
 
       if (sig->type() == NetNet::UNRESOLVED_WIRE) {
@@ -1120,11 +1166,21 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 		       << " wid=" << subnet_wid <<"]"
 		       << endl;
 
-	    const netvector_t*tmp2_vec = new netvector_t(sig->data_type(),
-	                                                 subnet_wid-1,0);
+	      // Keep the member's DECLARED type when this select is
+	      // exactly that member -- the width test is what makes that
+	      // safe, since a member walk that then indexed into a packed
+	      // array leaves a type wider than the slice actually taken.
+	      // Everything else gets the bare vector it always got.
+	    ivl_type_t use_type = 0;
+	    if (member_net_type
+		&& member_net_type->packed_width() == (long)subnet_wid)
+		  use_type = member_net_type;
+	    if (!use_type)
+		  use_type = new netvector_t(sig->data_type(), subnet_wid-1, 0);
+
 	    NetNet*subsig = new NetNet(sig->scope(),
 				       sig->scope()->local_symbol(),
-				       NetNet::WIRE, tmp2_vec);
+				       NetNet::WIRE, use_type);
 	    subsig->local_flag(true);
 	    subsig->set_line(*this);
 

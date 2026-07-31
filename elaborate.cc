@@ -4189,7 +4189,8 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
 				       NetAssign_*lv,
 				       unsigned long count,
 				       NetNet*src_sig,
-				       const NetEProperty*src_prop)
+				       const NetEProperty*src_prop,
+				       bool nonblocking = false)
 {
       (void)des;
 
@@ -4239,8 +4240,23 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
 	    elem_rv = tmp;
       }
 
-      NetAssign*body = new NetAssign(lv, elem_rv);
-      body->set_line(loc);
+	/* The per-word assignment must keep the SCHEDULING of the
+	   assignment it came from. A non-blocking whole-array copy
+	   (`q <= d') has to land its words in the NBA region like any
+	   other non-blocking assignment; emitting blocking word
+	   assignments here would update `q' immediately and change
+	   observable behavior whenever the source is written in the
+	   same time step. */
+      NetProc*body;
+      if (nonblocking) {
+	    NetAssignNB*nb = new NetAssignNB(lv, elem_rv, 0, 0);
+	    nb->set_line(loc);
+	    body = nb;
+      } else {
+	    NetAssign*bl = new NetAssign(lv, elem_rv);
+	    bl->set_line(loc);
+	    body = bl;
+      }
 
       NetForLoop*loop = new NetForLoop(idx_sig, init_expr, cond_expr,
 				       body, step);
@@ -4249,11 +4265,179 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
 }
 
 /*
+ * `q <= '{...}' -- a NON-BLOCKING assignment whose r-value is an
+ * assignment pattern and whose l-value is a whole unpacked array, or an
+ * unpacked-array slice of one (`m[1] <= '{a,b,c}').
+ *
+ * The blocking spelling has always worked: the code generator's
+ * draw_array_pattern() distributes the pattern's entries across the
+ * array's words. The non-blocking spelling had no path at all. It fell
+ * through to the vector r-value evaluator, which does not know
+ * IVL_EX_ARRAY_PATTERN and pushed a ZERO of the l-value's width in its
+ * place -- and, crucially, the compile SUCCEEDED. What happened next
+ * depended only on the l-value shape:
+ *
+ *   - a whole-array l-value has no word index, so the code generator
+ *     ABORTED: `assign_to_lvector: Assertion 'word_ix' failed'.
+ *   - a slice l-value HAS a word index (the slice's flat base), so
+ *     nothing aborted. The zero was assigned to the slice's first word
+ *     and the remaining words were dropped. `m[1] <= '{8'hA1, 8'hB2,
+ *     8'hC3}' left all three words at 0 and the simulation ran to
+ *     completion -- a silent wrong result, and the reason this is
+ *     fixed here rather than by making the abort a diagnostic.
+ *
+ * IEEE 1800-2017 10.4 draws no blocking/non-blocking distinction over
+ * which assignments are legal, so give the non-blocking form the same
+ * lowering the blocking one gets: one non-blocking word assignment per
+ * pattern entry. They are scheduled together in the NBA region and
+ * touch disjoint words, so the split is not observable.
+ *
+ * Returns 0 (leaving the caller's path alone) if the shape is not one
+ * this can lower exactly.
+ */
+/*
+ * Flatten a (possibly nested) array pattern into one entry per word, in
+ * canonical order -- the same left-to-right walk the code generator's
+ * draw_array_pattern() does for the blocking form. A multi-dimensional
+ * array is written with nested patterns (`m = '{'{a,b,c}, '{d,e,f}}'),
+ * so the nesting has to be unwound to reach the words.
+ *
+ * Recursion is only safe when the array's ELEMENT type is packed: then
+ * a nested pattern can only be a sub-array grouping. If the element is
+ * itself an aggregate object, a nested pattern is that element's own
+ * literal and must be left whole, so recursion is refused there.
+ */
+static bool uarray_pattern_flatten_(const NetEArrayPattern*pat,
+				    bool elem_is_packed,
+				    unsigned long want,
+				    std::vector<const NetExpr*>&out)
+{
+      for (size_t idx = 0 ; idx < pat->item_size() ; idx += 1) {
+	    const NetExpr*item = pat->item(idx);
+	    if (item == 0) return false;
+	    const NetEArrayPattern*sub =
+		  dynamic_cast<const NetEArrayPattern*>(item);
+	    if (sub && elem_is_packed) {
+		  if (!uarray_pattern_flatten_(sub, elem_is_packed, want, out))
+			return false;
+	    } else {
+		  if (out.size() >= want) return false;
+		  out.push_back(item);
+	    }
+      }
+      return true;
+}
+
+static NetProc* make_uarray_pattern_nb_(const LineInfo&loc,
+					NetAssign_*lv,
+					const NetEArrayPattern*pat,
+					const NetExpr*delay)
+{
+      NetNet*sig = lv->sig();
+      if (sig == 0) return 0;
+
+      const netuarray_t*ua = dynamic_cast<const netuarray_t*>(lv->net_type());
+      if (ua == 0) return 0;
+
+	/* The word index of the first element written. A whole-array
+	   l-value starts at 0; a slice carries its flat base word. */
+      long base = 0;
+      if (const NetExpr*wrd = lv->word()) {
+	    const NetEConst*wcon = dynamic_cast<const NetEConst*>(wrd);
+	    if (wcon == 0) return 0;
+	    base = wcon->value().as_long();
+      }
+
+	/* The pattern must cover exactly the words being written --
+	   never a partial fill, which is what the broken path did. */
+      unsigned long want = 1;
+      const netranges_t&dims = ua->static_dimensions();
+      for (size_t idx = 0 ; idx < dims.size() ; idx += 1)
+	    want *= dims[idx].width();
+      if (want == 0) return 0;
+      if (base < 0 || (unsigned long)base + want > sig->unpacked_count())
+	    return 0;
+
+      ivl_type_t elem = ua->element_type();
+      bool elem_is_packed = elem && elem->packed();
+
+      std::vector<const NetExpr*> items;
+      items.reserve(want);
+      if (!uarray_pattern_flatten_(pat, elem_is_packed, want, items))
+	    return 0;
+      if (items.size() != want) return 0;
+
+      NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+      blk->set_line(loc);
+
+      for (size_t idx = 0 ; idx < items.size() ; idx += 1) {
+	    NetAssign_*wlv = new NetAssign_(sig);
+	    NetEConst*widx = make_const_val_s(base + (long)idx);
+	    widx->set_line(loc);
+	    wlv->set_word(widx);
+
+	    NetAssignNB*nb = new NetAssignNB(wlv, items[idx]->dup_expr(), 0, 0);
+	    nb->set_line(loc);
+	      /* `q <= #d '{...}' schedules every word at the same
+		 instant; the delay expression is evaluated per word but
+		 all evaluations happen in the same time step, so they
+		 agree. */
+	    if (delay) nb->set_delay(delay->dup_expr());
+	    blk->append(nb);
+      }
+
+      return blk;
+}
+
+/*
  * Check that the source element shape is assignment compatible with
  * the destination unpacked array (IEEE 1800-2017 7.6: equal element
  * counts and equivalent element types; we require matching packed
  * width and vector base kind).
  */
+/*
+ * See through a conditional whose condition is a compile-time constant
+ * to the arm that is actually selected.
+ *
+ * The whole-unpacked-array copy below recognizes its source by PExpr
+ * SHAPE -- it has to resolve the name itself, because there is no
+ * whole-array r-value representation to elaborate first. A conditional
+ * therefore hid the array from it, and the assignment fell through to
+ * the vector path, where the code generator aborted on
+ * `lwid == ivl_signal_width(lsig)'.
+ *
+ * OpenTitan's aes_cipher_core writes exactly this shape:
+ *
+ *     key_full_d = !CiphOpFwdOnly ? key_dec_q : prd_clearing_key_i;
+ *
+ * with the condition a module parameter. Only a constant condition is
+ * folded here; a run-time one leaves the expression alone and is
+ * rejected later, because there is no run-time mux for a whole
+ * unpacked array.
+ *
+ * The condition is elaborated WITHOUT need_const so a non-constant one
+ * is not an error -- it simply is not folded.
+ */
+static const PExpr* see_through_const_ternary_(Design*des, NetScope*scope,
+					       const PExpr*pe)
+{
+      for (unsigned guard = 0 ; guard < 32 ; guard += 1) {
+	    const PETernary*ter = dynamic_cast<const PETernary*>(pe);
+	    if (!ter) break;
+
+	    NetExpr*c = elab_and_eval(des, scope, ter->get_cond(), -1, false);
+	    const NetEConst*cc = dynamic_cast<NetEConst*>(c);
+	    if (!cc || !cc->value().is_defined()) {
+		  delete c;
+		  break;
+	    }
+	    bool take_true = !cc->value().is_zero();
+	    delete c;
+	    pe = take_true ? ter->get_true() : ter->get_false();
+      }
+      return pe;
+}
+
 static bool uarray_copy_shapes_compatible_(const netuarray_t*dst,
 					   unsigned long src_count,
 					   ivl_type_t src_elem)
@@ -4537,7 +4721,8 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		  && lv_uarray->static_dimensions().size() == 1;
 
 	    if (simple_blocking) {
-		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rval())) {
+		  const PExpr*rsrc = see_through_const_ternary_(des, scope, rval());
+		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc)) {
 			symbol_search_results sr;
 			bool found = symbol_search(this, des, scope, rid->path(),
 						   rid->lexical_pos(), &sr);
@@ -5168,8 +5353,98 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       if (lv == 0) return 0;
 
 
+	/* Whole static-array copy, non-blocking (IEEE 1800-2017 7.6).
+	   PAssign::elaborate has this branch for `dst = src'; without
+	   the mirror here `dst <= src' -- the SAME copy, differing only
+	   in scheduling -- reached the typed r-value path, which has no
+	   whole-array representation for a word-array signal, and died
+	   with "the type of the variable 'src' doesn't match the context
+	   type". 10.4 draws no blocking/non-blocking distinction over
+	   which assignments are legal, and the compiler's acceptance of
+	   the blocking spelling proves it has the representation. */
+      if (const netuarray_t*lv_uarray =
+	  dynamic_cast<const netuarray_t*>(lv->net_type())) {
+	    if (lv->more == 0 && delay_ == 0 && event_ == 0 && count_ == 0
+		&& !lv->word()
+		&& lv_uarray->static_dimensions().size() == 1) {
+		  const PExpr*rsrc = see_through_const_ternary_(des, scope, rval());
+		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc)) {
+			symbol_search_results sr;
+			bool found = symbol_search(this, des, scope, rid->path(),
+						   rid->lexical_pos(), &sr);
+			if (found && sr.net && sr.path_tail.empty()
+			    && rid->path().name.back().index.empty()
+			    && sr.net->unpacked_dimensions() == 1) {
+			      if (!uarray_copy_shapes_compatible_(
+					lv_uarray, sr.net->unpacked_count(),
+					sr.net->net_type())) {
+				    cerr << get_fileline() << ": error: "
+					 << "Unpacked array types of '"
+					 << lv->name() << "' and '" << rid->path()
+					 << "' are not assignment compatible."
+					 << endl;
+				    des->errors += 1;
+				    delete lv;
+				    return 0;
+			      }
+			      return make_uarray_copy_loop_(des, scope, *this,
+							    lv, sr.net->unpacked_count(),
+							    sr.net, 0, true);
+			}
+		  }
+	    }
+      }
+
+      unsigned errors_before_rval = des->errors;
       NetExpr*rv = elaborate_rval_(des, scope, lv->net_type(), lv->expr_type(), count_lval_width(lv));
       if (rv == 0) return 0;
+
+	/* An assignment pattern written non-blocking into a whole
+	   unpacked array (or a slice of one) is lowered to one
+	   non-blocking assignment per word. See make_uarray_pattern_nb_
+	   for what the r-value evaluator did with it instead: a zero of
+	   the l-value's width, then a code-generator abort for the
+	   whole-array shape and a silent wrong result for the slice.
+	   Nothing below this point can carry the shape, so a form that
+	   cannot be lowered exactly is refused here rather than left to
+	   crash. */
+      if (lv->more == 0 && dynamic_cast<const netuarray_t*>(lv->net_type())) {
+	    if (const NetEArrayPattern*pat =
+		dynamic_cast<const NetEArrayPattern*>(rv)) {
+		  if (event_ != 0 || count_ != 0) {
+			cerr << get_fileline() << ": sorry: an intra-assignment "
+			     << "event control on a non-blocking unpacked-array "
+			     << "pattern assignment is not supported." << endl;
+			des->errors += 1;
+			delete lv;
+			delete rv;
+			return 0;
+		  }
+		  NetExpr*pat_delay = 0;
+		  if (delay_ != 0)
+			pat_delay = elaborate_delay_expr(delay_, des, scope);
+		  NetProc*blk = make_uarray_pattern_nb_(*this, lv, pat,
+							pat_delay);
+		  delete pat_delay;
+		  if (blk) {
+			delete lv;
+			delete rv;
+			return blk;
+		  }
+		    /* A pattern the elaborator already complained about
+		       (wrong entry count, bad element type) lands here
+		       too; do not say it twice. */
+		  if (des->errors == errors_before_rval) {
+			cerr << get_fileline() << ": error: this assignment "
+			     << "pattern does not fill the unpacked array '"
+			     << lv->name() << "' exactly." << endl;
+			des->errors += 1;
+		  }
+		  delete lv;
+		  delete rv;
+		  return 0;
+	    }
+      }
 
       NetExpr*delay = 0;
       if (delay_ != 0) {

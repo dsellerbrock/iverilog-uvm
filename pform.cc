@@ -5016,8 +5016,38 @@ Statement* pform_make_clocking_drive(const struct vlltype&loc,
  * legacy VPI stubs).
  */
 
-static std::map<perm_string, sva_property_t*> sva_module_properties;
-static std::map<perm_string, std::vector<sva_seq_step_t>*> sva_module_sequences;
+/* Named sequences and properties are scoped to the GENERATE BLOCK that
+   declares them, not to the module (IEEE 1800-2017 27.3/27.6: a
+   generate block is a hierarchical scope; 27.5: a conditional generate
+   instantiates at most ONE of its alternatives).
+ 
+   Keying these maps by name alone made
+ 
+       if (ASYNC) begin : ga  sequence S1; ... endsequence  ... end
+       else       begin : gb  sequence S1; ... endsequence  ... end
+ 
+   a `duplicate sequence declaration' even though the two arms are
+   disjoint scopes and only one is ever elaborated -- which is exactly
+   what OpenTitan's prim_alert_sender writes for PingSigInt_S and
+   AckSigInt_S.
+ 
+   The scope half matters as much as the duplicate half: with lookup
+   still keyed by name, the eight assertions in `gen_sync_assert' would
+   splice `gen_async_assert''s body. That is a silent wrong result, so
+   the key and the resolver change together. */
+struct sva_scoped_name_t {
+      perm_string name;
+      const PGenerate*gen;   // nullptr == module scope
+
+      bool operator< (const sva_scoped_name_t&that) const
+      {
+	    if (name != that.name) return name < that.name;
+	    return gen < that.gen;
+      }
+};
+
+static std::map<sva_scoped_name_t, sva_property_t*> sva_module_properties;
+static std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*> sva_module_sequences;
 static PExpr* sva_default_disable = nullptr;
 static unsigned sva_gensym_counter = 0;
 
@@ -5033,8 +5063,51 @@ struct sva_param_prop_t {
       std::vector<perm_string> formals;
       sva_property_t* body = nullptr;
 };
-static std::map<perm_string, sva_param_seq_t> sva_param_sequences;
-static std::map<perm_string, sva_param_prop_t> sva_param_properties;
+static std::map<sva_scoped_name_t, sva_param_seq_t> sva_param_sequences;
+static std::map<sva_scoped_name_t, sva_param_prop_t> sva_param_properties;
+
+/* The key a declaration made HERE gets: the innermost enclosing
+   generate block, or nullptr at module scope. */
+static sva_scoped_name_t sva_decl_key_(perm_string nm)
+{
+      sva_scoped_name_t k;
+      k.name = nm;
+      k.gen  = pform_cur_generate;
+      return k;
+}
+
+/* Resolve a reference from the CURRENT scope outward: the innermost
+   enclosing generate first, then each enclosing generate, then module
+   scope. An inner declaration shadows an outer one of the same name
+   (23.9), and a name declared in a sibling generate arm is correctly
+   NOT visible.
+ 
+   Returns m.end() when the name is not in scope. There is deliberately
+   no unambiguous-name fallback: with one, a reference in arm `gb' that
+   lexically precedes gb's own declaration would miss (S1,&gb), miss
+   module scope, and then splice arm `ga''s body -- turning today's
+   loud duplicate error into a silent wrong result. */
+template <class MAP>
+static typename MAP::iterator sva_resolve_(MAP&m, perm_string nm)
+{
+      for (const PGenerate*g = pform_cur_generate ; ; ) {
+	    sva_scoped_name_t k;
+	    k.name = nm;
+	    k.gen  = g;
+	    typename MAP::iterator it = m.find(k);
+	    if (it != m.end()) return it;
+	    if (!g) break;
+	    const LexicalScope*up = g->parent_scope();
+	    g = dynamic_cast<const PGenerate*>(up);
+      }
+      return m.end();
+}
+
+template <class MAP>
+static bool sva_in_scope_(MAP&m, perm_string nm)
+{
+      return sva_resolve_(m, nm) != m.end();
+}
 
 void pform_sva_set_default_disable(PExpr*expr)
 {
@@ -5056,28 +5129,28 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 				sva_property_t*prop)
 {
       perm_string use_name = lex_strings.make(name);
-      if (sva_module_properties.count(use_name)) {
+      if (sva_module_properties.count(sva_decl_key_(use_name))) {
 	    cerr << loc << ": error: duplicate property declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
 	    pform_sva_destroy_property(prop);
 	    return;
       }
-      sva_module_properties[use_name] = prop;
+      sva_module_properties[sva_decl_key_(use_name)] = prop;
 }
 
 void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 				std::vector<sva_seq_step_t>*steps)
 {
       perm_string use_name = lex_strings.make(name);
-      if (sva_module_sequences.count(use_name)) {
+      if (sva_module_sequences.count(sva_decl_key_(use_name))) {
 	    cerr << loc << ": error: duplicate sequence declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
 	    pform_sva_destroy_sequence(steps);
 	    return;
       }
-      sva_module_sequences[use_name] = steps;
+      sva_module_sequences[sva_decl_key_(use_name)] = steps;
 }
 
 /* M9D: parameterized named property/sequence declarations. */
@@ -5086,7 +5159,8 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 				  sva_property_t*prop)
 {
       perm_string use_name = lex_strings.make(name);
-      if (sva_param_properties.count(use_name) || sva_module_properties.count(use_name)) {
+      if (sva_param_properties.count(sva_decl_key_(use_name))
+	  || sva_module_properties.count(sva_decl_key_(use_name))) {
 	    cerr << loc << ": error: duplicate property declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
@@ -5097,7 +5171,7 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
       sva_param_prop_t rec;
       if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
       rec.body = prop;
-      sva_param_properties[use_name] = rec;
+      sva_param_properties[sva_decl_key_(use_name)] = rec;
       delete formals;
 }
 
@@ -5106,7 +5180,8 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 				  std::vector<sva_seq_step_t>*steps)
 {
       perm_string use_name = lex_strings.make(name);
-      if (sva_param_sequences.count(use_name) || sva_module_sequences.count(use_name)) {
+      if (sva_param_sequences.count(sva_decl_key_(use_name))
+	  || sva_module_sequences.count(sva_decl_key_(use_name))) {
 	    cerr << loc << ": error: duplicate sequence declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
@@ -5117,25 +5192,25 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
       sva_param_seq_t rec;
       if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
       rec.body = steps;
-      sva_param_sequences[use_name] = rec;
+      sva_param_sequences[sva_decl_key_(use_name)] = rec;
       delete formals;
 }
 
 void pform_sva_module_done(void)
 {
-      for (std::map<perm_string, sva_property_t*>::iterator it =
+      for (std::map<sva_scoped_name_t, sva_property_t*>::iterator it =
 		sva_module_properties.begin() ;
 	   it != sva_module_properties.end() ; ++it)
 	    pform_sva_destroy_property(it->second);
-      for (std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator it =
+      for (std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
 		sva_module_sequences.begin() ;
 	   it != sva_module_sequences.end() ; ++it)
 	    pform_sva_destroy_sequence(it->second);
-      for (std::map<perm_string, sva_param_seq_t>::iterator it =
+      for (std::map<sva_scoped_name_t, sva_param_seq_t>::iterator it =
 		sva_param_sequences.begin() ;
 	   it != sva_param_sequences.end() ; ++it)
 	    pform_sva_destroy_sequence(it->second.body);
-      for (std::map<perm_string, sva_param_prop_t>::iterator it =
+      for (std::map<sva_scoped_name_t, sva_param_prop_t>::iterator it =
 		sva_param_properties.begin() ;
 	   it != sva_param_properties.end() ; ++it)
 	    pform_sva_destroy_property(it->second.body);
@@ -5495,6 +5570,11 @@ static Statement* sva_reactive_process_(const struct vlltype&loc)
       return t;
 }
 
+/* Defined with the sampled-value helpers below. Marks every identifier
+   in an assertion expression so an unresolved name errors instead of
+   degrading to a silently inert property. */
+static void sva_mark_strict_(PExpr*e);
+
 static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
 				    const pform_name_t&path)
 {
@@ -5502,6 +5582,13 @@ static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
       named_pexpr_t a0;
       a0.parm = new PEIdent(path, loc.lexical_pos);
       FILE_NAME(a0.parm, loc);
+	// Compiler-generated bookkeeping reference. It shadows a name the
+	// user already wrote in the assertion, so if the name does not
+	// bind, THAT reference reports it -- this one must stay silent.
+	// Without this the same undefined name produced a contradictory
+	// pair: one error and one compile-progress warning.
+      if (PEIdent*hid = dynamic_cast<PEIdent*>(a0.parm))
+	    hid->set_quiet_bind();
       args.push_back(a0);
       PCallTask*t = new PCallTask(
 	    lex_strings.make("$ivl_clocking_hist_on"), args);
@@ -5641,6 +5728,7 @@ static perm_string sva_make_reg_(const struct vlltype&loc, unsigned inst,
 
 static Statement* sva_assign_(const struct vlltype&loc, perm_string lv, PExpr*rv)
 {
+      sva_mark_strict_(rv);
       PAssign*a = new PAssign(sva_id_(loc, lv), rv);
       FILE_NAME(a, loc);
       return a;
@@ -5777,6 +5865,7 @@ static Statement* sva_block_(const struct vlltype&loc,
 static Statement* sva_if_(const struct vlltype&loc, PExpr*c,
 			  Statement*t, Statement*e)
 {
+      sva_mark_strict_(c);
       PCondit*p = new PCondit(c, t, e);
       FILE_NAME(p, loc);
       return p;
@@ -6905,6 +6994,114 @@ static void sampled_pending_drop_(const PECallFunction*cf)
       }
 }
 
+/* Mark every identifier in this expression tree as coming from a
+   CONCURRENT ASSERTION, so an unresolved name is an ERROR rather than
+   the compile-progress warning used elsewhere.
+
+   The warning exists so UVM-heavy code keeps building through
+   parameterized-container typing losses. Inside an assertion it is
+   actively harmful: `NoSuchSeq_S |=> 1'b0' cannot hold under any trace,
+   yet it compiles and reports nothing. The testbench builds, the run is
+   green, and a check the engineer believes exists does not -- with no
+   later symptom, unlike a mistyped signal in ordinary RTL.
+
+   Every PEIdent reached is marked, not just bare single-component
+   names: `NoSuchBus[0]', `NoSuchBus[3:0] != 0' and `NoSuchStruct.fld'
+   are all silently inert today. Package-qualified names are left alone;
+   they resolve through a different path and already error.
+
+   Marking happens at the pform level, so it cannot reach non-assertion
+   code -- in particular uvm-core/src, which contains no concurrent
+   assertions at all and whose reliance on the generic warning is
+   therefore untouched. */
+static void sva_mark_strict_(PExpr*e)
+{
+      if (!e) return;
+
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    if (id->path().package) return;
+	    id->set_strict_bind();
+	    return;
+      }
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    const std::vector<named<PExpr*> >&parms = cf->get_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  sva_mark_strict_(parms[i].parm);
+	    return;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
+	    sva_mark_strict_(un->get_expr());
+	    return;
+      }
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
+	    sva_mark_strict_(bin->get_left());
+	    sva_mark_strict_(bin->get_right());
+	    return;
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
+	    sva_mark_strict_(ter->get_cond());
+	    sva_mark_strict_(ter->get_true());
+	    sva_mark_strict_(ter->get_false());
+	    return;
+      }
+      if (PEConcat*cc = dynamic_cast<PEConcat*>(e)) {
+	    const std::vector<PExpr*>&parms = cc->stream_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  sva_mark_strict_(parms[i]);
+	    sva_mark_strict_(cc->repeat_expr());
+	    return;
+      }
+}
+
+/* Forget every pending sampled-value call inside this expression tree,
+   because the tree is about to be freed.
+ 
+   A destructor hook on PECallFunction alone would NOT be enough:
+   ~PEBinary, ~PETernary and ~PEUnary are all empty (PExpr.cc), so
+   deleting `a && $rose(x)' frees the PEBinary and leaks the nested
+   call without ever running its destructor. The entry would survive
+   with a dangling pointer. So walk the tree explicitly, mirroring
+   sva_rewrite_sampled_'s recursion.
+ 
+   Leaving a stale entry is not merely untidy: the endmodule flush
+   reports one warning per entry, so a dropped assertion would emit
+   diagnostics about sampled calls the user can no longer see. */
+static void sva_expr_forget_sampled_(PExpr*e)
+{
+      if (!e) return;
+
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    sampled_pending_drop_(cf);
+	      // A sampled call can nest inside another call's arguments.
+	    const std::vector<named<PExpr*> >&parms = cf->get_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  sva_expr_forget_sampled_(parms[i].parm);
+	    return;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
+	    sva_expr_forget_sampled_(un->get_expr());
+	    return;
+      }
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
+	    sva_expr_forget_sampled_(bin->get_left());
+	    sva_expr_forget_sampled_(bin->get_right());
+	    return;
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
+	    sva_expr_forget_sampled_(ter->get_cond());
+	    sva_expr_forget_sampled_(ter->get_true());
+	    sva_expr_forget_sampled_(ter->get_false());
+	    return;
+      }
+      if (PEConcat*cc = dynamic_cast<PEConcat*>(e)) {
+	    const std::vector<PExpr*>&parms = cc->stream_parms();
+	    for (size_t i = 0 ; i < parms.size() ; i += 1)
+		  sva_expr_forget_sampled_(parms[i]);
+	    sva_expr_forget_sampled_(cc->repeat_expr());
+	    return;
+      }
+}
+
 /* Is this behavior clocked by a single edge, and if so which event
    statement carries it? Only an edge qualifies: 16.14.6 infers the
    clock from an edge-sensitive event control, and a level-sensitive
@@ -7088,7 +7285,15 @@ void pform_flush_pending_sampled_calls()
       if (!have_default) {
 	    for (size_t i = 0 ; i < sampled_pending_.size() ; i += 1) {
 		  const sampled_pending_t&p = sampled_pending_[i];
-		  cerr << p.call->get_fileline() << ": warning: this sampled "
+		    // p.loc, NOT p.call->get_fileline(). The call node may
+		    // already be FREED: an assertion that is dropped on a
+		    // `sorry' path destroys its expression tree, and this
+		    // flush runs later, at endmodule. Dereferencing the
+		    // stale pointer segfaulted the compiler on inputs as
+		    // small as `$rose(a) |-> b and c'. The location was
+		    // captured by value when the call was noted precisely
+		    // so this does not have to touch the node.
+		  cerr << p.loc.get_fileline() << ": warning: this sampled "
 		       << "value function has no clocking event to sample on "
 		       << "(IEEE 1800-2017 16.9.3): it is not inside a "
 		       << "concurrent assertion, not inside an edge-triggered "
@@ -7155,8 +7360,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>(steps[i].expr)) {
 		  if (!cf->path().package && cf->path().name.size() == 1) {
 			perm_string nm = peek_tail_name(cf->path().name);
-			std::map<perm_string, sva_param_seq_t>::iterator pit =
-			      sva_param_sequences.find(nm);
+			std::map<sva_scoped_name_t, sva_param_seq_t>::iterator pit =
+			      sva_resolve_(sva_param_sequences, nm);
 			if (pit != sva_param_sequences.end() && pit->second.body) {
 			      std::vector<sva_seq_step_t>*inst =
 				    sva_instantiate_seq_(loc, nm, pit->second,
@@ -7189,8 +7394,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  i += 1;
 		  continue;
 	    }
-	    std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator seq_it =
-		  sva_module_sequences.find(id->path().name.front().name);
+	    std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator seq_it =
+		  sva_resolve_(sva_module_sequences, id->path().name.front().name);
 	    if (seq_it == sva_module_sequences.end() || !seq_it->second) {
 		  i += 1;
 		  continue;
@@ -7207,7 +7412,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  }
 		  if (!cp) {
 			cerr << loc << ": error: sequence `"
-			     << seq_it->first << "' was already "
+			     << seq_it->first.name << "' was already "
 			     << "instantiated and its body cannot be "
 			     << "copied; declare it separately for each "
 			     << "use." << endl;
@@ -7384,8 +7589,13 @@ pform_sva_throughout(const struct vlltype&loc, PExpr*guard,
 	// Reject the variable-window sub-shapes up front.
       for (size_t i = 0 ; i < seq->size() ; i += 1) {
 	    const sva_seq_step_t&st = (*seq)[i];
+	      // rep_kind included for the same reason as in
+	      // sva_chain_fixed_len_: the steps emitted below never copy
+	      // rep_kind/rep_lo/rep_hi, so a repetition step that reached
+	      // this legacy lowering would be silently dropped rather
+	      // than diagnosed.
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		|| st.rep_tail != 0) {
+		|| st.rep_tail != 0 || st.rep_kind != 0) {
 		  cerr << loc << ": sorry: `throughout' is supported only "
 		       << "over a fixed-length sequence (constant ##N "
 		       << "delays, no ##[m:n]/##[m:$]/[*m:n]); the "
@@ -8600,12 +8810,19 @@ static void sva_tree_delete_(sva_stree_t*t, bool with_exprs)
       if (t->chain) {
 	    if (with_exprs)
 		  for (size_t k = 0 ; k < t->chain->size() ; k += 1) {
+			  // Forget before free -- see the note in
+			  // sva_expr_forget_sampled_.
+			sva_expr_forget_sampled_((*t->chain)[k].expr);
+			sva_expr_forget_sampled_((*t->chain)[k].lv_rhs);
 			delete (*t->chain)[k].expr;
 			delete (*t->chain)[k].lv_rhs;
 		  }
 	    delete t->chain;
       }
-      if (with_exprs && t->gexpr) delete t->gexpr;
+      if (with_exprs && t->gexpr) {
+	    sva_expr_forget_sampled_(t->gexpr);
+	    delete t->gexpr;
+      }
       delete t;
 }
 
@@ -8613,6 +8830,11 @@ void pform_sva_destroy_sequence(std::vector<sva_seq_step_t>*seq)
 {
       if (!seq) return;
       for (size_t k = 0 ; k < seq->size() ; k += 1) {
+	      // Drop any pending sampled-value record that points into
+	      // this tree BEFORE freeing it, or the endmodule flush will
+	      // read a dangling pointer.
+	    sva_expr_forget_sampled_((*seq)[k].expr);
+	    sva_expr_forget_sampled_((*seq)[k].lv_rhs);
 	    delete (*seq)[k].expr;
 	    delete (*seq)[k].lv_rhs;
       }
@@ -8665,6 +8887,120 @@ static sva_property_t* sva_nested_prop_sorry_(const struct vlltype&loc,
 	   << " makes it legal); the assertion is dropped." << endl;
       error_count += 1;
       pform_sva_destroy_property(sub);
+      return nullptr;
+}
+
+/*
+ * `S1 or S2 |-> c' -- a sequence combinator as an implication
+ * ANTECEDENT. Legal per IEEE 1800-2017 A.2.10 (the antecedent is a
+ * sequence_expr) plus 16.9.5 (or/and produce one), but not
+ * representable: sva_property_t::antecedent is a flat
+ * std::vector<sva_seq_step_t>, while a combinator is an sva_stree_t.
+ *
+ * The grammar previously had no production for this shape at all, so it
+ * failed as a bare `syntax error'. That is much worse than it sounds:
+ * the parser then desynchronizes, and when the form appears inside a
+ * macro inside a generate block -- exactly how OpenTitan's alert
+ * primitives write it -- the desync produces a cascade of "Invalid
+ * module item" and "Malformed statement" errors attributed to
+ * unrelated, perfectly good code further down the file, plus bogus
+ * module end-label mismatches. Accepting the form and refusing it by
+ * name keeps the parser in sync, so the remaining diagnostics describe
+ * real defects instead of parser confusion.
+ */
+extern sva_property_t* pform_sva_comb_antecedent_sorry(const struct vlltype&loc,
+						       sva_property_t*ante,
+						       std::vector<sva_seq_step_t>*conseq);
+sva_property_t* pform_sva_comb_antecedent_sorry(const struct vlltype&loc,
+						sva_property_t*ante,
+						std::vector<sva_seq_step_t>*conseq)
+{
+      cerr << loc << ": sorry: a sequence `or'/`and' combinator as the "
+	   << "antecedent of an implication is not supported yet (IEEE "
+	   << "1800-2017 16.9.5 makes it legal); the assertion is dropped."
+	   << endl;
+      error_count += 1;
+      pform_sva_destroy_property(ante);
+      pform_sva_destroy_sequence(conseq);
+      return nullptr;
+}
+
+/* The mirror of pform_sva_comb_antecedent_sorry: a combinator as the
+   CONSEQUENT of an implication. Same representation limit (the
+   consequent field `seq' is also a flat step chain), same need to keep
+   the parser in sync rather than emit a bare syntax error. */
+extern sva_property_t* pform_sva_comb_consequent_sorry(const struct vlltype&loc,
+						       std::vector<sva_seq_step_t>*ante,
+						       sva_property_t*conseq);
+sva_property_t* pform_sva_comb_consequent_sorry(const struct vlltype&loc,
+						std::vector<sva_seq_step_t>*ante,
+						sva_property_t*conseq)
+{
+      cerr << loc << ": sorry: a sequence `or'/`and'/`throughout' "
+	   << "combinator as the consequent of an implication is not "
+	   << "supported yet (IEEE 1800-2017 16.9.5/16.9.8 make it legal); "
+	   << "the assertion is dropped." << endl;
+      error_count += 1;
+      pform_sva_destroy_sequence(ante);
+      pform_sva_destroy_property(conseq);
+      return nullptr;
+}
+
+/*
+ * `a |-> ( P )' / `a |=> ( P )' -- a PARENTHESIZED property operand as
+ * the consequent of an implication. IEEE 1800-2017 A.2.10 makes the
+ * consequent a `property_expr', and `( property_expr )' is itself one,
+ * so every property operator is legal here.
+ *
+ * When the parens turn out to hold a plain sequence they are pure
+ * grouping: splice the chain in and build the ordinary implication,
+ * identical to the unparenthesized form.
+ *
+ * Otherwise the operand carries property structure -- `throughout',
+ * `within', an `and'/`or' combinator, a nested implication -- that
+ * sva_property_t cannot hold: its consequent field `seq' is a flat
+ * std::vector<sva_seq_step_t>. Refuse it BY NAME.
+ *
+ * Being loud here matters far beyond this one message. Without this
+ * production the shape has no parse at all and dies as a bare `syntax
+ * error'; the parser then desynchronizes, and when the assertion sits
+ * inside a macro inside a generate block -- exactly how OpenTitan
+ * writes them -- every later module item in the file is misparsed. One
+ * such assertion (otbn.sv:1328, a `within') accounts for 30 of that
+ * file's 43 errors, all of them attributed to unrelated, correct code.
+ */
+extern sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
+					      int op_type,
+					      std::vector<sva_seq_step_t>*ante,
+					      sva_property_t*conseq);
+sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
+				       int op_type,
+				       std::vector<sva_seq_step_t>*ante,
+				       sva_property_t*conseq)
+{
+      if (!ante || !conseq) {
+	    pform_sva_destroy_sequence(ante);
+	    pform_sva_destroy_property(conseq);
+	    return nullptr;
+      }
+
+      if (sva_prop_is_plain_seq_(conseq)) {
+	    std::vector<sva_seq_step_t>*chain = conseq->seq;
+	    conseq->seq = nullptr;
+	    pform_sva_destroy_property(conseq);
+	    sva_property_t*p = new sva_property_t;
+	    p->antecedent = ante;
+	    p->seq = chain;
+	    p->op_type = op_type;
+	    return p;
+      }
+
+      cerr << loc << ": sorry: a parenthesized property as the consequent "
+	   << "of an implication is not supported yet (IEEE 1800-2017 "
+	   << "A.2.10 makes it legal); the assertion is dropped." << endl;
+      error_count += 1;
+      pform_sva_destroy_sequence(ante);
+      pform_sva_destroy_property(conseq);
       return nullptr;
 }
 
@@ -8746,8 +9082,21 @@ static bool sva_chain_fixed_len_(const std::vector<sva_seq_step_t>&seq,
       len = 0;
       for (size_t j = 0 ; j < seq.size() ; j += 1) {
 	    const sva_seq_step_t&st = seq[j];
+	      // rep_kind carries goto (`b[->m:n]') and nonconsecutive
+	      // (`b[=m:n]') repetition, which pform_sva_goto_repeat
+	      // records ONLY in rep_kind/rep_lo/rep_hi -- delay_lo and
+	      // delay_hi stay at the plain 0/0 of the boolean it wraps.
+	      // Omitting it here classified `b[->1]' as a fixed chain of
+	      // length 1, so `g throughout b[->n]' took the legacy
+	      // lowering, whose emitted steps never copy the repetition
+	      // fields: the whole thing silently collapsed to `g && b'
+	      // and reported violations that never happened.
+	      // A goto/nonconsecutive repetition spans an unbounded
+	      // number of cycles, so the chain has no fixed length.
+	      // (`[*m:n]' is unaffected -- it expands into delays and
+	      // rep_tail, and never sets rep_kind.)
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		|| st.rep_tail != 0)
+		|| st.rep_tail != 0 || st.rep_kind != 0)
 		  return false;
 	    if (j == 0)
 		  len = st.delay_lo + 1;
@@ -10085,8 +10434,8 @@ static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
 				      perm_string seqname, perm_string method,
 				      bool&failed)
 {
-      std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator it =
-	    sva_module_sequences.find(seqname);
+      std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
+	    sva_resolve_(sva_module_sequences, seqname);
       if (it == sva_module_sequences.end() || !it->second)
 	    return nullptr;
 
@@ -10236,6 +10585,7 @@ static bool sva_lower_endpoint_methods_tree_(const struct vlltype&loc,
 static Statement* sva_assign_nb_(const struct vlltype&loc, perm_string lv,
 				 PExpr*rv)
 {
+      sva_mark_strict_(rv);
       PAssignNB*a = new PAssignNB(sva_id_(loc, lv), rv);
       FILE_NAME(a, loc);
       return a;
@@ -12435,15 +12785,15 @@ static bool sva_prop_is_named_ref_(const sva_property_t*prop)
 		|| !id->path().name.front().index.empty())
 		  return false;
 	    perm_string nm = id->path().name.front().name;
-	    return sva_module_properties.count(nm)
-		|| sva_module_sequences.count(nm);
+	    return sva_in_scope_(sva_module_properties, nm)
+		|| sva_in_scope_(sva_module_sequences, nm);
       }
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
 	    if (cf->path().package || cf->path().name.size() != 1)
 		  return false;
 	    perm_string nm = peek_tail_name(cf->path().name);
-	    return sva_param_properties.count(nm)
-		|| sva_param_sequences.count(nm);
+	    return sva_in_scope_(sva_param_properties, nm)
+		|| sva_in_scope_(sva_param_sequences, nm);
       }
       return false;
 }
@@ -12561,8 +12911,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (PEIdent*id = dynamic_cast<PEIdent*>((*prop->seq)[0].expr)) {
 		  if (!id->path().package && id->path().name.size() == 1
 		      && id->path().name.front().index.empty()) {
-			std::map<perm_string, sva_property_t*>::iterator pit =
-			      sva_module_properties.find(id->path().name.front().name);
+			std::map<sva_scoped_name_t, sva_property_t*>::iterator pit =
+			      sva_resolve_(sva_module_properties, id->path().name.front().name);
 			if (pit != sva_module_properties.end() && !pit->second) {
 			        /* The declaration existed but was consumed by a
 			           prior instantiation of a shape we cannot clone
@@ -12677,8 +13027,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>((*prop->seq)[0].expr)) {
 		  if (!cf->path().package && cf->path().name.size() == 1) {
 			perm_string nm = peek_tail_name(cf->path().name);
-			std::map<perm_string, sva_param_prop_t>::iterator pit =
-			      sva_param_properties.find(nm);
+			std::map<sva_scoped_name_t, sva_param_prop_t>::iterator pit =
+			      sva_resolve_(sva_param_properties, nm);
 			if (pit != sva_param_properties.end() && pit->second.body) {
 			      sva_property_t*decl = pit->second.body;
 			      bool fatal = false;

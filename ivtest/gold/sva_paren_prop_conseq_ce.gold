@@ -1,0 +1,3 @@
+./ivltests/sva_paren_prop_conseq_ce.v:32: sorry: a parenthesized property as the consequent of an implication is not supported yet (IEEE 1800-2017 A.2.10 makes it legal); the assertion is dropped.
+./ivltests/sva_paren_prop_conseq_ce.v:43: sorry: a parenthesized property as the consequent of an implication is not supported yet (IEEE 1800-2017 A.2.10 makes it legal); the assertion is dropped.
+./ivltests/sva_paren_prop_conseq_ce.v:51: sorry: a parenthesized property as the consequent of an implication is not supported yet (IEEE 1800-2017 A.2.10 makes it legal); the assertion is dropped.

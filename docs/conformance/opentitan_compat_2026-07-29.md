@@ -488,3 +488,724 @@ binary. The fallback is conservative and correct (the process becomes
 sensitive to the whole vector), but a non-fatal `sorry` sits oddly with
 this fork's doctrine that `sorry` means a loud refusal. Decide whether
 these should be warnings or whether the construct deserves real support.
+
+---
+
+# Assertions ON: what actually blocks OpenTitan (measured)
+
+Every measurement above used `-DSYNTHESIS`, which is how OpenTitan
+DISABLES its assertions (`prim_assert.sv` selects the dummy macros under
+that define). So "uart builds and simulates" was always a result with
+the fork's flagship feature switched off. Building UART **without**
+`-DSYNTHESIS` gives the real picture: 47 errors, 12 sorries.
+
+Those reduce to exactly TWO independent root causes.
+
+## 1. Sequence combinator as an implication antecedent (breaks the build)
+
+```systemverilog
+sequence S1; a == b [*2]; endsequence
+sequence S2; c == d [*2]; endsequence
+assert property (@(posedge clk) S1 or S2 |-> c);   // syntax error
+```
+
+Reduced further: it is not about NAMED sequences at all.
+
+| construct | result |
+|---|---|
+| `S1 or S2` standalone | OK |
+| `S1 \|-> c` | OK |
+| `S1 or S2 \|-> c` | **syntax error** |
+| `(S1) or (S2) \|-> c` | **syntax error** |
+| `(a ##1 b) or (c ##1 d) \|-> c` | **syntax error** |
+| `S1 and S2 \|-> c` | **syntax error** |
+
+A sequence combinator expression parses as a `property_expr` standalone,
+but the implication productions take `sva_seq_expr` on the left, and
+`sva_seq_comb` is a different nonterminal, so there is no parse for a
+combinator on the left of `|->`. IEEE 1800-2017 A.2.10 makes the
+antecedent a `sequence_expr`, and 16.9.5 makes `sequence_expr or
+sequence_expr` one -- so this is legal and unparseable here.
+
+OpenTitan hits it in `prim_alert_sender.sv` / `prim_alert_receiver.sv`:
+
+```systemverilog
+`ASSERT(InBandInitFsm_A, PingSigInt_S or AckSigInt_S |->
+    ##[SkewCycles+2:SkewCycles+3] state_q == Idle)
+```
+
+Those primitives are instantiated by every OpenTitan IP, and a syntax
+error inside a macro expansion inside a generate block DESYNCS the
+parser -- which is where the 22 "Invalid module item", 8 "Malformed
+statement" and the `module end label ... doesn't match` errors come
+from. A handful of real defects present as 47.
+
+Reproducer: `docs/conformance/repros/ot_seq_comb_antecedent.sv`.
+
+**Status: made loud, cascade removed.** Three grammar productions now
+accept the combinator-in-implication forms (antecedent, antecedent with
+an `s_eventually' consequent, and consequent) and refuse them by name
+citing 16.9.5. That does not make the construct work, but it keeps the
+parser in sync -- which took the UART assertion build from **47 errors
+to 8**. The 39 that disappeared were never separate defects; they were
+one construct's desync misattributed to unrelated correct code.
+Remaining in this family: `throughout' has its own grammar production
+(`expression K_throughout sva_seq_expr') rather than reducing through
+`sva_seq_comb', so it is not yet covered -- a symmetric addition.
+
+**What a REAL fix requires.** `sva_property_t::antecedent` is a flat
+`std::vector<sva_seq_step_t>*`; a combinator antecedent is an
+`sva_stree_t`, which that field cannot hold. So this needs the
+antecedent to be able to carry a tree -- smaller than full property_expr
+recursion, but a real representation change, not a grammar tweak.
+An interim step that is cheap and worthwhile on its own: give the form a
+production that fails with a NAMED diagnostic instead of a bare syntax
+error, which stops the parser desync and collapses the cascade.
+
+## 2. Parameterized sequence bounds (assertions compile but are DROPPED)
+
+```systemverilog
+##[0:SkewCycles] rise_o
+(diff_pd ^ diff_nd) [* (SkewCycles + 1)]
+##[SkewCycles+2:SkewCycles+4] alert_p ^ alert_n
+```
+
+Observed: `sorry: sequence cycle delays must be literal constants; the
+assertion is dropped.` IEEE 1800-2017 16.9.2 makes
+`cycle_delay_const_range_expression` a CONSTANT EXPRESSION -- a
+parameter, and arithmetic on one, qualify. `parse.y` requires a literal
+(`dynamic_cast<PENumber*>`), so a `PEIdent` or `PEBinary` becomes the
+"not literal" marker.
+
+Verified: this recovers cleanly. The sorry does NOT desync the parser --
+module items after it parse fine, even in the full `ASSERT macro
+expansion. So this half does not break the build; it silently removes
+assertions from the run.
+
+**The tempting shortcut is provably unsafe -- do not take it.** It looks
+like parse-time constant folding would do: `pform_cur_module' is
+available during lowering, so a parameter's DEFAULT could be read and
+folded, and OpenTitan would go green. It would also be silently wrong.
+
+`SkewCycles` is an overridable `parameter int unsigned SkewCycles = 1`,
+and OpenTitan DOES override it:
+
+```systemverilog
+prim_alert_sender #(.SkewCycles(AlertSkewCycles)) u_...   // hmac, entropy_src,
+                                                          // sram_ctrl, keymgr_dpe
+```
+
+and `AlertSkewCycles` is itself a parameter (defaulting to 1) threaded
+down from the top level -- a parameter CHAIN, overridable at every level
+by anyone integrating OpenTitan. Folding the default would size every
+checker for skew 1 while an instance ran with another value: assertions
+silently checking a window of the wrong width, no diagnostic. That is
+the exact failure class this campaign exists to remove, and it would be
+invisible precisely because the build went green.
+
+**What a fix requires.** Assertion lowering happens at PARSE time and
+sizes its pipeline, registers and automaton states from `delay_lo`/
+`delay_hi` as plain `long`s. Parameter values are known only at
+ELABORATION, and are per-instance -- `m #(.N(2))` and `m #(.N(5))` need
+different checker structures from one module definition. So this needs
+lowering to become parameter-aware (realistically, deferred past
+parameter resolution), not a relaxed cast.
+
+## Also found, reproduced, not yet fixed
+
+`duplicate sequence declaration `S'` when the SAME sequence name is
+declared in two MUTUALLY EXCLUSIVE generate branches:
+
+```systemverilog
+if (1) begin : g_async
+  sequence S; a == b [*2]; endsequence
+end else begin : g_sync
+  sequence S; a == b; endsequence      // legal: a distinct scope
+end
+```
+
+IEEE 1800-2017 27.6 gives each generate block its own scope, so this is
+legal. `sva_module_sequences` is a flat per-module map keyed by name
+with no scope awareness. Accounts for 2 of the 8 remaining UART errors.
+
+## Consequence for the roadmap
+
+"OpenTitan clean" and "assertions working" are different goals with
+different blockers. The RTL error families (measured separately) are
+elaboration-level; these two are the assertion path. Neither of these
+two is cheap, and (2) is the one that decides whether OpenTitan's
+assertions ever actually RUN.
+
+## Wave: run-time packed index with a part-select tail, and enum element type
+
+Two elaboration defects, each reproduced minimally and confirmed on the
+pre-fix compiler, each with a discriminating regression.
+
+### 1. Run-time index in a leading packed dimension + part-select tail
+
+    logic [3:0][63:0] d;
+    always_comb for (int i = 0; i < 4; i++) o = d[i][31:0];
+
+Rejected with "A reference to a net or variable (`i') is not allowed in
+a constant expression", although IEEE 1800-2017 11.5.2 permits a
+run-time index in ANY packed dimension and 7.4.6 permits the part-select
+that follows. The identical shape reached through a struct member
+(`s.d[i][31:0]') was already accepted, so the two spellings of one
+selection disagreed.
+
+Root cause, in two layers:
+
+  * `PEIdent::packed_base_needs_expr_` (elab_expr.cc) required EVERY
+    index component to be a SEL_BIT, so a part-select tail pushed the
+    whole chain back onto the constant-folding path. `evaluate_index_prefix()`
+    only ever inspects all-but-the-final component; the test now matches.
+  * `collapse_packed_base()` (netmisc.cc) then could not carry the tail:
+    `collapse_array_exprs()` -> `indices_to_expressions()` rejects any
+    non-SEL_BIT component ("Array cannot be indexed by a range"). It now
+    routes such a chain through `collapse_packed_member_indices()`, the
+    same translation the struct-member path uses, which rewrites the
+    tail into the SEL_BIT index of its lowest canonical bit and scales
+    the selected width. That function gained a `quiet` mode so a
+    genuinely illegal tail falls back and is diagnosed once, by the
+    original path, rather than twice.
+
+The l-value side needed the same reach: `packed_base_needs_expr_` was
+consulted only inside `elaborate_lval_net_bit_`, so `d[i][31:0] = ...`
+never saw it and `elaborate_lval_net_part_` fell back to index 0 with a
+warning -- it would have written the WRONG element. The check is now
+made before the select-form dispatch in `PEIdent::elaborate_lval_net_`.
+
+Regression: `ivtest/ivltests/sv_packed_runtime_idx_part.v` checks values,
+not just acceptance: constant and run-time part tails, `+:`/`-:` with a
+run-time base, ascending declared ranges, and l-value writes, each
+against both an absolute expected value and the struct-member spelling.
+
+### 2. Element of a packed array of enums lost its enum type
+
+    typedef enum logic [2:0] { A = 3'b101 } e_t;
+    e_t [3:0] arr;
+    e_t       one;
+    assign one = arr[2];        // "This assignment requires an explicit cast."
+
+`NetNet::packed_dims()` is a FLAT list -- a packed array contributes its
+own dimensions and the element type then contributes its slice
+dimensions -- so by the time a select is built the enum has already been
+dissolved into its base vector. The select carried no declared type,
+`NetExpr::enumeration()` returned nil, and IEEE 1800-2017 6.19.3
+rejected the assignment. An UNPACKED array of the same enum was fine,
+because that path already attaches the element type.
+
+Fix: `packed_type_after_dims()` (netmisc.cc) walks the real type tree in
+the same order as the flat dimension list and returns the declared type
+left after N dimensions have been indexed away. Both arms of
+`elaborate_expr_net_bit_`'s multi-dimensional slice case -- constant
+index and run-time index -- now attach it. Typing only one arm would
+have made the legality of an assignment depend on whether the index
+happened to fold.
+
+The descent deliberately returns nil when the count would land in the
+MIDDLE of one array level: `e_t [1:0][3:0] arr` indexed once yields
+`e_t[3:0]`, twelve bits, which is NOT an e_t and must still be rejected.
+
+Regressions: `ivtest/ivltests/sv_enum_packed_array_sel.v` (values and
+types, constant and run-time indices, one and two packed dimensions,
+sub-selects still plain bits); `tests/negative/sv_enum_packed_sel_not_enum.sv`
+and `tests/negative/sv_enum_packed_sel_type_mismatch.sv` guard against
+over-reach in both directions.
+
+### Measured effect
+
+OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
+
+    ip           before   after
+    spi_device      4        4
+    aes            24        4
+    hmac           25        1
+    otbn            6        4
+    kmac            0        0
+    TOTAL          64       13
+
+### Still open
+
+  * `otbn` (4): a variable driven continuously on one packed element and
+    procedurally on OTHER elements is rejected whenever the procedural
+    driver sits inside a GENERATE block. `prim_subst_perm.sv` drives
+    `data_state[0]` with a continuous assign and `data_state[r+1]` from
+    an always_comb in a generate loop. The var->uwire promotion in
+    `elab_net.cc` gives up on `sig->peek_lref() != 0`, a whole-signal
+    count with no bit information, and a generate block's processes
+    register their l-values before the module-level continuous assign is
+    elaborated. The bit-accurate disjointness test exists only on the
+    continuous side (`lref_mask_` / `test_part_driven`). Reproducer:
+    `docs/conformance/repros/ot_uwire_promote_order.sv` -- written
+    without the generate, in either textual order, the identical design
+    is accepted, so the rejection tracks elaboration order rather than
+    semantics.
+  * `spi_device` (4): package parameter binding in an instance context,
+    and packed-array assignment patterns.
+  * `hmac` (1): assignment pattern inside a nested conditional r-value.
+
+## Wave: name resolution and packed-struct element typing
+
+Four defects, ordered by severity.
+
+### P1 -- silent wrong result: element select on a packed-struct-array parameter
+
+    typedef struct packed { logic [31:0] base; logic [31:0] limit; } r_t;
+    localparam logic [1:0][63:0] A = 128'h00000001_00000002_00000003_00000004;
+    localparam r_t [1:0]         B = 128'h00000001_00000002_00000003_00000004;
+    // A[1] -> 0000000100000002   (correct)
+    // B[1] -> 00000000000000000000000000000000   (WRONG, and 128 bits wide)
+
+Identical bits, two declared spellings, different answers -- with no
+error and no warning. `elaborate_expr_param_or_specparam_` asked "does
+this have more than one packed dimension?" by casting `par_type` to
+`netvector_t`; `r_t [1:0]` is a `netparray_t`, the cast failed, and a
+single index fell through to the single-dimension path. The test now
+asks the TYPE via `slice_dimensions()`, which is exactly `packed_dims()`
+for a netvector_t (so vectors keep their existing route) and is the
+flattened dimension list for any other packed type.
+
+`elaborate_expr_param_select_multi_` had the same netvector_t-only
+assumption when building its dimension list, and took the same fix.
+
+A second layer sat on top: with the value corrected, the result was
+still zero-extended to the parameter's full width. `resolve_type_()`
+consumes a `netsarray_t`'s dimensions whole, so the single index of
+`B[1]` left `use_depth == 0`, the bit/part-select branch of
+`PEIdent::test_width` was skipped, and the fall-through reported the
+width of the WHOLE parameter. A `netvector_t` never hit this because it
+is not a `netsarray_t` and keeps its index unconsumed. `test_width` now
+takes the element's width when a select consumed the declared
+dimensions.
+
+Reproducer: `docs/conformance/repros/ot_param_struct_elem_select.sv`.
+
+### P2 -- compiler abort while reporting a diagnostic
+
+`P.base`, where P is a parameter of packed-struct type, printed
+"Parameter name P can't have member names (base)." and then ABORTED
+(exit 134) in `NetScope::get_parameter_line_info`, which asserts rather
+than returning when the key is not a parameter. The error path fell
+through into the parameter-elaboration path, which looks the name up by
+the full path -- and the full path no longer names a parameter once a
+member tail is attached. The diagnostic now returns cleanly; the error
+is already counted.
+
+(Member access ON a parameter remains unimplemented. It is now a clean
+error rather than a crash.)
+
+### P4 -- package `export` was never consulted
+
+    package outer;
+      import inner::D;
+      export inner::D;      // IEEE 1800-2017 26.6
+    endpackage
+    module m #(parameter int P = outer::D) ...;   // "Unable to bind parameter"
+
+`PPackage::exports` was recorded at parse time and never read, so a
+qualified reference only ever saw the exporting package's own
+declarations. `symbol_search` now retries a failed package-qualified
+lookup in the package the name is exported FROM. The exports list is the
+gate: a plain `import` without a matching export does NOT make the name
+reachable, so consulting the import map alone would over-accept --
+`tests/negative/sv_pkg_import_without_export.sv` pins that.
+
+This is how OpenTitan's spi_device reaches
+`spi_device_pkg::SramMailboxDepth`, which `spi_device_pkg` re-exports
+from `spi_device_reg_pkg`.
+
+### P4 -- assignment pattern onto a packed array of packed structs
+
+    racl_range_t [0:0] R = '{ '{ base: .., limit: .., policy_sel: .. } };
+    // "Packed array assignment pattern expects 67 element(s)"
+
+The declared type flattens to a dimension list that has already
+dissolved the struct into a bit range, so the nested pattern was matched
+against that width and the member names had nowhere to bind.
+`elaborate_expr_packed_` now carries the declared type alongside the
+dimension list and hands a struct element to the struct form.
+
+Note this fix alone would have converted a loud error into a SILENT
+WRONG RESULT for parameters -- the pattern folded correctly but reading
+`P[0]` back returned zeros -- which is why the P1 fix above is part of
+the same change and not deferred.
+
+### Measured effect
+
+OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
+
+    ip           start   prev   now
+    spi_device      4      4      5*
+    aes            24      4      4
+    hmac           25      1      1
+    otbn            6      4      4
+    kmac            0      0      0
+    TOTAL          64     13     14*
+
+  * spi_device's original four are GONE. Fixing them let elaboration
+    reach line 1632, which surfaces a DIFFERENT, previously unreachable
+    defect (below). Net progress; the count is not comparable term by
+    term.
+
+### Newly reachable
+
+  * `spi_device.sv:1632` -- a nested named assignment pattern onto a
+    struct MEMBER is accepted procedurally but rejected through a
+    continuous assign: the net-side l-value resolves the member to a
+    flat vector, so the pattern is matched against a bit count and the
+    nested patterns then hit "scalar type is not a valid context".
+    Reproducer: `docs/conformance/repros/ot_net_member_nested_pattern.sv`.
+    The procedural/continuous split is the discriminator -- the same
+    pattern, the same target type.
+
+## Wave: type context reaching l-value members and conditional arms
+
+Both defects share a shape: an assignment pattern needs the TARGET TYPE,
+and the type was being dropped on the way to it.
+
+### Struct member l-value through a continuous assign
+
+    assign hw2reg.tpm_cap = '{ rev: '{de:1'b1, d:4'h5}, loc: '{..} };
+
+was rejected ("Packed array assignment pattern expects 10 element(s)",
+then "scalar type is not a valid context for assignment pattern") while
+the identical pattern in an `always_comb` was accepted.
+
+`PEIdent::elaborate_lnet_common_` rewrites a member select as a part
+select and synthesizes the l-value net with a bare `netvector_t` of the
+right WIDTH -- the member's declared type is gone.
+`PGAssign::elaborate` then hands `lval->net_type()` to the r-value, so
+the pattern was matched against a bit count and the member names had
+nowhere to bind. The member walk now carries the selected member's
+declared type out, and the synthesized net keeps it when its packed
+width equals the slice actually taken. The width test is what makes this
+safe: a walk that then indexed into a packed-array member leaves a type
+wider than the slice, and that case falls back to the bare vector.
+
+Regression: `ivtest/ivltests/sv_net_member_nested_pattern.v` elaborates
+the procedural spelling alongside and compares bit for bit, so a fix
+that merely compiled while misplacing members still fails.
+
+### Assignment pattern inside a conditional
+
+    assign sha_rdata_o =
+        (!hmac_en_i)  ? fifo_rdata_i                          :
+        (sel == IPad) ? '{data: i_pad_256[...-:32], mask: '1} :
+        ...
+
+failed with "Unable to elaborate r-value". IEEE 1800-2017 11.4.11 makes
+a conditional an assignment-like context for BOTH result expressions, so
+the target type has to reach each arm.
+
+Two pieces were missing. `elaborate_rval_expr` recognized only a DIRECT
+`PEAssignPattern` as needing typed elaboration, so a pattern nested in a
+conditional took the width path; the test is now recursive through
+conditional arms. And `PETernary` had no type-context `elaborate_expr`
+at all, so `PExpr`'s default forwarded to the WIDTH form with a width of
+1 -- the type was discarded before the arms were ever reached. The new
+override elaborates both arms against the target type, keeps the
+constant-condition short circuit (still elaborating the dead arm so its
+errors are reported), and derives its result width from the type only
+when the type is packed.
+
+Regression: `ivtest/ivltests/sv_ternary_pattern_type_ctx.v`, checking
+each arm's value through both a continuous and a procedural assign.
+
+### Measured effect
+
+OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
+
+    ip           start   now
+    spi_device      4      0
+    aes            24      4
+    hmac           25      0
+    otbn            6      4
+    kmac            0      0
+    TOTAL          64      8
+
+Three of the five IPs elaborate clean.
+
+### Remaining
+
+  * `otbn` (4) -- the var->uwire promotion. Fully characterized, with a
+    reproducer, in the previous section. The fix has a shape: nothing
+    between the promotion in `elaborate_lnet_common_` (elab_net.cc ~578)
+    and the double-drive check (~1078) reads `sig->type()`, so the
+    promotion can move down to where `midx`/`lidx` are final and ask
+    whether the continuous assign's bits overlap any PROCEDURAL driver.
+    That needs a bit-accurate procedural record, which does not exist --
+    `lref_count_` is a bare count. The lazy form is to keep the
+    registered `NetAssign_` objects on the NetNet and ask each for its
+    range at query time (`get_base()` folded plus `lwidth()`), treating
+    a non-constant base or an absent part select as conservatively
+    overlapping.
+
+  * `aes` (4) -- a conditional whose two arms are WHOLE UNPACKED ARRAYS
+    (`!CiphOpFwdOnly ? key_dec_q : prd_clearing_key_i`, both
+    `logic [7:0][31:0] x [NumShares]`). Deliberately NOT implemented:
+    IEEE 1800-2017 11.4.11 enumerates the conditional's operand types
+    and unpacked aggregates are not among them, so accepting this would
+    be a guess. The current behaviour is a loud rejection, which is the
+    safe side of that uncertainty. Resolving it needs an LRM reading, or
+    a decision to accept it as an extension, before any code changes.
+
+## Wave: var->uwire promotion made bit-accurate
+
+    assign data_state[0] = data_i;
+    for (genvar r = 0; r < N; r++)
+      always_comb data_state[r+1] = f(data_state[r]);
+
+was rejected with "Variable 'data_state' cannot be driven by a
+continuous assignment". The two drivers touch DIFFERENT elements of one
+packed array, which IEEE 1800-2017 6.5 permits -- the prohibition is on
+mixing drivers on the same BITS. Written WITHOUT the generate, in either
+textual order, the identical design was accepted, so the decision
+tracked elaboration order rather than semantics. (An earlier note in
+this document blamed conditional generate nesting; that was wrong. A
+plain generate loop is enough, and the conditional is irrelevant.)
+
+The var->uwire promotion in `elaborate_lnet_common_` ran BEFORE the
+l-value's bit range was known and gave up whenever `peek_lref()` was
+non-zero -- a whole-signal count of behavioural l-values carrying no bit
+information. A generate block's processes register their l-values before
+a module-level continuous assign is elaborated, so the count was already
+non-zero by the time the assign asked.
+
+Fix, in two parts:
+
+  * `NetNet` now keeps the `NetAssign_` objects that target it
+    (`lref_objs_`), alongside the existing count, and answers
+    `test_part_procedurally_driven(msb, lsb, widx)`. The ranges are read
+    LAZILY, at query time, because `NetAssign_::set_part()` runs after
+    the constructor -- asking late is what makes the answer independent
+    of elaboration order. Every uncertainty answers true: an l-value
+    with no part select covers the whole signal, a run-time base could
+    land anywhere, and an unpacked word index that will not fold might
+    be the word in question.
+  * The promotion and the "cannot be driven" error moved down to where
+    `midx`/`lidx` are final, just above the existing double-drive check.
+    Nothing between the old and new sites reads `sig->type()`.
+
+Regression `ivtest/ivltests/sv_uwire_promote_generate.v` checks VALUES:
+the chained rounds only come out right if each element is driven by the
+driver that owns it. Four negative tests pin the conflicts that must
+STILL be rejected -- same element, run-time index, whole signal, and
+overlapping part selects -- because before this change every generate
+mixed drive was rejected by accident, and only the last of those four
+was rejected for the right reason.
+
+### Measured effect
+
+OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
+
+    ip           start   now
+    spi_device      4      0
+    aes            24      4
+    hmac           25      0
+    otbn            6      0
+    kmac            0      0
+    TOTAL          64      4
+
+Four of the five IPs elaborate clean.
+
+### Remaining
+
+  * `aes` (4) -- a conditional whose two arms are WHOLE UNPACKED ARRAYS
+    (`!CiphOpFwdOnly ? key_dec_q : prd_clearing_key_i`, both
+    `logic [7:0][31:0] x [NumShares]`). Still deliberately NOT
+    implemented: IEEE 1800-2017 11.4.11 enumerates the conditional's
+    operand types and unpacked aggregates are not among them, so
+    accepting it would be a guess. A loud rejection is the safe side of
+    that uncertainty. This needs an LRM reading, or an explicit decision
+    to support it as an extension, before any code changes.
+
+## Found while testing: always_comb sensitivity lost (P1, pre-existing)
+
+An `always_comb` can end up with an EMPTY sensitivity set, so it runs
+once at time 0 and never again, simulating a stale value for the rest of
+the run. The compiler DOES warn -- "always_comb process has no
+sensitivities" -- so this is a loud wrong result, not a silent one; an
+earlier draft of this note said otherwise because an error-only filter
+had hidden the warning.
+
+    always_comb st[0] = seed;
+    always_comb begin
+      tmp   = st[0] ^ 8'h0F;
+      st[1] = tmp + 8'd1;      // never recomputed when seed changes
+    end
+
+Three ingredients are needed together; dropping any one is correct: a
+constant select whose sensitivity is widened to the WHOLE packed
+variable, a write to another element of that SAME variable, and an
+intermediate written and read inside the block. Reading a plain scalar
+instead of `st[0]` is correct; dropping the intermediate is correct; and
+targeting a variable outside `st` is correct.
+
+Confirmed on the pre-fix compiler with NO continuous assign anywhere, so
+it is independent of the uwire work above -- it surfaced only because
+the first draft of that regression happened to use an intermediate.
+Reproducer: `docs/conformance/repros/always_comb_temp_packed_sens.sv`.
+
+The widening is the root. `NetESelect::nex_input` (net_nex_input.cc
+~188) cannot express "sensitive to st[0] only" -- the bit/part-select
+sensitivity path is written but disabled behind `#if 0`, pending
+`PEventStatement::elaborate_st` support -- so it falls back to the whole
+variable, which this process also writes. With `rem_out=true` for
+always_comb the set then comes out empty, and elaborate_st keeps only
+the implicit T0 trigger.
+
+This is the next defect to take: incorrect observable semantics, and the
+fix has a clear shape (enable bit/part-select sensitivity, which needs
+the event-expression side to carry a range).
+
+## Wave: conditional over whole unpacked arrays -- OpenTitan reaches ZERO
+
+    key_full_d = !CiphOpFwdOnly ? key_dec_q : prd_clearing_key_i;
+
+with all three of `logic [7:0][31:0] x [NumShares]` and the condition a
+module parameter. This was the last construct blocking aes, and the
+final four errors in the corpus.
+
+An earlier note here deferred it on the grounds that IEEE 1800-2017
+11.4.11 does not enumerate unpacked aggregates among the conditional's
+operand types. That reading was the reason to be careful, not a reason
+to leave it -- and the careful form turns out to be narrow: with a
+CONSTANT condition the conditional selects one arm at elaboration time
+and no run-time array mux is needed at all. That is the shape OpenTitan
+uses, and it is now supported. A RUN-TIME condition would require
+blending two whole arrays, which the code generator cannot express, and
+is rejected loudly (`tests/negative/sv_uarray_runtime_ternary.sv`).
+
+Three independent failures had to be cleared, each of which stopped the
+construct on its own:
+
+  * A bare unpacked-array identifier could not elaborate against an
+    unpacked-array context type. `NetNet::net_type()` reports only the
+    ELEMENT type for an unpacked signal -- the dimensions live on
+    `array_type()` -- so the comparison in `PEIdent::elaborate_expr`
+    never matched and reported "the type of the variable 'a' doesn't
+    match the context type", quoting an element type against an array
+    context.
+  * The same mismatch rejected the arm a second time at the
+    implicit-cast check in `elaborate_rval_expr` (netmisc.cc), which
+    already had the analogous darray case but not this one.
+  * With those cleared, the assignment reached the code generator and
+    ABORTED: `ivl: stmt_assign.c:733: store_vec4_to_lval: Assertion
+    'lwid == ivl_signal_width(lsig)' failed`. PAssign's whole-array copy
+    recognizes its source by PExpr SHAPE -- it resolves the name itself,
+    there being no whole-array r-value representation to elaborate first
+    -- so a conditional hid the array from it and the assignment fell
+    through to the vector path. `see_through_const_ternary_()` now
+    resolves a constant-condition conditional to its live arm before
+    that shape test, at both the blocking and non-blocking sites.
+
+That third one is worth noting: fixing only the first two would have
+turned a clean compile error into a compiler abort.
+
+### Measured effect
+
+OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
+
+    ip           start   now
+    spi_device      4      0
+    aes            24      0
+    hmac           25      0
+    otbn            6      0
+    kmac            0      0
+    TOTAL          64      0
+
+All five IPs elaborate clean.
+
+### Still open elsewhere
+
+Not OpenTitan blockers, recorded with reproducers under
+`docs/conformance/repros/`:
+
+  * `[*0]` empty-match repetition is rejected and the assertion is
+    DROPPED (`sva_empty_match_repetition.sv`). Boundary measured: the
+    zero lower bound only; `[*1:2]`, `[*1:$]` and `[*2]` all work.
+  * Member access on a parameter of packed-struct type is unimplemented
+    -- now a clean error rather than the compiler abort it used to be.
+
+## Correction: what the RTL table above counted
+
+The "start / now" table counts lines matching `: error:`. That is not
+the same as "compiles". Re-measuring the same five IPs by exit status,
+and counting `sorry:` as well, gives a different and less flattering
+picture -- and turned up the worst defect found in this campaign.
+
+`iverilog -g2012 -s<ip> -DSYNTHESIS -c <ip>.scr -o <ip>.vvp`:
+
+    ip           before        after
+    spi_device   rc=1  (1 sorry)   rc=1  (1 sorry)
+    aes          rc=3  (3 sorry)   rc=3  (3 sorry)
+    hmac         rc=0             rc=0
+    otbn         rc=134 ABORT     rc=0   (22.8 MB image)
+    kmac         rc=1  (1 sorry)   rc=1  (1 sorry)
+
+The five residual sorries are loud, named refusals of real gaps: a
+variable element index with further selects on an array parameter
+(spi_device), unpacked subroutine ports and array slices in continuous
+assignment (aes), and a multi-dimensional unpacked array parameter
+(kmac). They are correct behaviour for constructs the fork does not
+implement.
+
+otbn was not in that category. It ABORTED the compiler, and the
+diagnostic the old table matched on never appeared, so the abort was
+counted as zero errors.
+
+### The abort, and the silent wrong result behind it
+
+`otbn_kmac_if.sv:734` writes
+
+    kmac_cfg_q <= '{default: kmac_cfg_t'('0)};
+
+an assignment pattern assigned NON-BLOCKING to a whole unpacked array.
+The blocking spelling has always worked: the code generator's
+`draw_array_pattern()` distributes the pattern's entries across the
+array's words. The non-blocking spelling had no path at all. It reached
+`draw_eval_vec4()`, which has no case for `IVL_EX_ARRAY_PATTERN` and
+falls through to a `default:` that prints
+
+    Warning: unsupported VEC4 expression (26); emitting zero fallback
+
+and pushes a zero of the l-value's width. The compile then SUCCEEDS or
+dies depending only on the l-value shape:
+
+  * a whole-array l-value carries no word index, so
+    `assign_to_lvector()` aborted on `Assertion 'word_ix' failed'. This
+    is what otbn hit.
+  * a SLICE l-value carries one -- the slice's flat base word -- so
+    nothing aborted. The zero went into the slice's first word and the
+    rest were dropped. `m[1] <= '{8'hA1, 8'hB2, 8'hC3}' left all three
+    words at zero, the simulation ran to completion, and the blocking
+    spelling of the same line on the same declaration produced
+    `a1 b2 c3`. A silent wrong result, sitting one l-value shape away
+    from the crash.
+
+Both are fixed in `PAssignNB::elaborate`, which now lowers the pattern
+to one non-blocking word assignment per entry (nested patterns
+flattened in canonical order, intra-assignment delay carried onto each
+word). The words are scheduled together in the NBA region and touch
+disjoint locations, so the split is not observable. The one shape that
+cannot be lowered this way -- an intra-assignment EVENT control, which
+must be waited on exactly once rather than N times -- is refused by
+name instead of crashing.
+
+Regressions: `sv_uarray_nb_pattern` (whole array, `default:` fill,
+multi-dimensional, intra-assignment delay -- the pre-fix compiler
+aborts on it), `sv_uarray_nb_pattern_slice` (the silent case: pre-fix
+it compiles and reports six mismatches against the blocking spelling of
+the same assignment), and `tests/negative/sv_uarray_nb_pattern_evctl.sv`
+(pre-fix exit 134, which the crash-aware negative runner scores as a
+failure, not a rejection).
+
+### Still open: the zero fallback itself
+
+`draw_eval_vec4()`'s `default:` arm remains a warning plus a zero. Any
+expression kind that reaches it produces a program that runs and
+computes the wrong value. `IVL_EX_ARRAY_PATTERN` was one such kind and
+is now routed away from it, but the arm is a general silent-wrong-result
+generator and should be a hard error. Not changed here: that is a
+separate change with its own blast radius to measure.

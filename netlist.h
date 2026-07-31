@@ -800,6 +800,21 @@ class NetNet  : public NetObj, public PortType {
       void decr_lref();
       unsigned peek_lref() const { return lref_count_; }
 
+	// Track WHICH behavioural l-values target this signal, so a
+	// continuous assign can ask whether its own bits collide with
+	// any of them. Registration happens at NetAssign_ construction;
+	// the ranges are read back at query time, since set_part() runs
+	// after the constructor.
+      void register_lref(class NetAssign_*obj);
+      void unregister_lref(class NetAssign_*obj);
+
+	// True if any behavioural l-value on this signal may cover a bit
+	// in the canonical range [lsb..msb] of word widx. Conservative:
+	// an l-value with no part select covers everything, and one with
+	// a run-time base could land anywhere, so both answer true.
+      bool test_part_procedurally_driven(unsigned msb, unsigned lsb,
+					 int widx = 0) const;
+
 	// Treating this node as a uwire, this function tests whether
 	// any bits in the canonical part are already driven. This is
 	// only useful for UNRESOLVED_WIRE objects. The msb and lsb
@@ -858,6 +873,14 @@ class NetNet  : public NetObj, public PortType {
 	// which bits are assigned. This mask is true for each bit
 	// that is known to be driven.
       std::vector<bool> lref_mask_;
+
+	// The behavioural l-values that target this signal. lref_count_
+	// only says HOW MANY there are; these say WHICH BITS, which is
+	// what a continuous assign needs in order to tell a genuine
+	// conflict from two drivers on disjoint elements. They are
+	// consulted lazily, at query time, because an l-value's part
+	// select is not known when it is constructed.
+      std::vector<class NetAssign_*> lref_objs_;
 
       std::vector<class NetDelaySrc*> delay_paths_;
       int       port_index_ = -1;

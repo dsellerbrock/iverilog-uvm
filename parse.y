@@ -4678,11 +4678,20 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
       { pform_start_clocking_block(@2, 0, $3, false, true); }
     clocking_items_opt K_endclocking
       { pform_end_clocking_block(@7); }
-  /* M9 (IEEE 1800-2017 16.15): `default disable iff (expr);` applies
-     to every concurrent assertion in this module that lacks its own
-     disable clause. */
-  | K_default K_disable K_iff '(' expression ')' ';'
-      { pform_sva_set_default_disable($5); }
+  /* M9 (IEEE 1800-2017 16.15): `default disable iff expr;` applies to
+     every concurrent assertion in this module that lacks its own
+     disable clause.
+     The grammar (A.2.10) is
+        default disable iff expression_or_dist ;
+     with NO parentheses. Requiring them rejected the ordinary spelling
+     -- OpenTitan's tlul_assert.sv writes
+        default disable iff disable_sva || !rst_ni;
+     -- as "Invalid module item", and the parser then failed to recover
+     for the rest of the module, so every later assertion in the file
+     reported an error too. A parenthesized expression is still just an
+     expression, so the previous form keeps working. */
+  | K_default K_disable K_iff expression ';'
+      { pform_sva_set_default_disable($4); }
   /* M9: named no-argument property/sequence declarations, usable by
      assertions later in the SAME module. Parameterized forms still
      fall to the error-recovery rules below (parsed and dropped). */
@@ -5883,6 +5892,52 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      binding tighter than `or' (16.9-1). A bare `sva_seq_expr' stays
      op 0 (above); `sva_seq_comb' requires >=1 operator, so there is no
      ambiguity with the op-0 rule. */
+  /* IEEE 1800-2017 A.2.10 makes the antecedent of an implication a
+     `sequence_expr', and 16.9.5 makes `sequence_expr or/and
+     sequence_expr' one -- so `S1 or S2 |-> c' is LEGAL. It cannot be
+     represented here: sva_property_t::antecedent is a flat step chain
+     and a combinator is a tree. Without this production the form has no
+     parse at all and dies as a bare `syntax error', which inside a
+     macro inside a generate block DESYNCS the parser and buries the
+     real diagnostics under cascading "Invalid module item" noise (this
+     is what turns a handful of defects in OpenTitan's alert primitives
+     into 47 errors). Accept it and refuse it BY NAME so the parser
+     stays in sync. */
+  | sva_seq_comb K_PIPE_IMPL_OV sva_seq_expr
+      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $3); }
+  | sva_seq_comb K_PIPE_IMPL_NOV sva_seq_expr
+      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $3); }
+  /* Same shape with a property-operator consequent, e.g.
+     `A and B |=> s_eventually(c)' -- how OpenTitan's TL-UL error
+     assertions are written. */
+  | sva_seq_comb K_PIPE_IMPL_OV K_s_eventually '(' sva_seq_expr ')'
+      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $5); }
+  | sva_seq_comb K_PIPE_IMPL_NOV K_s_eventually '(' sva_seq_expr ')'
+      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $5); }
+  /* The mirror case: a combinator (`or'/`and'/`throughout') as the
+     CONSEQUENT. `a |-> (b throughout c[->1])' is how OpenTitan's
+     prim_sync_reqack reset assertions are written. Same
+     representation limit, same reason to be loud rather than a bare
+     syntax error. */
+  | sva_seq_expr K_PIPE_IMPL_OV sva_seq_comb
+      { $$ = pform_sva_comb_consequent_sorry(@2, $1, $3); }
+  | sva_seq_expr K_PIPE_IMPL_NOV sva_seq_comb
+      { $$ = pform_sva_comb_consequent_sorry(@2, $1, $3); }
+  /* IEEE 1800-2017 A.2.10: `property_expr ::= ( property_expr )', so a
+     PARENTHESIZED property is a legal implication consequent — this is
+     how OpenTitan writes its reset and secure-wipe checkers:
+       `$fell(rst_ni) |-> (!a throughout !b[->1])'   (prim_sync_reqack)
+       `$rose(w) |-> ((...) within (...))'           (otbn.sv:1328)
+     Parens holding only a sequence are pure grouping and splice into an
+     ordinary implication; parens holding property structure get one
+     loud `sorry'. Either way the parser stays in sync, which is the
+     whole point: as a bare syntax error the second form above desyncs
+     the parse and buries 30 unrelated module items under bogus
+     "Invalid module item" diagnostics. */
+  | sva_seq_expr K_PIPE_IMPL_OV '(' property_expr ')'
+      { $$ = pform_sva_paren_conseq(@2, 1, $1, $4); }
+  | sva_seq_expr K_PIPE_IMPL_NOV '(' property_expr ')'
+      { $$ = pform_sva_paren_conseq(@2, 2, $1, $4); }
   | sva_seq_comb
       { $$ = $1; }
   /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at

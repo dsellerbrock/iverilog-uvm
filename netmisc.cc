@@ -1244,6 +1244,26 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  if (have_da && want_ua->static_dimensions().size() == 1
 		      && uarray_element_matches_container_(want_ua, have_da))
 			return tmp;
+
+		    // A WHOLE unpacked array assigned to an unpacked array
+		    // of equivalent type (IEEE 1800-2017 7.6). NetESignal
+		    // reports net_type() -- the ELEMENT type for an
+		    // unpacked signal -- so the dimensions have to come
+		    // from array_type(), exactly as the open-formal check
+		    // below already does. Without this an arm of a
+		    // conditional that resolved to a whole array reached
+		    // the cast error even though the plain assignment of
+		    // the same array is accepted.
+		  if (const NetESignal*esig =
+			    dynamic_cast<const NetESignal*>(tmp)) {
+			if (esig->sig() && esig->word_index() == 0) {
+			      if (const netarray_t*have_ua =
+					esig->sig()->array_type()) {
+				    if (want_ua->type_equivalent(have_ua))
+					  return tmp;
+			      }
+			}
+		  }
 	    }
 
 	      // Catch some special cases.
@@ -1978,6 +1998,35 @@ bool evaluate_index_prefix(Design*des, NetScope*scope,
  * rather than a bit. Widens the index first so the multiply cannot
  * overflow it.
  */
+/*
+ * The declared type that is left after `count' of a signal's FLATTENED
+ * packed dimensions have been indexed away, or nil when the descent
+ * cannot be made exactly.
+ *
+ * NetNet::packed_dims() is a flat list: a packed array contributes its
+ * own dimensions and then the element type contributes whatever slice
+ * dimensions IT has. So `sp2v_e [7:0] sig' (with `sp2v_e' an enum over
+ * logic [1:0]) reports two packed dimensions, and one index consumes
+ * only the first -- what remains is the enum, not a bare 2-bit vector.
+ *
+ * This walks the real type tree in the same order so a select can carry
+ * the element's declared type. Descent stops (returns nil) if `count'
+ * would land in the MIDDLE of one array level's dimensions, since then
+ * the result is a sub-slice with no name of its own.
+ */
+ivl_type_t packed_type_after_dims(ivl_type_t base, size_t count)
+{
+      while (count > 0) {
+	    const netparray_t*pa = dynamic_cast<const netparray_t*>(base);
+	    if (!pa) return 0;
+	    size_t nd = pa->static_dimensions().size();
+	    if (nd > count) return 0;
+	    count -= nd;
+	    base = pa->element_type();
+      }
+      return base;
+}
+
 NetExpr*scale_index_to_bits(NetExpr*idx, unsigned long wid, const LineInfo&loc)
 {
       if (wid <= 1)
@@ -1999,6 +2048,41 @@ NetExpr*collapse_packed_base(Design*des, NetScope*scope, const LineInfo*loc,
       unsigned ndims = net->packed_dimensions();
       if (indices.size() > ndims)
 	    return 0;
+
+	// A trailing part-select is legal on top of run-time element
+	// indices -- `d[i][31:0]', `d[i][b +: 8]' (IEEE 1800-2017
+	// 11.5.2 / 7.4.6). collapse_array_exprs() below cannot carry
+	// one: indices_to_expressions() rejects every component that is
+	// not a SEL_BIT ("Array cannot be indexed by a range"), so the
+	// chain has to go through the member collapse, which rewrites
+	// the tail into the SEL_BIT index of its lowest-canonical bit
+	// and scales sel_wid by the covered unit count. That is the
+	// same translation `s.d[i][31:0]' already uses; routing the
+	// whole-signal case here is what makes the two agree.
+	//
+	// Quietly: on an illegal tail (non-constant part bounds, say)
+	// we return 0 and the caller falls back to its original path,
+	// which issues the diagnostic. One mistake, one message.
+      if (!indices.empty()
+	  && indices.back().sel != index_component_t::SEL_BIT) {
+	    switch (indices.back().sel) {
+		case index_component_t::SEL_PART:
+		case index_component_t::SEL_IDX_UP:
+		case index_component_t::SEL_IDX_DO:
+		  break;
+		default:
+		    // $-relative and other forms keep the old path.
+		  return 0;
+	    }
+	    NetExpr*off = 0;
+	    unsigned long wid = 0;
+	    if (!collapse_packed_member_indices(des, scope, loc,
+						net->packed_dims(), indices,
+						off, wid, /*quiet=*/true))
+		  return 0;
+	    sel_wid = wid;
+	    return off;
+      }
 
       std::list<index_component_t> use_index = indices;
       while (use_index.size() < ndims) {
@@ -2130,13 +2214,15 @@ bool collapse_packed_member_indices(Design*des, NetScope*scope,
 				    const netranges_t&pdims,
 				    const list<index_component_t>&indices,
 				    NetExpr*&off_expr,
-				    unsigned long&sel_wid)
+				    unsigned long&sel_wid,
+				    bool quiet)
 {
       off_expr = 0;
       sel_wid = 0;
 
       size_t ndims = pdims.size();
       if (indices.empty() || indices.size() > ndims) {
+	    if (quiet) return false;
 	    cerr << loc->get_fileline() << ": error: Got "
 		 << indices.size() << " index expressions for a member"
 		 << " with " << ndims << " packed dimension(s)." << endl;
@@ -2172,6 +2258,7 @@ bool collapse_packed_member_indices(Design*des, NetScope*scope,
 		delete me;
 		delete le;
 		if (!ok) {
+		      if (quiet) return false;
 		      cerr << loc->get_fileline() << ": error: Part-select"
 			   << " bounds must be constant." << endl;
 		      des->errors += 1;
@@ -2195,6 +2282,7 @@ bool collapse_packed_member_indices(Design*des, NetScope*scope,
 		bool ok = we && eval_as_long(w, we) && w > 0;
 		delete we;
 		if (!ok) {
+		      if (quiet) return false;
 		      cerr << loc->get_fileline() << ": error: Indexed"
 			   << " part-select width must be a positive"
 			   << " constant." << endl;
@@ -2228,6 +2316,7 @@ bool collapse_packed_member_indices(Design*des, NetScope*scope,
 	    }
 
 	  default:
+	    if (quiet) return false;
 	    cerr << loc->get_fileline() << ": sorry: this select form is"
 		 << " not supported on a packed member." << endl;
 	    des->errors += 1;
@@ -2247,6 +2336,7 @@ bool collapse_packed_member_indices(Design*des, NetScope*scope,
       sel_wid = unit_count * slice_width_of_dims_(pdims, k);
       off_expr = collapse_dims_exprs(des, scope, loc, pdims, use_index);
       if (!off_expr) {
+	    if (quiet) return false;
 	    cerr << loc->get_fileline() << ": error: Unable to evaluate"
 		 << " the member index expressions." << endl;
 	    des->errors += 1;

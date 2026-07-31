@@ -480,7 +480,25 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	// Past this point, we should have taken care of the cases
 	// where the name is a member/method of a struct/class.
 	// XXXX ivl_assert(*this, method_name.nil());
-      ivl_assert(*this, tail_path.empty());
+	//
+	// A member tail that is left over here means the base did not
+	// resolve to something that HAS members -- normally because an
+	// earlier error already rejected it, and elaboration carried on.
+	// `module m(interface b); initial b.x = 1;' instantiated with a
+	// plain wire reports "the actual for generic interface port must
+	// be an interface instance" and then arrived here with `.x'
+	// still attached; the assertion turned a clean diagnostic into
+	// SIGABRT. Report and fail instead of dying: the compile is
+	// already failing, and an abort loses every later diagnostic.
+      if (!tail_path.empty()) {
+	    cerr << get_fileline() << ": error: `" << reg->name()
+		 << "' has no member `" << tail_path << "'";
+	    if (des->errors)
+		  cerr << " (after an earlier error on this name)";
+	    cerr << "." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
 
       bool need_const_idx = is_cassign || is_force;
 
@@ -496,6 +514,42 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	    cerr << reg->name() << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+	// IEEE 1800-2017 11.5.2: a run-time index is legal in ANY packed
+	// dimension, and 7.4.6 lets a part-select follow it -- so
+	// `d[i][31:0] = ...' and `d[i][b +: 8] = ...' are valid
+	// l-values. The per-select helpers below all reach the
+	// constant-folding prefix path, which cannot carry a run-time
+	// leading index; elaborate_lval_net_part_() in particular falls
+	// back to index 0 with a warning, which writes the WRONG
+	// element. Take the computed-base path first, exactly as the
+	// r-value side does, so both sides address the same bits.
+	//
+	// SEL_BIT keeps its own hook inside elaborate_lval_net_bit_();
+	// this covers only the tails that hook never saw.
+      if (!need_const_idx && !reg->darray_type()
+	  && (use_sel == index_component_t::SEL_PART
+	      || use_sel == index_component_t::SEL_IDX_UP
+	      || use_sel == index_component_t::SEL_IDX_DO)
+	  && packed_base_needs_expr_(des, scope, reg)) {
+	    unsigned long sel_wid = 0;
+	    NetExpr*pbase = collapse_packed_base(des, scope, this, reg,
+						 path_.back().index, sel_wid);
+	    if (pbase && sel_wid > 0) {
+		  pbase->set_line(*this);
+		  if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
+			ivl_assert(*this, reg->coerced_to_uwire());
+			report_mixed_assignment_conflict_("part select");
+			des->errors += 1;
+			delete pbase;
+			return 0;
+		  }
+		  NetAssign_*lv = new NetAssign_(reg);
+		  lv->set_part(pbase, sel_wid);
+		  return lv;
+	    }
+	    delete pbase;
       }
 
       if (use_sel == index_component_t::SEL_PART ||
@@ -2938,9 +2992,34 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 
       if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
 	    ivl_assert(*this, reg->coerced_to_uwire());
-	    report_mixed_assignment_conflict_("variable");
-	    des->errors += 1;
-	    return false;
+	      /* IEEE 1800-2017 6.5 forbids mixing continuous and
+	         procedural assignment to the same VARIABLE, and 7.2.1
+	         stores a packed structure without gaps so a member IS a
+	         part select of the containing vector. The conflict must
+	         therefore be judged over the BITS actually written --
+	         which `off'/`use_width' above already hold.
+	         This tested the whole NetNet instead, so two spellings of
+	         the SAME bits disagreed:
+	           assign s.a;   always_comb s[1:0] = x;   // accepted
+	           assign s[3:2]; always_comb s.b   = x;   // rejected
+	         Disjoint members of one struct -- the ordinary way to
+	         drive a control register from several sources -- were
+	         rejected outright. Every other l-value path here (array
+	         word, packed slice, bit select, part select) already
+	         consults test_part_driven; this was the one that did not.
+	         A run-time offset makes the written bits unknowable at
+	         elaboration, so that case stays conservative and reports,
+	         rather than silently permitting a real overlap. */
+	    if (packed_base) {
+		  report_mixed_assignment_conflict_("variable");
+		  des->errors += 1;
+		  return false;
+	    }
+	    if (reg->test_part_driven(off + use_width - 1, off)) {
+		  report_mixed_assignment_conflict_("variable");
+		  des->errors += 1;
+		  return false;
+	    }
       }
 
       {

@@ -696,7 +696,18 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 	      // evaluate_range handles the [size] form ([4] == [0:3]) and
 	      // reports unsized/queue/non-constant dimensions itself.
 	    const pform_range_t&dim = cur->second.udims->front();
-	    if (evaluate_range(des, cur->second.val_scope, &cur->second,
+	      /* The DECLARED dimension belongs to the scope that declares
+	         the parameter -- `this' -- not to val_scope. IEEE
+	         1800-2017 23.10: an override supplies a VALUE, it does not
+	         restate the declaration, so names in the declared range
+	         still resolve where the parameter was written (6.20.2).
+	         val_scope becomes the INSTANTIATING scope once the
+	         parameter is overridden, so `parameter int A[N]' in a
+	         child, overridden from a parent that has no `N', looked
+	         `N' up in the parent and failed with "Unable to bind
+	         parameter `N'". Overriding nothing, or overriding only
+	         `N', both worked -- which is why this hid for so long. */
+	    if (evaluate_range(des, this, &cur->second,
 			       dim, arr_left, arr_right)) {
 		  bounds_known = true;
 	    } else {

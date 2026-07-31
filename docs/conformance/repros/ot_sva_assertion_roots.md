@@ -1,0 +1,340 @@
+# OpenTitan assertions: measured state
+
+`-DSYNTHESIS` disables OpenTitan's assertions entirely (prim_assert.sv
+selects `prim_assert_dummy_macros.svh` for it). Every "OpenTitan clean"
+figure elsewhere in this directory is an assertions-OFF measurement of
+the RTL. This file measures with assertions ON.
+
+## Counts
+
+Compiled as `iverilog -g2012 -s<ip> -c <ip>.scr` (no `-DSYNTHESIS`),
+`lowrisc:prim_generic:all:0.1` mapping:
+
+    ip            before   after `default disable iff`
+    spi_device      11        10
+    aes              8         7
+    hmac             8         7
+    otbn            46        45
+    kmac             8         7
+    TOTAL           81        76
+
+## The error counts are mostly CASCADE
+
+A failure at module-item level stops the parser recovering for the rest
+of the module, so one bad construct produces one error per remaining
+assertion in the file. In otbn's 46, the distinct roots were four:
+
+| preprocessed line | construct | status |
+|---|---|---|
+| 42555 | `default disable iff` without parentheses | FIXED |
+| 41269, 41272 | duplicate sequence declaration (`PingSigInt_S`, `AckSigInt_S`) | root found in code, not reduced |
+| 46033, 46047 | `prim_sync_reqack` reset checks | open, NOT reduced |
+| 89599 | `within` with `##[0:$]` operands | open |
+
+Everything else in the list was a follow-on error at the tail of an
+`ASSERT_ERROR` action block -- `"SomeName_A");` -- which is the parser
+resynchronizing, not a distinct defect.
+
+## What `default disable iff` cost
+
+One root, one line of grammar, five errors across the corpus -- but the
+five were spread over five different IPs, because tlul_assert.sv is
+instantiated everywhere. Cascade means error counts are a poor proxy for
+work remaining; root counts are the useful measure.
+
+## prim_sync_reqack: reduced, but NOT to a minimal reproducer
+
+The two `SyncReqAckRstSrc` / `SyncReqAckRstDst` assertions fail with
+"Error in property_spec of concurrent assertion item" in the real file:
+
+    assert property (@(posedge clk_src_i) disable iff ((0) !== '0)
+      ($fell(rst_src_ni) |-> (!src_reset_flag throughout !dst_reset_flag[->1])))
+
+Cutting the enclosing module down to its header plus that one generate
+block (57 lines) still fails. But every hand-written reconstruction of
+that shape PASSES -- including the generate block with its local
+`logic` declarations and `always_ff` blocks, the untyped port style, the
+parenthesized `disable iff ((0) !== '0)`, the multi-line `$error` with
+`%m`, `throughout` with a goto-repetition right operand, and all of
+those combined.
+
+Delta-debugging by line deletion is not sound here: it does not respect
+`begin`/`end` nesting, so it converges on files that fail for an
+unrelated syntax reason. A structure-aware reduction, or dumping the
+parser state at the failure, is the next step -- not another guess at
+the shape.
+
+Recording this rather than leaving it implied: the construct is
+identified and the failing file is down to 57 lines, but the trigger is
+NOT yet isolated, and the four hand-built reproductions that pass are
+evidence against the obvious hypotheses.
+
+
+## duplicate sequence declaration: REDUCED
+
+CORRECTION. An earlier revision of this file said five hand-written
+reconstructions all passed and no minimal test existed. That was wrong.
+The test loop used to check them swallowed the diagnostic, so real
+failures were recorded as ACCEPTED. Re-run directly, the small case
+fails exactly as the real file does. There was never a mystery here.
+
+Minimal reproducer (8 lines), `sva_seq_generate_scope.sv`:
+
+    module top;
+      logic clk=0, p=0, n=0;
+      if (1) begin : ga
+        sequence S1; p == n [*2]; endsequence
+      end else begin : gb
+        sequence S1; p == n; endsequence
+      end
+    endmodule
+
+    error: duplicate sequence declaration `S1'.
+
+Each generate block is its own scope, so declaring `S1` in both arms of
+a conditional generate is legal -- and only one arm is ever elaborated.
+OpenTitan's prim_alert_sender does exactly this with `PingSigInt_S` and
+`AckSigInt_S` across `gen_async_assert` / `gen_sync_assert`.
+
+Root: `pform_sva_declare_sequence` (pform.cc:5069) registers into
+`sva_module_sequences`, a map keyed by NAME alone, and rejects any
+repeat. The map is cleared only at endmodule
+(`pform_sva_module_done`). Generate scope is not part of the key. The
+same holds for `sva_module_properties`, `sva_param_sequences` and
+`sva_param_properties`.
+
+Control that must keep failing: the same two declarations at MODULE
+level, with no generate, are a genuine duplicate and are correctly
+rejected today. A scope-aware key has to keep rejecting that.
+
+## Separately: an undefined sequence reference is silently inert
+
+Reduced from the same investigation, and worse than the above --
+`sva_undefined_sequence_silent.sv`:
+
+    A: assert property (@(posedge clk) NoSuchSeq_S |=> 1'b0);
+
+`NoSuchSeq_S` is never declared. This compiles with a
+"compile-progress: unresolved reference" WARNING, and the assertion
+then never fires -- `X |=> 1'b0` cannot hold under any trace, so a live
+assertion would report on every clock. It reports nothing.
+
+For a verification flow that is the dangerous shape: the testbench
+builds, the run is green, and a check the engineer believes exists does
+not. Unlike a mistyped signal there is no later symptom.
+
+## Fix design for the sequence/property scope key
+
+Not implemented -- recorded so the next step is mechanical rather than
+another investigation.
+
+Four maps in pform.cc are keyed by bare `perm_string`:
+
+    sva_module_properties   sva_module_sequences
+    sva_param_properties    sva_param_sequences
+
+Exactly 16 sites key them (the rest iterate or clear, and are
+key-agnostic):
+
+    declare   5059 5066 5073 5080 5089 5100 5109 5120
+    lookup    7159 7193 10145 12494 12495 12501 12502 12621 12737
+
+`pform_cur_generate` already tracks the enclosing generate block during
+parsing, and `pform_parent_generate()` (pform.h:595) walks outward, so
+the scope information needed is present -- it simply is not used.
+
+Minimal shape that does not disturb the map types:
+
+  * declare: qualify the key with the current generate scope, e.g.
+    `gen_async_assert::PingSigInt_S`, or the bare name at module level.
+    The duplicate check then fires only within ONE scope.
+  * lookup: try the current scope's qualified name, walk out through
+    the parent generate chain, then fall back to the bare module-level
+    name. Innermost wins, which is the ordinary shadowing rule.
+
+Two behaviours must be preserved, and both already have reproducers:
+
+  * the same name declared twice at MODULE level is a genuine duplicate
+    and must keep erroring (`sva_seq_generate_scope.sv` documents the
+    control);
+  * a reference that resolves to nothing must become an ERROR, not the
+    current silent no-op -- see `sva_undefined_sequence_silent.sv`.
+    That second one is worth doing in the same change: making lookup
+    scope-aware without making an unresolved name loud would leave the
+    more dangerous half of this in place.
+
+## Wave: silent wrong result in `throughout` over a goto repetition
+
+Found by a fan-out review, not by the OpenTitan error list -- it produces
+NO diagnostic, so it does not appear in any error count.
+
+    A: assert property (@(posedge clk) 1 throughout b[->1]);
+
+The invariant is the constant `1`, so this cannot fail under any trace.
+It reported SEVEN violations.
+
+`pform_sva_goto_repeat` records goto (`b[->m:n]`) and nonconsecutive
+(`b[=m:n]`) repetition ONLY in `rep_kind`/`rep_lo`/`rep_hi`; `delay_lo`
+and `delay_hi` stay at the plain 0/0 of the boolean being repeated.
+`sva_chain_fixed_len_` tested `delay_lo`, `delay_hi` and `rep_tail` but
+not `rep_kind`, so `b[->1]` classified as a FIXED chain of length 1.
+That routed `throughout` to the legacy fixed-length lowering, whose
+emitted steps never copy the repetition fields -- the repetition
+vanished and the property silently became the one-cycle conjunction
+`g && b`. It checks a different property than the one written, so it can
+both false-fail and false-pass.
+
+`[*m:n]` is unaffected: it expands into delays plus `rep_tail` and never
+sets `rep_kind`.
+
+The same term was added to `pform_sva_throughout`'s up-front rejection
+loop, so any future caller reaching the legacy lowering with a
+repetition step is diagnosed rather than silently dropped.
+
+Fixed-length forms are untouched and verified: `g throughout (a ##1 c)`
+still takes the legacy path and still fires when the invariant drops;
+unequal-length `intersect` is still loud.
+
+## Wave: two compiler crashes, one of them previously masked
+
+### SIGSEGV on a dropped assertion carrying a sampled-value function
+
+    A: assert property (@(posedge clk) $rose(a) |-> b and c);
+    => sorry: ... combinator as the consequent ... is dropped.
+       Segmentation fault            (exit 139)
+
+`pform_note_sampled_call` parks a raw `PECallFunction*` so an unclocked
+`$rose`/`$fell`/`$past` can be diagnosed at endmodule. When the
+assertion is dropped its expression tree is freed, the parked entry
+survives, and the endmodule flush called `p.call->get_fileline()` on the
+freed node.
+
+Two parts, both needed:
+  * the flush uses `p.loc`, the location captured BY VALUE when the call
+    was noted, and never touches the node;
+  * `sva_expr_forget_sampled_()` drops parked entries for a tree before
+    it is freed, called from `pform_sva_destroy_sequence` and
+    `sva_tree_delete_`.
+
+A destructor hook on `PECallFunction` alone would NOT have been enough:
+`~PEBinary`, `~PETernary` and `~PEUnary` are all empty (PExpr.cc), so
+`a && $rose(x)` leaks the nested call and never runs its destructor --
+that shape produced a stale WARNING rather than a crash, which is why
+the two symptoms look unrelated.
+
+### SIGABRT that the negative harness was counting as a pass
+
+`tests/negative/run_negative.sh` accepted ANY non-zero exit accompanied
+by a diagnostic. A compiler that prints `sorry` and then dies on a
+signal was therefore indistinguishable from one that rejects cleanly.
+The harness now treats exit status >= 128 as a failure.
+
+That change immediately exposed a second, pre-existing crash that had
+been passing: `generic_interface_port` reports its intended error and
+then aborts on `elab_lval.cc: assert tail_path.empty()` (exit 134). A
+member tail left over at that point means the base did not resolve to
+something with members -- normally because an earlier error already
+rejected it and elaboration continued. It now reports and fails instead
+of dying, which also preserves the diagnostics an abort would have lost.
+
+Worth stating plainly: the harness gap was mine to find earlier and I
+did not. Every negative-suite "103 passed" before this change carried an
+unknown number of masked crashes.
+
+## Wave: an undefined name in an assertion is now an error
+
+    A: assert property (@(posedge clk) NoSuchSeq_S |=> p);
+
+compiled with only
+
+    warning: Unable to bind wire/reg/memory `NoSuchSeq_S' in `top'
+             (compile-progress: unresolved reference).
+
+and the property was permanently inert. `X |=> 1'b0' cannot hold under
+any trace, yet it reported nothing across four clocks.
+
+For a verification flow this is the worst available shape: the testbench
+builds, the run is green, and a check the engineer believes exists does
+not. Unlike a mistyped signal in ordinary RTL there is no later symptom
+-- nothing downstream reads the result and notices.
+
+`PEIdent::strict_bind_` marks identifiers that came out of a concurrent
+assertion; the two give-up sites in elab_expr.cc take the error branch
+for those instead of the compile-progress warning. Marking is done in
+`sva_assign_`, `sva_assign_nb_` and `sva_if_`, which every lowered
+assertion statement passes through.
+
+### Why the compile-progress warning stays everywhere else
+
+It exists so UVM-heavy code keeps building through parameterized
+container typing losses, and 375 of 423 UVM test files depend on it --
+all via `uvm-core/src/base/uvm_comparer.svh`. `uvm-core/src` contains
+ZERO concurrent assertions, so an SVA-scoped mark provably cannot reach
+it. Measured newly-failing files elsewhere: zero across 46
+`tests/sva_nfa` and 129 SVA files under `tests/` and `ivtest/ivltests`.
+
+### Two corrections made while implementing
+
+  * Marking every reached `PEIdent` rather than only bare
+    single-component names. `NoSuchBus[0]`, `NoSuchBus2[3:0] != 0` and
+    `NoSuchStruct.fld` were all silently inert too; a fix keyed on
+    `name.size()==1 && index.empty()` would have left three live holes.
+    Pinned by `tests/negative/sva_undefined_indexed_inert.sv`.
+
+  * `sva_hist_on_stmt_` mints its own `PEIdent` for the
+    `$ivl_clocking_hist_on` bookkeeping call, so the same undefined name
+    produced a SECOND diagnostic. Marking it strict gave two errors;
+    the right answer is `quiet_bind_`, which makes a compiler-generated
+    reference stay silent because the user's own reference to that name
+    already reports. One clean error per undefined name now.
+
+### What this does NOT change
+
+`assert property (@(posedge clk) p)` where `p` is a declared named
+property errors with "Unable to bind" -- and did so identically BEFORE
+this change. That is a separate pre-existing gap, not a regression here.
+The working form, a named property carrying its own clocking event
+(`property p; @(posedge clk) a |-> b; endproperty` + `assert property
+(p)`), behaves byte-identically before and after, as do clocking-block
+members used as assertion operands. Both are pinned by
+`ivtest/ivltests/sva_clocking_member_assert.v`, which passes on the
+pre-fix compiler too -- it exists to stop the strictness drifting into
+them, not to demonstrate the fix.
+
+## Wave: named sequences and properties scoped to their generate block
+
+    if (ASYNC) begin : ga  sequence S1; x [*2]; endsequence  ... end
+    else       begin : gb  sequence S1; x;      endsequence  ... end
+    => error: duplicate sequence declaration `S1'.
+
+Each generate block is its own scope (27.3/27.6) and a conditional
+generate instantiates at most ONE alternative (27.5), so this is legal.
+prim_alert_sender writes it for PingSigInt_S and AckSigInt_S.
+
+The four pform maps are now keyed by (name, PGenerate*) instead of name
+alone, with `sva_resolve_()` walking innermost-out: the enclosing
+generate, then each outer generate, then module scope.
+
+### The declaration half alone would have been a silent wrong result
+
+Relaxing the duplicate check while leaving lookup keyed by name would
+make the eight assertions in `gen_sync_assert` splice
+`gen_async_assert`'s body -- legal-looking code silently checking a
+different property. Key and resolver therefore change together, and the
+regression proves it rather than asserting it: the two arms are given
+DIFFERENT bodies (`x[*2]` vs `x`), `x` is pulsed for exactly one cycle,
+and the test requires the sync arm to match exactly once and the async
+arm never. A fix that spliced one body into both gives two hits or
+zero, never one.
+
+### The fallback that was declined
+
+The initial design had an "unambiguous name" tail: if a name appears
+exactly once across all scopes, resolve it anyway. With it, a reference
+in arm `gb` lexically preceding gb's own declaration would miss
+(S1,&gb), miss module scope, and then splice arm `ga`'s body --
+converting today's loud duplicate error into exactly the silent wrong
+result being fixed. Out-of-scope names simply do not resolve.
+
+Measured: OpenTitan assertions 76 -> 66 (two per IP; prim_alert_sender
+is instantiated everywhere). RTL unchanged at 0.

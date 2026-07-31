@@ -518,6 +518,14 @@ extern uint64_t get_scaled_time_from_real(const Design*des,
 
 extern void collapse_partselect_pv_to_concat(Design*des, NetNet*sig);
 
+/* When true, NetAssign_::nex_output() reports only the bits a CONSTANT,
+   in-range bit/part select actually assigns, instead of claiming the
+   whole signal. OFF by default -- synthesis reads that set to decide
+   what a process drives and needs the whole-signal answer. Only the
+   always_comb sensitivity subtraction in NetBlock::nex_input() turns it
+   on, and only around its own walk. */
+extern bool nex_output_precise_partsel;
+
 /* Collapse the leading indices of a packed select into constants. With
    quiet=true a non-constant prefix simply returns false with no
    diagnostic, so the caller can fall back to collapse_packed_base(). */
@@ -530,6 +538,14 @@ extern bool evaluate_index_prefix(Design*des, NetScope*scope,
    wide (a no-op when wid <= 1). */
 extern NetExpr*scale_index_to_bits(NetExpr*idx, unsigned long wid,
 				   const LineInfo&loc);
+
+/* The declared type left after `count' of a signal's FLATTENED packed
+   dimensions (NetNet::packed_dims()) have been indexed away. Returns
+   nil when the count lands mid-way through one array level, i.e. when
+   the selection is a sub-slice rather than a whole element. Lets an
+   element select keep a declared element type -- an enum, notably --
+   that the flat dimension list alone cannot express. */
+extern ivl_type_t packed_type_after_dims(ivl_type_t base, size_t count);
 
 /* General packed-array addressing: a run-time index in ANY dimension.
    Returns the canonical bit offset of the addressed slice and sets
@@ -571,13 +587,17 @@ extern NetExpr*make_packed_offset_sum(const LineInfo*loc,
    member-relative canonical bit offset (fold it with eval_as_long for
    the all-constant case) and sel_wid the selected width in units of
    the innermost dimension. Diagnoses and returns false on an illegal
-   or unsupported index shape. */
+   or unsupported index shape; with quiet=true it returns false with no
+   diagnostic and no error count, so a caller that has another path to
+   try (collapse_packed_base) can fall back and let THAT path issue the
+   diagnostic rather than emitting two for one mistake. */
 extern bool collapse_packed_member_indices(Design*des, NetScope*scope,
 					   const LineInfo*loc,
 					   const netranges_t&pdims,
 					   const std::list<index_component_t>&indices,
 					   NetExpr*&off_expr,
-					   unsigned long&sel_wid);
+					   unsigned long&sel_wid,
+					   bool quiet = false);
 
 extern void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 				      const LineInfo*loc,

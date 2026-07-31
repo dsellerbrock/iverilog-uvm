@@ -1255,6 +1255,27 @@ NetExpr* elaborate_rval_expr(Design *des, NetScope *scope, ivl_type_t lv_net_typ
 				 expr, need_const, force_unsigned);
 }
 
+/*
+ * Does this expression need the TARGET TYPE rather than just a width?
+ *
+ * An assignment pattern always does -- it has no meaning without the
+ * type it is filling in. A conditional is an assignment-like context
+ * for both of its result expressions (IEEE 1800-2017 11.4.11), so a
+ * pattern nested in one of its arms needs the type just as much; the
+ * chain of conditionals in hmac_core.sv, whose arms are
+ * `'{data: .., mask: ..}' patterns, failed with "Unable to elaborate
+ * r-value" because only a DIRECT pattern was recognized here.
+ */
+static bool expr_needs_typed_elab_(const PExpr*expr)
+{
+      if (dynamic_cast<const PEAssignPattern*>(expr))
+	    return true;
+      if (const PETernary*ter = dynamic_cast<const PETernary*>(expr))
+	    return expr_needs_typed_elab_(ter->get_true())
+		|| expr_needs_typed_elab_(ter->get_false());
+      return false;
+}
+
 NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 			     ivl_variable_type_t lv_type, unsigned lv_width,
 			     PExpr*expr, bool need_const, bool force_unsigned)
@@ -1314,7 +1335,7 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 
 	// Special case, PEAssignPattern is context dependend on the type and
 	// always uses the typed elaboration
-      if (dynamic_cast<PEAssignPattern*>(expr))
+      if (expr_needs_typed_elab_(expr))
 	    typed_elab = true;
 
       if (lv_net_type && typed_elab) {
@@ -1467,7 +1488,7 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 	    return elaborate_expr_packed_(des, scope, parray_type->base_type(),
 					  parray_type->packed_width(),
 					  parray_type->slice_dimensions(), 0,
-					  need_const);
+					  need_const, parray_type);
       }
 
       if (auto vector_type = dynamic_cast<const netvector_t*>(ntype)) {
@@ -1694,7 +1715,8 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 						 unsigned int width,
 						 const netranges_t &dims,
 						 unsigned int cur_dim,
-						 bool need_const) const
+						 bool need_const,
+						 ivl_type_t decl_type) const
 {
       if (dims.size() <= cur_dim) {
 	    cerr << get_fileline() << ": error: scalar type is not a valid"
@@ -1762,10 +1784,27 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 	    // generic elaborate_expr() API and assigment patterns is the only
 	    // place where we need it.
 	    const auto ap = dynamic_cast<PEAssignPattern*>(pv[idx]);
-	    if (ap)
-		  expr = ap->elaborate_expr_packed_(des, scope, base_type,
-						    width, dims, cur_dim, need_const);
-	    else
+	    if (ap) {
+		    // A packed array OF A PACKED STRUCT flattens to a
+		    // dimension list that has already dissolved the
+		    // struct into a bit range, so the nested pattern was
+		    // matched against that width and
+		    // `racl_range_t [0:0] r = '{ '{base: .., limit: ..} }'
+		    // was rejected with "expects 67 element(s)". Descend
+		    // the declared type alongside the dimension list and
+		    // hand a struct element to the struct form, which is
+		    // the only one that understands member names
+		    // (IEEE 1800-2017 10.9.2).
+		  ivl_type_t sub = decl_type
+			? packed_type_after_dims(decl_type, cur_dim) : nullptr;
+		  if (auto st = dynamic_cast<const netstruct_t*>(sub))
+			expr = ap->elaborate_expr_struct_(des, scope, st,
+							  need_const);
+		  else
+			expr = ap->elaborate_expr_packed_(des, scope, base_type,
+							  width, dims, cur_dim,
+							  need_const, decl_type);
+	    } else
 		  expr = elaborate_rval_expr(des, scope, nullptr,
 					     base_type, width,
 					     pv[idx], need_const);
@@ -11677,12 +11716,32 @@ bool PEIdent::packed_base_needs_expr_(Design*des, NetScope*scope,
       if (idx.size() > net->packed_dimensions())
 	    return false;
 
-	// Only plain bit-select chains. Ranges and indexed part selects
-	// keep the existing path.
-      for (list<index_component_t>::const_iterator ic = idx.begin()
-		 ; ic != idx.end() ; ++ic) {
-	    if (ic->sel != index_component_t::SEL_BIT)
-		  return false;
+	// Only the LEADING indices have to be single values -- they
+	// select one element of an outer packed dimension. The FINAL
+	// index may be a range or an indexed part select; that is what
+	// `d[i][31:0]' and `w[sel][8*i +: 8]' are, and 11.5.2 / 7.4.6
+	// allow a run-time index in any dimension.
+	//
+	// This tested EVERY component, so a non-bit-select tail sent
+	// the whole chain back to the constant-folding path, which then
+	// rejected the run-time leading index with "A reference to a
+	// net or variable (`i') is not allowed in a constant
+	// expression". The identical shape reached through a struct
+	// member (`s.d[i][31:0]') already worked, because that path was
+	// rebuilt on the canonical packed-offset walk -- so the tail
+	// translation this needs (SEL_PART / SEL_IDX_UP / SEL_IDX_DO)
+	// already exists downstream.
+	//
+	// evaluate_index_prefix() itself only ever inspects all-but-
+	// the-final component; this loop now matches it.
+      if (idx.size() >= 2) {
+	    list<index_component_t>::const_iterator last = idx.end();
+	    --last;
+	    for (list<index_component_t>::const_iterator ic = idx.begin()
+		       ; ic != last ; ++ic) {
+		  if (ic->sel != index_component_t::SEL_BIT)
+			return false;
+	    }
       }
 
 	// If the prefix IS constant the old path handles it, and handles
@@ -12127,9 +12186,29 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       }
 
       // The width of a parameter is the width of the parameter value
-      // (as evaluated earlier).
-      if (sr.par_val != 0)
+      // (as evaluated earlier) -- unless a select CONSUMED the declared
+      // dimensions, in which case the expression is one element and has
+      // the element's width.
+      //
+      // resolve_type_() eats a netsarray_t's dimensions whole, so for
+      // `r_t [1:0] B' the single index of `B[1]' leaves use_depth == 0
+      // and the bit/part-select branch above is skipped entirely. The
+      // fall-through then reported the width of the WHOLE parameter, so
+      // a correct 64-bit element was zero-extended to 128 bits. A plain
+      // `logic [1:0][63:0]' parameter never hit this, because a
+      // netvector_t is not a netsarray_t and keeps its index unconsumed.
+      if (sr.par_val != 0) {
+	    if (type && type->packed() && use_depth == 0
+		&& !path_.back().index.empty()) {
+		  ivl_variable_type_t bt = type->base_type();
+		  expr_type_   = (bt == IVL_VT_NO_TYPE) ? IVL_VT_LOGIC : bt;
+		  expr_width_  = type->packed_width();
+		  min_width_   = expr_width_;
+		  signed_flag_ = type->get_signed();
+		  return expr_width_;
+	    }
 	    return test_width_parameter_(sr.par_val, mode);
+      }
 
       // If the identifier has a type take the information from the type
       if (type) {
@@ -12796,6 +12875,27 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				tmp->set_line(*this);
 				return tmp;
 			  }
+
+			    // A WHOLE unpacked array against an unpacked
+			    // array context (IEEE 1800-2017 7.6): equivalent
+			    // types may be assigned as a unit. have_type is
+			    // NetNet::net_type(), which for an unpacked
+			    // signal reports only the ELEMENT type -- the
+			    // dimensions live on array_type() -- so this
+			    // comparison could never succeed and a bare
+			    // `a' never matched an `a[N]'-shaped context.
+			    // Only the whole array: an indexed reference is
+			    // an element and is handled above.
+			  if (net->unpacked_dimensions() > 0
+			      && use_comp.index.empty()) {
+				if (const netarray_t*have_ua = net->array_type()) {
+				      if (want_ua->type_equivalent(have_ua)) {
+					    NetESignal*tmp = new NetESignal(net);
+					    tmp->set_line(*this);
+					    return tmp;
+				      }
+				}
+			  }
 		    }
 
 		    cerr << get_fileline() << ": error: the type of the variable '"
@@ -13065,6 +13165,15 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		       << sr.path_head << " can't have member names ("
 		       << sr.path_tail << ")." << endl;
 		  des->errors += 1;
+		    // Do NOT carry on into the parameter path. It looks
+		    // the name up by the FULL path, which no longer
+		    // names a parameter now that a member tail is
+		    // attached, and NetScope::get_parameter_line_info()
+		    // asserts rather than returning -- so reporting this
+		    // error used to abort the compiler (exit 134)
+		    // instead of failing the compile. The error is
+		    // counted; give the caller a clean failure.
+		  return 0;
 	    }
 
 	    return elaborate_expr_param_or_specparam_(des, scope, sr.par_val,
@@ -14052,7 +14161,17 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		    }
 
 		      // I cannot interpret this identifier. Error message.
-	    if (gn_system_verilog() && !(NEED_CONST & flags)
+	      // A compiler-generated bookkeeping reference stays silent:
+	      // the user's own reference to the same name reports it.
+	    if (quiet_bind_) return 0;
+
+	      // strict_bind_ marks identifiers that came out of a
+	      // concurrent assertion. The compile-progress warning keeps
+	      // UVM-heavy code building, but in an assertion it leaves a
+	      // property that compiles, never evaluates, and reports
+	      // nothing -- the check silently does not exist. Those take
+	      // the error branch.
+	    if (gn_system_verilog() && !(NEED_CONST & flags) && !strict_bind_
 		&& !unresolved_prefix_is_real_scope(des, scope, path_)) {
 		  // Compile-progress: clocking blocks, interface constructs.
 		  cerr << get_fileline() << ": warning: Unable to bind "
@@ -14211,7 +14330,14 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// not be bound (e.g. @cb, @monitor_cb). Emit warning in SV mode --
 	// unless the reference is package-scoped or its prefix names a
 	// real scope (see unresolved_prefix_is_real_scope above).
-      if (gn_system_verilog()
+	// Compiler-generated bookkeeping reference: stay silent, the
+	// user's own reference to the same name reports it.
+      if (quiet_bind_) return 0;
+
+	// strict_bind_: see the companion site above. An identifier that
+	// came out of a concurrent assertion must not degrade to a
+	// warning here either.
+      if (gn_system_verilog() && !strict_bind_
 	  && !unresolved_prefix_is_real_scope(des, scope, path_)) {
 	    cerr << get_fileline() << ": warning: Unable to bind wire/reg/memory "
 		    "`" << path_ << "' in `" << scope_path(scope) << "'"
@@ -14564,11 +14690,15 @@ NetExpr* PEIdent::elaborate_expr_param_select_multi_(Design*des,
 	    return 0;
       }
 
-      const netvector_t*par_vec = dynamic_cast<const netvector_t*>(par_type);
+	// The flattened packed-dimension list of whatever the parameter
+	// was declared as. For a netvector_t this IS packed_dims(); for
+	// a packed array of structs or enums it is the array's own
+	// dimensions followed by the element's, which is precisely what
+	// param_select_packed_() needs to scale the offset.
       netranges_t use_dims;
-      if (par_vec && par_vec->packed_dims().size() > 0) {
-	    use_dims = par_vec->packed_dims();
-      } else {
+      if (par_type)
+	    use_dims = par_type->slice_dimensions();
+      if (use_dims.empty()) {
 	      // An untyped parameter behaves as a single dimension
 	      // covering the value.
 	    use_dims.push_back(netrange_t(par_ex->value().len()-1, 0));
@@ -15289,10 +15419,19 @@ NetExpr* PEIdent::elaborate_expr_param_(Design*des,
 		  return elaborate_expr_param_array_(des, scope, par,
 						     found_in, par_type,
 						     need_const);
-	    const netvector_t*par_vec =
-		  dynamic_cast<const netvector_t*>(par_type);
-	    if ((par_vec && par_vec->packed_dims().size() > 1)
-		|| name_tail.index.size() > 1)
+	      // "More than one packed dimension" has to be asked of the
+	      // TYPE, not of netvector_t alone. `r_t [1:0]' with a packed
+	      // struct element is a netparray_t, so the cast failed, the
+	      // select fell through to the single-dimension path below,
+	      // and `B[1]' silently produced a zero of the parameter's
+	      // FULL width -- no error, no warning, wrong value. The bit
+	      // pattern was identical to `logic [1:0][63:0]', which read
+	      // correctly, so the two spellings of one value disagreed.
+	      // slice_dimensions() is the flattened packed-dimension list
+	      // for every type (and is exactly packed_dims() for a
+	      // netvector_t, so vectors keep their existing route).
+	    size_t par_pdims = par_type ? par_type->slice_dimensions().size() : 0;
+	    if (par_pdims > 1 || name_tail.index.size() > 1)
 		  return elaborate_expr_param_select_multi_(des, scope, par,
 							    found_in, par_type,
 							    need_const);
@@ -16132,7 +16271,20 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 		  NetEConst*idx_c = new NetEConst(verinum(idx));
 		  idx_c->set_line(*net);
 
-		  NetESelect*res = new NetESelect(net, idx_c, lwid);
+		    // IEEE 1800-2017 6.19.3: the element of a packed
+		    // array of enums is still of the enum type, so
+		    // `sp2v_e [7:0] sig; ... sig[0] ...' assigns to an
+		    // sp2v_e without a cast. The flat packed_dims() list
+		    // cannot say that -- it has already dissolved the
+		    // enum into its base vector -- so carry the declared
+		    // element type on the select itself. Nil for an
+		    // ordinary vector slice, which keeps its old typing.
+		  ivl_type_t etype =
+			packed_type_after_dims(net->sig()->net_type(),
+					       prefix_indices.size() + 1);
+		  NetESelect*res = etype
+			? new NetESelect(net, idx_c, lwid, etype)
+			: new NetESelect(net, idx_c, lwid);
 		  res->set_line(*net);
 		  return res;
 	    }
@@ -16228,8 +16380,18 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 						net->sig(), lwid);
 	    mux->set_line(*net);
 
-	      // Make a PART select with the canonical index
-	    NetESelect*res = new NetESelect(net, mux, lwid);
+	      // Make a PART select with the canonical index. Same
+	      // declared-element-type rule as the constant-index arm
+	      // above (6.19.3): `arr[i]' of a packed array of enums is
+	      // of the enum type whether or not `i' folds. Leaving this
+	      // arm untyped would make the legality of an assignment
+	      // depend on whether the index happened to be constant.
+	    ivl_type_t etype =
+		  packed_type_after_dims(net->sig()->net_type(),
+					 prefix_indices.size() + 1);
+	    NetESelect*res = etype
+		  ? new NetESelect(net, mux, lwid, etype)
+		  : new NetESelect(net, mux, lwid);
 	    res->set_line(*net);
 
 	    return res;
@@ -17162,6 +17324,105 @@ bool NetETernary::test_operand_compat(ivl_variable_type_t l,
  * parsed so I can presume that they exist, and call elaboration
  * methods. If any elaboration fails, then give up and return 0.
  */
+/*
+ * Type-context elaboration of a conditional. IEEE 1800-2017 11.4.11
+ * makes the conditional operator an assignment-like context for its two
+ * result expressions, so a target type has to reach BOTH arms: each is
+ * a valid place for an assignment pattern, and a pattern has no meaning
+ * without the type it is filling in.
+ *
+ * PExpr's default forwards to the WIDTH form with a width of 1, which
+ * loses the type entirely. hmac_core.sv assigns a struct from a chain
+ * of conditionals whose arms are `'{data: .., mask: ..}' patterns, and
+ * that failed with "Unable to elaborate r-value".
+ *
+ * Only the pieces that genuinely need the type are routed here; the
+ * condition is self-determined as always, and an arm that is not itself
+ * type-directed falls back through PExpr's default to the width form,
+ * exactly as before.
+ */
+NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
+				  ivl_type_t type, unsigned flags) const
+{
+      if (type == 0)
+	    return elaborate_expr(des, scope, 1u, flags);
+
+      flags &= ~SYS_TASK_ARG;
+
+      ivl_assert(*this, expr_ && tru_ && fal_);
+
+	// The condition is self-determined (11.4.11).
+      NetExpr*con = elab_and_eval(des, scope, expr_, -1, NEED_CONST & flags);
+      if (con == 0)
+	    return 0;
+      con = condition_reduce(con);
+
+	// Short-circuit on a constant condition, as the width form
+	// does -- but keep elaborating the dead arm so its errors are
+	// still reported.
+      if (const NetEConst*cv = dynamic_cast<NetEConst*>(con)) {
+	    verinum cval = cv->value();
+	    ivl_assert(*this, cval.len()==1);
+	    if (cval.get(0) == verinum::V1 || cval.get(0) == verinum::V0) {
+		  bool take_true = (cval.get(0) == verinum::V1);
+		  PExpr*live = take_true ? tru_ : fal_;
+		  PExpr*dead = take_true ? fal_ : tru_;
+		  delete dead->elaborate_expr(des, scope, type, flags);
+		  delete con;
+		  return live->elaborate_expr(des, scope, type, flags);
+	    }
+	      // An x/z condition has to blend both arms.
+      }
+
+	// Past the short circuit, both arms have to be evaluated and
+	// blended at run time. There is no run-time mux for a WHOLE
+	// unpacked array, so say so instead of building something the
+	// code generator cannot emit. A constant condition -- the usual
+	// case, and the one OpenTitan's `!CiphOpFwdOnly ? a : b' relies
+	// on -- never reaches here.
+      if (dynamic_cast<const netuarray_t*>(type)) {
+	    cerr << get_fileline() << ": sorry: a conditional with whole "
+		 << "unpacked array operands is only supported when the "
+		 << "condition is a constant." << endl;
+	    des->errors += 1;
+	    delete con;
+	    return 0;
+      }
+
+      NetExpr*tru = tru_->elaborate_expr(des, scope, type, flags);
+      if (tru == 0) { delete con; return 0; }
+
+      NetExpr*fal = fal_->elaborate_expr(des, scope, type, flags);
+      if (fal == 0) { delete con; delete tru; return 0; }
+
+      if (! NetETernary::test_operand_compat(tru->expr_type(), fal->expr_type())) {
+	    cerr << get_fileline() << ": error: Incompatible operand types "
+		 << "in the arms of a conditional expression." << endl;
+	    des->errors += 1;
+	    delete con; delete tru; delete fal;
+	    return 0;
+      }
+
+	// packed_width() is only meaningful for a packed type; it is
+	// zero or negative for a class handle, a queue, an unpacked
+	// array. Fall back to the wider arm in those cases.
+      unsigned wid = 0;
+      if (type->packed()) {
+	    long pw = type->packed_width();
+	    if (pw > 0) wid = (unsigned)pw;
+      }
+      if (wid == 0)
+	    wid = tru->expr_width() > fal->expr_width()
+			? tru->expr_width() : fal->expr_width();
+      if (wid == 0)
+	    wid = 1;
+
+      NetETernary*res = new NetETernary(con, tru, fal, wid,
+					tru->has_sign() && fal->has_sign());
+      res->set_line(*this);
+      return res;
+}
+
 NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 				  unsigned expr_wid, unsigned flags) const
 {

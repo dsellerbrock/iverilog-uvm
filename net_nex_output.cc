@@ -42,6 +42,14 @@ void NetAlloc::nex_output(NexusSet&)
 {
 }
 
+/*
+ * Off by default: NetAssign_::nex_output() claims the whole signal for a
+ * bit/part-select l-value, which is what synthesis expects. Only the
+ * always_comb sensitivity subtraction in NetBlock::nex_input() turns it
+ * on, and only around its own walk.
+ */
+bool nex_output_precise_partsel = false;
+
 void NetAssign_::nex_output(NexusSet&out)
 {
       assert(! nest_);
@@ -73,12 +81,44 @@ void NetAssign_::nex_output(NexusSet&out)
 	      // sure I don't know how to handle this yet
 	      // in synthesis, so punt for now.
 
-	      // Even with constant bit/part select, we want to
-	      // return the entire signal as an output. The
-	      // context will need to sort out which bits are
-	      // actually assigned.
-	    use_base = 0;
-	    use_wid = nex->vector_width();
+	      // By DEFAULT a bit/part select still claims the entire
+	      // signal as an output. Synthesis depends on that: it reads
+	      // this set to decide what a process drives, and narrowing
+	      // it leaves bits undriven (ivtest if_part_no_else,
+	      // inside_synth, multireg, br_gh99x all regress).
+	      //
+	      // The one caller that needs precision is the always_comb
+	      // sensitivity subtraction in NetBlock::nex_input(): it
+	      // removes the block's outputs from its inputs, so claiming
+	      // all of `st' there removes bits the block only READS.
+	      //
+	      //     always_comb begin
+	      //       tmp   = st[0] ^ 8'h0F;   // reads st (widened)
+	      //       st[1] = tmp + 8'd1;      // claimed ALL of st
+	      //     end
+	      //
+	      // left the process with an EMPTY sensitivity set, so it ran
+	      // once at time 0 and simulated a stale value thereafter.
+	      // That caller turns the flag on around its own walk.
+	      //
+	      // Even then, only a CONSTANT in-range base is narrowed: a
+	      // run-time base can land anywhere.
+	    bool narrow = false;
+	    if (nex_output_precise_partsel) {
+		  const NetEConst*base_c = dynamic_cast<const NetEConst*>(base_);
+		  if (base_c && base_c->value().is_defined()) {
+			long off = base_c->value().as_long();
+			if (off >= 0 && (unsigned long)off + use_wid
+					<= nex->vector_width()) {
+			      use_base = (unsigned)off;
+			      narrow = true;
+			}
+		  }
+	    }
+	    if (!narrow) {
+		  use_base = 0;
+		  use_wid = nex->vector_width();
+	    }
       }
       out.add(nex, use_base, use_wid);
 }
