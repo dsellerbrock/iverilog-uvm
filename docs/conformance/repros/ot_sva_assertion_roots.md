@@ -122,3 +122,43 @@ assertion would report on every clock. It reports nothing.
 For a verification flow that is the dangerous shape: the testbench
 builds, the run is green, and a check the engineer believes exists does
 not. Unlike a mistyped signal there is no later symptom.
+
+## Fix design for the sequence/property scope key
+
+Not implemented -- recorded so the next step is mechanical rather than
+another investigation.
+
+Four maps in pform.cc are keyed by bare `perm_string`:
+
+    sva_module_properties   sva_module_sequences
+    sva_param_properties    sva_param_sequences
+
+Exactly 16 sites key them (the rest iterate or clear, and are
+key-agnostic):
+
+    declare   5059 5066 5073 5080 5089 5100 5109 5120
+    lookup    7159 7193 10145 12494 12495 12501 12502 12621 12737
+
+`pform_cur_generate` already tracks the enclosing generate block during
+parsing, and `pform_parent_generate()` (pform.h:595) walks outward, so
+the scope information needed is present -- it simply is not used.
+
+Minimal shape that does not disturb the map types:
+
+  * declare: qualify the key with the current generate scope, e.g.
+    `gen_async_assert::PingSigInt_S`, or the bare name at module level.
+    The duplicate check then fires only within ONE scope.
+  * lookup: try the current scope's qualified name, walk out through
+    the parent generate chain, then fall back to the bare module-level
+    name. Innermost wins, which is the ordinary shadowing rule.
+
+Two behaviours must be preserved, and both already have reproducers:
+
+  * the same name declared twice at MODULE level is a genuine duplicate
+    and must keep erroring (`sva_seq_generate_scope.sv` documents the
+    control);
+  * a reference that resolves to nothing must become an ERROR, not the
+    current silent no-op -- see `sva_undefined_sequence_silent.sv`.
+    That second one is worth doing in the same change: making lookup
+    scope-aware without making an unresolved name loud would leave the
+    more dangerous half of this in place.
