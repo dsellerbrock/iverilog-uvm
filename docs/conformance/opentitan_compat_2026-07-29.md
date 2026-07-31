@@ -1022,9 +1022,12 @@ Four of the five IPs elaborate clean.
 
 ## Found while testing: always_comb sensitivity lost (P1, pre-existing)
 
-An `always_comb` that BOTH reads a packed-array element AND writes an
-intermediate variable stops re-triggering. The stale value simulates
-with no error and no warning.
+An `always_comb` can end up with an EMPTY sensitivity set, so it runs
+once at time 0 and never again, simulating a stale value for the rest of
+the run. The compiler DOES warn -- "always_comb process has no
+sensitivities" -- so this is a loud wrong result, not a silent one; an
+earlier draft of this note said otherwise because an error-only filter
+had hidden the warning.
 
     always_comb st[0] = seed;
     always_comb begin
@@ -1032,19 +1035,26 @@ with no error and no warning.
       st[1] = tmp + 8'd1;      // never recomputed when seed changes
     end
 
-Neither ingredient is enough alone: the same block reading a plain
-scalar instead of `st[0]` is correct, and the same element read without
-the intermediate is correct. Only the combination fails.
+Three ingredients are needed together; dropping any one is correct: a
+constant select whose sensitivity is widened to the WHOLE packed
+variable, a write to another element of that SAME variable, and an
+intermediate written and read inside the block. Reading a plain scalar
+instead of `st[0]` is correct; dropping the intermediate is correct; and
+targeting a variable outside `st` is correct.
 
 Confirmed on the pre-fix compiler with NO continuous assign anywhere, so
 it is independent of the uwire work above -- it surfaced only because
 the first draft of that regression happened to use an intermediate.
 Reproducer: `docs/conformance/repros/always_comb_temp_packed_sens.sv`.
 
-The "sorry: constant selects in always_* processes are not fully
-supported (the process will be sensitive to all bits in ...)" note
-points at the select handling: that fallback widens sensitivity to the
-whole packed variable, which the process also WRITES, and the
-self-write exclusion for always_comb (9.2.2.4) then appears to remove it
-entirely. This is the next defect to fix -- it is a silent wrong result,
-the top of the priority order.
+The widening is the root. `NetESelect::nex_input` (net_nex_input.cc
+~188) cannot express "sensitive to st[0] only" -- the bit/part-select
+sensitivity path is written but disabled behind `#if 0`, pending
+`PEventStatement::elaborate_st` support -- so it falls back to the whole
+variable, which this process also writes. With `rem_out=true` for
+always_comb the set then comes out empty, and elaborate_st keeps only
+the implicit T0 trigger.
+
+This is the next defect to take: incorrect observable semantics, and the
+fix has a clear shape (enable bit/part-select sensitivity, which needs
+the event-expression side to carry a range).

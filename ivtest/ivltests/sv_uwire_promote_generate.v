@@ -26,8 +26,9 @@ module sv_uwire_promote_generate;
   // element 0 continuously, elements 1..N procedurally from a generate
   assign st[0] = seed;
   for (genvar r = 0; r < N; r++) begin : gen_round
-    // Deliberately no intermediate variable: an always_comb that both
-    // reads a packed element and writes a temp loses its sensitivity
+    // Deliberately no intermediate variable: an always_comb that reads
+    // a packed element, writes another element of the same variable,
+    // AND writes an intermediate ends up with an empty sensitivity set
     // (a separate, pre-existing defect -- see
     // docs/conformance/repros/always_comb_temp_packed_sens.sv). Keeping
     // it out of this test keeps this test about the uwire promotion.
