@@ -14796,13 +14796,32 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
 		  des->errors += 1;
 		  return 0;
 	    }
-	    const netvector_t*elem_vec =
-		  dynamic_cast<const netvector_t*>(elem_type);
+	      /* The element's packed dimensions have to come from the
+		 array parameter's DECLARED element type. They used to
+		 come from the type get_parameter() infers for the
+		 individual element constant, which is a single flat
+		 vector -- so a multi-dimensional packed element such as
+		 `logic [1:0][5:0]' collapsed to ONE dimension and
+		 `P[1][1]' read bit 1 instead of the upper 6-bit
+		 element. Exit 0, no diagnostic, and the identical plain
+		 variable answered correctly: a silent wrong result, and
+		 the same shape the ledger records for G14.
+
+		 par_type is the element type (see the note where xwid is
+		 computed), and slice_dimensions() walks the real type,
+		 so an enum or packed struct element reports its own one
+		 flat range and is unaffected. */
 	    netranges_t elem_dims;
-	    if (elem_vec && elem_vec->packed_dims().size() > 0)
-		  elem_dims = elem_vec->packed_dims();
-	    else
-		  elem_dims.push_back(netrange_t(elem_c->value().len()-1, 0));
+	    if (par_type)
+		  elem_dims = par_type->slice_dimensions();
+	    if (elem_dims.empty()) {
+		  const netvector_t*elem_vec =
+			dynamic_cast<const netvector_t*>(elem_type);
+		  if (elem_vec && elem_vec->packed_dims().size() > 0)
+			elem_dims = elem_vec->packed_dims();
+		  else
+			elem_dims.push_back(netrange_t(elem_c->value().len()-1, 0));
+	    }
 
 	    std::list<index_component_t> tail_indices (
 		  std::next(name_tail.index.begin()), name_tail.index.end());
