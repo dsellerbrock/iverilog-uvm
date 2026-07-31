@@ -1296,13 +1296,17 @@ static void draw_darray_pop(ivl_expr_t expr)
 		          fb, ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
 		  return;
 	    }
+	      /* A pop with nothing to pop from. The zero used to be a
+		 warning: the queue was left untouched and the caller
+		 got a fabricated value. Fail instead. */
 	    if (!warned_non_signal_pop) {
-		  fprintf(stderr, "Warning: %s requires signal, got expr type %d;"
-			  " emitting zero fallback"
-			  " (further similar warnings suppressed)\n",
+		  fprintf(stderr, "error: %s requires a signal operand, got "
+			  "expression kind %d (further occurrences are not "
+			  "reported).\n",
 			  ivl_expr_name(expr), ivl_expr_type(arg));
 		  warned_non_signal_pop = 1;
 	    }
+	    vvp_errors += 1;
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;"
 		    " ; pop fallback\n", ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
 	    return;
@@ -1361,12 +1365,17 @@ static int draw_assoc_traversal_vec4(ivl_expr_t expr)
 
       if ((ivl_expr_type(key) != IVL_EX_SIGNAL && ivl_expr_type(key) != IVL_EX_ARRAY)
           || !(key_sig = ivl_expr_signal(key))) {
+	      /* first/last/next/prev with no key variable to write back
+		 to. The zero return said "no more elements", which ends
+		 the caller's traversal early and silently. */
 	    if (!warned_bad_key) {
 		  fprintf(stderr,
-		          "Warning: assoc traversal methods require a signal key lvalue;"
-		          " emitting zero fallback (further similar warnings suppressed)\n");
+		          "error: an associative-array traversal method requires "
+		          "a signal as its key argument (further occurrences are "
+		          "not reported).\n");
 		  warned_bad_key = 1;
 	    }
+	    vvp_errors += 1;
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", wid);
 	    return 1;
       }
@@ -2532,13 +2541,19 @@ void draw_eval_vec4(ivl_expr_t expr)
 
       // Compile-progress fallback: Some UVM expressions may have unresolved
       // types from macro expansions. Emit a zero vec4.
+      //
+      // ...which is a silent wrong result: the compile SUCCEEDS and the
+      // simulation reads zero where the expression's value belonged. It
+      // was worse than it looks -- IVL_VT_NO_TYPE was excluded from the
+      // warning entirely, so that case substituted a zero with no output
+      // at all. It is an error now. Message suppression is kept (one per
+      // value type, so a template instantiated a thousand times does not
+      // print a thousand lines) but every occurrence counts, because the
+      // compile must not produce an executable either way.
       if (ivl_expr_value(expr) != IVL_VT_BOOL &&
           ivl_expr_value(expr) != IVL_VT_VECTOR) {
 	    int vt = ivl_expr_value(expr);
 	    int should_warn = 1;
-	    if (vt == IVL_VT_NO_TYPE) {
-		  should_warn = 0;
-	    }
 	    if (vt >= 0 && vt < (int)(sizeof warned_unexpected_vec4_type)) {
 		  if (warned_unexpected_vec4_type[vt]) {
 			should_warn = 0;
@@ -2552,10 +2567,12 @@ void draw_eval_vec4(ivl_expr_t expr)
 	    }
 
 	    if (should_warn) {
-		  fprintf(stderr, "%s:%u: Warning: Unexpected type %d in vec4 context; treating as zero"
-			  " (suppressing further similar warnings)\n",
+		  fprintf(stderr, "%s:%u: error: a value of type %d cannot be "
+			  "used in a vector context (further occurrences of "
+			  "this type are not reported).\n",
 			  ivl_expr_file(expr), ivl_expr_lineno(expr), vt);
 		    }
+		    vvp_errors += 1;
 		    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u; ; zero fallback\n",
 			    ivl_expr_width(expr));
 		    return;
@@ -2614,9 +2631,20 @@ void draw_eval_vec4(ivl_expr_t expr)
 	    return;
 
 	  default:
-	    fprintf(stderr, "%s:%u: Warning: unsupported VEC4 expression (%d); emitting zero fallback\n",
+	      /* No case for this expression kind. Substituting a zero
+		 and letting the compile succeed is a silent wrong
+		 result: the simulation runs and reads zero where the
+		 expression's value belonged. IVL_EX_ARRAY_PATTERN used
+		 to arrive here from `q <= '{...}' and did exactly that
+		 (see PAssignNB::elaborate, which now lowers it). The
+		 zero is still emitted so the rest of code generation
+		 stays well-formed, but the error count makes the
+		 compile fail. */
+	    fprintf(stderr, "%s:%u: error: this expression (kind %d) cannot be "
+		            "evaluated in a vector context.\n",
 	                    ivl_expr_file(expr), ivl_expr_lineno(expr),
 	                    ivl_expr_type(expr));
+	    vvp_errors += 1;
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u; ; vec4 fallback\n",
 	                    ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
 	    return;

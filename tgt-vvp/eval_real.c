@@ -385,13 +385,16 @@ static void real_ex_pop(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%qpop/o/%s/real;\n", fb);
 		  return;
 	    }
+	      /* The real-valued twin of the vec4 pop fallback: a pop with
+		 nothing to pop from used to warn and hand back 0.0. */
 	    if (!warned_non_signal_pop) {
-		  fprintf(stderr, "Warning: %s requires signal, got expr type %d;"
-			  " emitting zero fallback"
-			  " (further similar warnings suppressed)\n",
+		  fprintf(stderr, "error: %s requires a signal operand, got "
+			  "expression kind %d (further occurrences are not "
+			  "reported).\n",
 			  ivl_expr_name(expr), ivl_expr_type(arg));
 		  warned_non_signal_pop = 1;
 	    }
+	    vvp_errors += 1;
 	    fprintf(vvp_out, "    %%pushi/real 0, 0;\n");
 	    return;
       }

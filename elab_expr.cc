@@ -1958,12 +1958,23 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
       return neconcat;
 }
 
+/*
+ * The width-driven overload: an assignment pattern reached a context
+ * that supplies no type to shape it against (a system-task argument,
+ * an `if' condition, a $size() operand...).
+ *
+ * This was a warning and a null return, and nothing counted an error.
+ * Callers that simply propagate the null then DROP the construct and
+ * the compile succeeds: `$display("%p", '{1,2})' printed nothing and
+ * exited 0. A dropped argument, or a dropped statement, is a silent
+ * wrong result. Count it.
+ */
 NetExpr* PEAssignPattern::elaborate_expr(Design*des, NetScope*, unsigned, unsigned) const
 {
-      cerr << get_fileline() << ": warning: "
-	   << "Cannot elaborate assignment pattern in this context"
-	   << " (compile-progress: assignment ignored)." << endl;
-      (void)des;
+      cerr << get_fileline() << ": error: "
+	   << "An assignment pattern needs a context that gives it a type; "
+	   << "there is none here." << endl;
+      des->errors += 1;
       return 0;
 }
 

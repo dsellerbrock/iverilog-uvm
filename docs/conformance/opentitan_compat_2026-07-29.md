@@ -1201,11 +1201,44 @@ the same assignment), and `tests/negative/sv_uarray_nb_pattern_evctl.sv`
 (pre-fix exit 134, which the crash-aware negative runner scores as a
 failure, not a rejection).
 
-### Still open: the zero fallback itself
+### The zero fallbacks, and what removing them found
 
-`draw_eval_vec4()`'s `default:` arm remains a warning plus a zero. Any
-expression kind that reaches it produces a program that runs and
-computes the wrong value. `IVL_EX_ARRAY_PATTERN` was one such kind and
-is now routed away from it, but the arm is a general silent-wrong-result
-generator and should be a hard error. Not changed here: that is a
-separate change with its own blast radius to measure.
+`draw_eval_vec4()`'s `default:` arm was a warning plus a zero, and it
+was not alone. Five sites across the code generator answered "I do not
+handle this" by emitting a zero and letting the compile SUCCEED:
+
+  * `eval_vec4.c` -- unknown expression KIND (this is the one
+    `IVL_EX_ARRAY_PATTERN` reached);
+  * `eval_vec4.c` -- unknown value TYPE in a vector context, which
+    skipped the warning entirely for `IVL_VT_NO_TYPE`, so that case
+    substituted a zero with no output at all;
+  * `eval_vec4.c` / `eval_real.c` -- `$pop_front`/`$pop_back` on a
+    non-signal operand;
+  * `eval_vec4.c` -- an associative traversal method (`first`/`next`/
+    ...) whose key argument is not a signal, where the fabricated zero
+    reads as "no more elements" and ends the caller's loop early.
+
+A sixth sat in elaboration: `PEAssignPattern::elaborate_expr`'s
+width-driven overload warned, returned null, and counted NO error, so
+callers that propagate the null dropped the construct.
+`$display("%p", '{1,2})` compiled, ran, and printed nothing.
+
+All six now count an error. Regressions:
+`tests/negative/sv_assign_pattern_no_context.sv`,
+`tests/negative/sv_vec4_bad_value_type.sv`, and
+`tests/negative/sv_cond_unelaborable.sv` -- each of which the previous
+compiler built and RAN, printing "FAILED -- should not have compiled".
+
+### Still open: the `if` condition fallback
+
+`PCondit::elaborate` still ASSUMES A CONDITION FALSE when it fails to
+elaborate, deleting the then-branch and compiling the else-branch in its
+place. The in-tree note says it must become a hard error once its two
+UVM dependents elaborate. They do not yet: removing it fails the entire
+229-test UVM suite at exactly the two lines the note names,
+`uvm_comparer.svh:638` (nested associative index plus member access) and
+`uvm_driver.svh:100` (`seq_item_port.size<1`, an unparenthesized
+method-result compare). Those two expression forms are the work that
+unblocks it. Measured, not assumed -- an earlier scan of the fork's
+suite missed this because it compiled the test files without
+`uvm_pkg.sv`, so the library was never elaborated.
