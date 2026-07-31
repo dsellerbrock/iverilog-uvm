@@ -1467,7 +1467,7 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 	    return elaborate_expr_packed_(des, scope, parray_type->base_type(),
 					  parray_type->packed_width(),
 					  parray_type->slice_dimensions(), 0,
-					  need_const);
+					  need_const, parray_type);
       }
 
       if (auto vector_type = dynamic_cast<const netvector_t*>(ntype)) {
@@ -1694,7 +1694,8 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 						 unsigned int width,
 						 const netranges_t &dims,
 						 unsigned int cur_dim,
-						 bool need_const) const
+						 bool need_const,
+						 ivl_type_t decl_type) const
 {
       if (dims.size() <= cur_dim) {
 	    cerr << get_fileline() << ": error: scalar type is not a valid"
@@ -1762,10 +1763,27 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
 	    // generic elaborate_expr() API and assigment patterns is the only
 	    // place where we need it.
 	    const auto ap = dynamic_cast<PEAssignPattern*>(pv[idx]);
-	    if (ap)
-		  expr = ap->elaborate_expr_packed_(des, scope, base_type,
-						    width, dims, cur_dim, need_const);
-	    else
+	    if (ap) {
+		    // A packed array OF A PACKED STRUCT flattens to a
+		    // dimension list that has already dissolved the
+		    // struct into a bit range, so the nested pattern was
+		    // matched against that width and
+		    // `racl_range_t [0:0] r = '{ '{base: .., limit: ..} }'
+		    // was rejected with "expects 67 element(s)". Descend
+		    // the declared type alongside the dimension list and
+		    // hand a struct element to the struct form, which is
+		    // the only one that understands member names
+		    // (IEEE 1800-2017 10.9.2).
+		  ivl_type_t sub = decl_type
+			? packed_type_after_dims(decl_type, cur_dim) : nullptr;
+		  if (auto st = dynamic_cast<const netstruct_t*>(sub))
+			expr = ap->elaborate_expr_struct_(des, scope, st,
+							  need_const);
+		  else
+			expr = ap->elaborate_expr_packed_(des, scope, base_type,
+							  width, dims, cur_dim,
+							  need_const, decl_type);
+	    } else
 		  expr = elaborate_rval_expr(des, scope, nullptr,
 					     base_type, width,
 					     pv[idx], need_const);
@@ -12147,9 +12165,29 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       }
 
       // The width of a parameter is the width of the parameter value
-      // (as evaluated earlier).
-      if (sr.par_val != 0)
+      // (as evaluated earlier) -- unless a select CONSUMED the declared
+      // dimensions, in which case the expression is one element and has
+      // the element's width.
+      //
+      // resolve_type_() eats a netsarray_t's dimensions whole, so for
+      // `r_t [1:0] B' the single index of `B[1]' leaves use_depth == 0
+      // and the bit/part-select branch above is skipped entirely. The
+      // fall-through then reported the width of the WHOLE parameter, so
+      // a correct 64-bit element was zero-extended to 128 bits. A plain
+      // `logic [1:0][63:0]' parameter never hit this, because a
+      // netvector_t is not a netsarray_t and keeps its index unconsumed.
+      if (sr.par_val != 0) {
+	    if (type && type->packed() && use_depth == 0
+		&& !path_.back().index.empty()) {
+		  ivl_variable_type_t bt = type->base_type();
+		  expr_type_   = (bt == IVL_VT_NO_TYPE) ? IVL_VT_LOGIC : bt;
+		  expr_width_  = type->packed_width();
+		  min_width_   = expr_width_;
+		  signed_flag_ = type->get_signed();
+		  return expr_width_;
+	    }
 	    return test_width_parameter_(sr.par_val, mode);
+      }
 
       // If the identifier has a type take the information from the type
       if (type) {
@@ -13085,6 +13123,15 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		       << sr.path_head << " can't have member names ("
 		       << sr.path_tail << ")." << endl;
 		  des->errors += 1;
+		    // Do NOT carry on into the parameter path. It looks
+		    // the name up by the FULL path, which no longer
+		    // names a parameter now that a member tail is
+		    // attached, and NetScope::get_parameter_line_info()
+		    // asserts rather than returning -- so reporting this
+		    // error used to abort the compiler (exit 134)
+		    // instead of failing the compile. The error is
+		    // counted; give the caller a clean failure.
+		  return 0;
 	    }
 
 	    return elaborate_expr_param_or_specparam_(des, scope, sr.par_val,
@@ -14584,11 +14631,15 @@ NetExpr* PEIdent::elaborate_expr_param_select_multi_(Design*des,
 	    return 0;
       }
 
-      const netvector_t*par_vec = dynamic_cast<const netvector_t*>(par_type);
+	// The flattened packed-dimension list of whatever the parameter
+	// was declared as. For a netvector_t this IS packed_dims(); for
+	// a packed array of structs or enums it is the array's own
+	// dimensions followed by the element's, which is precisely what
+	// param_select_packed_() needs to scale the offset.
       netranges_t use_dims;
-      if (par_vec && par_vec->packed_dims().size() > 0) {
-	    use_dims = par_vec->packed_dims();
-      } else {
+      if (par_type)
+	    use_dims = par_type->slice_dimensions();
+      if (use_dims.empty()) {
 	      // An untyped parameter behaves as a single dimension
 	      // covering the value.
 	    use_dims.push_back(netrange_t(par_ex->value().len()-1, 0));
@@ -15309,10 +15360,19 @@ NetExpr* PEIdent::elaborate_expr_param_(Design*des,
 		  return elaborate_expr_param_array_(des, scope, par,
 						     found_in, par_type,
 						     need_const);
-	    const netvector_t*par_vec =
-		  dynamic_cast<const netvector_t*>(par_type);
-	    if ((par_vec && par_vec->packed_dims().size() > 1)
-		|| name_tail.index.size() > 1)
+	      // "More than one packed dimension" has to be asked of the
+	      // TYPE, not of netvector_t alone. `r_t [1:0]' with a packed
+	      // struct element is a netparray_t, so the cast failed, the
+	      // select fell through to the single-dimension path below,
+	      // and `B[1]' silently produced a zero of the parameter's
+	      // FULL width -- no error, no warning, wrong value. The bit
+	      // pattern was identical to `logic [1:0][63:0]', which read
+	      // correctly, so the two spellings of one value disagreed.
+	      // slice_dimensions() is the flattened packed-dimension list
+	      // for every type (and is exactly packed_dims() for a
+	      // netvector_t, so vectors keep their existing route).
+	    size_t par_pdims = par_type ? par_type->slice_dimensions().size() : 0;
+	    if (par_pdims > 1 || name_tail.index.size() > 1)
 		  return elaborate_expr_param_select_multi_(des, scope, par,
 							    found_in, par_type,
 							    need_const);

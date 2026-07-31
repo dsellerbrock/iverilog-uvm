@@ -610,6 +610,54 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 
       bool found = symbol_search(li, des, search_scope, path.name, lexical_pos,
 				 res, search_scope, prefix_scope);
+
+	// IEEE 1800-2017 26.6: a package may re-export a name it
+	// imported, and the name is then reachable through the
+	// EXPORTING package -- `export inner::D;' in `outer' makes
+	// `outer::D' legal even though D is declared in `inner'.
+	//
+	// The exports were recorded at parse time (PPackage::exports)
+	// and never consulted again, so the qualified lookup only ever
+	// saw `outer's own declarations and the reference failed to
+	// bind. Retry it in the package the name is exported FROM.
+	//
+	// The exports list is the gate: a plain `import inner::D;'
+	// without the matching export does NOT make `outer::D' legal,
+	// so consulting the import map alone would over-accept.
+      if (!found && path.package && !path.name.empty()) {
+	    perm_string want = path.name.front().name;
+	    for (std::vector<PPackage::export_t>::const_iterator ex
+		       = path.package->exports.begin()
+		       ; ex != path.package->exports.end() ; ++ex) {
+		    // A NAMED export (`export inner::D;') only covers
+		    // that one name.
+		  if (!ex->name.nil() && ex->name != want)
+			continue;
+
+		  PPackage*src = ex->pkg;
+		  if (!src) {
+			  // `export *::*': whatever this package
+			  // imported under that name, if anything.
+			auto imp = path.package->explicit_imports.find(want);
+			if (imp == path.package->explicit_imports.end())
+			      continue;
+			src = imp->second;
+		  }
+		  if (src == path.package)
+			continue;
+
+		  NetScope*src_scope = des->find_package(src->pscope_name());
+		  if (!src_scope)
+			continue;
+
+		  if (symbol_search(li, des, src_scope, path.name,
+				    lexical_pos, res, src_scope, true)) {
+			found = true;
+			break;
+		  }
+	    }
+      }
+
       if (use_cache && found)
 	    symbol_search_cache_[cache_key] = *res;
       return found;

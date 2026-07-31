@@ -1260,3 +1260,5 @@ sv_uparam_dim_decl_scope normal,-g2012 ivltests sv_uparam_dim_decl_scope
 sv_nb_uarray_copy normal,-g2012 ivltests
 sv_packed_runtime_idx_part normal,-g2012 ivltests
 sv_enum_packed_array_sel normal,-g2012 ivltests
+sv_pkg_export_resolve normal,-g2012 ivltests
+sv_packed_struct_array_pattern normal,-g2012 ivltests

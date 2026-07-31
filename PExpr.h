@@ -239,12 +239,17 @@ class PEAssignPattern : public PExpr {
 			       std::vector<PExpr*>&out) const;
       PExpr* replication() const { return replication_; }
     private:
+	// decl_type is the DECLARED type the dims were flattened from,
+	// carried along so a nested pattern can be matched against the
+	// real element type (a packed struct, say) instead of against a
+	// bit count. Nil keeps the pure dimension-list behaviour.
       NetExpr* elaborate_expr_packed_(Design *des, NetScope *scope,
 				      ivl_variable_type_t base_type,
 				      unsigned int width,
 				      const netranges_t &dims,
 				      unsigned int cur_dim,
-				      bool need_const) const;
+				      bool need_const,
+				      ivl_type_t decl_type = nullptr) const;
       NetExpr* elaborate_expr_struct_(Design *des, NetScope *scope,
 				      const netstruct_t *struct_type,
 				      bool need_const) const;

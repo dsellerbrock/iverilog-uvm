@@ -728,17 +728,133 @@ OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
 ### Still open
 
   * `otbn` (4): a variable driven continuously on one packed element and
-    procedurally on others is rejected, but ONLY when generate nesting
-    puts the procedural driver first. `prim_subst_perm.sv` drives
+    procedurally on OTHER elements is rejected whenever the procedural
+    driver sits inside a GENERATE block. `prim_subst_perm.sv` drives
     `data_state[0]` with a continuous assign and `data_state[r+1]` from
-    an always_comb inside a conditional generate nested in a loop
-    generate. The var->uwire promotion in `elab_net.cc` gives up on
-    `sig->peek_lref() != 0`, a whole-signal flag; the bit-accurate
-    disjointness test only exists on the continuous side
-    (`lref_mask_` / `test_part_driven`). Reproducer:
-    `docs/conformance/repros/ot_uwire_promote_order.sv` -- the same
-    design without the conditional generate is accepted, so the
-    rejection tracks elaboration order rather than semantics.
+    an always_comb in a generate loop. The var->uwire promotion in
+    `elab_net.cc` gives up on `sig->peek_lref() != 0`, a whole-signal
+    count with no bit information, and a generate block's processes
+    register their l-values before the module-level continuous assign is
+    elaborated. The bit-accurate disjointness test exists only on the
+    continuous side (`lref_mask_` / `test_part_driven`). Reproducer:
+    `docs/conformance/repros/ot_uwire_promote_order.sv` -- written
+    without the generate, in either textual order, the identical design
+    is accepted, so the rejection tracks elaboration order rather than
+    semantics.
   * `spi_device` (4): package parameter binding in an instance context,
     and packed-array assignment patterns.
   * `hmac` (1): assignment pattern inside a nested conditional r-value.
+
+## Wave: name resolution and packed-struct element typing
+
+Four defects, ordered by severity.
+
+### P1 -- silent wrong result: element select on a packed-struct-array parameter
+
+    typedef struct packed { logic [31:0] base; logic [31:0] limit; } r_t;
+    localparam logic [1:0][63:0] A = 128'h00000001_00000002_00000003_00000004;
+    localparam r_t [1:0]         B = 128'h00000001_00000002_00000003_00000004;
+    // A[1] -> 0000000100000002   (correct)
+    // B[1] -> 00000000000000000000000000000000   (WRONG, and 128 bits wide)
+
+Identical bits, two declared spellings, different answers -- with no
+error and no warning. `elaborate_expr_param_or_specparam_` asked "does
+this have more than one packed dimension?" by casting `par_type` to
+`netvector_t`; `r_t [1:0]` is a `netparray_t`, the cast failed, and a
+single index fell through to the single-dimension path. The test now
+asks the TYPE via `slice_dimensions()`, which is exactly `packed_dims()`
+for a netvector_t (so vectors keep their existing route) and is the
+flattened dimension list for any other packed type.
+
+`elaborate_expr_param_select_multi_` had the same netvector_t-only
+assumption when building its dimension list, and took the same fix.
+
+A second layer sat on top: with the value corrected, the result was
+still zero-extended to the parameter's full width. `resolve_type_()`
+consumes a `netsarray_t`'s dimensions whole, so the single index of
+`B[1]` left `use_depth == 0`, the bit/part-select branch of
+`PEIdent::test_width` was skipped, and the fall-through reported the
+width of the WHOLE parameter. A `netvector_t` never hit this because it
+is not a `netsarray_t` and keeps its index unconsumed. `test_width` now
+takes the element's width when a select consumed the declared
+dimensions.
+
+Reproducer: `docs/conformance/repros/ot_param_struct_elem_select.sv`.
+
+### P2 -- compiler abort while reporting a diagnostic
+
+`P.base`, where P is a parameter of packed-struct type, printed
+"Parameter name P can't have member names (base)." and then ABORTED
+(exit 134) in `NetScope::get_parameter_line_info`, which asserts rather
+than returning when the key is not a parameter. The error path fell
+through into the parameter-elaboration path, which looks the name up by
+the full path -- and the full path no longer names a parameter once a
+member tail is attached. The diagnostic now returns cleanly; the error
+is already counted.
+
+(Member access ON a parameter remains unimplemented. It is now a clean
+error rather than a crash.)
+
+### P4 -- package `export` was never consulted
+
+    package outer;
+      import inner::D;
+      export inner::D;      // IEEE 1800-2017 26.6
+    endpackage
+    module m #(parameter int P = outer::D) ...;   // "Unable to bind parameter"
+
+`PPackage::exports` was recorded at parse time and never read, so a
+qualified reference only ever saw the exporting package's own
+declarations. `symbol_search` now retries a failed package-qualified
+lookup in the package the name is exported FROM. The exports list is the
+gate: a plain `import` without a matching export does NOT make the name
+reachable, so consulting the import map alone would over-accept --
+`tests/negative/sv_pkg_import_without_export.sv` pins that.
+
+This is how OpenTitan's spi_device reaches
+`spi_device_pkg::SramMailboxDepth`, which `spi_device_pkg` re-exports
+from `spi_device_reg_pkg`.
+
+### P4 -- assignment pattern onto a packed array of packed structs
+
+    racl_range_t [0:0] R = '{ '{ base: .., limit: .., policy_sel: .. } };
+    // "Packed array assignment pattern expects 67 element(s)"
+
+The declared type flattens to a dimension list that has already
+dissolved the struct into a bit range, so the nested pattern was matched
+against that width and the member names had nowhere to bind.
+`elaborate_expr_packed_` now carries the declared type alongside the
+dimension list and hands a struct element to the struct form.
+
+Note this fix alone would have converted a loud error into a SILENT
+WRONG RESULT for parameters -- the pattern folded correctly but reading
+`P[0]` back returned zeros -- which is why the P1 fix above is part of
+the same change and not deferred.
+
+### Measured effect
+
+OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
+
+    ip           start   prev   now
+    spi_device      4      4      5*
+    aes            24      4      4
+    hmac           25      1      1
+    otbn            6      4      4
+    kmac            0      0      0
+    TOTAL          64     13     14*
+
+  * spi_device's original four are GONE. Fixing them let elaboration
+    reach line 1632, which surfaces a DIFFERENT, previously unreachable
+    defect (below). Net progress; the count is not comparable term by
+    term.
+
+### Newly reachable
+
+  * `spi_device.sv:1632` -- a nested named assignment pattern onto a
+    struct MEMBER is accepted procedurally but rejected through a
+    continuous assign: the net-side l-value resolves the member to a
+    flat vector, so the pattern is matched against a bit count and the
+    nested patterns then hit "scalar type is not a valid context".
+    Reproducer: `docs/conformance/repros/ot_net_member_nested_pattern.sv`.
+    The procedural/continuous split is the discriminator -- the same
+    pattern, the same target type.
