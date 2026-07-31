@@ -1271,3 +1271,4 @@ sv_uarray_const_ternary normal,-g2012 ivltests
 sv_default_disable_iff normal,-g2012 ivltests
 sva_throughout_goto_repeat normal,-g2012 ivltests
 sva_clocking_member_assert normal,-g2012 ivltests
+sva_seq_generate_scope normal,-g2012 ivltests

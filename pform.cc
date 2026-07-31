@@ -5016,8 +5016,38 @@ Statement* pform_make_clocking_drive(const struct vlltype&loc,
  * legacy VPI stubs).
  */
 
-static std::map<perm_string, sva_property_t*> sva_module_properties;
-static std::map<perm_string, std::vector<sva_seq_step_t>*> sva_module_sequences;
+/* Named sequences and properties are scoped to the GENERATE BLOCK that
+   declares them, not to the module (IEEE 1800-2017 27.3/27.6: a
+   generate block is a hierarchical scope; 27.5: a conditional generate
+   instantiates at most ONE of its alternatives).
+ 
+   Keying these maps by name alone made
+ 
+       if (ASYNC) begin : ga  sequence S1; ... endsequence  ... end
+       else       begin : gb  sequence S1; ... endsequence  ... end
+ 
+   a `duplicate sequence declaration' even though the two arms are
+   disjoint scopes and only one is ever elaborated -- which is exactly
+   what OpenTitan's prim_alert_sender writes for PingSigInt_S and
+   AckSigInt_S.
+ 
+   The scope half matters as much as the duplicate half: with lookup
+   still keyed by name, the eight assertions in `gen_sync_assert' would
+   splice `gen_async_assert''s body. That is a silent wrong result, so
+   the key and the resolver change together. */
+struct sva_scoped_name_t {
+      perm_string name;
+      const PGenerate*gen;   // nullptr == module scope
+
+      bool operator< (const sva_scoped_name_t&that) const
+      {
+	    if (name != that.name) return name < that.name;
+	    return gen < that.gen;
+      }
+};
+
+static std::map<sva_scoped_name_t, sva_property_t*> sva_module_properties;
+static std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*> sva_module_sequences;
 static PExpr* sva_default_disable = nullptr;
 static unsigned sva_gensym_counter = 0;
 
@@ -5033,8 +5063,51 @@ struct sva_param_prop_t {
       std::vector<perm_string> formals;
       sva_property_t* body = nullptr;
 };
-static std::map<perm_string, sva_param_seq_t> sva_param_sequences;
-static std::map<perm_string, sva_param_prop_t> sva_param_properties;
+static std::map<sva_scoped_name_t, sva_param_seq_t> sva_param_sequences;
+static std::map<sva_scoped_name_t, sva_param_prop_t> sva_param_properties;
+
+/* The key a declaration made HERE gets: the innermost enclosing
+   generate block, or nullptr at module scope. */
+static sva_scoped_name_t sva_decl_key_(perm_string nm)
+{
+      sva_scoped_name_t k;
+      k.name = nm;
+      k.gen  = pform_cur_generate;
+      return k;
+}
+
+/* Resolve a reference from the CURRENT scope outward: the innermost
+   enclosing generate first, then each enclosing generate, then module
+   scope. An inner declaration shadows an outer one of the same name
+   (23.9), and a name declared in a sibling generate arm is correctly
+   NOT visible.
+ 
+   Returns m.end() when the name is not in scope. There is deliberately
+   no unambiguous-name fallback: with one, a reference in arm `gb' that
+   lexically precedes gb's own declaration would miss (S1,&gb), miss
+   module scope, and then splice arm `ga''s body -- turning today's
+   loud duplicate error into a silent wrong result. */
+template <class MAP>
+static typename MAP::iterator sva_resolve_(MAP&m, perm_string nm)
+{
+      for (const PGenerate*g = pform_cur_generate ; ; ) {
+	    sva_scoped_name_t k;
+	    k.name = nm;
+	    k.gen  = g;
+	    typename MAP::iterator it = m.find(k);
+	    if (it != m.end()) return it;
+	    if (!g) break;
+	    const LexicalScope*up = g->parent_scope();
+	    g = dynamic_cast<const PGenerate*>(up);
+      }
+      return m.end();
+}
+
+template <class MAP>
+static bool sva_in_scope_(MAP&m, perm_string nm)
+{
+      return sva_resolve_(m, nm) != m.end();
+}
 
 void pform_sva_set_default_disable(PExpr*expr)
 {
@@ -5056,28 +5129,28 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 				sva_property_t*prop)
 {
       perm_string use_name = lex_strings.make(name);
-      if (sva_module_properties.count(use_name)) {
+      if (sva_module_properties.count(sva_decl_key_(use_name))) {
 	    cerr << loc << ": error: duplicate property declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
 	    pform_sva_destroy_property(prop);
 	    return;
       }
-      sva_module_properties[use_name] = prop;
+      sva_module_properties[sva_decl_key_(use_name)] = prop;
 }
 
 void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 				std::vector<sva_seq_step_t>*steps)
 {
       perm_string use_name = lex_strings.make(name);
-      if (sva_module_sequences.count(use_name)) {
+      if (sva_module_sequences.count(sva_decl_key_(use_name))) {
 	    cerr << loc << ": error: duplicate sequence declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
 	    pform_sva_destroy_sequence(steps);
 	    return;
       }
-      sva_module_sequences[use_name] = steps;
+      sva_module_sequences[sva_decl_key_(use_name)] = steps;
 }
 
 /* M9D: parameterized named property/sequence declarations. */
@@ -5086,7 +5159,8 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 				  sva_property_t*prop)
 {
       perm_string use_name = lex_strings.make(name);
-      if (sva_param_properties.count(use_name) || sva_module_properties.count(use_name)) {
+      if (sva_param_properties.count(sva_decl_key_(use_name))
+	  || sva_module_properties.count(sva_decl_key_(use_name))) {
 	    cerr << loc << ": error: duplicate property declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
@@ -5097,7 +5171,7 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
       sva_param_prop_t rec;
       if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
       rec.body = prop;
-      sva_param_properties[use_name] = rec;
+      sva_param_properties[sva_decl_key_(use_name)] = rec;
       delete formals;
 }
 
@@ -5106,7 +5180,8 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 				  std::vector<sva_seq_step_t>*steps)
 {
       perm_string use_name = lex_strings.make(name);
-      if (sva_param_sequences.count(use_name) || sva_module_sequences.count(use_name)) {
+      if (sva_param_sequences.count(sva_decl_key_(use_name))
+	  || sva_module_sequences.count(sva_decl_key_(use_name))) {
 	    cerr << loc << ": error: duplicate sequence declaration `"
 		 << use_name << "'." << endl;
 	    error_count += 1;
@@ -5117,25 +5192,25 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
       sva_param_seq_t rec;
       if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
       rec.body = steps;
-      sva_param_sequences[use_name] = rec;
+      sva_param_sequences[sva_decl_key_(use_name)] = rec;
       delete formals;
 }
 
 void pform_sva_module_done(void)
 {
-      for (std::map<perm_string, sva_property_t*>::iterator it =
+      for (std::map<sva_scoped_name_t, sva_property_t*>::iterator it =
 		sva_module_properties.begin() ;
 	   it != sva_module_properties.end() ; ++it)
 	    pform_sva_destroy_property(it->second);
-      for (std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator it =
+      for (std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
 		sva_module_sequences.begin() ;
 	   it != sva_module_sequences.end() ; ++it)
 	    pform_sva_destroy_sequence(it->second);
-      for (std::map<perm_string, sva_param_seq_t>::iterator it =
+      for (std::map<sva_scoped_name_t, sva_param_seq_t>::iterator it =
 		sva_param_sequences.begin() ;
 	   it != sva_param_sequences.end() ; ++it)
 	    pform_sva_destroy_sequence(it->second.body);
-      for (std::map<perm_string, sva_param_prop_t>::iterator it =
+      for (std::map<sva_scoped_name_t, sva_param_prop_t>::iterator it =
 		sva_param_properties.begin() ;
 	   it != sva_param_properties.end() ; ++it)
 	    pform_sva_destroy_property(it->second.body);
@@ -7285,8 +7360,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>(steps[i].expr)) {
 		  if (!cf->path().package && cf->path().name.size() == 1) {
 			perm_string nm = peek_tail_name(cf->path().name);
-			std::map<perm_string, sva_param_seq_t>::iterator pit =
-			      sva_param_sequences.find(nm);
+			std::map<sva_scoped_name_t, sva_param_seq_t>::iterator pit =
+			      sva_resolve_(sva_param_sequences, nm);
 			if (pit != sva_param_sequences.end() && pit->second.body) {
 			      std::vector<sva_seq_step_t>*inst =
 				    sva_instantiate_seq_(loc, nm, pit->second,
@@ -7319,8 +7394,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  i += 1;
 		  continue;
 	    }
-	    std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator seq_it =
-		  sva_module_sequences.find(id->path().name.front().name);
+	    std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator seq_it =
+		  sva_resolve_(sva_module_sequences, id->path().name.front().name);
 	    if (seq_it == sva_module_sequences.end() || !seq_it->second) {
 		  i += 1;
 		  continue;
@@ -7337,7 +7412,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  }
 		  if (!cp) {
 			cerr << loc << ": error: sequence `"
-			     << seq_it->first << "' was already "
+			     << seq_it->first.name << "' was already "
 			     << "instantiated and its body cannot be "
 			     << "copied; declare it separately for each "
 			     << "use." << endl;
@@ -10301,8 +10376,8 @@ static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
 				      perm_string seqname, perm_string method,
 				      bool&failed)
 {
-      std::map<perm_string, std::vector<sva_seq_step_t>*>::iterator it =
-	    sva_module_sequences.find(seqname);
+      std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
+	    sva_resolve_(sva_module_sequences, seqname);
       if (it == sva_module_sequences.end() || !it->second)
 	    return nullptr;
 
@@ -12652,15 +12727,15 @@ static bool sva_prop_is_named_ref_(const sva_property_t*prop)
 		|| !id->path().name.front().index.empty())
 		  return false;
 	    perm_string nm = id->path().name.front().name;
-	    return sva_module_properties.count(nm)
-		|| sva_module_sequences.count(nm);
+	    return sva_in_scope_(sva_module_properties, nm)
+		|| sva_in_scope_(sva_module_sequences, nm);
       }
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
 	    if (cf->path().package || cf->path().name.size() != 1)
 		  return false;
 	    perm_string nm = peek_tail_name(cf->path().name);
-	    return sva_param_properties.count(nm)
-		|| sva_param_sequences.count(nm);
+	    return sva_in_scope_(sva_param_properties, nm)
+		|| sva_in_scope_(sva_param_sequences, nm);
       }
       return false;
 }
@@ -12778,8 +12853,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (PEIdent*id = dynamic_cast<PEIdent*>((*prop->seq)[0].expr)) {
 		  if (!id->path().package && id->path().name.size() == 1
 		      && id->path().name.front().index.empty()) {
-			std::map<perm_string, sva_property_t*>::iterator pit =
-			      sva_module_properties.find(id->path().name.front().name);
+			std::map<sva_scoped_name_t, sva_property_t*>::iterator pit =
+			      sva_resolve_(sva_module_properties, id->path().name.front().name);
 			if (pit != sva_module_properties.end() && !pit->second) {
 			        /* The declaration existed but was consumed by a
 			           prior instantiation of a shape we cannot clone
@@ -12894,8 +12969,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>((*prop->seq)[0].expr)) {
 		  if (!cf->path().package && cf->path().name.size() == 1) {
 			perm_string nm = peek_tail_name(cf->path().name);
-			std::map<perm_string, sva_param_prop_t>::iterator pit =
-			      sva_param_properties.find(nm);
+			std::map<sva_scoped_name_t, sva_param_prop_t>::iterator pit =
+			      sva_resolve_(sva_param_properties, nm);
 			if (pit != sva_param_properties.end() && pit->second.body) {
 			      sva_property_t*decl = pit->second.body;
 			      bool fatal = false;

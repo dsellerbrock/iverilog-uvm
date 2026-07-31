@@ -300,3 +300,41 @@ members used as assertion operands. Both are pinned by
 `ivtest/ivltests/sva_clocking_member_assert.v`, which passes on the
 pre-fix compiler too -- it exists to stop the strictness drifting into
 them, not to demonstrate the fix.
+
+## Wave: named sequences and properties scoped to their generate block
+
+    if (ASYNC) begin : ga  sequence S1; x [*2]; endsequence  ... end
+    else       begin : gb  sequence S1; x;      endsequence  ... end
+    => error: duplicate sequence declaration `S1'.
+
+Each generate block is its own scope (27.3/27.6) and a conditional
+generate instantiates at most ONE alternative (27.5), so this is legal.
+prim_alert_sender writes it for PingSigInt_S and AckSigInt_S.
+
+The four pform maps are now keyed by (name, PGenerate*) instead of name
+alone, with `sva_resolve_()` walking innermost-out: the enclosing
+generate, then each outer generate, then module scope.
+
+### The declaration half alone would have been a silent wrong result
+
+Relaxing the duplicate check while leaving lookup keyed by name would
+make the eight assertions in `gen_sync_assert` splice
+`gen_async_assert`'s body -- legal-looking code silently checking a
+different property. Key and resolver therefore change together, and the
+regression proves it rather than asserting it: the two arms are given
+DIFFERENT bodies (`x[*2]` vs `x`), `x` is pulsed for exactly one cycle,
+and the test requires the sync arm to match exactly once and the async
+arm never. A fix that spliced one body into both gives two hits or
+zero, never one.
+
+### The fallback that was declined
+
+The initial design had an "unambiguous name" tail: if a name appears
+exactly once across all scopes, resolve it anyway. With it, a reference
+in arm `gb` lexically preceding gb's own declaration would miss
+(S1,&gb), miss module scope, and then splice arm `ga`'s body --
+converting today's loud duplicate error into exactly the silent wrong
+result being fixed. Out-of-scope names simply do not resolve.
+
+Measured: OpenTitan assertions 76 -> 66 (two per IP; prim_alert_sender
+is instantiated everywhere). RTL unchanged at 0.
