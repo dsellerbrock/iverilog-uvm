@@ -58,6 +58,7 @@ NetAssign_::NetAssign_(NetNet*s)
 {
       lwid_ = sig_->vector_width();
       sig_->incr_lref();
+      sig_->register_lref(this);
       more = 0;
       signed_ = false;
       turn_sig_to_wire_on_release_ = false;
@@ -66,6 +67,7 @@ NetAssign_::NetAssign_(NetNet*s)
 NetAssign_::~NetAssign_()
 {
       if (sig_) {
+	    sig_->unregister_lref(this);
 	    sig_->decr_lref();
 	    if (turn_sig_to_wire_on_release_ && sig_->peek_lref() == 0)
 		  sig_->type(NetNet::WIRE);

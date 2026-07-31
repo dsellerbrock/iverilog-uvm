@@ -578,31 +578,27 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       // If this is SystemVerilog and the variable is not yet
       // assigned by anything, then convert it to an unresolved
       // wire.
-      if (gn_var_can_be_uwire() && var_allowed_in_sv
-	  && (sig->type() == NetNet::REG)
-	  && (sig->peek_lref() == 0) ) {
-	    sig->type(NetNet::UNRESOLVED_WIRE);
-      }
-
-      // Don't allow registers as assign l-values.
-      if (sig->type() == NetNet::REG) {
-	    cerr << get_fileline() << ": error: Variable '" << sig->name()
-	         << "' cannot be driven by a ";
-	    if (var_allowed_in_sv) cerr << "continuous assignment/module";
-	    else cerr << "primitive";
-	    if (gn_var_can_be_uwire()) {
-		  cerr << " or continuous assignment with non-default strength." << endl;
-	    } else {
-		  cerr << "." << endl;
-		  if (var_allowed_in_sv) {
-			cerr << get_fileline() << ":      : "
-			     << "This is allowed when SystemVerilog is enabled."
-			     << endl;
-		  }
-	    }
-	    des->errors += 1;
-	    return nullptr;
-      }
+      //
+      // The var->uwire promotion and the "can't drive a variable" error
+      // used to live HERE, before the l-value's bit range is known, and
+      // gave up whenever peek_lref() was non-zero -- a whole-signal
+      // count of behavioural l-values with no bit information. A
+      // generate block's processes register their l-values before a
+      // module-level continuous assign is elaborated, so
+      //
+      //     assign data_state[0] = data_i;
+      //     for (genvar r = 0; r < N; r++)
+      //       always_comb data_state[r+1] = ...;
+      //
+      // was rejected even though the two drivers touch DIFFERENT
+      // elements, which IEEE 1800-2017 6.5 permits -- and the identical
+      // design written without the generate, in either textual order,
+      // was accepted. The decision tracked elaboration order rather
+      // than semantics.
+      //
+      // Both steps now happen below, once midx/lidx are final, where
+      // the question can be asked about the bits actually driven.
+      // Nothing between here and there reads sig->type().
 
       // Some parts below need the tail component. This is a convenient
       // reference to it.
@@ -1072,6 +1068,40 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       }
 
       unsigned subnet_wid = midx-lidx+1;
+
+	/* Now that the driven bits are known, decide whether this
+	   variable can become an unresolved wire (see the note where
+	   this test used to live). A behavioural l-value only blocks the
+	   promotion if it can actually reach one of THESE bits;
+	   test_part_procedurally_driven() answers true for anything it
+	   cannot pin down, so an overlap is never missed. */
+      if (gn_var_can_be_uwire() && var_allowed_in_sv
+	  && (sig->type() == NetNet::REG)
+	  && (sig->peek_lref() == 0
+	      || !sig->test_part_procedurally_driven(midx, lidx,
+						     widx_flag ? widx : 0))) {
+	    sig->type(NetNet::UNRESOLVED_WIRE);
+      }
+
+	/* Don't allow registers as assign l-values. */
+      if (sig->type() == NetNet::REG) {
+	    cerr << get_fileline() << ": error: Variable '" << sig->name()
+	         << "' cannot be driven by a ";
+	    if (var_allowed_in_sv) cerr << "continuous assignment/module";
+	    else cerr << "primitive";
+	    if (gn_var_can_be_uwire()) {
+		  cerr << " or continuous assignment with non-default strength." << endl;
+	    } else {
+		  cerr << "." << endl;
+		  if (var_allowed_in_sv) {
+			cerr << get_fileline() << ":      : "
+			     << "This is allowed when SystemVerilog is enabled."
+			     << endl;
+		  }
+	    }
+	    des->errors += 1;
+	    return nullptr;
+      }
 
 	/* Check if the l-value bits are double-driven. */
 

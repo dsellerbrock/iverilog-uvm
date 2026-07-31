@@ -911,6 +911,81 @@ void NetNet::decr_lref()
       lref_count_ -= 1;
 }
 
+void NetNet::register_lref(NetAssign_*obj)
+{
+      lref_objs_.push_back(obj);
+}
+
+void NetNet::unregister_lref(NetAssign_*obj)
+{
+      for (std::vector<NetAssign_*>::iterator cur = lref_objs_.begin()
+		 ; cur != lref_objs_.end() ; ++cur) {
+	    if (*cur == obj) {
+		  lref_objs_.erase(cur);
+		  return;
+	    }
+      }
+}
+
+/*
+ * Does any BEHAVIOURAL l-value on this signal reach a bit of the
+ * canonical range [lsb..msb] in word widx?
+ *
+ * lref_count_ answers only "are there any at all", which is not enough
+ * to tell a real conflict from a continuous assign and an always block
+ * driving DIFFERENT elements of one packed array -- legal under IEEE
+ * 1800-2017 6.5, which prohibits mixing drivers on the same BITS.
+ *
+ * The ranges are read here rather than recorded at construction time
+ * because NetAssign_::set_part() runs after the constructor; asking
+ * late is what makes the answer independent of elaboration order.
+ *
+ * Every uncertainty answers true: no part select means the l-value
+ * covers the whole signal, a run-time base could land anywhere, and an
+ * unpacked word index we cannot pin down might be this word.
+ */
+bool NetNet::test_part_procedurally_driven(unsigned msb, unsigned lsb,
+					   int widx) const
+{
+      for (std::vector<NetAssign_*>::const_iterator cur = lref_objs_.begin()
+		 ; cur != lref_objs_.end() ; ++cur) {
+	    const NetAssign_*lv = *cur;
+	    if (!lv) continue;
+
+	      // An unpacked word index we cannot evaluate: assume it
+	      // could be the word being asked about.
+	    if (const NetExpr*w = lv->word()) {
+		  const NetEConst*wc = dynamic_cast<const NetEConst*>(w);
+		  if (!wc || !wc->value().is_defined())
+			return true;
+		  if (wc->value().as_long() != (long)widx)
+			continue;
+	    }
+
+	    const NetExpr*base = lv->get_base();
+	    if (base == 0)
+		    // No part select: the whole signal.
+		  return true;
+
+	    const NetEConst*bc = dynamic_cast<const NetEConst*>(base);
+	    if (!bc || !bc->value().is_defined())
+		    // Run-time offset: could be anywhere.
+		  return true;
+
+	    long off = bc->value().as_long();
+	    long wid = (long)lv->lwidth();
+	    if (wid <= 0)
+		  return true;
+
+	    long l_lo = off;
+	    long l_hi = off + wid - 1;
+	    if (l_hi >= (long)lsb && l_lo <= (long)msb)
+		  return true;
+      }
+
+      return false;
+}
+
 unsigned NetNet::get_refs() const
 {
       return lref_count_ + eref_count_;

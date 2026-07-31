@@ -949,3 +949,102 @@ Three of the five IPs elaborate clean.
     be a guess. The current behaviour is a loud rejection, which is the
     safe side of that uncertainty. Resolving it needs an LRM reading, or
     a decision to accept it as an extension, before any code changes.
+
+## Wave: var->uwire promotion made bit-accurate
+
+    assign data_state[0] = data_i;
+    for (genvar r = 0; r < N; r++)
+      always_comb data_state[r+1] = f(data_state[r]);
+
+was rejected with "Variable 'data_state' cannot be driven by a
+continuous assignment". The two drivers touch DIFFERENT elements of one
+packed array, which IEEE 1800-2017 6.5 permits -- the prohibition is on
+mixing drivers on the same BITS. Written WITHOUT the generate, in either
+textual order, the identical design was accepted, so the decision
+tracked elaboration order rather than semantics. (An earlier note in
+this document blamed conditional generate nesting; that was wrong. A
+plain generate loop is enough, and the conditional is irrelevant.)
+
+The var->uwire promotion in `elaborate_lnet_common_` ran BEFORE the
+l-value's bit range was known and gave up whenever `peek_lref()` was
+non-zero -- a whole-signal count of behavioural l-values carrying no bit
+information. A generate block's processes register their l-values before
+a module-level continuous assign is elaborated, so the count was already
+non-zero by the time the assign asked.
+
+Fix, in two parts:
+
+  * `NetNet` now keeps the `NetAssign_` objects that target it
+    (`lref_objs_`), alongside the existing count, and answers
+    `test_part_procedurally_driven(msb, lsb, widx)`. The ranges are read
+    LAZILY, at query time, because `NetAssign_::set_part()` runs after
+    the constructor -- asking late is what makes the answer independent
+    of elaboration order. Every uncertainty answers true: an l-value
+    with no part select covers the whole signal, a run-time base could
+    land anywhere, and an unpacked word index that will not fold might
+    be the word in question.
+  * The promotion and the "cannot be driven" error moved down to where
+    `midx`/`lidx` are final, just above the existing double-drive check.
+    Nothing between the old and new sites reads `sig->type()`.
+
+Regression `ivtest/ivltests/sv_uwire_promote_generate.v` checks VALUES:
+the chained rounds only come out right if each element is driven by the
+driver that owns it. Four negative tests pin the conflicts that must
+STILL be rejected -- same element, run-time index, whole signal, and
+overlapping part selects -- because before this change every generate
+mixed drive was rejected by accident, and only the last of those four
+was rejected for the right reason.
+
+### Measured effect
+
+OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
+
+    ip           start   now
+    spi_device      4      0
+    aes            24      4
+    hmac           25      0
+    otbn            6      0
+    kmac            0      0
+    TOTAL          64      4
+
+Four of the five IPs elaborate clean.
+
+### Remaining
+
+  * `aes` (4) -- a conditional whose two arms are WHOLE UNPACKED ARRAYS
+    (`!CiphOpFwdOnly ? key_dec_q : prd_clearing_key_i`, both
+    `logic [7:0][31:0] x [NumShares]`). Still deliberately NOT
+    implemented: IEEE 1800-2017 11.4.11 enumerates the conditional's
+    operand types and unpacked aggregates are not among them, so
+    accepting it would be a guess. A loud rejection is the safe side of
+    that uncertainty. This needs an LRM reading, or an explicit decision
+    to support it as an extension, before any code changes.
+
+## Found while testing: always_comb sensitivity lost (P1, pre-existing)
+
+An `always_comb` that BOTH reads a packed-array element AND writes an
+intermediate variable stops re-triggering. The stale value simulates
+with no error and no warning.
+
+    always_comb st[0] = seed;
+    always_comb begin
+      tmp   = st[0] ^ 8'h0F;
+      st[1] = tmp + 8'd1;      // never recomputed when seed changes
+    end
+
+Neither ingredient is enough alone: the same block reading a plain
+scalar instead of `st[0]` is correct, and the same element read without
+the intermediate is correct. Only the combination fails.
+
+Confirmed on the pre-fix compiler with NO continuous assign anywhere, so
+it is independent of the uwire work above -- it surfaced only because
+the first draft of that regression happened to use an intermediate.
+Reproducer: `docs/conformance/repros/always_comb_temp_packed_sens.sv`.
+
+The "sorry: constant selects in always_* processes are not fully
+supported (the process will be sensitive to all bits in ...)" note
+points at the select handling: that fallback widens sensitivity to the
+whole packed variable, which the process also WRITES, and the
+self-write exclusion for always_comb (9.2.2.4) then appears to remove it
+entirely. This is the next defect to fix -- it is a silent wrong result,
+the top of the priority order.

@@ -1265,3 +1265,4 @@ sv_packed_struct_array_pattern normal,-g2012 ivltests
 sv_net_member_nested_pattern normal,-g2012 ivltests
 sv_ternary_pattern_type_ctx normal,-g2012 ivltests
 sv_ternary_typed_aggregates normal,-g2012 ivltests
+sv_uwire_promote_generate normal,-g2012 ivltests
