@@ -196,10 +196,38 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
 	    fprintf(vvp_out, "    %%store/str v%p_0;\n", port);
 	    break;
 	  case IVL_VT_DARRAY:
+	      /* IEEE 1800-2017 13.5.1: a non-`ref' argument is passed BY
+		 VALUE, and a dynamic array or queue is a value container
+		 (7.4, 7.5) -- not a handle like a class, which is a
+		 reference and is deliberately left aliasing above.
+
+		 The eval pass pushed the caller's container and this
+		 stored it straight into the formal, so formal and actual
+		 were the SAME object: a callee writing its own input
+		 formal wrote through to the caller. `f(q)' with a callee
+		 doing `m[0] = 32'hff' left the caller's q[0] at ff, at
+		 exit 0 with no diagnostic.
+
+		 Copy exactly the way plain assignment already does --
+		 %dup/obj, %store/obj, %pop/obj. %dup/obj deep-copies
+		 (of_DUP_OBJ calls src.duplicate(); the aliasing variant
+		 is a separate opcode, %dup/obj/ref). The pop matters:
+		 %store/obj pops ONE object, so storing the duplicate
+		 would strand the original on the object stack and the
+		 runtime's CLEANUP-leak check would fire.
+
+		 A `ref' formal must alias and never gets here -- both
+		 passes return early on IVL_SIP_REF. */
+	    fprintf(vvp_out, "    %%dup/obj; pass by value (IEEE 13.5.1)\n");
 	    fprintf(vvp_out, "    %%store/obj%s v%p_0;\n",
 		    fixed_array_open_actual_(actual) ? "/open" : "", port);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    break;
 	  case IVL_VT_QUEUE:
+	    fprintf(vvp_out, "    %%dup/obj; pass by value (IEEE 13.5.1)\n");
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    break;
 	  case IVL_VT_NO_TYPE:
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
 	    break;
