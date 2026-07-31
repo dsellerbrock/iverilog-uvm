@@ -2938,9 +2938,34 @@ bool PEIdent::elaborate_lval_net_packed_member_(Design*des, NetScope*scope,
 
       if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
 	    ivl_assert(*this, reg->coerced_to_uwire());
-	    report_mixed_assignment_conflict_("variable");
-	    des->errors += 1;
-	    return false;
+	      /* IEEE 1800-2017 6.5 forbids mixing continuous and
+	         procedural assignment to the same VARIABLE, and 7.2.1
+	         stores a packed structure without gaps so a member IS a
+	         part select of the containing vector. The conflict must
+	         therefore be judged over the BITS actually written --
+	         which `off'/`use_width' above already hold.
+	         This tested the whole NetNet instead, so two spellings of
+	         the SAME bits disagreed:
+	           assign s.a;   always_comb s[1:0] = x;   // accepted
+	           assign s[3:2]; always_comb s.b   = x;   // rejected
+	         Disjoint members of one struct -- the ordinary way to
+	         drive a control register from several sources -- were
+	         rejected outright. Every other l-value path here (array
+	         word, packed slice, bit select, part select) already
+	         consults test_part_driven; this was the one that did not.
+	         A run-time offset makes the written bits unknowable at
+	         elaboration, so that case stays conservative and reports,
+	         rather than silently permitting a real overlap. */
+	    if (packed_base) {
+		  report_mixed_assignment_conflict_("variable");
+		  des->errors += 1;
+		  return false;
+	    }
+	    if (reg->test_part_driven(off + use_width - 1, off)) {
+		  report_mixed_assignment_conflict_("variable");
+		  des->errors += 1;
+		  return false;
+	    }
       }
 
       {

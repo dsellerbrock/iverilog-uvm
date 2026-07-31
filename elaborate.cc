@@ -4189,7 +4189,8 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
 				       NetAssign_*lv,
 				       unsigned long count,
 				       NetNet*src_sig,
-				       const NetEProperty*src_prop)
+				       const NetEProperty*src_prop,
+				       bool nonblocking = false)
 {
       (void)des;
 
@@ -4239,8 +4240,23 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
 	    elem_rv = tmp;
       }
 
-      NetAssign*body = new NetAssign(lv, elem_rv);
-      body->set_line(loc);
+	/* The per-word assignment must keep the SCHEDULING of the
+	   assignment it came from. A non-blocking whole-array copy
+	   (`q <= d') has to land its words in the NBA region like any
+	   other non-blocking assignment; emitting blocking word
+	   assignments here would update `q' immediately and change
+	   observable behavior whenever the source is written in the
+	   same time step. */
+      NetProc*body;
+      if (nonblocking) {
+	    NetAssignNB*nb = new NetAssignNB(lv, elem_rv, 0, 0);
+	    nb->set_line(loc);
+	    body = nb;
+      } else {
+	    NetAssign*bl = new NetAssign(lv, elem_rv);
+	    bl->set_line(loc);
+	    body = bl;
+      }
 
       NetForLoop*loop = new NetForLoop(idx_sig, init_expr, cond_expr,
 				       body, step);
@@ -5167,6 +5183,47 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
 
+
+	/* Whole static-array copy, non-blocking (IEEE 1800-2017 7.6).
+	   PAssign::elaborate has this branch for `dst = src'; without
+	   the mirror here `dst <= src' -- the SAME copy, differing only
+	   in scheduling -- reached the typed r-value path, which has no
+	   whole-array representation for a word-array signal, and died
+	   with "the type of the variable 'src' doesn't match the context
+	   type". 10.4 draws no blocking/non-blocking distinction over
+	   which assignments are legal, and the compiler's acceptance of
+	   the blocking spelling proves it has the representation. */
+      if (const netuarray_t*lv_uarray =
+	  dynamic_cast<const netuarray_t*>(lv->net_type())) {
+	    if (lv->more == 0 && delay_ == 0 && event_ == 0 && count_ == 0
+		&& !lv->word()
+		&& lv_uarray->static_dimensions().size() == 1) {
+		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rval())) {
+			symbol_search_results sr;
+			bool found = symbol_search(this, des, scope, rid->path(),
+						   rid->lexical_pos(), &sr);
+			if (found && sr.net && sr.path_tail.empty()
+			    && rid->path().name.back().index.empty()
+			    && sr.net->unpacked_dimensions() == 1) {
+			      if (!uarray_copy_shapes_compatible_(
+					lv_uarray, sr.net->unpacked_count(),
+					sr.net->net_type())) {
+				    cerr << get_fileline() << ": error: "
+					 << "Unpacked array types of '"
+					 << lv->name() << "' and '" << rid->path()
+					 << "' are not assignment compatible."
+					 << endl;
+				    des->errors += 1;
+				    delete lv;
+				    return 0;
+			      }
+			      return make_uarray_copy_loop_(des, scope, *this,
+							    lv, sr.net->unpacked_count(),
+							    sr.net, 0, true);
+			}
+		  }
+	    }
+      }
 
       NetExpr*rv = elaborate_rval_(des, scope, lv->net_type(), lv->expr_type(), count_lval_width(lv));
       if (rv == 0) return 0;
