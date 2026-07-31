@@ -24,6 +24,7 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <string>
+# include  <functional>
 
 /*
  * This source file contains all the implementations of the Design
@@ -671,32 +672,72 @@ void Design::evaluate_parameters()
 /* Expand an unpacked array parameter into individual scalar parameters.
  * For  `parameter logic [3:0] UART_PERMIT [13] = '{4'b0011, ...}`
  * this creates parameters named "UART_PERMIT[0]", "UART_PERMIT[1]", etc.
+ * For N unpacked dimensions the element name carries ONE bracket per
+ * dimension, outermost first -- "PiRotate[2][3]" -- and every index is
+ * the REAL declared index, so descending ([3:0]) and non-zero-based
+ * ([1:4]) declarations name their elements the way the source does.
+ * The read side (PEIdent::elaborate_expr_param_array_) rebuilds exactly
+ * this name; the two MUST agree.
  * The original parameter gets a sentinel val so get_parameter() won't
  * try to re-evaluate it, and is_array_param remains true for indexed access.
  */
+
+/* The element-name suffix for a position vector, one bracket per
+ * unpacked dimension. `pos' is the 0-based position within each
+ * dimension counted from that dimension's FIRST-LISTED bound, which is
+ * how an assignment pattern is written; dims[k].get_msb() is that bound.
+ * Shared by the write side here and mirrored on the read side. */
+static string array_param_elem_suffix(const netranges_t&dims,
+				      const std::vector<long>&pos)
+{
+      string s;
+      for (size_t k = 0 ; k < pos.size() ; k += 1) {
+	    long idx;
+	    if (k < dims.size()) {
+		  long l = dims[k].get_msb();
+		  long r = dims[k].get_lsb();
+		  idx = (l <= r) ? l + pos[k] : l - pos[k];
+	    } else {
+		  idx = pos[k];
+	    }
+	    char buf[64];
+	    snprintf(buf, sizeof(buf), "[%ld]", idx);
+	    s += buf;
+      }
+      return s;
+}
+
 void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 {
+	/* The element parameters created below each infer their own type
+	   from their own expression, but the ARRAY parameter itself keeps
+	   whatever type the declaration gave it, and nothing fills that in
+	   later. Without a declared element type it stays null and t-dll
+	   asserts on it (`No type for parameter A in scope top?', then
+	   `Assertion cur_pit->second.ivl_type failed'). Refuse instead of
+	   aborting. */
+      if (cur->second.ivl_type == nullptr && cur->second.val_type == nullptr) {
+	    cerr << cur->second.get_fileline() << ": sorry: "
+		 << "Unpacked array parameter '" << cur->first
+		 << "' has no declared element type; an explicit type is "
+		 << "required." << endl;
+	    des->errors += 1;
+	    cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
+	    cur->second.val_expr = nullptr;
+	    return;
+      }
+
 	// Evaluate the declared unpacked bounds first: '{e0, e1, ...}
 	// assigns e0 to [left], and elements are stored under their REAL
 	// indices so that a select by index finds the right element for
 	// descending ([3:0]) and non-zero-based ([1:4]) declarations
-	// alike.
-      long arr_left = 0, arr_right = 0;
+	// alike. Every unpacked dimension is evaluated, outermost first.
+      netranges_t dims;
       bool bounds_known = false;
       if (cur->second.udims && !cur->second.udims->empty()) {
-	    if (cur->second.udims->size() > 1) {
-		  cerr << cur->second.get_fileline() << ": sorry: "
-		       << "Multi-dimensional unpacked array parameter '"
-		       << cur->first << "' is not supported." << endl;
-		  des->errors += 1;
-		  cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
-		  cur->second.val_expr = nullptr;
-		  return;
-	    }
 	      // evaluate_range handles the [size] form ([4] == [0:3]) and
 	      // reports unsized/queue/non-constant dimensions itself.
-	    const pform_range_t&dim = cur->second.udims->front();
-	      /* The DECLARED dimension belongs to the scope that declares
+	      /* The DECLARED dimensions belong to the scope that declares
 	         the parameter -- `this' -- not to val_scope. IEEE
 	         1800-2017 23.10: an override supplies a VALUE, it does not
 	         restate the declaration, so names in the declared range
@@ -707,91 +748,193 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 	         `N' up in the parent and failed with "Unable to bind
 	         parameter `N'". Overriding nothing, or overriding only
 	         `N', both worked -- which is why this hid for so long. */
-	    if (evaluate_range(des, this, &cur->second,
-			       dim, arr_left, arr_right)) {
-		  bounds_known = true;
-	    } else {
+	    bool ok = true;
+	    for (std::list<pform_range_t>::const_iterator dcur
+		       = cur->second.udims->begin()
+		       ; dcur != cur->second.udims->end() ; ++dcur) {
+		  long dl = 0, dr = 0;
+		  if (! evaluate_range(des, this, &cur->second, *dcur, dl, dr)) {
+			ok = false;
+			break;
+		  }
+		  dims.push_back(netrange_t(dl, dr));
+	    }
+	    if (! ok) {
 		  cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
 		  cur->second.val_expr = nullptr;
 		  return;
 	    }
+	    bounds_known = true;
       }
-      cur->second.array_left = arr_left;
-      cur->second.array_right = arr_right;
+      cur->second.array_dims = dims;
       cur->second.array_bounds_known = bounds_known;
 
-	// Map a pattern position (0-based, left to right) to the real
-	// declared index.
-      auto pos_to_index = [&](size_t pos) -> long {
-	    if (!bounds_known)
-		  return (long)pos;
-	    return (arr_left <= arr_right) ? arr_left + (long)pos
-					   : arr_left - (long)pos;
+      const size_t ndims = dims.size();
+
+	// Total element count across all unpacked dimensions.
+      size_t total = 1;
+      for (size_t k = 0 ; k < ndims ; k += 1)
+	    total *= (size_t)dims[k].width();
+
+	// Set the sentinel and give up on this array.
+      auto give_up = [&]() {
+	    cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
+	    cur->second.val_expr = nullptr;
+      };
+
+	// Create one scalar element parameter. `expr' is the (unelaborated)
+	// source expression, or `val' an already-evaluated constant.
+      auto make_elem = [&](const string&suffix, PExpr*expr,
+			   NetExpr*val, NetScope*vscope,
+			   ivl_type_t vtype = nullptr) {
+	    string elem_str = string(cur->first.str()) + suffix;
+	    perm_string elem_name = lex_strings.make(elem_str.c_str());
+	    param_expr_t& ref = parameters[elem_name];
+	    ref.is_annotatable = false;
+	    ref.val_expr = expr;
+	    ref.val_type = nullptr;
+	    ref.val_scope = vscope;
+	    ref.local_flag = cur->second.local_flag;
+	    ref.overridable = false;
+	    ref.type_flag = false;
+	    ref.is_array_param = false;
+	    // For an unevaluated element, don't set ivl_type:
+	    // evaluate_parameter_ checks (val||ivl_type) for early exit, and
+	    // val is null until the child param is evaluated -- let
+	    // evaluate_parameter_logic_ infer the type from the expression.
+	    // For an element COPIED from an already-evaluated source, the
+	    // type has to come across with the value: nothing will infer it
+	    // later, and t-dll asserts on a parameter with no type.
+	    ref.ivl_type = vtype;
+	    ref.val = val;
+	    ref.solving = false;
+	    ref.range = nullptr;
+	    ref.set_line(cur->second);
       };
 
       PEAssignPattern* ap = dynamic_cast<PEAssignPattern*>(cur->second.val_expr);
       if (!ap) {
 	    /* If val_expr is an identifier reference (e.g. a parent's array
-	     * parameter passed through a port), look for elements "<name>[0]",
-	     * "<name>[1]", ... in val_scope and propagate them here. */
+	     * parameter passed through a port), copy the elements over from
+	     * the source array, index tuple by index tuple. */
 	    PEIdent* id = dynamic_cast<PEIdent*>(cur->second.val_expr);
 	    if (id && cur->second.val_scope) {
 		  perm_string src_name = peek_tail_name(id->path().name);
 		  NetScope* src_scope = cur->second.val_scope;
-		  // The source elements are stored under THEIR declared
-		  // indices; walk them by position using the source's
-		  // recorded bounds when available.
-		  long src_left = 0, src_right = 0;
-		  bool src_known = false;
-		  map<perm_string,param_expr_t>::const_iterator src_it =
-			src_scope->parameters.find(src_name);
-		  if (src_it != src_scope->parameters.end()
-		      && src_it->second.array_bounds_known) {
-			src_left = src_it->second.array_left;
-			src_right = src_it->second.array_right;
-			src_known = true;
+		  param_ref_t src_it = src_scope->parameters.find(src_name);
+		  if (src_it == src_scope->parameters.end()) {
+			/* Not a parameter of val_scope at all -- a
+			   package-qualified or hierarchical reference, say.
+			   Refuse loudly rather than leaving the array with
+			   no elements, which reads back as a silent x. */
+			cerr << cur->second.get_fileline() << ": sorry: "
+			     << "Array parameter '" << cur->first
+			     << "' is initialized from `" << id->path()
+			     << "', which is not an array parameter of "
+			     << scope_path(src_scope) << "." << endl;
+			des->errors += 1;
+			give_up();
+			return;
 		  }
-		  for (size_t i = 0; ; i++) {
-			long src_idx = src_known
-			      ? ((src_left <= src_right) ? src_left + (long)i
-							 : src_left - (long)i)
-			      : (long)i;
-			if (src_known
-			    && (long)i > labs(src_left - src_right))
-			      break;
-			char buf[64];
-			snprintf(buf, sizeof(buf), "[%ld]", src_idx);
-			string elem_str = string(src_name.str()) + buf;
-			perm_string elem_name = lex_strings.make(elem_str.c_str());
-			// Stop if src_scope has no more elements.
-			ivl_type_t dummy_type = 0;
-			if (!src_scope->get_parameter(des, elem_name, dummy_type))
-			      break;
-			// Create a corresponding element in this scope,
-			// under THIS declaration's real index.
-			char dbuf[64];
-			snprintf(dbuf, sizeof(dbuf), "[%ld]", pos_to_index(i));
-			string dst_str = string(cur->first.str()) + dbuf;
-			perm_string dst_name = lex_strings.make(dst_str.c_str());
-			param_expr_t& ref = parameters[dst_name];
-			ref.is_annotatable = false;
-			ref.val_expr = nullptr;
-			ref.val_type = nullptr;
-			ref.val_scope = src_scope;
-			ref.local_flag = cur->second.local_flag;
-			ref.overridable = false;
-			ref.type_flag = false;
-			ref.is_array_param = false;
-			ref.ivl_type = nullptr;
-			ref.solving = false;
-			ref.range = nullptr;
-			// Copy the already-evaluated value from the src element.
-			const NetExpr* src_val = src_scope->get_parameter(des, elem_name, dummy_type);
-			ref.val = src_val ? src_val->dup_expr() : new NetEConst(verinum(verinum::Vx, 1));
-			ref.set_line(cur->second);
+		    /* The source may not have been expanded yet: child
+		       scopes are evaluated BEFORE their parent (see
+		       NetScope::evaluate_parameters), so a parameter
+		       overridden with a parent's array arrives here with
+		       the parent's array still unexpanded. Force it. */
+		  if (! src_it->second.array_bounds_known
+		      && src_it->second.is_array_param)
+			src_scope->evaluate_parameter_(des, src_it);
+
+		  if (! src_it->second.array_bounds_known) {
+			cerr << cur->second.get_fileline() << ": sorry: "
+			     << "Array parameter '" << cur->first
+			     << "' is initialized from `" << src_name
+			     << "', whose bounds are not known." << endl;
+			des->errors += 1;
+			give_up();
+			return;
 		  }
-		  cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
-		  cur->second.val_expr = nullptr;
+		  const netranges_t&sdims = src_it->second.array_dims;
+		  if (bounds_known && sdims.size() != ndims) {
+			cerr << cur->second.get_fileline() << ": error: "
+			     << "Array parameter '" << cur->first << "' has "
+			     << ndims << " unpacked dimension(s) but is "
+			     << "initialized from `" << src_name << "', which "
+			     << "has " << sdims.size() << "." << endl;
+			des->errors += 1;
+			give_up();
+			return;
+		  }
+		  for (size_t k = 0 ; bounds_known && k < ndims ; k += 1) {
+			if (dims[k].width() != sdims[k].width()) {
+			      cerr << cur->second.get_fileline() << ": error: "
+				   << "Array parameter '" << cur->first
+				   << "' dimension " << k << " has "
+				   << dims[k].width() << " element(s) but `"
+				   << src_name << "' has " << sdims[k].width()
+				   << "." << endl;
+			      des->errors += 1;
+			      give_up();
+			      return;
+			}
+			if (dims[k] == sdims[k])
+			      continue;
+			/* Same size, different bounds. Which source element
+			   corresponds to which destination element is then
+			   NOT settled: copying by position from each side's
+			   first-listed bound and copying by distance from
+			   each side's LOW index disagree, and this compiler
+			   already picks the second for a whole-array
+			   assignment (`P = Q'). Refuse rather than pick one
+			   silently -- a wrong element here is invisible. */
+			cerr << cur->second.get_fileline() << ": sorry: "
+			     << "Array parameter '" << cur->first
+			     << "' dimension " << k << " is declared ["
+			     << dims[k].get_msb() << ":" << dims[k].get_lsb()
+			     << "] but is initialized from `" << src_name
+			     << "', whose dimension " << k << " is ["
+			     << sdims[k].get_msb() << ":"
+			     << sdims[k].get_lsb() << "]; only identical "
+			     << "bounds are supported." << endl;
+			des->errors += 1;
+			give_up();
+			return;
+		  }
+		    // Walk the position space in row-major order and copy
+		    // element by element. Both sides use their OWN declared
+		    // indices for the name, so direction and origin can
+		    // differ between source and destination.
+		  std::vector<long> pos (ndims, 0);
+		  for (size_t n = 0 ; n < total ; n += 1) {
+			ivl_type_t src_type = 0;
+			string sname = string(src_name.str())
+			      + array_param_elem_suffix(sdims, pos);
+			perm_string s_perm = lex_strings.make(sname.c_str());
+			const NetExpr* src_val =
+			      src_scope->get_parameter(des, s_perm, src_type);
+			if (! src_val) {
+			      cerr << cur->second.get_fileline() << ": error: "
+				   << "Array parameter '" << cur->first
+				   << "' is initialized from `" << src_name
+				   << "', which has no element " << sname
+				   << "." << endl;
+			      des->errors += 1;
+			      give_up();
+			      return;
+			}
+			make_elem(array_param_elem_suffix(dims, pos), nullptr,
+				  src_val->dup_expr(), src_scope,
+				  src_type ? src_type
+					   : cur->second.ivl_type);
+			  // Odometer step, last dimension fastest.
+			for (size_t k = ndims ; k-- > 0 ; ) {
+			      pos[k] += 1;
+			      if (pos[k] < (long)dims[k].width())
+				    break;
+			      pos[k] = 0;
+			}
+		  }
+		  give_up();
 		  return;
 	    }
 	    /* Fall back: warn and use X for all elements (index unknown
@@ -799,85 +942,83 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 	    cerr << cur->second.get_fileline() << ": warning: "
 		 << "Array parameter '" << cur->first
 		 << "' has non-pattern initializer; elements set to X." << endl;
-	    cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
-	    cur->second.val_expr = nullptr;
+	    give_up();
 	    return;
       }
 
-      // Build the flat list of element expressions, expanding any replication.
-      std::vector<PExpr*> elems;
-      if (ap->replication()) {
-	    // '{N{e0, e1, ...}} form: evaluate N and replicate
-	    NetExpr* count_expr = elab_and_eval(des, cur->second.val_scope,
-					        ap->replication(), -1, true);
-	    const NetEConst* count_c = dynamic_cast<const NetEConst*>(count_expr);
-	    if (!count_c) {
-		  cerr << cur->second.get_fileline() << ": error: "
-		       << "Replication count in array parameter '" << cur->first
-		       << "' is not a constant." << endl;
-		  des->errors += 1;
-		  cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
-		  cur->second.val_expr = nullptr;
+	/* Walk the nested assignment pattern, one level per unpacked
+	   dimension, creating one scalar parameter per leaf. Replication
+	   ('{N{...}}) is expanded at every level. */
+      bool failed = false;
+      std::vector<long> pos;
+      std::function<void(PExpr*)> walk = [&](PExpr*e) {
+	    if (failed) return;
+	    size_t depth = pos.size();
+	    if (bounds_known && depth == ndims) {
+		  make_elem(array_param_elem_suffix(dims, pos), e,
+			    nullptr, this);
 		  return;
 	    }
-	    long count = count_c->value().as_long();
-	    const std::vector<PExpr*>& base = ap->parms();
-	    for (long r = 0; r < count; r++)
-		  for (size_t j = 0; j < base.size(); j++)
-			elems.push_back(base[j]);
-      } else {
-	    elems = ap->parms();
-      }
-
-      ivl_type_t elem_type = cur->second.ivl_type;
-
-	// IEEE 1800-2017 10.9.1/7.6: the pattern must supply exactly one
-	// expression per element. A mismatch is an error, not a silently
-	// truncated or padded array.
-      if (bounds_known) {
-	    size_t count = (size_t)labs(arr_left - arr_right) + 1;
-	    if (elems.size() != count) {
+	    PEAssignPattern* pat = dynamic_cast<PEAssignPattern*>(e);
+	    if (! pat) {
+		  cerr << e->get_fileline() << ": error: "
+		       << "Array parameter '" << cur->first << "' dimension "
+		       << depth << " needs an assignment pattern here, not a "
+		       << "scalar expression." << endl;
+		  des->errors += 1;
+		  failed = true;
+		  return;
+	    }
+	    std::vector<PExpr*> elems;
+	    if (! pat->expand_replication_(des, cur->second.val_scope, elems)) {
+		  failed = true;
+		  return;
+	    }
+	      // IEEE 1800-2017 10.9.1/7.6: the pattern must supply exactly
+	      // one expression per element. A mismatch is an error, not a
+	      // silently truncated or padded array.
+	    if (bounds_known && elems.size() != (size_t)dims[depth].width()) {
 		  cerr << cur->second.get_fileline() << ": error: "
 		       << "Assignment pattern for array parameter '"
-		       << cur->first << "' has " << elems.size()
-		       << " element(s), but the array has " << count
-		       << "." << endl;
+		       << cur->first << "'";
+		  if (depth > 0)
+			cerr << " dimension " << depth;
+		  cerr << " has " << elems.size()
+		       << " element(s), but the array has "
+		       << dims[depth].width() << "." << endl;
 		  des->errors += 1;
-		  cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
-		  cur->second.val_expr = nullptr;
+		  failed = true;
 		  return;
 	    }
+	    for (size_t i = 0 ; i < elems.size() ; i += 1) {
+		  pos.push_back((long)i);
+		  walk(elems[i]);
+		  pos.pop_back();
+		  if (failed) return;
+	    }
+      };
+
+      if (! bounds_known) {
+	      // No udims at all: keep the historical flat behaviour, one
+	      // bracket, positions as indices.
+	    std::vector<PExpr*> elems;
+	    if (! ap->expand_replication_(des, cur->second.val_scope, elems)) {
+		  give_up();
+		  return;
+	    }
+	    for (size_t i = 0 ; i < elems.size() ; i += 1) {
+		  char buf[64];
+		  snprintf(buf, sizeof(buf), "[%zu]", i);
+		  make_elem(buf, elems[i], nullptr, this);
+	    }
+	    give_up();
+	    return;
       }
 
-      for (size_t i = 0; i < elems.size(); i++) {
-	    char buf[64];
-	    snprintf(buf, sizeof(buf), "[%ld]", pos_to_index(i));
-	    string elem_str = string(cur->first.str()) + buf;
-	    perm_string elem_name = lex_strings.make(elem_str.c_str());
-
-	    param_expr_t& ref = parameters[elem_name];
-	    ref.is_annotatable = false;
-	    ref.val_expr = elems[i];
-	    ref.val_type = nullptr;
-	    ref.val_scope = this;
-	    ref.local_flag = cur->second.local_flag;
-	    ref.overridable = false;
-	    ref.type_flag = false;
-	    ref.is_array_param = false;
-	    // Don't set ivl_type here: evaluate_parameter_ checks (val||ivl_type)
-	    // for early exit, and val is null until the child param is evaluated.
-	    // Let evaluate_parameter_logic_ infer the type from the expression.
-	    ref.ivl_type = nullptr;
-	    ref.val = nullptr;
-	    ref.solving = false;
-	    ref.range = nullptr;
-	    ref.set_line(cur->second);
-	    (void)elem_type;
-      }
+      walk(cur->second.val_expr);
 
       // Set sentinel so get_parameter() returns non-null (is_array_param stays true)
-      cur->second.val = new NetEConst(verinum(verinum::Vx, 1));
-      cur->second.val_expr = nullptr;
+      give_up();
 }
 
 void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
